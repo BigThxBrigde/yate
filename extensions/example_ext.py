@@ -1,0 +1,91 @@
+"""Example yate extension.
+
+Drops into ./extensions/ (auto-loaded at startup) or load explicitly with
+``yate --ext example_ext.py``.
+
+An extension is any module with a ``setup(api)`` function. The api exposes:
+
+* ``api.command(name, description)``           -- decorator for ``:`` commands
+* ``api.register_command(name, func, desc)``   -- imperative version
+* ``api.bind_key(spec, func, keymap=...)``     -- key binding (decorator-able)
+* ``api.register_action(name, func)``          -- named action
+* ``api.buffer`` / ``api.doc`` / ``api.workspace``
+* ``api.shell(command)`` / ``api.open_path(p)`` / ``api.save()``
+* ``api.message(text)``
+
+Note: this example registers commands with the imperative
+``api.register_command`` (which carries a fully typed signature) and looks up
+``api.bind_key`` dynamically -- its declared signature uses a bare ``Callable``
+for the callback, so a direct reference is not representable under strict
+type checking.
+"""
+
+from __future__ import annotations
+
+from typing import Callable
+
+from yate.keymaps.base import ActionContext
+from yate.services.extensions import ExtensionAPI
+from yate.services.shell import ShellResult
+
+
+def setup(api: ExtensionAPI) -> None:
+    # --- :upper -- uppercase the selection, or the whole current line
+    def upper(_args: str) -> None:
+        buf = api.buffer
+        if buf.has_selection():
+            text = buf.selected_text() or ""
+            buf.insert_text(text.upper())
+        else:
+            row = buf.row
+            buf.lines[row] = buf.lines[row].upper()
+        api.message("uppercased!")
+
+    api.register_command("upper", upper, "uppercase selection (or current line)")
+
+    # --- :lower -- the opposite
+    def lower(_args: str) -> None:
+        buf = api.buffer
+        if buf.has_selection():
+            text = buf.selected_text() or ""
+            buf.insert_text(text.lower())
+        else:
+            row = buf.row
+            buf.lines[row] = buf.lines[row].lower()
+        api.message("lowercased!")
+
+    api.register_command("lower", lower, "lowercase selection (or current line)")
+
+    # --- :words -- word count of the whole document
+    def words(_args: str) -> None:
+        count = len(api.buffer.get_text().split())
+        api.message(f"word count: {count}")
+
+    api.register_command("words", words, "count words in the document")
+
+    # --- :sh <cmd> -- run a shell command and report its output length
+    def sh(args: str) -> None:
+        if not args.strip():
+            api.message("usage: :sh <command>")
+            return
+        result = api.shell(args)
+        if isinstance(result, ShellResult):
+            lines = len(result.output.splitlines())
+            api.message(f"{args!r} exited {result.returncode} ({lines} lines of output)")
+
+    api.register_command("sh", sh, "run a shell command (usage: :sh <command>)")
+
+    # --- key binding, available in BOTH key maps
+    def _upper_key(_ctx: ActionContext) -> None:
+        upper("")
+
+    # ExtensionAPI.bind_key takes a bare Callable for its callback; fetch it
+    # dynamically at this single registration boundary.
+    bind_key: Callable[..., None] = getattr(api, "bind_key")
+    bind_key(
+        "<alt-u>",
+        _upper_key,
+        keymap="both",
+        description="uppercase selection/line (extension)",
+        category="extension",
+    )

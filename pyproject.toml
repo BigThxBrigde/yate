@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yate"
+version = "0.1.0"
+description = "yate - yet another terminal editor, built on Textual"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "textual>=8.0",
+]
+
+[project.scripts]
+yate = "yate.cli:main"
+
+[project.optional-dependencies]
+dev = ["pyright>=1.1.400"]
+
+# Type checking is performed by Pylance/pyright (the same engine the VS Code
+# Pylance extension uses under the hood). The gate is zero diagnostics in
+# strict mode across the package, the test suite and bundled extensions.
+[tool.pyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.10"
+venvPath = "."
+venv = ".venv"
+include = ["yate", "tests", "extensions"]
+exclude = ["**/__pycache__"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["yate"]
+# Non-Python files inside the package (resources/fonts/*.ttf) are included
+# in the wheel automatically by hatchling.
+
+[tool.hatch.build.targets.sdist]
+include = ["yate", "extensions", "yaterc.example"]

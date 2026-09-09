@@ -1,0 +1,59 @@
+# yaterc — yate configuration file (Python syntax, like vimrc/init.vim).
+#
+# Copy this file to one of:
+#   ~/.yate/yaterc     user configuration (loaded first)
+#   ./yaterc           project configuration (loaded second, wins on conflict)
+# or pass an explicit path with:  yate -u /path/to/yaterc
+# (`yate -u NONE` starts without loading any configuration file.)
+#
+# Everything below is plain Python: options are module-level variables,
+# invalid values are reported on the message line at startup and fall back
+# to defaults — a broken yaterc never crashes the editor.
+
+# ---------------------------------------------------------------- options
+
+# Key map: "vsc" (VS Code style, default) or "vim".
+keymap = "vsc"
+
+# Color theme: one of the built-in Catppuccin flavors
+#   mocha (default, dark) | macchiato | frappe | latte (light)
+# or the name of a custom theme registered below.
+theme = "mocha"
+
+# Indentation: spaces per tab stop (1–16) and whether the Tab key inserts
+# spaces. Applied to every new/opened buffer.
+tab_width = 4
+use_spaces = True
+
+# ------------------------------------------------------------- extensions
+#
+# Extra extension scripts to load at startup. A path string or a list of
+# paths; each entry is either a directory (all *.py inside are loaded) or a
+# single .py file exposing setup(api). "~" is expanded; relative paths
+# resolve against this yaterc file's own directory. Entries from the user
+# rc and project rc accumulate; duplicates are loaded only once.
+#
+# extensions = "~/.yate/myext.py"
+# extensions = [
+#     "~/.yate/extensions",     # directory of extension scripts
+#     "./tools/yate_exts",      # project-local directory
+#     "./extra.py",             # individual script
+# ]
+
+# ------------------------------------------------------- custom theme demo
+#
+# A theme is a yate.editor_view.theme.Theme instance. The easiest way to
+# make one is to copy a built-in theme and override a few colors:
+#
+# from dataclasses import replace
+# from yate.editor_view.theme import THEMES, register_theme
+#
+# register_theme(replace(
+#     THEMES["mocha"],
+#     name="my-mocha",          # must be unique
+#     label="My Mocha",
+#     accent="#89b4fa",         # primary blue (status bar / active tab)
+#     accent2="#cba6f7",        # secondary mauve
+#     syn_keyword="#cba6f7",    # syntax colors: keyword/string/number/...
+# ))
+# theme = "my-mocha"
