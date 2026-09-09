@@ -58,6 +58,23 @@ class FontStatus:
     detail: str = ""
 
 
+def _font_value_resolves(hive: int, value: str) -> bool:
+    """Whether a Fonts registry value actually points at a loadable file.
+
+    HKLM (per-machine) values are bare filenames in the system Fonts folder;
+    HKCU (per-user) values must be absolute paths -- Windows silently ignores
+    a bare filename there, which leaves the family unloadable.
+    """
+    import winreg  # Windows only
+
+    p = Path(str(value))
+    if p.is_absolute():
+        return p.is_file()
+    if hive == winreg.HKEY_LOCAL_MACHINE:
+        return (Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / p).is_file()
+    return False
+
+
 def _scan_windows_registry() -> list[str]:
     import winreg  # pylint: disable=import-outside-toplevel; Windows only
 
@@ -75,7 +92,7 @@ def _scan_windows_registry() -> list[str]:
                         name, value, _ = winreg.EnumValue(key, i)
                     except OSError:
                         break
-                    if "nerd" in name.lower() or "nerd" in str(value).lower():
+                    if "nerd" in name.lower() and _font_value_resolves(hive, str(value)):
                         names.append(name)
                     i += 1
         except OSError:
@@ -156,35 +173,73 @@ def _broadcast_font_change_windows() -> None:
         pass
 
 
+def _expected_font_entries(fonts_dir: Path) -> dict[str, str]:
+    """Canonical registry ``value name -> full path`` for bundled TTFs."""
+    expected: dict[str, str] = {}
+    for ttf in bundled_font_files():
+        # The value name is "<family> <style> (TrueType)"; derive the friendly
+        # style from the file name, e.g. FiraCodeNerdFontMono-Bold.ttf.
+        stem = ttf.stem  # FiraCodeNerdFontMono-Bold
+        style = stem.split("-", 1)[1].replace("SemiBold", "Semi Bold") if "-" in stem else "Regular"
+        expected[f"{FAMILY} {style}{_TTF_SUFFIX}"] = str(fonts_dir / ttf.name)
+    return expected
+
+
 def _register_windows_user_font(fonts_dir: Path) -> tuple[list[str], list[str]]:
-    """Copy bundled TTFs to the per-user font dir and register in HKCU."""
+    """Copy bundled TTFs to the per-user font dir and register in HKCU.
+
+    Per-user font values must hold the **full path** to the TTF; a bare
+    filename is silently ignored by Windows (the family shows in the registry
+    but never loads, so every icon falls back to a replacement glyph).
+
+    Stale entries left by older yate builds for the same family (bare-name
+    values, truncated names like "... Reg", ``_0.ttf`` copies from Explorer
+    installs) are swept so they cannot shadow the canonical registration.
+    """
     import winreg  # Windows only
 
     installed: list[str] = []
     skipped: list[str] = []
     key_path = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+    expected = _expected_font_entries(fonts_dir)
 
     for ttf in bundled_font_files():
         dest = fonts_dir / ttf.name
         if not dest.exists():
             shutil.copy2(ttf, dest)
+        # Remove duplicate copies an Explorer per-user install may have added
+        # (FiraCodeNerdFontMono-Regular_0.ttf and friends).
+        for dup in fonts_dir.glob(f"{ttf.stem}_*.ttf"):
+            try:
+                dup.unlink()
+            except OSError:
+                pass
 
-        # The registry value name is "<family> <style> (TrueType)"; derive the
-        # friendly style from the file name, e.g. FiraCodeNerdFontMono-Bold.
-        stem = ttf.stem  # FiraCodeNerdFontMono-Bold
-        style = stem.split("-", 1)[1].replace("SemiBold", "Semi Bold") if "-" in stem else "Regular"
-        value_name = f"{FAMILY} {style}{_TTF_SUFFIX}"
-
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+        # Sweep stale entries belonging to this family.
+        i = 0
+        while True:
+            try:
+                name, _, _ = winreg.EnumValue(key, i)
+            except OSError:
+                break
+            if name.startswith(FAMILY) and name not in expected:
+                try:
+                    winreg.DeleteValue(key, name)
+                except OSError:
+                    pass
+                continue  # indices shift after deletion; re-read same slot
+            i += 1
+        for value_name, full_path in expected.items():
             try:
                 existing, _ = winreg.QueryValueEx(key, value_name)
             except OSError:
                 existing = None
-            if existing != ttf.name:
-                winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, ttf.name)
-                installed.append(ttf.name)
+            if existing != full_path:
+                winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, full_path)
+                installed.append(Path(full_path).name)
             else:
-                skipped.append(ttf.name)
+                skipped.append(Path(full_path).name)
 
     _broadcast_font_change_windows()
     return installed, skipped

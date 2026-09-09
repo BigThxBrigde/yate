@@ -37,9 +37,15 @@ class CommandInput(Input):
     DEFAULT_CSS = """
     CommandInput {
         background: $surface;
-        border: none;
+        border: none !important;
         height: 1;
         padding: 0;
+    }
+    /* Textual's built-in Input:focus adds a tall border which would cover
+       the only content row of this height-1 widget, hiding typed text. */
+    CommandInput:focus {
+        border: none !important;
+        background-tint: transparent;
     }
     """
 

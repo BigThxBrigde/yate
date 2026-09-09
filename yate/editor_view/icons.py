@@ -32,7 +32,7 @@ FILE_ICONS = {
     "toml": "\ue60b",
     "yaml": "\ue60b",
     "yml": "\ue60b",
-    "xml": "\uf72d",       # 
+    "xml": "\ue609",       #  xml (nf-seti)
     "sh": "\uf489",        #  terminal
     "bash": "\uf489",
     "zsh": "\uf489",

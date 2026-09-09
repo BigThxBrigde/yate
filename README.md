@@ -62,7 +62,7 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | 按键 | 功能 |
 |---|---|
 | `Ctrl+P` | 模糊快速打开文件 |
-| `Ctrl+Shift+P` | 命令面板（执行任意 `:` 命令） |
+| `Ctrl+Shift+A` | 命令面板（执行任意 `:` 命令；`Ctrl+Shift+P` 为别名） |
 | `:` | ex 命令行（`:w` 保存、`:q` 退出、`:theme latte` 切主题…） |
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |

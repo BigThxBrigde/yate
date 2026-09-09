@@ -271,7 +271,9 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.press("ctrl+shift+p")
+            # ctrl+shift+a is the default (ctrl+shift+p clashes with Windows
+            # Terminal's own command palette).
+            await pilot.press("ctrl+shift+a")
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
@@ -282,6 +284,15 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("enter")
             await pilot.pause()
             self.assertEqual(app.keymap_name, "vim")
+
+    async def test_command_palette_ctrl_shift_p_alias(self):
+        from yate.editor_view.palette import PaletteScreen
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press("ctrl+shift+p")
+            await pilot.pause()
+            self.assertIsInstance(app.screen, PaletteScreen)
 
     async def test_palette_down_cursor_moves(self):
         from yate.editor_view.palette import PaletteScreen
@@ -306,14 +317,47 @@ class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             editor = app.editor_view
             assert editor is not None
-            line2 = "".join(seg.text for seg in editor.render_line(2))
-            self.assertIn("yate", line2)
-            hints = "".join(seg.text for seg in editor.render_line(5))
-            self.assertIn("quick open", hints)
+
+            def screen_text() -> str:
+                parts: list[str] = []
+                for row in range(26):
+                    parts.extend(seg.text for seg in editor.render_line(row))
+                return "".join(parts)
+
+            welcome = screen_text()
+            self.assertIn("\u2588", welcome)  # block-letter banner
+            self.assertIn("yate", welcome)
+            self.assertIn("quick open", welcome)
             # typing dismisses the welcome page
             await pilot.press("h", "i")
             await pilot.pause()
-            self.assertNotIn("yate", "".join(seg.text for seg in editor.render_line(2)))
+            self.assertNotIn("\u2588", screen_text())
+
+
+class PromptBarTests(unittest.IsolatedAsyncioTestCase):
+    async def test_command_input_shows_typed_text(self):
+        """Regression: focused height-1 Input must not gain a tall border
+        that collapses its content region and hides typed characters."""
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press(":")
+            await pilot.pause()
+            await pilot.press(*"wp")
+            await pilot.pause()
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            inp = prompt_bar.input
+            self.assertEqual(inp.value, "wp")
+            self.assertEqual(inp.scrollable_content_region.height, 1)
+            strip_text = "".join(seg.text for seg in inp.render_line(0))
+            self.assertIn("wp", strip_text)
+
+    async def test_breadcrumb_blank_for_untitled_doc(self):
+        """Untitled buffers must not repeat the tab label in breadcrumbs."""
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            self.assertEqual(app.render_breadcrumbs(80).plain.strip(), "")
 
 
 class RcExtensionTests(unittest.IsolatedAsyncioTestCase):

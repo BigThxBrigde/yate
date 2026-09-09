@@ -456,8 +456,11 @@ class YateApp(App[None]):
         if len(self.screen_stack) > 1:
             return  # modal screen owns input
         # Global chords that raw byte dispatch cannot represent
-        # (ctrl+shift+p has no ANSI sequence; Textual reports it directly).
-        if event.key == "ctrl+shift+p":
+        # (ctrl+shift+letter has no ANSI sequence; Textual reports it
+        # directly).  ctrl+shift+a is the default because Windows Terminal
+        # reserves ctrl+shift+p for its own command palette; ctrl+shift+p
+        # stays as an alias on terminals that pass it through.
+        if event.key in ("ctrl+shift+a", "ctrl+shift+p"):
             event.stop()
             event.prevent_default()
             self.open_command_palette()
@@ -628,7 +631,7 @@ class YateApp(App[None]):
             self.push_screen(PaletteScreen(self, "files"))
 
     def open_command_palette(self) -> None:
-        """Command palette: fuzzy search over ``:`` commands (ctrl+shift+p)."""
+        """Command palette: fuzzy search over ``:`` commands (ctrl+shift+a)."""
         if self.mounted:
             self.push_screen(PaletteScreen(self, "commands"))
 
@@ -669,7 +672,7 @@ class YateApp(App[None]):
         reg("bd", lambda args: self.close_tab(), "close current buffer/tab")
         reg("files", lambda args: self.open_file_palette(), "fuzzy quick file open (ctrl+p)")
         reg("palette", lambda args: self.open_command_palette(),
-            "command palette (ctrl+shift+p)")
+            "command palette (ctrl+shift+a; ctrl+shift+p alias)")
 
         def _set(args: str) -> None:
             args = args.strip()
@@ -792,7 +795,9 @@ class YateApp(App[None]):
         """(icon, label, is_file) crumbs for the active document's path."""
         doc = self.doc
         if doc.path is None:
-            return [(icon_for_path(doc.name, False), doc.name, True)]
+            # Untitled buffer: the tab already shows the name -- a second
+            # copy here would look like a permanent two-row tab bar.
+            return []
         path = doc.path
         root = self.workspace.root
         parts: list[str]

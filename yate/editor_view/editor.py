@@ -28,6 +28,27 @@ S_SELECTION = 2
 S_MATCH_ACTIVE = 3
 S_CURSOR = 4
 
+# Welcome-page block wordmark: "Y[>A terminal |T]E".  Kept as an ASCII
+# template and translated so the source stays readable:
+#   '#' full block   '>' arrow   '.' terminal title-bar dot
+_BANNER_GLYPHS = {"#": "\u2588", ">": "\u25b6", ".": "\u2022"}
+_BANNER_TEMPLATE = [
+    "##    ##  ##               #                  ##",
+    " ##  ##   #       ##       #        ########   # ########",
+    "  ####    #      ####      #        ########   # ########",
+    "   ##     #     ##  ##                ###      # ##",
+    "   ##     #    ##    ## ###########   ###      # ##",
+    "   ##     #  > ######## # . .     #   ###      # #######",
+    "   ##     #    ##    ## #         #   ###      # #######",
+    "   ##     #    ##    ## #         #   ###      # ##",
+    "   ##     #    ##    ## ###########   ###      # ########",
+    "          ##                                  ##",
+]
+_WELCOME_BANNER = [
+    "".join(_BANNER_GLYPHS.get(ch, ch) for ch in line)
+    for line in _BANNER_TEMPLATE
+]
+
 
 class EditorView(Widget):
     """Renders the active document: gutter, syntax, selection, matches, cursor."""
@@ -202,18 +223,25 @@ class EditorView(Widget):
         )
 
     @staticmethod
-    def _welcome_lines(t: theme.Theme) -> list[list[tuple[str, Optional[str], bool]]]:
-        """(text, color, bold) tuples per welcome row."""
-        rows: list[list[tuple[str, Optional[str], bool]]] = [
+    def _welcome_lines(
+        t: theme.Theme,
+    ) -> list[list[tuple[str, Optional[str], bool, bool]]]:
+        """(text, color, bold, centered) tuples per welcome row."""
+        rows: list[list[tuple[str, Optional[str], bool, bool]]] = [
             [],  # row 0: keep the cursor line blank
-            [],
-            [("  yate ", t.accent, True), (__version__, t.fg_bright, True)],
-            [("  yet another terminal editor", t.fg_dim, False)],
-            [],
         ]
+        for art in _WELCOME_BANNER:
+            rows.append([(art, t.green, False, True)])
+        rows.append([])
+        rows.append([
+            ("yate ", t.accent, True, True),
+            (__version__, t.fg_bright, True, True),
+        ])
+        rows.append([("yet another terminal editor", t.fg_dim, False, True)])
+        rows.append([])
         hints: list[tuple[str, str]] = [
             ("Ctrl+P", "quick open file"),
-            ("Ctrl+Shift+P", "command palette"),
+            ("Ctrl+Shift+A", "command palette"),
             (":", "ex command prompt (:w :q :e ...)"),
             ("Ctrl+F", "find in file"),
             ("Ctrl+S", "save file"),
@@ -221,12 +249,12 @@ class EditorView(Widget):
         ]
         for kbd, desc in hints:
             rows.append([
-                ("  " + kbd.ljust(15), t.green, True),
-                (desc, t.fg_bright, False),
+                ("  " + kbd.ljust(15), t.green, True, False),
+                (desc, t.fg_bright, False, False),
             ])
         rows.append([])
         rows.append([("  start typing to edit, or :e <path> to open a file",
-                      t.fg_dim, False)])
+                      t.fg_dim, False, False)])
         return rows
 
     def _render_welcome(
@@ -237,7 +265,14 @@ class EditorView(Widget):
         rows = self._welcome_lines(t)
         used = gutter_w
         if y < len(rows):
-            for text, color, bold in rows[y]:
+            row = rows[y]
+            if row and all(item[3] for item in row):
+                text_w = sum(len(item[0]) for item in row)
+                indent = max(0, (view_w - gutter_w - text_w) // 2)
+                if indent:
+                    segments.append(Segment(" " * indent, Style(bgcolor=t.bg)))
+                    used += indent
+            for text, color, bold, _centered in row:
                 segments.append(Segment(text, Style(color=color, bold=bold, bgcolor=t.bg)))
                 used += len(text)
         pad = view_w - used
