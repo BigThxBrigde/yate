@@ -310,6 +310,62 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(screen.cursor_index, 1)
 
 
+class EditorScrollTests(unittest.IsolatedAsyncioTestCase):
+    async def test_viewport_follows_cursor_and_scrolls_back(self):
+        """Regression: moving past the visible area must scroll the view."""
+        with TemporaryDirectory() as tmp:
+            p = Path(tmp) / "big.txt"
+            p.write_text(
+                "\n".join(f"line {i}" for i in range(1, 61)) + "\n",
+                encoding="utf-8",
+            )
+            app = YateApp(target=p)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                editor = app.editor_view
+                assert editor is not None
+                self.assertEqual(editor.scroll_offset.y, 0)
+
+                for _ in range(45):
+                    await pilot.press("down")
+                await pilot.pause()
+                top = editor.scroll_offset.y
+                self.assertGreater(top, 0)
+                # first visible row shows buffer line top+1
+                first = "".join(seg.text for seg in editor.render_line(0))
+                self.assertEqual(first.split()[0], str(top + 1))
+                # cursor row stays inside the visible window
+                buf_row = app.buffer.row
+                self.assertGreaterEqual(buf_row - top, 0)
+                self.assertLess(buf_row - top, editor.size.height)
+
+                for _ in range(45):
+                    await pilot.press("up")
+                await pilot.pause()
+                self.assertEqual(editor.scroll_offset.y, 0)
+
+    async def test_scrolled_view_renders_buffer_rows(self):
+        """Regression: render_line must honour the scroll offset (wheel path)."""
+        with TemporaryDirectory() as tmp:
+            p = Path(tmp) / "big.txt"
+            p.write_text(
+                "\n".join(f"line {i}" for i in range(1, 61)) + "\n",
+                encoding="utf-8",
+            )
+            app = YateApp(target=p)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                editor = app.editor_view
+                assert editor is not None
+                # this is where Textual's mouse-wheel handling lands
+                editor.scroll_down(animate=False)
+                await pilot.pause()
+                self.assertEqual(editor.scroll_offset.y, 1)
+                first = "".join(seg.text for seg in editor.render_line(0))
+                self.assertEqual(first.split()[0], "2")
+                self.assertIn("line 2", first)
+
+
 class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
     async def test_welcome_shown_then_hidden_on_type(self):
         app = YateApp()

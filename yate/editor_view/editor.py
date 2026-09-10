@@ -8,8 +8,8 @@ from rich.segment import Segment
 from rich.style import Style
 from textual.events import Key, Resize
 from textual.geometry import Size
+from textual.scroll_view import ScrollView
 from textual.strip import Strip
-from textual.widget import Widget
 
 from yate import __version__
 from yate.editor_core.buffer import TextBuffer
@@ -50,14 +50,20 @@ _WELCOME_BANNER = [
 ]
 
 
-class EditorView(Widget):
-    """Renders the active document: gutter, syntax, selection, matches, cursor."""
+class EditorView(ScrollView):
+    """Renders the active document: gutter, syntax, selection, matches, cursor.
+
+    A ScrollView (like TextArea) so the framework honours the virtual size we
+    set from the buffer and the viewport follows the cursor when it leaves
+    the visible area.
+    """
 
     can_focus = True
 
     DEFAULT_CSS = """
     EditorView {
         padding: 0;
+        overflow-x: hidden;
     }
     """
 
@@ -87,7 +93,9 @@ class EditorView(Widget):
 
     def _update_virtual_size(self) -> None:
         buf = self.buffer
-        width = self.size.width if self.size else 80
+        # Width tracks the scrollable content area so max_scroll_x stays 0:
+        # horizontal movement is manual (scroll_col), not Textual scrolling.
+        width = self.scrollable_content_region.width or self.size.width or 80
         self.virtual_size = Size(width, max(1, buf.line_count))
 
     def on_resize(self, _event: Resize) -> None:
@@ -116,7 +124,14 @@ class EditorView(Widget):
         elif cell >= self.scroll_col + text_w:
             self.scroll_col = cell - text_w + 1
         self.scroll_col = max(0, self.scroll_col)
-        self.scroll_to(y=row, animate=False)
+        # Follow the cursor only once it leaves the visible row window;
+        # unconditionally scrolling here would pin it to the top row.
+        view_h = max(1, self.size.height or 20)
+        top = self.scroll_offset.y
+        if row < top:
+            self.scroll_to(y=row, animate=False)
+        elif row >= top + view_h:
+            self.scroll_to(y=row - view_h + 1, animate=False)
         self.refresh()
 
     def page_delta(self, half: bool = False) -> int:
@@ -162,6 +177,9 @@ class EditorView(Widget):
         if self._welcome_active():
             return self._render_welcome(y, view_w, gutter_w, t)
 
+        # Textual hands us the row relative to the visible widget region;
+        # translate it into a buffer row via the scroll offset.
+        y += self.scroll_offset.y
         if y >= buf.line_count:
             fill_line(t.bg)
             return Strip(segments)
