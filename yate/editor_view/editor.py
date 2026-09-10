@@ -28,25 +28,15 @@ S_SELECTION = 2
 S_MATCH_ACTIVE = 3
 S_CURSOR = 4
 
-# Welcome-page block wordmark: "Y[>A terminal |T]E".  Kept as an ASCII
-# template and translated so the source stays readable:
-#   '#' full block   '>' arrow   '.' terminal title-bar dot
-_BANNER_GLYPHS = {"#": "\u2588", ">": "\u25b6", ".": "\u2022"}
-_BANNER_TEMPLATE = [
-    "##    ##  ##               #                  ##",
-    " ##  ##   #       ##       #        ########   # ########",
-    "  ####    #      ####      #        ########   # ########",
-    "   ##     #     ##  ##                ###      # ##",
-    "   ##     #    ##    ## ###########   ###      # ##",
-    "   ##     #  > ######## # . .     #   ###      # #######",
-    "   ##     #    ##    ## #         #   ###      # #######",
-    "   ##     #    ##    ## #         #   ###      # ##",
-    "   ##     #    ##    ## ###########   ###      # ########",
-    "          ##                                  ##",
-]
+# Welcome-page banner: "YATE" in the ANSI Shadow figlet style
+# (generated with https://patorjk.com/software/taag/, f=ANSI Shadow).
 _WELCOME_BANNER = [
-    "".join(_BANNER_GLYPHS.get(ch, ch) for ch in line)
-    for line in _BANNER_TEMPLATE
+    "██╗   ██╗ █████╗ ████████╗███████╗",
+    "╚██╗ ██╔╝██╔══██╗╚══██╔══╝██╔════╝",
+    " ╚████╔╝ ███████║   ██║   █████╗",
+    "  ╚██╔╝  ██╔══██║   ██║   ██╔══╝",
+    "   ██║   ██║  ██║   ██║   ███████╗",
+    "   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝",
 ]
 
 

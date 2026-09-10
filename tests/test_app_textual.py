@@ -387,7 +387,8 @@ class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
                 return "".join(parts)
 
             welcome = screen_text()
-            self.assertIn("\u2588", welcome)  # block-letter banner
+            self.assertIn("\u2588\u2588\u2557   \u2588\u2588\u2557", welcome)  # "Y" head
+            self.assertIn("\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d", welcome)  # "E" foot
             self.assertIn("yate", welcome)
             self.assertIn("quick open", welcome)
             # typing dismisses the welcome page
