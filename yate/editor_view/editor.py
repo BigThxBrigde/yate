@@ -96,6 +96,13 @@ class EditorView(ScrollView):
         """Forward keys to the yate keymap while the editor is focused."""
         if len(self.yate.screen_stack) > 1:
             return  # a modal screen owns input
+        # the vim ctrl+w window chord must run before keymap dispatch:
+        # the vim keymap swallows unmapped keys so the app would never
+        # see them
+        if self.yate.try_window_prefix(event):
+            event.stop()
+            event.prevent_default()
+            return
         raw = event_to_raw(event.key, event.character)
         if raw is None:
             return

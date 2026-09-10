@@ -308,7 +308,8 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+P` | Quick open file (fuzzy match) |
 | `Alt+Shift+P` | Command palette (run any `:` command) |
 | `Ctrl+/` | Toggle vsc / vim keymap |
-| `Ctrl+E` | Focus the file tree |
+| `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (`Ctrl+Shift+E` same as VS Code) |
+| `Ctrl+1` | Focus the editor (same as VS Code) |
 | `Ctrl+B` | Show / hide the file tree (same as `:explorer`) |
 | `F2` | Run a shell command |
 
@@ -382,6 +383,14 @@ e.g. `3j`, `2dd`, `5w`.
 | `n` / `N` | Next / previous match |
 | `:` | ex command line (`:w` `:q` `:e` `:!` …) |
 
+**Window switching**
+
+| Key | Action |
+|---|---|
+| `Ctrl+W` `h` | Focus the file tree (left pane) |
+| `Ctrl+W` `l` | Focus the editor (right pane) |
+| `Ctrl+W` `Ctrl+W` | Cycle between file tree and editor |
+
 In **INSERT mode**: `Esc` returns to NORMAL; `Ctrl+W` deletes the previous
 word; `Ctrl+U` deletes to line start; `Backspace` / `Delete` / `Enter` / `Tab`
 and arrows behave conventionally.
@@ -400,7 +409,8 @@ Under the vim keymap `Ctrl+F` pages instead of finding; `Ctrl+P` quick open,
 | Key | Action |
 |---|---|
 | `Ctrl+B` | Show / hide the file tree (the side bar hides itself when no directory is open) |
-| `Ctrl+E` | Focus the file tree (with no directory open you get `no folder is open — use :e <path>`; a hidden tree is shown first) |
+| `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (with no directory open you get `no folder is open — use :e <path>`; a hidden tree is shown first) |
+| `Ctrl+1` | Focus the editor |
 | `Esc` (inside the tree) | Focus returns to the editor |
 
 Open a workspace with `:e <directory>`, `Ctrl+O` with a directory path, or a

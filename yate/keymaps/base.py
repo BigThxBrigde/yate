@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional, Union
 
@@ -107,6 +108,10 @@ def parse_key(spec: str) -> str:
             # ctrl-@ .. ctrl-_ map to codes 0x00 .. 0x1f (covers letters,
             # brackets etc. the same way a real terminal encodes them).
             base = chr(ord(ch) - 64)
+        elif "0" <= ch <= "9":
+            # ctrl+digits have no C0 code; encode as the kitty keyboard
+            # protocol CSI-u sequence modern terminals send
+            base = f"\x1b[{ord(ch)};5u"
         else:
             raise ValueError(f"unsupported ctrl key: {spec!r}")
     return base
@@ -130,6 +135,18 @@ def key_name(key: str) -> str:
         return key
     if key.startswith("\x1b") and len(key) == 2:
         return f"<alt-{key[1]}>"
+    m = re.fullmatch(r"\x1b\[(\d+);(\d+)u", key)
+    if m:
+        code, mod = int(m.group(1)), int(m.group(2))
+        mods: list[str] = []
+        if mod & 1:
+            mods.append("shift")
+        if mod & 2:
+            mods.append("alt")
+        if mod & 4:
+            mods.append("ctrl")
+        mods.append(chr(code))
+        return "<" + "-".join(mods) + ">"
     return repr(key)
 
 

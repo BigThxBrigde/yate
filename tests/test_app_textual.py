@@ -672,5 +672,90 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(text.lstrip().startswith("# yate"))
 
 
+class WindowFocusTests(unittest.IsolatedAsyncioTestCase):
+    """Pane switching between explorer and editor."""
+
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        (root / "alpha.txt").write_text("hello\n", encoding="utf-8")
+        self.root = root
+
+    async def test_vsc_chords_focus_panes(self):
+        app = YateApp(target=self.root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # initial focus is the editor; ctrl+shift+e moves to the explorer
+            self.assertIs(app.focused, app.editor_view)
+            await pilot.press("ctrl+shift+e")
+            await pilot.pause()
+            self.assertIs(app.focused, app.explorer_tree)
+            # vscode-style: ctrl+1 focuses the editor again
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+            self.assertIs(app.focused, app.editor_view)
+            # ... and ctrl+shift+e focuses the explorer once more
+            await pilot.press("ctrl+shift+e")
+            await pilot.pause()
+            self.assertIs(app.focused, app.explorer_tree)
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+            self.assertIs(app.focused, app.editor_view)
+
+    async def test_vim_ctrl_w_prefix_switches_panes(self):
+        app = YateApp(target=self.root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.select_keymap("vim")
+            await pilot.pause()
+            # ctrl+w arms the prefix, h goes to the left pane (explorer)
+            await pilot.press("ctrl+w")
+            await pilot.pause()
+            self.assertTrue(app.window_pending)
+            await pilot.press("h")
+            await pilot.pause()
+            self.assertFalse(app.window_pending)
+            self.assertIs(app.focused, app.explorer_tree)
+            # l goes back to the right pane (editor)
+            await pilot.press("ctrl+w")
+            await pilot.press("l")
+            await pilot.pause()
+            self.assertIs(app.focused, app.editor_view)
+            # ctrl+w ctrl+w cycles between the two panes
+            await pilot.press("ctrl+w")
+            await pilot.press("ctrl+w")
+            await pilot.pause()
+            self.assertIs(app.focused, app.explorer_tree)
+
+    async def test_vim_window_prefix_cancelled_by_other_keys(self):
+        app = YateApp(target=self.root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.select_keymap("vim")
+            await pilot.pause()
+            await pilot.press("ctrl+w")
+            await pilot.pause()
+            self.assertTrue(app.window_pending)
+            # an unrelated key cancels the prefix and is processed normally
+            before = app.buffer.lines[0]
+            await pilot.press("x")
+            await pilot.pause()
+            self.assertFalse(app.window_pending)
+            self.assertEqual(app.buffer.lines[0], before[1:])  # x deleted a char
+
+    async def test_vim_insert_mode_ctrl_w_not_intercepted(self):
+        app = YateApp(target=self.root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.select_keymap("vim")
+            await pilot.pause()
+            await pilot.press("i")  # INSERT
+            await pilot.pause()
+            await pilot.press("ctrl+w")
+            await pilot.pause()
+            self.assertFalse(app.window_pending)
+
+
 if __name__ == "__main__":
     unittest.main()

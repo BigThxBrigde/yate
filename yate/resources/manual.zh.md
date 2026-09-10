@@ -294,7 +294,8 @@ yate 内置两套键位：
 | `Ctrl+P` | 快速打开文件（模糊匹配） |
 | `Alt+Shift+P` | 命令面板（执行任意 `:` 命令） |
 | `Ctrl+/` | 切换 vsc / vim 键位 |
-| `Ctrl+E` | 聚焦文件树 |
+| `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（`Ctrl+Shift+E` 同 VS Code） |
+| `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `Ctrl+B` | 显示 / 隐藏文件树（`:explorer` 同效） |
 | `F2` | 运行 Shell 命令 |
 
@@ -367,6 +368,14 @@ yate 内置两套键位：
 | `n` / `N` | 下一个 / 上一个匹配 |
 | `:` | ex 命令行（`:w` `:q` `:e` `:!` 等） |
 
+**窗口切换**
+
+| 按键 | 功能 |
+|---|---|
+| `Ctrl+W` `h` | 聚焦文件树（左窗格） |
+| `Ctrl+W` `l` | 聚焦编辑器（右窗格） |
+| `Ctrl+W` `Ctrl+W` | 在文件树与编辑器间来回切换 |
+
 **INSERT 模式下**：`Esc` 回 NORMAL；`Ctrl+W` 删除前一个词；
 `Ctrl+U` 删除到行首；`Backspace` / `Delete` / `Enter` / `Tab` 与方向键按常规定位。
 **VISUAL 模式下**：`v` / `V` 切换或退出；`y` 复制选区；`d` / `x` 删除选区；
@@ -383,7 +392,8 @@ vim 键位下 `Ctrl+F` 是翻页而非查找；`Ctrl+P` 快速打开、`Alt+Shif
 | 按键 | 功能 |
 |---|---|
 | `Ctrl+B` | 显示 / 隐藏文件树（未打开目录时侧栏自动隐藏） |
-| `Ctrl+E` | 聚焦文件树（未打开目录时提示 `no folder is open — use :e <path>`，若已隐藏会先显示） |
+| `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（未打开目录时提示 `no folder is open — use :e <path>`，若已隐藏会先显示） |
+| `Ctrl+1` | 聚焦编辑器 |
 | `Esc`（在文件树内） | 焦点返回编辑器 |
 
 用 `:e <目录>`、`Ctrl+O` 输入目录路径或启动参数传目录即可打开工作区。

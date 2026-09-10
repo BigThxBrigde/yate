@@ -156,6 +156,7 @@ class YateApp(App[None]):
         self._ext_messages.extend(f"yaterc: {err}" for err in self.config.errors)
         self._replace_pending = ""
         self._prev_manual_theme: Optional[str] = None
+        self._window_pending = False
         self._explorer_target: Optional[Path] = None
         self._explorer_is_dir = False
 
@@ -460,10 +461,59 @@ class YateApp(App[None]):
         if self.editor_view is not None:
             self.editor_view.focus()
 
+    @property
+    def window_pending(self) -> bool:
+        """True while a vim ``ctrl+w`` window chord awaits its second key."""
+        return self._window_pending
+
+    def _window_navigate(self, key: str) -> None:
+        """Switch pane after a vim ``ctrl+w`` prefix."""
+        if key == "ctrl+w":  # cycle between the two panes
+            if self.focused is self.explorer_tree:
+                self.focus_editor()
+            else:
+                self.focus_explorer()
+        elif key == "h":  # left pane
+            self.focus_explorer()
+        elif key == "l":  # right pane
+            self.focus_editor()
+        # j/k: yate has no vertical split, so they are no-ops
+
+    def try_window_prefix(self, event: Key) -> bool:
+        """Handle the vim ``ctrl+w`` window chord; True when consumed.
+
+        Called from the editor view *before* keymap dispatch (the vim
+        keymap swallows unmapped keys, so app.on_key would never see
+        them) and from app.on_key for the other focused widgets.
+        """
+        if len(self.screen_stack) > 1:
+            return False
+        if self.prompt_bar is not None and self.prompt_bar.active_mode:
+            return False
+        if self._window_pending:
+            self._window_pending = False
+            if event.key in ("h", "j", "k", "l", "ctrl+w"):
+                self._window_navigate(event.key)
+                return True
+            return False  # any other key cancels and is processed normally
+        if self.keymap_name == "vim" and event.key == "ctrl+w":
+            km = self.keymaps["vim"]
+            if isinstance(km, VimKeymap) and km.mode is VimMode.NORMAL:
+                self._window_pending = True
+                self.message("ctrl+w-  (h j k l switch window, ctrl+w cycles)")
+                return True
+        return False
+
     def on_key(self, event: Key) -> None:
         """Fallback routing: keys not consumed by a focused widget."""
         if len(self.screen_stack) > 1:
             return  # modal screen owns input
+        # vim ctrl+w window chord (armed or pending); before the other
+        # chords so the prefix is consumed wherever focus currently is
+        if self.try_window_prefix(event):
+            event.stop()
+            event.prevent_default()
+            return
         # Global chords that raw byte dispatch cannot represent reliably.
         # alt+shift+p is the default: Windows Terminal reserves ctrl+shift+p
         # for its own command palette, and ctrl+shift+a clashes with other
@@ -474,7 +524,20 @@ class YateApp(App[None]):
             self.open_command_palette()
             return
         if self.prompt_bar is not None and self.prompt_bar.active_mode:
-            return  # command line is editing
+            return  # command line is editing; enter must bubble so the
+            # Input's own enter->submit binding can fire
+        # vscode-style pane focus chords (CSI-u encodings, not in the raw
+        # byte table)
+        if event.key == "ctrl+shift+e":
+            event.stop()
+            event.prevent_default()
+            self.focus_explorer()
+            return
+        if event.key == "ctrl+1":
+            event.stop()
+            event.prevent_default()
+            self.focus_editor()
+            return
         if event.key == "ctrl+p":
             event.stop()
             event.prevent_default()

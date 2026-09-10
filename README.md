@@ -67,14 +67,17 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |
 | `Ctrl+B` | 显示/隐藏文件树（`:explorer` 同效） |
-| `Ctrl+E` | 聚焦文件树 |
+| `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
+| `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `F1` | 帮助 / 全部键位 |
 
 文件树内（聚焦后）：`j`/`k` 移动，`l`/`h` 展开/折叠，`Enter` 打开文件，
 `a` 新建文件，`A` 新建文件夹，`r` 重命名，`d`/`Del` 删除（输入 `y` 确认），
 `Esc` 回编辑器。改名/删除会同步已打开的标签页。
 
-vim 键位下：`i` 进入插入、`Esc` 回 NORMAL，`:` 打开命令行；完整绑定见 F1 帮助。
+vim 键位下：`i` 进入插入、`Esc` 回 NORMAL，`:` 打开命令行；
+`Ctrl+W` 后接 `h`/`l` 切到文件树/编辑器（`Ctrl+W Ctrl+W` 来回切换）；
+完整绑定见 F1 帮助。
 
 ## 配置（yaterc）
 

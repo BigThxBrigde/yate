@@ -153,6 +153,13 @@ class ExplorerTree(Tree[NodeData]):
 
     def on_key(self, event: Key) -> None:
         """Vim-style navigation plus file operations (a/A/r/d)."""
+        # the vim ctrl+w window chord runs before everything else (same as
+        # the editor view): the pending hjkl would otherwise be eaten by
+        # the navigation handlers below
+        if self.yate.try_window_prefix(event):
+            event.stop()
+            event.prevent_default()
+            return
         key = event.key
 
         def consume() -> None:
