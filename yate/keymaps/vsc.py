@@ -91,7 +91,7 @@ class VscKeymap(Keymap):
             _k("<f4>", "replace", "Find & replace", SRCH),
             # ---- view / tools
             _k("<ctrl-p>", "quick_open", "Quick file open (ctrl+p)", VIEW),
-            _raw("\x1b\x10", "command_palette", "Command palette (ctrl+shift+a; ctrl+shift+p alias)", VIEW),
+            _k("<alt-shift-p>", "command_palette", "Command palette (alt+shift+p)", VIEW),
             _raw("\x1f", "toggle_keymap", "Toggle vsc/vim keymap (ctrl+/)", VIEW),
             _k("<ctrl-e>", "focus_explorer", "Focus file explorer", VIEW),
             _k("<f2>", "shell_prompt", "Run shell command", VIEW),

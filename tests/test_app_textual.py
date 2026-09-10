@@ -271,9 +271,10 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            # ctrl+shift+a is the default (ctrl+shift+p clashes with Windows
-            # Terminal's own command palette).
-            await pilot.press("ctrl+shift+a")
+            # alt+shift+p is the default: ctrl+shift+p clashes with Windows
+            # Terminal's own command palette, ctrl+shift+a with other
+            # terminal emulators.
+            await pilot.press("alt+shift+p")
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
@@ -285,12 +286,17 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertEqual(app.keymap_name, "vim")
 
-    async def test_command_palette_ctrl_shift_p_alias(self):
+    async def test_command_palette_alt_shift_p_binding(self):
         from yate.editor_view.palette import PaletteScreen
 
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.press("ctrl+shift+p")
+            # the vsc keymap advertises the binding and the chord opens the
+            # palette even while the editor widget has focus
+            binding = app.active_keymap.lookup("\x1bP")
+            assert binding is not None
+            self.assertEqual(binding.action, "command_palette")
+            await pilot.press("alt+shift+p")
             await pilot.pause()
             self.assertIsInstance(app.screen, PaletteScreen)
 

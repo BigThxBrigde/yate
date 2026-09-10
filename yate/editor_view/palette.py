@@ -3,7 +3,7 @@
 Two modes share one widget:
 
 * ``"files"`` (ctrl+p): fuzzy search over the workspace files, enter opens.
-* ``"commands"`` (ctrl+shift+a, ctrl+shift+p alias): fuzzy search over
+* ``"commands"`` (alt+shift+p): fuzzy search over
   ``:`` commands, enter runs.
 
 The fuzzy matcher is a plain subsequence scorer (fzf-style): every query

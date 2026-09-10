@@ -14,7 +14,7 @@
   支持 yaterc 注册自定义主题
 - **Nerd Font 图标**：文件树与文件类型图标（`yate --install-font` 可安装随包字体）
 - **模糊查找**：`Ctrl+P` 快速打开文件（fzf 式子序列匹配、命中字符高亮），
-  `Ctrl+Shift+P` 命令面板
+  `Alt+Shift+P` 命令面板
 - **欢迎页**：空 buffer 启动时显示版本、键位提示
 - **搜索**：`Ctrl+F` 文件内查找
 - **yaterc 配置**：Python 语法配置文件（vimrc 风格），支持用户级/项目级/`-u` 三级加载
@@ -62,7 +62,7 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | 按键 | 功能 |
 |---|---|
 | `Ctrl+P` | 模糊快速打开文件 |
-| `Ctrl+Shift+A` | 命令面板（执行任意 `:` 命令；`Ctrl+Shift+P` 为别名） |
+| `Alt+Shift+P` | 命令面板（执行任意 `:` 命令） |
 | `:` | ex 命令行（`:w` 保存、`:q` 退出、`:theme latte` 切主题…） |
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |

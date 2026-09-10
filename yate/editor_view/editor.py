@@ -259,7 +259,7 @@ class EditorView(ScrollView):
         rows.append([])
         hints: list[tuple[str, str]] = [
             ("Ctrl+P", "quick open file"),
-            ("Ctrl+Shift+A", "command palette"),
+            ("Alt+Shift+P", "command palette"),
             (":", "ex command prompt (:w :q :e ...)"),
             ("Ctrl+F", "find in file"),
             ("Ctrl+S", "save file"),

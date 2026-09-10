@@ -455,12 +455,11 @@ class YateApp(App[None]):
         """Fallback routing: keys not consumed by a focused widget."""
         if len(self.screen_stack) > 1:
             return  # modal screen owns input
-        # Global chords that raw byte dispatch cannot represent
-        # (ctrl+shift+letter has no ANSI sequence; Textual reports it
-        # directly).  ctrl+shift+a is the default because Windows Terminal
-        # reserves ctrl+shift+p for its own command palette; ctrl+shift+p
-        # stays as an alias on terminals that pass it through.
-        if event.key in ("ctrl+shift+a", "ctrl+shift+p"):
+        # Global chords that raw byte dispatch cannot represent reliably.
+        # alt+shift+p is the default: Windows Terminal reserves ctrl+shift+p
+        # for its own command palette, and ctrl+shift+a clashes with other
+        # terminal emulators; alt+shift+p is unbound in both.
+        if event.key == "alt+shift+p":
             event.stop()
             event.prevent_default()
             self.open_command_palette()
@@ -631,7 +630,7 @@ class YateApp(App[None]):
             self.push_screen(PaletteScreen(self, "files"))
 
     def open_command_palette(self) -> None:
-        """Command palette: fuzzy search over ``:`` commands (ctrl+shift+a)."""
+        """Command palette: fuzzy search over ``:`` commands (alt+shift+p)."""
         if self.mounted:
             self.push_screen(PaletteScreen(self, "commands"))
 
@@ -672,7 +671,7 @@ class YateApp(App[None]):
         reg("bd", lambda args: self.close_tab(), "close current buffer/tab")
         reg("files", lambda args: self.open_file_palette(), "fuzzy quick file open (ctrl+p)")
         reg("palette", lambda args: self.open_command_palette(),
-            "command palette (ctrl+shift+a; ctrl+shift+p alias)")
+            "command palette (alt+shift+p)")
 
         def _set(args: str) -> None:
             args = args.strip()
