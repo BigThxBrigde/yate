@@ -38,27 +38,53 @@ class ExplorerTree(Tree[NodeData]):
         self.yate = yate
         self.show_root = True
         self.guide_depth = 2
+        # Tree's auto_expand toggles on every select, which would cancel the
+        # explicit toggle in on_tree_node_selected (l/enter would do nothing)
+        self.auto_expand = False
 
     # --------------------------------------------------------------- data
 
+    def _expanded_paths(self) -> set[Path]:
+        """Collect the paths of all currently expanded directory nodes."""
+        out: set[Path] = set()
+
+        def walk(node: TreeNode[NodeData]) -> None:
+            if node.is_expanded and isinstance(node.data, Path):
+                out.add(node.data)
+            for child in node.children:
+                walk(child)
+
+        walk(self.root)
+        return out
+
     def refresh_tree(self) -> None:
-        """(Re)build the tree from the workspace root (theme aware)."""
+        """(Re)build the tree from the workspace root (theme aware).
+
+        The expansion state of all directories survives the rebuild.
+        """
         t = theme.active()
         self.styles.background = t.panel
         root_path = self.yate.workspace.root
-        self.clear()
         if root_path is None:
+            self.clear()
             self.root.label = Text(" no folder open", style=t.fg_dim)
             self.root.data = None
             self.refresh()
             return
+        expanded = self._expanded_paths()
+        self.clear()
         self.root.label = self._label(root_path, True, True)
         self.root.data = root_path
-        self._load_children(self.root, root_path)
+        self._load_children(self.root, root_path, expanded)
         self.root.expand()
         self.refresh()
 
-    def _load_children(self, node: TreeNode[NodeData], directory: Path) -> None:
+    def _load_children(
+        self,
+        node: TreeNode[NodeData],
+        directory: Path,
+        expanded: set[Path] | None = None,
+    ) -> None:
         placeholder = Text("", style=theme.active().fg_dim)
         for entry in self.yate.workspace.list_dir(directory):
             if entry.name in IGNORED_NAMES:
@@ -68,6 +94,8 @@ class ExplorerTree(Tree[NodeData]):
             if entry.is_dir:
                 # placeholder so the node shows as expandable before load
                 child.add(placeholder, data=None)
+                if expanded is not None and entry.path in expanded:
+                    child.expand()
 
     @staticmethod
     def _label(path: Path, is_dir: bool, expanded: bool) -> Text:
@@ -124,7 +152,7 @@ class ExplorerTree(Tree[NodeData]):
         return bool(char and len(char) == 1 and char.isprintable())
 
     def on_key(self, event: Key) -> None:
-        """Vim-style navigation: j/k move, l open, h collapse, esc back."""
+        """Vim-style navigation plus file operations (a/A/r/d)."""
         key = event.key
 
         def consume() -> None:
@@ -147,9 +175,27 @@ class ExplorerTree(Tree[NodeData]):
                 node.collapse()
             else:
                 self.action_cursor_parent()
+        elif key == "a":
+            consume()
+            self.yate.explorer_new_file_prompt(self._cursor_path())
+        elif key == "A":
+            consume()
+            self.yate.explorer_new_dir_prompt(self._cursor_path())
+        elif key == "r":
+            consume()
+            self.yate.explorer_rename_prompt(self._cursor_path())
+        elif key in ("d", "delete"):
+            consume()
+            self.yate.explorer_delete_prompt(self._cursor_path())
         elif key == "escape":
             consume()
             self.yate.focus_editor()
         elif self._is_plain_typing(event):
             # consume plain typing so it does not leak into the editor
             consume()
+
+    def _cursor_path(self) -> Path | None:
+        """Path of the node under the cursor (``None`` for placeholders)."""
+        node = self.cursor_node
+        data = node.data if node is not None else None
+        return data if isinstance(data, Path) else None

@@ -154,6 +154,8 @@ class YateApp(App[None]):
         self._ext_messages: list[str] = []
         self._ext_messages.extend(f"yaterc: {err}" for err in self.config.errors)
         self._replace_pending = ""
+        self._explorer_target: Optional[Path] = None
+        self._explorer_is_dir = False
 
         # widgets (set in on_mount)
         self.sidebar: Optional[Vertical] = None
@@ -441,10 +443,15 @@ class YateApp(App[None]):
         if self.workspace.root is None:
             self.message("no folder is open — use :e <path>", kind="warn")
             return
+        if not self.explorer_visible:
+            self.toggle_explorer()
         self.focus_target = "explorer"
         if self.explorer_tree is not None:
             self.explorer_tree.focus()
-        self.message("explorer focused (j/k move, l/open, h collapse, esc back)")
+        self.message(
+            "explorer: j/k move, l open, h fold, a new file, "
+            "A new folder, r rename, d delete, esc back"
+        )
 
     def focus_editor(self) -> None:
         self.focus_target = "editor"
@@ -488,6 +495,124 @@ class YateApp(App[None]):
             self.prompt_bar.idle()
         self.focus_editor()
         self.ui_refresh()
+
+    # -------------------------------------------------------- explorer ops
+
+    def explorer_new_file_prompt(self, directory: Optional[Path]) -> None:
+        self._explorer_prompt_new(directory, is_dir=False)
+
+    def explorer_new_dir_prompt(self, directory: Optional[Path]) -> None:
+        self._explorer_prompt_new(directory, is_dir=True)
+
+    def _explorer_prompt_new(self, directory: Optional[Path], *, is_dir: bool) -> None:
+        if directory is None:
+            self.message("select a file or folder first", kind="warn")
+            return
+        if self.prompt_bar is None:
+            return
+        # on a file entry the sibling directory is the creation target
+        if not directory.is_dir():
+            directory = directory.parent
+        self._explorer_target = directory
+        self._explorer_is_dir = is_dir
+        self.prompt_bar.activate(
+            "new_dir" if is_dir else "new_file",
+            placeholder=f"created inside {directory.name}/",
+        )
+
+    def explorer_rename_prompt(self, path: Optional[Path]) -> None:
+        if path is None:
+            self.message("select a file or folder first", kind="warn")
+            return
+        if self.prompt_bar is None:
+            return
+        self._explorer_target = path
+        self.prompt_bar.activate("rename", initial=path.name,
+                                 placeholder=f"renaming {path.name}")
+
+    def explorer_delete_prompt(self, path: Optional[Path]) -> None:
+        if path is None:
+            self.message("select a file or folder first", kind="warn")
+            return
+        if self.prompt_bar is None:
+            return
+        self._explorer_target = path
+        kind = "folder" if path.is_dir() else "file"
+        self.prompt_bar.activate(
+            "delete",
+            placeholder=f"{kind} {path.name} — type y to confirm",
+        )
+
+    def _explorer_create(self, directory: Optional[Path], name: str) -> None:
+        if directory is None:
+            return
+        try:
+            target = self.workspace.create_entry(
+                directory, name, is_dir=self._explorer_is_dir)
+        except ValueError as exc:
+            self.message(f"invalid name: {exc}", kind="error")
+            return
+        except FileExistsError as exc:
+            self.message(str(exc), kind="error")
+            return
+        except OSError as exc:
+            self.message(f"create failed: {exc}", kind="error")
+            return
+        if self.explorer_tree is not None:
+            self.explorer_tree.refresh_tree()
+        self.message(f"created {target.name}", kind="ok")
+        if not self._explorer_is_dir:
+            # VS Code behavior: a new file opens right away
+            self._open_document_path(target)
+
+    def _explorer_apply_rename(self, path: Optional[Path], name: str) -> None:
+        if path is None:
+            return
+        try:
+            new_path = self.workspace.rename_entry(path, name)
+        except ValueError as exc:
+            self.message(f"invalid name: {exc}", kind="error")
+            return
+        except FileExistsError as exc:
+            self.message(str(exc), kind="error")
+            return
+        except OSError as exc:
+            self.message(f"rename failed: {exc}", kind="error")
+            return
+        # keep tabs pointing at the moved document
+        for doc in self.docs:
+            if doc.path is not None and doc.path.resolve() == path.resolve():
+                doc.path = new_path
+        if self.explorer_tree is not None:
+            self.explorer_tree.refresh_tree()
+        self.message(f"renamed to {new_path.name}", kind="ok")
+
+    def _explorer_apply_delete(self, path: Optional[Path], confirm: str) -> None:
+        if path is None:
+            return
+        if confirm.strip().lower() not in ("y", "yes"):
+            self.message("delete cancelled")
+            return
+        try:
+            self.workspace.remove_entry(path)
+        except OSError as exc:
+            self.message(f"delete failed: {exc}", kind="error")
+            return
+        # close tabs whose file lived under the deleted path
+        target = path.resolve()
+        kept = [d for d in self.docs
+                if d.path is None or not d.path.resolve().is_relative_to(target)]
+        closed = len(self.docs) - len(kept)
+        if closed:
+            self.docs = kept
+            if not self.docs:
+                self.new_buffer(show=False)
+            self.doc_index = max(0, min(self.doc_index, len(self.docs) - 1))
+            self.search = SearchEngine()
+            self.message(f"closed {closed} open tab(s)", kind="warn")
+        if self.explorer_tree is not None:
+            self.explorer_tree.refresh_tree()
+        self.message(f"deleted {path.name}", kind="ok")
 
     # ------------------------------------------------------------- prompts
 
@@ -567,6 +692,7 @@ class YateApp(App[None]):
         mode = self.prompt_bar.active_mode
         text = event.value
         self.prompt_bar.input.push_history(text)
+        refocus_explorer = False
 
         if mode == "command":
             self.run_command(text)
@@ -582,10 +708,24 @@ class YateApp(App[None]):
             self._replace_find_step(text)
         elif mode == "replace_with":
             self._do_replace(self._replace_pending, text)
+        elif mode in ("new_file", "new_dir"):
+            self._explorer_create(self._explorer_target, text)
+            # a newly created file was opened for editing -> focus the
+            # editor; folders and other operations keep the explorer focus
+            refocus_explorer = self._explorer_is_dir
+        elif mode == "rename":
+            self._explorer_apply_rename(self._explorer_target, text)
+            refocus_explorer = True
+        elif mode == "delete":
+            self._explorer_apply_delete(self._explorer_target, text)
+            refocus_explorer = True
 
         if self.prompt_bar.active_mode is not None:
             return  # a follow-up prompt is active (replace_with)
-        self.focus_editor()
+        if refocus_explorer and self.workspace.root is not None:
+            self.focus_explorer()
+        else:
+            self.focus_editor()
         self.ui_refresh()
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -705,10 +845,10 @@ class YateApp(App[None]):
         reg("vsc", lambda args: self.select_keymap("vsc"), "switch to the vsc key map")
         reg("normal", lambda args: self.select_keymap("vsc"), "alias for :vsc")
         reg("help", lambda args: self.show_help(), "show key map help")
-        reg("explorer", lambda args: self._toggle_explorer(), "toggle the file explorer")
+        reg("explorer", lambda args: self.toggle_explorer(), "toggle the file explorer")
         reg("font", lambda args: self._font_command(), "install the bundled Nerd Font")
 
-    def _toggle_explorer(self) -> None:
+    def toggle_explorer(self) -> None:
         self.explorer_visible = not self.explorer_visible
         self._sync_explorer_visibility()
         self.message(f"explorer {'shown' if self.explorer_visible else 'hidden'}")

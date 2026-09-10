@@ -25,6 +25,10 @@ PREFIXES = {
     "shell": (TERMINAL, "green"),
     "open": ("Open: ", "fg_bright"),
     "save": ("Save as: ", "fg_bright"),
+    "new_file": ("New file: ", "green"),
+    "new_dir": ("New folder: ", "accent"),
+    "rename": ("Rename: ", "yellow"),
+    "delete": ("Delete? ", "red"),
 }
 
 #: message kind -> Theme attribute name for the color

@@ -461,5 +461,161 @@ class RcExtensionTests(unittest.IsolatedAsyncioTestCase):
                 )
 
 
+class ExplorerOpsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ctrl_b_toggles_explorer(self):
+        with TemporaryDirectory() as tmp:
+            app = YateApp(target=Path(tmp))
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                explorer = app.explorer_tree
+                assert explorer is not None
+                self.assertTrue(explorer.display)
+                await pilot.press("ctrl+b")
+                await pilot.pause()
+                self.assertFalse(explorer.display)
+                await pilot.press("ctrl+b")
+                await pilot.pause()
+                self.assertTrue(explorer.display)
+
+    async def test_new_file_and_folder_from_explorer(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                # cursor sits on the root: "a" creates a file at the top level
+                await pilot.press("ctrl+e")
+                await pilot.press("a")
+                await pilot.pause()
+                prompt_bar = app.prompt_bar
+                assert prompt_bar is not None
+                self.assertEqual(prompt_bar.active_mode, "new_file")
+                await pilot.press(*"made.txt")
+                await pilot.press("enter")
+                await pilot.pause()
+                self.assertTrue((root / "made.txt").exists())
+                # new files open right away (VS Code behavior)
+                opened = {d.name for d in app.docs if d.path is not None}
+                self.assertIn("made.txt", opened)
+                # "A" creates a folder; creation target is the selected dir
+                await pilot.press("ctrl+e")
+                await pilot.press("A")
+                await pilot.pause()
+                self.assertEqual(prompt_bar.active_mode, "new_dir")
+                await pilot.press(*"subdir")
+                await pilot.press("enter")
+                await pilot.pause()
+                self.assertTrue((root / "subdir").is_dir())
+
+    async def test_rename_updates_open_document_path(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "old.txt").write_text("data\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("ctrl+e", "j", "l")  # focus, move, open old.txt
+                await pilot.pause()
+                doc = app.doc
+                self.assertIsNotNone(doc.path)
+                await pilot.press("ctrl+e")
+                await pilot.press("j")  # cursor onto old.txt
+                await pilot.press("r")
+                await pilot.pause()
+                prompt_bar = app.prompt_bar
+                assert prompt_bar is not None
+                self.assertEqual(prompt_bar.active_mode, "rename")
+                self.assertEqual(prompt_bar.input.value, "old.txt")
+                await pilot.press(*"new.txt")
+                await pilot.press("enter")
+                await pilot.pause()
+                self.assertFalse((root / "old.txt").exists())
+                self.assertTrue((root / "new.txt").exists())
+                self.assertEqual(app.doc.path, (root / "new.txt").resolve())
+
+    async def test_delete_requires_confirmation(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            victim = root / "gone.txt"
+            victim.write_text("bye\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("ctrl+e", "j")
+                await pilot.press("d")
+                await pilot.pause()
+                prompt_bar = app.prompt_bar
+                assert prompt_bar is not None
+                self.assertEqual(prompt_bar.active_mode, "delete")
+                self.assertTrue(victim.exists())
+                # anything but y cancels
+                await pilot.press("n")
+                await pilot.press("enter")
+                await pilot.pause()
+                self.assertTrue(victim.exists())
+                # d again, confirm with y
+                await pilot.press("ctrl+e", "j", "d")
+                await pilot.press(*"y")
+                await pilot.press("enter")
+                await pilot.pause()
+                self.assertFalse(victim.exists())
+
+    async def test_refresh_tree_keeps_expanded_dirs(self):
+        from yate.editor_view.explorer import ExplorerTree
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sub = root / "sub"
+            sub.mkdir()
+            (sub / "inner.txt").write_text("i\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                explorer = app.explorer_tree
+                assert explorer is not None
+                # expand "sub" via the tree: focus root, j to sub, l to expand
+                await pilot.press("ctrl+e", "j", "l")
+                await pilot.pause()
+                sub_node = next(n for n in explorer.root.children
+                                if isinstance(n.data, Path) and n.data == sub)
+                self.assertTrue(sub_node.is_expanded)
+                # any refresh (e.g. opening a file elsewhere) must not collapse
+                explorer.refresh_tree()
+                sub_node2 = next(n for n in explorer.root.children
+                                 if isinstance(n.data, Path) and n.data == sub)
+                self.assertTrue(sub_node2.is_expanded)
+                self.assertIn(ExplorerTree, type(explorer).__mro__)
+
+
+class EditorBgTests(unittest.IsolatedAsyncioTestCase):
+    async def test_every_editor_cell_has_explicit_bg(self):
+        """Regression: None bgcolor would let the terminal's own background
+        bleed through next to cells painted with theme.bg."""
+        from rich.color import Color
+
+        from yate.editor_view import theme as theme_mod
+
+        with TemporaryDirectory() as tmp:
+            p = Path(tmp) / "doc.py"
+            p.write_text('"""doc"""\n\nx = 1\n', encoding="utf-8")
+            app = YateApp(target=p)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                editor = app.editor_view
+                assert editor is not None
+                t = theme_mod.active()
+                allowed = {repr(Color.parse(t.bg)), repr(Color.parse(t.surface))}
+                checked = 0
+                for row in range(min(4, app.buffer.line_count)):
+                    for seg in editor.render_line(row):
+                        bg = getattr(seg.style, "bgcolor", None)
+                        assert bg is not None, \
+                            f"bg=None cell at row {row}: {seg.text!r}"
+                        self.assertIn(repr(bg), allowed)
+                        checked += 1
+                self.assertGreater(checked, 12)
+
+
 if __name__ == "__main__":
     unittest.main()

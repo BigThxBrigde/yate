@@ -94,6 +94,7 @@ class VscKeymap(Keymap):
             _k("<alt-shift-p>", "command_palette", "Command palette (alt+shift+p)", VIEW),
             _raw("\x1f", "toggle_keymap", "Toggle vsc/vim keymap (ctrl+/)", VIEW),
             _k("<ctrl-e>", "focus_explorer", "Focus file explorer", VIEW),
+            _k("<ctrl-b>", "toggle_explorer", "Toggle file explorer", VIEW),
             _k("<f2>", "shell_prompt", "Run shell command", VIEW),
             _raw("\x1b[5;5~", "prev_tab", "Previous tab", TAB),
             _raw("\x1b[6;5~", "next_tab", "Next tab", TAB),

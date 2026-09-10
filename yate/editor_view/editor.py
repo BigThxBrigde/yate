@@ -351,7 +351,13 @@ class EditorView(ScrollView):
             fg = t.syntax_color(kind) if kind is not None else t.fg
             return Style(bgcolor=t.selection_bg, color=fg)
         if sid == S_CURSOR:
-            return Style(reverse=True, bold=True)
+            # explicit base bg keeps reverse video inside the theme palette
+            # (None would swap with the terminal's own background)
+            return Style(reverse=True, bold=True, bgcolor=t.bg)
         if kind is not None:
-            return t.syntax_style(kind, bgcolor=line_bg)
-        return Style(color=t.fg, bgcolor=line_bg)
+            # always fill with an explicit theme color: a None bgcolor would
+            # let the terminal's own background bleed through, which clashes
+            # with the gutter/padding painted in theme.bg when the terminal
+            # profile uses a different background color
+            return t.syntax_style(kind, bgcolor=line_bg or t.bg)
+        return Style(color=t.fg, bgcolor=line_bg or t.bg)

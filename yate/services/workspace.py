@@ -141,6 +141,57 @@ class Workspace:
                 walk(entry.path, 2)
         return result
 
+    # ------------------------------------------------------- file mutation
+
+    @staticmethod
+    def validate_name(name: str) -> str:
+        """Strip and sanity-check a file/folder name from user input.
+
+        Returns the cleaned name; raises ``ValueError`` when the name is
+        empty or contains path separators (single-segment names only).
+        """
+        name = name.strip()
+        if not name or name in (".", ".."):
+            raise ValueError("empty name")
+        for sep in ("/", "\\", ":"):
+            if sep in name:
+                raise ValueError(f"name must not contain {sep!r}")
+        return name
+
+    def create_entry(self, directory: Path, name: str, *, is_dir: bool) -> Path:
+        """Create a file (or folder) inside *directory*; returns its path.
+
+        Raises ``FileExistsError`` if the target already exists and
+        ``OSError`` bubbling from the file system on failure.
+        """
+        target = directory / self.validate_name(name)
+        if target.exists():
+            raise FileExistsError(f"{target.name} already exists")
+        if is_dir:
+            target.mkdir(parents=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.touch()
+        return target
+
+    def rename_entry(self, path: Path, name: str) -> Path:
+        """Rename *path* within its own directory; returns the new path."""
+        target = path.parent / self.validate_name(name)
+        if target == path:
+            return target
+        if target.exists():
+            raise FileExistsError(f"{target.name} already exists")
+        return path.rename(target)
+
+    def remove_entry(self, path: Path) -> None:
+        """Delete a file, or a directory tree (with :mod:`shutil`)."""
+        import shutil
+
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
     # ------------------------------------------------------------ file info
 
     @staticmethod

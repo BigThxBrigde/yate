@@ -157,6 +157,7 @@ def populate(registry: ActionRegistry) -> None:
     reg("quick_open", lambda ctx: ctx.app.open_file_palette(), "Quick file open")
     reg("command_palette", lambda ctx: ctx.app.open_command_palette(), "Command palette")
     reg("focus_explorer", lambda ctx: ctx.app.focus_explorer(), "Focus explorer")
+    reg("toggle_explorer", lambda ctx: ctx.app.toggle_explorer(), "Toggle explorer")
     reg("shell_prompt", lambda ctx: ctx.app.shell_prompt(), "Run shell command")
     reg("prev_tab", lambda ctx: ctx.app.cycle_tab(-1), "Previous tab")
     reg("next_tab", lambda ctx: ctx.app.cycle_tab(1), "Next tab")
