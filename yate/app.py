@@ -155,6 +155,7 @@ class YateApp(App[None]):
         self._ext_messages: list[str] = []
         self._ext_messages.extend(f"yaterc: {err}" for err in self.config.errors)
         self._replace_pending = ""
+        self._prev_manual_theme: Optional[str] = None
         self._explorer_target: Optional[Path] = None
         self._explorer_is_dir = False
 
@@ -765,10 +766,23 @@ class YateApp(App[None]):
         if self.mounted:
             self.push_screen(HelpScreen(self))
 
-    def show_manual(self) -> None:
+    def show_manual(self, lang: str = "en") -> None:
         """Open the bundled user manual, rendered as read-only markdown."""
-        if self.mounted:
-            self.push_screen(ManualScreen(self))
+        if not self.mounted or isinstance(self.screen, ManualScreen):
+            return
+        # switch the textual design tokens before pushing so the first
+        # frame of the markdown viewer is already themed (switching on
+        # screen resume leaves an unthemed flash while markdown mounts)
+        self._prev_manual_theme = self.theme
+        self.theme = "catppuccin-mocha"
+        self.push_screen(
+            ManualScreen(self, lang), callback=lambda _result: self._restore_manual_theme()
+        )
+
+    def _restore_manual_theme(self) -> None:
+        if self._prev_manual_theme is not None:
+            self.theme = self._prev_manual_theme
+            self._prev_manual_theme = None
 
     def open_file_palette(self) -> None:
         """Quick file open: fuzzy palette over the workspace files (ctrl+p)."""
@@ -851,7 +865,8 @@ class YateApp(App[None]):
         reg("vsc", lambda args: self.select_keymap("vsc"), "switch to the vsc key map")
         reg("normal", lambda args: self.select_keymap("vsc"), "alias for :vsc")
         reg("help", lambda args: self.show_help(), "show key map help")
-        reg("manual", lambda args: self.show_manual(), "open the user manual")
+        reg("manual", lambda args: self.show_manual(args or "en"),
+            "open the user manual (:manual zh|en, default en)")
         reg("explorer", lambda args: self.toggle_explorer(), "toggle the file explorer")
         reg("font", lambda args: self._font_command(), "install the bundled Nerd Font")
 

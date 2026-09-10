@@ -632,24 +632,44 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertIsInstance(app.screen, ManualScreen)
             md = app.screen.query_one("#manual-md", Markdown)
-            # the source markdown resolves and the widget got the content
-            self.assertGreater(len(load_manual_markdown()), 1000)
-            self.assertEqual(md.source, load_manual_markdown())
-            # theme is switched to the built-in catppuccin while viewing
+            # F8 opens the default (english) manual
+            self.assertEqual(md.source, load_manual_markdown("en"))
+            # theme is switched *before* the screen is pushed
             self.assertEqual(app.theme, "catppuccin-mocha")
+            # f8 again must not stack a second viewer
+            await pilot.press("f8")
+            await pilot.pause()
+            self.assertEqual(len(app.screen_stack), 2)
             await pilot.press("escape")
             await pilot.pause()
             self.assertNotIsInstance(app.screen, ManualScreen)
-            # ... and restored afterwards
+            # ... and the previous theme is restored afterwards
             self.assertEqual(app.theme, "textual-dark")
 
-    async def test_manual_command_opens_viewer(self):
-        app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            app.run_command("manual")
-            await pilot.pause()
-            self.assertIsInstance(app.screen, ManualScreen)
+    async def test_manual_command_selects_language(self):
+        from textual.widgets import Markdown
+
+        from yate.editor_view.manual import load_manual_markdown
+
+        for cmd_arg, lang in (("zh", "zh"), ("en", "en"), ("bogus", "en")):
+            with self.subTest(cmd=cmd_arg):
+                app = YateApp()
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.pause()
+                    app.run_command(f"manual {cmd_arg}".strip())
+                    await pilot.pause()
+                    self.assertIsInstance(app.screen, ManualScreen)
+                    md = app.screen.query_one("#manual-md", Markdown)
+                    self.assertEqual(md.source, load_manual_markdown(lang))
+
+    async def test_both_language_files_bundled(self):
+        from yate.editor_view.manual import load_manual_markdown
+
+        for lang in ("en", "zh"):
+            with self.subTest(lang=lang):
+                text = load_manual_markdown(lang)
+                self.assertGreater(len(text), 1000)
+                self.assertTrue(text.lstrip().startswith("# yate"))
 
 
 if __name__ == "__main__":
