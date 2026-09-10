@@ -28,6 +28,7 @@ from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.icons import CHEVRON_RIGHT, FOLDER, icon_for_path
 from yate.editor_view.keys import event_to_raw, textual_key_to_raw
+from yate.editor_view.manual import ManualScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.statusbar import StatusBar
@@ -764,6 +765,11 @@ class YateApp(App[None]):
         if self.mounted:
             self.push_screen(HelpScreen(self))
 
+    def show_manual(self) -> None:
+        """Open the bundled user manual, rendered as read-only markdown."""
+        if self.mounted:
+            self.push_screen(ManualScreen(self))
+
     def open_file_palette(self) -> None:
         """Quick file open: fuzzy palette over the workspace files (ctrl+p)."""
         if self.mounted:
@@ -845,6 +851,7 @@ class YateApp(App[None]):
         reg("vsc", lambda args: self.select_keymap("vsc"), "switch to the vsc key map")
         reg("normal", lambda args: self.select_keymap("vsc"), "alias for :vsc")
         reg("help", lambda args: self.show_help(), "show key map help")
+        reg("manual", lambda args: self.show_manual(), "open the user manual")
         reg("explorer", lambda args: self.toggle_explorer(), "toggle the file explorer")
         reg("font", lambda args: self._font_command(), "install the bundled Nerd Font")
 

@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from textual.strip import Strip
 
 from yate.app import YateApp, textual_key_to_raw
+from yate.editor_view.manual import ManualScreen
 
 
 class KeyAdapterTests(unittest.TestCase):
@@ -616,6 +617,39 @@ class EditorBgTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIn(repr(bg), allowed)
                         checked += 1
                 self.assertGreater(checked, 12)
+
+
+class ManualTests(unittest.IsolatedAsyncioTestCase):
+    async def test_f8_opens_manual_and_esc_closes(self):
+        from textual.widgets import Markdown
+
+        from yate.editor_view.manual import load_manual_markdown
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("f8")
+            await pilot.pause()
+            self.assertIsInstance(app.screen, ManualScreen)
+            md = app.screen.query_one("#manual-md", Markdown)
+            # the source markdown resolves and the widget got the content
+            self.assertGreater(len(load_manual_markdown()), 1000)
+            self.assertEqual(md.source, load_manual_markdown())
+            # theme is switched to the built-in catppuccin while viewing
+            self.assertEqual(app.theme, "catppuccin-mocha")
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertNotIsInstance(app.screen, ManualScreen)
+            # ... and restored afterwards
+            self.assertEqual(app.theme, "textual-dark")
+
+    async def test_manual_command_opens_viewer(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.run_command("manual")
+            await pilot.pause()
+            self.assertIsInstance(app.screen, ManualScreen)
 
 
 if __name__ == "__main__":

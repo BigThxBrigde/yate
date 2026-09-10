@@ -238,8 +238,12 @@ class EditorView(ScrollView):
         rows: list[list[tuple[str, Optional[str], bool, bool]]] = [
             [],  # row 0: keep the cursor line blank
         ]
+        # pad all banner lines to the same width so the per-line centering
+        # below keeps the figlet block aligned (trailing spaces were trimmed
+        # from the generator output, which would otherwise shift short lines)
+        banner_w = max(len(art) for art in _WELCOME_BANNER)
         for art in _WELCOME_BANNER:
-            rows.append([(art, t.green, False, True)])
+            rows.append([(art.ljust(banner_w), t.green, False, True)])
         rows.append([])
         rows.append([
             ("yate ", t.accent, True, True),

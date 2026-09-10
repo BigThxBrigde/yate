@@ -99,4 +99,5 @@ class VscKeymap(Keymap):
             _raw("\x1b[5;5~", "prev_tab", "Previous tab", TAB),
             _raw("\x1b[6;5~", "next_tab", "Next tab", TAB),
             _k("<f1>", "help", "Keyboard shortcuts help", HELP),
+            _k("<f8>", "manual", "Open user manual (read-only)", HELP),
         ]
