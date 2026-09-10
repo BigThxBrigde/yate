@@ -1,7 +1,7 @@
 """Bundled Nerd Font support: detection, user-level install, terminal setup.
 
-yate ships FiraCode Nerd Font Mono (OFL license, see
-``yate/resources/fonts/FiraCodeNerdFont-LICENSE.txt``) inside the package.
+yate ships JetBrains Mono Nerd Font Mono (OFL license, see
+``yate/resources/fonts/OFL.txt``) inside the package.
 
 A terminal program cannot choose its own font -- the terminal emulator does
 that.  So this module provides the full fallback chain:
@@ -25,7 +25,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, cast
 
-FAMILY = "FiraCode Nerd Font Mono"
+# nerd-fonts v3 ships a short GDI family name on Windows ("NFM" = Nerd Font
+# Mono); the long name only exists as the typographic family (name ID 16),
+# which GDI EnumFontFamilies/InstalledFontCollection never report.
+FAMILY = "JetBrainsMono NFM"
 
 # Win32 constants for the font-change broadcast (SendModuleMessage family).
 HWND_BROADCAST = 0xFFFF
@@ -178,8 +181,8 @@ def _expected_font_entries(fonts_dir: Path) -> dict[str, str]:
     expected: dict[str, str] = {}
     for ttf in bundled_font_files():
         # The value name is "<family> <style> (TrueType)"; derive the friendly
-        # style from the file name, e.g. FiraCodeNerdFontMono-Bold.ttf.
-        stem = ttf.stem  # FiraCodeNerdFontMono-Bold
+        # style from the file name, e.g. JetBrainsMonoNerdFontMono-Bold.ttf.
+        stem = ttf.stem  # JetBrainsMonoNerdFontMono-Bold
         style = stem.split("-", 1)[1].replace("SemiBold", "Semi Bold") if "-" in stem else "Regular"
         expected[f"{FAMILY} {style}{_TTF_SUFFIX}"] = str(fonts_dir / ttf.name)
     return expected
@@ -208,7 +211,7 @@ def _register_windows_user_font(fonts_dir: Path) -> tuple[list[str], list[str]]:
         if not dest.exists():
             shutil.copy2(ttf, dest)
         # Remove duplicate copies an Explorer per-user install may have added
-        # (FiraCodeNerdFontMono-Regular_0.ttf and friends).
+        # (JetBrainsMonoNerdFontMono-Regular_0.ttf and friends).
         for dup in fonts_dir.glob(f"{ttf.stem}_*.ttf"):
             try:
                 dup.unlink()
@@ -310,8 +313,38 @@ def windows_terminal_settings_path() -> Optional[Path]:
     return None
 
 
+def _apply_face(container: dict[str, Any], family: str, *, force: bool) -> bool:
+    """Point ``container["font"]`` at *family*; True if anything changed.
+
+    With ``force=True`` (profiles.defaults) the face is always set.  Without
+    it (individual profiles) an inherited font — no explicit face — is left
+    alone, while an explicit non-matching face is rewritten.  The legacy
+    schema where "font" is a plain string is upgraded to an object.
+    """
+    current: object = container.get("font")
+    if current is None and not force:
+        return False  # profile inherits the defaults; nothing to rewrite
+    current = container.setdefault("font", {})
+    if isinstance(current, dict):
+        font_map = cast(dict[str, Any], current)
+        if not force and "face" not in font_map:
+            return False
+        if font_map.get("face") == family:
+            return False
+        font_map["face"] = family
+        return True
+    if isinstance(current, str) and current != family:
+        container["font"] = {"face": family}
+        return True
+    return False
+
+
 def configure_windows_terminal(family: str = FAMILY) -> tuple[bool, str]:
-    """Set the default font face in Windows Terminal (with a backup).
+    """Set the font face in Windows Terminal (with a backup).
+
+    Updates ``profiles.defaults`` plus every profile that explicitly sets
+    its own ``font.face`` — a profile-level override (e.g. Cascadia Mono)
+    would otherwise silently keep a non-Nerd-Font face and break the icons.
 
     Returns ``(changed, message)``.  Leaves a ``settings.json.yate-bak``
     backup next to the settings file.
@@ -329,24 +362,33 @@ def configure_windows_terminal(family: str = FAMILY) -> tuple[bool, str]:
     # json.loads 返回 Any：逐级收窄为 dict[str, Any]，避免 Unknown 扩散
     profiles = cast(dict[str, Any], data.setdefault("profiles", {}))
     defaults = cast(dict[str, Any], profiles.setdefault("defaults", {}))
-    # font 旧版 schema 允许是字符串，保留原始 object 做运行时类型判断
-    font_value: object = defaults.setdefault("font", {})
-    font = cast(dict[str, Any], font_value)
+    changed = _apply_face(defaults, family, force=True)
 
-    current: object = font.get("face") if isinstance(font_value, dict) else font_value
-    if current == family:
+    overrides = 0
+    profile_list = profiles.get("list")
+    if isinstance(profile_list, list):
+        for entry in cast(list[Any], profile_list):
+            if isinstance(entry, dict) and _apply_face(
+                cast(dict[str, Any], entry), family, force=False
+            ):
+                changed = True
+                overrides += 1
+
+    if not changed:
         return True, f"Windows Terminal already uses {family}"
 
     try:
         backup = settings.with_suffix(".json.yate-bak")
         if not backup.exists():
             backup.write_text(raw, encoding="utf-8")
-        font["face"] = family
         settings.write_text(json.dumps(data, indent=4, ensure_ascii=False), encoding="utf-8")
     except OSError as exc:
         return False, f"cannot write settings.json: {exc}"
 
-    return True, f"Windows Terminal default font set to {family} (backup: {backup.name})"
+    message = f"Windows Terminal font set to {family} (backup: {backup.name})"
+    if overrides:
+        message += f"; updated {overrides} profile(s) with a font.face override"
+    return True, message
 
 
 def ensure_font(*, configure_terminal: bool = True) -> FontStatus:
