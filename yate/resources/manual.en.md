@@ -26,11 +26,12 @@ handles the workspace, shell, extensions and fonts.
 10. The yaterc Configuration File
 11. Themes
 12. Fonts and Nerd Font Icons
-13. Shell Integration
-14. Python Extensions
-15. Language servers (LSP)
-16. FAQ
-17. Key Binding Cheat Sheet
+13. Integrated Terminal
+14. Shell Integration
+15. Python Extensions
+16. Language servers (LSP)
+17. FAQ
+18. Key Binding Cheat Sheet
 
 ---
 
@@ -141,7 +142,7 @@ yate's layout mimics VS Code, top to bottom:
 - The current line is highlighted full-width (surface background).
 - Block cursor; at end of line the cursor renders on the filler cell.
 - The built-in syntax highlighter colors by file type (supported languages,
-  see the FAQ in section 15: Python, C/C++, Java, Rust, Go,
+  see the FAQ in section 17: Python, C/C++, Java, Rust, Go,
   JavaScript/TypeScript, Shell, JSON, Markdown, TOML, INI, YAML).
 - Selections and search matches (the active match in a stronger color) render
   as theme-colored overlays.
@@ -312,6 +313,7 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (`Ctrl+Shift+E` same as VS Code) |
 | `Ctrl+1` | Focus the editor (same as VS Code) |
 | `Ctrl+B` | Show / hide the file tree (same as `:explorer`) |
+| `Ctrl+`` | Show / hide the integrated terminal (see section 13) |
 | `F2` | Run a shell command |
 
 **Tabs**
@@ -498,6 +500,8 @@ history. Unknown commands report
 | `:manual` | Open the user manual (`:manual zh` / `:manual en`, English by default) |
 | `:help` | Key reference overlay (same as `F1`) |
 | `:explorer` | Show / hide the file tree (same as `Ctrl+B`) |
+| `:term` | Show / focus the integrated terminal (alias `:terminal`, see section 13) |
+| `:termclose` | Hide the integrated terminal (the shell keeps running) |
 | `:font` | Detect and (when needed) install the bundled Nerd Font, configure Windows Terminal |
 
 **Options and appearance (session only, never written back to yaterc)**
@@ -511,12 +515,14 @@ history. Unknown commands report
 | `:normal` | Alias of `:vsc` |
 | `:theme [name]` | Switch theme; without arguments lists the current theme and all available themes |
 | `:colorscheme [name]` | Alias of `:theme` |
+| `:set shell=<command>` | Set the terminal shell command (takes effect on the next shell launch) |
+| `:set terminal_height=<n>` | Terminal panel height in rows (`3`–`40`), applied immediately |
 
 **Shell**
 
 | Command | Description |
 |---|---|
-| `:!cmd` | Run a shell command (e.g. `:!git status`), see section 13 |
+| `:!cmd` | Run a shell command (e.g. `:!git status`), see section 14 |
 
 ## 9. Command Palette and Quick Open
 
@@ -585,10 +591,15 @@ Behavior details:
 | `tab_width` | `int` | `4` | integer 1–16 (booleans like `True`/`False` are rejected) | Spaces inserted by Tab, also Tab's display width |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True`: Tab inserts spaces; `False`: a real tab character |
 | `extensions` | `str` or `list[str]` | none | existing file/directory paths | Extra extension scripts, see 10.4 |
+| `shell` | `str` | platform default (see section 13) | non-empty string | Shell command for the integrated terminal, with optional arguments (e.g. `"pwsh -NoLogo"`); an existing file path may contain spaces |
+| `terminal_height` | `int` | `12` | integer 3–40 (booleans/floats rejected) | Integrated terminal panel height in rows |
 
 - `keymap` / `theme` apply at startup; `theme` is process-global state (like
   vim's colorscheme).
 - `tab_width` / `use_spaces` propagate to **every new and opened buffer**.
+- `shell` is read when a terminal shell is launched (restart the shell after
+  changing it); `terminal_height` also applies immediately via
+  `:set terminal_height=<n>`.
 
 Minimal example (copy `yaterc.example` from the repo root as a starting
 point):
@@ -661,7 +672,7 @@ Rules:
 
 Beyond rc declarations, extensions also auto-load from the default
 directories `./extensions/` and `~/.yate/extensions/`, and can be added with
-`--ext <file>` / `--ext-dir <dir>` (see section 14).
+`--ext <file>` / `--ext-dir <dir>` (see section 15).
 
 ## 11. Themes
 
@@ -747,7 +758,62 @@ Verification: `yate --install-font` first prints its detection result
 (`Nerd Font already available: ...` or
 `no Nerd Font detected -- run 'yate --install-font' or ':font'`).
 
-## 13. Shell Integration
+## 13. Integrated Terminal
+
+yate embeds a real shell in a bottom panel (VS Code style), connected through
+a pseudo terminal, so full-screen TUI programs (vim, htop, python REPL, …)
+work directly inside it. On Windows the backend is ConPTY (Windows 10 1809+);
+on macOS / Linux it is the POSIX `pty` device.
+
+**Opening / hiding**
+
+- `Ctrl+`` toggles the panel (grave accent, the key above Tab). Opening it
+  focuses the terminal; hiding it returns focus to the editor.
+- Hiding does **not** kill the shell: the process keeps running, exactly like
+  VS Code, and toggling again brings the same session back.
+- `:term` (alias `:terminal`) shows and focuses the panel; `:termclose` hides
+  it.
+
+**Using the terminal**
+
+- Every keystroke is forwarded to the shell, including control keys and
+  pasted text (bracketed paste is supported). `Ctrl+`` remains intercepted so
+  you can hide the panel from the keyboard.
+- Scroll back with `Shift+PageUp` / `Shift+PageDown` or the mouse wheel; the
+  scrollback keeps the last 5000 lines.
+- The panel header shows the shell name, the title reported by the program
+  (OSC escape sequences), and its state: `starting` / `running` / `exited`.
+- When the shell exits, the last line shows
+  `[shell exited (exit code N); any key restarts]` — press any key to spawn a
+  fresh shell.
+- The panel resizes with the window; the shell receives SIGWINCH /
+  ResizePseudoConsole automatically.
+
+**Default shell and configuration**
+
+Without configuration, yate picks:
+
+- Windows: `pwsh` if found on `PATH`, else Windows PowerShell
+  (`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`, launched
+  with `-NoLogo`), else `%COMSPEC%` / `cmd.exe`.
+- macOS / Linux: `$SHELL`, else `bash`, else `/bin/sh`.
+
+Set `shell` in yaterc to override it (see 10.2):
+
+```python
+shell = "pwsh -NoLogo"
+```
+
+The value is split like a shell command line; on Windows, if the value is an
+existing file path it is used as-is, so quoted paths containing spaces work
+(e.g. `shell = r"C:\Program Files\PowerShell\7\pwsh.exe"`). Changing `shell`
+takes effect the next time a shell is launched (toggle the panel after the
+current shell exits, or restart yate).
+
+The panel height defaults to 12 rows; `terminal_height` accepts `3`–`40`, and
+`:set terminal_height=<n>` changes it immediately for the current session.
+
+## 14. Shell Integration
 
 - **Entry points**: `F2` opens the shell input line, or type `:!cmd` directly
   in the command line (e.g. `:!git status`, `:!ls -la`).
@@ -767,7 +833,7 @@ Verification: `yate --install-font` first prints its detection result
 - Extensions can run commands silently via `api.shell(cmd)` (no output
   overlay).
 
-## 14. Python Extensions
+## 15. Python Extensions
 
 An extension is any `.py` file exposing `setup(api)` (optionally
 `teardown(api)`):
@@ -788,7 +854,7 @@ What `api` provides:
 | Registration | `command(name, description)` decorator / `register_command(name, func, description)` to register `:` commands; `bind_key(key_spec, callback, keymap=...)` to bind keys (`"vsc"` / `"vim"` / `"both"`; `normal` aliases `vsc`); `register_action(name, func, description)` for named actions |
 | Access | `api.buffer`, `api.doc`, `api.workspace`, `api.keymaps`, `api.app` |
 | Services | `api.message(text)`, `api.shell(command)`, `api.open_path(path)`, `api.save()` |
-| Language servers | `api.lsp.register_server(...)` (see section 15); `api.lsp.statuses()` returns `{name: state}` |
+| Language servers | `api.lsp.register_server(...)` (see section 16); `api.lsp.statuses()` returns `{name: state}` |
 
 Key specs use yate's key notation: `<ctrl-x>`, `<alt-x>`, `<shift-x>`,
 `<f1>`…`<f12>`, `<enter>`, `<esc>`, `<tab>`, `<backspace>`,
@@ -809,7 +875,7 @@ message bar as `extension <name>: ...`. The repo ships a sample at
 `extensions/example_ext.py` (providing the `:upper` / `:lower` / `:words` /
 `:sh` commands and an `Alt+U` binding) usable as a template.
 
-## 15. Language servers (LSP)
+## 16. Language servers (LSP)
 
 yate ships a small built-in [LSP](https://microsoft.github.io/language-server-protocol/)
 client (no extra dependencies): it spawns language server processes over
@@ -878,7 +944,7 @@ def setup(api):
 Registering the same name twice replaces the previous config and drops its
 cached process and diagnostics.
 
-## 16. FAQ
+## 17. FAQ
 
 **Icons render as boxes, diamonds or question marks?**
 The terminal is not using a Nerd Font. Run `yate --install-font` (or
@@ -934,7 +1000,7 @@ most emoji) occupy 2 columns, combining characters 0, and tabs expand to the
 `F1` shows the full reference for the current keymap plus all `:` commands;
 `F8` / `:manual` opens this manual.
 
-## 17. Key Binding Cheat Sheet
+## 18. Key Binding Cheat Sheet
 
 vsc keymap (default):
 
@@ -954,6 +1020,7 @@ vsc keymap (default):
 | `Ctrl+]` / `Shift+Tab` | Indent / dedent | `F1` | Key help |
 | `Ctrl+J` | Join lines | `F8` | User manual |
 | `Ctrl+Space` | Trigger autocomplete | `:diagnostics` | List LSP diagnostics |
+| `Ctrl+`` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·
 `a` new file · `A` new folder · `r` rename · `d`/`Del` delete (`y` confirms) ·
@@ -973,10 +1040,11 @@ vim keymap:
 | `/` / `?` | Find down / up | `J` | Join lines |
 | `n` / `N` | Next / previous match | numeric prefix | Count (e.g. `3j`, `2dd`) |
 | `:` | ex command line | `Ctrl+W` / `Ctrl+U` (insert mode) | Delete word / to line start |
+| `Ctrl+`` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 
 Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
-`:files` `:palette` `:manual` `:help` `:explorer` `:font`
-`:set keymap=…` `:set theme=…` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
+`:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
 ---
 

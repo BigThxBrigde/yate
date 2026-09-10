@@ -9,6 +9,7 @@ Widgets
 * :class:`PromptBar`   -- the ``:`` / ``/`` / ``!`` prompt and message area
 * :class:`HelpScreen`  -- keymap help overlay (modal screen)
 * :class:`OutputScreen` -- shell command output overlay (modal screen)
+* :class:`TerminalPanel` -- integrated PTY terminal docked at the bottom
 
 All glyphs live in :mod:`yate.editor_view.icons` (Nerd Fonts) and colors in
 :mod:`yate.editor_view.theme`.
@@ -19,6 +20,7 @@ from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.statusbar import StatusBar
+from yate.editor_view.terminal import TerminalPanel, TerminalView
 
 __all__ = [
     "EditorView",
@@ -27,4 +29,6 @@ __all__ = [
     "PromptBar",
     "HelpScreen",
     "OutputScreen",
+    "TerminalPanel",
+    "TerminalView",
 ]

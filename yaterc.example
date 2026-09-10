@@ -25,6 +25,22 @@ theme = "mocha"
 tab_width = 4
 use_spaces = True
 
+# Integrated terminal (toggled with Ctrl+`):
+# shell sets the command launched in the bottom terminal panel.
+# Defaults: Windows pwsh -> Windows PowerShell -> cmd.exe;
+#           POSIX $SHELL -> bash -> /bin/sh.
+# Arguments are allowed (split like a command line); on Windows an existing
+# file path is used verbatim, so quoted paths with spaces work.
+#
+# shell = "pwsh -NoLogo"
+# shell = r"C:\Program Files\PowerShell\7\pwsh.exe"
+# shell = "/usr/bin/zsh"
+#
+# Panel height in rows (3–40, default 12); :set terminal_height=<n> also
+# changes it for the current session.
+#
+# terminal_height = 12
+
 # ------------------------------------------------------------- extensions
 #
 # Extra extension scripts to load at startup. A path string or a list of

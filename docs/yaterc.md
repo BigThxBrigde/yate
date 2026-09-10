@@ -32,7 +32,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 
 - 多个文件在**同一个命名空间**内依次执行，因此项目级配置能看到（并覆盖）
   用户级配置里已设置的变量。
-- 配置文件里被识别的选项只有下表五个；**未识别的变量会被静默忽略**，
+- 配置文件里被识别的选项只有下表七个；**未识别的变量会被静默忽略**，
   但你可以在里面定义任意辅助变量/函数供后续使用。
 - 任何文件读取失败、语法错误、运行时异常都**不会导致编辑器崩溃**：
   出错的文件被跳过，问题以 `yaterc: ...` 前缀显示在启动时的消息栏，
@@ -47,6 +47,8 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `tab_width` | `int` | `4` | `1`–`16` 的整数 | Tab 键插入的空格数，也是 Tab 的显示宽度；`True`/`False` 等非整数被拒绝 |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 插入空格；`False` 时插入真实制表符 |
 | `extensions` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 额外扩展脚本路径，见[下文](#扩展路径extensions)；多个 rc 文件**累加**而非覆盖 |
+| `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`Ctrl+`` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
+| `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 
 非法取值不会中断加载：对应选项保持默认，错误信息出现在启动消息栏。
 
@@ -56,6 +58,8 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
   colorscheme）。
 - `tab_width` / `use_spaces` 会传播到**所有新建和打开的 buffer**
   （见 [yate/app.py](../yate/app.py) 中 `_make_buffer` / `_apply_buffer_options`）。
+- `shell` 在启动终端 Shell 时读取（会话内 `:set shell=…` 后需重启 Shell 生效）；
+  `terminal_height` 同时支持会话内 `:set terminal_height=<n>` 立即调整。
 
 ## 内置主题
 
@@ -161,5 +165,7 @@ extensions = [
 
 - `:set keymap=vsc|vim`、`:vim`、`:vsc`（`:normal` 为 `:vsc` 别名）
 - `:theme <名称>` / `:colorscheme <名称>`（不带参数列出可用主题）
+- `:set shell=<命令>`（下次启动终端 Shell 时生效）、`:set terminal_height=<3-40>`
+  （立即调整终端面板高度）
 
 要永久生效，请把对应选项写进 yaterc。

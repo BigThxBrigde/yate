@@ -134,6 +134,27 @@ class ConfigValidationTests(unittest.TestCase):
         config = self._load("theme = 123\n")
         self.assertTrue(any("theme" in e for e in config.errors))
 
+    def test_shell_option(self) -> None:
+        config = self._load('shell = "pwsh -NoLogo"\n')
+        self.assertEqual(config.shell, "pwsh -NoLogo")
+        self.assertEqual(config.errors, [])
+
+    def test_shell_must_be_nonempty_string(self) -> None:
+        config = self._load('shell = "  "\n')
+        self.assertEqual(config.shell, "")
+        self.assertTrue(any("shell" in e for e in config.errors))
+        config2 = self._load("shell = 7\n")
+        self.assertEqual(config2.shell, "")
+        self.assertTrue(any("shell" in e for e in config2.errors))
+
+    def test_terminal_height_bounds(self) -> None:
+        self.assertEqual(self._load("terminal_height = 3\n").terminal_height, 3)
+        self.assertEqual(self._load("terminal_height = 40\n").terminal_height, 40)
+        for value in ("2", "41", "12.5", "True", '"tall"'):
+            config = self._load(f"terminal_height = {value}\n")
+            self.assertEqual(config.terminal_height, 12, value)
+            self.assertTrue(config.errors, value)
+
 
 class ProjectConfigDiscoveryTests(unittest.TestCase):
     def test_find_project_config_walks_up(self) -> None:

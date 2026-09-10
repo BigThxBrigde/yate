@@ -17,6 +17,9 @@
   `Alt+Shift+P` 命令面板
 - **欢迎页**：空 buffer 启动时显示版本、键位提示
 - **搜索**：`Ctrl+F` 文件内查找
+- **集成终端**：`Ctrl+`` 切换底部终端面板（VS Code 风格布局），经 PTY 运行真实
+  Shell（Windows ConPTY / POSIX pty）；`:term` / `:termclose`、Shell 可在 yaterc
+  的 `shell` 选项配置，面板高度用 `terminal_height`（默认 12 行）
 - **yaterc 配置**：Python 语法配置文件（vimrc 风格），支持用户级/项目级/`-u` 三级加载
 - **Python 扩展**：任意 `.py` 脚本通过 `setup(api)` 注册命令、按键绑定和动作
 - **LSP 支持**：内置零依赖 LSP 客户端（`editor_lsp`），提供自动补全弹窗与诊断
@@ -70,6 +73,7 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |
 | `Ctrl+B` | 显示/隐藏文件树（`:explorer` 同效） |
+| `Ctrl+`` | 显示/隐藏底部集成终端（`:term` / `:termclose`） |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `Ctrl+Space` | 触发 LSP 自动补全（输入时也会自动弹出，`Tab`/`Enter` 接受） |
@@ -93,6 +97,8 @@ keymap = "vim"            # "vsc"（默认）/ "vim"
 theme = "mocha"           # mocha | macchiato | frappe | latte | 自定义主题
 tab_width = 4
 use_spaces = True
+shell = "pwsh -NoLogo"    # 集成终端 Shell（默认 pwsh/PowerShell/cmd 或 $SHELL/bash）
+terminal_height = 12      # 终端面板高度，3–40 行
 extensions = [            # 额外扩展路径（目录或 .py 文件，跨 yaterc 累加去重）
     "~/.yate/extensions",
     "./tools/my_ext.py",
@@ -140,15 +146,16 @@ npm install -g pyright            # 或 pyright-langserver
 ```
 
 也可用环境变量 `YATE_PYTHON_LSP` 指定命令行（设为 `off` 可禁用）。
-详细 API 与行为见用户手册第 15 节（会话内 `:manual` 或 `F8`）。
+详细 API 与行为见用户手册第 16 节（会话内 `:manual` 或 `F8`）。
 
 ## 项目结构
 
 ```
 yate/
   editor_core/    # 纯编辑逻辑：buffer、文档模型、搜索引擎（无 Textual 依赖）
+  editor_term/    # PTY 后端（ConPTY/POSIX pty）、VT100 仿真、Shell 解析
   editor_lsp/     # UI 无关的 LSP 客户端：JSON-RPC、进程管理、补全/诊断状态
-  editor_view/    # Textual 界面：编辑器、文件树、状态栏、命令面板、高亮、主题
+  editor_view/    # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、高亮、主题
   keymaps/        # vsc / vim 键位定义与动作分发
   services/       # workspace 遍历、shell、扩展加载、字体安装
   config.py       # yaterc 配置系统
@@ -162,7 +169,7 @@ docs/yaterc.md    # 配置系统完整文档
 ## 开发
 
 ```powershell
-# 运行全部测试（147 个，含 Textual pilot 端到端测试）
+# 运行全部测试（180 个，含 Textual pilot 端到端测试）
 python -m unittest discover -s tests
 
 # 类型检查：pyright strict，要求 0 诊断

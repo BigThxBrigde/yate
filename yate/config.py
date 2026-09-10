@@ -35,7 +35,10 @@ from yate.editor_view import theme as themes
 RC_FILENAME = "yaterc"
 
 #: Recognized option variables in a yaterc file.
-_KNOWN_OPTIONS = ("keymap", "theme", "tab_width", "use_spaces")
+_KNOWN_OPTIONS = (
+    "keymap", "theme", "tab_width", "use_spaces",
+    "shell", "terminal_height",
+)
 
 _VALID_KEYMAPS = ("vsc", "vim")
 
@@ -53,6 +56,11 @@ class YateConfig:
     theme: str = "mocha"
     tab_width: int = 4
     use_spaces: bool = True
+    #: Shell command for the integrated terminal (empty = platform default:
+    #: pwsh/PowerShell/cmd on Windows, $SHELL/bash on Unix).
+    shell: str = ""
+    #: Integrated terminal panel height in rows.
+    terminal_height: int = 12
     #: Extra extension paths (directories or ``.py`` files) declared by rc
     #: files, accumulated in load order (user rc first, project rc after).
     extension_paths: list[Path] = field(default_factory=list[Path])
@@ -203,3 +211,24 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
             config.use_spaces = use_spaces
         else:
             config.errors.append(f"use_spaces must be True or False, got {use_spaces!r}")
+
+    shell = options.get("shell")
+    if shell is not None:
+        if isinstance(shell, str) and shell.strip():
+            config.shell = shell.strip()
+        else:
+            config.errors.append(f"shell must be a non-empty string, got {shell!r}")
+
+    terminal_height = options.get("terminal_height")
+    if terminal_height is not None:
+        if (
+            isinstance(terminal_height, int)
+            and not isinstance(terminal_height, bool)
+            and 3 <= terminal_height <= 40
+        ):
+            config.terminal_height = terminal_height
+        else:
+            config.errors.append(
+                f"terminal_height must be an integer between 3 and 40, "
+                f"got {terminal_height!r}"
+            )

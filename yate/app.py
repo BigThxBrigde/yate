@@ -24,6 +24,7 @@ from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp import LspManager
+from yate.editor_term import PtyProcessError, resolve_shell
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup
@@ -35,6 +36,7 @@ from yate.editor_view.manual import ManualScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.statusbar import StatusBar
+from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.keymaps.base import ActionContext, Keymap
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
@@ -78,9 +80,16 @@ class YateApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     CSS = """
-    #bottom {
+    #bottom-dock {
         dock: bottom;
+        height: auto;
+    }
+    #bottom {
         height: 2;
+    }
+    #terminal-dock {
+        height: 12;
+        display: none;
     }
     #body {
         height: 1fr;
@@ -184,6 +193,11 @@ class YateApp(App[None]):
         self.status_bar: Optional[StatusBar] = None
         self.prompt_bar: Optional[PromptBar] = None
         self.completion_popup: Optional[CompletionPopup] = None
+        self.terminal_panel: Optional[TerminalPanel] = None
+        self._terminal_visible = False
+        self._terminal_starting = False
+        # Tests inject a fake PTY factory here: (argv, cwd, cols, rows) -> proc
+        self._terminal_factory: Optional[Callable[..., object]] = None
 
         # ------------------------------------------------------------- open
         if target is not None:
@@ -598,6 +612,11 @@ class YateApp(App[None]):
         """Fallback routing: keys not consumed by a focused widget."""
         if len(self.screen_stack) > 1:
             return  # modal screen owns input
+        if event.key in TOGGLE_KEYS:
+            event.stop()
+            event.prevent_default()
+            self.toggle_terminal()
+            return
         # vim ctrl+w window chord (armed or pending); before the other
         # chords so the prefix is consumed wherever focus currently is
         if self.try_window_prefix(event):
@@ -1261,14 +1280,39 @@ class YateApp(App[None]):
         def _set(args: str) -> None:
             args = args.strip()
             if "=" not in args:
-                self.message("usage: :set keymap=vsc|vim  |  :set theme=mocha", kind="warn")
+                self.message(
+                    "usage: :set keymap=vsc|vim  theme=mocha  shell=powershell  "
+                    "terminal_height=12",
+                    kind="warn",
+                )
                 return
             key, _, value = args.partition("=")
             key = key.strip()
+            value = value.strip()
             if key == "keymap":
-                self.select_keymap(value.strip())
+                self.select_keymap(value)
             elif key == "theme":
-                self.set_theme(value.strip())
+                self.set_theme(value)
+            elif key == "shell":
+                self.config.shell = value
+                self.message(
+                    "shell set; the new value applies to the next terminal "
+                    "(restart it with any key after exit)"
+                )
+            elif key == "terminal_height":
+                try:
+                    height = int(value)
+                except ValueError:
+                    self.message("terminal_height must be an integer 3..40",
+                                 kind="warn")
+                    return
+                if not 3 <= height <= 40:
+                    self.message("terminal_height must be between 3 and 40",
+                                 kind="warn")
+                    return
+                self.config.terminal_height = height
+                if self.terminal_panel is not None and self._terminal_visible:
+                    self.terminal_panel.styles.height = height
             else:
                 self.message(f"unknown option: {key}", kind="warn")
 
@@ -1283,7 +1327,8 @@ class YateApp(App[None]):
                 return
             self.set_theme(args)
 
-        reg("set", _set, "set an option (keymap=vsc|vim, theme=mocha)")
+        reg("set", _set,
+            "set an option (keymap, theme, shell, terminal_height)")
         reg("theme", _theme, "switch color theme (mocha|macchiato|frappe|latte)")
         reg("colorscheme", _theme, "alias for :theme")
         reg("vim", lambda args: self.select_keymap("vim"), "switch to vim key map")
@@ -1293,6 +1338,10 @@ class YateApp(App[None]):
         reg("manual", lambda args: self.show_manual(args or "en"),
             "open the user manual (:manual zh|en, default en)")
         reg("explorer", lambda args: self.toggle_explorer(), "toggle the file explorer")
+        reg("term", lambda args: self.open_terminal(), "open/focus the integrated terminal")
+        reg("terminal", lambda args: self.open_terminal(),
+            "alias for :term (Ctrl+` toggles)")
+        reg("termclose", lambda args: self.close_terminal(), "hide the integrated terminal")
         reg("diagnostics", lambda args: self.show_diagnostics(),
             "list language server diagnostics for the current file")
         reg("font", lambda args: self._font_command(), "install the bundled Nerd Font")
@@ -1308,6 +1357,61 @@ class YateApp(App[None]):
             self.explorer_tree.display = visible
         if self.sidebar is not None:
             self.sidebar.display = visible
+
+    # ============================================================ terminal
+
+    def toggle_terminal(self) -> None:
+        """Show/focus or hide the integrated terminal (Ctrl+`)."""
+        if self._terminal_visible:
+            self.close_terminal()
+        else:
+            self.open_terminal()
+
+    def open_terminal(self) -> None:
+        """Reveal the bottom terminal and focus it, spawning the shell."""
+        panel = self.terminal_panel
+        if panel is None:
+            return
+        if not self._terminal_visible:
+            panel.styles.height = self.config.terminal_height
+            panel.display = True
+            self._terminal_visible = True
+        panel.view.focus()
+        if not panel.view.started:
+            self._spawn_terminal()
+
+    def close_terminal(self) -> None:
+        """Hide the panel; the shell process itself stays alive."""
+        panel = self.terminal_panel
+        if panel is None or not self._terminal_visible:
+            return
+        panel.display = False
+        self._terminal_visible = False
+        self.focus_editor()
+
+    def _spawn_terminal(self) -> None:
+        if self._terminal_starting:
+            return
+        panel = self.terminal_panel
+        if panel is None:
+            return
+        self._terminal_starting = True
+        argv = resolve_shell(self.config.shell)
+        cwd = self.workspace.root or Path.cwd()
+
+        async def _start() -> None:
+            try:
+                await panel.view.start(argv, cwd, factory=self._terminal_factory)
+            except PtyProcessError as exc:
+                self.message(f"terminal: {exc}", kind="warn")
+            except OSError as exc:
+                self.message(f"terminal: {exc}", kind="warn")
+            finally:
+                self._terminal_starting = False
+            if self._terminal_visible:
+                panel.view.focus()
+
+        self.run_worker(_start(), group="terminal", exit_on_error=False)
 
     def _font_command(self) -> None:
         # registry lookups / font registration touch subprocess and would
@@ -1478,9 +1582,13 @@ class YateApp(App[None]):
                 yield Static(id="tabbar")
                 yield Static(id="breadcrumbs")
                 yield EditorView(self, id="editor")
-        with Vertical(id="bottom"):
-            yield StatusBar(self, id="statusbar")
-            yield PromptBar(self)
+        # Both live in one docked container so the terminal always sits
+        # directly above the status/prompt strip (VS Code layout).
+        with Vertical(id="bottom-dock"):
+            yield TerminalPanel(self, id="terminal-dock")
+            with Vertical(id="bottom"):
+                yield StatusBar(self, id="statusbar")
+                yield PromptBar(self)
 
     async def on_mount(self) -> None:
         """Wire up widgets, load extensions and apply the initial theme."""
@@ -1492,6 +1600,9 @@ class YateApp(App[None]):
         self.editor_view = self.query_one("#editor", EditorView)
         self.status_bar = self.query_one("#statusbar", StatusBar)
         self.prompt_bar = self.query_one(PromptBar)
+        self.terminal_panel = self.query_one("#terminal-dock", TerminalPanel)
+        self.terminal_panel.styles.height = self.config.terminal_height
+        self.terminal_panel.display = False
 
         self._load_extensions()
         self.completion_popup = CompletionPopup(self)
@@ -1512,6 +1623,8 @@ class YateApp(App[None]):
         self.ui_refresh()
 
     async def on_unmount(self) -> None:
+        if self.terminal_panel is not None:
+            await self.terminal_panel.view.shutdown()
         await self.lsp.shutdown_all()
 
     # ================================================================ run

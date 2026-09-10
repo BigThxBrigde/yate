@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 import unittest
@@ -1085,6 +1086,153 @@ class LspUiTests(unittest.IsolatedAsyncioTestCase):
             rec = next(r for r in app.extension_loader.loaded
                        if r.name == "python_lsp")
             self.assertIsNone(rec.error)
+
+
+class _FakePty:
+    """In-memory PTY substitute used by the terminal UI tests."""
+
+    instances: list["_FakePty"] = []
+
+    def __init__(self, argv: list[str], cwd: Any, cols: int, rows: int) -> None:
+        self.argv = list(argv)
+        self.cwd = cwd
+        self.cols, self.rows = cols, rows
+        self.sent: list[bytes] = []
+        self.started = False
+        self.exited = False
+        self._on_output: Callable[[bytes], None] | None = None
+        self._on_exit: Callable[[int | None], None] | None = None
+        _FakePty.instances.append(self)
+
+    async def start(
+        self, on_output: Callable[[bytes], None],
+        on_exit: Callable[[int | None], None],
+    ) -> None:
+        self.started = True
+        self._on_output = on_output
+        self._on_exit = on_exit
+
+    def write(self, data: bytes) -> None:
+        self.sent.append(data)
+
+    def resize(self, cols: int, rows: int) -> None:
+        self.cols, self.rows = cols, rows
+
+    def exit(self, code: int = 0) -> None:
+        if not self.exited and self._on_exit is not None:
+            self.exited = True
+            self._on_exit(code)
+
+    def emit_output(self, data: bytes) -> None:
+        if self._on_output is not None:
+            self._on_output(data)
+
+    def terminate(self) -> None:
+        self.exit(0)
+
+    async def wait_closed(self) -> None:
+        for _ in range(200):
+            if self.exited:
+                return
+            await asyncio.sleep(0.01)
+
+
+class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
+    async def _press_toggle(self, pilot: Any) -> None:
+        # Textual key names for grave vary; the app accepts both spellings.
+        await pilot.press("ctrl+`")
+
+    async def test_ctrl_grave_toggles_focuses_and_forwards(self):
+        app = YateApp()
+        cast(Any, app)._terminal_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.terminal_panel
+            assert panel is not None
+            self.assertFalse(panel.display)
+
+            await self._press_toggle(pilot)
+            shown = await wait_until(pilot, lambda: panel.view.proc is not None)
+            self.assertTrue(shown)
+            self.assertTrue(panel.display)
+            self.assertIs(app.focused, panel.view)
+            proc = _FakePty.instances[0]
+            self.assertTrue(proc.started)
+            self.assertTrue(proc.argv)  # a default shell was resolved
+            self.assertEqual(proc.cols, 100)
+            self.assertGreaterEqual(proc.rows, 8)
+
+            # PTY output lands in the emulator and renders
+            proc.emit_output(b"YATE_FAKE_OUTPUT\r\n")
+            await pilot.pause()
+            painted = "".join(
+                cell.char
+                for row in panel.view.emulator.view_lines(0)
+                for cell in row
+            )
+            self.assertIn("YATE_FAKE_OUTPUT", painted)
+
+            # keys typed in the panel are forwarded byte-for-byte
+            await pilot.press("l", "s")
+            self.assertEqual(b"".join(proc.sent), b"ls")
+
+            # the dock hugs the bottom, above the status/prompt strip
+            bottom = app.query_one("#bottom")
+            self.assertEqual(bottom.region.bottom, 30)
+            self.assertLessEqual(panel.region.bottom, bottom.region.y)
+
+            # toggle again hides it and returns focus to the editor
+            await self._press_toggle(pilot)
+            await pilot.pause()
+            self.assertFalse(panel.display)
+            self.assertIs(app.focused, app.editor_view)
+
+            # reopening reuses the still-alive shell process
+            await self._press_toggle(pilot)
+            await wait_until(pilot, lambda: cast(Any, app)._terminal_visible)
+            self.assertTrue(panel.display)
+            self.assertIs(cast(Any, panel.view).proc, proc)
+
+    async def test_term_command_exit_and_restart(self):
+        app = YateApp()
+        cast(Any, app)._terminal_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.terminal_panel
+            assert panel is not None
+
+            # :term opens the panel
+            await pilot.press("colon")
+            for ch in "term":
+                await pilot.press(ch)
+            await pilot.press("enter")
+            shown = await wait_until(pilot, lambda: panel.view.proc is not None)
+            self.assertTrue(shown)
+            proc = _FakePty.instances[0]
+            self.assertIn("running", panel.header_text())
+
+            # when the shell exits the panel shows the state and a hint
+            proc.exit(0)
+            await pilot.pause()
+            self.assertTrue(panel.view.dead)
+            self.assertIn("exited", panel.header_text())
+
+            # any keypress revives the shell via the factory
+            await pilot.press("a")
+            revived = await wait_until(
+                pilot,
+                lambda: len(_FakePty.instances) == 2
+                and cast(Any, panel.view).proc is _FakePty.instances[1]
+                and bool(_FakePty.instances[1].started),
+            )
+            self.assertTrue(revived)
+            self.assertEqual(len(_FakePty.instances), 2)
+
+            # :termclose hides the panel (invoked directly because focus is
+            # inside the terminal and the prompt keys would be sent to the PTY)
+            app.run_command("termclose")
+            await pilot.pause()
+            self.assertFalse(panel.display)
 
 
 if __name__ == "__main__":

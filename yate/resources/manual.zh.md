@@ -24,11 +24,12 @@ yate 采用分层架构：`editor_core` 是与界面完全解耦的纯编辑逻�
 10. 配置文件 yaterc
 11. 主题
 12. 字体与 Nerd Font 图标
-13. Shell 集成
-14. Python 扩展
-15. 语言服务器（LSP）
-16. 常见问题（FAQ）
-17. 键位速查表
+13. 集成终端
+14. Shell 集成
+15. Python 扩展
+16. 语言服务器（LSP）
+17. 常见问题（FAQ）
+18. 键位速查表
 
 ---
 
@@ -134,7 +135,7 @@ yate 的布局模仿 VS Code，自上而下分为几个区域：
 - 左侧行号槽；当前行的行号加粗并使用主题强调色。
 - 当前行整行高亮（surface 底色）。
 - 方块光标；行尾时光标显示在行末补位上。
-- 内置语法高亮引擎按文件类型着色（支持的语言清单见第 15 节 FAQ：
+- 内置语法高亮引擎按文件类型着色（支持的语言清单见第 17 节 FAQ：
   Python、C/C++、Java、Rust、Go、JavaScript/TypeScript、Shell、JSON、
   Markdown、TOML、INI、YAML）。
 - 选区、搜索匹配（当前匹配使用更醒目的颜色）均以主题色叠加渲染。
@@ -298,6 +299,7 @@ yate 内置两套键位：
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（`Ctrl+Shift+E` 同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `Ctrl+B` | 显示 / 隐藏文件树（`:explorer` 同效） |
+| `Ctrl+`` | 显示 / 隐藏集成终端（见第 13 节） |
 | `F2` | 运行 Shell 命令 |
 
 **标签（Tabs）**
@@ -472,6 +474,8 @@ vim 键位下 `Ctrl+F` 是翻页而非查找；`Ctrl+P` 快速打开、`Alt+Shif
 | `:manual` | 打开用户手册（本手册） |
 | `:help` | 键位参考浮层（同 `F1`） |
 | `:explorer` | 显示 / 隐藏文件树（同 `Ctrl+B`） |
+| `:term` | 显示 / 聚焦集成终端（别名 `:terminal`，见第 13 节） |
+| `:termclose` | 隐藏集成终端（Shell 进程保持运行） |
 | `:font` | 检测并（必要时）安装随包 Nerd Font，配置 Windows Terminal |
 
 **选项与外观（只影响当前会话，不写回 yaterc）**
@@ -485,12 +489,14 @@ vim 键位下 `Ctrl+F` 是翻页而非查找；`Ctrl+P` 快速打开、`Alt+Shif
 | `:normal` | `:vsc` 的别名 |
 | `:theme [名称]` | 切换主题；不带参数时显示当前主题及全部可用主题 |
 | `:colorscheme [名称]` | `:theme` 的别名 |
+| `:set shell=<命令>` | 设置集成终端的 Shell（下次启动 Shell 时生效） |
+| `:set terminal_height=<n>` | 终端面板高度（行数，`3`–`40`），立即生效 |
 
 **Shell**
 
 | 命令 | 说明 |
 |---|---|
-| `:!命令` | 运行 Shell 命令（如 `:!git status`），详见第 13 节 |
+| `:!命令` | 运行 Shell 命令（如 `:!git status`），详见第 14 节 |
 
 ## 9. 命令面板与快速打开
 
@@ -551,10 +557,14 @@ yate 使用 **Python 语法的配置文件 yaterc**（类似 vim 的 `vimrc`）�
 | `tab_width` | `int` | `4` | 1–16 的整数（`True`/`False` 等布尔值会被拒绝） | Tab 键插入的空格数，也是 Tab 的显示宽度 |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 插入空格，`False` 时插入真实制表符 |
 | `extensions` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 额外扩展脚本路径，见 10.4 节 |
+| `shell` | `str` | 平台默认（见第 13 节） | 非空字符串 | 集成终端使用的 Shell，可带参数（如 `"pwsh -NoLogo"`）；若值是已存在的文件路径，含空格也可直接使用 |
+| `terminal_height` | `int` | `12` | 3–40 的整数（布尔/浮点被拒绝） | 集成终端面板高度（行数） |
 
 - `keymap` / `theme` 在启动时生效；`theme` 是进程级全局状态（同 vim 的
   colorscheme）。
 - `tab_width` / `use_spaces` 会传播到**所有新建和打开的 buffer**。
+- `shell` 在启动终端 Shell 时读取（修改后需重启 Shell 生效）；
+  `terminal_height` 也可用 `:set terminal_height=<n>` 立即调整。
 
 最小示例（可直接复制仓库根目录的 `yaterc.example` 作起点）：
 
@@ -621,7 +631,7 @@ extensions = [
   （按解析后的绝对路径去重）。
 
 除 rc 声明外，扩展还会从默认目录 `./extensions/`、`~/.yate/extensions/`
-自动加载，也可用 `--ext <文件>` / `--ext-dir <目录>` 追加（详见第 14 节）。
+自动加载，也可用 `--ext <文件>` / `--ext-dir <目录>` 追加（详见第 15 节）。
 
 ## 11. 主题
 
@@ -693,7 +703,57 @@ yate 的文件树、标签栏、状态栏使用 **Nerd Font** 私有区码点绘
 （`Nerd Font already available: ...` 或
 `no Nerd Font detected -- run 'yate --install-font' or ':font'`）。
 
-## 13. Shell 集成
+## 13. 集成终端
+
+yate 在底部面板中内嵌了一个真实 Shell（VS Code 风格布局），通过伪终端连接，
+因此 vim、htop、python REPL 等全屏 TUI 程序都能直接运行。Windows 后端为
+ConPTY（Windows 10 1809+），macOS / Linux 使用 POSIX `pty` 设备。
+
+**打开 / 隐藏**
+
+- `Ctrl+`` 切换面板（反引号，Tab 上方的键）。打开时焦点进入终端，隐藏时焦点
+  回到编辑器。
+- 隐藏**不会**结束 Shell：进程持续运行（与 VS Code 一致），再次切换回到的是
+  同一会话。
+- `:term`（别名 `:terminal`）显示并聚焦面板；`:termclose` 隐藏面板。
+
+**终端操作**
+
+- 所有按键（包括控制键与粘贴文本，支持 bracketed paste）都原样转发给 Shell；
+  唯独 `Ctrl+`` 仍由 yate 拦截，用于键盘隐藏面板。
+- `Shift+PageUp` / `Shift+PageDown` 或鼠标滚轮可回看历史，回滚缓冲保留最近
+  5000 行。
+- 面板标题栏显示 Shell 名、程序通过 OSC 转义序列上报的标题，以及状态：
+  `starting` / `running` / `exited`。
+- Shell 退出后，最后一行显示
+  `[shell exited (exit code N); any key restarts]`，按任意键即启动新 Shell。
+- 面板随窗口自动调整大小，并向 Shell 发送窗口尺寸变化（SIGWINCH /
+  ResizePseudoConsole）。
+
+**默认 Shell 与配置**
+
+未配置时，yate 按以下顺序选择：
+
+- Windows：`PATH` 中有 `pwsh` 则用它；否则用 Windows PowerShell
+  （`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`，附加
+  `-NoLogo`）；再否则用 `%COMSPEC%` / `cmd.exe`。
+- macOS / Linux：`$SHELL`，否则 `bash`，再否则 `/bin/sh`。
+
+在 yaterc 中设置 `shell` 可覆盖（见 10.2）：
+
+```python
+shell = "pwsh -NoLogo"
+```
+
+值按命令行形式拆分；Windows 上若值本身是已存在的文件路径则原样使用，因此
+带空格的引号路径也可用（如 `shell = r"C:\Program Files\PowerShell\7\pwsh.exe"`）。
+修改 `shell` 后在**下次启动 Shell** 时生效（等当前 Shell 退出后重新打开面板，
+或重启 yate）。
+
+面板高度默认 12 行；`terminal_height` 合法范围为 `3`–`40`，会话中可用
+`:set terminal_height=<n>` 立即调整。
+
+## 14. Shell 集成
 
 - **入口**：`F2` 打开 Shell 输入行，或直接在命令行输入 `:!命令`
   （如 `:!git status`、`:!ls -la`）。
@@ -709,7 +769,7 @@ yate 的文件树、标签栏、状态栏使用 **Nerd Font** 私有区码点绘
 - `Esc` / `q` / `Ctrl+C` 关闭输出浮层。
 - 扩展可通过 `api.shell(命令)` 静默执行命令（不弹输出浮层）。
 
-## 14. Python 扩展
+## 15. Python 扩展
 
 扩展是任何暴露 `setup(api)` 的 `.py` 文件（可选 `teardown(api)`）：
 
@@ -729,7 +789,7 @@ def setup(api):
 | 注册 | `command(name, description)` 装饰器 / `register_command(name, func, description)` 注册 `:` 命令；`bind_key(key_spec, callback, keymap=...)` 绑定按键（`"vsc"` / `"vim"` / `"both"`，`normal` 是 `vsc` 的别名）；`register_action(name, func, description)` 注册命名动作 |
 | 访问 | `api.buffer`、`api.doc`、`api.workspace`、`api.keymaps`、`api.app` |
 | 服务 | `api.message(text)`、`api.shell(command)`、`api.open_path(path)`、`api.save()` |
-| 语言服务器 | `api.lsp.register_server(...)`（见第 15 节）；`api.lsp.statuses()` 返回 `{名字: 状态}` |
+| 语言服务器 | `api.lsp.register_server(...)`（见第 16 节）；`api.lsp.statuses()` 返回 `{名字: 状态}` |
 
 按键描述使用 yate 的键记法：`<ctrl-x>`、`<alt-x>`、`<shift-x>`、
 `<f1>`…`<f12>`、`<enter>`、`<esc>`、`<tab>`、`<backspace>`、
@@ -747,7 +807,7 @@ def setup(api):
 仓库自带示例 `extensions/example_ext.py`（提供 `:upper` / `:lower` /
 `:words` / `:sh` 命令与 `Alt+U` 绑定），可作模板。
 
-## 15. 语言服务器（LSP）
+## 16. 语言服务器（LSP）
 
 yate 内置了一个精简的
 [LSP](https://microsoft.github.io/language-server-protocol/)
@@ -765,7 +825,7 @@ yate 内置了一个精简的
 服务器在首次打开匹配文件时惰性启动，每个（服务器 × 项目根目录）一个进程。
 状态栏在就绪时显示服务器名，启动中显示 `LSP…`，启动失败显示 `LSP ✖`。
 
-### 15.1 Python（内置扩展）
+### 16.1 Python（内置扩展）
 
 `extensions/python_lsp.py` 会自动加载，为 `.py` / `.pyi` 文件注册 Python
 语言服务器。具体实现需自行安装（二者均不随 yate 分发）：
@@ -789,7 +849,7 @@ pip install pyright               # 另一种方式，同样会安装该可执�
 三者都没有时不会启动任何进程，也不弹错误；直到打开 Python 文件，状态栏
 才会显示 `LSP ✖`。
 
-### 15.2 在扩展中注册语言服务器
+### 16.2 在扩展中注册语言服务器
 
 ```python
 def setup(api):
@@ -809,7 +869,7 @@ def setup(api):
 `api.lsp.statuses()` 返回 `{名字: "ready"|"starting"|"failed"|...}`。
 用同名重复注册会替换旧配置，并丢弃其缓存进程与诊断。
 
-## 16. 常见问题（FAQ）
+## 17. 常见问题（FAQ）
 
 **图标显示为方块、菱形或问号？**
 终端没有使用 Nerd Font。运行 `yate --install-font`（或会话内 `:font`），
@@ -858,7 +918,7 @@ yate 按扩展名白名单判断可编辑文本（常见的代码/文本后缀�
 **忘了某个键位/命令？**
 `F1` 打开当前键位的完整参考并列出全部 `:` 命令；`F8` / `:manual` 打开本手册。
 
-## 17. 键位速查表
+## 18. 键位速查表
 
 vsc 键位（默认）：
 
@@ -878,6 +938,7 @@ vsc 键位（默认）：
 | `Ctrl+]` / `Shift+Tab` | 缩进 / 反缩进 | `F1` | 键位帮助 |
 | `Ctrl+J` | 合并行 | `F8` | 用户手册 |
 | `Ctrl+Space` | 触发自动补全 | `:diagnostics` | 列出 LSP 诊断 |
+| `Ctrl+`` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 
 文件树内：`j`/`k` 移动 · `l`/`Enter` 打开/展开 · `h` 折叠 ·
 `a` 新建文件 · `A` 新建文件夹 · `r` 重命名 · `d`/`Del` 删除（`y` 确认） ·
@@ -897,10 +958,11 @@ vim 键位：
 | `/` / `?` | 向下 / 向上查找 | `J` | 合并行 |
 | `n` / `N` | 下 / 上一个匹配 | 数字前缀 | 计数（如 `3j`、`2dd`） |
 | `:` | ex 命令行 | `Ctrl+W` / `Ctrl+U`（插入模式） | 删词 / 删到行首 |
+| `Ctrl+`` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 
 命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
-`:files` `:palette` `:manual` `:help` `:explorer` `:font`
-`:set keymap=…` `:set theme=…` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
+`:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 
 ---
 

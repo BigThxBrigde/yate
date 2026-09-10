@@ -18,6 +18,7 @@ from yate.editor_core.buffer import TextBuffer
 from . import highlight, theme
 from .highlight import Token
 from .keys import event_to_raw
+from .terminal import TOGGLE_KEYS
 
 if TYPE_CHECKING:
     from yate.app import YateApp
@@ -99,6 +100,11 @@ class EditorView(ScrollView):
         """Forward keys to the yate keymap while the editor is focused."""
         if len(self.yate.screen_stack) > 1:
             return  # a modal screen owns input
+        if event.key in TOGGLE_KEYS:
+            event.stop()
+            event.prevent_default()
+            self.yate.toggle_terminal()
+            return
         # LSP completion popup owns a handful of keys while open; it never
         # takes focus itself, so the keys arrive here.
         popup = self.yate.completion_popup
