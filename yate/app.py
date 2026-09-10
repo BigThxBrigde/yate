@@ -23,8 +23,10 @@ from yate.actions import ActionRegistry, populate
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import TextBuffer
+from yate.editor_lsp import LspManager
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
+from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.icons import CHEVRON_RIGHT, FOLDER, icon_for_path
@@ -98,6 +100,7 @@ class YateApp(App[None]):
     #editor-col {
         width: 1fr;
         height: 1fr;
+        layers: default lsp-popup;
     }
     #tabbar {
         height: 1;
@@ -155,6 +158,16 @@ class YateApp(App[None]):
         self.extension_loader = ExtensionLoader(self.extension_api)
         self._ext_messages: list[str] = []
         self._ext_messages.extend(f"yaterc: {err}" for err in self.config.errors)
+
+        # Language Server Protocol: registered servers come from extensions;
+        # the manager is UI independent and safe to keep even with no server.
+        self.lsp = LspManager(
+            workspace_root=lambda: self.workspace.root,
+            on_event=self._on_lsp_event,
+        )
+        self._message_owner = "idle"
+        self._completion_timer: Optional[asyncio.TimerHandle] = None
+
         self._replace_pending = ""
         self._prev_manual_theme: Optional[str] = None
         self._window_pending = False
@@ -170,6 +183,7 @@ class YateApp(App[None]):
         self.editor_view: Optional[EditorView] = None
         self.status_bar: Optional[StatusBar] = None
         self.prompt_bar: Optional[PromptBar] = None
+        self.completion_popup: Optional[CompletionPopup] = None
 
         # ------------------------------------------------------------- open
         if target is not None:
@@ -280,6 +294,7 @@ class YateApp(App[None]):
         if self.explorer_tree is not None:
             self.explorer_tree.refresh_tree()
         self.search = SearchEngine()
+        self.close_completion()
         if self.editor_view is not None:
             self.editor_view.scroll_col = 0
         self.message(f"opened {self.doc.name}")
@@ -301,6 +316,7 @@ class YateApp(App[None]):
         if self.explorer_tree is not None:
             self.explorer_tree.refresh_tree()
         self.search = SearchEngine()
+        self.close_completion()
         if self.editor_view is not None:
             self.editor_view.scroll_col = 0
         self.message(f"opened {self.doc.name}")
@@ -318,6 +334,7 @@ class YateApp(App[None]):
         self.docs.append(Document(None, self._make_buffer()))
         self.doc_index = len(self.docs) - 1
         self.search = SearchEngine()
+        self.close_completion()
         if self.editor_view is not None:
             self.editor_view.scroll_col = 0
         if show:
@@ -327,11 +344,18 @@ class YateApp(App[None]):
     def close_tab(self) -> None:
         if not self.docs:
             return
+        closed = self.docs[self.doc_index]
+        if closed.path is not None:
+            self.run_worker(
+                self.lsp.on_document_closed(closed),
+                group="lsp-sync", exclusive=False, exit_on_error=False,
+            )
         self.docs.pop(self.doc_index)
         if not self.docs:
             self.new_buffer(show=False)
         self.doc_index = min(self.doc_index, len(self.docs) - 1)
         self.search = SearchEngine()
+        self.close_completion()
         self.message("closed tab")
         self.ui_refresh()
 
@@ -340,6 +364,7 @@ class YateApp(App[None]):
             return
         self.doc_index = (self.doc_index + delta) % len(self.docs)
         self.search = SearchEngine()
+        self.close_completion()
         if self.editor_view is not None:
             self.editor_view.scroll_col = 0
         self.ui_refresh()
@@ -353,6 +378,10 @@ class YateApp(App[None]):
             doc.save()
             if self.explorer_tree is not None:
                 self.explorer_tree.refresh_tree()
+            self.run_worker(
+                self.lsp.notify_saved(doc),
+                group="lsp-sync", exclusive=False, exit_on_error=False,
+            )
             self.message(f"saved {doc.path}", kind="ok")
         except OSError as exc:
             self.message(f"save failed: {exc}", kind="error")
@@ -465,6 +494,7 @@ class YateApp(App[None]):
         self.buffer.insert_text(ch)
 
     def message(self, text: str, kind: str = "info") -> None:
+        self._message_owner = "app"
         if self.prompt_bar is not None and self.mounted:
             self.prompt_bar.show_message(text, kind=kind)
             if self.status_bar is not None:
@@ -482,6 +512,7 @@ class YateApp(App[None]):
         """Dispatch one raw key to the active keymap, then refresh the UI."""
         handled = self.active_keymap.handle_key(ActionContext(self), raw)
         self.ui_refresh()
+        self._after_editor_key(raw)
         return handled
 
     def ui_refresh(self) -> None:
@@ -492,6 +523,12 @@ class YateApp(App[None]):
             self.status_bar.refresh_status()
         self.update_tabbar()
         self.update_breadcrumbs()
+        # LSP: lazily open newly shown documents and push debounced edits.
+        # Both are cheap no-ops when no extension registered a server for the
+        # active file type.
+        self._lsp_doc_shown_later()
+        self.lsp.notify_edit(self.doc)
+        self._update_lsp_echo()
 
     # ============================================================ focus/keys
 
@@ -922,6 +959,231 @@ class YateApp(App[None]):
         )
         self.push_screen(OutputScreen(self, f"$ {command}", body, result.returncode))
 
+    # ================================================================== lsp
+
+    _LSP_AUTO_DEBOUNCE_S = 0.12
+
+    # -------------------------------------------------------- document sync
+
+    def _lsp_doc_shown_later(self) -> None:
+        """Open the active document on its server once a server is registered."""
+        doc = self.doc
+        if not self.lsp.supports(doc) or self.lsp.is_open(doc):
+            return
+        self.run_worker(
+            self.lsp.on_document_shown(doc),
+            group="lsp-sync", exclusive=False, exit_on_error=False,
+        )
+
+    def _on_lsp_event(self, event: str) -> None:
+        """Manager callback (event loop thread): repaint after LSP updates."""
+        if not self.mounted or self.editor_view is None:
+            return
+        self.editor_view.refresh()
+        if self.status_bar is not None:
+            self.status_bar.refresh_status()
+        if event == "diagnostics":
+            self._update_lsp_echo()
+
+    def _update_lsp_echo(self) -> None:
+        """Show the diagnostic under the cursor on the message line."""
+        if self.prompt_bar is None or self.prompt_bar.active_mode is not None:
+            return
+        buf = self.buffer
+        diag = self.lsp.diagnostic_at(self.doc, buf.row, buf.col)
+        if diag is not None:
+            glyph = "✖" if diag.is_error else ("▲" if diag.is_warning else "●")
+            source = f"{diag.source}: " if diag.source else ""
+            self._message_owner = "lsp"
+            self.prompt_bar.show_message(
+                f"{glyph} {source}{diag.message}",
+                kind="error" if diag.is_error else "warn",
+            )
+        elif self._message_owner == "lsp":
+            self._message_owner = "idle"
+            self.prompt_bar.idle()
+
+    # ------------------------------------------------------------ completion
+
+    def _vim_insert_mode(self) -> bool:
+        """True when vim modal editing would insert typed characters."""
+        if self.keymap_name != "vim":
+            return True
+        vim = self.keymaps["vim"]
+        return isinstance(vim, VimKeymap) and vim.mode is VimMode.INSERT
+
+    def close_completion(self) -> None:
+        if self.completion_popup is not None and self.completion_popup.is_open:
+            self.completion_popup.close()
+
+    def _is_completion_char(self, ch: str) -> bool:
+        if ch.isalnum() or ch == "_":
+            return True
+        return ch in self.lsp.trigger_characters_for(self.doc)
+
+    def _after_editor_key(self, raw: str) -> None:
+        """Adjust the completion popup after a normal editor keystroke."""
+        if self.completion_popup is None or not self.mounted:
+            return
+        if len(raw) == 1 and raw.isprintable():
+            if self._is_completion_char(raw) and self._vim_insert_mode():
+                self._schedule_completion(raw)
+            else:
+                self.close_completion()
+            return
+        if raw == "\x7f":  # backspace: re-query while a popup is open
+            if self.completion_popup.is_open:
+                self._schedule_completion(None)
+            return
+        if raw == "\r":  # newline
+            self.close_completion()
+            return
+        # left/right movement keeps the popup; anything else closes it.
+        if raw not in ("\x1b[D", "\x1b[C", "\x1b[1;5D", "\x1b[1;5C"):
+            self.close_completion()
+
+    def _schedule_completion(self, trigger_ch: Optional[str]) -> None:
+        if not self.lsp.supports(self.doc):
+            self.close_completion()
+            return
+        timer = self._completion_timer
+        if timer is not None:
+            timer.cancel()
+        loop = asyncio.get_running_loop()
+        self._completion_timer = loop.call_later(
+            self._LSP_AUTO_DEBOUNCE_S, self.request_completion, False, trigger_ch
+        )
+
+    def request_completion(
+        self, manual: bool = True, trigger_ch: Optional[str] = None
+    ) -> None:
+        """Fetch completions and show the popup (worker; never blocks input)."""
+        if self.completion_popup is None or not self.mounted:
+            return
+        if len(self.screen_stack) > 1:
+            return
+        if not self._vim_insert_mode():
+            return
+        self._completion_timer = None
+        self.run_worker(
+            self._completion_worker(manual, trigger_ch),
+            group="lsp-completion", exclusive=True, exit_on_error=False,
+        )
+
+    async def _completion_worker(
+        self, manual: bool, trigger_ch: Optional[str]
+    ) -> None:
+        popup = self.completion_popup
+        editor = self.editor_view
+        if popup is None or editor is None:
+            return
+        doc = self.doc
+        if not self.lsp.supports(doc):
+            return
+        buf = doc.buffer
+        row, col = buf.row, buf.col
+        line = buf.lines[row] if row < buf.line_count else ""
+        i = col
+        while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
+            i -= 1
+        prefix = line[i:col]
+        if not manual and not prefix and trigger_ch not in (
+            ".", *self.lsp.trigger_characters_for(doc)
+        ):
+            popup.close()
+            return
+
+        # Make sure didOpen happened (also starts the server on first use).
+        await self.lsp.on_document_shown(doc)
+        triggers = self.lsp.trigger_characters_for(doc)
+        kind = 2 if trigger_ch in triggers else 1
+        items = await self.lsp.request_completion(
+            doc, row, col,
+            prefix_start_col=i,
+            trigger_kind=kind,
+            trigger_character=trigger_ch if kind == 2 else None,
+        )
+        # Stale if the user switched tabs, lines or scrolled away.
+        if (
+            not self.mounted
+            or self.doc is not doc
+            or buf.row != row
+            or not popup.is_mounted
+        ):
+            return
+        if prefix:
+            needle = prefix.lower()
+            items = [
+                c for c in items
+                if c.label[: len(prefix)].lower() == needle
+                or c.insert_text[: len(prefix)].lower() == needle
+            ]
+        items = items[:50]
+        if not items:
+            popup.close()
+            if manual:
+                self.message("no completions", kind="info")
+            return
+        cell = theme.char_to_cell(line, col, buf.tab_width) - editor.scroll_col
+        rel_row = row - editor.scroll_offset.y
+        popup.show(
+            items,
+            prefix,
+            (cell, rel_row),
+            (editor.size.width or 80, editor.size.height or 20),
+            editor.gutter_width(),
+            origin_y=2,
+        )
+
+    def accept_completion(self) -> None:
+        """Insert the selected completion at its reported range."""
+        popup = self.completion_popup
+        if popup is None or not popup.is_open:
+            return
+        item = popup.selected()
+        doc = self.doc
+        buf = doc.buffer
+        popup.close()
+        if item is None:
+            return
+        row, col = buf.row, buf.col
+        if item.has_range():
+            r0 = item.range_start_row or 0
+            c0 = item.range_start_col or 0
+            r1 = item.range_end_row or 0
+            c1 = item.range_end_col or 0
+            # Characters typed after the request extend the replaced prefix.
+            if row == r1 and col >= c1:
+                c1 = col
+            if (row, col) < (r0, c0) or (r0, c0) > (r1, c1):
+                return  # cursor moved away: discard rather than corrupt text
+            start, end = (r0, c0), (r1, c1)
+        else:
+            i = col
+            line = buf.lines[row]
+            while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
+                i -= 1
+            start, end = (row, i), (row, col)
+        buf.replace_range(start, end, item.insert_text)
+        self.ui_refresh()
+
+    def show_diagnostics(self) -> None:
+        """``:diagnostics`` -- list the active document's LSP diagnostics."""
+        diags = self.lsp.diagnostics_for(self.doc)
+        if not diags:
+            self.message("no diagnostics", kind="ok")
+            return
+        labels = {1: "error", 2: "warning", 3: "info", 4: "hint"}
+        lines = [
+            f"L{d.start_row + 1}:{d.start_col + 1}  "
+            f"{labels.get(d.severity, str(d.severity)).upper():7}  "
+            f"{('[' + d.source + '] ') if d.source else ''}{d.message}"
+            for d in diags
+        ]
+        errors, warnings = self.lsp.counts_for(self.doc)
+        title = f"diagnostics — {errors} error(s), {warnings} warning(s)"
+        self.push_screen(OutputScreen(self, title, "\n".join(lines), 0))
+
     # ================================================================ modals
 
     def show_help(self) -> None:
@@ -1031,6 +1293,8 @@ class YateApp(App[None]):
         reg("manual", lambda args: self.show_manual(args or "en"),
             "open the user manual (:manual zh|en, default en)")
         reg("explorer", lambda args: self.toggle_explorer(), "toggle the file explorer")
+        reg("diagnostics", lambda args: self.show_diagnostics(),
+            "list language server diagnostics for the current file")
         reg("font", lambda args: self._font_command(), "install the bundled Nerd Font")
 
     def toggle_explorer(self) -> None:
@@ -1218,7 +1482,7 @@ class YateApp(App[None]):
             yield StatusBar(self, id="statusbar")
             yield PromptBar(self)
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Wire up widgets, load extensions and apply the initial theme."""
         self.sidebar = self.query_one("#sidebar", Vertical)
         self.sidebar_head = self.query_one("#sidebar-head", Static)
@@ -1230,6 +1494,8 @@ class YateApp(App[None]):
         self.prompt_bar = self.query_one(PromptBar)
 
         self._load_extensions()
+        self.completion_popup = CompletionPopup(self)
+        await self.query_one("#editor-col", Vertical).mount(self.completion_popup)
         self.apply_theme()
         self.explorer_tree.refresh_tree()
         self._sync_explorer_visibility()
@@ -1244,6 +1510,9 @@ class YateApp(App[None]):
                 f"yate {__version__} — F1 help, Ctrl+P quick open, : for ex mode"
             )
         self.ui_refresh()
+
+    async def on_unmount(self) -> None:
+        await self.lsp.shutdown_all()
 
     # ================================================================ run
 

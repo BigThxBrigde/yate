@@ -26,8 +26,9 @@ yate 采用分层架构：`editor_core` 是与界面完全解耦的纯编辑逻�
 12. 字体与 Nerd Font 图标
 13. Shell 集成
 14. Python 扩展
-15. 常见问题（FAQ）
-16. 键位速查表
+15. 语言服务器（LSP）
+16. 常见问题（FAQ）
+17. 键位速查表
 
 ---
 
@@ -728,6 +729,7 @@ def setup(api):
 | 注册 | `command(name, description)` 装饰器 / `register_command(name, func, description)` 注册 `:` 命令；`bind_key(key_spec, callback, keymap=...)` 绑定按键（`"vsc"` / `"vim"` / `"both"`，`normal` 是 `vsc` 的别名）；`register_action(name, func, description)` 注册命名动作 |
 | 访问 | `api.buffer`、`api.doc`、`api.workspace`、`api.keymaps`、`api.app` |
 | 服务 | `api.message(text)`、`api.shell(command)`、`api.open_path(path)`、`api.save()` |
+| 语言服务器 | `api.lsp.register_server(...)`（见第 15 节）；`api.lsp.statuses()` 返回 `{名字: 状态}` |
 
 按键描述使用 yate 的键记法：`<ctrl-x>`、`<alt-x>`、`<shift-x>`、
 `<f1>`…`<f12>`、`<enter>`、`<esc>`、`<tab>`、`<backspace>`、
@@ -745,7 +747,69 @@ def setup(api):
 仓库自带示例 `extensions/example_ext.py`（提供 `:upper` / `:lower` /
 `:words` / `:sh` 命令与 `Alt+U` 绑定），可作模板。
 
-## 15. 常见问题（FAQ）
+## 15. 语言服务器（LSP）
+
+yate 内置了一个精简的
+[LSP](https://microsoft.github.io/language-server-protocol/)
+客户端（无额外依赖）：通过 stdio 启动语言服务器进程，自行实现 JSON-RPC，
+提供：
+
+* **自动补全**——输入标识符时自动弹出（在服务器触发字符之后，如 Python
+  的 `.`），也可随时按 `Ctrl+Space` 手动请求。`↑` / `↓` 选择，`Tab` 或
+  `Enter` 接受，`Esc` 关闭。
+* **诊断**——错误与警告在编辑区内以下划线标出，装订槽显示 `✖`（错误）/
+  `▲`（警告）并给行号着色；光标所在行的诊断会回显在消息栏，状态栏实时
+  显示计数。`:diagnostics` 在输出屏中列出当前文件的全部诊断。
+
+文档采用全文同步：打开时、保存时，以及输入停顿短暂去抖后发送整个缓冲区。
+服务器在首次打开匹配文件时惰性启动，每个（服务器 × 项目根目录）一个进程。
+状态栏在就绪时显示服务器名，启动中显示 `LSP…`，启动失败显示 `LSP ✖`。
+
+### 15.1 Python（内置扩展）
+
+`extensions/python_lsp.py` 会自动加载，为 `.py` / `.pyi` 文件注册 Python
+语言服务器。具体实现需自行安装（二者均不随 yate 分发）：
+
+```powershell
+pip install python-lsp-server     # 提供 pylsp
+# 或
+npm install -g pyright            # 提供 pyright-langserver
+pip install pyright               # 另一种方式，同样会安装该可执行文件
+```
+
+服务器发现顺序：
+
+1. 环境变量 `YATE_PYTHON_LSP`：完整命令行，支持 shell 风格引号，例如
+   `set YATE_PYTHON_LSP=C:\tools\pyright-langserver.cmd --stdio`。
+   设为 `0`、`off`、`false`、`none` 或 `no` 时彻底禁用 Python 服务器
+   （保留注册，但绝不启动进程）。
+2. `PATH` 上的 `pyright-langserver`（自动附加 `--stdio`）。
+3. `PATH` 上的 `pylsp`。
+
+三者都没有时不会启动任何进程，也不弹错误；直到打开 Python 文件，状态栏
+才会显示 `LSP ✖`。
+
+### 15.2 在扩展中注册语言服务器
+
+```python
+def setup(api):
+    api.lsp.register_server(
+        "rust-analyzer",                       # 服务器名（显示在状态栏）
+        command="rust-analyzer",               # "" 表示已知缺失，惰性失败
+        args=[],
+        filetypes=["rs"],                      # 不带点的扩展名
+        language_ids={"rs": "rust"},           # textDocument 的 languageId
+        root_markers=["Cargo.toml", ".git"],   # 项目根探测文件
+        initialization_options=None,           # 原始 initializeOptions
+        settings=None,                         # 随 didChangeConfiguration 发送
+        env=None,                              # 额外环境变量
+    )
+```
+
+`api.lsp.statuses()` 返回 `{名字: "ready"|"starting"|"failed"|...}`。
+用同名重复注册会替换旧配置，并丢弃其缓存进程与诊断。
+
+## 16. 常见问题（FAQ）
 
 **图标显示为方块、菱形或问号？**
 终端没有使用 Nerd Font。运行 `yate --install-font`（或会话内 `:font`），
@@ -794,7 +858,7 @@ yate 按扩展名白名单判断可编辑文本（常见的代码/文本后缀�
 **忘了某个键位/命令？**
 `F1` 打开当前键位的完整参考并列出全部 `:` 命令；`F8` / `:manual` 打开本手册。
 
-## 16. 键位速查表
+## 17. 键位速查表
 
 vsc 键位（默认）：
 
@@ -813,6 +877,7 @@ vsc 键位（默认）：
 | `Alt+↑` / `Alt+↓` | 移动行 | `Ctrl+PageUp`/`PageDown` | 切换标签 |
 | `Ctrl+]` / `Shift+Tab` | 缩进 / 反缩进 | `F1` | 键位帮助 |
 | `Ctrl+J` | 合并行 | `F8` | 用户手册 |
+| `Ctrl+Space` | 触发自动补全 | `:diagnostics` | 列出 LSP 诊断 |
 
 文件树内：`j`/`k` 移动 · `l`/`Enter` 打开/展开 · `h` 折叠 ·
 `a` 新建文件 · `A` 新建文件夹 · `r` 重命名 · `d`/`Del` 删除（`y` 确认） ·

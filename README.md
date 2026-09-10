@@ -19,6 +19,9 @@
 - **搜索**：`Ctrl+F` 文件内查找
 - **yaterc 配置**：Python 语法配置文件（vimrc 风格），支持用户级/项目级/`-u` 三级加载
 - **Python 扩展**：任意 `.py` 脚本通过 `setup(api)` 注册命令、按键绑定和动作
+- **LSP 支持**：内置零依赖 LSP 客户端（`editor_lsp`），提供自动补全弹窗与诊断
+  （下划线/装订槽标记/状态栏计数/`:diagnostics`）；语言服务器通过扩展注册，
+  仓库内置 Python 服务器扩展（pyright / python-lsp-server 自动发现）
 
 ## 环境要求
 
@@ -69,6 +72,7 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | `Ctrl+B` | 显示/隐藏文件树（`:explorer` 同效） |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
+| `Ctrl+Space` | 触发 LSP 自动补全（输入时也会自动弹出，`Tab`/`Enter` 接受） |
 | `F1` | 帮助 / 全部键位 |
 
 文件树内（聚焦后）：`j`/`k` 移动，`l`/`h` 展开/折叠，`Enter` 打开文件，
@@ -124,18 +128,33 @@ def setup(api):
 `api.save()` / `api.message()`。完整示例见 [extensions/example_ext.py](extensions/example_ext.py)
 （`:upper` / `:lower` / `:words` / `:sh` 命令 + `Alt+U` 绑定）。
 
+### LSP 语言服务器
+
+扩展通过 `api.lsp.register_server(...)` 注册语言服务器（按扩展名匹配、惰性
+启动、自动补全 + 诊断）。仓库内置 [extensions/python_lsp.py](extensions/python_lsp.py)，
+打开 `.py` 文件时自动连接 Python 语言服务器，需自行安装其一：
+
+```powershell
+pip install python-lsp-server     # pylsp
+npm install -g pyright            # 或 pyright-langserver
+```
+
+也可用环境变量 `YATE_PYTHON_LSP` 指定命令行（设为 `off` 可禁用）。
+详细 API 与行为见用户手册第 15 节（会话内 `:manual` 或 `F8`）。
+
 ## 项目结构
 
 ```
 yate/
   editor_core/    # 纯编辑逻辑：buffer、文档模型、搜索引擎（无 Textual 依赖）
+  editor_lsp/     # UI 无关的 LSP 客户端：JSON-RPC、进程管理、补全/诊断状态
   editor_view/    # Textual 界面：编辑器、文件树、状态栏、命令面板、高亮、主题
   keymaps/        # vsc / vim 键位定义与动作分发
   services/       # workspace 遍历、shell、扩展加载、字体安装
   config.py       # yaterc 配置系统
   app.py          # YateApp：界面组装、命令注册、生命周期
   cli.py          # 命令行入口
-extensions/       # 随仓库提供的示例扩展
+extensions/       # 随仓库提供的扩展（example_ext 示例、python_lsp 内置 LSP）
 tests/            # 单元测试 + Textual pilot 端到端测试
 docs/yaterc.md    # 配置系统完整文档
 ```
@@ -143,7 +162,7 @@ docs/yaterc.md    # 配置系统完整文档
 ## 开发
 
 ```powershell
-# 运行全部测试（96 个，含 Textual pilot 端到端测试）
+# 运行全部测试（147 个，含 Textual pilot 端到端测试）
 python -m unittest discover -s tests
 
 # 类型检查：pyright strict，要求 0 诊断

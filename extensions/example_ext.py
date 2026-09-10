@@ -12,6 +12,8 @@ An extension is any module with a ``setup(api)`` function. The api exposes:
 * ``api.buffer`` / ``api.doc`` / ``api.workspace``
 * ``api.shell(command)`` / ``api.open_path(p)`` / ``api.save()``
 * ``api.message(text)``
+* ``api.lsp.register_server(name, command=..., filetypes=..., ...)``
+  ``api.lsp.statuses()`` -- language server protocol support
 
 Note: this example registers commands with the imperative
 ``api.register_command`` (which carries a fully typed signature) and looks up

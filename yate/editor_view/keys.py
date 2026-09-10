@@ -70,6 +70,8 @@ def textual_key_to_raw(key: str) -> Optional[str]:
     if mods == ("ctrl",):
         if last in _CTRL_PUNCT:
             return chr(_CTRL_PUNCT[last])
+        if last == "space":
+            return "\x00"
         if len(last) == 1 and last.isalpha():
             return chr(ord(last.lower()) - ord("a") + 1)
         return None

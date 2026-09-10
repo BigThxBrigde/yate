@@ -99,6 +99,36 @@ class EditorView(ScrollView):
         """Forward keys to the yate keymap while the editor is focused."""
         if len(self.yate.screen_stack) > 1:
             return  # a modal screen owns input
+        # LSP completion popup owns a handful of keys while open; it never
+        # takes focus itself, so the keys arrive here.
+        popup = self.yate.completion_popup
+        if popup is not None and popup.is_open:
+            if event.key in ("tab", "enter"):
+                self.yate.accept_completion()
+                event.stop()
+                event.prevent_default()
+                return
+            if event.key == "up":
+                popup.select_prev()
+                event.stop()
+                event.prevent_default()
+                return
+            if event.key == "down":
+                popup.select_next()
+                event.stop()
+                event.prevent_default()
+                return
+            if event.key == "escape":
+                popup.close()
+                event.stop()
+                event.prevent_default()
+                return
+        if event.key == "ctrl+space":
+            if self.yate.lsp.supports(self.yate.doc):
+                self.yate.request_completion(manual=True)
+            event.stop()
+            event.prevent_default()
+            return
         # the vim ctrl+w window chord must run before keymap dispatch:
         # the vim keymap swallows unmapped keys so the app would never
         # see them
@@ -137,8 +167,12 @@ class EditorView(ScrollView):
     def page_delta(self, half: bool = False) -> int:
         return max(1, ((self.size.height or 20) // 2) if half else (self.size.height or 20))
 
+    def gutter_width(self) -> int:
+        """Total gutter width: line number column + LSP diagnostic mark."""
+        return max(3, len(str(self.buffer.line_count))) + 3
+
     def _gutter_w(self) -> int:
-        return max(3, len(str(self.buffer.line_count))) + 2
+        return self.gutter_width()
 
     def _tokens_for(self, row: int) -> list[Token]:
         """Cached syntax tokens for one line (tokenized off the loop).
@@ -194,7 +228,7 @@ class EditorView(ScrollView):
         gutter_w = self._gutter_w()
         text_w = max(1, view_w - gutter_w)
 
-        digits = gutter_w - 2
+        digits = gutter_w - 3
         segments: list[Segment] = []
 
         def fill_line(bg: Optional[str]) -> None:
@@ -220,6 +254,7 @@ class EditorView(ScrollView):
         n_cells = len(cells)
         styles = [S_NORMAL] * (n_cells + 1)
         kinds = self._syntax_kinds(y, line, n_cells + 1)
+        underlines = self._diagnostic_underlines(y, line, n_cells + 1)
 
         for start, end, sid in self._row_style_ranges(y, line):
             for c in range(max(0, start), min(end, n_cells + 1)):
@@ -230,13 +265,28 @@ class EditorView(ScrollView):
         line_bg = t.surface if is_current else None
 
         # gutter
-        num = str(y + 1).rjust(digits)
-        if is_current:
-            segments.append(Segment(" ", Style(bgcolor=line_bg)))
-            segments.append(Segment(num, Style(color=t.accent, bold=True, bgcolor=line_bg)))
-            segments.append(Segment(" ", Style(bgcolor=line_bg)))
+        line_diags = self.yate.lsp.diagnostics_on_line(self.yate.doc, y)
+        line_error = any(d.is_error for d in line_diags)
+        line_warn = any(d.is_warning for d in line_diags)
+        if line_error:
+            num_color, mark = t.red, "✖"
+        elif line_warn:
+            num_color, mark = t.yellow, "▲"
         else:
-            segments.append(Segment(f" {num} ", Style(color=t.fg_dim, bgcolor=t.bg)))
+            mark = " "
+            num_color = t.accent if is_current else t.fg_dim
+        num = str(y + 1).rjust(digits)
+        num_style = Style(
+            color=num_color, bold=is_current, bgcolor=line_bg or t.bg,
+        )
+        mark_style = Style(
+            color=t.red if line_error else (t.yellow if line_warn else num_color),
+            bgcolor=line_bg or t.bg, bold=True,
+        )
+        segments.append(Segment(" ", Style(bgcolor=line_bg or t.bg)))
+        segments.append(Segment(num, num_style))
+        segments.append(Segment(" ", Style(bgcolor=line_bg or t.bg)))
+        segments.append(Segment(mark, mark_style))
 
         # text window (manual horizontal scroll)
         end = min(self.scroll_col + text_w, n_cells)
@@ -245,7 +295,10 @@ class EditorView(ScrollView):
             sid = styles[cell_idx]
             kind = kinds[cell_idx]
             ch = cells[cell_idx] if cell_idx < n_cells else " "
-            segments.append(Segment(ch if ch else " ", self._cell_style(t, sid, kind, line_bg)))
+            style = self._cell_style(t, sid, kind, line_bg)
+            if underlines[cell_idx] and sid != S_CURSOR:
+                style += Style(underline=True)
+            segments.append(Segment(ch if ch else " ", style))
             used += 1
         # pad remainder
         pad = view_w - gutter_w - used
@@ -327,6 +380,27 @@ class EditorView(ScrollView):
         if pad > 0:
             segments.append(Segment(" " * pad, Style(bgcolor=t.bg)))
         return Strip(segments)
+
+    def _diagnostic_underlines(
+        self, row: int, line: str, cell_count: int
+    ) -> list[bool]:
+        """Per-cell underline flags contributed by LSP diagnostics on *row*."""
+        flags = [False] * cell_count
+        tw = self.buffer.tab_width
+        for d in self.yate.lsp.diagnostics_on_line(self.yate.doc, row):
+            if d.start_row == d.end_row:
+                cs, ce = d.start_col, d.end_col
+            elif row == d.start_row:
+                cs, ce = d.start_col, len(line)
+            elif row == d.end_row:
+                cs, ce = 0, d.end_col
+            else:
+                cs, ce = 0, len(line)
+            start = theme.char_to_cell(line, max(0, min(cs, len(line))), tw)
+            finish = theme.char_to_cell(line, max(0, min(ce, len(line))), tw)
+            for c in range(max(0, start), min(finish, cell_count)):
+                flags[c] = True
+        return flags
 
     def _row_style_ranges(self, row: int, line: str) -> list[tuple[int, int, int]]:
         buf = self.buffer

@@ -250,6 +250,12 @@ class TextBuffer:
             sel = self.selection()
             assert sel is not None
             self._delete_range(*sel)
+        self._apply_text(text)
+        self.anchor = None
+        self._commit(before, kind)
+
+    def _apply_text(self, text: str) -> None:
+        """Insert ``text`` at the cursor without snapshot bookkeeping."""
         r, c = self.cursor
         parts = text.split("\n")
         line = self.lines[r]
@@ -263,8 +269,20 @@ class TextBuffer:
             new_lines.append(parts[-1] + tail)
             self.lines[r + 1 : r + 1] = new_lines
             self.cursor = (r + len(parts) - 1, len(parts[-1]))
+
+    def replace_range(self, start: Pos, end: Pos, text: str) -> None:
+        """Replace the half-open range [start, end) with ``text``.
+
+        One undo step; used for LSP completion acceptance (text may contain
+        newlines).
+        """
+        before = self._snapshot()
+        self.cursor = start
         self.anchor = None
-        self._commit(before, kind)
+        self._delete_range(start, end)
+        self._apply_text(text)
+        self.anchor = None
+        self._commit(before, "step")
 
     def insert_newline(self) -> None:
         """Insert a newline, continuing the indentation of the current line."""

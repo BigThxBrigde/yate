@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 import unittest
 from pathlib import Path
@@ -9,6 +10,11 @@ from tempfile import TemporaryDirectory
 from typing import Any, Awaitable, Callable, cast
 
 from textual.strip import Strip
+
+# The bundled extensions/ directory is auto-loaded with every YateApp; make
+# sure the Python LSP extension never probes PATH or spawns a real server
+# while the UI test suite runs.
+os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.manual import ManualScreen
@@ -27,6 +33,12 @@ async def wait_until(
         if predicate():
             return True
     return predicate()
+
+
+def plain_text(content: Any) -> str:
+    """Plain text of a widget renderable (rich Text, str, or other)."""
+    plain = getattr(content, "plain", None)
+    return plain if isinstance(plain, str) else str(content)
 
 
 class KeyAdapterTests(unittest.TestCase):
@@ -896,6 +908,183 @@ class WindowFocusTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("ctrl+w")
             await pilot.pause()
             self.assertFalse(app.window_pending)
+
+
+class LspUiTests(unittest.IsolatedAsyncioTestCase):
+    """Completion popup + diagnostic rendering with an injected fake LSP."""
+
+    def _install_fake_server(
+        self, app: YateApp, completions: list[dict[str, Any]] | None = None
+    ) -> list[Any]:
+        from yate.editor_lsp.client import ServerConfig
+
+        created: list[Any] = []
+        completions = completions if completions is not None else [
+            {"label": "barbell", "insertText": "barbell", "kind": 3,
+             "detail": "(object)"},
+            {"label": "baritone", "insertText": "baritone", "kind": 3},
+            {"label": "baz", "insertText": "baz", "kind": 5},
+        ]
+
+        class UiFakeClient:
+            def __init__(self, config: Any, root: Any) -> None:
+                self.config = config
+                self.root_path = root
+                from yate.editor_lsp import ServerState
+                self.state = ServerState.READY
+                self.error = ""
+                self.trigger_characters: tuple[str, ...] = (".",)
+                self.opened: list[Any] = []
+                created.append(self)
+
+            async def start(self) -> None:
+                return None
+
+            async def stop(self) -> None:
+                from yate.editor_lsp import ServerState
+                self.state = ServerState.STOPPED
+
+            async def notify(self, method: str, params: Any) -> None:
+                if method == "textDocument/didOpen":
+                    self.opened.append(params)
+
+            async def request(self, method: str, params: Any) -> Any:
+                return {"isIncomplete": False, "items": completions}
+
+            async def start_request(self, method: str, params: Any) -> Any:
+                import asyncio
+                future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+                future.set_result({"isIncomplete": False, "items": completions})
+                return 1, future
+
+            async def send_cancel(self, request_id: int) -> None:
+                return None
+
+            def publish_diagnostics(
+                self, manager: Any, uri: str, entries: list[dict[str, Any]]
+            ) -> None:
+                manager.handle_notification(
+                    "textDocument/publishDiagnostics",
+                    {"uri": uri, "diagnostics": entries},
+                )
+
+        def factory(config: Any, root: Any) -> Any:
+            return UiFakeClient(config, root)
+
+        app.lsp.register_server(ServerConfig(
+            name="python", command="fake", filetypes=["py"],
+        ))
+        # factory must be installed on the manager after registration; the
+        # manager keeps it independent of config replacement
+        app.lsp.set_client_factory(factory)
+        return created
+
+    async def test_completion_popup_navigate_accept_and_ctrl_space(self):
+        with TemporaryDirectory() as tmp:
+            py = Path(tmp) / "m.py"
+            py.write_text("ba\n", encoding="utf-8")
+            app = YateApp(target=py)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                self._install_fake_server(app)
+                app.ui_refresh()  # schedules didOpen on the freshly registered server
+                await pilot.pause()
+
+                def is_ready() -> bool:
+                    state = app.lsp.state_for_doc(app.doc)
+                    return state is not None and state.value == "ready"
+
+                ready = await wait_until(pilot, is_ready)
+                self.assertTrue(ready)
+                popup = app.completion_popup
+                assert popup is not None
+                # cursor sits at doc start after open; move to end of "ba"
+                app.buffer.cursor = (0, 2)
+                app.ui_refresh()
+                # manual trigger via ctrl+space at the end of "ba"
+                await pilot.press("ctrl+space")
+                shown = await wait_until(pilot, lambda: popup.is_open)
+                self.assertTrue(shown)
+                self.assertEqual(popup.item_count, 3)
+                first = popup.selected()
+                assert first is not None
+                self.assertEqual(first.label, "barbell")
+                # down wraps through the list, esc closes
+                await pilot.press("down")
+                second = popup.selected()
+                assert second is not None
+                self.assertEqual(second.label, "baritone")
+                await pilot.press("escape")
+                self.assertFalse(popup.is_open)
+                # reopen and accept the second entry with tab
+                await pilot.press("ctrl+space")
+                await wait_until(pilot, lambda: popup.is_open)
+                await pilot.press("down", "tab")
+                await pilot.pause()
+                self.assertFalse(popup.is_open)
+                self.assertEqual(app.buffer.lines[0], "baritone")
+                self.assertTrue(app.doc.modified)
+
+    async def test_diagnostic_render_status_echo_and_command(self):
+        from yate.editor_lsp import protocol
+        from yate.editor_view.modals import OutputScreen
+
+        with TemporaryDirectory() as tmp:
+            py = Path(tmp) / "diag.py"
+            py.write_text("x = 1\n", encoding="utf-8")
+            app = YateApp(target=py)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                created = self._install_fake_server(app)
+                app.ui_refresh()
+                await pilot.pause()
+                await wait_until(pilot, lambda: bool(created and created[0].opened))
+                fake = created[0]
+                uri = protocol.path_to_uri(py.resolve())
+                fake.publish_diagnostics(app.lsp, uri, [
+                    {"range": {"start": {"line": 0, "character": 0},
+                               "end": {"line": 0, "character": 5}},
+                     "severity": 1, "message": "undefined name 'x'",
+                     "source": "pyright"},
+                ])
+                await pilot.pause()
+                editor = app.editor_view
+                assert editor is not None
+                line0 = "".join(seg.text for seg in editor.render_line(0))
+                self.assertIn("✖", line0)  # gutter mark
+                underlined = [
+                    seg for seg in editor.render_line(0)
+                    if seg.style is not None and seg.style.underline
+                ]
+                self.assertTrue(underlined)
+                # status bar carries the error count
+                status_bar = app.status_bar
+                assert status_bar is not None
+                self.assertIn("✖ 1", plain_text(status_bar.content))
+                # message line echoes the diagnostic under the cursor
+                prompt_bar = app.prompt_bar
+                assert prompt_bar is not None
+                app.ui_refresh()
+                self.assertIn(
+                    "undefined name", plain_text(prompt_bar.message.content)
+                )
+                # :diagnostics opens the listing screen
+                app.run_command("diagnostics")
+                await pilot.pause()
+                screen = app.screen
+                self.assertIsInstance(screen, OutputScreen)
+                self.assertIn("undefined name", cast(OutputScreen, screen).output_text)
+
+    async def test_builtin_python_extension_loads_cleanly(self):
+        # The auto-loaded extension registers a (disabled) python server and
+        # setup must neither print nor spawn nor record an error.
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            self.assertIn("python", app.lsp.config_names())
+            rec = next(r for r in app.extension_loader.loaded
+                       if r.name == "python_lsp")
+            self.assertIsNone(rec.error)
 
 
 if __name__ == "__main__":

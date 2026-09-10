@@ -30,7 +30,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
+
+from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 
 if TYPE_CHECKING:
     from yate.app import YateApp
@@ -39,11 +41,59 @@ if TYPE_CHECKING:
 CommandFunc = Callable[[str], object]
 
 
+class LspExtensionBridge:
+    """``api.lsp`` -- register language servers from an extension."""
+
+    def __init__(self, app: "YateApp") -> None:
+        self._app = app
+
+    def register_server(
+        self,
+        name: str,
+        *,
+        command: str,
+        args: Optional[Sequence[str]] = None,
+        filetypes: Sequence[str],
+        language_ids: Optional[Mapping[str, str]] = None,
+        initialization_options: Any = None,
+        settings: Any = None,
+        env: Optional[Mapping[str, str]] = None,
+        root_markers: Optional[Sequence[str]] = None,
+    ) -> None:
+        """Register an LSP server (lazily spawned on first matching file).
+
+        ``command`` may be empty when the extension could not find an
+        executable; the registration stays visible and fails lazily without
+        disturbing the user.
+        """
+        self._app.lsp.register_server(ServerConfig(
+            name=name,
+            command=command,
+            args=list(args) if args is not None else [],
+            filetypes=list(filetypes),
+            language_ids=dict(language_ids) if language_ids is not None else {},
+            initialization_options=initialization_options,
+            settings=settings,
+            env=dict(env) if env is not None else None,
+            root_markers=list(root_markers) if root_markers is not None
+            else list(DEFAULT_ROOT_MARKERS),
+        ))
+
+    def statuses(self) -> dict[str, str]:
+        """``{server name: state name}`` for every registered server."""
+        return {name: state.value for name, state in self._app.lsp.states().items()}
+
+    def has_state(self, name: str, state: str) -> bool:
+        current = self._app.lsp.states().get(name)
+        return current is not None and current.value == state
+
+
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
     def __init__(self, app: "YateApp") -> None:
         self._app = app
+        self._lsp = LspExtensionBridge(app)
 
     # ------------------------------------------------------------- accessors
 
@@ -66,6 +116,11 @@ class ExtensionAPI:
     @property
     def keymaps(self) -> dict[str, Keymap]:
         return self._app.keymaps
+
+    @property
+    def lsp(self) -> LspExtensionBridge:
+        """Register language servers (autocomplete/diagnostics)."""
+        return self._lsp
 
     # ------------------------------------------------------------ registrars
 

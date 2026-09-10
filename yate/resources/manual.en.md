@@ -28,8 +28,9 @@ handles the workspace, shell, extensions and fonts.
 12. Fonts and Nerd Font Icons
 13. Shell Integration
 14. Python Extensions
-15. FAQ
-16. Key Binding Cheat Sheet
+15. Language servers (LSP)
+16. FAQ
+17. Key Binding Cheat Sheet
 
 ---
 
@@ -787,6 +788,7 @@ What `api` provides:
 | Registration | `command(name, description)` decorator / `register_command(name, func, description)` to register `:` commands; `bind_key(key_spec, callback, keymap=...)` to bind keys (`"vsc"` / `"vim"` / `"both"`; `normal` aliases `vsc`); `register_action(name, func, description)` for named actions |
 | Access | `api.buffer`, `api.doc`, `api.workspace`, `api.keymaps`, `api.app` |
 | Services | `api.message(text)`, `api.shell(command)`, `api.open_path(path)`, `api.save()` |
+| Language servers | `api.lsp.register_server(...)` (see section 15); `api.lsp.statuses()` returns `{name: state}` |
 
 Key specs use yate's key notation: `<ctrl-x>`, `<alt-x>`, `<shift-x>`,
 `<f1>`…`<f12>`, `<enter>`, `<esc>`, `<tab>`, `<backspace>`,
@@ -807,7 +809,76 @@ message bar as `extension <name>: ...`. The repo ships a sample at
 `extensions/example_ext.py` (providing the `:upper` / `:lower` / `:words` /
 `:sh` commands and an `Alt+U` binding) usable as a template.
 
-## 15. FAQ
+## 15. Language servers (LSP)
+
+yate ships a small built-in [LSP](https://microsoft.github.io/language-server-protocol/)
+client (no extra dependencies): it spawns language server processes over
+stdio, speaks JSON-RPC itself, and provides:
+
+* **Autocomplete** -- a popup appears automatically while typing an
+  identifier (after the server's trigger characters, e.g. `.` in Python),
+  and `Ctrl+Space` requests suggestions manually. Navigate with `↑` / `↓`,
+  accept with `Tab` or `Enter`, dismiss with `Esc`.
+* **Diagnostics** -- errors and warnings are underlined in the editor, the
+  gutter shows `✖` (error) / `▲` (warning) and tints the line number, the
+  diagnostic under the cursor is echoed on the message bar, and the status
+  bar shows live counts. `:diagnostics` lists every diagnostic of the
+  current file in an output screen.
+
+Documents are synchronized whole-text on open / save / after a short idle
+debounce while typing. Servers start lazily when the first matching file is
+opened, one process per (server, project root). The status bar shows the
+server name when ready, `LSP…` while starting, and `LSP ✖` when the server
+could not start.
+
+### 15.1 Python (built-in extension)
+
+`extensions/python_lsp.py` is auto-loaded and registers a Python server for
+`.py` / `.pyi` files. Install either implementation yourself (neither is
+bundled):
+
+```powershell
+pip install python-lsp-server     # provides pylsp
+# or
+npm install -g pyright            # provides pyright-langserver
+pip install pyright               # alternative, also installs the binary
+```
+
+Server discovery, in order:
+
+1. The `YATE_PYTHON_LSP` environment variable: a full command line with
+   shell-style quoting, e.g.
+   `set YATE_PYTHON_LSP=C:\tools\pyright-langserver.cmd --stdio`.
+   Setting it to `0`, `off`, `false`, `none` or `no` disables the Python
+   server entirely (registration stays, nothing spawns).
+2. `pyright-langserver` on `PATH` (started with `--stdio`).
+3. `pylsp` on `PATH`.
+
+If none is found, nothing is spawned and no error is shown until a Python
+file is opened; the status bar then reports `LSP ✖`.
+
+### 15.2 Registering servers from an extension
+
+```python
+def setup(api):
+    api.lsp.register_server(
+        "rust-analyzer",                       # server name (status bar)
+        command="rust-analyzer",               # "" = known-missing, lazy fail
+        args=[],
+        filetypes=["rs"],                      # extensions without dot
+        language_ids={"rs": "rust"},           # textDocument languageId
+        root_markers=["Cargo.toml", ".git"],   # project-root probe files
+        initialization_options=None,           # raw initializeOptions
+        settings=None,                         # sent on didChangeConfiguration
+        env=None,                              # extra environment variables
+    )
+```
+
+`api.lsp.statuses()` returns `{name: "ready"|"starting"|"failed"|...}`.
+Registering the same name twice replaces the previous config and drops its
+cached process and diagnostics.
+
+## 16. FAQ
 
 **Icons render as boxes, diamonds or question marks?**
 The terminal is not using a Nerd Font. Run `yate --install-font` (or
@@ -863,7 +934,7 @@ most emoji) occupy 2 columns, combining characters 0, and tabs expand to the
 `F1` shows the full reference for the current keymap plus all `:` commands;
 `F8` / `:manual` opens this manual.
 
-## 16. Key Binding Cheat Sheet
+## 17. Key Binding Cheat Sheet
 
 vsc keymap (default):
 
@@ -882,6 +953,7 @@ vsc keymap (default):
 | `Alt+↑` / `Alt+↓` | Move line | `Ctrl+PageUp`/`PageDown` | Switch tab |
 | `Ctrl+]` / `Shift+Tab` | Indent / dedent | `F1` | Key help |
 | `Ctrl+J` | Join lines | `F8` | User manual |
+| `Ctrl+Space` | Trigger autocomplete | `:diagnostics` | List LSP diagnostics |
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·
 `a` new file · `A` new folder · `r` rename · `d`/`Del` delete (`y` confirms) ·

@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 from rich.text import Text
 from textual.widgets import Static
 
+from yate.editor_lsp import ServerState
+
 from . import theme
 from .icons import DOT, KEYBOARD, PENCIL, PLUG, TERMINAL
 
@@ -52,8 +54,10 @@ class StatusBar(Static):
 
         pos_plain = f"Ln {buf.row + 1}, Col {buf.col + 1}"
         meta_plain = f"{buf.line_count} lines · {doc.filetype} · {doc.encoding}"
+        lsp_plain, lsp_style = self._lsp_segment()
         hints_plain = f"{PLUG} {len(app.extension_loader.loaded)}  {TERMINAL} :!  {KEYBOARD} F1"
-        right_plain = f"{pos_plain}   {meta_plain}   {hints_plain}"
+        lsp_part = f"{lsp_plain}   " if lsp_plain else ""
+        right_plain = f"{pos_plain}   {meta_plain}   {lsp_part}{hints_plain}"
         right_len = theme.cell_len(right_plain)
 
         dot_cells = 2 if doc.modified else 0
@@ -84,5 +88,35 @@ class StatusBar(Static):
             text.append(" ", style=bar)
             text.append(pos_plain, style=f"bold {t.on_accent} {bar}")
             text.append(f"   {meta_plain}   ", style=f"{t.on_accent} {bar}")
+            if lsp_plain:
+                text.append(lsp_plain, style=lsp_style)
+                text.append("   ", style=bar)
             text.append(hints_plain, style=f"{t.panel} {bar}")
         self.update(text)
+
+    def _lsp_segment(self) -> tuple[str, str]:
+        """Status-bar text for the active document's LSP server/diagnostics."""
+        t = theme.active()
+        app = self.yate
+        bar = f"on {t.accent}"
+        state = app.lsp.state_for_doc(app.doc)
+        if state is None:
+            return "", ""
+        errors, warnings = app.lsp.counts_for(app.doc)
+        if state is ServerState.READY:
+            name = "LSP"
+            cfg = app.lsp.config_for(app.doc.filetype)
+            if cfg is not None:
+                name = cfg.name
+            label = name
+            if errors:
+                label += f" ✖ {errors}"
+            if warnings:
+                label += f" ▲ {warnings}"
+            color = t.bg if (errors or warnings) else t.panel
+            return label, f"bold {color} {bar}"
+        if state is ServerState.STARTING:
+            return "LSP…", f"{t.panel} {bar}"
+        if state is ServerState.FAILED:
+            return "LSP ✖", f"bold {t.bg} {bar}"
+        return "", ""
