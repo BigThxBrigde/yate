@@ -755,6 +755,10 @@ Verification: `yate --install-font` first prints its detection result
   header shows the actual cwd and shell used.
 - **Shell choice**: Windows uses `cmd.exe`; macOS / Linux use `/bin/sh`
   (equivalent to `subprocess.run(shell=True)`).
+- **Non-blocking**: commands execute in a background worker thread — the
+  editor keeps responding (you can even open F1 help while a command runs);
+  the message line shows `running: …` and the output overlay opens when the
+  command finishes.
 - **Output**: shown in a scrollable overlay titled `$ command`, annotated with
   the exit code (a green check for 0, a red cross otherwise); stdout and
   stderr are both shown. Timeout is 60 seconds, returning code 124.

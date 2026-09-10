@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import locale
 from pathlib import Path
 from typing import Optional
@@ -38,6 +39,11 @@ class Document:
         doc = cls(p, TextBuffer(text), encoding=encoding)
         doc.buffer.move_doc_start()
         return doc
+
+    @classmethod
+    async def open_async(cls, path: Path | str) -> "Document":
+        """Off-loop variant of :meth:`open` (file read runs in a thread)."""
+        return await asyncio.to_thread(cls.open, path)
 
     @staticmethod
     def _decode(raw: bytes) -> tuple[str, str]:

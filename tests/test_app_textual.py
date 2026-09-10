@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any, Awaitable, Callable, cast
 
 from textual.strip import Strip
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.manual import ManualScreen
+
+
+async def wait_until(
+    pilot: Any, predicate: Callable[[], bool],
+    timeout: float = 5.0, step: float = 0.05,
+) -> bool:
+    """Pause until *predicate* holds; False on timeout (for worker tests)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        # pilot.pause lets background workers/to_thread callbacks progress
+        result: Awaitable[None] = pilot.pause(step)
+        await result
+        if predicate():
+            return True
+    return predicate()
 
 
 class KeyAdapterTests(unittest.TestCase):
@@ -621,7 +638,7 @@ class EditorBgTests(unittest.IsolatedAsyncioTestCase):
 
 class ManualTests(unittest.IsolatedAsyncioTestCase):
     async def test_f8_opens_manual_and_esc_closes(self):
-        from textual.widgets import Markdown
+        from textual.widgets import Markdown, Static
 
         from yate.editor_view.manual import load_manual_markdown
 
@@ -634,6 +651,9 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             md = app.screen.query_one("#manual-md", Markdown)
             # F8 opens the default (english) manual
             self.assertEqual(md.source, load_manual_markdown("en"))
+            # the loading placeholder is hidden once content is in
+            loading = app.screen.query_one("#manual-loading", Static)
+            self.assertFalse(loading.display)
             # theme is switched *before* the screen is pushed
             self.assertEqual(app.theme, "catppuccin-mocha")
             # f8 again must not stack a second viewer
@@ -670,6 +690,127 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
                 text = load_manual_markdown(lang)
                 self.assertGreater(len(text), 1000)
                 self.assertTrue(text.lstrip().startswith("# yate"))
+
+
+class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
+    """Blocking work (manual render, shell, file index) stays off the loop."""
+
+    async def test_manual_paints_before_content_loads(self):
+        from unittest.mock import patch
+
+        from textual.widgets import Markdown, Static
+
+        from yate.editor_view import manual as manual_mod
+
+        original = manual_mod.load_manual_markdown
+
+        def slow_load(lang: str) -> str:
+            time.sleep(1.5)
+            return original(lang)
+
+        app = YateApp()
+        with patch(
+            "yate.editor_view.manual.load_manual_markdown", side_effect=slow_load
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                # while the worker thread is still reading: screen + loading
+                # line are already on screen, the markdown itself is empty
+                await pilot.pause(0.15)
+                self.assertIsInstance(app.screen, ManualScreen)
+                md = app.screen.query_one("#manual-md", Markdown)
+                loading = app.screen.query_one("#manual-loading", Static)
+                self.assertEqual(md.source, "")
+                self.assertTrue(loading.display)
+                # content then arrives without dismissing the screen
+                loaded = await wait_until(
+                    pilot,
+                    lambda: bool(md.source) and not loading.display,
+                    timeout=10.0,
+                )
+                self.assertTrue(loaded)
+                self.assertEqual(md.source, original("en"))
+                self.assertFalse(loading.display)
+                self.assertIsInstance(app.screen, ManualScreen)
+
+    async def test_shell_command_runs_without_freezing_ui(self):
+        from unittest.mock import patch
+
+        from yate.editor_view.modals import OutputScreen
+        from yate.services.shell import ShellResult
+
+        def slow_shell(command: str, cwd: object = None,
+                       timeout: float = 60.0) -> ShellResult:
+            # long enough that headless message-pump slowness cannot let it
+            # finish before the responsiveness assertions run
+            time.sleep(2.0)
+            return ShellResult(command, 0, "yate-async-marker", Path.cwd())
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            with patch("yate.app.run_shell", side_effect=slow_shell):
+                await pilot.press("colon")
+                for ch in "!echo hi":
+                    await pilot.press(ch)
+                await pilot.press("enter")
+                # command dispatched: prompt closed, no output screen yet,
+                # focus back in the editor while the thread is running
+                await pilot.pause(0.15)
+                self.assertEqual(len(app.screen_stack), 1)
+                self.assertIs(app.focused, app.editor_view)
+                # the TUI stays responsive: F1 help opens over the running job
+                await pilot.press("f1")
+                await pilot.pause(0.1)
+                self.assertEqual(len(app.screen_stack), 2)
+                await pilot.press("escape")
+                await pilot.pause(0.1)
+            # the output screen appears when the worker finishes
+            shown = await wait_until(
+                pilot, lambda: isinstance(app.screen, OutputScreen),
+                timeout=10.0,
+            )
+            self.assertTrue(shown)
+            out = cast(OutputScreen, app.screen)
+            self.assertIn("yate-async-marker", out.output_text)
+            self.assertEqual(out.exit_code, 0)
+
+    async def test_file_palette_indexes_in_background(self):
+        from unittest.mock import patch
+
+        from rich.text import Text
+        from textual.widgets import Static
+
+        from yate.editor_view.palette import PaletteScreen
+        from yate.services.workspace import Workspace
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "notes.txt").write_text("x\n", encoding="utf-8")
+            app = YateApp(target=root)
+
+            def slow_walk(self: Workspace, limit: int = 5000) -> list[Path]:
+                time.sleep(1.5)
+                return [root / "notes.txt"]
+
+            def status_text() -> str:
+                content = palette.query_one("#palette-results", Static).content
+                return content.plain if isinstance(content, Text) else ""
+
+            with patch.object(Workspace, "walk_files", slow_walk):
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.press("ctrl+p")
+                    await pilot.pause(0.15)
+                    self.assertIsInstance(app.screen, PaletteScreen)
+                    palette = cast(PaletteScreen, app.screen)
+                    self.assertIn("indexing", status_text())
+                    done = await wait_until(
+                        pilot, lambda: palette.filtered_count == 1,
+                        timeout=10.0,
+                    )
+                    self.assertTrue(done)
+                    self.assertIn("notes.txt", status_text())
 
 
 class WindowFocusTests(unittest.IsolatedAsyncioTestCase):

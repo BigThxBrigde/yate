@@ -163,6 +163,20 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(doc.filetype, "py")
 
 
+class DocumentAsyncTests(unittest.IsolatedAsyncioTestCase):
+    async def test_open_async_matches_sync_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "note.txt"
+            path.write_text("alpha\nbeta\r\n", encoding="utf-8")
+            doc = await Document.open_async(path)
+            sync_doc = Document.open(path)
+            # same content (CRLF normalized), encoding and saved state
+            self.assertEqual(
+                doc.buffer.get_text(), sync_doc.buffer.get_text())
+            self.assertEqual(doc.encoding, sync_doc.encoding)
+            self.assertFalse(doc.modified)
+
+
 class KeyNotationTests(unittest.TestCase):
     def test_parse_special_keys(self):
         self.assertEqual(parse_key("<ctrl-s>"), "\x13")

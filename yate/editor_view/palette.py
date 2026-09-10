@@ -13,6 +13,7 @@ score better than gap matches.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -110,6 +111,8 @@ class PaletteScreen(ModalScreen[None]):
         self._entries: list[tuple[str, str, Any]] = []  # (display, hint, payload)
         self._filtered: list[tuple[int, list[int], int]] = []  # (score, hits, idx)
         self._cursor = 0
+        # shown in the results pane while the file index builds in a thread
+        self._status_message: Optional[str] = None
 
     @property
     def filtered_count(self) -> int:
@@ -123,26 +126,47 @@ class PaletteScreen(ModalScreen[None]):
 
     # --------------------------------------------------------------- data
 
-    def _build_entries(self) -> None:
+    def _collect_file_entries(self) -> list[tuple[str, str, Any]]:
+        """Walk the workspace and build ``(label, hint, path)`` rows.
+
+        Pure data prep (filesystem traversal + ``resolve`` per file), safe
+        to run in a worker thread; it must not touch Textual widgets.
+        """
         app = self.yate
         entries: list[tuple[str, str, Any]] = []
-        if self.mode == "files":
-            if app.workspace.root is not None:
-                root = app.workspace.root
-                paths = app.workspace.walk_files()
-            else:
-                root = Path.cwd()
-                paths = _walk(root)
-            for path in paths:
-                try:
-                    label = str(path.resolve().relative_to(root.resolve()))
-                except ValueError:
-                    label = path.name
-                entries.append((label.replace("\\", "/"), "", path))
+        if app.workspace.root is not None:
+            root = app.workspace.root
+            paths = app.workspace.walk_files()
         else:
-            for name in app.commands.names():
-                entries.append((name, app.commands.describe(name), name))
+            root = Path.cwd()
+            paths = _walk(root)
+        for path in paths:
+            try:
+                label = str(path.resolve().relative_to(root.resolve()))
+            except ValueError:
+                label = path.name
+            entries.append((label.replace("\\", "/"), "", path))
+        return entries
+
+    def _build_command_entries(self) -> None:
+        entries: list[tuple[str, str, Any]] = []
+        for name in self.yate.commands.names():
+            entries.append((name, self.yate.commands.describe(name), name))
         self._entries = entries
+
+    async def _index_files(self) -> None:
+        """Build the file list in a thread so large workspaces do not
+        freeze the UI when the palette opens."""
+        try:
+            entries = await asyncio.to_thread(self._collect_file_entries)
+        except OSError:
+            entries = []
+        if not self.is_mounted:
+            return
+        self._entries = entries
+        self._status_message = None
+        query = self.query_one("#palette-input", Input).value
+        self.refilter(query)
 
     def refilter(self, query: str) -> None:
         scored: list[tuple[int, list[int], int]] = []
@@ -162,6 +186,10 @@ class PaletteScreen(ModalScreen[None]):
         t = theme.active()
         results = self.query_one("#palette-results", Static)
         text = Text()
+        if self._status_message is not None:
+            text.append(self._status_message, style=t.fg_dim)
+            results.update(text)
+            return
         if not self._filtered:
             text.append("  no matches", style=t.fg_dim)
             results.update(text)
@@ -208,8 +236,18 @@ class PaletteScreen(ModalScreen[None]):
         # Colors come from the DEFAULT_CSS design tokens ($surface/$primary),
         # which track Textual's dark/light mode; result rows use the active
         # Catppuccin palette via Rich styles.
-        self._build_entries()
-        self.refilter("")
+        if self.mode == "files":
+            # walking a big workspace would freeze the modal on open; build
+            # the file index in a worker thread with a status line
+            self._status_message = " indexing workspace…"
+            self._render_results()
+            self.run_worker(
+                self._index_files(), group="palette-index",
+                exclusive=True, exit_on_error=False,
+            )
+        else:
+            self._build_command_entries()
+            self.refilter("")
         self.query_one("#palette-input", Input).focus()
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -244,7 +282,7 @@ class PaletteScreen(ModalScreen[None]):
         _display, _hint, payload = self._entries[idx]
         self.dismiss()
         if self.mode == "files":
-            self.yate.open_path(payload)
+            self.yate.open_path_later(payload)
             self.yate.focus_editor()
         else:
             self.yate.run_command(str(payload))

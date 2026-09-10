@@ -135,7 +135,7 @@ class ExplorerTree(Tree[NodeData]):
         if path.is_dir():
             event.node.toggle()
             return
-        self.yate.open_path(path)
+        self.yate.open_path_later(path)
         self.yate.focus_editor()
 
     # ------------------------------------------------------- vim-style keys

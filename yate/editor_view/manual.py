@@ -6,6 +6,11 @@ is open (switched by the app *before* this screen is pushed, so the very
 first frame is already themed) so headings, code blocks and tables match
 yate's palette.
 
+The screen paints immediately with a loading line; the file is read in a
+worker thread and the markdown is parsed/mounted afterwards (Textual's
+Markdown.update already parses in an executor and mounts in batches), so
+opening the manual never blocks the UI.
+
 Tables are laid out by a CSS grid that squeezes cells when the table is
 container-bound; auto-width keeps cells on one line so the keylines of
 CJK tables stay aligned.
@@ -13,6 +18,7 @@ CJK tables stay aligned.
 
 from __future__ import annotations
 
+import asyncio
 from importlib.resources import files
 from typing import TYPE_CHECKING
 
@@ -61,6 +67,11 @@ class ManualScreen(ModalScreen[None]):
     ManualScreen #manual-scroll {
         height: 1fr;
     }
+    ManualScreen #manual-loading {
+        height: 1;
+        padding: 1 0;
+        color: $text-muted;
+    }
     ManualScreen .hint {
         height: 1;
         color: $text-muted;
@@ -82,6 +93,35 @@ class ManualScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="manual-box"):
             with VerticalScroll(id="manual-scroll"):
-                yield Markdown(load_manual_markdown(self._lang), id="manual-md")
+                # empty initially: the content loads in a background worker
+                # so the screen itself can paint without a hitch
+                yield Static(" loading manual…", id="manual-loading")
+                yield Markdown("", id="manual-md")
             yield Static(" press esc or q to close  ·  pgup/pgdn or wheel to scroll ",
                          classes="hint")
+
+    def on_mount(self) -> None:
+        self.run_worker(
+            self._load_manual(), group="manual-load", exclusive=True,
+            exit_on_error=False,
+        )
+
+    async def _load_manual(self) -> None:
+        """Read the manual off the loop, then let Markdown mount in batches."""
+        try:
+            source = await asyncio.to_thread(load_manual_markdown, self._lang)
+        except OSError as exc:  # pragma: no cover - resource is bundled
+            source = f"failed to load the manual: {exc}"
+        # the viewer may have been closed while the read was in flight
+        if not self.is_mounted:
+            return
+        try:
+            markdown = self.query_one("#manual-md", Markdown)
+            loading = self.query_one("#manual-loading", Static)
+            await markdown.update(source)
+            if self.is_mounted:
+                loading.display = False
+        except Exception:
+            # widget torn down mid-update after a quick esc/q; nothing to do
+            if self.is_mounted:
+                raise

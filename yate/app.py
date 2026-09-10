@@ -8,6 +8,7 @@ callbacks that actions / extensions invoke.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -240,6 +241,29 @@ class YateApp(App[None]):
         self.docs.append(doc)
         self.doc_index = len(self.docs) - 1
 
+    async def _open_document_path_async(self, path: Path) -> None:
+        """Like :meth:`_open_document_path`, but disk reads run off the loop."""
+        resolved = path.resolve()
+        for i, doc in enumerate(self.docs):
+            if doc.path is not None and doc.path.resolve() == resolved:
+                self.doc_index = i
+                return
+
+        def _inspect() -> tuple[bool, bool]:
+            return path.exists(), Workspace.is_text_file(path)
+
+        exists, is_text = await asyncio.to_thread(_inspect)
+        if exists and not is_text:
+            self._ext_messages.append(f"not a text file: {path.name}")
+            return
+        if exists:
+            doc = await Document.open_async(path)
+        else:
+            doc = Document(path, self._make_buffer())
+        self._apply_buffer_options(doc.buffer)
+        self.docs.append(doc)
+        self.doc_index = len(self.docs) - 1
+
     def open_path(self, path: Path) -> None:
         try:
             if path.is_dir():
@@ -260,6 +284,35 @@ class YateApp(App[None]):
             self.editor_view.scroll_col = 0
         self.message(f"opened {self.doc.name}")
         self.ui_refresh()
+
+    async def open_path_async(self, path: Path) -> None:
+        """Open a file without blocking the UI (directory opens stay sync:
+        the tree only lists the bounded root level)."""
+        try:
+            is_dir = path.is_dir()
+        except OSError:
+            is_dir = False
+        if is_dir:
+            self.open_path(path)
+            return
+        await self._open_document_path_async(path)
+        if not self.mounted:
+            return
+        if self.explorer_tree is not None:
+            self.explorer_tree.refresh_tree()
+        self.search = SearchEngine()
+        if self.editor_view is not None:
+            self.editor_view.scroll_col = 0
+        self.message(f"opened {self.doc.name}")
+        self.ui_refresh()
+
+    def open_path_later(self, path: Path) -> None:
+        """Schedule a non-blocking file open from a synchronous handler
+        (palette, explorer, ``:e`` command)."""
+        self.run_worker(
+            self.open_path_async(path), group="open",
+            exclusive=True, exit_on_error=False,
+        )
 
     def new_buffer(self, show: bool = True) -> None:
         self.docs.append(Document(None, self._make_buffer()))
@@ -689,7 +742,7 @@ class YateApp(App[None]):
     def _submit_open(self, text: str) -> None:
         text = text.strip()
         if text:
-            self.open_path(Path(text))
+            self.open_path_later(Path(text))
 
     def command_prompt(self) -> None:
         if self.prompt_bar is None:
@@ -764,7 +817,7 @@ class YateApp(App[None]):
         elif mode in ("find", "find_back"):
             self._submit_search(text, mode == "find")
         elif mode == "shell":
-            self.run_shell_command(text)
+            self.run_shell_command_later(text)
         elif mode == "open":
             self._submit_open(text)
         elif mode == "save":
@@ -805,22 +858,69 @@ class YateApp(App[None]):
     # ================================================================= shell
 
     def run_shell_command(self, command: str, show_output: bool = True) -> Optional[ShellResult]:
+        """Run a shell command synchronously and capture its output.
+
+        Blocking: used by the (synchronous) extension API.  Interactive
+        callers go through :meth:`run_shell_command_async` so the TUI stays
+        responsive while the command runs.
+        """
         command = command.strip()
         if not command:
             return None
-        cwd = (
+        cwd = self._shell_cwd()
+        result = run_shell(command, cwd=cwd)
+        if show_output and self.mounted:
+            self._show_shell_result(command, result, cwd)
+        return result
+
+    def run_shell_command_later(self, command: str) -> None:
+        """Schedule a non-blocking shell run from a sync handler."""
+        command = command.strip()
+        if not command:
+            return
+        # the prompt bar stays in its active mode until a command messages
+        # back; the background job only reports when it finishes, so close
+        # the prompt up front (otherwise focus vanishes when it hides)
+        if self.prompt_bar is not None and self.prompt_bar.active_mode in (
+            "shell", "command"
+        ):
+            self.prompt_bar.idle()
+            self.focus_editor()
+            self.ui_refresh()
+        self.run_worker(
+            self.run_shell_command_async(command),
+            group="shell", exclusive=False, exit_on_error=False,
+        )
+
+    async def run_shell_command_async(
+        self, command: str, show_output: bool = True
+    ) -> Optional[ShellResult]:
+        """Run a shell command in a worker thread (UI keeps responding)."""
+        command = command.strip()
+        if not command:
+            return None
+        cwd = self._shell_cwd()
+        self.message(f"running: {command}", kind="info")
+        result = await asyncio.to_thread(run_shell, command, cwd=cwd)
+        if show_output and self.mounted:
+            self._show_shell_result(command, result, cwd)
+        return result
+
+    def _shell_cwd(self) -> Path:
+        return (
             self.workspace.root
             or (self.doc.path.parent if self.doc.path is not None else None)
             or Path.cwd()
         )
-        result = run_shell(command, cwd=cwd)
-        if show_output and self.mounted:
-            body = (
-                f"(cwd: {cwd} · {shell_name()})\n\n"
-                f"{result.output or '(no output)'}"
-            )
-            self.push_screen(OutputScreen(self, f"$ {command}", body, result.returncode))
-        return result
+
+    def _show_shell_result(
+        self, command: str, result: ShellResult, cwd: Path
+    ) -> None:
+        body = (
+            f"(cwd: {cwd} · {shell_name()})\n\n"
+            f"{result.output or '(no output)'}"
+        )
+        self.push_screen(OutputScreen(self, f"$ {command}", body, result.returncode))
 
     # ================================================================ modals
 
@@ -880,7 +980,7 @@ class YateApp(App[None]):
         def _edit(args: str) -> None:
             args = args.strip()
             if args:
-                self.open_path(Path(args))
+                self.open_path_later(Path(args))
             else:
                 self.prompt_open()
 
@@ -946,17 +1046,27 @@ class YateApp(App[None]):
             self.sidebar.display = visible
 
     def _font_command(self) -> None:
-        status = fonts.ensure_font()
-        self.message(status.detail or ("Nerd Font ready" if status.has_nerd_font
-                                       else "font setup failed"),
-                     kind="ok" if status.has_nerd_font else "error")
+        # registry lookups / font registration touch subprocess and would
+        # freeze the TUI on some systems; run off the event loop
+        self.message("checking Nerd Font…", kind="info")
+        self.run_worker(
+            self._font_command_async(), group="font",
+            exclusive=True, exit_on_error=False,
+        )
+
+    async def _font_command_async(self) -> None:
+        status = await asyncio.to_thread(fonts.ensure_font)
+        if self.mounted:
+            self.message(status.detail or ("Nerd Font ready" if status.has_nerd_font
+                                           else "font setup failed"),
+                         kind="ok" if status.has_nerd_font else "error")
 
     def run_command(self, text: str) -> None:
         text = text.strip()
         if not text:
             return
         if text.startswith("!"):
-            self.run_shell_command(text[1:])
+            self.run_shell_command_later(text[1:])
             return
         parts = text.split()
         name, args = parts[0], " ".join(parts[1:])

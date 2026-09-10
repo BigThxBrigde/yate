@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any, Optional
 
 from rich.segment import Segment
@@ -62,6 +63,7 @@ class EditorView(ScrollView):
         self.yate = app
         self.scroll_col = 0
         self._hl_tokens: Optional[list[list[Token]]] = None
+        self._hl_scheduled = False
 
     # ------------------------------------------------------------ helpers
 
@@ -73,6 +75,7 @@ class EditorView(ScrollView):
     def content_changed(self) -> None:
         """Call after any buffer mutation / document switch."""
         self._hl_tokens = None
+        self._hl_scheduled = False
         self._update_virtual_size()
         self.reveal_cursor()
         self.refresh()
@@ -138,12 +141,38 @@ class EditorView(ScrollView):
         return max(3, len(str(self.buffer.line_count))) + 2
 
     def _tokens_for(self, row: int) -> list[Token]:
-        """Cached syntax tokens for one line (lazily tokenized)."""
+        """Cached syntax tokens for one line (tokenized off the loop).
+
+        The first render after a change shows plain text while a worker
+        thread tokenizes the document, then refreshes with colors; this
+        keeps large files from blocking the first paint and every keystroke.
+        """
         if self._hl_tokens is None:
-            self._hl_tokens = highlight.tokenize_document(
-                self.buffer.lines, self.yate.doc.filetype
-            )
+            if not self._hl_scheduled:
+                self._hl_scheduled = True
+                self.yate.run_worker(
+                    self._highlight_later(), group="highlight",
+                    exclusive=True, exit_on_error=False,
+                )
+            return []
         return self._hl_tokens[row] if row < len(self._hl_tokens) else []
+
+    async def _highlight_later(self) -> None:
+        """Tokenize the current document in a thread, then repaint."""
+        doc = self.yate.doc
+        # shallow copy: the buffer may keep mutating while the thread runs
+        lines = list(doc.buffer.lines)
+        filetype = doc.filetype
+        tokens = await asyncio.to_thread(
+            highlight.tokenize_document, lines, filetype
+        )
+        # discard the result if the document changed/closed while we worked;
+        # the next render reschedules for the new state
+        if not self.is_mounted or self.yate.doc is not doc:
+            return
+        self._hl_tokens = tokens
+        self._hl_scheduled = False
+        self.refresh()
 
     def _syntax_kinds(self, row: int, line: str, cell_count: int) -> list[Optional[str]]:
         """Per-cell syntax token kind (char ranges mapped to display cells)."""

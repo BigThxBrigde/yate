@@ -109,6 +109,16 @@ class OutputScreen(_OverlayScreen):
         self._output = output
         self._returncode = returncode
 
+    @property
+    def output_text(self) -> str:
+        """Captured stdout/stderr of the finished shell command."""
+        return self._output
+
+    @property
+    def exit_code(self) -> int:
+        """Process exit code (``0`` = success)."""
+        return self._returncode
+
     def _body(self) -> Text:
         t = theme.active()
         text = Text()
