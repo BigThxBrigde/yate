@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from typing import Any, cast
 
 from yate.editor_view import highlight as hl
 from yate.editor_view import theme
@@ -150,6 +152,95 @@ class FiletypeResolutionTests(unittest.TestCase):
         self.assertIn("py", available)
         self.assertIn("python", available)
         self.assertEqual(available, sorted(available))
+
+
+class CustomLanguageRegistrationTests(unittest.TestCase):
+    """Extensions can register (or override) languages at runtime."""
+
+    KEY = "zzxtoy"  # unique key so the test never clashes with real languages
+
+    def tearDown(self) -> None:
+        registry = cast(Any, hl)
+        registry._LANGUAGES.pop(self.KEY, None)
+        registry._NAME_TO_KEY.pop("xtoy", None)
+
+    def test_register_language_tokenizes_and_resolves_by_name(self) -> None:
+        # "thing" is only in type_def_words (not keywords): the identifier
+        # after it must still be painted as a type.
+        spec = hl.LangSpec(
+            name="xtoy", line_comment="#",
+            keywords=frozenset({"xto"}),
+            type_def_words=frozenset({"thing"}),
+        )
+        hl.register_language(spec, self.KEY)
+        self.assertIs(hl.lang_for(self.KEY), spec)
+        self.assertEqual(hl.resolve_filetype("xtoy"), self.KEY)
+        self.assertIn("xtoy", hl.available_filetypes())
+
+        line = "xto thing Bar 1  # hi"
+        pairs = _kinds(hl.tokenize_document([line], self.KEY)[0], line)
+        self.assertIn(("keyword", "xto"), pairs)
+        self.assertIn(("type", "Bar"), pairs)
+        self.assertIn(("number", "1"), pairs)
+        self.assertIn(("comment", "# hi"), pairs)
+
+    def test_register_overrides_existing_key(self) -> None:
+        registry = cast(Any, hl)
+        original = hl.lang_for("py")
+        assert original is not None
+        replacement = hl.LangSpec(name="pythonish", line_comment=";")
+        try:
+            hl.register_language(replacement, "py")
+            self.assertIs(hl.lang_for("py"), replacement)
+        finally:
+            hl.register_language(original, "py")
+            registry._NAME_TO_KEY.pop("pythonish", None)
+        self.assertIs(hl.lang_for("py"), original)
+
+
+class CSharpExtensionTests(unittest.TestCase):
+    """Load the bundled extensions/csharp_highlight.py through the real loader."""
+
+    EXT_PATH = (
+        Path(__file__).resolve().parent.parent
+        / "extensions" / "csharp_highlight.py"
+    )
+
+    def test_extension_registers_csharp_highlighting(self) -> None:
+        from yate.services.extensions import ExtensionAPI, ExtensionLoader
+
+        class _FakeApp:
+            pass  # the highlight bridge never touches the app
+
+        api = ExtensionAPI(cast(Any, _FakeApp()))
+        record = ExtensionLoader(api).load_file(self.EXT_PATH)
+        self.assertIsNone(record.error, msg=record.error or "")
+
+        self.assertEqual(hl.resolve_filetype("csharp"), "cs")
+        self.assertEqual(hl.resolve_filetype(".csx"), "csx")
+        self.assertIn("csharp", hl.available_filetypes())
+
+        line = "public async Task<string> GetName(int id) { return null; }"
+        pairs = _kinds(hl.tokenize_document([line], "cs")[0], line)
+        self.assertIn(("keyword", "public"), pairs)
+        self.assertIn(("keyword", "async"), pairs)
+        self.assertIn(("type", "Task"), pairs)
+        self.assertIn(("type", "string"), pairs)
+        self.assertIn(("type", "int"), pairs)
+        self.assertIn(("function", "GetName"), pairs)
+        self.assertIn(("constant", "null"), pairs)
+
+        # declaration keyword paints the following identifier as a type
+        decl = "sealed class Widget { }"
+        pairs = _kinds(hl.tokenize_document([decl], "cs")[0], decl)
+        self.assertIn(("keyword", "class"), pairs)
+        self.assertIn(("type", "Widget"), pairs)
+
+        # comments and interpolated/verbatim strings
+        mix = 'var s = $@"a{b}"; // ok'
+        pairs = _kinds(hl.tokenize_document([mix], "cs")[0], mix)
+        self.assertIn(("comment", "// ok"), pairs)
+        self.assertTrue(any(k == "string" for k, _ in pairs))
 
 
 class ThemeTests(unittest.TestCase):

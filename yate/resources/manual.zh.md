@@ -859,6 +859,7 @@ def setup(api):
 | 访问 | `api.buffer`、`api.doc`、`api.workspace`、`api.keymaps`、`api.app` |
 | 服务 | `api.message(text)`、`api.shell(command)`、`api.open_path(path)`、`api.save()` |
 | 语言服务器 | `api.lsp.register_server(...)`（见第 16 节）；`api.lsp.statuses()` 返回 `{名字: 状态}` |
+| 语法高亮 | `api.highlight.register(spec, *扩展名)` 注册/覆盖自定义语言的声明式高亮（`LangSpec`），注册后可用于 `:set filetype=` |
 
 按键描述使用 yate 的键记法：`<ctrl-x>`、`<alt-x>`、`<shift-x>`、
 `<f1>`…`<f12>`、`<enter>`、`<esc>`、`<tab>`、`<backspace>`、
@@ -874,10 +875,13 @@ def setup(api):
 
 扩展中的异常不会导致编辑器崩溃，错误以 `extension <名字>: ...` 显示在消息栏。
 仓库自带示例 `extensions/example_ext.py`（提供 `:upper` / `:lower` /
-`:words` / `:sh` 命令与 `Alt+U` 绑定），可作模板。
+`:words` / `:sh` 命令与 `Alt+U` 绑定），可作模板；
+`extensions/csharp_highlight.py` 则演示了如何用 `api.highlight.register`
+为 C#（`.cs`/`.csx`）添加语法高亮。
 
 > 扩展 API 完整参考（命令、动作、按键绑定、buffer/doc/workspace 访问、
-> LSP 注册）见 [`docs/extensions.md`](../../docs/extensions.md)。
+> LSP 注册、自定义语法高亮与 `LangSpec` 字段）见
+> [`docs/extensions.md`](../../docs/extensions.md)。
 
 ## 16. 语言服务器（LSP）
 
@@ -979,6 +983,14 @@ TypeScript（`ts`/`tsx`/`mts`/`cts`）、Shell（`sh`/`bash`/`zsh`/`fish`）、
 JSON（`json`/`jsonc`）、Markdown（`md`/`markdown`/`mdx`）、TOML（`toml`）、
 INI（`ini`/`cfg`/`conf`/`properties`）、YAML（`yaml`/`yml`）。
 其他类型按纯文本渲染。
+
+**如何增加新语言（或覆盖某种语言）的语法高亮？**
+通过扩展的 `api.highlight.register(spec, *扩展名)` 注册一个声明式的
+`LangSpec`（注释标记、关键字、类型、常量等单词集合；字符串、数字、多行
+状态由引擎处理），注册后即可自动高亮并用于 `:set filetype=`。仓库自带
+`extensions/csharp_highlight.py` 为 C#（`cs`/`csx`）提供高亮，在仓库目录内
+启动时自动加载，也可用 `yate --ext csharp_highlight.py` 显式加载；完整字段
+说明见 [`docs/extensions.md`](../../docs/extensions.md) 的 4.7 节。
 
 **如何手动指定语法类型（类似 VS Code 的 Change Language Mode / vim 的 `:set filetype`）？**
 默认按文件扩展名识别；对无后缀文件、识别错误或临时缓冲区，可以手动覆盖，

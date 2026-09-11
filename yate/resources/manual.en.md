@@ -936,6 +936,7 @@ What `api` provides:
 | Access | `api.buffer`, `api.doc`, `api.workspace`, `api.keymaps`, `api.app` |
 | Services | `api.message(text)`, `api.shell(command)`, `api.open_path(path)`, `api.save()` |
 | Language servers | `api.lsp.register_server(...)` (see section 16); `api.lsp.statuses()` returns `{name: state}` |
+| Syntax highlighting | `api.highlight.register(spec, *extensions)` registers or overrides a declarative custom language (`LangSpec`); usable from `:set filetype=` once registered |
 
 Key specs use yate's key notation: `<ctrl-x>`, `<alt-x>`, `<shift-x>`,
 `<f1>`…`<f12>`, `<enter>`, `<esc>`, `<tab>`, `<backspace>`,
@@ -954,10 +955,13 @@ Loading sources (combinable, deduplicated by resolved absolute path):
 Exceptions inside extensions never crash the editor; errors appear in the
 message bar as `extension <name>: ...`. The repo ships a sample at
 `extensions/example_ext.py` (providing the `:upper` / `:lower` / `:words` /
-`:sh` commands and an `Alt+U` binding) usable as a template.
+`:sh` commands and an `Alt+U` binding) usable as a template;
+`extensions/csharp_highlight.py` shows how `api.highlight.register` adds
+highlighting for C# (`.cs`/`.csx`).
 
 > For the full extension API reference (commands, actions, key bindings,
-> buffer/doc/workspace access, LSP registration), see
+> buffer/doc/workspace access, LSP registration, custom syntax highlighting
+> and the `LangSpec` fields), see
 > [`docs/extensions.md`](../../docs/extensions.md).
 
 ## 16. Language servers (LSP)
@@ -1072,6 +1076,16 @@ TypeScript (`ts`/`tsx`/`mts`/`cts`), Shell (`sh`/`bash`/`zsh`/`fish`),
 JSON (`json`/`jsonc`), Markdown (`md`/`markdown`/`mdx`), TOML (`toml`),
 INI (`ini`/`cfg`/`conf`/`properties`), YAML (`yaml`/`yml`).
 Everything else renders as plain text.
+
+**How do I add highlighting for another language (or override one)?**
+An extension can register a declarative `LangSpec` via
+`api.highlight.register(spec, *extensions)` -- comment markers and word sets
+for keywords/types/constants; the engine handles strings, numbers and
+multiline state. Once registered it highlights automatically and works with
+`:set filetype=`. The bundled `extensions/csharp_highlight.py` provides C#
+(`cs`/`csx`): it auto-loads when yate starts inside the repository, or load
+it explicitly with `yate --ext csharp_highlight.py`. See section 4.7 of
+[`docs/extensions.md`](../../docs/extensions.md) for the full field list.
 
 **How do I pick the syntax type manually (like VS Code's Change Language Mode / vim's `:set filetype`)?**
 The type is normally detected from the file extension. For extension-less

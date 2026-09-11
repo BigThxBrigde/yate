@@ -193,6 +193,68 @@ api.lsp.has_state(name, "ready")
 
 用同名重复注册会替换旧配置，并丢弃其缓存进程与诊断。
 
+### 4.7 语法高亮（自定义语言）
+
+通过 `api.highlight` 可以注册新语言的语法高亮，或**覆盖内置语言**（同名扩展名
+再次注册即替换）。高亮引擎是声明式的：只需提供注释标记与若干单词集合，
+字符串、数字、注释、多行状态由引擎统一处理。
+
+```python
+from yate.editor_view.highlight import LangSpec
+
+def setup(api):
+    spec = LangSpec(
+        name="mylang",
+        line_comment="#",
+        block_comment=("/*", "*/"),
+        keywords=frozenset({"if", "else", "return"}),
+        types=frozenset({"int", "str"}),
+        constants=frozenset({"true", "false", "null"}),
+        builtins=frozenset({"print"}),
+        type_def_words=frozenset({"class"}),   # 其后一个标识符按"类型名"着色
+        func_def_words=frozenset({"fn"}),      # 其后一个标识符按"函数名"着色
+    )
+    api.highlight.register(spec, "ml", "mylang")   # .ml / .mylang 文件
+```
+
+注册后立即生效：`.ml` 文件自动高亮，也可在会话内 `:set filetype=ml` 或
+`:set filetype=mylang`（扩展名与语言名都能解析），命令行 `Tab` 补全与状态栏
+类型同步。`type_def_words` / `func_def_words` 中的词即使不放进 `keywords`
+也会按关键字着色。
+
+**API**：
+
+| 方法/属性 | 作用 |
+|---|---|
+| `api.highlight.register(spec, *extensions)` | 注册/覆盖一个语言；扩展名不带点（带点也容忍） |
+| `api.highlight.LangSpec` | 语言规格数据类（也可直接 `from yate.editor_view.highlight import LangSpec`） |
+| `api.highlight.spec(**kwargs)` | 用关键字参数构造 `LangSpec` |
+| `api.highlight.available()` | 当前可用于 `:set filetype` 的全部扩展名与语言名 |
+
+**`LangSpec` 字段**：
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `name` | （必填） | 语言名，同时作为 `:set filetype=<name>` 的候选 |
+| `mode` | `"code"` | `"code"` / `"json"` / `"markdown"` / `"config"`，选择分词器 |
+| `line_comment` | `None` | 行注释前缀，如 `"#"`、`"//"` |
+| `block_comment` | `None` | 块注释首尾标记，如 `("/*", "*/")`（跨行） |
+| `triple_strings` | `False` | 是否支持 Python 式 `'''`/`"""` 跨行字符串 |
+| `string_prefixes` | `""` | 允许紧贴引号前的前缀字符（1–2 个），如 C# 的 `"@$"` |
+| `sigils` | `False` | 是否高亮 `$var`/`${var}` 形式（shell） |
+| `keywords` | `frozenset()` | 关键字 |
+| `builtins` | `frozenset()` | 内建函数/对象 |
+| `constants` | `frozenset()` | 常量（`true`/`false`/`null` 等） |
+| `types` | `frozenset()` | 内建类型/常见标准库类型 |
+| `func_def_words` | `frozenset()` | 其后一个标识符按函数名着色（`def`、`fn`） |
+| `type_def_words` | `frozenset()` | 其后一个标识符按类型名着色（`class`、`struct`、`interface`） |
+| `macro_call` | `False` | 标识符紧跟 `!` 时按函数着色（Rust 宏） |
+
+完整实例见仓库随附的 `extensions/csharp_highlight.py`
+（C# 高亮：`cs`/`csx`，含关键字、上下文关键字、BCL 类型、`$`/`@` 字符串前缀等；
+该扩展位于默认加载目录，在仓库目录内启动 yate 即自动生效，也可用
+`yate --ext csharp_highlight.py` 显式加载）。
+
 ---
 
 ## 5. 完整示例：单词计数 + 选区大写

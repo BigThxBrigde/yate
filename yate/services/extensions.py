@@ -34,6 +34,11 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
+from yate.editor_view.highlight import (
+    LangSpec,
+    available_filetypes,
+    register_language,
+)
 
 if TYPE_CHECKING:
     from yate.app import YateApp
@@ -89,12 +94,46 @@ class LspExtensionBridge:
         return current is not None and current.value == state
 
 
+class HighlightExtensionBridge:
+    """``api.highlight`` -- register custom syntax highlighters.
+
+    The built-in tokenizer is declarative: a :class:`LangSpec` lists comment
+    markers, keyword/type/builtin word sets and a few lexical flags, and the
+    engine handles strings, numbers, comments and multiline state for free.
+    See ``extensions/csharp_highlight.py`` for a complete example.
+    """
+
+    #: Re-exported so extensions can build specs via ``api.highlight.LangSpec``.
+    LangSpec = LangSpec
+
+    def register(self, spec: LangSpec, *extensions: str) -> None:
+        """Register *spec* under extension keys (``"cs"``, ``"csx"``, ...).
+
+        Re-registering an existing key replaces its highlighter, so a custom
+        language can override a built-in one. The type is immediately usable
+        from ``:set filetype=`` and resolved by both extension key and the
+        spec's language ``name``.
+        """
+        register_language(spec, *extensions)
+
+    @staticmethod
+    def spec(**kwargs: Any) -> LangSpec:
+        """Build a :class:`LangSpec` with keyword arguments (``name=...``)."""
+        return LangSpec(**kwargs)
+
+    @staticmethod
+    def available() -> list[str]:
+        """All extension keys and language names accepted by ``:set filetype``."""
+        return available_filetypes()
+
+
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
     def __init__(self, app: "YateApp") -> None:
         self._app = app
         self._lsp = LspExtensionBridge(app)
+        self._highlight = HighlightExtensionBridge()
 
     # ------------------------------------------------------------- accessors
 
@@ -122,6 +161,11 @@ class ExtensionAPI:
     def lsp(self) -> LspExtensionBridge:
         """Register language servers (autocomplete/diagnostics)."""
         return self._lsp
+
+    @property
+    def highlight(self) -> HighlightExtensionBridge:
+        """Register custom syntax highlighters (``api.highlight.register``)."""
+        return self._highlight
 
     # ------------------------------------------------------------ registrars
 

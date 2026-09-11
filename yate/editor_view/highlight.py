@@ -225,13 +225,29 @@ def _spec(
 
 _LANGUAGES: dict[str, LangSpec] = {}
 
+# Canonical language name (LangSpec.name) -> the first extension key that
+# registered that spec. Kept in sync inside register_language(), so custom
+# languages registered by extensions are resolvable by name immediately.
+_NAME_TO_KEY: dict[str, str] = {}
 
-def _register(spec: LangSpec, *extensions: str) -> None:
+
+def register_language(spec: LangSpec, *extensions: str) -> None:
+    """Register a language spec under one or more extension keys.
+
+    This is the public extension point used by both the built-in language
+    table and custom-syntax extensions (``api.highlight.register``):
+    registering an existing key again replaces its spec, which lets an
+    extension override built-in highlighting. Leading dots are tolerated.
+    """
     for ext in extensions:
-        _LANGUAGES[ext] = spec
+        key = ext.lower().lstrip(".")
+        if not key:
+            continue
+        _LANGUAGES[key] = spec
+        _NAME_TO_KEY.setdefault(spec.name, key)
 
 
-_register(
+register_language(
     _spec(
         "python", line_comment="#", triple_strings=True, string_prefixes="rRbBuUfF",
         keywords=_PY_KEYWORDS, builtins=_PY_BUILTINS, constants=_PY_CONSTANTS,
@@ -240,7 +256,7 @@ _register(
     ),
     "py", "pyi", "pyw",
 )
-_register(
+register_language(
     _spec(
         "c", line_comment="//", block_comment=("/*", "*/"),
         keywords=_C_KEYWORDS, builtins=_C_BUILTINS,
@@ -250,7 +266,7 @@ _register(
     ),
     "c", "h",
 )
-_register(
+register_language(
     _spec(
         "cpp", line_comment="//", block_comment=("/*", "*/"),
         keywords=_C_KEYWORDS | _CPP_EXTRA, builtins=_C_BUILTINS,
@@ -261,7 +277,7 @@ _register(
     ),
     "cpp", "cc", "cxx", "c++", "hpp", "hxx", "h++", "hh", "ino",
 )
-_register(
+register_language(
     _spec(
         "java", line_comment="//", block_comment=("/*", "*/"),
         keywords=_JAVA_KEYWORDS,
@@ -270,7 +286,7 @@ _register(
     ),
     "java",
 )
-_register(
+register_language(
     _spec(
         "rust", line_comment="//", block_comment=("/*", "*/"),
         keywords=_RUST_KEYWORDS, constants=_RUST_CONSTANTS, types=_RUST_TYPES,
@@ -280,7 +296,7 @@ _register(
     ),
     "rs",
 )
-_register(
+register_language(
     _spec(
         "go", line_comment="//", block_comment=("/*", "*/"),
         keywords=_GO_KEYWORDS, builtins=_GO_BUILTINS, constants=_GO_CONSTANTS,
@@ -289,7 +305,7 @@ _register(
     ),
     "go",
 )
-_register(
+register_language(
     _spec(
         "javascript", line_comment="//", block_comment=("/*", "*/"),
         keywords=_JS_KEYWORDS, builtins=_JS_BUILTINS, constants=_JS_CONSTANTS,
@@ -298,7 +314,7 @@ _register(
     ),
     "js", "mjs", "cjs", "jsx",
 )
-_register(
+register_language(
     _spec(
         "typescript", line_comment="//", block_comment=("/*", "*/"),
         keywords=_JS_KEYWORDS, builtins=_JS_BUILTINS, constants=_JS_CONSTANTS,
@@ -307,7 +323,7 @@ _register(
     ),
     "ts", "tsx", "mts", "cts",
 )
-_register(
+register_language(
     _spec(
         "shell", line_comment="#", sigils=True,
         keywords=_SHELL_KEYWORDS, builtins=_SHELL_BUILTINS,
@@ -315,19 +331,19 @@ _register(
     ),
     "sh", "bash", "zsh", "fish",
 )
-_register(
+register_language(
     _spec("json", mode="json", line_comment=None, constants=_JSON_CONSTANTS),
     "json",
 )
-_register(
+register_language(
     _spec("jsonc", mode="json", line_comment="//", block_comment=("/*", "*/"),
           constants=_JSON_CONSTANTS),
     "jsonc",
 )
-_register(_spec("markdown", mode="markdown"), "md", "markdown", "mdx")
-_register(_spec("toml", mode="config", line_comment="#"), "toml")
-_register(_spec("ini", mode="config", line_comment="#"), "ini", "cfg", "conf", "properties")
-_register(_spec("yaml", mode="config", line_comment="#"), "yaml", "yml")
+register_language(_spec("markdown", mode="markdown"), "md", "markdown", "mdx")
+register_language(_spec("toml", mode="config", line_comment="#"), "toml")
+register_language(_spec("ini", mode="config", line_comment="#"), "ini", "cfg", "conf", "properties")
+register_language(_spec("yaml", mode="config", line_comment="#"), "yaml", "yml")
 
 
 def lang_for(filetype: str) -> Optional[LangSpec]:
@@ -336,13 +352,6 @@ def lang_for(filetype: str) -> Optional[LangSpec]:
     Returns ``None`` for unknown / plain-text files.
     """
     return _LANGUAGES.get(filetype.lower())
-
-
-# Canonical language name (LangSpec.name) -> the first extension key that
-# registered that spec, so users can say "python" as well as "py".
-_NAME_TO_KEY: dict[str, str] = {}
-for _ext, _lang_spec in _LANGUAGES.items():
-    _NAME_TO_KEY.setdefault(_lang_spec.name, _ext)
 
 
 def resolve_filetype(name: str) -> Optional[str]:
@@ -580,7 +589,14 @@ def _classify_ident(
     end = start + len(word)
     if pending is not None:
         return pending, None
-    if word in spec.keywords:
+    # func_def_words / type_def_words are keyword-like on their own (a custom
+    # LangSpec may omit them from ``keywords``): they color as keywords and
+    # force the kind of the identifier that follows.
+    if (
+        word in spec.keywords
+        or word in spec.func_def_words
+        or word in spec.type_def_words
+    ):
         if word in spec.func_def_words:
             return "keyword", "function"
         if word in spec.type_def_words:

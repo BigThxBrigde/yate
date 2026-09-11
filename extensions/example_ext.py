@@ -14,6 +14,8 @@ An extension is any module with a ``setup(api)`` function. The api exposes:
 * ``api.message(text)``
 * ``api.lsp.register_server(name, command=..., filetypes=..., ...)``
   ``api.lsp.statuses()`` -- language server protocol support
+* ``api.highlight.register(spec, *extensions)`` -- custom syntax highlighting
+  via a declarative ``LangSpec`` (see ``csharp_highlight.py`` for an example)
 
 Note: this example registers commands with the imperative
 ``api.register_command`` (which carries a fully typed signature) and looks up
