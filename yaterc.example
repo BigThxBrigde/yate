@@ -56,6 +56,20 @@ use_spaces = True
 #     "./extra.py",             # individual script
 # ]
 
+# ------------------------------------------------------------ theme dirs
+#
+# Directories of custom color themes loaded at startup. Every *.py file in
+# a directory is executed (underscore-prefixed files skipped); a single
+# .py theme file is accepted as well. "~" is expanded and relative paths
+# resolve against this yaterc file's own directory. Entries accumulate and
+# de-duplicate across rc files. Without setting this option, yate also
+# scans ./themes and ~/.yate/themes automatically, or use:
+#     yate --theme-dir DIR
+#
+# theme_dirs = "~/.yate/themes"
+# theme_dirs = ["~/.yate/themes", "./team-themes", "./extra/solarized.py"]
+# theme = "my-mocha"          # then pick a registered theme by name
+
 # ------------------------------------------------------- custom theme demo
 #
 # A theme is a yate.editor_view.theme.Theme instance. The easiest way to

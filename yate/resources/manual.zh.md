@@ -75,6 +75,7 @@ yate [路径] [选项]
 | `-u FILE` / `--yaterc FILE` | 只加载指定配置文件（vim 风格 `-u`）；`-u NONE` 完全跳过配置加载 |
 | `--ext FILE` | 加载一个 Python 扩展脚本（可重复） |
 | `--ext-dir DIR` | 加载目录下所有 `*.py` 扩展（可重复） |
+| `--theme-dir DIR` | 从目录加载客制化 `*.py` 配色主题（可重复），见 10.3 节 |
 | `--install-font` | 为当前用户安装随包 Nerd Font（必要时配置 Windows Terminal），完成后退出，不进入界面 |
 | `--version` | 显示版本号 |
 | `--help` | 显示帮助 |
@@ -90,6 +91,7 @@ yate -u ~/.yate/yaterc      # 使用指定配置文件
 yate -u NONE                # 不加载任何 yaterc
 yate --ext mytool.py        # 加载扩展脚本（可重复）
 yate --ext-dir ./exts       # 加载目录下所有扩展（可重复）
+yate --theme-dir ./themes   # 从目录加载客制化配色主题
 yate --install-font         # 安装随包 Nerd Font 后退出
 ```
 
@@ -566,6 +568,7 @@ yate 使用 **Python 语法的配置文件 yaterc**（类似 vim 的 `vimrc`）�
 | `tab_width` | `int` | `4` | 1–16 的整数（`True`/`False` 等布尔值会被拒绝） | Tab 键插入的空格数，也是 Tab 的显示宽度 |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 插入空格，`False` 时插入真实制表符 |
 | `extensions` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 额外扩展脚本路径，见 10.4 节 |
+| `theme_dirs` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 存放客制化配色主题的目录（或单个 `*.py` 文件），见 10.3 节 |
 | `shell` | `str` | 平台默认（见第 13 节） | 非空字符串 | 集成终端使用的 Shell，可带参数（如 `"pwsh -NoLogo"`）；若值是已存在的文件路径，含空格也可直接使用 |
 | `terminal_height` | `int` | `12` | 3–40 的整数（布尔/浮点被拒绝） | 集成终端面板高度（行数） |
 
@@ -584,14 +587,31 @@ tab_width = 2
 use_spaces = False
 ```
 
-### 10.3 自定义主题注册
+### 10.3 客制化主题目录（theme_dirs）
 
-yaterc 命名空间中注入了 `register_theme()` 函数。最简单的做法是用
-`dataclasses.replace` 复制内置主题再覆盖少量颜色：
+yaterc 命名空间中注入了 `register_theme()` 函数，少量改色可以直接写在
+yaterc 文件里。若要维护可复用的主题库，可通过 `theme_dirs` 指定一个或多个
+目录：启动时会加载其中所有 `*.py` 文件（下划线开头的跳过），也可以直接给
+单个 `*.py` 主题文件：
 
 ```python
+theme_dirs = "~/.yate/themes"           # 单个目录，字符串即可
+theme_dirs = [
+    "~/.yate/themes",                   # 自动展开 ~
+    "./team-themes",                    # 相对路径：相对于本 yaterc 所在目录
+    "./extras/solarized.py",            # 单个主题文件
+]
+theme = "my-mocha"                      # 从这些文件注册的主题中选用
+```
+
+主题文件就是普通 Python，作用域内已注入 `Theme` 与 `register_theme()`，也可
+正常使用 `import`。最简单的做法是用 `dataclasses.replace` 复制内置主题再
+覆盖少量颜色：
+
+```python
+# ~/.yate/themes/my_mocha.py
 from dataclasses import replace
-from yate.editor_view.theme import THEMES, register_theme
+from yate.editor_view.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],
@@ -600,9 +620,20 @@ register_theme(replace(
     accent="#89b4fa",       # 主色：状态栏底色、活动 tab、选中项
     accent2="#cba6f7",      # 次色
 ))
-
-theme = "my-mocha"
 ```
+
+不做任何配置也有默认扫描位置：工作目录下的 `./themes` 和 `~/.yate/themes`；
+临时目录可用命令行 `--theme-dir DIR`（可重复）指定。同名主题被多次注册时，
+后加载者覆盖先加载者，优先级从低到高为：
+
+1. 内置主题（最低）
+2. `./themes`、`~/.yate/themes`
+3. yaterc 中的 `theme_dirs`（先用户 rc、后项目 rc）
+4. 命令行 `--theme-dir`（最高）
+
+主题文件出错不会中断启动：错误会显示在启动消息栏，其余文件照常加载。注册后
+的客制化主题与内置主题用法一致：yaterc 中 `theme = "my-mocha"`、运行时
+`:theme my-mocha`，或用无参数 `:theme` 列出所有已注册主题名。
 
 `Theme` 字段按用途分组：背景（`bg`/`panel`/`surface`/`gutter_bg`/`border`）、
 叠加层（`selection_bg`/`match_bg`/`match_active_bg`/`on_accent`）、
@@ -660,7 +691,7 @@ extensions = [
 | 命令 | `:theme latte`、`:colorscheme latte`（不带参数列出全部可用主题） |
 | 选项 | `:set theme=latte` |
 | 配置 | yaterc 中 `theme = "latte"` |
-| 自定义 | yaterc 中 `register_theme(...)` 注册后按名切换（见 10.3 节） |
+| 自定义 | yaterc 中 `register_theme(...)` 内联注册，或将 `*.py` 主题文件放入 `theme_dirs` / `--theme-dir`，再按名切换（见 10.3 节） |
 
 切换只影响当前会话；要永久生效请写入 yaterc。未知主题名会报错并列出可用主题。
 

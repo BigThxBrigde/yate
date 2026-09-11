@@ -11,7 +11,8 @@
   模式 + `:` ex 命令行）
 - **语法高亮**：内置高亮引擎，按文件类型着色关键字/字符串/数字/注释/函数等
 - **四套 Catppuccin 主题**：`mocha`（默认深色）、`macchiato`、`frappe`、`latte`（浅色），
-  支持 yaterc 注册自定义主题
+  支持 yaterc 注册自定义主题，也可用 `theme_dirs` / `--theme-dir`
+  从主题目录批量加载客制化主题
 - **Nerd Font 图标**：文件树与文件类型图标（`yate --install-font` 可安装随包字体）
 - **模糊查找**：`Ctrl+P` 快速打开文件（fzf 式子序列匹配、命中字符高亮），
   `Alt+Shift+P` 命令面板
@@ -99,6 +100,7 @@ tab_width = 4
 use_spaces = True
 shell = "pwsh -NoLogo"    # 集成终端 Shell（默认 pwsh/PowerShell/cmd 或 $SHELL/bash）
 terminal_height = 12      # 终端面板高度，3–40 行
+theme_dirs = ["~/.yate/themes"]  # 客制化主题目录（默认也扫描 ./themes）
 extensions = [            # 额外扩展路径（目录或 .py 文件，跨 yaterc 累加去重）
     "~/.yate/extensions",
     "./tools/my_ext.py",
@@ -169,7 +171,7 @@ docs/yaterc.md    # 配置系统完整文档
 ## 开发
 
 ```powershell
-# 运行全部测试（180 个，含 Textual pilot 端到端测试）
+# 运行全部测试（190 个，含 Textual pilot 端到端测试）
 python -m unittest discover -s tests
 
 # 类型检查：pyright strict，要求 0 诊断

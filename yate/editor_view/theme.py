@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional, Sequence
 
 from rich.style import Style
 
@@ -253,6 +254,78 @@ def available() -> list[str]:
 def register_theme(theme: Theme) -> None:
     """Register a user-defined :class:`Theme` (e.g. loaded from yaterc)."""
     THEMES[theme.name] = theme
+
+
+# ---------------------------------------------------------------------------
+# Custom theme files / theme directories
+# ---------------------------------------------------------------------------
+
+#: Files already exec'd this process; a theme file reached through several
+#: sources (rc dir, default dir, --theme-dir) must run once to avoid
+#: re-registering the same themes repeatedly.
+_loaded_theme_files: set[Path] = set()
+
+
+def _theme_namespace() -> dict[str, Any]:
+    """Globals injected into an external theme file."""
+    return {
+        "__name__": "__yatetheme__",
+        "Theme": Theme,
+        "register_theme": register_theme,
+    }
+
+
+def load_theme_file(path: Path | str) -> Optional[str]:
+    """Exec one ``*.py`` theme file.
+
+    The file may call :func:`register_theme` any number of times; regular
+    ``import`` statements work as usual.  Returns ``None`` on success or a
+    human-readable error string; a broken theme file never raises.
+    """
+    path = Path(path)
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path.absolute()
+    if resolved in _loaded_theme_files:
+        return None
+    try:
+        source = path.read_text(encoding="utf-8")
+        code = compile(source, str(path), "exec")
+        # Theme files are user-authored Python executed by design.
+        exec(code, _theme_namespace())  # noqa: S102 - intentional theme exec
+    except Exception as exc:  # noqa: BLE001 - theme errors must not crash yate
+        return f"{type(exc).__name__}: {exc}"
+    _loaded_theme_files.add(resolved)
+    return None
+
+
+def load_theme_paths(
+    paths: list[Path] | list[str] | Sequence[Path] | Sequence[str],
+    errors: list[str],
+) -> None:
+    """Load custom themes from the given files and/or directories.
+
+    Each entry is either a directory (every non-underscore ``*.py`` inside
+    is loaded in name order) or a single ``*.py`` theme file.  Missing
+    paths are skipped silently (they are usually optional default
+    locations); broken files record a ``"<path>: <problem>"`` error
+    instead of raising.  Later files override earlier ones when they
+    register a theme of the same name.
+    """
+    for raw in paths:
+        folder = Path(raw)
+        if folder.is_dir():
+            for path in sorted(folder.glob("*.py")):
+                if path.name.startswith("_"):
+                    continue
+                problem = load_theme_file(path)
+                if problem is not None:
+                    errors.append(f"{path}: {problem}")
+        elif folder.is_file():
+            problem = load_theme_file(folder)
+            if problem is not None:
+                errors.append(f"{folder}: {problem}")
 
 
 # ---------------------------------------------------------------------------

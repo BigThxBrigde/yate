@@ -26,6 +26,13 @@ class CliParserTests(unittest.TestCase):
         self.assertEqual(args.ext_files, ["a.py", "b.py"])
         self.assertEqual(args.ext_dirs, ["exts", "more"])
 
+    def test_theme_dir_flag_repeatable_into_expected_dest(self) -> None:
+        self.assertEqual(build_parser().parse_args([]).theme_dirs, [])
+        args = build_parser().parse_args(
+            ["--theme-dir", "themes", "--theme-dir", "extra"]
+        )
+        self.assertEqual(args.theme_dirs, ["themes", "extra"])
+
     def test_keymap_flag_and_alias(self) -> None:
         self.assertEqual(build_parser().parse_args(["--keymap", "vim"]).keymap, "vim")
         # "normal" is the documented vsc alias and must parse without error.

@@ -271,6 +271,149 @@ class ExtensionPathTests(unittest.TestCase):
             self.assertEqual(config.extension_paths, [a.resolve(), b.resolve()])
 
 
+class ThemeDirTests(unittest.TestCase):
+    """The ``theme_dirs`` option and external theme file loading."""
+
+    def _theme_file(self, directory: Path, name: str, theme_name: str) -> Path:
+        body = (
+            "from dataclasses import replace\n"
+            "from yate.editor_view.theme import THEMES\n"
+            f"register_theme(replace(THEMES['mocha'], name={theme_name!r}))\n"
+        )
+        return _write(directory / name, body)
+
+    def setUp(self) -> None:
+        self._registered: list[str] = []
+
+    def tearDown(self) -> None:
+        for name in self._registered:
+            themes.THEMES.pop(name, None)
+        themes.set_theme("mocha")
+
+    def _track(self, *names: str) -> None:
+        self._registered.extend(names)
+
+    def test_theme_dir_single_string_loads_theme(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tdir = root / "themes"
+            tdir.mkdir()
+            self._theme_file(tdir, "mytheme.py", "yate_test_dir_theme")
+            rc = _write(
+                root / "yaterc",
+                'theme_dirs = "themes"\n'
+                'theme = "yate_test_dir_theme"\n',
+            )
+            self._track("yate_test_dir_theme")
+            config = cfg.load_config([rc])
+            self.assertEqual(config.errors, [])
+            self.assertEqual(config.theme_dirs, [tdir.resolve()])
+            # the registry already contains the externally defined theme
+            self.assertIn("yate_test_dir_theme", themes.available())
+            activated = themes.set_theme("yate_test_dir_theme")
+            self.assertEqual(activated.bg, themes.THEMES["mocha"].bg)
+
+    def test_theme_dir_list_relative_and_single_file(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tdir = root / "more"
+            tdir.mkdir()
+            self._theme_file(tdir, "a.py", "yate_test_dir_a")
+            single = self._theme_file(root, "solo.py", "yate_test_dir_solo")
+            rc = _write(
+                root / "yaterc",
+                'theme_dirs = ["more", "solo.py"]\n',
+            )
+            self._track("yate_test_dir_a", "yate_test_dir_solo")
+            config = cfg.load_config([rc])
+            self.assertEqual(config.errors, [])
+            self.assertEqual(
+                config.theme_dirs, [tdir.resolve(), single.resolve()]
+            )
+            self.assertIn("yate_test_dir_a", themes.available())
+            self.assertIn("yate_test_dir_solo", themes.available())
+
+    def test_underscore_files_skipped(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tdir = root / "themes"
+            tdir.mkdir()
+            self._theme_file(tdir, "_hidden.py", "yate_test_hidden")
+            rc = _write(root / "yaterc", 'theme_dirs = "themes"\n')
+            config = cfg.load_config([rc])
+            self.assertEqual(config.errors, [])
+            self.assertNotIn("yate_test_hidden", themes.available())
+
+    def test_broken_theme_file_is_reported_others_still_load(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tdir = root / "themes"
+            tdir.mkdir()
+            _write(tdir / "bad.py", 'raise RuntimeError("theme boom")\n')
+            self._theme_file(tdir, "good.py", "yate_test_good")
+            rc = _write(root / "yaterc", 'theme_dirs = "themes"\n')
+            self._track("yate_test_good")
+            config = cfg.load_config([rc])
+            self.assertTrue(any("theme boom" in e for e in config.errors), config.errors)
+            self.assertIn("yate_test_good", themes.available())
+
+    def test_nonexistent_theme_dir_reported(self) -> None:
+        with TemporaryDirectory() as tmp:
+            rc = _write(Path(tmp) / "yaterc", 'theme_dirs = ["missing"]\n')
+            config = cfg.load_config([rc])
+            self.assertEqual(config.theme_dirs, [])
+            self.assertTrue(
+                any("theme_dirs" in e and "does not exist" in e for e in config.errors)
+            )
+
+    def test_bad_theme_dirs_types(self) -> None:
+        with TemporaryDirectory() as tmp:
+            rc = _write(Path(tmp) / "yaterc", "theme_dirs = 42\n")
+            config = cfg.load_config([rc])
+            self.assertTrue(any("theme_dirs" in e for e in config.errors))
+            rc2 = _write(Path(tmp) / "yaterc2", 'theme_dirs = ["ok", 7]\n')
+            config2 = cfg.load_config([rc2])
+            self.assertTrue(
+                any("non-empty strings" in e for e in config2.errors)
+            )
+
+    def test_theme_dirs_accumulate_and_dedupe(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tdir = root / "themes"
+            tdir.mkdir()
+            user_rc = _write(root / "user_rc", 'theme_dirs = ["themes"]\n')
+            project_rc = _write(
+                root / "project_rc", 'theme_dirs = ["themes", "."]\n'
+            )
+            config = cfg.load_config([user_rc, project_rc])
+            self.assertEqual(config.errors, [])
+            self.assertEqual(config.theme_dirs, [tdir.resolve(), root.resolve()])
+
+    def test_theme_files_use_injected_register_helper(self) -> None:
+        # The file relies solely on the injected register_theme/Theme names.
+        fields = (
+            '"inj_theme", "Injected", True,'
+            '"#11111b","#181825","#313244","#1e1e2e","#45475a",'
+            '"#585b70","#f9e2af","#fab387","#11111b",'
+            '"#cdd6f4","#6c7086","#9399b2","#bac2de",'
+            '"#89b4fa","#cba6f7","#a6e3a1","#f9e2af","#f38ba8","#fab387",'
+            '"#89b4fa","#a6e3a1","#cba6f7","#fab387",'
+            '"#cba6f7","#a6e3a1","#fab387","#6c7086","#89b4fa","#f9e2af",'
+            '"#fab387","#f38ba8","#f5c2e7","#89dceb","#b4befe"'
+        )
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tdir = root / "themes"
+            tdir.mkdir()
+            _write(tdir / "inj.py", f"register_theme(Theme({fields}))\n")
+            rc = _write(root / "yaterc", 'theme_dirs = "themes"\n')
+            self._track("inj_theme")
+            config = cfg.load_config([rc])
+            self.assertEqual(config.errors, [])
+            self.assertEqual(themes.set_theme("inj_theme").name, "inj_theme")
+
+
 class ExampleRcTests(unittest.TestCase):
     def test_shipped_example_loads_cleanly(self) -> None:
         example = Path(__file__).parent.parent / "yaterc.example"

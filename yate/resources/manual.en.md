@@ -77,6 +77,7 @@ yate [path] [options]
 | `-u FILE` / `--yaterc FILE` | Load only this config file (vim-style `-u`); `-u NONE` skips config loading entirely |
 | `--ext FILE` | Load one Python extension script (repeatable) |
 | `--ext-dir DIR` | Load every `*.py` extension in a directory (repeatable) |
+| `--theme-dir DIR` | Load custom `*.py` color themes from a directory (repeatable); see section 10.3 |
 | `--install-font` | Install the bundled Nerd Font for the current user (configures Windows Terminal when needed), then exit without entering the UI |
 | `--version` | Show the version |
 | `--help` | Show help |
@@ -92,6 +93,7 @@ yate -u ~/.yate/yaterc      # use a specific config file
 yate -u NONE                # skip all yaterc loading
 yate --ext mytool.py        # load an extension script (repeatable)
 yate --ext-dir ./exts       # load every extension in a directory (repeatable)
+yate --theme-dir ./themes   # load custom color themes from a directory
 yate --install-font         # install the bundled Nerd Font, then exit
 ```
 
@@ -602,6 +604,7 @@ Behavior details:
 | `tab_width` | `int` | `4` | integer 1–16 (booleans like `True`/`False` are rejected) | Spaces inserted by Tab, also Tab's display width |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True`: Tab inserts spaces; `False`: a real tab character |
 | `extensions` | `str` or `list[str]` | none | existing file/directory paths | Extra extension scripts, see 10.4 |
+| `theme_dirs` | `str` or `list[str]` | none | existing file/directory paths | Directories (or a single `*.py` file) holding custom color themes, see 10.3 |
 | `shell` | `str` | platform default (see section 13) | non-empty string | Shell command for the integrated terminal, with optional arguments (e.g. `"pwsh -NoLogo"`); an existing file path may contain spaces |
 | `terminal_height` | `int` | `12` | integer 3–40 (booleans/floats rejected) | Integrated terminal panel height in rows |
 
@@ -622,15 +625,32 @@ tab_width = 2
 use_spaces = False
 ```
 
-### 10.3 Registering custom themes
+### 10.3 Custom theme directories (`theme_dirs`)
 
-A `register_theme()` function is injected into the yaterc namespace. The
-simplest approach is `dataclasses.replace` to copy a built-in theme and
-override a few colors:
+A `register_theme()` function is injected into the yaterc namespace, so a
+handful of tweaks can live directly in a yaterc file. For a library of
+reusable themes, point `theme_dirs` at one or more directories; every
+`*.py` inside is loaded at startup (files starting with an underscore are
+skipped), and a single `*.py` file is accepted too:
 
 ```python
+theme_dirs = "~/.yate/themes"           # one directory (a string is enough)
+theme_dirs = [
+    "~/.yate/themes",                   # ~ is expanded
+    "./team-themes",                    # relative: relative to this yaterc's directory
+    "./extras/solarized.py",            # a single theme file
+]
+theme = "my-mocha"                      # pick a theme registered by those files
+```
+
+A theme file is ordinary Python with `Theme` and `register_theme()` already
+in scope; regular `import` statements work as well. The simplest approach
+is `dataclasses.replace` to copy a built-in theme and override a few colors:
+
+```python
+# ~/.yate/themes/my_mocha.py
 from dataclasses import replace
-from yate.editor_view.theme import THEMES, register_theme
+from yate.editor_view.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],
@@ -639,9 +659,23 @@ register_theme(replace(
     accent="#89b4fa",       # primary: status bar bg, active tab, selection
     accent2="#cba6f7",      # secondary
 ))
-
-theme = "my-mocha"
 ```
+
+Themes can also be placed in the default locations without any
+configuration: `./themes` next to the working directory and
+`~/.yate/themes` are scanned automatically, or pass one-off directories on
+the command line with `--theme-dir DIR` (repeatable). Load precedence when
+the same name is registered more than once (later wins):
+
+1. built-in themes (lowest)
+2. `./themes`, `~/.yate/themes`
+3. `theme_dirs` in yaterc (user rc first, project rc after)
+4. `--theme-dir` on the command line (highest)
+
+A broken theme file never aborts startup: its error is shown in the
+startup message line and the remaining files still load. Once registered,
+a custom theme is selected like any other: `theme = "my-mocha"` in yaterc,
+`:theme my-mocha` at runtime, or `:theme` to list all registered names.
 
 `Theme` fields by purpose: backgrounds (`bg`/`panel`/`surface`/`gutter_bg`/`border`),
 overlays (`selection_bg`/`match_bg`/`match_active_bg`/`on_accent`),
@@ -703,7 +737,7 @@ Ways to switch:
 | Command | `:theme latte`, `:colorscheme latte` (without arguments lists all available themes) |
 | Option | `:set theme=latte` |
 | Config | `theme = "latte"` in yaterc |
-| Custom | register via `register_theme(...)` in yaterc, then switch by name (see 10.3) |
+| Custom | inline `register_theme(...)` in yaterc, or `*.py` files under `theme_dirs` / `--theme-dir`; then switch by name (see 10.3) |
 
 Switching affects only the current session; write it into yaterc to persist.
 Unknown theme names raise an error listing the available themes.

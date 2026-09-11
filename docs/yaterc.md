@@ -47,6 +47,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `tab_width` | `int` | `4` | `1`–`16` 的整数 | Tab 键插入的空格数，也是 Tab 的显示宽度；`True`/`False` 等非整数被拒绝 |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 插入空格；`False` 时插入真实制表符 |
 | `extensions` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 额外扩展脚本路径，见[下文](#扩展路径extensions)；多个 rc 文件**累加**而非覆盖 |
+| `theme_dirs` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 客制化主题目录（或单个 `*.py` 主题文件），见[下文](#客制化主题目录theme_dirs)；多个 rc 文件**累加**而非覆盖 |
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 
@@ -108,6 +109,45 @@ theme = "my-mocha"
   `syn_operator`、`syn_property`
 
 注意：`name` 与内置主题重名会覆盖内置主题。
+
+## 客制化主题目录（theme_dirs）
+
+少量改色可以直接在 yaterc 中调用 `register_theme()`（见上节）；要维护
+可复用的主题库时，用 `theme_dirs` 指定目录，yate 启动时加载其中所有
+`*.py` 主题文件（下划线开头的跳过），也支持直接给单个 `*.py` 文件：
+
+```python
+theme_dirs = "~/.yate/themes"          # 单个目录，字符串即可
+theme_dirs = [
+    "~/.yate/themes",                  # ~ 自动展开
+    "./team-themes",                   # 相对路径：相对本 yaterc 所在目录
+    "./extras/solarized.py",           # 单个主题文件
+]
+theme = "my-mocha"                     # 选用这些文件注册的主题
+```
+
+主题文件是普通 Python，作用域内已注入 `Theme` 与 `register_theme()`，也可
+正常 `import`。文件示例（`~/.yate/themes/my_mocha.py`）：
+
+```python
+from dataclasses import replace
+from yate.editor_view.theme import THEMES
+
+register_theme(replace(THEMES["mocha"], name="my-mocha", accent="#89b4fa"))
+```
+
+路径规则与加载行为：
+
+- `~` 会展开为用户主目录；**相对路径相对声明它的 yaterc 文件所在目录**解析。
+- 用户级和项目级 yaterc 中的 `theme_dirs` **累加**；同一路径重复声明去重。
+- 路径不存在、类型错误会作为配置错误显示在启动消息栏；单个主题文件出错
+  不影响其余文件加载。
+- 同一文件即使被多个来源命中也只执行一次（按解析后的绝对路径去重）。
+
+除 rc 声明外，`./themes/` 和 `~/.yate/themes/` 会被自动扫描，也可用命令行
+`--theme-dir <目录>`（可重复）追加。同名主题的加载优先级（后者覆盖前者）：
+内置主题 < 默认目录 < yaterc `theme_dirs`（先用户 rc、后项目 rc）
+< 命令行 `--theme-dir`。注册成功后即可用 `:theme <名称>` 切换。
 
 ## 扩展路径（extensions）
 

@@ -8,6 +8,7 @@ variables; one injected helper (``register_theme``) allows custom themes::
     tab_width = 4
     use_spaces = True
     extensions = ["~/.yate/ext", "./tools/ext.py"]   # extra extension paths
+    theme_dirs = ["~/.yate/themes"]                  # custom theme directories
 
 Load order (later wins, like ``~/.vimrc`` followed by ``./.vimrc``):
 
@@ -64,6 +65,9 @@ class YateConfig:
     #: Extra extension paths (directories or ``.py`` files) declared by rc
     #: files, accumulated in load order (user rc first, project rc after).
     extension_paths: list[Path] = field(default_factory=list[Path])
+    #: Directories holding ``*.py`` custom theme files, accumulated in load
+    #: order and scanned at startup (see editor_view.theme).
+    theme_dirs: list[Path] = field(default_factory=list[Path])
     sources: list[Path] = field(default_factory=list[Path])
     errors: list[str] = field(default_factory=list[str])
 
@@ -128,9 +132,13 @@ def load_config(paths: list[Path]) -> YateConfig:
             config.errors.append(f"{path}: {type(exc).__name__}: {exc}")
             continue
         config.sources.append(path)
-        # Extension paths are extracted per file so relative entries resolve
+        # Path-list options are extracted per file so relative entries resolve
         # against the directory of the rc file that declared them.
         _extract_extensions(namespace, config, path.parent)
+        _extract_theme_dirs(namespace, config, path.parent)
+    # Register themes from rc-declared directories before the app applies
+    # ``theme = "<custom>"`` (the theme registry is process-global).
+    themes.load_theme_paths(config.theme_dirs, config.errors)
     _extract_options(namespace, config)
     return config
 
@@ -173,6 +181,47 @@ def _extract_extensions(
         resolved = path.resolve()
         if resolved not in config.extension_paths:
             config.extension_paths.append(resolved)
+
+
+def _extract_theme_dirs(
+    namespace: dict[str, Any], config: YateConfig, rc_dir: Path
+) -> None:
+    """Pull the ``theme_dirs`` option out of one rc file's namespace.
+
+    Mirrors :func:`_extract_extensions`: a path string or a list/tuple of
+    path strings; an entry may be a directory (every ``*.py`` inside is
+    loaded as a theme file) or a single ``.py`` theme file.  ``~`` is
+    expanded and relative paths resolve against *rc_dir*.  Entries
+    accumulate across rc files and are de-duplicated.
+    """
+    raw = namespace.get("theme_dirs")
+    if raw is None:
+        return
+    entries: list[Any]
+    if isinstance(raw, str):
+        entries = [raw]
+    elif isinstance(raw, (list, tuple)):
+        entries = list(cast(Sequence[Any], raw))
+    else:
+        config.errors.append(
+            f"theme_dirs must be a path string or a list of strings, got {raw!r}"
+        )
+        return
+    for entry in entries:
+        if not isinstance(entry, str) or not entry.strip():
+            config.errors.append(
+                f"theme_dirs entries must be non-empty strings, got {entry!r}"
+            )
+            continue
+        path = Path(entry.strip()).expanduser()
+        if not path.is_absolute():
+            path = rc_dir / path
+        if not path.exists():
+            config.errors.append(f"theme_dirs path does not exist: {entry}")
+            continue
+        resolved = path.resolve()
+        if resolved not in config.theme_dirs:
+            config.theme_dirs.append(resolved)
 
 
 def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:

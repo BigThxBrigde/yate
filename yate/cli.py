@@ -30,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  yate -u ~/.yate/yaterc    use a specific config file\n"
             "  yate -u NONE              start without loading any yaterc\n"
             "  yate --ext mytool.py      load an extension script\n"
+            "  yate --theme-dir mythemes load custom color themes from a dir\n"
             "  yate --install-font       install the bundled Nerd Font and exit\n"
         ),
     )
@@ -67,6 +68,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="load all *.py extensions from a directory (repeatable)",
     )
     parser.add_argument(
+        "--theme-dir",
+        dest="theme_dirs",
+        action="append",
+        default=[],
+        metavar="DIR",
+        help="load custom *.py color themes from a directory (repeatable); "
+             "defaults to ./themes and ~/.yate/themes when present",
+    )
+    parser.add_argument(
         "--install-font",
         action="store_true",
         help="install the bundled Nerd Font for the current user, configure "
@@ -94,6 +104,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     # Resolve configuration (yaterc) before importing the TUI app.
     from yate.config import default_rc_paths, load_config
+    from yate.editor_view import theme as theme_mod
 
     target = Path(args.path) if args.path else None
     if args.yaterc == "NONE":
@@ -102,7 +113,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         rc_paths = [Path(args.yaterc)]
     else:
         rc_paths = default_rc_paths(target)
+
+    # Theme load priority (later wins on name collision, like rc files):
+    # built-ins < default dirs < yaterc theme_dirs < explicit --theme-dir.
+    default_errors: list[str] = []
+    theme_mod.load_theme_paths(
+        [Path.cwd() / "themes", Path.home() / ".yate" / "themes"],
+        default_errors,
+    )
     config = load_config(rc_paths)
+    config.errors = default_errors + config.errors
+    theme_mod.load_theme_paths(
+        [Path(p) for p in args.theme_dirs], config.errors
+    )
 
     # Imported lazily so ``--help`` / ``--version`` work without a terminal.
     from yate.app import YateApp
