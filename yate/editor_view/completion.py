@@ -5,10 +5,16 @@ open and :class:`~yate.editor_view.editor.EditorView` interprets
 Tab/Enter/Up/Down/Esc against it.  Rendering is hand-drawn (Rich segments and
 a manual box) so the size/position stay under exact control; positioning is
 computed by the application and pushed in via :meth:`CompletionPopup.show`.
+
+The same popup also shows buffer-based completions (words collected from the
+open buffers plus filesystem paths) when no language server is active for the
+current document -- see :func:`buffer_completions`.
 """
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from rich.segment import Segment
@@ -23,9 +29,21 @@ from . import theme
 
 if TYPE_CHECKING:
     from yate.app import YateApp
+    from yate.editor_core.buffer import TextBuffer
 
 #: Maximum number of completion rows visible at once.
 MAX_VISIBLE = 8
+
+#: Completion item kinds reused from the LSP item kind table.
+_KIND_TEXT = 0          # plain word / unknown
+_KIND_FILE = 17         # "D" glyph, used for path entries here
+
+#: Characters that count as part of an identifier prefix when completing.
+_IDENT_RE = re.compile(r"[A-Za-z0-9_]")
+
+#: A "word" in the buffer is a run of identifier characters; shorter runs are
+#: noise and skipped.
+_WORD_RE = re.compile(r"[A-Za-z_]\w{1,}")
 
 #: Kind -> (letter, theme color attribute), mirroring the VS Code item kinds.
 _KIND_GLYPHS: dict[int, tuple[str, str]] = {
@@ -231,3 +249,140 @@ class CompletionPopup(Widget):
         if cells < width:
             segments.append(Segment(" " * (width - cells), Style(bgcolor=bg)))
         return Strip(segments)
+
+
+# ------------------------------------------------------- buffer completion
+
+def _ident_prefix(line: str, col: int) -> tuple[str, int]:
+    """Identifier prefix ending at *col* and its start column.
+
+    A prefix is a run of ``[A-Za-z0-9_]`` immediately left of the cursor.
+    Paths containing ``/``, ``\\`` or ``~`` are also treated as a prefix so
+    filesystem completions can kick in.
+    """
+    col = min(col, len(line))
+    i = col
+    while i > 0:
+        ch = line[i - 1]
+        if _IDENT_RE.match(ch) or ch in "/\\~":
+            i -= 1
+        else:
+            break
+    return line[i:col], i
+
+
+def _words_from_buffer(buf: TextBuffer, exclude_row: int) -> set[str]:
+    """All identifier-like words in *buf* (skipping the cursor row)."""
+    words: set[str] = set()
+    for r, line in enumerate(buf.lines):
+        if r == exclude_row:
+            continue
+        words.update(_WORD_RE.findall(line))
+    return words
+
+
+def _path_completions(prefix: str, base_dir: Optional[Path] = None) -> list[str]:
+    """Filesystem entries matching a path *prefix*.
+
+    Relative prefixes resolve against *base_dir* (the workspace root) when
+    given, otherwise against the process cwd.  Returns candidate strings
+    that extend the prefix; directories get a trailing slash.
+    """
+    expanded = Path(prefix).expanduser()
+    try:
+        parent = expanded.parent if expanded.name else expanded
+        base = expanded.name
+    except ValueError:
+        return []
+    if not parent.is_absolute() and base_dir is not None:
+        parent = base_dir / parent
+    if not parent.exists() or not parent.is_dir():
+        return []
+    try:
+        entries = sorted(parent.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return []
+    needle = base.lower()
+    results: list[str] = []
+    for entry in entries:
+        name = entry.name
+        if not name.lower().startswith(needle):
+            continue
+        dir_part = prefix[: len(prefix) - len(base)] if base else prefix
+        candidate = dir_part + name
+        if entry.is_dir():
+            candidate += "/"
+        results.append(candidate)
+    return results
+
+
+def buffer_completions(
+    buf: TextBuffer,
+    row: int,
+    col: int,
+    extra_buffers: Optional[list[TextBuffer]] = None,
+    base_dir: Optional[Path] = None,
+) -> tuple[list[Completion], str, int]:
+    """Build completion items from the open buffers (+ filesystem paths).
+
+    Returns ``(items, prefix, prefix_start_col)``.  The popup caller uses
+    *prefix* and the start column to position and (on accept) replace the
+    typed prefix.  Words are taken from every open buffer (the current row
+    excluded so the half-typed word itself does not compete); when the
+    prefix contains a path separator, filesystem entries are offered too.
+    """
+    line = buf.lines[row] if row < buf.line_count else ""
+    prefix, start_col = _ident_prefix(line, col)
+    items: list[Completion] = []
+
+    if not prefix:
+        return items, prefix, start_col
+
+    is_path = any(ch in prefix for ch in "/\\~")
+    needle = prefix.lower()
+
+    # 1) words from the current buffer and any extra open buffers
+    seen: set[str] = set()
+    for word in _words_from_buffer(buf, row):
+        if word.lower().startswith(needle) and word != prefix:
+            seen.add(word)
+    if extra_buffers:
+        for other in extra_buffers:
+            for word in _words_from_buffer(other, -1):
+                if word.lower().startswith(needle) and word != prefix:
+                    seen.add(word)
+    for word in sorted(seen):
+        items.append(
+            Completion(
+                label=word,
+                insert_text=word,
+                detail="word",
+                kind=_KIND_TEXT,
+                range_start_row=row,
+                range_start_col=start_col,
+                range_end_row=row,
+                range_end_col=col,
+            )
+        )
+
+    # 2) filesystem entries (only when the prefix looks like a path)
+    if is_path:
+        for candidate in _path_completions(prefix, base_dir):
+            if candidate == prefix:
+                continue
+            items.append(
+                Completion(
+                    label=Path(candidate).name + ("/" if candidate.endswith("/") else ""),
+                    insert_text=candidate,
+                    detail="path",
+                    kind=_KIND_FILE,
+                    range_start_row=row,
+                    range_start_col=start_col,
+                    range_end_row=row,
+                    range_end_col=col,
+                )
+            )
+
+    # trim to a sane limit (the popup caps visible rows anyway)
+    return items[:64], prefix, start_col
+

@@ -498,6 +498,14 @@ arguments separated by spaces. `Esc` / `Ctrl+C` cancels; `↑` / `↓` cycles
 history. Unknown commands report
 `not an editor command: … (try :help)`.
 
+**Tab completion.** Press `Tab` to complete the typed text (bash-style):
+command names are completed first; once a command is followed by a space,
+`Tab` completes its argument — filesystem paths for `:e`/`:edit`, theme
+names for `:theme`/`:colorscheme`, option keys and values for `:set`, and
+`en`/`zh` for `:manual`. The first `Tab` expands to the longest common
+prefix of all matches (a single match is inserted immediately); repeated
+`Tab`s cycle through every match.
+
 **File operations**
 
 | Command | Alias | Description |
@@ -937,7 +945,10 @@ stdio, speaks JSON-RPC itself, and provides:
 * **Autocomplete** -- a popup appears automatically while typing an
   identifier (after the server's trigger characters, e.g. `.` in Python),
   and `Ctrl+Space` requests suggestions manually. Navigate with `↑` / `↓`,
-  accept with `Tab` or `Enter`, dismiss with `Esc`.
+  accept with `Tab` or `Enter`, dismiss with `Esc`. When no language server
+  is available for the current file, the popup falls back to **buffer
+  completion**: words collected from every open buffer (plus filesystem
+  paths when the typed prefix contains `/` or `~`).
 * **Diagnostics** -- errors and warnings are underlined in the editor, the
   gutter shows `✖` (error) / `▲` (warning) and tints the line number, the
   diagnostic under the cursor is echoed on the message bar, and the status

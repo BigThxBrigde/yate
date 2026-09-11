@@ -9,6 +9,7 @@ callbacks that actions / extensions invoke.
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -27,7 +28,7 @@ from yate.editor_lsp import LspManager
 from yate.editor_term import PtyProcessError, resolve_shell
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
-from yate.editor_view.completion import CompletionPopup
+from yate.editor_view.completion import CompletionPopup, buffer_completions
 from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.icons import CHEVRON_RIGHT, FOLDER, icon_for_path
@@ -914,6 +915,102 @@ class YateApp(App[None]):
             if self.editor_view is not None:
                 self.editor_view.refresh()
 
+    # ----------------------------------------------------- prompt completion
+
+    # Commands whose single argument is a filesystem path.
+    _PATH_COMMANDS = frozenset({"e", "edit"})
+    _SET_OPTIONS = ("keymap", "theme", "shell", "terminal_height")
+    _MANUAL_LANGS = ("en", "zh")
+
+    def prompt_completions(self, text: str, mode: str) -> list[str]:
+        """Tab-completion candidates for the bottom prompt.
+
+        *mode* is the active ``PromptBar`` mode (``"command"``, ``"open"``,
+        ``"save"``, ...).  Returns strings that extend *text*; the caller
+        decides how to cycle / apply the common prefix (bash-style).
+        """
+        if mode == "command":
+            return self._command_completions(text)
+        if mode in ("open", "save", "new_file", "rename", "delete"):
+            return self._path_matches(text)
+        if mode == "shell":
+            return []
+        return []
+
+    def _command_completions(self, text: str) -> list[str]:
+        if " " not in text:
+            names = self.commands.names()
+            return sorted(n for n in names if n.startswith(text))
+        name, _, rest = text.partition(" ")
+        name = name.strip()
+        rest = rest.lstrip()
+        if name in self._PATH_COMMANDS:
+            return [f"{name} {c}" for c in self._path_matches(rest)]
+        if name == "set":
+            if "=" in rest:
+                key, _, value = rest.partition("=")
+                key = key.strip()
+                if key == "keymap":
+                    vals = ("vsc", "vim")
+                elif key == "theme":
+                    vals = tuple(theme.available())
+                else:
+                    return []
+                return [
+                    f"{name} {key}={v}" for v in vals
+                    if v.startswith(value) and v != value
+                ]
+            return [
+                f"{name} {opt}" for opt in self._SET_OPTIONS
+                if opt.startswith(rest) and opt != rest
+            ]
+        if name in ("theme", "colorscheme"):
+            return [
+                f"{name} {t}" for t in theme.available()
+                if t.startswith(rest) and t != rest
+            ]
+        if name == "manual":
+            return [
+                f"{name} {l}" for l in self._MANUAL_LANGS
+                if l.startswith(rest) and l != rest
+            ]
+        return []
+
+    def _path_matches(self, prefix: str) -> list[str]:
+        """Filesystem entries whose path starts with *prefix*.
+
+        Relative paths are resolved against the workspace root (falling back
+        to the process cwd), mirroring how ``:e`` and the open prompt treat
+        paths.
+        """
+        expanded = os.path.expanduser(prefix)
+        try:
+            p = Path(expanded)
+            parent = p.parent if p.name else p
+            base = p.name
+        except ValueError:
+            return []
+        if not parent.is_absolute() and self.workspace.root is not None:
+            parent = self.workspace.root / parent
+        if not parent.exists() or not parent.is_dir():
+            return []
+        try:
+            entries = sorted(parent.iterdir(), key=lambda x: x.name.lower())
+        except OSError:
+            return []
+        needle = base.lower()
+        results: list[str] = []
+        for entry in entries:
+            if not entry.name.lower().startswith(needle):
+                continue
+            dir_part = prefix[: len(prefix) - len(base)] if base else prefix
+            candidate = dir_part + entry.name
+            if entry.is_dir():
+                candidate += "/"
+            if candidate != prefix:
+                results.append(candidate)
+        return results
+
     # ================================================================= shell
 
     def run_shell_command(self, command: str, show_output: bool = True) -> Optional[ShellResult]:
@@ -1065,9 +1162,8 @@ class YateApp(App[None]):
             self.close_completion()
 
     def _schedule_completion(self, trigger_ch: Optional[str]) -> None:
-        if not self.lsp.supports(self.doc):
-            self.close_completion()
-            return
+        # Always schedule: with an LSP we query the server, without one we
+        # fall back to buffer words + paths (see _completion_worker).
         timer = self._completion_timer
         if timer is not None:
             timer.cancel()
@@ -1100,15 +1196,49 @@ class YateApp(App[None]):
         if popup is None or editor is None:
             return
         doc = self.doc
-        if not self.lsp.supports(doc):
-            return
         buf = doc.buffer
         row, col = buf.row, buf.col
         line = buf.lines[row] if row < buf.line_count else ""
+        col = min(col, len(line))
         i = col
         while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
             i -= 1
         prefix = line[i:col]
+
+        # No language server for this document -> buffer-based completion
+        # (words from every open buffer + filesystem paths).
+        if not self.lsp.supports(doc):
+            if not manual and not prefix and trigger_ch not in (".",):
+                popup.close()
+                return
+            others = [d.buffer for d in self.docs if d is not doc]
+            base = self.workspace.root if self.workspace.root is not None else Path.cwd()
+            items, buf_prefix, _start_col = buffer_completions(
+                buf, row, col, extra_buffers=others, base_dir=base
+            )
+            if (
+                not self.mounted
+                or self.doc is not doc
+                or buf.row != row
+                or not popup.is_mounted
+            ):
+                return
+            if not items:
+                popup.close()
+                if manual:
+                    self.message("no completions", kind="info")
+                return
+            cell = theme.char_to_cell(line, col, buf.tab_width) - editor.scroll_col
+            rel_row = row - editor.scroll_offset.y
+            popup.show(
+                items, buf_prefix,
+                (cell, rel_row),
+                (editor.size.width or 80, editor.size.height or 20),
+                editor.gutter_width(),
+                origin_y=2,
+            )
+            return
+
         if not manual and not prefix and trigger_ch not in (
             ".", *self.lsp.trigger_characters_for(doc)
         ):

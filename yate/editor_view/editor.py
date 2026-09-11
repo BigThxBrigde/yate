@@ -140,8 +140,9 @@ class EditorView(ScrollView):
                 event.prevent_default()
                 return
         if event.key == "ctrl+space":
-            if self.yate.lsp.supports(self.yate.doc):
-                self.yate.request_completion(manual=True)
+            # Manual completion: LSP items when a server is active, otherwise
+            # buffer words + filesystem paths (handled by request_completion).
+            self.yate.request_completion(manual=True)
             event.stop()
             event.prevent_default()
             return

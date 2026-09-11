@@ -1162,6 +1162,157 @@ class WindowFocusTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(app.window_pending)
 
 
+class BufferCompletionTests(unittest.IsolatedAsyncioTestCase):
+    """Fallback completions (buffer words + paths) when no LSP is active."""
+
+    async def test_buffer_words_complete_without_lsp(self):
+        with TemporaryDirectory() as tmp:
+            doc = Path(tmp) / "note.txt"
+            # "alpha" appears twice so it surfaces as a completion candidate;
+            # the half-typed word on the cursor line is excluded.
+            doc.write_text(
+                "alpha bravo charlie\nalpha delta\n", encoding="utf-8"
+            )
+            app = YateApp(target=doc)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                popup = app.completion_popup
+                assert popup is not None
+                # no language server for .txt
+                self.assertFalse(app.lsp.supports(app.doc))
+                # move to a new line and start typing "al"
+                app.buffer.move_doc_end()
+                app.buffer.insert_text("\nal")
+                # cursor now sits at the end of the freshly typed "al"
+                app.ui_refresh()
+                await pilot.press("ctrl+space")
+                shown = await wait_until(pilot, lambda: popup.is_open)
+                self.assertTrue(shown)
+                labels = [item.label for item in popup.items]
+                self.assertIn("alpha", labels)
+                # "al" prefix excludes the other words
+                self.assertNotIn("bravo", labels)
+
+    async def test_buffer_completion_accepts_word(self):
+        with TemporaryDirectory() as tmp:
+            doc = Path(tmp) / "note.txt"
+            doc.write_text("banana bandana\n", encoding="utf-8")
+            app = YateApp(target=doc)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                popup = app.completion_popup
+                assert popup is not None
+                app.buffer.move_doc_end()
+                app.buffer.insert_text("\nba")
+                app.ui_refresh()
+                await pilot.press("ctrl+space")
+                await wait_until(pilot, lambda: popup.is_open)
+                # pick the first match and accept with tab
+                await pilot.press("tab")
+                await pilot.pause()
+                self.assertFalse(popup.is_open)
+                # "ba" replaced by the accepted word
+                last_line = app.buffer.lines[-1]
+                self.assertTrue(last_line.startswith("ban"))
+
+
+class PaletteTabCompletionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tab_cycles_and_single_match_auto_chooses(self):
+        from yate.editor_view.palette import PaletteScreen
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press("alt+shift+p")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            # multiple matches: tab cycles the cursor (does not dismiss)
+            for ch in "set":
+                await pilot.press(ch)
+            await pilot.pause()
+            before = screen.cursor_index
+            await pilot.press("tab")
+            await pilot.pause()
+            self.assertEqual(screen.cursor_index, (before + 1) % screen.filtered_count)
+            self.assertIsInstance(app.screen, PaletteScreen)
+            # narrow to a single unique match: tab chooses it immediately
+            for ch in "theme":
+                await pilot.press(ch)
+            await pilot.pause()
+            self.assertEqual(screen.filtered_count, 1)
+            await pilot.press("tab")
+            await pilot.pause()
+            # palette dismissed and :theme ran (prints theme info)
+            self.assertNotIsInstance(app.screen, PaletteScreen)
+
+
+class CommandTabCompletionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tab_completes_unique_command_name(self):
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press(":")
+            await pilot.pause()
+            # "writ" -> only "write" matches
+            await pilot.press(*"writ")
+            await pilot.pause()
+            await pilot.press("tab")
+            await pilot.pause()
+            inp = app.prompt_bar.input if app.prompt_bar else None
+            assert inp is not None
+            self.assertEqual(inp.value, "write")
+
+    async def test_tab_cycles_multiple_command_matches(self):
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press(":")
+            await pilot.pause()
+            # "w" matches several commands (w / words / wq / write ...); the
+            # common prefix is just "w" so tab cycles through the matches.
+            await pilot.press("w")
+            await pilot.pause()
+            inp = app.prompt_bar.input if app.prompt_bar else None
+            assert inp is not None
+            matches = app.prompt_completions("w", "command")
+            self.assertGreater(len(matches), 1)
+            await pilot.press("tab")
+            await pilot.pause()
+            first = inp.value
+            self.assertIn(first, matches)
+            await pilot.press("tab")
+            await pilot.pause()
+            self.assertIn(inp.value, matches)
+            self.assertNotEqual(inp.value, first)
+
+    async def test_tab_completes_theme_argument(self):
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press(":")
+            await pilot.pause()
+            await pilot.press(*"theme mac")
+            await pilot.pause()
+            await pilot.press("tab")
+            await pilot.pause()
+            inp = app.prompt_bar.input if app.prompt_bar else None
+            assert inp is not None
+            self.assertTrue(inp.value.endswith("macchiato"))
+
+    async def test_tab_completes_path_for_edit_command(self):
+        with TemporaryDirectory() as tmp:
+            (Path(tmp) / "alpha.py").write_text("x\n", encoding="utf-8")
+            (Path(tmp) / "beta.py").write_text("x\n", encoding="utf-8")
+            app = YateApp(keymap="vim", target=Path(tmp))
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.press(":")
+                await pilot.pause()
+                await pilot.press(*"e al")
+                await pilot.pause()
+                await pilot.press("tab")
+                await pilot.pause()
+                inp = app.prompt_bar.input if app.prompt_bar else None
+                assert inp is not None
+                self.assertTrue(inp.value.endswith("alpha.py"))
+
+
 class LspUiTests(unittest.IsolatedAsyncioTestCase):
     """Completion popup + diagnostic rendering with an injected fake LSP."""
 

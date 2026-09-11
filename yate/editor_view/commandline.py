@@ -58,6 +58,9 @@ class CommandInput(Input):
         self.yate = yate
         self.history: list[str] = []
         self._hist_index: int = -1
+        # bash-style tab completion state
+        self._tab_matches: list[str] = []
+        self._tab_index: int = -1
 
     def push_history(self, text: str) -> None:
         if text and (not self.history or self.history[-1] != text):
@@ -68,12 +71,73 @@ class CommandInput(Input):
         """Place the history cursor after the newest entry."""
         self._hist_index = len(self.history)
 
+    def _reset_tab_state(self) -> None:
+        self._tab_matches = []
+        self._tab_index = -1
+
+    def _apply_value(self, text: str) -> None:
+        self.value = text
+        self.cursor_position = len(text)
+
+    @staticmethod
+    def _common_prefix(words: list[str]) -> str:
+        if not words:
+            return ""
+        first = words[0]
+        for i, ch in enumerate(first):
+            for w in words[1:]:
+                if i >= len(w) or w[i] != ch:
+                    return first[:i]
+        return first
+
+    def _do_tab_completion(self) -> None:
+        """Bash-style tab completion on the current prompt value.
+
+        First Tab: complete to the longest common prefix of all matches; with
+        a single match it is applied at once.  Repeated Tabs (while the value
+        has not been edited) cycle through every match.
+        """
+        current = self.value
+        mode = self.yate.prompt_bar.active_mode if self.yate.prompt_bar else None
+        if mode is None:
+            return
+        matches = self.yate.prompt_completions(current, mode)
+        if not matches:
+            self._reset_tab_state()
+            return
+        if len(matches) == 1:
+            self._apply_value(matches[0])
+            self._reset_tab_state()
+            return
+        # Repeated Tab with the value still at one of the matches -> cycle.
+        if self._tab_matches and current in self._tab_matches:
+            self._tab_index = (self._tab_index + 1) % len(self._tab_matches)
+            self._apply_value(self._tab_matches[self._tab_index])
+            return
+        # New completion round: extend to the common prefix if it is longer
+        # than what the user typed, otherwise start cycling from the first.
+        lcp = self._common_prefix(matches)
+        self._tab_matches = matches
+        if len(lcp) > len(current):
+            self._apply_value(lcp)
+            self._tab_index = -1
+        else:
+            self._tab_index = 0
+            self._apply_value(matches[0])
+
     def on_key(self, event: Key) -> None:
         if event.key in ("escape", "ctrl+c"):
             event.stop()
             event.prevent_default()
             self.yate.on_prompt_cancel()
             return
+        if event.key == "tab":
+            event.stop()
+            event.prevent_default()
+            self._do_tab_completion()
+            return
+        # any other key ends an active tab-completion round
+        self._reset_tab_state()
         if event.key == "up":
             event.stop()
             event.prevent_default()

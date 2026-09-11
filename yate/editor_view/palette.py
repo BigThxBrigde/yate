@@ -290,18 +290,22 @@ class PaletteScreen(ModalScreen[None]):
         self._choose()
 
     def on_key(self, event: Key) -> None:
-        if event.key in ("up", "ctrl+p"):
+        if event.key in ("up", "ctrl+p", "shift+tab"):
             event.stop()
             event.prevent_default()
             if self._filtered:
                 self._cursor = (self._cursor - 1) % len(self._filtered)
                 self._render_results()
-        elif event.key in ("down", "ctrl+n"):
+        elif event.key in ("down", "ctrl+n", "tab"):
             event.stop()
             event.prevent_default()
             if self._filtered:
                 self._cursor = (self._cursor + 1) % len(self._filtered)
                 self._render_results()
+                # A single match is unambiguous: let Tab choose it immediately
+                # (bash-style: unique completion is applied at once).
+                if len(self._filtered) == 1:
+                    self._choose()
 
     # ------------------------------------------------------------- actions
 
