@@ -112,6 +112,46 @@ class OtherLanguagesTests(unittest.TestCase):
         self.assertIsNone(hl.lang_for("xyz"))
 
 
+class FiletypeResolutionTests(unittest.TestCase):
+    """resolve_filetype / language_name / available_filetypes."""
+
+    def test_extension_keys_pass_through(self) -> None:
+        self.assertEqual(hl.resolve_filetype("py"), "py")
+        self.assertEqual(hl.resolve_filetype(".PY"), "py")
+        self.assertEqual(hl.resolve_filetype("c++"), "c++")
+
+    def test_language_names_map_to_extension_keys(self) -> None:
+        self.assertEqual(hl.resolve_filetype("python"), "py")
+        self.assertEqual(hl.resolve_filetype("Python"), "py")
+        self.assertEqual(hl.resolve_filetype("typescript"), "ts")
+        self.assertEqual(hl.resolve_filetype("javascript"), "js")
+        self.assertEqual(hl.resolve_filetype("shell"), "sh")
+        # "markdown" is both a language name and a registered extension key
+        # (md/markdown/mdx share one spec); either resolution is valid.
+        resolved_md = hl.resolve_filetype("markdown")
+        self.assertIn(resolved_md, ("md", "markdown"))
+        assert resolved_md is not None
+        md_spec = hl.lang_for(resolved_md)
+        assert md_spec is not None
+        self.assertEqual(md_spec.name, "markdown")
+
+    def test_unknown_and_empty(self) -> None:
+        self.assertIsNone(hl.resolve_filetype("nope"))
+        self.assertIsNone(hl.resolve_filetype(""))
+        self.assertIsNone(hl.resolve_filetype("."))
+
+    def test_language_name(self) -> None:
+        self.assertEqual(hl.language_name("py"), "python")
+        self.assertEqual(hl.language_name("rs"), "rust")
+        self.assertIsNone(hl.language_name("nope"))
+
+    def test_available_includes_keys_and_names(self) -> None:
+        available = hl.available_filetypes()
+        self.assertIn("py", available)
+        self.assertIn("python", available)
+        self.assertEqual(available, sorted(available))
+
+
 class ThemeTests(unittest.TestCase):
     """Catppuccin theme registry and syntax color mapping."""
 

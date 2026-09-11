@@ -338,6 +338,39 @@ def lang_for(filetype: str) -> Optional[LangSpec]:
     return _LANGUAGES.get(filetype.lower())
 
 
+# Canonical language name (LangSpec.name) -> the first extension key that
+# registered that spec, so users can say "python" as well as "py".
+_NAME_TO_KEY: dict[str, str] = {}
+for _ext, _lang_spec in _LANGUAGES.items():
+    _NAME_TO_KEY.setdefault(_lang_spec.name, _ext)
+
+
+def resolve_filetype(name: str) -> Optional[str]:
+    """Normalize a user-typed filetype to a registered extension key.
+
+    Accepts either an extension key (``py``, ``ts``, ``c++``) or a language
+    name (``python``, ``typescript``). A leading dot is tolerated. Returns
+    ``None`` when nothing matches.
+    """
+    key = name.strip().lower().lstrip(".")
+    if not key:
+        return None
+    if key in _LANGUAGES:
+        return key
+    return _NAME_TO_KEY.get(key)
+
+
+def language_name(filetype: str) -> Optional[str]:
+    """Human-readable language name for an extension key (``py`` -> python)."""
+    spec = lang_for(filetype)
+    return spec.name if spec is not None else None
+
+
+def available_filetypes() -> list[str]:
+    """Sorted extension keys and language names accepted by :set filetype."""
+    return sorted(set(_LANGUAGES) | set(_NAME_TO_KEY))
+
+
 # ---------------------------------------------------------------------------
 # Regex building
 # ---------------------------------------------------------------------------

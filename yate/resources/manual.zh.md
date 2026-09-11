@@ -476,9 +476,10 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 
 **Tab 补全。** 按 `Tab` 以 bash 风格补全已输入的文本：先补全命令名；
 命令名后接空格时，`Tab` 补全参数——`:e`/`:edit` 补文件路径，
-`:theme`/`:colorscheme` 补主题名，`:set` 补选项键与值，`:manual` 补
-`en`/`zh`。第一次 `Tab` 展开为所有匹配项的最长公共前缀（唯一匹配直接插入）；
-连续按 `Tab` 在所有匹配项间轮询。
+`:theme`/`:colorscheme` 补主题名，`:set` 补选项键与值，
+`:filetype`/`:ft`/`:language` 与 `:set filetype=` 补语法类型名（含
+`auto`），`:manual` 补 `en`/`zh`。第一次 `Tab` 展开为所有匹配项的最长
+公共前缀（唯一匹配直接插入）；连续按 `Tab` 在所有匹配项间轮询。
 
 **文件操作**
 
@@ -520,6 +521,8 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 | `:colorscheme [名称]` | `:theme` 的别名 |
 | `:set shell=<命令>` | 设置集成终端的 Shell（下次启动 Shell 时生效） |
 | `:set terminal_height=<n>` | 终端面板高度（行数，`3`–`40`），立即生效 |
+| `:set filetype=<类型>` | 手动指定当前缓冲区的语法类型（别名 `ft` / `language` / `lang`），见第 17 节 FAQ |
+| `:filetype [类型]` | 同上；不带参数时显示当前类型及全部可用类型（别名 `:ft`、`:language`） |
 
 **Shell**
 
@@ -977,6 +980,23 @@ JSON（`json`/`jsonc`）、Markdown（`md`/`markdown`/`mdx`）、TOML（`toml`�
 INI（`ini`/`cfg`/`conf`/`properties`）、YAML（`yaml`/`yml`）。
 其他类型按纯文本渲染。
 
+**如何手动指定语法类型（类似 VS Code 的 Change Language Mode / vim 的 `:set filetype`）？**
+默认按文件扩展名识别；对无后缀文件、识别错误或临时缓冲区，可以手动覆盖，
+且只影响当前缓冲区：
+
+```
+:set filetype=python   # 语言名或扩展名均可（python / .py / py 等价）
+:set ft=rs             # vim 风格缩写；language/lang 是同义键
+:filetype json         # 等价的独立命令（别名 :ft / :language）
+:filetype              # 不带参数：显示当前类型与全部可用类型
+:set filetype=auto     # 清除覆盖，恢复按路径扩展名自动识别
+```
+
+切换后语法高亮、状态栏右侧的类型标识立即更新；若该类型注册了语言服务器
+（第 16 节），文档也会重新绑定到对应服务器。命令行中按 `Tab` 可轮询补全
+类型名（`:set filetype=py<Tab>`、`:filetype r<Tab>`）。未知类型会被接受
+（可能供 LSP 使用），但没有内建高亮，消息栏会给出提示。
+
 **打开某些文件提示 not a text file？**
 yate 按扩展名白名单判断可编辑文本（常见的代码/文本后缀，以及
 `Dockerfile`、`Makefile`、`README`、`License` 等无后缀名单）；无后缀文件
@@ -1038,7 +1058,7 @@ vim 键位：
 
 命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 
 ---
 

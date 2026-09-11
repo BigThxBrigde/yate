@@ -26,7 +26,7 @@ from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp import LspManager
 from yate.editor_term import PtyProcessError, resolve_shell
-from yate.editor_view import theme
+from yate.editor_view import highlight, theme
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup, buffer_completions
 from yate.editor_view.editor import EditorView
@@ -481,6 +481,40 @@ class YateApp(App[None]):
         self.update_tabbar()
         self.update_breadcrumbs()
 
+    def set_filetype(self, value: str) -> None:
+        """Force the current document's syntax type (``:set filetype=``).
+
+        Accepts an extension key (``py``) or a language name (``python``);
+        ``auto`` / an empty value clears the override and re-detects the type
+        from the file path. Unknown values are still applied (an LSP server
+        may match them), they simply get no built-in highlighter.
+        """
+        doc = self.doc
+        raw = value.strip().lower().lstrip(".")
+        if not raw or raw == "auto":
+            doc.filetype_override = None
+            self.message(f"filetype reset to {doc.filetype} (auto from path)")
+        else:
+            resolved = highlight.resolve_filetype(raw)
+            if resolved is None:
+                doc.filetype_override = raw
+                self.message(
+                    f"filetype set to {raw!r} -- no built-in highlighter "
+                    f"(available: {', '.join(highlight.available_filetypes())})",
+                    kind="warn",
+                )
+            else:
+                doc.filetype_override = resolved
+                label = highlight.language_name(resolved) or resolved
+                self.message(f"filetype set to {resolved} ({label})")
+        # Rebind the LSP document (close on the old server, open on the new)
+        # and force a repaint so highlighting and the status bar update.
+        self.run_worker(
+            self.lsp.on_document_closed(doc),
+            group="lsp-sync", exclusive=False, exit_on_error=False,
+        )
+        self.ui_refresh()
+
     def mode_label(self) -> tuple[str, str]:
         """(label, background color) for the status bar mode chip."""
         t = theme.active()
@@ -919,7 +953,12 @@ class YateApp(App[None]):
 
     # Commands whose single argument is a filesystem path.
     _PATH_COMMANDS = frozenset({"e", "edit"})
-    _SET_OPTIONS = ("keymap", "theme", "shell", "terminal_height")
+    _SET_OPTIONS = (
+        "filetype", "ft", "keymap", "lang", "language", "shell",
+        "terminal_height", "theme",
+    )
+    _FILETYPE_KEYS = frozenset({"filetype", "ft", "language", "lang"})
+    _FILETYPE_COMMANDS = frozenset({"filetype", "ft", "language"})
     _MANUAL_LANGS = ("en", "zh")
 
     def prompt_completions(self, text: str, mode: str) -> list[str]:
@@ -954,6 +993,8 @@ class YateApp(App[None]):
                     vals = ("vsc", "vim")
                 elif key == "theme":
                     vals = tuple(theme.available())
+                elif key in self._FILETYPE_KEYS:
+                    vals = ("auto", *highlight.available_filetypes())
                 else:
                     return []
                 return [
@@ -963,6 +1004,12 @@ class YateApp(App[None]):
             return [
                 f"{name} {opt}" for opt in self._SET_OPTIONS
                 if opt.startswith(rest) and opt != rest
+            ]
+        if name in self._FILETYPE_COMMANDS:
+            vals = ("auto", *highlight.available_filetypes())
+            return [
+                f"{name} {v}" for v in vals
+                if v.startswith(rest) and v != rest
             ]
         if name in ("theme", "colorscheme"):
             return [
@@ -1415,14 +1462,16 @@ class YateApp(App[None]):
             if "=" not in args:
                 self.message(
                     "usage: :set keymap=vsc|vim  theme=mocha  shell=powershell  "
-                    "terminal_height=12",
+                    "terminal_height=12  filetype=py (auto = detect)",
                     kind="warn",
                 )
                 return
             key, _, value = args.partition("=")
             key = key.strip()
             value = value.strip()
-            if key == "keymap":
+            if key in ("filetype", "ft", "language", "lang"):
+                self.set_filetype(value)
+            elif key == "keymap":
                 self.select_keymap(value)
             elif key == "theme":
                 self.set_theme(value)
@@ -1460,8 +1509,26 @@ class YateApp(App[None]):
                 return
             self.set_theme(args)
 
+        def _filetype(args: str) -> None:
+            args = args.strip()
+            if not args:
+                doc = self.doc
+                source = "manual override" if doc.filetype_override else "from path"
+                label = highlight.language_name(doc.filetype)
+                shown = f"{doc.filetype} ({label})" if label else doc.filetype
+                self.message(
+                    f"filetype: {shown} [{source}] · "
+                    f"available: {', '.join(highlight.available_filetypes())}"
+                )
+                return
+            self.set_filetype(args)
+
         reg("set", _set,
-            "set an option (keymap, theme, shell, terminal_height)")
+            "set an option (keymap, theme, shell, terminal_height, filetype)")
+        reg("filetype", _filetype,
+            "set syntax/filetype (:filetype python; auto = detect; no arg lists all)")
+        reg("ft", _filetype, "alias for :filetype")
+        reg("language", _filetype, "alias for :filetype")
         reg("theme", _theme, "switch color theme by name (:theme lists all)")
         reg("colorscheme", _theme, "alias for :theme")
         reg("vim", lambda args: self.select_keymap("vim"), "switch to vim key map")

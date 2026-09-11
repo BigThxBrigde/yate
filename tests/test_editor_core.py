@@ -180,6 +180,20 @@ class DocumentTests(unittest.TestCase):
         doc = Document(Path("foo.py"))
         self.assertEqual(doc.filetype, "py")
 
+    def test_filetype_override_wins_over_path_suffix(self):
+        doc = Document(Path("foo.txt"))
+        self.assertEqual(doc.filetype, "txt")
+        doc.filetype_override = "py"
+        self.assertEqual(doc.filetype, "py")
+        doc.filetype_override = None
+        self.assertEqual(doc.filetype, "txt")
+
+    def test_filetype_override_for_unnamed_buffer(self):
+        doc = Document(None)
+        self.assertEqual(doc.filetype, "plaintext")
+        doc.filetype_override = "json"
+        self.assertEqual(doc.filetype, "json")
+
 
 class DocumentAsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_open_async_matches_sync_open(self):

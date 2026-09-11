@@ -23,6 +23,9 @@ class Document:
         self.path: Optional[Path] = Path(path) if path is not None else None
         self.buffer: TextBuffer = buffer or TextBuffer()
         self.encoding = encoding
+        # Manual syntax/filetype override (`:set filetype=...`); ``None``
+        # means the type is detected from the path suffix.
+        self.filetype_override: Optional[str] = None
         self._saved_text = self.buffer.get_text()
 
     # ------------------------------------------------------------- factories
@@ -68,6 +71,13 @@ class Document:
 
     @property
     def filetype(self) -> str:
+        """Effective type (extension-key form, e.g. ``py``).
+
+        A manual override set via ``:set filetype=`` wins; otherwise the type
+        is detected from the path suffix.
+        """
+        if self.filetype_override is not None:
+            return self.filetype_override
         if self.path is None:
             return "plaintext"
         suffix = self.path.suffix.lower().lstrip(".")

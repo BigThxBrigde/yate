@@ -506,10 +506,11 @@ history. Unknown commands report
 **Tab completion.** Press `Tab` to complete the typed text (bash-style):
 command names are completed first; once a command is followed by a space,
 `Tab` completes its argument — filesystem paths for `:e`/`:edit`, theme
-names for `:theme`/`:colorscheme`, option keys and values for `:set`, and
-`en`/`zh` for `:manual`. The first `Tab` expands to the longest common
-prefix of all matches (a single match is inserted immediately); repeated
-`Tab`s cycle through every match.
+names for `:theme`/`:colorscheme`, option keys and values for `:set`,
+syntax type names (including `auto`) for `:filetype`/`:ft`/`:language`
+and `:set filetype=`, and `en`/`zh` for `:manual`. The first `Tab`
+expands to the longest common prefix of all matches (a single match is
+inserted immediately); repeated `Tab`s cycle through every match.
 
 **File operations**
 
@@ -551,6 +552,8 @@ prefix of all matches (a single match is inserted immediately); repeated
 | `:colorscheme [name]` | Alias of `:theme` |
 | `:set shell=<command>` | Set the terminal shell command (takes effect on the next shell launch) |
 | `:set terminal_height=<n>` | Terminal panel height in rows (`3`–`40`), applied immediately |
+| `:set filetype=<type>` | Force the current buffer's syntax type (aliases `ft` / `language` / `lang`); see the FAQ in section 17 |
+| `:filetype [type]` | Same as above; without arguments shows the current type and all available types (aliases `:ft`, `:language`) |
 
 **Shell**
 
@@ -1070,6 +1073,26 @@ JSON (`json`/`jsonc`), Markdown (`md`/`markdown`/`mdx`), TOML (`toml`),
 INI (`ini`/`cfg`/`conf`/`properties`), YAML (`yaml`/`yml`).
 Everything else renders as plain text.
 
+**How do I pick the syntax type manually (like VS Code's Change Language Mode / vim's `:set filetype`)?**
+The type is normally detected from the file extension. For extension-less
+files, misdetections or scratch buffers you can override it for the current
+buffer only:
+
+```
+:set filetype=python   # language name or extension both work (python / .py / py)
+:set ft=rs             # vim-style abbreviation; language/lang are synonyms
+:filetype json         # standalone command with the same effect (aliases :ft, :language)
+:filetype              # no argument: show the current type and all available types
+:set filetype=auto     # clear the override, re-detect from the path extension
+```
+
+Highlighting and the type shown on the right of the status bar update
+immediately; if a language server is registered for the type (section 16),
+the document is re-bound to that server. In the command line, `Tab` cycles
+through type names (`:set filetype=py<Tab>`, `:filetype r<Tab>`). An unknown
+type is accepted (an LSP may still match it) but gets no built-in
+highlighter; the message line says so.
+
 **Some files report not a text file?**
 yate decides editability by an extension whitelist (common code/text suffixes
 plus suffix-less names like `Dockerfile`, `Makefile`, `README`, `License`);
@@ -1135,7 +1158,7 @@ vim keymap:
 
 Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
 ---
 

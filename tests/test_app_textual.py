@@ -1333,6 +1333,87 @@ class CommandTabCompletionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(inp.value.endswith("alpha.py"))
 
 
+class FiletypeCommandTests(unittest.IsolatedAsyncioTestCase):
+    """:set filetype= / :filetype manual syntax selection."""
+
+    async def test_set_filetype_by_name_or_extension_and_auto_reset(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            doc = app.doc
+            self.assertIsNone(doc.path)
+            self.assertEqual(doc.filetype, "plaintext")
+
+            app.run_command("set filetype=python")  # language name
+            self.assertEqual(doc.filetype_override, "py")
+            self.assertEqual(doc.filetype, "py")
+
+            app.run_command("ft .rs")               # alias + dot prefix
+            self.assertEqual(doc.filetype, "rs")
+
+            app.run_command("language typescript")  # vscode-style name
+            self.assertEqual(doc.filetype, "ts")
+
+            app.run_command("set language=auto")    # back to detection
+            self.assertIsNone(doc.filetype_override)
+            self.assertEqual(doc.filetype, "plaintext")
+            await pilot.pause()
+
+    async def test_unknown_filetype_is_kept_without_highlighter(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.run_command("set ft=zig")
+            self.assertEqual(app.doc.filetype_override, "zig")
+            self.assertEqual(app.doc.filetype, "zig")
+            app.run_command("filetype auto")
+            self.assertIsNone(app.doc.filetype_override)
+            await pilot.pause()
+
+    async def test_highlighting_follows_the_override(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor_view
+            assert editor is not None
+            hl_view = cast(Any, editor)
+            app.buffer.insert_text("def foo():\n    pass\n")
+            await pilot.pause()
+            # Plain-text detection for an unnamed buffer -> no tokens.
+            self.assertEqual(hl_view._hl_filetype, "plaintext")
+
+            app.run_command("set filetype=python")
+            changed = await wait_until(
+                pilot, lambda: hl_view._hl_filetype == "py", timeout=5.0
+            )
+            self.assertTrue(changed)
+            pairs = [
+                (t.kind, "def foo():"[t.start:t.end])
+                for t in hl_view._tokens_for(0)
+            ]
+            self.assertIn(("keyword", "def"), pairs)
+            self.assertIn(("function", "foo"), pairs)
+
+    async def test_tab_completions_for_filetype(self):
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            self.assertEqual(
+                app.prompt_completions("set filetype=pyt", "command"),
+                ["set filetype=python"],
+            )
+            # "r" prefix matches both the "rs" extension key and the
+            # "rust" language name.
+            self.assertEqual(
+                sorted(app.prompt_completions("filetype r", "command")),
+                ["filetype rs", "filetype rust"],
+            )
+            vals = app.prompt_completions("set ft=", "command")
+            self.assertIn("set ft=auto", vals)
+            self.assertIn("set ft=python", vals)
+            self.assertEqual(
+                app.prompt_completions("set file", "command"),
+                ["set filetype"],
+            )
+            await pilot.pause()
+
+
 class LspUiTests(unittest.IsolatedAsyncioTestCase):
     """Completion popup + diagnostic rendering with an injected fake LSP."""
 
