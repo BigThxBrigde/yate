@@ -63,7 +63,14 @@ class EditorView(ScrollView):
         super().__init__(**kwargs)
         self.yate = app
         self.scroll_col = 0
+        # Syntax token cache. Tokens belong to (doc, content_version,
+        # filetype); pure cursor/scroll movement leaves the version alone,
+        # so moving through a file keeps its colors instead of flashing
+        # uncolored text while the whole document is re-tokenized.
         self._hl_tokens: Optional[list[list[Token]]] = None
+        self._hl_doc: object = None
+        self._hl_version: int = -1
+        self._hl_filetype: str = ""
         self._hl_scheduled = False
 
     # ------------------------------------------------------------ helpers
@@ -74,9 +81,12 @@ class EditorView(ScrollView):
         return self.yate.buffer
 
     def content_changed(self) -> None:
-        """Call after any buffer mutation / document switch."""
-        self._hl_tokens = None
-        self._hl_scheduled = False
+        """Call after any buffer mutation / document switch / theme change.
+
+        Geometry and repaint only: syntax tokens are invalidated lazily by
+        the document's content version in :meth:`_tokens_for`, so this is
+        cheap for keys that merely move the cursor or scroll the view.
+        """
         self._update_virtual_size()
         self.reveal_cursor()
         self.refresh()
@@ -186,8 +196,17 @@ class EditorView(ScrollView):
         The first render after a change shows plain text while a worker
         thread tokenizes the document, then refreshes with colors; this
         keeps large files from blocking the first paint and every keystroke.
+        The cache survives cursor movement and scrolling -- it is only
+        stale when the document, its content version or its filetype differ.
         """
-        if self._hl_tokens is None:
+        doc = self.yate.doc
+        buf = doc.buffer
+        if (
+            self._hl_tokens is None
+            or self._hl_doc is not doc
+            or self._hl_version != buf.content_version
+            or self._hl_filetype != doc.filetype
+        ):
             if not self._hl_scheduled:
                 self._hl_scheduled = True
                 self.yate.run_worker(
@@ -200,18 +219,26 @@ class EditorView(ScrollView):
     async def _highlight_later(self) -> None:
         """Tokenize the current document in a thread, then repaint."""
         doc = self.yate.doc
+        buf = doc.buffer
         # shallow copy: the buffer may keep mutating while the thread runs
-        lines = list(doc.buffer.lines)
+        lines = list(buf.lines)
         filetype = doc.filetype
+        version = buf.content_version
         tokens = await asyncio.to_thread(
             highlight.tokenize_document, lines, filetype
         )
+        self._hl_scheduled = False
+        if not self.is_mounted:
+            return
         # discard the result if the document changed/closed while we worked;
-        # the next render reschedules for the new state
-        if not self.is_mounted or self.yate.doc is not doc:
+        # a repaint reschedules a fresh pass for the current state
+        if self.yate.doc is not doc or buf.content_version != version:
+            self.refresh()
             return
         self._hl_tokens = tokens
-        self._hl_scheduled = False
+        self._hl_doc = doc
+        self._hl_version = version
+        self._hl_filetype = filetype
         self.refresh()
 
     def _syntax_kinds(self, row: int, line: str, cell_count: int) -> list[Optional[str]]:

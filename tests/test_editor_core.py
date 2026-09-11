@@ -59,6 +59,24 @@ class BufferTests(unittest.TestCase):
         buf.undo()
         self.assertEqual(buf.get_text(), "")
 
+    def test_content_version_tracks_text_only(self):
+        buf = TextBuffer("def foo():\n    pass\n")
+        self.assertEqual(buf.content_version, 0)
+        # cursor movement and selection changes do not bump the version
+        buf.move_down()
+        buf.set_cursor((0, 0), select=True)
+        buf.clear_selection()
+        self.assertEqual(buf.content_version, 0)
+        # every real text mutation bumps it
+        buf.insert_text("x")
+        self.assertEqual(buf.content_version, 1)
+        buf.undo()
+        self.assertEqual(buf.content_version, 2)
+        buf.redo()
+        self.assertEqual(buf.content_version, 3)
+        buf.set_text("fresh")
+        self.assertEqual(buf.content_version, 4)
+
     def test_word_motions(self):
         buf = TextBuffer("foo bar  baz")
         buf.move_right(word=True)

@@ -16,6 +16,7 @@ Example ``extensions/uppercase.py``::
                 row = buf.row
                 text = buf.lines[row]
                 buf.lines[row] = text.upper()
+                buf.mark_content_changed()  # direct line edit: refresh caches
             else:
                 api.buffer.insert_text(text.upper())
             api.message("uppercased!")

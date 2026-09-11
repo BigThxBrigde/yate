@@ -167,6 +167,51 @@ class TextualAppSmokeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(theme.active().name, "latte")
                 theme.set_theme("mocha")  # restore default for other tests
 
+    async def test_highlight_cache_survives_cursor_movement(self):
+        with TemporaryDirectory() as tmp:
+            target = Path(tmp) / "script.py"
+            target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+            app = YateApp(target=target)
+            async with app.run_test(size=(100, 30)) as pilot:
+                editor = app.editor_view
+                assert editor is not None
+                hl = cast(Any, editor)
+                # wait for the background tokenizer to paint colors
+                ready = await wait_until(
+                    pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                )
+                self.assertTrue(ready)
+                tokens = hl._hl_tokens
+
+                def colors_at(row: int) -> set[str]:
+                    return {
+                        seg.style.color.name.lower()
+                        for seg in editor.render_line(row)
+                        if seg.style is not None and seg.style.color is not None
+                    }
+
+                from yate.editor_view import theme
+                mocha = theme.active()
+                before = colors_at(0)
+                self.assertIn(mocha.syn_keyword.lower(), before)
+
+                # moving the cursor must not discard the token cache: the
+                # keyword color stays without waiting for a new tokenizer
+                await pilot.press("down")
+                self.assertIs(hl._hl_tokens, tokens)
+                self.assertIn(mocha.syn_keyword.lower(), colors_at(0))
+
+                # editing invalidates the cache; a fresh tokenizer pass runs
+                await pilot.press("x")
+                refreshed = await wait_until(
+                    pilot,
+                    lambda: hl._hl_tokens is not None
+                    and hl._hl_tokens is not tokens
+                    and hl._hl_version == app.buffer.content_version,
+                    timeout=5.0,
+                )
+                self.assertTrue(refreshed)
+
     async def test_explorer_open_file(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

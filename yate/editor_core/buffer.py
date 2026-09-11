@@ -97,6 +97,10 @@ class TextBuffer:
         self.register: str = ""  # internal yank/clipboard register
         self._undo: list[_Edit] = []
         self._redo: list[_Edit] = []
+        # Bumped whenever the textual content (not just the cursor or
+        # selection) changes; the view uses it to invalidate highlight
+        # tokens without re-tokenizing on every cursor-movement key.
+        self.content_version: int = 0
 
     # ------------------------------------------------------------------ state
 
@@ -124,6 +128,16 @@ class TextBuffer:
         self.anchor = None
         self._undo.clear()
         self._redo.clear()
+        self.content_version += 1
+
+    def mark_content_changed(self) -> None:
+        """Bump :attr:`content_version` after an out-of-band mutation.
+
+        Extensions that replace ``buffer.lines`` entries directly (instead
+        of going through an undoable edit) call this so syntax highlight
+        caches are re-synchronized on the next repaint.
+        """
+        self.content_version += 1
 
     # ------------------------------------------------------------- snapshots
 
@@ -131,22 +145,30 @@ class TextBuffer:
         return _Snapshot(tuple(self.lines), self.cursor, self.anchor)
 
     def _restore(self, snap: _Snapshot) -> None:
+        changed = tuple(self.lines) != snap.lines
         self.lines = list(snap.lines)
         self.cursor = snap.cursor
         self.anchor = snap.anchor
+        if changed:
+            self.content_version += 1
 
     def _commit(self, before: _Snapshot, kind: str = "step") -> None:
         after = self._snapshot()
         if after == before:
             return
+        lines_changed = after.lines != before.lines
         if kind == "char" and self._undo:
             top = self._undo[-1]
             if top.kind == "char" and top.after == before:
                 top.after = after
                 self._redo.clear()
+                if lines_changed:
+                    self.content_version += 1
                 return
         self._undo.append(_Edit(before, after, kind))
         self._redo.clear()
+        if lines_changed:
+            self.content_version += 1
 
     # ------------------------------------------------- bulk-edit transactions
     #
