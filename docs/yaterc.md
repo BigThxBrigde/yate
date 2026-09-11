@@ -145,9 +145,11 @@ register_theme(replace(THEMES["mocha"], name="my-mocha", accent="#89b4fa"))
 - 同一文件即使被多个来源命中也只执行一次（按解析后的绝对路径去重）。
 
 除 rc 声明外，`./themes/` 和 `~/.yate/themes/` 会被自动扫描，也可用命令行
-`--theme-dir <目录>`（可重复）追加。同名主题的加载优先级（后者覆盖前者）：
+`--theme-dir <目录或文件>`（可重复）追加；`~` 会展开（PowerShell/cmd 下也
+生效）。同名主题的加载优先级（后者覆盖前者）：
 内置主题 < 默认目录 < yaterc `theme_dirs`（先用户 rc、后项目 rc）
-< 命令行 `--theme-dir`。注册成功后即可用 `:theme <名称>` 切换。
+< 命令行 `--theme-dir`。注册成功后即可用 `:theme <名称>` 切换，也可在启动时
+用 `--theme <名称>` 直接选用（覆盖 yaterc 中的 `theme`）。
 
 ## 扩展路径（extensions）
 

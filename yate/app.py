@@ -129,6 +129,7 @@ class YateApp(App[None]):
         target: Optional[str | Path] = None,
         *,
         keymap: Optional[str] = None,
+        theme_name: Optional[str] = None,
         config: Optional[YateConfig] = None,
         ext_files: Optional[list[str | Path]] = None,
         ext_dirs: Optional[list[str | Path]] = None,
@@ -138,10 +139,12 @@ class YateApp(App[None]):
 
         self.config = config if config is not None else YateConfig()
         # The color theme is process-global state (like vim's colorscheme).
+        # An explicit selection (--theme) wins over the yaterc option.
+        wanted_theme = theme_name if theme_name is not None else self.config.theme
         try:
-            theme.set_theme(self.config.theme)
+            theme.set_theme(wanted_theme)
         except KeyError:
-            self.config.errors.append(f"unknown theme: {self.config.theme!r}")
+            self.config.errors.append(f"unknown theme: {wanted_theme!r}")
 
         self.actions = ActionRegistry()
         populate(self.actions)
@@ -1329,7 +1332,7 @@ class YateApp(App[None]):
 
         reg("set", _set,
             "set an option (keymap, theme, shell, terminal_height)")
-        reg("theme", _theme, "switch color theme (mocha|macchiato|frappe|latte)")
+        reg("theme", _theme, "switch color theme by name (:theme lists all)")
         reg("colorscheme", _theme, "alias for :theme")
         reg("vim", lambda args: self.select_keymap("vim"), "switch to vim key map")
         reg("vsc", lambda args: self.select_keymap("vsc"), "switch to the vsc key map")

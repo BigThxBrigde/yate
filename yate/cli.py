@@ -31,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  yate -u NONE              start without loading any yaterc\n"
             "  yate --ext mytool.py      load an extension script\n"
             "  yate --theme-dir mythemes load custom color themes from a dir\n"
+            "  yate --theme my-mocha     start with a (custom) color theme\n"
             "  yate --install-font       install the bundled Nerd Font and exit\n"
         ),
     )
@@ -73,8 +74,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="DIR",
-        help="load custom *.py color themes from a directory (repeatable); "
-             "defaults to ./themes and ~/.yate/themes when present",
+        help="load custom *.py color themes from a directory or from a single "
+             "*.py file (repeatable); defaults to ./themes and ~/.yate/themes "
+             "when present",
+    )
+    parser.add_argument(
+        "--theme",
+        dest="theme",
+        default=None,
+        metavar="NAME",
+        help="color theme to start with (a built-in name or a custom theme "
+             "registered from yaterc/theme dirs; overrides the yaterc theme)",
     )
     parser.add_argument(
         "--install-font",
@@ -123,8 +133,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     config = load_config(rc_paths)
     config.errors = default_errors + config.errors
+    # Expand "~" here: unlike POSIX shells, PowerShell/cmd pass it through
+    # literally and Path("~")/is_dir() would silently skip the directory.
     theme_mod.load_theme_paths(
-        [Path(p) for p in args.theme_dirs], config.errors
+        [Path(p).expanduser() for p in args.theme_dirs], config.errors
     )
 
     # Imported lazily so ``--help`` / ``--version`` work without a terminal.
@@ -136,6 +148,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     app = YateApp(
         target=target,
         keymap=keymap,
+        theme_name=args.theme,
         config=config,
         ext_files=args.ext_files,
         ext_dirs=args.ext_dirs,
