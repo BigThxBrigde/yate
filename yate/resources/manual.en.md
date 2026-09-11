@@ -77,7 +77,8 @@ yate [path] [options]
 | `-u FILE` / `--yaterc FILE` | Load only this config file (vim-style `-u`); `-u NONE` skips config loading entirely |
 | `--ext FILE` | Load one Python extension script (repeatable) |
 | `--ext-dir DIR` | Load every `*.py` extension in a directory (repeatable) |
-| `--theme-dir DIR` | Load custom `*.py` color themes from a directory (repeatable); see section 10.3 |
+| `--theme-dir DIR` | Load custom `*.py` color themes from a directory (repeatable; also accepts a single `*.py` file; defaults to `./themes` and `~/.yate/themes`); see section 10.3 |
+| `--theme NAME` | Color theme to start with (built-in or a registered custom theme); overrides the `theme` set in yaterc |
 | `--install-font` | Install the bundled Nerd Font for the current user (configures Windows Terminal when needed), then exit without entering the UI |
 | `--version` | Show the version |
 | `--help` | Show help |
@@ -94,6 +95,7 @@ yate -u NONE                # skip all yaterc loading
 yate --ext mytool.py        # load an extension script (repeatable)
 yate --ext-dir ./exts       # load every extension in a directory (repeatable)
 yate --theme-dir ./themes   # load custom color themes from a directory
+yate --theme my-mocha       # start with a (custom) color theme
 yate --install-font         # install the bundled Nerd Font, then exit
 ```
 
@@ -190,8 +192,9 @@ cancels. In find mode all matches highlight live as you type.
 
 ### 3.7 Command palette
 
-- `Alt+Shift+P` opens the **command palette**: fuzzy-search all `:` commands
-  and run the selected one with `Enter`.
+- `Alt+Shift+P` opens the **command palette**: lists every `:` command
+  (gear icon) and named action (keyboard icon), fuzzy-searchable by full
+  name (command descriptions match too); `Enter` runs the selected entry.
 - `Ctrl+P` opens **quick open** (the file panel): fuzzy-search workspace files
   and open the selected one.
 - Both share one component; see section 9.
@@ -564,16 +567,20 @@ hits score higher, matched characters are highlighted).
 - **Quick open** (`Ctrl+P` or `:files`): lists every file under the workspace
   (or the current working directory when none is open; capped at 5000 entries,
   pruned directories excluded). `Enter` opens the file and focuses the editor.
-- **Command palette** (`Alt+Shift+P` or `:palette`): lists all `:` commands
-  with descriptions; `Enter` runs the selected one. Spaces in the query are
-  ignored (typing `ctrlp` matches `ctrl p`).
+- **Command palette** (`Alt+Shift+P` or `:palette`): lists every `:` command
+  (gear icon) and every named action (keyboard icon, built-in and extension
+  registered), each shown by its full name, fuzzy-searchable by full name.
+  In command mode the description text matches as well (description hits
+  rank below name hits). `Enter` runs the selected entry. Spaces in the query
+  are ignored (typing `ctrlp` matches `ctrl p`).
 
 Keys inside the overlays:
 
 | Key | Action |
 |---|---|
 | `↑` / `↓` (or `Ctrl+P` / `Ctrl+N`) | Move the highlight |
-| `Enter` | Open the selected file / run the selected command |
+| `Tab` / `Shift+Tab` | Cycle the highlight forward / backward; **with a single match left, `Tab` runs/opens it immediately** (bash-style) |
+| `Enter` | Open the selected file / run the selected command or action |
 | `Esc` / `Ctrl+C` | Close the overlay |
 
 At most 12 result rows show at once; with no matches you get `no matches`.
@@ -762,6 +769,7 @@ Ways to switch:
 | Command | `:theme latte`, `:colorscheme latte` (without arguments lists all available themes) |
 | Option | `:set theme=latte` |
 | Config | `theme = "latte"` in yaterc |
+| CLI flag | `yate --theme latte` (overrides the yaterc `theme`) |
 | Custom | inline `register_theme(...)` in yaterc, or `*.py` files under `theme_dirs` / `--theme-dir`; then switch by name (see 10.3) |
 
 Switching affects only the current session; write it into yaterc to persist.
@@ -957,11 +965,13 @@ stdio, speaks JSON-RPC itself, and provides:
 
 * **Autocomplete** -- a popup appears automatically while typing an
   identifier (after the server's trigger characters, e.g. `.` in Python),
-  and `Ctrl+Space` requests suggestions manually. Navigate with `↑` / `↓`,
-  accept with `Tab` or `Enter`, dismiss with `Esc`. When no language server
-  is available for the current file, the popup falls back to **buffer
-  completion**: words collected from every open buffer (plus filesystem
-  paths when the typed prefix contains `/` or `~`).
+  and `Ctrl+Space` requests suggestions manually (it also works with no
+  language server). Navigate with `↑` / `↓`, accept with `Tab` or `Enter`,
+  dismiss with `Esc`. When no language server is available for the current
+  file, the popup falls back to the built-in **buffer completion**: words
+  already typed, collected from every open buffer (plus filesystem paths
+  when the typed prefix contains `/`, `\` or `~`), with no external process
+  required.
 * **Diagnostics** -- errors and warnings are underlined in the editor, the
   gutter shows `✖` (error) / `▲` (warning) and tints the line number, the
   diagnostic under the cursor is echoed on the message bar, and the status

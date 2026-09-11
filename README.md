@@ -70,6 +70,8 @@ yate -u ~/.yate/yaterc      # 使用指定配置文件
 yate -u NONE                # 不加载任何 yaterc
 yate --ext mytool.py        # 加载扩展脚本（可重复）
 yate --ext-dir ./exts       # 加载目录下所有扩展（可重复）
+yate --theme-dir ./themes   # 加载客制化主题目录（也接受单个 .py，可重复）
+yate --theme my-mocha       # 以指定主题启动（覆盖 yaterc）
 yate --install-font         # 安装随包 Nerd Font 后退出
 ```
 
@@ -78,7 +80,8 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | 按键 | 功能 |
 |---|---|
 | `Ctrl+P` | 模糊快速打开文件 |
-| `Alt+Shift+P` | 命令面板（执行任意 `:` 命令；vsc 模式下 `:` 是普通字符，不打开命令行） |
+| `Alt+Shift+P` | 命令面板（检索并执行全部 `:` 命令与命名动作；vsc 模式下 `:` 是普通字符） |
+| `F5` | 打开命令行（ex 命令，`Esc` 退出） |
 | `Ctrl+Q` | 退出（有未保存修改时拦截） |
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |
@@ -187,7 +190,7 @@ yate/resources/   # 资源：manual.zh.md / manual.en.md 双语用户手册、�
 ## 开发
 
 ```powershell
-# 运行全部测试（190 个，含 Textual pilot 端到端测试）
+# 运行全部测试（224 个，含 Textual pilot 端到端测试）
 python -m unittest discover -s tests
 
 # 类型检查：pyright strict，要求 0 诊断
