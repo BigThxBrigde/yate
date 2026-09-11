@@ -160,6 +160,27 @@ class EmulatorBasicTests(unittest.TestCase):
         self.assertIn("three", screen)
         self.assertNotIn("one", screen)
 
+    def test_resize_shrink_moves_top_rows_to_scrollback(self) -> None:
+        emu = TerminalEmulator(10, 3)
+        emu.feed(b"one\r\ntwo\r\nthree")
+        emu.resize(10, 2)
+        # bottom rows stay on screen ...
+        screen = _text(emu)
+        self.assertIn("two", screen)
+        self.assertNotIn("one", screen)
+        # ... and the dropped top row is reachable as history
+        history = "".join(
+            cell.char for row in emu.view_lines(1) for cell in row
+        )
+        self.assertIn("one", history)
+
+    def test_resize_alt_screen_does_not_add_scrollback(self) -> None:
+        emu = TerminalEmulator(10, 3)
+        emu.feed(b"one\r\ntwo\r\nthree")
+        emu.feed(b"\x1b[?1049h")
+        emu.resize(10, 2)
+        self.assertEqual(emu.scrollback, [])
+
     def test_wide_character(self) -> None:
         emu = TerminalEmulator(6, 1)
         emu.feed("中x".encode("utf-8"))

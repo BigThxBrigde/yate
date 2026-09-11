@@ -242,7 +242,12 @@ class TerminalEmulator:
         return cur[0], cur[1]
 
     def resize(self, cols: int, rows: int) -> None:
-        """Resize the viewport, preserving the bottom of the screen."""
+        """Resize the viewport, preserving the bottom of the screen.
+
+        On the primary screen, rows removed from the top when shrinking
+        move into the scrollback (xterm keeps them as history) instead of
+        vanishing.
+        """
         cols = max(1, cols)
         rows = max(1, rows)
         old_rows, old_cols = self.rows, self.cols
@@ -252,6 +257,13 @@ class TerminalEmulator:
         copy_cols = min(cols, old_cols)
         row_offset = rows - copy_rows
         col_offset = 0
+        if not self.in_alt and rows < old_rows:
+            dropped = old_rows - rows
+            for i in range(dropped):
+                self.scrollback.append(list(old[i]))
+            overflow = len(self.scrollback) - MAX_SCROLLBACK
+            if overflow > 0:
+                del self.scrollback[:overflow]
         for i in range(copy_rows):
             for j in range(copy_cols):
                 new_grid[row_offset + i][col_offset + j] = old[

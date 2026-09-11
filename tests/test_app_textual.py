@@ -1142,6 +1142,42 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
         # Textual key names for grave vary; the app accepts both spellings.
         await pilot.press("ctrl+`")
 
+    async def test_early_pty_output_survives_first_layout(self):
+        # Regression: a shell that prints its banner before Textual has
+        # laid out the panel used to spawn at the 80x24 fallback size; the
+        # first lines were discarded when the viewport shrank on layout.
+        class _ImmediatePty(_FakePty):
+            async def start(
+                self, on_output: Callable[[bytes], None],
+                on_exit: Callable[[int | None], None],
+            ) -> None:
+                await super().start(on_output, on_exit)
+                loop = asyncio.get_running_loop()
+                loop.call_soon(
+                    lambda: on_output(b"YATE_EARLY_BANNER\r\n")
+                )
+
+        app = YateApp()
+        cast(Any, app)._terminal_factory = _ImmediatePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.terminal_panel
+            assert panel is not None
+            await self._press_toggle(pilot)
+
+            def banner_visible() -> bool:
+                return "YATE_EARLY_BANNER" in "".join(
+                    cell.char
+                    for row in panel.view.emulator.view_lines(0)
+                    for cell in row
+                )
+
+            self.assertTrue(await wait_until(pilot, banner_visible))
+            proc = _FakePty.instances[0]
+            # spawned at the laid-out size, not the 24-row fallback
+            self.assertLess(proc.rows, 24)
+            self.assertEqual(proc.cols, 100)
+
     async def test_ctrl_grave_toggles_focuses_and_forwards(self):
         app = YateApp()
         cast(Any, app)._terminal_factory = _FakePty

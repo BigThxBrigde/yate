@@ -7,6 +7,7 @@ grid, forwards keystrokes to the PTY and manages scrollback.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -81,6 +82,11 @@ class TerminalView(Widget):
             return
         self._starting = True
         try:
+            # The panel was just shown: wait until Textual has laid it out
+            # so the PTY starts at the real size instead of the 80x24
+            # fallback (whose first lines would be discarded when the
+            # viewport shrinks to its final height).
+            await self._wait_for_size()
             cols, rows = self._grid_size()
             self.emulator = TerminalEmulator(
                 cols, rows, on_response=self._respond
@@ -136,6 +142,15 @@ class TerminalView(Widget):
             panel.refresh_header()
 
     # ---------------------------------------------------------------- layout
+
+    async def _wait_for_size(self, timeout: float = 1.0) -> None:
+        """Yield until the widget has a laid-out, non-zero size."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while loop.time() < deadline:
+            if self.is_attached and self.size.width and self.size.height:
+                return
+            await asyncio.sleep(0.02)
 
     def _grid_size(self) -> tuple[int, int]:
         width = int(self.size.width) if self.size.width else 80
