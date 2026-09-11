@@ -4,6 +4,15 @@
 构建的现代终端文本编辑器。分层架构：`editor_core` 为纯编辑逻辑（与 UI 解耦，
 可无头测试），`editor_view` 为 Textual 界面。
 
+## 📖 用户手册 / Manual
+
+完整使用说明（中英双语），会话内也可按 `F8` 或输入 `:manual` 打开：
+
+| 语言 | 文件 |
+|---|---|
+| 中文 | [yate/resources/manual.zh.md](yate/resources/manual.zh.md) |
+| English | [yate/resources/manual.en.md](yate/resources/manual.en.md) |
+
 ## 特性
 
 - **VS Code 风格布局**：活动标签栏、EXPLORER 文件树侧栏、面包屑路径栏、扁平化状态栏
@@ -148,7 +157,9 @@ npm install -g pyright            # 或 pyright-langserver
 ```
 
 也可用环境变量 `YATE_PYTHON_LSP` 指定命令行（设为 `off` 可禁用）。
-详细 API 与行为见用户手册第 16 节（会话内 `:manual` 或 `F8`）。
+详细 API 与行为见用户手册第 16 节
+（[中](yate/resources/manual.zh.md) / [En](yate/resources/manual.en.md)，
+会话内 `:manual` 或 `F8`）。
 
 ## 项目结构
 
@@ -165,7 +176,12 @@ yate/
   cli.py          # 命令行入口
 extensions/       # 随仓库提供的扩展（example_ext 示例、python_lsp 内置 LSP）
 tests/            # 单元测试 + Textual pilot 端到端测试
-docs/yaterc.md    # 配置系统完整文档
+docs/             # yaterc 配置、扩展、主题、LSP 配置文档
+  yaterc.md       # 配置系统完整文档
+  extensions.md   # 扩展 API 参考
+  themes.md       # 主题客制化
+  lsp.md          # 主流语言 LSP 配置食谱
+yate/resources/   # 资源：manual.zh.md / manual.en.md 双语用户手册、随包字体
 ```
 
 ## 开发
