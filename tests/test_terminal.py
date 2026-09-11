@@ -8,6 +8,7 @@ import sys
 import threading
 import unittest
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import patch
 
 from yate.editor_term import (
@@ -317,6 +318,29 @@ class PtyProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(proc.wait_closed(), 3)
             proc.write(b"x")  # must not raise
         self.assertEqual(_FakePtyImpl.instances[0].sent, [])
+
+    async def test_detach_drops_late_thread_events(self) -> None:
+        """A reader thread outliving teardown must neither call UI callbacks
+        nor raise when the event loop is already closed."""
+        outputs: list[bytes] = []
+        exits: list[int | None] = []
+        with patch.object(pty_proc, self._attr, _FakePtyImpl):
+            proc = PtyProcess(["shell"], Path.cwd(), 80, 24)
+            await proc.start(outputs.append, exits.append)
+            await asyncio.sleep(0.05)
+            proc.detach()
+            # late events after detach touch neither callback ...
+            proc.emit_output(b"late\r\n")
+            proc.process_finished(9)
+            await asyncio.sleep(0.05)
+            self.assertFalse(any(b"late" in chunk for chunk in outputs))
+            self.assertNotIn(9, exits)
+            # ... and a closed loop cannot raise into the reader thread
+            closed_loop = asyncio.new_event_loop()
+            closed_loop.close()
+            cast(Any, proc)._loop = closed_loop
+            proc.emit_output(b"later\r\n")
+            proc.process_finished(10)
 
 
 if __name__ == "__main__":

@@ -170,6 +170,7 @@ class LspClient:
         self._init_timeout = init_timeout
 
         self.state: ServerState = ServerState.CONFIGURED
+        self._stopping = False
         self.error: str = ""
         self.server_capabilities: dict[str, Any] = {}
         self.trigger_characters: tuple[str, ...] = ()
@@ -178,6 +179,7 @@ class LspClient:
         self._writer: Any = None
         self._proc: Any = None
         self._read_task: Optional[asyncio.Task[None]] = None
+        self._bg_tasks: set[asyncio.Task[None]] = set()
         self._write_lock = asyncio.Lock()
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[Any]] = {}
@@ -221,8 +223,12 @@ class LspClient:
                 )
             self.state = ServerState.READY
         except (OSError, asyncio.TimeoutError, LspError) as exc:
-            self.state = ServerState.FAILED
-            self.error = f"{type(exc).__name__}: {exc}"
+            # Shutdown may have torn the client down while the initialize
+            # handshake was still in flight; don't resurrect a STOPPED client
+            # as FAILED.
+            if not self._stopping:
+                self.state = ServerState.FAILED
+                self.error = f"{type(exc).__name__}: {exc}"
             await self._cleanup()
             raise
 
@@ -248,30 +254,50 @@ class LspClient:
         """Shutdown the server politely, then force kill if it lingers."""
         if self.state is ServerState.STOPPED:
             return
+        polite = self.state is ServerState.READY
+        self._stopping = True
         self.state = ServerState.STOPPED
-        try:
-            if self._writer is not None:
+        if polite and self._writer is not None:
+            try:
                 await asyncio.wait_for(
                     self.request("shutdown", None), timeout=3.0
                 )
                 await self.notify("exit", None)
-        except (LspError, asyncio.TimeoutError, ConnectionError):
-            pass
+            except (LspError, asyncio.TimeoutError, ConnectionError):
+                pass
         await self._cleanup()
 
     async def _cleanup(self) -> None:
+        # Cancel background writers first so none touches a closing writer.
+        bg_tasks = [t for t in self._bg_tasks if not t.done()]
+        for task in bg_tasks:
+            task.cancel()
+        if bg_tasks:
+            await asyncio.gather(*bg_tasks, return_exceptions=True)
+        self._bg_tasks.difference_update(bg_tasks)
         if self._read_task is not None:
-            self._read_task.cancel()
-            self._read_task = None
+            read_task, self._read_task = self._read_task, None
+            read_task.cancel()
+            await asyncio.gather(read_task, return_exceptions=True)
         for future in self._pending.values():
             if not future.done():
                 future.set_exception(LspConnectionError("connection closed"))
         self._pending.clear()
         proc = self._proc
+        self._proc = None
         if proc is not None and hasattr(proc, "returncode"):
             if proc.returncode is None and hasattr(proc, "terminate"):
                 proc.terminate()
+            # Wait for the subprocess transport to finish closing; dropping a
+            # live transport at loop teardown prints "Exception ignored in
+            # BaseSubprocessTransport.__del__" / ResourceWarning on exit.
+            if proc.returncode is None and hasattr(proc, "wait"):
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=3.0)
+                except (asyncio.TimeoutError, OSError):
+                    pass
         writer = self._writer
+        self._writer = None
         if writer is not None:
             try:
                 writer.close()
@@ -280,7 +306,12 @@ class LspClient:
             except (OSError, ConnectionError):
                 pass
         self._reader = None
-        self._writer = None
+
+    def _spawn_bg(self, coro: Any) -> None:
+        """Track a fire-and-forget task so teardown can cancel it."""
+        task = asyncio.ensure_future(coro)
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
 
     # ------------------------------------------------------------ rpc layer
 
@@ -405,7 +436,7 @@ class LspClient:
             result = None
         else:
             ok = False
-        asyncio.create_task(
+        self._spawn_bg(
             self._write_raw(
                 protocol.build_response(request_id, result)
                 if ok

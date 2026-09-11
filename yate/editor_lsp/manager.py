@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, Awaitable, Callable, Optional, cast
 
 from yate.editor_core.document import Document
 
@@ -74,6 +74,8 @@ class LspManager:
         self._open: dict[str, OpenDocState] = {}
         self._diagnostics: dict[str, list[Diagnostic]] = {}
         self._change_timers: dict[str, asyncio.TimerHandle] = {}
+        self._bg_tasks: set["asyncio.Task[None]"] = set()
+        self._shutting_down = False
         self._workspace_root = workspace_root
         self._on_event = on_event
         self._client_factory = client_factory
@@ -314,16 +316,22 @@ class LspManager:
     def _flush_change(self, doc: Document, uri: str, text: str) -> None:
         self._change_timers.pop(uri, None)
         state = self._open.get(uri)
-        if state is None:
+        if state is None or self._shutting_down:
             return
         client = self._clients.get(state.client_key)
         if client is None or client.state is not ServerState.READY:
             return
         state.version += 1
         state.last_synced = text
-        asyncio.create_task(
+        self._spawn_bg(
             self._send_change(client, uri, state.version, text)
         )
+
+    def _spawn_bg(self, coro: Awaitable[None]) -> None:
+        """Track a fire-and-forget notification task until it settles."""
+        task: "asyncio.Task[None]" = asyncio.ensure_future(coro)
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
 
     async def _send_change(
         self, client: LspClient, uri: str, version: int, text: str
@@ -584,15 +592,39 @@ class LspManager:
     # ------------------------------------------------------------- teardown
 
     async def shutdown_all(self) -> None:
+        self._shutting_down = True
         for timer in self._change_timers.values():
             timer.cancel()
         self._change_timers.clear()
+        # Clients first: stopping one unblocks a ``_start_client`` task that
+        # is still waiting on its initialize handshake.
         clients = list(self._clients.values())
         for client in clients:
             try:
                 await client.stop()
-            except (LspError, OSError):
+            except Exception:
                 pass
+        # Let the interrupted start tasks run their cleanup instead of
+        # dropping them mid-flight (orphans print "Task exception was never
+        # retrieved" and can keep subprocess transports half-open).
+        starting = [t for t in self._starting.values() if not t.done()]
+        if starting:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*starting, return_exceptions=True),
+                    timeout=2.0,
+                )
+            except asyncio.TimeoutError:
+                for task in starting:
+                    task.cancel()
+                await asyncio.gather(*starting, return_exceptions=True)
+        # In-flight didChange notifications must not outlive the loop.
+        bg_tasks = [t for t in self._bg_tasks if not t.done()]
+        for task in bg_tasks:
+            task.cancel()
+        if bg_tasks:
+            await asyncio.gather(*bg_tasks, return_exceptions=True)
+        self._bg_tasks.clear()
         self._clients.clear()
         self._starting.clear()
 

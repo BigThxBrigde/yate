@@ -49,6 +49,7 @@ class PtyProcess:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._closing = False
+        self._detached = False
         self._exit_future: Optional[asyncio.Future[Optional[int]]] = None
         self._impl = _UnixPty(self) if os.name == "posix" else _ConPty(self)
 
@@ -104,20 +105,57 @@ class PtyProcess:
 
     # Called from the reader thread only.
     def _emit(self, data: bytes) -> None:
-        if self._loop is not None and self._on_output is not None:
-            self._loop.call_soon_threadsafe(self._on_output, data)
+        if self._detached:
+            return
+        callback = self._on_output
+        loop = self._loop
+        if loop is not None and callback is not None:
+            self._post(loop, callback, data)
 
     def _finished(self, code: Optional[int]) -> None:
         try:
             self._impl.close()
         except OSError:
             pass
-        if self._loop is not None:
-            if self._on_exit is not None:
-                self._loop.call_soon_threadsafe(self._on_exit, code)
+        if self._detached:
+            return
+        loop = self._loop
+        if loop is None:
+            return
+
+        def _done() -> None:
+            callback = self._on_exit
+            if callback is not None:
+                self._safe_call(callback, code)
             future = self._exit_future
             if future is not None and not future.done():
-                self._loop.call_soon_threadsafe(future.set_result, code)
+                try:
+                    future.set_result(code)
+                except asyncio.InvalidStateError:
+                    pass
+
+        self._post(loop, _done)
+
+    @staticmethod
+    def _safe_call(callback: Callable[..., Any], *args: Any) -> None:
+        """Run a UI callback scheduled by a PTY thread without ever letting
+        a torn-down widget take the teardown down with it."""
+        try:
+            callback(*args)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _post(loop: asyncio.AbstractEventLoop, *args: Any) -> None:
+        """Schedule a callback from a PTY thread; never raise when the app
+        event loop is already closed/stopped (the reader thread can briefly
+        outlive ``shutdown``, e.g. when ``wait_closed`` is cancelled)."""
+        if loop.is_closed():
+            return
+        try:
+            loop.call_soon_threadsafe(*args)
+        except RuntimeError:
+            pass
 
     # Bridges used by the platform implementation objects.
     def emit_output(self, data: bytes) -> None:
@@ -132,6 +170,17 @@ class PtyProcess:
 
     def mark_closing(self) -> None:
         self._closing = True
+
+    def detach(self) -> None:
+        """Stop bridging PTY thread events to the (disappearing) event loop.
+
+        Called once the owner has given up waiting for a clean exit; after
+        this no thread will touch the loop, so a daemon thread outliving the
+        app cannot surface ``RuntimeError: Event loop is closed``.
+        """
+        self._detached = True
+        self._on_output = None
+        self._on_exit = None
 
 
 # ===================================================================== POSIX

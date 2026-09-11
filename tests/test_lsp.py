@@ -5,9 +5,12 @@ diagnostics).  No real language server is required."""
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 import os
+import sys
 import unittest
+import warnings
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Optional, cast
@@ -18,6 +21,7 @@ from yate.editor_lsp import LspManager, ServerState
 from yate.editor_lsp import protocol
 from yate.editor_lsp.client import (
     LspClient,
+    LspError,
     LspResponseError,
     ServerConfig,
 )
@@ -355,6 +359,83 @@ class LspClientTests(unittest.IsolatedAsyncioTestCase):
         await client.stop()
         await harness.close()
 
+    async def test_stop_during_starting_skips_shutdown_and_terminates(self):
+        """Quit while initialize is pending: no polite shutdown request,
+        no 3s stall, process terminated and the start task settled."""
+        methods: list[Any] = []
+
+        async def serve(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
+            try:
+                while True:
+                    msg = await protocol.read_message(reader)
+                    if msg is None:
+                        return
+                    methods.append(msg.get("method"))
+            except (asyncio.IncompleteReadError, ConnectionResetError):
+                pass
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except (ConnectionError, OSError):
+                    pass
+
+        server = await asyncio.start_server(serve, "127.0.0.1", 0)
+        sockets = server.sockets
+        assert sockets is not None
+        port = list(sockets)[0].getsockname()[1]
+
+        class SlowProc:
+            def __init__(self) -> None:
+                self.returncode: Optional[int] = None
+                self.terminated = False
+                self.waited = False
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            async def wait(self) -> int:
+                self.waited = True
+                self.returncode = -15
+                return -15
+
+        proc = SlowProc()
+
+        async def connect() -> tuple[Any, Any, Any]:
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            return reader, writer, proc
+
+        client = LspClient(PY_CONFIG, Path.cwd(), connect=connect,
+                           init_timeout=20.0)
+        start_task = asyncio.ensure_future(client.start())
+        try:
+            for _ in range(50):
+                if client.state is ServerState.STARTING:
+                    break
+                await asyncio.sleep(0.02)
+            self.assertIs(client.state, ServerState.STARTING)
+            loop = asyncio.get_running_loop()
+            began = loop.time()
+            await client.stop()
+            self.assertLess(loop.time() - began, 1.0)
+            self.assertTrue(proc.terminated)
+            self.assertTrue(proc.waited)
+            # A server that never finished initialize must not receive a
+            # shutdown request it could not answer (that caused the 3s stall).
+            self.assertNotIn("shutdown", methods)
+            with self.assertRaises(LspError):
+                await start_task
+            self.assertIs(client.state, ServerState.STOPPED)
+        finally:
+            if not start_task.done():
+                start_task.cancel()
+                await asyncio.gather(start_task, return_exceptions=True)
+            server.close()
+            await server.wait_closed()
+
+
 
 # ------------------------------------------------------------------ fake client
 
@@ -608,6 +689,120 @@ class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
             await mgr.request_completion(doc, 0, 0, prefix_start_col=0), [])
         await mgr.on_document_closed(doc)
         await mgr.shutdown_all()
+
+    async def test_shutdown_reaps_starting_client_task(self):
+        """shutdown_all unblocks and settles a client still STARTING instead
+        of orphaning its task (which warned on exit and held a transport)."""
+
+        class SlowStartClient(FakeClient):
+            def __init__(self, *a: Any, **kw: Any) -> None:
+                super().__init__(*a, **kw)
+                self.state = ServerState.STARTING
+                self._release = asyncio.Event()
+
+            async def start(self) -> None:
+                self.started = True
+                await self._release.wait()
+                if not self.stopped:
+                    self.state = ServerState.READY
+
+            async def stop(self) -> None:
+                await super().stop()
+                self._release.set()
+
+        mgr = LspManager()
+        mgr.register_server(PY_CONFIG)
+        fake = SlowStartClient(PY_CONFIG, Path(self._tmp.name))
+        mgr.set_client_factory(
+            lambda config, root: cast(LspClient, fake))
+        doc = make_python_doc(self._tmp.name)
+        shown = asyncio.ensure_future(mgr.on_document_shown(doc))
+        try:
+            await asyncio.sleep(0.1)
+            self.assertIs(fake.state, ServerState.STARTING)
+            await mgr.shutdown_all()
+            self.assertTrue(fake.stopped)
+            await asyncio.wait_for(shown, timeout=1.0)
+            internals = cast(Any, mgr)
+            self.assertEqual(internals._starting, {})
+        finally:
+            if not shown.done():
+                shown.cancel()
+                await asyncio.gather(shown, return_exceptions=True)
+            await mgr.shutdown_all()
+
+    async def test_shutdown_cancels_pending_change_tasks(self):
+        """A didChange still in flight when yate quits is cancelled, not
+        destroyed mid-flight with a pending-task warning."""
+        mgr = self.mgr
+        doc = make_python_doc(self._tmp.name)
+        client = await mgr.ensure_client(doc)
+        assert client is not None
+        await mgr.on_document_shown(doc)
+        doc.buffer.insert_text("more text\n")
+        mgr.notify_edit(doc)
+        internals = cast(Any, mgr)
+        # fire the debounce timer now
+        for handle in list(internals._change_timers.values()):
+            handle.cancel()
+        internals._flush_change(
+            doc, internals._uri(doc), doc.buffer.get_text())
+        await mgr.shutdown_all()
+        self.assertEqual(
+            [t for t in internals._bg_tasks if not t.done()], [])
+
+    async def test_real_subprocess_starting_shutdown_leaves_no_garbage(self):
+        """The original report: quit while a (real) server is still coming
+        up.  No unraisable __del__ errors / ResourceWarning may survive."""
+        unraisable: list[Any] = []
+        previous_hook = sys.unraisablehook
+        sys.unraisablehook = unraisable.append
+        try:
+            with TemporaryDirectory() as tmp:
+                cfg = ServerConfig(
+                    name="sleepy",
+                    command=sys.executable,
+                    args=["-c", "import time; time.sleep(30)"],
+                    filetypes=["py"],
+                )
+                mgr = LspManager()
+                mgr.register_server(cfg)
+                doc = make_python_doc(tmp)
+                shown = asyncio.ensure_future(mgr.on_document_shown(doc))
+                try:
+                    clients = cast(Any, mgr)._clients
+                    for _ in range(100):
+                        if clients and next(iter(clients.values())).state \
+                                is ServerState.STARTING:
+                            break
+                        await asyncio.sleep(0.05)
+                    real_client = next(iter(clients.values()))
+                    self.assertIs(
+                        real_client.state, ServerState.STARTING)
+                    real_proc = real_client._proc
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always")
+                        await mgr.shutdown_all()
+                        gc.collect()
+                        await asyncio.sleep(0.1)
+                        gc.collect()
+                    self.assertEqual(
+                        [u.exc_value for u in unraisable], [])
+                    self.assertEqual(
+                        [w for w in caught
+                         if issubclass(w.category, ResourceWarning)],
+                        [])
+                    # the killed child must release its cwd before the test
+                    # tears tmp down (cold Windows boxes can be slow here)
+                    if real_proc is not None and real_proc.returncode is None:
+                        await asyncio.wait_for(real_proc.wait(), timeout=5.0)
+                finally:
+                    if not shown.done():
+                        shown.cancel()
+                        await asyncio.gather(shown, return_exceptions=True)
+                    await mgr.shutdown_all()
+        finally:
+            sys.unraisablehook = previous_hook
 
 
 class PythonExtensionDiscoveryTests(unittest.TestCase):

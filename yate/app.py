@@ -1624,9 +1624,17 @@ class YateApp(App[None]):
         self.ui_refresh()
 
     async def on_unmount(self) -> None:
+        # Each teardown is isolated: a failing terminal/LSP shutdown must not
+        # leave the other background service (and its threads) untouched.
         if self.terminal_panel is not None:
-            await self.terminal_panel.view.shutdown()
-        await self.lsp.shutdown_all()
+            try:
+                await self.terminal_panel.view.shutdown()
+            except Exception:
+                pass
+        try:
+            await self.lsp.shutdown_all()
+        except Exception:
+            pass
 
     # ================================================================ run
 

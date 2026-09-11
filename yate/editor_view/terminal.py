@@ -110,10 +110,18 @@ class TerminalView(Widget):
     async def shutdown(self) -> None:
         """Terminate the shell (called when yate exits)."""
         proc, self.proc = self.proc, None
-        if proc is not None:
-            proc.terminate()
-            with contextlib.suppress(Exception):
-                await proc.wait_closed()
+        if proc is None:
+            return
+        proc.terminate()
+        try:
+            await proc.wait_closed()
+        except Exception:
+            # Cancelled teardown (or a PTY error) must still detach the
+            # process so its reader thread can never post into the closed
+            # event loop after yate is gone.
+            pass
+        finally:
+            proc.detach()
 
     def _respond(self, data: bytes) -> None:
         if self.proc is not None:
