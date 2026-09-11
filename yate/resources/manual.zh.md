@@ -658,6 +658,9 @@ register_theme(replace(
 `syn_function`/`syn_type`/`syn_constant`/`syn_builtin`/`syn_decorator`/
 `syn_operator`/`syn_property`）。
 
+> 完整的 `Theme` 字段说明、从零构造主题的示例以及加载优先级，见
+> [`docs/themes.md`](../../docs/themes.md)。
+
 ### 10.4 扩展路径（extensions）
 
 `extensions` 接受一个路径字符串或路径列表，每项可以是：
@@ -861,6 +864,9 @@ def setup(api):
 仓库自带示例 `extensions/example_ext.py`（提供 `:upper` / `:lower` /
 `:words` / `:sh` 命令与 `Alt+U` 绑定），可作模板。
 
+> 扩展 API 完整参考（命令、动作、按键绑定、buffer/doc/workspace 访问、
+> LSP 注册）见 [`docs/extensions.md`](../../docs/extensions.md)。
+
 ## 16. 语言服务器（LSP）
 
 yate 内置了一个精简的
@@ -924,6 +930,10 @@ def setup(api):
 
 `api.lsp.statuses()` 返回 `{名字: "ready"|"starting"|"failed"|...}`。
 用同名重复注册会替换旧配置，并丢弃其缓存进程与诊断。
+
+> 主流语言（Rust、TypeScript、Go、C/C++、Bash、JSON、HTML/CSS、Lua 等）
+> 的安装命令与 `register_server` 食谱，见
+> [`docs/lsp.md`](../../docs/lsp.md)。
 
 ## 17. 常见问题（FAQ）
 

@@ -702,6 +702,9 @@ syntax palette (`syn_keyword`/`syn_string`/`syn_number`/`syn_comment`/
 `syn_function`/`syn_type`/`syn_constant`/`syn_builtin`/`syn_decorator`/
 `syn_operator`/`syn_property`).
 
+> For the full `Theme` field reference, a from-scratch theme example, and the
+> complete load precedence, see [`docs/themes.md`](../../docs/themes.md).
+
 ### 10.4 Extension paths (extensions)
 
 `extensions` accepts one path string or a list of paths; each entry may be:
@@ -734,6 +737,10 @@ Rules:
 Beyond rc declarations, extensions also auto-load from the default
 directories `./extensions/` and `~/.yate/extensions/`, and can be added with
 `--ext <file>` / `--ext-dir <dir>` (see section 15).
+
+> For the full extension API reference (commands, actions, key bindings,
+> buffer/doc/workspace access, LSP registration), see
+> [`docs/extensions.md`](../../docs/extensions.md).
 
 ## 11. Themes
 
@@ -936,6 +943,10 @@ message bar as `extension <name>: ...`. The repo ships a sample at
 `extensions/example_ext.py` (providing the `:upper` / `:lower` / `:words` /
 `:sh` commands and an `Alt+U` binding) usable as a template.
 
+> For the full extension API reference (commands, actions, key bindings,
+> buffer/doc/workspace access, LSP registration), see
+> [`docs/extensions.md`](../../docs/extensions.md).
+
 ## 16. Language servers (LSP)
 
 yate ships a small built-in [LSP](https://microsoft.github.io/language-server-protocol/)
@@ -961,7 +972,7 @@ opened, one process per (server, project root). The status bar shows the
 server name when ready, `LSP…` while starting, and `LSP ✖` when the server
 could not start.
 
-### 15.1 Python (built-in extension)
+### 16.1 Python (built-in extension)
 
 `extensions/python_lsp.py` is auto-loaded and registers a Python server for
 `.py` / `.pyi` files. Install either implementation yourself (neither is
@@ -987,7 +998,7 @@ Server discovery, in order:
 If none is found, nothing is spawned and no error is shown until a Python
 file is opened; the status bar then reports `LSP ✖`.
 
-### 15.2 Registering servers from an extension
+### 16.2 Registering servers from an extension
 
 ```python
 def setup(api):
@@ -1007,6 +1018,10 @@ def setup(api):
 `api.lsp.statuses()` returns `{name: "ready"|"starting"|"failed"|...}`.
 Registering the same name twice replaces the previous config and drops its
 cached process and diagnostics.
+
+> For install commands and `register_server` recipes for mainstream
+> languages (Rust, TypeScript, Go, C/C++, Bash, JSON, HTML/CSS, Lua, ...),
+> see [`docs/lsp.md`](../../docs/lsp.md).
 
 ## 17. FAQ
 
