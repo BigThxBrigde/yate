@@ -84,7 +84,9 @@ class VscKeymap(Keymap):
             _k("<ctrl-n>", "new_buffer", "New empty buffer", FILE),
             _k("<ctrl-w>", "close_tab", "Close current tab", FILE),
             _k("<ctrl-q>", "quit", "Quit yate", FILE),
-            _k(":", "command_prompt", "Ex command prompt (:w :q :e ...)", FILE),
+            # NOTE: ":" is intentionally not bound in vsc mode - it is typed
+            # literally. The ex command prompt is vim-only; vsc users reach
+            # commands through the command palette (alt+shift+p).
             # ---- search
             _k("<ctrl-f>", "find", "Find", SRCH),
             _k("<f3>", "find_next", "Next match", SRCH),

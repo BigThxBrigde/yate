@@ -69,12 +69,12 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | 按键 | 功能 |
 |---|---|
 | `Ctrl+P` | 模糊快速打开文件 |
-| `Alt+Shift+P` | 命令面板（执行任意 `:` 命令） |
-| `:` | ex 命令行（`:w` 保存、`:q` 退出、`:theme latte` 切主题…） |
+| `Alt+Shift+P` | 命令面板（执行任意 `:` 命令；vsc 模式下 `:` 是普通字符，不打开命令行） |
+| `Ctrl+Q` | 退出（有未保存修改时拦截） |
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |
-| `Ctrl+B` | 显示/隐藏文件树（`:explorer` 同效） |
-| `` Ctrl+` `` | 显示/隐藏底部集成终端（`:term` / `:termclose`） |
+| `Ctrl+B` | 显示/隐藏文件树（命令面板 `explorer` 同效） |
+| `` Ctrl+` `` | 显示/隐藏底部集成终端（命令面板 `term` / `termclose`） |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `Ctrl+Space` | 触发 LSP 自动补全（输入时也会自动弹出，`Tab`/`Enter` 接受） |

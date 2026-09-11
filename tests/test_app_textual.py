@@ -55,6 +55,7 @@ class KeyAdapterTests(unittest.TestCase):
         self.assertEqual(textual_key_to_raw("ctrl+s"), "\x13")
         self.assertEqual(textual_key_to_raw("ctrl+c"), "\x03")
         self.assertEqual(textual_key_to_raw("ctrl+]"), "\x1d")
+        self.assertEqual(textual_key_to_raw("ctrl+/"), "\x1f")
         self.assertEqual(textual_key_to_raw("alt+u"), "\x1bu")
 
     def test_modified_arrows(self):
@@ -99,12 +100,9 @@ class TextualAppSmokeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertGreaterEqual(len(app.search.matches), 1)
                 self.assertEqual(app.focused, app.editor_view)
 
-                # --- command prompt: switch keymap to vim
-                await pilot.press("colon")
-                self.assertEqual(prompt_bar.active_mode, "command")
-                for ch in "set keymap=vim":
-                    await pilot.press(ch)
-                await pilot.press("enter")
+                # --- switch keymap to vim via the vsc toggle (the ":" ex
+                # command line is vim-only; vsc mode types ":" literally)
+                await pilot.press("ctrl+/")
                 self.assertEqual(app.keymap_name, "vim")
 
                 # --- vim append-at-line-end then escape (clear the search
@@ -162,11 +160,9 @@ class TextualAppSmokeTests(unittest.IsolatedAsyncioTestCase):
                 # number 42 on line 2 -> number color
                 self.assertIn(mocha.syn_number.lower(), seg_colors(editor.render_line(1)))
 
-                # switch theme via :theme latte, expect active theme to change
-                await pilot.press("colon")
-                for ch in "theme latte":
-                    await pilot.press(ch)
-                await pilot.press("enter")
+                # switch theme via the app action (the ":" ex line is
+                # vim-only; the same command is reached via the vsc palette)
+                app.set_theme("latte")
                 await pilot.pause()
                 self.assertEqual(theme.active().name, "latte")
                 theme.set_theme("mocha")  # restore default for other tests
@@ -422,17 +418,30 @@ class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d", welcome)  # "E" foot
             self.assertIn("yate", welcome)
             self.assertIn("quick open", welcome)
+            # default (vsc) welcome must not advertise the vim-only ":" prompt
+            self.assertNotIn("ex command prompt", welcome)
             # typing dismisses the welcome page
             await pilot.press("h", "i")
             await pilot.pause()
             self.assertNotIn("\u2588", screen_text())
+
+    async def test_welcome_advertises_colon_only_in_vim_keymap(self):
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor_view
+            assert editor is not None
+            parts: list[str] = []
+            for row in range(26):
+                parts.extend(seg.text for seg in editor.render_line(row))
+            self.assertIn("ex command prompt", "".join(parts))
 
 
 class PromptBarTests(unittest.IsolatedAsyncioTestCase):
     async def test_command_input_shows_typed_text(self):
         """Regression: focused height-1 Input must not gain a tall border
         that collapses its content region and hides typed characters."""
-        app = YateApp()
+        app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.press(":")
             await pilot.pause()
@@ -445,6 +454,26 @@ class PromptBarTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(inp.scrollable_content_region.height, 1)
             strip_text = "".join(seg.text for seg in inp.render_line(0))
             self.assertIn("wp", strip_text)
+
+    async def test_colon_types_literally_in_vsc_keymap(self):
+        """The ex command prompt is vim-only; vsc mode inserts ':' as text."""
+        app = YateApp()  # default keymap is vsc
+        async with app.run_test(size=(100, 30)) as pilot:
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            await pilot.press(":", "w", "q")
+            await pilot.pause()
+            self.assertIsNone(prompt_bar.active_mode)
+            self.assertEqual(app.doc.buffer.get_text(), ":wq")
+
+    async def test_colon_opens_prompt_in_vim_keymap(self):
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            await pilot.press(":")
+            await pilot.pause()
+            self.assertEqual(prompt_bar.active_mode, "command")
 
     async def test_breadcrumb_blank_for_untitled_doc(self):
         """Untitled buffers must not repeat the tab label in breadcrumbs."""
@@ -763,9 +792,13 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
             with patch("yate.app.run_shell", side_effect=slow_shell):
-                await pilot.press("colon")
-                for ch in "!echo hi":
+                # F2 opens the shell prompt in vsc mode (":" is vim-only)
+                await pilot.press("f2")
+                self.assertEqual(prompt_bar.active_mode, "shell")
+                for ch in "echo hi":
                     await pilot.press(ch)
                 await pilot.press("enter")
                 # command dispatched: prompt closed, no output screen yet,
@@ -1230,7 +1263,7 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(cast(Any, panel.view).proc, proc)
 
     async def test_term_command_exit_and_restart(self):
-        app = YateApp()
+        app = YateApp(keymap="vim")  # ":" ex line is vim-only
         cast(Any, app)._terminal_factory = _FakePty
         _FakePty.instances = []
         async with app.run_test(size=(100, 30)) as pilot:

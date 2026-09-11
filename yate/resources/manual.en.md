@@ -166,12 +166,13 @@ Left: mode block + file info; right: position and metadata.
 ### 3.6 Command line / message bar
 
 The bottom line shows messages when idle
-(`yate 0.1.0 — F1 help, Ctrl+P quick open, : for ex mode` at startup); when
+(`yate 0.1.0 — F1 help, Ctrl+P quick open, Alt+Shift+P command palette` in
+vsc mode; `-- NORMAL -- (F1 help, : commands)` in vim mode); when
 activated for input it shows a per-mode prefix:
 
 | Mode | Prefix | Trigger |
 |---|---|---|
-| Command | `:` | `:` (vsc) or `:` in vim NORMAL mode |
+| Command | `:` | `:` in vim NORMAL mode only (in vsc mode use the command palette) |
 | Find downward | magnifier icon | `Ctrl+F` (vsc), `/` (vim) |
 | Find upward | `?` | `?` (vim) |
 | Replace (step 1) | `Replace:` | `F4` |
@@ -305,7 +306,10 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+N` | New empty buffer |
 | `Ctrl+W` | Close current tab |
 | `Ctrl+Q` | Quit yate (blocked with unsaved changes) |
-| `:` | Open the ex command line (`:w` `:q` `:e` …, see section 8) |
+
+> `:` is **not** a vsc-mode binding — it is typed into the buffer like any
+> other character. To run ex commands in vsc mode open the command palette
+> with `Alt+Shift+P` (section 3.7); the `:` command line itself is vim-only.
 
 **Search**
 
@@ -485,7 +489,9 @@ Behavior notes:
 
 ## 8. Command Line (ex commands)
 
-Press `:` (both keymaps) to enter the command line. Commands may take
+Press `:` in vim NORMAL mode to enter the command line. In vsc mode the
+same commands are reached through the command palette (`Alt+Shift+P`),
+since `:` is an ordinary editable character there. Commands may take
 arguments separated by spaces. `Esc` / `Ctrl+C` cancels; `↑` / `↓` cycles
 history. Unknown commands report
 `not an editor command: … (try :help)`.
@@ -1053,7 +1059,7 @@ vsc keymap (default):
 |---|---|---|---|
 | `Ctrl+S` | Save | `Ctrl+P` | Quick open file |
 | `Ctrl+O` | Open file | `Alt+Shift+P` | Command palette |
-| `Ctrl+N` | New buffer | `:` | ex command line |
+| `Ctrl+N` | New buffer | `Ctrl+1` | Focus editor |
 | `Ctrl+W` | Close tab | `Ctrl+F` | Find |
 | `Ctrl+Q` | Quit | `F3` | Next match |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo | `F4` | Find & replace |
@@ -1064,7 +1070,7 @@ vsc keymap (default):
 | `Alt+↑` / `Alt+↓` | Move line | `Ctrl+PageUp`/`PageDown` | Switch tab |
 | `Ctrl+]` / `Shift+Tab` | Indent / dedent | `F1` | Key help |
 | `Ctrl+J` | Join lines | `F8` | User manual |
-| `Ctrl+Space` | Trigger autocomplete | `:diagnostics` | List LSP diagnostics |
+| `Ctrl+Space` | Trigger autocomplete | palette `diagnostics` | List LSP diagnostics |
 | `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·

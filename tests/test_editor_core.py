@@ -235,6 +235,17 @@ class VscKeymapTests(unittest.TestCase):
         km.handle_key(ctx, "x")
         self.assertEqual(app.buffer.get_text(), "hi\nx")
 
+    def test_colon_is_inserted_literally(self) -> None:
+        # In vsc mode ":" is ordinary text, not the (vim-only) ex prompt.
+        app = _FakeApp()
+        km = VscKeymap()
+        ctx = ActionContext(cast("YateApp", app))
+        self.assertTrue(km.handle_key(ctx, ":"))
+        for ch in "wq":
+            km.handle_key(ctx, ch)
+        self.assertEqual(app.buffer.get_text(), ":wq")
+        self.assertNotIn("command_prompt", app.messages)
+
     def test_ctrl_a_selects_all(self) -> None:
         app = _FakeApp()
         app.doc = Document(None, TextBuffer("hello\nworld"))

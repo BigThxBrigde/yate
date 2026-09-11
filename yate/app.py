@@ -1618,7 +1618,8 @@ class YateApp(App[None]):
             self.prompt_bar.idle("-- NORMAL --  (F1 help, : commands)")
         else:
             self.prompt_bar.idle(
-                f"yate {__version__} — F1 help, Ctrl+P quick open, : for ex mode"
+                f"yate {__version__} — F1 help, Ctrl+P quick open, "
+                "Alt+Shift+P command palette"
             )
         self.ui_refresh()
 

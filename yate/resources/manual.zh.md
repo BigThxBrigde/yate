@@ -156,12 +156,14 @@ yate 的布局模仿 VS Code，自上而下分为几个区域：
 
 ### 3.6 命令行 / 消息栏
 
-最底部一行，平时显示消息（启动时为 `yate 0.1.0 — F1 help, Ctrl+P quick open, : for ex mode`），
+最底部一行，平时显示消息（vsc 模式启动时为
+`yate 0.1.0 — F1 help, Ctrl+P quick open, Alt+Shift+P command palette`；
+vim 模式为 `-- NORMAL -- (F1 help, : commands)`），
 激活输入时按模式显示不同前缀：
 
 | 模式 | 前缀 | 触发方式 |
 |---|---|---|
-| 命令 | `:` | `:`（vsc）或 vim NORMAL 模式 `:` |
+| 命令 | `:` | 仅 vim NORMAL 模式 `:`（vsc 模式用命令面板） |
 | 向下查找 | 放大镜图标 | `Ctrl+F`（vsc）、`/`（vim） |
 | 向上查找 | `?` | `?`（vim） |
 | 替换（第一步） | `Replace:` | `F4` |
@@ -290,7 +292,10 @@ yate 内置两套键位：
 | `Ctrl+N` | 新建空 buffer |
 | `Ctrl+W` | 关闭当前标签 |
 | `Ctrl+Q` | 退出 yate（有未保存修改时会拦截） |
-| `:` | 打开 ex 命令行（`:w` `:q` `:e` 等，见第 8 节） |
+
+> vsc 模式下 **`:` 不是快捷键**——它和普通字符一样会输入到 buffer 中。
+> vsc 模式要执行 ex 命令，请用 `Alt+Shift+P` 打开命令面板（见 3.7 节）；
+> `:` 命令行本身仅在 vim 键位下提供。
 
 **搜索（Search）**
 
@@ -458,7 +463,8 @@ vim 键位下 `Ctrl+F` 是翻页而非查找；`Ctrl+P` 快速打开、`Alt+Shif
 
 ## 8. 命令行（ex 命令）
 
-按 `:`（两套键位均可用）进入命令行。命令后可跟参数，以空格分隔。
+vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普通字符，
+同样的命令通过命令面板（`Alt+Shift+P`）执行。命令后可跟参数，以空格分隔。
 `Esc` / `Ctrl+C` 取消，`↑` / `↓` 翻阅历史。未知命令提示
 `not an editor command: … (try :help)`。
 
@@ -966,7 +972,7 @@ vsc 键位（默认）：
 |---|---|---|---|
 | `Ctrl+S` | 保存 | `Ctrl+P` | 快速打开文件 |
 | `Ctrl+O` | 打开文件 | `Alt+Shift+P` | 命令面板 |
-| `Ctrl+N` | 新建 buffer | `:` | ex 命令行 |
+| `Ctrl+N` | 新建 buffer | `Ctrl+1` | 聚焦编辑器 |
 | `Ctrl+W` | 关闭标签 | `Ctrl+F` | 查找 |
 | `Ctrl+Q` | 退出 | `F3` | 下一个匹配 |
 | `Ctrl+Z` / `Ctrl+Y` | 撤销 / 重做 | `F4` | 查找替换 |
@@ -977,7 +983,7 @@ vsc 键位（默认）：
 | `Alt+↑` / `Alt+↓` | 移动行 | `Ctrl+PageUp`/`PageDown` | 切换标签 |
 | `Ctrl+]` / `Shift+Tab` | 缩进 / 反缩进 | `F1` | 键位帮助 |
 | `Ctrl+J` | 合并行 | `F8` | 用户手册 |
-| `Ctrl+Space` | 触发自动补全 | `:diagnostics` | 列出 LSP 诊断 |
+| `Ctrl+Space` | 触发自动补全 | 面板 `diagnostics` | 列出 LSP 诊断 |
 | `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 
 文件树内：`j`/`k` 移动 · `l`/`Enter` 打开/展开 · `h` 折叠 ·

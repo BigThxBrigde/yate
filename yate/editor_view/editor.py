@@ -328,6 +328,8 @@ class EditorView(ScrollView):
     @staticmethod
     def _welcome_lines(
         t: theme.Theme,
+        *,
+        vim_keys: bool = False,
     ) -> list[list[tuple[str, Optional[str], bool, bool]]]:
         """(text, color, bold, centered) tuples per welcome row."""
         rows: list[list[tuple[str, Optional[str], bool, bool]]] = [
@@ -349,20 +351,29 @@ class EditorView(ScrollView):
         hints: list[tuple[str, str]] = [
             ("Ctrl+P", "quick open file"),
             ("Alt+Shift+P", "command palette"),
-            (":", "ex command prompt (:w :q :e ...)"),
+        ]
+        if vim_keys:
+            # The ex command prompt (":") exists in vim mode only; in vsc
+            # mode ":" is an ordinary character typed into the buffer.
+            hints.append((":", "ex command prompt (:w :q :e ...)"))
+        hints.extend([
             ("Ctrl+F", "find in file"),
             ("Ctrl+`", "integrated terminal"),
             ("Ctrl+S", "save file"),
             ("F1", "keyboard reference"),
-        ]
+        ])
         for kbd, desc in hints:
             rows.append([
                 ("  " + kbd.ljust(15), t.green, True, False),
                 (desc, t.fg_bright, False, False),
             ])
         rows.append([])
-        rows.append([("  start typing to edit, or :e <path> to open a file",
-                      t.fg_dim, False, False)])
+        footer = (
+            "  start typing to edit, or :e <path> to open a file"
+            if vim_keys
+            else "  start typing to edit; Alt+Shift+P opens the command palette"
+        )
+        rows.append([(footer, t.fg_dim, False, False)])
         return rows
 
     def _render_welcome(
@@ -370,7 +381,9 @@ class EditorView(ScrollView):
     ) -> Strip:
         """Render one welcome page row (gutter stays blank, no cursor)."""
         segments: list[Segment] = [Segment(" " * gutter_w, Style(bgcolor=t.bg))]
-        rows = self._welcome_lines(t)
+        rows = self._welcome_lines(
+            t, vim_keys=self.yate.keymap_name == "vim"
+        )
         used = gutter_w
         if y < len(rows):
             row = rows[y]
