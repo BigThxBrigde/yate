@@ -163,7 +163,7 @@ vim 模式为 `-- NORMAL -- (F1 help, : commands)`），
 
 | 模式 | 前缀 | 触发方式 |
 |---|---|---|
-| 命令 | `:` | 仅 vim NORMAL 模式 `:`（vsc 模式用命令面板） |
+| 命令 | `:` | vim NORMAL 模式 `:`；vsc 模式 `F5`（或命令面板） |
 | 向下查找 | 放大镜图标 | `Ctrl+F`（vsc）、`/`（vim） |
 | 向上查找 | `?` | `?`（vim） |
 | 替换（第一步） | `Replace:` | `F4` |
@@ -296,8 +296,8 @@ yate 内置两套键位：
 | `Ctrl+Q` | 退出 yate（有未保存修改时会拦截） |
 
 > vsc 模式下 **`:` 不是快捷键**——它和普通字符一样会输入到 buffer 中。
-> vsc 模式要执行 ex 命令，请用 `Alt+Shift+P` 打开命令面板（见 3.7 节）；
-> `:` 命令行本身仅在 vim 键位下提供。
+> vsc 模式要执行 ex 命令，可按 `F5` 打开命令行（输入 `:w` `:q` 等，无需先输
+> 入冒号），或用 `Alt+Shift+P` 打开命令面板（见 3.7 节）。
 
 **搜索（Search）**
 
@@ -313,6 +313,7 @@ yate 内置两套键位：
 |---|---|
 | `Ctrl+P` | 快速打开文件（模糊匹配） |
 | `Alt+Shift+P` | 命令面板（执行任意 `:` 命令） |
+| `F5` | 命令行（ex 命令：`:w` `:q` `:e` 等，`Esc` 退出） |
 | `Ctrl+/` | 切换 vsc / vim 键位 |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（`Ctrl+Shift+E` 同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
@@ -466,8 +467,8 @@ vim 键位下 `Ctrl+F` 是翻页而非查找；`Ctrl+P` 快速打开、`Alt+Shif
 ## 8. 命令行（ex 命令）
 
 vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普通字符，
-同样的命令通过命令面板（`Alt+Shift+P`）执行。命令后可跟参数，以空格分隔。
-`Esc` / `Ctrl+C` 取消，`↑` / `↓` 翻阅历史。未知命令提示
+可按 `F5` 打开命令行（或用命令面板 `Alt+Shift+P`）执行同样的命令。命令后
+可跟参数，以空格分隔。`Esc` / `Ctrl+C` 取消，`↑` / `↓` 翻阅历史。未知命令提示
 `not an editor command: … (try :help)`。
 
 **Tab 补全。** 按 `Tab` 以 bash 风格补全已输入的文本：先补全命令名；
@@ -998,7 +999,7 @@ vsc 键位（默认）：
 | `Ctrl+Z` / `Ctrl+Y` | 撤销 / 重做 | `F4` | 查找替换 |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | 剪切 / 复制 / 粘贴 | `Ctrl+B` | 显隐文件树 |
 | `Ctrl+A` | 全选 | `Ctrl+E` | 聚焦文件树 |
-| `Ctrl+D` | 复制行/选区 | `F2` | Shell 命令 |
+| `Ctrl+D` | 复制行/选区 | `F2` / `F5` | Shell 命令 / 命令行 |
 | `Ctrl+Shift+K` | 删除行 | `Ctrl+/` | 切换键位 |
 | `Alt+↑` / `Alt+↓` | 移动行 | `Ctrl+PageUp`/`PageDown` | 切换标签 |
 | `Ctrl+]` / `Shift+Tab` | 缩进 / 反缩进 | `F1` | 键位帮助 |

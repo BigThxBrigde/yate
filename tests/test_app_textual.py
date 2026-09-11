@@ -593,6 +593,26 @@ class PromptBarTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(prompt_bar.active_mode)
             self.assertEqual(app.doc.buffer.get_text(), ":wq")
 
+    async def test_f5_opens_command_prompt_in_vsc_keymap(self):
+        """F5 activates the ex command line; Esc dismisses it."""
+        app = YateApp()  # default keymap is vsc
+        async with app.run_test(size=(100, 30)) as pilot:
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            await pilot.press("f5")
+            await pilot.pause()
+            self.assertEqual(prompt_bar.active_mode, "command")
+            # typing still lands in the prompt, not the buffer
+            await pilot.press(*"w")
+            await pilot.pause()
+            self.assertEqual(prompt_bar.input.value, "w")
+            self.assertEqual(app.doc.buffer.get_text(), "")
+            # Esc closes the prompt and returns focus to the editor
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertIsNone(prompt_bar.active_mode)
+            self.assertIs(app.focused, app.editor_view)
+
     async def test_colon_opens_prompt_in_vim_keymap(self):
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:

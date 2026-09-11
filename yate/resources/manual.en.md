@@ -172,7 +172,7 @@ activated for input it shows a per-mode prefix:
 
 | Mode | Prefix | Trigger |
 |---|---|---|
-| Command | `:` | `:` in vim NORMAL mode only (in vsc mode use the command palette) |
+| Command | `:` | `:` in vim NORMAL mode; `F5` in vsc mode (or command palette) |
 | Find downward | magnifier icon | `Ctrl+F` (vsc), `/` (vim) |
 | Find upward | `?` | `?` (vim) |
 | Replace (step 1) | `Replace:` | `F4` |
@@ -310,8 +310,9 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+Q` | Quit yate (blocked with unsaved changes) |
 
 > `:` is **not** a vsc-mode binding — it is typed into the buffer like any
-> other character. To run ex commands in vsc mode open the command palette
-> with `Alt+Shift+P` (section 3.7); the `:` command line itself is vim-only.
+> other character. To run ex commands in vsc mode press `F5` to open the
+> command line (type `w`, `q`, … without the leading colon), or open the
+> command palette with `Alt+Shift+P` (section 3.7).
 
 **Search**
 
@@ -327,6 +328,7 @@ keymap, grouped by category, plus all `:` commands.
 |---|---|
 | `Ctrl+P` | Quick open file (fuzzy match) |
 | `Alt+Shift+P` | Command palette (run any `:` command) |
+| `F5` | Command line (ex commands: `:w` `:q` `:e` …; `Esc` closes) |
 | `Ctrl+/` | Toggle vsc / vim keymap |
 | `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (`Ctrl+Shift+E` same as VS Code) |
 | `Ctrl+1` | Focus the editor (same as VS Code) |
@@ -491,8 +493,8 @@ Behavior notes:
 
 ## 8. Command Line (ex commands)
 
-Press `:` in vim NORMAL mode to enter the command line. In vsc mode the
-same commands are reached through the command palette (`Alt+Shift+P`),
+Press `:` in vim NORMAL mode to enter the command line. In vsc mode press
+`F5` to open the command line (or use the command palette `Alt+Shift+P`),
 since `:` is an ordinary editable character there. Commands may take
 arguments separated by spaces. `Esc` / `Ctrl+C` cancels; `↑` / `↓` cycles
 history. Unknown commands report
@@ -1093,7 +1095,7 @@ vsc keymap (default):
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo | `F4` | Find & replace |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / copy / paste | `Ctrl+B` | Toggle file tree |
 | `Ctrl+A` | Select all | `Ctrl+E` | Focus file tree |
-| `Ctrl+D` | Duplicate line/selection | `F2` | Shell command |
+| `Ctrl+D` | Duplicate line/selection | `F2` / `F5` | Shell command / command line |
 | `Ctrl+Shift+K` | Delete line | `Ctrl+/` | Toggle keymap |
 | `Alt+↑` / `Alt+↓` | Move line | `Ctrl+PageUp`/`PageDown` | Switch tab |
 | `Ctrl+]` / `Shift+Tab` | Indent / dedent | `F1` | Key help |

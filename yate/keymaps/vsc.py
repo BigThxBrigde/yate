@@ -85,8 +85,9 @@ class VscKeymap(Keymap):
             _k("<ctrl-w>", "close_tab", "Close current tab", FILE),
             _k("<ctrl-q>", "quit", "Quit yate", FILE),
             # NOTE: ":" is intentionally not bound in vsc mode - it is typed
-            # literally. The ex command prompt is vim-only; vsc users reach
-            # commands through the command palette (alt+shift+p).
+            # literally. Reach the ex command line with F5 (or the command
+            # palette via alt+shift+p).
+            _k("<f5>", "command_prompt", "Ex command line (:w :q :e :! ...)", VIEW),
             # ---- search
             _k("<ctrl-f>", "find", "Find", SRCH),
             _k("<f3>", "find_next", "Next match", SRCH),
