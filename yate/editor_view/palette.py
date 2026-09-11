@@ -27,7 +27,7 @@ from textual.widgets import Input, Static
 from yate.services.workspace import Workspace
 
 from . import theme
-from .icons import GEAR, icon_for_path
+from .icons import GEAR, KEYBOARD, icon_for_path
 
 if TYPE_CHECKING:
     from yate.app import YateApp
@@ -149,9 +149,28 @@ class PaletteScreen(ModalScreen[None]):
         return entries
 
     def _build_command_entries(self) -> None:
+        """Merge the ``:`` command table and the action registry.
+
+        Every entry carries its full name plus a description, so both
+        commands (``w``, ``theme`` ...) and keymap actions (``save``,
+        ``move_left`` ...) -- including ones registered by extensions --
+        are reachable from the palette.  A name present in both tables
+        resolves to the ``:`` command (the same spelling typed on the ex
+        line) and the raw action duplicate is dropped.
+        """
+        app = self.yate
         entries: list[tuple[str, str, Any]] = []
-        for name in self.yate.commands.names():
-            entries.append((name, self.yate.commands.describe(name), name))
+        for name in app.commands.names():
+            entries.append(
+                (name, app.commands.describe(name), ("command", name)))
+        command_names = {name for name, _h, _p in entries}
+        for name in app.actions.names():
+            if name in command_names:
+                continue
+            action = app.actions.get(name)
+            description = action.description if action is not None else ""
+            entries.append((name, description, ("action", name)))
+        entries.sort(key=lambda entry: entry[0])
         self._entries = entries
 
     async def _index_files(self) -> None:
@@ -170,11 +189,21 @@ class PaletteScreen(ModalScreen[None]):
 
     def refilter(self, query: str) -> None:
         scored: list[tuple[int, list[int], int]] = []
-        for i, (display, _hint, _payload) in enumerate(self._entries):
+        for i, (display, hint, _payload) in enumerate(self._entries):
             match = fuzzy_match(query, display)
+            hits: list[int] = []
             if match is not None:
                 score, hits = match
-                scored.append((score, hits, i))
+            elif self.mode == "commands" and hint:
+                # description-only matches (e.g. "save" finds :w) rank
+                # below every name match
+                desc_match = fuzzy_match(query, hint)
+                if desc_match is None:
+                    continue
+                score = desc_match[0] + 1000
+            else:
+                continue
+            scored.append((score, hits, i))
         scored.sort(key=lambda item: (item[0], self._entries[item[2]][0].lower()))
         self._filtered = scored[:MAX_VISIBLE]
         self._cursor = 0
@@ -195,15 +224,16 @@ class PaletteScreen(ModalScreen[None]):
             results.update(text)
             return
         for row, (_score, hits, idx) in enumerate(self._filtered):
-            display, hint, _payload = self._entries[idx]
+            display, hint, payload = self._entries[idx]
             selected = row == self._cursor
             bg = t.accent if selected else None
             base = f"bold {t.on_accent}" if selected else t.fg
-            icon = (
-                icon_for_path(display.rsplit("/", 1)[-1], False)
-                if self.mode == "files"
-                else GEAR
-            )
+            if self.mode == "files":
+                icon = icon_for_path(display.rsplit("/", 1)[-1], False)
+            elif self.mode == "commands" and payload[0] == "action":
+                icon = KEYBOARD
+            else:
+                icon = GEAR
             text.append(" ", style=f"on {bg}" if bg else "")
             text.append(icon + " ", style=(f"{t.on_accent} on {bg}") if selected else t.fg_dim)
             hit_set = set(hits)
@@ -227,7 +257,7 @@ class PaletteScreen(ModalScreen[None]):
         with Vertical(id="palette"):
             placeholder = (
                 "search files by name…" if self.mode == "files"
-                else "type a command name…"
+                else "search commands and actions by name…"
             )
             yield Input(placeholder=placeholder, id="palette-input")
             yield Static(id="palette-results")
@@ -285,7 +315,14 @@ class PaletteScreen(ModalScreen[None]):
             self.yate.open_path_later(payload)
             self.yate.focus_editor()
         else:
-            self.yate.run_command(str(payload))
+            kind, name = payload
+            if kind == "action":
+                self.yate.execute_action(str(name))
+                # key dispatch refreshes the editor after an action; the
+                # palette bypasses the key path, so do it here too
+                self.yate.ui_refresh()
+            else:
+                self.yate.run_command(str(name))
 
 
 def _walk(root: Path, limit: int = 5000) -> list[Path]:

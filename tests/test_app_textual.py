@@ -372,6 +372,88 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertIsInstance(app.screen, PaletteScreen)
 
+    async def test_command_palette_lists_all_commands_and_actions(self):
+        from yate.editor_view.palette import PaletteScreen
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            # as an extension would: one new command and one new action
+            app.commands.register("zzz_palette_cmd", lambda args: None,
+                                  "zz palette command")
+            app.actions.register(
+                "zzz_palette_action", lambda ctx: None, "zz palette action")
+            app.open_command_palette()
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            entries = cast(Any, screen)._entries
+            by_name = {name: payload for name, _hint, payload in entries}
+
+            # built-in : commands and raw keymap actions are both present,
+            # each with its full name
+            self.assertEqual(by_name["write"], ("command", "write"))
+            self.assertEqual(by_name["move_left"], ("action", "move_left"))
+            self.assertEqual(by_name["command_palette"],
+                             ("action", "command_palette"))
+            # extension-registered items show up too
+            self.assertEqual(by_name["zzz_palette_cmd"],
+                             ("command", "zzz_palette_cmd"))
+            self.assertEqual(by_name["zzz_palette_action"],
+                             ("action", "zzz_palette_action"))
+            # a name registered in both tables appears once and resolves
+            # to the : command spelling
+            self.assertEqual(by_name["quit"], ("command", "quit"))
+            # every row has a non-empty name and (for built-ins) a hint
+            self.assertTrue(all(name for name, _h, _p in entries))
+            hinted = {name: hint for name, hint, _p in entries}
+            self.assertEqual(hinted["write"], "save the current file")
+            self.assertEqual(hinted["move_left"], "Move left")
+
+    async def test_command_palette_runs_action_by_full_name(self):
+        from yate.editor_view.palette import PaletteScreen
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            self.assertEqual(app.keymap_name, "vsc")
+            app.open_command_palette()
+            await pilot.pause()
+            self.assertIsInstance(app.screen, PaletteScreen)
+            for ch in "toggle_keymap":
+                await pilot.press(ch)
+            await pilot.pause()
+            screen = cast(Any, app.screen)
+            # the action is found by its full name and is the top hit
+            self.assertEqual(
+                screen._entries[screen._filtered[0][2]][2],
+                ("action", "toggle_keymap"),
+            )
+            await pilot.press("enter")
+            await pilot.pause()
+            self.assertEqual(len(app.screen_stack), 1)
+            self.assertEqual(app.keymap_name, "vim")
+
+    async def test_command_palette_searches_descriptions(self):
+        from yate.editor_view.palette import PaletteScreen
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.open_command_palette()
+            await pilot.pause()
+            for ch in "switch color theme":
+                await pilot.press(ch)
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            # no command is *named* "switch color theme"; it matches the
+            # description of :theme, and the row is selectable
+            self.assertGreater(screen.filtered_count, 0)
+            top = cast(Any, screen)._entries[
+                cast(Any, screen)._filtered[0][2]]
+            self.assertEqual(top[2], ("command", "theme"))
+            await pilot.press("enter")
+            await pilot.pause()
+            self.assertEqual(len(app.screen_stack), 1)
+
     async def test_palette_down_cursor_moves(self):
         from yate.editor_view.palette import PaletteScreen
 
