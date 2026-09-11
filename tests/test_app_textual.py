@@ -860,6 +860,97 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
                 self.assertGreater(len(text), 1000)
                 self.assertTrue(text.lstrip().startswith("# yate"))
 
+    async def test_manual_search_filters_and_cycles_matches(self):
+        from textual.containers import Horizontal
+        from textual.widgets import Input, Markdown, Static
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("f8")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, ManualScreen)
+            bar = screen.query_one("#manual-search-bar", Horizontal)
+            field = screen.query_one("#manual-search-input", Input)
+            status = screen.query_one("#manual-search-status", Static)
+            md = screen.query_one("#manual-md", Markdown)
+            self.assertFalse(bar.display)
+            # ctrl+f reveals the search bar and focuses it
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            self.assertTrue(bar.display)
+            self.assertIs(screen.focused, field)
+            # typing live-marks every block containing the query
+            await pilot.press("y", "a", "t", "e")
+            await pilot.pause()
+            private = cast(Any, screen)
+            self.assertGreaterEqual(len(private._hits), 2)
+            self.assertEqual(private._hit_index, 0)
+            self.assertEqual(len(list(md.query(".manual-hit-current"))), 1)
+            self.assertGreaterEqual(len(list(md.query(".manual-hit"))), 1)
+            self.assertIn("1/", str(status.content))
+            # enter advances to the next match, shift+enter goes back
+            await pilot.press("enter")
+            await pilot.pause()
+            self.assertEqual(private._hit_index, 1)
+            self.assertIn("2/", str(status.content))
+            await pilot.press("shift+enter")
+            await pilot.pause()
+            self.assertEqual(private._hit_index, 0)
+            # escape while typing closes only the bar (manual stays open)…
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertFalse(bar.display)
+            self.assertIsInstance(app.screen, ManualScreen)
+            # …and n/N repeat the last search with highlights still present
+            await pilot.press("n")
+            await pilot.pause()
+            self.assertEqual(private._hit_index, 1)
+            await pilot.press("N")
+            await pilot.pause()
+            self.assertEqual(private._hit_index, 0)
+            # escape with the bar closed dismisses the manual itself
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertNotIsInstance(app.screen, ManualScreen)
+
+    async def test_manual_search_no_matches_then_slash_reopens(self):
+        from textual.containers import Horizontal
+        from textual.widgets import Input, Markdown, Static
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("f8")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, ManualScreen)
+            # "/" (textual key name "slash") also opens the search bar
+            await pilot.press("slash")
+            await pilot.pause()
+            bar = screen.query_one("#manual-search-bar", Horizontal)
+            field = screen.query_one("#manual-search-input", Input)
+            status = screen.query_one("#manual-search-status", Static)
+            md = screen.query_one("#manual-md", Markdown)
+            self.assertTrue(bar.display)
+            self.assertIs(screen.focused, field)
+            # a query present nowhere reports "no matches" and tints nothing
+            await pilot.press("z", "q", "z", "q", "w", "x")
+            await pilot.pause()
+            private = cast(Any, screen)
+            self.assertEqual(private._hits, [])
+            self.assertEqual(private._hit_index, -1)
+            self.assertEqual(len(list(md.query(".manual-hit"))), 0)
+            self.assertIn("no matches", str(status.content))
+            # clearing the query removes the error state
+            await pilot.press(*(("backspace",) * 10))
+            await pilot.pause()
+            self.assertEqual(field.value, "")
+            self.assertEqual(private._hits, [])
+            self.assertIn("type to search", str(status.content))
+            self.assertIsInstance(app.screen, ManualScreen)
+
 
 class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
     """Blocking work (manual render, shell, file index) stays off the loop."""

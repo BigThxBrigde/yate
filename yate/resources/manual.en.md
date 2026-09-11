@@ -217,7 +217,9 @@ cancels. In find mode all matches highlight live as you type.
    `:q!` / `:wq` to force it.
 6. **Help**: `F1` key reference (grouped by the current keymap + all `:`
    commands); `F8` or `:manual` opens this manual (`Esc` / `q` closes;
-   `PgUp`/`PgDn` or the wheel scrolls).
+   `PgUp`/`PgDn` or the wheel scrolls; `/` or `Ctrl+F` searches the
+   manual text, `Enter` / `Shift+Enter` jump between matches, `n` / `N`
+   repeat the last search after closing the search bar).
 7. **Terminal**: press `` Ctrl+` `` to open the integrated shell at the bottom
    (`:term` / `:termclose` do the same); the shell keeps running while the
    panel is hidden.
@@ -344,7 +346,7 @@ keymap, grouped by category, plus all `:` commands.
 | Key | Action |
 |---|---|
 | `F1` | Key reference (help overlay) |
-| `F8` | Open the user manual (this manual, read-only) |
+| `F8` | Open the user manual (this manual, read-only; `/` or `Ctrl+F` searches inside it) |
 
 ### 5.2 vim keymap (modal)
 
