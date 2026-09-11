@@ -31,8 +31,14 @@ exclude = ["**/__pycache__"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["yate"]
-# Non-Python files inside the package (resources/fonts/*.ttf) are included
-# in the wheel automatically by hatchling.
+# Non-Python files inside the package (resources/fonts/*.ttf,
+# resources/manual.*.md) are included in the wheel automatically by
+# hatchling. The top-level docs/ directory (yaterc, extensions, themes,
+# LSP guides) is force-included so relative links from the bundled manual
+# (yate/resources/manual.*.md -> ../../docs/*.md) keep working after a
+# non-editable install.
+[tool.hatch.build.targets.wheel.force-include]
+"docs" = "docs"
 
 [tool.hatch.build.targets.sdist]
-include = ["yate", "extensions", "yaterc.example"]
+include = ["yate", "extensions", "docs", "yaterc.example"]
