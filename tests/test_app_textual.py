@@ -1220,6 +1220,20 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
         # Textual key names for grave vary; the app accepts both spellings.
         await pilot.press("ctrl+`")
 
+    def test_nul_byte_from_windows_ctrl_grave_matches_toggle(self) -> None:
+        # Windows conhost encodes Ctrl+grave as a NUL byte (ToUnicodeEx
+        # yields no character); Textual names that key "ctrl+@", and it
+        # must be one of the accepted toggle keys.
+        from textual._xterm_parser import XTermParser
+
+        from yate.editor_view.terminal import TOGGLE_KEYS
+
+        names = [
+            getattr(m, "key", None) for m in XTermParser().feed("\x00")
+        ]
+        self.assertEqual(names, ["ctrl+@"])
+        self.assertIn("ctrl+@", TOGGLE_KEYS)
+
     async def test_early_pty_output_survives_first_layout(self):
         # Regression: a shell that prints its banner before Textual has
         # laid out the panel used to spawn at the 80x24 fallback size; the
@@ -1306,6 +1320,41 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
             await wait_until(pilot, lambda: cast(Any, app)._terminal_visible)
             self.assertTrue(panel.display)
             self.assertIs(cast(Any, panel.view).proc, proc)
+
+    async def test_real_terminal_grave_key_names_toggle_panel(self):
+        # Ctrl+grave is the NUL byte on Windows conhost / legacy xterm
+        # (ToUnicodeEx yields no character), so Textual names it
+        # "ctrl+@"; under the kitty keyboard protocol it is named
+        # "ctrl+grave_accent". Neither used to match TOGGLE_KEYS, so the
+        # panel could not be closed from a real Windows terminal.
+        for close_key in ("ctrl+@", "ctrl+grave_accent"):
+            app = YateApp()
+            cast(Any, app)._terminal_factory = _FakePty
+            _FakePty.instances = []
+            async with app.run_test(size=(100, 30)) as pilot:
+                panel = app.terminal_panel
+                assert panel is not None
+                view = panel.view
+
+                await pilot.press("ctrl+`")
+                await wait_until(pilot, lambda: view.proc is not None)
+                self.assertTrue(panel.display)
+                self.assertIs(app.focused, view)
+                proc = _FakePty.instances[0]
+
+                # the real key name closes the panel while the terminal
+                # has focus, and is not forwarded as a NUL byte
+                await pilot.press(close_key)
+                await pilot.pause()
+                self.assertFalse(panel.display, close_key)
+                self.assertNotIn(b"\x00", b"".join(proc.sent))
+                self.assertIs(app.focused, app.editor_view)
+
+                # same name reopens it now that the editor has focus
+                await pilot.press(close_key)
+                await wait_until(
+                    pilot, lambda: cast(Any, app)._terminal_visible)
+                self.assertTrue(panel.display, close_key)
 
     async def test_term_command_exit_and_restart(self):
         app = YateApp(keymap="vim")  # ":" ex line is vim-only

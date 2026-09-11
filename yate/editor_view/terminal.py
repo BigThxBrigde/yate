@@ -32,8 +32,18 @@ from . import theme
 if TYPE_CHECKING:
     from yate.app import YateApp
 
-#: Textual spells the grave accent key two ways across versions/platforms.
-TOGGLE_KEYS = frozenset({"ctrl+`", "ctrl+grave"})
+#: Names Textual gives Ctrl+grave across platforms:
+#: - "ctrl+`" / "ctrl+grave": friendly/pilot names;
+#: - "ctrl+grave_accent": kitty keyboard protocol terminals (`chr(96)`
+#:   is named "grave_accent");
+#: - "ctrl+@": Windows conhost and legacy xterm -- Ctrl+grave translates
+#:   to the NUL byte there (ToUnicodeEx yields no character), which
+#:   Textual names ctrl+@. Without this alias the panel could never be
+#:   closed from the keyboard on a real Windows terminal (ctrl+space is
+#:   the same byte there and also toggles).
+TOGGLE_KEYS = frozenset({
+    "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
+})
 
 
 def _hex(rgb: Optional[tuple[int, int, int]]) -> Optional[str]:
