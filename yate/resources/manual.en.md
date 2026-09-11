@@ -193,6 +193,13 @@ cancels. In find mode all matches highlight live as you type.
   and open the selected one.
 - Both share one component; see section 9.
 
+### 3.8 Integrated terminal
+
+- A bottom panel (between the editor and the status bar) hosts a real shell
+  over a pseudo terminal; `` Ctrl+` `` toggles it and focuses the shell.
+- It stays alive while hidden, restarts on any key after the shell exits,
+  and is configurable via `shell` / `terminal_height`; see section 13.
+
 ## 4. Quick Start
 
 1. **Open a file**: pass a path at launch, `Ctrl+P` fuzzy open, or
@@ -208,6 +215,9 @@ cancels. In find mode all matches highlight live as you type.
 6. **Help**: `F1` key reference (grouped by the current keymap + all `:`
    commands); `F8` or `:manual` opens this manual (`Esc` / `q` closes;
    `PgUp`/`PgDn` or the wheel scrolls).
+7. **Terminal**: press `` Ctrl+` `` to open the integrated shell at the bottom
+   (`:term` / `:termclose` do the same); the shell keeps running while the
+   panel is hidden.
 
 > Note: clipboard operations (cut/copy/paste) use yate's **internal
 > registers** and do not touch the system clipboard (see section 5.1).
@@ -313,7 +323,7 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (`Ctrl+Shift+E` same as VS Code) |
 | `Ctrl+1` | Focus the editor (same as VS Code) |
 | `Ctrl+B` | Show / hide the file tree (same as `:explorer`) |
-| `Ctrl+`` | Show / hide the integrated terminal (see section 13) |
+| `` Ctrl+` `` | Show / hide the integrated terminal (see section 13) |
 | `F2` | Run a shell command |
 
 **Tabs**
@@ -403,7 +413,8 @@ corresponding input line; motions extend the selection.
 Unmapped keys in NORMAL mode are swallowed and never insert text.
 
 Under the vim keymap `Ctrl+F` pages instead of finding; `Ctrl+P` quick open,
-`Alt+Shift+P` command palette, `F1` help and `F8` manual still work.
+`Alt+Shift+P` command palette, `` Ctrl+` `` integrated terminal, `F1` help and
+`F8` manual still work.
 
 ## 6. File Explorer
 
@@ -767,7 +778,7 @@ on macOS / Linux it is the POSIX `pty` device.
 
 **Opening / hiding**
 
-- `Ctrl+`` toggles the panel (grave accent, the key above Tab). Opening it
+- `` Ctrl+` `` toggles the panel (grave accent, the key above Tab). Opening it
   focuses the terminal; hiding it returns focus to the editor.
 - Hiding does **not** kill the shell: the process keeps running, exactly like
   VS Code, and toggling again brings the same session back.
@@ -777,7 +788,7 @@ on macOS / Linux it is the POSIX `pty` device.
 **Using the terminal**
 
 - Every keystroke is forwarded to the shell, including control keys and
-  pasted text (bracketed paste is supported). `Ctrl+`` remains intercepted so
+  pasted text (bracketed paste is supported). `` Ctrl+` `` remains intercepted so
   you can hide the panel from the keyboard.
 - Scroll back with `Shift+PageUp` / `Shift+PageDown` or the mouse wheel; the
   scrollback keeps the last 5000 lines.
@@ -1020,7 +1031,7 @@ vsc keymap (default):
 | `Ctrl+]` / `Shift+Tab` | Indent / dedent | `F1` | Key help |
 | `Ctrl+J` | Join lines | `F8` | User manual |
 | `Ctrl+Space` | Trigger autocomplete | `:diagnostics` | List LSP diagnostics |
-| `Ctrl+`` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
+| `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·
 `a` new file · `A` new folder · `r` rename · `d`/`Del` delete (`y` confirms) ·
@@ -1040,7 +1051,7 @@ vim keymap:
 | `/` / `?` | Find down / up | `J` | Join lines |
 | `n` / `N` | Next / previous match | numeric prefix | Count (e.g. `3j`, `2dd`) |
 | `:` | ex command line | `Ctrl+W` / `Ctrl+U` (insert mode) | Delete word / to line start |
-| `Ctrl+`` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
+| `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 
 Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`

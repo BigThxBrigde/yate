@@ -90,6 +90,17 @@ class HelpScreen(_OverlayScreen):
                 text.append("\n")
             text.append("\n")
 
+        # Keys intercepted outside the keymap dispatch, active in both keymaps.
+        text.append("  GLOBAL KEYS\n", style=f"bold {t.accent2}")
+        for key, desc in (
+            ("ctrl+`", "Toggle the integrated terminal (bottom panel)"),
+        ):
+            text.append("    ")
+            text.append(key.ljust(16), style=t.green)
+            text.append(desc, style=t.fg_bright)
+            text.append("\n")
+        text.append("\n")
+
         text.append("  COMMANDS (prefix :)\n", style=f"bold {t.accent2}")
         for name in sorted(app.commands.names()):
             desc = app.commands.describe(name)

@@ -181,6 +181,13 @@ yate 的布局模仿 VS Code，自上而下分为几个区域：
 - `Ctrl+P` 打开**快速打开**（文件面板）：模糊搜索工作区内文件，回车打开。
 - 两者共用同一组件，见第 9 节。
 
+### 3.8 集成终端
+
+- 底部面板（编辑区与状态栏之间）内嵌经伪终端连接的真实 Shell；
+  `` Ctrl+` `` 切换面板并聚焦终端。
+- 隐藏时 Shell 保持运行；Shell 退出后按任意键重启；可通过 `shell` /
+  `terminal_height` 配置，见第 13 节。
+
 ## 4. 快速上手
 
 1. **打开文件**：启动参数传入路径、`Ctrl+P` 模糊打开、`Ctrl+O` / `:e`
@@ -195,6 +202,8 @@ yate 的布局模仿 VS Code，自上而下分为几个区域：
    或 `:q!` / `:wq` 强制处理。
 6. **获取帮助**：`F1` 键位参考（按当前键位分组 + 全部 `:` 命令）；
    `F8` 或 `:manual` 打开本手册（`Esc` / `q` 关闭，`PgUp`/`PgDn` 或滚轮滚动）。
+7. **终端**：按 `` Ctrl+` `` 打开底部集成 Shell（`:term` / `:termclose` 同效）；
+   面板隐藏期间 Shell 持续运行。
 
 > 注意：剪贴板操作（剪切/复制/粘贴）使用 yate **内部寄存器**，
 > 不读写系统剪贴板（详见 5.1 节）。
@@ -299,7 +308,7 @@ yate 内置两套键位：
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（`Ctrl+Shift+E` 同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `Ctrl+B` | 显示 / 隐藏文件树（`:explorer` 同效） |
-| `Ctrl+`` | 显示 / 隐藏集成终端（见第 13 节） |
+| `` Ctrl+` `` | 显示 / 隐藏集成终端（见第 13 节） |
 | `F2` | 运行 Shell 命令 |
 
 **标签（Tabs）**
@@ -386,7 +395,7 @@ yate 内置两套键位：
 NORMAL 模式下未映射的按键会被吞掉，不会插入文本。
 
 vim 键位下 `Ctrl+F` 是翻页而非查找；`Ctrl+P` 快速打开、`Alt+Shift+P`
-命令面板、`F1` 帮助、`F8` 手册仍然可用。
+命令面板、`` Ctrl+` `` 集成终端、`F1` 帮助、`F8` 手册仍然可用。
 
 ## 6. 文件浏览器（EXPLORER）
 
@@ -711,7 +720,7 @@ ConPTY（Windows 10 1809+），macOS / Linux 使用 POSIX `pty` 设备。
 
 **打开 / 隐藏**
 
-- `Ctrl+`` 切换面板（反引号，Tab 上方的键）。打开时焦点进入终端，隐藏时焦点
+- `` Ctrl+` `` 切换面板（反引号，Tab 上方的键）。打开时焦点进入终端，隐藏时焦点
   回到编辑器。
 - 隐藏**不会**结束 Shell：进程持续运行（与 VS Code 一致），再次切换回到的是
   同一会话。
@@ -720,7 +729,7 @@ ConPTY（Windows 10 1809+），macOS / Linux 使用 POSIX `pty` 设备。
 **终端操作**
 
 - 所有按键（包括控制键与粘贴文本，支持 bracketed paste）都原样转发给 Shell；
-  唯独 `Ctrl+`` 仍由 yate 拦截，用于键盘隐藏面板。
+  唯独 `` Ctrl+` `` 仍由 yate 拦截，用于键盘隐藏面板。
 - `Shift+PageUp` / `Shift+PageDown` 或鼠标滚轮可回看历史，回滚缓冲保留最近
   5000 行。
 - 面板标题栏显示 Shell 名、程序通过 OSC 转义序列上报的标题，以及状态：
@@ -938,7 +947,7 @@ vsc 键位（默认）：
 | `Ctrl+]` / `Shift+Tab` | 缩进 / 反缩进 | `F1` | 键位帮助 |
 | `Ctrl+J` | 合并行 | `F8` | 用户手册 |
 | `Ctrl+Space` | 触发自动补全 | `:diagnostics` | 列出 LSP 诊断 |
-| `Ctrl+`` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
+| `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 
 文件树内：`j`/`k` 移动 · `l`/`Enter` 打开/展开 · `h` 折叠 ·
 `a` 新建文件 · `A` 新建文件夹 · `r` 重命名 · `d`/`Del` 删除（`y` 确认） ·
@@ -958,7 +967,7 @@ vim 键位：
 | `/` / `?` | 向下 / 向上查找 | `J` | 合并行 |
 | `n` / `N` | 下 / 上一个匹配 | 数字前缀 | 计数（如 `3j`、`2dd`） |
 | `:` | ex 命令行 | `Ctrl+W` / `Ctrl+U`（插入模式） | 删词 / 删到行首 |
-| `Ctrl+`` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
+| `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 
 命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`

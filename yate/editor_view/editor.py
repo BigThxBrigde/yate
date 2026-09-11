@@ -351,6 +351,7 @@ class EditorView(ScrollView):
             ("Alt+Shift+P", "command palette"),
             (":", "ex command prompt (:w :q :e ...)"),
             ("Ctrl+F", "find in file"),
+            ("Ctrl+`", "integrated terminal"),
             ("Ctrl+S", "save file"),
             ("F1", "keyboard reference"),
         ]

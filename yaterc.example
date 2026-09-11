@@ -25,7 +25,7 @@ theme = "mocha"
 tab_width = 4
 use_spaces = True
 
-# Integrated terminal (toggled with Ctrl+`):
+# Integrated terminal (toggle with Ctrl+grave, the key above Tab):
 # shell sets the command launched in the bottom terminal panel.
 # Defaults: Windows pwsh -> Windows PowerShell -> cmd.exe;
 #           POSIX $SHELL -> bash -> /bin/sh.

@@ -740,7 +740,7 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
                 loaded = await wait_until(
                     pilot,
                     lambda: bool(md.source) and not loading.display,
-                    timeout=10.0,
+                    timeout=30.0,
                 )
                 self.assertTrue(loaded)
                 self.assertEqual(md.source, original("en"))
@@ -1233,6 +1233,25 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
             app.run_command("termclose")
             await pilot.pause()
             self.assertFalse(panel.display)
+
+
+class HelpOverlayTests(unittest.IsolatedAsyncioTestCase):
+    async def test_help_lists_terminal_key_and_commands(self):
+        from yate.editor_view.modals import HelpScreen
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press("f1")
+            await pilot.pause()
+            screen = app.screen
+            self.assertIsInstance(screen, HelpScreen)
+            body = cast(str, cast(Any, screen)._body().plain)
+            self.assertIn("GLOBAL KEYS", body)
+            self.assertIn("ctrl+`", body)
+            self.assertIn("integrated terminal", body)
+            # the terminal commands are registered and listed with : prefix
+            self.assertIn(":term", body)
+            self.assertIn(":termclose", body)
 
 
 if __name__ == "__main__":

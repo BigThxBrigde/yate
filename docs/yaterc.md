@@ -47,7 +47,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `tab_width` | `int` | `4` | `1`–`16` 的整数 | Tab 键插入的空格数，也是 Tab 的显示宽度；`True`/`False` 等非整数被拒绝 |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 插入空格；`False` 时插入真实制表符 |
 | `extensions` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 额外扩展脚本路径，见[下文](#扩展路径extensions)；多个 rc 文件**累加**而非覆盖 |
-| `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`Ctrl+`` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
+| `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 
 非法取值不会中断加载：对应选项保持默认，错误信息出现在启动消息栏。

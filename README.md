@@ -17,7 +17,7 @@
   `Alt+Shift+P` 命令面板
 - **欢迎页**：空 buffer 启动时显示版本、键位提示
 - **搜索**：`Ctrl+F` 文件内查找
-- **集成终端**：`Ctrl+`` 切换底部终端面板（VS Code 风格布局），经 PTY 运行真实
+- **集成终端**：`` Ctrl+` `` 切换底部终端面板（VS Code 风格布局），经 PTY 运行真实
   Shell（Windows ConPTY / POSIX pty）；`:term` / `:termclose`、Shell 可在 yaterc
   的 `shell` 选项配置，面板高度用 `terminal_height`（默认 12 行）
 - **yaterc 配置**：Python 语法配置文件（vimrc 风格），支持用户级/项目级/`-u` 三级加载
@@ -73,7 +73,7 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |
 | `Ctrl+B` | 显示/隐藏文件树（`:explorer` 同效） |
-| `Ctrl+`` | 显示/隐藏底部集成终端（`:term` / `:termclose`） |
+| `` Ctrl+` `` | 显示/隐藏底部集成终端（`:term` / `:termclose`） |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `Ctrl+Space` | 触发 LSP 自动补全（输入时也会自动弹出，`Tab`/`Enter` 接受） |
