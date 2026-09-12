@@ -1,0 +1,55 @@
+# Gitee Go pipeline — run the full unittest suite automatically.
+#
+# 触发时机 / Triggers:
+#   - push to master（本地推送、分支合并、PR 合并）
+#   - 目标分支为 master 的 Pull Request（创建 / 更新）
+#
+# 前置条件 / Prerequisite:
+#   在仓库页面「流水线 / Gitee Go」中点一次「开通 Gitee Go」（有免费额度），
+#   开通后本文件即生效，无需其它配置。开通前此文件不会做任何事。
+#
+# 兼容性 / Compatibility:
+#   Gitee Go 的公共构建机只有 Linux；测试套件本身跨平台——Windows 专有断言
+#   自动 skip（见 tests/test_terminal.py 的 sys.platform 守卫），winreg 均为
+#   函数内延迟导入，Textual pilot 端到端测试在 headless 下运行；真实 LSP 子
+#   进程用例用 sys.executable 起一个 sleep 桩，不依赖 pylsp 可执行文件。
+#
+# 本地复现 CI 的等价命令 / Reproduce locally:
+#   python -m pip install -e .
+#   python -m unittest discover -s tests
+
+version: '1.0'
+
+name: yate-tests
+displayName: yate 单元测试
+
+triggers:
+  push:
+    branches:
+      precise:
+        - master
+  pr:
+    branches:
+      precise:
+        - master
+
+stages:
+  - stage:
+      name: test
+      displayName: 全量单元测试
+      # naturally: 不启用快速失败中断（单阶段单任务，保持默认语义）
+      strategy: naturally
+      trigger: auto
+      steps:
+        - step: build@python
+          name: unittest
+          displayName: 安装依赖并运行 unittest
+          # requires-python >= 3.10；Gitee Go 公共构建机上 3.11 是稳妥选择
+          pythonVersion: '3.11'
+          commands:
+            - python --version
+            - python -m pip install --upgrade pip
+            # 安装包本身（拉入 textual 等运行时依赖）；测试从仓库根目录运行
+            - pip install -e .
+            # Textual pilot 测试在无真实 TTY 的容器里需要一个非 dumb 的 TERM
+            - TERM=xterm-256color python -m unittest discover -s tests
