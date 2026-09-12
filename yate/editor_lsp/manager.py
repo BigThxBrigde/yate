@@ -321,10 +321,14 @@ class LspManager:
         client = self._clients.get(state.client_key)
         if client is None or client.state is not ServerState.READY:
             return
-        state.version += 1
-        state.last_synced = text
+        # Do NOT advance version/last_synced here: the server may be in the
+        # middle of processing a previous didChange, or the notification
+        # itself may fail.  We only advance after a successful notify so
+        # that a subsequent edit (which calls ``notify_edit`` again with
+        # the same text) won't short-circuit against a stale last_synced.
+        next_version = state.version + 1
         self._spawn_bg(
-            self._send_change(client, uri, state.version, text)
+            self._send_change(client, uri, state, next_version, text)
         )
 
     def _spawn_bg(self, coro: Awaitable[None]) -> None:
@@ -334,15 +338,27 @@ class LspManager:
         task.add_done_callback(self._bg_tasks.discard)
 
     async def _send_change(
-        self, client: LspClient, uri: str, version: int, text: str
+        self,
+        client: LspClient,
+        uri: str,
+        state: OpenDocState,
+        version: int,
+        text: str,
     ) -> None:
+        """Send a full-text didChange; advance state.version/last_synced only
+        after a successful notify so a failed call leaves ``last_synced``
+        stale and lets the next :meth:`notify_edit` retry naturally."""
         try:
             await client.notify("textDocument/didChange", {
                 "textDocument": {"uri": uri, "version": version},
                 "contentChanges": [{"text": text}],
             })
         except (LspError, OSError):
-            pass
+            return
+        # Re-check the document hasn't been closed while we awaited.
+        if self._open.get(uri) is state and not self._shutting_down:
+            state.version = version
+            state.last_synced = text
 
     async def notify_saved(self, doc: Document) -> None:
         state = self._open.get(self._uri(doc)) if doc.path is not None else None

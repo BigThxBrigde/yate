@@ -71,6 +71,67 @@ class ExtensionLoaderTests(unittest.TestCase):
             record = self._loader().load_file(script)
             self.assertIn("no setup(api)", record.error or "")
 
+    def test_teardown_hook_is_captured_and_called(self) -> None:
+        with TemporaryDirectory() as tmp:
+            script = Path(tmp) / "res.py"
+            script.write_text(
+                "calls = []\n"
+                "def setup(api):\n"
+                "    calls.append('setup')\n"
+                "def teardown(api):\n"
+                "    calls.append('teardown')\n",
+                encoding="utf-8",
+            )
+            loader = self._loader()
+            record = loader.load_file(script)
+            self.assertIsNone(record.error)
+            self.assertIsNotNone(record.teardown)
+            assert record.module is not None
+            self.assertEqual(record.module.calls, ["setup"])
+            loader.teardown_all()
+            self.assertEqual(record.module.calls, ["setup", "teardown"])
+
+    def test_teardown_error_does_not_block_other_extensions(self) -> None:
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "a_bad.py").write_text(
+                "def setup(api):\n"
+                "    pass\n"
+                "def teardown(api):\n"
+                "    raise RuntimeError('cleanup boom')\n",
+                encoding="utf-8",
+            )
+            (directory / "b_good.py").write_text(
+                "calls = []\n"
+                "def setup(api):\n"
+                "    pass\n"
+                "def teardown(api):\n"
+                "    calls.append('done')\n",
+                encoding="utf-8",
+            )
+            loader = self._loader()
+            loader.load_directory(directory)
+            loader.teardown_all()  # must not raise
+            good = next(r for r in loader.loaded if r.name == "b_good")
+            assert good.module is not None
+            self.assertEqual(good.module.calls, ["done"])
+
+    def test_teardown_skipped_when_setup_failed(self) -> None:
+        with TemporaryDirectory() as tmp:
+            script = Path(tmp) / "broken.py"
+            script.write_text(
+                "def setup(api):\n"
+                "    raise RuntimeError('boom')\n"
+                "def teardown(api):\n"
+                "    raise AssertionError('must not run')\n",
+                encoding="utf-8",
+            )
+            loader = self._loader()
+            record = loader.load_file(script)
+            self.assertIsNotNone(record.error)
+            self.assertIsNone(record.teardown)
+            loader.teardown_all()  # must not invoke the skipped hook
+
 
 if __name__ == "__main__":
     unittest.main()

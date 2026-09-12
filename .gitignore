@@ -29,6 +29,8 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
+# Project-owned PyInstaller specs live under pack/ — keep them tracked
+!pack/*.spec
 
 # Installer logs
 pip-log.txt

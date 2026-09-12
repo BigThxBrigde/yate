@@ -2161,6 +2161,10 @@ class YateApp(App[None]):
     async def on_unmount(self) -> None:
         # Each teardown is isolated: a failing terminal/LSP shutdown must not
         # leave the other background service (and its threads) untouched.
+        # Extension hooks run first (sync, while app state is still intact);
+        # they release resources the extension owns, e.g. spawned
+        # subprocesses or timers. teardown_all isolates per extension.
+        self.extension_loader.teardown_all()
         if self.terminal_panel is not None:
             try:
                 await self.terminal_panel.view.shutdown()

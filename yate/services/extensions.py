@@ -31,7 +31,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence, cast
 
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_view.highlight import (
@@ -239,6 +239,7 @@ class LoadedExtension:
     path: Path
     module: Optional[ModuleType] = None
     error: Optional[str] = None
+    teardown: Optional[Callable[[ExtensionAPI], None]] = None
 
 
 @dataclass
@@ -301,7 +302,36 @@ class ExtensionLoader:
                 raise AttributeError(f"{path.name} has no setup(api) function")
             setup(self.api)  # dynamic user module (narrowed via callable() above)
             record.module = module
+            # 动态边界：用户扩展模块的 teardown 钩子通过 getattr 获取，类型未知。
+            # 仅在 setup 成功后捕获——setup 失败的扩展未初始化任何资源，
+            # teardown_all() 不应调用它的 teardown。
+            hook: Any = getattr(module, "teardown", None)
+            if callable(hook):
+                # 动态边界收窄：callable(hook) 只能推出 (...)->object，
+                # 显式 cast 到文档约定的 teardown(api) 签名。
+                record.teardown = cast(
+                    Callable[[ExtensionAPI], None], hook
+                )
         except Exception as exc:  # extensions are user code - never crash the app
             record.error = f"{type(exc).__name__}: {exc}"
         self.loaded.append(record)
         return record
+
+    def teardown_all(self) -> None:
+        """Call the optional ``teardown(api)`` of every loaded extension.
+
+        Only extensions whose ``setup`` succeeded get their hook invoked.
+        Each teardown is isolated: a failing hook must not prevent the
+        remaining extensions (or the application shutdown itself) from
+        cleaning up, mirroring the error tolerance of ``load_file``.
+        """
+        for record in self.loaded:
+            if record.error is not None:
+                continue
+            teardown = record.teardown
+            if teardown is None:
+                continue
+            try:
+                teardown(self.api)  # dynamic user hook (captured post-setup)
+            except Exception:
+                pass
