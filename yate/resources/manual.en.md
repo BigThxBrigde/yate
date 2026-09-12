@@ -193,6 +193,14 @@ activated for input it shows a per-mode prefix:
 The input line keeps history: `↑` / `↓` cycles through it; `Esc` or `Ctrl+C`
 cancels. In find mode all matches highlight live as you type.
 
+**Feedback colors.** Every command outcome takes over the line: green means
+success (`:w`, `:set …`, `:term` …), yellow means a warning or a blocked
+action (`:q` with unsaved changes, unknown command, `:bn` with one tab), red
+means an error. Commands that open a full-screen overlay (`:manual`, `:help`,
+`:files`, `:palette`, `:diagnostics`, shell-command output) reset the line to
+its idle hint first, so a previous command's message never reappears, stale,
+when the overlay closes.
+
 ### 3.7 Command palette
 
 - `Alt+Shift+P` opens the **command palette**: lists every `:` command
@@ -548,8 +556,8 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:manual` | Open the user manual (`:manual zh` / `:manual en`, English by default) |
 | `:help` | Key reference overlay (same as `F1`) |
 | `:explorer` | Show / hide the file tree (same as `Ctrl+B`) |
-| `:term` | Show / focus the integrated terminal (alias `:terminal`, see section 13) |
-| `:termclose` | Hide the integrated terminal (the shell keeps running) |
+| `:term` | Show / focus the integrated terminal (alias `:terminal`, see section 13); the line confirms `terminal shown` |
+| `:termclose` | Hide the integrated terminal (the shell keeps running); confirms `terminal hidden`, warns if it was already hidden |
 | `:font` | Detect and (when needed) install the bundled Nerd Font, configure Windows Terminal |
 
 **Options and appearance (session only, never written back to yaterc)**

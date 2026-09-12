@@ -1564,6 +1564,109 @@ class GotoLineTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("not a line number", msg)
 
 
+class CommandFeedbackTests(unittest.IsolatedAsyncioTestCase):
+    """Bottom-line feedback after commands: explicit result or a clean line."""
+
+    @staticmethod
+    def _message_text(app: YateApp) -> str:
+        assert app.prompt_bar is not None
+        return plain_text(app.prompt_bar.message.content)
+
+    async def test_overlay_commands_clear_stale_message(self):
+        # The previous command's message used to outlive an overlay command
+        # (:manual/:help/:files/:palette): the overlay hides the line while
+        # open and the stale text reappeared on close, so success looked
+        # silent. Pushing an overlay resets the line to its idle hint.
+        for command, cls_name in (
+            ("manual", "ManualScreen"),
+            ("help", "HelpScreen"),
+            ("files", "PaletteScreen"),
+            ("palette", "PaletteScreen"),
+        ):
+            with self.subTest(command=command):
+                app = YateApp()
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.pause()
+                    app.message("stale note from before")
+                    app.run_command(command)
+                    await pilot.pause()
+                    self.assertEqual(type(app.screen).__name__, cls_name)
+                    self.assertNotIn(
+                        "stale note", self._message_text(app)
+                    )
+                    await pilot.press("escape")
+                    await pilot.pause()
+                    self.assertNotIn(
+                        "stale note", self._message_text(app)
+                    )
+
+    async def test_cycle_tab_with_one_tab_warns(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.run_command("bn")
+            await pilot.pause()
+            self.assertIn("only one tab", self._message_text(app))
+
+    async def test_set_terminal_height_reports_and_validates(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.run_command("set terminal_height=20")
+            await pilot.pause()
+            self.assertEqual(app.config.terminal_height, 20)
+            self.assertIn(
+                "terminal height: 20 rows", self._message_text(app)
+            )
+
+            app.run_command("set terminal_height=99")
+            await pilot.pause()
+            self.assertEqual(app.config.terminal_height, 20)  # rejected
+            self.assertIn("between 3 and 40", self._message_text(app))
+
+            app.run_command("set terminal_height=abc")
+            await pilot.pause()
+            self.assertIn("integer", self._message_text(app))
+
+    async def test_termclose_without_open_terminal_warns(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            self.assertFalse(cast(Any, app)._terminal_visible)
+            app.run_command("termclose")
+            await pilot.pause()
+            self.assertIn("already hidden", self._message_text(app))
+
+    async def test_term_commands_report_shown_and_hidden(self):
+        app = YateApp()
+        cast(Any, app)._terminal_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.terminal_panel
+            assert panel is not None
+            app.run_command("term")
+            await wait_until(pilot, lambda: panel.view.proc is not None)
+            self.assertIn("terminal shown", self._message_text(app))
+            app.run_command("termclose")
+            await pilot.pause()
+            self.assertFalse(panel.display)
+            self.assertIn("terminal hidden", self._message_text(app))
+
+    async def test_setting_commands_confirm_success(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.run_command("set keymap=vim")
+            await pilot.pause()
+            self.assertIn("keymap:", self._message_text(app))
+            app.run_command("set theme=latte")
+            await pilot.pause()
+            self.assertIn("theme:", self._message_text(app))
+            app.run_command("set filetype=python")
+            await pilot.pause()
+            self.assertIn("filetype set to", self._message_text(app))
+
+
 class BundledExtensionTests(unittest.IsolatedAsyncioTestCase):
     """The extensions shipped inside yate/ load from any working directory."""
 

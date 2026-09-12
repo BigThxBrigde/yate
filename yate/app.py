@@ -12,12 +12,13 @@ import asyncio
 import os
 import re
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
+from textual.screen import Screen
 from textual.widgets import Input, Static
 
 from yate import __version__
@@ -402,6 +403,7 @@ class YateApp(App[None]):
 
     def cycle_tab(self, delta: int) -> None:
         if len(self.docs) < 2:
+            self.message("only one tab open", kind="warn")
             return
         self.doc_index = (self.doc_index + delta) % len(self.docs)
         self.search = SearchEngine()
@@ -461,7 +463,7 @@ class YateApp(App[None]):
             self.message(f"unknown keymap: {name} (vsc|vim)", kind="error")
             return
         self.keymap_name = name
-        self.message(f"keymap: {self.active_keymap.label}")
+        self.message(f"keymap: {self.active_keymap.label}", kind="ok")
         self.ui_refresh()
 
     def toggle_keymap(self) -> None:
@@ -482,7 +484,7 @@ class YateApp(App[None]):
             )
             return
         self.apply_theme()
-        self.message(f"theme: {selected.label}")
+        self.message(f"theme: {selected.label}", kind="ok")
 
     def apply_theme(self) -> None:
         """Push the active theme onto every widget and force a repaint."""
@@ -516,7 +518,7 @@ class YateApp(App[None]):
         raw = value.strip().lower().lstrip(".")
         if not raw or raw == "auto":
             doc.filetype_override = None
-            self.message(f"filetype reset to {doc.filetype} (auto from path)")
+            self.message(f"filetype reset to {doc.filetype} (auto from path)", kind="ok")
         else:
             resolved = highlight.resolve_filetype(raw)
             if resolved is None:
@@ -529,7 +531,7 @@ class YateApp(App[None]):
             else:
                 doc.filetype_override = resolved
                 label = highlight.language_name(resolved) or resolved
-                self.message(f"filetype set to {resolved} ({label})")
+                self.message(f"filetype set to {resolved} ({label})", kind="ok")
         # Rebind the LSP document (close on the old server, open on the new)
         # and force a repaint so highlighting and the status bar update.
         self.run_worker(
@@ -1152,7 +1154,7 @@ class YateApp(App[None]):
             f"(cwd: {cwd} · {shell_name()})\n\n"
             f"{result.output or '(no output)'}"
         )
-        self.push_screen(OutputScreen(self, f"$ {command}", body, result.returncode))
+        self._push_overlay(OutputScreen(self, f"$ {command}", body, result.returncode))
 
     # ================================================================== lsp
 
@@ -1410,14 +1412,30 @@ class YateApp(App[None]):
         ]
         errors, warnings = self.lsp.counts_for(self.doc)
         title = f"diagnostics — {errors} error(s), {warnings} warning(s)"
-        self.push_screen(OutputScreen(self, title, "\n".join(lines), 0))
+        self._push_overlay(OutputScreen(self, title, "\n".join(lines), 0))
 
     # ================================================================ modals
+
+    def _push_overlay(
+        self,
+        screen: Screen[Any],
+        callback: Optional[Callable[[Any], None]] = None,
+    ) -> None:
+        """Push a full-screen overlay, clearing the stale bottom message first.
+
+        The prompt/message line is hidden behind the overlay while it is up,
+        so reset it to the idle hint now; otherwise the previous command's
+        message (e.g. "saved …") would reappear, untouched, once the overlay
+        closes -- looking like the overlay command itself had no feedback.
+        """
+        if self.prompt_bar is not None:
+            self.prompt_bar.idle()
+        self.push_screen(screen, callback=callback)
 
     def show_help(self) -> None:
         """Open the keybinding reference overlay."""
         if self.mounted:
-            self.push_screen(HelpScreen(self))
+            self._push_overlay(HelpScreen(self))
 
     def show_manual(self, lang: str = "en") -> None:
         """Open the bundled user manual, rendered as read-only markdown."""
@@ -1428,8 +1446,9 @@ class YateApp(App[None]):
         # screen resume leaves an unthemed flash while markdown mounts)
         self._prev_manual_theme = self.theme
         self.theme = "catppuccin-mocha"
-        self.push_screen(
-            ManualScreen(self, lang), callback=lambda _result: self._restore_manual_theme()
+        self._push_overlay(
+            ManualScreen(self, lang),
+            callback=lambda _result: self._restore_manual_theme(),
         )
 
     def _restore_manual_theme(self) -> None:
@@ -1440,12 +1459,12 @@ class YateApp(App[None]):
     def open_file_palette(self) -> None:
         """Quick file open: fuzzy palette over the workspace files (ctrl+p)."""
         if self.mounted:
-            self.push_screen(PaletteScreen(self, "files"))
+            self._push_overlay(PaletteScreen(self, "files"))
 
     def open_command_palette(self) -> None:
         """Command palette: fuzzy search over ``:`` commands (alt+shift+p)."""
         if self.mounted:
-            self.push_screen(PaletteScreen(self, "commands"))
+            self._push_overlay(PaletteScreen(self, "commands"))
 
     async def action_quit(self) -> None:
         """Textual's ctrl+q priority binding — route through our guard."""
@@ -1510,7 +1529,8 @@ class YateApp(App[None]):
                 self.config.shell = value
                 self.message(
                     "shell set; the new value applies to the next terminal "
-                    "(restart it with any key after exit)"
+                    "(restart it with any key after exit)",
+                    kind="ok",
                 )
             elif key == "terminal_height":
                 try:
@@ -1526,6 +1546,7 @@ class YateApp(App[None]):
                 self.config.terminal_height = height
                 if self.terminal_panel is not None and self._terminal_visible:
                     self.terminal_panel.styles.height = height
+                self.message(f"terminal height: {height} rows", kind="ok")
             else:
                 self.message(f"unknown option: {key}", kind="warn")
 
@@ -1603,22 +1624,27 @@ class YateApp(App[None]):
         panel = self.terminal_panel
         if panel is None:
             return
-        if not self._terminal_visible:
+        was_hidden = not self._terminal_visible
+        if was_hidden:
             panel.styles.height = self.config.terminal_height
             panel.display = True
             self._terminal_visible = True
         panel.view.focus()
         if not panel.view.started:
             self._spawn_terminal()
+        if was_hidden:
+            self.message("terminal shown", kind="ok")
 
     def close_terminal(self) -> None:
         """Hide the panel; the shell process itself stays alive."""
         panel = self.terminal_panel
         if panel is None or not self._terminal_visible:
+            self.message("terminal already hidden", kind="warn")
             return
         panel.display = False
         self._terminal_visible = False
         self.focus_editor()
+        self.message("terminal hidden", kind="ok")
 
     def _spawn_terminal(self) -> None:
         if self._terminal_starting:
