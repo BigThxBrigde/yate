@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -928,6 +929,12 @@ class YateApp(App[None]):
 
         if mode == "command":
             self.run_command(text)
+        elif mode == "goto":
+            text = text.strip()
+            if re.fullmatch(r"[+-]?\d+", text):
+                self.goto_line_command(text)
+            elif text:
+                self.message(f"not a line number: {text!r}", kind="warn")
         elif mode in ("find", "find_back"):
             self._submit_search(text, mode == "find")
         elif mode == "shell":
@@ -1658,6 +1665,11 @@ class YateApp(App[None]):
         if text.startswith("!"):
             self.run_shell_command_later(text[1:])
             return
+        # A bare number is a line jump (vim's :42, same as VS Code's
+        # Ctrl+G -> go to line). An optional sign makes it relative: :+5.
+        if re.fullmatch(r"[+-]?\d+", text):
+            self.goto_line_command(text)
+            return
         parts = text.split()
         name, args = parts[0], " ".join(parts[1:])
         entry = self.commands.get(name)
@@ -1665,6 +1677,42 @@ class YateApp(App[None]):
             self.message(f"not an editor command: {name} (try :help)", kind="warn")
             return
         entry[0](args)
+
+    def goto_line_command(self, text: str) -> None:
+        """Jump to an absolute (``42``) or signed-relative (``+5``) line."""
+        value = int(text)
+        buf = self.buffer
+        if text[:1] in ("+", "-"):
+            target = buf.row + 1 + value  # 1-based current row + offset
+        else:
+            target = value
+        self.goto_line(target)
+
+    def goto_line(self, line: int) -> None:
+        """Move the cursor to 1-based *line*, clamped to the document.
+
+        The column is preserved (clamped to the destination line), matching
+        VS Code's Go to Line; the selection is cleared and the view follows.
+        """
+        buf = self.buffer
+        row = max(0, min(line - 1, buf.line_count - 1))
+        col = min(buf.col, len(buf.lines[row]))
+        buf.anchor = None
+        buf.set_cursor((row, col))
+        self.search.update("", buf)
+        if self.editor_view is not None:
+            self.editor_view.scroll_col = 0
+            self.editor_view.reveal_cursor()
+        self.message(f"line {row + 1} of {buf.line_count}")
+        self.ui_refresh()
+
+    def goto_prompt(self) -> None:
+        """Open the command line in go-to-line mode (Ctrl+G)."""
+        if self.prompt_bar is None:
+            return
+        self.prompt_bar.activate(
+            "goto", placeholder=f"line number (1-{self.buffer.line_count})"
+        )
 
     # ================================================================== quit
 

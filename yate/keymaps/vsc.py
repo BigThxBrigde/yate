@@ -61,6 +61,7 @@ class VscKeymap(Keymap):
             _raw("\x1b[1;5F", "doc_end", "Go to document end", NAV),
             _k("<pageup>", "page_up", "Page up", NAV),
             _k("<pagedown>", "page_down", "Page down", NAV),
+            _k("<ctrl-g>", "goto_prompt", "Go to line (or type :42)", NAV),
             # ---- selection
             _raw("\x1b[1;2D", "select_left", "Select left", SEL),
             _raw("\x1b[1;2C", "select_right", "Select right", SEL),

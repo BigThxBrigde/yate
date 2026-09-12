@@ -267,6 +267,7 @@ yate 内置两套键位：
 | `End` | 行尾 |
 | `Ctrl+Home` / `Ctrl+End` | 文档开头 / 文档结尾 |
 | `PageUp` / `PageDown` | 翻页 |
+| `Ctrl+G` | 跳转到行：输入行号回车（也可在命令行直接输 `:42`，`:+5` 相对跳转） |
 
 **选择（Selection）**
 
@@ -356,6 +357,7 @@ yate 内置两套键位：
 | `$` | 行尾 |
 | `gg` | 文档开头；`gg` 前加数字跳转到指定行（如 `5gg`） |
 | `G` | 文档结尾；前加数字同样跳转到指定行 |
+| `Ctrl+G` | 打开行跳转输入行，输入行号回车（等价 `:42`） |
 | `Ctrl+D` / `Ctrl+U` | 下移 / 上移半页 |
 | `Ctrl+F` / `Ctrl+B` | 下翻 / 上翻一页 |
 
@@ -477,6 +479,10 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 可跟参数，以空格分隔。`Esc` / `Ctrl+C` 取消，`↑` / `↓` 翻阅历史。未知命令提示
 `not an editor command: … (try :help)`。
 
+**行跳转。** 命令行中直接输入数字并回车即跳转到该行（`:42`，与 VS Code 的
+`Ctrl+G` 等效；`Ctrl+G` 在两种键位下都可直接打开行跳转输入行）。行号超出
+范围时跳到首行或末行；带正负号为相对跳转，`:+5` 向下 5 行、`:-2` 向上 2 行。
+
 **Tab 补全。** 按 `Tab` 以 bash 风格补全已输入的文本：先补全命令名；
 命令名后接空格时，`Tab` 补全参数——`:e`/`:edit` 补文件路径，
 `:theme`/`:colorscheme` 补主题名，`:set` 补选项键与值，
@@ -498,6 +504,7 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 | `:bn` | `:bnext` | 下一个 buffer / 标签 |
 | `:bp` | `:bprev` | 上一个 buffer / 标签 |
 | `:bd` | — | 关闭当前 buffer / 标签 |
+| `:42` | — | 跳转到第 42 行（命令行直接输入数字即行跳转，等价 `Ctrl+G`）；`:+3`/`:-2` 为相对当前行跳转 |
 
 **界面与工具**
 
@@ -1049,6 +1056,7 @@ vsc 键位（默认）：
 | `Alt+↑` / `Alt+↓` | 移动行 | `Ctrl+PageUp`/`PageDown` | 切换标签 |
 | `Ctrl+]` / `Shift+Tab` | 缩进 / 反缩进 | `F1` | 键位帮助 |
 | `Ctrl+J` | 合并行 | `F8` | 用户手册 |
+| `Ctrl+G` | 跳转到行（或 `:42`） | `Ctrl+Home/End` | 文档开头 / 结尾 |
 | `Ctrl+Space` | 触发自动补全 | 面板 `diagnostics` | 列出 LSP 诊断 |
 | `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 
@@ -1069,10 +1077,11 @@ vim 键位：
 | `v` / `V` | 可视 / 行可视 | `u` / `Ctrl+R` | 撤销 / 重做 |
 | `/` / `?` | 向下 / 向上查找 | `J` | 合并行 |
 | `n` / `N` | 下 / 上一个匹配 | 数字前缀 | 计数（如 `3j`、`2dd`） |
-| `:` | ex 命令行 | `Ctrl+W` / `Ctrl+U`（插入模式） | 删词 / 删到行首 |
-| `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
+| `:` | ex 命令行（`:42` 跳行） | `Ctrl+W` / `Ctrl+U`（插入模式） | 删词 / 删到行首 |
+| `Ctrl+G` | 跳转到行 | `` Ctrl+` `` | 切换集成终端 |
+| `Shift+PageUp/PageDown` | 终端回滚 | | |
 
-命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:bn` `:bp` `:bd`
+命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 

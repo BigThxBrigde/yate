@@ -281,6 +281,7 @@ keymap, grouped by category, plus all `:` commands.
 | `End` | Line end |
 | `Ctrl+Home` / `Ctrl+End` | Document start / end |
 | `PageUp` / `PageDown` | Page up / down |
+| `Ctrl+G` | Go to line: type a line number and press Enter (or just run `:42`; `:+5` is relative) |
 
 **Selection**
 
@@ -372,6 +373,7 @@ e.g. `3j`, `2dd`, `5w`.
 | `$` | Line end |
 | `gg` | Document start; prefix a number to jump to a line (e.g. `5gg`) |
 | `G` | Document end; a numeric prefix jumps to that line |
+| `Ctrl+G` | Open the go-to-line prompt, type a line number and press Enter (same as `:42`) |
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Page down / up |
 
@@ -506,6 +508,12 @@ arguments separated by spaces. `Esc` / `Ctrl+C` cancels; `↑` / `↓` cycles
 history. Unknown commands report
 `not an editor command: … (try :help)`.
 
+**Go to line.** Typing just a number and pressing Enter jumps to that line
+(`:42`, equivalent to VS Code's `Ctrl+G`; `Ctrl+G` opens the same go-to-line
+prompt in both keymaps). Numbers outside the document clamp to the first or
+last line; a leading sign makes the jump relative — `:+5` moves five lines
+down, `:-2` two lines up.
+
 **Tab completion.** Press `Tab` to complete the typed text (bash-style):
 command names are completed first; once a command is followed by a space,
 `Tab` completes its argument — filesystem paths for `:e`/`:edit`, theme
@@ -529,6 +537,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:bn` | `:bnext` | Next buffer / tab |
 | `:bp` | `:bprev` | Previous buffer / tab |
 | `:bd` | — | Close the current buffer / tab |
+| `:42` | — | Jump to line 42 (any bare number in the command line is a line jump, same as `Ctrl+G`); `:+3`/`:-2` jump relative to the current line |
 
 **Interface and tools**
 
@@ -1151,6 +1160,7 @@ vsc keymap (default):
 | `Alt+↑` / `Alt+↓` | Move line | `Ctrl+PageUp`/`PageDown` | Switch tab |
 | `Ctrl+]` / `Shift+Tab` | Indent / dedent | `F1` | Key help |
 | `Ctrl+J` | Join lines | `F8` | User manual |
+| `Ctrl+G` | Go to line (or `:42`) | `Ctrl+Home/End` | Document start / end |
 | `Ctrl+Space` | Trigger autocomplete | palette `diagnostics` | List LSP diagnostics |
 | `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 
@@ -1171,10 +1181,11 @@ vim keymap:
 | `v` / `V` | Visual / line visual | `u` / `Ctrl+R` | Undo / redo |
 | `/` / `?` | Find down / up | `J` | Join lines |
 | `n` / `N` | Next / previous match | numeric prefix | Count (e.g. `3j`, `2dd`) |
-| `:` | ex command line | `Ctrl+W` / `Ctrl+U` (insert mode) | Delete word / to line start |
-| `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
+| `:` | ex command line (`:42` jumps to a line) | `Ctrl+W` / `Ctrl+U` (insert mode) | Delete word / to line start |
+| `Ctrl+G` | Go to line | `` Ctrl+` `` | Toggle integrated terminal |
+| `Shift+PageUp/PageDown` | Terminal scrollback | | |
 
-Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:bn` `:bp` `:bd`
+Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 

@@ -154,6 +154,7 @@ def populate(registry: ActionRegistry) -> None:
     # ---------------------------------------------------------------- view
 
     reg("command_prompt", lambda ctx: ctx.app.command_prompt(), "Ex command prompt")
+    reg("goto_prompt", lambda ctx: ctx.app.goto_prompt(), "Go to line (enter a line number)")
     reg("quick_open", lambda ctx: ctx.app.open_file_palette(), "Quick file open")
     reg("command_palette", lambda ctx: ctx.app.open_command_palette(), "Command palette")
     reg("focus_explorer", lambda ctx: ctx.app.focus_explorer(), "Focus explorer")

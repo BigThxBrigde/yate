@@ -1464,6 +1464,106 @@ class FiletypeCommandTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
 
+class GotoLineTests(unittest.IsolatedAsyncioTestCase):
+    """Bare-number command line input (vim :42 / VS Code Ctrl+G)."""
+
+    @staticmethod
+    def _seed(app: YateApp, lines: int = 6) -> None:
+        app.buffer.set_text("\n".join(f"line {i + 1}" for i in range(lines)))
+        app.buffer.set_cursor((0, 0))
+
+    async def test_bare_number_jumps_to_line(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            self._seed(app)
+            app.run_command("4")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 3)  # 1-based input -> 0-based row
+            self.assertIsNone(app.buffer.anchor)
+
+    async def test_line_number_is_clamped(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            self._seed(app)
+            app.run_command("999")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 5)
+            app.run_command("0")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 0)
+
+    async def test_signed_numbers_are_relative(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            self._seed(app)
+            app.buffer.set_cursor((0, 0))
+            app.run_command("+2")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 2)
+            app.run_command("-1")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 1)
+
+    async def test_non_numeric_unknown_command_still_warns(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            self._seed(app)
+            app.run_command("12abc")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 0)  # did not jump
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            msg = "".join(
+                seg.text for seg in prompt_bar.message.render_line(0)
+            )
+            self.assertIn("not an editor command", msg)
+
+    async def test_ctrl_g_opens_goto_prompt_in_vsc_keymap(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            self._seed(app)
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            await pilot.press("ctrl+g")
+            await pilot.pause()
+            self.assertEqual(prompt_bar.active_mode, "goto")
+            await pilot.press("2", "enter")
+            await pilot.pause()
+            self.assertIsNone(prompt_bar.active_mode)
+            self.assertEqual(app.buffer.row, 1)
+            self.assertIs(app.focused, app.editor_view)
+
+    async def test_ctrl_g_opens_goto_prompt_in_vim_normal_mode(self):
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            self._seed(app)
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            await pilot.press("ctrl+g")
+            await pilot.pause()
+            self.assertEqual(prompt_bar.active_mode, "goto")
+            await pilot.press("5", "enter")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 4)
+
+    async def test_goto_prompt_rejects_non_numeric(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            self._seed(app)
+            app.goto_prompt()
+            await pilot.pause()
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            prompt_bar.input.value = "abc"
+            await pilot.press("enter")
+            await pilot.pause()
+            self.assertEqual(app.buffer.row, 0)
+            msg = "".join(
+                seg.text for seg in prompt_bar.message.render_line(0)
+            )
+            self.assertIn("not a line number", msg)
+
+
 class LspUiTests(unittest.IsolatedAsyncioTestCase):
     """Completion popup + diagnostic rendering with an injected fake LSP."""
 

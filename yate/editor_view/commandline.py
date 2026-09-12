@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 # prompt prefixes per mode: (prefix, Theme attribute name for the color)
 PREFIXES = {
     "command": (":", "yellow"),
+    "goto": (":", "yellow"),
     "find": (SEARCH, "accent"),
     "find_back": ("?", "accent"),
     "replace_find": ("Replace:", "accent2"),

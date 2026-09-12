@@ -66,6 +66,7 @@ class VimKeymap(Keymap):
             KeyBinding("$", "line end", "Line end", NAV),
             KeyBinding("gg", "doc start", "Document start", NAV),
             KeyBinding("G", "doc end", "Document end / jump to [count]", NAV),
+            KeyBinding(parse_key("<ctrl-g>"), "go to line", "Go to line (enter line number)", NAV),
             KeyBinding(parse_key("<ctrl-d>"), "half page down", "Half page down", NAV),
             KeyBinding(parse_key("<ctrl-u>"), "half page up", "Half page up", NAV),
             KeyBinding(parse_key("<ctrl-f>"), "page down", "Page down", NAV),
@@ -240,6 +241,12 @@ class VimKeymap(Keymap):
         if key == "\x1b":
             self.pending = ""
             self.count_str = ""
+            return True
+
+        if key == "\x07":  # ctrl-g: go to line (same as typing :42)
+            self.pending = ""
+            self.count_str = ""
+            app.goto_prompt()
             return True
 
         if key.isdigit() and not (key == "0" and not self.count_str):

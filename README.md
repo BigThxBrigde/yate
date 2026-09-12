@@ -85,6 +85,7 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | `Ctrl+Q` | 退出（有未保存修改时拦截） |
 | `Ctrl+S` | 保存 |
 | `Ctrl+F` | 文件内查找 |
+| `Ctrl+G` | 跳转到行（命令行直接输 `:42` 等效，`:+5` 相对跳转） |
 | `Ctrl+B` | 显示/隐藏文件树（命令面板 `explorer` 同效） |
 | `` Ctrl+` `` | 显示/隐藏底部集成终端（命令面板 `term` / `termclose`） |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
