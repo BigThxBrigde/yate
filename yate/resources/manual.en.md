@@ -537,6 +537,7 @@ the same file in two panes never interferes with itself.
 | `:split [path]` | `:sp` | Horizontal split (two panes stacked); no argument opens the current document in the new pane |
 | `:vsplit [path]` | `:vs` | Vertical split (two panes side by side); no argument opens the current document in the new pane |
 | `:only` | — | Keep only the active pane, close the rest (documents stay open as tabs / hidden buffers) |
+| `:close` | `:cl` | Close the active pane (no-op on the last one; use `:q` to quit; same as `Ctrl+W q`) |
 
 - With a path, that file opens in the new pane; relative paths resolve against
   the current document's directory first, then the working directory; a
@@ -578,6 +579,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:split [path]` | `:sp` | Horizontal split; no argument clones the current document (see 8.1) |
 | `:vsplit [path]` | `:vs` | Vertical split; no argument clones the current document (see 8.1) |
 | `:only` | — | Keep only the active pane |
+| `:close` | `:cl` | Close the active pane (no-op on the last pane) |
 | `:enew` | — | New empty buffer (also dismisses the welcome page for this session) |
 | `:welcome` | — | Show the welcome page again (on an empty unnamed buffer) |
 | `:bn` | `:bnext` | Next buffer / tab |
@@ -917,6 +919,10 @@ on macOS / Linux it is the POSIX `pty` device.
 
 - `` Ctrl+` `` toggles the panel (grave accent, the key above Tab). Opening it
   focuses the terminal; hiding it returns focus to the editor.
+- On **Windows conhost / legacy xterm**, `` Ctrl+` `` and `Ctrl+Space` are the
+  same NUL byte. In the editor that byte always means `Ctrl+Space` (manual
+  completion) and never opens the terminal; while the terminal is open it
+  still closes it. Use `:term` or the command palette to open a terminal.
 - Hiding does **not** kill the shell: the process keeps running, exactly like
   VS Code, and toggling again brings the same session back.
 - `:term` (alias `:terminal`) shows and focuses the panel; `:termclose` hides

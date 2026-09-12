@@ -874,7 +874,10 @@ class YateApp(App[None]):
         """Fallback routing: keys not consumed by a focused widget."""
         if len(self.screen_stack) > 1:
             return  # modal screen owns input
-        if event.key in TOGGLE_KEYS:
+        if event.key in TOGGLE_KEYS and event.key != "ctrl+@":
+            # ctrl+@ is excluded: on Windows conhost it is also the byte for
+            # Ctrl+Space, which must not open the terminal (it still closes
+            # it when the terminal itself is focused, via terminal.py)
             event.stop()
             event.prevent_default()
             self.toggle_terminal()
@@ -1704,6 +1707,9 @@ class YateApp(App[None]):
         reg("vs", _vsplit, "alias for :vsplit")
         reg("only", lambda args: self._only_pane(),
             "close every other pane, keep the active one")
+        reg("close", lambda args: self._close_pane(),
+            "close the active pane (no-op on the last one; use :q to quit)")
+        reg("cl", lambda args: self._close_pane(), "alias for :close")
 
         def _edit(args: str) -> None:
             args = args.strip()

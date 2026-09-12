@@ -38,9 +38,10 @@ if TYPE_CHECKING:
 #:   is named "grave_accent");
 #: - "ctrl+@": Windows conhost and legacy xterm -- Ctrl+grave translates
 #:   to the NUL byte there (ToUnicodeEx yields no character), which
-#:   Textual names ctrl+@. Without this alias the panel could never be
-#:   closed from the keyboard on a real Windows terminal (ctrl+space is
-#:   the same byte there and also toggles).
+#:   Textual names ctrl+@. Kept so the panel can be CLOSED from the
+#:   keyboard while it is focused. The NUL byte is the same one
+#:   Ctrl+Space sends there, so elsewhere (editor/app) ctrl+@ never
+#:   opens the panel -- Ctrl+Space means manual completion instead.
 TOGGLE_KEYS = frozenset({
     "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
 })

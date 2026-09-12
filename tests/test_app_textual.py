@@ -1007,6 +1007,7 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
     async def test_manual_search_filters_and_cycles_matches(self):
         from textual.containers import Horizontal
         from textual.widgets import Input, Markdown, Static
+        from yate.editor_view.manual import _widget_plain_text
 
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
@@ -1019,12 +1020,26 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             field = screen.query_one("#manual-search-input", Input)
             status = screen.query_one("#manual-search-status", Static)
             md = screen.query_one("#manual-md", Markdown)
+
+            def footer_text() -> str:
+                return _widget_plain_text(
+                    screen.query_one("#manual-footer", Static)
+                )
+
             self.assertFalse(bar.display)
+            # bar hidden: footer advertises n/N to repeat a search
+            self.assertIn("n/N", footer_text())
             # ctrl+f reveals the search bar and focuses it
             await pilot.press("ctrl+f")
             await pilot.pause()
             self.assertTrue(bar.display)
             self.assertIs(screen.focused, field)
+            # bar open: footer must advertise Enter / Shift+Enter (typing
+            # n/N there are search characters, not navigation)
+            search_footer = footer_text()
+            self.assertIn("enter", search_footer.lower())
+            self.assertIn("shift+enter", search_footer.lower())
+            self.assertNotIn("repeat last match", search_footer)
             # typing live-marks every block containing the query
             await pilot.press("y", "a", "t", "e")
             await pilot.pause()
@@ -1047,6 +1062,9 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertFalse(bar.display)
             self.assertIsInstance(app.screen, ManualScreen)
+            # footer switches back to the browse hints (n/N repeat)
+            self.assertIn("n/N", footer_text())
+            self.assertIn("repeat last match", footer_text())
             # …and n/N repeat the last search with highlights still present
             await pilot.press("n")
             await pilot.pause()
@@ -1058,6 +1076,60 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("escape")
             await pilot.pause()
             self.assertNotIsInstance(app.screen, ManualScreen)
+
+    async def test_manual_search_step_lands_on_exact_rendered_row(self):
+        """Regression: n/N stepped the counter but did not scroll when
+        several matches lived in one wrapped widget (scroll was widget
+        level); table cells were not searchable at all."""
+        from textual.containers import VerticalScroll
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("f8")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, ManualScreen)
+            md = screen.query_one("Markdown")
+            await wait_until(
+                pilot, lambda: len(list(md.walk_children())) > 20
+            )
+            private = cast(Any, screen)
+            scroll = screen.query_one("#manual-scroll", VerticalScroll)
+
+            # table cell content is now searched too
+            private._run_search("item")
+            self.assertTrue(private._hits)
+            widget_types = {type(w).__name__ for w, _r, _c, _l in private._hits}
+            self.assertIn("MarkdownTableCellContents", widget_types)
+
+            # matches inside one wrapped widget must land on distinct rows:
+            # measure each target from the same baseline (top), so the row
+            # offset is the only thing that differs
+            private._run_search("ctrl")
+            self.assertGreater(len(private._hits), 10)
+            moved = 0
+            for i in range(1, len(private._hits)):
+                w0, r0, _c0, _l0 = private._hits[i - 1]
+                w1, r1, _c1, _l1 = private._hits[i]
+                if w0 is w1 and r0 != r1:
+                    scroll.scroll_to(y=0, animate=False, immediate=True)
+                    private._hit_index = i - 1
+                    private._goto_current_hit()
+                    y0 = float(scroll.scroll_target_y)
+                    scroll.scroll_to(y=0, animate=False, immediate=True)
+                    private._hit_index = i
+                    private._goto_current_hit()
+                    y1 = float(scroll.scroll_target_y)
+                    if y0 == y1 == float(scroll.max_scroll_y):
+                        continue  # bottom clamp: both rows already visible
+                    self.assertNotEqual(
+                        y0, y1,
+                        f"same-widget rows {r0}/{r1} share a scroll target",
+                    )
+                    self.assertAlmostEqual(y1 - y0, r1 - r0, delta=1)
+                    moved += 1
+            self.assertGreater(moved, 0)
 
     async def test_manual_search_no_matches_then_slash_reopens(self):
         from textual.containers import Horizontal
@@ -2373,8 +2445,20 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn(b"\x00", b"".join(proc.sent))
                 self.assertIs(app.focused, app.editor_view)
 
-                # same name reopens it now that the editor has focus
-                await pilot.press(close_key)
+                # same name reopens it now that the editor has focus.
+                # ctrl+@ is also the NUL byte Ctrl+Space sends on Windows
+                # conhost, so from the editor it means manual completion
+                # and must not reopen the terminal -- the unambiguous
+                # grave-accent name reopens it instead.
+                if close_key == "ctrl+@":
+                    await pilot.press("ctrl+@")
+                    for _ in range(3):
+                        await pilot.pause()
+                    self.assertFalse(panel.display)
+                    self.assertFalse(cast(Any, app)._terminal_visible)
+                    await pilot.press("ctrl+grave_accent")
+                else:
+                    await pilot.press(close_key)
                 await wait_until(
                     pilot, lambda: cast(Any, app)._terminal_visible)
                 self.assertTrue(panel.display, close_key)
@@ -2432,6 +2516,29 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
         self.bravo = root / "bravo.txt"
         self.alpha.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
         self.bravo.write_text("bravo one\nbravo two\n", encoding="utf-8")
+
+    async def test_close_command_closes_active_pane(self) -> None:
+        """:close / :cl close the active pane; on the last pane they warn
+        instead of quitting (use :q for that)."""
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            app.run_command("sp")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            app.run_command("close")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 1)
+            )
+            # the last pane is never closed by :close
+            app.run_command("cl")
+            await pilot.pause()
+            self.assertEqual(panes.leaf_count, 1)
+            self.assertTrue(app.is_running)
 
     async def test_pane_regions_stay_visible_after_split(self) -> None:
         """Regression: sizes set before mount resolved against an unknown
@@ -2700,6 +2807,81 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
             active_path = app.doc.path
             assert active_path is not None
             self.assertEqual(active_path.name, "alpha.txt")
+
+
+class WideCharRenderTests(unittest.IsolatedAsyncioTestCase):
+    """Regression: wide CJK glyphs must not get a blank cell after them."""
+
+    async def test_cjk_line_renders_without_extra_gaps(self) -> None:
+        from rich.cells import cell_len
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "zh.txt"
+            path.write_text("配置顺序 abc 加载\n", encoding="utf-8")
+            app = YateApp(target=path)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                view = app.editor_view
+                assert view is not None
+                strip = view.render_line(0)
+                segs = getattr(strip, "_segments", None)
+                assert segs is not None
+                texts = [s.text for s in segs]
+                joined = "".join(texts)
+                # glyphs stay adjacent -- no inserted spaces between them
+                self.assertIn("配置顺序", joined)
+                self.assertIn("加载", joined)
+                # the strip exactly fills the editor width (glyph 2 cells
+                # plus placeholder 0, not glyph 2 plus an extra blank)
+                self.assertEqual(
+                    sum(cell_len(t) for t in texts), view.size.width
+                )
+
+    async def test_horizontal_scroll_clips_wide_glyph_with_blank(self) -> None:
+        from rich.cells import cell_len
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "zh.txt"
+            path.write_text("配置x\n", encoding="utf-8")
+            app = YateApp(target=path)
+            async with app.run_test(size=(60, 20)) as pilot:
+                await pilot.pause()
+                view = app.editor_view
+                assert view is not None
+                view.scroll_col = 1  # second cell of the first glyph
+                await pilot.pause()
+                strip = view.render_line(0)
+                segs = getattr(strip, "_segments", None)
+                assert segs is not None
+                joined = "".join(s.text for s in segs)
+                # the clipped half is replaced by a blank (first glyph
+                # gone), the following glyph is not pulled left; strip
+                # still fills the width
+                self.assertNotIn("配", joined)
+                self.assertIn("置", joined)
+                self.assertEqual(
+                    sum(cell_len(s.text) for s in segs), view.size.width
+                )
+
+
+class CtrlSpaceTests(unittest.IsolatedAsyncioTestCase):
+    """On Windows conhost Ctrl+Space and Ctrl+` are the same NUL byte."""
+
+    async def test_nul_byte_opens_completion_not_terminal(self) -> None:
+        with TemporaryDirectory() as tmp:
+            (Path(tmp) / "a.txt").write_text("alpha\nalpha\n", encoding="utf-8")
+            app = YateApp(target=Path(tmp) / "a.txt", keymap="vim")
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                popup = app.completion_popup
+                assert popup is not None
+                # insert a prefix so the manual completion has candidates
+                await pilot.press("i", "a", "l")
+                await pilot.pause()
+                await pilot.press("ctrl+@")  # NUL: Ctrl+Space on conhost
+                shown = await wait_until(pilot, lambda: popup.is_open)
+                self.assertTrue(shown)
+                self.assertFalse(cast(Any, app)._terminal_visible)
 
 
 class HelpOverlayTests(unittest.IsolatedAsyncioTestCase):

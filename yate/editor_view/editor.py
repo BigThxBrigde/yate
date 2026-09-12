@@ -152,6 +152,16 @@ class EditorView(ScrollView):
         """Forward keys to the yate keymap while the editor is focused."""
         if len(self.yate.screen_stack) > 1:
             return  # a modal screen owns input
+        # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle:
+        # on Windows conhost / legacy xterm Ctrl+Space and Ctrl+` share the
+        # NUL byte (named "ctrl+@"), so there the NUL byte favors completion;
+        # Ctrl+` still closes the terminal while it is focused, and :term /
+        # the palette opens it.
+        if event.key in ("ctrl+space", "ctrl+@"):
+            self.yate.request_completion(manual=True)
+            event.stop()
+            event.prevent_default()
+            return
         if event.key in TOGGLE_KEYS:
             event.stop()
             event.prevent_default()
@@ -181,12 +191,6 @@ class EditorView(ScrollView):
                 event.stop()
                 event.prevent_default()
                 return
-        if event.key == "ctrl+space":
-            # Manual completion: LSP items when a server is active, otherwise
-            # buffer words + filesystem paths (handled by request_completion).
-            self.yate.request_completion(manual=True)
-            event.stop()
-            event.prevent_default()
             return
         # the vim ctrl+w window chord must run before keymap dispatch:
         # the vim keymap swallows unmapped keys so the app would never
@@ -382,7 +386,16 @@ class EditorView(ScrollView):
             style = self._cell_style(t, sid, kind, line_bg)
             if underlines[cell_idx] and sid != S_CURSOR:
                 style += Style(underline=True)
-            segments.append(Segment(ch if ch else " ", style))
+            if ch:
+                # an empty cell is the second column of a wide glyph
+                # (expand_char): Rich already advanced 2 cells for the
+                # glyph itself, so emitting a space here would add a
+                # visible blank after every CJK/fullwidth character.
+                # The one exception is a wide glyph clipped by horizontal
+                # scroll at its first half: draw a blank replacement cell.
+                segments.append(Segment(ch, style))
+            elif cell_idx == self.scroll_col and cell_idx > 0:
+                segments.append(Segment(" ", style))
             used += 1
         # pad remainder
         pad = view_w - gutter_w - used

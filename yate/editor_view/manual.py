@@ -50,18 +50,41 @@ def load_manual_markdown(lang: str = "en") -> str:
 
 
 def _widget_plain_text(widget: Widget) -> str:
-    """Best-effort visible text of a rendered markdown child widget."""
-    # MarkdownBlock stores a rich Content; table cells/static children may
-    # carry a renderable (str / Text / Content).
+    """Best-effort visible text a widget owns itself.
+
+    MarkdownBlock stores a rich Content; table cells/static children may
+    carry a renderable (str / Text / Content). Table cell widgets expose
+    neither but render a Content with no children, so fall back to
+    ``render()`` for childless widgets. Layout containers (whose children
+    own the text) stay empty so matches are not double counted.
+    """
     content = getattr(widget, "_content", None)
     if content is not None and hasattr(content, "plain"):
-        return cast(str, content.plain)
+        plain = cast(str, content.plain)
+        if plain:
+            return plain
     renderable = getattr(widget, "renderable", None)
     if isinstance(renderable, str):
         return renderable
     if renderable is not None and hasattr(renderable, "plain"):
         return cast(str, renderable.plain)
+    if not getattr(widget, "children", ()):
+        try:
+            rendered = widget.render()
+        except Exception:
+            return ""
+        plain = getattr(rendered, "plain", None)
+        if isinstance(plain, str):
+            return plain
     return ""
+
+
+def _strip_text(strip: Any) -> str:
+    """Plain text of one rendered row (Strip)."""
+    segments = getattr(strip, "_segments", None)
+    if segments is None:
+        segments = getattr(strip, "segments", ())
+    return "".join(seg.text or "" for seg in segments)
 
 
 class _SearchInput(Input):
@@ -101,6 +124,18 @@ class ManualScreen(ModalScreen[None]):
         ("n", "search_next", "next match"),
         ("N", "search_prev", "previous match"),
     ]
+
+    # footer text switches with the search bar: while typing, n/N are
+    # ordinary search characters -- only Enter / Shift+Enter move there;
+    # n/N repeat the search only AFTER the bar is closed with Esc
+    _FOOTER_SEARCH = (
+        " enter: next match  ·  shift+enter: previous  ·  esc: close search"
+        "  ·  pgup/pgdn scroll "
+    )
+    _FOOTER_BROWSE = (
+        " esc/q close  ·  / or ctrl+f search  ·  n/N repeat last match"
+        "  ·  pgup/pgdn scroll "
+    )
 
     DEFAULT_CSS = """
     ManualScreen {
@@ -168,8 +203,8 @@ class ManualScreen(ModalScreen[None]):
         super().__init__()
         self.yate = yate
         self._lang = lang
-        # (widget, start offset in visible text, query length), doc order
-        self._hits: list[tuple[Widget, int, int]] = []
+        # (widget, inner row, inner column, query length), document order
+        self._hits: list[tuple[Widget, int, int, int]] = []
         self._hit_index = -1
         self._hit_widgets: set[Widget] = set()
         self._current_widget: Widget | None = None
@@ -188,8 +223,8 @@ class ManualScreen(ModalScreen[None]):
                 yield Static(" loading manual…", id="manual-loading")
                 yield Markdown("", id="manual-md")
             yield Static(
-                " esc/q close  ·  / or ctrl+f search  ·  n/N next match  ·  "
-                "pgup/pgdn or wheel to scroll ",
+                self._FOOTER_BROWSE,
+                id="manual-footer",
                 classes="hint",
             )
 
@@ -229,6 +264,7 @@ class ManualScreen(ModalScreen[None]):
         field = self.query_one("#manual-search-input", _SearchInput)
         field.can_focus = True
         field.focus()
+        self._set_footer(self._FOOTER_SEARCH)
         if self._hits:
             self._set_status(
                 f"{self._hit_index + 1}/{len(self._hits)} matches")
@@ -241,6 +277,13 @@ class ManualScreen(ModalScreen[None]):
         field.can_focus = False
         self.set_focus(None)
         self.query_one("#manual-search-bar", Horizontal).display = False
+        self._set_footer(self._FOOTER_BROWSE)
+
+    def _set_footer(self, text: str) -> None:
+        """Swap the bottom hint line to match the current input context."""
+        footer = self.query("#manual-footer")
+        if footer:
+            cast(Static, footer.first()).update(text)
 
     def action_search_next(self) -> None:
         self.search_step(1)
@@ -264,21 +307,43 @@ class ManualScreen(ModalScreen[None]):
 
     def _run_search(self, query: str) -> None:
         needle = query.strip().lower()
-        hits: list[tuple[Widget, int, int]] = []
+        hits: list[tuple[Widget, int, int, int]] = []
         if needle:
             markdown = self.query_one("#manual-md", Markdown)
             for widget in markdown.walk_children(Widget):
-                text = _widget_plain_text(widget)
-                if not text:
+                if not _widget_plain_text(widget):
                     continue
-                lowered = text.lower()
-                start = 0
-                while True:
-                    idx = lowered.find(needle, start)
-                    if idx < 0:
-                        break
-                    hits.append((widget, idx, len(needle)))
-                    start = idx + len(needle)
+                # ranges (in widget-local rows/cols) painted by direct
+                # children, e.g. the language label of a code fence --
+                # their strips are composited into ours but the children
+                # are searched separately
+                child_boxes = [
+                    (
+                        child.region.y - widget.region.y,
+                        child.region.y - widget.region.y + child.region.height,
+                        child.region.x - widget.region.x,
+                        child.region.x - widget.region.x + child.region.width,
+                    )
+                    for child in widget.children
+                ]
+                for row in range(widget.region.height):
+                    try:
+                        line = _strip_text(widget.render_line(row)).lower()
+                    except Exception:
+                        continue
+                    start = 0
+                    while True:
+                        idx = line.find(needle, start)
+                        if idx < 0:
+                            break
+                        end = idx + len(needle)
+                        covered = any(
+                            y0 <= row < y1 and idx < x1 and end > x0
+                            for (y0, y1, x0, x1) in child_boxes
+                        )
+                        if not covered:
+                            hits.append((widget, row, idx, len(needle)))
+                        start = end
         self._hits = hits
         self._clear_hit_classes()
         if not needle:
@@ -289,7 +354,7 @@ class ManualScreen(ModalScreen[None]):
             self._hit_index = -1
             self._set_status("no matches")
             return
-        self._hit_widgets = {widget for widget, _s, _l in hits}
+        self._hit_widgets = {widget for widget, _r, _c, _l in hits}
         for widget in self._hit_widgets:
             widget.add_class("manual-hit")
         self._hit_index = 0
@@ -298,12 +363,26 @@ class ManualScreen(ModalScreen[None]):
     def _goto_current_hit(self) -> None:
         if self._hit_index < 0:
             return
-        widget, _start, _length = self._hits[self._hit_index]
+        widget, row, _col, _length = self._hits[self._hit_index]
         if self._current_widget is not None and self._current_widget is not widget:
             self._current_widget.remove_class("manual-hit-current")
         widget.add_class("manual-hit-current")
         self._current_widget = widget
-        widget.scroll_visible(animate=False)
+        # align the widget's top first, then offset to the exact rendered
+        # row, so several matches inside one wrapped paragraph land on
+        # distinct lines (widget.scroll_visible alone would not move)
+        scroll = self.query_one("#manual-scroll", VerticalScroll)
+        # immediate=True applies before the second scroll_to, which refines
+        # the position to the exact rendered row (several matches can share
+        # one wrapped widget, widget-level scrolling would not move)
+        scroll.scroll_to_widget(
+            widget, top=True, animate=False, immediate=True
+        )
+        scroll.scroll_to(
+            y=scroll.scroll_target_y + row,
+            animate=False,
+            immediate=True,
+        )
         self._set_status(
             f"{self._hit_index + 1}/{len(self._hits)} matches")
 
