@@ -343,11 +343,18 @@ class EditorView(ScrollView):
     # ------------------------------------------------------------- welcome
 
     def _welcome_active(self) -> bool:
-        """Show the VS Code-style welcome page for an empty unnamed buffer."""
+        """Show the VS Code-style welcome page for an empty unnamed buffer.
+
+        Besides the pristine-buffer condition the app-level
+        ``welcome_visible`` flag must be set: it is on at startup only and is
+        dismissed once the user creates a new buffer (``:enew``); ``:welcome``
+        turns it back on.
+        """
         doc = self.yate.doc
         buf = self.buffer
         return (
-            doc.path is None
+            self.yate.welcome_visible
+            and doc.path is None
             and not doc.modified
             and buf.line_count == 1
             and buf.lines[0] == ""

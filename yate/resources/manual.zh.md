@@ -144,6 +144,9 @@ yate 的布局模仿 VS Code，自上而下分为几个区域：
   Markdown、TOML、INI、YAML）。
 - 选区、搜索匹配（当前匹配使用更醒目的颜色）均以主题色叠加渲染。
 - 空的未命名 buffer 显示欢迎页：YATE 字符画、版本号与常用键位提示。
+  欢迎页只在启动时出现一次：开始输入、或用 `:enew`（及"新建空缓冲区"
+  动作）新建 buffer 后即关闭，且不会再因切换标签而重新出现；如需再次查看，
+  执行 `:welcome`（在空的未命名 buffer 上显示）。
 
 ### 3.5 状态栏
 
@@ -490,7 +493,8 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 | `:q!` | — | 丢弃修改并强制退出 |
 | `:wq` | — | 保存并退出 |
 | `:e [路径]` | `:edit` | 打开文件或目录；无参数时弹出 `Open: ` 输入行 |
-| `:enew` | — | 新建空 buffer |
+| `:enew` | — | 新建空 buffer（同时关闭欢迎页，本会话不再自动出现） |
+| `:welcome` | — | 重新开启欢迎页（在空的未命名 buffer 上显示） |
 | `:bn` | `:bnext` | 下一个 buffer / 标签 |
 | `:bp` | `:bprev` | 上一个 buffer / 标签 |
 | `:bd` | — | 关闭当前 buffer / 标签 |
@@ -1068,7 +1072,7 @@ vim 键位：
 | `:` | ex 命令行 | `Ctrl+W` / `Ctrl+U`（插入模式） | 删词 / 删到行首 |
 | `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 
-命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
+命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 

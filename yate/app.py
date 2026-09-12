@@ -186,6 +186,10 @@ class YateApp(App[None]):
         self._window_pending = False
         self._explorer_target: Optional[Path] = None
         self._explorer_is_dir = False
+        # The welcome page is a one-time overlay for the pristine startup
+        # buffer. Creating a user-requested buffer (:enew) dismisses it for
+        # the rest of the session; the :welcome command turns it back on.
+        self.welcome_visible = True
 
         # widgets (set in on_mount)
         self.sidebar: Optional[Vertical] = None
@@ -356,8 +360,24 @@ class YateApp(App[None]):
         if self.editor_view is not None:
             self.editor_view.scroll_col = 0
         if show:
+            # A user-requested buffer (:enew / new tab) dismisses the
+            # one-time welcome page for the rest of the session. Internal
+            # replacements (startup seed, close-last-tab fallback) pass
+            # show=False and leave the flag untouched.
+            self.welcome_visible = False
             self.message("new buffer")
         self.ui_refresh()
+
+    def show_welcome(self) -> None:
+        """Re-enable the welcome page (``:welcome``).
+
+        It renders on the current buffer when that buffer is an empty,
+        unnamed, unmodified scratch buffer; otherwise the flag simply stays
+        on until such a buffer is shown.
+        """
+        self.welcome_visible = True
+        self.ui_refresh()
+        self.message("welcome page enabled")
 
     def close_tab(self) -> None:
         if not self.docs:
@@ -1448,6 +1468,8 @@ class YateApp(App[None]):
         reg("e", _edit, "open a file or directory by path")
         reg("edit", _edit, "open a file or directory by path")
         reg("enew", lambda args: self.new_buffer(), "open a new empty buffer")
+        reg("welcome", lambda args: self.show_welcome(),
+            "show the welcome page again (on an empty unnamed buffer)")
         reg("bn", lambda args: self.cycle_tab(1), "next buffer/tab")
         reg("bnext", lambda args: self.cycle_tab(1), "next buffer/tab")
         reg("bp", lambda args: self.cycle_tab(-1), "previous buffer/tab")

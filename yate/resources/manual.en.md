@@ -151,7 +151,10 @@ yate's layout mimics VS Code, top to bottom:
 - Selections and search matches (the active match in a stronger color) render
   as theme-colored overlays.
 - An empty unnamed buffer shows the welcome page: the YATE figlet banner,
-  version and common key hints.
+  version and common key hints. The welcome page appears once at startup:
+  typing into it or creating a buffer with `:enew` (and the "new empty
+  buffer" action) dismisses it, and it never comes back when switching tabs;
+  run `:welcome` to show it again (on an empty unnamed buffer).
 
 ### 3.5 Status bar
 
@@ -521,7 +524,8 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:q!` | — | Discard changes and force quit |
 | `:wq` | — | Save and quit |
 | `:e [path]` | `:edit` | Open a file or directory; without arguments pops the `Open: ` input line |
-| `:enew` | — | New empty buffer |
+| `:enew` | — | New empty buffer (also dismisses the welcome page for this session) |
+| `:welcome` | — | Show the welcome page again (on an empty unnamed buffer) |
 | `:bn` | `:bnext` | Next buffer / tab |
 | `:bp` | `:bprev` | Previous buffer / tab |
 | `:bd` | — | Close the current buffer / tab |
@@ -1170,7 +1174,7 @@ vim keymap:
 | `:` | ex command line | `Ctrl+W` / `Ctrl+U` (insert mode) | Delete word / to line start |
 | `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 
-Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:bn` `:bp` `:bd`
+Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 

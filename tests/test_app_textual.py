@@ -563,6 +563,56 @@ class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
                 parts.extend(seg.text for seg in editor.render_line(row))
             self.assertIn("ex command prompt", "".join(parts))
 
+    async def test_enew_dismisses_welcome_and_it_does_not_return(self):
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor_view
+            assert editor is not None
+
+            def screen_text() -> str:
+                parts: list[str] = []
+                for row in range(26):
+                    parts.extend(seg.text for seg in editor.render_line(row))
+                return "".join(parts)
+
+            self.assertIn("\u2588", screen_text())  # welcome banner at startup
+            initial_index = app.doc_index
+
+            # :enew creates another empty scratch buffer -- the welcome page
+            # must be cleared immediately, never to return on its own.
+            app.run_command("enew")
+            await pilot.pause()
+            self.assertFalse(app.welcome_visible)
+            self.assertNotIn("\u2588", screen_text())
+
+            # switching back to the still-pristine startup buffer must not
+            # bring the welcome page back
+            app.run_command("bp")
+            await pilot.pause()
+            self.assertEqual(app.doc_index, initial_index)
+            self.assertNotIn("\u2588", screen_text())
+
+            # ...until the user explicitly asks for it with :welcome
+            app.run_command("welcome")
+            await pilot.pause()
+            self.assertTrue(app.welcome_visible)
+            self.assertIn("\u2588", screen_text())
+
+    async def test_internal_seed_buffer_keeps_welcome_enabled(self):
+        # Startup seeds the initial buffer via new_buffer(show=False); that
+        # internal path must not dismiss the welcome page.
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            self.assertTrue(app.welcome_visible)
+            editor = app.editor_view
+            assert editor is not None
+            parts: list[str] = []
+            for row in range(26):
+                parts.extend(seg.text for seg in editor.render_line(row))
+            self.assertIn("yate", "".join(parts))
+
 
 class PromptBarTests(unittest.IsolatedAsyncioTestCase):
     async def test_command_input_shows_typed_text(self):
