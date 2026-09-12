@@ -26,6 +26,7 @@ yate to open it:
 - **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font and configures Windows Terminal)
 - **Fuzzy finding**: `Ctrl+P` quick open (fzf-style subsequence matching with hit highlighting), `Alt+Shift+P` command palette (every `:` command and named action)
 - **Multi-buffer tabs**: open by path (`Ctrl+O` / `:e`), new buffer (`Ctrl+N` / `:enew`), close tab (`Ctrl+W` / `:bd`), switch with `Ctrl+PageUp/Down` or `:bn` / `:bp`
+- **Split panes (vim-style)**: `:split` / `:vsplit` (`:sp` / `:vs`, optional path), `:only`; in vim keymap `Ctrl+W` chords (`s`/`v`/`q`/`o`/`hjkl`/`+`/`-`/`<`/`>`/`=`/`Ctrl+W`); each pane has independent cursor, selection and scroll
 - **Welcome screen**: version and key hints when starting with an empty buffer
 - **Find & replace**: `Ctrl+F` live find with `[index/total]` match count, `F3` / `Enter` jump to the next match, `F4` two-step replace-all recorded as a single undo entry
 - **Shell commands**: `F2` or `:!cmd` (e.g. `:!git status`) runs a command in a background worker; stdout/stderr show in a scrollable overlay annotated with the exit code
@@ -101,8 +102,11 @@ Inside the file tree (when focused): `j`/`k` to move, `l`/`h` to expand/collapse
 tabs.
 
 With the vim keymap: `i` enters insert mode, `Esc` returns to NORMAL, `:` opens
-the command line; after `Ctrl+W` press `h`/`l` to move between tree and editor
-(`Ctrl+W Ctrl+W` toggles). See F1 help for the full list.
+the command line; `:split`/`:vsplit` create panes (`:sp`/`:vs` for short,
+`:only` keeps one), and after `Ctrl+W` press `s`/`v` to split, `q`/`o` to close
+or maximize a pane, `h`/`j`/`k`/`l` to move between panes and the file tree,
+`+`/`-`/`<`/`>` to resize, `=` to equalize, `Ctrl+W` to cycle. See F1 help for
+the full list.
 
 ## Configuration (yaterc)
 

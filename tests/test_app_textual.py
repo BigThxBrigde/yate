@@ -1,8 +1,12 @@
 """Headless smoke tests for the Textual UI (run via pilot, no real terminal)."""
 
+# tests legitimately poke at internals:
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import time
 import unittest
@@ -11,6 +15,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Awaitable, Callable, cast
 
 from textual.strip import Strip
+from textual.widgets.tree import TreeNode
 
 # The bundled yate/extensions/ directory is auto-loaded with every YateApp;
 # make sure the Python LSP extension never probes PATH or spawns a real server
@@ -18,7 +23,10 @@ from textual.strip import Strip
 os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
+from yate.editor_view.editor import EditorView
 from yate.editor_view.manual import ManualScreen
+from yate.editor_view.panes import Split as PaneSplit
+from yate.editor_view.panes import leaves as pane_leaves
 
 
 async def wait_until(
@@ -765,6 +773,70 @@ class ExplorerOpsTests(unittest.IsolatedAsyncioTestCase):
                 await pilot.press("enter")
                 await pilot.pause()
                 self.assertTrue((root / "subdir").is_dir())
+
+    async def test_open_nested_file_keeps_expansion_and_cursor(self):
+        """Regression: refresh_tree collapsed second-level directories and
+        the cursor jumped to the last row after opening a nested file."""
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sub = root / "sub"
+            deep = sub / "deep"
+            deep.mkdir(parents=True)
+            (root / "top.txt").write_text("t\n", encoding="utf-8")
+            (sub / "inner.txt").write_text("i\n", encoding="utf-8")
+            (deep / "leaf.txt").write_text("l\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                tree = app.explorer_tree
+                assert tree is not None
+
+                def find(
+                    node: TreeNode[Path | None], name: str
+                ) -> TreeNode[Path | None] | None:
+                    for c in node.children:
+                        if c.data is not None and Path(c.data).name == name:
+                            return c
+                        if c.is_expanded:
+                            r = find(c, name)
+                            if r is not None:
+                                return r
+                    return None
+
+                # expand sub, then deep (two levels), then open leaf.txt
+                sub_node = find(tree.root, "sub")
+                assert sub_node is not None
+                tree.select_node(sub_node)
+                await pilot.pause()
+                await pilot.pause()
+                deep_node = find(tree.root, "deep")
+                assert deep_node is not None
+                tree.select_node(deep_node)
+                await pilot.pause()
+                await pilot.pause()
+                leaf = find(tree.root, "leaf.txt")
+                assert leaf is not None
+                tree.select_node(leaf)
+                for _ in range(12):
+                    await pilot.pause()
+
+                # sub AND deep must still be expanded after the refresh
+                # triggered by opening the file
+                self.assertTrue(
+                    sub_node.is_expanded, "first-level dir collapsed"
+                )
+                self.assertTrue(
+                    deep_node.is_expanded, "nested dir collapsed"
+                )
+                # cursor/highlight must sit on the opened file, not the
+                # last row of the tree
+                await pilot.press("ctrl+e")
+                await pilot.pause()
+                cur = tree.cursor_node
+                assert cur is not None and cur.data is not None
+                self.assertEqual(Path(cur.data).name, "leaf.txt")
+                assert app.doc.path is not None
+                self.assertEqual(app.doc.path.name, "leaf.txt")
 
     async def test_rename_updates_open_document_path(self):
         with TemporaryDirectory() as tmp:
@@ -2349,6 +2421,287 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(panel.display)
 
 
+class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
+    """vim :split / :vsplit windows, ctrl+w chords and :q pane semantics."""
+
+    def setUp(self) -> None:
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.alpha = root / "alpha.txt"
+        self.bravo = root / "bravo.txt"
+        self.alpha.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+        self.bravo.write_text("bravo one\nbravo two\n", encoding="utf-8")
+
+    async def test_pane_regions_stay_visible_after_split(self) -> None:
+        """Regression: sizes set before mount resolved against an unknown
+        parent, pushing every pane after the first off-screen."""
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            app.run_command("sp")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            app.run_command("vs")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 3)
+            )
+            await pilot.pause()
+            host = panes.host
+            assert host is not None
+            host_region = host.region
+            views = panes.all_views()
+            for view in views:
+                region = view.region
+                self.assertTrue(
+                    region.width > 5 and region.height > 2,
+                    f"pane collapsed: {region}",
+                )
+                self.assertTrue(
+                    host_region.contains_region(region),
+                    f"pane outside host: {region} vs {host_region}",
+                )
+            # dividers: after :sp the top pane has a bottom border; after
+            # :vs the bottom-left pane has a right border; last panes none
+            self.assertNotIn(views[0].styles.border_bottom[0], ("", "none"))
+            self.assertIn(views[0].styles.border_right[0], ("", "none"))
+            self.assertNotIn(views[1].styles.border_right[0], ("", "none"))
+            self.assertIn(views[1].styles.border_bottom[0], ("", "none"))
+            self.assertIn(views[2].styles.border_bottom[0], ("", "none"))
+            self.assertIn(views[2].styles.border_right[0], ("", "none"))
+
+    async def test_split_independent_cursors_and_navigation(self) -> None:
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            app.run_command("sp")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            root = panes.root
+            self.assertIsInstance(root, PaneSplit)
+            assert isinstance(root, PaneSplit)
+            self.assertEqual(root.axis, "horizontal")
+            self.assertEqual(len(app.query(EditorView)), 2)
+
+            # the new (bottom) pane is active: move its cursor to row 1
+            await pilot.press("j")
+            await pilot.pause()
+            self.assertEqual(app.buffer.cursor, (1, 0))
+
+            # ctrl+w k jumps to the top pane: its cursor stayed at row 0
+            await pilot.press("ctrl+w", "k")
+            await pilot.pause()
+            self.assertEqual(app.buffer.cursor, (0, 0))
+            # ctrl+w j returns to the bottom pane and its row-1 cursor
+            await pilot.press("ctrl+w", "j")
+            await pilot.pause()
+            self.assertEqual(app.buffer.cursor, (1, 0))
+
+            # ctrl+w ctrl+w from the last editor pane wraps to the explorer,
+            # then from the explorer back to the active editor pane
+            await pilot.press("ctrl+w", "ctrl+w")
+            await pilot.pause()
+            self.assertIs(app.focused, app.explorer_tree)
+            self.assertEqual(app.buffer.cursor, (1, 0))
+            await pilot.press("ctrl+w", "ctrl+w")
+            await pilot.pause()
+            self.assertIs(app.focused, app.editor_view)
+            self.assertEqual(app.buffer.cursor, (1, 0))
+
+    async def test_vsplit_with_file_and_only(self) -> None:
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            # relative path resolves against the current file's directory
+            app.run_command("vs bravo.txt")
+            opened = await wait_until(
+                pilot,
+                lambda: panes.leaf_count == 2
+                and app.doc.path is not None
+                and app.doc.path.name == "bravo.txt",
+            )
+            self.assertTrue(opened)
+            root = panes.root
+            self.assertIsInstance(root, PaneSplit)
+            assert isinstance(root, PaneSplit)
+            self.assertEqual(root.axis, "vertical")
+            self.assertEqual(app.buffer.lines[0], "bravo one")
+            self.assertEqual(len(app.query(EditorView)), 2)
+
+            # :sp on the bravo pane clones it -> 3 panes
+            app.run_command("split")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 3)
+            )
+            # :only collapses back to the active (bravo) pane
+            app.run_command("only")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 1)
+            )
+            self.assertEqual(len(app.query(EditorView)), 1)
+            current = app.doc
+            self.assertIsNotNone(current.path)
+            assert current.path is not None
+            self.assertEqual(current.path.name, "bravo.txt")
+
+    async def test_chord_split_resize_close_and_q(self) -> None:
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            await pilot.press("ctrl+w", "s")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            root = panes.root
+            assert isinstance(root, PaneSplit)
+            self.assertEqual(root.axis, "horizontal")
+
+            # ctrl+w - shrinks the active (new) pane; ctrl+w = equalizes
+            await pilot.press("ctrl+w", "minus")
+            await pilot.pause()
+            self.assertAlmostEqual(root.sizes[1], 0.42, places=2)
+            await pilot.press("ctrl+w", "equals_sign")
+            await pilot.pause()
+            self.assertEqual(root.sizes, [0.5, 0.5])
+
+            # a dirty document does not block closing a pane (the document
+            # stays open as a hidden buffer)
+            await pilot.press("i", "x", "escape")
+            await pilot.pause()
+            self.assertTrue(app.doc.modified)
+            await pilot.press("ctrl+w", "q")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 1)
+            )
+            self.assertTrue(app.is_running)
+
+            # single pane: :q is blocked by unsaved changes, :q! exits
+            app.run_command("q")
+            await pilot.pause()
+            self.assertTrue(app.is_running)
+            app.run_command("q!")
+            for _ in range(5):
+                with contextlib.suppress(Exception):
+                    await pilot.pause()
+                if not app.is_running:
+                    break
+            # let any worker scheduled by the final shutdown render start
+            # (so its coroutine is awaited rather than GC'd at loop close)
+            for _ in range(3):
+                await asyncio.sleep(0)
+            self.assertFalse(app.is_running)
+
+    async def test_quit_command_exits_whole_editor_with_panes(self) -> None:
+        """:quit must quit yate even when several panes are open (:q closes
+        the active pane instead — that is covered by the chord test above)."""
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            await pilot.press("ctrl+w", "s")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            # make the buffer dirty to prove :quit is still a plain quit
+            # attempt guarded by unsaved changes (like vim's :quit)
+            await pilot.press("i", "y", "escape")
+            await pilot.pause()
+            self.assertTrue(app.doc.modified)
+
+            app.run_command("quit")
+            await pilot.pause()
+            # blocked: unsaved changes guard
+            self.assertTrue(app.is_running)
+
+            app.run_command("q!")  # discard and quit the whole editor
+            for _ in range(5):
+                with contextlib.suppress(Exception):
+                    await pilot.pause()
+                if not app.is_running:
+                    break
+            for _ in range(3):
+                await asyncio.sleep(0)
+            self.assertFalse(app.is_running)
+
+    async def test_vertical_chord_and_geometry_navigation(self) -> None:
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            await pilot.press("ctrl+w", "v")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            root = panes.root
+            assert isinstance(root, PaneSplit)
+            self.assertEqual(root.axis, "vertical")
+            ordered = pane_leaves(root)
+            left_view = panes.views[ordered[0].id]
+
+            # the new pane is the right one; h moves geometrically to the
+            # editor pane on the left first ...
+            await pilot.press("ctrl+w", "h")
+            await pilot.pause()
+            self.assertIs(app.focused, left_view)
+            # ... and only then, with no editor further left, to the explorer
+            await pilot.press("ctrl+w", "h")
+            await pilot.pause()
+            self.assertIs(app.focused, app.explorer_tree)
+            # l from the explorer returns to the active (right) editor pane
+            await pilot.press("ctrl+w", "l")
+            await pilot.pause()
+            self.assertIs(app.focused, app.editor_view)
+
+    async def test_bd_rebinds_every_pane_showing_the_document(self) -> None:
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            app.run_command("sp")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            # the new pane opens bravo; the top pane keeps alpha
+            app.run_command("e bravo.txt")
+            self.assertTrue(
+                await wait_until(
+                    pilot,
+                    lambda: app.doc.path is not None
+                    and app.doc.path.name == "bravo.txt",
+                )
+            )
+            app.run_command("bd")
+            await pilot.pause()
+            self.assertEqual(len(app.docs), 1)
+            for leaf in pane_leaves(panes.root):
+                path = leaf.doc.path
+                assert path is not None
+                self.assertEqual(path.name, "alpha.txt")
+            active_path = app.doc.path
+            assert active_path is not None
+            self.assertEqual(active_path.name, "alpha.txt")
+
+
 class HelpOverlayTests(unittest.IsolatedAsyncioTestCase):
     async def test_help_lists_terminal_key_and_commands(self):
         from yate.editor_view.modals import HelpScreen
@@ -2366,6 +2719,141 @@ class HelpOverlayTests(unittest.IsolatedAsyncioTestCase):
             # the terminal commands are registered and listed with : prefix
             self.assertIn(":term", body)
             self.assertIn(":termclose", body)
+
+
+class ExplorerFilterSmokeTests(unittest.IsolatedAsyncioTestCase):
+    """Smoke/regression tests for explorer filtering, focus and palette."""
+
+    async def test_h_toggles_hidden_files_in_tree(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".hidden.txt").write_text("h\n", encoding="utf-8")
+            (root / "a.txt").write_text("a\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                tree = app.explorer_tree
+                assert tree is not None
+
+                def shown() -> list[str]:
+                    return [
+                        Path(c.data).name
+                        for c in tree.root.children
+                        if c.data is not None
+                    ]
+
+                self.assertNotIn(".hidden.txt", shown())
+                # hide the by-default-shown tree, then re-show it (focused)
+                app.run_command("explorer")
+                for _ in range(4):
+                    await pilot.pause()
+                app.run_command("explorer")
+                for _ in range(6):
+                    await pilot.pause()
+                self.assertIs(app.focused, tree)
+                await pilot.press("H")
+                for _ in range(4):
+                    await pilot.pause()
+                self.assertTrue(app.workspace.show_hidden)
+                self.assertIn(".hidden.txt", shown())
+                await pilot.press("H")
+                for _ in range(4):
+                    await pilot.pause()
+                self.assertFalse(app.workspace.show_hidden)
+                self.assertNotIn(".hidden.txt", shown())
+
+    async def test_set_show_hidden_option_roundtrip(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".dot").write_text("d\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                app.run_command("set show_hidden=on")
+                await pilot.pause()
+                self.assertTrue(app.workspace.show_hidden)
+                tree = app.explorer_tree
+                assert tree is not None
+                names = [
+                    Path(c.data).name
+                    for c in tree.root.children
+                    if c.data is not None
+                ]
+                self.assertIn(".dot", names)
+                app.run_command("set show_hidden=off")
+                await pilot.pause()
+                self.assertFalse(app.workspace.show_hidden)
+
+    async def test_explorer_toggle_focuses_tree(self) -> None:
+        """Regression: re-opening the explorer must hand focus to the tree so
+        keyboard navigation works without a mouse click (the tree is shown
+        by default at startup, so toggle once to hide, once to re-show)."""
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.txt").write_text("a\n", encoding="utf-8")
+            (root / "b.txt").write_text("b\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                tree = app.explorer_tree
+                assert tree is not None
+                app.run_command("explorer")  # hide (shown by default)
+                for _ in range(4):
+                    await pilot.pause()
+                self.assertFalse(tree.display)
+                app.run_command("explorer")  # re-show
+                for _ in range(6):
+                    await pilot.pause()
+                self.assertTrue(tree.display)
+                self.assertIs(app.focused, tree)
+                # keyboard navigation actually works (j moves the cursor)
+                line = tree.cursor_line
+                await pilot.press("j")
+                await pilot.pause()
+                self.assertEqual(tree.cursor_line, line + 1)
+
+    async def test_palette_entries_exclude_palette_command(self) -> None:
+        """Regression: the palette must not list the palette command itself
+        (opening it from inside would be a no-op recursion)."""
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            from yate.editor_view.palette import PaletteScreen
+
+            screen = PaletteScreen(app, "commands")
+            screen._build_command_entries()
+            kinds = {name for name, _d, (_k, _n) in screen._entries}
+            self.assertIn("quit", kinds)  # sanity: commands are listed
+            self.assertNotIn("palette", kinds)
+
+    async def test_tree_helper_line_of_and_find_node(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sub = root / "sub"
+            sub.mkdir()
+            (sub / "inner.txt").write_text("i\n", encoding="utf-8")
+            (root / "top.txt").write_text("t\n", encoding="utf-8")
+            app = YateApp(target=root)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                tree = app.explorer_tree
+                assert tree is not None
+                top = sub.parent / "top.txt"
+                # collapsed: sub's children are not visible
+                self.assertEqual(tree._line_of(sub / "inner.txt"), None)
+                node = tree._find_node(tree.root, sub / "inner.txt")
+                self.assertIsNone(node)
+                # expand sub via select (toggle) and re-check
+                snode = tree._find_node(tree.root, sub)
+                assert snode is not None
+                tree.select_node(snode)
+                for _ in range(4):
+                    await pilot.pause()
+                self.assertIsNotNone(tree._find_node(tree.root, sub / "inner.txt"))
+                # rows: 0=root, 1=sub, 2=inner.txt, 3=top.txt
+                self.assertEqual(tree._line_of(sub / "inner.txt"), 2)
+                self.assertEqual(tree._line_of(top), 3)
+                self.assertEqual(tree._line_of(root / "missing.txt"), None)
 
 
 if __name__ == "__main__":

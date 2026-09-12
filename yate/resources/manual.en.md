@@ -422,13 +422,18 @@ e.g. `3j`, `2dd`, `5w`.
 | `n` / `N` | Next / previous match |
 | `:` | ex command line (`:w` `:q` `:e` `:!` …) |
 
-**Window switching**
+**Panes and windows (`Ctrl+W` prefix in NORMAL mode; see 8.1)**
 
 | Key | Action |
 |---|---|
-| `Ctrl+W` `h` | Focus the file tree (left pane) |
-| `Ctrl+W` `l` | Focus the editor (right pane) |
-| `Ctrl+W` `Ctrl+W` | Cycle between file tree and editor |
+| `Ctrl+W` `s` / `v` | Horizontal / vertical split (no argument clones the current document) |
+| `Ctrl+W` `q` / `o` | Close the active pane / keep only the active pane (same as `:only`) |
+| `Ctrl+W` `h` `j` `k` `l` | Move focus to the pane in that direction (`h` can reach the file tree on the left) |
+| `Ctrl+W` `Ctrl+W` | Cycle through the editor panes and the file tree |
+| `Ctrl+W` `+` / `-` | Grow / shrink the active pane's height |
+| `Ctrl+W` `<` / `>` | Shrink / grow the active pane's width |
+| `Ctrl+W` `=` | Equalize panes in the same split group |
+| From the file tree | `Ctrl+W` `h` stays in the tree; `l` / `j` / `k` returns to the editor |
 
 In **INSERT mode**: `Esc` returns to NORMAL; `Ctrl+W` deletes the previous
 word; `Ctrl+U` deletes to line start; `Backspace` / `Delete` / `Enter` / `Tab`
@@ -448,7 +453,7 @@ Under the vim keymap `Ctrl+F` pages instead of finding; `Ctrl+P` quick open,
 
 | Key | Action |
 |---|---|
-| `Ctrl+B` | Show / hide the file tree (the side bar hides itself when no directory is open) |
+| `Ctrl+B` | Show / hide the file tree (focuses the tree when shown; the side bar hides itself when no directory is open) |
 | `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (with no directory open you get `no folder is open — use :e <path>`; a hidden tree is shown first) |
 | `Ctrl+1` | Focus the editor |
 | `Esc` (inside the tree) | Focus returns to the editor |
@@ -469,6 +474,7 @@ With the file tree focused:
 | `A` | New folder |
 | `r` | Rename |
 | `d` / `Delete` | Delete (type `y` or `yes` to confirm, anything else cancels) |
+| `H` | Toggle hidden (dotfile) visibility |
 | `Esc` | Back to the editor |
 
 Behavior notes:
@@ -485,9 +491,13 @@ Behavior notes:
   returns to an empty buffer.
 - Printable characters typed inside the tree are swallowed and never leak into
   the editor.
-- The directories `.git`, `.hg`, `.svn`, `__pycache__`, `.venv`, `venv`,
-  `node_modules`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.idea`,
-  `.vscode` never appear in the tree and are not indexed by quick open.
+- **File filtering**: dot-prefixed files (`.env`, `.eslintrc`, ...) are hidden
+  by default — press `H` to toggle. Directories like `.git`, `.hg`,
+  `__pycache__`, `.venv`, `node_modules` are always hidden. yate also reads
+  `.gitignore` / `.yateignore` files from the workspace root and each
+  subdirectory, applying their glob patterns (supports `!` negation and
+  trailing `/` for directory-only). Set `show_hidden = True` in yaterc to
+  change the default.
 - When the tree refreshes (external changes, theme switch, file save), the
   expanded state of each directory is preserved.
 
@@ -516,6 +526,30 @@ arguments separated by spaces. `Esc` / `Ctrl+C` cancels; `↑` / `↓` cycles
 history. Unknown commands report
 `not an editor command: … (try :help)`.
 
+### 8.1 Split panes (`:split` / `:vsplit`)
+
+Like vim, the editor area can be split into multiple panes. Each pane shows
+one document and keeps its **own cursor, selection and scroll position** —
+the same file in two panes never interferes with itself.
+
+| Command | Alias | Description |
+|---|---|---|
+| `:split [path]` | `:sp` | Horizontal split (two panes stacked); no argument opens the current document in the new pane |
+| `:vsplit [path]` | `:vs` | Vertical split (two panes side by side); no argument opens the current document in the new pane |
+| `:only` | — | Keep only the active pane, close the rest (documents stay open as tabs / hidden buffers) |
+
+- With a path, that file opens in the new pane; relative paths resolve against
+  the current document's directory first, then the working directory; a
+  directory argument opens the folder in the file tree.
+- The vim keymap provides `Ctrl+W` chords (see the window table in 5.2).
+  Under the vsc keymap there are no chords — run the same commands from the
+  `F5` command line.
+- With multiple panes, `:q` closes the **active pane** (unsaved changes are
+  not blocking; the document stays open as a tab). With one pane left, `:q`
+  quits yate as usual (blocked on unsaved changes). `:quit` always quits the
+  whole editor, even with multiple panes (blocked on unsaved changes).
+  `:q!` and `:wq` always mean quit and keep their semantics.
+
 **Go to line.** Typing just a number and pressing Enter jumps to that line
 (`:42`, equivalent to VS Code's `Ctrl+G`; `Ctrl+G` opens the same go-to-line
 prompt in both keymaps). Numbers outside the document clamp to the first or
@@ -536,10 +570,14 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | Command | Alias | Description |
 |---|---|---|
 | `:w` | `:write` | Save the current file |
-| `:q` | `:quit` | Quit yate (blocked with unsaved changes) |
+| `:q` | — | With multiple panes, close the active pane; with one pane, quit yate (blocked on unsaved changes, see 8.1) |
+| `:quit` | — | Quit yate entirely (even with multiple panes; blocked on unsaved changes, `:q!` forces) |
 | `:q!` | — | Discard changes and force quit |
 | `:wq` | — | Save and quit |
 | `:e [path]` | `:edit` | Open a file or directory; without arguments pops the `Open: ` input line |
+| `:split [path]` | `:sp` | Horizontal split; no argument clones the current document (see 8.1) |
+| `:vsplit [path]` | `:vs` | Vertical split; no argument clones the current document (see 8.1) |
+| `:only` | — | Keep only the active pane |
 | `:enew` | — | New empty buffer (also dismisses the welcome page for this session) |
 | `:welcome` | — | Show the welcome page again (on an empty unnamed buffer) |
 | `:bn` | `:bnext` | Next buffer / tab |
@@ -656,6 +694,7 @@ Behavior details:
 | `theme_dirs` | `str` or `list[str]` | none | existing file/directory paths | Directories (or a single `*.py` file) holding custom color themes, see 10.3 |
 | `shell` | `str` | platform default (see section 13) | non-empty string | Shell command for the integrated terminal, with optional arguments (e.g. `"pwsh -NoLogo"`); an existing file path may contain spaces |
 | `terminal_height` | `int` | `12` | integer 3–40 (booleans/floats rejected) | Integrated terminal panel height in rows |
+| `show_hidden` | `bool` | `False` | `True` / `False` | Show dot-prefixed hidden files in the explorer by default |
 | `language_servers` | `list[dict]` | none | see 16.2 | Declarative language server registrations; a server **auto-activates** when a file of a matching language is opened — no extension needed |
 
 - `keymap` / `theme` apply at startup; `theme` is process-global state (like
@@ -1139,7 +1178,10 @@ defaults. Use `yate -u NONE` to verify whether a problem is config-related.
 
 **Quit reports unsaved changes?**
 yate blocks quitting with unsaved modifications. `:w` then `:q`, or `:q!` to
-discard, `:wq` to save and quit.
+discard, `:wq` to save and quit. Note that with multiple panes `:q` /
+`Ctrl+W q` only closes the active pane and never blocks (the document stays
+open as a tab); only `:q` on the final pane quits. `:quit` quits the whole
+editor regardless of pane count.
 
 **Which languages get syntax highlighting?**
 The built-in highlighter recognizes by extension: Python (`py`/`pyi`/`pyw`),
@@ -1227,7 +1269,7 @@ vsc keymap (default):
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·
 `a` new file · `A` new folder · `r` rename · `d`/`Del` delete (`y` confirms) ·
-`Esc` back to editor.
+`H` toggle hidden files · `Esc` back to editor.
 
 vim keymap:
 
@@ -1244,9 +1286,11 @@ vim keymap:
 | `n` / `N` | Next / previous match | numeric prefix | Count (e.g. `3j`, `2dd`) |
 | `:` | ex command line (`:42` jumps to a line) | `Ctrl+W` / `Ctrl+U` (insert mode) | Delete word / to line start |
 | `Ctrl+G` | Go to line | `` Ctrl+` `` | Toggle integrated terminal |
+| `Ctrl+W` `s/v/q/o` | HSplit / vsplit / close pane / only | `Ctrl+W` `hjkl` | Move focus between panes |
+| `Ctrl+W` `+-<>` | Resize pane height / width | `Ctrl+W` `=` / `Ctrl+W Ctrl+W` | Equalize / cycle focus |
 | `Shift+PageUp/PageDown` | Terminal scrollback | | |
 
-Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:42` `:+5` `:bn` `:bp` `:bd`
+Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 

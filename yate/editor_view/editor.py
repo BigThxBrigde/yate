@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from rich.segment import Segment
 from rich.style import Style
-from textual.events import Key, Resize
+from textual.events import Focus, Key, Resize
 from textual.geometry import Size
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
 
 from yate import __version__
-from yate.editor_core.buffer import TextBuffer
+from yate.editor_core.buffer import Pos, TextBuffer
 
 from . import highlight, theme
 from .highlight import Token
@@ -22,6 +22,8 @@ from .terminal import TOGGLE_KEYS
 
 if TYPE_CHECKING:
     from yate.app import YateApp
+    from yate.editor_core.document import Document
+    from yate.editor_view.panes import Leaf
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL = 0
@@ -59,9 +61,10 @@ class EditorView(ScrollView):
     }
     """
 
-    def __init__(self, app: YateApp, **kwargs: Any) -> None:
+    def __init__(self, app: YateApp, *, leaf_id: int, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.yate = app
+        self.leaf_id = leaf_id
         self.scroll_col = 0
         # Syntax token cache. Tokens belong to (doc, content_version,
         # filetype); pure cursor/scroll movement leaves the version alone,
@@ -76,9 +79,48 @@ class EditorView(ScrollView):
     # ------------------------------------------------------------ helpers
 
     @property
+    def leaf(self) -> Leaf:
+        """The pane-tree leaf rendered by this view."""
+        panes = self.yate.panes
+        assert panes is not None
+        return panes.leaf_by_id(self.leaf_id)
+
+    @property
+    def doc(self) -> Document:
+        """The document bound to this pane (may differ from the active doc)."""
+        return self.leaf.doc
+
+    @property
     def buffer(self) -> TextBuffer:
-        """The buffer of the currently active document."""
-        return self.yate.buffer
+        """The buffer of this pane's document."""
+        return self.leaf.doc.buffer
+
+    @property
+    def is_active_view(self) -> bool:
+        """Whether this view is the currently focused pane."""
+        panes = self.yate.panes
+        return panes is not None and panes.active_view is self
+
+    def _cursor_anchor(self) -> tuple[Pos, Optional[Pos]]:
+        """Cursor/anchor to render: the live buffer for the active pane, the
+        stored view state for inactive panes (independent cursors)."""
+        buf = self.buffer
+        if self.is_active_view:
+            return buf.cursor, buf.anchor
+        state = self.leaf.state_for(self.doc)
+        return state.cursor, state.anchor
+
+    def _selection(self) -> Optional[tuple[Pos, Pos]]:
+        cursor, anchor = self._cursor_anchor()
+        if anchor is None or anchor == cursor:
+            return None
+        return (min(anchor, cursor), max(anchor, cursor))
+
+    def on_focus(self, _event: Focus) -> None:
+        """Report pane activation to the pane manager."""
+        panes = self.yate.panes
+        if panes is not None:
+            panes.notify_focus(self.leaf_id)
 
     def content_changed(self) -> None:
         """Call after any buffer mutation / document switch / theme change.
@@ -162,7 +204,12 @@ class EditorView(ScrollView):
 
     def reveal_cursor(self) -> None:
         buf = self.buffer
-        row, col = buf.cursor
+        row, col = self._cursor_anchor()[0]
+        if not self.is_active_view:
+            # the shared buffer may have shrunk since this pane's view state
+            # was last captured -- clamp without mutating the stored state
+            row = min(row, buf.line_count - 1)
+            col = min(col, len(buf.lines[row]))
         line = buf.lines[row]
         text_w = max(1, (self.size.width or 80) - self._gutter_w())
         cell = theme.char_to_cell(line, col, buf.tab_width)
@@ -200,7 +247,7 @@ class EditorView(ScrollView):
         The cache survives cursor movement and scrolling -- it is only
         stale when the document, its content version or its filetype differ.
         """
-        doc = self.yate.doc
+        doc = self.doc
         buf = doc.buffer
         if (
             self._hl_tokens is None
@@ -210,7 +257,9 @@ class EditorView(ScrollView):
         ):
             if not self._hl_scheduled:
                 self._hl_scheduled = True
-                self.yate.run_worker(
+                # Keyed to *this* widget (not the app) so concurrent panes do
+                # not cancel each other's highlight passes.
+                self.run_worker(
                     self._highlight_later(), group="highlight",
                     exclusive=True, exit_on_error=False,
                 )
@@ -219,7 +268,7 @@ class EditorView(ScrollView):
 
     async def _highlight_later(self) -> None:
         """Tokenize the current document in a thread, then repaint."""
-        doc = self.yate.doc
+        doc = self.doc
         buf = doc.buffer
         # shallow copy: the buffer may keep mutating while the thread runs
         lines = list(buf.lines)
@@ -233,7 +282,7 @@ class EditorView(ScrollView):
             return
         # discard the result if the document changed/closed while we worked;
         # a repaint reschedules a fresh pass for the current state
-        if self.yate.doc is not doc or buf.content_version != version:
+        if self.doc is not doc or buf.content_version != version:
             self.refresh()
             return
         self._hl_tokens = tokens
@@ -279,10 +328,11 @@ class EditorView(ScrollView):
             return Strip(segments)
 
         line = buf.lines[y]
+        cursor_row, cursor_col = self._cursor_anchor()[0]
         cells: list[str] = []
         for ch in line:
             theme.expand_char(ch, cells, buf.tab_width)
-        if y == buf.row and buf.col == len(line):
+        if y == cursor_row and cursor_col == len(line):
             cells.append(" ")  # block cursor at end of line
 
         n_cells = len(cells)
@@ -295,11 +345,11 @@ class EditorView(ScrollView):
                 if sid > styles[c]:
                     styles[c] = sid
 
-        is_current = y == buf.row
+        is_current = y == cursor_row
         line_bg = t.surface if is_current else None
 
         # gutter
-        line_diags = self.yate.lsp.diagnostics_on_line(self.yate.doc, y)
+        line_diags = self.yate.lsp.diagnostics_on_line(self.doc, y)
         line_error = any(d.is_error for d in line_diags)
         line_warn = any(d.is_warning for d in line_diags)
         if line_error:
@@ -350,7 +400,7 @@ class EditorView(ScrollView):
         dismissed once the user creates a new buffer (``:enew``); ``:welcome``
         turns it back on.
         """
-        doc = self.yate.doc
+        doc = self.doc
         buf = self.buffer
         return (
             self.yate.welcome_visible
@@ -442,7 +492,7 @@ class EditorView(ScrollView):
         """Per-cell underline flags contributed by LSP diagnostics on *row*."""
         flags = [False] * cell_count
         tw = self.buffer.tab_width
-        for d in self.yate.lsp.diagnostics_on_line(self.yate.doc, row):
+        for d in self.yate.lsp.diagnostics_on_line(self.doc, row):
             if d.start_row == d.end_row:
                 cs, ce = d.start_col, d.end_col
             elif row == d.start_row:
@@ -460,9 +510,10 @@ class EditorView(ScrollView):
     def _row_style_ranges(self, row: int, line: str) -> list[tuple[int, int, int]]:
         buf = self.buffer
         tw = buf.tab_width
+        cursor_row, cursor_col = self._cursor_anchor()[0]
         ranges: list[tuple[int, int, int]] = []
 
-        sel = buf.selection()
+        sel = self._selection()
         if sel is not None:
             (r1, c1), (r2, c2) = sel
             cs: Optional[int] = None
@@ -480,8 +531,10 @@ class EditorView(ScrollView):
                 end = theme.char_to_cell(line, ce, tw)
                 ranges.append((start, end, S_SELECTION))
 
+        # Search state belongs to the active document; other panes showing
+        # the same file would otherwise paint matches on wrong rows anyway.
         search = self.yate.search
-        if search.query:
+        if search.query and self.doc is self.yate.doc:
             for i, match in enumerate(search.matches):
                 if match.row != row:
                     continue
@@ -492,8 +545,8 @@ class EditorView(ScrollView):
                     sid,
                 ))
 
-        if row == buf.row:
-            cell = theme.char_to_cell(line, buf.col, tw)
+        if row == cursor_row:
+            cell = theme.char_to_cell(line, cursor_col, tw)
             ranges.append((cell, cell + 1, S_CURSOR))
 
         ranges.sort()

@@ -38,6 +38,7 @@ from yate.editor_view.keys import event_to_raw, textual_key_to_raw
 from yate.editor_view.manual import ManualScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
+from yate.editor_view.panes import Axis, Leaf, PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.keymaps.base import ActionContext, Keymap
@@ -123,9 +124,6 @@ class YateApp(App[None]):
         height: 1;
         padding: 0;
     }
-    #editor {
-        height: 1fr;
-    }
     """
 
     def __init__(
@@ -167,6 +165,8 @@ class YateApp(App[None]):
 
         self.focus_target = "editor"
         self.explorer_visible = True
+        # propagate the yaterc show_hidden default to the workspace
+        self.workspace.show_hidden = self.config.show_hidden
 
         self._ext_files = [Path(p) for p in (ext_files or [])]
         self._ext_dirs = [Path(p) for p in (ext_dirs or [])]
@@ -201,7 +201,9 @@ class YateApp(App[None]):
         self.tabbar: Optional[Static] = None
         self.breadcrumbs: Optional[Static] = None
         self.explorer_tree: Optional[ExplorerTree] = None
-        self.editor_view: Optional[EditorView] = None
+        # The active editor view is derived from the pane tree
+        # (self.panes.active_view); a pane host widget is created in compose.
+        self.panes: Optional[PaneManager] = None
         self.status_bar: Optional[StatusBar] = None
         self.prompt_bar: Optional[PromptBar] = None
         self.completion_popup: Optional[CompletionPopup] = None
@@ -217,6 +219,10 @@ class YateApp(App[None]):
         if not self.docs:
             self.new_buffer(show=False)
 
+        # The pane tree owns editor windows; it starts with one leaf on the
+        # startup document and grows with :split / :vsplit.
+        self.panes = PaneManager(self, self.doc)
+
     # ================================================================== docs
 
     @property
@@ -226,6 +232,13 @@ class YateApp(App[None]):
     @property
     def buffer(self) -> TextBuffer:
         return self.doc.buffer
+
+    @property
+    def editor_view(self) -> Optional[EditorView]:
+        """The widget of the currently active pane (``None`` before mount)."""
+        if self.panes is None:
+            return None
+        return self.panes.active_view
 
     def _make_buffer(self, text: str = "") -> TextBuffer:
         """Create a buffer honoring the yaterc indentation options."""
@@ -250,9 +263,18 @@ class YateApp(App[None]):
         """True once widgets exist and the editor is on screen.
 
         (Textual's ``App.is_mounted`` is a method, not a boolean, so we derive
-        the state from the editor widget, which is a mounted Widget.)
+        the state from the pane host / active editor widget.)
         """
-        return self.editor_view is not None and self.editor_view.is_mounted
+        if self.panes is None:
+            return False
+        host = self.panes.host
+        view = self.panes.active_view
+        return (
+            host is not None
+            and host.is_mounted
+            and view is not None
+            and view.is_mounted
+        )
 
     def _open_target(self, path: Path) -> None:
         if not path.exists():
@@ -264,30 +286,52 @@ class YateApp(App[None]):
         if kind == "file":
             self._open_document_path(path)
 
-    def _open_document_path(self, path: Path) -> None:
+    def _activate_doc(
+        self, doc: Document, target_leaf: Optional[Leaf] = None
+    ) -> None:
+        """Show *doc* in a pane leaf (default: the active one) and keep
+        ``doc_index`` in sync. Before the pane tree exists (startup) this
+        only sets the global index."""
+        if self.panes is None:
+            self.doc_index = self.docs.index(doc)
+            return
+        leaf = target_leaf if target_leaf is not None else self.panes.active
+        self.panes.show_doc(leaf, doc)
+
+    def _open_document_path(
+        self, path: Path, *, target_leaf: Optional[Leaf] = None
+    ) -> Optional[Document]:
+        """Open/reuse a document and bind it to *target_leaf*.
+
+        Returns the document, or ``None`` when the path is a binary file
+        (an error message is recorded).
+        """
         resolved = path.resolve()
-        for i, doc in enumerate(self.docs):
+        for doc in self.docs:
             if doc.path is not None and doc.path.resolve() == resolved:
-                self.doc_index = i
-                return
+                self._activate_doc(doc, target_leaf)
+                return doc
         if path.exists() and not Workspace.is_text_file(path):
             self._ext_messages.append(f"not a text file: {path.name}")
-            return
+            return None
         if path.exists():
             doc = Document.open(path)
         else:
             doc = Document(path, self._make_buffer())
         self._apply_buffer_options(doc.buffer)
         self.docs.append(doc)
-        self.doc_index = len(self.docs) - 1
+        self._activate_doc(doc, target_leaf)
+        return doc
 
-    async def _open_document_path_async(self, path: Path) -> None:
+    async def _open_document_path_async(
+        self, path: Path, *, target_leaf: Optional[Leaf] = None
+    ) -> Optional[Document]:
         """Like :meth:`_open_document_path`, but disk reads run off the loop."""
         resolved = path.resolve()
-        for i, doc in enumerate(self.docs):
+        for doc in self.docs:
             if doc.path is not None and doc.path.resolve() == resolved:
-                self.doc_index = i
-                return
+                self._activate_doc(doc, target_leaf)
+                return doc
 
         def _inspect() -> tuple[bool, bool]:
             return path.exists(), Workspace.is_text_file(path)
@@ -295,14 +339,15 @@ class YateApp(App[None]):
         exists, is_text = await asyncio.to_thread(_inspect)
         if exists and not is_text:
             self._ext_messages.append(f"not a text file: {path.name}")
-            return
+            return None
         if exists:
             doc = await Document.open_async(path)
         else:
             doc = Document(path, self._make_buffer())
         self._apply_buffer_options(doc.buffer)
         self.docs.append(doc)
-        self.doc_index = len(self.docs) - 1
+        self._activate_doc(doc, target_leaf)
+        return doc
 
     def open_path(self, path: Path) -> None:
         try:
@@ -312,6 +357,10 @@ class YateApp(App[None]):
                     self.explorer_tree.refresh_tree()
                 self.explorer_visible = True
                 self._sync_explorer_visibility()
+                # focus the tree so keyboard nav works immediately
+                self.focus_target = "explorer"
+                if self.explorer_tree is not None:
+                    self.explorer_tree.focus()
                 self.message(f"opened folder {path}")
                 return
         except OSError:
@@ -321,8 +370,6 @@ class YateApp(App[None]):
             self.explorer_tree.refresh_tree()
         self.search = SearchEngine()
         self.close_completion()
-        if self.editor_view is not None:
-            self.editor_view.scroll_col = 0
         self.message(f"opened {self.doc.name}")
         self.ui_refresh()
 
@@ -343,8 +390,6 @@ class YateApp(App[None]):
             self.explorer_tree.refresh_tree()
         self.search = SearchEngine()
         self.close_completion()
-        if self.editor_view is not None:
-            self.editor_view.scroll_col = 0
         self.message(f"opened {self.doc.name}")
         self.ui_refresh()
 
@@ -357,12 +402,11 @@ class YateApp(App[None]):
         )
 
     def new_buffer(self, show: bool = True) -> None:
-        self.docs.append(Document(None, self._make_buffer()))
-        self.doc_index = len(self.docs) - 1
+        doc = Document(None, self._make_buffer())
+        self.docs.append(doc)
+        self._activate_doc(doc)
         self.search = SearchEngine()
         self.close_completion()
-        if self.editor_view is not None:
-            self.editor_view.scroll_col = 0
         if show:
             # A user-requested buffer (:enew / new tab) dismisses the
             # one-time welcome page for the rest of the session. Internal
@@ -394,8 +438,18 @@ class YateApp(App[None]):
             )
         self.docs.pop(self.doc_index)
         if not self.docs:
-            self.new_buffer(show=False)
-        self.doc_index = min(self.doc_index, len(self.docs) - 1)
+            # Internal fallback scratch buffer (show=False keeps the welcome
+            # flag untouched).
+            fallback = Document(None, self._make_buffer())
+            self.docs.append(fallback)
+        else:
+            fallback = self.docs[min(self.doc_index, len(self.docs) - 1)]
+        # Every pane showing the closed document rebinds to the fallback;
+        # other panes keep their documents and independent view states.
+        if self.panes is not None:
+            self.panes.document_closed(closed, fallback)
+        else:
+            self.doc_index = self.docs.index(fallback)
         self.search = SearchEngine()
         self.close_completion()
         self.message("closed tab")
@@ -405,11 +459,10 @@ class YateApp(App[None]):
         if len(self.docs) < 2:
             self.message("only one tab open", kind="warn")
             return
-        self.doc_index = (self.doc_index + delta) % len(self.docs)
+        index = (self.doc_index + delta) % len(self.docs)
+        self._activate_doc(self.docs[index])
         self.search = SearchEngine()
         self.close_completion()
-        if self.editor_view is not None:
-            self.editor_view.scroll_col = 0
         self.ui_refresh()
 
     def save_document(self) -> None:
@@ -492,9 +545,10 @@ class YateApp(App[None]):
             return
         t = theme.active()
         self.screen.styles.background = t.bg
-        if self.editor_view is not None:
-            self.editor_view.styles.background = t.bg
-            self.editor_view.content_changed()
+        if self.panes is not None:
+            for view in self.panes.all_views():
+                view.styles.background = t.bg
+                view.content_changed()
         if self.explorer_tree is not None:
             self.explorer_tree.refresh_tree()
         if self.status_bar is not None:
@@ -593,9 +647,16 @@ class YateApp(App[None]):
         return handled
 
     def ui_refresh(self) -> None:
-        if not self.mounted or self.editor_view is None:
+        if not self.mounted or self.panes is None:
             return
-        self.editor_view.content_changed()
+        # The active view first; inactive panes showing the same document
+        # repaint too (shared edit/LSP state, independent cursor/scroll).
+        active = self.panes.active_view
+        if active is not None:
+            active.content_changed()
+        for view in self.panes.all_views():
+            if view is not active:
+                view.content_changed()
         if self.status_bar is not None:
             self.status_bar.refresh_status()
         self.update_tabbar()
@@ -625,26 +686,161 @@ class YateApp(App[None]):
 
     def focus_editor(self) -> None:
         self.focus_target = "editor"
-        if self.editor_view is not None:
-            self.editor_view.focus()
+        view = self.editor_view
+        if view is not None:
+            view.focus()
+
+    def after_pane_focus(self) -> None:
+        """App-level sync after the active pane changed (pane manager hook)."""
+        self.close_completion()
+        self.ui_refresh()
+
+    # ------------------------------------------------------- pane commands
+
+    def _split_pane(self, axis: Axis) -> None:
+        self.run_worker(
+            self._split_pane_worker(axis, None),
+            group="pane", exclusive=True, exit_on_error=False,
+        )
+
+    async def _split_pane_worker(
+        self, axis: Axis, path: Optional[Path]
+    ) -> None:
+        if self.panes is None:
+            return
+        if path is not None:
+            # split first (the new pane becomes active), then open the file
+            # into the active pane
+            await self.panes.split_active(axis)
+            await self.open_path_async(path)
+        else:
+            await self.panes.split_active(axis)
+            self.after_pane_focus()
+
+    def _split_with_path(self, axis: Axis, args: str) -> None:
+        text = args.strip()
+        if not text:
+            self._split_pane(axis)
+            return
+        path = Path(text).expanduser()
+        if not path.is_absolute():
+            # vim resolves :sp/:vs relative paths against the current file's
+            # directory (falling back to cwd for unnamed buffers)
+            base = self.doc.path.parent if self.doc.path else Path.cwd()
+            path = base / path
+        try:
+            is_dir = path.is_dir()
+        except OSError:
+            is_dir = False
+        if is_dir:
+            self.open_path(path)
+            return
+        self.run_worker(
+            self._split_pane_worker(axis, path),
+            group="pane", exclusive=True, exit_on_error=False,
+        )
+
+    def _only_pane(self) -> None:
+        if self.panes is None:
+            return
+        self.run_worker(
+            self.panes.only_active(),
+            group="pane", exclusive=True, exit_on_error=False,
+        )
+
+    def _close_pane(self) -> None:
+        """``ctrl+w q``: close the active pane (documents stay open).
+
+        With a single pane this is a no-op (use ``:q`` to leave yate).
+        """
+        if self.panes is None or self.panes.leaf_count <= 1:
+            self.message("only one pane open (use :q to quit)", kind="warn")
+            return
+        self.run_worker(
+            self.panes.close_active(),
+            group="pane", exclusive=True, exit_on_error=False,
+        )
+
+    def _resize_pane(self, key: str) -> None:
+        if self.panes is None:
+            return
+        if key in ("+", "plus"):
+            moved = self.panes.resize("horizontal", 1)
+        elif key in ("-", "minus"):
+            moved = self.panes.resize("horizontal", -1)
+        elif key in (">", "greater_than_sign"):
+            moved = self.panes.resize("vertical", 1)
+        elif key in ("=", "equals_sign"):
+            self.panes.equalize()
+            moved = True
+        else:  # "<" / "less_than_sign"
+            moved = self.panes.resize("vertical", -1)
+        if not moved and key not in ("=", "equals_sign"):
+            self.message("pane already at its minimum size", kind="warn")
+
+    def close_pane_or_quit(self, force: bool = False) -> None:
+        """:q: close the active pane when several are open, quit yate
+        when it is the last one. Closing a pane never prompts -- the document
+        stays open as a hidden buffer and the final quit still guards unsaved
+        changes. (:quit always quits the whole editor, guarding unsaved
+        changes.)"""
+        if force:
+            self.quit(force=True)
+            return
+        if self.panes is not None and self.panes.leaf_count > 1:
+            self.run_worker(
+                self.panes.close_active(),
+                group="pane", exclusive=True, exit_on_error=False,
+            )
+        else:
+            self.quit()
 
     @property
     def window_pending(self) -> bool:
         """True while a vim ``ctrl+w`` window chord awaits its second key."""
         return self._window_pending
 
-    def _window_navigate(self, key: str) -> None:
-        """Switch pane after a vim ``ctrl+w`` prefix."""
-        if key == "ctrl+w":  # cycle between the two panes
-            if self.focused is self.explorer_tree:
+    def _window_command(self, key: str) -> None:
+        """Execute the second key of a vim ``ctrl+w`` window chord."""
+        if key == "ctrl+w":  # round-robin: explorer <-> every editor pane
+            if self.panes is not None:
+                self.panes.cycle_focus(
+                    explorer_focused=self.focused is self.explorer_tree
+                )
+            return
+        if self.focused is self.explorer_tree:
+            # The explorer plays the left-neighbour pane: only ctrl+w l/j/k
+            # returns to an editor pane from it.
+            if key in ("l", "j", "k"):
                 self.focus_editor()
-            else:
+            return
+        if key == "h":
+            if self.panes is not None and not self.panes.focus_direction("h"):
                 self.focus_explorer()
-        elif key == "h":  # left pane
-            self.focus_explorer()
-        elif key == "l":  # right pane
-            self.focus_editor()
-        # j/k: yate has no vertical split, so they are no-ops
+        elif key in ("j", "k", "l"):
+            if self.panes is not None:
+                self.panes.focus_direction(key)
+        elif key == "s":
+            self._split_pane("horizontal")
+        elif key == "v":
+            self._split_pane("vertical")
+        elif key == "q":
+            self._close_pane()
+        elif key == "o":
+            self._only_pane()
+        elif key in ("+", "minus", "-", "<", "less_than_sign", ">",
+                     "greater_than_sign", "=", "equals_sign", "plus"):
+            self._resize_pane(key)
+
+    #: Keys accepted as the second half of ``ctrl+w``. Symbol keys carry
+    #: Textual's canonical names (``minus`` / ``equals_sign`` / ...) but the
+    #: raw symbols are accepted too.
+    _WINDOW_KEYS = frozenset(
+        {"h", "j", "k", "l", "s", "v", "q", "o",
+         "+", "plus", "-", "minus",
+         "<", "less_than_sign", ">", "greater_than_sign",
+         "=", "equals_sign", "ctrl+w"}
+    )
 
     def try_window_prefix(self, event: Key) -> bool:
         """Handle the vim ``ctrl+w`` window chord; True when consumed.
@@ -659,15 +855,18 @@ class YateApp(App[None]):
             return False
         if self._window_pending:
             self._window_pending = False
-            if event.key in ("h", "j", "k", "l", "ctrl+w"):
-                self._window_navigate(event.key)
+            if event.key in self._WINDOW_KEYS:
+                self._window_command(event.key)
                 return True
             return False  # any other key cancels and is processed normally
         if self.keymap_name == "vim" and event.key == "ctrl+w":
             km = self.keymaps["vim"]
             if isinstance(km, VimKeymap) and km.mode is VimMode.NORMAL:
                 self._window_pending = True
-                self.message("ctrl+w-  (h j k l switch window, ctrl+w cycles)")
+                self.message(
+                    "ctrl+w-  (s/:split v/:vsplit q close o :only  "
+                    "h j k l move, ctrl+w cycle  + - < > = resize)"
+                )
                 return True
         return False
 
@@ -977,16 +1176,19 @@ class YateApp(App[None]):
         mode = self.prompt_bar.active_mode
         if mode in ("find", "find_back"):
             self.search.update(event.value, self.buffer)
-            if self.editor_view is not None:
-                self.editor_view.refresh()
+            if self.panes is not None:
+                for view in self.panes.views_for(self.doc):
+                    view.refresh()
 
     # ----------------------------------------------------- prompt completion
 
     # Commands whose single argument is a filesystem path.
-    _PATH_COMMANDS = frozenset({"e", "edit"})
+    _PATH_COMMANDS = frozenset(
+        {"e", "edit", "sp", "split", "vs", "vsplit"}
+    )
     _SET_OPTIONS = (
         "filetype", "ft", "keymap", "lang", "language", "shell",
-        "terminal_height", "theme",
+        "terminal_height", "theme", "show_hidden",
     )
     _FILETYPE_KEYS = frozenset({"filetype", "ft", "language", "lang"})
     _FILETYPE_COMMANDS = frozenset({"filetype", "ft", "language"})
@@ -1026,6 +1228,8 @@ class YateApp(App[None]):
                     vals = tuple(theme.available())
                 elif key in self._FILETYPE_KEYS:
                     vals = ("auto", *highlight.available_filetypes())
+                elif key == "show_hidden":
+                    vals = ("on", "off")
                 else:
                     return []
                 return [
@@ -1174,9 +1378,10 @@ class YateApp(App[None]):
 
     def _on_lsp_event(self, event: str) -> None:
         """Manager callback (event loop thread): repaint after LSP updates."""
-        if not self.mounted or self.editor_view is None:
+        if not self.mounted or self.panes is None:
             return
-        self.editor_view.refresh()
+        for view in self.panes.all_views():
+            view.refresh()
         if self.status_bar is not None:
             self.status_bar.refresh_status()
         if event == "diagnostics":
@@ -1476,7 +1681,8 @@ class YateApp(App[None]):
         reg = self.commands.register
         reg("w", lambda args: self.save_document(), "save the current file")
         reg("write", lambda args: self.save_document(), "save the current file")
-        reg("q", lambda args: self.quit(), "quit yate")
+        reg("q", lambda args: self.close_pane_or_quit(),
+            "close the active pane (quit when it is the last one)")
         reg("quit", lambda args: self.quit(), "quit yate")
         reg("q!", lambda args: self.quit(force=True), "quit, discarding changes")
 
@@ -1485,6 +1691,19 @@ class YateApp(App[None]):
             self.quit(force=True)
 
         reg("wq", _wq, "save and quit")
+
+        def _split(args: str) -> None:
+            self._split_with_path("horizontal", args)
+
+        def _vsplit(args: str) -> None:
+            self._split_with_path("vertical", args)
+
+        reg("split", _split, "split the window horizontally (:sp [file])")
+        reg("sp", _split, "alias for :split")
+        reg("vsplit", _vsplit, "split the window vertically (:vs [file])")
+        reg("vs", _vsplit, "alias for :vsplit")
+        reg("only", lambda args: self._only_pane(),
+            "close every other pane, keep the active one")
 
         def _edit(args: str) -> None:
             args = args.strip()
@@ -1512,7 +1731,8 @@ class YateApp(App[None]):
             if "=" not in args:
                 self.message(
                     "usage: :set keymap=vsc|vim  theme=mocha  shell=powershell  "
-                    "terminal_height=12  filetype=py (auto = detect)",
+                    "terminal_height=12  filetype=py (auto = detect)  "
+                    "show_hidden=on|off",
                     kind="warn",
                 )
                 return
@@ -1547,6 +1767,14 @@ class YateApp(App[None]):
                 if self.terminal_panel is not None and self._terminal_visible:
                     self.terminal_panel.styles.height = height
                 self.message(f"terminal height: {height} rows", kind="ok")
+            elif key == "show_hidden":
+                val = value.lower() in ("on", "true", "1", "yes")
+                self.workspace.show_hidden = val
+                if self.explorer_tree is not None:
+                    self.explorer_tree.refresh_tree()
+                self.message(
+                    f"hidden files {'shown' if val else 'hidden'}", kind="ok"
+                )
             else:
                 self.message(f"unknown option: {key}", kind="warn")
 
@@ -1601,7 +1829,17 @@ class YateApp(App[None]):
     def toggle_explorer(self) -> None:
         self.explorer_visible = not self.explorer_visible
         self._sync_explorer_visibility()
-        self.message(f"explorer {'shown' if self.explorer_visible else 'hidden'}")
+        if self.explorer_visible and self.workspace.root is not None:
+            # focus the tree so keyboard nav works immediately on show;
+            # defer until after the next layout pass -- a freshly shown
+            # widget still has a 0x0 region and Textual refuses focus
+            self.focus_target = "explorer"
+            if self.explorer_tree is not None:
+                self.explorer_tree.call_after_refresh(self.explorer_tree.focus)
+            self.message("explorer: j/k move, l open, h fold, a new file, "
+                         "A new folder, r rename, d delete, H toggle hidden, esc back")
+        else:
+            self.message(f"explorer {'shown' if self.explorer_visible else 'hidden'}")
 
     def _sync_explorer_visibility(self) -> None:
         visible = self.explorer_visible and self.workspace.root is not None
@@ -1728,9 +1966,10 @@ class YateApp(App[None]):
         buf.anchor = None
         buf.set_cursor((row, col))
         self.search.update("", buf)
-        if self.editor_view is not None:
-            self.editor_view.scroll_col = 0
-            self.editor_view.reveal_cursor()
+        view = self.editor_view
+        if view is not None:
+            view.scroll_col = 0
+            view.reveal_cursor()
         self.message(f"line {row + 1} of {buf.line_count}")
         self.ui_refresh()
 
@@ -1879,7 +2118,7 @@ class YateApp(App[None]):
             with Vertical(id="editor-col"):
                 yield Static(id="tabbar")
                 yield Static(id="breadcrumbs")
-                yield EditorView(self, id="editor")
+                yield PaneHost(self.panes) if self.panes is not None else Static()
         # Both live in one docked container so the terminal always sits
         # directly above the status/prompt strip (VS Code layout).
         with Vertical(id="bottom-dock"):
@@ -1895,7 +2134,6 @@ class YateApp(App[None]):
         self.tabbar = self.query_one("#tabbar", Static)
         self.breadcrumbs = self.query_one("#breadcrumbs", Static)
         self.explorer_tree = self.query_one("#explorer", ExplorerTree)
-        self.editor_view = self.query_one("#editor", EditorView)
         self.status_bar = self.query_one("#statusbar", StatusBar)
         self.prompt_bar = self.query_one(PromptBar)
         self.terminal_panel = self.query_one("#terminal-dock", TerminalPanel)
@@ -1909,7 +2147,9 @@ class YateApp(App[None]):
         self.apply_theme()
         self.explorer_tree.refresh_tree()
         self._sync_explorer_visibility()
-        self.editor_view.focus()
+        initial_view = self.editor_view
+        assert initial_view is not None
+        initial_view.focus()
 
         if self._ext_messages:
             self.prompt_bar.show_message("; ".join(self._ext_messages), kind="warn")

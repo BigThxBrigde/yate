@@ -161,6 +161,10 @@ class PaletteScreen(ModalScreen[None]):
         app = self.yate
         entries: list[tuple[str, str, Any]] = []
         for name in app.commands.names():
+            # hide "palette" itself — opening the palette from inside the
+            # palette would be a no-op and feels like recursion
+            if name == "palette":
+                continue
             entries.append(
                 (name, app.commands.describe(name), ("command", name)))
         command_names = {name for name, _h, _p in entries}

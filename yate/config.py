@@ -47,7 +47,7 @@ RC_FILENAME = "yaterc"
 #: Recognized option variables in a yaterc file.
 _KNOWN_OPTIONS = (
     "keymap", "theme", "tab_width", "use_spaces",
-    "shell", "terminal_height",
+    "shell", "terminal_height", "show_hidden",
 )
 
 _VALID_KEYMAPS = ("vsc", "vim")
@@ -91,6 +91,9 @@ class YateConfig:
     shell: str = ""
     #: Integrated terminal panel height in rows.
     terminal_height: int = 12
+    #: Show dotfiles in the explorer by default (``show_hidden = True``
+    #: in yaterc).  Off by default — dotfiles are hidden until toggled.
+    show_hidden: bool = False
     #: Extra extension paths (directories or ``.py`` files) declared by rc
     #: files, accumulated in load order (user rc first, project rc after).
     extension_paths: list[Path] = field(default_factory=list[Path])
@@ -356,6 +359,15 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
             config.errors.append(
                 f"terminal_height must be an integer between 3 and 40, "
                 f"got {terminal_height!r}"
+            )
+
+    show_hidden = options.get("show_hidden")
+    if show_hidden is not None:
+        if isinstance(show_hidden, bool):
+            config.show_hidden = show_hidden
+        else:
+            config.errors.append(
+                f"show_hidden must be True or False, got {show_hidden!r}"
             )
 
     _extract_language_servers(namespace, config)

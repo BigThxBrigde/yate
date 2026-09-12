@@ -38,6 +38,9 @@ class ExplorerTree(Tree[NodeData]):
         self.yate = yate
         self.show_root = True
         self.guide_depth = 2
+        #: last node the user selected (opened); survives refresh_tree even
+        # when the tree lost focus (Textual resets cursor_line to -1 then)
+        self._last_selected: Path | None = None
         # Tree's auto_expand toggles on every select, which would cancel the
         # explicit toggle in on_tree_node_selected (l/enter would do nothing)
         self.auto_expand = False
@@ -60,7 +63,9 @@ class ExplorerTree(Tree[NodeData]):
     def refresh_tree(self) -> None:
         """(Re)build the tree from the workspace root (theme aware).
 
-        The expansion state of all directories survives the rebuild.
+        The expansion state of all directories survives the rebuild, and
+        the cursor stays on the same path (clamped by Textual if the node
+        vanished, which would otherwise jump it to the last visible row).
         """
         t = theme.active()
         self.styles.background = t.panel
@@ -72,12 +77,59 @@ class ExplorerTree(Tree[NodeData]):
             self.refresh()
             return
         expanded = self._expanded_paths()
+        # prefer the last opened file (mouse clicks do not move the tree
+        # cursor, and the cursor is even reset when the tree loses focus)
+        cursor_path = self._last_selected or self._cursor_path()
         self.clear()
         self.root.label = self._label(root_path, True, True)
         self.root.data = root_path
         self._load_children(self.root, root_path, expanded)
         self.root.expand()
+        if cursor_path is not None:
+            # node._line is stale until Textual recomputes the tree lines,
+            # so restore the cursor after the next layout pass
+            self.call_after_refresh(self._restore_cursor, cursor_path)
         self.refresh()
+
+    def _restore_cursor(self, path: Path) -> None:
+        line = self._line_of(path)
+        if line is not None:
+            self.cursor_line = line
+
+    def _line_of(self, path: Path) -> int | None:
+        """Visible row index of the node representing *path*.
+
+        Matches Textual's rendering order: depth-first over expanded nodes.
+        Computed from the model so it is valid before the next layout pass.
+        """
+        found: list[int] = []
+        counter = -1
+
+        def walk(node: TreeNode[NodeData]) -> None:
+            nonlocal counter
+            counter += 1
+            if isinstance(node.data, Path) and node.data == path:
+                found.append(counter)
+                return
+            if node.is_expanded:
+                for child in node.children:
+                    walk(child)
+
+        walk(self.root)
+        return found[0] if found else None
+
+    def _find_node(
+        self, node: TreeNode[NodeData], path: Path
+    ) -> TreeNode[NodeData] | None:
+        """Depth-first search for the node representing *path*."""
+        for child in node.children:
+            if isinstance(child.data, Path) and child.data == path:
+                return child
+            if child.is_expanded:
+                found = self._find_node(child, path)
+                if found is not None:
+                    return found
+        return None
 
     def _load_children(
         self,
@@ -95,6 +147,11 @@ class ExplorerTree(Tree[NodeData]):
                 # placeholder so the node shows as expandable before load
                 child.add(placeholder, data=None)
                 if expanded is not None and entry.path in expanded:
+                    # load synchronously and recurse so directories at ANY
+                    # depth keep their expansion (the async lazy-load path
+                    # below has no `expanded` set and would collapse them)
+                    child.remove_children()
+                    self._load_children(child, entry.path, expanded)
                     child.expand()
 
     @staticmethod
@@ -132,6 +189,7 @@ class ExplorerTree(Tree[NodeData]):
         path = event.node.data
         if not isinstance(path, Path):
             return
+        self._last_selected = path
         if path.is_dir():
             event.node.toggle()
             return
@@ -188,6 +246,14 @@ class ExplorerTree(Tree[NodeData]):
         elif key == "A":
             consume()
             self.yate.explorer_new_dir_prompt(self._cursor_path())
+        elif key == "H":
+            consume()
+            ws = self.yate.workspace
+            ws.show_hidden = not ws.show_hidden
+            self.refresh_tree()
+            self.yate.message(
+                f"hidden files {'shown' if ws.show_hidden else 'hidden'}"
+            )
         elif key == "r":
             consume()
             self.yate.explorer_rename_prompt(self._cursor_path())

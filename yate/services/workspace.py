@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-# Directories that are never worth showing in the tree.
+# Directories that are always hidden regardless of user settings.
 IGNORED_NAMES = {
     ".git",
     ".hg",
@@ -21,6 +22,9 @@ IGNORED_NAMES = {
     ".idea",
     ".vscode",
 }
+
+#: Files whose contents are read as ignore-pattern sources.
+IGNORE_FILENAMES = (".gitignore", ".yateignore")
 
 TEXT_SUFFIXES = {
     ".txt", ".md", ".rst", ".py", ".pyw", ".js", ".ts", ".jsx", ".tsx",
@@ -46,16 +50,35 @@ class Entry:
         return self.name.startswith(".")
 
 
+@dataclass
+class _IgnorePattern:
+    """One parsed line from an ignore file."""
+
+    pattern: str  # fnmatch pattern (already lowercased for matching)
+    negated: bool  # ``!`` prefix: re-include even if an earlier line ignored
+    dir_only: bool  # trailing ``/``: only match directories
+
+
 class Workspace:
     """A rooted directory tree, plus helpers for opening paths."""
 
     def __init__(self, root: Optional[Path] = None) -> None:
         self.root: Optional[Path] = root.resolve() if root is not None else None
+        #: When ``False`` dotfiles are hidden (the default). Toggled by
+        #: the user at runtime via ``:set show_hidden=on`` or the ``H``
+        #: key in the explorer.
+        self.show_hidden: bool = False
+        #: Patterns loaded from ``.gitignore`` / ``.yateignore`` at the
+        #: workspace root; reloaded when the root changes.
+        self._root_ignores: list[_IgnorePattern] = []
+        if self.root is not None:
+            self._load_root_ignores()
 
     # ----------------------------------------------------------------- setup
 
     def set_root(self, path: Path) -> None:
         self.root = path.resolve()
+        self._load_root_ignores()
 
     def open_target(self, target: Path) -> str:
         """Resolve a startup target.
@@ -66,14 +89,104 @@ class Workspace:
         p = target.resolve()
         if p.is_dir():
             self.root = p
+            self._load_root_ignores()
             return "dir"
         self.root = p.parent
+        self._load_root_ignores()
         return "file"
+
+    # --------------------------------------------------------- ignore loading
+
+    def _load_root_ignores(self) -> None:
+        """Read ``.gitignore`` / ``.yateignore`` from the workspace root."""
+        self._root_ignores = []
+        if self.root is None:
+            return
+        for name in IGNORE_FILENAMES:
+            ignore_file = self.root / name
+            try:
+                text = ignore_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            self._root_ignores.extend(self._parse_ignore(text))
+
+    @staticmethod
+    def _parse_ignore(text: str) -> list[_IgnorePattern]:
+        """Parse gitignore-style lines into patterns.
+
+        Supported syntax:
+        * ``#`` comment and blank lines — skipped
+        * ``!pattern`` — negation (re-include)
+        * ``pattern/`` — directory only
+        * ``pattern`` — match basename via ``fnmatch``
+        """
+        patterns: list[_IgnorePattern] = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            negated = line.startswith("!")
+            if negated:
+                line = line[1:]
+            dir_only = line.endswith("/")
+            if dir_only:
+                line = line[:-1]
+            line = line.strip()
+            if not line:
+                continue
+            patterns.append(
+                _IgnorePattern(line.lower(), negated, dir_only)
+            )
+        return patterns
+
+    def _dir_ignores(self, directory: Path) -> list[_IgnorePattern]:
+        """Load ignore patterns from a specific directory (directory-level)."""
+        patterns: list[_IgnorePattern] = []
+        for name in IGNORE_FILENAMES:
+            ignore_file = directory / name
+            try:
+                text = ignore_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            patterns.extend(self._parse_ignore(text))
+        return patterns
+
+    def _is_ignored(
+        self,
+        name: str,
+        is_dir: bool,
+        dir_ignores: Optional[list[_IgnorePattern]] = None,
+    ) -> bool:
+        """Check ignore patterns (root + directory-level) for one entry.
+
+        Later patterns win (last match decides), mirroring ``.gitignore``
+        semantics.
+        """
+        lower = name.lower()
+        ignored = False
+        for pat in self._root_ignores:
+            if pat.dir_only and not is_dir:
+                continue
+            if fnmatch.fnmatch(lower, pat.pattern):
+                ignored = not pat.negated
+        if dir_ignores is not None:
+            for pat in dir_ignores:
+                if pat.dir_only and not is_dir:
+                    continue
+                if fnmatch.fnmatch(lower, pat.pattern):
+                    ignored = not pat.negated
+        return ignored
 
     # ------------------------------------------------------------- listing
 
     def list_dir(self, path: Path) -> list[Entry]:
-        """List *path*, directories first, ignoring noise / hidden opt-out."""
+        """List *path*, directories first, respecting ignore rules.
+
+        ``IGNORED_NAMES`` are always hidden.  Dotfiles are hidden unless
+        ``show_hidden`` is set.  ``.gitignore`` / ``.yateignore`` patterns
+        (root + per-directory) are applied on top.
+        """
+        dir_ignores = self._dir_ignores(path)
         entries: list[Entry] = []
         try:
             children = sorted(
@@ -83,17 +196,24 @@ class Workspace:
         except (PermissionError, OSError):
             return entries
         for child in children:
-            if child.name in IGNORED_NAMES:
+            name = child.name
+            if name in IGNORED_NAMES:
                 continue
-            entries.append(Entry(child, child.name, child.is_dir()))
+            is_dir = child.is_dir()
+            if not self.show_hidden and name.startswith("."):
+                continue
+            if self._is_ignored(name, is_dir, dir_ignores):
+                continue
+            entries.append(Entry(child, name, is_dir))
         return entries
 
     def walk_files(self, limit: int = 5000) -> list[Path]:
         """Recursively collect files under :attr:`root` for quick open.
 
         Ignored directories (``.git``, ``__pycache__``, ...) are pruned
-        during the walk.  Results are sorted by path, directories first
-        per level.  Returns an empty list when no folder is open.
+        during the walk.  Dotfiles and ``.gitignore`` / ``.yateignore``
+        patterns are also applied.  Results are sorted by path, directories
+        first per level.  Returns an empty list when no folder is open.
         """
         if self.root is None:
             return []
@@ -102,6 +222,7 @@ class Workspace:
         def walk(directory: Path) -> None:
             if len(files) >= limit:
                 return
+            dir_ignores = self._dir_ignores(directory)
             try:
                 children = sorted(
                     directory.iterdir(),
@@ -112,9 +233,15 @@ class Workspace:
             for child in children:
                 if len(files) >= limit:
                     return
-                if child.is_dir():
-                    if child.name in IGNORED_NAMES:
-                        continue
+                name = child.name
+                if name in IGNORED_NAMES:
+                    continue
+                is_dir = child.is_dir()
+                if not self.show_hidden and name.startswith("."):
+                    continue
+                if self._is_ignored(name, is_dir, dir_ignores):
+                    continue
+                if is_dir:
                     walk(child)
                 else:
                     files.append(child)
