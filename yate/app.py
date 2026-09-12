@@ -1959,12 +1959,26 @@ class YateApp(App[None]):
         # a project or user directory get the last word on registrations.
         bundled = bundled_extensions_dir()
         if bundled.is_dir():
-            _report(
-                self.extension_loader.load_directory(
-                    bundled,
-                    exclude=self.config.disabled_extensions,
-                )
+            # Registrars are last-write-wins, so a bundled default loading
+            # *after* an rc-declared same-stem script would silently take over
+            # its commands/highlight/server. Name the conflict and point at
+            # the documented opt-out instead of letting the user script lose
+            # without explanation.
+            rc_owners = {r.name: r for r in self.extension_loader.loaded}
+            records = self.extension_loader.load_directory(
+                bundled,
+                exclude=self.config.disabled_extensions,
             )
+            for record in records:
+                owner = rc_owners.get(record.name)
+                if owner is not None and record.error is None:
+                    self._ext_messages.append(
+                        f"extension {record.name}: the rc-declared script "
+                        f"{owner.path} is shadowed by the bundled default; "
+                        f'add disabled_extensions = ["{record.name}"] to '
+                        "yaterc to use the rc-declared version"
+                    )
+            _report(records)
         directories = [
             *self._ext_dirs,
             Path.cwd() / "extensions",

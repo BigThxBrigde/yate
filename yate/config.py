@@ -131,11 +131,15 @@ def find_project_config(start: Path | None = None) -> Path | None:
 
 
 def default_rc_paths(target: Path | None = None) -> list[Path]:
-    """Ordered rc files to load: user rc then project rc (existing only)."""
+    """Ordered rc files to load: user rc then project rc (existing only).
+
+    Both entries are resolved so the same file reached via different spellings
+    (Windows 8.3 short names, symlinks) is only loaded once.
+    """
     paths: list[Path] = []
     user = user_config_path()
     if user.is_file():
-        paths.append(user)
+        paths.append(user.resolve())
     project = find_project_config(target)
     if project is not None and project not in paths:
         paths.append(project)

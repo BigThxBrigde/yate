@@ -24,6 +24,7 @@ Note: ``*.spec`` is git-ignored by default; this file is tracked on purpose
 import os
 import sys
 
+from PyInstaller.building.datastruct import Tree
 from PyInstaller.utils.hooks import collect_submodules
 
 # SPECPATH is injected by PyInstaller: the directory containing this file
@@ -47,11 +48,17 @@ hiddenimports = collect_submodules("yate")
 
 # Bundled extensions are loaded from disk at runtime via
 # importlib.util.spec_from_file_location (not normal imports), so the .py
-# scripts must ship as data files -- as must every non-code resource.
+# scripts must ship as data files -- as must every non-code resource. Tree
+# (rather than a plain directory tuple) keeps development bytecode caches out
+# of the distributable.
+extensions_tree = Tree(
+    pkg_path("extensions"),
+    prefix="yate/extensions",
+    excludes=["__pycache__", "*.pyc", "*.pyo"],
+)
 datas = [
     (pkg_path("resources"), "yate/resources"),
     (pkg_path("docs"), "yate/docs"),
-    (pkg_path("extensions"), "yate/extensions"),
     (pkg_path("yaterc.example"), "yate"),
 ]
 
@@ -67,6 +74,7 @@ a = Analysis(
     excludes=[],
     noarchive=False,
 )
+a.datas += extensions_tree
 pyz = PYZ(a.pure)
 
 exe = EXE(

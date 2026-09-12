@@ -823,7 +823,9 @@ class ExplorerOpsTests(unittest.IsolatedAsyncioTestCase):
         from yate.editor_view.explorer import ExplorerTree
 
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            # workspace stores the resolved root; on Windows TEMP may be an
+            # 8.3 short name (e.g. RUNNER~1), so canonicalize before comparing
+            root = Path(tmp).resolve()
             sub = root / "sub"
             sub.mkdir()
             (sub / "inner.txt").write_text("i\n", encoding="utf-8")
@@ -1718,6 +1720,57 @@ class BundledExtensionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIsNone(app.lsp.config_for("py"))
             finally:
                 os.chdir(old_cwd)
+
+    async def test_rc_same_stem_extension_is_named_as_shadowed(self):
+        # An rc-declared script with a bundled default's stem loads first, but
+        # the last-write-wins registrars would let the bundled default take
+        # over: the conflict must surface as a startup warning.
+        from yate.config import YateConfig
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rc_dir = root / "rc_extensions"
+            rc_dir.mkdir()
+            (rc_dir / "csharp_highlight.py").write_text(
+                "def setup(api):\n    pass\n", encoding="utf-8"
+            )
+            config = YateConfig(extension_paths=[rc_dir])
+            app = YateApp(config=config)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                messages = cast(Any, app)._ext_messages
+                self.assertTrue(
+                    any(
+                        "csharp_highlight" in m
+                        and "shadowed by the bundled default" in m
+                        for m in messages
+                    ),
+                    messages,
+                )
+
+    async def test_disabled_bundled_extension_does_not_warn_shadow(self):
+        # Disabling the bundled default removes the collision entirely.
+        from yate.config import YateConfig
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rc_dir = root / "rc_extensions"
+            rc_dir.mkdir()
+            (rc_dir / "csharp_highlight.py").write_text(
+                "def setup(api):\n    pass\n", encoding="utf-8"
+            )
+            config = YateConfig(
+                extension_paths=[rc_dir],
+                disabled_extensions=["csharp_highlight"],
+            )
+            app = YateApp(config=config)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                messages = cast(Any, app)._ext_messages
+                self.assertFalse(
+                    any("shadowed by the bundled default" in m for m in messages),
+                    messages,
+                )
 
 
 class LspUiTests(unittest.IsolatedAsyncioTestCase):

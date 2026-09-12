@@ -401,7 +401,9 @@ class ProjectConfigDiscoveryTests(unittest.TestCase):
             deep = root / "a" / "b" / "c"
             deep.mkdir(parents=True)
             found = cfg.find_project_config(deep)
-            self.assertEqual(found, rc)
+            # the walk resolves, so compare against the canonical path (on
+            # Windows TEMP may be an 8.3 short name such as RUNNER~1)
+            self.assertEqual(found, rc.resolve())
 
     def test_find_project_config_none(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -415,7 +417,7 @@ class ProjectConfigDiscoveryTests(unittest.TestCase):
             (root / "src").mkdir()
             file_in_subdir.write_text("", encoding="utf-8")
             found = cfg.find_project_config(file_in_subdir)
-            self.assertEqual(found, root / "yaterc")
+            self.assertEqual(found, (root / "yaterc").resolve())
 
     def test_default_rc_paths_user_then_project(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -425,14 +427,15 @@ class ProjectConfigDiscoveryTests(unittest.TestCase):
             project_rc = _write(root / "yaterc", "")
             with patch("yate.config.user_config_path", return_value=user_rc):
                 paths = cfg.default_rc_paths(root)
-            self.assertEqual(paths, [user_rc, project_rc])
+            # returned paths are resolved (canonical) -- see Windows 8.3 note
+            self.assertEqual(paths, [user_rc.resolve(), project_rc.resolve()])
 
     def test_default_rc_paths_dedupes(self) -> None:
         with TemporaryDirectory() as tmp:
             rc = _write(Path(tmp) / "yaterc", "")
             with patch("yate.config.user_config_path", return_value=rc):
                 paths = cfg.default_rc_paths(Path(tmp))
-            self.assertEqual(paths, [rc])
+            self.assertEqual(paths, [rc.resolve()])
 
     def test_user_config_path_layout(self) -> None:
         self.assertEqual(
