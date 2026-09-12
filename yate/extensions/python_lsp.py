@@ -1,4 +1,8 @@
-r"""Built-in extension: Python language server support (LSP).
+r"""Bundled extension: Python language server support (LSP).
+
+Ships with yate at ``yate/extensions/python_lsp.py`` and is auto-loaded at
+startup. Disable it with the yaterc option
+``disabled_extensions = ["python_lsp"]``.
 
 Registers a Python language server so yate provides autocomplete and
 diagnostics for ``.py`` / ``.pyi`` files.  Server discovery, in order:

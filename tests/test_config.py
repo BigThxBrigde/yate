@@ -527,6 +527,54 @@ class ExtensionPathTests(unittest.TestCase):
             self.assertEqual(config.extension_paths, [a.resolve(), b.resolve()])
 
 
+class DisabledExtensionsConfigTests(unittest.TestCase):
+    """The ``disabled_extensions`` option (skip bundled defaults)."""
+
+    def _load(self, body: str) -> cfg.YateConfig:
+        with TemporaryDirectory() as tmp:
+            rc = _write(Path(tmp) / "yaterc", body)
+            return cfg.load_config([rc])
+
+    def test_default_empty(self) -> None:
+        self.assertEqual(cfg.YateConfig().disabled_extensions, [])
+
+    def test_list_accumulates_and_dedupes(self) -> None:
+        with TemporaryDirectory() as tmp:
+            user_rc = _write(
+                Path(tmp) / "user",
+                'disabled_extensions = ["python_lsp"]\n',
+            )
+            project_rc = _write(
+                Path(tmp) / "project",
+                'disabled_extensions = ("python_lsp", "csharp_highlight")\n',
+            )
+            config = cfg.load_config([user_rc, project_rc])
+            self.assertEqual(config.errors, [])
+            self.assertEqual(
+                config.disabled_extensions,
+                ["python_lsp", "csharp_highlight"],
+            )
+
+    def test_single_string_and_whitespace_trimmed(self) -> None:
+        config = self._load('disabled_extensions = " python_lsp "\n')
+        self.assertEqual(config.disabled_extensions, ["python_lsp"])
+
+    def test_bad_type_reported(self) -> None:
+        config = self._load("disabled_extensions = 42\n")
+        self.assertEqual(config.disabled_extensions, [])
+        self.assertTrue(
+            any("disabled_extensions" in e for e in config.errors),
+            config.errors,
+        )
+
+    def test_blank_entries_reported_but_siblings_kept(self) -> None:
+        config = self._load(
+            'disabled_extensions = ["", "python_lsp", "   "]\n'
+        )
+        self.assertEqual(config.disabled_extensions, ["python_lsp"])
+        self.assertEqual(len(config.errors), 2)
+
+
 class ThemeDirTests(unittest.TestCase):
     """The ``theme_dirs`` option and external theme file loading."""
 
@@ -685,8 +733,8 @@ class ThemeDirTests(unittest.TestCase):
 
 class ExampleRcTests(unittest.TestCase):
     def test_shipped_example_loads_cleanly(self) -> None:
-        example = Path(__file__).parent.parent / "yaterc.example"
-        self.assertTrue(example.is_file(), "yaterc.example must ship at repo root")
+        example = Path(__file__).parent.parent / "yate" / "yaterc.example"
+        self.assertTrue(example.is_file(), "yaterc.example must ship in yate/")
         config = cfg.load_config([example])
         self.assertEqual(config.errors, [])
         self.assertEqual(config.sources, [example])

@@ -1,5 +1,7 @@
 # yate 语言服务器（LSP）配置
 
+[English](lsp.en.md) · **中文**
+
 yate 内置一个精简的 [LSP](https://microsoft.github.io/language-server-protocol/)
 客户端（无额外依赖）：通过 stdio 启动语言服务器进程，自行实现 JSON-RPC，
 提供**自动补全**与**诊断**。语言服务器本身需要用户自行安装；yate 不随包
@@ -87,8 +89,11 @@ language_servers = [
 
 ## 2. Python（内置）
 
-`extensions/python_lsp.py` 随 yate 分发并自动加载，为 `.py` / `.pyi` 注册
-Python 语言服务器。需自行安装：
+`yate/extensions/python_lsp.py` 随 yate 分发并在启动时自动加载（无论
+工作目录在哪），为 `.py` / `.pyi` 注册 Python 语言服务器。不想加载它时，
+在 yaterc 中设置 `disabled_extensions = ["python_lsp"]`（此时也可用
+yaterc 的 `language_servers` 自行声明 `"name": "python"`）。服务器需
+自行安装：
 
 ```powershell
 pip install python-lsp-server     # 提供 pylsp

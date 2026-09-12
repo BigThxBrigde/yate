@@ -1,5 +1,7 @@
 # yate 扩展（Extensions）
 
+[English](extensions.en.md) · **中文**
+
 yate 的扩展是任意一个暴露 `setup(api)` 函数的 `.py` 文件（可选提供
 `teardown(api)`）。`setup` 在应用启动时被调用，通过传入的 `api` 对象
 可以注册命令、动作、按键绑定、语言服务器，以及访问当前缓冲区、文档、
@@ -25,8 +27,9 @@ def setup(api):
 
 加载后即可用 `:hello you` 或 `Alt+H` 触发。
 
-仓库内 `extensions/example_ext.py` 提供了 `:upper`、`:lower`、`:words`、
-`:sh` 命令和 `Alt+U` 绑定，可直接作为模板复制。
+包内 `yate/extensions/example_ext.py.example` 提供了 `:upper`、`:lower`、
+`:words`、`:sh` 命令和 `Alt+U` 绑定，去掉 `.example` 后缀复制到扩展目录
+即可作为模板使用。
 
 ---
 
@@ -36,10 +39,31 @@ def setup(api):
 来源命中也只会执行一次）：
 
 1. yaterc 中的 `extensions` 选项（用户级先于项目级，**累加**而非覆盖）；
-2. 默认目录：工作目录下的 `./extensions/` 与 `~/.yate/extensions/`
+2. **随包扩展** `yate/extensions/`（`python_lsp`、`csharp_highlight`，
+   无论当前工作目录在哪都会自动加载；可用 yaterc 的 `disabled_extensions`
+   按文件名主干禁用，见下文）；
+3. 默认目录：工作目录下的 `./extensions/` 与 `~/.yate/extensions/`
    （启动时自动加载其中所有 `*.py`，下划线开头的文件跳过）；
-3. 命令行：`--ext <文件>` 加载单个文件，`--ext-dir <目录>` 加载目录下
+4. 命令行：`--ext <文件>` 加载单个文件，`--ext-dir <目录>` 加载目录下
    所有 `*.py`（均可重复指定）。
+
+加载顺序即上面的编号顺序；同一路径只执行一次，因此把修改版脚本放进
+`~/.yate/extensions/`（第 3 步）可以覆盖随包同名扩展的注册。下划线开头
+的文件与 `.example` 后缀的模板不会被加载。
+
+### 禁用随包默认扩展（disabled_extensions）
+
+在 yaterc 中按**文件名主干**（不含 `.py`）列出要跳过的随包扩展：
+
+```python
+disabled_extensions = ["python_lsp"]
+disabled_extensions = ["python_lsp", "csharp_highlight"]
+```
+
+- 接受字符串或字符串列表，多个 rc 文件之间**累加**并去重；
+- 只影响随包默认扩展——rc 路径、`./extensions/`、`~/.yate/extensions/`、
+  命令行指定的脚本一律照常加载；
+- 非法值（非字符串列表、空字符串）作为配置错误显示在启动消息栏。
 
 yaterc 中声明：
 
@@ -173,7 +197,7 @@ def _upper(ctx):
 
 ### 4.6 语言服务器（LSP）
 
-详见 [lsp.md](./lsp.md)。核心 API：
+详见 [lsp.zh.md](./lsp.zh.md)（[English](./lsp.en.md)）。核心 API：
 
 ```python
 api.lsp.register_server(
@@ -250,10 +274,11 @@ def setup(api):
 | `type_def_words` | `frozenset()` | 其后一个标识符按类型名着色（`class`、`struct`、`interface`） |
 | `macro_call` | `False` | 标识符紧跟 `!` 时按函数着色（Rust 宏） |
 
-完整实例见仓库随附的 `extensions/csharp_highlight.py`
+完整实例见包内随附的 `yate/extensions/csharp_highlight.py`
 （C# 高亮：`cs`/`csx`，含关键字、上下文关键字、BCL 类型、`$`/`@` 字符串前缀等；
-该扩展位于默认加载目录，在仓库目录内启动 yate 即自动生效，也可用
-`yate --ext csharp_highlight.py` 显式加载）。
+该扩展随包自动加载，无需放在工作目录内；不想加载时在 yaterc 中设置
+`disabled_extensions = ["csharp_highlight"]`，也可用
+`yate --ext csharp_highlight.py` 显式加载一份修改版）。
 
 ---
 

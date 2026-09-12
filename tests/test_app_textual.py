@@ -12,8 +12,8 @@ from typing import Any, Awaitable, Callable, cast
 
 from textual.strip import Strip
 
-# The bundled extensions/ directory is auto-loaded with every YateApp; make
-# sure the Python LSP extension never probes PATH or spawns a real server
+# The bundled yate/extensions/ directory is auto-loaded with every YateApp;
+# make sure the Python LSP extension never probes PATH or spawns a real server
 # while the UI test suite runs.
 os.environ["YATE_PYTHON_LSP"] = "off"
 
@@ -1562,6 +1562,59 @@ class GotoLineTests(unittest.IsolatedAsyncioTestCase):
                 seg.text for seg in prompt_bar.message.render_line(0)
             )
             self.assertIn("not a line number", msg)
+
+
+class BundledExtensionTests(unittest.IsolatedAsyncioTestCase):
+    """The extensions shipped inside yate/ load from any working directory."""
+
+    async def test_bundled_extensions_load_regardless_of_cwd(self):
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            os.chdir(tmp)
+            try:
+                app = YateApp()
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.pause()
+                    records = {
+                        r.name: r for r in app.extension_loader.loaded
+                    }
+                    self.assertIn("python_lsp", records)
+                    self.assertIn("csharp_highlight", records)
+                    # the .example template is never auto-loaded
+                    self.assertNotIn("example_ext", records)
+                    self.assertIsNone(records["python_lsp"].error)
+                    self.assertIsNone(records["csharp_highlight"].error)
+            finally:
+                os.chdir(old_cwd)
+
+    async def test_disabled_extensions_skip_bundled_not_project_dir(self):
+        from yate.config import YateConfig
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project_ext = root / "extensions"
+            project_ext.mkdir()
+            (project_ext / "myext.py").write_text(
+                "def setup(api):\n    pass\n", encoding="utf-8"
+            )
+            config = YateConfig(
+                disabled_extensions=["python_lsp", "csharp_highlight"]
+            )
+            old_cwd = Path.cwd()
+            os.chdir(root)
+            try:
+                app = YateApp(config=config)
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.pause()
+                    names = {r.name for r in app.extension_loader.loaded}
+                    self.assertNotIn("python_lsp", names)
+                    self.assertNotIn("csharp_highlight", names)
+                    # a project script with the same purpose still loads
+                    self.assertIn("myext", names)
+                    # and no Python server got registered while LSP was off
+                    self.assertIsNone(app.lsp.config_for("py"))
+            finally:
+                os.chdir(old_cwd)
 
 
 class LspUiTests(unittest.IsolatedAsyncioTestCase):

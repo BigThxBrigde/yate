@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, cast
 
+from yate.paths import package_root
+
 # nerd-fonts v3 ships a short GDI family name on Windows ("NFM" = Nerd Font
 # Mono); the long name only exists as the typographic family (name ID 16),
 # which GDI EnumFontFamilies/InstalledFontCollection never report.
@@ -40,10 +42,6 @@ _TTF_SUFFIX = " (TrueType)"
 
 
 # ---------------------------------------------------------------- bundled
-
-def package_root() -> Path:
-    return Path(__file__).resolve().parent.parent
-
 
 def bundled_font_files() -> list[Path]:
     """The TTF files shipped inside the yate package."""

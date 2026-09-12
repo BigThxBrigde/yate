@@ -617,7 +617,7 @@ yate 使用 **Python 语法的配置文件 yaterc**（类似 vim 的 `vimrc`）�
 - `language_servers` 在启动时注册到 LSP 管理器，仅在打开匹配文件时惰性启动
   服务器进程，详见 16.2 节。
 
-最小示例（可直接复制仓库根目录的 `yaterc.example` 作起点）：
+最小示例（可直接复制包内随附的 `yate/yaterc.example` 作起点）：
 
 ```python
 keymap = "vim"
@@ -684,7 +684,7 @@ register_theme(replace(
 `syn_operator`/`syn_property`）。
 
 > 完整的 `Theme` 字段说明、从零构造主题的示例以及加载优先级，见
-> [`docs/themes.md`](../../docs/themes.md)。
+> [`yate/docs/themes.zh.md`](../docs/themes.zh.md)。
 
 ### 10.4 扩展路径（extensions）
 
@@ -712,8 +712,11 @@ extensions = [
 - 即使同一脚本同时被 rc、默认目录和命令行参数命中，也只会加载一次
   （按解析后的绝对路径去重）。
 
-除 rc 声明外，扩展还会从默认目录 `./extensions/`、`~/.yate/extensions/`
-自动加载，也可用 `--ext <文件>` / `--ext-dir <目录>` 追加（详见第 15 节）。
+除 rc 声明外，yate 会先自动加载**包内随附扩展**（`yate/extensions/` 中的
+`python_lsp`、`csharp_highlight`，任何工作目录下都生效），再扫描默认目录
+`./extensions/`、`~/.yate/extensions/`，也可用 `--ext <文件>` /
+`--ext-dir <目录>` 追加（详见第 15 节）。要跳过某个随包默认扩展，在
+yaterc 中按文件名主干设置 `disabled_extensions = ["python_lsp"]`。
 
 ## 11. 主题
 
@@ -884,18 +887,20 @@ def setup(api):
 加载来源（可组合，按解析后的绝对路径去重）：
 
 1. yaterc 的 `extensions` 选项（用户级先于项目级）；
-2. 默认目录 `./extensions/` 与 `~/.yate/extensions/`（启动自动加载）；
-3. 命令行 `--ext <文件>` / `--ext-dir <目录>`。
+2. 包内随附扩展 `yate/extensions/`（`python_lsp`、`csharp_highlight`，
+   任何工作目录下都自动加载；yaterc 的 `disabled_extensions` 可按主干禁用）；
+3. 默认目录 `./extensions/` 与 `~/.yate/extensions/`（启动自动加载）；
+4. 命令行 `--ext <文件>` / `--ext-dir <目录>`。
 
 扩展中的异常不会导致编辑器崩溃，错误以 `extension <名字>: ...` 显示在消息栏。
-仓库自带示例 `extensions/example_ext.py`（提供 `:upper` / `:lower` /
-`:words` / `:sh` 命令与 `Alt+U` 绑定），可作模板；
-`extensions/csharp_highlight.py` 则演示了如何用 `api.highlight.register`
-为 C#（`.cs`/`.csx`）添加语法高亮。
+包内模板 `yate/extensions/example_ext.py.example`（去掉 `.example` 后缀后
+使用，提供 `:upper` / `:lower` / `:words` / `:sh` 命令与 `Alt+U` 绑定），
+可作模板；`yate/extensions/csharp_highlight.py` 则演示了如何用
+`api.highlight.register` 为 C#（`.cs`/`.csx`）添加语法高亮。
 
 > 扩展 API 完整参考（命令、动作、按键绑定、buffer/doc/workspace 访问、
 > LSP 注册、自定义语法高亮与 `LangSpec` 字段）见
-> [`docs/extensions.md`](../../docs/extensions.md)。
+> [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md)。
 
 ## 16. 语言服务器（LSP）
 
@@ -920,8 +925,10 @@ yate 内置了一个精简的
 
 ### 16.1 Python（内置扩展）
 
-`extensions/python_lsp.py` 会自动加载，为 `.py` / `.pyi` 文件注册 Python
-语言服务器。具体实现需自行安装（二者均不随 yate 分发）：
+`yate/extensions/python_lsp.py` 是随包扩展，任何工作目录下启动都会自动
+加载，为 `.py` / `.pyi` 文件注册 Python 语言服务器。不想加载时在
+yaterc 中设置 `disabled_extensions = ["python_lsp"]`。具体实现需自行安装
+（二者均不随 yate 分发）：
 
 ```powershell
 pip install python-lsp-server     # 提供 pylsp
@@ -999,7 +1006,7 @@ def setup(api):
 
 > 主流语言（Rust、TypeScript、Go、C/C++、Bash、JSON、HTML/CSS、Lua 等）
 > 的安装命令与 `register_server` 食谱，见
-> [`docs/lsp.md`](../../docs/lsp.md)。
+> [`yate/docs/lsp.zh.md`](../docs/lsp.zh.md)。
 
 ## 17. 常见问题（FAQ）
 
@@ -1036,10 +1043,11 @@ INI（`ini`/`cfg`/`conf`/`properties`）、YAML（`yaml`/`yml`）。
 **如何增加新语言（或覆盖某种语言）的语法高亮？**
 通过扩展的 `api.highlight.register(spec, *扩展名)` 注册一个声明式的
 `LangSpec`（注释标记、关键字、类型、常量等单词集合；字符串、数字、多行
-状态由引擎处理），注册后即可自动高亮并用于 `:set filetype=`。仓库自带
-`extensions/csharp_highlight.py` 为 C#（`cs`/`csx`）提供高亮，在仓库目录内
-启动时自动加载，也可用 `yate --ext csharp_highlight.py` 显式加载；完整字段
-说明见 [`docs/extensions.md`](../../docs/extensions.md) 的 4.7 节。
+状态由引擎处理），注册后即可自动高亮并用于 `:set filetype=`。随包扩展
+`yate/extensions/csharp_highlight.py` 为 C#（`cs`/`csx`）提供高亮，随包
+启动即自动加载（可用 `disabled_extensions = ["csharp_highlight"]` 关闭），
+也可用 `yate --ext csharp_highlight.py` 显式加载一份修改版；完整字段
+说明见 [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md) 的 4.7 节。
 
 **如何手动指定语法类型（类似 VS Code 的 Change Language Mode / vim 的 `:set filetype`）？**
 默认按文件扩展名识别；对无后缀文件、识别错误或临时缓冲区，可以手动覆盖，

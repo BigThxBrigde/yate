@@ -42,6 +42,7 @@ from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.keymaps.base import ActionContext, Keymap
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.paths import bundled_extensions_dir
 from yate.services import fonts
 from yate.services.extensions import ExtensionAPI, ExtensionLoader, LoadedExtension
 from yate.services.shell import ShellResult, run_shell, shell_name
@@ -1917,7 +1918,8 @@ class YateApp(App[None]):
                     self._ext_messages.append(f"extension {record.name}: {record.error}")
 
         # rc-declared paths load first (user rc then project rc), followed by
-        # the default directories and explicit CLI paths.
+        # the bundled defaults, project/user directories and explicit CLI
+        # paths.
         for path in self.config.extension_paths:
             if path.is_dir():
                 _report(self.extension_loader.load_directory(path))
@@ -1925,6 +1927,18 @@ class YateApp(App[None]):
                 _report([self.extension_loader.load_file(path)])
             else:
                 self._ext_messages.append(f"extension path not found: {path}")
+        # Extensions shipped with yate (inside the package / the PyInstaller
+        # bundle). Individual defaults can be switched off in yaterc with
+        # ``disabled_extensions``; same-named scripts loaded afterwards from
+        # a project or user directory get the last word on registrations.
+        bundled = bundled_extensions_dir()
+        if bundled.is_dir():
+            _report(
+                self.extension_loader.load_directory(
+                    bundled,
+                    exclude=self.config.disabled_extensions,
+                )
+            )
         directories = [
             *self._ext_dirs,
             Path.cwd() / "extensions",

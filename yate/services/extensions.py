@@ -5,7 +5,7 @@ optional ``teardown(api)``).  ``setup`` receives an :class:`ExtensionAPI`
 through which it can register actions, key bindings, ``:`` commands, run
 shell commands and manipulate the active document.
 
-Example ``extensions/uppercase.py``::
+Example bundled extension ``yate/extensions/uppercase.py``::
 
     def setup(api):
         @api.command("upper", "Uppercase the selection (or whole line)")
@@ -100,7 +100,7 @@ class HighlightExtensionBridge:
     The built-in tokenizer is declarative: a :class:`LangSpec` lists comment
     markers, keyword/type/builtin word sets and a few lexical flags, and the
     engine handles strings, numbers, comments and multiline state for free.
-    See ``extensions/csharp_highlight.py`` for a complete example.
+    See ``yate/extensions/csharp_highlight.py`` for a complete example.
     """
 
     #: Re-exported so extensions can build specs via ``api.highlight.LangSpec``.
@@ -248,13 +248,25 @@ class ExtensionLoader:
     api: ExtensionAPI
     loaded: list[LoadedExtension] = field(default_factory=list[LoadedExtension])
 
-    def load_directory(self, directory: Path) -> list[LoadedExtension]:
+    def load_directory(
+        self,
+        directory: Path,
+        *,
+        exclude: Optional[Sequence[str]] = None,
+    ) -> list[LoadedExtension]:
+        """Load every ``*.py`` script in *directory* (sorted by name).
+
+        Files whose stem is in *exclude* are skipped (used for bundled
+        extensions turned off with ``disabled_extensions``); underscore-
+        prefixed files are always skipped.
+        """
         directory = Path(directory)
         if not directory.is_dir():
             return []
+        skipped: set[str] = set(exclude) if exclude is not None else set()
         results: list[LoadedExtension] = []
         for path in sorted(directory.glob("*.py")):
-            if path.name.startswith("_"):
+            if path.name.startswith("_") or path.stem in skipped:
                 continue
             results.append(self.load_file(path))
         return results

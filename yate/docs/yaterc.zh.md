@@ -1,5 +1,7 @@
 # yaterc 配置指南
 
+[English](yaterc.en.md) · **中文**
+
 yate 使用 Python 语法的配置文件 **yaterc**（类似 vim 的 `vimrc` / neovim 的 `init.vim`）：
 选项就是普通的模块级变量，配置文件里可以写任意 Python 代码。
 
@@ -12,7 +14,7 @@ tab_width = 2
 use_spaces = False
 ```
 
-可直接参考仓库根目录的 [yaterc.example](../yaterc.example)（复制为 `~/.yate/yaterc`
+可直接参考包内随附的 [yaterc.example](../yaterc.example)（复制为 `~/.yate/yaterc`
 或项目内的 `yaterc` 即可生效）。
 
 ## 配置文件位置与加载顺序
@@ -28,11 +30,11 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 
 特例：`yate -u NONE` 完全跳过配置加载（vim 同款语义）。
 
-加载行为的几个细节（实现见 [yate/config.py](../yate/config.py)）：
+加载行为的几个细节（实现见 [yate/config.py](../config.py)）：
 
 - 多个文件在**同一个命名空间**内依次执行，因此项目级配置能看到（并覆盖）
   用户级配置里已设置的变量。
-- 配置文件里被识别的选项只有下表八个；**未识别的变量会被静默忽略**，
+- 配置文件里被识别的选项只有下表九个；**未识别的变量会被静默忽略**，
   但你可以在里面定义任意辅助变量/函数供后续使用。
 - 任何文件读取失败、语法错误、运行时异常都**不会导致编辑器崩溃**：
   出错的文件被跳过，问题以 `yaterc: ...` 前缀显示在启动时的消息栏，
@@ -47,6 +49,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `tab_width` | `int` | `4` | `1`–`16` 的整数 | Tab 键插入的空格数，也是 Tab 的显示宽度；`True`/`False` 等非整数被拒绝 |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 插入空格；`False` 时插入真实制表符 |
 | `extensions` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 额外扩展脚本路径，见[下文](#扩展路径extensions)；多个 rc 文件**累加**而非覆盖 |
+| `disabled_extensions` | `str` 或 `list[str]` | 无 | 非空扩展名字符串 | 按文件名主干禁用随包默认扩展（如 `["python_lsp"]`），见[下文](#扩展路径extensions)；多个 rc 文件**累加**去重 |
 | `theme_dirs` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 客制化主题目录（或单个 `*.py` 主题文件），见[下文](#客制化主题目录theme_dirs)；多个 rc 文件**累加**而非覆盖 |
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
@@ -59,7 +62,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 - `keymap` / `theme` 在启动时生效；`theme` 是进程级全局状态（同 vim 的
   colorscheme）。
 - `tab_width` / `use_spaces` 会传播到**所有新建和打开的 buffer**
-  （见 [yate/app.py](../yate/app.py) 中 `_make_buffer` / `_apply_buffer_options`）。
+  （见 [yate/app.py](../app.py) 中 `_make_buffer` / `_apply_buffer_options`）。
 - `shell` 在启动终端 Shell 时读取（会话内 `:set shell=…` 后需重启 Shell 生效）；
   `terminal_height` 同时支持会话内 `:set terminal_height=<n>` 立即调整。
 
@@ -95,7 +98,7 @@ register_theme(replace(
 theme = "my-mocha"
 ```
 
-`Theme` 的字段（定义见 [yate/editor_view/theme.py](../yate/editor_view/theme.py)）按用途分组：
+`Theme` 的字段（定义见 [yate/editor_view/theme.py](../editor_view/theme.py)）按用途分组：
 
 - **背景**：`bg`（编辑区）、`panel`（tab 栏/侧栏/状态栏）、`surface`
   （当前行/输入框）、`gutter_bg`（行号槽）、`border`（分隔线）
@@ -155,7 +158,7 @@ register_theme(replace(THEMES["mocha"], name="my-mocha", accent="#89b4fa"))
 ## 扩展路径（extensions）
 
 `extensions` 选项声明要加载的自定义扩展脚本（扩展 API 见
-[yate/services/extensions.py](../yate/services/extensions.py)）。每个
+[yate/services/extensions.py](../services/extensions.py)）。每个
 扩展就是一个暴露 `setup(api)` 函数的 `.py` 文件，通过 `api` 注册动作、
 按键绑定和 `:` 命令：
 
@@ -191,8 +194,21 @@ extensions = [
 - 同一脚本即使同时被 rc 路径、默认目录和命令行参数命中，也只会加载一次
   （按解析后的绝对路径去重），避免命令/绑定重复注册。
 
-除 rc 声明外，扩展仍从默认目录 `./extensions/` 和 `~/.yate/extensions/`
-自动加载，也可用命令行 `--ext <文件>` / `--ext-dir <目录>` 追加。
+除 rc 声明外，yate 会先自动加载**包内随附扩展** `yate/extensions/`
+（目前为 `python_lsp`、`csharp_highlight`，无论工作目录在哪都生效），
+再扫描默认目录 `./extensions/` 和 `~/.yate/extensions/`，也可用命令行
+`--ext <文件>` / `--ext-dir <目录>` 追加。要跳过某个随包默认扩展，用
+`disabled_extensions` 列出其文件名主干（不含 `.py`）：
+
+```python
+disabled_extensions = ["python_lsp"]
+disabled_extensions = ["python_lsp", "csharp_highlight"]
+```
+
+该选项接受字符串或字符串列表（空白自动去除），多个 rc 文件之间累加并
+去重；它只影响随包扩展，用户/项目/命令行脚本不受影响。非法取值作为
+配置错误显示在启动消息栏。完整的加载顺序与扩展 API 见
+[extensions.zh.md](extensions.zh.md)。
 
 ## 声明式语言服务器（language_servers）
 
@@ -239,7 +255,8 @@ language_servers = [
   服务器），可用 `"name": "python"` 自定义 Python 服务器命令。
 - 仅配置不会启动进程；未命名 buffer 与不匹配的文件不受影响。
 
-> 主流语言的安装命令与完整食谱见 [docs/lsp.md](lsp.md)。
+> 主流语言的安装命令与完整食谱见 [lsp.zh.md](lsp.zh.md)
+> （[English](lsp.en.md)）。
 
 ## 命令行交互
 

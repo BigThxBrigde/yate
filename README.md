@@ -1,5 +1,7 @@
 # yate
 
+[English](README.en.md) · **中文**
+
 **yate** — *yet another terminal editor*，基于 [Textual](https://www.textualize.io/)
 构建的现代终端文本编辑器。分层架构：`editor_core` 为纯编辑逻辑（与 UI 解耦，
 可无头测试），`editor_view` 为 Textual 界面。
@@ -31,10 +33,12 @@
   Shell（Windows ConPTY / POSIX pty）；`:term` / `:termclose`、Shell 可在 yaterc
   的 `shell` 选项配置，面板高度用 `terminal_height`（默认 12 行）
 - **yaterc 配置**：Python 语法配置文件（vimrc 风格），支持用户级/项目级/`-u` 三级加载
-- **Python 扩展**：任意 `.py` 脚本通过 `setup(api)` 注册命令、按键绑定和动作
+- **Python 扩展**：任意 `.py` 脚本通过 `setup(api)` 注册命令、按键绑定和动作；
+  `yate/extensions/` 中的随包扩展（Python LSP、C# 高亮）启动时自动加载，
+  可用 yaterc 的 `disabled_extensions` 按名禁用
 - **LSP 支持**：内置零依赖 LSP 客户端（`editor_lsp`），提供自动补全弹窗与诊断
   （下划线/装订槽标记/状态栏计数/`:diagnostics`）；语言服务器通过扩展注册，
-  仓库内置 Python 服务器扩展（pyright / python-lsp-server 自动发现）
+  随包 Python 服务器扩展（pyright / python-lsp-server 自动发现）
 
 ## 环境要求
 
@@ -118,6 +122,7 @@ extensions = [            # 额外扩展路径（目录或 .py 文件，跨 yate
     "~/.yate/extensions",
     "./tools/my_ext.py",
 ]
+disabled_extensions = []  # 禁用随包默认扩展，如 ["python_lsp", "csharp_highlight"]
 language_servers = [      # 声明式 LSP：打开匹配语言文件时自动激活，无需写扩展
     {"name": "rust-analyzer", "command": "rust-analyzer",
      "filetypes": ["rs"], "language_ids": {"rs": "rust"},
@@ -126,8 +131,9 @@ language_servers = [      # 声明式 LSP：打开匹配语言文件时自动激
 ```
 
 完整说明（含自定义主题、路径解析规则、错误行为）见
-[docs/yaterc.md](docs/yaterc.md)；可直接复制 [yaterc.example](yaterc.example)
-作为起点。`yaterc.example` 随测试保证可加载。
+[yate/docs/yaterc.zh.md](yate/docs/yaterc.zh.md)（[English](yate/docs/yaterc.en.md)）；
+可直接复制 [yaterc.example](yate/yaterc.example) 作为起点。`yaterc.example`
+随测试保证可加载。
 
 ## 扩展
 
@@ -142,8 +148,10 @@ def setup(api):
     api.bind_key("<alt-h>", lambda ctx: hello(""), keymap="both")
 ```
 
-加载方式（三选一或组合）：
+加载方式（可组合）：
 
+- **随包扩展**：`yate/extensions/` 中的 `*.py` 启动时自动加载（任何工作目录下）；
+  yaterc 中 `disabled_extensions = ["python_lsp"]` 可按文件名主干禁用
 - 放入 `./extensions/` 或 `~/.yate/extensions/`（启动自动加载）
 - yaterc 中 `extensions = [...]` 声明路径
 - 命令行 `--ext 文件.py` / `--ext-dir 目录`
@@ -151,8 +159,10 @@ def setup(api):
 `api` 可注册命令（`command` / `register_command`）、按键绑定（`bind_key`，
 支持 `vsc` / `vim` / `both`）、命名动作（`register_action`），并可访问
 `api.buffer` / `api.doc` / `api.workspace`、`api.shell()` / `api.open_path()` /
-`api.save()` / `api.message()`。完整示例见 [extensions/example_ext.py](extensions/example_ext.py)
-（`:upper` / `:lower` / `:words` / `:sh` 命令 + `Alt+U` 绑定）。
+`api.save()` / `api.message()`。完整模板见
+[yate/extensions/example_ext.py.example](yate/extensions/example_ext.py.example)
+（去掉 `.example` 后缀后使用；提供 `:upper` / `:lower` / `:words` / `:sh`
+命令 + `Alt+U` 绑定）。
 
 ### LSP 语言服务器
 
@@ -160,10 +170,10 @@ def setup(api):
 配置方式两种：
 
 - **yaterc 声明式（推荐）**：`language_servers = [...]` 字典列表，配置后
-  打开匹配文件自动激活，无需写扩展（见上方示例与 [docs/lsp.md](docs/lsp.md)）。
+  打开匹配文件自动激活，无需写扩展（见上方示例与 [yate/docs/lsp.zh.md](yate/docs/lsp.zh.md)）。
 - **扩展**：`api.lsp.register_server(...)` 编程式注册。
 
-仓库内置 [extensions/python_lsp.py](extensions/python_lsp.py)，
+随包扩展 [yate/extensions/python_lsp.py](yate/extensions/python_lsp.py)，
 打开 `.py` 文件时自动连接 Python 语言服务器，需自行安装其一：
 
 ```powershell
@@ -186,23 +196,41 @@ yate/
   editor_view/    # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、高亮、主题
   keymaps/        # vsc / vim 键位定义与动作分发
   services/       # workspace 遍历、shell、扩展加载、字体安装
+  extensions/     # 随包扩展：python_lsp（内置 LSP）、csharp_highlight（C# 高亮）、
+                  #   example_ext.py.example（模板，.example 后缀不会自动加载）
+  docs/           # 中英双语文档：yaterc 配置、扩展 API、主题、LSP 配置食谱
+                  #   （*.zh.md / *.en.md）
+  resources/      # manual.zh.md / manual.en.md 双语用户手册、随包字体
   config.py       # yaterc 配置系统
   app.py          # YateApp：界面组装、命令注册、生命周期
   cli.py          # 命令行入口
-extensions/       # 随仓库提供的扩展（example_ext 示例、python_lsp 内置 LSP）
+  paths.py        # 统一资源定位（源码 / wheel / PyInstaller frozen 三种布局）
+  yaterc.example  # 配置模板
 tests/            # 单元测试 + Textual pilot 端到端测试
-docs/             # yaterc 配置、扩展、主题、LSP 配置文档
-  yaterc.md       # 配置系统完整文档
-  extensions.md   # 扩展 API 参考
-  themes.md       # 主题客制化
-  lsp.md          # 主流语言 LSP 配置食谱
-yate/resources/   # 资源：manual.zh.md / manual.en.md 双语用户手册、随包字体
 ```
+
+## 打包
+
+两种分发方式互不冲突：
+
+```powershell
+# 1) Wheel（库式安装，pip install yate-*.whl；yate 入口脚本自动生成）
+python -m pip install build
+python -m build --wheel          # 产物在 dist/
+
+# 2) PyInstaller 单目录可执行程序（无需目标机安装 Python）
+python -m pip install -e ".[build]"
+pyinstaller yate.spec            # 产物 dist/yate/yate.exe
+```
+
+`yate.spec` 与打包配置在 [pyproject.toml](pyproject.toml) 中声明：
+资源（字体、双语文档与手册、`yaterc.example`、随包扩展）通过 [yate/paths.py](yate/paths.py)
+统一解析，源码运行、wheel 安装与 frozen 可执行程序三种布局下行为一致。
 
 ## 开发
 
 ```powershell
-# 运行全部测试（224 个，含 Textual pilot 端到端测试）
+# 运行全部测试（288 个，含 Textual pilot 端到端测试）
 python -m unittest discover -s tests
 
 # 类型检查：pyright strict，要求 0 诊断

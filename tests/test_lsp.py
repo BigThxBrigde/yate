@@ -807,7 +807,7 @@ class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
 
 class PythonExtensionDiscoveryTests(unittest.TestCase):
     def test_no_server_on_path_registers_empty_command(self):
-        from extensions import python_lsp
+        from yate.extensions import python_lsp
 
         os.environ.pop("YATE_PYTHON_LSP", None)
         with patch.object(python_lsp.shutil, "which", return_value=None):
@@ -816,7 +816,7 @@ class PythonExtensionDiscoveryTests(unittest.TestCase):
         self.assertEqual(args, [])
 
     def test_env_override_is_shell_split(self):
-        from extensions import python_lsp
+        from yate.extensions import python_lsp
 
         with patch.dict(
             "os.environ",
@@ -827,7 +827,7 @@ class PythonExtensionDiscoveryTests(unittest.TestCase):
         self.assertEqual(args, ["--stdio", "x y"])
 
     def test_prefers_pyright_over_pylsp(self):
-        from extensions import python_lsp
+        from yate.extensions import python_lsp
 
         os.environ.pop("YATE_PYTHON_LSP", None)
 
@@ -840,7 +840,7 @@ class PythonExtensionDiscoveryTests(unittest.TestCase):
         self.assertEqual(args, ["--stdio"])
 
     def test_explicit_opt_out_disables_even_with_server_on_path(self):
-        from extensions import python_lsp
+        from yate.extensions import python_lsp
 
         with patch.dict("os.environ", {"YATE_PYTHON_LSP": "off"}):
             with patch.object(

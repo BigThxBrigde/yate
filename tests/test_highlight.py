@@ -199,11 +199,11 @@ class CustomLanguageRegistrationTests(unittest.TestCase):
 
 
 class CSharpExtensionTests(unittest.TestCase):
-    """Load the bundled extensions/csharp_highlight.py through the real loader."""
+    """Load the bundled yate/extensions/csharp_highlight.py via the real loader."""
 
     EXT_PATH = (
         Path(__file__).resolve().parent.parent
-        / "extensions" / "csharp_highlight.py"
+        / "yate" / "extensions" / "csharp_highlight.py"
     )
 
     def test_extension_registers_csharp_highlighting(self) -> None:

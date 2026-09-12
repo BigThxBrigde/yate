@@ -43,11 +43,25 @@ use_spaces = True
 
 # ------------------------------------------------------------- extensions
 #
+# yate ships with bundled extensions in yate/extensions/ (auto-loaded at
+# startup from the package directory, regardless of the current directory):
+#   python_lsp         Python language server support (autocomplete/diagnostics)
+#   csharp_highlight   C# / .csx syntax highlighting
+#
+# Skip one or more bundled defaults by stem name (entries accumulate across
+# rc files; user/project extension scripts keep loading regardless):
+#
+# disabled_extensions = ["python_lsp"]
+# disabled_extensions = ["python_lsp", "csharp_highlight"]
+#
 # Extra extension scripts to load at startup. A path string or a list of
 # paths; each entry is either a directory (all *.py inside are loaded) or a
 # single .py file exposing setup(api). "~" is expanded; relative paths
 # resolve against this yaterc file's own directory. Entries from the user
 # rc and project rc accumulate; duplicates are loaded only once.
+# yate/extensions/example_ext.py.example is a copy-and-rename template
+# (drop the .example suffix); ./extensions and ~/.yate/extensions are also
+# scanned automatically.
 #
 # extensions = "~/.yate/myext.py"
 # extensions = [
@@ -80,7 +94,7 @@ use_spaces = True
 # dot; ".rs" is accepted too). A later yaterc replaces the whole list; a
 # malformed entry is skipped and reported at startup. An entry whose name
 # matches an extension server (e.g. "python") overrides that registration.
-# See docs/lsp.md for install commands and recipes per language.
+# See the LSP guide shipped at yate/docs/lsp.en.md (Chinese: lsp.zh.md).
 #
 # language_servers = [
 #     {

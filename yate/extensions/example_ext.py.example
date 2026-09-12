@@ -1,7 +1,15 @@
-"""Example yate extension.
+"""Example yate extension (template, not auto-loaded).
 
-Drops into ./extensions/ (auto-loaded at startup) or load explicitly with
-``yate --ext example_ext.py``.
+This file ships as ``yate/extensions/example_ext.py.example``; the ``.example``
+suffix keeps it out of the startup ``*.py`` scan. To use it, copy it (without
+the suffix) into an extension directory and restart yate::
+
+    copy yate\\extensions\\example_ext.py.example ^
+        %USERPROFILE%\\.yate\\extensions\\example_ext.py      (cmd)
+    cp yate/extensions/example_ext.py.example \
+        ~/.yate/extensions/example_ext.py                     (POSIX)
+
+or load the copied file explicitly with ``yate --ext example_ext.py``.
 
 An extension is any module with a ``setup(api)`` function. The api exposes:
 

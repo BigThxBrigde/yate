@@ -94,6 +94,9 @@ class YateConfig:
     #: Extra extension paths (directories or ``.py`` files) declared by rc
     #: files, accumulated in load order (user rc first, project rc after).
     extension_paths: list[Path] = field(default_factory=list[Path])
+    #: Stems of bundled (shipped) extensions to skip at startup, e.g.
+    #: ``disabled_extensions = ["python_lsp"]``; accumulated across rc files.
+    disabled_extensions: list[str] = field(default_factory=list[str])
     #: Directories holding ``*.py`` custom theme files, accumulated in load
     #: order and scanned at startup (see editor_view.theme).
     theme_dirs: list[Path] = field(default_factory=list[Path])
@@ -170,6 +173,7 @@ def load_config(paths: list[Path]) -> YateConfig:
         # against the directory of the rc file that declared them.
         _extract_extensions(namespace, config, path.parent)
         _extract_theme_dirs(namespace, config, path.parent)
+        _extract_disabled_extensions(namespace, config)
     # Register themes from rc-declared directories before the app applies
     # ``theme = "<custom>"`` (the theme registry is process-global).
     themes.load_theme_paths(config.theme_dirs, config.errors)
@@ -215,6 +219,40 @@ def _extract_extensions(
         resolved = path.resolve()
         if resolved not in config.extension_paths:
             config.extension_paths.append(resolved)
+
+
+def _extract_disabled_extensions(
+    namespace: dict[str, Any], config: YateConfig
+) -> None:
+    """Pull the ``disabled_extensions`` option out of one rc file.
+
+    A string or a list/tuple of bundled-extension stems (``"python_lsp"``);
+    entries accumulate and de-duplicate across rc files. The option only
+    affects extensions shipped inside yate -- user/project scripts keep
+    loading regardless.
+    """
+    raw = namespace.get("disabled_extensions")
+    if raw is None:
+        return
+    entries: list[Any]
+    if isinstance(raw, str):
+        entries = [raw]
+    elif isinstance(raw, (list, tuple)):
+        entries = list(cast(Sequence[Any], raw))
+    else:
+        config.errors.append(
+            f"disabled_extensions must be a string or a list of strings, got {raw!r}"
+        )
+        return
+    for entry in entries:
+        if not isinstance(entry, str) or not entry.strip():
+            config.errors.append(
+                f"disabled_extensions entries must be non-empty strings, got {entry!r}"
+            )
+            continue
+        name = entry.strip()
+        if name not in config.disabled_extensions:
+            config.disabled_extensions.append(name)
 
 
 def _extract_theme_dirs(

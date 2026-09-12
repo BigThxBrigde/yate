@@ -1,7 +1,9 @@
-"""C# syntax highlighting for yate, shipped as an extension.
+"""C# syntax highlighting for yate, shipped as a bundled extension.
 
-Drop it into ``./extensions/`` (auto-loaded when yate starts in this
-repository) or ``~/.yate/extensions/``, or load it explicitly::
+Lives at ``yate/extensions/csharp_highlight.py`` and is auto-loaded at
+startup (every installation, not only the source checkout). To turn it off,
+set ``disabled_extensions = ["csharp_highlight"]`` in yaterc. A modified copy
+can also be dropped into ``~/.yate/extensions/`` or loaded explicitly::
 
     yate --ext csharp_highlight.py
 

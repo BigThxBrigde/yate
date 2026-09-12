@@ -660,7 +660,7 @@ Behavior details:
   server process starts lazily, only when a matching file is opened
   (see 16.2).
 
-Minimal example (copy `yaterc.example` from the repo root as a starting
+Minimal example (copy the bundled `yate/yaterc.example` as a starting
 point):
 
 ```python
@@ -732,7 +732,7 @@ syntax palette (`syn_keyword`/`syn_string`/`syn_number`/`syn_comment`/
 `syn_operator`/`syn_property`).
 
 > For the full `Theme` field reference, a from-scratch theme example, and the
-> complete load precedence, see [`docs/themes.md`](../../docs/themes.md).
+> complete load precedence, see [`yate/docs/themes.en.md`](../docs/themes.en.md).
 
 ### 10.4 Extension paths (extensions)
 
@@ -763,13 +763,16 @@ Rules:
 - Even if the same script is hit by rc, default directory and command line at
   once, it loads exactly once (deduplicated by resolved absolute path).
 
-Beyond rc declarations, extensions also auto-load from the default
-directories `./extensions/` and `~/.yate/extensions/`, and can be added with
-`--ext <file>` / `--ext-dir <dir>` (see section 15).
+Beyond rc declarations, yate first auto-loads the **bundled extensions**
+(`python_lsp` and `csharp_highlight` from `yate/extensions/`, regardless of
+the working directory), then scans the default directories `./extensions/`
+and `~/.yate/extensions/`, and finally accepts `--ext <file>` /
+`--ext-dir <dir>` (see section 15). To skip a bundled default, list its stem
+in yaterc: `disabled_extensions = ["python_lsp"]`.
 
 > For the full extension API reference (commands, actions, key bindings,
 > buffer/doc/workspace access, LSP registration), see
-> [`docs/extensions.md`](../../docs/extensions.md).
+> [`yate/docs/extensions.en.md`](../docs/extensions.en.md).
 
 ## 11. Themes
 
@@ -965,21 +968,25 @@ directly as `"a"`, `"1"`, `":"`, `"/"`. Modifiers join with `-`, e.g.
 Loading sources (combinable, deduplicated by resolved absolute path):
 
 1. yaterc's `extensions` option (user level before project level);
-2. Default directories `./extensions/` and `~/.yate/extensions/`
+2. The bundled extensions in `yate/extensions/` (`python_lsp`,
+   `csharp_highlight`; auto-loaded from any working directory; skip stems
+   with yaterc's `disabled_extensions`);
+3. Default directories `./extensions/` and `~/.yate/extensions/`
    (auto-loaded at startup);
-3. Command line `--ext <file>` / `--ext-dir <dir>`.
+4. Command line `--ext <file>` / `--ext-dir <dir>`.
 
 Exceptions inside extensions never crash the editor; errors appear in the
-message bar as `extension <name>: ...`. The repo ships a sample at
-`extensions/example_ext.py` (providing the `:upper` / `:lower` / `:words` /
-`:sh` commands and an `Alt+U` binding) usable as a template;
-`extensions/csharp_highlight.py` shows how `api.highlight.register` adds
+message bar as `extension <name>: ...`. The bundled template
+`yate/extensions/example_ext.py.example` (use it after dropping the
+`.example` suffix; it provides the `:upper` / `:lower` / `:words` / `:sh`
+commands and an `Alt+U` binding) is a good starting point;
+`yate/extensions/csharp_highlight.py` shows how `api.highlight.register` adds
 highlighting for C# (`.cs`/`.csx`).
 
 > For the full extension API reference (commands, actions, key bindings,
 > buffer/doc/workspace access, LSP registration, custom syntax highlighting
 > and the `LangSpec` fields), see
-> [`docs/extensions.md`](../../docs/extensions.md).
+> [`yate/docs/extensions.en.md`](../docs/extensions.en.md).
 
 ## 16. Language servers (LSP)
 
@@ -1010,9 +1017,10 @@ could not start.
 
 ### 16.1 Python (built-in extension)
 
-`extensions/python_lsp.py` is auto-loaded and registers a Python server for
-`.py` / `.pyi` files. Install either implementation yourself (neither is
-bundled):
+`yate/extensions/python_lsp.py` is a bundled extension, auto-loaded from any
+working directory; it registers a Python server for `.py` / `.pyi` files.
+Skip it with `disabled_extensions = ["python_lsp"]` in yaterc. Install
+either implementation yourself (neither is bundled):
 
 ```powershell
 pip install python-lsp-server     # provides pylsp
@@ -1097,7 +1105,7 @@ cached process and diagnostics.
 
 > For install commands and `register_server` recipes for mainstream
 > languages (Rust, TypeScript, Go, C/C++, Bash, JSON, HTML/CSS, Lua, ...),
-> see [`docs/lsp.md`](../../docs/lsp.md).
+> see [`yate/docs/lsp.en.md`](../docs/lsp.en.md).
 
 ## 17. FAQ
 
@@ -1139,10 +1147,11 @@ An extension can register a declarative `LangSpec` via
 `api.highlight.register(spec, *extensions)` -- comment markers and word sets
 for keywords/types/constants; the engine handles strings, numbers and
 multiline state. Once registered it highlights automatically and works with
-`:set filetype=`. The bundled `extensions/csharp_highlight.py` provides C#
-(`cs`/`csx`): it auto-loads when yate starts inside the repository, or load
-it explicitly with `yate --ext csharp_highlight.py`. See section 4.7 of
-[`docs/extensions.md`](../../docs/extensions.md) for the full field list.
+`:set filetype=`. The bundled `yate/extensions/csharp_highlight.py` provides
+C# (`cs`/`csx`): it auto-loads at startup from any working directory (turn it
+off with `disabled_extensions = ["csharp_highlight"]`), or load a modified
+copy explicitly with `yate --ext csharp_highlight.py`. See section 4.7 of
+[`yate/docs/extensions.en.md`](../docs/extensions.en.md) for the full field list.
 
 **How do I pick the syntax type manually (like VS Code's Change Language Mode / vim's `:set filetype`)?**
 The type is normally detected from the file extension. For extension-less
