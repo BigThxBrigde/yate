@@ -234,21 +234,43 @@ class LspClient:
 
     async def _connect(self) -> tuple[Any, Any, Any]:
         if self._connect_override is not None:
-            return await self._connect_override()
-        env: Optional[dict[str, str]] = None
-        if self.config.env is not None:
-            env = dict(os.environ)
-            env.update(self.config.env)
-        proc = await asyncio.create_subprocess_exec(
-            self.config.command,
-            *self.config.args,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-            cwd=str(self.root_path),
-            env=env,
-        )
-        return proc.stdout, proc.stdin, proc
+            reader, writer, proc = await self._connect_override()
+        else:
+            env: Optional[dict[str, str]] = None
+            if self.config.env is not None:
+                env = dict(os.environ)
+                env.update(self.config.env)
+            proc = await asyncio.create_subprocess_exec(
+                self.config.command,
+                *self.config.args,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+                cwd=str(self.root_path),
+                env=env,
+            )
+            reader, writer = proc.stdout, proc.stdin
+        if self._stopping:
+            # stop()/shutdown_all() ran while the spawn was still in flight:
+            # state is already STOPPED and _cleanup saw _proc is None, so
+            # without this the child would linger (owning its cwd, which
+            # breaks TemporaryDirectory cleanup on Windows) until its
+            # natural exit.  Kill it here; start() then aborts with LspError.
+            if getattr(proc, "returncode", 0) is None:
+                if hasattr(proc, "terminate"):
+                    proc.terminate()
+                if hasattr(proc, "wait"):
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=3.0)
+                    except (asyncio.TimeoutError, OSError):
+                        pass
+            if writer is not None:
+                try:
+                    writer.close()
+                except OSError:
+                    pass
+            raise LspError("client stopped while connecting")
+        return reader, writer, proc
 
     async def stop(self) -> None:
         """Shutdown the server politely, then force kill if it lingers."""

@@ -3076,7 +3076,10 @@ class ExplorerFilterSmokeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_tree_helper_line_of_and_find_node(self) -> None:
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            # Workspace resolves its root, which on Windows also expands 8.3
+            # short names (GitHub runners expose TEMP as C:\Users\RUNNER~1).
+            # Resolve here too or every node-path comparison below fails.
+            root = Path(tmp).resolve()
             sub = root / "sub"
             sub.mkdir()
             (sub / "inner.txt").write_text("i\n", encoding="utf-8")
