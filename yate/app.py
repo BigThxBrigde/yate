@@ -23,9 +23,9 @@ from textual.widgets import Input, Static
 
 from yate import __version__
 from yate.actions import ActionRegistry, populate
-from yate.controllers import explorer_files, terminal
-from yate.controllers.commands import CommandRegistry, register_commands
-from yate.controllers.completion import CompletionController
+from yate.app_features import explorer, terminal
+from yate.app_features.commands import CommandRegistry, register_commands
+from yate.app_features.completion import CompletionController
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import TextBuffer
@@ -59,7 +59,7 @@ __all__ = ["textual_key_to_raw", "CommandRegistry", "YateApp"]
 
 
 # --------------------------------------------------------------- commands
-# CommandRegistry lives in yate.controllers.commands and is re-exported here
+# CommandRegistry lives in yate.app_features.commands and is re-exported here
 # (it is part of this module's public surface for extensions and tests).
 
 
@@ -913,32 +913,32 @@ class YateApp(App[None]):
 
     # ------------------------------------------------------ explorer files
 
-    # Explorer file operations live in yate.controllers.explorer_files; the
+    # Explorer file operations live in yate.app_features.explorer; the
     # methods below keep the historical names as thin delegates (the keymap
     # actions and the explorer widget call them on the app).
     def explorer_new_file_prompt(self, directory: Optional[Path]) -> None:
-        explorer_files.prompt_new_file(self, directory)
+        explorer.prompt_new_file(self, directory)
 
     def explorer_new_dir_prompt(self, directory: Optional[Path]) -> None:
-        explorer_files.prompt_new_dir(self, directory)
+        explorer.prompt_new_dir(self, directory)
 
     def _explorer_prompt_new(self, directory: Optional[Path], *, is_dir: bool) -> None:
-        explorer_files.prompt_new(self, directory, is_dir=is_dir)
+        explorer.prompt_new(self, directory, is_dir=is_dir)
 
     def explorer_rename_prompt(self, path: Optional[Path]) -> None:
-        explorer_files.prompt_rename(self, path)
+        explorer.prompt_rename(self, path)
 
     def explorer_delete_prompt(self, path: Optional[Path]) -> None:
-        explorer_files.prompt_delete(self, path)
+        explorer.prompt_delete(self, path)
 
     def _explorer_create(self, directory: Optional[Path], name: str) -> None:
-        explorer_files.create(self, directory, name)
+        explorer.create(self, directory, name)
 
     def _explorer_apply_rename(self, path: Optional[Path], name: str) -> None:
-        explorer_files.apply_rename(self, path, name)
+        explorer.apply_rename(self, path, name)
 
     def _explorer_apply_delete(self, path: Optional[Path], confirm: str) -> None:
-        explorer_files.apply_delete(self, path, confirm)
+        explorer.apply_delete(self, path, confirm)
 
     # ------------------------------------------------------------- prompts
 
@@ -1294,7 +1294,7 @@ class YateApp(App[None]):
             self.prompt_bar.idle()
 
     # ------------------------------------------------------------ completion
-    # The controller (yate.controllers.completion.CompletionController) owns
+    # The controller (yate.app_features.completion.CompletionController) owns
     # the debounce timer and the worker; the app forwards public calls so
     # keymaps, the editor view and extensions keep their entry points.
 
@@ -1391,7 +1391,7 @@ class YateApp(App[None]):
     # =============================================================== commands
 
     # Built-in ex commands are registered by
-    # yate.controllers.commands.register_commands (called from __init__).
+    # yate.app_features.commands.register_commands (called from __init__).
 
     def toggle_explorer(self) -> None:
         self.explorer_visible = not self.explorer_visible
@@ -1416,7 +1416,7 @@ class YateApp(App[None]):
             self.sidebar.display = visible
 
     # ============================================================ terminal
-    # The panel lifecycle lives in yate.controllers.terminal; the app
+    # The panel lifecycle lives in yate.app_features.terminal; the app
     # keeps the flags (_terminal_visible/_terminal_starting/_terminal_factory)
     # and the historical method names.
 

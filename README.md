@@ -217,7 +217,7 @@ yate/
   actions.py      # named action registry shared by keymaps, command palette and extensions
   config.py       # yaterc configuration system
   app.py          # YateApp: UI assembly, session state, lifecycle
-  controllers/    # app controller layer: ex commands, completion, explorer files, terminal
+  app_features/   # application features: ex commands, completion, explorer, terminal
   cli.py          # command-line entry point
   paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)
   yaterc.example  # configuration template
