@@ -216,7 +216,8 @@ yate/
   __main__.py     # `python -m yate` entry
   actions.py      # named action registry shared by keymaps, command palette and extensions
   config.py       # yaterc configuration system
-  app.py          # YateApp: UI assembly, command registration, lifecycle
+  app.py          # YateApp: UI assembly, session state, lifecycle
+  app_parts/      # extracted YateApp collaborators: ex commands, completion, explorer ops, terminal ops
   cli.py          # command-line entry point
   paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)
   yaterc.example  # configuration template

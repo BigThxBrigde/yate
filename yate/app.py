@@ -23,14 +23,16 @@ from textual.widgets import Input, Static
 
 from yate import __version__
 from yate.actions import ActionRegistry, populate
+from yate.app_parts import explorer_ops, terminal_ops
+from yate.app_parts.commands import CommandRegistry, register_commands
+from yate.app_parts.completion import CompletionController
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp import LspManager
-from yate.editor_term import PtyProcessError, resolve_shell
 from yate.editor_view import highlight, theme
 from yate.editor_view.commandline import PromptBar
-from yate.editor_view.completion import CompletionPopup, buffer_completions
+from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.icons import CHEVRON_RIGHT, FOLDER, icon_for_path
@@ -57,25 +59,8 @@ __all__ = ["textual_key_to_raw", "CommandRegistry", "YateApp"]
 
 
 # --------------------------------------------------------------- commands
-
-class CommandRegistry:
-    """``:`` commands, extendable by extensions."""
-
-    def __init__(self) -> None:
-        self._commands: dict[str, tuple[Callable[[str], object], str]] = {}
-
-    def register(self, name: str, func: Callable[[str], object], description: str) -> None:
-        self._commands[name] = (func, description)
-
-    def get(self, name: str) -> Optional[tuple[Callable[[str], object], str]]:
-        return self._commands.get(name)
-
-    def names(self) -> list[str]:
-        return sorted(self._commands)
-
-    def describe(self, name: str) -> str:
-        entry = self._commands.get(name)
-        return entry[1] if entry else ""
+# CommandRegistry lives in yate.app_parts.commands and is re-exported here
+# (it is part of this module's public surface for extensions and tests).
 
 
 class YateApp(App[None]):
@@ -161,7 +146,7 @@ class YateApp(App[None]):
 
         self.search = SearchEngine()
         self.commands = CommandRegistry()
-        self._register_commands()
+        register_commands(self)
 
         self.focus_target = "editor"
         self.explorer_visible = True
@@ -183,7 +168,7 @@ class YateApp(App[None]):
             on_event=self._on_lsp_event,
         )
         self._message_owner = "idle"
-        self._completion_timer: Optional[asyncio.TimerHandle] = None
+        self.completion_ctl = CompletionController(self)
 
         self._replace_pending = ""
         self._prev_manual_theme: Optional[str] = None
@@ -928,121 +913,32 @@ class YateApp(App[None]):
 
     # -------------------------------------------------------- explorer ops
 
+    # Explorer file operations live in yate.app_parts.explorer_ops; the
+    # methods below keep the historical names as thin delegates (the keymap
+    # actions and the explorer widget call them on the app).
     def explorer_new_file_prompt(self, directory: Optional[Path]) -> None:
-        self._explorer_prompt_new(directory, is_dir=False)
+        explorer_ops.prompt_new_file(self, directory)
 
     def explorer_new_dir_prompt(self, directory: Optional[Path]) -> None:
-        self._explorer_prompt_new(directory, is_dir=True)
+        explorer_ops.prompt_new_dir(self, directory)
 
     def _explorer_prompt_new(self, directory: Optional[Path], *, is_dir: bool) -> None:
-        if directory is None:
-            self.message("select a file or folder first", kind="warn")
-            return
-        if self.prompt_bar is None:
-            return
-        # on a file entry the sibling directory is the creation target
-        if not directory.is_dir():
-            directory = directory.parent
-        self._explorer_target = directory
-        self._explorer_is_dir = is_dir
-        self.prompt_bar.activate(
-            "new_dir" if is_dir else "new_file",
-            placeholder=f"created inside {directory.name}/",
-        )
+        explorer_ops.prompt_new(self, directory, is_dir=is_dir)
 
     def explorer_rename_prompt(self, path: Optional[Path]) -> None:
-        if path is None:
-            self.message("select a file or folder first", kind="warn")
-            return
-        if self.prompt_bar is None:
-            return
-        self._explorer_target = path
-        self.prompt_bar.activate("rename", initial=path.name,
-                                 placeholder=f"renaming {path.name}")
+        explorer_ops.prompt_rename(self, path)
 
     def explorer_delete_prompt(self, path: Optional[Path]) -> None:
-        if path is None:
-            self.message("select a file or folder first", kind="warn")
-            return
-        if self.prompt_bar is None:
-            return
-        self._explorer_target = path
-        kind = "folder" if path.is_dir() else "file"
-        self.prompt_bar.activate(
-            "delete",
-            placeholder=f"{kind} {path.name} — type y to confirm",
-        )
+        explorer_ops.prompt_delete(self, path)
 
     def _explorer_create(self, directory: Optional[Path], name: str) -> None:
-        if directory is None:
-            return
-        try:
-            target = self.workspace.create_entry(
-                directory, name, is_dir=self._explorer_is_dir)
-        except ValueError as exc:
-            self.message(f"invalid name: {exc}", kind="error")
-            return
-        except FileExistsError as exc:
-            self.message(str(exc), kind="error")
-            return
-        except OSError as exc:
-            self.message(f"create failed: {exc}", kind="error")
-            return
-        if self.explorer_tree is not None:
-            self.explorer_tree.refresh_tree()
-        self.message(f"created {target.name}", kind="ok")
-        if not self._explorer_is_dir:
-            # VS Code behavior: a new file opens right away
-            self._open_document_path(target)
+        explorer_ops.create(self, directory, name)
 
     def _explorer_apply_rename(self, path: Optional[Path], name: str) -> None:
-        if path is None:
-            return
-        try:
-            new_path = self.workspace.rename_entry(path, name)
-        except ValueError as exc:
-            self.message(f"invalid name: {exc}", kind="error")
-            return
-        except FileExistsError as exc:
-            self.message(str(exc), kind="error")
-            return
-        except OSError as exc:
-            self.message(f"rename failed: {exc}", kind="error")
-            return
-        # keep tabs pointing at the moved document
-        for doc in self.docs:
-            if doc.path is not None and doc.path.resolve() == path.resolve():
-                doc.path = new_path
-        if self.explorer_tree is not None:
-            self.explorer_tree.refresh_tree()
-        self.message(f"renamed to {new_path.name}", kind="ok")
+        explorer_ops.apply_rename(self, path, name)
 
     def _explorer_apply_delete(self, path: Optional[Path], confirm: str) -> None:
-        if path is None:
-            return
-        if confirm.strip().lower() not in ("y", "yes"):
-            self.message("delete cancelled")
-            return
-        try:
-            self.workspace.remove_entry(path)
-        except OSError as exc:
-            self.message(f"delete failed: {exc}", kind="error")
-            return
-        # close tabs whose file lived under the deleted path
-        target = path.resolve()
-        kept = [d for d in self.docs
-                if d.path is None or not d.path.resolve().is_relative_to(target)]
-        closed = len(self.docs) - len(kept)
-        if closed:
-            self.docs = kept
-            if not self.docs:
-                self.new_buffer(show=False)
-            self.doc_index = max(0, min(self.doc_index, len(self.docs) - 1))
-            self.search = SearchEngine()
-            self.message(f"closed {closed} open tab(s)", kind="warn")
-        if self.explorer_tree is not None:
-            self.explorer_tree.refresh_tree()
-        self.message(f"deleted {path.name}", kind="ok")
+        explorer_ops.apply_delete(self, path, confirm)
 
     # ------------------------------------------------------------- prompts
 
@@ -1356,8 +1252,6 @@ class YateApp(App[None]):
 
     # ================================================================== lsp
 
-    _LSP_AUTO_DEBOUNCE_S = 0.12
-
     # -------------------------------------------------------- document sync
 
     def _lsp_doc_shown_later(self) -> None:
@@ -1400,201 +1294,26 @@ class YateApp(App[None]):
             self.prompt_bar.idle()
 
     # ------------------------------------------------------------ completion
-
-    def _vim_insert_mode(self) -> bool:
-        """True when vim modal editing would insert typed characters."""
-        if self.keymap_name != "vim":
-            return True
-        vim = self.keymaps["vim"]
-        return isinstance(vim, VimKeymap) and vim.mode is VimMode.INSERT
+    # The controller (yate.app_parts.completion.CompletionController) owns
+    # the debounce timer and the worker; the app forwards public calls so
+    # keymaps, the editor view and extensions keep their entry points.
 
     def close_completion(self) -> None:
-        if self.completion_popup is not None and self.completion_popup.is_open:
-            self.completion_popup.close()
-
-    def _is_completion_char(self, ch: str) -> bool:
-        if ch.isalnum() or ch == "_":
-            return True
-        return ch in self.lsp.trigger_characters_for(self.doc)
+        self.completion_ctl.close()
 
     def _after_editor_key(self, raw: str) -> None:
         """Adjust the completion popup after a normal editor keystroke."""
-        if self.completion_popup is None or not self.mounted:
-            return
-        if len(raw) == 1 and raw.isprintable():
-            if self._is_completion_char(raw) and self._vim_insert_mode():
-                self._schedule_completion(raw)
-            else:
-                self.close_completion()
-            return
-        if raw == "\x7f":  # backspace: re-query while a popup is open
-            if self.completion_popup.is_open:
-                self._schedule_completion(None)
-            return
-        if raw == "\r":  # newline
-            self.close_completion()
-            return
-        # left/right movement keeps the popup; anything else closes it.
-        if raw not in ("\x1b[D", "\x1b[C", "\x1b[1;5D", "\x1b[1;5C"):
-            self.close_completion()
-
-    def _schedule_completion(self, trigger_ch: Optional[str]) -> None:
-        # Always schedule: with an LSP we query the server, without one we
-        # fall back to buffer words + paths (see _completion_worker).
-        timer = self._completion_timer
-        if timer is not None:
-            timer.cancel()
-        loop = asyncio.get_running_loop()
-        self._completion_timer = loop.call_later(
-            self._LSP_AUTO_DEBOUNCE_S, self.request_completion, False, trigger_ch
-        )
+        self.completion_ctl.after_editor_key(raw)
 
     def request_completion(
         self, manual: bool = True, trigger_ch: Optional[str] = None
     ) -> None:
         """Fetch completions and show the popup (worker; never blocks input)."""
-        if self.completion_popup is None or not self.mounted:
-            return
-        if len(self.screen_stack) > 1:
-            return
-        if not self._vim_insert_mode():
-            return
-        self._completion_timer = None
-        self.run_worker(
-            self._completion_worker(manual, trigger_ch),
-            group="lsp-completion", exclusive=True, exit_on_error=False,
-        )
-
-    async def _completion_worker(
-        self, manual: bool, trigger_ch: Optional[str]
-    ) -> None:
-        popup = self.completion_popup
-        editor = self.editor_view
-        if popup is None or editor is None:
-            return
-        doc = self.doc
-        buf = doc.buffer
-        row, col = buf.row, buf.col
-        line = buf.lines[row] if row < buf.line_count else ""
-        col = min(col, len(line))
-        i = col
-        while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
-            i -= 1
-        prefix = line[i:col]
-
-        # No language server for this document -> buffer-based completion
-        # (words from every open buffer + filesystem paths).
-        if not self.lsp.supports(doc):
-            if not manual and not prefix and trigger_ch not in (".",):
-                popup.close()
-                return
-            others = [d.buffer for d in self.docs if d is not doc]
-            base = self.workspace.root if self.workspace.root is not None else Path.cwd()
-            items, buf_prefix, _start_col = buffer_completions(
-                buf, row, col, extra_buffers=others, base_dir=base
-            )
-            if (
-                not self.mounted
-                or self.doc is not doc
-                or buf.row != row
-                or not popup.is_mounted
-            ):
-                return
-            if not items:
-                popup.close()
-                if manual:
-                    self.message("no completions", kind="info")
-                return
-            cell = theme.char_to_cell(line, col, buf.tab_width) - editor.scroll_col
-            rel_row = row - editor.scroll_offset.y
-            popup.show(
-                items, buf_prefix,
-                (cell, rel_row),
-                (editor.size.width or 80, editor.size.height or 20),
-                editor.gutter_width(),
-                origin_y=2,
-            )
-            return
-
-        if not manual and not prefix and trigger_ch not in (
-            ".", *self.lsp.trigger_characters_for(doc)
-        ):
-            popup.close()
-            return
-
-        # Make sure didOpen happened (also starts the server on first use).
-        await self.lsp.on_document_shown(doc)
-        triggers = self.lsp.trigger_characters_for(doc)
-        kind = 2 if trigger_ch in triggers else 1
-        items = await self.lsp.request_completion(
-            doc, row, col,
-            prefix_start_col=i,
-            trigger_kind=kind,
-            trigger_character=trigger_ch if kind == 2 else None,
-        )
-        # Stale if the user switched tabs, lines or scrolled away.
-        if (
-            not self.mounted
-            or self.doc is not doc
-            or buf.row != row
-            or not popup.is_mounted
-        ):
-            return
-        if prefix:
-            needle = prefix.lower()
-            items = [
-                c for c in items
-                if c.label[: len(prefix)].lower() == needle
-                or c.insert_text[: len(prefix)].lower() == needle
-            ]
-        items = items[:50]
-        if not items:
-            popup.close()
-            if manual:
-                self.message("no completions", kind="info")
-            return
-        cell = theme.char_to_cell(line, col, buf.tab_width) - editor.scroll_col
-        rel_row = row - editor.scroll_offset.y
-        popup.show(
-            items,
-            prefix,
-            (cell, rel_row),
-            (editor.size.width or 80, editor.size.height or 20),
-            editor.gutter_width(),
-            origin_y=2,
-        )
+        self.completion_ctl.request(manual, trigger_ch)
 
     def accept_completion(self) -> None:
         """Insert the selected completion at its reported range."""
-        popup = self.completion_popup
-        if popup is None or not popup.is_open:
-            return
-        item = popup.selected()
-        doc = self.doc
-        buf = doc.buffer
-        popup.close()
-        if item is None:
-            return
-        row, col = buf.row, buf.col
-        if item.has_range():
-            r0 = item.range_start_row or 0
-            c0 = item.range_start_col or 0
-            r1 = item.range_end_row or 0
-            c1 = item.range_end_col or 0
-            # Characters typed after the request extend the replaced prefix.
-            if row == r1 and col >= c1:
-                c1 = col
-            if (row, col) < (r0, c0) or (r0, c0) > (r1, c1):
-                return  # cursor moved away: discard rather than corrupt text
-            start, end = (r0, c0), (r1, c1)
-        else:
-            i = col
-            line = buf.lines[row]
-            while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
-                i -= 1
-            start, end = (row, i), (row, col)
-        buf.replace_range(start, end, item.insert_text)
-        self.ui_refresh()
+        self.completion_ctl.accept()
 
     def show_diagnostics(self) -> None:
         """``:diagnostics`` -- list the active document's LSP diagnostics."""
@@ -1671,156 +1390,8 @@ class YateApp(App[None]):
 
     # =============================================================== commands
 
-    def _register_commands(self) -> None:
-        reg = self.commands.register
-        reg("w", lambda args: self.save_document(), "save the current file")
-        reg("write", lambda args: self.save_document(), "save the current file")
-        reg("q", lambda args: self.quit(), "quit yate")
-        reg("quit", lambda args: self.quit(), "alias for :q")
-        reg("q!", lambda args: self.quit(force=True), "quit, discarding changes")
-
-        def _wq(args: str) -> None:
-            self.save_document()
-            self.quit(force=True)
-
-        reg("wq", _wq, "save and quit")
-
-        def _split(args: str) -> None:
-            self._split_with_path("horizontal", args)
-
-        def _vsplit(args: str) -> None:
-            self._split_with_path("vertical", args)
-
-        reg("split", _split, "split the window horizontally (:sp [file])")
-        reg("sp", _split, "alias for :split")
-        reg("vsplit", _vsplit, "split the window vertically (:vs [file])")
-        reg("vs", _vsplit, "alias for :vsplit")
-        reg("only", lambda args: self._only_pane(),
-            "close every other pane, keep the active one")
-        reg("close", lambda args: self._close_pane(),
-            "close the active pane (no-op on the last one; use :q to quit)")
-        reg("cl", lambda args: self._close_pane(), "alias for :close")
-
-        def _edit(args: str) -> None:
-            args = args.strip()
-            if args:
-                self.open_path_later(Path(args))
-            else:
-                self.prompt_open()
-
-        reg("e", _edit, "open a file or directory by path")
-        reg("edit", _edit, "open a file or directory by path")
-        reg("enew", lambda args: self.new_buffer(), "open a new empty buffer")
-        reg("welcome", lambda args: self.show_welcome(),
-            "show the welcome page again (on an empty unnamed buffer)")
-        reg("bn", lambda args: self.cycle_tab(1), "next buffer/tab")
-        reg("bnext", lambda args: self.cycle_tab(1), "next buffer/tab")
-        reg("bp", lambda args: self.cycle_tab(-1), "previous buffer/tab")
-        reg("bprev", lambda args: self.cycle_tab(-1), "previous buffer/tab")
-        reg("bd", lambda args: self.close_tab(), "close current buffer/tab")
-        reg("files", lambda args: self.open_file_palette(), "fuzzy quick file open (ctrl+p)")
-        reg("palette", lambda args: self.open_command_palette(),
-            "command palette (alt+shift+p)")
-
-        def _set(args: str) -> None:
-            args = args.strip()
-            if "=" not in args:
-                self.message(
-                    "usage: :set keymap=vsc|vim  theme=mocha  shell=powershell  "
-                    "terminal_height=12  filetype=py (auto = detect)  "
-                    "show_hidden=on|off",
-                    kind="warn",
-                )
-                return
-            key, _, value = args.partition("=")
-            key = key.strip()
-            value = value.strip()
-            if key in ("filetype", "ft", "language", "lang"):
-                self.set_filetype(value)
-            elif key == "keymap":
-                self.select_keymap(value)
-            elif key == "theme":
-                self.set_theme(value)
-            elif key == "shell":
-                self.config.shell = value
-                self.message(
-                    "shell set; the new value applies to the next terminal "
-                    "(restart it with any key after exit)",
-                    kind="ok",
-                )
-            elif key == "terminal_height":
-                try:
-                    height = int(value)
-                except ValueError:
-                    self.message("terminal_height must be an integer 3..40",
-                                 kind="warn")
-                    return
-                if not 3 <= height <= 40:
-                    self.message("terminal_height must be between 3 and 40",
-                                 kind="warn")
-                    return
-                self.config.terminal_height = height
-                if self.terminal_panel is not None and self._terminal_visible:
-                    self.terminal_panel.styles.height = height
-                self.message(f"terminal height: {height} rows", kind="ok")
-            elif key == "show_hidden":
-                val = value.lower() in ("on", "true", "1", "yes")
-                self.workspace.show_hidden = val
-                if self.explorer_tree is not None:
-                    self.explorer_tree.refresh_tree()
-                self.message(
-                    f"hidden files {'shown' if val else 'hidden'}", kind="ok"
-                )
-            else:
-                self.message(f"unknown option: {key}", kind="warn")
-
-        def _theme(args: str) -> None:
-            args = args.strip()
-            if not args:
-                current = theme.active()
-                self.message(
-                    f"theme: {current.label} ({current.name}) · "
-                    f"available: {', '.join(theme.available())}"
-                )
-                return
-            self.set_theme(args)
-
-        def _filetype(args: str) -> None:
-            args = args.strip()
-            if not args:
-                doc = self.doc
-                source = "manual override" if doc.filetype_override else "from path"
-                label = highlight.language_name(doc.filetype)
-                shown = f"{doc.filetype} ({label})" if label else doc.filetype
-                self.message(
-                    f"filetype: {shown} [{source}] · "
-                    f"available: {', '.join(highlight.available_filetypes())}"
-                )
-                return
-            self.set_filetype(args)
-
-        reg("set", _set,
-            "set an option (keymap, theme, shell, terminal_height, filetype)")
-        reg("filetype", _filetype,
-            "set syntax/filetype (:filetype python; auto = detect; no arg lists all)")
-        reg("ft", _filetype, "alias for :filetype")
-        reg("language", _filetype, "alias for :filetype")
-        reg("theme", _theme, "switch color theme by name (:theme lists all)")
-        reg("colorscheme", _theme, "alias for :theme")
-        reg("vim", lambda args: self.select_keymap("vim"), "switch to vim key map")
-        reg("vsc", lambda args: self.select_keymap("vsc"), "switch to the vsc key map")
-        reg("normal", lambda args: self.select_keymap("vsc"), "alias for :vsc")
-        reg("help", lambda args: self.show_help(), "show key map help")
-        reg("manual", lambda args: self.show_manual(args or "en"),
-            "open the user manual (:manual zh|en, default en)")
-        reg("explorer", lambda args: self.toggle_explorer(), "toggle the file explorer")
-        reg("term", lambda args: self.open_terminal(), "open/focus the integrated terminal")
-        reg("terminal", lambda args: self.open_terminal(),
-            "alias for :term (Ctrl+` toggles)")
-        reg("termclose", lambda args: self.close_terminal(), "hide the integrated terminal")
-        reg("diagnostics", lambda args: self.show_diagnostics(),
-            "list language server diagnostics for the current file")
-        reg("font", lambda args: self._font_command(), "install the bundled Nerd Font")
+    # Built-in ex commands are registered by
+    # yate.app_parts.commands.register_commands (called from __init__).
 
     def toggle_explorer(self) -> None:
         self.explorer_visible = not self.explorer_visible
@@ -1845,64 +1416,24 @@ class YateApp(App[None]):
             self.sidebar.display = visible
 
     # ============================================================ terminal
+    # The panel lifecycle lives in yate.app_parts.terminal_ops; the app
+    # keeps the flags (_terminal_visible/_terminal_starting/_terminal_factory)
+    # and the historical method names.
 
     def toggle_terminal(self) -> None:
         """Show/focus or hide the integrated terminal (Ctrl+`)."""
-        if self._terminal_visible:
-            self.close_terminal()
-        else:
-            self.open_terminal()
+        terminal_ops.toggle_terminal(self)
 
     def open_terminal(self) -> None:
         """Reveal the bottom terminal and focus it, spawning the shell."""
-        panel = self.terminal_panel
-        if panel is None:
-            return
-        was_hidden = not self._terminal_visible
-        if was_hidden:
-            panel.styles.height = self.config.terminal_height
-            panel.display = True
-            self._terminal_visible = True
-        panel.view.focus()
-        if not panel.view.started:
-            self._spawn_terminal()
-        if was_hidden:
-            self.message("terminal shown", kind="ok")
+        terminal_ops.open_terminal(self)
 
     def close_terminal(self) -> None:
         """Hide the panel; the shell process itself stays alive."""
-        panel = self.terminal_panel
-        if panel is None or not self._terminal_visible:
-            self.message("terminal already hidden", kind="warn")
-            return
-        panel.display = False
-        self._terminal_visible = False
-        self.focus_editor()
-        self.message("terminal hidden", kind="ok")
+        terminal_ops.close_terminal(self)
 
     def _spawn_terminal(self) -> None:
-        if self._terminal_starting:
-            return
-        panel = self.terminal_panel
-        if panel is None:
-            return
-        self._terminal_starting = True
-        argv = resolve_shell(self.config.shell)
-        cwd = self.workspace.root or Path.cwd()
-
-        async def _start() -> None:
-            try:
-                await panel.view.start(argv, cwd, factory=self._terminal_factory)
-            except PtyProcessError as exc:
-                self.message(f"terminal: {exc}", kind="warn")
-            except OSError as exc:
-                self.message(f"terminal: {exc}", kind="warn")
-            finally:
-                self._terminal_starting = False
-            if self._terminal_visible:
-                panel.view.focus()
-
-        self.run_worker(_start(), group="terminal", exit_on_error=False)
+        terminal_ops.spawn(self)
 
     def _font_command(self) -> None:
         # registry lookups / font registration touch subprocess and would
