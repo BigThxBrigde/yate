@@ -1,51 +1,43 @@
 # yate
 
-[English](README.en.md) · **中文**
+**English** · [中文](README.zh.md)
 
-**yate** — *yet another terminal editor*，基于 [Textual](https://www.textualize.io/)
-构建的现代终端文本编辑器。分层架构：`editor_core` 为纯编辑逻辑（与 UI 解耦，
-可无头测试），`editor_view` 为 Textual 界面。
+**yate** — *yet another terminal editor*, a modern terminal text editor built
+on [Textual](https://www.textualize.io/). Layered architecture: `editor_core`
+holds the pure editing logic (UI-agnostic, headlessly testable) and
+`editor_view` is the Textual interface.
 
-## 📖 用户手册 / Manual
+## 📖 Manual
 
-完整使用说明（中英双语），会话内也可按 `F8` 或输入 `:manual` 打开：
+The full manual ships in both languages; press `F8` or run `:manual` inside
+yate to open it:
 
-| 语言 | 文件 |
+| Language | File |
 |---|---|
 | 中文 | [yate/resources/manual.zh.md](yate/resources/manual.zh.md) |
 | English | [yate/resources/manual.en.md](yate/resources/manual.en.md) |
 
-## 特性
+## Features
 
-- **VS Code 风格布局**：活动标签栏、EXPLORER 文件树侧栏、面包屑路径栏、扁平化状态栏
-- **两套内置键位**：`vsc`（VS Code 风格、无模式，默认）与 `vim`（NORMAL/INSERT/VISUAL
-  模式 + `:` ex 命令行）
-- **语法高亮**：内置高亮引擎，按文件类型着色关键字/字符串/数字/注释/函数等
-- **四套 Catppuccin 主题**：`mocha`（默认深色）、`macchiato`、`frappe`、`latte`（浅色），
-  支持 yaterc 注册自定义主题，也可用 `theme_dirs` / `--theme-dir`
-  从主题目录批量加载客制化主题
-- **Nerd Font 图标**：文件树与文件类型图标（`yate --install-font` 可安装随包字体）
-- **模糊查找**：`Ctrl+P` 快速打开文件（fzf 式子序列匹配、命中字符高亮），
-  `Alt+Shift+P` 命令面板
-- **欢迎页**：空 buffer 启动时显示版本、键位提示
-- **搜索**：`Ctrl+F` 文件内查找
-- **集成终端**：`` Ctrl+` `` 切换底部终端面板（VS Code 风格布局），经 PTY 运行真实
-  Shell（Windows ConPTY / POSIX pty）；`:term` / `:termclose`、Shell 可在 yaterc
-  的 `shell` 选项配置，面板高度用 `terminal_height`（默认 12 行）
-- **yaterc 配置**：Python 语法配置文件（vimrc 风格），支持用户级/项目级/`-u` 三级加载
-- **Python 扩展**：任意 `.py` 脚本通过 `setup(api)` 注册命令、按键绑定和动作；
-  `yate/extensions/` 中的随包扩展（Python LSP、C# 高亮）启动时自动加载，
-  可用 yaterc 的 `disabled_extensions` 按名禁用
-- **LSP 支持**：内置零依赖 LSP 客户端（`editor_lsp`），提供自动补全弹窗与诊断
-  （下划线/装订槽标记/状态栏计数/`:diagnostics`）；语言服务器通过扩展注册，
-  随包 Python 服务器扩展（pyright / python-lsp-server 自动发现）
+- **VS Code-style layout**: active tab bar, EXPLORER file tree sidebar, breadcrumb path bar, flat status bar
+- **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL modes + `:` ex command line)
+- **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type
+- **Four Catppuccin themes**: `mocha` (default dark), `macchiato`, `frappe`, `latte` (light); register custom themes in yaterc, or bulk-load theme files via `theme_dirs` / `--theme-dir`
+- **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font)
+- **Fuzzy finding**: `Ctrl+P` quick open (fzf-style subsequence matching with hit highlighting), `Alt+Shift+P` command palette
+- **Welcome screen**: version and key hints when starting with an empty buffer
+- **Search**: `Ctrl+F` in-file search
+- **Integrated terminal**: `` Ctrl+` `` toggles a bottom terminal panel (VS Code-style layout) running a real shell over a PTY (Windows ConPTY / POSIX pty); `:term` / `:termclose`; the shell is configurable via yaterc's `shell` option, panel height via `terminal_height` (default 12 rows)
+- **yaterc config**: Python-syntax config file (vimrc style) with user / project / `-u` three-level loading
+- **Python extensions**: any `.py` script registers commands, key bindings and actions through `setup(api)`; the bundled extensions in `yate/extensions/` (Python LSP, C# highlighting) auto-load at startup and can be disabled by name via yaterc's `disabled_extensions`
+- **LSP support**: zero-dependency built-in LSP client (`editor_lsp`) with completion popup and diagnostics (underlines / gutter marks / status bar counts / `:diagnostics`); servers register through extensions, including a bundled Python server extension (auto-discovers pyright / python-lsp-server)
 
-## 环境要求
+## Requirements
 
 - Python ≥ 3.10
-- 依赖：[textual](https://pypi.org/project/textual/) ≥ 8.0
+- Dependency: [textual](https://pypi.org/project/textual/) ≥ 8.0
 
-## 安装
+## Installation
 
 ```powershell
 git clone <this repo>
@@ -56,88 +48,91 @@ python -m venv .venv
 pip install -e .
 ```
 
-安装后提供两个等价入口：
+Two equivalent entry points are installed:
 
 ```powershell
-yate                  # 控制台脚本
-python -m yate        # 模块方式
+yate                  # console script
+python -m yate        # module form
 ```
 
-## 使用
+## Usage
 
 ```powershell
-yate                        # 打开空 buffer（显示欢迎页）
-yate README.md              # 编辑文件
-yate ./src                  # 打开目录，文件树浏览
-yate --keymap vim .         # 以 vim 键位启动
-yate -u ~/.yate/yaterc      # 使用指定配置文件
-yate -u NONE                # 不加载任何 yaterc
-yate --ext mytool.py        # 加载扩展脚本（可重复）
-yate --ext-dir ./exts       # 加载目录下所有扩展（可重复）
-yate --theme-dir ./themes   # 加载客制化主题目录（也接受单个 .py，可重复）
-yate --theme my-mocha       # 以指定主题启动（覆盖 yaterc）
-yate --install-font         # 安装随包 Nerd Font 后退出
+yate                        # empty buffer (welcome screen)
+yate README.md              # edit a file
+yate ./src                  # open a directory, browse the file tree
+yate --keymap vim .         # start with the vim keymap
+yate -u ~/.yate/yaterc      # use an explicit config file
+yate -u NONE                # start without any yaterc
+yate --ext mytool.py        # load an extension script (repeatable)
+yate --ext-dir ./exts       # load every extension in a directory (repeatable)
+yate --theme-dir ./themes   # load a custom theme directory (a single .py works too; repeatable)
+yate --theme my-mocha       # start with a specific theme (overrides yaterc)
+yate --install-font         # install the bundled Nerd Font and exit
 ```
 
-### 常用键位（vsc 键位）
+### Common keys (vsc keymap)
 
-| 按键 | 功能 |
+| Key | Function |
 |---|---|
-| `Ctrl+P` | 模糊快速打开文件 |
-| `Alt+Shift+P` | 命令面板（检索并执行全部 `:` 命令与命名动作；vsc 模式下 `:` 是普通字符） |
-| `F5` | 打开命令行（ex 命令，`Esc` 退出） |
-| `Ctrl+Q` | 退出（有未保存修改时拦截） |
-| `Ctrl+S` | 保存 |
-| `Ctrl+F` | 文件内查找 |
-| `Ctrl+G` | 跳转到行（命令行直接输 `:42` 等效，`:+5` 相对跳转） |
-| `Ctrl+B` | 显示/隐藏文件树（命令面板 `explorer` 同效） |
-| `` Ctrl+` `` | 显示/隐藏底部集成终端（命令面板 `term` / `termclose`） |
-| `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
-| `Ctrl+1` | 聚焦编辑器（同 VS Code） |
-| `Ctrl+Space` | 触发 LSP 自动补全（输入时也会自动弹出，`Tab`/`Enter` 接受） |
-| `F1` | 帮助 / 全部键位 |
+| `Ctrl+P` | fuzzy quick open |
+| `Alt+Shift+P` | command palette (search and run every `:` command and named action; in vsc mode `:` is a plain character) |
+| `F5` | open the command line (ex commands, `Esc` to exit) |
+| `Ctrl+Q` | quit (blocked while there are unsaved changes) |
+| `Ctrl+S` | save |
+| `Ctrl+F` | in-file search |
+| `Ctrl+G` | go to line (typing `:42` directly is equivalent; `:+5` is relative) |
+| `Ctrl+B` | show/hide the file tree (palette `explorer` does the same) |
+| `` Ctrl+` `` | show/hide the integrated terminal (palette `term` / `termclose`) |
+| `Ctrl+E` / `Ctrl+Shift+E` | focus the file tree (the latter matches VS Code) |
+| `Ctrl+1` | focus the editor (matches VS Code) |
+| `Ctrl+Space` | trigger LSP completion (it also pops up automatically; accept with `Tab`/`Enter`) |
+| `F1` | help / all key bindings |
 
-文件树内（聚焦后）：`j`/`k` 移动，`l`/`h` 展开/折叠，`Enter` 打开文件，
-`a` 新建文件，`A` 新建文件夹，`r` 重命名，`d`/`Del` 删除（输入 `y` 确认），
-`Esc` 回编辑器。改名/删除会同步已打开的标签页。
+Inside the file tree (when focused): `j`/`k` to move, `l`/`h` to expand/collapse,
+`Enter` to open, `a` new file, `A` new folder, `r` rename, `d`/`Del` delete
+(type `y` to confirm), `Esc` back to the editor. Renames/deletes update open
+tabs.
 
-vim 键位下：`i` 进入插入、`Esc` 回 NORMAL，`:` 打开命令行；
-`Ctrl+W` 后接 `h`/`l` 切到文件树/编辑器（`Ctrl+W Ctrl+W` 来回切换）；
-完整绑定见 F1 帮助。
+With the vim keymap: `i` enters insert mode, `Esc` returns to NORMAL, `:` opens
+the command line; after `Ctrl+W` press `h`/`l` to move between tree and editor
+(`Ctrl+W Ctrl+W` toggles). See F1 help for the full list.
 
-## 配置（yaterc）
+## Configuration (yaterc)
 
-配置文件是普通 Python：选项即模块级变量。启动时依次加载
-`~/.yate/yaterc`（用户级）和当前目录逐级向上的 `yaterc`（项目级，后者覆盖同名选项）。
+The config file is plain Python: options are module-level variables. At
+startup yate loads `~/.yate/yaterc` (user level) and then a `yaterc` found by
+walking up from the current directory (project level; later files win for
+same-named options).
 
 ```python
-keymap = "vim"            # "vsc"（默认）/ "vim"
-theme = "mocha"           # mocha | macchiato | frappe | latte | 自定义主题
+keymap = "vim"            # "vsc" (default) / "vim"
+theme = "mocha"           # mocha | macchiato | frappe | latte | custom theme
 tab_width = 4
 use_spaces = True
-shell = "pwsh -NoLogo"    # 集成终端 Shell（默认 pwsh/PowerShell/cmd 或 $SHELL/bash）
-terminal_height = 12      # 终端面板高度，3–40 行
-theme_dirs = ["~/.yate/themes"]  # 客制化主题目录（默认也扫描 ./themes）
-extensions = [            # 额外扩展路径（目录或 .py 文件，跨 yaterc 累加去重）
+shell = "pwsh -NoLogo"    # integrated terminal shell (default pwsh/PowerShell/cmd or $SHELL/bash)
+terminal_height = 12      # terminal panel height, 3-40 rows
+theme_dirs = ["~/.yate/themes"]  # custom theme directories (./themes is scanned too)
+extensions = [            # extra extension paths (dirs or .py files, accumulated/deduped across rc files)
     "~/.yate/extensions",
     "./tools/my_ext.py",
 ]
-disabled_extensions = []  # 禁用随包默认扩展，如 ["python_lsp", "csharp_highlight"]
-language_servers = [      # 声明式 LSP：打开匹配语言文件时自动激活，无需写扩展
+disabled_extensions = []  # turn off bundled defaults, e.g. ["python_lsp", "csharp_highlight"]
+language_servers = [      # declarative LSP: auto-activates when a matching file opens, no extension needed
     {"name": "rust-analyzer", "command": "rust-analyzer",
      "filetypes": ["rs"], "language_ids": {"rs": "rust"},
      "root_markers": ["Cargo.toml", ".git"]},
 ]
 ```
 
-完整说明（含自定义主题、路径解析规则、错误行为）见
-[yate/docs/yaterc.zh.md](yate/docs/yaterc.zh.md)（[English](yate/docs/yaterc.en.md)）；
-可直接复制 [yaterc.example](yate/yaterc.example) 作为起点。`yaterc.example`
-随测试保证可加载。
+Full documentation (custom themes, path resolution rules, error behavior) is in
+[yate/docs/yaterc.en.md](yate/docs/yaterc.en.md) ([中文](yate/docs/yaterc.zh.md));
+copy [yaterc.example](yate/yaterc.example) as a starting point. The example is
+guaranteed by tests to load cleanly.
 
-## 扩展
+## Extensions
 
-扩展是任何暴露 `setup(api)` 的 `.py` 文件：
+An extension is any `.py` file exposing `setup(api)`:
 
 ```python
 def setup(api):
@@ -148,95 +143,102 @@ def setup(api):
     api.bind_key("<alt-h>", lambda ctx: hello(""), keymap="both")
 ```
 
-加载方式（可组合）：
+Loading sources (combinable):
 
-- **随包扩展**：`yate/extensions/` 中的 `*.py` 启动时自动加载（任何工作目录下）；
-  yaterc 中 `disabled_extensions = ["python_lsp"]` 可按文件名主干禁用
-- 放入 `./extensions/` 或 `~/.yate/extensions/`（启动自动加载）
-- yaterc 中 `extensions = [...]` 声明路径
-- 命令行 `--ext 文件.py` / `--ext-dir 目录`
+- **Bundled**: every `*.py` in `yate/extensions/` auto-loads at startup (from
+  any working directory); disable stems in yaterc via
+  `disabled_extensions = ["python_lsp"]`
+- Drop into `./extensions/` or `~/.yate/extensions/` (auto-loaded at startup)
+- Declare paths with `extensions = [...]` in yaterc
+- On the command line: `--ext file.py` / `--ext-dir dir`
 
-`api` 可注册命令（`command` / `register_command`）、按键绑定（`bind_key`，
-支持 `vsc` / `vim` / `both`）、命名动作（`register_action`），并可访问
-`api.buffer` / `api.doc` / `api.workspace`、`api.shell()` / `api.open_path()` /
-`api.save()` / `api.message()`。完整模板见
+`api` registers commands (`command` / `register_command`), key bindings
+(`bind_key`, supports `vsc` / `vim` / `both`) and named actions
+(`register_action`), and exposes `api.buffer` / `api.doc` / `api.workspace`,
+`api.shell()` / `api.open_path()` / `api.save()` / `api.message()`. A complete
+template lives at
 [yate/extensions/example_ext.py.example](yate/extensions/example_ext.py.example)
-（去掉 `.example` 后缀后使用；提供 `:upper` / `:lower` / `:words` / `:sh`
-命令 + `Alt+U` 绑定）。
+(use after dropping the `.example` suffix; it provides the `:upper` /
+`:lower` / `:words` / `:sh` commands and an `Alt+U` binding).
 
-### LSP 语言服务器
+### LSP language servers
 
-语言服务器按扩展名匹配、首次打开匹配文件时惰性启动，提供自动补全 + 诊断。
-配置方式两种：
+Servers match by file extension and start lazily when the first matching file
+is opened, providing completion plus diagnostics. Two configuration styles:
 
-- **yaterc 声明式（推荐）**：`language_servers = [...]` 字典列表，配置后
-  打开匹配文件自动激活，无需写扩展（见上方示例与 [yate/docs/lsp.zh.md](yate/docs/lsp.zh.md)）。
-- **扩展**：`api.lsp.register_server(...)` 编程式注册。
+- **Declarative in yaterc (recommended)**: a list of dicts as
+  `language_servers = [...]`; servers auto-activate when matching files open,
+  no extension needed (see the example above and
+  [yate/docs/lsp.en.md](yate/docs/lsp.en.md)).
+- **Extension**: register programmatically with
+  `api.lsp.register_server(...)`.
 
-随包扩展 [yate/extensions/python_lsp.py](yate/extensions/python_lsp.py)，
-打开 `.py` 文件时自动连接 Python 语言服务器，需自行安装其一：
+The bundled [yate/extensions/python_lsp.py](yate/extensions/python_lsp.py)
+auto-connects a Python language server when opening `.py` files; install one
+implementation yourself:
 
 ```powershell
 pip install python-lsp-server     # pylsp
-npm install -g pyright            # 或 pyright-langserver
+npm install -g pyright            # or pyright-langserver
 ```
 
-也可用环境变量 `YATE_PYTHON_LSP` 指定命令行（设为 `off` 可禁用）。
-详细 API 与行为见用户手册第 16 节
-（[中](yate/resources/manual.zh.md) / [En](yate/resources/manual.en.md)，
-会话内 `:manual` 或 `F8`）。
+You can also set the command line via the `YATE_PYTHON_LSP` environment
+variable (set it to `off` to disable). See manual section 16 for the full API
+and behavior ([中文](yate/resources/manual.zh.md) /
+[English](yate/resources/manual.en.md), or `:manual` / `F8` in-session).
 
-## 项目结构
+## Project layout
 
 ```
 yate/
-  editor_core/    # 纯编辑逻辑：buffer、文档模型、搜索引擎（无 Textual 依赖）
-  editor_term/    # PTY 后端（ConPTY/POSIX pty）、VT100 仿真、Shell 解析
-  editor_lsp/     # UI 无关的 LSP 客户端：JSON-RPC、进程管理、补全/诊断状态
-  editor_view/    # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、高亮、主题
-  keymaps/        # vsc / vim 键位定义与动作分发
-  services/       # workspace 遍历、shell、扩展加载、字体安装
-  extensions/     # 随包扩展：python_lsp（内置 LSP）、csharp_highlight（C# 高亮）、
-                  #   example_ext.py.example（模板，.example 后缀不会自动加载）
-  docs/           # 中英双语文档：yaterc 配置、扩展 API、主题、LSP 配置食谱
-                  #   （*.zh.md / *.en.md）
-  resources/      # manual.zh.md / manual.en.md 双语用户手册、随包字体
-  config.py       # yaterc 配置系统
-  app.py          # YateApp：界面组装、命令注册、生命周期
-  cli.py          # 命令行入口
-  paths.py        # 统一资源定位（源码 / wheel / PyInstaller frozen 三种布局）
-  yaterc.example  # 配置模板
-tests/            # 单元测试 + Textual pilot 端到端测试
+  editor_core/    # pure editing logic: buffer, document model, search engine (no Textual dependency)
+  editor_term/    # PTY backends (ConPTY/POSIX pty), VT100 emulation, shell parsing
+  editor_lsp/     # UI-agnostic LSP client: JSON-RPC, process management, completion/diagnostic state
+  editor_view/    # Textual UI: editor, file tree, status bar, palette, terminal, highlighting, themes
+  keymaps/        # vsc / vim keymap definitions and action dispatch
+  services/       # workspace traversal, shell, extension loading, font installation
+  extensions/     # bundled extensions: python_lsp (built-in LSP), csharp_highlight (C# highlighting),
+                  #   example_ext.py.example (template; the .example suffix is never auto-loaded)
+  docs/           # bilingual docs: yaterc config, extension API, themes, LSP recipes
+                  #   (*.zh.md / *.en.md)
+  resources/      # manual.zh.md / manual.en.md bilingual manual, bundled fonts
+  config.py       # yaterc configuration system
+  app.py          # YateApp: UI assembly, command registration, lifecycle
+  cli.py          # command-line entry point
+  paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)
+  yaterc.example  # configuration template
+tests/            # unit tests + Textual pilot end-to-end tests
 ```
 
-## 打包
+## Packaging
 
-两种分发方式互不冲突：
+The two distribution methods are independent:
 
 ```powershell
-# 1) Wheel（库式安装，pip install yate-*.whl；yate 入口脚本自动生成）
+# 1) Wheel (library-style install via pip install yate-*.whl; the yate script is generated)
 python -m pip install build
-python -m build --wheel          # 产物在 dist/
+python -m build --wheel          # output in dist/
 
-# 2) PyInstaller 单目录可执行程序（无需目标机安装 Python）
+# 2) PyInstaller one-folder executable (no Python needed on the target machine)
 python -m pip install -e ".[build]"
-pyinstaller yate.spec            # 产物 dist/yate/yate.exe
+pyinstaller yate.spec            # output: dist/yate/yate.exe
 ```
 
-`yate.spec` 与打包配置在 [pyproject.toml](pyproject.toml) 中声明：
-资源（字体、双语文档与手册、`yaterc.example`、随包扩展）通过 [yate/paths.py](yate/paths.py)
-统一解析，源码运行、wheel 安装与 frozen 可执行程序三种布局下行为一致。
+`yate.spec` and the build settings live in [pyproject.toml](pyproject.toml):
+resources (fonts, bilingual docs and manuals, `yaterc.example`, bundled
+extensions) are resolved through [yate/paths.py](yate/paths.py), so behavior is
+identical when run from source, installed as a wheel, or frozen.
 
-## 开发
+## Development
 
 ```powershell
-# 运行全部测试（288 个，含 Textual pilot 端到端测试）
+# Run the full test suite (288 tests, including Textual pilot end-to-end tests)
 python -m unittest discover -s tests
 
-# 类型检查：pyright strict，要求 0 诊断
+# Type checking: pyright strict, 0 diagnostics required
 python -m pyright
 ```
 
-## 许可
+## License
 
 MIT
