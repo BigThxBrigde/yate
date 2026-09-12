@@ -224,7 +224,7 @@ yate/
   actions.py      # 命名动作注册表：键位、命令面板与扩展共用
   config.py       # yaterc 配置系统
   app.py          # YateApp：界面组装、会话状态、生命周期
-  app_parts/      # 从 YateApp 抽出的协作模块：ex 命令、补全、文件树操作、终端
+  controllers/    # 应用控制层：ex 命令、补全、文件树操作、终端
   cli.py          # 命令行入口
   paths.py        # 统一资源定位（源码 / wheel / PyInstaller frozen 三种布局）
   yaterc.example  # 配置模板

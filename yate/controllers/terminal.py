@@ -41,7 +41,7 @@ def open_terminal(app: "YateApp") -> None:
         app._terminal_visible = True
     panel.view.focus()
     if not panel.view.started:
-        spawn(app)
+        spawn_shell(app)
     if was_hidden:
         app.message("terminal shown", kind="ok")
 
@@ -58,7 +58,7 @@ def close_terminal(app: "YateApp") -> None:
     app.message("terminal hidden", kind="ok")
 
 
-def spawn(app: "YateApp") -> None:
+def spawn_shell(app: "YateApp") -> None:
     if app._terminal_starting:
         return
     panel = app.terminal_panel
