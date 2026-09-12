@@ -70,11 +70,11 @@ try {
 
     # The mode flag picks the spec; the spec alone defines the bundle layout.
     if ($OneFile) {
-        $spec = "yate-onefile.spec"
+        $spec = "pack\yate-onefile.spec"
         $artifact = "dist\yate.exe"
         $mode = "onefile (single self-extracting exe)"
     } else {
-        $spec = "yate.spec"
+        $spec = "pack\yate.spec"
         $artifact = "dist\yate\yate.exe"
         $mode = "one-folder (faster startup)"
     }
@@ -85,7 +85,7 @@ try {
     Write-Host "  python:   $pythonExe"
     Write-Host ""
 
-    & $pythonExe -m PyInstaller --noconfirm --clean $spec
+    & $pythonExe -m PyInstaller --noconfirm --clean --distpath dist --workpath build $spec
     if ($LASTEXITCODE -ne 0) {
         Stop-WithMessage "PyInstaller build failed."
     }

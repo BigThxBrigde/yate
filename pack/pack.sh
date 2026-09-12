@@ -61,11 +61,11 @@ fi
 
 # The mode flag picks the spec; the spec alone defines the bundle layout.
 if [ "$onefile" -eq 1 ]; then
-    spec="yate-onefile.spec"
+    spec="pack/yate-onefile.spec"
     artifact="dist/yate"
     mode="onefile (single self-extracting binary)"
 else
-    spec="yate.spec"
+    spec="pack/yate.spec"
     artifact="dist/yate/yate"
     mode="one-folder (faster startup)"
 fi
@@ -76,7 +76,7 @@ echo "  spec:     $spec"
 echo "  python:   $py"
 echo
 
-"$py" -m PyInstaller --noconfirm --clean "$spec"
+"$py" -m PyInstaller --noconfirm --clean --distpath dist --workpath build "$spec"
 
 if [ ! -f "$artifact" ]; then
     echo "Build reported success but expected artifact is missing: $artifact" >&2

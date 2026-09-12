@@ -17,8 +17,8 @@ yate = "yate.cli:main"
 
 [project.optional-dependencies]
 dev = ["pyright>=1.1.400"]
-# Tooling for the standalone executable build (yate.spec); not needed to
-# run from source or to build/install the wheel.
+# Tooling for the standalone executable builds (pack/yate*.spec); not needed
+# to run from source or to build/install the wheel.
 build = ["pyinstaller>=6.0"]
 
 # Type checking is performed by Pylance/pyright (the same engine the VS Code
