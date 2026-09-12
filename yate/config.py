@@ -372,8 +372,14 @@ def _parse_language_server(
     )
     if filetypes is None:
         return None
-    # Accept a leading dot (".rs") even though the canonical form is "rs".
-    filetypes = [ft[1:] if ft.startswith(".") else ft for ft in filetypes]
+    # Accept leading dots (".rs") even though the canonical form is "rs";
+    # guard against values that normalize to empty ("." / ".." / "...").
+    filetypes = [ft.lstrip(".") for ft in filetypes]
+    if any(not ft for ft in filetypes):
+        errors.append(
+            f"{where}.filetypes entries must name an extension, got {filetypes_raw!r}"
+        )
+        return None
     args = _require_str_list(entry.get("args", []), f"{where}.args", errors)
     if args is None:
         return None
@@ -397,8 +403,8 @@ def _parse_language_server(
         if env is None:
             return None
     return LanguageServerSpec(
-        name=name,
-        command=command,
+        name=name.strip(),
+        command=command.strip(),
         filetypes=filetypes,
         args=args,
         language_ids=language_ids,

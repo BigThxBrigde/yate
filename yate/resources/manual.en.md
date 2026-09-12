@@ -1067,6 +1067,10 @@ Rules:
 - As with scalar options, a later yaterc **replaces** the whole list rather
   than merging; a malformed entry is skipped with an error in the startup
   message bar while the remaining entries still register.
+- `filetypes` / `args` / `root_markers` accept lists or tuples; leading dots
+  on extensions are stripped (`".rs"` → `"rs"`, while dot-only values are an
+  error); surrounding whitespace in `name` and `command` is trimmed. Unknown
+  extra keys are ignored.
 - Merely configuring servers spawns nothing; unnamed buffers and
   non-matching files are completely unaffected.
 

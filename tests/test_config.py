@@ -300,6 +300,98 @@ class LanguageServerConfigTests(unittest.TestCase):
             self.assertEqual(config.errors, [])
             self.assertEqual([s.name for s in config.language_servers], ["b"])
 
+    def test_tuples_accepted_for_sequence_fields(self) -> None:
+        body = (
+            "language_servers = [{\n"
+            '    "name": "t", "command": "t-ls",\n'
+            '    "filetypes": ("t",),\n'
+            '    "args": ("--stdio",),\n'
+            '    "root_markers": (".git", "t.proj"),\n'
+            "}]\n"
+        )
+        config = self._load(body)
+        self.assertEqual(config.errors, [])
+        spec = config.language_servers[0]
+        self.assertEqual(spec.filetypes, ["t"])
+        self.assertEqual(spec.args, ["--stdio"])
+        self.assertEqual(spec.root_markers, [".git", "t.proj"])
+
+    def test_whitespace_only_items_rejected(self) -> None:
+        cases = [
+            '"filetypes": [" "]',
+            '"filetypes": ["ok", ""]',
+            '"args": ["  "]',
+            '"root_markers": [""]',
+        ]
+        for field_body in cases:
+            config = self._load(
+                "language_servers = [{"
+                '"name": "x", "command": "x", '
+                f'{field_body}}}]\n'
+            )
+            self.assertEqual(config.language_servers, [], field_body)
+            self.assertTrue(config.errors, field_body)
+
+    def test_non_mapping_map_fields_rejected(self) -> None:
+        cases = [
+            '"language_ids": ["rs=rust"]',
+            '"language_ids": "rs=rust"',
+            '"env": ["X=1"]',
+            '"env": "X=1"',
+        ]
+        for field_body in cases:
+            config = self._load(
+                "language_servers = [{"
+                '"name": "x", "command": "x", "filetypes": ["x"], '
+                f'{field_body}}}]\n'
+            )
+            self.assertEqual(config.language_servers, [], field_body)
+            self.assertTrue(
+                any("mapping" in e for e in config.errors),
+                (field_body, config.errors),
+            )
+
+    def test_non_string_dict_key_rejected(self) -> None:
+        body = (
+            "language_servers = [{'name': 'x', 'command': 'x',"
+            " 'filetypes': ['x'], 'language_ids': {1: 'x'}}]\n"
+        )
+        config = self._load(body)
+        self.assertEqual(config.language_servers, [])
+        self.assertTrue(any("keys and values" in e for e in config.errors))
+
+    def test_dot_only_filetypes_rejected(self) -> None:
+        for value in ('["."]', '[".."]', '["ok", "."]'):
+            config = self._load(
+                'language_servers = [{"name": "x", "command": "x",'
+                f' "filetypes": {value}}}]\n'
+            )
+            self.assertEqual(config.language_servers, [], value)
+            self.assertTrue(
+                any("name an extension" in e for e in config.errors),
+                (value, config.errors),
+            )
+
+    def test_name_and_command_are_stripped(self) -> None:
+        config = self._load(
+            'language_servers = [{"name": "  go  ", "command": " gopls\\t",'
+            ' "filetypes": [" go ", ".go"]}]\n'
+        )
+        self.assertEqual(config.errors, [])
+        spec = config.language_servers[0]
+        self.assertEqual(spec.name, "go")
+        self.assertEqual(spec.command, "gopls")
+        # list items other than the leading dot are kept verbatim
+        self.assertEqual(spec.filetypes, [" go ", "go"])
+
+    def test_extra_unknown_keys_ignored(self) -> None:
+        config = self._load(
+            'language_servers = [{"name": "x", "command": "x",'
+            ' "filetypes": ["x"], "future_option": 42, "typo": True}]\n'
+        )
+        self.assertEqual(config.errors, [])
+        self.assertEqual(len(config.language_servers), 1)
+
 
 class ProjectConfigDiscoveryTests(unittest.TestCase):
     def test_find_project_config_walks_up(self) -> None:
@@ -341,6 +433,25 @@ class ProjectConfigDiscoveryTests(unittest.TestCase):
             with patch("yate.config.user_config_path", return_value=rc):
                 paths = cfg.default_rc_paths(Path(tmp))
             self.assertEqual(paths, [rc])
+
+    def test_user_config_path_layout(self) -> None:
+        self.assertEqual(
+            cfg.user_config_path(),
+            Path.home() / ".yate" / cfg.RC_FILENAME,
+        )
+
+    def test_default_rc_paths_without_any_rc(self) -> None:
+        # user rc missing and no project rc anywhere up the tree -> empty
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            missing_user = root / "no-yaterc-here"
+            deep = root / "a" / "b"
+            deep.mkdir(parents=True)
+            with patch(
+                "yate.config.user_config_path", return_value=missing_user
+            ):
+                paths = cfg.default_rc_paths(deep)
+            self.assertEqual(paths, [])
 
 
 class ExtensionPathTests(unittest.TestCase):
@@ -509,6 +620,19 @@ class ThemeDirTests(unittest.TestCase):
             self.assertEqual(config.theme_dirs, [])
             self.assertTrue(
                 any("theme_dirs" in e and "does not exist" in e for e in config.errors)
+            )
+
+    def test_absolute_nonexistent_theme_dir_reported(self) -> None:
+        with TemporaryDirectory() as tmp:
+            missing = (Path(tmp) / "nope" / "themes").as_posix()
+            rc = _write(
+                Path(tmp) / "yaterc",
+                f'theme_dirs = [{missing!r}]\n',
+            )
+            config = cfg.load_config([rc])
+            self.assertEqual(config.theme_dirs, [])
+            self.assertTrue(
+                any("does not exist" in e and "nope" in e for e in config.errors)
             )
 
     def test_bad_theme_dirs_types(self) -> None:

@@ -1801,6 +1801,11 @@ class LspUiTests(unittest.IsolatedAsyncioTestCase):
                 registered = app.lsp.config_for("rs")
                 assert registered is not None
                 self.assertEqual(registered.name, "rc-rust-late")
+                # omitted root_markers fall back to the built-in defaults
+                from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS
+                self.assertEqual(
+                    registered.root_markers, list(DEFAULT_ROOT_MARKERS)
+                )
                 # opening the matching file activates the server
                 app.open_path(rs)
                 await pilot.pause()
@@ -1809,6 +1814,62 @@ class LspUiTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertTrue(activated)
                 self.assertTrue(app.lsp.is_open(app.doc))
+
+    async def test_rc_python_entry_overrides_builtin_extension(self):
+        # The bundled python_lsp extension registers a "python" server with
+        # an empty command (YATE_PYTHON_LSP=off for the suite). A same-named
+        # rc entry registered after extensions must replace it: opening a
+        # .py file then talks to the rc server, not the disabled builtin one.
+        from yate.config import LanguageServerSpec, YateConfig
+
+        with TemporaryDirectory() as tmp:
+            py = Path(tmp) / "app.py"
+            py.write_text("print('hi')\n", encoding="utf-8")
+            config = YateConfig(language_servers=[LanguageServerSpec(
+                name="python",
+                command="fake-pyright",
+                args=["--stdio"],
+                filetypes=["py", "pyi"],
+                language_ids={"py": "python", "pyi": "python"},
+                initialization_options={"diagnostics": True},
+                settings={"python": {"version": "3"}},
+                env={"FAKE_ENV": "1"},
+                root_markers=["pyproject.toml", ".git"],
+            )])
+            app = YateApp(target=py, config=config)
+            created: list[Any] = []
+
+            def factory(config: Any, root: Any) -> Any:
+                return _RcClientShim(created, config, root)
+
+            app.lsp.set_client_factory(factory)
+            async with app.run_test(size=(100, 30)) as pilot:
+                registered = await wait_until(
+                    pilot, lambda: app.lsp.is_open(app.doc)
+                )
+                self.assertTrue(registered)
+                cfg = app.lsp.config_for("py")
+                assert cfg is not None
+                self.assertEqual(cfg.command, "fake-pyright")
+                self.assertEqual(cfg.args, ["--stdio"])
+                self.assertEqual(cfg.env, {"FAKE_ENV": "1"})
+                self.assertEqual(cfg.root_markers, ["pyproject.toml", ".git"])
+                self.assertEqual(
+                    cfg.initialization_options, {"diagnostics": True}
+                )
+                self.assertEqual(
+                    cfg.settings, {"python": {"version": "3"}}
+                )
+                self.assertEqual(cfg.language_id("pyi"), "python")
+                self.assertEqual(len(created), 1)
+                params = created[0].opened[0]
+                self.assertEqual(
+                    params["textDocument"]["languageId"], "python"
+                )
+                # the disabled builtin registration left no failed client
+                state = app.lsp.state_for_doc(app.doc)
+                assert state is not None
+                self.assertEqual(state.value, "ready")
 
 
 class _RcClientShim:
