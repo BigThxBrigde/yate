@@ -10,6 +10,8 @@ at runtime through yate.paths, which checks sys._MEIPASS, so the data layout
 below must mirror the source tree (everything lands inside a top-level
 ``yate`` package folder in the bundle).
 
+For a single self-extracting exe instead, use ``yate-onefile.spec``.
+
 Note: ``*.spec`` is git-ignored by default; this file is tracked on purpose
 (``git add -f yate.spec``).
 """

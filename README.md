@@ -228,15 +228,20 @@ The two distribution methods are independent:
 python -m pip install build
 python -m build --wheel          # output in dist/
 
-# 2) PyInstaller one-folder executable (no Python needed on the target machine)
+# 2) PyInstaller executable (no Python needed on the target machine)
 python -m pip install -e ".[build]"
-pyinstaller yate.spec            # output: dist/yate/yate.exe
+pyinstaller yate.spec            # one-folder: dist/yate/yate.exe + runtime files
+pyinstaller yate-onefile.spec    # single file: dist/yate.exe (16 MB, self-extracts on launch)
 ```
 
-`yate.spec` and the build settings live in [pyproject.toml](pyproject.toml):
-resources (fonts, bilingual docs and manuals, `yaterc.example`, bundled
-extensions) are resolved through [yate/paths.py](yate/paths.py), so behavior is
-identical when run from source, installed as a wheel, or frozen.
+`yate.spec` / `yate-onefile.spec` and the build settings live in
+[pyproject.toml](pyproject.toml): resources (fonts, bilingual docs and manuals,
+`yaterc.example`, bundled extensions) keep their `yate/...` paths inside the
+bundle and are resolved through [yate/paths.py](yate/paths.py), so behavior is
+identical when run from source, installed as a wheel, or frozen. The onefile
+build unpacks into a temporary `sys._MEIPASS` directory on every launch and
+cleans it up on exit, so the resources live *inside* the exe rather than next
+to it; pick one-folder when faster startup matters.
 
 ## Development
 

@@ -234,14 +234,18 @@ tests/            # 单元测试 + Textual pilot 端到端测试
 python -m pip install build
 python -m build --wheel          # 产物在 dist/
 
-# 2) PyInstaller 单目录可执行程序（无需目标机安装 Python）
+# 2) PyInstaller 可执行程序（目标机无需安装 Python）
 python -m pip install -e ".[build]"
-pyinstaller yate.spec            # 产物 dist/yate/yate.exe
+pyinstaller yate.spec            # 单目录：dist/yate/yate.exe + 运行时文件
+pyinstaller yate-onefile.spec    # 单文件：dist/yate.exe（约 16 MB，启动时自解压）
 ```
 
-`yate.spec` 与打包配置在 [pyproject.toml](pyproject.toml) 中声明：
-资源（字体、双语文档与手册、`yaterc.example`、随包扩展）通过 [yate/paths.py](yate/paths.py)
-统一解析，源码运行、wheel 安装与 frozen 可执行程序三种布局下行为一致。
+`yate.spec` / `yate-onefile.spec` 与打包配置在 [pyproject.toml](pyproject.toml)
+中声明：资源（字体、双语文档与手册、`yaterc.example`、随包扩展）在包内保持
+`yate/...` 目录结构，并通过 [yate/paths.py](yate/paths.py) 统一解析，源码运行、
+wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版每次启动时解压到临时
+目录 `sys._MEIPASS`、退出时清理——资源在 exe **内部**而非 exe 旁边；更在意启动
+速度时请选单目录版。
 
 ## 开发
 
