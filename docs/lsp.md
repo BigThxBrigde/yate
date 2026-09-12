@@ -52,6 +52,37 @@ api.lsp.register_server(
 **项目根目录**：优先使用打开的工作区根目录；否则从文档目录向上查找
 `root_markers` 中第一个存在的文件；找不到则用文档所在目录。
 
+### 1.1 更简单的方式：写在 yaterc 里（自动激活）
+
+不想写扩展时，可直接在 yaterc（`~/.yate/yaterc` 或项目根的 `yaterc`）
+用 `language_servers` 选项声明。它是一个字典列表，字段与上面
+`register_server` 的参数同名；配置后**无需任何手动命令**，打开扩展名
+匹配的文件时自动启动服务器：
+
+```python
+language_servers = [
+    {
+        "name": "rust-analyzer",
+        "command": "rust-analyzer",
+        "filetypes": ["rs"],                 # 不带点；".rs" 也接受
+        "language_ids": {"rs": "rust"},
+        "root_markers": ["Cargo.toml", ".git"],
+        # "args": [], "env": {...},
+        # "initialization_options": {...}, "settings": {...},
+    },
+]
+```
+
+- `name` / `command` / `filetypes` 必填，`command` 必须非空；非法条目
+  跳过并在启动消息栏报错，其余条目照常注册。
+- 选项在扩展加载**之后**注册，同名条目会替换扩展注册——包括内置 Python
+  服务器（用 `"name": "python"` 即可自定义其命令）。
+- 仅配置不会启动进程：未命名 buffer 或不匹配的文件完全不受影响；后加载
+  的 yaterc 整体替换该列表。
+
+下文各语言食谱中的 `api.lsp.register_server(...)` 调用都可以等价改写为
+这样一个字典。
+
 ---
 
 ## 2. Python（内置）
@@ -333,6 +364,11 @@ def setup(api):
 用 `shutil.which` 探测可执行文件，找不到就不注册，避免状态栏出现
 `LSP ✖`。如果希望"已知缺失但仍注册"（让状态栏明确提示），把 `command`
 设为 `""` 即可。
+
+> 不想写扩展脚本的话，上述服务器也可以直接用 yaterc 的
+> `language_servers` 列表声明（见 1.1 节）：把每个
+> `api.lsp.register_server(...)` 调用改写成一个同名字典即可，打开匹配
+> 文件时自动激活。
 
 ---
 

@@ -156,6 +156,151 @@ class ConfigValidationTests(unittest.TestCase):
             self.assertTrue(config.errors, value)
 
 
+class LanguageServerConfigTests(unittest.TestCase):
+    """The ``language_servers`` yaterc option."""
+
+    def _load(self, body: str) -> cfg.YateConfig:
+        with TemporaryDirectory() as tmp:
+            rc = _write(Path(tmp) / "yaterc", body)
+            return cfg.load_config([rc])
+
+    def test_minimal_valid_entry(self) -> None:
+        config = self._load(
+            'language_servers = [{"name": "go", "command": "gopls",'
+            ' "filetypes": ["go"]}]\n'
+        )
+        self.assertEqual(config.errors, [])
+        self.assertEqual(len(config.language_servers), 1)
+        spec = config.language_servers[0]
+        self.assertEqual(spec.name, "go")
+        self.assertEqual(spec.command, "gopls")
+        self.assertEqual(spec.filetypes, ["go"])
+        self.assertEqual(spec.args, [])
+        self.assertEqual(spec.language_ids, {})
+        self.assertIsNone(spec.env)
+        self.assertIsNone(spec.root_markers)
+
+    def test_full_valid_entry(self) -> None:
+        body = (
+            "language_servers = [{\n"
+            '    "name": "ts",\n'
+            '    "command": "typescript-language-server",\n'
+            '    "args": ["--stdio"],\n'
+            '    "filetypes": ["ts", "tsx"],\n'
+            '    "language_ids": {"ts": "typescript", "tsx": "typescriptreact"},\n'
+            '    "root_markers": ["package.json", ".git"],\n'
+            '    "env": {"NODE_ENV": "development"},\n'
+            '    "initialization_options": {"x": 1},\n'
+            '    "settings": {"y": 2},\n'
+            "}]\n"
+        )
+        config = self._load(body)
+        self.assertEqual(config.errors, [])
+        spec = config.language_servers[0]
+        self.assertEqual(spec.args, ["--stdio"])
+        self.assertEqual(spec.filetypes, ["ts", "tsx"])
+        self.assertEqual(
+            spec.language_ids, {"ts": "typescript", "tsx": "typescriptreact"}
+        )
+        self.assertEqual(spec.root_markers, ["package.json", ".git"])
+        self.assertEqual(spec.env, {"NODE_ENV": "development"})
+        self.assertEqual(spec.initialization_options, {"x": 1})
+        self.assertEqual(spec.settings, {"y": 2})
+
+    def test_leading_dot_in_filetypes_stripped(self) -> None:
+        config = self._load(
+            'language_servers = [{"name": "r", "command": "rls",'
+            ' "filetypes": [".rs", ".rsx"]}]\n'
+        )
+        self.assertEqual(config.errors, [])
+        self.assertEqual(config.language_servers[0].filetypes, ["rs", "rsx"])
+
+    def test_multiple_entries_and_default_empty(self) -> None:
+        self.assertEqual(cfg.YateConfig().language_servers, [])
+        config = self._load(
+            "language_servers = [\n"
+            '    {"name": "a", "command": "a-ls", "filetypes": ["a"]},\n'
+            '    {"name": "b", "command": "b-ls", "filetypes": ["b"]},\n'
+            "]\n"
+        )
+        self.assertEqual(config.errors, [])
+        self.assertEqual([s.name for s in config.language_servers], ["a", "b"])
+
+    def test_not_a_list_is_rejected(self) -> None:
+        config = self._load(
+            'language_servers = {"name": "x", "command": "x",'
+            ' "filetypes": ["x"]}\n'
+        )
+        self.assertEqual(config.language_servers, [])
+        self.assertTrue(any("language_servers" in e for e in config.errors))
+
+    def test_entry_must_be_a_mapping(self) -> None:
+        config = self._load('language_servers = ["oops", 42]\n')
+        self.assertEqual(config.language_servers, [])
+        self.assertEqual(len(config.errors), 2)
+        self.assertTrue(all("entry must be a mapping" in e for e in config.errors))
+
+    def test_required_fields(self) -> None:
+        cases = {
+            '{"command": "x", "filetypes": ["x"]}': "name",
+            '{"name": "x", "filetypes": ["x"]}': "command",
+            '{"name": "x", "command": "x"}': "filetypes",
+            '{"name": "x", "command": "x", "filetypes": []}': "filetypes",
+            '{"name": "  ", "command": "x", "filetypes": ["x"]}': "name",
+            '{"name": "x", "command": "  ", "filetypes": ["x"]}': "command",
+        }
+        for body, field_name in cases.items():
+            config = self._load(f"language_servers = [{body}]\n")
+            self.assertEqual(config.language_servers, [], body)
+            self.assertTrue(
+                any(field_name in e for e in config.errors), (body, config.errors)
+            )
+
+    def test_bad_nested_field_types(self) -> None:
+        cases = [
+            '{"name": "x", "command": "x", "filetypes": ["ok"], "args": "--x"}',
+            '{"name": "x", "command": "x", "filetypes": ["ok"], "args": [1]}',
+            '{"name": "x", "command": "x", "filetypes": ["ok"],'
+            ' "root_markers": [".git", 7]}',
+            '{"name": "x", "command": "x", "filetypes": ["ok"],'
+            ' "language_ids": {"x": 1}}',
+            '{"name": "x", "command": "x", "filetypes": ["ok"],'
+            ' "env": {"X": 1}}',
+            '{"name": "x", "command": "x", "filetypes": [3]}',
+        ]
+        for body in cases:
+            config = self._load(f"language_servers = [{body}]\n")
+            self.assertEqual(config.language_servers, [], body)
+            self.assertTrue(config.errors, body)
+
+    def test_bad_entry_skipped_sibling_still_loads(self) -> None:
+        config = self._load(
+            "language_servers = [\n"
+            '    {"name": "bad", "filetypes": ["bad"]},\n'
+            '    {"name": "good", "command": "good-ls", "filetypes": ["good"]},\n'
+            "]\n"
+        )
+        self.assertEqual([s.name for s in config.language_servers], ["good"])
+        self.assertEqual(len(config.errors), 1)
+        self.assertIn("command", config.errors[0])
+
+    def test_later_rc_replaces_entire_list(self) -> None:
+        with TemporaryDirectory() as tmp:
+            user_rc = _write(
+                Path(tmp) / "user",
+                'language_servers = [{"name": "a", "command": "a",'
+                ' "filetypes": ["a"]}]\n',
+            )
+            project_rc = _write(
+                Path(tmp) / "project",
+                'language_servers = [{"name": "b", "command": "b",'
+                ' "filetypes": ["b"]}]\n',
+            )
+            config = cfg.load_config([user_rc, project_rc])
+            self.assertEqual(config.errors, [])
+            self.assertEqual([s.name for s in config.language_servers], ["b"])
+
+
 class ProjectConfigDiscoveryTests(unittest.TestCase):
     def test_find_project_config_walks_up(self) -> None:
         with TemporaryDirectory() as tmp:

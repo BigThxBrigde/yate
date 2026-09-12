@@ -607,12 +607,15 @@ yate 使用 **Python 语法的配置文件 yaterc**（类似 vim 的 `vimrc`）�
 | `theme_dirs` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 存放客制化配色主题的目录（或单个 `*.py` 文件），见 10.3 节 |
 | `shell` | `str` | 平台默认（见第 13 节） | 非空字符串 | 集成终端使用的 Shell，可带参数（如 `"pwsh -NoLogo"`）；若值是已存在的文件路径，含空格也可直接使用 |
 | `terminal_height` | `int` | `12` | 3–40 的整数（布尔/浮点被拒绝） | 集成终端面板高度（行数） |
+| `language_servers` | `list[dict]` | 无 | 见 16.2 节 | 声明式注册语言服务器；打开匹配语言的文件时**自动激活**，无需手写扩展 |
 
 - `keymap` / `theme` 在启动时生效；`theme` 是进程级全局状态（同 vim 的
   colorscheme）。
 - `tab_width` / `use_spaces` 会传播到**所有新建和打开的 buffer**。
 - `shell` 在启动终端 Shell 时读取（修改后需重启 Shell 生效）；
   `terminal_height` 也可用 `:set terminal_height=<n>` 立即调整。
+- `language_servers` 在启动时注册到 LSP 管理器，仅在打开匹配文件时惰性启动
+  服务器进程，详见 16.2 节。
 
 最小示例（可直接复制仓库根目录的 `yaterc.example` 作起点）：
 
@@ -939,7 +942,39 @@ pip install pyright               # 另一种方式，同样会安装该可执�
 三者都没有时不会启动任何进程，也不弹错误；直到打开 Python 文件，状态栏
 才会显示 `LSP ✖`。
 
-### 16.2 在扩展中注册语言服务器
+### 16.2 在 yaterc 中声明语言服务器（自动激活）
+
+不必编写扩展，直接在 yaterc（第 10 节）中用 `language_servers` 选项
+声明语言服务器。配置后**不需要任何手动命令**：打开扩展名匹配的文件时，
+yate 会自动启动对应服务器——每个（服务器 × 项目根目录）一个进程，首次
+匹配时惰性启动。之后切换标签页、用 `:e` 打开文件或 `:set filetype=…`
+切换类型，都会自动 didOpen/didClose：
+
+```python
+language_servers = [
+    {
+        "name": "rust-analyzer",                  # 必填：状态栏显示名
+        "command": "rust-analyzer",               # 必填：可执行文件（非空）
+        "args": [],                                # 可选：命令行参数
+        "filetypes": ["rs"],                      # 必填：不带点的扩展名（".rs" 亦可）
+        "language_ids": {"rs": "rust"},           # 可选：filetype -> LSP languageId
+        "root_markers": ["Cargo.toml", ".git"],   # 可选：缺省用内置根标记
+        # "env": {"RUST_LOG": "info"},            # 可选：额外环境变量
+        # "initialization_options": {...},        # 可选：initializeOptions
+        # "settings": {...},                      # 可选：服务器配置
+    },
+]
+```
+
+规则：
+
+- 选项在扩展加载**之后**注册：同名条目会替换扩展注册（包括内置 Python
+  服务器），因此可以用 `"name": "python"` 自定义 Python 服务器命令。
+- 与其他标量选项一致，后加载的 yaterc 用整个列表**替换**前者（不合并）；
+  非法条目会被跳过并在启动消息栏报错，列表中的其余条目照常注册。
+- 仅仅配置不会启动任何进程；未命名 buffer 或不匹配的文件完全不受影响。
+
+### 16.3 在扩展中注册语言服务器
 
 ```python
 def setup(api):

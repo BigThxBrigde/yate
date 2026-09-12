@@ -9,6 +9,15 @@ variables; one injected helper (``register_theme``) allows custom themes::
     use_spaces = True
     extensions = ["~/.yate/ext", "./tools/ext.py"]   # extra extension paths
     theme_dirs = ["~/.yate/themes"]                  # custom theme directories
+    language_servers = [                             # declarative LSP servers
+        {
+            "name": "rust-analyzer",
+            "command": "rust-analyzer",
+            "filetypes": ["rs"],
+            "language_ids": {"rs": "rust"},
+            "root_markers": ["Cargo.toml", ".git"],
+        },
+    ]
 
 Load order (later wins, like ``~/.vimrc`` followed by ``./.vimrc``):
 
@@ -28,7 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Sequence, cast
+from typing import Any, Optional, Sequence, cast
 
 from yate.editor_view import theme as themes
 
@@ -42,6 +51,26 @@ _KNOWN_OPTIONS = (
 )
 
 _VALID_KEYMAPS = ("vsc", "vim")
+
+
+@dataclass
+class LanguageServerSpec:
+    """One validated ``language_servers`` entry declared in a yaterc file.
+
+    The fields mirror the keyword arguments of
+    :meth:`yate.services.extensions.LspExtensionBridge.register_server`;
+    ``root_markers`` of ``None`` means "use the manager's defaults".
+    """
+
+    name: str
+    command: str
+    filetypes: list[str]
+    args: list[str] = field(default_factory=list[str])
+    language_ids: dict[str, str] = field(default_factory=dict[str, str])
+    initialization_options: Any = None
+    settings: Any = None
+    env: Optional[dict[str, str]] = None
+    root_markers: Optional[list[str]] = None
 
 
 @dataclass
@@ -68,6 +97,11 @@ class YateConfig:
     #: Directories holding ``*.py`` custom theme files, accumulated in load
     #: order and scanned at startup (see editor_view.theme).
     theme_dirs: list[Path] = field(default_factory=list[Path])
+    #: Declarative LSP servers (the ``language_servers`` option); the app
+    #: registers them after extensions so a same-named rc entry wins.
+    language_servers: list[LanguageServerSpec] = field(
+        default_factory=list[LanguageServerSpec]
+    )
     sources: list[Path] = field(default_factory=list[Path])
     errors: list[str] = field(default_factory=list[str])
 
@@ -281,3 +315,137 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
                 f"terminal_height must be an integer between 3 and 40, "
                 f"got {terminal_height!r}"
             )
+
+    _extract_language_servers(namespace, config)
+
+
+def _extract_language_servers(namespace: dict[str, Any], config: YateConfig) -> None:
+    """Pull the ``language_servers`` option out of the exec'd namespace.
+
+    The value is a list of mappings (one per server). As with scalar options,
+    a declaration in a later rc file replaces the whole list rather than
+    merging. Malformed entries are skipped with an error; valid entries in
+    the same list are still applied.
+    """
+    raw = namespace.get("language_servers")
+    if raw is None:
+        return
+    if not isinstance(raw, (list, tuple)):
+        config.errors.append(
+            f"language_servers must be a list of mappings, got {raw!r}"
+        )
+        return
+    specs: list[LanguageServerSpec] = []
+    for index, entry_raw in enumerate(cast(Sequence[Any], raw)):
+        where = f"language_servers[{index}]"
+        if not isinstance(entry_raw, dict):
+            config.errors.append(
+                f"{where}: server entry must be a mapping, got {entry_raw!r}"
+            )
+            continue
+        spec = _parse_language_server(
+            cast(dict[str, Any], entry_raw), config.errors, where
+        )
+        if spec is not None:
+            specs.append(spec)
+    config.language_servers = specs
+
+
+def _parse_language_server(
+    entry: dict[str, Any], errors: list[str], where: str
+) -> Optional[LanguageServerSpec]:
+    """Validate one ``language_servers`` mapping; append an error and return
+    ``None`` when a required field is missing or mistyped."""
+    name = entry.get("name")
+    if not isinstance(name, str) or not name.strip():
+        errors.append(f"{where}.name must be a non-empty string, got {name!r}")
+        return None
+    command = entry.get("command")
+    if not isinstance(command, str) or not command.strip():
+        errors.append(
+            f"{where}.command must be a non-empty string, got {command!r}"
+        )
+        return None
+    filetypes_raw = entry.get("filetypes")
+    filetypes = _require_str_list(
+        filetypes_raw, f"{where}.filetypes", errors, nonempty=True
+    )
+    if filetypes is None:
+        return None
+    # Accept a leading dot (".rs") even though the canonical form is "rs".
+    filetypes = [ft[1:] if ft.startswith(".") else ft for ft in filetypes]
+    args = _require_str_list(entry.get("args", []), f"{where}.args", errors)
+    if args is None:
+        return None
+    root_markers_raw = entry.get("root_markers")
+    root_markers: Optional[list[str]] = None
+    if root_markers_raw is not None:
+        root_markers = _require_str_list(
+            root_markers_raw, f"{where}.root_markers", errors
+        )
+        if root_markers is None:
+            return None
+    language_ids = _require_str_map(
+        entry.get("language_ids", {}), f"{where}.language_ids", errors
+    )
+    if language_ids is None:
+        return None
+    env_raw = entry.get("env")
+    env: Optional[dict[str, str]] = None
+    if env_raw is not None:
+        env = _require_str_map(env_raw, f"{where}.env", errors)
+        if env is None:
+            return None
+    return LanguageServerSpec(
+        name=name,
+        command=command,
+        filetypes=filetypes,
+        args=args,
+        language_ids=language_ids,
+        initialization_options=entry.get("initialization_options"),
+        settings=entry.get("settings"),
+        env=env,
+        root_markers=root_markers,
+    )
+
+
+def _require_str_list(
+    value: Any,
+    label: str,
+    errors: list[str],
+    *,
+    nonempty: bool = False,
+) -> Optional[list[str]]:
+    """Validate a ``list[str]`` (tuple accepted); ``None`` is only valid when
+    the caller handles it before calling. Empty/whitespace items rejected."""
+    if not isinstance(value, (list, tuple)):
+        errors.append(f"{label} must be a list of strings, got {value!r}")
+        return None
+    result: list[str] = []
+    for item in cast(Sequence[Any], value):
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{label} entries must be non-empty strings, got {item!r}")
+            return None
+        result.append(item)
+    if nonempty and not result:
+        errors.append(f"{label} must contain at least one entry")
+        return None
+    return result
+
+
+def _require_str_map(
+    value: Any, label: str, errors: list[str]
+) -> Optional[dict[str, str]]:
+    """Validate a ``dict[str, str]`` mapping."""
+    if not isinstance(value, dict):
+        errors.append(f"{label} must be a mapping of strings, got {value!r}")
+        return None
+    result: dict[str, str] = {}
+    for key, item in cast(dict[Any, Any], value).items():
+        if not isinstance(key, str) or not isinstance(item, str):
+            errors.append(
+                f"{label} keys and values must be strings, got {key!r}: {item!r}"
+            )
+            return None
+        result[key] = item
+    return result

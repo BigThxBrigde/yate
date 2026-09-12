@@ -648,6 +648,7 @@ Behavior details:
 | `theme_dirs` | `str` or `list[str]` | none | existing file/directory paths | Directories (or a single `*.py` file) holding custom color themes, see 10.3 |
 | `shell` | `str` | platform default (see section 13) | non-empty string | Shell command for the integrated terminal, with optional arguments (e.g. `"pwsh -NoLogo"`); an existing file path may contain spaces |
 | `terminal_height` | `int` | `12` | integer 3–40 (booleans/floats rejected) | Integrated terminal panel height in rows |
+| `language_servers` | `list[dict]` | none | see 16.2 | Declarative language server registrations; a server **auto-activates** when a file of a matching language is opened — no extension needed |
 
 - `keymap` / `theme` apply at startup; `theme` is process-global state (like
   vim's colorscheme).
@@ -655,6 +656,9 @@ Behavior details:
 - `shell` is read when a terminal shell is launched (restart the shell after
   changing it); `terminal_height` also applies immediately via
   `:set terminal_height=<n>`.
+- `language_servers` is registered with the LSP manager at startup; the
+  server process starts lazily, only when a matching file is opened
+  (see 16.2).
 
 Minimal example (copy `yaterc.example` from the repo root as a starting
 point):
@@ -1030,7 +1034,43 @@ Server discovery, in order:
 If none is found, nothing is spawned and no error is shown until a Python
 file is opened; the status bar then reports `LSP ✖`.
 
-### 16.2 Registering servers from an extension
+### 16.2 Declaring servers in yaterc (auto-activation)
+
+Instead of writing an extension, declare language servers with the
+`language_servers` yaterc option (section 10). Once configured, **no manual
+command is needed**: when a file with a matching extension is opened, yate
+starts the server automatically — one process per (server, project root),
+lazily on the first match. Switching tabs, opening with `:e`, or changing
+the type via `:set filetype=…` performs the didOpen/didClose automatically:
+
+```python
+language_servers = [
+    {
+        "name": "rust-analyzer",                  # required: status-bar name
+        "command": "rust-analyzer",               # required: executable (non-empty)
+        "args": [],                                # optional: command-line arguments
+        "filetypes": ["rs"],                      # required: extensions without dot (".rs" works too)
+        "language_ids": {"rs": "rust"},           # optional: filetype -> LSP languageId
+        "root_markers": ["Cargo.toml", ".git"],   # optional: built-in markers used if absent
+        # "env": {"RUST_LOG": "info"},            # optional: extra environment variables
+        # "initialization_options": {...},        # optional: initializeOptions
+        # "settings": {...},                      # optional: server settings
+    },
+]
+```
+
+Rules:
+
+- The option is registered **after** extensions load: an entry with the same
+  name replaces an extension registration (including the built-in Python
+  server), so `"name": "python"` lets you customize the Python server command.
+- As with scalar options, a later yaterc **replaces** the whole list rather
+  than merging; a malformed entry is skipped with an error in the startup
+  message bar while the remaining entries still register.
+- Merely configuring servers spawns nothing; unnamed buffers and
+  non-matching files are completely unaffected.
+
+### 16.3 Registering servers from an extension
 
 ```python
 def setup(api):

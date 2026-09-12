@@ -118,6 +118,11 @@ extensions = [            # 额外扩展路径（目录或 .py 文件，跨 yate
     "~/.yate/extensions",
     "./tools/my_ext.py",
 ]
+language_servers = [      # 声明式 LSP：打开匹配语言文件时自动激活，无需写扩展
+    {"name": "rust-analyzer", "command": "rust-analyzer",
+     "filetypes": ["rs"], "language_ids": {"rs": "rust"},
+     "root_markers": ["Cargo.toml", ".git"]},
+]
 ```
 
 完整说明（含自定义主题、路径解析规则、错误行为）见
@@ -151,8 +156,14 @@ def setup(api):
 
 ### LSP 语言服务器
 
-扩展通过 `api.lsp.register_server(...)` 注册语言服务器（按扩展名匹配、惰性
-启动、自动补全 + 诊断）。仓库内置 [extensions/python_lsp.py](extensions/python_lsp.py)，
+语言服务器按扩展名匹配、首次打开匹配文件时惰性启动，提供自动补全 + 诊断。
+配置方式两种：
+
+- **yaterc 声明式（推荐）**：`language_servers = [...]` 字典列表，配置后
+  打开匹配文件自动激活，无需写扩展（见上方示例与 [docs/lsp.md](docs/lsp.md)）。
+- **扩展**：`api.lsp.register_server(...)` 编程式注册。
+
+仓库内置 [extensions/python_lsp.py](extensions/python_lsp.py)，
 打开 `.py` 文件时自动连接 Python 语言服务器，需自行安装其一：
 
 ```powershell

@@ -173,8 +173,9 @@ class YateApp(App[None]):
         self._ext_messages: list[str] = []
         self._ext_messages.extend(f"yaterc: {err}" for err in self.config.errors)
 
-        # Language Server Protocol: registered servers come from extensions;
-        # the manager is UI independent and safe to keep even with no server.
+        # Language Server Protocol: registered servers come from extensions
+        # and the yaterc ``language_servers`` option; the manager is UI
+        # independent and safe to keep even with no server.
         self.lsp = LspManager(
             workspace_root=lambda: self.workspace.root,
             on_event=self._on_lsp_event,
@@ -1875,6 +1876,7 @@ class YateApp(App[None]):
         self.terminal_panel.display = False
 
         self._load_extensions()
+        self._register_configured_servers()
         self.completion_popup = CompletionPopup(self)
         await self.query_one("#editor-col", Vertical).mount(self.completion_popup)
         self.apply_theme()
@@ -1932,3 +1934,26 @@ class YateApp(App[None]):
             _report(self.extension_loader.load_directory(directory))
         for file in self._ext_files:
             _report([self.extension_loader.load_file(file)])
+
+    def _register_configured_servers(self) -> None:
+        """Register LSP servers declared by the yaterc ``language_servers``
+        option.
+
+        Registration happens after extensions so an explicit rc entry with a
+        server's name replaces a same-named extension registration. Nothing
+        is spawned here: the manager starts the process lazily the first time
+        a matching file is shown, so merely configuring a server is free.
+        """
+        bridge = self.extension_api.lsp
+        for spec in self.config.language_servers:
+            bridge.register_server(
+                spec.name,
+                command=spec.command,
+                args=spec.args,
+                filetypes=spec.filetypes,
+                language_ids=spec.language_ids,
+                initialization_options=spec.initialization_options,
+                settings=spec.settings,
+                env=spec.env,
+                root_markers=spec.root_markers,
+            )

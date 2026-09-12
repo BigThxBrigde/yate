@@ -1740,6 +1740,112 @@ class LspUiTests(unittest.IsolatedAsyncioTestCase):
                        if r.name == "python_lsp")
             self.assertIsNone(rec.error)
 
+    async def test_rc_configured_server_auto_activates_on_matching_file(self):
+        from yate.config import LanguageServerSpec, YateConfig
+
+        with TemporaryDirectory() as tmp:
+            rs = Path(tmp) / "main.rs"
+            rs.write_text("fn main() {}\n", encoding="utf-8")
+            config = YateConfig(language_servers=[LanguageServerSpec(
+                name="rc-rust",
+                command="fake-rust-analyzer",
+                filetypes=["rs"],
+                language_ids={"rs": "rust"},
+                root_markers=["Cargo.toml", ".git"],
+            )])
+            app = YateApp(target=rs, config=config)
+            created: list[Any] = []
+
+            def factory(config: Any, root: Any) -> Any:
+                return _RcClientShim(created, config, root)
+
+            # factory must be in place before on_mount registers/opens docs
+            app.lsp.set_client_factory(factory)
+            async with app.run_test(size=(100, 30)) as pilot:
+                opened = await wait_until(pilot, lambda: app.lsp.is_open(app.doc))
+                self.assertTrue(opened)
+                registered = app.lsp.config_for("rs")
+                assert registered is not None
+                self.assertEqual(registered.name, "rc-rust")
+                state = app.lsp.state_for_doc(app.doc)
+                self.assertIsNotNone(state)
+                assert state is not None
+                self.assertEqual(state.value, "ready")
+                self.assertEqual(len(created), 1)
+                params = created[0].opened[0]
+                self.assertEqual(
+                    params["textDocument"]["languageId"], "rust"
+                )
+
+    async def test_rc_configured_server_activates_on_later_open(self):
+        from yate.config import LanguageServerSpec, YateConfig
+
+        with TemporaryDirectory() as tmp:
+            rs = Path(tmp) / "later.rs"
+            rs.write_text("let x = 1;\n", encoding="utf-8")
+            config = YateConfig(language_servers=[LanguageServerSpec(
+                name="rc-rust-late", command="fake-rust", filetypes=["rs"],
+            )])
+            app = YateApp(config=config)
+            created: list[Any] = []
+
+            def factory(config: Any, root: Any) -> Any:
+                return _RcClientShim(created, config, root)
+
+            app.lsp.set_client_factory(factory)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                # unnamed scratch buffer: registered but nothing spawned
+                self.assertEqual(created, [])
+                self.assertFalse(app.lsp.is_open(app.doc))
+                registered = app.lsp.config_for("rs")
+                assert registered is not None
+                self.assertEqual(registered.name, "rc-rust-late")
+                # opening the matching file activates the server
+                app.open_path(rs)
+                await pilot.pause()
+                activated = await wait_until(
+                    pilot, lambda: bool(created) and created[0].opened
+                )
+                self.assertTrue(activated)
+                self.assertTrue(app.lsp.is_open(app.doc))
+
+
+class _RcClientShim:
+    """Module-level fake client built by the rc-server tests' factory."""
+
+    def __init__(self, created: list[Any], config: Any, root: Any) -> None:
+        from yate.editor_lsp import ServerState
+        self.config = config
+        self.root_path = root
+        self.state = ServerState.READY
+        self.error = ""
+        self.trigger_characters: tuple[str, ...] = ()
+        self.opened: list[Any] = []
+        created.append(self)
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        from yate.editor_lsp import ServerState
+        self.state = ServerState.STOPPED
+
+    async def notify(self, method: str, params: Any) -> None:
+        if method == "textDocument/didOpen":
+            self.opened.append(params)
+
+    async def request(self, method: str, params: Any) -> Any:
+        return None
+
+    async def start_request(self, method: str, params: Any) -> Any:
+        future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+        future.set_result(None)
+        return 1, future
+
+    async def send_cancel(self, request_id: int) -> None:
+        return None
+
 
 class _FakePty:
     """In-memory PTY substitute used by the terminal UI tests."""

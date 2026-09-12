@@ -71,6 +71,42 @@ use_spaces = True
 # theme_dirs = ["~/.yate/themes", "./team-themes", "./extra/solarized.py"]
 # theme = "my-mocha"          # then pick a registered theme by name
 
+# ------------------------------------------------- language servers (LSP)
+#
+# Declarative LSP servers: no extension script needed. Once listed, the
+# server for a file type starts automatically the first time a matching
+# file is opened (one process per server x project root, lazily spawned).
+# Required keys: name, command, filetypes (extensions without the leading
+# dot; ".rs" is accepted too). A later yaterc replaces the whole list; a
+# malformed entry is skipped and reported at startup. An entry whose name
+# matches an extension server (e.g. "python") overrides that registration.
+# See docs/lsp.md for install commands and recipes per language.
+#
+# language_servers = [
+#     {
+#         "name": "rust-analyzer",
+#         "command": "rust-analyzer",
+#         "filetypes": ["rs"],
+#         "language_ids": {"rs": "rust"},
+#         "root_markers": ["Cargo.toml", ".git"],
+#         # "args": [],                       # extra command-line arguments
+#         # "env": {"RUST_LOG": "info"},     # extra environment variables
+#         # "initialization_options": None,  # raw initializeOptions
+#         # "settings": None,                # server settings
+#     },
+#     {
+#         "name": "typescript",
+#         "command": "typescript-language-server",
+#         "args": ["--stdio"],
+#         "filetypes": ["ts", "tsx", "js", "jsx"],
+#         "language_ids": {
+#             "ts": "typescript", "tsx": "typescriptreact",
+#             "js": "javascript", "jsx": "javascriptreact",
+#         },
+#         "root_markers": ["package.json", "tsconfig.json", ".git"],
+#     },
+# ]
+
 # ------------------------------------------------------- custom theme demo
 #
 # A theme is a yate.editor_view.theme.Theme instance. The easiest way to

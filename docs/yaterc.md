@@ -32,7 +32,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 
 - 多个文件在**同一个命名空间**内依次执行，因此项目级配置能看到（并覆盖）
   用户级配置里已设置的变量。
-- 配置文件里被识别的选项只有下表七个；**未识别的变量会被静默忽略**，
+- 配置文件里被识别的选项只有下表八个；**未识别的变量会被静默忽略**，
   但你可以在里面定义任意辅助变量/函数供后续使用。
 - 任何文件读取失败、语法错误、运行时异常都**不会导致编辑器崩溃**：
   出错的文件被跳过，问题以 `yaterc: ...` 前缀显示在启动时的消息栏，
@@ -50,6 +50,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `theme_dirs` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 客制化主题目录（或单个 `*.py` 主题文件），见[下文](#客制化主题目录theme_dirs)；多个 rc 文件**累加**而非覆盖 |
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
+| `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
 
 非法取值不会中断加载：对应选项保持默认，错误信息出现在启动消息栏。
 
@@ -192,6 +193,50 @@ extensions = [
 
 除 rc 声明外，扩展仍从默认目录 `./extensions/` 和 `~/.yate/extensions/`
 自动加载，也可用命令行 `--ext <文件>` / `--ext-dir <目录>` 追加。
+
+## 声明式语言服务器（language_servers）
+
+`language_servers` 用纯数据列表声明 LSP 语言服务器，免去编写扩展。
+配置后打开扩展名匹配的文件时**自动激活**（首次匹配惰性启动，每个
+服务器 × 项目根一个进程），字段与扩展 API
+`api.lsp.register_server(...)` 一致：
+
+```python
+language_servers = [
+    {
+        "name": "rust-analyzer",                  # 必填：状态栏显示名
+        "command": "rust-analyzer",               # 必填：可执行文件（非空）
+        "args": [],                                # 可选：命令行参数，默认 []
+        "filetypes": ["rs"],                      # 必填：不带点的扩展名（".rs" 亦可）
+        "language_ids": {"rs": "rust"},           # 可选：filetype -> LSP languageId
+        "root_markers": ["Cargo.toml", ".git"],   # 可选：缺省用内置根标记
+        "env": {"RUST_LOG": "info"},              # 可选：额外环境变量
+        "initialization_options": None,           # 可选：initializeOptions
+        "settings": None,                         # 可选：服务器配置
+    },
+    {
+        "name": "typescript",
+        "command": "typescript-language-server",
+        "args": ["--stdio"],
+        "filetypes": ["ts", "tsx", "js", "jsx"],
+        "language_ids": {"ts": "typescript", "tsx": "typescriptreact",
+                         "js": "javascript", "jsx": "javascriptreact"},
+        "root_markers": ["package.json", "tsconfig.json", ".git"],
+    },
+]
+```
+
+校验与加载语义：
+
+- `name` / `command` / `filetypes` 必填；`command` 必须是非空字符串，
+  `filetypes` 必须是非空字符串列表。非法条目被跳过并在启动消息栏报错，
+  同一列表中的其余条目仍然生效。
+- 与标量选项一致，后加载的 yaterc **整体替换**该列表（不累加）。
+- 选项在扩展加载**之后**注册：同名条目替换扩展注册（包括内置 Python
+  服务器），可用 `"name": "python"` 自定义 Python 服务器命令。
+- 仅配置不会启动进程；未命名 buffer 与不匹配的文件不受影响。
+
+> 主流语言的安装命令与完整食谱见 [docs/lsp.md](lsp.md)。
 
 ## 命令行交互
 
