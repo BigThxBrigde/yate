@@ -223,6 +223,7 @@ yate/
   paths.py        # 统一资源定位（源码 / wheel / PyInstaller frozen 三种布局）
   yaterc.example  # 配置模板
 tests/            # 单元测试 + Textual pilot 端到端测试
+pack/             # PyInstaller 打包脚本：pack.ps1 / pack.bat（Windows）、pack.sh（Linux）
 ```
 
 ## 打包
@@ -234,13 +235,24 @@ tests/            # 单元测试 + Textual pilot 端到端测试
 python -m pip install build
 python -m build --wheel          # 产物在 dist/
 
-# 2) PyInstaller 可执行程序（目标机无需安装 Python）
-python -m pip install -e ".[build]"
-pyinstaller yate.spec            # 单目录：dist/yate/yate.exe + 运行时文件
-pyinstaller yate-onefile.spec    # 单文件：dist/yate.exe（约 16 MB，启动时自解压）
+# 2) PyInstaller 独立可执行程序（目标机无需安装 Python）
+#    Windows（PowerShell）：
+.\pack\pack.ps1                  # 单目录：dist\yate\yate.exe + 运行时文件
+.\pack\pack.ps1 -OneFile         # 单一自解压文件：dist\yate.exe（约 16 MB）
+#    Windows（cmd.exe，参数同上，全部转发给 pack.ps1）：
+pack\pack.bat --onefile
+#    Linux（必须在 Linux 上运行；产物 dist/yate/yate，加 --onefile 则为 dist/yate）：
+./pack/pack.sh
+./pack/pack.sh --onefile
 ```
 
-`yate.spec` / `yate-onefile.spec` 与打包配置在 [pyproject.toml](pyproject.toml)
+[pack/](pack/) 下的打包脚本会优先使用 `.venv` 中的解释器、缺少 PyInstaller
+时自动安装 `build` 可选依赖，并仅根据 onefile 开关选择 spec。也可以直接调用
+PyInstaller：`yate.spec`（单目录）/ `yate-onefile.spec`（单文件）。
+
+**PyInstaller 不支持交叉编译**：Windows 的 `.exe` 必须在 Windows 上构建，
+Linux 二进制必须在 Linux 上构建——在对应平台运行对应脚本即可（spec 本身与
+平台无关）。`yate.spec` / `yate-onefile.spec` 与打包配置在 [pyproject.toml](pyproject.toml)
 中声明：资源（字体、双语文档与手册、`yaterc.example`、随包扩展）在包内保持
 `yate/...` 目录结构，并通过 [yate/paths.py](yate/paths.py) 统一解析，源码运行、
 wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版每次启动时解压到临时
@@ -250,7 +262,7 @@ wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版
 ## 开发
 
 ```powershell
-# 运行全部测试（288 个，含 Textual pilot 端到端测试）
+# 运行全部测试（294 个，含 Textual pilot 端到端测试）
 python -m unittest discover -s tests
 
 # 类型检查：pyright strict，要求 0 诊断

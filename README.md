@@ -217,6 +217,7 @@ yate/
   paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)
   yaterc.example  # configuration template
 tests/            # unit tests + Textual pilot end-to-end tests
+pack/             # PyInstaller build scripts: pack.ps1 / pack.bat (Windows), pack.sh (Linux)
 ```
 
 ## Packaging
@@ -228,25 +229,37 @@ The two distribution methods are independent:
 python -m pip install build
 python -m build --wheel          # output in dist/
 
-# 2) PyInstaller executable (no Python needed on the target machine)
-python -m pip install -e ".[build]"
-pyinstaller yate.spec            # one-folder: dist/yate/yate.exe + runtime files
-pyinstaller yate-onefile.spec    # single file: dist/yate.exe (16 MB, self-extracts on launch)
+# 2) Standalone executable with PyInstaller (no Python needed on the target machine)
+#    Windows (PowerShell):
+.\pack\pack.ps1                  # one-folder: dist\yate\yate.exe + runtime files
+.\pack\pack.ps1 -OneFile         # single self-extracting file: dist\yate.exe (~16 MB)
+#    Windows (cmd.exe, same options; forwards everything to pack.ps1):
+pack\pack.bat --onefile
+#    Linux (run ON Linux; produces dist/yate/yate or, with --onefile, dist/yate):
+./pack/pack.sh
+./pack/pack.sh --onefile
 ```
 
-`yate.spec` / `yate-onefile.spec` and the build settings live in
-[pyproject.toml](pyproject.toml): resources (fonts, bilingual docs and manuals,
-`yaterc.example`, bundled extensions) keep their `yate/...` paths inside the
-bundle and are resolved through [yate/paths.py](yate/paths.py), so behavior is
-identical when run from source, installed as a wheel, or frozen. The onefile
-build unpacks into a temporary `sys._MEIPASS` directory on every launch and
-cleans it up on exit, so the resources live *inside* the exe rather than next
-to it; pick one-folder when faster startup matters.
+The build scripts in [pack/](pack/) pick the `.venv` interpreter when present,
+auto-install the `build` extra (PyInstaller) if it is missing, and choose the
+spec purely from the onefile flag. You can also call PyInstaller directly:
+`yate.spec` (one-folder) / `yate-onefile.spec` (onefile).
+
+**PyInstaller does not cross-compile.** A Windows `.exe` must be built on
+Windows and a Linux binary on Linux — run the matching script on each platform
+(the specs themselves are platform-independent). The specs and the build
+settings live in [pyproject.toml](pyproject.toml): resources (fonts, bilingual
+docs and manuals, `yaterc.example`, bundled extensions) keep their `yate/...`
+paths inside the bundle and are resolved through [yate/paths.py](yate/paths.py),
+so behavior is identical when run from source, installed as a wheel, or frozen.
+The onefile build unpacks into a temporary `sys._MEIPASS` directory on every
+launch and cleans it up on exit, so the resources live *inside* the exe rather
+than next to it; pick one-folder when faster startup matters.
 
 ## Development
 
 ```powershell
-# Run the full test suite (288 tests, including Textual pilot end-to-end tests)
+# Run the full test suite (294 tests, including Textual pilot end-to-end tests)
 python -m unittest discover -s tests
 
 # Type checking: pyright strict, 0 diagnostics required
