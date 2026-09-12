@@ -728,6 +728,41 @@ class RcExtensionTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ExplorerOpsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_file_target_starts_with_explorer_hidden(self):
+        """A file argument focuses on editing: the explorer starts hidden
+        (Ctrl+B / :explorer reveals it); a directory starts with it shown,
+        and a not-yet-created file path behaves like a file argument."""
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            alpha = root / "alpha.txt"
+            alpha.write_text("alpha\n", encoding="utf-8")
+
+            app = YateApp(target=alpha)
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                explorer = app.explorer_tree
+                assert explorer is not None
+                self.assertFalse(explorer.display)
+                # the workspace root is still the file's parent, so showing
+                # the explorer later works without reopening anything
+                await pilot.press("ctrl+b")
+                await pilot.pause()
+                self.assertTrue(explorer.display)
+
+            app_dir = YateApp(target=root)
+            async with app_dir.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                explorer_dir = app_dir.explorer_tree
+                assert explorer_dir is not None
+                self.assertTrue(explorer_dir.display)
+
+            app_new = YateApp(target=root / "brand_new.txt")
+            async with app_new.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                explorer_new = app_new.explorer_tree
+                assert explorer_new is not None
+                self.assertFalse(explorer_new.display)
+
     async def test_ctrl_b_toggles_explorer(self):
         with TemporaryDirectory() as tmp:
             app = YateApp(target=Path(tmp))
@@ -2506,7 +2541,7 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
-    """vim :split / :vsplit windows, ctrl+w chords and :q pane semantics."""
+    """vim :split / :vsplit windows, ctrl+w chords and pane/quit commands."""
 
     def setUp(self) -> None:
         self._tmp = TemporaryDirectory()
@@ -2712,9 +2747,10 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
             self.assertFalse(app.is_running)
 
-    async def test_quit_command_exits_whole_editor_with_panes(self) -> None:
-        """:quit must quit yate even when several panes are open (:q closes
-        the active pane instead — that is covered by the chord test above)."""
+    async def test_q_always_quits_whole_editor_with_panes(self) -> None:
+        """:q must quit yate even when several panes are open -- it never
+        just closes the active pane (use :close / :cl / Ctrl+W q for that).
+        A dirty buffer blocks it like any other quit attempt."""
         app = YateApp(target=self.alpha, keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -2725,18 +2761,48 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(
                 await wait_until(pilot, lambda: panes.leaf_count == 2)
             )
-            # make the buffer dirty to prove :quit is still a plain quit
-            # attempt guarded by unsaved changes (like vim's :quit)
+            # make the buffer dirty: :q is a whole-editor quit attempt and
+            # the unsaved-changes guard blocks it; a pane close would not
             await pilot.press("i", "y", "escape")
             await pilot.pause()
             self.assertTrue(app.doc.modified)
 
+            app.run_command("q")
+            await pilot.pause()
+            # blocked: unsaved changes guard, and no pane was closed
+            self.assertTrue(app.is_running)
+            self.assertEqual(panes.leaf_count, 2)
+
             app.run_command("quit")
             await pilot.pause()
-            # blocked: unsaved changes guard
+            # :quit is a plain alias of :q and is blocked the same way
             self.assertTrue(app.is_running)
+            self.assertEqual(panes.leaf_count, 2)
 
             app.run_command("q!")  # discard and quit the whole editor
+            for _ in range(5):
+                with contextlib.suppress(Exception):
+                    await pilot.pause()
+                if not app.is_running:
+                    break
+            for _ in range(3):
+                await asyncio.sleep(0)
+            self.assertFalse(app.is_running)
+
+    async def test_q_quits_immediately_with_clean_panes(self) -> None:
+        """With no unsaved changes :q exits yate straight away even with
+        several panes open (it does not close them one by one)."""
+        app = YateApp(target=self.alpha, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.panes
+            assert panes is not None
+
+            await pilot.press("ctrl+w", "s")
+            self.assertTrue(
+                await wait_until(pilot, lambda: panes.leaf_count == 2)
+            )
+            app.run_command("q")
             for _ in range(5):
                 with contextlib.suppress(Exception):
                     await pilot.pause()

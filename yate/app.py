@@ -215,7 +215,12 @@ class YateApp(App[None]):
 
         # ------------------------------------------------------------- open
         if target is not None:
-            self._open_target(Path(target))
+            kind = self._open_target(Path(target))
+            # A directory argument opens in browse mode (explorer visible);
+            # a file argument opens in edit mode (explorer hidden; Ctrl+B /
+            # :explorer reveals it later). With no argument the workspace
+            # root is None and the explorer stays hidden regardless.
+            self.explorer_visible = kind == "dir"
         if not self.docs:
             self.new_buffer(show=False)
 
@@ -276,15 +281,18 @@ class YateApp(App[None]):
             and view.is_mounted
         )
 
-    def _open_target(self, path: Path) -> None:
+    def _open_target(self, path: Path) -> str:
+        """Open the startup target and return its kind: ``"dir"`` or
+        ``"file"`` (a not-yet-created path counts as a file)."""
         if not path.exists():
             # treat as a not-yet-created file
             self.workspace.set_root(path.parent if str(path.parent) else Path.cwd())
             self._open_document_path(path)
-            return
+            return "file"
         kind = self.workspace.open_target(path)
         if kind == "file":
             self._open_document_path(path)
+        return kind
 
     def _activate_doc(
         self, doc: Document, target_leaf: Optional[Leaf] = None
@@ -777,23 +785,6 @@ class YateApp(App[None]):
             moved = self.panes.resize("vertical", -1)
         if not moved and key not in ("=", "equals_sign"):
             self.message("pane already at its minimum size", kind="warn")
-
-    def close_pane_or_quit(self, force: bool = False) -> None:
-        """:q: close the active pane when several are open, quit yate
-        when it is the last one. Closing a pane never prompts -- the document
-        stays open as a hidden buffer and the final quit still guards unsaved
-        changes. (:quit always quits the whole editor, guarding unsaved
-        changes.)"""
-        if force:
-            self.quit(force=True)
-            return
-        if self.panes is not None and self.panes.leaf_count > 1:
-            self.run_worker(
-                self.panes.close_active(),
-                group="pane", exclusive=True, exit_on_error=False,
-            )
-        else:
-            self.quit()
 
     @property
     def window_pending(self) -> bool:
@@ -1684,9 +1675,8 @@ class YateApp(App[None]):
         reg = self.commands.register
         reg("w", lambda args: self.save_document(), "save the current file")
         reg("write", lambda args: self.save_document(), "save the current file")
-        reg("q", lambda args: self.close_pane_or_quit(),
-            "close the active pane (quit when it is the last one)")
-        reg("quit", lambda args: self.quit(), "quit yate")
+        reg("q", lambda args: self.quit(), "quit yate")
+        reg("quit", lambda args: self.quit(), "alias for :q")
         reg("q!", lambda args: self.quit(force=True), "quit, discarding changes")
 
         def _wq(args: str) -> None:

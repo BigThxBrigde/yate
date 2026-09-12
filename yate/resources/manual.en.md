@@ -461,6 +461,12 @@ Under the vim keymap `Ctrl+F` pages instead of finding; `Ctrl+P` quick open,
 Open a workspace with `:e <directory>`, `Ctrl+O` with a directory path, or a
 directory launch argument.
 
+The launch argument decides the initial side-bar state: a **directory**
+argument shows the file tree (browse mode); a **file** argument (including a
+not-yet-created file path) starts with the tree hidden and focus in the
+editor (press `Ctrl+B` or run `:explorer` to reveal it; the workspace root is
+the file's parent directory). Starting with no argument hides it as well.
+
 ### 6.2 Keyboard operations inside the tree
 
 With the file tree focused:
@@ -545,11 +551,12 @@ the same file in two panes never interferes with itself.
 - The vim keymap provides `Ctrl+W` chords (see the window table in 5.2).
   Under the vsc keymap there are no chords — run the same commands from the
   `F5` command line.
-- With multiple panes, `:q` closes the **active pane** (unsaved changes are
-  not blocking; the document stays open as a tab). With one pane left, `:q`
-  quits yate as usual (blocked on unsaved changes). `:quit` always quits the
-  whole editor, even with multiple panes (blocked on unsaved changes).
-  `:q!` and `:wq` always mean quit and keep their semantics.
+- Close a pane with `:close` (alias `:cl`) or vim's `Ctrl+W q`: only the
+  pane goes away, the document stays open as a tab / hidden buffer; it is a
+  no-op on the last pane and never blocks on unsaved changes.
+- `:q` / `:quit` **always quit the whole yate**, even with several panes
+  open (blocked on unsaved changes; `:q!` discards them and forces the
+  quit, `:wq` saves first).
 
 **Go to line.** Typing just a number and pressing Enter jumps to that line
 (`:42`, equivalent to VS Code's `Ctrl+G`; `Ctrl+G` opens the same go-to-line
@@ -571,8 +578,8 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | Command | Alias | Description |
 |---|---|---|
 | `:w` | `:write` | Save the current file |
-| `:q` | — | With multiple panes, close the active pane; with one pane, quit yate (blocked on unsaved changes, see 8.1) |
-| `:quit` | — | Quit yate entirely (even with multiple panes; blocked on unsaved changes, `:q!` forces) |
+| `:q` | — | Quit yate entirely (even with multiple panes; blocked on unsaved changes, `:q!` forces) |
+| `:quit` | — | Alias of `:q` |
 | `:q!` | — | Discard changes and force quit |
 | `:wq` | — | Save and quit |
 | `:e [path]` | `:edit` | Open a file or directory; without arguments pops the `Open: ` input line |
@@ -1184,10 +1191,10 @@ defaults. Use `yate -u NONE` to verify whether a problem is config-related.
 
 **Quit reports unsaved changes?**
 yate blocks quitting with unsaved modifications. `:w` then `:q`, or `:q!` to
-discard, `:wq` to save and quit. Note that with multiple panes `:q` /
-`Ctrl+W q` only closes the active pane and never blocks (the document stays
-open as a tab); only `:q` on the final pane quits. `:quit` quits the whole
-editor regardless of pane count.
+discard, `:wq` to save and quit. `:q` / `:quit` quit the whole editor no
+matter how many panes are open. To close just the active pane without
+quitting, use `:close` / `:cl` or `Ctrl+W q` (the document stays open as a
+tab and unsaved changes do not block).
 
 **Which languages get syntax highlighting?**
 The built-in highlighter recognizes by extension: Python (`py`/`pyi`/`pyw`),
