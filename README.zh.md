@@ -18,17 +18,24 @@
 ## 特性
 
 - **VS Code 风格布局**：活动标签栏、EXPLORER 文件树侧栏、面包屑路径栏、扁平化状态栏
-- **两套内置键位**：`vsc`（VS Code 风格、无模式，默认）与 `vim`（NORMAL/INSERT/VISUAL
-  模式 + `:` ex 命令行）
-- **语法高亮**：内置高亮引擎，按文件类型着色关键字/字符串/数字/注释/函数等
+- **两套内置键位**：`vsc`（VS Code 风格、无模式，默认）与 `vim`（NORMAL/INSERT/VISUAL/VISUAL-LINE
+  模式 + `:` ex 命令行），运行中可用 `Ctrl+/` 一键切换
+- **语法高亮**：内置高亮引擎，按文件类型着色关键字/字符串/数字/注释/函数等，
+  另有随包 C# 高亮扩展，可用 `:set filetype=` 手动指定语法类型
 - **四套 Catppuccin 主题**：`mocha`（默认深色）、`macchiato`、`frappe`、`latte`（浅色），
   支持 yaterc 注册自定义主题，也可用 `theme_dirs` / `--theme-dir`
   从主题目录批量加载客制化主题
-- **Nerd Font 图标**：文件树与文件类型图标（`yate --install-font` 可安装随包字体）
+- **Nerd Font 图标**：文件树与文件类型图标（`yate --install-font` 安装随包字体，
+  并在可能时自动配置 Windows Terminal）
 - **模糊查找**：`Ctrl+P` 快速打开文件（fzf 式子序列匹配、命中字符高亮），
-  `Alt+Shift+P` 命令面板
+  `Alt+Shift+P` 命令面板（全部 `:` 命令与命名动作）
+- **多 buffer 标签页**：按路径打开（`Ctrl+O` / `:e`）、新建空 buffer（`Ctrl+N` / `:enew`）、
+  关闭标签（`Ctrl+W` / `:bd`）、切换标签（`Ctrl+PageUp/Down`、`:bn` / `:bp`）
 - **欢迎页**：空 buffer 启动时显示版本、键位提示
-- **搜索**：`Ctrl+F` 文件内查找
+- **查找与替换**：`Ctrl+F` 实时查找并显示 `[序号/总数]`，`F3` / `Enter` 跳下一个匹配，
+  `F4` 两步式全部替换（计入单条撤销记录，一次撤销即可还原）
+- **Shell 命令**：`F2` 或 `:!命令`（如 `:!git status`）在后台工作线程执行，
+  stdout/stderr 输出到可滚动浮层并标注退出码
 - **集成终端**：`` Ctrl+` `` 切换底部终端面板（VS Code 风格布局），经 PTY 运行真实
   Shell（Windows ConPTY / POSIX pty）；`:term` / `:termclose`、Shell 可在 yaterc
   的 `shell` 选项配置，面板高度用 `terminal_height`（默认 12 行）
@@ -37,8 +44,10 @@
   `yate/extensions/` 中的随包扩展（Python LSP、C# 高亮）启动时自动加载，
   可用 yaterc 的 `disabled_extensions` 按名禁用
 - **LSP 支持**：内置零依赖 LSP 客户端（`editor_lsp`），提供自动补全弹窗与诊断
-  （下划线/装订槽标记/状态栏计数/`:diagnostics`）；语言服务器通过扩展注册，
-  随包 Python 服务器扩展（pyright / python-lsp-server 自动发现）
+  （下划线/装订槽标记/状态栏计数/`:diagnostics`）；没有语言服务器运行时，
+  补全自动回退为已打开 buffer 的单词；语言服务器可在 yaterc 中用
+  `language_servers` 声明式注册，也可通过扩展注册，随包 Python 服务器扩展
+  会自动发现 pyright / python-lsp-server
 
 ## 环境要求
 
@@ -88,14 +97,18 @@ yate --install-font         # 安装随包 Nerd Font 后退出
 | `F5` | 打开命令行（ex 命令，`Esc` 退出） |
 | `Ctrl+Q` | 退出（有未保存修改时拦截） |
 | `Ctrl+S` | 保存 |
-| `Ctrl+F` | 文件内查找 |
+| `Ctrl+O` / `Ctrl+N` / `Ctrl+W` | 按路径打开文件 / 新建空 buffer / 关闭当前标签 |
+| `Ctrl+PageUp` / `Ctrl+PageDown` | 上一个 / 下一个标签 |
+| `Ctrl+F` / `F3` / `F4` | 文件内查找 / 下一个匹配 / 两步式查找并全部替换 |
+| `F2` | 运行 Shell 命令（同 `:!命令`，输出显示在浮层） |
 | `Ctrl+G` | 跳转到行（命令行直接输 `:42` 等效，`:+5` 相对跳转） |
 | `Ctrl+B` | 显示/隐藏文件树（命令面板 `explorer` 同效） |
 | `` Ctrl+` `` | 显示/隐藏底部集成终端（命令面板 `term` / `termclose`） |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
-| `Ctrl+Space` | 触发 LSP 自动补全（输入时也会自动弹出，`Tab`/`Enter` 接受） |
-| `F1` | 帮助 / 全部键位 |
+| `Ctrl+/` | 在 vsc / vim 两套键位间切换（也可用 `:set keymap=…`） |
+| `Ctrl+Space` | 触发补全（有语言服务器走 LSP，否则取已打开 buffer 的单词；`Tab`/`Enter` 接受） |
+| `F1` / `F8` | 帮助 / 全部键位 · 打开中英双语用户手册 |
 
 文件树内（聚焦后）：`j`/`k` 移动，`l`/`h` 展开/折叠，`Enter` 打开文件，
 `a` 新建文件，`A` 新建文件夹，`r` 重命名，`d`/`Del` 删除（输入 `y` 确认），
@@ -201,6 +214,9 @@ yate/
   docs/           # 中英双语文档：yaterc 配置、扩展 API、主题、LSP 配置食谱
                   #   （*.zh.md / *.en.md）
   resources/      # manual.zh.md / manual.en.md 双语用户手册、随包字体
+  __init__.py     # 包元数据（__version__）
+  __main__.py     # `python -m yate` 模块入口
+  actions.py      # 命名动作注册表：键位、命令面板与扩展共用
   config.py       # yaterc 配置系统
   app.py          # YateApp：界面组装、命令注册、生命周期
   cli.py          # 命令行入口

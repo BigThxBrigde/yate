@@ -20,17 +20,19 @@ yate to open it:
 ## Features
 
 - **VS Code-style layout**: active tab bar, EXPLORER file tree sidebar, breadcrumb path bar, flat status bar
-- **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL modes + `:` ex command line)
-- **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type
+- **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL/VISUAL-LINE modes + `:` ex command line); `Ctrl+/` toggles between them at runtime
+- **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with a bundled C# extension and `:set filetype=` manual override
 - **Four Catppuccin themes**: `mocha` (default dark), `macchiato`, `frappe`, `latte` (light); register custom themes in yaterc, or bulk-load theme files via `theme_dirs` / `--theme-dir`
-- **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font)
-- **Fuzzy finding**: `Ctrl+P` quick open (fzf-style subsequence matching with hit highlighting), `Alt+Shift+P` command palette
+- **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font and configures Windows Terminal)
+- **Fuzzy finding**: `Ctrl+P` quick open (fzf-style subsequence matching with hit highlighting), `Alt+Shift+P` command palette (every `:` command and named action)
+- **Multi-buffer tabs**: open by path (`Ctrl+O` / `:e`), new buffer (`Ctrl+N` / `:enew`), close tab (`Ctrl+W` / `:bd`), switch with `Ctrl+PageUp/Down` or `:bn` / `:bp`
 - **Welcome screen**: version and key hints when starting with an empty buffer
-- **Search**: `Ctrl+F` in-file search
+- **Find & replace**: `Ctrl+F` live find with `[index/total]` match count, `F3` / `Enter` jump to the next match, `F4` two-step replace-all recorded as a single undo entry
+- **Shell commands**: `F2` or `:!cmd` (e.g. `:!git status`) runs a command in a background worker; stdout/stderr show in a scrollable overlay annotated with the exit code
 - **Integrated terminal**: `` Ctrl+` `` toggles a bottom terminal panel (VS Code-style layout) running a real shell over a PTY (Windows ConPTY / POSIX pty); `:term` / `:termclose`; the shell is configurable via yaterc's `shell` option, panel height via `terminal_height` (default 12 rows)
 - **yaterc config**: Python-syntax config file (vimrc style) with user / project / `-u` three-level loading
 - **Python extensions**: any `.py` script registers commands, key bindings and actions through `setup(api)`; the bundled extensions in `yate/extensions/` (Python LSP, C# highlighting) auto-load at startup and can be disabled by name via yaterc's `disabled_extensions`
-- **LSP support**: zero-dependency built-in LSP client (`editor_lsp`) with completion popup and diagnostics (underlines / gutter marks / status bar counts / `:diagnostics`); servers register through extensions, including a bundled Python server extension (auto-discovers pyright / python-lsp-server)
+- **LSP support**: zero-dependency built-in LSP client (`editor_lsp`) with completion popup and diagnostics (underlines / gutter marks / status bar counts / `:diagnostics`); with no server running, completion falls back to words collected from open buffers; servers register declaratively in yaterc (`language_servers`) or through extensions, including a bundled Python server (auto-discovers pyright / python-lsp-server)
 
 ## Requirements
 
@@ -80,14 +82,18 @@ yate --install-font         # install the bundled Nerd Font and exit
 | `F5` | open the command line (ex commands, `Esc` to exit) |
 | `Ctrl+Q` | quit (blocked while there are unsaved changes) |
 | `Ctrl+S` | save |
-| `Ctrl+F` | in-file search |
+| `Ctrl+O` / `Ctrl+N` / `Ctrl+W` | open file by path / new empty buffer / close current tab |
+| `Ctrl+PageUp` / `Ctrl+PageDown` | previous / next tab |
+| `Ctrl+F` / `F3` / `F4` | find in file / next match / find and replace all (two-step) |
+| `F2` | run a shell command (same as `:!cmd`; output opens in an overlay) |
 | `Ctrl+G` | go to line (typing `:42` directly is equivalent; `:+5` is relative) |
 | `Ctrl+B` | show/hide the file tree (palette `explorer` does the same) |
 | `` Ctrl+` `` | show/hide the integrated terminal (palette `term` / `termclose`) |
 | `Ctrl+E` / `Ctrl+Shift+E` | focus the file tree (the latter matches VS Code) |
 | `Ctrl+1` | focus the editor (matches VS Code) |
-| `Ctrl+Space` | trigger LSP completion (it also pops up automatically; accept with `Tab`/`Enter`) |
-| `F1` | help / all key bindings |
+| `Ctrl+/` | toggle between the vsc and vim keymaps (or `:set keymap=…`) |
+| `Ctrl+Space` | trigger completion (LSP when a server is running, otherwise words from open buffers; accept with `Tab`/`Enter`) |
+| `F1` / `F8` | help / all key bindings · open the bilingual user manual |
 
 Inside the file tree (when focused): `j`/`k` to move, `l`/`h` to expand/collapse,
 `Enter` to open, `a` new file, `A` new folder, `r` rename, `d`/`Del` delete
@@ -202,6 +208,9 @@ yate/
   docs/           # bilingual docs: yaterc config, extension API, themes, LSP recipes
                   #   (*.zh.md / *.en.md)
   resources/      # manual.zh.md / manual.en.md bilingual manual, bundled fonts
+  __init__.py     # package metadata (__version__)
+  __main__.py     # `python -m yate` entry
+  actions.py      # named action registry shared by keymaps, command palette and extensions
   config.py       # yaterc configuration system
   app.py          # YateApp: UI assembly, command registration, lifecycle
   cli.py          # command-line entry point
