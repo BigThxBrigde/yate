@@ -3,6 +3,33 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
+## [0.1.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.0...v0.1.1)
+
+### 新功能
+
+- 随包附带 Dracula 与 Ayu 主题模板，复制为 *.py 后即可启用 ([`28d74c5`](https://gitee.com/jermaine/yate/commit/28d74c57076ee941bd400f358eeb4bec3ea9ac52))
+- 新增 One Dark/Light 与 Gruvbox dark/light 四套内置主题 ([`a4d880b`](https://gitee.com/jermaine/yate/commit/a4d880bf2534d3e8970d2757a0631e9718148840))
+  - 内置主题由 4 套扩至 8 套，默认仍为 mocha，可用 :theme 即时切换
+
+### 问题修复
+
+- wait for in-flight connect in stop() so spawned servers always terminate [缺中文] ([`7c69c6b`](https://gitee.com/jermaine/yate/commit/7c69c6bbece7a13691b76ab4786f1e7543a13c02))
+
+### 文档
+
+- 文档同步八套内置主题与模板安装方式（README、手册、主题指南） ([`26ba949`](https://gitee.com/jermaine/yate/commit/26ba949ed4a4bce041533e2308803e52d19b3fc5))
+- move changelog maintenance appendix from manuals to README [缺中文] ([`33190c5`](https://gitee.com/jermaine/yate/commit/33190c5a10e073ecd5c6cccefa7ecc083d859828))
+- release v0.1.0 bilingual changelog [缺中文] ([`ddcb70c`](https://gitee.com/jermaine/yate/commit/ddcb70c3f72d91e09fcac1b33eab4399e836a2f2))
+
+### 测试
+
+- 补充内置色板与主题模板加载测试，修复旧测试注册表泄漏与版本号硬编码 ([`a4aaa68`](https://gitee.com/jermaine/yate/commit/a4aaa68c349a4cb5c6f7bb09d9549ed26d402a1d))
+
+### 构建与工程
+
+- pin gitee origin so the changelog gate passes on GitHub [缺中文] ([`76518e0`](https://gitee.com/jermaine/yate/commit/76518e04a14c895507a74a854e93a9fbaa7a49ef))
+- bundle tree-sitter backend and python/bash grammars in frozen builds [缺中文] ([`74202ac`](https://gitee.com/jermaine/yate/commit/74202accea55e7c6339eb060e3e11d4b29b22dbd))
+
 ## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.1.0)
 
 _首个版本。_

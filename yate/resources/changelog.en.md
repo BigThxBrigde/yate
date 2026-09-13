@@ -1,6 +1,32 @@
 # Changelog
 
-> Generated from the git history on 2026-09-13 · yate 0.1.0
+> Generated from the git history on 2026-09-14 · yate 0.1.1
+
+## [0.1.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.0...v0.1.1)
+
+### Features
+
+- ship Dracula and Ayu theme templates ([`28d74c5`](https://gitee.com/jermaine/yate/commit/28d74c57076ee941bd400f358eeb4bec3ea9ac52))
+- add One and Gruvbox built-in themes ([`a4d880b`](https://gitee.com/jermaine/yate/commit/a4d880bf2534d3e8970d2757a0631e9718148840))
+
+### Bug Fixes
+
+- wait for in-flight connect in stop() so spawned servers always terminate ([`7c69c6b`](https://gitee.com/jermaine/yate/commit/7c69c6bbece7a13691b76ab4786f1e7543a13c02))
+
+### Documentation
+
+- document eight built-in themes and template install ([`26ba949`](https://gitee.com/jermaine/yate/commit/26ba949ed4a4bce041533e2308803e52d19b3fc5))
+- move changelog maintenance appendix from manuals to README ([`33190c5`](https://gitee.com/jermaine/yate/commit/33190c5a10e073ecd5c6cccefa7ecc083d859828))
+- release v0.1.0 bilingual changelog ([`ddcb70c`](https://gitee.com/jermaine/yate/commit/ddcb70c3f72d91e09fcac1b33eab4399e836a2f2))
+
+### Tests
+
+- cover palettes, templates and registry hygiene ([`a4aaa68`](https://gitee.com/jermaine/yate/commit/a4aaa68c349a4cb5c6f7bb09d9549ed26d402a1d))
+
+### Tooling
+
+- pin gitee origin so the changelog gate passes on GitHub ([`76518e0`](https://gitee.com/jermaine/yate/commit/76518e04a14c895507a74a854e93a9fbaa7a49ef))
+- bundle tree-sitter backend and python/bash grammars in frozen builds ([`74202ac`](https://gitee.com/jermaine/yate/commit/74202accea55e7c6339eb060e3e11d4b29b22dbd))
 
 ## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.1.0)
 
