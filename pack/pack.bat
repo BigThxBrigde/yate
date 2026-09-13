@@ -5,6 +5,8 @@ rem  All logic lives in pack.ps1; arguments are passed through.
 rem
 rem    pack\pack.bat               one-folder build (dist\yate\)
 rem    pack\pack.bat --onefile     single-file build (dist\yate.exe)
+rem    pack\pack.bat --skip-changelog
+rem                                skip refreshing the bundled changelogs
 rem    pack\pack.bat -?            show PowerShell help
 rem ============================================================
 setlocal

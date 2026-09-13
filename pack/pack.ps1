@@ -8,6 +8,11 @@
       default       one-folder build -> dist\yate\yate.exe (+ runtime files)
       -OneFile      single self-extracting file -> dist\yate.exe
 
+    Before PyInstaller runs, the bundled bilingual changelogs are refreshed
+    with `python -m tools.changelog generate --bundle-only` (best-effort: a
+    checkout without git history keeps the last committed resources copies;
+    pass -SkipChangelog to skip the refresh).
+
     The preferred interpreter is .venv\Scripts\python.exe; if PyInstaller is
     missing it is installed automatically via  pip install -e ".[build]".
 
@@ -17,13 +22,16 @@
 .EXAMPLE
     .\pack\pack.ps1
     .\pack\pack.ps1 -OneFile
-    .\pack\pack.bat --onefile
+    .\pack\pack.ps1 -SkipChangelog
+    .\pack\pack.bat --onefile --skip-changelog
 #>
 
 [CmdletBinding()]
 param(
     [Alias("1")]
     [switch]$OneFile,
+
+    [switch]$SkipChangelog,
 
     [Alias("h", "?")]
     [switch]$Help
@@ -85,6 +93,17 @@ try {
     Write-Host "  python:   $pythonExe"
     Write-Host ""
 
+    # Refresh the bundled bilingual changelogs (best-effort: a checkout
+    # without git history keeps the last committed resources copies).
+    if (-not $SkipChangelog) {
+        Write-Host "Refreshing changelogs ..." -ForegroundColor Cyan
+        & $pythonExe -m tools.changelog generate --bundle-only
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARNING: changelog generation failed; continuing with shipped files." -ForegroundColor Yellow
+        }
+        Write-Host ""
+    }
+
     & $pythonExe -m PyInstaller --noconfirm --clean --distpath dist --workpath build $spec
     if ($LASTEXITCODE -ne 0) {
         Stop-WithMessage "PyInstaller build failed."
@@ -92,6 +111,16 @@ try {
 
     if (-not (Test-Path $artifact)) {
         Stop-WithMessage "Build reported success but expected artifact is missing: $artifact"
+    }
+
+    # The refresh may have updated the shipped resources copies. Whether to
+    # commit them is a release decision — surface it, never auto-checkout.
+    if (-not $SkipChangelog -and (Test-Path (Join-Path $root ".git"))) {
+        $dirty = git -C $root status --porcelain -- `
+            yate/resources/changelog.en.md yate/resources/changelog.zh.md
+        if ($dirty) {
+            Write-Host "NOTE: resources/changelog.*.md were refreshed and differ from the committed copies; commit them if this is a release." -ForegroundColor Yellow
+        }
     }
 
     $built = Get-Item $artifact
