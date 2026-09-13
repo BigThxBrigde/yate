@@ -29,6 +29,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # full history: the changelog gate slices version sections from
+          # tags / __version__ bumps and cannot work on a shallow clone
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
