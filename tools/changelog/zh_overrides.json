@@ -1,12 +1,24 @@
 {
+  "1060811": {
+    "summary": "补充变更日志门禁、运行时文档屏与 CLI 参数测试"
+  },
+  "1998c82": {
+    "summary": "为两条 CI 流水线添加变更日志新鲜度门禁"
+  },
   "1a4e493": {
     "summary": "修复 :q 始终退出；按文件启动时隐藏资源管理器"
+  },
+  "2490bb3": {
+    "summary": "README 与手册补充变更日志入口"
   },
   "2b8b737": {
     "summary": "移动光标时保持语法配色"
   },
   "3f4c4db": {
     "summary": "修复 Windows CI 竞态：停止期间的 LSP 子进程与 8.3 短路径"
+  },
+  "4144a72": {
+    "summary": "基于 git 历史的双语变更日志生成器"
   },
   "4739dc3": {
     "summary": "崩溃诊断持久化：经 faulthandler 写入 ~/.yate/data",
@@ -17,6 +29,12 @@
   },
   "6cf4fea": {
     "summary": "LSP didChange 同步重试、扩展卸载钩子与打包规格跟踪"
+  },
+  "74c8938": {
+    "summary": "泛化 Markdown 文档屏，新增 :changelog 命令与 --changelog 参数"
+  },
+  "7b5dd93": {
+    "summary": "项目版本改为从 yate/__init__.py 动态读取"
   },
   "85cb9ad": {
     "summary": "防护 tree-sitter 0.26 在 Windows 上的堆内存损坏"
@@ -30,6 +48,9 @@
   "949ed01": {
     "summary": "新增 GitHub Actions CI（Linux/Windows 矩阵）"
   },
+  "a1d81d6": {
+    "summary": "CI 拉取完整历史以支持变更日志门禁"
+  },
   "a2e3195": {
     "summary": "新增 Gitee Go 流水线运行全量单元测试"
   },
@@ -38,6 +59,9 @@
   },
   "ad28ef5": {
     "summary": "LSP 支持：自动补全与诊断"
+  },
+  "b0ca383": {
+    "summary": "打包时刷新随包变更日志"
   },
   "b0f95a1": {
     "summary": "tree-sitter 语法后端，支持扩展注册语法"
@@ -62,6 +86,12 @@
   },
   "ee7cd53": {
     "summary": "集成终端面板（PTY 驱动），快捷键开关"
+  },
+  "f78bc6e": {
+    "summary": "双目标渲染与已发布段新鲜度门禁"
+  },
+  "fc74d5f": {
+    "summary": "生成 v0.1.0 双语变更日志并接入发布工作流"
   },
   "fd48e3c": {
     "summary": "阻塞操作移入后台线程，保持界面流畅"
