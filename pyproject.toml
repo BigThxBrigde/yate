@@ -4,7 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "yate"
-version = "0.1.0"
+# Single source of truth: yate/__init__.py __version__ (read by hatchling below).
+dynamic = ["version"]
 description = "yate - yet another terminal editor, built on Textual"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -42,8 +43,13 @@ typeCheckingMode = "strict"
 pythonVersion = "3.10"
 venvPath = "."
 venv = ".venv"
-include = ["yate", "tests"]
+include = ["yate", "tools", "tests"]
 exclude = ["**/__pycache__"]
+
+[tool.hatch.version]
+source = "regex"
+path = "yate/__init__.py"
+regex = '__version__\s*=\s*"(?P<version>[^"]+)"'
 
 [tool.hatch.build.targets.wheel]
 packages = ["yate"]
