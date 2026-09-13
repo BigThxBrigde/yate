@@ -1,8 +1,8 @@
 # Changelog
 
-> Generated from the git history on 2026-09-14 · yate 0.2.0
+> Generated from the git history on 2026-09-14 · yate 0.2.1
 
-## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...HEAD)
+## [0.2.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...v0.2.1)
 
 ### Features
 
@@ -11,6 +11,7 @@
 
 ### Documentation
 
+- release v0.2.1 bilingual changelog ([`5eb0b54`](https://gitee.com/jermaine/yate/commit/5eb0b543c6cce14c0910d9c94e4dd5eac111b942))
 - refresh bundled changelog resources ([`107b17c`](https://gitee.com/jermaine/yate/commit/107b17c94f912002cf46802c48281930985834a0))
 - release v0.2.0 bilingual changelog ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))
 

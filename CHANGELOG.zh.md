@@ -3,7 +3,7 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...HEAD)
+## [0.2.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...v0.2.1)
 
 ### 新功能
 
@@ -12,6 +12,7 @@
 
 ### 文档
 
+- release v0.2.1 bilingual changelog [缺中文] ([`5eb0b54`](https://gitee.com/jermaine/yate/commit/5eb0b543c6cce14c0910d9c94e4dd5eac111b942))
 - refresh bundled changelog resources [缺中文] ([`107b17c`](https://gitee.com/jermaine/yate/commit/107b17c94f912002cf46802c48281930985834a0))
 - release v0.2.0 bilingual changelog [缺中文] ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))
 
