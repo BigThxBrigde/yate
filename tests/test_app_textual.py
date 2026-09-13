@@ -24,7 +24,7 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
-from yate.editor_view.manual import ManualScreen
+from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.panes import Split as PaneSplit
 from yate.editor_view.panes import leaves as pane_leaves
 
@@ -995,12 +995,12 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             await pilot.press("f8")
             await pilot.pause()
-            self.assertIsInstance(app.screen, ManualScreen)
-            md = app.screen.query_one("#manual-md", Markdown)
+            self.assertIsInstance(app.screen, MarkdownDocScreen)
+            md = app.screen.query_one("#doc-md", Markdown)
             # F8 opens the default (english) manual
             self.assertEqual(md.source, load_manual_markdown("en"))
             # the loading placeholder is hidden once content is in
-            loading = app.screen.query_one("#manual-loading", Static)
+            loading = app.screen.query_one("#doc-loading", Static)
             self.assertFalse(loading.display)
             # theme is switched *before* the screen is pushed
             self.assertEqual(app.theme, "catppuccin-mocha")
@@ -1010,7 +1010,7 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(app.screen_stack), 2)
             await pilot.press("escape")
             await pilot.pause()
-            self.assertNotIsInstance(app.screen, ManualScreen)
+            self.assertNotIsInstance(app.screen, MarkdownDocScreen)
             # ... and the previous theme is restored afterwards
             self.assertEqual(app.theme, "textual-dark")
 
@@ -1026,8 +1026,8 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
                     await pilot.pause()
                     app.run_command(f"manual {cmd_arg}".strip())
                     await pilot.pause()
-                    self.assertIsInstance(app.screen, ManualScreen)
-                    md = app.screen.query_one("#manual-md", Markdown)
+                    self.assertIsInstance(app.screen, MarkdownDocScreen)
+                    md = app.screen.query_one("#doc-md", Markdown)
                     self.assertEqual(md.source, load_manual_markdown(lang))
 
     async def test_both_language_files_bundled(self):
@@ -1050,15 +1050,15 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("f8")
             await pilot.pause()
             screen = app.screen
-            assert isinstance(screen, ManualScreen)
-            bar = screen.query_one("#manual-search-bar", Horizontal)
-            field = screen.query_one("#manual-search-input", Input)
-            status = screen.query_one("#manual-search-status", Static)
-            md = screen.query_one("#manual-md", Markdown)
+            assert isinstance(screen, MarkdownDocScreen)
+            bar = screen.query_one("#doc-search-bar", Horizontal)
+            field = screen.query_one("#doc-search-input", Input)
+            status = screen.query_one("#doc-search-status", Static)
+            md = screen.query_one("#doc-md", Markdown)
 
             def footer_text() -> str:
                 return _widget_plain_text(
-                    screen.query_one("#manual-footer", Static)
+                    screen.query_one("#doc-footer", Static)
                 )
 
             self.assertFalse(bar.display)
@@ -1081,8 +1081,8 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             private = cast(Any, screen)
             self.assertGreaterEqual(len(private._hits), 2)
             self.assertEqual(private._hit_index, 0)
-            self.assertEqual(len(list(md.query(".manual-hit-current"))), 1)
-            self.assertGreaterEqual(len(list(md.query(".manual-hit"))), 1)
+            self.assertEqual(len(list(md.query(".doc-hit-current"))), 1)
+            self.assertGreaterEqual(len(list(md.query(".doc-hit"))), 1)
             self.assertIn("1/", str(status.content))
             # enter advances to the next match, shift+enter goes back
             await pilot.press("enter")
@@ -1096,7 +1096,7 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("escape")
             await pilot.pause()
             self.assertFalse(bar.display)
-            self.assertIsInstance(app.screen, ManualScreen)
+            self.assertIsInstance(app.screen, MarkdownDocScreen)
             # footer switches back to the browse hints (n/N repeat)
             self.assertIn("n/N", footer_text())
             self.assertIn("repeat last match", footer_text())
@@ -1110,7 +1110,7 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             # escape with the bar closed dismisses the manual itself
             await pilot.press("escape")
             await pilot.pause()
-            self.assertNotIsInstance(app.screen, ManualScreen)
+            self.assertNotIsInstance(app.screen, MarkdownDocScreen)
 
     async def test_manual_search_step_lands_on_exact_rendered_row(self):
         """Regression: n/N stepped the counter but did not scroll when
@@ -1124,13 +1124,13 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("f8")
             await pilot.pause()
             screen = app.screen
-            assert isinstance(screen, ManualScreen)
+            assert isinstance(screen, MarkdownDocScreen)
             md = screen.query_one("Markdown")
             await wait_until(
                 pilot, lambda: len(list(md.walk_children())) > 20
             )
             private = cast(Any, screen)
-            scroll = screen.query_one("#manual-scroll", VerticalScroll)
+            scroll = screen.query_one("#doc-scroll", VerticalScroll)
 
             # table cell content is now searched too
             private._run_search("item")
@@ -1176,14 +1176,14 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("f8")
             await pilot.pause()
             screen = app.screen
-            assert isinstance(screen, ManualScreen)
+            assert isinstance(screen, MarkdownDocScreen)
             # "/" (textual key name "slash") also opens the search bar
             await pilot.press("slash")
             await pilot.pause()
-            bar = screen.query_one("#manual-search-bar", Horizontal)
-            field = screen.query_one("#manual-search-input", Input)
-            status = screen.query_one("#manual-search-status", Static)
-            md = screen.query_one("#manual-md", Markdown)
+            bar = screen.query_one("#doc-search-bar", Horizontal)
+            field = screen.query_one("#doc-search-input", Input)
+            status = screen.query_one("#doc-search-status", Static)
+            md = screen.query_one("#doc-md", Markdown)
             self.assertTrue(bar.display)
             self.assertIs(screen.focused, field)
             # a query present nowhere reports "no matches" and tints nothing
@@ -1192,7 +1192,7 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             private = cast(Any, screen)
             self.assertEqual(private._hits, [])
             self.assertEqual(private._hit_index, -1)
-            self.assertEqual(len(list(md.query(".manual-hit"))), 0)
+            self.assertEqual(len(list(md.query(".doc-hit"))), 0)
             self.assertIn("no matches", str(status.content))
             # clearing the query removes the error state
             await pilot.press(*(("backspace",) * 10))
@@ -1200,7 +1200,7 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(field.value, "")
             self.assertEqual(private._hits, [])
             self.assertIn("type to search", str(status.content))
-            self.assertIsInstance(app.screen, ManualScreen)
+            self.assertIsInstance(app.screen, MarkdownDocScreen)
 
 
 class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
@@ -1213,15 +1213,15 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
 
         from yate.editor_view import manual as manual_mod
 
-        original = manual_mod.load_manual_markdown
+        original = manual_mod.load_doc_markdown
 
-        def slow_load(lang: str) -> str:
+        def slow_load(kind: str, lang: str = "en") -> str:
             time.sleep(1.5)
-            return original(lang)
+            return original(kind, lang)
 
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_manual_markdown", side_effect=slow_load
+            "yate.editor_view.manual.load_doc_markdown", side_effect=slow_load
         ):
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
@@ -1229,9 +1229,9 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
                 # while the worker thread is still reading: screen + loading
                 # line are already on screen, the markdown itself is empty
                 await pilot.pause(0.15)
-                self.assertIsInstance(app.screen, ManualScreen)
-                md = app.screen.query_one("#manual-md", Markdown)
-                loading = app.screen.query_one("#manual-loading", Static)
+                self.assertIsInstance(app.screen, MarkdownDocScreen)
+                md = app.screen.query_one("#doc-md", Markdown)
+                loading = app.screen.query_one("#doc-loading", Static)
                 self.assertEqual(md.source, "")
                 self.assertTrue(loading.display)
                 # content then arrives without dismissing the screen
@@ -1241,9 +1241,9 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
                     timeout=30.0,
                 )
                 self.assertTrue(loaded)
-                self.assertEqual(md.source, original("en"))
+                self.assertEqual(md.source, original("manual", "en"))
                 self.assertFalse(loading.display)
-                self.assertIsInstance(app.screen, ManualScreen)
+                self.assertIsInstance(app.screen, MarkdownDocScreen)
 
     async def test_shell_command_runs_without_freezing_ui(self):
         from unittest.mock import patch
@@ -1759,7 +1759,8 @@ class CommandFeedbackTests(unittest.IsolatedAsyncioTestCase):
         # open and the stale text reappeared on close, so success looked
         # silent. Pushing an overlay resets the line to its idle hint.
         for command, cls_name in (
-            ("manual", "ManualScreen"),
+            ("manual", "MarkdownDocScreen"),
+            ("changelog", "MarkdownDocScreen"),
             ("help", "HelpScreen"),
             ("files", "PaletteScreen"),
             ("palette", "PaletteScreen"),

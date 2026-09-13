@@ -331,6 +331,103 @@ class GitdataParserTests(unittest.TestCase):
         self.assertEqual(bumps, [VersionBump(sha=sha1, version="0.2.0")])
 
 
+class RenderTargetTests(unittest.TestCase):
+    """Root vs bundle headers (section 4: two render targets)."""
+
+    def _segments(self) -> list[segments.ReleaseSegment]:
+        full = [_raw("a" * 40, "feat: thing", date="2026-02-02")]
+        boundaries = segments.build_boundaries([], [], full, current_version="0.1.0")
+        return segments.build_segments(
+            full, _entries(*full), boundaries, current_version="0.1.0"
+        )
+
+    def test_root_header_has_maintainer_wording_and_sibling_link(self) -> None:
+        doc = render.render_document(
+            self._segments(), lang="en", remote=REMOTE, overrides={}
+        )
+        self.assertIn("do not edit by hand", doc)
+        self.assertIn("[CHANGELOG.zh.md](CHANGELOG.zh.md)", doc)
+
+    def test_bundle_header_is_end_user_facing(self) -> None:
+        doc = render.render_document(
+            self._segments(), lang="en", remote=REMOTE, overrides={},
+            target="bundle", generated="Generated from the git history · yate 0.1.0",
+        )
+        self.assertTrue(doc.startswith("# Changelog\n\n> Generated from"))
+        self.assertNotIn("do not edit", doc)
+        self.assertNotIn("CHANGELOG.zh.md", doc)
+        zh = render.render_document(
+            self._segments(), lang="zh", remote=REMOTE, overrides={},
+            target="bundle", generated="由 git 历史自动生成 · yate 0.1.0",
+        )
+        self.assertTrue(zh.startswith("# 变更日志"))
+        self.assertNotIn("请勿手工编辑", zh)
+
+
+class ReleasedSectionsDiffTests(unittest.TestCase):
+    """The 4.1 gate semantics as pure functions on synthetic documents."""
+
+    def _doc(self, body: str, *, unreleased: str = "") -> str:
+        parts = ["# Changelog", ""]
+        if unreleased:
+            parts += ["## [Unreleased]", "", unreleased, ""]
+        parts += ["## [0.1.0] - 2026-01-01", "", body]
+        return "\n".join(parts) + "\n"
+
+    def test_bootstrap_green_when_only_unreleased_lags(self) -> None:
+        disk = self._doc("- old ([`a123456`](u))")
+        fresh = self._doc(
+            "- old ([`a123456`](u))",
+            unreleased="- new ([`b765432`](u))",
+        )
+        self.assertEqual(render.released_sections_diff(disk, fresh), [])
+        self.assertEqual(render.unreleased_lag(disk, fresh), 1)
+
+    def test_missing_released_section_is_red(self) -> None:
+        disk = self._doc("- old")
+        fresh = (
+            "# Changelog\n\n## [0.2.0] - 2026-02-02\n\n- new\n\n"
+            "## [0.1.0] - 2026-01-01\n\n- old\n"
+        )
+        diff = render.released_sections_diff(disk, fresh)
+        self.assertEqual(len(diff), 1)
+        self.assertIn("0.2.0", diff[0])
+
+    def test_drifted_released_section_is_red(self) -> None:
+        fresh = self._doc("- old ([`a123456`](u))")
+        disk = self._doc("- old tampered ([`a123456`](u))")
+        self.assertEqual(
+            render.released_sections_diff(disk, fresh),
+            ["## [0.1.0] - 2026-01-01"],
+        )
+
+    def test_extra_disk_section_is_tolerated(self) -> None:
+        # shallow clone: disk knows an older release the fresh render lacks
+        disk = self._doc("- old") + "\n## [0.0.9] - 2025-12-31\n\n- older\n"
+        fresh = self._doc("- old")
+        self.assertEqual(render.released_sections_diff(disk, fresh), [])
+
+    def test_crlf_and_trailing_whitespace_normalized(self) -> None:
+        fresh = self._doc("- old\n- newer")
+        disk = fresh.replace("\n", "\r\n").replace("- newer\r\n", "- newer  \r\n")
+        self.assertEqual(render.released_sections_diff(disk, fresh), [])
+
+    def test_unreleased_section_missing_on_disk_is_not_an_error(self) -> None:
+        disk = self._doc("- old")
+        fresh = self._doc("- old", unreleased="- new ([`b765432`](u))")
+        self.assertEqual(render.released_sections_diff(disk, fresh), [])
+
+    def test_unreleased_lag_counts_missing_hashes(self) -> None:
+        disk = self._doc("- old ([`a123456`](u))")
+        fresh = self._doc(
+            "- old ([`a123456`](u))",
+            unreleased="- x ([`b765432`](u))\n- y ([`c987654`](u))",
+        )
+        self.assertEqual(render.unreleased_lag(disk, fresh), 2)
+        # no unreleased section anywhere → no lag
+        self.assertEqual(render.unreleased_lag(disk, disk), 0)
+
+
 class CliCheckTests(unittest.TestCase):
     """generate/check with stubbed git IO and a temporary output directory."""
 
@@ -338,10 +435,14 @@ class CliCheckTests(unittest.TestCase):
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = Path(self.tmp.name)
+        # newest → oldest: two unreleased entries, the v0.1.0 boundary (a
+        # chore(release) commit that never renders as an entry) and one
+        # released entry.
         self.full = [
             _raw("a" * 40, "feat: shiny thing", date="2026-02-01"),
-            _raw("b" * 40, "fix: broken thing", date="2026-01-02"),
-            _raw("c" * 40, "chore(release): v0.1.0", date="2026-01-01"),
+            _raw("b" * 40, "fix: broken thing", date="2026-01-03"),
+            _raw("c" * 40, "chore(release): v0.1.0", date="2026-01-02"),
+            _raw("d" * 40, "feat: first thing", date="2026-01-01"),
         ]
         overrides_path = self.repo / "zh_overrides.json"
         overrides_path.write_text("{}\n", encoding="utf-8")
@@ -361,10 +462,10 @@ class CliCheckTests(unittest.TestCase):
             return self.full  # same set either way; boundaries drive the output
 
         def fake_read_tags(repo: Path) -> list[TagRef]:
-            return []
+            return [TagRef(name="v0.1.0", sha="c" * 40)]
 
         def fake_read_version_bumps(repo: Path) -> list[VersionBump]:
-            return [VersionBump(sha="c" * 40, version="0.1.0")]
+            return []
 
         def fake_read_current_version(repo: Path) -> str:
             return "0.1.0"
@@ -407,9 +508,94 @@ class CliCheckTests(unittest.TestCase):
             ), 1
         )
 
+    def test_check_ignores_unreleased_drift(self) -> None:
+        self._patch_gitdata()
+        self.assertEqual(
+            cli.generate(self.repo, overrides_path=self.overrides_path), 0
+        )
+        # A newer commit lands in Unreleased; the files on disk lag behind —
+        # the gate must stay green because released sections are unchanged.
+        self.full.insert(0, _raw("e" * 40, "feat: post-commit addition"))
+        self.assertEqual(
+            cli.generate(
+                self.repo, check=True, overrides_path=self.overrides_path
+            ), 0
+        )
+        # Drift inside a released section still fails the gate.
+        zh = (self.repo / "CHANGELOG.zh.md").read_text(encoding="utf-8")
+        (self.repo / "CHANGELOG.zh.md").write_text(
+            zh.replace("## [0.1.0]", "## [0.1.0] tampered"), encoding="utf-8"
+        )
+        self.assertEqual(
+            cli.generate(
+                self.repo, check=True, overrides_path=self.overrides_path
+            ), 1
+        )
+
+    def test_target_selection_writes_exactly_the_requested_files(self) -> None:
+        self._patch_gitdata()
+        self.assertEqual(
+            cli.generate(
+                self.repo, targets=("root",), overrides_path=self.overrides_path
+            ), 0
+        )
+        self.assertTrue((self.repo / "CHANGELOG.md").exists())
+        self.assertFalse((self.repo / "yate" / "resources").exists())
+        self.assertEqual(
+            cli.generate(
+                self.repo, targets=("bundle",), overrides_path=self.overrides_path
+            ), 0
+        )
+        bundle = self.repo / "yate" / "resources"
+        self.assertTrue((bundle / "changelog.en.md").exists())
+        self.assertTrue((bundle / "changelog.zh.md").exists())
+        self.assertTrue(
+            (bundle / "changelog.en.md")
+            .read_text(encoding="utf-8")
+            .startswith("# Changelog")
+        )
+
+    def test_check_reports_each_target_independently(self) -> None:
+        self._patch_gitdata()
+        self.assertEqual(
+            cli.generate(self.repo, overrides_path=self.overrides_path), 0
+        )
+        # drift only the bundle copy; the gate names the drifted target
+        path = self.repo / "yate" / "resources" / "changelog.en.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("## [0.1.0]", "## [0.1.0] x"),
+            encoding="utf-8",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            code = cli.generate(
+                self.repo, check=True, overrides_path=self.overrides_path
+            )
+        self.assertEqual(code, 1)
+        out = buf.getvalue()
+        self.assertIn("yate/resources/changelog.en.md", out)
+        self.assertIn("0.1.0", out)
+
+    def test_check_skips_when_git_history_is_unavailable(self) -> None:
+        self._patch_gitdata()
+        # a fresh checkout without history: git log raises
+        error = gitdata.GitError("git log failed: not a repository")
+
+        def boom(*_a: object, **_k: object) -> list[RawCommit]:
+            raise error
+
+        with patch.object(gitdata, "read_commits", boom):
+            self.assertEqual(
+                cli.check(self.repo, overrides_path=self.overrides_path), 0
+            )
+            # generate (write mode) still surfaces the error
+            self.assertEqual(
+                cli.generate(self.repo, overrides_path=self.overrides_path), 1
+            )
+
     def test_require_zh_fails_when_translations_missing(self) -> None:
         self._patch_gitdata()
-        # entries a and b are untranslated → strict mode fails
+        # entries a, b, d are untranslated → strict mode fails
         self.assertEqual(
             cli.generate(
                 self.repo, check=True, require_zh=True,
@@ -425,7 +611,8 @@ class CliCheckTests(unittest.TestCase):
                 overrides_path=self.overrides_path,
             ), 1
         )
-        # translate every entry → strict mode passes
+        # translating UNRELEASED entries keeps the gate red (missing d),
+        # but does not make the released sections stale
         overrides = translations.load_overrides(self.overrides_path)
         translations.upsert_override(overrides, "a" * 7, "闪亮的新功能")
         translations.upsert_override(overrides, "b" * 7, "崩溃修复")
@@ -434,7 +621,16 @@ class CliCheckTests(unittest.TestCase):
             cli.generate(
                 self.repo, check=True, require_zh=True,
                 overrides_path=self.overrides_path,
-            ), 1  # files stale: zh doc changed because translations appeared
+            ), 1
+        )
+        # translating a RELEASED entry changes released sections → stale
+        translations.upsert_override(overrides, "d" * 7, "最早的新功能")
+        translations.save_overrides(overrides, self.overrides_path)
+        self.assertEqual(
+            cli.generate(
+                self.repo, check=True, require_zh=True,
+                overrides_path=self.overrides_path,
+            ), 1  # stale: released zh doc changed
         )
         self.assertEqual(
             cli.generate(self.repo, overrides_path=self.overrides_path), 0

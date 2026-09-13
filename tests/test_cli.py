@@ -94,6 +94,48 @@ class CliParserTests(unittest.TestCase):
         self.assertFalse(build_parser().parse_args([]).diag)
         self.assertTrue(build_parser().parse_args(["--diag"]).diag)
 
+    def test_changelog_flag_defaults_to_en(self) -> None:
+        self.assertIsNone(build_parser().parse_args([]).changelog)
+        self.assertEqual(build_parser().parse_args(["--changelog"]).changelog, "en")
+        self.assertEqual(
+            build_parser().parse_args(["--changelog", "zh"]).changelog, "zh"
+        )
+        with self.assertRaises(SystemExit):
+            build_parser().parse_args(["--changelog", "fr"])
+
+
+class CliChangelogTests(unittest.TestCase):
+    """--changelog prints the bundled changelog and exits before the TUI."""
+
+    def _run(self, argv: list[str]) -> tuple[int, str]:
+        buf = io.StringIO()
+        with patch("yate.app.YateApp") as fake_app, \
+                patch("yate.config.load_config") as load_config, \
+                patch("yate.crash.install"):
+            with redirect_stdout(buf):
+                rc = main(argv)
+        fake_app.assert_not_called()
+        load_config.assert_not_called()
+        return rc, buf.getvalue()
+
+    def test_changelog_prints_bundled_content_and_exits_zero(self) -> None:
+        rc, out = self._run(["--changelog"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.startswith("# Changelog"))
+
+    def test_changelog_lang_selects_edition(self) -> None:
+        rc, out = self._run(["--changelog", "zh"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.startswith("# 变更日志"))
+
+    def test_changelog_missing_resource_degrades_without_raising(self) -> None:
+        placeholder = "# Changelog\n\nNo changelog is shipped with this build."
+        with patch("yate.editor_view.manual.load_changelog_markdown",
+                   return_value=placeholder):
+            rc, out = self._run(["--changelog"])
+        self.assertEqual(rc, 0)
+        self.assertIn("No changelog is shipped", out)
+
 
 class CliVersionDiagTests(unittest.TestCase):
     """--version and --diag exit before the TUI runs."""
