@@ -15,6 +15,10 @@
 | 中文 | [yate/resources/manual.zh.md](yate/resources/manual.zh.md) |
 | English | [yate/resources/manual.en.md](yate/resources/manual.en.md) |
 
+## Changelog / 变更日志
+
+版本历史由 git 历史自动生成：[CHANGELOG.zh.md](CHANGELOG.zh.md) · [English](CHANGELOG.md)。
+
 ## 特性
 
 - **VS Code 风格布局**：活动标签栏、EXPLORER 文件树侧栏、面包屑路径栏、扁平化状态栏

@@ -1316,6 +1316,35 @@ Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:
 `:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
+## Appendix: Release & Bilingual Changelog Workflow
+
+The root files `CHANGELOG.md` (English) and `CHANGELOG.zh.md` (Chinese) are
+generated from git history by the `tools/changelog` module — **do not edit
+them by hand**; human input only goes into the override table
+`tools/changelog/zh_overrides.json`. The single version source is
+`__version__` in `yate/__init__.py`, which `pyproject.toml` reads dynamically
+via hatchling.
+
+Release workflow:
+
+1. Edit `yate/__init__.py`: `__version__ = "0.2.0"` (single version source)
+2. `git commit -m "chore(release): v0.2.0"`
+3. `python -m tools.changelog zh-commit <hash> "中文摘要"` (add Chinese
+   summaries for key entries as needed)
+4. `python -m tools.changelog generate --online` (segment, classify, render
+   both files)
+5. `git add CHANGELOG.md CHANGELOG.zh.md tools/changelog/zh_overrides.json`
+   then `git commit -m "docs: changelog for v0.2.0"`
+6. `git tag -a v0.2.0 -m "v0.2.0"`; `git push --follow-tags`
+
+Conventions: version segments are bounded by `vX.Y.Z` tags, falling back to
+added `__version__` lines in `yate/__init__.py`; `chore(release)` commits act
+as boundaries only and are not rendered as entries; breaking changes (`!:`
+or `BREAKING CHANGE:`) are grouped at the top; entries without a Chinese
+translation fall back to English with a `[缺中文]` marker and can be filled in
+gradually via `zh-commit`; `python -m tools.changelog check` guards the
+generated files in CI.
+
 ---
 
 *yate 0.1.0 — MIT License — built with Textual*
