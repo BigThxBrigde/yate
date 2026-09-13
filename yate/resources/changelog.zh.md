@@ -1,6 +1,22 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-09-14 · yate 0.1.1
+> 由 git 历史自动生成于 2026-09-14 · yate 0.2.0
+
+## [0.2.0] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.1...v0.2.0)
+
+### 新功能
+
+- 新增 --setup-defaults/--cleanup-defaults 一键初始化与清理用户配置目录 ([`04ec16e`](https://gitee.com/jermaine/yate/commit/04ec16ea59bcc748b39ca78d1aaf3b1de9675c73))
+  - 模板以 .example 原后缀发放、改名 .py 才激活；cleanup 需确认且默认保留 data/；新增 crash.uninstall 解决 Windows 句柄占用
+
+### 文档
+
+- 文档同步一键初始化/清理命令（手册、主题与 yaterc 指南、README） ([`738c2f1`](https://gitee.com/jermaine/yate/commit/738c2f1bb22b0b14aaa62a6c683a0793a93ca459))
+- 发布 v0.1.1 双语变更日志 ([`78253f0`](https://gitee.com/jermaine/yate/commit/78253f04f44ed47de8a8efbada9aee1550168422))
+
+### 测试
+
+- 补充用户配置初始化/清理服务层、CLI 参数透传与崩溃句柄释放测试 ([`6e77ebe`](https://gitee.com/jermaine/yate/commit/6e77ebed0050caf573d644218a070d7b0d7f3a8a))
 
 ## [0.1.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.0...v0.1.1)
 

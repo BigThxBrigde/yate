@@ -1,4 +1,8 @@
 {
+  "04ec16e": {
+    "summary": "新增 --setup-defaults/--cleanup-defaults 一键初始化与清理用户配置目录",
+    "detail": "模板以 .example 原后缀发放、改名 .py 才激活；cleanup 需确认且默认保留 data/；新增 crash.uninstall 解决 Windows 句柄占用"
+  },
   "1060811": {
     "summary": "补充变更日志门禁、运行时文档屏与 CLI 参数测试"
   },
@@ -36,11 +40,20 @@
   "6cf4fea": {
     "summary": "LSP didChange 同步重试、扩展卸载钩子与打包规格跟踪"
   },
+  "6e77ebe": {
+    "summary": "补充用户配置初始化/清理服务层、CLI 参数透传与崩溃句柄释放测试"
+  },
   "6fa7663": {
     "summary": "为发布提交补充中文翻译"
   },
+  "738c2f1": {
+    "summary": "文档同步一键初始化/清理命令（手册、主题与 yaterc 指南、README）"
+  },
   "74c8938": {
     "summary": "泛化 Markdown 文档屏，新增 :changelog 命令与 --changelog 参数"
+  },
+  "78253f0": {
+    "summary": "发布 v0.1.1 双语变更日志"
   },
   "7b5dd93": {
     "summary": "项目版本改为从 yate/__init__.py 动态读取"
