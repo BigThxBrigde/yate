@@ -1,10 +1,15 @@
 """Color themes and cell-width helpers for editor_view (Rich / Textual).
 
-The built-in theme family is `Catppuccin <https://catppuccin.com/>`_ with its
-four flavors (``latte`` light, ``frappe`` / ``macchiato`` / ``mocha`` dark,
-``mocha`` being the default).  A theme bundles both the chrome colors
-(backgrounds, bars, selection) and the syntax token palette consumed by the
-:mod:`yate.editor_syntax` layer.
+Eight built-in themes ship in :data:`THEMES`:
+
+* the four `Catppuccin <https://catppuccin.com/>`_ flavors (``latte`` light,
+  ``frappe`` / ``macchiato`` / ``mocha`` dark, ``mocha`` being the default);
+* Atom One Dark / One Light (``onedark`` / ``onelight``);
+* `Gruvbox <https://github.com/morhetz/gruvbox>`_ dark / light medium
+  (``gruvbox-dark`` / ``gruvbox-light``).
+
+A theme bundles both the chrome colors (backgrounds, bars, selection) and the
+syntax token palette consumed by the :mod:`yate.editor_syntax` layer.
 
 Cell helpers (:func:`cell_width`, :func:`char_to_cell`, ...) are theme
 independent and live at the bottom of this module.
@@ -199,11 +204,163 @@ _MOCHA = {
     "mantle": "#181825", "crust": "#11111b",
 }
 
+# ---------------------------------------------------------------------------
+# Atom One Dark / One Light palettes
+# (https://github.com/atom/atom/tree/master/packages/one-dark-syntax)
+#
+# Each palette only carries raw upstream colors; _one_family maps them onto
+# the Theme semantic slots. Slots without a direct upstream color are derived
+# from family semantics (gutter uses the editor background; inactive/active
+# find matches use yellow/orange with on_accent as the overlaid text color;
+# mode chips reuse blue/green/purple/orange).
+# ---------------------------------------------------------------------------
+
+
+def _one_family(name: str, label: str, dark: bool, p: dict[str, str]) -> Theme:
+    """Build an Atom One :class:`Theme` from the raw palette *p*."""
+    return Theme(
+        name=name,
+        label=label,
+        dark=dark,
+        bg=p["bg"],
+        panel=p["panel"],
+        surface=p["surface"],
+        gutter_bg=p["bg"],
+        border=p["border"],
+        selection_bg=p["selection"],
+        match_bg=p["yellow"],
+        match_active_bg=p["orange"],
+        on_accent=p["on_accent"],
+        fg=p["fg"],
+        fg_dim=p["fg_dim"],
+        fg_muted=p["fg_muted"],
+        fg_bright=p["fg_bright"],
+        accent=p["blue"],
+        accent2=p["purple"],
+        green=p["green"],
+        yellow=p["yellow"],
+        red=p["red"],
+        orange=p["orange"],
+        mode_normal_bg=p["blue"],
+        mode_insert_bg=p["green"],
+        mode_visual_bg=p["purple"],
+        mode_command_bg=p["orange"],
+        syn_keyword=p["purple"],
+        syn_string=p["green"],
+        syn_number=p["orange"],
+        syn_comment=p["fg_dim"],
+        syn_function=p["blue"],
+        syn_type=p["yellow"],
+        syn_constant=p["orange"],
+        syn_builtin=p["red"],
+        syn_decorator=p["cyan"],
+        syn_operator=p["cyan"],
+        syn_property=p["red"],
+    )
+
+
+_ONE_DARK = {
+    "bg": "#282c34", "panel": "#21252b", "surface": "#2c313a",
+    "border": "#3a3f4b", "selection": "#3e4451",
+    "fg": "#abb2bf", "fg_dim": "#5c6370", "fg_muted": "#636d83",
+    "fg_bright": "#c8ccd4",
+    "blue": "#61afef", "purple": "#c678dd", "green": "#98c379",
+    "yellow": "#e5c07b", "red": "#e06c75", "orange": "#d19a66",
+    "cyan": "#56b6c2", "on_accent": "#282c34",
+}
+
+_ONE_LIGHT = {
+    "bg": "#fafafa", "panel": "#f0f0f1", "surface": "#f0f0f1",
+    "border": "#d4d4d4", "selection": "#e5e5e6",
+    "fg": "#383a42", "fg_dim": "#a0a1a7", "fg_muted": "#696c77",
+    "fg_bright": "#23252b",
+    "blue": "#4078f2", "purple": "#a626a4", "green": "#50a14f",
+    "yellow": "#c18401", "red": "#e45649", "orange": "#986801",
+    "cyan": "#0184bc", "on_accent": "#ffffff",
+}
+
+# ---------------------------------------------------------------------------
+# Gruvbox dark/light medium palettes
+# (https://github.com/morhetz/gruvbox#palette)
+#
+# Same raw-palette + family-factory pattern as the One themes. Keyword/string/
+# number follow the gruvbox Vim highlight groups (red/green/purple); find
+# matches use neutral yellow/orange.
+# ---------------------------------------------------------------------------
+
+
+def _gruvbox(name: str, label: str, dark: bool, p: dict[str, str]) -> Theme:
+    """Build a Gruvbox :class:`Theme` from the raw palette *p*."""
+    return Theme(
+        name=name,
+        label=label,
+        dark=dark,
+        bg=p["bg"],
+        panel=p["panel"],
+        surface=p["surface"],
+        gutter_bg=p["bg"],
+        border=p["border"],
+        selection_bg=p["selection"],
+        match_bg=p["yellow"],
+        match_active_bg=p["orange"],
+        on_accent=p["on_accent"],
+        fg=p["fg"],
+        fg_dim=p["fg_dim"],
+        fg_muted=p["fg_muted"],
+        fg_bright=p["fg_bright"],
+        accent=p["blue"],
+        accent2=p["purple"],
+        green=p["green"],
+        yellow=p["yellow"],
+        red=p["red"],
+        orange=p["orange"],
+        mode_normal_bg=p["blue"],
+        mode_insert_bg=p["green"],
+        mode_visual_bg=p["purple"],
+        mode_command_bg=p["orange"],
+        syn_keyword=p["red"],
+        syn_string=p["green"],
+        syn_number=p["purple"],
+        syn_comment=p["fg_dim"],
+        syn_function=p["green"],
+        syn_type=p["yellow"],
+        syn_constant=p["orange"],
+        syn_builtin=p["orange"],
+        syn_decorator=p["aqua"],
+        syn_operator=p["orange"],
+        syn_property=p["aqua"],
+    )
+
+
+_GRUVBOX_DARK = {
+    "bg": "#282828", "panel": "#3c3836", "surface": "#3c3836",
+    "border": "#504945", "selection": "#504945",
+    "fg": "#ebdbb2", "fg_dim": "#928374", "fg_muted": "#a89984",
+    "fg_bright": "#fbf1c7",
+    "blue": "#83a598", "purple": "#d3869b", "green": "#b8bb26",
+    "aqua": "#8ec07c", "yellow": "#fabd2f", "red": "#fb4934",
+    "orange": "#fe8019", "on_accent": "#282828",
+}
+
+_GRUVBOX_LIGHT = {
+    "bg": "#fbf1c7", "panel": "#ebdbb2", "surface": "#ebdbb2",
+    "border": "#d5c4a1", "selection": "#d5c4a1",
+    "fg": "#3c3836", "fg_dim": "#7c6f64", "fg_muted": "#665c54",
+    "fg_bright": "#282828",
+    "blue": "#076678", "purple": "#8f3f71", "green": "#79740e",
+    "aqua": "#427b58", "yellow": "#b57614", "red": "#9d0006",
+    "orange": "#af3a03", "on_accent": "#fbf1c7",
+}
+
 THEMES: dict[str, Theme] = {
     "latte": _catppuccin("latte", "Catppuccin Latte", False, _LATTE),
     "frappe": _catppuccin("frappe", "Catppuccin Frappé", True, _FRAPPE),
     "macchiato": _catppuccin("macchiato", "Catppuccin Macchiato", True, _MACCHIATO),
     "mocha": _catppuccin("mocha", "Catppuccin Mocha", True, _MOCHA),
+    "onedark": _one_family("onedark", "One Dark", True, _ONE_DARK),
+    "onelight": _one_family("onelight", "One Light", False, _ONE_LIGHT),
+    "gruvbox-dark": _gruvbox("gruvbox-dark", "Gruvbox Dark", True, _GRUVBOX_DARK),
+    "gruvbox-light": _gruvbox("gruvbox-light", "Gruvbox Light", False, _GRUVBOX_LIGHT),
 }
 
 DEFAULT_THEME = "mocha"
