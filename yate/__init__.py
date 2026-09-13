@@ -8,6 +8,6 @@ A Textual based terminal text editor with:
 * :mod:`yate.services`    -- workspace, shell execution, extensions and fonts
 """
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 __description__ = "yet another terminal editor (Textual based)"
 __all__ = ["__version__", "__description__"]
