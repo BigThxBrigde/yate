@@ -14,7 +14,7 @@
 # checkout without git history keeps the last committed resources copies).
 #
 # The preferred interpreter is .venv/bin/python; if PyInstaller is missing it
-# is installed automatically via  pip install -e '.[build]'.
+# is installed automatically via  pip install -e '.[build,ts]'.
 #
 # PyInstaller cannot cross-compile: run this script ON Linux to produce a
 # Linux binary (use pack/pack.bat or pack/pack.ps1 on Windows for an exe).
@@ -63,10 +63,12 @@ if ! "$py" --version >/dev/null 2>&1; then
     exit 1
 fi
 
-# Make sure the build extra (PyInstaller) is available.
+# Make sure the build extra (PyInstaller) is available. The [ts] extra
+# (tree-sitter + python/bash grammar packs) is installed too so the
+# standalone executable ships the tree-sitter highlighting backend.
 if ! "$py" -c "import PyInstaller" >/dev/null 2>&1; then
-    echo "PyInstaller not found; installing the build extra (pip install -e '.[build]') ..." >&2
-    "$py" -m pip install -e '.[build]'
+    echo "PyInstaller not found; installing build+ts extras (pip install -e '.[build,ts]') ..." >&2
+    "$py" -m pip install -e '.[build,ts]'
 fi
 
 # The mode flag picks the spec; the spec alone defines the bundle layout.

@@ -252,10 +252,14 @@ pack\pack.bat --onefile
 ```
 
 The build scripts in [pack/](pack/) pick the `.venv` interpreter when present,
-auto-install the `build` extra (PyInstaller) if it is missing, and choose the
+auto-install the `build,ts` extras (PyInstaller plus tree-sitter and the
+python/bash grammar packs) if PyInstaller is missing, and choose the
 spec purely from the onefile flag. You can also call PyInstaller directly:
 `pyinstaller pack/yate.spec` (one-folder) /
-`pyinstaller pack/yate-onefile.spec` (onefile).
+`pyinstaller pack/yate-onefile.spec` (onefile). The standalone executable
+ships the tree-sitter backend built in; to build a regex-only executable
+instead, uninstall the `[ts]` packages from the build environment (the spec
+skips them automatically).
 
 **PyInstaller does not cross-compile.** A Windows `.exe` must be built on
 Windows and a Linux binary on Linux — run the matching script on each platform

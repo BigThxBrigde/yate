@@ -14,7 +14,7 @@
     pass -SkipChangelog to skip the refresh).
 
     The preferred interpreter is .venv\Scripts\python.exe; if PyInstaller is
-    missing it is installed automatically via  pip install -e ".[build]".
+    missing it is installed automatically via  pip install -e ".[build,ts]".
 
     PyInstaller cannot cross-compile: run this script on Windows to produce a
     Windows executable (use pack/pack.sh on Linux for a Linux binary).
@@ -66,11 +66,13 @@ try {
         Stop-WithMessage "Python interpreter not found ('$pythonExe'). Create .venv or put python on PATH."
     }
 
-    # Make sure the build extra (PyInstaller) is available.
+    # Make sure the build extra (PyInstaller) is available. The [ts] extra
+    # (tree-sitter + python/bash grammar packs) is installed too so the
+    # standalone executable ships the tree-sitter highlighting backend.
     & $pythonExe -c "import PyInstaller" 2>$null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "PyInstaller not found; installing the build extra (pip install -e `".[build]`") ..." -ForegroundColor Yellow
-        & $pythonExe -m pip install -e ".[build]"
+        Write-Host "PyInstaller not found; installing build+ts extras (pip install -e `".[build,ts]`") ..." -ForegroundColor Yellow
+        & $pythonExe -m pip install -e ".[build,ts]"
         if ($LASTEXITCODE -ne 0) {
             Stop-WithMessage "Failed to install build dependencies."
         }
