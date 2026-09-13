@@ -4,6 +4,11 @@
 
 ## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...HEAD)
 
+### 新功能
+
+- add --dist artifact staging and require .venv interpreter [缺中文] ([`483b667`](https://gitee.com/jermaine/yate/commit/483b6679d93cc0773390887dfc38f3bc9716a620))
+- Fix failed unit tests [缺中文] ([`5b03805`](https://gitee.com/jermaine/yate/commit/5b0380563819be1434e38f3c1dd835ca52a98695))
+
 ### 文档
 
 - release v0.2.0 bilingual changelog [缺中文] ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))

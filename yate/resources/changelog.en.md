@@ -4,6 +4,11 @@
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...HEAD)
 
+### Features
+
+- add --dist artifact staging and require .venv interpreter ([`483b667`](https://gitee.com/jermaine/yate/commit/483b6679d93cc0773390887dfc38f3bc9716a620))
+- Fix failed unit tests ([`5b03805`](https://gitee.com/jermaine/yate/commit/5b0380563819be1434e38f3c1dd835ca52a98695))
+
 ### Documentation
 
 - release v0.2.0 bilingual changelog ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))
