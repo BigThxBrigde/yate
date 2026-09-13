@@ -2,6 +2,12 @@
 
 > Generated from the git history on 2026-09-14 · yate 0.2.0
 
+## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...HEAD)
+
+### Documentation
+
+- release v0.2.0 bilingual changelog ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))
+
 ## [0.2.0] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.1...v0.2.0)
 
 ### Features

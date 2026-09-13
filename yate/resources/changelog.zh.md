@@ -2,6 +2,12 @@
 
 > 由 git 历史自动生成于 2026-09-14 · yate 0.2.0
 
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...HEAD)
+
+### 文档
+
+- release v0.2.0 bilingual changelog [缺中文] ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))
+
 ## [0.2.0] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.1...v0.2.0)
 
 ### 新功能
