@@ -6,8 +6,17 @@ A yate color theme has two parts: **UI colors** (backgrounds, status bar,
 selection, borders, etc.) and the **syntax highlighting palette**. Both are
 encapsulated in the `Theme` dataclass.
 
-The four built-in themes are all [Catppuccin](https://catppuccin.com/)
-flavors: `mocha` (default dark), `macchiato`, `frappe`, `latte` (light).
+Eight themes are built in:
+
+* the four [Catppuccin](https://catppuccin.com/) flavors: `mocha` (default
+  dark), `macchiato`, `frappe`, `latte` (light);
+* Atom One: `onedark`, `onelight`;
+* [Gruvbox](https://github.com/morhetz/gruvbox): `gruvbox-dark`,
+  `gruvbox-light`.
+
+Official *theme templates* for Dracula and Ayu (dark/mirage/light) are also
+shipped with the package; they do not register by default — install them via
+"Option E" in section 2.
 
 This file is the complete theme-customization reference; sections 10.3 / 11 of
 the manual are a short introduction.
@@ -28,7 +37,7 @@ permanent. An unknown theme name errors out and lists the available themes.
 
 ---
 
-## 2. Four ways to customize themes
+## 2. Five ways to customize themes
 
 ### Option A: inline registration in yaterc
 
@@ -85,6 +94,41 @@ yate --theme-dir ~/my-themes --theme-dir ./extras/solarized.py
 
 `--theme-dir` accepts both directories and single `*.py` files.
 
+### Option E: install a shipped theme template (Dracula / Ayu)
+
+Two official theme templates ship inside the package:
+
+* `yate/resources/theme_examples/dracula_theme.example` — registers
+  `dracula`;
+* `yate/resources/theme_examples/ayu_theme.example` — registers
+  `ayu-dark` / `ayu-mirage` / `ayu-light` (three themes from one file).
+
+They are ordinary Python theme files and do **nothing** unless copied: the
+directory scan globs `*.py` only, so the `.example` suffix is ignored in
+place — the themes never appear in `:theme` until installed. Copy and rename
+them into a default scan directory (Option C):
+
+```bash
+# Linux / macOS
+mkdir -p ~/.yate/themes
+cp <resources>/theme_examples/dracula_theme.example ~/.yate/themes/dracula.py
+cp <resources>/theme_examples/ayu_theme.example     ~/.yate/themes/ayu.py
+```
+
+```powershell
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
+Copy-Item <resources>\theme_examples\dracula_theme.example "$HOME\.yate\themes\dracula.py"
+Copy-Item <resources>\theme_examples\ayu_theme.example     "$HOME\.yate\themes\ayu.py"
+```
+
+After restarting, `:theme dracula` / `:theme ayu-mirage` work; deleting the
+`*.py` uninstalls them. Find the resources directory in the paths section of
+`yate --diag` (`site-packages/yate/resources/` for a source/wheel install,
+`yate/resources/` inside the standalone bundle). Both templates use only the
+injected `Theme` / `register_theme()` names and double as complete examples
+of authoring a theme from scratch (see section 4).
+
 ---
 
 ## 3. Same-name override and load precedence
@@ -92,7 +136,8 @@ yate --theme-dir ~/my-themes --theme-dir ./extras/solarized.py
 When the same theme name is registered multiple times, **the later load
 overrides the earlier one**. Precedence from low to high:
 
-1. Built-in themes (`mocha` / `macchiato` / `frappe` / `latte`)
+1. Built-in themes (`mocha` / `macchiato` / `frappe` / `latte` /
+   `onedark` / `onelight` / `gruvbox-dark` / `gruvbox-light`)
 2. Default directories `./themes`, `~/.yate/themes`
 3. `theme_dirs` in yaterc (user rc first, project rc after)
 4. `--theme-dir` on the command line
@@ -106,6 +151,11 @@ message bar as `<path>: <problem>` while the remaining files load normally.
 ---
 
 ## 4. Writing a theme file
+
+The shipped templates `yate/resources/theme_examples/dracula_theme.example`
+and `ayu_theme.example` are complete from-scratch examples (the latter also
+shows how to register several themes from one file) and can be copied
+verbatim. The two most common patterns are shown below.
 
 The simplest approach is to copy a built-in theme and override a few colors:
 

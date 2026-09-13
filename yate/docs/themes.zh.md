@@ -5,8 +5,15 @@
 yate 的颜色主题由两部分组成：**界面配色**（背景、状态栏、选中、边框等）
 和**语法高亮色板**。两者都封装在 `Theme` 数据类中。
 
-内置四套主题均为 [Catppuccin](https://catppuccin.com/) 风味：
-`mocha`（默认，深色）、`macchiato`、`frappe`、`latte`（浅色）。
+内置八套主题：
+
+- [Catppuccin](https://catppuccin.com/) 四风味：`mocha`（默认，深色）、
+  `macchiato`、`frappe`、`latte`（浅色）；
+- Atom One：`onedark`、`onelight`；
+- [Gruvbox](https://github.com/morhetz/gruvbox)：`gruvbox-dark`、`gruvbox-light`。
+
+另有随包发布的**官方主题模板** Dracula 与 Ayu（dark/mirage/light 三套），
+默认不注册，按第 2 节"方式 E"安装后即可使用。
 
 本文件是主题定制的完整参考；手册第 10.3 / 11 节是简介。
 
@@ -26,7 +33,7 @@ yate 的颜色主题由两部分组成：**界面配色**（背景、状态栏�
 
 ---
 
-## 2. 客制化主题的四种方式
+## 2. 客制化主题的五种方式
 
 ### 方式 A：在 yaterc 中内联注册
 
@@ -82,13 +89,46 @@ yate --theme-dir ~/my-themes --theme-dir ./extras/solarized.py
 
 `--theme-dir` 既接受目录，也接受单个 `*.py` 文件。
 
+### 方式 E：从随包主题模板安装（Dracula / Ayu）
+
+yate 随包附带两个官方主题模板：
+
+- `yate/resources/theme_examples/dracula_theme.example` —— 注册 `dracula`；
+- `yate/resources/theme_examples/ayu_theme.example` —— 注册
+  `ayu-dark` / `ayu-mirage` / `ayu-light` 三套。
+
+模板是普通 Python 主题文件，**不拷贝就不会加载**（目录扫描只认 `*.py`，
+`.example` 后缀天然被忽略），也不会出现在 `:theme` 列表中。拷贝并改名后
+由方式 C 的默认目录扫描自动注册：
+
+```bash
+# Linux / macOS
+mkdir -p ~/.yate/themes
+cp <资源目录>/theme_examples/dracula_theme.example ~/.yate/themes/dracula.py
+cp <资源目录>/theme_examples/ayu_theme.example     ~/.yate/themes/ayu.py
+```
+
+```powershell
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
+Copy-Item <资源目录>\theme_examples\dracula_theme.example "$HOME\.yate\themes\dracula.py"
+Copy-Item <资源目录>\theme_examples\ayu_theme.example     "$HOME\.yate\themes\ayu.py"
+```
+
+重启后即可 `:theme dracula` / `:theme ayu-mirage`；删除对应 `*.py` 即卸载。
+资源目录可用 `yate --diag` 的 paths 节查看（源码 / wheel 安装位于
+`site-packages/yate/resources/`，独立程序位于包内 `yate/resources/`）。
+这两个模板只用加载器注入的 `Theme` / `register_theme()`，也是从零编写
+自定义主题的完整范例（见第 4 节）。
+
 ---
 
 ## 3. 同名覆盖与加载优先级
 
 同名主题被多次注册时，**后加载者覆盖先加载者**。优先级从低到高：
 
-1. 内置主题（`mocha` / `macchiato` / `frappe` / `latte`）
+1. 内置主题（`mocha` / `macchiato` / `frappe` / `latte` / `onedark` /
+   `onelight` / `gruvbox-dark` / `gruvbox-light`）
 2. 默认目录 `./themes`、`~/.yate/themes`
 3. yaterc 中的 `theme_dirs`（先用户 rc、后项目 rc）
 4. 命令行 `--theme-dir`
@@ -102,6 +142,10 @@ yate --theme-dir ~/my-themes --theme-dir ./extras/solarized.py
 ---
 
 ## 4. 如何写一个主题文件
+
+随包模板 `yate/resources/theme_examples/dracula_theme.example` 与
+`ayu_theme.example` 是两份从零构造的完整范例（后者还演示了一个文件注册
+多套主题），可直接照抄。下面给出最常见的两种写法。
 
 最简单的做法是复制内置主题再覆盖少量颜色：
 

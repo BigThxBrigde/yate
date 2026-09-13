@@ -15,9 +15,11 @@
 # Key map: "vsc" (VS Code style, default) or "vim".
 keymap = "vsc"
 
-# Color theme: one of the built-in Catppuccin flavors
-#   mocha (default, dark) | macchiato | frappe | latte (light)
-# or the name of a custom theme registered below.
+# Color theme: one of the eight built-in themes
+#   Catppuccin: mocha (default, dark) | macchiato | frappe | latte (light)
+#   One/Gruvbox: onedark | onelight (light) | gruvbox-dark | gruvbox-light
+# or the name of a custom theme registered below (Dracula/Ayu templates
+# ship under yate/resources/theme_examples/, copy to a theme dir as *.py).
 theme = "mocha"
 
 # Indentation: spaces per tab stop (1–16) and whether the Tab key inserts

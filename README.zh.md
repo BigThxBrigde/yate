@@ -28,9 +28,10 @@
   另有随包 C# 高亮扩展，可用 `:set filetype=` 手动指定语法类型；
   可选 tree-sitter 后端（`pip install -e ".[ts]"`）让 Python/Shell 改由真实
   语法树解析驱动，扩展也可注册自定义语法（`api.syntax`）
-- **四套 Catppuccin 主题**：`mocha`（默认深色）、`macchiato`、`frappe`、`latte`（浅色），
-  支持 yaterc 注册自定义主题，也可用 `theme_dirs` / `--theme-dir`
-  从主题目录批量加载客制化主题
+- **八套内置主题**：四套 Catppuccin（`mocha` 默认深色、`macchiato`、`frappe`、
+  `latte` 浅色）外加 One Dark/Light 与 Gruvbox dark/light；Dracula 与 Ayu
+  以随包模板形式提供，拷贝即可启用；另支持 yaterc 注册自定义主题，也可用
+  `theme_dirs` / `--theme-dir` 从主题目录批量加载客制化主题
 - **Nerd Font 图标**：文件树与文件类型图标（`yate --install-font` 安装随包字体，
   并在可能时自动配置 Windows Terminal）
 - **模糊查找**：`Ctrl+P` 快速打开文件（fzf 式子序列匹配、命中字符高亮），

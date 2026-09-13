@@ -770,7 +770,7 @@ yaterc 中按文件名主干设置 `disabled_extensions = ["python_lsp"]`。
 
 ## 11. 主题
 
-四套内置主题均为 [Catppuccin](https://catppuccin.com/) 风味：
+内置八套主题：
 
 | 名称 | 主题 | 明暗 |
 |---|---|---|
@@ -778,6 +778,10 @@ yaterc 中按文件名主干设置 `disabled_extensions = ["python_lsp"]`。
 | `macchiato` | Catppuccin Macchiato | 深色 |
 | `frappe` | Catppuccin Frappé | 深色 |
 | `latte` | Catppuccin Latte | 浅色 |
+| `onedark` | One Dark | 深色 |
+| `onelight` | One Light | 浅色 |
+| `gruvbox-dark` | Gruvbox Dark | 深色 |
+| `gruvbox-light` | Gruvbox Light | 浅色 |
 
 切换方式：
 
@@ -790,6 +794,28 @@ yaterc 中按文件名主干设置 `disabled_extensions = ["python_lsp"]`。
 | 自定义 | yaterc 中 `register_theme(...)` 内联注册，或将 `*.py` 主题文件放入 `theme_dirs` / `--theme-dir`，再按名切换（见 10.3 节） |
 
 切换只影响当前会话；要永久生效请写入 yaterc。未知主题名会报错并列出可用主题。
+
+随包还附带 Dracula 与 Ayu（dark/mirage/light）**官方主题模板**，位于
+`yate/resources/theme_examples/` 下的 `*.example` 文件。模板不会自动
+加载；拷贝为 `*.py` 放进 `~/.yate/themes/`（或 `./themes/`）后，下次启动
+自动注册，`:theme dracula`、`:theme ayu-mirage` 即可切换，删除文件即卸载：
+
+```bash
+# Linux / macOS
+mkdir -p ~/.yate/themes
+cp <资源目录>/theme_examples/dracula_theme.example ~/.yate/themes/dracula.py
+cp <资源目录>/theme_examples/ayu_theme.example     ~/.yate/themes/ayu.py
+```
+
+```powershell
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
+Copy-Item <资源目录>\theme_examples\dracula_theme.example "$HOME\.yate\themes\dracula.py"
+Copy-Item <资源目录>\theme_examples\ayu_theme.example     "$HOME\.yate\themes\ayu.py"
+```
+
+资源目录可用 `yate --diag` 的 paths 节查看；完整主题定制说明见
+[yate/docs/themes.zh.md](docs/themes.zh.md)（[English](docs/themes.en.md)）。
 
 ## 12. 字体与 Nerd Font 图标
 

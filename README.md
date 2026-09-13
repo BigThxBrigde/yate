@@ -26,7 +26,7 @@ Release history: [CHANGELOG.md](CHANGELOG.md) · [中文](CHANGELOG.zh.md) — g
 - **VS Code-style layout**: active tab bar, EXPLORER file tree sidebar, breadcrumb path bar, flat status bar
 - **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL/VISUAL-LINE modes + `:` ex command line); `Ctrl+/` toggles between them at runtime
 - **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with a bundled C# extension and `:set filetype=` manual override; optional tree-sitter backend (`pip install -e ".[ts]"`) drives Python/Shell highlighting from a real parser, and extensions can register custom grammars (`api.syntax`)
-- **Four Catppuccin themes**: `mocha` (default dark), `macchiato`, `frappe`, `latte` (light); register custom themes in yaterc, or bulk-load theme files via `theme_dirs` / `--theme-dir`
+- **Eight built-in themes**: four Catppuccin flavors (`mocha` default dark, `macchiato`, `frappe`, `latte` light) plus One Dark/Light and Gruvbox dark/light; Dracula and Ayu ship as copy-to-activate templates; register custom themes in yaterc, or bulk-load theme files via `theme_dirs` / `--theme-dir`
 - **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font and configures Windows Terminal)
 - **Fuzzy finding**: `Ctrl+P` quick open (fzf-style subsequence matching with hit highlighting), `Alt+Shift+P` command palette (every `:` command and named action)
 - **Multi-buffer tabs**: open by path (`Ctrl+O` / `:e`), new buffer (`Ctrl+N` / `:enew`), close tab (`Ctrl+W` / `:bd`), switch with `Ctrl+PageUp/Down` or `:bn` / `:bp`

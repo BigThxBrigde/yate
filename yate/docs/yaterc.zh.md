@@ -68,14 +68,21 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 
 ## 内置主题
 
-四个内置主题均为 [Catppuccin](https://catppuccin.com/) 风味：
+八套内置主题（四套 Catppuccin 风味 + One / Gruvbox）：
 
-| 名称 | 风味 | 明暗 |
+| 名称 | 主题 | 明暗 |
 |---|---|---|
 | `mocha` | Catppuccin Mocha | 深色（默认） |
 | `macchiato` | Catppuccin Macchiato | 深色 |
 | `frappe` | Catppuccin Frappé | 深色 |
 | `latte` | Catppuccin Latte | 浅色 |
+| `onedark` | One Dark | 深色 |
+| `onelight` | One Light | 浅色 |
+| `gruvbox-dark` | Gruvbox Dark | 深色 |
+| `gruvbox-light` | Gruvbox Light | 浅色 |
+
+另有 Dracula 与 Ayu 官方主题模板随包附带，拷贝为 `*.py` 即可启用，
+见[主题指南](themes.zh.md)。
 
 ## 自定义主题
 

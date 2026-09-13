@@ -834,7 +834,7 @@ in yaterc: `disabled_extensions = ["python_lsp"]`.
 
 ## 11. Themes
 
-The four built-in themes are all [Catppuccin](https://catppuccin.com/) flavors:
+Eight built-in themes:
 
 | Name | Theme | Mode |
 |---|---|---|
@@ -842,6 +842,10 @@ The four built-in themes are all [Catppuccin](https://catppuccin.com/) flavors:
 | `macchiato` | Catppuccin Macchiato | dark |
 | `frappe` | Catppuccin Frappé | dark |
 | `latte` | Catppuccin Latte | light |
+| `onedark` | One Dark | dark |
+| `onelight` | One Light | light |
+| `gruvbox-dark` | Gruvbox Dark | dark |
+| `gruvbox-light` | Gruvbox Light | light |
 
 Ways to switch:
 
@@ -855,6 +859,31 @@ Ways to switch:
 
 Switching affects only the current session; write it into yaterc to persist.
 Unknown theme names raise an error listing the available themes.
+
+The package also ships official **theme templates** for Dracula and Ayu
+(dark/mirage/light) as `*.example` files under
+`yate/resources/theme_examples/`. Templates are never loaded automatically;
+copy one to a `*.py` file in `~/.yate/themes/` (or `./themes/`), and it
+registers on the next launch — then `:theme dracula` or `:theme ayu-mirage`
+switches to it. Delete the file to uninstall:
+
+```bash
+# Linux / macOS
+mkdir -p ~/.yate/themes
+cp <resources>/theme_examples/dracula_theme.example ~/.yate/themes/dracula.py
+cp <resources>/theme_examples/ayu_theme.example     ~/.yate/themes/ayu.py
+```
+
+```powershell
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
+Copy-Item <resources>\theme_examples\dracula_theme.example "$HOME\.yate\themes\dracula.py"
+Copy-Item <resources>\theme_examples\ayu_theme.example     "$HOME\.yate\themes\ayu.py"
+```
+
+Find the resources directory in the paths section of `yate --diag`; for full
+theme customization see [yate/docs/themes.en.md](docs/themes.en.md)
+([中文](docs/themes.zh.md)).
 
 ## 12. Fonts and Nerd Font Icons
 

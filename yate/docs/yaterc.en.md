@@ -75,14 +75,23 @@ Option scope:
 
 ## Built-in themes
 
-The four built-in themes are all [Catppuccin](https://catppuccin.com/) flavors:
+Eight built-in themes (four [Catppuccin](https://catppuccin.com/) flavors
+plus One and Gruvbox):
 
-| Name | Flavor | Mode |
+| Name | Theme | Mode |
 |---|---|---|
 | `mocha` | Catppuccin Mocha | dark (default) |
 | `macchiato` | Catppuccin Macchiato | dark |
 | `frappe` | Catppuccin Frappé | dark |
 | `latte` | Catppuccin Latte | light |
+| `onedark` | One Dark | dark |
+| `onelight` | One Light | light |
+| `gruvbox-dark` | Gruvbox Dark | dark |
+| `gruvbox-light` | Gruvbox Light | light |
+
+Official Dracula and Ayu theme templates also ship with the package; copy
+one to a `*.py` theme file to activate it — see the
+[theme guide](themes.en.md).
 
 ## Custom themes
 
