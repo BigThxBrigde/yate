@@ -8,6 +8,11 @@ Eight built-in themes ship in :data:`THEMES`:
 * `Gruvbox <https://github.com/morhetz/gruvbox>`_ dark / light medium
   (``gruvbox-dark`` / ``gruvbox-light``).
 
+Official theme *templates* (Dracula, Ayu) are additionally shipped under
+``yate/resources/theme_examples/`` as ``*.example`` files; they never
+register themselves and only become themes once a user copies them to a
+scanned theme directory as ``*.py``.
+
 A theme bundles both the chrome colors (backgrounds, bars, selection) and the
 syntax token palette consumed by the :mod:`yate.editor_syntax` layer.
 

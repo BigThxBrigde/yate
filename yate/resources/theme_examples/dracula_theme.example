@@ -1,0 +1,73 @@
+# Dracula theme for yate -- official theme template.
+#
+# This file is NOT loaded automatically (the directory scan only loads
+# *.py). To install the theme, copy it with a .py extension into a scanned
+# theme directory:
+#
+#   Linux / macOS:
+#     mkdir -p ~/.yate/themes
+#     cp dracula_theme.example ~/.yate/themes/dracula.py
+#
+#   Windows (PowerShell):
+#     New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
+#     Copy-Item dracula_theme.example "$HOME\.yate\themes\dracula.py"
+#
+# Then restart yate and run `:theme dracula` (or set theme = "dracula" in
+# yaterc). Delete the .py file to uninstall.
+#
+# The file is ordinary Python executed in a namespace that only provides
+# Theme and register_theme -- do not import anything from yate.
+#
+# Palette: https://draculatheme.com/contribute#color-palette
+
+register_theme(Theme(
+    name="dracula",
+    label="Dracula",
+    dark=True,
+
+    # backgrounds
+    bg="#282a36",
+    panel="#21222c",
+    surface="#44475a",
+    gutter_bg="#282a36",
+    border="#44475a",
+
+    # overlays
+    selection_bg="#44475a",
+    match_bg="#f1fa8c",
+    match_active_bg="#ffb86c",
+    on_accent="#282a36",
+
+    # foregrounds
+    fg="#f8f8f2",
+    fg_dim="#6272a4",
+    fg_muted="#7b88a8",
+    fg_bright="#ffffff",
+
+    # accents
+    accent="#8be9fd",
+    accent2="#bd93f9",
+    green="#50fa7b",
+    yellow="#f1fa8c",
+    red="#ff5555",
+    orange="#ffb86c",
+
+    # mode chips (status bar)
+    mode_normal_bg="#8be9fd",
+    mode_insert_bg="#50fa7b",
+    mode_visual_bg="#bd93f9",
+    mode_command_bg="#ffb86c",
+
+    # syntax palette
+    syn_keyword="#ff79c6",
+    syn_string="#f1fa8c",
+    syn_number="#bd93f9",
+    syn_comment="#6272a4",
+    syn_function="#50fa7b",
+    syn_type="#8be9fd",
+    syn_constant="#bd93f9",
+    syn_builtin="#ff5555",
+    syn_decorator="#ff79c6",
+    syn_operator="#ff79c6",
+    syn_property="#8be9fd",
+))

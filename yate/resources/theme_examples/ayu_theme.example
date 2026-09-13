@@ -1,0 +1,119 @@
+# Ayu themes for yate -- official theme template (one file, three themes).
+#
+# Registers: ayu-dark, ayu-mirage, ayu-light.
+#
+# This file is NOT loaded automatically (the directory scan only loads
+# *.py). To install the themes, copy it with a .py extension into a scanned
+# theme directory:
+#
+#   Linux / macOS:
+#     mkdir -p ~/.yate/themes
+#     cp ayu_theme.example ~/.yate/themes/ayu.py
+#
+#   Windows (PowerShell):
+#     New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
+#     Copy-Item ayu_theme.example "$HOME\.yate\themes\ayu.py"
+#
+# Then restart yate and run e.g. `:theme ayu-mirage` (or set theme =
+# "ayu-mirage" in yaterc). Delete the .py file to uninstall all three.
+#
+# The file is ordinary Python executed in a namespace that only provides
+# Theme and register_theme -- do not import anything from yate.
+#
+# Palette: ayu v9 (https://github.com/ayu-theme/ayu-colors); alpha colors
+# from upstream are pre-blended over the editor background into flat hex.
+
+
+def _ayu(name, label, dark, p):
+    return Theme(
+        name=name,
+        label=label,
+        dark=dark,
+
+        # backgrounds
+        bg=p["bg"],
+        panel=p["panel"],
+        surface=p["surface"],
+        gutter_bg=p["bg"],
+        border=p["border"],
+
+        # overlays
+        selection_bg=p["selection"],
+        match_bg=p["match"],
+        match_active_bg=p["match_active"],
+        on_accent=p["on_accent"],
+
+        # foregrounds
+        fg=p["fg"],
+        fg_dim=p["comment"],
+        fg_muted=p["muted"],
+        fg_bright=p["bright"],
+
+        # accents
+        accent=p["entity"],
+        accent2=p["constant"],
+        green=p["added"],
+        yellow=p["func"],
+        red=p["error"],
+        orange=p["keyword"],
+
+        # mode chips (status bar)
+        mode_normal_bg=p["entity"],
+        mode_insert_bg=p["added"],
+        mode_visual_bg=p["constant"],
+        mode_command_bg=p["keyword"],
+
+        # syntax palette (same slot mapping for all three variants)
+        syn_keyword=p["keyword"],
+        syn_string=p["string"],
+        syn_number=p["constant"],
+        syn_comment=p["comment"],
+        syn_function=p["func"],
+        syn_type=p["entity"],
+        syn_constant=p["constant"],
+        syn_builtin=p["markup"],
+        syn_decorator=p["special"],
+        syn_operator=p["operator"],
+        syn_property=p["markup"],
+    )
+
+
+_DARK = {
+    "bg": "#10141c", "panel": "#141821", "surface": "#161a24",
+    "border": "#1b1f29", "selection": "#193155",
+    "match": "#ffb454", "match_active": "#ff8f40", "on_accent": "#0d1017",
+    "fg": "#bfbdb6", "comment": "#5b6876", "muted": "#636a76",
+    "bright": "#e6e1cf",
+    "entity": "#59c2ff", "constant": "#d2a6ff", "added": "#70bf56",
+    "func": "#ffb454", "error": "#d95757", "keyword": "#ff8f40",
+    "markup": "#f07178", "string": "#aad94c", "special": "#e6c08a",
+    "operator": "#f29668",
+}
+
+_MIRAGE = {
+    "bg": "#242936", "panel": "#282e3b", "surface": "#1a1f29",
+    "border": "#171b24", "selection": "#2b4768",
+    "match": "#ffd173", "match_active": "#ffad66", "on_accent": "#1f2430",
+    "fg": "#cccac2", "comment": "#6c7c8e", "muted": "#767c85",
+    "bright": "#d9d7ce",
+    "entity": "#73d0ff", "constant": "#dfbfff", "added": "#87d96c",
+    "func": "#ffd173", "error": "#ff6666", "keyword": "#ffad66",
+    "markup": "#f28779", "string": "#d5ff80", "special": "#ffdfb3",
+    "operator": "#f29e74",
+}
+
+_LIGHT = {
+    "bg": "#fcfcfc", "panel": "#fafafa", "surface": "#f0f1f3",
+    "border": "#e7eaed", "selection": "#d7e4f6",
+    "match": "#f2a300", "match_active": "#ff7e33", "on_accent": "#ffffff",
+    "fg": "#5c6166", "comment": "#adafb2", "muted": "#828e9f",
+    "bright": "#2e3338",
+    "entity": "#399ee6", "constant": "#a37acc", "added": "#6cbf43",
+    "func": "#f2a300", "error": "#e65050", "keyword": "#ff7e33",
+    "markup": "#f07171", "string": "#86b300", "special": "#d9b077",
+    "operator": "#ed9366",
+}
+
+register_theme(_ayu("ayu-dark", "Ayu Dark", True, _DARK))
+register_theme(_ayu("ayu-mirage", "Ayu Mirage", True, _MIRAGE))
+register_theme(_ayu("ayu-light", "Ayu Light", False, _LIGHT))

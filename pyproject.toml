@@ -54,8 +54,9 @@ regex = '__version__\s*=\s*"(?P<version>[^"]+)"'
 [tool.hatch.build.targets.wheel]
 packages = ["yate"]
 # Non-Python files inside the package are included in the wheel automatically
-# by hatchling: resources/fonts/*.ttf + resources/manual.*.md, docs/*.md
-# (bilingual guides), extensions/example_ext.py.example and yaterc.example.
+# by hatchling: resources/fonts/*.ttf + resources/manual.*.md,
+# resources/theme_examples/*.example, docs/*.md (bilingual guides),
+# extensions/example_ext.py.example and yaterc.example.
 
 [tool.hatch.build.targets.sdist]
 include = ["yate"]
