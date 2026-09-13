@@ -3,6 +3,18 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...HEAD)
+
+### 新功能
+
+- add --dist artifact staging and require .venv interpreter [缺中文] ([`483b667`](https://gitee.com/jermaine/yate/commit/483b6679d93cc0773390887dfc38f3bc9716a620))
+- Fix failed unit tests [缺中文] ([`5b03805`](https://gitee.com/jermaine/yate/commit/5b0380563819be1434e38f3c1dd835ca52a98695))
+
+### 文档
+
+- refresh bundled changelog resources [缺中文] ([`107b17c`](https://gitee.com/jermaine/yate/commit/107b17c94f912002cf46802c48281930985834a0))
+- release v0.2.0 bilingual changelog [缺中文] ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))
+
 ## [0.2.0] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.1...v0.2.0)
 
 ### 新功能
