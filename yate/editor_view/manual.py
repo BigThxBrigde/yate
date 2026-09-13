@@ -1,6 +1,6 @@
-"""Read-only viewer for the bundled user manual.
+"""Read-only viewer for bundled markdown docs (user manual, changelog).
 
-Renders ``yate/resources/manual.<lang>.md`` with Textual's markdown
+Renders ``yate/resources/<kind>.<lang>.md`` with Textual's markdown
 widget.  Textual's built-in Catppuccin theme is applied while the screen
 is open (switched by the app *before* this screen is pushed, so the very
 first frame is already themed) so headings, code blocks and tables match
@@ -9,7 +9,7 @@ yate's palette.
 The screen paints immediately with a loading line; the file is read in a
 worker thread and the markdown is parsed/mounted afterwards (Textual's
 Markdown.update already parses in an executor and mounts in batches), so
-opening the manual never blocks the UI.
+opening a document never blocks the UI.
 
 Tables are laid out by a CSS grid that squeezes cells when the table is
 container-bound; auto-width keeps cells on one line so the keylines of
@@ -35,18 +35,46 @@ from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Input, Markdown, Static
 
-_MANUAL_LANGS = ("en", "zh")
+_DOC_LANGS = ("en", "zh")
+
+#: Fixed notice rendered when a doc is not shipped with the build.  The
+#: changelog (unlike the manual) is a generated artifact that a build may
+#: legitimately lack; every entry point degrades to this text, never raises.
+_UNAVAILABLE: dict[str, dict[str, str]] = {
+    "manual": {
+        "en": "# User Manual\n\nNo manual is shipped with this build.",
+        "zh": "# 用户手册\n\n此构建未包含用户手册。",
+    },
+    "changelog": {
+        "en": "# Changelog\n\nNo changelog is shipped with this build.",
+        "zh": "# 变更日志\n\n此构建未包含变更日志。",
+    },
+}
+
+
+def load_doc_markdown(kind: str, lang: str = "en") -> str:
+    """Read ``resources/<kind>.<lang>.md``; fall back to en, then to a
+    fixed "unavailable" notice. Never raises for a missing resource."""
+    lang = lang.strip().lower()
+    if lang not in _DOC_LANGS:
+        lang = "en"
+    root = files("yate.resources")
+    resource = root.joinpath(f"{kind}.{lang}.md")
+    if not resource.is_file() and lang != "en":
+        resource = root.joinpath(f"{kind}.en.md")
+    if not resource.is_file():
+        return _UNAVAILABLE.get(kind, _UNAVAILABLE["manual"])[lang]
+    return resource.read_text(encoding="utf-8")
 
 
 def load_manual_markdown(lang: str = "en") -> str:
     """Return the bundled manual for *lang* (``en``/``zh``) as markdown."""
-    code = lang.strip().lower()
-    if code not in _MANUAL_LANGS:
-        code = "en"
-    resource = files("yate.resources").joinpath(f"manual.{code}.md")
-    if not resource.is_file():
-        resource = files("yate.resources").joinpath("manual.en.md")
-    return resource.read_text(encoding="utf-8")
+    return load_doc_markdown("manual", lang)
+
+
+def load_changelog_markdown(lang: str = "en") -> str:
+    """Return the bundled changelog for *lang* (``en``/``zh``) as markdown."""
+    return load_doc_markdown("changelog", lang)
 
 
 def _widget_plain_text(widget: Widget) -> str:
@@ -91,7 +119,7 @@ class _SearchInput(Input):
     """Search field that traps escape (close search) and shift+enter.
 
     A plain ``Input`` lets both keys bubble, where the screen's
-    escape/dismiss binding would close the whole manual instead of just
+    escape/dismiss binding would close the whole document instead of just
     the search bar.  Not focusable until the search bar is opened, so
     keys (esc/q/n/N) reach the screen bindings while the bar is hidden.
     """
@@ -102,18 +130,18 @@ class _SearchInput(Input):
         if event.key == "escape":
             event.stop()
             event.prevent_default()
-            cast(ManualScreen, self.screen).close_search()
+            cast(MarkdownDocScreen, self.screen).close_search()
             return
         if event.key == "shift+enter":
             event.stop()
             event.prevent_default()
-            cast(ManualScreen, self.screen).search_step(-1)
+            cast(MarkdownDocScreen, self.screen).search_step(-1)
             return
         await super()._on_key(event)
 
 
-class ManualScreen(ModalScreen[None]):
-    """The user manual, rendered as read-only markdown."""
+class MarkdownDocScreen(ModalScreen[None]):
+    """A bundled markdown document (manual/changelog), read-only."""
 
     BINDINGS = [
         ("escape", "dismiss", "close"),
@@ -138,30 +166,30 @@ class ManualScreen(ModalScreen[None]):
     )
 
     DEFAULT_CSS = """
-    ManualScreen {
+    MarkdownDocScreen {
         align: center middle;
     }
-    ManualScreen #manual-box {
+    MarkdownDocScreen #doc-box {
         width: 90%;
         height: 90%;
         background: $surface;
         border: tall $primary;
         padding: 0 2;
     }
-    ManualScreen #manual-search-bar {
+    MarkdownDocScreen #doc-search-bar {
         height: 3;
         padding: 0 1;
         background: $surface;
         display: none;
     }
-    ManualScreen #manual-search-input {
+    MarkdownDocScreen #doc-search-input {
         width: 1fr;
         height: 3;
         border: none;
         background: $surface;
         padding: 0;
     }
-    ManualScreen #manual-search-status {
+    MarkdownDocScreen #doc-search-status {
         width: auto;
         min-width: 14;
         height: 1;
@@ -169,40 +197,42 @@ class ManualScreen(ModalScreen[None]):
         color: $text-muted;
         background: $surface;
     }
-    ManualScreen #manual-scroll {
+    MarkdownDocScreen #doc-scroll {
         height: 1fr;
     }
-    ManualScreen #manual-loading {
+    MarkdownDocScreen #doc-loading {
         height: 1;
         padding: 1 0;
         color: $text-muted;
     }
-    ManualScreen .hint {
+    MarkdownDocScreen .hint {
         height: 1;
         color: $text-muted;
         text-align: center;
     }
-    /* search hit tints (manual is always shown with catppuccin-mocha, so
+    /* search hit tints (docs are always shown with catppuccin-mocha, so
        fixed yellow alphas match that palette) */
-    ManualScreen .manual-hit {
+    MarkdownDocScreen .doc-hit {
         background: #f9e2af1f;
     }
-    ManualScreen .manual-hit-current {
+    MarkdownDocScreen .doc-hit-current {
         background: #f9e2af66;
         text-style: bold;
     }
     /* table cells default to a squeezed 1fr grid which wraps long CJK
        labels and breaks the keyline alignment; auto-width renders each
        cell on a single line with clean borders */
-    ManualScreen MarkdownTable {
+    MarkdownDocScreen MarkdownTable {
         width: auto;
     }
     """
 
-    def __init__(self, yate: Any, lang: str = "en") -> None:
+    def __init__(self, yate: Any, *, kind: str, lang: str, title: str) -> None:
         super().__init__()
         self.yate = yate
+        self._kind = kind
         self._lang = lang
+        self._title = title
         # (widget, inner row, inner column, query length), document order
         self._hits: list[tuple[Widget, int, int, int]] = []
         self._hit_index = -1
@@ -210,42 +240,44 @@ class ManualScreen(ModalScreen[None]):
         self._current_widget: Widget | None = None
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="manual-box"):
-            with Horizontal(id="manual-search-bar"):
+        with Vertical(id="doc-box"):
+            with Horizontal(id="doc-search-bar"):
                 yield _SearchInput(
-                    placeholder="search manual…  enter: next  shift+enter: prev",
-                    id="manual-search-input",
+                    placeholder=f"search {self._title}…  enter: next  shift+enter: prev",
+                    id="doc-search-input",
                 )
-                yield Static("", id="manual-search-status")
-            with VerticalScroll(id="manual-scroll"):
+                yield Static("", id="doc-search-status")
+            with VerticalScroll(id="doc-scroll"):
                 # empty initially: the content loads in a background worker
                 # so the screen itself can paint without a hitch
-                yield Static(" loading manual…", id="manual-loading")
-                yield Markdown("", id="manual-md")
+                yield Static(f" loading {self._title}…", id="doc-loading")
+                yield Markdown("", id="doc-md")
             yield Static(
                 self._FOOTER_BROWSE,
-                id="manual-footer",
+                id="doc-footer",
                 classes="hint",
             )
 
     def on_mount(self) -> None:
         self.run_worker(
-            self._load_manual(), group="manual-load", exclusive=True,
+            self._load_doc(), group="doc-load", exclusive=True,
             exit_on_error=False,
         )
 
-    async def _load_manual(self) -> None:
-        """Read the manual off the loop, then let Markdown mount in batches."""
+    async def _load_doc(self) -> None:
+        """Read the document off the loop, then let Markdown mount in batches."""
         try:
-            source = await asyncio.to_thread(load_manual_markdown, self._lang)
-        except OSError as exc:  # pragma: no cover - resource is bundled
-            source = f"failed to load the manual: {exc}"
+            source = await asyncio.to_thread(
+                load_doc_markdown, self._kind, self._lang
+            )
+        except OSError as exc:  # pragma: no cover - resources are bundled
+            source = f"failed to load the {self._title}: {exc}"
         # the viewer may have been closed while the read was in flight
         if not self.is_mounted:
             return
         try:
-            markdown = self.query_one("#manual-md", Markdown)
-            loading = self.query_one("#manual-loading", Static)
+            markdown = self.query_one("#doc-md", Markdown)
+            loading = self.query_one("#doc-loading", Static)
             await markdown.update(source)
             if self.is_mounted:
                 loading.display = False
@@ -258,10 +290,10 @@ class ManualScreen(ModalScreen[None]):
 
     def action_search(self) -> None:
         """Reveal/focus the search bar (``/`` or ctrl+f)."""
-        bar = self.query_one("#manual-search-bar", Horizontal)
+        bar = self.query_one("#doc-search-bar", Horizontal)
         if not bar.display:
             bar.display = True
-        field = self.query_one("#manual-search-input", _SearchInput)
+        field = self.query_one("#doc-search-input", _SearchInput)
         field.can_focus = True
         field.focus()
         self._set_footer(self._FOOTER_SEARCH)
@@ -273,15 +305,15 @@ class ManualScreen(ModalScreen[None]):
 
     def close_search(self) -> None:
         """Hide the search bar but keep the hit highlights for n/N."""
-        field = self.query_one("#manual-search-input", _SearchInput)
+        field = self.query_one("#doc-search-input", _SearchInput)
         field.can_focus = False
         self.set_focus(None)
-        self.query_one("#manual-search-bar", Horizontal).display = False
+        self.query_one("#doc-search-bar", Horizontal).display = False
         self._set_footer(self._FOOTER_BROWSE)
 
     def _set_footer(self, text: str) -> None:
         """Swap the bottom hint line to match the current input context."""
-        footer = self.query("#manual-footer")
+        footer = self.query("#doc-footer")
         if footer:
             cast(Static, footer.first()).update(text)
 
@@ -298,18 +330,18 @@ class ManualScreen(ModalScreen[None]):
         self._goto_current_hit()
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id == "manual-search-input":
+        if event.input.id == "doc-search-input":
             self._run_search(event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "manual-search-input":
+        if event.input.id == "doc-search-input":
             self.search_step(1)
 
     def _run_search(self, query: str) -> None:
         needle = query.strip().lower()
         hits: list[tuple[Widget, int, int, int]] = []
         if needle:
-            markdown = self.query_one("#manual-md", Markdown)
+            markdown = self.query_one("#doc-md", Markdown)
             for widget in markdown.walk_children(Widget):
                 if not _widget_plain_text(widget):
                     continue
@@ -356,7 +388,7 @@ class ManualScreen(ModalScreen[None]):
             return
         self._hit_widgets = {widget for widget, _r, _c, _l in hits}
         for widget in self._hit_widgets:
-            widget.add_class("manual-hit")
+            widget.add_class("doc-hit")
         self._hit_index = 0
         self._goto_current_hit()
 
@@ -365,13 +397,13 @@ class ManualScreen(ModalScreen[None]):
             return
         widget, row, _col, _length = self._hits[self._hit_index]
         if self._current_widget is not None and self._current_widget is not widget:
-            self._current_widget.remove_class("manual-hit-current")
-        widget.add_class("manual-hit-current")
+            self._current_widget.remove_class("doc-hit-current")
+        widget.add_class("doc-hit-current")
         self._current_widget = widget
         # align the widget's top first, then offset to the exact rendered
         # row, so several matches inside one wrapped paragraph land on
         # distinct lines (widget.scroll_visible alone would not move)
-        scroll = self.query_one("#manual-scroll", VerticalScroll)
+        scroll = self.query_one("#doc-scroll", VerticalScroll)
         # immediate=True applies before the second scroll_to, which refines
         # the position to the exact rendered row (several matches can share
         # one wrapped widget, widget-level scrolling would not move)
@@ -388,10 +420,10 @@ class ManualScreen(ModalScreen[None]):
 
     def _clear_hit_classes(self) -> None:
         for widget in self._hit_widgets:
-            widget.remove_class("manual-hit", "manual-hit-current")
+            widget.remove_class("doc-hit", "doc-hit-current")
         self._hit_widgets.clear()
         self._current_widget = None
 
     def _set_status(self, text: str) -> None:
-        status = self.query_one("#manual-search-status", Static)
+        status = self.query_one("#doc-search-status", Static)
         status.update(f" {text} ")

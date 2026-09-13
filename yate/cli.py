@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  yate --ext mytool.py      load an extension script\n"
             "  yate --theme-dir mythemes load custom color themes from a dir\n"
             "  yate --theme my-mocha     start with a (custom) color theme\n"
+            "  yate --changelog zh       print the changelog (en|zh) and exit\n"
             "  yate --install-font       install the bundled Nerd Font and exit\n"
         ),
     )
@@ -98,6 +99,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="print yate / Python / platform version information and exit",
     )
     parser.add_argument(
+        "--changelog",
+        nargs="?",
+        const="en",
+        choices=["en", "zh"],
+        default=None,
+        metavar="LANG",
+        help="print the changelog (en|zh, default en) and exit",
+    )
+    parser.add_argument(
         "--diag",
         action="store_true",
         help="print a full environment & configuration diagnostics report "
@@ -122,6 +132,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from yate import diagnostics  # pylint: disable=import-outside-toplevel
 
         print(diagnostics.version_lines())
+        return 0
+
+    # --changelog prints the bundled changelog and exits. Like --version it
+    # only reads importlib.resources: no config, no app, no terminal.
+    if args.changelog is not None:
+        # Lazy import keeps --help/--version free of TUI-side imports.
+        from yate.editor_view.manual import (  # pylint: disable=import-outside-toplevel
+            load_changelog_markdown,
+        )
+
+        print(load_changelog_markdown(args.changelog))
         return 0
 
     # Font setup runs without launching the TUI.

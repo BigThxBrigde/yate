@@ -23,7 +23,7 @@ from textual.widgets import Input, Static
 
 from yate import __version__
 from yate.actions import ActionRegistry, populate
-from yate.app_features import explorer, terminal
+from yate.app_features import docs, explorer, terminal
 from yate.app_features.commands import CommandRegistry, register_commands
 from yate.app_features.completion import CompletionController
 from yate.config import YateConfig
@@ -38,7 +38,6 @@ from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.icons import CHEVRON_RIGHT, FOLDER, icon_for_path
 from yate.editor_view.keys import event_to_raw, textual_key_to_raw
-from yate.editor_view.manual import ManualScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.panes import Axis, Leaf, PaneHost, PaneManager
@@ -205,7 +204,7 @@ class YateApp(App[None]):
         self.completion_ctl = CompletionController(self)
 
         self._replace_pending = ""
-        self._prev_manual_theme: Optional[str] = None
+        self._prev_doc_theme: Optional[str] = None
         self._window_pending = False
         self._explorer_target: Optional[Path] = None
         self._explorer_is_dir = False
@@ -1407,22 +1406,11 @@ class YateApp(App[None]):
 
     def show_manual(self, lang: str = "en") -> None:
         """Open the bundled user manual, rendered as read-only markdown."""
-        if not self.mounted or isinstance(self.screen, ManualScreen):
-            return
-        # switch the textual design tokens before pushing so the first
-        # frame of the markdown viewer is already themed (switching on
-        # screen resume leaves an unthemed flash while markdown mounts)
-        self._prev_manual_theme = self.theme
-        self.theme = "catppuccin-mocha"
-        self._push_overlay(
-            ManualScreen(self, lang),
-            callback=lambda _result: self._restore_manual_theme(),
-        )
+        docs.show_manual(self, lang)
 
-    def _restore_manual_theme(self) -> None:
-        if self._prev_manual_theme is not None:
-            self.theme = self._prev_manual_theme
-            self._prev_manual_theme = None
+    def show_changelog(self, lang: str = "en") -> None:
+        """Open the bundled bilingual changelog viewer."""
+        docs.show_changelog(self, lang)
 
     def open_file_palette(self) -> None:
         """Quick file open: fuzzy palette over the workspace files (ctrl+p)."""

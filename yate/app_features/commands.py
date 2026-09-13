@@ -185,6 +185,8 @@ def register_commands(app: "YateApp") -> None:
     reg("help", lambda args: app.show_help(), "show key map help")
     reg("manual", lambda args: app.show_manual(args or "en"),
         "open the user manual (:manual zh|en, default en)")
+    reg("changelog", lambda args: app.show_changelog(args or "en"),
+        "open the changelog (:changelog zh|en, default en)")
     reg("explorer", lambda args: app.toggle_explorer(), "toggle the file explorer")
     reg("term", lambda args: app.open_terminal(), "open/focus the integrated terminal")
     reg("terminal", lambda args: app.open_terminal(),
