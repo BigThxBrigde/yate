@@ -34,6 +34,10 @@ def build_parser() -> argparse.ArgumentParser:
             "  yate --theme my-mocha     start with a (custom) color theme\n"
             "  yate --changelog zh       print the changelog (en|zh) and exit\n"
             "  yate --install-font       install the bundled Nerd Font and exit\n"
+            "  yate --setup-defaults     create ~/.yate with a default yaterc\n"
+            "                            and bundled *.example templates, then exit\n"
+            "  yate --cleanup-defaults   remove ~/.yate config (data/ kept unless\n"
+            "                            --include-data), then exit\n"
         ),
     )
     parser.add_argument("path", nargs="?", help="file or directory to open")
@@ -92,6 +96,32 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="install the bundled Nerd Font for the current user, configure "
              "Windows Terminal if possible, then exit",
+    )
+    setup_group = parser.add_mutually_exclusive_group()
+    setup_group.add_argument(
+        "--setup-defaults",
+        action="store_true",
+        help="create ~/.yate with a default yaterc and the bundled theme/"
+             "extension *.example templates (rename one to *.py to activate), "
+             "then exit",
+    )
+    setup_group.add_argument(
+        "--cleanup-defaults",
+        action="store_true",
+        help="remove ~/.yate configuration (yaterc, themes, extensions; "
+             "data/ kept unless --include-data), asking for confirmation, "
+             "then exit",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="with --setup-defaults: replace an existing yaterc (a .yate-bak "
+             "backup is kept); with --cleanup-defaults: skip confirmation",
+    )
+    parser.add_argument(
+        "--include-data",
+        action="store_true",
+        help="with --cleanup-defaults: also delete the ~/.yate/data crash logs",
     )
     parser.add_argument(
         "--version",
@@ -156,6 +186,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = fonts.ensure_font()
         print(result.detail)
         return 0 if result.has_nerd_font else 1
+
+    # User-directory initialization/cleanup runs without launching the TUI
+    # and without loading any configuration.
+    if args.setup_defaults:
+        from yate.services import user_setup  # pylint: disable=import-outside-toplevel
+
+        report = user_setup.setup_defaults(force=args.force)
+        print(user_setup.format_setup_report(report))
+        return 1 if report.errors else 0
+
+    if args.cleanup_defaults:
+        from yate.services import user_setup  # pylint: disable=import-outside-toplevel
+
+        # The crash handler keeps data/crash-*.err open for the process
+        # lifetime; on Windows that handle blocks removing data/. Release it
+        # before deleting (no diagnostics are needed for an exit-only CLI).
+        if args.include_data:
+            from yate import crash  # pylint: disable=import-outside-toplevel
+
+            crash.uninstall()
+        try:
+            report = user_setup.cleanup_defaults(
+                force=args.force, include_data=args.include_data
+            )
+        except user_setup.ConfirmationRequiredError as exc:
+            print(str(exc))
+            return 2
+        print(user_setup.format_cleanup_report(report))
+        return 1 if report.errors else 0
 
     # Resolve configuration (yaterc) before importing the TUI app.
     from yate.config import default_rc_paths, load_config

@@ -1,9 +1,15 @@
 """Example tree-sitter syntax extension for yate (template, not auto-loaded).
 
 This file ships as ``yate/extensions/yatesh_syntax.py.example``; the
-``.example`` suffix keeps it out of the startup ``*.py`` scan.  Copy it
-without the suffix into an extension directory (``~/.yate/extensions/``)
+``.example`` suffix keeps it out of the startup ``*.py`` scan. Easiest
+install: run ``yate --setup-defaults``, which places it at
+``~/.yate/extensions/yatesh_syntax.py.example``, then rename that copy to
+``yatesh_syntax.py`` inside an extension directory (``~/.yate/extensions/``)
 and adjust it to your language.
+
+Note: the ``*.example`` copy installed by ``yate --setup-defaults`` is a
+yate-managed file -- re-running setup (e.g. on upgrade) overwrites it, so
+make your changes in the renamed ``*.py`` file, not in the ``.example``.
 
 It demonstrates ``api.syntax.register_tree_sitter``: precise, syntax-tree
 based highlighting for a custom language backed by a compiled

@@ -3,8 +3,10 @@
 # Registers: ayu-dark, ayu-mirage, ayu-light.
 #
 # This file is NOT loaded automatically (the directory scan only loads
-# *.py). To install the themes, copy it with a .py extension into a scanned
-# theme directory:
+# *.py). Easiest install: run `yate --setup-defaults`, which places this
+# template at ~/.yate/themes/ayu_theme.example, then rename that copy to
+# ayu.py. Or copy it with a .py extension into a scanned theme directory by
+# hand:
 #
 #   Linux / macOS:
 #     mkdir -p ~/.yate/themes
@@ -16,6 +18,10 @@
 #
 # Then restart yate and run e.g. `:theme ayu-mirage` (or set theme =
 # "ayu-mirage" in yaterc). Delete the .py file to uninstall all three.
+#
+# Note: the *.example copy installed by `yate --setup-defaults` is a
+# yate-managed file -- re-running setup (e.g. on upgrade) overwrites it, so
+# do your customizing in the renamed *.py file, not in the .example.
 #
 # The file is ordinary Python executed in a namespace that only provides
 # Theme and register_theme -- do not import anything from yate.

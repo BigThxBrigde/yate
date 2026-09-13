@@ -127,6 +127,22 @@ def _cleanup_on_exit() -> None:
             pass
 
 
+def uninstall() -> None:
+    """Release the open crash report and disable :mod:`faulthandler`.
+
+    One-shot CLI commands that remove the data directory (``yate
+    --cleanup-defaults --include-data``) call this first: on Windows the
+    eagerly-opened report handle would otherwise make removing ``data/``
+    fail. A healthy header-only report is deleted, as on a normal exit.
+    Idempotent and best-effort, like :func:`install`.
+    """
+    try:
+        faulthandler.disable()
+    except (OSError, ValueError):
+        pass
+    _cleanup_on_exit()
+
+
 def install() -> None:
     """Enable on-disk crash diagnostics. Idempotent and best-effort."""
     global _err_file, _err_path

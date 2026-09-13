@@ -1,6 +1,10 @@
 # yaterc — yate configuration file (Python syntax, like vimrc/init.vim).
 #
-# Copy this file to one of:
+# Easiest install: run `yate --setup-defaults`, which creates ~/.yate/ and
+# copies this file there as ~/.yate/yaterc (an existing yaterc is kept;
+# --force replaces it and saves the old one as yaterc.yate-bak).
+#
+# Or copy this file by hand to one of:
 #   ~/.yate/yaterc     user configuration (loaded first)
 #   ./yaterc           project configuration (loaded second, wins on conflict)
 # or pass an explicit path with:  yate -u /path/to/yaterc
