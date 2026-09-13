@@ -9,7 +9,8 @@ Covers:
 * the ``*.example`` templates under ``yate/resources/theme_examples``:
   they exec under exactly the namespace the real loader injects, register the
   advertised themes, are ignored in place (glob ``*.py``), and work end to
-  end once copied to ``*.py`` inside a scanned directory.
+  end once copied to ``*.py`` inside a scanned directory;
+* the version bump (single-source dynamic version).
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from dataclasses import fields
 from importlib.resources import files
 from pathlib import Path
 
+import yate
 from yate.editor_syntax.tokens import SYNTAX_KINDS
 from yate.editor_view import theme
 from yate.editor_view.theme import (
@@ -240,6 +242,19 @@ class ThemeTemplateFileTests(unittest.TestCase):
         self.assertIn("dracula", THEMES)
         self.assertEqual(THEMES["dracula"].label, "Dracula")
         self.assertTrue(THEMES["dracula"].dark)
+
+
+class VersionTests(unittest.TestCase):
+    def test_version_is_bumped(self) -> None:
+        self.assertEqual(yate.__version__, "0.1.1")
+
+    def test_pyproject_keeps_the_single_dynamic_version_source(self) -> None:
+        pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+        text = pyproject.read_text(encoding="utf-8")
+        self.assertIn('dynamic = ["version"]', text)
+        self.assertIn('path = "yate/__init__.py"', text)
+        # No static version = line: the package __version__ is the only source.
+        self.assertNotRegex(text, r"(?m)^version\s*=")
 
 
 if __name__ == "__main__":
