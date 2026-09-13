@@ -279,6 +279,39 @@ python -m unittest discover -s tests
 python -m pyright
 ```
 
+### Release & bilingual changelog workflow
+
+The root `CHANGELOG.md` / `CHANGELOG.zh.md` are generated from git history by
+the `tools/changelog` module — **do not edit them by hand**; human input only
+goes into the override table `tools/changelog/zh_overrides.json`. The same
+content also ships inside the package as `yate/resources/changelog.en.md` /
+`changelog.zh.md` (the pack scripts refresh them with
+`generate --bundle-only` before building). The single version source is
+`__version__` in `yate/__init__.py`, which `pyproject.toml` reads dynamically
+via hatchling.
+
+Release workflow:
+
+1. Edit `yate/__init__.py`: `__version__ = "0.2.0"` (single version source)
+2. `git commit -m "chore(release): v0.2.0"`
+3. `python -m tools.changelog zh-commit <hash> "中文摘要"` (add Chinese
+   summaries for key entries as needed)
+4. `python -m tools.changelog generate --online` (segment, classify, render
+   all four outputs: the two root files plus the two bundled copies)
+5. `git add CHANGELOG.md CHANGELOG.zh.md yate/resources/changelog.en.md
+   yate/resources/changelog.zh.md tools/changelog/zh_overrides.json`
+   then `git commit -m "docs: changelog for v0.2.0"`
+6. `git tag -a v0.2.0 -m "v0.2.0"`; `git push --follow-tags`
+
+Conventions: version segments are bounded by `vX.Y.Z` tags, falling back to
+added `__version__` lines in `yate/__init__.py`; `chore(release)` commits act
+as boundaries only and are not rendered as entries; breaking changes (`!:`
+or `BREAKING CHANGE:`) are grouped at the top; entries without a Chinese
+translation fall back to English with a `[缺中文]` marker and can be filled in
+gradually via `zh-commit`; `python -m tools.changelog check` gates the
+released sections in CI (the `[Unreleased]` section may lag and is refreshed
+wholesale by `generate` at release time).
+
 ## License
 
 MIT

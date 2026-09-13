@@ -284,6 +284,36 @@ python -m unittest discover -s tests
 python -m pyright
 ```
 
+### 发布与双语 Changelog 维护
+
+仓库根目录的 `CHANGELOG.md`（英文）与 `CHANGELOG.zh.md`（中文）由
+`tools/changelog` 模块依据 git 历史自动生成，**请勿手工编辑**；人工信息只写进
+覆盖表 `tools/changelog/zh_overrides.json`。同样的内容还以
+`yate/resources/changelog.en.md` / `changelog.zh.md` 随包发布（打包脚本在构建前
+自动 `generate --bundle-only` 刷新），供运行时查看。版本号单一来源是
+`yate/__init__.py` 的 `__version__`，`pyproject.toml` 经 hatchling 动态读取。
+若构建中缺失 changelog 资源，各入口只显示“未包含变更日志”的占位提示，
+不会报错。
+
+发布操作流：
+
+1. 修改 `yate/__init__.py`：`__version__ = "0.2.0"`（版本单一来源）
+2. `git commit -m "chore(release): v0.2.0"`
+3. `python -m tools.changelog zh-commit <hash> "中文摘要"`（按需补充关键条目翻译）
+4. `python -m tools.changelog generate --online`（切段、分类、渲染四处产物：
+   根目录两份 + 随包资源两份）
+5. `git add CHANGELOG.md CHANGELOG.zh.md yate/resources/changelog.en.md
+   yate/resources/changelog.zh.md tools/changelog/zh_overrides.json`
+   然后 `git commit -m "docs: changelog for v0.2.0"`
+6. `git tag -a v0.2.0 -m "v0.2.0"`；`git push --follow-tags`
+
+口径说明：版本段以 `vX.Y.Z` tag 为边界，无 tag 时回退解析
+`yate/__init__.py` 中新增的 `__version__` 行；`chore(release)` 提交只作边界、
+不生成条目；破坏性变更（`!:` 或 `BREAKING CHANGE:`）置顶单独分组；缺中文
+翻译的条目回退英文并标注 `[缺中文]`，可随时用 `zh-commit` 渐进补齐；
+`python -m tools.changelog check` 会在 CI 中校验已发布段未过期
+（`[Unreleased]` 段允许滞后，发布时由 `generate` 统一刷新）。
+
 ## 许可
 
 MIT
