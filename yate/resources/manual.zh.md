@@ -1246,6 +1246,42 @@ vim 键位：
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 
+## 19. 构建与发布
+
+独立可执行程序由 `pack/` 下的脚本用 PyInstaller 构建（Windows 用
+`pack.ps1`/`pack.bat`，Linux 用 `pack.sh`，不支持交叉编译）。
+
+**必须在 `.venv` 中打包**：脚本只使用 `.venv` 里的解释器，找不到 `.venv` 会
+直接报错退出，不再回退到系统 Python——避免 `pip install -e` 把 `yate` 入口
+脚本写进全局 `Scripts/` 污染环境。首次构建前执行：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[build,ts]"
+```
+
+**归集产物到版本目录**：构建成功后加 `--dist <目录>`，会把产物按
+`yate-<版本>-<系统>-<架构>/` 归集到指定目录，便于直接取包分发或上传 Gitee
+Release。仅做本地复制，不执行任何网络操作：
+
+```powershell
+.\pack\pack.ps1 -OneFile -Dist release
+# -> release\yate-0.2.0-windows-x64\yate.exe
+# -> release\yate-0.2.0-windows-x64\SHA256SUMS.txt
+```
+
+```bash
+./pack/pack.sh --onefile --dist release
+# -> release/yate-0.2.0-linux-x64/yate
+# -> release/yate-0.2.0-linux-x64/SHA256SUMS.txt
+```
+
+归集时会先删除同名版本子目录（其他版本子目录保留）、写入
+`SHA256SUMS.txt`（对 `yate.exe`/`yate`），并执行一次 `--version` 冒烟验证；
+验证失败或复制失败时退出码 1，`dist/` 内的原始产物保留不动。不传
+`--dist` 时行为与之前一致，只构建到 `dist/`。
+
 ---
 
 *yate 0.1.0 — MIT License — built with Textual*

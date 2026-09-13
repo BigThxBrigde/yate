@@ -1379,6 +1379,46 @@ Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
+## 19. Build & Release
+
+Standalone executables are built with PyInstaller via the scripts in `pack/`
+(`pack.ps1`/`pack.bat` on Windows, `pack.sh` on Linux; cross-compilation is
+not supported).
+
+**You must build inside `.venv`**: the scripts only use the interpreter in
+`.venv` and exit with an error if it is absent, never falling back to the
+system Python -- so `pip install -e` cannot write the `yate` entry script into
+the global `Scripts/` (or `bin/`) directory. Before the first build:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[build,ts]"
+```
+
+**Collect artifacts into a versioned directory**: after a successful build,
+add `--dist <dir>` to copy the artifact into `<dir>/yate-<version>-<os>-<arch>/`
+for direct pick-up or Gitee Release upload. This is a local copy only, no
+network operation is performed:
+
+```powershell
+.\pack\pack.ps1 -OneFile -Dist release
+# -> release\yate-0.2.0-windows-x64\yate.exe
+# -> release\yate-0.2.0-windows-x64\SHA256SUMS.txt
+```
+
+```bash
+./pack/pack.sh --onefile --dist release
+# -> release/yate-0.2.0-linux-x64/yate
+# -> release/yate-0.2.0-linux-x64/SHA256SUMS.txt
+```
+
+The identically-named version subdirectory is removed first (other version
+directories are kept), a `SHA256SUMS.txt` (for `yate.exe`/`yate`) is written,
+and a `--version` smoke test runs. On a copy or smoke failure the script exits
+with code 1 and the original build in `dist/` is left untouched. Without
+`--dist` the behavior is unchanged -- only `dist/` is produced.
+
 ---
 
 *yate 0.1.0 — MIT License — built with Textual*

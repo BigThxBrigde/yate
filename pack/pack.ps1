@@ -23,6 +23,8 @@
     .\pack\pack.ps1
     .\pack\pack.ps1 -OneFile
     .\pack\pack.ps1 -SkipChangelog
+    .\pack\pack.ps1 --dist release
+    .\pack\pack.ps1 -OneFile -Dist D:\releases\yate
     .\pack\pack.bat --onefile --skip-changelog
 #>
 
@@ -32,6 +34,9 @@ param(
     [switch]$OneFile,
 
     [switch]$SkipChangelog,
+
+    [Alias("d")]
+    [string]$Dist = "",
 
     [Alias("h", "?")]
     [switch]$Help
@@ -50,20 +55,29 @@ $root = Split-Path -Parent $PSScriptRoot
 try {
     Push-Location $root
 
-    # Prefer the project virtual environment; fall back to a system python.
+    # Interpreter MUST come from the project virtual environment. Falling
+    # back to a system python would let `pip install -e '.[build,ts]'` write
+    # the yate entry script into the global Scripts/ directory, polluting
+    # the user's global Python install.
     $pythonExe = Join-Path $root ".venv\Scripts\python.exe"
-    if (-not (Test-Path $pythonExe)) {
-        $pythonExe = "python"
-    }
 
     function Stop-WithMessage($text) {
         Write-Host $text -ForegroundColor Red
         exit 1
     }
 
+    if (-not (Test-Path $pythonExe)) {
+        Stop-WithMessage (
+            ".venv not found at '$pythonExe'. " +
+            "Run 'python -m venv .venv' then '.\.venv\Scripts\Activate.ps1; pip install -e `"[build,ts]`"' first. " +
+            "Falling back to system python is disabled to avoid installing the yate " +
+            "entry script into the global Scripts/ directory."
+        )
+    }
+
     & $pythonExe --version 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Stop-WithMessage "Python interpreter not found ('$pythonExe'). Create .venv or put python on PATH."
+        Stop-WithMessage "Python interpreter not found ('$pythonExe'). Activate your .venv and try again."
     }
 
     # Make sure the build extra (PyInstaller) is available. The [ts] extra
@@ -134,6 +148,55 @@ try {
         Write-Host " together with the whole dist\yate folder " -NoNewline
     }
     Write-Host " to a Windows machine (no Python install required)."
+
+    # --dist <dir>: collect the freshly built artifact into a versioned
+    # subdirectory for direct pick-up (local copy only, no upload).
+    if ($Dist -ne "") {
+        $distRoot = [System.IO.Path]::GetFullPath((Join-Path $root $Dist))
+
+        $version = (& $pythonExe -c "from yate import __version__; print(__version__)").Trim()
+        if (-not $version) {
+            Stop-WithMessage "Failed to read yate __version__; cannot name the dist directory."
+        }
+
+        $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
+        $name = "yate-$version-windows-$arch"
+        $stage = Join-Path $distRoot $name
+
+        try {
+            New-Item -ItemType Directory -Force $distRoot | Out-Null
+        } catch {
+            Stop-WithMessage "Cannot create dist root '$distRoot': $_"
+        }
+        if (Test-Path $stage) {
+            Remove-Item -Recurse -Force $stage
+        }
+
+        try {
+            New-Item -ItemType Directory -Force $stage | Out-Null
+            if ($OneFile) {
+                Copy-Item $artifact (Join-Path $stage 'yate.exe')
+            } else {
+                Copy-Item -Recurse (Join-Path $root 'dist\yate\*') $stage
+            }
+        } catch {
+            Stop-WithMessage "Failed to copy build artifact into '$stage': $_"
+        }
+
+        $exe = Join-Path $stage 'yate.exe'
+        $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+        "$hash  yate.exe" | Set-Content -Encoding ascii (Join-Path $stage 'SHA256SUMS.txt')
+
+        $smoke = & $exe --version 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($smoke -join ' ') -notlike "*$version*") {
+            Stop-WithMessage "Smoke test failed ('$exe --version' did not report $version). Stage kept at: $stage"
+        }
+
+        $stageSizeMb = [math]::Round((Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 1)
+        Write-Host ""
+        Write-Host "Collected -> $stage  (${stageSizeMb} MB)" -ForegroundColor Green
+        Write-Host "  SHA256 yate.exe: $hash"
+    }
 }
 finally {
     Pop-Location
