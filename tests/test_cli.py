@@ -88,9 +88,12 @@ class CliThemeStartupTests(unittest.TestCase):
             if home is not None:
                 os.environ["USERPROFILE"] = str(home)
                 os.environ["HOME"] = str(home)
-            with patch("yate.app.YateApp", _FakeApp):
+            with patch("yate.app.YateApp", _FakeApp), \
+                    patch("yate.crash.install") as install_crash:
                 rc = main(argv)
             self.assertEqual(rc, 0)
+            # diagnostics are armed before anything else in main()
+            install_crash.assert_called_once_with()
         finally:
             for key, value in saved.items():
                 if value is None:

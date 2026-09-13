@@ -97,6 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    # Best-effort native-crash / uncaught-exception log (~/.yate/data/).
+    # First line so even startup failures are covered.
+    from yate import crash  # pylint: disable=import-outside-toplevel
+
+    crash.install()
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
