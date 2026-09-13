@@ -28,6 +28,7 @@ from yate.editor_syntax.ts_backend.languages import (
     LoadedLanguage,
     resolve,
     tree_sitter,
+    tree_sitter_blocked,
 )
 from yate.editor_syntax.tokens import Token
 
@@ -36,6 +37,10 @@ __all__ = ["available_for", "tokenize_document"]
 
 def available_for(filetype: str) -> bool:
     """Whether *filetype* can be highlighted with tree-sitter right now."""
+    if tree_sitter_blocked():
+        # Known heap-corrupting tree-sitter build: force the regex backend
+        # even for grammars registered through the extension API.
+        return False
     return resolve(filetype) is not None
 
 

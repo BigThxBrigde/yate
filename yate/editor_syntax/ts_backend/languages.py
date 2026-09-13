@@ -21,11 +21,52 @@ from __future__ import annotations
 import ctypes
 import importlib
 import re
+import sys
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Optional
 
 from yate.editor_syntax.regex_backend import LangSpec, lang_for, register_language
+
+
+def _blocked_ts_version() -> Optional[str]:
+    """A known-broken installed tree-sitter version, or ``None``.
+
+    py-tree-sitter 0.26.0 ships a Windows wheel that corrupts the heap while
+    walking parse-tree nodes: accessing ``Node.start_point`` /
+    ``Node.children`` raises a deterministic 0xC0000005 in python313.dll
+    (reproducible on a single-threaded parse+walk), which kills the whole
+    editor process. The dependency pin in pyproject keeps fresh installs on
+    0.25.x, but environments created under the old pin can still carry 0.26;
+    detect that here and degrade to the regex backend instead of crashing.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        raw = version("tree-sitter")
+    except PackageNotFoundError:
+        return None
+    parts = raw.split(".")
+    try:
+        major, minor = int(parts[0]), int(parts[1])
+    except (ValueError, IndexError):
+        return None
+    if (major, minor) == (0, 26):
+        return raw
+    return None
+
+
+#: ``None`` when the installed tree-sitter is fine; otherwise the blocked
+#: version string, under which every grammar degrades to the regex backend.
+#: Computed once at import.
+_BLOCKED_TS = _blocked_ts_version()
+
+
+def tree_sitter_blocked() -> bool:
+    """Whether the installed tree-sitter is a known heap-corrupting build."""
+    return _BLOCKED_TS is not None
+
 
 # canonical language name -> importable grammar pack (optional dependency).
 # Names follow the regex registry's canonical LangSpec.name (``shell``, not
@@ -232,6 +273,11 @@ def resolve(filetype: str) -> Optional[LoadedLanguage]:
     if loaded is not None:
         return loaded
     if name in _FAILED:
+        return None
+    if _BLOCKED_TS is not None:
+        # Installed tree-sitter is a known heap-corrupting release; never
+        # load any grammar so the regex backend stays in charge.
+        _FAILED.add(name)
         return None
     loaded = _load_builtin(name)
     if loaded is None:

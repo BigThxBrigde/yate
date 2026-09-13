@@ -21,7 +21,12 @@ dev = ["pyright>=1.1.400"]
 # languages with an installed grammar pack. Without it yate falls back to the
 # built-in regex highlighter.
 ts = [
-    "tree-sitter>=0.24,<0.27",
+    # Upper bound is deliberate: py-tree-sitter 0.26.0's Windows wheel
+    # corrupts the heap while walking parse-tree nodes (deterministic
+    # 0xC0000005 in python313.dll during node.start_point/.children access,
+    # reproducible on a single-threaded parse+walk). 0.25.x is stable; relax
+    # this only after a fixed upstream release is verified.
+    "tree-sitter>=0.24,<0.26",
     "tree-sitter-python>=0.23",
     "tree-sitter-bash>=0.23",
 ]

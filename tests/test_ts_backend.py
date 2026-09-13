@@ -120,6 +120,49 @@ class EngineRoutingTests(unittest.TestCase):
             )
 
 
+class BlockedVersionTests(unittest.TestCase):
+    """Known heap-corrupting tree-sitter builds force the regex fallback."""
+
+    def test_version_classifier(self) -> None:
+        cases = [
+            ("win32", "0.26.0", "0.26.0"),
+            ("win32", "0.26.99", "0.26.99"),
+            ("win32", "0.25.2", None),
+            ("win32", "0.27.0", None),
+            ("linux", "0.26.0", None),
+        ]
+        for platform_name, raw, expected in cases:
+            with (
+                mock.patch.object(ts_langs.sys, "platform", platform_name),
+                mock.patch.object(ts_langs, "version", return_value=raw),
+            ):
+                self.assertEqual(
+                    ts_langs._blocked_ts_version(), expected,
+                    msg=f"{platform_name} / {raw}",
+                )
+
+    def test_blocked_build_disables_ts_and_routes_to_regex(self) -> None:
+        lines = ["# note", "def foo(): pass"]
+        # Isolate the registry caches: another test module may already have
+        # loaded the python grammar into _LANGS in this process, which would
+        # make resolve() return early before reaching the block check.
+        failed: set[str] = set()
+        empty_langs: dict[str, ts_langs.LoadedLanguage] = {}
+        with (
+            mock.patch.object(ts_langs, "_BLOCKED_TS", "0.26.0"),
+            mock.patch.object(ts_langs, "_LANGS", empty_langs),
+            mock.patch.object(ts_langs, "_FAILED", failed),
+        ):
+            self.assertTrue(ts_runtime.tree_sitter_blocked())
+            self.assertFalse(ts_runtime.available_for("py"))
+            self.assertIsNone(ts_langs.resolve("py"))
+            self.assertIn("python", failed)
+            self.assertEqual(
+                engine.tokenize_document(lines, "py"),
+                regex_backend.tokenize_document(lines, "py"),
+            )
+
+
 @unittest.skipUnless(has_python, "tree_sitter_python is not installed")
 class SyntaxBridgeTests(unittest.TestCase):
     """``api.syntax.register_tree_sitter`` end to end (bridge class)."""
