@@ -137,6 +137,23 @@ class EditorView(ScrollView):
     def on_mount(self) -> None:
         """Apply the active theme background once mounted."""
         self.styles.background = theme.active().bg
+        self.apply_scrollbar_theme()
+
+    def apply_scrollbar_theme(self) -> None:
+        """Paint the vertical scrollbar with active-theme colors.
+
+        Textual draws the scrollbar itself; without explicit styling it keeps
+        the framework defaults which clash with the Catppuccin palette. The
+        colors are picked so the track nearly disappears and the thumb stays
+        legible but unobtrusive.
+        """
+        t = theme.active()
+        s = self.styles
+        s.scrollbar_background = t.border
+        s.scrollbar_background_hover = t.surface
+        s.scrollbar_color = t.fg_dim
+        s.scrollbar_color_hover = t.fg_muted
+        s.scrollbar_color_active = t.accent
 
     def _update_virtual_size(self) -> None:
         buf = self.buffer

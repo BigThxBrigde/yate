@@ -17,7 +17,7 @@ from typing import Any, Callable, Optional
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.events import Key
+from textual.events import Key, MouseDown
 from textual.screen import Screen
 from textual.widgets import Input, Static
 
@@ -62,6 +62,39 @@ __all__ = ["textual_key_to_raw", "CommandRegistry", "YateApp"]
 # --------------------------------------------------------------- commands
 # CommandRegistry lives in yate.app_features.commands and is re-exported here
 # (it is part of this module's public surface for extensions and tests).
+
+
+class TabBar(Static):
+    """Flat VS Code-style tab line that supports click-to-switch.
+
+    The bar is rendered as a single Rich Text line (kept for the VS Code look),
+    but each rendered tab also records its cell span so a mouse click can be
+    mapped back to a document index.
+    """
+
+    def __init__(self, yate: YateApp, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.yate = yate
+        # [(start_cell, end_cell_exclusive, doc_index), ...] for the last
+        # rendered line; used by on_mouse_down for hit testing.
+        self._regions: list[tuple[int, int, int]] = []
+
+    def render_content(self, width: int) -> None:
+        """Rebuild the tab text and its hit-test regions."""
+        text, regions = self.yate.build_tabbar(width)
+        self._regions = regions
+        self.update(text)
+
+    def on_mouse_down(self, event: MouseDown) -> None:
+        """Switch to the tab under the cursor, if any."""
+        x = event.x
+        for start, end, doc_idx in self._regions:
+            if start <= x < end:
+                if doc_idx != self.yate.doc_index:
+                    self.yate.activate_doc(self.yate.docs[doc_idx])
+                    self.yate.ui_refresh()
+                event.stop()
+                return
 
 
 class YateApp(App[None]):
@@ -184,7 +217,7 @@ class YateApp(App[None]):
         # widgets (set in on_mount)
         self.sidebar: Optional[Vertical] = None
         self.sidebar_head: Optional[Static] = None
-        self.tabbar: Optional[Static] = None
+        self.tabbar: Optional[TabBar] = None
         self.breadcrumbs: Optional[Static] = None
         self.explorer_tree: Optional[ExplorerTree] = None
         # The active editor view is derived from the pane tree
@@ -280,7 +313,7 @@ class YateApp(App[None]):
             self._open_document_path(path)
         return kind
 
-    def _activate_doc(
+    def activate_doc(
         self, doc: Document, target_leaf: Optional[Leaf] = None
     ) -> None:
         """Show *doc* in a pane leaf (default: the active one) and keep
@@ -303,7 +336,7 @@ class YateApp(App[None]):
         resolved = path.resolve()
         for doc in self.docs:
             if doc.path is not None and doc.path.resolve() == resolved:
-                self._activate_doc(doc, target_leaf)
+                self.activate_doc(doc, target_leaf)
                 return doc
         if path.exists() and not Workspace.is_text_file(path):
             self._ext_messages.append(f"not a text file: {path.name}")
@@ -314,7 +347,7 @@ class YateApp(App[None]):
             doc = Document(path, self._make_buffer())
         self._apply_buffer_options(doc.buffer)
         self.docs.append(doc)
-        self._activate_doc(doc, target_leaf)
+        self.activate_doc(doc, target_leaf)
         return doc
 
     async def _open_document_path_async(
@@ -324,7 +357,7 @@ class YateApp(App[None]):
         resolved = path.resolve()
         for doc in self.docs:
             if doc.path is not None and doc.path.resolve() == resolved:
-                self._activate_doc(doc, target_leaf)
+                self.activate_doc(doc, target_leaf)
                 return doc
 
         def _inspect() -> tuple[bool, bool]:
@@ -340,7 +373,7 @@ class YateApp(App[None]):
             doc = Document(path, self._make_buffer())
         self._apply_buffer_options(doc.buffer)
         self.docs.append(doc)
-        self._activate_doc(doc, target_leaf)
+        self.activate_doc(doc, target_leaf)
         return doc
 
     def open_path(self, path: Path) -> None:
@@ -398,7 +431,7 @@ class YateApp(App[None]):
     def new_buffer(self, show: bool = True) -> None:
         doc = Document(None, self._make_buffer())
         self.docs.append(doc)
-        self._activate_doc(doc)
+        self.activate_doc(doc)
         self.search = SearchEngine()
         self.close_completion()
         if show:
@@ -454,7 +487,7 @@ class YateApp(App[None]):
             self.message("only one tab open", kind="warn")
             return
         index = (self.doc_index + delta) % len(self.docs)
-        self._activate_doc(self.docs[index])
+        self.activate_doc(self.docs[index])
         self.search = SearchEngine()
         self.close_completion()
         self.ui_refresh()
@@ -542,8 +575,14 @@ class YateApp(App[None]):
         if self.panes is not None:
             for view in self.panes.all_views():
                 view.styles.background = t.bg
+                view.apply_scrollbar_theme()
                 view.content_changed()
         if self.explorer_tree is not None:
+            self.explorer_tree.styles.scrollbar_background = t.border
+            self.explorer_tree.styles.scrollbar_background_hover = t.surface
+            self.explorer_tree.styles.scrollbar_color = t.fg_dim
+            self.explorer_tree.styles.scrollbar_color_hover = t.fg_muted
+            self.explorer_tree.styles.scrollbar_color_active = t.accent
             self.explorer_tree.refresh_tree()
         if self.status_bar is not None:
             self.status_bar.refresh_status()
@@ -1520,14 +1559,19 @@ class YateApp(App[None]):
 
     # =============================================================== tab bar
 
-    def render_tabbar(self, width: int) -> Text:
-        """Build the flat VS Code-style tab line.
+    def build_tabbar(self, width: int) -> tuple[Text, list[tuple[int, int, int]]]:
+        """Build the flat VS Code-style tab line and its hit-test regions.
 
         Inactive tabs sit on the panel background; the active tab uses the
         editor background so it visually merges with the editor below.
+
+        Returns the rendered text and a list of ``(start, end, doc_index)``
+        cell spans (end exclusive) so callers (e.g. :class:`TabBar`) can map
+        mouse clicks back to documents.
         """
         t = theme.active()
         text = Text()
+        regions: list[tuple[int, int, int]] = []
         used = 0
         for i, doc in enumerate(self.docs):
             name = theme.truncate_to_cells(doc.name, 24)
@@ -1545,16 +1589,17 @@ class YateApp(App[None]):
             if doc.modified:
                 text.append(" ●", style=f"bold {t.orange} on {bg}")
             text.append(" ", style=f"on {bg}")
+            regions.append((used, used + seg_cells, i))
             used += seg_cells
         if used < width:
             text.append(" " * (width - used), style=f"on {t.panel}")
-        return text
+        return text, regions
 
     def update_tabbar(self) -> None:
         """Refresh the tab bar contents and its themed background."""
         if self.tabbar is not None:
             self.tabbar.styles.background = theme.active().panel
-            self.tabbar.update(self.render_tabbar(self.tabbar.size.width or 80))
+            self.tabbar.render_content(self.tabbar.size.width or 80)
 
     # =========================================================== breadcrumbs
 
@@ -1644,7 +1689,7 @@ class YateApp(App[None]):
                 yield Static(id="sidebar-head")
                 yield ExplorerTree(self, id="explorer")
             with Vertical(id="editor-col"):
-                yield Static(id="tabbar")
+                yield TabBar(self, id="tabbar")
                 yield Static(id="breadcrumbs")
                 yield PaneHost(self.panes) if self.panes is not None else Static()
         # Both live in one docked container so the terminal always sits
@@ -1659,7 +1704,7 @@ class YateApp(App[None]):
         """Wire up widgets, load extensions and apply the initial theme."""
         self.sidebar = self.query_one("#sidebar", Vertical)
         self.sidebar_head = self.query_one("#sidebar-head", Static)
-        self.tabbar = self.query_one("#tabbar", Static)
+        self.tabbar = self.query_one("#tabbar", TabBar)
         self.breadcrumbs = self.query_one("#breadcrumbs", Static)
         self.explorer_tree = self.query_one("#explorer", ExplorerTree)
         self.status_bar = self.query_one("#statusbar", StatusBar)

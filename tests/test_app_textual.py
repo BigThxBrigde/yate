@@ -132,7 +132,7 @@ class TextualAppSmokeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(app.screen_stack), 1)
 
                 # --- tab bar shows the file name
-                self.assertIn("notes.txt", app.render_tabbar(100).plain)
+                self.assertIn("notes.txt", app.build_tabbar(100)[0].plain)
 
                 # --- breadcrumbs: folder chevron crumbs + file name; the
                 # file name stays visible even on a very narrow bar
@@ -1788,6 +1788,37 @@ class CommandFeedbackTests(unittest.IsolatedAsyncioTestCase):
             app.run_command("bn")
             await pilot.pause()
             self.assertIn("only one tab", self._message_text(app))
+
+    async def test_click_tab_switches_document(self):
+        with TemporaryDirectory() as tmp:
+            a = Path(tmp) / "alpha.txt"
+            b = Path(tmp) / "beta.txt"
+            a.write_text("alpha\n", encoding="utf-8")
+            b.write_text("beta\n", encoding="utf-8")
+            app = YateApp(str(a))
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                app.open_path(b)
+                await pilot.pause()
+                self.assertEqual(len(app.docs), 2)
+                self.assertEqual(app.doc_index, 1)  # b is active after open
+
+                # Build the tab line and find the cell span of the first tab.
+                _, regions = app.build_tabbar(100)
+                self.assertGreaterEqual(len(regions), 2)
+                start, end, doc_idx = regions[0]
+                self.assertEqual(doc_idx, 0)
+                click_x = start + (end - start) // 2
+                await pilot.click("#tabbar", offset=(click_x, 0))
+                await pilot.pause()
+                self.assertEqual(app.doc_index, 0)
+                self.assertEqual(app.doc.name, "alpha.txt")
+
+                # Clicking the already-active tab is a no-op.
+                self.assertEqual(app.doc_index, 0)
+                await pilot.click("#tabbar", offset=(click_x, 0))
+                await pilot.pause()
+                self.assertEqual(app.doc_index, 0)
 
     async def test_set_terminal_height_reports_and_validates(self):
         app = YateApp()
