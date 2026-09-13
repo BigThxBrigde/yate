@@ -8,6 +8,7 @@ differs.  Output is deterministic — same input, same bytes — so ``generate
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 
 from . import gitee
@@ -76,8 +77,107 @@ _HEADERS: dict[str, str] = {
     ),
 }
 
+# The bundled copies (yate/resources/changelog.*.md) address end users, so
+# the header carries neither the "do not edit" wording nor a sibling link.
+_BUNDLE_HEADERS: dict[str, str] = {"en": "# Changelog", "zh": "# 变更日志"}
+
 _MISSING_ZH_MARK = "[缺中文]"
 _UNPUSHED_MARKS: dict[str, str] = {"en": "(unpushed)", "zh": "(本地未推送)"}
+
+_UNRELEASED_HEADINGS: tuple[str, ...] = ("## [Unreleased]", "## [未发布]")
+
+
+def strip_unreleased(doc: str) -> str:
+    """Drop the Unreleased section from a rendered document.
+
+    Freshness gating (``generate --check`` / ``check``) ignores Unreleased:
+    commits that merely maintain the changelog itself always lag one commit
+    behind the files on disk, and the section is refreshed wholesale at each
+    release by ``generate``.
+    """
+    kept: list[str] = []
+    skipping = False
+    for line in doc.split("\n"):
+        # the heading may carry a " · [compare](...)" suffix
+        if line.startswith(_UNRELEASED_HEADINGS):
+            skipping = True
+            continue
+        if skipping and line.startswith("## "):
+            skipping = False
+        if not skipping:
+            kept.append(line)
+    return "\n".join(kept)
+
+
+def split_sections(doc: str) -> dict[str, str]:
+    """Slice a rendered document at ``^## `` headings into version sections.
+
+    Returns ``{heading line: section text}`` where each section spans from
+    its heading to just before the next heading.  The file header (before
+    the first ``## ``) is not part of any section and is dropped.  CRLF line
+    endings are normalized first so headings match across platforms.
+    """
+    doc = doc.replace("\r\n", "\n")
+    sections: dict[str, str] = {}
+    heading: str | None = None
+    body: list[str] = []
+    for line in doc.split("\n"):
+        if line.startswith("## "):
+            if heading is not None:
+                sections[heading] = "\n".join(body)
+            heading = line
+            body = []
+        elif heading is not None:
+            body.append(line)
+    if heading is not None:
+        sections[heading] = "\n".join(body)
+    return sections
+
+
+def _normalize_section(text: str) -> str:
+    """CRLF → LF and trailing-whitespace normalization for section compare."""
+    return "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").split("\n"))
+
+
+def _is_unreleased(heading: str) -> bool:
+    return heading.startswith(_UNRELEASED_HEADINGS)
+
+
+def released_sections_diff(on_disk: str, fresh: str) -> list[str]:
+    """Headings of fresh *released* sections that differ from the disk file.
+
+    One-way gate (fresh → disk): every released section of the freshly
+    rendered document must appear verbatim on disk.  Extra sections on disk
+    (e.g. a shallow clone rendering less history) are tolerated, and the
+    Unreleased section is never compared.  An empty list means "green".
+    """
+    disk = {
+        heading: _normalize_section(body)
+        for heading, body in split_sections(on_disk).items()
+        if not _is_unreleased(heading)
+    }
+    return [
+        heading
+        for heading, body in split_sections(fresh).items()
+        if not _is_unreleased(heading)
+        and disk.get(heading) != _normalize_section(body)
+    ]
+
+
+def unreleased_lag(on_disk: str, fresh: str) -> int:
+    """How many fresh Unreleased commits the disk file does not list yet.
+
+    Informational only (the gate never fails on Unreleased); counts short
+    hashes found in the fresh Unreleased section but missing on disk.
+    """
+
+    def _hashes(doc: str) -> set[str]:
+        for heading, body in split_sections(doc).items():
+            if _is_unreleased(heading):
+                return set(re.findall(r"`([0-9a-f]{7})`", body))
+        return set()
+
+    return len(_hashes(fresh) - _hashes(on_disk))
 
 
 def _entry_summary(
@@ -139,11 +239,25 @@ def render_document(
     remote: gitee.RemoteInfo | None,
     overrides: Mapping[str, OverrideEntry],
     pushed: Mapping[str, bool] | None = None,
+    target: str = "root",
+    generated: str | None = None,
 ) -> str:
-    """Render one full changelog document in ``lang`` (``en`` or ``zh``)."""
+    """Render one full changelog document in ``lang`` (``en`` or ``zh``).
+
+    ``target="root"`` uses the repository header ("do not edit", sibling
+    link); ``target="bundle"`` uses the end-user header for the copies
+    shipped inside ``yate/resources``, where ``generated`` carries the
+    one-line generation version/date note.
+    """
     pushed_map: Mapping[str, bool] = pushed if pushed is not None else {}
     labels = _LABELS[lang]
-    lines: list[str] = [_HEADERS[lang], ""]
+    if target == "bundle":
+        header = _BUNDLE_HEADERS[lang]
+        if generated:
+            header += f"\n\n> {generated}"
+        lines: list[str] = [header, ""]
+    else:
+        lines = [_HEADERS[lang], ""]
     for segment in segments:
         lines.append(_segment_heading(segment, lang=lang, remote=remote))
         if segment.initial:
