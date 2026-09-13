@@ -1,7 +1,6 @@
 # 变更日志
 
-> 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
-> 英文版：[CHANGELOG.md](CHANGELOG.md)
+> 由 git 历史自动生成于 2026-09-13 · yate 0.1.0
 
 ## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.1.0)
 

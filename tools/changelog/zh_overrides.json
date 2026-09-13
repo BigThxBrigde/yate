@@ -30,6 +30,9 @@
   "6cf4fea": {
     "summary": "LSP didChange 同步重试、扩展卸载钩子与打包规格跟踪"
   },
+  "6fa7663": {
+    "summary": "为发布提交补充中文翻译"
+  },
   "74c8938": {
     "summary": "泛化 Markdown 文档屏，新增 :changelog 命令与 --changelog 参数"
   },
