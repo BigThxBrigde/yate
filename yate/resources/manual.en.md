@@ -81,6 +81,7 @@ yate [path] [options]
 | `--theme NAME` | Color theme to start with (built-in or a registered custom theme); overrides the `theme` set in yaterc |
 | `--install-font` | Install the bundled Nerd Font for the current user (configures Windows Terminal when needed), then exit without entering the UI |
 | `--version` | Show the version |
+| `--changelog [LANG]` | Print the changelog (`en` by default, or `zh`) and exit — no UI is started |
 | `--help` | Show help |
 
 Launch examples:
@@ -601,6 +602,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:files` | Quick open file panel (same as `Ctrl+P`) |
 | `:palette` | Command palette (same as `Alt+Shift+P`) |
 | `:manual` | Open the user manual (`:manual zh` / `:manual en`, English by default) |
+| `:changelog` | Open the bilingual changelog viewer (`:changelog zh` / `:changelog en`, English by default; search and close work like `:manual`) |
 | `:help` | Key reference overlay (same as `F1`) |
 | `:explorer` | Show / hide the file tree (same as `Ctrl+B`) |
 | `:term` | Show / focus the integrated terminal (alias `:terminal`, see section 13); the line confirms `terminal shown` |
@@ -1313,7 +1315,7 @@ vim keymap:
 | `Shift+PageUp/PageDown` | Terminal scrollback | | |
 
 Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
-`:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
+`:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
 ## Appendix: Release & Bilingual Changelog Workflow
@@ -1321,9 +1323,22 @@ Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:
 The root files `CHANGELOG.md` (English) and `CHANGELOG.zh.md` (Chinese) are
 generated from git history by the `tools/changelog` module — **do not edit
 them by hand**; human input only goes into the override table
-`tools/changelog/zh_overrides.json`. The single version source is
-`__version__` in `yate/__init__.py`, which `pyproject.toml` reads dynamically
-via hatchling.
+`tools/changelog/zh_overrides.json`. The same content also ships inside the
+package as `yate/resources/changelog.en.md` / `changelog.zh.md` (the pack
+scripts refresh them with `generate --bundle-only` before building), for
+runtime viewing. The single version source is `__version__` in
+`yate/__init__.py`, which `pyproject.toml` reads dynamically via hatchling.
+
+Three entry points show the changelog:
+
+- browse the root `CHANGELOG*.md` on the repository web page;
+- `yate --changelog [en|zh]` on the command line (prints and exits — no
+  config is loaded, no UI is started);
+- `:changelog [en|zh]` inside the TUI (document viewer screen; search works
+  like `:manual`).
+
+If a build lacks the changelog resources, every entry point shows a fixed
+"no changelog is shipped" notice instead of failing.
 
 Release workflow:
 
@@ -1332,8 +1347,9 @@ Release workflow:
 3. `python -m tools.changelog zh-commit <hash> "中文摘要"` (add Chinese
    summaries for key entries as needed)
 4. `python -m tools.changelog generate --online` (segment, classify, render
-   both files)
-5. `git add CHANGELOG.md CHANGELOG.zh.md tools/changelog/zh_overrides.json`
+   all four outputs: the two root files plus the two bundled copies)
+5. `git add CHANGELOG.md CHANGELOG.zh.md yate/resources/changelog.en.md
+   yate/resources/changelog.zh.md tools/changelog/zh_overrides.json`
    then `git commit -m "docs: changelog for v0.2.0"`
 6. `git tag -a v0.2.0 -m "v0.2.0"`; `git push --follow-tags`
 
@@ -1342,8 +1358,9 @@ added `__version__` lines in `yate/__init__.py`; `chore(release)` commits act
 as boundaries only and are not rendered as entries; breaking changes (`!:`
 or `BREAKING CHANGE:`) are grouped at the top; entries without a Chinese
 translation fall back to English with a `[缺中文]` marker and can be filled in
-gradually via `zh-commit`; `python -m tools.changelog check` guards the
-generated files in CI.
+gradually via `zh-commit`; `python -m tools.changelog check` gates the
+released sections in CI (the `[Unreleased]` section may lag and is refreshed
+wholesale by `generate` at release time).
 
 ---
 

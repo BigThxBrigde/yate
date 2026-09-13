@@ -79,6 +79,7 @@ yate [路径] [选项]
 | `--theme NAME` | 启动时选用的主题名（内置或已注册的客制化主题），覆盖 yaterc 中的 `theme` |
 | `--install-font` | 为当前用户安装随包 Nerd Font（必要时配置 Windows Terminal），完成后退出，不进入界面 |
 | `--version` | 显示版本号 |
+| `--changelog [LANG]` | 打印变更日志（默认 `en`，可选 `zh`）后退出，不进入界面 |
 | `--help` | 显示帮助 |
 
 启动示例：
@@ -560,6 +561,7 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 | `:files` | 快速打开文件面板（同 `Ctrl+P`） |
 | `:palette` | 命令面板（同 `Alt+Shift+P`） |
 | `:manual` | 打开用户手册（本手册） |
+| `:changelog` | 打开双语变更日志浏览屏（`:changelog zh` / `:changelog en`，默认英文；检索与关闭方式与 `:manual` 一致） |
 | `:help` | 键位参考浮层（同 `F1`） |
 | `:explorer` | 显示 / 隐藏文件树（同 `Ctrl+B`） |
 | `:term` | 显示 / 聚焦集成终端（别名 `:terminal`，见第 13 节）；消息行提示 `terminal shown` |
@@ -1190,23 +1192,36 @@ vim 键位：
 | `Shift+PageUp/PageDown` | 终端回滚 | | |
 
 命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
-`:files` `:palette` `:manual` `:help` `:explorer` `:font` `:term` `:termclose`
+`:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 
 ## 附录：发布与双语 Changelog 维护
 
 仓库根目录的 `CHANGELOG.md`（英文）与 `CHANGELOG.zh.md`（中文）由
 `tools/changelog` 模块依据 git 历史自动生成，**请勿手工编辑**；人工信息只写进
-覆盖表 `tools/changelog/zh_overrides.json`。版本号单一来源是
+覆盖表 `tools/changelog/zh_overrides.json`。同样的内容还以
+`yate/resources/changelog.en.md` / `changelog.zh.md` 随包发布（打包脚本在构建前
+自动 `generate --bundle-only` 刷新），供运行时查看。版本号单一来源是
 `yate/__init__.py` 的 `__version__`，`pyproject.toml` 经 hatchling 动态读取。
+
+查看变更日志的三个入口：
+
+- 仓库 Web 页面直接浏览根目录 `CHANGELOG*.md`；
+- 命令行 `yate --changelog [en|zh]`（打印后退出，不读配置、不进界面）；
+- TUI 内 `:changelog [en|zh]`（文档屏浏览，检索方式与 `:manual` 一致）。
+
+若构建中缺失 changelog 资源，各入口只显示"未包含变更日志"的占位提示，
+不会报错。
 
 发布操作流：
 
 1. 修改 `yate/__init__.py`：`__version__ = "0.2.0"`（版本单一来源）
 2. `git commit -m "chore(release): v0.2.0"`
 3. `python -m tools.changelog zh-commit <hash> "中文摘要"`（按需补充关键条目翻译）
-4. `python -m tools.changelog generate --online`（切段、分类、渲染双语文件）
-5. `git add CHANGELOG.md CHANGELOG.zh.md tools/changelog/zh_overrides.json`
+4. `python -m tools.changelog generate --online`（切段、分类、渲染四处产物：
+   根目录两份 + 随包资源两份）
+5. `git add CHANGELOG.md CHANGELOG.zh.md yate/resources/changelog.en.md
+   yate/resources/changelog.zh.md tools/changelog/zh_overrides.json`
    然后 `git commit -m "docs: changelog for v0.2.0"`
 6. `git tag -a v0.2.0 -m "v0.2.0"`；`git push --follow-tags`
 
@@ -1214,7 +1229,8 @@ vim 键位：
 `yate/__init__.py` 中新增的 `__version__` 行；`chore(release)` 提交只作边界、
 不生成条目；破坏性变更（`!:` 或 `BREAKING CHANGE:`）置顶单独分组；缺中文
 翻译的条目回退英文并标注 `[缺中文]`，可随时用 `zh-commit` 渐进补齐；
-`python -m tools.changelog check` 会在 CI 中校验生成物未过期。
+`python -m tools.changelog check` 会在 CI 中校验已发布段未过期
+（`[未发布]` 段允许滞后，发布时由 `generate` 统一刷新）。
 
 ---
 

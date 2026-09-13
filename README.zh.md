@@ -17,7 +17,7 @@
 
 ## Changelog / 变更日志
 
-版本历史由 git 历史自动生成：[CHANGELOG.zh.md](CHANGELOG.zh.md) · [English](CHANGELOG.md)。
+版本历史由 git 历史自动生成：[CHANGELOG.zh.md](CHANGELOG.zh.md) · [English](CHANGELOG.md)。运行时可通过 `yate --changelog [en|zh]` 直接打印，或在编辑器内用 `:changelog [en|zh]` 命令浏览。
 
 ## 特性
 
