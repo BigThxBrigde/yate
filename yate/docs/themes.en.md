@@ -105,18 +105,25 @@ Two official theme templates ship inside the package:
 
 They are ordinary Python theme files and do **nothing** unless copied: the
 directory scan globs `*.py` only, so the `.example` suffix is ignored in
-place — the themes never appear in `:theme` until installed. Copy and rename
-them into a default scan directory (Option C):
+place — the themes never appear in `:theme` until installed. Once copied and
+renamed into a default scan directory they register automatically (Option C).
+
+**Shortcut:** run `yate --setup-defaults` once. It places both templates in
+`~/.yate/themes/` with the `.example` suffix (no need to locate the resources
+directory or type copy commands); then rename the one you want to `.py`. That
+is equivalent to the manual commands below. Note the `.example` is
+yate-managed and refreshed whenever setup runs again, so do your customizing
+in the renamed `.py`:
 
 ```bash
-# Linux / macOS
+# Linux / macOS (manual way; equivalent to setup-defaults above)
 mkdir -p ~/.yate/themes
 cp <resources>/theme_examples/dracula_theme.example ~/.yate/themes/dracula.py
 cp <resources>/theme_examples/ayu_theme.example     ~/.yate/themes/ayu.py
 ```
 
 ```powershell
-# Windows (PowerShell)
+# Windows (PowerShell) (manual way; equivalent to setup-defaults above)
 New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
 Copy-Item <resources>\theme_examples\dracula_theme.example "$HOME\.yate\themes\dracula.py"
 Copy-Item <resources>\theme_examples\ayu_theme.example     "$HOME\.yate\themes\ayu.py"

@@ -76,6 +76,8 @@ yate --ext-dir ./exts       # load every extension in a directory (repeatable)
 yate --theme-dir ./themes   # load a custom theme directory (a single .py works too; repeatable)
 yate --theme my-mocha       # start with a specific theme (overrides yaterc)
 yate --install-font         # install the bundled Nerd Font and exit
+yate --setup-defaults       # create ~/.yate with a default yaterc + *.example templates, then exit
+yate --cleanup-defaults     # remove that configuration (data/ kept unless --include-data), then exit
 ```
 
 ### Common keys (vsc keymap)

@@ -668,6 +668,38 @@ yate uses a **Python-syntax config file named yaterc** (like vim's `vimrc`):
 options are plain module-level variables, and the file may contain arbitrary
 Python code.
 
+### Quick setup: `--setup-defaults` / `--cleanup-defaults`
+
+Instead of creating directories and hunting for templates by hand, initialize
+the user config directory with one command (it exits afterwards, without
+launching the editor):
+
+```text
+yate --setup-defaults
+```
+
+This creates `~/.yate/` and:
+
+- copies the bundled `yaterc.example` to `~/.yate/yaterc`; an existing file is
+  **left untouched**, pass `--force` to replace it (the old file is first saved
+  as `yaterc.yate-bak`; if a backup already exists the earliest one is kept);
+- places the official theme/extension templates under `~/.yate/themes/` and
+  `~/.yate/extensions/` **keeping the `.example` suffix** (Dracula/Ayu themes
+  and the two extension examples). Startup scans load `*.py` only, so
+  **rename a template to `.py` to activate it** and delete it to deactivate;
+- the `*.example` templates are yate-managed and **refreshed on every setup
+  run** (e.g. on upgrade) -- customize the renamed `.py` copy, not the
+  `.example`;
+- does not create `data/` (crash diagnostics are generated on demand at the
+  next launch).
+
+The inverse command, `yate --cleanup-defaults`, removes `yaterc`, `themes/`
+and `extensions/`: it asks `proceed? [y/N]` on a terminal and requires
+`--force` for non-interactive use. `data/` (crash diagnostics) is kept unless
+`--include-data` is given; files yate did not create are never deleted (they
+are listed as preserved); when the directory ends up empty, `~/.yate` itself
+is removed.
+
 ### 10.1 Locations and load order
 
 At startup files load in this order; **later loads override same-named

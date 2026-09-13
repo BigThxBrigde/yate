@@ -45,6 +45,23 @@ Loading details (implementation in [yate/config.py](../config.py)):
   message bar with a `yaterc: ...` prefix, and the remaining files continue
   loading.
 
+### One-command setup and cleanup
+
+Instead of creating directories and copying templates by hand, two commands
+perform the work and exit:
+
+- `yate --setup-defaults`: creates `~/.yate/`, installs the bundled
+  `yaterc.example` as `~/.yate/yaterc` (skipped if it already exists;
+  `--force` replaces it and backs the old one up as `yaterc.yate-bak`,
+  keeping the earliest backup), and places the official theme/extension
+  examples under `~/.yate/themes/` and `~/.yate/extensions/` with the
+  `.example` suffix (rename to `.py` before the scans will load them).
+- `yate --cleanup-defaults`: removes `yaterc`, `themes/` and `extensions/`,
+  asking for confirmation on a terminal (`--force` for non-interactive use);
+  `data/` crash diagnostics are kept unless `--include-data` is given; files
+  yate did not create are left untouched; once empty, the `~/.yate` directory
+  itself is removed.
+
 ## Option reference
 
 | Option | Type | Default | Valid values | Description |

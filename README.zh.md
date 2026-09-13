@@ -10,9 +10,9 @@
 
 完整使用说明（中英双语），会话内也可按 `F8` 或输入 `:manual` 打开：
 
-| 语言 | 文件 |
-|---|---|
-| 中文 | [yate/resources/manual.zh.md](yate/resources/manual.zh.md) |
+| 语言      | 文件                                                         |
+| ------- | ---------------------------------------------------------- |
+| 中文      | [yate/resources/manual.zh.md](yate/resources/manual.zh.md) |
 | English | [yate/resources/manual.en.md](yate/resources/manual.en.md) |
 
 ## Changelog / 变更日志
@@ -96,29 +96,31 @@ yate --ext-dir ./exts       # 加载目录下所有扩展（可重复）
 yate --theme-dir ./themes   # 加载客制化主题目录（也接受单个 .py，可重复）
 yate --theme my-mocha       # 以指定主题启动（覆盖 yaterc）
 yate --install-font         # 安装随包 Nerd Font 后退出
+yate --setup-defaults       # 创建 ~/.yate 并写入默认 yaterc 与 *.example 模板后退出
+yate --cleanup-defaults     # 删除上述配置后退出（data/ 保留，加 --include-data 一并删除）
 ```
 
 ### 常用键位（vsc 键位）
 
-| 按键 | 功能 |
-|---|---|
-| `Ctrl+P` | 模糊快速打开文件 |
-| `Alt+Shift+P` | 命令面板（检索并执行全部 `:` 命令与命名动作；vsc 模式下 `:` 是普通字符） |
-| `F5` | 打开命令行（ex 命令，`Esc` 退出） |
-| `Ctrl+Q` | 退出（有未保存修改时拦截） |
-| `Ctrl+S` | 保存 |
-| `Ctrl+O` / `Ctrl+N` / `Ctrl+W` | 按路径打开文件 / 新建空 buffer / 关闭当前标签 |
-| `Ctrl+PageUp` / `Ctrl+PageDown` | 上一个 / 下一个标签 |
-| `Ctrl+F` / `F3` / `F4` | 文件内查找 / 下一个匹配 / 两步式查找并全部替换 |
-| `F2` | 运行 Shell 命令（同 `:!命令`，输出显示在浮层） |
-| `Ctrl+G` | 跳转到行（命令行直接输 `:42` 等效，`:+5` 相对跳转） |
-| `Ctrl+B` | 显示/隐藏文件树（命令面板 `explorer` 同效） |
-| `` Ctrl+` `` | 显示/隐藏底部集成终端（命令面板 `term` / `termclose`） |
-| `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（后者同 VS Code） |
-| `Ctrl+1` | 聚焦编辑器（同 VS Code） |
-| `Ctrl+/` | 在 vsc / vim 两套键位间切换（也可用 `:set keymap=…`） |
-| `Ctrl+Space` | 触发补全（有语言服务器走 LSP，否则取已打开 buffer 的单词；`Tab`/`Enter` 接受） |
-| `F1` / `F8` | 帮助 / 全部键位 · 打开中英双语用户手册 |
+| 按键                              | 功能                                                   |
+| ------------------------------- | ---------------------------------------------------- |
+| `Ctrl+P`                        | 模糊快速打开文件                                             |
+| `Alt+Shift+P`                   | 命令面板（检索并执行全部 `:` 命令与命名动作；vsc 模式下 `:` 是普通字符）          |
+| `F5`                            | 打开命令行（ex 命令，`Esc` 退出）                                |
+| `Ctrl+Q`                        | 退出（有未保存修改时拦截）                                        |
+| `Ctrl+S`                        | 保存                                                   |
+| `Ctrl+O` / `Ctrl+N` / `Ctrl+W`  | 按路径打开文件 / 新建空 buffer / 关闭当前标签                        |
+| `Ctrl+PageUp` / `Ctrl+PageDown` | 上一个 / 下一个标签                                          |
+| `Ctrl+F` / `F3` / `F4`          | 文件内查找 / 下一个匹配 / 两步式查找并全部替换                           |
+| `F2`                            | 运行 Shell 命令（同 `:!命令`，输出显示在浮层）                        |
+| `Ctrl+G`                        | 跳转到行（命令行直接输 `:42` 等效，`:+5` 相对跳转）                     |
+| `Ctrl+B`                        | 显示/隐藏文件树（命令面板 `explorer` 同效）                         |
+| `` Ctrl+` ``                    | 显示/隐藏底部集成终端（命令面板 `term` / `termclose`）               |
+| `Ctrl+E` / `Ctrl+Shift+E`       | 聚焦文件树（后者同 VS Code）                                   |
+| `Ctrl+1`                        | 聚焦编辑器（同 VS Code）                                     |
+| `Ctrl+/`                        | 在 vsc / vim 两套键位间切换（也可用 `:set keymap=…`）             |
+| `Ctrl+Space`                    | 触发补全（有语言服务器走 LSP，否则取已打开 buffer 的单词；`Tab`/`Enter` 接受） |
+| `F1` / `F8`                     | 帮助 / 全部键位 · 打开中英双语用户手册                               |
 
 文件树内（聚焦后）：`j`/`k` 移动，`l`/`h` 展开/折叠，`Enter` 打开文件，
 `a` 新建文件，`A` 新建文件夹，`r` 重命名，`d`/`Del` 删除（输入 `y` 确认），
@@ -185,7 +187,7 @@ def setup(api):
 支持 `vsc` / `vim` / `both`）、命名动作（`register_action`），并可访问
 `api.buffer` / `api.doc` / `api.workspace`、`api.shell()` / `api.open_path()` /
 `api.save()` / `api.message()`。完整模板见
-[yate/extensions/example_ext.py.example](yate/extensions/example_ext.py.example)
+[yate/extensions/example\_ext.py.example](yate/extensions/example_ext.py.example)
 （去掉 `.example` 后缀后使用；提供 `:upper` / `:lower` / `:words` / `:sh`
 命令 + `Alt+U` 绑定）。
 
@@ -198,7 +200,7 @@ def setup(api):
   打开匹配文件自动激活，无需写扩展（见上方示例与 [yate/docs/lsp.zh.md](yate/docs/lsp.zh.md)）。
 - **扩展**：`api.lsp.register_server(...)` 编程式注册。
 
-随包扩展 [yate/extensions/python_lsp.py](yate/extensions/python_lsp.py)，
+随包扩展 [yate/extensions/python\_lsp.py](yate/extensions/python_lsp.py)，
 打开 `.py` 文件时自动连接 Python 语言服务器，需自行安装其一：
 
 ```powershell
@@ -309,7 +311,8 @@ python -m pyright
 5. `git add CHANGELOG.md CHANGELOG.zh.md yate/resources/changelog.en.md
    yate/resources/changelog.zh.md tools/changelog/zh_overrides.json`
    然后 `git commit -m "docs: changelog for v0.2.0"`
-6. `git tag -a v0.2.0 -m "v0.2.0"`；`git push --follow-tags`
+
+- [ ] `git tag -a v0.2.0 -m "v0.2.0"`；`git push --follow-tags`
 
 口径说明：版本段以 `vX.Y.Z` tag 为边界，无 tag 时回退解析
 `yate/__init__.py` 中新增的 `__version__` 行；`chore(release)` 提交只作边界、

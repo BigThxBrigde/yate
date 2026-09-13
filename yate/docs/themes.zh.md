@@ -99,17 +99,22 @@ yate 随包附带两个官方主题模板：
 
 模板是普通 Python 主题文件，**不拷贝就不会加载**（目录扫描只认 `*.py`，
 `.example` 后缀天然被忽略），也不会出现在 `:theme` 列表中。拷贝并改名后
-由方式 C 的默认目录扫描自动注册：
+由方式 C 的默认目录扫描自动注册。
+
+**快捷方式**：运行一次 `yate --setup-defaults`，两个模板会以 `.example`
+原后缀放到 `~/.yate/themes/`（无需知道资源目录、无需手写拷贝命令），再把
+要用的文件改名成 `.py` 即可，等价于下面的手工命令。注意该 `.example` 由
+yate 托管，重跑 setup 会刷新覆盖，请在改名后的 `.py` 中定制：
 
 ```bash
-# Linux / macOS
+# Linux / macOS（手工方式；与上面的 setup-defaults 等价）
 mkdir -p ~/.yate/themes
 cp <资源目录>/theme_examples/dracula_theme.example ~/.yate/themes/dracula.py
 cp <资源目录>/theme_examples/ayu_theme.example     ~/.yate/themes/ayu.py
 ```
 
 ```powershell
-# Windows (PowerShell)
+# Windows (PowerShell)（手工方式；与上面的 setup-defaults 等价）
 New-Item -ItemType Directory -Force "$HOME\.yate\themes" | Out-Null
 Copy-Item <资源目录>\theme_examples\dracula_theme.example "$HOME\.yate\themes\dracula.py"
 Copy-Item <资源目录>\theme_examples\ayu_theme.example     "$HOME\.yate\themes\ayu.py"

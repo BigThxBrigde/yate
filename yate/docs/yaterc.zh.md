@@ -40,6 +40,20 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
   出错的文件被跳过，问题以 `yaterc: ...` 前缀显示在启动时的消息栏，
   其余文件继续加载。
 
+### 一键初始化与清理
+
+不想手动建目录、复制模板，可用两个"执行后退出"的命令：
+
+- `yate --setup-defaults`：创建 `~/.yate/`，把随包 `yaterc.example`
+  安装为 `~/.yate/yaterc`（已存在则跳过；`--force` 覆盖并把旧文件备份为
+  `yaterc.yate-bak`，已有备份保留最早版本），同时把官方主题/扩展示例以
+  `.example` 后缀放到 `~/.yate/themes/`、`~/.yate/extensions/`（改名 `.py`
+  后才会被扫描加载）。
+- `yate --cleanup-defaults`：删除 `yaterc`、`themes/`、`extensions/`，
+  交互终端下会要求确认（非交互需 `--force`）；`data/` 崩溃日志默认保留，
+  加 `--include-data` 才删除；非 yate 创建的文件保持不动；目录清空后
+  `~/.yate` 本身一并移除。
+
 ## 选项参考
 
 | 选项 | 类型 | 默认值 | 合法值 | 说明 |

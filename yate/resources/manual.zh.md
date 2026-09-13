@@ -624,6 +624,31 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 yate 使用 **Python 语法的配置文件 yaterc**（类似 vim 的 `vimrc`）：
 选项就是普通的模块级变量，文件里可以写任意 Python 代码。
 
+### 快速初始化：`--setup-defaults` / `--cleanup-defaults`
+
+不想手动建目录、找模板，可以一键初始化用户配置目录（执行后即退出，不启动编辑器）：
+
+```text
+yate --setup-defaults
+```
+
+该命令会创建 `~/.yate/` 并完成：
+
+- 把随包的 `yaterc.example` 复制为 `~/.yate/yaterc`；**已存在则跳过不动**，
+  加 `--force` 才会覆盖，覆盖前旧文件备份为 `yaterc.yate-bak`（已存在备份时
+  保留最早的一份）；
+- 把官方主题/扩展模板以 `.example` 原后缀放到 `~/.yate/themes/` 与
+  `~/.yate/extensions/`（Dracula、Ayu 主题及两个扩展示例）。启动扫描只加载
+  `*.py`，所以把想用的模板**改名成 `.py` 即激活**，删掉即停用；
+- `.example` 模板由 yate 托管，**每次运行 setup 都会刷新覆盖**，请在改名后的
+  `.py` 副本里定制，不要直接改 `.example`；
+- 不创建 `data/`（崩溃日志在下次启动时按需生成）。
+
+反向操作 `yate --cleanup-defaults` 删除 `yaterc`、`themes/`、`extensions/`：
+终端中会提示 `proceed? [y/N]` 要求确认，非交互环境需加 `--force`；`data/`
+（崩溃诊断）默认保留，加 `--include-data` 才一并删除；非 yate 创建的其他文件
+不会被删除（会列入 preserved）；目录清空后 `~/.yate` 本身也会被移除。
+
 ### 10.1 位置与加载顺序
 
 启动时按以下顺序加载，**后加载者覆盖先加载的同名选项**：
