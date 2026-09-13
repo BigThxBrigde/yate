@@ -183,6 +183,9 @@ class LspClient:
         self._write_lock = asyncio.Lock()
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[Any]] = {}
+        # Settled once _connect() returns (or raises) so stop() can wait for
+        # an in-flight spawn to finish tearing its subprocess down.
+        self._connecting: Optional[asyncio.Future[None]] = None
 
     # ------------------------------------------------------------- lifecycle
 
@@ -191,8 +194,17 @@ class LspClient:
         if self.state is ServerState.READY:
             return
         self.state = ServerState.STARTING
+        loop = asyncio.get_running_loop()
+        connecting = loop.create_future()
+        self._connecting = connecting
         try:
-            self._reader, self._writer, self._proc = await self._connect()
+            try:
+                self._reader, self._writer, self._proc = await self._connect()
+            finally:
+                if not connecting.done():
+                    connecting.set_result(None)
+                if self._connecting is connecting:
+                    self._connecting = None
             self._read_task = asyncio.create_task(self._read_loop())
             result: Any = await asyncio.wait_for(
                 self.request("initialize", self._initialize_params()),
@@ -279,6 +291,16 @@ class LspClient:
         polite = self.state is ServerState.READY
         self._stopping = True
         self.state = ServerState.STOPPED
+        # If start() is still mid-connect, let _connect() run its stopping
+        # branch (which terminates the spawned process) before we clean up.
+        # Without this, stop() can return while self._proc is still None and
+        # the caller observes an unterminated process.
+        connecting = self._connecting
+        if connecting is not None and not connecting.done():
+            try:
+                await asyncio.wait_for(connecting, timeout=5.0)
+            except asyncio.TimeoutError:
+                pass
         if polite and self._writer is not None:
             try:
                 await asyncio.wait_for(
