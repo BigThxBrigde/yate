@@ -1091,7 +1091,8 @@ Rust（`rs`）、Go（`go`）、JavaScript（`js`/`mjs`/`cjs`/`jsx`）、
 TypeScript（`ts`/`tsx`/`mts`/`cts`）、Shell（`sh`/`bash`/`zsh`/`fish`）、
 JSON（`json`/`jsonc`）、Markdown（`md`/`markdown`/`mdx`）、TOML（`toml`）、
 INI（`ini`/`cfg`/`conf`/`properties`）、YAML（`yaml`/`yml`）。
-其他类型按纯文本渲染。
+其他类型按纯文本渲染。安装可选 tree-sitter 后端（`pip install yate[ts]`）
+后，Python 与 Shell 改由真实语法树解析驱动的高亮。
 
 **如何增加新语言（或覆盖某种语言）的语法高亮？**
 通过扩展的 `api.highlight.register(spec, *扩展名)` 注册一个声明式的
@@ -1101,6 +1102,12 @@ INI（`ini`/`cfg`/`conf`/`properties`）、YAML（`yaml`/`yml`）。
 启动即自动加载（可用 `disabled_extensions = ["csharp_highlight"]` 关闭），
 也可用 `yate --ext csharp_highlight.py` 显式加载一份修改版；完整字段
 说明见 [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md) 的 4.7 节。
+
+若要为自定义语言（例如你自己实现的 shell）提供基于语法树的精确高亮，
+扩展可通过 `api.syntax.register_tree_sitter(...)` 绑定编译好的
+tree-sitter grammar 与 `highlights.scm` 查询——需要 `pip install
+yate[ts]`。参见 [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md)
+的 4.8 节与模板 `yate/extensions/yatesh_syntax.py.example`。
 
 **如何手动指定语法类型（类似 VS Code 的 Change Language Mode / vim 的 `:set filetype`）？**
 默认按文件扩展名识别；对无后缀文件、识别错误或临时缓冲区，可以手动覆盖，

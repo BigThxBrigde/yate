@@ -1,0 +1,61 @@
+"""Example tree-sitter syntax extension for yate (template, not auto-loaded).
+
+This file ships as ``yate/extensions/yatesh_syntax.py.example``; the
+``.example`` suffix keeps it out of the startup ``*.py`` scan.  Copy it
+without the suffix into an extension directory (``~/.yate/extensions/``)
+and adjust it to your language.
+
+It demonstrates ``api.syntax.register_tree_sitter``: precise, syntax-tree
+based highlighting for a custom language backed by a compiled
+tree-sitter grammar -- the workflow you would use for a self-hosted
+language such as yate's own shell (``yatesh``).
+
+Prerequisites:
+
+* the optional dependency:  ``pip install yate[ts]``  (or ``pip install
+  tree-sitter``)
+* a compiled grammar shared library next to this script:
+
+      npm install -g tree-sitter-cli
+      cd grammars/yatesh && tree-sitter generate
+      cc -shared -fPIC -I src src/parser.c src/scanner.c \
+         -o ~/.yate/extensions/yatesh.so     (POSIX)
+      cl /LD /Isrc src\parser.c src\scanner.c ^
+         /Fe:%USERPROFILE%\\.yate\\extensions\\yatesh.dll   (MSVC)
+
+  The library's C entry point must be named ``tree_sitter_yatesh``
+  (tree-sitter's CLI generates it from the grammar name).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from yate.services.extensions import ExtensionAPI
+
+_HERE = Path(__file__).resolve().parent
+
+
+def setup(api: ExtensionAPI) -> None:
+    api.syntax.register_tree_sitter(
+        name="yatesh",
+        grammar=str(_HERE / "yatesh.so"),   # or "yatesh.dll" on Windows,
+                                            # or a pip pack "tree_sitter_yatesh"
+        extensions=["ysh", "yatesh"],       # file types that select the language
+        # highlights.scm next to this script, mapping tree-sitter captures:
+        query=str(_HERE / "highlights.scm"),
+        # optional: override/extend the default capture -> token-kind map
+        capture_map={
+            "operator.special": "operator",   # extra capture used by yatesh.scm
+        },
+    )
+
+    # registered extensions are immediately usable:
+    #   :set filetype=ysh        (also ``yatesh``, and Tab-completed)
+    # opening a *.ysh / *.yatesh file highlights it automatically
+
+    def _reload(_args: str) -> None:
+        api.message("restarting yate re-reads the grammar and query")
+
+    api.register_command("yatesh-reload", _reload,
+                         "reminder: restart to pick up grammar changes")

@@ -46,7 +46,9 @@ absolute path** (a script hit by several sources still runs exactly once):
 2. **Bundled extensions** in `yate/extensions/` (`python_lsp`,
    `csharp_highlight`); they auto-load regardless of the working directory;
    disable individual defaults via yaterc's `disabled_extensions` (see
-   below);
+   below). The directory also ships templates (`*.py.example`, never
+   auto-loaded): `example_ext.py.example` and the tree-sitter grammar
+   template `yatesh_syntax.py.example`;
 3. Default directories: `./extensions/` in the working directory and
    `~/.yate/extensions/` (every `*.py` inside is auto-loaded at startup,
    files starting with an underscore are skipped);
@@ -239,7 +241,7 @@ sets; strings, numbers, comments and multiline state are handled by the
 engine.
 
 ```python
-from yate.editor_view.highlight import LangSpec
+from yate.editor_syntax import LangSpec
 
 def setup(api):
     spec = LangSpec(
@@ -268,7 +270,7 @@ completion and status-bar type sync. Words in `type_def_words` /
 | Method/attribute | Purpose |
 |---|---|
 | `api.highlight.register(spec, *extensions)` | register/replace a language; extensions without dots (dots tolerated) |
-| `api.highlight.LangSpec` | language spec dataclass (or `from yate.editor_view.highlight import LangSpec`) |
+| `api.highlight.LangSpec` | language spec dataclass (or `from yate.editor_syntax import LangSpec`) |
 | `api.highlight.spec(**kwargs)` | build a `LangSpec` from keyword arguments |
 | `api.highlight.available()` | all extension and language names currently usable with `:set filetype` |
 
@@ -298,6 +300,46 @@ extension is bundled and auto-loaded with no need to be in the working
 directory). Turn it off in yaterc with
 `disabled_extensions = ["csharp_highlight"]`, or load a modified copy
 explicitly with `yate --ext csharp_highlight.py`.
+
+### 4.8 Syntax highlighting via tree-sitter (custom grammars)
+
+`api.syntax.register_tree_sitter` binds a real tree-sitter grammar plus a
+`highlights.scm` query to a language -- syntax-tree based highlighting for
+custom languages (e.g. your own shell), where word-list specs are not
+enough. Requires the optional dependency `pip install yate[ts]`.
+
+```python
+from pathlib import Path
+
+def setup(api):
+    here = Path(__file__).resolve().parent
+    api.syntax.register_tree_sitter(
+        name="yatesh",
+        grammar=str(here / "yatesh.so"),   # compiled grammar (see below), or
+                                           # a pip pack name "tree_sitter_yatesh"
+        extensions=["ysh", "yatesh"],      # file types that select the language
+        query=str(here / "highlights.scm"),  # query file path or source string
+        capture_map={"operator.special": "operator"},  # optional overrides
+    )
+```
+
+After registration `*.ysh` / `*.yatesh` files highlight automatically and
+`:set filetype=ysh` works (with Tab completion); the keys keep a minimal
+regex fallback should the grammar fail to load.
+
+Building the grammar library: `npm install -g tree-sitter-cli`, then in
+your grammar repo run `tree-sitter generate` and compile
+(`cc -shared -fPIC -I src src/parser.c src/scanner.c -o yatesh.so` on
+POSIX; `cl /LD /Isrc src\parser.c src\scanner.c /Fe:yatesh.dll` with MSVC).
+The C entry point must be named `tree_sitter_<name>`. Grammar queries use
+tree-sitter capture names (`@keyword`, `@comment`, `@function.call`, ...)
+mapped onto yate's token kinds by a default table
+(`yate/editor_syntax/ts_backend/languages.py`); `capture_map` adds or
+overrides single mappings.
+
+A full template ships as `yate/extensions/yatesh_syntax.py.example`.
+Note: `api.highlight.register` (section 4.7) always wins over the built-in
+tree-sitter registration for the same extension key.
 
 ---
 

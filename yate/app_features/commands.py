@@ -11,7 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
-from yate.editor_view import highlight, theme
+from yate.editor_syntax import available_filetypes, language_name
+from yate.editor_view import theme
 
 if TYPE_CHECKING:
     from yate.app import YateApp
@@ -161,11 +162,11 @@ def register_commands(app: "YateApp") -> None:
         if not args:
             doc = app.doc
             source = "manual override" if doc.filetype_override else "from path"
-            label = highlight.language_name(doc.filetype)
+            label = language_name(doc.filetype)
             shown = f"{doc.filetype} ({label})" if label else doc.filetype
             app.message(
                 f"filetype: {shown} [{source}] · "
-                f"available: {', '.join(highlight.available_filetypes())}"
+                f"available: {', '.join(available_filetypes())}"
             )
             return
         app.set_filetype(args)

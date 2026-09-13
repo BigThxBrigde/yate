@@ -1203,7 +1203,9 @@ Java (`java`), Rust (`rs`), Go (`go`), JavaScript (`js`/`mjs`/`cjs`/`jsx`),
 TypeScript (`ts`/`tsx`/`mts`/`cts`), Shell (`sh`/`bash`/`zsh`/`fish`),
 JSON (`json`/`jsonc`), Markdown (`md`/`markdown`/`mdx`), TOML (`toml`),
 INI (`ini`/`cfg`/`conf`/`properties`), YAML (`yaml`/`yml`).
-Everything else renders as plain text.
+Everything else renders as plain text. With the optional tree-sitter
+backend installed (`pip install yate[ts]`), Python and Shell are
+highlighted through a real parser instead of word lists.
 
 **How do I add highlighting for another language (or override one)?**
 An extension can register a declarative `LangSpec` via
@@ -1215,6 +1217,13 @@ C# (`cs`/`csx`): it auto-loads at startup from any working directory (turn it
 off with `disabled_extensions = ["csharp_highlight"]`), or load a modified
 copy explicitly with `yate --ext csharp_highlight.py`. See section 4.7 of
 [`yate/docs/extensions.en.md`](../docs/extensions.en.md) for the full field list.
+
+For syntax-tree based highlighting of a custom language (e.g. your own
+shell), an extension can bind a compiled tree-sitter grammar plus a
+`highlights.scm` query via `api.syntax.register_tree_sitter(...)` --
+requires `pip install yate[ts]`. See section 4.8 of
+[`yate/docs/extensions.en.md`](../docs/extensions.en.md) and the template
+`yate/extensions/yatesh_syntax.py.example`.
 
 **How do I pick the syntax type manually (like VS Code's Change Language Mode / vim's `:set filetype`)?**
 The type is normally detected from the file extension. For extension-less

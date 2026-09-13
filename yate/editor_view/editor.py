@@ -14,9 +14,10 @@ from textual.strip import Strip
 
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
+from yate.editor_syntax import tokenize_document
+from yate.editor_syntax.tokens import Token
 
-from . import highlight, theme
-from .highlight import Token
+from . import theme
 from .keys import event_to_raw
 from .terminal import TOGGLE_KEYS
 
@@ -279,7 +280,7 @@ class EditorView(ScrollView):
         filetype = doc.filetype
         version = buf.content_version
         tokens = await asyncio.to_thread(
-            highlight.tokenize_document, lines, filetype
+            tokenize_document, lines, filetype
         )
         self._hl_scheduled = False
         if not self.is_mounted:

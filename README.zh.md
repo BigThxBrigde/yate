@@ -21,7 +21,9 @@
 - **两套内置键位**：`vsc`（VS Code 风格、无模式，默认）与 `vim`（NORMAL/INSERT/VISUAL/VISUAL-LINE
   模式 + `:` ex 命令行），运行中可用 `Ctrl+/` 一键切换
 - **语法高亮**：内置高亮引擎，按文件类型着色关键字/字符串/数字/注释/函数等，
-  另有随包 C# 高亮扩展，可用 `:set filetype=` 手动指定语法类型
+  另有随包 C# 高亮扩展，可用 `:set filetype=` 手动指定语法类型；
+  可选 tree-sitter 后端（`pip install -e ".[ts]"`）让 Python/Shell 改由真实
+  语法树解析驱动，扩展也可注册自定义语法（`api.syntax`）
 - **四套 Catppuccin 主题**：`mocha`（默认深色）、`macchiato`、`frappe`、`latte`（浅色），
   支持 yaterc 注册自定义主题，也可用 `theme_dirs` / `--theme-dir`
   从主题目录批量加载客制化主题
@@ -211,7 +213,9 @@ yate/
   editor_core/    # 纯编辑逻辑：buffer、文档模型、搜索引擎（无 Textual 依赖）
   editor_term/    # PTY 后端（ConPTY/POSIX pty）、VT100 仿真、Shell 解析
   editor_lsp/     # UI 无关的 LSP 客户端：JSON-RPC、进程管理、补全/诊断状态
-  editor_view/    # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、高亮、主题
+  editor_syntax/ # 与 UI 无关的语法层：token 契约、正则 tokenizer 后端、
+                 #   可选 tree-sitter 后端、按文件类型选择后端
+  editor_view/   # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、主题
   keymaps/        # vsc / vim 键位定义与动作分发
   services/       # workspace 遍历、shell、扩展加载、字体安装
   extensions/     # 随包扩展：python_lsp（内置 LSP）、csharp_highlight（C# 高亮）、

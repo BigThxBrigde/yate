@@ -200,7 +200,8 @@ All color values are `#RRGGBB` hex strings.
 
 ### Syntax palette
 
-Maps to the token kinds produced by `highlight.py`:
+Maps to the token kinds produced by the `editor_syntax` layer (see
+`yate/editor_syntax/tokens.py` for the full kind table):
 
 | Field | Token kind |
 |---|---|

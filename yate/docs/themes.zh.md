@@ -195,7 +195,8 @@ register_theme(Theme(
 
 ### 语法色板（syntax palette）
 
-对应 `highlight.py` 产出的 token 种类：
+对应 `editor_syntax` 层产出的 token 种类（完整 kind 表见
+`yate/editor_syntax/tokens.py`）：
 
 | 字段 | token 种类 |
 |---|---|

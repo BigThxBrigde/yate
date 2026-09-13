@@ -34,11 +34,13 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence, cast
 
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
-from yate.editor_view.highlight import (
+from yate.editor_syntax import (
     LangSpec,
     available_filetypes,
+    prefer_regex,
     register_language,
 )
+from yate.editor_syntax.ts_backend import load_language_from_grammar
 
 if TYPE_CHECKING:
     from yate.app import YateApp
@@ -112,9 +114,12 @@ class HighlightExtensionBridge:
         Re-registering an existing key replaces its highlighter, so a custom
         language can override a built-in one. The type is immediately usable
         from ``:set filetype=`` and resolved by both extension key and the
-        spec's language ``name``.
+        spec's language ``name``.  The keys are also pinned to the regex
+        backend, so a deliberately registered declarative highlighter wins
+        over the built-in tree-sitter registration for the same key.
         """
         register_language(spec, *extensions)
+        prefer_regex(*extensions)
 
     @staticmethod
     def spec(**kwargs: Any) -> LangSpec:
@@ -127,6 +132,61 @@ class HighlightExtensionBridge:
         return available_filetypes()
 
 
+class SyntaxExtensionBridge:
+    """``api.syntax`` -- tree-sitter grammars for custom languages.
+
+    Complements :class:`HighlightExtensionBridge`: where ``api.highlight``
+    registers a simple declarative word-list spec (regex backend),
+    ``api.syntax`` binds a real tree-sitter grammar plus a
+    ``highlights.scm`` query for syntax-tree based highlighting.  Requires
+    the optional ``tree_sitter`` dependency (``pip install yate[ts]``).
+    """
+
+    def register_tree_sitter(
+        self,
+        name: str,
+        *,
+        grammar: str,
+        extensions: Sequence[str],
+        query: str,
+        capture_map: Optional[dict[str, str]] = None,
+    ) -> None:
+        """Register a tree-sitter grammar + query as language *name*.
+
+        *grammar* is either an importable grammar pack name
+        (``"tree_sitter_yatesh"``) or a path to a compiled shared library
+        (``.dll`` / ``.so`` / ``.dylib`` built with ``tree-sitter generate``
+        plus a C compiler; its C entry point must be named
+        ``tree_sitter_<name>``).
+
+        *query* is a ``highlights.scm`` source string, or a path to one
+        (resolve it against your extension's ``__file__`` for robustness).
+
+        *extensions* are the file extensions (``"ysh"``, ...) that select
+        the language; they become available from ``:set filetype=`` with a
+        minimal regex fallback should the grammar fail to load.
+
+        *capture_map* optionally overrides/extends the default
+        capture-name -> token-kind mapping (see
+        ``yate/editor_syntax/ts_backend/languages.py``).
+
+        Raises ``RuntimeError`` when ``tree_sitter`` is not installed,
+        ``ValueError`` for unresolvable grammars, and query errors straight
+        through -- all surfaced as ``extension <name>: ...`` messages.
+        """
+        query_src = query
+        query_file = Path(query)
+        if query_file.is_file():
+            query_src = query_file.read_text(encoding="utf-8")
+        load_language_from_grammar(
+            name,
+            grammar,
+            query_src,
+            capture_map=capture_map,
+            extensions=tuple(extensions),
+        )
+
+
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
@@ -134,6 +194,7 @@ class ExtensionAPI:
         self._app = app
         self._lsp = LspExtensionBridge(app)
         self._highlight = HighlightExtensionBridge()
+        self._syntax = SyntaxExtensionBridge()
 
     # ------------------------------------------------------------- accessors
 
@@ -166,6 +227,11 @@ class ExtensionAPI:
     def highlight(self) -> HighlightExtensionBridge:
         """Register custom syntax highlighters (``api.highlight.register``)."""
         return self._highlight
+
+    @property
+    def syntax(self) -> SyntaxExtensionBridge:
+        """Register tree-sitter grammars (``api.syntax.register_tree_sitter``)."""
+        return self._syntax
 
     # ------------------------------------------------------------ registrars
 

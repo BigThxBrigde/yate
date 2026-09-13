@@ -30,7 +30,8 @@ from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp import LspManager
-from yate.editor_view import highlight, theme
+from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
+from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
@@ -567,17 +568,17 @@ class YateApp(App[None]):
             doc.filetype_override = None
             self.message(f"filetype reset to {doc.filetype} (auto from path)", kind="ok")
         else:
-            resolved = highlight.resolve_filetype(raw)
+            resolved = resolve_filetype(raw)
             if resolved is None:
                 doc.filetype_override = raw
                 self.message(
                     f"filetype set to {raw!r} -- no built-in highlighter "
-                    f"(available: {', '.join(highlight.available_filetypes())})",
+                    f"(available: {', '.join(available_filetypes())})",
                     kind="warn",
                 )
             else:
                 doc.filetype_override = resolved
-                label = highlight.language_name(resolved) or resolved
+                label = language_name(resolved) or resolved
                 self.message(f"filetype set to {resolved} ({label})", kind="ok")
         # Rebind the LSP document (close on the old server, open on the new)
         # and force a repaint so highlighting and the status bar update.
@@ -1117,7 +1118,7 @@ class YateApp(App[None]):
                 elif key == "theme":
                     vals = tuple(theme.available())
                 elif key in self._FILETYPE_KEYS:
-                    vals = ("auto", *highlight.available_filetypes())
+                    vals = ("auto", *available_filetypes())
                 elif key == "show_hidden":
                     vals = ("on", "off")
                 else:
@@ -1131,7 +1132,7 @@ class YateApp(App[None]):
                 if opt.startswith(rest) and opt != rest
             ]
         if name in self._FILETYPE_COMMANDS:
-            vals = ("auto", *highlight.available_filetypes())
+            vals = ("auto", *available_filetypes())
             return [
                 f"{name} {v}" for v in vals
                 if v.startswith(rest) and v != rest

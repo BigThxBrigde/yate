@@ -10,7 +10,7 @@ can also be dropped into ``~/.yate/extensions/`` or loaded explicitly::
 After loading, ``.cs`` / ``.csx`` files highlight automatically and the type
 is selectable manually with ``:set filetype=cs`` (or ``filetype=csharp``).
 
-The highlighter is a declarative :class:`~yate.editor_view.highlight.LangSpec`:
+The highlighter is a declarative :class:`~yate.editor_syntax.LangSpec`:
 the built-in tokenizer already handles ``//`` and ``/* ... */`` comments,
 single/double quoted strings (with up to two prefix characters, so C#
 ``$"..."`` / ``@"..."`` / ``$@"..."`` interpolated/verbatim strings work),
@@ -24,7 +24,7 @@ Known limitation: verbatim strings that actually span several source lines
 
 from __future__ import annotations
 
-from yate.editor_view.highlight import LangSpec
+from yate.editor_syntax import LangSpec
 from yate.services.extensions import ExtensionAPI
 
 # Reserved keywords (true/false/null live in constants below so they get the

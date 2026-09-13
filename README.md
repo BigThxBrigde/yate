@@ -21,7 +21,7 @@ yate to open it:
 
 - **VS Code-style layout**: active tab bar, EXPLORER file tree sidebar, breadcrumb path bar, flat status bar
 - **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL/VISUAL-LINE modes + `:` ex command line); `Ctrl+/` toggles between them at runtime
-- **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with a bundled C# extension and `:set filetype=` manual override
+- **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with a bundled C# extension and `:set filetype=` manual override; optional tree-sitter backend (`pip install -e ".[ts]"`) drives Python/Shell highlighting from a real parser, and extensions can register custom grammars (`api.syntax`)
 - **Four Catppuccin themes**: `mocha` (default dark), `macchiato`, `frappe`, `latte` (light); register custom themes in yaterc, or bulk-load theme files via `theme_dirs` / `--theme-dir`
 - **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font and configures Windows Terminal)
 - **Fuzzy finding**: `Ctrl+P` quick open (fzf-style subsequence matching with hit highlighting), `Alt+Shift+P` command palette (every `:` command and named action)
@@ -204,7 +204,9 @@ yate/
   editor_core/    # pure editing logic: buffer, document model, search engine (no Textual dependency)
   editor_term/    # PTY backends (ConPTY/POSIX pty), VT100 emulation, shell parsing
   editor_lsp/     # UI-agnostic LSP client: JSON-RPC, process management, completion/diagnostic state
-  editor_view/    # Textual UI: editor, file tree, status bar, palette, terminal, highlighting, themes
+  editor_syntax/ # UI-agnostic syntax layer: token contract, regex tokenizer backend,
+                 #   optional tree-sitter backend, per-filetype backend selection
+  editor_view/   # Textual UI: editor, file tree, status bar, palette, terminal, themes
   keymaps/        # vsc / vim keymap definitions and action dispatch
   services/       # workspace traversal, shell, extension loading, font installation
   extensions/     # bundled extensions: python_lsp (built-in LSP), csharp_highlight (C# highlighting),

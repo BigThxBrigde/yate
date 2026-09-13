@@ -3,8 +3,8 @@
 The built-in theme family is `Catppuccin <https://catppuccin.com/>`_ with its
 four flavors (``latte`` light, ``frappe`` / ``macchiato`` / ``mocha`` dark,
 ``mocha`` being the default).  A theme bundles both the chrome colors
-(backgrounds, bars, selection) and the syntax token palette consumed by
-:mod:`yate.editor_view.highlight`.
+(backgrounds, bars, selection) and the syntax token palette consumed by the
+:mod:`yate.editor_syntax` layer.
 
 Cell helpers (:func:`cell_width`, :func:`char_to_cell`, ...) are theme
 independent and live at the bottom of this module.
@@ -19,27 +19,11 @@ from typing import Any, Optional, Sequence
 
 from rich.style import Style
 
-# ---------------------------------------------------------------------------
-# Syntax token kinds (produced by highlight.py)
-# ---------------------------------------------------------------------------
+from yate.editor_syntax.tokens import SYNTAX_KINDS
 
-#: Token kind -> syntax attribute name on :class:`Theme`.
-SYNTAX_KINDS: dict[str, str] = {
-    "keyword": "syn_keyword",
-    "string": "syn_string",
-    "number": "syn_number",
-    "comment": "syn_comment",
-    "function": "syn_function",
-    "type": "syn_type",
-    "constant": "syn_constant",
-    "builtin": "syn_builtin",
-    "decorator": "syn_decorator",
-    "operator": "syn_operator",
-    "property": "syn_property",
-    "heading": "syn_keyword",
-    "link": "syn_function",
-    "emphasis": "fg_bright",
-}
+# ---------------------------------------------------------------------------
+# Syntax palette
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)

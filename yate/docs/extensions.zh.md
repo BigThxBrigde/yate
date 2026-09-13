@@ -41,7 +41,9 @@ def setup(api):
 1. yaterc 中的 `extensions` 选项（用户级先于项目级，**累加**而非覆盖）；
 2. **随包扩展** `yate/extensions/`（`python_lsp`、`csharp_highlight`，
    无论当前工作目录在哪都会自动加载；可用 yaterc 的 `disabled_extensions`
-   按文件名主干禁用，见下文）；
+   按文件名主干禁用，见下文）。目录内还提供模板（`*.py.example`，不会被
+   自动加载）：`example_ext.py.example` 与 tree-sitter grammar 模板
+   `yatesh_syntax.py.example`；
 3. 默认目录：工作目录下的 `./extensions/` 与 `~/.yate/extensions/`
    （启动时自动加载其中所有 `*.py`，下划线开头的文件跳过）；
 4. 命令行：`--ext <文件>` 加载单个文件，`--ext-dir <目录>` 加载目录下
@@ -224,7 +226,7 @@ api.lsp.has_state(name, "ready")
 字符串、数字、注释、多行状态由引擎统一处理。
 
 ```python
-from yate.editor_view.highlight import LangSpec
+from yate.editor_syntax import LangSpec
 
 def setup(api):
     spec = LangSpec(
@@ -251,7 +253,7 @@ def setup(api):
 | 方法/属性 | 作用 |
 |---|---|
 | `api.highlight.register(spec, *extensions)` | 注册/覆盖一个语言；扩展名不带点（带点也容忍） |
-| `api.highlight.LangSpec` | 语言规格数据类（也可直接 `from yate.editor_view.highlight import LangSpec`） |
+| `api.highlight.LangSpec` | 语言规格数据类（也可直接 `from yate.editor_syntax import LangSpec`） |
 | `api.highlight.spec(**kwargs)` | 用关键字参数构造 `LangSpec` |
 | `api.highlight.available()` | 当前可用于 `:set filetype` 的全部扩展名与语言名 |
 
@@ -279,6 +281,44 @@ def setup(api):
 该扩展随包自动加载，无需放在工作目录内；不想加载时在 yaterc 中设置
 `disabled_extensions = ["csharp_highlight"]`，也可用
 `yate --ext csharp_highlight.py` 显式加载一份修改版）。
+
+### 4.8 基于 tree-sitter 的语法高亮（自定义语法）
+
+`api.syntax.register_tree_sitter` 为某个语言绑定真正的 tree-sitter 语法
+（grammar）与 `highlights.scm` 查询——基于语法树的高亮，适合单词表
+无法覆盖的自定义语言（例如你自己实现的 shell）。需要可选依赖
+`pip install yate[ts]`。
+
+```python
+from pathlib import Path
+
+def setup(api):
+    here = Path(__file__).resolve().parent
+    api.syntax.register_tree_sitter(
+        name="yatesh",
+        grammar=str(here / "yatesh.so"),   # 编译好的 grammar（见下），或
+                                           # pip 包名 "tree_sitter_yatesh"
+        extensions=["ysh", "yatesh"],      # 选择该语言的文件扩展名
+        query=str(here / "highlights.scm"),  # 查询文件路径或查询源码字符串
+        capture_map={"operator.special": "operator"},  # 可选的映射覆盖
+    )
+```
+
+注册后 `*.ysh` / `*.yatesh` 文件自动高亮，`:set filetype=ysh` 立即可用
+（支持 Tab 补全）；grammar 加载失败时这些扩展名仍保留最小 regex 回退。
+
+grammar 库的构建方式：`npm install -g tree-sitter-cli`，在你的 grammar
+仓库中运行 `tree-sitter generate` 后编译（POSIX：
+`cc -shared -fPIC -I src src/parser.c src/scanner.c -o yatesh.so`；
+MSVC：`cl /LD /Isrc src\parser.c src\scanner.c /Fe:yatesh.dll`）。
+C 入口函数必须命名为 `tree_sitter_<name>`。查询使用 tree-sitter 的
+capture 名（`@keyword`、`@comment`、`@function.call` 等），由默认映射表
+（`yate/editor_syntax/ts_backend/languages.py`）转换成 yate 的 token
+种类；`capture_map` 可增改单个映射。
+
+完整模板见包内随附的 `yate/extensions/yatesh_syntax.py.example`。
+注意：同一扩展名上，`api.highlight.register`（4.7 节）的注册始终优先于
+tree-sitter。
 
 ---
 

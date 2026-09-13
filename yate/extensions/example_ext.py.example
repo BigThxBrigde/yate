@@ -24,6 +24,9 @@ An extension is any module with a ``setup(api)`` function. The api exposes:
   ``api.lsp.statuses()`` -- language server protocol support
 * ``api.highlight.register(spec, *extensions)`` -- custom syntax highlighting
   via a declarative ``LangSpec`` (see ``csharp_highlight.py`` for an example)
+* ``api.syntax.register_tree_sitter(name, grammar=..., extensions=...,
+  query=...)`` -- tree-sitter grammar based highlighting for custom
+  languages (see ``yatesh_syntax.py.example``; requires ``yate[ts]``)
 
 Note: this example registers commands with the imperative
 ``api.register_command`` (which carries a fully typed signature) and looks up

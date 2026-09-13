@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from typing import Any, cast
 
-from yate.editor_view import highlight as hl
+from yate.editor_syntax import regex_backend as hl
 from yate.editor_view import theme
 
 

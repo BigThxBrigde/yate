@@ -1,9 +1,12 @@
-"""Syntax highlighting engine: a single-pass, stateful regex tokenizer.
+"""Regex syntax backend: a single-pass, stateful tokenizer.
 
-The module is pure logic (no terminal/Rich code): it turns document lines
-into per-line token ranges, :class:`Token` ``(start, end, kind)`` where *kind*
-is one of the keys in :data:`~yate.editor_view.theme.SYNTAX_KINDS`.  The view
-layer maps kinds to colors through the active theme.
+This is the zero-dependency default backend of the :mod:`yate.editor_syntax`
+layer (the tree-sitter backend, when installed, takes precedence per
+language).  The module is pure logic (no terminal/Rich code): it turns
+document lines into per-line token ranges, :class:`Token`
+``(start, end, kind)`` where *kind* is one of the keys in
+:data:`~yate.editor_syntax.tokens.SYNTAX_KINDS`.  The view layer maps kinds
+to colors through the active theme.
 
 Design notes (see editor tokenizer lessons):
 
@@ -24,14 +27,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-
-@dataclass(frozen=True)
-class Token:
-    """A highlighted span on one line (character columns, half-open)."""
-
-    start: int
-    end: int
-    kind: str
+from yate.editor_syntax.tokens import Token
 
 
 # ---------------------------------------------------------------------------
