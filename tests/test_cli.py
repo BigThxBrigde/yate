@@ -14,7 +14,8 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import yate
 from yate.cli import build_parser, main
@@ -269,6 +270,129 @@ class CliThemeStartupTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             kwargs = self._run_main(["-u", "NONE"], home=Path(tmp))
             self.assertIsNone(kwargs["theme_name"])
+
+
+class CliSetupDefaultsTests(unittest.TestCase):
+    """--setup-defaults / --cleanup-defaults run and exit before the TUI."""
+
+    def _run(
+        self,
+        argv: list[str],
+        *,
+        setup: MagicMock | None = None,
+        cleanup: MagicMock | None = None,
+    ) -> tuple[int, str, MagicMock, MagicMock]:
+        from yate.services import user_setup
+
+        if setup is None:
+            setup = MagicMock()
+        if cleanup is None:
+            cleanup = MagicMock()
+        buf = io.StringIO()
+        with patch("yate.app.YateApp") as fake_app, \
+                patch("yate.config.load_config") as load_config, \
+                patch("yate.crash.install"), \
+                patch.object(user_setup, "setup_defaults", setup) as s, \
+                patch.object(user_setup, "cleanup_defaults", cleanup) as c:
+            with redirect_stdout(buf):
+                rc = main(argv)
+        fake_app.assert_not_called()
+        load_config.assert_not_called()
+        return rc, buf.getvalue(), s, c
+
+    @staticmethod
+    def _setup_report(**kwargs: Any) -> object:
+        from yate.services.user_setup import SetupReport
+
+        return SetupReport(base_dir=Path.home() / ".yate", **kwargs)
+
+    @staticmethod
+    def _cleanup_report(**kwargs: Any) -> object:
+        from yate.services.user_setup import CleanupReport
+
+        return CleanupReport(base_dir=Path.home() / ".yate", **kwargs)
+
+    def test_parser_flags_and_mutual_exclusion(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args([])
+        self.assertFalse(args.setup_defaults)
+        self.assertFalse(args.cleanup_defaults)
+        self.assertFalse(args.force)
+        self.assertFalse(args.include_data)
+        self.assertTrue(parser.parse_args(["--setup-defaults"]).setup_defaults)
+        self.assertTrue(parser.parse_args(["--cleanup-defaults"]).cleanup_defaults)
+        self.assertTrue(
+            parser.parse_args(["--cleanup-defaults", "--force",
+                               "--include-data"]).include_data
+        )
+        with self.assertRaises(SystemExit) as ctx:
+            parser.parse_args(["--setup-defaults", "--cleanup-defaults"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_help_text_lists_both_options(self) -> None:
+        help_text = build_parser().format_help()
+        self.assertIn("--setup-defaults", help_text)
+        self.assertIn("--cleanup-defaults", help_text)
+        self.assertIn("--include-data", help_text)
+
+    def test_setup_defaults_invokes_service_and_exits_zero(self) -> None:
+        setup = MagicMock(return_value=self._setup_report())
+        rc, out, s, _ = self._run(["--setup-defaults"], setup=setup)
+        self.assertEqual(rc, 0)
+        s.assert_called_once_with(force=False)
+        self.assertIn("yate user directory", out)
+
+    def test_setup_defaults_force_passthrough_and_error_exit_code(self) -> None:
+        ok = MagicMock(return_value=self._setup_report())
+        rc, _, s, _ = self._run(["--setup-defaults", "--force"], setup=ok)
+        self.assertEqual(rc, 0)
+        s.assert_called_once_with(force=True)
+
+        failed = MagicMock(
+            return_value=self._setup_report(errors=["yaterc: disk full"])
+        )
+        rc, out, _, _ = self._run(["--setup-defaults"], setup=failed)
+        self.assertEqual(rc, 1)
+        self.assertIn("disk full", out)
+
+    def test_cleanup_defaults_passes_force_and_include_data(self) -> None:
+        cleanup = MagicMock(return_value=self._cleanup_report())
+        with patch("yate.crash.uninstall") as uninstall:
+            rc, _, _, c = self._run(
+                ["--cleanup-defaults", "--force", "--include-data"],
+                cleanup=cleanup,
+            )
+        self.assertEqual(rc, 0)
+        c.assert_called_once_with(force=True, include_data=True)
+        # The open crash report handle must be released first so data/ can
+        # actually be removed (notably on Windows).
+        uninstall.assert_called_once_with()
+
+    def test_cleanup_without_include_data_keeps_crash_handle(self) -> None:
+        cleanup = MagicMock(return_value=self._cleanup_report())
+        with patch("yate.crash.uninstall") as uninstall:
+            rc, _, _, _ = self._run(
+                ["--cleanup-defaults", "--force"], cleanup=cleanup
+            )
+        self.assertEqual(rc, 0)
+        uninstall.assert_not_called()
+
+    def test_cleanup_cancelled_still_exits_zero(self) -> None:
+        cleanup = MagicMock(
+            return_value=self._cleanup_report(cancelled=True)
+        )
+        rc, out, _, _ = self._run(["--cleanup-defaults", "--force"],
+                                  cleanup=cleanup)
+        self.assertEqual(rc, 0)
+        self.assertIn("cancelled", out)
+
+    def test_cleanup_confirmation_required_exits_two(self) -> None:
+        from yate.services.user_setup import ConfirmationRequiredError
+
+        cleanup = MagicMock(side_effect=ConfirmationRequiredError("non-tty"))
+        rc, out, _, _ = self._run(["--cleanup-defaults"], cleanup=cleanup)
+        self.assertEqual(rc, 2)
+        self.assertIn("non-tty", out)
 
 
 if __name__ == "__main__":

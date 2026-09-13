@@ -108,6 +108,22 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(len(self._report_files()), 1)
         self.assertIs(sys.excepthook, first_hook)
 
+    def test_uninstall_releases_handle_and_deletes_healthy_report(self) -> None:
+        crash.install()
+        report = crash.current_crash_file()
+        self.assertIsNotNone(report)
+        assert report is not None  # narrow for pyright
+        self.assertTrue(report.is_file())
+
+        crash.uninstall()
+        # The Windows --include-data cleanup relies on the handle being
+        # released and the healthy report disappearing from data/.
+        self.assertFalse(report.exists())
+        self.assertIsNone(crash.current_crash_file())
+        self.assertFalse(faulthandler.is_enabled())
+        # Idempotent: atexit calls it again on interpreter shutdown.
+        crash.uninstall()
+
     def test_excepthook_appends_traceback_and_delegates_to_original(self) -> None:
         sentinel = mock.Mock()
         crash._original_excepthook = sentinel
