@@ -44,6 +44,14 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      - name: Pin canonical remote for changelog links
+        # This repo is mirrored GitHub <- Gitee, but Gitee is the canonical
+        # site: the committed CHANGELOG links point to gitee.com/jermaine.
+        # The gate renders links from the origin URL, and actions/checkout
+        # points origin at the GitHub mirror, which would make every released
+        # section look stale. URL-only change — the gate makes no network call.
+        run: git remote set-url origin https://gitee.com/jermaine/yate.git
+
       - name: Changelog gate
         # stdlib-only tool: fails when CHANGELOG*.md are stale vs git history
         run: python -m tools.changelog check
