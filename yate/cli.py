@@ -13,13 +13,13 @@ import argparse
 from pathlib import Path
 from typing import Optional, Sequence
 
-from yate import __version__
+from yate import __description__
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yate",
-        description="yate - yet another terminal editor (Textual based)",
+        description=f"yate - {__description__}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"
@@ -92,7 +92,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="install the bundled Nerd Font for the current user, configure "
              "Windows Terminal if possible, then exit",
     )
-    parser.add_argument("--version", action="version", version=f"yate {__version__}")
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="print yate / Python / platform version information and exit",
+    )
+    parser.add_argument(
+        "--diag",
+        action="store_true",
+        help="print a full environment & configuration diagnostics report "
+             "(extensions, LSP, fonts, ...) and exit",
+    )
     return parser
 
 
@@ -105,6 +115,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # --version prints basic information without loading any configuration
+    # or touching the terminal. Handle it first so it stays instant.
+    if args.version:
+        from yate import diagnostics  # pylint: disable=import-outside-toplevel
+
+        print(diagnostics.version_lines())
+        return 0
 
     # Font setup runs without launching the TUI.
     if args.install_font:
@@ -151,6 +169,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     keymap = None
     if args.keymap is not None:
         keymap = "vsc" if args.keymap == "normal" else args.keymap
+
+    # --diag builds the app through the exact same constructor path as a
+    # normal run so the report reflects what would actually be loaded, but
+    # never enters the TUI. load_startup_services() is headless-safe.
+    if args.diag:
+        from yate import diagnostics  # pylint: disable=import-outside-toplevel
+
+        app = YateApp(
+            target=target,
+            keymap=keymap,
+            theme_name=args.theme,
+            config=config,
+            ext_files=args.ext_files,
+            ext_dirs=args.ext_dirs,
+        )
+        app.load_startup_services()
+        diagnostics.print_report(app)
+        return 0
+
     app = YateApp(
         target=target,
         keymap=keymap,

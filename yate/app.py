@@ -300,6 +300,16 @@ class YateApp(App[None]):
             and view.is_mounted
         )
 
+    @property
+    def ext_dirs(self) -> list[Path]:
+        """Directories of ``*.py`` extensions to load (CLI ``--ext-dir``)."""
+        return list(self._ext_dirs)
+
+    @property
+    def ext_files(self) -> list[Path]:
+        """Individual ``.py`` extension scripts to load (CLI ``--ext``)."""
+        return list(self._ext_files)
+
     def _open_target(self, path: Path) -> str:
         """Open the startup target and return its kind: ``"dir"`` or
         ``"file"`` (a not-yet-created path counts as a file)."""
@@ -1713,8 +1723,7 @@ class YateApp(App[None]):
         self.terminal_panel.styles.height = self.config.terminal_height
         self.terminal_panel.display = False
 
-        self._load_extensions()
-        self._register_configured_servers()
+        self.load_startup_services()
         self.completion_popup = CompletionPopup(self)
         await self.query_one("#editor-col", Vertical).mount(self.completion_popup)
         self.apply_theme()
@@ -1753,6 +1762,15 @@ class YateApp(App[None]):
             pass
 
     # ================================================================ run
+
+    def load_startup_services(self) -> None:
+        """加载扩展并注册 yaterc 声明的 LSP（无头安全：不依赖任何 widget）。
+
+        ``on_mount`` 与 ``yate --diag`` 共用本方法，保证"诊断所见 =
+        实际启动所加载"。两者逻辑零差异，不启动任何 LSP 进程（服务器懒启动）。
+        """
+        self._load_extensions()
+        self._register_configured_servers()
 
     def _load_extensions(self) -> None:
         def _report(records: list[LoadedExtension]) -> None:

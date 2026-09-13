@@ -56,6 +56,16 @@ def crash_data_dir() -> Path:
     return directory
 
 
+def current_crash_file() -> Optional[Path]:
+    """Path of this process's in-progress crash report, if installed.
+
+    The file is header-only while the process is healthy; it must be
+    excluded from "previous crash reports" listings so a normal run does
+    not look like it already crashed.
+    """
+    return _err_path
+
+
 def _err_file_path(directory: Path, now: Optional[datetime] = None) -> Path:
     """Build ``crash-YYYYMMDD-HHMMSS.err`` inside *directory*."""
     moment = now if now is not None else datetime.now()

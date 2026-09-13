@@ -9,4 +9,5 @@ A Textual based terminal text editor with:
 """
 
 __version__ = "0.1.0"
-__all__ = ["__version__"]
+__description__ = "yet another terminal editor (Textual based)"
+__all__ = ["__version__", "__description__"]

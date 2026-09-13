@@ -8,8 +8,10 @@ never enters Textual.
 
 from __future__ import annotations
 
+import io
 import os
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -31,9 +33,15 @@ class _FakeApp:
     """Records constructor kwargs instead of launching the TUI."""
 
     last_kwargs: dict[str, object] | None = None
+    last_instance: "_FakeApp | None" = None
 
     def __init__(self, **kwargs: object) -> None:
         type(self).last_kwargs = kwargs
+        type(self).last_instance = self
+        self.load_startup_services_called = False
+
+    def load_startup_services(self) -> None:
+        self.load_startup_services_called = True
 
     def run(self) -> None:
         return None
@@ -77,6 +85,65 @@ class CliParserTests(unittest.TestCase):
     def test_positional_path(self) -> None:
         self.assertEqual(build_parser().parse_args(["some/file.txt"]).path, "some/file.txt")
         self.assertIsNone(build_parser().parse_args([]).path)
+
+    def test_version_flag_is_store_true(self) -> None:
+        self.assertFalse(build_parser().parse_args([]).version)
+        self.assertTrue(build_parser().parse_args(["--version"]).version)
+
+    def test_diag_flag_is_store_true(self) -> None:
+        self.assertFalse(build_parser().parse_args([]).diag)
+        self.assertTrue(build_parser().parse_args(["--diag"]).diag)
+
+
+class CliVersionDiagTests(unittest.TestCase):
+    """--version and --diag exit before the TUI runs."""
+
+    def test_version_prints_basic_info_and_exits_zero(self) -> None:
+        buf = io.StringIO()
+        with patch("yate.app.YateApp") as fake_app, \
+                patch("yate.config.load_config") as load_config, \
+                patch("yate.crash.install"):
+            with redirect_stdout(buf):
+                rc = main(["--version"])
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        self.assertIn("yate 0.1.0", out)
+        # the description is part of the first line
+        self.assertIn("yet another terminal editor", out.splitlines()[0])
+        self.assertIn("Python", out)
+        # platform string is present on the third line
+        self.assertGreater(len(out.splitlines()), 2)
+        # --version must not construct the app or read any config
+        fake_app.assert_not_called()
+        load_config.assert_not_called()
+
+    def test_diag_prints_report_without_running_tui(self) -> None:
+        sentinel = "DIAG-REPORT-SENTINEL"
+        buf = io.StringIO()
+        with patch("yate.app.YateApp", _FakeApp), \
+                patch("yate.diagnostics.format_report", return_value=sentinel) as fmt, \
+                patch("yate.crash.install"):
+            with redirect_stdout(buf):
+                rc = main(["-u", "NONE", "--diag"])
+        self.assertEqual(rc, 0)
+        self.assertIn(sentinel, buf.getvalue())
+        # format_report was called with the constructed app
+        self.assertEqual(fmt.call_count, 1)
+        app_arg = fmt.call_args.args[0]
+        self.assertIsInstance(app_arg, _FakeApp)
+        # startup services were loaded so the report reflects real state
+        self.assertTrue(app_arg.load_startup_services_called)
+
+    def test_diag_with_none_yaterc_reports_no_rc_loaded(self) -> None:
+        """-u NONE --diag must report that no yaterc was loaded."""
+        buf = io.StringIO()
+        with patch("yate.crash.install"):
+            with redirect_stdout(buf):
+                rc = main(["-u", "NONE", "--diag"])
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        self.assertIn("[yaterc]", out)
+        self.assertIn("no yaterc loaded", out)
 
 
 class CliThemeStartupTests(unittest.TestCase):

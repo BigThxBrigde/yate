@@ -117,6 +117,10 @@ class LspManager:
     def config_names(self) -> list[str]:
         return [c.name for c in self._configs]
 
+    def configs(self) -> list[ServerConfig]:
+        """已注册的服务器配置（只读视图，供诊断/状态栏使用）。"""
+        return list(self._configs)
+
     def config_for(self, filetype: str) -> Optional[ServerConfig]:
         return self._by_filetype.get(filetype)
 
