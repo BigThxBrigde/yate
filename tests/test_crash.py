@@ -12,6 +12,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+import yate
 from yate import crash
 
 
@@ -94,7 +95,7 @@ class InstallTests(unittest.TestCase):
         files = self._report_files()
         self.assertEqual(len(files), 1)
         content = files[0].read_text(encoding="utf-8")
-        self.assertIn("yate 0.1.0 crash report", content)
+        self.assertIn(f"yate {yate.__version__} crash report", content)
         self.assertIn("cwd:", content)
         self.assertIn("argv:", content)
         self.assertIn(f"python: {sys.version.split()[0]} on {sys.platform}", content)

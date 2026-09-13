@@ -16,6 +16,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import yate
 from yate.cli import build_parser, main
 
 _CUSTOM_THEME_SRC = """\
@@ -149,7 +150,7 @@ class CliVersionDiagTests(unittest.TestCase):
                 rc = main(["--version"])
         self.assertEqual(rc, 0)
         out = buf.getvalue()
-        self.assertIn("yate 0.1.0", out)
+        self.assertIn(f"yate {yate.__version__}", out)
         # the description is part of the first line
         self.assertIn("yet another terminal editor", out.splitlines()[0])
         self.assertIn("Python", out)
@@ -190,6 +191,12 @@ class CliVersionDiagTests(unittest.TestCase):
 
 class CliThemeStartupTests(unittest.TestCase):
     """main() auto-loads --theme-dir entries and forwards --theme."""
+
+    def tearDown(self) -> None:
+        from yate.editor_view import theme as theme_mod
+
+        theme_mod.THEMES.pop("cli-custom", None)
+        theme_mod.set_theme("mocha")
 
     def _run_main(self, argv: list[str], home: Path | None = None) -> dict[str, object]:
         saved = {key: os.environ.get(key) for key in ("USERPROFILE", "HOME")}

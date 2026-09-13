@@ -749,6 +749,10 @@ class ExampleRcTests(unittest.TestCase):
 
 
 class CustomThemeTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        themes.THEMES.pop("yate_test_theme", None)
+        themes.set_theme("mocha")
+
     def test_register_theme_from_rc(self) -> None:
         body = (
             "from dataclasses import replace\n"
@@ -765,7 +769,6 @@ class CustomThemeTests(unittest.TestCase):
             self.assertEqual(activated.name, "yate_test_theme")
             # mocha palette copied through
             self.assertEqual(activated.bg, themes.THEMES["mocha"].bg)
-        themes.set_theme("mocha")  # restore global default
 
 
 class AppIntegrationTests(unittest.TestCase):
