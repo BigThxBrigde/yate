@@ -1,6 +1,12 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-09-14 · yate 0.2.2
+> 由 git 历史自动生成于 2026-09-15 · yate 0.2.2
+
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.2...HEAD)
+
+### 测试
+
+- migrate suite from unittest to pytest with isolated HOME [缺中文] ([`14e6dd3`](https://gitee.com/jermaine/yate/commit/14e6dd372dbc3ecaadc52c2080a403eb5555599f))
 
 ## [0.2.2] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.1...v0.2.2)
 
@@ -17,6 +23,7 @@
 
 ### 文档
 
+- release v0.2.2 bilingual changelog [缺中文] ([`5294492`](https://gitee.com/jermaine/yate/commit/529449251b7f2f21f2d9d64490ffdc0d135f0fc2))
 - release v0.2.1 bilingual changelog [缺中文] ([`91c8ca2`](https://gitee.com/jermaine/yate/commit/91c8ca20f3ee86a94b238fbe55805e78163d2a01))
 
 ### 构建与工程
