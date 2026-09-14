@@ -9,10 +9,10 @@ import asyncio
 import contextlib
 import os
 import time
-import unittest
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any, Awaitable, Callable, cast
+
+import pytest
 
 from textual.strip import Strip
 from textual.widgets.tree import TreeNode
@@ -50,409 +50,442 @@ def plain_text(content: Any) -> str:
     return plain if isinstance(plain, str) else str(content)
 
 
-class KeyAdapterTests(unittest.TestCase):
-    def test_named_keys(self):
-        self.assertEqual(textual_key_to_raw("enter"), "\r")
-        self.assertEqual(textual_key_to_raw("escape"), "\x1b")
-        self.assertEqual(textual_key_to_raw("backspace"), "\x7f")
-        self.assertEqual(textual_key_to_raw("up"), "\x1b[A")
-        self.assertEqual(textual_key_to_raw("f1"), "\x1bOP")
-        self.assertEqual(textual_key_to_raw("space"), " ")
-
-    def test_ctrl_and_alt(self):
-        self.assertEqual(textual_key_to_raw("ctrl+s"), "\x13")
-        self.assertEqual(textual_key_to_raw("ctrl+c"), "\x03")
-        self.assertEqual(textual_key_to_raw("ctrl+]"), "\x1d")
-        self.assertEqual(textual_key_to_raw("ctrl+/"), "\x1f")
-        self.assertEqual(textual_key_to_raw("alt+u"), "\x1bu")
-
-    def test_modified_arrows(self):
-        self.assertEqual(textual_key_to_raw("ctrl+right"), "\x1b[1;5C")
-        self.assertEqual(textual_key_to_raw("shift+left"), "\x1b[1;2D")
-        self.assertEqual(textual_key_to_raw("ctrl+pageup"), "\x1b[5;5~")
-
-    def test_printable_passthrough(self):
-        self.assertEqual(textual_key_to_raw("a"), "a")
-        self.assertEqual(textual_key_to_raw(":"), ":")
-        self.assertIsNone(textual_key_to_raw(""))
+# ------------------------------------------------------------------ key mapping
 
 
-class TextualAppSmokeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_type_save_find_help_keymap(self):
-        with TemporaryDirectory() as tmp:
-            target = Path(tmp) / "notes.txt"
-            app = YateApp(target=target)
-            self.assertEqual(app.keymap_name, "vsc")
-            async with app.run_test(size=(100, 30)) as pilot:
-                # widgets exist once mounted; narrow the Optional widget attrs
-                prompt_bar = app.prompt_bar
-                assert prompt_bar is not None
-
-                # --- type text into the buffer
-                await pilot.press("h", "e", "l", "l", "o")
-                self.assertEqual(app.buffer.lines[0], "hello")
-                self.assertTrue(app.doc.modified)
-
-                # --- save with ctrl+s
-                await pilot.press("ctrl+s")
-                self.assertTrue(target.exists())
-                self.assertFalse(app.doc.modified)
-                self.assertEqual(target.read_text(encoding="utf-8"), "hello")
-
-                # --- find prompt + live search
-                await pilot.press("ctrl+f")
-                self.assertEqual(prompt_bar.active_mode, "find")
-                await pilot.press("l", "l")
-                await pilot.press("enter")
-                self.assertEqual(app.search.query, "ll")
-                self.assertGreaterEqual(len(app.search.matches), 1)
-                self.assertEqual(app.focused, app.editor_view)
-
-                # --- switch keymap to vim via the vsc toggle (the ":" ex
-                # command line is vim-only; vsc mode types ":" literally)
-                await pilot.press("ctrl+/")
-                self.assertEqual(app.keymap_name, "vim")
-
-                # --- vim append-at-line-end then escape (clear the search
-                # selection first, otherwise insert replaces it by design)
-                app.buffer.clear_selection()
-                await pilot.press("A", "!", "escape")
-                self.assertEqual(app.buffer.lines[0], "hello!")
-
-                # --- help modal opens via :help and closes
-                await pilot.press("colon")
-                self.assertEqual(prompt_bar.active_mode, "command")
-                for ch in "help":
-                    await pilot.press(ch)
-                await pilot.press("enter")
-                await pilot.pause()
-                self.assertEqual(len(app.screen_stack), 2)
-                await pilot.press("q")
-                await pilot.pause()
-                self.assertEqual(len(app.screen_stack), 1)
-
-                # --- tab bar shows the file name
-                self.assertIn("notes.txt", app.build_tabbar(100)[0].plain)
-
-                # --- breadcrumbs: folder chevron crumbs + file name; the
-                # file name stays visible even on a very narrow bar
-                crumbs = app.render_breadcrumbs(100).plain
-                self.assertIn("notes.txt", crumbs)
-                self.assertIn("\uf054", crumbs)  # chevron separator
-                self.assertIn("notes.txt", app.render_breadcrumbs(12).plain)
-
-    async def test_syntax_highlight_and_theme_switch(self):
-        from yate.editor_view import theme
-
-        with TemporaryDirectory() as tmp:
-            target = Path(tmp) / "script.py"
-            target.write_text("def foo():\n    return 42\n", encoding="utf-8")
-            app = YateApp(target=target)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                editor = app.editor_view
-                assert editor is not None
-                mocha = theme.active()
-                # render the "def foo():" line and collect segment colors
-                def seg_colors(strip: Strip) -> set[str]:
-                    return {
-                        seg.style.color.name.lower()
-                        for seg in strip
-                        if seg.style is not None and seg.style.color is not None
-                    }
-
-                colors = seg_colors(editor.render_line(0))
-                # "def" -> keyword color, "foo" -> function color must appear
-                self.assertIn(mocha.syn_keyword.lower(), colors)
-                self.assertIn(mocha.syn_function.lower(), colors)
-                # number 42 on line 2 -> number color
-                self.assertIn(mocha.syn_number.lower(), seg_colors(editor.render_line(1)))
-
-                # switch theme via the app action (the ":" ex line is
-                # vim-only; the same command is reached via the vsc palette)
-                app.set_theme("latte")
-                await pilot.pause()
-                self.assertEqual(theme.active().name, "latte")
-                theme.set_theme("mocha")  # restore default for other tests
-
-    async def test_highlight_cache_survives_cursor_movement(self):
-        with TemporaryDirectory() as tmp:
-            target = Path(tmp) / "script.py"
-            target.write_text("def foo():\n    return 42\n", encoding="utf-8")
-            app = YateApp(target=target)
-            async with app.run_test(size=(100, 30)) as pilot:
-                editor = app.editor_view
-                assert editor is not None
-                hl = cast(Any, editor)
-                # wait for the background tokenizer to paint colors
-                ready = await wait_until(
-                    pilot, lambda: hl._hl_tokens is not None, timeout=5.0
-                )
-                self.assertTrue(ready)
-                tokens = hl._hl_tokens
-
-                def colors_at(row: int) -> set[str]:
-                    return {
-                        seg.style.color.name.lower()
-                        for seg in editor.render_line(row)
-                        if seg.style is not None and seg.style.color is not None
-                    }
-
-                from yate.editor_view import theme
-                mocha = theme.active()
-                before = colors_at(0)
-                self.assertIn(mocha.syn_keyword.lower(), before)
-
-                # moving the cursor must not discard the token cache: the
-                # keyword color stays without waiting for a new tokenizer
-                await pilot.press("down")
-                self.assertIs(hl._hl_tokens, tokens)
-                self.assertIn(mocha.syn_keyword.lower(), colors_at(0))
-
-                # editing invalidates the cache; a fresh tokenizer pass runs
-                await pilot.press("x")
-                refreshed = await wait_until(
-                    pilot,
-                    lambda: hl._hl_tokens is not None
-                    and hl._hl_tokens is not tokens
-                    and hl._hl_version == app.buffer.content_version,
-                    timeout=5.0,
-                )
-                self.assertTrue(refreshed)
-
-    async def test_edit_keeps_colors_instead_of_flashing(self):
-        with TemporaryDirectory() as tmp:
-            target = Path(tmp) / "script.py"
-            target.write_text("def foo():\n    return 42\n", encoding="utf-8")
-            app = YateApp(target=target)
-            async with app.run_test(size=(100, 30)) as pilot:
-                editor = app.editor_view
-                assert editor is not None
-                hl = cast(Any, editor)
-                self.assertTrue(
-                    await wait_until(
-                        pilot, lambda: hl._hl_tokens is not None, timeout=5.0
-                    )
-                )
-                self.assertTrue(hl._tokens_for(0))
-
-                from yate.editor_view import theme
-                mocha = theme.active()
-
-                def colors_at(row: int) -> set[str]:
-                    return {
-                        seg.style.color.name.lower()
-                        for seg in editor.render_line(row)
-                        if seg.style is not None and seg.style.color is not None
-                    }
-
-                self.assertIn(mocha.syn_keyword.lower(), colors_at(0))
-
-                # An edit must NOT drop the colors while the debounced
-                # tokenize pass is pending: the stale tokens keep coloring
-                # the view right after the keypress (no uncolored frame).
-                await pilot.press("x")
-                self.assertTrue(hl._tokens_for(0))
-                self.assertIn(mocha.syn_keyword.lower(), colors_at(0))
-
-                # Exactly one debounced pass is pending for the latest
-                # version, and repeated renders for the same version reuse
-                # the same timer. Checked synchronously after a direct
-                # buffer edit: race-free even on a loaded machine.
-                app.buffer.insert_text("y")
-                self.assertTrue(hl._tokens_for(0))
-                key = hl._hl_scheduled_key
-                timer = hl._hl_timer
-                self.assertIsNotNone(timer)
-                self.assertIsNotNone(key)
-                self.assertEqual(key[2], app.buffer.content_version)
-                hl._tokens_for(0)
-                hl._tokens_for(1)
-                self.assertIs(hl._hl_timer, timer)
-                self.assertEqual(hl._hl_scheduled_key, key)
-
-                # ...and the pending pass converges to the latest version
-                self.assertTrue(
-                    await wait_until(
-                        pilot,
-                        lambda: hl._hl_tokens is not None
-                        and hl._hl_version == app.buffer.content_version
-                        and hl._hl_scheduled_key is None,
-                        timeout=5.0,
-                    )
-                )
-
-    async def test_stale_highlight_not_reused_on_filetype_or_document_switch(self):
-        with TemporaryDirectory() as tmp:
-            target = Path(tmp) / "script.py"
-            target.write_text("def foo():\n    return 42\n", encoding="utf-8")
-            app = YateApp(target=target)
-            async with app.run_test(size=(100, 30)) as pilot:
-                editor = app.editor_view
-                assert editor is not None
-                hl = cast(Any, editor)
-                self.assertTrue(
-                    await wait_until(
-                        pilot, lambda: hl._hl_tokens is not None, timeout=5.0
-                    )
-                )
-                self.assertTrue(hl._tokens_for(0))
-
-                # filetype switch: python tokens must not color the file
-                app.run_command("set filetype=plaintext")
-                self.assertEqual(hl._tokens_for(0), [])
-                self.assertTrue(
-                    await wait_until(
-                        pilot,
-                        lambda: hl._hl_filetype == "plaintext"
-                        and hl._hl_version == app.buffer.content_version,
-                        timeout=5.0,
-                    )
-                )
-
-                # document switch: the old document's tokens must not leak
-                old_doc = hl.doc
-                app.run_command("enew")
-                self.assertIsNot(hl.doc, old_doc)
-                self.assertEqual(hl._tokens_for(0), [])
-                self.assertTrue(
-                    await wait_until(
-                        pilot,
-                        lambda: hl._hl_doc is hl.doc
-                        and hl._hl_version == app.buffer.content_version,
-                        timeout=5.0,
-                    )
-                )
-
-    async def test_explorer_open_file(self):
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "a.txt").write_text("alpha\n", encoding="utf-8")
-            (root / "b.py").write_text("print('beta')\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                explorer = app.explorer_tree
-                assert explorer is not None
-                self.assertTrue(explorer.display)
-                # ctrl+e focuses the explorer; j moves down; l opens
-                await pilot.press("ctrl+e")
-                self.assertIs(app.focused, app.explorer_tree)
-                await pilot.press("j", "l")
-                await pilot.pause()
-                opened = {d.name for d in app.docs if d.path is not None}
-                self.assertTrue(opened & {"a.txt", "b.py"})
-                # esc returns focus to the editor
-                await pilot.press("escape")
-                self.assertIs(app.focused, app.editor_view)
+def test_named_keys() -> None:
+    assert textual_key_to_raw("enter") == "\r"
+    assert textual_key_to_raw("escape") == "\x1b"
+    assert textual_key_to_raw("backspace") == "\x7f"
+    assert textual_key_to_raw("up") == "\x1b[A"
+    assert textual_key_to_raw("f1") == "\x1bOP"
+    assert textual_key_to_raw("space") == " "
 
 
-class WalkFilesTests(unittest.TestCase):
-    def test_collects_nested_files_and_prunes_noise(self):
-        from yate.services.workspace import Workspace
-
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "src").mkdir()
-            (root / "src" / "main.py").write_text("x = 1\n", encoding="utf-8")
-            (root / "src" / "util.py").write_text("y = 2\n", encoding="utf-8")
-            (root / "readme.md").write_text("# hi\n", encoding="utf-8")
-            (root / "__pycache__").mkdir()
-            (root / "__pycache__" / "junk.pyc").write_text("x", encoding="utf-8")
-
-            ws = Workspace(root)
-            names = {p.name for p in ws.walk_files()}
-            self.assertEqual(names, {"main.py", "util.py", "readme.md"})
-
-    def test_no_root_returns_empty(self):
-        from yate.services.workspace import Workspace
-
-        self.assertEqual(Workspace(None).walk_files(), [])
-
-    def test_limit(self):
-        from yate.services.workspace import Workspace
-
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for i in range(10):
-                (root / f"f{i}.txt").write_text("x\n", encoding="utf-8")
-            self.assertEqual(len(Workspace(root).walk_files(limit=3)), 3)
+def test_ctrl_and_alt() -> None:
+    assert textual_key_to_raw("ctrl+s") == "\x13"
+    assert textual_key_to_raw("ctrl+c") == "\x03"
+    assert textual_key_to_raw("ctrl+]") == "\x1d"
+    assert textual_key_to_raw("ctrl+/") == "\x1f"
+    assert textual_key_to_raw("alt+u") == "\x1bu"
 
 
-class FuzzyMatchTests(unittest.TestCase):
-    def test_empty_query_matches(self):
-        from yate.editor_view.palette import fuzzy_match
-
-        self.assertIsNotNone(fuzzy_match("", "anything"))
-
-    def test_subsequence_order(self):
-        from yate.editor_view.palette import fuzzy_match
-
-        self.assertIsNotNone(fuzzy_match("wt", "write"))
-        self.assertIsNone(fuzzy_match("tw", "write"))
-        self.assertIsNotNone(fuzzy_match("bp", "bprev"))
-        self.assertIsNone(fuzzy_match("xyz", "bprev"))
-
-    def test_consecutive_ranks_better_than_gap(self):
-        from yate.editor_view.palette import fuzzy_match
-
-        tight = fuzzy_match("set", "set")
-        gappy = fuzzy_match("set", "reset")  # r-e-**s**-**e**-**t**: gap match
-        assert tight is not None and gappy is not None
-        self.assertLess(tight[0], gappy[0])
-
-    def test_returns_matched_indices(self):
-        from yate.editor_view.palette import fuzzy_match
-
-        match = fuzzy_match("bprev", "bprev")
-        assert match is not None
-        self.assertEqual(match[1], [0, 1, 2, 3, 4])
+def test_modified_arrows() -> None:
+    assert textual_key_to_raw("ctrl+right") == "\x1b[1;5C"
+    assert textual_key_to_raw("shift+left") == "\x1b[1;2D"
+    assert textual_key_to_raw("ctrl+pageup") == "\x1b[5;5~"
 
 
-class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_ctrl_p_chord_opens_file_palette(self):
-        from yate.editor_view.palette import PaletteScreen
+def test_printable_passthrough() -> None:
+    assert textual_key_to_raw("a") == "a"
+    assert textual_key_to_raw(":") == ":"
+    assert textual_key_to_raw("") is None
 
-        with TemporaryDirectory() as tmp:
-            (Path(tmp) / "notes.txt").write_text("hi\n", encoding="utf-8")
-            app = YateApp(target=Path(tmp))
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.press("ctrl+p")
-                await pilot.pause()
-                screen = app.screen
-                assert isinstance(screen, PaletteScreen)
-                self.assertEqual(screen.mode, "files")
-                # escape dismisses
-                await pilot.press("escape")
-                await pilot.pause()
-                self.assertEqual(len(app.screen_stack), 1)
 
-    async def test_file_palette_filters_and_opens(self):
-        from yate.editor_view.palette import PaletteScreen
+# ------------------------------------------------------------- headless app smoke
 
-        with TemporaryDirectory() as tmp:
-            (Path(tmp) / "notes.txt").write_text("hi\n", encoding="utf-8")
-            (Path(tmp) / "data.txt").write_text("data\n", encoding="utf-8")
-            app = YateApp(target=Path(tmp))
-            async with app.run_test(size=(100, 30)) as pilot:
-                app.open_file_palette()
-                await pilot.pause()
-                self.assertIsInstance(app.screen, PaletteScreen)
-                for ch in "note":
-                    await pilot.press(ch)
-                await pilot.pause()
-                screen = app.screen
-                assert isinstance(screen, PaletteScreen)
-                # only notes.txt matches "note"
-                self.assertEqual(screen.filtered_count, 1)
-                await pilot.press("enter")
-                await pilot.pause()
-                self.assertEqual(len(app.screen_stack), 1)
-                self.assertEqual(app.doc.name, "notes.txt")
 
-    async def test_command_palette_runs_command(self):
-        from yate.editor_view.palette import PaletteScreen
+def test_type_save_find_help_keymap(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        target = tmp_path / "notes.txt"
+        app = YateApp(target=target)
+        assert app.keymap_name == "vsc"
+        async with app.run_test(size=(100, 30)) as pilot:
+            # widgets exist once mounted; narrow the Optional widget attrs
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
 
+            # --- type text into the buffer
+            await pilot.press("h", "e", "l", "l", "o")
+            assert app.buffer.lines[0] == "hello"
+            assert app.doc.modified
+
+            # --- save with ctrl+s
+            await pilot.press("ctrl+s")
+            assert target.exists()
+            assert not app.doc.modified
+            assert target.read_text(encoding="utf-8") == "hello"
+
+            # --- find prompt + live search
+            await pilot.press("ctrl+f")
+            assert prompt_bar.active_mode == "find"
+            await pilot.press("l", "l")
+            await pilot.press("enter")
+            assert app.search.query == "ll"
+            assert len(app.search.matches) >= 1
+            assert app.focused == app.editor_view
+
+            # --- switch keymap to vim via the vsc toggle (the ":" ex
+            # command line is vim-only; vsc mode types ":" literally)
+            await pilot.press("ctrl+/")
+            assert app.keymap_name == "vim"
+
+            # --- vim append-at-line-end then escape (clear the search
+            # selection first, otherwise insert replaces it by design)
+            app.buffer.clear_selection()
+            await pilot.press("A", "!", "escape")
+            assert app.buffer.lines[0] == "hello!"
+
+            # --- help modal opens via :help and closes
+            await pilot.press("colon")
+            assert prompt_bar.active_mode == "command"
+            for ch in "help":
+                await pilot.press(ch)
+            await pilot.press("enter")
+            await pilot.pause()
+            assert len(app.screen_stack) == 2
+            await pilot.press("q")
+            await pilot.pause()
+            assert len(app.screen_stack) == 1
+
+            # --- tab bar shows the file name
+            assert "notes.txt" in app.build_tabbar(100)[0].plain
+
+            # --- breadcrumbs: folder chevron crumbs + file name; the
+            # file name stays visible even on a very narrow bar
+            crumbs = app.render_breadcrumbs(100).plain
+            assert "notes.txt" in crumbs
+            assert "\uf054" in crumbs  # chevron separator
+            assert "notes.txt" in app.render_breadcrumbs(12).plain
+
+    asyncio.run(scenario())
+
+
+def test_syntax_highlight_and_theme_switch(tmp_path: Path) -> None:
+    from yate.editor_view import theme
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor_view
+            assert editor is not None
+            mocha = theme.active()
+
+            # render the "def foo():" line and collect segment colors
+            def seg_colors(strip: Strip) -> set[str]:
+                return {
+                    seg.style.color.name.lower()
+                    for seg in strip
+                    if seg.style is not None and seg.style.color is not None
+                }
+
+            colors = seg_colors(editor.render_line(0))
+            # "def" -> keyword color, "foo" -> function color must appear
+            assert mocha.syn_keyword.lower() in colors
+            assert mocha.syn_function.lower() in colors
+            # number 42 on line 2 -> number color
+            assert mocha.syn_number.lower() in seg_colors(editor.render_line(1))
+
+            # switch theme via the app action (the ":" ex line is
+            # vim-only; the same command is reached via the vsc palette)
+            app.set_theme("latte")
+            await pilot.pause()
+            assert theme.active().name == "latte"
+            theme.set_theme("mocha")  # restore default for other tests
+
+    asyncio.run(scenario())
+
+
+def test_highlight_cache_survives_cursor_movement(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor_view
+            assert editor is not None
+            hl = cast(Any, editor)
+            # wait for the background tokenizer to paint colors
+            ready = await wait_until(
+                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+            )
+            assert ready
+            tokens = hl._hl_tokens
+
+            def colors_at(row: int) -> set[str]:
+                return {
+                    seg.style.color.name.lower()
+                    for seg in editor.render_line(row)
+                    if seg.style is not None and seg.style.color is not None
+                }
+
+            from yate.editor_view import theme
+            mocha = theme.active()
+            before = colors_at(0)
+            assert mocha.syn_keyword.lower() in before
+
+            # moving the cursor must not discard the token cache: the
+            # keyword color stays without waiting for a new tokenizer
+            await pilot.press("down")
+            assert hl._hl_tokens is tokens
+            assert mocha.syn_keyword.lower() in colors_at(0)
+
+            # editing invalidates the cache; a fresh tokenizer pass runs
+            await pilot.press("x")
+            refreshed = await wait_until(
+                pilot,
+                lambda: hl._hl_tokens is not None
+                and hl._hl_tokens is not tokens
+                and hl._hl_version == app.buffer.content_version,
+                timeout=5.0,
+            )
+            assert refreshed
+
+    asyncio.run(scenario())
+
+
+def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor_view
+            assert editor is not None
+            hl = cast(Any, editor)
+            assert await wait_until(
+                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+            )
+            assert hl._tokens_for(0)
+
+            from yate.editor_view import theme
+            mocha = theme.active()
+
+            def colors_at(row: int) -> set[str]:
+                return {
+                    seg.style.color.name.lower()
+                    for seg in editor.render_line(row)
+                    if seg.style is not None and seg.style.color is not None
+                }
+
+            assert mocha.syn_keyword.lower() in colors_at(0)
+
+            # An edit must NOT drop the colors while the debounced
+            # tokenize pass is pending: the stale tokens keep coloring
+            # the view right after the keypress (no uncolored frame).
+            await pilot.press("x")
+            assert hl._tokens_for(0)
+            assert mocha.syn_keyword.lower() in colors_at(0)
+
+            # Exactly one debounced pass is pending for the latest
+            # version, and repeated renders for the same version reuse
+            # the same timer. Checked synchronously after a direct
+            # buffer edit: race-free even on a loaded machine.
+            app.buffer.insert_text("y")
+            assert hl._tokens_for(0)
+            key = hl._hl_scheduled_key
+            timer = hl._hl_timer
+            assert timer is not None
+            assert key is not None
+            assert key[2] == app.buffer.content_version
+            hl._tokens_for(0)
+            hl._tokens_for(1)
+            assert hl._hl_timer is timer
+            assert hl._hl_scheduled_key == key
+
+            # ...and the pending pass converges to the latest version
+            assert await wait_until(
+                pilot,
+                lambda: hl._hl_tokens is not None
+                and hl._hl_version == app.buffer.content_version
+                and hl._hl_scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_stale_highlight_not_reused_on_filetype_or_document_switch(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor_view
+            assert editor is not None
+            hl = cast(Any, editor)
+            assert await wait_until(
+                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+            )
+            assert hl._tokens_for(0)
+
+            # filetype switch: python tokens must not color the file
+            app.run_command("set filetype=plaintext")
+            assert hl._tokens_for(0) == []
+            assert await wait_until(
+                pilot,
+                lambda: hl._hl_filetype == "plaintext"
+                and hl._hl_version == app.buffer.content_version,
+                timeout=5.0,
+            )
+
+            # document switch: the old document's tokens must not leak
+            old_doc = hl.doc
+            app.run_command("enew")
+            assert hl.doc is not old_doc
+            assert hl._tokens_for(0) == []
+            assert await wait_until(
+                pilot,
+                lambda: hl._hl_doc is hl.doc
+                and hl._hl_version == app.buffer.content_version,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_explorer_open_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        root = tmp_path
+        (root / "a.txt").write_text("alpha\n", encoding="utf-8")
+        (root / "b.py").write_text("print('beta')\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            explorer = app.explorer_tree
+            assert explorer is not None
+            assert explorer.display
+            # ctrl+e focuses the explorer; j moves down; l opens
+            await pilot.press("ctrl+e")
+            assert app.focused is app.explorer_tree
+            await pilot.press("j", "l")
+            await pilot.pause()
+            opened = {d.name for d in app.docs if d.path is not None}
+            assert opened & {"a.txt", "b.py"}
+            # esc returns focus to the editor
+            await pilot.press("escape")
+            assert app.focused is app.editor_view
+
+    asyncio.run(scenario())
+
+
+# -------------------------------------------------------- workspace file walking
+
+
+def test_collects_nested_files_and_prunes_noise(tmp_path: Path) -> None:
+    from yate.services.workspace import Workspace
+
+    root = tmp_path
+    (root / "src").mkdir()
+    (root / "src" / "main.py").write_text("x = 1\n", encoding="utf-8")
+    (root / "src" / "util.py").write_text("y = 2\n", encoding="utf-8")
+    (root / "readme.md").write_text("# hi\n", encoding="utf-8")
+    (root / "__pycache__").mkdir()
+    (root / "__pycache__" / "junk.pyc").write_text("x", encoding="utf-8")
+
+    ws = Workspace(root)
+    names = {p.name for p in ws.walk_files()}
+    assert names == {"main.py", "util.py", "readme.md"}
+
+
+def test_no_root_returns_empty() -> None:
+    from yate.services.workspace import Workspace
+
+    assert Workspace(None).walk_files() == []
+
+
+def test_limit(tmp_path: Path) -> None:
+    from yate.services.workspace import Workspace
+
+    root = tmp_path
+    for i in range(10):
+        (root / f"f{i}.txt").write_text("x\n", encoding="utf-8")
+    assert len(Workspace(root).walk_files(limit=3)) == 3
+
+
+# ----------------------------------------------------------------- fuzzy match
+
+
+def test_empty_query_matches() -> None:
+    from yate.editor_view.palette import fuzzy_match
+
+    assert fuzzy_match("", "anything") is not None
+
+
+def test_subsequence_order() -> None:
+    from yate.editor_view.palette import fuzzy_match
+
+    assert fuzzy_match("wt", "write") is not None
+    assert fuzzy_match("tw", "write") is None
+    assert fuzzy_match("bp", "bprev") is not None
+    assert fuzzy_match("xyz", "bprev") is None
+
+
+def test_consecutive_ranks_better_than_gap() -> None:
+    from yate.editor_view.palette import fuzzy_match
+
+    tight = fuzzy_match("set", "set")
+    gappy = fuzzy_match("set", "reset")  # r-e-**s**-**e**-**t**: gap match
+    assert tight is not None and gappy is not None
+    assert tight[0] < gappy[0]
+
+
+def test_returns_matched_indices() -> None:
+    from yate.editor_view.palette import fuzzy_match
+
+    match = fuzzy_match("bprev", "bprev")
+    assert match is not None
+    assert match[1] == [0, 1, 2, 3, 4]
+
+
+# --------------------------------------------------------------------- palette
+
+
+def test_ctrl_p_chord_opens_file_palette(tmp_path: Path) -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
+        (tmp_path / "notes.txt").write_text("hi\n", encoding="utf-8")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press("ctrl+p")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert screen.mode == "files"
+            # escape dismisses
+            await pilot.press("escape")
+            await pilot.pause()
+            assert len(app.screen_stack) == 1
+
+    asyncio.run(scenario())
+
+
+def test_file_palette_filters_and_opens(tmp_path: Path) -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
+        (tmp_path / "notes.txt").write_text("hi\n", encoding="utf-8")
+        (tmp_path / "data.txt").write_text("data\n", encoding="utf-8")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.open_file_palette()
+            await pilot.pause()
+            assert isinstance(app.screen, PaletteScreen)
+            for ch in "note":
+                await pilot.press(ch)
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            # only notes.txt matches "note"
+            assert screen.filtered_count == 1
+            await pilot.press("enter")
+            await pilot.pause()
+            assert len(app.screen_stack) == 1
+            assert app.doc.name == "notes.txt"
+
+    asyncio.run(scenario())
+
+
+def test_command_palette_runs_command() -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             # alt+shift+p is the default: ctrl+shift+p clashes with Windows
@@ -462,31 +495,39 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
-            self.assertEqual(screen.mode, "commands")
+            assert screen.mode == "commands"
             for ch in "vim":
                 await pilot.press(ch)
             await pilot.pause()
             await pilot.press("enter")
             await pilot.pause()
-            self.assertEqual(app.keymap_name, "vim")
+            assert app.keymap_name == "vim"
 
-    async def test_command_palette_alt_shift_p_binding(self):
-        from yate.editor_view.palette import PaletteScreen
+    asyncio.run(scenario())
 
+
+def test_command_palette_alt_shift_p_binding() -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             # the vsc keymap advertises the binding and the chord opens the
             # palette even while the editor widget has focus
             binding = app.active_keymap.lookup("\x1bP")
             assert binding is not None
-            self.assertEqual(binding.action, "command_palette")
+            assert binding.action == "command_palette"
             await pilot.press("alt+shift+p")
             await pilot.pause()
-            self.assertIsInstance(app.screen, PaletteScreen)
+            assert isinstance(app.screen, PaletteScreen)
 
-    async def test_command_palette_lists_all_commands_and_actions(self):
-        from yate.editor_view.palette import PaletteScreen
+    asyncio.run(scenario())
 
+
+def test_command_palette_lists_all_commands_and_actions() -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             # as an extension would: one new command and one new action
@@ -503,50 +544,55 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
 
             # built-in : commands and raw keymap actions are both present,
             # each with its full name
-            self.assertEqual(by_name["write"], ("command", "write"))
-            self.assertEqual(by_name["move_left"], ("action", "move_left"))
-            self.assertEqual(by_name["command_palette"],
-                             ("action", "command_palette"))
+            assert by_name["write"] == ("command", "write")
+            assert by_name["move_left"] == ("action", "move_left")
+            assert by_name["command_palette"] == ("action", "command_palette")
             # extension-registered items show up too
-            self.assertEqual(by_name["zzz_palette_cmd"],
-                             ("command", "zzz_palette_cmd"))
-            self.assertEqual(by_name["zzz_palette_action"],
-                             ("action", "zzz_palette_action"))
+            assert by_name["zzz_palette_cmd"] == ("command", "zzz_palette_cmd")
+            assert by_name["zzz_palette_action"] == (
+                "action", "zzz_palette_action")
             # a name registered in both tables appears once and resolves
             # to the : command spelling
-            self.assertEqual(by_name["quit"], ("command", "quit"))
+            assert by_name["quit"] == ("command", "quit")
             # every row has a non-empty name and (for built-ins) a hint
-            self.assertTrue(all(name for name, _h, _p in entries))
+            assert all(name for name, _h, _p in entries)
             hinted = {name: hint for name, hint, _p in entries}
-            self.assertEqual(hinted["write"], "save the current file")
-            self.assertEqual(hinted["move_left"], "Move left")
+            assert hinted["write"] == "save the current file"
+            assert hinted["move_left"] == "Move left"
 
-    async def test_command_palette_runs_action_by_full_name(self):
-        from yate.editor_view.palette import PaletteScreen
+    asyncio.run(scenario())
 
+
+def test_command_palette_runs_action_by_full_name() -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            self.assertEqual(app.keymap_name, "vsc")
+            assert app.keymap_name == "vsc"
             app.open_command_palette()
             await pilot.pause()
-            self.assertIsInstance(app.screen, PaletteScreen)
+            assert isinstance(app.screen, PaletteScreen)
             for ch in "toggle_keymap":
                 await pilot.press(ch)
             await pilot.pause()
             screen = cast(Any, app.screen)
             # the action is found by its full name and is the top hit
-            self.assertEqual(
-                screen._entries[screen._filtered[0][2]][2],
-                ("action", "toggle_keymap"),
+            assert screen._entries[screen._filtered[0][2]][2] == (
+                "action", "toggle_keymap",
             )
             await pilot.press("enter")
             await pilot.pause()
-            self.assertEqual(len(app.screen_stack), 1)
-            self.assertEqual(app.keymap_name, "vim")
+            assert len(app.screen_stack) == 1
+            assert app.keymap_name == "vim"
 
-    async def test_command_palette_searches_descriptions(self):
-        from yate.editor_view.palette import PaletteScreen
+    asyncio.run(scenario())
 
+
+def test_command_palette_searches_descriptions() -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             app.open_command_palette()
@@ -558,88 +604,104 @@ class PaletteSmokeTests(unittest.IsolatedAsyncioTestCase):
             assert isinstance(screen, PaletteScreen)
             # no command is *named* "switch color theme"; it matches the
             # description of :theme, and the row is selectable
-            self.assertGreater(screen.filtered_count, 0)
-            top = cast(Any, screen)._entries[
-                cast(Any, screen)._filtered[0][2]]
-            self.assertEqual(top[2], ("command", "theme"))
+            assert screen.filtered_count > 0
+            top = cast(Any, screen)._entries[cast(Any, screen)._filtered[0][2]]
+            assert top[2] == ("command", "theme")
             await pilot.press("enter")
             await pilot.pause()
-            self.assertEqual(len(app.screen_stack), 1)
+            assert len(app.screen_stack) == 1
 
-    async def test_palette_down_cursor_moves(self):
-        from yate.editor_view.palette import PaletteScreen
+    asyncio.run(scenario())
 
-        with TemporaryDirectory() as tmp:
-            for name in ("a.txt", "b.txt", "c.txt"):
-                (Path(tmp) / name).write_text("x\n", encoding="utf-8")
-            app = YateApp(target=Path(tmp))
-            async with app.run_test(size=(100, 30)) as pilot:
-                app.open_file_palette()
-                await pilot.pause()
-                screen = app.screen
-                assert isinstance(screen, PaletteScreen)
+
+def test_palette_down_cursor_moves(tmp_path: Path) -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
+        for name in ("a.txt", "b.txt", "c.txt"):
+            (tmp_path / name).write_text("x\n", encoding="utf-8")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.open_file_palette()
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            await pilot.press("down")
+            assert screen.cursor_index == 1
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------------------- editor scrolling
+
+
+def test_viewport_follows_cursor_and_scrolls_back(tmp_path: Path) -> None:
+    """Regression: moving past the visible area must scroll the view."""
+
+    async def scenario() -> None:
+        p = tmp_path / "big.txt"
+        p.write_text(
+            "\n".join(f"line {i}" for i in range(1, 61)) + "\n",
+            encoding="utf-8",
+        )
+        app = YateApp(target=p)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor_view
+            assert editor is not None
+            assert editor.scroll_offset.y == 0
+
+            for _ in range(45):
                 await pilot.press("down")
-                self.assertEqual(screen.cursor_index, 1)
+            await pilot.pause()
+            top = editor.scroll_offset.y
+            assert top > 0
+            # first visible row shows buffer line top+1
+            first = "".join(seg.text for seg in editor.render_line(0))
+            assert first.split()[0] == str(top + 1)
+            # cursor row stays inside the visible window
+            buf_row = app.buffer.row
+            assert buf_row - top >= 0
+            assert buf_row - top < editor.size.height
+
+            for _ in range(45):
+                await pilot.press("up")
+            await pilot.pause()
+            assert editor.scroll_offset.y == 0
+
+    asyncio.run(scenario())
 
 
-class EditorScrollTests(unittest.IsolatedAsyncioTestCase):
-    async def test_viewport_follows_cursor_and_scrolls_back(self):
-        """Regression: moving past the visible area must scroll the view."""
-        with TemporaryDirectory() as tmp:
-            p = Path(tmp) / "big.txt"
-            p.write_text(
-                "\n".join(f"line {i}" for i in range(1, 61)) + "\n",
-                encoding="utf-8",
-            )
-            app = YateApp(target=p)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                editor = app.editor_view
-                assert editor is not None
-                self.assertEqual(editor.scroll_offset.y, 0)
+def test_scrolled_view_renders_buffer_rows(tmp_path: Path) -> None:
+    """Regression: render_line must honour the scroll offset (wheel path)."""
 
-                for _ in range(45):
-                    await pilot.press("down")
-                await pilot.pause()
-                top = editor.scroll_offset.y
-                self.assertGreater(top, 0)
-                # first visible row shows buffer line top+1
-                first = "".join(seg.text for seg in editor.render_line(0))
-                self.assertEqual(first.split()[0], str(top + 1))
-                # cursor row stays inside the visible window
-                buf_row = app.buffer.row
-                self.assertGreaterEqual(buf_row - top, 0)
-                self.assertLess(buf_row - top, editor.size.height)
+    async def scenario() -> None:
+        p = tmp_path / "big.txt"
+        p.write_text(
+            "\n".join(f"line {i}" for i in range(1, 61)) + "\n",
+            encoding="utf-8",
+        )
+        app = YateApp(target=p)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor_view
+            assert editor is not None
+            # this is where Textual's mouse-wheel handling lands
+            editor.scroll_down(animate=False)
+            await pilot.pause()
+            assert editor.scroll_offset.y == 1
+            first = "".join(seg.text for seg in editor.render_line(0))
+            assert first.split()[0] == "2"
+            assert "line 2" in first
 
-                for _ in range(45):
-                    await pilot.press("up")
-                await pilot.pause()
-                self.assertEqual(editor.scroll_offset.y, 0)
-
-    async def test_scrolled_view_renders_buffer_rows(self):
-        """Regression: render_line must honour the scroll offset (wheel path)."""
-        with TemporaryDirectory() as tmp:
-            p = Path(tmp) / "big.txt"
-            p.write_text(
-                "\n".join(f"line {i}" for i in range(1, 61)) + "\n",
-                encoding="utf-8",
-            )
-            app = YateApp(target=p)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                editor = app.editor_view
-                assert editor is not None
-                # this is where Textual's mouse-wheel handling lands
-                editor.scroll_down(animate=False)
-                await pilot.pause()
-                self.assertEqual(editor.scroll_offset.y, 1)
-                first = "".join(seg.text for seg in editor.render_line(0))
-                self.assertEqual(first.split()[0], "2")
-                self.assertIn("line 2", first)
+    asyncio.run(scenario())
 
 
-class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
-    async def test_welcome_shown_then_hidden_on_type(self):
+# ---------------------------------------------------------------- welcome page
+
+
+def test_welcome_shown_then_hidden_on_type() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -653,18 +715,22 @@ class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
                 return "".join(parts)
 
             welcome = screen_text()
-            self.assertIn("\u2588\u2588\u2557   \u2588\u2588\u2557", welcome)  # "Y" head
-            self.assertIn("\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d", welcome)  # "E" foot
-            self.assertIn("yate", welcome)
-            self.assertIn("quick open", welcome)
+            assert "\u2588\u2588\u2557   \u2588\u2588\u2557" in welcome  # "Y" head
+            assert "\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d" in welcome  # "E" foot
+            assert "yate" in welcome
+            assert "quick open" in welcome
             # default (vsc) welcome must not advertise the vim-only ":" prompt
-            self.assertNotIn("ex command prompt", welcome)
+            assert "ex command prompt" not in welcome
             # typing dismisses the welcome page
             await pilot.press("h", "i")
             await pilot.pause()
-            self.assertNotIn("\u2588", screen_text())
+            assert "\u2588" not in screen_text()
 
-    async def test_welcome_advertises_colon_only_in_vim_keymap(self):
+    asyncio.run(scenario())
+
+
+def test_welcome_advertises_colon_only_in_vim_keymap() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -673,9 +739,13 @@ class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
             parts: list[str] = []
             for row in range(26):
                 parts.extend(seg.text for seg in editor.render_line(row))
-            self.assertIn("ex command prompt", "".join(parts))
+            assert "ex command prompt" in "".join(parts)
 
-    async def test_enew_dismisses_welcome_and_it_does_not_return(self):
+    asyncio.run(scenario())
+
+
+def test_enew_dismisses_welcome_and_it_does_not_return() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -688,48 +758,58 @@ class WelcomeScreenTests(unittest.IsolatedAsyncioTestCase):
                     parts.extend(seg.text for seg in editor.render_line(row))
                 return "".join(parts)
 
-            self.assertIn("\u2588", screen_text())  # welcome banner at startup
+            assert "\u2588" in screen_text()  # welcome banner at startup
             initial_index = app.doc_index
 
             # :enew creates another empty scratch buffer -- the welcome page
             # must be cleared immediately, never to return on its own.
             app.run_command("enew")
             await pilot.pause()
-            self.assertFalse(app.welcome_visible)
-            self.assertNotIn("\u2588", screen_text())
+            assert not app.welcome_visible
+            assert "\u2588" not in screen_text()
 
             # switching back to the still-pristine startup buffer must not
             # bring the welcome page back
             app.run_command("bp")
             await pilot.pause()
-            self.assertEqual(app.doc_index, initial_index)
-            self.assertNotIn("\u2588", screen_text())
+            assert app.doc_index == initial_index
+            assert "\u2588" not in screen_text()
 
             # ...until the user explicitly asks for it with :welcome
             app.run_command("welcome")
             await pilot.pause()
-            self.assertTrue(app.welcome_visible)
-            self.assertIn("\u2588", screen_text())
+            assert app.welcome_visible
+            assert "\u2588" in screen_text()
 
-    async def test_internal_seed_buffer_keeps_welcome_enabled(self):
-        # Startup seeds the initial buffer via new_buffer(show=False); that
-        # internal path must not dismiss the welcome page.
+    asyncio.run(scenario())
+
+
+def test_internal_seed_buffer_keeps_welcome_enabled() -> None:
+    # Startup seeds the initial buffer via new_buffer(show=False); that
+    # internal path must not dismiss the welcome page.
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            self.assertTrue(app.welcome_visible)
+            assert app.welcome_visible
             editor = app.editor_view
             assert editor is not None
             parts: list[str] = []
             for row in range(26):
                 parts.extend(seg.text for seg in editor.render_line(row))
-            self.assertIn("yate", "".join(parts))
+            assert "yate" in "".join(parts)
+
+    asyncio.run(scenario())
 
 
-class PromptBarTests(unittest.IsolatedAsyncioTestCase):
-    async def test_command_input_shows_typed_text(self):
-        """Regression: focused height-1 Input must not gain a tall border
-        that collapses its content region and hides typed characters."""
+# ------------------------------------------------------------------ prompt bar
+
+
+def test_command_input_shows_typed_text() -> None:
+    """Regression: focused height-1 Input must not gain a tall border
+    that collapses its content region and hides typed characters."""
+
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.press(":")
@@ -739,415 +819,476 @@ class PromptBarTests(unittest.IsolatedAsyncioTestCase):
             prompt_bar = app.prompt_bar
             assert prompt_bar is not None
             inp = prompt_bar.input
-            self.assertEqual(inp.value, "wp")
-            self.assertEqual(inp.scrollable_content_region.height, 1)
+            assert inp.value == "wp"
+            assert inp.scrollable_content_region.height == 1
             strip_text = "".join(seg.text for seg in inp.render_line(0))
-            self.assertIn("wp", strip_text)
+            assert "wp" in strip_text
 
-    async def test_colon_types_literally_in_vsc_keymap(self):
-        """The ex command prompt is vim-only; vsc mode inserts ':' as text."""
+    asyncio.run(scenario())
+
+
+def test_colon_types_literally_in_vsc_keymap() -> None:
+    """The ex command prompt is vim-only; vsc mode inserts ':' as text."""
+
+    async def scenario() -> None:
         app = YateApp()  # default keymap is vsc
         async with app.run_test(size=(100, 30)) as pilot:
             prompt_bar = app.prompt_bar
             assert prompt_bar is not None
             await pilot.press(":", "w", "q")
             await pilot.pause()
-            self.assertIsNone(prompt_bar.active_mode)
-            self.assertEqual(app.doc.buffer.get_text(), ":wq")
+            assert prompt_bar.active_mode is None
+            assert app.doc.buffer.get_text() == ":wq"
 
-    async def test_f5_opens_command_prompt_in_vsc_keymap(self):
-        """F5 activates the ex command line; Esc dismisses it."""
+    asyncio.run(scenario())
+
+
+def test_f5_opens_command_prompt_in_vsc_keymap() -> None:
+    """F5 activates the ex command line; Esc dismisses it."""
+
+    async def scenario() -> None:
         app = YateApp()  # default keymap is vsc
         async with app.run_test(size=(100, 30)) as pilot:
             prompt_bar = app.prompt_bar
             assert prompt_bar is not None
             await pilot.press("f5")
             await pilot.pause()
-            self.assertEqual(prompt_bar.active_mode, "command")
+            assert prompt_bar.active_mode == "command"
             # typing still lands in the prompt, not the buffer
             await pilot.press(*"w")
             await pilot.pause()
-            self.assertEqual(prompt_bar.input.value, "w")
-            self.assertEqual(app.doc.buffer.get_text(), "")
+            assert prompt_bar.input.value == "w"
+            assert app.doc.buffer.get_text() == ""
             # Esc closes the prompt and returns focus to the editor
             await pilot.press("escape")
             await pilot.pause()
-            self.assertIsNone(prompt_bar.active_mode)
-            self.assertIs(app.focused, app.editor_view)
+            assert prompt_bar.active_mode is None
+            assert app.focused is app.editor_view
 
-    async def test_colon_opens_prompt_in_vim_keymap(self):
+    asyncio.run(scenario())
+
+
+def test_colon_opens_prompt_in_vim_keymap() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             prompt_bar = app.prompt_bar
             assert prompt_bar is not None
             await pilot.press(":")
             await pilot.pause()
-            self.assertEqual(prompt_bar.active_mode, "command")
+            assert prompt_bar.active_mode == "command"
 
-    async def test_breadcrumb_blank_for_untitled_doc(self):
-        """Untitled buffers must not repeat the tab label in breadcrumbs."""
+    asyncio.run(scenario())
+
+
+def test_breadcrumb_blank_for_untitled_doc() -> None:
+    """Untitled buffers must not repeat the tab label in breadcrumbs."""
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            self.assertEqual(app.render_breadcrumbs(80).plain.strip(), "")
+            assert app.render_breadcrumbs(80).plain.strip() == ""
+
+    asyncio.run(scenario())
 
 
-class RcExtensionTests(unittest.IsolatedAsyncioTestCase):
-    async def test_rc_declared_file_and_directory_extensions_load(self):
-        from yate.config import load_config
-
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            # a single-file extension registering a :command
-            (root / "myext.py").write_text(
-                "def setup(api):\n"
-                '    @api.command("rcping", "rc test command")\n'
-                "    def rcping(args):\n"
-                '        api.message("pong")\n',
-                encoding="utf-8",
-            )
-            # a directory extension
-            bundle = root / "bundle"
-            bundle.mkdir()
-            (bundle / "dir_ext.py").write_text(
-                "def setup(api):\n"
-                '    api.register_action("rc-action", lambda: None)\n',
-                encoding="utf-8",
-            )
-            rc = root / "yaterc"
-            rc.write_text('extensions = ["myext.py", "bundle"]\n', encoding="utf-8")
-
-            config = load_config([rc])
-            self.assertEqual(config.errors, [])
-            app = YateApp(config=config)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                self.assertIn("rcping", app.commands.names())
-                loaded = {rec.name for rec in app.extension_loader.loaded}
-                self.assertIn("myext", loaded)
-                self.assertIn("dir_ext", loaded)
-                self.assertTrue(
-                    all(rec.error is None for rec in app.extension_loader.loaded)
-                )
+# ----------------------------------------------------- rc-declared extensions
 
 
-class ExplorerOpsTests(unittest.IsolatedAsyncioTestCase):
-    async def test_file_target_starts_with_explorer_hidden(self):
-        """A file argument focuses on editing: the explorer starts hidden
-        (Ctrl+B / :explorer reveals it); a directory starts with it shown,
-        and a not-yet-created file path behaves like a file argument."""
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            alpha = root / "alpha.txt"
-            alpha.write_text("alpha\n", encoding="utf-8")
+def test_rc_declared_file_and_directory_extensions_load(tmp_path: Path) -> None:
+    from yate.config import load_config
 
-            app = YateApp(target=alpha)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                explorer = app.explorer_tree
-                assert explorer is not None
-                self.assertFalse(explorer.display)
-                # the workspace root is still the file's parent, so showing
-                # the explorer later works without reopening anything
-                await pilot.press("ctrl+b")
-                await pilot.pause()
-                self.assertTrue(explorer.display)
+    async def scenario() -> None:
+        root = tmp_path
+        # a single-file extension registering a :command
+        (root / "myext.py").write_text(
+            "def setup(api):\n"
+            '    @api.command("rcping", "rc test command")\n'
+            "    def rcping(args):\n"
+            '        api.message("pong")\n',
+            encoding="utf-8",
+        )
+        # a directory extension
+        bundle = root / "bundle"
+        bundle.mkdir()
+        (bundle / "dir_ext.py").write_text(
+            "def setup(api):\n"
+            '    api.register_action("rc-action", lambda: None)\n',
+            encoding="utf-8",
+        )
+        rc = root / "yaterc"
+        rc.write_text('extensions = ["myext.py", "bundle"]\n', encoding="utf-8")
 
-            app_dir = YateApp(target=root)
-            async with app_dir.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                explorer_dir = app_dir.explorer_tree
-                assert explorer_dir is not None
-                self.assertTrue(explorer_dir.display)
+        config = load_config([rc])
+        assert config.errors == []
+        app = YateApp(config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert "rcping" in app.commands.names()
+            loaded = {rec.name for rec in app.extension_loader.loaded}
+            assert "myext" in loaded
+            assert "dir_ext" in loaded
+            assert all(rec.error is None for rec in app.extension_loader.loaded)
 
-            app_new = YateApp(target=root / "brand_new.txt")
-            async with app_new.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                explorer_new = app_new.explorer_tree
-                assert explorer_new is not None
-                self.assertFalse(explorer_new.display)
-
-    async def test_ctrl_b_toggles_explorer(self):
-        with TemporaryDirectory() as tmp:
-            app = YateApp(target=Path(tmp))
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                explorer = app.explorer_tree
-                assert explorer is not None
-                self.assertTrue(explorer.display)
-                await pilot.press("ctrl+b")
-                await pilot.pause()
-                self.assertFalse(explorer.display)
-                await pilot.press("ctrl+b")
-                await pilot.pause()
-                self.assertTrue(explorer.display)
-
-    async def test_new_file_and_folder_from_explorer(self):
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "seed.txt").write_text("seed\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                # cursor sits on the root: "a" creates a file at the top level
-                await pilot.press("ctrl+e")
-                await pilot.press("a")
-                await pilot.pause()
-                prompt_bar = app.prompt_bar
-                assert prompt_bar is not None
-                self.assertEqual(prompt_bar.active_mode, "new_file")
-                await pilot.press(*"made.txt")
-                await pilot.press("enter")
-                await pilot.pause()
-                self.assertTrue((root / "made.txt").exists())
-                # new files open right away (VS Code behavior)
-                opened = {d.name for d in app.docs if d.path is not None}
-                self.assertIn("made.txt", opened)
-                # "A" creates a folder; creation target is the selected dir
-                await pilot.press("ctrl+e")
-                await pilot.press("A")
-                await pilot.pause()
-                self.assertEqual(prompt_bar.active_mode, "new_dir")
-                await pilot.press(*"subdir")
-                await pilot.press("enter")
-                await pilot.pause()
-                self.assertTrue((root / "subdir").is_dir())
-
-    async def test_open_nested_file_keeps_expansion_and_cursor(self):
-        """Regression: refresh_tree collapsed second-level directories and
-        the cursor jumped to the last row after opening a nested file."""
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            sub = root / "sub"
-            deep = sub / "deep"
-            deep.mkdir(parents=True)
-            (root / "top.txt").write_text("t\n", encoding="utf-8")
-            (sub / "inner.txt").write_text("i\n", encoding="utf-8")
-            (deep / "leaf.txt").write_text("l\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                tree = app.explorer_tree
-                assert tree is not None
-
-                def find(
-                    node: TreeNode[Path | None], name: str
-                ) -> TreeNode[Path | None] | None:
-                    for c in node.children:
-                        if c.data is not None and Path(c.data).name == name:
-                            return c
-                        if c.is_expanded:
-                            r = find(c, name)
-                            if r is not None:
-                                return r
-                    return None
-
-                # expand sub, then deep (two levels), then open leaf.txt
-                sub_node = find(tree.root, "sub")
-                assert sub_node is not None
-                tree.select_node(sub_node)
-                await pilot.pause()
-                await pilot.pause()
-                deep_node = find(tree.root, "deep")
-                assert deep_node is not None
-                tree.select_node(deep_node)
-                await pilot.pause()
-                await pilot.pause()
-                leaf = find(tree.root, "leaf.txt")
-                assert leaf is not None
-                tree.select_node(leaf)
-                for _ in range(12):
-                    await pilot.pause()
-
-                # sub AND deep must still be expanded after the refresh
-                # triggered by opening the file
-                self.assertTrue(
-                    sub_node.is_expanded, "first-level dir collapsed"
-                )
-                self.assertTrue(
-                    deep_node.is_expanded, "nested dir collapsed"
-                )
-                # cursor/highlight must sit on the opened file, not the
-                # last row of the tree
-                await pilot.press("ctrl+e")
-                await pilot.pause()
-                cur = tree.cursor_node
-                assert cur is not None and cur.data is not None
-                self.assertEqual(Path(cur.data).name, "leaf.txt")
-                assert app.doc.path is not None
-                self.assertEqual(app.doc.path.name, "leaf.txt")
-
-    async def test_rename_updates_open_document_path(self):
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "old.txt").write_text("data\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                await pilot.press("ctrl+e", "j", "l")  # focus, move, open old.txt
-                await pilot.pause()
-                doc = app.doc
-                self.assertIsNotNone(doc.path)
-                await pilot.press("ctrl+e")
-                await pilot.press("j")  # cursor onto old.txt
-                await pilot.press("r")
-                await pilot.pause()
-                prompt_bar = app.prompt_bar
-                assert prompt_bar is not None
-                self.assertEqual(prompt_bar.active_mode, "rename")
-                self.assertEqual(prompt_bar.input.value, "old.txt")
-                await pilot.press(*"new.txt")
-                await pilot.press("enter")
-                await pilot.pause()
-                self.assertFalse((root / "old.txt").exists())
-                self.assertTrue((root / "new.txt").exists())
-                self.assertEqual(app.doc.path, (root / "new.txt").resolve())
-
-    async def test_delete_requires_confirmation(self):
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            victim = root / "gone.txt"
-            victim.write_text("bye\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                await pilot.press("ctrl+e", "j")
-                await pilot.press("d")
-                await pilot.pause()
-                prompt_bar = app.prompt_bar
-                assert prompt_bar is not None
-                self.assertEqual(prompt_bar.active_mode, "delete")
-                self.assertTrue(victim.exists())
-                # anything but y cancels
-                await pilot.press("n")
-                await pilot.press("enter")
-                await pilot.pause()
-                self.assertTrue(victim.exists())
-                # d again, confirm with y
-                await pilot.press("ctrl+e", "j", "d")
-                await pilot.press(*"y")
-                await pilot.press("enter")
-                await pilot.pause()
-                self.assertFalse(victim.exists())
-
-    async def test_refresh_tree_keeps_expanded_dirs(self):
-        from yate.editor_view.explorer import ExplorerTree
-
-        with TemporaryDirectory() as tmp:
-            # workspace stores the resolved root; on Windows TEMP may be an
-            # 8.3 short name (e.g. RUNNER~1), so canonicalize before comparing
-            root = Path(tmp).resolve()
-            sub = root / "sub"
-            sub.mkdir()
-            (sub / "inner.txt").write_text("i\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                explorer = app.explorer_tree
-                assert explorer is not None
-                # expand "sub" via the tree: focus root, j to sub, l to expand
-                await pilot.press("ctrl+e", "j", "l")
-                await pilot.pause()
-                sub_node = next(n for n in explorer.root.children
-                                if isinstance(n.data, Path) and n.data == sub)
-                self.assertTrue(sub_node.is_expanded)
-                # any refresh (e.g. opening a file elsewhere) must not collapse
-                explorer.refresh_tree()
-                sub_node2 = next(n for n in explorer.root.children
-                                 if isinstance(n.data, Path) and n.data == sub)
-                self.assertTrue(sub_node2.is_expanded)
-                self.assertIn(ExplorerTree, type(explorer).__mro__)
+    asyncio.run(scenario())
 
 
-class EditorBgTests(unittest.IsolatedAsyncioTestCase):
-    async def test_every_editor_cell_has_explicit_bg(self):
-        """Regression: None bgcolor would let the terminal's own background
-        bleed through next to cells painted with theme.bg."""
-        from rich.color import Color
+# ----------------------------------------------------------- explorer operations
 
-        from yate.editor_view import theme as theme_mod
 
-        with TemporaryDirectory() as tmp:
-            p = Path(tmp) / "doc.py"
-            p.write_text('"""doc"""\n\nx = 1\n', encoding="utf-8")
-            app = YateApp(target=p)
-            async with app.run_test(size=(100, 30)) as pilot:
+def test_file_target_starts_with_explorer_hidden(tmp_path: Path) -> None:
+    """A file argument focuses on editing: the explorer starts hidden
+    (Ctrl+B / :explorer reveals it); a directory starts with it shown,
+    and a not-yet-created file path behaves like a file argument."""
+
+    async def scenario() -> None:
+        root = tmp_path
+        alpha = root / "alpha.txt"
+        alpha.write_text("alpha\n", encoding="utf-8")
+
+        app = YateApp(target=alpha)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            explorer = app.explorer_tree
+            assert explorer is not None
+            assert not explorer.display
+            # the workspace root is still the file's parent, so showing
+            # the explorer later works without reopening anything
+            await pilot.press("ctrl+b")
+            await pilot.pause()
+            assert explorer.display
+
+        app_dir = YateApp(target=root)
+        async with app_dir.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            explorer_dir = app_dir.explorer_tree
+            assert explorer_dir is not None
+            assert explorer_dir.display
+
+        app_new = YateApp(target=root / "brand_new.txt")
+        async with app_new.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            explorer_new = app_new.explorer_tree
+            assert explorer_new is not None
+            assert not explorer_new.display
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_b_toggles_explorer(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            explorer = app.explorer_tree
+            assert explorer is not None
+            assert explorer.display
+            await pilot.press("ctrl+b")
+            await pilot.pause()
+            assert not explorer.display
+            await pilot.press("ctrl+b")
+            await pilot.pause()
+            assert explorer.display
+
+    asyncio.run(scenario())
+
+
+def test_new_file_and_folder_from_explorer(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        root = tmp_path
+        (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # cursor sits on the root: "a" creates a file at the top level
+            await pilot.press("ctrl+e")
+            await pilot.press("a")
+            await pilot.pause()
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            assert prompt_bar.active_mode == "new_file"
+            await pilot.press(*"made.txt")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert (root / "made.txt").exists()
+            # new files open right away (VS Code behavior)
+            opened = {d.name for d in app.docs if d.path is not None}
+            assert "made.txt" in opened
+            # "A" creates a folder; creation target is the selected dir
+            await pilot.press("ctrl+e")
+            await pilot.press("A")
+            await pilot.pause()
+            assert prompt_bar.active_mode == "new_dir"
+            await pilot.press(*"subdir")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert (root / "subdir").is_dir()
+
+    asyncio.run(scenario())
+
+
+def test_open_nested_file_keeps_expansion_and_cursor(tmp_path: Path) -> None:
+    """Regression: refresh_tree collapsed second-level directories and
+    the cursor jumped to the last row after opening a nested file."""
+
+    async def scenario() -> None:
+        root = tmp_path
+        sub = root / "sub"
+        deep = sub / "deep"
+        deep.mkdir(parents=True)
+        (root / "top.txt").write_text("t\n", encoding="utf-8")
+        (sub / "inner.txt").write_text("i\n", encoding="utf-8")
+        (deep / "leaf.txt").write_text("l\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            tree = app.explorer_tree
+            assert tree is not None
+
+            def find(
+                node: TreeNode[Path | None], name: str
+            ) -> TreeNode[Path | None] | None:
+                for c in node.children:
+                    if c.data is not None and Path(c.data).name == name:
+                        return c
+                    if c.is_expanded:
+                        r = find(c, name)
+                        if r is not None:
+                            return r
+                return None
+
+            # expand sub, then deep (two levels), then open leaf.txt
+            sub_node = find(tree.root, "sub")
+            assert sub_node is not None
+            tree.select_node(sub_node)
+            await pilot.pause()
+            await pilot.pause()
+            deep_node = find(tree.root, "deep")
+            assert deep_node is not None
+            tree.select_node(deep_node)
+            await pilot.pause()
+            await pilot.pause()
+            leaf = find(tree.root, "leaf.txt")
+            assert leaf is not None
+            tree.select_node(leaf)
+            for _ in range(12):
                 await pilot.pause()
-                editor = app.editor_view
-                assert editor is not None
-                t = theme_mod.active()
-                allowed = {repr(Color.parse(t.bg)), repr(Color.parse(t.surface))}
-                checked = 0
-                for row in range(min(4, app.buffer.line_count)):
-                    for seg in editor.render_line(row):
-                        bg = getattr(seg.style, "bgcolor", None)
-                        assert bg is not None, \
-                            f"bg=None cell at row {row}: {seg.text!r}"
-                        self.assertIn(repr(bg), allowed)
-                        checked += 1
-                self.assertGreater(checked, 12)
+
+            # sub AND deep must still be expanded after the refresh
+            # triggered by opening the file
+            assert sub_node.is_expanded, "first-level dir collapsed"
+            assert deep_node.is_expanded, "nested dir collapsed"
+            # cursor/highlight must sit on the opened file, not the
+            # last row of the tree
+            await pilot.press("ctrl+e")
+            await pilot.pause()
+            cur = tree.cursor_node
+            assert cur is not None and cur.data is not None
+            assert Path(cur.data).name == "leaf.txt"
+            assert app.doc.path is not None
+            assert app.doc.path.name == "leaf.txt"
+
+    asyncio.run(scenario())
 
 
-class ManualTests(unittest.IsolatedAsyncioTestCase):
-    async def test_f8_opens_manual_and_esc_closes(self):
-        from textual.widgets import Markdown, Static
+def test_rename_updates_open_document_path(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        root = tmp_path
+        (root / "old.txt").write_text("data\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+e", "j", "l")  # focus, move, open old.txt
+            await pilot.pause()
+            doc = app.doc
+            assert doc.path is not None
+            await pilot.press("ctrl+e")
+            await pilot.press("j")  # cursor onto old.txt
+            await pilot.press("r")
+            await pilot.pause()
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            assert prompt_bar.active_mode == "rename"
+            assert prompt_bar.input.value == "old.txt"
+            await pilot.press(*"new.txt")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert not (root / "old.txt").exists()
+            assert (root / "new.txt").exists()
+            assert app.doc.path == (root / "new.txt").resolve()
 
-        from yate.editor_view.manual import load_manual_markdown
+    asyncio.run(scenario())
 
+
+def test_delete_requires_confirmation(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        root = tmp_path
+        victim = root / "gone.txt"
+        victim.write_text("bye\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+e", "j")
+            await pilot.press("d")
+            await pilot.pause()
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            assert prompt_bar.active_mode == "delete"
+            assert victim.exists()
+            # anything but y cancels
+            await pilot.press("n")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert victim.exists()
+            # d again, confirm with y
+            await pilot.press("ctrl+e", "j", "d")
+            await pilot.press(*"y")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert not victim.exists()
+
+    asyncio.run(scenario())
+
+
+def test_refresh_tree_keeps_expanded_dirs(tmp_path: Path) -> None:
+    from yate.editor_view.explorer import ExplorerTree
+
+    async def scenario() -> None:
+        # workspace stores the resolved root; on Windows TEMP may be an
+        # 8.3 short name (e.g. RUNNER~1), so canonicalize before comparing
+        root = tmp_path.resolve()
+        sub = root / "sub"
+        sub.mkdir()
+        (sub / "inner.txt").write_text("i\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            explorer = app.explorer_tree
+            assert explorer is not None
+            # expand "sub" via the tree: focus root, j to sub, l to expand
+            await pilot.press("ctrl+e", "j", "l")
+            await pilot.pause()
+            sub_node = next(n for n in explorer.root.children
+                            if isinstance(n.data, Path) and n.data == sub)
+            assert sub_node.is_expanded
+            # any refresh (e.g. opening a file elsewhere) must not collapse
+            explorer.refresh_tree()
+            sub_node2 = next(n for n in explorer.root.children
+                             if isinstance(n.data, Path) and n.data == sub)
+            assert sub_node2.is_expanded
+            assert ExplorerTree in type(explorer).__mro__
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------------ editor background color
+
+
+def test_every_editor_cell_has_explicit_bg(tmp_path: Path) -> None:
+    """Regression: None bgcolor would let the terminal's own background
+    bleed through next to cells painted with theme.bg."""
+    from rich.color import Color
+
+    from yate.editor_view import theme as theme_mod
+
+    async def scenario() -> None:
+        p = tmp_path / "doc.py"
+        p.write_text('"""doc"""\n\nx = 1\n', encoding="utf-8")
+        app = YateApp(target=p)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor_view
+            assert editor is not None
+            t = theme_mod.active()
+            allowed = {repr(Color.parse(t.bg)), repr(Color.parse(t.surface))}
+            checked = 0
+            for row in range(min(4, app.buffer.line_count)):
+                for seg in editor.render_line(row):
+                    bg = getattr(seg.style, "bgcolor", None)
+                    assert bg is not None, \
+                        f"bg=None cell at row {row}: {seg.text!r}"
+                    assert repr(bg) in allowed
+                    checked += 1
+            assert checked > 12
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------------ manual / markdown doc
+
+
+def test_f8_opens_manual_and_esc_closes() -> None:
+    from textual.widgets import Markdown, Static
+
+    from yate.editor_view.manual import load_manual_markdown
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             await pilot.press("f8")
             await pilot.pause()
-            self.assertIsInstance(app.screen, MarkdownDocScreen)
+            assert isinstance(app.screen, MarkdownDocScreen)
             md = app.screen.query_one("#doc-md", Markdown)
             # F8 opens the default (english) manual
-            self.assertEqual(md.source, load_manual_markdown("en"))
+            assert md.source == load_manual_markdown("en")
             # the loading placeholder is hidden once content is in
             loading = app.screen.query_one("#doc-loading", Static)
-            self.assertFalse(loading.display)
+            assert not loading.display
             # theme is switched *before* the screen is pushed
-            self.assertEqual(app.theme, "catppuccin-mocha")
+            assert app.theme == "catppuccin-mocha"
             # f8 again must not stack a second viewer
             await pilot.press("f8")
             await pilot.pause()
-            self.assertEqual(len(app.screen_stack), 2)
+            assert len(app.screen_stack) == 2
             await pilot.press("escape")
             await pilot.pause()
-            self.assertNotIsInstance(app.screen, MarkdownDocScreen)
+            assert not isinstance(app.screen, MarkdownDocScreen)
             # ... and the previous theme is restored afterwards
-            self.assertEqual(app.theme, "textual-dark")
+            assert app.theme == "textual-dark"
 
-    async def test_manual_command_selects_language(self):
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "cmd_arg,lang",
+    [("zh", "zh"), ("en", "en"), ("bogus", "en")],
+    ids=["zh", "en", "bogus"],
+)
+def test_manual_command_selects_language(cmd_arg: str, lang: str) -> None:
+    async def scenario() -> None:
         from textual.widgets import Markdown
 
         from yate.editor_view.manual import load_manual_markdown
 
-        for cmd_arg, lang in (("zh", "zh"), ("en", "en"), ("bogus", "en")):
-            with self.subTest(cmd=cmd_arg):
-                app = YateApp()
-                async with app.run_test(size=(100, 30)) as pilot:
-                    await pilot.pause()
-                    app.run_command(f"manual {cmd_arg}".strip())
-                    await pilot.pause()
-                    self.assertIsInstance(app.screen, MarkdownDocScreen)
-                    md = app.screen.query_one("#doc-md", Markdown)
-                    self.assertEqual(md.source, load_manual_markdown(lang))
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.run_command(f"manual {cmd_arg}".strip())
+            await pilot.pause()
+            assert isinstance(app.screen, MarkdownDocScreen)
+            md = app.screen.query_one("#doc-md", Markdown)
+            assert md.source == load_manual_markdown(lang)
 
-    async def test_both_language_files_bundled(self):
-        from yate.editor_view.manual import load_manual_markdown
+    asyncio.run(scenario())
 
-        for lang in ("en", "zh"):
-            with self.subTest(lang=lang):
-                text = load_manual_markdown(lang)
-                self.assertGreater(len(text), 1000)
-                self.assertTrue(text.lstrip().startswith("# yate"))
 
-    async def test_manual_search_filters_and_cycles_matches(self):
-        from textual.containers import Horizontal
-        from textual.widgets import Input, Markdown, Static
-        from yate.editor_view.manual import _widget_plain_text
+@pytest.mark.parametrize("lang", ["en", "zh"])
+def test_both_language_files_bundled(lang: str) -> None:
+    from yate.editor_view.manual import load_manual_markdown
 
+    text = load_manual_markdown(lang)
+    assert len(text) > 1000
+    assert text.lstrip().startswith("# yate")
+
+
+def test_manual_search_filters_and_cycles_matches() -> None:
+    from textual.containers import Horizontal
+    from textual.widgets import Input, Markdown, Static
+    from yate.editor_view.manual import _widget_plain_text
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -1165,63 +1306,67 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
                     screen.query_one("#doc-footer", Static)
                 )
 
-            self.assertFalse(bar.display)
+            assert not bar.display
             # bar hidden: footer advertises n/N to repeat a search
-            self.assertIn("n/N", footer_text())
+            assert "n/N" in footer_text()
             # ctrl+f reveals the search bar and focuses it
             await pilot.press("ctrl+f")
             await pilot.pause()
-            self.assertTrue(bar.display)
-            self.assertIs(screen.focused, field)
+            assert bar.display
+            assert screen.focused is field
             # bar open: footer must advertise Enter / Shift+Enter (typing
             # n/N there are search characters, not navigation)
             search_footer = footer_text()
-            self.assertIn("enter", search_footer.lower())
-            self.assertIn("shift+enter", search_footer.lower())
-            self.assertNotIn("repeat last match", search_footer)
+            assert "enter" in search_footer.lower()
+            assert "shift+enter" in search_footer.lower()
+            assert "repeat last match" not in search_footer
             # typing live-marks every block containing the query
             await pilot.press("y", "a", "t", "e")
             await pilot.pause()
             private = cast(Any, screen)
-            self.assertGreaterEqual(len(private._hits), 2)
-            self.assertEqual(private._hit_index, 0)
-            self.assertEqual(len(list(md.query(".doc-hit-current"))), 1)
-            self.assertGreaterEqual(len(list(md.query(".doc-hit"))), 1)
-            self.assertIn("1/", str(status.content))
+            assert len(private._hits) >= 2
+            assert private._hit_index == 0
+            assert len(list(md.query(".doc-hit-current"))) == 1
+            assert len(list(md.query(".doc-hit"))) >= 1
+            assert "1/" in str(status.content)
             # enter advances to the next match, shift+enter goes back
             await pilot.press("enter")
             await pilot.pause()
-            self.assertEqual(private._hit_index, 1)
-            self.assertIn("2/", str(status.content))
+            assert private._hit_index == 1
+            assert "2/" in str(status.content)
             await pilot.press("shift+enter")
             await pilot.pause()
-            self.assertEqual(private._hit_index, 0)
+            assert private._hit_index == 0
             # escape while typing closes only the bar (manual stays open)…
             await pilot.press("escape")
             await pilot.pause()
-            self.assertFalse(bar.display)
-            self.assertIsInstance(app.screen, MarkdownDocScreen)
+            assert not bar.display
+            assert isinstance(app.screen, MarkdownDocScreen)
             # footer switches back to the browse hints (n/N repeat)
-            self.assertIn("n/N", footer_text())
-            self.assertIn("repeat last match", footer_text())
+            assert "n/N" in footer_text()
+            assert "repeat last match" in footer_text()
             # …and n/N repeat the last search with highlights still present
             await pilot.press("n")
             await pilot.pause()
-            self.assertEqual(private._hit_index, 1)
+            assert private._hit_index == 1
             await pilot.press("N")
             await pilot.pause()
-            self.assertEqual(private._hit_index, 0)
+            assert private._hit_index == 0
             # escape with the bar closed dismisses the manual itself
             await pilot.press("escape")
             await pilot.pause()
-            self.assertNotIsInstance(app.screen, MarkdownDocScreen)
+            assert not isinstance(app.screen, MarkdownDocScreen)
 
-    async def test_manual_search_step_lands_on_exact_rendered_row(self):
-        """Regression: n/N stepped the counter but did not scroll when
-        several matches lived in one wrapped widget (scroll was widget
-        level); table cells were not searchable at all."""
-        from textual.containers import VerticalScroll
+    asyncio.run(scenario())
 
+
+def test_manual_search_step_lands_on_exact_rendered_row() -> None:
+    """Regression: n/N stepped the counter but did not scroll when
+    several matches lived in one wrapped widget (scroll was widget
+    level); table cells were not searchable at all."""
+    from textual.containers import VerticalScroll
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -1238,15 +1383,15 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
 
             # table cell content is now searched too
             private._run_search("item")
-            self.assertTrue(private._hits)
+            assert private._hits
             widget_types = {type(w).__name__ for w, _r, _c, _l in private._hits}
-            self.assertIn("MarkdownTableCellContents", widget_types)
+            assert "MarkdownTableCellContents" in widget_types
 
             # matches inside one wrapped widget must land on distinct rows:
             # measure each target from the same baseline (top), so the row
             # offset is the only thing that differs
             private._run_search("ctrl")
-            self.assertGreater(len(private._hits), 10)
+            assert len(private._hits) > 10
             moved = 0
             for i in range(1, len(private._hits)):
                 w0, r0, _c0, _l0 = private._hits[i - 1]
@@ -1262,18 +1407,21 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
                     y1 = float(scroll.scroll_target_y)
                     if y0 == y1 == float(scroll.max_scroll_y):
                         continue  # bottom clamp: both rows already visible
-                    self.assertNotEqual(
-                        y0, y1,
-                        f"same-widget rows {r0}/{r1} share a scroll target",
+                    assert y0 != y1, (
+                        f"same-widget rows {r0}/{r1} share a scroll target"
                     )
-                    self.assertAlmostEqual(y1 - y0, r1 - r0, delta=1)
+                    assert abs((y1 - y0) - (r1 - r0)) <= 1
                     moved += 1
-            self.assertGreater(moved, 0)
+            assert moved > 0
 
-    async def test_manual_search_no_matches_then_slash_reopens(self):
-        from textual.containers import Horizontal
-        from textual.widgets import Input, Markdown, Static
+    asyncio.run(scenario())
 
+
+def test_manual_search_no_matches_then_slash_reopens() -> None:
+    from textual.containers import Horizontal
+    from textual.widgets import Input, Markdown, Static
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -1288,41 +1436,44 @@ class ManualTests(unittest.IsolatedAsyncioTestCase):
             field = screen.query_one("#doc-search-input", Input)
             status = screen.query_one("#doc-search-status", Static)
             md = screen.query_one("#doc-md", Markdown)
-            self.assertTrue(bar.display)
-            self.assertIs(screen.focused, field)
+            assert bar.display
+            assert screen.focused is field
             # a query present nowhere reports "no matches" and tints nothing
             await pilot.press("z", "q", "z", "q", "w", "x")
             await pilot.pause()
             private = cast(Any, screen)
-            self.assertEqual(private._hits, [])
-            self.assertEqual(private._hit_index, -1)
-            self.assertEqual(len(list(md.query(".doc-hit"))), 0)
-            self.assertIn("no matches", str(status.content))
+            assert private._hits == []
+            assert private._hit_index == -1
+            assert len(list(md.query(".doc-hit"))) == 0
+            assert "no matches" in str(status.content)
             # clearing the query removes the error state
             await pilot.press(*(("backspace",) * 10))
             await pilot.pause()
-            self.assertEqual(field.value, "")
-            self.assertEqual(private._hits, [])
-            self.assertIn("type to search", str(status.content))
-            self.assertIsInstance(app.screen, MarkdownDocScreen)
+            assert field.value == ""
+            assert private._hits == []
+            assert "type to search" in str(status.content)
+            assert isinstance(app.screen, MarkdownDocScreen)
+
+    asyncio.run(scenario())
 
 
-class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
-    """Blocking work (manual render, shell, file index) stays off the loop."""
+# ----------------------------------------------------- async background workers
 
-    async def test_manual_paints_before_content_loads(self):
-        from unittest.mock import patch
 
-        from textual.widgets import Markdown, Static
+def test_manual_paints_before_content_loads() -> None:
+    from unittest.mock import patch
 
-        from yate.editor_view import manual as manual_mod
+    from textual.widgets import Markdown, Static
 
-        original = manual_mod.load_doc_markdown
+    from yate.editor_view import manual as manual_mod
 
-        def slow_load(kind: str, lang: str = "en") -> str:
-            time.sleep(1.5)
-            return original(kind, lang)
+    original = manual_mod.load_doc_markdown
 
+    def slow_load(kind: str, lang: str = "en") -> str:
+        time.sleep(1.5)
+        return original(kind, lang)
+
+    async def scenario() -> None:
         app = YateApp()
         with patch(
             "yate.editor_view.manual.load_doc_markdown", side_effect=slow_load
@@ -1333,35 +1484,39 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
                 # while the worker thread is still reading: screen + loading
                 # line are already on screen, the markdown itself is empty
                 await pilot.pause(0.15)
-                self.assertIsInstance(app.screen, MarkdownDocScreen)
+                assert isinstance(app.screen, MarkdownDocScreen)
                 md = app.screen.query_one("#doc-md", Markdown)
                 loading = app.screen.query_one("#doc-loading", Static)
-                self.assertEqual(md.source, "")
-                self.assertTrue(loading.display)
+                assert md.source == ""
+                assert loading.display
                 # content then arrives without dismissing the screen
                 loaded = await wait_until(
                     pilot,
                     lambda: bool(md.source) and not loading.display,
                     timeout=30.0,
                 )
-                self.assertTrue(loaded)
-                self.assertEqual(md.source, original("manual", "en"))
-                self.assertFalse(loading.display)
-                self.assertIsInstance(app.screen, MarkdownDocScreen)
+                assert loaded
+                assert md.source == original("manual", "en")
+                assert not loading.display
+                assert isinstance(app.screen, MarkdownDocScreen)
 
-    async def test_shell_command_runs_without_freezing_ui(self):
-        from unittest.mock import patch
+    asyncio.run(scenario())
 
-        from yate.editor_view.modals import OutputScreen
-        from yate.services.shell import ShellResult
 
-        def slow_shell(command: str, cwd: object = None,
-                       timeout: float = 60.0) -> ShellResult:
-            # long enough that headless message-pump slowness cannot let it
-            # finish before the responsiveness assertions run
-            time.sleep(2.0)
-            return ShellResult(command, 0, "yate-async-marker", Path.cwd())
+def test_shell_command_runs_without_freezing_ui() -> None:
+    from unittest.mock import patch
 
+    from yate.editor_view.modals import OutputScreen
+    from yate.services.shell import ShellResult
+
+    def slow_shell(command: str, cwd: object = None,
+                   timeout: float = 60.0) -> ShellResult:
+        # long enough that headless message-pump slowness cannot let it
+        # finish before the responsiveness assertions run
+        time.sleep(2.0)
+        return ShellResult(command, 0, "yate-async-marker", Path.cwd())
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -1370,19 +1525,19 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
             with patch("yate.app.run_shell", side_effect=slow_shell):
                 # F2 opens the shell prompt in vsc mode (":" is vim-only)
                 await pilot.press("f2")
-                self.assertEqual(prompt_bar.active_mode, "shell")
+                assert prompt_bar.active_mode == "shell"
                 for ch in "echo hi":
                     await pilot.press(ch)
                 await pilot.press("enter")
                 # command dispatched: prompt closed, no output screen yet,
                 # focus back in the editor while the thread is running
                 await pilot.pause(0.15)
-                self.assertEqual(len(app.screen_stack), 1)
-                self.assertIs(app.focused, app.editor_view)
+                assert len(app.screen_stack) == 1
+                assert app.focused is app.editor_view
                 # the TUI stays responsive: F1 help opens over the running job
                 await pilot.press("f1")
                 await pilot.pause(0.1)
-                self.assertEqual(len(app.screen_stack), 2)
+                assert len(app.screen_stack) == 2
                 await pilot.press("escape")
                 await pilot.pause(0.1)
             # the output screen appears when the worker finishes
@@ -1390,81 +1545,94 @@ class AsyncBackgroundTests(unittest.IsolatedAsyncioTestCase):
                 pilot, lambda: isinstance(app.screen, OutputScreen),
                 timeout=10.0,
             )
-            self.assertTrue(shown)
+            assert shown
             out = cast(OutputScreen, app.screen)
-            self.assertIn("yate-async-marker", out.output_text)
-            self.assertEqual(out.exit_code, 0)
+            assert "yate-async-marker" in out.output_text
+            assert out.exit_code == 0
 
-    async def test_file_palette_indexes_in_background(self):
-        from unittest.mock import patch
-
-        from rich.text import Text
-        from textual.widgets import Static
-
-        from yate.editor_view.palette import PaletteScreen
-        from yate.services.workspace import Workspace
-
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "notes.txt").write_text("x\n", encoding="utf-8")
-            app = YateApp(target=root)
-
-            def slow_walk(self: Workspace, limit: int = 5000) -> list[Path]:
-                time.sleep(1.5)
-                return [root / "notes.txt"]
-
-            def status_text() -> str:
-                content = palette.query_one("#palette-results", Static).content
-                return content.plain if isinstance(content, Text) else ""
-
-            with patch.object(Workspace, "walk_files", slow_walk):
-                async with app.run_test(size=(100, 30)) as pilot:
-                    await pilot.press("ctrl+p")
-                    await pilot.pause(0.15)
-                    self.assertIsInstance(app.screen, PaletteScreen)
-                    palette = cast(PaletteScreen, app.screen)
-                    self.assertIn("indexing", status_text())
-                    done = await wait_until(
-                        pilot, lambda: palette.filtered_count == 1,
-                        timeout=10.0,
-                    )
-                    self.assertTrue(done)
-                    self.assertIn("notes.txt", status_text())
+    asyncio.run(scenario())
 
 
-class WindowFocusTests(unittest.IsolatedAsyncioTestCase):
-    """Pane switching between explorer and editor."""
+def test_file_palette_indexes_in_background(tmp_path: Path) -> None:
+    from unittest.mock import patch
 
-    def setUp(self):
-        self._tmp = TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        root = Path(self._tmp.name)
-        (root / "alpha.txt").write_text("hello\n", encoding="utf-8")
-        self.root = root
+    from rich.text import Text
+    from textual.widgets import Static
 
-    async def test_vsc_chords_focus_panes(self):
-        app = YateApp(target=self.root)
+    from yate.editor_view.palette import PaletteScreen
+    from yate.services.workspace import Workspace
+
+    root = tmp_path
+    (root / "notes.txt").write_text("x\n", encoding="utf-8")
+    app = YateApp(target=root)
+
+    async def scenario() -> None:
+        def slow_walk(self: Workspace, limit: int = 5000) -> list[Path]:
+            time.sleep(1.5)
+            return [root / "notes.txt"]
+
+        def status_text() -> str:
+            content = palette.query_one("#palette-results", Static).content
+            return content.plain if isinstance(content, Text) else ""
+
+        with patch.object(Workspace, "walk_files", slow_walk):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.press("ctrl+p")
+                await pilot.pause(0.15)
+                assert isinstance(app.screen, PaletteScreen)
+                palette = cast(PaletteScreen, app.screen)
+                assert "indexing" in status_text()
+                done = await wait_until(
+                    pilot, lambda: palette.filtered_count == 1,
+                    timeout=10.0,
+                )
+                assert done
+                assert "notes.txt" in status_text()
+
+    asyncio.run(scenario())
+
+
+# --------------------------------------- window focus / pane focus switching
+
+
+@pytest.fixture
+def pane_root(tmp_path: Path) -> Path:
+    """Workspace root pre-seeded with the files the pane tests open."""
+    (tmp_path / "alpha.txt").write_text(
+        "alpha\nbeta\ngamma\n", encoding="utf-8")
+    (tmp_path / "bravo.txt").write_text(
+        "bravo one\nbravo two\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_vsc_chords_focus_panes(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             # initial focus is the editor; ctrl+shift+e moves to the explorer
-            self.assertIs(app.focused, app.editor_view)
+            assert app.focused is app.editor_view
             await pilot.press("ctrl+shift+e")
             await pilot.pause()
-            self.assertIs(app.focused, app.explorer_tree)
+            assert app.focused is app.explorer_tree
             # vscode-style: ctrl+1 focuses the editor again
             await pilot.press("ctrl+1")
             await pilot.pause()
-            self.assertIs(app.focused, app.editor_view)
+            assert app.focused is app.editor_view
             # ... and ctrl+shift+e focuses the explorer once more
             await pilot.press("ctrl+shift+e")
             await pilot.pause()
-            self.assertIs(app.focused, app.explorer_tree)
+            assert app.focused is app.explorer_tree
             await pilot.press("ctrl+1")
             await pilot.pause()
-            self.assertIs(app.focused, app.editor_view)
+            assert app.focused is app.editor_view
 
-    async def test_vim_ctrl_w_prefix_switches_panes(self):
-        app = YateApp(target=self.root)
+    asyncio.run(scenario())
+
+
+def test_vim_ctrl_w_prefix_switches_panes(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             app.select_keymap("vim")
@@ -1472,40 +1640,48 @@ class WindowFocusTests(unittest.IsolatedAsyncioTestCase):
             # ctrl+w arms the prefix, h goes to the left pane (explorer)
             await pilot.press("ctrl+w")
             await pilot.pause()
-            self.assertTrue(app.window_pending)
+            assert app.window_pending
             await pilot.press("h")
             await pilot.pause()
-            self.assertFalse(app.window_pending)
-            self.assertIs(app.focused, app.explorer_tree)
+            assert not app.window_pending
+            assert app.focused is app.explorer_tree
             # l goes back to the right pane (editor)
             await pilot.press("ctrl+w")
             await pilot.press("l")
             await pilot.pause()
-            self.assertIs(app.focused, app.editor_view)
+            assert app.focused is app.editor_view
             # ctrl+w ctrl+w cycles between the two panes
             await pilot.press("ctrl+w")
             await pilot.press("ctrl+w")
             await pilot.pause()
-            self.assertIs(app.focused, app.explorer_tree)
+            assert app.focused is app.explorer_tree
 
-    async def test_vim_window_prefix_cancelled_by_other_keys(self):
-        app = YateApp(target=self.root)
+    asyncio.run(scenario())
+
+
+def test_vim_window_prefix_cancelled_by_other_keys(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             app.select_keymap("vim")
             await pilot.pause()
             await pilot.press("ctrl+w")
             await pilot.pause()
-            self.assertTrue(app.window_pending)
+            assert app.window_pending
             # an unrelated key cancels the prefix and is processed normally
             before = app.buffer.lines[0]
             await pilot.press("x")
             await pilot.pause()
-            self.assertFalse(app.window_pending)
-            self.assertEqual(app.buffer.lines[0], before[1:])  # x deleted a char
+            assert not app.window_pending
+            assert app.buffer.lines[0] == before[1:]  # x deleted a char
 
-    async def test_vim_insert_mode_ctrl_w_not_intercepted(self):
-        app = YateApp(target=self.root)
+    asyncio.run(scenario())
+
+
+def test_vim_insert_mode_ctrl_w_not_intercepted(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             app.select_keymap("vim")
@@ -1514,67 +1690,77 @@ class WindowFocusTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             await pilot.press("ctrl+w")
             await pilot.pause()
-            self.assertFalse(app.window_pending)
+            assert not app.window_pending
+
+    asyncio.run(scenario())
 
 
-class BufferCompletionTests(unittest.IsolatedAsyncioTestCase):
-    """Fallback completions (buffer words + paths) when no LSP is active."""
-
-    async def test_buffer_words_complete_without_lsp(self):
-        with TemporaryDirectory() as tmp:
-            doc = Path(tmp) / "note.txt"
-            # "alpha" appears twice so it surfaces as a completion candidate;
-            # the half-typed word on the cursor line is excluded.
-            doc.write_text(
-                "alpha bravo charlie\nalpha delta\n", encoding="utf-8"
-            )
-            app = YateApp(target=doc)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                popup = app.completion_popup
-                assert popup is not None
-                # no language server for .txt
-                self.assertFalse(app.lsp.supports(app.doc))
-                # move to a new line and start typing "al"
-                app.buffer.move_doc_end()
-                app.buffer.insert_text("\nal")
-                # cursor now sits at the end of the freshly typed "al"
-                app.ui_refresh()
-                await pilot.press("ctrl+space")
-                shown = await wait_until(pilot, lambda: popup.is_open)
-                self.assertTrue(shown)
-                labels = [item.label for item in popup.items]
-                self.assertIn("alpha", labels)
-                # "al" prefix excludes the other words
-                self.assertNotIn("bravo", labels)
-
-    async def test_buffer_completion_accepts_word(self):
-        with TemporaryDirectory() as tmp:
-            doc = Path(tmp) / "note.txt"
-            doc.write_text("banana bandana\n", encoding="utf-8")
-            app = YateApp(target=doc)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                popup = app.completion_popup
-                assert popup is not None
-                app.buffer.move_doc_end()
-                app.buffer.insert_text("\nba")
-                app.ui_refresh()
-                await pilot.press("ctrl+space")
-                await wait_until(pilot, lambda: popup.is_open)
-                # pick the first match and accept with tab
-                await pilot.press("tab")
-                await pilot.pause()
-                self.assertFalse(popup.is_open)
-                # "ba" replaced by the accepted word
-                last_line = app.buffer.lines[-1]
-                self.assertTrue(last_line.startswith("ban"))
+# ---------------------------------------------------------- buffer completions
 
 
-class PaletteTabCompletionTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tab_cycles_and_single_match_auto_chooses(self):
-        from yate.editor_view.palette import PaletteScreen
+def test_buffer_words_complete_without_lsp(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        # "alpha" appears twice so it surfaces as a completion candidate;
+        # the half-typed word on the cursor line is excluded.
+        doc.write_text(
+            "alpha bravo charlie\nalpha delta\n", encoding="utf-8"
+        )
+        app = YateApp(target=doc)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            popup = app.completion_popup
+            assert popup is not None
+            # no language server for .txt
+            assert not app.lsp.supports(app.doc)
+            # move to a new line and start typing "al"
+            app.buffer.move_doc_end()
+            app.buffer.insert_text("\nal")
+            # cursor now sits at the end of the freshly typed "al"
+            app.ui_refresh()
+            await pilot.press("ctrl+space")
+            shown = await wait_until(pilot, lambda: popup.is_open)
+            assert shown
+            labels = [item.label for item in popup.items]
+            assert "alpha" in labels
+            # "al" prefix excludes the other words
+            assert "bravo" not in labels
 
+    asyncio.run(scenario())
+
+
+def test_buffer_completion_accepts_word(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("banana bandana\n", encoding="utf-8")
+        app = YateApp(target=doc)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            popup = app.completion_popup
+            assert popup is not None
+            app.buffer.move_doc_end()
+            app.buffer.insert_text("\nba")
+            app.ui_refresh()
+            await pilot.press("ctrl+space")
+            await wait_until(pilot, lambda: popup.is_open)
+            # pick the first match and accept with tab
+            await pilot.press("tab")
+            await pilot.pause()
+            assert not popup.is_open
+            # "ba" replaced by the accepted word
+            last_line = app.buffer.lines[-1]
+            assert last_line.startswith("ban")
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------- palette tab completion
+
+
+def test_tab_cycles_and_single_match_auto_chooses() -> None:
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.press("alt+shift+p")
@@ -1588,21 +1774,26 @@ class PaletteTabCompletionTests(unittest.IsolatedAsyncioTestCase):
             before = screen.cursor_index
             await pilot.press("tab")
             await pilot.pause()
-            self.assertEqual(screen.cursor_index, (before + 1) % screen.filtered_count)
-            self.assertIsInstance(app.screen, PaletteScreen)
+            assert screen.cursor_index == (before + 1) % screen.filtered_count
+            assert isinstance(app.screen, PaletteScreen)
             # narrow to a single unique match: tab chooses it immediately
             for ch in "theme":
                 await pilot.press(ch)
             await pilot.pause()
-            self.assertEqual(screen.filtered_count, 1)
+            assert screen.filtered_count == 1
             await pilot.press("tab")
             await pilot.pause()
             # palette dismissed and :theme ran (prints theme info)
-            self.assertNotIsInstance(app.screen, PaletteScreen)
+            assert not isinstance(app.screen, PaletteScreen)
+
+    asyncio.run(scenario())
 
 
-class CommandTabCompletionTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tab_completes_unique_command_name(self):
+# ------------------------------------------------- command line tab completion
+
+
+def test_tab_completes_unique_command_name() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.press(":")
@@ -1614,9 +1805,13 @@ class CommandTabCompletionTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             inp = app.prompt_bar.input if app.prompt_bar else None
             assert inp is not None
-            self.assertEqual(inp.value, "write")
+            assert inp.value == "write"
 
-    async def test_tab_cycles_multiple_command_matches(self):
+    asyncio.run(scenario())
+
+
+def test_tab_cycles_multiple_command_matches() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.press(":")
@@ -1628,17 +1823,21 @@ class CommandTabCompletionTests(unittest.IsolatedAsyncioTestCase):
             inp = app.prompt_bar.input if app.prompt_bar else None
             assert inp is not None
             matches = app.prompt_completions("w", "command")
-            self.assertGreater(len(matches), 1)
+            assert len(matches) > 1
             await pilot.press("tab")
             await pilot.pause()
             first = inp.value
-            self.assertIn(first, matches)
+            assert first in matches
             await pilot.press("tab")
             await pilot.pause()
-            self.assertIn(inp.value, matches)
-            self.assertNotEqual(inp.value, first)
+            assert inp.value in matches
+            assert inp.value != first
 
-    async def test_tab_completes_theme_argument(self):
+    asyncio.run(scenario())
+
+
+def test_tab_completes_theme_argument() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.press(":")
@@ -1649,61 +1848,75 @@ class CommandTabCompletionTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             inp = app.prompt_bar.input if app.prompt_bar else None
             assert inp is not None
-            self.assertTrue(inp.value.endswith("macchiato"))
+            assert inp.value.endswith("macchiato")
 
-    async def test_tab_completes_path_for_edit_command(self):
-        with TemporaryDirectory() as tmp:
-            (Path(tmp) / "alpha.py").write_text("x\n", encoding="utf-8")
-            (Path(tmp) / "beta.py").write_text("x\n", encoding="utf-8")
-            app = YateApp(keymap="vim", target=Path(tmp))
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.press(":")
-                await pilot.pause()
-                await pilot.press(*"e al")
-                await pilot.pause()
-                await pilot.press("tab")
-                await pilot.pause()
-                inp = app.prompt_bar.input if app.prompt_bar else None
-                assert inp is not None
-                self.assertTrue(inp.value.endswith("alpha.py"))
+    asyncio.run(scenario())
 
 
-class FiletypeCommandTests(unittest.IsolatedAsyncioTestCase):
-    """:set filetype= / :filetype manual syntax selection."""
+def test_tab_completes_path_for_edit_command(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        (tmp_path / "alpha.py").write_text("x\n", encoding="utf-8")
+        (tmp_path / "beta.py").write_text("x\n", encoding="utf-8")
+        app = YateApp(keymap="vim", target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press(":")
+            await pilot.pause()
+            await pilot.press(*"e al")
+            await pilot.pause()
+            await pilot.press("tab")
+            await pilot.pause()
+            inp = app.prompt_bar.input if app.prompt_bar else None
+            assert inp is not None
+            assert inp.value.endswith("alpha.py")
 
-    async def test_set_filetype_by_name_or_extension_and_auto_reset(self):
+    asyncio.run(scenario())
+
+
+# ----------------------------------------------------------- filetype commands
+
+
+def test_set_filetype_by_name_or_extension_and_auto_reset() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             doc = app.doc
-            self.assertIsNone(doc.path)
-            self.assertEqual(doc.filetype, "plaintext")
+            assert doc.path is None
+            assert doc.filetype == "plaintext"
 
             app.run_command("set filetype=python")  # language name
-            self.assertEqual(doc.filetype_override, "py")
-            self.assertEqual(doc.filetype, "py")
+            assert doc.filetype_override == "py"
+            assert doc.filetype == "py"
 
             app.run_command("ft .rs")               # alias + dot prefix
-            self.assertEqual(doc.filetype, "rs")
+            assert doc.filetype == "rs"
 
             app.run_command("language typescript")  # vscode-style name
-            self.assertEqual(doc.filetype, "ts")
+            assert doc.filetype == "ts"
 
             app.run_command("set language=auto")    # back to detection
-            self.assertIsNone(doc.filetype_override)
-            self.assertEqual(doc.filetype, "plaintext")
+            assert doc.filetype_override is None
+            assert doc.filetype == "plaintext"
             await pilot.pause()
 
-    async def test_unknown_filetype_is_kept_without_highlighter(self):
+    asyncio.run(scenario())
+
+
+def test_unknown_filetype_is_kept_without_highlighter() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             app.run_command("set ft=zig")
-            self.assertEqual(app.doc.filetype_override, "zig")
-            self.assertEqual(app.doc.filetype, "zig")
+            assert app.doc.filetype_override == "zig"
+            assert app.doc.filetype == "zig"
             app.run_command("filetype auto")
-            self.assertIsNone(app.doc.filetype_override)
+            assert app.doc.filetype_override is None
             await pilot.pause()
 
-    async def test_highlighting_follows_the_override(self):
+    asyncio.run(scenario())
+
+
+def test_highlighting_follows_the_override() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor_view
@@ -1712,129 +1925,157 @@ class FiletypeCommandTests(unittest.IsolatedAsyncioTestCase):
             app.buffer.insert_text("def foo():\n    pass\n")
             await pilot.pause()
             # Plain-text detection for an unnamed buffer -> no tokens.
-            self.assertEqual(hl_view._hl_filetype, "plaintext")
+            assert hl_view._hl_filetype == "plaintext"
 
             app.run_command("set filetype=python")
             changed = await wait_until(
                 pilot, lambda: hl_view._hl_filetype == "py", timeout=5.0
             )
-            self.assertTrue(changed)
+            assert changed
             pairs = [
                 (t.kind, "def foo():"[t.start:t.end])
                 for t in hl_view._tokens_for(0)
             ]
-            self.assertIn(("keyword", "def"), pairs)
-            self.assertIn(("function", "foo"), pairs)
+            assert ("keyword", "def") in pairs
+            assert ("function", "foo") in pairs
 
-    async def test_tab_completions_for_filetype(self):
+    asyncio.run(scenario())
+
+
+def test_tab_completions_for_filetype() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
-            self.assertEqual(
-                app.prompt_completions("set filetype=pyt", "command"),
-                ["set filetype=python"],
-            )
+            assert app.prompt_completions("set filetype=pyt", "command") == [
+                "set filetype=python"
+            ]
             # "r" prefix matches both the "rs" extension key and the
             # "rust" language name.
-            self.assertEqual(
-                sorted(app.prompt_completions("filetype r", "command")),
-                ["filetype rs", "filetype rust"],
-            )
+            assert sorted(app.prompt_completions("filetype r", "command")) == [
+                "filetype rs", "filetype rust"
+            ]
             vals = app.prompt_completions("set ft=", "command")
-            self.assertIn("set ft=auto", vals)
-            self.assertIn("set ft=python", vals)
-            self.assertEqual(
-                app.prompt_completions("set file", "command"),
-                ["set filetype"],
-            )
+            assert "set ft=auto" in vals
+            assert "set ft=python" in vals
+            assert app.prompt_completions("set file", "command") == [
+                "set filetype"
+            ]
             await pilot.pause()
 
+    asyncio.run(scenario())
 
-class GotoLineTests(unittest.IsolatedAsyncioTestCase):
-    """Bare-number command line input (vim :42 / VS Code Ctrl+G)."""
 
-    @staticmethod
-    def _seed(app: YateApp, lines: int = 6) -> None:
-        app.buffer.set_text("\n".join(f"line {i + 1}" for i in range(lines)))
-        app.buffer.set_cursor((0, 0))
+# ------------------------------------------------------------------- goto line
 
-    async def test_bare_number_jumps_to_line(self):
+
+def _seed_goto(app: YateApp, lines: int = 6) -> None:
+    app.buffer.set_text("\n".join(f"line {i + 1}" for i in range(lines)))
+    app.buffer.set_cursor((0, 0))
+
+
+def test_bare_number_jumps_to_line() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            self._seed(app)
+            _seed_goto(app)
             app.run_command("4")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 3)  # 1-based input -> 0-based row
-            self.assertIsNone(app.buffer.anchor)
+            assert app.buffer.row == 3  # 1-based input -> 0-based row
+            assert app.buffer.anchor is None
 
-    async def test_line_number_is_clamped(self):
+    asyncio.run(scenario())
+
+
+def test_line_number_is_clamped() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            self._seed(app)
+            _seed_goto(app)
             app.run_command("999")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 5)
+            assert app.buffer.row == 5
             app.run_command("0")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 0)
+            assert app.buffer.row == 0
 
-    async def test_signed_numbers_are_relative(self):
+    asyncio.run(scenario())
+
+
+def test_signed_numbers_are_relative() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            self._seed(app)
+            _seed_goto(app)
             app.buffer.set_cursor((0, 0))
             app.run_command("+2")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 2)
+            assert app.buffer.row == 2
             app.run_command("-1")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 1)
+            assert app.buffer.row == 1
 
-    async def test_non_numeric_unknown_command_still_warns(self):
+    asyncio.run(scenario())
+
+
+def test_non_numeric_unknown_command_still_warns() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            self._seed(app)
+            _seed_goto(app)
             app.run_command("12abc")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 0)  # did not jump
+            assert app.buffer.row == 0  # did not jump
             prompt_bar = app.prompt_bar
             assert prompt_bar is not None
             msg = "".join(
                 seg.text for seg in prompt_bar.message.render_line(0)
             )
-            self.assertIn("not an editor command", msg)
+            assert "not an editor command" in msg
 
-    async def test_ctrl_g_opens_goto_prompt_in_vsc_keymap(self):
+    asyncio.run(scenario())
+
+
+def test_ctrl_g_opens_goto_prompt_in_vsc_keymap() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            self._seed(app)
+            _seed_goto(app)
             prompt_bar = app.prompt_bar
             assert prompt_bar is not None
             await pilot.press("ctrl+g")
             await pilot.pause()
-            self.assertEqual(prompt_bar.active_mode, "goto")
+            assert prompt_bar.active_mode == "goto"
             await pilot.press("2", "enter")
             await pilot.pause()
-            self.assertIsNone(prompt_bar.active_mode)
-            self.assertEqual(app.buffer.row, 1)
-            self.assertIs(app.focused, app.editor_view)
+            assert prompt_bar.active_mode is None
+            assert app.buffer.row == 1
+            assert app.focused is app.editor_view
 
-    async def test_ctrl_g_opens_goto_prompt_in_vim_normal_mode(self):
+    asyncio.run(scenario())
+
+
+def test_ctrl_g_opens_goto_prompt_in_vim_normal_mode() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
-            self._seed(app)
+            _seed_goto(app)
             prompt_bar = app.prompt_bar
             assert prompt_bar is not None
             await pilot.press("ctrl+g")
             await pilot.pause()
-            self.assertEqual(prompt_bar.active_mode, "goto")
+            assert prompt_bar.active_mode == "goto"
             await pilot.press("5", "enter")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 4)
+            assert app.buffer.row == 4
 
-    async def test_goto_prompt_rejects_non_numeric(self):
+    asyncio.run(scenario())
+
+
+def test_goto_prompt_rejects_non_numeric() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            self._seed(app)
+            _seed_goto(app)
             app.goto_prompt()
             await pilot.pause()
             prompt_bar = app.prompt_bar
@@ -1842,119 +2083,140 @@ class GotoLineTests(unittest.IsolatedAsyncioTestCase):
             prompt_bar.input.value = "abc"
             await pilot.press("enter")
             await pilot.pause()
-            self.assertEqual(app.buffer.row, 0)
+            assert app.buffer.row == 0
             msg = "".join(
                 seg.text for seg in prompt_bar.message.render_line(0)
             )
-            self.assertIn("not a line number", msg)
+            assert "not a line number" in msg
+
+    asyncio.run(scenario())
 
 
-class CommandFeedbackTests(unittest.IsolatedAsyncioTestCase):
-    """Bottom-line feedback after commands: explicit result or a clean line."""
+# ------------------------------------------------------------- command feedback
 
-    @staticmethod
-    def _message_text(app: YateApp) -> str:
-        assert app.prompt_bar is not None
-        return plain_text(app.prompt_bar.message.content)
 
-    async def test_overlay_commands_clear_stale_message(self):
-        # The previous command's message used to outlive an overlay command
-        # (:manual/:help/:files/:palette): the overlay hides the line while
-        # open and the stale text reappeared on close, so success looked
-        # silent. Pushing an overlay resets the line to its idle hint.
-        for command, cls_name in (
-            ("manual", "MarkdownDocScreen"),
-            ("changelog", "MarkdownDocScreen"),
-            ("help", "HelpScreen"),
-            ("files", "PaletteScreen"),
-            ("palette", "PaletteScreen"),
-        ):
-            with self.subTest(command=command):
-                app = YateApp()
-                async with app.run_test(size=(100, 30)) as pilot:
-                    await pilot.pause()
-                    app.message("stale note from before")
-                    app.run_command(command)
-                    await pilot.pause()
-                    self.assertEqual(type(app.screen).__name__, cls_name)
-                    self.assertNotIn(
-                        "stale note", self._message_text(app)
-                    )
-                    await pilot.press("escape")
-                    await pilot.pause()
-                    self.assertNotIn(
-                        "stale note", self._message_text(app)
-                    )
+def _message_text(app: YateApp) -> str:
+    assert app.prompt_bar is not None
+    return plain_text(app.prompt_bar.message.content)
 
-    async def test_cycle_tab_with_one_tab_warns(self):
+
+@pytest.mark.parametrize(
+    "command,cls_name",
+    [
+        ("manual", "MarkdownDocScreen"),
+        ("changelog", "MarkdownDocScreen"),
+        ("help", "HelpScreen"),
+        ("files", "PaletteScreen"),
+        ("palette", "PaletteScreen"),
+    ],
+    ids=["manual", "changelog", "help", "files", "palette"],
+)
+def test_overlay_commands_clear_stale_message(
+    command: str, cls_name: str
+) -> None:
+    # The previous command's message used to outlive an overlay command
+    # (:manual/:help/:files/:palette): the overlay hides the line while
+    # open and the stale text reappeared on close, so success looked
+    # silent. Pushing an overlay resets the line to its idle hint.
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.message("stale note from before")
+            app.run_command(command)
+            await pilot.pause()
+            assert type(app.screen).__name__ == cls_name
+            assert "stale note" not in _message_text(app)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert "stale note" not in _message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_cycle_tab_with_one_tab_warns() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             app.run_command("bn")
             await pilot.pause()
-            self.assertIn("only one tab", self._message_text(app))
+            assert "only one tab" in _message_text(app)
 
-    async def test_click_tab_switches_document(self):
-        with TemporaryDirectory() as tmp:
-            a = Path(tmp) / "alpha.txt"
-            b = Path(tmp) / "beta.txt"
-            a.write_text("alpha\n", encoding="utf-8")
-            b.write_text("beta\n", encoding="utf-8")
-            app = YateApp(str(a))
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                app.open_path(b)
-                await pilot.pause()
-                self.assertEqual(len(app.docs), 2)
-                self.assertEqual(app.doc_index, 1)  # b is active after open
+    asyncio.run(scenario())
 
-                # Build the tab line and find the cell span of the first tab.
-                _, regions = app.build_tabbar(100)
-                self.assertGreaterEqual(len(regions), 2)
-                start, end, doc_idx = regions[0]
-                self.assertEqual(doc_idx, 0)
-                click_x = start + (end - start) // 2
-                await pilot.click("#tabbar", offset=(click_x, 0))
-                await pilot.pause()
-                self.assertEqual(app.doc_index, 0)
-                self.assertEqual(app.doc.name, "alpha.txt")
 
-                # Clicking the already-active tab is a no-op.
-                self.assertEqual(app.doc_index, 0)
-                await pilot.click("#tabbar", offset=(click_x, 0))
-                await pilot.pause()
-                self.assertEqual(app.doc_index, 0)
+def test_click_tab_switches_document(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        a = tmp_path / "alpha.txt"
+        b = tmp_path / "beta.txt"
+        a.write_text("alpha\n", encoding="utf-8")
+        b.write_text("beta\n", encoding="utf-8")
+        app = YateApp(str(a))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.open_path(b)
+            await pilot.pause()
+            assert len(app.docs) == 2
+            assert app.doc_index == 1  # b is active after open
 
-    async def test_set_terminal_height_reports_and_validates(self):
+            # Build the tab line and find the cell span of the first tab.
+            _, regions = app.build_tabbar(100)
+            assert len(regions) >= 2
+            start, end, doc_idx = regions[0]
+            assert doc_idx == 0
+            click_x = start + (end - start) // 2
+            await pilot.click("#tabbar", offset=(click_x, 0))
+            await pilot.pause()
+            assert app.doc_index == 0
+            assert app.doc.name == "alpha.txt"
+
+            # Clicking the already-active tab is a no-op.
+            assert app.doc_index == 0
+            await pilot.click("#tabbar", offset=(click_x, 0))
+            await pilot.pause()
+            assert app.doc_index == 0
+
+    asyncio.run(scenario())
+
+
+def test_set_terminal_height_reports_and_validates() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             app.run_command("set terminal_height=20")
             await pilot.pause()
-            self.assertEqual(app.config.terminal_height, 20)
-            self.assertIn(
-                "terminal height: 20 rows", self._message_text(app)
-            )
+            assert app.config.terminal_height == 20
+            assert "terminal height: 20 rows" in _message_text(app)
 
             app.run_command("set terminal_height=99")
             await pilot.pause()
-            self.assertEqual(app.config.terminal_height, 20)  # rejected
-            self.assertIn("between 3 and 40", self._message_text(app))
+            assert app.config.terminal_height == 20  # rejected
+            assert "between 3 and 40" in _message_text(app)
 
             app.run_command("set terminal_height=abc")
             await pilot.pause()
-            self.assertIn("integer", self._message_text(app))
+            assert "integer" in _message_text(app)
 
-    async def test_termclose_without_open_terminal_warns(self):
+    asyncio.run(scenario())
+
+
+def test_termclose_without_open_terminal_warns() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            self.assertFalse(cast(Any, app)._terminal_visible)
+            assert not cast(Any, app)._terminal_visible
             app.run_command("termclose")
             await pilot.pause()
-            self.assertIn("already hidden", self._message_text(app))
+            assert "already hidden" in _message_text(app)
 
-    async def test_term_commands_report_shown_and_hidden(self):
+    asyncio.run(scenario())
+
+
+def test_term_commands_report_shown_and_hidden() -> None:
+    async def scenario() -> None:
         app = YateApp()
         cast(Any, app)._terminal_factory = _FakePty
         _FakePty.instances = []
@@ -1963,437 +2225,464 @@ class CommandFeedbackTests(unittest.IsolatedAsyncioTestCase):
             assert panel is not None
             app.run_command("term")
             await wait_until(pilot, lambda: panel.view.proc is not None)
-            self.assertIn("terminal shown", self._message_text(app))
+            assert "terminal shown" in _message_text(app)
             app.run_command("termclose")
             await pilot.pause()
-            self.assertFalse(panel.display)
-            self.assertIn("terminal hidden", self._message_text(app))
+            assert not panel.display
+            assert "terminal hidden" in _message_text(app)
 
-    async def test_setting_commands_confirm_success(self):
+    asyncio.run(scenario())
+
+
+def test_setting_commands_confirm_success() -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             app.run_command("set keymap=vim")
             await pilot.pause()
-            self.assertIn("keymap:", self._message_text(app))
+            assert "keymap:" in _message_text(app)
             app.run_command("set theme=latte")
             await pilot.pause()
-            self.assertIn("theme:", self._message_text(app))
+            assert "theme:" in _message_text(app)
             app.run_command("set filetype=python")
             await pilot.pause()
-            self.assertIn("filetype set to", self._message_text(app))
+            assert "filetype set to" in _message_text(app)
+
+    asyncio.run(scenario())
 
 
-class BundledExtensionTests(unittest.IsolatedAsyncioTestCase):
-    """The extensions shipped inside yate/ load from any working directory."""
-
-    async def test_bundled_extensions_load_regardless_of_cwd(self):
-        with TemporaryDirectory() as tmp:
-            old_cwd = Path.cwd()
-            os.chdir(tmp)
-            try:
-                app = YateApp()
-                async with app.run_test(size=(100, 30)) as pilot:
-                    await pilot.pause()
-                    records = {
-                        r.name: r for r in app.extension_loader.loaded
-                    }
-                    self.assertIn("python_lsp", records)
-                    self.assertIn("csharp_highlight", records)
-                    # the .example template is never auto-loaded
-                    self.assertNotIn("example_ext", records)
-                    self.assertIsNone(records["python_lsp"].error)
-                    self.assertIsNone(records["csharp_highlight"].error)
-            finally:
-                os.chdir(old_cwd)
-
-    async def test_disabled_extensions_skip_bundled_not_project_dir(self):
-        from yate.config import YateConfig
-
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            project_ext = root / "extensions"
-            project_ext.mkdir()
-            (project_ext / "myext.py").write_text(
-                "def setup(api):\n    pass\n", encoding="utf-8"
-            )
-            config = YateConfig(
-                disabled_extensions=["python_lsp", "csharp_highlight"]
-            )
-            old_cwd = Path.cwd()
-            os.chdir(root)
-            try:
-                app = YateApp(config=config)
-                async with app.run_test(size=(100, 30)) as pilot:
-                    await pilot.pause()
-                    names = {r.name for r in app.extension_loader.loaded}
-                    self.assertNotIn("python_lsp", names)
-                    self.assertNotIn("csharp_highlight", names)
-                    # a project script with the same purpose still loads
-                    self.assertIn("myext", names)
-                    # and no Python server got registered while LSP was off
-                    self.assertIsNone(app.lsp.config_for("py"))
-            finally:
-                os.chdir(old_cwd)
-
-    async def test_rc_same_stem_extension_is_named_as_shadowed(self):
-        # An rc-declared script with a bundled default's stem loads first, but
-        # the last-write-wins registrars would let the bundled default take
-        # over: the conflict must surface as a startup warning.
-        from yate.config import YateConfig
-
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            rc_dir = root / "rc_extensions"
-            rc_dir.mkdir()
-            (rc_dir / "csharp_highlight.py").write_text(
-                "def setup(api):\n    pass\n", encoding="utf-8"
-            )
-            config = YateConfig(extension_paths=[rc_dir])
-            app = YateApp(config=config)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                messages = cast(Any, app)._ext_messages
-                self.assertTrue(
-                    any(
-                        "csharp_highlight" in m
-                        and "shadowed by the bundled default" in m
-                        for m in messages
-                    ),
-                    messages,
-                )
-
-    async def test_disabled_bundled_extension_does_not_warn_shadow(self):
-        # Disabling the bundled default removes the collision entirely.
-        from yate.config import YateConfig
-
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            rc_dir = root / "rc_extensions"
-            rc_dir.mkdir()
-            (rc_dir / "csharp_highlight.py").write_text(
-                "def setup(api):\n    pass\n", encoding="utf-8"
-            )
-            config = YateConfig(
-                extension_paths=[rc_dir],
-                disabled_extensions=["csharp_highlight"],
-            )
-            app = YateApp(config=config)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                messages = cast(Any, app)._ext_messages
-                self.assertFalse(
-                    any("shadowed by the bundled default" in m for m in messages),
-                    messages,
-                )
+# ---------------------------------------------------------- bundled extensions
 
 
-class LspUiTests(unittest.IsolatedAsyncioTestCase):
-    """Completion popup + diagnostic rendering with an injected fake LSP."""
-
-    def _install_fake_server(
-        self, app: YateApp, completions: list[dict[str, Any]] | None = None
-    ) -> list[Any]:
-        from yate.editor_lsp.client import ServerConfig
-
-        created: list[Any] = []
-        completions = completions if completions is not None else [
-            {"label": "barbell", "insertText": "barbell", "kind": 3,
-             "detail": "(object)"},
-            {"label": "baritone", "insertText": "baritone", "kind": 3},
-            {"label": "baz", "insertText": "baz", "kind": 5},
-        ]
-
-        class UiFakeClient:
-            def __init__(self, config: Any, root: Any) -> None:
-                self.config = config
-                self.root_path = root
-                from yate.editor_lsp import ServerState
-                self.state = ServerState.READY
-                self.error = ""
-                self.trigger_characters: tuple[str, ...] = (".",)
-                self.opened: list[Any] = []
-                created.append(self)
-
-            async def start(self) -> None:
-                return None
-
-            async def stop(self) -> None:
-                from yate.editor_lsp import ServerState
-                self.state = ServerState.STOPPED
-
-            async def notify(self, method: str, params: Any) -> None:
-                if method == "textDocument/didOpen":
-                    self.opened.append(params)
-
-            async def request(self, method: str, params: Any) -> Any:
-                return {"isIncomplete": False, "items": completions}
-
-            async def start_request(self, method: str, params: Any) -> Any:
-                import asyncio
-                future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
-                future.set_result({"isIncomplete": False, "items": completions})
-                return 1, future
-
-            async def send_cancel(self, request_id: int) -> None:
-                return None
-
-            def publish_diagnostics(
-                self, manager: Any, uri: str, entries: list[dict[str, Any]]
-            ) -> None:
-                manager.handle_notification(
-                    "textDocument/publishDiagnostics",
-                    {"uri": uri, "diagnostics": entries},
-                )
-
-        def factory(config: Any, root: Any) -> Any:
-            return UiFakeClient(config, root)
-
-        app.lsp.register_server(ServerConfig(
-            name="python", command="fake", filetypes=["py"],
-        ))
-        # factory must be installed on the manager after registration; the
-        # manager keeps it independent of config replacement
-        app.lsp.set_client_factory(factory)
-        return created
-
-    async def test_completion_popup_navigate_accept_and_ctrl_space(self):
-        with TemporaryDirectory() as tmp:
-            py = Path(tmp) / "m.py"
-            py.write_text("ba\n", encoding="utf-8")
-            app = YateApp(target=py)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                self._install_fake_server(app)
-                app.ui_refresh()  # schedules didOpen on the freshly registered server
-                await pilot.pause()
-
-                def is_ready() -> bool:
-                    state = app.lsp.state_for_doc(app.doc)
-                    return state is not None and state.value == "ready"
-
-                ready = await wait_until(pilot, is_ready)
-                self.assertTrue(ready)
-                popup = app.completion_popup
-                assert popup is not None
-                # cursor sits at doc start after open; move to end of "ba"
-                app.buffer.cursor = (0, 2)
-                app.ui_refresh()
-                # manual trigger via ctrl+space at the end of "ba"
-                await pilot.press("ctrl+space")
-                shown = await wait_until(pilot, lambda: popup.is_open)
-                self.assertTrue(shown)
-                self.assertEqual(popup.item_count, 3)
-                first = popup.selected()
-                assert first is not None
-                self.assertEqual(first.label, "barbell")
-                # down wraps through the list, esc closes
-                await pilot.press("down")
-                second = popup.selected()
-                assert second is not None
-                self.assertEqual(second.label, "baritone")
-                await pilot.press("escape")
-                self.assertFalse(popup.is_open)
-                # reopen and accept the second entry with tab
-                await pilot.press("ctrl+space")
-                await wait_until(pilot, lambda: popup.is_open)
-                await pilot.press("down", "tab")
-                await pilot.pause()
-                self.assertFalse(popup.is_open)
-                self.assertEqual(app.buffer.lines[0], "baritone")
-                self.assertTrue(app.doc.modified)
-
-    async def test_diagnostic_render_status_echo_and_command(self):
-        from yate.editor_lsp import protocol
-        from yate.editor_view.modals import OutputScreen
-
-        with TemporaryDirectory() as tmp:
-            py = Path(tmp) / "diag.py"
-            py.write_text("x = 1\n", encoding="utf-8")
-            app = YateApp(target=py)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                created = self._install_fake_server(app)
-                app.ui_refresh()
-                await pilot.pause()
-                await wait_until(pilot, lambda: bool(created and created[0].opened))
-                fake = created[0]
-                uri = protocol.path_to_uri(py.resolve())
-                fake.publish_diagnostics(app.lsp, uri, [
-                    {"range": {"start": {"line": 0, "character": 0},
-                               "end": {"line": 0, "character": 5}},
-                     "severity": 1, "message": "undefined name 'x'",
-                     "source": "pyright"},
-                ])
-                await pilot.pause()
-                editor = app.editor_view
-                assert editor is not None
-                line0 = "".join(seg.text for seg in editor.render_line(0))
-                self.assertIn("✖", line0)  # gutter mark
-                underlined = [
-                    seg for seg in editor.render_line(0)
-                    if seg.style is not None and seg.style.underline
-                ]
-                self.assertTrue(underlined)
-                # status bar carries the error count
-                status_bar = app.status_bar
-                assert status_bar is not None
-                self.assertIn("✖ 1", plain_text(status_bar.content))
-                # message line echoes the diagnostic under the cursor
-                prompt_bar = app.prompt_bar
-                assert prompt_bar is not None
-                app.ui_refresh()
-                self.assertIn(
-                    "undefined name", plain_text(prompt_bar.message.content)
-                )
-                # :diagnostics opens the listing screen
-                app.run_command("diagnostics")
-                await pilot.pause()
-                screen = app.screen
-                self.assertIsInstance(screen, OutputScreen)
-                self.assertIn("undefined name", cast(OutputScreen, screen).output_text)
-
-    async def test_builtin_python_extension_loads_cleanly(self):
-        # The auto-loaded extension registers a (disabled) python server and
-        # setup must neither print nor spawn nor record an error.
+def test_bundled_extensions_load_regardless_of_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            self.assertIn("python", app.lsp.config_names())
+            records = {
+                r.name: r for r in app.extension_loader.loaded
+            }
+            assert "python_lsp" in records
+            assert "csharp_highlight" in records
+            # the .example template is never auto-loaded
+            assert "example_ext" not in records
+            assert records["python_lsp"].error is None
+            assert records["csharp_highlight"].error is None
+
+    monkeypatch.chdir(tmp_path)
+    asyncio.run(scenario())
+
+
+def test_disabled_extensions_skip_bundled_not_project_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from yate.config import YateConfig
+
+    root = tmp_path
+    project_ext = root / "extensions"
+    project_ext.mkdir()
+    (project_ext / "myext.py").write_text(
+        "def setup(api):\n    pass\n", encoding="utf-8"
+    )
+    config = YateConfig(
+        disabled_extensions=["python_lsp", "csharp_highlight"]
+    )
+
+    async def scenario() -> None:
+        app = YateApp(config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            names = {r.name for r in app.extension_loader.loaded}
+            assert "python_lsp" not in names
+            assert "csharp_highlight" not in names
+            # a project script with the same purpose still loads
+            assert "myext" in names
+            # and no Python server got registered while LSP was off
+            assert app.lsp.config_for("py") is None
+
+    monkeypatch.chdir(root)
+    asyncio.run(scenario())
+
+
+def test_rc_same_stem_extension_is_named_as_shadowed(tmp_path: Path) -> None:
+    # An rc-declared script with a bundled default's stem loads first, but
+    # the last-write-wins registrars would let the bundled default take
+    # over: the conflict must surface as a startup warning.
+    from yate.config import YateConfig
+
+    root = tmp_path
+    rc_dir = root / "rc_extensions"
+    rc_dir.mkdir()
+    (rc_dir / "csharp_highlight.py").write_text(
+        "def setup(api):\n    pass\n", encoding="utf-8"
+    )
+    config = YateConfig(extension_paths=[rc_dir])
+
+    async def scenario() -> None:
+        app = YateApp(config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            messages = cast(Any, app)._ext_messages
+            assert any(
+                "csharp_highlight" in m
+                and "shadowed by the bundled default" in m
+                for m in messages
+            ), messages
+
+    asyncio.run(scenario())
+
+
+def test_disabled_bundled_extension_does_not_warn_shadow(
+    tmp_path: Path,
+) -> None:
+    # Disabling the bundled default removes the collision entirely.
+    from yate.config import YateConfig
+
+    root = tmp_path
+    rc_dir = root / "rc_extensions"
+    rc_dir.mkdir()
+    (rc_dir / "csharp_highlight.py").write_text(
+        "def setup(api):\n    pass\n", encoding="utf-8"
+    )
+    config = YateConfig(
+        extension_paths=[rc_dir],
+        disabled_extensions=["csharp_highlight"],
+    )
+
+    async def scenario() -> None:
+        app = YateApp(config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            messages = cast(Any, app)._ext_messages
+            assert not any(
+                "shadowed by the bundled default" in m for m in messages
+            ), messages
+
+    asyncio.run(scenario())
+
+
+# ----------------------------------------------------------------- LSP UI fake
+
+
+def _install_fake_server(
+    app: YateApp, completions: list[dict[str, Any]] | None = None
+) -> list[Any]:
+    from yate.editor_lsp.client import ServerConfig
+
+    created: list[Any] = []
+    completions = completions if completions is not None else [
+        {"label": "barbell", "insertText": "barbell", "kind": 3,
+         "detail": "(object)"},
+        {"label": "baritone", "insertText": "baritone", "kind": 3},
+        {"label": "baz", "insertText": "baz", "kind": 5},
+    ]
+
+    class UiFakeClient:
+        def __init__(self, config: Any, root: Any) -> None:
+            self.config = config
+            self.root_path = root
+            from yate.editor_lsp import ServerState
+            self.state = ServerState.READY
+            self.error = ""
+            self.trigger_characters: tuple[str, ...] = (".",)
+            self.opened: list[Any] = []
+            created.append(self)
+
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            from yate.editor_lsp import ServerState
+            self.state = ServerState.STOPPED
+
+        async def notify(self, method: str, params: Any) -> None:
+            if method == "textDocument/didOpen":
+                self.opened.append(params)
+
+        async def request(self, method: str, params: Any) -> Any:
+            return {"isIncomplete": False, "items": completions}
+
+        async def start_request(self, method: str, params: Any) -> Any:
+            import asyncio
+            future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+            future.set_result({"isIncomplete": False, "items": completions})
+            return 1, future
+
+        async def send_cancel(self, request_id: int) -> None:
+            return None
+
+        def publish_diagnostics(
+            self, manager: Any, uri: str, entries: list[dict[str, Any]]
+        ) -> None:
+            manager.handle_notification(
+                "textDocument/publishDiagnostics",
+                {"uri": uri, "diagnostics": entries},
+            )
+
+    def factory(config: Any, root: Any) -> Any:
+        return UiFakeClient(config, root)
+
+    app.lsp.register_server(ServerConfig(
+        name="python", command="fake", filetypes=["py"],
+    ))
+    # factory must be installed on the manager after registration; the
+    # manager keeps it independent of config replacement
+    app.lsp.set_client_factory(factory)
+    return created
+
+
+def test_completion_popup_navigate_accept_and_ctrl_space(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        py = tmp_path / "m.py"
+        py.write_text("ba\n", encoding="utf-8")
+        app = YateApp(target=py)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            _install_fake_server(app)
+            app.ui_refresh()  # schedules didOpen on the freshly registered server
+            await pilot.pause()
+
+            def is_ready() -> bool:
+                state = app.lsp.state_for_doc(app.doc)
+                return state is not None and state.value == "ready"
+
+            ready = await wait_until(pilot, is_ready)
+            assert ready
+            popup = app.completion_popup
+            assert popup is not None
+            # cursor sits at doc start after open; move to end of "ba"
+            app.buffer.cursor = (0, 2)
+            app.ui_refresh()
+            # manual trigger via ctrl+space at the end of "ba"
+            await pilot.press("ctrl+space")
+            shown = await wait_until(pilot, lambda: popup.is_open)
+            assert shown
+            assert popup.item_count == 3
+            first = popup.selected()
+            assert first is not None
+            assert first.label == "barbell"
+            # down wraps through the list, esc closes
+            await pilot.press("down")
+            second = popup.selected()
+            assert second is not None
+            assert second.label == "baritone"
+            await pilot.press("escape")
+            assert not popup.is_open
+            # reopen and accept the second entry with tab
+            await pilot.press("ctrl+space")
+            await wait_until(pilot, lambda: popup.is_open)
+            await pilot.press("down", "tab")
+            await pilot.pause()
+            assert not popup.is_open
+            assert app.buffer.lines[0] == "baritone"
+            assert app.doc.modified
+
+    asyncio.run(scenario())
+
+
+def test_diagnostic_render_status_echo_and_command(tmp_path: Path) -> None:
+    from yate.editor_lsp import protocol
+    from yate.editor_view.modals import OutputScreen
+
+    async def scenario() -> None:
+        py = tmp_path / "diag.py"
+        py.write_text("x = 1\n", encoding="utf-8")
+        app = YateApp(target=py)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            created = _install_fake_server(app)
+            app.ui_refresh()
+            await pilot.pause()
+            await wait_until(pilot, lambda: bool(created and created[0].opened))
+            fake = created[0]
+            uri = protocol.path_to_uri(py.resolve())
+            fake.publish_diagnostics(app.lsp, uri, [
+                {"range": {"start": {"line": 0, "character": 0},
+                           "end": {"line": 0, "character": 5}},
+                 "severity": 1, "message": "undefined name 'x'",
+                 "source": "pyright"},
+            ])
+            await pilot.pause()
+            editor = app.editor_view
+            assert editor is not None
+            line0 = "".join(seg.text for seg in editor.render_line(0))
+            assert "✖" in line0  # gutter mark
+            underlined = [
+                seg for seg in editor.render_line(0)
+                if seg.style is not None and seg.style.underline
+            ]
+            assert underlined
+            # status bar carries the error count
+            status_bar = app.status_bar
+            assert status_bar is not None
+            assert "✖ 1" in plain_text(status_bar.content)
+            # message line echoes the diagnostic under the cursor
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            app.ui_refresh()
+            assert "undefined name" in plain_text(prompt_bar.message.content)
+            # :diagnostics opens the listing screen
+            app.run_command("diagnostics")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, OutputScreen)
+            assert "undefined name" in cast(OutputScreen, screen).output_text
+
+    asyncio.run(scenario())
+
+
+def test_builtin_python_extension_loads_cleanly() -> None:
+    # The auto-loaded extension registers a (disabled) python server and
+    # setup must neither print nor spawn nor record an error.
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert "python" in app.lsp.config_names()
             rec = next(r for r in app.extension_loader.loaded
                        if r.name == "python_lsp")
-            self.assertIsNone(rec.error)
+            assert rec.error is None
 
-    async def test_rc_configured_server_auto_activates_on_matching_file(self):
-        from yate.config import LanguageServerSpec, YateConfig
+    asyncio.run(scenario())
 
-        with TemporaryDirectory() as tmp:
-            rs = Path(tmp) / "main.rs"
-            rs.write_text("fn main() {}\n", encoding="utf-8")
-            config = YateConfig(language_servers=[LanguageServerSpec(
-                name="rc-rust",
-                command="fake-rust-analyzer",
-                filetypes=["rs"],
-                language_ids={"rs": "rust"},
-                root_markers=["Cargo.toml", ".git"],
-            )])
-            app = YateApp(target=rs, config=config)
-            created: list[Any] = []
 
-            def factory(config: Any, root: Any) -> Any:
-                return _RcClientShim(created, config, root)
+def test_rc_configured_server_auto_activates_on_matching_file(
+    tmp_path: Path,
+) -> None:
+    from yate.config import LanguageServerSpec, YateConfig
 
-            # factory must be in place before on_mount registers/opens docs
-            app.lsp.set_client_factory(factory)
-            async with app.run_test(size=(100, 30)) as pilot:
-                opened = await wait_until(pilot, lambda: app.lsp.is_open(app.doc))
-                self.assertTrue(opened)
-                registered = app.lsp.config_for("rs")
-                assert registered is not None
-                self.assertEqual(registered.name, "rc-rust")
-                state = app.lsp.state_for_doc(app.doc)
-                self.assertIsNotNone(state)
-                assert state is not None
-                self.assertEqual(state.value, "ready")
-                self.assertEqual(len(created), 1)
-                params = created[0].opened[0]
-                self.assertEqual(
-                    params["textDocument"]["languageId"], "rust"
-                )
+    rs = tmp_path / "main.rs"
+    rs.write_text("fn main() {}\n", encoding="utf-8")
+    config = YateConfig(language_servers=[LanguageServerSpec(
+        name="rc-rust",
+        command="fake-rust-analyzer",
+        filetypes=["rs"],
+        language_ids={"rs": "rust"},
+        root_markers=["Cargo.toml", ".git"],
+    )])
+    created: list[Any] = []
 
-    async def test_rc_configured_server_activates_on_later_open(self):
-        from yate.config import LanguageServerSpec, YateConfig
+    def factory(config: Any, root: Any) -> Any:
+        return _RcClientShim(created, config, root)
 
-        with TemporaryDirectory() as tmp:
-            rs = Path(tmp) / "later.rs"
-            rs.write_text("let x = 1;\n", encoding="utf-8")
-            config = YateConfig(language_servers=[LanguageServerSpec(
-                name="rc-rust-late", command="fake-rust", filetypes=["rs"],
-            )])
-            app = YateApp(config=config)
-            created: list[Any] = []
+    async def scenario() -> None:
+        app = YateApp(target=rs, config=config)
+        # factory must be in place before on_mount registers/opens docs
+        app.lsp.set_client_factory(factory)
+        async with app.run_test(size=(100, 30)) as pilot:
+            opened = await wait_until(pilot, lambda: app.lsp.is_open(app.doc))
+            assert opened
+            registered = app.lsp.config_for("rs")
+            assert registered is not None
+            assert registered.name == "rc-rust"
+            state = app.lsp.state_for_doc(app.doc)
+            assert state is not None
+            assert state.value == "ready"
+            assert len(created) == 1
+            params = created[0].opened[0]
+            assert params["textDocument"]["languageId"] == "rust"
 
-            def factory(config: Any, root: Any) -> Any:
-                return _RcClientShim(created, config, root)
+    asyncio.run(scenario())
 
-            app.lsp.set_client_factory(factory)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                # unnamed scratch buffer: registered but nothing spawned
-                self.assertEqual(created, [])
-                self.assertFalse(app.lsp.is_open(app.doc))
-                registered = app.lsp.config_for("rs")
-                assert registered is not None
-                self.assertEqual(registered.name, "rc-rust-late")
-                # omitted root_markers fall back to the built-in defaults
-                from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS
-                self.assertEqual(
-                    registered.root_markers, list(DEFAULT_ROOT_MARKERS)
-                )
-                # opening the matching file activates the server
-                app.open_path(rs)
-                await pilot.pause()
-                activated = await wait_until(
-                    pilot, lambda: bool(created) and created[0].opened
-                )
-                self.assertTrue(activated)
-                self.assertTrue(app.lsp.is_open(app.doc))
 
-    async def test_rc_python_entry_overrides_builtin_extension(self):
-        # The bundled python_lsp extension registers a "python" server with
-        # an empty command (YATE_PYTHON_LSP=off for the suite). A same-named
-        # rc entry registered after extensions must replace it: opening a
-        # .py file then talks to the rc server, not the disabled builtin one.
-        from yate.config import LanguageServerSpec, YateConfig
+def test_rc_configured_server_activates_on_later_open(tmp_path: Path) -> None:
+    from yate.config import LanguageServerSpec, YateConfig
 
-        with TemporaryDirectory() as tmp:
-            py = Path(tmp) / "app.py"
-            py.write_text("print('hi')\n", encoding="utf-8")
-            config = YateConfig(language_servers=[LanguageServerSpec(
-                name="python",
-                command="fake-pyright",
-                args=["--stdio"],
-                filetypes=["py", "pyi"],
-                language_ids={"py": "python", "pyi": "python"},
-                initialization_options={"diagnostics": True},
-                settings={"python": {"version": "3"}},
-                env={"FAKE_ENV": "1"},
-                root_markers=["pyproject.toml", ".git"],
-            )])
-            app = YateApp(target=py, config=config)
-            created: list[Any] = []
+    rs = tmp_path / "later.rs"
+    rs.write_text("let x = 1;\n", encoding="utf-8")
+    config = YateConfig(language_servers=[LanguageServerSpec(
+        name="rc-rust-late", command="fake-rust", filetypes=["rs"],
+    )])
 
-            def factory(config: Any, root: Any) -> Any:
-                return _RcClientShim(created, config, root)
+    async def scenario() -> None:
+        app = YateApp(config=config)
+        created: list[Any] = []
 
-            app.lsp.set_client_factory(factory)
-            async with app.run_test(size=(100, 30)) as pilot:
-                registered = await wait_until(
-                    pilot, lambda: app.lsp.is_open(app.doc)
-                )
-                self.assertTrue(registered)
-                cfg = app.lsp.config_for("py")
-                assert cfg is not None
-                self.assertEqual(cfg.command, "fake-pyright")
-                self.assertEqual(cfg.args, ["--stdio"])
-                self.assertEqual(cfg.env, {"FAKE_ENV": "1"})
-                self.assertEqual(cfg.root_markers, ["pyproject.toml", ".git"])
-                self.assertEqual(
-                    cfg.initialization_options, {"diagnostics": True}
-                )
-                self.assertEqual(
-                    cfg.settings, {"python": {"version": "3"}}
-                )
-                self.assertEqual(cfg.language_id("pyi"), "python")
-                self.assertEqual(len(created), 1)
-                params = created[0].opened[0]
-                self.assertEqual(
-                    params["textDocument"]["languageId"], "python"
-                )
-                # the disabled builtin registration left no failed client
-                state = app.lsp.state_for_doc(app.doc)
-                assert state is not None
-                self.assertEqual(state.value, "ready")
+        def factory(config: Any, root: Any) -> Any:
+            return _RcClientShim(created, config, root)
+
+        app.lsp.set_client_factory(factory)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # unnamed scratch buffer: registered but nothing spawned
+            assert created == []
+            assert not app.lsp.is_open(app.doc)
+            registered = app.lsp.config_for("rs")
+            assert registered is not None
+            assert registered.name == "rc-rust-late"
+            # omitted root_markers fall back to the built-in defaults
+            from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS
+            assert registered.root_markers == list(DEFAULT_ROOT_MARKERS)
+            # opening the matching file activates the server
+            app.open_path(rs)
+            await pilot.pause()
+            activated = await wait_until(
+                pilot, lambda: bool(created) and created[0].opened
+            )
+            assert activated
+            assert app.lsp.is_open(app.doc)
+
+    asyncio.run(scenario())
+
+
+def test_rc_python_entry_overrides_builtin_extension(tmp_path: Path) -> None:
+    # The bundled python_lsp extension registers a "python" server with
+    # an empty command (YATE_PYTHON_LSP=off for the suite). A same-named
+    # rc entry registered after extensions must replace it: opening a
+    # .py file then talks to the rc server, not the disabled builtin one.
+    from yate.config import LanguageServerSpec, YateConfig
+
+    py = tmp_path / "app.py"
+    py.write_text("print('hi')\n", encoding="utf-8")
+    config = YateConfig(language_servers=[LanguageServerSpec(
+        name="python",
+        command="fake-pyright",
+        args=["--stdio"],
+        filetypes=["py", "pyi"],
+        language_ids={"py": "python", "pyi": "python"},
+        initialization_options={"diagnostics": True},
+        settings={"python": {"version": "3"}},
+        env={"FAKE_ENV": "1"},
+        root_markers=["pyproject.toml", ".git"],
+    )])
+
+    async def scenario() -> None:
+        app = YateApp(target=py, config=config)
+        created: list[Any] = []
+
+        def factory(config: Any, root: Any) -> Any:
+            return _RcClientShim(created, config, root)
+
+        app.lsp.set_client_factory(factory)
+        async with app.run_test(size=(100, 30)) as pilot:
+            registered = await wait_until(
+                pilot, lambda: app.lsp.is_open(app.doc)
+            )
+            assert registered
+            cfg = app.lsp.config_for("py")
+            assert cfg is not None
+            assert cfg.command == "fake-pyright"
+            assert cfg.args == ["--stdio"]
+            assert cfg.env == {"FAKE_ENV": "1"}
+            assert cfg.root_markers == ["pyproject.toml", ".git"]
+            assert cfg.initialization_options == {"diagnostics": True}
+            assert cfg.settings == {"python": {"version": "3"}}
+            assert cfg.language_id("pyi") == "python"
+            assert len(created) == 1
+            params = created[0].opened[0]
+            assert params["textDocument"]["languageId"] == "python"
+            # the disabled builtin registration left no failed client
+            state = app.lsp.state_for_doc(app.doc)
+            assert state is not None
+            assert state.value == "ready"
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------------------- fake LSP client
 
 
 class _RcClientShim:
@@ -2430,6 +2719,9 @@ class _RcClientShim:
 
     async def send_cancel(self, request_id: int) -> None:
         return None
+
+
+# --------------------------------------------------------------------- fake PTY
 
 
 class _FakePty:
@@ -2481,47 +2773,52 @@ class _FakePty:
             await asyncio.sleep(0.01)
 
 
-class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
-    async def _press_toggle(self, pilot: Any) -> None:
-        # Textual key names for grave vary; the app accepts both spellings.
-        await pilot.press("ctrl+`")
+# ----------------------------------------------------------------- terminal UI
 
-    def test_nul_byte_from_windows_ctrl_grave_matches_toggle(self) -> None:
-        # Windows conhost encodes Ctrl+grave as a NUL byte (ToUnicodeEx
-        # yields no character); Textual names that key "ctrl+@", and it
-        # must be one of the accepted toggle keys.
-        from textual._xterm_parser import XTermParser
 
-        from yate.editor_view.terminal import TOGGLE_KEYS
+async def _press_toggle(pilot: Any) -> None:
+    # Textual key names for grave vary; the app accepts both spellings.
+    await pilot.press("ctrl+`")
 
-        names = [
-            getattr(m, "key", None) for m in XTermParser().feed("\x00")
-        ]
-        self.assertEqual(names, ["ctrl+@"])
-        self.assertIn("ctrl+@", TOGGLE_KEYS)
 
-    async def test_early_pty_output_survives_first_layout(self):
-        # Regression: a shell that prints its banner before Textual has
-        # laid out the panel used to spawn at the 80x24 fallback size; the
-        # first lines were discarded when the viewport shrank on layout.
-        class _ImmediatePty(_FakePty):
-            async def start(
-                self, on_output: Callable[[bytes], None],
-                on_exit: Callable[[int | None], None],
-            ) -> None:
-                await super().start(on_output, on_exit)
-                loop = asyncio.get_running_loop()
-                loop.call_soon(
-                    lambda: on_output(b"YATE_EARLY_BANNER\r\n")
-                )
+def test_nul_byte_from_windows_ctrl_grave_matches_toggle() -> None:
+    # Windows conhost encodes Ctrl+grave as a NUL byte (ToUnicodeEx
+    # yields no character); Textual names that key "ctrl+@", and it
+    # must be one of the accepted toggle keys.
+    from textual._xterm_parser import XTermParser
 
+    from yate.editor_view.terminal import TOGGLE_KEYS
+
+    names = [
+        getattr(m, "key", None) for m in XTermParser().feed("\x00")
+    ]
+    assert names == ["ctrl+@"]
+    assert "ctrl+@" in TOGGLE_KEYS
+
+
+def test_early_pty_output_survives_first_layout() -> None:
+    # Regression: a shell that prints its banner before Textual has
+    # laid out the panel used to spawn at the 80x24 fallback size; the
+    # first lines were discarded when the viewport shrank on layout.
+    class _ImmediatePty(_FakePty):
+        async def start(
+            self, on_output: Callable[[bytes], None],
+            on_exit: Callable[[int | None], None],
+        ) -> None:
+            await super().start(on_output, on_exit)
+            loop = asyncio.get_running_loop()
+            loop.call_soon(
+                lambda: on_output(b"YATE_EARLY_BANNER\r\n")
+            )
+
+    async def scenario() -> None:
         app = YateApp()
         cast(Any, app)._terminal_factory = _ImmediatePty
         _FakePty.instances = []
         async with app.run_test(size=(100, 30)) as pilot:
             panel = app.terminal_panel
             assert panel is not None
-            await self._press_toggle(pilot)
+            await _press_toggle(pilot)
 
             def banner_visible() -> bool:
                 return "YATE_EARLY_BANNER" in "".join(
@@ -2530,31 +2827,35 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
                     for cell in row
                 )
 
-            self.assertTrue(await wait_until(pilot, banner_visible))
+            assert await wait_until(pilot, banner_visible)
             proc = _FakePty.instances[0]
             # spawned at the laid-out size, not the 24-row fallback
-            self.assertLess(proc.rows, 24)
-            self.assertEqual(proc.cols, 100)
+            assert proc.rows < 24
+            assert proc.cols == 100
 
-    async def test_ctrl_grave_toggles_focuses_and_forwards(self):
+    asyncio.run(scenario())
+
+
+def test_ctrl_grave_toggles_focuses_and_forwards() -> None:
+    async def scenario() -> None:
         app = YateApp()
         cast(Any, app)._terminal_factory = _FakePty
         _FakePty.instances = []
         async with app.run_test(size=(100, 30)) as pilot:
             panel = app.terminal_panel
             assert panel is not None
-            self.assertFalse(panel.display)
+            assert not panel.display
 
-            await self._press_toggle(pilot)
+            await _press_toggle(pilot)
             shown = await wait_until(pilot, lambda: panel.view.proc is not None)
-            self.assertTrue(shown)
-            self.assertTrue(panel.display)
-            self.assertIs(app.focused, panel.view)
+            assert shown
+            assert panel.display
+            assert app.focused is panel.view
             proc = _FakePty.instances[0]
-            self.assertTrue(proc.started)
-            self.assertTrue(proc.argv)  # a default shell was resolved
-            self.assertEqual(proc.cols, 100)
-            self.assertGreaterEqual(proc.rows, 8)
+            assert proc.started
+            assert proc.argv  # a default shell was resolved
+            assert proc.cols == 100
+            assert proc.rows >= 8
 
             # PTY output lands in the emulator and renders
             proc.emit_output(b"YATE_FAKE_OUTPUT\r\n")
@@ -2564,35 +2865,39 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
                 for row in panel.view.emulator.view_lines(0)
                 for cell in row
             )
-            self.assertIn("YATE_FAKE_OUTPUT", painted)
+            assert "YATE_FAKE_OUTPUT" in painted
 
             # keys typed in the panel are forwarded byte-for-byte
             await pilot.press("l", "s")
-            self.assertEqual(b"".join(proc.sent), b"ls")
+            assert b"".join(proc.sent) == b"ls"
 
             # the dock hugs the bottom, above the status/prompt strip
             bottom = app.query_one("#bottom")
-            self.assertEqual(bottom.region.bottom, 30)
-            self.assertLessEqual(panel.region.bottom, bottom.region.y)
+            assert bottom.region.bottom == 30
+            assert panel.region.bottom <= bottom.region.y
 
             # toggle again hides it and returns focus to the editor
-            await self._press_toggle(pilot)
+            await _press_toggle(pilot)
             await pilot.pause()
-            self.assertFalse(panel.display)
-            self.assertIs(app.focused, app.editor_view)
+            assert not panel.display
+            assert app.focused is app.editor_view
 
             # reopening reuses the still-alive shell process
-            await self._press_toggle(pilot)
+            await _press_toggle(pilot)
             await wait_until(pilot, lambda: cast(Any, app)._terminal_visible)
-            self.assertTrue(panel.display)
-            self.assertIs(cast(Any, panel.view).proc, proc)
+            assert panel.display
+            assert cast(Any, panel.view).proc is proc
 
-    async def test_real_terminal_grave_key_names_toggle_panel(self):
-        # Ctrl+grave is the NUL byte on Windows conhost / legacy xterm
-        # (ToUnicodeEx yields no character), so Textual names it
-        # "ctrl+@"; under the kitty keyboard protocol it is named
-        # "ctrl+grave_accent". Neither used to match TOGGLE_KEYS, so the
-        # panel could not be closed from a real Windows terminal.
+    asyncio.run(scenario())
+
+
+def test_real_terminal_grave_key_names_toggle_panel() -> None:
+    # Ctrl+grave is the NUL byte on Windows conhost / legacy xterm
+    # (ToUnicodeEx yields no character), so Textual names it
+    # "ctrl+@"; under the kitty keyboard protocol it is named
+    # "ctrl+grave_accent". Neither used to match TOGGLE_KEYS, so the
+    # panel could not be closed from a real Windows terminal.
+    async def scenario() -> None:
         for close_key in ("ctrl+@", "ctrl+grave_accent"):
             app = YateApp()
             cast(Any, app)._terminal_factory = _FakePty
@@ -2604,17 +2909,17 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
 
                 await pilot.press("ctrl+`")
                 await wait_until(pilot, lambda: view.proc is not None)
-                self.assertTrue(panel.display)
-                self.assertIs(app.focused, view)
+                assert panel.display
+                assert app.focused is view
                 proc = _FakePty.instances[0]
 
                 # the real key name closes the panel while the terminal
                 # has focus, and is not forwarded as a NUL byte
                 await pilot.press(close_key)
                 await pilot.pause()
-                self.assertFalse(panel.display, close_key)
-                self.assertNotIn(b"\x00", b"".join(proc.sent))
-                self.assertIs(app.focused, app.editor_view)
+                assert not panel.display, close_key
+                assert b"\x00" not in b"".join(proc.sent)
+                assert app.focused is app.editor_view
 
                 # same name reopens it now that the editor has focus.
                 # ctrl+@ is also the NUL byte Ctrl+Space sends on Windows
@@ -2625,16 +2930,20 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
                     await pilot.press("ctrl+@")
                     for _ in range(3):
                         await pilot.pause()
-                    self.assertFalse(panel.display)
-                    self.assertFalse(cast(Any, app)._terminal_visible)
+                    assert not panel.display
+                    assert not cast(Any, app)._terminal_visible
                     await pilot.press("ctrl+grave_accent")
                 else:
                     await pilot.press(close_key)
                 await wait_until(
                     pilot, lambda: cast(Any, app)._terminal_visible)
-                self.assertTrue(panel.display, close_key)
+                assert panel.display, close_key
 
-    async def test_term_command_exit_and_restart(self):
+    asyncio.run(scenario())
+
+
+def test_term_command_exit_and_restart() -> None:
+    async def scenario() -> None:
         app = YateApp(keymap="vim")  # ":" ex line is vim-only
         cast(Any, app)._terminal_factory = _FakePty
         _FakePty.instances = []
@@ -2648,15 +2957,15 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
                 await pilot.press(ch)
             await pilot.press("enter")
             shown = await wait_until(pilot, lambda: panel.view.proc is not None)
-            self.assertTrue(shown)
+            assert shown
             proc = _FakePty.instances[0]
-            self.assertIn("running", panel.header_text())
+            assert "running" in panel.header_text()
 
             # when the shell exits the panel shows the state and a hint
             proc.exit(0)
             await pilot.pause()
-            self.assertTrue(panel.view.dead)
-            self.assertIn("exited", panel.header_text())
+            assert panel.view.dead
+            assert "exited" in panel.header_text()
 
             # any keypress revives the shell via the factory
             await pilot.press("a")
@@ -2666,68 +2975,60 @@ class TerminalUiTests(unittest.IsolatedAsyncioTestCase):
                 and cast(Any, panel.view).proc is _FakePty.instances[1]
                 and bool(_FakePty.instances[1].started),
             )
-            self.assertTrue(revived)
-            self.assertEqual(len(_FakePty.instances), 2)
+            assert revived
+            assert len(_FakePty.instances) == 2
 
             # :termclose hides the panel (invoked directly because focus is
             # inside the terminal and the prompt keys would be sent to the PTY)
             app.run_command("termclose")
             await pilot.pause()
-            self.assertFalse(panel.display)
+            assert not panel.display
+
+    asyncio.run(scenario())
 
 
-class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
-    """vim :split / :vsplit windows, ctrl+w chords and pane/quit commands."""
+# ----------------------------------------------------------------- split panes
 
-    def setUp(self) -> None:
-        self._tmp = TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        root = Path(self._tmp.name)
-        self.alpha = root / "alpha.txt"
-        self.bravo = root / "bravo.txt"
-        self.alpha.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
-        self.bravo.write_text("bravo one\nbravo two\n", encoding="utf-8")
 
-    async def test_close_command_closes_active_pane(self) -> None:
-        """:close / :cl close the active pane; on the last pane they warn
-        instead of quitting (use :q for that)."""
-        app = YateApp(target=self.alpha, keymap="vim")
+def test_close_command_closes_active_pane(pane_root: Path) -> None:
+    """:close / :cl close the active pane; on the last pane they warn
+    instead of quitting (use :q for that)."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             app.run_command("sp")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             app.run_command("close")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 1)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 1)
             # the last pane is never closed by :close
             app.run_command("cl")
             await pilot.pause()
-            self.assertEqual(panes.leaf_count, 1)
-            self.assertTrue(app.is_running)
+            assert panes.leaf_count == 1
+            assert app.is_running
 
-    async def test_pane_regions_stay_visible_after_split(self) -> None:
-        """Regression: sizes set before mount resolved against an unknown
-        parent, pushing every pane after the first off-screen."""
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_pane_regions_stay_visible_after_split(pane_root: Path) -> None:
+    """Regression: sizes set before mount resolved against an unknown
+    parent, pushing every pane after the first off-screen."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             app.run_command("sp")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             app.run_command("vs")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 3)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 3)
             await pilot.pause()
             host = panes.host
             assert host is not None
@@ -2735,67 +3036,70 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
             views = panes.all_views()
             for view in views:
                 region = view.region
-                self.assertTrue(
-                    region.width > 5 and region.height > 2,
-                    f"pane collapsed: {region}",
+                assert region.width > 5 and region.height > 2, (
+                    f"pane collapsed: {region}"
                 )
-                self.assertTrue(
-                    host_region.contains_region(region),
-                    f"pane outside host: {region} vs {host_region}",
+                assert host_region.contains_region(region), (
+                    f"pane outside host: {region} vs {host_region}"
                 )
             # dividers: after :sp the top pane has a bottom border; after
             # :vs the bottom-left pane has a right border; last panes none
-            self.assertNotIn(views[0].styles.border_bottom[0], ("", "none"))
-            self.assertIn(views[0].styles.border_right[0], ("", "none"))
-            self.assertNotIn(views[1].styles.border_right[0], ("", "none"))
-            self.assertIn(views[1].styles.border_bottom[0], ("", "none"))
-            self.assertIn(views[2].styles.border_bottom[0], ("", "none"))
-            self.assertIn(views[2].styles.border_right[0], ("", "none"))
+            assert views[0].styles.border_bottom[0] not in ("", "none")
+            assert views[0].styles.border_right[0] in ("", "none")
+            assert views[1].styles.border_right[0] not in ("", "none")
+            assert views[1].styles.border_bottom[0] in ("", "none")
+            assert views[2].styles.border_bottom[0] in ("", "none")
+            assert views[2].styles.border_right[0] in ("", "none")
 
-    async def test_split_independent_cursors_and_navigation(self) -> None:
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_split_independent_cursors_and_navigation(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             app.run_command("sp")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             root = panes.root
-            self.assertIsInstance(root, PaneSplit)
             assert isinstance(root, PaneSplit)
-            self.assertEqual(root.axis, "horizontal")
-            self.assertEqual(len(app.query(EditorView)), 2)
+            assert root.axis == "horizontal"
+            assert len(app.query(EditorView)) == 2
 
             # the new (bottom) pane is active: move its cursor to row 1
             await pilot.press("j")
             await pilot.pause()
-            self.assertEqual(app.buffer.cursor, (1, 0))
+            assert app.buffer.cursor == (1, 0)
 
             # ctrl+w k jumps to the top pane: its cursor stayed at row 0
             await pilot.press("ctrl+w", "k")
             await pilot.pause()
-            self.assertEqual(app.buffer.cursor, (0, 0))
+            assert app.buffer.cursor == (0, 0)
             # ctrl+w j returns to the bottom pane and its row-1 cursor
             await pilot.press("ctrl+w", "j")
             await pilot.pause()
-            self.assertEqual(app.buffer.cursor, (1, 0))
+            assert app.buffer.cursor == (1, 0)
 
             # ctrl+w ctrl+w from the last editor pane wraps to the explorer,
             # then from the explorer back to the active editor pane
             await pilot.press("ctrl+w", "ctrl+w")
             await pilot.pause()
-            self.assertIs(app.focused, app.explorer_tree)
-            self.assertEqual(app.buffer.cursor, (1, 0))
+            assert app.focused is app.explorer_tree
+            assert app.buffer.cursor == (1, 0)
             await pilot.press("ctrl+w", "ctrl+w")
             await pilot.pause()
-            self.assertIs(app.focused, app.editor_view)
-            self.assertEqual(app.buffer.cursor, (1, 0))
+            assert app.focused is app.editor_view
+            assert app.buffer.cursor == (1, 0)
 
-    async def test_vsplit_with_file_and_only(self) -> None:
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_vsplit_with_file_and_only(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
@@ -2809,68 +3113,62 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
                 and app.doc.path is not None
                 and app.doc.path.name == "bravo.txt",
             )
-            self.assertTrue(opened)
+            assert opened
             root = panes.root
-            self.assertIsInstance(root, PaneSplit)
             assert isinstance(root, PaneSplit)
-            self.assertEqual(root.axis, "vertical")
-            self.assertEqual(app.buffer.lines[0], "bravo one")
-            self.assertEqual(len(app.query(EditorView)), 2)
+            assert root.axis == "vertical"
+            assert app.buffer.lines[0] == "bravo one"
+            assert len(app.query(EditorView)) == 2
 
             # :sp on the bravo pane clones it -> 3 panes
             app.run_command("split")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 3)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 3)
             # :only collapses back to the active (bravo) pane
             app.run_command("only")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 1)
-            )
-            self.assertEqual(len(app.query(EditorView)), 1)
+            assert await wait_until(pilot, lambda: panes.leaf_count == 1)
+            assert len(app.query(EditorView)) == 1
             current = app.doc
-            self.assertIsNotNone(current.path)
             assert current.path is not None
-            self.assertEqual(current.path.name, "bravo.txt")
+            assert current.path.name == "bravo.txt"
 
-    async def test_chord_split_resize_close_and_q(self) -> None:
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_chord_split_resize_close_and_q(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             await pilot.press("ctrl+w", "s")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             root = panes.root
             assert isinstance(root, PaneSplit)
-            self.assertEqual(root.axis, "horizontal")
+            assert root.axis == "horizontal"
 
             # ctrl+w - shrinks the active (new) pane; ctrl+w = equalizes
             await pilot.press("ctrl+w", "minus")
             await pilot.pause()
-            self.assertAlmostEqual(root.sizes[1], 0.42, places=2)
+            assert abs(root.sizes[1] - 0.42) <= 0.005
             await pilot.press("ctrl+w", "equals_sign")
             await pilot.pause()
-            self.assertEqual(root.sizes, [0.5, 0.5])
+            assert root.sizes == [0.5, 0.5]
 
             # a dirty document does not block closing a pane (the document
             # stays open as a hidden buffer)
             await pilot.press("i", "x", "escape")
             await pilot.pause()
-            self.assertTrue(app.doc.modified)
+            assert app.doc.modified
             await pilot.press("ctrl+w", "q")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 1)
-            )
-            self.assertTrue(app.is_running)
+            assert await wait_until(pilot, lambda: panes.leaf_count == 1)
+            assert app.is_running
 
             # single pane: :q is blocked by unsaved changes, :q! exits
             app.run_command("q")
             await pilot.pause()
-            self.assertTrue(app.is_running)
+            assert app.is_running
             app.run_command("q!")
             for _ in range(5):
                 with contextlib.suppress(Exception):
@@ -2881,39 +3179,42 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
             # (so its coroutine is awaited rather than GC'd at loop close)
             for _ in range(3):
                 await asyncio.sleep(0)
-            self.assertFalse(app.is_running)
+            assert not app.is_running
 
-    async def test_q_always_quits_whole_editor_with_panes(self) -> None:
-        """:q must quit yate even when several panes are open -- it never
-        just closes the active pane (use :close / :cl / Ctrl+W q for that).
-        A dirty buffer blocks it like any other quit attempt."""
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_q_always_quits_whole_editor_with_panes(pane_root: Path) -> None:
+    """:q must quit yate even when several panes are open -- it never
+    just closes the active pane (use :close / :cl / Ctrl+W q for that).
+    A dirty buffer blocks it like any other quit attempt."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             await pilot.press("ctrl+w", "s")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             # make the buffer dirty: :q is a whole-editor quit attempt and
             # the unsaved-changes guard blocks it; a pane close would not
             await pilot.press("i", "y", "escape")
             await pilot.pause()
-            self.assertTrue(app.doc.modified)
+            assert app.doc.modified
 
             app.run_command("q")
             await pilot.pause()
             # blocked: unsaved changes guard, and no pane was closed
-            self.assertTrue(app.is_running)
-            self.assertEqual(panes.leaf_count, 2)
+            assert app.is_running
+            assert panes.leaf_count == 2
 
             app.run_command("quit")
             await pilot.pause()
             # :quit is a plain alias of :q and is blocked the same way
-            self.assertTrue(app.is_running)
-            self.assertEqual(panes.leaf_count, 2)
+            assert app.is_running
+            assert panes.leaf_count == 2
 
             app.run_command("q!")  # discard and quit the whole editor
             for _ in range(5):
@@ -2923,21 +3224,24 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
                     break
             for _ in range(3):
                 await asyncio.sleep(0)
-            self.assertFalse(app.is_running)
+            assert not app.is_running
 
-    async def test_q_quits_immediately_with_clean_panes(self) -> None:
-        """With no unsaved changes :q exits yate straight away even with
-        several panes open (it does not close them one by one)."""
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_q_quits_immediately_with_clean_panes(pane_root: Path) -> None:
+    """With no unsaved changes :q exits yate straight away even with
+    several panes open (it does not close them one by one)."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             await pilot.press("ctrl+w", "s")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             app.run_command("q")
             for _ in range(5):
                 with contextlib.suppress(Exception):
@@ -2946,22 +3250,24 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
                     break
             for _ in range(3):
                 await asyncio.sleep(0)
-            self.assertFalse(app.is_running)
+            assert not app.is_running
 
-    async def test_vertical_chord_and_geometry_navigation(self) -> None:
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_vertical_chord_and_geometry_navigation(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             await pilot.press("ctrl+w", "v")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             root = panes.root
             assert isinstance(root, PaneSplit)
-            self.assertEqual(root.axis, "vertical")
+            assert root.axis == "vertical"
             ordered = pane_leaves(root)
             left_view = panes.views[ordered[0].id]
 
@@ -2969,279 +3275,301 @@ class SplitPaneTests(unittest.IsolatedAsyncioTestCase):
             # editor pane on the left first ...
             await pilot.press("ctrl+w", "h")
             await pilot.pause()
-            self.assertIs(app.focused, left_view)
+            assert app.focused is left_view
             # ... and only then, with no editor further left, to the explorer
             await pilot.press("ctrl+w", "h")
             await pilot.pause()
-            self.assertIs(app.focused, app.explorer_tree)
+            assert app.focused is app.explorer_tree
             # l from the explorer returns to the active (right) editor pane
             await pilot.press("ctrl+w", "l")
             await pilot.pause()
-            self.assertIs(app.focused, app.editor_view)
+            assert app.focused is app.editor_view
 
-    async def test_bd_rebinds_every_pane_showing_the_document(self) -> None:
-        app = YateApp(target=self.alpha, keymap="vim")
+    asyncio.run(scenario())
+
+
+def test_bd_rebinds_every_pane_showing_the_document(pane_root: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             panes = app.panes
             assert panes is not None
 
             app.run_command("sp")
-            self.assertTrue(
-                await wait_until(pilot, lambda: panes.leaf_count == 2)
-            )
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             # the new pane opens bravo; the top pane keeps alpha
             app.run_command("e bravo.txt")
-            self.assertTrue(
-                await wait_until(
-                    pilot,
-                    lambda: app.doc.path is not None
-                    and app.doc.path.name == "bravo.txt",
-                )
+            assert await wait_until(
+                pilot,
+                lambda: app.doc.path is not None
+                and app.doc.path.name == "bravo.txt",
             )
             app.run_command("bd")
             await pilot.pause()
-            self.assertEqual(len(app.docs), 1)
+            assert len(app.docs) == 1
             for leaf in pane_leaves(panes.root):
                 path = leaf.doc.path
                 assert path is not None
-                self.assertEqual(path.name, "alpha.txt")
+                assert path.name == "alpha.txt"
             active_path = app.doc.path
             assert active_path is not None
-            self.assertEqual(active_path.name, "alpha.txt")
+            assert active_path.name == "alpha.txt"
+
+    asyncio.run(scenario())
 
 
-class WideCharRenderTests(unittest.IsolatedAsyncioTestCase):
-    """Regression: wide CJK glyphs must not get a blank cell after them."""
-
-    async def test_cjk_line_renders_without_extra_gaps(self) -> None:
-        from rich.cells import cell_len
-
-        with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "zh.txt"
-            path.write_text("配置顺序 abc 加载\n", encoding="utf-8")
-            app = YateApp(target=path)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                view = app.editor_view
-                assert view is not None
-                strip = view.render_line(0)
-                segs = getattr(strip, "_segments", None)
-                assert segs is not None
-                texts = [s.text for s in segs]
-                joined = "".join(texts)
-                # glyphs stay adjacent -- no inserted spaces between them
-                self.assertIn("配置顺序", joined)
-                self.assertIn("加载", joined)
-                # the strip exactly fills the editor width (glyph 2 cells
-                # plus placeholder 0, not glyph 2 plus an extra blank)
-                self.assertEqual(
-                    sum(cell_len(t) for t in texts), view.size.width
-                )
-
-    async def test_horizontal_scroll_clips_wide_glyph_with_blank(self) -> None:
-        from rich.cells import cell_len
-
-        with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "zh.txt"
-            path.write_text("配置x\n", encoding="utf-8")
-            app = YateApp(target=path)
-            async with app.run_test(size=(60, 20)) as pilot:
-                await pilot.pause()
-                view = app.editor_view
-                assert view is not None
-                view.scroll_col = 1  # second cell of the first glyph
-                await pilot.pause()
-                strip = view.render_line(0)
-                segs = getattr(strip, "_segments", None)
-                assert segs is not None
-                joined = "".join(s.text for s in segs)
-                # the clipped half is replaced by a blank (first glyph
-                # gone), the following glyph is not pulled left; strip
-                # still fills the width
-                self.assertNotIn("配", joined)
-                self.assertIn("置", joined)
-                self.assertEqual(
-                    sum(cell_len(s.text) for s in segs), view.size.width
-                )
+# --------------------------------------------------------- wide char rendering
 
 
-class CtrlSpaceTests(unittest.IsolatedAsyncioTestCase):
-    """On Windows conhost Ctrl+Space and Ctrl+` are the same NUL byte."""
+def test_cjk_line_renders_without_extra_gaps(tmp_path: Path) -> None:
+    from rich.cells import cell_len
 
-    async def test_nul_byte_opens_completion_not_terminal(self) -> None:
-        with TemporaryDirectory() as tmp:
-            (Path(tmp) / "a.txt").write_text("alpha\nalpha\n", encoding="utf-8")
-            app = YateApp(target=Path(tmp) / "a.txt", keymap="vim")
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                popup = app.completion_popup
-                assert popup is not None
-                # insert a prefix so the manual completion has candidates
-                await pilot.press("i", "a", "l")
-                await pilot.pause()
-                await pilot.press("ctrl+@")  # NUL: Ctrl+Space on conhost
-                shown = await wait_until(pilot, lambda: popup.is_open)
-                self.assertTrue(shown)
-                self.assertFalse(cast(Any, app)._terminal_visible)
+    async def scenario() -> None:
+        path = tmp_path / "zh.txt"
+        path.write_text("配置顺序 abc 加载\n", encoding="utf-8")
+        app = YateApp(target=path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            view = app.editor_view
+            assert view is not None
+            strip = view.render_line(0)
+            segs = getattr(strip, "_segments", None)
+            assert segs is not None
+            texts = [s.text for s in segs]
+            joined = "".join(texts)
+            # glyphs stay adjacent -- no inserted spaces between them
+            assert "配置顺序" in joined
+            assert "加载" in joined
+            # the strip exactly fills the editor width (glyph 2 cells
+            # plus placeholder 0, not glyph 2 plus an extra blank)
+            assert sum(cell_len(t) for t in texts) == view.size.width
+
+    asyncio.run(scenario())
 
 
-class HelpOverlayTests(unittest.IsolatedAsyncioTestCase):
-    async def test_help_lists_terminal_key_and_commands(self):
-        from yate.editor_view.modals import HelpScreen
+def test_horizontal_scroll_clips_wide_glyph_with_blank(tmp_path: Path) -> None:
+    from rich.cells import cell_len
 
+    async def scenario() -> None:
+        path = tmp_path / "zh.txt"
+        path.write_text("配置x\n", encoding="utf-8")
+        app = YateApp(target=path)
+        async with app.run_test(size=(60, 20)) as pilot:
+            await pilot.pause()
+            view = app.editor_view
+            assert view is not None
+            view.scroll_col = 1  # second cell of the first glyph
+            await pilot.pause()
+            strip = view.render_line(0)
+            segs = getattr(strip, "_segments", None)
+            assert segs is not None
+            joined = "".join(s.text for s in segs)
+            # the clipped half is replaced by a blank (first glyph
+            # gone), the following glyph is not pulled left; strip
+            # still fills the width
+            assert "配" not in joined
+            assert "置" in joined
+            assert sum(cell_len(s.text) for s in segs) == view.size.width
+
+    asyncio.run(scenario())
+
+
+# ----------------------------------------------------------------- ctrl+space
+
+
+def test_nul_byte_opens_completion_not_terminal(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        (tmp_path / "a.txt").write_text("alpha\nalpha\n", encoding="utf-8")
+        app = YateApp(target=tmp_path / "a.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            popup = app.completion_popup
+            assert popup is not None
+            # insert a prefix so the manual completion has candidates
+            await pilot.press("i", "a", "l")
+            await pilot.pause()
+            await pilot.press("ctrl+@")  # NUL: Ctrl+Space on conhost
+            shown = await wait_until(pilot, lambda: popup.is_open)
+            assert shown
+            assert not cast(Any, app)._terminal_visible
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------------------- help overlay
+
+
+def test_help_lists_terminal_key_and_commands() -> None:
+    from yate.editor_view.modals import HelpScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.press("f1")
             await pilot.pause()
             screen = app.screen
-            self.assertIsInstance(screen, HelpScreen)
+            assert isinstance(screen, HelpScreen)
             body = cast(str, cast(Any, screen)._body().plain)
-            self.assertIn("GLOBAL KEYS", body)
-            self.assertIn("ctrl+`", body)
-            self.assertIn("integrated terminal", body)
+            assert "GLOBAL KEYS" in body
+            assert "ctrl+`" in body
+            assert "integrated terminal" in body
             # the terminal commands are registered and listed with : prefix
-            self.assertIn(":term", body)
-            self.assertIn(":termclose", body)
+            assert ":term" in body
+            assert ":termclose" in body
+
+    asyncio.run(scenario())
 
 
-class ExplorerFilterSmokeTests(unittest.IsolatedAsyncioTestCase):
-    """Smoke/regression tests for explorer filtering, focus and palette."""
+# ------------------------------------------------------ explorer filter smoke
 
-    async def test_h_toggles_hidden_files_in_tree(self) -> None:
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".hidden.txt").write_text("h\n", encoding="utf-8")
-            (root / "a.txt").write_text("a\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                tree = app.explorer_tree
-                assert tree is not None
 
-                def shown() -> list[str]:
-                    return [
-                        Path(c.data).name
-                        for c in tree.root.children
-                        if c.data is not None
-                    ]
+def test_h_toggles_hidden_files_in_tree(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        root = tmp_path
+        (root / ".hidden.txt").write_text("h\n", encoding="utf-8")
+        (root / "a.txt").write_text("a\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            tree = app.explorer_tree
+            assert tree is not None
 
-                self.assertNotIn(".hidden.txt", shown())
-                # hide the by-default-shown tree, then re-show it (focused)
-                app.run_command("explorer")
-                for _ in range(4):
-                    await pilot.pause()
-                app.run_command("explorer")
-                for _ in range(6):
-                    await pilot.pause()
-                self.assertIs(app.focused, tree)
-                await pilot.press("H")
-                for _ in range(4):
-                    await pilot.pause()
-                self.assertTrue(app.workspace.show_hidden)
-                self.assertIn(".hidden.txt", shown())
-                await pilot.press("H")
-                for _ in range(4):
-                    await pilot.pause()
-                self.assertFalse(app.workspace.show_hidden)
-                self.assertNotIn(".hidden.txt", shown())
-
-    async def test_set_show_hidden_option_roundtrip(self) -> None:
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".dot").write_text("d\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
-                app.run_command("set show_hidden=on")
-                await pilot.pause()
-                self.assertTrue(app.workspace.show_hidden)
-                tree = app.explorer_tree
-                assert tree is not None
-                names = [
+            def shown() -> list[str]:
+                return [
                     Path(c.data).name
                     for c in tree.root.children
                     if c.data is not None
                 ]
-                self.assertIn(".dot", names)
-                app.run_command("set show_hidden=off")
-                await pilot.pause()
-                self.assertFalse(app.workspace.show_hidden)
 
-    async def test_explorer_toggle_focuses_tree(self) -> None:
-        """Regression: re-opening the explorer must hand focus to the tree so
-        keyboard navigation works without a mouse click (the tree is shown
-        by default at startup, so toggle once to hide, once to re-show)."""
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "a.txt").write_text("a\n", encoding="utf-8")
-            (root / "b.txt").write_text("b\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
+            assert ".hidden.txt" not in shown()
+            # hide the by-default-shown tree, then re-show it (focused)
+            app.run_command("explorer")
+            for _ in range(4):
                 await pilot.pause()
-                tree = app.explorer_tree
-                assert tree is not None
-                app.run_command("explorer")  # hide (shown by default)
-                for _ in range(4):
-                    await pilot.pause()
-                self.assertFalse(tree.display)
-                app.run_command("explorer")  # re-show
-                for _ in range(6):
-                    await pilot.pause()
-                self.assertTrue(tree.display)
-                self.assertIs(app.focused, tree)
-                # keyboard navigation actually works (j moves the cursor)
-                line = tree.cursor_line
-                await pilot.press("j")
+            app.run_command("explorer")
+            for _ in range(6):
                 await pilot.pause()
-                self.assertEqual(tree.cursor_line, line + 1)
+            assert app.focused is tree
+            await pilot.press("H")
+            for _ in range(4):
+                await pilot.pause()
+            assert app.workspace.show_hidden
+            assert ".hidden.txt" in shown()
+            await pilot.press("H")
+            for _ in range(4):
+                await pilot.pause()
+            assert not app.workspace.show_hidden
+            assert ".hidden.txt" not in shown()
 
-    async def test_palette_entries_exclude_palette_command(self) -> None:
-        """Regression: the palette must not list the palette command itself
-        (opening it from inside would be a no-op recursion)."""
+    asyncio.run(scenario())
+
+
+def test_set_show_hidden_option_roundtrip(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        root = tmp_path
+        (root / ".dot").write_text("d\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.run_command("set show_hidden=on")
+            await pilot.pause()
+            assert app.workspace.show_hidden
+            tree = app.explorer_tree
+            assert tree is not None
+            names = [
+                Path(c.data).name
+                for c in tree.root.children
+                if c.data is not None
+            ]
+            assert ".dot" in names
+            app.run_command("set show_hidden=off")
+            await pilot.pause()
+            assert not app.workspace.show_hidden
+
+    asyncio.run(scenario())
+
+
+def test_explorer_toggle_focuses_tree(tmp_path: Path) -> None:
+    """Regression: re-opening the explorer must hand focus to the tree so
+    keyboard navigation works without a mouse click (the tree is shown
+    by default at startup, so toggle once to hide, once to re-show)."""
+
+    async def scenario() -> None:
+        root = tmp_path
+        (root / "a.txt").write_text("a\n", encoding="utf-8")
+        (root / "b.txt").write_text("b\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            tree = app.explorer_tree
+            assert tree is not None
+            app.run_command("explorer")  # hide (shown by default)
+            for _ in range(4):
+                await pilot.pause()
+            assert not tree.display
+            app.run_command("explorer")  # re-show
+            for _ in range(6):
+                await pilot.pause()
+            assert tree.display
+            assert app.focused is tree
+            # keyboard navigation actually works (j moves the cursor)
+            line = tree.cursor_line
+            await pilot.press("j")
+            await pilot.pause()
+            assert tree.cursor_line == line + 1
+
+    asyncio.run(scenario())
+
+
+def test_palette_entries_exclude_palette_command() -> None:
+    """Regression: the palette must not list the palette command itself
+    (opening it from inside would be a no-op recursion)."""
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            from yate.editor_view.palette import PaletteScreen
-
             screen = PaletteScreen(app, "commands")
             screen._build_command_entries()
             kinds = {name for name, _d, (_k, _n) in screen._entries}
-            self.assertIn("quit", kinds)  # sanity: commands are listed
-            self.assertNotIn("palette", kinds)
+            assert "quit" in kinds  # sanity: commands are listed
+            assert "palette" not in kinds
 
-    async def test_tree_helper_line_of_and_find_node(self) -> None:
-        with TemporaryDirectory() as tmp:
-            # Workspace resolves its root, which on Windows also expands 8.3
-            # short names (GitHub runners expose TEMP as C:\Users\RUNNER~1).
-            # Resolve here too or every node-path comparison below fails.
-            root = Path(tmp).resolve()
-            sub = root / "sub"
-            sub.mkdir()
-            (sub / "inner.txt").write_text("i\n", encoding="utf-8")
-            (root / "top.txt").write_text("t\n", encoding="utf-8")
-            app = YateApp(target=root)
-            async with app.run_test(size=(100, 30)) as pilot:
+    asyncio.run(scenario())
+
+
+def test_tree_helper_line_of_and_find_node(tmp_path: Path) -> None:
+    # Workspace resolves its root, which on Windows also expands 8.3
+    # short names (GitHub runners expose TEMP as C:\Users\RUNNER~1).
+    # Resolve here too or every node-path comparison below fails.
+    async def scenario() -> None:
+        root = tmp_path.resolve()
+        sub = root / "sub"
+        sub.mkdir()
+        (sub / "inner.txt").write_text("i\n", encoding="utf-8")
+        (root / "top.txt").write_text("t\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            tree = app.explorer_tree
+            assert tree is not None
+            top = sub.parent / "top.txt"
+            # collapsed: sub's children are not visible
+            assert tree._line_of(sub / "inner.txt") is None
+            node = tree._find_node(tree.root, sub / "inner.txt")
+            assert node is None
+            # expand sub via select (toggle) and re-check
+            snode = tree._find_node(tree.root, sub)
+            assert snode is not None
+            tree.select_node(snode)
+            for _ in range(4):
                 await pilot.pause()
-                tree = app.explorer_tree
-                assert tree is not None
-                top = sub.parent / "top.txt"
-                # collapsed: sub's children are not visible
-                self.assertEqual(tree._line_of(sub / "inner.txt"), None)
-                node = tree._find_node(tree.root, sub / "inner.txt")
-                self.assertIsNone(node)
-                # expand sub via select (toggle) and re-check
-                snode = tree._find_node(tree.root, sub)
-                assert snode is not None
-                tree.select_node(snode)
-                for _ in range(4):
-                    await pilot.pause()
-                self.assertIsNotNone(tree._find_node(tree.root, sub / "inner.txt"))
-                # rows: 0=root, 1=sub, 2=inner.txt, 3=top.txt
-                self.assertEqual(tree._line_of(sub / "inner.txt"), 2)
-                self.assertEqual(tree._line_of(top), 3)
-                self.assertEqual(tree._line_of(root / "missing.txt"), None)
+            assert tree._find_node(tree.root, sub / "inner.txt") is not None
+            # rows: 0=root, 1=sub, 2=inner.txt, 3=top.txt
+            assert tree._line_of(sub / "inner.txt") == 2
+            assert tree._line_of(top) == 3
+            assert tree._line_of(root / "missing.txt") is None
 
-
-if __name__ == "__main__":
-    unittest.main()
+    asyncio.run(scenario())

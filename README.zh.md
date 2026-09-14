@@ -283,8 +283,8 @@ wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版
 ## 开发
 
 ```powershell
-# 运行全部测试（294 个，含 Textual pilot 端到端测试）
-python -m unittest discover -s tests
+# 运行全部测试（545 个，含 Textual pilot 端到端测试）
+python -m pytest tests
 
 # 类型检查：pyright strict，要求 0 诊断
 python -m pyright
@@ -586,8 +586,8 @@ wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版
 ## 开发
 
 ```powershell
-# 运行全部测试（294 个，含 Textual pilot 端到端测试）
-python -m unittest discover -s tests
+# 运行全部测试（545 个，含 Textual pilot 端到端测试）
+python -m pytest tests
 
 # 类型检查：pyright strict，要求 0 诊断
 python -m pyright

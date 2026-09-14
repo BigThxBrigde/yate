@@ -4,8 +4,7 @@
 
 from __future__ import annotations
 
-import unittest
-from unittest import mock
+import pytest
 
 from yate.editor_syntax import engine, regex_backend
 from yate.editor_syntax.tokens import Token
@@ -44,85 +43,96 @@ class _RecordingTS(_FakeTS):
         return super().tokenize_document(lines, filetype)
 
 
-class EngineDispatchTests(unittest.TestCase):
-    """tokenize_document routes to the best backend per filetype."""
-
-    def test_falls_back_to_regex_backend(self) -> None:
-        fake = _FakeTS()  # no filetype registered -> unavailable
-        with mock.patch.object(engine, "_ts", return_value=fake):
-            self.assertEqual(
-                engine.tokenize_document(["x = 1"], "py"),
-                regex_backend.tokenize_document(["x = 1"], "py"),
-            )
-
-    def test_ts_backend_wins_when_available(self) -> None:
-        fake = _FakeTS()
-        fake.filetypes.add("py")
-        with mock.patch.object(engine, "_ts", return_value=fake):
-            result = engine.tokenize_document(["x = 1"], "py")
-        self.assertEqual(result, [[Token(0, 5, "comment")]])
-
-    def test_unknown_filetype_yields_plain_text(self) -> None:
-        fake = _FakeTS()
-        with mock.patch.object(engine, "_ts", return_value=fake):
-            self.assertEqual(engine.tokenize_document(["hello"], "xyz"), [[]])
-
-    def test_prefer_regex_pins_filetype(self) -> None:
-        fake = _FakeTS()
-        fake.filetypes.add("py")
-        with mock.patch.object(engine, "_REGEX_PINNED", set[str]()), \
-                mock.patch.object(engine, "_ts", lambda: fake):
-            engine.prefer_regex("py")
-            self.assertEqual(
-                engine.tokenize_document(["x = 1"], "py"),
-                regex_backend.tokenize_document(["x = 1"], "py"),
-            )
-
-    def test_prefer_regex_normalizes_keys(self) -> None:
-        fake = _FakeTS()
-        fake.filetypes.add("py")
-        with mock.patch.object(engine, "_REGEX_PINNED", set[str]()), \
-                mock.patch.object(engine, "_ts", lambda: fake):
-            engine.prefer_regex(".PY", "")
-            # ".PY" normalizes to "py" and pins it; the empty key is dropped
-            self.assertEqual(
-                engine.tokenize_document(["x = 1"], "py"),
-                regex_backend.tokenize_document(["x = 1"], "py"),
-            )
-
-    def test_ts_import_failure_falls_back(self) -> None:
-        # _ts() returning None (dependency missing) must degrade to regex.
-        with mock.patch.object(engine, "_ts", return_value=None):
-            self.assertEqual(
-                engine.tokenize_document(["def f(): pass"], "py"),
-                regex_backend.tokenize_document(["def f(): pass"], "py"),
-            )
-
-    def test_filetype_is_forwarded_unnormalized_to_the_backend(self) -> None:
-        # The engine normalizes only its pin lookup; the backend receives the
-        # original string so its own discovery rules stay authoritative.
-        rec = _RecordingTS()
-        rec.filetypes.add("py")
-        with mock.patch.object(engine, "_ts", lambda: rec):
-            engine.tokenize_document(["# c"], ".PY")
-        self.assertEqual(rec.requested, [".PY", "tokenize:.PY"])
-
-    def test_pin_matches_on_the_request_side_too(self) -> None:
-        fake = _FakeTS()
-        fake.filetypes.add("py")
-        with mock.patch.object(engine, "_REGEX_PINNED", set[str]()), \
-                mock.patch.object(engine, "_ts", lambda: fake):
-            engine.prefer_regex(".PY")
-            self.assertEqual(
-                engine.tokenize_document(["x = 1"], "PY"),
-                regex_backend.tokenize_document(["x = 1"], "PY"),
-            )
-
-    def test_prefer_regex_pins_each_argument(self) -> None:
-        with mock.patch.object(engine, "_REGEX_PINNED", set[str]()):
-            engine.prefer_regex("py", ".RS", "")
-            self.assertEqual(engine._REGEX_PINNED, {"py", "rs"})
+# --- backend dispatch -------------------------------------------------------
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_falls_back_to_regex_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeTS()  # no filetype registered -> unavailable
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    assert engine.tokenize_document(["x = 1"], "py") == \
+        regex_backend.tokenize_document(["x = 1"], "py")
+
+
+def test_ts_backend_wins_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeTS()
+    fake.filetypes.add("py")
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    result = engine.tokenize_document(["x = 1"], "py")
+    assert result == [[Token(0, 5, "comment")]]
+
+
+def test_unknown_filetype_yields_plain_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeTS()
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    assert engine.tokenize_document(["hello"], "xyz") == [[]]
+
+
+def test_ts_import_failure_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # _ts() returning None (dependency missing) must degrade to regex.
+    monkeypatch.setattr(engine, "_ts", lambda: None)
+    assert engine.tokenize_document(["def f(): pass"], "py") == \
+        regex_backend.tokenize_document(["def f(): pass"], "py")
+
+
+def test_filetype_is_forwarded_unnormalized_to_the_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The engine normalizes only its pin lookup; the backend receives the
+    # original string so its own discovery rules stay authoritative.
+    rec = _RecordingTS()
+    rec.filetypes.add("py")
+    monkeypatch.setattr(engine, "_ts", lambda: rec)
+    engine.tokenize_document(["# c"], ".PY")
+    assert rec.requested == [".PY", "tokenize:.PY"]
+
+
+# --- regex pinning ----------------------------------------------------------
+
+
+def test_prefer_regex_pins_filetype(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _FakeTS()
+    fake.filetypes.add("py")
+    monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    engine.prefer_regex("py")
+    assert engine.tokenize_document(["x = 1"], "py") == \
+        regex_backend.tokenize_document(["x = 1"], "py")
+
+
+def test_prefer_regex_normalizes_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _FakeTS()
+    fake.filetypes.add("py")
+    monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    engine.prefer_regex(".PY", "")
+    # ".PY" normalizes to "py" and pins it; the empty key is dropped
+    assert engine.tokenize_document(["x = 1"], "py") == \
+        regex_backend.tokenize_document(["x = 1"], "py")
+
+
+def test_pin_matches_on_the_request_side_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeTS()
+    fake.filetypes.add("py")
+    monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    engine.prefer_regex(".PY")
+    assert engine.tokenize_document(["x = 1"], "PY") == \
+        regex_backend.tokenize_document(["x = 1"], "PY")
+
+
+def test_prefer_regex_pins_each_argument(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
+    engine.prefer_regex("py", ".RS", "")
+    assert engine._REGEX_PINNED == {"py", "rs"}

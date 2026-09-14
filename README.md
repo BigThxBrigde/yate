@@ -278,8 +278,8 @@ than next to it; pick one-folder when faster startup matters.
 ## Development
 
 ```powershell
-# Run the full test suite (294 tests, including Textual pilot end-to-end tests)
-python -m unittest discover -s tests
+# Run the full test suite (545 tests, including Textual pilot end-to-end tests)
+python -m pytest tests
 
 # Type checking: pyright strict, 0 diagnostics required
 python -m pyright

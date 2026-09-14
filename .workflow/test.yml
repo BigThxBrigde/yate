@@ -1,4 +1,4 @@
-# Gitee Go pipeline — run the full unittest suite automatically.
+# Gitee Go pipeline — run the full pytest suite automatically.
 #
 # 触发时机 / Triggers:
 #   - push to master（本地推送、分支合并、PR 合并）
@@ -15,8 +15,8 @@
 #   进程用例用 sys.executable 起一个 sleep 桩，不依赖 pylsp 可执行文件。
 #
 # 本地复现 CI 的等价命令 / Reproduce locally:
-#   python -m pip install -e .
-#   python -m unittest discover -s tests
+#   python -m pip install -e ".[dev]"
+#   python -m pytest tests
 
 version: '1.0'
 
@@ -42,8 +42,8 @@ stages:
       trigger: auto
       steps:
         - step: build@python
-          name: unittest
-          displayName: 安装依赖并运行 unittest
+          name: pytest
+          displayName: 安装依赖并运行 pytest
           # requires-python >= 3.10；Gitee Go 公共构建机上 3.11 是稳妥选择
           pythonVersion: '3.11'
           commands:
@@ -51,7 +51,7 @@ stages:
             - python -m pip install --upgrade pip
             # Changelog 门禁：CHANGELOG*.md 与 git 历史不一致时失败（纯标准库工具）
             - python -m tools.changelog check
-            # 安装包本身（拉入 textual 等运行时依赖）；测试从仓库根目录运行
-            - pip install -e .
+            # 安装包本身与测试依赖（textual、pytest）；测试从仓库根目录运行
+            - pip install -e ".[dev]"
             # Textual pilot 测试在无真实 TTY 的容器里需要一个非 dumb 的 TERM
-            - TERM=xterm-256color python -m unittest discover -s tests
+            - TERM=xterm-256color python -m pytest tests

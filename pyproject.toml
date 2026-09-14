@@ -17,7 +17,7 @@ dependencies = [
 yate = "yate.cli:main"
 
 [project.optional-dependencies]
-dev = ["pyright>=1.1.400"]
+dev = ["pyright>=1.1.400", "pytest>=8.0"]
 # Tree-sitter syntax backend (optional): incremental-quality highlighting for
 # languages with an installed grammar pack. Without it yate falls back to the
 # built-in regex highlighter.
@@ -45,6 +45,10 @@ venvPath = "."
 venv = ".venv"
 include = ["yate", "tools", "tests"]
 exclude = ["**/__pycache__"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
 
 [tool.hatch.version]
 source = "regex"

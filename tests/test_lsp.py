@@ -7,16 +7,13 @@ from __future__ import annotations
 import asyncio
 import gc
 import json
-import os
-import shutil
 import sys
-import tempfile
-import unittest
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any, Optional, cast
-from unittest.mock import patch
+
+import pytest
 
 from yate.editor_core.document import Document
 from yate.editor_lsp import LspManager, ServerState
@@ -72,63 +69,73 @@ def frame(payload: dict[str, Any], extra_headers: str = "") -> bytes:
     return head + b"\r\n" + body
 
 
-class ProtocolTests(unittest.IsolatedAsyncioTestCase):
-    async def test_roundtrip_and_extra_headers(self):
+def test_roundtrip_and_extra_headers() -> None:
+    async def scenario() -> None:
         payload = {"jsonrpc": "2.0", "id": 1, "method": "ping",
                    "params": {"x": "ä"}}
         raw = protocol.encode_message(payload)
-        self.assertTrue(raw.startswith(b"Content-Length: "))
+        assert raw.startswith(b"Content-Length: ")
         msg = await protocol.read_message(FakeReader(raw))
-        self.assertEqual(msg, payload)
+        assert msg == payload
 
         with_extra = frame(payload, extra_headers="Content-Type: application/json")
         msg2 = await protocol.read_message(FakeReader(with_extra))
-        self.assertEqual(msg2, payload)
+        assert msg2 == payload
 
-    async def test_two_messages_back_to_back(self):
+    asyncio.run(scenario())
+
+
+def test_two_messages_back_to_back() -> None:
+    async def scenario() -> None:
         a = frame({"jsonrpc": "2.0", "id": 1, "result": {"ok": True}})
         b = frame({"jsonrpc": "2.0", "id": 2, "result": [1, 2, 3]})
         reader = FakeReader(a + b)
         first = await protocol.read_message(reader)
         second = await protocol.read_message(reader)
         assert first is not None and second is not None
-        self.assertEqual(first["id"], 1)
-        self.assertEqual(second["id"], 2)
-        self.assertIsNone(await protocol.read_message(FakeReader(b"")))
+        assert first["id"] == 1
+        assert second["id"] == 2
+        assert await protocol.read_message(FakeReader(b"")) is None
 
-    def test_header_errors(self):
-        with self.assertRaises(protocol.LspProtocolError):
-            protocol.parse_headers(b"Content-Type: text\r\n\r\n")
-        with self.assertRaises(protocol.LspProtocolError):
-            protocol.parse_headers(b"Content-Length: abc\r\n\r\n")
-        with self.assertRaises(protocol.LspProtocolError):
-            protocol.parse_headers(
-                f"Content-Length: {protocol.MAX_MESSAGE_BYTES + 1}\r\n\r\n".encode()
-            )
-        with self.assertRaises(protocol.LspProtocolError):
-            protocol.parse_headers(b"garbage\r\n\r\n")
+    asyncio.run(scenario())
 
-    def test_invalid_body(self):
-        with self.assertRaises(protocol.LspProtocolError):
-            protocol.decode_body(b"not json")
-        with self.assertRaises(protocol.LspProtocolError):
-            protocol.decode_body(b"[1,2]")  # body must be an object
 
-    def test_builders(self):
-        req = protocol.build_request(7, "m", {"a": 1})
-        self.assertEqual(req["id"], 7)
-        self.assertNotIn("params", protocol.build_request(1, "m"))
-        notif = protocol.build_notification("n")
-        self.assertNotIn("id", notif)
-        self.assertEqual(protocol.build_response(2, None)["result"], None)
-        self.assertEqual(protocol.build_error(3, -1, "x")["error"]["code"], -1)
+def test_header_errors() -> None:
+    with pytest.raises(protocol.LspProtocolError):
+        protocol.parse_headers(b"Content-Type: text\r\n\r\n")
+    with pytest.raises(protocol.LspProtocolError):
+        protocol.parse_headers(b"Content-Length: abc\r\n\r\n")
+    with pytest.raises(protocol.LspProtocolError):
+        protocol.parse_headers(
+            f"Content-Length: {protocol.MAX_MESSAGE_BYTES + 1}\r\n\r\n".encode()
+        )
+    with pytest.raises(protocol.LspProtocolError):
+        protocol.parse_headers(b"garbage\r\n\r\n")
 
-    def test_uri_roundtrip(self):
-        p = Path("foo bar/baz.py").resolve()
-        uri = protocol.path_to_uri(p)
-        self.assertTrue(uri.startswith("file:///"))
-        self.assertEqual(protocol.uri_to_path(uri), p)
-        self.assertEqual(protocol.uri_file_name(uri), "baz.py")
+
+def test_invalid_body() -> None:
+    with pytest.raises(protocol.LspProtocolError):
+        protocol.decode_body(b"not json")
+    with pytest.raises(protocol.LspProtocolError):
+        protocol.decode_body(b"[1,2]")  # body must be an object
+
+
+def test_builders() -> None:
+    req = protocol.build_request(7, "m", {"a": 1})
+    assert req["id"] == 7
+    assert "params" not in protocol.build_request(1, "m")
+    notif = protocol.build_notification("n")
+    assert "id" not in notif
+    assert protocol.build_response(2, None)["result"] is None
+    assert protocol.build_error(3, -1, "x")["error"]["code"] == -1
+
+
+def test_uri_roundtrip() -> None:
+    p = Path("foo bar/baz.py").resolve()
+    uri = protocol.path_to_uri(p)
+    assert uri.startswith("file:///")
+    assert protocol.uri_to_path(uri) == p
+    assert protocol.uri_file_name(uri) == "baz.py"
 
 
 # ---------------------------------------------------------- loopback fake server
@@ -232,34 +239,39 @@ class ServerHarness:
             await self.server.wait_closed()
 
 
-class LspClientTests(unittest.IsolatedAsyncioTestCase):
-    async def test_handshake_triggers_and_stops(self):
+def test_handshake_triggers_and_stops() -> None:
+    async def scenario() -> None:
         harness = ServerHarness()
         client = await harness.start()
         # start() is idempotent once READY
         await client.start()
-        self.assertIs(client.state, ServerState.READY)
-        self.assertEqual(client.trigger_characters, (".", "["))
-        self.assertEqual(str(client.root_path), str(Path.cwd()))
+        assert client.state is ServerState.READY
+        assert client.trigger_characters == (".", "[")
+        assert str(client.root_path) == str(Path.cwd())
         await client.notify("workspace/didChangeConfiguration", {"settings": {}})
         # bare array result survives transport without coercion
         result = await client.request("textDocument/completion", {})
-        self.assertIsInstance(result, list)
-        self.assertEqual(result[0]["label"], "abc")
+        assert isinstance(result, list)
+        assert result[0]["label"] == "abc"
         # error responses surface as LspResponseError
-        with self.assertRaises(LspResponseError):
+        with pytest.raises(LspResponseError):
             await client.request("boom", None)
         methods = [m.get("method") for m in harness.messages]
-        self.assertIn("initialized", methods)
+        assert "initialized" in methods
         await client.stop()
-        self.assertTrue(harness.shutdown_seen)
-        self.assertTrue(harness.exit_seen)
-        self.assertIs(client.state, ServerState.STOPPED)
+        assert harness.shutdown_seen
+        assert harness.exit_seen
+        assert client.state is ServerState.STOPPED
         await harness.close()
 
-    async def test_server_request_and_publish_notification(self):
-        """Server->client workspace/configuration is answered and
-        publishDiagnostics reaches the manager notification callback."""
+    asyncio.run(scenario())
+
+
+def test_server_request_and_publish_notification() -> None:
+    """Server->client workspace/configuration is answered and
+    publishDiagnostics reaches the manager notification callback."""
+
+    async def scenario() -> None:
         events: list[tuple[str, dict[str, Any]]] = []
         answer: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
@@ -283,7 +295,7 @@ class LspClientTests(unittest.IsolatedAsyncioTestCase):
                     if msg is None:
                         return
                     if msg.get("id") == 90:
-                        self.assertEqual(msg.get("result"), [{}])
+                        assert msg.get("result") == [{}]
                         await answer.put(msg)
                         return
             except (asyncio.IncompleteReadError, ConnectionResetError):
@@ -310,16 +322,20 @@ class LspClientTests(unittest.IsolatedAsyncioTestCase):
             init_timeout=2.0,
         )
         await client.start()
-        self.assertEqual(client.state, ServerState.READY)
+        assert client.state == ServerState.READY
         responded = await asyncio.wait_for(answer.get(), timeout=2.0)
-        self.assertEqual(responded["id"], 90)
-        self.assertTrue(
-            any(m == "textDocument/publishDiagnostics" for m, _ in events))
+        assert responded["id"] == 90
+        assert any(
+            m == "textDocument/publishDiagnostics" for m, _ in events)
         await client.stop()
         server.close()
         await server.wait_closed()
 
-    async def test_initialize_timeout_marks_failed(self):
+    asyncio.run(scenario())
+
+
+def test_initialize_timeout_marks_failed() -> None:
+    async def scenario() -> None:
         async def serve(
             reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         ) -> None:
@@ -343,27 +359,36 @@ class LspClientTests(unittest.IsolatedAsyncioTestCase):
             return reader, writer, FakeProc()
 
         client = LspClient(PY_CONFIG, Path.cwd(), connect=connect, init_timeout=0.2)
-        with self.assertRaises(asyncio.TimeoutError):
+        with pytest.raises(asyncio.TimeoutError):
             await client.start()
-        self.assertIs(client.state, ServerState.FAILED)
-        self.assertTrue(client.error)
+        assert client.state is ServerState.FAILED
+        assert client.error
         server.close()
         await server.wait_closed()
 
-    async def test_cancel_request_sends_notification(self):
+    asyncio.run(scenario())
+
+
+def test_cancel_request_sends_notification() -> None:
+    async def scenario() -> None:
         harness = ServerHarness()
         client = await harness.start()
         request_id, future = await client.start_request(
             "textDocument/completion", {})
         await client.send_cancel(request_id)
         await future
-        self.assertIn(request_id, harness.cancelled)
+        assert request_id in harness.cancelled
         await client.stop()
         await harness.close()
 
-    async def test_stop_during_starting_skips_shutdown_and_terminates(self):
-        """Quit while initialize is pending: no polite shutdown request,
-        no 3s stall, process terminated and the start task settled."""
+    asyncio.run(scenario())
+
+
+def test_stop_during_starting_skips_shutdown_and_terminates() -> None:
+    """Quit while initialize is pending: no polite shutdown request,
+    no 3s stall, process terminated and the start task settled."""
+
+    async def scenario() -> None:
         methods: list[Any] = []
 
         async def serve(
@@ -417,19 +442,19 @@ class LspClientTests(unittest.IsolatedAsyncioTestCase):
                 if client.state is ServerState.STARTING:
                     break
                 await asyncio.sleep(0.02)
-            self.assertIs(client.state, ServerState.STARTING)
+            assert client.state is ServerState.STARTING
             loop = asyncio.get_running_loop()
             began = loop.time()
             await client.stop()
-            self.assertLess(loop.time() - began, 1.0)
-            self.assertTrue(proc.terminated)
-            self.assertTrue(proc.waited)
+            assert loop.time() - began < 1.0
+            assert proc.terminated
+            assert proc.waited
             # A server that never finished initialize must not receive a
             # shutdown request it could not answer (that caused the 3s stall).
-            self.assertNotIn("shutdown", methods)
-            with self.assertRaises(LspError):
+            assert "shutdown" not in methods
+            with pytest.raises(LspError):
                 await start_task
-            self.assertIs(client.state, ServerState.STOPPED)
+            assert client.state is ServerState.STOPPED
         finally:
             if not start_task.done():
                 start_task.cancel()
@@ -437,6 +462,7 @@ class LspClientTests(unittest.IsolatedAsyncioTestCase):
             server.close()
             await server.wait_closed()
 
+    asyncio.run(scenario())
 
 
 # ------------------------------------------------------------------ fake client
@@ -498,98 +524,122 @@ def make_python_doc(tmp: str, text: str = "x = 1\n") -> Document:
     return Document.open(path)
 
 
-class ManagerRegistryTests(unittest.TestCase):
-    def test_register_index_and_replace(self):
-        mgr = LspManager()
-        mgr.register_server(PY_CONFIG)
-        self.assertEqual(mgr.config_names(), ["python"])
-        self.assertTrue(mgr.supports(Document(Path("a.py"))))
-        self.assertFalse(mgr.supports(Document(Path("a.txt"))))
-        self.assertEqual(mgr.config_for("py"), PY_CONFIG)
-        other = ServerConfig(name="python", command="x", filetypes=["py", "pyi"])
-        mgr.register_server(other)
-        self.assertEqual(mgr.config_names(), ["python"])
-        self.assertEqual(mgr.config_for("pyi"), other)
-
-    def test_root_marker_discovery(self):
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".git").mkdir()
-            pkg = root / "pkg" / "deep"
-            pkg.mkdir(parents=True)
-            doc = Document(pkg / "m.py")
-            mgr = LspManager(workspace_root=lambda: None)
-            mgr.register_server(PY_CONFIG)
-            cfg = mgr.config_for("py")
-            assert cfg is not None
-            self.assertEqual(mgr.root_for(cfg, doc), root)
-            mgr2 = LspManager(workspace_root=lambda: root)
-            mgr2.register_server(PY_CONFIG)
-            self.assertEqual(mgr2.root_for(cfg, doc), root)
+# ---------------------------------------------------------------- manager core
 
 
-class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self) -> None:
-        self._tmp = TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        root = Path(self._tmp.name)
-        self.events: list[str] = []
-        self.fakes: list[FakeClient] = []
+def test_register_index_and_replace() -> None:
+    mgr = LspManager()
+    mgr.register_server(PY_CONFIG)
+    assert mgr.config_names() == ["python"]
+    assert mgr.supports(Document(Path("a.py")))
+    assert not mgr.supports(Document(Path("a.txt")))
+    assert mgr.config_for("py") == PY_CONFIG
+    other = ServerConfig(name="python", command="x", filetypes=["py", "pyi"])
+    mgr.register_server(other)
+    assert mgr.config_names() == ["python"]
+    assert mgr.config_for("pyi") == other
 
-        def factory(config: ServerConfig, path: Path) -> FakeClient:
-            # The factory is responsible for wiring the manager notification
-            # sink, just like the real LspClient constructor does.
-            def on_notification(method: str, params: dict[str, Any]) -> None:
-                self.mgr.handle_notification(method, params)
 
-            fake = FakeClient(config, path, on_notification=on_notification)
-            self.fakes.append(fake)
-            return fake
+def test_root_marker_discovery(tmp_path: Path) -> None:
+    root = tmp_path
+    (root / ".git").mkdir()
+    pkg = root / "pkg" / "deep"
+    pkg.mkdir(parents=True)
+    doc = Document(pkg / "m.py")
+    mgr = LspManager(workspace_root=lambda: None)
+    mgr.register_server(PY_CONFIG)
+    cfg = mgr.config_for("py")
+    assert cfg is not None
+    assert mgr.root_for(cfg, doc) == root
+    mgr2 = LspManager(workspace_root=lambda: root)
+    mgr2.register_server(PY_CONFIG)
+    assert mgr2.root_for(cfg, doc) == root
 
-        self.mgr = LspManager(
-            workspace_root=lambda: root,
-            on_event=lambda event: self.events.append(event),
-            client_factory=cast(Any, factory),
-        )
-        self.mgr.register_server(PY_CONFIG)
-        self.doc = make_python_doc(self._tmp.name, "value = 1\n")
 
-    def _client(self) -> FakeClient:
-        self.assertEqual(len(self.fakes), 1)
+@dataclass
+class ManagerSession:
+    """Bundle handed to the manager-lifecycle tests by ``session``."""
+
+    mgr: LspManager
+    doc: Document
+    events: list[str]
+    fakes: list[FakeClient]
+
+    def client(self) -> FakeClient:
+        assert len(self.fakes) == 1
         return self.fakes[0]
 
-    async def test_open_sync_change_close_lifecycle(self):
-        await self.mgr.on_document_shown(self.doc)
-        self.assertTrue(self.mgr.is_open(self.doc))
-        client = self._client()
-        self.assertTrue(client.started)
+
+@pytest.fixture
+def session(tmp_path: Path) -> ManagerSession:
+    events: list[str] = []
+    fakes: list[FakeClient] = []
+    managers: list[LspManager] = []
+
+    def factory(config: ServerConfig, path: Path) -> FakeClient:
+        # The factory is responsible for wiring the manager notification
+        # sink, just like the real LspClient constructor does.
+        mgr = managers[0]
+
+        def on_notification(method: str, params: dict[str, Any]) -> None:
+            mgr.handle_notification(method, params)
+
+        fake = FakeClient(config, path, on_notification=on_notification)
+        fakes.append(fake)
+        return fake
+
+    mgr = LspManager(
+        workspace_root=lambda: tmp_path,
+        on_event=lambda event: events.append(event),
+        client_factory=cast(Any, factory),
+    )
+    managers.append(mgr)
+    mgr.register_server(PY_CONFIG)
+    doc = make_python_doc(str(tmp_path), "value = 1\n")
+    return ManagerSession(mgr=mgr, doc=doc, events=events, fakes=fakes)
+
+
+def test_open_sync_change_close_lifecycle(
+    session: ManagerSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        assert mgr.is_open(doc)
+        client = session.client()
+        assert client.started
         opened = [m for m, _ in client.sent if m == "textDocument/didOpen"]
-        self.assertEqual(len(opened), 1)
+        assert len(opened) == 1
         params = client.sent[0][1]["textDocument"]
-        self.assertEqual(params["languageId"], "python")
-        self.assertEqual(params["text"], "value = 1\n")
+        assert params["languageId"] == "python"
+        assert params["text"] == "value = 1\n"
 
         # unchanged text schedules nothing
-        self.mgr.notify_edit(self.doc)
+        mgr.notify_edit(doc)
         # mutate, then flush under a tiny debounce constant
-        self.doc.buffer.insert_text("x")
-        with patch("yate.editor_lsp.manager.CHANGE_DEBOUNCE_S", 0.01):
-            self.mgr.notify_edit(self.doc)
-            await asyncio.sleep(0.1)
+        doc.buffer.insert_text("x")
+        monkeypatch.setattr("yate.editor_lsp.manager.CHANGE_DEBOUNCE_S", 0.01)
+        mgr.notify_edit(doc)
+        await asyncio.sleep(0.1)
         changed = [p for m, p in client.sent if m == "textDocument/didChange"]
-        self.assertEqual(len(changed), 1)
-        self.assertIn("text", changed[0]["contentChanges"][0])
+        assert len(changed) == 1
+        assert "text" in changed[0]["contentChanges"][0]
 
-        await self.mgr.notify_saved(self.doc)
-        self.assertIn("textDocument/didSave", [m for m, _ in client.sent])
+        await mgr.notify_saved(doc)
+        assert "textDocument/didSave" in [m for m, _ in client.sent]
 
-        await self.mgr.on_document_closed(self.doc)
-        self.assertFalse(self.mgr.is_open(self.doc))
-        self.assertIn("textDocument/didClose", [m for m, _ in client.sent])
-        await self.mgr.shutdown_all()
-        self.assertTrue(client.stopped)
+        await mgr.on_document_closed(doc)
+        assert not mgr.is_open(doc)
+        assert "textDocument/didClose" in [m for m, _ in client.sent]
+        await mgr.shutdown_all()
+        assert client.stopped
 
-    async def test_completion_parsing_shapes(self):
+    asyncio.run(scenario())
+
+
+def test_completion_parsing_shapes(tmp_path: Path) -> None:
+    async def scenario() -> None:
         # CompletionList with itemDefaults editRange plus a snippet item
         # that must fall back to its plain label.
         items = [
@@ -614,24 +664,28 @@ class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
 
         mgr = LspManager(client_factory=cast(Any, factory))
         mgr.register_server(PY_CONFIG)
-        doc = make_python_doc(self._tmp.name, "ab\n")
+        doc = make_python_doc(str(tmp_path), "ab\n")
         await mgr.on_document_shown(doc)
         result = await mgr.request_completion(
             doc, 0, 2, prefix_start_col=0, trigger_kind=2, trigger_character=".")
         labels = [c.label for c in result]
-        self.assertEqual(labels, ["alpha", "beta"])
+        assert labels == ["alpha", "beta"]
         alpha = result[0]
-        self.assertTrue(alpha.has_range())
-        self.assertEqual((alpha.range_start_col, alpha.range_end_col), (0, 2))
-        self.assertEqual(alpha.insert_text, "alpha()")
+        assert alpha.has_range()
+        assert (alpha.range_start_col, alpha.range_end_col) == (0, 2)
+        assert alpha.insert_text == "alpha()"
         beta = result[1]
-        self.assertEqual(beta.insert_text, "beta")  # snippet fallback
-        self.assertEqual(beta.range_start_col, 1)  # from itemDefaults
-        self.assertIn(".", mgr.trigger_characters_for(doc))
+        assert beta.insert_text == "beta"  # snippet fallback
+        assert beta.range_start_col == 1  # from itemDefaults
+        assert "." in mgr.trigger_characters_for(doc)
         await mgr.shutdown_all()
-        self.assertTrue(fakes[0].stopped)
+        assert fakes[0].stopped
 
-    async def test_bare_array_completion_with_prefix_fallback_range(self):
+    asyncio.run(scenario())
+
+
+def test_bare_array_completion_with_prefix_fallback_range(tmp_path: Path) -> None:
+    async def scenario() -> None:
         items = [{"label": "plain"}]
         fakes: list[FakeClient] = []
 
@@ -642,19 +696,25 @@ class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
 
         mgr = LspManager(client_factory=cast(Any, factory))
         mgr.register_server(PY_CONFIG)
-        doc = make_python_doc(self._tmp.name, "pla\n")
+        doc = make_python_doc(str(tmp_path), "pla\n")
         await mgr.on_document_shown(doc)
         result = await mgr.request_completion(doc, 0, 3, prefix_start_col=0)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(
-            (result[0].range_start_col, result[0].range_end_col), (0, 3))
+        assert len(result) == 1
+        assert (
+            result[0].range_start_col, result[0].range_end_col) == (0, 3)
         await mgr.shutdown_all()
 
-    async def test_diagnostics_delivery_and_queries(self):
-        await self.mgr.on_document_shown(self.doc)
-        client = self._client()
-        assert self.doc.path is not None
-        uri = protocol.path_to_uri(self.doc.path)
+    asyncio.run(scenario())
+
+
+def test_diagnostics_delivery_and_queries(session: ManagerSession) -> None:
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
         client.publish({"uri": uri, "diagnostics": [
             {"range": {"start": {"line": 0, "character": 0},
                        "end": {"line": 0, "character": 5}},
@@ -663,39 +723,49 @@ class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
                        "end": {"line": 0, "character": 8}},
              "severity": 2, "message": "meh"},
         ]})
-        self.assertIn("diagnostics", self.events)
-        diags = self.mgr.diagnostics_for(self.doc)
-        self.assertEqual(len(diags), 2)
-        self.assertTrue(diags[0].is_error)
-        self.assertEqual(self.mgr.counts_for(self.doc), (1, 1))
-        self.assertIsNotNone(self.mgr.diagnostic_at(self.doc, 0, 2))
-        self.assertIsNone(self.mgr.diagnostic_at(self.doc, 1, 0))
-        self.assertEqual(len(self.mgr.diagnostics_on_line(self.doc, 0)), 2)
-        self.assertEqual(self.mgr.diagnostics_on_line(self.doc, 9), [])
+        assert "diagnostics" in session.events
+        diags = mgr.diagnostics_for(doc)
+        assert len(diags) == 2
+        assert diags[0].is_error
+        assert mgr.counts_for(doc) == (1, 1)
+        assert mgr.diagnostic_at(doc, 0, 2) is not None
+        assert mgr.diagnostic_at(doc, 1, 0) is None
+        assert len(mgr.diagnostics_on_line(doc, 0)) == 2
+        assert mgr.diagnostics_on_line(doc, 9) == []
         # clearing diagnostics republishes an empty list
         client.publish({"uri": uri, "diagnostics": []})
-        self.assertEqual(self.mgr.diagnostics_for(self.doc), [])
-        await self.mgr.shutdown_all()
+        assert mgr.diagnostics_for(doc) == []
+        await mgr.shutdown_all()
 
-    async def test_missing_executable_is_failed_not_raised(self):
+    asyncio.run(scenario())
+
+
+def test_missing_executable_is_failed_not_raised(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    async def scenario() -> None:
         mgr = LspManager()
         mgr.register_server(ServerConfig(name="none", command="", filetypes=["py"]))
-        doc = make_python_doc(self._tmp.name)
+        doc = make_python_doc(str(tmp_path))
         client = await mgr.ensure_client(doc)
-        self.assertIsNone(client)
-        self.assertIs(mgr.state_for_doc(doc), ServerState.FAILED)
-        self.assertTrue(mgr.error_for("none"))
+        assert client is None
+        assert mgr.state_for_doc(doc) is ServerState.FAILED
+        assert mgr.error_for("none")
         # lifecycle calls stay harmless in the FAILED state
         await mgr.on_document_shown(doc)
-        self.assertEqual(
-            await mgr.request_completion(doc, 0, 0, prefix_start_col=0), [])
+        assert (
+            await mgr.request_completion(doc, 0, 0, prefix_start_col=0) == [])
         await mgr.on_document_closed(doc)
         await mgr.shutdown_all()
 
-    async def test_shutdown_reaps_starting_client_task(self):
-        """shutdown_all unblocks and settles a client still STARTING instead
-        of orphaning its task (which warned on exit and held a transport)."""
+    asyncio.run(scenario())
 
+
+def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
+    """shutdown_all unblocks and settles a client still STARTING instead
+    of orphaning its task (which warned on exit and held a transport)."""
+
+    async def scenario() -> None:
         class SlowStartClient(FakeClient):
             def __init__(self, *a: Any, **kw: Any) -> None:
                 super().__init__(*a, **kw)
@@ -714,30 +784,37 @@ class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
 
         mgr = LspManager()
         mgr.register_server(PY_CONFIG)
-        fake = SlowStartClient(PY_CONFIG, Path(self._tmp.name))
+        fake = SlowStartClient(PY_CONFIG, tmp_path)
         mgr.set_client_factory(
             lambda config, root: cast(LspClient, fake))
-        doc = make_python_doc(self._tmp.name)
+        doc = make_python_doc(str(tmp_path))
         shown = asyncio.ensure_future(mgr.on_document_shown(doc))
         try:
             await asyncio.sleep(0.1)
-            self.assertIs(fake.state, ServerState.STARTING)
+            assert fake.state is ServerState.STARTING
             await mgr.shutdown_all()
-            self.assertTrue(fake.stopped)
+            assert fake.stopped
             await asyncio.wait_for(shown, timeout=1.0)
             internals = cast(Any, mgr)
-            self.assertEqual(internals._starting, {})
+            assert internals._starting == {}
         finally:
             if not shown.done():
                 shown.cancel()
                 await asyncio.gather(shown, return_exceptions=True)
             await mgr.shutdown_all()
 
-    async def test_shutdown_cancels_pending_change_tasks(self):
-        """A didChange still in flight when yate quits is cancelled, not
-        destroyed mid-flight with a pending-task warning."""
-        mgr = self.mgr
-        doc = make_python_doc(self._tmp.name)
+    asyncio.run(scenario())
+
+
+def test_shutdown_cancels_pending_change_tasks(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """A didChange still in flight when yate quits is cancelled, not
+    destroyed mid-flight with a pending-task warning."""
+
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = make_python_doc(str(tmp_path))
         client = await mgr.ensure_client(doc)
         assert client is not None
         await mgr.on_document_shown(doc)
@@ -750,127 +827,142 @@ class ManagerSessionTests(unittest.IsolatedAsyncioTestCase):
         internals._flush_change(
             doc, internals._uri(doc), doc.buffer.get_text())
         await mgr.shutdown_all()
-        self.assertEqual(
-            [t for t in internals._bg_tasks if not t.done()], [])
+        assert [t for t in internals._bg_tasks if not t.done()] == []
 
-    async def test_real_subprocess_starting_shutdown_leaves_no_garbage(self):
-        """The original report: quit while a (real) server is still coming
-        up.  No unraisable __del__ errors / ResourceWarning may survive."""
+    asyncio.run(scenario())
+
+
+def test_real_subprocess_starting_shutdown_leaves_no_garbage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The original report: quit while a (real) server is still coming
+    up.  No unraisable __del__ errors / ResourceWarning may survive."""
+
+    async def scenario() -> None:
         unraisable: list[Any] = []
-        previous_hook = sys.unraisablehook
-        sys.unraisablehook = unraisable.append
+        monkeypatch.setattr(sys, "unraisablehook", unraisable.append)
+        cfg = ServerConfig(
+            name="sleepy",
+            command=sys.executable,
+            args=["-c", "import time; time.sleep(30)"],
+            filetypes=["py"],
+        )
+        mgr = LspManager()
+        mgr.register_server(cfg)
+        doc = make_python_doc(str(tmp_path))
+        shown = asyncio.ensure_future(mgr.on_document_shown(doc))
         try:
-            with TemporaryDirectory() as tmp:
-                cfg = ServerConfig(
-                    name="sleepy",
-                    command=sys.executable,
-                    args=["-c", "import time; time.sleep(30)"],
-                    filetypes=["py"],
-                )
-                mgr = LspManager()
-                mgr.register_server(cfg)
-                doc = make_python_doc(tmp)
-                shown = asyncio.ensure_future(mgr.on_document_shown(doc))
-                try:
-                    clients = cast(Any, mgr)._clients
-                    for _ in range(100):
-                        if clients and next(iter(clients.values())).state \
-                                is ServerState.STARTING:
-                            break
-                        await asyncio.sleep(0.05)
-                    real_client = next(iter(clients.values()))
-                    self.assertIs(
-                        real_client.state, ServerState.STARTING)
-                    real_proc = real_client._proc
-                    with warnings.catch_warnings(record=True) as caught:
-                        warnings.simplefilter("always")
-                        await mgr.shutdown_all()
-                        gc.collect()
-                        await asyncio.sleep(0.1)
-                        gc.collect()
-                    self.assertEqual(
-                        [u.exc_value for u in unraisable], [])
-                    self.assertEqual(
-                        [w for w in caught
-                         if issubclass(w.category, ResourceWarning)],
-                        [])
-                    # the killed child must release its cwd before the test
-                    # tears tmp down (cold Windows boxes can be slow here)
-                    if real_proc is not None and real_proc.returncode is None:
-                        await asyncio.wait_for(real_proc.wait(), timeout=5.0)
-                finally:
-                    if not shown.done():
-                        shown.cancel()
-                        await asyncio.gather(shown, return_exceptions=True)
-                    await mgr.shutdown_all()
+            clients = cast(Any, mgr)._clients
+            for _ in range(100):
+                if clients and next(iter(clients.values())).state \
+                        is ServerState.STARTING:
+                    break
+                await asyncio.sleep(0.05)
+            real_client = next(iter(clients.values()))
+            assert real_client.state is ServerState.STARTING
+            real_proc = real_client._proc
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                await mgr.shutdown_all()
+                gc.collect()
+                await asyncio.sleep(0.1)
+                gc.collect()
+            assert [u.exc_value for u in unraisable] == []
+            assert [
+                w for w in caught
+                if issubclass(w.category, ResourceWarning)
+            ] == []
+            # the killed child must release its cwd before the test
+            # tears tmp down (cold Windows boxes can be slow here)
+            if real_proc is not None and real_proc.returncode is None:
+                await asyncio.wait_for(real_proc.wait(), timeout=5.0)
         finally:
-            sys.unraisablehook = previous_hook
+            if not shown.done():
+                shown.cancel()
+                await asyncio.gather(shown, return_exceptions=True)
+            await mgr.shutdown_all()
+
+    asyncio.run(scenario())
 
 
-class PythonExtensionDiscoveryTests(unittest.TestCase):
-    def test_no_server_on_path_registers_empty_command(self):
-        from yate.extensions import python_lsp
-
-        os.environ.pop("YATE_PYTHON_LSP", None)
-        with patch.object(python_lsp.shutil, "which", return_value=None):
-            with patch.object(python_lsp, "_venv_langserver", return_value=None):
-                command, args = python_lsp.discover_command()
-        self.assertEqual(command, "")
-        self.assertEqual(args, [])
-
-    def test_interpreter_adjacent_server_found_without_path(self):
-        # pip installs pyright-langserver into the environment's scripts
-        # directory; discovery must find it even when PATH lacks it.
-        from yate.extensions import python_lsp
-
-        os.environ.pop("YATE_PYTHON_LSP", None)
-        fake_dir = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, fake_dir, ignore_errors=True)
-        fake_exe = str(fake_dir / "pyright-langserver.exe")
-        with patch.object(python_lsp.shutil, "which", return_value=None):
-            with patch.object(
-                python_lsp, "_venv_langserver", return_value=fake_exe,
-            ):
-                command, args = python_lsp.discover_command()
-        self.assertEqual(command, fake_exe)
-        self.assertEqual(args, ["--stdio"])
-
-    def test_env_override_is_shell_split(self):
-        from yate.extensions import python_lsp
-
-        with patch.dict(
-            "os.environ",
-            {"YATE_PYTHON_LSP": 'my-langserver --stdio "x y"'},
-        ):
-            command, args = python_lsp.discover_command()
-        self.assertEqual(command, "my-langserver")
-        self.assertEqual(args, ["--stdio", "x y"])
-
-    def test_prefers_pyright_over_pylsp(self):
-        from yate.extensions import python_lsp
-
-        os.environ.pop("YATE_PYTHON_LSP", None)
-
-        def fake_which(name: str) -> Optional[str]:
-            return f"/usr/bin/{name}" if name == "pyright-langserver" else None
-
-        with patch.object(python_lsp.shutil, "which", side_effect=fake_which):
-            command, args = python_lsp.discover_command()
-        self.assertTrue(command.endswith("pyright-langserver"))
-        self.assertEqual(args, ["--stdio"])
-
-    def test_explicit_opt_out_disables_even_with_server_on_path(self):
-        from yate.extensions import python_lsp
-
-        with patch.dict("os.environ", {"YATE_PYTHON_LSP": "off"}):
-            with patch.object(
-                python_lsp.shutil, "which",
-                return_value="/usr/bin/pylsp",
-            ):
-                command, args = python_lsp.discover_command()
-        self.assertEqual(command, "")
-        self.assertEqual(args, [])
+# ------------------------------------------------- python extension discovery
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _which_none(name: str) -> Optional[str]:
+    return None
+
+
+def _venv_none() -> Optional[str]:
+    return None
+
+
+def test_no_server_on_path_registers_empty_command(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from yate.extensions import python_lsp
+
+    monkeypatch.delenv("YATE_PYTHON_LSP", raising=False)
+    monkeypatch.setattr(python_lsp.shutil, "which", _which_none)
+    monkeypatch.setattr(python_lsp, "_venv_langserver", _venv_none)
+    command, args = python_lsp.discover_command()
+    assert command == ""
+    assert args == []
+
+
+def test_interpreter_adjacent_server_found_without_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # pip installs pyright-langserver into the environment's scripts
+    # directory; discovery must find it even when PATH lacks it.
+    from yate.extensions import python_lsp
+
+    monkeypatch.delenv("YATE_PYTHON_LSP", raising=False)
+    fake_exe = str(tmp_path / "pyright-langserver.exe")
+
+    def fake_venv() -> Optional[str]:
+        return fake_exe
+
+    monkeypatch.setattr(python_lsp.shutil, "which", _which_none)
+    monkeypatch.setattr(python_lsp, "_venv_langserver", fake_venv)
+    command, args = python_lsp.discover_command()
+    assert command == fake_exe
+    assert args == ["--stdio"]
+
+
+def test_env_override_is_shell_split(monkeypatch: pytest.MonkeyPatch) -> None:
+    from yate.extensions import python_lsp
+
+    monkeypatch.setenv("YATE_PYTHON_LSP", 'my-langserver --stdio "x y"')
+    command, args = python_lsp.discover_command()
+    assert command == "my-langserver"
+    assert args == ["--stdio", "x y"]
+
+
+def test_prefers_pyright_over_pylsp(monkeypatch: pytest.MonkeyPatch) -> None:
+    from yate.extensions import python_lsp
+
+    monkeypatch.delenv("YATE_PYTHON_LSP", raising=False)
+
+    def fake_which(name: str) -> Optional[str]:
+        return f"/usr/bin/{name}" if name == "pyright-langserver" else None
+
+    monkeypatch.setattr(python_lsp.shutil, "which", fake_which)
+    command, args = python_lsp.discover_command()
+    assert command.endswith("pyright-langserver")
+    assert args == ["--stdio"]
+
+
+def test_explicit_opt_out_disables_even_with_server_on_path(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from yate.extensions import python_lsp
+
+    monkeypatch.setenv("YATE_PYTHON_LSP", "off")
+
+    def fake_which(name: str) -> Optional[str]:
+        return "/usr/bin/pylsp"
+
+    monkeypatch.setattr(python_lsp.shutil, "which", fake_which)
+    command, args = python_lsp.discover_command()
+    assert command == ""
+    assert args == []
