@@ -392,11 +392,26 @@ class LspManager:
         client = await self.ensure_client(doc)
         if client is None or doc.path is None:
             return []
+        uri = self._uri(doc)
+        # Flush any pending debounced didChange so the server completes
+        # against the text the cursor actually points into: the completion
+        # debounce (0.12s) is shorter than the didChange one (0.25s), and
+        # without this the request races ahead of the edited text.
+        state = self._open.get(uri)
+        timer = self._change_timers.pop(uri, None)
+        if timer is not None:
+            timer.cancel()
+        if state is not None and client.state is ServerState.READY:
+            text = doc.buffer.get_text()
+            if text != state.last_synced:
+                await self._send_change(
+                    client, uri, state, state.version + 1, text
+                )
         context: dict[str, Any] = {"triggerKind": trigger_kind}
         if trigger_character is not None:
             context["triggerCharacter"] = trigger_character
         params: dict[str, Any] = {
-            "textDocument": {"uri": self._uri(doc)},
+            "textDocument": {"uri": uri},
             "position": {"line": row, "character": col},
             "context": context,
         }

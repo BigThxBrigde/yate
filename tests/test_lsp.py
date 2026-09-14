@@ -8,7 +8,9 @@ import asyncio
 import gc
 import json
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 import warnings
 from pathlib import Path
@@ -811,9 +813,27 @@ class PythonExtensionDiscoveryTests(unittest.TestCase):
 
         os.environ.pop("YATE_PYTHON_LSP", None)
         with patch.object(python_lsp.shutil, "which", return_value=None):
-            command, args = python_lsp.discover_command()
+            with patch.object(python_lsp, "_venv_langserver", return_value=None):
+                command, args = python_lsp.discover_command()
         self.assertEqual(command, "")
         self.assertEqual(args, [])
+
+    def test_interpreter_adjacent_server_found_without_path(self):
+        # pip installs pyright-langserver into the environment's scripts
+        # directory; discovery must find it even when PATH lacks it.
+        from yate.extensions import python_lsp
+
+        os.environ.pop("YATE_PYTHON_LSP", None)
+        fake_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, fake_dir, ignore_errors=True)
+        fake_exe = str(fake_dir / "pyright-langserver.exe")
+        with patch.object(python_lsp.shutil, "which", return_value=None):
+            with patch.object(
+                python_lsp, "_venv_langserver", return_value=fake_exe,
+            ):
+                command, args = python_lsp.discover_command()
+        self.assertEqual(command, fake_exe)
+        self.assertEqual(args, ["--stdio"])
 
     def test_env_override_is_shell_split(self):
         from yate.extensions import python_lsp

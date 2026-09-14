@@ -168,7 +168,7 @@ class CompletionController:
                 if c.label[: len(prefix)].lower() == needle
                 or c.insert_text[: len(prefix)].lower() == needle
             ]
-        items = items[:50]
+        items = items[:250]
         if not items:
             popup.close()
             if manual:

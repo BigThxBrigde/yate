@@ -28,10 +28,39 @@ from __future__ import annotations
 import os
 import shlex
 import shutil
-from typing import TYPE_CHECKING
+import sys
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from yate.services.extensions import ExtensionAPI
+
+
+def _venv_langserver() -> Optional[str]:
+    """Find pyright-langserver beside the running interpreter.
+
+    ``pip install pyright`` puts its launchers in the environment's
+    scripts directory (e.g. ``.venv\\Scripts``); ``shutil.which`` misses
+    them when that directory is not on ``PATH``.
+    """
+    here = Path(sys.executable).parent
+    for name in ("pyright-langserver.exe", "pyright-langserver.cmd",
+                 "pyright-langserver.bat", "pyright-langserver"):
+        candidate = here / name
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _python_settings() -> Optional[dict[str, object]]:
+    """Point pyright at the running interpreter for stdlib resolution.
+
+    A frozen exe has no interpreter to reference, so skip it there and
+    let pyright fall back to its own environment discovery.
+    """
+    if getattr(sys, "frozen", False):
+        return None
+    return {"python": {"pythonPath": sys.executable}}
 
 
 def discover_command() -> tuple[str, list[str]]:
@@ -47,6 +76,9 @@ def discover_command() -> tuple[str, list[str]]:
     pyright = shutil.which("pyright-langserver")
     if pyright:
         return pyright, ["--stdio"]
+    pyright = _venv_langserver()
+    if pyright:
+        return pyright, ["--stdio"]
     pylsp = shutil.which("pylsp")
     if pylsp:
         return pylsp, []
@@ -55,10 +87,12 @@ def discover_command() -> tuple[str, list[str]]:
 
 def setup(api: "ExtensionAPI") -> None:
     command, args = discover_command()
+    is_pyright = "pyright" in Path(command).stem.lower()
     api.lsp.register_server(
         name="python",
         command=command,
         args=args,
+        settings=_python_settings() if is_pyright else None,
         filetypes=["py", "pyi"],
         language_ids={"py": "python", "pyi": "python"},
         root_markers=[
