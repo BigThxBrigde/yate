@@ -12,6 +12,8 @@ build/
 develop-eggs/
 dist/
 release/
+# Project release tooling lives under tools/release — keep it tracked
+!tools/release/
 downloads/
 eggs/
 .eggs/
@@ -26,8 +28,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
-!tools/release/  # keep the release tool
 
 # PyInstaller
 *.manifest
