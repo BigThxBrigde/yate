@@ -1,8 +1,8 @@
 # Changelog
 
-> Generated from the git history on 2026-09-14 · yate 0.2.1
+> Generated from the git history on 2026-09-14 · yate 0.2.2
 
-## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.1...HEAD)
+## [0.2.2] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.1...v0.2.2)
 
 ### Features
 
@@ -10,6 +10,9 @@
 
 ### Bug Fixes
 
+- flush pending didChange before completion and prefer interpreter-adjacent pyright ([`fa1ae55`](https://gitee.com/jermaine/yate/commit/fa1ae55aafd5b02fafe502560bf1bdc53f21e0cb))
+- Fix release tools ignored issue ([`1758fff`](https://gitee.com/jermaine/yate/commit/1758fffb6543479a7c153ab9d374820641ab8147))
+- debounce syntax highlighting and reuse stale tokens ([`082bc7d`](https://gitee.com/jermaine/yate/commit/082bc7d3c2824e2314b06b70ff97e5a310af0219))
 - unittest test_vsplit_with_file_and_only and upgrade version ([`ceba77f`](https://gitee.com/jermaine/yate/commit/ceba77ff8e92646899e4a9c2e65af5e0359d5076))
 
 ### Documentation
@@ -18,6 +21,7 @@
 
 ### Tooling
 
+- Update CHANGELOG ([`641412c`](https://gitee.com/jermaine/yate/commit/641412c7ae4701e7462b44628437382d74b0895e))
 - Update READMD.zh.md ([`8566fac`](https://gitee.com/jermaine/yate/commit/8566fac589c6524486f3b4c3907f40fcd10ce851))
 
 ## [0.2.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...v0.2.1)
