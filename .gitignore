@@ -27,6 +27,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+!tools/release/  # keep the release tool
+
 # PyInstaller
 *.manifest
 *.spec

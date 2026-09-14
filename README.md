@@ -296,18 +296,25 @@ content also ships inside the package as `yate/resources/changelog.en.md` /
 `__version__` in `yate/__init__.py`, which `pyproject.toml` reads dynamically
 via hatchling.
 
-Release workflow:
+Release is automated by `python -m tools.release`, which bumps both
+version files, commits the bump, regenerates the changelog, commits it,
+runs the changelog gate and version tests, then tags and pushes:
 
-1. Edit `yate/__init__.py`: `__version__ = "0.2.0"` (single version source)
-2. `git commit -m "chore(release): v0.2.0"`
-3. `python -m tools.changelog zh-commit <hash> "中文摘要"` (add Chinese
-   summaries for key entries as needed)
-4. `python -m tools.changelog generate --online` (segment, classify, render
-   all four outputs: the two root files plus the two bundled copies)
-5. `git add CHANGELOG.md CHANGELOG.zh.md yate/resources/changelog.en.md
-   yate/resources/changelog.zh.md tools/changelog/zh_overrides.json`
-   then `git commit -m "docs: changelog for v0.2.0"`
-6. `git tag -a v0.2.0 -m "v0.2.0"`; `git push --follow-tags`
+```bash
+python -m tools.release 0.3.0           # full release (bump -> changelog -> tag -> push)
+python -m tools.release 0.3.0 --dry-run # print the plan, do not mutate files/git
+python -m tools.release 0.3.0 --no-push # do everything except push
+```
+
+The version must be strictly greater than the current `__version__` and the
+working tree must be clean for the two version files (`yate/__init__.py`,
+`tests/test_theme_palettes.py`). On failure the command raises and exits
+non-zero without rolling back — inspect `git status` / `git log` and recover
+manually (a two-commit + tag rollback is intentionally not automated).
+
+For translating changelog entries ahead of time, use
+`python -m tools.changelog zh-commit <hash> "中文摘要"` before releasing;
+the release tool regenerates all four outputs automatically.
 
 Conventions: version segments are bounded by `vX.Y.Z` tags, falling back to
 added `__version__` lines in `yate/__init__.py`; `chore(release)` commits act
