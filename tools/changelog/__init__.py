@@ -13,3 +13,6 @@ the repository's git history, following the frozen conventions in
 
 Entry point: ``python -m tools.changelog --help``.
 """
+
+__version__ = "0.1.1"
+__all__ = ["__version__"]

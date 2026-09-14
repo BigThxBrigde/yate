@@ -36,9 +36,7 @@ _CHANGELOG_FILES = (
 
 _SEMVER_RE = re.compile(r"\d+\.\d+\.\d+$")
 _INIT_VERSION_RE = re.compile(r'^(__version__\s*=\s*")([^"]+)(")', re.MULTILINE)
-_TEST_VERSION_RE = re.compile(
-    r'(assertEqual\(yate\.__version__,\s*")([^"]+)(")'
-)
+_TEST_VERSION_RE = re.compile(r'(assert yate\.__version__\s*==\s*")([^"]+)(")')
 
 
 def discover_repo_root() -> Path:
@@ -103,7 +101,7 @@ def bump_init_py(repo: Path, version: str, *, dry_run: bool = False) -> None:
 def bump_test_assertion(
     repo: Path, version: str, *, dry_run: bool = False
 ) -> None:
-    """Set the expected version in ``VersionTests``."""
+    """Set the expected version in ``test_version_is_bumped``."""
     if dry_run:
         print(f"[dry-run] bump {_VERSION_FILES[1]} -> {version}")
         return
@@ -146,14 +144,20 @@ def gate_check(repo: Path) -> int:
 
 
 def run_version_tests(repo: Path) -> int:
-    """Run ``VersionTests`` with the current interpreter; returns exit code."""
+    """Run the version tests with the current interpreter; returns exit code.
+
+    Selects the two version guards in test_theme_palettes.py via ``-k version``
+    (test_version_is_bumped + the single-source pyproject guard).
+    """
     completed = subprocess.run(
         [
             sys.executable,
             "-m",
-            "unittest",
-            "tests.test_theme_palettes.VersionTests",
-            "-v",
+            "pytest",
+            "tests/test_theme_palettes.py",
+            "-q",
+            "-k",
+            "version",
         ],
         cwd=repo,
         check=False,
