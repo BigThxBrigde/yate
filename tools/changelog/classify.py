@@ -12,6 +12,14 @@ _CONVENTIONAL_RE = re.compile(
 )
 #: Footer line form: ``BREAKING CHANGE: ...`` (also ``BREAKING-CHANGE:``).
 _BREAKING_FOOTER_RE = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
+#: The release tool's own changelog bookkeeping commit
+#: (``tools.release`` writes ``docs(changelog): release vX.Y.Z bilingual
+#: changelog``).  Like the release-bump commit it is tool-generated and can
+#: never be a stable entry: the tag points at this very commit, so the
+#: changelog it commits cannot contain its own line.
+_RELEASE_DOC_RE = re.compile(
+    r"^release v\d+\.\d+\.\d+ bilingual changelog$"
+)
 
 _TYPE_TO_CATEGORY: dict[str, Category] = {
     "feat": Category.FEATURE,
@@ -67,6 +75,19 @@ def is_release_bump_commit(commit: Commit) -> bool:
     return commit.category is Category.TOOLING and commit.scope == "release"
 
 
+def is_release_doc_commit(commit: Commit) -> bool:
+    """The release tool's ``docs(changelog): release vX.Y.Z bilingual
+    changelog`` bookkeeping commit — generated at release time, never a
+    user-facing entry (and self-referential if rendered)."""
+    return (
+        commit.category is Category.DOCS
+        and commit.scope == "changelog"
+        and _RELEASE_DOC_RE.match(commit.summary_en) is not None
+    )
+
+
 def is_changelog_entry(commit: Commit) -> bool:
-    """Release-bump commits are boundaries only — never rendered entries."""
-    return not is_release_bump_commit(commit)
+    """Release bookkeeping commits are boundaries only — never entries."""
+    return not (
+        is_release_bump_commit(commit) or is_release_doc_commit(commit)
+    )

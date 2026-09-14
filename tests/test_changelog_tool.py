@@ -92,6 +92,23 @@ def test_release_bump_commit_is_not_an_entry() -> None:
     assert is_changelog_entry(classify_commit(_raw("2" * 40, "feat: x")))
 
 
+def test_release_doc_commit_is_not_an_entry() -> None:
+    # exact bookkeeping subject written by tools.release at every release
+    commit = classify_commit(
+        _raw("3" * 40, "docs(changelog): release v0.2.3 bilingual changelog")
+    )
+    assert not is_changelog_entry(commit)
+    # similarly shaped but hand-written docs commits remain entries
+    handwritten = classify_commit(
+        _raw("4" * 40, "docs(changelog): fix typo in v0.2.3 notes")
+    )
+    assert is_changelog_entry(handwritten)
+    other_scope = classify_commit(
+        _raw("5" * 40, "docs(readme): release v0.2.3 bilingual changelog")
+    )
+    assert is_changelog_entry(other_scope)
+
+
 # --- segments ---------------------------------------------------------------
 
 

@@ -29,11 +29,6 @@
 - debounce syntax highlighting and reuse stale tokens ([`082bc7d`](https://gitee.com/jermaine/yate/commit/082bc7d3c2824e2314b06b70ff97e5a310af0219))
 - unittest test_vsplit_with_file_and_only and upgrade version ([`ceba77f`](https://gitee.com/jermaine/yate/commit/ceba77ff8e92646899e4a9c2e65af5e0359d5076))
 
-### Documentation
-
-- release v0.2.2 bilingual changelog ([`5294492`](https://gitee.com/jermaine/yate/commit/529449251b7f2f21f2d9d64490ffdc0d135f0fc2))
-- release v0.2.1 bilingual changelog ([`91c8ca2`](https://gitee.com/jermaine/yate/commit/91c8ca20f3ee86a94b238fbe55805e78163d2a01))
-
 ### Tooling
 
 - Update CHANGELOG ([`641412c`](https://gitee.com/jermaine/yate/commit/641412c7ae4701e7462b44628437382d74b0895e))
@@ -48,9 +43,7 @@
 
 ### Documentation
 
-- release v0.2.1 bilingual changelog ([`5eb0b54`](https://gitee.com/jermaine/yate/commit/5eb0b543c6cce14c0910d9c94e4dd5eac111b942))
 - refresh bundled changelog resources ([`107b17c`](https://gitee.com/jermaine/yate/commit/107b17c94f912002cf46802c48281930985834a0))
-- release v0.2.0 bilingual changelog ([`3507664`](https://gitee.com/jermaine/yate/commit/350766418f03484744f3522749e847d68932a949))
 
 ## [0.2.0] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.1.1...v0.2.0)
 
@@ -61,7 +54,6 @@
 ### Documentation
 
 - document one-command user directory setup and cleanup ([`738c2f1`](https://gitee.com/jermaine/yate/commit/738c2f1bb22b0b14aaa62a6c683a0793a93ca459))
-- release v0.1.1 bilingual changelog ([`78253f0`](https://gitee.com/jermaine/yate/commit/78253f04f44ed47de8a8efbada9aee1550168422))
 
 ### Tests
 
@@ -82,7 +74,6 @@
 
 - document eight built-in themes and template install ([`26ba949`](https://gitee.com/jermaine/yate/commit/26ba949ed4a4bce041533e2308803e52d19b3fc5))
 - move changelog maintenance appendix from manuals to README ([`33190c5`](https://gitee.com/jermaine/yate/commit/33190c5a10e073ecd5c6cccefa7ecc083d859828))
-- release v0.1.0 bilingual changelog ([`ddcb70c`](https://gitee.com/jermaine/yate/commit/ddcb70c3f72d91e09fcac1b33eab4399e836a2f2))
 
 ### Tests
 
