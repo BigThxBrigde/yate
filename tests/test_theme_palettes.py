@@ -246,7 +246,7 @@ class ThemeTemplateFileTests(unittest.TestCase):
 
 class VersionTests(unittest.TestCase):
     def test_version_is_bumped(self) -> None:
-        self.assertEqual(yate.__version__, "0.2.1")
+        self.assertEqual(yate.__version__, "0.2.2")
 
     def test_pyproject_keeps_the_single_dynamic_version_source(self) -> None:
         pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
