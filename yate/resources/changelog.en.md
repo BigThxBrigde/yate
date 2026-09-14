@@ -2,6 +2,24 @@
 
 > Generated from the git history on 2026-09-14 · yate 0.2.1
 
+## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.1...HEAD)
+
+### Features
+
+- Add new tools for release, simpify the workflow ([`4fec66d`](https://gitee.com/jermaine/yate/commit/4fec66d427ef3744ff91d1b6e101799eac915c60))
+
+### Bug Fixes
+
+- unittest test_vsplit_with_file_and_only and upgrade version ([`ceba77f`](https://gitee.com/jermaine/yate/commit/ceba77ff8e92646899e4a9c2e65af5e0359d5076))
+
+### Documentation
+
+- release v0.2.1 bilingual changelog ([`91c8ca2`](https://gitee.com/jermaine/yate/commit/91c8ca20f3ee86a94b238fbe55805e78163d2a01))
+
+### Tooling
+
+- Update READMD.zh.md ([`8566fac`](https://gitee.com/jermaine/yate/commit/8566fac589c6524486f3b4c3907f40fcd10ce851))
+
 ## [0.2.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...v0.2.1)
 
 ### Features

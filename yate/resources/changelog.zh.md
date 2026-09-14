@@ -2,6 +2,24 @@
 
 > 由 git 历史自动生成于 2026-09-14 · yate 0.2.1
 
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.1...HEAD)
+
+### 新功能
+
+- Add new tools for release, simpify the workflow [缺中文] ([`4fec66d`](https://gitee.com/jermaine/yate/commit/4fec66d427ef3744ff91d1b6e101799eac915c60))
+
+### 问题修复
+
+- unittest test_vsplit_with_file_and_only and upgrade version [缺中文] ([`ceba77f`](https://gitee.com/jermaine/yate/commit/ceba77ff8e92646899e4a9c2e65af5e0359d5076))
+
+### 文档
+
+- release v0.2.1 bilingual changelog [缺中文] ([`91c8ca2`](https://gitee.com/jermaine/yate/commit/91c8ca20f3ee86a94b238fbe55805e78163d2a01))
+
+### 构建与工程
+
+- Update READMD.zh.md [缺中文] ([`8566fac`](https://gitee.com/jermaine/yate/commit/8566fac589c6524486f3b4c3907f40fcd10ce851))
+
 ## [0.2.1] - 2026-09-14 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.0...v0.2.1)
 
 ### 新功能
