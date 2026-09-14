@@ -220,6 +220,110 @@ class TextualAppSmokeTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertTrue(refreshed)
 
+    async def test_edit_keeps_colors_instead_of_flashing(self):
+        with TemporaryDirectory() as tmp:
+            target = Path(tmp) / "script.py"
+            target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+            app = YateApp(target=target)
+            async with app.run_test(size=(100, 30)) as pilot:
+                editor = app.editor_view
+                assert editor is not None
+                hl = cast(Any, editor)
+                self.assertTrue(
+                    await wait_until(
+                        pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                    )
+                )
+                self.assertTrue(hl._tokens_for(0))
+
+                from yate.editor_view import theme
+                mocha = theme.active()
+
+                def colors_at(row: int) -> set[str]:
+                    return {
+                        seg.style.color.name.lower()
+                        for seg in editor.render_line(row)
+                        if seg.style is not None and seg.style.color is not None
+                    }
+
+                self.assertIn(mocha.syn_keyword.lower(), colors_at(0))
+
+                # An edit must NOT drop the colors while the debounced
+                # tokenize pass is pending: the stale tokens keep coloring
+                # the view right after the keypress (no uncolored frame).
+                await pilot.press("x")
+                self.assertTrue(hl._tokens_for(0))
+                self.assertIn(mocha.syn_keyword.lower(), colors_at(0))
+
+                # Exactly one debounced pass is pending for the latest
+                # version, and repeated renders for the same version reuse
+                # the same timer. Checked synchronously after a direct
+                # buffer edit: race-free even on a loaded machine.
+                app.buffer.insert_text("y")
+                self.assertTrue(hl._tokens_for(0))
+                key = hl._hl_scheduled_key
+                timer = hl._hl_timer
+                self.assertIsNotNone(timer)
+                self.assertIsNotNone(key)
+                self.assertEqual(key[2], app.buffer.content_version)
+                hl._tokens_for(0)
+                hl._tokens_for(1)
+                self.assertIs(hl._hl_timer, timer)
+                self.assertEqual(hl._hl_scheduled_key, key)
+
+                # ...and the pending pass converges to the latest version
+                self.assertTrue(
+                    await wait_until(
+                        pilot,
+                        lambda: hl._hl_tokens is not None
+                        and hl._hl_version == app.buffer.content_version
+                        and hl._hl_scheduled_key is None,
+                        timeout=5.0,
+                    )
+                )
+
+    async def test_stale_highlight_not_reused_on_filetype_or_document_switch(self):
+        with TemporaryDirectory() as tmp:
+            target = Path(tmp) / "script.py"
+            target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+            app = YateApp(target=target)
+            async with app.run_test(size=(100, 30)) as pilot:
+                editor = app.editor_view
+                assert editor is not None
+                hl = cast(Any, editor)
+                self.assertTrue(
+                    await wait_until(
+                        pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                    )
+                )
+                self.assertTrue(hl._tokens_for(0))
+
+                # filetype switch: python tokens must not color the file
+                app.run_command("set filetype=plaintext")
+                self.assertEqual(hl._tokens_for(0), [])
+                self.assertTrue(
+                    await wait_until(
+                        pilot,
+                        lambda: hl._hl_filetype == "plaintext"
+                        and hl._hl_version == app.buffer.content_version,
+                        timeout=5.0,
+                    )
+                )
+
+                # document switch: the old document's tokens must not leak
+                old_doc = hl.doc
+                app.run_command("enew")
+                self.assertIsNot(hl.doc, old_doc)
+                self.assertEqual(hl._tokens_for(0), [])
+                self.assertTrue(
+                    await wait_until(
+                        pilot,
+                        lambda: hl._hl_doc is hl.doc
+                        and hl._hl_version == app.buffer.content_version,
+                        timeout=5.0,
+                    )
+                )
+
     async def test_explorer_open_file(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -11,6 +11,7 @@ from textual.events import Focus, Key, Resize
 from textual.geometry import Size
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
+from textual.timer import Timer
 
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
@@ -55,6 +56,11 @@ class EditorView(ScrollView):
 
     can_focus = True
 
+    # Trailing debounce window that merges rapid keystrokes into a single
+    # background tokenize pass (same order of magnitude as the 0.12s
+    # completion popup debounce).
+    _HIGHLIGHT_DEBOUNCE_S = 0.08
+
     DEFAULT_CSS = """
     EditorView {
         padding: 0;
@@ -69,13 +75,20 @@ class EditorView(ScrollView):
         self.scroll_col = 0
         # Syntax token cache. Tokens belong to (doc, content_version,
         # filetype); pure cursor/scroll movement leaves the version alone,
-        # so moving through a file keeps its colors instead of flashing
-        # uncolored text while the whole document is re-tokenized.
+        # so moving through a file keeps its colors. After an edit the
+        # previous tokens keep coloring the text for one debounce window
+        # instead of flashing the whole view uncolored.
         self._hl_tokens: Optional[list[list[Token]]] = None
         self._hl_doc: object = None
         self._hl_version: int = -1
         self._hl_filetype: str = ""
-        self._hl_scheduled = False
+        # Pending/in-flight highlight pass, keyed by (doc, filetype,
+        # content_version). _hl_timer is set only while a debounced pass is
+        # still waiting to start; the key survives until the worker stores
+        # its result, so renders can never schedule a duplicate pass for a
+        # version that is already being tokenized.
+        self._hl_timer: Optional[Timer] = None
+        self._hl_scheduled_key: Optional[tuple[object, str, int]] = None
 
     # ------------------------------------------------------------ helpers
 
@@ -263,11 +276,13 @@ class EditorView(ScrollView):
     def _tokens_for(self, row: int) -> list[Token]:
         """Cached syntax tokens for one line (tokenized off the loop).
 
-        The first render after a change shows plain text while a worker
-        thread tokenizes the document, then refreshes with colors; this
-        keeps large files from blocking the first paint and every keystroke.
-        The cache survives cursor movement and scrolling -- it is only
-        stale when the document, its content version or its filetype differ.
+        The first render of a document shows plain text while a worker
+        thread tokenizes it, then refreshes with colors; this keeps large
+        files from blocking the first paint. The cache survives cursor
+        movement and scrolling -- it is only stale when the document, its
+        content version or its filetype differ. After an edit the previous
+        tokens keep coloring the text for one debounce window (no plain
+        flash); a doc/filetype switch never reuses the old tokens.
         """
         doc = self.doc
         buf = doc.buffer
@@ -277,16 +292,59 @@ class EditorView(ScrollView):
             or self._hl_version != buf.content_version
             or self._hl_filetype != doc.filetype
         ):
-            if not self._hl_scheduled:
-                self._hl_scheduled = True
-                # Keyed to *this* widget (not the app) so concurrent panes do
-                # not cancel each other's highlight passes.
-                self.run_worker(
-                    self._highlight_later(), group="highlight",
-                    exclusive=True, exit_on_error=False,
-                )
-            return []
+            tokens = self._hl_tokens
+            if tokens is None or self._hl_doc is not doc or self._hl_filetype != doc.filetype:
+                self._schedule_highlight(0.0)
+                return []
+            # Same doc and filetype, version behind: keep coloring from the
+            # previous tokens until the debounced pass replaces them (rows
+            # past the end of the old tokens stay plain).
+            self._schedule_highlight(self._HIGHLIGHT_DEBOUNCE_S)
+            return tokens[row] if row < len(tokens) else []
         return self._hl_tokens[row] if row < len(self._hl_tokens) else []
+
+    def _schedule_highlight(self, delay: float) -> None:
+        """Arrange a tokenize pass for the current doc/filetype/version.
+
+        Keyed by (doc, filetype, content_version): repeated calls for the
+        same state keep the existing timer or in-flight worker, only a new
+        edit restarts the trailing debounce window.
+        """
+        doc = self.doc
+        key = (doc, doc.filetype, doc.buffer.content_version)
+        if self._hl_scheduled_key == key:
+            return
+        if self._hl_timer is not None:
+            self._hl_timer.stop()
+            self._hl_timer = None
+        self._hl_scheduled_key = key
+        if delay > 0.0:
+            self._hl_timer = self.set_timer(
+                delay, self._launch_highlight, name="highlight-debounce"
+            )
+        else:
+            # No grace period (first paint / doc or filetype switch): start
+            # tokenizing right away so the first paint gets colored ASAP.
+            self._launch_highlight()
+
+    def _launch_highlight(self) -> None:
+        """Timer callback: hand the pending pass to the tokenizer worker.
+
+        Deliberately does not clear ``_hl_timer``: a stopped timer's
+        already-queued callback can still fire after a newer timer was
+        scheduled, and clobbering the reference here would lose the newer
+        pending timer. A fired timer is inert (``stop()`` is a no-op), and
+        duplicate passes are prevented by the scheduled-key guard plus the
+        exclusive worker group.
+        """
+        if not self.is_mounted:
+            return
+        # Keyed to *this* widget (not the app) so concurrent panes do
+        # not cancel each other's highlight passes.
+        self.run_worker(
+            self._highlight_later(), group="highlight",
+            exclusive=True, exit_on_error=False,
+        )
 
     async def _highlight_later(self) -> None:
         """Tokenize the current document in a thread, then repaint."""
@@ -299,7 +357,6 @@ class EditorView(ScrollView):
         tokens = await asyncio.to_thread(
             tokenize_document, lines, filetype
         )
-        self._hl_scheduled = False
         if not self.is_mounted:
             return
         # discard the result if the document changed/closed while we worked;
@@ -311,6 +368,8 @@ class EditorView(ScrollView):
         self._hl_doc = doc
         self._hl_version = version
         self._hl_filetype = filetype
+        if self._hl_scheduled_key == (doc, filetype, version):
+            self._hl_scheduled_key = None
         self.refresh()
 
     def _syntax_kinds(self, row: int, line: str, cell_count: int) -> list[Optional[str]]:
