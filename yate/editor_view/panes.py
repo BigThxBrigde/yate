@@ -208,6 +208,14 @@ class PaneManager:
                 if leaf.doc is doc
                 and (view := self.views.get(leaf.id)) is not None]
 
+    def leaf_for(self, leaf_id: int) -> Optional[Leaf]:
+        """Non-asserting leaf lookup for render paths that must tolerate a
+        leaf already dropped from the tree (a structural reconcile such as
+        ``:only`` while a framework timer still paints the removed widget).
+        :meth:`leaf_by_id` stays strict for code owning the live-view
+        invariant (focus, keypress, active-view logic)."""
+        return find_leaf(self.root, leaf_id)
+
     def leaf_by_id(self, leaf_id: int) -> Leaf:
         leaf = find_leaf(self.root, leaf_id)
         # the id always comes from a live EditorView built from this tree

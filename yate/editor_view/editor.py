@@ -328,8 +328,17 @@ class EditorView(ScrollView):
 
     def render_line(self, y: int) -> Strip:
         t = theme.active()
-        buf = self.buffer
         view_w = self.size.width or 80
+        # Textual may schedule one final compositor render for an EditorView
+        # whose leaf was already dropped by a structural reconcile (``:only``)
+        # or app teardown -- between ``self.root`` being replaced and the old
+        # widget actually unmounting, a timer tick can still reach
+        # render_line. The pane tree no longer holds this leaf, so paint a
+        # blank strip instead of tripping the leaf-lookup assertion.
+        panes = self.yate.panes
+        if panes is None or panes.leaf_for(self.leaf_id) is None:
+            return Strip([Segment(" " * view_w, Style(bgcolor=t.bg))])
+        buf = self.buffer
         gutter_w = self._gutter_w()
         text_w = max(1, view_w - gutter_w)
 
