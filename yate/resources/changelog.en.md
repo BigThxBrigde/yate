@@ -1,8 +1,16 @@
 # Changelog
 
-> Generated from the git history on 2026-09-15 · yate 0.2.2
+> Generated from the git history on 2026-09-15 · yate 0.2.3
 
-## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.2...HEAD)
+## [0.2.3] - 2026-09-15 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.2...v0.2.3)
+
+### Bug Fixes
+
+- Fix release tools, add version and fix versioning in source code ([`5ff9d8b`](https://gitee.com/jermaine/yate/commit/5ff9d8b8580cf5e99c433aee1413896f9cff04f7))
+
+### Documentation
+
+- record pytest migration in unreleased section ([`449eb30`](https://gitee.com/jermaine/yate/commit/449eb307d769586431855b488aec0dbc97e45abb))
 
 ### Tests
 

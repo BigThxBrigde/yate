@@ -3,7 +3,15 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.2...HEAD)
+## [0.2.3] - 2026-09-15 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.2...v0.2.3)
+
+### 问题修复
+
+- Fix release tools, add version and fix versioning in source code [缺中文] ([`5ff9d8b`](https://gitee.com/jermaine/yate/commit/5ff9d8b8580cf5e99c433aee1413896f9cff04f7))
+
+### 文档
+
+- record pytest migration in unreleased section [缺中文] ([`449eb30`](https://gitee.com/jermaine/yate/commit/449eb307d769586431855b488aec0dbc97e45abb))
 
 ### 测试
 
