@@ -184,7 +184,20 @@ try {
         }
 
         $exe = Join-Path $stage 'yate.exe'
-        $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+        # .NET API instead of Get-FileHash: works even when module
+        # auto-discovery is broken (PSModulePath polluted by the host IDE).
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $file = [System.IO.File]::OpenRead($exe)
+            try {
+                $hash = ([System.BitConverter]::ToString(
+                    $sha256.ComputeHash($file)) -replace '-', '').ToLower()
+            } finally {
+                $file.Dispose()
+            }
+        } finally {
+            $sha256.Dispose()
+        }
         "$hash  yate.exe" | Set-Content -Encoding ascii (Join-Path $stage 'SHA256SUMS.txt')
 
         $smoke = & $exe --version 2>&1
