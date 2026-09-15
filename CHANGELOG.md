@@ -5,12 +5,18 @@
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
 
+### Features
+
+- add yate ui smoke test tool ([`47dac93`](https://gitee.com/jermaine/yate/commit/47dac9311ad21b91a2aa1552716d19e1529dd3fc))
+
 ### Bug Fixes
 
+- replace Get-FileHash: use native .NET SHA256 API instead to fix hash calculation failure due to PSModulePath pollution from host IDE, guarantee proper file hash generation. ([`0d06e94`](https://gitee.com/jermaine/yate/commit/0d06e947ec7e94324a978584da388fe02e21a97a))
 - support F1 to F12 in vim keymap ([`91d40d8`](https://gitee.com/jermaine/yate/commit/91d40d8ed00e44f97a1ee13842d1a7e3162d6934))
 
 ### Tooling
 
+- update the changelog ([`798df3a`](https://gitee.com/jermaine/yate/commit/798df3a6a16ab03f370b5f2a707f6e08c54d2c74))
 - update skill ([`54de33c`](https://gitee.com/jermaine/yate/commit/54de33c699bd11c35579472974d9d5cffe8fccc8))
 - add the plan ([`53a7e09`](https://gitee.com/jermaine/yate/commit/53a7e099bf53ff8fa0be43bd2b5bba258f84709b))
 - remove line break in changelog ([`cf67891`](https://gitee.com/jermaine/yate/commit/cf67891a2a9f171faac752d0fe5c53528b9ae50b))
