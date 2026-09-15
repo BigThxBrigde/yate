@@ -49,7 +49,7 @@ Run:
 
 ```powershell
 $env:PYTHONDONTWRITEBYTECODE='1'
-d:\Programming\yate\.venv\Scripts\python.exe _shot.py
+.venv\Scripts\python.exe _shot.py
 ```
 
 ## Critical gotchas (all hit in this repo)
@@ -95,16 +95,49 @@ for y in sorted(rows)[:12]:
     print(y, repr(rows[y][:118]))
 ```
 
+## Permanent runner: `tools.smoke_test`
+
+For repeated smoke checks (CI gate, regression evidence), prefer the bundled
+runner over one-shot scripts. It drives the same `pilot.run_test` pattern,
+captures `Check(label, expected, actual)` assertions plus extracted SVG rows,
+and diffs against stored JSON baselines.
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE='1'
+
+# run all scenarios, print PASS/FAIL table
+ .venv\Scripts\python.exe -m tools.smoke_test run
+
+# also capture and show the top SVG text rows
+ .venv\Scripts\python.exe -m tools.smoke_test run --svg
+
+# write JSON baselines (checks + SVG rows) to tools/smoke_baselines/
+ .venv\Scripts\python.exe -m tools.smoke_test snapshot
+
+# run and diff against baselines (exit 1 on drift — CI gate)
+ .venv\Scripts\python.exe -m tools.smoke_test compare
+```
+
+Scenarios shipped: `type_save_find`, `file_palette`, `keymap_toggle`,
+`theme_switch`, `help_modal`. Pick a subset with `--scenario NAME`
+(repeatable). Add a new scenario by appending an `async def(tmp: Path) ->
+ScenarioResult` to `SCENARIOS` in `tools/smoke_test.py` — follow the harness
+pattern above (type per-char, `await pilot.pause()` after every step, assert
+via `Check`). Baselines live under `tools/smoke_baselines/*.json` and should
+be re-snapshotted after intentional UI changes.
+
 ## Cleanup and final gate
 
 1. Delete the temp `.py` and all `.svg` files.
 2. Run the permanent gates (pyright needs the node PATH prefix):
 
 ```powershell
-$env:PATH = "C:\Users\Administrator\.cache\pyright-python\nodeenv\Scripts;$env:PATH"
+# pyright-python caches its bundled node runtime under the user cache dir;
+# prepend that nodeenv's Scripts so the bundled node is on PATH:
+#   $env:PATH = "$env:LOCALAPPDATA\pyright-python\nodeenv\Scripts;$env:PATH"
 $env:PYTHONDONTWRITEBYTECODE='1'
-d:\Programming\yate\.venv\Scripts\python.exe -m pyright
-d:\Programming\yate\.venv\Scripts\python.exe -m unittest discover -s tests
+.venv\Scripts\python.exe -m pyright
+.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
 If a smoke check proves durable behavior, add it as a real
