@@ -1923,9 +1923,15 @@ def test_highlighting_follows_the_override() -> None:
             assert editor is not None
             hl_view = cast(Any, editor)
             app.buffer.insert_text("def foo():\n    pass\n")
-            await pilot.pause()
             # Plain-text detection for an unnamed buffer -> no tokens.
-            assert hl_view._hl_filetype == "plaintext"
+            # Wait for the background pass: a direct buffer edit does not
+            # refresh the view, and the startup pass for the pre-edit
+            # (empty) buffer is discarded, so a single pilot.pause() does
+            # not guarantee the pass has stored its result.
+            assert await wait_until(
+                pilot, lambda: hl_view._hl_filetype == "plaintext",
+                timeout=5.0,
+            )
 
             app.run_command("set filetype=python")
             changed = await wait_until(
