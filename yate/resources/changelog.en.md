@@ -2,6 +2,19 @@
 
 > Generated from the git history on 2026-09-15 · yate 0.2.4
 
+## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
+
+### Bug Fixes
+
+- support F1 to F12 in vim keymap ([`91d40d8`](https://gitee.com/jermaine/yate/commit/91d40d8ed00e44f97a1ee13842d1a7e3162d6934))
+
+### Tooling
+
+- update skill ([`54de33c`](https://gitee.com/jermaine/yate/commit/54de33c699bd11c35579472974d9d5cffe8fccc8))
+- add the plan ([`53a7e09`](https://gitee.com/jermaine/yate/commit/53a7e099bf53ff8fa0be43bd2b5bba258f84709b))
+- remove line break in changelog ([`cf67891`](https://gitee.com/jermaine/yate/commit/cf67891a2a9f171faac752d0fe5c53528b9ae50b))
+- fix change log main repo url ([`90b71cc`](https://gitee.com/jermaine/yate/commit/90b71cc90378dee62d8c82da6f72a73797c2345e))
+
 ## [0.2.4] - 2026-09-15 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.3...v0.2.4)
 
 ### Features
