@@ -268,7 +268,7 @@ def test_real_register_theme_via_template_source(template_cleanup: None) -> None
 
 
 def test_version_is_bumped() -> None:
-    assert yate.__version__ == "0.2.3"
+    assert yate.__version__ == "0.2.4"
 
 
 def test_pyproject_keeps_the_single_dynamic_version_source() -> None:
