@@ -34,11 +34,14 @@ _ARROW = {
     "\x1b[B": "j",
 }
 
+_FUNCTION_KEYS = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
+
 # help categories (module level: uppercase constants)
 NAV = "Vim: motion"
 INS = "Vim: insert"
 EDT = "Vim: edit"
 CMD = "Vim: command"
+HLP = "Vim: help"
 
 
 class VimKeymap(Keymap):
@@ -95,11 +98,24 @@ class VimKeymap(Keymap):
             KeyBinding("n", "next match", "Next match", CMD),
             KeyBinding("N", "previous match", "Previous match", CMD),
             KeyBinding(":", "ex command", "Ex command (:w :q :e :! ...)", CMD),
+            KeyBinding(parse_key("<f1>"), "help", "Keyboard shortcuts help", HLP),
+            KeyBinding(parse_key("<f2>"), "shell_prompt", "Run shell command", CMD),
+            KeyBinding(parse_key("<f3>"), "find_next", "Next match", CMD),
+            KeyBinding(parse_key("<f4>"), "replace", "Find & replace", CMD),
+            KeyBinding(parse_key("<f5>"), "command_prompt", "Ex command line (:w :q :e :! ...)", CMD),
+            KeyBinding(parse_key("<f8>"), "manual", "Open user manual (read-only)", HLP),
         ]
 
     # --------------------------------------------------------------- dispatch
 
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
+        if key in _FUNCTION_KEYS:
+            self.pending = ""
+            self.count_str = ""
+            binding = self.lookup(key)
+            if binding is not None:
+                return self.dispatch(binding, ctx)
+            return True
         if self.mode == VimMode.INSERT:
             return self._handle_insert(ctx, key)
         if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE):
