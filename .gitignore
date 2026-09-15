@@ -143,3 +143,4 @@ Thumbs.db
 # Ad-hoc Textual pilot smoke/screenshot scripts (see .trae skill convention)
 /_*.py
 /_*.svg
+.python-version
