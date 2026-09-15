@@ -1,4 +1,4 @@
-# pack 脚本 `--dist` 产物归集选项实施计划
+﻿# pack 脚本 `--dist` 产物归集选项实施计划
 
 > 给三个 pack 脚本（pack.ps1 / pack.bat / pack.sh）增加统一的
 > `--dist <目录>` 选项：PyInstaller 构建成功后，把产物按
@@ -17,14 +17,14 @@
 | 事实 | 证据 |
 |------|------|
 | 构建产物两处 | onedir：`dist/yate/`（整目录，含 yate.exe + 运行时）；onefile：`dist/yate.exe` |
-| 主逻辑在 ps1 | [pack.ps1](file:///d:/Programming/yate/pack/pack.ps1)：选解释器→装 build extra→按 `-OneFile` 选 spec→PyInstaller→校验 artifact 存在→打印大小 |
-| bat 是纯透传包装 | [pack.bat](file:///d:/Programming/yate/pack/pack.bat)：`powershell ... %*`，加参数只需改帮助注释 |
-| Linux 脚本对称 | [pack.sh](file:///d:/Programming/yate/pack/pack.sh)：bash 实现同样流程，参数 `--onefile/-1/-h` |
+| 主逻辑在 ps1 | [pack.ps1](pack/pack.ps1)：选解释器→装 build extra→按 `-OneFile` 选 spec→PyInstaller→校验 artifact 存在→打印大小 |
+| bat 是纯透传包装 | [pack.bat](pack/pack.bat)：`powershell ... %*`，加参数只需改帮助注释 |
+| Linux 脚本对称 | [pack.sh](pack/pack.sh)：bash 实现同样流程，参数 `--onefile/-1/-h` |
 | 脚本始终在仓库根执行 | ps1 `Push-Location $root`；sh `cd "$root"`，相对路径以根为准 |
 | 版本号可读 | `yate/__init__.py` 的 `__version__`（changelog 计划后为唯一事实源；当前 0.1.0）；build extra 安装时已 `pip install -e .`，构建用 python 可直接 import |
-| `dist/` 已被 git 忽略 | [.gitignore:13](file:///d:/Programming/yate/.gitignore#L13)；尚无独立的发布归集目录 |
+| `dist/` 已被 git 忽略 | [.gitignore:13](.gitignore#L13)；尚无独立的发布归集目录 |
 | 打包前已有 changelog 刷新 | changelog 计划中的 `generate --bundle-only`（best-effort），本选项在其之后执行 |
-| 解释器回退缺陷 | [pack.ps1:54-57](file:///d:/Programming/yate/pack/pack.ps1#L54-L57)：`.venv\Scripts\python.exe` 不存在时回退到全局 `python`；[pack.sh:55-59](file:///d:/Programming/yate/pack/pack.sh#L55-L59) 同理回退到 `python3`。随后的 `pip install -e ".[build,ts]"` 会把 `yate` 入口脚本（pyproject `[project.scripts] yate = "yate.cli:main"`）写到**全局** `Scripts/`，造成全局污染 |
+| 解释器回退缺陷 | [pack.ps1:54-57](pack/pack.ps1#L54-L57)：`.venv\Scripts\python.exe` 不存在时回退到全局 `python`；[pack.sh:55-59](pack/pack.sh#L55-L59) 同理回退到 `python3`。随后的 `pip install -e ".[build,ts]"` 会把 `yate` 入口脚本（pyproject `[project.scripts] yate = "yate.cli:main"`）写到**全局** `Scripts/`，造成全局污染 |
 | 全局污染已发生 | 用户环境中全局 Python `Scripts/yate.exe` 已存在（由某次 `.venv` 缺失时的打包或手动 `pip install -e .` 写入），需提供清理指引 |
 
 ---
@@ -110,7 +110,7 @@ flowchart TD
 
 **A. 修复全局回退（必做，先于 `--dist`）**
 
-把现有 [pack.ps1:54-57](file:///d:/Programming/yate/pack/pack.ps1#L54-L57) 的回退逻辑：
+把现有 [pack.ps1:54-57](pack/pack.ps1#L54-L57) 的回退逻辑：
 
 ```powershell
 $pythonExe = Join-Path $root ".venv\Scripts\python.exe"
@@ -183,7 +183,7 @@ rem    pack\pack.bat --onefile --dist release
 
 **A. 修复全局回退（必做，先于 `--dist`）**
 
-把现有 [pack.sh:55-59](file:///d:/Programming/yate/pack/pack.sh#L55-L59) 的回退逻辑：
+把现有 [pack.sh:55-59](pack/pack.sh#L55-L59) 的回退逻辑：
 
 ```bash
 if [ -x "$root/.venv/bin/python" ]; then

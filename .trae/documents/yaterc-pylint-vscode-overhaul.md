@@ -99,7 +99,7 @@ disable = [
 - 新增 `tests/test_config.py`：选项设置、`yate.map` 生效、未知选项 warning、语法错误 warning、用户级+项目级叠加、`-u` 指定与 `NONE`。
 - `test_editor_core.py`：`NormalKeymap`→`VscKeymap`；vsc 键绑含 `:`/`\x1f`/`\x1b\x10`。
 - `test_app_textual.py`：默认 `keymap_name=="vsc"`；`pilot.press("ctrl+shift+p")` 面板打开+过滤；ctrl+p 快速打开（TemporaryDirectory 造文件验 `walk_files`）；`:normal` 别名；`render_tabbar` 含 ✕/文件名；breadcrumbs 含文件名；statusbar/welcome 渲染 smoke。
-- 运行：`$env:PYTHONDONTWRITEBYTECODE=1; .\.venv\Scripts\python.exe -m unittest discover -s tests -v`
+- 运行：`$env:PYTHONDONTWRITEBYTECODE=1; .\.venv\Scripts\python.exe -m pytest tests -v`
 
 ## 6. 实施顺序（每步保持测试绿）
 

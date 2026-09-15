@@ -114,12 +114,12 @@ class TabBar(Static):
    - `render_tabbar` 改名为 `_build_tabbar` 并返回 regions；`update_tabbar` 调 `tabbar.render_content`。
    - `compose`/`on_mount` 换用 `TabBar`。
    - 手测：多文档下点击任意 tab 切换，点击空白区无反应。
-3. **测试 + 收尾**：补 pilot 测试；跑 `pyright` 与 `unittest` 全绿。
+3. **测试 + 收尾**：补 pilot 测试；跑 `pyright` 与 `pytest` 全绿。
 
 ## 验证
 
 - `.venv\Scripts\python.exe -m pyright` → 0 errors。
-- `$env:PYTHONDONTWRITEBYTECODE='1'; .venv\Scripts\python.exe -m unittest discover -s tests -q` → 全绿。
+- `$env:PYTHONDONTWRITEBYTECODE='1'; .venv\Scripts\python.exe -m pytest tests -q` → 全绿。
 - 手测：mocha / latte / frappe / macchiato 四主题下编辑器与资源管理器滚动条配色协调；多 tab 环境点击非活动 tab 立即切换，活动 tab 点击无副作用，点击 tab 间空白不触发。
 
 ## 风险与处理

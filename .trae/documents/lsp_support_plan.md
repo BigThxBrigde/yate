@@ -16,7 +16,7 @@
 - 按键链：Textual `Key` → `event_to_raw` → keymap dispatch（`handle_raw_key` → `ui_refresh()`）；`EditorView.on_key` 可在 raw dispatch 前拦截（vim ctrl+w 已是此模式）。`ctrl+space`（0x00）当前 `textual_key_to_raw` 返回 None，需补映射。
 - 渲染：`EditorView.render_line` 逐行生成 Rich Segment，overlay 用 per-cell style id；诊断样式可在此叠加。gutter 由行号+空格组成。
 - 文档同步钩子点：打开/切换/关闭在 `app.py`（`_open_document_path(_async)`、`open_path(_async)`、`new_buffer`、`cycle_tab`、`close_tab`）；编辑后统一走 `ui_refresh()`；保存走 `save_document()`。
-- 测试：`python -m unittest`（无 pytest），Textual 用 `app.run_test()` + `pilot`；pyright strict 对 `yate`/`tests`/`extensions` 全部零错误；基线 123 tests。
+- 测试：`python -m pytest`，Textual 用 `app.run_test()` + `pilot`；pyright strict 对 `yate`/`tests`/`extensions` 全部零错误；基线 123 tests。
 - 关键测试约束：仓库内 `extensions/` 会被测试自动加载，Python 扩展加载时只能注册配置，**不得产生消息行输出/不得 spawn 进程**（否则污染现有 123 个测试的消息断言）。
 
 ## 设计
@@ -126,7 +126,7 @@
 ## 验证
 
 - `.venv\Scripts\python.exe -m pyright` → 0 errors（含新扩展、新测试）。
-- `$env:PYTHONDONTWRITEBYTECODE='1'; .venv\Scripts\python.exe -m unittest discover -s tests -q` → 原 123 + 新增约 10~12 个全绿。
+- `$env:PYTHONDONTWRITEBYTECODE='1'; .venv\Scripts\python.exe -m pytest tests -q` → 原 123 + 新增约 10~12 个全绿。
 - 若本机 venv/系统装有 pylsp 或 pyright-langserver，做一次真实 smoke（临时 .py 文件触发补全/诊断）；不满足安装条件则跳过，不为此安装软件。
 - 重点回归：现有 `.py` 文件打开的测试（test_syntax_highlight 等）在 python_lsp 扩展被自动加载后仍通过（注册不 spawn、失败不发消息行）。
 

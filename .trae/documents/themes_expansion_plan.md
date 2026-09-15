@@ -1,4 +1,4 @@
-# 主题扩展计划：One / Gruvbox 内置 + Dracula / Ayu 主题模板
+﻿# 主题扩展计划：One / Gruvbox 内置 + Dracula / Ayu 主题模板
 
 > 主题分两类交付：
 >
@@ -18,13 +18,13 @@
 
 | 事实 | 证据 |
 |------|------|
-| 主题 = chrome 配色 + 语法色板的 frozen dataclass | [theme.py:29](file:///d:/Programming/yate/yate/editor_view/theme.py#L29) `Theme`（33 个颜色字段 + `extra`） |
-| 内置 4 套 Catppuccin，mocha 默认 | [theme.py:202-209](file:///d:/Programming/yate/yate/editor_view/theme.py#L202-L209) `THEMES` / `DEFAULT_THEME` |
+| 主题 = chrome 配色 + 语法色板的 frozen dataclass | [theme.py:29](yate/editor_view/theme.py#L29) `Theme`（33 个颜色字段 + `extra`） |
+| 内置 4 套 Catppuccin，mocha 默认 | [theme.py:202-209](yate/editor_view/theme.py#L202-L209) `THEMES` / `DEFAULT_THEME` |
 | 内置构造范式 | `_catppuccin(name, label, dark, palette_dict)` 工厂 + 原始色板 dict |
 | 外部主题加载机制已完备 | `load_theme_file()` exec 单个文件；`load_theme_paths()` 对目录只 glob **`*.py`**（下划线开头跳过）；命名空间注入 `Theme`/`register_theme()`；文件出错只记录不崩溃 |
-| 默认扫描目录（无需配置） | [cli.py:175-178](file:///d:/Programming/yate/yate/cli.py#L175-L178)：`./themes`、`~/.yate/themes` |
+| 默认扫描目录（无需配置） | [cli.py:175-178](yate/cli.py#L175-L178)：`./themes`、`~/.yate/themes` |
 | 加载优先级（本计划不变） | 内置 < 默认目录 < yaterc `theme_dirs` < `--theme-dir` |
-| yaterc 命名空间同样注入 register_theme | [config.py:163](file:///d:/Programming/yate/yate/config.py#L163) |
+| yaterc 命名空间同样注入 register_theme | [config.py:163](yate/config.py#L163) |
 | 随包非代码资源的既定位置 | `yate/resources/`（manual md、font config）；两个 PyInstaller spec 整目录打包 resources，wheel 自动包含 |
 | 无独立主题测试文件 | 主题断言散在 test_config.py / test_cli.py |
 | 版本双写 | `yate/__init__.py` 与 `pyproject.toml` 均为 `0.1.0` |
@@ -135,7 +135,7 @@ yate/resources/theme_examples/
 
 - 文件内容是**普通 Python 主题文件**，与用户放到 `~/.yate/themes/` 的
   文件完全同构；只依赖加载器注入的 `Theme` / `register_theme()`
-  （参考 [themes.zh.md](file:///d:/Programming/yate/yate/docs/themes.zh.md#L63)
+  （参考 [themes.zh.md](yate/docs/themes.zh.md#L63)
   已说明的约定），不 import 任何 yate 内部模块；
 - `.example` 后缀使目录扫描的 `glob("*.py")` **天然忽略**它们：放在
   resources 里永不自动注册、不出现在 `:theme` 列表，也不影响 `--diag`；
@@ -159,7 +159,7 @@ cp <yate资源目录>/theme_examples/dracula_theme.example ~/.yate/themes/dracul
 cp <yate资源目录>/theme_examples/ayu_theme.example     ~/.yate/themes/ayu.py
 ```
 
-下次启动时 [cli.py:175](file:///d:/Programming/yate/yate/cli.py#L175) 的
+下次启动时 [cli.py:175](yate/cli.py#L175) 的
 默认目录扫描自动加载；想卸载只需删除该 `*.py`。模板顶部注释写明安装
 位置与改名要求。
 
@@ -231,8 +231,8 @@ register_theme(Theme(
 
 | 文件 | 改动 |
 |------|------|
-| [yate/__init__.py](file:///d:/Programming/yate/yate/__init__.py#L11) | `__version__ = "0.1.1"` |
-| [pyproject.toml](file:///d:/Programming/yate/pyproject.toml#L7) | `version = "0.1.1"` |
+| [yate/__init__.py](yate/__init__.py#L11) | `__version__ = "0.1.1"` |
+| [pyproject.toml](pyproject.toml#L7) | `version = "0.1.1"` |
 
 两处都改（dynamic-version 改造尚未落地）。验证 `yate --version`。
 

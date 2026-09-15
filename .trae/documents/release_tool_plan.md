@@ -12,13 +12,13 @@
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
-| [tools/release/\_\_init\_\_.py](file:///d:/Programming/yate/tools/release/__init__.py) | 已存在但为空，填入 docstring | 包说明 |
-| [tools/release/\_\_main\_\_.py](file:///d:/Programming/yate/tools/release/__main__.py) | 新建 | `python -m tools.release` 入口 |
-| [tools/release/cli.py](file:///d:/Programming/yate/tools/release/cli.py) | 新建 | 核心逻辑 |
+| [tools/release/\_\_init\_\_.py](tools/release/__init__.py) | 已存在但为空，填入 docstring | 包说明 |
+| [tools/release/\_\_main\_\_.py](tools/release/__main__.py) | 新建 | `python -m tools.release` 入口 |
+| [tools/release/cli.py](tools/release/cli.py) | 新建 | 核心逻辑 |
 
 复用（不修改）：
-- [tools/changelog/gitdata.py](file:///d:/Programming/yate/tools/changelog/gitdata.py) — `run_git()`、`GitError`
-- [tools/changelog/cli.py](file:///d:/Programming/yate/tools/changelog/cli.py) — `generate()`、`check()`
+- [tools/changelog/gitdata.py](tools/changelog/gitdata.py) — `run_git()`、`GitError`
+- [tools/changelog/cli.py](tools/changelog/cli.py) — `generate()`、`check()`
 
 ## CLI 接口
 
@@ -33,8 +33,8 @@ python -m tools.release <version> --no-push # 全部做完但不推送
 
 ## 版本文件（bump 两处）
 
-1. [yate/\_\_init\_\_.py:11](file:///d:/Programming/yate/yate/__init__.py#L11) — `__version__ = "X.Y.Z"`
-2. [tests/test_theme_palettes.py:249](file:///d:/Programming/yate/tests/test_theme_palettes.py#L249) — `self.assertEqual(yate.__version__, "X.Y.Z")`
+1. [yate/\_\_init\_\_.py:11](yate/__init__.py#L11) — `__version__ = "X.Y.Z"`
+2. [tests/test_theme_palettes.py:249](tests/test_theme_palettes.py#L249) — `self.assertEqual(yate.__version__, "X.Y.Z")`
 
 **不碰 pyproject.toml**——hatchling 用 `dynamic = ["version"]` 从 `yate/__init__.py` 读取版本。
 
@@ -64,7 +64,7 @@ _CHANGELOG_FILES = (
 | `git_commit(repo, message, *, dry_run)` | `-> None` | `git commit -m <message>`，dry_run 时只打印 |
 | `generate_changelog(repo, *, dry_run)` | `-> None` | 调用 `tools.changelog.cli.generate(repo)`，dry_run 时只打印 |
 | `gate_check(repo)` | `-> int` | 调用 `tools.changelog.cli.check(repo)`，返回退出码 |
-| `run_version_tests(repo)` | `-> int` | `python -m unittest tests.test_theme_palettes.VersionTests -v`，返回退出码 |
+| `run_version_tests(repo)` | `-> int` | `python -m pytest tests/test_theme_palettes.py -v`，返回退出码 |
 | `git_tag(repo, version, *, dry_run)` | `-> None` | `git tag -a v{version} -m "Release v{version}"`，dry_run 时只打印 |
 | `git_push(repo, refspec, *, dry_run)` | `-> None` | `git push origin <refspec>`，dry_run 时只打印 |
 
@@ -141,7 +141,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 **不自动回滚**——中途失败抛 `RuntimeError`，`main()` 捕获后打印并返回 1。操作者自行检查 `git log` / `git status`，跨两个 commit + tag 的自动回滚太脆弱。
 
-**用 unittest 不用 pytest**——pyproject.toml 只声明 `pyright` 为 dev 依赖，CI 也用 `python -m unittest discover`。用 unittest 保持零额外依赖、与 CI 一致。
+**用 pytest**——CI 用 `python -m pytest tests`，与项目测试框架一致。
 
 **dry_run 各 helper 自处理**——每个 helper 接受 `dry_run` 参数，为 True 时只打印将执行的操作，不实际执行。`gate_check` 和 `run_version_tests` 不接受 `dry_run`（它们是只读的，正常执行）。
 

@@ -320,7 +320,7 @@ def _highlight_incremental(
 
 ## Validation
 
-1. `python -m unittest discover -s tests` 全量通过
+1. `python -m pytest tests` 全量通过
 2. pyright strict 零诊断
 3. **多 token 类型手动验证**（.py 文件，每种 10 秒）：
    - keyword：`def|foo():` 在 `def` 中间输入 → keyword 边界立即更新

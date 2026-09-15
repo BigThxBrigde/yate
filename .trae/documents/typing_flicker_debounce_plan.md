@@ -8,34 +8,34 @@ issues.md 第 1 条：输入时屏幕闪烁，影响输入体验，需要加入�
 
 ### 按键后的刷新链路
 
-1. [editor.py](file:///d:/Programming/yate/yate/editor_view/editor.py#L169-L225) `EditorView.on_key` → [app.py](file:///d:/Programming/yate/yate/app.py#L684-L689) `YateApp.handle_raw_key`：keymap 修改 buffer（`content_version += 1`）后调用 `ui_refresh()`。
-2. [app.py](file:///d:/Programming/yate/yate/app.py#L691-L711) `ui_refresh()` 对所有 pane 视图调用 `content_changed()` → `_update_virtual_size()` + `reveal_cursor()` + `refresh()`。
-3. 渲染时 `render_line` → `_syntax_kinds` → [`_tokens_for`](file:///d:/Programming/yate/yate/editor_view/editor.py#L263-L289)。
+1. [editor.py](yate/editor_view/editor.py#L169-L225) `EditorView.on_key` → [app.py](yate/app.py#L684-L689) `YateApp.handle_raw_key`：keymap 修改 buffer（`content_version += 1`）后调用 `ui_refresh()`。
+2. [app.py](yate/app.py#L691-L711) `ui_refresh()` 对所有 pane 视图调用 `content_changed()` → `_update_virtual_size()` + `reveal_cursor()` + `refresh()`。
+3. 渲染时 `render_line` → `_syntax_kinds` → [`_tokens_for`](yate/editor_view/editor.py#L263-L289)。
 
 ### 闪烁根因（已确认）
 
-[`_tokens_for`](file:///d:/Programming/yate/yate/editor_view/editor.py#L263-L289) 一旦发现 `content_version` 变化（任何一次编辑），立即丢弃**整个文档**的 token 缓存并返回 `[]`（editor.py:288）：
+[`_tokens_for`](yate/editor_view/editor.py#L263-L289) 一旦发现 `content_version` 变化（任何一次编辑），立即丢弃**整个文档**的 token 缓存并返回 `[]`（editor.py:288）：
 
 - 编辑后第一帧：所有可见行以**无语法颜色**的默认前景色绘制；
-- 随后后台线程对**整个文档**重新分词（[`_highlight_later`](file:///d:/Programming/yate/yate/editor_view/editor.py#L291-L314)），完成后再 `refresh()` 重绘为彩色。
+- 随后后台线程对**整个文档**重新分词（[`_highlight_later`](yate/editor_view/editor.py#L291-L314)），完成后再 `refresh()` 重绘为彩色。
 
 每次击键 = 「彩色 → 整屏无色 → 彩色」两帧；快速连打时 worker 不断取消/重启，颜色持续来回翻转，终端要重写大量单元格，表现为整屏闪烁（大文件/慢终端/Windows conhost 上尤其明显）。
 
 ### 已排除的因素
 
-- Textual 对同一帧内的多次 `refresh()` 做合并（[widget.py:4334](file:///d:/Programming/yate/.venv/Lib/site-packages/textual/widget.py#L4324-L4376)），compositor 对 Strip 做 diff，仅输出变化单元格——`refresh()` 调用次数本身不是主因，**帧间内容真实变化（颜色丢失）才是**。
-- 补全弹窗（[completion.py](file:///d:/Programming/yate/yate/app_features/completion.py#L64-L73)，0.12s debounce）、LSP `notify_edit`（[manager.py:316](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L301-L316)，`call_later`）已有防抖，与本次闪烁无关。
+- Textual 对同一帧内的多次 `refresh()` 做合并（[widget.py:4334](.venv/Lib/site-packages/textual/widget.py#L4324-L4376)），compositor 对 Strip 做 diff，仅输出变化单元格——`refresh()` 调用次数本身不是主因，**帧间内容真实变化（颜色丢失）才是**。
+- 补全弹窗（[completion.py](yate/app_features/completion.py#L64-L73)，0.12s debounce）、LSP `notify_edit`（[manager.py:316](yate/editor_lsp/manager.py#L301-L316)，`call_later`）已有防抖，与本次闪烁无关。
 - 光标移动不 bump `content_version`，缓存已能存活（现有测试 `test_highlight_cache_survives_cursor_movement` 覆盖），无闪烁。
 
 ### 安全性依据
 
-- 陈旧 tokens 按字符区间着色，[_syntax_kinds](file:///d:/Programming/yate/yate/editor_view/editor.py#L316-L325) 已对 cell 数做 clamp；[char_to_cell](file:///d:/Programming/yate/yate/editor_view/theme.py#L512-L522) 对超出行长的索引天然安全（循环结束返回总宽），行级访问已有 `row < len(tokens)` 越界保护（editor.py:289）。
+- 陈旧 tokens 按字符区间着色，[_syntax_kinds](yate/editor_view/editor.py#L316-L325) 已对 cell 数做 clamp；[char_to_cell](yate/editor_view/theme.py#L512-L522) 对超出行长的索引天然安全（循环结束返回总宽），行级访问已有 `row < len(tokens)` 越界保护（editor.py:289）。
 - Textual `set_timer` 挂在 widget 的 MessagePump 上，widget 卸载时自动停止（message_pump.py:533-535），适合做视图级防抖。
 
 ## Files and Modules
 
-- [yate/editor_view/editor.py](file:///d:/Programming/yate/yate/editor_view/editor.py)：改造 `EditorView` 高亮缓存调度逻辑（唯一的生产代码改动文件）。
-- [tests/test_app_textual.py](file:///d:/Programming/yate/tests/test_app_textual.py)：新增防抖/陈旧缓存复用测试。
+- [yate/editor_view/editor.py](yate/editor_view/editor.py)：改造 `EditorView` 高亮缓存调度逻辑（唯一的生产代码改动文件）。
+- [tests/test_app_textual.py](tests/test_app_textual.py)：新增防抖/陈旧缓存复用测试。
 
 ## Implementation Steps
 
@@ -73,12 +73,12 @@ issues.md 第 1 条：输入时屏幕闪烁，影响输入体验，需要加入�
 - 唯一运行时依赖是已安装的 textual>=8.0；`set_timer` / `Timer.stop()` 均为其稳定 API。
 - 陈旧缓存代价：编辑行本身可能在约 80ms 内显示略陈旧的颜色，停顿后自动纠正——这是 VS Code/vim 语法插件的通用做法，远优于整屏脱色闪烁。
 - 跨多 pane：调度状态与 worker group 都是每 widget 一份，同文档的多个视图各自着色，互不取消（沿用现状）。
-- 扩展直接改 `buffer.lines` 后调用 `mark_content_changed()`（[extensions.py:19](file:///d:/Programming/yate/yate/services/extensions.py#L19)）同样 bump version，自动走新防抖路径，无需改动。
+- 扩展直接改 `buffer.lines` 后调用 `mark_content_changed()`（[extensions.py:19](yate/services/extensions.py#L19)）同样 bump version，自动走新防抖路径，无需改动。
 - Python 3.10 兼容（项目要求 >=3.10），类型标注用 `Optional`/`tuple`。
 
 ## Validation
 
-- `python -m unittest discover -s tests` 全量通过（重点 test_app_textual.py 中高亮相关用例）。
+- `python -m pytest tests` 全量通过（重点 test_app_textual.py 中高亮相关用例）。
 - pyright strict 零诊断（`[tool.pyright] typeCheckingMode = "strict"` 门禁）。
 - 手动验证：`python -m yate <一个较大的 .py 文件>`，插入模式长按/快速连打字符，确认不再出现整屏颜色闪白；停顿约 0.1s 后颜色正确；切换主题、`:set filetype=`、多 pane、撤销/重做后高亮最终一致。
 - 可选：用 `.trae/skills/textual-pilot-smoke` 做 headless 截图（SVG）对比编辑前后帧，确认无全帧脱色。

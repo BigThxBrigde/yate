@@ -1,4 +1,4 @@
-# editor_dap：DAP 调试支持与内置 Python 调试实施计划
+﻿# editor_dap：DAP 调试支持与内置 Python 调试实施计划
 
 > 新增 `yate/editor_dap` 包（零第三方依赖、纯标准库、UI 无关），
 > 架构完全镜像 `editor_lsp`：DAP-over-stdio 客户端 + 会话/断点管理器；
@@ -16,23 +16,23 @@
 > - 仓库中**尚不存在任何 DAP 代码**（无 `editor_dap` 包、无
 >   `python_dap.py`、无 debug 面板、无相关测试），Phase 1 从零开始；
 > - 自旧版计划以来代码库完成了 feature 层拆分：ex 命令注册表在
->   [app_features/commands.py](file:///d:/Programming/yate/yate/app_features/commands.py)，
+>   [app_features/commands.py](yate/app_features/commands.py)，
 >   终端生命周期在
->   [app_features/terminal.py](file:///d:/Programming/yate/yate/app_features/terminal.py)，
+>   [app_features/terminal.py](yate/app_features/terminal.py)，
 >   另有与键位解耦的动作表
->   [actions.py](file:///d:/Programming/yate/yate/actions.py)；旧计划中的
+>   [actions.py](yate/actions.py)；旧计划中的
 >   `editor_view/commands.py` **不存在**；
 > - 旧计划引用的行号均已漂移，本版全部按当前行号重锚；
 > - 新发现两个**前置改造项**（旧计划未覆盖）：键位层不支持带修饰的
 >   F 键（Shift+F5 等），且 **F5 当前是 vsc 模式打开 ex 命令行的专用键**，
 >   必须先做决策与改造，见 §5.0；
 > - 打包侧无需改动：wheel 由 hatchling `packages = ["yate"]`
->   （[pyproject.toml:58-63](file:///d:/Programming/yate/pyproject.toml#L58-L63)，
+>   （[pyproject.toml:58-63](pyproject.toml#L58-L63)，
 >   包内非 `.py` 资源自动随包；sdist `include` 见 L65-66；hatchling
 >   没有 force-include 配置，那是 PyInstaller 术语），
 >   PyInstaller 两个 spec 均以 `Tree(pkg_path("extensions"))` 与
->   `docs` 目录整树收集（[yate.spec:76-83](file:///d:/Programming/yate/pack/yate.spec#L76-L83)、
->   [yate-onefile.spec:84-91](file:///d:/Programming/yate/pack/yate-onefile.spec#L84-L91)），
+>   `docs` 目录整树收集（[yate.spec:76-83](pack/yate.spec#L76-L83)、
+>   [yate-onefile.spec:84-91](pack/yate-onefile.spec#L84-L91)），
 >   新增的 `.py.example` 与 `docs/dap.*.md` 自动入包。
 > - 二次复核修正：LSP 并**无 `spawn()` 方法**（进程拉起在
 >   `LspClient._connect()` L247-285，握手指 `start()` L192-245）；
@@ -48,26 +48,26 @@
 
 | 资产 | 位置 | DAP 复用方式 |
 |------|------|--------------|
-| Content-Length 分帧（协议无关） | [protocol.py:28](file:///d:/Programming/yate/yate/editor_lsp/protocol.py#L28) `MAX_MESSAGE_BYTES`、[L35-38](file:///d:/Programming/yate/yate/editor_lsp/protocol.py#L35-L38) `encode_message`、[L69-87](file:///d:/Programming/yate/yate/editor_lsp/protocol.py#L69-L87) `parse_headers`、[L90-98](file:///d:/Programming/yate/yate/editor_lsp/protocol.py#L90-L98) `decode_body`、[L101-120](file:///d:/Programming/yate/yate/editor_lsp/protocol.py#L101-L120) `read_message` | DAP 与 LSP 的 stdio 分帧完全相同，**直接 import 复用**（见 §3.1 决策） |
-| 单进程 JSON-RPC 客户端范式 | [client.py](file:///d:/Programming/yate/yate/editor_lsp/client.py) `LspClient`：构造于 [L157-188](file:///d:/Programming/yate/yate/editor_lsp/client.py#L157-L188)（`connect=` 注入、`init_timeout`）、`_connecting` future [L186-188](file:///d:/Programming/yate/yate/editor_lsp/client.py#L186-L188)、`start()` 握手 [L192-245](file:///d:/Programming/yate/yate/editor_lsp/client.py#L192-L245)、`_connect()` 进程拉起块 [L247-285](file:///d:/Programming/yate/yate/editor_lsp/client.py#L247-L285)（**没有名为 spawn 的方法**，subprocess 在 `_connect()` 内）、stop/`_cleanup` [L287-352](file:///d:/Programming/yate/yate/editor_lsp/client.py#L287-L352)（`_cleanup` 始于 L314） | `DapClient` 照此结构重写，构造签名同样取 `(config, root_path, *, on_event, connect, init_timeout)`；消息模型改为 seq/request_seq |
-| 配置/状态数据类的摆放 | LSP 把 `ServerConfig`、`ServerState` 放在 [client.py:47-96](file:///d:/Programming/yate/yate/editor_lsp/client.py#L47-L96)（**没有独立 types 模块**）；`ServerState` 成员为 CONFIGURED/STARTING/READY/FAILED/STOPPED | DAP 状态机不同（需 RUNNING/PAUSED/TERMINATED），**不共用枚举**；DAP 独立建 `types.py`（§3.2） |
-| 多配置管理器 + 事件回调 | [manager.py:60](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L60) `LspManager`，`__init__(workspace_root=, on_event=, client_factory=)` [L63-87](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L63-L87)；注册/替换 [L91-115](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L91-L115)；状态聚合 [L134-149](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L134-L149)；`error_for` [L156-160](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L156-L160)；root 解析 `root_for` [L172-185](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L172-L185)；`_make_client` 工厂 [L187-193](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L187-L193) | `DapManager`：注册表 + 单会话 + 断点存储 + 事件回调；`on_event` 签名与 LSP 一致（单参 kind 字符串），UI 从 manager 拉快照 |
-| 扩展注册桥 | [extensions.py:52-96](file:///d:/Programming/yate/yate/services/extensions.py#L52-L96) `LspExtensionBridge`（`api.lsp.register_server`，`name` 位置参其余 keyword-only）；`ExtensionAPI` [L190-234](file:///d:/Programming/yate/yate/services/extensions.py#L190-L234)、`lsp` property [L221-224](file:///d:/Programming/yate/yate/services/extensions.py#L221-L224)；加载器 [L312-384](file:///d:/Programming/yate/yate/services/extensions.py#L312-L384) | 新增姊妹 `DapExtensionBridge`（`api.dap.register_debugger`），同文件同风格 |
-| 内置扩展注册与发现 | [python_lsp.py](file:///d:/Programming/yate/yate/extensions/python_lsp.py)：env 覆盖/opt-out [L66-85](file:///d:/Programming/yate/yate/extensions/python_lsp.py#L66-L85)、解释器相邻 launcher 探测 [L39-52](file:///d:/Programming/yate/yate/extensions/python_lsp.py#L39-L52)、无参 `setup(api)` [L88-106](file:///d:/Programming/yate/yate/extensions/python_lsp.py#L88-L106) | `python_dap.py`：`YATE_PYTHON_DAP` → `debugpy-adapter` → 解释器相邻 launcher → `sys.executable -m debugpy.adapter` |
-| 声明式配置 | [config.py:48-51](file:///d:/Programming/yate/yate/config.py#L48-L51) `_KNOWN_OPTIONS`、`LanguageServerSpec` [L56-73](file:///d:/Programming/yate/yate/config.py#L56-L73)、`language_servers` 校验 `_extract_language_servers` [L374-469](file:///d:/Programming/yate/yate/config.py#L374-L469) | Phase 2 再做 `debug_adapters` 声明式注册；Phase 1 只加普通 dict 选项 `debug_options` |
-| gutter 渲染 | [editor.py:269-271](file:///d:/Programming/yate/yate/editor_view/editor.py#L269-L271) `gutter_width()`（现为 `max(3, digits) + 3`）；行号列+诊断标记拼于 [L441-463](file:///d:/Programming/yate/yate/editor_view/editor.py#L441-L463)（✖/▲）；当前行底色 `t.surface` [L438-439](file:///d:/Programming/yate/yate/editor_view/editor.py#L438-L439) | 公式 +1（断点/执行行一列 ●/▶）；诊断列逻辑不动 |
-| gutter 宽度的下游消费 | [app_features/completion.py:135](file:///d:/Programming/yate/yate/app_features/completion.py#L135) 与 [L184](file:///d:/Programming/yate/yate/app_features/completion.py#L184) 用 `editor.gutter_width()` 定位补全弹层 | 宽度 +1 自动传播，无需改 completion |
-| 事件回调刷 UI | [app.py:1316-1325](file:///d:/Programming/yate/yate/app.py#L1316-L1325) `_on_lsp_event`（遍历 `panes.all_views()` refresh + 状态栏 refresh）；worker 范式见 [L1310-1313](file:///d:/Programming/yate/yate/app.py#L1310-L1313)（`group="lsp-sync", exclusive=False, exit_on_error=False`） | `_on_dap_event` 紧随其后：刷 gutter、面板、状态栏；动作用 `run_worker(group="dap", exit_on_error=False)` |
-| App 持有与关闭 | [app.py:199-202](file:///d:/Programming/yate/yate/app.py#L199-L202) `self.lsp = LspManager(...)`；teardown 中 [app.py:1747-1750](file:///d:/Programming/yate/yate/app.py#L1747-L1750) `await self.lsp.shutdown_all()`；启动加载 [app.py:1754-1761](file:///d:/Programming/yate/yate/app.py#L1754-L1761)、rc 声明注册 [L1815-1836](file:///d:/Programming/yate/yate/app.py#L1815-L1836) | `self.dap` 同构；退出时并列 `await self.dap.shutdown_all()`；DAP 无 rc 声明注册（Phase 1 仅扩展） |
-| 动作表（键位解耦） | [actions.py:25-55](file:///d:/Programming/yate/yate/actions.py#L25-L55) `ActionRegistry`；内置动作 `populate` [L58-168](file:///d:/Programming/yate/yate/actions.py#L58-L168)（如 `command_prompt` [L156](file:///d:/Programming/yate/yate/actions.py#L156)） | 新增 `debug_start_or_continue`（单动作按会话状态分发，见 §5.5）、`toggle_breakpoint/step_over/step_into/step_out/pause_debug/debug_stop/debug_panel` 动作；键位只引用动作名 |
-| ex 命令注册表 | [app_features/commands.py:25-42](file:///d:/Programming/yate/yate/app_features/commands.py#L25-L42) `CommandRegistry`；内置命令 `register_commands` [L45-197](file:///d:/Programming/yate/yate/app_features/commands.py#L45-L197)（`:term` 等 [L190-196](file:///d:/Programming/yate/yate/app_features/commands.py#L190-L196)）；App 构造于 [app.py:181-182](file:///d:/Programming/yate/yate/app.py#L181-L182) | `:debug` 系列在此注册；**不是** `editor_view/commands.py`（不存在） |
-| feature 生命周期模块范式 | [app_features/terminal.py](file:///d:/Programming/yate/yate/app_features/terminal.py)：`toggle/open/close/spawn` 均为接收 app 的模块级函数，面板 widget 与状态标志留在 app | 新增 `app_features/debug.py` 同构：面板开关、launch/步进动作的 worker 编排、与终端面板互斥 |
-| 底部面板范式（widget） | [editor_view/terminal.py](file:///d:/Programming/yate/yate/editor_view/terminal.py)：`TerminalPanel(Vertical)`（[L326](file:///d:/Programming/yate/yate/editor_view/terminal.py#L326)）包 `TerminalView(Widget, can_focus=True)`（[L56](file:///d:/Programming/yate/yate/editor_view/terminal.py#L56)），`TOGGLE_KEYS` [L45-47](file:///d:/Programming/yate/yate/editor_view/terminal.py#L45-L47)；挂载于 [app.py:1695-1699](file:///d:/Programming/yate/yate/app.py#L1695-L1699) `#bottom-dock`（注释在 L1693-1694），初始 `display=False` [L1710-1712](file:///d:/Programming/yate/yate/app.py#L1710-L1712) | `DebugPanel(Vertical)` 同构挂同一 dock、terminal 之上；同一时刻只显一个；高度复用 `terminal_height` |
-| 集成终端后端（PTY/VT，新包） | [`yate/editor_term/`](file:///d:/Programming/yate/yate/editor_term)：`emulator.py`（VT 仿真，内含自己的 `_MOD_ARROWS` [L108](file:///d:/Programming/yate/yate/editor_term/emulator.py#L108)）、`pty_proc.py`（跨平台 PTY/`PtyProcessError`）、`shells.py`（`resolve_shell`）；`TerminalView` 经 [terminal.py:23](file:///d:/Programming/yate/yate/editor_view/terminal.py#L23) import 使用，feature 层在 [terminal.py:68](file:///d:/Programming/yate/yate/app_features/terminal.py#L68) 解析 shell | **Phase 1 不碰**（internalConsole 经 DAP output event 回传）；Phase 3 的 `console: "integratedTerminal"`/RunInTerminal 让 debuggee 经该 PTY 后端跑入面板（§12） |
-| 状态栏分段 | [statusbar.py:40-95](file:///d:/Programming/yate/yate/editor_view/statusbar.py#L40-L95) `refresh_status`；`_lsp_segment` [L97-122](file:///d:/Programming/yate/yate/editor_view/statusbar.py#L97-L122)（state→文案/样式，READY 附 ✖/▲ 计数） | 仿加 `_debug_segment()`，插入右侧拼装链 [L57-60](file:///d:/Programming/yate/yate/editor_view/statusbar.py#L57-L60) |
-| 键位层（原始字节） | [keymaps/base.py:22-52](file:///d:/Programming/yate/yate/keymaps/base.py#L22-L52) `SPECIAL_KEYS`、[L80-117](file:///d:/Programming/yate/yate/keymaps/base.py#L80-L117) `parse_key`、[L120-150](file:///d:/Programming/yate/yate/keymaps/base.py#L120-L150) `key_name`、[L204-215](file:///d:/Programming/yate/yate/keymaps/base.py#L204-L215) `add_binding`；Textual 键名→原始字节 [editor_view/keys.py:49-86](file:///d:/Programming/yate/yate/editor_view/keys.py#L49-L86) `textual_key_to_raw`（修饰表 `_MOD_ARROWS` L18-23/`_MOD_SPECIAL` L25-29 在同文件顶部） | **需先扩展**：`<shift-f5>` 等带修饰 F 键当前解析为裸 F5（[base.py:96-98](file:///d:/Programming/yate/yate/keymaps/base.py#L96-L98) 只处理单字符 shift），详见 §5.0 |
-| 诊断报告 | [diagnostics.py:86-99](file:///d:/Programming/yate/yate/diagnostics.py#L86-L99) 节注册表；lsp 节 [L391-414](file:///d:/Programming/yate/yate/diagnostics.py#L391-L414)；config 节 [L288-302](file:///d:/Programming/yate/yate/diagnostics.py#L288-L302)；`--diag` 入口 [cli.py:256-268](file:///d:/Programming/yate/yate/cli.py#L256-L268) | 在 lsp 之后插入 `dap` 节；注意测试里有硬编码 12 节清单（见 §8.2） |
-| 模板分发 | [services/user_setup.py:102-106](file:///d:/Programming/yate/yate/services/user_setup.py#L102-L106) 对内置扩展目录通配拷贝 `*.py.example` | `example_js_dap.py.example` 零改动自动随 `--setup-defaults` 分发 |
+| Content-Length 分帧（协议无关） | [protocol.py:28](yate/editor_lsp/protocol.py#L28) `MAX_MESSAGE_BYTES`、[L35-38](yate/editor_lsp/protocol.py#L35-L38) `encode_message`、[L69-87](yate/editor_lsp/protocol.py#L69-L87) `parse_headers`、[L90-98](yate/editor_lsp/protocol.py#L90-L98) `decode_body`、[L101-120](yate/editor_lsp/protocol.py#L101-L120) `read_message` | DAP 与 LSP 的 stdio 分帧完全相同，**直接 import 复用**（见 §3.1 决策） |
+| 单进程 JSON-RPC 客户端范式 | [client.py](yate/editor_lsp/client.py) `LspClient`：构造于 [L157-188](yate/editor_lsp/client.py#L157-L188)（`connect=` 注入、`init_timeout`）、`_connecting` future [L186-188](yate/editor_lsp/client.py#L186-L188)、`start()` 握手 [L192-245](yate/editor_lsp/client.py#L192-L245)、`_connect()` 进程拉起块 [L247-285](yate/editor_lsp/client.py#L247-L285)（**没有名为 spawn 的方法**，subprocess 在 `_connect()` 内）、stop/`_cleanup` [L287-352](yate/editor_lsp/client.py#L287-L352)（`_cleanup` 始于 L314） | `DapClient` 照此结构重写，构造签名同样取 `(config, root_path, *, on_event, connect, init_timeout)`；消息模型改为 seq/request_seq |
+| 配置/状态数据类的摆放 | LSP 把 `ServerConfig`、`ServerState` 放在 [client.py:47-96](yate/editor_lsp/client.py#L47-L96)（**没有独立 types 模块**）；`ServerState` 成员为 CONFIGURED/STARTING/READY/FAILED/STOPPED | DAP 状态机不同（需 RUNNING/PAUSED/TERMINATED），**不共用枚举**；DAP 独立建 `types.py`（§3.2） |
+| 多配置管理器 + 事件回调 | [manager.py:60](yate/editor_lsp/manager.py#L60) `LspManager`，`__init__(workspace_root=, on_event=, client_factory=)` [L63-87](yate/editor_lsp/manager.py#L63-L87)；注册/替换 [L91-115](yate/editor_lsp/manager.py#L91-L115)；状态聚合 [L134-149](yate/editor_lsp/manager.py#L134-L149)；`error_for` [L156-160](yate/editor_lsp/manager.py#L156-L160)；root 解析 `root_for` [L172-185](yate/editor_lsp/manager.py#L172-L185)；`_make_client` 工厂 [L187-193](yate/editor_lsp/manager.py#L187-L193) | `DapManager`：注册表 + 单会话 + 断点存储 + 事件回调；`on_event` 签名与 LSP 一致（单参 kind 字符串），UI 从 manager 拉快照 |
+| 扩展注册桥 | [extensions.py:52-96](yate/services/extensions.py#L52-L96) `LspExtensionBridge`（`api.lsp.register_server`，`name` 位置参其余 keyword-only）；`ExtensionAPI` [L190-234](yate/services/extensions.py#L190-L234)、`lsp` property [L221-224](yate/services/extensions.py#L221-L224)；加载器 [L312-384](yate/services/extensions.py#L312-L384) | 新增姊妹 `DapExtensionBridge`（`api.dap.register_debugger`），同文件同风格 |
+| 内置扩展注册与发现 | [python_lsp.py](yate/extensions/python_lsp.py)：env 覆盖/opt-out [L66-85](yate/extensions/python_lsp.py#L66-L85)、解释器相邻 launcher 探测 [L39-52](yate/extensions/python_lsp.py#L39-L52)、无参 `setup(api)` [L88-106](yate/extensions/python_lsp.py#L88-L106) | `python_dap.py`：`YATE_PYTHON_DAP` → `debugpy-adapter` → 解释器相邻 launcher → `sys.executable -m debugpy.adapter` |
+| 声明式配置 | [config.py:48-51](yate/config.py#L48-L51) `_KNOWN_OPTIONS`、`LanguageServerSpec` [L56-73](yate/config.py#L56-L73)、`language_servers` 校验 `_extract_language_servers` [L374-469](yate/config.py#L374-L469) | Phase 2 再做 `debug_adapters` 声明式注册；Phase 1 只加普通 dict 选项 `debug_options` |
+| gutter 渲染 | [editor.py:269-271](yate/editor_view/editor.py#L269-L271) `gutter_width()`（现为 `max(3, digits) + 3`）；行号列+诊断标记拼于 [L441-463](yate/editor_view/editor.py#L441-L463)（✖/▲）；当前行底色 `t.surface` [L438-439](yate/editor_view/editor.py#L438-L439) | 公式 +1（断点/执行行一列 ●/▶）；诊断列逻辑不动 |
+| gutter 宽度的下游消费 | [app_features/completion.py:135](yate/app_features/completion.py#L135) 与 [L184](yate/app_features/completion.py#L184) 用 `editor.gutter_width()` 定位补全弹层 | 宽度 +1 自动传播，无需改 completion |
+| 事件回调刷 UI | [app.py:1316-1325](yate/app.py#L1316-L1325) `_on_lsp_event`（遍历 `panes.all_views()` refresh + 状态栏 refresh）；worker 范式见 [L1310-1313](yate/app.py#L1310-L1313)（`group="lsp-sync", exclusive=False, exit_on_error=False`） | `_on_dap_event` 紧随其后：刷 gutter、面板、状态栏；动作用 `run_worker(group="dap", exit_on_error=False)` |
+| App 持有与关闭 | [app.py:199-202](yate/app.py#L199-L202) `self.lsp = LspManager(...)`；teardown 中 [app.py:1747-1750](yate/app.py#L1747-L1750) `await self.lsp.shutdown_all()`；启动加载 [app.py:1754-1761](yate/app.py#L1754-L1761)、rc 声明注册 [L1815-1836](yate/app.py#L1815-L1836) | `self.dap` 同构；退出时并列 `await self.dap.shutdown_all()`；DAP 无 rc 声明注册（Phase 1 仅扩展） |
+| 动作表（键位解耦） | [actions.py:25-55](yate/actions.py#L25-L55) `ActionRegistry`；内置动作 `populate` [L58-168](yate/actions.py#L58-L168)（如 `command_prompt` [L156](yate/actions.py#L156)） | 新增 `debug_start_or_continue`（单动作按会话状态分发，见 §5.5）、`toggle_breakpoint/step_over/step_into/step_out/pause_debug/debug_stop/debug_panel` 动作；键位只引用动作名 |
+| ex 命令注册表 | [app_features/commands.py:25-42](yate/app_features/commands.py#L25-L42) `CommandRegistry`；内置命令 `register_commands` [L45-197](yate/app_features/commands.py#L45-L197)（`:term` 等 [L190-196](yate/app_features/commands.py#L190-L196)）；App 构造于 [app.py:181-182](yate/app.py#L181-L182) | `:debug` 系列在此注册；**不是** `editor_view/commands.py`（不存在） |
+| feature 生命周期模块范式 | [app_features/terminal.py](yate/app_features/terminal.py)：`toggle/open/close/spawn` 均为接收 app 的模块级函数，面板 widget 与状态标志留在 app | 新增 `app_features/debug.py` 同构：面板开关、launch/步进动作的 worker 编排、与终端面板互斥 |
+| 底部面板范式（widget） | [editor_view/terminal.py](yate/editor_view/terminal.py)：`TerminalPanel(Vertical)`（[L326](yate/editor_view/terminal.py#L326)）包 `TerminalView(Widget, can_focus=True)`（[L56](yate/editor_view/terminal.py#L56)），`TOGGLE_KEYS` [L45-47](yate/editor_view/terminal.py#L45-L47)；挂载于 [app.py:1695-1699](yate/app.py#L1695-L1699) `#bottom-dock`（注释在 L1693-1694），初始 `display=False` [L1710-1712](yate/app.py#L1710-L1712) | `DebugPanel(Vertical)` 同构挂同一 dock、terminal 之上；同一时刻只显一个；高度复用 `terminal_height` |
+| 集成终端后端（PTY/VT，新包） | [`yate/editor_term/`](yate/editor_term)：`emulator.py`（VT 仿真，内含自己的 `_MOD_ARROWS` [L108](yate/editor_term/emulator.py#L108)）、`pty_proc.py`（跨平台 PTY/`PtyProcessError`）、`shells.py`（`resolve_shell`）；`TerminalView` 经 [terminal.py:23](yate/editor_view/terminal.py#L23) import 使用，feature 层在 [terminal.py:68](yate/app_features/terminal.py#L68) 解析 shell | **Phase 1 不碰**（internalConsole 经 DAP output event 回传）；Phase 3 的 `console: "integratedTerminal"`/RunInTerminal 让 debuggee 经该 PTY 后端跑入面板（§12） |
+| 状态栏分段 | [statusbar.py:40-95](yate/editor_view/statusbar.py#L40-L95) `refresh_status`；`_lsp_segment` [L97-122](yate/editor_view/statusbar.py#L97-L122)（state→文案/样式，READY 附 ✖/▲ 计数） | 仿加 `_debug_segment()`，插入右侧拼装链 [L57-60](yate/editor_view/statusbar.py#L57-L60) |
+| 键位层（原始字节） | [keymaps/base.py:22-52](yate/keymaps/base.py#L22-L52) `SPECIAL_KEYS`、[L80-117](yate/keymaps/base.py#L80-L117) `parse_key`、[L120-150](yate/keymaps/base.py#L120-L150) `key_name`、[L204-215](yate/keymaps/base.py#L204-L215) `add_binding`；Textual 键名→原始字节 [editor_view/keys.py:49-86](yate/editor_view/keys.py#L49-L86) `textual_key_to_raw`（修饰表 `_MOD_ARROWS` L18-23/`_MOD_SPECIAL` L25-29 在同文件顶部） | **需先扩展**：`<shift-f5>` 等带修饰 F 键当前解析为裸 F5（[base.py:96-98](yate/keymaps/base.py#L96-L98) 只处理单字符 shift），详见 §5.0 |
+| 诊断报告 | [diagnostics.py:86-99](yate/diagnostics.py#L86-L99) 节注册表；lsp 节 [L391-414](yate/diagnostics.py#L391-L414)；config 节 [L288-302](yate/diagnostics.py#L288-L302)；`--diag` 入口 [cli.py:256-268](yate/cli.py#L256-L268) | 在 lsp 之后插入 `dap` 节；注意测试里有硬编码 12 节清单（见 §8.2） |
+| 模板分发 | [services/user_setup.py:102-106](yate/services/user_setup.py#L102-L106) 对内置扩展目录通配拷贝 `*.py.example` | `example_js_dap.py.example` 零改动自动随 `--setup-defaults` 分发 |
 
 ---
 
@@ -138,9 +138,9 @@ def event_body(message: dict) -> dict
 ```
 
 `DapError(RuntimeError)` 为本包错误基类（对照 LSP 的 `LspError`
-[client.py:55](file:///d:/Programming/yate/yate/editor_lsp/client.py#L55)）；
+[client.py:55](yate/editor_lsp/client.py#L55)）；
 §3.3 的 `DapResponseError`/`DapConnectionError` 均继承它（对照
-`LspResponseError` [L59](file:///d:/Programming/yate/yate/editor_lsp/client.py#L59)）。
+`LspResponseError` [L59](yate/editor_lsp/client.py#L59)）。
 
 ### 3.2 types.py
 
@@ -198,7 +198,7 @@ class StoppedSnapshot:
 ```
 
 会话状态枚举（**不与 LSP 共用**——LSP 的 `ServerState`
-[client.py:47-52](file:///d:/Programming/yate/yate/editor_lsp/client.py#L47-L52)
+[client.py:47-52](yate/editor_lsp/client.py#L47-L52)
 只有 CONFIGURED/STARTING/READY/FAILED/STOPPED，表达不了运行/暂停）：
 
 ```python
@@ -224,7 +224,7 @@ UI 收到回调后从 manager 读 `snapshot()`/`output_text()`/`session_state()`
 `_read_task`、`_bg_tasks`、`_write_lock`、`connect=` 传输注入、
 `init_timeout`、`_connecting` future）。构造签名刻意对齐 LSP 以便
 `client_factory` 形态一致（对照
-[manager.py:187-193](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L187-L193)）：
+[manager.py:187-193](yate/editor_lsp/manager.py#L187-L193)）：
 
 ```python
 class DapResponseError(DapError):  # success=False：command + message + body
@@ -290,13 +290,13 @@ dispatch 规则（`_dispatch`）：
 configurationDone。测试必须固化此顺序。
 
 进程拉起/teardown 直接复刻 LSP 的经验件：`_connect()`
-[client.py:247-285](file:///d:/Programming/yate/yate/editor_lsp/client.py#L247-L285)
+[client.py:247-285](yate/editor_lsp/client.py#L247-L285)
 内 `create_subprocess_exec`（`stderr=DEVNULL`、cwd=root，L255-263）+
 在途停止分支（L265-284）；`stop()`/`_cleanup`
-[L287-352](file:///d:/Programming/yate/yate/editor_lsp/client.py#L287-L352)
+[L287-352](yate/editor_lsp/client.py#L287-L352)
 借 `_connecting` future 等在途 `_connect()` 收尾，Windows cwd
 占用/子进程残留由同一链路兜底（测试固化于
-[test_lsp.py:387](file:///d:/Programming/yate/tests/test_lsp.py#L387)）。
+[test_lsp.py:387](tests/test_lsp.py#L387)）。
 
 ### 3.4 manager.py — DapManager
 
@@ -343,7 +343,7 @@ class DapManager:
 关键行为：
 
 1. **root/program 解析**：复刻 LSP `root_for` 的三层逻辑
-   （[manager.py:172-185](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L172-L185)：
+   （[manager.py:172-185](yate/editor_lsp/manager.py#L172-L185)：
    `workspace_root` 回调且文件在其下 → workspace root；否则沿
    root_markers 向上找；再否则文件父目录）；`program` 必须是绝对路径；
    仅支持**已保存且无未保存改动**的文件，否则返回 False 并回调
@@ -377,7 +377,7 @@ class DapManager:
 8. **纯异步、无 Textual import**：manager 只 import asyncio/dataclasses/
    pathlib/typing + 本包 + `editor_core.document.Document`（**运行时直接
    import，不是 TYPE_CHECKING**——
-   [manager.py:23](file:///d:/Programming/yate/yate/editor_lsp/manager.py#L23)
+   [manager.py:23](yate/editor_lsp/manager.py#L23)
    即如此；`editor_core` 是 UI 无关核心层，不牵出 textual，DAP 同一边界）。
 
 ---
@@ -386,10 +386,10 @@ class DapManager:
 
 ### 4.1 DapExtensionBridge（services/extensions.py）
 
-与 [LspExtensionBridge](file:///d:/Programming/yate/yate/services/extensions.py#L52-L96)
+与 [LspExtensionBridge](yate/services/extensions.py#L52-L96)
 对称（`name` 位置参、其余 keyword-only、空 command 懒失败的文档约定一致）；
 `ExtensionAPI` 增加 `dap` property（紧邻
-[lsp property L221-224](file:///d:/Programming/yate/yate/services/extensions.py#L221-L224)）：
+[lsp property L221-224](yate/services/extensions.py#L221-L224)）：
 
 ```python
 class DapExtensionBridge:
@@ -403,15 +403,15 @@ class DapExtensionBridge:
 ```
 
 参数校验/默认值在桥内完成（`root_markers=None` 给 DAP 默认 marker 元组，
-与 LSP 桥 [L86-87](file:///d:/Programming/yate/yate/services/extensions.py#L86-L87)
+与 LSP 桥 [L86-87](yate/services/extensions.py#L86-L87)
 同构），构造 `DebuggerConfig` 交给 `self._app.dap.register_debugger(...)`。
 
 ### 4.2 extensions/python_dap.py（内置，可禁用）
 
-镜像 [python_lsp.py](file:///d:/Programming/yate/yate/extensions/python_lsp.py)
+镜像 [python_lsp.py](yate/extensions/python_lsp.py)
 的文档串与发现逻辑，**五级发现（含全空兜底）**（比旧计划多一级解释器相邻 launcher，
 复刻 LSP 的 `_venv_langserver`
-[python_lsp.py:39-52](file:///d:/Programming/yate/yate/extensions/python_lsp.py#L39-L52)，
+[python_lsp.py:39-52](yate/extensions/python_lsp.py#L39-L52)，
 覆盖 venv 的 Scripts 不在 PATH 的情况）：
 
 ```python
@@ -448,7 +448,7 @@ launch 时的 `program/args/cwd/env/pythonPath` 由 manager 注入；
 该键属 debugpy 专有，**不**开放 yaterc 覆盖（理由与后续通道见 §4.3 末注）。
 
 扩展加载时序：现有 `load_startup_services`
-（[app.py:1754-1761](file:///d:/Programming/yate/yate/app.py#L1754-L1761)）
+（[app.py:1754-1761](yate/app.py#L1754-L1761)）
 只有 `_load_extensions()` + `_register_configured_servers()` 两步；
 DAP 注册在同一遍 setup(api) 中自然生效，Phase 1 无需第三步。
 
@@ -463,7 +463,7 @@ debug_options = {"env": {"FLASK_DEBUG": "1"}}   # 合并进 debuggee 环境
 # console 固定 internalConsole；console 键 Phase 3 随 integratedTerminal 一起放开
 ```
 
-`_KNOWN_OPTIONS`（[config.py:48-51](file:///d:/Programming/yate/yate/config.py#L48-L51)）
+`_KNOWN_OPTIONS`（[config.py:48-51](yate/config.py#L48-L51)）
 增加 `"debug_options"`；值必须为 dict，键在**跨 adapter 通用白名单**
 （Phase 1：`env`/`stopOnEntry`/`args`；`console` 待 Phase 3）内，否则按现有 config 错误收集
 风格记入 `config.errors`（启动消息行 + yaterc 节 load errors +
@@ -483,7 +483,7 @@ adapter 时 yaterc 选项不会把未知键盲传出去。
 随包提供 JavaScript/Node 调试扩展示例，演示"任何 stdio DAP adapter 都
 能用 `api.dap` 接入"。与 `example_ext.py.example` 同级、同后缀约定
 （`.py.example` 不自动加载；`--setup-defaults` 通过
-[user_setup.py:102-106](file:///d:/Programming/yate/yate/services/user_setup.py#L102-L106)
+[user_setup.py:102-106](yate/services/user_setup.py#L102-L106)
 的 `*.py.example` 通配一并拷到 `~/.yate/extensions/`，用户改名为
 `.py` 即激活）。
 
@@ -592,26 +592,26 @@ dap 文档以 JS 示例为完整走查，其余以"发现命令 + launch 模板�
 ### 5.0 前置改造：键位层与 F5 冲突（旧计划遗漏，必须先做）
 
 **事实 1：F5 已被占用。** vsc 键位中 F5 是 ex 命令行入口
-（[vsc.py:88-91](file:///d:/Programming/yate/yate/keymaps/vsc.py#L88-L91)，
+（[vsc.py:88-91](yate/keymaps/vsc.py#L88-L91)，
 动作为 `command_prompt`，注册于
-[actions.py:156](file:///d:/Programming/yate/yate/actions.py#L156)）。
+[actions.py:156](yate/actions.py#L156)）。
 vsc 模式下 `:` 是**普通输入字符**（冒号要直接写进代码，刻意未绑定；
-见 [editor.py:539-542](file:///d:/Programming/yate/yate/editor_view/editor.py#L539-L542)
+见 [editor.py:539-542](yate/editor_view/editor.py#L539-L542)
 欢迎页注释）；ex 命令行仅 vim 模式由 `:` 触发
-（[vim.py:200](file:///d:/Programming/yate/yate/keymaps/vim.py#L200)、
-[L381](file:///d:/Programming/yate/yate/keymaps/vim.py#L381)）。
+（[vim.py:200](yate/keymaps/vim.py#L200)、
+[L381](yate/keymaps/vim.py#L381)）。
 手册中 F5=命令行的说明 en/zh 各 6 处（**两版行号不同**）：
-[manual.en.md](file:///d:/Programming/yate/yate/resources/manual.en.md)
+[manual.en.md](yate/resources/manual.en.md)
 L181/L329/L347/L530/L554/L1346；
-[manual.zh.md](file:///d:/Programming/yate/yate/resources/manual.zh.md)
+[manual.zh.md](yate/resources/manual.zh.md)
 L172/L314/L331/L499/L518/L1213。
 其余 F 键占用：F1 help、F2 shell、F3 find next、F4 replace、F8 manual；
 **F6/F7/F9/F10/F11/F12 空闲**。
 
-**事实 2：带修饰的 F 键当前无法解析。** [parse_key](file:///d:/Programming/yate/yate/keymaps/base.py#L80-L117)
+**事实 2：带修饰的 F 键当前无法解析。** [parse_key](yate/keymaps/base.py#L80-L117)
 对 `<shift-f5>` 会退化为裸 F5 序列（shift 分支只大写单字符，
-[base.py:96-98](file:///d:/Programming/yate/yate/keymaps/base.py#L96-L98)）；
-[textual_key_to_raw](file:///d:/Programming/yate/yate/editor_view/keys.py#L49-L86)
+[base.py:96-98](yate/keymaps/base.py#L96-L98)）；
+[textual_key_to_raw](yate/editor_view/keys.py#L49-L86)
 的修饰表只覆盖方向键/home/end/tab，没有 F 键。Shift+F5/Shift+F11
 无可用键位。
 
@@ -622,11 +622,11 @@ L172/L314/L331/L499/L518/L1213。
    空闲；`:set keymap` 式自定义留给后续键位可配置化，Phase 2）。
    `:` 维持普通输入字符不变。同步更新 vsc.py 注释（L88-90）与绑定
    （L91）、手册中英文
-   各 6 处引用（行号见事实 1）、README 键位表（[README.md:89](file:///d:/Programming/yate/README.md#L89)、
-   [README.zh.md:109](file:///d:/Programming/yate/README.zh.md#L109) 与 [L412](file:///d:/Programming/yate/README.zh.md#L412)）；
+   各 6 处引用（行号见事实 1）、README 键位表（[README.md:89](README.md#L89)、
+   [README.zh.md:109](README.zh.md#L109) 与 [L412](README.zh.md#L412)）；
    F1 帮助覆盖层由键位表自动生成（manual.en.md L260-261 说明），新增
    DBG 分类后自动出现，无需单独改。**welcome 页 hints 不含 F5**
-   （[editor.py:535-548](file:///d:/Programming/yate/yate/editor_view/editor.py#L535-L548)
+   （[editor.py:535-548](yate/editor_view/editor.py#L535-L548)
    只有 Ctrl+P / Alt+Shift+P / Ctrl+F / Ctrl+` / Ctrl+S / F1，以及
    vim-only 的 `:` 注释 L539-542），没有 F5 文案要迁移；是否在 welcome
    增列调试键属新增内容，实施时自行决定。
@@ -638,21 +638,21 @@ L172/L314/L331/L499/L518/L1213。
    为 F5=15、F6=17、F7=18、F8=19、F9=20、F10=21、F11=23、F12=24；
    带修饰发 `\x1b[<code>;<param>~`，param = 2(shift)/3(alt)/
    5(ctrl)/6(ctrl+shift)。改造点：
-   - [base.py](file:///d:/Programming/yate/yate/keymaps/base.py)：
+   - [base.py](yate/keymaps/base.py)：
      `parse_key` 对 `~` 族 F 键按修饰符拼参数序列；`key_name` 与
-     `KEY_ALIASES`（[L55-77](file:///d:/Programming/yate/yate/keymaps/base.py#L55-L77)）
+     `KEY_ALIASES`（[L55-77](yate/keymaps/base.py#L55-L77)）
      增加逆映射，帮助覆盖层能显示 `<shift+f5>`；
-   - [editor_view/keys.py](file:///d:/Programming/yate/yate/editor_view/keys.py)：
+   - [editor_view/keys.py](yate/editor_view/keys.py)：
      `textual_key_to_raw` 识别 Textual 的 `shift+f5`/`ctrl+shift+f5`
      事件名（mods 排序元组匹配，风格同现有 `_MOD_ARROWS`
-     [L18-23](file:///d:/Programming/yate/yate/editor_view/keys.py#L18-L23)）；
+     [L18-23](yate/editor_view/keys.py#L18-L23)）；
    - 本期只实现调试实际用到的 shift 组合（Shift+F5、Shift+F11），
      其余参数序列一次性支持但不绑定。
 3. **两套键位都加调试键**：vsc 全局生效；vim 仅 NORMAL/VISUAL 模式
    生效（INSERT 不拦截，由 vim 键位的模式判断处理，与其现有 F 键空白
    不冲突）。vim 用户始终可用 `:debug` 系列命令。
 4. 新增帮助分类常量 `DBG = "Debug"`（vsc.py 顶部常量区
-   [L8-16](file:///d:/Programming/yate/yate/keymaps/vsc.py#L8-L16)），
+   [L8-16](yate/keymaps/vsc.py#L8-L16)），
    帮助页自动分组。
 
 ### 5.1 断点与会话状态模型（app 侧）
@@ -660,7 +660,7 @@ L172/L314/L331/L499/L518/L1213。
 - 断点的唯一存储在 `DapManager`（按 path），App 不另存；
 - 执行行 `self.dap.active_location()` 供 gutter 读取；
 - `_on_dap_event(kind: str)`（紧随
-  [_on_lsp_event L1316-1325](file:///d:/Programming/yate/yate/app.py#L1316-L1325)，
+  [_on_lsp_event L1316-1325](yate/app.py#L1316-L1325)，
   事件循环线程安全约定相同）：
   - stopped/continued：所有 editor view refresh（gutter 标记/执行行）、
     调试面板刷新（栈/变量/输出）、状态栏刷新；stopped 时面板自动切 info；
@@ -671,17 +671,17 @@ L172/L314/L331/L499/L518/L1213。
     `pip install debugpy` 提示）；
 - 所有动作用 `self.run_worker(coro, group="dap", exclusive=False,
   exit_on_error=False)` 发起（范式同
-  [app.py:1310-1313](file:///d:/Programming/yate/yate/app.py#L1310-L1313)
+  [app.py:1310-1313](yate/app.py#L1310-L1313)
   的 lsp-sync 组），动作函数本身不阻塞事件循环。
 
 ### 5.2 gutter 标记（editor.py）
 
-[gutter_width()](file:///d:/Programming/yate/yate/editor_view/editor.py#L269-L271)
+[gutter_width()](yate/editor_view/editor.py#L269-L271)
 由 `max(3, digits) + 3` 改为 `+ 4`，gutter 布局从
-`空|行号|空|诊断`（[L460-463](file:///d:/Programming/yate/yate/editor_view/editor.py#L460-L463)）
+`空|行号|空|诊断`（[L460-463](yate/editor_view/editor.py#L460-L463)）
 扩为 `空|行号|空|诊断|调试点`，宽度恒定（与有无会话无关，避免文本
 左右抖动）；补全弹层因复用 gutter_width
-（[completion.py:135](file:///d:/Programming/yate/yate/app_features/completion.py#L135)）
+（[completion.py:135](yate/app_features/completion.py#L135)）
 自动跟随，无需另改：
 
 | 情况 | 调试点列 |
@@ -692,7 +692,7 @@ L172/L314/L331/L499/L518/L1213。
 | 其他 | 空格 |
 
 执行行额外整行处理：行号 bold + 行底 `t.surface`（MVP 直接复用当前行
-已有的 surface 底 [L438-439](file:///d:/Programming/yate/yate/editor_view/editor.py#L438-L439)，
+已有的 surface 底 [L438-439](yate/editor_view/editor.py#L438-L439)，
 零 Theme 变更；不加新颜色字段）。诊断列逻辑不动。
 断点红/执行黄都是既有字段（t.red/t.yellow）。welcome 页经同一 gutter
 渲染，实施时核对其居中（`_render_welcome` 以 gutter_w 为左边界）不错位。
@@ -700,25 +700,25 @@ L172/L314/L331/L499/L518/L1213。
 ### 5.3 调试面板：widget + feature 分层（两个新文件）
 
 **widget**：`editor_view/debug_panel.py`（仿
-[editor_view/terminal.py](file:///d:/Programming/yate/yate/editor_view/terminal.py)
+[editor_view/terminal.py](yate/editor_view/terminal.py)
 的 Textual 部件：`DebugPanel(Vertical)` 对照 `TerminalPanel`
-[terminal.py:326](file:///d:/Programming/yate/yate/editor_view/terminal.py#L326)，
+[terminal.py:326](yate/editor_view/terminal.py#L326)，
 包一个可聚焦的 `DebugView(Widget, can_focus=True)` 对照
-`TerminalView` [L56](file:///d:/Programming/yate/yate/editor_view/terminal.py#L56)，
+`TerminalView` [L56](yate/editor_view/terminal.py#L56)，
 只负责渲染与按键，不持有调试状态；**不引入 editor_term 依赖**，面板
 无 PTY）。挂载于
-[compose 的 #bottom-dock](file:///d:/Programming/yate/yate/app.py#L1695-L1699)
+[compose 的 #bottom-dock](yate/app.py#L1695-L1699)
 （`TerminalPanel` 之上），初始 `display=False`，on_mount 中与 terminal
-同样取引用并设高（[L1710-1712](file:///d:/Programming/yate/yate/app.py#L1710-L1712)）。
+同样取引用并设高（[L1710-1712](yate/app.py#L1710-L1712)）。
 
 **feature 生命周期**：`app_features/debug.py`（仿
-[app_features/terminal.py](file:///d:/Programming/yate/yate/app_features/terminal.py)：
+[app_features/terminal.py](yate/app_features/terminal.py)：
 模块级 `toggle_debug_panel/open_debug_panel/close_debug_panel(app)`，
 状态标志 `_debug_visible` 留在 app；launch/step/stop 的 worker 编排也
 放这里）。与终端面板**互斥**：开 debug panel 时调用
-`close_terminal(app)`（[terminal.py:49-58](file:///d:/Programming/yate/yate/app_features/terminal.py#L49-L58)），
+`close_terminal(app)`（[terminal.py:49-58](yate/app_features/terminal.py#L49-L58)），
 反向亦然；高度共用配置 `terminal_height`
-（[config.py:93](file:///d:/Programming/yate/yate/config.py#L93)），
+（[config.py:93](yate/config.py#L93)），
 `:set terminal_height` 对两者同时生效，不新增配置项。
 
 双模式：
@@ -741,9 +741,9 @@ threadId；其他线程只读展示在 info 顶部但不可切换）、变量就
 ### 5.4 状态栏（statusbar.py）
 
 仿照 `_lsp_segment`
-（[statusbar.py:97-122](file:///d:/Programming/yate/yate/editor_view/statusbar.py#L97-L122)）
+（[statusbar.py:97-122](yate/editor_view/statusbar.py#L97-L122)）
 新增 `_debug_segment()` 并接入右侧拼装链
-（[L57-60](file:///d:/Programming/yate/yate/editor_view/statusbar.py#L57-L60)）。
+（[L57-60](yate/editor_view/statusbar.py#L57-L60)）。
 仅在会话非 CONFIGURED/TERMINATED 时显示，无会话时零占位、不影响现有
 宽度预算：
 
@@ -755,14 +755,14 @@ threadId；其他线程只读展示在 info 顶部但不可切换）、变量就
 
 ### 5.5 动作、命令与键位
 
-动作注册在 [actions.py](file:///d:/Programming/yate/yate/actions.py) 的
+动作注册在 [actions.py](yate/actions.py) 的
 `populate`（键位只引用动作名；动作体转发到 `app_features/debug.py`）：
 `debug_start_or_continue`（F5 单动作按会话状态分发：无会话→launch、
 PAUSED→continue、RUNNING→消息提示）、`toggle_breakpoint`、`step_over`、
 `step_into`、`step_out`、`pause_debug`、`debug_stop`、`debug_panel`。
 
 命令注册在
-[register_commands](file:///d:/Programming/yate/yate/app_features/commands.py#L45)
+[register_commands](yate/app_features/commands.py#L45)
 （命令面板可搜、可绑键、扩展可调）：
 
 | ex 命令 | 动作 | vsc 默认键（迁移后） | vim |
@@ -787,7 +787,7 @@ F5 上下文行为：无活动会话=launch、PAUSED=continue、RUNNING=noop 给
 ### 5.6 关闭路径
 
 - 退出 App：teardown 序列中
-  [app.py:1741-1750](file:///d:/Programming/yate/yate/app.py#L1741-L1750)
+  [app.py:1741-1750](yate/app.py#L1741-L1750)
   在 terminal/lsp 之间插入 `await self.dap.shutdown_all()`，
   terminate 给 3s 宽限再 disconnect/kill，退出不被挂死；各 teardown
   相互隔离（沿用现有 try/except 模式）；
@@ -812,7 +812,7 @@ F5 上下文行为：无活动会话=launch、PAUSED=continue、RUNNING=noop 给
 | 终端不发送带修饰 F 键序列（个别终端/多路复用器） | 所有动作都有 `:命令` 与命令面板兜底；dap 文档"键位"节列出该限制与 Shift+F5 的原始序列 |
 | 单文件单测全用内存假 adapter | `client_factory`/`connect` 双注入点，零真实进程（与 LSP 测试同手法） |
 
-`yate --diag` 在 `[lsp]` 节（[diagnostics.py:391-414](file:///d:/Programming/yate/yate/diagnostics.py#L391-L414)）
+`yate --diag` 在 `[lsp]` 节（[diagnostics.py:391-414](yate/diagnostics.py#L391-L414)）
 之后新增 **`[dap]`** 节：注册的 debugger 名单、filetypes、发现的
 command（或 `(none)`）、扩展 opt-out 状态、launch 模板键名、当前会话
 状态。风格沿用 lsp 节的两列缩进。
@@ -854,12 +854,12 @@ command（或 `(none)`）、扩展 opt-out 状态、launch 模板键名、当前
 ### 8.1 单元（无真实进程，镜像 LSP 测试手法）
 
 LSP 测试现有手法（直接照搬）：分帧内存假 reader
-（`FakeReader`，[test_lsp.py:40](file:///d:/Programming/yate/tests/test_lsp.py#L40)）、
+（`FakeReader`，[test_lsp.py:40](tests/test_lsp.py#L40)）、
 TCP 回环假 server harness
-（`FakeProc`/`ServerHarness`，[L144-240](file:///d:/Programming/yate/tests/test_lsp.py#L144-L240)，
+（`FakeProc`/`ServerHarness`，[L144-240](tests/test_lsp.py#L144-L240)，
 经 `connect=` 注入）、manager 层 `FakeClient` + `client_factory`
-session fixture（[L471](file:///d:/Programming/yate/tests/test_lsp.py#L471)、
-[L573-600](file:///d:/Programming/yate/tests/test_lsp.py#L573-L600)）。
+session fixture（[L471](tests/test_lsp.py#L471)、
+[L573-600](tests/test_lsp.py#L573-L600)）。
 
 **tests/test_dap_protocol.py**：build_request 形状
 （seq/type/command/arguments）；response 解析（success/error、
@@ -875,12 +875,12 @@ stopped+output events / terminated）：
 - response 按 request_seq 匹配（乱序返回也正确）；
 - success=false → DapResponseError；initialize 超时 → FAILED + teardown；
 - stop() 终止在途 spawn（复刻 LSP 的 Windows cwd 占用教训，对照
-  [test_lsp.py:387](file:///d:/Programming/yate/tests/test_lsp.py#L387)）；
+  [test_lsp.py:387](tests/test_lsp.py#L387)）；
 - reverse request 收到 unsupported 响应。
 
 **tests/test_dap_manager.py**：
 - 注册/按 filetype 查/同名替换（对照 LSP
-  [test_lsp.py:530](file:///d:/Programming/yate/tests/test_lsp.py#L530)）；
+  [test_lsp.py:530](tests/test_lsp.py#L530)）；
 - 断点 toggle 去重、按文件分组、1-based 转换断言（捕获
   setBreakpoints 参数 lines=[n+1...]）；
 - launch 合成参数（program 绝对路径、cwd=root、debug_options 白名单
@@ -895,7 +895,7 @@ stopped+output events / terminated）：
 which 命中、解释器相邻 launcher 命中、find_spec 命中→
 `sys.executable -m debugpy.adapter`、全空）；注册的 launch 模板与
 filetypes；disabled_extensions 机制下不加载（走现有
-[test_extensions.py](file:///d:/Programming/yate/tests/test_extensions.py)
+[test_extensions.py](tests/test_extensions.py)
 的加载设施）。
 
 **tests/test_dap_examples.py**：对随包的
@@ -916,20 +916,20 @@ test_extensions_bridge.py，桥相关测试集中在 test_extensions.py）：
 `api.dap.statuses()`/`has_state()`。
 
 **tests/test_config.py 增补**（现有文件，风格参照其 language_servers
-系列 [L173-421](file:///d:/Programming/yate/tests/test_config.py#L173-L421)，
+系列 [L173-421](tests/test_config.py#L173-L421)，
 节首为 L173 注释、用例 L176-421）：
 debug_options 合法 dict 合并、非 dict 报错、未知键报错。
 
 **键位层测试（§5.0 前置）**：`parse_key("<shift-f5>")` 等与
 `textual_key_to_raw("shift+f5")` 双向一致、`key_name` 逆映射正确、
 裸 F5 不被 shift 序列覆盖；归入现有键位测试区
-（[test_app_textual.py:56-86](file:///d:/Programming/yate/tests/test_app_textual.py#L56-L86)
+（[test_app_textual.py:56-86](tests/test_app_textual.py#L56-L86)
 的 named/ctrl/alt/modified-arrows 组，或 test_panes.py 同层）。
 
 ### 8.2 UI / 集成
 
 - **tests/test_app_textual.py**（pilot headless，范式见
-  [L88-140](file:///d:/Programming/yate/tests/test_app_textual.py#L88-L140)）：
+  [L88-140](tests/test_app_textual.py#L88-L140)）：
   gutter 字符串断言（断点行 ●、执行行 ▶、两者叠加优先 ▶、gutter 宽度
   恒定 +1、welcome 页不错位、补全弹层左边界随 gutter 移动）；
   F9 切换→再按取消；无会话时状态栏无 debug 段，PAUSED 段含
@@ -941,17 +941,17 @@ debug_options 合法 dict 合并、非 dict 报错、未知键报错。
   terminal 面板互斥；
 - App 关闭路径调用 dap.shutdown_all（与 lsp 同一测试范式）；
 - **tests/test_diagnostics.py 必改**：节顺序常量硬编码了 12 节
-  （[_ALL_SECTIONS L19-22](file:///d:/Programming/yate/tests/test_diagnostics.py#L19-L22)）
+  （[_ALL_SECTIONS L19-22](tests/test_diagnostics.py#L19-L22)）
   与 `test_report_contains_all_twelve_sections`
-  （[L54-57](file:///d:/Programming/yate/tests/test_diagnostics.py#L54-L57)），
+  （[L54-57](tests/test_diagnostics.py#L54-L57)），
   插入 dap 后改 13 节，并按 lsp 节测试
-  [L107-122](file:///d:/Programming/yate/tests/test_diagnostics.py#L107-L122)
+  [L107-122](tests/test_diagnostics.py#L107-L122)
   的样子补 dap 节用例；
 - **tests/test_user_setup.py 增补**：`--setup-defaults` 输出包含
   `extensions/example_js_dap.py.example`（通配拷贝
-  [user_setup.py:102-106](file:///d:/Programming/yate/yate/services/user_setup.py#L102-L106)）；
+  [user_setup.py:102-106](yate/services/user_setup.py#L102-L106)）；
 - **tests/test_cli.py**：`--diag` 报告含 `[dap]`（现有 diag 走查
-  [L183-206](file:///d:/Programming/yate/tests/test_cli.py#L183-L206)）。
+  [L183-206](tests/test_cli.py#L183-L206)）。
 
 ### 8.3 手动真实验证（安装 debugpy 的 venv）
 
@@ -997,13 +997,13 @@ python -m pytest tests/ -v
 
 | 文件 | 内容 |
 |------|------|
-| `yate/docs/dap.zh.md` / `dap.en.md`（新增） | 调试指南：架构一图、debugpy 安装、F5/F9/F10/F11 键位表、断点/求值/面板用法、`YATE_PYTHON_DAP`/`YATE_JS_DAP` 与 `debug_options`、internalConsole/startDebugging 当前限制、**带修饰 F 键的终端兼容说明**、**"用扩展接入其他 adapter"教程（以随包 JS 范例完整走查 + gdb/dlv 等差异点表）**；与现有 [lsp.zh.md](file:///d:/Programming/yate/yate/docs/lsp.zh.md) 同级同双语风格 |
+| `yate/docs/dap.zh.md` / `dap.en.md`（新增） | 调试指南：架构一图、debugpy 安装、F5/F9/F10/F11 键位表、断点/求值/面板用法、`YATE_PYTHON_DAP`/`YATE_JS_DAP` 与 `debug_options`、internalConsole/startDebugging 当前限制、**带修饰 F 键的终端兼容说明**、**"用扩展接入其他 adapter"教程（以随包 JS 范例完整走查 + gdb/dlv 等差异点表）**；与现有 [lsp.zh.md](yate/docs/lsp.zh.md) 同级同双语风格 |
 | `yate/resources/manual.zh.md` / `manual.en.md` | 新增"调试"章（置于 §13 集成终端/§14 Shell 集成 之后）：快速开始（t.py 走查）、命令/键位表、JS 范例一段（改名即装）、限制；**同步改写 F5=命令行的既有条目**（en 版 L181/L329/L347/L530/L554/L1346 及 5.1 键位表（标题 L263）；zh 版 L172/L314/L331/L499/L518/L1213——两版行号不同，逐条改） |
-| `yate/yaterc.example` | 在 `language_servers` 段（[L94-128](file:///d:/Programming/yate/yate/yaterc.example#L94-L128)）之后增加 debug_options 注释段（只列跨 adapter 通用键），内置扩展清单（L52-56）补 `python_dap` 一行 |
-| `yate/extensions/example_ext.py.example` | API 面清单（[L30-31](file:///d:/Programming/yate/yate/extensions/example_ext.py.example#L30-L31)）增加 `api.dap.register_debugger` 小例（注释态，指向完整 JS 范例） |
+| `yate/yaterc.example` | 在 `language_servers` 段（[L94-128](yate/yaterc.example#L94-L128)）之后增加 debug_options 注释段（只列跨 adapter 通用键），内置扩展清单（L52-56）补 `python_dap` 一行 |
+| `yate/extensions/example_ext.py.example` | API 面清单（[L30-31](yate/extensions/example_ext.py.example#L30-L31)）增加 `api.dap.register_debugger` 小例（注释态，指向完整 JS 范例） |
 | `yate/extensions/example_js_dap.py.example`（新增） | JS/Node（js-debug-adapter）完整扩展示例：discover + 注册 + pwa-node launch 模板 + 限制注释 |
-| `README.md` / `README.zh.md` | 特性区（[README.md:24-40](file:///d:/Programming/yate/README.md#L24-L40)）特性行增加 debugging（DAP：内置 debugpy + JS 扩展示例）；F5=命令行的键位表行改写为 F7 并补调试键（[README.md:89](file:///d:/Programming/yate/README.md#L89)、[README.zh.md:109](file:///d:/Programming/yate/README.zh.md#L109) 与 [L412](file:///d:/Programming/yate/README.zh.md#L412)，zh 有两处表）；结构树（L212-228 的 app_features/extensions/docs 说明）补 editor_dap/editor_term |
-| `yate/editor_dap/__init__.py` | 包 docstring 说明模块划分与 UI 无关边界（仿 [editor_lsp/__init__.py](file:///d:/Programming/yate/yate/editor_lsp/__init__.py)） |
+| `README.md` / `README.zh.md` | 特性区（[README.md:24-40](README.md#L24-L40)）特性行增加 debugging（DAP：内置 debugpy + JS 扩展示例）；F5=命令行的键位表行改写为 F7 并补调试键（[README.md:89](README.md#L89)、[README.zh.md:109](README.zh.md#L109) 与 [L412](README.zh.md#L412)，zh 有两处表）；结构树（L212-228 的 app_features/extensions/docs 说明）补 editor_dap/editor_term |
+| `yate/editor_dap/__init__.py` | 包 docstring 说明模块划分与 UI 无关边界（仿 [editor_lsp/__init__.py](yate/editor_lsp/__init__.py)） |
 | `.trae/documents/dap_support_plan.md` | 本文档 |
 
 ---
@@ -1020,7 +1020,7 @@ python -m pytest tests/ -v
 | `yate/extensions/python_dap.py` | 新增 | debugpy 内置支持（可 disabled） |
 | `yate/extensions/example_js_dap.py.example` | 新增 | JS/Node 扩展示例，改名 `.py` 即激活；`--setup-defaults` 通配拷贝（零改动） |
 | `yate/services/extensions.py` | 修改 | DapExtensionBridge + `api.dap` property |
-| `yate/config.py` | 修改 | `debug_options` 选项与白名单（`_KNOWN_OPTIONS` [L48-51](file:///d:/Programming/yate/yate/config.py#L48-L51)） |
+| `yate/config.py` | 修改 | `debug_options` 选项与白名单（`_KNOWN_OPTIONS` [L48-51](yate/config.py#L48-L51)） |
 | `yate/keymaps/base.py` | **修改（前置）** | 带修饰 F 键 parse/key_name/KEY_ALIASES（§5.0） |
 | `yate/editor_view/keys.py` | **修改（前置）** | textual_key_to_raw 识别 shift/ctrl+shift + F 键 |
 | `yate/keymaps/vsc.py`、`yate/keymaps/vim.py` | 修改 | F7=command_prompt 迁移；F5/F6/F9/F10/F11/F12/Shift+F5/Shift+F11 调试动作；vim 限 NORMAL/VISUAL；DBG 分类 |
@@ -1032,7 +1032,7 @@ python -m pytest tests/ -v
 | `yate/editor_view/editor.py` | 修改 | gutter +1（●/▶，L269/L441 区）、执行行底色；welcome hints 无 F5 文案（L535-548 仅核对不错位，不做 F5 迁移） |
 | `yate/editor_view/debug_panel.py` | 新增 | out/info 双模式面板 widget + evaluate |
 | `yate/editor_view/statusbar.py` | 修改 | `_debug_segment()`（仿 L97-122） |
-| `yate/diagnostics.py` | 修改 | sections 注册表 [L86-99](file:///d:/Programming/yate/yate/diagnostics.py#L86-L99) 插 dap 节 + `_section_dap` |
+| `yate/diagnostics.py` | 修改 | sections 注册表 [L86-99](yate/diagnostics.py#L86-L99) 插 dap 节 + `_section_dap` |
 | `yate/yaterc.example`、`example_ext.py.example` | 修改 | 配置段/API 示例 |
 | `docs/dap.zh/en.md`、`manual.zh/en.md`、`README(.zh).md` | 新增/修改 | 文档（含手册 F5 条目迁移） |
 | `tests/test_dap_protocol.py`、`test_dap_client.py`、`test_dap_manager.py`、`test_python_dap_ext.py`、`test_dap_examples.py` | 新增 | 核心测试 |
@@ -1092,7 +1092,7 @@ Phase 1 统一回 unsupported，需在 client 增加反向请求处理器与多�
 
 **Phase 3（深度集成）**：`console: "integratedTerminal"`（实现
 RunInTerminal reverse request，debuggee 进程经
-[`editor_term`](file:///d:/Programming/yate/yate/editor_term)
+[`editor_term`](yate/editor_term)
 PTY 后端（pty_proc/shells，TerminalView 的现有底层）跑入集成终端
 面板，而非 Phase 1 的 internalConsole output 回流）、
 attach 到已运行进程（socket 模式，client 传输层需抽象 stream 工厂）、

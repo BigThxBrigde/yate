@@ -1,4 +1,4 @@
-# `--version` 与 `--diag` 诊断命令实施计划
+﻿# `--version` 与 `--diag` 诊断命令实施计划
 
 > 为 yate 增加两个不启动 TUI 的命令行出口：
 > - `yate --version`：输出版本基本信息（yate / Python / 操作系统）
@@ -12,7 +12,7 @@
 
 ### 1.1 `--version` 现状
 
-[yate/cli.py](file:///d:/Programming/yate/yate/cli.py#L95) 第 95 行：
+[yate/cli.py](yate/cli.py#L95) 第 95 行：
 
 ```python
 parser.add_argument("--version", action="version", version=f"yate {__version__}")
@@ -25,18 +25,18 @@ parser.add_argument("--version", action="version", version=f"yate {__version__}"
 | 诊断信息 | 现有来源 |
 |----------|----------|
 | yate 版本 | `yate.__version__`；`pyproject.toml` 声明 `requires-python >= 3.10`，依赖 `textual>=8.0` |
-| 包根目录 / 冻结模式 | [paths.py](file:///d:/Programming/yate/yate/paths.py)：`package_root()`、`bundled_extensions_dir()`，`sys.frozen` / `sys._MEIPASS` |
+| 包根目录 / 冻结模式 | [paths.py](yate/paths.py)：`package_root()`、`bundled_extensions_dir()`，`sys.frozen` / `sys._MEIPASS` |
 | Python / OS | 标准库 `sys`、`platform`、`importlib.metadata` |
-| 终端类型 | [fonts.py](file:///d:/Programming/yate/yate/services/fonts.py#L126)：`detect_terminal()`（识别 windows_terminal / vscode / iterm2 / apple_terminal / conhost） |
-| 字体 | [fonts.py](file:///d:/Programming/yate/yate/services/fonts.py#L141)：`font_status()` → `has_nerd_font` / `installed_fonts` / `terminal` / `detail` |
-| 集成终端 shell | [shells.py](file:///d:/Programming/yate/yate/editor_term/shells.py#L21)：`resolve_shell(config.shell)` → 实际 `[executable, ...args]` |
-| `:!` 命令 shell | [shell.py](file:///d:/Programming/yate/yate/services/shell.py#L53)：`shell_name()` |
-| yaterc 位置 | [config.py](file:///d:/Programming/yate/yate/config.py#L115)：`user_config_path()`、`find_project_config()`、`default_rc_paths()`；加载结果在 `config.sources` / `config.errors` |
+| 终端类型 | [fonts.py](yate/services/fonts.py#L126)：`detect_terminal()`（识别 windows_terminal / vscode / iterm2 / apple_terminal / conhost） |
+| 字体 | [fonts.py](yate/services/fonts.py#L141)：`font_status()` → `has_nerd_font` / `installed_fonts` / `terminal` / `detail` |
+| 集成终端 shell | [shells.py](yate/editor_term/shells.py#L21)：`resolve_shell(config.shell)` → 实际 `[executable, ...args]` |
+| `:!` 命令 shell | [shell.py](yate/services/shell.py#L53)：`shell_name()` |
+| yaterc 位置 | [config.py](yate/config.py#L115)：`user_config_path()`、`find_project_config()`、`default_rc_paths()`；加载结果在 `config.sources` / `config.errors` |
 | 全部配置项 | `YateConfig` dataclass：keymap / theme / tab_width / use_spaces / shell / terminal_height / show_hidden / extension_paths / disabled_extensions / theme_dirs / language_servers / sources / errors |
 | 主题 | `editor_view.theme.available()`（内置 + rc/theme-dir 注册） |
-| tree-sitter 后端 | [ts_backend/__init__.py](file:///d:/Programming/yate/yate/editor_syntax/ts_backend/__init__.py)：`ts_available()`；regex 后端 `available_filetypes()` |
-| 扩展 | [extensions.py](file:///d:/Programming/yate/yate/services/extensions.py#L300)：`ExtensionLoader.loaded`（`LoadedExtension.name/path/error`） |
-| LSP 服务器 | [manager.py](file:///d:/Programming/yate/yate/editor_lsp/manager.py)：`config_names()`、`states()`；`ServerConfig`（name/command/args/filetypes/language_ids/root_markers/env） |
+| tree-sitter 后端 | [ts_backend/__init__.py](yate/editor_syntax/ts_backend/__init__.py)：`ts_available()`；regex 后端 `available_filetypes()` |
+| 扩展 | [extensions.py](yate/services/extensions.py#L300)：`ExtensionLoader.loaded`（`LoadedExtension.name/path/error`） |
+| LSP 服务器 | [manager.py](yate/editor_lsp/manager.py)：`config_names()`、`states()`；`ServerConfig`（name/command/args/filetypes/language_ids/root_markers/env） |
 | 崩溃报告 | `~/.yate/data/crash-*.err`（上一阶段 crash 功能落盘目录） |
 
 ### 1.3 关键约束
@@ -258,7 +258,7 @@ app.run()
 
 ### 步骤 5：测试
 
-扩展现有 [tests/test_cli.py](file:///d:/Programming/yate/tests/test_cli.py)（沿用 `_FakeApp` + patch 风格）：
+扩展现有 [tests/test_cli.py](tests/test_cli.py)（沿用 `_FakeApp` + patch 风格）：
 
 - `--version`：输出含 `yate 0.1.0`、`Python`、平台串；退出码 0；
   断言未构造 `YateApp`、未读配置

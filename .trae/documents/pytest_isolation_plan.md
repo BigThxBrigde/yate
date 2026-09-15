@@ -12,14 +12,14 @@
 
 | 事实 | 证据 |
 |------|------|
-| 20 个测试文件全部 unittest.TestCase 风格，共约 8200 行 | `tests/` 目录；最大 [test_app_textual.py](file:///d:/Programming/yate/tests/test_app_textual.py) 2887 行 |
-| 无 conftest.py、无 pytest 配置、pytest 未装进 .venv | 仓库根 grep 无 conftest；[pyproject.toml:20](file:///d:/Programming/yate/pyproject.toml#L20) `dev = ["pyright>=1.1.400"]` |
-| CI 用 unittest 运行 | [.github/workflows/test.yml:67](file:///d:/Programming/yate/.github/workflows/test.yml#L67)、[.workflow/test.yml:57](file:///d:/Programming/yate/.workflow/test.yml#L57) `python -m unittest discover -s tests` |
-| **真实隔离漏洞 ①**：每个 Textual pilot 测试都会**执行用户真实扩展** | [app.py:1714](file:///d:/Programming/yate/yate/app.py#L1714) `on_mount → load_startup_services()`；[app.py:1808](file:///d:/Programming/yate/yate/app.py#L1808) 扫描并加载 `Path.home()/.yate/extensions` → test_app_textual 的每次 `app.run_test()`、[test_diagnostics.py:34](file:///d:/Programming/yate/tests/test_diagnostics.py#L34) 都触发 |
-| **真实隔离漏洞 ②**：CLI 主题启动测试扫描真实主题目录 | [cli.py:235](file:///d:/Programming/yate/yate/cli.py#L235) `Path.home()/.yate/themes`；test_cli 仅 tilde 用例设置了 HOME/USERPROFILE |
-| 隔离依赖"每个用例记得 patch"：crash 目录、yaterc exec | [crash.py:54](file:///d:/Programming/yate/yate/crash.py#L54) `~/.yate/data`（会建目录写文件）；[config.py:117](file:///d:/Programming/yate/yate/config.py#L117) `~/.yate/yaterc`（**exec 用户 Python**）；test_cli 靠 `patch("yate.crash.install")` + `-u NONE` 自觉规避 |
-| 现有隔离手段分散、不统一 | test_crash patch `Path.home`；test_cli 手动存/恢复 HOME/USERPROFILE（[test_cli.py:203-219](file:///d:/Programming/yate/tests/test_cli.py#L203-L219)）；test_config patch `user_config_path`；test_user_setup 传显式 `base_dir` |
-| 裸 `YateApp()` 不读 yaterc（config=None → 空默认） | [app.py:160](file:///d:/Programming/yate/yate/app.py#L160) `self.config = config if config is not None else YateConfig()` |
+| 20 个测试文件全部 unittest.TestCase 风格，共约 8200 行 | `tests/` 目录；最大 [test_app_textual.py](tests/test_app_textual.py) 2887 行 |
+| 无 conftest.py、无 pytest 配置、pytest 未装进 .venv | 仓库根 grep 无 conftest；[pyproject.toml:20](pyproject.toml#L20) `dev = ["pyright>=1.1.400"]` |
+| CI 用 unittest 运行 | [.github/workflows/test.yml:67](.github/workflows/test.yml#L67)、[.workflow/test.yml:57](.workflow/test.yml#L57) `python -m unittest discover -s tests` |
+| **真实隔离漏洞 ①**：每个 Textual pilot 测试都会**执行用户真实扩展** | [app.py:1714](yate/app.py#L1714) `on_mount → load_startup_services()`；[app.py:1808](yate/app.py#L1808) 扫描并加载 `Path.home()/.yate/extensions` → test_app_textual 的每次 `app.run_test()`、[test_diagnostics.py:34](tests/test_diagnostics.py#L34) 都触发 |
+| **真实隔离漏洞 ②**：CLI 主题启动测试扫描真实主题目录 | [cli.py:235](yate/cli.py#L235) `Path.home()/.yate/themes`；test_cli 仅 tilde 用例设置了 HOME/USERPROFILE |
+| 隔离依赖"每个用例记得 patch"：crash 目录、yaterc exec | [crash.py:54](yate/crash.py#L54) `~/.yate/data`（会建目录写文件）；[config.py:117](yate/config.py#L117) `~/.yate/yaterc`（**exec 用户 Python**）；test_cli 靠 `patch("yate.crash.install")` + `-u NONE` 自觉规避 |
+| 现有隔离手段分散、不统一 | test_crash patch `Path.home`；test_cli 手动存/恢复 HOME/USERPROFILE（[test_cli.py:203-219](tests/test_cli.py#L203-L219)）；test_config patch `user_config_path`；test_user_setup 传显式 `base_dir` |
+| 裸 `YateApp()` 不读 yaterc（config=None → 空默认） | [app.py:160](yate/app.py#L160) `self.config = config if config is not None else YateConfig()` |
 | 仓库根无 `yaterc`/`themes/`/`extensions/`；.gitignore 已含 `.pytest_cache/` | 实测 `Test-Path` 均为 False |
 | `.yate` 相关 touchpoint 全部经 `Path.home()` 或 `expanduser("~")` | config.py:117/220/295、crash.py:54、cli.py:235/243、app.py:767/1207/1808、user_setup.py:89、diagnostics.py:231/366、fonts.py:252（`~/.local/share/fonts`）、completion.py:291 |
 
@@ -130,8 +130,8 @@ addopts = "-q"
 
 | 位置 | 现状 | 改为 |
 |------|------|------|
-| [.github/workflows/test.yml:60-67](file:///d:/Programming/yate/.github/workflows/test.yml#L60-L67) | `pip install -e .` + `python -m unittest discover -s tests` | `pip install -e ".[dev]"` + `python -m pytest tests`；步骤名 "Run pytest suite"；文件头注释同步 |
-| [.workflow/test.yml:49-57](file:///d:/Programming/yate/.workflow/test.yml#L49-L57) | 同上（Gitee Go） | 同步改；保留 `TERM=xterm-256color` 前缀 |
+| [.github/workflows/test.yml:60-67](.github/workflows/test.yml#L60-L67) | `pip install -e .` + `python -m unittest discover -s tests` | `pip install -e ".[dev]"` + `python -m pytest tests`；步骤名 "Run pytest suite"；文件头注释同步 |
+| [.workflow/test.yml:49-57](.workflow/test.yml#L49-L57) | 同上（Gitee Go） | 同步改；保留 `TERM=xterm-256color` 前缀 |
 
 changelog 门禁（`python -m tools.changelog check`）、checkout
 `fetch-depth: 0`、双平台 matrix 均不动。
@@ -180,7 +180,7 @@ python -m pytest tests -q        # 仍全绿、无 leak 标记、无 traceback
 
 人工检查点：
 
-- 迁移前用 `python -m unittest discover -s tests` 注入污染可复现
+- 迁移前用 `python -m pytest tests` 注入污染可复现
   traceback（可选对照，佐证修复价值）；
 - CI 双平台（ubuntu + windows）绿；
 - `git status` 干净：套件运行后仓库根无新增文件/目录
