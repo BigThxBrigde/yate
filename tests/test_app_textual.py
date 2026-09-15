@@ -1233,11 +1233,15 @@ def test_f8_opens_manual_and_esc_closes() -> None:
             md = app.screen.query_one("#doc-md", Markdown)
             # F8 opens the default (english) manual
             assert md.source == load_manual_markdown("en")
-            # the loading placeholder is hidden once content is in
+            # the loading placeholder is hidden once content is in (the
+            # markdown worker parses/mounts off the loop, so poll until done)
             loading = app.screen.query_one("#doc-loading", Static)
-            assert not loading.display
-            # theme is switched *before* the screen is pushed
-            assert app.theme == "catppuccin-mocha"
+            assert await wait_until(
+                pilot, lambda: not loading.display, timeout=5.0
+            )
+            # the viewer follows the active yate theme via the bridge -- no
+            # per-screen theme switch happens
+            assert app.theme == "yate-mocha"
             # f8 again must not stack a second viewer
             await pilot.press("f8")
             await pilot.pause()
@@ -1245,8 +1249,122 @@ def test_f8_opens_manual_and_esc_closes() -> None:
             await pilot.press("escape")
             await pilot.pause()
             assert not isinstance(app.screen, MarkdownDocScreen)
-            # ... and the previous theme is restored afterwards
-            assert app.theme == "textual-dark"
+            # ... and the theme is still yate-mocha afterwards (no restore)
+            assert app.theme == "yate-mocha"
+
+    asyncio.run(scenario())
+
+
+def test_startup_selects_yate_bridge_theme() -> None:
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # startup defaults to the mocha yate theme -> yate-mocha bridge
+            assert app.theme == "yate-mocha"
+            assert app.get_theme("yate-mocha") is not None
+
+    asyncio.run(scenario())
+
+
+def test_set_theme_switches_textual_theme_and_overlay_border() -> None:
+    async def scenario() -> None:
+        from textual.color import Color
+
+        from yate.editor_view import theme as yate_theme
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # switch to latte -> app.theme becomes yate-latte, the overlay
+            # border token ($primary) resolves to latte's accent2 (mauve)
+            app.run_command("set theme=latte")
+            await pilot.pause()
+            await pilot.pause()
+            assert app.theme == "yate-latte"
+            # open the help overlay and inspect its border color -- it must
+            # follow the latte palette, not the textual-dark blue.  The border
+            # shorthand returns an Edges NamedTuple of (type, Color) per side.
+            await pilot.press("f1")
+            await pilot.pause()
+            overlay = app.screen.query_one("#overlay")
+            border_color = overlay.styles.border.top[1]
+            expected = Color.parse(yate_theme.THEMES["latte"].accent2)
+            assert border_color.hex == expected.hex
+            await pilot.press("escape")
+            await pilot.pause()
+
+            # one non-Mocha dark theme proves the textual-dark blue is gone
+            app.run_command("set theme=onedark")
+            await pilot.pause()
+            await pilot.pause()
+            assert app.theme == "yate-onedark"
+            await pilot.press("f1")
+            await pilot.pause()
+            overlay = app.screen.query_one("#overlay")
+            border_color = overlay.styles.border.top[1]
+            expected = Color.parse(yate_theme.THEMES["onedark"].accent2)
+            assert border_color.hex == expected.hex
+
+    asyncio.run(scenario())
+
+
+def test_startup_falls_back_to_mocha_when_selected_theme_bridge_fails() -> None:
+    """A yate theme with an unusable bridge must not crash startup."""
+    from dataclasses import fields as dc_fields
+
+    from yate.editor_view.theme import THEMES, Theme, set_theme
+
+    async def scenario() -> None:
+        base = THEMES["mocha"]
+        d = {f.name: getattr(base, f.name) for f in dc_fields(base)}
+        d["name"] = "broken-bridge"
+        d["bg"] = "#gggggg"  # invalid -> to_textual_theme raises
+        broken = Theme(**d)  # type: ignore[arg-type]
+        THEMES["broken-bridge"] = broken
+        try:
+            app = YateApp(theme_name="broken-bridge")
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                # bridge failed for 'broken-bridge'; startup fell back to mocha
+                assert app.theme == "yate-mocha"
+                assert any("broken-bridge" in e for e in app.config.errors)
+        finally:
+            THEMES.pop("broken-bridge", None)
+            set_theme("mocha")
+
+    asyncio.run(scenario())
+
+
+def test_valid_custom_yate_theme_gets_working_bridge() -> None:
+    from dataclasses import fields as dc_fields
+
+    from textual.color import Color
+
+    from yate.editor_view.theme import THEMES, Theme, set_theme
+
+    async def scenario() -> None:
+        base = THEMES["mocha"]
+        d = {f.name: getattr(base, f.name) for f in dc_fields(base)}
+        d["name"] = "custom-ok"
+        d["accent2"] = "#ff00ff"  # distinct so the bridge border is testable
+        custom = Theme(**d)  # type: ignore[arg-type]
+        THEMES["custom-ok"] = custom
+        try:
+            app = YateApp(theme_name="custom-ok")
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                assert app.theme == "yate-custom-ok"
+                assert app.get_theme("yate-custom-ok") is not None
+                # the overlay border follows the custom theme's accent2
+                await pilot.press("f1")
+                await pilot.pause()
+                overlay = app.screen.query_one("#overlay")
+                border_color = overlay.styles.border.top[1]
+                assert border_color.hex == Color.parse("#ff00ff").hex
+        finally:
+            THEMES.pop("custom-ok", None)
+            set_theme("mocha")
 
     asyncio.run(scenario())
 

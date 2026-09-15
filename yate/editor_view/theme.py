@@ -16,18 +16,27 @@ scanned theme directory as ``*.py``.
 A theme bundles both the chrome colors (backgrounds, bars, selection) and the
 syntax token palette consumed by the :mod:`yate.editor_syntax` layer.
 
+Custom themes registered through :func:`register_theme` are strictly validated
+by :func:`validate_theme` (every color must parse, opaque fields must be fully
+opaque); the same rules are enforced again by :func:`to_textual_theme`, which
+bridges a yate :class:`Theme` into a Textual theme (named ``yate-<name>``) so
+every overlay's design tokens match the active yate palette.
+
 Cell helpers (:func:`cell_width`, :func:`char_to_cell`, ...) are theme
 independent and live at the bottom of this module.
 """
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
 from rich.style import Style
+from textual.color import Color as TextualColor
+from textual.theme import Theme as TextualTheme
 
 from yate.editor_syntax.tokens import SYNTAX_KINDS
 
@@ -398,8 +407,169 @@ def available() -> list[str]:
 
 
 def register_theme(theme: Theme) -> None:
-    """Register a user-defined :class:`Theme` (e.g. loaded from yaterc)."""
+    """Register a user-defined :class:`Theme` (e.g. loaded from yaterc).
+
+    :raises ValueError: if *theme* fails :func:`validate_theme` (malformed
+        name, non-bool ``dark``, unparseable color, translucent opaque field,
+        ...).  Built-in themes constructed directly in :data:`THEMES` bypass
+        this check; only themes funneled through this function (i.e. custom
+        user themes from yaterc / ``--theme-dir``) are validated.
+    """
+    problems = validate_theme(theme)
+    if problems:
+        raise ValueError(
+            f"invalid theme {theme.name!r}: {'; '.join(problems)}"
+        )
     THEMES[theme.name] = theme
+
+
+# ---------------------------------------------------------------------------
+# Textual theme bridge
+#
+# yate keeps its own frozen ``Theme`` palette (chrome + syntax); Textual's
+# app-global design tokens (``$primary``, ``$surface``, ``$text-muted`` …)
+# drive every overlay's frame chrome.  ``to_textual_theme`` bridges the two:
+# one Textual theme per yate theme (named ``yate-<name>``) is registered with
+# the app at startup, so the app stays permanently on a yate-derived Textual
+# theme and every overlay matches yate with zero per-screen switching.
+# ---------------------------------------------------------------------------
+
+#: Prefix for every bridged Textual theme name (``yate-mocha``, ...).
+TEXTUAL_THEME_PREFIX = "yate-"
+
+
+def textual_theme_name(name: str) -> str:
+    """Return the Textual theme name for the yate theme called *name*."""
+    return f"{TEXTUAL_THEME_PREFIX}{name}"
+
+
+#: yate ``Theme`` color fields the bridge maps into Textual.  Order is
+#: irrelevant; the tuple doubles as an exhaustive iterable for validation.
+_MAPPED_COLOR_FIELDS: tuple[str, ...] = (
+    "bg", "panel", "surface", "fg", "fg_dim", "fg_muted", "fg_bright",
+    "accent", "accent2", "green", "yellow", "red", "orange",
+)
+
+#: Subset of :data:`_MAPPED_COLOR_FIELDS` that must be fully opaque (alpha
+#: == 1.0) so modal dim/backdrop and overlay bodies composite predictably.
+_OPAQUE_FIELDS: tuple[str, ...] = ("bg", "panel", "surface", "fg")
+
+#: Regex for the generated doc-hit ``<hex> <percent>`` variables.
+_DOC_HIT_RE = re.compile(
+    r"^(#[0-9a-fA-F]{6})\s+(\d{1,3})(?:%)?\s*$"
+)
+
+
+def validate_theme(t: Theme) -> list[str]:
+    """Return a list of human-readable problems with *t* (empty = valid).
+
+    Checks exactly the fields the Textual bridge consumes:
+
+    1. ``name`` is a non-empty ``str``;
+    2. ``dark`` is a ``bool``;
+    3. every color in :data:`_MAPPED_COLOR_FIELDS` parses as a Textual color;
+       the :data:`_OPAQUE_FIELDS` subset must additionally be fully opaque;
+    4. the two doc-hit ``<hex> <percent>`` variables in ``t.extra``, when
+       present, must be well-formed (``#rrggbb`` + ``0-100``).
+
+    Returns the problems so callers (``register_theme``) can raise once with
+    every issue listed; built-in themes are constructed directly in
+    :data:`THEMES` and never pass through this helper.
+    """
+    problems: list[str] = []
+
+    # Theme is a frozen dataclass with typed annotations, but custom themes
+    # are user-authored Python -- runtime values may violate the annotations
+    # (e.g. dark="yes"), so the isinstance checks are intentional even
+    # though pyright considers them unnecessary based on the declared types.
+    if not isinstance(t.name, str) or not t.name:  # pyright: ignore[reportUnnecessaryIsInstance]
+        problems.append("name must be a non-empty str")
+    if not isinstance(t.dark, bool):  # pyright: ignore[reportUnnecessaryIsInstance]
+        problems.append("dark must be a bool")
+
+    for field_name in _MAPPED_COLOR_FIELDS:
+        value = getattr(t, field_name, None)
+        if not isinstance(value, str) or not value:  # pyright: ignore[reportUnnecessaryIsInstance]
+            problems.append(f"{field_name} must be a non-empty color str")
+            continue
+        try:
+            parsed = TextualColor.parse(value)
+        except Exception:
+            problems.append(f"{field_name}={value!r} is not a valid color")
+            continue
+        if field_name in _OPAQUE_FIELDS and parsed.a != 1.0:
+            problems.append(
+                f"{field_name}={value!r} must be fully opaque "
+                f"(alpha 1.0, got {parsed.a})"
+            )
+
+    for key in ("doc-hit-background", "doc-hit-current-background"):
+        if key not in t.extra:
+            continue
+        value = t.extra[key]
+        match = _DOC_HIT_RE.match(value) if isinstance(value, str) else None  # pyright: ignore[reportUnnecessaryIsInstance]
+        if match is None:
+            problems.append(
+                f"extra[{key!r}]={value!r} must be '<hex> <percent>'"
+            )
+            continue
+        hex_part, pct_part = match.group(1), match.group(2)
+        try:
+            TextualColor.parse(hex_part)
+        except Exception:
+            problems.append(
+                f"extra[{key!r}]={value!r}: hex part is not a valid color"
+            )
+        pct = int(pct_part)
+        if not 0 <= pct <= 100:
+            problems.append(
+                f"extra[{key!r}]={value!r}: percentage out of 0-100"
+            )
+
+    return problems
+
+
+def to_textual_theme(t: Theme) -> TextualTheme:
+    """Build a Textual :class:`~textual.theme.Theme` from the yate *t*.
+
+    The mapping keeps overlay frame chrome (borders, markdown headings, code
+    backgrounds, search-hit tints) on the yate palette.  Raises if *t* fails
+    :func:`validate_theme` -- the bridge must never feed untrusted strings to
+    ``ColorSystem.generate()``, which surfaces invalid colors late and hard.
+    """
+    problems = validate_theme(t)
+    if problems:
+        raise ValueError(
+            f"cannot bridge invalid theme {t.name!r}: {'; '.join(problems)}"
+        )
+
+    yellow_hex = t.yellow
+    return TextualTheme(
+        name=textual_theme_name(t.name),
+        primary=t.accent2,        # mauve/purple -- overlay borders, md h1-h3
+        secondary=t.accent,       # blue
+        warning=t.yellow,
+        error=t.red,
+        success=t.green,
+        accent=t.orange,
+        foreground=t.fg,
+        background=t.bg,          # also the modal dim backdrop base
+        surface=t.surface,
+        panel=t.panel,            # markdown code/tables
+        dark=t.dark,
+        variables={
+            # Exact yate muted colors instead of Textual's auto alphas.
+            "text": t.fg,
+            "text-muted": t.fg_muted,
+            "foreground-muted": t.fg_dim,
+            # Search-hit tints for the manual/changelog viewer, replacing the
+            # two hardcoded Mocha-yellow values in manual.py so they follow
+            # the active yate theme's yellow.  ``<hex> <percent>`` is
+            # Textual's CSS alpha syntax.
+            "doc-hit-background": f"{yellow_hex} 12%",
+            "doc-hit-current-background": f"{yellow_hex} 40%",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

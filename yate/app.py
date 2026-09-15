@@ -165,6 +165,32 @@ class YateApp(App[None]):
             theme.set_theme(wanted_theme)
         except KeyError:
             self.config.errors.append(f"unknown theme: {wanted_theme!r}")
+        # Bridge every yate theme into a Textual theme (``yate-<name>``) so the
+        # app's design tokens always match the active yate palette and every
+        # overlay (help, manual, changelog, palette, ...) is on-theme with
+        # zero per-screen theme switching.  super().__init__() already seeded
+        # Textual's built-in themes; we register the bridges before assigning
+        # the reactive (its validator requires the theme to exist).
+        for yt in theme.THEMES.values():
+            try:
+                self.register_theme(theme.to_textual_theme(yt))
+            except Exception as exc:  # noqa: BLE001 - never fatal at startup
+                self.config.errors.append(
+                    f"yate theme '{yt.name}': {type(exc).__name__}: {exc}"
+                )
+        # Set the app's Textual theme to the bridge of the active yate theme;
+        # fall back to yate-mocha if the selected theme's bridge is unusable
+        # (the reactive validator would raise InvalidThemeError otherwise).
+        wanted_textual = theme.textual_theme_name(theme.active().name)
+        if self.get_theme(wanted_textual) is None:
+            self.config.errors.append(
+                f"theme '{theme.active().name}' has no usable bridge; "
+                f"falling back to mocha"
+            )
+            theme.set_theme("mocha")
+            self.theme = theme.textual_theme_name("mocha")
+        else:
+            self.theme = wanted_textual
 
         self.actions = ActionRegistry()
         populate(self.actions)
@@ -204,7 +230,6 @@ class YateApp(App[None]):
         self.completion_ctl = CompletionController(self)
 
         self._replace_pending = ""
-        self._prev_doc_theme: Optional[str] = None
         self._window_pending = False
         self._explorer_target: Optional[Path] = None
         self._explorer_is_dir = False
@@ -572,6 +597,20 @@ class YateApp(App[None]):
                 kind="error",
             )
             return
+        # Lazily ensure the Textual bridge exists (an extension may have
+        # registered a yate theme after startup); register_theme is
+        # idempotent when the name already exists.
+        textual_name = theme.textual_theme_name(name)
+        if self.get_theme(textual_name) is None:
+            try:
+                self.register_theme(theme.to_textual_theme(selected))
+            except Exception as exc:  # noqa: BLE001 - report, never fatal
+                self.message(
+                    f"theme bridge for {name!r} failed: {exc}", kind="error"
+                )
+                return
+        # The reactive watcher regenerates tokens and repaints every overlay.
+        self.theme = textual_name
         self.apply_theme()
         self.message(f"theme: {selected.label}", kind="ok")
 
@@ -601,6 +640,21 @@ class YateApp(App[None]):
         self._update_sidebar_head()
         self.update_tabbar()
         self.update_breadcrumbs()
+
+    def get_theme_variable_defaults(self) -> dict[str, str]:
+        """Provide defaults for the custom doc-hit CSS variables.
+
+        The manual/changelog viewer references ``$doc-hit-background`` and
+        ``$doc-hit-current-background`` in its CSS.  The bridged yate themes
+        override these, but Textual's CSS parser needs a default value
+        available at parse time for any theme that doesn't define them, so
+        they are derived from the active yate theme's yellow accent.
+        """
+        t = theme.active()
+        return {
+            "doc-hit-background": f"{t.yellow} 12%",
+            "doc-hit-current-background": f"{t.yellow} 40%",
+        }
 
     def set_filetype(self, value: str) -> None:
         """Force the current document's syntax type (``:set filetype=``).

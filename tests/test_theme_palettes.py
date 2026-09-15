@@ -32,7 +32,11 @@ from yate.editor_view.theme import (
     THEMES,
     Theme,
     load_theme_paths,
+    register_theme,
     set_theme,
+    textual_theme_name,
+    to_textual_theme,
+    validate_theme,
 )
 
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -274,3 +278,144 @@ def test_pyproject_keeps_the_single_dynamic_version_source() -> None:
     assert 'path = "yate/__init__.py"' in text
     # No static version = line: the package __version__ is the only source.
     assert re.search(r"(?m)^version\s*=", text) is None
+
+
+# --- Textual theme bridge + strict validation --------------------------------
+
+
+def test_textual_theme_name_has_prefix() -> None:
+    assert textual_theme_name("mocha") == "yate-mocha"
+    assert textual_theme_name("gruvbox-dark") == "yate-gruvbox-dark"
+
+
+@pytest.mark.parametrize("name", BUILTIN_THEMES)
+def test_bridge_exact_mapping_for_every_builtin(
+    builtin_baseline: None, name: str
+) -> None:
+    from textual.color import Color
+
+    t = THEMES[name]
+    tt = to_textual_theme(t)
+
+    assert tt.name == textual_theme_name(name)
+    assert tt.dark is t.dark
+    # Field-by-field exactness per the mapping table.
+    assert tt.primary == t.accent2
+    assert tt.secondary == t.accent
+    assert tt.warning == t.yellow
+    assert tt.error == t.red
+    assert tt.success == t.green
+    assert tt.accent == t.orange
+    assert tt.foreground == t.fg
+    assert tt.background == t.bg
+    assert tt.surface == t.surface
+    assert tt.panel == t.panel
+    # Variables override the auto-alpha defaults with exact yate colors.
+    assert tt.variables["text"] == t.fg
+    assert tt.variables["text-muted"] == t.fg_muted
+    assert tt.variables["foreground-muted"] == t.fg_dim
+    assert tt.variables["doc-hit-background"] == f"{t.yellow} 12%"
+    assert tt.variables["doc-hit-current-background"] == f"{t.yellow} 40%"
+    # ColorSystem.generate() must accept the mapped values without raising
+    # and surface the key tokens Textual's overlays consume.
+    generated = tt.to_color_system().generate()
+    assert generated["primary"] == Color.parse(t.accent2).hex
+    assert generated["surface"] == Color.parse(t.surface).hex
+    assert generated["text"] == t.fg
+    assert generated["text-muted"] == t.fg_muted
+    assert generated["markdown-h1-color"] == Color.parse(t.accent2).hex
+
+
+def test_validate_theme_accepts_mocha(builtin_baseline: None) -> None:
+    assert validate_theme(THEMES["mocha"]) == []
+
+
+def _bad(**overrides: object) -> Theme:
+    """A copy of mocha with the given fields mutated."""
+    base = THEMES["mocha"]
+    fields_dict = {f.name: getattr(base, f.name) for f in fields(base)}
+    fields_dict.update(overrides)
+    return Theme(**fields_dict)  # type: ignore[arg-type]
+
+
+def test_validate_theme_rejects_bad_hex(builtin_baseline: None) -> None:
+    problems = validate_theme(_bad(name="bad-hex", bg="#gggggg"))
+    assert any("bg" in p for p in problems)
+
+
+def test_validate_theme_rejects_empty_name(builtin_baseline: None) -> None:
+    problems = validate_theme(_bad(name=""))
+    assert any("name" in p for p in problems)
+
+
+def test_validate_theme_rejects_non_bool_dark(builtin_baseline: None) -> None:
+    problems = validate_theme(_bad(name="bad-dark", dark="yes"))  # type: ignore[arg-type]
+    assert any("dark" in p for p in problems)
+
+
+def test_validate_theme_rejects_translucent_background(
+    builtin_baseline: None,
+) -> None:
+    problems = validate_theme(_bad(name="translucent-bg", bg="#1e1e2e80"))
+    assert any("bg" in p and "opaque" in p for p in problems)
+
+
+def test_register_theme_raises_and_leaves_registry_unchanged(
+    builtin_baseline: None,
+) -> None:
+    before = dict(THEMES)
+    bad = _bad(name="bad-register", bg="#gggggg")
+    with pytest.raises(ValueError):
+        register_theme(bad)
+    assert THEMES == before
+
+
+def test_register_theme_accepts_valid_custom_theme(
+    builtin_baseline: None,
+) -> None:
+    good = _bad(name="valid-custom")
+    register_theme(good)
+    try:
+        assert THEMES["valid-custom"] is good
+    finally:
+        THEMES.pop("valid-custom", None)
+
+
+def test_to_textual_theme_raises_on_invalid(builtin_baseline: None) -> None:
+    with pytest.raises(ValueError):
+        to_textual_theme(_bad(name="bad-bridge", bg="#gggggg"))
+
+
+def test_loader_records_error_for_invalid_custom_color(
+    builtin_baseline: None, tmp_path: Path
+) -> None:
+    # A theme file registering a malformed color must surface as a
+    # config.errors entry via load_theme_paths (never raise).
+    tdir = tmp_path / "themes"
+    tdir.mkdir()
+    src = (
+        "register_theme(Theme(\n"
+        '    name="bad-color", label="Bad Color", dark=True,\n'
+        '    bg="#gggggg", panel="#181825", surface="#313244",\n'
+        '    gutter_bg="#1e1e2e", border="#45475a",\n'
+        '    selection_bg="#585b70", match_bg="#f9e2af",\n'
+        '    match_active_bg="#fab387", on_accent="#11111b",\n'
+        '    fg="#cdd6f4", fg_dim="#6c7086", fg_muted="#9399b2",\n'
+        '    fg_bright="#bac2de",\n'
+        '    accent="#89b4fa", accent2="#cba6f7", green="#a6e3a1",\n'
+        '    yellow="#f9e2af", red="#f38ba8", orange="#fab387",\n'
+        '    mode_normal_bg="#89b4fa", mode_insert_bg="#a6e3a1",\n'
+        '    mode_visual_bg="#cba6f7", mode_command_bg="#fab387",\n'
+        '    syn_keyword="#cba6f7", syn_string="#a6e3a1",\n'
+        '    syn_number="#fab387", syn_comment="#6c7086",\n'
+        '    syn_function="#89b4fa", syn_type="#f9e2af",\n'
+        '    syn_constant="#fab387", syn_builtin="#f38ba8",\n'
+        '    syn_decorator="#f5c2e7", syn_operator="#89dceb",\n'
+        '    syn_property="#b4befe",\n'
+        "))\n"
+    )
+    (tdir / "bad_color.py").write_text(src, encoding="utf-8")
+    errors: list[str] = []
+    load_theme_paths([tdir], errors)
+    assert any("bad-color" in e or "bg" in e for e in errors)
+    assert "bad-color" not in THEMES

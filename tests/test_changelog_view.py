@@ -1,9 +1,8 @@
 """Runtime display of the bundled changelog: loader, wiring, commands.
 
 Covers ``load_changelog_markdown`` / ``load_doc_markdown`` (degradation,
-language fallback), the ``app_features.docs`` wiring (overlay push guards,
-theme switch/restore), the app facade delegation and the ``:changelog``
-command registration.
+language fallback), the ``app_features.docs`` wiring (overlay push guards),
+the app facade delegation and the ``:changelog`` command registration.
 """
 
 # pyright: reportPrivateUsage=false, reportArgumentType=false
@@ -35,8 +34,7 @@ class _FakeApp:
     def __init__(self, *, mounted: bool = True, screen: object | None = None):
         self.mounted = mounted
         self.screen: object = _FakeScreen() if screen is None else screen
-        self.theme = "textual-dark"
-        self._prev_doc_theme: str | None = None
+        self.theme = "yate-mocha"
         self.pushed: list[tuple[MarkdownDocScreen, object]] = []
 
     def _push_overlay(
@@ -112,7 +110,7 @@ def test_load_manual_markdown_keeps_behaviour() -> None:
 # --- docs wiring ------------------------------------------------------------
 
 
-def test_show_changelog_pushes_doc_screen_and_switches_theme() -> None:
+def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
     app = _FakeApp()
     docs.show_changelog(app, "zh")
     assert len(app.pushed) == 1
@@ -121,12 +119,10 @@ def test_show_changelog_pushes_doc_screen_and_switches_theme() -> None:
     assert screen._kind == "changelog"
     assert screen._lang == "zh"
     assert screen._title == "changelog"
-    # theme switched before the push, restored by the close callback
-    assert app.theme == "catppuccin-mocha"
-    assert callable(callback)
-    callback(None)
-    assert app.theme == "textual-dark"
-    assert app._prev_doc_theme is None
+    # the viewer follows the active theme via the Textual bridge, so no
+    # theme switch happens on push and no restore callback is installed
+    assert callback is None
+    assert app.theme == "yate-mocha"
 
 
 def test_show_manual_keeps_facade_contract() -> None:
@@ -142,7 +138,7 @@ def test_not_mounted_does_not_push() -> None:
     app = _FakeApp(mounted=False)
     docs.show_changelog(app)
     assert app.pushed == []
-    assert app.theme == "textual-dark"
+    assert app.theme == "yate-mocha"
 
 
 def test_already_on_doc_screen_does_not_stack() -> None:

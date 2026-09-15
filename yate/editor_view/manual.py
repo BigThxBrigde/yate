@@ -1,10 +1,11 @@
 """Read-only viewer for bundled markdown docs (user manual, changelog).
 
 Renders ``yate/resources/<kind>.<lang>.md`` with Textual's markdown
-widget.  Textual's built-in Catppuccin theme is applied while the screen
-is open (switched by the app *before* this screen is pushed, so the very
-first frame is already themed) so headings, code blocks and tables match
-yate's palette.
+widget.  The screen consumes the same Textual design tokens (``$surface``,
+``$primary``, ``$text-muted`` ...) as the rest of the app, so when yate
+bridges its palette into a Textual theme at startup the viewer's frame
+chrome, markdown headings, code fences and tables automatically follow the
+active yate theme -- no per-screen theme switch is needed.
 
 The screen paints immediately with a loading line; the file is read in a
 worker thread and the markdown is parsed/mounted afterwards (Textual's
@@ -210,13 +211,14 @@ class MarkdownDocScreen(ModalScreen[None]):
         color: $text-muted;
         text-align: center;
     }
-    /* search hit tints (docs are always shown with catppuccin-mocha, so
-       fixed yellow alphas match that palette) */
+    /* search hit tints: the two doc-hit variables follow the active yate
+       theme's yellow accent through the Textual theme bridge (see
+       YateApp.get_theme_variable_defaults and theme.to_textual_theme) */
     MarkdownDocScreen .doc-hit {
-        background: #f9e2af1f;
+        background: $doc-hit-background;
     }
     MarkdownDocScreen .doc-hit-current {
-        background: #f9e2af66;
+        background: $doc-hit-current-background;
         text-style: bold;
     }
     /* table cells default to a squeezed 1fr grid which wraps long CJK
