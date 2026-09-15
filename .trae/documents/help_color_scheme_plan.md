@@ -1,120 +1,140 @@
 # Help Overlay Color Scheme Fix — Implementation Plan
 
+## Goal
+
+The F1 / `:help` overlay should render with the **same color scheme as the F8
+user manual**: mauve (`$primary`) border, Catppuccin Mocha surface, muted hint
+and matching scrollbar — instead of today's blue frame from Textual's default
+`textual-dark` theme. Scope is the help overlay only.
+
 ## Repository Research
 
-The two overlays in the screenshots are implemented separately and get their
-colors from two different mechanisms:
+Two overlays, two color mechanisms:
 
-- **User Manual / Changelog** — [MarkdownDocScreen](file:///e:/Jermaine/yate/yate/editor_view/manual.py#L143-L228) (F8 / `:manual`). Its chrome is driven by Textual design
-  tokens in `DEFAULT_CSS` (`border: tall $primary`, `background: $surface`,
-  `.hint { color: $text-muted }`). Before it is pushed,
-  [show_doc()](file:///e:/Jermaine/yate/yate/app_features/docs.py#L22-L34) switches Textual's reactive
-  `app.theme` to the built-in **`catppuccin-mocha`** and restores the previous
-  theme via the screen-pop callback (`_restore_theme`). That is why the manual
-  has the mauve/pink border and dark mocha surface (screenshot 1).
+- **Manual / changelog** — `MarkdownDocScreen` in `yate/editor_view/manual.py`
+  (L143-L228): chrome comes from Textual design tokens
+  (`border: tall $primary`, `background: $surface`,
+  `color: $text-muted`). `show_doc()` in `yate/app_features/docs.py`
+  (L22-L34) sets `app.theme = "catppuccin-mocha"` **before** pushing the
+  screen and restores the previous theme in the pop callback. Result: the
+  pink/mauve frame in screenshot 1.
+- **F1 help** — `HelpScreen` in `yate/editor_view/modals.py` (L61-L111) via
+  `_OverlayScreen.DEFAULT_CSS` (L31-L46): it uses the **same** tokens, but
+  `YateApp.show_help()` in `yate/app.py` (L1402-L1405) never switches
+  `app.theme`, so the tokens resolve against `textual-dark` → the blue
+  frame/scrollbar in screenshot 2. The body is a Rich `Text` colored from
+  yate's own `theme.active()` (`yate/editor_view/theme.py`, L376-L378;
+  Mocha by default: blue title, mauve categories, green keys) — only the
+  frame chrome is wrong.
 
-- **F1 Help** — [HelpScreen](file:///e:/Jermaine/yate/yate/editor_view/modals.py#L61-L111) (F1 / `:help`). It
-  subclasses `_OverlayScreen`, whose [DEFAULT_CSS](file:///e:/Jermaine/yate/yate/editor_view/modals.py#L31-L46)
-  uses the **same** tokens (`$primary`, `$surface`, `$text-muted`), but
-  [YateApp.show_help()](file:///e:/Jermaine/yate/yate/app.py#L1402-L1405) never switches `app.theme`. The
-  tokens therefore resolve against Textual's default `textual-dark` theme,
-  producing the blue border / blue scrollbar in screenshot 2. The body text
-  itself is a Rich `Text` colored explicitly from yate's own
-  [`theme.active()`](file:///e:/Jermaine/yate/yate/editor_view/theme.py#L376-L378) palette (blue title,
-  mauve category headers, green keys — already the Mocha palette by default),
-  so only the **frame/scrollbar/hint chrome** is inconsistent.
+The Mocha pin is an existing, intentional pattern (see the module docstring
+of `yate/editor_view/manual.py`, L1-L8); the help overlay was simply never
+wired into it. Both entry points to help — the `f1` keymap action
+(`yate/keymaps/vsc.py` → `yate/actions.py` L167) and `:help`
+(`yate/app_features/commands.py` L185) — route through the single
+`YateApp.show_help()` method.
 
-The manual's Catppuccin pin is intentional (documented in the
-[manual.py module docstring](file:///e:/Jermaine/yate/yate/editor_view/manual.py#L1-L8): the Markdown
-widget's built-in styling follows Textual design tokens, and Mocha matches
-yate's default palette). The help overlay was simply never brought under the
-same pin.
-
-Conclusion / fix direction: pin `app.theme` to `catppuccin-mocha` for the
-lifetime of `HelpScreen`, exactly like the manual, and restore the previous
-theme when it is dismissed. The body colors already match Mocha; this makes
-border, background, scrollbar and footer hint match the manual.
-
-### Overlay nesting / state-flag analysis
-
-The manual uses `self._prev_doc_theme` (declared at
-[app.py:207](file:///e:/Jermaine/yate/yate/app.py#L207)). A **separate** flag
-(`_prev_help_theme`) will be used for help so the two overlays' save/restore
-cycles cannot clobber each other if they ever stack (e.g. help saved
-`textual-dark`, manual on top saves `catppuccin-mocha` and restores it, then
-help closes and restores `textual-dark`). In practice modal key dispatch
-prevents opening a second overlay while one is up, so no anti-stacking guard
-is required.
-
-`OutputScreen` (shell/diagnostics output) shares `_OverlayScreen` CSS and has
-the same blue chrome today, but it is out of scope for this request and will
-not be changed.
+`OutputScreen` shares `_OverlayScreen` CSS but is deliberately **out of
+scope**.
 
 ## Files and Modules
 
-- `yate/app.py`
-  - `__init__` (near line 207): initialize `self._prev_help_theme: Optional[str] = None`.
-  - `show_help()` (lines 1402–1405): save `self.theme`, switch to
-    `"catppuccin-mocha"` before pushing (so the first frame is already
-    themed — same rationale as `docs.show_doc`), push `HelpScreen` through
-    `_push_overlay` with a pop callback that restores the saved theme.
-- `tests/test_app_textual.py`
-  - Extend `test_help_lists_terminal_key_and_commands` (line 3409) with theme
-    assertions mirroring `test_f8_opens_manual_and_esc_closes`:
-    `app.theme == "catppuccin-mocha"` while the help screen is up, then after
-    `escape` the screen is no longer `HelpScreen` and
-    `app.theme == "textual-dark"` (Textual's default in the test harness).
+- `yate/app.py` — the only production change.
+- `tests/test_app_textual.py` — extend the existing help test.
 
-No changes needed in `modals.py` (its CSS tokens resolve correctly once the
-app theme is pinned), the manual viewer, keymaps, or docs.
+No changes to `yate/editor_view/modals.py`, `yate/editor_view/manual.py`,
+`yate/app_features/docs.py`, keymaps, or CSS.
 
 ## Implementation Steps
 
-1. In `YateApp.__init__`, add `self._prev_help_theme: Optional[str] = None`
-   next to `self._prev_doc_theme`.
-2. In `YateApp.show_help()`:
-   - keep the existing `self.mounted` guard;
-   - save `self._prev_help_theme = self.theme`;
-   - set `self.theme = "catppuccin-mocha"`;
-   - call `self._push_overlay(HelpScreen(self), callback=...)` where the
-     callback restores the saved theme and clears the flag (mirror
-     `docs._restore_theme`, including the `is not None` guard so restore
-     runs at most once).
-3. Extend the help test with the open/close theme assertions above.
+### 1. Add a restore flag in `YateApp.__init__`
+
+Next to `self._prev_doc_theme` at `yate/app.py:207`:
+
+```python
+self._prev_doc_theme: Optional[str] = None
+self._prev_help_theme: Optional[str] = None
+```
+
+A separate flag (not reusing `_prev_doc_theme`) so that if overlays ever
+stack (e.g. help underneath the manual), each pop restores the theme saved by
+its own push — the flags cannot clobber each other.
+
+### 2. Pin / restore the theme in `show_help()`
+
+Replace `show_help()` (`yate/app.py:1402-L1405`) with the same
+pin-before-push pattern as `docs.show_doc` (switching before push avoids an
+unthemed first frame; the `push_screen` callback fires for every dismiss
+path — esc, q, ctrl+c):
+
+```python
+def show_help(self) -> None:
+    """Open the keybinding reference overlay."""
+    if not self.mounted:
+        return
+    # The overlay chrome is styled via Textual design tokens ($primary /
+    # $surface / $text-muted); pin Catppuccin Mocha for the overlay's
+    # lifetime so F1 matches the F8 manual, then restore on dismiss.
+    self._prev_help_theme = self.theme
+    self.theme = "catppuccin-mocha"
+    self._push_overlay(
+        HelpScreen(self),
+        callback=lambda _result: self._restore_help_theme(),
+    )
+
+def _restore_help_theme(self) -> None:
+    """Return to the theme in use before the help overlay opened."""
+    if self._prev_help_theme is not None:
+        self.theme = self._prev_help_theme
+        self._prev_help_theme = None
+```
+
+`_push_overlay` (already used here) also resets the stale bottom message;
+its behavior is unchanged. Setting `app.theme` only swaps Textual tokens and
+does not affect yate's global `theme.set_theme()` palette used by the editor.
+
+### 3. Extend the help test
+
+In `test_help_lists_terminal_key_and_commands`
+(`tests/test_app_textual.py:3409`), after the existing body assertions,
+mirror the manual test's theme checks
+(`test_f8_opens_manual_and_esc_closes`, L1221-L1251):
+
+```python
+# chrome uses the same pinned Catppuccin Mocha theme as the F8 manual
+assert app.theme == "catppuccin-mocha"
+await pilot.press("escape")
+await pilot.pause()
+assert not isinstance(app.screen, HelpScreen)
+assert app.theme == "textual-dark"
+```
 
 ## Dependencies and Considerations
 
-- `catppuccin-mocha` is a Textual built-in theme name already relied on by
-  `app_features/docs.py`; no new dependency or CSS is introduced.
-- The body Rich text uses yate's global `theme.active()`, not Textual tokens:
-  with the default Mocha theme the colors are identical to Catppuccin Mocha.
-  With a non-Mocha yate theme selected, the help body follows the user's
-  theme while the chrome is pinned Mocha — this is the same trade-off the
-  manual already makes, and is what makes the two overlays consistent.
-- F1 (keymap `help` action in `keymaps/vsc.py`) and `:help`
-  (`app_features/commands.py`) both route through `show_help()`, so one
-  change covers both entry points.
-- Setting/restoring `app.theme` only swaps Textual design tokens; it does not
-  touch yate's global `theme.set_theme()` state used by the editor chrome.
+- `catppuccin-mocha` is a Textual built-in theme name already used by
+  `yate/app_features/docs.py` — no new dependency, CSS, or token mapping.
+- With the default Mocha yate theme, help body colors already equal
+  Catppuccin Mocha's. With a non-Mocha yate theme selected, the help body
+  keeps following the user's theme while the frame is pinned Mocha — exactly
+  the trade-off the manual already makes today; this is what makes the two
+  overlays consistent with each other.
+- If the app quits while the overlay is open the restore callback is
+  skipped; the process is exiting, so no state leaks.
 
 ## Validation
 
-- `python -m pytest tests/test_app_textual.py -k "help or manual or overlay or changelog" -q`
-- Full suite: `python -m pytest -q` (expect 0 failures; baseline 546 passed).
-- `pyright` on the changed files / project (expect 0 errors, 0 warnings per
-  project convention).
-- Manual smoke check: launch yate, press F1 — border/surface/scrollbar/hint
-  should match the F8 manual (mauve border, dark mocha surface); `esc`/`q`
-  returns to the normal theme; verify `:help` behaves identically.
+1. Targeted tests:
+   `python -m pytest tests/test_app_textual.py -k "help or manual or overlay or changelog" -q`
+2. Full suite: `python -m pytest -q` (baseline: 546 passed).
+3. `pyright` — expect 0 errors / 0 warnings (project convention).
+4. Visual smoke check: launch yate → `F1` shows the mauve frame and mocha
+   surface identical to `F8`; esc/q restores; `:help` behaves the same.
 
 ## Risks
 
-- **Theme not restored if the dismiss callback is bypassed:** the manual uses
-  the same callback mechanism (`push_screen(..., callback=...)` fires on any
-  dismiss path — esc/q/ctrl+c), and existing tests prove restoration.
-  Mitigation: mirror that mechanism exactly and assert restoration in the
-  help test.
-- **First-frame unthemed flash:** mitigated by switching `app.theme`
-  *before* `push_screen`, as `docs.show_doc` already does.
-- **Nested overlays clobbering the saved theme:** mitigated by a separate
-  `_prev_help_theme` flag rather than reusing `_prev_doc_theme`.
+- **Theme left switched after close** — low: uses the identical
+  save/restore-via-pop-callback mechanism already proven for the manual, and
+  the test asserts restoration to `textual-dark`.
+- **First-frame flash** — avoided by setting `app.theme` before
+  `push_screen`, same as the manual.
+- **Stacked overlays** — handled by the independent `_prev_help_theme` flag.

@@ -1,5 +1,16 @@
 # User Profile
 
-## 工作约定 / Preferences
+## Preferences / Conventions
 
-- **计划文档存放位置（2026-09-15 约定）**：以后所有的实施计划（plans）一律生成到项目根目录的 `.trae/documents/` 文件夹下，文件名使用简短描述性名称（如 `{NAME}_plan.md`）。该目录在 yate 项目中已被 `.gitignore` 忽略，计划文档不会进入版本库。
+- **Plan documents location (2026-09-15):** All implementation plans must be
+  generated under `.trae/documents/` at the project root, using a short
+  descriptive filename (e.g. `{NAME}_plan.md`). This folder is git-ignored.
+- **Relative paths only (2026-09-15):** Plans and documents must use
+  repository-root-relative paths (e.g. `yate/app.py`). Never use absolute
+  paths or `file://` links.
+- **English for `.trae` documents (2026-09-15):** Every document generated
+  under `.trae/` (including plans and memory files) must be written in
+  English.
+- **Project-local preference storage (2026-09-15):** AI/assistant
+  preference changes must be recorded in the project-local `.trae/` folder
+  (this file / project memory), not in the global user memory directory.
