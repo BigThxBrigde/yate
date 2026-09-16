@@ -1,10 +1,10 @@
-# yate：yaterc 配置系统 + 严格 pylint + VSCode 风格改版 + keymap 更名 vsc
+# yate：yaterc 配置系统 + 严格 pyright 类型检查 + VSCode 风格改版 + keymap 更名 vsc
 
 ## 背景
 
-用户要求：① 所有代码严格遵守 pylint；② 所有设置集中到名为 `yaterc` 的 Python 配置文件（优先级类似 vimrc/init.vim，所有选项可配，例如 keymap）；③ `normal` keymap 更名 `vsc`；④ TUI 现代化、布局参考 VSCode。
+用户要求：① 所有代码严格遵守 pyright 类型检查；② 所有设置集中到名为 `yaterc` 的 Python 配置文件（优先级类似 vimrc/init.vim，所有选项可配，例如 keymap）；③ `normal` keymap 更名 `vsc`；④ TUI 现代化、布局参考 VSCode。
 
-已确认决策：yaterc 采用**用户级+项目级叠加**加载；UI 做**全套 VSCode 风格**（含命令面板/快速打开/欢迎页）；pylint **严格+少量白名单**；提供 `yaterc.example`。
+已确认决策：yaterc 采用**用户级+项目级叠加**加载；UI 做**全套 VSCode 风格**（含命令面板/快速打开/欢迎页）；pyright **strict 模式 + 少量类型豁免**；提供 `yaterc.example`。
 
 架构约束不变：`editor_core`/`keymaps`/`services` 为 UI 无关层，只做必要小改；`editor_view` 为 UI 层。venv 执行统一 `.\.venv\Scripts\python.exe`，跑测试前置 `$env:PYTHONDONTWRITEBYTECODE=1`（沙箱产物告警可忽略）。
 
@@ -72,27 +72,47 @@
 
 **欢迎页**（`yate/editor_view/editor.py`）：`render_line` 在「`doc.path is None` 且 buffer 为空」时前 6 行画居中暗色文案（版本、F1 help、ctrl+p quick open、: 命令），其余空白；`_update_virtual_size`（L51）在欢迎态抬高为 `max(1, line_count, 6)`，否则 virtual 高度 1 只渲染第 1 行。
 
-## 4. pylint（严格 + 少量白名单）
+## 4. pyright（strict 模式 + 少量类型豁免）
 
 `pyproject.toml`：
 ```toml
 [project.optional-dependencies]
-dev = ["pylint>=3.2"]
+dev = ["pyright>=1.1", "pylance>=1.1"]
 
-[tool.pylint.main]
-py-version = "3.13"
-ignore = [".venv"]
-max-line-length = 100
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+include = ["yate", "tests"]
+exclude = [".venv"]
 
-[tool.pylint."messages control"]
-disable = [
-  "broad-exception-caught",        # extensions/config 隔离执行用户代码，故意吞异常
-  "too-many-instance-attributes",  # YateApp 聚合应用状态
-  "too-few-public-methods",        # dataclass/容器类（Entry/KeyBinding/Loader 等）
-]
+    [tool.pyright.overrides]
+    # UI 无关核心层：strict
+    yate/keymaps = [
+      { typeCheckingMode = "strict" },
+    ]
+    yate/editor_core = [
+      { typeCheckingMode = "strict" },
+    ]
+    yate/services = [
+      { typeCheckingMode = "strict" },
+    ]
+    # UI 层：basic（Textual 类型桩偶尔不完整）
+    yate/editor_view = [
+      { typeCheckingMode = "basic" },
+    ]
+    tests = [
+      { typeCheckingMode = "basic" },
+    ]
+
+[tool.pyright.basic]
+reportMissingTypeStubs = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownParameterType = false
 ```
-行内豁免（带理由注释）：`cli.py` L71/81 懒加载 `import-outside-toplevel`；`modals.py` L111 底部 import；`vim.py` 三处 `# noqa: SLF001` 替换为 `# pylint: disable=protected-access`。
-逐文件清违规（以实际输出为准迭代）：`unused-argument`（`_register_commands` 的 lambda 参数改 `_args` 或具名函数）、补缺失的一行 docstring（missing-module/class/function）、`consider-using-f-string` 等。目标：`pylint yate tests` 10.0/10。
+行内豁免（带理由注释）：`cli.py` 懒加载用 `# pyright: ignore[reportMissingImports]`；`vim.py` 访问私有属性（如 `buf.anchor`）用 `# pyright: ignore[reportAttributeAccessIssue]`；扩展隔离执行路径上 `# pyright: ignore[reportMissingTypeStubs]`。
+逐文件清类型问题（以实际输出为准迭代）：`reportUnusedVariable`（lambda 参数改 `_args` 或具名函数）、`reportMissingReturnStatement`、`reportPossiblyUnboundVariable`、`reportOptionalMemberAccess`、`reportArgumentType` 等。目标：`pyright yate tests` 0 errors / 0 warnings。
 
 ## 5. 测试
 
@@ -104,11 +124,11 @@ disable = [
 ## 6. 实施顺序（每步保持测试绿）
 
 1. **重命名 vsc**：机械改动 + 测试 + `:normal` alias + `:`/toggle 绑定落地。
-2. **pylint 接入**：装 pylint、写配置、清全库违规（顺带修 app.py L359）。
+2. **pyright 接入**：装 pyright+pylance、写配置、清全库类型问题（顺带修 app.py L359）。
 3. **config.py + CLI `-u` + TextBuffer 传播 + test_config.py**。
 4. **纯渲染改版**：theme 调色 → statusbar 平化 → render_tabbar → 侧栏头部 → breadcrumbs。
 5. **交互**：`walk_files` → palette.py → keys.py 合成键 → ctrl+p/ctrl+shift+p 重绑 → welcome 渲染 + pilot 测试。
-6. **收尾**：`yaterc.example`、pylint 10.0 复验、全量测试、`yate --version` 双入口、真实 TUI 启动冒烟。
+6. **收尾**：`yaterc.example`、pyright 0 errors 复验、全量测试、`yate --version` 双入口、真实 TUI 启动冒烟。
 
 ## 风险
 
