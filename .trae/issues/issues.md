@@ -11,7 +11,7 @@
 
 ### 🔴 Critical（必须修复）
 
-- [ ] **`:wq` 保存失败时仍退出，导致数据丢失** — `app_features/commands.py:54`
+- [x] **`:wq` 保存失败时仍退出，导致数据丢失** — `app_features/commands.py:54`
   `_wq` 调用 `save_document()` 后无条件 `quit(force=True)`。若保存失败（无路径、用户取消、权限错误），`force=True` 跳过未保存检查直接退出，丢失工作内容。
   **修复：** 保存失败时检查 `doc.modified` 或让 `save_document` 返回成功标志，仅在保存成功时退出。
 
