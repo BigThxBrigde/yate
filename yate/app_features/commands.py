@@ -53,6 +53,11 @@ def register_commands(app: "YateApp") -> None:
 
     def _wq(args: str) -> None:
         app.save_document()
+        # Only quit once the text is safely on disk: a failed save (I/O
+        # error) or a still-pending save-as prompt leaves the document
+        # modified, and force-quitting then would discard the work.
+        if app.doc.modified:
+            return
         app.quit(force=True)
 
     reg("wq", _wq, "save and quit")

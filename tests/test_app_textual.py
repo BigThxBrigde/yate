@@ -3379,6 +3379,172 @@ def test_q_quits_immediately_with_clean_panes(pane_root: Path) -> None:
     asyncio.run(scenario())
 
 
+# --------------------------------------------------------------- :wq guarding
+
+
+async def _wait_quit(app: YateApp, pilot: Any) -> None:
+    """Pump the pilot until *app* exits (mirrors the :q tests above)."""
+    for _ in range(5):
+        with contextlib.suppress(Exception):
+            await pilot.pause()
+        if not app.is_running:
+            break
+    for _ in range(3):
+        await asyncio.sleep(0)
+
+
+def test_wq_saves_and_quits_when_save_succeeds(tmp_path: Path) -> None:
+    """Happy path: :wq writes the dirty buffer to disk, clears the modified
+    flag and then calls quit(force=True).
+
+    quit() is recorded instead of letting the app tear down: a real
+    save-and-quit orphans the fire-and-forget LSP didSave worker (its
+    coroutine is GC'd unawaited -- pre-existing app behavior that only
+    shows up once the loop is gone). Keeping the app alive lets the
+    worker drain while the recorder still proves the quit decision.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "notes.txt"
+        app = YateApp(target=target, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # dirty the buffer
+            await pilot.press("i", "h", "i", "escape")
+            await pilot.pause()
+            assert app.doc.modified
+
+            quit_calls: list[bool] = []
+
+            def _record_quit(force: bool = False) -> None:
+                quit_calls.append(force)
+
+            cast(Any, app).quit = _record_quit
+            app.run_command("wq")
+            await pilot.pause()
+            await pilot.pause()
+
+            assert quit_calls == [True]
+            assert not app.doc.modified
+            assert target.read_text(encoding="utf-8") == "hi"
+
+    asyncio.run(scenario())
+
+
+def test_wq_does_not_quit_when_save_fails(tmp_path: Path) -> None:
+    """Data-loss regression: when the write raises (here the path points at a
+    directory), :wq must NOT force-quit -- the unsaved work stays in memory."""
+
+    async def scenario() -> None:
+        target = tmp_path / "notes.txt"
+        app = YateApp(target=target, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("i", "k", "e", "e", "p", "escape")
+            await pilot.pause()
+            assert app.doc.modified
+
+            # Aim the document at a directory so write_text() raises OSError.
+            blocker = tmp_path / "blocker"
+            blocker.mkdir()
+            app.doc.path = blocker
+
+            app.run_command("wq")
+            await pilot.pause()
+
+            # Still running: the failed save aborted the quit.
+            assert app.is_running
+            assert app.doc.modified
+            assert app.doc.buffer.get_text() == "keep"
+            assert "save failed" in _message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_wq_does_not_quit_for_unnamed_modified_buffer() -> None:
+    """An unnamed (no path) dirty buffer routes :wq to the save-as prompt;
+    the editor must stay open rather than force-quit and lose the text."""
+
+    async def scenario() -> None:
+        app = YateApp(keymap="vim")  # untitled scratch buffer
+        async with app.run_test(size=(100, 30)) as pilot:
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            await pilot.press("i", "w", "o", "r", "k", "escape")
+            await pilot.pause()
+            assert app.doc.path is None
+            assert app.doc.modified
+
+            app.run_command("wq")
+            await pilot.pause()
+
+            assert app.is_running
+            assert app.doc.modified
+            assert app.doc.buffer.get_text() == "work"
+            # the save-as prompt was opened instead of quitting
+            assert prompt_bar.active_mode == "save"
+
+            # cancelling the prompt (empty submit) still must not quit
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.is_running
+            assert app.doc.modified
+            assert app.doc.buffer.get_text() == "work"
+            assert "save cancelled" in _message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_wq_quits_for_clean_unnamed_buffer() -> None:
+    """A pristine unnamed buffer (welcome page / :enew) has nothing to lose:
+    :wq exits straight away, matching the pre-guard behavior."""
+
+    async def scenario() -> None:
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.doc.path is None
+            assert not app.doc.modified
+
+            app.run_command("wq")
+            await _wait_quit(app, pilot)
+
+            assert not app.is_running
+
+    asyncio.run(scenario())
+
+
+def test_wq_quits_for_clean_named_buffer(tmp_path: Path) -> None:
+    """No unsaved changes: :wq re-writes the (unchanged) file and quits.
+
+    quit() is recorded rather than executed for the same LSP-worker reason
+    as test_wq_saves_and_quits_when_save_succeeds above.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "clean.txt"
+        target.write_text("already saved", encoding="utf-8")
+        app = YateApp(target=target, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert not app.doc.modified
+
+            quit_calls: list[bool] = []
+
+            def _record_quit(force: bool = False) -> None:
+                quit_calls.append(force)
+
+            cast(Any, app).quit = _record_quit
+            app.run_command("wq")
+            await pilot.pause()
+            await pilot.pause()
+
+            assert quit_calls == [True]
+            assert target.read_text(encoding="utf-8") == "already saved"
+
+    asyncio.run(scenario())
+
+
 def test_vertical_chord_and_geometry_navigation(pane_root: Path) -> None:
     async def scenario() -> None:
         app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
