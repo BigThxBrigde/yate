@@ -58,7 +58,7 @@ def register_commands(app: "YateApp") -> None:
         # modified, and force-quitting then would discard the work.
         if app.doc.modified:
             return
-        app.quit(force=True)
+        app.quit()
 
     reg("wq", _wq, "save and quit")
 

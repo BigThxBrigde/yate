@@ -540,7 +540,7 @@ class YateApp(App[None]):
                 group="lsp-sync", exclusive=False, exit_on_error=False,
             )
             self.message(f"saved {doc.path}", kind="ok")
-        except OSError as exc:
+        except (OSError, UnicodeError) as exc:
             self.message(f"save failed: {exc}", kind="error")
         self.ui_refresh()
 
@@ -562,7 +562,7 @@ class YateApp(App[None]):
             if self.explorer_tree is not None:
                 self.explorer_tree.refresh_tree()
             self.message(f"saved {path}", kind="ok")
-        except OSError as exc:
+        except (OSError, UnicodeError) as exc:
             self.message(f"save failed: {exc}", kind="error")
 
     # ================================================================ keymap

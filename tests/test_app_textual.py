@@ -3395,7 +3395,8 @@ async def _wait_quit(app: YateApp, pilot: Any) -> None:
 
 def test_wq_saves_and_quits_when_save_succeeds(tmp_path: Path) -> None:
     """Happy path: :wq writes the dirty buffer to disk, clears the modified
-    flag and then calls quit(force=True).
+    flag and then calls quit() without force (other-tab dirty checks still
+    apply inside quit()).
 
     quit() is recorded instead of letting the app tear down: a real
     save-and-quit orphans the fire-and-forget LSP didSave worker (its
@@ -3424,7 +3425,7 @@ def test_wq_saves_and_quits_when_save_succeeds(tmp_path: Path) -> None:
             await pilot.pause()
             await pilot.pause()
 
-            assert quit_calls == [True]
+            assert quit_calls == [False]
             assert not app.doc.modified
             assert target.read_text(encoding="utf-8") == "hi"
 
@@ -3539,8 +3540,104 @@ def test_wq_quits_for_clean_named_buffer(tmp_path: Path) -> None:
             await pilot.pause()
             await pilot.pause()
 
-            assert quit_calls == [True]
+            assert quit_calls == [False]
             assert target.read_text(encoding="utf-8") == "already saved"
+
+    asyncio.run(scenario())
+
+
+def test_wq_does_not_quit_when_other_tab_is_dirty(tmp_path: Path) -> None:
+    """Current doc is saved successfully, but another tab has unsaved
+    changes. :wq must call quit() *without* force so the internal
+    any(dirty) guard blocks the exit (vim E37 semantics) instead of
+    silently discarding the other tab's work."""
+
+    async def scenario() -> None:
+        saved = tmp_path / "saved.txt"
+        other = tmp_path / "other.txt"
+        saved.write_text("already", encoding="utf-8")
+        other.write_text("pristine", encoding="utf-8")
+
+        app = YateApp(target=saved, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            first = app.docs[0]
+
+            # open the second tab and dirty it
+            app.open_path(other)
+            await pilot.pause()
+            assert len(app.docs) == 2
+            assert app.doc.path == other
+            await pilot.press("i", "e", "d", "i", "t", "escape")
+            await pilot.pause()
+            assert app.doc.modified
+
+            # switch back to saved.txt (the first tab, clean)
+            app.activate_doc(first)
+            assert app.doc is first
+            assert not app.doc.modified
+
+            # Wrap (don't replace) quit: record the force flag while still
+            # running the real multi-tab dirty guard.
+            quit_calls: list[bool] = []
+            original_quit = app.quit
+
+            def _record_quit(force: bool = False) -> None:
+                quit_calls.append(force)
+                original_quit(force=force)
+
+            cast(Any, app).quit = _record_quit
+            app.run_command("wq")
+            await pilot.pause()
+            await pilot.pause()
+
+            assert quit_calls == [False], f"expected non-force quit, got {quit_calls}"
+            assert app.is_running
+            # the dirty tab is untouched
+            assert app.docs[1].modified
+            assert other.read_text(encoding="utf-8") == "pristine"
+            assert "unsaved changes" in _message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_wq_does_not_crash_on_unicode_encode_error(tmp_path: Path) -> None:
+    """When the file's detected encoding cannot represent the buffer
+    content (cp1252 + emoji), :wq must surface a friendly error message
+    and keep the editor alive -- NOT crash via Textual's exception
+    handler and lose the in-memory buffers."""
+
+    async def scenario() -> None:
+        target = tmp_path / "cp1252.txt"
+        # Bytes that are valid cp1252 but not UTF-8, so encoding sniffing
+        # (utf-8 -> locale -> cp1252) lands on cp1252 on every platform.
+        target.write_bytes("caf\xe9".encode("cp1252"))  # "café" in cp1252
+
+        app = YateApp(target=target, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.doc.encoding.lower().startswith(("cp1252", "windows-1252"))
+
+            # Append an emoji -- cp1252 cannot encode it. Textual's Pilot
+            # has no paste() helper, so insert straight into the buffer.
+            app.doc.buffer.move_doc_end()
+            app.doc.buffer.insert_text("\U0001f600")
+            await pilot.pause()
+            assert app.doc.modified
+
+            app.run_command("wq")
+            await pilot.pause()
+
+            # save failed -> guard aborts the quit; editor stays alive and
+            # the full unsaved content survives in memory, so the user can
+            # still recover it via :saveas with a UTF-8-capable path.
+            # (Note: write_text() truncates before the encoder raises, so
+            # the on-disk bytes are not preserved -- atomic temp-file
+            # replace would be a separate hardening change.)
+            assert app.is_running
+            assert app.doc.modified
+            assert "save failed" in _message_text(app)
+            assert app.doc.buffer.get_text() == "caf\u00e9\U0001f600"
 
     asyncio.run(scenario())
 

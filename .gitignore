@@ -133,6 +133,7 @@ cython_debug/
 
 # IDE / editor workspace
 .vscode/
+!.vscode/settings.json
 .idea/
 
 # OS files
