@@ -8,14 +8,10 @@ search via ``/``/``?``/``n``/``N`` and ex commands via ``:``.
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING
 
-from yate.editor_core.buffer import word_end
+from yate.editor_core.buffer import TextBuffer, word_end
+from yate.interfaces import AppProtocol
 from yate.keymaps.base import ActionContext, KeyBinding, Keymap, parse_key
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
-    from yate.editor_core.buffer import TextBuffer
 
 
 class VimMode(str, Enum):
@@ -410,7 +406,7 @@ class VimKeymap(Keymap):
         # swallow unmapped normal keys
         return True
 
-    def _enter_insert(self, app: YateApp) -> None:
+    def _enter_insert(self, app: AppProtocol) -> None:
         self.mode = VimMode.INSERT
         app.message("-- INSERT --")
 

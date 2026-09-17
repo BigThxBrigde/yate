@@ -30,9 +30,10 @@ from textual.widget import Widget
 
 from yate.editor_core.buffer import Pos
 from yate.editor_core.document import Document
+from yate.interfaces import AppProtocol
 
+# editor_view-internal forward refs; does NOT import yate.app.
 if TYPE_CHECKING:
-    from yate.app import YateApp
     from yate.editor_view.editor import EditorView
 
 #: Split axis: ``horizontal`` stacks top/bottom (:split), ``vertical`` puts
@@ -176,7 +177,7 @@ def _normalized(sizes: list[float]) -> list[float]:
 class PaneManager:
     """Owns the pane tree and mediates between app and widgets."""
 
-    def __init__(self, app: "YateApp", doc: Document) -> None:
+    def __init__(self, app: AppProtocol, doc: Document) -> None:
         self.app = app
         self._ids = count(1)
         first = Leaf(next(self._ids), doc)

@@ -9,12 +9,10 @@ dispatches on it.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from yate.editor_core import SearchEngine
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
+from yate.interfaces import AppProtocol
 
 # Extracted YateApp collaborator: touching the app's private state (the
 # pending explorer prompt target) is this module's contract (Python has no
@@ -22,16 +20,16 @@ if TYPE_CHECKING:
 # pyright: reportPrivateUsage=false
 
 
-def prompt_new_file(app: "YateApp", directory: Optional[Path]) -> None:
+def prompt_new_file(app: AppProtocol, directory: Optional[Path]) -> None:
     prompt_new(app, directory, is_dir=False)
 
 
-def prompt_new_dir(app: "YateApp", directory: Optional[Path]) -> None:
+def prompt_new_dir(app: AppProtocol, directory: Optional[Path]) -> None:
     prompt_new(app, directory, is_dir=True)
 
 
 def prompt_new(
-    app: "YateApp", directory: Optional[Path], *, is_dir: bool
+    app: AppProtocol, directory: Optional[Path], *, is_dir: bool
 ) -> None:
     if directory is None:
         app.message("select a file or folder first", kind="warn")
@@ -49,7 +47,7 @@ def prompt_new(
     )
 
 
-def prompt_rename(app: "YateApp", path: Optional[Path]) -> None:
+def prompt_rename(app: AppProtocol, path: Optional[Path]) -> None:
     if path is None:
         app.message("select a file or folder first", kind="warn")
         return
@@ -60,7 +58,7 @@ def prompt_rename(app: "YateApp", path: Optional[Path]) -> None:
                             placeholder=f"renaming {path.name}")
 
 
-def prompt_delete(app: "YateApp", path: Optional[Path]) -> None:
+def prompt_delete(app: AppProtocol, path: Optional[Path]) -> None:
     if path is None:
         app.message("select a file or folder first", kind="warn")
         return
@@ -74,7 +72,7 @@ def prompt_delete(app: "YateApp", path: Optional[Path]) -> None:
     )
 
 
-def create(app: "YateApp", directory: Optional[Path], name: str) -> None:
+def create(app: AppProtocol, directory: Optional[Path], name: str) -> None:
     if directory is None:
         return
     try:
@@ -97,7 +95,7 @@ def create(app: "YateApp", directory: Optional[Path], name: str) -> None:
         app._open_document_path(target)
 
 
-def apply_rename(app: "YateApp", path: Optional[Path], name: str) -> None:
+def apply_rename(app: AppProtocol, path: Optional[Path], name: str) -> None:
     if path is None:
         return
     try:
@@ -120,7 +118,7 @@ def apply_rename(app: "YateApp", path: Optional[Path], name: str) -> None:
     app.message(f"renamed to {new_path.name}", kind="ok")
 
 
-def apply_delete(app: "YateApp", path: Optional[Path], confirm: str) -> None:
+def apply_delete(app: AppProtocol, path: Optional[Path], confirm: str) -> None:
     if path is None:
         return
     if confirm.strip().lower() not in ("y", "yes"):

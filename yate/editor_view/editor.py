@@ -15,16 +15,19 @@ from textual.timer import Timer
 
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
+from yate.editor_core.document import Document
 from yate.editor_syntax import tokenize_document
 from yate.editor_syntax.tokens import Token
+from yate.interfaces import AppProtocol
 
 from . import theme
 from .keys import event_to_raw
 from .terminal import TOGGLE_KEYS
 
+# editor_view-internal forward refs (panes.py also has them for EditorView):
+# these do NOT import yate.app -- the mutual dependency stays local to the
+# editor_view package and is resolved lazily by ``from __future__ import annotations``.
 if TYPE_CHECKING:
-    from yate.app import YateApp
-    from yate.editor_core.document import Document
     from yate.editor_view.panes import Leaf
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
@@ -68,7 +71,7 @@ class EditorView(ScrollView):
     }
     """
 
-    def __init__(self, app: YateApp, *, leaf_id: int, **kwargs: Any) -> None:
+    def __init__(self, app: AppProtocol, *, leaf_id: int, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.yate = app
         self.leaf_id = leaf_id

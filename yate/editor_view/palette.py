@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -24,13 +24,11 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
+from yate.interfaces import AppProtocol
 from yate.services.workspace import Workspace
 
 from . import theme
 from .icons import GEAR, KEYBOARD, icon_for_path
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE = 12
@@ -104,7 +102,7 @@ class PaletteScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, yate: YateApp, mode: str, **kwargs: Any) -> None:
+    def __init__(self, yate: AppProtocol, mode: str, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.yate = yate
         self.mode = mode  # "files" | "commands"

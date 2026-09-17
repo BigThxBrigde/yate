@@ -9,13 +9,11 @@ name -> handler store (also used by the extension API), while
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import Callable, Optional
 
 from yate.editor_syntax import available_filetypes, language_name
 from yate.editor_view import theme
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
+from yate.interfaces import AppProtocol
 
 # Extracted YateApp collaborator: touching the app's private helpers/state
 # is this module's contract (Python has no friend classes).
@@ -42,7 +40,7 @@ class CommandRegistry:
         return entry[1] if entry else ""
 
 
-def register_commands(app: "YateApp") -> None:
+def register_commands(app: AppProtocol) -> None:
     """Register the built-in ex commands on *app*'s registry."""
     reg = app.commands.register
     reg("w", lambda args: app.save_document(), "save the current file")

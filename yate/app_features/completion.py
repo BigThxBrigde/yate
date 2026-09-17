@@ -9,15 +9,13 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_view import theme
 from yate.editor_view.completion import buffer_completions
+from yate.interfaces import AppProtocol
 from yate.keymaps.vim import VimKeymap, VimMode
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 
 class CompletionController:
@@ -26,7 +24,7 @@ class CompletionController:
     #: Idle delay after the last keystroke before the popup is queried.
     _DEBOUNCE_S = 0.12
 
-    def __init__(self, app: "YateApp") -> None:
+    def __init__(self, app: AppProtocol) -> None:
         self._app = app
         self._timer: Optional[asyncio.TimerHandle] = None
 

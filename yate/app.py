@@ -43,6 +43,7 @@ from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.panes import Axis, Leaf, PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
+from yate.interfaces import AppProtocol
 from yate.keymaps.base import ActionContext, Keymap
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
@@ -96,7 +97,7 @@ class TabBar(Static):
                 return
 
 
-class YateApp(App[None]):
+class YateApp(App[None], AppProtocol):
     """The yate Textual application and application state."""
 
     # ctrl+p is yate's own command prompt -- disable Textual's palette.

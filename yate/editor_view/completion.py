@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from rich.segment import Segment
 from rich.style import Style
@@ -23,13 +23,11 @@ from textual.css.scalar import ScalarOffset
 from textual.strip import Strip
 from textual.widget import Widget
 
+from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.client import Completion
+from yate.interfaces import AppProtocol
 
 from . import theme
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
-    from yate.editor_core.buffer import TextBuffer
 
 #: Maximum number of completion rows visible at once.
 MAX_VISIBLE = 8
@@ -91,7 +89,7 @@ class CompletionPopup(Widget):
     }
     """
 
-    def __init__(self, yate: "YateApp", **kwargs: Any) -> None:
+    def __init__(self, yate: AppProtocol, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.yate = yate
         self.items: list[Completion] = []

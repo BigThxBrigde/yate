@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rich.text import Text
 from textual.events import Key
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
+from yate.interfaces import AppProtocol
+
 from . import theme
 from .icons import icon_for_path
 from ..services.workspace import IGNORED_NAMES
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None
@@ -32,7 +31,7 @@ class ExplorerTree(Tree[NodeData]):
     }
     """
 
-    def __init__(self, yate: YateApp, **kwargs: Any) -> None:
+    def __init__(self, yate: AppProtocol, **kwargs: Any) -> None:
         # The root node shows the open folder name; refresh_tree() fills it in.
         super().__init__(Text(""), **kwargs)
         self.yate = yate

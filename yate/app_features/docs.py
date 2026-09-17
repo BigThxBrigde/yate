@@ -9,12 +9,8 @@ switch / restore is needed.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from yate.editor_view.manual import MarkdownDocScreen
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
+from yate.interfaces import AppProtocol
 
 # Extracted YateApp collaborator: this module only reads app.mounted and
 # app.screen, and pushes an overlay through app._push_overlay -- no private
@@ -22,7 +18,7 @@ if TYPE_CHECKING:
 # pyright: reportPrivateUsage=false
 
 
-def show_doc(app: "YateApp", *, kind: str, lang: str, title: str) -> None:
+def show_doc(app: AppProtocol, *, kind: str, lang: str, title: str) -> None:
     """Push the MarkdownDocScreen for *kind* / *lang* / *title*.
 
     The viewer's frame chrome (borders, markdown headings, search-hit tints)
@@ -34,11 +30,11 @@ def show_doc(app: "YateApp", *, kind: str, lang: str, title: str) -> None:
     app._push_overlay(MarkdownDocScreen(app, kind=kind, lang=lang, title=title))
 
 
-def show_manual(app: "YateApp", lang: str = "en") -> None:
+def show_manual(app: AppProtocol, lang: str = "en") -> None:
     """Open the bundled user manual."""
     show_doc(app, kind="manual", lang=lang, title="user manual")
 
 
-def show_changelog(app: "YateApp", lang: str = "en") -> None:
+def show_changelog(app: AppProtocol, lang: str = "en") -> None:
     """Open the bundled bilingual changelog."""
     show_doc(app, kind="changelog", lang=lang, title="changelog")
