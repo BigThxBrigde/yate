@@ -132,7 +132,7 @@ cython_debug/
 .pyright/
 
 # IDE / editor workspace
-.vscode/
+.vscode/*
 !.vscode/settings.json
 .idea/
 
