@@ -1,9 +1,9 @@
 """Abstraction layer: Protocol definitions that low-level modules depend on.
 
-This module deliberately has **zero imports from** ``yate.app`` or any module
-that transitively imports it.  It only pulls in the fully-leaf packages
-(``editor_core``, ``editor_lsp``) so it can reference concrete data types
-(``Document``, ``TextBuffer``, ``LspManager``) in the protocol signatures.
+This module deliberately has **zero runtime imports from** ``yate.app`` or any
+module that transitively imports it.  At runtime it only pulls in the fully
+leaf-level packages: ``editor_core``, ``editor_lsp``, and Textual (a
+third-party library with no Yate dependencies).
 
 The purpose of this file is to allow :mod:`keymaps`, :mod:`services`,
 :mod:`editor_view`, :mod:`app_features` and :mod:`diagnostics` to annotate
@@ -11,17 +11,46 @@ their ``app`` parameters without importing :class:`yate.app.YateApp` (which
 would create a circular import).  ``YateApp`` satisfies :class:`AppProtocol`
 by structural subtyping -- no explicit inheritance is required, though the
 app module *may* opt in later for IDE clarity.
+
+All Yate-internal non-leaf types are imported under ``TYPE_CHECKING`` with
+string forward refs.  Their parent packages' ``__init__.py`` files eagerly
+import modules that depend on ``AppProtocol``, so a runtime import would
+always cycle.  ``TYPE_CHECKING`` gives pyright full precision without
+triggering the cycle.
+
+The only remaining ``Any`` is in :meth:`run_worker`, whose Textual base-class
+signature uses complex generics (``WorkType[ResultType]`` / ``Worker[ResultType]``)
+that are impractical to express precisely in a Protocol.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
+
+from textual.events import Key
+from textual.screen import Screen
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_core.search import SearchEngine
 from yate.editor_lsp import LspManager
+
+if TYPE_CHECKING:
+    from yate.actions import ActionRegistry
+    from yate.app_features.commands import CommandRegistry
+    from yate.config import YateConfig
+    from yate.editor_view.commandline import PromptBar
+    from yate.editor_view.completion import CompletionPopup
+    from yate.editor_view.editor import EditorView
+    from yate.editor_view.explorer import ExplorerTree
+    from yate.editor_view.panes import PaneManager
+    from yate.editor_view.pane_types import Axis, Leaf
+    from yate.editor_view.terminal import TerminalPanel
+    from yate.keymaps.base import Keymap
+    from yate.services.extensions import ExtensionLoader
+    from yate.services.shell import ShellResult
+    from yate.services.workspace import Workspace
 
 
 class AppProtocol(Protocol):
@@ -30,18 +59,13 @@ class AppProtocol(Protocol):
     Lower layers = anything under ``keymaps``, ``services``, ``editor_view``,
     ``app_features``, ``diagnostics``.  The protocol captures just what they
     actually touch -- no private state that the UI layer keeps to itself.
-
-    Types that live in packages that *do* import ``yate.app`` (e.g.
-    ``Workspace``, ``Keymap``, ``PaneManager``, ``PromptBar``,
-    ``CompletionPopup`` ...) are kept as ``Any`` or string forward refs so
-    that ``interfaces.py`` stays leaf-level.
     """
 
     # ---- core editor state ------------------------------------------------
-    # NOTE: ``buffer``, ``doc``, ``mounted``, ``active_keymap`` are declared
-    # as @property here because YateApp implements them as properties, and
-    # pyright strict mode rejects assigning a property to a plain attribute
-    # slot in a protocol.
+    # NOTE: ``buffer``, ``doc``, ``mounted``, ``active_keymap``, ``editor_view``,
+    # ``screen``, ``screen_stack`` are declared as @property here because
+    # YateApp implements them as properties, and pyright strict mode rejects
+    # assigning a property to a plain attribute slot in a protocol.
 
     @property
     def buffer(self) -> TextBuffer: ...
@@ -54,35 +78,38 @@ class AppProtocol(Protocol):
 
     # ---- services / singletons --------------------------------------------
 
-    workspace: Any          # yate.services.workspace.Workspace
-    keymaps: dict[str, Any]  # dict[str, Keymap]
+    workspace: Workspace
+    keymaps: dict[str, Keymap]
     keymap_name: str
     lsp: LspManager
     search: SearchEngine
-    actions: Any            # yate.actions.ActionRegistry
-    commands: Any           # yate.app_features.commands.CommandRegistry
-    extension_loader: Any   # yate.services.extensions.ExtensionLoader
+    actions: ActionRegistry
+    commands: CommandRegistry
+    extension_loader: ExtensionLoader
 
     # ---- active keymap ----------------------------------------------------
 
     @property
-    def active_keymap(self) -> Any: ...  # Keymap
+    def active_keymap(self) -> Keymap: ...
 
     # ---- config -----------------------------------------------------------
 
-    config: Any              # yate.config.YateConfig
+    config: YateConfig
 
     # ---- completion / prompt UI -------------------------------------------
 
-    completion_popup: Optional[Any]     # CompletionPopup
-    prompt_bar: Optional[Any]           # PromptBar
+    completion_popup: Optional[CompletionPopup]
+    prompt_bar: Optional[PromptBar]
 
     # ---- other widget pointers --------------------------------------------
 
-    panes: Optional[Any]                 # PaneManager
-    editor_view: Optional[Any]          # EditorView
-    explorer_tree: Optional[Any]        # ExplorerTree
-    terminal_panel: Optional[Any]       # TerminalPanel
+    panes: Optional[PaneManager]
+
+    @property
+    def editor_view(self) -> Optional[EditorView]: ...
+
+    explorer_tree: Optional[ExplorerTree]
+    terminal_panel: Optional[TerminalPanel]
 
     # ---- booleans / tiny state -------------------------------------------
 
@@ -93,10 +120,10 @@ class AppProtocol(Protocol):
     explorer_visible: bool
 
     @property
-    def screen_stack(self) -> list[Any]: ...
+    def screen_stack(self) -> list[Screen[Any]]: ...
 
     @property
-    def screen(self) -> Any: ...  # Textual screen
+    def screen(self) -> Screen[object]: ...
 
     # ---- status bar helpers ----------------------------------------------
 
@@ -106,7 +133,7 @@ class AppProtocol(Protocol):
 
     _terminal_visible: bool
     _terminal_starting: bool
-    _terminal_factory: Optional[Callable[..., Any]]
+    _terminal_factory: Optional[Callable[..., object]]
     _explorer_target: Optional[Path]
     _explorer_is_dir: bool
     @property
@@ -125,7 +152,7 @@ class AppProtocol(Protocol):
 
     def handle_raw_key(self, raw: str) -> bool: ...
 
-    def try_window_prefix(self, event: Any) -> bool: ...
+    def try_window_prefix(self, event: Key) -> bool: ...
 
     # ---- terminal ---------------------------------------------------------
 
@@ -162,7 +189,7 @@ class AppProtocol(Protocol):
     def cycle_tab(self, delta: int) -> None: ...
 
     def _open_document_path(
-        self, path: Path, *, target_leaf: Optional[Any] = None
+        self, path: Path, *, target_leaf: Optional[Leaf] = None
     ) -> Optional[Document]: ...
 
     # ---- search / replace -------------------------------------------------
@@ -223,7 +250,11 @@ class AppProtocol(Protocol):
         thread: bool = False,
     ) -> Any: ...
 
-    def _push_overlay(self, screen: Any) -> None: ...
+    def _push_overlay(
+        self,
+        screen: Screen[Any],
+        callback: Optional[Callable[[Any], None]] = None,
+    ) -> None: ...
 
     # ---- explorer ops (thin delegates called by app_features.explorer) ---
 
@@ -259,7 +290,7 @@ class AppProtocol(Protocol):
 
     # ---- pane ops (called from app_features.commands) --------------------
 
-    def _split_with_path(self, axis: Any, args: str) -> None: ...
+    def _split_with_path(self, axis: Axis, args: str) -> None: ...
 
     def _only_pane(self) -> None: ...
 
@@ -271,4 +302,4 @@ class AppProtocol(Protocol):
 
     def run_shell_command(
         self, command: str, show_output: bool = True
-    ) -> Any: ...
+    ) -> Optional[ShellResult]: ...

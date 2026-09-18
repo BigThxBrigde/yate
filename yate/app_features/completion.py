@@ -211,8 +211,8 @@ class CompletionController:
             c0 = item.range_start_col or 0
             r1 = item.range_end_row or 0
             c1 = item.range_end_col or 0
-            # Cursor left the row(s) the completion was for — discard.
-            if row != r0 or row != r1:
+            # Cursor left the row range the completion was for — discard.
+            if row < r0 or row > r1:
                 return
             # Characters typed after the request extend the replaced prefix.
             if row == r1 and col >= c1:
