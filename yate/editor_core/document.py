@@ -13,6 +13,8 @@ from yate.editor_core.buffer import TextBuffer
 class Document:
     """A :class:`TextBuffer` paired with a file path and persistence."""
 
+    _uid_counter: int = 0
+
     def __init__(
         self,
         path: Optional[Path | str] = None,
@@ -20,6 +22,8 @@ class Document:
         *,
         encoding: str = "utf-8",
     ) -> None:
+        Document._uid_counter += 1
+        self.uid: int = Document._uid_counter
         self.path: Optional[Path] = Path(path) if path is not None else None
         self.buffer: TextBuffer = buffer or TextBuffer()
         self.encoding = encoding

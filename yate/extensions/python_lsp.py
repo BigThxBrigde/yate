@@ -30,10 +30,9 @@ import shlex
 import shutil
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-if TYPE_CHECKING:
-    from yate.services.extensions import ExtensionAPI
+from yate.services.extensions import ExtensionAPI
 
 
 def _venv_langserver() -> Optional[str]:
@@ -85,7 +84,7 @@ def discover_command() -> tuple[str, list[str]]:
     return "", []
 
 
-def setup(api: "ExtensionAPI") -> None:
+def setup(api: ExtensionAPI) -> None:
     command, args = discover_command()
     is_pyright = "pyright" in Path(command).stem.lower()
     api.lsp.register_server(

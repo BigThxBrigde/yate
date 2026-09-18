@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Optional, Union
+from typing import Callable, Optional, Union
 
-if TYPE_CHECKING:
-    from yate.app import YateApp
+from yate.interfaces import AppProtocol
 
 # ---------------------------------------------------------------------------
 # Key notation
@@ -170,7 +169,7 @@ class KeyBinding:
 class ActionContext:
     """Passed to every action; gives access to the running application."""
 
-    def __init__(self, app: "YateApp") -> None:
+    def __init__(self, app: AppProtocol) -> None:
         self.app = app
 
     @property

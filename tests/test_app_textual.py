@@ -531,10 +531,16 @@ def test_command_palette_lists_all_commands_and_actions() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             # as an extension would: one new command and one new action
-            app.commands.register("zzz_palette_cmd", lambda args: None,
+            def _cmd(args: str) -> None:
+                pass
+
+            def _act(ctx: object) -> None:
+                pass
+
+            app.commands.register("zzz_palette_cmd", _cmd,
                                   "zz palette command")
             app.actions.register(
-                "zzz_palette_action", lambda ctx: None, "zz palette action")
+                "zzz_palette_action", _act, "zz palette action")
             app.open_command_palette()
             await pilot.pause()
             screen = app.screen

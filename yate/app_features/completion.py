@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
+from yate.editor_core.buffer import TextBuffer
 from yate.editor_view import theme
 from yate.editor_view.completion import buffer_completions
+from yate.interfaces import AppProtocol
 from yate.keymaps.vim import VimKeymap, VimMode
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 
 class CompletionController:
@@ -25,7 +24,7 @@ class CompletionController:
     #: Idle delay after the last keystroke before the popup is queried.
     _DEBOUNCE_S = 0.12
 
-    def __init__(self, app: "YateApp") -> None:
+    def __init__(self, app: AppProtocol) -> None:
         self._app = app
         self._timer: Optional[asyncio.TimerHandle] = None
 
@@ -114,10 +113,13 @@ class CompletionController:
             items, buf_prefix, _start_col = buffer_completions(
                 buf, row, col, extra_buffers=others, base_dir=base
             )
+            cur_prefix, cur_col = self._current_prefix(buf, row)
             if (
                 not app.mounted
                 or app.doc is not doc
                 or buf.row != row
+                or buf.col != cur_col
+                or cur_prefix != prefix
                 or not popup.is_mounted
             ):
                 return
@@ -153,11 +155,15 @@ class CompletionController:
             trigger_kind=kind,
             trigger_character=trigger_ch if kind == 2 else None,
         )
-        # Stale if the user switched tabs, lines or scrolled away.
+        # Stale if the user switched tabs, lines, scrolled away, or changed
+        # the prefix on the same row.
+        cur_prefix, cur_col = self._current_prefix(buf, row)
         if (
             not app.mounted
             or app.doc is not doc
             or buf.row != row
+            or buf.col != cur_col
+            or cur_prefix != prefix
             or not popup.is_mounted
         ):
             return
@@ -205,6 +211,9 @@ class CompletionController:
             c0 = item.range_start_col or 0
             r1 = item.range_end_row or 0
             c1 = item.range_end_col or 0
+            # Cursor left the row range the completion was for — discard.
+            if row < r0 or row > r1:
+                return
             # Characters typed after the request extend the replaced prefix.
             if row == r1 and col >= c1:
                 c1 = col
@@ -222,6 +231,23 @@ class CompletionController:
 
     # -------------------------------------------------------------- helpers
 
+    @staticmethod
+    def _current_prefix(buf: TextBuffer, row: int) -> tuple[str, int]:
+        """Recompute the identifier prefix at the buffer's current cursor.
+
+        Mirrors the prefix definition used in :meth:`_worker` and
+        :meth:`accept` (``isalnum() or "_"``).  Returned tuple is
+        ``(prefix_text, current_column)`` — the column is clamped to the
+        line length so callers can compare it against a previously captured
+        column without extra guards.
+        """
+        line = buf.lines[row] if row < buf.line_count else ""
+        col = min(buf.col, len(line))
+        i = col
+        while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
+            i -= 1
+        return line[i:col], col
+
     def _is_completion_char(self, ch: str) -> bool:
         if ch.isalnum() or ch == "_":
             return True
@@ -231,5 +257,7 @@ class CompletionController:
         """True when vim modal editing would insert typed characters."""
         if self._app.keymap_name != "vim":
             return True
-        vim = self._app.keymaps["vim"]
+        vim = self._app.keymaps.get("vim")
+        if vim is None:
+            return True  # key missing in unexpected state; default to insert
         return isinstance(vim, VimKeymap) and vim.mode is VimMode.INSERT
