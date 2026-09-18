@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from rich.segment import Segment
 from rich.style import Style
@@ -22,13 +22,8 @@ from yate.interfaces import AppProtocol
 
 from . import theme
 from .keys import event_to_raw
+from .pane_types import Leaf
 from .terminal import TOGGLE_KEYS
-
-# editor_view-internal forward refs (panes.py also has them for EditorView):
-# these do NOT import yate.app -- the mutual dependency stays local to the
-# editor_view package and is resolved lazily by ``from __future__ import annotations``.
-if TYPE_CHECKING:
-    from yate.editor_view.panes import Leaf
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL = 0
