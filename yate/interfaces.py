@@ -18,9 +18,11 @@ import modules that depend on ``AppProtocol``, so a runtime import would
 always cycle.  ``TYPE_CHECKING`` gives pyright full precision without
 triggering the cycle.
 
-The only remaining ``Any`` is in :meth:`run_worker`, whose Textual base-class
-signature uses complex generics (``WorkType[ResultType]`` / ``Worker[ResultType]``)
-that are impractical to express precisely in a Protocol.
+The only ``Any`` usages that remain are Textual framework generic type
+parameters (``Screen[Any]``, ``WorkType[Any]``, ``Worker[Any]``,
+``Callable[[Any], None]``).  These match Textual's / YateApp's own
+declarations and are required by Python's generic invariance -- any
+concrete type argument would be too narrow to cover all call sites.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from typing import Any, Callable, Optional, Protocol, TYPE_CHECKING
 
 from textual.events import Key
 from textual.screen import Screen
+from textual.worker import WorkType, Worker
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
@@ -240,7 +243,7 @@ class AppProtocol(Protocol):
 
     def run_worker(
         self,
-        work: Any,
+        work: WorkType[Any],
         name: Optional[str] = "",
         group: str = "default",
         description: str = "",
@@ -248,7 +251,7 @@ class AppProtocol(Protocol):
         start: bool = True,
         exclusive: bool = False,
         thread: bool = False,
-    ) -> Any: ...
+    ) -> Worker[Any]: ...
 
     def _push_overlay(
         self,
