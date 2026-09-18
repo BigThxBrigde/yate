@@ -52,6 +52,8 @@ from yate.editor_view.pane_types import (
 )
 
 # Re-export for backward compatibility -- external code imports from panes.
+# DEPRECATED: prefer ``from yate.editor_view.pane_types import Axis, Leaf, ...``
+# These re-exports may be removed in a future version.
 __all__ = [
     "Axis",
     "Leaf",
@@ -122,9 +124,9 @@ class PaneManager:
         (``:split`` without arguments opens at the same cursor position)."""
         leaf = Leaf(next(self._ids), doc)
         if inherit is not None:
-            state = inherit.states.get(id(doc))
+            state = inherit.states.get(doc.uid)
             if state is not None:
-                leaf.states[id(doc)] = ViewState(
+                leaf.states[doc.uid] = ViewState(
                     cursor=state.cursor,
                     anchor=state.anchor,
                     scroll_col=state.scroll_col,
@@ -436,7 +438,15 @@ class PaneHost(Widget):
                 child.styles.width = pct
 
     async def reconcile(self, focus: Leaf) -> None:
-        """Rebuild the whole widget subtree from the model tree."""
+        """Rebuild the whole widget subtree from the model tree.
+
+        # TODO(perf): full rebuild destroys and recreates every widget on
+        # structural changes (split/close/only).  A diff-based approach that
+        # reuses unchanged :class:`EditorView` instances would avoid the
+        # layout thrash for large pane trees.  Currently acceptable because
+        # split operations are infrequent and EditorView construction is
+        # cheap -- revisit once pane counts exceed ~8.
+        """
         self.manager.views.clear()
         for child in list(self.children):
             await child.remove()
@@ -448,7 +458,7 @@ class PaneHost(Widget):
         # restore each pane's saved scroll before handing focus over
         for leaf in leaves(self.manager.root):
             view = self.manager.views.get(leaf.id)
-            state = leaf.states.get(id(leaf.doc))
+            state = leaf.states.get(leaf.doc.uid)
             if view is not None and state is not None:
                 view.scroll_col = state.scroll_col
                 view.scroll_to(y=state.scroll_row, animate=False)

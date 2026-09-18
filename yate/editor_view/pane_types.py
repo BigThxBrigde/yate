@@ -45,19 +45,21 @@ class Leaf:
 
     id: int
     doc: Document
-    #: View states keyed by ``id(document)`` so a leaf remembers the cursor
-    #: position of every document it has shown.
+    #: View states keyed by ``Document.uid`` so a leaf remembers the cursor
+    #: position of every document it has shown.  Using a stable monotonically
+    #: increasing id avoids ``id(document)`` instability when documents are
+    #: recreated (e.g.  reopening after a crash).
     states: dict[int, ViewState] = field(
         default_factory=lambda: dict[int, ViewState]()
     )
 
     def state_for(self, doc: Document) -> ViewState:
-        state = self.states.get(id(doc))
+        state = self.states.get(doc.uid)
         if state is None:
             state = ViewState(
                 cursor=doc.buffer.cursor, anchor=doc.buffer.anchor
             )
-            self.states[id(doc)] = state
+            self.states[doc.uid] = state
         return state
 
 

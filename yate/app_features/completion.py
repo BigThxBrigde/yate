@@ -257,5 +257,7 @@ class CompletionController:
         """True when vim modal editing would insert typed characters."""
         if self._app.keymap_name != "vim":
             return True
-        vim = self._app.keymaps["vim"]
+        vim = self._app.keymaps.get("vim")
+        if vim is None:
+            return True  # key missing in unexpected state; default to insert
         return isinstance(vim, VimKeymap) and vim.mode is VimMode.INSERT
