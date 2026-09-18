@@ -6,18 +6,16 @@ left and position/meta information right-aligned.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rich.text import Text
 from textual.widgets import Static
 
 from yate.editor_lsp import ServerState
+from yate.interfaces import AppProtocol
 
 from . import theme
 from .icons import DOT, KEYBOARD, PENCIL, PLUG, TERMINAL
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 
 class StatusBar(Static):
@@ -30,7 +28,7 @@ class StatusBar(Static):
     }
     """
 
-    def __init__(self, yate: YateApp, **kwargs: Any) -> None:
+    def __init__(self, yate: AppProtocol, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
         self.yate = yate
 

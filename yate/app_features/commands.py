@@ -9,13 +9,11 @@ name -> handler store (also used by the extension API), while
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import Callable, Optional
 
 from yate.editor_syntax import available_filetypes, language_name
 from yate.editor_view import theme
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
+from yate.interfaces import AppProtocol
 
 # Extracted YateApp collaborator: touching the app's private helpers/state
 # is this module's contract (Python has no friend classes).
@@ -42,14 +40,20 @@ class CommandRegistry:
         return entry[1] if entry else ""
 
 
-def register_commands(app: "YateApp") -> None:
+def register_commands(app: AppProtocol) -> None:
     """Register the built-in ex commands on *app*'s registry."""
     reg = app.commands.register
-    reg("w", lambda args: app.save_document(), "save the current file")
-    reg("write", lambda args: app.save_document(), "save the current file")
-    reg("q", lambda args: app.quit(), "quit yate")
-    reg("quit", lambda args: app.quit(), "alias for :q")
-    reg("q!", lambda args: app.quit(force=True), "quit, discarding changes")
+
+    # ---- save / quit -------------------------------------------------------
+
+    def _w(args: str) -> None:
+        app.save_document()
+
+    def _q(args: str) -> None:
+        app.quit()
+
+    def _qbang(args: str) -> None:
+        app.quit(force=True)
 
     def _wq(args: str) -> None:
         app.save_document()
@@ -60,7 +64,14 @@ def register_commands(app: "YateApp") -> None:
             return
         app.quit()
 
+    reg("w", _w, "save the current file")
+    reg("write", _w, "save the current file")
+    reg("q", _q, "quit yate")
+    reg("quit", _q, "alias for :q")
+    reg("q!", _qbang, "quit, discarding changes")
     reg("wq", _wq, "save and quit")
+
+    # ---- panes -------------------------------------------------------------
 
     def _split(args: str) -> None:
         app._split_with_path("horizontal", args)
@@ -68,15 +79,23 @@ def register_commands(app: "YateApp") -> None:
     def _vsplit(args: str) -> None:
         app._split_with_path("vertical", args)
 
+    def _only(args: str) -> None:
+        app._only_pane()
+
+    def _close(args: str) -> None:
+        app._close_pane()
+
     reg("split", _split, "split the window horizontally (:sp [file])")
     reg("sp", _split, "alias for :split")
     reg("vsplit", _vsplit, "split the window vertically (:vs [file])")
     reg("vs", _vsplit, "alias for :vsplit")
-    reg("only", lambda args: app._only_pane(),
+    reg("only", _only,
         "close every other pane, keep the active one")
-    reg("close", lambda args: app._close_pane(),
+    reg("close", _close,
         "close the active pane (no-op on the last one; use :q to quit)")
-    reg("cl", lambda args: app._close_pane(), "alias for :close")
+    reg("cl", _close, "alias for :close")
+
+    # ---- open / buffers ----------------------------------------------------
 
     def _edit(args: str) -> None:
         args = args.strip()
@@ -85,19 +104,41 @@ def register_commands(app: "YateApp") -> None:
         else:
             app.prompt_open()
 
+    def _enew(args: str) -> None:
+        app.new_buffer()
+
+    def _welcome(args: str) -> None:
+        app.show_welcome()
+
+    def _bn(args: str) -> None:
+        app.cycle_tab(1)
+
+    def _bp(args: str) -> None:
+        app.cycle_tab(-1)
+
+    def _bd(args: str) -> None:
+        app.close_tab()
+
+    def _files(args: str) -> None:
+        app.open_file_palette()
+
+    def _palette(args: str) -> None:
+        app.open_command_palette()
+
     reg("e", _edit, "open a file or directory by path")
     reg("edit", _edit, "open a file or directory by path")
-    reg("enew", lambda args: app.new_buffer(), "open a new empty buffer")
-    reg("welcome", lambda args: app.show_welcome(),
+    reg("enew", _enew, "open a new empty buffer")
+    reg("welcome", _welcome,
         "show the welcome page again (on an empty unnamed buffer)")
-    reg("bn", lambda args: app.cycle_tab(1), "next buffer/tab")
-    reg("bnext", lambda args: app.cycle_tab(1), "next buffer/tab")
-    reg("bp", lambda args: app.cycle_tab(-1), "previous buffer/tab")
-    reg("bprev", lambda args: app.cycle_tab(-1), "previous buffer/tab")
-    reg("bd", lambda args: app.close_tab(), "close current buffer/tab")
-    reg("files", lambda args: app.open_file_palette(), "fuzzy quick file open (ctrl+p)")
-    reg("palette", lambda args: app.open_command_palette(),
-        "command palette (alt+shift+p)")
+    reg("bn", _bn, "next buffer/tab")
+    reg("bnext", _bn, "next buffer/tab")
+    reg("bp", _bp, "previous buffer/tab")
+    reg("bprev", _bp, "previous buffer/tab")
+    reg("bd", _bd, "close current buffer/tab")
+    reg("files", _files, "fuzzy quick file open (ctrl+p)")
+    reg("palette", _palette, "command palette (alt+shift+p)")
+
+    # ---- options / appearance ---------------------------------------------
 
     def _set(args: str) -> None:
         args = args.strip()
@@ -184,19 +225,54 @@ def register_commands(app: "YateApp") -> None:
     reg("language", _filetype, "alias for :filetype")
     reg("theme", _theme, "switch color theme by name (:theme lists all)")
     reg("colorscheme", _theme, "alias for :theme")
-    reg("vim", lambda args: app.select_keymap("vim"), "switch to vim key map")
-    reg("vsc", lambda args: app.select_keymap("vsc"), "switch to the vsc key map")
-    reg("normal", lambda args: app.select_keymap("vsc"), "alias for :vsc")
-    reg("help", lambda args: app.show_help(), "show key map help")
-    reg("manual", lambda args: app.show_manual(args or "en"),
+
+    # ---- keymap / help ----------------------------------------------------
+
+    def _vim(args: str) -> None:
+        app.select_keymap("vim")
+
+    def _vsc(args: str) -> None:
+        app.select_keymap("vsc")
+
+    def _help(args: str) -> None:
+        app.show_help()
+
+    def _manual(args: str) -> None:
+        app.show_manual(args or "en")
+
+    def _changelog(args: str) -> None:
+        app.show_changelog(args or "en")
+
+    reg("vim", _vim, "switch to vim key map")
+    reg("vsc", _vsc, "switch to the vsc key map")
+    reg("normal", _vsc, "alias for :vsc")
+    reg("help", _help, "show key map help")
+    reg("manual", _manual,
         "open the user manual (:manual zh|en, default en)")
-    reg("changelog", lambda args: app.show_changelog(args or "en"),
+    reg("changelog", _changelog,
         "open the changelog (:changelog zh|en, default en)")
-    reg("explorer", lambda args: app.toggle_explorer(), "toggle the file explorer")
-    reg("term", lambda args: app.open_terminal(), "open/focus the integrated terminal")
-    reg("terminal", lambda args: app.open_terminal(),
-        "alias for :term (Ctrl+` toggles)")
-    reg("termclose", lambda args: app.close_terminal(), "hide the integrated terminal")
-    reg("diagnostics", lambda args: app.show_diagnostics(),
+
+    # ---- explorer / terminal / diagnostics -------------------------------
+
+    def _explorer(args: str) -> None:
+        app.toggle_explorer()
+
+    def _term(args: str) -> None:
+        app.open_terminal()
+
+    def _termclose(args: str) -> None:
+        app.close_terminal()
+
+    def _diagnostics(args: str) -> None:
+        app.show_diagnostics()
+
+    def _font(args: str) -> None:
+        app._font_command()
+
+    reg("explorer", _explorer, "toggle the file explorer")
+    reg("term", _term, "open/focus the integrated terminal")
+    reg("terminal", _term, "alias for :term (Ctrl+` toggles)")
+    reg("termclose", _termclose, "hide the integrated terminal")
+    reg("diagnostics", _diagnostics,
         "list language server diagnostics for the current file")
-    reg("font", lambda args: app._font_command(), "install the bundled Nerd Font")
+    reg("font", _font, "install the bundled Nerd Font")

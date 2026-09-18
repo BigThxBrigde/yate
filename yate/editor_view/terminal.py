@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from rich.segment import Segment
 from rich.style import Style
@@ -26,11 +26,9 @@ from yate.editor_term import (
     key_to_terminal,
     shell_label,
 )
+from yate.interfaces import AppProtocol
 
 from . import theme
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 #: Names Textual gives Ctrl+grave across platforms:
 #: - "ctrl+`" / "ctrl+grave": friendly/pilot names;
@@ -64,7 +62,7 @@ class TerminalView(Widget):
     }
     """
 
-    def __init__(self, app: YateApp, **kwargs: Any) -> None:
+    def __init__(self, app: AppProtocol, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.yate = app
         self.emulator = TerminalEmulator(80, 24, on_response=self._respond)
@@ -339,7 +337,7 @@ class TerminalPanel(Vertical):
     }
     """
 
-    def __init__(self, app: YateApp, **kwargs: Any) -> None:
+    def __init__(self, app: AppProtocol, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.yate = app
         self.header = Static("", id="terminal-title")

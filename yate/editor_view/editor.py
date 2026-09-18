@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from rich.segment import Segment
 from rich.style import Style
@@ -15,17 +15,15 @@ from textual.timer import Timer
 
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
+from yate.editor_core.document import Document
 from yate.editor_syntax import tokenize_document
 from yate.editor_syntax.tokens import Token
+from yate.interfaces import AppProtocol
 
 from . import theme
 from .keys import event_to_raw
+from .pane_types import Leaf
 from .terminal import TOGGLE_KEYS
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
-    from yate.editor_core.document import Document
-    from yate.editor_view.panes import Leaf
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL = 0
@@ -68,7 +66,7 @@ class EditorView(ScrollView):
     }
     """
 
-    def __init__(self, app: YateApp, *, leaf_id: int, **kwargs: Any) -> None:
+    def __init__(self, app: AppProtocol, *, leaf_id: int, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.yate = app
         self.leaf_id = leaf_id

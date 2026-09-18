@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
 from textual.widgets import Input, Static
 
+from yate.interfaces import AppProtocol
+
 from . import theme
 from .icons import SEARCH, TERMINAL
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 # prompt prefixes per mode: (prefix, Theme attribute name for the color)
 PREFIXES = {
@@ -54,7 +51,7 @@ class CommandInput(Input):
     }
     """
 
-    def __init__(self, yate: YateApp) -> None:
+    def __init__(self, yate: AppProtocol) -> None:
         super().__init__()
         self.yate = yate
         self.history: list[str] = []
@@ -188,7 +185,7 @@ class PromptBar(Horizontal):
     }
     """
 
-    def __init__(self, yate: YateApp) -> None:
+    def __init__(self, yate: AppProtocol) -> None:
         super().__init__()
         self.yate = yate
         self.prompt = Static("", id="cl_prompt")

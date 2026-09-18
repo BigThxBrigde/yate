@@ -31,7 +31,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence, cast
+from typing import Any, Callable, Mapping, Optional, Sequence, cast
 
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_syntax import (
@@ -41,10 +41,8 @@ from yate.editor_syntax import (
     register_language,
 )
 from yate.editor_syntax.ts_backend import load_language_from_grammar
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
-    from yate.keymaps.base import Keymap
+from yate.interfaces import AppProtocol
+from yate.keymaps.base import Keymap
 
 CommandFunc = Callable[[str], object]
 
@@ -52,7 +50,7 @@ CommandFunc = Callable[[str], object]
 class LspExtensionBridge:
     """``api.lsp`` -- register language servers from an extension."""
 
-    def __init__(self, app: "YateApp") -> None:
+    def __init__(self, app: AppProtocol) -> None:
         self._app = app
 
     def register_server(
@@ -190,7 +188,7 @@ class SyntaxExtensionBridge:
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
-    def __init__(self, app: "YateApp") -> None:
+    def __init__(self, app: AppProtocol) -> None:
         self._app = app
         self._lsp = LspExtensionBridge(app)
         self._highlight = HighlightExtensionBridge()
@@ -199,7 +197,7 @@ class ExtensionAPI:
     # ------------------------------------------------------------- accessors
 
     @property
-    def app(self) -> "YateApp":
+    def app(self) -> AppProtocol:
         return self._app
 
     @property

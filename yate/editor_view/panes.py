@@ -1,4 +1,4 @@
-"""Split panes (vim ``:split`` / ``:vsplit``): window tree model + host.
+"""Split panes (vim ``:split`` / ``:vsplit``): window tree manager + host.
 
 The pane system mirrors vim's window/buffer split:
 
@@ -17,157 +17,52 @@ The pane system mirrors vim's window/buffer split:
 model tree (``Horizontal``/``Vertical`` boxes containing :class:`EditorView`
 leaves) and fully reconciles it after structural changes. Editor views are
 deliberately cheap and disposable -- every durable state lives in the model.
+
+The pure data model (:class:`Leaf`, :class:`Split`, :class:`Node`,
+:class:`ViewState`, and the tree utility functions) lives in
+:mod:`yate.editor_view.pane_types` to avoid a type-level cycle with
+:mod:`yate.editor_view.editor`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
 from itertools import count
-from typing import TYPE_CHECKING, Literal, Optional, Union
+from typing import Optional
 
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
 
-from yate.editor_core.buffer import Pos
 from yate.editor_core.document import Document
+from yate.editor_view.editor import EditorView
+from yate.interfaces import AppProtocol
 
-if TYPE_CHECKING:
-    from yate.app import YateApp
-    from yate.editor_view.editor import EditorView
+from yate.editor_view.pane_types import (
+    MIN_FRACTION,
+    RESIZE_STEP,
+    Axis,
+    Leaf,
+    Node,
+    Split,
+    ViewState,
+    find_axis_split,
+    find_leaf,
+    leaves,
+    remove_node,
+    replace_node,
+)
 
-#: Split axis: ``horizontal`` stacks top/bottom (:split), ``vertical`` puts
-#: windows side by side (:vsplit).
-Axis = Literal["horizontal", "vertical"]
-
-#: Smallest share of a split any one pane may hold while resizing.
-MIN_FRACTION = 0.12
-
-#: Fraction transferred per ``ctrl+w +/-/< />`` keypress.
-RESIZE_STEP = 0.08
-
-
-@dataclass
-class ViewState:
-    """Per-(leaf, document) view: independent cursor, anchor and scroll."""
-
-    cursor: Pos = (0, 0)
-    anchor: Optional[Pos] = None
-    scroll_col: int = 0
-    scroll_row: int = 0
-
-
-@dataclass
-class Leaf:
-    """One editor window bound to a document."""
-
-    id: int
-    doc: Document
-    #: View states keyed by ``id(document)`` so a leaf remembers the cursor
-    #: position of every document it has shown.
-    states: dict[int, ViewState] = field(
-        default_factory=lambda: dict[int, ViewState]()
-    )
-
-    def state_for(self, doc: Document) -> ViewState:
-        state = self.states.get(id(doc))
-        if state is None:
-            state = ViewState(
-                cursor=doc.buffer.cursor, anchor=doc.buffer.anchor
-            )
-            self.states[id(doc)] = state
-        return state
-
-
-@dataclass
-class Split:
-    """A horizontal/vertical arrangement; ``sizes`` sum to 1.0."""
-
-    axis: Axis
-    children: list["Node"]
-    sizes: list[float]
-
-
-Node = Union[Leaf, Split]
-
-
-# ----------------------------------------------------------------- tree ops
-
-
-def leaves(node: Node) -> list[Leaf]:
-    """All leaves in screen (left-to-right, top-to-bottom) order."""
-    if isinstance(node, Leaf):
-        return [node]
-    out: list[Leaf] = []
-    for child in node.children:
-        out.extend(leaves(child))
-    return out
-
-
-def find_leaf(node: Node, leaf_id: int) -> Optional[Leaf]:
-    if isinstance(node, Leaf):
-        return node if node.id == leaf_id else None
-    for child in node.children:
-        found = find_leaf(child, leaf_id)
-        if found is not None:
-            return found
-    return None
-
-
-def replace_node(node: Node, target: Leaf, replacement: Node) -> Node:
-    """Return *node* with the *target* leaf swapped for *replacement*."""
-    if isinstance(node, Leaf):
-        return replacement if node is target else node
-    node.children = [
-        replace_node(child, target, replacement) for child in node.children
-    ]
-    return node
-
-
-def remove_node(node: Node, target: Leaf) -> Optional[Node]:
-    """Return *node* without *target*; ``None`` when *target* was the root.
-
-    A split left with a single child collapses (the child is hoisted).
-    """
-    if isinstance(node, Leaf):
-        return None if node is target else node
-    new_children: list[Node] = []
-    for child in node.children:
-        result = remove_node(child, target)
-        if result is None:
-            # the target leaf lived directly in this split: drop it
-            continue
-        new_children.append(result)
-    if len(new_children) == 1:
-        return new_children[0]
-    node.children = new_children
-    node.sizes = _normalized(node.sizes[: len(new_children)])
-    return node
-
-
-def find_axis_split(
-    node: Node, target: Leaf, axis: Axis
-) -> Optional[tuple[Split, int]]:
-    """Deepest *axis* split on the path to *target* + the child index whose
-    subtree contains the target (the slot to resize)."""
-    if isinstance(node, Leaf):
-        return None
-    target_index = -1
-    for i, child in enumerate(node.children):
-        if find_leaf(child, target.id) is not None:
-            target_index = i
-            break
-    if target_index < 0:
-        return None
-    # Prefer a deeper matching split (resize the tightest enclosing group).
-    deeper = find_axis_split(node.children[target_index], target, axis)
-    if deeper is not None:
-        return deeper
-    return (node, target_index) if node.axis == axis else None
-
-
-def _normalized(sizes: list[float]) -> list[float]:
-    total = sum(sizes) or 1.0
-    return [s / total for s in sizes]
+# Re-export for backward compatibility -- external code imports from panes.
+# DEPRECATED: prefer ``from yate.editor_view.pane_types import Axis, Leaf, ...``
+# These re-exports may be removed in a future version.
+__all__ = [
+    "Axis",
+    "Leaf",
+    "Node",
+    "Split",
+    "ViewState",
+    "PaneManager",
+    "PaneHost",
+]
 
 
 # ================================================================ manager
@@ -176,7 +71,7 @@ def _normalized(sizes: list[float]) -> list[float]:
 class PaneManager:
     """Owns the pane tree and mediates between app and widgets."""
 
-    def __init__(self, app: "YateApp", doc: Document) -> None:
+    def __init__(self, app: AppProtocol, doc: Document) -> None:
         self.app = app
         self._ids = count(1)
         first = Leaf(next(self._ids), doc)
@@ -184,11 +79,11 @@ class PaneManager:
         self.active: Leaf = first
         self.host: Optional[PaneHost] = None
         #: Mounted views keyed by leaf id; rebuilt on every reconcile.
-        self.views: dict[int, "EditorView"] = {}
+        self.views: dict[int, EditorView] = {}
 
     # ------------------------------------------------------------- lookups
 
-    def attach(self, host: "PaneHost") -> None:
+    def attach(self, host: PaneHost) -> None:
         self.host = host
 
     @property
@@ -196,14 +91,14 @@ class PaneManager:
         return len(leaves(self.root))
 
     @property
-    def active_view(self) -> Optional["EditorView"]:
+    def active_view(self) -> Optional[EditorView]:
         return self.views.get(self.active.id)
 
-    def all_views(self) -> list["EditorView"]:
+    def all_views(self) -> list[EditorView]:
         return [view for leaf in leaves(self.root)
                 if (view := self.views.get(leaf.id)) is not None]
 
-    def views_for(self, doc: Document) -> list["EditorView"]:
+    def views_for(self, doc: Document) -> list[EditorView]:
         return [view for leaf in leaves(self.root)
                 if leaf.doc is doc
                 and (view := self.views.get(leaf.id)) is not None]
@@ -229,14 +124,19 @@ class PaneManager:
         (``:split`` without arguments opens at the same cursor position)."""
         leaf = Leaf(next(self._ids), doc)
         if inherit is not None:
-            state = inherit.states.get(id(doc))
+            state = inherit.states.get(doc.uid)
             if state is not None:
-                leaf.states[id(doc)] = replace(state)
+                leaf.states[doc.uid] = ViewState(
+                    cursor=state.cursor,
+                    anchor=state.anchor,
+                    scroll_col=state.scroll_col,
+                    scroll_row=state.scroll_row,
+                )
         return leaf
 
     # ------------------------------------------------- active/state syncing
 
-    def _clamp(self, doc: Document, pos: Pos) -> Pos:
+    def _clamp(self, doc: Document, pos: tuple[int, int]) -> tuple[int, int]:
         buf = doc.buffer
         row = max(0, min(pos[0], buf.line_count - 1))
         col = max(0, min(pos[1], len(buf.lines[row])))
@@ -514,8 +414,6 @@ class PaneHost(Widget):
 
     def _build(self, node: Node) -> Widget:
         if isinstance(node, Leaf):
-            from yate.editor_view.editor import EditorView
-
             view = EditorView(self.manager.app, leaf_id=node.id)
             self.manager.views[node.id] = view
             return view
@@ -540,7 +438,15 @@ class PaneHost(Widget):
                 child.styles.width = pct
 
     async def reconcile(self, focus: Leaf) -> None:
-        """Rebuild the whole widget subtree from the model tree."""
+        """Rebuild the whole widget subtree from the model tree.
+
+        # TODO(perf): full rebuild destroys and recreates every widget on
+        # structural changes (split/close/only).  A diff-based approach that
+        # reuses unchanged :class:`EditorView` instances would avoid the
+        # layout thrash for large pane trees.  Currently acceptable because
+        # split operations are infrequent and EditorView construction is
+        # cheap -- revisit once pane counts exceed ~8.
+        """
         self.manager.views.clear()
         for child in list(self.children):
             await child.remove()
@@ -552,7 +458,7 @@ class PaneHost(Widget):
         # restore each pane's saved scroll before handing focus over
         for leaf in leaves(self.manager.root):
             view = self.manager.views.get(leaf.id)
-            state = leaf.states.get(id(leaf.doc))
+            state = leaf.states.get(leaf.doc.uid)
             if view is not None and state is not None:
                 view.scroll_col = state.scroll_col
                 view.scroll_to(y=state.scroll_row, animate=False)

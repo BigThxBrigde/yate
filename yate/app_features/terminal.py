@@ -8,12 +8,9 @@ command and the tests read them directly.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from yate.editor_term import PtyProcessError, resolve_shell
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
+from yate.interfaces import AppProtocol
 
 # Extracted YateApp collaborator: touching the app's private terminal state
 # (_terminal_visible/_terminal_starting/_terminal_factory) is this module's
@@ -21,7 +18,7 @@ if TYPE_CHECKING:
 # pyright: reportPrivateUsage=false
 
 
-def toggle_terminal(app: "YateApp") -> None:
+def toggle_terminal(app: AppProtocol) -> None:
     """Show/focus or hide the integrated terminal (Ctrl+`)."""
     if app._terminal_visible:
         close_terminal(app)
@@ -29,7 +26,7 @@ def toggle_terminal(app: "YateApp") -> None:
         open_terminal(app)
 
 
-def open_terminal(app: "YateApp") -> None:
+def open_terminal(app: AppProtocol) -> None:
     """Reveal the bottom terminal and focus it, spawning the shell."""
     panel = app.terminal_panel
     if panel is None:
@@ -46,7 +43,7 @@ def open_terminal(app: "YateApp") -> None:
         app.message("terminal shown", kind="ok")
 
 
-def close_terminal(app: "YateApp") -> None:
+def close_terminal(app: AppProtocol) -> None:
     """Hide the panel; the shell process itself stays alive."""
     panel = app.terminal_panel
     if panel is None or not app._terminal_visible:
@@ -58,7 +55,7 @@ def close_terminal(app: "YateApp") -> None:
     app.message("terminal hidden", kind="ok")
 
 
-def spawn_shell(app: "YateApp") -> None:
+def spawn_shell(app: AppProtocol) -> None:
     if app._terminal_starting:
         return
     panel = app.terminal_panel

@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from yate.interfaces import AppProtocol
 from yate.keymaps.base import KeyBinding
 
 from . import theme
 from .icons import CHECK, KEYBOARD, TERMINAL, TIMES
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
 
 
 class _OverlayScreen(ModalScreen[None]):
@@ -45,7 +41,7 @@ class _OverlayScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, yate: YateApp) -> None:
+    def __init__(self, yate: AppProtocol) -> None:
         super().__init__()
         self.yate = yate
 
@@ -114,7 +110,7 @@ class HelpScreen(_OverlayScreen):
 class OutputScreen(_OverlayScreen):
     """Scrollable output of a shell command."""
 
-    def __init__(self, yate: YateApp, title: str, output: str, returncode: int = 0) -> None:
+    def __init__(self, yate: AppProtocol, title: str, output: str, returncode: int = 0) -> None:
         super().__init__(yate)
         self._title = title
         self._output = output

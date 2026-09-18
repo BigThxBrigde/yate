@@ -18,12 +18,10 @@ import re
 import sys
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
 
 from yate import __description__, __version__
-
-if TYPE_CHECKING:
-    from yate.app import YateApp
+from yate.interfaces import AppProtocol
 
 # Terminal environment variables worth surfacing.  Values are shown for the
 # descriptive ones; opaque session ids are reported as ``<set>`` / ``<unset>``.
@@ -76,7 +74,7 @@ def version_lines() -> str:
 
 # ------------------------------------------------------------------ report
 
-def format_report(app: "YateApp", *, color: bool = False) -> str:
+def format_report(app: AppProtocol, *, color: bool = False) -> str:
     """Collect every diagnostic section and return the report text.
 
     With ``color=True`` the lines carry ANSI styling (section titles, keys,
@@ -120,7 +118,7 @@ def format_report(app: "YateApp", *, color: bool = False) -> str:
     return text + "\n"
 
 
-def print_report(app: "YateApp") -> None:
+def print_report(app: AppProtocol) -> None:
     """Print the report to stdout, colored when stdout is a terminal."""
     color = sys.stdout.isatty()
     if color:
@@ -255,7 +253,7 @@ def _section_paths() -> list[str]:
 
 # ------------------------------------------------------------------ yaterc
 
-def _section_yaterc(app: "YateApp") -> list[str]:
+def _section_yaterc(app: AppProtocol) -> list[str]:
     from yate.config import find_project_config, user_config_path
 
     config = app.config
@@ -285,7 +283,7 @@ def _section_yaterc(app: "YateApp") -> list[str]:
 
 # ------------------------------------------------------------------ config
 
-def _section_config(app: "YateApp") -> list[str]:
+def _section_config(app: AppProtocol) -> list[str]:
     c = app.config
     shell_value = c.shell if c.shell else "(default)"
     return [
@@ -344,7 +342,7 @@ def _section_syntax() -> list[str]:
 
 # -------------------------------------------------------------- extensions
 
-def _section_extensions(app: "YateApp") -> list[str]:
+def _section_extensions(app: AppProtocol) -> list[str]:
     from yate.paths import bundled_extensions_dir
 
     lines: list[str] = ["  candidate dirs:"]
@@ -388,7 +386,7 @@ def _section_extensions(app: "YateApp") -> list[str]:
 
 # --------------------------------------------------------------------- lsp
 
-def _section_lsp(app: "YateApp") -> list[str]:
+def _section_lsp(app: AppProtocol) -> list[str]:
     configs = app.lsp.configs()
     states = app.lsp.states()
     if not configs:
