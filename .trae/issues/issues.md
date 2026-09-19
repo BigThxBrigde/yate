@@ -19,7 +19,7 @@
   LSP await 返回后仅检查 `buf.row != row`。若用户在同一行继续输入（列号变化），过期补全仍显示，接受后 `replace_range` 使用过时坐标。
   **修复：** 同时比较 `col` 和/或前缀文本。
 
-- [ ] **文件夹删除关闭标签时未通知 LSP** — `app_features/explorer.py:107`
+- [x] **文件夹删除关闭标签时未通知 LSP** — `app_features/explorer.py:107`
   删除文件夹导致已打开标签关闭时，文档从 `app.docs` 移除但未调用 `lsp.on_document_closed()`，LSP 服务器保留过时的 `didOpen` 状态。
   **修复：** 遍历被关闭的文档并调用 `lsp.on_document_closed()`。
 
