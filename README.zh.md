@@ -98,6 +98,8 @@ yate --theme my-mocha       # 以指定主题启动（覆盖 yaterc）
 yate --install-font         # 安装随包 Nerd Font 后退出
 yate --setup-defaults       # 创建 ~/.yate 并写入默认 yaterc 与 *.example 模板后退出
 yate --cleanup-defaults     # 删除上述配置后退出（data/ 保留，加 --include-data 一并删除）
+yate --changelog zh         # 打印中文变更日志后退出
+yate --diag                 # 打印环境与配置诊断报告后退出
 ```
 
 ### 常用键位（vsc 键位）
@@ -440,6 +442,8 @@ yate --theme my-mocha       # 以指定主题启动（覆盖 yaterc）
 yate --install-font         # 安装随包 Nerd Font 后退出
 yate --setup-defaults       # 创建 ~/.yate 并写入默认 yaterc 与 *.example 模板后退出
 yate --cleanup-defaults     # 删除上述配置后退出（data/ 保留，加 --include-data 一并删除）
+yate --changelog zh         # 打印中文变更日志后退出
+yate --diag                 # 打印环境与配置诊断报告后退出
 ```
 
 ### 常用键位（vsc 键位）

@@ -78,8 +78,13 @@ yate [路径] [选项]
 | `--theme-dir DIR` | 从目录加载客制化 `*.py` 配色主题（可重复，也接受单个 `*.py` 文件；默认扫描 `./themes` 与 `~/.yate/themes`），见 10.3 节 |
 | `--theme NAME` | 启动时选用的主题名（内置或已注册的客制化主题），覆盖 yaterc 中的 `theme` |
 | `--install-font` | 为当前用户安装随包 Nerd Font（必要时配置 Windows Terminal），完成后退出，不进入界面 |
+| `--setup-defaults` | 创建 `~/.yate/`：安装默认 `yaterc`，并把随包主题/扩展示例以 `.example` 后缀放进 `themes/`、`extensions/`（改名 `.py` 才激活），完成后退出，见 10 节 |
+| `--cleanup-defaults` | 删除上述配置（终端下需确认，非交互环境加 `--force`；`data/` 崩溃日志默认保留），完成后退出 |
+| `--force` | 配合 `--setup-defaults` 覆盖已有 `yaterc`（旧文件备份为 `yaterc.yate-bak`）；配合 `--cleanup-defaults` 跳过确认 |
+| `--include-data` | 配合 `--cleanup-defaults` 一并删除 `~/.yate/data/` 崩溃日志 |
 | `--version` | 显示版本号 |
 | `--changelog [LANG]` | 打印变更日志（默认 `en`，可选 `zh`）后退出，不进入界面 |
+| `--diag` | 打印完整的环境与配置诊断报告（terminal / extensions / LSP / fonts / ...）后退出 |
 | `--help` | 显示帮助 |
 
 启动示例：
@@ -96,6 +101,10 @@ yate --ext-dir ./exts       # 加载目录下所有扩展（可重复）
 yate --theme-dir ./themes   # 从目录加载客制化配色主题
 yate --theme my-mocha       # 直接选用（客制化）主题启动
 yate --install-font         # 安装随包 Nerd Font 后退出
+yate --changelog zh         # 打印中文变更日志后退出
+yate --diag                 # 打印环境与配置诊断报告后退出
+yate --setup-defaults       # 创建 ~/.yate（默认 yaterc + 随包模板）后退出
+yate --cleanup-defaults     # 删除上述配置后退出（data/ 默认保留）
 ```
 
 ## 3. 界面导览
