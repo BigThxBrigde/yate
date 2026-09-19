@@ -14,6 +14,7 @@ from .core import SCENARIOS as _CORE
 from .edit import SCENARIOS as _EDIT
 from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
+from .integration import SCENARIOS as _INTEGRATION
 from .panes import SCENARIOS as _PANES
 from .search import SCENARIOS as _SEARCH
 from .view import SCENARIOS as _VIEW
@@ -39,4 +40,5 @@ SCENARIOS: list[Scenario] = [
     *_PANES,
     *_EXPLORER,
     *_VIEW,
+    *_INTEGRATION,
 ]
