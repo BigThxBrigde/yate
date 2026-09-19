@@ -8,6 +8,7 @@ dispatches on it.
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
@@ -131,16 +132,27 @@ def apply_delete(app: AppProtocol, path: Optional[Path], confirm: str) -> None:
         return
     # close tabs whose file lived under the deleted path
     target = path.resolve()
-    kept = [d for d in app.docs
-            if d.path is None or not d.path.resolve().is_relative_to(target)]
-    closed = len(app.docs) - len(kept)
-    if closed:
+    closed_docs = [d for d in app.docs
+                   if d.path is not None and d.path.resolve().is_relative_to(target)]
+    kept = [d for d in app.docs if d not in closed_docs]
+    if closed_docs:
+        # Notify LSP for each closed document BEFORE removing from app.docs.
+        # Hand the worker the *bound coroutine function*, never the coroutine:
+        # an eagerly built coroutine lives outside the worker's lifecycle, so a
+        # worker that never starts (quit cancels the "lsp-sync" group) drops the
+        # didClose and leaks "coroutine was never awaited".  partial() is bound
+        # per doc, so the loop cannot late-bind like a plain lambda would.
+        for doc in closed_docs:
+            app.run_worker(
+                partial(app.lsp.on_document_closed, doc),
+                group="lsp-sync", exclusive=False, exit_on_error=False,
+            )
         app.docs = kept
         if not app.docs:
             app.new_buffer(show=False)
         app.doc_index = max(0, min(app.doc_index, len(app.docs) - 1))
         app.search = SearchEngine()
-        app.message(f"closed {closed} open tab(s)", kind="warn")
+        app.message(f"closed {len(closed_docs)} open tab(s)", kind="warn")
     if app.explorer_tree is not None:
         app.explorer_tree.refresh_tree()
     app.message(f"deleted {path.name}", kind="ok")

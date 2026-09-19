@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -494,7 +495,7 @@ class YateApp(App[None]):
         closed = self.docs[self.doc_index]
         if closed.path is not None:
             self.run_worker(
-                self.lsp.on_document_closed(closed),
+                partial(self.lsp.on_document_closed, closed),
                 group="lsp-sync", exclusive=False, exit_on_error=False,
             )
         self.docs.pop(self.doc_index)
@@ -536,7 +537,7 @@ class YateApp(App[None]):
             if self.explorer_tree is not None:
                 self.explorer_tree.refresh_tree()
             self.run_worker(
-                self.lsp.notify_saved(doc),
+                partial(self.lsp.notify_saved, doc),
                 group="lsp-sync", exclusive=False, exit_on_error=False,
             )
             self.message(f"saved {doc.path}", kind="ok")
@@ -685,7 +686,7 @@ class YateApp(App[None]):
         # Rebind the LSP document (close on the old server, open on the new)
         # and force a repaint so highlighting and the status bar update.
         self.run_worker(
-            self.lsp.on_document_closed(doc),
+            partial(self.lsp.on_document_closed, doc),
             group="lsp-sync", exclusive=False, exit_on_error=False,
         )
         self.ui_refresh()
@@ -1363,7 +1364,7 @@ class YateApp(App[None]):
         if not self.lsp.supports(doc) or self.lsp.is_open(doc):
             return
         self.run_worker(
-            self.lsp.on_document_shown(doc),
+            partial(self.lsp.on_document_shown, doc),
             group="lsp-sync", exclusive=False, exit_on_error=False,
         )
 
