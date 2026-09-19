@@ -80,8 +80,13 @@ yate [path] [options]
 | `--theme-dir DIR` | Load custom `*.py` color themes from a directory (repeatable; also accepts a single `*.py` file; defaults to `./themes` and `~/.yate/themes`); see section 10.3 |
 | `--theme NAME` | Color theme to start with (built-in or a registered custom theme); overrides the `theme` set in yaterc |
 | `--install-font` | Install the bundled Nerd Font for the current user (configures Windows Terminal when needed), then exit without entering the UI |
+| `--setup-defaults` | Create `~/.yate/`: install a default `yaterc` and drop the bundled theme/extension examples (`.example` suffix — rename to `.py` to activate) into `themes/` and `extensions/`, then exit; see section 10 |
+| `--cleanup-defaults` | Remove that configuration (asks for confirmation on a terminal, `--force` when non-interactive; `data/` crash logs are kept by default), then exit |
+| `--force` | With `--setup-defaults`: replace an existing `yaterc` (backed up as `yaterc.yate-bak`); with `--cleanup-defaults`: skip the confirmation |
+| `--include-data` | With `--cleanup-defaults`: also delete the `~/.yate/data/` crash logs |
 | `--version` | Show the version |
 | `--changelog [LANG]` | Print the changelog (`en` by default, or `zh`) and exit — no UI is started |
+| `--diag` | Print the full environment & configuration diagnostics report (terminal / extensions / LSP / fonts / ...) and exit |
 | `--help` | Show help |
 
 Launch examples:
@@ -98,6 +103,10 @@ yate --ext-dir ./exts       # load every extension in a directory (repeatable)
 yate --theme-dir ./themes   # load custom color themes from a directory
 yate --theme my-mocha       # start with a (custom) color theme
 yate --install-font         # install the bundled Nerd Font, then exit
+yate --changelog zh         # print the changelog in Chinese, then exit
+yate --diag                 # print the environment & config diagnostics, then exit
+yate --setup-defaults       # create ~/.yate (default yaterc + templates), then exit
+yate --cleanup-defaults     # remove that configuration (data/ kept), then exit
 ```
 
 ## 3. Interface Tour

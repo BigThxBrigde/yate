@@ -78,6 +78,8 @@ yate --theme my-mocha       # start with a specific theme (overrides yaterc)
 yate --install-font         # install the bundled Nerd Font and exit
 yate --setup-defaults       # create ~/.yate with a default yaterc + *.example templates, then exit
 yate --cleanup-defaults     # remove that configuration (data/ kept unless --include-data), then exit
+yate --changelog zh         # print the changelog in Chinese, then exit
+yate --diag                 # print the environment & config diagnostics, then exit
 ```
 
 ### Common keys (vsc keymap)
