@@ -16,6 +16,7 @@ from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
 from .integration import SCENARIOS as _INTEGRATION
 from .panes import SCENARIOS as _PANES
+from .regression import SCENARIOS as _REGRESSION
 from .search import SCENARIOS as _SEARCH
 from .view import SCENARIOS as _VIEW
 
@@ -41,4 +42,5 @@ SCENARIOS: list[Scenario] = [
     *_EXPLORER,
     *_VIEW,
     *_INTEGRATION,
+    *_REGRESSION,
 ]
