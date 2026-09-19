@@ -1,7 +1,7 @@
 """Baseline snapshots and drift comparison.
 
 ``snapshot`` writes one JSON file per scenario under
-``tools/smoke_baselines/``; ``compare`` re-runs the scenarios and diffs the
+``tools/smoke_test/smoke_baselines/``; ``compare`` re-runs the scenarios and diffs the
 fresh results against them.  Only *checks* are part of the contract (plus
 the SVG rows when they were captured) -- no absolute paths or timings, so
 the baselines are stable across machines.
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence, cast
 
 from .harness import ScenarioResult
 
@@ -29,7 +29,7 @@ def repo_root() -> Path:
 
 
 def default_baseline_dir() -> Path:
-    return repo_root() / "tools" / "smoke_baselines"
+    return repo_root() / "tools" / "smoke_test" / "smoke_baselines"
 
 
 def _jsonable(value: Any) -> Any:
@@ -44,9 +44,11 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, (list, tuple)):
-        return [_jsonable(v) for v in value]
+        seq = cast("Sequence[Any]", value)
+        return [_jsonable(v) for v in seq]
     if isinstance(value, dict):
-        return {str(k): _jsonable(v) for k, v in value.items()}
+        raw = cast("Mapping[Any, Any]", value)
+        return {str(k): _jsonable(v) for k, v in raw.items()}
     return repr(value)
 
 

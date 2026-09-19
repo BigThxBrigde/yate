@@ -10,7 +10,7 @@ Commands
 
 ``snapshot``
     Run scenarios and write JSON baselines (checks + rendered SVG rows)
-    under ``tools/smoke_baselines/``.
+    under ``tools/smoke_test/smoke_baselines/``.
 
 ``compare``
     Run scenarios and diff against the stored baselines (``MATCH`` /
