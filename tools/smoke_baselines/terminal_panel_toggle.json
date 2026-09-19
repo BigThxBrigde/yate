@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "hidden_at_start",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "shown",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "hidden_by_toggle",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "shown_by_command",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "hidden_again",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

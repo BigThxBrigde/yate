@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "label": "version_monotonic",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "tokens_present",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "tokens_cover_buffer",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "text",
+      "expected": "value = 1 + 2",
+      "actual": "value = 1 + 2",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

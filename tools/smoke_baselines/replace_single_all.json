@@ -1,0 +1,71 @@
+{
+  "checks": [
+    {
+      "label": "replace_find_mode",
+      "expected": "replace_find",
+      "actual": "replace_find",
+      "ok": true
+    },
+    {
+      "label": "replace_with_mode",
+      "expected": "replace_with",
+      "actual": "replace_with",
+      "ok": true
+    },
+    {
+      "label": "replaced",
+      "expected": "dog dog dog",
+      "actual": "dog dog dog",
+      "ok": true
+    },
+    {
+      "label": "query_kept",
+      "expected": "cat",
+      "actual": "cat",
+      "ok": true
+    },
+    {
+      "label": "no_matches_left",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "modified",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

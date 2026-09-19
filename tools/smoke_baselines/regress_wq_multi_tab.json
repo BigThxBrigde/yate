@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "on_a",
+      "expected": "a.txt",
+      "actual": "a.txt",
+      "ok": true
+    },
+    {
+      "label": "a_saved",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "a_on_disk",
+      "expected": "seed a A",
+      "actual": "seed a A",
+      "ok": true
+    },
+    {
+      "label": "still_running",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "no_tab_lost",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "warned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "b_untouched",
+      "expected": "seed b",
+      "actual": "seed b",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "seed a A",
+      "actual": "seed a A",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

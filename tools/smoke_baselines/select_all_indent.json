@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "label": "all_selected",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "indented",
+      "expected": [
+        "    one",
+        "    two"
+      ],
+      "actual": [
+        "    one",
+        "    two"
+      ],
+      "ok": true
+    },
+    {
+      "label": "anchor_cleared",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

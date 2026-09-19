@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "label": "indented",
+      "expected": "    one",
+      "actual": "    one",
+      "ok": true
+    },
+    {
+      "label": "outdented",
+      "expected": "one",
+      "actual": "one",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "one",
+      "actual": "one",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

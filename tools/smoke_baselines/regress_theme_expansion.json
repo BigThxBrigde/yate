@@ -1,0 +1,95 @@
+{
+  "checks": [
+    {
+      "label": "several_themes",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "theme_frappe",
+      "expected": "frappe",
+      "actual": "frappe",
+      "ok": true
+    },
+    {
+      "label": "theme_gruvbox-dark",
+      "expected": "gruvbox-dark",
+      "actual": "gruvbox-dark",
+      "ok": true
+    },
+    {
+      "label": "theme_gruvbox-light",
+      "expected": "gruvbox-light",
+      "actual": "gruvbox-light",
+      "ok": true
+    },
+    {
+      "label": "theme_latte",
+      "expected": "latte",
+      "actual": "latte",
+      "ok": true
+    },
+    {
+      "label": "theme_macchiato",
+      "expected": "macchiato",
+      "actual": "macchiato",
+      "ok": true
+    },
+    {
+      "label": "theme_mocha",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "theme_onedark",
+      "expected": "onedark",
+      "actual": "onedark",
+      "ok": true
+    },
+    {
+      "label": "theme_onelight",
+      "expected": "onelight",
+      "actual": "onelight",
+      "ok": true
+    },
+    {
+      "label": "final_theme",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

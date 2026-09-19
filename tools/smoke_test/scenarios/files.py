@@ -26,7 +26,9 @@ async def _open_path_prompt(tmp: Path) -> ScenarioResult:
         await pilot.press("enter")
         await wait_until(pilot, lambda: app.doc.name == "other.txt")
         checks.append(Check("doc.name", "other.txt", app.doc.name))
-        checks.append(Check("doc.path", other.resolve(), app.doc.path))
+        # Compare the name, not the absolute path: the scenario runs in a
+        # fresh temp dir every time and baselines must stay machine-stable.
+        checks.append(Check("doc.path_name", other.name, app.doc.path.name))
         checks.append(Check("content", "second file", app.buffer.lines[0]))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("open_path_prompt", checks, rows)

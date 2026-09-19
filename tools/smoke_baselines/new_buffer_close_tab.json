@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "one_doc",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "two_docs",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "active_is_new",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "back_to_one",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "doc_index",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "label": "two_panes",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "new_pane_doc",
+      "expected": "b.txt",
+      "actual": "b.txt",
+      "ok": true
+    },
+    {
+      "label": "two_docs",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "b\n",
+      "actual": "b\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

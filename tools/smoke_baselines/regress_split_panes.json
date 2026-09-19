@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "one_pane",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "active_matches_doc",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "active_view_is_live",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "doc_index_valid",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "b\n",
+      "actual": "b\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

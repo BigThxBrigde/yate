@@ -1,0 +1,107 @@
+{
+  "checks": [
+    {
+      "label": "enew",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "bd",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "files_palette",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "files_closed",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "command_palette",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "palette_closed",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "e_prompts",
+      "expected": "open",
+      "actual": "open",
+      "ok": true
+    },
+    {
+      "label": "colorscheme",
+      "expected": "latte",
+      "actual": "latte",
+      "ok": true
+    },
+    {
+      "label": "colorscheme_back",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "cl_noop",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "welcome",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "no_crash",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

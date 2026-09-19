@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "label": "chord_armed",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "chord_consumed",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "focus_moved",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

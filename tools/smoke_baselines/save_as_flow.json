@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "unnamed",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "save_mode",
+      "expected": "save",
+      "actual": "save",
+      "ok": true
+    },
+    {
+      "label": "file_exists",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "file_content",
+      "expected": "hello",
+      "actual": "hello",
+      "ok": true
+    },
+    {
+      "label": "doc.name",
+      "expected": "other.txt",
+      "actual": "other.txt",
+      "ok": true
+    },
+    {
+      "label": "saved_flag",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "hello",
+      "actual": "hello",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

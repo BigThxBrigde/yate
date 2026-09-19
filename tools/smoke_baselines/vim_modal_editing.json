@@ -1,0 +1,105 @@
+{
+  "checks": [
+    {
+      "label": "keymap",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "mode_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "mode_insert",
+      "expected": "INSERT",
+      "actual": "INSERT",
+      "ok": true
+    },
+    {
+      "label": "inserted",
+      "expected": "hello",
+      "actual": "hello",
+      "ok": true
+    },
+    {
+      "label": "back_to_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "deleted_line",
+      "expected": [
+        ""
+      ],
+      "actual": [
+        ""
+      ],
+      "ok": true
+    },
+    {
+      "label": "file_content",
+      "expected": "saved",
+      "actual": "saved",
+      "ok": true
+    },
+    {
+      "label": "saved_flag",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "vim_mode_obj",
+      "expected": "normal",
+      "actual": "normal",
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "saved",
+      "actual": "saved",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

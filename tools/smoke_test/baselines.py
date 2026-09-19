@@ -32,13 +32,31 @@ def default_baseline_dir() -> Path:
     return repo_root() / "tools" / "smoke_baselines"
 
 
+def _jsonable(value: Any) -> Any:
+    """Make a check value storable in JSON.
+
+    Scenarios mostly assert on strings / ints / bools, but a stray
+    ``Path`` (or anything else Rich can render and JSON cannot) must not
+    abort the whole snapshot run.
+    """
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    return repr(value)
+
+
 def serialize(result: ScenarioResult) -> dict[str, Any]:
     return {
         "checks": [
             {
                 "label": c.label,
-                "expected": c.expected,
-                "actual": c.actual,
+                "expected": _jsonable(c.expected),
+                "actual": _jsonable(c.actual),
                 "ok": c.ok,
             }
             for c in result.checks

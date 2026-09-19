@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "no_crash",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "no_modal",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "not_empty",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "saved",
+      "expected": "\n3xy \n3b3d2cx1b1zzbedd1zez\ne3xyzax2ydexa1ece3d2\ne\nebza dx2c\nabyddbya3\n 1z1c32\n zcezc1ddc \n12  bseed\nybcz1az32bb\n2ee23dcxbez xcy1e3z 11cb",
+      "actual": "\n3xy \n3b3d2cx1b1zzbedd1zez\ne3xyzax2ydexa1ece3d2\ne\nebza dx2c\nabyddbya3\n 1z1c32\n zcezc1ddc \n12  bseed\nybcz1az32bb\n2ee23dcxbez xcy1e3z 11cb",
+      "ok": true
+    },
+    {
+      "label": "clean",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "\n3xy \n3b3d2cx1b1zzbedd1zez\ne3xyzax2ydexa1ece3d2\ne\nebza dx2c\nabyddbya3\n 1z1c32\n zcezc1ddc \n12  bseed\nybcz1az32bb\n2ee23dcxbez xcy1e3z 11cb",
+      "actual": "\n3xy \n3b3d2cx1b1zzbedd1zez\ne3xyzax2ydexa1ece3d2\ne\nebza dx2c\nabyddbya3\n 1z1c32\n zcezc1ddc \n12  bseed\nybcz1az32bb\n2ee23dcxbez xcy1e3z 11cb",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

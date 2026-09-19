@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "selected",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "selected_text",
+      "expected": "hel",
+      "actual": "hel",
+      "ok": true
+    },
+    {
+      "label": "cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "no_text",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "hello",
+      "actual": "hello",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

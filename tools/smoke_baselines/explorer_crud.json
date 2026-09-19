@@ -1,0 +1,89 @@
+{
+  "checks": [
+    {
+      "label": "on_root",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "new_file_mode",
+      "expected": "new_file",
+      "actual": "new_file",
+      "ok": true
+    },
+    {
+      "label": "created",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "opened_new_file",
+      "expected": "b.txt",
+      "actual": "b.txt",
+      "ok": true
+    },
+    {
+      "label": "rename_mode",
+      "expected": "rename",
+      "actual": "rename",
+      "ok": true
+    },
+    {
+      "label": "renamed",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "old_gone",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "delete_mode",
+      "expected": "delete",
+      "actual": "delete",
+      "ok": true
+    },
+    {
+      "label": "deleted",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

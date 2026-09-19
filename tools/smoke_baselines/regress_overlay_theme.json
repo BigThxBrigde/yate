@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "app_theme",
+      "expected": "yate-latte",
+      "actual": "yate-latte",
+      "ok": true
+    },
+    {
+      "label": "overlay_open",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "theme_kept_under_modal",
+      "expected": "yate-latte",
+      "actual": "yate-latte",
+      "ok": true
+    },
+    {
+      "label": "overlay_closed",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "restored",
+      "expected": "yate-mocha",
+      "actual": "yate-mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

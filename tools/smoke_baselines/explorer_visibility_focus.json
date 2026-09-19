@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "visible_on_dir_open",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "sidebar_shown",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "root",
+      "expected": "explorer_visibility_focus",
+      "actual": "explorer_visibility_focus",
+      "ok": true
+    },
+    {
+      "label": "hidden",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "sidebar_hidden",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "shown_again",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "explorer_focused",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "editor_focused",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

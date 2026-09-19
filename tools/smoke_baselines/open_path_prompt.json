@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "open_mode",
+      "expected": "open",
+      "actual": "open",
+      "ok": true
+    },
+    {
+      "label": "doc.name",
+      "expected": "other.txt",
+      "actual": "other.txt",
+      "ok": true
+    },
+    {
+      "label": "doc.path_name",
+      "expected": "other.txt",
+      "actual": "other.txt",
+      "ok": true
+    },
+    {
+      "label": "content",
+      "expected": "second file",
+      "actual": "second file",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "second file\n",
+      "actual": "second file\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "keymap",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "keymap_kept",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "keymap_warned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "height_kept",
+      "expected": 12,
+      "actual": 12,
+      "ok": true
+    },
+    {
+      "label": "show_hidden",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "option_warned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "theme",
+      "expected": "latte",
+      "actual": "latte",
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

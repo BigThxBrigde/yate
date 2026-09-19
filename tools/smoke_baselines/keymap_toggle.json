@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "label": "default_keymap",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "toggled_keymap",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "back_to_vsc",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

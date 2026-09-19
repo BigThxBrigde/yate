@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "twenty_tabs",
+      "expected": 20,
+      "actual": 20,
+      "ok": true
+    },
+    {
+      "label": "one_left",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "doc_index",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "buffer_readable",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "file 0\n",
+      "actual": "file 0\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

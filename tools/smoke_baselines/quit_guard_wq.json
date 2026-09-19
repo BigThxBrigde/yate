@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "still_running",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "no_modal",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "warned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "doc_saved",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "file_content",
+      "expected": "hello",
+      "actual": "hello",
+      "ok": true
+    },
+    {
+      "label": "exited",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "hello",
+      "actual": "hello",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

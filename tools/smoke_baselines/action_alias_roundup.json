@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "delete_forward",
+      "expected": "ello world",
+      "actual": "ello world",
+      "ok": true
+    },
+    {
+      "label": "delete_word_fwd",
+      "expected": " world",
+      "actual": " world",
+      "ok": true
+    },
+    {
+      "label": "select_word_right",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "two_lines",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "select_up",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "select_down",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

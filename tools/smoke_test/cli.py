@@ -57,6 +57,10 @@ def _add_report_options(p: argparse.ArgumentParser) -> None:
                    help="capture and show the rendered SVG text rows")
     p.add_argument("--svg-rows", type=int, default=6,
                    help="how many SVG rows to show (default: 6)")
+    p.add_argument("--with-svg", action="store_true",
+                   help="also put the SVG rows in the baseline / compare them "
+                        "(they embed absolute paths, so they drift between "
+                        "machines -- off by default)")
     p.add_argument("--json", metavar="PATH", default=None,
                    help="also write a machine readable JSON report")
     p.add_argument("--report", metavar="PATH", default=None,
@@ -206,7 +210,8 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
             seed=args.seed, repeat=args.repeat,
         )
     options = RunOptions(
-        svg=True, invariants=not args.no_invariant, progress=reporter.progress,
+        svg=args.with_svg, invariants=not args.no_invariant,
+        progress=reporter.progress,
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
@@ -256,7 +261,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
             seed=args.seed, repeat=args.repeat,
         )
     options = RunOptions(
-        svg=True, invariants=not args.no_invariant, progress=reporter.progress,
+        svg=args.with_svg, invariants=not args.no_invariant,
+        progress=reporter.progress,
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
@@ -272,6 +278,12 @@ def cmd_compare(args: argparse.Namespace) -> int:
             continue
         expected = baselines.load_baseline(base)
         actual = baselines.serialize(r)
+        if not args.with_svg:
+            # The rendered rows embed absolute paths (breadcrumbs, tab
+            # titles, "saved <path>" messages), so they are only part of
+            # the contract when the baseline was taken with --with-svg.
+            expected.pop("svg_rows", None)
+            actual.pop("svg_rows", None)
         if expected == actual:
             reporter.compare(r.name, "MATCH")
             continue

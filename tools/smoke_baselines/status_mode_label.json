@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "vsc_chip",
+      "expected": "VSC",
+      "actual": "VSC",
+      "ok": true
+    },
+    {
+      "label": "normal_chip",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "insert_chip",
+      "expected": "INSERT",
+      "actual": "INSERT",
+      "ok": true
+    },
+    {
+      "label": "back_to_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "back_to_vsc",
+      "expected": "VSC",
+      "actual": "VSC",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

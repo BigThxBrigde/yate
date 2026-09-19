@@ -1,0 +1,81 @@
+{
+  "checks": [
+    {
+      "label": "has_selection",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "selected_text",
+      "expected": "he",
+      "actual": "he",
+      "ok": true
+    },
+    {
+      "label": "register",
+      "expected": "he",
+      "actual": "he",
+      "ok": true
+    },
+    {
+      "label": "selection_cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "pasted",
+      "expected": "hellohe",
+      "actual": "hellohe",
+      "ok": true
+    },
+    {
+      "label": "cut_line",
+      "expected": [
+        ""
+      ],
+      "actual": [
+        ""
+      ],
+      "ok": true
+    },
+    {
+      "label": "register_line",
+      "expected": "hellohe\n",
+      "actual": "hellohe\n",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "find_mode",
+      "expected": "find",
+      "actual": "find",
+      "ok": true
+    },
+    {
+      "label": "query",
+      "expected": "one",
+      "actual": "one",
+      "ok": true
+    },
+    {
+      "label": "match_count",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "first_index",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "next_index",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "wrapped_index",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "one two one",
+      "actual": "one two one",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

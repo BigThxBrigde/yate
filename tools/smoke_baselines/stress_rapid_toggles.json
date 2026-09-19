@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "theme_back",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "textual_theme_back",
+      "expected": "yate-mocha",
+      "actual": "yate-mocha",
+      "ok": true
+    },
+    {
+      "label": "keymap_back",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "sidebar_matches_flag",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "toggles",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "toggles_back",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "still_no_crash",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

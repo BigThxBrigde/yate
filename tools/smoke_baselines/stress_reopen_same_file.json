@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "dirty",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "closed",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "scratch",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "reopened",
+      "expected": "one.txt",
+      "actual": "one.txt",
+      "ok": true
+    },
+    {
+      "label": "disk_version",
+      "expected": "one",
+      "actual": "one",
+      "ok": true
+    },
+    {
+      "label": "clean",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "one",
+      "actual": "one",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

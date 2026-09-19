@@ -45,7 +45,10 @@ async def _explorer_visibility_focus(tmp: Path) -> ScenarioResult:
         assert tree is not None and sidebar is not None
         checks.append(Check("visible_on_dir_open", True, app.explorer_visible))
         checks.append(Check("sidebar_shown", True, tree.display))
-        checks.append(Check("root", tmp.resolve(), app.workspace.root))
+        # Compare the folder name, not its absolute path (temp dirs differ).
+        checks.append(Check("root", tmp.resolve().name,
+                            app.workspace.root.name
+                            if app.workspace.root else None))
         await pilot.press("ctrl+b")
         await pilot.pause()
         checks.append(Check("hidden", False, app.explorer_visible))
