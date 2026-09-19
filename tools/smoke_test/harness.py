@@ -40,6 +40,30 @@ from yate.app import YateApp  # noqa: E402
 from yate.config import YateConfig  # noqa: E402
 from yate.editor_view import theme  # noqa: E402
 
+
+def _speed_up_pilot() -> None:
+    """Cut Textual's per-key wall clock from ~70ms to a few ms.
+
+    ``Pilot._press_keys`` calls ``wait_for_idle(0)`` twice per key, which
+    always performs one ``asyncio.sleep(SLEEP_GRANULARITY)`` (1/50s, rounded
+    up to ~15-30ms by the Windows timer).  Typing a 70-character path then
+    costs five seconds of pure sleeping, and the whole suite would blow its
+    time budget on waiting instead of asserting.
+
+    The constant is only read inside ``wait_for_idle``'s body, so lowering it
+    keeps every call site intact: the pilot still drains the message queue,
+    it just polls faster.  Scenarios that really have to wait for a worker
+    use :func:`wait_until` (an explicit ``asyncio.sleep``), not this.
+    """
+    try:
+        from textual import _wait  # pyright: ignore[reportPrivateUsage]
+    except ImportError:  # pragma: no cover - every Textual ships this module
+        return
+    _wait.SLEEP_GRANULARITY = 0.001
+
+
+_speed_up_pilot()
+
 __all__ = [
     "Check",
     "Coverage",

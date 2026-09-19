@@ -14,9 +14,18 @@ scenario bodies to "press keys, read app state, append a :class:`Check`":
 from __future__ import annotations
 
 import time
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any, Callable, Optional
 
-__all__ = ["goto", "run_command", "type_text", "wait_until"]
+__all__ = [
+    "goto",
+    "message_text",
+    "plain_text",
+    "run_command",
+    "type_path",
+    "type_text",
+    "wait_until",
+]
 
 # F5 is the ex command line entry point in vsc mode (":" is intentionally
 # unbound there and types literally), and it works in vim mode too.
@@ -24,9 +33,16 @@ _COMMAND_KEY = "f5"
 
 
 async def type_text(pilot: Any, text: str, *, pause: bool = True) -> None:
-    """Press each character of *text*, then let the app settle."""
-    for ch in text:
-        await pilot.press(ch)
+    """Type *text*, then let the app settle.
+
+    The characters are posted in a single ``pilot.press`` call: every
+    ``press`` waits for the whole widget tree to drain its message queue
+    (~70ms headless), so one call per character turned a 70-character path
+    into five seconds of wall clock.
+    """
+    keys = ["space" if ch == " " else ch for ch in text]
+    if keys:
+        await pilot.press(*keys)
     if pause:
         await pilot.pause()
 
@@ -45,6 +61,15 @@ async def run_command(pilot: Any, text: str) -> None:
     await pilot.pause()
 
 
+async def type_path(pilot: Any, path: Path) -> None:
+    """Type an absolute *path* into the active prompt.
+
+    Windows paths are typed with forward slashes: ``\\`` has no stable
+    Textual key name but ``Path`` accepts ``/`` on every platform.
+    """
+    await type_text(pilot, str(path).replace("\\", "/"))
+
+
 async def goto(pilot: Any, line: str) -> None:
     """``Ctrl+G`` -> *line* -> enter (the go-to-line prompt)."""
     await pilot.press("ctrl+g")
@@ -52,6 +77,30 @@ async def goto(pilot: Any, line: str) -> None:
     await type_text(pilot, line)
     await pilot.press("enter")
     await pilot.pause()
+
+
+def plain_text(content: Any) -> str:
+    """Plain text of a widget renderable (rich ``Text``, str, or other)."""
+    plain = getattr(content, "plain", None)
+    return plain if isinstance(plain, str) else str(content)
+
+
+def message_text(app: Any) -> str:
+    """The current bottom-bar message (assertions read the app state)."""
+    bar = app.prompt_bar
+    if bar is None:
+        return ""
+    return plain_text(bar.message.content)
+
+
+def cursor_path(app: Any) -> Optional[Any]:
+    """Path of the explorer node under the cursor (``None`` if unknown)."""
+    tree = app.explorer_tree
+    if tree is None:
+        return None
+    node = tree.cursor_node
+    data = node.data if node is not None else None
+    return data if data is not None else None
 
 
 async def wait_until(
