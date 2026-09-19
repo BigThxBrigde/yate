@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import goto, run_command, type_text, wait_until
+from .aliases import SCENARIOS as _ALIASES
 from .core import SCENARIOS as _CORE
 from .edit import SCENARIOS as _EDIT
 from .explorer import SCENARIOS as _EXPLORER
@@ -18,6 +19,7 @@ from .integration import SCENARIOS as _INTEGRATION
 from .panes import SCENARIOS as _PANES
 from .regression import SCENARIOS as _REGRESSION
 from .search import SCENARIOS as _SEARCH
+from .stress import SCENARIOS as _STRESS
 from .view import SCENARIOS as _VIEW
 
 __all__ = [
@@ -43,4 +45,6 @@ SCENARIOS: list[Scenario] = [
     *_VIEW,
     *_INTEGRATION,
     *_REGRESSION,
+    *_STRESS,
+    *_ALIASES,
 ]
