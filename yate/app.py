@@ -1157,7 +1157,13 @@ class YateApp(App[None]):
             refocus_explorer = True
 
         if self.prompt_bar.active_mode is not None:
-            return  # a follow-up prompt is active (replace_with)
+            if self.prompt_bar.active_mode != mode:
+                return  # a follow-up prompt is active (replace_with)
+            # The handler neither reported anything nor opened a follow-up
+            # prompt (``:bn``, an empty find string, ...).  Close the line
+            # instead of leaving it open with stale text: a focused prompt
+            # Input swallows F5, so the next command would never start.
+            self.prompt_bar.idle()
         if refocus_explorer and self.workspace.root is not None:
             self.focus_explorer()
         else:

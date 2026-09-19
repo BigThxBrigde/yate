@@ -103,6 +103,9 @@ class Document:
         if self.path is None:
             raise ValueError("cannot save a document without a path")
         text = self.buffer.get_text()
-        self.path.write_text(text, encoding=self.encoding, newline="\n")
+        # Encode *before* touching the file: write_text() truncates first, so
+        # a character the document's encoding cannot represent would raise
+        # halfway through and leave an empty (destroyed) file behind.
+        self.path.write_bytes(text.encode(self.encoding))
         self._saved_text = text
         return self.path

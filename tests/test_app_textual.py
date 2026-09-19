@@ -875,6 +875,34 @@ def test_f5_opens_command_prompt_in_vsc_keymap() -> None:
     asyncio.run(scenario())
 
 
+def test_command_line_closes_without_a_message() -> None:
+    """A command that reports nothing must not leave the prompt open.
+
+    ``:bn`` (and friends) produce no message; the prompt used to stay in
+    command mode with the stale text, and because the Input keeps focus it
+    swallowed the next F5 -- the command line became unusable.
+    """
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            prompt_bar = app.prompt_bar
+            assert prompt_bar is not None
+            await pilot.press("ctrl+n")  # a second tab, so :bn has a target
+            await pilot.pause()
+            await pilot.press("f5")
+            await pilot.pause()
+            await pilot.press(*"bn")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert prompt_bar.active_mode is None
+            await pilot.press("f5")
+            await pilot.pause()
+            assert prompt_bar.active_mode == "command"
+
+    asyncio.run(scenario())
+
+
 def test_ctrl_slash_toggles_back_from_vim_keymap() -> None:
     """``ctrl+/`` is bidirectional: the vim keymap must return to vsc.
 

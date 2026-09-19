@@ -477,6 +477,12 @@ class TextBuffer:
         if sel is not None:
             self.anchor = (r1, 0)
             self.cursor = (r2, len(self.lines[r2]))
+        else:
+            # Outdenting shortens the line; the cursor must stay inside it
+            # (shift+tab on a 4-space indented line at col 4 would otherwise
+            # leave the cursor one column past the end of the text).
+            row = self.cursor[0]
+            self.cursor = (row, min(self.col, len(self.lines[row])))
         self._commit(before, "step")
 
     def yank_lines(self) -> str:

@@ -139,6 +139,15 @@ def test_indent_outdent() -> None:
     assert buf.get_text() == "a\nb"
 
 
+def test_outdent_keeps_cursor_inside_the_line() -> None:
+    """shift+tab shortens the line: the cursor must follow, not dangle."""
+    buf = TextBuffer("    a", tab_width=4)
+    buf.cursor = (0, 4)
+    buf.outdent_selection()
+    assert buf.get_text() == "a"
+    assert buf.cursor == (0, 1)
+
+
 # --- SearchEngine -----------------------------------------------------------
 
 
