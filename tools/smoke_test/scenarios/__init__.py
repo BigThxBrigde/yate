@@ -12,8 +12,11 @@ from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import goto, run_command, type_text, wait_until
 from .core import SCENARIOS as _CORE
 from .edit import SCENARIOS as _EDIT
+from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
+from .panes import SCENARIOS as _PANES
 from .search import SCENARIOS as _SEARCH
+from .view import SCENARIOS as _VIEW
 
 __all__ = [
     "SCENARIOS",
@@ -33,4 +36,7 @@ SCENARIOS: list[Scenario] = [
     *_EDIT,
     *_SEARCH,
     *_FILES,
+    *_PANES,
+    *_EXPLORER,
+    *_VIEW,
 ]
