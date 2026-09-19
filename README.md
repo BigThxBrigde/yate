@@ -285,6 +285,49 @@ python -m pytest tests
 python -m pyright
 ```
 
+### Smoke test
+
+`tools/smoke_test` is a headless Textual-pilot harness that drives the editor
+end-to-end and asserts on its exported state. It is faster and more stable than
+the full `pytest` suite for catching UI regressions, and it ships with committed
+JSON baselines that snapshot expected behavior.
+
+```powershell
+# Run every scenario (default 80x24 terminal; ~48s on CI hardware)
+python -m tools.smoke_test run
+
+# Filter by tag (tags: core, editing, selection, search, files, panes,
+# explorer, commands, misc, regress, stress, slow)
+python -m tools.smoke_test run --tag explorer
+python -m tools.smoke_test run --tag files --tag search
+
+# Skip the slower integration/stress (P2) scenarios
+python -m tools.smoke_test run --skip-slow
+
+# Print a command/action coverage panel (targets: commands >=60%, actions >=50%)
+python -m tools.smoke_test run --coverage
+
+# Reproducibility: fixed seed + N repeats to surface flaky scenarios
+python -m tools.smoke_test run --seed 1 --repeat 3
+```
+
+Three sub-commands are available:
+
+- `run` — drive the scenarios and print a PASS/FAIL report (Rich tables,
+  colored). Exits non-zero on any failure.
+- `snapshot` — write the current scenario output to JSON baselines under
+  `tools/smoke_test/smoke_baselines/` (use `--outdir` to target another dir).
+  Regenerate after an intentional behavior change, then review the diff before
+  committing.
+- `compare` — re-run the scenarios and diff them against the committed
+  baselines; every scenario must `MATCH` (exit 0). Run this in CI to catch
+  unintended UI regressions.
+
+Useful flags: `--no-color` (CI logs), `--quiet` (summary only),
+`--fail-only` (failed detail only), `--no-invariant` (skip global invariant
+checks), `--json PATH` / `--report PATH` (machine-readable output), `--width N`
+(narrow-terminal layout checks, e.g. 79 columns).
+
 ### Release & bilingual changelog workflow
 
 The root `CHANGELOG.md` / `CHANGELOG.zh.md` are generated from git history by

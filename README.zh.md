@@ -290,6 +290,45 @@ python -m pytest tests
 python -m pyright
 ```
 
+### 冒烟测试
+
+`tools/smoke_test` 是一套无界面的 Textual-pilot 测试框架，端到端驱动编辑器
+并对其导出的状态做断言。相比完整的 `pytest` 套件，它更快、更稳定，适合捕捉
+UI 回归；框架内置已提交的 JSON 基线，用于快照预期行为。
+
+```powershell
+# 运行全部场景（默认 80x24 终端；CI 机器上约 48 秒）
+python -m tools.smoke_test run
+
+# 按标签过滤（标签：core、editing、selection、search、files、panes、
+# explorer、commands、misc、regress、stress、slow）
+python -m tools.smoke_test run --tag explorer
+python -m tools.smoke_test run --tag files --tag search
+
+# 跳过较慢的集成/压测（P2）场景
+python -m tools.smoke_test run --skip-slow
+
+# 打印命令/动作覆盖率面板（目标：命令 >=60%，动作 >=50%）
+python -m tools.smoke_test run --coverage
+
+# 可复现性：固定随机种子并重复 N 次，以暴露偶发（flaky）场景
+python -m tools.smoke_test run --seed 1 --repeat 3
+```
+
+提供三个子命令：
+
+- `run` — 运行各场景并打印 PASS/FAIL 报告（Rich 表格、带颜色）。任一失败即
+  以非零退出码退出。
+- `snapshot` — 将当前场景输出写入 `tools/smoke_test/smoke_baselines/` 下的
+  JSON 基线（可用 `--outdir` 指定其他目录）。在有意修改行为后重新生成，并在
+  提交前审查其 diff。
+- `compare` — 重新运行场景并与已提交的基线做 diff；每个场景都必须 `MATCH`
+  （退出码 0）。在 CI 中运行它可捕捉非预期的 UI 回归。
+
+常用选项：`--no-color`（CI 日志）、`--quiet`（仅摘要）、`--fail-only`（仅失败
+详情）、`--no-invariant`（跳过全局不变量检查）、`--json PATH` / `--report PATH`
+（机器可读输出）、`--width N`（窄终端布局检查，如 79 列）。
+
 ### 发布与双语 Changelog 维护
 
 仓库根目录的 `CHANGELOG.md`（英文）与 `CHANGELOG.zh.md`（中文）由
@@ -592,6 +631,45 @@ python -m pytest tests
 # 类型检查：pyright strict，要求 0 诊断
 python -m pyright
 ```
+
+### 冒烟测试
+
+`tools/smoke_test` 是一套无界面的 Textual-pilot 测试框架，端到端驱动编辑器
+并对其导出的状态做断言。相比完整的 `pytest` 套件，它更快、更稳定，适合捕捉
+UI 回归；框架内置已提交的 JSON 基线，用于快照预期行为。
+
+```powershell
+# 运行全部场景（默认 80x24 终端；CI 机器上约 48 秒）
+python -m tools.smoke_test run
+
+# 按标签过滤（标签：core、editing、selection、search、files、panes、
+# explorer、commands、misc、regress、stress、slow）
+python -m tools.smoke_test run --tag explorer
+python -m tools.smoke_test run --tag files --tag search
+
+# 跳过较慢的集成/压测（P2）场景
+python -m tools.smoke_test run --skip-slow
+
+# 打印命令/动作覆盖率面板（目标：命令 >=60%，动作 >=50%）
+python -m tools.smoke_test run --coverage
+
+# 可复现性：固定随机种子并重复 N 次，以暴露偶发（flaky）场景
+python -m tools.smoke_test run --seed 1 --repeat 3
+```
+
+提供三个子命令：
+
+- `run` — 运行各场景并打印 PASS/FAIL 报告（Rich 表格、带颜色）。任一失败即
+  以非零退出码退出。
+- `snapshot` — 将当前场景输出写入 `tools/smoke_test/smoke_baselines/` 下的
+  JSON 基线（可用 `--outdir` 指定其他目录）。在有意修改行为后重新生成，并在
+  提交前审查其 diff。
+- `compare` — 重新运行场景并与已提交的基线做 diff；每个场景都必须 `MATCH`
+  （退出码 0）。在 CI 中运行它可捕捉非预期的 UI 回归。
+
+常用选项：`--no-color`（CI 日志）、`--quiet`（仅摘要）、`--fail-only`（仅失败
+详情）、`--no-invariant`（跳过全局不变量检查）、`--json PATH` / `--report PATH`
+（机器可读输出）、`--width N`（窄终端布局检查，如 79 列）。
 
 ### 发布与双语 Changelog 维护
 
