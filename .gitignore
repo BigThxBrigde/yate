@@ -145,3 +145,6 @@ Thumbs.db
 /_*.py
 /_*.svg
 .python-version
+
+# Transient smoke harness JSON report (from `python -m tools.smoke_test run --json`)
+.smoke-check.json
