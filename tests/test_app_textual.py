@@ -24,6 +24,7 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
+from yate.keymaps.vim import VimKeymap
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.panes import Split as PaneSplit
 from yate.editor_view.panes import leaves as pane_leaves
@@ -870,6 +871,51 @@ def test_f5_opens_command_prompt_in_vsc_keymap() -> None:
             await pilot.pause()
             assert prompt_bar.active_mode is None
             assert app.focused is app.editor_view
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_slash_toggles_back_from_vim_keymap() -> None:
+    """``ctrl+/`` is bidirectional: the vim keymap must return to vsc.
+
+    The manual promises a two-way toggle, so the binding is not vsc-only.
+    """
+
+    async def scenario() -> None:
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.keymap_name == "vim"
+            binding = app.active_keymap.lookup("\x1f")
+            assert binding is not None
+            assert binding.action == "toggle_keymap"
+            await pilot.press("ctrl+/")
+            await pilot.pause()
+            assert app.keymap_name == "vsc"
+            # and back the other way, now through the vsc keymap
+            await pilot.press("ctrl+/")
+            await pilot.pause()
+            assert app.keymap_name == "vim"
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_slash_drops_pending_vim_state() -> None:
+    """Toggling from vim must not leave a half-finished operator behind."""
+
+    async def scenario() -> None:
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("d")  # pending delete operator
+            await pilot.pause()
+            vim = cast(VimKeymap, app.active_keymap)
+            assert vim.pending == "d"
+            await pilot.press("ctrl+/")
+            await pilot.pause()
+            assert app.keymap_name == "vsc"
+            assert vim.pending == ""
+            assert vim.count_str == ""
 
     asyncio.run(scenario())
 

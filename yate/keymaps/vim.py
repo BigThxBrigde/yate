@@ -100,11 +100,20 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<f4>"), "replace", "Find & replace", CMD),
             KeyBinding(parse_key("<f5>"), "command_prompt", "Ex command line (:w :q :e :! ...)", CMD),
             KeyBinding(parse_key("<f8>"), "manual", "Open user manual (read-only)", HLP),
+            KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
         ]
 
     # --------------------------------------------------------------- dispatch
 
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
+        # ctrl+/ is a raw (non-printable) key that never reaches mode dispatch;
+        # handle it first so the toggle works in every vim mode and drops any
+        # half-finished operator/count state.
+        if key == "\x1f":
+            self.pending = ""
+            self.count_str = ""
+            ctx.app.toggle_keymap()
+            return True
         if key in _FUNCTION_KEYS:
             self.pending = ""
             self.count_str = ""

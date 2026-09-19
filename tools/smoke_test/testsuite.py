@@ -154,7 +154,7 @@ async def _theme_switch(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         checks.append(Check("default_theme", "mocha", theme.active().name))
-        await pilot.press("colon")
+        await pilot.press("f5")
         await pilot.pause()
         for ch in "theme latte":
             await pilot.press(ch)
@@ -173,7 +173,7 @@ async def _help_modal(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("colon")
+        await pilot.press("f5")
         await pilot.pause()
         for ch in "help":
             await pilot.press(ch)
