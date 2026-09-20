@@ -50,9 +50,14 @@ def test_resolve_level_maps_builtin_names() -> None:
     assert tracing.resolve_level("CRITICAL") == logging.CRITICAL
 
 
+def _zero_level(name: str) -> int:
+    """Stand-in for ``resolve_level``: resolves everything to NOTSET (0)."""
+    return 0
+
+
 def test_requested_level_keeps_a_falsy_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
     """A resolved level of 0 (logging.NOTSET) must not become DEBUG."""
-    monkeypatch.setattr(tracing, "resolve_level", lambda _name: 0)
+    monkeypatch.setattr(tracing, "resolve_level", _zero_level)
     assert tracing._requested_level(YateConfig(yate_trace=True)) == 0
 
 
