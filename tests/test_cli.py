@@ -222,6 +222,12 @@ def _custom_theme_cleanup() -> Any:
     theme_mod.set_theme("mocha")
 
 
+# pytest resolves fixtures by parameter name (see the two tests below), so
+# nothing ever refers to the definition itself. Keep one explicit reference
+# so static analysis does not report it as dead code.
+_THEME_FIXTURES = (_custom_theme_cleanup,)
+
+
 def _run_main(
     argv: list[str], capsys: pytest.CaptureFixture[str]
 ) -> dict[str, object]:
