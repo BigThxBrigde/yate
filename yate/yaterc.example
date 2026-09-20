@@ -47,6 +47,24 @@ use_spaces = True
 #
 # terminal_height = 12
 
+# ------------------------------------------------------------- trace log
+#
+# Runtime debug log, off by default: nothing is written until it is turned
+# on. Files land in ~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log (next to the
+# crash-*.err reports), one per process, appended to.
+#
+# The level names are Python's built-in logging levels (case-insensitive):
+# DEBUG (10) | INFO (20) | WARNING (30) | ERROR (40) | CRITICAL (50).
+#
+# yate_trace = True
+# yate_trace_level = "DEBUG"
+#
+# Per-session override (higher priority than this file), no rc edit needed:
+#   YATE_TRACE=1 YATE_TRACE_LEVEL=INFO yate          (POSIX)
+#   $env:YATE_TRACE="1"; $env:YATE_TRACE_LEVEL="INFO"; yate   (PowerShell)
+# YATE_TRACE accepts 1/true/yes/on and 0/false/no/off (0 also beats the
+# yate_trace = True above). An unwritable log dir only warns on stderr.
+
 # ------------------------------------------------------------- extensions
 #
 # yate ships with bundled extensions in yate/extensions/ (auto-loaded at

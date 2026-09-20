@@ -76,6 +76,8 @@ perform the work and exit:
 | `shell` | `str` | platform default | non-empty string | Shell launched in the integrated terminal (open with `` Ctrl+` ``); arguments allowed (e.g. `"pwsh -NoLogo"`). Windows default: `pwsh`→Windows PowerShell→`cmd.exe`; POSIX: `$SHELL`→`bash`→`/bin/sh`. |
 | `terminal_height` | `int` | `12` | integer `3`–`40` (bools/floats/strings rejected) | Integrated terminal panel height in rows. |
 | `language_servers` | `list[dict]` | none | see [below](#declarative-language-servers-language_servers) | Declaratively register LSP language servers; they activate automatically when matching files open -- no extension needed. |
+| `yate_trace` | `bool` | `False` | `True` / `False` | Runtime trace log switch (off by default); writes to `~/.yate/data/logs/`, see [below](#runtime-trace-log-yate_trace). |
+| `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` (case-insensitive) | Trace verbosity; Python `logging`'s built-in levels. |
 
 Invalid values never abort loading: the option keeps its default and an error
 appears in the startup message bar.
@@ -89,6 +91,49 @@ Option scope:
 - `shell` is read when a terminal shell is launched (restart the shell after
   `:set shell=…`); `terminal_height` also supports immediate in-session changes
   via `:set terminal_height=<n>`.
+- `yate_trace` / `yate_trace_level` are read **at startup** (fixed for the
+  process lifetime); use the environment variables below for a one-off run.
+
+## Runtime trace log (`yate_trace`)
+
+yate writes **no log at all** by default. Turn the switch on when something
+needs debugging: records are appended to
+`~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log` — next to the
+`~/.yate/data/crash-*.err` reports, which cover "died badly" while these cover
+"alive but misbehaving".
+
+```python
+yate_trace = True              # enable the runtime trace log
+yate_trace_level = "DEBUG"     # DEBUG | INFO | WARNING | ERROR | CRITICAL
+```
+
+The levels are Python's standard :mod:`logging` built-ins (case-insensitive):
+
+| Level | Value | What it records |
+|---|---|---|
+| `DEBUG` | 10 | Extension loading, config resolution, LSP traffic details |
+| `INFO` | 20 | Open/close/save of documents, language server start/stop |
+| `WARNING` | 30 | Recoverable failures (save failed, server failed to start) |
+| `ERROR` | 40 | Errors (including uncaught exceptions, mirroring the crash report) |
+| `CRITICAL` | 50 | Critical failures |
+
+For a single session use the environment variables instead — they **override
+yaterc**, so no config file has to be touched:
+
+```powershell
+$env:YATE_TRACE = "1"; $env:YATE_TRACE_LEVEL = "INFO"; yate
+```
+
+```bash
+YATE_TRACE=1 YATE_TRACE_LEVEL=INFO yate
+```
+
+`YATE_TRACE` accepts `1` / `true` / `yes` / `on` (on) and `0` / `false` / `no` /
+`off` (off, which also beats `yate_trace = True` from yaterc); when unset the
+yaterc option decides, and with neither set tracing stays off.
+
+An unwritable logs directory prints one warning to stderr and the editor still
+starts. `yate --cleanup-defaults --include-data` removes `data/logs` too.
 
 ## Built-in themes
 

@@ -10,6 +10,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -151,9 +152,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     # Best-effort native-crash / uncaught-exception log (~/.yate/data/).
     # First line so even startup failures are covered.
-    from yate import crash  # pylint: disable=import-outside-toplevel
+    from yate import crash, tracing  # pylint: disable=import-outside-toplevel
 
     crash.install()
+    # Trace pass 1: environment only (YATE_TRACE / YATE_TRACE_LEVEL), so
+    # startup itself is observable. Pass 2 after load_config() merges the
+    # yaterc options yate_trace / yate_trace_level.
+    tracing.install()
 
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -204,10 +209,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # The crash handler keeps data/crash-*.err open for the process
         # lifetime; on Windows that handle blocks removing data/. Release it
         # before deleting (no diagnostics are needed for an exit-only CLI).
+        # Same for an open trace log under data/logs/.
         if args.include_data:
-            from yate import crash  # pylint: disable=import-outside-toplevel
+            from yate import crash, tracing  # pylint: disable=import-outside-toplevel
 
             crash.uninstall()
+            tracing.uninstall()
         try:
             report = user_setup.cleanup_defaults(
                 force=args.force, include_data=args.include_data
@@ -244,6 +251,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     theme_mod.load_theme_paths(
         [Path(p).expanduser() for p in args.theme_dirs], config.errors
     )
+
+    # Trace pass 2: yaterc's yate_trace / yate_trace_level are known now.
+    # An environment variable still wins over the rc files.
+    tracing.install(config)
+    log = tracing.get_logger("cli")
+    log.info("startup: argv=%r cwd=%s", sys.argv, Path.cwd())
+    log.info(
+        "rc files: %s",
+        [str(p) for p in config.sources] or "<none>",
+    )
+    log.info(
+        "resolved: keymap=%s theme=%s tab_width=%s use_spaces=%s "
+        "yate_trace=%s yate_trace_level=%s",
+        config.keymap, config.theme, config.tab_width, config.use_spaces,
+        config.yate_trace, config.yate_trace_level,
+    )
+    if config.errors:
+        log.warning("config errors: %s", "; ".join(config.errors))
 
     # Imported lazily so ``--help`` / ``--version`` work without a terminal.
     from yate.app import YateApp

@@ -68,6 +68,8 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
+| `yate_trace` | `bool` | `False` | `True` / `False` | 运行日志开关（默认关闭）；开启后写入 `~/.yate/data/logs/`，见[下文](#运行日志yate_trace) |
+| `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`（大小写不敏感） | 运行日志等级，与 Python `logging` 内置等级一致 |
 
 非法取值不会中断加载：对应选项保持默认，错误信息出现在启动消息栏。
 
@@ -79,6 +81,46 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
   （见 [yate/app.py](../app.py) 中 `_make_buffer` / `_apply_buffer_options`）。
 - `shell` 在启动终端 Shell 时读取（会话内 `:set shell=…` 后需重启 Shell 生效）；
   `terminal_height` 同时支持会话内 `:set terminal_height=<n>` 立即调整。
+- `yate_trace` / `yate_trace_level` 在**启动时**读取（进程生命周期内不变），
+  需要临时开关请用下节的环境变量。
+
+## 运行日志（`yate_trace`）
+
+yate 默认**不写任何日志**。排查问题时打开开关，日志以追加方式写入
+`~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log`——与崩溃报告
+`~/.yate/data/crash-*.err` 同级目录：前者覆盖"活着但不对"，后者覆盖"死得难看"。
+
+```python
+yate_trace = True              # 打开运行日志
+yate_trace_level = "DEBUG"     # DEBUG | INFO | WARNING | ERROR | CRITICAL
+```
+
+等级就是 Python 标准库 `logging` 的内置等级（大小写不敏感）：
+
+| 等级 | 数值 | 记录内容 |
+|---|---|---|
+| `DEBUG` | 10 | 扩展加载、配置解析、LSP 交互等细节 |
+| `INFO` | 20 | 打开/关闭/保存文件、语言服务器启停 |
+| `WARNING` | 30 | 可恢复的失败（保存失败、服务器启动失败） |
+| `ERROR` | 40 | 错误（含未捕获异常，与崩溃报告互为备份） |
+| `CRITICAL` | 50 | 严重错误 |
+
+只在这一次会话打开，用环境变量（**优先级高于 yaterc**，无需改配置文件）：
+
+```powershell
+$env:YATE_TRACE = "1"; $env:YATE_TRACE_LEVEL = "INFO"; yate
+```
+
+```bash
+YATE_TRACE=1 YATE_TRACE_LEVEL=INFO yate
+```
+
+`YATE_TRACE` 接受 `1` / `true` / `yes` / `on`（开启）与 `0` / `false` / `no` /
+`off`（关闭，压过 yaterc 里的 `yate_trace = True`）；未设置时以 yaterc 为准，
+两者都没有则默认关闭。
+
+日志目录不可写时只在 stderr 打一条警告，编辑器照常启动；
+`yate --cleanup-defaults --include-data` 会连同 `data/logs` 一并删除。
 
 ## 内置主题
 

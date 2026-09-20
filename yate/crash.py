@@ -32,7 +32,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Optional, TextIO
 
-from yate import __version__
+from yate import __version__, tracing
 
 #: Writable per-user data folder (under ``~/.yate``).
 DATA_DIRNAME = "data"
@@ -99,6 +99,15 @@ def _excepthook(
         except Exception:
             # Never let diagnostics mask the original failure.
             pass
+    # Mirror into the trace log when it is on: the .err report survives a
+    # dead process, the log carries the surrounding timeline. Best-effort
+    # (and silent when tracing is off -- there is no handler to write to).
+    try:
+        tracing.get_logger("crash").error(
+            "uncaught %s", exc_type.__name__, exc_info=(exc_type, exc_value, exc_tb)
+        )
+    except Exception:
+        pass
     _original_excepthook(exc_type, exc_value, exc_tb)
 
 

@@ -170,6 +170,46 @@ def test_terminal_height_bounds(tmp_path: Path) -> None:
         assert config.errors, value
 
 
+# --- trace options -----------------------------------------------------------
+
+
+def test_trace_defaults_to_off() -> None:
+    config = cfg.YateConfig()
+    assert config.yate_trace is False
+    assert config.yate_trace_level == "DEBUG"
+
+
+def test_trace_option(tmp_path: Path) -> None:
+    config = _load("yate_trace = True\n", tmp_path)
+    assert config.yate_trace is True
+    assert config.errors == []
+
+
+def test_trace_option_must_be_bool(tmp_path: Path) -> None:
+    # Like every other option, an explicit None means "not set" (no error).
+    for value in ("1", "0", '"yes"'):
+        config = _load(f"yate_trace = {value}\n", tmp_path)
+        assert config.yate_trace is False, value
+        assert any("yate_trace" in e for e in config.errors), value
+
+
+def test_trace_level_normalized_to_upper(tmp_path: Path) -> None:
+    for value, expected in (
+        ('"debug"', "DEBUG"), ('"Info"', "INFO"), ('"  warning  "', "WARNING"),
+        ('"ERROR"', "ERROR"), ('"critical"', "CRITICAL"),
+    ):
+        config = _load(f"yate_trace_level = {value}\n", tmp_path)
+        assert config.yate_trace_level == expected, value
+        assert config.errors == [], value
+
+
+def test_invalid_trace_level(tmp_path: Path) -> None:
+    for value in ('"VERBOSE"', '"  "', "10"):
+        config = _load(f"yate_trace_level = {value}\n", tmp_path)
+        assert config.yate_trace_level == "DEBUG", value
+        assert any("yate_trace_level" in e for e in config.errors), value
+
+
 # --- language_servers option ------------------------------------------------
 
 
