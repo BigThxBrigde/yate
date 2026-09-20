@@ -232,7 +232,9 @@ yate/
   paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)
   yaterc.example  # configuration template
 tests/            # unit tests + Textual pilot end-to-end tests
+tools/            # maintenance tooling: changelog, release, smoke_test, pack (icon builder)
 pack/             # PyInstaller specs (yate*.spec) + build scripts: pack.ps1 / pack.bat (Windows), pack.sh (Linux)
+                  #   + yate.ico: the executable icon, built by `python -m tools.pack icon`
 ```
 
 ## Packaging
@@ -277,10 +279,28 @@ The onefile build unpacks into a temporary `sys._MEIPASS` directory on every
 launch and cleans it up on exit, so the resources live *inside* the exe rather
 than next to it; pick one-folder when faster startup matters.
 
+### Executable icon
+
+The Windows executable carries the yate logo (`yate/yate.jpg`) as its icon.
+PyInstaller only accepts a real icon file, so the logo is converted into the
+committed `pack/yate.ico` (one file holding every size from 16 to 256 px)
+that both specs reference. Regenerate it after changing the logo:
+
+```powershell
+python -m tools.pack icon                      # yate/yate.jpg -> pack/yate.ico
+python -m tools.pack icon --source logo.png    # or from any other image
+python -m tools.pack icon --size 256 --size 64 # custom sizes (repeatable)
+```
+
+The conversion needs Pillow — part of the `build` extra
+(`pip install -e ".[build]"`) or installable on its own (`pip install pillow`).
+Because the resulting `.ico` is committed, building an executable never
+requires it. Linux builds carry no icon (`icon=` is Windows-only).
+
 ## Development
 
 ```powershell
-# Run the full test suite (545 tests, including Textual pilot end-to-end tests)
+# Run the full test suite (612 tests, including Textual pilot end-to-end tests)
 python -m pytest tests
 
 # Type checking: pyright strict, 0 diagnostics required
