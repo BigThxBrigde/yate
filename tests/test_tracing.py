@@ -50,6 +50,12 @@ def test_resolve_level_maps_builtin_names() -> None:
     assert tracing.resolve_level("CRITICAL") == logging.CRITICAL
 
 
+def test_requested_level_keeps_a_falsy_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A resolved level of 0 (logging.NOTSET) must not become DEBUG."""
+    monkeypatch.setattr(tracing, "resolve_level", lambda _name: 0)
+    assert tracing._requested_level(YateConfig(yate_trace=True)) == 0
+
+
 def test_resolve_level_rejects_unknown_names() -> None:
     assert tracing.resolve_level("VERBOSE") is None
     assert tracing.resolve_level("") is None
@@ -87,6 +93,10 @@ def test_off_by_default_writes_nothing(isolated_home: Path, capsys: pytest.Captu
 def test_env_trace_on_values(value: str, isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("YATE_TRACE", value)
     assert tracing.install() is True
+    # Nothing is written until the first record: an early-exit command
+    # (yate --version) must not leave an empty shell file behind.
+    assert _log_files() == []
+    tracing.get_logger("demo").info("first record")
     files = _log_files()
     assert len(files) == 1
     assert files[0].parent == _logs_dir()
@@ -94,6 +104,7 @@ def test_env_trace_on_values(value: str, isolated_home: Path, monkeypatch: pytes
     assert "trace session ===" in content
     assert "trace level: DEBUG" in content
     assert "pid:" in content
+    assert "first record" in content
 
 
 @pytest.mark.parametrize("value", ["0", "false", "No", "OFF"])
@@ -139,8 +150,21 @@ def test_invalid_env_values_warn_and_fall_back(
 
 def test_yaterc_enables_tracing(isolated_home: Path) -> None:
     assert tracing.install(YateConfig(yate_trace=True)) is True
-    assert _log_files()
+    assert _log_files() == []
+    tracing.get_logger("demo").warning("something happened")
+    assert len(_log_files()) == 1
     assert "trace level: DEBUG" in _log_text()
+    assert "something happened" in _log_text()
+
+
+def test_enabled_but_silent_session_leaves_no_file(isolated_home: Path) -> None:
+    """YATE_TRACE=1 on a command that logs nothing writes no log file."""
+    assert tracing.install(YateConfig(yate_trace=True)) is True
+    assert tracing.is_enabled() is True
+    # The directory is reserved eagerly (like crash.py's data/), the file is
+    # not: an early-exit command must not accumulate empty shell logs.
+    assert _logs_dir().is_dir()
+    assert _log_files() == []
 
 
 def test_yaterc_level_is_used(isolated_home: Path) -> None:
@@ -199,7 +223,9 @@ def test_install_is_idempotent(isolated_home: Path, monkeypatch: pytest.MonkeyPa
     assert tracing.install() is True
     assert tracing.current_log_path() == first
     assert len(tracing._file_handlers()) == 1
+    tracing.get_logger("demo").info("once")
     assert len(_log_files()) == 1
+    assert _log_text().count("trace session ===") == 1
 
 
 def test_install_off_detaches_handlers(isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -233,6 +259,7 @@ def test_unwritable_logs_dir_only_warns(
 def test_uninstall_releases_the_file(isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("YATE_TRACE", "1")
     tracing.install()
+    tracing.get_logger("demo").info("written")
     path = tracing.current_log_path()
     assert path is not None and path.is_file()
     tracing.uninstall()

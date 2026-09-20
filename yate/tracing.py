@@ -19,9 +19,12 @@ The names and numbers are exactly :mod:`logging`'s built-in levels; the
 default when tracing is on but no level was given is ``DEBUG``.
 
 Records land in ``~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log`` (append
-mode, one session header per process).  The directory sits next to the
-``crash-*.err`` reports of :mod:`yate.crash`: those cover "died badly",
-these cover "alive but misbehaving".
+mode, one session header per process).  The file is created on the first
+record that is actually emitted, so an early-exit command (``yate
+--version``) never leaves an empty shell behind even with ``YATE_TRACE=1``.
+The directory sits next to the ``crash-*.err`` reports of
+:mod:`yate.crash`: those cover "died badly", these cover "alive but
+misbehaving".
 
 Like :mod:`yate.crash`, everything here is best-effort: an unwritable logs
 directory prints one warning to stderr and the editor still starts.
@@ -138,6 +141,43 @@ def _warn(message: str) -> None:
     print(f"yate: {message}", file=sys.stderr)
 
 
+class _SessionFileHandler(logging.FileHandler):
+    """File handler that opens lazily and starts the file with a header.
+
+    Two properties matter here:
+
+    * the file is created on the **first emitted record**, so a traced run
+      that logs nothing (``YATE_TRACE=1 yate --version``) leaves no empty
+      shell behind in ``~/.yate/data/logs``;
+    * an open error at that point is reported through :meth:`handleError`
+      instead of escaping into the editor -- logging must never break yate.
+
+    The header is written straight to the stream (not through the logger)
+    so it always appears, whatever the configured level is.
+    """
+
+    def __init__(self, filename: Path, level: int) -> None:
+        super().__init__(filename, mode="a", encoding="utf-8", delay=True)
+        self.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+        )
+        self.setLevel(level)
+        self._header_written = False
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            if self.stream is None:
+                self.stream = self._open()
+            if not self._header_written:
+                self._header_written = True
+                self.stream.write(_session_header(self.level))
+                self.flush()
+        except OSError:
+            self.handleError(record)
+            return
+        super().emit(record)
+
+
 # ------------------------------------------------------------ env variables
 
 
@@ -196,19 +236,14 @@ def install(config: Optional["YateConfig"] = None) -> bool:
         path = logs_dir() / (
             f"{LOG_PREFIX}{datetime.now():%Y%m%d-%H%M%S}{LOG_SUFFIX}"
         )
-        handler = logging.FileHandler(path, mode="a", encoding="utf-8")
+        handler = _SessionFileHandler(path, level)
     except OSError as exc:
         _warn(f"trace log unavailable: {exc}")
         return False
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
-    )
-    handler.setLevel(level)
     # Records are filtered at the handler, so a later level change (or a
     # second handler with its own level) needs no logger-level juggling.
     _logger.setLevel(logging.DEBUG)
     _logger.addHandler(handler)
-    _write_session_header(level)
     return True
 
 
@@ -225,30 +260,21 @@ def _requested_level(config: Optional["YateConfig"]) -> int:
         name = config.yate_trace_level
     if name is None:
         name = DEFAULT_LEVEL
-    return resolve_level(name) or logging.DEBUG
+    resolved = resolve_level(name)
+    # Explicit None test, not ``or``: 0 (logging.NOTSET) is falsy and would
+    # be silently rewritten into DEBUG, hiding a bad input.
+    return resolved if resolved is not None else logging.DEBUG
 
 
-def _write_session_header(level: int) -> None:
-    """First record of a session: the same metadata a crash report carries.
-
-    Logged *at* the configured level so the header survives a restrictive
-    level (ERROR) instead of being filtered out.
-    """
-    _logger.log(
-        level,
-        "=== yate %s trace session ===\n"
-        "time: %s\n"
-        "pid: %s\n"
-        "cwd: %s\n"
-        "argv: %r\n"
-        "python: %s on %s\n"
-        "trace level: %s",
-        __version__,
-        datetime.now().isoformat(timespec="seconds"),
-        os.getpid(),
-        os.getcwd(),
-        sys.argv,
-        sys.version.split()[0],
-        sys.platform,
-        logging.getLevelName(level),
+def _session_header(level: int) -> str:
+    """Metadata header of one session (same fields as a crash report)."""
+    return (
+        f"=== yate {__version__} trace session ===\n"
+        f"time: {datetime.now().isoformat(timespec='seconds')}\n"
+        f"pid: {os.getpid()}\n"
+        f"cwd: {os.getcwd()}\n"
+        f"argv: {sys.argv!r}\n"
+        f"python: {sys.version.split()[0]} on {sys.platform}\n"
+        f"trace level: {logging.getLevelName(level)}\n"
+        f"{'-' * 60}\n"
     )
