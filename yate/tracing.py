@@ -51,7 +51,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, IO, Optional
 
 from yate import __version__
 
@@ -154,6 +154,14 @@ class _SessionFileHandler(logging.FileHandler):
 
     The header is written straight to the stream (not through the logger)
     so it always appears, whatever the configured level is.
+
+    The lazy open is tracked by our own :attr:`_stream` rather than by
+    testing ``self.stream is None``: stdlib really leaves that attribute
+    unset until the first emit (``delay=True``), but its declared type is
+    not stable across type-checker versions -- depending on the stub the
+    guard reads either as "always false" or as an unsafe access on
+    ``None``.  Holding the handle ourselves keeps the ``None`` honest
+    whatever the stub says.
     """
 
     def __init__(self, filename: Path, level: int) -> None:
@@ -162,20 +170,35 @@ class _SessionFileHandler(logging.FileHandler):
             logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
         )
         self.setLevel(level)
+        self._stream: Optional[IO[str]] = None
         self._header_written = False
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            if self.stream is None:
-                self.stream = self._open()
+            stream = self._stream
+            if stream is None:
+                stream = self._open()
+                self.stream = stream  # StreamHandler.emit writes to it
+                self._stream = stream
             if not self._header_written:
-                self._header_written = True
-                self.stream.write(_session_header(self.level))
+                stream.write(_session_header(self.level))
                 self.flush()
+                # Mark it written only once it really is: a failed write
+                # must not silently drop the header forever.
+                self._header_written = True
         except OSError:
+            # Only I/O is forgiven (logging must never break the editor); a
+            # genuine bug in the header still has to surface.
             self.handleError(record)
             return
         super().emit(record)
+
+    def close(self) -> None:
+        super().close()  # FileHandler.close() drops the stream handle
+        # Reopen rather than write into a dropped one: without this the
+        # handler would keep claiming "already open" and every later record
+        # would silently go nowhere.
+        self._stream = None
 
 
 # ------------------------------------------------------------ env variables
