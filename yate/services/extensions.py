@@ -33,6 +33,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Mapping, Optional, Sequence, cast
 
+from yate import tracing
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_syntax import (
     LangSpec,
@@ -45,6 +46,9 @@ from yate.interfaces import AppProtocol
 from yate.keymaps.base import Keymap
 
 CommandFunc = Callable[[str], object]
+
+#: Trace logger ("yate.services.extensions"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
 
 
 class LspExtensionBridge:
@@ -353,6 +357,7 @@ class ExtensionLoader:
                 continue
         mod_name = f"yate_ext_{path.stem}"
         record = LoadedExtension(name=path.stem, path=path)
+        log.debug("loading extension: %s", path)
         try:
             spec = importlib.util.spec_from_file_location(mod_name, path)
             if spec is None or spec.loader is None:
@@ -378,6 +383,9 @@ class ExtensionLoader:
                 )
         except Exception as exc:  # extensions are user code - never crash the app
             record.error = f"{type(exc).__name__}: {exc}"
+            log.exception("extension failed to load: %s", path)
+        else:
+            log.debug("extension loaded: %s", path)
         self.loaded.append(record)
         return record
 

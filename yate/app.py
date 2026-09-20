@@ -22,7 +22,7 @@ from textual.events import Key, MouseDown
 from textual.screen import Screen
 from textual.widgets import Input, Static
 
-from yate import __version__
+from yate import __version__, tracing
 from yate.actions import ActionRegistry, populate
 from yate.app_features import docs, explorer, terminal
 from yate.app_features.commands import CommandRegistry, register_commands
@@ -57,6 +57,9 @@ from yate.services.workspace import Workspace
 # `textual_key_to_raw` lives in yate.editor_view.keys to avoid import cycles
 # and is re-exported here for convenience/tests.
 __all__ = ["textual_key_to_raw", "CommandRegistry", "YateApp"]
+
+#: Trace logger ("yate.app"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
 
 
 # --------------------------------------------------------------- commands
@@ -375,6 +378,7 @@ class YateApp(App[None]):
                 return doc
         if path.exists() and not Workspace.is_text_file(path):
             self._ext_messages.append(f"not a text file: {path.name}")
+            log.info("open skipped (binary): %s", path)
             return None
         if path.exists():
             doc = Document.open(path)
@@ -383,6 +387,7 @@ class YateApp(App[None]):
         self._apply_buffer_options(doc.buffer)
         self.docs.append(doc)
         self.activate_doc(doc, target_leaf)
+        log.info("opened: %s (%s)", path, "new" if not path.exists() else "file")
         return doc
 
     async def _open_document_path_async(
@@ -409,11 +414,13 @@ class YateApp(App[None]):
         self._apply_buffer_options(doc.buffer)
         self.docs.append(doc)
         self.activate_doc(doc, target_leaf)
+        log.info("opened (async): %s", path)
         return doc
 
     def open_path(self, path: Path) -> None:
         try:
             if path.is_dir():
+                log.info("opened folder: %s", path)
                 self.workspace.set_root(path)
                 if self.explorer_tree is not None:
                     self.explorer_tree.refresh_tree()
@@ -493,6 +500,7 @@ class YateApp(App[None]):
         if not self.docs:
             return
         closed = self.docs[self.doc_index]
+        log.info("closing tab: %s", closed.path)
         if closed.path is not None:
             self.run_worker(
                 partial(self.lsp.on_document_closed, closed),
@@ -530,6 +538,7 @@ class YateApp(App[None]):
     def save_document(self) -> None:
         doc = self.doc
         if doc.path is None:
+            log.info("save: unnamed buffer, prompting for a path")
             self.prompt_save_as()
             return
         try:
@@ -541,8 +550,10 @@ class YateApp(App[None]):
                 group="lsp-sync", exclusive=False, exit_on_error=False,
             )
             self.message(f"saved {doc.path}", kind="ok")
+            log.info("saved: %s", doc.path)
         except (OSError, UnicodeError) as exc:
             self.message(f"save failed: {exc}", kind="error")
+            log.warning("save failed: %s: %s", doc.path, exc)
         self.ui_refresh()
 
     def prompt_save_as(self) -> None:
@@ -1612,7 +1623,9 @@ class YateApp(App[None]):
     def quit(self, force: bool = False) -> None:
         if not force and any(doc.modified for doc in self.docs):
             self.message("unsaved changes — :q! to quit anyway", kind="warn")
+            log.info("quit blocked: unsaved changes")
             return
+        log.info("quit (force=%s)", force)
         if self.mounted:
             self.exit()
 

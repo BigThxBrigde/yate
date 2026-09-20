@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional, cast
 
+from yate import tracing
 from yate.editor_core.document import Document
 
 from . import protocol
@@ -45,6 +46,9 @@ TRIGGER_INVOKED = 1
 TRIGGER_CHARACTER = 2
 
 ClientKey = tuple[str, str]
+
+#: Trace logger ("yate.editor_lsp.manager"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
 
 
 @dataclass
@@ -113,6 +117,11 @@ class LspManager:
         for cfg in self._configs:
             for ft in cfg.filetypes:
                 self._by_filetype[ft] = cfg
+        log.info(
+            "registered server %s (command=%r filetypes=%s)%s",
+            config.name, config.command, list(config.filetypes),
+            " (replaced an existing registration)" if existing is not None else "",
+        )
 
     def config_names(self) -> list[str]:
         return [c.name for c in self._configs]
@@ -232,16 +241,19 @@ class LspManager:
             )
             self._clients[key] = client
             self._fire("state")
+            log.warning("server %s: no executable configured", config.name)
             return None
         client = self._make_client(config, root)
         self._clients[key] = client
         try:
             await client.start()
-        except (LspError, OSError):
+        except (LspError, OSError) as exc:
             # Missing executable / timeout -- keep FAILED state, never crash.
             self._fire("state")
+            log.warning("server %s failed to start: %s", config.name, exc)
             return None
         self._fire("state")
+        log.info("server %s started (root=%s)", config.name, root)
         return client
 
     # ----------------------------------------------------- doc lifecycle
@@ -627,6 +639,7 @@ class LspManager:
     # ------------------------------------------------------------- teardown
 
     async def shutdown_all(self) -> None:
+        log.info("shutting down %s server client(s)", len(self._clients))
         self._shutting_down = True
         for timer in self._change_timers.values():
             timer.cancel()

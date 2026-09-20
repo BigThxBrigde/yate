@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Sequence, cast
 
+from yate import tracing
 from yate.editor_view import theme as themes
 
 #: File name yate looks for in the project tree.
@@ -48,9 +49,14 @@ RC_FILENAME = "yaterc"
 _KNOWN_OPTIONS = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
+    "yate_trace", "yate_trace_level",
 )
 
 _VALID_KEYMAPS = ("vsc", "vim")
+
+#: Accepted ``yate_trace_level`` values -- :mod:`logging`'s built-in levels
+#: (single source of truth: :data:`yate.tracing.LEVEL_NAMES`).
+_VALID_TRACE_LEVELS = tracing.LEVEL_NAMES
 
 
 @dataclass
@@ -94,6 +100,13 @@ class YateConfig:
     #: Show dotfiles in the explorer by default (``show_hidden = True``
     #: in yaterc).  Off by default — dotfiles are hidden until toggled.
     show_hidden: bool = False
+    #: Runtime trace log switch (``yate_trace = True`` in yaterc). Off by
+    #: default: nothing is written until it is turned on. ``YATE_TRACE``
+    #: overrides it per session.
+    yate_trace: bool = False
+    #: Trace verbosity (``yate_trace_level = "DEBUG"`` in yaterc), one of
+    #: :data:`yate.tracing.LEVEL_NAMES`. ``YATE_TRACE_LEVEL`` overrides it.
+    yate_trace_level: str = tracing.DEFAULT_LEVEL
     #: Extra extension paths (directories or ``.py`` files) declared by rc
     #: files, accumulated in load order (user rc first, project rc after).
     extension_paths: list[Path] = field(default_factory=list[Path])
@@ -368,6 +381,32 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
         else:
             config.errors.append(
                 f"show_hidden must be True or False, got {show_hidden!r}"
+            )
+
+    trace = options.get("yate_trace")
+    if trace is not None:
+        if isinstance(trace, bool):
+            config.yate_trace = trace
+        else:
+            config.errors.append(
+                f"yate_trace must be True or False, got {trace!r}"
+            )
+
+    trace_level = options.get("yate_trace_level")
+    if trace_level is not None:
+        if isinstance(trace_level, str) and trace_level.strip():
+            level_name = trace_level.strip().upper()
+            if level_name in _VALID_TRACE_LEVELS:
+                config.yate_trace_level = level_name
+            else:
+                config.errors.append(
+                    f"yate_trace_level must be one of {_VALID_TRACE_LEVELS}, "
+                    f"got {trace_level!r}"
+                )
+        else:
+            config.errors.append(
+                f"yate_trace_level must be a non-empty string, "
+                f"got {trace_level!r}"
             )
 
     _extract_language_servers(namespace, config)
