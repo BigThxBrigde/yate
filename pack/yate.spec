@@ -47,6 +47,17 @@ def pkg_path(*parts: str) -> str:
     return os.path.join(PROJECT_ROOT, "yate", *parts)
 
 
+# Executable icon: PyInstaller takes a .ico on Windows (a .icns on macOS) --
+# the JPEG logo cannot be passed directly, so yate/yate.jpg is converted into
+# pack/yate.ico by "python -m tools.pack icon" (re-run after the logo changes).
+# Linux builds (pack/pack.sh) get no icon; EXE(icon=None) is the default.
+ICON = (
+    os.path.join(os.path.abspath(SPECPATH), "yate.ico")
+    if sys.platform == "win32"
+    else None
+)
+
+
 # yate's own submodules are statically imported; collect the full package so a
 # newly added screen/service never silently drops out of a frozen build.
 hiddenimports = collect_submodules("yate")
@@ -111,6 +122,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="yate",
+    icon=ICON,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

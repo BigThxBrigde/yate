@@ -33,7 +33,11 @@ ts = [
 ]
 # Tooling for the standalone executable builds (pack/yate*.spec); not needed
 # to run from source or to build/install the wheel.
-build = ["pyinstaller>=6.0"]
+# pillow: only for regenerating pack/yate.ico from the logo
+# (`python -m tools.pack`); the icon itself is committed, so a normal build
+# never touches it -- and tools/pack/icon.py imports Pillow dynamically, so
+# type checking works without it too.
+build = ["pyinstaller>=6.0", "pillow>=10.0"]
 
 # Type checking is performed by Pylance/pyright (the same engine the VS Code
 # Pylance extension uses under the hood). The gate is zero diagnostics in
