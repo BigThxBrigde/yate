@@ -6,16 +6,29 @@ left and position/meta information right-aligned.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 from rich.text import Text
 from textual.widgets import Static
 
-from yate.editor_lsp import ServerState
-from yate.interfaces import AppProtocol
+from yate.editor_core import Document
+from yate.editor_lsp import LspManager, ServerState
+from yate.services.extensions import ExtensionLoader
 
 from . import theme
 from .icons import DOT, KEYBOARD, PENCIL, PLUG, TERMINAL
+
+
+class StatusBarHost(Protocol):
+    """What :class:`StatusBar` reads from its host application."""
+
+    lsp: LspManager
+    extension_loader: ExtensionLoader
+
+    @property
+    def doc(self) -> Document: ...
+
+    def mode_label(self) -> tuple[str, str]: ...
 
 
 class StatusBar(Static):
@@ -28,9 +41,9 @@ class StatusBar(Static):
     }
     """
 
-    def __init__(self, yate: AppProtocol, **kwargs: Any) -> None:
+    def __init__(self, host: StatusBarHost, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
-        self.yate = yate
+        self.host = host
 
     def on_mount(self) -> None:
         self.refresh_status()
@@ -38,7 +51,7 @@ class StatusBar(Static):
     def refresh_status(self) -> None:
         """Rebuild the one-line status text from the current app state."""
         t = theme.active()
-        app = self.yate
+        app = self.host
         doc = app.doc
         buf = doc.buffer
         width = self.size.width or 80
@@ -95,7 +108,7 @@ class StatusBar(Static):
     def _lsp_segment(self) -> tuple[str, str]:
         """Status-bar text for the active document's LSP server/diagnostics."""
         t = theme.active()
-        app = self.yate
+        app = self.host
         bar = f"on {t.accent}"
         state = app.lsp.state_for_doc(app.doc)
         if state is None:

@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 from unittest.mock import patch
 
-from yate.app_features import docs
 from yate.app_features.commands import CommandRegistry
+from yate.app_features.docs import DocsFeature
 from yate.editor_view.manual import (
     MarkdownDocScreen,
     load_changelog_markdown,
@@ -37,7 +37,7 @@ class _FakeApp:
         self.theme = "yate-mocha"
         self.pushed: list[tuple[MarkdownDocScreen, object]] = []
 
-    def _push_overlay(
+    def push_overlay(
         self, screen: MarkdownDocScreen, callback: object = None
     ) -> None:
         self.pushed.append((screen, callback))
@@ -112,7 +112,7 @@ def test_load_manual_markdown_keeps_behaviour() -> None:
 
 def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
     app = _FakeApp()
-    docs.show_changelog(app, "zh")
+    DocsFeature(app).show_changelog("zh")
     assert len(app.pushed) == 1
     screen, callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
@@ -127,7 +127,7 @@ def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
 
 def test_show_manual_keeps_facade_contract() -> None:
     app = _FakeApp()
-    docs.show_manual(app, "en")
+    DocsFeature(app).show_manual("en")
     screen, _callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
     assert screen._kind == "manual"
@@ -136,15 +136,15 @@ def test_show_manual_keeps_facade_contract() -> None:
 
 def test_not_mounted_does_not_push() -> None:
     app = _FakeApp(mounted=False)
-    docs.show_changelog(app)
+    DocsFeature(app).show_changelog()
     assert app.pushed == []
     assert app.theme == "yate-mocha"
 
 
 def test_already_on_doc_screen_does_not_stack() -> None:
-    app = _FakeApp(screen=MarkdownDocScreen(None, kind="manual", lang="en",
-                                           title="user manual"))
-    docs.show_changelog(app)
+    app = _FakeApp(screen=MarkdownDocScreen(kind="manual", lang="en",
+                                            title="user manual"))
+    DocsFeature(app).show_changelog()
     assert app.pushed == []
 
 
@@ -154,10 +154,12 @@ def test_already_on_doc_screen_does_not_stack() -> None:
 def test_app_facade_forwards_to_docs() -> None:
     from yate.app import YateApp
 
-    with patch.object(docs, "show_manual") as show_manual, \
-            patch.object(docs, "show_changelog") as show_changelog:
-        YateApp.show_manual(object.__new__(YateApp), "zh")  # type: ignore[arg-type]
-        YateApp.show_changelog(object.__new__(YateApp), "zh")  # type: ignore[arg-type]
+    app = object.__new__(YateApp)
+    app.docs_feature = DocsFeature(app)  # type: ignore[arg-type]
+    with patch.object(DocsFeature, "show_manual") as show_manual, \
+            patch.object(DocsFeature, "show_changelog") as show_changelog:
+        app.show_manual("zh")
+        app.show_changelog("zh")
     show_manual.assert_called_once()
     show_changelog.assert_called_once()
 

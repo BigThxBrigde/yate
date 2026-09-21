@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from rich.segment import Segment
 from rich.style import Style
@@ -26,7 +26,7 @@ from yate.editor_term import (
     key_to_terminal,
     shell_label,
 )
-from yate.interfaces import AppProtocol
+from yate.app_features.terminal import TerminalOps
 
 from . import theme
 
@@ -62,9 +62,9 @@ class TerminalView(Widget):
     }
     """
 
-    def __init__(self, app: AppProtocol, **kwargs: Any) -> None:
+    def __init__(self, ops: TerminalOps, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.yate = app
+        self.ops = ops
         self.emulator = TerminalEmulator(80, 24, on_response=self._respond)
         self.proc: Optional[PtyProcess] = None
         self.shell_argv: list[str] = []
@@ -190,13 +190,13 @@ class TerminalView(Widget):
         if event.key in TOGGLE_KEYS:
             event.stop()
             event.prevent_default()
-            self.yate.toggle_terminal()
+            self.ops.toggle_terminal()
             return
         event.stop()
         event.prevent_default()
         if not self.started or self.dead:
             # Any key revives a dead shell.
-            self.yate.open_terminal()
+            self.ops.open_terminal()
             return
         sequence = key_to_terminal(event.key, event.character)
         if sequence:
@@ -337,11 +337,10 @@ class TerminalPanel(Vertical):
     }
     """
 
-    def __init__(self, app: AppProtocol, **kwargs: Any) -> None:
+    def __init__(self, ops: TerminalOps, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.yate = app
         self.header = Static("", id="terminal-title")
-        self.view = TerminalView(app)
+        self.view = TerminalView(ops)
         self._cached_header = ""
 
     def compose(self) -> Any:
@@ -354,6 +353,37 @@ class TerminalPanel(Vertical):
         self.header.styles.color = t.fg_dim
         self.view.styles.background = t.bg
         self.refresh_header()
+
+    # ------------------------------- TerminalPanelOps (feature callbacks)
+
+    def set_height(self, height: int) -> None:
+        """Set the panel's styled height (yaterc / ``:set terminal_height``)."""
+        self.styles.height = height
+
+    def show_panel(self) -> None:
+        """Reveal the docked panel."""
+        self.display = True
+
+    def hide_panel(self) -> None:
+        """Hide the docked panel (the shell process stays alive)."""
+        self.display = False
+
+    def focus_view(self) -> None:
+        """Focus the terminal grid so keystrokes reach the shell."""
+        self.view.focus()
+
+    def view_started(self) -> bool:
+        """Whether the shell process behind the grid has been started."""
+        return self.view.started
+
+    async def start_view(
+        self,
+        argv: list[str],
+        cwd: Path,
+        factory: Optional[Callable[..., object]],
+    ) -> None:
+        """Start the shell process behind the terminal grid."""
+        await self.view.start(argv, cwd, factory=factory)
 
     def header_text(self) -> str:
         """Current header caption (name, title and shell state)."""

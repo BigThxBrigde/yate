@@ -1,23 +1,20 @@
 """The ``:`` command registry and the built-in ex command table.
 
-Extracted from :mod:`yate.app`: :class:`CommandRegistry` is the plain
-name -> handler store (also used by the extension API), while
-:func:`register_commands` wires the built-in commands against a
-:class:`~yate.app.YateApp` instance.
+:class:`CommandRegistry` is the plain name -> handler store (also used by
+the extension API); :func:`register_commands` wires the built-in commands
+against a :class:`CommandHost` -- the narrow application surface the ex
+command table drives.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Protocol
 
+from yate.config import YateConfig
+from yate.editor_core import Document
 from yate.editor_syntax import available_filetypes, language_name
-from yate.editor_view import theme
-from yate.interfaces import AppProtocol
-
-# Extracted YateApp collaborator: touching the app's private helpers/state
-# is this module's contract (Python has no friend classes).
-# pyright: reportPrivateUsage=false
+from yate.editor_view.pane_types import Axis
 
 
 class CommandRegistry:
@@ -40,29 +37,97 @@ class CommandRegistry:
         return entry[1] if entry else ""
 
 
-def register_commands(app: AppProtocol) -> None:
-    """Register the built-in ex commands on *app*'s registry."""
-    reg = app.commands.register
+class CommandHost(Protocol):
+    """The application surface the built-in ex commands drive."""
+
+    commands: CommandRegistry
+    config: YateConfig
+
+    @property
+    def doc(self) -> Document: ...
+
+    def message(self, text: str, kind: str = "info") -> None: ...
+
+    def save_document(self) -> None: ...
+
+    def quit(self, force: bool = False) -> None: ...
+
+    def split_with_path(self, axis: Axis, args: str) -> None: ...
+
+    def only_pane(self) -> None: ...
+
+    def close_pane(self) -> None: ...
+
+    def open_path_later(self, path: Path) -> None: ...
+
+    def prompt_open(self) -> None: ...
+
+    def new_buffer(self, show: bool = True) -> None: ...
+
+    def show_welcome(self) -> None: ...
+
+    def cycle_tab(self, delta: int) -> None: ...
+
+    def close_tab(self) -> None: ...
+
+    def open_file_palette(self) -> None: ...
+
+    def open_command_palette(self) -> None: ...
+
+    def set_filetype(self, value: str) -> None: ...
+
+    def select_keymap(self, name: str) -> None: ...
+
+    def set_theme(self, name: str) -> None: ...
+
+    def theme_label(self) -> str: ...
+
+    def theme_names(self) -> list[str]: ...
+
+    def apply_terminal_height(self, height: int) -> None: ...
+
+    def set_show_hidden(self, flag: bool) -> None: ...
+
+    def toggle_explorer(self) -> None: ...
+
+    def open_terminal(self) -> None: ...
+
+    def close_terminal(self) -> None: ...
+
+    def show_diagnostics(self) -> None: ...
+
+    def install_font(self) -> None: ...
+
+    def show_help(self) -> None: ...
+
+    def show_manual(self, lang: str = "en") -> None: ...
+
+    def show_changelog(self, lang: str = "en") -> None: ...
+
+
+def register_commands(host: CommandHost) -> None:
+    """Register the built-in ex commands on *host*'s registry."""
+    reg = host.commands.register
 
     # ---- save / quit -------------------------------------------------------
 
     def _w(args: str) -> None:
-        app.save_document()
+        host.save_document()
 
     def _q(args: str) -> None:
-        app.quit()
+        host.quit()
 
     def _qbang(args: str) -> None:
-        app.quit(force=True)
+        host.quit(force=True)
 
     def _wq(args: str) -> None:
-        app.save_document()
+        host.save_document()
         # Only quit once the text is safely on disk: a failed save (I/O
         # error) or a still-pending save-as prompt leaves the document
         # modified, and force-quitting then would discard the work.
-        if app.doc.modified:
+        if host.doc.modified:
             return
-        app.quit()
+        host.quit()
 
     reg("w", _w, "save the current file")
     reg("write", _w, "save the current file")
@@ -74,16 +139,16 @@ def register_commands(app: AppProtocol) -> None:
     # ---- panes -------------------------------------------------------------
 
     def _split(args: str) -> None:
-        app._split_with_path("horizontal", args)
+        host.split_with_path("horizontal", args)
 
     def _vsplit(args: str) -> None:
-        app._split_with_path("vertical", args)
+        host.split_with_path("vertical", args)
 
     def _only(args: str) -> None:
-        app._only_pane()
+        host.only_pane()
 
     def _close(args: str) -> None:
-        app._close_pane()
+        host.close_pane()
 
     reg("split", _split, "split the window horizontally (:sp [file])")
     reg("sp", _split, "alias for :split")
@@ -100,30 +165,30 @@ def register_commands(app: AppProtocol) -> None:
     def _edit(args: str) -> None:
         args = args.strip()
         if args:
-            app.open_path_later(Path(args))
+            host.open_path_later(Path(args))
         else:
-            app.prompt_open()
+            host.prompt_open()
 
     def _enew(args: str) -> None:
-        app.new_buffer()
+        host.new_buffer()
 
     def _welcome(args: str) -> None:
-        app.show_welcome()
+        host.show_welcome()
 
     def _bn(args: str) -> None:
-        app.cycle_tab(1)
+        host.cycle_tab(1)
 
     def _bp(args: str) -> None:
-        app.cycle_tab(-1)
+        host.cycle_tab(-1)
 
     def _bd(args: str) -> None:
-        app.close_tab()
+        host.close_tab()
 
     def _files(args: str) -> None:
-        app.open_file_palette()
+        host.open_file_palette()
 
     def _palette(args: str) -> None:
-        app.open_command_palette()
+        host.open_command_palette()
 
     reg("e", _edit, "open a file or directory by path")
     reg("edit", _edit, "open a file or directory by path")
@@ -143,7 +208,7 @@ def register_commands(app: AppProtocol) -> None:
     def _set(args: str) -> None:
         args = args.strip()
         if "=" not in args:
-            app.message(
+            host.message(
                 "usage: :set keymap=vsc|vim  theme=mocha  shell=powershell  "
                 "terminal_height=12  filetype=py (auto = detect)  "
                 "show_hidden=on|off",
@@ -154,14 +219,14 @@ def register_commands(app: AppProtocol) -> None:
         key = key.strip()
         value = value.strip()
         if key in ("filetype", "ft", "language", "lang"):
-            app.set_filetype(value)
+            host.set_filetype(value)
         elif key == "keymap":
-            app.select_keymap(value)
+            host.select_keymap(value)
         elif key == "theme":
-            app.set_theme(value)
+            host.set_theme(value)
         elif key == "shell":
-            app.config.shell = value
-            app.message(
+            host.config.shell = value
+            host.message(
                 "shell set; the new value applies to the next terminal "
                 "(restart it with any key after exit)",
                 kind="ok",
@@ -170,52 +235,48 @@ def register_commands(app: AppProtocol) -> None:
             try:
                 height = int(value)
             except ValueError:
-                app.message("terminal_height must be an integer 3..40",
-                            kind="warn")
+                host.message("terminal_height must be an integer 3..40",
+                             kind="warn")
                 return
             if not 3 <= height <= 40:
-                app.message("terminal_height must be between 3 and 40",
-                            kind="warn")
+                host.message("terminal_height must be between 3 and 40",
+                             kind="warn")
                 return
-            app.config.terminal_height = height
-            if app.terminal_panel is not None and app._terminal_visible:
-                app.terminal_panel.styles.height = height
-            app.message(f"terminal height: {height} rows", kind="ok")
+            host.config.terminal_height = height
+            host.apply_terminal_height(height)
+            host.message(f"terminal height: {height} rows", kind="ok")
         elif key == "show_hidden":
             val = value.lower() in ("on", "true", "1", "yes")
-            app.workspace.show_hidden = val
-            if app.explorer_tree is not None:
-                app.explorer_tree.refresh_tree()
-            app.message(
+            host.set_show_hidden(val)
+            host.message(
                 f"hidden files {'shown' if val else 'hidden'}", kind="ok"
             )
         else:
-            app.message(f"unknown option: {key}", kind="warn")
+            host.message(f"unknown option: {key}", kind="warn")
 
     def _theme(args: str) -> None:
         args = args.strip()
         if not args:
-            current = theme.active()
-            app.message(
-                f"theme: {current.label} ({current.name}) · "
-                f"available: {', '.join(theme.available())}"
+            host.message(
+                f"theme: {host.theme_label()} · "
+                f"available: {', '.join(host.theme_names())}"
             )
             return
-        app.set_theme(args)
+        host.set_theme(args)
 
     def _filetype(args: str) -> None:
         args = args.strip()
         if not args:
-            doc = app.doc
+            doc = host.doc
             source = "manual override" if doc.filetype_override else "from path"
             label = language_name(doc.filetype)
             shown = f"{doc.filetype} ({label})" if label else doc.filetype
-            app.message(
+            host.message(
                 f"filetype: {shown} [{source}] · "
                 f"available: {', '.join(available_filetypes())}"
             )
             return
-        app.set_filetype(args)
+        host.set_filetype(args)
 
     reg("set", _set,
         "set an option (keymap, theme, shell, terminal_height, filetype)")
@@ -229,19 +290,19 @@ def register_commands(app: AppProtocol) -> None:
     # ---- keymap / help ----------------------------------------------------
 
     def _vim(args: str) -> None:
-        app.select_keymap("vim")
+        host.select_keymap("vim")
 
     def _vsc(args: str) -> None:
-        app.select_keymap("vsc")
+        host.select_keymap("vsc")
 
     def _help(args: str) -> None:
-        app.show_help()
+        host.show_help()
 
     def _manual(args: str) -> None:
-        app.show_manual(args or "en")
+        host.show_manual(args or "en")
 
     def _changelog(args: str) -> None:
-        app.show_changelog(args or "en")
+        host.show_changelog(args or "en")
 
     reg("vim", _vim, "switch to vim key map")
     reg("vsc", _vsc, "switch to the vsc key map")
@@ -255,19 +316,19 @@ def register_commands(app: AppProtocol) -> None:
     # ---- explorer / terminal / diagnostics -------------------------------
 
     def _explorer(args: str) -> None:
-        app.toggle_explorer()
+        host.toggle_explorer()
 
     def _term(args: str) -> None:
-        app.open_terminal()
+        host.open_terminal()
 
     def _termclose(args: str) -> None:
-        app.close_terminal()
+        host.close_terminal()
 
     def _diagnostics(args: str) -> None:
-        app.show_diagnostics()
+        host.show_diagnostics()
 
     def _font(args: str) -> None:
-        app._font_command()
+        host.install_font()
 
     reg("explorer", _explorer, "toggle the file explorer")
     reg("term", _term, "open/focus the integrated terminal")

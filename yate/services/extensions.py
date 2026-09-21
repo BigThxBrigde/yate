@@ -31,8 +31,12 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Mapping, Optional, Sequence, cast
+from typing import Any, Callable, Mapping, Optional, Protocol, Sequence, cast
 
+from yate.actions import ActionRegistry
+from yate.editor_core import Document
+from yate.editor_core.buffer import TextBuffer
+from yate.editor_lsp import LspManager
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_syntax import (
     LangSpec,
@@ -41,9 +45,10 @@ from yate.editor_syntax import (
     register_language,
 )
 from yate.editor_syntax.ts_backend import load_language_from_grammar
-from yate.interfaces import AppProtocol
 from yate.keymaps.base import Keymap
 from yate.logs import tracing
+from yate.services.shell import ShellResult
+from yate.services.workspace import Workspace
 
 CommandFunc = Callable[[str], object]
 
@@ -51,11 +56,39 @@ CommandFunc = Callable[[str], object]
 log = tracing.get_logger(__name__)
 
 
+class ExtensionHost(Protocol):
+    """The application surface extension scripts can drive."""
+
+    lsp: LspManager
+    workspace: Workspace
+    keymaps: dict[str, Keymap]
+    actions: ActionRegistry
+
+    @property
+    def buffer(self) -> TextBuffer: ...
+
+    @property
+    def doc(self) -> Document: ...
+
+    def register_command(self, name: str, func: CommandFunc,
+                         description: str) -> None: ...
+
+    def message(self, text: str, kind: str = "info") -> None: ...
+
+    def run_shell_command(
+        self, command: str, show_output: bool = True
+    ) -> Optional[ShellResult]: ...
+
+    def open_path(self, path: Path) -> None: ...
+
+    def save_document(self) -> None: ...
+
+
 class LspExtensionBridge:
     """``api.lsp`` -- register language servers from an extension."""
 
-    def __init__(self, app: AppProtocol) -> None:
-        self._app = app
+    def __init__(self, lsp: LspManager) -> None:
+        self._lsp = lsp
 
     def register_server(
         self,
@@ -76,7 +109,7 @@ class LspExtensionBridge:
         executable; the registration stays visible and fails lazily without
         disturbing the user.
         """
-        self._app.lsp.register_server(ServerConfig(
+        self._lsp.register_server(ServerConfig(
             name=name,
             command=command,
             args=list(args) if args is not None else [],
@@ -91,10 +124,10 @@ class LspExtensionBridge:
 
     def statuses(self) -> dict[str, str]:
         """``{server name: state name}`` for every registered server."""
-        return {name: state.value for name, state in self._app.lsp.states().items()}
+        return {name: state.value for name, state in self._lsp.states().items()}
 
     def has_state(self, name: str, state: str) -> bool:
-        current = self._app.lsp.states().get(name)
+        current = self._lsp.states().get(name)
         return current is not None and current.value == state
 
 
@@ -192,33 +225,34 @@ class SyntaxExtensionBridge:
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
-    def __init__(self, app: AppProtocol) -> None:
-        self._app = app
-        self._lsp = LspExtensionBridge(app)
+    def __init__(self, host: ExtensionHost) -> None:
+        self._host = host
+        self._lsp = LspExtensionBridge(host.lsp)
         self._highlight = HighlightExtensionBridge()
         self._syntax = SyntaxExtensionBridge()
 
     # ------------------------------------------------------------- accessors
 
     @property
-    def app(self) -> AppProtocol:
-        return self._app
+    def app(self) -> ExtensionHost:
+        """The application host (advanced use; prefer the narrow accessors)."""
+        return self._host
 
     @property
     def buffer(self):
-        return self._app.buffer
+        return self._host.buffer
 
     @property
     def doc(self):
-        return self._app.doc
+        return self._host.doc
 
     @property
     def workspace(self):
-        return self._app.workspace
+        return self._host.workspace
 
     @property
     def keymaps(self) -> dict[str, Keymap]:
-        return self._app.keymaps
+        return self._host.keymaps
 
     @property
     def lsp(self) -> LspExtensionBridge:
@@ -239,7 +273,7 @@ class ExtensionAPI:
 
     def register_action(self, name: str, func: Callable[..., Any], description: str = "") -> None:
         """Register a named action (usable from key maps / commands)."""
-        self._app.actions.register(name, func, description=description or "extension action")
+        self._host.actions.register(name, func, description=description or "extension action")
 
     def bind_key(
         self,
@@ -262,7 +296,7 @@ class ExtensionAPI:
             else:
                 targets = ["vsc"] if keymap == "normal" else [keymap]
             for target in targets:
-                km = self._app.keymaps.get(target)
+                km = self._host.keymaps.get(target)
                 if km is not None:
                     km.add_binding(key_spec, func, description, category)
             return func
@@ -278,27 +312,27 @@ class ExtensionAPI:
         """
 
         def _decorator(func: CommandFunc) -> CommandFunc:
-            self._app.commands.register(name, func, description)
+            self._host.register_command(name, func, description)
             return func
 
         return _decorator
 
     def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
-        self._app.commands.register(name, func, description or "extension command")
+        self._host.register_command(name, func, description or "extension command")
 
     # -------------------------------------------------------------- services
 
     def message(self, text: str) -> None:
-        self._app.message(text)
+        self._host.message(text)
 
     def shell(self, command: str) -> object:
-        return self._app.run_shell_command(command, show_output=False)
+        return self._host.run_shell_command(command, show_output=False)
 
     def open_path(self, path: str | Path) -> None:
-        self._app.open_path(Path(path))
+        self._host.open_path(Path(path))
 
     def save(self) -> None:
-        self._app.save_document()
+        self._host.save_document()
 
 
 @dataclass

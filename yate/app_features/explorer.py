@@ -1,158 +1,211 @@
 """Explorer file operations behind the prompt bar (create/rename/delete).
 
-Extracted from :class:`yate.app.YateApp`: the prompt flows and the actual
-workspace mutations.  Pending-target state (``_explorer_target`` /
-``_explorer_is_dir``) stays on the app because the prompt submit handler
-dispatches on it.
+Extracted from :class:`yate.app.YateApp` as a self-contained feature: the
+prompt flows, the pending-target state and the actual workspace mutations
+all live here.  The application supplies the host capabilities (opening
+documents, closing affected tabs, refreshing the tree, activating prompts)
+through :class:`ExplorerHost`; the explorer widget drives the feature
+through :class:`ExplorerOps`.
 """
 
 from __future__ import annotations
 
-from functools import partial
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
-from yate.editor_core import SearchEngine
-from yate.interfaces import AppProtocol
+from textual.events import Key
 
-# Extracted YateApp collaborator: touching the app's private state (the
-# pending explorer prompt target) is this module's contract (Python has no
-# friend classes).
-# pyright: reportPrivateUsage=false
+from yate.editor_core import Document
+from yate.editor_lsp import LspManager
+from yate.services.workspace import Workspace
 
 
-def prompt_new_file(app: AppProtocol, directory: Optional[Path]) -> None:
-    prompt_new(app, directory, is_dir=False)
+class ExplorerOps(Protocol):
+    """The explorer facade :class:`~yate.editor_view.explorer.ExplorerTree`
+    drives (implemented by :class:`ExplorerFeature`)."""
+
+    @property
+    def workspace(self) -> Workspace: ...
+
+    def message(self, text: str, kind: str = "info") -> None: ...
+
+    def open_path_later(self, path: Path) -> None: ...
+
+    def focus_editor(self) -> None: ...
+
+    def try_window_prefix(self, event: Key) -> bool: ...
+
+    def prompt_new_file(self, directory: Optional[Path]) -> None: ...
+
+    def prompt_new_dir(self, directory: Optional[Path]) -> None: ...
+
+    def prompt_rename(self, path: Optional[Path]) -> None: ...
+
+    def prompt_delete(self, path: Optional[Path]) -> None: ...
 
 
-def prompt_new_dir(app: AppProtocol, directory: Optional[Path]) -> None:
-    prompt_new(app, directory, is_dir=True)
+class ExplorerHost(Protocol):
+    """What :class:`ExplorerFeature` needs from the application."""
+
+    lsp: LspManager
+
+    def message(self, text: str, kind: str = "info") -> None: ...
+
+    def open_path_later(self, path: Path) -> None: ...
+
+    def focus_editor(self) -> None: ...
+
+    def try_window_prefix(self, event: Key) -> bool: ...
+
+    def open_document(self, path: Path) -> Optional[Document]: ...
+
+    def refresh_explorer(self) -> None: ...
+
+    def activate_prompt(self, mode: str, *, placeholder: str = "",
+                        initial: str = "") -> bool: ...
+
+    def close_documents_under(self, path: Path) -> None: ...
+
+    def retarget_document(self, old: Path, new: Path) -> None: ...
 
 
-def prompt_new(
-    app: AppProtocol, directory: Optional[Path], *, is_dir: bool
-) -> None:
-    if directory is None:
-        app.message("select a file or folder first", kind="warn")
-        return
-    if app.prompt_bar is None:
-        return
-    # on a file entry the sibling directory is the creation target
-    if not directory.is_dir():
-        directory = directory.parent
-    app._explorer_target = directory
-    app._explorer_is_dir = is_dir
-    app.prompt_bar.activate(
-        "new_dir" if is_dir else "new_file",
-        placeholder=f"created inside {directory.name}/",
-    )
+class ExplorerFeature:
+    """Create / rename / delete flows behind the explorer prompt bar."""
 
+    def __init__(self, host: ExplorerHost, workspace: Workspace) -> None:
+        self._host = host
+        self._workspace = workspace
+        #: Pending prompt target; the submit handler dispatches on it.
+        self._target: Optional[Path] = None
+        self._is_dir = False
 
-def prompt_rename(app: AppProtocol, path: Optional[Path]) -> None:
-    if path is None:
-        app.message("select a file or folder first", kind="warn")
-        return
-    if app.prompt_bar is None:
-        return
-    app._explorer_target = path
-    app.prompt_bar.activate("rename", initial=path.name,
-                            placeholder=f"renaming {path.name}")
+    # ---------------------------------------------------------- ExplorerOps
 
+    @property
+    def workspace(self) -> Workspace:
+        """The workspace the tree renders and mutates."""
+        return self._workspace
 
-def prompt_delete(app: AppProtocol, path: Optional[Path]) -> None:
-    if path is None:
-        app.message("select a file or folder first", kind="warn")
-        return
-    if app.prompt_bar is None:
-        return
-    app._explorer_target = path
-    kind = "folder" if path.is_dir() else "file"
-    app.prompt_bar.activate(
-        "delete",
-        placeholder=f"{kind} {path.name} — type y to confirm",
-    )
+    def message(self, text: str, kind: str = "info") -> None:
+        self._host.message(text, kind)
 
+    def open_path_later(self, path: Path) -> None:
+        self._host.open_path_later(path)
 
-def create(app: AppProtocol, directory: Optional[Path], name: str) -> None:
-    if directory is None:
-        return
-    try:
-        target = app.workspace.create_entry(
-            directory, name, is_dir=app._explorer_is_dir)
-    except ValueError as exc:
-        app.message(f"invalid name: {exc}", kind="error")
-        return
-    except FileExistsError as exc:
-        app.message(str(exc), kind="error")
-        return
-    except OSError as exc:
-        app.message(f"create failed: {exc}", kind="error")
-        return
-    if app.explorer_tree is not None:
-        app.explorer_tree.refresh_tree()
-    app.message(f"created {target.name}", kind="ok")
-    if not app._explorer_is_dir:
-        # VS Code behavior: a new file opens right away
-        app._open_document_path(target)
+    def focus_editor(self) -> None:
+        self._host.focus_editor()
 
+    def try_window_prefix(self, event: Key) -> bool:
+        return self._host.try_window_prefix(event)
 
-def apply_rename(app: AppProtocol, path: Optional[Path], name: str) -> None:
-    if path is None:
-        return
-    try:
-        new_path = app.workspace.rename_entry(path, name)
-    except ValueError as exc:
-        app.message(f"invalid name: {exc}", kind="error")
-        return
-    except FileExistsError as exc:
-        app.message(str(exc), kind="error")
-        return
-    except OSError as exc:
-        app.message(f"rename failed: {exc}", kind="error")
-        return
-    # keep tabs pointing at the moved document
-    for doc in app.docs:
-        if doc.path is not None and doc.path.resolve() == path.resolve():
-            doc.path = new_path
-    if app.explorer_tree is not None:
-        app.explorer_tree.refresh_tree()
-    app.message(f"renamed to {new_path.name}", kind="ok")
+    @property
+    def target_is_dir(self) -> bool:
+        """Whether the pending prompt target is a directory (submit refocus)."""
+        return self._is_dir
 
+    # -------------------------------------------------------------- prompts
 
-def apply_delete(app: AppProtocol, path: Optional[Path], confirm: str) -> None:
-    if path is None:
-        return
-    if confirm.strip().lower() not in ("y", "yes"):
-        app.message("delete cancelled")
-        return
-    try:
-        app.workspace.remove_entry(path)
-    except OSError as exc:
-        app.message(f"delete failed: {exc}", kind="error")
-        return
-    # close tabs whose file lived under the deleted path
-    target = path.resolve()
-    closed_docs = [d for d in app.docs
-                   if d.path is not None and d.path.resolve().is_relative_to(target)]
-    kept = [d for d in app.docs if d not in closed_docs]
-    if closed_docs:
-        # Notify LSP for each closed document BEFORE removing from app.docs.
-        # Hand the worker the *bound coroutine function*, never the coroutine:
-        # an eagerly built coroutine lives outside the worker's lifecycle, so a
-        # worker that never starts (quit cancels the "lsp-sync" group) drops the
-        # didClose and leaks "coroutine was never awaited".  partial() is bound
-        # per doc, so the loop cannot late-bind like a plain lambda would.
-        for doc in closed_docs:
-            app.run_worker(
-                partial(app.lsp.on_document_closed, doc),
-                group="lsp-sync", exclusive=False, exit_on_error=False,
-            )
-        app.docs = kept
-        if not app.docs:
-            app.new_buffer(show=False)
-        app.doc_index = max(0, min(app.doc_index, len(app.docs) - 1))
-        app.search = SearchEngine()
-        app.message(f"closed {len(closed_docs)} open tab(s)", kind="warn")
-    if app.explorer_tree is not None:
-        app.explorer_tree.refresh_tree()
-    app.message(f"deleted {path.name}", kind="ok")
+    def prompt_new_file(self, directory: Optional[Path]) -> None:
+        self._prompt_new(directory, is_dir=False)
+
+    def prompt_new_dir(self, directory: Optional[Path]) -> None:
+        self._prompt_new(directory, is_dir=True)
+
+    def _prompt_new(self, directory: Optional[Path], *, is_dir: bool) -> None:
+        if directory is None:
+            self._host.message("select a file or folder first", kind="warn")
+            return
+        # on a file entry the sibling directory is the creation target
+        if not directory.is_dir():
+            directory = directory.parent
+        mode = "new_dir" if is_dir else "new_file"
+        if not self._host.activate_prompt(
+            mode, placeholder=f"created inside {directory.name}/"
+        ):
+            return
+        self._target = directory
+        self._is_dir = is_dir
+
+    def prompt_rename(self, path: Optional[Path]) -> None:
+        if path is None:
+            self._host.message("select a file or folder first", kind="warn")
+            return
+        if not self._host.activate_prompt(
+            "rename", initial=path.name, placeholder=f"renaming {path.name}"
+        ):
+            return
+        self._target = path
+
+    def prompt_delete(self, path: Optional[Path]) -> None:
+        if path is None:
+            self._host.message("select a file or folder first", kind="warn")
+            return
+        kind = "folder" if path.is_dir() else "file"
+        if not self._host.activate_prompt(
+            "delete", placeholder=f"{kind} {path.name} — type y to confirm"
+        ):
+            return
+        self._target = path
+
+    # ----------------------------------------------------------- submission
+
+    def submit_create(self, name: str) -> None:
+        """Prompt submitted: create the pending entry."""
+        directory = self._target
+        if directory is None:
+            return
+        try:
+            target = self._workspace.create_entry(
+                directory, name, is_dir=self._is_dir)
+        except ValueError as exc:
+            self._host.message(f"invalid name: {exc}", kind="error")
+            return
+        except FileExistsError as exc:
+            self._host.message(str(exc), kind="error")
+            return
+        except OSError as exc:
+            self._host.message(f"create failed: {exc}", kind="error")
+            return
+        self._host.refresh_explorer()
+        self._host.message(f"created {target.name}", kind="ok")
+        if not self._is_dir:
+            # VS Code behavior: a new file opens right away
+            self._host.open_document(target)
+
+    def submit_rename(self, name: str) -> None:
+        """Prompt submitted: rename the pending path."""
+        path = self._target
+        if path is None:
+            return
+        try:
+            new_path = self._workspace.rename_entry(path, name)
+        except ValueError as exc:
+            self._host.message(f"invalid name: {exc}", kind="error")
+            return
+        except FileExistsError as exc:
+            self._host.message(str(exc), kind="error")
+            return
+        except OSError as exc:
+            self._host.message(f"rename failed: {exc}", kind="error")
+            return
+        # keep tabs pointing at the moved document
+        self._host.retarget_document(path, new_path)
+        self._host.refresh_explorer()
+        self._host.message(f"renamed to {new_path.name}", kind="ok")
+
+    def submit_delete(self, confirm: str) -> None:
+        """Prompt submitted: delete the pending path when confirmed."""
+        path = self._target
+        if path is None:
+            return
+        if confirm.strip().lower() not in ("y", "yes"):
+            self._host.message("delete cancelled")
+            return
+        try:
+            self._workspace.remove_entry(path)
+        except OSError as exc:
+            self._host.message(f"delete failed: {exc}", kind="error")
+            return
+        self._host.close_documents_under(path)
+        self._host.refresh_explorer()
+        self._host.message(f"deleted {path.name}", kind="ok")

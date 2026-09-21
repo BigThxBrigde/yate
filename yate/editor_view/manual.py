@@ -229,9 +229,8 @@ class MarkdownDocScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, yate: Any, *, kind: str, lang: str, title: str) -> None:
+    def __init__(self, *, kind: str, lang: str, title: str) -> None:
         super().__init__()
-        self.yate = yate
         self._kind = kind
         self._lang = lang
         self._title = title

@@ -160,7 +160,7 @@ def _upper(ctx):
 | `api.doc` | `Document` | 当前活动文档（含路径、保存等） |
 | `api.workspace` | `Workspace` | 文件树工作区 |
 | `api.keymaps` | `dict[str, Keymap]` | 所有已加载键位（`vsc`/`vim`） |
-| `api.app` | `YateApp` | 应用本体（高级用法） |
+| `api.app` | `ExtensionHost` | 应用宿主接口（高级用法） |
 
 **`api.buffer`（TextBuffer）常用方法**：
 

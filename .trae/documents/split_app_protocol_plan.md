@@ -1,7 +1,8 @@
 # 拆分并移除 `AppProtocol` 重构方案
 
-> **状态：DRAFT（草稿，评审中）** — 本文档为重构草案，尚未实施；
-> 协议成员命名、语义化 Host 方法等细节可能在评审中调整。
+> **状态：已实施（2026-09-22）** — 重构完成：`AppProtocol` 与 `yate/interfaces.py` 已删除，
+> 窄接口（Host / Ops）落地，`TYPE_CHECKING` 全仓库清零，架构守护测试
+> `tests/test_architecture.py` 已加入。本文档保留作为架构决策记录（ADR）。
 
 > **目标**：删除 `yate/interfaces.py` 中的 `AppProtocol`（88 个成员的"全应用协议"），
 > 改为 **每个模块持有自己的窄接口（Protocol）**，由 `YateApp` 作为组合根实现这些接口；
@@ -11,7 +12,7 @@
 > **硬性验收**：pyright strict 0 诊断 · pytest 全绿 · 无 `TYPE_CHECKING` ·
 > 无 `AppProtocol` 残留 · `yate/` 内除 `cli.py` 外无人 import `yate.app` · 无循环依赖。
 >
-> 行号基于当前分支 `issues/logs-refactoring` 的 HEAD。
+> 行号基于当前分支 `master` 的 HEAD。
 
 ---
 
@@ -543,11 +544,17 @@ Stage 2 的 explorer/terminal 可拆两个 commit，便于 `git bisect`。
 - `CHANGELOG.md` / `CHANGELOG.zh.md`：新增"架构重构：拆分并移除 AppProtocol"条目。
 - `yate/app_features/__init__.py` 文档串（`:4` 提到 YateApp）与各模块 "Extracted from YateApp" 注释：Stage 4 更新表述。
 
-### D. 后续可选深化（不在本计划主线上）
+### D. 后续可选深化（实施记录）
 
-1. **`EditorSession`**（`yate/services/session.py`）：抽出 `docs/doc_index/search` 与会话操作，
-   让 `YateApp` 只做组合根；`ExplorerHost` 的 `close_documents_under`/`retarget_document` 移入。
-2. **`editor_view/__init__.py` 惰性化**：PEP 562 `__getattr__` 按需导出 widget，减少连带加载。
-3. **`config.py` 解耦 `editor_view.theme`**（延迟导入或把 theme 移到独立包）：让 `config` 完全叶子化。
-4. **`run_worker` 类型收敛**：`TaskSpawner` 原语替代各模块直接使用 Textual worker 类型。
-5. **扩展 API 的 `api.app` 最终退场**：如未来允许破坏性变更，改为细分访问器（`api.buffer/doc/...`），删除万能门面。
+1. ✅ **`config.py` 解耦 `editor_view.theme`**：改为 `load_config()` 内延迟导入，`config` 回归叶子。
+2. ✅ **`editor_view/__init__.py` 惰性化**：删除 eager widget re-export（确认无使用者），
+   `import yate.editor_view` 不再加载 widget 栈。
+3. ✅ **`services/__init__.py` 惰性化**：删除无使用者的 re-export，
+   `from yate.services import fonts` 不再连带 extension / workspace 栈。
+4. ✅ **终端面板协议收窄**：`TerminalPanelOps`（6 方法）替代 app 的 6 个面板代理方法，
+   `app.py` 减 38 行（2042 → 2004）。
+5. ⏳ **`EditorSession`**（`yate/services/session.py`）：抽出 `docs`/`doc_index`/`search` 与会话操作，
+   让 `YateApp` 只做组合根；`close_documents_under`/`retarget_document` 的逻辑移入
+   （大改动，尚未实施）。
+6. ⏳ **扩展 API 的 `api.app` 最终退场**：如未来允许破坏性变更，改为细分访问器
+   （`api.buffer/doc/...`），删除万能门面（尚未实施）。

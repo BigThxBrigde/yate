@@ -13,7 +13,7 @@ import os
 import re
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from rich.text import Text
 from textual.app import App, ComposeResult
@@ -24,9 +24,11 @@ from textual.widgets import Input, Static
 
 from yate import __version__
 from yate.actions import ActionRegistry, populate
-from yate.app_features import docs, explorer, terminal
 from yate.app_features.commands import CommandRegistry, register_commands
 from yate.app_features.completion import CompletionController
+from yate.app_features.docs import DocsFeature
+from yate.app_features.explorer import ExplorerFeature
+from yate.app_features.terminal import TerminalFeature
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import TextBuffer
@@ -198,9 +200,11 @@ class YateApp(App[None]):
             self.theme = wanted_textual
 
         self.actions = ActionRegistry()
-        populate(self.actions)
+        populate(self.actions, self)
 
         self.workspace = Workspace()
+        self.explorer_feature = ExplorerFeature(self, self.workspace)
+        self.docs_feature = DocsFeature(self)
         self.docs: list[Document] = []
         self.doc_index = -1
 
@@ -219,25 +223,23 @@ class YateApp(App[None]):
 
         self._ext_files = [Path(p) for p in (ext_files or [])]
         self._ext_dirs = [Path(p) for p in (ext_dirs or [])]
-        self.extension_api = ExtensionAPI(self)
-        self.extension_loader = ExtensionLoader(self.extension_api)
-        self._ext_messages: list[str] = []
-        self._ext_messages.extend(f"yaterc: {err}" for err in self.config.errors)
-
         # Language Server Protocol: registered servers come from extensions
         # and the yaterc ``language_servers`` option; the manager is UI
-        # independent and safe to keep even with no server.
+        # independent and safe to keep even with no server.  It is created
+        # before the extension API, which wires ``api.lsp`` straight to it.
         self.lsp = LspManager(
             workspace_root=lambda: self.workspace.root,
             on_event=self._on_lsp_event,
         )
+        self.extension_api = ExtensionAPI(self)
+        self.extension_loader = ExtensionLoader(self.extension_api)
+        self._ext_messages: list[str] = []
+        self._ext_messages.extend(f"yaterc: {err}" for err in self.config.errors)
         self._message_owner = "idle"
         self.completion_ctl = CompletionController(self)
 
         self._replace_pending = ""
         self._window_pending = False
-        self._explorer_target: Optional[Path] = None
-        self._explorer_is_dir = False
         # The welcome page is a one-time overlay for the pristine startup
         # buffer. Creating a user-requested buffer (:enew) dismisses it for
         # the rest of the session; the :welcome command turns it back on.
@@ -256,10 +258,9 @@ class YateApp(App[None]):
         self.prompt_bar: Optional[PromptBar] = None
         self.completion_popup: Optional[CompletionPopup] = None
         self.terminal_panel: Optional[TerminalPanel] = None
-        self._terminal_visible = False
-        self._terminal_starting = False
         # Tests inject a fake PTY factory here: (argv, cwd, cols, rows) -> proc
         self._terminal_factory: Optional[Callable[..., object]] = None
+        self.terminal_feature = TerminalFeature(self)
 
         # ------------------------------------------------------------- open
         if target is not None:
@@ -328,6 +329,10 @@ class YateApp(App[None]):
             and view is not None
             and view.is_mounted
         )
+
+    def has_modal_screen(self) -> bool:
+        """True while an overlay screen (help, palette, output, ...) owns input."""
+        return len(self.screen_stack) > 1
 
     @property
     def ext_dirs(self) -> list[Path]:
@@ -599,6 +604,15 @@ class YateApp(App[None]):
 
     # ---------------------------------------------------------------- theme
 
+    def theme_label(self) -> str:
+        """Current theme as ``label (name)`` for the ``:theme`` message."""
+        current = theme.active()
+        return f"{current.label} ({current.name})"
+
+    def theme_names(self) -> list[str]:
+        """Every registered theme name (``:theme`` listing)."""
+        return list(theme.available())
+
     def set_theme(self, name: str) -> None:
         """Switch the active color theme (``mocha``, ``latte``, ...)."""
         name = name.strip().lower()
@@ -826,7 +840,7 @@ class YateApp(App[None]):
             await self.panes.split_active(axis)
             self.after_pane_focus()
 
-    def _split_with_path(self, axis: Axis, args: str) -> None:
+    def split_with_path(self, axis: Axis, args: str) -> None:
         text = args.strip()
         if not text:
             self._split_pane(axis)
@@ -849,7 +863,7 @@ class YateApp(App[None]):
             group="pane", exclusive=True, exit_on_error=False,
         )
 
-    def _only_pane(self) -> None:
+    def only_pane(self) -> None:
         if self.panes is None:
             return
         self.run_worker(
@@ -857,7 +871,7 @@ class YateApp(App[None]):
             group="pane", exclusive=True, exit_on_error=False,
         )
 
-    def _close_pane(self) -> None:
+    def close_pane(self) -> None:
         """``ctrl+w q``: close the active pane (documents stay open).
 
         With a single pane this is a no-op (use ``:q`` to leave yate).
@@ -917,9 +931,9 @@ class YateApp(App[None]):
         elif key == "v":
             self._split_pane("vertical")
         elif key == "q":
-            self._close_pane()
+            self.close_pane()
         elif key == "o":
-            self._only_pane()
+            self.only_pane()
         elif key in ("+", "minus", "-", "<", "less_than_sign", ">",
                      "greater_than_sign", "=", "equals_sign", "plus"):
             self._resize_pane(key)
@@ -1029,32 +1043,68 @@ class YateApp(App[None]):
 
     # ------------------------------------------------------ explorer files
 
-    # Explorer file operations live in yate.app_features.explorer; the
-    # methods below keep the historical names as thin delegates (the keymap
-    # actions and the explorer widget call them on the app).
-    def explorer_new_file_prompt(self, directory: Optional[Path]) -> None:
-        explorer.prompt_new_file(self, directory)
+    # Explorer file operations live in yate.app_features.explorer
+    # (ExplorerFeature, driven by the tree through ExplorerOps); the methods
+    # below are the host capabilities the feature calls back into.
 
-    def explorer_new_dir_prompt(self, directory: Optional[Path]) -> None:
-        explorer.prompt_new_dir(self, directory)
+    def open_document(self, path: Path) -> Optional[Document]:
+        """Open/reuse *path* in the active pane (explorer create flow)."""
+        return self._open_document_path(path)
 
-    def _explorer_prompt_new(self, directory: Optional[Path], *, is_dir: bool) -> None:
-        explorer.prompt_new(self, directory, is_dir=is_dir)
+    def refresh_explorer(self) -> None:
+        """Rebuild the explorer tree (after create / rename / delete)."""
+        if self.explorer_tree is not None:
+            self.explorer_tree.refresh_tree()
 
-    def explorer_rename_prompt(self, path: Optional[Path]) -> None:
-        explorer.prompt_rename(self, path)
+    def set_show_hidden(self, flag: bool) -> None:
+        """Show/hide dotfiles in the explorer and refresh the tree."""
+        self.workspace.show_hidden = flag
+        self.refresh_explorer()
 
-    def explorer_delete_prompt(self, path: Optional[Path]) -> None:
-        explorer.prompt_delete(self, path)
+    def activate_prompt(self, mode: str, *, placeholder: str = "",
+                        initial: str = "") -> bool:
+        """Show the prompt bar in *mode*; ``False`` when it is not mounted."""
+        bar = self.prompt_bar
+        if bar is None:
+            return False
+        bar.activate(mode, initial=initial, placeholder=placeholder)
+        return True
 
-    def _explorer_create(self, directory: Optional[Path], name: str) -> None:
-        explorer.create(self, directory, name)
+    def close_documents_under(self, path: Path) -> None:
+        """Close every tab whose file lives under *path* (the delete flow).
 
-    def _explorer_apply_rename(self, path: Optional[Path], name: str) -> None:
-        explorer.apply_rename(self, path, name)
+        Notifies the LSP for each closed document BEFORE removing it from
+        ``docs``.  Hand the worker the *bound coroutine function*, never the
+        coroutine: an eagerly built coroutine lives outside the worker's
+        lifecycle, so a worker that never starts (quit cancels the "lsp-sync"
+        group) drops the didClose and leaks "coroutine was never awaited".
+        partial() is bound per doc, so the loop cannot late-bind like a plain
+        lambda would.
+        """
+        target = path.resolve()
+        closed = [
+            doc for doc in self.docs
+            if doc.path is not None and doc.path.resolve().is_relative_to(target)
+        ]
+        if not closed:
+            return
+        for doc in closed:
+            self.run_worker(
+                partial(self.lsp.on_document_closed, doc),
+                group="lsp-sync", exclusive=False, exit_on_error=False,
+            )
+        self.docs = [doc for doc in self.docs if doc not in closed]
+        if not self.docs:
+            self.new_buffer(show=False)
+        self.doc_index = max(0, min(self.doc_index, len(self.docs) - 1))
+        self.search = SearchEngine()
+        self.message(f"closed {len(closed)} open tab(s)", kind="warn")
 
-    def _explorer_apply_delete(self, path: Optional[Path], confirm: str) -> None:
-        explorer.apply_delete(self, path, confirm)
+    def retarget_document(self, old: Path, new: Path) -> None:
+        """Keep tabs pointing at a document that was renamed on disk."""
+        for doc in self.docs:
+            if doc.path is not None and doc.path.resolve() == old.resolve():
+                doc.path = new
 
     # ------------------------------------------------------------- prompts
 
@@ -1157,15 +1207,15 @@ class YateApp(App[None]):
         elif mode == "replace_with":
             self._do_replace(self._replace_pending, text)
         elif mode in ("new_file", "new_dir"):
-            self._explorer_create(self._explorer_target, text)
+            self.explorer_feature.submit_create(text)
             # a newly created file was opened for editing -> focus the
             # editor; folders and other operations keep the explorer focus
-            refocus_explorer = self._explorer_is_dir
+            refocus_explorer = self.explorer_feature.target_is_dir
         elif mode == "rename":
-            self._explorer_apply_rename(self._explorer_target, text)
+            self.explorer_feature.submit_rename(text)
             refocus_explorer = True
         elif mode == "delete":
-            self._explorer_apply_delete(self._explorer_target, text)
+            self.explorer_feature.submit_delete(text)
             refocus_explorer = True
 
         if self.prompt_bar.active_mode is not None:
@@ -1370,7 +1420,7 @@ class YateApp(App[None]):
             f"(cwd: {cwd} · {shell_name()})\n\n"
             f"{result.output or '(no output)'}"
         )
-        self._push_overlay(OutputScreen(self, f"$ {command}", body, result.returncode))
+        self.push_overlay(OutputScreen(f"$ {command}", body, result.returncode))
 
     # ================================================================== lsp
 
@@ -1452,11 +1502,11 @@ class YateApp(App[None]):
         ]
         errors, warnings = self.lsp.counts_for(self.doc)
         title = f"diagnostics — {errors} error(s), {warnings} warning(s)"
-        self._push_overlay(OutputScreen(self, title, "\n".join(lines), 0))
+        self.push_overlay(OutputScreen(title, "\n".join(lines), 0))
 
     # ================================================================ modals
 
-    def _push_overlay(
+    def push_overlay(
         self,
         screen: Screen[Any],
         callback: Optional[Callable[[Any], None]] = None,
@@ -1472,28 +1522,42 @@ class YateApp(App[None]):
             self.prompt_bar.idle()
         self.push_screen(screen, callback=callback)
 
+    def register_command(self, name: str, func: Callable[[str], object],
+                         description: str) -> None:
+        """Register an ex command on behalf of an extension."""
+        self.commands.register(name, func, description)
+
+    def command_entries(self) -> list[tuple[str, str]]:
+        """``(name, description)`` pairs of the ``:`` command table."""
+        return [(name, self.commands.describe(name))
+                for name in self.commands.names()]
+
+    def action_entries(self) -> list[tuple[str, str]]:
+        """``(name, description)`` pairs of the action registry."""
+        return self.actions.describe()
+
     def show_help(self) -> None:
         """Open the keybinding reference overlay."""
         if self.mounted:
-            self._push_overlay(HelpScreen(self))
+            self.push_overlay(HelpScreen(self))
 
     def show_manual(self, lang: str = "en") -> None:
         """Open the bundled user manual, rendered as read-only markdown."""
-        docs.show_manual(self, lang)
+        self.docs_feature.show_manual(lang)
 
     def show_changelog(self, lang: str = "en") -> None:
         """Open the bundled bilingual changelog viewer."""
-        docs.show_changelog(self, lang)
+        self.docs_feature.show_changelog(lang)
 
     def open_file_palette(self) -> None:
         """Quick file open: fuzzy palette over the workspace files (ctrl+p)."""
         if self.mounted:
-            self._push_overlay(PaletteScreen(self, "files"))
+            self.push_overlay(PaletteScreen(self, "files"))
 
     def open_command_palette(self) -> None:
         """Command palette: fuzzy search over ``:`` commands (alt+shift+p)."""
         if self.mounted:
-            self._push_overlay(PaletteScreen(self, "commands"))
+            self.push_overlay(PaletteScreen(self, "commands"))
 
     async def action_quit(self) -> None:
         """Textual's ctrl+q priority binding — route through our guard."""
@@ -1527,26 +1591,55 @@ class YateApp(App[None]):
             self.sidebar.display = visible
 
     # ============================================================ terminal
-    # The panel lifecycle lives in yate.app_features.terminal; the app
-    # keeps the flags (_terminal_visible/_terminal_starting/_terminal_factory)
-    # and the historical method names.
+    # The terminal panel lifecycle lives in yate.app_features.terminal
+    # (TerminalFeature, driven by the widget through TerminalOps); the
+    # methods below are the host capabilities the feature calls back into.
 
     def toggle_terminal(self) -> None:
         """Show/focus or hide the integrated terminal (Ctrl+`)."""
-        terminal.toggle_terminal(self)
+        self.terminal_feature.toggle_terminal()
 
     def open_terminal(self) -> None:
         """Reveal the bottom terminal and focus it, spawning the shell."""
-        terminal.open_terminal(self)
+        self.terminal_feature.open_terminal()
 
     def close_terminal(self) -> None:
         """Hide the panel; the shell process itself stays alive."""
-        terminal.close_terminal(self)
+        self.terminal_feature.close_terminal()
 
-    def _spawn_terminal(self) -> None:
-        terminal.spawn_shell(self)
+    @property
+    def terminal_height(self) -> int:
+        """Configured terminal panel height in rows."""
+        return self.config.terminal_height
 
-    def _font_command(self) -> None:
+    @property
+    def shell_command(self) -> str:
+        """Configured shell command line."""
+        return self.config.shell
+
+    @property
+    def terminal_factory(self) -> Optional[Callable[..., object]]:
+        """Fake-PTY hook injected by the test-suite (``None`` in production)."""
+        return self._terminal_factory
+
+    def terminal_cwd(self) -> Path:
+        """Working directory for the shell: the workspace root or the cwd."""
+        return self.workspace.root or Path.cwd()
+
+    def spawn(self, work: Callable[[], Awaitable[None]], *,
+              group: str = "default", exclusive: bool = False,
+              exit_on_error: bool = True) -> None:
+        """Run the zero-arg coroutine function *work* in a Textual worker."""
+        self.run_worker(work(), group=group, exclusive=exclusive,
+                        exit_on_error=exit_on_error)
+
+    def apply_terminal_height(self, height: int) -> None:
+        """Resize the terminal panel when it is currently visible."""
+        panel = self.terminal_panel
+        if self.terminal_feature.is_visible and panel is not None:
+            panel.set_height(height)
+
+    def install_font(self) -> None:
         # registry lookups / font registration touch subprocess and would
         # freeze the TUI on some systems; run off the event loop
         self.message("checking Nerd Font…", kind="info")
@@ -1760,7 +1853,7 @@ class YateApp(App[None]):
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
                 yield Static(id="sidebar-head")
-                yield ExplorerTree(self, id="explorer")
+                yield ExplorerTree(self.explorer_feature, id="explorer")
             with Vertical(id="editor-col"):
                 yield TabBar(self, id="tabbar")
                 yield Static(id="breadcrumbs")
@@ -1768,7 +1861,7 @@ class YateApp(App[None]):
         # Both live in one docked container so the terminal always sits
         # directly above the status/prompt strip (VS Code layout).
         with Vertical(id="bottom-dock"):
-            yield TerminalPanel(self, id="terminal-dock")
+            yield TerminalPanel(self.terminal_feature, id="terminal-dock")
             with Vertical(id="bottom"):
                 yield StatusBar(self, id="statusbar")
                 yield PromptBar(self)
@@ -1787,7 +1880,7 @@ class YateApp(App[None]):
         self.terminal_panel.display = False
 
         self.load_startup_services()
-        self.completion_popup = CompletionPopup(self)
+        self.completion_popup = CompletionPopup()
         await self.query_one("#editor-col", Vertical).mount(self.completion_popup)
         self.apply_theme()
         self.explorer_tree.refresh_tree()

@@ -2411,7 +2411,7 @@ def test_termclose_without_open_terminal_warns() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            assert not cast(Any, app)._terminal_visible
+            assert not app.terminal_feature.is_visible
             app.run_command("termclose")
             await pilot.pause()
             assert "already hidden" in _message_text(app)
@@ -3088,7 +3088,7 @@ def test_ctrl_grave_toggles_focuses_and_forwards() -> None:
 
             # reopening reuses the still-alive shell process
             await _press_toggle(pilot)
-            await wait_until(pilot, lambda: cast(Any, app)._terminal_visible)
+            await wait_until(pilot, lambda: app.terminal_feature.is_visible)
             assert panel.display
             assert cast(Any, panel.view).proc is proc
 
@@ -3135,12 +3135,12 @@ def test_real_terminal_grave_key_names_toggle_panel() -> None:
                     for _ in range(3):
                         await pilot.pause()
                     assert not panel.display
-                    assert not cast(Any, app)._terminal_visible
+                    assert not app.terminal_feature.is_visible
                     await pilot.press("ctrl+grave_accent")
                 else:
                     await pilot.press(close_key)
                 await wait_until(
-                    pilot, lambda: cast(Any, app)._terminal_visible)
+                    pilot, lambda: app.terminal_feature.is_visible)
                 assert panel.display, close_key
 
     asyncio.run(scenario())
@@ -3859,7 +3859,7 @@ def test_nul_byte_opens_completion_not_terminal(tmp_path: Path) -> None:
             await pilot.press("ctrl+@")  # NUL: Ctrl+Space on conhost
             shown = await wait_until(pilot, lambda: popup.is_open)
             assert shown
-            assert not cast(Any, app)._terminal_visible
+            assert not app.terminal_feature.is_visible
 
     asyncio.run(scenario())
 

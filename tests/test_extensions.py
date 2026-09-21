@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -14,7 +15,9 @@ _SETUP_BAD = "def setup(api):\n    raise RuntimeError('boom')\n"
 
 
 class _FakeApp:
-    pass
+    """Enough host surface for :class:`ExtensionAPI` construction."""
+
+    lsp = MagicMock()
 
 
 @pytest.fixture

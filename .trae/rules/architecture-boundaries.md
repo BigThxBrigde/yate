@@ -54,6 +54,9 @@ L3 组合根：app.py（YateApp） / cli.py
 5. 读写分离：读状态用只读属性/查询方法；只有真正的命令才用操作方法。
 6. 同名成员（如 `message`）在多个协议中重复出现是**正确**的（结构化子类型），
    不要为了去重而抽出共享基接口。
+7. 包 `__init__.py` 保持惰性：不 re-export 子模块符号，避免 `import yate.X`
+   连带加载整层（如 `from yate.services import fonts` 不得拉起扩展加载器）。
+   需要符号时从定义处导入（`from yate.services.workspace import Workspace`）。
 
 ## 三、跨模块交互
 

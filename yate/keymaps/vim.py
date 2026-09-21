@@ -10,8 +10,13 @@ from __future__ import annotations
 from enum import Enum
 
 from yate.editor_core.buffer import TextBuffer, word_end
-from yate.interfaces import AppProtocol
-from yate.keymaps.base import ActionContext, KeyBinding, Keymap, parse_key
+from yate.keymaps.base import (
+    ActionContext,
+    ActionHost,
+    KeyBinding,
+    Keymap,
+    parse_key,
+)
 
 
 class VimMode(str, Enum):
@@ -112,7 +117,7 @@ class VimKeymap(Keymap):
         if key == "\x1f":
             self.pending = ""
             self.count_str = ""
-            ctx.app.toggle_keymap()
+            ctx.host.toggle_keymap()
             return True
         if key in _FUNCTION_KEYS:
             self.pending = ""
@@ -137,7 +142,7 @@ class VimKeymap(Keymap):
     # ------------------------------------------------------------- insert mode
 
     def _handle_insert(self, ctx: ActionContext, key: str) -> bool:
-        app = ctx.app
+        app = ctx.host
         if key in ("\x1b",):  # esc / ctrl-[
             self.mode = VimMode.NORMAL
             ctx.buffer.move_left()
@@ -173,7 +178,7 @@ class VimKeymap(Keymap):
 
     def _handle_visual(self, ctx: ActionContext, key: str) -> bool:
         buf = ctx.buffer
-        app = ctx.app
+        app = ctx.host
         linewise = self.mode == VimMode.VISUAL_LINE
 
         if key == "\x1b":
@@ -256,7 +261,7 @@ class VimKeymap(Keymap):
     # ------------------------------------------------------------ normal mode
 
     def _handle_normal(self, ctx: ActionContext, key: str) -> bool:
-        app = ctx.app
+        app = ctx.host
         buf = ctx.buffer
 
         if key == "\x1b":
@@ -415,7 +420,7 @@ class VimKeymap(Keymap):
         # swallow unmapped normal keys
         return True
 
-    def _enter_insert(self, app: AppProtocol) -> None:
+    def _enter_insert(self, app: ActionHost) -> None:
         self.mode = VimMode.INSERT
         app.message("-- INSERT --")
 
@@ -471,7 +476,7 @@ class VimKeymap(Keymap):
 
     def _apply_operator(self, ctx: ActionContext, op: str, code: str, count: int) -> None:
         buf = ctx.buffer
-        app = ctx.app
+        app = ctx.host
         start = buf.cursor
         buf.anchor = start
         self._motion(ctx, code, count, select=True)

@@ -227,7 +227,9 @@ def test_extension_registers_csharp_highlighting() -> None:
     from yate.services.extensions import ExtensionAPI, ExtensionLoader
 
     class _FakeApp:
-        pass  # the highlight bridge never touches the app
+        # wired into api.lsp at construction; the highlight bridge never
+        # touches the rest of the app.
+        lsp: Any = None
 
     ext_path = (
         Path(__file__).resolve().parent.parent

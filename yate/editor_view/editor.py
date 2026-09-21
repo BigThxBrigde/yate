@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Optional
+from typing import Any, Optional, Protocol
 
 from rich.segment import Segment
 from rich.style import Style
@@ -16,11 +16,13 @@ from textual.timer import Timer
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
 from yate.editor_core.document import Document
+from yate.editor_core.search import SearchEngine
+from yate.editor_lsp import LspManager
 from yate.editor_syntax import tokenize_document
 from yate.editor_syntax.tokens import Token
-from yate.interfaces import AppProtocol
 
 from . import theme
+from .completion import CompletionPopup
 from .keys import event_to_raw
 from .pane_types import Leaf
 from .terminal import TOGGLE_KEYS
@@ -42,6 +44,49 @@ _WELCOME_BANNER = [
     "   ██║   ██║  ██║   ██║   ███████╗",
     "   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝",
 ]
+
+
+class PaneRegistry(Protocol):
+    """The pane-manager surface a view needs (implemented by PaneManager)."""
+
+    @property
+    def active_view(self) -> Optional[EditorView]: ...
+
+    def leaf_by_id(self, leaf_id: int) -> Leaf: ...
+
+    def leaf_for(self, leaf_id: int) -> Optional[Leaf]: ...
+
+    def notify_focus(self, leaf_id: int) -> None: ...
+
+
+class EditorHost(Protocol):
+    """What :class:`EditorView` reads / triggers on its host application."""
+
+    lsp: LspManager
+    welcome_visible: bool
+    keymap_name: str
+    completion_popup: Optional[CompletionPopup]
+
+    @property
+    def doc(self) -> Document: ...
+
+    @property
+    def search(self) -> SearchEngine: ...
+
+    @property
+    def panes(self) -> Optional[PaneRegistry]: ...
+
+    def request_completion(self, manual: bool = False) -> None: ...
+
+    def accept_completion(self) -> None: ...
+
+    def toggle_terminal(self) -> None: ...
+
+    def try_window_prefix(self, event: Key) -> bool: ...
+
+    def handle_raw_key(self, raw: str) -> bool: ...
+
+    def has_modal_screen(self) -> bool: ...
 
 
 class EditorView(ScrollView):
@@ -66,9 +111,9 @@ class EditorView(ScrollView):
     }
     """
 
-    def __init__(self, app: AppProtocol, *, leaf_id: int, **kwargs: Any) -> None:
+    def __init__(self, host: EditorHost, *, leaf_id: int, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.yate = app
+        self.host = host
         self.leaf_id = leaf_id
         self.scroll_col = 0
         # Syntax token cache. Tokens belong to (doc, content_version,
@@ -93,7 +138,7 @@ class EditorView(ScrollView):
     @property
     def leaf(self) -> Leaf:
         """The pane-tree leaf rendered by this view."""
-        panes = self.yate.panes
+        panes = self.host.panes
         assert panes is not None
         return panes.leaf_by_id(self.leaf_id)
 
@@ -110,7 +155,7 @@ class EditorView(ScrollView):
     @property
     def is_active_view(self) -> bool:
         """Whether this view is the currently focused pane."""
-        panes = self.yate.panes
+        panes = self.host.panes
         return panes is not None and panes.active_view is self
 
     def _cursor_anchor(self) -> tuple[Pos, Optional[Pos]]:
@@ -130,7 +175,7 @@ class EditorView(ScrollView):
 
     def on_focus(self, _event: Focus) -> None:
         """Report pane activation to the pane manager."""
-        panes = self.yate.panes
+        panes = self.host.panes
         if panes is not None:
             panes.notify_focus(self.leaf_id)
 
@@ -179,7 +224,7 @@ class EditorView(ScrollView):
 
     def on_key(self, event: Key) -> None:
         """Forward keys to the yate keymap while the editor is focused."""
-        if len(self.yate.screen_stack) > 1:
+        if self.host.has_modal_screen():
             return  # a modal screen owns input
         # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle:
         # on Windows conhost / legacy xterm Ctrl+Space and Ctrl+` share the
@@ -187,21 +232,21 @@ class EditorView(ScrollView):
         # Ctrl+` still closes the terminal while it is focused, and :term /
         # the palette opens it.
         if event.key in ("ctrl+space", "ctrl+@"):
-            self.yate.request_completion(manual=True)
+            self.host.request_completion(manual=True)
             event.stop()
             event.prevent_default()
             return
         if event.key in TOGGLE_KEYS:
             event.stop()
             event.prevent_default()
-            self.yate.toggle_terminal()
+            self.host.toggle_terminal()
             return
         # LSP completion popup owns a handful of keys while open; it never
         # takes focus itself, so the keys arrive here.
-        popup = self.yate.completion_popup
+        popup = self.host.completion_popup
         if popup is not None and popup.is_open:
             if event.key in ("tab", "enter"):
-                self.yate.accept_completion()
+                self.host.accept_completion()
                 event.stop()
                 event.prevent_default()
                 return
@@ -224,14 +269,14 @@ class EditorView(ScrollView):
         # the vim ctrl+w window chord must run before keymap dispatch:
         # the vim keymap swallows unmapped keys so the app would never
         # see them
-        if self.yate.try_window_prefix(event):
+        if self.host.try_window_prefix(event):
             event.stop()
             event.prevent_default()
             return
         raw = event_to_raw(event.key, event.character)
         if raw is None:
             return
-        if self.yate.handle_raw_key(raw):
+        if self.host.handle_raw_key(raw):
             event.stop()
             event.prevent_default()
 
@@ -392,7 +437,7 @@ class EditorView(ScrollView):
         # widget actually unmounting, a timer tick can still reach
         # render_line. The pane tree no longer holds this leaf, so paint a
         # blank strip instead of tripping the leaf-lookup assertion.
-        panes = self.yate.panes
+        panes = self.host.panes
         if panes is None or panes.leaf_for(self.leaf_id) is None:
             return Strip([Segment(" " * view_w, Style(bgcolor=t.bg))])
         buf = self.buffer
@@ -437,7 +482,7 @@ class EditorView(ScrollView):
         line_bg = t.surface if is_current else None
 
         # gutter
-        line_diags = self.yate.lsp.diagnostics_on_line(self.doc, y)
+        line_diags = self.host.lsp.diagnostics_on_line(self.doc, y)
         line_error = any(d.is_error for d in line_diags)
         line_warn = any(d.is_warning for d in line_diags)
         if line_error:
@@ -500,7 +545,7 @@ class EditorView(ScrollView):
         doc = self.doc
         buf = self.buffer
         return (
-            self.yate.welcome_visible
+            self.host.welcome_visible
             and doc.path is None
             and not doc.modified
             and buf.line_count == 1
@@ -564,7 +609,7 @@ class EditorView(ScrollView):
         """Render one welcome page row (gutter stays blank, no cursor)."""
         segments: list[Segment] = [Segment(" " * gutter_w, Style(bgcolor=t.bg))]
         rows = self._welcome_lines(
-            t, vim_keys=self.yate.keymap_name == "vim"
+            t, vim_keys=self.host.keymap_name == "vim"
         )
         used = gutter_w
         if y < len(rows):
@@ -589,7 +634,7 @@ class EditorView(ScrollView):
         """Per-cell underline flags contributed by LSP diagnostics on *row*."""
         flags = [False] * cell_count
         tw = self.buffer.tab_width
-        for d in self.yate.lsp.diagnostics_on_line(self.doc, row):
+        for d in self.host.lsp.diagnostics_on_line(self.doc, row):
             if d.start_row == d.end_row:
                 cs, ce = d.start_col, d.end_col
             elif row == d.start_row:
@@ -630,8 +675,8 @@ class EditorView(ScrollView):
 
         # Search state belongs to the active document; other panes showing
         # the same file would otherwise paint matches on wrong rows anyway.
-        search = self.yate.search
-        if search.query and self.doc is self.yate.doc:
+        search = self.host.search
+        if search.query and self.doc is self.host.doc:
             for i, match in enumerate(search.matches):
                 if match.row != row:
                     continue

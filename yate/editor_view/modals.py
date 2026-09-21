@@ -2,17 +2,31 @@
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from yate.interfaces import AppProtocol
-from yate.keymaps.base import KeyBinding
+from yate.keymaps.base import KeyBinding, Keymap
 
 from . import theme
 from .icons import CHECK, KEYBOARD, TERMINAL, TIMES
+
+
+class HelpHost(Protocol):
+    """What :class:`HelpScreen` reads from its host application."""
+
+    keymap_name: str
+
+    @property
+    def active_keymap(self) -> Keymap: ...
+
+    def command_entries(self) -> list[tuple[str, str]]:
+        """``(name, description)`` pairs of the ``:`` command table."""
+        ...
 
 
 class _OverlayScreen(ModalScreen[None]):
@@ -41,10 +55,6 @@ class _OverlayScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, yate: AppProtocol) -> None:
-        super().__init__()
-        self.yate = yate
-
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="overlay"):
             yield Static(self._body(), id="overlay-body")
@@ -57,17 +67,21 @@ class _OverlayScreen(ModalScreen[None]):
 class HelpScreen(_OverlayScreen):
     """Full keybinding reference, grouped by category."""
 
+    def __init__(self, host: HelpHost) -> None:
+        super().__init__()
+        self.host = host
+
     def _body(self) -> Text:
         t = theme.active()
-        app = self.yate
+        host = self.host
         text = Text()
         text.append(f"{KEYBOARD}  YATE — KEYBOARD REFERENCE\n",
                     style=f"bold {t.accent}")
-        text.append(f"keymap: {app.keymap_name}    "
+        text.append(f"keymap: {host.keymap_name}    "
                     f"(toggle with ctrl+/ or :set keymap=vsc|vim)\n\n",
                     style=t.fg_muted)
 
-        km = app.active_keymap
+        km = host.active_keymap
         groups: dict[str, list[KeyBinding]] = {}
         for binding in km.bindings:
             groups.setdefault(binding.category or "other", []).append(binding)
@@ -98,8 +112,7 @@ class HelpScreen(_OverlayScreen):
         text.append("\n")
 
         text.append("  COMMANDS (prefix :)\n", style=f"bold {t.accent2}")
-        for name in sorted(app.commands.names()):
-            desc = app.commands.describe(name)
+        for name, desc in host.command_entries():
             text.append("    ")
             text.append((":" + name).ljust(16), style=t.green)
             text.append(desc or "", style=t.fg_bright)
@@ -110,8 +123,8 @@ class HelpScreen(_OverlayScreen):
 class OutputScreen(_OverlayScreen):
     """Scrollable output of a shell command."""
 
-    def __init__(self, yate: AppProtocol, title: str, output: str, returncode: int = 0) -> None:
-        super().__init__(yate)
+    def __init__(self, title: str, output: str, returncode: int = 0) -> None:
+        super().__init__()
         self._title = title
         self._output = output
         self._returncode = returncode

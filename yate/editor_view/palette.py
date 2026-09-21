@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Protocol
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -24,7 +24,6 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
-from yate.interfaces import AppProtocol
 from yate.services.workspace import Workspace
 
 from . import theme
@@ -32,6 +31,30 @@ from .icons import GEAR, KEYBOARD, icon_for_path
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE = 12
+
+
+class PaletteHost(Protocol):
+    """What :class:`PaletteScreen` needs from the host application."""
+
+    workspace: Workspace
+
+    def command_entries(self) -> list[tuple[str, str]]:
+        """``(name, description)`` pairs of the ``:`` command table."""
+        ...
+
+    def action_entries(self) -> list[tuple[str, str]]:
+        """``(name, description)`` pairs of the action registry."""
+        ...
+
+    def open_path_later(self, path: Path) -> None: ...
+
+    def focus_editor(self) -> None: ...
+
+    def execute_action(self, name: str) -> None: ...
+
+    def run_command(self, text: str) -> None: ...
+
+    def ui_refresh(self) -> None: ...
 
 
 def fuzzy_match(query: str, target: str) -> Optional[tuple[int, list[int]]]:
@@ -102,9 +125,9 @@ class PaletteScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, yate: AppProtocol, mode: str, **kwargs: Any) -> None:
+    def __init__(self, host: PaletteHost, mode: str, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.yate = yate
+        self.host = host
         self.mode = mode  # "files" | "commands"
         self._entries: list[tuple[str, str, Any]] = []  # (display, hint, payload)
         self._filtered: list[tuple[int, list[int], int]] = []  # (score, hits, idx)
@@ -130,11 +153,11 @@ class PaletteScreen(ModalScreen[None]):
         Pure data prep (filesystem traversal + ``resolve`` per file), safe
         to run in a worker thread; it must not touch Textual widgets.
         """
-        app = self.yate
+        host = self.host
         entries: list[tuple[str, str, Any]] = []
-        if app.workspace.root is not None:
-            root = app.workspace.root
-            paths = app.workspace.walk_files()
+        if host.workspace.root is not None:
+            root = host.workspace.root
+            paths = host.workspace.walk_files()
         else:
             root = Path.cwd()
             paths = _walk(root)
@@ -156,21 +179,18 @@ class PaletteScreen(ModalScreen[None]):
         resolves to the ``:`` command (the same spelling typed on the ex
         line) and the raw action duplicate is dropped.
         """
-        app = self.yate
+        host = self.host
         entries: list[tuple[str, str, Any]] = []
-        for name in app.commands.names():
+        for name, description in host.command_entries():
             # hide "palette" itself — opening the palette from inside the
             # palette would be a no-op and feels like recursion
             if name == "palette":
                 continue
-            entries.append(
-                (name, app.commands.describe(name), ("command", name)))
+            entries.append((name, description, ("command", name)))
         command_names = {name for name, _h, _p in entries}
-        for name in app.actions.names():
+        for name, description in host.action_entries():
             if name in command_names:
                 continue
-            action = app.actions.get(name)
-            description = action.description if action is not None else ""
             entries.append((name, description, ("action", name)))
         entries.sort(key=lambda entry: entry[0])
         self._entries = entries
@@ -318,17 +338,17 @@ class PaletteScreen(ModalScreen[None]):
         _display, _hint, payload = self._entries[idx]
         self.dismiss()
         if self.mode == "files":
-            self.yate.open_path_later(payload)
-            self.yate.focus_editor()
+            self.host.open_path_later(payload)
+            self.host.focus_editor()
         else:
             kind, name = payload
             if kind == "action":
-                self.yate.execute_action(str(name))
+                self.host.execute_action(str(name))
                 # key dispatch refreshes the editor after an action; the
                 # palette bypasses the key path, so do it here too
-                self.yate.ui_refresh()
+                self.host.ui_refresh()
             else:
-                self.yate.run_command(str(name))
+                self.host.run_command(str(name))
 
 
 def _walk(root: Path, limit: int = 5000) -> list[Path]:

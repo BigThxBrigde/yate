@@ -10,7 +10,7 @@ from textual.events import Key
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
-from yate.interfaces import AppProtocol
+from yate.app_features.explorer import ExplorerOps
 
 from . import theme
 from .icons import icon_for_path
@@ -31,10 +31,10 @@ class ExplorerTree(Tree[NodeData]):
     }
     """
 
-    def __init__(self, yate: AppProtocol, **kwargs: Any) -> None:
+    def __init__(self, ops: ExplorerOps, **kwargs: Any) -> None:
         # The root node shows the open folder name; refresh_tree() fills it in.
         super().__init__(Text(""), **kwargs)
-        self.yate = yate
+        self.ops = ops
         self.show_root = True
         self.guide_depth = 2
         #: last node the user selected (opened); survives refresh_tree even
@@ -68,7 +68,7 @@ class ExplorerTree(Tree[NodeData]):
         """
         t = theme.active()
         self.styles.background = t.panel
-        root_path = self.yate.workspace.root
+        root_path = self.ops.workspace.root
         if root_path is None:
             self.clear()
             self.root.label = Text(" no folder open", style=t.fg_dim)
@@ -137,7 +137,7 @@ class ExplorerTree(Tree[NodeData]):
         expanded: set[Path] | None = None,
     ) -> None:
         placeholder = Text("", style=theme.active().fg_dim)
-        for entry in self.yate.workspace.list_dir(directory):
+        for entry in self.ops.workspace.list_dir(directory):
             if entry.name in IGNORED_NAMES:
                 continue
             label = self._label(entry.path, entry.is_dir, False)
@@ -192,8 +192,8 @@ class ExplorerTree(Tree[NodeData]):
         if path.is_dir():
             event.node.toggle()
             return
-        self.yate.open_path_later(path)
-        self.yate.focus_editor()
+        self.ops.open_path_later(path)
+        self.ops.focus_editor()
 
     # ------------------------------------------------------- vim-style keys
 
@@ -213,7 +213,7 @@ class ExplorerTree(Tree[NodeData]):
         # the vim ctrl+w window chord runs before everything else (same as
         # the editor view): the pending hjkl would otherwise be eaten by
         # the navigation handlers below
-        if self.yate.try_window_prefix(event):
+        if self.ops.try_window_prefix(event):
             event.stop()
             event.prevent_default()
             return
@@ -241,27 +241,27 @@ class ExplorerTree(Tree[NodeData]):
                 self.action_cursor_parent()
         elif key == "a":
             consume()
-            self.yate.explorer_new_file_prompt(self._cursor_path())
+            self.ops.prompt_new_file(self._cursor_path())
         elif key == "A":
             consume()
-            self.yate.explorer_new_dir_prompt(self._cursor_path())
+            self.ops.prompt_new_dir(self._cursor_path())
         elif key == "H":
             consume()
-            ws = self.yate.workspace
+            ws = self.ops.workspace
             ws.show_hidden = not ws.show_hidden
             self.refresh_tree()
-            self.yate.message(
+            self.ops.message(
                 f"hidden files {'shown' if ws.show_hidden else 'hidden'}"
             )
         elif key == "r":
             consume()
-            self.yate.explorer_rename_prompt(self._cursor_path())
+            self.ops.prompt_rename(self._cursor_path())
         elif key in ("d", "delete"):
             consume()
-            self.yate.explorer_delete_prompt(self._cursor_path())
+            self.ops.prompt_delete(self._cursor_path())
         elif key == "escape":
             consume()
-            self.yate.focus_editor()
+            self.ops.focus_editor()
         elif self._is_plain_typing(event):
             # consume plain typing so it does not leak into the editor
             consume()

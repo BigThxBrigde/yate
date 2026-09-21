@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
 from textual.widgets import Input, Static
 
-from yate.interfaces import AppProtocol
-
 from . import theme
 from .icons import SEARCH, TERMINAL
+
+
+class PromptHost(Protocol):
+    """Application callbacks the prompt line needs."""
+
+    def prompt_completions(self, text: str, mode: str) -> list[str]: ...
+
+    def on_prompt_cancel(self) -> None: ...
 
 # prompt prefixes per mode: (prefix, Theme attribute name for the color)
 PREFIXES = {
@@ -51,9 +59,10 @@ class CommandInput(Input):
     }
     """
 
-    def __init__(self, yate: AppProtocol) -> None:
+    def __init__(self, bar: PromptBar, host: PromptHost) -> None:
         super().__init__()
-        self.yate = yate
+        self.bar = bar
+        self.host = host
         self.history: list[str] = []
         self._hist_index: int = -1
         # bash-style tab completion state
@@ -96,10 +105,10 @@ class CommandInput(Input):
         has not been edited) cycle through every match.
         """
         current = self.value
-        mode = self.yate.prompt_bar.active_mode if self.yate.prompt_bar else None
+        mode = self.bar.active_mode
         if mode is None:
             return
-        matches = self.yate.prompt_completions(current, mode)
+        matches = self.host.prompt_completions(current, mode)
         if not matches:
             self._reset_tab_state()
             return
@@ -127,7 +136,7 @@ class CommandInput(Input):
         if event.key in ("escape", "ctrl+c"):
             event.stop()
             event.prevent_default()
-            self.yate.on_prompt_cancel()
+            self.host.on_prompt_cancel()
             return
         if event.key == "tab":
             event.stop()
@@ -185,11 +194,11 @@ class PromptBar(Horizontal):
     }
     """
 
-    def __init__(self, yate: AppProtocol) -> None:
+    def __init__(self, host: PromptHost) -> None:
         super().__init__()
-        self.yate = yate
+        self.host = host
         self.prompt = Static("", id="cl_prompt")
-        self.input = CommandInput(yate)
+        self.input = CommandInput(self, host)
         self.message = Static(" Ready. Press F1 for help.", id="cl_msg")
         self.active_mode: str | None = None
 

@@ -27,14 +27,13 @@ The pure data model (:class:`Leaf`, :class:`Split`, :class:`Node`,
 from __future__ import annotations
 
 from itertools import count
-from typing import Optional
+from typing import Optional, Protocol
 
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
 
 from yate.editor_core.document import Document
-from yate.editor_view.editor import EditorView
-from yate.interfaces import AppProtocol
+from yate.editor_view.editor import EditorHost, EditorView
 
 from yate.editor_view.pane_types import (
     MIN_FRACTION,
@@ -68,10 +67,29 @@ __all__ = [
 # ================================================================ manager
 
 
+class PanesHost(EditorHost, Protocol):
+    """The application surface :class:`PaneManager` needs.
+
+    It extends :class:`EditorHost` because the manager creates
+    :class:`EditorView` widgets, whose host must satisfy the full editor
+    contract as well.
+    """
+
+    docs: list[Document]
+    doc_index: int
+
+    @property
+    def mounted(self) -> bool: ...
+
+    def after_pane_focus(self) -> None: ...
+
+    def focus_explorer(self) -> None: ...
+
+
 class PaneManager:
     """Owns the pane tree and mediates between app and widgets."""
 
-    def __init__(self, app: AppProtocol, doc: Document) -> None:
+    def __init__(self, app: PanesHost, doc: Document) -> None:
         self.app = app
         self._ids = count(1)
         first = Leaf(next(self._ids), doc)

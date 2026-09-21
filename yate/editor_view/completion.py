@@ -25,7 +25,6 @@ from textual.widget import Widget
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.client import Completion
-from yate.interfaces import AppProtocol
 
 from . import theme
 
@@ -89,9 +88,8 @@ class CompletionPopup(Widget):
     }
     """
 
-    def __init__(self, yate: AppProtocol, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.yate = yate
         self.items: list[Completion] = []
         self.index = 0
         self.prefix = ""

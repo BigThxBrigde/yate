@@ -18,10 +18,12 @@ import re
 import sys
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from yate import __description__, __version__
-from yate.interfaces import AppProtocol
+from yate.config import YateConfig
+from yate.editor_lsp import LspManager
+from yate.services.extensions import ExtensionLoader
 
 # Terminal environment variables worth surfacing.  Values are shown for the
 # descriptive ones; opaque session ids are reported as ``<set>`` / ``<unset>``.
@@ -56,6 +58,22 @@ _LABEL_LINE_RE = re.compile(r"^( +)(\S.*):$")
 _SECTION_TITLE_RE = re.compile(r"^\[[a-z]+\]$")
 
 
+class DiagnosticsHost(Protocol):
+    """The read-only application surface the diagnostics report needs."""
+
+    config: YateConfig
+    lsp: LspManager
+
+    @property
+    def extension_loader(self) -> ExtensionLoader: ...
+
+    @property
+    def ext_dirs(self) -> list[Path]: ...
+
+    @property
+    def ext_files(self) -> list[Path]: ...
+
+
 # ----------------------------------------------------------------- version
 
 def version_lines() -> str:
@@ -74,7 +92,7 @@ def version_lines() -> str:
 
 # ------------------------------------------------------------------ report
 
-def format_report(app: AppProtocol, *, color: bool = False) -> str:
+def format_report(app: DiagnosticsHost, *, color: bool = False) -> str:
     """Collect every diagnostic section and return the report text.
 
     With ``color=True`` the lines carry ANSI styling (section titles, keys,
@@ -118,7 +136,7 @@ def format_report(app: AppProtocol, *, color: bool = False) -> str:
     return text + "\n"
 
 
-def print_report(app: AppProtocol) -> None:
+def print_report(app: DiagnosticsHost) -> None:
     """Print the report to stdout, colored when stdout is a terminal."""
     color = sys.stdout.isatty()
     if color:
@@ -253,7 +271,7 @@ def _section_paths() -> list[str]:
 
 # ------------------------------------------------------------------ yaterc
 
-def _section_yaterc(app: AppProtocol) -> list[str]:
+def _section_yaterc(app: DiagnosticsHost) -> list[str]:
     from yate.config import find_project_config, user_config_path
 
     config = app.config
@@ -283,7 +301,7 @@ def _section_yaterc(app: AppProtocol) -> list[str]:
 
 # ------------------------------------------------------------------ config
 
-def _section_config(app: AppProtocol) -> list[str]:
+def _section_config(app: DiagnosticsHost) -> list[str]:
     c = app.config
     shell_value = c.shell if c.shell else "(default)"
     return [
@@ -342,7 +360,7 @@ def _section_syntax() -> list[str]:
 
 # -------------------------------------------------------------- extensions
 
-def _section_extensions(app: AppProtocol) -> list[str]:
+def _section_extensions(app: DiagnosticsHost) -> list[str]:
     from yate.paths import bundled_extensions_dir
 
     lines: list[str] = ["  candidate dirs:"]
@@ -386,7 +404,7 @@ def _section_extensions(app: AppProtocol) -> list[str]:
 
 # --------------------------------------------------------------------- lsp
 
-def _section_lsp(app: AppProtocol) -> list[str]:
+def _section_lsp(app: DiagnosticsHost) -> list[str]:
     configs = app.lsp.configs()
     states = app.lsp.states()
     if not configs:

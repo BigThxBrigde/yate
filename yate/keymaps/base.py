@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Protocol, Union
 
-from yate.interfaces import AppProtocol
+from yate.editor_core.buffer import TextBuffer
+from yate.editor_core.document import Document
 
 # ---------------------------------------------------------------------------
 # Key notation
@@ -166,19 +167,43 @@ class KeyBinding:
         return key_name(self.key)
 
 
+class ActionHost(Protocol):
+    """The application surface actions and key dispatch drive."""
+
+    @property
+    def buffer(self) -> TextBuffer: ...
+
+    @property
+    def doc(self) -> Document: ...
+
+    def execute_action(self, name: str) -> None: ...
+
+    def insert_char(self, ch: str) -> None: ...
+
+    def message(self, text: str, kind: str = "info") -> None: ...
+
+    def toggle_keymap(self) -> None: ...
+
+    def command_prompt(self) -> None: ...
+
+    def find_prompt(self, forward: bool) -> None: ...
+
+    def goto_prompt(self) -> None: ...
+
+
 class ActionContext:
     """Passed to every action; gives access to the running application."""
 
-    def __init__(self, app: AppProtocol) -> None:
-        self.app = app
+    def __init__(self, host: ActionHost) -> None:
+        self.host = host
 
     @property
-    def buffer(self):
-        return self.app.buffer
+    def buffer(self) -> TextBuffer:
+        return self.host.buffer
 
     @property
-    def doc(self):
-        return self.app.doc
+    def doc(self) -> Document:
+        return self.host.doc
 
 
 class Keymap:
@@ -223,7 +248,7 @@ class Keymap:
         if callable(action):
             action(ctx)
         else:
-            ctx.app.execute_action(action)
+            ctx.host.execute_action(action)
         return True
 
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
@@ -235,6 +260,6 @@ class Keymap:
     def handle_unbound(self, ctx: ActionContext, key: str) -> bool:
         """Default: printable characters insert themselves."""
         if len(key) == 1 and key.isprintable():
-            ctx.app.insert_char(key)
+            ctx.host.insert_char(key)
             return True
         return False

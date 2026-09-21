@@ -1,40 +1,59 @@
 """Bundled markdown doc viewer lifecycle: manual + changelog.
 
-Extracted from :class:`yate.app.YateApp` (same collaborator shape as
-``app_features.terminal``).  The viewer's design tokens already match the
-running yate theme through the Textual theme bridge registered at startup,
-so :func:`show_doc` only has to push the overlay screen -- no theme
-switch / restore is needed.
+The viewer's design tokens already match the running yate theme through the
+Textual theme bridge registered at startup, so :meth:`DocsFeature.show_doc`
+only has to push the overlay screen -- no theme switch / restore is needed.
 """
 
 from __future__ import annotations
 
+from typing import Any, Callable, Optional, Protocol
+
+from textual.screen import Screen
+
 from yate.editor_view.manual import MarkdownDocScreen
-from yate.interfaces import AppProtocol
-
-# Extracted YateApp collaborator: this module only reads app.mounted and
-# app.screen, and pushes an overlay through app._push_overlay -- no private
-# theme state to touch anymore.
-# pyright: reportPrivateUsage=false
 
 
-def show_doc(app: AppProtocol, *, kind: str, lang: str, title: str) -> None:
-    """Push the MarkdownDocScreen for *kind* / *lang* / *title*.
+class DocsHost(Protocol):
+    """What :class:`DocsFeature` needs from the application."""
 
-    The viewer's frame chrome (borders, markdown headings, search-hit tints)
-    already follows the active yate theme through the Textual theme bridge,
-    so there is no theme switch before the push and no restore on close.
-    """
-    if not app.mounted or isinstance(app.screen, MarkdownDocScreen):
-        return
-    app._push_overlay(MarkdownDocScreen(app, kind=kind, lang=lang, title=title))
+    @property
+    def mounted(self) -> bool: ...
+
+    @property
+    def screen(self) -> Screen[object]: ...
+
+    def push_overlay(
+        self,
+        screen: Screen[Any],
+        callback: Optional[Callable[[Any], None]] = None,
+    ) -> None: ...
 
 
-def show_manual(app: AppProtocol, lang: str = "en") -> None:
-    """Open the bundled user manual."""
-    show_doc(app, kind="manual", lang=lang, title="user manual")
+class DocsFeature:
+    """Push the bundled manual / changelog overlay screens."""
 
+    def __init__(self, host: DocsHost) -> None:
+        self._host = host
 
-def show_changelog(app: AppProtocol, lang: str = "en") -> None:
-    """Open the bundled bilingual changelog."""
-    show_doc(app, kind="changelog", lang=lang, title="changelog")
+    def show_doc(self, *, kind: str, lang: str, title: str) -> None:
+        """Push the MarkdownDocScreen for *kind* / *lang* / *title*.
+
+        The viewer's frame chrome (borders, markdown headings, search-hit
+        tints) already follows the active yate theme through the Textual
+        theme bridge, so there is no theme switch before the push and no
+        restore on close.
+        """
+        if (not self._host.mounted
+                or isinstance(self._host.screen, MarkdownDocScreen)):
+            return
+        self._host.push_overlay(
+            MarkdownDocScreen(kind=kind, lang=lang, title=title))
+
+    def show_manual(self, lang: str = "en") -> None:
+        """Open the bundled user manual."""
+        self.show_doc(kind="manual", lang=lang, title="user manual")
+
+    def show_changelog(self, lang: str = "en") -> None:
+        """Open the bundled bilingual changelog."""
+        self.show_doc(kind="changelog", lang=lang, title="changelog")

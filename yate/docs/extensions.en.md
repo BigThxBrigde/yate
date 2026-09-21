@@ -172,7 +172,7 @@ def _upper(ctx):
 | `api.doc` | `Document` | active document (path, saving, etc.) |
 | `api.workspace` | `Workspace` | file-tree workspace |
 | `api.keymaps` | `dict[str, Keymap]` | all loaded keymaps (`vsc`/`vim`) |
-| `api.app` | `YateApp` | the application itself (advanced use) |
+| `api.app` | `ExtensionHost` | the application host protocol (advanced use) |
 
 **Common `api.buffer` (TextBuffer) methods**:
 

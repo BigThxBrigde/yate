@@ -8,9 +8,55 @@ name, and extensions can register new ones.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Protocol
 
 from yate.keymaps.base import ActionContext
+
+
+class SessionOps(Protocol):
+    """Session-level operations the built-in actions drive."""
+
+    def page(self, direction: int, half: bool = False) -> None: ...
+
+    def save_document(self) -> None: ...
+
+    def prompt_open(self) -> None: ...
+
+    def new_buffer(self, show: bool = True) -> None: ...
+
+    def close_tab(self) -> None: ...
+
+    def cycle_tab(self, delta: int) -> None: ...
+
+    def quit(self, force: bool = False) -> None: ...
+
+    def find_prompt(self, forward: bool) -> None: ...
+
+    def find_next(self, forward: bool) -> None: ...
+
+    def replace_prompt(self) -> None: ...
+
+    def command_prompt(self) -> None: ...
+
+    def goto_prompt(self) -> None: ...
+
+    def open_file_palette(self) -> None: ...
+
+    def open_command_palette(self) -> None: ...
+
+    def shell_prompt(self) -> None: ...
+
+    def focus_editor(self) -> None: ...
+
+    def focus_explorer(self) -> None: ...
+
+    def toggle_explorer(self) -> None: ...
+
+    def toggle_keymap(self) -> None: ...
+
+    def show_manual(self, lang: str = "en") -> None: ...
+
+    def show_help(self) -> None: ...
 
 
 @dataclass
@@ -55,8 +101,12 @@ class ActionRegistry:
         return sorted((a.name, a.description) for a in self._actions.values())
 
 
-def populate(registry: ActionRegistry) -> None:
-    """Register all built-in actions."""
+def populate(registry: ActionRegistry, ops: SessionOps) -> None:
+    """Register all built-in actions.
+
+    Editing actions work on :attr:`ActionContext.buffer`; session-level
+    actions call *ops* (the narrow application surface they need).
+    """
     reg = registry.register
 
     # ------------------------------------------------------------- editing
@@ -88,10 +138,10 @@ def populate(registry: ActionRegistry) -> None:
     reg("line_end", lambda ctx: ctx.buffer.move_line_end(), "Go to line end")
     reg("doc_start", lambda ctx: ctx.buffer.move_doc_start(), "Go to document start")
     reg("doc_end", lambda ctx: ctx.buffer.move_doc_end(), "Go to document end")
-    reg("page_up", lambda ctx: ctx.app.page(-1), "Page up")
-    reg("page_down", lambda ctx: ctx.app.page(1), "Page down")
-    reg("page_half_up", lambda ctx: ctx.app.page(-1, half=True), "Half page up")
-    reg("page_half_down", lambda ctx: ctx.app.page(1, half=True), "Half page down")
+    reg("page_up", lambda ctx: ops.page(-1), "Page up")
+    reg("page_down", lambda ctx: ops.page(1), "Page down")
+    reg("page_half_up", lambda ctx: ops.page(-1, half=True), "Half page up")
+    reg("page_half_down", lambda ctx: ops.page(1, half=True), "Half page down")
 
     # ----------------------------------------------------------- selection
 
@@ -138,31 +188,31 @@ def populate(registry: ActionRegistry) -> None:
 
     # --------------------------------------------------------------- files
 
-    reg("save", lambda ctx: ctx.app.save_document(), "Save file")
-    reg("open_prompt", lambda ctx: ctx.app.prompt_open(), "Open file by path")
-    reg("new_buffer", lambda ctx: ctx.app.new_buffer(), "New empty buffer")
-    reg("close_tab", lambda ctx: ctx.app.close_tab(), "Close current tab")
-    reg("quit", lambda ctx: ctx.app.quit(), "Quit yate")
+    reg("save", lambda ctx: ops.save_document(), "Save file")
+    reg("open_prompt", lambda ctx: ops.prompt_open(), "Open file by path")
+    reg("new_buffer", lambda ctx: ops.new_buffer(), "New empty buffer")
+    reg("close_tab", lambda ctx: ops.close_tab(), "Close current tab")
+    reg("quit", lambda ctx: ops.quit(), "Quit yate")
 
     # -------------------------------------------------------------- search
 
-    reg("find", lambda ctx: ctx.app.find_prompt(True), "Find")
-    reg("find_next", lambda ctx: ctx.app.find_next(True), "Next match")
-    reg("find_prev", lambda ctx: ctx.app.find_next(False), "Previous match")
-    reg("replace", lambda ctx: ctx.app.replace_prompt(), "Find & replace")
+    reg("find", lambda ctx: ops.find_prompt(True), "Find")
+    reg("find_next", lambda ctx: ops.find_next(True), "Next match")
+    reg("find_prev", lambda ctx: ops.find_next(False), "Previous match")
+    reg("replace", lambda ctx: ops.replace_prompt(), "Find & replace")
 
     # ---------------------------------------------------------------- view
 
-    reg("command_prompt", lambda ctx: ctx.app.command_prompt(), "Ex command prompt")
-    reg("goto_prompt", lambda ctx: ctx.app.goto_prompt(), "Go to line (enter a line number)")
-    reg("quick_open", lambda ctx: ctx.app.open_file_palette(), "Quick file open")
-    reg("command_palette", lambda ctx: ctx.app.open_command_palette(), "Command palette")
-    reg("focus_explorer", lambda ctx: ctx.app.focus_explorer(), "Focus explorer")
-    reg("focus_editor", lambda ctx: ctx.app.focus_editor(), "Focus editor")
-    reg("toggle_explorer", lambda ctx: ctx.app.toggle_explorer(), "Toggle explorer")
-    reg("manual", lambda ctx: ctx.app.show_manual(), "Open the user manual")
-    reg("shell_prompt", lambda ctx: ctx.app.shell_prompt(), "Run shell command")
-    reg("prev_tab", lambda ctx: ctx.app.cycle_tab(-1), "Previous tab")
-    reg("next_tab", lambda ctx: ctx.app.cycle_tab(1), "Next tab")
-    reg("help", lambda ctx: ctx.app.show_help(), "Keyboard shortcuts help")
-    reg("toggle_keymap", lambda ctx: ctx.app.toggle_keymap(), "Toggle vsc/vim keymap")
+    reg("command_prompt", lambda ctx: ops.command_prompt(), "Ex command prompt")
+    reg("goto_prompt", lambda ctx: ops.goto_prompt(), "Go to line (enter a line number)")
+    reg("quick_open", lambda ctx: ops.open_file_palette(), "Quick file open")
+    reg("command_palette", lambda ctx: ops.open_command_palette(), "Command palette")
+    reg("focus_explorer", lambda ctx: ops.focus_explorer(), "Focus explorer")
+    reg("focus_editor", lambda ctx: ops.focus_editor(), "Focus editor")
+    reg("toggle_explorer", lambda ctx: ops.toggle_explorer(), "Toggle explorer")
+    reg("manual", lambda ctx: ops.show_manual(), "Open the user manual")
+    reg("shell_prompt", lambda ctx: ops.shell_prompt(), "Run shell command")
+    reg("prev_tab", lambda ctx: ops.cycle_tab(-1), "Previous tab")
+    reg("next_tab", lambda ctx: ops.cycle_tab(1), "Next tab")
+    reg("help", lambda ctx: ops.show_help(), "Keyboard shortcuts help")
+    reg("toggle_keymap", lambda ctx: ops.toggle_keymap(), "Toggle vsc/vim keymap")
