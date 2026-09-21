@@ -152,7 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     # Best-effort native-crash / uncaught-exception log (~/.yate/data/).
     # First line so even startup failures are covered.
-    from yate import crash, tracing  # pylint: disable=import-outside-toplevel
+    from yate.logs import crash, tracing  # pylint: disable=import-outside-toplevel
 
     crash.install()
     # Trace pass 1: environment only (YATE_TRACE / YATE_TRACE_LEVEL), so
@@ -211,7 +211,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # before deleting (no diagnostics are needed for an exit-only CLI).
         # Same for an open trace log under data/logs/.
         if args.include_data:
-            from yate import crash, tracing  # pylint: disable=import-outside-toplevel
+            from yate.logs import crash, tracing  # pylint: disable=import-outside-toplevel
 
             crash.uninstall()
             tracing.uninstall()
@@ -253,8 +253,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
 
     # Trace pass 2: yaterc's yate_trace / yate_trace_level are known now.
-    # An environment variable still wins over the rc files.
-    tracing.install(config)
+    # An environment variable still wins over the rc files. configure() is
+    # the rc-stage spelling of install(): the level name is resolved inside
+    # the service, not here.
+    tracing.configure(
+        yate_trace=config.yate_trace,
+        yate_trace_level=config.yate_trace_level,
+    )
     log = tracing.get_logger("cli")
     log.info("startup: argv=%r cwd=%s", sys.argv, Path.cwd())
     log.info(
