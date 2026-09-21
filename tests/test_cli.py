@@ -122,7 +122,7 @@ def _run_changelog(
 ) -> tuple[int, str]:
     with patch("yate.app.YateApp") as fake_app, \
             patch("yate.config.load_config") as load_config, \
-            patch("yate.crash.install"):
+            patch("yate.logs.crash.install"):
         rc = main(argv)
     out = capsys.readouterr().out
     fake_app.assert_not_called()
@@ -165,7 +165,7 @@ def test_version_prints_basic_info_and_exits_zero(
 ) -> None:
     with patch("yate.app.YateApp") as fake_app, \
             patch("yate.config.load_config") as load_config, \
-            patch("yate.crash.install"):
+            patch("yate.logs.crash.install"):
         rc = main(["--version"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -186,7 +186,7 @@ def test_diag_prints_report_without_running_tui(
     sentinel = "DIAG-REPORT-SENTINEL"
     with patch("yate.app.YateApp", _FakeApp), \
             patch("yate.diagnostics.format_report", return_value=sentinel) as fmt, \
-            patch("yate.crash.install"):
+            patch("yate.logs.crash.install"):
         rc = main(["-u", "NONE", "--diag"])
     assert rc == 0
     assert sentinel in capsys.readouterr().out
@@ -202,7 +202,7 @@ def test_diag_with_none_yaterc_reports_no_rc_loaded(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """-u NONE --diag must report that no yaterc was loaded."""
-    monkeypatch.setattr("yate.crash.install", lambda: None)
+    monkeypatch.setattr("yate.logs.crash.install", lambda: None)
     rc = main(["-u", "NONE", "--diag"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -232,7 +232,7 @@ def _run_main(
     argv: list[str], capsys: pytest.CaptureFixture[str]
 ) -> dict[str, object]:
     with patch("yate.app.YateApp", _FakeApp), \
-            patch("yate.crash.install") as install_crash:
+            patch("yate.logs.crash.install") as install_crash:
         rc = main(argv)
     capsys.readouterr()  # drain main()'s stdout
     assert rc == 0
@@ -320,7 +320,7 @@ def _run_setup(
         cleanup = MagicMock()
     with patch("yate.app.YateApp") as fake_app, \
             patch("yate.config.load_config") as load_config, \
-            patch("yate.crash.install"), \
+            patch("yate.logs.crash.install"), \
             patch.object(user_setup, "setup_defaults", setup) as s, \
             patch.object(user_setup, "cleanup_defaults", cleanup) as c:
         rc = main(argv)
@@ -396,7 +396,7 @@ def test_cleanup_defaults_passes_force_and_include_data(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     cleanup = MagicMock(return_value=_cleanup_report())
-    with patch("yate.crash.uninstall") as uninstall:
+    with patch("yate.logs.crash.uninstall") as uninstall:
         rc, _, _, c = _run_setup(
             ["--cleanup-defaults", "--force", "--include-data"],
             capsys,
@@ -413,7 +413,7 @@ def test_cleanup_without_include_data_keeps_crash_handle(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     cleanup = MagicMock(return_value=_cleanup_report())
-    with patch("yate.crash.uninstall") as uninstall:
+    with patch("yate.logs.crash.uninstall") as uninstall:
         rc, _, _, _ = _run_setup(
             ["--cleanup-defaults", "--force"], capsys, cleanup=cleanup
         )

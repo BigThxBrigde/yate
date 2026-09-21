@@ -1,5 +1,4 @@
-# pyright: reportPrivateUsage=false
-"""Tests for the runtime trace log (yate.tracing)."""
+"""Tests for the runtime trace log (yate.logs.tracing)."""
 
 from __future__ import annotations
 
@@ -9,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from yate import logs, tracing
+from yate import logs
+from yate.logs import env_level, env_trace, resolve_level, tracing
 
 
 @pytest.fixture(autouse=True)
@@ -42,23 +42,21 @@ def _log_text() -> str:
 
 
 def test_resolve_level_maps_builtin_names() -> None:
-    assert tracing.resolve_level("DEBUG") == logging.DEBUG
-    assert tracing.resolve_level("info") == logging.INFO
-    assert tracing.resolve_level(" Warning ") == logging.WARNING
-    assert tracing.resolve_level("error") == logging.ERROR
-    assert tracing.resolve_level("CRITICAL") == logging.CRITICAL
+    assert resolve_level("DEBUG") == logging.DEBUG
+    assert resolve_level("info") == logging.INFO
+    assert resolve_level(" Warning ") == logging.WARNING
+    assert resolve_level("error") == logging.ERROR
+    assert resolve_level("CRITICAL") == logging.CRITICAL
 
 
 def test_resolve_level_rejects_unknown_names() -> None:
-    assert tracing.resolve_level("VERBOSE") is None
-    assert tracing.resolve_level("") is None
-    assert tracing.resolve_level("10") is None
+    assert resolve_level("VERBOSE") is None
+    assert resolve_level("") is None
+    assert resolve_level("10") is None
 
 
 def test_get_logger_names_children_without_doubling_prefix() -> None:
-    # root_logger is a property, so it lives on the singleton -- the shell
-    # can only re-export plain methods and constants.
-    assert tracing.get_logger() is logs.tracing.root_logger
+    assert tracing.get_logger() is tracing.root_logger
     assert tracing.get_logger("yate").name == "yate"
     assert tracing.get_logger("editor_lsp").name == "yate.editor_lsp"
     assert (
@@ -130,8 +128,8 @@ def test_invalid_env_values_warn_and_fall_back(
 ) -> None:
     monkeypatch.setenv("YATE_TRACE", "maybe")
     monkeypatch.setenv("YATE_TRACE_LEVEL", "chatty")
-    assert tracing.env_trace() is None
-    assert tracing.env_level() is None
+    assert env_trace() is None
+    assert env_level() is None
     # yaterc decides then; with it off nothing is written, but both bad
     # values were reported once on stderr.
     assert tracing.install(yate_trace=False) is False
@@ -201,7 +199,7 @@ def test_second_install_keeps_file_and_adjusts_level(
     # Pass 2, like cli.py: the yaterc level is a plain string.
     tracing.configure(yate_trace=True, yate_trace_level="WARNING")
     assert tracing.current_log_path() == path
-    assert len(logs.tracing.file_handlers()) == 1
+    assert len(tracing.file_handlers()) == 1
     log = tracing.get_logger("demo")
     log.info("dropped")
     log.warning("kept")
@@ -229,7 +227,7 @@ def test_install_is_idempotent(isolated_home: Path, monkeypatch: pytest.MonkeyPa
     assert tracing.install() is True
     assert tracing.install() is True
     assert tracing.current_log_path() == first
-    assert len(logs.tracing.file_handlers()) == 1
+    assert len(tracing.file_handlers()) == 1
     tracing.get_logger("demo").info("once")
     assert len(_log_files()) == 1
     assert _log_text().count("trace session ===") == 1
@@ -253,8 +251,8 @@ def test_unwritable_logs_dir_only_warns(
     def denied() -> Path:
         raise OSError("denied")
 
-    # install() resolves the helper from its own module globals, so
-    # yate.logs is patched here -- not the yate.tracing shell.
+    # install() resolves the helper from the module globals of yate.logs, so
+    # the module function is patched here, not the service object.
     monkeypatch.setattr(logs, "logs_dir", denied)
     monkeypatch.setenv("YATE_TRACE", "1")
     assert tracing.install() is False

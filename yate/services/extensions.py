@@ -33,7 +33,6 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Mapping, Optional, Sequence, cast
 
-from yate import tracing
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_syntax import (
     LangSpec,
@@ -44,6 +43,7 @@ from yate.editor_syntax import (
 from yate.editor_syntax.ts_backend import load_language_from_grammar
 from yate.interfaces import AppProtocol
 from yate.keymaps.base import Keymap
+from yate.logs import tracing
 
 CommandFunc = Callable[[str], object]
 

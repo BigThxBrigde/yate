@@ -22,7 +22,7 @@ from textual.events import Key, MouseDown
 from textual.screen import Screen
 from textual.widgets import Input, Static
 
-from yate import __version__, tracing
+from yate import __version__
 from yate.actions import ActionRegistry, populate
 from yate.app_features import docs, explorer, terminal
 from yate.app_features.commands import CommandRegistry, register_commands
@@ -47,6 +47,7 @@ from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.keymaps.base import ActionContext, Keymap
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
 from yate.services import fonts
 from yate.services.extensions import ExtensionAPI, ExtensionLoader, LoadedExtension

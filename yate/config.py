@@ -39,8 +39,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Sequence, cast
 
-from yate import tracing
 from yate.editor_view import theme as themes
+from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
 
 #: File name yate looks for in the project tree.
 RC_FILENAME = "yaterc"
@@ -55,8 +55,8 @@ _KNOWN_OPTIONS = (
 _VALID_KEYMAPS = ("vsc", "vim")
 
 #: Accepted ``yate_trace_level`` values -- :mod:`logging`'s built-in levels
-#: (single source of truth: :data:`yate.tracing.LEVEL_NAMES`).
-_VALID_TRACE_LEVELS = tracing.LEVEL_NAMES
+#: (single source of truth: :data:`yate.logs.LEVEL_NAMES`).
+_VALID_TRACE_LEVELS = LEVEL_NAMES
 
 
 @dataclass
@@ -105,8 +105,8 @@ class YateConfig:
     #: overrides it per session.
     yate_trace: bool = False
     #: Trace verbosity (``yate_trace_level = "DEBUG"`` in yaterc), one of
-    #: :data:`yate.tracing.LEVEL_NAMES`. ``YATE_TRACE_LEVEL`` overrides it.
-    yate_trace_level: str = tracing.DEFAULT_LEVEL
+    #: :data:`yate.logs.LEVEL_NAMES`. ``YATE_TRACE_LEVEL`` overrides it.
+    yate_trace_level: str = DEFAULT_LEVEL
     #: Extra extension paths (directories or ``.py`` files) declared by rc
     #: files, accumulated in load order (user rc first, project rc after).
     extension_paths: list[Path] = field(default_factory=list[Path])

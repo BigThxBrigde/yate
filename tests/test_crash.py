@@ -1,5 +1,10 @@
 # pyright: reportPrivateUsage=false
-"""Tests for best-effort crash diagnostics (yate.crash)."""
+"""Tests for best-effort crash diagnostics (yate.logs.crash).
+
+State lives on the ``CrashService`` singleton and its public properties are
+read-only, so a fixture resets the backing attributes directly (hence the
+private-usage pragma above) -- the same way it restores ``sys.excepthook``.
+"""
 
 from __future__ import annotations
 
@@ -15,15 +20,15 @@ from unittest import mock
 import pytest
 
 import yate
-from yate import crash, logs
-from yate.logs import crash as crash_service
+from yate import logs
+from yate.logs import crash
 
 
 # --- data dir ---------------------------------------------------------------
 
 
 def test_crash_data_dir_creates_home_yate_data(isolated_home: Path) -> None:
-    directory = crash.crash_data_dir()
+    directory = logs.crash_data_dir()
     assert directory == isolated_home / ".yate" / "data"
     assert directory.is_dir()
 
@@ -32,13 +37,13 @@ def test_crash_data_dir_creates_home_yate_data(isolated_home: Path) -> None:
 
 
 def test_name_is_timestamped_err_under_dir(tmp_path: Path) -> None:
-    path = crash_service.build_err_path(tmp_path, datetime(2026, 9, 13, 10, 15, 30))
+    path = crash.build_err_path(tmp_path, datetime(2026, 9, 13, 10, 15, 30))
     assert path.parent == tmp_path
     assert path.name == "crash-20260913-101530.err"
 
 
 def test_defaults_to_current_time(tmp_path: Path) -> None:
-    path = crash_service.build_err_path(tmp_path)
+    path = crash.build_err_path(tmp_path)
     assert re.match(r"^crash-\d{8}-\d{6}\.err$", path.name)
 
 
@@ -46,11 +51,11 @@ def test_defaults_to_current_time(tmp_path: Path) -> None:
 
 
 def _reset_crash_state() -> None:
-    # The state lives on the singleton now: the public ``err_file`` /
-    # ``err_path`` / ``had_crash`` properties read these backing attributes.
-    crash_service._err_file = None
-    crash_service._err_path = None
-    crash_service._crashed = False
+    # Fresh state per test: the properties read these backing attributes, and
+    # the hook to chain to is saved/restored separately.
+    crash._err_file = None
+    crash._err_path = None
+    crash._crashed = False
 
 
 @pytest.fixture
@@ -61,18 +66,18 @@ def crash_state(isolated_home: Path) -> Iterator[Path]:
     the yielded path is the isolated home.
     """
     saved_hook = sys.excepthook
-    saved_original = crash_service.original_excepthook
+    saved_original = crash.original_excepthook
     faulthandler_was_enabled = faulthandler.is_enabled()
     _reset_crash_state()
     yield isolated_home
-    handle = crash_service.err_file
+    handle = crash.err_file
     if handle is not None:
         try:
             handle.close()
         except OSError:
             pass
     _reset_crash_state()
-    crash_service._original_excepthook = saved_original
+    crash._original_excepthook = saved_original
     sys.excepthook = saved_hook
     # Re-point faulthandler away from any (possibly closed) temp fd.
     faulthandler.disable()
@@ -87,7 +92,7 @@ def _report_files(home: Path) -> list[Path]:
 def test_install_creates_report_with_header_and_enables_faulthandler(
     crash_state: Path,
 ) -> None:
-    crash_service.install()
+    crash.install()
     assert faulthandler.is_enabled()
     files = _report_files(crash_state)
     assert len(files) == 1
@@ -99,10 +104,10 @@ def test_install_creates_report_with_header_and_enables_faulthandler(
 
 
 def test_install_is_idempotent(crash_state: Path) -> None:
-    crash_service.install()
+    crash.install()
     first_hook = sys.excepthook
-    crash_service.install()
-    crash_service.install()
+    crash.install()
+    crash.install()
     assert len(_report_files(crash_state)) == 1
     assert sys.excepthook is first_hook
 
@@ -110,27 +115,27 @@ def test_install_is_idempotent(crash_state: Path) -> None:
 def test_uninstall_releases_handle_and_deletes_healthy_report(
     crash_state: Path,
 ) -> None:
-    crash_service.install()
-    report = crash_service.current_crash_file()
+    crash.install()
+    report = crash.current_crash_file()
     assert report is not None
     assert report.is_file()
 
-    crash_service.uninstall()
+    crash.uninstall()
     # The Windows --include-data cleanup relies on the handle being
     # released and the healthy report disappearing from data/.
     assert not report.exists()
-    assert crash_service.current_crash_file() is None
+    assert crash.current_crash_file() is None
     assert not faulthandler.is_enabled()
     # Idempotent: atexit calls it again on interpreter shutdown.
-    crash_service.uninstall()
+    crash.uninstall()
 
 
 def test_excepthook_appends_traceback_and_delegates_to_original(
     crash_state: Path,
 ) -> None:
     sentinel = mock.Mock()
-    crash_service._original_excepthook = sentinel
-    crash_service.install()
+    crash._original_excepthook = sentinel
+    crash.install()
 
     err = RuntimeError("boom")
     sys.excepthook(RuntimeError, err, None)
@@ -142,18 +147,18 @@ def test_excepthook_appends_traceback_and_delegates_to_original(
 
 
 def test_clean_exit_removes_header_only_report(crash_state: Path) -> None:
-    crash_service.install()
+    crash.install()
     assert len(_report_files(crash_state)) == 1
-    crash_service.cleanup_on_exit()
+    crash.cleanup_on_exit()
     assert _report_files(crash_state) == []
-    assert crash_service.err_file is None
+    assert crash.err_file is None
 
 
 def test_report_is_kept_after_uncaught_exception(crash_state: Path) -> None:
-    crash_service._original_excepthook = mock.Mock()
-    crash_service.install()
+    crash._original_excepthook = mock.Mock()
+    crash.install()
     sys.excepthook(ValueError, ValueError("kept"), None)
-    crash_service.cleanup_on_exit()
+    crash.cleanup_on_exit()
     files = _report_files(crash_state)
     assert len(files) == 1
     assert "ValueError: kept" in files[0].read_text(encoding="utf-8")
@@ -171,16 +176,16 @@ def test_unwritable_data_dir_falls_back_to_stderr_without_raising(
 ) -> None:
     stderr_path = tmp_path / "stderr.txt"
     with open(stderr_path, "w", encoding="utf-8") as fake_stderr:
-        # install() resolves the helper from its own module globals, so
-        # yate.logs is patched here -- not the yate.crash shell.
+        # install() resolves the helper from the module globals of yate.logs,
+        # so the module function is patched here, not the service object.
         monkeypatch.setattr(logs, "crash_data_dir", _denied_data_dir)
         monkeypatch.setattr(sys, "stderr", fake_stderr)
         hook_before = sys.excepthook
-        crash_service.install()  # must not raise
+        crash.install()  # must not raise
     assert faulthandler.is_enabled()
     assert _report_files(crash_state) == []
     assert sys.excepthook is hook_before  # original hook kept
-    assert crash_service.err_file is None
+    assert crash.err_file is None
 
 
 def test_install_keeps_working_when_stderr_lacks_a_fileno(
@@ -190,5 +195,5 @@ def test_install_keeps_working_when_stderr_lacks_a_fileno(
     # then install() must swallow it and leave the editor launchable.
     monkeypatch.setattr(logs, "crash_data_dir", _denied_data_dir)
     monkeypatch.setattr(sys, "stderr", io.StringIO())
-    crash_service.install()  # must not raise
-    assert crash_service.err_file is None
+    crash.install()  # must not raise
+    assert crash.err_file is None

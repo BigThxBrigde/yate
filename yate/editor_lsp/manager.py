@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional, cast
 
-from yate import tracing
 from yate.editor_core.document import Document
+from yate.logs import tracing
 
 from . import protocol
 from .client import (

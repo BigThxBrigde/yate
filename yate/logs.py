@@ -1,12 +1,13 @@
 """Unified logging for yate: crash reports and runtime tracing.
 
-Both services live here as independent singletons and share nothing but a
-handful of module-level helpers -- no base class, no cross-reference between
-the two classes, and no :mod:`yate.config` dependency (the yaterc values are
-passed in as plain scalars), so this module imports only the standard library
-plus :data:`yate.__version__`. Keeping it a leaf lets anything import it --
-including the :mod:`yate.crash` / :mod:`yate.tracing` shells, which are pulled
-in while :mod:`yate.services` is still initializing.
+Both services live here as independent singletons and know nothing about each
+other. Callers import them straight from this module::
+
+    from yate.logs import crash, tracing
+
+    crash.install()                            # ~/.yate/data/crash-*.err
+    tracing.install(yate_trace=True)           # ~/.yate/data/logs/yate-*.log
+    log = tracing.get_logger(__name__)
 
 * :data:`crash` -- best-effort crash diagnostics. :meth:`CrashService.install`
   eagerly opens ``~/.yate/data/crash-*.err``, writes a metadata header, points
@@ -19,14 +20,17 @@ in while :mod:`yate.services` is still initializing.
   first emitted record, so an early-exit command (``yate --version``) leaves no
   empty shell behind even with ``YATE_TRACE=1``.
 
-Both write the same process metadata in the same order
+The two share nothing but the module-level helpers below them -- no base class,
+no cross-reference between the classes, no :mod:`yate.config` dependency (the
+yaterc values arrive as plain scalars). That keeps this module a *leaf*: it
+imports only the standard library plus :data:`yate.__version__`, so importing
+it is safe from anywhere, including modules pulled in while a package is still
+initializing.
+
+Both services write the same process metadata in the same order
 (:func:`build_session_header`), so a crash report and a trace log are read the
 same way. Everything here is best-effort: an unwritable directory prints one
 warning on stderr and the editor still starts.
-
-The thin shells :mod:`yate.crash` and :mod:`yate.tracing` re-export the two
-singletons together with these helpers, keeping every existing call site
-(``from yate import crash, tracing``) unchanged.
 """
 
 from __future__ import annotations
@@ -186,8 +190,11 @@ def _trace_header(level: int) -> str:
     )
 
 
-class SessionFileHandler(logging.FileHandler):
+class _SessionFileHandler(logging.FileHandler):
     """File handler that opens lazily and starts the file with a header.
+
+    Private: it is the implementation of :meth:`TracingService.install`, with
+    no caller outside this module.
 
     Two properties matter here:
 
@@ -488,7 +495,7 @@ class TracingService:
             path = logs_dir() / (
                 f"{LOG_PREFIX}{datetime.now():%Y%m%d-%H%M%S}{LOG_SUFFIX}"
             )
-            handler = SessionFileHandler(path, level)
+            handler = _SessionFileHandler(path, level)
         except OSError as exc:
             warn(f"trace log unavailable: {exc}")
             return False

@@ -223,11 +223,11 @@ def _section_shell() -> list[str]:
 # ------------------------------------------------------------------ paths
 
 def _section_paths() -> list[str]:
+    from yate.logs import crash, crash_data_dir
     from yate.paths import bundled_extensions_dir, package_root
-    from yate import crash
 
     user_dir = Path.home() / ".yate"
-    crash_dir = crash.crash_data_dir()
+    crash_dir = crash_data_dir()
     current_crash = crash.current_crash_file()
     all_crashes = sorted(crash_dir.glob("crash-*.err")) if crash_dir.is_dir() else []
     # Exclude this process's own header-only placeholder: it is not a
