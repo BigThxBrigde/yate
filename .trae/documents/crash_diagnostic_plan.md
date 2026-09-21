@@ -44,27 +44,31 @@ yate 当时**没有**任何崩溃诊断机制：
 
 ### 2.1 模块归属（现行）
 
-实现位于 **`yate/logs.py`**：`CrashService` 类 + 模块级单例 `crash`；
-`yate/crash.py` 退化为**薄壳**（36 行），只再导出有调用点的名字，
-保持 `from yate import crash; crash.install()` 这类既有写法可用。
+实现位于 **`yate/logs.py`**：`CrashService` 类 + 模块级单例 `crash`。
+调用方直接取单例：`from yate.logs import crash` → `crash.install()`；
+模块级纯函数按名字导入（`from yate.logs import crash, crash_data_dir` →
+`crash_data_dir()`）。曾经短暂存在的 `yate/crash.py` 薄壳已在最终版删除（见 §8）。
 
 | 初稿设计（`yate/crash.py` 模块级） | 现行 |
 |------------------------------------|------|
-| `crash_data_dir()` | 仍是**模块级纯函数**（`yate/logs.py`），薄壳 `crash.crash_data_dir()` 可用；`yate/diagnostics.py` 也走它 |
+| `crash_data_dir()` | 仍是**模块级纯函数**（`yate/logs.py`）；`yate/diagnostics.py` 与测试按名导入它 |
 | `_err_file_path()` | `CrashService.build_err_path(directory, now=None)` |
 | `_write_header()` | `CrashService._write_header(handle)` → 复用 `build_session_header(title=f"yate {__version__} crash report")`（与 trace 头部同一个构造函数，输出字节级一致） |
-| `install()` | `CrashService.install()`（幂等，返回 `None`）；薄壳再导出 |
+| `install()` | `CrashService.install()`（幂等，返回 `None`），经单例调用 |
 | 模块级 `_err_file` / `_err_path` / `_crashed` / `_original_excepthook` | 类的实例属性，配公开只读属性 `err_file` / `err_path` / `had_crash` / `original_excepthook` |
 | `_excepthook` / `_cleanup_on_exit`（闭包/私有函数） | 实例方法 `_excepthook()` / `cleanup_on_exit()`（后者公开，供 atexit 与测试调用） |
 | *（新增）* | `uninstall()`、`current_path()` / `current_crash_file()`、`is_enabled()` |
 
-薄壳保留的名字只有：`crash_data_dir`、`install`、`uninstall`、`current_crash_file`（`install`/`uninstall` 还被 `tests/test_cli.py` 的 `patch("yate.crash.…")` 依赖）。其余（`CrashService`、`err_file` 等状态、`build_err_path()`、`cleanup_on_exit()`、文件名常量）统一从 `yate.logs` 取，避免同一 API 有两个地址。
+调用方式只有一条规则：**对象从 `yate.logs` 取**（`from yate.logs import crash`），
+**常量与纯函数按名导入**（`crash_data_dir`、`LEVEL_NAMES`、`resolve_level` …）——
+它们在模块里本来就不是单例的成员（`crash.crash_data_dir()` 这种写法已不存在）。
+薄壳删除后，同一个 API 只有一个地址，不存在"一会儿 `logs.xxx`、一会儿薄壳"的混淆。
 
 ### 2.2 集成点
 
 ```python
 # yate/cli.py 的 main() 最前面
-from yate import crash, tracing
+from yate.logs import crash, tracing
 
 crash.install()          # 第一件事：整个进程生命周期（含启动期）都被覆盖
 tracing.install()        # 运行日志 pass 1：只看环境变量
@@ -235,7 +239,7 @@ class CrashService:
 
 ```python
 def main(argv=None):
-    from yate import crash, tracing
+    from yate.logs import crash, tracing
     crash.install()          # 崩溃诊断
     tracing.install()        # 运行日志 pass 1（env only）
     # ... 原有逻辑；yaterc 加载后 tracing.configure(...)
@@ -258,11 +262,15 @@ def main(argv=None):
 
 测试语义要点：
 
-- 状态在**单例**上：`from yate.logs import crash as crash_service`，
-  fixture 直接重置 `_err_file` / `_err_path` / `_crashed` 并在末尾恢复
-  `_original_excepthook` 与 `sys.excepthook`、复位 `faulthandler`
-- 降级用例 patch 的是 **`yate.logs.crash_data_dir`**（`install()` 从自身模块
-  全局解析该函数，patch 薄壳不会生效）
+- **单例直连**：`from yate.logs import crash`，测试里的 `crash.install()` /
+  `crash.build_err_path(...)` / `crash.cleanup_on_exit()` / `crash.current_crash_file()`
+  都是对象上的方法调用（与生产调用点同一条路径）
+- 状态属性是**只读**的，所以 fixture 直接重置底层属性
+  （`crash._err_file` / `_err_path` / `_crashed`；文件顶部保留
+  `# pyright: reportPrivateUsage=false`），并在末尾恢复
+  `crash._original_excepthook` 与 `sys.excepthook`、复位 `faulthandler`
+- 降级用例 patch 的是 **`yate.logs.crash_data_dir`**（`install()` 从 `yate.logs`
+  自己的模块全局解析该函数，patch 服务对象不会生效）
 
 ---
 
@@ -283,7 +291,7 @@ pyright                                      # strict，0 errors
 ```powershell
 $home = "$PWD\.smoke-home"
 $env:USERPROFILE = $home; $env:HOME = $home
-python -c "from yate import crash; crash.install(); raise RuntimeError('test')"
+python -c "from yate.logs import crash; crash.install(); raise RuntimeError('test')"
 Get-ChildItem -Recurse "$home\.yate\data"            # crash-*.err 已保留
 Get-Content (Get-ChildItem "$home\.yate\data\crash-*.err")[0]
 Remove-Item -Recurse -Force $home
@@ -294,7 +302,7 @@ Remove-Item -Recurse -Force $home
 ### 5.3 faulthandler 启用状态验证
 
 ```powershell
-python -c "from yate import crash; crash.install(); import faulthandler; print(faulthandler.is_enabled())"
+python -c "from yate.logs import crash; crash.install(); import faulthandler; print(faulthandler.is_enabled())"
 ```
 
 期望 `True`；随后退出时 `atexit` 会删掉这份只含头部的报告（可顺便验证清理逻辑）。
@@ -316,10 +324,10 @@ python -c "from yate import crash; crash.install(); import faulthandler; print(f
 | 文件 | 操作 | 说明 |
 |------|------|------|
 | `yate/logs.py` | 新增 | 统一日志模块：`CrashService`（本节）、`TracingService`、共享纯函数与单例 |
-| `yate/crash.py` | 改为薄壳 | 只再导出 `crash_data_dir` / `install` / `uninstall` / `current_crash_file` |
-| `yate/cli.py` | 修改 | `main()` 首行 `crash.install()`；`--include-data` 分支先 `crash.uninstall()` |
-| `tests/test_crash.py` | 修改 | 单例状态 + 公开名；patch 目标改为 `yate.logs` |
-| `yate/diagnostics.py` | 无改动 | `crash.crash_data_dir()` / `crash.current_crash_file()` 经薄壳解析 |
+| `yate/crash.py`、`yate/tracing.py` | 新增后删除 | 曾作为"薄壳"再导出旧导入路径；最终版删除，调用方直连 `yate.logs`（见 §8） |
+| `yate/cli.py` | 修改 | `from yate.logs import crash, tracing`；`main()` 首行 `crash.install()`；`--include-data` 分支先 `crash.uninstall()` |
+| `tests/test_crash.py` | 修改 | 单例直连；patch 目标改为 `yate.logs` 的模块全局 |
+| `yate/diagnostics.py` | 修改 | `from yate.logs import crash, crash_data_dir` |
 
 ---
 
@@ -337,9 +345,11 @@ python -c "from yate import crash; crash.install(); import faulthandler; print(f
 ## 8. 与初稿的差异（回写记录）
 
 1. **模块归属**：初稿把全部逻辑放在 `yate/crash.py` 的模块级函数/变量里；
-   现行实现收进 `yate/logs.py::CrashService`（单例 + 实例状态 + 公开只读属性），
-   `yate/crash.py` 变成薄壳。对外调用点（`crash.install()` /
-   `crash.crash_data_dir()` / `crash.current_crash_file()`）保持不变。
+   现行实现收进 `yate/logs.py::CrashService`（单例 + 实例状态 + 只读属性）。
+   `yate/crash.py` 先被改成"薄壳"（再导出旧导入路径），最终版**删除**：
+   调用点从 `from yate import crash` 变成 `from yate.logs import crash`，
+   方法名（`install()` / `current_crash_file()`）不变，模块级函数 `crash_data_dir()`
+   改为按名导入。
 2. **函数改名**：`_err_file_path()` → `build_err_path()`；
    `_cleanup_on_exit()` → `cleanup_on_exit()`（公开，供 atexit/测试）。
 3. **新增行为**：`atexit` 清理（健康退出删除只含头部的报告）、`uninstall()`
