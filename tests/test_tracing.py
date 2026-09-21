@@ -9,8 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from yate import tracing
-from yate.config import YateConfig
+from yate import logs, tracing
 
 
 @pytest.fixture(autouse=True)
@@ -50,17 +49,6 @@ def test_resolve_level_maps_builtin_names() -> None:
     assert tracing.resolve_level("CRITICAL") == logging.CRITICAL
 
 
-def _zero_level(name: str) -> int:
-    """Stand-in for ``resolve_level``: resolves everything to NOTSET (0)."""
-    return 0
-
-
-def test_requested_level_keeps_a_falsy_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A resolved level of 0 (logging.NOTSET) must not become DEBUG."""
-    monkeypatch.setattr(tracing, "resolve_level", _zero_level)
-    assert tracing._requested_level(YateConfig(yate_trace=True)) == 0
-
-
 def test_resolve_level_rejects_unknown_names() -> None:
     assert tracing.resolve_level("VERBOSE") is None
     assert tracing.resolve_level("") is None
@@ -68,7 +56,9 @@ def test_resolve_level_rejects_unknown_names() -> None:
 
 
 def test_get_logger_names_children_without_doubling_prefix() -> None:
-    assert tracing.get_logger() is tracing._logger
+    # root_logger is a property, so it lives on the singleton -- the shell
+    # can only re-export plain methods and constants.
+    assert tracing.get_logger() is logs.tracing.root_logger
     assert tracing.get_logger("yate").name == "yate"
     assert tracing.get_logger("editor_lsp").name == "yate.editor_lsp"
     assert (
@@ -115,7 +105,7 @@ def test_env_trace_on_values(value: str, isolated_home: Path, monkeypatch: pytes
 @pytest.mark.parametrize("value", ["0", "false", "No", "OFF"])
 def test_env_trace_off_values(value: str, isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("YATE_TRACE", value)
-    assert tracing.install(YateConfig(yate_trace=True)) is False
+    assert tracing.install(yate_trace=False) is False
     assert not tracing.is_enabled()
     assert _log_files() == []
 
@@ -144,7 +134,7 @@ def test_invalid_env_values_warn_and_fall_back(
     assert tracing.env_level() is None
     # yaterc decides then; with it off nothing is written, but both bad
     # values were reported once on stderr.
-    assert tracing.install(YateConfig(yate_trace=False)) is False
+    assert tracing.install(yate_trace=False) is False
     err = capsys.readouterr().err
     assert "YATE_TRACE" in err
     assert "YATE_TRACE_LEVEL" in err
@@ -154,7 +144,7 @@ def test_invalid_env_values_warn_and_fall_back(
 
 
 def test_yaterc_enables_tracing(isolated_home: Path) -> None:
-    assert tracing.install(YateConfig(yate_trace=True)) is True
+    assert tracing.install(yate_trace=True) is True
     assert _log_files() == []
     tracing.get_logger("demo").warning("something happened")
     assert len(_log_files()) == 1
@@ -163,18 +153,17 @@ def test_yaterc_enables_tracing(isolated_home: Path) -> None:
 
 
 def test_enabled_but_silent_session_leaves_no_file(isolated_home: Path) -> None:
-    """YATE_TRACE=1 on a command that logs nothing writes no log file."""
-    assert tracing.install(YateConfig(yate_trace=True)) is True
+    """yate_trace = True on a command that logs nothing writes no log file."""
+    assert tracing.install(yate_trace=True) is True
     assert tracing.is_enabled() is True
-    # The directory is reserved eagerly (like crash.py's data/), the file is
-    # not: an early-exit command must not accumulate empty shell logs.
+    # The directory is reserved eagerly (like the crash service's data/), the
+    # file is not: an early-exit command must not accumulate empty shell logs.
     assert _logs_dir().is_dir()
     assert _log_files() == []
 
 
 def test_yaterc_level_is_used(isolated_home: Path) -> None:
-    config = YateConfig(yate_trace=True, yate_trace_level="ERROR")
-    assert tracing.install(config) is True
+    assert tracing.install(yate_trace=True, yate_trace_level="ERROR") is True
     log = tracing.get_logger("demo")
     log.warning("dropped")
     log.error("kept")
@@ -185,12 +174,12 @@ def test_yaterc_level_is_used(isolated_home: Path) -> None:
 
 def test_env_trace_beats_yaterc(isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("YATE_TRACE", "1")
-    assert tracing.install(YateConfig(yate_trace=False)) is True
+    assert tracing.install(yate_trace=False) is True
 
 
 def test_env_level_beats_yaterc(isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("YATE_TRACE_LEVEL", "error")
-    tracing.install(YateConfig(yate_trace=True, yate_trace_level="DEBUG"))
+    tracing.install(yate_trace=True, yate_trace_level="DEBUG")
     log = tracing.get_logger("demo")
     log.warning("dropped")
     log.error("kept")
@@ -209,13 +198,26 @@ def test_second_install_keeps_file_and_adjusts_level(
     tracing.install()                    # pass 1: env only, DEBUG
     path = tracing.current_log_path()
     assert path is not None
-    tracing.install(YateConfig(yate_trace=True, yate_trace_level="WARNING"))
+    # Pass 2, like cli.py: the yaterc level is a plain string.
+    tracing.configure(yate_trace=True, yate_trace_level="WARNING")
     assert tracing.current_log_path() == path
-    assert len(tracing._file_handlers()) == 1
+    assert len(logs.tracing.file_handlers()) == 1
     log = tracing.get_logger("demo")
     log.info("dropped")
     log.warning("kept")
     content = path.read_text(encoding="utf-8")
+    assert "kept" in content
+    assert "dropped" not in content
+
+
+def test_configure_is_a_thin_alias_of_install(isolated_home: Path) -> None:
+    """configure() spells out the rc-stage re-config and returns nothing."""
+    assert tracing.configure(yate_trace=True, yate_trace_level="WARNING") is None
+    assert tracing.is_enabled() is True
+    log = tracing.get_logger("demo")
+    log.info("dropped")
+    log.warning("kept")
+    content = _log_text()
     assert "kept" in content
     assert "dropped" not in content
 
@@ -227,7 +229,7 @@ def test_install_is_idempotent(isolated_home: Path, monkeypatch: pytest.MonkeyPa
     assert tracing.install() is True
     assert tracing.install() is True
     assert tracing.current_log_path() == first
-    assert len(tracing._file_handlers()) == 1
+    assert len(logs.tracing.file_handlers()) == 1
     tracing.get_logger("demo").info("once")
     assert len(_log_files()) == 1
     assert _log_text().count("trace session ===") == 1
@@ -251,7 +253,9 @@ def test_unwritable_logs_dir_only_warns(
     def denied() -> Path:
         raise OSError("denied")
 
-    monkeypatch.setattr(tracing, "logs_dir", denied)
+    # install() resolves the helper from its own module globals, so
+    # yate.logs is patched here -- not the yate.tracing shell.
+    monkeypatch.setattr(logs, "logs_dir", denied)
     monkeypatch.setenv("YATE_TRACE", "1")
     assert tracing.install() is False
     assert not tracing.is_enabled()

@@ -253,8 +253,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
 
     # Trace pass 2: yaterc's yate_trace / yate_trace_level are known now.
-    # An environment variable still wins over the rc files.
-    tracing.install(config)
+    # An environment variable still wins over the rc files. configure() is
+    # the rc-stage spelling of install(): the level name is resolved inside
+    # the service, not here.
+    tracing.configure(
+        yate_trace=config.yate_trace,
+        yate_trace_level=config.yate_trace_level,
+    )
     log = tracing.get_logger("cli")
     log.info("startup: argv=%r cwd=%s", sys.argv, Path.cwd())
     log.info(
