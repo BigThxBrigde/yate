@@ -52,7 +52,8 @@ scene: python_coding
 - 每组内部按字母序排列
 - 绝对导入优先（`from yate import tracing`），相对导入仅在子包内部使用
 - 禁止 `import *`（通配符导入）
-- 类型注解中仅用的导入放 `if TYPE_CHECKING:` 块内，避免运行时循环导入
+- **不得新增 `TYPE_CHECKING` 导入块**（架构约定，见 `architecture-boundaries.md` R6）：
+  类型注解跨模块引用时，使用模块内定义的窄 Protocol（Host/Ops）或叶子类型
 
 ```python
 from __future__ import annotations
@@ -62,14 +63,11 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, IO, Optional
+from typing import IO, Optional
 
 from textual.widgets import TextArea
 
 from yate import tracing
-
-if TYPE_CHECKING:
-    from yate.config import YateConfig
 ```
 
 ### 1.4 语句与表达式
@@ -194,7 +192,7 @@ if isinstance(tab_width, int) and not isinstance(tab_width, bool):
 - **优先使用 Python 3.9+ 原生小写泛型**：`list[str]`、`dict[str, str]`、`tuple[str, ...]`、`set[int]`。`Dict`/`List`/`Tuple`/`Set`（typing 模块大写版本）视为遗留，新代码不使用
 - 使用 `Optional[X]` 而非 `X | None`（即使 Python 3.10 支持后者）
 - 使用 `cast()` 进行显式类型窄化（`cast(Sequence[Any], raw)`）
-- 类型注解仅用的导入必须放在 `if TYPE_CHECKING:` 块内，避免运行时导入循环
+- 类型注解仅用的导入使用叶子类型或模块内窄 Protocol（禁止 `TYPE_CHECKING`，见 §4.3 与 `architecture-boundaries.md`）
 - 前向引用（引用尚未定义的类）使用字符串字面量：`Optional["YateConfig"]`
 - `from __future__ import annotations` 使所有注解延迟求值，**每个模块必须包含**
 
@@ -246,19 +244,14 @@ from __future__ import annotations
 - 提交前运行 `pyright`，**零诊断才能合并**
 - 禁止用 `# type: ignore` / `# pyright: ignore` 静默诊断（极特殊场景需代码评审批准，并附带注释说明理由）
 
-### 4.3 `TYPE_CHECKING` guard（强制）
+### 4.3 禁止 `TYPE_CHECKING`（架构约定）
 
-所有仅在类型注解中使用的导入必须放在 `if TYPE_CHECKING:` 块内：
+**不得新增** `if TYPE_CHECKING:` 导入块。类型注解跨模块引用时，改为在模块内定义窄
+Protocol（Host/Ops，见 `architecture-boundaries.md`），让依赖方向自然无环、无需延迟导入。
 
-```python
-from typing import TYPE_CHECKING, Optional
-
-if TYPE_CHECKING:
-    from yate.config import YateConfig  # 仅用于注解，避免运行时循环
-
-def install(config: Optional["YateConfig"] = None) -> bool:
-    ...
-```
+现状遗留：`yate/interfaces.py` 与 `tests/test_editor_core.py` 各 1 处，随「拆分并移除
+AppProtocol」重构清除（计划见 `.trae/documents/split_app_protocol_plan.md`），
+清除后目标为全仓库 0 处。
 
 ### 4.4 `cast()` 优先于 `# type: ignore`
 
