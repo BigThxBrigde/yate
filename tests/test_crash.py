@@ -8,11 +8,12 @@ private-usage pragma above) -- the same way it restores ``sys.excepthook``.
 
 from __future__ import annotations
 
+import atexit
 import faulthandler
 import io
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
@@ -56,6 +57,7 @@ def _reset_crash_state() -> None:
     crash._err_file = None
     crash._err_path = None
     crash._crashed = False
+    crash._installed_excepthook = None
 
 
 @pytest.fixture
@@ -126,8 +128,34 @@ def test_uninstall_releases_handle_and_deletes_healthy_report(
     assert not report.exists()
     assert crash.current_crash_file() is None
     assert not faulthandler.is_enabled()
+    # The interpreter gets its own hook back: an uninstalled service must
+    # not stay reachable from sys.excepthook, where it would keep flipping
+    # _crashed with no report open.
+    assert sys.excepthook is crash.original_excepthook
     # Idempotent: atexit calls it again on interpreter shutdown.
     crash.uninstall()
+    assert sys.excepthook is crash.original_excepthook
+
+
+def test_install_uninstall_cycles_keep_one_atexit_callback(
+    crash_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # atexit runs *every* registered entry, so install() must drop a stale
+    # registration and uninstall() its live one; the stand-in unregister
+    # mirrors the stdlib semantics ("drop all entries equal to func").
+    registered: list[Callable[[], None]] = []
+
+    def _unregister(func: Callable[[], None]) -> None:
+        registered[:] = [item for item in registered if item != func]
+
+    monkeypatch.setattr(atexit, "register", registered.append)
+    monkeypatch.setattr(atexit, "unregister", _unregister)
+
+    for _ in range(3):
+        crash.install()
+        assert registered == [crash.cleanup_on_exit]
+        crash.uninstall()
+        assert registered == []
 
 
 def test_excepthook_appends_traceback_and_delegates_to_original(

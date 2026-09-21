@@ -14,7 +14,8 @@ other. Callers import them straight from this module::
   :mod:`faulthandler` at the open file descriptor and wraps ``sys.excepthook``
   (chaining to the hook it replaced). An ``atexit`` handler deletes a
   header-only report on a healthy exit; uncaught exceptions and native crashes
-  keep it.
+  keep it. :meth:`CrashService.uninstall` reverses the whole install early --
+  original hook and atexit entry included.
 * :data:`tracing` -- opt-in runtime trace log, off by default. Records land in
   ``~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log``; the file is created on the
   first emitted record, so an early-exit command (``yate --version``) leaves no
@@ -259,7 +260,8 @@ class CrashService:
     Eagerly opens ``~/.yate/data/crash-*.err`` at install time, writes a
     metadata header, points :mod:`faulthandler` at the fd, and wraps
     ``sys.excepthook`` to append uncaught Python tracebacks. Atexit deletes
-    a header-only report on healthy shutdown.
+    a header-only report on healthy shutdown; :meth:`uninstall` does the
+    same early and hands ``sys.excepthook`` back to the interpreter.
 
     Self-contained: it never imports, references or notifies
     :class:`TracingService`.
@@ -276,6 +278,13 @@ class CrashService:
         #: The hook that was in place before us, called last. Captured once
         #: at construction (= import time), like the original module did.
         self._original_excepthook: Callable[..., Any] = sys.excepthook
+        #: The bound ``_excepthook`` object currently stored in
+        #: ``sys.excepthook``, or ``None`` when we are not installed. Held
+        #: as a reference on purpose: ``self._excepthook`` is a *fresh*
+        #: bound method on every access, so ``sys.excepthook is
+        #: self._excepthook`` is never true and could not tell "still ours"
+        #: from "wrapped by someone else since".
+        self._installed_excepthook: Optional[Callable[..., Any]] = None
 
     # --- public read-only state -------------------------------------------
 
@@ -323,22 +332,40 @@ class CrashService:
 
         self._err_file = handle
         self._err_path = path
+        # Register-then-dedup: atexit runs *every* registered entry, so
+        # install/uninstall cycles must not pile callbacks up.
+        atexit.unregister(self.cleanup_on_exit)
         atexit.register(self.cleanup_on_exit)
-        sys.excepthook = self._excepthook
+        hook = self._excepthook
+        sys.excepthook = hook
+        self._installed_excepthook = hook
 
     def uninstall(self) -> None:
-        """Release the open report and disable :mod:`faulthandler`.
+        """Release the report, the ``sys.excepthook`` and :mod:`faulthandler`.
 
         One-shot CLI commands that remove the data directory (``yate
         --cleanup-defaults --include-data``) call this first: on Windows the
         eagerly-opened report handle would otherwise make removing ``data/``
-        fail. A healthy header-only report is deleted, as on a normal exit.
-        Idempotent and best-effort, like :meth:`install`.
+        fail. A healthy header-only report is deleted, as on a normal exit,
+        and the process is left as :meth:`install` found it. Idempotent and
+        best-effort, like :meth:`install`.
         """
         try:
             faulthandler.disable()
         except (OSError, ValueError):
             pass
+        # Hand the interpreter its hook back *before* dropping the report:
+        # left in place, ours would keep this uninstalled instance reachable
+        # and still set ``_crashed`` on the next uncaught exception, a state
+        # contradicting the released handle. Only while it is still ours --
+        # a hook someone else wrapped around ours is not ours to clobber.
+        hook = self._installed_excepthook
+        if hook is not None and sys.excepthook is hook:
+            sys.excepthook = self._original_excepthook
+        self._installed_excepthook = None
+        # The cleanup runs right here, so the atexit entry has nothing left
+        # to do; dropping it also keeps repeated install/uninstall flat.
+        atexit.unregister(self.cleanup_on_exit)
         self.cleanup_on_exit()
 
     def cleanup_on_exit(self) -> None:
