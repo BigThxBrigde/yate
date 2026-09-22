@@ -286,7 +286,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # normal run so the report reflects what would actually be loaded, but
     # never enters the TUI. load_startup_services() is headless-safe.
     if args.diag:
-        from yate import diagnostics  # pylint: disable=import-outside-toplevel
+        from yate import diagnostics
 
         app = YateApp(
             target=target,
@@ -296,8 +296,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             ext_files=args.ext_files,
             ext_dirs=args.ext_dirs,
         )
-        app.load_startup_services()
-        diagnostics.print_report(app)
+        app.editor.load_startup_services()
+        diagnostics.print_report(app.editor)
         return 0
 
     app = YateApp(

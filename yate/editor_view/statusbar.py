@@ -2,33 +2,52 @@
 
 Flat VS Code style: one solid accent-colored line with a mode chip on the
 left and position/meta information right-aligned.
+
+The bar is self-contained: it reads the document session, the language
+servers, the keymap set and the prompt bar (whose active mode owns the chip)
+directly, so no host protocol is involved.
 """
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any
 
 from rich.text import Text
 from textual.widgets import Static
 
 from yate.editor_core import Document
 from yate.editor_lsp import LspManager, ServerState
+from yate.keymaps.registry import KeymapSet
+from yate.keymaps.vim import VimKeymap, VimMode
 from yate.services.extensions import ExtensionLoader
+from yate.session import EditorSession
 
 from . import theme
+from .commandline import PromptBar
 from .icons import DOT, KEYBOARD, PENCIL, PLUG, TERMINAL
 
 
-class StatusBarHost(Protocol):
-    """What :class:`StatusBar` reads from its host application."""
-
-    lsp: LspManager
-    extension_loader: ExtensionLoader
-
-    @property
-    def doc(self) -> Document: ...
-
-    def mode_label(self) -> tuple[str, str]: ...
+def mode_chip(prompt: PromptBar, keymaps: KeymapSet) -> tuple[str, str]:
+    """``(label, background color)`` for the status bar mode chip."""
+    t = theme.active()
+    if prompt.active_mode:
+        mode = prompt.active_mode
+        if mode == "shell":
+            return "SHELL", t.mode_insert_bg
+        if mode in ("find", "find_back", "replace_find", "replace_with"):
+            return "SEARCH", t.match_active_bg
+        return "COMMAND", t.mode_command_bg
+    if keymaps.name == "vim":
+        vim = keymaps.get("vim")
+        if isinstance(vim, VimKeymap):
+            mapping = {
+                VimMode.NORMAL: ("NORMAL", t.mode_normal_bg),
+                VimMode.INSERT: ("INSERT", t.mode_insert_bg),
+                VimMode.VISUAL: ("VISUAL", t.mode_visual_bg),
+                VimMode.VISUAL_LINE: ("V-LINE", t.mode_visual_bg),
+            }
+            return mapping.get(vim.mode, ("NORMAL", t.mode_normal_bg))
+    return "VSC", t.mode_normal_bg
 
 
 class StatusBar(Static):
@@ -41,32 +60,46 @@ class StatusBar(Static):
     }
     """
 
-    def __init__(self, host: StatusBarHost, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        session: EditorSession,
+        lsp: LspManager,
+        keymaps: KeymapSet,
+        prompt: PromptBar,
+        extension_loader: ExtensionLoader,
+        **kwargs: Any,
+    ) -> None:
         super().__init__("", **kwargs)
-        self.host = host
+        self.session = session
+        self.lsp = lsp
+        self.keymaps = keymaps
+        self.prompt = prompt
+        self.extension_loader = extension_loader
 
     def on_mount(self) -> None:
         self.refresh_status()
 
     def refresh_status(self) -> None:
-        """Rebuild the one-line status text from the current app state."""
+        """Rebuild the one-line status text from the current editor state."""
         t = theme.active()
-        app = self.host
-        doc = app.doc
+        doc = self.session.doc
         buf = doc.buffer
         width = self.size.width or 80
         # VS Code status bars use the theme accent as the bar background.
         self.styles.background = t.accent
         bar = f"on {t.accent}"
 
-        mode, chip_bg = app.mode_label()
+        mode, chip_bg = mode_chip(self.prompt, self.keymaps)
         chip = f" {mode} "
         chip_len = theme.cell_len(chip)
 
         pos_plain = f"Ln {buf.row + 1}, Col {buf.col + 1}"
         meta_plain = f"{buf.line_count} lines · {doc.filetype} · {doc.encoding}"
-        lsp_plain, lsp_style = self._lsp_segment()
-        hints_plain = f"{PLUG} {len(app.extension_loader.loaded)}  {TERMINAL} :!  {KEYBOARD} F1"
+        lsp_plain, lsp_style = self._lsp_segment(doc)
+        hints_plain = (
+            f"{PLUG} {len(self.extension_loader.loaded)}  {TERMINAL} :!  "
+            f"{KEYBOARD} F1"
+        )
         lsp_part = f"{lsp_plain}   " if lsp_plain else ""
         right_plain = f"{pos_plain}   {meta_plain}   {lsp_part}{hints_plain}"
         right_len = theme.cell_len(right_plain)
@@ -105,18 +138,17 @@ class StatusBar(Static):
             text.append(hints_plain, style=f"{t.panel} {bar}")
         self.update(text)
 
-    def _lsp_segment(self) -> tuple[str, str]:
+    def _lsp_segment(self, doc: Document) -> tuple[str, str]:
         """Status-bar text for the active document's LSP server/diagnostics."""
         t = theme.active()
-        app = self.host
         bar = f"on {t.accent}"
-        state = app.lsp.state_for_doc(app.doc)
+        state = self.lsp.state_for_doc(doc)
         if state is None:
             return "", ""
-        errors, warnings = app.lsp.counts_for(app.doc)
+        errors, warnings = self.lsp.counts_for(doc)
         if state is ServerState.READY:
             name = "LSP"
-            cfg = app.lsp.config_for(app.doc.filetype)
+            cfg = self.lsp.config_for(doc.filetype)
             if cfg is not None:
                 name = cfg.name
             label = name

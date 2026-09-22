@@ -87,7 +87,7 @@ def plain_text(content: Any) -> str:
 
 def message_text(app: Any) -> str:
     """The current bottom-bar message (assertions read the app state)."""
-    bar = app.prompt_bar
+    bar = app.editor.prompt_bar
     if bar is None:
         return ""
     return plain_text(bar.message.content)
@@ -95,7 +95,7 @@ def message_text(app: Any) -> str:
 
 def cursor_path(app: Any) -> Optional[Any]:
     """Path of the explorer node under the cursor (``None`` if unknown)."""
-    tree = app.explorer_tree
+    tree = app.editor.explorer_tree
     if tree is None:
         return None
     node = tree.cursor_node

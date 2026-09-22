@@ -2,31 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Protocol
-
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from yate.keymaps.base import KeyBinding, Keymap
+from yate.keymaps.base import KeyBinding
+from yate.keymaps.registry import KeymapSet
+from yate.registries import CommandRegistry
 
 from . import theme
 from .icons import CHECK, KEYBOARD, TERMINAL, TIMES
-
-
-class HelpHost(Protocol):
-    """What :class:`HelpScreen` reads from its host application."""
-
-    keymap_name: str
-
-    @property
-    def active_keymap(self) -> Keymap: ...
-
-    def command_entries(self) -> list[tuple[str, str]]:
-        """``(name, description)`` pairs of the ``:`` command table."""
-        ...
 
 
 class _OverlayScreen(ModalScreen[None]):
@@ -67,21 +54,21 @@ class _OverlayScreen(ModalScreen[None]):
 class HelpScreen(_OverlayScreen):
     """Full keybinding reference, grouped by category."""
 
-    def __init__(self, host: HelpHost) -> None:
+    def __init__(self, keymaps: KeymapSet, commands: CommandRegistry) -> None:
         super().__init__()
-        self.host = host
+        self.keymaps = keymaps
+        self.commands = commands
 
     def _body(self) -> Text:
         t = theme.active()
-        host = self.host
         text = Text()
         text.append(f"{KEYBOARD}  YATE — KEYBOARD REFERENCE\n",
                     style=f"bold {t.accent}")
-        text.append(f"keymap: {host.keymap_name}    "
+        text.append(f"keymap: {self.keymaps.name}    "
                     f"(toggle with ctrl+/ or :set keymap=vsc|vim)\n\n",
                     style=t.fg_muted)
 
-        km = host.active_keymap
+        km = self.keymaps.active
         groups: dict[str, list[KeyBinding]] = {}
         for binding in km.bindings:
             groups.setdefault(binding.category or "other", []).append(binding)
@@ -112,7 +99,8 @@ class HelpScreen(_OverlayScreen):
         text.append("\n")
 
         text.append("  COMMANDS (prefix :)\n", style=f"bold {t.accent2}")
-        for name, desc in host.command_entries():
+        for name in self.commands.names():
+            desc = self.commands.describe(name)
             text.append("    ")
             text.append((":" + name).ljust(16), style=t.green)
             text.append(desc or "", style=t.fg_bright)

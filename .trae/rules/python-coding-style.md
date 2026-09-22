@@ -246,12 +246,12 @@ from __future__ import annotations
 
 ### 4.3 禁止 `TYPE_CHECKING`（架构约定）
 
-**不得新增** `if TYPE_CHECKING:` 导入块。类型注解跨模块引用时，改为在模块内定义窄
-Protocol（Host/Ops，见 `architecture-boundaries.md`），让依赖方向自然无环、无需延迟导入。
+**不得新增** `if TYPE_CHECKING:` 导入块。类型注解需要跨模块引用时，按
+`architecture-boundaries.md` 的依赖方向处理：传**具体对象**（`EditorSession`、`KeymapSet`、
+注册表、widget），或把类型下移到叶子模块；不靠窄 Protocol + 延迟导入兜底。
 
-现状遗留：`yate/interfaces.py` 与 `tests/test_editor_core.py` 各 1 处，随「拆分并移除
-AppProtocol」重构清除（计划见 `.trae/documents/split_app_protocol_plan.md`），
-清除后目标为全仓库 0 处。
+**现状：全仓库 0 处**（`yate/interfaces.py` 已删除，`tests/test_editor_core.py` 的遗留已随
+分层重构清除；架构守护测试 `tests/test_architecture.py` 会拦截回归）。
 
 ### 4.4 `cast()` 优先于 `# type: ignore`
 

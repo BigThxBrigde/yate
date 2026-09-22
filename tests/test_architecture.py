@@ -1,10 +1,27 @@
 """Architecture guards: the narrow-interface rules must not regress.
 
 These tests enforce the boundaries documented in
-``.trae/rules/architecture-boundaries.md``: no global ``AppProtocol``, no
-``TYPE_CHECKING`` blocks, ``YateApp`` stays the composition root that only
-the CLI imports, and the feature / widget / service layers keep their
-import directions (all cycles stay impossible by construction).
+``.trae/rules/architecture-boundaries.md`` and
+``.trae/documents/app_layering_plan.md`` (section 3, "依赖规则（硬性）"):
+
+* **R1** ``YateApp`` is the composition root: only ``cli.py`` imports
+  ``yate.app``.
+* **R2** no one-size-fits-all ``AppProtocol``, no ``interfaces.py``, and no
+  new ``Protocol`` class beyond the frozen whitelist.
+* **R3** ``editor_view/*`` widgets never import ``yate.editor`` / ``yate.app``
+  (they receive concrete collaborators or callbacks); the ``app_features``
+  package deleted in Plan D stays deleted.
+* **R4** the UI-free layers (``keymaps/*``, ``services/*``, ``session.py``,
+  ``registries.py``) never import ``editor_view``; the two L3 collaborator
+  modules that drive widgets keep that coupling frozen and never look upward.
+* **R5** ``editor.py`` never imports the built-in tables ``actions.py`` /
+  ``commands.py`` -- they import the editor, so the reverse is a cycle.
+* **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
+  imports.
+* **R7** naming: no ``*Feature`` / ``*Host`` / ``*Ops`` / ``*Delegate``
+  identifiers and no ``AppProtocol``.  ``PaneHost`` is a real Textual
+  container widget (not a protocol / thin delegate) and is whitelisted;
+  ``*Manager`` and flow-level ``*Controller`` names stay allowed.
 """
 
 from __future__ import annotations
@@ -20,18 +37,52 @@ _SELF = Path(__file__).resolve()
 #: Only the CLI entry point may import the application class (R1).
 APP_IMPORTERS_ALLOWED = {"cli.py"}
 
-#: What ``app_features`` may import from ``editor_view`` (R3): the package
-#: helpers plus the widgets that do not depend back on the feature layer.
-ALLOWED_FEATURE_VIEW_IMPORTS = {
-    "yate.editor_view",
-    "yate.editor_view.theme",
-    "yate.editor_view.icons",
-    "yate.editor_view.keys",
-    "yate.editor_view.pane_types",
-    "yate.editor_view.completion",
-    "yate.editor_view.editor",
-    "yate.editor_view.manual",
+#: Modules no layer below the shell may look back up at (R3 / R4).
+UPWARD_MODULES = ("yate.editor", "yate.app")
+
+#: The frozen ``Protocol`` whitelist (R2): ``PaneRegistry`` breaks the
+#: ``PaneHost`` <-> ``EditorView`` construction cycle, ``SyntaxBackend`` and
+#: the ``_Ts*`` structural types are leaf-package types that predate this
+#: refactoring.  Any other ``Protocol`` class fails the build.
+ALLOWED_PROTOCOLS = {
+    "editor_view/editor.py": {"PaneRegistry"},
+    "editor_syntax/engine.py": {"SyntaxBackend"},
+    "editor_syntax/ts_backend/backend.py": {"_TsPoint", "_TsNode"},
 }
+
+#: Pure logic packages / modules that must run without any widget (R4).
+UI_FREE_PACKAGES = ("keymaps", "services")
+UI_FREE_FILES = ("session.py", "registries.py")
+
+#: L3 collaborator modules that do drive a few widget types by design: they
+#: still may not depend upward, and their ``editor_view`` coupling is frozen
+#: here, so a new widget import fails until it is justified (R4).
+UI_FROZEN_FILES = {
+    "prompt_completion.py": {
+        "yate.editor_view",
+        "yate.editor_view.theme",
+    },
+    "completion.py": {
+        "yate.editor_view",
+        "yate.editor_view.theme",
+        "yate.editor_view.commandline",
+        "yate.editor_view.completion",
+        "yate.editor_view.editor",
+        "yate.editor_view.panes",
+    },
+}
+
+#: The built-in tables import the editor; the editor must not import them (R5).
+EDITOR_FORBIDDEN_IMPORTS = ("yate.actions", "yate.commands")
+
+#: Banned identifier suffixes (R7): no protocol-ish / thin-delegate naming.
+#: ``PaneHost`` is the Textual widget container in ``editor_view/panes.py``,
+#: so it is whitelisted; ``*Manager`` and ``*Controller`` remain legal.
+BANNED_SUFFIXES = ("Feature", "Host", "Ops", "Delegate")
+BANNED_SUFFIX_WHITELIST = {"PaneHost"}
+
+#: Banned identifier names (R2 / R7).
+BANNED_NAMES = {"AppProtocol"}
 
 
 def _python_files() -> list[Path]:
@@ -43,6 +94,14 @@ def _python_files() -> list[Path]:
             if "__pycache__" not in p.parts and p != _SELF
         )
     return out
+
+
+def _yate_files() -> list[Path]:
+    """Every ``yate/`` Python file, excluding this one."""
+    return [
+        p for p in YATE.rglob("*.py")
+        if "__pycache__" not in p.parts and p != _SELF
+    ]
 
 
 def _yate_imports(path: Path) -> list[str]:
@@ -58,14 +117,64 @@ def _yate_imports(path: Path) -> list[str]:
     return out
 
 
+def _imports_upward(module: str) -> bool:
+    """Whether *module* is ``yate.editor`` / ``yate.app`` or a submodule."""
+    return any(
+        module == target or module.startswith(target + ".")
+        for target in UPWARD_MODULES
+    )
+
+
+def _protocol_classes(path: Path) -> set[str]:
+    """Names of every class in *path* whose bases include ``Protocol`` (R2)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for base in node.bases:
+            name = base.id if isinstance(base, ast.Name) else ""
+            if name == "Protocol":
+                out.add(node.name)
+    return out
+
+
+def _identifiers(path: Path) -> set[str]:
+    """Every identifier *name* defined or referenced in a module (R7)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            out.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            out.add(node.attr)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            out.add(node.name)
+        elif isinstance(node, ast.arg):
+            out.add(node.arg)
+        elif isinstance(node, ast.alias):
+            out.add(node.name.rsplit(".", 1)[-1])
+    return out
+
+
 def test_no_app_protocol() -> None:
-    """The one-size-fits-all ``AppProtocol`` must not come back (R2)."""
+    """The one-size-fits-all ``AppProtocol`` must not come back (R2 / R7)."""
     for path in _python_files():
         assert "AppProtocol" not in path.read_text(encoding="utf-8"), path
 
 
 def test_interfaces_module_is_gone() -> None:
+    """No central interface module: ``yate/interfaces.py`` stays deleted (R2)."""
     assert not (YATE / "interfaces.py").exists()
+
+
+def test_no_new_protocols() -> None:
+    """Shared state travels as concrete objects: no new ``Protocol`` beyond
+    the frozen whitelist (R2)."""
+    for path in _yate_files():
+        key = path.relative_to(YATE).as_posix()
+        for name in _protocol_classes(path):
+            assert name in ALLOWED_PROTOCOLS.get(key, set()), (key, name)
 
 
 def test_no_type_checking() -> None:
@@ -76,28 +185,71 @@ def test_no_type_checking() -> None:
 
 def test_only_cli_imports_app() -> None:
     """``YateApp`` is the composition root; lower layers never import it (R1)."""
-    for path in YATE.rglob("*.py"):
-        if "__pycache__" in path.parts:
-            continue
+    for path in _yate_files():
         if path.name == "app.py" or path.name in APP_IMPORTERS_ALLOWED:
             continue
         assert "yate.app" not in _yate_imports(path), path
 
 
-def test_features_import_only_allowed_view_modules() -> None:
-    """``app_features`` drives widgets through protocols, never by importing
-    the widget modules that depend back on the feature layer (R3)."""
-    for path in (YATE / "app_features").rglob("*.py"):
+def test_editor_view_does_not_import_upward() -> None:
+    """Widgets take concrete collaborators or callbacks: ``editor_view/*``
+    never imports ``yate.editor`` / ``yate.app`` (R3)."""
+    for path in (YATE / "editor_view").rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
         for module in _yate_imports(path):
-            if not module.startswith("yate.editor_view"):
-                continue
-            assert module in ALLOWED_FEATURE_VIEW_IMPORTS, (path, module)
+            assert not _imports_upward(module), (path, module)
 
 
-def test_keymaps_and_services_stay_ui_free() -> None:
-    """``keymaps`` and ``services`` run without a mounted app: they must not
-    import the ``editor_view`` layer (R5)."""
-    for package in ("keymaps", "services"):
-        for path in (YATE / package).rglob("*.py"):
-            for module in _yate_imports(path):
-                assert not module.startswith("yate.editor_view"), (path, module)
+def test_app_features_package_is_gone() -> None:
+    """The thin-delegate ``app_features`` layer stays deleted (R3 / R7)."""
+    assert not (YATE / "app_features" / "__init__.py").exists()
+
+
+def test_keymaps_services_and_models_stay_ui_free() -> None:
+    """``keymaps`` / ``services`` / ``session.py`` / ``registries.py`` run
+    without a mounted app: they must not import ``editor_view`` (R4)."""
+    targets: list[Path] = []
+    for package in UI_FREE_PACKAGES:
+        targets.extend(
+            p for p in (YATE / package).rglob("*.py")
+            if "__pycache__" not in p.parts
+        )
+    targets.extend(YATE / name for name in UI_FREE_FILES)
+    for path in targets:
+        for module in _yate_imports(path):
+            assert not module.startswith("yate.editor_view"), (path, module)
+
+
+def test_collaborators_keep_widget_coupling_frozen() -> None:
+    """``completion.py`` / ``prompt_completion.py`` are editor-level
+    collaborators: they may drive their known widgets but never depend
+    upward, and a new ``editor_view`` import must be added here first (R4)."""
+    for name, allowed in UI_FROZEN_FILES.items():
+        path = YATE / name
+        for module in _yate_imports(path):
+            assert not _imports_upward(module), (path, module)
+            if module.startswith("yate.editor_view"):
+                assert module in allowed, (path, module)
+
+
+def test_editor_does_not_import_action_tables() -> None:
+    """``actions.py`` / ``commands.py`` import the editor, so ``editor.py``
+    must not import them back -- that would close an import cycle (R5)."""
+    path = YATE / "editor.py"
+    for module in _yate_imports(path):
+        assert not any(
+            module == banned or module.startswith(banned + ".")
+            for banned in EDITOR_FORBIDDEN_IMPORTS
+        ), (path, module)
+
+
+def test_no_banned_identifier_names() -> None:
+    """No protocol-ish / thin-delegate naming: ``*Feature``, ``*Host``,
+    ``*Ops``, ``*Delegate`` and ``AppProtocol`` are banned (R7).  ``PaneHost``
+    is a Textual container widget and whitelisted."""
+    for path in _yate_files():
+        for name in _identifiers(path):
+            assert name not in BANNED_NAMES, (path, name)
+            if name.endswith(BANNED_SUFFIXES):
+                assert name in BANNED_SUFFIX_WHITELIST, (path, name)

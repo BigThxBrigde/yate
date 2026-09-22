@@ -18,12 +18,10 @@ import re
 import sys
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable
 
 from yate import __description__, __version__
-from yate.config import YateConfig
-from yate.editor_lsp import LspManager
-from yate.services.extensions import ExtensionLoader
+from yate.editor import Editor
 
 # Terminal environment variables worth surfacing.  Values are shown for the
 # descriptive ones; opaque session ids are reported as ``<set>`` / ``<unset>``.
@@ -58,22 +56,6 @@ _LABEL_LINE_RE = re.compile(r"^( +)(\S.*):$")
 _SECTION_TITLE_RE = re.compile(r"^\[[a-z]+\]$")
 
 
-class DiagnosticsHost(Protocol):
-    """The read-only application surface the diagnostics report needs."""
-
-    config: YateConfig
-    lsp: LspManager
-
-    @property
-    def extension_loader(self) -> ExtensionLoader: ...
-
-    @property
-    def ext_dirs(self) -> list[Path]: ...
-
-    @property
-    def ext_files(self) -> list[Path]: ...
-
-
 # ----------------------------------------------------------------- version
 
 def version_lines() -> str:
@@ -92,7 +74,7 @@ def version_lines() -> str:
 
 # ------------------------------------------------------------------ report
 
-def format_report(app: DiagnosticsHost, *, color: bool = False) -> str:
+def format_report(editor: Editor, *, color: bool = False) -> str:
     """Collect every diagnostic section and return the report text.
 
     With ``color=True`` the lines carry ANSI styling (section titles, keys,
@@ -104,12 +86,12 @@ def format_report(app: DiagnosticsHost, *, color: bool = False) -> str:
         ("terminal", _section_terminal),
         ("shell", _section_shell),
         ("paths", _section_paths),
-        ("yaterc", lambda: _section_yaterc(app)),
-        ("config", lambda: _section_config(app)),
+        ("yaterc", lambda: _section_yaterc(editor)),
+        ("config", lambda: _section_config(editor)),
         ("themes", _section_themes),
         ("syntax", _section_syntax),
-        ("extensions", lambda: _section_extensions(app)),
-        ("lsp", lambda: _section_lsp(app)),
+        ("extensions", lambda: _section_extensions(editor)),
+        ("lsp", lambda: _section_lsp(editor)),
         ("fonts", _section_fonts),
         ("packages", _section_packages),
     ]
@@ -136,12 +118,12 @@ def format_report(app: DiagnosticsHost, *, color: bool = False) -> str:
     return text + "\n"
 
 
-def print_report(app: DiagnosticsHost) -> None:
+def print_report(editor: Editor) -> None:
     """Print the report to stdout, colored when stdout is a terminal."""
     color = sys.stdout.isatty()
     if color:
         _enable_windows_ansi()
-    print(format_report(app, color=color))
+    print(format_report(editor, color=color))
 
 
 def _enable_windows_ansi() -> None:
@@ -271,10 +253,10 @@ def _section_paths() -> list[str]:
 
 # ------------------------------------------------------------------ yaterc
 
-def _section_yaterc(app: DiagnosticsHost) -> list[str]:
+def _section_yaterc(editor: Editor) -> list[str]:
     from yate.config import find_project_config, user_config_path
 
-    config = app.config
+    config = editor.config
     user_rc = user_config_path()
     user_note = "exists" if user_rc.is_file() else "missing"
     project_rc = find_project_config()
@@ -301,8 +283,8 @@ def _section_yaterc(app: DiagnosticsHost) -> list[str]:
 
 # ------------------------------------------------------------------ config
 
-def _section_config(app: DiagnosticsHost) -> list[str]:
-    c = app.config
+def _section_config(editor: Editor) -> list[str]:
+    c = editor.config
     shell_value = c.shell if c.shell else "(default)"
     return [
         _kv("keymap", c.keymap, width=19),
@@ -360,7 +342,7 @@ def _section_syntax() -> list[str]:
 
 # -------------------------------------------------------------- extensions
 
-def _section_extensions(app: DiagnosticsHost) -> list[str]:
+def _section_extensions(editor: Editor) -> list[str]:
     from yate.paths import bundled_extensions_dir
 
     lines: list[str] = ["  candidate dirs:"]
@@ -373,21 +355,21 @@ def _section_extensions(app: DiagnosticsHost) -> list[str]:
             lines.append(f"    {label:8}: {path} (missing)")
 
     # rc-declared extension paths
-    for p in app.config.extension_paths:
+    for p in editor.config.extension_paths:
         _dir_line("rc", p)
     _dir_line("bundled", bundled_extensions_dir())
-    for d in app.ext_dirs:
+    for d in editor.ext_dirs:
         _dir_line("ext-dir", d)
     _dir_line("project", Path.cwd() / "extensions")
     _dir_line("user", Path.home() / ".yate" / "extensions")
-    for f in app.ext_files:
+    for f in editor.ext_files:
         if f.is_file():
             lines.append(f"    ext-file: {f}")
         else:
             lines.append(f"    ext-file: {f} (missing)")
 
     lines.append("  loaded:")
-    loaded = app.extension_loader.loaded
+    loaded = editor.extension_loader.loaded
     if not loaded:
         lines.append("    (none)")
         return lines
@@ -404,9 +386,9 @@ def _section_extensions(app: DiagnosticsHost) -> list[str]:
 
 # --------------------------------------------------------------------- lsp
 
-def _section_lsp(app: DiagnosticsHost) -> list[str]:
-    configs = app.lsp.configs()
-    states = app.lsp.states()
+def _section_lsp(editor: Editor) -> list[str]:
+    configs = editor.lsp.configs()
+    states = editor.lsp.states()
     if not configs:
         return ["  (no LSP servers registered)"]
 

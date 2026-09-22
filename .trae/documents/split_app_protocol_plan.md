@@ -1,8 +1,15 @@
 # 拆分并移除 `AppProtocol` 重构方案
 
-> **状态：已实施（2026-09-22）** — 重构完成：`AppProtocol` 与 `yate/interfaces.py` 已删除，
-> 窄接口（Host / Ops）落地，`TYPE_CHECKING` 全仓库清零，架构守护测试
-> `tests/test_architecture.py` 已加入。本文档保留作为架构决策记录（ADR）。
+> **状态：已完成，但中间产物已被后续重构取代（2026-09-22）** — 本方案的直接目标已达成：
+> `AppProtocol` 与 `yate/interfaces.py` 已删除、`TYPE_CHECKING` 全仓库清零、架构守护测试
+> `tests/test_architecture.py` 已加入。
+> **但它引入的窄接口（Host / Ops Protocol）与 `app_features/*` Feature 层已在紧随其后的
+> 「分层重构」中移除**：共享状态改为**具体对象**（`EditorSession` / `KeymapSet` /
+> `ActionRegistry` / `CommandRegistry`），操作逻辑上移到 `yate/editor.py`（`Editor`），
+> `app_features/`（6 文件 1070 行）整体删除，`YateApp` 瘦到 152 行。
+> **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
+> 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**；
+> 本文档保留作为架构决策记录（ADR）。
 
 > **目标**：删除 `yate/interfaces.py` 中的 `AppProtocol`（88 个成员的"全应用协议"），
 > 改为 **每个模块持有自己的窄接口（Protocol）**，由 `YateApp` 作为组合根实现这些接口；

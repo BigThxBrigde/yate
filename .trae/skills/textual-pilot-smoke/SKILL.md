@@ -38,7 +38,8 @@ async def main() -> None:
             await pilot.pause()
             await pilot.press("enter")
             await pilot.pause()
-            assert app.doc.name == "notes.txt"
+            # 业务状态在调度层 app.editor（Editor）上，YateApp 只是外壳
+            assert app.editor.session.doc.name == "notes.txt"
             app.save_screenshot("_shot.svg")          # optional visual check
             app.exit()
 
@@ -74,9 +75,17 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 
 ## State worth asserting
 
-`app.doc.name`, `app.buffer.lines` / `app.buffer.cursor`, `app.screen_stack`,
-`app.keymap_name`, `app.commands.names()`, `app.extension_loader.loaded`
-(each record has `.name` / `.error`), `theme.active().name`.
+外壳 `YateApp` 只负责生命周期与主题桥；**业务状态一律走 `app.editor`（`Editor`）**：
+
+- 会话：`app.editor.session.doc.name`、`app.editor.session.buffer.lines` / `.cursor`、
+  `app.editor.session.docs` / `.index` / `.search`
+- 配置与键：`app.editor.keymaps.name`、`app.editor.config`
+- 注册表与扩展：`app.editor.commands.names()`、`app.editor.extension_loader.loaded`
+  （每条记录含 `.name` / `.error`）
+- 界面状态：`app.editor.explorer_visible`、`app.editor.panes.leaf_count()`、
+  `app.editor.prompt_bar.active_mode`（空闲为 `None`）/ `.owner`
+- Textual 原生（不要改写成 `app.editor.*`）：`app.screen`、`app.screen_stack`、
+  `theme.active().name`、`app.is_running`、`app.return_code`
 
 ## Verifying rendered pixels without eyes
 
@@ -118,13 +127,21 @@ $env:PYTHONDONTWRITEBYTECODE='1'
  .venv\Scripts\python.exe -m tools.smoke_test compare
 ```
 
-Scenarios shipped: `type_save_find`, `file_palette`, `keymap_toggle`,
-`theme_switch`, `help_modal`. Pick a subset with `--scenario NAME`
-(repeatable). Add a new scenario by appending an `async def(tmp: Path) ->
-ScenarioResult` to `SCENARIOS` in `tools/smoke_test.py` — follow the harness
-pattern above (type per-char, `await pilot.pause()` after every step, assert
-via `Check`). Baselines live under `tools/smoke_baselines/*.json` and should
-be re-snapshotted after intentional UI changes.
+Scenarios live in the `tools/smoke_test/scenarios/` package, grouped by area
+(`core` / `edit` / `search` / `files` / `panes` / `explorer` / `view` /
+`integration` / `regression` / `stress` / `aliases`); every submodule exposes
+`SCENARIOS`, and `tools/smoke_test/scenarios/__init__.py` concatenates them.
+Pick a subset with `--scenario NAME` or `--tag TAG` (both repeatable); skip the
+slow group with `--skip-slow`; `--seed N` pins the fuzz scenarios;
+`--fail-only` / `--json PATH` / `--report PATH` help when triaging.
+
+Add a new scenario by appending an `async def(tmp: Path) -> ScenarioResult` to
+the right submodule's `SCENARIOS` — follow the harness pattern above (type
+per-char, `await pilot.pause()` after every step, assert via `Check`), and use
+the helpers re-exported from `.scenarios`: `new_app`, `type_text`,
+`run_command`, `goto`, `wait_until`, `snapshot_svg`.
+Baselines live under `tools/smoke_test/smoke_baselines/*.json` and should be
+re-snapshotted after intentional UI changes.
 
 ## Cleanup and final gate
 
@@ -136,8 +153,8 @@ be re-snapshotted after intentional UI changes.
 # prepend that nodeenv's Scripts so the bundled node is on PATH:
 #   $env:PATH = "$env:LOCALAPPDATA\pyright-python\nodeenv\Scripts;$env:PATH"
 $env:PYTHONDONTWRITEBYTECODE='1'
-.venv\Scripts\python.exe -m pyright
-.venv\Scripts\python.exe -m unittest discover -s tests
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pytest tests -q
 ```
 
 If a smoke check proves durable behavior, add it as a real

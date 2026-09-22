@@ -1,13 +1,20 @@
-"""Keymap infrastructure: key notation, bindings and dispatch context."""
+"""Keymap infrastructure: key notation, bindings and dispatch context.
+
+The keymap layer must stay usable from anywhere (actions, extensions, tests):
+it never imports widgets or the application.  Everything a keymap may touch
+beyond the document itself is passed as a :class:`KeyUi` -- a concrete record
+of UI callbacks built by the editor, so no host protocol is involved.
+"""
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Optional, Protocol, Union
+from typing import Callable, Optional, Union
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
+from yate.session import EditorSession
 
 # ---------------------------------------------------------------------------
 # Key notation
@@ -167,43 +174,37 @@ class KeyBinding:
         return key_name(self.key)
 
 
-class ActionHost(Protocol):
-    """The application surface actions and key dispatch drive."""
+@dataclass(frozen=True)
+class KeyUi:
+    """The UI callbacks a keymap may use (built by the editor).
 
-    @property
-    def buffer(self) -> TextBuffer: ...
+    Callables instead of an interface keep the keymap layer free of widget
+    and application types: it only ever sees the document session plus this
+    record.
+    """
 
-    @property
-    def doc(self) -> Document: ...
-
-    def execute_action(self, name: str) -> None: ...
-
-    def insert_char(self, ch: str) -> None: ...
-
-    def message(self, text: str, kind: str = "info") -> None: ...
-
-    def toggle_keymap(self) -> None: ...
-
-    def command_prompt(self) -> None: ...
-
-    def find_prompt(self, forward: bool) -> None: ...
-
-    def goto_prompt(self) -> None: ...
+    execute_action: Callable[[str], None]
+    message: Callable[[str], None]
+    command_prompt: Callable[[], None]
+    find_prompt: Callable[[bool], None]
+    goto_prompt: Callable[[], None]
+    toggle_keymap: Callable[[], None]
 
 
 class ActionContext:
-    """Passed to every action; gives access to the running application."""
+    """Passed to every action: the document session plus the UI callbacks."""
 
-    def __init__(self, host: ActionHost) -> None:
-        self.host = host
+    def __init__(self, session: EditorSession, ui: KeyUi) -> None:
+        self.session = session
+        self.ui = ui
 
     @property
     def buffer(self) -> TextBuffer:
-        return self.host.buffer
+        return self.session.buffer
 
     @property
     def doc(self) -> Document:
-        return self.host.doc
+        return self.session.doc
 
 
 class Keymap:
@@ -248,7 +249,7 @@ class Keymap:
         if callable(action):
             action(ctx)
         else:
-            ctx.host.execute_action(action)
+            ctx.ui.execute_action(action)
         return True
 
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
@@ -260,6 +261,6 @@ class Keymap:
     def handle_unbound(self, ctx: ActionContext, key: str) -> bool:
         """Default: printable characters insert themselves."""
         if len(key) == 1 and key.isprintable():
-            ctx.host.insert_char(key)
+            ctx.buffer.insert_text(key)
             return True
         return False

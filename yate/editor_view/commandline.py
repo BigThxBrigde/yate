@@ -1,8 +1,16 @@
-"""The command / message line at the very bottom (Textual Input based)."""
+"""The command / message line at the very bottom (Textual Input based).
+
+The bar owns the whole prompt lifecycle: a caller (the explorer, a key
+binding, a command) calls :meth:`PromptBar.activate` with the callbacks for
+that prompt and the bar handles typing, history, tab completion, submission,
+cancellation and focus restore by itself.  It never needs a host protocol:
+the few editor-side primitives it uses (completion candidates, cancel hook,
+focus and repaint) are injected callables.
+"""
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Callable, Optional
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
@@ -12,13 +20,8 @@ from textual.widgets import Input, Static
 from . import theme
 from .icons import SEARCH, TERMINAL
 
-
-class PromptHost(Protocol):
-    """Application callbacks the prompt line needs."""
-
-    def prompt_completions(self, text: str, mode: str) -> list[str]: ...
-
-    def on_prompt_cancel(self) -> None: ...
+#: ``(text, mode) -> candidates`` -- bash-style tab completion.
+PromptCompleter = Callable[[str, str], list[str]]
 
 # prompt prefixes per mode: (prefix, Theme attribute name for the color)
 PREFIXES = {
@@ -40,6 +43,12 @@ PREFIXES = {
 #: message kind -> Theme attribute name for the color
 MESSAGE_COLORS = {"info": "fg_bright", "error": "red", "warn": "yellow", "ok": "green"}
 
+#: Where the message line's current text came from; the LSP echo only clears
+#: its own message (``owner == "lsp"``) when the cursor leaves the diagnostic.
+OWNER_APP = "app"
+OWNER_LSP = "lsp"
+OWNER_IDLE = "idle"
+
 
 class CommandInput(Input):
     """Input with command history (up/down) and escape-to-cancel."""
@@ -59,10 +68,9 @@ class CommandInput(Input):
     }
     """
 
-    def __init__(self, bar: PromptBar, host: PromptHost) -> None:
+    def __init__(self, bar: PromptBar) -> None:
         super().__init__()
         self.bar = bar
-        self.host = host
         self.history: list[str] = []
         self._hist_index: int = -1
         # bash-style tab completion state
@@ -108,7 +116,7 @@ class CommandInput(Input):
         mode = self.bar.active_mode
         if mode is None:
             return
-        matches = self.host.prompt_completions(current, mode)
+        matches = self.bar.completer(current, mode)
         if not matches:
             self._reset_tab_state()
             return
@@ -136,7 +144,7 @@ class CommandInput(Input):
         if event.key in ("escape", "ctrl+c"):
             event.stop()
             event.prevent_default()
-            self.host.on_prompt_cancel()
+            self.bar.cancel()
             return
         if event.key == "tab":
             event.stop()
@@ -169,7 +177,11 @@ class CommandInput(Input):
 
 
 class PromptBar(Horizontal):
-    """Bottom bar: either an editable prompt or a one-line message."""
+    """Bottom bar: either an editable prompt or a one-line message.
+
+    One prompt at a time; :meth:`activate` installs the callbacks of the
+    active prompt and :meth:`write` replaces the line with a message.
+    """
 
     DEFAULT_CSS = """
     PromptBar {
@@ -194,13 +206,30 @@ class PromptBar(Horizontal):
     }
     """
 
-    def __init__(self, host: PromptHost) -> None:
-        super().__init__()
-        self.host = host
+    def __init__(
+        self,
+        completer: PromptCompleter,
+        *,
+        on_cancel: Callable[[], None],
+        focus_editor: Callable[[], None],
+        refresh: Callable[[], None],
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.completer = completer
+        self.on_cancel = on_cancel
+        self.focus_editor = focus_editor
+        #: Editor repaint hook (named apart from ``Widget.refresh``).
+        self.refresh_ui = refresh
         self.prompt = Static("", id="cl_prompt")
-        self.input = CommandInput(self, host)
+        self.input = CommandInput(self)
         self.message = Static(" Ready. Press F1 for help.", id="cl_msg")
         self.active_mode: str | None = None
+        #: Who wrote the current message line (see ``OWNER_*``).
+        self.owner = OWNER_IDLE
+        self._on_submit: Optional[Callable[[str], None]] = None
+        self._on_changed: Optional[Callable[[str], None]] = None
+        self._refocus: Optional[Callable[[], None]] = None
 
     def compose(self) -> ComposeResult:
         yield self.prompt
@@ -218,9 +247,29 @@ class PromptBar(Horizontal):
 
     # ------------------------------------------------------------ states
 
-    def activate(self, mode: str, initial: str = "", placeholder: str = "") -> None:
+    def activate(
+        self,
+        mode: str,
+        *,
+        initial: str = "",
+        placeholder: str = "",
+        on_submit: Optional[Callable[[str], None]] = None,
+        on_changed: Optional[Callable[[str], None]] = None,
+        refocus: Optional[Callable[[], None]] = None,
+    ) -> bool:
+        """Show the prompt in *mode*; ``False`` when the bar is not mounted.
+
+        *on_submit* receives the submitted text; when the handler neither
+        opens a follow-up prompt nor reports anything, the bar closes itself
+        and restores focus (``refocus``, default: the editor).
+        """
+        if not self.is_mounted:
+            return False
         prefix, attr = PREFIXES.get(mode, (":", "yellow"))
         self.active_mode = mode
+        self._on_submit = on_submit
+        self._on_changed = on_changed
+        self._refocus = refocus
         self.message.display = False
         self.prompt.display = True
         self.prompt.update(prefix + " ")
@@ -232,15 +281,61 @@ class PromptBar(Horizontal):
         self.input.cursor_position = len(initial)
         self.input.reset_history_cursor()
         self.input.focus()
+        return True
 
-    def show_message(self, text: str, color: str | None = None, kind: str = "info") -> None:
+    def write(self, text: str, kind: str = "info", owner: str = OWNER_APP) -> None:
+        """Replace the prompt line with the message *text*."""
+        self.owner = owner
+        self._show_message(text, getattr(theme.active(), MESSAGE_COLORS.get(kind, "fg_bright")))
+
+    def idle(self, text: str = " Ready. Press F1 for help.") -> None:
+        """Back to the idle hint line."""
+        self.owner = OWNER_IDLE
+        self._show_message(text, theme.active().fg_dim)
+
+    def _show_message(self, text: str, color: Optional[str]) -> None:
         self.active_mode = None
+        self._on_submit = None
+        self._on_changed = None
         self.input.display = False
         self.prompt.display = False
         self.message.display = True
-        if color is None:
-            color = getattr(theme.active(), MESSAGE_COLORS.get(kind, "fg_bright"))
-        self.message.update(f"[{color}]{text}[/]")
+        self.message.update(f"[{color or theme.active().fg_bright}]{text}[/]")
 
-    def idle(self, text: str = " Ready. Press F1 for help.") -> None:
-        self.show_message(text, theme.active().fg_dim)
+    def cancel(self) -> None:
+        """Esc / ctrl+c on the prompt line: run the cancel hook and close."""
+        self.on_cancel()
+        self.idle()
+        self._finish()
+
+    def _finish(self) -> None:
+        """The prompt line is done: restore focus and repaint."""
+        refocus = self._refocus or self.focus_editor
+        self._refocus = None
+        refocus()
+        self.refresh_ui()
+
+    # ---------------------------------------------------------- submission
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        mode = self.active_mode
+        if mode is None or event.input is not self.input:
+            return
+        handler = self._on_submit
+        self.input.push_history(event.value)
+        if handler is not None:
+            handler(event.value)
+        if self.active_mode is not None:
+            if self.active_mode != mode:
+                return  # a follow-up prompt is active (replace_with)
+            # The handler neither reported anything nor opened a follow-up
+            # prompt (``:bn``, an empty find string, ...).  Close the line
+            # instead of leaving it open with stale text: a focused prompt
+            # Input swallows F5, so the next command would never start.
+            self.idle()
+        self._finish()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input is not self.input or self._on_changed is None:
+            return
+        self._on_changed(event.value)

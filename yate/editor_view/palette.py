@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Optional, Protocol
+from typing import Any, Callable, Optional
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -24,6 +24,7 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
+from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
 from . import theme
@@ -31,30 +32,6 @@ from .icons import GEAR, KEYBOARD, icon_for_path
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE = 12
-
-
-class PaletteHost(Protocol):
-    """What :class:`PaletteScreen` needs from the host application."""
-
-    workspace: Workspace
-
-    def command_entries(self) -> list[tuple[str, str]]:
-        """``(name, description)`` pairs of the ``:`` command table."""
-        ...
-
-    def action_entries(self) -> list[tuple[str, str]]:
-        """``(name, description)`` pairs of the action registry."""
-        ...
-
-    def open_path_later(self, path: Path) -> None: ...
-
-    def focus_editor(self) -> None: ...
-
-    def execute_action(self, name: str) -> None: ...
-
-    def run_command(self, text: str) -> None: ...
-
-    def ui_refresh(self) -> None: ...
 
 
 def fuzzy_match(query: str, target: str) -> Optional[tuple[int, list[int]]]:
@@ -125,9 +102,30 @@ class PaletteScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, host: PaletteHost, mode: str, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        mode: str,
+        *,
+        workspace: Workspace,
+        commands: CommandRegistry,
+        actions: ActionRegistry,
+        open_path: Callable[[Path], None],
+        focus_editor: Callable[[], None],
+        execute_action: Callable[[str], None],
+        run_command: Callable[[str], None],
+        refresh: Callable[[], None],
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self.host = host
+        self.workspace = workspace
+        self.commands = commands
+        self.actions = actions
+        self.open_path = open_path
+        self.focus_editor = focus_editor
+        self.execute_action = execute_action
+        self.run_command = run_command
+        #: Editor repaint hook (named apart from ``Widget.refresh``).
+        self.refresh_ui = refresh
         self.mode = mode  # "files" | "commands"
         self._entries: list[tuple[str, str, Any]] = []  # (display, hint, payload)
         self._filtered: list[tuple[int, list[int], int]] = []  # (score, hits, idx)
@@ -153,11 +151,10 @@ class PaletteScreen(ModalScreen[None]):
         Pure data prep (filesystem traversal + ``resolve`` per file), safe
         to run in a worker thread; it must not touch Textual widgets.
         """
-        host = self.host
         entries: list[tuple[str, str, Any]] = []
-        if host.workspace.root is not None:
-            root = host.workspace.root
-            paths = host.workspace.walk_files()
+        if self.workspace.root is not None:
+            root = self.workspace.root
+            paths = self.workspace.walk_files()
         else:
             root = Path.cwd()
             paths = _walk(root)
@@ -179,16 +176,15 @@ class PaletteScreen(ModalScreen[None]):
         resolves to the ``:`` command (the same spelling typed on the ex
         line) and the raw action duplicate is dropped.
         """
-        host = self.host
         entries: list[tuple[str, str, Any]] = []
-        for name, description in host.command_entries():
+        for name in self.commands.names():
             # hide "palette" itself — opening the palette from inside the
             # palette would be a no-op and feels like recursion
             if name == "palette":
                 continue
-            entries.append((name, description, ("command", name)))
+            entries.append((name, self.commands.describe(name), ("command", name)))
         command_names = {name for name, _h, _p in entries}
-        for name, description in host.action_entries():
+        for name, description in self.actions.describe():
             if name in command_names:
                 continue
             entries.append((name, description, ("action", name)))
@@ -338,17 +334,17 @@ class PaletteScreen(ModalScreen[None]):
         _display, _hint, payload = self._entries[idx]
         self.dismiss()
         if self.mode == "files":
-            self.host.open_path_later(payload)
-            self.host.focus_editor()
+            self.open_path(payload)
+            self.focus_editor()
         else:
             kind, name = payload
             if kind == "action":
-                self.host.execute_action(str(name))
+                self.execute_action(str(name))
                 # key dispatch refreshes the editor after an action; the
                 # palette bypasses the key path, so do it here too
-                self.host.ui_refresh()
+                self.refresh_ui()
             else:
-                self.host.run_command(str(name))
+                self.run_command(str(name))
 
 
 def _walk(root: Path, limit: int = 5000) -> list[Path]:

@@ -1,20 +1,28 @@
-"""File tree / resource explorer (Textual Tree widget)."""
+"""File tree / resource explorer (Textual Tree widget).
+
+The tree owns the whole explorer experience: navigation, the vim-style file
+operations (``a``/``A``/``r``/``d``) and the prompt flows behind them.  It is
+constructed with concrete collaborators only -- the document session, the
+workspace and the prompt bar -- plus the few editor callbacks it triggers
+(opening a file, focusing the editor, the vim ``ctrl+w`` chord).
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
 
 from rich.text import Text
 from textual.events import Key
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
-from yate.app_features.explorer import ExplorerOps
+from yate.services.workspace import IGNORED_NAMES, Workspace
+from yate.session import EditorSession
 
 from . import theme
+from .commandline import PromptBar
 from .icons import icon_for_path
-from ..services.workspace import IGNORED_NAMES
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None
@@ -31,15 +39,33 @@ class ExplorerTree(Tree[NodeData]):
     }
     """
 
-    def __init__(self, ops: ExplorerOps, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        session: EditorSession,
+        workspace: Workspace,
+        prompt: PromptBar,
+        *,
+        open_path: Callable[[Path], None],
+        focus_editor: Callable[[], None],
+        window_prefix: Callable[[Key], bool],
+        **kwargs: Any,
+    ) -> None:
         # The root node shows the open folder name; refresh_tree() fills it in.
         super().__init__(Text(""), **kwargs)
-        self.ops = ops
+        self.session = session
+        self.workspace = workspace
+        self.prompt = prompt
+        self.open_path = open_path
+        self.focus_editor = focus_editor
+        self.window_prefix = window_prefix
         self.show_root = True
         self.guide_depth = 2
         #: last node the user selected (opened); survives refresh_tree even
-        # when the tree lost focus (Textual resets cursor_line to -1 then)
+        #: when the tree lost focus (Textual resets cursor_line to -1 then)
         self._last_selected: Path | None = None
+        #: pending prompt target of the create / rename / delete flow
+        self._target: Optional[Path] = None
+        self._is_dir = False
         # Tree's auto_expand toggles on every select, which would cancel the
         # explicit toggle in on_tree_node_selected (l/enter would do nothing)
         self.auto_expand = False
@@ -68,7 +94,7 @@ class ExplorerTree(Tree[NodeData]):
         """
         t = theme.active()
         self.styles.background = t.panel
-        root_path = self.ops.workspace.root
+        root_path = self.workspace.root
         if root_path is None:
             self.clear()
             self.root.label = Text(" no folder open", style=t.fg_dim)
@@ -137,7 +163,7 @@ class ExplorerTree(Tree[NodeData]):
         expanded: set[Path] | None = None,
     ) -> None:
         placeholder = Text("", style=theme.active().fg_dim)
-        for entry in self.ops.workspace.list_dir(directory):
+        for entry in self.workspace.list_dir(directory):
             if entry.name in IGNORED_NAMES:
                 continue
             label = self._label(entry.path, entry.is_dir, False)
@@ -192,8 +218,8 @@ class ExplorerTree(Tree[NodeData]):
         if path.is_dir():
             event.node.toggle()
             return
-        self.ops.open_path_later(path)
-        self.ops.focus_editor()
+        self.open_path(path)
+        self.focus_editor()
 
     # ------------------------------------------------------- vim-style keys
 
@@ -213,7 +239,7 @@ class ExplorerTree(Tree[NodeData]):
         # the vim ctrl+w window chord runs before everything else (same as
         # the editor view): the pending hjkl would otherwise be eaten by
         # the navigation handlers below
-        if self.ops.try_window_prefix(event):
+        if self.window_prefix(event):
             event.stop()
             event.prevent_default()
             return
@@ -241,27 +267,26 @@ class ExplorerTree(Tree[NodeData]):
                 self.action_cursor_parent()
         elif key == "a":
             consume()
-            self.ops.prompt_new_file(self._cursor_path())
+            self.prompt_new_file(self._cursor_path())
         elif key == "A":
             consume()
-            self.ops.prompt_new_dir(self._cursor_path())
+            self.prompt_new_dir(self._cursor_path())
         elif key == "H":
             consume()
-            ws = self.ops.workspace
-            ws.show_hidden = not ws.show_hidden
+            self.workspace.show_hidden = not self.workspace.show_hidden
             self.refresh_tree()
-            self.ops.message(
-                f"hidden files {'shown' if ws.show_hidden else 'hidden'}"
+            self.prompt.write(
+                f"hidden files {'shown' if self.workspace.show_hidden else 'hidden'}"
             )
         elif key == "r":
             consume()
-            self.ops.prompt_rename(self._cursor_path())
+            self.prompt_rename(self._cursor_path())
         elif key in ("d", "delete"):
             consume()
-            self.ops.prompt_delete(self._cursor_path())
+            self.prompt_delete(self._cursor_path())
         elif key == "escape":
             consume()
-            self.ops.focus_editor()
+            self.focus_editor()
         elif self._is_plain_typing(event):
             # consume plain typing so it does not leak into the editor
             consume()
@@ -271,3 +296,135 @@ class ExplorerTree(Tree[NodeData]):
         node = self.cursor_node
         data = node.data if node is not None else None
         return data if isinstance(data, Path) else None
+
+    # ----------------------------------------------------- prompt flows
+
+    def prompt_new_file(self, directory: Optional[Path]) -> None:
+        """``a``: prompt for a new file next to / inside *directory*."""
+        self._prompt_new(directory, is_dir=False)
+
+    def prompt_new_dir(self, directory: Optional[Path]) -> None:
+        """``A``: prompt for a new folder next to / inside *directory*."""
+        self._prompt_new(directory, is_dir=True)
+
+    def _prompt_new(self, directory: Optional[Path], *, is_dir: bool) -> None:
+        if directory is None:
+            self.prompt.write("select a file or folder first", kind="warn")
+            return
+        # on a file entry the sibling directory is the creation target
+        if not directory.is_dir():
+            directory = directory.parent
+        mode = "new_dir" if is_dir else "new_file"
+        # A created file opens for editing -> focus the editor; a folder
+        # keeps the explorer focused.
+        refocus = self._refocus_explorer if is_dir else self.focus_editor
+        if not self.prompt.activate(
+            mode,
+            placeholder=f"created inside {directory.name}/",
+            on_submit=self.submit_create,
+            refocus=refocus,
+        ):
+            return
+        self._target = directory
+        self._is_dir = is_dir
+
+    def prompt_rename(self, path: Optional[Path]) -> None:
+        """``r``: prompt for a new name for *path*."""
+        if path is None:
+            self.prompt.write("select a file or folder first", kind="warn")
+            return
+        if not self.prompt.activate(
+            "rename",
+            initial=path.name,
+            placeholder=f"renaming {path.name}",
+            on_submit=self.submit_rename,
+            refocus=self._refocus_explorer,
+        ):
+            return
+        self._target = path
+
+    def prompt_delete(self, path: Optional[Path]) -> None:
+        """``d``: prompt for the confirmation that deletes *path*."""
+        if path is None:
+            self.prompt.write("select a file or folder first", kind="warn")
+            return
+        kind = "folder" if path.is_dir() else "file"
+        if not self.prompt.activate(
+            "delete",
+            placeholder=f"{kind} {path.name} — type y to confirm",
+            on_submit=self.submit_delete,
+            refocus=self._refocus_explorer,
+        ):
+            return
+        self._target = path
+
+    def _refocus_explorer(self) -> None:
+        if self.workspace.root is not None:
+            self.focus()
+
+    # ----------------------------------------------------------- submission
+
+    def submit_create(self, name: str) -> None:
+        """Prompt submitted: create the pending entry."""
+        directory = self._target
+        if directory is None:
+            return
+        try:
+            target = self.workspace.create_entry(directory, name, is_dir=self._is_dir)
+        except ValueError as exc:
+            self.prompt.write(f"invalid name: {exc}", kind="error")
+            return
+        except FileExistsError as exc:
+            self.prompt.write(str(exc), kind="error")
+            return
+        except OSError as exc:
+            self.prompt.write(f"create failed: {exc}", kind="error")
+            return
+        self.refresh_tree()
+        self.prompt.write(f"created {target.name}", kind="ok")
+        if not self._is_dir:
+            # VS Code behavior: a new file opens right away
+            self.open_path(target)
+
+    def submit_rename(self, name: str) -> None:
+        """Prompt submitted: rename the pending path."""
+        path = self._target
+        if path is None:
+            return
+        try:
+            new_path = self.workspace.rename_entry(path, name)
+        except ValueError as exc:
+            self.prompt.write(f"invalid name: {exc}", kind="error")
+            return
+        except FileExistsError as exc:
+            self.prompt.write(str(exc), kind="error")
+            return
+        except OSError as exc:
+            self.prompt.write(f"rename failed: {exc}", kind="error")
+            return
+        # keep tabs pointing at the moved document
+        self.session.retarget(path, new_path)
+        self.refresh_tree()
+        self.prompt.write(f"renamed to {new_path.name}", kind="ok")
+
+    def submit_delete(self, confirm: str) -> None:
+        """Prompt submitted: delete the pending path when confirmed."""
+        path = self._target
+        if path is None:
+            return
+        if confirm.strip().lower() not in ("y", "yes"):
+            self.prompt.write("delete cancelled")
+            return
+        try:
+            self.workspace.remove_entry(path)
+        except OSError as exc:
+            self.prompt.write(f"delete failed: {exc}", kind="error")
+            return
+        closed = self.session.close_under(path)
+        self.refresh_tree()
+        if closed:
+            self.prompt.write(
+                f"deleted {path.name} (closed {len(closed)} open tab(s))", kind="ok"
+            )
+        else:
+            self.prompt.write(f"deleted {path.name}", kind="ok")

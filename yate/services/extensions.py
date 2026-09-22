@@ -31,11 +31,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Mapping, Optional, Protocol, Sequence, cast
+from typing import Any, Callable, Mapping, Optional, Sequence, cast
 
-from yate.actions import ActionRegistry
-from yate.editor_core import Document
-from yate.editor_core.buffer import TextBuffer
+from yate.config import YateConfig
 from yate.editor_lsp import LspManager
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_syntax import (
@@ -45,43 +43,41 @@ from yate.editor_syntax import (
     register_language,
 )
 from yate.editor_syntax.ts_backend import load_language_from_grammar
-from yate.keymaps.base import Keymap
+from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
+from yate.paths import bundled_extensions_dir
+from yate.registries import ActionRegistry, CommandFunc, CommandRegistry
 from yate.services.shell import ShellResult
 from yate.services.workspace import Workspace
-
-CommandFunc = Callable[[str], object]
+from yate.session import EditorSession
 
 #: Trace logger ("yate.services.extensions"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 
-class ExtensionHost(Protocol):
-    """The application surface extension scripts can drive."""
+@dataclass
+class ExtensionContext:
+    """The concrete services an extension script drives.
 
-    lsp: LspManager
+    Built by the editor once everything is constructed and handed to
+    :class:`ExtensionAPI`; extensions reach it through ``api.app`` (advanced
+    use) or through the narrow accessors on the API.
+    """
+
+    session: EditorSession
     workspace: Workspace
-    keymaps: dict[str, Keymap]
+    lsp: LspManager
+    keymaps: KeymapSet
     actions: ActionRegistry
-
-    @property
-    def buffer(self) -> TextBuffer: ...
-
-    @property
-    def doc(self) -> Document: ...
-
-    def register_command(self, name: str, func: CommandFunc,
-                         description: str) -> None: ...
-
-    def message(self, text: str, kind: str = "info") -> None: ...
-
-    def run_shell_command(
-        self, command: str, show_output: bool = True
-    ) -> Optional[ShellResult]: ...
-
-    def open_path(self, path: Path) -> None: ...
-
-    def save_document(self) -> None: ...
+    commands: CommandRegistry
+    #: ``message(text)`` -- report on the message line.
+    message: Callable[[str], None]
+    #: ``run_shell(command, show_output)`` -- synchronous shell command.
+    run_shell: Callable[[str, bool], Optional[ShellResult]]
+    #: ``open_path(path)`` -- open a file/folder in the editor.
+    open_path: Callable[[Path], None]
+    #: ``save()`` -- save the active document.
+    save: Callable[[], None]
 
 
 class LspExtensionBridge:
@@ -225,34 +221,34 @@ class SyntaxExtensionBridge:
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
-    def __init__(self, host: ExtensionHost) -> None:
-        self._host = host
-        self._lsp = LspExtensionBridge(host.lsp)
+    def __init__(self, ctx: ExtensionContext) -> None:
+        self._ctx = ctx
+        self._lsp = LspExtensionBridge(ctx.lsp)
         self._highlight = HighlightExtensionBridge()
         self._syntax = SyntaxExtensionBridge()
 
     # ------------------------------------------------------------- accessors
 
     @property
-    def app(self) -> ExtensionHost:
-        """The application host (advanced use; prefer the narrow accessors)."""
-        return self._host
+    def app(self) -> ExtensionContext:
+        """The host context (advanced use; prefer the narrow accessors)."""
+        return self._ctx
 
     @property
     def buffer(self):
-        return self._host.buffer
+        return self._ctx.session.buffer
 
     @property
     def doc(self):
-        return self._host.doc
+        return self._ctx.session.doc
 
     @property
     def workspace(self):
-        return self._host.workspace
+        return self._ctx.workspace
 
     @property
-    def keymaps(self) -> dict[str, Keymap]:
-        return self._host.keymaps
+    def keymaps(self) -> KeymapSet:
+        return self._ctx.keymaps
 
     @property
     def lsp(self) -> LspExtensionBridge:
@@ -273,7 +269,7 @@ class ExtensionAPI:
 
     def register_action(self, name: str, func: Callable[..., Any], description: str = "") -> None:
         """Register a named action (usable from key maps / commands)."""
-        self._host.actions.register(name, func, description=description or "extension action")
+        self._ctx.actions.register(name, func, description=description or "extension action")
 
     def bind_key(
         self,
@@ -296,7 +292,7 @@ class ExtensionAPI:
             else:
                 targets = ["vsc"] if keymap == "normal" else [keymap]
             for target in targets:
-                km = self._host.keymaps.get(target)
+                km = self._ctx.keymaps.get(target)
                 if km is not None:
                     km.add_binding(key_spec, func, description, category)
             return func
@@ -312,27 +308,27 @@ class ExtensionAPI:
         """
 
         def _decorator(func: CommandFunc) -> CommandFunc:
-            self._host.register_command(name, func, description)
+            self._ctx.commands.register(name, func, description)
             return func
 
         return _decorator
 
     def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
-        self._host.register_command(name, func, description or "extension command")
+        self._ctx.commands.register(name, func, description or "extension command")
 
     # -------------------------------------------------------------- services
 
     def message(self, text: str) -> None:
-        self._host.message(text)
+        self._ctx.message(text)
 
     def shell(self, command: str) -> object:
-        return self._host.run_shell_command(command, show_output=False)
+        return self._ctx.run_shell(command, False)
 
     def open_path(self, path: str | Path) -> None:
-        self._host.open_path(Path(path))
+        self._ctx.open_path(Path(path))
 
     def save(self) -> None:
-        self._host.save_document()
+        self._ctx.save()
 
 
 @dataclass
@@ -441,3 +437,70 @@ class ExtensionLoader:
                 teardown(self.api)  # dynamic user hook (captured post-setup)
             except Exception:
                 pass
+
+
+def load_startup_extensions(
+    loader: ExtensionLoader,
+    config: YateConfig,
+    *,
+    ext_dirs: Sequence[Path] = (),
+    ext_files: Sequence[Path] = (),
+) -> list[str]:
+    """Load every configured extension source, in the documented order.
+
+    rc-declared paths load first (user rc then project rc), followed by the
+    bundled defaults, the project/user directories and the explicit CLI
+    paths.  Returns the user-facing messages (load errors, shadowed
+    rc-declared scripts); the caller reports them on the message line.  The
+    same order is used by a normal start and by ``yate --diag``, so the
+    diagnostics always show exactly what a start would load.
+    """
+    messages: list[str] = []
+
+    def _report(records: list[LoadedExtension]) -> None:
+        for record in records:
+            if record.error:
+                messages.append(f"extension {record.name}: {record.error}")
+
+    for path in config.extension_paths:
+        if path.is_dir():
+            _report(loader.load_directory(path))
+        elif path.is_file():
+            _report([loader.load_file(path)])
+        else:
+            messages.append(f"extension path not found: {path}")
+
+    # Extensions shipped with yate (inside the package / the PyInstaller
+    # bundle). Individual defaults can be switched off in yaterc with
+    # ``disabled_extensions``; same-named scripts loaded afterwards from a
+    # project or user directory get the last word on registrations.
+    bundled = bundled_extensions_dir()
+    if bundled.is_dir():
+        # Registrars are last-write-wins, so a bundled default loading
+        # *after* an rc-declared same-stem script would silently take over
+        # its commands/highlight/server. Name the conflict and point at the
+        # documented opt-out instead of letting the user script lose without
+        # explanation.
+        rc_owners = {record.name: record for record in loader.loaded}
+        records = loader.load_directory(bundled, exclude=config.disabled_extensions)
+        for record in records:
+            owner = rc_owners.get(record.name)
+            if owner is not None and record.error is None:
+                messages.append(
+                    f"extension {record.name}: the rc-declared script "
+                    f"{owner.path} is shadowed by the bundled default; "
+                    f'add disabled_extensions = ["{record.name}"] to '
+                    "yaterc to use the rc-declared version"
+                )
+        _report(records)
+
+    directories = [
+        *ext_dirs,
+        Path.cwd() / "extensions",
+        Path.home() / ".yate" / "extensions",
+    ]
+    for directory in directories:
+        _report(loader.load_directory(directory))
+    for file in ext_files:
+        _report([loader.load_file(file)])
+    return messages

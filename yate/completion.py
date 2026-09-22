@@ -1,8 +1,10 @@
 """Editor completion orchestration: debounce, LSP/buffer query, popup show.
 
-The controller owns the debounce timer and the worker coroutine; the
-application supplies the popup widget, the editor state and the spawn
-primitive through :class:`CompletionHost`.
+The controller owns the debounce timer and the query worker; the popup widget
+shows the candidates.  It is an editor-level collaborator (not a widget), so
+it receives the concrete pieces it drives: the document session, the language
+servers, the panes (for the active view geometry), the popup and the prompt
+bar (for "no completions" feedback).
 """
 
 from __future__ import annotations
@@ -10,56 +12,23 @@ from __future__ import annotations
 import asyncio
 from functools import partial
 from pathlib import Path
-from typing import Awaitable, Callable, Optional, Protocol
+from typing import Callable, Optional
 
+from textual.app import App
+
+from yate.editor_view import theme
+from yate.editor_view.commandline import PromptBar
+from yate.editor_view.completion import CompletionPopup, buffer_completions
+from yate.editor_view.editor import EditorView
+from yate.editor_view.panes import PaneManager
 from yate.editor_core import Document
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp import LspManager
-from yate.editor_view import theme
-from yate.editor_view.completion import CompletionPopup, buffer_completions
-from yate.editor_view.editor import EditorView
-from yate.keymaps.base import Keymap
+from yate.editor_lsp.client import Completion
+from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.services.workspace import Workspace
-
-
-class CompletionHost(Protocol):
-    """What :class:`CompletionController` needs from the application."""
-
-    lsp: LspManager
-
-    @property
-    def completion_popup(self) -> Optional[CompletionPopup]: ...
-
-    @property
-    def mounted(self) -> bool: ...
-
-    @property
-    def editor_view(self) -> Optional[EditorView]: ...
-
-    @property
-    def doc(self) -> Document: ...
-
-    @property
-    def docs(self) -> list[Document]: ...
-
-    @property
-    def workspace(self) -> Workspace: ...
-
-    @property
-    def keymap_name(self) -> str: ...
-
-    @property
-    def keymaps(self) -> dict[str, Keymap]: ...
-
-    def message(self, text: str, kind: str = "info") -> None: ...
-
-    def ui_refresh(self) -> None: ...
-
-    def has_modal_screen(self) -> bool: ...
-
-    def spawn(self, work: Callable[[], Awaitable[None]], *, group: str,
-              exclusive: bool = False, exit_on_error: bool = True) -> None: ...
+from yate.session import EditorSession
 
 
 class CompletionController:
@@ -68,22 +37,49 @@ class CompletionController:
     #: Idle delay after the last keystroke before the popup is queried.
     _DEBOUNCE_S = 0.12
 
-    def __init__(self, host: CompletionHost) -> None:
-        self._host = host
+    def __init__(
+        self,
+        app: App[object],
+        *,
+        session: EditorSession,
+        lsp: LspManager,
+        workspace: Workspace,
+        keymaps: KeymapSet,
+        panes: PaneManager,
+        popup: CompletionPopup,
+        prompt: PromptBar,
+        refresh: Callable[[], None],
+    ) -> None:
+        self.app = app
+        self.session = session
+        self.lsp = lsp
+        self.workspace = workspace
+        self.keymaps = keymaps
+        self.panes = panes
+        self.popup = popup
+        self.prompt = prompt
+        self.refresh = refresh
         self._timer: Optional[asyncio.TimerHandle] = None
 
     # ----------------------------------------------------------------- hooks
 
+    @property
+    def _mounted(self) -> bool:
+        return self.popup.is_mounted
+
+    @property
+    def _modal(self) -> bool:
+        return len(self.app.screen_stack) > 1
+
     def close(self) -> None:
-        popup = self._host.completion_popup
-        if popup is not None and popup.is_open:
+        popup = self.popup
+        if popup.is_open:
             popup.close()
 
     def after_editor_key(self, raw: str) -> None:
         """Adjust the completion popup after a normal editor keystroke."""
-        host = self._host
-        popup = host.completion_popup
-        if popup is None or not host.mounted:
+        popup = self.popup
+        if not self._mounted:
             return
         if len(raw) == 1 and raw.isprintable():
             if self._is_completion_char(raw) and self._vim_insert_mode():
@@ -117,26 +113,24 @@ class CompletionController:
 
     def request(self, manual: bool = True, trigger_ch: Optional[str] = None) -> None:
         """Fetch completions and show the popup (worker; never blocks input)."""
-        host = self._host
-        if host.completion_popup is None or not host.mounted:
-            return
-        if host.has_modal_screen():
+        if not self._mounted or self._modal:
             return
         if not self._vim_insert_mode():
             return
         self._timer = None
-        host.spawn(
+        self.app.run_worker(
+            # the coroutine *function*: an eager coroutine would leak if the
+            # worker never starts
             partial(self._worker, manual, trigger_ch),
             group="lsp-completion", exclusive=True, exit_on_error=False,
         )
 
     async def _worker(self, manual: bool, trigger_ch: Optional[str]) -> None:
-        host = self._host
-        popup = host.completion_popup
-        editor = host.editor_view
-        if popup is None or editor is None:
+        popup = self.popup
+        editor = self.panes.active_view
+        if editor is None:
             return
-        doc = host.doc
+        doc = self.session.doc
         buf = doc.buffer
         row, col = buf.row, buf.col
         line = buf.lines[row] if row < buf.line_count else ""
@@ -148,52 +142,38 @@ class CompletionController:
 
         # No language server for this document -> buffer-based completion
         # (words from every open buffer + filesystem paths).
-        if not host.lsp.supports(doc):
+        if not self.lsp.supports(doc):
             if not manual and not prefix and trigger_ch not in (".",):
                 popup.close()
                 return
-            others = [d.buffer for d in host.docs if d is not doc]
-            base = host.workspace.root if host.workspace.root is not None else Path.cwd()
+            others = [d.buffer for d in self.session.docs if d is not doc]
+            root = self.workspace.root
+            base = root if root is not None else Path.cwd()
             items, buf_prefix, _start_col = buffer_completions(
                 buf, row, col, extra_buffers=others, base_dir=base
             )
             cur_prefix, cur_col = self._current_prefix(buf, row)
-            if (
-                not host.mounted
-                or host.doc is not doc
-                or buf.row != row
-                or buf.col != cur_col
-                or cur_prefix != prefix
-                or not popup.is_mounted
-            ):
+            if self._stale(doc, row, prefix, cur_prefix, cur_col, popup):
                 return
             if not items:
                 popup.close()
                 if manual:
-                    host.message("no completions", kind="info")
+                    self.prompt.write("no completions", kind="info")
                 return
-            cell = theme.char_to_cell(line, col, buf.tab_width) - editor.scroll_col
-            rel_row = row - editor.scroll_offset.y
-            popup.show(
-                items, buf_prefix,
-                (cell, rel_row),
-                (editor.size.width or 80, editor.size.height or 20),
-                editor.gutter_width(),
-                origin_y=2,
-            )
+            self._show_items(items, buf_prefix, editor, line, col, buf, row)
             return
 
         if not manual and not prefix and trigger_ch not in (
-            ".", *host.lsp.trigger_characters_for(doc)
+            ".", *self.lsp.trigger_characters_for(doc)
         ):
             popup.close()
             return
 
         # Make sure didOpen happened (also starts the server on first use).
-        await host.lsp.on_document_shown(doc)
-        triggers = host.lsp.trigger_characters_for(doc)
+        await self.lsp.on_document_shown(doc)
+        triggers = self.lsp.trigger_characters_for(doc)
         kind = 2 if trigger_ch in triggers else 1
-        items = await host.lsp.request_completion(
+        items = await self.lsp.request_completion(
             doc, row, col,
             prefix_start_col=i,
             trigger_kind=kind,
@@ -202,14 +182,7 @@ class CompletionController:
         # Stale if the user switched tabs, lines, scrolled away, or changed
         # the prefix on the same row.
         cur_prefix, cur_col = self._current_prefix(buf, row)
-        if (
-            not host.mounted
-            or host.doc is not doc
-            or buf.row != row
-            or buf.col != cur_col
-            or cur_prefix != prefix
-            or not popup.is_mounted
-        ):
+        if self._stale(doc, row, prefix, cur_prefix, cur_col, popup):
             return
         if prefix:
             needle = prefix.lower()
@@ -222,11 +195,42 @@ class CompletionController:
         if not items:
             popup.close()
             if manual:
-                host.message("no completions", kind="info")
+                self.prompt.write("no completions", kind="info")
             return
+        self._show_items(items, prefix, editor, line, col, buf, row)
+
+    def _stale(
+        self,
+        doc: Document,
+        row: int,
+        prefix: str,
+        cur_prefix: str,
+        cur_col: int,
+        popup: CompletionPopup,
+    ) -> bool:
+        buf = self.session.doc.buffer
+        return (
+            not self._mounted
+            or self.session.doc is not doc
+            or buf.row != row
+            or buf.col != cur_col
+            or cur_prefix != prefix
+            or not popup.is_mounted
+        )
+
+    def _show_items(
+        self,
+        items: list[Completion],
+        prefix: str,
+        editor: EditorView,
+        line: str,
+        col: int,
+        buf: TextBuffer,
+        row: int,
+    ) -> None:
         cell = theme.char_to_cell(line, col, buf.tab_width) - editor.scroll_col
         rel_row = row - editor.scroll_offset.y
-        popup.show(
+        self.popup.show(
             items,
             prefix,
             (cell, rel_row),
@@ -239,12 +243,11 @@ class CompletionController:
 
     def accept(self) -> None:
         """Insert the selected completion at its reported range."""
-        host = self._host
-        popup = host.completion_popup
-        if popup is None or not popup.is_open:
+        popup = self.popup
+        if not popup.is_open:
             return
         item = popup.selected()
-        doc = host.doc
+        doc = self.session.doc
         buf = doc.buffer
         popup.close()
         if item is None:
@@ -271,7 +274,7 @@ class CompletionController:
                 i -= 1
             start, end = (row, i), (row, col)
         buf.replace_range(start, end, item.insert_text)
-        host.ui_refresh()
+        self.refresh()
 
     # -------------------------------------------------------------- helpers
 
@@ -295,13 +298,13 @@ class CompletionController:
     def _is_completion_char(self, ch: str) -> bool:
         if ch.isalnum() or ch == "_":
             return True
-        return ch in self._host.lsp.trigger_characters_for(self._host.doc)
+        return ch in self.lsp.trigger_characters_for(self.session.doc)
 
     def _vim_insert_mode(self) -> bool:
         """True when vim modal editing would insert typed characters."""
-        if self._host.keymap_name != "vim":
+        if self.keymaps.name != "vim":
             return True
-        vim = self._host.keymaps.get("vim")
+        vim = self.keymaps.get("vim")
         if vim is None:
             return True  # key missing in unexpected state; default to insert
         return isinstance(vim, VimKeymap) and vim.mode is VimMode.INSERT

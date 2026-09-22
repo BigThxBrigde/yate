@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Optional, Protocol
+from typing import Any, Callable, Optional, Protocol
 
 from rich.segment import Segment
 from rich.style import Style
@@ -16,16 +16,14 @@ from textual.timer import Timer
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
 from yate.editor_core.document import Document
-from yate.editor_core.search import SearchEngine
 from yate.editor_lsp import LspManager
 from yate.editor_syntax import tokenize_document
 from yate.editor_syntax.tokens import Token
+from yate.keymaps.registry import KeymapSet
+from yate.session import EditorSession
 
 from . import theme
-from .completion import CompletionPopup
-from .keys import event_to_raw
 from .pane_types import Leaf
-from .terminal import TOGGLE_KEYS
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL = 0
@@ -47,10 +45,16 @@ _WELCOME_BANNER = [
 
 
 class PaneRegistry(Protocol):
-    """The pane-manager surface a view needs (implemented by PaneManager)."""
+    """The pane-manager lookups a view needs (implemented by ``PaneManager``).
+
+    This is deliberately the only protocol of the widget layer: ``panes.py``
+    imports :class:`EditorView` (it builds one view per leaf) while the view
+    needs the manager's leaf lookups, so the consumer-owned interface lives
+    here and both sides import this module.
+    """
 
     @property
-    def active_view(self) -> Optional[EditorView]: ...
+    def active_view(self) -> Optional[object]: ...
 
     def leaf_by_id(self, leaf_id: int) -> Leaf: ...
 
@@ -59,42 +63,14 @@ class PaneRegistry(Protocol):
     def notify_focus(self, leaf_id: int) -> None: ...
 
 
-class EditorHost(Protocol):
-    """What :class:`EditorView` reads / triggers on its host application."""
-
-    lsp: LspManager
-    welcome_visible: bool
-    keymap_name: str
-    completion_popup: Optional[CompletionPopup]
-
-    @property
-    def doc(self) -> Document: ...
-
-    @property
-    def search(self) -> SearchEngine: ...
-
-    @property
-    def panes(self) -> Optional[PaneRegistry]: ...
-
-    def request_completion(self, manual: bool = False) -> None: ...
-
-    def accept_completion(self) -> None: ...
-
-    def toggle_terminal(self) -> None: ...
-
-    def try_window_prefix(self, event: Key) -> bool: ...
-
-    def handle_raw_key(self, raw: str) -> bool: ...
-
-    def has_modal_screen(self) -> bool: ...
-
-
 class EditorView(ScrollView):
-    """Renders the active document: gutter, syntax, selection, matches, cursor.
+    """Renders one pane's document: gutter, syntax, selection, matches, cursor.
 
-    A ScrollView (like TextArea) so the framework honours the virtual size we
-    set from the buffer and the viewport follows the cursor when it leaves
-    the visible area.
+    A pure renderer: it owns geometry, highlighting and the per-pane view
+    state, and forwards every key to the editor (``handle_key``), which does
+    the dispatch (keymap, completion, terminal, window chords).  Its
+    collaborators are concrete -- the pane registry, the document session,
+    the language servers and the keymap set.
     """
 
     can_focus = True
@@ -111,10 +87,27 @@ class EditorView(ScrollView):
     }
     """
 
-    def __init__(self, host: EditorHost, *, leaf_id: int, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        leaf_id: int,
+        *,
+        panes: PaneRegistry,
+        session: EditorSession,
+        lsp: LspManager,
+        keymaps: KeymapSet,
+        handle_key: Callable[[Key], bool],
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self.host = host
         self.leaf_id = leaf_id
+        self.panes = panes
+        self.session = session
+        self.lsp = lsp
+        self.keymaps = keymaps
+        #: Runs the editor's key dispatch (keymap, completion, terminal, ...);
+        #: returns True when the key was consumed.  Named apart from
+        #: ``Widget.handle_key`` (Textual's own async hook).
+        self.dispatch_key = handle_key
         self.scroll_col = 0
         # Syntax token cache. Tokens belong to (doc, content_version,
         # filetype); pure cursor/scroll movement leaves the version alone,
@@ -138,9 +131,7 @@ class EditorView(ScrollView):
     @property
     def leaf(self) -> Leaf:
         """The pane-tree leaf rendered by this view."""
-        panes = self.host.panes
-        assert panes is not None
-        return panes.leaf_by_id(self.leaf_id)
+        return self.panes.leaf_by_id(self.leaf_id)
 
     @property
     def doc(self) -> Document:
@@ -155,8 +146,7 @@ class EditorView(ScrollView):
     @property
     def is_active_view(self) -> bool:
         """Whether this view is the currently focused pane."""
-        panes = self.host.panes
-        return panes is not None and panes.active_view is self
+        return self.panes.active_view is self
 
     def _cursor_anchor(self) -> tuple[Pos, Optional[Pos]]:
         """Cursor/anchor to render: the live buffer for the active pane, the
@@ -175,9 +165,7 @@ class EditorView(ScrollView):
 
     def on_focus(self, _event: Focus) -> None:
         """Report pane activation to the pane manager."""
-        panes = self.host.panes
-        if panes is not None:
-            panes.notify_focus(self.leaf_id)
+        self.panes.notify_focus(self.leaf_id)
 
     def content_changed(self) -> None:
         """Call after any buffer mutation / document switch / theme change.
@@ -223,62 +211,15 @@ class EditorView(ScrollView):
         self._update_virtual_size()
 
     def on_key(self, event: Key) -> None:
-        """Forward keys to the yate keymap while the editor is focused."""
-        if self.host.has_modal_screen():
-            return  # a modal screen owns input
-        # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle:
-        # on Windows conhost / legacy xterm Ctrl+Space and Ctrl+` share the
-        # NUL byte (named "ctrl+@"), so there the NUL byte favors completion;
-        # Ctrl+` still closes the terminal while it is focused, and :term /
-        # the palette opens it.
-        if event.key in ("ctrl+space", "ctrl+@"):
-            self.host.request_completion(manual=True)
-            event.stop()
-            event.prevent_default()
-            return
-        if event.key in TOGGLE_KEYS:
-            event.stop()
-            event.prevent_default()
-            self.host.toggle_terminal()
-            return
-        # LSP completion popup owns a handful of keys while open; it never
-        # takes focus itself, so the keys arrive here.
-        popup = self.host.completion_popup
-        if popup is not None and popup.is_open:
-            if event.key in ("tab", "enter"):
-                self.host.accept_completion()
-                event.stop()
-                event.prevent_default()
-                return
-            if event.key == "up":
-                popup.select_prev()
-                event.stop()
-                event.prevent_default()
-                return
-            if event.key == "down":
-                popup.select_next()
-                event.stop()
-                event.prevent_default()
-                return
-            if event.key == "escape":
-                popup.close()
-                event.stop()
-                event.prevent_default()
-                return
-            return
-        # the vim ctrl+w window chord must run before keymap dispatch:
-        # the vim keymap swallows unmapped keys so the app would never
-        # see them
-        if self.host.try_window_prefix(event):
-            event.stop()
-            event.prevent_default()
-            return
-        raw = event_to_raw(event.key, event.character)
-        if raw is None:
-            return
-        if self.host.handle_raw_key(raw):
-            event.stop()
-            event.prevent_default()
+        """Forward the key to the editor's dispatcher while focused.
+
+        The editor view is the end of the line for keyboard input: the event
+        is stopped whether or not the key was consumed, so it never bubbles
+        up to the application shell and gets dispatched a second time.
+        """
+        self.dispatch_key(event)
+        event.stop()
+        event.prevent_default()
 
     def reveal_cursor(self) -> None:
         buf = self.buffer
@@ -437,8 +378,7 @@ class EditorView(ScrollView):
         # widget actually unmounting, a timer tick can still reach
         # render_line. The pane tree no longer holds this leaf, so paint a
         # blank strip instead of tripping the leaf-lookup assertion.
-        panes = self.host.panes
-        if panes is None or panes.leaf_for(self.leaf_id) is None:
+        if self.panes.leaf_for(self.leaf_id) is None:
             return Strip([Segment(" " * view_w, Style(bgcolor=t.bg))])
         buf = self.buffer
         gutter_w = self._gutter_w()
@@ -482,7 +422,7 @@ class EditorView(ScrollView):
         line_bg = t.surface if is_current else None
 
         # gutter
-        line_diags = self.host.lsp.diagnostics_on_line(self.doc, y)
+        line_diags = self.lsp.diagnostics_on_line(self.doc, y)
         line_error = any(d.is_error for d in line_diags)
         line_warn = any(d.is_warning for d in line_diags)
         if line_error:
@@ -537,7 +477,7 @@ class EditorView(ScrollView):
     def _welcome_active(self) -> bool:
         """Show the VS Code-style welcome page for an empty unnamed buffer.
 
-        Besides the pristine-buffer condition the app-level
+        Besides the pristine-buffer condition the session-level
         ``welcome_visible`` flag must be set: it is on at startup only and is
         dismissed once the user creates a new buffer (``:enew``); ``:welcome``
         turns it back on.
@@ -545,7 +485,7 @@ class EditorView(ScrollView):
         doc = self.doc
         buf = self.buffer
         return (
-            self.host.welcome_visible
+            self.session.welcome_visible
             and doc.path is None
             and not doc.modified
             and buf.line_count == 1
@@ -609,7 +549,7 @@ class EditorView(ScrollView):
         """Render one welcome page row (gutter stays blank, no cursor)."""
         segments: list[Segment] = [Segment(" " * gutter_w, Style(bgcolor=t.bg))]
         rows = self._welcome_lines(
-            t, vim_keys=self.host.keymap_name == "vim"
+            t, vim_keys=self.keymaps.name == "vim"
         )
         used = gutter_w
         if y < len(rows):
@@ -634,7 +574,7 @@ class EditorView(ScrollView):
         """Per-cell underline flags contributed by LSP diagnostics on *row*."""
         flags = [False] * cell_count
         tw = self.buffer.tab_width
-        for d in self.host.lsp.diagnostics_on_line(self.doc, row):
+        for d in self.lsp.diagnostics_on_line(self.doc, row):
             if d.start_row == d.end_row:
                 cs, ce = d.start_col, d.end_col
             elif row == d.start_row:
@@ -675,8 +615,8 @@ class EditorView(ScrollView):
 
         # Search state belongs to the active document; other panes showing
         # the same file would otherwise paint matches on wrong rows anyway.
-        search = self.host.search
-        if search.query and self.doc is self.host.doc:
+        search = self.session.search
+        if search.query and self.doc is self.session.doc:
             for i, match in enumerate(search.matches):
                 if match.row != row:
                     continue
