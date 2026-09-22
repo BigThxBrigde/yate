@@ -1,6 +1,18 @@
 
 # :wq 数据丢失残留修复计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现（Issue 1 与 Issue 2 均已修复）。**
+>
+> - **Issue 1**：`yate/app_features/commands.py::_wq` 现在只在 `save_document()`
+>   后仍 `host.doc.modified` 为假时调用 `host.quit()`（**无 `force=True`**），
+>   由 `quit()` 内部对全部 dirty buffer 的统一拦截生效（vim E37 语义）——
+>   其他 tab 的未保存修改不会被静默丢弃。
+> - **Issue 2**：`yate/app.py` 的 `save_document()` 与 `_do_save_as()` 两处
+>   except 均已扩为 `except (OSError, UnicodeError)`，编码不可表示时走
+>   `message("save failed: ...", kind="error")`，buffer 保留在内存、不崩溃。
+> - 测试：`tests/test_app_textual.py` 的 `:wq` 用例（含多 tab dirty、
+>   cp1252 + emoji 编码失败）已覆盖。
+
 > 目标：修复本次 `:wq` 守护修复未覆盖的两条同类数据丢失路径 ——
 > **多 tab 其他 dirty buffer 被静默丢弃**，以及 **Unicode 编码错误崩溃**。
 >

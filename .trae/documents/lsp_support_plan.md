@@ -1,5 +1,18 @@
 # editor_lsp：LSP 支持（autocomplete + diagnostics）实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - `yate/editor_lsp/`（`protocol.py` / `client.py` / `manager.py`）、
+>   `yate/editor_view/completion.py`、`extensions/python_lsp.py`、
+>   `tests/test_lsp.py` 均已落地。
+> - 架构现状：`AppProtocol`（`yate/interfaces.py`）仍是本分支的类型层，
+>   `EditorView` / 补全弹窗等以 `AppProtocol` 注解 `app`
+>   （见 `remove_type_checking_plan.md`）。
+> - 后续演进：补全陈旧守卫已按 `completion_staleness_check_plan.md` 加强；
+>   文档屏/主题等 UI 细节以当前代码为准。
+> - 枚举与数据类命名（如 `ServerState`、`ServerConfig`）请以
+>   `yate/editor_lsp/client.py` 现状为准，本文档正文为其早期形态。
+
 ## 需求
 
 - 新增 `editor_lsp` 子系统，为 yate 接入 Language Server Protocol：**自动补全（completion）** 与 **诊断（diagnostics）**。

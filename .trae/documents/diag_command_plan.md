@@ -1,5 +1,19 @@
 ﻿# `--version` 与 `--diag` 诊断命令实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - `yate/diagnostics.py` 提供 `version_lines()` 与
+>   `format_report(app, *, color=False)`，节注册表为 **12 节**：system /
+>   terminal / shell / paths / yaterc / config / themes / syntax / extensions /
+>   lsp / fonts / packages（**无 `dap` 节**，因 DAP 未实施，见
+>   `dap_support_plan.md`）。
+> - `yate/cli.py`：`--version` 为多行输出（yate / Python / 平台）；
+>   `--diag` 走与正常启动相同的构造路径（`YateApp(...)` →
+>   `load_startup_services()` → 打印报告 → 退出，不进入 TUI）。
+> - `YateApp.load_startup_services()` 与 `LspManager.configs()` 只读访问器均已落地。
+> - 未实施（本文档 §6 的后续方向）：`--diag --check`、`:diag` 应用内命令、
+>   崩溃/追踪状态行、脱敏清单可配置化。
+
 > 为 yate 增加两个不启动 TUI 的命令行出口：
 > - `yate --version`：输出版本基本信息（yate / Python / 操作系统）
 > - `yate --diag`：输出完整配置与环境诊断，便于上报问题时一键收集信息

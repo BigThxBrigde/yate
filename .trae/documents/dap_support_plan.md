@@ -1,5 +1,25 @@
 ﻿# editor_dap：DAP 调试支持与内置 Python 调试实施计划
 
+> **实施状态（2026-09-22 核对）：❌ 未实施（Phase 1 尚未开始）。**
+>
+> 仓库中**不存在任何 DAP 产物**：无 `yate/editor_dap/` 包、无
+> `extensions/python_dap.py`、无 `extensions/example_js_dap.py.example`、
+> 无 `yate/docs/dap.{en,zh}.md`、无调试面板、无断点 gutter、无调试动作
+> （`yate/actions.py` 无 `debug_*` / `toggle_breakpoint`）、无 `:debug` 系列命令、
+> 无相关测试；`yate/config.py` 无 `debug_options` / `debug_adapters`；
+> `yate/editor_view/editor.py` 的 `gutter_width()` 仍是"行号 + LSP 诊断标记"两列。
+>
+> **前提仍然成立**：本分支仍保留 `yate/interfaces.py` / `AppProtocol`，且
+> `app_features/*` 为模块级函数（`explorer.py::apply_delete`、
+> `terminal.py::toggle_terminal`、`completion.py::CompletionController`、
+> `docs.py::show_doc`）——本文档 §1 的复用基线与之一致，只是文中行号
+> （基于 2026-09-15 基线）已漂移，实施时需重新定位。
+> `yate/editor_term/` PTY 包已存在；`extensions/python_lsp.py` 现在直接
+> `from yate.services.extensions import ExtensionAPI`（不再用 `TYPE_CHECKING`），
+> 因此 §4.4 的 JS 扩展示例应同步改为直接导入（配 `from __future__ import
+> annotations`），否则会引入本仓库已清除的 `TYPE_CHECKING` 模式。
+> §5.0 依赖的"键位层支持带修饰 F 键"与 F5→F7 迁移仍未做。
+
 > 新增 `yate/editor_dap` 包（零第三方依赖、纯标准库、UI 无关），
 > 架构完全镜像 `editor_lsp`：DAP-over-stdio 客户端 + 会话/断点管理器；
 > 内置 `extensions/python_dap.py` 扩展通过 debugpy 提供 Python 调试，

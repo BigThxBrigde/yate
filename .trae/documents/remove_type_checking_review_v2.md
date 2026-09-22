@@ -7,6 +7,20 @@
 
 ## 🤖 AI 队友审查结果
 
+> **状态（2026-09-22 复核）：历史评审记录；评审对象已落地，结论均已处理。**
+> 本次评审针对的 `AppProtocol` + `yate/interfaces.py` 方案**就是当前实现**
+> （`yate/interfaces.py` 现存、`AppProtocol` 被 18 个下层模块使用）。
+>
+> - **阻断项（`accept()` 跨行条件 `row != r0 or row != r1`）已修复**：现为按行
+>   范围判定，并叠加列 / 前缀守卫（见 `completion_staleness_check_plan.md`）。
+> - **改进项 1（`AppProtocol` 过多 `Any`）已修复**：成员已全部精化为具体类型，
+>   仅剩 Textual 泛型 `Any`（见 `remove_type_checking_v3_plan.md` 现状）。
+> - **改进项 2（`Leaf.states` 的 `default_factory`）**：现为
+>   `dict[int, ViewState]`，键由 `id(doc)` 改为稳定的 `Document.uid`
+>   （见 `yate/editor_view/pane_types.py`）。
+> - **改进项 3（`remove_node` 原地修改）**：`pane_types.py` 保留模型的
+>   "就地重建"策略，详见文件内注释与 `split_panes_plan.md`。
+
 ### 📊 审查结论
 
 ⛔ 发现 1 个阻断项，3 个改进项。请修改后再合并。

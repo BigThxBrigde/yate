@@ -1,5 +1,14 @@
 # Completion Staleness Check Fix Plan
 
+> **实施状态（2026-09-22 核对）：✅ 已实现（包含 Change 1–4）。**
+>
+> - `yate/app_features/completion.py` 已有 `_current_prefix()` 辅助；两条路径
+>   （buffer-based 与 LSP）的陈旧守卫同时比较 `buf.row`、当前列与前缀文本
+>   （`buf.col != cur_col or cur_prefix != prefix`），不再只看 row。
+> - `accept()` 已改为按行列范围判定（等价于 `row < r0 or row > r1`），
+>   评审指出的 `row != r0 or row != r1` 逻辑错误不存在。
+> - 本文档保留为设计记录（含根因分析与备选方案）。
+
 ## Summary
 
 The completion popup staleness check in `yate/app_features/completion.py` only compares the row (`buf.row != row`) after an LSP `await` returns, but ignores the column position. If the user keeps typing on the same row while the LSP request is in flight, the stale completions are still displayed. When the user accepts one of these stale items, `replace_range` uses outdated coordinates, potentially corrupting text by replacing the wrong span. This plan strengthens the staleness guard by also checking the column and the prefix text.

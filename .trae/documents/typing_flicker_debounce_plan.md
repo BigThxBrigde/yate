@@ -1,5 +1,17 @@
 # 输入闪烁修复：语法高亮防抖与陈旧缓存复用 实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - `yate/editor_view/editor.py` 已有 `_HIGHLIGHT_DEBOUNCE_S = 0.08`、
+>   `_hl_timer`、`_hl_scheduled_key`；`_tokens_for` 在"同 doc / 同 filetype、
+>   仅 `content_version` 落后"时复用上一版 tokens 并按 `(doc, filetype,
+>   version)` 键重建 timer；`_schedule_highlight()` / `_launch_highlight()` /
+>   `_highlight_later()` 对应落地。
+> - 因此"整屏脱色帧"已消除（首次/切文档/切 filetype 仍 delay=0，不受影响）。
+> - **仍未实施**：其后续计划 `highlight_comment_flicker_plan.md`
+>   （变化行 regex 同步替换 + multiline 向后传播），故防抖窗口内的
+>   **行尾 token 边界漂移**仍按设计存在。
+
 ## 问题
 
 issues.md 第 1 条：输入时屏幕闪烁，影响输入体验，需要加入防抖动机制。

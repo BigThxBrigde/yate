@@ -1,5 +1,23 @@
 # 编辑器窗格分割（vim :split / :vsplit）实现方案
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - 纯数据模型抽到 `yate/editor_view/pane_types.py`（`Leaf` / `Split` / `Node` /
+>   `ViewState` 与树工具），Textual 侧为 `yate/editor_view/panes.py`
+>   （`PaneManager` + `PaneHost`）；`EditorView` 已参数化 `leaf_id` 与宿主，
+>   焦点切换经 `PaneManager.capture_active()` / `apply_doc()` 同步视图状态
+>   （同文档多窗格光标/选区/滚动独立）。
+> - 命令已在 `app_features/commands.py` 注册：`:split` / `:sp`、
+>   `:vsplit` / `:vs`、`:only`、`:close`；vim NORMAL 下 `Ctrl+W` 和弦
+>   （`s`/`v`/`q`/`o`/`h-j-k-l`/`+ - < >`/`=`）已在 `app.py` 接线。
+> - 测试：`tests/test_panes.py`（模型）+ `tests/test_app_textual.py`（pilot）已覆盖。
+> - 与本文档的差异：`Leaf.states` 的键**不是** `id(doc)`，而是稳定的
+>   `Document.uid`（`pane_types.py::Leaf.state_for`，注释说明用于规避文档重建
+>   导致的键失效，见 `remove_type_checking_review_v3.md`）；`PaneManager`
+>   构造为 `PaneManager(app: AppProtocol, doc: Document)`，Textual 宿主类为
+>   `yate/editor_view/panes.py::PaneHost`（`reconcile` 目前是整树重建，文件内
+>   留有 `TODO(perf)`）。
+
 ## 需求（已与用户确认）
 
 - 范围：基础窗格 + 调整大小。`:split`/`:vsplit`（别名 `:sp`/`:vs`）、`:only`；vim NORMAL 下 `Ctrl+W` 和弦；`:q`/`Ctrl+W q` 关窗；窗格间方向导航与尺寸调整。

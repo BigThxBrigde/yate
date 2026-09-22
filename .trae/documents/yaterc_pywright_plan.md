@@ -1,5 +1,40 @@
 # yate：yaterc 配置系统 + 严格 pyright 类型检查 + VSCode 风格改版 + keymap 更名 vsc
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - **yaterc**：`yate/config.py` 已落地用户级 + 项目级叠加、`-u/--rc`（含
+>   `NONE`）、`yate.map/unmap/alias_command`、未知选项 warning。
+> - **keymap 更名**：`yate/keymaps/vsc.py` 为现行模块（`keymaps/normal.py`
+>   已不存在），`normal` 保留为静默别名。
+> - **UI**：VSCode 风格侧栏/面包屑/扁平状态栏、命令面板与快速打开
+>   （`yate/editor_view/palette.py`）、欢迎页均已落地。
+> - **pyright**：`pyproject.toml` 为 `typeCheckingMode = "strict"`、
+>   `include = ["yate", "tools", "tests"]`（比本文档 §4 的 basic/override 方案
+>   更严格），当前 0 诊断。
+> - **过时内容**：§3 描述的"单一 VSCode Dark Modern 主题常量"已被后续主题系统
+>   取代（8 套内置 + 模板 + Textual 主题桥，见 `themes_expansion_plan.md` /
+>   `overlay_theme_consistency_plan.md`）。
+
+## 与当前实现的差异（回写，2026-09-22）
+
+- **§4 pyright**：已由"basic + 目录级 `overrides`"升级为全局
+  `typeCheckingMode = "strict"`、`include = ["yate", "tools", "tests"]`，
+  目标零诊断；不再有 `[tool.pyright.basic]` 段与目录 override。
+- **§3 的 VSCode Dark Modern 常量**已被主题系统取代：
+  `yate/editor_view/theme.py` 现有 8 套内置主题（Catppuccin 4 + One/Gruvbox 4）
+  与 `resources/theme_examples/*.example` 模板，并桥接为 `yate-<name>` Textual
+  主题（`textual_theme_name` / `to_textual_theme` / `validate_theme`），
+  所有覆盖屏跟随当前主题（见 `themes_expansion_plan.md` /
+  `overlay_theme_consistency_plan.md`）。
+- **§2 重命名**：`yate/keymaps/vsc.py` 存在，`keymaps/normal.py` 不存在；
+  `render_tabbar` 现为 `build_tabbar(width)`（配套 `TabBar` 点击命中，
+  见 `scrollbar_tab_click_plan.md`）。
+- **§5 / §6 测试**：已迁移 pytest，`tests/conftest.py::isolated_home` 提供全局
+  隔离；正文中的 `unittest` 相关描述与 `tests/test_editor_core.py` 的旧断言
+  已过时。
+- **§1 yaterc**：`yate/config.py` + `yaterc.example` 已实现用户级/项目级叠加与
+  `-u/--rc`（含 `NONE`）；后续新增选项见 `yate/docs/yaterc.*.md`。
+
 ## 背景
 
 用户要求：① 所有代码严格遵守 pyright 类型检查；② 所有设置集中到名为 `yaterc` 的 Python 配置文件（优先级类似 vimrc/init.vim，所有选项可配，例如 keymap）；③ `normal` keymap 更名 `vsc`；④ TUI 现代化、布局参考 VSCode。

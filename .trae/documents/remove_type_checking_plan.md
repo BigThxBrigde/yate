@@ -1,5 +1,15 @@
 # 移除 TYPE_CHECKING 循环依赖重构计划 (v2)
 
+> **实施状态（2026-09-22 核对）：✅ 已实现（本方案即当前实现）。**
+>
+> - `yate/interfaces.py` 存在，`AppProtocol` 覆盖 18 个下层模块的实际访问面；
+>   `keymaps` / `services` / `editor_view` / `app_features` / `diagnostics`
+>   均已以 `AppProtocol` 注解 `app` 参数，`YateApp` 由结构化子类型满足它
+>   （未显式继承，与 §步骤 9 的"可选"一致）。
+> - 残留 `TYPE_CHECKING` 仅两处：`yate/interfaces.py`（4 处，用于前向引用具体
+>   类，属本设计的一部分）、`tests/test_editor_core.py`（2 处）。
+> - 本文档 §1.2 的 19 文件清单与 §6 实施顺序与当前代码一致，可直接参照。
+
 ## 1. 问题分析
 
 ### 1.1 循环依赖地图

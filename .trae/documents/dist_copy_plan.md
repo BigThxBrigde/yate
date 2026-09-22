@@ -1,5 +1,16 @@
 ﻿# pack 脚本 `--dist` 产物归集选项实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - `pack/pack.ps1`：已删除 `.venv → 系统 python` 回退（找不到 `.venv` 直接
+>   报错退出），并新增 `-Dist/--dist/-d` 参数与归集段（版本目录
+>   `yate-<ver>-windows-<arch>`、同目录覆盖重建、`SHA256SUMS.txt`、
+>   `yate.exe --version` 冒烟）。
+> - `pack/pack.sh`：对称实现 `--dist|-d`（含 `--dist=DIR` 形式）与 Linux 归集；
+>   `pack/pack.bat` 注释已补示例。
+> - `.gitignore` 已忽略 `release/`；手册发布附录已补 `--dist` 用法
+>   （`manual.en.md` / `manual.zh.md`）。
+
 > 给三个 pack 脚本（pack.ps1 / pack.bat / pack.sh）增加统一的
 > `--dist <目录>` 选项：PyInstaller 构建成功后，把产物按
 > **版本 + 平台 + 架构** 归集到指定目录的版本化子目录中，方便直接取包
