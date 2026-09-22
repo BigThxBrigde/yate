@@ -19,7 +19,7 @@
 | | `Breadcrumbs(Static)` | `crumb_parts()` / `build(width)` 截断 / `refresh_crumbs()` | `EditorSession`、`Workspace` |
 | | `sidebar_head_text()` | 侧栏标题文本（纯函数） | — |
 | `commandline.py` | `CommandInput(Input)` | 输入历史（`push_history` / 光标回溯）、bash 式 Tab 补全状态 | 所属 `PromptBar` |
-| | `PromptBar(Horizontal)` | 提示模式、提交/取消分发、`focus_editor` / `refresh` | `completer: PromptCompleter`（`Callable[[str, str], list[str]]`，非 Protocol）、`on_cancel`、`focus_editor`、`refresh` |
+| | `PromptBar(Horizontal)` | 提示模式状态机（`activate` / `idle` / `write`）、提交/取消分发、输入历史、Tab 补全状态 | `completer: PromptCompleter`（`Callable[[str, str], list[str]]`，非 Protocol）、`on_cancel`、`focus_editor`、`refresh`（内部存为 `refresh_ui`，避让 `Widget.refresh`） |
 | `explorer.py` | `ExplorerTree(Tree)` | 新建文件 `a` / 新建目录 `A` / 重命名 `r` / 删除 `d` 的**完整流程**（含 `session.close_under`、`retarget`、刷新、隐藏文件开关） | `EditorSession`、`Workspace`、`PromptBar`；`open_path`、`focus_editor`、`window_prefix` |
 | `terminal.py` | `TerminalPanel(Vertical)` | 显示/隐藏、`apply_height()`、启动并重启 shell、标题栏 | `YateConfig`、`Workspace`、`PromptBar`、`focus_editor`；**`view_factory` 为测试注入点**（生产为 `None`） |
 | | `TerminalView(Widget)` | PTY 进程生命周期、VT 模拟器、滚动、按键/粘贴/滚轮 | 所属 `TerminalPanel` |
@@ -62,5 +62,8 @@
 
 - `yate/editor_view/*` 无 `import yate.editor` / `import yate.app`。
 - 外壳 CSS 依赖的 id 全部由 `Editor` 构造时传入：`#sidebar` `#sidebar-head` `#explorer`
-  `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock`（见 [Plan D](plan_D_shell_wiring.md) §D.3）。
+  `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`，
+  外加 `compose()` 里的容器 id `#body` / `#bottom-dock` / `#bottom`
+  （见 [Plan D](plan_D_shell_wiring.md) §D.3 与总纲 §4 R9）。
+- **2026-09-23 审计复核**：本表全部 widget 的构造签名与自持方法经代码逐条核对一致。
 - `python -m pyright yate/` → 0 诊断。

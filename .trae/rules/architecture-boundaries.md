@@ -17,9 +17,9 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / completion.py /
          prompt_completion.py / diagnostics.py / services/extensions.py
 L2 组件：editor_view/*
-L1 会话与模型：session.py（EditorSession）/ registries.py / keymaps/*
+L1 会话与模型：session.py（EditorSession）/ registries.py / keymaps/registry.py（KeymapSet）
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / paths /
-         config / services/*
+         config / services/* / keymaps/base|vim|vsc
 ```
 
 - **R1 — `YateApp` 是顶层，不被下层引用**：`yate/` 内只有 `cli.py` 允许 `import yate.app`。
@@ -42,8 +42,11 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   `register_commands(editor.commands, editor)`。
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
   `CommandRegistry` 本身，不再为每个消费者定义窄协议。
-- **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上外壳 CSS 依赖的 id
-  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`）。
+- **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上 id
+  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`），
+  `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
+  其中 `#statusbar` 只是 widget id（CSS 用类选择器 `StatusBar`），其余 id 均被 `app.py` 的 CSS 直接引用：
+  改 id 必须同步改 CSS。
 - **R10 — 一次按键只派发一次**：`EditorView.on_key` 处理后 `event.stop()` / `prevent_default()`，
   未被消费的键不得冒泡到外壳二次派发。
 
@@ -108,7 +111,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
   除 4 个冻结白名单外无任何 `Protocol` 类；
 - **R3** `editor_view/*` 不 import `yate.editor` / `yate.app`（子模块前缀匹配，不误伤 `editor_core` /
-  `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/__init__.py` 不存在；
+  `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
+  不够：残留目录会被当作空命名空间包导入，掩盖删除）；
 - **R4** `keymaps/*`、`services/*`、`session.py`、`registries.py` 不 import `editor_view`（严格 0 违规）；
 - **R11** `completion.py` / `prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
 - **R5** `editor.py` 不 import `yate.actions` / `yate.commands`；

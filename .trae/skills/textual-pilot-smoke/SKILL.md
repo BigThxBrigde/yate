@@ -120,7 +120,7 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 # also capture and show the top SVG text rows
  .venv\Scripts\python.exe -m tools.smoke_test run --svg
 
-# write JSON baselines (checks + SVG rows) to tools/smoke_baselines/
+# write JSON baselines (checks; add --with-svg for SVG rows) to tools/smoke_test/smoke_baselines/
  .venv\Scripts\python.exe -m tools.smoke_test snapshot
 
 # run and diff against baselines (exit 1 on drift — CI gate)
@@ -157,6 +157,7 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
-If a smoke check proves durable behavior, add it as a real
-`unittest.IsolatedAsyncioTestCase` in `tests/test_app_textual.py` using the
-same `run_test` pattern.
+If a smoke check proves durable behavior, add it to `tests/test_app_textual.py`
+following that file's own pattern: a sync `def test_...` whose body drives an
+inner `async def scenario()` via `asyncio.run(...)` (the repo has no
+`IsolatedAsyncioTestCase`).

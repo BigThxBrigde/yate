@@ -31,7 +31,7 @@ scene: python_coding
 
 | 类型 | 风格 | 示例 |
 |------|------|------|
-| 模块 | `snake_case` | `tracing.py`、`editor_core/` |
+| 模块 | `snake_case` | `logs.py`、`editor_core/` |
 | 包 | `snake_case`（单下划线或无前缀） | `yate.editor_lsp` |
 | 函数/方法 | `snake_case` | `install()`、`get_logger()` |
 | 类 | `PascalCase` | `YateConfig`、`_SessionFileHandler` |
@@ -50,10 +50,11 @@ scene: python_coding
   2. 第三方库
   3. 项目内部（`from yate import ...`）
 - 每组内部按字母序排列
-- 绝对导入优先（`from yate import tracing`），相对导入仅在子包内部使用
+- 绝对导入优先（`from yate.logs import tracing`），相对导入仅在子包内部使用
 - 禁止 `import *`（通配符导入）
 - **不得新增 `TYPE_CHECKING` 导入块**（架构约定，见 `architecture-boundaries.md` R6）：
-  类型注解跨模块引用时，使用模块内定义的窄 Protocol（Host/Ops）或叶子类型
+  类型注解跨模块引用时传**具体对象**（`EditorSession` / `KeymapSet` / 注册表 / widget）或叶子类型；
+  不再新建窄 Protocol（R2 / R8，唯一冻结例外是 `editor_view/editor.py::PaneRegistry`）
 
 ```python
 from __future__ import annotations
@@ -67,7 +68,7 @@ from typing import IO, Optional
 
 from textual.widgets import TextArea
 
-from yate import tracing
+from yate.logs import tracing
 ```
 
 ### 1.4 语句与表达式
@@ -105,7 +106,7 @@ nothing and pay nothing ...
 
 Usage in a module::
 
-    from yate import tracing
+    from yate.logs import tracing
     log = tracing.get_logger(__name__)
 """
 
@@ -119,15 +120,18 @@ from __future__ import annotations
 参数、返回值、异常的描述融入正文，不使用 `:param:` / `:return:` / `Args:` / `Returns:` 等结构化区块标记。
 
 ```python
-def install(config: Optional["YateConfig"] = None) -> bool:
+def install(
+    yate_trace: Optional[bool] = None,
+    yate_trace_level: Optional[str] = None,
+) -> bool:
     """(Re)configure tracing and return whether it is on.
 
-    *config* is the resolved yaterc configuration (``None`` during the
-    pre-config startup pass, where only the environment is known).  A
-    second call keeps the file opened by the first and only adjusts the
-    level, so the two passes never produce two files or two headers.
+    *yate_trace* / *yate_trace_level* are the yaterc fallbacks (``None`` =
+    not set; the ``YATE_TRACE*`` env vars always win).  A second call keeps
+    the file opened by the first and only adjusts the level, so the two
+    startup passes never produce two files or two headers.
 
-    See :func:`uninstall` and :mod:`yate.cli` for the two call sites.
+    See :meth:`uninstall` and :mod:`yate.cli` for the two call sites.
     """
 ```
 
@@ -192,7 +196,7 @@ if isinstance(tab_width, int) and not isinstance(tab_width, bool):
 - **优先使用 Python 3.9+ 原生小写泛型**：`list[str]`、`dict[str, str]`、`tuple[str, ...]`、`set[int]`。`Dict`/`List`/`Tuple`/`Set`（typing 模块大写版本）视为遗留，新代码不使用
 - 使用 `Optional[X]` 而非 `X | None`（即使 Python 3.10 支持后者）
 - 使用 `cast()` 进行显式类型窄化（`cast(Sequence[Any], raw)`）
-- 类型注解仅用的导入使用叶子类型或模块内窄 Protocol（禁止 `TYPE_CHECKING`，见 §4.3 与 `architecture-boundaries.md`）
+- 类型注解仅用的导入使用叶子类型，或把类型下移到叶子模块（禁止 `TYPE_CHECKING`；不新建窄 Protocol，见 §4.3 与 `architecture-boundaries.md` R2 / R8）
 - 前向引用（引用尚未定义的类）使用字符串字面量：`Optional["YateConfig"]`
 - `from __future__ import annotations` 使所有注解延迟求值，**每个模块必须包含**
 
@@ -270,11 +274,11 @@ entries = list(raw)  # type: ignore[arg-type]
 - 禁止裸 `except:`（无类型）。必须指定具体异常类型
 - 捕获 `Exception` 时必须附带 `noqa: BLE001` 注释（说明为何需要捕获所有异常）
 - `except` 块内至少记录日志或向用户反馈；禁止静默吞异常
-- 使用 `sys.excepthook` 注册全局异常处理器（见 `yate/crash.py`）
+- 使用 `sys.excepthook` 注册全局异常处理器（见 `yate/logs.py` 的 `crash` 服务）
 
 ### 4.6 日志记录
 
-- 使用 `logging` 模块（见 `yate/tracing.py`），禁止 `print()` 用于调试
+- 使用 `logging` 模块（见 `yate/logs.py` 的 `tracing` 服务），禁止 `print()` 用于调试
 - 模块内创建 logger：`log = tracing.get_logger(__name__)`
 - 日志消息使用 `%` 格式化占位符（惰性求值）：`log.debug("value: %s", value)`
 - **禁止** f-string 直接拼入日志参数：`log.debug(f"value: {value}")` — 在 DEBUG 级别关闭时仍会求值

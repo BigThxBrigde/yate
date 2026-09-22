@@ -10,6 +10,8 @@
 > **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
 > 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**；
 > 本文档保留作为架构决策记录（ADR）。
+>
+> **注意**：正文 §3.2 的 **R1–R6 是协议拆分时期的旧编号**，与总纲 §4 的 R1–R11 含义不同，请勿对照引用。
 
 > **目标**：删除 `yate/interfaces.py` 中的 `AppProtocol`（88 个成员的"全应用协议"），
 > 改为 **每个模块持有自己的窄接口（Protocol）**，由 `YateApp` 作为组合根实现这些接口；

@@ -18,11 +18,11 @@
 |---|---|---|
 | `yate/actions.py` | `def populate(registry: ActionRegistry, editor: Editor) -> None` | 内置动作表：编辑动作走 `ctx.buffer`，会话/视图动作走 `editor.*`（save / open_prompt / find / palette / keymap 切换…） |
 | `yate/commands.py` | `def register_commands(registry: CommandRegistry, editor: Editor) -> None` | 内置 `:` 命令表（save / quit / set / theme / files / diagnostics / explorer / 扩展信息…） |
-| `yate/prompt_completion.py` | `def prompt_completions(...)`、`_command_completions()`、`_path_matches()` | 提示条补全候选（命令名 / 路径）——**纯函数模块** |
-| `yate/completion.py` | `class CompletionController` | 会话级补全流程：触发、LSP/缓冲候选、弹窗状态、接受/取消、过期校验 |
+| `yate/prompt_completion.py` | `def prompt_completions(...)`、`_command_completions()`、`_path_matches()` + 模块级常量 | 提示条补全候选（命令名 / 路径）——**无状态模块**，允许 import `editor_view.theme`（存量耦合，见 R11） |
+| `yate/completion.py` | `class CompletionController` | 会话级补全流程：`request` / `schedule`（触发与防抖）、LSP/缓冲候选、弹窗状态、`accept`（接受）、`close`（取消）、私有 `_stale`（过期校验） |
 | `yate/services/extensions.py` | `ExtensionContext`（dataclass）、`ExtensionAPI`、`ExtensionLoader`、`load_startup_extensions(loader, config, *, ext_dirs, ext_files)` | `api.app` 从此暴露 **`ExtensionContext`**（session / workspace / lsp / keymaps / actions / commands / message / run_shell / open_path / save），不再依赖外壳 |
 | `yate/editor.py` | `class Editor` | 调度层：`compose` / `on_mount` / `on_unmount` / `handle_key` / `handle_raw_key` + 打开保存、窗格、提示、搜索替换、主题、shell、LSP、覆盖层、扩展装载 |
-| `yate/diagnostics.py` | `version_lines()`、`format_report(editor)`、`print_report(editor)` + `_section_*` 纯函数 | 由"依赖 YateApp 的对象"改为**接收 `Editor` 的函数集合** |
+| `yate/diagnostics.py` | `version_lines()`、`format_report(editor)`、`print_report(editor)` + 12 个 `_section_*` 与 `_enable_windows_ansi` / `_colorize_line` / `_kv` / `_package_version` 纯函数 | 由"依赖 YateApp 的对象"改为**接收 `Editor` 的函数集合** |
 
 ## C.3 设计要点
 
@@ -46,6 +46,9 @@
 | `app.register_command(...)` / `app.command_entries()` | `CommandRegistry.register/names/describe` |
 | `api.app` → `YateApp` | `api.app` → `ExtensionContext`（用户可见变化） |
 | `AppDiagnostics(app)` | `print_report(editor)` / `format_report(editor)` |
+
+> 行数口径同总纲 §1：**非空行**（`commands.py` 总 251 / 非空 203，`completion.py` 总 310 / 非空 280，
+> `prompt_completion.py` 总 139 / 非空 126；2026-09-23 复核）。
 
 ## C.5 验收证据
 

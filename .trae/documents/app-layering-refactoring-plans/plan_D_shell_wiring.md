@@ -100,7 +100,7 @@
 - [x] `python -m pyright yate/` 0 诊断
 - [x] `python -m yate --diag` 正常打印，`python -m yate --version` 正常
 - [x] `grep -rn "app_features" yate/` 为空（tests/tools 留给 Plan E）
-- [x] `wc -l yate/app.py` = **152** 行（≤ 170）
+- [x] `yate/app.py` = **152 非空行**（总 172；"≤ 170" 按非空行口径）
 - [x] `yate/` 内除 `cli.py` 无 `import yate.app`
 
 ---
@@ -112,10 +112,14 @@
 | `yate/app.py` | 2005 行 → **152 行**；仅剩 `ENABLE_COMMAND_PALETTE` / `CSS` / `__init__`（标题、config、主题引导、构造 `Editor`、装载内置表）/ `editor` / `compose` / `on_mount` / `on_unmount` / `on_key` / `get_theme_variable_defaults` / `action_quit` |
 | `yate/app_features/` | 6 文件、1070 行**全部删除**（`__init__` / `commands` / `completion` / `docs` / `explorer` / `terminal`） |
 | 解环（D.1） | `yate/editor.py` 不再 import `yate.actions` / `yate.commands`；改为 `YateApp.__init__` 装载（R7） |
-| `yate/editor.py` | 新建 **1245 行**，承载原 `app.py` 的全部业务操作；`KeyUi` / `ActionContext(self.session, self.key_ui)` 在 `handle_key` / `execute_action` 处构建 |
+| `yate/editor.py` | 新建 **1245 非空行**（总 1388），承载原 `app.py` 的全部业务操作；`KeyUi` / `ActionContext(self.session, self.key_ui)` 在 `handle_key` / `execute_action` 处构建 |
 | 接线（D.3） | 组件 id 全部带上：`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`；`mode_label()` 委托 `statusbar.mode_chip()`；终端初始 `height = config.terminal_height` + `display = False` |
 | cli（D.4） | `--diag` 走 `app.editor.load_startup_services()` 与 `diagnostics.print_report(app.editor)` |
 | 综合门禁 | `pyright yate/` → 0 errors / 0 warnings；`python -m yate --diag`、`--version` 正常 |
 
 **未完成项移交**：`tests/` 与 `tools/` 中 `app.<业务属性>` 的迁移、`tests/test_architecture.py` 规则更新
 → [Plan E](plan_E_tests_tools.md)；用户文档 / CHANGELOG / 架构规则文档同步 → [Plan F](plan_F_gate_docs.md)。
+
+> **2026-09-23 审计复核**：`app.py` / `editor.py` 的非空行数仍为 152 / 1245（口径见总纲 §1）；
+> D.3 的 widget id 清单已按代码补齐——连同 `compose()` 的容器 id
+> （`#body` `#bottom-dock` `#bottom`）见总纲 §4 R9。

@@ -1,8 +1,9 @@
 """Architecture guards: the narrow-interface rules must not regress.
 
 These tests enforce the boundaries documented in
-``.trae/rules/architecture-boundaries.md`` and
-``.trae/documents/app_layering_plan.md`` (section 3, "依赖规则（硬性）"):
+``.trae/rules/architecture-boundaries.md`` (R1-R11) and
+``.trae/documents/app-layering-refactoring-plans/README.md`` (section 4,
+"依赖规则（硬性）"):
 
 * **R1** ``YateApp`` is the composition root: only ``cli.py`` imports
   ``yate.app``.
@@ -12,16 +13,23 @@ These tests enforce the boundaries documented in
   (they receive concrete collaborators or callbacks); the ``app_features``
   package deleted in Plan D stays deleted.
 * **R4** the UI-free layers (``keymaps/*``, ``services/*``, ``session.py``,
-  ``registries.py``) never import ``editor_view``; the two L3 collaborator
-  modules that drive widgets keep that coupling frozen and never look upward.
+  ``registries.py``) never import ``editor_view``.
 * **R5** ``editor.py`` never imports the built-in tables ``actions.py`` /
   ``commands.py`` -- they import the editor, so the reverse is a cycle.
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
-* **R7** naming: no ``*Feature`` / ``*Host`` / ``*Ops`` / ``*Delegate``
-  identifiers and no ``AppProtocol``.  ``PaneHost`` is a real Textual
-  container widget (not a protocol / thin delegate) and is whitelisted;
-  ``*Manager`` and flow-level ``*Controller`` names stay allowed.
+* **R11** the two L3 collaborator modules that drive widgets
+  (``completion.py`` / ``prompt_completion.py``) keep that coupling frozen
+  and never look upward.
+* **Naming** (unnumbered guard, rules section 6): no ``*Feature`` / ``*Host``
+  / ``*Ops`` / ``*Delegate`` identifiers and no ``AppProtocol``.  ``PaneHost``
+  is a real Textual container widget (not a protocol / thin delegate) and is
+  whitelisted; ``*Manager`` and flow-level ``*Controller`` names stay allowed.
+
+R7 (the shell loads the built-in tables), R8 (shared state as concrete
+objects), R9 (widget ids) and R10 (one dispatch per key) are design
+constraints reviewed by hand and exercised by the Plan F smoke checklist;
+they have no guard here yet.
 """
 
 from __future__ import annotations
@@ -202,8 +210,14 @@ def test_editor_view_does_not_import_upward() -> None:
 
 
 def test_app_features_package_is_gone() -> None:
-    """The thin-delegate ``app_features`` layer stays deleted (R3 / R7)."""
-    assert not (YATE / "app_features" / "__init__.py").exists()
+    """The thin-delegate ``app_features`` layer stays deleted (R3 / R7).
+
+    The whole directory must be gone, not just ``__init__.py``: a leftover
+    directory (a stale ``__pycache__`` is enough) is still importable as an
+    empty *namespace package*, which hides the removal and masks import
+    regressions.
+    """
+    assert not (YATE / "app_features").exists()
 
 
 def test_keymaps_services_and_models_stay_ui_free() -> None:
@@ -224,7 +238,7 @@ def test_keymaps_services_and_models_stay_ui_free() -> None:
 def test_collaborators_keep_widget_coupling_frozen() -> None:
     """``completion.py`` / ``prompt_completion.py`` are editor-level
     collaborators: they may drive their known widgets but never depend
-    upward, and a new ``editor_view`` import must be added here first (R4)."""
+    upward, and a new ``editor_view`` import must be added here first (R11)."""
     for name, allowed in UI_FROZEN_FILES.items():
         path = YATE / name
         for module in _yate_imports(path):
@@ -246,8 +260,9 @@ def test_editor_does_not_import_action_tables() -> None:
 
 def test_no_banned_identifier_names() -> None:
     """No protocol-ish / thin-delegate naming: ``*Feature``, ``*Host``,
-    ``*Ops``, ``*Delegate`` and ``AppProtocol`` are banned (R7).  ``PaneHost``
-    is a Textual container widget and whitelisted."""
+    ``*Ops``, ``*Delegate`` and ``AppProtocol`` are banned (naming guard,
+    rules section 6 -- not R7, which is the shell's table loading).
+    ``PaneHost`` is a Textual container widget and whitelisted."""
     for path in _yate_files():
         for name in _identifiers(path):
             assert name not in BANNED_NAMES, (path, name)
