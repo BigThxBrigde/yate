@@ -1,5 +1,30 @@
 # 双语 Changelog 自动维护与运行时展示实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - 生成器 `tools/changelog/`（model / gitdata / classify / segments /
+>   translations / gitee / render / cli + `zh_overrides.json`）已落地；四个产物
+>   `CHANGELOG.md`、`CHANGELOG.zh.md`、`yate/resources/changelog.en.md`、
+>   `yate/resources/changelog.zh.md` 均已提交入库。
+> - `pyproject.toml` 已改 `dynamic = ["version"]`（hatchling regex 读
+>   `yate/__init__.py`，当前版本 **0.2.4**）；`pack/pack.ps1` / `pack/pack.sh`
+>   已在构建前执行 `generate --bundle-only` 并支持跳过开关
+>   （`-SkipChangelog` / `--skip-changelog`）。
+> - 运行时：`yate/editor_view/manual.py` 已泛化为 `MarkdownDocScreen`
+>   （id 前缀 `doc-*`）+ `load_doc_markdown` / `load_changelog_markdown`
+>   （资源缺失返回占位文案、不抛异常）；`yate/app_features/docs.py` 提供
+>   模块级 `show_changelog(app, lang)`；`yate/cli.py` 已有 `--changelog [en|zh]`
+>   早返回；`:changelog` 已在 `app_features/commands.py` 注册。
+> - CI：`.github/workflows/test.yml` 已 `fetch-depth: 0` 并加入
+>   `python -m tools.changelog check`；`.workflow/test.yml` 同步加入该门禁。
+> - 与本文档的差异（回写）：`app_features/docs.py` 保持**模块级函数**
+>   （`show_doc(app, *, kind, lang, title)` / `show_manual` / `show_changelog`，
+>   接收 `AppProtocol`），`app.py::show_manual` / `show_changelog` 是薄委托；
+>   `_prev_manual_theme` / `_prev_doc_theme` 已不存在——文档屏的临时主题
+>   切换/恢复机制被 `overlay_theme_consistency_plan.md` 移除（改由 Textual
+>   主题桥支撑），`MarkdownDocScreen(app, kind=..., lang=..., title=...)`
+>   仍保留 `app` 参数（用于推屏与资源加载，不再持有主题状态）。
+
 > 基于 Gitee 仓库（`https://gitee.com/jermaine/yate.git`）的 Git 历史，
 > 自动生成并长期维护**双语 CHANGELOG**，并在三个入口可见：
 >

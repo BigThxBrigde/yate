@@ -1,5 +1,17 @@
 # 测试迁移 pytest 与 ~/.yate 隔离实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - `tests/conftest.py` 提供 autouse `isolated_home` 夹具（`Path.home` +
+>   `USERPROFILE` / `HOME` → 每用例临时目录）；哨兵 `tests/test_isolation.py`
+>   已加入。
+> - `pyproject.toml`：`dev` 含 `pytest>=8.0`，并已配置
+>   `[tool.pytest.ini_options]`（`testpaths = ["tests"]`、`addopts = "-q"`）。
+> - 测试文件已全部为 pytest 函数风格（23 个 `tests/test_*.py` 加
+>   `conftest.py`），不再依赖逐用例手动 patch HOME。
+> - CI 双流水线均运行 `python -m pytest tests`；`.github/workflows/test.yml`
+>   另有 `fetch-depth: 0` 与 `python -m tools.changelog check`。
+
 > 目标：**pytest 成为唯一测试运行器与断言风格**（现有约 20 个测试文件全量
 > 重写），并通过全局 conftest 夹具实现**机制性隔离**——任何测试都读写不到
 > 用户真实的 `~/.yate`（yaterc、extensions、themes、crash data）。

@@ -1,5 +1,32 @@
 # editor_view：滚动条主题化 + Tab 点击切换 实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - **滚动条主题化**：`EditorView.apply_scrollbar_theme()`
+>   （`yate/editor_view/editor.py`，`on_mount` 中调用）写入 5 个
+>   `scrollbar_*` 样式（track=border / thumb=fg_dim / hover / active=accent）；
+>   `YateApp.apply_theme()` 对 `explorer_tree` 写同款色。
+> - **Tab 点击切换**：`yate/app.py` 新增 `TabBar(Static)`（命中区间 +
+>   `on_mouse_down`），`render_content()` 调 `YateApp.build_tabbar(width)`
+>   取得 `(Text, regions)`；`compose` 中 `yield TabBar(self, id="tabbar")`，
+>   `on_mount` / `update_tabbar` 已接线。
+> - 与本文档命名差异：计划中的 `_apply_scrollbar_theme` 实际为公开方法
+>   `apply_scrollbar_theme`；`render_tabbar` 实际为公开方法 `build_tabbar`
+>   （返回 `(Text, regions)`），`TabBar.render_content` 为其调用方。
+
+## 与当前实现的差异（回写，2026-09-22）
+
+- **方法命名**：计划中的 `EditorView._apply_scrollbar_theme()` 实际为公开方法
+  `EditorView.apply_scrollbar_theme()`（`yate/editor_view/editor.py`）；
+  `YateApp.apply_theme()` 中调用它并给 `explorer_tree` 写同款 scrollbar 色。
+- **TabBar 接线**：`render_tabbar` 实际为
+  `YateApp.build_tabbar(width) -> tuple[Text, list[tuple[int, int, int]]]`；
+  `TabBar`（`yate/app.py`）的 `render_content()` 调用它并保存命中区间，
+  `on_mouse_down` 完成点击切换。
+- **Repository Research 中的行号已漂移**（如 `editor.py:48`、
+  `app.py:1647/1662` 等），以当前代码为准。
+- 其余设计（色值选择、命中区间复用 `cell_len` 宽度、`event.stop()`）与实现一致。
+
 ## 需求
 
 1. **滚动条样式与主题不符**：`EditorView`（`ScrollView`）的垂直滚动条使用 Textual 默认颜色，未随 Catppuccin 主题切换，视觉割裂。

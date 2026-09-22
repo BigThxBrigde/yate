@@ -1,5 +1,32 @@
 ﻿# `--setup-defaults` / `--cleanup-defaults` 用户配置初始化与清理计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - `yate/services/user_setup.py` 已落地（`SetupReport` / `CleanupReport`、
+>   `setup_defaults` / `cleanup_defaults`、模板清单、确认异常）。
+> - `yate/cli.py` 有互斥的 `--setup-defaults` / `--cleanup-defaults`，以及
+>   `--force` / `--include-data` 与早返回分支（两选项在 epilog 中有示例）。
+> - 测试：`tests/test_user_setup.py`（服务层）与 `tests/test_cli.py`（互斥/透传/
+>   退出码）已覆盖；手册与 README 已补"快速初始化"小节。
+> - 模板随包扩充：`_TEMPLATE_MAP` 覆盖 `resources/theme_examples/*.example`，
+>   扩展示例由 `bundled_extensions_dir()` 通配 `*.py.example` 动态收集
+>   （现含 `example_ext.py.example` 与 `yatesh_syntax.py.example`）。
+
+## 与当前实现的差异（回写，2026-09-22）
+
+- **§1 的行号引用已漂移**（`config.py` / `cli.py` / `app.py` / `crash.py` 等），
+  阅读或实施时按当前代码重新定位；其中 `yate/crash.py` 已并入 `yate/logs.py`。
+- **§3.2 模板清单**（实际常量在 `yate/services/user_setup.py`）：
+  `RC_TEMPLATE = "yaterc.example"`；
+  `_THEME_TEMPLATES = ("dracula_theme.example", "ayu_theme.example")`；
+  扩展示例由 `bundled_extensions_dir().glob("*.py.example")` 动态收集
+  （当前含 `example_ext.py.example` 与 `yatesh_syntax.py.example`）。
+- **§3.1 / §3.3 数据类**：`SetupReport` / `CleanupReport` 已含
+  `refreshed_templates` / `skipped_templates` 字段，与计划一致。
+- **§5 测试**：`tests/test_user_setup.py` 存在；全局隔离由
+  `tests/conftest.py::isolated_home` 提供。
+- **§3.4 输出示例**：CLI 帮助文本与 epilog 示例已落地，措辞与示例略有出入。
+
 > 新增两个 CLI 子功能（均为"执行后退出"，不启动 TUI）：
 >
 > - `yate --setup-defaults`：创建 `~/.yate/`，发放默认 `yaterc`，并把

@@ -1,9 +1,55 @@
 # 日志系统实现方案：Python logging 落盘（YATE_TRACE）
 
+> **实施状态（2026-09-22 核对）：✅ 功能已实现，但模块归属已被取代。**
+>
+> 运行日志（`YATE_TRACE` / `YATE_TRACE_LEVEL` / `yate_trace` /
+> `yate_trace_level`）功能已落地，但**不在** `yate/tracing.py`：它与崩溃诊断
+> 统一进 `yate/logs.py`，暴露为单例 `tracing`（`TracingService`）。
+> `yate/tracing.py` 与 `yate/crash.py` 两个薄壳均已删除，调用方一律
+> `from yate.logs import tracing`。
+>
+> 因此本文档 **§2.1（新增 `yate/tracing.py`）、§2.5（`tracing.install(config)`）、
+> §2.7（`crash.py` 埋点）、§6 文件清单中的模块名/路径已过时**；最终设计以
+> `unify_crash_tracing_plan.md` 为准。配置项校验、两阶段安装、`uninstall`
+> 释放句柄（`--include-data`）、`get_logger` / `resolve_level` / `env_trace` /
+> `env_level`、`logs_dir()` 等行为均按本计划实现。
+
 > 基于 Python 自带 `logging` 框架为 yate 实现可调试的日志系统。
 > 日志**默认关闭**，通过环境变量 `YATE_TRACE` / `YATE_TRACE_LEVEL`
 > 或 yaterc 中的 `yate_trace` / `yate_trace_level` 控制，
 > 启用后写入 `~/.yate/data/logs/` 下带时间戳的 `.log` 文件。
+
+---
+
+## 与当前实现的差异（回写，2026-09-22）
+
+工具已实现，但**模块归属与调用形态**与正文不同，以本小节为准：
+
+- **模块**：不是 `yate/tracing.py`，而是统一模块 **`yate/logs.py`**：
+  `TracingService` 类 + 模块级单例 `tracing`。`yate/crash.py`、`yate/tracing.py`
+  两个薄壳均已删除。
+- **签名**：`TracingService.install(yate_trace: bool | None = None,
+  yate_trace_level: str | None = None) -> bool` —— **不再接收 `YateConfig`**；
+  `cli.py` 显式传两个标量，等级字符串在服务内部经 `resolve_level()` 解析。
+- **两阶段**：阶段 1 `install()`（只看 env）；阶段 2
+  `tracing.configure(yate_trace=config.yate_trace,
+  yate_trace_level=config.yate_trace_level)` —— 薄别名，已有 handler 时只调等级、
+  不重建文件、不重写会话头。
+- **导入方式**：所有调用点改为 `from yate.logs import crash, tracing`；
+  `from yate import tracing` 不再可用。
+- **§2.7 埋点**：`yate/crash.py` 的 `excepthook` 内镜像 `log.exception` 一条
+  **已删除**（崩溃与追踪互不引用）；其余埋点（cli / app / extensions / LSP
+  manager）保留。
+- **§2.4 / §6**：模块级 `_logger` 变为 `TracingService._logger`（只读属性
+  `root_logger`），`_file_handlers()` 变为公开 `file_handlers()`；文件清单中的
+  `yate/tracing.py`、`yate/crash.py` 应替换为 `yate/logs.py`。
+- **测试 patch 目标**：由 `yate.tracing.*` / `yate.crash.*` 改为
+  `yate.logs.*`（`tests/test_tracing.py` / `test_crash.py` 单例直连）。
+
+未变：`YATE_TRACE` / `YATE_TRACE_LEVEL`、yaterc `yate_trace` /
+`yate_trace_level`、默认关闭、等级解析、`~/.yate/data/logs/yate-*.log` 命名、
+文件懒创建、`--cleanup-defaults --include-data` 前 `uninstall()` 释放句柄、
+`atexit` 兜底。最终设计见 `unify_crash_tracing_plan.md`。
 
 ---
 

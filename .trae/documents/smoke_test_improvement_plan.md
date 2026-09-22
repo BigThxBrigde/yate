@@ -1,5 +1,36 @@
 # 冒烟测试改进计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - 骨架已按任务 3 拆分：`tools/smoke_test/` 下
+>   `cli.py` / `report.py` / `baselines.py` / `harness.py` / `testsuite.py`
+>   + `scenarios/`（`core` / `edit` / `search` / `files` / `panes` / `explorer` /
+>   `view` / `integration` / `regression` / `stress` / `aliases` / `_base`），
+>   `scenarios/__init__.py` 聚合各模块的 `SCENARIOS` 并重导出。
+> - `smoke_baselines/` 已入库（`*.json`）；CLI 已支持 `--tag` / `--scenario` /
+>   `--coverage` / `--json` / `--no-invariant` / `--repeat` / `--seed` /
+>   `--svg*` / `--skip-slow` / `--no-color` / `--width` / `--quiet` /
+>   `--fail-only` / `--report` 等选项。
+> - 任务 1 的产品缺陷已修复：vim 键位支持 `ctrl+/` 切回 vsc；场景入口改用
+>   F5（vsc 模式 `:` 非绑定键）。
+> - 场景总数约 59（含 R 组回归与 S 组压力），全局不变量钩子已接入。
+
+## 与当前实现的差异（回写，2026-09-22）
+
+- **§现状盘点已过时**：`theme_switch` / `help_modal` 已改用 F5 入口、
+  `keymap_toggle` 已修复；`tools/smoke_baselines/` **已存在**（62 个 `.json`），
+  `compare` 不再必然输出 `no baselines`。
+- **报告渲染**：不再集中在 `testsuite.py::_print_table`（232–249 行），
+  已拆到 `tools/smoke_test/report.py`；`testsuite.py` 只保留 main 与对外重导出。
+- **文件组织**（与任务 3 的建议一致）：`cli.py` / `report.py` / `baselines.py` /
+  `harness.py` / `testsuite.py` + `scenarios/`（13 个模块），`SCENARIOS` 由
+  `scenarios/__init__.py` 按 core→功能组→regression/stress 顺序聚合。
+- **CLI 选项**已提供：`--tag` / `--scenario` / `--coverage` / `--json` /
+  `--report` / `--no-invariant` / `--repeat` / `--seed` / `--svg` /
+  `--svg-rows` / `--skip-slow` / `--no-color` / `--width` / `--quiet` /
+  `--verbose` / `--fail-only`。
+- **场景数量**：`Scenario(` 定义约 59–62 个（含 R 组回归与 S 组压力）。
+
 > 目标：`python -m tools.smoke_test` 从「3 个失败」变成全绿基线，补充覆盖高频用户路径的场景，并把 PASS/FAIL 报告改造成一眼可读的彩色报告。
 
 ---

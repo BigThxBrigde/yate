@@ -6,6 +6,12 @@
 >
 > 姊妹文档：`crash_diagnostic_plan.md`（崩溃诊断 `crash-*.err`）、
 > `logs_impl_plan.md`（运行日志 `YATE_TRACE`）。
+>
+> **2026-09-22 复核确认**：本方案仍与代码一致——`yate/logs.py` 是唯一实现，
+> 暴露 `crash` / `tracing` 两个单例；`yate/crash.py`、`yate/tracing.py` 不存在；
+> `yate/logs.py` 仍保持叶子（只依赖标准库 + `yate.__version__`）；
+> `tests/test_crash.py` / `tests/test_tracing.py` 单例直连，`tests/test_cli.py`
+> 的 patch 目标为 `yate.logs.crash.*`。
 
 ## 目标
 

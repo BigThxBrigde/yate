@@ -1,5 +1,17 @@
 # Release 自动化工具实施计划
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> `tools/release/`（`__init__.py` / `__main__.py` / `cli.py`）已落地，
+> 含 `release(version, *, dry_run=False, no_push=False)`、各 helper、
+> `_VERSION_FILES` 两处 bump（`yate/__init__.py` 与
+> `tests/test_theme_palettes.py`）与"先 bump 再 generate"的两阶段提交顺序；
+> `tools/release/__init__.py` 原为空文件，现已填入 docstring。
+>
+> 注意：`tests/test_theme_palettes.py` 中的 `assertEqual(yate.__version__, ...)`
+> 必须与当前 `yate/__init__.py::__version__`（**0.2.4**）保持一致——
+> 这正是本工具 `_VERSION_FILES` 同时 bump 两处的原因。
+
 ## Context（为什么做这个）
 
 手动发布流程（版本号 bump → changelog 生成 → 提交 → 打 tag → 推送）步骤多、易出错。

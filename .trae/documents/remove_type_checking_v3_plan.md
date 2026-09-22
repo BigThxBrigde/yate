@@ -1,5 +1,18 @@
 # Refinement Plan: Eliminate `Any` in `yate/interfaces.py`
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> `yate/interfaces.py::AppProtocol` 的成员已全部精化为具体类型
+> （`workspace: Workspace`、`keymaps: dict[str, Keymap]`、`config: YateConfig`、
+> `panes: Optional[PaneManager]`、`run_shell_command(...) -> ShellResult` …）；
+> `TYPE_CHECKING` + 字符串前向引用块也已按 §2–§3 落地。
+> 仅剩 Textual 泛型参数的 `Any`（`Screen[Any]` / `WorkType[Any]` /
+> `Callable[[Any], None]`），与 §1.1 的"keep Any"清单一致。
+> §4 的附带修复（`completion.py::accept()` 行范围判定）同样已落地。
+>
+> 本文档 §1.1 的 `Any` 审计清单可作为"已完成工作"的核对表；§3 的导入验证
+> 命令在当前实现下仍可照跑。
+
 ## 1. Background
 
 The previous refactor (`b4a354f`) introduced `yate/interfaces.py` with an
