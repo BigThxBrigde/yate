@@ -5,7 +5,11 @@
 **yate** — *yet another terminal editor*, a modern terminal text editor built
 on [Textual](https://www.textualize.io/). Layered architecture: `editor_core`
 holds the pure editing logic (UI-agnostic, headlessly testable) and
-`editor_view` is the Textual interface.
+`editor_view` is the Textual interface. `YateApp` is a thin Textual shell,
+`editor.py` holds the running editor (`Editor`: session + services + widget
+tree + operations), and `session.py` holds the UI-free document session
+(`EditorSession`); `editor_view/*` owns rendering, `editor_core` stays pure
+editing logic.
 
 ## 📖 Manual
 
@@ -224,11 +228,18 @@ yate/
   resources/      # manual.zh.md / manual.en.md bilingual manual, bundled fonts
   __init__.py     # package metadata (__version__)
   __main__.py     # `python -m yate` entry
-  actions.py      # named action registry shared by keymaps, command palette and extensions
+  actions.py      # the built-in action table (the registry itself is `registries.py`)
   config.py       # yaterc configuration system
-  app.py          # YateApp: UI assembly, session state, lifecycle
-  app_features/   # application features: ex commands, completion, explorer, terminal
+  app.py          # YateApp: the thin Textual shell (CSS, theme bridge, lifecycle, key forwarding)
+  editor.py       # Editor: the running editor (session/services, widget tree, operations)
+  session.py      # EditorSession: open documents, active doc/buffer, search state
+  registries.py   # UI-free ActionRegistry / CommandRegistry leaf module
   cli.py          # command-line entry point
+  commands.py     # the built-in `:` command table
+  completion.py   # completion orchestration: debounce, LSP/buffer query, popup
+  prompt_completion.py  # Tab-completion candidates for the bottom prompt line (pure functions)
+  diagnostics.py  # `yate --diag` environment & configuration report
+  logs.py         # crash reports + opt-in runtime tracing singletons
   paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)
   yaterc.example  # configuration template
 tests/            # unit tests + Textual pilot end-to-end tests
@@ -300,7 +311,7 @@ requires it. Linux builds carry no icon (`icon=` is Windows-only).
 ## Development
 
 ```powershell
-# Run the full test suite (612 tests, including Textual pilot end-to-end tests)
+# Run the full test suite (including Textual pilot end-to-end tests)
 python -m pytest tests
 
 # Type checking: pyright strict, 0 diagnostics required

@@ -159,8 +159,23 @@ def _upper(ctx):
 | `api.buffer` | `TextBuffer` | 当前活动缓冲区 |
 | `api.doc` | `Document` | 当前活动文档（含路径、保存等） |
 | `api.workspace` | `Workspace` | 文件树工作区 |
-| `api.keymaps` | `dict[str, Keymap]` | 所有已加载键位（`vsc`/`vim`） |
-| `api.app` | `ExtensionHost` | 应用宿主接口（高级用法） |
+| `api.keymaps` | `KeymapSet` | 所有已加载键位（`vsc`/`vim`）；用 `api.keymaps.get(名字)` 取单个 |
+| `api.app` | `ExtensionContext` | 扩展可驱动的具体服务（高级用法） |
+
+**`api.app`（`ExtensionContext`）字段**（高级用法；优先使用上面的窄接口）：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `session` | `EditorSession` | 打开的文档会话（`session.doc` / `session.buffer`） |
+| `workspace` | `Workspace` | 文件树工作区 |
+| `lsp` | `LspManager` | 语言服务器管理器（窄接口见 `api.lsp`） |
+| `keymaps` | `KeymapSet` | 所有已加载键位（`vsc`/`vim`） |
+| `actions` | `ActionRegistry` | 命名动作注册表 |
+| `commands` | `CommandRegistry` | `:` 命令注册表 |
+| `message(text)` | 可调用 | 在消息栏显示提示 |
+| `run_shell(command, show_output)` | 可调用 | 同步执行 shell 命令，返回 `ShellResult` 或 `None` |
+| `open_path(path)` | 可调用 | 在编辑器中打开文件/目录 |
+| `save()` | 可调用 | 保存当前文档 |
 
 **`api.buffer`（TextBuffer）常用方法**：
 

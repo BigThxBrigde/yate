@@ -1,8 +1,9 @@
 # Plan E — 测试与冒烟脚本迁移
 
-> 状态：🔄 **执行中**（2026-09-22，5 个子任务并行）· 前置：[Plan D](plan_D_shell_wiring.md) · 后置：[Plan F](plan_F_gate_docs.md)
-> 门禁：`python -m pytest tests/ -q` 全绿 · `python -m pyright tests/ tools/` 0 诊断
-> 子任务划分见 §E.2，落地记录见 §E.5。
+> 状态：✅ **已完成**（2026-09-23 收口）· 前置：[Plan D](plan_D_shell_wiring.md) · 后置：[Plan F](plan_F_gate_docs.md)
+> 门禁（实测）：`python -m pytest tests/ -q` 全绿 · `python -m pyright yate/ tests/ tools/` 0 诊断 ·
+> 冒烟 `run --fail-only` → 62/62 场景、651/651 checks
+> 子任务划分见 §E.2，落地记录见 §E.5，逐文件迁移清单与实测见 §E.6。
 
 ---
 
@@ -108,8 +109,10 @@ Plan D 之后 `YateApp` 不再持有业务状态，测试与冒烟脚本里所�
 
 > 并行前提：E1–E4 改的是互不相交的文件，可同时开工；E5 独立。
 > 每个子任务完成后单独跑 `python -m pytest <自己的文件> -q`。
-> **本轮并行执行**（team `layering-plan-e`）：E1 `e1-app-textual`、E2 `e2-explorer-docs`、
-> E3 `e3-unit-tests`、E4 `e4-smoke-tools`、E5 `e5-architecture`。
+> **首轮并行**（team `layering-plan-e`）：E1 `e1-app-textual`、E2 `e2-explorer-docs`、
+> E3 `e3-unit-tests`、E4 `e4-smoke-tools`、E5 `e5-architecture`（仅 E5 交付）。
+> **收口轮并行**（team `plan-ef`，2026-09-23）：E1 `e1-app-textual`、E2 `e2-explorer-docs`、
+> E3 `e3-unit-tests`、E4 `e4-smoke`、Plan F 文档 `e5-docs-changelog`；R7 守卫与全部门禁复核由主代理完成。
 
 ## E.3 架构守护规则更新（`tests/test_architecture.py`）
 
@@ -122,17 +125,18 @@ Plan D 之后 `YateApp` 不再持有业务状态，测试与冒烟脚本里所�
 | `test_keymaps_services_and_models_stay_ui_free`（R4） | 保留（**已改名**，原 `test_keymaps_and_services_stay_ui_free`），并把 `session.py` / `registries.py` 纳入同一检查 |
 | `test_no_type_checking`（R6） | 保留 |
 | `test_collaborators_keep_widget_coupling_frozen` | 按 **R11** 标注（原文误标 R4；R4 由上面的 UI-free 用例守护） |
+| — | 新增：R7 守卫 `test_shell_loads_the_builtin_tables`（E5 收尾后补：断言 `app.py` 登记两张内置表，且 `actions.py` / `commands.py` 只被 `app.py` 导入；用例数 11 → 12） |
 
 ## E.4 完成检查
 
-- [ ] `python -m pytest tests/ -q` 全绿
-- [ ] `python -m pyright tests/ tools/` 0 诊断
-- [ ] `grep -rn "app_features" tests/ tools/` 为空
-- [ ] `grep -rn "\.explorer_feature\|\.terminal_feature\|\.docs_feature" tests/ tools/` 为空
+- [x] `python -m pytest tests/ -q` 全绿（2026-09-23 实测，收集阶段中断已消除）
+- [x] `python -m pyright tests/ tools/` 0 诊断
+- [x] `grep -rn "app_features" tests/ tools/` 为空
+- [x] `grep -rn "\.explorer_feature\|\.terminal_feature\|\.docs_feature" tests/ tools/` 为空
 
-> 2026-09-23 实测：`pytest tests/ -q` 在**收集阶段**被 `test_explorer.py` / `test_changelog_view.py`
-> 中断（`ModuleNotFoundError: yate.app_features.*`），`test_editor_core.py` 的 `SessionOps` 导入亦未修复；
-> 逐文件待办见 §E.6 末尾。
+> 迁移前状态（留档）：`pytest tests/ -q` 曾在**收集阶段**被 `test_explorer.py` / `test_changelog_view.py`
+> 中断（`ModuleNotFoundError: yate.app_features.*`），`test_editor_core.py` 的 `SessionOps` 导入亦失败；
+> 迁移后的实测结果见 §E.6.4。
 
 ---
 
@@ -140,11 +144,11 @@ Plan D 之后 `YateApp` 不再持有业务状态，测试与冒烟脚本里所�
 
 | 子任务 | 文件 | 结果（2026-09-23 审计实测） |
 |---|---|---|
-| **E5** | `tests/test_architecture.py` | ✅ 重写为 **11 个用例**：`python -m pytest tests/test_architecture.py -q` → **11 passed**。删除旧的 `test_features_import_only_allowed_view_modules` 与 `ALLOWED_FEATURE_VIEW_IMPORTS`；新增 helper `_yate_files()` / `_imports_upward()` / `_protocol_classes()` / `_identifiers()`；规则映射见 §E.3 与 [rules §六](../../rules/architecture-boundaries.md) |
-| E1 | `tests/test_app_textual.py` | ⏳ **未开始**：`app.editor.` 命中 0 处，旧属性路径约 250 处 |
-| E2 | `tests/test_explorer.py` / `test_changelog_view.py` / `test_diagnostics.py` | ⏳ **未开始**：前两者仍在**收集阶段** `ModuleNotFoundError: yate.app_features.*`；`test_diagnostics.py` 仍走 `YateApp` + `app.load_startup_services()` |
-| E3 | `tests/test_cli.py` / `test_config.py` / `test_panes.py` / `test_editor_core.py` / `test_extensions.py` / `test_highlight.py` | ⏳ **未开始**：`test_editor_core.py` 仍 `from yate.actions import SessionOps`（已删 → 收集期 `ImportError`）；`test_panes.py` 旧 `PaneManager` 签名；`test_config.py` 仍用 `app.keymap_name` |
-| E4 | `tools/smoke_test/**` | 🔄 **部分完成**：`harness.py` / `_base.py` / `aliases.py` / `core.py` / `edit.py` 已迁移；其余 8 个场景（`explorer` `files` `integration` `panes` `regression` `search` `stress` `view`）仍走 `app.<业务属性>` |
+| **E5** | `tests/test_architecture.py` | ✅ 重写为 **11 个用例**：`python -m pytest tests/test_architecture.py -q` → **11 passed**；收尾时补 R7 守卫 → **12 passed**。删除旧的 `test_features_import_only_allowed_view_modules` 与 `ALLOWED_FEATURE_VIEW_IMPORTS`；新增 helper `_yate_files()` / `_imports_upward()` / `_protocol_classes()` / `_identifiers()`；规则映射见 §E.3 与 [rules §六](../../rules/architecture-boundaries.md) |
+| E1 | `tests/test_app_textual.py` | ✅ **完成（137 passed / 132s）**：≈250 处旧路径迁移（`app.doc` 56、`app.buffer` 40、`app.run_command` 65、`app.editor_view` 28、`app.prompt_bar` 26 …）；非机械点逐个核对：`terminal_feature.is_visible` → `terminal_panel.is_visible`（property）、`_terminal_factory` → `terminal_panel.view_factory`、`build_tabbar` / `render_breadcrumbs` → `tabbar.build` / `breadcrumbs.build`、`patch("yate.app.run_shell")` → `patch("yate.editor.run_shell")`、`PaletteScreen` 改关键字签名、`quit` 打桩落到 `app.editor` |
+| E2 | `tests/test_explorer.py` / `test_changelog_view.py` / `test_diagnostics.py` | ✅ **完成（26 passed）**：`test_explorer.py` 改为直驱 `ExplorerTree.prompt_delete` / `submit_delete`（注入 fake `PromptBar` + 真实 `EditorSession`）与真实 `Editor._lsp_documents_closed` + `session.close_under`；`test_changelog_view.py` 改测 `Editor.show_changelog` / `show_manual`（`_open_doc` + `push_overlay`），删除已不存在的 `YateApp` facade 用例；`test_diagnostics.py` 走 `app.editor.*`。已删除 `test_app_facade_forwards_to_docs`（`yate/app.py` 已无该委派，grep 0 命中） |
+| E3 | `tests/test_cli.py` / `test_config.py` / `test_panes.py` / `test_editor_core.py` / `test_extensions.py` / `test_highlight.py` | ✅ **完成（175 passed）**：`test_panes.py` 删 `FakeApp`、改真实 `EditorSession` + `PaneManager(session, doc, is_mounted=..., after_pane_focus=..., focus_explorer=...)`；`test_editor_core.py` 去掉 `SessionOps`、`ActionContext(app.session, app.ui)`；`test_cli.py` 替身补 `.editor`（断言未弱化）；`test_extensions.py` / `test_highlight.py` 改用 `ExtensionContext` |
+| E4 | `tools/smoke_test/**` | ✅ **完成**：8 个场景全部迁移；全量 `run --fail-only` → **62/62 场景、651/651 checks**。附带修复 `stress_key_fuzz` 的既有抖动：落盘断言前由裸 `pilot.pause()` 改为 `wait_until(... not doc.modified)`（超时仍会失败，严格性不变） |
 
 ### E.5.1 E5 阶段的两项裁决（已同步到 README 与规则文档）
 
@@ -191,3 +195,14 @@ Plan D 之后 `YateApp` 不再持有业务状态，测试与冒烟脚本里所�
 
 - **收集中断（2）**：`test_explorer.py`、`test_changelog_view.py` —— `pytest` 直接 `Interrupted: 2 errors during collection`，其余用例不会执行。
 - **运行期失败**：`test_editor_core.py`（`ImportError: SessionOps`）、`test_app_textual.py` / `test_panes.py` / `test_diagnostics.py` / `test_config.py`（`AttributeError`，旧属性路径）。
+
+### E.6.4 迁移后实测（2026-09-23）
+
+| 范围 | 结果 |
+|---|---|
+| 收集阶段 | ✅ 中断已消除（`app_features` 引用清零，`SessionOps` 已去掉） |
+| `pytest tests/ -q`（全量） | ✅ exit 0 全绿（E1 137 / E2 26 / E3 175，其余文件同步通过） |
+| `pytest tests/ -q --ignore=tests/test_app_textual.py` | ✅ 全绿（E1 进行中的中间验证） |
+| `tools.smoke_test run --fail-only` | ✅ 62/62 场景、651/651 checks（45.56s） |
+| `pyright yate/ tests/ tools/` | ✅ 0 errors, 0 warnings, 0 informations |
+| 剩余 | 无 |

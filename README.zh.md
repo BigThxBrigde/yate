@@ -4,7 +4,10 @@
 
 **yate** — *yet another terminal editor*，基于 [Textual](https://www.textualize.io/)
 构建的现代终端文本编辑器。分层架构：`editor_core` 为纯编辑逻辑（与 UI 解耦，
-可无头测试），`editor_view` 为 Textual 界面。
+可无头测试），`editor_view` 为 Textual 界面。`YateApp` 只是瘦外壳，`editor.py`
+持有运行中的编辑器（`Editor`：会话 + 服务 + 组件树 + 操作），`session.py`
+持有无 UI 的文档会话（`EditorSession`）；`editor_view/*` 负责渲染，
+`editor_core` 保持纯编辑逻辑。
 
 ## 📖 用户手册 / Manual
 
@@ -234,11 +237,18 @@ yate/
   resources/      # manual.zh.md / manual.en.md 双语用户手册、随包字体
   __init__.py     # 包元数据（__version__）
   __main__.py     # `python -m yate` 模块入口
-  actions.py      # 命名动作注册表：键位、命令面板与扩展共用
+  actions.py      # 内置动作表（注册表本体在 `registries.py`）
   config.py       # yaterc 配置系统
-  app.py          # YateApp：界面组装、会话状态、生命周期
-  app_features/   # 应用功能层：ex 命令、补全、文件树操作、终端
+  app.py          # YateApp：瘦外壳（CSS、主题桥、生命周期、按键转发）
+  editor.py       # Editor：运行中的编辑器（会话/服务、控件树、各项操作）
+  session.py      # EditorSession：打开的文档、当前文档/缓冲区、搜索状态
+  registries.py   # 与 UI 无关的 ActionRegistry / CommandRegistry 叶子模块
   cli.py          # 命令行入口
+  commands.py     # 内置 `:` 命令表
+  completion.py   # 补全编排：防抖、LSP/缓冲区查询、弹窗
+  prompt_completion.py  # 底部命令行的 Tab 补全候选（纯函数）
+  diagnostics.py  # `yate --diag` 环境与配置诊断报告
+  logs.py         # 崩溃报告 + 可选的运行时 trace 单例
   paths.py        # 统一资源定位（源码 / wheel / PyInstaller frozen 三种布局）
   yaterc.example  # 配置模板
 tests/            # 单元测试 + Textual pilot 端到端测试
@@ -303,7 +313,7 @@ Linux 构建不带图标（`icon=` 仅 Windows 生效）。
 ## 开发
 
 ```powershell
-# 运行全部测试（612 个，含 Textual pilot 端到端测试）
+# 运行全部测试（含 Textual pilot 端到端测试）
 python -m pytest tests
 
 # 类型检查：pyright strict，要求 0 诊断

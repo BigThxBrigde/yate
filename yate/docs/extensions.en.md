@@ -171,8 +171,24 @@ def _upper(ctx):
 | `api.buffer` | `TextBuffer` | active buffer |
 | `api.doc` | `Document` | active document (path, saving, etc.) |
 | `api.workspace` | `Workspace` | file-tree workspace |
-| `api.keymaps` | `dict[str, Keymap]` | all loaded keymaps (`vsc`/`vim`) |
-| `api.app` | `ExtensionHost` | the application host protocol (advanced use) |
+| `api.keymaps` | `KeymapSet` | all loaded keymaps (`vsc`/`vim`); look one up with `api.keymaps.get(name)` |
+| `api.app` | `ExtensionContext` | the concrete services an extension drives (advanced use) |
+
+**`api.app` (`ExtensionContext`) fields** (advanced use; the narrow accessors
+above are preferred):
+
+| Field | Type | Description |
+|---|---|---|
+| `session` | `EditorSession` | the open-documents session (`session.doc` / `session.buffer`) |
+| `workspace` | `Workspace` | file-tree workspace |
+| `lsp` | `LspManager` | language-server manager (`api.lsp` is the narrow bridge) |
+| `keymaps` | `KeymapSet` | all loaded keymaps (`vsc`/`vim`) |
+| `actions` | `ActionRegistry` | named actions |
+| `commands` | `CommandRegistry` | `:` commands |
+| `message(text)` | callable | report a hint on the message line |
+| `run_shell(command, show_output)` | callable | run a shell command synchronously; returns `ShellResult` or `None` |
+| `open_path(path)` | callable | open a file/folder in the editor |
+| `save()` | callable | save the active document |
 
 **Common `api.buffer` (TextBuffer) methods**:
 

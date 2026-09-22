@@ -1,6 +1,6 @@
 # 分层重构计划：外壳 / 调度 / 组件 / 会话
 
-> 状态：**Plan A–D 已完成 · Plan E 执行中 · Plan F 待执行**（2026-09-22 落地，2026-09-23 审计复核）
+> 状态：**Plan A–F 全部完成**（2026-09-22 落地 · 2026-09-23 审计与迁移收口）
 > 目标：项目结构清晰、层次划分清晰、扩展性与维护性好；改动性质以**代码搬运 + 删除**为主，
 > 不重写算法；**能用函数实现的就不造类**。
 > 本目录是本次重构的**唯一计划来源**；代码侧的硬性边界同时固化在
@@ -25,24 +25,28 @@
 | 已删除 | `yate/app_features/`（6 文件 / 1070 行）、`app.py` 内 1875 行业务代码（均为历史值） |
 | `AppProtocol` / `yate.interfaces` | 定义 **0 处**（字面量仅存于 `tests/test_architecture.py` 的禁用名守卫） |
 | 新增模块 | `session.py`、`registries.py`、`editor.py`、`actions.py`、`commands.py`、`completion.py`、`prompt_completion.py`、`editor_view/chrome.py`、`keymaps/registry.py` |
-| 门禁现状 | `python -m pyright yate/` → **0 errors, 0 warnings**；`pytest tests/` **尚未全绿**（Plan E 未完成，见 §1.1） |
+| 门禁现状 | `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**；`pytest tests/` **全绿**；`tools.smoke_test run --fail-only` → **62/62 场景、651/651 checks**（2026-09-23 收口，见 §1.1） |
 
-### 1.1 尚未迁移的资产（Plan E 待办，2026-09-23 实测）
+### 1.1 迁移与门禁收口（2026-09-23 实测）
 
-| 范围 | 状态 |
+| 范围 | 结果 |
 |---|---|
-| 收集期即失败（2） | `tests/test_explorer.py`、`tests/test_changelog_view.py` —— 仍 import 已删除的 `yate.app_features.*`，`pytest` 在收集阶段 `Interrupted` |
-| 运行期失败 | `tests/test_editor_core.py`（`SessionOps` 已删）、`test_app_textual.py`（≈250 处旧属性）、`test_panes.py`、`test_diagnostics.py`、`test_config.py`、`test_cli.py`（`FakeApp` 无 `.editor`）；`test_extensions.py` / `test_highlight.py` 靠 duck typing 暂存但构造签名已变 |
-| 冒烟场景 | `tools/smoke_test/scenarios/` 8 / 12 未迁移：`explorer` `files` `integration` `panes` `regression` `search` `stress` `view`（`harness` `_base` `aliases` `core` `edit` 已完成） |
-| 逐文件清单 | 见 [Plan E](plan_E_tests_tools.md) §E.6；属性映射见 §E.1 |
+| E1 `tests/test_app_textual.py` | ✅ **137 passed**（旧属性路径 ≈250 处全部迁移） |
+| E2 `test_explorer.py` / `test_changelog_view.py` / `test_diagnostics.py` | ✅ **26 passed**（收集期中断消除） |
+| E3 `test_cli` / `test_config` / `test_panes` / `test_editor_core` / `test_extensions` / `test_highlight` | ✅ **175 passed** |
+| E4 `tools/smoke_test/scenarios/`（8 个未迁移场景） | ✅ 全量 `run --fail-only` → **62/62 场景、651/651 checks** |
+| 全量门禁 | ✅ `pytest tests/ -q` exit 0 · `pyright yate/ tests/ tools/` 0 诊断 · `yate --diag` / `--version` 正常 |
+| 迁移记录 | 逐文件方式见 [Plan E](plan_E_tests_tools.md) §E.5 / §E.6.4；属性映射见 §E.1 |
 
 ### 1.2 复核命令
 
 ```powershell
 # 行数（非空行口径）
 python -c "import pathlib; [print(n, 'total=', len(t), 'nonblank=', sum(1 for l in t if l.strip())) for n,t in ((n,(pathlib.Path('yate')/n).read_text(encoding='utf-8').splitlines()) for n in ['app.py','editor.py','session.py','registries.py','actions.py','commands.py','completion.py','prompt_completion.py'])]"
-# pytest（迁移完成前会在 test_explorer / test_changelog_view 处中断）
+# 门禁
 python -m pytest tests -q
+python -m pyright yate/ tests/ tools/
+python -m tools.smoke_test run --fail-only
 ```
 
 ---
@@ -135,13 +139,14 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 
 ### 守护覆盖（2026-09-23 实测）
 
-`tests/test_architecture.py` 的 **11 个用例**实际覆盖：**R1 / R2 / R3 / R4 / R5 / R6 / R11 + 命名守卫**
-（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`），以及 `app_features/` 与
-`yate/interfaces.py` 已消失。
+`tests/test_architecture.py` 的 **12 个用例**实际覆盖：**R1 / R2 / R3 / R4 / R5 / R6 / R7 / R11 +
+命名守卫**（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`），以及 `app_features/`
+**目录**与 `yate/interfaces.py` 已消失。其中 R7 由 `test_shell_loads_the_builtin_tables` 守护：
+断言 `app.py` 含 `populate(self.editor.actions, self.editor)` /
+`register_commands(self.editor.commands, self.editor)`，且 `actions.py` / `commands.py` 只被 `app.py` 导入。
 
-> **R7 / R8 / R9 / R10 目前没有自动守护**（R8 仅被 R2 的协议守卫间接覆盖）。R7 可低成本补一个用例
-> （断言 `app.py` 含 `populate(self.editor.actions` 与 `register_commands(self.editor.commands`）；
-> R9 / R10 依赖代码评审与 [Plan F](plan_F_gate_docs.md) 冒烟清单。
+> **R8 / R9 / R10 仍无自动守护**（R8 仅被 R2 的协议守卫间接覆盖）：依赖代码评审与
+> [Plan F](plan_F_gate_docs.md) 冒烟清单。
 
 ---
 
@@ -153,8 +158,8 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 | B | [plan_B_widget_selfhold.md](plan_B_widget_selfhold.md) | 组件自持：`chrome.py`、`commandline.py`、`explorer.py`、`terminal.py`、`panes.py`、`statusbar.py`、`modals.py`、`palette.py`、`editor.py` | ✅ |
 | C | [plan_C_functional_tables.md](plan_C_functional_tables.md) | 函数化表与流程：`prompt_completion.py`、`completion.py`、`actions.py`、`commands.py`、`services/extensions.py`、`editor.py` | ✅ |
 | D | [plan_D_shell_wiring.md](plan_D_shell_wiring.md) | **外壳瘦身与接线**：解环、`app.py` 瘦到 152 行、删除 `app_features/`、cli 走 `app.editor` | ✅ |
-| E | [plan_E_tests_tools.md](plan_E_tests_tools.md) | **测试与冒烟脚本迁移**：`app.X` → `app.editor.*`；架构守护规则更新（§E.6 为逐文件待办清单） | 🔄 执行中 |
-| F | [plan_F_gate_docs.md](plan_F_gate_docs.md) | **门禁与文档**：pyright / pytest / `--diag` / 冒烟清单、扩展与用户文档、CHANGELOG、`architecture-boundaries.md` | ⏳ |
+| E | [plan_E_tests_tools.md](plan_E_tests_tools.md) | **测试与冒烟脚本迁移**：`app.X` → `app.editor.*`；架构守护规则更新（§E.5 落地记录、§E.6 迁移清单与实测） | ✅ |
+| F | [plan_F_gate_docs.md](plan_F_gate_docs.md) | **门禁与文档**：pyright / pytest / `--diag` / 冒烟清单、扩展与用户文档、CHANGELOG、`architecture-boundaries.md` | ✅ |
 
 ---
 
@@ -211,3 +216,7 @@ python -m yate --version                   # 正常
 | 9 | `tests/test_architecture.py` docstring；`.trae/rules/architecture-boundaries.md` | 引用不存在的 `app_layering_plan.md`；命名守卫冒用 R7 编号；`test_collaborators_*` 标 R4（实为 R11）；R9 id 清单同上 | 已修正（§F.5） |
 | 10 | `.trae/rules/python-coding-style.md`、`.trae/skills/textual-pilot-smoke/SKILL.md`、`split_app_protocol_plan.md` | 残留"窄 Protocol（Host/Ops）"指导、`yate/tracing.py` / `yate/crash.py` 失效路径、错误的 baseline 目录、旧 R 编号 | 已修正（§F.5） |
 | 11 | `yate/app_features/` 残留目录（同日追加） | 目录只剩 `__pycache__`，`import yate.app_features` 仍**成功**（空命名空间包），而原用例只断言 `__init__.py` 不存在 | 删除残留目录；`test_app_features_package_is_gone` 改为断言**目录**不存在；rules §六 同步 |
+| 12 | `tests/test_architecture.py`（同日追加） | R7（外壳装载内置表）此前**无自动守护** | 补 `test_shell_loads_the_builtin_tables`（用例数 11 → 12），rules §六 与 [Plan E](plan_E_tests_tools.md) §E.3 / §E.5 同步 |
+
+> Plan E / Plan F 的迁移与门禁执行结果（含 5 个并行子任务的交付与复核数据）见
+> [Plan E](plan_E_tests_tools.md) §E.5 / §E.6.4 与 [Plan F](plan_F_gate_docs.md) §F.6。

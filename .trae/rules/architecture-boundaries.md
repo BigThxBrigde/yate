@@ -105,7 +105,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **11 个用例**（`python -m pytest tests/test_architecture.py -q` → 11 passed）：
+`tests/test_architecture.py` 已落地 **12 个用例**（`python -m pytest tests/test_architecture.py -q` → 12 passed）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -116,6 +116,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R4** `keymaps/*`、`services/*`、`session.py`、`registries.py` 不 import `editor_view`（严格 0 违规）；
 - **R11** `completion.py` / `prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
 - **R5** `editor.py` 不 import `yate.actions` / `yate.commands`；
+- **R7** 只有 `app.py` 导入内置表，且 `YateApp.__init__` 调用
+  `populate(self.editor.actions, self.editor)` / `register_commands(self.editor.commands, self.editor)`；
 - **R6** 全仓无 `TYPE_CHECKING`；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`
   （白名单：`PaneHost`；`*Manager` / `*Controller` 允许）。

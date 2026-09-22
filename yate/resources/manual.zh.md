@@ -986,7 +986,7 @@ def setup(api):
 | 类别 | API |
 |---|---|
 | 注册 | `command(name, description)` 装饰器 / `register_command(name, func, description)` 注册 `:` 命令；`bind_key(key_spec, callback, keymap=...)` 绑定按键（`"vsc"` / `"vim"` / `"both"`，`normal` 是 `vsc` 的别名）；`register_action(name, func, description)` 注册命名动作 |
-| 访问 | `api.buffer`、`api.doc`、`api.workspace`、`api.keymaps`、`api.app` |
+| 访问 | `api.buffer`、`api.doc`、`api.workspace`、`api.keymaps`、`api.app`（类型为 `ExtensionContext`，其字段即下文扩展参考中列出的各项具体服务） |
 | 服务 | `api.message(text)`、`api.shell(command)`、`api.open_path(path)`、`api.save()` |
 | 语言服务器 | `api.lsp.register_server(...)`（见第 16 节）；`api.lsp.statuses()` 返回 `{名字: 状态}` |
 | 语法高亮 | `api.highlight.register(spec, *扩展名)` 注册/覆盖自定义语言的声明式高亮（`LangSpec`），注册后可用于 `:set filetype=` |

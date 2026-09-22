@@ -70,6 +70,10 @@
   "949ed01": {
     "summary": "新增 GitHub Actions CI（Linux/Windows 矩阵）"
   },
+  "9fa5ac8": {
+    "summary": "架构分层重构：外壳瘦身并移除 app_features 与窄接口，新增 Editor 调度层与 EditorSession 会话层",
+    "detail": "用户可见变化：扩展里的 api.app 由 YateApp 变为 ExtensionContext（可用字段见扩展文档）；api.keymaps 由 dict 变为 KeymapSet。"
+  },
   "a1d81d6": {
     "summary": "CI 拉取完整历史以支持变更日志门禁"
   },

@@ -1085,7 +1085,7 @@ What `api` provides:
 | Category | API |
 |---|---|
 | Registration | `command(name, description)` decorator / `register_command(name, func, description)` to register `:` commands; `bind_key(key_spec, callback, keymap=...)` to bind keys (`"vsc"` / `"vim"` / `"both"`; `normal` aliases `vsc`); `register_action(name, func, description)` for named actions |
-| Access | `api.buffer`, `api.doc`, `api.workspace`, `api.keymaps`, `api.app` |
+| Access | `api.buffer`, `api.doc`, `api.workspace`, `api.keymaps`, `api.app` (type `ExtensionContext`; its fields are the same concrete services listed in the extension reference below) |
 | Services | `api.message(text)`, `api.shell(command)`, `api.open_path(path)`, `api.save()` |
 | Language servers | `api.lsp.register_server(...)` (see section 16); `api.lsp.statuses()` returns `{name: state}` |
 | Syntax highlighting | `api.highlight.register(spec, *extensions)` registers or overrides a declarative custom language (`LangSpec`); usable from `:set filetype=` once registered |
