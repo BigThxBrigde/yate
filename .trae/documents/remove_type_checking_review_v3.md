@@ -9,6 +9,21 @@
 
 ## 🤖 AI 队友审查结果
 
+> **状态（2026-09-22 复核）：历史评审记录；两个阻断项均已修复。**
+>
+> - **阻断项 1（`_vim_insert_mode` 直接取 `keymaps["vim"]` 可能 KeyError）已修复**：
+>   现为 `vim = self._app.keymaps.get("vim")`，为 `None` 时安全返回
+>   （`yate/app_features/completion.py`）。
+> - **阻断项 2（`reconcile` 用 `id()` 作状态键不稳定）已修复**：改用
+>   `Document.uid`（稳定自增 id），`Leaf.states: dict[int, ViewState]`，
+>   代码注释明确说明用于规避文档重建导致的键失效
+>   （`yate/editor_view/pane_types.py`、`panes.py`）。
+> - **改进项 1（`reconcile` 全量重建 widget 树）**：为有意设计——`PaneHost`
+>   明确"整树重建 + EditorView 廉价可抛弃、状态全部外置模型"，见
+>   `split_panes_plan.md`。
+> - **改进项 2（`panes.py` 再导出缺少说明）**：纯数据模型已抽到
+>   `pane_types.py`，`panes.py` 作为 UI 侧入口。
+
 ### 📊 审查结论
 
 ⛔ 发现 2 个阻断项，2 个改进项。请修改后再合并。

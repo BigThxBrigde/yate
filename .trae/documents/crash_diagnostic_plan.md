@@ -1,5 +1,11 @@
 # 崩溃诊断集成方案：faulthandler + excepthook 落盘
 
+> **实施状态（2026-09-22 复核）：✅ 已实现。**
+>
+> 崩溃诊断现位于统一日志模块 `yate/logs.py::CrashService`（单例 `crash`），
+> `yate/crash.py` 薄壳已删除。本模块（§2 起的"现行"描述）与代码基本一致；
+> 最终设计与实现细节以 `unify_crash_tracing_plan.md` 为准。
+
 > 将 `faulthandler` 与自定义 `sys.excepthook` 集成到 yate，
 > 在进程异常退出（native crash / 未捕获 Python 异常）时，
 > 将诊断日志写入 `~/.yate/data/` 下带时间戳的 `.err` 文件，

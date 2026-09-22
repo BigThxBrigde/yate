@@ -1,5 +1,36 @@
 ﻿# 主题扩展计划：One / Gruvbox 内置 + Dracula / Ayu 主题模板
 
+> **实施状态（2026-09-22 核对）：✅ 已实现（§5 版本号部分已过时）。**
+>
+> - 内置已由 4 套扩为 **8 套**：Catppuccin 4 + `onedark` / `onelight` /
+>   `gruvbox-dark` / `gruvbox-light`（`yate/editor_view/theme.py`，工厂
+>   `_catppuccin` / `_one_family` / `_gruvbox`）。
+> - 模板已随包：`yate/resources/theme_examples/dracula_theme.example`、
+>   `ayu_theme.example`（不自动加载，改名 `*.py` 后由默认目录扫描注册）；
+>   `tests/test_theme_palettes.py` 覆盖内置色值与模板 exec 校验。
+> - **§5 的版本号 0.1.1（双写）已过时**：`pyproject.toml` 已改
+>   `dynamic = ["version"]`，版本唯一来源是 `yate/__init__.py`（当前 **0.2.4**），
+>   发布不再双写。
+> - 后续演进：主题已进一步接入 Textual 主题桥，使所有覆盖屏跟随当前 yate 主题
+>   （见 `overlay_theme_consistency_plan.md`）。
+
+## 与当前实现的差异（回写，2026-09-22）
+
+- **§1「现状」是实施前快照**：当前内置主题为 **8 套**（`mocha` / `frappe` /
+  `macchiato` / `latte` / `onedark` / `onelight` / `gruvbox-dark` /
+  `gruvbox-light`），另有 `yate/resources/theme_examples/dracula_theme.example`
+  与 `ayu_theme.example` 两份模板。
+- **§5 版本号已作废**：`pyproject.toml` 现为 `dynamic = ["version"]`
+  （hatchling regex 读 `yate/__init__.py`），**不再双写**；当前版本 **0.2.4**。
+  发布只改 `yate/__init__.py`（见 `changelog_plan.md` / `release_tool_plan.md`）。
+- **§4.2 打包**：模板已由 hatchling 自动入 wheel —— `pyproject.toml` 的 wheel
+  注释明确列出 `resources/theme_examples/*.example`。
+- **§4.1 模板安装**：手动拷贝仍有效，但更推荐 `yate --setup-defaults`
+  一键安装（见 `setup_defaults_plan.md`）。
+- **主题进一步接入 Textual 主题桥**：`theme.py` 新增 `TEXTUAL_THEME_PREFIX` /
+  `textual_theme_name` / `validate_theme` / `to_textual_theme`，
+  `register_theme` 会拒绝非法颜色（见 `overlay_theme_consistency_plan.md`）。
+
 > 主题分两类交付：
 >
 > - **内置**（`editor_view/theme.py` 的 `THEMES`，随 import 注册）：

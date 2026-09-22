@@ -1,5 +1,18 @@
 # 全语法高亮输入抖动一次性修复 实施计划
 
+> **实施状态（2026-09-22 核对）：❌ 未实施。**
+>
+> - `yate/editor_syntax/regex_backend.py` 只有私有 `_tokenize_code_line()`
+>   （第 451 行），**没有**公开的 `tokenize_line()` / pattern LRU 缓存；
+>   `yate/editor_syntax/engine.py` 无 `tokenize_line_sync`；
+>   `yate/editor_view/editor.py` 无 `_hl_line_snapshot` / `_hl_ml_states`
+>   （Step 3 的行级快照 + 变化行 regex 替换 + multiline 向后传播）；tree-sitter
+>   后端也没有 `_highlight_incremental`（Step 4 的增量 parse）。
+> - 因此"变化行 regex 同步替换以消除**所有 token 类型**行尾边界抖动"未落地，
+>   本文档描述的抖动按设计仍然存在。
+> - 已实现的是其**前置计划** `typing_flicker_debounce_plan.md`
+>   （0.08s 防抖 + 陈旧 token 复用，消除整屏脱色帧）。
+
 ## 问题
 
 之前的 typing_flicker_debounce_plan 实现了陈旧 token 复用 + 0.08s debounce，消除了整屏脱色帧，但**所有语言、所有 token 类型在输入时都存在行尾局部抖动**：刚输入的 1-2 个字符在 debounce 窗口内短暂显示默认前景色，debounce 完成后才恢复正确颜色。注释因其常在行尾最容易被注意到，但关键字、字符串、数字、decorator、function 等任何在行尾的 token 都会抖动。

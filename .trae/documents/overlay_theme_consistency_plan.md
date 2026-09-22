@@ -1,5 +1,24 @@
 # Overlay Theme Consistency — Implementation Plan
 
+> **实施状态（2026-09-22 核对）：✅ 已实现。**
+>
+> - `yate/editor_view/theme.py` 已有 `TEXTUAL_THEME_PREFIX` /
+>   `textual_theme_name()` / `validate_theme()` / `to_textual_theme()`；
+>   `register_theme()` 会先校验（非法颜色抛 `ValueError`，经 loader 转为
+>   `config.errors` 条目）。
+> - `yate/app.py`：构造期把 `THEMES` 桥接为 `yate-<name>` Textual 主题、启动时
+>   选中当前 yate 主题、`YateApp.set_theme()` 中按需惰性注册，并实现
+>   `get_theme_variable_defaults()` 提供 `doc-hit-background` /
+>   `doc-hit-current-background`。
+> - `yate/app_features/docs.py` 的模块级 `show_doc(app, *, kind, lang, title)`
+>   只推屏、**不再切换/恢复**主题（模块注释写明 "no theme state to touch
+>   anymore"）；`_prev_doc_theme` / `_prev_manual_theme` 在 `app.py` 中已不存在；
+>   `manual.py` 的 `.doc-hit` / `.doc-hit-current` 已改用两个 `$doc-hit-*` 变量。
+>   （`MarkdownDocScreen(app, kind=..., lang=..., title=...)` 仍接收 `app`，
+>   用于推屏与资源加载，不再持有主题状态。）
+> - 测试：`tests/test_theme_palettes.py` 覆盖逐内置主题的字段级映射与严格校验；
+>   `tests/test_changelog_view.py` 已改为"推屏但不改主题"。
+
 ## Goal
 
 Make every modal/prompt screen (F1 help, F8 manual, changelog, command/file
