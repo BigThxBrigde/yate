@@ -1,8 +1,9 @@
 """Unit tests for the split-pane tree model (no Textual runtime).
 
-PaneManager is driven with a tiny fake app: structure ops run host-less
-(``host is None``), exactly like the model would behave before the first
-widget mounts, so every tree/state rule is testable without a screen.
+PaneManager is driven with a real :class:`EditorSession` plus host-less
+callbacks: structure ops run host-less (``host is None``), exactly like the
+model would behave before the first widget mounts, so every tree/state rule
+is testable without a screen.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import asyncio
 
 import pytest
 
+from yate.config import YateConfig
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_view.panes import (
@@ -21,43 +23,32 @@ from yate.editor_view.panes import (
     find_axis_split,
     leaves,
 )
-
-
-class FakeApp:
-    """Just enough YateApp surface for the host-less pane manager."""
-
-    def __init__(self, docs: list[Document]) -> None:
-        self.docs = docs
-        self.doc_index = 0
-        self.mounted = False
-
-    # pane manager app hooks ------------------------------------------------
-
-    def after_pane_focus(self) -> None:
-        pass
-
-    def focus_explorer(self) -> None:
-        pass
-
-    def close_completion(self) -> None:
-        pass
-
-    def ui_refresh(self) -> None:
-        pass
+from yate.session import EditorSession
 
 
 def make_doc(text: str = "") -> Document:
     return Document(None, TextBuffer(text))
 
 
-def _env() -> tuple[FakeApp, PaneManager, Document, Document]:
+def _manager(session: EditorSession, doc: Document) -> PaneManager:
+    """Host-less manager: panes never reach the (absent) widget host."""
+    return PaneManager(
+        session,
+        doc,
+        is_mounted=lambda: False,
+        after_pane_focus=lambda: None,
+        focus_explorer=lambda: None,
+    )
+
+
+def _env() -> tuple[EditorSession, PaneManager, Document, Document]:
     """Fresh host-less manager over two documents."""
     doc1 = make_doc("one\ntwo\nthree\n")
     doc2 = make_doc("alpha\nbeta\n")
-    app = FakeApp([doc1, doc2])
-    app.doc_index = 0
-    mgr = PaneManager(app, doc1)  # type: ignore[arg-type]
-    return app, mgr, doc1, doc2
+    session = EditorSession(YateConfig())
+    session.docs.extend([doc1, doc2])
+    session.index = 0
+    return session, _manager(session, doc1), doc1, doc2
 
 
 # --- initial state ----------------------------------------------------------
@@ -65,7 +56,7 @@ def _env() -> tuple[FakeApp, PaneManager, Document, Document]:
 
 def test_initial_state() -> None:
     async def _scenario() -> None:
-        _app, mgr, doc1, _doc2 = _env()
+        _session, mgr, doc1, _doc2 = _env()
         root = mgr.root
         assert isinstance(root, Leaf)
         assert root.doc is doc1
@@ -80,7 +71,7 @@ def test_initial_state() -> None:
 
 def test_split_clones_view_state_and_cursor() -> None:
     async def _scenario() -> None:
-        _app, mgr, doc1, _doc2 = _env()
+        _session, mgr, doc1, _doc2 = _env()
         # move the (single) active pane's cursor first
         doc1.buffer.set_cursor((2, 1))
         await mgr.split_active("horizontal")
@@ -107,7 +98,7 @@ def test_split_clones_view_state_and_cursor() -> None:
 
 def test_split_with_other_document() -> None:
     async def _scenario() -> None:
-        app, mgr, doc1, doc2 = _env()
+        session, mgr, doc1, doc2 = _env()
         await mgr.split_active("vertical", doc2)
         root = mgr.root
         assert isinstance(root, Split)
@@ -117,7 +108,7 @@ def test_split_with_other_document() -> None:
         assert source.doc is doc1
         assert new.doc is doc2
         assert mgr.active is new
-        assert app.doc_index == 1
+        assert session.index == 1
 
     asyncio.run(_scenario())
 
@@ -127,7 +118,7 @@ def test_split_with_other_document() -> None:
 
 def test_focus_switch_restores_independent_cursors() -> None:
     async def _scenario() -> None:
-        app, mgr, doc1, _doc2 = _env()
+        session, mgr, doc1, _doc2 = _env()
         doc1.buffer.set_cursor((2, 0))
         await mgr.split_active("horizontal")
         root = mgr.root
@@ -144,14 +135,14 @@ def test_focus_switch_restores_independent_cursors() -> None:
         # switching back replays the new pane's cursor (row 1)
         mgr.apply_doc(new)
         assert doc1.buffer.cursor == (1, 0)
-        assert app.doc_index == 0
+        assert session.index == 0
 
     asyncio.run(_scenario())
 
 
 def test_show_doc_remembers_per_leaf_state() -> None:
     async def _scenario() -> None:
-        app, mgr, doc1, doc2 = _env()
+        session, mgr, doc1, doc2 = _env()
         await mgr.split_active("horizontal")
         root = mgr.root
         assert isinstance(root, Split)
@@ -161,18 +152,18 @@ def test_show_doc_remembers_per_leaf_state() -> None:
         # "focus" pane 1 on doc2, move to row 1 there
         mgr.show_doc(first, doc2)
         mgr.apply_doc(first)
-        assert app.doc_index == 1
+        assert session.index == 1
         doc2.buffer.set_cursor((1, 0))
         mgr.capture_active()
         # "focus" pane 2 on doc1 (its state is the initial row 0)
         mgr.show_doc(second, doc1)
         mgr.apply_doc(second)
-        assert app.doc_index == 0
+        assert session.index == 0
         assert doc1.buffer.cursor == (0, 0)
         # back to pane 1: doc2 and its own cursor are restored
         mgr.apply_doc(first)
         assert doc2.buffer.cursor == (1, 0)
-        assert app.doc_index == 1
+        assert session.index == 1
 
     asyncio.run(_scenario())
 
@@ -182,7 +173,7 @@ def test_show_doc_remembers_per_leaf_state() -> None:
 
 def test_close_active_collapses_split() -> None:
     async def _scenario() -> None:
-        _app, mgr, _doc1, _doc2 = _env()
+        _session, mgr, _doc1, _doc2 = _env()
         await mgr.split_active("horizontal")
         closed = mgr.active
         assert await mgr.close_active()
@@ -197,7 +188,7 @@ def test_close_active_collapses_split() -> None:
 
 def test_close_hoists_sibling_split() -> None:
     async def _scenario() -> None:
-        _app, mgr, _doc1, _doc2 = _env()
+        _session, mgr, _doc1, _doc2 = _env()
         # outer horizontal split: [a | b]
         await mgr.split_active("horizontal")
         root = mgr.root
@@ -241,7 +232,7 @@ def test_close_hoists_sibling_split() -> None:
 
 def test_only_keeps_active_and_its_state() -> None:
     async def _scenario() -> None:
-        _app, mgr, _doc1, doc2 = _env()
+        _session, mgr, _doc1, doc2 = _env()
         await mgr.split_active("horizontal", doc2)
         active = mgr.active
         doc2.buffer.set_cursor((1, 0))
@@ -257,7 +248,7 @@ def test_only_keeps_active_and_its_state() -> None:
 
 def test_document_closed_rebinds_every_leaf() -> None:
     async def _scenario() -> None:
-        _app, mgr, doc1, doc2 = _env()
+        _session, mgr, doc1, doc2 = _env()
         await mgr.split_active("horizontal", doc2)
         mgr.document_closed(doc2, doc1)
         for leaf in leaves(mgr.root):
@@ -271,7 +262,7 @@ def test_document_closed_rebinds_every_leaf() -> None:
 
 def test_resize_conserves_fractions_and_clamps() -> None:
     async def _scenario() -> None:
-        _app, mgr, _doc1, _doc2 = _env()
+        _session, mgr, _doc1, _doc2 = _env()
         await mgr.split_active("horizontal")
         root = mgr.root
         assert isinstance(root, Split)
@@ -303,7 +294,7 @@ def test_resize_conserves_fractions_and_clamps() -> None:
 
 def test_resize_uses_enclosing_axis_split() -> None:
     async def _scenario() -> None:
-        _app, mgr, _doc1, doc2 = _env()
+        _session, mgr, _doc1, doc2 = _env()
         await mgr.split_active("horizontal")
         root = mgr.root
         assert isinstance(root, Split)
@@ -329,7 +320,7 @@ def test_resize_uses_enclosing_axis_split() -> None:
 
 def test_close_renormalizes_sizes() -> None:
     async def _scenario() -> None:
-        app, mgr, doc1, doc2 = _env()
+        session, mgr, doc1, doc2 = _env()
         await mgr.split_active("vertical")
         root = mgr.root
         assert isinstance(root, Split)
@@ -337,8 +328,8 @@ def test_close_renormalizes_sizes() -> None:
         await mgr.close_active()
         # collapsed to a leaf; nothing to normalize -- check a 3-pane case:
         doc3 = make_doc("gamma\n")
-        app.docs.append(doc3)
-        mgr = PaneManager(app, doc1)  # type: ignore[arg-type]
+        session.docs.append(doc3)
+        mgr = _manager(session, doc1)
         await mgr.split_active("vertical", doc2)
         top = mgr.root
         assert isinstance(top, Split)

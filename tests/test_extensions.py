@@ -8,21 +8,36 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from yate.services.extensions import ExtensionAPI, ExtensionLoader
+from yate.services.extensions import (
+    ExtensionAPI,
+    ExtensionContext,
+    ExtensionLoader,
+)
 
 _SETUP_OK = "def setup(api):\n    pass\n"
 _SETUP_BAD = "def setup(api):\n    raise RuntimeError('boom')\n"
 
 
-class _FakeApp:
-    """Enough host surface for :class:`ExtensionAPI` construction."""
-
-    lsp = MagicMock()
+def _extension_api() -> ExtensionAPI:
+    """ExtensionAPI over a minimal context (loaded scripts only call setup)."""
+    ctx = ExtensionContext(
+        session=cast(Any, MagicMock()),
+        workspace=cast(Any, MagicMock()),
+        lsp=cast(Any, MagicMock()),
+        keymaps=cast(Any, MagicMock()),
+        actions=cast(Any, MagicMock()),
+        commands=cast(Any, MagicMock()),
+        message=lambda _text: None,
+        run_shell=lambda _command, _show: None,
+        open_path=lambda _path: None,
+        save=lambda: None,
+    )
+    return ExtensionAPI(ctx)
 
 
 @pytest.fixture
 def loader() -> ExtensionLoader:
-    return ExtensionLoader(cast(Any, ExtensionAPI(cast(Any, _FakeApp()))))
+    return ExtensionLoader(_extension_api())
 
 
 # --- discovery --------------------------------------------------------------

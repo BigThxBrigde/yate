@@ -817,13 +817,13 @@ def test_app_applies_config() -> None:
     )
     try:
         app = YateApp(config=config)
-        assert app.keymap_name == "vim"
+        assert app.editor.keymaps.name == "vim"
         assert themes.active().name == "latte"
-        assert app.buffer.tab_width == 2
-        assert not app.buffer.use_spaces
+        assert app.editor.session.buffer.tab_width == 2
+        assert not app.editor.session.buffer.use_spaces
         # buffers created afterwards inherit the options too
-        app.new_buffer(show=False)
-        assert app.buffer.tab_width == 2
+        app.editor.new_buffer(show=False)
+        assert app.editor.session.buffer.tab_width == 2
     finally:
         themes.set_theme("mocha")
 

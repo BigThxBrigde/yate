@@ -16,7 +16,7 @@ from ..harness import (
     rng_for,
     snapshot_svg,
 )
-from ._base import run_command, type_text
+from ._base import run_command, type_text, wait_until
 from yate.editor_view import theme
 
 __all__ = ["SCENARIOS"]
@@ -40,7 +40,7 @@ async def _stress_key_fuzz(tmp: Path) -> ScenarioResult:
         for _ in range(200):
             await pilot.press(rng.choice(_FUZZ_KEYS))
         await pilot.pause()
-        buf = app.buffer
+        buf = app.editor.session.buffer
         checks.append(Check("no_crash", None, app.return_code))
         checks.append(Check("no_modal", 1, len(app.screen_stack)))
         checks.append(Check("cursor_row", True, 0 <= buf.row < buf.line_count))
@@ -49,10 +49,10 @@ async def _stress_key_fuzz(tmp: Path) -> ScenarioResult:
         checks.append(Check("not_empty", True, buf.line_count >= 1))
         # the buffer must still be saveable after all that abuse
         await pilot.press("ctrl+s")
-        await pilot.pause()
+        await wait_until(pilot, lambda: not app.editor.session.doc.modified)
         checks.append(Check("saved", buf.get_text(),
                             target.read_text(encoding="utf-8")))
-        checks.append(Check("clean", False, app.doc.modified))
+        checks.append(Check("clean", False, app.editor.session.doc.modified))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("stress_key_fuzz", checks, rows)
 
@@ -69,15 +69,16 @@ async def _stress_many_tabs(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         for path in paths[1:]:
-            app.open_path(path)
+            app.editor.open_path(path)
         await pilot.pause()
-        checks.append(Check("twenty_tabs", 20, len(app.docs)))
+        checks.append(Check("twenty_tabs", 20, len(app.editor.session.docs)))
         for _ in range(19):
             await pilot.press("ctrl+w")
         await pilot.pause()
-        checks.append(Check("one_left", 1, len(app.docs)))
-        checks.append(Check("doc_index", 0, app.doc_index))
-        checks.append(Check("buffer_readable", True, app.buffer.line_count >= 1))
+        checks.append(Check("one_left", 1, len(app.editor.session.docs)))
+        checks.append(Check("doc_index", 0, app.editor.session.index))
+        checks.append(Check("buffer_readable", True,
+                            app.editor.session.buffer.line_count >= 1))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("stress_many_tabs", checks, rows)
 
@@ -89,7 +90,7 @@ async def _stress_rapid_toggles(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         start_theme = app.theme
-        start_keymap = app.keymap_name
+        start_keymap = app.editor.keymaps.name
         for _ in range(5):
             await run_command(pilot, "theme latte")
             await run_command(pilot, "theme mocha")
@@ -98,23 +99,24 @@ async def _stress_rapid_toggles(tmp: Path) -> ScenarioResult:
         for _ in range(10):
             await pilot.press("ctrl+/")
         await pilot.pause()
-        checks.append(Check("keymap_back", start_keymap, app.keymap_name))
+        checks.append(Check("keymap_back", start_keymap, app.editor.keymaps.name))
         # Rapid toggling must never wedge the sidebar: after the storm the
         # editor takes focus back and one ctrl+b still flips the state.
         for _ in range(10):
             await pilot.press("ctrl+b")
         await pilot.pause()
-        checks.append(Check("sidebar_matches_flag", app.explorer_visible,
-                            app.sidebar.display if app.sidebar else None))
+        checks.append(Check("sidebar_matches_flag", app.editor.explorer_visible,
+                            app.editor.sidebar.display
+                            if app.editor.sidebar else None))
         await pilot.press("ctrl+1")
         await pilot.pause()
-        before = app.explorer_visible
+        before = app.editor.explorer_visible
         await pilot.press("ctrl+b")
         await pilot.pause()
-        checks.append(Check("toggles", not before, app.explorer_visible))
+        checks.append(Check("toggles", not before, app.editor.explorer_visible))
         await pilot.press("ctrl+b")
         await pilot.pause()
-        checks.append(Check("toggles_back", before, app.explorer_visible))
+        checks.append(Check("toggles_back", before, app.editor.explorer_visible))
         checks.append(Check("still_no_crash", None, app.return_code))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("stress_rapid_toggles", checks, rows)
@@ -129,16 +131,17 @@ async def _stress_reopen_same_file(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await type_text(pilot, " changed")
-        checks.append(Check("dirty", True, app.doc.modified))
+        checks.append(Check("dirty", True, app.editor.session.doc.modified))
         await pilot.press("ctrl+w")
         await pilot.pause()
-        checks.append(Check("closed", 1, len(app.docs)))
-        checks.append(Check("scratch", None, app.doc.path))
-        app.open_path(target)
+        checks.append(Check("closed", 1, len(app.editor.session.docs)))
+        checks.append(Check("scratch", None, app.editor.session.doc.path))
+        app.editor.open_path(target)
         await pilot.pause()
-        checks.append(Check("reopened", "one.txt", app.doc.name))
-        checks.append(Check("disk_version", "one", app.buffer.lines[0]))
-        checks.append(Check("clean", False, app.doc.modified))
+        checks.append(Check("reopened", "one.txt", app.editor.session.doc.name))
+        checks.append(Check("disk_version", "one",
+                            app.editor.session.buffer.lines[0]))
+        checks.append(Check("clean", False, app.editor.session.doc.modified))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("stress_reopen_same_file", checks, rows)
 
@@ -151,14 +154,14 @@ async def _stress_large_file(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        checks.append(Check("line_count", 5000, app.buffer.line_count))
+        checks.append(Check("line_count", 5000, app.editor.session.buffer.line_count))
         await pilot.press("ctrl+end")
         await pilot.pause()
-        checks.append(Check("at_end", 4999, app.buffer.cursor[0]))
+        checks.append(Check("at_end", 4999, app.editor.session.buffer.cursor[0]))
         await type_text(pilot, "!")
         await pilot.press("ctrl+s")
         await pilot.pause()
-        checks.append(Check("clean", False, app.doc.modified))
+        checks.append(Check("clean", False, app.editor.session.doc.modified))
         on_disk = target.read_text(encoding="utf-8").split("\n")
         checks.append(Check("disk_lines", 5000, len(on_disk)))
         checks.append(Check("disk_last", True, on_disk[-1].endswith("!")))
@@ -174,14 +177,16 @@ async def _stress_long_line(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        checks.append(Check("line_length", 10000, len(app.buffer.lines[0])))
+        checks.append(Check("line_length", 10000,
+                            len(app.editor.session.buffer.lines[0])))
         for _ in range(5):
             await pilot.press("right")
         await pilot.pause()
-        checks.append(Check("cursor", (0, 5), app.buffer.cursor))
+        checks.append(Check("cursor", (0, 5), app.editor.session.buffer.cursor))
         await pilot.press("ctrl+end")
         await pilot.pause()
-        checks.append(Check("doc_end", (0, 10000), app.buffer.cursor))
+        checks.append(Check("doc_end", (0, 10000),
+                            app.editor.session.buffer.cursor))
         checks.append(Check("no_crash", None, app.return_code))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("stress_long_line", checks, rows)

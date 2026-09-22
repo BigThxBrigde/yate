@@ -20,7 +20,7 @@ __all__ = ["SCENARIOS"]
 
 async def _walk_to(pilot: Any, app: Any, name: str, limit: int = 12) -> bool:
     """Move the tree cursor down until the node named *name* is selected."""
-    tree = app.explorer_tree
+    tree = app.editor.explorer_tree
     if tree is None:
         return False
     for _ in range(limit):
@@ -40,30 +40,30 @@ async def _explorer_visibility_focus(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        tree = app.explorer_tree
-        sidebar = app.sidebar
+        tree = app.editor.explorer_tree
+        sidebar = app.editor.sidebar
         assert tree is not None and sidebar is not None
-        checks.append(Check("visible_on_dir_open", True, app.explorer_visible))
+        checks.append(Check("visible_on_dir_open", True, app.editor.explorer_visible))
         checks.append(Check("sidebar_shown", True, tree.display))
         # Compare the folder name, not its absolute path (temp dirs differ).
         checks.append(Check("root", tmp.resolve().name,
-                            app.workspace.root.name
-                            if app.workspace.root else None))
+                            app.editor.workspace.root.name
+                            if app.editor.workspace.root else None))
         await pilot.press("ctrl+b")
         await pilot.pause()
-        checks.append(Check("hidden", False, app.explorer_visible))
+        checks.append(Check("hidden", False, app.editor.explorer_visible))
         checks.append(Check("sidebar_hidden", False, sidebar.display))
         await pilot.press("ctrl+b")
         await pilot.pause()
-        checks.append(Check("shown_again", True, app.explorer_visible))
+        checks.append(Check("shown_again", True, app.editor.explorer_visible))
         await pilot.press("ctrl+e")
         await pilot.pause()
         checks.append(Check("explorer_focused", True,
-                            app.focused is app.explorer_tree))
+                            app.focused is app.editor.explorer_tree))
         await pilot.press("ctrl+1")
         await pilot.pause()
         checks.append(Check("editor_focused", True,
-                            app.focused is app.editor_view))
+                            app.focused is app.editor.panes.active_view))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("explorer_visibility_focus", checks, rows)
 
@@ -83,12 +83,14 @@ async def _explorer_crud(tmp: Path) -> ScenarioResult:
         await pilot.press("a")
         await pilot.pause()
         checks.append(Check("new_file_mode", "new_file",
-                            app.prompt_bar.active_mode if app.prompt_bar else None))
+                            app.editor.prompt_bar.active_mode
+                            if app.editor.prompt_bar else None))
         await type_text(pilot, "b.txt")
         await pilot.press("enter")
         await wait_until(pilot, lambda: (tmp / "b.txt").exists())
         checks.append(Check("created", True, (tmp / "b.txt").exists()))
-        checks.append(Check("opened_new_file", "b.txt", app.doc.name))
+        checks.append(Check("opened_new_file", "b.txt",
+                            app.editor.session.doc.name))
         # --- rename (the prompt is pre-filled with the old name)
         await pilot.press("ctrl+e")
         await pilot.pause()
@@ -96,7 +98,8 @@ async def _explorer_crud(tmp: Path) -> ScenarioResult:
         await pilot.press("r")
         await pilot.pause()
         checks.append(Check("rename_mode", "rename",
-                            app.prompt_bar.active_mode if app.prompt_bar else None))
+                            app.editor.prompt_bar.active_mode
+                            if app.editor.prompt_bar else None))
         for _ in range(len("b.txt")):
             await pilot.press("backspace")
         await pilot.pause()
@@ -112,7 +115,8 @@ async def _explorer_crud(tmp: Path) -> ScenarioResult:
         await pilot.press("d")
         await pilot.pause()
         checks.append(Check("delete_mode", "delete",
-                            app.prompt_bar.active_mode if app.prompt_bar else None))
+                            app.editor.prompt_bar.active_mode
+                            if app.editor.prompt_bar else None))
         await type_text(pilot, "y")
         await pilot.press("enter")
         await pilot.pause()
@@ -131,10 +135,10 @@ async def _explorer_delete_open_folder(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         # setup: open the file that is about to lose its folder
-        app.open_path(sub / "x.txt")
-        await wait_until(pilot, lambda: app.doc.name == "x.txt")
-        checks.append(Check("opened", "x.txt", app.doc.name))
-        checks.append(Check("two_docs", 2, len(app.docs)))
+        app.editor.open_path(sub / "x.txt")
+        await wait_until(pilot, lambda: app.editor.session.doc.name == "x.txt")
+        checks.append(Check("opened", "x.txt", app.editor.session.doc.name))
+        checks.append(Check("two_docs", 2, len(app.editor.session.docs)))
         await pilot.press("ctrl+e")
         await pilot.pause()
         checks.append(Check("on_folder", True, await _walk_to(pilot, app, "sub")))
@@ -144,8 +148,8 @@ async def _explorer_delete_open_folder(tmp: Path) -> ScenarioResult:
         await pilot.press("enter")
         await wait_until(pilot, lambda: not sub.exists())
         checks.append(Check("folder_gone", False, sub.exists()))
-        checks.append(Check("tab_closed", 1, len(app.docs)))
-        checks.append(Check("fallback_unnamed", None, app.doc.path))
+        checks.append(Check("tab_closed", 1, len(app.editor.session.docs)))
+        checks.append(Check("fallback_unnamed", None, app.editor.session.doc.path))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("explorer_delete_open_folder", checks, rows)
 
@@ -158,19 +162,21 @@ async def _explorer_hidden_toggle(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        tree = app.explorer_tree
+        tree = app.editor.explorer_tree
         assert tree is not None
-        checks.append(Check("hidden_by_default", False, app.workspace.show_hidden))
+        checks.append(Check("hidden_by_default", False,
+                            app.editor.workspace.show_hidden))
         checks.append(Check("visible_children", 1, len(list(tree.root.children))))
         await run_command(pilot, "set show_hidden=on")
-        checks.append(Check("shown_via_set", True, app.workspace.show_hidden))
+        checks.append(Check("shown_via_set", True, app.editor.workspace.show_hidden))
         checks.append(Check("children_with_hidden", 2,
                             len(list(tree.root.children))))
         await pilot.press("ctrl+e")
         await pilot.pause()
         await pilot.press("H")
         await pilot.pause()
-        checks.append(Check("hidden_via_key", False, app.workspace.show_hidden))
+        checks.append(Check("hidden_via_key", False,
+                            app.editor.workspace.show_hidden))
         checks.append(Check("children_again", 1, len(list(tree.root.children))))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("explorer_hidden_toggle", checks, rows)

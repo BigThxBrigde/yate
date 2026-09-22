@@ -1,46 +1,60 @@
-"""Runtime display of the bundled changelog: loader, wiring, commands.
+"""Runtime display of the bundled changelog: loader, editor wiring, commands.
 
 Covers ``load_changelog_markdown`` / ``load_doc_markdown`` (degradation,
-language fallback), the ``app_features.docs`` wiring (overlay push guards),
-the app facade delegation and the ``:changelog`` command registration.
+language fallback), the ``Editor`` overlay wiring (``show_changelog`` /
+``show_manual`` push guards) and the ``:changelog`` command registration.
 """
 
 # pyright: reportPrivateUsage=false, reportArgumentType=false
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from unittest.mock import patch
 
-from yate.app_features.commands import CommandRegistry
-from yate.app_features.docs import DocsFeature
+from yate.editor import Editor
 from yate.editor_view.manual import (
     MarkdownDocScreen,
     load_changelog_markdown,
     load_doc_markdown,
     load_manual_markdown,
 )
+from yate.registries import CommandRegistry
 
 
 class _FakeScreen:
     """Stand-in for whatever screen the app currently shows."""
 
 
-class _FakeApp:
-    """Enough app surface for docs.show_doc: guards, theme, overlays."""
+class _FakePromptBar:
+    """Minimal PromptBar stand-in: Editor.push_overlay idles it."""
 
-    def __init__(self, *, mounted: bool = True, screen: object | None = None):
-        self.mounted = mounted
+    def idle(self) -> None:
+        pass
+
+
+class _FakeApp:
+    """Enough app surface for Editor._open_doc: screen + push_screen."""
+
+    def __init__(self, *, screen: object | None = None):
         self.screen: object = _FakeScreen() if screen is None else screen
         self.theme = "yate-mocha"
         self.pushed: list[tuple[MarkdownDocScreen, object]] = []
 
-    def push_overlay(
+    def push_screen(
         self, screen: MarkdownDocScreen, callback: object = None
     ) -> None:
         self.pushed.append((screen, callback))
+
+
+def _make_editor(app: _FakeApp, *, mounted: bool = True) -> Editor:
+    """An Editor bound to *app* without running __init__ (overlay path only)."""
+    editor = object.__new__(Editor)
+    editor.app = cast(Any, app)
+    editor._mounted = mounted
+    editor.prompt_bar = cast(Any, _FakePromptBar())
+    return editor
 
 
 class _Missing:
@@ -107,12 +121,13 @@ def test_load_manual_markdown_keeps_behaviour() -> None:
         assert load_manual_markdown(lang) == load_doc_markdown("manual", lang)
 
 
-# --- docs wiring ------------------------------------------------------------
+# --- editor overlay wiring --------------------------------------------------
 
 
 def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
     app = _FakeApp()
-    DocsFeature(app).show_changelog("zh")
+    editor = _make_editor(app)
+    editor.show_changelog("zh")
     assert len(app.pushed) == 1
     screen, callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
@@ -125,9 +140,10 @@ def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
     assert app.theme == "yate-mocha"
 
 
-def test_show_manual_keeps_facade_contract() -> None:
+def test_show_manual_pushes_manual_screen() -> None:
     app = _FakeApp()
-    DocsFeature(app).show_manual("en")
+    editor = _make_editor(app)
+    editor.show_manual("en")
     screen, _callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
     assert screen._kind == "manual"
@@ -135,8 +151,9 @@ def test_show_manual_keeps_facade_contract() -> None:
 
 
 def test_not_mounted_does_not_push() -> None:
-    app = _FakeApp(mounted=False)
-    DocsFeature(app).show_changelog()
+    app = _FakeApp()
+    editor = _make_editor(app, mounted=False)
+    editor.show_changelog()
     assert app.pushed == []
     assert app.theme == "yate-mocha"
 
@@ -144,43 +161,26 @@ def test_not_mounted_does_not_push() -> None:
 def test_already_on_doc_screen_does_not_stack() -> None:
     app = _FakeApp(screen=MarkdownDocScreen(kind="manual", lang="en",
                                             title="user manual"))
-    DocsFeature(app).show_changelog()
+    editor = _make_editor(app)
+    editor.show_changelog()
     assert app.pushed == []
-
-
-# --- app facade delegation --------------------------------------------------
-
-
-def test_app_facade_forwards_to_docs() -> None:
-    from yate.app import YateApp
-
-    app = object.__new__(YateApp)
-    app.docs_feature = DocsFeature(app)  # type: ignore[arg-type]
-    with patch.object(DocsFeature, "show_manual") as show_manual, \
-            patch.object(DocsFeature, "show_changelog") as show_changelog:
-        app.show_manual("zh")
-        app.show_changelog("zh")
-    show_manual.assert_called_once()
-    show_changelog.assert_called_once()
 
 
 # --- command registration ---------------------------------------------------
 
 
 def test_changelog_command_registered() -> None:
-    from yate.app_features.commands import register_commands
+    from yate.commands import register_commands
 
     registry = CommandRegistry()
     forwarded: list[str] = []
 
-    class StubApp:
-        commands = registry
-
+    class StubEditor:
         @staticmethod
         def show_changelog(lang: str = "en") -> None:
             forwarded.append(lang)
 
-    register_commands(StubApp())  # type: ignore[arg-type]
+    register_commands(registry, cast(Any, StubEditor()))
     assert "changelog" in registry.names()
     entry = registry.get("changelog")
     assert entry is not None

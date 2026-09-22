@@ -16,7 +16,7 @@ async def _split_vs_sp_only(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        panes = app.panes
+        panes = app.editor.panes
         assert panes is not None
         checks.append(Check("one_pane", 1, panes.leaf_count))
         await run_command(pilot, "vs")
@@ -44,13 +44,13 @@ async def _split_with_file(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        panes = app.panes
+        panes = app.editor.panes
         assert panes is not None
         await run_command(pilot, "vs b.txt")
         await wait_until(pilot, lambda: panes.leaf_count == 2)
         checks.append(Check("two_panes", 2, panes.leaf_count))
-        checks.append(Check("new_pane_doc", "b.txt", app.doc.name))
-        checks.append(Check("two_docs", 2, len(app.docs)))
+        checks.append(Check("new_pane_doc", "b.txt", app.editor.session.doc.name))
+        checks.append(Check("two_docs", 2, len(app.editor.session.docs)))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("split_with_file", checks, rows)
 
@@ -61,7 +61,7 @@ async def _pane_focus_window_keys(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        panes = app.panes
+        panes = app.editor.panes
         assert panes is not None
         await run_command(pilot, "vim")
         await run_command(pilot, "vs")
@@ -69,10 +69,10 @@ async def _pane_focus_window_keys(tmp: Path) -> ScenarioResult:
         focused_after_split = panes.active.id
         await pilot.press("ctrl+w")
         await pilot.pause()
-        checks.append(Check("chord_armed", True, app.window_pending))
+        checks.append(Check("chord_armed", True, app.editor.window_pending))
         await pilot.press("h")
         await pilot.pause()
-        checks.append(Check("chord_consumed", False, app.window_pending))
+        checks.append(Check("chord_consumed", False, app.editor.window_pending))
         checks.append(Check("focus_moved", True,
                             panes.active.id != focused_after_split))
         rows = snapshot_svg(app, tmp)

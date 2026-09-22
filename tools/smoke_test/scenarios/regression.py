@@ -33,21 +33,21 @@ async def _regress_wq_multi_tab(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        app.open_path(tmp / "b.txt")
-        await wait_until(pilot, lambda: app.doc.name == "b.txt")
+        app.editor.open_path(tmp / "b.txt")
+        await wait_until(pilot, lambda: app.editor.session.doc.name == "b.txt")
         await pilot.press("ctrl+end")
         await type_text(pilot, " B")
         await run_command(pilot, "bp")
-        checks.append(Check("on_a", "a.txt", app.doc.name))
+        checks.append(Check("on_a", "a.txt", app.editor.session.doc.name))
         await pilot.press("ctrl+end")
         await type_text(pilot, " A")
         await run_command(pilot, "w")
-        checks.append(Check("a_saved", False, app.doc.modified))
+        checks.append(Check("a_saved", False, app.editor.session.doc.modified))
         checks.append(Check("a_on_disk", "seed a A",
                             (tmp / "a.txt").read_text(encoding="utf-8")))
         await run_command(pilot, "wq")
         checks.append(Check("still_running", None, app.return_code))
-        checks.append(Check("no_tab_lost", 2, len(app.docs)))
+        checks.append(Check("no_tab_lost", 2, len(app.editor.session.docs)))
         checks.append(Check("warned", True, "unsaved changes" in message_text(app)))
         checks.append(Check("b_untouched", "seed b",
                             (tmp / "b.txt").read_text(encoding="utf-8")))
@@ -66,17 +66,18 @@ async def _regress_unicode_save(tmp: Path) -> ScenarioResult:
         # A document opened as a legacy encoding cannot represent every
         # character; insert_char stands in for typing one (a real keystroke
         # would need a keyboard layout with that glyph).
-        app.doc.encoding = "ascii"
-        app.insert_char("é")
+        app.editor.session.doc.encoding = "ascii"
+        app.editor.insert_char("é")
         await pilot.pause()
-        checks.append(Check("dirty", True, app.doc.modified))
+        checks.append(Check("dirty", True, app.editor.session.doc.modified))
         await run_command(pilot, "w")
         checks.append(Check("still_running", None, app.return_code))
         checks.append(Check("reported", True, "save failed" in message_text(app)))
-        checks.append(Check("buffer_kept", True, "é" in app.buffer.get_text()))
+        checks.append(Check("buffer_kept", True,
+                            "é" in app.editor.session.buffer.get_text()))
         checks.append(Check("disk_untouched", "seed",
                             target.read_text(encoding="utf-8")))
-        checks.append(Check("still_dirty", True, app.doc.modified))
+        checks.append(Check("still_dirty", True, app.editor.session.doc.modified))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("regress_unicode_save", checks, rows)
 
@@ -87,19 +88,19 @@ async def _regress_typing_flicker(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        view = app.panes.active_view if app.panes else None
+        view = app.editor.panes.active_view if app.editor.panes else None
         assert view is not None
         versions: list[int] = []
         for ch in "value = 1 + 2":
             await pilot.press(ch)
-            versions.append(app.buffer.content_version)
+            versions.append(app.editor.session.buffer.content_version)
         checks.append(Check("version_monotonic", True,
                             all(a <= b for a, b in zip(versions, versions[1:]))))
         await wait_until(pilot, lambda: view._hl_tokens is not None)
         checks.append(Check("tokens_present", True, bool(view._hl_tokens)))
         checks.append(Check("tokens_cover_buffer", True,
-                            len(view._hl_tokens or []) >= app.buffer.line_count))
-        checks.append(Check("text", "value = 1 + 2", app.buffer.lines[0]))
+                            len(view._hl_tokens or []) >= app.editor.session.buffer.line_count))
+        checks.append(Check("text", "value = 1 + 2", app.editor.session.buffer.lines[0]))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("regress_typing_flicker", checks, rows)
 
@@ -112,7 +113,7 @@ async def _regress_split_panes(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        panes = app.panes
+        panes = app.editor.panes
         assert panes is not None
         await run_command(pilot, "vs b.txt")
         await wait_until(pilot, lambda: panes.leaf_count == 2)
@@ -122,11 +123,12 @@ async def _regress_split_panes(tmp: Path) -> ScenarioResult:
         await wait_until(pilot, lambda: panes.leaf_count == 1)
         checks.append(Check("one_pane", 1, panes.leaf_count))
         checks.append(Check("active_matches_doc", True,
-                            panes.active.doc is app.doc))
+                            panes.active.doc is app.editor.session.doc))
         checks.append(Check("active_view_is_live", True,
                             panes.active_view is not None))
         checks.append(Check("doc_index_valid", True,
-                            0 <= app.doc_index < len(app.docs)))
+                            0 <= app.editor.session.index
+                            < len(app.editor.session.docs)))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("regress_split_panes", checks, rows)
 
@@ -139,17 +141,17 @@ async def _regress_tab_click(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        app.open_path(tmp / "b.txt")
-        await wait_until(pilot, lambda: app.doc.name == "b.txt")
-        tabbar = app.tabbar
+        app.editor.open_path(tmp / "b.txt")
+        await wait_until(pilot, lambda: app.editor.session.doc.name == "b.txt")
+        tabbar = app.editor.tabbar
         assert tabbar is not None
-        _, regions = app.build_tabbar(tabbar.size.width or 80)
+        _, regions = app.editor.tabbar.build(tabbar.size.width or 80)
         checks.append(Check("two_regions", True, len(regions) >= 2))
         start, _end, doc_index = regions[0]
         await pilot.click("#tabbar", offset=(start + 1, 0))
         await pilot.pause()
-        checks.append(Check("clicked_index", doc_index, app.doc_index))
-        checks.append(Check("clicked_doc", "a.txt", app.doc.name))
+        checks.append(Check("clicked_index", doc_index, app.editor.session.index))
+        checks.append(Check("clicked_doc", "a.txt", app.editor.session.doc.name))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("regress_tab_click", checks, rows)
 
@@ -189,13 +191,15 @@ async def _regress_completion_staleness(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await type_text(pilot, "nt")
         await pilot.pause(0.2)
-        popup: Any = app.completion_popup
+        popup: Any = app.editor.completion_popup
         checks.append(Check("popup_closed", True,
                             popup is None or not popup.is_open))
-        checks.append(Check("no_phantom_insert", "print", app.buffer.lines[0]))
+        checks.append(Check("no_phantom_insert", "print",
+                            app.editor.session.buffer.lines[0]))
         await pilot.press("escape")
         await pilot.pause()
-        checks.append(Check("still_clean", "print", app.buffer.lines[0]))
+        checks.append(Check("still_clean", "print",
+                            app.editor.session.buffer.lines[0]))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("regress_completion_staleness", checks, rows)
 
@@ -209,7 +213,8 @@ async def _regress_diagnostics_cmd(tmp: Path) -> ScenarioResult:
         await run_command(pilot, "diagnostics")
         checks.append(Check("no_overlay", 1, len(app.screen_stack)))
         checks.append(Check("no_crash", None, app.return_code))
-        checks.append(Check("buffer_intact", True, app.buffer.line_count >= 1))
+        checks.append(Check("buffer_intact", True,
+                            app.editor.session.buffer.line_count >= 1))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("regress_diagnostics_cmd", checks, rows)
 

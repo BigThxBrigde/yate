@@ -26,10 +26,13 @@ These tests enforce the boundaries documented in
   is a real Textual container widget (not a protocol / thin delegate) and is
   whitelisted; ``*Manager`` and flow-level ``*Controller`` names stay allowed.
 
-R7 (the shell loads the built-in tables), R8 (shared state as concrete
-objects), R9 (widget ids) and R10 (one dispatch per key) are design
-constraints reviewed by hand and exercised by the Plan F smoke checklist;
-they have no guard here yet.
+* **R7** the shell loads the built-in tables: ``YateApp.__init__`` calls
+  ``populate(editor.actions, editor)`` / ``register_commands(editor.commands,
+  editor)`` and is the only module importing ``actions.py`` / ``commands.py``.
+
+R8 (shared state as concrete objects), R9 (widget ids) and R10 (one dispatch
+per key) are design constraints reviewed by hand and exercised by the Plan F
+smoke checklist; they have no guard here yet.
 """
 
 from __future__ import annotations
@@ -82,6 +85,9 @@ UI_FROZEN_FILES = {
 
 #: The built-in tables import the editor; the editor must not import them (R5).
 EDITOR_FORBIDDEN_IMPORTS = ("yate.actions", "yate.commands")
+
+#: The built-in tables the shell registers into the editor's registries (R7).
+BUILTIN_TABLE_MODULES = ("yate.actions", "yate.commands")
 
 #: Banned identifier suffixes (R7): no protocol-ish / thin-delegate naming.
 #: ``PaneHost`` is the Textual widget container in ``editor_view/panes.py``,
@@ -256,6 +262,24 @@ def test_editor_does_not_import_action_tables() -> None:
             module == banned or module.startswith(banned + ".")
             for banned in EDITOR_FORBIDDEN_IMPORTS
         ), (path, module)
+
+
+def test_shell_loads_the_builtin_tables() -> None:
+    """Only the shell loads the built-in tables into the editor (R7).
+
+    ``actions.py`` / ``commands.py`` import the editor (R5), so the shell is
+    the one place allowed to import them; it must register both tables into
+    the editor's empty registries in ``YateApp.__init__``.
+    """
+    source = (YATE / "app.py").read_text(encoding="utf-8")
+    assert "populate(self.editor.actions, self.editor)" in source
+    assert "register_commands(self.editor.commands, self.editor)" in source
+    importers = sorted(
+        path.relative_to(YATE).as_posix()
+        for path in _yate_files()
+        if any(module in BUILTIN_TABLE_MODULES for module in _yate_imports(path))
+    )
+    assert importers == ["app.py"], importers
 
 
 def test_no_banned_identifier_names() -> None:

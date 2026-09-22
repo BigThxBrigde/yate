@@ -29,7 +29,7 @@ def _build_app(*, yaterc: str | None = None, ext_files: list[str | Path] | None 
     else:
         config = load_config([])
     app = YateApp(config=config, ext_files=ext_files or [])
-    app.load_startup_services()
+    app.editor.load_startup_services()
     return app
 
 
@@ -52,13 +52,13 @@ def test_version_lines_contains_description_and_three_lines() -> None:
 
 
 def test_report_contains_all_twelve_sections() -> None:
-    report = diagnostics.format_report(_build_app())
+    report = diagnostics.format_report(_build_app().editor)
     for title in _ALL_SECTIONS:
         assert f"[{title}]" in report, f"missing section [{title}]"
 
 
 def test_report_has_header_and_divider() -> None:
-    report = diagnostics.format_report(_build_app())
+    report = diagnostics.format_report(_build_app().editor)
     assert report.startswith("yate ")
     assert "diagnostics" in report.splitlines()[0]
 
@@ -69,7 +69,7 @@ def test_report_has_header_and_divider() -> None:
 def test_yaterc_option_appears_in_config_section(tmp_path: Path) -> None:
     rc = tmp_path / "yaterc"
     rc.write_text("tab_width = 2\nkeymap = 'vim'\n", encoding="utf-8")
-    report = diagnostics.format_report(_build_app(yaterc=str(rc)))
+    report = diagnostics.format_report(_build_app(yaterc=str(rc)).editor)
     assert "tab_width          : 2" in report
     assert "keymap             : vim" in report
 
@@ -77,7 +77,7 @@ def test_yaterc_option_appears_in_config_section(tmp_path: Path) -> None:
 def test_kv_separator_is_colon_everywhere() -> None:
     """Old ``key = value`` / ``key : value`` styles are gone: every
     key-value line uses the single ``key: value`` shape."""
-    report = diagnostics.format_report(_build_app())
+    report = diagnostics.format_report(_build_app().editor)
     for line in report.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith(("[", "-", "==")):
@@ -95,7 +95,7 @@ def test_broken_extension_shows_error_reason(tmp_path: Path) -> None:
     bad = tmp_path / "broken_ext.py"
     # A script with no setup(api) function fails to load.
     bad.write_text("# no setup function here\n", encoding="utf-8")
-    report = diagnostics.format_report(_build_app(ext_files=[bad]))
+    report = diagnostics.format_report(_build_app(ext_files=[bad]).editor)
     assert "[error]" in report
     assert "broken_ext" in report
     assert "no setup" in report
@@ -106,13 +106,13 @@ def test_broken_extension_shows_error_reason(tmp_path: Path) -> None:
 
 def test_lsp_env_keys_are_shown_but_values_are_masked() -> None:
     app = _build_app()
-    app.lsp.register_server(ServerConfig(
+    app.editor.lsp.register_server(ServerConfig(
         name="secret-server",
         command="my-lsp",
         filetypes=["py"],
         env={"API_TOKEN": "secret123", "API_KEY": "hunter2"},
     ))
-    report = diagnostics.format_report(app)
+    report = diagnostics.format_report(app.editor)
     # env key names appear
     assert "API_TOKEN" in report
     assert "API_KEY" in report
@@ -129,7 +129,7 @@ def test_failing_section_does_not_abort_report() -> None:
     # Force the fonts section to blow up; every other section must still
     # render and the failing one must show a downgrade notice.
     with patch("yate.diagnostics._section_fonts", side_effect=RuntimeError("boom")):
-        report = diagnostics.format_report(app)
+        report = diagnostics.format_report(app.editor)
     # other sections are intact
     assert "[system]" in report
     assert "[config]" in report
@@ -144,19 +144,19 @@ def test_failing_section_does_not_abort_report() -> None:
 
 
 def test_plain_report_has_no_ansi_escapes() -> None:
-    report = diagnostics.format_report(_build_app())
+    report = diagnostics.format_report(_build_app().editor)
     assert "\x1b[" not in report
 
 
 def test_colored_report_keeps_text_and_masks_secrets() -> None:
     app = _build_app()
-    app.lsp.register_server(ServerConfig(
+    app.editor.lsp.register_server(ServerConfig(
         name="secret-server",
         command="my-lsp",
         filetypes=["py"],
         env={"API_TOKEN": "secret123"},
     ))
-    colored = diagnostics.format_report(app, color=True)
+    colored = diagnostics.format_report(app.editor, color=True)
     # ANSI styling present
     assert "\x1b[" in colored
     # text content survives (only styles were added)
@@ -170,7 +170,7 @@ def test_print_report_writes_plain_text_to_stdout(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # capsys's stream isatty() is False -> plain text, like a redirected run.
-    diagnostics.print_report(_build_app())
+    diagnostics.print_report(_build_app().editor)
     out = capsys.readouterr().out
     assert "[system]" in out
     assert "\x1b[" not in out

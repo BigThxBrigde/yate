@@ -24,9 +24,9 @@ async def _command_palette_run(tmp: Path) -> ScenarioResult:
         await pilot.press("enter")
         await pilot.pause()
         checks.append(Check("palette_closed", 1, len(app.screen_stack)))
-        checks.append(Check("ran_command", "vim", app.keymap_name))
+        checks.append(Check("ran_command", "vim", app.editor.keymaps.name))
         await run_command(pilot, "vsc")
-        checks.append(Check("restored", "vsc", app.keymap_name))
+        checks.append(Check("restored", "vsc", app.editor.keymaps.name))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("command_palette_run", checks, rows)
 
@@ -67,7 +67,7 @@ async def _command_history_recall(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("up")
         await pilot.pause()
-        bar = app.prompt_bar
+        bar = app.editor.prompt_bar
         checks.append(Check("recalled", "help", bar.input.value if bar else None))
         await pilot.press("escape")
         await pilot.pause()
@@ -105,16 +105,17 @@ async def _set_options_matrix(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await run_command(pilot, "set keymap=vim")
-        checks.append(Check("keymap", "vim", app.keymap_name))
+        checks.append(Check("keymap", "vim", app.editor.keymaps.name))
         await run_command(pilot, "set keymap=nope")
-        checks.append(Check("keymap_kept", "vim", app.keymap_name))
+        checks.append(Check("keymap_kept", "vim", app.editor.keymaps.name))
         checks.append(Check("keymap_warned", True,
                             "unknown keymap" in message_text(app)))
-        height_before = app.config.terminal_height
+        height_before = app.editor.config.terminal_height
         await run_command(pilot, "set terminal_height=99")
-        checks.append(Check("height_kept", height_before, app.config.terminal_height))
+        checks.append(Check("height_kept", height_before,
+                            app.editor.config.terminal_height))
         await run_command(pilot, "set show_hidden=on")
-        checks.append(Check("show_hidden", True, app.workspace.show_hidden))
+        checks.append(Check("show_hidden", True, app.editor.workspace.show_hidden))
         await run_command(pilot, "set bogus=1")
         checks.append(Check("option_warned", True,
                             "unknown option" in message_text(app)))
@@ -122,7 +123,7 @@ async def _set_options_matrix(tmp: Path) -> ScenarioResult:
         checks.append(Check("theme", "latte", theme.active().name))
         await run_command(pilot, "set theme=mocha")
         await run_command(pilot, "set keymap=vsc")
-        checks.append(Check("keymap_restored", "vsc", app.keymap_name))
+        checks.append(Check("keymap_restored", "vsc", app.editor.keymaps.name))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("set_options_matrix", checks, rows)
 
@@ -133,17 +134,17 @@ async def _status_mode_label(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        checks.append(Check("vsc_chip", "VSC", app.mode_label()[0]))
+        checks.append(Check("vsc_chip", "VSC", app.editor.mode_label()[0]))
         await run_command(pilot, "vim")
-        checks.append(Check("normal_chip", "NORMAL", app.mode_label()[0]))
+        checks.append(Check("normal_chip", "NORMAL", app.editor.mode_label()[0]))
         await pilot.press("i")
         await pilot.pause()
-        checks.append(Check("insert_chip", "INSERT", app.mode_label()[0]))
+        checks.append(Check("insert_chip", "INSERT", app.editor.mode_label()[0]))
         await pilot.press("escape")
         await pilot.pause()
-        checks.append(Check("back_to_normal", "NORMAL", app.mode_label()[0]))
+        checks.append(Check("back_to_normal", "NORMAL", app.editor.mode_label()[0]))
         await run_command(pilot, "vsc")
-        checks.append(Check("back_to_vsc", "VSC", app.mode_label()[0]))
+        checks.append(Check("back_to_vsc", "VSC", app.editor.mode_label()[0]))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("status_mode_label", checks, rows)
 

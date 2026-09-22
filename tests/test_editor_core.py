@@ -9,10 +9,12 @@ import asyncio
 from pathlib import Path
 from typing import Any, cast
 
+from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine, TextBuffer
-from yate.keymaps.base import ActionContext, parse_key
+from yate.keymaps.base import ActionContext, KeyUi, parse_key
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.session import EditorSession
 
 
 # --- TextBuffer -------------------------------------------------------------
@@ -249,22 +251,45 @@ def test_parse_special_keys() -> None:
 
 
 class _FakeApp:
-    """Minimal app stand-in for keymap dispatch tests."""
+    """Minimal editor stand-in for keymap dispatch tests.
+
+    The keymap layer only needs the document session plus the :class:`KeyUi`
+    callbacks, so the stand-in owns a real :class:`EditorSession` and wires a
+    :class:`KeyUi` record back to its own dispatch hooks.
+    """
 
     def __init__(self) -> None:
-        from yate.actions import ActionRegistry, SessionOps, populate
+        from yate.actions import populate
+        from yate.registries import ActionRegistry
 
+        self.session = EditorSession(YateConfig())
+        self.session.new_buffer()
         self.actions = ActionRegistry()
-        populate(self.actions, cast(SessionOps, self))
-        self.doc: Document = Document(None, TextBuffer(""))
         self.messages: list[str | tuple[str, bool]] = []
+        self.ui = KeyUi(
+            execute_action=self.execute_action,
+            message=self.message,
+            command_prompt=self.command_prompt,
+            find_prompt=self.find_prompt,
+            goto_prompt=self.goto_prompt,
+            toggle_keymap=self.toggle_keymap,
+        )
+        populate(self.actions, cast(Any, self))
+
+    @property
+    def doc(self) -> Document:
+        return self.session.doc
+
+    @doc.setter
+    def doc(self, doc: Document) -> None:
+        self.session.docs[self.session.index] = doc
 
     @property
     def buffer(self) -> TextBuffer:
-        return self.doc.buffer
+        return self.session.buffer
 
     def execute_action(self, name: str) -> None:
-        self.actions.execute(name, ActionContext(cast(Any, self)))
+        self.actions.execute(name, ActionContext(self.session, self.ui))
 
     def insert_char(self, ch: str) -> None:
         self.buffer.insert_text(ch)
@@ -279,8 +304,14 @@ class _FakeApp:
     def find_prompt(self, forward: bool) -> None:
         self.messages.append(("find", forward))
 
+    def goto_prompt(self) -> None:
+        self.messages.append("goto_prompt")
+
+    def toggle_keymap(self) -> None:
+        self.messages.append("toggle_keymap")
+
     def page(self, direction: int, half: bool = False) -> None:
-        # ``half`` mirrors YateApp.page's signature (actions call it with the
+        # ``half`` mirrors Editor.page's signature (actions call it with the
         # ``half=`` keyword); the stand-in only dispatches full-page actions.
         self.execute_action("page_down" if direction > 0 else "page_up")
 
@@ -291,7 +322,7 @@ class _FakeApp:
 def test_typing_and_enter() -> None:
     app = _FakeApp()
     km = VscKeymap()
-    ctx = ActionContext(cast(Any, app))
+    ctx = ActionContext(app.session, app.ui)
     for ch in "hi":
         km.handle_key(ctx, ch)
     km.handle_key(ctx, "\r")
@@ -303,7 +334,7 @@ def test_colon_is_inserted_literally() -> None:
     # In vsc mode ":" is ordinary text, not the (vim-only) ex prompt.
     app = _FakeApp()
     km = VscKeymap()
-    ctx = ActionContext(cast(Any, app))
+    ctx = ActionContext(app.session, app.ui)
     assert km.handle_key(ctx, ":")
     for ch in "wq":
         km.handle_key(ctx, ch)
@@ -315,7 +346,7 @@ def test_ctrl_a_selects_all() -> None:
     app = _FakeApp()
     app.doc = Document(None, TextBuffer("hello\nworld"))
     km = VscKeymap()
-    km.handle_key(ActionContext(cast(Any, app)), parse_key("<ctrl-a>"))
+    km.handle_key(ActionContext(app.session, app.ui), parse_key("<ctrl-a>"))
     assert app.buffer.has_selection()
 
 
@@ -325,7 +356,7 @@ def test_ctrl_a_selects_all() -> None:
 def test_insert_and_escape() -> None:
     app = _FakeApp()
     km = VimKeymap()
-    ctx = ActionContext(cast(Any, app))
+    ctx = ActionContext(app.session, app.ui)
     km.handle_key(ctx, "i")
     assert km.mode is VimMode.INSERT
     for ch in "abc":
@@ -339,7 +370,7 @@ def test_dd_deletes_line() -> None:
     app = _FakeApp()
     app.doc = Document(None, TextBuffer("one\ntwo\nthree"))
     km = VimKeymap()
-    ctx = ActionContext(cast(Any, app))
+    ctx = ActionContext(app.session, app.ui)
     km.handle_key(ctx, "d")
     km.handle_key(ctx, "d")
     assert "one" not in app.buffer.lines
@@ -350,7 +381,7 @@ def test_yy_pastes_line() -> None:
     app = _FakeApp()
     app.doc = Document(None, TextBuffer("one"))
     km = VimKeymap()
-    ctx = ActionContext(cast(Any, app))
+    ctx = ActionContext(app.session, app.ui)
     km.handle_key(ctx, "y")
     km.handle_key(ctx, "y")
     km.handle_key(ctx, "p")
@@ -361,7 +392,7 @@ def test_word_motion() -> None:
     app = _FakeApp()
     app.doc = Document(None, TextBuffer("foo bar"))
     km = VimKeymap()
-    ctx = ActionContext(cast(Any, app))
+    ctx = ActionContext(app.session, app.ui)
     km.handle_key(ctx, "w")
     assert app.buffer.col == 4
 
@@ -370,7 +401,7 @@ def test_visual_selection_delete() -> None:
     app = _FakeApp()
     app.doc = Document(None, TextBuffer("hello"))
     km = VimKeymap()
-    ctx = ActionContext(cast(Any, app))
+    ctx = ActionContext(app.session, app.ui)
     km.handle_key(ctx, "v")
     km.handle_key(ctx, "l")
     km.handle_key(ctx, "l")
