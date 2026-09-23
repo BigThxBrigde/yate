@@ -36,21 +36,6 @@ def _build_app(*, yaterc: str | None = None, ext_files: list[str | Path] | None 
     return app
 
 
-# --- version lines ----------------------------------------------------------
-
-
-def test_version_lines_contains_description_and_three_lines() -> None:
-    text = diagnostics.version_lines()
-    lines = text.splitlines()
-    assert len(lines) == 3
-    assert lines[0].startswith("yate ")
-    # the description is part of the first line
-    assert "yet another terminal editor" in lines[0]
-    assert "Python" in lines[1]
-    # platform line is non-empty and comes from platform.platform()
-    assert lines[2]
-
-
 # --- report structure -------------------------------------------------------
 
 

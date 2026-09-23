@@ -127,7 +127,11 @@ class VimKeymap(Keymap):
             self.count_str = ""
             binding = self.lookup(key)
             if binding is not None:
-                return self.dispatch(binding, ctx)
+                # A dead action (typo / unloaded extension) is reported by
+                # dispatch(); the key stays consumed either way -- unbound
+                # F-keys are swallowed too, and a dead action on an
+                # extension-bound normal key is absorbed the same way.
+                self.dispatch(binding, ctx)
             return True
         if self.mode == VimMode.INSERT:
             return self._handle_insert(ctx, key)

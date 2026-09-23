@@ -20,7 +20,7 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Callable
 
-from yate import __description__, __version__
+from yate import __version__
 from yate.editor import Editor
 
 # Terminal environment variables worth surfacing.  Values are shown for the
@@ -54,22 +54,6 @@ _KV_LINE_RE = re.compile(r"^( +)([^ -].*?): (.+)$")
 #: ``  label:`` -- a sub-header that introduces an indented list below it.
 _LABEL_LINE_RE = re.compile(r"^( +)(\S.*):$")
 _SECTION_TITLE_RE = re.compile(r"^\[[a-z]+\]$")
-
-
-# ----------------------------------------------------------------- version
-
-def version_lines() -> str:
-    """yate / description / Python / platform information (``--version``).
-
-    Kept free of any configuration loading so ``--version`` stays instant
-    and works without a terminal.
-    """
-    impl = platform.python_implementation()
-    return (
-        f"yate {__version__} — {__description__}\n"
-        f"Python {platform.python_version()} ({impl})\n"
-        f"{platform.platform()}"
-    )
 
 
 # ------------------------------------------------------------------ report

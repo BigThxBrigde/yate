@@ -2695,6 +2695,29 @@ def test_disabled_bundled_extension_does_not_warn_shadow(
     asyncio.run(scenario())
 
 
+def test_rc_declaring_the_bundled_dir_does_not_warn_shadow(
+    tmp_path: Path,
+) -> None:
+    # An rc extension_paths entry that *is* the bundled directory loads the
+    # same scripts; de-duplication hands back the identical record, which
+    # must not be reported as shadowing itself.
+    from yate.config import YateConfig
+    from yate.paths import bundled_extensions_dir
+
+    config = YateConfig(extension_paths=[bundled_extensions_dir()])
+
+    async def scenario() -> None:
+        app = YateApp(config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            messages = app.editor._ext_messages
+            assert not any(
+                "shadowed by the bundled default" in m for m in messages
+            ), messages
+
+    asyncio.run(scenario())
+
+
 # ----------------------------------------------------------------- LSP UI fake
 
 

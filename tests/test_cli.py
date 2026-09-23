@@ -12,6 +12,8 @@ a cwd-facing pollution surface the home isolation fixture cannot cover.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -19,7 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import yate
-from yate.cli import build_parser, main
+from yate.cli import build_parser, main, version_lines
 
 _CUSTOM_THEME_SRC = """\
 from dataclasses import replace
@@ -185,6 +187,32 @@ def test_version_prints_basic_info_and_exits_zero(
     # --version must not construct the app or read any config
     fake_app.assert_not_called()
     load_config.assert_not_called()
+
+
+def test_version_lines_content() -> None:
+    text = version_lines()
+    lines = text.splitlines()
+    assert len(lines) == 3
+    assert lines[0].startswith("yate ")
+    # the description is part of the first line
+    assert "yet another terminal editor" in lines[0]
+    assert "Python" in lines[1]
+    # platform line is non-empty and comes from platform.platform()
+    assert lines[2]
+
+
+def test_version_never_imports_the_tui_stack() -> None:
+    """--version stays instant: it must not import the TUI stack.
+
+    Runs in a subprocess because in-process the TUI is usually already
+    imported by other tests, so a ``sys.modules`` check would lie.
+    """
+    code = (
+        "import sys; from yate.cli import main; main(['--version']);"
+        "assert 'yate.editor' not in sys.modules, 'yate.editor imported';"
+        "assert 'textual' not in sys.modules, 'textual imported'"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_diag_prints_report_without_running_tui(

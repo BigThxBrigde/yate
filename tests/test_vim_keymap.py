@@ -632,19 +632,20 @@ def test_function_key_without_a_binding_is_consumed() -> None:
     assert editor.buffer.get_text() == "abc"
 
 
-def test_binding_to_an_unknown_action_is_not_swallowed() -> None:
-    """A binding that names an unregistered action drops the key, and says so.
+def test_binding_to_an_unknown_action_is_reported_and_consumed() -> None:
+    """A binding naming an unregistered action reports it, then swallows it.
 
-    Normal mode deliberately swallows unmapped keys (see
-    ``test_unmapped_normal_key_is_swallowed``), so the new fall-through is
-    observable on the function-key path, which returns the dispatch result
-    directly.  A typo'd/never-registered action name must not eat the key in
-    silence any more.
+    The unknown name is surfaced by ``dispatch`` ("unknown action: ...") so
+    the failure is never silent, but in vim mode the key itself stays
+    consumed: F-keys are keymap-owned (unbound ones are swallowed too, see
+    ``test_function_key_without_a_binding_is_consumed``) and normal mode
+    deliberately swallows unmapped keys -- a dead action on an
+    extension-bound normal key is absorbed the same way.
     """
     editor, keymap, ctx = _setup("abc")
     keymap.add_binding("<f7>", "nope_action")
 
-    assert keymap.handle_key(ctx, parse_key("<f7>")) is False
+    assert keymap.handle_key(ctx, parse_key("<f7>")) is True
     assert editor.messages[-1] == "unknown action: nope_action"
     assert editor.buffer.get_text() == "abc"
 
