@@ -494,27 +494,63 @@ mkstemp + `os.replace` 原子写；扩展系统经 `ExtensionContext` 暴露具�
 R7/R9/R10 经调用链核实合规），门禁全绿。但重构过程引入 **4 处可复现的功能回归**（下述 Major），
 另有若干存量缺陷在本次大改文件中未顺手消除。
 
+### 处置摘要（2026-09-24 回填）
+
+**Major（4 条）**：全部修复并附守卫。其中 M2 / M3 经 `git blame` 校准为**存量缺陷**
+（`ecadd41` / `bcd0426` 引入，`2ee2586` / `9fa5ac8` 仅搬运），原报告「均为本次引入」的归类
+对这两条不成立。
+
+**Minor**：本次引入的 17 条中 **15 条已处理**（`run_worker` 改 `partial`；`--version` 版本行下沉
+`cli.py`；`Editor.message()` 恢复 `refresh_status()` 与 `mounted` 守卫；三处补 docstring；
+`registries.py` 内置泛型；行宽折行；F 键未知 action 统一吞键；trust 权限收紧；假 shadowed 警告；
+explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 umask 落盘、fd 不泄漏、
+清理不顶掉原异常、docstring 注明 symlink/硬链接语义）；**2 条明确未修**（Windows `os.replace`
+兼容面＝既定取舍；`test_app_textual.py` 过时注释），1 条部分（`except BaseException` 注释仅
+`document.py` 侧补齐）。存量 10 条不在本轮范围。
+
+**守卫有效性变异校验（2026-09-24）**：本轮 7 组修复的 8 个守卫全部做了**变异校验**——临时把修复
+回退后对应用例必须失败，恢复后 8 个用例全绿，以此排除「撤销修复仍通过」的假守卫：
+
+| 修复 | 守卫 | 回退方式 | 结果 |
+|---|---|---|---|
+| `cycle_tab` 搜索重置 | `test_cycle_tab_resets_the_previous_search` | 删掉 `reset_search()` | ❌ 失败 ✅ |
+| `remove_node` 存活比例 | `..._keeps_each_survivor_fraction` / `..._renormalizes_nested_survivors` | 改回 `sizes[: len(kept)]` 位置切片 | ❌ 均失败 ✅ |
+| 尾分隔符路径补全 | `test_path_prefix_with_trailing_separator_lists_the_directory` | 禁用尾分隔符分支 | ❌ 失败 ✅ |
+| 保存复位 mtime | `test_save_resets_the_timestamp_and_keeps_permission_bits` | 删掉 `os.utime(tmp)` | ❌ 失败 ✅ |
+| 假 shadowed 警告 | `test_rc_declaring_the_bundled_dir_does_not_warn_shadow` | 删掉两侧 `resolve()` 比较 | ❌ 失败 ✅ |
+| `--version` 不拖 TUI 栈 | `test_version_never_imports_the_tui_stack` | 在 `--version` 分支 `import yate.editor` | ❌ 失败 ✅ |
+| F 键未知 action 吞键 | `test_binding_to_an_unknown_action_is_reported_and_consumed` | 改回 `return self.dispatch(...)` | ❌ 失败 ✅ |
+
+**门禁（主代理实测）**：`pytest tests/ -q` exit 0 全绿；`pyright yate/ tests/ tools/`
+**0 errors, 0 warnings, 0 informations**；`tools.smoke_test run --fail-only`
+**87/87 场景、907/907 checks**（exit 0）。
+
 ### 🔴 Critical — 无
 
-### 🟠 Major（4 条，均为本次引入，主代理逐一现场核实）
+### 🟠 Major（4 条；M2 / M3 经 `git blame` 校准为存量缺陷）
 
-- [ ] **M1 `cycle_tab` 丢失搜索状态重置，`:bn`/`:bp` 后搜索串扰** —
+- [x] **M1 `cycle_tab` 丢失搜索状态重置，`:bn`/`:bp` 后搜索串扰** —
   [`editor.py:475-483`](../../yate/editor.py#L475-L483)
   旧 `app.py` 的 `cycle_tab` 在切换后重建 `SearchEngine`；重构后只调 `session.cycle(delta)`，
   对比 `open_path`/`close_tab`/`new_buffer` 均有重置。`SearchEngine.matches` 缓存的是**旧文档**
   的 `(row, start, end)`，`next()` 不重扫直接设置新 buffer 光标。
   **复现**：文件 A 中 `/pattern` 多行匹配 → `:bn` 切到文件 B → 高亮按 A 的坐标画在 B 上；
   `n` 跳转坐标越界。**修复**：`show_doc` 后补 `self.session.reset_search()`。
+  *✅ 已修复（2026-09-24）：`cycle_tab` 在 `show_doc` 后补 `self.session.reset_search()`；守卫 `test_cycle_tab_resets_the_previous_search`。*
 
-- [ ] **M2 `remove_node` 收缩 split 时 sizes 按位置错配** —
+- [x] **M2 `remove_node` 收缩 split 时 sizes 按位置错配** —
   [`session.py:303-321`](../../yate/session.py#L303-L321)
   `node.sizes[: len(new_children)]` 取的是**前** N−1 个 size，而非**存活子节点**的 size
   （children 与 sizes 按下标平行）。**复现**：三分栏 sizes `[0.5, 0.25, 0.25]`，关闭第一个窗格
   → 存活者被归一化为 `[0.667, 0.333]`，正确应为 `[0.5, 0.5]`；关闭中间窗格同理错配，
   `panes.apply_sizes` 直接消费该错误比例。
   **修复**：先按索引过滤 `(child, size)` 对，再用存活 size 列表做 `_normalized`。
+  *✅ 已修复（2026-09-24）：先按 `(child, size)` 成对过滤，再用存活 size 做 `_normalized`。*
+  *归属校准（`git blame`）：该行自 `ecadd41` 起即存在，`2ee2586` 仅搬运——属**存量缺陷**，
+  非本次引入。守卫：`test_remove_node_keeps_each_survivor_fraction`、
+  `test_remove_node_renormalizes_nested_survivors`。*
 
-- [ ] **M3 路径补全对尾分隔符前缀产出损坏候选** —
+- [x] **M3 路径补全对尾分隔符前缀产出损坏候选** —
   [`prompt_completion.py:107-138`](../../yate/prompt_completion.py#L107-L138)
   `Path("src/")` 被 pathlib 规范化吞掉尾斜杠 → `p.name == "src"`，走父目录分支；
   `dir_part = prefix[: len(prefix) - len(base)]` = `"src/"[:1]` = `"s"`，
@@ -522,8 +558,11 @@ R7/R9/R10 经调用链核实合规），门禁全绿。但重构过程引入 **4
   **复现**：工作区根输入 `:e src/` 触发补全，得到以 `s` 开头的乱串而非 `src/` 内条目。
   **修复**：入口检测 `expanded.endswith(("/", os.sep))`，尾分隔符时令 `parent = Path(expanded)`、
   `base = ""`、`dir_part = prefix`。
+  *✅ 已修复（2026-09-24）：尾分隔符时令 `parent = Path(expanded)`、`base = ""`、`dir_part = prefix`。*
+  *归属校准：自 `bcd0426` 起存在，`9fa5ac8` 仅搬运——属**存量缺陷**。守卫：
+  `test_path_prefix_with_trailing_separator_lists_the_directory`。*
 
-- [ ] **M4 `copystat` 把旧 mtime 带到新文件，保存后时间戳冻结** —
+- [x] **M4 `copystat` 把旧 mtime 带到新文件，保存后时间戳冻结** —
   [`document.py:140-152`](../../yate/editor_core/document.py#L140-L152)
   `shutil.copystat(target, tmp)` 复制 mode 之外还复制 atime/mtime，`os.replace` 后文件的
   mtime = **上次保存**时间而非 now，破坏外部消费者（`make`、轮询型文件监视器、mtime 比对的备份工具）；
@@ -531,88 +570,112 @@ R7/R9/R10 经调用链核实合规），门禁全绿。但重构过程引入 **4
   *本条是上文「PR #13 审查修复」copystat 保留元数据方案的附带产物；docstring 把「复制时间戳」写成了
   特性，但该论证只对权限位/ACL 成立，对 mtime 不成立。*
   **修复**：只复制 mode（`os.chmod(tmp, stat.S_IMODE(...))`），或 `copystat` 后 `os.utime(tmp)` 复位时间戳。
+  *✅ 已修复（2026-09-24）：`copystat` 后 `os.utime(tmp)` 把时间戳复位为 now
+  （权限位 / xattr 仍继承）。守卫：`test_save_resets_the_timestamp_and_keeps_permission_bits`。*
 
 ### 🟡 Minor（27 条）
 
 **本次引入（17 条）：**
 
-- [ ] **`run_worker` 传裸协程对象，与模块自身约定相悖** —
+- [x] **`run_worker` 传裸协程对象，与模块自身约定相悖** —
   [`editor.py:667-682`](../../yate/editor.py#L667-L682)
   `only_pane`/`close_pane` 传 `self.panes.only_active()` 协程对象；同文件 `_split_pane` 用
   `partial(...)`，且 `_lsp_documents_closed` docstring 明确「绝不传协程，worker 未启动时泄漏
   never-awaited coroutine」。**修复**：改 `partial(self.panes.only_active)` 等。
+  *✅ 已修复（2026-09-24）：改 `partial(self.panes.only_active)` 等。*
 
-- [ ] **`--version` 拖入整个 TUI 栈** — [`diagnostics.py:24`](../../yate/diagnostics.py#L24)
+- [x] **`--version` 拖入整个 TUI 栈** — [`diagnostics.py:24`](../../yate/diagnostics.py#L24)
   模块顶部 `from yate.editor import Editor` 使 `cli.py --version` 的「stays instant」承诺失效
   （textual/editor_view/keymaps/services 全量加载）。受 R6 约束不能走 TYPE_CHECKING 老路。
   **修复**：把 `version_lines` 下沉到叶子模块，或接受代价并在 docstring 说明。
+  *✅ 已修复（2026-09-24）：`version_lines` 下沉到 `cli.py`（叶子模块），`--version` 不再导入
+  `yate.editor` / `textual`；守卫 `test_version_never_imports_the_tui_stack`（子进程断言）。*
 
-- [ ] **`Editor.message()` 相比旧版丢两处行为** — [`editor.py:303-305`](../../yate/editor.py#L303-L305)
+- [x] **`Editor.message()` 相比旧版丢两处行为** — [`editor.py:303-305`](../../yate/editor.py#L303-L305)
   旧版写消息后调 `status_bar.refresh_status()` 且有 `mounted` 守卫；新版仅 `prompt_bar.write`，
   扩展经 `api.message` 提示时 mode chip 可能短暂过期、未挂载时直接写入。
   **修复**：恢复 `refresh_status()` 并按 `self.mounted` 分流缓冲。
+  *✅ 已修复（2026-09-24）：恢复 `status_bar.refresh_status()` 并按 `self.mounted` 分流。*
 
-- [ ] **三个公共方法缺 docstring** —
+- [x] **三个公共方法缺 docstring** —
   [`editor.py:439`](../../yate/editor.py#L439)、[621](../../yate/editor.py#L621)、[1190](../../yate/editor.py#L1190)
   `new_buffer` / `insert_char` / `close_completion`，违反规范 §2.1。
+  *✅ 已补（2026-09-24）：`new_buffer` / `insert_char` / `close_completion`。*
 
-- [ ] **新建代码用遗留 `Dict`/`List` 泛型** — [`registries.py:17,38,58`](../../yate/registries.py#L17-L58)
+- [x] **新建代码用遗留 `Dict`/`List` 泛型** — [`registries.py:17,38,58`](../../yate/registries.py#L17-L58)
   违反 §3.2「新代码不使用 Dict/List」；同文件 62/71/79 行已是小写泛型，风格自相矛盾。
+  *✅ 已修复（2026-09-24）：`registries.py` 改用内置泛型。*
 
-- [ ] **行宽超 100 上限** — [`vim.py:106`](../../yate/keymaps/vim.py#L106)（102 字符）、
+- [x] **行宽超 100 上限** — [`vim.py:106`](../../yate/keymaps/vim.py#L106)（102 字符）、
   [`actions.py:38,70-71`](../../yate/actions.py#L70-L71)（102/105/108 字符）
+  *✅ 已折行（2026-09-24）：`vim.py` F5 绑定、`actions.py` 三处 `reg(...)`。*
 
-- [ ] **F 键 dispatch 失败时行为不一致** — [`vim.py:122-128`](../../yate/keymaps/vim.py#L122-L128)
+- [x] **F 键 dispatch 失败时行为不一致** — [`vim.py:122-128`](../../yate/keymaps/vim.py#L122-L128)
   扩展绑定的 F 键 action 失效时 `return dispatch(...)` 让 False 上抛冒泡，而
   `_extension_binding` 同类 False 在 421 行被 `return True` 吸收。影响面小（仅扩展失效场景）。
+  *✅ 已修复（2026-09-24）：统一为「报告未知 action 后吞键」，与 `_extension_binding` 失败被吸收一致；
+  守卫 `test_binding_to_an_unknown_action_is_reported_and_consumed`。*
 
-- [ ] **trust 存储权限保证与注释不符** — [`trust.py:61-68`](../../yate/services/trust.py#L61-L68)
+- [x] **trust 存储权限保证与注释不符** — [`trust.py:61-68`](../../yate/services/trust.py#L61-L68)
   `0o700` 仅在目录**新建**时生效，已存在的宽松目录不收紧；store 文件本身按默认 umask（0644）
   创建，信任列表对同机其他用户可读；Windows 忽略 mode（平台限定）。
   **修复**：已存在目录时 `os.chmod`（POSIX），或修正注释。
+  *✅ 已修复（2026-09-24）：已存在目录也收紧为 `0700`、store 文件 `0600`（POSIX）。*
 
-- [ ] **rc 声明路径即 bundled 目录时产生假 shadowed 警告** —
+- [x] **rc 声明路径即 bundled 目录时产生假 shadowed 警告** —
   [`extensions.py:489-499`](../../yate/services/extensions.py#L489-L499)
   同一 resolved path 去重返回自身记录，`owner == record` 仍触发「shadowed by the bundled default」。
   **修复**：比较 `owner.path.resolve() != record.path.resolve()` 再告警。
+  *✅ 已修复（2026-09-24）：告警前比较 `owner.path.resolve() != record.path.resolve()`；
+  守卫 `test_rc_declaring_the_bundled_dir_does_not_warn_shadow`（同日补齐——`cf889b5` 提交信息
+  声称该组有守卫，实测缺位）。*
 
-- [ ] **explorer 混用 `X | None` 与 `Optional[X]`** —
+- [x] **explorer 混用 `X | None` 与 `Optional[X]`** —
   [`explorer.py:124,146-148,157,163`](../../yate/editor_view/explorer.py#L124-L163)
   新增签名用 `| None`，同文件 prompt 流用 `Optional`，违反 §3.2。**修复**：统一 `Optional[...]`。
+  *✅ 已修复（2026-09-24）：新增签名统一为 `Optional[X]`。*
 
-- [ ] **palette 提示列对齐用 `len()` 而非 cell 数，CJK 文件名错位** —
+- [x] **palette 提示列对齐用 `len()` 而非 cell 数，CJK 文件名错位** —
   [`palette.py:266`](../../yate/editor_view/palette.py#L266)
   `pad = max(1, 30 - len(display))`，宽字符占 2 cell 导致 hint 列逐行左移。
   **修复**：改 `theme.cell_len(display)`。
+  *✅ 已修复（2026-09-24）：改用 `theme.cell_len(display)`。*
 
 - [ ] **Windows `os.replace` 对外部占用句柄的兼容面变窄** —
   [`document.py:149`](../../yate/editor_core/document.py#L149)
   需 `FILE_SHARE_DELETE`；杀软/预览器持句柄时旧版能存、新版抛 `PermissionError`
   （错误路径安全，无数据丢失，Windows 限定）。
+  *⏸ 不修（2026-09-24 复核）：既定取舍，错误路径安全、无数据丢失（Windows 限定）。*
 
-- [ ] **首次保存的新文件权限 0600（POSIX 限定）** —
+- [x] **首次保存的新文件权限 0600（POSIX 限定）** —
   [`document.py:140-148`](../../yate/editor_core/document.py#L140-L148)
   mkstemp 恒 0600 且 `copystat` 仅在目标存在时调用；新文件落盘 owner-only，旧实现走 umask(0644)。
   **修复**：目标不存在时 `os.chmod(tmp, 0o666 & ~umask)`。
+  *✅ 已修复（2026-09-24）：目标不存在时 `os.chmod(tmp, 0o666 & ~umask)`；
+  守卫 `test_save_resets_the_timestamp_and_keeps_permission_bits`（timestamp/mode 一并覆盖）。*
 
-- [ ] **保存路径两个罕见边角** — [`document.py:144-152`](../../yate/editor_core/document.py#L144-L152)
+- [x] **保存路径两个罕见边角** — [`document.py:144-152`](../../yate/editor_core/document.py#L144-L152)
   ① `os.fdopen(fd)` 本身抛错时 fd 泄漏；② except 内 `tmp.unlink` 若抛错会顶掉原始异常
   （`__context__` 仍留痕）。**修复**：fdopen 移入 try；unlink 包 try/except OSError。
+  *✅ 已修复（2026-09-24）：`fdopen` 移入 try；清理 `unlink` 包 try/except OSError。*
 
-- [ ] **symlink/硬链接语义变化未声明** —
+- [x] **symlink/硬链接语义变化未声明** —
   [`document.py:147-149`](../../yate/editor_core/document.py#L147-L149)
   `os.replace` 把符号链接**本体**替换为普通文件（旧实现写穿透到目标），硬链接分叉。
   **修复**：保存前 resolve，或文档注明行为变化。
+  *✅ 按「文档注明」处置（2026-09-24）：docstring 注明 symlink / 硬链接与 Windows 句柄语义。*
 
 - [ ] **过时注释与已落地行为矛盾** —
   [`test_app_textual.py:3781-3786`](../../tests/test_app_textual.py#L3781-L3786)
   注释仍称原子写是「separate hardening change」，实际已实现。
   **修复**：更新注释并断言磁盘字节完好。
+  *⏸ 未修（2026-09-24 复核）：`tests/test_app_textual.py` 该注释仍在。*
 
 - [ ] **`except BaseException:` 缺理由注释** —
   [`pty_proc.py:78`](../../yate/editor_term/pty_proc.py#L78)、
   [`document.py:150`](../../yate/editor_core/document.py#L150)
   同文件其他宽捕获均有理由注释，这两处没有（re-raise 不吞异常，纯风格）。
+  *⚠ 部分（2026-09-24 复核）：`document.py` 已补理由注释；`pty_proc.py:78` 仍未补。*
 
 **存量（非本分支引入，大改文件中未顺手消除）（10 条）：**
 
