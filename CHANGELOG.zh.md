@@ -74,6 +74,9 @@
 
 ### 文档
 
+- 修正补全弹窗吞键问题的归因记录 ([`fd697bb`](https://gitee.com/jermaine/yate/commit/fd697bb3c04c6b4e72dd310b128e2047b5487e6e))
+  - master 实测未受影响：当时未识别键会冒泡到 YateApp.on_key；本轮分层重构取消冒泡后才显现
+- 变更日志保持修复条目已翻译 ([`7180d5f`](https://gitee.com/jermaine/yate/commit/7180d5f11d5dadc32a614931728ea0a0e604dcce))
 - 变更日志记录补全弹窗按键放行修复 ([`5a1afbd`](https://gitee.com/jermaine/yate/commit/5a1afbdc862cbccdfc24fd2d90c6f9a162cdd52e))
 - 补齐全部缺失的中文翻译并刷新双语变更日志 ([`32e5649`](https://gitee.com/jermaine/yate/commit/32e56490166bece249be93982769f7c31833521c))
   - zh_overrides.json 由 42 条扩至 202 条，重新生成后有 0 条缺译
