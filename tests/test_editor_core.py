@@ -9,9 +9,17 @@ import asyncio
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine, TextBuffer
-from yate.editor_core.buffer import MAX_UNDO_STEPS
+from yate.editor_core.buffer import (
+    MAX_UNDO_STEPS,
+    next_word_start,
+    prev_word_start,
+    word_end,
+)
+from yate.editor_core.search import Match
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
@@ -550,3 +558,467 @@ def test_visual_selection_delete() -> None:
     km.handle_key(ctx, "x")
     assert app.buffer.get_text() == "llo"
     assert km.mode is VimMode.NORMAL
+
+
+# --- word-motion helpers ----------------------------------------------------
+
+
+def test_next_word_start_skips_a_punctuation_run() -> None:
+    """A punctuation run before a word: the next start is the word itself."""
+    assert next_word_start("!!alpha", 0) == 2
+
+
+def test_prev_word_start_walks_back_over_punctuation() -> None:
+    """Stepping back from the end takes the punctuation run with the word."""
+    assert prev_word_start("ab!!", 4) == 2
+
+
+def test_word_end_from_blanks_and_from_punctuation() -> None:
+    """word_end skips leading blanks, then ends the word / punctuation run."""
+    assert word_end("   ab", 0) == 5
+    assert word_end("ab!!", 2) == 4
+
+
+# --- TextBuffer: state bookkeeping -----------------------------------------
+
+
+def test_line_clamps_the_row() -> None:
+    """line() clamps an out-of-range row instead of raising."""
+    buf = TextBuffer("a\nb\nc")
+    assert buf.line(-5) == "a"
+    assert buf.line(99) == "c"
+
+
+def test_mark_content_changed_restarts_vertical_tracking() -> None:
+    """Out-of-band mutations bump the version and clear the goal column."""
+    buf = TextBuffer("long\na")
+    buf.cursor = (0, 4)
+    buf.move_down()  # goal column 4, clamped to the short line
+    assert buf.cursor == (1, 1)
+    version, edits = buf.content_version, buf.content_edits
+    buf.lines[0] = "x"
+    buf.mark_content_changed()
+    assert buf.content_version == version + 1
+    assert buf.content_edits == edits + 1
+    buf.move_up()  # tracking restarted, so the goal is the current column
+    assert buf.cursor == (0, 1)
+
+
+def test_commit_without_changes_records_no_history() -> None:
+    """A snapshot/commit pair around a no-op edit keeps the stack empty."""
+    buf = TextBuffer("abc")
+    buf.commit(buf.snapshot())
+    assert buf.undo() is False
+
+
+def test_redo_without_history_returns_false() -> None:
+    """redo() on a fresh buffer reports that there is nothing to redo."""
+    assert TextBuffer("x").redo() is False
+
+
+# --- TextBuffer: selection and edits ---------------------------------------
+
+
+def test_selected_text_spans_multiple_lines() -> None:
+    """A cross-line selection joins the head, the middle lines and the tail."""
+    buf = TextBuffer("alpha\nbeta\ngamma")
+    buf.anchor = (0, 2)
+    buf.cursor = (2, 3)
+    assert buf.selected_text() == "pha\nbeta\ngam"
+    assert buf.selected_rows() == (0, 2)
+
+
+def test_delete_selection_across_lines_merges_head_and_tail() -> None:
+    """Deleting a cross-line selection joins what surrounds it."""
+    buf = TextBuffer("alpha\nbeta\ngamma")
+    buf.anchor = (0, 2)
+    buf.cursor = (2, 3)
+    assert buf.delete_selection() == "pha\nbeta\ngam"
+    assert buf.get_text() == "alma"
+    assert buf.cursor == (0, 2)
+
+
+def test_insert_text_empty_string_is_a_noop() -> None:
+    """Inserting the empty string changes nothing and records no history."""
+    buf = TextBuffer("abc")
+    buf.insert_text("")
+    assert buf.get_text() == "abc"
+    assert buf.undo() is False
+
+
+def test_insert_text_replaces_the_selection() -> None:
+    """Typing over a selection deletes it first, in one undo step."""
+    buf = TextBuffer("hello world")
+    buf.anchor = (0, 0)
+    buf.cursor = (0, 5)
+    buf.insert_text("bye")
+    assert buf.get_text() == "bye world"
+    assert buf.anchor is None
+    buf.undo()
+    assert buf.get_text() == "hello world"
+
+
+def test_delete_selection_without_selection_returns_none() -> None:
+    """delete_selection() with nothing selected reports nothing deleted."""
+    assert TextBuffer("abc").delete_selection() is None
+
+
+# --- TextBuffer: tabs, backspace, forward delete ---------------------------
+
+
+def test_insert_tab_expands_to_the_next_tab_stop() -> None:
+    """Soft tabs fill up to the next tab stop; hard tabs insert a real tab."""
+    buf = TextBuffer("ab")
+    buf.move_doc_end()
+    buf.insert_tab()
+    assert buf.get_text() == "ab  "
+
+    hard = TextBuffer("ab", use_spaces=False)
+    hard.move_doc_end()
+    hard.insert_tab()
+    assert hard.get_text() == "ab\t"
+
+
+def test_insert_tab_indents_a_multi_line_selection() -> None:
+    """Tab with a multi-line selection indents the selected rows."""
+    buf = TextBuffer("a\nb")
+    buf.anchor = (0, 0)
+    buf.cursor = (1, 1)
+    buf.insert_tab()
+    assert buf.get_text() == "    a\n    b"
+
+
+def test_delete_backward_with_selection_deletes_it() -> None:
+    """Backspace with a selection removes the selection, not one character."""
+    buf = TextBuffer("hello")
+    buf.anchor = (0, 1)
+    buf.cursor = (0, 4)
+    buf.delete_backward()
+    assert buf.get_text() == "ho"
+
+
+def test_delete_backward_inside_a_line_and_by_word() -> None:
+    """Backspace mid-line removes one character, or the previous word."""
+    char = TextBuffer("hello world")
+    char.cursor = (0, 5)
+    char.delete_backward()
+    assert char.get_text() == "hell world"
+
+    word = TextBuffer("hello world")
+    word.cursor = (0, 11)
+    word.delete_backward(word=True)
+    assert word.get_text() == "hello "
+
+
+def test_delete_forward_with_selection_joins_and_cuts() -> None:
+    """Forward delete handles a selection, a line join and a mid-line cut."""
+    sel = TextBuffer("hello")
+    sel.anchor = (0, 1)
+    sel.cursor = (0, 4)
+    sel.delete_forward()
+    assert sel.get_text() == "ho"
+
+    joined = TextBuffer("ab\ncd")
+    joined.cursor = (0, 2)
+    joined.delete_forward()
+    assert joined.get_text() == "abcd"
+    assert joined.cursor == (0, 2)
+
+    mid = TextBuffer("hello world")
+    mid.cursor = (0, 5)
+    mid.delete_forward()
+    assert mid.get_text() == "helloworld"
+
+    word = TextBuffer("hello world")
+    word.cursor = (0, 5)
+    word.delete_forward(word=True)
+    assert word.get_text() == "hello"
+
+
+# --- TextBuffer: horizontal motion edges -----------------------------------
+
+
+def test_move_left_wraps_up_a_line_and_clamps_at_the_start() -> None:
+    """Left at column 0 wraps to the previous line's end; (0, 0) stays put."""
+    buf = TextBuffer("ab\ncd")
+    buf.cursor = (1, 0)
+    buf.move_left()
+    assert buf.cursor == (0, 2)
+    buf.move_doc_start()
+    buf.move_left()
+    assert buf.cursor == (0, 0)
+
+
+def test_move_right_wraps_down_a_line_and_clamps_at_the_end() -> None:
+    """Right at EOL wraps to the next line; on the last line it clamps."""
+    buf = TextBuffer("ab\ncd")
+    buf.cursor = (0, 2)
+    buf.move_right()
+    assert buf.cursor == (1, 0)
+    buf.move_doc_end()
+    buf.move_right()
+    assert buf.cursor == (1, 2)
+
+
+def test_move_right_by_word_wraps_to_the_next_line() -> None:
+    """A word-wise right at the end of a line starts the next one."""
+    buf = TextBuffer("ab\ncd")
+    buf.cursor = (0, 2)
+    buf.move_right(word=True)
+    assert buf.cursor == (1, 0)
+
+
+def test_move_line_start_toggles_to_column_zero() -> None:
+    """Repeating line-start jumps between the first non-blank and column 0."""
+    buf = TextBuffer("    indented")
+    buf.cursor = (0, 8)
+    buf.move_line_start()
+    assert buf.cursor == (0, 4)
+    buf.move_line_start()
+    assert buf.cursor == (0, 0)
+
+
+# --- TextBuffer: indent, yank and line commands ----------------------------
+
+
+def test_indent_selection_without_selection_inserts_a_tab() -> None:
+    """Indenting with no selection falls back to one tab stop at the cursor."""
+    buf = TextBuffer("ab")
+    buf.move_doc_end()
+    buf.indent_selection()
+    assert buf.get_text() == "ab  "
+
+
+def test_outdent_strips_a_tab_or_one_tab_width_of_spaces() -> None:
+    """Outdent removes a leading tab, or one tab width of leading spaces."""
+    tabbed = TextBuffer("\tab")
+    tabbed.outdent_selection()
+    assert tabbed.get_text() == "ab"
+
+    spaced = TextBuffer("        ab")
+    spaced.outdent_selection()
+    assert spaced.get_text() == "    ab"
+
+
+def test_yank_lines_uses_the_selected_rows() -> None:
+    """Line-wise yank copies every selected row plus a trailing newline."""
+    buf = TextBuffer("a\nb\nc")
+    buf.anchor = (0, 0)
+    buf.cursor = (1, 0)
+    assert buf.yank_lines() == "a\nb\n"
+    assert buf.register == "a\nb\n"
+
+
+def test_yank_selection_prefers_the_selection_over_the_line() -> None:
+    """Yank copies the selection when there is one, else the current line."""
+    buf = TextBuffer("hello world")
+    buf.anchor = (0, 0)
+    buf.cursor = (0, 5)
+    assert buf.yank_selection() == "hello"
+    buf.clear_selection()
+    assert buf.yank_selection() == "hello world"
+
+
+def test_delete_lines_with_a_selection_keeps_one_empty_line() -> None:
+    """Deleting every row leaves one empty line and yanks the block."""
+    buf = TextBuffer("a\nb")
+    buf.anchor = (0, 0)
+    buf.cursor = (1, 1)
+    assert buf.delete_lines() == "a\nb\n"
+    assert buf.lines == [""]
+    assert buf.cursor == (0, 0)
+
+
+def test_move_line_past_the_edge_is_a_noop() -> None:
+    """Moving the line beyond the first row changes nothing."""
+    buf = TextBuffer("a\nb")
+    buf.move_line(-1)
+    assert buf.get_text() == "a\nb"
+
+
+def test_join_lines_at_the_last_row_is_a_noop() -> None:
+    """Joining the last row has nothing to join."""
+    buf = TextBuffer("a\nb")
+    buf.cursor = (1, 0)
+    buf.join_lines()
+    assert buf.get_text() == "a\nb"
+
+
+def test_join_lines_keeps_existing_whitespace() -> None:
+    """A trailing space or an indented next row joins without adding one."""
+    trailing = TextBuffer("ab \ncd")
+    trailing.join_lines()
+    assert trailing.get_text() == "ab cd"
+
+    indented = TextBuffer("ab\n    cd")
+    indented.join_lines()
+    assert indented.get_text() == "ab    cd"
+
+
+def test_delete_to_line_start_removes_the_prefix() -> None:
+    """ctrl-u deletes from the line start up to the cursor."""
+    buf = TextBuffer("hello")
+    buf.cursor = (0, 3)
+    buf.delete_to_line_start()
+    assert buf.get_text() == "lo"
+    assert buf.cursor == (0, 0)
+
+
+def test_paste_ignores_an_empty_register() -> None:
+    """Pasting with nothing yanked changes nothing."""
+    buf = TextBuffer("abc")
+    buf.paste()
+    assert buf.get_text() == "abc"
+
+
+def test_paste_character_wise_inserts_at_the_cursor() -> None:
+    """A non line-wise register is inserted at the cursor."""
+    buf = TextBuffer("ab")
+    buf.register = "XY"
+    buf.cursor = (0, 1)
+    buf.paste()
+    assert buf.get_text() == "aXYb"
+
+
+# --- SearchEngine: options, navigation and replace -------------------------
+
+
+def test_match_pos_is_the_start_of_the_match() -> None:
+    """Match.pos exposes (row, start) for cursor placement."""
+    assert Match(row=2, start=3, end=5).pos == (2, 3)
+
+
+def test_whole_word_search_skips_longer_words() -> None:
+    """With whole_word on, only the standalone occurrence matches."""
+    engine = SearchEngine()
+    engine.whole_word = True
+    matches = engine.update("foo", TextBuffer("a foo b\nfoobar"))
+    assert [(m.row, m.start) for m in matches] == [(0, 2)]
+
+
+def test_invalid_regex_yields_no_matches() -> None:
+    """An uncompilable pattern reports no matches instead of raising."""
+    engine = SearchEngine()
+    engine.use_regex = True
+    assert engine.update("(", TextBuffer("abc")) == []
+    assert engine.query == "("
+
+
+def test_zero_length_matches_are_skipped() -> None:
+    """A regex that can match the empty string contributes no matches."""
+    engine = SearchEngine()
+    engine.use_regex = True
+    assert engine.update("a*", TextBuffer("b")) == []
+
+
+def test_next_without_matches_returns_none() -> None:
+    """Navigation with an empty match list reports nothing to jump to."""
+    engine = SearchEngine()
+    engine.update("zzz", TextBuffer("abc"))
+    assert engine.next(TextBuffer("abc")) is None
+
+
+def test_current_out_of_range_returns_none() -> None:
+    """current() is None until a match is selected."""
+    assert SearchEngine().current() is None
+
+
+def test_backward_search_finds_the_match_before_the_cursor() -> None:
+    """A backward search from the middle of the text takes the previous hit."""
+    engine = SearchEngine()
+    buffer = TextBuffer("foo\nboo")
+    engine.update("o", buffer)
+    match = engine.next(buffer, forward=False, from_pos=(1, 2))
+    assert match is not None
+    assert (match.row, match.start) == (1, 1)
+
+
+def test_backward_search_before_every_match_wraps_to_the_last() -> None:
+    """With nothing before the cursor, a backward search wraps to the end."""
+    engine = SearchEngine()
+    buffer = TextBuffer("foo\nboo")
+    engine.update("o", buffer)
+    match = engine.next(buffer, forward=False, from_pos=(0, 0))
+    assert match is not None
+    assert (match.row, match.start) == (1, 2)
+
+
+def test_replace_current_without_a_match_returns_false() -> None:
+    """replace_current is a no-op while no match is selected."""
+    engine = SearchEngine()
+    buffer = TextBuffer("abc")
+    engine.update("abc", buffer)
+    assert engine.replace_current(buffer, "x") is False
+
+
+def test_replace_current_rewrites_the_selected_match() -> None:
+    """replace_current swaps the current hit and re-runs the search."""
+    engine = SearchEngine()
+    buffer = TextBuffer("foo foo")
+    engine.update("foo", buffer)
+    engine.next(buffer)
+    assert engine.replace_current(buffer, "bar") is True
+    assert buffer.get_text() == "bar foo"
+    assert [(m.start, m.end) for m in engine.matches] == [(4, 7)]
+
+
+def test_replace_current_expands_backreferences_in_regex_mode() -> None:
+    """In regex mode the replacement goes through the compiled pattern."""
+    engine = SearchEngine()
+    buffer = TextBuffer("foo")
+    engine.use_regex = True
+    engine.update(r"f(o+)", buffer)
+    engine.next(buffer)
+    assert engine.replace_current(buffer, r"<\1>") is True
+    assert buffer.get_text() == "<oo>"
+
+
+def test_replace_all_without_matches_returns_zero() -> None:
+    """replace_all reports 0 when the query matches nothing."""
+    engine = SearchEngine()
+    buffer = TextBuffer("abc")
+    engine.update("zzz", buffer)
+    assert engine.replace_all(buffer, "x") == 0
+
+
+# --- Document: display path, save target, decoding fallback ----------------
+
+
+def test_display_path_falls_back_for_unnamed_documents() -> None:
+    """A named document shows its path; an unnamed one shows the fallback."""
+    named = Document(Path("pkg") / "mod.py")
+    assert named.display_path == str(Path("pkg") / "mod.py")
+    assert Document().display_path == "[no name]"
+
+
+def test_save_with_a_path_retargets_the_document(tmp_path: Path) -> None:
+    """Saving an unnamed buffer to a path records it as the document path."""
+    doc = Document()
+    doc.buffer.insert_text("hi")
+    target = tmp_path / "new.txt"
+    assert doc.save(target) == target
+    assert doc.path == target
+    assert target.read_text(encoding="utf-8") == "hi"
+    assert doc.modified is False
+
+
+def test_save_without_a_path_raises() -> None:
+    """Saving a document that has no path is a programming error."""
+    with pytest.raises(ValueError, match="without a path"):
+        Document().save()
+
+
+def test_open_falls_back_when_the_bytes_are_undecodable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty preferred encoding is skipped and undecodable bytes degrade."""
+    monkeypatch.setattr(
+        "yate.editor_core.document.locale.getpreferredencoding",
+        lambda do_setlocale=True: "",
+    )
+    raw = bytes([0x81, 0x8D])  # invalid as UTF-8 and undefined in cp1252
+    weird = tmp_path / "weird.bin"
+    weird.write_bytes(raw)
+    doc = Document.open(weird)
+    assert doc.encoding == "utf-8"
+    assert doc.buffer.get_text() == raw.decode("utf-8", errors="replace")
