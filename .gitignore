@@ -136,6 +136,8 @@ cython_debug/
 .vscode/*
 !.vscode/settings.json
 .idea/
+# CodeBuddy workspace data (agents / teams / automations), machine-local
+.codebuddy/
 
 # OS files
 .DS_Store
