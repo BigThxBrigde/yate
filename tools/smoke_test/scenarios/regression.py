@@ -20,6 +20,10 @@ from yate.editor_view import theme
 
 __all__ = ["SCENARIOS"]
 
+#: Pause long enough for the auto-completion debounce (0.12s) to fire and its
+#: worker to land, so a late ``popup.show()`` cannot race an assertion.
+_SETTLE_S = 0.3
+
 
 async def _regress_wq_multi_tab(tmp: Path) -> ScenarioResult:
     """:wq guards the whole session, not just the current tab.
@@ -229,6 +233,84 @@ async def _regress_completion_staleness(tmp: Path) -> ScenarioResult:
     return ScenarioResult("regress_completion_staleness", checks, rows)
 
 
+async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
+    """Only the popup-owned keys are consumed; every other key falls through.
+
+    The popup used to swallow *every* keypress (``return True``), so typing
+    could not refine the candidates and global chords such as Ctrl+Z were dead
+    while it was up.  This guard pins the split: tab / up / down / escape stay
+    owned by the popup, while printable characters and global chords reach the
+    normal dispatch.  The target is ``.txt`` on purpose: a ``.py`` file routes
+    through the bundled python language server (registered even with
+    ``YATE_PYTHON_LSP=off``) and the popup would never open.
+
+    Typing is followed by ``_SETTLE_S`` pauses: the auto-completion debounce
+    (0.12s) fires after the keys, and its worker calls ``popup.show()`` when it
+    lands, which would otherwise re-open a popup an assertion just closed.
+    """
+    target = tmp / "keys.txt"
+    # candidates live on the row *below* the cursor row: buffer completion
+    # excludes the row being typed on, so typing cannot feed itself
+    target.write_text("\nprintf printk\n", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        popup: Any = app.editor.completion_popup
+        buf = app.editor.session.buffer
+        await type_text(pilot, "pri")
+        await pilot.pause(_SETTLE_S)
+        await pilot.press("ctrl+space")
+        opened = await wait_until(pilot, lambda: popup.is_open)
+        checks.append(Check("popup_open", True, opened))
+        await pilot.pause(_SETTLE_S)
+
+        # escape is owned by the popup: it dismisses without touching text.
+        await pilot.press("escape")
+        await pilot.pause()
+        checks.append(Check("escape_dismisses", True, not popup.is_open))
+        checks.append(Check("escape_keeps_buffer", "pri", buf.lines[0]))
+
+        # A printable key falls through: it lands in the buffer and the popup
+        # keeps filtering under the longer prefix.
+        await pilot.press("ctrl+space")
+        reopened = await wait_until(pilot, lambda: popup.is_open)
+        checks.append(Check("reopened", True, reopened))
+        await pilot.pause(_SETTLE_S)
+        await type_text(pilot, "n")
+        checks.append(Check("typed_through", "prin", buf.lines[0]))
+        refiltered = await wait_until(pilot, lambda: popup.prefix == "prin")
+        checks.append(Check("popup_refilters", True, refiltered))
+        await pilot.pause(_SETTLE_S)
+
+        # A global chord falls through too: ctrl+z undoes the freshly typed
+        # word (consecutive insertions merge into one undo step), which can
+        # only happen if the chord reached the keymap instead of the popup.
+        await pilot.press("ctrl+z")
+        await pilot.pause()
+        checks.append(Check("ctrl_z_undoes", "", buf.lines[0]))
+
+        # With the popup open again, its own keys stay owned: down moves the
+        # selection without touching the buffer ...
+        await type_text(pilot, "pri")
+        await pilot.pause(_SETTLE_S)
+        await pilot.press("ctrl+space")
+        await wait_until(pilot, lambda: popup.is_open)
+        await pilot.pause(_SETTLE_S)
+        await pilot.press("down")
+        await pilot.pause()
+        checks.append(Check("down_selects", 1, popup.index))
+        checks.append(Check("down_keeps_buffer", "pri", buf.lines[0]))
+
+        # ... and tab accepts the highlighted item, replacing the prefix.
+        await pilot.press("tab")
+        await pilot.pause()
+        checks.append(Check("tab_accepts", True, not popup.is_open))
+        checks.append(Check("tab_replaces", "printk", buf.lines[0]))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("regress_completion_popup_keys", checks, rows)
+
+
 async def _regress_diagnostics_cmd(tmp: Path) -> ScenarioResult:
     """:diagnostics with no server: message, no overlay, no crash."""
     app = new_app(target=tmp / "a.py")
@@ -269,6 +351,8 @@ SCENARIOS: list[Scenario] = [
     Scenario("regress_tab_click", _regress_tab_click, ("regression",)),
     Scenario("regress_overlay_theme", _regress_overlay_theme, ("regression",)),
     Scenario("regress_completion_staleness", _regress_completion_staleness,
+             ("regression",)),
+    Scenario("regress_completion_popup_keys", _regress_completion_popup_keys,
              ("regression",)),
     Scenario("regress_diagnostics_cmd", _regress_diagnostics_cmd, ("regression",)),
     Scenario("regress_theme_expansion", _regress_theme_expansion,

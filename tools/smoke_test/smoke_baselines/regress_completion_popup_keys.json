@@ -1,0 +1,101 @@
+{
+  "checks": [
+    {
+      "label": "popup_open",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "escape_dismisses",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "escape_keeps_buffer",
+      "expected": "pri",
+      "actual": "pri",
+      "ok": true
+    },
+    {
+      "label": "reopened",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "typed_through",
+      "expected": "prin",
+      "actual": "prin",
+      "ok": true
+    },
+    {
+      "label": "popup_refilters",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "ctrl_z_undoes",
+      "expected": "",
+      "actual": "",
+      "ok": true
+    },
+    {
+      "label": "down_selects",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "down_keeps_buffer",
+      "expected": "pri",
+      "actual": "pri",
+      "ok": true
+    },
+    {
+      "label": "tab_accepts",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "tab_replaces",
+      "expected": "printk",
+      "actual": "printk",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

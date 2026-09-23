@@ -24,7 +24,7 @@ python -m yate --changelog zh
 2. explorer：`a` 新建、`A` 新建目录、`r` 重命名、`d` 删除（tab 清理 + didClose）
 3. 终端：`` Ctrl+` `` 开关、shell 退出后按键重启、`:set terminal_height=20`
 4. 补全：Ctrl+Space / 输入触发 / Esc 关闭 / **弹窗打开时继续输入按新前缀过滤、退格重查、
-   `Ctrl+S` 等全局快捷键仍生效**
+   `Ctrl+S` 等全局快捷键仍生效**（回归场景 `regress_completion_staleness`、`regress_completion_popup_keys`）
 5. vim：`i` / `Esc` / `:` / `/` / `Ctrl+w`
 6. 命令：`:w` `:q` `:set theme=...` `:theme` `:files` `:diagnostics` `:explorer`
 7. 扩展：`--ext <file>`、`~/.yate/extensions`（扩展内 `api.app` 现为 `ExtensionContext`，不再是 `YateApp`）
