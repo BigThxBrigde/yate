@@ -112,6 +112,10 @@
     "summary": "窗格树模型下沉至 session.py（Plan G）",
     "detail": "删除 editor_view/pane_types.py，Leaf/Split/ViewState 与树操作并入 L1 session，EditorSession 仍与窗格无关"
   },
+  "32e5649": {
+    "summary": "补齐全部缺失的中文翻译并刷新双语变更日志",
+    "detail": "zh_overrides.json 由 42 条扩至 202 条，重新生成后有 0 条缺译"
+  },
   "33190c5": {
     "summary": "把变更日志维护附录从手册移到 README"
   },
@@ -489,6 +493,10 @@
   },
   "ba6d7a6": {
     "summary": "命令面板改绑 alt+shift+p"
+  },
+  "bbeb5f6": {
+    "summary": "修复补全弹窗吞掉按键：其余键正常分发，可继续输入过滤候选",
+    "detail": "弹窗打开时仅消费 tab/enter/up/down/esc，字符照常写入缓冲区并按新前缀重新查询；Ctrl+S / Ctrl+Z 等全局快捷键恢复；新增测试与冒烟守卫（原场景此前恒真）"
   },
   "bcd0426": {
     "summary": "基于 buffer 的自动补全与 bash 式 Tab 补全"
