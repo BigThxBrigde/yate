@@ -253,7 +253,7 @@ def track_coverage() -> Generator[Coverage, None, None]:
     cov = Coverage()
     original_run_command = Editor.run_command
     original_execute_action = Editor.execute_action
-    original_init = Editor.__init__
+    original_app_init = YateApp.__init__
 
     def run_command(self: Editor, text: str) -> None:
         cov.note_command(text)
@@ -263,19 +263,23 @@ def track_coverage() -> Generator[Coverage, None, None]:
         cov.note_action(name)
         original_execute_action(self, name)
 
-    def init(self: Editor, *args: object, **kwargs: object) -> None:
-        original_init(self, *args, **kwargs)  # type: ignore[arg-type]
-        cov.note_registries(self)
+    def app_init(self: YateApp, *args: object, **kwargs: object) -> None:
+        # The name spaces are only complete once the shell has loaded the
+        # built-in tables into the editor's registries (R7), so snapshot them
+        # at the end of the shell's __init__ -- the editor's own __init__ runs
+        # before that and would report an empty universe.
+        original_app_init(self, *args, **kwargs)  # type: ignore[arg-type]
+        cov.note_registries(self.editor)
 
     Editor.run_command = run_command  # type: ignore[method-assign]
     Editor.execute_action = execute_action  # type: ignore[method-assign]
-    Editor.__init__ = init  # type: ignore[method-assign]
+    YateApp.__init__ = app_init  # type: ignore[method-assign]
     try:
         yield cov
     finally:
         Editor.run_command = original_run_command  # type: ignore[method-assign]
         Editor.execute_action = original_execute_action  # type: ignore[method-assign]
-        Editor.__init__ = original_init  # type: ignore[method-assign]
+        YateApp.__init__ = original_app_init  # type: ignore[method-assign]
 
 
 # --------------------------------------------------------------- app factory
