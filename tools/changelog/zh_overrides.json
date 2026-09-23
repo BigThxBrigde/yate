@@ -581,6 +581,9 @@
   "e70dd15": {
     "summary": "修复关闭窗格命令、按键冲突、手册搜索与中文字形"
   },
+  "e8d4dd4": {
+    "summary": "刷新双语变更日志以记录归因修正"
+  },
   "e8f8d05": {
     "summary": "新增拆分并移除 AppProtocol 的草案计划"
   },
@@ -598,6 +601,10 @@
   },
   "ef1d964": {
     "summary": "初始提交：yate 终端编辑器"
+  },
+  "ef63f07": {
+    "summary": "冒烟新增补全弹窗键位分工回归场景",
+    "detail": "字符与全局键（ctrl+z）fall-through，tab/down/esc 仍归弹窗；等待防抖落地避免竞态"
   },
   "f002de4": {
     "summary": "手册支持内置搜索（/ 或 Ctrl+F）"
