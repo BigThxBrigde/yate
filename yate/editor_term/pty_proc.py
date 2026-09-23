@@ -56,12 +56,25 @@ class PtyProcess:
     # ------------------------------------------------------------- lifecycle
 
     async def start(self, on_output: OutputFn, on_exit: ExitFn) -> None:
-        """Spawn the process and start pumping PTY output."""
+        """Spawn the process and start pumping PTY output.
+
+        A spawn that fails (no ConPTY support, no PTY device, ...) leaves no
+        reader thread behind, so the exit future is settled here: otherwise
+        nobody would ever report the exit and :meth:`wait_closed` -- awaited by
+        the application's shutdown -- would block for good.
+        """
         self._loop = asyncio.get_running_loop()
-        self._exit_future = self._loop.create_future()
+        future: asyncio.Future[Optional[int]] = self._loop.create_future()
+        self._exit_future = future
         self._on_output = on_output
         self._on_exit = on_exit
-        await asyncio.to_thread(self._impl.spawn)
+        try:
+            await asyncio.to_thread(self._impl.spawn)
+        except BaseException:
+            self._closing = True
+            if not future.done():
+                future.set_result(None)
+            raise
         self._thread = threading.Thread(
             target=self._impl.read_loop, name="yate-pty", daemon=True
         )
