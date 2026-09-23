@@ -10,10 +10,22 @@ per-directory, negation, directory-only rules).
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from yate.services.workspace import IGNORED_NAMES, Entry, Workspace
+
+
+def _raise_permission(*_args: Any, **_kwargs: Any) -> Any:
+    """``Path.iterdir`` stand-in that always fails."""
+    raise PermissionError("denied")
+
+
+def root_of(ws: Workspace) -> Path:
+    """The workspace root, asserted to be set."""
+    assert ws.root is not None
+    return ws.root
 
 
 def entry_names(entries: list[Entry]) -> list[str]:
@@ -247,3 +259,209 @@ def test_open_target_loads_ignores(tmp_path: Path) -> None:
     assert ws.open_target(tmp_path / "b.log") == "file"
     assert ws.root is not None
     assert "b.log" not in list_names(ws)
+
+
+# --- unreadable directories -------------------------------------------------
+
+
+def test_list_dir_returns_nothing_when_iterdir_fails(
+    ws: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable directory yields no entries instead of raising."""
+    with monkeypatch.context() as patch_ctx:
+        patch_ctx.setattr("pathlib.Path.iterdir", _raise_permission)
+        assert ws.list_dir(root_of(ws)) == []
+
+
+def test_walk_files_survives_an_unreadable_directory(
+    ws: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory that cannot be read is skipped by the walk."""
+    with monkeypatch.context() as patch_ctx:
+        patch_ctx.setattr("pathlib.Path.iterdir", _raise_permission)
+        assert ws.walk_files() == []
+
+
+# --- no workspace root ------------------------------------------------------
+
+
+def test_load_root_ignores_without_a_root() -> None:
+    """Without an open folder there are no ignore files to read."""
+    workspace = Workspace()
+
+    workspace._load_root_ignores()
+
+    assert workspace._root_ignores == []
+
+
+def test_visible_tree_without_a_root_is_empty() -> None:
+    """The flattened tree needs an open folder."""
+    assert Workspace().visible_tree(set()) == []
+
+
+# --- visible tree -----------------------------------------------------------
+
+
+def test_visible_tree_follows_expanded_directories(ws: Workspace) -> None:
+    """Nested expanded folders are flattened depth-first at growing depth."""
+    root = root_of(ws)
+    nested = root / "sub" / "deep"
+    nested.mkdir(parents=True)
+    (nested / "file.txt").write_text("x\n", encoding="utf-8")
+
+    depths = {
+        entry.name: depth
+        for depth, entry in ws.visible_tree({root / "sub", nested})
+    }
+
+    assert depths["sub"] == 1
+    assert depths["deep"] == 2
+    assert depths["file.txt"] == 3
+
+
+def test_walk_files_stops_at_the_limit(tmp_path: Path) -> None:
+    """The walk bails out as soon as the limit is reached."""
+    for name in ("a.py", "b.py", "c.py"):
+        (tmp_path / name).write_text("x\n", encoding="utf-8")
+    ws = Workspace(tmp_path)
+
+    assert ws.walk_files(limit=0) == []
+    assert len(ws.walk_files(limit=1)) == 1
+
+
+def test_walk_files_without_a_root_is_empty() -> None:
+    """Quick open collects nothing while no folder is open."""
+    assert Workspace().walk_files() == []
+
+
+def test_walk_files_prunes_ignored_directories(tmp_path: Path) -> None:
+    """Ignored directory names are skipped during the walk."""
+    (tmp_path / "keep.py").write_text("x\n", encoding="utf-8")
+    cache = tmp_path / "sub" / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "junk.pyc").write_bytes(b"")
+
+    names = {p.name for p in Workspace(tmp_path).walk_files()}
+
+    assert names == {"keep.py"}
+
+
+def test_open_target_switches_to_a_directory(tmp_path: Path) -> None:
+    """Opening a folder roots the workspace and loads its ignore file."""
+    (tmp_path / ".gitignore").write_text("c.log\n", encoding="utf-8")
+    (tmp_path / "c.log").write_text("x\n", encoding="utf-8")
+    ws = Workspace()
+
+    assert ws.open_target(tmp_path) == "dir"
+    assert ws.root == tmp_path.resolve()
+    assert "c.log" not in list_names(ws)
+
+
+# --- name validation --------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["", "   ", ".", ".."])
+def test_validate_name_rejects_empty_and_dot_names(
+    ws: Workspace, name: str
+) -> None:
+    """Empty and single-dot names are refused."""
+    with pytest.raises(ValueError, match="empty name"):
+        ws.validate_name(name)
+
+
+@pytest.mark.parametrize("name", ["a/b", "a\\b", "a:b"])
+def test_validate_name_rejects_separators(ws: Workspace, name: str) -> None:
+    """Names must stay single-segment."""
+    with pytest.raises(ValueError, match="must not contain"):
+        ws.validate_name(name)
+
+
+def test_validate_name_strips_surrounding_space(ws: Workspace) -> None:
+    """Surrounding whitespace is not part of the name."""
+    assert ws.validate_name("  ok.txt  ") == "ok.txt"
+
+
+# --- file mutation ----------------------------------------------------------
+
+
+def test_create_entry_makes_files_and_folders(ws: Workspace) -> None:
+    """Both branches create their target, parents included."""
+    root = root_of(ws)
+    folder = ws.create_entry(root / "sub", "fresh", is_dir=True)
+    assert folder.is_dir()
+
+    missing_parent = root / "not-yet"
+    file = ws.create_entry(missing_parent, "f.txt", is_dir=False)
+    assert file.is_file()
+    assert file.parent == missing_parent
+
+
+def test_create_entry_refuses_an_existing_target(ws: Workspace) -> None:
+    """Creating over an existing entry is an error, not an overwrite."""
+    with pytest.raises(FileExistsError):
+        ws.create_entry(root_of(ws), "plain.py", is_dir=False)
+
+
+def test_rename_entry_with_the_same_name_is_a_noop(ws: Workspace) -> None:
+    """Renaming to the current name returns the path untouched."""
+    path = root_of(ws) / "plain.py"
+    assert ws.rename_entry(path, "plain.py") == path
+    assert path.is_file()
+
+
+def test_rename_entry_moves_the_file(ws: Workspace) -> None:
+    """A successful rename returns the new path."""
+    renamed = ws.rename_entry(root_of(ws) / "plain.py", "renamed.py")
+    assert renamed.name == "renamed.py"
+    assert renamed.is_file()
+
+
+def test_rename_entry_refuses_an_existing_target(ws: Workspace) -> None:
+    """Renaming onto an existing entry is an error."""
+    with pytest.raises(FileExistsError):
+        ws.rename_entry(root_of(ws) / "plain.py", ".dotfile")
+
+
+def test_remove_entry_deletes_files_and_directories(ws: Workspace) -> None:
+    """Files are unlinked; directories are removed as a tree."""
+    root = root_of(ws)
+    ws.remove_entry(root / "plain.py")
+    assert not (root / "plain.py").exists()
+
+    ws.remove_entry(root / "sub")
+    assert not (root / "sub").exists()
+
+
+# --- text detection ---------------------------------------------------------
+
+
+def test_is_text_file_by_conventional_name(tmp_path: Path) -> None:
+    """Extension-less build files are recognised by name."""
+    makefile = tmp_path / "makefile"
+    makefile.write_text("all:\n", encoding="utf-8")
+    assert Workspace.is_text_file(makefile)
+
+
+def test_is_text_file_accepts_known_suffixes(tmp_path: Path) -> None:
+    """A suffix on the text list is editable without sniffing."""
+    notes = tmp_path / "notes.txt"
+    notes.write_text("hello\n", encoding="utf-8")
+    assert Workspace.is_text_file(notes)
+
+
+def test_is_text_file_sniffs_extension_less_files(tmp_path: Path) -> None:
+    """Sniffing accepts decodable content and rejects undecodable bytes."""
+    notes = tmp_path / "notes"
+    notes.write_text("hello\n", encoding="utf-8")
+    assert Workspace.is_text_file(notes)
+
+    blob = tmp_path / "blob"
+    blob.write_bytes(b"\xff\xfe\x00")
+    assert not Workspace.is_text_file(blob)
+
+
+def test_is_text_file_rejects_unknown_suffixes(tmp_path: Path) -> None:
+    """A suffix outside the text list is not editable."""
+    unknown = tmp_path / "thing.weird"
+    unknown.write_text("x\n", encoding="utf-8")
+    assert not Workspace.is_text_file(unknown)
