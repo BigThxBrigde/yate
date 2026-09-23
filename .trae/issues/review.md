@@ -355,3 +355,71 @@
   - 证据：`pytest tests/test_cli.py tests/test_diagnostics.py tests/test_shell.py tests/test_changelog_view.py
     tests/test_lsp.py tests/test_python_lsp_ext.py tests/test_ts_backend.py -q` → **exit 0 全绿**。
   - 结论：`tests/` **无需改动**；核对脚本为临时文件、已删除。
+
+---
+
+## PR #13 审查修复 — 2026-09-24
+
+> 来源：Gitee PR [!13](https://gitee.com/jermaine/yate/pulls/13) 的 AI 审查（`/review` 于 2026-09-23 23:09 与 23:56 两次触发，
+> 第二份为 2026-09-24 00:07 的复评）。第一份的阻断项「补全弹窗按键吞噬」已由 `bbeb5f6` 修复并附回归场景；
+> 本条目记录其后修复的 **2 个阻断项 + 4 个改进项**（含第一份审查中未处理的 trust 目录权限建议）。
+
+### 🚫 阻断项
+
+- [x] **原子写丢失原文件权限与元数据** — [`editor_core/document.py`](../../yate/editor_core/document.py)
+  `os.replace` 交换的是 inode：原文件的权限位（如 `0600`）、时间戳与以 xattr 承载的 POSIX ACL 会随旧 inode 一起丢失；
+  固定名 `.yate-tmp` 还存在并发保存冲突。
+  现改为 `tempfile.mkstemp(dir=parent, prefix="<name>.yate-tmp-")` 生成唯一临时文件，写完后
+  `shutil.copystat(target, tmp)` 继承目标元数据（POSIX 上同时复制 xattr，即 ACL 载体），再 `os.replace`。
+  守卫：`test_save_preserves_the_existing_permission_bits`（POSIX，Windows skip）、
+  `test_save_creates_a_missing_path_without_leaving_a_temp_file`（跨平台，断言无 `*.yate-tmp-*` 残留）。
+- [x] **信任检查与扩展加载的路径不一致（TOCTOU）** — [`services/extensions.py`](../../yate/services/extensions.py)
+  此前用 `Path.cwd()`（resolve 后）判定信任、却用未 resolve 的 `cwd / "extensions"` 加载：符号链接的 cwd 可以"以 A 通过校验、以 B 被加载"。
+  现统一为 `cwd = Path.cwd().resolve()`，判定与加载共用同一路径。
+  守卫：`test_startup_resolves_a_symlinked_cwd_for_trust_and_loading`（加载路径 `== real.resolve()`）、
+  `test_startup_reports_the_resolved_path_when_skipping_a_symlinked_cwd`。
+
+### ⚠️ 改进项
+
+- [x] **信任列表读取未处理编码错误** — [`services/trust.py`](../../yate/services/trust.py)
+  非法 UTF-8 字节此前抛 `UnicodeDecodeError`（可能让编辑器启动失败）；现用 `errors="replace"`，坏字节降级为 U+FFFD、合法行照常加载。
+  守卫：`test_load_tolerates_invalid_utf8_bytes`。
+- [x] **未知 action 名绑定静默吞键** — [`keymaps/base.py`](../../yate/keymaps/base.py)
+  `dispatch` 现检查 `KeyUi.execute_action` 的返回值；未注册时向消息行写 `unknown action: <name>` 并返回 `False`，按键落到后续处理器。
+  联动把 `KeyUi.execute_action` / `Editor.execute_action` / `PaletteScreen.execute_action` 改为返回 `bool`（palette 调用点、
+  smoke harness 的覆盖率包装器与 3 处测试替身同步）。
+  守卫：`test_binding_to_an_unknown_action_is_not_swallowed`、`test_binding_to_a_registered_action_is_dispatched`。
+- [x] **`modified` 回退比较的 O(N) 成本未说明** — [`editor_core/document.py`](../../yate/editor_core/document.py)
+  按审查建议的"注释说明"选项处理：属性 docstring 明确写出快路径 O(1)、回退路径 **O(N) in the line count**。
+- [x] **字体缓存命令 `shell=True` + 硬编码路径** — [`services/fonts.py`](../../yate/services/fonts.py)
+  改为列表参数 `[fc_cache, "-f", str(Path.home() / ".local" / "share" / "fonts")]`（无 shell、无重定向字符串），
+  补 `timeout=10`，失败记 `log.debug` 而不打断安装。
+  守卫：`test_install_unix_refreshes_the_cache_when_available`（含 `"shell" not in kwargs`）、
+  `test_install_unix_survives_a_failing_cache_refresh`（timeout / OSError 两变体）。
+- [x] **（第一份审查）信任文件目录权限** — [`services/trust.py`](../../yate/services/trust.py)
+  首次创建 `~/.yate` 时用 `mkdir(parents=True, mode=0o700)`，避免宽松 umask 或预置目录让其他用户注入受信路径。
+  守卫：`test_trust_workspace_creates_owner_only_directory`（POSIX）。
+
+### 门禁（实测）
+
+- `pytest tests/ -q` → exit 0 全绿（POSIX-only 用例在 Windows 上按预期 skip，共 2 条）
+- `pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**
+- `tools.smoke_test run --fail-only` → **87/87 场景、907/907 checks**，exit 0
+- 修复前置状态：3 个测试成员并行补守卫（`test_fonts` / `test_trust` + `test_editor_core` / `test_vim_keymap` + `test_extensions`），
+  产物均由主代理独立重跑复核
+
+### 实施注记（两处任务前提与实现不符，已校准）
+
+- **vim 普通模式仍吞未映射键**：`VimKeymap._handle_normal` 末尾无条件 `return True`（*swallow unmapped normal keys*，
+  既有 `test_unmapped_normal_key_is_swallowed` 依赖此语义）。因此普通模式下若扩展绑定指向未注册 action，
+  `dispatch` 会写 `unknown action: <name>` 提示、但按键最终仍被 vim 吞掉——这与"未映射键不插入也不冒泡"一致，
+  故**不改** `yate/keymaps/vim.py`；守卫改用唯一把 dispatch 结果直接上抛的功能键路径（`<f7>`）。
+- **信任条目在读取时逐条 resolve**：`load_trusted_workspaces` 对每条记录做 `Path(entry).resolve()`（既有行为），
+  所以 store 里写 symlink 路径与其目标等价，无法构造"只记录字面 link → 不被信任"的断言。
+  守卫因此改用两个真实可观测点：**被加载的目录**与 **skipped 消息**都必须使用 resolve 后的拼写
+  （`test_startup_resolves_a_symlinked_cwd_for_trust_and_loading`、`test_startup_reports_the_resolved_path_when_skipping_a_symlinked_cwd`），
+  并单列 `test_startup_treats_a_literal_symlink_entry_as_its_resolved_root` 显式记录该归一化行为。
+
+- [ ] **（附带发现，Low/中）symlink 重定向即可改变信任对象** — [`services/trust.py`](../../yate/services/trust.py)
+  信任按"读取时 resolve 后的路径"匹配：若 store 中某条目本身是 symlink 路径，链接被重定向后**无需重新 `:trust`** 即信任到新目标。
+  彻底修复需改存储策略（落盘真实路径 / inode 校验，或在 `:trust` 时拒绝写入 symlink 路径），改动面超出本轮审查范围，**未修**。

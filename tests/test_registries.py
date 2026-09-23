@@ -21,7 +21,7 @@ def _context() -> ActionContext:
     session = EditorSession(YateConfig())
     session.new_buffer()
     ui = KeyUi(
-        execute_action=lambda _name: None,
+        execute_action=lambda _name: True,
         message=lambda _text: None,
         command_prompt=lambda: None,
         find_prompt=lambda _forward: None,

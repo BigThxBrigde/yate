@@ -95,8 +95,11 @@ class _FakeWinreg(types.ModuleType):
 class _SubprocessRecorder:
     """Records ``subprocess.run`` calls and replays a scripted stdout."""
 
-    #: fonts.py catches this next to OSError, so the stand-in needs it too.
+    #: fonts.py catches these next to OSError, so the stand-in needs them too.
     SubprocessError = subprocess.SubprocessError
+    TimeoutExpired = subprocess.TimeoutExpired
+    #: The non-shell fc-cache call redirects stdout/stderr to DEVNULL.
+    DEVNULL = subprocess.DEVNULL
 
     def __init__(self, stdout: str = "", error: Optional[BaseException] = None) -> None:
         self.calls: list[tuple[Any, dict[str, Any]]] = []
@@ -327,13 +330,40 @@ def test_install_unix_copies_then_skips(monkeypatch: pytest.MonkeyPatch) -> None
 def test_install_unix_refreshes_the_cache_when_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With fc-cache on PATH the font cache is refreshed without checking it."""
+    """With fc-cache on PATH the cache is refreshed as a checked argv call."""
     recorder = _SubprocessRecorder()
     monkeypatch.setattr(fonts, "subprocess", recorder)
     monkeypatch.setattr(fonts, "shutil", _unix_shutil(which="/usr/bin/fc-cache"))
     _private("_install_unix")()
-    assert recorder.calls[0][0][0] == "fc-cache -f ~/.local/share/fonts >/dev/null 2>&1"
-    assert recorder.calls[0][1]["shell"] is True
+    args, kwargs = recorder.calls[0]
+    assert args[0] == [
+        "/usr/bin/fc-cache",
+        "-f",
+        str(Path.home() / ".local" / "share" / "fonts"),
+    ]
+    assert kwargs["stdout"] is subprocess.DEVNULL
+    assert kwargs["stderr"] is subprocess.DEVNULL
+    assert kwargs["timeout"] == 10
+    assert kwargs["check"] is False
+    # The refresh must not go through a shell any more.
+    assert "shell" not in kwargs
+
+
+@pytest.mark.parametrize(
+    "error",
+    [subprocess.TimeoutExpired("fc-cache", 10), OSError("gone")],
+    ids=["timeout", "oserror"],
+)
+def test_install_unix_survives_a_failing_cache_refresh(
+    monkeypatch: pytest.MonkeyPatch, error: BaseException
+) -> None:
+    """A refusing fc-cache is swallowed: the TTFs were already copied."""
+    recorder = _SubprocessRecorder(error=error)
+    monkeypatch.setattr(fonts, "subprocess", recorder)
+    monkeypatch.setattr(fonts, "shutil", _unix_shutil(which="/usr/bin/fc-cache"))
+    installed, _skipped = _private("_install_unix")()
+    assert installed != []
+    assert recorder.calls != []
 
 
 def test_install_bundled_fonts_reports_a_missing_package(

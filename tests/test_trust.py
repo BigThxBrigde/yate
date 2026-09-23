@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import stat
 from pathlib import Path
+
+import pytest
 
 from yate.services.trust import (
     is_trusted,
@@ -42,3 +46,37 @@ def test_comments_and_blank_lines_are_skipped(tmp_path: Path) -> None:
         f"# trusted by :trust\n\n{root}\n", encoding="utf-8"
     )
     assert load_trusted_workspaces(store) == {root.resolve()}
+
+
+def test_load_tolerates_invalid_utf8_bytes(tmp_path: Path) -> None:
+    """A corrupted store must not break startup: invalid bytes decode to
+    U+FFFD instead of raising, and the valid entries still load."""
+    store = tmp_path / "trusted_workspaces"
+    real = tmp_path / "repo"
+    real.mkdir()
+    # the leading garbage line is not valid UTF-8; the second line is
+    store.write_bytes(b"\xff\xfe/shared\n" + str(real).encode("utf-8") + b"\n")
+
+    trusted = load_trusted_workspaces(store)  # must not raise
+    # the surrounding valid entry survives the undecodable line
+    assert real.resolve() in trusted
+    assert is_trusted(real, store) is True
+    # the mangled line decodes to U+FFFD text, a path unrelated to *real*:
+    # it grants trust for nobody the caller actually opened
+    assert Path("\ufffd\ufffd/shared").resolve() not in {real.resolve()}
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits only")
+def test_trust_workspace_creates_owner_only_directory(tmp_path: Path) -> None:
+    """The first :trust creates the store directory owner-only so another
+    user cannot inject trusted workspace entries."""
+    store = tmp_path / "nested" / ".yate" / "trusted_workspaces"
+    root = tmp_path / "repo"
+    root.mkdir()
+    assert not store.parent.exists()
+
+    trust_workspace(root, store)
+
+    assert store.parent.is_dir()
+    assert stat.S_IMODE(store.parent.stat().st_mode) == 0o700
+    assert is_trusted(root, store)

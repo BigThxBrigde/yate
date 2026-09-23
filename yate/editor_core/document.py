@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import locale
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -74,6 +76,13 @@ class Document:
 
     @property
     def modified(self) -> bool:
+        """Whether the buffer differs from the last saved state.
+
+        The fast path is an O(1) edit-counter comparison; when the counter
+        cannot decide (see ``__init__``) this falls back to an exact
+        ``tuple(lines)`` comparison, which is **O(N) in the line count** and
+        therefore the expensive path on large buffers.
+        """
         if self.buffer.content_edits == self._saved_edits:
             return False
         return tuple(self.buffer.lines) != self._saved_lines
@@ -111,6 +120,12 @@ class Document:
         on-disk contents.  Encoding also happens before anything is written,
         so an unencodable character still leaves the file untouched.
 
+        ``os.replace`` swaps the inode, so the target's permission bits and
+        timestamps are copied onto the temporary file first (and, where the
+        platform exposes them, its extended attributes -- which is how POSIX
+        ACLs are carried).  Without that a restricted mode such as ``0600``
+        would come back as the process umask.
+
         Returns the path that was written.
         """
         if path is not None:
@@ -119,10 +134,19 @@ class Document:
             raise ValueError("cannot save a document without a path")
         text = self.buffer.get_text()
         data = text.encode(self.encoding)
-        tmp = self.path.with_name(self.path.name + ".yate-tmp")
+        target = self.path
+        # A unique sibling temp file avoids collisions between concurrent
+        # saves; mkstemp also creates it 0600 for the copy below.
+        fd, tmp_name = tempfile.mkstemp(
+            dir=target.parent, prefix=target.name + ".yate-tmp-"
+        )
+        tmp = Path(tmp_name)
         try:
-            tmp.write_bytes(data)
-            os.replace(tmp, self.path)
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+            if target.exists():
+                shutil.copystat(target, tmp)
+            os.replace(tmp, target)
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise

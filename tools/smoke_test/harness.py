@@ -259,9 +259,9 @@ def track_coverage() -> Generator[Coverage, None, None]:
         cov.note_command(text)
         original_run_command(self, text)
 
-    def execute_action(self: Editor, name: str) -> None:
+    def execute_action(self: Editor, name: str) -> bool:
         cov.note_action(name)
-        original_execute_action(self, name)
+        return original_execute_action(self, name)
 
     def app_init(self: YateApp, *args: object, **kwargs: object) -> None:
         # The name spaces are only complete once the shell has loaded the

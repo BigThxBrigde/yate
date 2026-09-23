@@ -610,9 +610,13 @@ class Editor:
         self.completion.after_editor_key(raw)
         return handled
 
-    def execute_action(self, name: str) -> None:
-        """Run a registered action by name (keymaps, palette, extensions)."""
-        self.actions.execute(name, ActionContext(self.session, self.key_ui))
+    def execute_action(self, name: str) -> bool:
+        """Run a registered action by name; ``False`` when it is unknown.
+
+        Called by keymaps (which report an unknown name and let the key fall
+        through), the palette and the extension bridge.
+        """
+        return self.actions.execute(name, ActionContext(self.session, self.key_ui))
 
     def insert_char(self, ch: str) -> None:
         self.session.buffer.insert_text(ch)

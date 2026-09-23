@@ -500,14 +500,18 @@ def load_startup_extensions(
         _report(records)
 
     directories: list[Path] = [*ext_dirs]
-    cwd_extensions = Path.cwd() / "extensions"
+    # One resolved spelling for both the trust decision and the load: a
+    # symlinked or swapped-in cwd must not be judged as one path and loaded
+    # as another (the trust store holds resolved roots too).
+    cwd = Path.cwd().resolve()
+    cwd_extensions = cwd / "extensions"
     if cwd_extensions.is_dir():
         # Workspace trust: opening a repository must not execute that
         # repository's own code, so a project ``./extensions`` auto-loads
         # only in workspaces the user trusted via ``:trust`` (the list
         # lives in ~/.yate/trusted_workspaces).  rc-declared and CLI
         # paths are deliberate user actions and stay unconditional.
-        if is_trusted(Path.cwd()):
+        if is_trusted(cwd):
             directories.append(cwd_extensions)
         else:
             messages.append(

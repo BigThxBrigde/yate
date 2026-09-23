@@ -6,6 +6,8 @@ Run with:  python -m pytest tests -v
 from __future__ import annotations
 
 import asyncio
+import os
+import stat
 from pathlib import Path
 from typing import Any, cast
 
@@ -261,6 +263,39 @@ def test_save_is_atomic_and_leaves_no_temp_file(tmp_path: Path) -> None:
     assert list(tmp_path.iterdir()) == [path]
 
 
+def test_save_creates_a_missing_path_without_leaving_a_temp_file(
+    tmp_path: Path,
+) -> None:
+    """Saving a brand new path works and never leaves a sibling temp file."""
+    path = tmp_path / "fresh.txt"
+    assert not path.exists()
+
+    doc = Document(path, TextBuffer("fresh content"))
+    doc.save()
+
+    assert path.read_text(encoding="utf-8") == "fresh content"
+    assert list(tmp_path.glob("*.yate-tmp-*")) == []
+    assert list(tmp_path.iterdir()) == [path]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits only")
+def test_save_preserves_the_existing_permission_bits(tmp_path: Path) -> None:
+    """``os.replace`` swaps the inode, so the target's mode (e.g. 0600 from a
+    secret or private file) must be copied onto the temp file before the swap
+    instead of falling back to the process umask."""
+    path = tmp_path / "private.txt"
+    path.write_text("old", encoding="utf-8")
+    path.chmod(0o600)
+
+    doc = Document.open(path)
+    doc.buffer.set_text("new")
+    doc.save()
+
+    assert path.read_text(encoding="utf-8") == "new"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert list(tmp_path.glob("*.yate-tmp-*")) == []
+
+
 def test_failed_save_keeps_previous_contents(tmp_path: Path) -> None:
     path = tmp_path / "note.txt"
     doc = Document(path, TextBuffer("original"), encoding="ascii")
@@ -437,8 +472,8 @@ class _FakeApp:
     def buffer(self) -> TextBuffer:
         return self.session.buffer
 
-    def execute_action(self, name: str) -> None:
-        self.actions.execute(name, ActionContext(self.session, self.ui))
+    def execute_action(self, name: str) -> bool:
+        return self.actions.execute(name, ActionContext(self.session, self.ui))
 
     def insert_char(self, ch: str) -> None:
         self.buffer.insert_text(ch)

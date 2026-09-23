@@ -111,7 +111,7 @@ class PaletteScreen(ModalScreen[None]):
         actions: ActionRegistry,
         open_path: Callable[[Path], None],
         focus_editor: Callable[[], None],
-        execute_action: Callable[[str], None],
+        execute_action: Callable[[str], bool],
         run_command: Callable[[str], None],
         refresh: Callable[[], None],
         **kwargs: Any,

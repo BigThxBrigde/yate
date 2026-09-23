@@ -83,6 +83,89 @@ def test_startup_loads_cwd_extensions_in_trusted_workspace(
     assert any(record.name == "a" for record in loader.loaded)
 
 
+def _symlinked_workspace(tmp_path: Path) -> tuple[Path, Path]:
+    """Build ``real/extensions/a.py`` plus a ``link -> real`` symlink.
+
+    Returns ``(real, link)``.  Symlink creation is unavailable on a stock
+    Windows setup, so callers must skip when it raises.
+    """
+    real = tmp_path / "real"
+    (real / "extensions").mkdir(parents=True)
+    (real / "extensions" / "a.py").write_text(_SETUP_OK, encoding="utf-8")
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not supported on this platform")
+    return real, link
+
+
+def test_startup_resolves_a_symlinked_cwd_for_trust_and_loading(
+    loader: ExtensionLoader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A symlinked cwd loads through the resolved root the trust store holds.
+
+    The trust store keeps resolved roots, so the project directory must be
+    resolved *before* it is loaded; judging one path and loading another is
+    exactly what the resolved ``cwd`` prevents.
+    """
+    real, link = _symlinked_workspace(tmp_path)
+    store = tmp_path / "trusted.txt"
+    monkeypatch.setattr(trust, "TRUST_FILE", store)
+    monkeypatch.chdir(link)
+
+    trust.trust_workspace(real, store)
+    messages = load_startup_extensions(loader, _startup_config())
+    assert not any("skipped untrusted" in message for message in messages)
+    loaded = next(record for record in loader.loaded if record.name == "a")
+    # The directory that was actually loaded is the resolved one, not the link.
+    assert loaded.path.parent.parent == real.resolve()
+
+
+def test_startup_reports_the_resolved_path_when_skipping_a_symlinked_cwd(
+    loader: ExtensionLoader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The untrusted-skip message names the resolved directory, not the link."""
+    real, link = _symlinked_workspace(tmp_path)
+    monkeypatch.setattr(trust, "TRUST_FILE", tmp_path / "trusted.txt")
+    monkeypatch.chdir(link)
+
+    messages = load_startup_extensions(loader, _startup_config())
+    skipped = [message for message in messages if "skipped untrusted" in message]
+    assert skipped, messages
+    assert str(real.resolve() / "extensions") in skipped[0]
+    assert str(link / "extensions") not in skipped[0]
+    assert all(record.name != "a" for record in loader.loaded)
+
+
+def test_startup_treats_a_literal_symlink_entry_as_its_resolved_root(
+    loader: ExtensionLoader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A literal symlink entry in the store equals the resolved root.
+
+    ``load_trusted_workspaces`` resolves every entry, so storing the symlink
+    spelling (instead of the real root) does *not* create a distinct trust
+    state: it resolves to the same root and the project extensions load.
+    """
+    real, link = _symlinked_workspace(tmp_path)
+    store = tmp_path / "trusted.txt"
+    store.write_text(f"{link}\n", encoding="utf-8")
+    monkeypatch.setattr(trust, "TRUST_FILE", store)
+    monkeypatch.chdir(link)
+
+    # The literal spelling resolves to the same root the loader judges.
+    assert trust.is_trusted(real, store)
+    messages = load_startup_extensions(loader, _startup_config())
+    assert not any("skipped untrusted" in message for message in messages)
+    assert any(record.name == "a" for record in loader.loaded)
+
+
 # --- discovery --------------------------------------------------------------
 
 

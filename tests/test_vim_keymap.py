@@ -67,8 +67,8 @@ class _Editor:
         return ActionContext(self.session, self.ui)
 
     # ------------------------------------------------------- UI entry points
-    def execute_action(self, name: str) -> None:
-        self.actions.execute(name, self.context())
+    def execute_action(self, name: str) -> bool:
+        return self.actions.execute(name, self.context())
 
     def message(self, text: str) -> None:
         self.messages.append(text)
@@ -630,6 +630,34 @@ def test_function_key_without_a_binding_is_consumed() -> None:
     assert keymap.handle_key(ctx, parse_key("<f6>")) is True
     assert keymap.mode is VimMode.NORMAL
     assert editor.buffer.get_text() == "abc"
+
+
+def test_binding_to_an_unknown_action_is_not_swallowed() -> None:
+    """A binding that names an unregistered action drops the key, and says so.
+
+    Normal mode deliberately swallows unmapped keys (see
+    ``test_unmapped_normal_key_is_swallowed``), so the new fall-through is
+    observable on the function-key path, which returns the dispatch result
+    directly.  A typo'd/never-registered action name must not eat the key in
+    silence any more.
+    """
+    editor, keymap, ctx = _setup("abc")
+    keymap.add_binding("<f7>", "nope_action")
+
+    assert keymap.handle_key(ctx, parse_key("<f7>")) is False
+    assert editor.messages[-1] == "unknown action: nope_action"
+    assert editor.buffer.get_text() == "abc"
+
+
+def test_binding_to_a_registered_action_is_dispatched() -> None:
+    """The same function-key path still runs a registered action."""
+    editor, keymap, ctx = _setup("abc")
+    calls: list[str] = []
+    editor.actions.register("f7_run", lambda _ctx: calls.append("ran"), "ext")
+    keymap.add_binding("<f7>", "f7_run")
+
+    assert keymap.handle_key(ctx, parse_key("<f7>")) is True
+    assert calls == ["ran"]
 
 
 def test_word_end_motion_wraps_to_the_next_line() -> None:

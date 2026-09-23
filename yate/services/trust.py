@@ -33,7 +33,10 @@ def load_trusted_workspaces(path: Path | None = None) -> set[Path]:
     """
     store = TRUST_FILE if path is None else path
     try:
-        raw = store.read_text(encoding="utf-8")
+        # A hand-edited or corrupted store must never break startup: invalid
+        # bytes decode to U+FFFD instead of raising UnicodeDecodeError, and
+        # the surrounding entries still load.
+        raw = store.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return set()
     trusted: set[Path] = set()
@@ -55,7 +58,12 @@ def trust_workspace(root: Path, path: Path | None = None) -> None:
     resolved = root.resolve()
     if resolved in load_trusted_workspaces(store):
         return
-    store.parent.mkdir(parents=True, exist_ok=True)
+    if not store.parent.exists():
+        # Create the per-user directory owner-only: the store lists the
+        # workspaces whose code may run automatically, so a pre-created
+        # world-writable directory (or a loose umask) must not let another
+        # user inject entries.
+        store.parent.mkdir(parents=True, mode=0o700)
     with store.open("a", encoding="utf-8") as fh:
         fh.write(f"{resolved}\n")
 

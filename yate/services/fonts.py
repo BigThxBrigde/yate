@@ -264,15 +264,23 @@ def _install_unix() -> tuple[list[str], list[str]]:
         else:
             shutil.copy2(ttf, dest)
             installed.append(ttf.name)
-    if shutil.which("fc-cache"):
-        # Equivalent to the previous os.system call: the same shell command
-        # (~ expansion and output redirection left to /bin/sh), exit code
-        # ignored, fire-and-forget.
-        subprocess.run(
-            "fc-cache -f ~/.local/share/fonts >/dev/null 2>&1",
-            shell=True,
-            check=False,
-        )
+    fc_cache = shutil.which("fc-cache")
+    if fc_cache:
+        # No shell: the cache root is an argv entry, so there is no quoting or
+        # ">/dev/null 2>&1" redirection to get wrong and a hung cache refresh
+        # cannot block the install.  Failure stays fire-and-forget -- the TTFs
+        # are already copied and the terminal merely needs one more restart.
+        fonts_root = Path.home() / ".local" / "share" / "fonts"
+        try:
+            subprocess.run(
+                [fc_cache, "-f", str(fonts_root)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            log.debug("fc-cache refresh skipped: %s", exc)
     return installed, skipped
 
 

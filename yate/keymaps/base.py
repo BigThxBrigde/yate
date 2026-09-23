@@ -183,7 +183,7 @@ class KeyUi:
     record.
     """
 
-    execute_action: Callable[[str], None]
+    execute_action: Callable[[str], bool]
     message: Callable[[str], None]
     command_prompt: Callable[[], None]
     find_prompt: Callable[[bool], None]
@@ -248,9 +248,14 @@ class Keymap:
         action = binding.action
         if callable(action):
             action(ctx)
-        else:
-            ctx.ui.execute_action(action)
-        return True
+            return True
+        if ctx.ui.execute_action(action):
+            return True
+        # An unregistered name -- a typo in a user binding, or an action whose
+        # extension was unloaded -- used to swallow the key silently.  Name it
+        # and report the key as unhandled so the other handlers still see it.
+        ctx.ui.message(f"unknown action: {action}")
+        return False
 
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
         binding = self.lookup(key)
