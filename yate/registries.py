@@ -14,7 +14,7 @@ concrete :class:`~yate.editor.Editor`.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Optional
 
 from yate.keymaps.base import ActionContext
 
@@ -35,7 +35,7 @@ class ActionRegistry:
     """Maps action names to context callables."""
 
     def __init__(self) -> None:
-        self._actions: Dict[str, Action] = {}
+        self._actions: dict[str, Action] = {}
 
     def register(
         self, name: str, func: Callable[[ActionContext], object], description: str = ""
@@ -55,7 +55,7 @@ class ActionRegistry:
         action.func(ctx)
         return True
 
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         """Sorted list of registered action names."""
         return sorted(self._actions)
 

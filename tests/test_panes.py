@@ -23,6 +23,7 @@ from yate.session import (
     Split,
     find_axis_split,
     leaves,
+    remove_node,
 )
 
 
@@ -344,3 +345,73 @@ def test_close_renormalizes_sizes() -> None:
         assert sum(outer.sizes) == pytest.approx(1.0)
 
     asyncio.run(_scenario())
+
+
+# --- tree ops: remove_node (M2 regression) ----------------------------------
+
+
+def test_remove_node_keeps_each_survivor_fraction() -> None:
+    """Dropping a leaf keeps every *other* pane's own fraction.
+
+    ``children`` / ``sizes`` are parallel lists, so removing the first pane of
+    ``[0.5, 0.25, 0.25]`` must leave the remaining two sharing ``[0.5, 0.5]``
+    (the old first-N slice wrongly produced ``[0.6667, 0.3333]``).
+    """
+    doc1 = make_doc("one\n")
+    doc2 = make_doc("two\n")
+    doc3 = make_doc("three\n")
+
+    def _tree() -> tuple[Split, Leaf, Leaf, Leaf]:
+        a = Leaf(1, doc1)
+        b = Leaf(2, doc2)
+        c = Leaf(3, doc3)
+        return Split("vertical", [a, b, c], [0.5, 0.25, 0.25]), a, b, c
+
+    # close the first pane -> the survivors keep their own equal shares
+    root, a, b, c = _tree()
+    after = remove_node(root, a)
+    assert isinstance(after, Split)
+    assert after.sizes == pytest.approx([0.5, 0.5])
+    assert after.children[0] is b
+    assert after.children[1] is c
+    assert leaves(after)[0] is b
+    assert leaves(after)[1] is c
+
+    # close the middle pane -> 0.5 and 0.25 renormalize to 2/3 and 1/3
+    # (assert the exact fractions: a padded literal would need a loose
+    # tolerance and could hide a real off-by-a-slot regression)
+    root, a, b, c = _tree()
+    after = remove_node(root, b)
+    assert isinstance(after, Split)
+    assert after.sizes == pytest.approx([2 / 3, 1 / 3])
+    assert after.children[0] is a
+    assert after.children[1] is c
+    assert leaves(after)[0] is a
+    assert leaves(after)[1] is c
+
+
+def test_remove_node_renormalizes_nested_survivors() -> None:
+    """A nested split renormalizes its own survivors, not a prefix slice.
+
+    Removing ``a`` from the inner ``[0.2, 0.3, 0.5]`` vertical split keeps the
+    ``b`` / ``c`` pair and renormalizes *their* sizes to ``[0.375, 0.625]``
+    (the old code sliced ``[0.2, 0.3]`` and produced ``[0.4, 0.6]``), while the
+    enclosing horizontal split keeps its own slot fractions and ordering.
+    """
+    a = Leaf(1, make_doc("a\n"))
+    b = Leaf(2, make_doc("b\n"))
+    c = Leaf(3, make_doc("c\n"))
+    sibling = Leaf(4, make_doc("d\n"))
+    inner = Split("vertical", [a, b, c], [0.2, 0.3, 0.5])
+    outer = Split("horizontal", [inner, sibling], [0.7, 0.3])
+
+    after = remove_node(outer, a)
+    assert isinstance(after, Split) and after is outer
+    nested = after.children[0]
+    assert isinstance(nested, Split) and nested is inner
+    assert nested.children[0] is b
+    assert nested.children[1] is c
+    assert nested.sizes == pytest.approx([0.375, 0.625])
+    # the outer slots (their order and fractions) are untouched
+    assert after.children[1] is sibling
+    assert after.sizes == pytest.approx([0.7, 0.3])

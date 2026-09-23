@@ -103,7 +103,10 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<f2>"), "shell_prompt", "Run shell command", CMD),
             KeyBinding(parse_key("<f3>"), "find_next", "Next match", CMD),
             KeyBinding(parse_key("<f4>"), "replace", "Find & replace", CMD),
-            KeyBinding(parse_key("<f5>"), "command_prompt", "Ex command line (:w :q :e :! ...)", CMD),
+            KeyBinding(
+                parse_key("<f5>"), "command_prompt",
+                "Ex command line (:w :q :e :! ...)", CMD,
+            ),
             KeyBinding(parse_key("<f8>"), "manual", "Open user manual (read-only)", HLP),
             KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
         ]

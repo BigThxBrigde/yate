@@ -121,7 +121,7 @@ class ExplorerTree(Tree[NodeData]):
         if line is not None:
             self.cursor_line = line
 
-    def _line_of(self, path: Path) -> int | None:
+    def _line_of(self, path: Path) -> Optional[int]:
         """Visible row index of the node representing *path*.
 
         Matches Textual's rendering order: depth-first over expanded nodes.
@@ -145,7 +145,7 @@ class ExplorerTree(Tree[NodeData]):
 
     def _find_node(
         self, node: TreeNode[NodeData], path: Path
-    ) -> TreeNode[NodeData] | None:
+    ) -> Optional[TreeNode[NodeData]]:
         """Depth-first search for the node representing *path*."""
         for child in node.children:
             if isinstance(child.data, Path) and child.data == path:
@@ -160,7 +160,7 @@ class ExplorerTree(Tree[NodeData]):
         self,
         node: TreeNode[NodeData],
         directory: Path,
-        expanded: set[Path] | None = None,
+        expanded: Optional[set[Path]] = None,
     ) -> None:
         placeholder = Text("", style=theme.active().fg_dim)
         for entry in self.workspace.list_dir(directory):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import locale
 import os
 import shutil
@@ -11,6 +12,13 @@ from pathlib import Path
 from typing import Optional
 
 from yate.editor_core.buffer import TextBuffer
+
+
+def _current_umask() -> int:
+    """The process umask, read without leaving it changed."""
+    value = os.umask(0)
+    os.umask(value)
+    return value
 
 
 class Document:
@@ -120,11 +128,21 @@ class Document:
         on-disk contents.  Encoding also happens before anything is written,
         so an unencodable character still leaves the file untouched.
 
-        ``os.replace`` swaps the inode, so the target's permission bits and
-        timestamps are copied onto the temporary file first (and, where the
-        platform exposes them, its extended attributes -- which is how POSIX
-        ACLs are carried).  Without that a restricted mode such as ``0600``
-        would come back as the process umask.
+        ``os.replace`` swaps the inode, so the target's permission bits (and,
+        where the platform exposes them, its extended attributes -- which is
+        how POSIX ACLs are carried) are copied onto the temporary file first;
+        without that a restricted mode such as ``0600`` would come back as the
+        process umask.  A brand-new file instead lands with the umask default
+        (usually ``0644``), like any other tool writes it.  The timestamps are
+        deliberately *not* inherited: the saved file must look freshly written
+        to build tools and file watchers.
+
+        The replacement targets the *path*: a symbolic link is swapped for a
+        regular file (no write-through), and other hard links to the previous
+        inode keep the old contents.  On Windows the swap needs the target to
+        be share-deletable by whoever holds it open, so a scanner or preview
+        holding a non-shared handle makes the save fail with
+        ``PermissionError`` -- the previous contents survive.
 
         Returns the path that was written.
         """
@@ -136,19 +154,37 @@ class Document:
         data = text.encode(self.encoding)
         target = self.path
         # A unique sibling temp file avoids collisions between concurrent
-        # saves; mkstemp also creates it 0600 for the copy below.
+        # saves; mkstemp creates it owner-only, which is fixed up below.
         fd, tmp_name = tempfile.mkstemp(
             dir=target.parent, prefix=target.name + ".yate-tmp-"
         )
         tmp = Path(tmp_name)
         try:
+            # ``fdopen`` takes ownership of ``fd``: the sentinel keeps the
+            # error path from closing a descriptor the handle already owns.
             with os.fdopen(fd, "wb") as fh:
+                fd = -1
                 fh.write(data)
             if target.exists():
+                # Inherit the permission bits and, on POSIX, the xattrs that
+                # carry ACLs -- but not the timestamps: a saved file must look
+                # freshly written to build tools and file watchers, so put
+                # them back to now (copystat copies atime/mtime as well).
                 shutil.copystat(target, tmp)
+                os.utime(tmp)
+            elif os.name == "posix":
+                # A new file gets the umask default, not mkstemp's 0600.
+                os.chmod(tmp, 0o666 & ~_current_umask())
             os.replace(tmp, target)
         except BaseException:
-            tmp.unlink(missing_ok=True)
+            # Wide on purpose: this path only re-raises after a best-effort
+            # cleanup, so no failure is ever swallowed.  Cleanup must not
+            # replace the original exception either.
+            if fd >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
             raise
         self._saved_edits = self.buffer.content_edits
         self._saved_lines = tuple(self.buffer.lines)

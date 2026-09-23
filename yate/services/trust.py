@@ -17,6 +17,8 @@ user happens to open.
 
 from __future__ import annotations
 
+import contextlib
+import os
 from pathlib import Path
 
 #: Path of the per-user trust store, next to the yaterc file.  Read at
@@ -58,14 +60,21 @@ def trust_workspace(root: Path, path: Path | None = None) -> None:
     resolved = root.resolve()
     if resolved in load_trusted_workspaces(store):
         return
-    if not store.parent.exists():
-        # Create the per-user directory owner-only: the store lists the
-        # workspaces whose code may run automatically, so a pre-created
-        # world-writable directory (or a loose umask) must not let another
-        # user inject entries.
-        store.parent.mkdir(parents=True, mode=0o700)
+    # Owner-only, both for a freshly created directory and for one that
+    # predates this code (``mode`` only applies on creation, and a loose umask
+    # would leave it group/world readable): the store lists the workspaces
+    # whose code may run automatically, so nobody else must be able to read or
+    # inject entries.  ``os.chmod`` is a no-op on Windows, where the mode bits
+    # carry no such meaning.
+    store.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    if os.name == "posix":
+        with contextlib.suppress(OSError):
+            os.chmod(store.parent, 0o700)
     with store.open("a", encoding="utf-8") as fh:
         fh.write(f"{resolved}\n")
+    if os.name == "posix":
+        with contextlib.suppress(OSError):
+            os.chmod(store, 0o600)
 
 
 def is_trusted(root: Path, path: Path | None = None) -> bool:

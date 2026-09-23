@@ -490,7 +490,15 @@ def load_startup_extensions(
         records = loader.load_directory(bundled, exclude=config.disabled_extensions)
         for record in records:
             owner = rc_owners.get(record.name)
-            if owner is not None and record.error is None:
+            # Same resolved path means the rc entry *is* the bundled script
+            # (e.g. extension_paths pointing at the bundled directory):
+            # de-duplication hands back the same record, which must not be
+            # reported as shadowing itself.
+            if (
+                owner is not None
+                and record.error is None
+                and owner.path.resolve() != record.path.resolve()
+            ):
                 messages.append(
                     f"extension {record.name}: the rc-declared script "
                     f"{owner.path} is shadowed by the bundled default; "

@@ -263,7 +263,9 @@ class PaletteScreen(ModalScreen[None]):
                 )
                 text.append(ch, style=style)
             if hint:
-                pad = max(1, 30 - len(display))
+                # cell count, not codepoints: a CJK filename occupies two
+                # cells per glyph and would otherwise shift the hint column
+                pad = max(1, 30 - theme.cell_len(display))
                 text.append(" " * pad, style=f"on {bg}" if bg else "")
                 text.append(hint, style=(f"{t.panel} on {bg}") if selected else t.fg_dim)
             text.append("\n")

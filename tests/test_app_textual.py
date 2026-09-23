@@ -2408,6 +2408,63 @@ def test_cycle_tab_with_one_tab_warns() -> None:
     asyncio.run(scenario())
 
 
+def test_cycle_tab_resets_the_previous_search(tmp_path: Path) -> None:
+    """Regression: ``:bn`` left the previous tab's ``(row, start, end)`` match
+    spans in the session, so the new document painted stale highlights and
+    ``n`` jumped to out-of-range coordinates.  Switching tabs must drop them.
+    """
+
+    async def scenario() -> None:
+        alpha = tmp_path / "alpha.txt"
+        beta = tmp_path / "beta.txt"
+        alpha.write_text("needle one\nfiller\nneedle two\n", encoding="utf-8")
+        beta.write_text("unrelated\n", encoding="utf-8")
+
+        app = YateApp(str(alpha))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+
+            # Open a second tab, then return to alpha so the search lands on
+            # the first document and a later ``:bn`` moves away from it.
+            app.editor.open_path(beta)
+            await pilot.pause()
+            app.editor.cycle_tab(-1)
+            await pilot.pause()
+            first = app.editor.session.doc
+            assert first.name == "alpha.txt"
+
+            # Run a live search on the first document: two matches in view.
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            for ch in "needle":
+                await pilot.press(ch)
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.editor.session.search.query == "needle"
+            assert len(app.editor.session.search.matches) == 2
+
+            # ``:bn`` switches tabs and must drop the previous tab's spans.
+            app.editor.cycle_tab(1)
+            await pilot.pause()
+            assert app.editor.session.doc.name == "beta.txt"
+            assert app.editor.session.search.matches == []
+            assert app.editor.session.search.query == ""
+
+            # ``n`` must not jump to the old document's out-of-range coords.
+            app.editor.find_next(True)
+            await pilot.pause()
+            row, _col = app.editor.session.buffer.cursor
+            assert 0 <= row < app.editor.session.buffer.line_count
+
+            # Switching back is harmless and the state stays reset.
+            app.editor.cycle_tab(-1)
+            await pilot.pause()
+            assert app.editor.session.doc is first
+            assert app.editor.session.search.matches == []
+
+    asyncio.run(scenario())
+
+
 def test_click_tab_switches_document(tmp_path: Path) -> None:
     async def scenario() -> None:
         a = tmp_path / "alpha.txt"

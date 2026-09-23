@@ -301,8 +301,16 @@ class Editor:
             self._ext_messages.append(text)
 
     def message(self, text: str, kind: str = "info") -> None:
-        """Write *text* on the message line."""
+        """Write *text* on the message line and refresh the status chip.
+
+        Dropped before the first mount (nothing is composed yet); callers that
+        must not lose a pre-mount message go through :meth:`_report`, which
+        buffers them.
+        """
+        if not self.mounted:
+            return
         self.prompt_bar.write(text, kind=kind)
+        self.status_bar.refresh_status()
 
     def refresh_ui(self) -> None:
         """Repaint the editor: views, status bar, chrome and LSP state."""
@@ -437,6 +445,12 @@ class Editor:
         )
 
     def new_buffer(self, show: bool = True) -> None:
+        """``:enew`` / new tab: append an empty buffer and make it active.
+
+        ``show=False`` is for internal replacements (the startup seed, the
+        fallback after closing the last tab): they must not dismiss the
+        welcome page or print a message.
+        """
         doc = self.session.new_buffer()
         if self.mounted:
             self.panes.show_doc(self.panes.active, doc)
@@ -479,6 +493,10 @@ class Editor:
             return
         if self.mounted:
             self.panes.show_doc(self.panes.active, self.session.doc)
+        # The previous tab's matches are (row, start, end) spans of *its*
+        # buffer: keeping them would paint stale highlights on the new
+        # document and send ``n`` to out-of-range coordinates.
+        self.session.reset_search()
         self.close_completion()
         self.refresh_ui()
 
@@ -619,6 +637,7 @@ class Editor:
         return self.actions.execute(name, ActionContext(self.session, self.key_ui))
 
     def insert_char(self, ch: str) -> None:
+        """Insert one character at the cursor (keymap ``insert_char``)."""
         self.session.buffer.insert_text(ch)
 
     # ================================================================== panes
@@ -667,7 +686,9 @@ class Editor:
     def only_pane(self) -> None:
         """``:only``: keep the active pane, close the others."""
         self.app.run_worker(
-            self.panes.only_active(),
+            # coroutine *functions* (partial), never built coroutines: an
+            # eager coroutine leaks when the worker never starts
+            partial(self.panes.only_active),
             group="pane", exclusive=True, exit_on_error=False,
         )
 
@@ -677,7 +698,7 @@ class Editor:
             self.message("only one pane open (use :q to quit)", kind="warn")
             return
         self.app.run_worker(
-            self.panes.close_active(),
+            partial(self.panes.close_active),
             group="pane", exclusive=True, exit_on_error=False,
         )
 
@@ -1188,6 +1209,7 @@ class Editor:
     # ============================================================= completion
 
     def close_completion(self) -> None:
+        """Dismiss the completion popup if it is open."""
         self.completion.close()
 
     def request_completion(

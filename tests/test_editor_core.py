@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import os
 import stat
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -293,6 +294,31 @@ def test_save_preserves_the_existing_permission_bits(tmp_path: Path) -> None:
 
     assert path.read_text(encoding="utf-8") == "new"
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert list(tmp_path.glob("*.yate-tmp-*")) == []
+
+
+def test_save_resets_the_timestamp_and_keeps_permission_bits(
+    tmp_path: Path,
+) -> None:
+    """A save must look freshly written even though ``copystat`` carries the
+    target's mode/xattrs onto the temp file: the inherited atime/mtime are put
+    back to now, so build tools and file watchers notice the change."""
+    path = tmp_path / "note.txt"
+    path.write_text("before", encoding="utf-8")
+    if os.name == "posix":
+        path.chmod(0o600)
+    old = time.time() - 3600.0
+    os.utime(path, (old, old))
+    assert abs(path.stat().st_mtime - old) < 1.0, "mtime must start stale"
+
+    doc = Document.open(path)
+    doc.buffer.set_text("after")
+    doc.save()
+
+    assert path.read_text(encoding="utf-8") == "after"
+    assert abs(time.time() - path.stat().st_mtime) < 5.0
+    if os.name == "posix":
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert list(tmp_path.glob("*.yate-tmp-*")) == []
 
 

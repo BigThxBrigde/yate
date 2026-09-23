@@ -307,17 +307,20 @@ def remove_node(node: Node, target: Leaf) -> Optional[Node]:
     """
     if isinstance(node, Leaf):
         return None if node is target else node
-    new_children: list[Node] = []
-    for child in node.children:
+    # ``children`` and ``sizes`` are parallel lists: keep the pairs together so
+    # the survivors retain *their own* fractions (slicing the first N sizes
+    # would shift every fraction after the removed slot).
+    kept: list[tuple[Node, float]] = []
+    for child, size in zip(node.children, node.sizes):
         result = remove_node(child, target)
         if result is None:
             # the target leaf lived directly in this split: drop it
             continue
-        new_children.append(result)
-    if len(new_children) == 1:
-        return new_children[0]
-    node.children = new_children
-    node.sizes = _normalized(node.sizes[: len(new_children)])
+        kept.append((result, size))
+    if len(kept) == 1:
+        return kept[0][0]
+    node.children = [child for child, _size in kept]
+    node.sizes = _normalized([size for _child, size in kept])
     return node
 
 

@@ -35,7 +35,11 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("delete_forward", lambda ctx: ctx.buffer.delete_forward(), "Delete char after cursor")
     reg("delete_word_back", lambda ctx: ctx.buffer.delete_backward(word=True), "Delete word back")
     reg("delete_word_fwd", lambda ctx: ctx.buffer.delete_forward(word=True), "Delete word forward")
-    reg("delete_to_line_start", lambda ctx: ctx.buffer.delete_to_line_start(), "Delete to line start")
+    reg(
+        "delete_to_line_start",
+        lambda ctx: ctx.buffer.delete_to_line_start(),
+        "Delete to line start",
+    )
     reg("duplicate_line", lambda ctx: ctx.buffer.duplicate_line(), "Duplicate line / selection")
     reg("delete_line", lambda ctx: ctx.buffer.delete_lines(), "Delete line")
     reg("move_line_up", lambda ctx: ctx.buffer.move_line(-1), "Move line up")
@@ -67,8 +71,16 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("select_right", lambda ctx: ctx.buffer.move_right(select=True), "Select right")
     reg("select_up", lambda ctx: ctx.buffer.move_up(select=True), "Select up")
     reg("select_down", lambda ctx: ctx.buffer.move_down(select=True), "Select down")
-    reg("select_word_left", lambda ctx: ctx.buffer.move_left(select=True, word=True), "Select word left")
-    reg("select_word_right", lambda ctx: ctx.buffer.move_right(select=True, word=True), "Select word right")
+    reg(
+        "select_word_left",
+        lambda ctx: ctx.buffer.move_left(select=True, word=True),
+        "Select word left",
+    )
+    reg(
+        "select_word_right",
+        lambda ctx: ctx.buffer.move_right(select=True, word=True),
+        "Select word right",
+    )
     reg(
         "select_line_start",
         lambda ctx: ctx.buffer.move_line_start(select=True, toggle=False),

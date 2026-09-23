@@ -113,10 +113,15 @@ def _path_matches(prefix: str, workspace: Workspace) -> list[str]:
     expanded = os.path.expanduser(prefix)
     try:
         p = Path(expanded)
-        parent = p.parent if p.name else p
-        base = p.name
     except ValueError:
         return []
+    if expanded.endswith(("/", os.sep)):
+        # ``Path("src/")`` normalizes the separator away and would look like
+        # the entry "src" inside its parent; with a trailing separator the
+        # prefix *is* the directory to list and there is no needle to match.
+        parent, base = p, ""
+    else:
+        parent, base = (p.parent if p.name else p), p.name
     if not parent.is_absolute() and workspace.root is not None:
         parent = workspace.root / parent
     if not parent.exists() or not parent.is_dir():

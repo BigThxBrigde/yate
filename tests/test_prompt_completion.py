@@ -5,6 +5,8 @@ Covers the ``prompt_completions`` dispatch, the argument completion of the
 behind the path modes -- all through the public entry point.
 """
 
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from yate.config import YateConfig
-from yate.prompt_completion import prompt_completions
+from yate.prompt_completion import _path_matches, prompt_completions
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
@@ -71,6 +73,27 @@ def test_path_mode_excludes_the_exact_name(tmp_path: Path) -> None:
 def test_path_mode_returns_nothing_for_a_missing_directory(tmp_path: Path) -> None:
     """A prefix whose parent does not exist yields no candidates."""
     assert _prompt("nope/deep", mode="open", root=tmp_path) == []
+
+
+def test_path_prefix_with_trailing_separator_lists_the_directory(
+    tmp_path: Path,
+) -> None:
+    """A trailing separator means "list this directory", not "match an entry".
+
+    With ``src/`` as the prefix there is no needle to match, so the entries
+    *inside* ``src`` are offered with their ``src/`` prefix intact (the old
+    code re-appended the whole prefix and produced corrupt ``ssrc...`` names).
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "alpha.py").write_text("x", encoding="utf-8")
+    (tmp_path / "src" / "beta.py").write_text("x", encoding="utf-8")
+    (tmp_path / "other").mkdir()
+    workspace = Workspace(tmp_path)
+
+    assert _path_matches("src/", workspace) == ["src/alpha.py", "src/beta.py"]
+    # a partial name still resolves to the directory entry itself
+    assert _path_matches("src", workspace) == ["src/"]
+    assert _path_matches("sr", workspace) == ["src/"]
 
 
 def test_path_mode_returns_nothing_when_the_parent_is_a_file(tmp_path: Path) -> None:
