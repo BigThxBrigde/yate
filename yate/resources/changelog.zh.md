@@ -1,6 +1,6 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-09-23 · yate 0.2.4
+> 由 git 历史自动生成于 2026-09-24 · yate 0.2.4
 
 ## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
 
@@ -26,6 +26,8 @@
 
 ### 问题修复
 
+- 修复 PR #13 审查问题：原子保存保留权限、信任路径统一 resolve、未知 action 不再吞键等 ([`33584e6`](https://gitee.com/jermaine/yate/commit/33584e640a443b96b90e950eb99e8f1805d5ce3b))
+  - 含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/issues/review.md 的 PR #13 章节
 - 修复补全弹窗吞掉按键：其余键正常分发，可继续输入过滤候选 ([`bbeb5f6`](https://gitee.com/jermaine/yate/commit/bbeb5f6375142e1a64febf6049a4db33812c5efa))
   - 弹窗打开时仅消费 tab/enter/up/down/esc，字符照常写入缓冲区并按新前缀重新查询；Ctrl+S / Ctrl+Z 等全局快捷键恢复；新增测试与冒烟守卫（原场景此前恒真）
 - 修复冒烟命令总集快照时机 ([`d6765c4`](https://gitee.com/jermaine/yate/commit/d6765c419394afeac842667d489c49973b699f6a))
@@ -73,6 +75,9 @@
 
 ### 文档
 
+- 全量核对测试 mock 目标，确认重构后无静默失效 ([`406fcd8`](https://gitee.com/jermaine/yate/commit/406fcd85df4bfb354cd173cbc1dbd0bf7e68f362))
+- 登记 Esc 关闭弹窗后被在途 worker 重开的竞态（仅登记未修） ([`60ea88e`](https://gitee.com/jermaine/yate/commit/60ea88eb66e51f94c88cde8eab1b24cc25781152))
+- 补齐维护类提交的中文翻译并刷新变更日志 ([`217a93f`](https://gitee.com/jermaine/yate/commit/217a93f98e09413d35882f4f0852e646ee3f3b8f))
 - 刷新双语变更日志以记录归因修正 ([`e8d4dd4`](https://gitee.com/jermaine/yate/commit/e8d4dd4cad18e771a96f5d7ffdd6b333eb8ee754))
 - 修正补全弹窗吞键问题的归因记录 ([`fd697bb`](https://gitee.com/jermaine/yate/commit/fd697bb3c04c6b4e72dd310b128e2047b5487e6e))
   - master 实测未受影响：当时未识别键会冒泡到 YateApp.on_key；本轮分层重构取消冒泡后才显现

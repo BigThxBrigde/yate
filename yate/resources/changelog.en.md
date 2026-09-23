@@ -1,6 +1,6 @@
 # Changelog
 
-> Generated from the git history on 2026-09-23 · yate 0.2.4
+> Generated from the git history on 2026-09-24 · yate 0.2.4
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
 
@@ -21,6 +21,7 @@
 
 ### Bug Fixes
 
+- address the PR #13 review findings ([`33584e6`](https://gitee.com/jermaine/yate/commit/33584e640a443b96b90e950eb99e8f1805d5ce3b))
 - let non-popup keys fall through while the popup is open ([`bbeb5f6`](https://gitee.com/jermaine/yate/commit/bbeb5f6375142e1a64febf6049a4db33812c5efa))
 - snapshot the command universe after the shell loads it ([`d6765c4`](https://gitee.com/jermaine/yate/commit/d6765c419394afeac842667d489c49973b699f6a))
 - complete a directory once its separator is typed ([`c55f71e`](https://gitee.com/jermaine/yate/commit/c55f71e3793e80919305e3d453e6bde6b75de480))
@@ -56,6 +57,9 @@
 
 ### Documentation
 
+- audit every test mock target after the path migration ([`406fcd8`](https://gitee.com/jermaine/yate/commit/406fcd85df4bfb354cd173cbc1dbd0bf7e68f362))
+- log the popup re-show race after escape ([`60ea88e`](https://gitee.com/jermaine/yate/commit/60ea88eb66e51f94c88cde8eab1b24cc25781152))
+- translate the remaining maintenance entries ([`217a93f`](https://gitee.com/jermaine/yate/commit/217a93f98e09413d35882f4f0852e646ee3f3b8f))
 - refresh both editions for the attribution fix ([`e8d4dd4`](https://gitee.com/jermaine/yate/commit/e8d4dd4cad18e771a96f5d7ffdd6b333eb8ee754))
 - correct the popup-swallow attribution after probing master ([`fd697bb`](https://gitee.com/jermaine/yate/commit/fd697bb3c04c6b4e72dd310b128e2047b5487e6e))
 - keep the popup-fix entry translated ([`7180d5f`](https://gitee.com/jermaine/yate/commit/7180d5f11d5dadc32a614931728ea0a0e604dcce))
