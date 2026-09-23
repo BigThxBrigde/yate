@@ -249,6 +249,11 @@ popup intercepts all keys").
   (typing `p` / `h` after `Ctrl+Space` extends the buffer and keeps filtering)
   plus the smoke scenario `regress_completion_staleness`, which now asserts the
   popup really opened (`popup_was_open`) instead of passing vacuously.
-* **Attribution** — the swallow was introduced by `e70dd15` (2026-09-12) and
-  shipped since v0.1.0; the layering refactor (`9fa5ac8`) only moved it from
-  `editor_view/editor.py::on_key` to `editor.py::handle_key` unchanged.
+* **Attribution** (re-verified 2026-09-23) — the `return True` came in with
+  `e70dd15` (2026-09-12), but back then `EditorView.on_key` did **not**
+  `stop()` unrecognised keys, so they bubbled up to `YateApp.on_key`'s
+  fallback routing and still reached the buffer: running the same probe on
+  master (`673b077`) typed `p` / `h` fine and `Ctrl+Z` still undid, with the
+  popup open.  The layering refactor (`9fa5ac8`) made `EditorView.on_key` stop
+  every key unconditionally and moved the popup branch into
+  `Editor.handle_key`, so the stale `return True` finally swallowed input.
