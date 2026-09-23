@@ -148,3 +148,66 @@ fail_under = 60
 - **不做**：改现有 `track_coverage` 语义；给冒烟加覆盖门槛；本轮不修 issue（调研中发现的新问题仅记录到 `review.md`）。
 - **渲染层豁免已申明**：`app.py`/`cli.py`/`editor_view/editor.py` 等 Textual 渲染/外壳走冒烟域（pilot 驱动），不强制行覆盖，避免表单造假。
 - 阈值与豁免以**真实首次测量**为准，宁可临时放宽并记录，不粉饰数字。
+
+---
+
+## 七、实施记录（2026-09-23）
+
+### 7.1 真实基线（全量套件，`--cov=yate --cov-branch`）
+
+**82.5% 行（7958/9650）/ 69.4% 分支（2300/3312）**，合并口径 79.1%。缺口排序（<80%）：
+`__main__.py` 0%、`editor_term/pty_proc.py` 33.8%、`services/fonts.py` 50.2%、`keymaps/vim.py` 50.6%、
+`editor_term/shells.py` 61.4%、`services/shell.py` 63.0%、`editor_term/emulator.py` 70.9%、
+`editor_core/search.py` 75.0%、`extensions/python_lsp.py` 75.6%、`editor_view/completion.py` 77.8%、
+`prompt_completion.py` 78.2%、`editor_core/buffer.py` 79.6%。
+
+### 7.2 三处与计划原文的偏离（均以实测为依据）
+
+| 计划原文 | 实际做法 | 依据 |
+|---|---|---|
+| omit `app.py` / `cli.py` / `editor_view/{editor,palette,completion,terminal}.py` | **omit 只留 `yate/__main__.py`** | 这些"渲染/外壳"实测 **98.1% / 87.0% / 94.1% / 92.7% / 77.8% / 85.0%**：pilot 测试已覆盖，豁免等于抹掉真实数字 |
+| omit `yate/editor_core/buffer_syntax_leaf.py` | 删除该条 | 文件不存在（原文标注"若存在；按实际核对"） |
+| `--cov-fail-under=60` 进 `addopts`、`fail_under` 进 `[tool.coverage.report]` | 门槛**只放 CI 命令行**，值 **75** | 实测 coverage 会把 `fail_under` 应用到**任何** `--cov` 运行：`pytest tests/test_paths.py --cov=yate` → `FAIL ... Total coverage: 0.12%`、exit 1，会卡死所有局部调试 |
+
+### 7.3 两处已过期的前提
+
+- `ActionRegistry.register(..., allow_override)` **不存在**（源码只有 `register(name, func, description)`）；正确语义是"同名注册即替换"。
+- `services/trust.py` 实测 **100% 行 + 100% 分支**，"trust 缺覆盖"不成立。
+
+### 7.4 单元测试补测结果
+
+| 模块 | 基线 | 现在 | 备注 |
+|---|---|---|---|
+| `editor_core/buffer.py` | 79.6% | **96%** | 剩余为防御分支 |
+| `editor_core/search.py` | 75.0% | **95%** | 剩余含 `_nearest_index` 的无匹配守卫（公开 API 不可达） |
+| `editor_core/document.py` | 93.4% | **96%** | 剩余为原子写失败的清理路径 |
+| `session.py` / `registries.py` | 91.9 / 92.3% | **100 / 100%** | |
+| `config.py` | 98.9% | **100%** | `show_hidden` 布尔校验 |
+| `diagnostics.py` | 87.6% | **98%** | 剩余为真 Windows 控制台 ANI 启用与非 Windows 早退（平台互斥） |
+| `services/workspace.py` | 86.1% | **99%** | 剩余 1 条 ignore 解析的防御弧 |
+| `prompt_completion.py` | 78.2% | **97%** | 剩余为 `Path()` 抛 ValueError / `iterdir` 抛 OSError 的分支 |
+| `extensions/python_lsp.py` | 75.6% | **98%** | 剩余为 `shlex.split` 返回空的防御弧 |
+| `services/shell.py` | 63.0% | **100%** | |
+| `editor_term/shells.py` | 61.4% | **78%（Windows 侧）** | POSIX 分支仅在 Linux CI 覆盖（已加平台守卫） |
+| `editor_term/emulator.py` | 70.9% | **93%** | 68 个用例；剩余为状态机防御弧 |
+
+新增/扩充测试文件：`test_session.py`、`test_registries.py`、`test_prompt_completion.py`、
+`test_python_lsp_ext.py`、`test_shell.py`、`test_terminal_emulator.py`（新），
+`test_editor_core.py`、`test_config.py`、`test_diagnostics.py`、`test_workspace_filter.py`（扩充）。
+
+### 7.5 冒烟
+
+按 §3.2 补了三个场景：`workspace_trust`（未信任工作区跳过 `./extensions` 并在 `:trust` 后加载；信任库重定向到临时文件，不碰用户 `~/.yate`）、
+`undo_redo_goal_col`、`replace_all_clamp`。冒烟从 **62/62 场景、651 checks → 65/65 场景、688 checks**。
+
+**一处偏离 §六 的产品修复**：`replace_all_clamp` 触发了 harness 的 `invariant:cursor_col`
+（"光标必须落在行内"），根因是 `SearchEngine.replace_all` 把行改短后未钳制光标（§2.2 本来就要求这条行为存在）。
+按"门禁必须绿"处理为 2 行修复：在记录 undo 快照前 `min(col, len(line))` 钳制（undo 仍能经 `before` 恢复原光标），
+提交 `fix(search): clamp the cursor after replace_all and cover it in smoke`。
+
+### 7.6 未做 / 遗留
+
+- `track_coverage`（命令/action 使用率）保持原语义，未加门槛（§3.1/§3.3）。
+- 数据驱动的冒烟补场景（跑 `run --coverage` 找从未触发的命令）未做。
+- 仍有低覆盖模块未处理：`pty_proc.py` 33.8%（缺口最大）、`fonts.py` 50.2%、`keymaps/vim.py` 50.6%、
+  `editor_view/completion.py` 77.8%；其中 `vim.py` 已有专属测试计划（纯逻辑，可无头驱动）。
