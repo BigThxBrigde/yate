@@ -1,10 +1,58 @@
 {
+  "0096123": {
+    "summary": "无头测试覆盖 vim 键位"
+  },
+  "033c7e9": {
+    "summary": "修复追踪测试在 pyright 严格模式下的告警"
+  },
+  "03c9dee": {
+    "summary": "更新变更日志"
+  },
   "04ec16e": {
     "summary": "新增 --setup-defaults/--cleanup-defaults 一键初始化与清理用户配置目录",
     "detail": "模板以 .example 原后缀发放、改名 .py 才激活；cleanup 需确认且默认保留 data/；新增 crash.uninstall 解决 Windows 句柄占用"
   },
+  "05106d5": {
+    "summary": "保存改为原子写并限制撤销栈内存",
+    "detail": "临时文件加 os.replace 落盘，撤销栈上限 1000 步，并跳过符号链接目录防止死循环"
+  },
+  "06b1f37": {
+    "summary": "修复冒烟测试在文档路径为空时的崩溃"
+  },
+  "082bc7d": {
+    "summary": "语法高亮防抖并复用未失效的 token",
+    "detail": "编辑时沿用上一帧 token 缓存着色，文档或文件类型切换仍立即失效"
+  },
+  "0971a72": {
+    "summary": "更新 yaterc_pywright 方案文档"
+  },
+  "0984361": {
+    "summary": "冒烟测试覆盖全部已注册命令与动作",
+    "detail": "新增 19 个场景（65→86），命令与动作覆盖达到 43/43、65/65，未改动产品代码"
+  },
+  "0d06e94": {
+    "summary": "打包脚本改用 .NET SHA256 接口计算文件哈希"
+  },
+  "0d4a2fe": {
+    "summary": "冒烟脚本新增搜索与文件/标签场景（C/D 组）"
+  },
   "1060811": {
     "summary": "补充变更日志门禁、运行时文档屏与 CLI 参数测试"
+  },
+  "107b17c": {
+    "summary": "刷新随包变更日志资源"
+  },
+  "1325f71": {
+    "summary": "重构窗格分割模块以解除类型循环依赖"
+  },
+  "14e6dd3": {
+    "summary": "测试套件从 unittest 迁移到 pytest 并隔离 HOME"
+  },
+  "1758fff": {
+    "summary": "修复发布工具被忽略的问题"
+  },
+  "17a0259": {
+    "summary": "删除旧的未更名 manual.md"
   },
   "1998c82": {
     "summary": "为两条 CI 流水线添加变更日志新鲜度门禁"
@@ -12,11 +60,44 @@
   "1a4e493": {
     "summary": "修复 :q 始终退出；按文件启动时隐藏资源管理器"
   },
+  "1c0a086": {
+    "summary": "修复日志卸载钩子：恢复 sys.excepthook 并去重 atexit"
+  },
+  "1c0a7e0": {
+    "summary": "新增代码覆盖率与测试扩充计划"
+  },
+  "1e15a16": {
+    "summary": "新增行/分支覆盖率门禁并扩充核心测试",
+    "detail": "CI 以 --cov-branch --cov-fail-under=75 运行；buffer/search/document 覆盖率大幅提升"
+  },
+  "20227ad": {
+    "summary": "文档新增冒烟测试框架修复、扩展与改造方案"
+  },
+  "21db510": {
+    "summary": "新增架构边界规则并对齐 TYPE_CHECKING 指南"
+  },
   "2490bb3": {
     "summary": "README 与手册补充变更日志入口"
   },
+  "25fdbd8": {
+    "summary": "冒烟脚本新增历史缺陷回归守卫（R 组）"
+  },
+  "26076fd": {
+    "summary": "把 YateApp 的协作方拆到 yate.app_parts",
+    "detail": "内置 ex 命令表、补全控制器、资源管理器增删改与终端生命周期独立成模块，YateApp 保留同名薄委托"
+  },
   "26ba949": {
     "summary": "文档同步八套内置主题与模板安装方式（README、手册、主题指南）"
+  },
+  "277abf9": {
+    "summary": "新增窗格模型下沉至 L1 session 的计划"
+  },
+  "27b267c": {
+    "summary": "修复主题背景色；资源管理器支持键盘操作",
+    "detail": "ctrl+b/ctrl+e 开关与聚焦，a/A 新建、r 重命名、d/Del 带确认删除"
+  },
+  "28a2a41": {
+    "summary": "在 pack/ 下新增跨平台 PyInstaller 构建脚本"
   },
   "28d74c5": {
     "summary": "随包附带 Dracula 与 Ayu 主题模板，复制为 *.py 后即可启用"
@@ -24,18 +105,164 @@
   "2b8b737": {
     "summary": "移动光标时保持语法配色"
   },
+  "2cf85a1": {
+    "summary": "欢迎页横幅改用 ANSI Shadow figlet 风格"
+  },
+  "2ee2586": {
+    "summary": "窗格树模型下沉至 session.py（Plan G）",
+    "detail": "删除 editor_view/pane_types.py，Leaf/Split/ViewState 与树操作并入 L1 session，EditorSession 仍与窗格无关"
+  },
+  "33190c5": {
+    "summary": "把变更日志维护附录从手册移到 README"
+  },
+  "35830eb": {
+    "summary": "更新日志重构计划"
+  },
+  "35fa904": {
+    "summary": "新增日志重构计划"
+  },
+  "3835554": {
+    "summary": "英文设为默认 README，中文改名 README.zh.md"
+  },
+  "3a6f9f9": {
+    "summary": "修复 trace 日志级别解析并改为惰性创建日志文件",
+    "detail": "falsy 级别不再被改写为 DEBUG；YATE_TRACE=1 遇提前退出命令时不再残留空日志"
+  },
+  "3ad2a7e": {
+    "summary": "加固 rc 语言服务器解析并覆盖声明式 LSP 路径",
+    "detail": "拒绝仅由点号组成的文件类型并裁剪空白，11 条新测试补齐 yate/config.py 分支覆盖"
+  },
+  "3b4319a": {
+    "summary": "改进退出处理并补充错误覆盖"
+  },
+  "3ca822c": {
+    "summary": "修复终端面板布局晚于启动时丢失 PTY 早期输出"
+  },
   "3f4c4db": {
     "summary": "修复 Windows CI 竞态：停止期间的 LSP 子进程与 8.3 短路径"
   },
   "4144a72": {
     "summary": "基于 git 历史的双语变更日志生成器"
   },
+  "449eb30": {
+    "summary": "在未发布段记录 pytest 迁移"
+  },
   "4739dc3": {
     "summary": "崩溃诊断持久化：经 faulthandler 写入 ~/.yate/data",
     "detail": "native crash 与未捕获异常都会落盘为带时间戳的 .err 文件，正常退出时自动清理"
   },
+  "475a650": {
+    "summary": "帮助、欢迎页与文档补充集成终端说明"
+  },
+  "47dac93": {
+    "summary": "新增 yate UI 冒烟测试工具（run/snapshot/compare）"
+  },
+  "483b667": {
+    "summary": "打包新增 --dist 产物暂存并强制使用 .venv 解释器",
+    "detail": "同名版本子目录被替换，写出 SHA256SUMS.txt，并以 --version 冒烟测试把关；缺少 .venv 直接报错退出"
+  },
+  "4b0695a": {
+    "summary": "文档记录场景覆盖率轮次与前后对比",
+    "detail": "命令/动作覆盖由 63%/78% 提升至 100%/100%，场景 65→86、断言 688→889"
+  },
+  "4cb06a3": {
+    "summary": "审计计划文档与当前代码的一致性"
+  },
+  "4ccd904": {
+    "summary": "命令行裸数字跳转行号，新增 Ctrl+G 跳转提示"
+  },
+  "4cdf4da": {
+    "summary": "将崩溃诊断与追踪日志统一到 yate/logs.py"
+  },
+  "4d357cc": {
+    "summary": "冒烟脚本新增压力场景与别名覆盖（S 组）",
+    "detail": "含按键模糊、多标签、大文件等场景，命令覆盖率升至 60%"
+  },
+  "4ded5ac": {
+    "summary": "修复懒加载日志流的 None 判断依赖类型存根问题"
+  },
+  "4df4e2b": {
+    "summary": "修复冒烟测试发现的三个编辑器状态缺陷",
+    "detail": "涉及缩进后光标越界、保存失败清空文件、无输出命令卡死命令行"
+  },
+  "4fec66d": {
+    "summary": "新增发布工具并简化发布流程"
+  },
+  "5190225": {
+    "summary": "修复撤销/重做后脏标记不准确",
+    "detail": "为合并编辑引入权重计数，必要时回退到精确行比较"
+  },
+  "53a7e09": {
+    "summary": "新增方案文档"
+  },
+  "53af6de": {
+    "summary": "用 theme_dirs 与 --theme-dir 支持自定义主题目录",
+    "detail": "从外部 *.py 加载主题，优先级为 内置 < 默认目录 < yaterc < --theme-dir"
+  },
+  "544e56d": {
+    "summary": "冒烟脚本新增编辑与选择场景（A/B 组）"
+  },
+  "54cf062": {
+    "summary": "为可执行文件生成基于 logo 的图标",
+    "detail": "新增 tools.pack icon 子命令生成 pack/yate.ico，Windows 构建启用图标，Linux 保持无图标"
+  },
+  "54de33c": {
+    "summary": "更新技能文档"
+  },
+  "57bcdd6": {
+    "summary": "按单模块设计重写崩溃与追踪计划"
+  },
+  "5ac2bb4": {
+    "summary": "更新开发方案文档"
+  },
+  "5b03805": {
+    "summary": "修复失败的单元测试"
+  },
+  "5c22c8d": {
+    "summary": "冒烟脚本新增窗格、资源管理器与视图场景（E/F/G 组）"
+  },
+  "5e69220": {
+    "summary": "新增 --theme 参数，修复 --theme-dir 的 ~ 展开"
+  },
   "5f4cc48": {
     "summary": "随主题变色的滚动条与可点击标签栏"
+  },
+  "5ff9d8b": {
+    "summary": "修复发布工具并补全源码版本号"
+  },
+  "61bc850": {
+    "summary": "更新问题跟踪并新增 LSP 修复方案"
+  },
+  "61f988d": {
+    "summary": "测试与冒烟场景迁移至编辑器层"
+  },
+  "641412c": {
+    "summary": "更新 CHANGELOG"
+  },
+  "649f113": {
+    "summary": "修复删除文件夹关闭标签时未通知 LSP 的问题"
+  },
+  "64e2dd4": {
+    "summary": "PTY 测试覆盖各平台后端与门面失败路径"
+  },
+  "669f017": {
+    "summary": "vscode 键位下 F5 打开 ex 命令行"
+  },
+  "677f867": {
+    "summary": "变更日志排除发布文档提交以稳定门禁"
+  },
+  "68c797d": {
+    "summary": "修复保存失败时 :wq 仍强制退出",
+    "detail": "保存失败或未命名缓冲区现保留编辑并提示，避免丢失未保存内容"
+  },
+  "6b43972": {
+    "summary": "文档收尾 Plan E/F：计划、规则、用户文档与变更日志"
+  },
+  "6bb2179": {
+    "summary": "修复 test_app_textual 的竞态"
+  },
+  "6bbe908": {
+    "summary": "测试覆盖会话、注册表、外壳与补全模块"
   },
   "6cf4fea": {
     "summary": "LSP didChange 同步重试、扩展卸载钩子与打包规格跟踪"
@@ -43,20 +270,79 @@
   "6e77ebe": {
     "summary": "补充用户配置初始化/清理服务层、CLI 参数透传与崩溃句柄释放测试"
   },
+  "6e9f013": {
+    "summary": "新增 Python 代码风格规范"
+  },
   "6fa7663": {
     "summary": "为发布提交补充中文翻译"
+  },
+  "719e73a": {
+    "summary": "测试显式引用主题清理 fixture 以消除告警"
+  },
+  "738204e": {
+    "summary": "以窄接口模块协议替换 AppProtocol",
+    "detail": "外壳不再对外暴露宽 AppProtocol，改按模块暴露窄协议"
   },
   "738c2f1": {
     "summary": "文档同步一键初始化/清理命令（手册、主题与 yaterc 指南、README）"
   },
+  "74202ac": {
+    "summary": "冻结构建随包捆绑 tree-sitter 后端与 python/bash 语法",
+    "detail": "spec 显式收集子模块、原生绑定与 *.scm 高亮查询"
+  },
   "74c8938": {
     "summary": "泛化 Markdown 文档屏，新增 :changelog 命令与 --changelog 参数"
+  },
+  "76518e0": {
+    "summary": "CI 固定 Gitee 为 origin，让变更日志门禁在 GitHub 通过",
+    "detail": "checkout 会把 origin 指向 GitHub 镜像，导致已发布段被误判过期"
   },
   "78253f0": {
     "summary": "发布 v0.1.1 双语变更日志"
   },
+  "783f491": {
+    "summary": "文档与扩展随包捆绑进 yate，并接入 PyInstaller 打包",
+    "detail": "新增 yate/paths.py 统一资源定位，自动加载捆绑扩展（可用 disabled_extensions 跳过）"
+  },
+  "78a2696": {
+    "summary": "日志重构：移除 crash/tracing 外壳，直接导入单例"
+  },
+  "798df3a": {
+    "summary": "更新变更日志"
+  },
   "7b5dd93": {
     "summary": "项目版本改为从 yate/__init__.py 动态读取"
+  },
+  "7b62b6c": {
+    "summary": "wheel 附带 docs/，安装后手册链接可解析"
+  },
+  "7c69c6b": {
+    "summary": "stop() 等待进行中的连接，确保已启动的 LSP 进程退出"
+  },
+  "7cdd551": {
+    "summary": "新增 onefile PyInstaller spec，产出独立 dist/yate.exe"
+  },
+  "7d0e698": {
+    "summary": "修复字体安装跳过无法删除的注册表残留"
+  },
+  "7ddaced": {
+    "summary": "文档新增补全过期校验修复方案"
+  },
+  "802467d": {
+    "summary": "开启第二轮覆盖率计划（PTY、字体、弹窗）"
+  },
+  "807c199": {
+    "summary": "更新问题跟踪文档，整理全量代码审查问题"
+  },
+  "844cd0a": {
+    "summary": "注释与 docstring 全部改为英文"
+  },
+  "8477ec0": {
+    "summary": "修复 :enew 后欢迎页重复出现，改为一次性显示",
+    "detail": ":welcome 命令可手动唤回欢迎页"
+  },
+  "8566fac": {
+    "summary": "更新 README.zh.md"
   },
   "85cb9ad": {
     "summary": "防护 tree-sitter 0.26 在 Windows 上的堆内存损坏"
@@ -64,18 +350,85 @@
   "88d6b52": {
     "summary": "内置只读用户手册查看器（F8 / :manual）"
   },
+  "8937dc3": {
+    "summary": "忽略冒烟测试生成的临时 JSON 报告"
+  },
+  "8ae5da6": {
+    "summary": "为所有配色方案补齐提示符配色"
+  },
+  "8af7457": {
+    "summary": "vim 键位绑定 ctrl+/ 切换，冒烟脚本改用 F5 进命令行",
+    "detail": "此前 ctrl+/ 被普通模式吞掉，vsc 与 vim 只能单向切换"
+  },
+  "8b17bf1": {
+    "summary": "双语手册同步最新功能"
+  },
+  "8b66b89": {
+    "summary": "新增可选的运行时 trace 日志",
+    "detail": "默认关闭，经 YATE_TRACE/YATE_TRACE_LEVEL 或 yaterc 选项开启，写入 ~/.yate/data/logs"
+  },
   "8cd80b2": {
     "summary": "键位：资源管理器与编辑器间的窗口切换"
   },
+  "8e9337a": {
+    "summary": "新增 :set filetype 手动切换语法与文件类型"
+  },
+  "90b71cc": {
+    "summary": "修正变更日志的主仓库地址"
+  },
+  "91d1345": {
+    "summary": "文档新增运行时 trace 日志实现方案"
+  },
+  "91d40d8": {
+    "summary": "vim 键位支持 F1 到 F12"
+  },
+  "925ea06": {
+    "summary": "文档记录重构后的冒烟测试框架并提交基线"
+  },
+  "93845b3": {
+    "summary": "覆盖层命令清除旧状态消息，静默命令补回执",
+    "detail": "成功命令统一用绿色；:term 显隐、:set terminal_height 与单标签 :bn/:bp 会给出提示"
+  },
+  "942821a": {
+    "summary": "规则要求子代理并行执行且上限五个"
+  },
   "949ed01": {
     "summary": "新增 GitHub Actions CI（Linux/Windows 矩阵）"
+  },
+  "94d78c0": {
+    "summary": "重命名 controllers 为 app_features、explorer_files 为 explorer"
+  },
+  "97b6205": {
+    "summary": "测试覆盖工作区列举、变更与嗅探路径"
+  },
+  "9828b24": {
+    "summary": "修复 PTY 启动失败时退出 Future 未完成"
+  },
+  "9b76ae4": {
+    "summary": "仅 vim 键位下用 : 打开 ex 命令行"
+  },
+  "9e6b487": {
+    "summary": "README 补充冒烟测试用法"
+  },
+  "9ea2ac5": {
+    "summary": "修复终端面板无法用键盘关闭：识别真实的 Ctrl+grave 键名"
+  },
+  "9f94d8e": {
+    "summary": "冒烟测试批量注入按键并降低轮询间隔以提速",
+    "detail": "移除每键约 20ms 的空转睡眠，多个输入场景提速数倍"
   },
   "9fa5ac8": {
     "summary": "架构分层重构：外壳瘦身并移除 app_features 与窄接口，新增 Editor 调度层与 EditorSession 会话层",
     "detail": "用户可见变化：扩展里的 api.app 由 YateApp 变为 ExtensionContext（可用字段见扩展文档）；api.keymaps 由 dict 变为 KeymapSet。"
   },
+  "a1c35b2": {
+    "summary": "规则新增子代理静默丢失的防护条款"
+  },
   "a1d81d6": {
     "summary": "CI 拉取完整历史以支持变更日志门禁"
+  },
+  "a270bd3": {
+    "summary": "新增代码审查修复计划记录"
   },
   "a2e3195": {
     "summary": "新增 Gitee Go 流水线运行全量单元测试"
@@ -87,32 +440,141 @@
     "summary": "新增 One Dark/Light 与 Gruvbox dark/light 四套内置主题",
     "detail": "内置主题由 4 套扩至 8 套，默认仍为 mocha，可用 :theme 即时切换"
   },
+  "a6dcbef": {
+    "summary": "字体测试覆盖注册表扫描、检测、安装与设置改写"
+  },
   "a819973": {
     "summary": "双语用户手册（英/中），打开时套用主题，修复表格布局"
+  },
+  "a89a720": {
+    "summary": "扩展加载增加工作区信任门禁",
+    "detail": "新增 :trust 命令与 ~/.yate/trusted_workspaces 信任库；未受信工作区的 ./extensions 不再自动加载"
+  },
+  "ab75198": {
+    "summary": "更新开发方案文档"
+  },
+  "ac41c84": {
+    "summary": "文档同步 --help 输出与 CLI 选项说明"
   },
   "ad28ef5": {
     "summary": "LSP 支持：自动补全与诊断"
   },
+  "adae5f7": {
+    "summary": "忽略 pyenv 本地配置 .python-version"
+  },
+  "adfbc9c": {
+    "summary": "冒烟测试基线目录迁入 smoke_test 包内"
+  },
   "b0ca383": {
     "summary": "打包时刷新随包变更日志"
+  },
+  "b0d154d": {
+    "summary": "编辑核心记住垂直移动的目标列",
+    "detail": "跨短行下移后不再永久丢失原列，与 vim / VS Code 行为一致"
   },
   "b0f95a1": {
     "summary": "tree-sitter 语法后端，支持扩展注册语法"
   },
+  "b2658a6": {
+    "summary": "忽略本地 CodeBuddy 工作区数据"
+  },
+  "b33706c": {
+    "summary": "新增 git 提交规范文件并修复 :wq 命令"
+  },
+  "b3b4e81": {
+    "summary": "README 顶部醒目展示双语手册链接"
+  },
   "b6d1071": {
     "summary": "新增 yate --diag 诊断命令并扩展 --version 输出"
+  },
+  "ba6d7a6": {
+    "summary": "命令面板改绑 alt+shift+p"
   },
   "bcd0426": {
     "summary": "基于 buffer 的自动补全与 bash 式 Tab 补全"
   },
+  "bf2b06a": {
+    "summary": "修复 Nerd Font 图标、提示符回显与重复标签栏，新增欢迎横幅",
+    "detail": "命令面板默认键改为 ctrl+shift+a，ctrl+shift+p 被 Windows Terminal 占用"
+  },
+  "bf46092": {
+    "summary": "新增扩展、主题与 LSP 配置指南"
+  },
+  "c020bc6": {
+    "summary": "LSP 通知改为向 worker 传递协程函数而非已构建协程"
+  },
+  "c1f83fe": {
+    "summary": "文档更正退出动作结论并登记冒烟调查问题"
+  },
+  "c2be8dd": {
+    "summary": "记录第二轮覆盖率结果与冒烟覆盖修复"
+  },
+  "c33258b": {
+    "summary": "新增 vscode 工作区配置并更新 gitignore"
+  },
+  "c55f71e": {
+    "summary": "修复键入路径分隔符后目录补全为空",
+    "detail": "此前键入 / 会清空补全弹窗，需再输入子项首字母才恢复"
+  },
+  "cc4b1f6": {
+    "summary": "修复补全触发与校验逻辑的若干边界情况"
+  },
+  "ceba77f": {
+    "summary": "修复 test_vsplit_with_file_and_only 并升级版本"
+  },
+  "cf67891": {
+    "summary": "移除变更日志中的多余换行"
+  },
+  "d1bfdbf": {
+    "summary": "对照代码审计分层计划并收紧守护测试"
+  },
+  "d2c49df": {
+    "summary": "同步 README 与当前实现"
+  },
   "d2ce815": {
     "summary": "随包捆绑 JetBrains Mono Nerd Font；修复 Windows Terminal 配置覆盖"
+  },
+  "d4919c7": {
+    "summary": "重写崩溃与追踪计划以匹配实现"
+  },
+  "d6765c4": {
+    "summary": "修复冒烟命令总集快照时机"
+  },
+  "db82bce": {
+    "summary": "扩展可注册自定义语法高亮，随包附带 C# 示例"
   },
   "db93b52": {
     "summary": "随包扩展遮蔽时告警；包内剔除字节码；修复 Windows 8.3 配置路径"
   },
+  "e065440": {
+    "summary": "AI 文档改为英文并同步更新"
+  },
+  "e1615f0": {
+    "summary": "新增 yaterc language_servers 声明式选项并自动激活"
+  },
+  "e28de3c": {
+    "summary": "修复编辑器视口跟随光标并支持滚动"
+  },
+  "e3e5a37": {
+    "summary": "更新遮罩层主题一致性方案"
+  },
+  "e449dd1": {
+    "summary": "测试覆盖诊断报告边界情况"
+  },
+  "e5f847b": {
+    "summary": "重命名 app_parts 为 controllers，去掉 *_ops 模块名"
+  },
   "e70dd15": {
     "summary": "修复关闭窗格命令、按键冲突、手册搜索与中文字形"
+  },
+  "e8f8d05": {
+    "summary": "新增拆分并移除 AppProtocol 的草案计划"
+  },
+  "ea3a323": {
+    "summary": "修复 replace_all 后光标越界并在冒烟中覆盖"
+  },
+  "eb4016e": {
+    "summary": "命令面板列出全部命令与动作，可按全名搜索"
   },
   "ecadd41": {
     "summary": "新增 vim 风格窗格分割与资源管理器过滤"
@@ -120,13 +582,63 @@
   "ee7cd53": {
     "summary": "集成终端面板（PTY 驱动），快捷键开关"
   },
+  "ef1d964": {
+    "summary": "初始提交：yate 终端编辑器"
+  },
+  "f002de4": {
+    "summary": "手册支持内置搜索（/ 或 Ctrl+F）"
+  },
+  "f01b713": {
+    "summary": "补全测试覆盖弹窗几何与缓冲区补全源"
+  },
+  "f056703": {
+    "summary": "新增 AI 协作文档"
+  },
+  "f0da8b2": {
+    "summary": "退出时干净拆解后台服务，避免打印 traceback"
+  },
+  "f1787bc": {
+    "summary": "重构冒烟测试框架：标记化场景与 Rich 报告"
+  },
+  "f25aaba": {
+    "summary": "冒烟脚本新增集成场景（H 组）"
+  },
+  "f33c54a": {
+    "summary": "重构审查记录结构并拆分修复计划"
+  },
+  "f355a44": {
+    "summary": "把 PyInstaller spec 移入 pack/ 并用 SPECPATH 锚定路径"
+  },
+  "f3df035": {
+    "summary": "拆分 refresh_ui 为多个子方法并更新过期文档"
+  },
+  "f3e8c89": {
+    "summary": "README 补充可执行文件图标章节并同步中文版",
+    "detail": "中文版删除重复拼接内容并镜像英文更新，测试数修正为 612"
+  },
+  "f677c73": {
+    "summary": "整理并修正 git 提交规范文档"
+  },
+  "f690bf7": {
+    "summary": "初始提交"
+  },
   "f78bc6e": {
     "summary": "双目标渲染与已发布段新鲜度门禁"
+  },
+  "fa1ae55": {
+    "summary": "补全前冲刷待发的 didChange，优先用解释器旁的 pyright",
+    "detail": "补全弹窗上限由 50 提到 250，避免标准库模块被截断"
   },
   "fc74d5f": {
     "summary": "生成 v0.1.0 双语变更日志并接入发布工作流"
   },
+  "fd251e1": {
+    "summary": "记录覆盖率实现与标定过程"
+  },
   "fd48e3c": {
     "summary": "阻塞操作移入后台线程，保持界面流畅"
+  },
+  "fdbfa10": {
+    "summary": "无头测试覆盖终端模拟器"
   }
 }
