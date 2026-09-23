@@ -73,6 +73,7 @@
 
 ### 文档
 
+- 变更日志记录补全弹窗按键放行修复 ([`5a1afbd`](https://gitee.com/jermaine/yate/commit/5a1afbdc862cbccdfc24fd2d90c6f9a162cdd52e))
 - 补齐全部缺失的中文翻译并刷新双语变更日志 ([`32e5649`](https://gitee.com/jermaine/yate/commit/32e56490166bece249be93982769f7c31833521c))
   - zh_overrides.json 由 42 条扩至 202 条，重新生成后有 0 条缺译
 - 注释与 docstring 全部改为英文 ([`844cd0a`](https://gitee.com/jermaine/yate/commit/844cd0acefd38997968bc53038914bc5f6ffcba8))
