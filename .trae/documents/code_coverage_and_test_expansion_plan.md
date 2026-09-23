@@ -271,9 +271,12 @@ Linux 侧总量只在 CI 上测得到，本地没有它的数字；在没有两�
 两条都有非显然的成因，记录如下：
 
 - **命令 `explorer` 没人调用**：ctrl+b 走的是 action `toggle_explorer`（此前已覆盖），命令名本身没有场景用过；
-- **action `quit` 的按键路径不可达**：ctrl+q 是 Textual 的 App 级 priority binding（`YateApp.action_quit` → `Editor.quit`），
-  事件从不进入编辑器 keymap，注册表条目只能像 palette / 扩展那样经 `execute_action("quit")` 触达
-  （依据写在 `scenarios/files.py::_quit_action_ctrl_q` 的 docstring 里，主代理复核时确认属实）。
+- **action `quit` 在 UI 上不可达**（两条独立原因；成员提供、主代理复核属实）：
+  ① ctrl+q 是 Textual 的 App 级 priority binding（`YateApp.action_quit` → `Editor.quit`），事件从不进入编辑器 keymap，
+  `keymaps/vsc.py` 的 `<ctrl+q>` 绑定被遮蔽；② 命令面板刻意去重与同名命令重名的 action（`palette.py::_rebuild_entries`），
+  `quit` 命令存在 → 同名 action 条目被丢弃。
+  因此该注册条目只能经 `execute_action("quit")`（扩展/测试路径）触达；用户可见的两条退出路径（ctrl+q、`:quit`）都有场景覆盖。
+  该条目属"注册冗余"，已作为 Low 记入 `.trae/issues/review.md`（本轮不改产品源码）。
 
 结果（全量冒烟，`run --coverage`）：
 
@@ -286,8 +289,11 @@ Linux 侧总量只在 CI 上测得到，本地没有它的数字；在没有两�
 - 86/86 场景 PASS、exit 0；`pyright yate/ tests/ tools/` 0 诊断；本轮**未改产品源码**（`yate/` 零 diff）。
 - 新增场景一律不改既有场景（避免 `compare` 基线 drift）；也未为新增场景写入 `smoke_baselines/`
   （`compare` 对无基线场景 SKIP，与最近三轮新增场景的做法一致）。
-- 三处打桩/绕行值得记录：`:font` 场景把 `yate.services.fonts.ensure_font` 换成
+- 四处打桩/绕行值得记录：`:font` 场景把 `yate.services.fonts.ensure_font` 换成
   `SimpleNamespace(detail=..., has_nerd_font=True)` 替身并在 `finally` 恢复（绝不碰真实字体/注册表）；
   `quick_open` / `command_palette` / `focus_editor` 的按键路径被 `Editor.handle_key` 直接拦截（不经注册表），
-  场景用 `execute_action` 触达并在 docstring 注明。
+  场景用 `execute_action` 触达并在 docstring 注明；
+  `:termclose` 只能在面板隐藏时经 ex 命令行触达（面板显示后 `TerminalView.on_key` 吞掉除 toggle 键外的全部按键并转发给 shell），
+  因此 `terminal_termclose` 走的是产品文档化的 `terminal already hidden` 警告分支，隐藏主分支由既有 `terminal_panel_toggle`（`Ctrl+``）覆盖——
+  同一段代码，不构成盲区。
 - 子代理存活与产出：4 个成员全部实际落盘并被复核（12+7 场景主代理重跑 PASS），无零产出成员；未出现判死场景。
