@@ -232,7 +232,9 @@ def _register_windows_user_font(fonts_dir: Path) -> tuple[list[str], list[str]]:
                 try:
                     winreg.DeleteValue(key, name)
                 except OSError:
-                    pass
+                    # Nothing was removed, so the slot did not shift: step over
+                    # it instead of retrying the same value for ever.
+                    i += 1
                 continue  # indices shift after deletion; re-read same slot
             i += 1
         for value_name, full_path in expected.items():
