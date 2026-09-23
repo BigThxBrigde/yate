@@ -116,6 +116,12 @@ class TextBuffer:
         # against the value recorded at the last save: O(1) dirty tracking
         # that stays exact across undo/redo, unlike a full-text diff.
         self.content_edits: int = 0
+        # Desired column for vertical movement (vim/VS Code semantics):
+        # consecutive up/down motions remember the column the cursor started
+        # from, so crossing a shorter line does not permanently pull the
+        # cursor to that line's end.  Cleared by any horizontal move, edit
+        # or explicit cursor positioning (see :meth:`set_cursor`).
+        self._goal_col: Optional[int] = None
 
     # ------------------------------------------------------------------ state
 
@@ -143,6 +149,7 @@ class TextBuffer:
         self.anchor = None
         self._undo.clear()
         self._redo.clear()
+        self._goal_col = None
         self.content_version += 1
         self.content_edits += 1
 
@@ -153,8 +160,10 @@ class TextBuffer:
         of going through an undoable edit) call this so syntax highlight
         caches are re-synchronized on the next repaint.  Also counts one
         content edit: out-of-band mutations cannot be undone, so the only
-        way back to a clean state is saving again.
+        way back to a clean state is saving again.  The vertical goal
+        column is cleared because the lines may have changed shape.
         """
+        self._goal_col = None
         self.content_version += 1
         self.content_edits += 1
 
@@ -168,6 +177,7 @@ class TextBuffer:
         self.lines = list(snap.lines)
         self.cursor = snap.cursor
         self.anchor = snap.anchor
+        self._goal_col = None
         if changed:
             self.content_version += 1
 
@@ -175,6 +185,9 @@ class TextBuffer:
         after = self._snapshot()
         if after == before:
             return
+        # content changed: the remembered vertical column may be past the
+        # end of the mutated line, so vertical tracking restarts
+        self._goal_col = None
         lines_changed = after.lines != before.lines
         weight = 1 if lines_changed else 0
         if kind == "char" and self._undo:
@@ -263,7 +276,8 @@ class TextBuffer:
         """Move the cursor to *pos*, clamped to the text, handling selection.
 
         Public so stateful keymaps (vim motions) can position the cursor
-        without re-implementing the clamp/anchor semantics.
+        without re-implementing the clamp/anchor semantics.  Explicit
+        positioning ends vertical goal-column tracking.
         """
         r, c = pos
         r = max(0, min(r, len(self.lines) - 1))
@@ -273,10 +287,12 @@ class TextBuffer:
         elif not select:
             self.anchor = None
         self.cursor = (r, c)
+        self._goal_col = None
 
     def select_all(self) -> None:
         self.anchor = (0, 0)
         self.cursor = (len(self.lines) - 1, len(self.lines[-1]))
+        self._goal_col = None
 
     # ------------------------------------------------------------ mutations
 
@@ -438,15 +454,21 @@ class TextBuffer:
 
     def move_up(self, select: bool = False) -> None:
         r, c = self.cursor
+        goal = self._goal_col if self._goal_col is not None else c
         if r > 0:
             r -= 1
-        self.set_cursor((r, c), select)
+        self.set_cursor((r, goal), select)
+        # set_cursor cleared the goal; restore it so consecutive vertical
+        # motions keep aiming at the column the run started from
+        self._goal_col = goal
 
     def move_down(self, select: bool = False) -> None:
         r, c = self.cursor
+        goal = self._goal_col if self._goal_col is not None else c
         if r < len(self.lines) - 1:
             r += 1
-        self.set_cursor((r, c), select)
+        self.set_cursor((r, goal), select)
+        self._goal_col = goal
 
     def move_line_start(self, select: bool = False, toggle: bool = True) -> None:
         r, c = self.cursor

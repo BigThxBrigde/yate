@@ -56,6 +56,43 @@ def test_undo_redo() -> None:
     assert buf.get_text() == "hello world"
 
 
+def test_vertical_movement_keeps_desired_column() -> None:
+    buf = TextBuffer("long line here\nabc\nanother long line")
+    buf.set_cursor((0, 10))
+    buf.move_down()  # short line clamps the cursor to its end
+    assert buf.cursor == (1, 3)
+    buf.move_down()  # the goal column survives the short line
+    assert buf.cursor == (2, 10)
+
+
+def test_vertical_movement_goal_resets_on_horizontal_move() -> None:
+    buf = TextBuffer("long line here\nabc\nanother long line")
+    buf.set_cursor((0, 10))
+    buf.move_down()  # (1, 3), goal col 10
+    buf.move_left()  # explicit horizontal move ends tracking
+    buf.move_down()
+    assert buf.cursor == (2, 2)
+
+
+def test_vertical_movement_goal_resets_on_edit() -> None:
+    buf = TextBuffer("long line here\nabc\nanother long line")
+    buf.set_cursor((0, 10))
+    buf.move_down()  # (1, 3), goal col 10
+    buf.insert_text("xy")  # edit ends tracking
+    assert buf.cursor == (1, 5)
+    buf.move_down()
+    assert buf.cursor == (2, 5)
+
+
+def test_vertical_movement_goal_with_selection() -> None:
+    buf = TextBuffer("long line here\nabc\nanother long line")
+    buf.set_cursor((0, 10))
+    buf.move_down(select=True)
+    buf.move_down(select=True)
+    assert buf.cursor == (2, 10)
+    assert buf.selection() == ((0, 10), (2, 10))
+
+
 def test_typed_chars_coalesce_in_one_undo_step() -> None:
     buf = TextBuffer("")
     for ch in "abc":
