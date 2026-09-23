@@ -239,17 +239,49 @@ def test_modified_tracks_undo_back_to_saved_state(tmp_path: Path) -> None:
     assert not doc.modified
     doc.buffer.move_doc_end()
     doc.buffer.insert_text(" world")
-    assert doc.modified
     doc.save()
     assert not doc.modified
-    doc.buffer.insert_text("!")
+    # a discrete (non-coalesced) edit undoes exactly back to the saved text
+    doc.buffer.insert_text("x", kind="step")
     assert doc.modified
-    # undoing past the save point must clear the flag again
-    while doc.buffer.undo():
-        pass
+    assert doc.buffer.undo()
+    assert doc.buffer.get_text() == "hello world"
+    assert not doc.modified
+    # undoing further crosses the save point: content differs -> dirty
+    assert doc.buffer.undo()
     assert doc.buffer.get_text() == "hello"
+    assert doc.modified
+    assert doc.buffer.redo()
+    assert not doc.modified
+
+
+def test_modified_when_save_lands_inside_coalesced_step(tmp_path: Path) -> None:
+    """Saving mid-step makes the counter miss the save point (one undo rewinds
+    the whole step); the exact line comparison must still decide correctly."""
+    path = tmp_path / "note.txt"
+    doc = Document(path, TextBuffer("hello"))
+    doc.buffer.move_doc_end()
+    doc.buffer.insert_text(" world")
+    doc.save()
+    doc.buffer.insert_text("!")  # coalesces onto the pre-save step
+    assert doc.modified
+    assert doc.buffer.undo()  # rewinds past the save point to "hello"
+    assert doc.buffer.get_text() == "hello"
+    assert doc.modified  # "hello" != saved "hello world"
+
+
+def test_modified_with_coalesced_typing_since_creation(tmp_path: Path) -> None:
+    """Mirror of the undo_redo smoke scenario: type fast (coalesced into one
+    undo step), undo, redo -- the dirty flag must follow the saved state."""
+    doc = Document(Path("note.txt"), TextBuffer(""))
+    for ch in "hello":
+        doc.buffer.insert_text(ch)
+    assert doc.modified
+    assert doc.buffer.undo()
+    assert doc.buffer.get_text() == ""
     assert not doc.modified
     assert doc.buffer.redo()
+    assert doc.buffer.get_text() == "hello"
     assert doc.modified
 
 

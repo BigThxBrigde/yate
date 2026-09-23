@@ -31,10 +31,13 @@ class Document:
         # Manual syntax/filetype override (`:set filetype=...`); ``None``
         # means the type is detected from the path suffix.
         self.filetype_override: Optional[str] = None
-        # Buffer edit count at the last save; ``modified`` compares this
-        # counter (O(1), exact across undo/redo) instead of diffing the full
-        # text on every keystroke repaint.
+        # Buffer edit count and line snapshot at the last save.  ``modified``
+        # compares the O(1) counter first; when it differs (e.g. the save
+        # landed in the middle of a coalesced typing step, or the undo stack
+        # dropped old steps) it falls back to an exact line comparison, so
+        # the flag stays correct across undo/redo without a full-text join.
         self._saved_edits = self.buffer.content_edits
+        self._saved_lines = tuple(self.buffer.lines)
 
     # ------------------------------------------------------------- factories
 
@@ -71,7 +74,9 @@ class Document:
 
     @property
     def modified(self) -> bool:
-        return self.buffer.content_edits != self._saved_edits
+        if self.buffer.content_edits == self._saved_edits:
+            return False
+        return tuple(self.buffer.lines) != self._saved_lines
 
     @property
     def name(self) -> str:
@@ -122,4 +127,5 @@ class Document:
             tmp.unlink(missing_ok=True)
             raise
         self._saved_edits = self.buffer.content_edits
+        self._saved_lines = tuple(self.buffer.lines)
         return self.path

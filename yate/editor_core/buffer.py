@@ -82,6 +82,11 @@ class _Edit:
     before: _Snapshot
     after: _Snapshot
     kind: str  # "char" coalesces with adjacent typing/deletion, "step" does not
+    #: Number of line-change commits folded into this step (1 for a plain
+    #: step, more for coalesced typing).  :attr:`content_edits` is adjusted
+    #: by this amount on undo/redo so the counter stays aligned with the
+    #: actual number of reverted changes even across coalescing.
+    weight: int = 1
 
 
 class TextBuffer:
@@ -171,16 +176,18 @@ class TextBuffer:
         if after == before:
             return
         lines_changed = after.lines != before.lines
+        weight = 1 if lines_changed else 0
         if kind == "char" and self._undo:
             top = self._undo[-1]
             if top.kind == "char" and top.after == before:
                 top.after = after
+                top.weight += weight
                 self._redo.clear()
                 if lines_changed:
                     self.content_version += 1
                     self.content_edits += 1
                 return
-        self._undo.append(_Edit(before, after, kind))
+        self._undo.append(_Edit(before, after, kind, weight))
         if len(self._undo) > MAX_UNDO_STEPS:
             del self._undo[0]
         self._redo.clear()
@@ -206,8 +213,7 @@ class TextBuffer:
         if not self._undo:
             return False
         edit = self._undo.pop()
-        if tuple(self.lines) != edit.before.lines:
-            self.content_edits -= 1
+        self.content_edits -= edit.weight
         self._restore(edit.before)
         self._redo.append(edit)
         return True
@@ -216,8 +222,7 @@ class TextBuffer:
         if not self._redo:
             return False
         edit = self._redo.pop()
-        if tuple(self.lines) != edit.after.lines:
-            self.content_edits += 1
+        self.content_edits += edit.weight
         self._restore(edit.after)
         self._undo.append(edit)
         return True
