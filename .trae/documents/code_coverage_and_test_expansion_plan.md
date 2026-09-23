@@ -209,7 +209,7 @@ fail_under = 60
 ### 7.6 未做 / 遗留
 
 - `track_coverage`（命令/action 使用率）保持原语义，未加门槛（§3.1/§3.3）；其"宇宙为空"的快照缺陷已在 §7.8 修复。
-- 数据驱动的冒烟补场景（跑 `run --coverage` 找从未触发的命令）未做——`--coverage` 现已可用（27/43 命令、51/65 action，见 §7.8）。
+- 数据驱动的冒烟补场景（跑 `run --coverage` 找从未触发的命令）**已在 §7.10 完成**（命令 43/43、action 65/65）。
 - **第二轮补测目标（本节执行）**：`editor_term/pty_proc.py` 33.8%（缺 263 行，全仓最大缺口）、
   `services/fonts.py` 50.2%（缺 121 行，mock 密集）、`editor_view/completion.py` 77.8%（缺 44 行，Textual widget）。
   三者都不是"纯逻辑容易吃"的类型：`pty_proc` 是跨平台 PTY（ConPTY / POSIX pty 两套实现，本地只能覆盖一半），
@@ -253,3 +253,41 @@ fail_under = 60
 两条平台腿各自覆盖互斥块（`pty_proc._UnixPty` vs `_WindowsPty`、`shells.py` 的平台分支），
 Linux 侧总量只在 CI 上测得到，本地没有它的数字；在没有两平台数据前按 §1.3「宁可临时放宽并记录，不粉饰数字」处理。
 `pyproject.toml` 的注释已同步为当前实测值，并写明门槛不动的原因。
+
+### 7.10 数据驱动的冒烟补场景（2026-09-23，第三轮）
+
+§7.6 遗留的"跑 `run --coverage` 找从未触发的命令"在本轮做完：用 §7.8 修好的面板列出缺口（命令 16 个、action 14 个），
+按文件切分给 4 个并行子代理（团队 `cov-round3`，各自独占一个 scenarios 文件、显式 `bypassPermissions`），
+成员产出由主代理逐条重跑复核后才计入：
+
+| 成员 | 独占文件 | 新增场景 | 覆盖缺口 |
+|---|---|---|---|
+| files-scenarios | `scenarios/files.py` | `bnext_bprev_commands` `edit_command_path` `write_command_saves` `quit_command_clean` `filetype_command_aliases` `quit_action_ctrl_q` | 命令 `bnext` `bprev` `edit` `write` `quit` `filetype` `ft` `language` |
+| panes-scenarios | `scenarios/panes.py` | `split_sp_vsplit` `terminal_termclose` | 命令 `sp` `vsplit` `terminal` `termclose` |
+| edit-search-scenarios | `scenarios/edit.py`、`scenarios/search.py` | `delete_word_back` `vim_delete_to_line_start` `select_motion_variants` `vim_find_prev` | action `delete_word_back` `delete_to_line_start` `select_left` `select_line_start` `select_line_end` `select_word_left` `find_prev` |
+| view-scenarios | `scenarios/view.py` | `view_manual_command` `view_normal_command` `view_font_command` `view_page_up` `view_page_half_scroll` `view_palette_actions` `view_focus_editor_action` | 命令 `manual` `normal` `font`；action `page_up` `page_half_down` `page_half_up` `quick_open` `command_palette` `focus_editor` |
+
+主代理补齐最后两条（其余 17 条为成员产出）：`explorer_toggle_command`（命令 `explorer`）、`quit_action_dispatch`（action `quit`）。
+两条都有非显然的成因，记录如下：
+
+- **命令 `explorer` 没人调用**：ctrl+b 走的是 action `toggle_explorer`（此前已覆盖），命令名本身没有场景用过；
+- **action `quit` 的按键路径不可达**：ctrl+q 是 Textual 的 App 级 priority binding（`YateApp.action_quit` → `Editor.quit`），
+  事件从不进入编辑器 keymap，注册表条目只能像 palette / 扩展那样经 `execute_action("quit")` 触达
+  （依据写在 `scenarios/files.py::_quit_action_ctrl_q` 的 docstring 里，主代理复核时确认属实）。
+
+结果（全量冒烟，`run --coverage`）：
+
+| 指标 | 补测前 | 补测后 |
+|---|---|---|
+| 场景 / checks | 65 / 688 | **86 / 889** |
+| 命令覆盖 | 27/43 (63%) | **43/43 (100%)** |
+| action 覆盖 | 51/65 (78%) | **65/65 (100%)** |
+
+- 86/86 场景 PASS、exit 0；`pyright yate/ tests/ tools/` 0 诊断；本轮**未改产品源码**（`yate/` 零 diff）。
+- 新增场景一律不改既有场景（避免 `compare` 基线 drift）；也未为新增场景写入 `smoke_baselines/`
+  （`compare` 对无基线场景 SKIP，与最近三轮新增场景的做法一致）。
+- 三处打桩/绕行值得记录：`:font` 场景把 `yate.services.fonts.ensure_font` 换成
+  `SimpleNamespace(detail=..., has_nerd_font=True)` 替身并在 `finally` 恢复（绝不碰真实字体/注册表）；
+  `quick_open` / `command_palette` / `focus_editor` 的按键路径被 `Editor.handle_key` 直接拦截（不经注册表），
+  场景用 `execute_action` 触达并在 docstring 注明。
+- 子代理存活与产出：4 个成员全部实际落盘并被复核（12+7 场景主代理重跑 PASS），无零产出成员；未出现判死场景。
