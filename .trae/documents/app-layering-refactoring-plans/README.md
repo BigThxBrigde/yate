@@ -1,6 +1,7 @@
 # 分层重构计划：外壳 / 调度 / 组件 / 会话
 
-> 状态：**Plan A–F 全部完成**（2026-09-22 落地 · 2026-09-23 审计与迁移收口）
+> 状态：**Plan A–F 全部完成**（2026-09-22 落地 · 2026-09-23 审计与迁移收口）；
+> **Plan G（窗格模型下沉）待执行**，见 §5 索引。
 > 目标：项目结构清晰、层次划分清晰、扩展性与维护性好；改动性质以**代码搬运 + 删除**为主，
 > 不重写算法；**能用函数实现的就不造类**。
 > 本目录是本次重构的**唯一计划来源**；代码侧的硬性边界同时固化在
@@ -64,7 +65,8 @@ L3 流程   yate/completion.py     CompletionController                     会�
 L2 组件   yate/editor_view/*     TabBar / Breadcrumbs / PromptBar / ExplorerTree /
                                  TerminalPanel / PaneHost / StatusBar / CompletionPopup /
                                  HelpScreen / OutputScreen / PaletteScreen / MarkdownDocScreen / EditorView
-L1 会话   yate/session.py        EditorSession   文档 / 标签 / 搜索（无 UI、无 LSP）
+L1 会话   yate/session.py        EditorSession + 窗格树模型（Leaf / Split / ViewState / 树操作）
+           └ 模块内容             文档 / 标签 / 搜索 + 无 UI 的窗口布局模型（无 UI、无 LSP）
 L1 模型   yate/registries.py     ActionRegistry / CommandRegistry（叶子容器）
           yate/keymaps/registry.py  KeymapSet（键映射集合 + 活动项）
 L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / config / logs / paths /
@@ -80,11 +82,12 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 | 表 / 流程模块 | 把"内置能力"登记到注册表；把可独立成段的流程挪出 `Editor` | 不反向被 `editor.py` 导入（防环） |
 | Widget（组件） | 自持自己的行为与渲染，构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app` |
 | `EditorSession` | 文档集合、标签、搜索状态、关闭通知 | 不碰 UI、不碰 LSP |
+| 窗格模型（同 `session.py`，L1） | 窗格树 / 每文档视口状态（`Leaf` / `Split` / `ViewState` + 树纯函数），被 L2/L3 直接 import | 不碰 UI；窗口布局仍由 L2 `PaneManager` 持有、L3 `Editor` 组装 |
 | 叶子 | 纯逻辑 | 不 import 上层 |
 
 `yate/editor_view/` 模块清单：`chrome.py`（TabBar / Breadcrumbs / `sidebar_head_text()`）、`commandline.py`（PromptBar / CommandInput）、
 `explorer.py`（ExplorerTree）、`completion.py`（CompletionPopup）、`editor.py`（EditorView + 唯一保留的
-`PaneRegistry` Protocol）、`panes.py`（PaneManager / PaneHost）、`pane_types.py`（Pane 树纯数据结构）、
+`PaneRegistry` Protocol）、`panes.py`（PaneManager / PaneHost）、
 `statusbar.py`（StatusBar + `mode_chip()`）、`terminal.py`（TerminalView / TerminalPanel）、
 `modals.py`（Help 与输出覆盖层）、`palette.py`（文件/命令面板）、`manual.py`（手册屏幕）、
 `theme.py`（主题与单元格宽度工具）、`icons.py` / `keys.py`。
@@ -160,6 +163,7 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 | D | [plan_D_shell_wiring.md](plan_D_shell_wiring.md) | **外壳瘦身与接线**：解环、`app.py` 瘦到 152 行、删除 `app_features/`、cli 走 `app.editor` | ✅ |
 | E | [plan_E_tests_tools.md](plan_E_tests_tools.md) | **测试与冒烟脚本迁移**：`app.X` → `app.editor.*`；架构守护规则更新（§E.5 落地记录、§E.6 迁移清单与实测） | ✅ |
 | F | [plan_F_gate_docs.md](plan_F_gate_docs.md) | **门禁与文档**：pyright / pytest / `--diag` / 冒烟清单、扩展与用户文档、CHANGELOG、`architecture-boundaries.md` | ✅ |
+| G | [plan_G_pane_model_to_session.md](plan_G_pane_model_to_session.md) | **窗格模型下沉**：删除 `editor_view/pane_types.py`，模型并入 `session.py`（L1）；清掉 `panes.py` 的 deprecated 重导出 | 📝 待执行 |
 
 ---
 

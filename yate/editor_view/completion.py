@@ -281,13 +281,19 @@ def _path_completions(prefix: str, base_dir: Optional[Path] = None) -> list[str]
     """Filesystem entries matching a path *prefix*.
 
     Relative prefixes resolve against *base_dir* (the workspace root) when
-    given, otherwise against the process cwd.  Returns candidate strings
-    that extend the prefix; directories get a trailing slash.
+    given, otherwise against the process cwd.  A prefix that ends in a
+    separator names a directory and completes that directory's children;
+    otherwise its last component is the needle to match.  Returns candidate
+    strings that extend the prefix; directories get a trailing slash.
     """
     expanded = Path(prefix).expanduser()
+    ends_with_separator = prefix.endswith(("/", "\\"))
     try:
-        parent = expanded.parent if expanded.name else expanded
-        base = expanded.name
+        # ``Path`` drops a trailing separator, so ``name`` would report the
+        # directory itself as the needle ("pkg/" -> "pkg") and the completion
+        # would come back empty as soon as the user typed the slash.
+        parent = expanded if ends_with_separator else expanded.parent
+        base = "" if ends_with_separator else expanded.name
     except ValueError:
         return []
     if not parent.is_absolute() and base_dir is not None:

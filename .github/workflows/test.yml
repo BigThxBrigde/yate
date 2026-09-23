@@ -5,6 +5,7 @@
 # 本地复现 / Reproduce locally:
 #   pip install -e ".[dev]"
 #   python -m pytest tests
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # 覆盖率门禁
 #
 # Gitee 自带的流水线在 .workflow/test.yml（仅 Linux），两套配置互不影响。
 
@@ -61,7 +62,8 @@ jobs:
 
       - name: Run pytest suite
         # TERM 供 Linux 上的 Textual pilot headless 测试使用；Windows 忽略此项
+        # --cov 走 pyproject 的 [tool.coverage.*] 配置；fail-under 与本地/另一套 CI 保持一致
         env:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python -m pytest tests
+        run: python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75

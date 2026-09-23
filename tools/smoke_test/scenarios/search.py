@@ -116,9 +116,92 @@ async def _find_backward(tmp: Path) -> ScenarioResult:
     return ScenarioResult("find_backward", checks, rows)
 
 
+async def _replace_all_clamp(tmp: Path) -> ScenarioResult:
+    """Replacing every match with a shorter text leaves the cursor usable."""
+    target = tmp / "clamp.txt"
+    target.write_text("aaaaaaaa\ntail", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("end")
+        await pilot.pause()
+        checks.append(Check("cursor_at_end", 8,
+                            app.editor.session.buffer.col))
+
+        await pilot.press("f4")
+        await pilot.pause()
+        await type_text(pilot, "aaaa")
+        await pilot.press("enter")
+        await pilot.pause()
+        await type_text(pilot, "a")
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        buffer = app.editor.session.buffer
+        checks.append(Check("replaced", "aa\ntail", buffer.get_text()))
+        checks.append(Check("anchor_cleared", None, buffer.anchor))
+        row, col = buffer.cursor
+        checks.append(Check("cursor_inside_line", True,
+                            col <= len(buffer.lines[row])))
+        checks.append(Check("no_matches_left", 0,
+                            len(app.editor.session.search.matches)))
+
+        await type_text(pilot, "Z")
+        checks.append(Check("editable_after_replace", True,
+                            "Z" in app.editor.session.buffer.lines[0]))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("replace_all_clamp", checks, rows)
+
+
+async def _vim_find_prev(tmp: Path) -> ScenarioResult:
+    """vim ``N`` (find_prev) steps back to the previous match after ``n``."""
+    target = tmp / "findprev.txt"
+    target.write_text("one\ntwo\none", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await run_command(pilot, "vim")
+        await pilot.press("/")
+        await pilot.pause()
+        await type_text(pilot, "one")
+        await pilot.press("enter")
+        await pilot.pause()
+        checks.append(Check("query", "one", app.editor.session.search.query))
+        checks.append(Check("match_count", 2,
+                            len(app.editor.session.search.matches)))
+        checks.append(Check("index_after_search", 0,
+                            app.editor.session.search.index))
+        checks.append(Check("row_after_search", 0,
+                            app.editor.session.buffer.cursor[0]))
+
+        await pilot.press("n")
+        await pilot.pause()
+        checks.append(Check("index_after_next", 1,
+                            app.editor.session.search.index))
+        checks.append(Check("row_after_next", 2,
+                            app.editor.session.buffer.cursor[0]))
+
+        await pilot.press("N")
+        await pilot.pause()
+        checks.append(Check("index_after_prev", 0,
+                            app.editor.session.search.index))
+        checks.append(Check("row_after_prev", 0,
+                            app.editor.session.buffer.cursor[0]))
+
+        await run_command(pilot, "vsc")
+        checks.append(Check("keymap_restored", "vsc", app.editor.keymaps.name))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("vim_find_prev", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("find_next_prev_wrap", _find_next_prev_wrap, ("search",)),
     Scenario("replace_single_all", _replace_single_all, ("search",)),
     Scenario("goto_line_two_ways", _goto_line_two_ways, ("search",)),
     Scenario("find_backward", _find_backward, ("search",)),
+    Scenario("replace_all_clamp", _replace_all_clamp, ("search",)),
+    Scenario("vim_find_prev", _vim_find_prev, ("search",)),
 ]

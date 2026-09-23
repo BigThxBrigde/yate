@@ -17,6 +17,7 @@
 # 本地复现 CI 的等价命令 / Reproduce locally:
 #   python -m pip install -e ".[dev]"
 #   python -m pytest tests
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # 覆盖率门禁
 
 version: '1.0'
 
@@ -54,4 +55,5 @@ stages:
             # 安装包本身与测试依赖（textual、pytest）；测试从仓库根目录运行
             - pip install -e ".[dev]"
             # Textual pilot 测试在无真实 TTY 的容器里需要一个非 dumb 的 TERM
-            - TERM=xterm-256color python -m pytest tests
+            # --cov 走 pyproject 的 [tool.coverage.*] 配置；fail-under 与本地/另一套 CI 保持一致
+            - TERM=xterm-256color python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75

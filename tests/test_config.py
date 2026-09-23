@@ -170,6 +170,16 @@ def test_terminal_height_bounds(tmp_path: Path) -> None:
         assert config.errors, value
 
 
+def test_show_hidden_accepts_booleans_only(tmp_path: Path) -> None:
+    """show_hidden toggles dotfiles and rejects every non-boolean value."""
+    assert _load("show_hidden = True\n", tmp_path).show_hidden is True
+    assert _load("show_hidden = False\n", tmp_path).show_hidden is False
+
+    config = _load('show_hidden = "yes"\n', tmp_path)
+    assert config.show_hidden is False
+    assert any("show_hidden" in error for error in config.errors)
+
+
 # --- trace options -----------------------------------------------------------
 
 
