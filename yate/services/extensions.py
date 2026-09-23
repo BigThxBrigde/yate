@@ -396,19 +396,22 @@ class ExtensionLoader:
             module = importlib.util.module_from_spec(spec)
             sys.modules[mod_name] = module
             spec.loader.exec_module(module)
-            # 动态边界：用户扩展模块的 setup 钩子通过 getattr 获取，类型未知
+            # Dynamic boundary: the user extension's setup hook comes from
+            # getattr, so its type is unknown.
             setup: Any = getattr(module, "setup", None)
             if not callable(setup):
                 raise AttributeError(f"{path.name} has no setup(api) function")
             setup(self.api)  # dynamic user module (narrowed via callable() above)
             record.module = module
-            # 动态边界：用户扩展模块的 teardown 钩子通过 getattr 获取，类型未知。
-            # 仅在 setup 成功后捕获——setup 失败的扩展未初始化任何资源，
-            # teardown_all() 不应调用它的 teardown。
+            # Dynamic boundary: the user extension's teardown hook comes from
+            # getattr, so its type is unknown.  It is captured only after a
+            # successful setup -- a failed extension never initialized any
+            # resource, so teardown_all() must not call its teardown.
             hook: Any = getattr(module, "teardown", None)
             if callable(hook):
-                # 动态边界收窄：callable(hook) 只能推出 (...)->object，
-                # 显式 cast 到文档约定的 teardown(api) 签名。
+                # Dynamic-boundary narrowing: callable(hook) only infers
+                # (...)->object, so cast explicitly to the documented
+                # teardown(api) signature.
                 record.teardown = cast(
                     Callable[[ExtensionAPI], None], hook
                 )

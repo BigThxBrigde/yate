@@ -127,7 +127,8 @@ class LspManager:
         return [c.name for c in self._configs]
 
     def configs(self) -> list[ServerConfig]:
-        """已注册的服务器配置（只读视图，供诊断/状态栏使用）。"""
+        """The registered server configs (read-only view for diagnostics and
+        the status bar)."""
         return list(self._configs)
 
     def config_for(self, filetype: str) -> Optional[ServerConfig]:

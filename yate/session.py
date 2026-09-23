@@ -200,12 +200,15 @@ class EditorSession:
             self._on_closed(closed)
 
 
-# ============================================================== 窗格树模型
-# 无 UI 的窗口布局模型：一个 Leaf 是一个绑定 Document 的编辑器窗口槽位，
-# Split 是其水平/垂直组合。它们与 EditorSession 同属 L1（只依赖 editor_core），
-# 因此 L2 的 editor_view/editor.py 与 editor_view/panes.py 都能直接 import，
-# 无需中间类型层（原 editor_view/pane_types.py）。窗口布局本身仍由 Editor
-# （L3）组装、PaneManager（L2）持有——EditorSession 不感知窗格。
+# ========================================================== pane tree model
+# UI-free window layout model: a Leaf is an editor window slot bound to a
+# Document, a Split arranges several of them horizontally/vertically.  It
+# lives here next to EditorSession (both L1, editor_core-only dependencies),
+# so the L2 modules editor_view/editor.py and editor_view/panes.py can import
+# it directly and no intermediate type-only module (the deleted
+# editor_view/pane_types.py) is needed.  The window layout itself is still
+# composed by Editor (L3) and owned by PaneManager (L2): EditorSession stays
+# pane-agnostic.
 
 #: Split axis: ``horizontal`` stacks top/bottom (:split), ``vertical`` puts
 #: windows side by side (:vsplit).

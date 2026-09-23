@@ -265,8 +265,9 @@ def _install_unix() -> tuple[list[str], list[str]]:
             shutil.copy2(ttf, dest)
             installed.append(ttf.name)
     if shutil.which("fc-cache"):
-        # 等价于原来的 os.system：同一条 shell 命令（~ 展开与输出重定向
-        # 交给 /bin/sh 处理），忽略退出码、fire-and-forget
+        # Equivalent to the previous os.system call: the same shell command
+        # (~ expansion and output redirection left to /bin/sh), exit code
+        # ignored, fire-and-forget.
         subprocess.run(
             "fc-cache -f ~/.local/share/fonts >/dev/null 2>&1",
             shell=True,
@@ -363,7 +364,8 @@ def configure_windows_terminal(family: str = FAMILY) -> tuple[bool, str]:
     except (OSError, json.JSONDecodeError) as exc:
         return False, f"cannot read settings.json: {exc}"
 
-    # json.loads 返回 Any：逐级收窄为 dict[str, Any]，避免 Unknown 扩散
+    # json.loads returns Any: narrow it step by step to dict[str, Any] so
+    # Unknown does not spread.
     profiles = cast(dict[str, Any], data.setdefault("profiles", {}))
     defaults = cast(dict[str, Any], profiles.setdefault("defaults", {}))
     changed = _apply_face(defaults, family, force=True)

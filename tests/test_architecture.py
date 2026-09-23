@@ -3,7 +3,7 @@
 These tests enforce the boundaries documented in
 ``.trae/rules/architecture-boundaries.md`` (R1-R11) and
 ``.trae/documents/app-layering-refactoring-plans/README.md`` (section 4,
-"依赖规则（硬性）"):
+"dependency rules (hard)"):
 
 * **R1** ``YateApp`` is the composition root: only ``cli.py`` imports
   ``yate.app``.
