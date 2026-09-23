@@ -46,6 +46,7 @@ from yate.editor_syntax.ts_backend import load_language_from_grammar
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
+from yate.services.trust import is_trusted
 from yate.registries import ActionRegistry, CommandFunc, CommandRegistry
 from yate.services.shell import ShellResult
 from yate.services.workspace import Workspace
@@ -449,11 +450,12 @@ def load_startup_extensions(
     """Load every configured extension source, in the documented order.
 
     rc-declared paths load first (user rc then project rc), followed by the
-    bundled defaults, the project/user directories and the explicit CLI
-    paths.  Returns the user-facing messages (load errors, shadowed
-    rc-declared scripts); the caller reports them on the message line.  The
-    same order is used by a normal start and by ``yate --diag``, so the
-    diagnostics always show exactly what a start would load.
+    bundled defaults, the trusted project directory, the user directory and
+    the explicit CLI paths.  Returns the user-facing messages (load errors,
+    shadowed rc-declared scripts, untrusted-workspace skips); the caller
+    reports them on the message line.  The same order is used by a normal
+    start and by ``yate --diag``, so the diagnostics always show exactly
+    what a start would load.
     """
     messages: list[str] = []
 
@@ -494,11 +496,22 @@ def load_startup_extensions(
                 )
         _report(records)
 
-    directories = [
-        *ext_dirs,
-        Path.cwd() / "extensions",
-        Path.home() / ".yate" / "extensions",
-    ]
+    directories: list[Path] = [*ext_dirs]
+    cwd_extensions = Path.cwd() / "extensions"
+    if cwd_extensions.is_dir():
+        # Workspace trust: opening a repository must not execute that
+        # repository's own code, so a project ``./extensions`` auto-loads
+        # only in workspaces the user trusted via ``:trust`` (the list
+        # lives in ~/.yate/trusted_workspaces).  rc-declared and CLI
+        # paths are deliberate user actions and stay unconditional.
+        if is_trusted(Path.cwd()):
+            directories.append(cwd_extensions)
+        else:
+            messages.append(
+                f"extensions: skipped untrusted {cwd_extensions} "
+                "(run :trust to load them)"
+            )
+    directories.append(Path.home() / ".yate" / "extensions")
     for directory in directories:
         _report(loader.load_directory(directory))
     for file in ext_files:

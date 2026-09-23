@@ -64,6 +64,7 @@ from yate.services.extensions import (
     load_startup_extensions,
 )
 from yate.services.shell import ShellResult, run_shell, shell_name
+from yate.services.trust import trust_workspace
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
@@ -1368,6 +1369,33 @@ class Editor:
             )
         )
         self._register_configured_servers()
+
+    def trust_cwd_extensions(self) -> None:
+        """Trust the current workspace and load its ``./extensions`` now.
+
+        The explicit confirmation step of workspace trust: startup skips
+        an untrusted project ``./extensions`` (opening a repository must
+        not execute that repository's own code), and ``:trust`` both
+        records the workspace in ``~/.yate/trusted_workspaces`` and loads
+        the directory immediately.  Re-running is safe -- the loader
+        de-duplicates by resolved path, so already-loaded scripts are
+        skipped and only genuinely new ones run.
+        """
+        cwd = Path.cwd()
+        trust_workspace(cwd)
+        directory = cwd / "extensions"
+        if not directory.is_dir():
+            self.message(f"trusted {cwd}; no extensions directory to load")
+            return
+        records = self.extension_loader.load_directory(directory)
+        failures = [record for record in records if record.error]
+        loaded = len(records) - len(failures)
+        self.message(
+            f"trusted {cwd}; loaded {loaded} extension(s) from {directory}"
+        )
+        for record in failures:
+            self.message(f"extension {record.name}: {record.error}",
+                         kind="error")
 
     def _register_configured_servers(self) -> None:
         """Register LSP servers declared by the yaterc ``language_servers``.

@@ -45,13 +45,31 @@ def setup(api):
    自动加载）：`example_ext.py.example` 与 tree-sitter grammar 模板
    `yatesh_syntax.py.example`；
 3. 默认目录：工作目录下的 `./extensions/` 与 `~/.yate/extensions/`
-   （启动时自动加载其中所有 `*.py`，下划线开头的文件跳过）；
+   （启动时自动加载其中所有 `*.py`，下划线开头的文件跳过）。项目目录
+   只在**受信任工作区**中自动加载——见下文「工作区信任（:trust）」；
+   用户目录始终加载；
 4. 命令行：`--ext <文件>` 加载单个文件，`--ext-dir <目录>` 加载目录下
    所有 `*.py`（均可重复指定）。
 
 加载顺序即上面的编号顺序；同一路径只执行一次，因此把修改版脚本放进
 `~/.yate/extensions/`（第 3 步）可以覆盖随包同名扩展的注册。下划线开头
 的文件与 `.example` 后缀的模板不会被加载。
+
+### 工作区信任（:trust）
+
+打开一个仓库绝不应当执行该仓库自带的代码，因此项目目录 `./extensions/`
+只在用户**显式信任**的工作区中自动加载。启动时若在工作区中发现该目录但
+尚未信任，yate 会跳过它并在消息栏提示
+`extensions: skipped untrusted <路径> (run :trust to load them)`。运行
+
+```
+:trust
+```
+
+即可信任当前工作区并立即加载其 `./extensions/`。受信任的工作区逐行记录
+在 `~/.yate/trusted_workspaces`（每行一个绝对路径）；删除对应行即可取消
+信任。rc 声明路径、`--ext` / `--ext-dir` 与 `~/.yate/extensions/` 属于
+用户主动行为，始终加载。
 
 ### 禁用随包默认扩展（disabled_extensions）
 
@@ -63,8 +81,8 @@ disabled_extensions = ["python_lsp", "csharp_highlight"]
 ```
 
 - 接受字符串或字符串列表，多个 rc 文件之间**累加**并去重；
-- 只影响随包默认扩展——rc 路径、`./extensions/`、`~/.yate/extensions/`、
-  命令行指定的脚本一律照常加载；
+- 只影响随包默认扩展——rc 路径、受信任工作区中的 `./extensions/`、
+  `~/.yate/extensions/`、命令行指定的脚本一律照常加载；
 - 非法值（非字符串列表、空字符串）作为配置错误显示在启动消息栏。
 
 yaterc 中声明：

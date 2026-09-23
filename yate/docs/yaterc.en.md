@@ -289,7 +289,8 @@ Path rules and loading behavior:
 
 Beyond rc declarations, yate first auto-loads the **bundled extensions** in
 `yate/extensions/` (currently `python_lsp` and `csharp_highlight`, from any
-working directory), then scans the default directories `./extensions/` and
+working directory), then scans the default directories `./extensions/`
+(only in workspaces trusted via `:trust` -- see extensions.md) and
 `~/.yate/extensions/`; command-line `--ext <file>` / `--ext-dir <dir>` adds
 more. To skip a bundled default, list its stem (file name without `.py`) in
 `disabled_extensions`:

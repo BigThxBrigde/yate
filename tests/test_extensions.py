@@ -8,10 +8,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from yate.config import YateConfig
+from yate.services import trust
 from yate.services.extensions import (
     ExtensionAPI,
     ExtensionContext,
     ExtensionLoader,
+    load_startup_extensions,
 )
 
 _SETUP_OK = "def setup(api):\n    pass\n"
@@ -38,6 +41,46 @@ def _extension_api() -> ExtensionAPI:
 @pytest.fixture
 def loader() -> ExtensionLoader:
     return ExtensionLoader(_extension_api())
+
+
+# --- workspace trust gating --------------------------------------------------
+
+
+def _startup_config() -> YateConfig:
+    return cast(
+        YateConfig,
+        MagicMock(extension_paths=[], disabled_extensions=[]),
+    )
+
+
+def test_startup_skips_untrusted_cwd_extensions(
+    loader: ExtensionLoader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "extensions").mkdir()
+    (tmp_path / "extensions" / "a.py").write_text(_SETUP_OK, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(trust, "TRUST_FILE", tmp_path / "trusted.txt")
+    messages = load_startup_extensions(loader, _startup_config())
+    assert any("skipped untrusted" in message for message in messages)
+    assert all(record.name != "a" for record in loader.loaded)
+
+
+def test_startup_loads_cwd_extensions_in_trusted_workspace(
+    loader: ExtensionLoader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "extensions").mkdir()
+    (tmp_path / "extensions" / "a.py").write_text(_SETUP_OK, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    store = tmp_path / "trusted.txt"
+    monkeypatch.setattr(trust, "TRUST_FILE", store)
+    trust.trust_workspace(tmp_path, store)
+    messages = load_startup_extensions(loader, _startup_config())
+    assert not any("skipped untrusted" in message for message in messages)
+    assert any(record.name == "a" for record in loader.loaded)
 
 
 # --- discovery --------------------------------------------------------------

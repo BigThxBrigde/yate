@@ -2484,6 +2484,7 @@ def test_disabled_extensions_skip_bundled_not_project_dir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from yate.config import YateConfig
+    from yate.services import trust
 
     root = tmp_path
     project_ext = root / "extensions"
@@ -2494,6 +2495,7 @@ def test_disabled_extensions_skip_bundled_not_project_dir(
     config = YateConfig(
         disabled_extensions=["python_lsp", "csharp_highlight"]
     )
+    monkeypatch.setattr(trust, "TRUST_FILE", root / "trusted_workspaces")
 
     async def scenario() -> None:
         app = YateApp(config=config)
@@ -2502,10 +2504,20 @@ def test_disabled_extensions_skip_bundled_not_project_dir(
             names = {r.name for r in app.editor.extension_loader.loaded}
             assert "python_lsp" not in names
             assert "csharp_highlight" not in names
-            # a project script with the same purpose still loads
-            assert "myext" in names
+            # an untrusted workspace must not run its project scripts
+            assert "myext" not in names
+            assert any(
+                "skipped untrusted" in message
+                for message in app.editor._ext_messages
+            )
             # and no Python server got registered while LSP was off
             assert app.editor.lsp.config_for("py") is None
+            # :trust is the explicit confirmation that loads them now
+            app.editor.trust_cwd_extensions()
+            await pilot.pause()
+            names = {r.name for r in app.editor.extension_loader.loaded}
+            assert "myext" in names
+        assert (root / "trusted_workspaces").exists()
 
     monkeypatch.chdir(root)
     asyncio.run(scenario())

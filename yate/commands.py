@@ -102,6 +102,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _palette(args: str) -> None:
         editor.open_command_palette()
 
+    def _trust(args: str) -> None:
+        editor.trust_cwd_extensions()
+
     reg("e", _edit, "open a file or directory by path")
     reg("edit", _edit, "open a file or directory by path")
     reg("enew", _enew, "open a new empty buffer")
@@ -114,6 +117,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     reg("bd", _bd, "close current buffer/tab")
     reg("files", _files, "fuzzy quick file open (ctrl+p)")
     reg("palette", _palette, "command palette (alt+shift+p)")
+    reg("trust", _trust,
+        "trust the current workspace and load its ./extensions now")
 
     # ---- options / appearance ---------------------------------------------
 
