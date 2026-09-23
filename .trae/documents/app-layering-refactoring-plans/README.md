@@ -195,7 +195,7 @@ python -m yate --version                   # 正常
 |---|---|
 | [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md) | 本重构的**硬性边界规则**（已按新分层改写），随代码一起被守护 |
 | [`.trae/documents/split_app_protocol_plan.md`](../split_app_protocol_plan.md) | **前序重构**：拆分并移除 `AppProtocol`，其产物 `app_features/` 在本轮 Plan D 删除；其正文 §3.2 的 R1–R6 为**旧编号**，勿与本目录的 R1–R11 对照 |
-| [`.trae/issues/issues.md`](../../issues/issues.md) | 代码审查问题清单（多项落在 `app_features/*`，随目录删除而消解） |
+| [`.trae/issues/review.md`](../../issues/review.md) | 代码审查问题清单（多项落在 `app_features/*`，随目录删除而消解） |
 
 ## 10. 审计记录（2026-09-23）
 
