@@ -68,6 +68,22 @@ async def _explorer_visibility_focus(tmp: Path) -> ScenarioResult:
     return ScenarioResult("explorer_visibility_focus", checks, rows)
 
 
+async def _explorer_toggle_command(tmp: Path) -> ScenarioResult:
+    """:explorer toggles the sidebar (the command form of ctrl+b)."""
+    (tmp / "a.txt").write_text("a\n", encoding="utf-8")
+    app = new_app(target=tmp)
+    checks: list[Check] = []
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        checks.append(Check("visible_on_dir_open", True, app.editor.explorer_visible))
+        await run_command(pilot, "explorer")
+        checks.append(Check("hidden_by_command", False, app.editor.explorer_visible))
+        await run_command(pilot, "explorer")
+        checks.append(Check("shown_again", True, app.editor.explorer_visible))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("explorer_toggle_command", checks, rows)
+
+
 async def _explorer_crud(tmp: Path) -> ScenarioResult:
     """a (new file), r (rename), d (delete) round-trip through the prompt."""
     (tmp / "a.txt").write_text("a\n", encoding="utf-8")
@@ -184,6 +200,7 @@ async def _explorer_hidden_toggle(tmp: Path) -> ScenarioResult:
 
 SCENARIOS: list[Scenario] = [
     Scenario("explorer_visibility_focus", _explorer_visibility_focus, ("explorer",)),
+    Scenario("explorer_toggle_command", _explorer_toggle_command, ("explorer",)),
     Scenario("explorer_crud", _explorer_crud, ("explorer",)),
     Scenario("explorer_delete_open_folder", _explorer_delete_open_folder,
              ("explorer",)),

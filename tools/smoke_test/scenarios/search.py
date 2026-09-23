@@ -155,10 +155,53 @@ async def _replace_all_clamp(tmp: Path) -> ScenarioResult:
     return ScenarioResult("replace_all_clamp", checks, rows)
 
 
+async def _vim_find_prev(tmp: Path) -> ScenarioResult:
+    """vim ``N`` (find_prev) steps back to the previous match after ``n``."""
+    target = tmp / "findprev.txt"
+    target.write_text("one\ntwo\none", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await run_command(pilot, "vim")
+        await pilot.press("/")
+        await pilot.pause()
+        await type_text(pilot, "one")
+        await pilot.press("enter")
+        await pilot.pause()
+        checks.append(Check("query", "one", app.editor.session.search.query))
+        checks.append(Check("match_count", 2,
+                            len(app.editor.session.search.matches)))
+        checks.append(Check("index_after_search", 0,
+                            app.editor.session.search.index))
+        checks.append(Check("row_after_search", 0,
+                            app.editor.session.buffer.cursor[0]))
+
+        await pilot.press("n")
+        await pilot.pause()
+        checks.append(Check("index_after_next", 1,
+                            app.editor.session.search.index))
+        checks.append(Check("row_after_next", 2,
+                            app.editor.session.buffer.cursor[0]))
+
+        await pilot.press("N")
+        await pilot.pause()
+        checks.append(Check("index_after_prev", 0,
+                            app.editor.session.search.index))
+        checks.append(Check("row_after_prev", 0,
+                            app.editor.session.buffer.cursor[0]))
+
+        await run_command(pilot, "vsc")
+        checks.append(Check("keymap_restored", "vsc", app.editor.keymaps.name))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("vim_find_prev", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("find_next_prev_wrap", _find_next_prev_wrap, ("search",)),
     Scenario("replace_single_all", _replace_single_all, ("search",)),
     Scenario("goto_line_two_ways", _goto_line_two_ways, ("search",)),
     Scenario("find_backward", _find_backward, ("search",)),
     Scenario("replace_all_clamp", _replace_all_clamp, ("search",)),
+    Scenario("vim_find_prev", _vim_find_prev, ("search",)),
 ]
