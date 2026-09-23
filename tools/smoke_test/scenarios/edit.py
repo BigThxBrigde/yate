@@ -265,6 +265,54 @@ async def _select_all_indent(tmp: Path) -> ScenarioResult:
     return ScenarioResult("select_all_indent", checks, rows)
 
 
+async def _undo_redo_goal_col(tmp: Path) -> ScenarioResult:
+    """Vertical motion keeps the goal column across a short line; undo/redo
+    brings the text back exactly."""
+    target = tmp / "goal.txt"
+    target.write_text("long line here\nabc\nanother long line", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("end")
+        await pilot.pause()
+        goal = app.editor.session.buffer.col
+        checks.append(Check("goal_at_end", 14, goal))
+
+        await pilot.press("down")
+        await pilot.pause()
+        checks.append(Check("clamped_on_short_line", 3,
+                            app.editor.session.buffer.col))
+
+        await pilot.press("down")
+        await pilot.pause()
+        checks.append(Check("goal_column_restored", goal,
+                            app.editor.session.buffer.col))
+
+        await pilot.press("up", "up")
+        await pilot.pause()
+        checks.append(Check("back_on_first_row", 0,
+                            app.editor.session.buffer.cursor[0]))
+        checks.append(Check("goal_kept_after_up", goal,
+                            app.editor.session.buffer.col))
+
+        await type_text(pilot, "X")
+        edited = app.editor.session.buffer.get_text()
+        checks.append(Check("edited", "long line hereX\nabc\nanother long line",
+                            edited))
+        await pilot.press("ctrl+z")
+        await pilot.pause()
+        checks.append(Check("undo_restores_text",
+                            "long line here\nabc\nanother long line",
+                            app.editor.session.buffer.get_text()))
+        await pilot.press("ctrl+y")
+        await pilot.pause()
+        checks.append(Check("redo_reapplies", edited,
+                            app.editor.session.buffer.get_text()))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("undo_redo_goal_col", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("undo_redo", _undo_redo, ("edit",)),
     Scenario("duplicate_delete_line", _duplicate_delete_line, ("edit",)),
@@ -277,4 +325,5 @@ SCENARIOS: list[Scenario] = [
     Scenario("vim_modal_editing", _vim_modal_editing, ("edit",)),
     Scenario("selection_extend_clear", _selection_extend_clear, ("select",)),
     Scenario("select_all_indent", _select_all_indent, ("select",)),
+    Scenario("undo_redo_goal_col", _undo_redo_goal_col, ("edit",)),
 ]

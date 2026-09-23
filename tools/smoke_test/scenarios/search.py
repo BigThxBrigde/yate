@@ -116,9 +116,49 @@ async def _find_backward(tmp: Path) -> ScenarioResult:
     return ScenarioResult("find_backward", checks, rows)
 
 
+async def _replace_all_clamp(tmp: Path) -> ScenarioResult:
+    """Replacing every match with a shorter text leaves the cursor usable."""
+    target = tmp / "clamp.txt"
+    target.write_text("aaaaaaaa\ntail", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("end")
+        await pilot.pause()
+        checks.append(Check("cursor_at_end", 8,
+                            app.editor.session.buffer.col))
+
+        await pilot.press("f4")
+        await pilot.pause()
+        await type_text(pilot, "aaaa")
+        await pilot.press("enter")
+        await pilot.pause()
+        await type_text(pilot, "a")
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        buffer = app.editor.session.buffer
+        checks.append(Check("replaced", "aa\ntail", buffer.get_text()))
+        checks.append(Check("anchor_cleared", None, buffer.anchor))
+        row, col = buffer.cursor
+        checks.append(Check("cursor_inside_line", True,
+                            col <= len(buffer.lines[row])))
+        checks.append(Check("no_matches_left", 0,
+                            len(app.editor.session.search.matches)))
+
+        await type_text(pilot, "Z")
+        checks.append(Check("editable_after_replace", True,
+                            "Z" in app.editor.session.buffer.lines[0]))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("replace_all_clamp", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("find_next_prev_wrap", _find_next_prev_wrap, ("search",)),
     Scenario("replace_single_all", _replace_single_all, ("search",)),
     Scenario("goto_line_two_ways", _goto_line_two_ways, ("search",)),
     Scenario("find_backward", _find_backward, ("search",)),
+    Scenario("replace_all_clamp", _replace_all_clamp, ("search",)),
 ]

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+from yate.services import trust as trust_mod
+from yate.services.trust import is_trusted
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import message_text, run_command, type_path, type_text, wait_until
@@ -187,6 +191,59 @@ async def _filetype_override(tmp: Path) -> ScenarioResult:
     return ScenarioResult("filetype_override", checks, rows)
 
 
+async def _workspace_trust(tmp: Path) -> ScenarioResult:
+    """A project ``./extensions`` loads only after ``:trust``.
+
+    The workspace trust store is redirected at a temporary file so the run
+    never touches the user's real ``~/.yate/trusted_workspaces``.
+    """
+    project = tmp / "project"
+    ext_dir = project / "extensions"
+    ext_dir.mkdir(parents=True)
+    (ext_dir / "proj_marker.py").write_text(
+        "def setup(api):\n"
+        "    api.command('proj-marker', 'project-local command')("
+        "lambda args: None)\n",
+        encoding="utf-8",
+    )
+    target = project / "notes.txt"
+    target.write_text("hello\n", encoding="utf-8")
+
+    store = tmp / "trusted_workspaces"
+    original_store = trust_mod.TRUST_FILE
+    previous_cwd = Path.cwd()
+    trust_mod.TRUST_FILE = store
+    try:
+        os.chdir(project)
+        app = new_app(target=target)
+        checks: list[Check] = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            names = [record.name for record in app.editor.extension_loader.loaded]
+            checks.append(Check("skipped_before_trust", False,
+                                "proj_marker" in names))
+            checks.append(Check("skip_notice", True,
+                                "skipped untrusted" in message_text(app)))
+            checks.append(Check("marker_absent", None,
+                                app.editor.commands.get("proj-marker")))
+
+            await run_command(pilot, "trust")
+
+            names = [record.name for record in app.editor.extension_loader.loaded]
+            checks.append(Check("loaded_after_trust", True,
+                                "proj_marker" in names))
+            checks.append(Check("marker_registered", True,
+                                app.editor.commands.get("proj-marker")
+                                is not None))
+            checks.append(Check("workspace_trusted", True, is_trusted(project)))
+            checks.append(Check("store_written", True, store.is_file()))
+            rows = snapshot_svg(app, tmp)
+        return ScenarioResult("workspace_trust", checks, rows)
+    finally:
+        trust_mod.TRUST_FILE = original_store
+        os.chdir(previous_cwd)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("open_path_prompt", _open_path_prompt, ("files",)),
     Scenario("save_as_flow", _save_as_flow, ("files",)),
@@ -196,4 +253,5 @@ SCENARIOS: list[Scenario] = [
     Scenario("quit_guard_wq", _quit_guard_wq, ("files",)),
     Scenario("quit_force_discards", _quit_force_discards, ("files",)),
     Scenario("filetype_override", _filetype_override, ("files",)),
+    Scenario("workspace_trust", _workspace_trust, ("files",)),
 ]
