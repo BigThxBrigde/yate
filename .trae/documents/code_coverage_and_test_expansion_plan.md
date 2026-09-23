@@ -190,9 +190,10 @@ fail_under = 60
 | `services/shell.py` | 63.0% | **100%** | |
 | `editor_term/shells.py` | 61.4% | **78%（Windows 侧）** | POSIX 分支仅在 Linux CI 覆盖（已加平台守卫） |
 | `editor_term/emulator.py` | 70.9% | **93%** | 68 个用例；剩余为状态机防御弧 |
+| `keymaps/vim.py` | 50.6% | **99%** | 46 个用例（追加项，§2 的"优先补核心纯逻辑"原则）；剩余为 `if key == "o": pass` 死代码 |
 
 新增/扩充测试文件：`test_session.py`、`test_registries.py`、`test_prompt_completion.py`、
-`test_python_lsp_ext.py`、`test_shell.py`、`test_terminal_emulator.py`（新），
+`test_python_lsp_ext.py`、`test_shell.py`、`test_terminal_emulator.py`、`test_vim_keymap.py`（新），
 `test_editor_core.py`、`test_config.py`、`test_diagnostics.py`、`test_workspace_filter.py`（扩充）。
 
 ### 7.5 冒烟
@@ -209,5 +210,18 @@ fail_under = 60
 
 - `track_coverage`（命令/action 使用率）保持原语义，未加门槛（§3.1/§3.3）。
 - 数据驱动的冒烟补场景（跑 `run --coverage` 找从未触发的命令）未做。
-- 仍有低覆盖模块未处理：`pty_proc.py` 33.8%（缺口最大）、`fonts.py` 50.2%、`keymaps/vim.py` 50.6%、
-  `editor_view/completion.py` 77.8%；其中 `vim.py` 已有专属测试计划（纯逻辑，可无头驱动）。
+- **第二轮补测目标（本节执行）**：`editor_term/pty_proc.py` 33.8%（缺 263 行，全仓最大缺口）、
+  `services/fonts.py` 50.2%（缺 121 行，mock 密集）、`editor_view/completion.py` 77.8%（缺 44 行，Textual widget）。
+  三者都不是"纯逻辑容易吃"的类型：`pty_proc` 是跨平台 PTY（ConPTY / POSIX pty 两套实现，本地只能覆盖一半），
+  `fonts` 要打桩注册表与字体探测命令，`completion.py` 是 widget（需直构或 pilot 驱动）。
+  补测结果见 §7.7。
+
+### 7.7 第二轮补测结果（2026-09-23）
+
+| 模块 | 基线 | 现在 | 说明 |
+|---|---|---|---|
+| `editor_term/pty_proc.py` | 33.8% | 待填 | 跨平台：POSIX 分支在 Windows 本地只保证不失败，靠 Linux CI 覆盖 |
+| `services/fonts.py` | 50.2% | 待填 | 打桩注册表 / 探测命令 |
+| `editor_view/completion.py` | 77.8% | 待填 | Textual widget |
+
+（本轮完成后回填实测数字与提交号。）
