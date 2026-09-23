@@ -440,8 +440,9 @@ level = resolved if resolved is not None else logging.DEBUG   # 显式 None 判�
    协调逻辑放在调用方，不会重新引入 `crash → tracing` 导入。
 2. **两个服务改用 `@dataclass(slots=True)`**：状态声明会更清晰；现在没做，是因为
    测试仍直接重置底层属性（这一步要先设计出公开的重置入口）。
-3. **抽出 `LogService` `Protocol`**（不是 ABC）：如果哪天 `yate/interfaces.py` 需要多态地
-   对待二者。目前没有任何地方这么做。
+3. **抽出 `LogService` `Protocol`**（不是 ABC）：如果哪天需要多态地
+   对待二者。目前没有任何地方这么做。（注：`yate/interfaces.py` 已在
+   2026-09-22 的分层重构中删除，当前架构不使用 `Protocol`。）
 4. **日志轮转 / 清理**：`~/.yate/data/` 下 `.err` 与 `.log` 的数量上限（文件名前缀
    常量已经集中在 `logs.py`，便于按 glob 清理）。
 5. **在 `cli.py` 层加 `LogServiceRegistry`**：持有两个单例并提供

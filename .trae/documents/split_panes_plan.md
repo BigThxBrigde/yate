@@ -14,7 +14,8 @@
 > - 与本文档的差异：`Leaf.states` 的键**不是** `id(doc)`，而是稳定的
 >   `Document.uid`（`pane_types.py::Leaf.state_for`，注释说明用于规避文档重建
 >   导致的键失效，见 `remove_type_checking_review_v3.md`）；`PaneManager`
->   构造为 `PaneManager(app: AppProtocol, doc: Document)`，Textual 宿主类为
+>   构造为 `PaneManager(session: EditorSession, doc: Document, ...)`（2026-09-23
+>   更新：不再使用 `AppProtocol`，改为具体对象注入），Textual 宿主类为
 >   `yate/editor_view/panes.py::PaneHost`（`reconcile` 目前是整树重建，文件内
 >   留有 `TODO(perf)`）。
 

@@ -308,20 +308,27 @@ class Editor:
         """Repaint the editor: views, status bar, chrome and LSP state."""
         if not self.mounted:
             return
-        # The active view first; inactive panes showing the same document
-        # repaint too (shared edit/LSP state, independent cursor/scroll).
+        self._refresh_views()
+        self._refresh_chrome()
+        self._refresh_lsp()
+
+    def _refresh_views(self) -> None:
+        """Notify all views that the document content has changed."""
         active = self.panes.active_view
         if active is not None:
             active.content_changed()
         for view in self.panes.all_views():
             if view is not active:
                 view.content_changed()
+
+    def _refresh_chrome(self) -> None:
+        """Refresh the chrome widgets: status bar, tab bar and breadcrumbs."""
         self.status_bar.refresh_status()
         self.tabbar.refresh_tabs()
         self.breadcrumbs.refresh_crumbs()
-        # LSP: lazily open newly shown documents and push debounced edits.
-        # Both are cheap no-ops when no extension registered a server for the
-        # active file type.
+
+    def _refresh_lsp(self) -> None:
+        """Push debounced edits and update the LSP echo."""
         self._lsp_doc_shown_later()
         self.lsp.notify_edit(self.session.doc)
         self._update_lsp_echo()

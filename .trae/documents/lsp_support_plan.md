@@ -5,9 +5,9 @@
 > - `yate/editor_lsp/`（`protocol.py` / `client.py` / `manager.py`）、
 >   `yate/editor_view/completion.py`、`extensions/python_lsp.py`、
 >   `tests/test_lsp.py` 均已落地。
-> - 架构现状：`AppProtocol`（`yate/interfaces.py`）仍是本分支的类型层，
->   `EditorView` / 补全弹窗等以 `AppProtocol` 注解 `app`
->   （见 `remove_type_checking_plan.md`）。
+> - 架构现状（2026-09-23 更新）：`AppProtocol`（`yate/interfaces.py`）已在
+>   「分层重构」中删除。当前 `EditorView` / 补全弹窗等接收具体对象
+>   （`EditorSession` / `LspManager` / `KeymapSet` 等），不再依赖任何 `Protocol`。
 > - 后续演进：补全陈旧守卫已按 `completion_staleness_check_plan.md` 加强；
 >   文档屏/主题等 UI 细节以当前代码为准。
 > - 枚举与数据类命名（如 `ServerState`、`ServerConfig`）请以

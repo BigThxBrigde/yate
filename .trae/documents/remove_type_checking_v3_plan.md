@@ -1,17 +1,17 @@
 # Refinement Plan: Eliminate `Any` in `yate/interfaces.py`
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **状态：历史方案，已被后续重构取代（2026-09-22）。**
 >
-> `yate/interfaces.py::AppProtocol` 的成员已全部精化为具体类型
-> （`workspace: Workspace`、`keymaps: dict[str, Keymap]`、`config: YateConfig`、
-> `panes: Optional[PaneManager]`、`run_shell_command(...) -> ShellResult` …）；
-> `TYPE_CHECKING` + 字符串前向引用块也已按 §2–§3 落地。
-> 仅剩 Textual 泛型参数的 `Any`（`Screen[Any]` / `WorkType[Any]` /
-> `Callable[[Any], None]`），与 §1.1 的"keep Any"清单一致。
-> §4 的附带修复（`completion.py::accept()` 行范围判定）同样已落地。
+> `yate/interfaces.py` 与 `AppProtocol` 已在「分层重构」中**整体删除**。
+> 当前架构不使用任何 `Protocol`：共享状态改为**具体对象**
+> （`EditorSession` / `KeymapSet` / `ActionRegistry` / `CommandRegistry`），
+> 操作逻辑上移到 `yate/editor.py`（`Editor`）。
 >
-> 本文档 §1.1 的 `Any` 审计清单可作为"已完成工作"的核对表；§3 的导入验证
-> 命令在当前实现下仍可照跑。
+> §1.1 的 `Any` 审计清单与 §4 的附带修复（`completion.py::accept()` 行范围
+> 判定）可作为"已完成工作"的核对表，但对应的文件与类型已不存在。
+>
+> **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
+> 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**。
 
 ## 1. Background
 

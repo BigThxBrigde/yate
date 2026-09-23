@@ -17,9 +17,10 @@
 >   早返回；`:changelog` 已在 `app_features/commands.py` 注册。
 > - CI：`.github/workflows/test.yml` 已 `fetch-depth: 0` 并加入
 >   `python -m tools.changelog check`；`.workflow/test.yml` 同步加入该门禁。
-> - 与本文档的差异（回写）：`app_features/docs.py` 保持**模块级函数**
->   （`show_doc(app, *, kind, lang, title)` / `show_manual` / `show_changelog`，
->   接收 `AppProtocol`），`app.py::show_manual` / `show_changelog` 是薄委托；
+> - 与本文档的差异（回写，2026-09-23 更新）：`app_features/docs.py` 已删除，
+>   文档屏逻辑迁移至 `yate/editor_view/manual.py`（`MarkdownDocScreen`）与
+>   `yate/editor.py`（`Editor.show_manual` / `show_changelog` 方法）。
+>   不再使用 `AppProtocol`，改为 `Editor` 的具体方法。
 >   `_prev_manual_theme` / `_prev_doc_theme` 已不存在——文档屏的临时主题
 >   切换/恢复机制被 `overlay_theme_consistency_plan.md` 移除（改由 Textual
 >   主题桥支撑），`MarkdownDocScreen(app, kind=..., lang=..., title=...)`

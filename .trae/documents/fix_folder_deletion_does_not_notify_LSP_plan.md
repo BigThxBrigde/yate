@@ -1,16 +1,14 @@
 # 修复文件夹删除未通知 LSP
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态（2026-09-23 核对）：✅ 已实现，但实现位置已迁移。**
 >
-> 实现落在 `yate/app_features/explorer.py::apply_delete(app: AppProtocol,
-> path, confirm)`：先收集将被关闭的文档，逐个
-> `app.run_worker(partial(app.lsp.on_document_closed, doc), group="lsp-sync",
-> exclusive=False, exit_on_error=False)`，再赋值 `app.docs = kept`，
-> 参数与 `app.py::close_tab()` 完全一致（含"传绑定函数而非协程"的注释说明）。
+> 原实现位于 `yate/app_features/explorer.py::apply_delete(app: AppProtocol, ...)`，
+> 该目录已在「分层重构」中删除。当前逻辑迁移至 `yate/editor_view/explorer.py`
+> 与 `yate/session.py`（`EditorSession.close_under`），使用具体对象
+> （`EditorSession` / `LspManager`）而非 `AppProtocol`。
 >
-> **仍未做的后续项**：本文档"后续建议 3"提到的 `apply_rename`/`submit_rename`
-> 未通知 LSP —— `YateApp.retarget_document()` 只更新 `doc.path`，
-> 没有对旧 URI 发 `didClose` / 对新 URI 发 `didOpen`。
+> **仍未做的后续项**：本文档"后续建议 3"提到的重命名未通知 LSP 问题
+> 可能仍然存在，需检查当前 `ExplorerTree` 的重命名流程。
 
 > 
 

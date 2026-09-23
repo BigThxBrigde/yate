@@ -1,4 +1,4 @@
-﻿# editor_dap：DAP 调试支持与内置 Python 调试实施计划
+# editor_dap：DAP 调试支持与内置 Python 调试实施计划
 
 > **实施状态（2026-09-22 核对）：❌ 未实施（Phase 1 尚未开始）。**
 >
@@ -9,11 +9,13 @@
 > 无相关测试；`yate/config.py` 无 `debug_options` / `debug_adapters`；
 > `yate/editor_view/editor.py` 的 `gutter_width()` 仍是"行号 + LSP 诊断标记"两列。
 >
-> **前提仍然成立**：本分支仍保留 `yate/interfaces.py` / `AppProtocol`，且
-> `app_features/*` 为模块级函数（`explorer.py::apply_delete`、
-> `terminal.py::toggle_terminal`、`completion.py::CompletionController`、
-> `docs.py::show_doc`）——本文档 §1 的复用基线与之一致，只是文中行号
-> （基于 2026-09-15 基线）已漂移，实施时需重新定位。
+> **前提已变更**（2026-09-23）：本分支的 `yate/interfaces.py` / `AppProtocol`
+> 与 `app_features/*` 已在「分层重构」中**整体删除**。当前架构使用具体对象
+> （`EditorSession` / `KeymapSet` / `ActionRegistry` / `CommandRegistry`）
+> 与 `yate/editor.py`（`Editor`）。本文档 §1 的复用基线需按新架构调整：
+> 原 `app_features/*` 的模块级函数模式已改为 `Editor` 的方法或独立模块
+> （如 `yate/completion.py::CompletionController`、`yate/commands.py`）。
+> 文中行号（基于 2026-09-15 基线）已漂移，实施时需重新定位。
 > `yate/editor_term/` PTY 包已存在；`extensions/python_lsp.py` 现在直接
 > `from yate.services.extensions import ExtensionAPI`（不再用 `TYPE_CHECKING`），
 > 因此 §4.4 的 JS 扩展示例应同步改为直接导入（配 `from __future__ import

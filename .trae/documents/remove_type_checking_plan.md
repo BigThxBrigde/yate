@@ -1,14 +1,16 @@
 # 移除 TYPE_CHECKING 循环依赖重构计划 (v2)
 
-> **实施状态（2026-09-22 核对）：✅ 已实现（本方案即当前实现）。**
+> **状态：历史方案，已被后续重构取代（2026-09-22）。**
 >
-> - `yate/interfaces.py` 存在，`AppProtocol` 覆盖 18 个下层模块的实际访问面；
->   `keymaps` / `services` / `editor_view` / `app_features` / `diagnostics`
->   均已以 `AppProtocol` 注解 `app` 参数，`YateApp` 由结构化子类型满足它
->   （未显式继承，与 §步骤 9 的"可选"一致）。
-> - 残留 `TYPE_CHECKING` 仅两处：`yate/interfaces.py`（4 处，用于前向引用具体
->   类，属本设计的一部分）、`tests/test_editor_core.py`（2 处）。
-> - 本文档 §1.2 的 19 文件清单与 §6 实施顺序与当前代码一致，可直接参照。
+> 本方案的直接目标（移除 `TYPE_CHECKING`）已达成，但中间产物
+> `yate/interfaces.py`（`AppProtocol`）与 `app_features/*` 已在紧随其后的
+> 「分层重构」中**整体删除**。当前架构不使用任何 `Protocol`：共享状态改为
+> **具体对象**（`EditorSession` / `KeymapSet` / `ActionRegistry` /
+> `CommandRegistry`），操作逻辑上移到 `yate/editor.py`（`Editor`）。
+>
+> **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
+> 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**；
+> 本文档保留作为架构决策记录（ADR），正文描述的是**历史实现**，请勿与当前代码对照。
 
 ## 1. 问题分析
 
