@@ -242,7 +242,10 @@ class Workspace:
                 if self._is_ignored(name, is_dir, dir_ignores):
                     continue
                 if is_dir:
-                    walk(child)
+                    # Never follow symlinked directories: a link pointing at
+                    # an ancestor would recurse forever.
+                    if not child.is_symlink():
+                        walk(child)
                 else:
                     files.append(child)
 

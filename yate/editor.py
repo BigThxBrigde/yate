@@ -277,12 +277,12 @@ class Editor:
         self.extension_loader.teardown_all()
         try:
             await self.terminal_panel.view.shutdown()
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - teardown must reach the LSP manager
+            log.exception("terminal panel shutdown failed")
         try:
             await self.lsp.shutdown_all()
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - last teardown step, nothing to defer to
+            log.exception("LSP shutdown failed")
 
     @property
     def mounted(self) -> bool:

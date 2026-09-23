@@ -435,8 +435,8 @@ class ExtensionLoader:
                 continue
             try:
                 teardown(self.api)  # dynamic user hook (captured post-setup)
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - isolate per-extension teardown
+                log.exception("extension %s teardown failed", record.name)
 
 
 def load_startup_extensions(

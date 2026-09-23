@@ -650,8 +650,8 @@ class LspManager:
         for client in clients:
             try:
                 await client.stop()
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - one bad server must not block the rest
+                log.exception("client failed to stop cleanly")
         # Let the interrupted start tasks run their cleanup instead of
         # dropping them mid-flight (orphans print "Task exception was never
         # retrieved" and can keep subprocess transports half-open).

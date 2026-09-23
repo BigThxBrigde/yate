@@ -25,7 +25,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, cast
 
+from yate.logs import tracing
 from yate.paths import package_root
+
+#: Trace logger ("yate.services.fonts"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
 
 # nerd-fonts v3 ships a short GDI family name on Windows ("NFM" = Nerd Font
 # Mono); the long name only exists as the typographic family (name ID 16),
@@ -170,8 +174,8 @@ def _broadcast_font_change_windows() -> None:
         ctypes.windll.user32.SendMessageTimeoutW(
             HWND_BROADCAST, WM_FONTCHANGE, 0, 0, SMTO_ABORTIFHUNG, 1000, None
         )
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 - best-effort notification only
+        log.debug("font-change broadcast failed", exc_info=True)
 
 
 def _expected_font_entries(fonts_dir: Path) -> dict[str, str]:

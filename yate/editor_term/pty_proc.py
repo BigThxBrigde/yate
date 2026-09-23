@@ -17,6 +17,11 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from yate.logs import tracing
+
+#: Trace logger ("yate.editor_term.pty_proc"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
+
 OutputFn = Callable[[bytes], None]
 ExitFn = Callable[[Optional[int]], None]
 
@@ -155,8 +160,8 @@ class PtyProcess:
         a torn-down widget take the teardown down with it."""
         try:
             callback(*args)
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - PTY thread must not kill the loop
+            log.exception("PTY callback failed")
 
     @staticmethod
     def _post(loop: asyncio.AbstractEventLoop, *args: Any) -> None:

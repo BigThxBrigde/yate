@@ -11,6 +11,7 @@ from typing import Any, cast
 
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine, TextBuffer
+from yate.editor_core.buffer import MAX_UNDO_STEPS
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
@@ -201,6 +202,77 @@ def test_save_and_reopen(tmp_path: Path) -> None:
     assert not reopened.modified
     reopened.buffer.insert_text("x")
     assert reopened.modified
+
+
+def test_save_is_atomic_and_leaves_no_temp_file(tmp_path: Path) -> None:
+    path = tmp_path / "note.txt"
+    doc = Document(path, TextBuffer("line1\nline2"))
+    doc.save()
+    assert path.read_text(encoding="utf-8") == "line1\nline2"
+    assert list(tmp_path.iterdir()) == [path], "temp file must be gone after save"
+    doc.buffer.insert_text("!")
+    doc.save()
+    assert path.read_text(encoding="utf-8") == "!line1\nline2"
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_failed_save_keeps_previous_contents(tmp_path: Path) -> None:
+    path = tmp_path / "note.txt"
+    doc = Document(path, TextBuffer("original"), encoding="ascii")
+    doc.save()
+    doc.buffer.set_text("emoji 😀")
+    # ascii cannot encode the emoji: the save must fail without destroying
+    # the on-disk file or leaving a .yate-tmp sibling behind
+    try:
+        doc.save()
+        raised = False
+    except UnicodeEncodeError:
+        raised = True
+    assert raised
+    assert path.read_text(encoding="utf-8") == "original"
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_modified_tracks_undo_back_to_saved_state(tmp_path: Path) -> None:
+    path = tmp_path / "note.txt"
+    doc = Document(path, TextBuffer("hello"))
+    assert not doc.modified
+    doc.buffer.move_doc_end()
+    doc.buffer.insert_text(" world")
+    assert doc.modified
+    doc.save()
+    assert not doc.modified
+    doc.buffer.insert_text("!")
+    assert doc.modified
+    # undoing past the save point must clear the flag again
+    while doc.buffer.undo():
+        pass
+    assert doc.buffer.get_text() == "hello"
+    assert not doc.modified
+    assert doc.buffer.redo()
+    assert doc.modified
+
+
+def test_cursor_only_edits_do_not_mark_document_modified(tmp_path: Path) -> None:
+    path = tmp_path / "note.txt"
+    doc = Document(path, TextBuffer("hello"))
+    doc.save()
+    doc.buffer.move_doc_end()
+    doc.buffer.move_line_start()
+    assert not doc.modified
+
+
+def test_undo_stack_is_capped() -> None:
+    buf = TextBuffer("")
+    for _ in range(MAX_UNDO_STEPS + 50):
+        buf.insert_text("x", kind="step")
+    undos = 0
+    while buf.undo():
+        undos += 1
+    # exactly the cap is kept: the 50 oldest steps are dropped, so undoing
+    # can only rewind to the 50th insertion
+    assert undos == MAX_UNDO_STEPS
+    assert buf.get_text() == "x" * 50
 
 
 def test_filetype_detection() -> None:

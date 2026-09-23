@@ -212,6 +212,22 @@ def test_walk_files_applies_ignore_rules(tmp_path: Path) -> None:
     assert got == {"keep.py", "fine.py"}
 
 
+def test_walk_files_does_not_follow_symlinked_directories(tmp_path: Path) -> None:
+    (tmp_path / "root.py").write_text("x\n", encoding="utf-8")
+    inside = tmp_path / "inside"
+    inside.mkdir()
+    (inside / "inner.py").write_text("x\n", encoding="utf-8")
+    # a link pointing back at the workspace root would recurse forever
+    loop = tmp_path / "loop"
+    try:
+        loop.symlink_to(tmp_path, target_is_directory=True)
+    except OSError:
+        pytest.skip("creating directory symlinks requires privileges on this OS")
+    ws = Workspace(tmp_path)
+    got = {p.name for p in ws.walk_files()}
+    assert got == {"root.py", "inner.py"}
+
+
 def test_set_root_reloads_ignores(tmp_path: Path) -> None:
     other = tmp_path / "other"
     other.mkdir()

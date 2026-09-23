@@ -15,6 +15,11 @@ Pos = tuple[int, int]
 
 _WORD_CHARS = re.compile(r"\w")
 
+#: Maximum undo steps kept in memory.  Each step snapshots the full line
+#: list, so an unbounded stack would grow without limit on large documents;
+#: oldest steps are dropped once the cap is reached (like most editors).
+MAX_UNDO_STEPS = 1000
+
 
 def _is_word(ch: str) -> bool:
     return bool(_WORD_CHARS.match(ch))
@@ -101,6 +106,11 @@ class TextBuffer:
         # selection) changes; the view uses it to invalidate highlight
         # tokens without re-tokenizing on every cursor-movement key.
         self.content_version: int = 0
+        # Number of content-changing commits since buffer creation (undo
+        # decrements, redo increments).  ``Document.modified`` compares this
+        # against the value recorded at the last save: O(1) dirty tracking
+        # that stays exact across undo/redo, unlike a full-text diff.
+        self.content_edits: int = 0
 
     # ------------------------------------------------------------------ state
 
@@ -129,15 +139,19 @@ class TextBuffer:
         self._undo.clear()
         self._redo.clear()
         self.content_version += 1
+        self.content_edits += 1
 
     def mark_content_changed(self) -> None:
         """Bump :attr:`content_version` after an out-of-band mutation.
 
         Extensions that replace ``buffer.lines`` entries directly (instead
         of going through an undoable edit) call this so syntax highlight
-        caches are re-synchronized on the next repaint.
+        caches are re-synchronized on the next repaint.  Also counts one
+        content edit: out-of-band mutations cannot be undone, so the only
+        way back to a clean state is saving again.
         """
         self.content_version += 1
+        self.content_edits += 1
 
     # ------------------------------------------------------------- snapshots
 
@@ -164,11 +178,15 @@ class TextBuffer:
                 self._redo.clear()
                 if lines_changed:
                     self.content_version += 1
+                    self.content_edits += 1
                 return
         self._undo.append(_Edit(before, after, kind))
+        if len(self._undo) > MAX_UNDO_STEPS:
+            del self._undo[0]
         self._redo.clear()
         if lines_changed:
             self.content_version += 1
+            self.content_edits += 1
 
     # ------------------------------------------------- bulk-edit transactions
     #
@@ -188,6 +206,8 @@ class TextBuffer:
         if not self._undo:
             return False
         edit = self._undo.pop()
+        if tuple(self.lines) != edit.before.lines:
+            self.content_edits -= 1
         self._restore(edit.before)
         self._redo.append(edit)
         return True
@@ -196,6 +216,8 @@ class TextBuffer:
         if not self._redo:
             return False
         edit = self._redo.pop()
+        if tuple(self.lines) != edit.after.lines:
+            self.content_edits += 1
         self._restore(edit.after)
         self._undo.append(edit)
         return True

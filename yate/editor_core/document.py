@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import locale
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -30,7 +31,10 @@ class Document:
         # Manual syntax/filetype override (`:set filetype=...`); ``None``
         # means the type is detected from the path suffix.
         self.filetype_override: Optional[str] = None
-        self._saved_text = self.buffer.get_text()
+        # Buffer edit count at the last save; ``modified`` compares this
+        # counter (O(1), exact across undo/redo) instead of diffing the full
+        # text on every keystroke repaint.
+        self._saved_edits = self.buffer.content_edits
 
     # ------------------------------------------------------------- factories
 
@@ -67,7 +71,7 @@ class Document:
 
     @property
     def modified(self) -> bool:
-        return self.buffer.get_text() != self._saved_text
+        return self.buffer.content_edits != self._saved_edits
 
     @property
     def name(self) -> str:
@@ -96,6 +100,12 @@ class Document:
     def save(self, path: Optional[Path | str] = None) -> Path:
         """Write the buffer to disk and clear the modified flag.
 
+        The write is atomic: the encoded text lands in a sibling temporary
+        file first and then replaces the target in one ``os.replace`` call,
+        so a crash (or a full disk) mid-write can never destroy the previous
+        on-disk contents.  Encoding also happens before anything is written,
+        so an unencodable character still leaves the file untouched.
+
         Returns the path that was written.
         """
         if path is not None:
@@ -103,9 +113,13 @@ class Document:
         if self.path is None:
             raise ValueError("cannot save a document without a path")
         text = self.buffer.get_text()
-        # Encode *before* touching the file: write_text() truncates first, so
-        # a character the document's encoding cannot represent would raise
-        # halfway through and leave an empty (destroyed) file behind.
-        self.path.write_bytes(text.encode(self.encoding))
-        self._saved_text = text
+        data = text.encode(self.encoding)
+        tmp = self.path.with_name(self.path.name + ".yate-tmp")
+        try:
+            tmp.write_bytes(data)
+            os.replace(tmp, self.path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        self._saved_edits = self.buffer.content_edits
         return self.path
