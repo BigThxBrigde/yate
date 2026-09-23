@@ -79,8 +79,11 @@ skip_empty = true
 # (`pytest tests/test_paths.py --cov=yate` reaches ~0% of the package) would then
 # fail even though its tests passed.  CI always runs the full suite, so the gate
 # is exact there.
-# Measured when introduced (2026-09-23, full suite, branch mode): 79.1% total
-# (82.5% lines / 69.4% branches); the CI gate is 75 (~4pp of headroom).
+# Measured after the second coverage round (2026-09-23, full suite, branch mode,
+# Windows): 90% total (9650 statements / 791 missing, 3310 branches / 381
+# missing).  The CI gate *stays* at 75: the two platform legs cover mutually
+# exclusive blocks (POSIX vs Windows backends in pty_proc / shells), so the
+# Linux total is only observable in CI and the gate must hold on both legs.
 
 [tool.hatch.version]
 source = "regex"

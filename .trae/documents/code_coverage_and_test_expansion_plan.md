@@ -208,8 +208,8 @@ fail_under = 60
 
 ### 7.6 未做 / 遗留
 
-- `track_coverage`（命令/action 使用率）保持原语义，未加门槛（§3.1/§3.3）。
-- 数据驱动的冒烟补场景（跑 `run --coverage` 找从未触发的命令）未做。
+- `track_coverage`（命令/action 使用率）保持原语义，未加门槛（§3.1/§3.3）；其"宇宙为空"的快照缺陷已在 §7.8 修复。
+- 数据驱动的冒烟补场景（跑 `run --coverage` 找从未触发的命令）未做——`--coverage` 现已可用（27/43 命令、51/65 action，见 §7.8）。
 - **第二轮补测目标（本节执行）**：`editor_term/pty_proc.py` 33.8%（缺 263 行，全仓最大缺口）、
   `services/fonts.py` 50.2%（缺 121 行，mock 密集）、`editor_view/completion.py` 77.8%（缺 44 行，Textual widget）。
   三者都不是"纯逻辑容易吃"的类型：`pty_proc` 是跨平台 PTY（ConPTY / POSIX pty 两套实现，本地只能覆盖一半），
@@ -218,10 +218,38 @@ fail_under = 60
 
 ### 7.7 第二轮补测结果（2026-09-23）
 
-| 模块 | 基线 | 现在 | 说明 |
-|---|---|---|---|
-| `editor_term/pty_proc.py` | 33.8% | 待填 | 跨平台：POSIX 分支在 Windows 本地只保证不失败，靠 Linux CI 覆盖 |
-| `services/fonts.py` | 50.2% | 待填 | 打桩注册表 / 探测命令 |
-| `editor_view/completion.py` | 77.8% | 待填 | Textual widget |
+全量套件口径（`pytest tests --cov=yate --cov-branch`，Windows 本地）：
 
-（本轮完成后回填实测数字与提交号。）
+| 模块 | 基线 | 现在 | 提交 | 说明 |
+|---|---|---|---|---|
+| `editor_term/pty_proc.py` | 33.8% | **80%** | `64e2dd4` | 剩 78 行：POSIX `_UnixPty` 整块（207-305）在 Windows 本地不可达，靠 Linux CI 覆盖；Windows 侧仅 3 条防御弧（spawn 失败清理、`_close_pty` 竞态、`GetExitCodeProcess` 失败） |
+| `services/fonts.py` | 50.2% | **99%** | `a6dcbef` | 剩余 1 条循环回边弧（315->312）；测试用 `sys.modules` 注入的内存 winreg 替身，两平台腿都跑 Windows 分支且不碰真实注册表 |
+| `editor_view/completion.py` | 77.8% | **99%** | `f01b713` | 剩余 `245->247`（恰好占满宽度时无 padding）与 `297-298`（`Path()` 抛 `ValueError` 的防御分支） |
+
+套件总量：**90% 合并口径**（行 9650 条 / 缺 791；分支 3310 条 / 缺 381）。新增/扩充测试：
+`tests/test_pty_proc.py`（35 例，新）、`tests/test_fonts.py`（5 → 46 例）、`tests/test_completion_popup.py`（30 例，新）。
+
+### 7.8 冒烟 `--coverage` 的 0/0 缺陷与修复（本轮收尾）
+
+**现象**：`python -m tools.smoke_test run --coverage` 报告 `commands 0/0`、`actions 0/0`（命令/action 宇宙为空），
+覆盖率面板形同虚设。
+
+**根因**：`track_coverage` 把宇宙快照挂在 `Editor.__init__` 结尾，但内置命令/action 表由外壳随后装载
+（`YateApp.__init__` 的 `populate(...)` / `register_commands(...)`，R7 分层要求编辑器不得反向导入表模块）——
+快照时注册表还是空的。
+
+**修复**（`tools/smoke_test/harness.py`，未改语义、只改快照时机）：包装 `YateApp.__init__`，在其末尾快照
+`self.editor` 的两个注册表。
+
+**验证**：
+- 直接构造 `YateApp` 实测宇宙规模 43 命令 / 65 action，与快照结果一致；
+- 全量冒烟 `65/65` 场景、`688/688` checks 通过（exit 0），`--coverage` 报告命令 **27/43 (63%)**、action **51/65 (78%)**。
+
+**顺带解决**：§7.6 遗留的"命令使用率无可用数据"问题，本节之后 `--coverage` 可作为补场景的据实依据（门槛仍不加，见 §3.3）。
+
+### 7.9 门槛复核（未抬高，附依据）
+
+第二轮后 Windows 本地全量实测 90% 合并口径（引入时 79.1%）。CI 门槛**仍为 75**，不抬高：
+两条平台腿各自覆盖互斥块（`pty_proc._UnixPty` vs `_WindowsPty`、`shells.py` 的平台分支），
+Linux 侧总量只在 CI 上测得到，本地没有它的数字；在没有两平台数据前按 §1.3「宁可临时放宽并记录，不粉饰数字」处理。
+`pyproject.toml` 的注释已同步为当前实测值，并写明门槛不动的原因。
