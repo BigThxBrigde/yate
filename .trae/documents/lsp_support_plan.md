@@ -70,6 +70,10 @@
 
 **EditorView 改造（`editor_view/editor.py`）**
 - `on_key` 在 raw dispatch 前：弹窗打开时拦截 `tab`/`enter`（接受）、`up/down`（选择）、`esc`（关闭）、其他键照常分发后按结果决定刷新/关闭；`Ctrl+Space` 任何模式下直接触发 manual completion（vim NORMAL 不触发）。
+  *实施注记（2026-09-23）：`e70dd15` 曾把"其他键照常分发"改成无条件消费（弹窗吞掉所有键，`Ctrl+S`/`Ctrl+Z` 失效），
+  现已修复回本设计的 fall-through（`yate/editor.py::handle_key` 只消费上述 5 个键）；守卫见
+  `tests/test_app_textual.py::test_completion_popup_keeps_typing_and_filters` 与冒烟 `regress_completion_staleness`，
+  问题记录见 [`../issues/review.md`](../issues/review.md)。*
 - 弹窗未打开时：可打印字符分发后，若该文件有注册 server 且字符为标识符字符或 server 声明的 triggerCharacters，调度去抖 ~120ms 的自动补全请求。
 - 诊断渲染叠加：
   - 行号着色：含 error 的行行号/行首用红，warning 用黄（复用 theme 的 red/yellow）。

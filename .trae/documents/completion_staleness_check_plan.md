@@ -227,3 +227,28 @@ if item.has_range():
 2. **Cancel in-flight workers explicitly.** `CompletionController._timer` already cancels the debounce timer. The controller could also track the current `_worker` task and cancel it when `schedule()` is called. Combined with `exclusive=True`, this would make stale checks purely defensive rather than necessary.
 
 3. **Pop-up auto-close on any buffer mutation.** Instead of checking staleness after awaiting, the popup could listen to buffer `content_version` changes and close itself whenever the buffer is modified. This would eliminate the need for per-worker stale checks entirely, at the cost of a more reactive (but simpler) popup lifecycle.
+
+---
+
+## Follow-up fix (2026-09-23): the popup no longer swallows every key
+
+The staleness guard above only covers what happens *after* a query returns.
+A second, older defect sat in the key path: while the popup was open the
+dispatcher consumed **every** key (`if popup.is_open: ... return True`), so
+typing could not extend the prefix and the guarded re-query in
+`after_editor_key()` was unreachable (see `../issues/review.md`, "completion
+popup intercepts all keys").
+
+* **Source fix** — `yate/editor.py::handle_key` now consumes only
+  `tab` / `enter` / `up` / `down` / `escape`; every other key falls through to
+  the normal dispatch (`event_to_raw` → `handle_raw_key` →
+  `CompletionController.after_editor_key`), which re-queries with the new
+  prefix.  Global chords (`Ctrl+S`, `Ctrl+Z`, `Ctrl+P`, ...) work again while
+  the popup is up.
+* **Guards** — `tests/test_app_textual.py::test_completion_popup_keeps_typing_and_filters`
+  (typing `p` / `h` after `Ctrl+Space` extends the buffer and keeps filtering)
+  plus the smoke scenario `regress_completion_staleness`, which now asserts the
+  popup really opened (`popup_was_open`) instead of passing vacuously.
+* **Attribution** — the swallow was introduced by `e70dd15` (2026-09-12) and
+  shipped since v0.1.0; the layering refactor (`9fa5ac8`) only moved it from
+  `editor_view/editor.py::on_key` to `editor.py::handle_key` unchanged.

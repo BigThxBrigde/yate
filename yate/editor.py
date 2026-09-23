@@ -548,19 +548,26 @@ class Editor:
         if event.key in TOGGLE_KEYS and event.key != "ctrl+@":
             self.terminal_panel.toggle()
             return True
-        # LSP completion popup owns a handful of keys while open; it never
-        # takes focus itself, so the keys arrive here.
+        # The completion popup owns a handful of keys while it is open; it
+        # never takes focus itself, so the keys arrive here.  Every other key
+        # falls through to the normal dispatch below: typing keeps filtering
+        # the candidates (``handle_raw_key`` ends in
+        # ``completion.after_editor_key``, which re-queries) and the global
+        # chords stay usable while the popup is up.
         popup = self.completion_popup
         if popup.is_open:
             if event.key in ("tab", "enter"):
                 self.accept_completion()
-            elif event.key == "up":
+                return True
+            if event.key == "up":
                 popup.select_prev()
-            elif event.key == "down":
+                return True
+            if event.key == "down":
                 popup.select_next()
-            elif event.key == "escape":
+                return True
+            if event.key == "escape":
                 popup.close()
-            return True
+                return True
         # vim ctrl+w window chord (armed or pending); before the other
         # chords so the prefix is consumed wherever focus currently is
         if self.try_window_prefix(event):

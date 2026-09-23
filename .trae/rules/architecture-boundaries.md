@@ -103,6 +103,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
       （白名单：`PaneHost`、`PaneManager`、`LspManager`；`*Controller` 仅限流程类如 `CompletionController`）
 - [ ] 新 widget 需要外壳 CSS 时，id 已由 `Editor` 传入（R9）？
 - [ ] 新按键路径不会造成二次派发（R10）？
+- [ ] 按键分支只消费自己真正处理的键，未识别的键 fall-through 到后续分发，不无条件 `return True`
+      （历史缺陷：补全弹窗曾吞掉全部按键，`Ctrl+S` / `Ctrl+Z` 失效）？
 - [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q` 全绿？
 
 ## 六、防回归

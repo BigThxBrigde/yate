@@ -49,10 +49,14 @@
   **修复：** 替换循环结束后钳制光标：`c = min(c, len(buffer.lines[r]))`。
   *复核：仍存在 — [search.py:118-145](../../yate/editor_core/search.py) 替换后仅清 anchor，无钳制。*
 
-- [ ] **补全弹窗拦截所有按键，包括 Ctrl+S、Ctrl+Z** — `editor_view/editor.py:163`
+- [x] **补全弹窗拦截所有按键，包括 Ctrl+S、Ctrl+Z** — `editor_view/editor.py:163`
   补全弹窗打开时所有按键被消费，用户无法保存或撤销。
   **修复：** 对高优先级命令（Ctrl+S、Ctrl+Z、Ctrl+Q 等）放行到 keymap 分发。
-  *复核：仍存在 — [editor.py:554-564](../../yate/editor.py) 弹窗打开时除 tab/enter/up/down/escape 外全部无条件 `return True` 吞掉。*
+  *已修复（2026-09-23）— [editor.py:551-570](../../yate/editor.py) 现在只消费 `tab` / `enter` / `up` / `down` / `escape`，
+  其余按键 fall-through 到正常分发（`event_to_raw` → `handle_raw_key` → `CompletionController.after_editor_key`）：
+  字符继续写入缓冲区并按新前缀重新查询候选，`Ctrl+S` / `Ctrl+Z` / `Ctrl+P` 等全局快捷键恢复可用。
+  守卫见 `tests/test_app_textual.py::test_completion_popup_keeps_typing_and_filters` 与冒烟场景 `regress_completion_staleness`。
+  归因：吞键行为由 `e70dd15`（2026-09-12，v0.1.0 起随版发布）引入，非本轮分层重构产生。*
 
 - [ ] **命令面板 CJK 字符对齐错误** — `editor_view/palette.py:178`
   使用 `len(display)` 而非 `theme.cell_len(display)` 计算填充。CJK 字符（2 单元格宽）导致提示列错位。

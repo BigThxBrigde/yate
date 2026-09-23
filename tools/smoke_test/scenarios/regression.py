@@ -181,21 +181,46 @@ async def _regress_overlay_theme(tmp: Path) -> ScenarioResult:
 
 
 async def _regress_completion_staleness(tmp: Path) -> ScenarioResult:
-    """Requesting completion then typing leaves no phantom text behind."""
-    app = new_app(target=tmp / "code.py")
+    """Typing while the completion popup is open must reach the buffer.
+
+    The popup used to swallow *every* key while it was up; it now consumes
+    only tab/enter/up/down/escape and lets the rest fall through, so the
+    typed characters land in the buffer and the popup re-queries under the
+    longer prefix.  The file is seeded with a candidate word ("printf") on a
+    line *below* the cursor row: buffer completion reads the other rows, and
+    the cursor row is excluded, so typing on row 0 cannot feed itself.  With
+    an empty file the popup never opened and the old assertions were
+    vacuously true -- exactly the false negative this guard now fixes.
+
+    The target is ``.txt`` on purpose: ``.py`` would route through the
+    bundled python language server (registered even when disabled via
+    ``YATE_PYTHON_LSP=off``), which has no server to answer and keeps the
+    popup shut, so the buffer-completion path would not be exercised.
+    """
+    target = tmp / "code.txt"
+    target.write_text("\nprintf\n", encoding="utf-8")
+    app = new_app(target=target)
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
+        popup: Any = app.editor.completion_popup
         await type_text(pilot, "pri")
         await pilot.press("ctrl+space")
-        await pilot.pause()
+        # The popup must really open: a candidate matching "pri" exists
+        # ("printf"), so this check fails loudly if it ever stops opening.
+        opened = await wait_until(pilot, lambda: popup.is_open)
+        checks.append(Check("popup_was_open", True, opened))
         await type_text(pilot, "nt")
-        await pilot.pause(0.2)
-        popup: Any = app.editor.completion_popup
-        checks.append(Check("popup_closed", True,
-                            popup is None or not popup.is_open))
+        # Core contract: the keys fell through instead of being swallowed,
+        # so the buffer holds the whole typed word.
         checks.append(Check("no_phantom_insert", "print",
                             app.editor.session.buffer.lines[0]))
+        # Measured state after the fix: typing does *not* close the popup --
+        # it re-queries and stays up filtered by the longer prefix "print".
+        # ``popup_closed`` therefore legitimately holds ``False`` here.
+        await wait_until(pilot, lambda: popup.prefix == "print")
+        checks.append(Check("popup_closed", False, not popup.is_open))
+        checks.append(Check("popup_prefix", "print", popup.prefix))
         await pilot.press("escape")
         await pilot.pause()
         checks.append(Check("still_clean", "print",

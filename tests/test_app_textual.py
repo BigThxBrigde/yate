@@ -1952,6 +1952,64 @@ def test_buffer_completion_accepts_word(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_completion_popup_keeps_typing_and_filters(tmp_path: Path) -> None:
+    """Typing must fall through while the completion popup is open.
+
+    Regression guard for the popup swallowing every keypress: previously an
+    open popup consumed all keys (``return True``), so the user could neither
+    keep typing to refine the candidates nor use global chords.  Only the
+    popup-owned keys (tab / enter / up / down / escape) may be consumed; every
+    other key must reach the normal dispatch, insert its character and
+    re-query the candidates via ``CompletionController.after_editor_key``.
+    """
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        # "alpha" is repeated so it becomes a buffer-word candidate.
+        doc.write_text(
+            "alpha bravo charlie\nalpha delta\n", encoding="utf-8"
+        )
+        app = YateApp(target=doc)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            popup = app.editor.completion_popup
+            assert popup is not None
+            # move to a new line and start typing "al"
+            app.editor.session.buffer.move_doc_end()
+            app.editor.session.buffer.insert_text("\nal")
+            app.editor.refresh_ui()
+            await pilot.press("ctrl+space")
+            shown = await wait_until(pilot, lambda: popup.is_open)
+            assert shown
+            labels = [item.label for item in popup.items]
+            assert "alpha" in labels
+            # "al" prefix excludes the other words
+            assert "bravo" not in labels
+
+            # A plain character must not be swallowed by the open popup: it is
+            # inserted into the buffer and the candidates are re-queried.
+            await pilot.press("p")
+            await pilot.pause()
+            assert app.editor.session.buffer.lines[-1] == "alp"
+            assert popup.is_open
+            assert await wait_until(pilot, lambda: popup.is_open)
+            labels = [item.label for item in popup.items]
+            assert "alpha" in labels
+
+            # The buffer keeps growing with the next typed character.
+            await pilot.press("h")
+            await pilot.pause()
+            assert app.editor.session.buffer.lines[-1] == "alph"
+
+            # The popup still owns tab: it accepts "alpha" and closes.
+            await pilot.press("tab")
+            await pilot.pause()
+            assert not popup.is_open
+            assert app.editor.session.buffer.lines[-1].startswith("alpha")
+
+    asyncio.run(scenario())
+
+
 # ---------------------------------------------------- palette tab completion
 
 

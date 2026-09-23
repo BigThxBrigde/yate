@@ -1129,8 +1129,11 @@ stdio, speaks JSON-RPC itself, and provides:
 * **Autocomplete** -- a popup appears automatically while typing an
   identifier (after the server's trigger characters, e.g. `.` in Python),
   and `Ctrl+Space` requests suggestions manually (it also works with no
-  language server). Navigate with `↑` / `↓`, accept with `Tab` or `Enter`,
-  dismiss with `Esc`. When no language server is available for the current
+  language server). While the popup is open you can **keep typing**: the
+  characters still reach the buffer and the candidates are filtered by the
+  new prefix (backspace re-queries too). Navigate with `↑` / `↓`, accept
+  with `Tab` or `Enter`, dismiss with `Esc`. When no language server is
+  available for the current
   file, the popup falls back to the built-in **buffer completion**: words
   already typed, collected from every open buffer (plus filesystem paths
   when the typed prefix contains `/`, `\` or `~`), with no external process
