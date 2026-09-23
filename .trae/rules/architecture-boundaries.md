@@ -7,7 +7,7 @@ scene: architecture
 
 本规则固化「分层重构」后的目标架构。完整方案与执行记录见
 [`.trae/documents/app-layering-refactoring-plans/`](../documents/app-layering-refactoring-plans/README.md)
-（总纲 `README.md` + `plan_A`…`plan_F`）。
+（总纲 `README.md` + `plan_A`…`plan_G`）。
 **所有新增/修改代码都必须遵守，不得因为新功能而破坏这些边界。**
 
 ## 一、依赖方向（硬性规则）
@@ -17,7 +17,8 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / completion.py /
          prompt_completion.py / diagnostics.py / services/extensions.py
 L2 组件：editor_view/*
-L1 会话与模型：session.py（EditorSession）/ registries.py / keymaps/registry.py（KeymapSet）
+L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
+         registries.py / keymaps/registry.py（KeymapSet）
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / paths /
          config / services/* / keymaps/base|vim|vsc
 ```
@@ -58,7 +59,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
 | 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`completion.py`、`prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
 | `editor_view/*`（L2） | 自己的渲染与行为（自持），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
-| `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合、动作与命令容器（无 UI） | 不 import `editor_view`、不碰 Textual |
+| `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
 | 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、配置、日志、路径、shell、workspace、字体） | 不 import 上层 |
 
 ## 三、接口与代码形态设计
@@ -71,7 +72,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 5. 包 `__init__.py` 保持惰性：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层。
 6. **能用函数实现的就不造类**：内置表（`populate` / `register_commands` / `load_startup_extensions`）、
    纯计算（`prompt_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
-   （`pane_types.py` 的 `find_leaf` / `replace_node` …）一律用函数。
+   （`session.py` 的 `find_leaf` / `replace_node` …）一律用函数。
 
 ## 四、跨模块交互
 
@@ -93,7 +94,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 
 - [ ] 依赖方向向下：没有 `import yate.app`、没有导入上层实现类？
 - [ ] 状态放在正确的层：文档 / 标签 / 搜索 → `EditorSession`；键映射 → `KeymapSet`；
-      动作与 `:` 命令 → `ActionRegistry` / `CommandRegistry`？
+      动作与 `:` 命令 → `ActionRegistry` / `CommandRegistry`；窗格树模型（`Leaf` / `Split` /
+      `ViewState` + 树纯操作）→ `session.py`（L1，不得挪回 `editor_view`，也不得新建类型层）？
 - [ ] 组件行为写在组件内部（自持），而不是加回 `Editor` 或外壳？
 - [ ] `Editor` 只新增"横跨多个协作者的操作"；单一流程已拆成独立模块（参照 `completion.py`）？
 - [ ] 没有新增 `Protocol`（除 `PaneRegistry`）、`TYPE_CHECKING`、`Any`、`# type: ignore`？
@@ -105,7 +107,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **12 个用例**（`python -m pytest tests/test_architecture.py -q` → 12 passed）：
+`tests/test_architecture.py` 已落地 **13 个用例**（`python -m pytest tests/test_architecture.py -q` → 13 passed）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -114,6 +116,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
   不够：残留目录会被当作空命名空间包导入，掩盖删除）；
 - **R4** `keymaps/*`、`services/*`、`session.py`、`registries.py` 不 import `editor_view`（严格 0 违规）；
+- **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
+  `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
+  （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
 - **R11** `completion.py` / `prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
 - **R5** `editor.py` 不 import `yate.actions` / `yate.commands`；
 - **R7** 只有 `app.py` 导入内置表，且 `YateApp.__init__` 调用

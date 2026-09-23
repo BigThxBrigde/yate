@@ -1,7 +1,7 @@
 # 分层重构计划：外壳 / 调度 / 组件 / 会话
 
-> 状态：**Plan A–F 全部完成**（2026-09-22 落地 · 2026-09-23 审计与迁移收口）；
-> **Plan G（窗格模型下沉）待执行**，见 §5 索引。
+> 状态：**Plan A–G 全部完成**（Plan A–F 于 2026-09-22 落地 · 2026-09-23 审计与迁移收口；
+> Plan G 窗格模型下沉于 2026-09-23 落地），见 §5 索引与 §10 审计记录。
 > 目标：项目结构清晰、层次划分清晰、扩展性与维护性好；改动性质以**代码搬运 + 删除**为主，
 > 不重写算法；**能用函数实现的就不造类**。
 > 本目录是本次重构的**唯一计划来源**；代码侧的硬性边界同时固化在
@@ -19,14 +19,14 @@
 | 指标 | 值 |
 |---|---|
 | `yate/app.py` | **152 行**（重构前 2005 行） |
-| `yate/editor.py` | 1245 行（`Editor`：唯一允许的编排大类） |
-| `yate/session.py` | 161 行（`EditorSession`，无 UI） |
-| `yate/registries.py` / `actions.py` / `commands.py` | 60 / 111 / 203 行 |
+| `yate/editor.py` | 1274 行（`Editor`：唯一允许的编排大类） |
+| `yate/session.py` | 281 行（`EditorSession` 161 行 + 窗格树模型 120 行，无 UI） |
+| `yate/registries.py` / `actions.py` / `commands.py` | 60 / 111 / 207 行 |
 | `yate/completion.py` / `prompt_completion.py` | 280 / 126 行 |
-| 已删除 | `yate/app_features/`（6 文件 / 1070 行）、`app.py` 内 1875 行业务代码（均为历史值） |
+| 已删除 | `yate/app_features/`（6 文件 / 1070 行）、`app.py` 内 1875 行业务代码（均为历史值）、`yate/editor_view/pane_types.py`（155 行，Plan G 下沉至 `session.py`） |
 | `AppProtocol` / `yate.interfaces` | 定义 **0 处**（字面量仅存于 `tests/test_architecture.py` 的禁用名守卫） |
 | 新增模块 | `session.py`、`registries.py`、`editor.py`、`actions.py`、`commands.py`、`completion.py`、`prompt_completion.py`、`editor_view/chrome.py`、`keymaps/registry.py` |
-| 门禁现状 | `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**；`pytest tests/` **全绿**；`tools.smoke_test run --fail-only` → **62/62 场景、651/651 checks**（2026-09-23 收口，见 §1.1） |
+| 门禁现状 | `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**；`pytest tests/` **全绿**；`tools.smoke_test run --fail-only` → **86/86 场景、889/889 checks**（2026-09-23 **Plan G 收口**实测；§1.1 是 Plan E 时点的旧值，场景/checks 数此后随新增场景增长） |
 
 ### 1.1 迁移与门禁收口（2026-09-23 实测）
 
@@ -142,9 +142,11 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 
 ### 守护覆盖（2026-09-23 实测）
 
-`tests/test_architecture.py` 的 **12 个用例**实际覆盖：**R1 / R2 / R3 / R4 / R5 / R6 / R7 / R11 +
-命名守卫**（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`），以及 `app_features/`
-**目录**与 `yate/interfaces.py` 已消失。其中 R7 由 `test_shell_loads_the_builtin_tables` 守护：
+`tests/test_architecture.py` 的 **13 个用例**实际覆盖：**R1 / R2 / R3 / R4 / R5 / R6 / R7 / R11 +
+窗格模型归属 + 命名守卫**（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`），以及 `app_features/`
+**目录**与 `yate/interfaces.py` 已消失。其中「窗格模型归属」由 `test_pane_model_lives_in_l1_session` 守护：
+窗格树模型（`Leaf` / `Split` / `ViewState` + `find_leaf` 等树操作）归 L1 `yate/session.py` 所有，
+`editor_view/` 只 import、不再重导出（`editor_view/pane_types.py` 已删除）。R7 由 `test_shell_loads_the_builtin_tables` 守护：
 断言 `app.py` 含 `populate(self.editor.actions, self.editor)` /
 `register_commands(self.editor.commands, self.editor)`，且 `actions.py` / `commands.py` 只被 `app.py` 导入。
 
@@ -163,7 +165,7 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 | D | [plan_D_shell_wiring.md](plan_D_shell_wiring.md) | **外壳瘦身与接线**：解环、`app.py` 瘦到 152 行、删除 `app_features/`、cli 走 `app.editor` | ✅ |
 | E | [plan_E_tests_tools.md](plan_E_tests_tools.md) | **测试与冒烟脚本迁移**：`app.X` → `app.editor.*`；架构守护规则更新（§E.5 落地记录、§E.6 迁移清单与实测） | ✅ |
 | F | [plan_F_gate_docs.md](plan_F_gate_docs.md) | **门禁与文档**：pyright / pytest / `--diag` / 冒烟清单、扩展与用户文档、CHANGELOG、`architecture-boundaries.md` | ✅ |
-| G | [plan_G_pane_model_to_session.md](plan_G_pane_model_to_session.md) | **窗格模型下沉**：删除 `editor_view/pane_types.py`，模型并入 `session.py`（L1）；清掉 `panes.py` 的 deprecated 重导出 | 📝 待执行 |
+| G | [plan_G_pane_model_to_session.md](plan_G_pane_model_to_session.md) | **窗格模型下沉**：删除 `editor_view/pane_types.py`，模型并入 `session.py`（L1）；清掉 `panes.py` 的 deprecated 重导出 | ✅ |
 
 ---
 
@@ -221,6 +223,7 @@ python -m yate --version                   # 正常
 | 10 | `.trae/rules/python-coding-style.md`、`.trae/skills/textual-pilot-smoke/SKILL.md`、`split_app_protocol_plan.md` | 残留"窄 Protocol（Host/Ops）"指导、`yate/tracing.py` / `yate/crash.py` 失效路径、错误的 baseline 目录、旧 R 编号 | 已修正（§F.5） |
 | 11 | `yate/app_features/` 残留目录（同日追加） | 目录只剩 `__pycache__`，`import yate.app_features` 仍**成功**（空命名空间包），而原用例只断言 `__init__.py` 不存在 | 删除残留目录；`test_app_features_package_is_gone` 改为断言**目录**不存在；rules §六 同步 |
 | 12 | `tests/test_architecture.py`（同日追加） | R7（外壳装载内置表）此前**无自动守护** | 补 `test_shell_loads_the_builtin_tables`（用例数 11 → 12），rules §六 与 [Plan E](plan_E_tests_tools.md) §E.3 / §E.5 同步 |
+| 13 | [Plan G](plan_G_pane_model_to_session.md) 落地（同日追加） | 窗格模型挂在 L2 `editor_view/pane_types.py`，与「状态放在正确的层 / 不建公共类型层」冲突 | `pane_types.py` 整体删除、模型下沉 `yate/session.py`（L1，与 `EditorSession` 同模块但类本身零改动）；`panes.py` 的 deprecated 重导出与 `__all__` 清理；新增架构守护用例 `test_pane_model_lives_in_l1_session`（用例数 12 → 13）；`.trae/rules/architecture-boundaries.md` §一 / §二 / §三.6 / §六、本 README §2 / §4、[Plan B](plan_B_widget_selfhold.md) §B.2、[split_panes_plan.md](../split_panes_plan.md) 实施状态段同步回填；本 README §1 行数已按实测回填（`session.py` 161 → 281 行）。落地实测见 [Plan G](plan_G_pane_model_to_session.md) §G.9 |
 
 > Plan E / Plan F 的迁移与门禁执行结果（含 5 个并行子任务的交付与复核数据）见
 > [Plan E](plan_E_tests_tools.md) §E.5 / §E.6.4 与 [Plan F](plan_F_gate_docs.md) §F.6。

@@ -9,17 +9,26 @@ application with one protocol per consumer.
 
 Pane binding and the visual side effects (LSP notifications, repaints) stay
 with the callers: the session only reports which documents changed.
+
+The module also carries the UI-free *window* model (``Leaf`` / ``Split`` /
+``ViewState`` and the tree operations from the deleted ``pane_types`` module):
+one ``Leaf`` is a document slot plus its per-document viewport state.  It lives
+here because it is L1 state with L0-only dependencies, shared by ``EditorView``
+and ``PaneManager`` without an intermediate type-only module.  ``EditorSession``
+itself stays pane-agnostic: the window layout is owned by ``PaneManager`` (L2)
+and composed by ``Editor`` (L3).
 """
 
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Literal, Optional, Union
 
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
-from yate.editor_core.buffer import TextBuffer
+from yate.editor_core.buffer import Pos, TextBuffer
 from yate.services.workspace import Workspace
 
 #: Called with the documents a close operation removed (LSP didClose hook).
@@ -189,3 +198,147 @@ class EditorSession:
     def _notify_closed(self, closed: list[Document]) -> None:
         if self._on_closed is not None and closed:
             self._on_closed(closed)
+
+
+# ============================================================== 窗格树模型
+# 无 UI 的窗口布局模型：一个 Leaf 是一个绑定 Document 的编辑器窗口槽位，
+# Split 是其水平/垂直组合。它们与 EditorSession 同属 L1（只依赖 editor_core），
+# 因此 L2 的 editor_view/editor.py 与 editor_view/panes.py 都能直接 import，
+# 无需中间类型层（原 editor_view/pane_types.py）。窗口布局本身仍由 Editor
+# （L3）组装、PaneManager（L2）持有——EditorSession 不感知窗格。
+
+#: Split axis: ``horizontal`` stacks top/bottom (:split), ``vertical`` puts
+#: windows side by side (:vsplit).
+Axis = Literal["horizontal", "vertical"]
+
+#: Smallest share of a split any one pane may hold while resizing.
+MIN_FRACTION = 0.12
+
+#: Fraction transferred per ``ctrl+w +/-/< />`` keypress.
+RESIZE_STEP = 0.08
+
+
+@dataclass
+class ViewState:
+    """Per-(leaf, document) view: independent cursor, anchor and scroll."""
+
+    cursor: Pos = (0, 0)
+    anchor: Optional[Pos] = None
+    scroll_col: int = 0
+    scroll_row: int = 0
+
+
+@dataclass
+class Leaf:
+    """One editor window bound to a document."""
+
+    id: int
+    doc: Document
+    #: View states keyed by ``Document.uid`` so a leaf remembers the cursor
+    #: position of every document it has shown.  Using a stable monotonically
+    #: increasing id avoids ``id(document)`` instability when documents are
+    #: recreated (e.g.  reopening after a crash).
+    states: dict[int, ViewState] = field(
+        default_factory=lambda: dict[int, ViewState]()
+    )
+
+    def state_for(self, doc: Document) -> ViewState:
+        state = self.states.get(doc.uid)
+        if state is None:
+            state = ViewState(
+                cursor=doc.buffer.cursor, anchor=doc.buffer.anchor
+            )
+            self.states[doc.uid] = state
+        return state
+
+
+@dataclass
+class Split:
+    """A horizontal/vertical arrangement; ``sizes`` sum to 1.0."""
+
+    axis: Axis
+    children: list["Node"]
+    sizes: list[float]
+
+
+Node = Union[Leaf, Split]
+
+
+# ----------------------------------------------------------------- tree ops
+
+
+def leaves(node: Node) -> list[Leaf]:
+    """All leaves in screen (left-to-right, top-to-bottom) order."""
+    if isinstance(node, Leaf):
+        return [node]
+    out: list[Leaf] = []
+    for child in node.children:
+        out.extend(leaves(child))
+    return out
+
+
+def find_leaf(node: Node, leaf_id: int) -> Optional[Leaf]:
+    if isinstance(node, Leaf):
+        return node if node.id == leaf_id else None
+    for child in node.children:
+        found = find_leaf(child, leaf_id)
+        if found is not None:
+            return found
+    return None
+
+
+def replace_node(node: Node, target: Leaf, replacement: Node) -> Node:
+    """Return *node* with the *target* leaf swapped for *replacement*."""
+    if isinstance(node, Leaf):
+        return replacement if node is target else node
+    node.children = [
+        replace_node(child, target, replacement) for child in node.children
+    ]
+    return node
+
+
+def remove_node(node: Node, target: Leaf) -> Optional[Node]:
+    """Return *node* without *target*; ``None`` when *target* was the root.
+
+    A split left with a single child collapses (the child is hoisted).
+    """
+    if isinstance(node, Leaf):
+        return None if node is target else node
+    new_children: list[Node] = []
+    for child in node.children:
+        result = remove_node(child, target)
+        if result is None:
+            # the target leaf lived directly in this split: drop it
+            continue
+        new_children.append(result)
+    if len(new_children) == 1:
+        return new_children[0]
+    node.children = new_children
+    node.sizes = _normalized(node.sizes[: len(new_children)])
+    return node
+
+
+def find_axis_split(
+    node: Node, target: Leaf, axis: Axis
+) -> Optional[tuple[Split, int]]:
+    """Deepest *axis* split on the path to *target* + the child index whose
+    subtree contains the target (the slot to resize)."""
+    if isinstance(node, Leaf):
+        return None
+    target_index = -1
+    for i, child in enumerate(node.children):
+        if find_leaf(child, target.id) is not None:
+            target_index = i
+            break
+    if target_index < 0:
+        return None
+    # Prefer a deeper matching split (resize the tightest enclosing group).
+    deeper = find_axis_split(node.children[target_index], target, axis)
+    if deeper is not None:
+        return deeper
+    return (node, target_index) if node.axis == axis else None
+
+
+def _normalized(sizes: list[float]) -> list[float]:
+    total = sum(sizes) or 1.0
+    return [s / total for s in sizes]

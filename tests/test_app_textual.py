@@ -26,8 +26,8 @@ from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
 from yate.keymaps.vim import VimKeymap
 from yate.editor_view.manual import MarkdownDocScreen
-from yate.editor_view.panes import Split as PaneSplit
-from yate.editor_view.panes import leaves as pane_leaves
+from yate.session import Split as PaneSplit
+from yate.session import leaves as pane_leaves
 
 
 async def wait_until(

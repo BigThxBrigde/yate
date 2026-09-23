@@ -15,15 +15,15 @@ import pytest
 from yate.config import YateConfig
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
-from yate.editor_view.panes import (
+from yate.editor_view.panes import PaneManager
+from yate.session import (
     MIN_FRACTION,
+    EditorSession,
     Leaf,
-    PaneManager,
     Split,
     find_axis_split,
     leaves,
 )
-from yate.session import EditorSession
 
 
 def make_doc(text: str = "") -> Document:

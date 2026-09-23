@@ -125,7 +125,8 @@ Plan D 之后 `YateApp` 不再持有业务状态，测试与冒烟脚本里所�
 | `test_keymaps_services_and_models_stay_ui_free`（R4） | 保留（**已改名**，原 `test_keymaps_and_services_stay_ui_free`），并把 `session.py` / `registries.py` 纳入同一检查 |
 | `test_no_type_checking`（R6） | 保留 |
 | `test_collaborators_keep_widget_coupling_frozen` | 按 **R11** 标注（原文误标 R4；R4 由上面的 UI-free 用例守护） |
-| — | 新增：R7 守卫 `test_shell_loads_the_builtin_tables`（E5 收尾后补：断言 `app.py` 登记两张内置表，且 `actions.py` / `commands.py` 只被 `app.py` 导入；用例数 11 → 12） |
+| — | 新增：R7 守卫 `test_shell_loads_the_builtin_tables`（E5 收尾后补：断言 `app.py` 登记两张内置表，且 `actions.py` / `commands.py` 只被 `app.py` 导入；用例数 11 → 12；2026-09-23 Plan G 追加
+`test_pane_model_lives_in_l1_session` 后为 13） |
 
 ## E.4 完成检查
 
@@ -144,7 +145,7 @@ Plan D 之后 `YateApp` 不再持有业务状态，测试与冒烟脚本里所�
 
 | 子任务 | 文件 | 结果（2026-09-23 审计实测） |
 |---|---|---|
-| **E5** | `tests/test_architecture.py` | ✅ 重写为 **11 个用例**：`python -m pytest tests/test_architecture.py -q` → **11 passed**；收尾时补 R7 守卫 → **12 passed**。删除旧的 `test_features_import_only_allowed_view_modules` 与 `ALLOWED_FEATURE_VIEW_IMPORTS`；新增 helper `_yate_files()` / `_imports_upward()` / `_protocol_classes()` / `_identifiers()`；规则映射见 §E.3 与 [rules §六](../../rules/architecture-boundaries.md) |
+| **E5** | `tests/test_architecture.py` | ✅ 重写为 **11 个用例**：`python -m pytest tests/test_architecture.py -q` → **11 passed**；收尾时补 R7 守卫 → **12 passed**（2026-09-23 Plan G 追加 `test_pane_model_lives_in_l1_session` 后为 13 passed）。删除旧的 `test_features_import_only_allowed_view_modules` 与 `ALLOWED_FEATURE_VIEW_IMPORTS`；新增 helper `_yate_files()` / `_imports_upward()` / `_protocol_classes()` / `_identifiers()`；规则映射见 §E.3 与 [rules §六](../../rules/architecture-boundaries.md) |
 | E1 | `tests/test_app_textual.py` | ✅ **完成（137 passed / 132s）**：≈250 处旧路径迁移（`app.doc` 56、`app.buffer` 40、`app.run_command` 65、`app.editor_view` 28、`app.prompt_bar` 26 …）；非机械点逐个核对：`terminal_feature.is_visible` → `terminal_panel.is_visible`（property）、`_terminal_factory` → `terminal_panel.view_factory`、`build_tabbar` / `render_breadcrumbs` → `tabbar.build` / `breadcrumbs.build`、`patch("yate.app.run_shell")` → `patch("yate.editor.run_shell")`、`PaletteScreen` 改关键字签名、`quit` 打桩落到 `app.editor` |
 | E2 | `tests/test_explorer.py` / `test_changelog_view.py` / `test_diagnostics.py` | ✅ **完成（26 passed）**：`test_explorer.py` 改为直驱 `ExplorerTree.prompt_delete` / `submit_delete`（注入 fake `PromptBar` + 真实 `EditorSession`）与真实 `Editor._lsp_documents_closed` + `session.close_under`；`test_changelog_view.py` 改测 `Editor.show_changelog` / `show_manual`（`_open_doc` + `push_overlay`），删除已不存在的 `YateApp` facade 用例；`test_diagnostics.py` 走 `app.editor.*`。已删除 `test_app_facade_forwards_to_docs`（`yate/app.py` 已无该委派，grep 0 命中） |
 | E3 | `tests/test_cli.py` / `test_config.py` / `test_panes.py` / `test_editor_core.py` / `test_extensions.py` / `test_highlight.py` | ✅ **完成（175 passed）**：`test_panes.py` 删 `FakeApp`、改真实 `EditorSession` + `PaneManager(session, doc, is_mounted=..., after_pane_focus=..., focus_explorer=...)`；`test_editor_core.py` 去掉 `SessionOps`、`ActionContext(app.session, app.ui)`；`test_cli.py` 替身补 `.editor`（断言未弱化）；`test_extensions.py` / `test_highlight.py` 改用 `ExtensionContext` |

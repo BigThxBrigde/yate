@@ -25,7 +25,7 @@
 | | `TerminalView(Widget)` | PTY 进程生命周期、VT 模拟器、滚动、按键/粘贴/滚轮 | 所属 `TerminalPanel` |
 | `panes.py` | `PaneManager` | 窗格树操作（split / close / only / focus 方向 / resize / equalize）、`active_view` | `EditorSession`、`Document`；`is_mounted` / `after_pane_focus` / `focus_explorer` |
 | | `PaneHost(Widget)` | 按 `PaneManager` 的树构建/协调子 widget、尺寸应用 | `PaneManager`、`make_view: Callable[[int], EditorView]` |
-| `pane_types.py` | `ViewState` / `Leaf` / `Split` + 纯函数 | 窗格树数据结构与纯操作（`leaves` / `find_leaf` / `replace_node` / `remove_node` / `find_axis_split`） | — |
+| `session.py`（L1；原为 `editor_view/pane_types.py`，2026-09-23 Plan G 下沉至 `yate/session.py`，见 [Plan G](plan_G_pane_model_to_session.md)） | `ViewState` / `Leaf` / `Split` + 纯函数 | 窗格树数据结构与纯操作（`leaves` / `find_leaf` / `replace_node` / `remove_node` / `find_axis_split`） | — |
 | `statusbar.py` | `StatusBar(Static)` | 状态行内容（模式、文件、行列、LSP 回显） | `EditorSession`、`LspManager`、`KeymapSet`、`PromptBar`、`ExtensionLoader` |
 | | `mode_chip(prompt, keymaps)` | 模式标签（纯函数，供状态栏与冒烟脚本复用） | — |
 | `modals.py` | `_OverlayScreen` / `HelpScreen` / `OutputScreen` | 覆盖层外壳、快捷键参考、shell 输出查看 | `KeymapSet`、`CommandRegistry`（help）；标题/输出/返回码（output） |

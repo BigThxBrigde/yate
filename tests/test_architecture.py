@@ -25,6 +25,10 @@ These tests enforce the boundaries documented in
   / ``*Ops`` / ``*Delegate`` identifiers and no ``AppProtocol``.  ``PaneHost``
   is a real Textual container widget (not a protocol / thin delegate) and is
   whitelisted; ``*Manager`` and flow-level ``*Controller`` names stay allowed.
+* **Panes** the pane tree model is L1 state, not a widget-package type layer:
+  ``session.py`` owns ``Leaf`` / ``Split`` / ``ViewState`` and the tree
+  operations, ``editor_view`` imports them and never re-exports them, and
+  ``editor_view/pane_types.py`` stays deleted.
 
 * **R7** the shell loads the built-in tables: ``YateApp.__init__`` calls
   ``populate(editor.actions, editor)`` / ``register_commands(editor.commands,
@@ -292,3 +296,14 @@ def test_no_banned_identifier_names() -> None:
             assert name not in BANNED_NAMES, (path, name)
             if name.endswith(BANNED_SUFFIXES):
                 assert name in BANNED_SUFFIX_WHITELIST, (path, name)
+
+
+def test_pane_model_lives_in_l1_session() -> None:
+    """The pane tree model is L1 state, not a widget-package type layer:
+    ``session.py`` owns it; ``editor_view`` imports it, never re-exports it."""
+    source = (YATE / "session.py").read_text(encoding="utf-8")
+    for name in ("class Leaf", "class Split", "class ViewState", "def find_leaf"):
+        assert name in source, name
+    assert not (YATE / "editor_view" / "pane_types.py").exists()
+    panes = (YATE / "editor_view" / "panes.py").read_text(encoding="utf-8")
+    assert "backward compatibility" not in panes

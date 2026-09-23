@@ -20,10 +20,9 @@ from yate.editor_lsp import LspManager
 from yate.editor_syntax import tokenize_document
 from yate.editor_syntax.tokens import Token
 from yate.keymaps.registry import KeymapSet
-from yate.session import EditorSession
+from yate.session import EditorSession, Leaf
 
 from . import theme
-from .pane_types import Leaf
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL = 0

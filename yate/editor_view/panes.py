@@ -20,8 +20,9 @@ deliberately cheap and disposable -- every durable state lives in the model.
 
 The pure data model (:class:`Leaf`, :class:`Split`, :class:`Node`,
 :class:`ViewState`, and the tree utility functions) lives in
-:mod:`yate.editor_view.pane_types` to avoid a type-level cycle with
-:mod:`yate.editor_view.editor`.
+:mod:`yate.session` (L1) -- it is UI-free state, so both this module and
+:mod:`yate.editor_view.editor` import it directly and no intermediate
+type-only module is needed.
 """
 
 from __future__ import annotations
@@ -34,12 +35,11 @@ from textual.widget import Widget
 
 from yate.editor_core.document import Document
 from yate.editor_view.editor import EditorView
-from yate.session import EditorSession
-
-from yate.editor_view.pane_types import (
+from yate.session import (
     MIN_FRACTION,
     RESIZE_STEP,
     Axis,
+    EditorSession,
     Leaf,
     Node,
     Split,
@@ -50,19 +50,6 @@ from yate.editor_view.pane_types import (
     remove_node,
     replace_node,
 )
-
-# Re-export for backward compatibility -- external code imports from panes.
-# DEPRECATED: prefer ``from yate.editor_view.pane_types import Axis, Leaf, ...``
-# These re-exports may be removed in a future version.
-__all__ = [
-    "Axis",
-    "Leaf",
-    "Node",
-    "Split",
-    "ViewState",
-    "PaneManager",
-    "PaneHost",
-]
 
 
 # ================================================================ manager

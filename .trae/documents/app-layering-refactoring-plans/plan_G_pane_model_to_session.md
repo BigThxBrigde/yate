@@ -1,6 +1,6 @@
 # Plan G — 窗格模型下沉：`pane_types.py` 并入 `session.py`（L1）
 
-> 状态：📝 **待执行** · 前置：[Plan A](plan_A_leaf_models.md)–[Plan F](plan_F_gate_docs.md) 全部完成
+> 状态：✅ **已完成**（2026-09-23 落地）· 前置：[Plan A](plan_A_leaf_models.md)–[Plan F](plan_F_gate_docs.md) 全部完成
 > 归属：**总纲** [README.md](README.md) 的后续子计划（§5 索引已登记），同时直接受
 > [architecture-boundaries.md](../../rules/architecture-boundaries.md) §三.1 / §三.6 / §五 约束。
 > 类型：**代码搬运 + 删除**（不重写任何算法、不改任何行为）
@@ -326,10 +326,36 @@ def test_pane_model_lives_in_l1_session() -> None:
 
 ## G.8 完成定义（DoD）
 
-- [ ] `yate/editor_view/pane_types.py` 已删除；`session.py` 含完整窗格模型；
-- [ ] 4 处源码引用 + 2 处测试引用全部迁移，无 deprecated 重导出残留；
-- [ ] `rg -n "pane_types" yate tests tools` → 0；
-- [ ] pyright 0 诊断 / pytest 全绿 / `test_architecture.py` 全过；
-- [ ] `architecture-boundaries.md`、本目录 README §2、`plan_B` §B.2、`split_panes_plan.md` 已回填；
-- [ ] （若采纳 G.6.3）新增守护用例并通过，rules §六 计数同步；
-- [ ] CHANGELOG 按项目惯例决定是否追加条目。
+- [x] `yate/editor_view/pane_types.py` 已删除；`session.py` 含完整窗格模型；
+- [x] 4 处源码引用 + 2 处测试引用全部迁移，无 deprecated 重导出残留；
+- [x] `rg -n "pane_types" yate tests tools` → 0；
+- [x] pyright 0 诊断 / pytest 全绿 / `test_architecture.py` 全过；
+- [x] `architecture-boundaries.md`、本目录 README §2、`plan_B` §B.2、`split_panes_plan.md` 已回填；
+- [x] （已采纳 G.6.3）新增守护用例 `test_pane_model_lives_in_l1_session` 并通过，
+  rules §六 与 [Plan E](plan_E_tests_tools.md) 计数同步（12 → 13）；
+- [x] CHANGELOG：仓库 CHANGELOG 由 `tools.changelog` 自动生成（文件头写明
+  *do not edit by hand*），本轮不手工追加，条目随提交信息生成。
+
+---
+
+## G.9 落地记录（2026-09-23 实测）
+
+| 范围 | 结果 |
+|---|---|
+| `yate/editor_view/pane_types.py` | ✅ 删除（155 行整体迁入 `yate/session.py`，搬运段与原文件**逐字等价**：归一化换行后 `segment_equal=True`） |
+| `yate/session.py` | 161 → **281 行**（非空行口径）：`EditorSession` 类零改动，新增窗格树模型段 120 行 |
+| 消费者 import | ✅ `editor_view/editor.py` / `editor_view/panes.py` / `editor.py` / `tests/test_panes.py` / `tests/test_app_textual.py` 全部改到 `yate.session` |
+| deprecated 重导出 | ✅ `panes.py` 的 `backward compatibility` 段与 `__all__` 已删（模型符号全仓无残留调用者） |
+| pyright | ✅ `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations** |
+| pytest | ✅ `python -m pytest tests/ -q` exit 0 全绿；`test_architecture.py` + `test_panes.py` = **25 passed**（架构守护 12 → **13**） |
+| 冒烟 | ✅ `python -m tools.smoke_test run --fail-only` → **86/86 场景、889/889 checks**（100%，exit 0，68.61s） |
+| `--diag` / `--version` | ✅ 正常 |
+
+### 与计划的偏离（实测依据）
+
+| # | 项 | 处置 |
+|---|---|---|
+| 1 | G.6.2 要求 `rg -n "pane_types" yate tests tools` → **0 命中**，但 G.4.1 指定的 docstring 与 G.6.3 的守护断言本身都含 `pane_types` 字面量 | 保留历史说明与守护断言，`pane_types` 实际命中：**2 处**（`yate/session.py` L14 docstring、L207 分区注释，均为历史说明）+ **2 处**（`tests/test_architecture.py` L31 docstring、L307 断言）。`yate/` / `tests/` / `tools/` 中**无任何 import 或代码引用** |
+| 2 | `tests/test_panes.py` 括号内符号序 | 采用仓库 isort 风格「常量 → 类 → 函数」（`MIN_FRACTION, EditorSession, Leaf, Split, find_axis_split, leaves`），与 G.4.2 片段的字母序略有差异；符号集合一致 |
+| 3 | G.4.5 的 CHANGELOG 条目 | 不追加：CHANGELOG 为自动生成文件 |
+| 4 | README §1 既有行数（`editor.py` 1245、`commands.py` 203）与实测不符 | 已按实测回填（`editor.py` 1274、`commands.py` 207）；差异非本轮造成（HEAD 上即如此，原值为 Plan A–F 时点旧值） |

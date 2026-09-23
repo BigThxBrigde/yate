@@ -45,7 +45,6 @@ from yate.editor_view.keys import event_to_raw
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
-from yate.editor_view.pane_types import Axis, Leaf
 from yate.editor_view.panes import PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
@@ -66,7 +65,7 @@ from yate.services.extensions import (
 from yate.services.shell import ShellResult, run_shell, shell_name
 from yate.services.trust import trust_workspace
 from yate.services.workspace import Workspace
-from yate.session import EditorSession
+from yate.session import Axis, EditorSession, Leaf
 
 #: Trace logger ("yate.editor"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
