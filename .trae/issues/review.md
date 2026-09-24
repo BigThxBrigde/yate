@@ -35,15 +35,22 @@
   删除文件夹导致已打开标签关闭时，文档从 `app.docs` 移除但未调用 `lsp.on_document_closed()`，LSP 服务器保留过时的 `didOpen` 状态。
   **修复：** 遍历被关闭的文档并调用 `lsp.on_document_closed()`。
 
-- [ ] **LSP `_read_loop` 未捕获所有异常，导致请求永久挂起** — `editor_lsp/client.py:345`
+- [x] **LSP `_read_loop` 未捕获所有异常，导致请求永久挂起** — `editor_lsp/client.py:345`
   意外错误（OSError、ValueError 等）会静默终止读取循环，而客户端仍保持 `READY` 状态，所有待处理请求永久挂起。
   **修复：** 在 `_read_loop` 中添加 `except Exception` 捕获，触发客户端状态转为 `FAILED`。
-  *复核：仍存在 — [client.py:426-428](../../yate/editor_lsp/client.py) 仅捕获 `CancelledError` 与 `(LspError, ConnectionError, EOFError)`，其余异常仍会逸出。*
+  *✅ 已修复（2026-09-24，提交 `e5a3001`）— [client.py:429-465](../../yate/editor_lsp/client.py) 失败收尾
+  提取为 `_fail_pending()`，`_read_loop` 增加 `except Exception` 兜底（`log.exception` + fail pending）
+  并在 `finally` 对非 STOPPED 退出统一置 `FAILED`；`start_request` 在 FAILED 态直接拒绝新请求。
+  守卫 `test_malformed_frame_marks_failed_and_fails_requests`（畸形帧 → FAILED、在途请求以异常
+  结束、后续请求立即失败）。*
 
-- [ ] **LSP `register_server` 竞态条件** — `editor_lsp/manager.py:118`
+- [x] **LSP `register_server` 竞态条件** — `editor_lsp/manager.py:118`
   取消正在进行的启动任务是 fire-and-forget 方式。被取消任务的 `finally` 块可能稍后移除新替换任务在 `_starting` 中的条目，导致其失去跟踪。
   **修复：** 在取消前检查任务是否为当前活跃任务，或使用取消安全的方式清理。
-  *复核：仍存在 — [manager.py:224-229](../../yate/editor_lsp/manager.py) 的 `finally: self._starting.pop(key, None)` 无 identity 检查，被取消任务的 awaiter 仍可能弹出新任务的条目。*
+  *✅ 已修复（2026-09-24，提交 `dc1f3ac`）— [manager.py:227-235](../../yate/editor_lsp/manager.py)
+  `ensure_client` 收尾改为 identity 条件弹出（「谁跟踪谁清」），被取消路径的清理仍由
+  `register_server` 同步过滤完成。守卫 `test_register_replace_race_keeps_new_starting_task_tracked`
+  （慢启动中途替换配置：旧任务被取消、新任务条目不被旧收尾弹掉、并发只产生一个 client）。*
 
 - [x] **`replace_all` 修改行后未钳制光标位置** — `editor_core/search.py:148-170`
   批量替换后光标列号可能超出新的（更短的）行长度。在下次重绘前读取 `buffer.col` 的代码会看到无效位置。
@@ -69,15 +76,23 @@
   *✅ 已修复（2026-09-24）— [palette.py:266-268](../../yate/editor_view/palette.py) 已改用
   `theme.cell_len(display)`（同记录于下文 2026-09-24 审查 Minor 段）。*
 
-- [ ] **发布工具硬编码 `"master"` 分支** — `tools/release/cli.py:~186`
+- [x] **发布工具硬编码 `"master"` 分支** — `tools/release/cli.py:~186`
   `git_push(repo, "master")` 在使用 `main` 或其他默认分支的仓库上会失败——且此时所有昂贵操作（bump、changelog、gate、tag）已经完成。
   **修复：** 动态检测默认分支，或接受 `--branch` 参数。
-  *复核：仍存在 — [cli.py:187-234](../../tools/release/cli.py) 仍硬编码 `git_push(repo, "master")`。*
+  *✅ 已修复（2026-09-24）— [cli.py:188-201](../../tools/release/cli.py) 新增 `_default_branch()`
+  （symbolic-ref 检测 `origin/HEAD`，`GitError` → None 不猜测）；[cli.py:262-267](../../tools/release/cli.py)
+  push 前 `branch or _default_branch(repo)`，不可判定则 RuntimeError `cannot determine the default
+  branch; pass --branch`；`main()` 暴露 `--branch`。守卫 `tests/test_release_tool.py` 四条
+  （检测 / 无 origin / 中止不 push / 透传）。*
 
-- [ ] **Changelog `check` 和 `zh-commit` 忽略 `overrides_path`** — `tools/changelog/cli.py`
+- [x] **Changelog `check` 和 `zh-commit` 忽略 `overrides_path`** — `tools/changelog/cli.py`
   这两个子命令始终使用 `DEFAULT_OVERRIDES_PATH`，`--overrides` 参数被静默忽略。
   **修复：** 将 `overrides_path` 一致地传递给所有子命令函数。
-  *复核：仍存在 — 函数签名已支持 `overrides_path`，但 [cli.py:268-300](../../tools/changelog/cli.py) 的 CLI 绑定未为 `check` / `zh-commit` 暴露 `--overrides` 参数。*
+  *✅ 已修复（2026-09-24）— [cli.py:270-294](../../tools/changelog/cli.py) generate / check /
+  zh-commit 三个子命令 parser 均暴露 `--overrides`，main() 统一解析并透传 `overrides_path`
+  （实测 generate 的 parser 同样缺失，按本条目「所有子命令」口径一并补齐）。守卫：
+  `test_check_overrides_flag_is_honored` / `test_zh_commit_overrides_flag_writes_custom_file` /
+  `test_generate_overrides_flag_renders_translations`。*
 
 ---
 

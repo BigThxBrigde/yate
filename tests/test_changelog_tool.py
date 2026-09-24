@@ -686,6 +686,72 @@ def test_require_zh_fails_when_translations_missing(
     ) == 0
 
 
+# --- cli --overrides flag binding (all three subcommands) --------------------
+
+
+def test_check_overrides_flag_is_honored(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    # hermetic default: the repo-level overrides file must stay untouched
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+    custom = cli_repo / "custom_overrides.json"
+    overrides: dict[str, translations.OverrideEntry] = {}
+    for sha, summary in (
+        ("a" * 7, "闪亮的新功能"), ("b" * 7, "崩溃修复"), ("d" * 7, "最早的新功能"),
+    ):
+        translations.upsert_override(overrides, sha, summary)
+    translations.save_overrides(overrides, custom)
+    # disk must match the custom-override render so the gate can be green
+    assert cli.main(["generate", "--overrides", str(custom)]) == 0
+    assert cli.main(["check", "--require-zh", "--overrides", str(custom)]) == 0
+    assert "released changelog sections are up to date" in capsys.readouterr().out
+    # without the flag the (empty) default file applies → the gate goes red
+    assert cli.main(["check", "--require-zh"]) == 1
+
+
+def test_zh_commit_overrides_flag_writes_custom_file(
+    cli_repo: Path, overrides_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+
+    def fake_resolve(repo: Path, prefix: str) -> str:
+        return "a" * 40
+
+    def fake_subject(repo: Path, sha: str) -> str:
+        return "feat: shiny thing"
+
+    monkeypatch.setattr(gitdata, "resolve_commit_sha", fake_resolve)
+    monkeypatch.setattr(gitdata, "commit_subject", fake_subject)
+    custom = cli_repo / "custom_overrides.json"
+    code = cli.main(
+        ["zh-commit", "--overrides", str(custom), "a" * 7, "闪亮的新功能"]
+    )
+    assert code == 0
+    data = json.loads(custom.read_text(encoding="utf-8"))
+    assert data["a" * 7]["summary"] == "闪亮的新功能"
+    # the default file is neither created nor modified
+    assert overrides_path.read_text(encoding="utf-8") == "{}\n"
+
+
+def test_generate_overrides_flag_renders_translations(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+    custom = cli_repo / "custom_overrides.json"
+    overrides: dict[str, translations.OverrideEntry] = {}
+    translations.upsert_override(overrides, "d" * 7, "最早的新功能")
+    translations.save_overrides(overrides, custom)
+    assert cli.main(["generate", "--overrides", str(custom)]) == 0
+    zh = (cli_repo / "CHANGELOG.zh.md").read_text(encoding="utf-8")
+    assert "- 最早的新功能" in zh
+    assert "- first thing" not in zh
+
+
 # --- real git end-to-end ----------------------------------------------------
 
 
