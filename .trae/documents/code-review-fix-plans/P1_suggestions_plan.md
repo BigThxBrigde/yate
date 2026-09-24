@@ -14,8 +14,9 @@
 >
 > **2026-09-24 实施拆分**：全部条目已拆为
 > [P1_subplans/](P1_subplans/README.md) 七个文件独占子计划（SP1–SP7，三波次）。
-> 波次一（SP3 + SP7，14 条）已实施完成并过全量门禁，各条附「✅ 已修复」标注。
-> 波次二（SP1 + SP2 + SP4，11 条）已实施完成并过全量门禁。
+> 波次一（SP3 + SP7，14 条）、波次二（SP1 + SP2 + SP4，11 条）、
+> 波次三（SP5 + SP6，10 条）已全部实施完成并过全量门禁，各条附「✅ 已修复」标注。
+> **P1 计划全部条目至此清零**（S4/S7 复核为已修免实施）。
 
 ---
 
@@ -108,6 +109,11 @@ for m in _CONFIG_BOOL_RE.finditer(line):
 （`open_path_later` 语义下加 `await pilot.pause()`）。
 
 ### S5 — `_original_excepthook` 在导入时捕获
+
+> ✅ **已修复（2026-09-24，SP5）**：[logs.py](../../../yate/logs.py) `CrashService.__init__`
+> 不再触碰 `sys.excepthook`（初始 `None`）；捕获延迟到 `install()` 首次调用；`uninstall()`
+> 恢复 install 时刻值。守卫：`test_install_chains_to_and_restores_a_hook_installed_after_import`
+> （伪造自定义 hook → install → uninstall → 还原为伪造 hook）。
 
 **证据：** [logs.py:278-280](../../../yate/logs.py) `CrashService.__init__`
 （import 期）捕获 `sys.excepthook`；若宿主在 import yate 之前安装了自己的
@@ -301,6 +307,11 @@ apply_doc 面向 tab 切换只恢复活动叶子；重复的是「活动叶子�
 
 ### S20 — 30 秒 sleep 子进程
 
+> ✅ **已修复（2026-09-24，SP6）**：[test_lsp.py](../../../tests/test_lsp.py)
+> `time.sleep(30)` → `time.sleep(2)` 自终止脚本，等 STARTING 上限收窄至 1.5s、
+> `wait_for(proc.wait(), 4.0)`；清理失败路径的暴露窗口从 30s 收窄到 ~2s
+> （目标用例实测 0.23s）。
+
 **证据：** [test_lsp.py:847](../../../tests/test_lsp.py)
 `args=["-c", "import time; time.sleep(30)"]`。
 
@@ -308,6 +319,10 @@ apply_doc 面向 tab 切换只恢复活动叶子；重复的是「活动叶子�
 或用事件文件自删。清理失败路径已在测，缩短暴露窗口即可。
 
 ### S21 — 硬编码版本 `"0.2.4"`
+
+> ✅ **已修复（2026-09-24，SP6）**：[test_theme_palettes.py](../../../tests/test_theme_palettes.py)
+> 改 `re.fullmatch(r"\d+\.\d+\.\d+", yate.__version__)` + 非空校验，与发版解耦；
+> `test_pyproject_keeps_the_single_dynamic_version_source` 保留。
 
 **证据：** [test_theme_palettes.py:271](../../../tests/test_theme_palettes.py)。
 
@@ -341,6 +356,11 @@ frozen dataclass），测试改走探针；或退一步仅收敛到一个 `_hl_s
 调试入口。二选一在实施时定，倾向前者。
 
 ### S29 — `_FakeApp` 未实现全部 hooks
+
+> ✅ **已修复（2026-09-24，SP6）**：[test_editor_core.py](../../../tests/test_editor_core.py)
+> `_FakeApp` 加 `__getattr__`（非下划线名返回记录调用的 no-op，`_`/dunder 抛
+> AttributeError 防递归），docstring 注明「新 action 默认 no-op」；守卫：未实现
+> hook 可调且被记录、`_private` 仍抛 AttributeError。
 
 **证据：** [test_editor_core.py:394-406](../../../tests/test_editor_core.py)
 最小 stand-in，新 action 未实现即 AttributeError。
@@ -409,6 +429,13 @@ docstring 注明「新 action 默认 no-op」；比逐个补方法抗演进。
 返回准确路径。
 
 ### S11（收尾）— `walk_files` 递归深度
+
+> ✅ **已修复（2026-09-24，SP5）**：[workspace.py](../../../yate/services/workspace.py)
+> `walk_files` 与 `visible_tree` 均改显式栈迭代，严格保持原 DFS 前序（目录优先、
+> `name.lower()`，`test_workspace_filter` 顺序断言全绿）；`visible_tree` 补齐与
+> `walk_files` 相同的 symlink 环防护。守卫：1500 层深链不炸（Windows 未启长路径，
+> 以既有 unreadable-directory 同款 seam 合成虚拟链构造，旧递归 RecursionError 新实现
+> 通过；跨平台可跑）+ 真实 symlink 环用例。
 
 **证据（2026-09-24 更新）：** [workspace.py:252](../../../yate/services/workspace.py) 仍为
 嵌套递归 `walk()`；符号链接环已防（L244-248）。新增的 `limit: int = 5000` 参数
@@ -492,6 +519,10 @@ symlink 展开不栈溢出。
 
 ### S33 — 失败扩展模块残留 `sys.modules`
 
+> ✅ **已修复（2026-09-24，SP5）**：[extensions.py](../../../yate/services/extensions.py)
+> except 分支先 `sys.modules.pop(mod_name, None)` 再记录错误。守卫：
+> import 即抛错的扩展 → 模块名不在 `sys.modules`。
+
 **证据：** [extensions.py:389-423](../../../yate/services/extensions.py) `exec_module`
 抛异常后不清理，半初始化模块可被后续 import 命中。存量缺陷。
 
@@ -500,6 +531,10 @@ symlink 展开不栈溢出。
 **测试：** 构造 import 即抛错的扩展 → 断言模块名不在 `sys.modules`。
 
 ### S34 — `bind_key` 的 keymap 名拼写错误静默无绑定
+
+> ✅ **已修复（2026-09-24，SP5）**：[extensions.py](../../../yate/services/extensions.py)
+> 未命中时 `log.warning` 列出可用 keymap 名。守卫：不存在名字 → 有警告且不抛异常
+> （自带 handler 捕获——`yate` 根 logger `propagate=False`，caplog 不可见）。
 
 **证据：** [extensions.py:290-301](../../../yate/services/extensions.py)
 `keymaps.get(target)` 返回 None 直接跳过，无任何提示。存量缺陷。
@@ -523,6 +558,13 @@ motion——`gg` 是位置跳转不是操作符范围，空 motion 仍报已删�
 **测试：** `dg` / `yg` 后断言无 deleted/yanked 消息、缓冲不变。
 
 ### S36 — 崩溃报告 / trace 日志文件名秒级碰撞
+
+> ✅ **已修复（2026-09-24，SP5）**：[logs.py](../../../yate/logs.py) `build_err_path`
+> 与 trace 文件名均追加 pid 后缀（`crash-YYYYMMDD-HHMMSS-<pid>.err`；trace 同理）。
+> 守卫：monkeypatch `os.getpid`（111/222）同秒两次 `build_err_path` 断言路径不同。
+> 副作用记录：test_crash.py 两处既有断言（文件名字面量与正则）固化的正是被修复的
+> 碰撞缺陷本身，已同步改为含 pid 的等价断言（唯一超出「仅新增用例」授权的改动，
+> 按修复优先处理）。
 
 **证据：** [logs.py:396-401](../../../yate/logs.py) `build_err_path` 秒级时间戳，且
 L319 以 `"w"` 模式打开；[logs.py:522-523](../../../yate/logs.py) trace 同秒级命名
@@ -562,6 +604,15 @@ trace 的会话 header 混入同一文件。存量问题，多实例共享数据
 
 ### S39 — symlink 重定向即可改变信任对象（需先定方案）
 
+> ✅ **已修复（2026-09-24，SP5，最小加固方案——用户决策）**：[trust.py](../../../yate/services/trust.py)
+> 新增 `_has_symlink_component()`；`trust_workspace` 写入前拒绝含 symlink 成分的条目
+> （`log.warning` + 不落盘），store 只收 yate 自己写入的无链接 resolved 根；读取侧
+> 归一化（`test_startup_treats_a_literal_symlink_entry_as_its_resolved_root`）保持
+> 全绿未动。守卫：symlink 根 `:trust` 被拒、重定向后重启不信任须重新 `:trust`。
+> **遗留观察项**：`editor.py:1417` 的 `:trust` 命令在 `trust_workspace` 被拒后仍显示
+> "trusted ..." 并即时加载——反馈误导需改 editor.py（超出 SP5 授权），持久化侧守卫
+> 已生效，可并入后续清理。
+
 **证据：** [trust.py](../../../yate/services/trust.py) 信任按「读取时 resolve 后的
 路径」匹配：store 中某条目本身是 symlink 路径时，链接被重定向后**无需重新
 `:trust`** 即信任到新目标。来源：PR #13 审查附带发现，改动面超出当轮，未修。
@@ -595,6 +646,13 @@ resolve 并拒绝 symlink 条目。注意现有
 小于按键数且最终内容正确。
 
 ### S41 — dirty 状态下每次 `modified` 查询 O(N) tuple 分配
+
+> ✅ **已修复（2026-09-24，SP6）**：[document.py](../../../yate/editor_core/document.py)
+> `modified` 按 `content_edits` 计数 memo（计数不变直接返回缓存；计数前进或 undo
+> 回退才重算并刷新），`save()` 末尾失效缓存（基线移动防陈旧 True）。守卫：
+> `test_modified_memo_stays_correct_across_save_and_undo`（save 失效 + 跨 undo
+> 重算 + redo 往返）；已知边界（`mark_content_changed` 带外交错回退到同计数）与
+> 改前快路径同构，未引入新风险类别。
 
 **证据：** [document.py:86-88](../../../yate/editor_core/document.py) 状态栏每键
 查询，回退路径构造行元组比较；代码注释已自认知该权衡。

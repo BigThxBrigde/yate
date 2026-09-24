@@ -48,6 +48,11 @@ class Document:
         # the flag stays correct across undo/redo without a full-text join.
         self._saved_edits = self.buffer.content_edits
         self._saved_lines = tuple(self.buffer.lines)
+        # Memoized ``modified`` verdict, keyed on the buffer's edit counter:
+        # ``(edits at query time, verdict)``.  ``save()`` clears it (the
+        # baseline moves); undo/redo rewinds the counter, which simply misses
+        # the cache and recomputes, so a stale verdict can never be served.
+        self._modified_cache: Optional[tuple[int, bool]] = None
 
     # ------------------------------------------------------------- factories
 
@@ -86,14 +91,24 @@ class Document:
     def modified(self) -> bool:
         """Whether the buffer differs from the last saved state.
 
-        The fast path is an O(1) edit-counter comparison; when the counter
-        cannot decide (see ``__init__``) this falls back to an exact
-        ``tuple(lines)`` comparison, which is **O(N) in the line count** and
-        therefore the expensive path on large buffers.
+        The verdict is memoized on the buffer's edit counter: an unchanged
+        counter (the status bar queries this once per keystroke) returns the
+        cached verdict in O(1).  A counter that moved -- forward on edits,
+        backward on undo -- recomputes: first from the saved edit counter,
+        falling back to an exact ``tuple(lines)`` comparison when the counter
+        cannot decide (see ``__init__``), which is **O(N) in the line count**
+        and therefore the expensive path on large buffers.
         """
-        if self.buffer.content_edits == self._saved_edits:
-            return False
-        return tuple(self.buffer.lines) != self._saved_lines
+        edits = self.buffer.content_edits
+        cached = self._modified_cache
+        if cached is not None and cached[0] == edits:
+            return cached[1]
+        if edits == self._saved_edits:
+            verdict = False
+        else:
+            verdict = tuple(self.buffer.lines) != self._saved_lines
+        self._modified_cache = (edits, verdict)
+        return verdict
 
     @property
     def name(self) -> str:
@@ -188,4 +203,5 @@ class Document:
             raise
         self._saved_edits = self.buffer.content_edits
         self._saved_lines = tuple(self.buffer.lines)
+        self._modified_cache = None
         return self.path

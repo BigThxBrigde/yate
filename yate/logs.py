@@ -275,9 +275,12 @@ class CrashService:
         #: Set once an uncaught exception has been logged, so atexit keeps
         #: the file.
         self._crashed: bool = False
-        #: The hook that was in place before us, called last. Captured once
-        #: at construction (= import time), like the original module did.
-        self._original_excepthook: Callable[..., Any] = sys.excepthook
+        #: The hook that was in place before us, called last. Captured on
+        #: the first :meth:`install` -- *not* at construction (= import
+        #: time) -- so a hook the host installed between import and install
+        #: is the one chained to and later restored, not clobbered.
+        #: ``None`` until that first install.
+        self._original_excepthook: Optional[Callable[..., Any]] = None
         #: The bound ``_excepthook`` object currently stored in
         #: ``sys.excepthook``, or ``None`` when we are not installed. Held
         #: as a reference on purpose: ``self._excepthook`` is a *fresh*
@@ -304,8 +307,13 @@ class CrashService:
         return self._crashed
 
     @property
-    def original_excepthook(self) -> Callable[..., Any]:
-        """The ``sys.excepthook`` installed before us (chained after us)."""
+    def original_excepthook(self) -> Optional[Callable[..., Any]]:
+        """The ``sys.excepthook`` captured at install time (chained after us).
+
+        ``None`` while the service has never been installed: the constructor
+        deliberately does not touch ``sys.excepthook``, so the capture happens
+        on the first :meth:`install` instead of at import time.
+        """
         return self._original_excepthook
 
     # --- lifecycle --------------------------------------------------------
@@ -336,6 +344,11 @@ class CrashService:
         # install/uninstall cycles must not pile callbacks up.
         atexit.unregister(self.cleanup_on_exit)
         atexit.register(self.cleanup_on_exit)
+        # Capture the hook we are about to replace -- on the first install,
+        # not at import time (S5): a hook the host installed between the two
+        # is the one chained to below and restored by uninstall().
+        if self._original_excepthook is None:
+            self._original_excepthook = sys.excepthook
         hook = self._excepthook
         sys.excepthook = hook
         self._installed_excepthook = hook
@@ -360,8 +373,9 @@ class CrashService:
         # contradicting the released handle. Only while it is still ours --
         # a hook someone else wrapped around ours is not ours to clobber.
         hook = self._installed_excepthook
-        if hook is not None and sys.excepthook is hook:
-            sys.excepthook = self._original_excepthook
+        original = self._original_excepthook
+        if hook is not None and original is not None and sys.excepthook is hook:
+            sys.excepthook = original
         self._installed_excepthook = None
         # The cleanup runs right here, so the atexit entry has nothing left
         # to do; dropping it also keeps repeated install/uninstall flat.
@@ -396,9 +410,18 @@ class CrashService:
     def build_err_path(
         self, directory: Path, now: Optional[datetime] = None
     ) -> Path:
-        """Build ``crash-YYYYMMDD-HHMMSS.err`` inside *directory*."""
+        """Build ``crash-YYYYMMDD-HHMMSS-<pid>.err`` inside *directory*.
+
+        The pid suffix keeps two yate processes started within the same
+        second from colliding: both open their report in ``"w"`` mode, so a
+        shared name would have the later header truncate the earlier
+        process's report (S36).
+        """
         moment = now if now is not None else datetime.now()
-        return directory / f"{ERR_PREFIX}{moment:%Y%m%d-%H%M%S}{ERR_SUFFIX}"
+        return (
+            directory
+            / f"{ERR_PREFIX}{moment:%Y%m%d-%H%M%S}-{os.getpid()}{ERR_SUFFIX}"
+        )
 
     def current_path(self) -> Optional[Path]:
         """Path of this process's in-progress crash report, or ``None``.
@@ -438,7 +461,9 @@ class CrashService:
             except Exception:
                 # Never let diagnostics mask the original failure.
                 pass
-        self._original_excepthook(exc_type, exc_value, exc_tb)
+        original = self._original_excepthook
+        if original is not None:
+            original(exc_type, exc_value, exc_tb)
 
 
 class TracingService:
@@ -519,8 +544,12 @@ class TracingService:
             return True
 
         try:
+            # Same-second sessions of different processes must not share a
+            # file name (the pid disambiguates what the second-granularity
+            # timestamp cannot); the header carries the pid as well.
             path = logs_dir() / (
-                f"{LOG_PREFIX}{datetime.now():%Y%m%d-%H%M%S}{LOG_SUFFIX}"
+                f"{LOG_PREFIX}{datetime.now():%Y%m%d-%H%M%S}"
+                f"-{os.getpid()}{LOG_SUFFIX}"
             )
             handler = _SessionFileHandler(path, level)
         except OSError as exc:

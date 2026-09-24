@@ -77,8 +77,8 @@ SP7 无编辑器风险，随行作轻量并发伙伴。
 | SP2 | ✅ 已完成（S6 S10 S16 S32 S43，新增 8 条守卫；S10 调用点校准记录于 P1 原文；观察项 pty_proc.py:501 同类宽捕获待后续清理） | 2026-09-24 | pyright 0 诊断；test_terminal_emulator/pty_proc/terminal 141 passed 3 skipped |
 | SP3 | ✅ 已完成（S4 复核为已修免实施；S12/S13/S14/S15/S17/S37/S40 专属守卫断言待补，回归证据为既有套件全绿） | 2026-09-24 | pyright 0 诊断；test_app_textual/explorer/panes 158 passed；冒烟 87/87 · 907 checks |
 | SP4 | ✅ 已完成（S30 S31 S35 S38，新增 8 条守卫；S30 需差分检测覆盖 widget 级 Esc 直关，校准记录于 P1 原文） | 2026-09-24 | pyright 0 诊断；test_completion_popup/vim_keymap/registries 97 passed |
-| SP5 | 未开始（S39 待方案决策） | — | — |
-| SP6 | 未开始 | — | — |
+| SP5 | ✅ 已完成（S5 S11 S33 S34 S36 S39 最小加固——用户决策，新增 10 条守卫；S36 两处既有断言随缺陷修复同步改写、S11 深链用合成链、S39 遗留 editor.py `:trust` 反馈误导观察项，详见 P1 原文） | 2026-09-24 | pyright 0 诊断；test_crash/tracing/workspace_filter/extensions/trust 129 passed 1 skipped |
+| SP6 | ✅ 已完成（S20 S21 S29 S41，新增 3 条守卫；S41 缓存失效边界已记录） | 2026-09-24 | pyright 0 诊断；test_lsp/theme_palettes/editor_core 153 passed 1 skipped |
 | SP7 | ✅ 已完成（S22/S23/S25/S27，新增 6 条守卫） | 2026-09-24 | pyright 0 诊断；test_changelog/release 59 passed |
 
 ## 五、统一门禁（与 P0 相同）

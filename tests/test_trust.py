@@ -38,6 +38,29 @@ def test_trust_workspace_is_idempotent(tmp_path: Path) -> None:
     assert len(store.read_text(encoding="utf-8").splitlines()) == 1
 
 
+def test_trust_refuses_a_symlinked_root(tmp_path: Path) -> None:
+    """S39: a symlinked root is never persisted, so redirecting the link
+    cannot inherit its trust -- the target directory must be trusted with
+    its own ``:trust`` call."""
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not supported on this platform")
+    store = tmp_path / "store.txt"
+
+    trust_workspace(link, store)  # must be refused without raising
+
+    assert not store.exists()  # nothing was persisted, not even the file
+    assert not is_trusted(real, store)
+    # The resolved (link-free) directory itself is still trustable: already
+    # trusted entries and honest roots are unaffected by the guard.
+    trust_workspace(real, store)
+    assert is_trusted(real, store)
+
+
 def test_comments_and_blank_lines_are_skipped(tmp_path: Path) -> None:
     store = tmp_path / "store.txt"
     root = tmp_path / "repo"
