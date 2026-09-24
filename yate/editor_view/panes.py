@@ -82,6 +82,12 @@ class PaneManager:
         self.host: Optional[PaneHost] = None
         #: Mounted views keyed by leaf id; rebuilt on every reconcile.
         self.views: dict[int, EditorView] = {}
+        #: Leaves whose widget has a scroll restore in flight (S17): the
+        #: registered view still reads back scroll placeholders until the
+        #: retried restore lands, so :meth:`capture_active` must not
+        #: persist what it reads meanwhile.  Maps leaf id -> owning view;
+        #: a rebuild replaces the entry with the fresh view.
+        self.pending_restores: dict[int, EditorView] = {}
 
     # ------------------------------------------------------------- lookups
 
@@ -157,7 +163,12 @@ class PaneManager:
             # An unmeasured view (freshly rebuilt, layout not run yet) reads
             # back scroll origin placeholders while a pending restore still
             # holds the real position (S17); capturing them would clobber
-            # the saved state with zeros.
+            # the saved state with zeros.  The same placeholders linger one
+            # refresh cycle past the first layout (the deferred _scroll_to
+            # has not run yet), so a restore still registered for this leaf
+            # blocks the capture too.
+            if view.leaf_id in self.pending_restores:
+                return
             state.scroll_col = view.scroll_col
             state.scroll_row = view.scroll_offset.y
 
@@ -416,9 +427,9 @@ class PaneHost(Widget):
         self.make_view = make_view
         manager.attach(self)
 
-    #: Refresh cycles a mount-time scroll restore may wait for the first
-    #: layout before giving up (an empty virtual size means the widget has
-    #: not been measured yet).
+    #: Refresh cycles a scroll restore may take to land before giving up
+    #: (unmeasured views read back scroll placeholders; see
+    #: :meth:`restore_scroll`).
     _RESTORE_ATTEMPTS: int = 8
 
     def restore_scroll(
@@ -430,18 +441,32 @@ class PaneHost(Widget):
         clamped to the origin by Textual: the deferred ``_scroll_to``
         still sees an empty ``virtual_size``, so a freshly rebuilt pane
         reads back 0 no matter what was requested.  The restore therefore
-        retries on the next refresh cycle while the view is unmeasured;
-        once layout has run the same call clamps correctly against real
-        content.  A later reconcile replaces the widget and the unmounted
-        copy stops its message pump, which ends any pending retry.
+        retries on the next refresh cycle until the view has been measured
+        *and* the scroll has actually landed (the offset matches the
+        target, clamped to the scrollable range -- it lags one cycle
+        behind :attr:`virtual_size` because ``scroll_to`` itself defers
+        ``_scroll_to``).  While the restore is in flight the leaf stays in
+        :attr:`PaneManager.pending_restores`, blocking scroll captures of
+        the placeholder readings.  A later reconcile replaces the widget
+        and the unmounted copy stops its message pump, which ends any
+        pending retry.
         """
+        self.manager.pending_restores[view.leaf_id] = view
         view.scroll_col = state.scroll_col
         view.scroll_to(y=state.scroll_row, animate=False)
+        if view.is_mounted and view.virtual_size.height > 0:
+            landed = view.scroll_offset.y == min(
+                state.scroll_row, max(0, view.max_scroll_y)
+            )
+        else:
+            landed = state.scroll_row == 0
         if (
-            view.virtual_size.height > 0
+            landed
             or attempts >= self._RESTORE_ATTEMPTS
             or not view.is_mounted
         ):
+            if self.manager.pending_restores.get(view.leaf_id) is view:
+                del self.manager.pending_restores[view.leaf_id]
             return
         self.call_after_refresh(self.restore_scroll, view, state, attempts + 1)
 

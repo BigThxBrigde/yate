@@ -296,11 +296,14 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 > **守卫探明的存量产品缺口——已修复（2026-09-25）**：mount 期（首次 layout 前）的
 > `scroll_to` 被 Textual 静默钳回原点（`virtual_size=(0,0)`）。修复落点
 > [panes.py](../../../yate/editor_view/panes.py)：新增 `PaneHost.restore_scroll`
-> （未测得前按刷新周期重试，上限 8 次；卸载视图经 is_mounted 停链，重建后旧视图
-> 无法写入新视图），reconcile 恢复循环与 `apply_doc`（有 host 时）统一走它；
-> 同时 `capture_active` 在视图未测得时跳过滚动捕获，消除占位 0 回写 ViewState 的
-> clobber。守卫升级：移除测试侧补偿滚动，直接断言 close 后两个存活窗格 widget 的
-> `scroll_offset.y == saved`（修复前恒 0）；spy 计数因重试改为 ≥1。
+> （重试至「落点到位」——offset 等于钳制后目标值，而非仅视图测得；上限 8 次；
+> 卸载视图经 is_mounted 停链，重建后旧视图无法写入新视图），reconcile 恢复循环与
+> `apply_doc`（有 host 时）统一走它。**二次补全（同日全量验证抓到的残余竞态）**：
+> 视图已测得但延迟 `_scroll_to` 尚未落地的一周期窗口内，`capture_active` 仍会读到
+> 占位 0 回写 ViewState——现以 `PaneManager.pending_restores`（leaf id → 在途视图）
+> 登记，捕获时跳过在途叶子（identity 检查防新旧视图误清）。守卫升级：移除测试侧
+> 补偿滚动，直接断言 close 后两个存活窗格 widget 的 `scroll_offset.y == saved`
+> （修复前恒 0）；spy 计数因重试改为 ≥1；test_panes.py 连跑 3 遍无抖动。
 
 **证据：** [panes.py:461-467](../../../yate/editor_view/panes.py) reconcile 重建后恢复
 **全部叶子**的滚动；而调用链上的 [apply_doc](../../../yate/editor_view/panes.py#L160-L178)
@@ -316,7 +319,7 @@ apply_doc 面向 tab 切换只恢复活动叶子；重复的是「活动叶子�
 
 ---
 
-## 批次四：测试卫生
+## 批次四：测试质量健康(test hygiene)
 
 ### S20 — 30 秒 sleep 子进程
 
