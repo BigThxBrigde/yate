@@ -20,6 +20,7 @@ from yate.editor_lsp import LspManager, ServerState
 from yate.editor_lsp import protocol
 from yate.editor_lsp.client import (
     LspClient,
+    LspConnectionError,
     LspError,
     LspResponseError,
     ServerConfig,
@@ -365,6 +366,76 @@ def test_initialize_timeout_marks_failed() -> None:
         assert client.error
         server.close()
         await server.wait_closed()
+
+    asyncio.run(scenario())
+
+
+def test_malformed_frame_marks_failed_and_fails_requests() -> None:
+    """A parser crash outside the (LspError, ConnectionError, EOFError)
+    whitelist must not kill the read loop silently: the client turns
+    FAILED, the in-flight request errors out instead of hanging, and a
+    later request fails immediately."""
+
+    async def scenario() -> None:
+        async def serve(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
+            try:
+                init = await protocol.read_message(reader)
+                assert init is not None
+                writer.write(protocol.encode_message(protocol.build_response(
+                    init["id"], {"capabilities": {}})))
+                await writer.drain()
+                while True:
+                    msg = await protocol.read_message(reader)
+                    if msg is None:
+                        return
+                    if msg.get("method") == "textDocument/completion":
+                        # A header line without a colon makes the framing
+                        # parser raise LspProtocolError -- a plain
+                        # RuntimeError, outside the read-loop whitelist.
+                        writer.write(b"garbage header line\r\n\r\n")
+                        await writer.drain()
+            except (asyncio.IncompleteReadError, ConnectionResetError):
+                pass
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except (ConnectionError, OSError):
+                    pass
+
+        server = await asyncio.start_server(serve, "127.0.0.1", 0)
+        sockets = server.sockets
+        assert sockets is not None
+        port = list(sockets)[0].getsockname()[1]
+
+        async def connect() -> tuple[Any, Any, Any]:
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            return reader, writer, FakeProc()
+
+        client = LspClient(PY_CONFIG, Path.cwd(), connect=connect, init_timeout=2.0)
+        try:
+            await client.start()
+            assert client.state is ServerState.READY
+            # The in-flight request ends with an exception once the bad
+            # frame lands, instead of hanging forever.
+            with pytest.raises(LspConnectionError):
+                await asyncio.wait_for(
+                    client.request("textDocument/completion", {}), timeout=2.0
+                )
+            assert client.state is ServerState.FAILED
+            assert client.error
+            # Any later request fails immediately instead of hanging.
+            with pytest.raises(LspConnectionError):
+                await asyncio.wait_for(
+                    client.request("textDocument/completion", {}), timeout=2.0
+                )
+            assert client.state is ServerState.FAILED
+        finally:
+            await client.stop()
+            server.close()
+            await server.wait_closed()
 
     asyncio.run(scenario())
 
