@@ -170,6 +170,16 @@ def test_terminal_height_bounds(tmp_path: Path) -> None:
         assert config.errors, value
 
 
+def test_show_hidden_accepts_booleans_only(tmp_path: Path) -> None:
+    """show_hidden toggles dotfiles and rejects every non-boolean value."""
+    assert _load("show_hidden = True\n", tmp_path).show_hidden is True
+    assert _load("show_hidden = False\n", tmp_path).show_hidden is False
+
+    config = _load('show_hidden = "yes"\n', tmp_path)
+    assert config.show_hidden is False
+    assert any("show_hidden" in error for error in config.errors)
+
+
 # --- trace options -----------------------------------------------------------
 
 
@@ -817,13 +827,13 @@ def test_app_applies_config() -> None:
     )
     try:
         app = YateApp(config=config)
-        assert app.keymap_name == "vim"
+        assert app.editor.keymaps.name == "vim"
         assert themes.active().name == "latte"
-        assert app.buffer.tab_width == 2
-        assert not app.buffer.use_spaces
+        assert app.editor.session.buffer.tab_width == 2
+        assert not app.editor.session.buffer.use_spaces
         # buffers created afterwards inherit the options too
-        app.new_buffer(show=False)
-        assert app.buffer.tab_width == 2
+        app.editor.new_buffer(show=False)
+        assert app.editor.session.buffer.tab_width == 2
     finally:
         themes.set_theme("mocha")
 

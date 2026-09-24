@@ -1,4 +1,10 @@
-"""Keymap infrastructure: key notation, bindings and dispatch context."""
+"""Keymap infrastructure: key notation, bindings and dispatch context.
+
+The keymap layer must stay usable from anywhere (actions, extensions, tests):
+it never imports widgets or the application.  Everything a keymap may touch
+beyond the document itself is passed as a :class:`KeyUi` -- a concrete record
+of UI callbacks built by the editor, so no host protocol is involved.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +12,9 @@ import re
 from dataclasses import dataclass
 from typing import Callable, Optional, Union
 
-from yate.interfaces import AppProtocol
+from yate.editor_core.buffer import TextBuffer
+from yate.editor_core.document import Document
+from yate.session import EditorSession
 
 # ---------------------------------------------------------------------------
 # Key notation
@@ -166,19 +174,37 @@ class KeyBinding:
         return key_name(self.key)
 
 
+@dataclass(frozen=True)
+class KeyUi:
+    """The UI callbacks a keymap may use (built by the editor).
+
+    Callables instead of an interface keep the keymap layer free of widget
+    and application types: it only ever sees the document session plus this
+    record.
+    """
+
+    execute_action: Callable[[str], bool]
+    message: Callable[[str], None]
+    command_prompt: Callable[[], None]
+    find_prompt: Callable[[bool], None]
+    goto_prompt: Callable[[], None]
+    toggle_keymap: Callable[[], None]
+
+
 class ActionContext:
-    """Passed to every action; gives access to the running application."""
+    """Passed to every action: the document session plus the UI callbacks."""
 
-    def __init__(self, app: AppProtocol) -> None:
-        self.app = app
-
-    @property
-    def buffer(self):
-        return self.app.buffer
+    def __init__(self, session: EditorSession, ui: KeyUi) -> None:
+        self.session = session
+        self.ui = ui
 
     @property
-    def doc(self):
-        return self.app.doc
+    def buffer(self) -> TextBuffer:
+        return self.session.buffer
+
+    @property
+    def doc(self) -> Document:
+        return self.session.doc
 
 
 class Keymap:
@@ -222,9 +248,14 @@ class Keymap:
         action = binding.action
         if callable(action):
             action(ctx)
-        else:
-            ctx.app.execute_action(action)
-        return True
+            return True
+        if ctx.ui.execute_action(action):
+            return True
+        # An unregistered name -- a typo in a user binding, or an action whose
+        # extension was unloaded -- used to swallow the key silently.  Name it
+        # and report the key as unhandled so the other handlers still see it.
+        ctx.ui.message(f"unknown action: {action}")
+        return False
 
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
         binding = self.lookup(key)
@@ -235,6 +266,6 @@ class Keymap:
     def handle_unbound(self, ctx: ActionContext, key: str) -> bool:
         """Default: printable characters insert themselves."""
         if len(key) == 1 and key.isprintable():
-            ctx.app.insert_char(key)
+            ctx.buffer.insert_text(key)
             return True
         return False

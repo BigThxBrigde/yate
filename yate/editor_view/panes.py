@@ -20,26 +20,26 @@ deliberately cheap and disposable -- every durable state lives in the model.
 
 The pure data model (:class:`Leaf`, :class:`Split`, :class:`Node`,
 :class:`ViewState`, and the tree utility functions) lives in
-:mod:`yate.editor_view.pane_types` to avoid a type-level cycle with
-:mod:`yate.editor_view.editor`.
+:mod:`yate.session` (L1) -- it is UI-free state, so both this module and
+:mod:`yate.editor_view.editor` import it directly and no intermediate
+type-only module is needed.
 """
 
 from __future__ import annotations
 
 from itertools import count
-from typing import Optional
+from typing import Callable, Optional
 
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
 
 from yate.editor_core.document import Document
 from yate.editor_view.editor import EditorView
-from yate.interfaces import AppProtocol
-
-from yate.editor_view.pane_types import (
+from yate.session import (
     MIN_FRACTION,
     RESIZE_STEP,
     Axis,
+    EditorSession,
     Leaf,
     Node,
     Split,
@@ -51,28 +51,30 @@ from yate.editor_view.pane_types import (
     replace_node,
 )
 
-# Re-export for backward compatibility -- external code imports from panes.
-# DEPRECATED: prefer ``from yate.editor_view.pane_types import Axis, Leaf, ...``
-# These re-exports may be removed in a future version.
-__all__ = [
-    "Axis",
-    "Leaf",
-    "Node",
-    "Split",
-    "ViewState",
-    "PaneManager",
-    "PaneHost",
-]
-
 
 # ================================================================ manager
 
 
 class PaneManager:
-    """Owns the pane tree and mediates between app and widgets."""
+    """Owns the pane tree and mediates between the session and the widgets.
 
-    def __init__(self, app: AppProtocol, doc: Document) -> None:
-        self.app = app
+    The manager only needs the document session plus three editor callbacks
+    (mounted state, pane-focus sync, explorer focus) -- all concrete.
+    """
+
+    def __init__(
+        self,
+        session: EditorSession,
+        doc: Document,
+        *,
+        is_mounted: Callable[[], bool],
+        after_pane_focus: Callable[[], None],
+        focus_explorer: Callable[[], None],
+    ) -> None:
+        self.session = session
+        self.is_mounted = is_mounted
+        self.after_pane_focus = after_pane_focus
+        self.focus_explorer = focus_explorer
         self._ids = count(1)
         first = Leaf(next(self._ids), doc)
         self.root: Node = first
@@ -168,10 +170,8 @@ class PaneManager:
             self._clamp(doc, state.anchor) if state.anchor is not None else None
         )
         state.anchor = buf.anchor
-        try:
-            self.app.doc_index = self.app.docs.index(doc)
-        except ValueError:
-            pass
+        if doc in self.session.docs:
+            self.session.index = self.session.docs.index(doc)
         view = self.views.get(leaf.id)
         if view is not None:
             view.scroll_col = state.scroll_col
@@ -179,14 +179,14 @@ class PaneManager:
 
     def notify_focus(self, leaf_id: int) -> None:
         """EditorView.on_focus hook: switch the active pane."""
-        if not self.app.mounted:
+        if not self.is_mounted():
             return
         leaf = self.leaf_by_id(leaf_id)
         if leaf is self.active:
             return
         self.capture_active()
         self.apply_doc(leaf)
-        self.app.after_pane_focus()
+        self.after_pane_focus()
 
     def show_doc(self, leaf: Leaf, doc: Document) -> None:
         """Bind *doc* into *leaf* (file open / tab cycle), restoring the
@@ -227,7 +227,7 @@ class PaneManager:
         # position; another document: its stored (or fresh) state is applied.
         self.apply_doc(new_leaf)
         if self.host is not None:
-            self.app.after_pane_focus()
+            self.after_pane_focus()
         return new_leaf
 
     async def close_active(self) -> bool:
@@ -250,7 +250,7 @@ class PaneManager:
         if self.host is not None:
             await self.host.reconcile(following)
         self.apply_doc(following)
-        self.app.after_pane_focus()
+        self.after_pane_focus()
         return True
 
     async def only_active(self) -> None:
@@ -263,7 +263,7 @@ class PaneManager:
         if self.host is not None:
             await self.host.reconcile(keep)
         self.apply_doc(keep)
-        self.app.after_pane_focus()
+        self.after_pane_focus()
 
     # ------------------------------------------------------------ movement
 
@@ -329,7 +329,7 @@ class PaneManager:
             if next_view is not None:
                 next_view.focus()
                 return
-        self.app.focus_explorer()
+        self.focus_explorer()
 
     # -------------------------------------------------------------- sizing
 
@@ -399,9 +399,12 @@ class PaneHost(Widget):
     }
     """
 
-    def __init__(self, manager: PaneManager) -> None:
+    def __init__(self, manager: PaneManager, make_view: Callable[[int], EditorView]) -> None:
         super().__init__()
         self.manager = manager
+        #: Builds the widget of one leaf (wired by the editor: it owns the
+        #: view's collaborators).
+        self.make_view = make_view
         manager.attach(self)
 
     def on_mount(self) -> None:
@@ -414,7 +417,7 @@ class PaneHost(Widget):
 
     def _build(self, node: Node) -> Widget:
         if isinstance(node, Leaf):
-            view = EditorView(self.manager.app, leaf_id=node.id)
+            view = self.make_view(node.id)
             self.manager.views[node.id] = view
             return view
         box_cls = Vertical if node.axis == "horizontal" else Horizontal

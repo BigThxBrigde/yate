@@ -5,9 +5,9 @@
 > - `yate/editor_lsp/`（`protocol.py` / `client.py` / `manager.py`）、
 >   `yate/editor_view/completion.py`、`extensions/python_lsp.py`、
 >   `tests/test_lsp.py` 均已落地。
-> - 架构现状：`AppProtocol`（`yate/interfaces.py`）仍是本分支的类型层，
->   `EditorView` / 补全弹窗等以 `AppProtocol` 注解 `app`
->   （见 `remove_type_checking_plan.md`）。
+> - 架构现状（2026-09-23 更新）：`AppProtocol`（`yate/interfaces.py`）已在
+>   「分层重构」中删除。当前 `EditorView` / 补全弹窗等接收具体对象
+>   （`EditorSession` / `LspManager` / `KeymapSet` 等），不再依赖任何 `Protocol`。
 > - 后续演进：补全陈旧守卫已按 `completion_staleness_check_plan.md` 加强；
 >   文档屏/主题等 UI 细节以当前代码为准。
 > - 枚举与数据类命名（如 `ServerState`、`ServerConfig`）请以
@@ -70,6 +70,12 @@
 
 **EditorView 改造（`editor_view/editor.py`）**
 - `on_key` 在 raw dispatch 前：弹窗打开时拦截 `tab`/`enter`（接受）、`up/down`（选择）、`esc`（关闭）、其他键照常分发后按结果决定刷新/关闭；`Ctrl+Space` 任何模式下直接触发 manual completion（vim NORMAL 不触发）。
+  *实施注记（2026-09-23）：`e70dd15` 曾把"其他键照常分发"改成无条件消费；当时 `EditorView.on_key` 不 `stop()` 未识别键，
+  它们仍冒泡到 `YateApp.on_key` 被正常分发，所以 **master 实测未受影响**。本轮分层重构把 `EditorView.on_key` 改为无条件 `stop()`、
+  弹窗分支搬入 `Editor.handle_key` 后，未消费的键不再冒泡，缺陷才显现；现已修复回本设计的 fall-through
+  （`yate/editor.py::handle_key` 只消费上述 5 个键）。守卫见
+  `tests/test_app_textual.py::test_completion_popup_keeps_typing_and_filters` 与冒烟 `regress_completion_staleness`，
+  问题记录见 [`../issues/review.md`](../issues/review.md)。*
 - 弹窗未打开时：可打印字符分发后，若该文件有注册 server 且字符为标识符字符或 server 声明的 triggerCharacters，调度去抖 ~120ms 的自动补全请求。
 - 诊断渲染叠加：
   - 行号着色：含 error 的行行号/行首用红，warning 用黄（复用 theme 的 red/yellow）。

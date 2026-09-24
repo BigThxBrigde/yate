@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import locale
+import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Optional
 
 from yate.editor_core.buffer import TextBuffer
+
+
+def _current_umask() -> int:
+    """The process umask, read without leaving it changed."""
+    value = os.umask(0)
+    os.umask(value)
+    return value
 
 
 class Document:
@@ -30,7 +41,13 @@ class Document:
         # Manual syntax/filetype override (`:set filetype=...`); ``None``
         # means the type is detected from the path suffix.
         self.filetype_override: Optional[str] = None
-        self._saved_text = self.buffer.get_text()
+        # Buffer edit count and line snapshot at the last save.  ``modified``
+        # compares the O(1) counter first; when it differs (e.g. the save
+        # landed in the middle of a coalesced typing step, or the undo stack
+        # dropped old steps) it falls back to an exact line comparison, so
+        # the flag stays correct across undo/redo without a full-text join.
+        self._saved_edits = self.buffer.content_edits
+        self._saved_lines = tuple(self.buffer.lines)
 
     # ------------------------------------------------------------- factories
 
@@ -67,7 +84,16 @@ class Document:
 
     @property
     def modified(self) -> bool:
-        return self.buffer.get_text() != self._saved_text
+        """Whether the buffer differs from the last saved state.
+
+        The fast path is an O(1) edit-counter comparison; when the counter
+        cannot decide (see ``__init__``) this falls back to an exact
+        ``tuple(lines)`` comparison, which is **O(N) in the line count** and
+        therefore the expensive path on large buffers.
+        """
+        if self.buffer.content_edits == self._saved_edits:
+            return False
+        return tuple(self.buffer.lines) != self._saved_lines
 
     @property
     def name(self) -> str:
@@ -96,6 +122,28 @@ class Document:
     def save(self, path: Optional[Path | str] = None) -> Path:
         """Write the buffer to disk and clear the modified flag.
 
+        The write is atomic: the encoded text lands in a sibling temporary
+        file first and then replaces the target in one ``os.replace`` call,
+        so a crash (or a full disk) mid-write can never destroy the previous
+        on-disk contents.  Encoding also happens before anything is written,
+        so an unencodable character still leaves the file untouched.
+
+        ``os.replace`` swaps the inode, so the target's permission bits (and,
+        where the platform exposes them, its extended attributes -- which is
+        how POSIX ACLs are carried) are copied onto the temporary file first;
+        without that a restricted mode such as ``0600`` would come back as the
+        process umask.  A brand-new file instead lands with the umask default
+        (usually ``0644``), like any other tool writes it.  The timestamps are
+        deliberately *not* inherited: the saved file must look freshly written
+        to build tools and file watchers.
+
+        The replacement targets the *path*: a symbolic link is swapped for a
+        regular file (no write-through), and other hard links to the previous
+        inode keep the old contents.  On Windows the swap needs the target to
+        be share-deletable by whoever holds it open, so a scanner or preview
+        holding a non-shared handle makes the save fail with
+        ``PermissionError`` -- the previous contents survive.
+
         Returns the path that was written.
         """
         if path is not None:
@@ -103,9 +151,41 @@ class Document:
         if self.path is None:
             raise ValueError("cannot save a document without a path")
         text = self.buffer.get_text()
-        # Encode *before* touching the file: write_text() truncates first, so
-        # a character the document's encoding cannot represent would raise
-        # halfway through and leave an empty (destroyed) file behind.
-        self.path.write_bytes(text.encode(self.encoding))
-        self._saved_text = text
+        data = text.encode(self.encoding)
+        target = self.path
+        # A unique sibling temp file avoids collisions between concurrent
+        # saves; mkstemp creates it owner-only, which is fixed up below.
+        fd, tmp_name = tempfile.mkstemp(
+            dir=target.parent, prefix=target.name + ".yate-tmp-"
+        )
+        tmp = Path(tmp_name)
+        try:
+            # ``fdopen`` takes ownership of ``fd``: the sentinel keeps the
+            # error path from closing a descriptor the handle already owns.
+            with os.fdopen(fd, "wb") as fh:
+                fd = -1
+                fh.write(data)
+            if target.exists():
+                # Inherit the permission bits and, on POSIX, the xattrs that
+                # carry ACLs -- but not the timestamps: a saved file must look
+                # freshly written to build tools and file watchers, so put
+                # them back to now (copystat copies atime/mtime as well).
+                shutil.copystat(target, tmp)
+                os.utime(tmp)
+            elif os.name == "posix":
+                # A new file gets the umask default, not mkstemp's 0600.
+                os.chmod(tmp, 0o666 & ~_current_umask())
+            os.replace(tmp, target)
+        except BaseException:
+            # Wide on purpose: this path only re-raises after a best-effort
+            # cleanup, so no failure is ever swallowed.  Cleanup must not
+            # replace the original exception either.
+            if fd >= 0:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
+            raise
+        self._saved_edits = self.buffer.content_edits
+        self._saved_lines = tuple(self.buffer.lines)
         return self.path

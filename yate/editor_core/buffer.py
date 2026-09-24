@@ -15,6 +15,11 @@ Pos = tuple[int, int]
 
 _WORD_CHARS = re.compile(r"\w")
 
+#: Maximum undo steps kept in memory.  Each step snapshots the full line
+#: list, so an unbounded stack would grow without limit on large documents;
+#: oldest steps are dropped once the cap is reached (like most editors).
+MAX_UNDO_STEPS = 1000
+
 
 def _is_word(ch: str) -> bool:
     return bool(_WORD_CHARS.match(ch))
@@ -77,6 +82,11 @@ class _Edit:
     before: _Snapshot
     after: _Snapshot
     kind: str  # "char" coalesces with adjacent typing/deletion, "step" does not
+    #: Number of line-change commits folded into this step (1 for a plain
+    #: step, more for coalesced typing).  :attr:`content_edits` is adjusted
+    #: by this amount on undo/redo so the counter stays aligned with the
+    #: actual number of reverted changes even across coalescing.
+    weight: int = 1
 
 
 class TextBuffer:
@@ -101,6 +111,17 @@ class TextBuffer:
         # selection) changes; the view uses it to invalidate highlight
         # tokens without re-tokenizing on every cursor-movement key.
         self.content_version: int = 0
+        # Number of content-changing commits since buffer creation (undo
+        # decrements, redo increments).  ``Document.modified`` compares this
+        # against the value recorded at the last save: O(1) dirty tracking
+        # that stays exact across undo/redo, unlike a full-text diff.
+        self.content_edits: int = 0
+        # Desired column for vertical movement (vim/VS Code semantics):
+        # consecutive up/down motions remember the column the cursor started
+        # from, so crossing a shorter line does not permanently pull the
+        # cursor to that line's end.  Cleared by any horizontal move, edit
+        # or explicit cursor positioning (see :meth:`set_cursor`).
+        self._goal_col: Optional[int] = None
 
     # ------------------------------------------------------------------ state
 
@@ -128,16 +149,23 @@ class TextBuffer:
         self.anchor = None
         self._undo.clear()
         self._redo.clear()
+        self._goal_col = None
         self.content_version += 1
+        self.content_edits += 1
 
     def mark_content_changed(self) -> None:
         """Bump :attr:`content_version` after an out-of-band mutation.
 
         Extensions that replace ``buffer.lines`` entries directly (instead
         of going through an undoable edit) call this so syntax highlight
-        caches are re-synchronized on the next repaint.
+        caches are re-synchronized on the next repaint.  Also counts one
+        content edit: out-of-band mutations cannot be undone, so the only
+        way back to a clean state is saving again.  The vertical goal
+        column is cleared because the lines may have changed shape.
         """
+        self._goal_col = None
         self.content_version += 1
+        self.content_edits += 1
 
     # ------------------------------------------------------------- snapshots
 
@@ -149,6 +177,7 @@ class TextBuffer:
         self.lines = list(snap.lines)
         self.cursor = snap.cursor
         self.anchor = snap.anchor
+        self._goal_col = None
         if changed:
             self.content_version += 1
 
@@ -156,19 +185,28 @@ class TextBuffer:
         after = self._snapshot()
         if after == before:
             return
+        # content changed: the remembered vertical column may be past the
+        # end of the mutated line, so vertical tracking restarts
+        self._goal_col = None
         lines_changed = after.lines != before.lines
+        weight = 1 if lines_changed else 0
         if kind == "char" and self._undo:
             top = self._undo[-1]
             if top.kind == "char" and top.after == before:
                 top.after = after
+                top.weight += weight
                 self._redo.clear()
                 if lines_changed:
                     self.content_version += 1
+                    self.content_edits += 1
                 return
-        self._undo.append(_Edit(before, after, kind))
+        self._undo.append(_Edit(before, after, kind, weight))
+        if len(self._undo) > MAX_UNDO_STEPS:
+            del self._undo[0]
         self._redo.clear()
         if lines_changed:
             self.content_version += 1
+            self.content_edits += 1
 
     # ------------------------------------------------- bulk-edit transactions
     #
@@ -188,6 +226,7 @@ class TextBuffer:
         if not self._undo:
             return False
         edit = self._undo.pop()
+        self.content_edits -= edit.weight
         self._restore(edit.before)
         self._redo.append(edit)
         return True
@@ -196,6 +235,7 @@ class TextBuffer:
         if not self._redo:
             return False
         edit = self._redo.pop()
+        self.content_edits += edit.weight
         self._restore(edit.after)
         self._undo.append(edit)
         return True
@@ -236,7 +276,8 @@ class TextBuffer:
         """Move the cursor to *pos*, clamped to the text, handling selection.
 
         Public so stateful keymaps (vim motions) can position the cursor
-        without re-implementing the clamp/anchor semantics.
+        without re-implementing the clamp/anchor semantics.  Explicit
+        positioning ends vertical goal-column tracking.
         """
         r, c = pos
         r = max(0, min(r, len(self.lines) - 1))
@@ -246,10 +287,12 @@ class TextBuffer:
         elif not select:
             self.anchor = None
         self.cursor = (r, c)
+        self._goal_col = None
 
     def select_all(self) -> None:
         self.anchor = (0, 0)
         self.cursor = (len(self.lines) - 1, len(self.lines[-1]))
+        self._goal_col = None
 
     # ------------------------------------------------------------ mutations
 
@@ -411,15 +454,21 @@ class TextBuffer:
 
     def move_up(self, select: bool = False) -> None:
         r, c = self.cursor
+        goal = self._goal_col if self._goal_col is not None else c
         if r > 0:
             r -= 1
-        self.set_cursor((r, c), select)
+        self.set_cursor((r, goal), select)
+        # set_cursor cleared the goal; restore it so consecutive vertical
+        # motions keep aiming at the column the run started from
+        self._goal_col = goal
 
     def move_down(self, select: bool = False) -> None:
         r, c = self.cursor
+        goal = self._goal_col if self._goal_col is not None else c
         if r < len(self.lines) - 1:
             r += 1
-        self.set_cursor((r, c), select)
+        self.set_cursor((r, goal), select)
+        self._goal_col = goal
 
     def move_line_start(self, select: bool = False, toggle: bool = True) -> None:
         r, c = self.cursor

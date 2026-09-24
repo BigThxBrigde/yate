@@ -14,7 +14,7 @@
 
 ## 问题
 
-issues.md 第 1 条：输入时屏幕闪烁，影响输入体验，需要加入防抖动机制。
+review.md（原 issues.md）第 1 条：输入时屏幕闪烁，影响输入体验，需要加入防抖动机制。
 
 ## Repository Research（调研结论）
 

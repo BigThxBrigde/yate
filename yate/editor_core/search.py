@@ -140,6 +140,13 @@ class SearchEngine:
             out.append(line[last:])
             buffer.lines[row] = "".join(out)
         buffer.anchor = None
+        # A replacement can be shorter than the match, which would leave the
+        # cursor past the end of its line.  Views, the status bar and the
+        # smoke harness' ``cursor_col`` invariant all assume a valid position,
+        # so clamp it before the edit is recorded (undo restores the original
+        # cursor via ``before``).
+        row, col = buffer.cursor
+        buffer.cursor = (row, min(col, len(buffer.lines[row])))
         buffer.commit(before, "step")
         self.update(self.query, buffer)
         return count

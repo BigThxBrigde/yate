@@ -224,16 +224,31 @@ def test_register_overrides_existing_key() -> None:
 
 
 def test_extension_registers_csharp_highlighting() -> None:
-    from yate.services.extensions import ExtensionAPI, ExtensionLoader
+    from yate.services.extensions import (
+        ExtensionAPI,
+        ExtensionContext,
+        ExtensionLoader,
+    )
 
-    class _FakeApp:
-        pass  # the highlight bridge never touches the app
-
+    # the highlight bridge never touches the rest of the host, so the context
+    # is built with inert collaborators and only registration is exercised.
+    ctx = ExtensionContext(
+        session=cast(Any, None),
+        workspace=cast(Any, None),
+        lsp=cast(Any, None),
+        keymaps=cast(Any, None),
+        actions=cast(Any, None),
+        commands=cast(Any, None),
+        message=lambda _text: None,
+        run_shell=lambda _command, _show: None,
+        open_path=lambda _path: None,
+        save=lambda: None,
+    )
     ext_path = (
         Path(__file__).resolve().parent.parent
         / "yate" / "extensions" / "csharp_highlight.py"
     )
-    api = ExtensionAPI(cast(Any, _FakeApp()))
+    api = ExtensionAPI(ctx)
     record = ExtensionLoader(api).load_file(ext_path)
     assert record.error is None, record.error or ""
 

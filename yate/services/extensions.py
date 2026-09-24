@@ -33,6 +33,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Mapping, Optional, Sequence, cast
 
+from yate.config import YateConfig
+from yate.editor_lsp import LspManager
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_syntax import (
     LangSpec,
@@ -41,21 +43,49 @@ from yate.editor_syntax import (
     register_language,
 )
 from yate.editor_syntax.ts_backend import load_language_from_grammar
-from yate.interfaces import AppProtocol
-from yate.keymaps.base import Keymap
+from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
-
-CommandFunc = Callable[[str], object]
+from yate.paths import bundled_extensions_dir
+from yate.services.trust import is_trusted
+from yate.registries import ActionRegistry, CommandFunc, CommandRegistry
+from yate.services.shell import ShellResult
+from yate.services.workspace import Workspace
+from yate.session import EditorSession
 
 #: Trace logger ("yate.services.extensions"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 
+@dataclass
+class ExtensionContext:
+    """The concrete services an extension script drives.
+
+    Built by the editor once everything is constructed and handed to
+    :class:`ExtensionAPI`; extensions reach it through ``api.app`` (advanced
+    use) or through the narrow accessors on the API.
+    """
+
+    session: EditorSession
+    workspace: Workspace
+    lsp: LspManager
+    keymaps: KeymapSet
+    actions: ActionRegistry
+    commands: CommandRegistry
+    #: ``message(text)`` -- report on the message line.
+    message: Callable[[str], None]
+    #: ``run_shell(command, show_output)`` -- synchronous shell command.
+    run_shell: Callable[[str, bool], Optional[ShellResult]]
+    #: ``open_path(path)`` -- open a file/folder in the editor.
+    open_path: Callable[[Path], None]
+    #: ``save()`` -- save the active document.
+    save: Callable[[], None]
+
+
 class LspExtensionBridge:
     """``api.lsp`` -- register language servers from an extension."""
 
-    def __init__(self, app: AppProtocol) -> None:
-        self._app = app
+    def __init__(self, lsp: LspManager) -> None:
+        self._lsp = lsp
 
     def register_server(
         self,
@@ -76,7 +106,7 @@ class LspExtensionBridge:
         executable; the registration stays visible and fails lazily without
         disturbing the user.
         """
-        self._app.lsp.register_server(ServerConfig(
+        self._lsp.register_server(ServerConfig(
             name=name,
             command=command,
             args=list(args) if args is not None else [],
@@ -91,10 +121,10 @@ class LspExtensionBridge:
 
     def statuses(self) -> dict[str, str]:
         """``{server name: state name}`` for every registered server."""
-        return {name: state.value for name, state in self._app.lsp.states().items()}
+        return {name: state.value for name, state in self._lsp.states().items()}
 
     def has_state(self, name: str, state: str) -> bool:
-        current = self._app.lsp.states().get(name)
+        current = self._lsp.states().get(name)
         return current is not None and current.value == state
 
 
@@ -192,33 +222,34 @@ class SyntaxExtensionBridge:
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
-    def __init__(self, app: AppProtocol) -> None:
-        self._app = app
-        self._lsp = LspExtensionBridge(app)
+    def __init__(self, ctx: ExtensionContext) -> None:
+        self._ctx = ctx
+        self._lsp = LspExtensionBridge(ctx.lsp)
         self._highlight = HighlightExtensionBridge()
         self._syntax = SyntaxExtensionBridge()
 
     # ------------------------------------------------------------- accessors
 
     @property
-    def app(self) -> AppProtocol:
-        return self._app
+    def app(self) -> ExtensionContext:
+        """The host context (advanced use; prefer the narrow accessors)."""
+        return self._ctx
 
     @property
     def buffer(self):
-        return self._app.buffer
+        return self._ctx.session.buffer
 
     @property
     def doc(self):
-        return self._app.doc
+        return self._ctx.session.doc
 
     @property
     def workspace(self):
-        return self._app.workspace
+        return self._ctx.workspace
 
     @property
-    def keymaps(self) -> dict[str, Keymap]:
-        return self._app.keymaps
+    def keymaps(self) -> KeymapSet:
+        return self._ctx.keymaps
 
     @property
     def lsp(self) -> LspExtensionBridge:
@@ -239,7 +270,7 @@ class ExtensionAPI:
 
     def register_action(self, name: str, func: Callable[..., Any], description: str = "") -> None:
         """Register a named action (usable from key maps / commands)."""
-        self._app.actions.register(name, func, description=description or "extension action")
+        self._ctx.actions.register(name, func, description=description or "extension action")
 
     def bind_key(
         self,
@@ -262,7 +293,7 @@ class ExtensionAPI:
             else:
                 targets = ["vsc"] if keymap == "normal" else [keymap]
             for target in targets:
-                km = self._app.keymaps.get(target)
+                km = self._ctx.keymaps.get(target)
                 if km is not None:
                     km.add_binding(key_spec, func, description, category)
             return func
@@ -278,27 +309,27 @@ class ExtensionAPI:
         """
 
         def _decorator(func: CommandFunc) -> CommandFunc:
-            self._app.commands.register(name, func, description)
+            self._ctx.commands.register(name, func, description)
             return func
 
         return _decorator
 
     def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
-        self._app.commands.register(name, func, description or "extension command")
+        self._ctx.commands.register(name, func, description or "extension command")
 
     # -------------------------------------------------------------- services
 
     def message(self, text: str) -> None:
-        self._app.message(text)
+        self._ctx.message(text)
 
     def shell(self, command: str) -> object:
-        return self._app.run_shell_command(command, show_output=False)
+        return self._ctx.run_shell(command, False)
 
     def open_path(self, path: str | Path) -> None:
-        self._app.open_path(Path(path))
+        self._ctx.open_path(Path(path))
 
     def save(self) -> None:
-        self._app.save_document()
+        self._ctx.save()
 
 
 @dataclass
@@ -365,19 +396,22 @@ class ExtensionLoader:
             module = importlib.util.module_from_spec(spec)
             sys.modules[mod_name] = module
             spec.loader.exec_module(module)
-            # 动态边界：用户扩展模块的 setup 钩子通过 getattr 获取，类型未知
+            # Dynamic boundary: the user extension's setup hook comes from
+            # getattr, so its type is unknown.
             setup: Any = getattr(module, "setup", None)
             if not callable(setup):
                 raise AttributeError(f"{path.name} has no setup(api) function")
             setup(self.api)  # dynamic user module (narrowed via callable() above)
             record.module = module
-            # 动态边界：用户扩展模块的 teardown 钩子通过 getattr 获取，类型未知。
-            # 仅在 setup 成功后捕获——setup 失败的扩展未初始化任何资源，
-            # teardown_all() 不应调用它的 teardown。
+            # Dynamic boundary: the user extension's teardown hook comes from
+            # getattr, so its type is unknown.  It is captured only after a
+            # successful setup -- a failed extension never initialized any
+            # resource, so teardown_all() must not call its teardown.
             hook: Any = getattr(module, "teardown", None)
             if callable(hook):
-                # 动态边界收窄：callable(hook) 只能推出 (...)->object，
-                # 显式 cast 到文档约定的 teardown(api) 签名。
+                # Dynamic-boundary narrowing: callable(hook) only infers
+                # (...)->object, so cast explicitly to the documented
+                # teardown(api) signature.
                 record.teardown = cast(
                     Callable[[ExtensionAPI], None], hook
                 )
@@ -405,5 +439,96 @@ class ExtensionLoader:
                 continue
             try:
                 teardown(self.api)  # dynamic user hook (captured post-setup)
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - isolate per-extension teardown
+                log.exception("extension %s teardown failed", record.name)
+
+
+def load_startup_extensions(
+    loader: ExtensionLoader,
+    config: YateConfig,
+    *,
+    ext_dirs: Sequence[Path] = (),
+    ext_files: Sequence[Path] = (),
+) -> list[str]:
+    """Load every configured extension source, in the documented order.
+
+    rc-declared paths load first (user rc then project rc), followed by the
+    bundled defaults, the trusted project directory, the user directory and
+    the explicit CLI paths.  Returns the user-facing messages (load errors,
+    shadowed rc-declared scripts, untrusted-workspace skips); the caller
+    reports them on the message line.  The same order is used by a normal
+    start and by ``yate --diag``, so the diagnostics always show exactly
+    what a start would load.
+    """
+    messages: list[str] = []
+
+    def _report(records: list[LoadedExtension]) -> None:
+        for record in records:
+            if record.error:
+                messages.append(f"extension {record.name}: {record.error}")
+
+    for path in config.extension_paths:
+        if path.is_dir():
+            _report(loader.load_directory(path))
+        elif path.is_file():
+            _report([loader.load_file(path)])
+        else:
+            messages.append(f"extension path not found: {path}")
+
+    # Extensions shipped with yate (inside the package / the PyInstaller
+    # bundle). Individual defaults can be switched off in yaterc with
+    # ``disabled_extensions``; same-named scripts loaded afterwards from a
+    # project or user directory get the last word on registrations.
+    bundled = bundled_extensions_dir()
+    if bundled.is_dir():
+        # Registrars are last-write-wins, so a bundled default loading
+        # *after* an rc-declared same-stem script would silently take over
+        # its commands/highlight/server. Name the conflict and point at the
+        # documented opt-out instead of letting the user script lose without
+        # explanation.
+        rc_owners = {record.name: record for record in loader.loaded}
+        records = loader.load_directory(bundled, exclude=config.disabled_extensions)
+        for record in records:
+            owner = rc_owners.get(record.name)
+            # Same resolved path means the rc entry *is* the bundled script
+            # (e.g. extension_paths pointing at the bundled directory):
+            # de-duplication hands back the same record, which must not be
+            # reported as shadowing itself.
+            if (
+                owner is not None
+                and record.error is None
+                and owner.path.resolve() != record.path.resolve()
+            ):
+                messages.append(
+                    f"extension {record.name}: the rc-declared script "
+                    f"{owner.path} is shadowed by the bundled default; "
+                    f'add disabled_extensions = ["{record.name}"] to '
+                    "yaterc to use the rc-declared version"
+                )
+        _report(records)
+
+    directories: list[Path] = [*ext_dirs]
+    # One resolved spelling for both the trust decision and the load: a
+    # symlinked or swapped-in cwd must not be judged as one path and loaded
+    # as another (the trust store holds resolved roots too).
+    cwd = Path.cwd().resolve()
+    cwd_extensions = cwd / "extensions"
+    if cwd_extensions.is_dir():
+        # Workspace trust: opening a repository must not execute that
+        # repository's own code, so a project ``./extensions`` auto-loads
+        # only in workspaces the user trusted via ``:trust`` (the list
+        # lives in ~/.yate/trusted_workspaces).  rc-declared and CLI
+        # paths are deliberate user actions and stay unconditional.
+        if is_trusted(cwd):
+            directories.append(cwd_extensions)
+        else:
+            messages.append(
+                f"extensions: skipped untrusted {cwd_extensions} "
+                "(run :trust to load them)"
+            )
+    directories.append(Path.home() / ".yate" / "extensions")
+    for directory in directories:
+        _report(loader.load_directory(directory))
+    for file in ext_files:
+        _report([loader.load_file(file)])
+    return messages

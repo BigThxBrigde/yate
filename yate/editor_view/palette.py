@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -24,7 +24,7 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
-from yate.interfaces import AppProtocol
+from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
 from . import theme
@@ -102,9 +102,30 @@ class PaletteScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, yate: AppProtocol, mode: str, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        mode: str,
+        *,
+        workspace: Workspace,
+        commands: CommandRegistry,
+        actions: ActionRegistry,
+        open_path: Callable[[Path], None],
+        focus_editor: Callable[[], None],
+        execute_action: Callable[[str], bool],
+        run_command: Callable[[str], None],
+        refresh: Callable[[], None],
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self.yate = yate
+        self.workspace = workspace
+        self.commands = commands
+        self.actions = actions
+        self.open_path = open_path
+        self.focus_editor = focus_editor
+        self.execute_action = execute_action
+        self.run_command = run_command
+        #: Editor repaint hook (named apart from ``Widget.refresh``).
+        self.refresh_ui = refresh
         self.mode = mode  # "files" | "commands"
         self._entries: list[tuple[str, str, Any]] = []  # (display, hint, payload)
         self._filtered: list[tuple[int, list[int], int]] = []  # (score, hits, idx)
@@ -130,11 +151,10 @@ class PaletteScreen(ModalScreen[None]):
         Pure data prep (filesystem traversal + ``resolve`` per file), safe
         to run in a worker thread; it must not touch Textual widgets.
         """
-        app = self.yate
         entries: list[tuple[str, str, Any]] = []
-        if app.workspace.root is not None:
-            root = app.workspace.root
-            paths = app.workspace.walk_files()
+        if self.workspace.root is not None:
+            root = self.workspace.root
+            paths = self.workspace.walk_files()
         else:
             root = Path.cwd()
             paths = _walk(root)
@@ -156,21 +176,17 @@ class PaletteScreen(ModalScreen[None]):
         resolves to the ``:`` command (the same spelling typed on the ex
         line) and the raw action duplicate is dropped.
         """
-        app = self.yate
         entries: list[tuple[str, str, Any]] = []
-        for name in app.commands.names():
+        for name in self.commands.names():
             # hide "palette" itself — opening the palette from inside the
             # palette would be a no-op and feels like recursion
             if name == "palette":
                 continue
-            entries.append(
-                (name, app.commands.describe(name), ("command", name)))
+            entries.append((name, self.commands.describe(name), ("command", name)))
         command_names = {name for name, _h, _p in entries}
-        for name in app.actions.names():
+        for name, description in self.actions.describe():
             if name in command_names:
                 continue
-            action = app.actions.get(name)
-            description = action.description if action is not None else ""
             entries.append((name, description, ("action", name)))
         entries.sort(key=lambda entry: entry[0])
         self._entries = entries
@@ -247,7 +263,9 @@ class PaletteScreen(ModalScreen[None]):
                 )
                 text.append(ch, style=style)
             if hint:
-                pad = max(1, 30 - len(display))
+                # cell count, not codepoints: a CJK filename occupies two
+                # cells per glyph and would otherwise shift the hint column
+                pad = max(1, 30 - theme.cell_len(display))
                 text.append(" " * pad, style=f"on {bg}" if bg else "")
                 text.append(hint, style=(f"{t.panel} on {bg}") if selected else t.fg_dim)
             text.append("\n")
@@ -318,17 +336,17 @@ class PaletteScreen(ModalScreen[None]):
         _display, _hint, payload = self._entries[idx]
         self.dismiss()
         if self.mode == "files":
-            self.yate.open_path_later(payload)
-            self.yate.focus_editor()
+            self.open_path(payload)
+            self.focus_editor()
         else:
             kind, name = payload
             if kind == "action":
-                self.yate.execute_action(str(name))
+                self.execute_action(str(name))
                 # key dispatch refreshes the editor after an action; the
                 # palette bypasses the key path, so do it here too
-                self.yate.ui_refresh()
+                self.refresh_ui()
             else:
-                self.yate.run_command(str(name))
+                self.run_command(str(name))
 
 
 def _walk(root: Path, limit: int = 5000) -> list[Path]:

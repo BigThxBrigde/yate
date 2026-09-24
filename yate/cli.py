@@ -10,11 +10,29 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import platform
 import sys
 from pathlib import Path
 from typing import Optional, Sequence
 
-from yate import __description__
+from yate import __description__, __version__
+
+
+# ------------------------------------------------------------------ version
+
+def version_lines() -> str:
+    """yate / description / Python / platform information (``--version``).
+
+    Lives here instead of :mod:`yate.diagnostics` so ``--version`` only pays
+    for this leaf module: diagnostics needs ``yate.editor`` for its report
+    signatures, which would drag in the whole TUI stack.
+    """
+    impl = platform.python_implementation()
+    return (
+        f"yate {__version__} — {__description__}\n"
+        f"Python {platform.python_version()} ({impl})\n"
+        f"{platform.platform()}"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -166,9 +184,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # --version prints basic information without loading any configuration
     # or touching the terminal. Handle it first so it stays instant.
     if args.version:
-        from yate import diagnostics  # pylint: disable=import-outside-toplevel
-
-        print(diagnostics.version_lines())
+        print(version_lines())
         return 0
 
     # --changelog prints the bundled changelog and exits. Like --version it
@@ -286,7 +302,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # normal run so the report reflects what would actually be loaded, but
     # never enters the TUI. load_startup_services() is headless-safe.
     if args.diag:
-        from yate import diagnostics  # pylint: disable=import-outside-toplevel
+        from yate import diagnostics
 
         app = YateApp(
             target=target,
@@ -296,8 +312,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             ext_files=args.ext_files,
             ext_dirs=args.ext_dirs,
         )
-        app.load_startup_services()
-        diagnostics.print_report(app)
+        app.editor.load_startup_services()
+        diagnostics.print_report(app.editor)
         return 0
 
     app = YateApp(

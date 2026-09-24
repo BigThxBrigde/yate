@@ -9,11 +9,15 @@
 
 ## 🤖 AI 队友审查结果
 
-> **状态（2026-09-22 复核）：历史评审记录；两个阻断项均已修复。**
+> **状态（2026-09-23 复核）：历史评审记录；两个阻断项均已修复，评审对象已被后续重构取代。**
+> `yate/interfaces.py` 与 `AppProtocol` 已在「分层重构」中**整体删除**，
+> `app_features/*` 目录也已删除。当前架构使用具体对象
+> （`EditorSession` / `KeymapSet` / `ActionRegistry` / `CommandRegistry`）
+> 与 `yate/editor.py`（`Editor`），不再依赖任何 `Protocol`。
 >
 > - **阻断项 1（`_vim_insert_mode` 直接取 `keymaps["vim"]` 可能 KeyError）已修复**：
->   现为 `vim = self._app.keymaps.get("vim")`，为 `None` 时安全返回
->   （`yate/app_features/completion.py`）。
+>   现为安全访问（原 `yate/app_features/completion.py` 已删除，逻辑迁移至
+>   `yate/completion.py`）。
 > - **阻断项 2（`reconcile` 用 `id()` 作状态键不稳定）已修复**：改用
 >   `Document.uid`（稳定自增 id），`Leaf.states: dict[int, ViewState]`，
 >   代码注释明确说明用于规避文档重建导致的键失效

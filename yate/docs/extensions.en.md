@@ -51,7 +51,9 @@ absolute path** (a script hit by several sources still runs exactly once):
    template `yatesh_syntax.py.example`;
 3. Default directories: `./extensions/` in the working directory and
    `~/.yate/extensions/` (every `*.py` inside is auto-loaded at startup,
-   files starting with an underscore are skipped);
+   files starting with an underscore are skipped). The project directory
+   only auto-loads in a **trusted workspace** -- see "Workspace trust"
+   below; the user directory always loads;
 4. Command line: `--ext <file>` loads a single file, `--ext-dir <dir>` loads
    every `*.py` in a directory (both repeatable).
 
@@ -59,6 +61,25 @@ Load order is the numbering above; the same path runs once, so a modified copy
 dropped into `~/.yate/extensions/` (step 3) can override the registrations of
 the bundled same-named extension. Underscore-prefixed files and templates with
 a `.example` suffix are never loaded.
+
+### Workspace trust (:trust)
+
+Opening a repository must never execute that repository's own code, so the
+project `./extensions/` directory auto-loads only in workspaces you have
+explicitly trusted. When startup finds the directory in an untrusted
+workspace it skips it and reports
+`extensions: skipped untrusted <path> (run :trust to load them)` on the
+message bar. Run
+
+```
+:trust
+```
+
+to trust the current workspace and load its `./extensions/` immediately.
+Trusted workspaces are recorded one resolved absolute path per line in
+`~/.yate/trusted_workspaces`; delete the line to stop trusting a workspace.
+rc-declared paths, `--ext` / `--ext-dir` and `~/.yate/extensions/` are
+deliberate user actions and always load.
 
 ### Disabling bundled defaults (disabled_extensions)
 
@@ -72,8 +93,9 @@ disabled_extensions = ["python_lsp", "csharp_highlight"]
 
 - Accepts a string or a list of strings; entries **accumulate** and de-duplicate
   across rc files;
-- Only affects bundled defaults -- scripts from rc paths, `./extensions/`,
-  `~/.yate/extensions/` and the command line always load;
+- Only affects bundled defaults -- scripts from rc paths, `./extensions/`
+  in trusted workspaces, `~/.yate/extensions/` and the command line always
+  load;
 - Invalid values (non-string lists, empty strings) are reported as config
   errors in the startup message bar.
 
@@ -171,8 +193,24 @@ def _upper(ctx):
 | `api.buffer` | `TextBuffer` | active buffer |
 | `api.doc` | `Document` | active document (path, saving, etc.) |
 | `api.workspace` | `Workspace` | file-tree workspace |
-| `api.keymaps` | `dict[str, Keymap]` | all loaded keymaps (`vsc`/`vim`) |
-| `api.app` | `YateApp` | the application itself (advanced use) |
+| `api.keymaps` | `KeymapSet` | all loaded keymaps (`vsc`/`vim`); look one up with `api.keymaps.get(name)` |
+| `api.app` | `ExtensionContext` | the concrete services an extension drives (advanced use) |
+
+**`api.app` (`ExtensionContext`) fields** (advanced use; the narrow accessors
+above are preferred):
+
+| Field | Type | Description |
+|---|---|---|
+| `session` | `EditorSession` | the open-documents session (`session.doc` / `session.buffer`) |
+| `workspace` | `Workspace` | file-tree workspace |
+| `lsp` | `LspManager` | language-server manager (`api.lsp` is the narrow bridge) |
+| `keymaps` | `KeymapSet` | all loaded keymaps (`vsc`/`vim`) |
+| `actions` | `ActionRegistry` | named actions |
+| `commands` | `CommandRegistry` | `:` commands |
+| `message(text)` | callable | report a hint on the message line |
+| `run_shell(command, show_output)` | callable | run a shell command synchronously; returns `ShellResult` or `None` |
+| `open_path(path)` | callable | open a file/folder in the editor |
+| `save()` | callable | save the active document |
 
 **Common `api.buffer` (TextBuffer) methods**:
 

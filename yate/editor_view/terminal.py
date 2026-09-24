@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from rich.segment import Segment
 from rich.style import Style
@@ -20,15 +20,19 @@ from textual.strip import Strip
 from textual.widget import Widget
 from textual.widgets import Static
 
+from yate.config import YateConfig
 from yate.editor_term import (
     PtyProcess,
+    PtyProcessError,
     TerminalEmulator,
     key_to_terminal,
+    resolve_shell,
     shell_label,
 )
-from yate.interfaces import AppProtocol
+from yate.services.workspace import Workspace
 
 from . import theme
+from .commandline import PromptBar
 
 #: Names Textual gives Ctrl+grave across platforms:
 #: - "ctrl+`" / "ctrl+grave": friendly/pilot names;
@@ -62,9 +66,9 @@ class TerminalView(Widget):
     }
     """
 
-    def __init__(self, app: AppProtocol, **kwargs: Any) -> None:
+    def __init__(self, panel: TerminalPanel, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.yate = app
+        self.panel = panel
         self.emulator = TerminalEmulator(80, 24, on_response=self._respond)
         self.proc: Optional[PtyProcess] = None
         self.shell_argv: list[str] = []
@@ -190,13 +194,13 @@ class TerminalView(Widget):
         if event.key in TOGGLE_KEYS:
             event.stop()
             event.prevent_default()
-            self.yate.toggle_terminal()
+            self.panel.toggle()
             return
         event.stop()
         event.prevent_default()
         if not self.started or self.dead:
             # Any key revives a dead shell.
-            self.yate.open_terminal()
+            self.panel.open()
             return
         sequence = key_to_terminal(event.key, event.character)
         if sequence:
@@ -322,7 +326,13 @@ class TerminalView(Widget):
 
 
 class TerminalPanel(Vertical):
-    """Header line plus the terminal view, docked at the bottom."""
+    """Header line plus the terminal view, docked at the bottom.
+
+    The panel owns its whole lifecycle (show / hide / spawn the shell): the
+    editor only calls :meth:`toggle`, :meth:`open`, :meth:`close` and
+    :meth:`apply_height`.  ``view_factory`` is the fake-PTY hook the test
+    suite injects (``None`` in production).
+    """
 
     DEFAULT_CSS = """
     TerminalPanel {
@@ -337,12 +347,27 @@ class TerminalPanel(Vertical):
     }
     """
 
-    def __init__(self, app: AppProtocol, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        config: YateConfig,
+        workspace: Workspace,
+        prompt: PromptBar,
+        *,
+        focus_editor: Callable[[], None],
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self.yate = app
+        self.config = config
+        self.workspace = workspace
+        self.prompt = prompt
+        self.focus_editor = focus_editor
+        #: Fake-PTY hook injected by the test-suite (``None`` in production).
+        self.view_factory: Optional[Callable[..., object]] = None
         self.header = Static("", id="terminal-title")
-        self.view = TerminalView(app)
+        self.view = TerminalView(self)
         self._cached_header = ""
+        self._visible = False
+        self._starting = False
 
     def compose(self) -> Any:
         yield self.header
@@ -354,6 +379,75 @@ class TerminalPanel(Vertical):
         self.header.styles.color = t.fg_dim
         self.view.styles.background = t.bg
         self.refresh_header()
+
+    # ----------------------------------------------------------- lifecycle
+
+    @property
+    def is_visible(self) -> bool:
+        """Whether the panel is currently shown."""
+        return self._visible
+
+    def toggle(self) -> None:
+        """Show/focus or hide the integrated terminal (Ctrl+`)."""
+        if self._visible:
+            self.close()
+        else:
+            self.open()
+
+    def open(self) -> None:
+        """Reveal the bottom terminal and focus it, spawning the shell."""
+        was_hidden = not self._visible
+        if was_hidden:
+            self.apply_height(self.config.terminal_height)
+            self.display = True
+            self._visible = True
+        self.view.focus()
+        if not self.view.started:
+            self.spawn_shell()
+        if was_hidden:
+            self.prompt.write("terminal shown", kind="ok")
+
+    def close(self) -> None:
+        """Hide the panel; the shell process itself stays alive."""
+        if not self._visible:
+            self.prompt.write("terminal already hidden", kind="warn")
+            return
+        self.display = False
+        self._visible = False
+        self.focus_editor()
+        self.prompt.write("terminal hidden", kind="ok")
+
+    def apply_height(self, height: int) -> None:
+        """Resize the panel when it is currently visible."""
+        if self._visible:
+            self.styles.height = height
+
+    # ---------------------------------------------------------- shell spawn
+
+    def spawn_shell(self) -> None:
+        """Start the shell process once (idempotent while starting)."""
+        if self._starting:
+            return
+        self._starting = True
+        argv = resolve_shell(self.config.shell)
+        cwd = self.workspace.root or Path.cwd()
+
+        async def _start() -> None:
+            try:
+                await self.view.start(argv, cwd, factory=self.view_factory)
+            except PtyProcessError as exc:
+                self.prompt.write(f"terminal: {exc}", kind="warn")
+            except OSError as exc:
+                self.prompt.write(f"terminal: {exc}", kind="warn")
+            finally:
+                self._starting = False
+            if self._visible:
+                self.view.focus()
+
+        # Hand the worker the coroutine *function*: an eagerly built coroutine
+        # would live outside the worker's lifecycle and leak "never awaited"
+        # if the worker never starts (app quitting).
+        self.run_worker(_start, group="terminal", exit_on_error=False)
 
     def header_text(self) -> str:
         """Current header caption (name, title and shell state)."""

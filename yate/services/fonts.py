@@ -25,7 +25,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, cast
 
+from yate.logs import tracing
 from yate.paths import package_root
+
+#: Trace logger ("yate.services.fonts"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
 
 # nerd-fonts v3 ships a short GDI family name on Windows ("NFM" = Nerd Font
 # Mono); the long name only exists as the typographic family (name ID 16),
@@ -170,8 +174,8 @@ def _broadcast_font_change_windows() -> None:
         ctypes.windll.user32.SendMessageTimeoutW(
             HWND_BROADCAST, WM_FONTCHANGE, 0, 0, SMTO_ABORTIFHUNG, 1000, None
         )
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 - best-effort notification only
+        log.debug("font-change broadcast failed", exc_info=True)
 
 
 def _expected_font_entries(fonts_dir: Path) -> dict[str, str]:
@@ -228,7 +232,9 @@ def _register_windows_user_font(fonts_dir: Path) -> tuple[list[str], list[str]]:
                 try:
                     winreg.DeleteValue(key, name)
                 except OSError:
-                    pass
+                    # Nothing was removed, so the slot did not shift: step over
+                    # it instead of retrying the same value for ever.
+                    i += 1
                 continue  # indices shift after deletion; re-read same slot
             i += 1
         for value_name, full_path in expected.items():
@@ -258,14 +264,23 @@ def _install_unix() -> tuple[list[str], list[str]]:
         else:
             shutil.copy2(ttf, dest)
             installed.append(ttf.name)
-    if shutil.which("fc-cache"):
-        # 等价于原来的 os.system：同一条 shell 命令（~ 展开与输出重定向
-        # 交给 /bin/sh 处理），忽略退出码、fire-and-forget
-        subprocess.run(
-            "fc-cache -f ~/.local/share/fonts >/dev/null 2>&1",
-            shell=True,
-            check=False,
-        )
+    fc_cache = shutil.which("fc-cache")
+    if fc_cache:
+        # No shell: the cache root is an argv entry, so there is no quoting or
+        # ">/dev/null 2>&1" redirection to get wrong and a hung cache refresh
+        # cannot block the install.  Failure stays fire-and-forget -- the TTFs
+        # are already copied and the terminal merely needs one more restart.
+        fonts_root = Path.home() / ".local" / "share" / "fonts"
+        try:
+            subprocess.run(
+                [fc_cache, "-f", str(fonts_root)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            log.debug("fc-cache refresh skipped: %s", exc)
     return installed, skipped
 
 
@@ -357,7 +372,8 @@ def configure_windows_terminal(family: str = FAMILY) -> tuple[bool, str]:
     except (OSError, json.JSONDecodeError) as exc:
         return False, f"cannot read settings.json: {exc}"
 
-    # json.loads 返回 Any：逐级收窄为 dict[str, Any]，避免 Unknown 扩散
+    # json.loads returns Any: narrow it step by step to dict[str, Any] so
+    # Unknown does not spread.
     profiles = cast(dict[str, Any], data.setdefault("profiles", {}))
     defaults = cast(dict[str, Any], profiles.setdefault("defaults", {}))
     changed = _apply_face(defaults, family, force=True)

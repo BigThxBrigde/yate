@@ -259,7 +259,8 @@ extensions = [
 
 除 rc 声明外，yate 会先自动加载**包内随附扩展** `yate/extensions/`
 （目前为 `python_lsp`、`csharp_highlight`，无论工作目录在哪都生效），
-再扫描默认目录 `./extensions/` 和 `~/.yate/extensions/`，也可用命令行
+再扫描默认目录 `./extensions/`（仅限已用 `:trust` 信任的工作区——见
+extensions.md）和 `~/.yate/extensions/`，也可用命令行
 `--ext <文件>` / `--ext-dir <目录>` 追加。要跳过某个随包默认扩展，用
 `disabled_extensions` 列出其文件名主干（不含 `.py`）：
 

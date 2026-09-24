@@ -1,0 +1,49 @@
+# EditorConfig: https://EditorConfig.org
+#
+# Conventions mirrored from the repo itself:
+# - canonical line endings are LF (see `git ls-files --eol` and .gitattributes);
+#   CRLF in a Windows working tree is produced by core.autocrlf, not by editors
+# - Python style (.trae/rules/python-coding-style.md): 4-space indent,
+#   100-column limit, files end with a newline
+# - .gitattributes: *.sh must stay LF (a CRLF shebang breaks on Linux)
+
+# top-most EditorConfig file
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Python sources and Python-based config examples (yaterc.example, themes).
+[*.{py,example}]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+
+# Machine-written JSON (smoke-test baselines) uses 2-space indent.
+[*.json]
+indent_style = space
+indent_size = 2
+
+# CI workflows (.github/workflows/, .workflow/) use 2-space indent.
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.toml]
+indent_style = space
+indent_size = 4
+
+# Markdown: keep trailing double-spaces (hard line breaks).
+[*.md]
+trim_trailing_whitespace = false
+
+# Shell scripts must keep LF even on Windows (mirrors .gitattributes).
+[*.sh]
+end_of_line = lf
+
+# Windows batch files require CRLF to be parsed reliably.
+[*.{bat,cmd}]
+end_of_line = crlf

@@ -19,16 +19,16 @@ async def _undo_redo(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await type_text(pilot, "hello")
-        checks.append(Check("typed", "hello", app.buffer.get_text()))
-        checks.append(Check("dirty", True, app.doc.modified))
+        checks.append(Check("typed", "hello", app.editor.session.buffer.get_text()))
+        checks.append(Check("dirty", True, app.editor.session.doc.modified))
         await pilot.press("ctrl+z")
         await pilot.pause()
-        checks.append(Check("after_undo", "", app.buffer.get_text()))
-        checks.append(Check("clean_after_undo", False, app.doc.modified))
+        checks.append(Check("after_undo", "", app.editor.session.buffer.get_text()))
+        checks.append(Check("clean_after_undo", False, app.editor.session.doc.modified))
         await pilot.press("ctrl+y")
         await pilot.pause()
-        checks.append(Check("after_redo", "hello", app.buffer.get_text()))
-        checks.append(Check("dirty_after_redo", True, app.doc.modified))
+        checks.append(Check("after_redo", "hello", app.editor.session.buffer.get_text()))
+        checks.append(Check("dirty_after_redo", True, app.editor.session.doc.modified))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("undo_redo", checks, rows)
 
@@ -43,12 +43,12 @@ async def _duplicate_delete_line(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("ctrl+d")
         await pilot.pause()
-        checks.append(Check("duplicated", ["one", "one", "two"], list(app.buffer.lines)))
+        checks.append(Check("duplicated", ["one", "one", "two"], list(app.editor.session.buffer.lines)))
         # "ctrl+shift+k" has no raw translation; the keymap folds shift into
         # the ctrl code, so the binding is reached with ctrl+k.
         await pilot.press("ctrl+k")
         await pilot.pause()
-        checks.append(Check("deleted", ["one", "two"], list(app.buffer.lines)))
+        checks.append(Check("deleted", ["one", "two"], list(app.editor.session.buffer.lines)))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("duplicate_delete_line", checks, rows)
 
@@ -63,10 +63,10 @@ async def _move_line_block(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("alt+down")
         await pilot.pause()
-        checks.append(Check("moved_down", ["two", "one"], list(app.buffer.lines)))
+        checks.append(Check("moved_down", ["two", "one"], list(app.editor.session.buffer.lines)))
         await pilot.press("alt+up")
         await pilot.pause()
-        checks.append(Check("moved_up", ["one", "two"], list(app.buffer.lines)))
+        checks.append(Check("moved_up", ["one", "two"], list(app.editor.session.buffer.lines)))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("move_line_block", checks, rows)
 
@@ -81,10 +81,10 @@ async def _indent_outdent(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("ctrl+]")
         await pilot.pause()
-        checks.append(Check("indented", "    one", app.buffer.lines[0]))
+        checks.append(Check("indented", "    one", app.editor.session.buffer.lines[0]))
         await pilot.press("shift+tab")
         await pilot.pause()
-        checks.append(Check("outdented", "one", app.buffer.lines[0]))
+        checks.append(Check("outdented", "one", app.editor.session.buffer.lines[0]))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("indent_outdent", checks, rows)
 
@@ -99,8 +99,8 @@ async def _join_lines(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("ctrl+j")
         await pilot.pause()
-        checks.append(Check("line_count", 1, app.buffer.line_count))
-        checks.append(Check("joined", "one two", app.buffer.lines[0]))
+        checks.append(Check("line_count", 1, app.editor.session.buffer.line_count))
+        checks.append(Check("joined", "one two", app.editor.session.buffer.lines[0]))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("join_lines", checks, rows)
 
@@ -115,21 +115,21 @@ async def _clipboard_roundtrip(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("shift+right", "shift+right")
         await pilot.pause()
-        checks.append(Check("has_selection", True, app.buffer.has_selection()))
-        checks.append(Check("selected_text", "he", app.buffer.selected_text()))
+        checks.append(Check("has_selection", True, app.editor.session.buffer.has_selection()))
+        checks.append(Check("selected_text", "he", app.editor.session.buffer.selected_text()))
         await pilot.press("ctrl+c")
         await pilot.pause()
-        checks.append(Check("register", "he", app.buffer.register))
+        checks.append(Check("register", "he", app.editor.session.buffer.register))
         await pilot.press("escape", "ctrl+end")
         await pilot.pause()
-        checks.append(Check("selection_cleared", False, app.buffer.has_selection()))
+        checks.append(Check("selection_cleared", False, app.editor.session.buffer.has_selection()))
         await pilot.press("ctrl+v")
         await pilot.pause()
-        checks.append(Check("pasted", "hellohe", app.buffer.lines[0]))
+        checks.append(Check("pasted", "hellohe", app.editor.session.buffer.lines[0]))
         await pilot.press("ctrl+x")
         await pilot.pause()
-        checks.append(Check("cut_line", [""], list(app.buffer.lines)))
-        checks.append(Check("register_line", "hellohe\n", app.buffer.register))
+        checks.append(Check("cut_line", [""], list(app.editor.session.buffer.lines)))
+        checks.append(Check("register_line", "hellohe\n", app.editor.session.buffer.register))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("clipboard_roundtrip", checks, rows)
 
@@ -144,25 +144,25 @@ async def _word_motion_bounds(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("ctrl+right")
         await pilot.pause()
-        checks.append(Check("word_right_1", (0, 6), app.buffer.cursor))
+        checks.append(Check("word_right_1", (0, 6), app.editor.session.buffer.cursor))
         await pilot.press("ctrl+right")
         await pilot.pause()
-        checks.append(Check("word_right_2", (0, 11), app.buffer.cursor))
+        checks.append(Check("word_right_2", (0, 11), app.editor.session.buffer.cursor))
         await pilot.press("ctrl+left")
         await pilot.pause()
-        checks.append(Check("word_left", (0, 6), app.buffer.cursor))
+        checks.append(Check("word_left", (0, 6), app.editor.session.buffer.cursor))
         await pilot.press("home")
         await pilot.pause()
-        checks.append(Check("home", (0, 0), app.buffer.cursor))
+        checks.append(Check("home", (0, 0), app.editor.session.buffer.cursor))
         await pilot.press("end")
         await pilot.pause()
-        checks.append(Check("end", (0, 11), app.buffer.cursor))
+        checks.append(Check("end", (0, 11), app.editor.session.buffer.cursor))
         await pilot.press("ctrl+home")
         await pilot.pause()
-        checks.append(Check("doc_start", (0, 0), app.buffer.cursor))
+        checks.append(Check("doc_start", (0, 0), app.editor.session.buffer.cursor))
         await pilot.press("ctrl+end")
         await pilot.pause()
-        checks.append(Check("doc_end", (0, 11), app.buffer.cursor))
+        checks.append(Check("doc_end", (0, 11), app.editor.session.buffer.cursor))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("word_motion_bounds", checks, rows)
 
@@ -175,14 +175,14 @@ async def _autoindent_newline(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await type_text(pilot, "    x")
-        checks.append(Check("typed", "    x", app.buffer.lines[0]))
+        checks.append(Check("typed", "    x", app.editor.session.buffer.lines[0]))
         await pilot.press("enter")
         await pilot.pause()
-        checks.append(Check("line_count", 2, app.buffer.line_count))
-        checks.append(Check("kept_indent", "    ", app.buffer.lines[1]))
+        checks.append(Check("line_count", 2, app.editor.session.buffer.line_count))
+        checks.append(Check("kept_indent", "    ", app.editor.session.buffer.lines[1]))
         await pilot.press("tab")
         await pilot.pause()
-        checks.append(Check("tab_step", "        ", app.buffer.lines[1]))
+        checks.append(Check("tab_step", "        ", app.editor.session.buffer.lines[1]))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("autoindent_newline", checks, rows)
 
@@ -195,19 +195,19 @@ async def _vim_modal_editing(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await run_command(pilot, "vim")
-        checks.append(Check("keymap", "vim", app.keymap_name))
-        checks.append(Check("mode_normal", "NORMAL", app.mode_label()[0]))
+        checks.append(Check("keymap", "vim", app.editor.keymaps.name))
+        checks.append(Check("mode_normal", "NORMAL", app.editor.mode_label()[0]))
         await pilot.press("i")
         await pilot.pause()
-        checks.append(Check("mode_insert", "INSERT", app.mode_label()[0]))
+        checks.append(Check("mode_insert", "INSERT", app.editor.mode_label()[0]))
         await type_text(pilot, "hello")
         await pilot.press("escape")
         await pilot.pause()
-        checks.append(Check("inserted", "hello", app.buffer.lines[0]))
-        checks.append(Check("back_to_normal", "NORMAL", app.mode_label()[0]))
+        checks.append(Check("inserted", "hello", app.editor.session.buffer.lines[0]))
+        checks.append(Check("back_to_normal", "NORMAL", app.editor.mode_label()[0]))
         await pilot.press("d", "d")
         await pilot.pause()
-        checks.append(Check("deleted_line", [""], list(app.buffer.lines)))
+        checks.append(Check("deleted_line", [""], list(app.editor.session.buffer.lines)))
         await pilot.press("i")
         await pilot.pause()
         await type_text(pilot, "saved")
@@ -215,11 +215,11 @@ async def _vim_modal_editing(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await run_command(pilot, "w")
         checks.append(Check("file_content", "saved", target.read_text(encoding="utf-8")))
-        checks.append(Check("saved_flag", False, app.doc.modified))
-        vim = app.keymaps["vim"]
+        checks.append(Check("saved_flag", False, app.editor.session.doc.modified))
+        vim = app.editor.keymaps.get("vim")
         checks.append(Check("vim_mode_obj", VimMode.NORMAL, getattr(vim, "mode", None)))
         await run_command(pilot, "vsc")
-        checks.append(Check("keymap_restored", "vsc", app.keymap_name))
+        checks.append(Check("keymap_restored", "vsc", app.editor.keymaps.name))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("vim_modal_editing", checks, rows)
 
@@ -234,12 +234,12 @@ async def _selection_extend_clear(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("shift+right", "shift+right", "shift+right")
         await pilot.pause()
-        checks.append(Check("selected", True, app.buffer.has_selection()))
-        checks.append(Check("selected_text", "hel", app.buffer.selected_text()))
+        checks.append(Check("selected", True, app.editor.session.buffer.has_selection()))
+        checks.append(Check("selected_text", "hel", app.editor.session.buffer.selected_text()))
         await pilot.press("escape")
         await pilot.pause()
-        checks.append(Check("cleared", False, app.buffer.has_selection()))
-        checks.append(Check("no_text", None, app.buffer.selected_text()))
+        checks.append(Check("cleared", False, app.editor.session.buffer.has_selection()))
+        checks.append(Check("no_text", None, app.editor.session.buffer.selected_text()))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("selection_extend_clear", checks, rows)
 
@@ -254,15 +254,175 @@ async def _select_all_indent(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("ctrl+a")
         await pilot.pause()
-        checks.append(Check("all_selected", True, app.buffer.has_selection()))
+        checks.append(Check("all_selected", True, app.editor.session.buffer.has_selection()))
         await pilot.press("ctrl+]")
         await pilot.pause()
-        checks.append(Check("indented", ["    one", "    two"], list(app.buffer.lines)))
+        checks.append(Check("indented", ["    one", "    two"], list(app.editor.session.buffer.lines)))
         await pilot.press("escape")
         await pilot.pause()
-        checks.append(Check("anchor_cleared", None, app.buffer.anchor))
+        checks.append(Check("anchor_cleared", None, app.editor.session.buffer.anchor))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("select_all_indent", checks, rows)
+
+
+async def _undo_redo_goal_col(tmp: Path) -> ScenarioResult:
+    """Vertical motion keeps the goal column across a short line; undo/redo
+    brings the text back exactly."""
+    target = tmp / "goal.txt"
+    target.write_text("long line here\nabc\nanother long line", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("end")
+        await pilot.pause()
+        goal = app.editor.session.buffer.col
+        checks.append(Check("goal_at_end", 14, goal))
+
+        await pilot.press("down")
+        await pilot.pause()
+        checks.append(Check("clamped_on_short_line", 3,
+                            app.editor.session.buffer.col))
+
+        await pilot.press("down")
+        await pilot.pause()
+        checks.append(Check("goal_column_restored", goal,
+                            app.editor.session.buffer.col))
+
+        await pilot.press("up", "up")
+        await pilot.pause()
+        checks.append(Check("back_on_first_row", 0,
+                            app.editor.session.buffer.cursor[0]))
+        checks.append(Check("goal_kept_after_up", goal,
+                            app.editor.session.buffer.col))
+
+        await type_text(pilot, "X")
+        edited = app.editor.session.buffer.get_text()
+        checks.append(Check("edited", "long line hereX\nabc\nanother long line",
+                            edited))
+        await pilot.press("ctrl+z")
+        await pilot.pause()
+        checks.append(Check("undo_restores_text",
+                            "long line here\nabc\nanother long line",
+                            app.editor.session.buffer.get_text()))
+        await pilot.press("ctrl+y")
+        await pilot.pause()
+        checks.append(Check("redo_reapplies", edited,
+                            app.editor.session.buffer.get_text()))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("undo_redo_goal_col", checks, rows)
+
+
+async def _delete_word_back(tmp: Path) -> ScenarioResult:
+    """alt+backspace deletes the word before the cursor (vsc)."""
+    target = tmp / "delword.txt"
+    target.write_text("hello world", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("end")
+        await pilot.pause()
+        checks.append(Check("cursor_at_end", (0, 11),
+                            app.editor.session.buffer.cursor))
+        await pilot.press("alt+backspace")
+        await pilot.pause()
+        checks.append(Check("word_removed", "hello ",
+                            app.editor.session.buffer.lines[0]))
+        checks.append(Check("cursor_at_word_start", (0, 6),
+                            app.editor.session.buffer.cursor))
+        checks.append(Check("modified", True, app.editor.session.doc.modified))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("delete_word_back", checks, rows)
+
+
+async def _vim_delete_to_line_start(tmp: Path) -> ScenarioResult:
+    """vim INSERT ctrl+u deletes from the cursor back to column 0."""
+    target = tmp / "ctrlu.txt"
+    target.write_text("abc def", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await run_command(pilot, "vim")
+        checks.append(Check("keymap", "vim", app.editor.keymaps.name))
+        await pilot.press("A")
+        await pilot.pause()
+        checks.append(Check("mode_insert", "INSERT", app.editor.mode_label()[0]))
+        checks.append(Check("cursor_at_line_end", (0, 7),
+                            app.editor.session.buffer.cursor))
+        await pilot.press("ctrl+u")
+        await pilot.pause()
+        checks.append(Check("line_cleared", [""],
+                            list(app.editor.session.buffer.lines)))
+        checks.append(Check("cursor_at_start", (0, 0),
+                            app.editor.session.buffer.cursor))
+        await pilot.press("escape")
+        await pilot.pause()
+        await run_command(pilot, "vsc")
+        checks.append(Check("keymap_restored", "vsc", app.editor.keymaps.name))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("vim_delete_to_line_start", checks, rows)
+
+
+async def _select_motion_variants(tmp: Path) -> ScenarioResult:
+    """shift+left / shift+home / shift+end / ctrl+shift+left extend a
+    selection, each leaving the expected anchor and selected text."""
+    target = tmp / "selmot.txt"
+    target.write_text("hello world", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+
+        # shift+end from column 0 selects to the end of the line.
+        await pilot.press("shift+end")
+        await pilot.pause()
+        buffer = app.editor.session.buffer
+        checks.append(Check("line_end_selected", True, buffer.has_selection()))
+        checks.append(Check("line_end_text", "hello world",
+                            buffer.selected_text()))
+        checks.append(Check("line_end_anchor", (0, 0), buffer.anchor))
+        await pilot.press("escape")
+        await pilot.pause()
+
+        # shift+home from the end of the line selects back to column 0.
+        await pilot.press("end")
+        await pilot.pause()
+        await pilot.press("shift+home")
+        await pilot.pause()
+        checks.append(Check("line_start_selected", True, buffer.has_selection()))
+        checks.append(Check("line_start_text", "hello world",
+                            buffer.selected_text()))
+        checks.append(Check("line_start_anchor", (0, 11), buffer.anchor))
+        await pilot.press("escape")
+        await pilot.pause()
+
+        # ctrl+shift+left selects the whole previous word.
+        await pilot.press("end")
+        await pilot.pause()
+        await pilot.press("ctrl+shift+left")
+        await pilot.pause()
+        checks.append(Check("word_left_selected", True, buffer.has_selection()))
+        checks.append(Check("word_left_text", "world", buffer.selected_text()))
+        checks.append(Check("word_left_anchor", (0, 11), buffer.anchor))
+        await pilot.press("escape")
+        await pilot.pause()
+
+        # shift+left selects a single character to the left.
+        await pilot.press("end")
+        await pilot.pause()
+        await pilot.press("shift+left")
+        await pilot.pause()
+        checks.append(Check("select_left_selected", True, buffer.has_selection()))
+        checks.append(Check("select_left_text", "d", buffer.selected_text()))
+        checks.append(Check("select_left_anchor", (0, 11), buffer.anchor))
+        await pilot.press("escape")
+        await pilot.pause()
+        checks.append(Check("cleared", False, buffer.has_selection()))
+
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("select_motion_variants", checks, rows)
 
 
 SCENARIOS: list[Scenario] = [
@@ -277,4 +437,8 @@ SCENARIOS: list[Scenario] = [
     Scenario("vim_modal_editing", _vim_modal_editing, ("edit",)),
     Scenario("selection_extend_clear", _selection_extend_clear, ("select",)),
     Scenario("select_all_indent", _select_all_indent, ("select",)),
+    Scenario("undo_redo_goal_col", _undo_redo_goal_col, ("edit",)),
+    Scenario("delete_word_back", _delete_word_back, ("edit",)),
+    Scenario("vim_delete_to_line_start", _vim_delete_to_line_start, ("edit",)),
+    Scenario("select_motion_variants", _select_motion_variants, ("select",)),
 ]

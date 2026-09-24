@@ -10,8 +10,13 @@ from __future__ import annotations
 from enum import Enum
 
 from yate.editor_core.buffer import TextBuffer, word_end
-from yate.interfaces import AppProtocol
-from yate.keymaps.base import ActionContext, KeyBinding, Keymap, parse_key
+from yate.keymaps.base import (
+    ActionContext,
+    KeyBinding,
+    KeyUi,
+    Keymap,
+    parse_key,
+)
 
 
 class VimMode(str, Enum):
@@ -98,7 +103,10 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<f2>"), "shell_prompt", "Run shell command", CMD),
             KeyBinding(parse_key("<f3>"), "find_next", "Next match", CMD),
             KeyBinding(parse_key("<f4>"), "replace", "Find & replace", CMD),
-            KeyBinding(parse_key("<f5>"), "command_prompt", "Ex command line (:w :q :e :! ...)", CMD),
+            KeyBinding(
+                parse_key("<f5>"), "command_prompt",
+                "Ex command line (:w :q :e :! ...)", CMD,
+            ),
             KeyBinding(parse_key("<f8>"), "manual", "Open user manual (read-only)", HLP),
             KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
         ]
@@ -112,14 +120,18 @@ class VimKeymap(Keymap):
         if key == "\x1f":
             self.pending = ""
             self.count_str = ""
-            ctx.app.toggle_keymap()
+            ctx.ui.toggle_keymap()
             return True
         if key in _FUNCTION_KEYS:
             self.pending = ""
             self.count_str = ""
             binding = self.lookup(key)
             if binding is not None:
-                return self.dispatch(binding, ctx)
+                # A dead action (typo / unloaded extension) is reported by
+                # dispatch(); the key stays consumed either way -- unbound
+                # F-keys are swallowed too, and a dead action on an
+                # extension-bound normal key is absorbed the same way.
+                self.dispatch(binding, ctx)
             return True
         if self.mode == VimMode.INSERT:
             return self._handle_insert(ctx, key)
@@ -137,35 +149,35 @@ class VimKeymap(Keymap):
     # ------------------------------------------------------------- insert mode
 
     def _handle_insert(self, ctx: ActionContext, key: str) -> bool:
-        app = ctx.app
+        ui = ctx.ui
         if key in ("\x1b",):  # esc / ctrl-[
             self.mode = VimMode.NORMAL
             ctx.buffer.move_left()
-            app.message("-- NORMAL --")
+            ui.message("-- NORMAL --")
             return True
         if key == "\r":
-            app.execute_action("newline")
+            ui.execute_action("newline")
             return True
         if key == "\t":
-            app.execute_action("insert_tab")
+            ui.execute_action("insert_tab")
             return True
         if key == "\x7f":
-            app.execute_action("delete_backward")
+            ui.execute_action("delete_backward")
             return True
         if key == "\x1b[3~":
-            app.execute_action("delete_forward")
+            ui.execute_action("delete_forward")
             return True
         if key == "\x17":  # ctrl-w: delete word backwards
-            app.execute_action("delete_word_back")
+            ui.execute_action("delete_word_back")
             return True
         if key == "\x15":  # ctrl-u: delete to line start
-            app.execute_action("delete_to_line_start")
+            ui.execute_action("delete_to_line_start")
             return True
         if key in _ARROW:
             self._motion(ctx, _ARROW[key], 1, select=False)
             return True
         if len(key) == 1 and key.isprintable():
-            app.insert_char(key)
+            ctx.buffer.insert_text(key)
             return True
         return True
 
@@ -173,13 +185,13 @@ class VimKeymap(Keymap):
 
     def _handle_visual(self, ctx: ActionContext, key: str) -> bool:
         buf = ctx.buffer
-        app = ctx.app
+        ui = ctx.ui
         linewise = self.mode == VimMode.VISUAL_LINE
 
         if key == "\x1b":
             buf.clear_selection()
             self.mode = VimMode.NORMAL
-            app.message("-- NORMAL --")
+            ui.message("-- NORMAL --")
             return True
         if key == "v":
             if self.mode == VimMode.VISUAL:
@@ -196,14 +208,14 @@ class VimKeymap(Keymap):
             if linewise:
                 if key == "y":
                     buf.yank_lines()
-                    app.message("yanked lines")
+                    ui.message("yanked lines")
                 else:
                     buf.delete_lines()
-                    app.message("deleted lines")
+                    ui.message("deleted lines")
             else:
                 if key == "y":
                     buf.yank_selection()
-                    app.message("yanked")
+                    ui.message("yanked")
                     sel = buf.selection()
                     r, c = sel[0] if sel is not None else buf.cursor
                     buf.clear_selection()
@@ -212,23 +224,23 @@ class VimKeymap(Keymap):
                     text = buf.delete_selection()
                     if text is not None:
                         buf.register = text
-                    app.message("deleted selection")
+                    ui.message("deleted selection")
             self.mode = VimMode.NORMAL
             return True
         if key == ":":
             buf.clear_selection()
             self.mode = VimMode.NORMAL
-            app.command_prompt()
+            ui.command_prompt()
             return True
         if key == "/":
             self.mode = VimMode.NORMAL
             buf.clear_selection()
-            app.find_prompt(forward=True)
+            ui.find_prompt(True)
             return True
         if key == "?":
             self.mode = VimMode.NORMAL
             buf.clear_selection()
-            app.find_prompt(forward=False)
+            ui.find_prompt(False)
             return True
         # motions extend the selection
         count = self._take_count()
@@ -256,7 +268,7 @@ class VimKeymap(Keymap):
     # ------------------------------------------------------------ normal mode
 
     def _handle_normal(self, ctx: ActionContext, key: str) -> bool:
-        app = ctx.app
+        ui = ctx.ui
         buf = ctx.buffer
 
         if key == "\x1b":
@@ -267,7 +279,7 @@ class VimKeymap(Keymap):
         if key == "\x07":  # ctrl-g: go to line (same as typing :42)
             self.pending = ""
             self.count_str = ""
-            app.goto_prompt()
+            ui.goto_prompt()
             return True
 
         if key.isdigit() and not (key == "0" and not self.count_str):
@@ -306,10 +318,10 @@ class VimKeymap(Keymap):
                 # dd / yy
                 if op == "d":
                     buf.delete_lines()
-                    app.message("deleted line")
+                    ui.message("deleted line")
                 else:
                     buf.yank_lines()
-                    app.message("yanked line")
+                    ui.message("yanked line")
                 return True
             if key in _MOTION_CODES or key in _ARROW:
                 self._apply_operator(ctx, op, key, n)
@@ -339,19 +351,19 @@ class VimKeymap(Keymap):
             buf.redo()
             return True
         if key == "J":
-            app.execute_action("join_lines")
+            ui.execute_action("join_lines")
             return True
         if key == "\x04":  # ctrl-d
-            app.execute_action("page_half_down")
+            ui.execute_action("page_half_down")
             return True
         if key == "\x15":  # ctrl-u
-            app.execute_action("page_half_up")
+            ui.execute_action("page_half_up")
             return True
         if key == "\x06":  # ctrl-f
-            app.execute_action("page_down")
+            ui.execute_action("page_down")
             return True
         if key == "\x02":  # ctrl-b
-            app.execute_action("page_up")
+            ui.execute_action("page_up")
             return True
 
         # insert entry points
@@ -363,49 +375,49 @@ class VimKeymap(Keymap):
         }
         if key in entry:
             entry[key]()
-            self._enter_insert(app)
+            self._enter_insert(ui)
             if key == "o":
                 pass
             return True
         if key == "o":
             buf.move_line_end()
             buf.insert_newline()
-            self._enter_insert(app)
+            self._enter_insert(ui)
             return True
         if key == "O":
             buf.move_line_start()
             buf.insert_newline()
             buf.move_up()
-            self._enter_insert(app)
+            self._enter_insert(ui)
             return True
 
         if key == "v":
             self.mode = VimMode.VISUAL
             buf.anchor = buf.cursor
-            app.message("-- VISUAL --")
+            ui.message("-- VISUAL --")
             return True
         if key == "V":
             self.mode = VimMode.VISUAL_LINE
             r = buf.row
             buf.anchor = (r, 0)
             buf.cursor = (r, len(buf.lines[r]))
-            app.message("-- VISUAL LINE --")
+            ui.message("-- VISUAL LINE --")
             return True
 
         if key == "/":
-            app.find_prompt(forward=True)
+            ui.find_prompt(True)
             return True
         if key == "?":
-            app.find_prompt(forward=False)
+            ui.find_prompt(False)
             return True
         if key == ":":
-            app.command_prompt()
+            ui.command_prompt()
             return True
         if key == "n":
-            app.execute_action("find_next")
+            ui.execute_action("find_next")
             return True
         if key == "N":
-            app.execute_action("find_prev")
+            ui.execute_action("find_prev")
             return True
 
         # extensions may bind extra keys in normal mode
@@ -415,9 +427,9 @@ class VimKeymap(Keymap):
         # swallow unmapped normal keys
         return True
 
-    def _enter_insert(self, app: AppProtocol) -> None:
+    def _enter_insert(self, ui: KeyUi) -> None:
         self.mode = VimMode.INSERT
-        app.message("-- INSERT --")
+        ui.message("-- INSERT --")
 
     # -------------------------------------------------------------- motions
 
@@ -471,7 +483,7 @@ class VimKeymap(Keymap):
 
     def _apply_operator(self, ctx: ActionContext, op: str, code: str, count: int) -> None:
         buf = ctx.buffer
-        app = ctx.app
+        ui = ctx.ui
         start = buf.cursor
         buf.anchor = start
         self._motion(ctx, code, count, select=True)
@@ -479,7 +491,7 @@ class VimKeymap(Keymap):
             buf.yank_selection()
             buf.cursor = start
             buf.anchor = None
-            app.message("yanked")
+            ui.message("yanked")
         else:
             buf.delete_selection()
-            app.message("deleted")
+            ui.message("deleted")

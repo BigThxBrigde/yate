@@ -23,7 +23,7 @@ async def _shell_command_output(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("f2")
         await pilot.pause()
-        bar = app.prompt_bar
+        bar = app.editor.prompt_bar
         checks.append(Check("shell_mode", "shell",
                             bar.active_mode if bar else None))
         await type_text(pilot, "echo smoke-ok")
@@ -51,7 +51,7 @@ async def _terminal_panel_toggle(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        panel = app.terminal_panel
+        panel = app.editor.terminal_panel
         assert panel is not None
         checks.append(Check("hidden_at_start", False, panel.display))
         await pilot.press("ctrl+`")
@@ -91,15 +91,15 @@ async def _large_file_scroll(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        view = app.panes.active_view if app.panes else None
+        view = app.editor.panes.active_view if app.editor.panes else None
         assert view is not None
-        checks.append(Check("line_count", 2000, app.buffer.line_count))
+        checks.append(Check("line_count", 2000, app.editor.session.buffer.line_count))
         checks.append(Check("top_at_start", 0, view.scroll_offset.y))
         await pilot.press("pagedown")
         await pilot.pause()
         checks.append(Check("scrolled", True, view.scroll_offset.y > 0))
         await run_command(pilot, "1500")
-        checks.append(Check("goto_row", 1499, app.buffer.cursor[0]))
+        checks.append(Check("goto_row", 1499, app.editor.session.buffer.cursor[0]))
         checks.append(Check("followed", True, view.scroll_offset.y > 0))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("large_file_scroll", checks, rows)

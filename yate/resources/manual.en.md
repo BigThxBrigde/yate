@@ -1085,7 +1085,7 @@ What `api` provides:
 | Category | API |
 |---|---|
 | Registration | `command(name, description)` decorator / `register_command(name, func, description)` to register `:` commands; `bind_key(key_spec, callback, keymap=...)` to bind keys (`"vsc"` / `"vim"` / `"both"`; `normal` aliases `vsc`); `register_action(name, func, description)` for named actions |
-| Access | `api.buffer`, `api.doc`, `api.workspace`, `api.keymaps`, `api.app` |
+| Access | `api.buffer`, `api.doc`, `api.workspace`, `api.keymaps`, `api.app` (type `ExtensionContext`; its fields are the same concrete services listed in the extension reference below) |
 | Services | `api.message(text)`, `api.shell(command)`, `api.open_path(path)`, `api.save()` |
 | Language servers | `api.lsp.register_server(...)` (see section 16); `api.lsp.statuses()` returns `{name: state}` |
 | Syntax highlighting | `api.highlight.register(spec, *extensions)` registers or overrides a declarative custom language (`LangSpec`); usable from `:set filetype=` once registered |
@@ -1129,8 +1129,11 @@ stdio, speaks JSON-RPC itself, and provides:
 * **Autocomplete** -- a popup appears automatically while typing an
   identifier (after the server's trigger characters, e.g. `.` in Python),
   and `Ctrl+Space` requests suggestions manually (it also works with no
-  language server). Navigate with `↑` / `↓`, accept with `Tab` or `Enter`,
-  dismiss with `Esc`. When no language server is available for the current
+  language server). While the popup is open you can **keep typing**: the
+  characters still reach the buffer and the candidates are filtered by the
+  new prefix (backspace re-queries too). Navigate with `↑` / `↓`, accept
+  with `Tab` or `Enter`, dismiss with `Esc`. When no language server is
+  available for the current
   file, the popup falls back to the built-in **buffer completion**: words
   already typed, collected from every open buffer (plus filesystem paths
   when the typed prefix contains `/`, `\` or `~`), with no external process

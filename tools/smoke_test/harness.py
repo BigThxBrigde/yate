@@ -38,6 +38,7 @@ os.environ.setdefault("YATE_PYTHON_LSP", "off")
 
 from yate.app import YateApp  # noqa: E402
 from yate.config import YateConfig  # noqa: E402
+from yate.editor import Editor  # noqa: E402
 from yate.editor_view import theme  # noqa: E402
 
 
@@ -210,16 +211,16 @@ class Coverage:
     command_universe: set[str] = field(default_factory=lambda: set[str]())
     action_universe: set[str] = field(default_factory=lambda: set[str]())
 
-    def note_registries(self, app: YateApp) -> None:
-        """Record the full command/action name space of *app*."""
-        self.command_universe.update(app.commands.names())
-        self.action_universe.update(app.actions.names())
+    def note_registries(self, editor: Editor) -> None:
+        """Record the full command/action name space of *editor*."""
+        self.command_universe.update(editor.commands.names())
+        self.action_universe.update(editor.actions.names())
 
     def note_command(self, text: str) -> None:
         text = text.strip()
         if not text or text.startswith("!"):
             return
-        # A bare number is a line jump, not a command (see YateApp.run_command).
+        # A bare number is a line jump, not a command (see Editor.run_command).
         if re.fullmatch(r"[+-]?\d+", text):
             return
         self.commands[text.split()[0]] += 1
@@ -250,31 +251,35 @@ def track_coverage() -> Generator[Coverage, None, None]:
     (it never reaches product code).
     """
     cov = Coverage()
-    original_run_command = YateApp.run_command
-    original_execute_action = YateApp.execute_action
-    original_init = YateApp.__init__
+    original_run_command = Editor.run_command
+    original_execute_action = Editor.execute_action
+    original_app_init = YateApp.__init__
 
-    def run_command(self: YateApp, text: str) -> None:
+    def run_command(self: Editor, text: str) -> None:
         cov.note_command(text)
         original_run_command(self, text)
 
-    def execute_action(self: YateApp, name: str) -> None:
+    def execute_action(self: Editor, name: str) -> bool:
         cov.note_action(name)
-        original_execute_action(self, name)
+        return original_execute_action(self, name)
 
-    def init(self: YateApp, *args: object, **kwargs: object) -> None:
-        original_init(self, *args, **kwargs)  # type: ignore[arg-type]
-        cov.note_registries(self)
+    def app_init(self: YateApp, *args: object, **kwargs: object) -> None:
+        # The name spaces are only complete once the shell has loaded the
+        # built-in tables into the editor's registries (R7), so snapshot them
+        # at the end of the shell's __init__ -- the editor's own __init__ runs
+        # before that and would report an empty universe.
+        original_app_init(self, *args, **kwargs)  # type: ignore[arg-type]
+        cov.note_registries(self.editor)
 
-    YateApp.run_command = run_command  # type: ignore[method-assign]
-    YateApp.execute_action = execute_action  # type: ignore[method-assign]
-    YateApp.__init__ = init  # type: ignore[method-assign]
+    Editor.run_command = run_command  # type: ignore[method-assign]
+    Editor.execute_action = execute_action  # type: ignore[method-assign]
+    YateApp.__init__ = app_init  # type: ignore[method-assign]
     try:
         yield cov
     finally:
-        YateApp.run_command = original_run_command  # type: ignore[method-assign]
-        YateApp.execute_action = original_execute_action  # type: ignore[method-assign]
-        YateApp.__init__ = original_init  # type: ignore[method-assign]
+        Editor.run_command = original_run_command  # type: ignore[method-assign]
+        Editor.execute_action = original_execute_action  # type: ignore[method-assign]
+        YateApp.__init__ = original_app_init  # type: ignore[method-assign]
 
 
 # --------------------------------------------------------------- app factory
@@ -321,7 +326,7 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
     5. a document that claims to be saved really matches the bytes on disk.
     """
     checks: list[Check] = []
-    buf = app.buffer
+    buf = app.editor.session.buffer
     row, col = buf.cursor
     checks.append(Check("invariant:cursor_row", True,
                         0 <= row < len(buf.lines), invariant=True))
@@ -334,7 +339,7 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
                         rc is None or rc == 0, invariant=True))
     checks.append(Check("invariant:theme_restored", theme_before,
                         theme.active().name, invariant=True))
-    doc = app.doc
+    doc = app.editor.session.doc
     if doc.path is not None and not doc.modified:
         try:
             on_disk = doc.path.read_text(encoding=doc.encoding)

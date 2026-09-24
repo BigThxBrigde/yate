@@ -39,7 +39,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Sequence, cast
 
-from yate.editor_view import theme as themes
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
 
 #: File name yate looks for in the project tree.
@@ -169,6 +168,10 @@ def load_config(paths: list[Path]) -> YateConfig:
     variables).  Read/compile/exec failures are recorded per file and do
     not abort the remaining files.
     """
+    # Imported lazily: the theme registry lives in the UI package, and the
+    # config loader must not pull the whole widget stack at import time.
+    from yate.editor_view import theme as themes
+
     config = YateConfig()
     # The rc API surface injected into every yaterc namespace.
     namespace: dict[str, Any] = {

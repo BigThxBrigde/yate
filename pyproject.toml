@@ -17,7 +17,7 @@ dependencies = [
 yate = "yate.cli:main"
 
 [project.optional-dependencies]
-dev = ["pyright>=1.1.400", "pytest>=8.0"]
+dev = ["pyright>=1.1.400", "pytest>=8.0", "pytest-cov>=5.0"]
 # Tree-sitter syntax backend (optional): incremental-quality highlighting for
 # languages with an installed grammar pack. Without it yate falls back to the
 # built-in regex highlighter.
@@ -53,6 +53,37 @@ exclude = ["**/__pycache__"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# NOTE: coverage is opt-in (`pytest --cov`) and the fail-under gate lives in the
+# CI workflows, not in addopts.  A ``--cov-fail-under`` in addopts would fail
+# every partial run (e.g. `pytest tests/test_config.py`, which covers a fraction
+# of the package) even when all selected tests pass.
+# Reproduce the CI gate locally:
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
+
+[tool.coverage.run]
+source = ["yate"]
+branch = true
+# Only the `python -m yate` shim is exempt: it is a 3-line entry point that only
+# a subprocess can execute.  Everything else stays measured -- the suite already
+# covers the Textual shell / render layer through the pilot tests (measured
+# 92-98% there), so omitting it would hide real numbers rather than avoid fakes.
+omit = ["yate/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# empty __init__.py files would otherwise show up as 0%
+skip_empty = true
+# The threshold deliberately lives on the CI command lines instead of here:
+# coverage.py applies report.fail_under to *every* `--cov` run, and a partial run
+# (`pytest tests/test_paths.py --cov=yate` reaches ~0% of the package) would then
+# fail even though its tests passed.  CI always runs the full suite, so the gate
+# is exact there.
+# Measured after the second coverage round (2026-09-23, full suite, branch mode,
+# Windows): 90% total (9650 statements / 791 missing, 3310 branches / 381
+# missing).  The CI gate *stays* at 75: the two platform legs cover mutually
+# exclusive blocks (POSIX vs Windows backends in pty_proc / shells), so the
+# Linux total is only observable in CI and the gate must hold on both legs.
 
 [tool.hatch.version]
 source = "regex"
