@@ -15,12 +15,18 @@
 > **2026-09-24 实施拆分**：全部条目已拆为
 > [P1_subplans/](P1_subplans/README.md) 七个文件独占子计划（SP1–SP7，三波次）。
 > 波次一（SP3 + SP7，14 条）已实施完成并过全量门禁，各条附「✅ 已修复」标注。
+> 波次二（SP1 + SP2 + SP4，11 条）已实施完成并过全量门禁。
 
 ---
 
 ## 批次一：语法高亮性能（regex_backend.py，两正则条目同文件同批）
 
 ### S1 — 主正则每次 tokenize 重新编译
+
+> ✅ **已修复（2026-09-24，SP1）**：[regex_backend.py](../../../yate/editor_syntax/regex_backend.py)
+> `_code_line_pattern` 加 `@lru_cache(maxsize=None)`（`LangSpec` 已核实为 frozen dataclass
+> 全不可变字段，specs 为注册表单例无泄漏风险，未采用 `id(spec)` 方案）。守卫：
+> `test_code_line_pattern_is_cached_per_spec`；高亮 36 用例全绿，零行为变化。
 
 **证据：** [regex_backend.py:412-431](../../../yate/editor_syntax/regex_backend.py)
 `_code_line_pattern(spec)` 每次调用重建 parts 并 `re.compile`；
@@ -39,6 +45,11 @@ def _code_line_pattern(spec: LangSpec) -> re.Pattern[str]:
 `_code_line_pattern(spec) is _code_line_pattern(spec)` 断言缓存命中。
 
 ### S2 — 配置模式布尔词每行编译 7 次
+
+> ✅ **已修复（2026-09-24，SP1）**：[regex_backend.py](../../../yate/editor_syntax/regex_backend.py)
+> 模块级 `_CONFIG_BOOL_RE` 预编译交替模式替换循环内编译。守卫：
+> `test_config_bool_words_match_on_word_boundaries_only`（on/off/yes/no 命中、
+> `only` 词内不命中）；既有 config 高亮用例全绿。
 
 **证据：** [regex_backend.py:674-676](../../../yate/editor_syntax/regex_backend.py)
 循环内 `re.finditer(rf"(?<![\w]){word}(?![\w])", line)`。
@@ -60,6 +71,14 @@ for m in _CONFIG_BOOL_RE.finditer(line):
 ## 批次二：正确性与语义
 
 ### S6 — 终端模拟器宽字符在最后一列被丢弃
+
+> ✅ **已修复（2026-09-24，SP2）**：[emulator.py](../../../yate/editor_term/emulator.py)
+> 宽字符到达末列且 DECAWM 开时：末列写空占位 → `_index()` 立即换行 → 新行 col 0
+> 完整放置（宽字符物理放不进末列，无法像 ASCII 那样延迟换行；DECAWM 关闭路径与
+> 行中间路径行为不变）。守卫：`test_wide_character_at_the_last_column_is_drawn_on_the_next_line`、
+> `test_wide_character_at_the_bottom_margin_wraps_through_the_scrollback`、
+> `test_wide_character_mid_line_placement_is_unchanged`；既有
+> `test_wide_character_at_the_last_column_arms_the_wrap` 断言仍全绿。
 
 **证据：** [emulator.py:426-430](../../../yate/editor_term/emulator.py)
 宽字符到达最后一列仅置 `autowrap` 标记即返回，字符未显示。
@@ -125,6 +144,14 @@ subprocess.run(
 （Linux-only 条件跳过）。
 
 ### S10 — `_exit_code` 语义模糊
+
+> ✅ **已修复（2026-09-24，SP2）**：[pty_proc.py](../../../yate/editor_term/pty_proc.py)
+> 新增 `ExitState = Union[int, Literal["running", "failed"]]` 与三态方法
+> `_exit_code_or_failed()`；公开 `_exit_code()` 改为兼容包装（`Optional[int]` 签名不变，
+> 调用点保持原调用）。校准：计划所称「L533 状态栏轮询」实测为 `read_loop` 收尾的退出码
+> 查询（无轮询循环），按「公开签名不变、按需采用」处理。守卫：ConPTY 三态各一条
+> （running / code=7 / 伪句柄 failed，Windows-only skip；实测 `-1` 是当前进程伪句柄会
+> 真实成功，改用表外句柄并注释说明）。
 
 **证据：** [pty_proc.py:557-566](../../../yate/editor_term/pty_proc.py)
 `STILL_ACTIVE` 与 API 失败均返回 `None`。
@@ -238,6 +265,9 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 
 ### S16 — terminal.py 死条件分支
 
+> ✅ **已修复（2026-09-24，SP2）**：[terminal.py](../../../yate/editor_view/terminal.py)
+> 简化为 `cell.char`，删除恒等分支；终端渲染用例全绿。
+
 **证据：** [terminal.py:280](../../../yate/editor_view/terminal.py)
 `cell.char if cell.char != " " else " "` 恒等。
 
@@ -331,6 +361,11 @@ docstring 注明「新 action 默认 no-op」；比逐个补方法抗演进。
 
 ### S43 — `except BaseException:` 缺理由注释（2026-09-24 审查增补）
 
+> ✅ **已修复（2026-09-24，SP2）**：[pty_proc.py:78](../../../yate/editor_term/pty_proc.py)
+> 补理由注释（re-raise 不吞异常，settle 仅保 shutdown 不永久阻塞）。
+> 观察项：同文件 :501（`_ConPty.spawn` 内）同类宽捕获亦无注释，超出 S43 锚点按范围纪律
+> 未动，可并入后续清理。
+
 **证据：** [pty_proc.py:78](../../../yate/editor_term/pty_proc.py) 同文件其它宽捕获
 均有理由注释，此处置漏（`document.py` 侧已补，re-raise 不吞异常，纯风格合规）。
 
@@ -401,6 +436,16 @@ symlink 展开不栈溢出。
 
 ### S30 — Esc 关闭补全弹窗后，在途 worker 把它重新显示
 
+> ✅ **已修复（2026-09-24，SP4）**：[completion.py](../../../yate/completion.py)
+> 三状态标记（`_dismissed` / `_scheduled_open` / `_inflight_open`）：`close()` 记录已忽略、
+> `schedule()` 主动输入重 arm、非手动 `request()` 遇已忽略或「调度时开着、触发前已被
+> 关闭」放弃、`_stale()` 增在途关闭抑制子句。校准：复核发现 Esc 分支在 editor.py
+> **widget 级直调 `popup.close()` 不经过控制器**，仅 `_dismissed` 盖不住该场景，故
+> 配合 `is_open` 差分检测（`_scheduled_open` + `_inflight_open`）。`after_editor_key`
+> 的 `schedule()` guarded re-query 保留未误伤。守卫：
+> `test_esc_keeps_the_popup_closed_until_retriggered`（Esc→推进防抖与 worker→保持
+> 关闭→Ctrl+Space 恢复）、防抖抑制与 gated LSP stub 在途抑制共 3 条。
+
 **证据：** [completion.py:128](../../../yate/completion.py) `popup.close()` 只改弹窗
 状态、不取消已排队的请求；`_stale()`（[completion.py:202-219](../../../yate/completion.py)）
 只比较文档 / 行 / 列 / 前缀与挂载状态，不检查「用户已显式关闭」，worker 落地后仍
@@ -416,6 +461,10 @@ symlink 展开不栈溢出。
 
 ### S31 — vim 操作符删除（`dw` / `d$`）不写寄存器
 
+> ✅ **已修复（2026-09-24，SP4）**：[vim.py](../../../yate/keymaps/vim.py)
+> 删除分支捕获 `buf.delete_selection()` 返回值写 `buf.register`（与 visual 路径一致）。
+> 守卫：`dw`→`p` 粘出被删词、`yy`→`d$` 寄存器被替换共 3 条。
+
 **证据：** [vim.py:477-490](../../../yate/keymaps/vim.py) `buf.delete_selection()`
 返回值被丢弃且该方法不自设 register；对照 visual 路径（L217-219）显式写
 `buf.register`。复现：`yy` → 移动 → `dw` → `p` 粘出旧行。存量缺陷。
@@ -425,6 +474,13 @@ symlink 展开不栈溢出。
 **测试：** `yy` → 移动 → `dw` → `p` 断言粘出被删文本；`dw` → `p` 断言粘出被删词。
 
 ### S32 — PTY 启动失败后终端永久空白无法复活
+
+> ✅ **已修复（2026-09-24，SP2）**：[terminal.py](../../../yate/editor_view/terminal.py)
+> `await proc.start(...)` 包 `try/except Exception`，失败分支复位 `proc=None`、
+> `dead=True` 后 re-raise（重生分支恢复可达；故意不捕 BaseException——取消时保留
+> spawn 线程已建子进程的引用供 `shutdown()` 回收）。守卫：
+> `test_spawn_failure_marks_the_view_dead_and_revivable`（factory 抛错→dead 且未
+> started→二次 start 成功，重生端到端可达）。
 
 **证据：** [terminal.py:104-121](../../../yate/editor_view/terminal.py) `self.proc = proc`
 在 `await proc.start()` **之前**赋值；spawn 失败只 settle future 不调 `_on_exit`，
@@ -453,6 +509,11 @@ symlink 展开不栈溢出。
 **测试：** 以不存在的 keymap 名调用 → 断言出现警告且不抛异常。
 
 ### S35 — `dg` / `yg` 空 motion 仍报 "deleted" / "yanked"
+
+> ✅ **已修复（2026-09-24，SP4）**：[vim.py](../../../yate/keymaps/vim.py)
+> 操作符等待态排除 `"g"`（`gg` 属位置跳转），落入既有 unknown-motion 丢弃路径。
+> 守卫：`dg`/`yg` 后无消息、缓冲与寄存器不变（核实 `yg` 原会经 `yank_selection()`
+> else 分支误写整行进 register）。
 
 **证据：** [vim.py:303-321](../../../yate/keymaps/vim.py) `"g"` 未排除出操作符
 motion——`gg` 是位置跳转不是操作符范围，空 motion 仍报已删除 / 已复制。
@@ -487,6 +548,10 @@ trace 的会话 header 混入同一文件。存量问题，多实例共享数据
 **测试：** 选中末项 → 删除 → 断言 `_last_selected is None`。
 
 ### S38 — `KeymapSet` 空字典抛裸 `StopIteration`
+
+> ✅ **已修复（2026-09-24，SP4）**：[registry.py](../../../yate/keymaps/registry.py)
+> 空注册表显式 `raise ValueError("no keymaps registered")`。守卫：
+> 空注册表 `pytest.raises(ValueError)` 两条。
 
 **证据：** [keymaps/registry.py:19-21](../../../yate/keymaps/registry.py)
 `next(...)` 无默认值，空注册表时抛裸 `StopIteration`，难定位。

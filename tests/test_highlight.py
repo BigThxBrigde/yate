@@ -279,6 +279,32 @@ def test_extension_registers_csharp_highlighting() -> None:
     assert any(k == "string" for k, _ in pairs)
 
 
+# --- pattern caching & config boolean constants -----------------------------
+
+
+def test_code_line_pattern_is_cached_per_spec() -> None:
+    spec = hl.lang_for("py")
+    assert spec is not None
+    registry = cast(Any, hl)
+    assert registry._code_line_pattern(spec) is registry._code_line_pattern(spec)
+
+
+def test_config_bool_words_match_on_word_boundaries_only() -> None:
+    line = "a = on b = off c = yes d = no e = only"
+    toks = hl.tokenize_document([line], "toml")[0]
+    pairs = _kinds(toks, line)
+    assert ("constant", "on") in pairs
+    assert ("constant", "off") in pairs
+    assert ("constant", "yes") in pairs
+    assert ("constant", "no") in pairs
+    # "only" must not contribute a partial-word constant (its "on" prefix)
+    only_start = line.index("only")
+    only_end = only_start + len("only")
+    for t in toks:
+        if t.kind == "constant":
+            assert t.end <= only_start or t.start >= only_end
+
+
 # --- themes -----------------------------------------------------------------
 
 

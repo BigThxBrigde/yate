@@ -424,10 +424,19 @@ class TerminalEmulator:
                 cell.char += ch
             return
         if col >= self.cols - (width - 1):
-            if width == 2:
+            if width == 2 and self.autowrap:
+                # A wide glyph cannot straddle the margin: blank the last
+                # cell, wrap now and draw it whole at column 0 of the next
+                # line.  (The ASCII path above defers the wrap instead --
+                # there the last column still fits, a wide glyph never does.)
                 self._screen[row][self.cols - 1] = self._styled_cell("")
-            self._pen = True
-            return
+                self._index()
+                row, col = cur[0], 0
+            else:
+                if width == 2:
+                    self._screen[row][self.cols - 1] = self._styled_cell("")
+                self._pen = True
+                return
         cell = self._styled_cell(ch)
         self._screen[row][col] = cell
         if width == 2 and col + 1 < self.cols:

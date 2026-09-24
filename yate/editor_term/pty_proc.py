@@ -15,7 +15,7 @@ import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Literal, Optional, Union
 
 from yate.logs import tracing
 
@@ -24,6 +24,11 @@ log = tracing.get_logger(__name__)
 
 OutputFn = Callable[[bytes], None]
 ExitFn = Callable[[Optional[int]], None]
+
+#: Result of the ConPTY exit-code query: the child's exit code, or why there
+#: is none yet -- "running" (child still alive) or "failed" (query itself
+#: could not be made).
+ExitState = Union[int, Literal["running", "failed"]]
 
 
 class PtyProcessError(RuntimeError):
@@ -76,6 +81,9 @@ class PtyProcess:
         try:
             await asyncio.to_thread(self._impl.spawn)
         except BaseException:
+            # Re-raised below, cancellation included -- nothing is swallowed;
+            # the settle only keeps shutdown's wait_closed() from blocking
+            # forever on a spawn that never happened.
             self._closing = True
             if not future.done():
                 future.set_result(None)
@@ -555,15 +563,34 @@ class _ConPty:
                 self._hpc = None
 
     def _exit_code(self) -> Optional[int]:
+        """Return the child exit code, or ``None`` while it is unknowable.
+
+        The two "no code yet" cases (child still alive, query itself failed)
+        both collapse to ``None`` so the exit callback's signature is
+        unchanged; use :meth:`_exit_code_or_failed` to tell them apart.
+        """
+        state = self._exit_code_or_failed()
+        return state if isinstance(state, int) else None
+
+    def _exit_code_or_failed(self) -> ExitState:
+        """Query the child exit code and say why when there is none.
+
+        Returns the exit code once the child is gone, ``"running"`` while it
+        is still alive after the bounded wait, and ``"failed"`` when the
+        query cannot be made (no process info, or ``GetExitCodeProcess``
+        rejected the handle) -- states :meth:`_exit_code` cannot express.
+        """
         k = self._kernel32
         info = self._proc_info
         if info is None:
-            return None
+            return "failed"
         k["WaitForSingleObject"](info.hProcess, 5000)
         code = wintypes.DWORD(0)
         if k["GetExitCodeProcess"](info.hProcess, ctypes.byref(code)):
-            return None if code.value == _STILL_ACTIVE else int(code.value)
-        return None
+            if code.value == _STILL_ACTIVE:
+                return "running"
+            return int(code.value)
+        return "failed"
 
     def write(self, data: bytes) -> None:
         if self._in_write is None:

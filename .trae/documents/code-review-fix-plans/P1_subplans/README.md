@@ -73,10 +73,10 @@ SP7 无编辑器风险，随行作轻量并发伙伴。
 
 | 子计划 | 状态 | 完成日期 | 守卫 / 提交 |
 |---|---|---|---|
-| SP1 | 未开始 | — | — |
-| SP2 | 未开始 | — | — |
+| SP1 | ✅ 已完成（S1 S2，新增 2 条守卫） | 2026-09-24 | pyright 0 诊断；test_highlight/syntax_engine 36 passed |
+| SP2 | ✅ 已完成（S6 S10 S16 S32 S43，新增 8 条守卫；S10 调用点校准记录于 P1 原文；观察项 pty_proc.py:501 同类宽捕获待后续清理） | 2026-09-24 | pyright 0 诊断；test_terminal_emulator/pty_proc/terminal 141 passed 3 skipped |
 | SP3 | ✅ 已完成（S4 复核为已修免实施；S12/S13/S14/S15/S17/S37/S40 专属守卫断言待补，回归证据为既有套件全绿） | 2026-09-24 | pyright 0 诊断；test_app_textual/explorer/panes 158 passed；冒烟 87/87 · 907 checks |
-| SP4 | 未开始 | — | — |
+| SP4 | ✅ 已完成（S30 S31 S35 S38，新增 8 条守卫；S30 需差分检测覆盖 widget 级 Esc 直关，校准记录于 P1 原文） | 2026-09-24 | pyright 0 诊断；test_completion_popup/vim_keymap/registries 97 passed |
 | SP5 | 未开始（S39 待方案决策） | — | — |
 | SP6 | 未开始 | — | — |
 | SP7 | ✅ 已完成（S22/S23/S25/S27，新增 6 条守卫） | 2026-09-24 | pyright 0 诊断；test_changelog/release 59 passed |
