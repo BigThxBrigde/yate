@@ -20,6 +20,7 @@ from yate.editor_lsp import LspManager, ServerState
 from yate.editor_lsp import protocol
 from yate.editor_lsp.client import (
     LspClient,
+    LspConnectionError,
     LspError,
     LspResponseError,
     ServerConfig,
@@ -365,6 +366,76 @@ def test_initialize_timeout_marks_failed() -> None:
         assert client.error
         server.close()
         await server.wait_closed()
+
+    asyncio.run(scenario())
+
+
+def test_malformed_frame_marks_failed_and_fails_requests() -> None:
+    """A parser crash outside the (LspError, ConnectionError, EOFError)
+    whitelist must not kill the read loop silently: the client turns
+    FAILED, the in-flight request errors out instead of hanging, and a
+    later request fails immediately."""
+
+    async def scenario() -> None:
+        async def serve(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
+            try:
+                init = await protocol.read_message(reader)
+                assert init is not None
+                writer.write(protocol.encode_message(protocol.build_response(
+                    init["id"], {"capabilities": {}})))
+                await writer.drain()
+                while True:
+                    msg = await protocol.read_message(reader)
+                    if msg is None:
+                        return
+                    if msg.get("method") == "textDocument/completion":
+                        # A header line without a colon makes the framing
+                        # parser raise LspProtocolError -- a plain
+                        # RuntimeError, outside the read-loop whitelist.
+                        writer.write(b"garbage header line\r\n\r\n")
+                        await writer.drain()
+            except (asyncio.IncompleteReadError, ConnectionResetError):
+                pass
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except (ConnectionError, OSError):
+                    pass
+
+        server = await asyncio.start_server(serve, "127.0.0.1", 0)
+        sockets = server.sockets
+        assert sockets is not None
+        port = list(sockets)[0].getsockname()[1]
+
+        async def connect() -> tuple[Any, Any, Any]:
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            return reader, writer, FakeProc()
+
+        client = LspClient(PY_CONFIG, Path.cwd(), connect=connect, init_timeout=2.0)
+        try:
+            await client.start()
+            assert client.state is ServerState.READY
+            # The in-flight request ends with an exception once the bad
+            # frame lands, instead of hanging forever.
+            with pytest.raises(LspConnectionError):
+                await asyncio.wait_for(
+                    client.request("textDocument/completion", {}), timeout=2.0
+                )
+            assert client.state is ServerState.FAILED
+            assert client.error
+            # Any later request fails immediately instead of hanging.
+            with pytest.raises(LspConnectionError):
+                await asyncio.wait_for(
+                    client.request("textDocument/completion", {}), timeout=2.0
+                )
+            assert client.state is ServerState.FAILED
+        finally:
+            await client.stop()
+            server.close()
+            await server.wait_closed()
 
     asyncio.run(scenario())
 
@@ -802,6 +873,95 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
                 shown.cancel()
                 await asyncio.gather(shown, return_exceptions=True)
             await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_register_replace_race_keeps_new_starting_task_tracked(
+    tmp_path: Path,
+) -> None:
+    """register_server cancels an in-flight start and filters _starting;
+    the cancelled start's own finally must not pop a NEWER task stored
+    under the same key (identity-checked pop: who tracks it clears it)."""
+
+    async def scenario() -> None:
+        class SlowStartClient(FakeClient):
+            def __init__(self, *a: Any, **kw: Any) -> None:
+                super().__init__(*a, **kw)
+                self.state = ServerState.STARTING
+                self._release = asyncio.Event()
+
+            def finish(self) -> None:
+                self._release.set()
+
+            async def start(self) -> None:
+                self.started = True
+                await self._release.wait()
+                if not self.stopped:
+                    self.state = ServerState.READY
+
+        created: list[SlowStartClient] = []
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            client = SlowStartClient(config, path)
+            created.append(client)
+            return client
+
+        mgr = LspManager(
+            workspace_root=lambda: tmp_path,
+            client_factory=cast(Any, factory),
+        )
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path))
+        key = (PY_CONFIG.name, str(tmp_path))
+        internals = cast(Any, mgr)
+
+        caller_a = asyncio.ensure_future(mgr.ensure_client(doc))
+        for _ in range(100):
+            if created:
+                break
+            await asyncio.sleep(0.01)
+        assert len(created) == 1
+        assert created[0].state is ServerState.STARTING
+        assert internals._starting.get(key) is not None
+
+        # Replacement and immediate re-request inside one scheduling batch:
+        # register_server cancels the old start task and filters _starting,
+        # then the ensure_client below stores a NEW task under the same key
+        # -- only afterwards does caller A's finally run its pop.
+        mgr.register_server(
+            ServerConfig(name=PY_CONFIG.name, command="v2", filetypes=["py"])
+        )
+        caller_b = asyncio.ensure_future(mgr.ensure_client(doc))
+        for _ in range(100):
+            if len(created) == 2:
+                break
+            await asyncio.sleep(0.01)
+        assert len(created) == 2  # a fresh start for the new config
+
+        # The cancelled old start's cleanup must not have popped the new
+        # task's entry.
+        assert internals._starting.get(key) is not None
+
+        # A concurrent caller awaits the same start task instead of
+        # spawning a third client or getting an un-awaited STARTING client.
+        caller_c = asyncio.ensure_future(mgr.ensure_client(doc))
+        created[1].finish()
+        client_b = await asyncio.wait_for(caller_b, timeout=2.0)
+        client_c = await asyncio.wait_for(caller_c, timeout=2.0)
+        assert client_b is not None
+        assert client_c is not None
+        assert client_b is created[1]
+        assert client_c is created[1]
+        assert client_b.state is ServerState.READY
+        assert len(created) == 2  # exactly one client for the new config
+        # The owning caller cleaned the slot up exactly once.
+        assert internals._starting.get(key) is None
+        # Caller A observed the cancelled old start.
+        with pytest.raises(asyncio.CancelledError):
+            await caller_a
+
+        await mgr.shutdown_all()
 
     asyncio.run(scenario())
 

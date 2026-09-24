@@ -20,6 +20,7 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 from ..changelog import gitdata
 from ..changelog.cli import check, generate
@@ -184,10 +185,38 @@ def git_push(repo: Path, refspec: str, *, dry_run: bool = False) -> None:
     print(f"pushed origin {refspec}")
 
 
+def _default_branch(repo: Path) -> Optional[str]:
+    """Detect the branch to push from ``origin/HEAD``; ``None`` if unknown.
+
+    Runs the read-only ``git symbolic-ref refs/remotes/origin/HEAD`` and
+    returns the branch name after the last ``/``.  Any failure -- no
+    ``origin`` remote, no remote HEAD, git unavailable -- returns ``None``
+    (via :class:`~tools.changelog.gitdata.GitError`) so the caller aborts
+    instead of guessing a branch name.
+    """
+    try:
+        out = gitdata.run_git(
+            ["symbolic-ref", "refs/remotes/origin/HEAD"], repo=repo
+        )
+    except gitdata.GitError:
+        return None
+    return out.strip().rsplit("/", 1)[-1] or None
+
+
 def release(
-    version: str, *, dry_run: bool = False, no_push: bool = False
+    version: str,
+    *,
+    dry_run: bool = False,
+    no_push: bool = False,
+    branch: Optional[str] = None,
 ) -> int:
-    """Run the full release pipeline; returns the process exit code."""
+    """Run the full release pipeline; returns the process exit code.
+
+    *branch* names the branch pushed to ``origin``; when omitted the remote
+    default branch is detected from ``origin/HEAD``
+    (see :func:`_default_branch`), and an undetectable branch aborts the
+    release right before the push.
+    """
     repo = discover_repo_root()
     current = read_current_version(repo)
     validate_version(version, current)
@@ -230,7 +259,12 @@ def release(
     if no_push:
         print("skip push (--no-push)")
     else:
-        git_push(repo, "master", dry_run=dry_run)
+        push_branch = branch or _default_branch(repo)
+        if push_branch is None:
+            raise RuntimeError(
+                "cannot determine the default branch; pass --branch"
+            )
+        git_push(repo, push_branch, dry_run=dry_run)
         git_push(repo, f"v{version}", dry_run=dry_run)
 
     print(f"release v{version} complete")
@@ -251,9 +285,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--no-push", action="store_true", help="do everything except push"
     )
+    parser.add_argument(
+        "--branch",
+        default=None,
+        help="branch to push (default: detect from origin/HEAD, fail if unknown)",
+    )
     args = parser.parse_args(argv)
     try:
-        return release(args.version, dry_run=args.dry_run, no_push=args.no_push)
+        return release(
+            args.version,
+            dry_run=args.dry_run,
+            no_push=args.no_push,
+            branch=args.branch,
+        )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

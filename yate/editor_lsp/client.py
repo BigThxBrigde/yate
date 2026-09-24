@@ -24,7 +24,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional, cast
 
+from yate.logs import tracing
+
 from . import protocol
+
+#: Trace logger ("yate.editor_lsp.client"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
 
 #: Type of the async transport factory: returns (reader, writer, process).
 ConnectFn = Callable[[], Awaitable[tuple[Any, Any, Any]]]
@@ -377,8 +382,14 @@ class LspClient:
         Returns the JSON-RPC id and the future that resolves with the raw
         result.  Callers (the completion manager) use the id for
         ``$/cancelRequest`` when a newer request supersedes this one.
+
+        Raises :class:`LspConnectionError` immediately when the client is
+        ``FAILED`` (its read loop died) or has no transport, so callers
+        never hang on a future nobody will ever settle.
         """
-        if self._writer is None and self.state is not ServerState.STARTING:
+        if self.state is ServerState.FAILED or (
+            self._writer is None and self.state is not ServerState.STARTING
+        ):
             raise LspConnectionError(f"client is {self.state.value}")
         request_id = self._next_id
         self._next_id += 1
@@ -416,6 +427,22 @@ class LspClient:
 
     # ------------------------------------------------------------- read loop
 
+    def _fail_pending(self, exc: Exception) -> None:
+        """Fail every in-flight request future: the connection is dead.
+
+        Records the error string and settles all pending futures with a
+        :class:`LspConnectionError`.  When :meth:`stop` already owns the
+        client (state ``STOPPED``) its ``_cleanup`` has settled the futures
+        itself and the state must not be touched.
+        """
+        if self.state is ServerState.STOPPED:
+            return
+        self.error = f"{type(exc).__name__}: {exc}"
+        for future in self._pending.values():
+            if not future.done():
+                future.set_exception(LspConnectionError(str(exc)))
+        self._pending.clear()
+
     async def _read_loop(self) -> None:
         try:
             while True:
@@ -426,13 +453,17 @@ class LspClient:
         except asyncio.CancelledError:
             raise
         except (LspError, ConnectionError, EOFError) as exc:
+            self._fail_pending(exc)
+        except Exception as exc:  # noqa: BLE001 - transport-level backstop:
+            # any unexpected framing/dispatch crash must turn into a
+            # connection failure, never strand requests on dead futures.
+            log.exception("LSP read loop crashed (%s)", self.config.name)
+            self._fail_pending(exc)
+        finally:
+            # The read loop dying makes the client unusable no matter which
+            # path exited; only an orderly stop() keeps its STOPPED state.
             if self.state is not ServerState.STOPPED:
                 self.state = ServerState.FAILED
-                self.error = f"{type(exc).__name__}: {exc}"
-                for future in self._pending.values():
-                    if not future.done():
-                        future.set_exception(LspConnectionError(str(exc)))
-                self._pending.clear()
 
     def _dispatch(self, message: dict[str, Any]) -> None:
         if "id" in message and "method" in message:
