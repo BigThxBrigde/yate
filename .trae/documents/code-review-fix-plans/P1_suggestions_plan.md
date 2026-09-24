@@ -193,8 +193,8 @@ subprocess.run(
 
 > ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
 > `render_line` 行内查一次 `line_diags` 后下传 gutter 与 `_diagnostic_underlines`
-> （单行渲染 2 次→1 次；按本条降级策略落地——widget 层无逐帧钩子）。专属计数断言
-> 待补（授权范围限制），回归证据为 test_app_textual/explorer/panes 158 用例全绿。
+> （单行渲染 2 次→1 次；按本条降级策略落地——widget 层无逐帧钩子）。守卫：
+> `test_render_line_queries_diagnostics_once_per_row`（含诊断多行逐行恰好查询 1 次）。
 
 **证据：** gutter（[editor.py:424-427](../../../yate/editor_view/editor.py)）
 与下划线（[editor.py:571-590](../../../yate/editor_view/editor.py)）各查一次。
@@ -213,7 +213,8 @@ subprocess.run(
 > ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
 > `_welcome_lines` 改实例方法并按 `(theme.name, vim_keys)` 缓存（校准：现实现为
 > `(t, *, vim_keys)` 签名且行内嵌主题色，故缓存键较原策略多一维主题，否则主题切换
-> 返回旧色）。专属「返回同一对象」断言待补，回归证据同 S12。
+> 返回旧色）。守卫：`test_welcome_rows_cached_per_theme_and_keymap`（同键同对象、
+> 换键/换主题重建）。
 
 **证据：** [editor.py:495-510](../../../yate/editor_view/editor.py) 无缓存。
 
@@ -227,7 +228,9 @@ subprocess.run(
 > ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
 > discard 分支 `refresh()` 后追加 `_schedule_highlight(0.0)` 立即重排，跳过多余防抖
 > 窗口；「旧 `_hl_tokens` 继续上色」防闪白设计保留（未清缓存），注释说明 exclusive
-> worker 组不产生并发 tokenize。守卫：`test_edit_keeps_colors_instead_of_flashing`
+> worker 组不产生并发 tokenize。守卫：
+> `test_discarded_highlight_pass_reschedules_immediately`（在途结果过期被丢弃后
+> 立即以 `delay == 0.0` 重排，不等 0.08s）+ `test_edit_keeps_colors_instead_of_flashing`
 > 等既有高亮用例全绿。
 
 **证据：** 实现已重构（原「集合 discard」路径不存在了）：现在由 `_hl_timer`
@@ -260,7 +263,8 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 
 > ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
 > `render_line` 行内 cursor/anchor 算一次，下传 `_selection` 与 `_row_style_ranges`
-> （每行 3 次→1 次，与 S12 同模式）。专属计数断言待补，回归证据同 S12。
+> （每行 3 次→1 次，与 S12 同模式）。守卫：
+> `test_render_line_computes_cursor_anchor_once_per_row`。
 
 **证据：** [editor.py:151-158](../../../yate/editor_view/editor.py)
 每次遍历 pane 树；渲染路径多处独立调用。
@@ -286,8 +290,13 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 > ✅ **已修复（2026-09-24，SP3）**：[panes.py](../../../yate/editor_view/panes.py)
 > reconcile 恢复循环跳过 focus 叶子（三个调用方 split/close/only 均随后
 > `apply_doc(focus)` 恢复活动叶子，重复仅此一份；非活动叶子无 follow-up、恢复保留）。
-> 语义差异记录见 [SP3](P1_subplans/SP3_editor_view_rendering.md)。专属分屏滚动断言
-> 待补（test_panes.py 不在授权清单），回归证据：tests/test_panes.py 全绿。
+> 语义差异记录见 [SP3](P1_subplans/SP3_editor_view_rendering.md)。守卫：
+> `test_split_close_restores_scroll_for_focus_and_inactive_leaves`（两条恢复路径的
+> 调用语义 + state 保留 + 稳定期端到端）。**守卫探明的存量产品缺口（SP3 之前即存在，
+> 未修）**：mount 期（首次 layout 前）的 `scroll_to` 被 Textual 静默丢弃
+> （`virtual_size=(0,0)`）且无 post-layout 重试，分屏/关窗后重建 widget 的滚动恢复
+> 可能不生效、随后的 `capture_active` 会把 0 读回 ViewState；修复方向（post-layout
+> 重试或先补 virtual_size）超出本轮范围，留作后续项。
 
 **证据：** [panes.py:461-467](../../../yate/editor_view/panes.py) reconcile 重建后恢复
 **全部叶子**的滚动；而调用链上的 [apply_doc](../../../yate/editor_view/panes.py#L160-L178)
@@ -579,8 +588,8 @@ trace 的会话 header 混入同一文件。存量问题，多实例共享数据
 ### S37 — 删除最后选中项后 `_last_selected` 悬挂
 
 > ✅ **已修复（2026-09-24，SP3）**：[explorer.py](../../../yate/editor_view/explorer.py)
-> `_restore_cursor` 未命中时 `_last_selected = None`。专属断言待补（授权范围限制），
-> 回归证据：test_explorer.py 全绿。
+> `_restore_cursor` 未命中时 `_last_selected = None`。守卫：
+> `test_restore_cursor_forgets_vanished_selection`。
 
 **证据：** [explorer.py:107,119-123](../../../yate/editor_view/explorer.py)
 `_restore_cursor` 未命中时不清 `None`。
@@ -635,7 +644,8 @@ resolve 并拒绝 symlink 条目。注意现有
 > ✅ **已修复（2026-09-24，SP3）**：[manual.py](../../../yate/editor_view/manual.py)
 > 搜索改尾沿防抖（`_SEARCH_DEBOUNCE_S = 0.12`，`asyncio.get_running_loop().call_later`，
 > 窗口期合并查询）；Enter 提交先 flush 保持命中语义，回调带 `is_mounted` 守护防已关闭
-> screen 崩溃。专属计数断言待补，回归证据：manual 相关用例/冒烟全绿。
+> screen 崩溃。守卫：`test_doc_search_debounce_merges_rapid_typing`（4 次按键合并
+> 为 <4 次 `_run_search`、末次查询正确）+ `test_doc_search_enter_flushes_pending_query_immediately`。
 
 **证据：** [manual.py:341-379](../../../yate/editor_view/manual.py) 每按键重建全部
 块 widget，大文档输入卡顿。存量缺陷。

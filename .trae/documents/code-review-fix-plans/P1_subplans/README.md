@@ -75,7 +75,7 @@ SP7 无编辑器风险，随行作轻量并发伙伴。
 |---|---|---|---|
 | SP1 | ✅ 已完成（S1 S2，新增 2 条守卫） | 2026-09-24 | pyright 0 诊断；test_highlight/syntax_engine 36 passed |
 | SP2 | ✅ 已完成（S6 S10 S16 S32 S43，新增 8 条守卫；S10 调用点校准记录于 P1 原文；pty_proc.py:501 宽捕获注释观察项已随后续批处理补齐） | 2026-09-24 | pyright 0 诊断；test_terminal_emulator/pty_proc/terminal 141 passed 3 skipped |
-| SP3 | ✅ 已完成（S4 复核为已修免实施；S12/S13/S14/S15/S17/S37/S40 专属守卫断言待补，回归证据为既有套件全绿） | 2026-09-24 | pyright 0 诊断；test_app_textual/explorer/panes 158 passed；冒烟 87/87 · 907 checks |
+| SP3 | ✅ 已完成（S4 复核为已修免实施；S12/S13/S14/S15/S17/S37/S40 专属守卫断言已全部补齐——新增 8 条；S17 守卫探明 mount 期 scroll_to 被丢弃的存量缺口，已记录于 P1 原文留作后续） | 2026-09-24 | pyright 0 诊断；test_app_textual/explorer/panes 166 passed；冒烟 87/87 · 907 checks |
 | SP4 | ✅ 已完成（S30 S31 S35 S38，新增 8 条守卫；S30 需差分检测覆盖 widget 级 Esc 直关，校准记录于 P1 原文） | 2026-09-24 | pyright 0 诊断；test_completion_popup/vim_keymap/registries 97 passed |
 | SP5 | ✅ 已完成（S5 S11 S33 S34 S36 S39 最小加固——用户决策，新增 10 条守卫；S36 两处既有断言随缺陷修复同步改写、S11 深链用合成链；`:trust` 反馈误导观察项已随后续批处理修复——trust_workspace 返回 bool、被拒时报错并中止加载） | 2026-09-24 | pyright 0 诊断；test_crash/tracing/workspace_filter/extensions/trust 129 passed 1 skipped |
 | SP6 | ✅ 已完成（S20 S21 S29 S41，新增 3 条守卫；S41 缓存失效边界已记录） | 2026-09-24 | pyright 0 诊断；test_lsp/theme_palettes/editor_core 153 passed 1 skipped |
