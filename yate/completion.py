@@ -60,6 +60,13 @@ class CompletionController:
         self.prompt = prompt
         self.refresh = refresh
         self._timer: Optional[asyncio.TimerHandle] = None
+        # A close happened since the last active trigger; pending queries
+        # must not resurrect the popup after it.
+        self._dismissed: bool = False
+        # Whether the popup was open when the pending debounce was scheduled.
+        self._scheduled_open: bool = False
+        # Whether the popup was open when the running query was started.
+        self._inflight_open: bool = False
 
     # ----------------------------------------------------------------- hooks
 
@@ -72,9 +79,19 @@ class CompletionController:
         return len(self.app.screen_stack) > 1
 
     def close(self) -> None:
+        """Dismiss the popup and drop any query already on its way.
+
+        Every close counts as a dismissal: a debounced or in-flight query
+        must not resurrect the popup afterwards.  Active input re-arms
+        queries (:meth:`schedule`, or :meth:`request` with ``manual=True``).
+        The popup's own Esc binding closes the widget directly, without
+        passing through here, so :meth:`_stale` also compares ``is_open``
+        against the state the query was started with.
+        """
         popup = self.popup
         if popup.is_open:
             popup.close()
+        self._dismissed = True
 
     def after_editor_key(self, raw: str) -> None:
         """Adjust the completion popup after a normal editor keystroke."""
@@ -102,7 +119,10 @@ class CompletionController:
 
     def schedule(self, trigger_ch: Optional[str]) -> None:
         # Always schedule: with an LSP we query the server, without one we
-        # fall back to buffer words + paths (see _worker).
+        # fall back to buffer words + paths (see _worker).  Active input
+        # re-arms queries dropped by close().
+        self._dismissed = False
+        self._scheduled_open = self.popup.is_open
         timer = self._timer
         if timer is not None:
             timer.cancel()
@@ -118,6 +138,16 @@ class CompletionController:
         if not self._vim_insert_mode():
             return
         self._timer = None
+        popup = self.popup
+        if not manual:
+            # The user dismissed the popup after this query was scheduled
+            # (a closing keystroke, or the popup's Esc binding closing the
+            # widget directly): do not resurrect it.
+            if self._dismissed:
+                return
+            if self._scheduled_open and not popup.is_open:
+                return
+        self._inflight_open = popup.is_open
         self.app.run_worker(
             # the coroutine *function*: an eager coroutine would leak if the
             # worker never starts
@@ -216,6 +246,9 @@ class CompletionController:
             or buf.col != cur_col
             or cur_prefix != prefix
             or not popup.is_mounted
+            # the popup was closed while this query was in flight (the
+            # widget's own Esc binding): the user dismissed it, keep it shut
+            or (self._inflight_open and not popup.is_open)
         )
 
     def _show_items(

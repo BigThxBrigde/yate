@@ -82,6 +82,12 @@ class PaneManager:
         self.host: Optional[PaneHost] = None
         #: Mounted views keyed by leaf id; rebuilt on every reconcile.
         self.views: dict[int, EditorView] = {}
+        #: Leaves whose widget has a scroll restore in flight (S17): the
+        #: registered view still reads back scroll placeholders until the
+        #: retried restore lands, so :meth:`capture_active` must not
+        #: persist what it reads meanwhile.  Maps leaf id -> owning view;
+        #: a rebuild replaces the entry with the fresh view.
+        self.pending_restores: dict[int, EditorView] = {}
 
     # ------------------------------------------------------------- lookups
 
@@ -153,7 +159,16 @@ class PaneManager:
         state.cursor = buf.cursor
         state.anchor = buf.anchor
         view = self.views.get(leaf.id)
-        if view is not None:
+        if view is not None and view.virtual_size.height > 0:
+            # An unmeasured view (freshly rebuilt, layout not run yet) reads
+            # back scroll origin placeholders while a pending restore still
+            # holds the real position (S17); capturing them would clobber
+            # the saved state with zeros.  The same placeholders linger one
+            # refresh cycle past the first layout (the deferred _scroll_to
+            # has not run yet), so a restore still registered for this leaf
+            # blocks the capture too.
+            if view.leaf_id in self.pending_restores:
+                return
             state.scroll_col = view.scroll_col
             state.scroll_row = view.scroll_offset.y
 
@@ -174,8 +189,13 @@ class PaneManager:
             self.session.index = self.session.docs.index(doc)
         view = self.views.get(leaf.id)
         if view is not None:
-            view.scroll_col = state.scroll_col
-            view.scroll_to(y=state.scroll_row, animate=False)
+            if self.host is not None:
+                # Layout-aware restore: retry until the (possibly rebuilt)
+                # view has been measured, so the scroll survives (S17).
+                self.host.restore_scroll(view, state)
+            else:
+                view.scroll_col = state.scroll_col
+                view.scroll_to(y=state.scroll_row, animate=False)
 
     def notify_focus(self, leaf_id: int) -> None:
         """EditorView.on_focus hook: switch the active pane."""
@@ -407,6 +427,49 @@ class PaneHost(Widget):
         self.make_view = make_view
         manager.attach(self)
 
+    #: Refresh cycles a scroll restore may take to land before giving up
+    #: (unmeasured views read back scroll placeholders; see
+    #: :meth:`restore_scroll`).
+    _RESTORE_ATTEMPTS: int = 8
+
+    def restore_scroll(
+        self, view: EditorView, state: ViewState, attempts: int = 0
+    ) -> None:
+        """Apply a leaf's saved scroll to its widget (S17).
+
+        A scroll issued before the widget's first layout is silently
+        clamped to the origin by Textual: the deferred ``_scroll_to``
+        still sees an empty ``virtual_size``, so a freshly rebuilt pane
+        reads back 0 no matter what was requested.  The restore therefore
+        retries on the next refresh cycle until the view has been measured
+        *and* the scroll has actually landed (the offset matches the
+        target, clamped to the scrollable range -- it lags one cycle
+        behind :attr:`virtual_size` because ``scroll_to`` itself defers
+        ``_scroll_to``).  While the restore is in flight the leaf stays in
+        :attr:`PaneManager.pending_restores`, blocking scroll captures of
+        the placeholder readings.  A later reconcile replaces the widget
+        and the unmounted copy stops its message pump, which ends any
+        pending retry.
+        """
+        self.manager.pending_restores[view.leaf_id] = view
+        view.scroll_col = state.scroll_col
+        view.scroll_to(y=state.scroll_row, animate=False)
+        if view.is_mounted and view.virtual_size.height > 0:
+            landed = view.scroll_offset.y == min(
+                state.scroll_row, max(0, view.max_scroll_y)
+            )
+        else:
+            landed = state.scroll_row == 0
+        if (
+            landed
+            or attempts >= self._RESTORE_ATTEMPTS
+            or not view.is_mounted
+        ):
+            if self.manager.pending_restores.get(view.leaf_id) is view:
+                del self.manager.pending_restores[view.leaf_id]
+            return
+        self.call_after_refresh(self.restore_scroll, view, state, attempts + 1)
+
     def on_mount(self) -> None:
         # compose() built the tree before mount; fractional sizes only
         # resolve correctly against a mounted parent, so re-apply them.
@@ -458,13 +521,22 @@ class PaneHost(Widget):
         # parent and come out wrong (panes end up off-screen), so re-apply
         # them now that the widgets are mounted.
         self.apply_sizes()
-        # restore each pane's saved scroll before handing focus over
+        # restore each pane's saved scroll before handing focus over.
+        # The focus leaf is skipped on purpose: every caller applies the
+        # focused document right after the reconcile (apply_doc restores
+        # its scroll together with the buffer cursor), so restoring it here
+        # too would redo the same work twice.  Non-focused leaves have no
+        # such follow-up and keep their restore here.  Both paths go
+        # through restore_scroll, which retries until the rebuilt views
+        # have been laid out -- a plain scroll_to at this point would be
+        # discarded by Textual (S17).
         for leaf in leaves(self.manager.root):
+            if leaf is focus:
+                continue
             view = self.manager.views.get(leaf.id)
             state = leaf.states.get(leaf.doc.uid)
             if view is not None and state is not None:
-                view.scroll_col = state.scroll_col
-                view.scroll_to(y=state.scroll_row, animate=False)
+                self.restore_scroll(view, state)
         target = self.manager.views.get(focus.id)
         if target is not None:
             target.focus()

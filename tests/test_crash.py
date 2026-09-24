@@ -11,6 +11,7 @@ from __future__ import annotations
 import atexit
 import faulthandler
 import io
+import os
 import re
 import sys
 from collections.abc import Callable, Iterator
@@ -40,12 +41,31 @@ def test_crash_data_dir_creates_home_yate_data(isolated_home: Path) -> None:
 def test_name_is_timestamped_err_under_dir(tmp_path: Path) -> None:
     path = crash.build_err_path(tmp_path, datetime(2026, 9, 13, 10, 15, 30))
     assert path.parent == tmp_path
-    assert path.name == "crash-20260913-101530.err"
+    assert path.name == f"crash-20260913-101530-{os.getpid()}.err"
 
 
 def test_defaults_to_current_time(tmp_path: Path) -> None:
     path = crash.build_err_path(tmp_path)
-    assert re.match(r"^crash-\d{8}-\d{6}\.err$", path.name)
+    assert re.match(r"^crash-\d{8}-\d{6}-\d+\.err$", path.name)
+
+
+def test_same_second_processes_get_distinct_report_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S36: two processes crashing in the same second must not share a name.
+
+    Both reports are opened in ``"w"`` mode, so a shared name would let the
+    later header truncate the earlier process's report.  The second process
+    is simulated by patching the pid.
+    """
+    fixed = datetime(2026, 9, 13, 10, 15, 30)
+    monkeypatch.setattr(os, "getpid", lambda: 111)
+    first = crash.build_err_path(tmp_path, fixed)
+    monkeypatch.setattr(os, "getpid", lambda: 222)
+    second = crash.build_err_path(tmp_path, fixed)
+    assert first != second
+    assert first.name == "crash-20260913-101530-111.err"
+    assert second.name == "crash-20260913-101530-222.err"
 
 
 # --- install / uninstall lifecycle -----------------------------------------
@@ -135,6 +155,28 @@ def test_uninstall_releases_handle_and_deletes_healthy_report(
     # Idempotent: atexit calls it again on interpreter shutdown.
     crash.uninstall()
     assert sys.excepthook is crash.original_excepthook
+
+
+def test_install_chains_to_and_restores_a_hook_installed_after_import(
+    crash_state: Path,
+) -> None:
+    """S5: the chained hook is captured at install() time, not import time.
+
+    A hook the host installed between ``import yate`` and ``install()`` is
+    the one delegated to on uncaught exceptions -- and the one
+    ``uninstall()`` puts back, instead of some import-time snapshot.
+    """
+    fake = mock.Mock()
+    sys.excepthook = fake
+    crash.install()
+    assert crash.original_excepthook is fake
+
+    err = RuntimeError("boom")
+    sys.excepthook(RuntimeError, err, None)
+    fake.assert_called_once_with(RuntimeError, err, None)
+
+    crash.uninstall()
+    assert sys.excepthook is fake
 
 
 def test_install_uninstall_cycles_keep_one_atexit_callback(

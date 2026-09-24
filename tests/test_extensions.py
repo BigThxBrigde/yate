@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import sys
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock
@@ -19,6 +21,21 @@ from yate.services.extensions import (
 
 _SETUP_OK = "def setup(api):\n    pass\n"
 _SETUP_BAD = "def setup(api):\n    raise RuntimeError('boom')\n"
+
+
+class _LogCapture(logging.Handler):
+    """Collect messages from one logger.
+
+    The ``yate`` root logger never propagates (``propagate = False``), so
+    pytest's caplog cannot see child-logger records; attach this instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
 
 
 def _extension_api() -> ExtensionAPI:
@@ -228,6 +245,46 @@ def test_missing_setup_function_is_an_error(
     script.write_text("x = 1\n", encoding="utf-8")
     record = loader.load_file(script)
     assert "no setup(api)" in (record.error or "")
+
+
+def test_failing_module_exec_leaves_no_sys_modules_entry(
+    loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """S33: a module that dies at import must not linger under sys.modules.
+
+    A half-initialized leftover would make a later import of the same name
+    hit the broken remains instead of a clean retry.
+    """
+    script = tmp_path / "broken_import.py"
+    script.write_text("raise RuntimeError('import boom')\n", encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "yate_ext_broken_import" not in sys.modules
+
+
+def test_bind_key_with_unknown_keymap_warns_and_does_not_raise() -> None:
+    """S34: a misspelled keymap name is reported, not silently dropped."""
+
+    def _noop(_api: ExtensionContext) -> None:
+        pass
+
+    ctx = cast(Any, MagicMock())
+    ctx.keymaps.get.return_value = None
+    ctx.keymaps.names.return_value = ["vsc", "vim"]
+    api = ExtensionAPI(cast(ExtensionContext, ctx))
+    capture = _LogCapture()
+    logger = logging.getLogger("yate.services.extensions")
+    logger.addHandler(capture)
+    try:
+        bound = api.bind_key("<f5>", _noop, keymap="typo")
+    finally:
+        logger.removeHandler(capture)
+
+    assert any("typo" in message and "vim" in message for message in capture.messages)
+    # The decorator form still returns the callback and never raises.
+    assert bound is not None
 
 
 # --- teardown hooks ---------------------------------------------------------

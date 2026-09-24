@@ -380,6 +380,41 @@ def test_yank_operator_restores_the_cursor() -> None:
     assert editor.messages[-1] == "yanked"
 
 
+def test_delete_word_operator_writes_the_register() -> None:
+    """dw fills the register, so p pastes the deleted word back."""
+    editor, keymap, ctx = _setup("alpha beta")
+    _press(keymap, ctx, "d", "w")
+    assert editor.buffer.register == "alpha "
+    _press(keymap, ctx, "p")
+    assert editor.buffer.get_text() == "alpha beta"
+
+
+def test_linewise_yank_is_replaced_by_the_next_delete() -> None:
+    """yy then d$ replaces the register; p pastes the deleted text."""
+    editor, keymap, ctx = _setup("one\ntwo three")
+    _press(keymap, ctx, "y", "y")
+    assert editor.buffer.register == "one\n"
+    _press(keymap, ctx, "j", "d", "$")
+    assert editor.buffer.register == "two three"
+    _press(keymap, ctx, "p")
+    assert editor.buffer.lines == ["one", "two three"]
+
+
+def test_operator_with_the_g_motion_reports_nothing() -> None:
+    """dg / yg drop the operator: no message, no edit, register untouched."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "g")
+    assert editor.buffer.get_text() == "abc"
+    assert "deleted" not in editor.messages
+
+    editor, keymap, ctx = _setup("abc")
+    editor.buffer.register = "keep"
+    _press(keymap, ctx, "y", "g")
+    assert editor.buffer.get_text() == "abc"
+    assert editor.buffer.register == "keep"
+    assert "yanked" not in editor.messages
+
+
 def test_x_deletes_characters() -> None:
     """x deletes under the cursor; a count deletes several."""
     editor, keymap, ctx = _setup("abcdef")

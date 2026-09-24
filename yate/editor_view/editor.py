@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any, Callable, Optional, Protocol
 
 from rich.segment import Segment
@@ -16,7 +17,7 @@ from textual.timer import Timer
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
 from yate.editor_core.document import Document
-from yate.editor_lsp import LspManager
+from yate.editor_lsp import Diagnostic, LspManager
 from yate.editor_syntax import tokenize_document
 from yate.editor_syntax.tokens import Token
 from yate.keymaps.registry import KeymapSet
@@ -41,6 +42,32 @@ _WELCOME_BANNER = [
     "   ██║   ██║  ██║   ██║   ███████╗",
     "   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝",
 ]
+
+#: One welcome-page row: (text, color, bold, centered) cell tuples.
+_WelcomeRow = list[tuple[str, Optional[str], bool, bool]]
+
+
+@dataclass(frozen=True)
+class HighlightProbe:
+    """Read-only snapshot of the syntax-highlight cache (tests/debugging).
+
+    Mirrors the private ``_hl_*`` attributes of :class:`EditorView` so tests
+    and tools can assert highlighter state without reaching into privates;
+    as a frozen record it offers no way to mutate the widget.
+    """
+
+    #: Cached tokens per buffer row (``None`` until the first pass lands).
+    tokens: Optional[list[list[Token]]]
+    #: Document the cached tokens belong to.
+    doc: object
+    #: Buffer content version the cached tokens were tokenized at.
+    version: int
+    #: Filetype the cached tokens were tokenized for.
+    filetype: str
+    #: (doc, filetype, version) of the pass waiting to run / in flight.
+    scheduled_key: Optional[tuple[object, str, int]]
+    #: Debounce timer reference (``None`` when nothing is deferred).
+    timer: Optional[Timer]
 
 
 class PaneRegistry(Protocol):
@@ -124,6 +151,12 @@ class EditorView(ScrollView):
         # version that is already being tokenized.
         self._hl_timer: Optional[Timer] = None
         self._hl_scheduled_key: Optional[tuple[object, str, int]] = None
+        # Welcome rows cached by (theme name, vim_keys): the rows embed
+        # theme colors and keymap-dependent hints, so a theme or keymap
+        # switch changes the key and forces a rebuild. The welcome page
+        # re-renders every frame while visible, which used to rebuild the
+        # rows each time.
+        self._welcome_cache: dict[tuple[str, bool], list[_WelcomeRow]] = {}
 
     # ------------------------------------------------------------ helpers
 
@@ -156,8 +189,10 @@ class EditorView(ScrollView):
         state = self.leaf.state_for(self.doc)
         return state.cursor, state.anchor
 
-    def _selection(self) -> Optional[tuple[Pos, Pos]]:
-        cursor, anchor = self._cursor_anchor()
+    def _selection(
+        self, cursor: Pos, anchor: Optional[Pos]
+    ) -> Optional[tuple[Pos, Pos]]:
+        """Normalized (start, end) pair between *cursor* and *anchor*."""
         if anchor is None or anchor == cursor:
             return None
         return (min(anchor, cursor), max(anchor, cursor))
@@ -286,6 +321,27 @@ class EditorView(ScrollView):
             return tokens[row] if row < len(tokens) else []
         return self._hl_tokens[row] if row < len(self._hl_tokens) else []
 
+    def tokens_for(self, row: int) -> list[Token]:
+        """Public accessor for one row's syntax tokens (render-path lookup).
+
+        The same lookup the renderer performs for every row; it may schedule
+        a background tokenize pass when the cache is stale, so calling it
+        outside a render is exactly like rendering the row.  Exists so tests
+        and tools can inspect tokens without touching private methods.
+        """
+        return self._tokens_for(row)
+
+    def highlight_probe(self) -> HighlightProbe:
+        """Return a read-only snapshot of the highlight cache state."""
+        return HighlightProbe(
+            tokens=self._hl_tokens,
+            doc=self._hl_doc,
+            version=self._hl_version,
+            filetype=self._hl_filetype,
+            scheduled_key=self._hl_scheduled_key,
+            timer=self._hl_timer,
+        )
+
     def _schedule_highlight(self, delay: float) -> None:
         """Arrange a tokenize pass for the current doc/filetype/version.
 
@@ -346,6 +402,12 @@ class EditorView(ScrollView):
         # a repaint reschedules a fresh pass for the current state
         if self.doc is not doc or buf.content_version != version:
             self.refresh()
+            # Re-schedule immediately: the discarded pass must not cost an
+            # extra debounce window on top of the time already spent
+            # tokenizing.  The stale tokens keep coloring meanwhile (no
+            # flash), and the worker group is exclusive, so this cannot
+            # stack up concurrent tokenize passes.
+            self._schedule_highlight(0.0)
             return
         self._hl_tokens = tokens
         self._hl_doc = doc
@@ -400,7 +462,12 @@ class EditorView(ScrollView):
             return Strip(segments)
 
         line = buf.lines[y]
-        cursor_row, cursor_col = self._cursor_anchor()[0]
+        # one cursor/anchor lookup and one diagnostics lookup per rendered
+        # row: both used to be repeated per consumer (3x pane-tree walks and
+        # 2x full diagnostic scans per row) and are now computed once here
+        # and passed down to the gutter, underline and style passes
+        cursor, anchor = self._cursor_anchor()
+        cursor_row, cursor_col = cursor
         cells: list[str] = []
         for ch in line:
             theme.expand_char(ch, cells, buf.tab_width)
@@ -410,9 +477,10 @@ class EditorView(ScrollView):
         n_cells = len(cells)
         styles = [S_NORMAL] * (n_cells + 1)
         kinds = self._syntax_kinds(y, line, n_cells + 1)
-        underlines = self._diagnostic_underlines(y, line, n_cells + 1)
+        line_diags = self.lsp.diagnostics_on_line(self.doc, y)
+        underlines = self._diagnostic_underlines(y, line, n_cells + 1, line_diags)
 
-        for start, end, sid in self._row_style_ranges(y, line):
+        for start, end, sid in self._row_style_ranges(y, line, cursor, anchor):
             for c in range(max(0, start), min(end, n_cells + 1)):
                 if sid > styles[c]:
                     styles[c] = sid
@@ -421,7 +489,6 @@ class EditorView(ScrollView):
         line_bg = t.surface if is_current else None
 
         # gutter
-        line_diags = self.lsp.diagnostics_on_line(self.doc, y)
         line_error = any(d.is_error for d in line_diags)
         line_warn = any(d.is_warning for d in line_diags)
         if line_error:
@@ -491,14 +558,21 @@ class EditorView(ScrollView):
             and buf.lines[0] == ""
         )
 
-    @staticmethod
     def _welcome_lines(
-        t: theme.Theme,
-        *,
-        vim_keys: bool = False,
-    ) -> list[list[tuple[str, Optional[str], bool, bool]]]:
-        """(text, color, bold, centered) tuples per welcome row."""
-        rows: list[list[tuple[str, Optional[str], bool, bool]]] = [
+        self, t: theme.Theme, *, vim_keys: bool = False
+    ) -> list[_WelcomeRow]:
+        """(text, color, bold, centered) tuples per welcome row.
+
+        The rows embed theme colors and keymap-dependent hints, so they are
+        cached per (theme name, vim_keys): the welcome page re-renders every
+        frame while visible and used to rebuild the rows each time.  A theme
+        or keymap switch changes the cache key and forces a rebuild.
+        """
+        key = (t.name, vim_keys)
+        cached = self._welcome_cache.get(key)
+        if cached is not None:
+            return cached
+        rows: list[_WelcomeRow] = [
             [],  # row 0: keep the cursor line blank
         ]
         # pad all banner lines to the same width so the per-line centering
@@ -540,6 +614,7 @@ class EditorView(ScrollView):
             else "  start typing to edit; Alt+Shift+P opens the command palette"
         )
         rows.append([(footer, t.fg_dim, False, False)])
+        self._welcome_cache[key] = rows
         return rows
 
     def _render_welcome(
@@ -568,12 +643,17 @@ class EditorView(ScrollView):
         return Strip(segments)
 
     def _diagnostic_underlines(
-        self, row: int, line: str, cell_count: int
+        self, row: int, line: str, cell_count: int, diags: list[Diagnostic]
     ) -> list[bool]:
-        """Per-cell underline flags contributed by LSP diagnostics on *row*."""
+        """Per-cell underline flags contributed by *diags* on *row*.
+
+        *diags* is the row's diagnostics as looked up once by the caller
+        (:meth:`render_line` shares one lookup between this pass and the
+        gutter marks).
+        """
         flags = [False] * cell_count
         tw = self.buffer.tab_width
-        for d in self.lsp.diagnostics_on_line(self.doc, row):
+        for d in diags:
             if d.start_row == d.end_row:
                 cs, ce = d.start_col, d.end_col
             elif row == d.start_row:
@@ -588,13 +668,21 @@ class EditorView(ScrollView):
                 flags[c] = True
         return flags
 
-    def _row_style_ranges(self, row: int, line: str) -> list[tuple[int, int, int]]:
+    def _row_style_ranges(
+        self, row: int, line: str, cursor: Pos, anchor: Optional[Pos]
+    ) -> list[tuple[int, int, int]]:
+        """Overlay style ranges (selection / matches / cursor) for *row*.
+
+        *cursor* / *anchor* are the pane's cursor and anchor as looked up
+        once by the caller (:meth:`render_line` shares one pane-tree walk
+        between this pass and the cursor painting).
+        """
         buf = self.buffer
         tw = buf.tab_width
-        cursor_row, cursor_col = self._cursor_anchor()[0]
+        cursor_row, cursor_col = cursor
         ranges: list[tuple[int, int, int]] = []
 
-        sel = self._selection()
+        sel = self._selection(cursor, anchor)
         if sel is not None:
             (r1, c1), (r2, c2) = sel
             cs: Optional[int] = None

@@ -284,7 +284,9 @@ class ExtensionAPI:
         """Bind *key_spec* in the named keymap (``vsc``/``vim``/``both``).
 
         Can be used as a decorator when *callback* is omitted.  The legacy
-        name ``normal`` is accepted as an alias for ``vsc``.
+        name ``normal`` is accepted as an alias for ``vsc``.  An unknown
+        keymap name binds nothing and is reported as a warning listing the
+        registered names.
         """
 
         def _do(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -294,8 +296,17 @@ class ExtensionAPI:
                 targets = ["vsc"] if keymap == "normal" else [keymap]
             for target in targets:
                 km = self._ctx.keymaps.get(target)
-                if km is not None:
-                    km.add_binding(key_spec, func, description, category)
+                if km is None:
+                    # A misspelled keymap name used to bind nothing and stay
+                    # silent (S34); name the registered keymaps so the typo
+                    # is visible in the trace log.
+                    log.warning(
+                        "bind_key: unknown keymap %r (available: %s)",
+                        target,
+                        ", ".join(self._ctx.keymaps.names()),
+                    )
+                    continue
+                km.add_binding(key_spec, func, description, category)
             return func
 
         return _do(callback) if callback is not None else _do
@@ -416,6 +427,10 @@ class ExtensionLoader:
                     Callable[[ExtensionAPI], None], hook
                 )
         except Exception as exc:  # extensions are user code - never crash the app
+            # Drop the half-initialized module again: a leftover under
+            # sys.modules would make a later import of the same name hit the
+            # broken remains instead of a clean retry (S33).
+            sys.modules.pop(mod_name, None)
             record.error = f"{type(exc).__name__}: {exc}"
             log.exception("extension failed to load: %s", path)
         else:

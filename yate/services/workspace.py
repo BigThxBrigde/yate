@@ -212,27 +212,38 @@ class Workspace:
 
         Ignored directories (``.git``, ``__pycache__``, ...) are pruned
         during the walk.  Dotfiles and ``.gitignore`` / ``.yateignore``
-        patterns are also applied.  Results are sorted by path, directories
-        first per level.  Returns an empty list when no folder is open.
+        patterns are also applied.  Results are ordered depth-first,
+        directories first per level.  Returns an empty list when no folder
+        is open.
+
+        The traversal is an explicit stack, not recursion, so pathologically
+        deep trees cannot raise ``RecursionError`` (S11); symlinked
+        directories are never followed -- a link pointing at an ancestor
+        would otherwise expand forever.
         """
         if self.root is None:
             return []
         files: list[Path] = []
 
-        def walk(directory: Path) -> None:
-            if len(files) >= limit:
-                return
+        def children(directory: Path) -> list[tuple[Path, bool]]:
+            """Filtered sub-entries of *directory*, reversed for stack order.
+
+            Applies the same filters as the recursive walk it replaces
+            (``IGNORED_NAMES``, hidden files, per-directory ignore rules) and
+            drops symlinked directories entirely.  Reversing the sorted,
+            directories-first list lets the consumer ``pop()`` entries in the
+            exact pre-order the recursive version produced.
+            """
             dir_ignores = self._dir_ignores(directory)
             try:
-                children = sorted(
+                found = sorted(
                     directory.iterdir(),
                     key=lambda p: (not p.is_dir(), p.name.lower()),
                 )
             except (PermissionError, OSError):
-                return
-            for child in children:
-                if len(files) >= limit:
-                    return
+                return []
+            kept: list[tuple[Path, bool]] = []
+            for child in found:
                 name = child.name
                 if name in IGNORED_NAMES:
                     continue
@@ -241,34 +252,55 @@ class Workspace:
                     continue
                 if self._is_ignored(name, is_dir, dir_ignores):
                     continue
-                if is_dir:
+                if is_dir and child.is_symlink():
                     # Never follow symlinked directories: a link pointing at
                     # an ancestor would recurse forever.
-                    if not child.is_symlink():
-                        walk(child)
-                else:
-                    files.append(child)
+                    continue
+                kept.append((child, is_dir))
+            kept.reverse()
+            return kept
 
-        walk(self.root)
+        # Work items are (path, is_dir): popping a directory pushes its own
+        # children on top of the stack, which keeps the depth-first order.
+        stack: list[tuple[Path, bool]] = children(self.root)
+        while stack and len(files) < limit:
+            path, is_dir = stack.pop()
+            if is_dir:
+                stack.extend(children(path))
+            else:
+                files.append(path)
         return files
 
     def visible_tree(self, expanded: set[Path]) -> list[tuple[int, Entry]]:
-        """Flatten the tree according to the set of *expanded* directories."""
+        """Flatten the tree according to the set of *expanded* directories.
+
+        Rows come out in the same depth-first order as before, but the
+        flattening is computed with an explicit stack so deep trees cannot
+        raise ``RecursionError``.  Expanded symlinked directories are not
+        descended into -- the same loop guard :meth:`walk_files` applies,
+        since a link pointing at an ancestor would otherwise re-expand its
+        own subtree forever (S11).
+        """
         result: list[tuple[int, Entry]] = []
         if self.root is None:
             return result
 
-        def walk(directory: Path, depth: int) -> None:
-            for entry in self.list_dir(directory):
-                result.append((depth, entry))
-                if entry.is_dir and entry.path in expanded:
-                    walk(entry.path, depth + 1)
-
         result.append((0, Entry(self.root, self.root.name or str(self.root), True)))
-        for entry in self.list_dir(self.root):
-            result.append((1, entry))
-            if entry.is_dir and entry.path in expanded:
-                walk(entry.path, 2)
+        stack: list[tuple[Entry, int]] = [
+            (entry, 1) for entry in reversed(self.list_dir(self.root))
+        ]
+        while stack:
+            entry, depth = stack.pop()
+            result.append((depth, entry))
+            if (
+                entry.is_dir
+                and entry.path in expanded
+                and not entry.path.is_symlink()
+            ):
+                stack.extend(
+                    (child, depth + 1)
+                    for child in reversed(self.list_dir(entry.path))
+                )
         return result
 
     # ------------------------------------------------------- file mutation

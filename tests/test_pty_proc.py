@@ -27,9 +27,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable, Generator, Optional, cast
 
 import pytest
@@ -623,6 +625,57 @@ def test_conpty_operations_without_a_spawned_child_are_safe() -> None:
         impl.terminate()  # no process info: nothing to kill
 
     asyncio.run(_scenario())
+
+
+def _conpty_exit_query_impl(hprocess: int) -> Any:
+    """Return a real ``_ConPty`` whose exit query sees *hprocess*.
+
+    Only the attributes the exit-code query touches are wired up: the
+    kernel32 table is the real one loaded by ``PtyProcess.__init__`` and
+    the process-info record carries the caller's handle.
+    """
+    proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+    impl = cast(Any, proc)._impl
+    impl._proc_info = SimpleNamespace(hProcess=hprocess)
+    return impl
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_exit_query_reports_running_for_a_live_child() -> None:
+    """A child that is still alive reports ``running``, not a code."""
+    child = subprocess.Popen(_child("import time; time.sleep(30)"))
+    impl = _conpty_exit_query_impl(cast(Any, child)._handle)
+
+    def _skip_wait(*_args: Any) -> int:
+        return 258  # WAIT_TIMEOUT: treat the bounded liveness wait as done
+
+    impl._kernel32["WaitForSingleObject"] = _skip_wait
+    try:
+        assert impl._exit_code_or_failed() == "running"
+        assert impl._exit_code() is None  # the compatibility wrapper
+    finally:
+        child.kill()
+        child.wait(timeout=10)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_exit_query_reports_the_code_after_the_child_is_gone() -> None:
+    """A finished child yields its real exit code through both methods."""
+    child = subprocess.Popen(_child("import sys; sys.exit(7)"))
+    impl = _conpty_exit_query_impl(cast(Any, child)._handle)
+    assert child.wait(timeout=10) == 7
+    assert impl._exit_code_or_failed() == 7
+    assert impl._exit_code() == 7
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_exit_query_reports_failed_for_an_unusable_handle() -> None:
+    """A bogus handle fails both API calls and collapses to ``failed``."""
+    # 0xDEADBEEF is outside the handle table (note: -1 would be the valid
+    # current-process pseudo-handle, so it must not be used here).
+    impl = _conpty_exit_query_impl(0xDEADBEEF)
+    assert impl._exit_code_or_failed() == "failed"
+    assert impl._exit_code() is None
 
 
 class _FakeKernel32:

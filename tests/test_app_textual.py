@@ -198,13 +198,13 @@ def test_highlight_cache_survives_cursor_movement(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl = cast(Any, editor)
             # wait for the background tokenizer to paint colors
             ready = await wait_until(
-                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
             )
             assert ready
-            tokens = hl._hl_tokens
+            tokens = editor.highlight_probe().tokens
 
             def colors_at(row: int) -> set[str]:
                 return {
@@ -221,16 +221,17 @@ def test_highlight_cache_survives_cursor_movement(tmp_path: Path) -> None:
             # moving the cursor must not discard the token cache: the
             # keyword color stays without waiting for a new tokenizer
             await pilot.press("down")
-            assert hl._hl_tokens is tokens
+            assert editor.highlight_probe().tokens is tokens
             assert mocha.syn_keyword.lower() in colors_at(0)
 
             # editing invalidates the cache; a fresh tokenizer pass runs
             await pilot.press("x")
             refreshed = await wait_until(
                 pilot,
-                lambda: hl._hl_tokens is not None
-                and hl._hl_tokens is not tokens
-                and hl._hl_version == app.editor.session.buffer.content_version,
+                lambda: editor.highlight_probe().tokens is not None
+                and editor.highlight_probe().tokens is not tokens
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version,
                 timeout=5.0,
             )
             assert refreshed
@@ -246,11 +247,11 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl = cast(Any, editor)
             assert await wait_until(
-                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
             )
-            assert hl._tokens_for(0)
+            assert editor.tokens_for(0)
 
             from yate.editor_view import theme
             mocha = theme.active()
@@ -268,7 +269,7 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
             # tokenize pass is pending: the stale tokens keep coloring
             # the view right after the keypress (no uncolored frame).
             await pilot.press("x")
-            assert hl._tokens_for(0)
+            assert editor.tokens_for(0)
             assert mocha.syn_keyword.lower() in colors_at(0)
 
             # Exactly one debounced pass is pending for the latest
@@ -276,23 +277,26 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
             # the same timer. Checked synchronously after a direct
             # buffer edit: race-free even on a loaded machine.
             app.editor.session.buffer.insert_text("y")
-            assert hl._tokens_for(0)
-            key = hl._hl_scheduled_key
-            timer = hl._hl_timer
+            assert editor.tokens_for(0)
+            probe = editor.highlight_probe()
+            timer = probe.timer
+            key = probe.scheduled_key
             assert timer is not None
             assert key is not None
             assert key[2] == app.editor.session.buffer.content_version
-            hl._tokens_for(0)
-            hl._tokens_for(1)
-            assert hl._hl_timer is timer
-            assert hl._hl_scheduled_key == key
+            editor.tokens_for(0)
+            editor.tokens_for(1)
+            probe = editor.highlight_probe()
+            assert probe.timer is timer
+            assert probe.scheduled_key == key
 
             # ...and the pending pass converges to the latest version
             assert await wait_until(
                 pilot,
-                lambda: hl._hl_tokens is not None
-                and hl._hl_version == app.editor.session.buffer.content_version
-                and hl._hl_scheduled_key is None,
+                lambda: editor.highlight_probe().tokens is not None
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version
+                and editor.highlight_probe().scheduled_key is None,
                 timeout=5.0,
             )
 
@@ -309,31 +313,33 @@ def test_stale_highlight_not_reused_on_filetype_or_document_switch(
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl = cast(Any, editor)
             assert await wait_until(
-                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
             )
-            assert hl._tokens_for(0)
+            assert editor.tokens_for(0)
 
             # filetype switch: python tokens must not color the file
             app.editor.run_command("set filetype=plaintext")
-            assert hl._tokens_for(0) == []
+            assert editor.tokens_for(0) == []
             assert await wait_until(
                 pilot,
-                lambda: hl._hl_filetype == "plaintext"
-                and hl._hl_version == app.editor.session.buffer.content_version,
+                lambda: editor.highlight_probe().filetype == "plaintext"
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version,
                 timeout=5.0,
             )
 
             # document switch: the old document's tokens must not leak
-            old_doc = hl.doc
+            old_doc = editor.doc
             app.editor.run_command("enew")
-            assert hl.doc is not old_doc
-            assert hl._tokens_for(0) == []
+            assert editor.doc is not old_doc
+            assert editor.tokens_for(0) == []
             assert await wait_until(
                 pilot,
-                lambda: hl._hl_doc is hl.doc
-                and hl._hl_version == app.editor.session.buffer.content_version,
+                lambda: editor.highlight_probe().doc is editor.doc
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version,
                 timeout=5.0,
             )
 
@@ -2177,7 +2183,6 @@ def test_highlighting_follows_the_override() -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl_view = cast(Any, editor)
             app.editor.session.buffer.insert_text("def foo():\n    pass\n")
             # Plain-text detection for an unnamed buffer -> no tokens.
             # Wait for the background pass: a direct buffer edit does not
@@ -2185,18 +2190,21 @@ def test_highlighting_follows_the_override() -> None:
             # (empty) buffer is discarded, so a single pilot.pause() does
             # not guarantee the pass has stored its result.
             assert await wait_until(
-                pilot, lambda: hl_view._hl_filetype == "plaintext",
+                pilot,
+                lambda: editor.highlight_probe().filetype == "plaintext",
                 timeout=5.0,
             )
 
             app.editor.run_command("set filetype=python")
             changed = await wait_until(
-                pilot, lambda: hl_view._hl_filetype == "py", timeout=5.0
+                pilot,
+                lambda: editor.highlight_probe().filetype == "py",
+                timeout=5.0,
             )
             assert changed
             pairs = [
                 (t.kind, "def foo():"[t.start:t.end])
-                for t in hl_view._tokens_for(0)
+                for t in editor.tokens_for(0)
             ]
             assert ("keyword", "def") in pairs
             assert ("function", "foo") in pairs
@@ -3860,14 +3868,15 @@ def test_wq_does_not_crash_on_unicode_encode_error(tmp_path: Path) -> None:
 
             # save failed -> guard aborts the quit; editor stays alive and
             # the full unsaved content survives in memory, so the user can
-            # still recover it via :saveas with a UTF-8-capable path.
-            # (Note: write_text() truncates before the encoder raises, so
-            # the on-disk bytes are not preserved -- atomic temp-file
-            # replace would be a separate hardening change.)
+            # still recover it via :saveas with a UTF-8-capable path. The
+            # save itself is atomic (sibling temp file + os.replace, with
+            # encoding done before anything is written), so the on-disk
+            # bytes survive the failed write untouched.
             assert app.is_running
             assert app.editor.session.doc.modified
             assert "save failed" in _message_text(app)
             assert app.editor.session.doc.buffer.get_text() == "caf\u00e9\U0001f600"
+            assert target.read_bytes() == "caf\xe9".encode("cp1252")
 
     asyncio.run(scenario())
 
@@ -4198,5 +4207,302 @@ def test_tree_helper_line_of_and_find_node(tmp_path: Path) -> None:
             assert tree._line_of(sub / "inner.txt") == 2
             assert tree._line_of(top) == 3
             assert tree._line_of(root / "missing.txt") is None
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------- SP3 render-path regression guards
+
+
+def test_render_line_queries_diagnostics_once_per_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S12: render_line looks up the row's diagnostics exactly once.
+
+    The gutter marks and the underline pass share one ``diagnostics_on_line``
+    lookup per rendered row; the pre-fix code scanned the diagnostics twice
+    for every row.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "diag.py"
+        target.write_text(
+            "x = 1\ny = 2\nz = 3\nw = 4\nv = 5\n", encoding="utf-8"
+        )
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            from yate.editor_core.document import Document
+            from yate.editor_lsp import Diagnostic, protocol
+
+            app.editor.lsp.handle_notification(
+                "textDocument/publishDiagnostics",
+                {
+                    "uri": protocol.path_to_uri(target.resolve()),
+                    "diagnostics": [
+                        {
+                            "range": {
+                                "start": {"line": 0, "character": 0},
+                                "end": {"line": 0, "character": 1},
+                            },
+                            "severity": 1,
+                            "message": "boom",
+                            "source": "test",
+                        },
+                        {
+                            "range": {
+                                "start": {"line": 2, "character": 0},
+                                "end": {"line": 2, "character": 1},
+                            },
+                            "severity": 2,
+                            "message": "meh",
+                            "source": "test",
+                        },
+                    ],
+                },
+            )
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            lsp = app.editor.lsp
+            calls: list[int] = []
+            real = lsp.diagnostics_on_line
+
+            def counting(doc: Document, row: int) -> list[Diagnostic]:
+                calls.append(row)
+                return real(doc, row)
+
+            monkeypatch.setattr(lsp, "diagnostics_on_line", counting)
+
+            # exactly one lookup per rendered row, in row order
+            for row in range(5):
+                editor.render_line(row)
+            assert calls == [0, 1, 2, 3, 4]
+
+    asyncio.run(scenario())
+
+
+def test_welcome_rows_cached_per_theme_and_keymap() -> None:
+    """S13: welcome rows are reused until the theme or keymap changes."""
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            from yate.editor_view import theme
+
+            # same (theme, keymap) cache key: the same row list object
+            first = editor._welcome_lines(theme.active(), vim_keys=False)
+            assert editor._welcome_lines(theme.active(), vim_keys=False) is first
+
+            # keymap switch changes the cache key -> rows rebuilt
+            await pilot.press("ctrl+/")
+            assert editor.keymaps.name == "vim"
+            vim_rows = editor._welcome_lines(theme.active(), vim_keys=True)
+            assert vim_rows is not first
+            assert editor._welcome_lines(theme.active(), vim_keys=True) is vim_rows
+
+            # theme switch changes the key too -> rebuilt under latte
+            app.editor.set_theme("latte")
+            await pilot.pause()
+            latte_rows = editor._welcome_lines(theme.active(), vim_keys=True)
+            assert latte_rows is not vim_rows
+            theme.set_theme("mocha")  # restore default for other tests
+
+    asyncio.run(scenario())
+
+
+def test_discarded_highlight_pass_reschedules_immediately(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S14: a stale (discarded) tokenize pass re-arms without debouncing."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+
+            import threading
+
+            import yate.editor_view.editor as editor_module
+            from yate.editor_syntax.tokens import Token
+
+            real_tokenize = editor_module.tokenize_document
+            started = threading.Event()
+            gate = threading.Event()
+
+            def slow_tokenize(
+                lines: list[str], filetype: str
+            ) -> list[list[Token]]:
+                # hold the in-flight pass until the test has bumped the
+                # buffer version, making the pending result stale
+                started.set()
+                gate.wait(timeout=5.0)
+                return real_tokenize(lines, filetype)
+
+            monkeypatch.setattr(
+                editor_module, "tokenize_document", slow_tokenize
+            )
+            delays: list[float] = []
+            real_schedule = editor._schedule_highlight
+
+            def tracking_schedule(delay: float) -> None:
+                delays.append(delay)
+                real_schedule(delay)
+
+            monkeypatch.setattr(
+                editor, "_schedule_highlight", tracking_schedule
+            )
+
+            # start a pass and let it block inside the tokenizer thread
+            editor._schedule_highlight(0.0)
+            assert await wait_until(pilot, started.is_set, timeout=5.0)
+            delays.clear()
+
+            # edit while the pass is in flight: its result is discarded and
+            # the replacement pass must start immediately (delay 0.0) instead
+            # of costing another debounce window on top
+            app.editor.session.buffer.insert_text("x")
+            gate.set()
+            new_version = app.editor.session.buffer.content_version
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().tokens is not None
+                and editor.highlight_probe().version == new_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+            assert delays and delays[0] == 0.0
+
+    asyncio.run(scenario())
+
+
+def test_render_line_computes_cursor_anchor_once_per_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S15: one cursor/anchor lookup per rendered row (was three)."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            from typing import Optional
+
+            from yate.editor_core.buffer import Pos
+
+            calls = 0
+            real = editor._cursor_anchor
+
+            def counting() -> tuple[Pos, Optional[Pos]]:
+                nonlocal calls
+                calls += 1
+                return real()
+
+            monkeypatch.setattr(editor, "_cursor_anchor", counting)
+
+            # the pair is computed once per row and shared by the cursor
+            # paint, the selection and the style-range passes
+            editor.render_line(0)
+            assert calls == 1
+            editor.render_line(1)
+            assert calls == 2
+
+    asyncio.run(scenario())
+
+
+def test_doc_search_debounce_merges_rapid_typing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S40: rapid doc-search typing merges into one debounced rebuild."""
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("f8")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, MarkdownDocScreen)
+            from textual.widgets import Static
+
+            loading = screen.query_one("#doc-loading", Static)
+            assert await wait_until(
+                pilot, lambda: not loading.display, timeout=5.0
+            )
+            await pilot.press("slash")
+            await pilot.pause()
+
+            calls: list[str] = []
+            real_search = screen._run_search
+
+            def counting(query: str) -> None:
+                calls.append(query)
+                real_search(query)
+
+            monkeypatch.setattr(screen, "_run_search", counting)
+
+            # four keystrokes inside one trailing window: fewer rebuild
+            # passes than keystrokes, carrying the final query
+            keys = ("t", "h", "e", "m")
+            await pilot.press(*keys)
+            assert await wait_until(
+                pilot, lambda: len(calls) >= 1, timeout=5.0
+            )
+            assert len(calls) < len(keys)
+            assert calls[-1] == "".join(keys)
+
+    asyncio.run(scenario())
+
+
+def test_doc_search_enter_flushes_pending_query_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S40: submitting runs the pending query without waiting the window."""
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("f8")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, MarkdownDocScreen)
+            from textual.widgets import Static
+
+            loading = screen.query_one("#doc-loading", Static)
+            assert await wait_until(
+                pilot, lambda: not loading.display, timeout=5.0
+            )
+            await pilot.press("slash")
+            await pilot.pause()
+
+            calls: list[str] = []
+            real_search = screen._run_search
+
+            def counting(query: str) -> None:
+                calls.append(query)
+                real_search(query)
+
+            monkeypatch.setattr(screen, "_run_search", counting)
+
+            # type and submit before the 0.12s trailing window elapses:
+            # enter must flush the pending query right away
+            await pilot.press("k", "e", "y")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert calls == ["key"]
 
     asyncio.run(scenario())

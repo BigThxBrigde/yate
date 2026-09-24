@@ -4,17 +4,32 @@ PaneManager is driven with a real :class:`EditorSession` plus host-less
 callbacks: structure ops run host-less (``host is None``), exactly like the
 model would behave before the first widget mounts, so every tree/state rule
 is testable without a screen.
+
+One exception: the S17 scroll-restore regression test drives a real app
+under pilot, because the restore paths it guards live in the widget layer
+(``PaneHost.reconcile`` for inactive leaves, ``apply_doc`` for the focus
+leaf).
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
+import time
+from pathlib import Path
+from typing import Any, Awaitable, Callable, Optional
 
 import pytest
 
+# The S17 regression test launches the real app; make sure the bundled
+# Python LSP extension never probes PATH or spawns a server in tests.
+os.environ["YATE_PYTHON_LSP"] = "off"
+
+from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
+from yate.editor_view.editor import EditorView
 from yate.editor_view.panes import PaneManager
 from yate.session import (
     MIN_FRACTION,
@@ -415,3 +430,141 @@ def test_remove_node_renormalizes_nested_survivors() -> None:
     # the outer slots (their order and fractions) are untouched
     assert after.children[1] is sibling
     assert after.sizes == pytest.approx([0.7, 0.3])
+
+
+# --- S17 regression: scroll survives split/close -----------------------------
+# Widget-level test (see the module docstring): the restore paths it guards
+# live in PaneHost.reconcile (inactive leaves) and PaneManager.apply_doc
+# (focus leaf), so a real app under pilot is required.
+
+
+async def _wait_until(
+    pilot: Any, predicate: Callable[[], bool], timeout: float = 5.0
+) -> bool:
+    """Poll *predicate* between pilot pauses; False on timeout."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result: Awaitable[None] = pilot.pause(0.05)
+        await result
+        if predicate():
+            return True
+    return predicate()
+
+
+def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Scroll state survives split/close for every surviving pane.
+
+    Guards the two restore paths behind the SP3 fix plus the S17 mount-drop
+    repair: the reconcile loop re-applies the saved scroll of *inactive*
+    leaves, and the ``apply_doc`` follow-up does it for the focus leaf
+    (which the loop skips on purpose).  Both go through
+    ``PaneHost.restore_scroll``, which retries until the rebuilt view has
+    been laid out -- Textual silently clamps a scroll issued before the
+    first layout back to the origin (the fresh views still report
+    ``allow_vertical_scroll == False`` while ``virtual_size`` is empty).
+
+    The end-to-end widget offsets are asserted once the retry has landed:
+    both surviving panes actually show the saved row again, no manual
+    re-apply needed.  The spy counts stay ``>= 1`` (not exact) because a
+    retry legitimately re-issues the same restore call.
+    """
+
+    async def _scenario() -> None:
+        target = tmp_path / "long.txt"
+        target.write_text(
+            "\n".join(f"row {i}" for i in range(120)) + "\n",
+            encoding="utf-8",
+        )
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+            buf = app.editor.session.buffer
+
+            # park the cursor a few rows inside the visible window so
+            # reveal_cursor never overrides the saved scroll afterwards
+            buf.set_cursor((60, 0))
+            app.editor.refresh_ui()
+            await pilot.pause()
+            root = panes.root
+            assert isinstance(root, Leaf)
+            saved = panes.views[root.id].scroll_offset.y
+            assert saved > 0
+            buf.set_cursor((saved + 2, 0))
+            app.editor.refresh_ui()
+            await pilot.pause()
+            assert panes.views[root.id].scroll_offset.y == saved
+
+            # split: the first leaf goes inactive with its scroll captured
+            app.editor.run_command("split")
+            assert await _wait_until(pilot, lambda: panes.leaf_count == 2)
+            await pilot.pause()
+            root = panes.root
+            assert isinstance(root, Split)
+            a_leaf = root.children[0]
+            assert isinstance(a_leaf, Leaf)
+            assert panes.active is not a_leaf
+            assert a_leaf.state_for(a_leaf.doc).scroll_row == saved
+
+            # split the active pane again: three leaves, C active
+            app.editor.run_command("vsplit")
+            assert await _wait_until(pilot, lambda: panes.leaf_count == 3)
+            await pilot.pause()
+            ordered = leaves(panes.root)
+            assert ordered[0] is a_leaf
+            b_leaf = ordered[1]
+            c_leaf = ordered[2]
+            assert panes.active is c_leaf
+            assert b_leaf.state_for(b_leaf.doc).scroll_row == saved
+
+            # close the active pane C: B becomes focus (apply_doc restores
+            # it), A stays inactive (the reconcile restore loop restores it)
+            real_scroll_to = EditorView.scroll_to
+            scroll_calls: list[tuple[int, Optional[int]]] = []
+
+            def _spy_scroll_to(
+                view: EditorView,
+                x: Optional[float] = None,
+                y: Optional[float] = None,
+                **kwargs: Any,  # forwards Textual's own scroll_to keywords
+            ) -> None:
+                scroll_calls.append((view.leaf_id, None if y is None else int(y)))
+                real_scroll_to(view, x=x, y=y, **kwargs)
+
+            monkeypatch.setattr(EditorView, "scroll_to", _spy_scroll_to)
+
+            app.editor.run_command("close")
+            assert await _wait_until(pilot, lambda: panes.leaf_count == 2)
+            # the rebuild's mount-time restores are retried until the fresh
+            # views have been laid out (S17): both surviving panes end up
+            # showing the saved row again, no manual re-apply needed
+            assert await _wait_until(
+                pilot,
+                lambda: panes.views[a_leaf.id].scroll_offset.y == saved
+                and panes.views[b_leaf.id].scroll_offset.y == saved,
+            )
+            await pilot.pause()
+
+            assert panes.active is b_leaf
+            # both surviving leaves keep their saved view state (a pre-layout
+            # capture would have clobbered it with the origin placeholders)
+            assert a_leaf.state_for(a_leaf.doc).scroll_row == saved
+            assert b_leaf.state_for(b_leaf.doc).scroll_row == saved
+            # both restore paths fired at least once: the reconcile loop for
+            # inactive A, apply_doc for focus B.  Exact counts are not stable
+            # because an unmeasured retry legitimately re-issues the call.
+            assert scroll_calls.count((a_leaf.id, saved)) >= 1
+            assert scroll_calls.count((b_leaf.id, saved)) >= 1
+
+            # focusing the inactive pane re-applies its saved scroll through
+            # the same apply_doc path -- post-layout the widget keeps it
+            panes.views[a_leaf.id].focus()
+            assert await _wait_until(
+                pilot, lambda: panes.views[a_leaf.id].scroll_offset.y == saved
+            )
+            assert panes.active is a_leaf
+
+    asyncio.run(_scenario())

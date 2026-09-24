@@ -111,7 +111,17 @@ class TerminalView(Widget):
             proc: PtyProcess = make(argv, cwd, cols, rows)
             self.proc = proc
             self.shell_argv = list(argv)
-            await proc.start(self._on_output, self._on_exit)
+            try:
+                await proc.start(self._on_output, self._on_exit)
+            except Exception:  # noqa: BLE001 - re-raised; reset state first
+                # A failed spawn must not leave a phantom ``started`` shell:
+                # with proc set and dead False the revive path (any key /
+                # open()) would never fire again.  Cancellation is not caught
+                # on purpose -- the spawn thread may still have created the
+                # child, so shutdown() must keep the reference to reap it.
+                self.proc = None
+                self.dead = True
+                raise
         finally:
             self._starting = False
         self._last_title = self.emulator.title
@@ -277,7 +287,7 @@ class TerminalView(Widget):
             if style != current:
                 flush()
                 current = style
-            text_parts.append(cell.char if cell.char != " " else " ")
+            text_parts.append(cell.char)
             x += 1
         flush()
 

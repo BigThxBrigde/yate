@@ -465,3 +465,103 @@ def test_is_text_file_rejects_unknown_suffixes(tmp_path: Path) -> None:
     unknown = tmp_path / "thing.weird"
     unknown.write_text("x\n", encoding="utf-8")
     assert not Workspace.is_text_file(unknown)
+
+
+# --- traversal robustness (S11: iteration instead of recursion) --------------
+
+
+def test_walk_files_keeps_depth_first_order_across_directories(
+    tmp_path: Path,
+) -> None:
+    """A directory's whole subtree precedes later siblings, and files sort
+    after directories at every level."""
+    (tmp_path / "a.py").write_text("x\n", encoding="utf-8")
+    first = tmp_path / "dir-b"
+    second = tmp_path / "dir-c"
+    first.mkdir()
+    second.mkdir()
+    (first / "z.py").write_text("x\n", encoding="utf-8")
+    (second / "m.py").write_text("x\n", encoding="utf-8")
+
+    names = [p.name for p in Workspace(tmp_path).walk_files()]
+
+    assert names == ["z.py", "m.py", "a.py"]
+
+
+def test_walk_files_survives_a_1500_level_chain(
+    ws: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A chain 1500 directories deep is walked without RecursionError.
+
+    Real 1500-level trees cannot be created on stock Windows (MAX_PATH), so
+    the chain is fed through the same ``Path.iterdir`` seam the unreadable-
+    directory tests use; only ``child``/``leaf.txt`` names answer "yes" to
+    ``is_dir`` and everything else stays a plain in-memory Path.
+    """
+    root = root_of(ws)
+    depth = 1500
+
+    def chain_iterdir(path: Path) -> Any:
+        if path == root:
+            return iter([root / "child"])
+        if len(path.relative_to(root).parts) >= depth:
+            return iter([path / "leaf.txt"])
+        return iter([path / "child"])
+
+    def chain_is_dir(path: Path) -> bool:
+        return path == root or path.name == "child"
+
+    monkeypatch.setattr("pathlib.Path.iterdir", chain_iterdir)
+    monkeypatch.setattr("pathlib.Path.is_dir", chain_is_dir)
+
+    files = ws.walk_files()
+
+    assert [p.name for p in files] == ["leaf.txt"]
+
+
+def test_visible_tree_survives_a_1500_level_chain(
+    ws: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Flattening a 1500-level expanded chain must not recurse (S11)."""
+    root = root_of(ws)
+    depth = 1500
+
+    expanded: set[Path] = set()
+    node = root
+    for _ in range(depth):
+        node = node / "child"
+        expanded.add(node)
+
+    def chain_list_dir(path: Path) -> list[Entry]:
+        if path == root:
+            return [Entry(root / "child", "child", True)]
+        if len(path.relative_to(root).parts) >= depth:
+            return []
+        return [Entry(path / "child", "child", True)]
+
+    monkeypatch.setattr(ws, "list_dir", chain_list_dir)
+
+    rows = ws.visible_tree(expanded)
+
+    assert len(rows) == depth + 1  # the root plus every chain level
+    assert rows[-1][1].name == "child"
+
+
+def test_visible_tree_does_not_expand_a_symlink_loop(ws: Workspace) -> None:
+    """An expanded link to an ancestor is listed once, never descended into.
+
+    Descending would re-list the whole root (the loop target) at ever
+    growing depth and recurse forever.
+    """
+    root = root_of(ws)
+    try:
+        (root / "loop").symlink_to(root, target_is_directory=True)
+    except OSError:
+        pytest.skip("creating directory symlinks requires privileges on this OS")
+
+    rows = ws.visible_tree({root / "loop"})
+
+    names = [entry.name for _, entry in rows]
+    assert names.count("loop") == 1
+    assert names.count("plain.py") == 1
+    assert max(depth for depth, _ in rows) == 1

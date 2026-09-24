@@ -2,8 +2,9 @@
 
 Subcommands:
 
-* ``generate [--online] [--limit N] [--check] [--require-zh]
-  [--overrides PATH] [--root-only|--bundle-only]`` — render and write the
+* ``generate [--online] [--limit N] [--date YYYY-MM-DD] [--check]
+  [--require-zh] [--overrides PATH] [--root-only|--bundle-only]`` — render
+  and write the
   bilingual changelog to up to four targets: ``CHANGELOG.md`` /
   ``CHANGELOG.zh.md`` at the repository root and the end-user copies
   ``yate/resources/changelog.*.md`` (``--check`` only compares released
@@ -25,6 +26,7 @@ import argparse
 import datetime
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 from . import gitee, gitdata, render, segments, translations
 from .classify import classify_commit, is_changelog_entry
@@ -91,11 +93,12 @@ def _missing_zh(
     return [c.short_sha for c in entries if c.short_sha not in overrides]
 
 
-def _generated_notes(version: str) -> dict[str, str]:
-    today = datetime.date.today().isoformat()
+def _generated_notes(version: str, date: Optional[str]) -> dict[str, str]:
+    """The bundle-header generation note stamped with *date* or today."""
+    stamp = date if date is not None else datetime.date.today().isoformat()
     return {
-        "en": f"Generated from the git history on {today} · yate {version}",
-        "zh": f"由 git 历史自动生成于 {today} · yate {version}",
+        "en": f"Generated from the git history on {stamp} · yate {version}",
+        "zh": f"由 git 历史自动生成于 {stamp} · yate {version}",
     }
 
 
@@ -104,6 +107,7 @@ def generate(
     *,
     online: bool = False,
     limit: int | None = None,
+    date: Optional[str] = None,
     check: bool = False,
     require_zh: bool = False,
     targets: Sequence[str] = ("root", "bundle"),
@@ -131,7 +135,7 @@ def generate(
         if unpushed:
             print(f"warning: {len(unpushed)} commit(s) not found on Gitee")
 
-    notes = _generated_notes(version)
+    notes = _generated_notes(version, date)
     docs: dict[tuple[str, str], str] = {}
     for target in targets:
         for lang in _LANGS:
@@ -253,6 +257,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     gen.add_argument("--online", action="store_true", help="verify commits on Gitee")
     gen.add_argument("--limit", type=int, default=None, help="only newest N commits")
     gen.add_argument(
+        "--date",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="stamp the generated-notes line (default: today)",
+    )
+    gen.add_argument(
         "--check", action="store_true", help="compare against disk, do not write"
     )
     gen.add_argument(
@@ -306,6 +316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             repo,
             online=args.online,
             limit=args.limit,
+            date=args.date,
             check=args.check,
             require_zh=args.require_zh,
             targets=targets,

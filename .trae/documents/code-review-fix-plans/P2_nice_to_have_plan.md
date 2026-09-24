@@ -7,6 +7,7 @@
 > **2026-09-24 状态复核**：原 N1–N17 逐条对照当前代码核实，**全部仍存在**（行号已按
 > 现状修正）；另将 review.md 2026-09-23 / 2026-09-24 各审查段仍未修复的低影响条目
 > 补入为 **N18–N31**。已修复条目（如 e2e git 测试缺失）见 review.md 对应 [x] 标注。
+> 编号 N9 / N11 / N12 为登记时的跳号（无对应条目），非遗漏。
 >
 > 统一门槛同 [P0](P0_critical_fixes_plan.md)（pyright 零诊断、pytest 全绿、
 > **冒烟 `python -m tools.smoke_test run --fail-only` 全绿**——每批收尾必跑；
@@ -42,14 +43,16 @@
 | N29 | harness 重写行沿用 `# type: ignore` 无理由注释 | [harness.py:274-283](../../../tools/smoke_test/harness.py) | 补理由注释归档豁免（工具代码，若属既定豁免） | 无（注释） |
 | N30 | L0 config 惰性 import L2 `editor_view.theme`（层级债） | [config.py:171-173](../../../yate/config.py) | 后续下沉或注入回调，并在 `architecture-boundaries.md` 登记冻结（类似 R11）；**动架构前需评审** | 架构测试 + pyright 全绿 |
 | N31 | `warn()` 在 `sys.stderr` 为 None 时退化写 stdout | [logs.py:85-87](../../../yate/logs.py) | `if sys.stderr is not None:` 再 print——stderr 不可用时静默丢弃，与 docstring「Never raises」一致 | monkeypatch `sys.stderr = None` 断言不抛且不写 stdout |
+| N32 | subject 字段可能包含嵌入的分隔符（理论性 Low） | tools/changelog/gitdata.py | body 经 maxsplit 保留杂散分隔符，subject 字段本身无防护；按实现固化行为或加断言/文档说明（2026-09-25 复核补入——review.md 2026-09-16 Suggestion 段唯一漏登记条目） | 现有 changelog 测试全绿 |
 
 ## 建议处理方式
 
-- **N4 / N6 / N10 / S16**（P1 已含）属「顺手清」级，可在任何触碰对应文件的
-  PR 里捎带完成；新增的 **N20 / N21 / N22 / N27 / N29 / N31** 同级；
+- **N4 / N6 / N10** 属「顺手清」级，可在任何触碰对应文件的 PR 里捎带完成
+  （S16 已随 P1 波次二完成，不再列入）；新增的 **N20 / N21 / N22 / N27 / N29 / N31** 同级；
 - **N1 / N8** 涉及行为变化，实施前需在目标环境人工验证；
 - **N30**（config → editor_view 层级债）牵动架构规则，须先评审并同步
   `architecture-boundaries.md`，不随普通 PR 捎带；
 - 其余为纯增益，按批次随 P1 工具链改动同批处理；
 - **N18** 的三个修法任选其一即可，倾向改动面最小的 ①；
 - **N25** 改名会波及扩展作者可见的 `Action` 导出名，需同步扩展文档。
+- **N32** 为理论性条目，随手清理即可。

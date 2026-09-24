@@ -98,32 +98,37 @@
 
 ### 🟡 Suggestion（建议修复）→ 计划：[P1](../documents/code-review-fix-plans/P1_suggestions_plan.md)
 
-- [ ] **正则模式每次 tokenize 重新编译** — `editor_syntax/regex_backend.py:570`
+- [x] **正则模式每次 tokenize 重新编译** — `editor_syntax/regex_backend.py:570`
   每次 `tokenize_document` 调用都重新构建并编译主正则。spec 不可变，结果始终相同。
   **建议：** 按 filetype 缓存编译后的模式。
   *复核：仍存在 — [regex_backend.py:412-431](../../yate/editor_syntax/regex_backend.py) `_code_line_pattern(spec)` 每次调用重建并 `re.compile`，无缓存。*
+  *✅ 已修复（2026-09-24）— [regex_backend.py](../../yate/editor_syntax/regex_backend.py) `_code_line_pattern` 加 `@lru_cache(maxsize=None)`（`LangSpec` 为 frozen dataclass 全不可变字段，specs 注册表单例无泄漏风险）；守卫 `test_code_line_pattern_is_cached_per_spec`。*
 
-- [ ] **配置模式布尔值正则每行编译 7 次** — `editor_syntax/regex_backend.py:647`
+- [x] **配置模式布尔值正则每行编译 7 次** — `editor_syntax/regex_backend.py:647`
   `_tokenize_config_line` 中为 7 个布尔值单词各编译一次正则。
   **建议：** 预编译为单一交替模式 `_CONFIG_BOOL_RE`。
   *复核：仍存在 — [regex_backend.py:674-676](../../yate/editor_syntax/regex_backend.py) 仍在循环内逐词构造模式。*
+  *✅ 已修复（2026-09-24）— [regex_backend.py](../../yate/editor_syntax/regex_backend.py) 模块级 `_CONFIG_BOOL_RE` 预编译交替模式替换循环内编译；守卫 `test_config_bool_words_match_on_word_boundaries_only`（on/off/yes/no 命中、`only` 词内不命中）。*
 
 - [x] **`Document.modified` 每次访问执行 O(n) 字符串比较** — `editor_core/document.py:82`
   每次访问调用 `get_text()` 并比较全文。UI 可能在每个渲染周期读取此属性。
   **建议：** 使用 `_dirty` 标志或按 `content_version` 缓存结果。
   **已修复（2026-09-23，提交 `05106d5` + `5190225`）：** 改为 `content_edits` 编辑计数 O(1) 快路径 + 行元组精确回退，跨 undo/redo 恒精确；`_Edit.weight` 保证合并打字场景计数对齐。
 
-- [ ] **`create()` 同步打开新文件** — `app_features/explorer.py:82`
+- [x] **`create()` 同步打开新文件** — `app_features/explorer.py:82`
   应使用 `open_path_later()` 保持一致性。
   *复核：仍存在 — [explorer.py:385-387](../../yate/editor_view/explorer.py) 仍同步调用 `self.open_path(target)`。*
+  *✅ 已修复（核实 2026-09-24，免实施）— explorer 的 `open_path` 协作者在接线层已注入异步形态（[editor.py:156](../../yate/editor.py)、:214、:1348 三处均为 `open_path=self.open_path_later`），explorer.py 内 `self.open_path(target)` 调用点保持原样即正确形态，无需改动。*
 
-- [ ] **`_original_excepthook` 在导入时捕获** — `crash.py:32`
+- [x] **`_original_excepthook` 在导入时捕获** — `crash.py:32`
   应在 `install()` 内部捕获，避免导入顺序问题。
   *复核：仍存在 — [logs.py:278-280](../../yate/logs.py) `CrashService` 构造时捕获 `sys.excepthook`，注释标明 import time。*
+  *✅ 已修复（2026-09-24）— [logs.py](../../yate/logs.py) `CrashService.__init__` 不再触碰 `sys.excepthook`（初始 `None`），捕获延迟到 `install()` 首次调用、`uninstall()` 恢复 install 时刻值；守卫 `test_install_chains_to_and_restores_a_hook_installed_after_import`。*
 
-- [ ] **宽字符（CJK）在最后一列被静默丢弃** — `editor_term/emulator.py:315`
+- [x] **宽字符（CJK）在最后一列被静默丢弃** — `editor_term/emulator.py:315`
   应换行到下一行显示，而非丢弃。
   *复核：仍存在 — [emulator.py:426-430](../../yate/editor_term/emulator.py) 宽字符到达最后一列仅设 autowrap 标记即返回，未实际换行。*
+  *✅ 已修复（2026-09-24）— [emulator.py](../../yate/editor_term/emulator.py) 宽字符到达末列且 DECAWM 开时：末列写空占位 → `_index()` 立即换行 → 新行 col 0 完整放置（宽字符物理放不进末列，无法延迟换行；DECAWM 关闭与行中间路径不变）；守卫 `test_wide_character_at_the_last_column_is_drawn_on_the_next_line` 等三条。*
 
 - [x] **`fc-cache` 使用 `shell=True`** — `services/fonts.py:230`
   不必要且可移植性差。
@@ -139,40 +144,48 @@
   与真实 vim 行为不一致。
   **已修复（核实 2026-09-23）：** [buffer.py:56-69](../../yate/editor_core/buffer.py) `word_end()` 先跳过空白再找词尾，vim `e` 动作基于该实现。
 
-- [ ] **`_exit_code` 对"仍活跃"和"API 失败"均返回 `None`** — `editor_term/pty_proc.py:495`
+- [x] **`_exit_code` 对"仍活跃"和"API 失败"均返回 `None`** — `editor_term/pty_proc.py:495`
   语义模糊，应区分两种状态。
   *复核：仍存在 — [pty_proc.py:557-566](../../yate/editor_term/pty_proc.py) `STILL_ACTIVE` 与 `GetExitCodeProcess` 失败均返回 `None`。*
+  *✅ 已修复（2026-09-24）— [pty_proc.py](../../yate/editor_term/pty_proc.py) 新增 `ExitState = Union[int, Literal["running", "failed"]]` 与三态方法 `_exit_code_or_failed()`，公开 `_exit_code()` 改为兼容包装（`Optional[int]` 签名不变）；校准：计划所称「L533 状态栏轮询」实为 `read_loop` 收尾的退出码查询；守卫为 ConPTY 三态各一条（Windows-only skip）。*
 
-- [ ] **递归 `walk_files` 可能超出递归限制** — `services/workspace.py:185`
+- [x] **递归 `walk_files` 可能超出递归限制** — `services/workspace.py:185`
   极深目录树会触发 `RecursionError`。
   **建议：** 改用迭代方式（`os.walk` 或显式栈）。
   *复核：部分修复 — 符号链接环已防护（2026-09-23，提交 `a89a720`，[workspace.py:244-248](../../yate/services/workspace.py)）；但实现仍为嵌套递归函数，极深目录的递归深度风险未变。*
+  *✅ 已修复（2026-09-24）— [workspace.py](../../yate/services/workspace.py) `walk_files` 与 `visible_tree` 均改显式栈迭代（严格保持原 DFS 前序：目录优先、`name.lower()`），`visible_tree` 补齐 symlink 环防护；守卫：1500 层深链不炸（合成虚拟链构造，跨平台可跑）+ 真实 symlink 环用例。*
 
-- [ ] **`diagnostics_on_line` 每行渲染调用两次** — `editor_view/editor.py:440`
+- [x] **`diagnostics_on_line` 每行渲染调用两次** — `editor_view/editor.py:440`
   一次用于 gutter 标记，一次用于下划线。
   **建议：** 计算一次并作为参数传递。
   *复核：仍存在 — [editor.py:424-427](../../yate/editor_view/editor.py) 与 [editor.py:571-590](../../yate/editor_view/editor.py) 各调一次。*
+  *✅ 已修复（2026-09-24）— [editor.py](../../yate/editor_view/editor.py) `render_line` 行内查一次 `line_diags` 后下传 gutter 与 `_diagnostic_underlines`（单行渲染 2 次→1 次，按降级策略落地——widget 层无逐帧钩子）；守卫 `test_render_line_queries_diagnostics_once_per_row`。*
 
-- [ ] **`_welcome_lines()` 每次渲染重建** — `editor_view/editor.py:506`
+- [x] **`_welcome_lines()` 每次渲染重建** — `editor_view/editor.py:506`
   内容仅在 keymap 变化时改变，应缓存。
   *复核：仍存在 — [editor.py:495-510](../../yate/editor_view/editor.py) 无缓存。*
+  *✅ 已修复（2026-09-24）— [editor.py](../../yate/editor_view/editor.py) `_welcome_lines` 改实例方法并按 `(theme.name, vim_keys)` 缓存（缓存键较原策略多一维主题，防主题切换返回旧色）；守卫 `test_welcome_rows_cached_per_theme_and_keymap`。*
 
-- [ ] **丢弃后未清除过期 highlight keys** — `editor_view/editor.py:365`
+- [x] **丢弃后未清除过期 highlight keys** — `editor_view/editor.py:365`
   导致即使没有待处理编辑也强制 80ms 防抖延迟。
   *复核：仍存在 — [editor.py:346-357](../../yate/editor_view/editor.py) discard 路径只清 scheduled key，未清 `_hl_tokens/_hl_doc/_hl_version/_hl_filetype`。*
+  *✅ 已修复（2026-09-24）— [editor.py](../../yate/editor_view/editor.py) discard 分支 `refresh()` 后追加 `_schedule_highlight(0.0)` 立即重排、跳过多余防抖窗口（旧 `_hl_tokens` 继续上色的防闪白设计保留，未清缓存）；守卫 `test_discarded_highlight_pass_reschedules_immediately`（不等 0.08s）。*
 
-- [ ] **`_cursor_anchor()` 每行渲染调用 3+ 次** — `editor_view/editor.py:131`
+- [x] **`_cursor_anchor()` 每行渲染调用 3+ 次** — `editor_view/editor.py:131`
   每次调用重新遍历 pane 树评估 `is_active_view`。
   **建议：** 计算一次并传递。
   *复核：仍存在 — [editor.py:151-158](../../yate/editor_view/editor.py) 渲染路径多处各自调用。*
+  *✅ 已修复（2026-09-24）— [editor.py](../../yate/editor_view/editor.py) `render_line` 行内 cursor/anchor 算一次，下传 `_selection` 与 `_row_style_ranges`（每行 3 次→1 次，与 S12 同模式）；守卫 `test_render_line_computes_cursor_anchor_once_per_row`。*
 
-- [ ] **死条件分支** — `editor_view/terminal.py:251`
+- [x] **死条件分支** — `editor_view/terminal.py:251`
   `cell.char if cell.char != ' ' else ' '` 两个分支相同——重构残留。
   *复核：仍存在 — [terminal.py:280](../../yate/editor_view/terminal.py) 恒等分支原样保留。*
+  *✅ 已修复（2026-09-24）— [terminal.py](../../yate/editor_view/terminal.py) 简化为 `cell.char`，删除恒等分支；终端渲染用例全绿。*
 
-- [ ] **冗余滚动恢复** — `editor_view/panes.py:415`
+- [x] **冗余滚动恢复** — `editor_view/panes.py:415`
   `reconcile` 为活动叶子恢复滚动，但 `apply_doc`（调用方）已经做过。
   *复核：仍存在 — [panes.py:474-483](../../yate/editor_view/panes.py)。*
+  *✅ 已修复（2026-09-24；缺口与二次竞态补全 2026-09-25）— [panes.py](../../yate/editor_view/panes.py) reconcile 恢复循环跳过 focus 叶子（split/close/only 调用方均随后 `apply_doc` 恢复活动叶子，重复仅此一份），守卫 `test_split_close_restores_scroll_for_focus_and_inactive_leaves`；守卫探明的 mount 期存量缺口（首次 layout 前 `scroll_to` 被 Textual 钳回原点）已修复：新增 `PaneHost.restore_scroll` 重试至落点到位，reconcile 与 `apply_doc` 统一走它；同日全量验证抓到的二次竞态（视图已测得但延迟 `_scroll_to` 未落地时 `capture_active` 回写占位 0）以 `PaneManager.pending_restores` 登记在途叶子修复；守卫升级为直接断言 close 后 `scroll_offset.y == saved`，连跑 3 遍无抖动。*
 
 - [x] **`id(document)` 作为字典键存在风险** — `editor_view/panes.py:32`
   若文档被 GC 且地址复用，会取到过期状态。
@@ -183,45 +196,56 @@
   **建议：** 使用 fixture 作用域列表或 `monkeypatch.setattr`。
   **已修复（核实 2026-09-23）：** [test_terminal.py:268-311](../../tests/test_terminal.py) fixture 已在每个测试前重置 `instances` 并 monkeypatch PTY 实现，泄漏路径已消除。
 
-- [ ] **测试生成 30 秒 sleep 子进程** — `tests/test_lsp.py`
+- [x] **测试生成 30 秒 sleep 子进程** — `tests/test_lsp.py`
   清理失败时有孤儿进程风险。
   **建议：** 使用更短的 sleep 或自终止脚本。
   *复核：仍存在 — [test_lsp.py:847](../../tests/test_lsp.py) 仍 `time.sleep(30)`。*
+  *✅ 已修复（2026-09-24）— [test_lsp.py](../../tests/test_lsp.py) 改 `time.sleep(2)` 自终止脚本，等 STARTING 上限收窄至 1.5s、`wait_for(proc.wait(), 4.0)`；清理失败路径的暴露窗口从 30s 收窄到 ~2s（目标用例实测 0.23s）。*
 
-- [ ] **硬编码版本号 `"0.2.4"`** — `tests/test_theme_palettes.py`
+- [x] **硬编码版本号 `"0.2.4"`** — `tests/test_theme_palettes.py`
   每次发版需手动更新。
   **建议：** 添加 semver 可解析断言，或交叉引用发布工具。
   *复核：仍存在 — [test_theme_palettes.py:271](../../tests/test_theme_palettes.py) 仍 `assert yate.__version__ == "0.2.4"`。*
+  *✅ 已修复（2026-09-24）— [test_theme_palettes.py](../../tests/test_theme_palettes.py) 改 `re.fullmatch(r"\d+\.\d+\.\d+", yate.__version__)` + 非空校验，与发版解耦；`test_pyproject_keeps_the_single_dynamic_version_source` 保留。*
 
-- [ ] **`generate()` 使用 `date.today()` 导致输出不可复现** — `tools/changelog/cli.py`
+- [x] **`generate()` 使用 `date.today()` 导致输出不可复现** — `tools/changelog/cli.py`
   **建议：** 接受可选 `date` 参数。
   *复核：仍存在 — [cli.py:92](../../tools/changelog/cli.py) 仍 `datetime.date.today()`，CLI 无 `--date`。*
+  *✅ 已修复（2026-09-24）— [cli.py](../../tools/changelog/cli.py) `generate(..., date: Optional[str] = None)` + CLI `--date YYYY-MM-DD`，未给时保持 `today()`（行为不变）；守卫 `test_generate_date_option_stamps_generated_notes` / `test_generate_cli_date_flag_is_honored`。*
 
-- [ ] **`--limit` 标志无测试** — `tests/test_changelog_tool.py`
+- [x] **`--limit` 标志无测试** — `tests/test_changelog_tool.py`
   *复核：仍存在 — CLI 已有 `--limit`（[cli.py:251](../../tools/changelog/cli.py)），测试文件无对应用例。*
+  *✅ 已修复（2026-09-24）— 守卫 `test_generate_limit_1_keeps_only_the_newest_commit`（并断言两次 `read_commits` 均转发 limit=1）、`test_generate_limit_zero_and_negative_forwarded_verbatim`（实测固化：`limit=0` → 空条目文档、`limit=-1` → 全部条目，git log -n 语义）。*
 
 - [x] **大小写不敏感匹配机制未文档化** — `tests/test_workspace_filter.py`
   **已修复（核实 2026-09-23）：** [test_workspace_filter.py:160-164](../../tests/test_workspace_filter.py) 已有专门用例 `test_matching_is_case_insensitive` 固化该行为。
 
-- [ ] **`position` 变量名用于两个不同概念** — `tools/changelog/segments.py`
+- [x] **`position` 变量名用于两个不同概念** — `tools/changelog/segments.py`
   **建议：** 重命名循环变量为 `seg_index`。
   *复核：仍存在 — [segments.py:102](../../tools/changelog/segments.py)（段序号）与 [segments.py:122](../../tools/changelog/segments.py)（commit 位置）同名。*
+  *✅ 已修复（2026-09-24）— [segments.py](../../tools/changelog/segments.py) 循环变量改名 `seg_index`（L102-114），commit 拓扑位置 `position` 保持；纯重命名零行为变化，changelog 53 用例全绿。*
 
 - [ ] **subject 字段可能包含嵌入的字段分隔符** — `tools/changelog/gitdata.py`
   理论上的问题，实际极不可能。
   *复核：仍存在（理论性）— body 经 `maxsplit` 保留杂散分隔符，subject 字段本身无防护。*
+  *⏳ 待实施（2026-09-25 复核）：未实现、未放弃——已补入
+  [P2 计划 N32](../documents/code-review-fix-plans/P2_nice_to_have_plan.md)（理论性 Low，
+  按实现固化行为或加断言/文档说明，随手清理级）。*
 
-- [ ] **`files_dirty` 路径解析可能误处理前导空格** — `tools/release/cli.py`
+- [x] **`files_dirty` 路径解析可能误处理前导空格** — `tools/release/cli.py`
   *复核：仍存在 — [cli.py:63-75](../../tools/release/cli.py) 解析逻辑未变。*
+  *✅ 已修复（2026-09-24）— [cli.py](../../tools/release/cli.py) `files_dirty` 改 `git status --porcelain -z` NUL 分隔解析（路径 verbatim，R/C 记录消耗第二 NUL 字段，实测新路径在前），返回签名不变；守卫 `test_files_dirty_returns_verbatim_paths_from_a_real_repo` / `test_files_dirty_consumes_z_rename_records_and_keeps_quotes`。*
 
-- [ ] **测试深度访问私有 highlight 属性** — `tests/test_app_textual.py`
+- [x] **测试深度访问私有 highlight 属性** — `tests/test_app_textual.py`
   与实现紧耦合，重构时易碎。
   **建议：** 暴露窄接口（如 `HighlightProbe` protocol）。
   *复核：仍存在 — [test_app_textual.py:204-314](../../tests/test_app_textual.py) 仍直接断言 `_hl_tokens` 等私有属性。*
+  *✅ 已修复（2026-09-24）— [editor.py](../../yate/editor_view/editor.py) 新增公开 `highlight_probe()`（`HighlightProbe` frozen dataclass 只读快照，含 tokens/doc/version/filetype/scheduled_key/timer）与公开 `tokens_for(row)`；[test_app_textual.py](../../tests/test_app_textual.py) 全部 30 处私有访问迁移至探针，`cast(Any, editor)` 已删除（无 Protocol，合规 R2）。*
 
-- [ ] **`_FakeApp` 未实现所有 app hooks** — `tests/test_editor_core.py`
+- [x] **`_FakeApp` 未实现所有 app hooks** — `tests/test_editor_core.py`
   新增 keymap action 调用未实现方法时会抛 `AttributeError`。
   *复核：仍存在 — [test_editor_core.py:394-406](../../tests/test_editor_core.py) 仍为最小 stand-in（已有 docstring 说明边界）。*
+  *✅ 已修复（2026-09-24）— [test_editor_core.py](../../tests/test_editor_core.py) `_FakeApp` 加 `__getattr__`（非下划线名返回记录调用的 no-op，`_`/dunder 抛 AttributeError 防递归），docstring 注明「新 action 默认 no-op」；守卫：未实现 hook 可调且被记录、`_private` 仍抛 AttributeError。*
 
 ---
 
@@ -335,7 +359,7 @@
 > 冒烟 [`regress_completion_popup_keys`](../../tools/smoke_test/scenarios/regression.py) 用 0.3s 落定等待规避它，
 > 是为了让断言只测"键位分工"，并未掩盖该现象本身。
 
-- [ ] **Esc 关闭补全弹窗后，在途的自动补全 worker 会把它重新显示（Low，UX 抖动）** — [`completion.py:128`](../../yate/completion.py)
+- [x] **Esc 关闭补全弹窗后，在途的自动补全 worker 会把它重新显示（Low，UX 抖动）** — [`completion.py:128`](../../yate/completion.py)
   `popup.close()` 只改弹窗状态、不取消已排队的请求：`CompletionController._stale()`
   （[`completion.py:202-219`](../../yate/completion.py)）只比较文档 / 行 / 列 / 前缀与挂载状态，
   不检查弹窗是否被用户显式关闭，因此 worker 落地后仍会调用 `popup.show()`。
@@ -345,6 +369,7 @@
   **修复：** 关闭时记录"用户已忽略"标记（或递增 generation / 取消在途 worker），
   `_worker` 与 `_stale()` 一并检查；用户再次主动触发（`Ctrl+Space`，或继续输入使前缀变化）时清除。
   注意与 `after_editor_key` 的 `schedule()` 区分：后者属于主动输入路径的 guarded re-query，应保留。
+  *✅ 已修复（2026-09-24）— [completion.py](../../yate/completion.py) 三状态标记（`_dismissed`/`_scheduled_open`/`_inflight_open`）：`close()` 记录已忽略、`schedule()` 主动输入重 arm、非手动 `request()` 遇已忽略或「调度时开着、触发前已被关闭」放弃、`_stale()` 增在途关闭抑制子句；校准：Esc 分支在 editor.py widget 级直调 `popup.close()` 不经过控制器，配合 `is_open` 差分检测（`_scheduled_open` + `_inflight_open`）；守卫 `test_esc_keeps_the_popup_closed_until_retriggered` 及防抖抑制、gated LSP stub 在途抑制共 3 条。*
 
 ---
 
@@ -439,9 +464,10 @@
   （`test_startup_resolves_a_symlinked_cwd_for_trust_and_loading`、`test_startup_reports_the_resolved_path_when_skipping_a_symlinked_cwd`），
   并单列 `test_startup_treats_a_literal_symlink_entry_as_its_resolved_root` 显式记录该归一化行为。
 
-- [ ] **（附带发现，Low/中）symlink 重定向即可改变信任对象** — [`services/trust.py`](../../yate/services/trust.py)
+- [x] **（附带发现，Low/中）symlink 重定向即可改变信任对象** — [`services/trust.py`](../../yate/services/trust.py)
   信任按"读取时 resolve 后的路径"匹配：若 store 中某条目本身是 symlink 路径，链接被重定向后**无需重新 `:trust`** 即信任到新目标。
   彻底修复需改存储策略（落盘真实路径 / inode 校验，或在 `:trust` 时拒绝写入 symlink 路径），改动面超出本轮审查范围，**未修**。
+  *✅ 已修复（2026-09-24，最小加固方案——用户决策）— [trust.py](../../yate/services/trust.py) 新增 `_has_symlink_component()`，`trust_workspace` 写入前拒绝含 symlink 成分的条目（`log.warning` + 不落盘），store 只收 yate 自己写入的无链接 resolved 根，读取侧归一化行为保持全绿未动；遗留观察项同日处理：`trust_workspace` 改返回 `bool`（拒绝=False），`:trust` 被拒时报 error 消息并中止加载扩展，不再显示误导性 "trusted ..."；守卫：symlink 根 `:trust` 被拒、重定向后重启不信任须重新 `:trust`，`test_trust_refuses_a_symlinked_root` 增 `is False` 断言、roundtrip 增 `is True` 断言。*
 
 ---
 
@@ -684,32 +710,34 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   **修复**：保存前 resolve，或文档注明行为变化。
   *✅ 按「文档注明」处置（2026-09-24）：docstring 注明 symlink / 硬链接与 Windows 句柄语义。*
 
-- [ ] **过时注释与已落地行为矛盾** —
+- [x] **过时注释与已落地行为矛盾** —
   [`test_app_textual.py:3781-3786`](../../tests/test_app_textual.py#L3781-L3786)
   注释仍称原子写是「separate hardening change」，实际已实现。
   **修复**：更新注释并断言磁盘字节完好。
-  *⏸ 未修（2026-09-24 复核）：`tests/test_app_textual.py` 该注释仍在。*
+  *✅ 已修复（2026-09-24）— 注释更正为「保存本身是原子的（临时文件 + `os.replace`，编码先于写盘）」，并新增断言 `target.read_bytes() == "café".encode("cp1252")` 固化磁盘字节完好。*
 
-- [ ] **`except BaseException:` 缺理由注释** —
+- [x] **`except BaseException:` 缺理由注释** —
   [`pty_proc.py:78`](../../yate/editor_term/pty_proc.py#L78)、
   [`document.py:150`](../../yate/editor_core/document.py#L150)
   同文件其他宽捕获均有理由注释，这两处没有（re-raise 不吞异常，纯风格）。
-  *⚠ 部分（2026-09-24 复核）：`document.py` 已补理由注释；`pty_proc.py:78` 仍未补。*
+  *✅ 已修复（2026-09-24）— [pty_proc.py:78](../../yate/editor_term/pty_proc.py#L78) 补理由注释（re-raise 不吞异常，settle 仅保 shutdown 不永久阻塞；document.py 侧此前已补）；:501 观察项（`_ConPty.spawn` 同类宽捕获）也已同日补齐理由注释（re-raise 清理 ConPTY/管道句柄，任何失败路径不泄漏）。*
 
 **存量（非本分支引入，大改文件中未顺手消除）（10 条）：**
 
-- [ ] **操作符删除（`dw`/`d$`）不写寄存器，`p` 粘贴旧内容** —
+- [x] **操作符删除（`dw`/`d$`）不写寄存器，`p` 粘贴旧内容** —
   [`vim.py:477-490`](../../yate/keymaps/vim.py#L477-L490)
   `buf.delete_selection()` 返回值被丢弃且该方法不自设 register；对照 visual 路径
   （vim.py:217-219）显式写 `buf.register`。复现：`yy` → 移动 → `dw` → `p` 粘出旧行。
   **修复**：同 visual 路径捕获返回值写寄存器。*存量（旧 vim.py 相同），影响真实故保留登记。*
+  *✅ 已修复（2026-09-24）— [vim.py](../../yate/keymaps/vim.py) 删除分支捕获 `buf.delete_selection()` 返回值写 `buf.register`（与 visual 路径一致）；守卫：`dw`→`p` 粘出被删词、`yy`→`d$` 寄存器被替换共 3 条。*
 
-- [ ] **PTY 启动失败后终端永久空白无法复活** —
+- [x] **PTY 启动失败后终端永久空白无法复活** —
   [`terminal.py:104-121`](../../yate/editor_view/terminal.py#L104-L121)
   `self.proc = proc` 在 `await proc.start()` **之前**赋值；spawn 失败只 settle future 不调
   `_on_exit`，`dead` 恒 False → `started` 恒 True → 重生分支永不触发，只能重启应用。
   *存量（旧 terminal.py 逻辑相同）；本分支把 spawn 生命周期收进新写的 `TerminalPanel`，
   恢复契约已是新代码职责。**修复**：`spawn_shell` 失败分支复位 `proc=None`/`dead=True`。*
+  *✅ 已修复（2026-09-24）— [terminal.py](../../yate/editor_view/terminal.py) `await proc.start(...)` 包 `try/except Exception`，失败分支复位 `proc=None`、`dead=True` 后 re-raise（故意不捕 BaseException——取消时保留 spawn 线程已建子进程的引用供 `shutdown()` 回收）；守卫 `test_spawn_failure_marks_the_view_dead_and_revivable`（二次 start 成功，重生端到端可达）。*
 
 - [ ] **`add_binding` 覆盖 `_index` 但旧 binding 残留，help 双条目** —
   [`keymaps/base.py:229-240`](../../yate/keymaps/base.py#L229-L240)
@@ -719,42 +747,49 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   [`vim.py:240-245`](../../yate/keymaps/vim.py#L240-L245)
   `pending` 恒空且 `"g"` ∈ `_MOTION_CODES`，第二分支不可达。*存量。*
 
-- [ ] **渲染热路径每行重复查询 LSP 诊断两次** —
+- [x] **渲染热路径每行重复查询 LSP 诊断两次** —
   [`editor_view/editor.py:424,576`](../../yate/editor_view/editor.py#L424-L576)
   `render_line` 与 `_diagnostic_underlines` 对同一行各查一次（每次遍历全诊断）。
   *存量；本轮大改该文件，可顺手把结果传参消除。*
+  *✅ 已修复（2026-09-24）— 同 S12（2026-09-16 Suggestion 段同条已回填）；守卫 `test_render_line_queries_diagnostics_once_per_row`。*
 
-- [ ] **文档搜索每按键全量重渲染所有块 widget，无防抖** —
+- [x] **文档搜索每按键全量重渲染所有块 widget，无防抖** —
   [`manual.py:341-379`](../../yate/editor_view/manual.py#L341-L379)
   大文档输入卡顿。*存量。* **修复**：仿 `EditorView._HIGHLIGHT_DEBOUNCE_S` 用 `call_later` 防抖。
+  *✅ 已修复（2026-09-24）— [manual.py](../../yate/editor_view/manual.py) 搜索改尾沿防抖（`_SEARCH_DEBOUNCE_S = 0.12`，`asyncio.get_running_loop().call_later` 窗口期合并查询），Enter 提交先 flush 保持命中语义、回调带 `is_mounted` 守护；守卫 `test_doc_search_debounce_merges_rapid_typing` / `test_doc_search_enter_flushes_pending_query_immediately`。*
 
-- [ ] **失败扩展模块残留 `sys.modules`** —
+- [x] **失败扩展模块残留 `sys.modules`** —
   [`extensions.py:389-423`](../../yate/services/extensions.py#L389-L423)
   `exec_module` 抛异常后不清理。*存量。*
+  *✅ 已修复（2026-09-24）— [extensions.py](../../yate/services/extensions.py) except 分支先 `sys.modules.pop(mod_name, None)` 再记录错误；守卫：import 即抛错的扩展 → 模块名不在 `sys.modules`。*
 
-- [ ] **`bind_key` 的 keymap 名拼写错误静默无绑定** —
+- [x] **`bind_key` 的 keymap 名拼写错误静默无绑定** —
   [`extensions.py:290-301`](../../yate/services/extensions.py#L290-L301)
   `keymaps.get(target)` 返回 None 直接跳过无提示。*存量。*
+  *✅ 已修复（2026-09-24）— [extensions.py](../../yate/services/extensions.py) 未命中时 `log.warning` 列出可用 keymap 名；守卫：不存在名字 → 有警告且不抛异常（守卫自带 handler 捕获——`yate` 根 logger `propagate=False`，caplog 不可见）。*
 
 - [ ] **L0 config 惰性 import L2 `editor_view.theme`，层级方向违规** —
   [`config.py:171-173`](../../yate/config.py#L171-L173)
   存量耦合仅改为惰性；建议后续下沉或注入回调，并在架构规则中登记（类似 R11 冻结）。
 
-- [ ] **`visible_tree` 递归无 symlink 环防护** —
+- [x] **`visible_tree` 递归无 symlink 环防护** —
   [`workspace.py:255-272`](../../yate/services/workspace.py#L255-L272)
   同轮已修 `walk_files`，此递归路径未覆盖，展开指向祖先的链接可栈溢出。*存量，Windows 影响有限。*
+  *✅ 已修复（2026-09-24）— 同 S11：`visible_tree` 随 S11 一并改显式栈迭代并补与 `walk_files` 相同的 symlink 环防护。*
 
 ### 💡 Suggestion（12 条）
 
-- [ ] **`KeymapSet` 空字典时抛裸 `StopIteration`** —
+- [x] **`KeymapSet` 空字典时抛裸 `StopIteration`** —
   [`keymaps/registry.py:19-21`](../../yate/keymaps/registry.py#L19-L21)
   显式 `raise ValueError(...)` 更可定位。
+  *✅ 已修复（2026-09-24）— [registry.py](../../yate/keymaps/registry.py) 空注册表显式 `raise ValueError("no keymaps registered")`；守卫：空注册表 `pytest.raises(ValueError)` 两条。*
 - [ ] **两个无关类型同名 `Action`**（callable 别名 vs dataclass）—
   [`base.py:160`](../../yate/keymaps/base.py#L160) / [`registries.py:26`](../../yate/registries.py#L26)，
   扩展作者易混淆；别名可改 `ActionFunc`。
 - [ ] **`if key == "o": pass` 死代码** — [`vim.py:372-373`](../../yate/keymaps/vim.py#L372-L373)。*存量。*
-- [ ] **`dg`/`yg` 空 motion 仍报 "deleted"/"yanked"** —
+- [x] **`dg`/`yg` 空 motion 仍报 "deleted"/"yanked"** —
   [`vim.py:303-321`](../../yate/keymaps/vim.py#L303-L321)：`"g"` 应排除出操作符 motion。
+  *✅ 已修复（2026-09-24）— [vim.py](../../yate/keymaps/vim.py) 操作符等待态排除 `"g"`（`gg` 属位置跳转），落入既有 unknown-motion 丢弃路径；守卫：`dg`/`yg` 后无消息、缓冲与寄存器不变（核实 `yg` 原会经 `yank_selection()` else 分支误写整行进 register）。*
 - [ ] **`handle_key` docstring「every check is pure」不实** —
   [`editor.py:529-535`](../../yate/editor.py#L529-L535)：
   `try_window_prefix` 变更 `_window_pending`、popup 分支执行 `accept_completion`；当前无双重派发，
@@ -764,15 +799,17 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   实例属性非类方法、当前无冲突消息，纯命名隐患；可改 `cancel_hook`。
 - [ ] **`score += 0  # consecutive: best` 死语句** —
   [`palette.py:58-59`](../../yate/editor_view/palette.py#L58-L59)。
-- [ ] **删除最后选中项后 `_last_selected` 悬挂** —
+- [x] **删除最后选中项后 `_last_selected` 悬挂** —
   [`explorer.py:107,119-123`](../../yate/editor_view/explorer.py#L107-L123)
   `_restore_cursor` 未命中时清 `None`。
+  *✅ 已修复（2026-09-24）— [explorer.py](../../yate/editor_view/explorer.py) `_restore_cursor` 未命中时 `_last_selected = None`；守卫 `test_restore_cursor_forgets_vanished_selection`。*
 - [ ] **内部导入组非字母序** — [`extensions.py:49-53`](../../yate/services/extensions.py#L49-L53)。
 - [ ] **trust.py 全用 `Path | None`**（[`trust.py:27,50,71`](../../yate/services/trust.py#L27-L71)）
   与规范 `Optional[X]` 不一致（与 Minor 的 explorer 条目同类，合并修）。
-- [ ] **dirty 状态下每次 `modified` 查询 O(N) tuple 分配** —
+- [x] **dirty 状态下每次 `modified` 查询 O(N) tuple 分配** —
   [`document.py:86-88`](../../yate/editor_core/document.py#L86-L88)
   状态栏每键查询；可按 `content_edits` 缓存上次判定（代码注释已自认知该权衡）。
+  *✅ 已修复（2026-09-24）— [document.py](../../yate/editor_core/document.py) `modified` 按 `content_edits` 计数 memo（计数不变直接返回缓存，save 末尾失效缓存防陈旧 True）；守卫 `test_modified_memo_stays_correct_across_save_and_undo`（save 失效 + 跨 undo 重算 + redo 往返）。*
 - [ ] **harness 重写行沿用 `# type: ignore`** —
   [`harness.py:274-283`](../../tools/smoke_test/harness.py#L274-L283)
   工具代码沿旧模式；若属既定豁免，补理由注释归档。
@@ -810,7 +847,7 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   **修复**：`if sys.stderr is not None:` 再 `print(...)`——stderr 不可用时静默丢弃，与
   「Never raises」承诺一致。
 
-- [ ] **崩溃报告 / trace 日志文件名仅秒级精度，同秒并发启动互相覆盖或交织（Low，功能性）** —
+- [x] **崩溃报告 / trace 日志文件名仅秒级精度，同秒并发启动互相覆盖或交织（Low，功能性）** —
   [`logs.py:396-401`](../../yate/logs.py#L396-L401)、[`logs.py:522-523`](../../yate/logs.py#L522-L523)
   `build_err_path` 生成 `crash-YYYYMMDD-HHMMSS.err`，且 [`logs.py:319`](../../yate/logs.py#L319) 以
   `"w"` 模式打开：同一秒内先后启动两个进程，后者截断前者的头部，两进程随后向同一文件交叉写入，
@@ -819,3 +856,4 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   （[`logs.py:221`](../../yate/logs.py#L221)）只交织不覆盖——同秒两进程的会话 header 会混入同一文件。
   *存量问题，非新引入；多 yate 实例共享同一数据目录，场景真实但触发概率低。*
   **修复**：文件名追加 pid（`crash-YYYYMMDD-HHMMSS-<pid>.err`）或改微秒精度时间戳；trace 同理。
+  *✅ 已修复（2026-09-24）— [logs.py](../../yate/logs.py) `build_err_path` 与 trace 文件名均追加 pid 后缀（`crash-YYYYMMDD-HHMMSS-<pid>.err`；trace 同理）；守卫：monkeypatch `os.getpid`（111/222）同秒两次 `build_err_path` 断言路径不同；副作用记录：test_crash.py 两处既有断言（文件名字面量与正则）固化的正是被修复的碰撞缺陷本身，已同步改为含 pid 的等价断言。*

@@ -63,16 +63,28 @@ def validate_version(version: str, current: str) -> None:
 
 
 def files_dirty(repo: Path, files: Sequence[str]) -> list[str]:
-    """Return the paths among ``files`` that have uncommitted changes."""
-    out = gitdata.run_git(["status", "--porcelain", "--", *files], repo=repo)
+    """Return the paths among ``files`` that have uncommitted changes.
+
+    Parses ``git status --porcelain -z`` (NUL-separated records, paths shown
+    verbatim without C-style quoting), so names containing spaces, quotes or
+    non-ASCII characters survive exactly; rename/copy entries put the new
+    path first and the source path in a second NUL-terminated field, which
+    is consumed and ignored.
+    """
+    out = gitdata.run_git(["status", "--porcelain", "-z", "--", *files], repo=repo)
     dirty: list[str] = []
-    for line in out.splitlines():
-        if not line.strip():
+    records = out.split("\0")
+    i = 0
+    while i < len(records):
+        record = records[i]
+        i += 1
+        if not record:
             continue
-        # Porcelain: two status chars, a space, then the (possibly quoted) path.
-        path = line[3:].strip().strip('"')
-        if " -> " in path:  # rename: "old -> new"
-            path = path.split(" -> ", 1)[1]
+        # -z record: two status chars, a space, then the verbatim path.
+        path = record[3:]
+        status = record[:2]
+        if ("R" in status or "C" in status) and i < len(records):
+            i += 1  # rename/copy: the source path is a second NUL field
         dirty.append(path)
     return dirty
 

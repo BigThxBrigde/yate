@@ -8,11 +8,15 @@ buffer/path candidate builders are plain functions over a ``TextBuffer``.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
+from yate.app import YateApp
+from yate.editor_core import Document
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.client import Completion
 from yate.editor_view import completion
@@ -386,3 +390,153 @@ def test_buffer_completions_trims_to_sixty_four_items() -> None:
     )
     assert prefix == "wor"
     assert len(items) == 64
+
+
+# --- controller dismissal (S30) ---------------------------------------------
+
+
+async def _wait_until(
+    pilot: Any, predicate: Callable[[], bool], timeout: float = 5.0
+) -> bool:
+    """Pause until *predicate* holds; its final value on timeout."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        await pilot.pause(0.05)
+        if predicate():
+            return True
+    return predicate()
+
+
+def _typed_doc_app(tmp_path: Path) -> YateApp:
+    """An app over a document whose tail line holds the half-typed ``al``."""
+    doc = tmp_path / "note.txt"
+    doc.write_text("alpha bravo charlie\nalpha delta\n", encoding="utf-8")
+    return YateApp(target=doc)
+
+
+def test_escape_dismissal_survives_a_pending_debounce(tmp_path: Path) -> None:
+    """Esc closes the popup; the debounce scheduled before it stays silent.
+
+    The popup's Esc binding closes the widget directly (editor.py), so the
+    controller only sees the dismissal as an ``is_open`` flip between
+    ``schedule`` and the debounce firing.
+    """
+
+    async def scenario() -> None:
+        app = _typed_doc_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            popup = app.editor.completion_popup
+            assert popup is not None
+            controller = app.editor.completion
+            app.editor.session.buffer.move_doc_end()
+            app.editor.session.buffer.insert_text("\nal")
+            app.editor.refresh_ui()
+            await pilot.press("ctrl+space")
+            assert await _wait_until(pilot, lambda: popup.is_open)
+
+            # schedule the guarded re-query, then close the widget the way
+            # the popup's Esc binding does -- both in one loop tick, so the
+            # 0.12s debounce cannot fire in between
+            controller.after_editor_key("p")
+            popup.close()
+            resurrected = await _wait_until(
+                pilot, lambda: popup.is_open, timeout=0.5
+            )
+            assert not resurrected
+
+            # typing again is active input: the popup re-opens
+            controller.after_editor_key("p")
+            assert await _wait_until(pilot, lambda: popup.is_open)
+
+    asyncio.run(scenario())
+
+
+def test_escape_dismissal_survives_the_in_flight_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A query already in flight when the popup closes must not re-show it."""
+
+    async def scenario() -> None:
+        app = _typed_doc_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            popup = app.editor.completion_popup
+            assert popup is not None
+            controller = app.editor.completion
+            app.editor.session.buffer.move_doc_end()
+            app.editor.session.buffer.insert_text("\nal")
+            app.editor.refresh_ui()
+            await pilot.press("ctrl+space")
+            assert await _wait_until(pilot, lambda: popup.is_open)
+
+            # hold the next query mid-flight so the close lands first
+            gate = asyncio.Event()
+
+            async def _gated(*_args: Any, **_kwargs: Any) -> list[Completion]:
+                await gate.wait()
+                return [
+                    Completion(label="alpha", insert_text="alpha", kind=1)
+                ]
+
+            async def _shown(_doc: Document) -> None:
+                return None
+
+            def _supports(_doc: Document) -> bool:
+                return True
+
+            def _triggers(_doc: Document) -> list[str]:
+                return []
+
+            monkeypatch.setattr(controller.lsp, "supports", _supports)
+            monkeypatch.setattr(
+                controller.lsp, "on_document_shown", _shown
+            )
+            monkeypatch.setattr(
+                controller.lsp, "trigger_characters_for", _triggers
+            )
+            monkeypatch.setattr(
+                controller.lsp, "request_completion", _gated
+            )
+
+            await pilot.press("ctrl+space")  # worker starts, parks on the gate
+            await pilot.pause()
+            popup.close()  # the popup's Esc binding, mid-flight
+            gate.set()
+            await pilot.pause()
+            resurrected = await _wait_until(
+                pilot, lambda: popup.is_open, timeout=0.3
+            )
+            assert not resurrected
+
+    asyncio.run(scenario())
+
+
+def test_escape_then_ctrl_space_restores_the_popup(tmp_path: Path) -> None:
+    """Esc keeps the popup closed through the debounce; Ctrl+Space re-opens."""
+
+    async def scenario() -> None:
+        app = _typed_doc_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            popup = app.editor.completion_popup
+            assert popup is not None
+            app.editor.session.buffer.move_doc_end()
+            app.editor.session.buffer.insert_text("\nal")
+            app.editor.refresh_ui()
+            await pilot.press("ctrl+space")
+            assert await _wait_until(pilot, lambda: popup.is_open)
+
+            await pilot.press("p")  # schedules the guarded re-query
+            await pilot.press("escape")  # closes the widget directly
+            await pilot.pause()
+            assert not popup.is_open
+            resurrected = await _wait_until(
+                pilot, lambda: popup.is_open, timeout=0.5
+            )
+            assert not resurrected
+
+            await pilot.press("ctrl+space")
+            assert await _wait_until(pilot, lambda: popup.is_open)
+
+    asyncio.run(scenario())

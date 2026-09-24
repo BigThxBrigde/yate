@@ -1004,7 +1004,9 @@ def test_real_subprocess_starting_shutdown_leaves_no_garbage(
         cfg = ServerConfig(
             name="sleepy",
             command=sys.executable,
-            args=["-c", "import time; time.sleep(30)"],
+            # Self-terminates after ~2s: the test only needs a live child
+            # through the shutdown path, not a 30s orphan on failure.
+            args=["-c", "import time; time.sleep(2)"],
             filetypes=["py"],
         )
         mgr = LspManager()
@@ -1013,7 +1015,9 @@ def test_real_subprocess_starting_shutdown_leaves_no_garbage(
         shown = asyncio.ensure_future(mgr.on_document_shown(doc))
         try:
             clients = cast(Any, mgr)._clients
-            for _ in range(100):
+            # 30 x 0.05s: the child self-terminates after ~2s, so reaching
+            # STARTING must happen inside that window.
+            for _ in range(30):
                 if clients and next(iter(clients.values())).state \
                         is ServerState.STARTING:
                     break
@@ -1033,9 +1037,10 @@ def test_real_subprocess_starting_shutdown_leaves_no_garbage(
                 if issubclass(w.category, ResourceWarning)
             ] == []
             # the killed child must release its cwd before the test
-            # tears tmp down (cold Windows boxes can be slow here)
+            # tears tmp down (cold Windows boxes can be slow here; a
+            # missed kill still self-terminates at ~2s, hence 4.0)
             if real_proc is not None and real_proc.returncode is None:
-                await asyncio.wait_for(real_proc.wait(), timeout=5.0)
+                await asyncio.wait_for(real_proc.wait(), timeout=4.0)
         finally:
             if not shown.done():
                 shown.cancel()
