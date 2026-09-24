@@ -456,19 +456,19 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
 ) -> None:
     """Scroll state survives split/close for every surviving pane.
 
-    Guards the two restore paths behind the SP3 fix: the reconcile loop
-    re-applies the saved scroll of *inactive* leaves, and the ``apply_doc``
-    follow-up does it for the focus leaf (which the loop skips on purpose).
-    A spy on ``EditorView.scroll_to`` pins both calls down; a second restore
-    for the focus leaf would mean the loop stopped skipping it.
+    Guards the two restore paths behind the SP3 fix plus the S17 mount-drop
+    repair: the reconcile loop re-applies the saved scroll of *inactive*
+    leaves, and the ``apply_doc`` follow-up does it for the focus leaf
+    (which the loop skips on purpose).  Both go through
+    ``PaneHost.restore_scroll``, which retries until the rebuilt view has
+    been laid out -- Textual silently clamps a scroll issued before the
+    first layout back to the origin (the fresh views still report
+    ``allow_vertical_scroll == False`` while ``virtual_size`` is empty).
 
-    The final widget ``scroll_offset`` is deliberately not asserted: every
-    reconcile rebuild recreates the views, and Textual silently discards
-    scroll requests that run before the first layout pass (the fresh views
-    still report ``allow_vertical_scroll == False`` when the deferred
-    ``_scroll_to`` finally runs), so rebuilt views always read 0 no matter
-    what the restore paths do.  The preserved ``ViewState`` plus the
-    observed restore calls are the observable contract here.
+    The end-to-end widget offsets are asserted once the retry has landed:
+    both surviving panes actually show the saved row again, no manual
+    re-apply needed.  The spy counts stay ``>= 1`` (not exact) because a
+    retry legitimately re-issues the same restore call.
     """
 
     async def _scenario() -> None:
@@ -509,17 +509,6 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
             assert panes.active is not a_leaf
             assert a_leaf.state_for(a_leaf.doc).scroll_row == saved
 
-            # The split's rebuild dropped its mount-time scroll restores (see
-            # the docstring), so re-apply the saved scroll to the focused pane
-            # now that layout settled -- otherwise the vsplit capture below
-            # would overwrite its state with the discarded 0.
-            active = panes.active
-            assert isinstance(active, Leaf)
-            panes.views[active.id].scroll_to(y=saved, animate=False)
-            assert await _wait_until(
-                pilot, lambda: panes.views[active.id].scroll_offset.y == saved
-            )
-
             # split the active pane again: three leaves, C active
             app.editor.run_command("vsplit")
             assert await _wait_until(pilot, lambda: panes.leaf_count == 3)
@@ -549,22 +538,26 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
 
             app.editor.run_command("close")
             assert await _wait_until(pilot, lambda: panes.leaf_count == 2)
+            # the rebuild's mount-time restores are retried until the fresh
+            # views have been laid out (S17): both surviving panes end up
+            # showing the saved row again, no manual re-apply needed
             assert await _wait_until(
                 pilot,
-                lambda: scroll_calls.count((a_leaf.id, saved)) >= 1
-                and scroll_calls.count((b_leaf.id, saved)) >= 1,
+                lambda: panes.views[a_leaf.id].scroll_offset.y == saved
+                and panes.views[b_leaf.id].scroll_offset.y == saved,
             )
             await pilot.pause()
 
             assert panes.active is b_leaf
-            # both surviving leaves keep their saved view state
+            # both surviving leaves keep their saved view state (a pre-layout
+            # capture would have clobbered it with the origin placeholders)
             assert a_leaf.state_for(a_leaf.doc).scroll_row == saved
             assert b_leaf.state_for(b_leaf.doc).scroll_row == saved
-            # inactive leaf A: exactly one restore, from the reconcile loop
-            assert scroll_calls.count((a_leaf.id, saved)) == 1
-            # focus leaf B: exactly one restore, from the apply_doc follow-up
-            # (a second hit would mean the reconcile loop stopped skipping it)
-            assert scroll_calls.count((b_leaf.id, saved)) == 1
+            # both restore paths fired at least once: the reconcile loop for
+            # inactive A, apply_doc for focus B.  Exact counts are not stable
+            # because an unmeasured retry legitimately re-issues the call.
+            assert scroll_calls.count((a_leaf.id, saved)) >= 1
+            assert scroll_calls.count((b_leaf.id, saved)) >= 1
 
             # focusing the inactive pane re-applies its saved scroll through
             # the same apply_doc path -- post-layout the widget keeps it

@@ -292,11 +292,15 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 > `apply_doc(focus)` 恢复活动叶子，重复仅此一份；非活动叶子无 follow-up、恢复保留）。
 > 语义差异记录见 [SP3](P1_subplans/SP3_editor_view_rendering.md)。守卫：
 > `test_split_close_restores_scroll_for_focus_and_inactive_leaves`（两条恢复路径的
-> 调用语义 + state 保留 + 稳定期端到端）。**守卫探明的存量产品缺口（SP3 之前即存在，
-> 未修）**：mount 期（首次 layout 前）的 `scroll_to` 被 Textual 静默丢弃
-> （`virtual_size=(0,0)`）且无 post-layout 重试，分屏/关窗后重建 widget 的滚动恢复
-> 可能不生效、随后的 `capture_active` 会把 0 读回 ViewState；修复方向（post-layout
-> 重试或先补 virtual_size）超出本轮范围，留作后续项。
+> 调用语义 + state 保留 + 稳定期端到端）。
+> **守卫探明的存量产品缺口——已修复（2026-09-25）**：mount 期（首次 layout 前）的
+> `scroll_to` 被 Textual 静默钳回原点（`virtual_size=(0,0)`）。修复落点
+> [panes.py](../../../yate/editor_view/panes.py)：新增 `PaneHost.restore_scroll`
+> （未测得前按刷新周期重试，上限 8 次；卸载视图经 is_mounted 停链，重建后旧视图
+> 无法写入新视图），reconcile 恢复循环与 `apply_doc`（有 host 时）统一走它；
+> 同时 `capture_active` 在视图未测得时跳过滚动捕获，消除占位 0 回写 ViewState 的
+> clobber。守卫升级：移除测试侧补偿滚动，直接断言 close 后两个存活窗格 widget 的
+> `scroll_offset.y == saved`（修复前恒 0）；spy 计数因重试改为 ≥1。
 
 **证据：** [panes.py:461-467](../../../yate/editor_view/panes.py) reconcile 重建后恢复
 **全部叶子**的滚动；而调用链上的 [apply_doc](../../../yate/editor_view/panes.py#L160-L178)
