@@ -40,23 +40,25 @@ GITEE_URL="git@gitee.com:jermaine/yate.git"
 
 # ---------- 1. Connectivity test (exit immediately on failure; nothing to
 # clean up yet) ----------
-# BatchMode disables interactive password prompts (fail fast when no key is
-# available); accept-new auto-accepts the Gitee host key on first contact so
-# an unknown-host prompt cannot hang the script; ConnectTimeout bounds a
-# dead-network attempt.
 echo "==> [1/5] testing ssh connectivity to gitee ..."
-ssh_test="$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -T git@gitee.com 2>&1)"
-if ! printf '%s' "$ssh_test" | grep -q "successfully authenticated"; then
-    echo "error: gitee ssh connectivity test failed:" >&2
-    printf '%s\n' "$ssh_test" >&2
+ssh_test="$(ssh -T git@gitee.com 2>&1)"
+printf '%s\n' "$ssh_test"
+# The match runs on a letters-only projection of the banner: the live Gitee
+# greeting has been observed to contain invisible characters that defeat a
+# plain substring match even though the text looks identical on screen.
+# LC_ALL=C keeps tr byte-oriented and deterministic.
+if printf '%s' "$ssh_test" | LC_ALL=C tr -cd '[:alnum:]' | grep -q "successfullyauthenticated"; then
+    echo "==> [1/5] ok: authenticated"
+else
+    echo "error: gitee ssh connectivity test failed" >&2
     exit 1
 fi
-echo "==> [1/5] ok: $ssh_test"
 
-# Make git's own ssh transport (the push below) use the same options as the
-# test above: auth is already proven to work without prompts, so the push
-# can neither hang on a passphrase nor on a host-key confirmation.
-export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+# Make git's own ssh transport (the push below) accept the Gitee host key on
+# first contact and never hang on a dead network.  BatchMode is deliberately
+# NOT set: the step-1 ssh may have asked for a key passphrase, and the push
+# must be allowed to do the same.
+export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
 
 # Branch checked out at startup; restored during cleanup (defensive -- the
 # script itself never switches branches).
