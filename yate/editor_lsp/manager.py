@@ -227,7 +227,12 @@ class LspManager:
         try:
             return await task
         finally:
-            self._starting.pop(key, None)
+            # Pop only while we still own the slot: register_server may
+            # have cancelled this start and a newer task may occupy the
+            # key -- an unconditional pop would untrack the new start and
+            # let a third caller spawn a duplicate client.
+            if self._starting.get(key) is task:
+                self._starting.pop(key, None)
 
     async def _start_client(
         self, key: ClientKey, config: ServerConfig, root: Path

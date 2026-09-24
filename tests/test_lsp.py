@@ -877,6 +877,95 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_register_replace_race_keeps_new_starting_task_tracked(
+    tmp_path: Path,
+) -> None:
+    """register_server cancels an in-flight start and filters _starting;
+    the cancelled start's own finally must not pop a NEWER task stored
+    under the same key (identity-checked pop: who tracks it clears it)."""
+
+    async def scenario() -> None:
+        class SlowStartClient(FakeClient):
+            def __init__(self, *a: Any, **kw: Any) -> None:
+                super().__init__(*a, **kw)
+                self.state = ServerState.STARTING
+                self._release = asyncio.Event()
+
+            def finish(self) -> None:
+                self._release.set()
+
+            async def start(self) -> None:
+                self.started = True
+                await self._release.wait()
+                if not self.stopped:
+                    self.state = ServerState.READY
+
+        created: list[SlowStartClient] = []
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            client = SlowStartClient(config, path)
+            created.append(client)
+            return client
+
+        mgr = LspManager(
+            workspace_root=lambda: tmp_path,
+            client_factory=cast(Any, factory),
+        )
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path))
+        key = (PY_CONFIG.name, str(tmp_path))
+        internals = cast(Any, mgr)
+
+        caller_a = asyncio.ensure_future(mgr.ensure_client(doc))
+        for _ in range(100):
+            if created:
+                break
+            await asyncio.sleep(0.01)
+        assert len(created) == 1
+        assert created[0].state is ServerState.STARTING
+        assert internals._starting.get(key) is not None
+
+        # Replacement and immediate re-request inside one scheduling batch:
+        # register_server cancels the old start task and filters _starting,
+        # then the ensure_client below stores a NEW task under the same key
+        # -- only afterwards does caller A's finally run its pop.
+        mgr.register_server(
+            ServerConfig(name=PY_CONFIG.name, command="v2", filetypes=["py"])
+        )
+        caller_b = asyncio.ensure_future(mgr.ensure_client(doc))
+        for _ in range(100):
+            if len(created) == 2:
+                break
+            await asyncio.sleep(0.01)
+        assert len(created) == 2  # a fresh start for the new config
+
+        # The cancelled old start's cleanup must not have popped the new
+        # task's entry.
+        assert internals._starting.get(key) is not None
+
+        # A concurrent caller awaits the same start task instead of
+        # spawning a third client or getting an un-awaited STARTING client.
+        caller_c = asyncio.ensure_future(mgr.ensure_client(doc))
+        created[1].finish()
+        client_b = await asyncio.wait_for(caller_b, timeout=2.0)
+        client_c = await asyncio.wait_for(caller_c, timeout=2.0)
+        assert client_b is not None
+        assert client_c is not None
+        assert client_b is created[1]
+        assert client_c is created[1]
+        assert client_b.state is ServerState.READY
+        assert len(created) == 2  # exactly one client for the new config
+        # The owning caller cleaned the slot up exactly once.
+        assert internals._starting.get(key) is None
+        # Caller A observed the cancelled old start.
+        with pytest.raises(asyncio.CancelledError):
+            await caller_a
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
 def test_shutdown_cancels_pending_change_tasks(
     session: ManagerSession, tmp_path: Path
 ) -> None:
