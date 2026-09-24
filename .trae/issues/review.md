@@ -13,8 +13,9 @@
 > `app_features/*` 路径已迁移）。已修复的条目标记 `[x]` 并附证据；经核实
 > 不再成立的条目收录在文末「已失效条目」章节。
 >
-> **修复计划**（只计划、未实施，位于
-> `.trae/documents/code-review-fix-plans/`）：
+> **修复计划**（位于
+> `.trae/documents/code-review-fix-plans/`；2026-09-24 起随状态复核更新，
+> 已修复 / 方案变更 / 补入条目均标注在各计划内）：
 >
 > - Critical → [P0_critical_fixes_plan.md](../documents/code-review-fix-plans/P0_critical_fixes_plan.md)
 > - Suggestion → [P1_suggestions_plan.md](../documents/code-review-fix-plans/P1_suggestions_plan.md)
@@ -44,10 +45,11 @@
   **修复：** 在取消前检查任务是否为当前活跃任务，或使用取消安全的方式清理。
   *复核：仍存在 — [manager.py:224-229](../../yate/editor_lsp/manager.py) 的 `finally: self._starting.pop(key, None)` 无 identity 检查，被取消任务的 awaiter 仍可能弹出新任务的条目。*
 
-- [ ] **`replace_all` 修改行后未钳制光标位置** — `editor_core/search.py:148-170`
+- [x] **`replace_all` 修改行后未钳制光标位置** — `editor_core/search.py:148-170`
   批量替换后光标列号可能超出新的（更短的）行长度。在下次重绘前读取 `buffer.col` 的代码会看到无效位置。
   **修复：** 替换循环结束后钳制光标：`c = min(c, len(buffer.lines[r]))`。
-  *复核：仍存在 — [search.py:118-145](../../yate/editor_core/search.py) 替换后仅清 anchor，无钳制。*
+  *✅ 已修复（核实 2026-09-24）— [search.py:143-151](../../yate/editor_core/search.py) 替换循环结束
+  后、记录 undo 前做 `min(col, len(line))` 钳制；守卫为冒烟 harness 的全局 `invariant:cursor_col`。*
 
 - [x] **补全弹窗拦截所有按键，包括 Ctrl+S、Ctrl+Z** — `editor_view/editor.py:163`
   补全弹窗打开时所有按键被消费，用户无法保存或撤销。
@@ -61,10 +63,11 @@
   事件会冒泡到 `YateApp.on_key` 的 fallback 路由，因此 **master（`673b077`）实测无此问题**：弹窗打开时输入 `p`/`h` 正常进缓冲区（`alp`/`alph`）、`Ctrl+Z` 正常撤销。
   本轮分层重构（Plan D）把 `EditorView.on_key` 改为无条件 `stop()` 并把弹窗分支搬进 `Editor.handle_key`，未消费的键不再冒泡，该缺陷才首次真正显现。*
 
-- [ ] **命令面板 CJK 字符对齐错误** — `editor_view/palette.py:178`
+- [x] **命令面板 CJK 字符对齐错误** — `editor_view/palette.py:178`
   使用 `len(display)` 而非 `theme.cell_len(display)` 计算填充。CJK 字符（2 单元格宽）导致提示列错位。
   **修复：** 改用 `cell_len()` 计算显示宽度。
-  *复核：仍存在 — [palette.py:266](../../yate/editor_view/palette.py) 仍用 `len(display)`。*
+  *✅ 已修复（2026-09-24）— [palette.py:266-268](../../yate/editor_view/palette.py) 已改用
+  `theme.cell_len(display)`（同记录于下文 2026-09-24 审查 Minor 段）。*
 
 - [ ] **发布工具硬编码 `"master"` 分支** — `tools/release/cli.py:~186`
   `git_push(repo, "master")` 在使用 `main` 或其他默认分支的仓库上会失败——且此时所有昂贵操作（bump、changelog、gate、tag）已经完成。
@@ -107,10 +110,11 @@
   应换行到下一行显示，而非丢弃。
   *复核：仍存在 — [emulator.py:426-430](../../yate/editor_term/emulator.py) 宽字符到达最后一列仅设 autowrap 标记即返回，未实际换行。*
 
-- [ ] **`fc-cache` 使用 `shell=True`** — `services/fonts.py:230`
+- [x] **`fc-cache` 使用 `shell=True`** — `services/fonts.py:230`
   不必要且可移植性差。
   **建议：** 使用列表参数直接调用。
-  *复核：仍存在 — [fonts.py:265-270](../../yate/services/fonts.py) 仍 `shell=True`。*
+  *✅ 已修复（2026-09-24，PR #13 审查修复）— [fonts.py:267-283](../../yate/services/fonts.py)
+  改列表参数 + `timeout=10`，失败记 `log.debug`（守卫见下文 PR #13 段）。*
 
 - [x] **补全解析器中存在未使用变量** — `editor_lsp/manager.py:520`
   `kind_raw` / `sort_raw` 未使用。

@@ -2,9 +2,14 @@
 
 > 来源：[review.md](../../issues/review.md) 2026-09-16 审查 Critical 段（2026-09-23 复核后仍存在的 7 条）。
 > 按风险排序：数据/可用性损坏（1–3）→ 交互缺陷（4–5）→ 工具链（6–7）。
-> 每条含现状证据、根因、修复策略、测试方案。**本文档仅为计划，未实施。**
+> 每条含现状证据、根因、修复策略、测试方案。
+>
+> **2026-09-24 状态复核**（对照当前代码逐条核实）：C3 / C4 / C5 已随其它提交修复
+> （各条附「✅ 已修复」标注与实际落点），计划继续有效的是 **C1 / C2 / C6 / C7**。
 >
 > 统一门槛：`python -m pyright yate/ tests/ tools/` 零诊断；`pytest tests/ -q` 全绿；
+> **`python -m tools.smoke_test run --fail-only` 全部场景通过（exit 0）——每批修复验证的
+> 最后一步必须冒烟全绿，否则该批不算完成**；
 > 架构边界遵守 `architecture-boundaries.md` R1–R11（禁止新增 Protocol / TYPE_CHECKING）。
 
 ---
@@ -52,7 +57,7 @@ async def _read_loop(self) -> None:
 ## C2 — LSP `register_server` 取消旧任务与 `_starting` 清理竞态
 
 **文件：** [yate/editor_lsp/manager.py:105-108](../../../yate/editor_lsp/manager.py)、
-[manager.py:224-229](../../../yate/editor_lsp/manager.py)
+[manager.py:225-230](../../../yate/editor_lsp/manager.py)
 
 **现状证据：** `register_server` 替换配置时按 key 取消旧启动任务并同步
 过滤 `_starting`；而 `ensure_client`（L224-229）的
@@ -83,6 +88,11 @@ finally:
 
 ## C3 — `replace_all` 批量替换后未钳制光标
 
+> ✅ **已修复（核实 2026-09-24）**：[search.py:143-151](../../../yate/editor_core/search.py) 替换循环
+> 结束后、记录 undo 前对光标做 `min(col, len(line))` 钳制，与本计划策略一致；守卫为冒烟 harness
+> 的全局 `invariant:cursor_col`（每场景校验光标在行内）。尚无专属单测，实施 C3 相关改动时可顺手
+> 补一条「replace_all 缩短行后光标仍落行内」的用例。以下原始计划存档。
+
 **文件：** [yate/editor_core/search.py:118-145](../../../yate/editor_core/search.py)
 
 **现状证据：** 替换循环结束后仅 `buffer.anchor = None` 并提交 undo，无
@@ -104,6 +114,12 @@ buffer.cursor = (r, min(c, len(buffer.lines[r])))
 ---
 
 ## C4 — 补全弹窗打开时吞掉所有按键（含 Ctrl+S / Ctrl+Z）
+
+> ✅ **已修复（2026-09-23，提交 `bbeb5f6`）**：方向与计划一致（白名单反转），落点不同——
+> 弹窗分支现居 [editor.py:576-590](../../../yate/editor.py)（`Editor.handle_key`），只消费
+> `tab` / `enter` / `up` / `down` / `escape`，其余键不再消费、直接落入后续正常分发
+> （未引入独立的 `_dispatch_behind_popup`）。守卫：`test_completion_popup_keeps_typing_and_filters`、
+> 冒烟 `regress_completion_popup_keys` / `regress_completion_staleness`。以下原始计划存档。
 
 **文件：** [yate/editor.py:552-564](../../../yate/editor.py)
 
@@ -144,6 +160,10 @@ if popup.is_open:
 ---
 
 ## C5 — 命令面板 CJK 填充宽度错位
+
+> ✅ **已修复（2026-09-24）**：[palette.py:266-268](../../../yate/editor_view/palette.py) 已改用
+> `theme.cell_len(display)` 计算填充并附注释说明 CJK 双 cell 宽度（同记录于 review.md
+> 2026-09-24 审查 Minor 段）。以下原始计划存档。
 
 **文件：** [yate/editor_view/palette.py:266](../../../yate/editor_view/palette.py)
 
@@ -203,7 +223,7 @@ git_push(repo, branch)
 
 ## C7 — Changelog `check` / `zh-commit` 忽略 `--overrides`
 
-**文件：** [tools/changelog/cli.py:268-300](../../../tools/changelog/cli.py)
+**文件：** [tools/changelog/cli.py:267-299](../../../tools/changelog/cli.py)
 
 **现状证据：** 函数层 `check()` / `zh_commit()` 已接收 `overrides_path`
 参数；但 CLI 绑定处两个子命令 parser 未暴露 `--overrides`，调用时未
@@ -226,9 +246,7 @@ overrides = args.overrides or DEFAULT_OVERRIDES_PATH
 
 ---
 
-## 执行顺序建议
+## 执行顺序建议（2026-09-24 更新：C3 / C4 / C5 已完成，仅余下列）
 
 1. **C1 + C2 同批**（同文件域，共享 LSP 测试基建，风险最高收益最大）；
-2. **C4**（用户可感知度最高的交互缺陷）；
-3. **C3 + C5**（小而独立，可随手清）；
-4. **C6 + C7**（工具链，无编辑器回归风险，可最后）。
+2. **C6 + C7**（工具链，无编辑器回归风险，可最后）。
