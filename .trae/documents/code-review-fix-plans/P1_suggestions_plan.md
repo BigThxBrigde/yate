@@ -11,6 +11,10 @@
 > 新代码改写；S11 / S12 / S17 补入核实结论。另将 review.md 2026-09-23 / 2026-09-24
 > 各审查段仍未修复的条目补入为**批次六**（正确性与语义）、**批次七**（渲染 / 性能）
 > 与批次四增补（S42 / S43）。
+>
+> **2026-09-24 实施拆分**：全部条目已拆为
+> [P1_subplans/](P1_subplans/README.md) 七个文件独占子计划（SP1–SP7，三波次）。
+> 波次一（SP3 + SP7，14 条）已实施完成并过全量门禁，各条附「✅ 已修复」标注。
 
 ---
 
@@ -69,6 +73,11 @@ for m in _CONFIG_BOOL_RE.finditer(line):
 字符（如「中」），断言其出现在下一行首列而非丢失；行中间宽字符行为不变。
 
 ### S4 — 资源管理器 `create()` 同步打开新文件
+
+> ✅ **已修复（核实 2026-09-24，SP3）**：explorer 的 `open_path` 协作者在接线层
+> 已注入异步形态（[editor.py:156](../../../yate/editor.py)、:214、:1348 三处均为
+> `open_path=self.open_path_later`），explorer.py 内 `self.open_path(target)` 调用点
+> 保持原样即正确形态，无需改动。
 
 **证据：** [explorer.py:385-387](../../../yate/editor_view/explorer.py)
 新建后直接 `self.open_path(target)`。
@@ -131,6 +140,10 @@ subprocess.run(
 
 ### S25 — `segments.py` 的 `position` 一名两义
 
+> ✅ **已修复（2026-09-24，SP7）**：[segments.py](../../../tools/changelog/segments.py)
+> 循环变量改名 `seg_index`（L102-114），commit 拓扑位置 `position` 保持；纯重命名
+> 零行为变化，changelog 53 用例全绿。
+
 **证据：** [segments.py:102](../../../tools/changelog/segments.py)（段序号）
 与 [segments.py:122](../../../tools/changelog/segments.py)（commit 位置）。
 
@@ -144,6 +157,11 @@ subprocess.run(
 ## 批次三：渲染路径冗余（editor.py，一次渲染帧内重复计算）
 
 ### S12 — `diagnostics_on_line` 每行调两次
+
+> ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
+> `render_line` 行内查一次 `line_diags` 后下传 gutter 与 `_diagnostic_underlines`
+> （单行渲染 2 次→1 次；按本条降级策略落地——widget 层无逐帧钩子）。专属计数断言
+> 待补（授权范围限制），回归证据为 test_app_textual/explorer/panes 158 用例全绿。
 
 **证据：** gutter（[editor.py:424-427](../../../yate/editor_view/editor.py)）
 与下划线（[editor.py:571-590](../../../yate/editor_view/editor.py)）各查一次。
@@ -159,6 +177,11 @@ subprocess.run(
 
 ### S13 — `_welcome_lines()` 每帧重建
 
+> ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
+> `_welcome_lines` 改实例方法并按 `(theme.name, vim_keys)` 缓存（校准：现实现为
+> `(t, *, vim_keys)` 签名且行内嵌主题色，故缓存键较原策略多一维主题，否则主题切换
+> 返回旧色）。专属「返回同一对象」断言待补，回归证据同 S12。
+
 **证据：** [editor.py:495-510](../../../yate/editor_view/editor.py) 无缓存。
 
 **策略：** 以 `keymaps.active_name`（或 keymap 对象 id）为键缓存
@@ -167,6 +190,12 @@ subprocess.run(
 **测试：** 渲染两次 welcome 断言返回同一对象；切换 keymap 后重建。
 
 ### S14 — 丢弃过期 highlight 结果后仍强制一个防抖窗口（2026-09-24 按现行代码改写）
+
+> ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
+> discard 分支 `refresh()` 后追加 `_schedule_highlight(0.0)` 立即重排，跳过多余防抖
+> 窗口；「旧 `_hl_tokens` 继续上色」防闪白设计保留（未清缓存），注释说明 exclusive
+> worker 组不产生并发 tokenize。守卫：`test_edit_keeps_colors_instead_of_flashing`
+> 等既有高亮用例全绿。
 
 **证据：** 实现已重构（原「集合 discard」路径不存在了）：现在由 `_hl_timer`
 （Textual Timer）+ `_hl_scheduled_key` 防重（[editor.py:289-311](../../../yate/editor_view/editor.py)）。
@@ -196,6 +225,10 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 
 ### S15 — `_cursor_anchor()` 每渲染调用 3+ 次
 
+> ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
+> `render_line` 行内 cursor/anchor 算一次，下传 `_selection` 与 `_row_style_ranges`
+> （每行 3 次→1 次，与 S12 同模式）。专属计数断言待补，回归证据同 S12。
+
 **证据：** [editor.py:151-158](../../../yate/editor_view/editor.py)
 每次遍历 pane 树；渲染路径多处独立调用。
 
@@ -213,6 +246,12 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 **测试：** 现有终端渲染用例全绿。
 
 ### S17 — `reconcile` 冗余滚动恢复
+
+> ✅ **已修复（2026-09-24，SP3）**：[panes.py](../../../yate/editor_view/panes.py)
+> reconcile 恢复循环跳过 focus 叶子（三个调用方 split/close/only 均随后
+> `apply_doc(focus)` 恢复活动叶子，重复仅此一份；非活动叶子无 follow-up、恢复保留）。
+> 语义差异记录见 [SP3](P1_subplans/SP3_editor_view_rendering.md)。专属分屏滚动断言
+> 待补（test_panes.py 不在授权清单），回归证据：tests/test_panes.py 全绿。
 
 **证据：** [panes.py:461-467](../../../yate/editor_view/panes.py) reconcile 重建后恢复
 **全部叶子**的滚动；而调用链上的 [apply_doc](../../../yate/editor_view/panes.py#L160-L178)
@@ -247,10 +286,21 @@ apply_doc 面向 tab 切换只恢复活动叶子；重复的是「活动叶子�
 
 ### S23 — `--limit` 无测试
 
+> ✅ **已修复（2026-09-24，SP7）**：守卫 `test_generate_limit_1_keeps_only_the_newest_commit`
+> （并断言两次 `read_commits` 均转发 limit=1）、
+> `test_generate_limit_zero_and_negative_forwarded_verbatim`（实测固化：`limit=0` →
+> 空条目文档、`limit=-1` → 全部条目，git log -n 语义，注释已注明）。
+
 **策略：** `tests/test_changelog_tool.py` 补两条：`--limit 1` 只出最新
 1 条 commit；`--limit 0` / 负数的行为按实现固化（报错或空输出）。
 
 ### S28 — 测试深访私有 highlight 属性
+
+> ✅ **已修复（2026-09-24，SP3）**：[editor.py](../../../yate/editor_view/editor.py)
+> 新增公开 `highlight_probe()`（`HighlightProbe` frozen dataclass 只读快照，含
+> tokens/doc/version/filetype/scheduled_key/timer）与公开 `tokens_for(row)`；
+> [test_app_textual.py](../../../tests/test_app_textual.py) 全部 30 处私有访问迁移至
+> 探针，`cast(Any, editor)` 已删除。无 Protocol（合规 R2）。
 
 **证据：** [test_app_textual.py:204-314](../../../tests/test_app_textual.py)
 直接断言 `_hl_tokens` 等。
@@ -270,6 +320,10 @@ docstring 注明「新 action 默认 no-op」；比逐个补方法抗演进。
 
 ### S42 — 过时注释与已落地行为矛盾（2026-09-24 审查增补）
 
+> ✅ **已修复（2026-09-24，SP3）**：注释更正为「保存本身是原子的（临时文件 +
+> `os.replace`，编码先于写盘）」，并新增断言 `target.read_bytes() == "café".encode("cp1252")`
+> 固化磁盘字节完好。
+
 **证据：** [test_app_textual.py:3781-3786](../../../tests/test_app_textual.py)
 注释仍称原子写是「separate hardening change」，实际已实现。
 
@@ -288,6 +342,11 @@ docstring 注明「新 action 默认 no-op」；比逐个补方法抗演进。
 
 ### S22 — `generate()` 用 `date.today()`
 
+> ✅ **已修复（2026-09-24，SP7）**：[changelog/cli.py](../../../tools/changelog/cli.py)
+> `generate(..., date: Optional[str] = None)` + CLI `--date YYYY-MM-DD`；未给回退
+> `today()`（行为不变）。守卫：`test_generate_date_option_stamps_generated_notes`、
+> `test_generate_cli_date_flag_is_honored`。
+
 **证据：** [cli.py:92](../../../tools/changelog/cli.py)。
 
 **策略：** `generate(..., date: str | None = None)`；CLI 加 `--date YYYY-MM-DD`；
@@ -296,6 +355,14 @@ docstring 注明「新 action 默认 no-op」；比逐个补方法抗演进。
 **测试：** 传 `--date` 断言输出段头日期；不传回退 today。
 
 ### S27 — `files_dirty` 前导空格路径
+
+> ✅ **已修复（2026-09-24，SP7）**：[release/cli.py](../../../tools/release/cli.py)
+> `files_dirty` 改 `git status --porcelain -z` NUL 分隔解析（路径 verbatim，不再经
+> strip/引号规则；R/C 记录消耗第二 NUL 字段，实测新路径在前），返回签名不变。守卫：
+> `test_files_dirty_returns_verbatim_paths_from_a_real_repo`（前导空格/内部空格/中文
+> 文件名走真实临时仓库）、`test_files_dirty_consumes_z_rename_records_and_keeps_quotes`
+> （Windows 无法创建含 `"` 文件名，引号路径以 canned `-z` 输出在解析层等效覆盖，已注释
+> 说明）。
 
 **证据：** [cli.py:63-75](../../../tools/release/cli.py)
 `line[3:].strip().strip('"')`——porcelain 对带空格路径的引号规则处理粗糙。
@@ -408,6 +475,10 @@ trace 的会话 header 混入同一文件。存量问题，多实例共享数据
 
 ### S37 — 删除最后选中项后 `_last_selected` 悬挂
 
+> ✅ **已修复（2026-09-24，SP3）**：[explorer.py](../../../yate/editor_view/explorer.py)
+> `_restore_cursor` 未命中时 `_last_selected = None`。专属断言待补（授权范围限制），
+> 回归证据：test_explorer.py 全绿。
+
 **证据：** [explorer.py:107,119-123](../../../yate/editor_view/explorer.py)
 `_restore_cursor` 未命中时不清 `None`。
 
@@ -443,6 +514,11 @@ resolve 并拒绝 symlink 条目。注意现有
 ## 批次七：2026-09-24 审查补充（渲染 / 性能）
 
 ### S40 — 文档搜索每按键全量重渲染所有块 widget，无防抖
+
+> ✅ **已修复（2026-09-24，SP3）**：[manual.py](../../../yate/editor_view/manual.py)
+> 搜索改尾沿防抖（`_SEARCH_DEBOUNCE_S = 0.12`，`asyncio.get_running_loop().call_later`，
+> 窗口期合并查询）；Enter 提交先 flush 保持命中语义，回调带 `is_mounted` 守护防已关闭
+> screen 崩溃。专属计数断言待补，回归证据：manual 相关用例/冒烟全绿。
 
 **证据：** [manual.py:341-379](../../../yate/editor_view/manual.py) 每按键重建全部
 块 widget，大文档输入卡顿。存量缺陷。

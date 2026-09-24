@@ -21,13 +21,15 @@ case-insensitively against the visible text of every rendered block
 (including table cells).  Every hit block is tinted, the current one
 stronger, and enter / shift+enter cycle matches and scroll them into
 view; after closing the search bar ``n`` / ``N`` repeat the last search.
+Typing is debounced briefly so rapid input merges into a single rebuild
+instead of re-rendering every block widget per keystroke.
 """
 
 from __future__ import annotations
 
 import asyncio
 from importlib.resources import files
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from textual import events
 from textual.app import ComposeResult
@@ -166,6 +168,11 @@ class MarkdownDocScreen(ModalScreen[None]):
         "  ·  pgup/pgdn scroll "
     )
 
+    #: Trailing debounce that merges rapid search typing into a single
+    #: hit-rebuild pass (same order of magnitude as the editor's highlight
+    #: and completion debounces).
+    _SEARCH_DEBOUNCE_S = 0.12
+
     DEFAULT_CSS = """
     MarkdownDocScreen {
         align: center middle;
@@ -239,6 +246,10 @@ class MarkdownDocScreen(ModalScreen[None]):
         self._hit_index = -1
         self._hit_widgets: set[Widget] = set()
         self._current_widget: Widget | None = None
+        # pending debounced search: the asyncio timer plus the last typed
+        # query it will run (typing merges into one rebuild per window)
+        self._search_timer: Optional[asyncio.TimerHandle] = None
+        self._pending_query: Optional[str] = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="doc-box"):
@@ -332,11 +343,45 @@ class MarkdownDocScreen(ModalScreen[None]):
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "doc-search-input":
-            self._run_search(event.value)
+            self._schedule_search(event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "doc-search-input":
+            # enter cycles matches: flush the pending query first so the
+            # step below sees the hits for what was actually typed
+            self._flush_pending_search()
             self.search_step(1)
+
+    def _schedule_search(self, query: str) -> None:
+        """Defer the search rebuild until typing pauses briefly.
+
+        Every keystroke used to rebuild every rendered block widget
+        synchronously, which stutters on large documents; the trailing
+        window merges rapid input into one pass carrying the final query.
+        """
+        if self._search_timer is not None:
+            self._search_timer.cancel()
+        self._pending_query = query
+        self._search_timer = asyncio.get_running_loop().call_later(
+            self._SEARCH_DEBOUNCE_S, self._flush_search
+        )
+
+    def _flush_search(self) -> None:
+        """Timer callback: run the pending debounced search now."""
+        self._search_timer = None
+        self._flush_pending_search()
+
+    def _flush_pending_search(self) -> None:
+        """Cancel any pending debounce and search for the pending query."""
+        if self._search_timer is not None:
+            self._search_timer.cancel()
+            self._search_timer = None
+        query = self._pending_query
+        if query is None or not self.is_mounted:
+            # the screen may have been dismissed while the timer was armed
+            return
+        self._pending_query = None
+        self._run_search(query)
 
     def _run_search(self, query: str) -> None:
         needle = query.strip().lower()

@@ -458,8 +458,15 @@ class PaneHost(Widget):
         # parent and come out wrong (panes end up off-screen), so re-apply
         # them now that the widgets are mounted.
         self.apply_sizes()
-        # restore each pane's saved scroll before handing focus over
+        # restore each pane's saved scroll before handing focus over.
+        # The focus leaf is skipped on purpose: every caller applies the
+        # focused document right after the reconcile (apply_doc restores
+        # its scroll together with the buffer cursor), so restoring it here
+        # too would redo the same work twice.  Non-focused leaves have no
+        # such follow-up and keep their restore here.
         for leaf in leaves(self.manager.root):
+            if leaf is focus:
+                continue
             view = self.manager.views.get(leaf.id)
             state = leaf.states.get(leaf.doc.uid)
             if view is not None and state is not None:

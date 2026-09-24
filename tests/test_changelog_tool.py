@@ -8,10 +8,12 @@ is unavailable.
 
 from __future__ import annotations
 
+import datetime
 import json
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -750,6 +752,95 @@ def test_generate_overrides_flag_renders_translations(
     zh = (cli_repo / "CHANGELOG.zh.md").read_text(encoding="utf-8")
     assert "- 最早的新功能" in zh
     assert "- first thing" not in zh
+
+
+# --- cli --date and --limit flags (S22 / S23) --------------------------------
+
+
+def test_generate_date_option_stamps_generated_notes(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+) -> None:
+    resources = cli_repo / "yate" / "resources"
+    assert cli.generate(
+        cli_repo, date="2020-05-06", targets=("bundle",),
+        overrides_path=overrides_path,
+    ) == 0
+    en = (resources / "changelog.en.md").read_text(encoding="utf-8")
+    zh = (resources / "changelog.zh.md").read_text(encoding="utf-8")
+    assert "Generated from the git history on 2020-05-06 · yate 0.1.0" in en
+    assert "由 git 历史自动生成于 2020-05-06 · yate 0.1.0" in zh
+    # without --date the note falls back to today
+    today = datetime.date.today().isoformat()
+    assert cli.generate(
+        cli_repo, targets=("bundle",), overrides_path=overrides_path
+    ) == 0
+    en = (resources / "changelog.en.md").read_text(encoding="utf-8")
+    zh = (resources / "changelog.zh.md").read_text(encoding="utf-8")
+    assert f"Generated from the git history on {today} · yate 0.1.0" in en
+    assert f"由 git 历史自动生成于 {today} · yate 0.1.0" in zh
+
+
+def test_generate_cli_date_flag_is_honored(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+    assert cli.main(["generate", "--date", "2020-05-06", "--bundle-only"]) == 0
+    en = (
+        cli_repo / "yate" / "resources" / "changelog.en.md"
+    ).read_text(encoding="utf-8")
+    assert "Generated from the git history on 2020-05-06" in en
+
+
+def test_generate_limit_1_keeps_only_the_newest_commit(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    cli_commits: list[RawCommit], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[Optional[int]] = []
+
+    def fake_read_commits(
+        repo: Path, *, include_merges: bool = False, limit: Optional[int] = None
+    ) -> list[RawCommit]:
+        seen.append(limit)
+        # model `git log -n <limit>`: newest-first slice
+        return cli_commits[:limit] if limit is not None and limit > 0 else []
+
+    monkeypatch.setattr(gitdata, "read_commits", fake_read_commits)
+    assert cli.generate(cli_repo, limit=1, overrides_path=overrides_path) == 0
+    en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "shiny thing" in en  # newest entry survives
+    assert "broken thing" not in en
+    assert "first thing" not in en
+    assert seen == [1, 1]  # both read_commits calls forwarded the limit
+
+
+def test_generate_limit_zero_and_negative_forwarded_verbatim(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    cli_commits: list[RawCommit], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # measured: `git log -n 0` lists nothing; `git log -n -1` (exit 0) lists
+    # the whole history — the behaviour is frozen here accordingly.
+    def fake_read_commits(
+        repo: Path, *, include_merges: bool = False, limit: Optional[int] = None
+    ) -> list[RawCommit]:
+        if limit is None:
+            return cli_commits
+        if limit > 0:
+            return cli_commits[:limit]
+        if limit < 0:
+            return cli_commits
+        return []
+
+    monkeypatch.setattr(gitdata, "read_commits", fake_read_commits)
+    assert cli.generate(cli_repo, limit=0, overrides_path=overrides_path) == 0
+    en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "shiny thing" not in en
+    assert "## [0.1.0]" in en  # the boundary survives with zero entries
+    assert cli.generate(cli_repo, limit=-1, overrides_path=overrides_path) == 0
+    en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "shiny thing" in en
+    assert "first thing" in en
 
 
 # --- real git end-to-end ----------------------------------------------------

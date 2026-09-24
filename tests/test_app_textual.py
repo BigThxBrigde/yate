@@ -198,13 +198,13 @@ def test_highlight_cache_survives_cursor_movement(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl = cast(Any, editor)
             # wait for the background tokenizer to paint colors
             ready = await wait_until(
-                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
             )
             assert ready
-            tokens = hl._hl_tokens
+            tokens = editor.highlight_probe().tokens
 
             def colors_at(row: int) -> set[str]:
                 return {
@@ -221,16 +221,17 @@ def test_highlight_cache_survives_cursor_movement(tmp_path: Path) -> None:
             # moving the cursor must not discard the token cache: the
             # keyword color stays without waiting for a new tokenizer
             await pilot.press("down")
-            assert hl._hl_tokens is tokens
+            assert editor.highlight_probe().tokens is tokens
             assert mocha.syn_keyword.lower() in colors_at(0)
 
             # editing invalidates the cache; a fresh tokenizer pass runs
             await pilot.press("x")
             refreshed = await wait_until(
                 pilot,
-                lambda: hl._hl_tokens is not None
-                and hl._hl_tokens is not tokens
-                and hl._hl_version == app.editor.session.buffer.content_version,
+                lambda: editor.highlight_probe().tokens is not None
+                and editor.highlight_probe().tokens is not tokens
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version,
                 timeout=5.0,
             )
             assert refreshed
@@ -246,11 +247,11 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl = cast(Any, editor)
             assert await wait_until(
-                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
             )
-            assert hl._tokens_for(0)
+            assert editor.tokens_for(0)
 
             from yate.editor_view import theme
             mocha = theme.active()
@@ -268,7 +269,7 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
             # tokenize pass is pending: the stale tokens keep coloring
             # the view right after the keypress (no uncolored frame).
             await pilot.press("x")
-            assert hl._tokens_for(0)
+            assert editor.tokens_for(0)
             assert mocha.syn_keyword.lower() in colors_at(0)
 
             # Exactly one debounced pass is pending for the latest
@@ -276,23 +277,26 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
             # the same timer. Checked synchronously after a direct
             # buffer edit: race-free even on a loaded machine.
             app.editor.session.buffer.insert_text("y")
-            assert hl._tokens_for(0)
-            key = hl._hl_scheduled_key
-            timer = hl._hl_timer
+            assert editor.tokens_for(0)
+            probe = editor.highlight_probe()
+            timer = probe.timer
+            key = probe.scheduled_key
             assert timer is not None
             assert key is not None
             assert key[2] == app.editor.session.buffer.content_version
-            hl._tokens_for(0)
-            hl._tokens_for(1)
-            assert hl._hl_timer is timer
-            assert hl._hl_scheduled_key == key
+            editor.tokens_for(0)
+            editor.tokens_for(1)
+            probe = editor.highlight_probe()
+            assert probe.timer is timer
+            assert probe.scheduled_key == key
 
             # ...and the pending pass converges to the latest version
             assert await wait_until(
                 pilot,
-                lambda: hl._hl_tokens is not None
-                and hl._hl_version == app.editor.session.buffer.content_version
-                and hl._hl_scheduled_key is None,
+                lambda: editor.highlight_probe().tokens is not None
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version
+                and editor.highlight_probe().scheduled_key is None,
                 timeout=5.0,
             )
 
@@ -309,31 +313,33 @@ def test_stale_highlight_not_reused_on_filetype_or_document_switch(
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl = cast(Any, editor)
             assert await wait_until(
-                pilot, lambda: hl._hl_tokens is not None, timeout=5.0
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
             )
-            assert hl._tokens_for(0)
+            assert editor.tokens_for(0)
 
             # filetype switch: python tokens must not color the file
             app.editor.run_command("set filetype=plaintext")
-            assert hl._tokens_for(0) == []
+            assert editor.tokens_for(0) == []
             assert await wait_until(
                 pilot,
-                lambda: hl._hl_filetype == "plaintext"
-                and hl._hl_version == app.editor.session.buffer.content_version,
+                lambda: editor.highlight_probe().filetype == "plaintext"
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version,
                 timeout=5.0,
             )
 
             # document switch: the old document's tokens must not leak
-            old_doc = hl.doc
+            old_doc = editor.doc
             app.editor.run_command("enew")
-            assert hl.doc is not old_doc
-            assert hl._tokens_for(0) == []
+            assert editor.doc is not old_doc
+            assert editor.tokens_for(0) == []
             assert await wait_until(
                 pilot,
-                lambda: hl._hl_doc is hl.doc
-                and hl._hl_version == app.editor.session.buffer.content_version,
+                lambda: editor.highlight_probe().doc is editor.doc
+                and editor.highlight_probe().version
+                == app.editor.session.buffer.content_version,
                 timeout=5.0,
             )
 
@@ -2177,7 +2183,6 @@ def test_highlighting_follows_the_override() -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             editor = app.editor.panes.active_view
             assert editor is not None
-            hl_view = cast(Any, editor)
             app.editor.session.buffer.insert_text("def foo():\n    pass\n")
             # Plain-text detection for an unnamed buffer -> no tokens.
             # Wait for the background pass: a direct buffer edit does not
@@ -2185,18 +2190,21 @@ def test_highlighting_follows_the_override() -> None:
             # (empty) buffer is discarded, so a single pilot.pause() does
             # not guarantee the pass has stored its result.
             assert await wait_until(
-                pilot, lambda: hl_view._hl_filetype == "plaintext",
+                pilot,
+                lambda: editor.highlight_probe().filetype == "plaintext",
                 timeout=5.0,
             )
 
             app.editor.run_command("set filetype=python")
             changed = await wait_until(
-                pilot, lambda: hl_view._hl_filetype == "py", timeout=5.0
+                pilot,
+                lambda: editor.highlight_probe().filetype == "py",
+                timeout=5.0,
             )
             assert changed
             pairs = [
                 (t.kind, "def foo():"[t.start:t.end])
-                for t in hl_view._tokens_for(0)
+                for t in editor.tokens_for(0)
             ]
             assert ("keyword", "def") in pairs
             assert ("function", "foo") in pairs
@@ -3860,14 +3868,15 @@ def test_wq_does_not_crash_on_unicode_encode_error(tmp_path: Path) -> None:
 
             # save failed -> guard aborts the quit; editor stays alive and
             # the full unsaved content survives in memory, so the user can
-            # still recover it via :saveas with a UTF-8-capable path.
-            # (Note: write_text() truncates before the encoder raises, so
-            # the on-disk bytes are not preserved -- atomic temp-file
-            # replace would be a separate hardening change.)
+            # still recover it via :saveas with a UTF-8-capable path. The
+            # save itself is atomic (sibling temp file + os.replace, with
+            # encoding done before anything is written), so the on-disk
+            # bytes survive the failed write untouched.
             assert app.is_running
             assert app.editor.session.doc.modified
             assert "save failed" in _message_text(app)
             assert app.editor.session.doc.buffer.get_text() == "caf\u00e9\U0001f600"
+            assert target.read_bytes() == "caf\xe9".encode("cp1252")
 
     asyncio.run(scenario())
 

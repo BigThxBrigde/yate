@@ -57,6 +57,45 @@ def test_default_branch_is_none_without_origin(tmp_path: Path) -> None:
     assert cli._default_branch(repo) is None
 
 
+# --- files_dirty parses ``status --porcelain -z`` verbatim (S27) -------------
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_files_dirty_returns_verbatim_paths_from_a_real_repo(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _seed_repo(repo)
+    # leading / inner spaces and non-ASCII: the names git would C-quote (and
+    # the old line[3:].strip().strip('"') parser would mangle) come back as-is
+    names = [" leading.txt", "my file.txt", "中文 文件.txt"]
+    for name in names:
+        (repo / name).write_text("dirty\n", encoding="utf-8")
+    assert sorted(cli.files_dirty(repo, names)) == sorted(names)
+
+
+def test_files_dirty_consumes_z_rename_records_and_keeps_quotes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Windows cannot host '"' in filenames, so the quote case is fed as
+    # canned -z output; rename records put the NEW path first (measured).
+    out = (
+        ' M my "quoted" file.txt\0'
+        "R  new name.txt\0old name.txt\0"
+        "?? last.txt\0"
+    )
+    captured: list[list[str]] = []
+
+    def fake_run_git(args: list[str], *, repo: Path) -> str:
+        captured.append(args)
+        return out
+
+    monkeypatch.setattr(cli.gitdata, "run_git", fake_run_git)
+    dirty = cli.files_dirty(Path("repo"), ["."])
+    assert "--porcelain" in captured[0] and "-z" in captured[0]
+    assert dirty == ['my "quoted" file.txt', "new name.txt", "last.txt"]
+
+
 # --- release aborts before pushing when no branch can be determined ---------
 
 

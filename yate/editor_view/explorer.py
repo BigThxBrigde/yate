@@ -117,9 +117,17 @@ class ExplorerTree(Tree[NodeData]):
         self.refresh()
 
     def _restore_cursor(self, path: Path) -> None:
+        """Put the tree cursor back on *path*; forget it when it vanished.
+
+        A deleted / renamed selection must not stick around: keeping it
+        would pin every later refresh to a node that no longer exists
+        instead of falling back to the live tree cursor.
+        """
         line = self._line_of(path)
         if line is not None:
             self.cursor_line = line
+        else:
+            self._last_selected = None
 
     def _line_of(self, path: Path) -> Optional[int]:
         """Visible row index of the node representing *path*.
