@@ -25,7 +25,7 @@ def test_trust_workspace_roundtrip(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     root.mkdir()
     assert not is_trusted(root, store)
-    trust_workspace(root, store)
+    assert trust_workspace(root, store) is True
     assert is_trusted(root, store)
     # a .-spelling of the same directory resolves to the same root
     assert is_trusted(root / ".", store)
@@ -52,6 +52,7 @@ def test_trust_refuses_a_symlinked_root(tmp_path: Path) -> None:
     store = tmp_path / "store.txt"
 
     trust_workspace(link, store)  # must be refused without raising
+    assert trust_workspace(link, store) is False  # refused reports failure
 
     assert not store.exists()  # nothing was persisted, not even the file
     assert not is_trusted(real, store)

@@ -499,6 +499,9 @@ class _ConPty:
                 ctypes.byref(si_ex.StartupInfo), ctypes.byref(proc_info),
             )
         except BaseException:
+            # Re-raised, never swallowed: cleanup on *any* failure path
+            # (including CancelledError) so the ConPTY and pipe handles
+            # created above cannot leak past a failed spawn.
             k["DeleteProcThreadAttributeList"](attr_ptr)
             self._close_pty()
             k["CloseHandle"](in_write)

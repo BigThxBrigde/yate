@@ -383,8 +383,8 @@ docstring 注明「新 action 默认 no-op」；比逐个补方法抗演进。
 
 > ✅ **已修复（2026-09-24，SP2）**：[pty_proc.py:78](../../../yate/editor_term/pty_proc.py)
 > 补理由注释（re-raise 不吞异常，settle 仅保 shutdown 不永久阻塞）。
-> 观察项：同文件 :501（`_ConPty.spawn` 内）同类宽捕获亦无注释，超出 S43 锚点按范围纪律
-> 未动，可并入后续清理。
+> 观察项（:501 `_ConPty.spawn` 内同类宽捕获）**已于同日处理**：补齐理由注释
+> （re-raise 清理 ConPTY/管道句柄，任何失败路径不泄漏）。
 
 **证据：** [pty_proc.py:78](../../../yate/editor_term/pty_proc.py) 同文件其它宽捕获
 均有理由注释，此处置漏（`document.py` 侧已补，re-raise 不吞异常，纯风格合规）。
@@ -609,9 +609,10 @@ trace 的会话 header 混入同一文件。存量问题，多实例共享数据
 > （`log.warning` + 不落盘），store 只收 yate 自己写入的无链接 resolved 根；读取侧
 > 归一化（`test_startup_treats_a_literal_symlink_entry_as_its_resolved_root`）保持
 > 全绿未动。守卫：symlink 根 `:trust` 被拒、重定向后重启不信任须重新 `:trust`。
-> **遗留观察项**：`editor.py:1417` 的 `:trust` 命令在 `trust_workspace` 被拒后仍显示
-> "trusted ..." 并即时加载——反馈误导需改 editor.py（超出 SP5 授权），持久化侧守卫
-> 已生效，可并入后续清理。
+> **遗留观察项（已于同日处理）**：`trust_workspace` 改返回 `bool`（拒绝=False），
+> [editor.py](../../../yate/editor.py) `:trust` 被拒时报 error 消息并**中止加载扩展**，
+> 不再显示误导性的 "trusted ..."；守卫：`test_trust_refuses_a_symlinked_root`
+> 增 `is False` 断言、roundtrip 增 `is True` 断言。
 
 **证据：** [trust.py](../../../yate/services/trust.py) 信任按「读取时 resolve 后的
 路径」匹配：store 中某条目本身是 symlink 路径时，链接被重定向后**无需重新

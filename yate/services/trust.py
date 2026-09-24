@@ -65,8 +65,12 @@ def load_trusted_workspaces(path: Path | None = None) -> set[Path]:
     return trusted
 
 
-def trust_workspace(root: Path, path: Path | None = None) -> None:
+def trust_workspace(root: Path, path: Path | None = None) -> bool:
     """Record *root* as trusted, creating the store when absent.
+
+    Returns ``True`` when *root* is (or just became) trusted and ``False``
+    when the request was refused, so the ``:trust`` command can give
+    accurate feedback instead of claiming success for a rejected root.
 
     Appending keeps the file human-editable; when *root* is already
     listed nothing is written, so repeated ``:trust`` calls never grow
@@ -86,10 +90,10 @@ def trust_workspace(root: Path, path: Path | None = None) -> None:
             "trust the resolved directory instead",
             root,
         )
-        return
+        return False
     resolved = root.resolve()
     if resolved in load_trusted_workspaces(store):
-        return
+        return True
     # Owner-only, both for a freshly created directory and for one that
     # predates this code (``mode`` only applies on creation, and a loose umask
     # would leave it group/world readable): the store lists the workspaces
@@ -105,6 +109,7 @@ def trust_workspace(root: Path, path: Path | None = None) -> None:
     if os.name == "posix":
         with contextlib.suppress(OSError):
             os.chmod(store, 0o600)
+    return True
 
 
 def is_trusted(root: Path, path: Path | None = None) -> bool:

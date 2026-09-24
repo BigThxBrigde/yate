@@ -1414,7 +1414,16 @@ class Editor:
         skipped and only genuinely new ones run.
         """
         cwd = Path.cwd()
-        trust_workspace(cwd)
+        if not trust_workspace(cwd):
+            # S39 minimal hardening: a symlinked cwd is refused by the
+            # store, and pretending otherwise (or still loading its
+            # extensions) would defeat the guard.
+            self.message(
+                f"refused to trust {cwd}: it contains a symlink component; "
+                "trust the resolved directory instead",
+                kind="error",
+            )
+            return
         directory = cwd / "extensions"
         if not directory.is_dir():
             self.message(f"trusted {cwd}; no extensions directory to load")
