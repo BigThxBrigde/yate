@@ -1332,16 +1332,16 @@ def test_f8_opens_manual_and_esc_closes() -> None:
             await pilot.pause()
             assert isinstance(app.screen, MarkdownDocScreen)
             md = app.screen.query_one("#doc-md", Markdown)
-            # F8 opens the default (english) manual
-            assert md.source == load_manual_markdown("en")
-            # the loading placeholder is hidden once content is in (the
-            # markdown worker parses/mounts off the loop, so poll until done)
             loading = app.screen.query_one("#doc-loading", Static)
-            # generous timeout: the markdown worker parses/mounts off the
-            # loop and a fully loaded suite can starve it past 5s
+            # the markdown worker reads/parses off the loop; poll until the
+            # load completes before asserting content -- a loaded CI box can
+            # still be mid-read after the first pause (asserting the source
+            # immediately once raced as '' != manual there)
             assert await wait_until(
                 pilot, lambda: not loading.display, timeout=15.0
             )
+            # F8 opens the default (english) manual
+            assert md.source == load_manual_markdown("en")
             # the viewer follows the active yate theme via the bridge -- no
             # per-screen theme switch happens
             assert app.theme == "yate-mocha"
@@ -4503,6 +4503,12 @@ def test_doc_search_debounce_merges_rapid_typing(
             assert await wait_until(
                 pilot, lambda: not loading.display, timeout=15.0
             )
+            # freeze the trailing window before touching the input: with a
+            # 30s debounce the timer cannot fire mid-test no matter how the
+            # runner schedules the presses (a loaded CI box once let the
+            # real 0.12s window elapse between keystrokes and recorded an
+            # intermediate rebuild, ['ke', 'key'])
+            monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
             await pilot.press("slash")
             await pilot.pause()
 
@@ -4515,15 +4521,18 @@ def test_doc_search_debounce_merges_rapid_typing(
 
             monkeypatch.setattr(screen, "_run_search", counting)
 
-            # four keystrokes inside one trailing window: fewer rebuild
-            # passes than keystrokes, carrying the final query
+            # four keystrokes: zero rebuilds while typing (the merge), then
+            # one rebuild carrying the final query when the window callback
+            # runs
             keys = ("t", "h", "e", "m")
             await pilot.press(*keys)
-            assert await wait_until(
-                pilot, lambda: len(calls) >= 1, timeout=5.0
-            )
-            assert len(calls) < len(keys)
-            assert calls[-1] == "".join(keys)
+            await pilot.pause()
+            assert calls == []
+            # the trailing window really is armed and pending (the manual
+            # flush below only covers the callback body, not the arming)
+            assert screen._search_timer is not None
+            screen._flush_search()
+            assert calls == ["".join(keys)]
 
     asyncio.run(scenario())
 
@@ -4547,6 +4556,10 @@ def test_doc_search_enter_flushes_pending_query_immediately(
             assert await wait_until(
                 pilot, lambda: not loading.display, timeout=15.0
             )
+            # freeze the trailing window before touching the input: with a
+            # 30s debounce no timer can fire, so the only way a search can
+            # run is the enter flush itself
+            monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
             await pilot.press("slash")
             await pilot.pause()
 
@@ -4559,8 +4572,8 @@ def test_doc_search_enter_flushes_pending_query_immediately(
 
             monkeypatch.setattr(screen, "_run_search", counting)
 
-            # type and submit before the 0.12s trailing window elapses:
-            # enter must flush the pending query right away
+            # type, then submit: enter must flush the pending query right
+            # away instead of waiting the (frozen) window
             await pilot.press("k", "e", "y")
             await pilot.press("enter")
             await pilot.pause()
