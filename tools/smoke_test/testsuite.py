@@ -37,6 +37,7 @@ Report flags (all commands)
 ``--svg-rows N``      how many rows to show (default 6)
 ``--coverage``        report how many ``:`` commands / actions were hit
 ``--no-invariant``    skip the automatic per-scenario invariant sweep
+``--timeout S``       per-scenario wall clock budget in seconds (default 60)
 ``--repeat N``        run the selection N times (flake hunting)
 ``--seed N``          seed for the randomized (fuzz) scenarios
 ``--json PATH``       also write a machine readable JSON report

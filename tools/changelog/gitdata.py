@@ -66,6 +66,7 @@ def parse_log_output(text: str) -> list[RawCommit]:
         stripped = record.strip("\n")
         if not stripped.strip():
             continue
+        # maxsplit=4: a subject embedding \x1f is truncated into the body (frozen in tests).
         fields = stripped.split(_FIELD_SEP, 4)
         if len(fields) < 5:
             raise GitError(f"malformed git log record: {stripped[:80]!r}")

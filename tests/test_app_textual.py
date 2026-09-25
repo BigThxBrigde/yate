@@ -15,6 +15,7 @@ from typing import Any, Awaitable, Callable, cast
 import pytest
 
 from textual.strip import Strip
+from textual.widget import Widget
 from textual.widgets.tree import TreeNode
 
 # The bundled yate/extensions/ directory is auto-loaded with every YateApp;
@@ -24,8 +25,9 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
-from yate.keymaps.vim import VimKeymap
 from yate.editor_view.manual import MarkdownDocScreen
+from yate.keymaps.base import ActionContext
+from yate.keymaps.vim import VimKeymap
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
@@ -639,8 +641,21 @@ def test_palette_down_cursor_moves(tmp_path: Path) -> None:
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
+            # the input grabs focus in on_mount; under full-suite load that
+            # can land after the press, which then sinks into the editor
+            # beneath the modal instead of bubbling to the screen
+            assert await wait_until(
+                pilot,
+                lambda: app.focused is not None
+                and app.focused.id == "palette-input",
+                timeout=5.0,
+            )
             await pilot.press("down")
-            assert screen.cursor_index == 1
+            # poll instead of asserting after one pause: under full-suite
+            # load the key event can land one pump cycle late
+            assert await wait_until(
+                pilot, lambda: screen.cursor_index == 1, timeout=5.0
+            )
 
     asyncio.run(scenario())
 
@@ -1322,8 +1337,10 @@ def test_f8_opens_manual_and_esc_closes() -> None:
             # the loading placeholder is hidden once content is in (the
             # markdown worker parses/mounts off the loop, so poll until done)
             loading = app.screen.query_one("#doc-loading", Static)
+            # generous timeout: the markdown worker parses/mounts off the
+            # loop and a fully loaded suite can starve it past 5s
             assert await wait_until(
-                pilot, lambda: not loading.display, timeout=5.0
+                pilot, lambda: not loading.display, timeout=15.0
             )
             # the viewer follows the active yate theme via the bridge -- no
             # per-screen theme switch happens
@@ -1579,8 +1596,14 @@ def test_manual_search_step_lands_on_exact_rendered_row() -> None:
             screen = app.screen
             assert isinstance(screen, MarkdownDocScreen)
             md = screen.query_one("Markdown")
+            # layout readiness, not just child count: _run_search scans
+            # widget.region.height, which is 0 for every widget until the
+            # refresh cycle lays the screen out (flaky under full-suite
+            # load, where that cycle lands after the search below)
             await wait_until(
-                pilot, lambda: len(list(md.walk_children())) > 20
+                pilot,
+                lambda: len(list(md.walk_children())) > 20
+                and any(w.region.height > 0 for w in md.walk_children(Widget)),
             )
             private = cast(Any, screen)
             scroll = screen.query_one("#doc-scroll", VerticalScroll)
@@ -2404,14 +2427,26 @@ def test_overlay_commands_clear_stale_message(
     asyncio.run(scenario())
 
 
-def test_cycle_tab_with_one_tab_warns() -> None:
+def test_cycle_tab_with_single_tab_is_silent_noop() -> None:
+    # N10: cycling with a single tab used to warn on every keypress;
+    # it is now a silent no-op -- repeated cycles in both directions
+    # leave the message line untouched and never raise.
     async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
+            baseline = _message_text(app)
+            assert "only one tab" not in baseline
+
             app.editor.run_command("bn")
             await pilot.pause()
-            assert "only one tab" in _message_text(app)
+            app.editor.run_command("bp")
+            await pilot.pause()
+            app.editor.cycle_tab(1)
+            app.editor.cycle_tab(-1)
+            await pilot.pause()
+            assert _message_text(app) == baseline
+            assert app.editor.session.doc is app.editor.session.docs[0]
 
     asyncio.run(scenario())
 
@@ -3249,6 +3284,32 @@ def test_ctrl_grave_toggles_focuses_and_forwards() -> None:
             await wait_until(pilot, lambda: app.editor.terminal_panel.is_visible)
             assert panel.display
             assert cast(Any, panel.view).proc is proc
+
+    asyncio.run(scenario())
+
+
+def test_terminal_focused_ctrl1_returns_focus_to_editor() -> None:
+    # N19: the terminal view used to swallow every key once focused;
+    # ctrl+1 must hand focus back to the editor without the shell
+    # input stream seeing the key (one keypress, one dispatch -- R10).
+    async def scenario() -> None:
+        app = YateApp()
+        app.editor.terminal_panel.view_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.editor.terminal_panel
+            assert panel is not None
+            await _press_toggle(pilot)
+            shown = await wait_until(pilot, lambda: panel.view.proc is not None)
+            assert shown
+            assert app.focused is panel.view
+            proc = _FakePty.instances[0]
+            assert proc.started
+
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+            assert app.focused is app.editor.panes.active_view
+            assert b"".join(proc.sent) == b""
 
     asyncio.run(scenario())
 
@@ -4504,5 +4565,39 @@ def test_doc_search_enter_flushes_pending_query_immediately(
             await pilot.press("enter")
             await pilot.pause()
             assert calls == ["key"]
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------- action_quit registry routing
+
+
+def test_ctrl_q_routes_through_the_registered_quit_action(tmp_path: Path) -> None:
+    """N18 (option 1): ctrl+q dispatches the registered ``quit`` action.
+
+    ``action_quit`` used to call ``Editor.quit`` directly, leaving the
+    registered ``quit`` action reachable only via ``execute_action``
+    (palette / extensions / smoke's quit_action_dispatch). Re-registering
+    ``quit`` with a spy proves the key path now goes through the registry.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "clean.txt"
+        target.write_text("clean\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            hits: list[str] = []
+
+            def spy_quit(ctx: ActionContext) -> None:
+                hits.append(ctx.session.doc.name or "")
+                app.editor.quit()
+
+            app.editor.actions.register("quit", spy_quit, "spy quit")
+            await pilot.press("ctrl+q")
+            await _wait_quit(app, pilot)
+
+        assert hits == ["clean.txt"]
+        assert app.return_code == 0
 
     asyncio.run(scenario())

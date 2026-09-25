@@ -225,12 +225,10 @@
   *复核：仍存在 — [segments.py:102](../../tools/changelog/segments.py)（段序号）与 [segments.py:122](../../tools/changelog/segments.py)（commit 位置）同名。*
   *✅ 已修复（2026-09-24）— [segments.py](../../tools/changelog/segments.py) 循环变量改名 `seg_index`（L102-114），commit 拓扑位置 `position` 保持；纯重命名零行为变化，changelog 53 用例全绿。*
 
-- [ ] **subject 字段可能包含嵌入的字段分隔符** — `tools/changelog/gitdata.py`
+- [x] **subject 字段可能包含嵌入的字段分隔符** — `tools/changelog/gitdata.py`
   理论上的问题，实际极不可能。
   *复核：仍存在（理论性）— body 经 `maxsplit` 保留杂散分隔符，subject 字段本身无防护。*
-  *⏳ 待实施（2026-09-25 复核）：未实现、未放弃——已补入
-  [P2 计划 N32](../documents/code-review-fix-plans/P2_nice_to_have_plan.md)（理论性 Low，
-  按实现固化行为或加断言/文档说明，随手清理级）。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：按实现固化——`maxsplit=4` 处补一行注释说明边界（subject 内嵌 `\x1f` 被截断进 body），一条固化用例 `test_parse_log_output_subject_with_stray_separator_truncates_into_body`；零解析逻辑变更。*
 
 - [x] **`files_dirty` 路径解析可能误处理前导空格** — `tools/release/cli.py`
   *复核：仍存在 — [cli.py:63-75](../../tools/release/cli.py) 解析逻辑未变。*
@@ -251,46 +249,60 @@
 
 ### 🟢 Nice-to-have（锦上添花）→ 计划：[P2](../documents/code-review-fix-plans/P2_nice_to_have_plan.md)
 
-- [ ] **保存始终使用 LF，忽略原始/平台换行符** — `editor_core/document.py:97`
+- [x] **保存始终使用 LF，忽略原始/平台换行符** — `editor_core/document.py:97`
   *复核：仍存在 — [document.py:50-53](../../yate/editor_core/document.py) 打开时统一归一为 LF，保存按 LF 写出。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP1）：Document 打开时记录主导 EOL（crlf/lf/cr，并列偏 CRLF），保存按其写回；新文件一律 LF。守卫：`test_save_round_trips_a_crlf_file_with_crlf_endings` 等 3 条；行为变更待用户在真实 CRLF 文件上人工确认。*
 
-- [ ] **配置模式 tokenizer 可能产生重叠 token** — `editor_syntax/regex_backend.py:636`
+- [x] **配置模式 tokenizer 可能产生重叠 token** — `editor_syntax/regex_backend.py:636`
   *复核：仍存在 — `_tokenize_config_line` 各 `finditer` 独立发射，字符串内的数字/布尔词会重复着色。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP2）：`_CONFIG_TOKEN_RE` 单次交替扫描（string|number|bool，首字符互斥），消费式扫描天然不重叠；键名内数字/布尔词不再双着色。守卫：`test_config_number_inside_string_is_not_double_colored` 等 3 条。*
 
-- [ ] **共享库缺少符号时错误无上下文** — `editor_syntax/ts_backend/languages.py:172`
+- [x] **共享库缺少符号时错误无上下文** — `editor_syntax/ts_backend/languages.py:172`
   *复核：仍存在（部分改善）— 依赖缺失已有清晰提示（[languages.py:218-221](../../yate/editor_syntax/ts_backend/languages.py)），但缺符号时 `getattr(dll, symbol)` 仍抛裸 `AttributeError`。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP2）：`getattr` 包 `try/except AttributeError`，`raise RuntimeError`（含库路径与符号名）`from exc`；`_FAILED` 缓存语义不变。守卫：`test_missing_symbol_error_includes_library_path_and_symbol`。*
 
-- [ ] **`_to_char` 中间字符字节偏移边界情况缺注释** — `editor_syntax/ts_backend/backend.py:115`
+- [x] **`_to_char` 中间字符字节偏移边界情况缺注释** — `editor_syntax/ts_backend/backend.py:115`
+  *✅ 已补（2026-09-25，P2 波次一 SP2）：`_to_char` 补 docstring——多字节中间偏移经 `errors="ignore"` 丢弃不完整尾字符、映射到所切字符首列（纯注释，与既有用例实测行为逐字核对）。*
 
-- [ ] **Outdent 移除 `tab_width` 个空格而非回到上一个 tab stop** — `editor_core/buffer.py:277`
+- [x] **Outdent 移除 `tab_width` 个空格而非回到上一个 tab stop** — `editor_core/buffer.py:277`
   *复核：基本仍存在 — [buffer.py:510-525](../../yate/editor_core/buffer.py) 已支持整 Tab 剥离，但空格缩进仍按 `tab_width` 移除而非对齐上一个 stop。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP1）：空格缩进改 `rrem = removed % tab_width` 对齐上一个 stop（3 空格→0、8 空格→4）；整 Tab 剥离不变。守卫 2 条。附带效应（符合策略本意）：1~3 空格从无操作变为归零。*
 
-- [ ] **`replace_current` 可用 `replace_range` 简化** — `editor_core/search.py:126`
+- [x] **`replace_current` 可用 `replace_range` 简化** — `editor_core/search.py:126`
   *复核：仍存在 — [search.py:102](../../yate/editor_core/search.py) 独立实现保留。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP1）：`replace_current` 改调 `buffer.replace_range`，重复实现删除；单步 undo 契约有守卫。语义校准：替换为空串从静默 no-op 变为删除匹配（与 `replace_all` 对齐；`replace_current` 无产品调用方，差异不可达）。*
 
-- [ ] **`_soft_reset`（ESC c）不退出备用屏幕** — `editor_term/emulator.py:250`
+- [x] **`_soft_reset`（ESC c）不退出备用屏幕** — `editor_term/emulator.py:250`
   *复核：仍存在 — [emulator.py:387-397](../../yate/editor_term/emulator.py) 未切换回主屏幕。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP3）：`_soft_reset` 入口调 `_set_alt_screen(False, save_cursor=False)` 回主屏（计划提名的 `_exit_alt_screen` 不存在，采用预授权的等价复位路径）。守卫：`test_soft_reset_in_alternate_screen_returns_to_primary`。*
 
 - [ ] **ctrl+digit 绑定使用 kitty 协议，大多数终端不支持** — `keymaps/base.py:105`
   *复核：仍存在 — [base.py:118-121](../../yate/keymaps/base.py) 仍编码为 CSI-u。*
+  *⏸ 暂缓（2026-09-25，P2 决策门 G1）：保留 kitty 现状，备注「待 KeyBinding 在 WT 重构后彻底修复」；届时与 N19 落地的 `FOCUS_EDITOR_KEY` 单点常量一并处理。*
 
-- [ ] **`cycle_tab` 允许空操作循环** — `app.py:453`
+- [x] **`cycle_tab` 允许空操作循环** — `app.py:453`
   *复核：仍存在 — [editor.py:476-484](../../yate/editor.py) 单 tab 时仅提示。*
+  *✅ 已修复（2026-09-25，P2 波次二 SP6）：`cycle_tab` 入口判 `len(session.docs) <= 1` 静默 return（`session.cycle` 返回 None 仅此一种情形，改写等价）；多 tab 循环不变。守卫：`test_cycle_tab_with_single_tab_is_silent_noop`（原「断言有提示」用例按新行为改写）。*
 
-- [ ] **smoke test 工具自身无测试** — `tools/smoke_test/`
+- [x] **smoke test 工具自身无测试** — `tools/smoke_test/`
   *复核：仍存在 — `tests/` 下无 smoke 工具自测。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：新建 [test_smoke_tool.py](../../tests/test_smoke_tool.py) 14 条——`select_scenarios` 5、`Reporter` 4、`extract_svg_rows` 4、场景超时 1（harness 端到端按约定不测）。*
 
-- [ ] **SVG 提取正则脆弱，依赖 Textual 版本** — `tools/smoke_test/testsuite.py`
+- [x] **SVG 提取正则脆弱，依赖 Textual 版本** — `tools/smoke_test/testsuite.py`
   *复核：仍存在 — 提取仍基于 SVG 文本解析（[harness.py:130](../../tools/smoke_test/harness.py) `extract_svg_rows`）。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：正则收紧至 Textual 8.2.8 实测格式并注释版本；新增 `SvgDriftError`——`<text` 出现数与匹配数不符时抛错并附 SVG 头部片段；收紧前做过新旧正则等价性验证（真实 SVG 17k 字符提取结果一致）。守卫 4 条。*
 
-- [ ] **单个场景执行无超时** — `tools/smoke_test/testsuite.py`
+- [x] **单个场景执行无超时** — `tools/smoke_test/testsuite.py`
   *复核：仍存在 — 断言轮询有 5s 超时（`wait_until`），但场景整体执行无超时保护。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：`RunOptions.timeout`（默认 60s）+ CLI `--timeout`；`asyncio.wait_for` 包裹场景，超时记 error 继续跑后续场景；`--repeat` 下 `_worse()` 保证 error 结果不被好结果覆盖。守卫：`test_run_scenarios_timeout_fails_scenario_and_continues`；`--timeout 0.001` 端到端实测 exit 1。*
 
-- [ ] **`check_commit_pushed` 仅支持 `gitee.com`** — `tools/changelog/gitee.py`
+- [x] **`check_commit_pushed` 仅支持 `gitee.com`** — `tools/changelog/gitee.py`
   *复核：仍存在 — [gitee.py:61-85](../../tools/changelog/gitee.py) 其他 host 返回 `None`。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：按 host 分派（gitee OpenAPI v5 / github REST / 其它 None）；新增 `check_supported`，调用方 `cli.py` 对不支持 host 打印 `cannot verify pushes ... skipping gate` 并跳过（不再静默空过）。守卫 6 条（monkeypatch，零网络）。*
 
-- [ ] **`strip_unreleased` 边界情况（仅有 Unreleased 段）未测试** — `tools/changelog/render.py`
+- [x] **`strip_unreleased` 边界情况（仅有 Unreleased 段）未测试** — `tools/changelog/render.py`
   *复核：仍存在 — 测试文件无 `strip_unreleased` 直接用例。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：三条边界用例（仅有 Unreleased 段 → 只剩 header；空 Unreleased 段 → 标题连同空行剔除；Unreleased 在末尾 → 整段丢弃）。*
 
 - [x] **文档提到 e2e git 测试但实际不存在** — `tests/test_changelog_tool.py`
   **已修复（核实 2026-09-23）：** [test_changelog_tool.py:689](../../tests/test_changelog_tool.py) 已有「real git end-to-end」测试段（真实临时 git 仓库，无 git 环境时跳过）。
@@ -337,7 +349,7 @@
 
 > 来源：按 `run --coverage` 缺口补冒烟场景（计划 §7.10，提交 `0984361`）。仅记录，未修产品源码。
 
-- [ ] **action `quit` 注册后在 UI 上不可达（Low，注册冗余）** — [`keymaps/vsc.py:87`](../../yate/keymaps/vsc.py)
+- [x] **action `quit` 注册后在 UI 上不可达（Low，注册冗余）** — [`keymaps/vsc.py:87`](../../yate/keymaps/vsc.py)
   两条独立原因：① vsc 的 `<ctrl+q>` 绑定被 Textual App 级 priority binding 遮蔽
   （`App.BINDINGS` 内置 `('ctrl+q','quit', priority=True)`，[`app.py`](../../yate/app.py) 覆写 `action_quit` 直接调 `Editor.quit()`）；
   ② 命令面板刻意去重与同名 `:command` 重名的 action（[`palette.py:186-190`](../../yate/editor_view/palette.py)），
@@ -345,11 +357,14 @@
   只有 `execute_action("quit")`（扩展/测试路径）能触达该注册条目。
   **可选修法（三选一）：** ① `YateApp.action_quit` 改调 `editor.execute_action("quit")`；② 面板保留同名 action；③ 删除冗余的 vsc `<ctrl+q>` 绑定。
   冒烟侧已由 [`scenarios/files.py::quit_action_dispatch`](../../tools/smoke_test/scenarios/files.py) 覆盖，`--coverage` 达 65/65。
+  *✅ 已修复（2026-09-25，P2 决策门 G2 拍板选①）：`YateApp.action_quit` 改调 `editor.execute_action("quit")`（[app.py](../../yate/app.py)），ctrl+q 与 palette/扩展走同一注册表条目；冒烟两个 quit 场景 docstring 同步更新；守卫 `test_ctrl_q_routes_through_the_registered_quit_action`（spy 重注册 `quit` 证明键路径过注册表）。*
 
-- [ ] **终端面板显示时无法用按键把焦点交回编辑器（Nice-to-have）** — [`terminal.py:193-204`](../../yate/editor_view/terminal.py)
+- [x] **终端面板显示时无法用按键把焦点交回编辑器（Nice-to-have）** — [`terminal.py:193-204`](../../yate/editor_view/terminal.py)
   面板获得焦点后 `TerminalView.on_key` 吞掉除 `ctrl+`` 之外的所有按键（`ctrl+1`、`Esc`、F5 等均被 stop 并转发给 shell），
   关闭/回焦只能靠 toggle 键。这是"终端独占键盘"的设计选择且有明确出路（`ctrl+`` 关闭），但对 vscode 习惯（`ctrl+1`）不友好。
   **可选修法：** 在 `TOGGLE_KEYS` 之外放行 `ctrl+1`（`focus_editor`）；`Esc` 需先确认 shell 是否依赖。
+  *✅ 已修复（2026-09-25，P2 波次二 SP6）：新增 `FOCUS_EDITOR_KEY = "ctrl+1"` 分支（stop+prevent_default 后调 `panel.focus_editor`，置于 dead-shell 复活分支之前——焦点切换不复活 shell）；`Esc` 本轮不动。R10 自检：放行键不二次派发。守卫：`test_terminal_focused_ctrl1_returns_focus_to_editor`（含 shell 输入流未收到该键断言）。*
+  *✅ 收尾批补做冒烟场景（2026-09-25）：`terminal_focus_editor`（integration.py，内存 fake PTY 不起真 shell，未标 slow；断言焦点回编辑区 + ctrl+1 字节未进 shell 流）——补齐 P2 原文要求的冒烟验收面。*
 
 ---
 
@@ -739,13 +754,15 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   恢复契约已是新代码职责。**修复**：`spawn_shell` 失败分支复位 `proc=None`/`dead=True`。*
   *✅ 已修复（2026-09-24）— [terminal.py](../../yate/editor_view/terminal.py) `await proc.start(...)` 包 `try/except Exception`，失败分支复位 `proc=None`、`dead=True` 后 re-raise（故意不捕 BaseException——取消时保留 spawn 线程已建子进程的引用供 `shutdown()` 回收）；守卫 `test_spawn_failure_marks_the_view_dead_and_revivable`（二次 start 成功，重生端到端可达）。*
 
-- [ ] **`add_binding` 覆盖 `_index` 但旧 binding 残留，help 双条目** —
+- [x] **`add_binding` 覆盖 `_index` 但旧 binding 残留，help 双条目** —
   [`keymaps/base.py:229-240`](../../yate/keymaps/base.py#L229-L240)
   modals 帮助遍历 `bindings` 列表，同 raw key 展示两条。*存量。*
+  *✅ 已修复（2026-09-25，P2 波次二 SP5）：覆盖同 raw key 时同步从 `bindings` 列表移除旧条目（`_index`/列表双写一致）；docstring 补 replace-in-place 语义。守卫（Keymap 层）：`test_add_binding_twice_for_a_key_keeps_one_list_entry` / `test_add_binding_over_a_built_in_key_keeps_one_list_entry`。*
 
-- [ ] **visual 模式 `gg` 永不跳转，条件为死代码** —
+- [x] **visual 模式 `gg` 永不跳转，条件为死代码** —
   [`vim.py:240-245`](../../yate/keymaps/vim.py#L240-L245)
   `pending` 恒空且 `"g"` ∈ `_MOTION_CODES`，第二分支不可达。*存量。*
+  *✅ 已修复（2026-09-25，P2 波次二 SP5）：按子计划默认策略删除死分支（条件收敛为 `key in _MOTION_CODES`；实现 visual gg 属新功能不做）；删后语义不变（visual 下 `g` 命中 motion 表后 `code == "g"` 直接 break）。守卫：`test_visual_gg_presses_change_nothing` 固化删后行为。*
 
 - [x] **渲染热路径每行重复查询 LSP 诊断两次** —
   [`editor_view/editor.py:424,576`](../../yate/editor_view/editor.py#L424-L576)
@@ -771,6 +788,7 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
 - [ ] **L0 config 惰性 import L2 `editor_view.theme`，层级方向违规** —
   [`config.py:171-173`](../../yate/config.py#L171-L173)
   存量耦合仅改为惰性；建议后续下沉或注入回调，并在架构规则中登记（类似 R11 冻结）。
+  *⏸ 暂缓（2026-09-25，P2 决策门 G3）：备注「下次做重构方案」；届时按下沉 / 注入回调二选一单独立项 + 架构规则登记。*
 
 - [x] **`visible_tree` 递归无 symlink 环防护** —
   [`workspace.py:255-272`](../../yate/services/workspace.py#L255-L272)
@@ -783,36 +801,44 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   [`keymaps/registry.py:19-21`](../../yate/keymaps/registry.py#L19-L21)
   显式 `raise ValueError(...)` 更可定位。
   *✅ 已修复（2026-09-24）— [registry.py](../../yate/keymaps/registry.py) 空注册表显式 `raise ValueError("no keymaps registered")`；守卫：空注册表 `pytest.raises(ValueError)` 两条。*
-- [ ] **两个无关类型同名 `Action`**（callable 别名 vs dataclass）—
+- [x] **两个无关类型同名 `Action`**（callable 别名 vs dataclass）—
   [`base.py:160`](../../yate/keymaps/base.py#L160) / [`registries.py:26`](../../yate/registries.py#L26)，
   扩展作者易混淆；别名可改 `ActionFunc`。
-- [ ] **`if key == "o": pass` 死代码** — [`vim.py:372-373`](../../yate/keymaps/vim.py#L372-L373)。*存量。*
+  *✅ 已修复（2026-09-25，P2 波次二 SP5）：base.py 内别名改名 `ActionFunc`（定义 + `KeyBinding.action` + `add_binding` 参数）；全仓 grep 核实无外部引用（`keymaps/__init__` 不 re-export、`docs/` 目录不存在），`registries.py` dataclass 不动。*
+- [x] **`if key == "o": pass` 死代码** — [`vim.py:372-373`](../../yate/keymaps/vim.py#L372-L373)。*存量。*
+  *✅ 已修复（2026-09-25，P2 波次二 SP5）：删除（`entry` 仅含 `i/I/a/A`，分支恒不可达）。*
 - [x] **`dg`/`yg` 空 motion 仍报 "deleted"/"yanked"** —
   [`vim.py:303-321`](../../yate/keymaps/vim.py#L303-L321)：`"g"` 应排除出操作符 motion。
   *✅ 已修复（2026-09-24）— [vim.py](../../yate/keymaps/vim.py) 操作符等待态排除 `"g"`（`gg` 属位置跳转），落入既有 unknown-motion 丢弃路径；守卫：`dg`/`yg` 后无消息、缓冲与寄存器不变（核实 `yg` 原会经 `yank_selection()` else 分支误写整行进 register）。*
-- [ ] **`handle_key` docstring「every check is pure」不实** —
+- [x] **`handle_key` docstring「every check is pure」不实** —
   [`editor.py:529-535`](../../yate/editor.py#L529-L535)：
   `try_window_prefix` 变更 `_window_pending`、popup 分支执行 `accept_completion`；当前无双重派发，
   但该表述会误导后续维护者。
-- [ ] **`PromptBar.on_cancel` 属性名落入 Textual `on_*` 反射命名空间** —
+  *✅ 已修复（2026-09-25，P2 波次二 SP6）：docstring 对照现实现重写——如实写明 `try_window_prefix` 会 arm/clear `ctrl+w` pending chord、popup 分支会 `accept_completion`，并注明 `True` 返回要求调用方 stop 事件（R10）。*
+- [x] **`PromptBar.on_cancel` 属性名落入 Textual `on_*` 反射命名空间** —
   [`commandline.py:213`](../../yate/editor_view/commandline.py#L213)
   实例属性非类方法、当前无冲突消息，纯命名隐患；可改 `cancel_hook`。
-- [ ] **`score += 0  # consecutive: best` 死语句** —
+  *✅ 已修复（2026-09-25，P2 波次二 SP6）：`on_cancel` → `cancel_hook`（commandline.py 定义/属性/`cancel()` 调用点 + editor.py 构造 kwarg）；全仓 grep 代码 0 残留（仅历史规划文档提及）。*
+- [x] **`score += 0  # consecutive: best` 死语句** —
   [`palette.py:58-59`](../../yate/editor_view/palette.py#L58-L59)。
+  *✅ 已修复（2026-09-25，P2 波次二 SP6）：死语句不可直接删（首分支置空会改变 consecutive 语义），改三分支赋 `penalty` 后统一 `score += penalty`（逐值等价：+0/+1/+2+gap）。*
 - [x] **删除最后选中项后 `_last_selected` 悬挂** —
   [`explorer.py:107,119-123`](../../yate/editor_view/explorer.py#L107-L123)
   `_restore_cursor` 未命中时清 `None`。
   *✅ 已修复（2026-09-24）— [explorer.py](../../yate/editor_view/explorer.py) `_restore_cursor` 未命中时 `_last_selected = None`；守卫 `test_restore_cursor_forgets_vanished_selection`。*
-- [ ] **内部导入组非字母序** — [`extensions.py:49-53`](../../yate/services/extensions.py#L49-L53)。
-- [ ] **trust.py 全用 `Path | None`**（[`trust.py:27,50,71`](../../yate/services/trust.py#L27-L71)）
+- [x] **内部导入组非字母序** — [`extensions.py:49-53`](../../yate/services/extensions.py#L49-L53)。
+  *✅ 已修复（2026-09-25，P2 波次二 SP7）：组内调整为完全字母序（`registries` 前移、`trust` 移至 `shell` 后），diff 仅导入顺序。*
+- [x] **trust.py 全用 `Path | None`**（[`trust.py:27,50,71`](../../yate/services/trust.py#L27-L71)）
   与规范 `Optional[X]` 不一致（与 Minor 的 explorer 条目同类，合并修）。
+  *✅ 已修复（2026-09-25，P2 波次二 SP7）：三处签名改 `Optional[Path]`（实测行号 45/68/115，补 `from typing import Optional`）；不改运行时逻辑。*
 - [x] **dirty 状态下每次 `modified` 查询 O(N) tuple 分配** —
   [`document.py:86-88`](../../yate/editor_core/document.py#L86-L88)
   状态栏每键查询；可按 `content_edits` 缓存上次判定（代码注释已自认知该权衡）。
   *✅ 已修复（2026-09-24）— [document.py](../../yate/editor_core/document.py) `modified` 按 `content_edits` 计数 memo（计数不变直接返回缓存，save 末尾失效缓存防陈旧 True）；守卫 `test_modified_memo_stays_correct_across_save_and_undo`（save 失效 + 跨 undo 重算 + redo 往返）。*
-- [ ] **harness 重写行沿用 `# type: ignore`** —
+- [x] **harness 重写行沿用 `# type: ignore`** —
   [`harness.py:274-283`](../../tools/smoke_test/harness.py#L274-L283)
   工具代码沿旧模式；若属既定豁免，补理由注释归档。
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：7 处全部消除而非注释归档——1 处 `cast(Callable[..., None], ...)`，6 处经实测签名完全匹配直接删除；pyright strict 零诊断确认。*
 
 ### 四维度结论
 
@@ -840,12 +866,13 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
 > 来源：外部审查工具报告的 2 个改进项，均指向 `yate/logs.py`；主代理现场读码
 > 核实成立，登记于此，**均未修**。
 
-- [ ] **`warn()` 在 `sys.stderr` 为 `None` 时退化为写 stdout，与 docstring 承诺不符（Low，可维护性）** —
+- [x] **`warn()` 在 `sys.stderr` 为 `None` 时退化为写 stdout，与 docstring 承诺不符（Low，可维护性）** —
   [`logs.py:85-87`](../../yate/logs.py#L85-L87)
   `pythonw` 等 GUI 环境下 `sys.stderr` 为 `None`，而 `print(..., file=None)` 按 Python 语义回退到
   `sys.stdout`：警告文本会打进 TUI 屏幕，docstring 的「Print ``yate: <message>`` to stderr」名不副实。
   **修复**：`if sys.stderr is not None:` 再 `print(...)`——stderr 不可用时静默丢弃，与
   「Never raises」承诺一致。
+  *✅ 已修复（2026-09-25，P2 波次二 SP7）：`warn()` 入口 `if sys.stderr is None: return`，docstring 补 pythonw 行为；守卫 `test_warn_silently_drops_output_when_stderr_is_none`（monkeypatch stderr=None，断言不抛且 stdout/stderr 均空）。*
 
 - [x] **崩溃报告 / trace 日志文件名仅秒级精度，同秒并发启动互相覆盖或交织（Low，功能性）** —
   [`logs.py:396-401`](../../yate/logs.py#L396-L401)、[`logs.py:522-523`](../../yate/logs.py#L522-L523)

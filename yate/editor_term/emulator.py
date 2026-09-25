@@ -385,6 +385,10 @@ class TerminalEmulator:
             self._state = _GROUND
 
     def _soft_reset(self) -> None:
+        # RIS returns to the primary screen (xterm leaves the alternate
+        # buffer and homes the cursor there); save_cursor=False because the
+        # cursor is homed below anyway.
+        self._set_alt_screen(False, save_cursor=False)
         self.fg = self.bg = None
         self.bold = self.dim = self.italic = False
         self.underline = self.reverse = False

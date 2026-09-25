@@ -1139,3 +1139,66 @@ def test_open_falls_back_when_the_bytes_are_undecodable(
     doc = Document.open(weird)
     assert doc.encoding == "utf-8"
     assert doc.buffer.get_text() == raw.decode("utf-8", errors="replace")
+
+
+# --- Document: original line endings round-trip -----------------------------
+
+
+def test_save_round_trips_a_crlf_file_with_crlf_endings(tmp_path: Path) -> None:
+    """A CRLF file is saved back as CRLF after an edit/save cycle."""
+    path = tmp_path / "win.txt"
+    path.write_bytes(b"line1\r\nline2\r\n")
+    doc = Document.open(path)
+    assert doc.eol == "\r\n"
+    doc.buffer.insert_text("!")
+    doc.save()
+    assert path.read_bytes() == b"!line1\r\nline2\r\n"
+
+
+def test_new_document_saves_with_lf_endings(tmp_path: Path) -> None:
+    """Buffers that never came from a file keep the LF default."""
+    doc = Document(tmp_path / "new.txt", TextBuffer("a\nb"))
+    doc.save()
+    assert (tmp_path / "new.txt").read_bytes() == b"a\nb"
+
+
+def test_save_writes_back_cr_endings_for_cr_files(tmp_path: Path) -> None:
+    """A lone-CR file records CR as its EOL and saves it back unchanged."""
+    path = tmp_path / "classic.txt"
+    path.write_bytes(b"line1\rline2\r")
+    doc = Document.open(path)
+    assert doc.eol == "\r"
+    doc.buffer.insert_text("!")
+    doc.save()
+    assert path.read_bytes() == b"!line1\rline2\r"
+
+
+# --- TextBuffer: outdent aligns to the previous tab stop --------------------
+
+
+def test_outdent_of_spaces_below_a_tab_stop_removes_the_whole_indent() -> None:
+    """3 spaces with tab_width=4 sit between stops: outdent removes all 3."""
+    buf = TextBuffer("   ab", tab_width=4)
+    buf.outdent_selection()
+    assert buf.get_text() == "ab"
+
+
+def test_outdent_of_spaces_on_a_tab_stop_removes_one_tab_width() -> None:
+    """8 spaces with tab_width=4 outdent to the previous stop (4 left)."""
+    buf = TextBuffer("        ab", tab_width=4)
+    buf.outdent_selection()
+    assert buf.get_text() == "    ab"
+
+
+# --- SearchEngine: replace_current stays one undoable step ------------------
+
+
+def test_replace_current_is_a_single_undo_step() -> None:
+    """Replacing the current hit via replace_range undoes as one step."""
+    engine = SearchEngine()
+    buffer = TextBuffer("foo foo")
+    engine.update("foo", buffer)
+    engine.next(buffer)
+    assert engine.replace_current(buffer, "bar") is True
+    buffer.undo()
+    assert buffer.get_text() == "foo foo"

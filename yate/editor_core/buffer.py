@@ -520,9 +520,12 @@ class TextBuffer:
             if line.startswith("\t"):
                 self.lines[r] = line[1:]
             elif line.startswith(" "):
+                # Space indents outdent to the previous tab stop, not a full
+                # width: 3 spaces with tab_width=4 all go, 8 spaces lose 4.
                 stripped = line.lstrip(" ")
                 removed = len(line) - len(stripped)
-                self.lines[r] = " " * max(0, removed - self.tab_width) + stripped
+                rrem = removed % self.tab_width
+                self.lines[r] = " " * (removed - (rrem or self.tab_width)) + stripped
         if sel is not None:
             self.anchor = (r1, 0)
             self.cursor = (r2, len(self.lines[r2]))

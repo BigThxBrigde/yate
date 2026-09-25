@@ -38,6 +38,10 @@ class Document:
         self.path: Optional[Path] = Path(path) if path is not None else None
         self.buffer: TextBuffer = buffer or TextBuffer()
         self.encoding = encoding
+        # Dominant line ending of the file as opened (``\r\n`` / ``\n`` /
+        # ``\r``); ``save()`` converts the buffer's LF newlines back to it.
+        # New buffers keep LF.  See :meth:`open` and :meth:`_dominant_eol`.
+        self.eol: str = "\n"
         # Manual syntax/filetype override (`:set filetype=...`); ``None``
         # means the type is detected from the path suffix.
         self.filetype_override: Optional[str] = None
@@ -62,10 +66,13 @@ class Document:
         p = Path(path)
         raw = p.read_bytes()
         text, encoding = cls._decode(raw)
-        # Normalize newlines: the buffer always works with LF.  Saving writes
-        # LF too (see save()), so CRLF files from Windows stay consistent.
+        # Remember the file's dominant line ending, then normalize: the
+        # buffer always works with LF, and saving converts back to the
+        # recorded EOL (see save()), so a CRLF file from Windows stays CRLF.
+        eol = cls._dominant_eol(text)
         text = text.replace("\r\n", "\n").replace("\r", "\n")
         doc = cls(p, TextBuffer(text), encoding=encoding)
+        doc.eol = eol
         doc.buffer.move_doc_start()
         return doc
 
@@ -84,6 +91,24 @@ class Document:
             except (UnicodeDecodeError, LookupError):
                 continue
         return raw.decode("utf-8", errors="replace"), "utf-8"
+
+    @staticmethod
+    def _dominant_eol(text: str) -> str:
+        """Return the dominant line ending of *text* as read from disk.
+
+        Counts CRLF, lone LF and lone CR occurrences and returns the most
+        frequent one; ties go to CRLF over the others and to LF over CR.  A
+        text without any line ending counts as LF -- the default new files
+        are saved with too.
+        """
+        crlf = text.count("\r\n")
+        lf = text.count("\n") - crlf
+        cr = text.count("\r") - crlf
+        if crlf > 0 and crlf >= lf and crlf >= cr:
+            return "\r\n"
+        if cr > lf:
+            return "\r"
+        return "\n"
 
     # ------------------------------------------------------------ properties
 
@@ -143,6 +168,14 @@ class Document:
         on-disk contents.  Encoding also happens before anything is written,
         so an unencodable character still leaves the file untouched.
 
+        Line endings follow the file's original dominant EOL, recorded when
+        :meth:`open` loaded it (CRLF / LF / CR; brand-new buffers keep LF):
+        the buffer works in LF internally and ``save`` converts on the way
+        out, so a Windows CRLF file round-trips as CRLF.  The recorded EOL
+        is the one detected at open time -- re-rolling the file to different
+        line endings externally between open and save does not change what
+        the next save writes.
+
         ``os.replace`` swaps the inode, so the target's permission bits (and,
         where the platform exposes them, its extended attributes -- which is
         how POSIX ACLs are carried) are copied onto the temporary file first;
@@ -166,6 +199,11 @@ class Document:
         if self.path is None:
             raise ValueError("cannot save a document without a path")
         text = self.buffer.get_text()
+        # Write back with the EOL recorded at open time (new buffers default
+        # to LF): the buffer works in LF, so CRLF/CR files convert on the
+        # way out.  See the ``eol`` attribute for the detection boundary.
+        if self.eol != "\n":
+            text = text.replace("\n", self.eol)
         data = text.encode(self.encoding)
         target = self.path
         # A unique sibling temp file avoids collisions between concurrent

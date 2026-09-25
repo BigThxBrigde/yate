@@ -570,6 +570,21 @@ def test_alternate_screen_switches_and_restores() -> None:
     assert emu.scrollback == []
 
 
+def test_soft_reset_in_alternate_screen_returns_to_primary() -> None:
+    """ESC c (RIS) leaves the alternate screen and clears the primary."""
+    emu = _emu(cols=6, rows=2)
+    emu.feed(b"main\x1b[?1049h\x1b[?25lalt")
+    assert emu.in_alt is True
+    assert _rows(emu) == "alt"
+
+    emu.feed(b"\x1bc")
+    assert emu.in_alt is False
+    assert _rows(emu) == ""
+    assert emu.cursor == (0, 0)
+    assert emu.cursor_visible is True
+    assert emu.scrollback == []
+
+
 def test_device_status_and_identification_responses() -> None:
     """DSR 6/5 and DA report through the on_response callback."""
     seen: list[bytes] = []

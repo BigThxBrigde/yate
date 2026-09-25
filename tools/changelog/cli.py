@@ -130,10 +130,15 @@ def generate(
     pushed: dict[str, bool] = {}
     if online and remote is not None:
         lookup = {c.short_sha: c.sha for c in entries}
-        pushed = gitee.pushed_flags(remote, lookup)
-        unpushed = [sha for sha, ok in pushed.items() if not ok]
-        if unpushed:
-            print(f"warning: {len(unpushed)} commit(s) not found on Gitee")
+        if gitee.check_supported(remote.host):
+            pushed = gitee.pushed_flags(remote, lookup)
+            unpushed = [sha for sha, ok in pushed.items() if not ok]
+            if unpushed:
+                print(f"warning: {len(unpushed)} commit(s) not found on "
+                      f"{remote.host}")
+        else:
+            print(f"warning: cannot verify pushes on {remote.host} "
+                  "— skipping gate")
 
     notes = _generated_notes(version, date)
     docs: dict[tuple[str, str], str] = {}

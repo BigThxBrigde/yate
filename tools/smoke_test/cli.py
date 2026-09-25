@@ -16,6 +16,7 @@ from typing import Any, Optional, Sequence
 from . import baselines
 from .harness import (
     Coverage,
+    DEFAULT_SCENARIO_TIMEOUT_S,
     RunOptions,
     Scenario,
     ScenarioResult,
@@ -67,6 +68,11 @@ def _add_report_options(p: argparse.ArgumentParser) -> None:
                    help="export the colored report as standalone HTML")
     p.add_argument("--no-invariant", action="store_true",
                    help="skip the automatic per-scenario invariant sweep")
+    p.add_argument("--timeout", type=float, default=DEFAULT_SCENARIO_TIMEOUT_S,
+                   metavar="S",
+                   help="per-scenario wall clock budget in seconds; a "
+                        "scenario exceeding it is cancelled and fails "
+                        f"(default: {DEFAULT_SCENARIO_TIMEOUT_S:g})")
     p.add_argument("--repeat", type=int, default=1, metavar="N",
                    help="run the selection N times (flake hunting)")
     p.add_argument("--seed", type=int, default=None,
@@ -127,6 +133,17 @@ def _write_json(path: str, results: Sequence[ScenarioResult],
     )
 
 
+def _worse(candidate: ScenarioResult, incumbent: ScenarioResult) -> bool:
+    """Whether *candidate* is a worse run than *incumbent*.
+
+    ``--repeat`` reports the worst iteration: an error (crash or timeout)
+    outranks any run without one, otherwise more failing checks lose.
+    """
+    if (candidate.error is not None) != (incumbent.error is not None):
+        return candidate.error is not None
+    return candidate.fail_count > incumbent.fail_count
+
+
 def _execute(
     selected: list[Scenario], tmp_root: Path, options: RunOptions,
     *, repeat: int,
@@ -142,7 +159,7 @@ def _execute(
         for _ in range(max(1, repeat)):
             for result in run_scenarios(selected, tmp_root, options):
                 previous = best.get(result.name)
-                if previous is None or result.fail_count > previous.fail_count:
+                if previous is None or _worse(result, previous):
                     best[result.name] = result
     # Selection order, with the worst run of each scenario reported.
     return [best[s.name] for s in selected], cov
@@ -170,6 +187,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     options = RunOptions(
         svg=args.svg,
         invariants=not args.no_invariant,
+        timeout=args.timeout,
         progress=reporter.progress,
     )
     with TemporaryDirectory() as td:
@@ -211,7 +229,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
         )
     options = RunOptions(
         svg=args.with_svg, invariants=not args.no_invariant,
-        progress=reporter.progress,
+        timeout=args.timeout, progress=reporter.progress,
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
@@ -262,7 +280,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
         )
     options = RunOptions(
         svg=args.with_svg, invariants=not args.no_invariant,
-        progress=reporter.progress,
+        timeout=args.timeout, progress=reporter.progress,
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(

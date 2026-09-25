@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -258,6 +259,19 @@ def test_unwritable_logs_dir_only_warns(
     assert tracing.install() is False
     assert not tracing.is_enabled()
     assert "trace log unavailable" in capsys.readouterr().err
+
+
+def test_warn_silently_drops_output_when_stderr_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Under pythonw ``sys.stderr`` is ``None``: warn() must neither raise
+    nor fall back to writing the message to stdout."""
+    monkeypatch.setattr(sys, "stderr", None)
+    logs.warn("no destination")  # must not raise
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert err == ""
 
 
 # --- uninstall (Windows data/ cleanup) ---------------------------------------

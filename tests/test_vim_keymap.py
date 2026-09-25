@@ -696,6 +696,40 @@ def test_binding_to_a_registered_action_is_dispatched() -> None:
     assert calls == ["ran"]
 
 
+def test_add_binding_twice_for_a_key_keeps_one_list_entry() -> None:
+    """Re-registering a key replaces its binding instead of duplicating it.
+
+    The stale list entry must go with the overwritten index one, otherwise
+    the help overlay (which walks ``bindings``) shows the key twice.
+    """
+    editor, keymap, ctx = _setup("abc")
+    calls: list[str] = []
+    editor.actions.register("ext_first", lambda _ctx: calls.append("first"), "ext")
+    editor.actions.register("ext_second", lambda _ctx: calls.append("second"), "ext")
+
+    keymap.add_binding("q", "ext_first")
+    keymap.add_binding("q", "ext_second")
+
+    entries = [b for b in keymap.bindings if b.key == "q"]
+    assert len(entries) == 1
+    assert entries[0].action == "ext_second"
+    assert keymap.lookup("q") is entries[0]
+
+    assert keymap.handle_key(ctx, "q") is True
+    assert calls == ["second"]
+
+
+def test_add_binding_over_a_built_in_key_keeps_one_list_entry() -> None:
+    """Overriding a built-in key drops the stale table entry, not just the index."""
+    keymap = VimKeymap()
+    keymap.add_binding("w", "ext_run")
+
+    entries = [b for b in keymap.bindings if b.key == "w"]
+    assert len(entries) == 1
+    assert entries[0].category == "extension"
+    assert keymap.lookup("w") is entries[0]
+
+
 def test_word_end_motion_wraps_to_the_next_line() -> None:
     """e at the end of a line steps onto the next one."""
     editor, keymap, ctx = _setup("ab\ncd")
@@ -730,6 +764,19 @@ def test_visual_arrow_motion_extends_the_selection() -> None:
     _press(keymap, ctx, "v", "\x1b[B")
     assert editor.buffer.cursor == (1, 0)
     assert editor.buffer.has_selection() is True
+
+
+def test_visual_gg_presses_change_nothing() -> None:
+    """g has no jump semantics in visual mode: gg moves nothing.
+
+    The keys stay consumed, the collapsed selection survives and the mode
+    is unchanged.
+    """
+    editor, keymap, ctx = _setup("ab\ncd")
+    _press(keymap, ctx, "v", "g", "g")
+    assert editor.buffer.cursor == (0, 0)
+    assert editor.buffer.has_selection() is False
+    assert keymap.mode is VimMode.VISUAL
 
 
 def test_visual_line_toggle_on_an_empty_line() -> None:

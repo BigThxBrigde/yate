@@ -13,6 +13,7 @@ import importlib.util
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 from unittest import mock
 
@@ -400,6 +401,26 @@ def test_load_entry_points_raise_runtime_error(
         ts_langs.load_language_from_grammar("x", "tree_sitter_x", "")
     with pytest.raises(RuntimeError):
         ts_langs.language_from_shared_library("x.so", "tree_sitter_x")
+
+
+def test_missing_symbol_error_includes_library_path_and_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeDll:
+        """Loaded shared-library stand-in that exposes no symbols."""
+
+    def fake_cdll(_path: str) -> _FakeDll:
+        return _FakeDll()
+
+    monkeypatch.setattr(ts_langs, "tree_sitter", lambda: object())
+    monkeypatch.setattr(ts_langs, "ctypes", SimpleNamespace(CDLL=fake_cdll))
+    with pytest.raises(RuntimeError) as excinfo:
+        ts_langs.language_from_shared_library(
+            "fake_grammar.dll", "tree_sitter_missing"
+        )
+    message = str(excinfo.value)
+    assert "fake_grammar.dll" in message
+    assert "tree_sitter_missing" in message
 
 
 def test_unknown_filetype_resolves_to_none(
