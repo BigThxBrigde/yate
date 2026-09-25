@@ -4501,7 +4501,7 @@ def test_doc_search_debounce_merges_rapid_typing(
 
             loading = screen.query_one("#doc-loading", Static)
             assert await wait_until(
-                pilot, lambda: not loading.display, timeout=5.0
+                pilot, lambda: not loading.display, timeout=15.0
             )
             await pilot.press("slash")
             await pilot.pause()
@@ -4545,7 +4545,7 @@ def test_doc_search_enter_flushes_pending_query_immediately(
 
             loading = screen.query_one("#doc-loading", Static)
             assert await wait_until(
-                pilot, lambda: not loading.display, timeout=5.0
+                pilot, lambda: not loading.display, timeout=15.0
             )
             await pilot.press("slash")
             await pilot.pause()

@@ -496,7 +496,8 @@ def test_walk_files_survives_a_1500_level_chain(
     Real 1500-level trees cannot be created on stock Windows (MAX_PATH), so
     the chain is fed through the same ``Path.iterdir`` seam the unreadable-
     directory tests use; only ``child``/``leaf.txt`` names answer "yes" to
-    ``is_dir`` and everything else stays a plain in-memory Path.
+    ``is_dir`` and everything else -- including ``is_symlink`` -- stays a
+    plain in-memory Path.
     """
     root = root_of(ws)
     depth = 1500
@@ -511,8 +512,17 @@ def test_walk_files_survives_a_1500_level_chain(
     def chain_is_dir(path: Path) -> bool:
         return path == root or path.name == "child"
 
+    def chain_is_symlink(path: Path) -> bool:
+        return False
+
     monkeypatch.setattr("pathlib.Path.iterdir", chain_iterdir)
     monkeypatch.setattr("pathlib.Path.is_dir", chain_is_dir)
+    # Production consults is_symlink for every directory child (symlink-loop
+    # guard, workspace.py). Left real, it lstats the fake deep path: Windows
+    # tolerates the ~9k-character path (32k long-path ceiling) so the leak is
+    # Windows-masked, but Linux PATH_MAX (4k) raises Errno 36 partway down
+    # the chain (pathlib only ignores ENOENT-class lstat errors).
+    monkeypatch.setattr("pathlib.Path.is_symlink", chain_is_symlink)
 
     files = ws.walk_files()
 
@@ -539,7 +549,15 @@ def test_visible_tree_survives_a_1500_level_chain(
             return []
         return [Entry(path / "child", "child", True)]
 
+    def chain_is_symlink(path: Path) -> bool:
+        return False
+
     monkeypatch.setattr(ws, "list_dir", chain_list_dir)
+    # visible_tree consults is_symlink per expanded entry (S11 loop guard,
+    # workspace.py); left real it lstats the fake deep path -- past Linux
+    # PATH_MAX that is Errno 36 (Windows-masked: its 32k long-path ceiling
+    # fits the whole chain).
+    monkeypatch.setattr("pathlib.Path.is_symlink", chain_is_symlink)
 
     rows = ws.visible_tree(expanded)
 
