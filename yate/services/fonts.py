@@ -23,7 +23,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from yate.logs import tracing
 from yate.paths import package_root
@@ -313,7 +313,7 @@ def install_bundled_fonts() -> InstallResult:
 
 # ------------------------------------------------- Windows Terminal setup
 
-def windows_terminal_settings_path() -> Optional[Path]:
+def windows_terminal_settings_path() -> Path | None:
     local = os.environ.get("LOCALAPPDATA")
     if not local:
         return None

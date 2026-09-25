@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
+
+from collections.abc import Callable
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -34,7 +36,7 @@ from .icons import GEAR, KEYBOARD, icon_for_path
 MAX_VISIBLE = 12
 
 
-def fuzzy_match(query: str, target: str) -> Optional[tuple[int, list[int]]]:
+def fuzzy_match(query: str, target: str) -> tuple[int, list[int]] | None:
     """Subsequence-match *query* against *target* (case insensitive).
 
     Returns ``(score, matched_indices)`` (lower score = better) or ``None``
@@ -132,7 +134,7 @@ class PaletteScreen(ModalScreen[None]):
         self._filtered: list[tuple[int, list[int], int]] = []  # (score, hits, idx)
         self._cursor = 0
         # shown in the results pane while the file index builds in a thread
-        self._status_message: Optional[str] = None
+        self._status_message: str | None = None
 
     @property
     def filtered_count(self) -> int:

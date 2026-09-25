@@ -20,7 +20,6 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
 
 from ..changelog import gitdata
 from ..changelog.cli import check, generate
@@ -197,7 +196,7 @@ def git_push(repo: Path, refspec: str, *, dry_run: bool = False) -> None:
     print(f"pushed origin {refspec}")
 
 
-def _default_branch(repo: Path) -> Optional[str]:
+def _default_branch(repo: Path) -> str | None:
     """Detect the branch to push from ``origin/HEAD``; ``None`` if unknown.
 
     Runs the read-only ``git symbolic-ref refs/remotes/origin/HEAD`` and
@@ -220,7 +219,7 @@ def release(
     *,
     dry_run: bool = False,
     no_push: bool = False,
-    branch: Optional[str] = None,
+    branch: str | None = None,
 ) -> int:
     """Run the full release pipeline; returns the process exit code.
 

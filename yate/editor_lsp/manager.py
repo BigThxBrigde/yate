@@ -18,7 +18,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional, cast
+from typing import Any, cast
+
+from collections.abc import Awaitable, Callable
 
 from yate.editor_core.document import Document
 from yate.logs import tracing
@@ -67,25 +69,25 @@ class LspManager:
     def __init__(
         self,
         *,
-        workspace_root: Optional[Callable[[], Optional[Path]]] = None,
-        on_event: Optional[Callable[[str], None]] = None,
-        client_factory: Optional[Callable[[ServerConfig, Path], LspClient]] = None,
+        workspace_root: Callable[[], Path | None] | None = None,
+        on_event: Callable[[str], None] | None = None,
+        client_factory: Callable[[ServerConfig, Path], LspClient] | None = None,
     ) -> None:
         self._configs: list[ServerConfig] = []
         self._by_filetype: dict[str, ServerConfig] = {}
         self._clients: dict[ClientKey, LspClient] = {}
-        self._starting: dict[ClientKey, "asyncio.Task[Optional[LspClient]]"] = {}
+        self._starting: dict[ClientKey, asyncio.Task[LspClient | None]] = {}
         self._open: dict[str, OpenDocState] = {}
         self._diagnostics: dict[str, list[Diagnostic]] = {}
         self._change_timers: dict[str, asyncio.TimerHandle] = {}
-        self._bg_tasks: set["asyncio.Task[None]"] = set()
+        self._bg_tasks: set[asyncio.Task[None]] = set()
         self._shutting_down = False
         self._workspace_root = workspace_root
         self._on_event = on_event
         self._client_factory = client_factory
 
     def set_client_factory(
-        self, factory: Optional[Callable[[ServerConfig, Path], LspClient]]
+        self, factory: Callable[[ServerConfig, Path], LspClient] | None
     ) -> None:
         """Replace the client constructor (used by tests and embedders)."""
         self._client_factory = factory
@@ -131,7 +133,7 @@ class LspManager:
         the status bar)."""
         return list(self._configs)
 
-    def config_for(self, filetype: str) -> Optional[ServerConfig]:
+    def config_for(self, filetype: str) -> ServerConfig | None:
         return self._by_filetype.get(filetype)
 
     def supports(self, doc: Document) -> bool:
@@ -159,7 +161,7 @@ class LspManager:
                 result[name] = client.state
         return result
 
-    def state_for_doc(self, doc: Document) -> Optional[ServerState]:
+    def state_for_doc(self, doc: Document) -> ServerState | None:
         """Aggregated server state relevant to *doc*, for the status bar."""
         cfg = self.config_for(doc.filetype)
         return self.states().get(cfg.name) if cfg is not None else None
@@ -203,7 +205,7 @@ class LspManager:
             on_notification=self.handle_notification,
         )
 
-    async def ensure_client(self, doc: Document) -> Optional[LspClient]:
+    async def ensure_client(self, doc: Document) -> LspClient | None:
         """Start (once) and return the client for *doc*, or None on failure."""
         if doc.path is None:
             return None
@@ -236,7 +238,7 @@ class LspManager:
 
     async def _start_client(
         self, key: ClientKey, config: ServerConfig, root: Path
-    ) -> Optional[LspClient]:
+    ) -> LspClient | None:
         if not config.command:
             # Extension registered a server without an available executable.
             client = self._make_client(config, root)
@@ -355,7 +357,7 @@ class LspManager:
 
     def _spawn_bg(self, coro: Awaitable[None]) -> None:
         """Track a fire-and-forget notification task until it settles."""
-        task: "asyncio.Task[None]" = asyncio.ensure_future(coro)
+        task: asyncio.Task[None] = asyncio.ensure_future(coro)
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
 
@@ -404,7 +406,7 @@ class LspManager:
         *,
         prefix_start_col: int,
         trigger_kind: int = TRIGGER_INVOKED,
-        trigger_character: Optional[str] = None,
+        trigger_character: str | None = None,
     ) -> list[Completion]:
         """Fetch completions at the cursor; empty list when unavailable."""
         client = await self.ensure_client(doc)
@@ -476,7 +478,7 @@ class LspManager:
         return [], {}
 
     @staticmethod
-    def _range_from(value: Any) -> Optional[tuple[int, int, int, int]]:
+    def _range_from(value: Any) -> tuple[int, int, int, int] | None:
         """Normalize Range | {insert,replace} into (r0,c0,r1,c1)."""
         if not isinstance(value, dict):
             return None
@@ -504,7 +506,7 @@ class LspManager:
         row: int,
         col: int,
         prefix_start_col: int,
-    ) -> Optional[Completion]:
+    ) -> Completion | None:
         label_raw = item.get("label")
         if not isinstance(label_raw, str) or not label_raw:
             return None
@@ -513,7 +515,7 @@ class LspManager:
         insert_text = label
         text_format = item.get("insertTextFormat")
         text_edit = item.get("textEdit")
-        rng: Optional[tuple[int, int, int, int]] = None
+        rng: tuple[int, int, int, int] | None = None
 
         if isinstance(text_edit, str):
             insert_text = text_edit
@@ -622,9 +624,9 @@ class LspManager:
         warnings = sum(1 for d in diags if d.is_warning)
         return errors, warnings
 
-    def diagnostic_at(self, doc: Document, row: int, col: int) -> Optional[Diagnostic]:
+    def diagnostic_at(self, doc: Document, row: int, col: int) -> Diagnostic | None:
         """The most severe diagnostic whose range covers (row, col)."""
-        best: Optional[Diagnostic] = None
+        best: Diagnostic | None = None
         for d in self.diagnostics_for(doc):
             if d.start_row <= row <= d.end_row:
                 if d.start_row == d.end_row:
@@ -668,7 +670,7 @@ class LspManager:
                     asyncio.gather(*starting, return_exceptions=True),
                     timeout=2.0,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 for task in starting:
                     task.cancel()
                 await asyncio.gather(*starting, return_exceptions=True)

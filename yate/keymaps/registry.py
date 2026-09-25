@@ -8,7 +8,8 @@ all share this object instead of passing a bare ``dict`` plus a name string.
 
 from __future__ import annotations
 
-from typing import Iterator, Optional
+
+from collections.abc import Iterator
 
 from yate.keymaps.base import Keymap
 
@@ -27,7 +28,7 @@ class KeymapSet:
 
     # ------------------------------------------------------------- lookups
 
-    def get(self, name: str) -> Optional[Keymap]:
+    def get(self, name: str) -> Keymap | None:
         return self._keymaps.get(name)
 
     def __getitem__(self, name: str) -> Keymap:

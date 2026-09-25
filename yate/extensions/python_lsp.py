@@ -30,12 +30,11 @@ import shlex
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 from yate.services.extensions import ExtensionAPI
 
 
-def _venv_langserver() -> Optional[str]:
+def _venv_langserver() -> str | None:
     """Find pyright-langserver beside the running interpreter.
 
     ``pip install pyright`` puts its launchers in the environment's
@@ -51,7 +50,7 @@ def _venv_langserver() -> Optional[str]:
     return None
 
 
-def _python_settings() -> Optional[dict[str, object]]:
+def _python_settings() -> dict[str, object] | None:
     """Point pyright at the running interpreter for stdlib resolution.
 
     A frozen exe has no interpreter to reference, so skip it there and

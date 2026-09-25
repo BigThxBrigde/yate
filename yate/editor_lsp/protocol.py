@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, cast
 from urllib.parse import unquote, urlparse
 
 #: Protocol version advertised to the server.
@@ -39,7 +39,7 @@ def encode_message(payload: dict[str, Any]) -> bytes:
 
 
 def build_request(
-    request_id: int, method: str, params: Optional[dict[str, Any]] = None
+    request_id: int, method: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     msg: dict[str, Any] = {"jsonrpc": JSONRPC, "id": request_id, "method": method}
     if params is not None:
@@ -47,7 +47,7 @@ def build_request(
     return msg
 
 
-def build_notification(method: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def build_notification(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     msg: dict[str, Any] = {"jsonrpc": JSONRPC, "method": method}
     if params is not None:
         msg["params"] = params
@@ -68,7 +68,7 @@ def build_error(request_id: int, code: int, message: str) -> dict[str, Any]:
 
 def parse_headers(header_block: bytes) -> int:
     """Extract the body length from a CRLF terminated header block."""
-    length: Optional[int] = None
+    length: int | None = None
     for raw_line in header_block.split(b"\r\n"):
         if not raw_line:
             continue
@@ -98,7 +98,7 @@ def decode_body(body: bytes) -> dict[str, Any]:
     return cast(dict[str, Any], data)
 
 
-async def read_message(reader: Any) -> Optional[dict[str, Any]]:
+async def read_message(reader: Any) -> dict[str, Any] | None:
     """Read one framed message from an asyncio-style stream reader.
 
     Returns ``None`` on clean EOF before the next header starts.  Accepts

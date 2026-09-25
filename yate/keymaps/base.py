@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Optional, Union
+
+from collections.abc import Callable
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
@@ -165,7 +166,7 @@ class KeyBinding:
     """One key -> action binding, with metadata for the help system."""
 
     key: str  # raw key string (use parse_key for specs)
-    action: Union[str, ActionFunc]  # action name or direct callable
+    action: str | ActionFunc  # action name or direct callable
     description: str = ""
     category: str = "general"
 
@@ -229,7 +230,7 @@ class Keymap:
     def add_binding(
         self,
         key_spec: str,
-        action: Union[str, ActionFunc],
+        action: str | ActionFunc,
         description: str = "extension binding",
         category: str = "extension",
     ) -> None:
@@ -246,7 +247,7 @@ class Keymap:
         self.bindings.append(binding)
         self._index[raw] = binding
 
-    def lookup(self, key: str) -> Optional[KeyBinding]:
+    def lookup(self, key: str) -> KeyBinding | None:
         return self._index.get(key)
 
     # -------------------------------------------------------------- dispatch

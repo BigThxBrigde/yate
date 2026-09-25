@@ -22,7 +22,9 @@ import enum
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional, cast
+from typing import Any, cast
+
+from collections.abc import Awaitable, Callable
 
 from yate.logs import tracing
 
@@ -91,7 +93,7 @@ class ServerConfig:
     language_ids: dict[str, str] = field(default_factory=dict[str, str])
     initialization_options: Any = None
     settings: Any = None
-    env: Optional[dict[str, str]] = None
+    env: dict[str, str] | None = None
     root_markers: list[str] = field(default_factory=lambda: list(DEFAULT_ROOT_MARKERS))
 
     def language_id(self, filetype: str) -> str:
@@ -114,10 +116,10 @@ class Completion:
     detail: str = ""
     kind: int = 0
     sort_text: str = ""
-    range_start_row: Optional[int] = None
-    range_start_col: Optional[int] = None
-    range_end_row: Optional[int] = None
-    range_end_col: Optional[int] = None
+    range_start_row: int | None = None
+    range_start_col: int | None = None
+    range_end_row: int | None = None
+    range_end_col: int | None = None
 
     def has_range(self) -> bool:
         return (
@@ -164,8 +166,8 @@ class LspClient:
         config: ServerConfig,
         root_path: Path,
         *,
-        on_notification: Optional[NotificationFn] = None,
-        connect: Optional[ConnectFn] = None,
+        on_notification: NotificationFn | None = None,
+        connect: ConnectFn | None = None,
         init_timeout: float = 20.0,
     ) -> None:
         self.config = config
@@ -183,14 +185,14 @@ class LspClient:
         self._reader: Any = None
         self._writer: Any = None
         self._proc: Any = None
-        self._read_task: Optional[asyncio.Task[None]] = None
+        self._read_task: asyncio.Task[None] | None = None
         self._bg_tasks: set[asyncio.Task[None]] = set()
         self._write_lock = asyncio.Lock()
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[Any]] = {}
         # Settled once _connect() returns (or raises) so stop() can wait for
         # an in-flight spawn to finish tearing its subprocess down.
-        self._connecting: Optional[asyncio.Future[None]] = None
+        self._connecting: asyncio.Future[None] | None = None
 
     # ------------------------------------------------------------- lifecycle
 
@@ -239,7 +241,7 @@ class LspClient:
                     {"settings": self.config.settings},
                 )
             self.state = ServerState.READY
-        except (OSError, asyncio.TimeoutError, LspError) as exc:
+        except (OSError, TimeoutError, LspError) as exc:
             # Shutdown may have torn the client down while the initialize
             # handshake was still in flight; don't resurrect a STOPPED client
             # as FAILED.
@@ -253,7 +255,7 @@ class LspClient:
         if self._connect_override is not None:
             reader, writer, proc = await self._connect_override()
         else:
-            env: Optional[dict[str, str]] = None
+            env: dict[str, str] | None = None
             if self.config.env is not None:
                 env = dict(os.environ)
                 env.update(self.config.env)
@@ -279,7 +281,7 @@ class LspClient:
                 if hasattr(proc, "wait"):
                     try:
                         await asyncio.wait_for(proc.wait(), timeout=3.0)
-                    except (asyncio.TimeoutError, OSError):
+                    except (TimeoutError, OSError):
                         pass
             if writer is not None:
                 try:
@@ -304,7 +306,7 @@ class LspClient:
         if connecting is not None and not connecting.done():
             try:
                 await asyncio.wait_for(connecting, timeout=5.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
         if polite and self._writer is not None:
             try:
@@ -312,7 +314,7 @@ class LspClient:
                     self.request("shutdown", None), timeout=3.0
                 )
                 await self.notify("exit", None)
-            except (LspError, asyncio.TimeoutError, ConnectionError):
+            except (LspError, TimeoutError, ConnectionError):
                 pass
         await self._cleanup()
 
@@ -343,7 +345,7 @@ class LspClient:
             if proc.returncode is None and hasattr(proc, "wait"):
                 try:
                     await asyncio.wait_for(proc.wait(), timeout=3.0)
-                except (asyncio.TimeoutError, OSError):
+                except (TimeoutError, OSError):
                     pass
         writer = self._writer
         self._writer = None
@@ -365,7 +367,7 @@ class LspClient:
     # ------------------------------------------------------------ rpc layer
 
     async def request(
-        self, method: str, params: Optional[dict[str, Any]]
+        self, method: str, params: dict[str, Any] | None
     ) -> Any:
         """Send a request and await its raw ``result`` (raises on error)."""
         request_id, future = await self.start_request(method, params)
@@ -375,7 +377,7 @@ class LspClient:
             self._pending.pop(request_id, None)
 
     async def start_request(
-        self, method: str, params: Optional[dict[str, Any]]
+        self, method: str, params: dict[str, Any] | None
     ) -> tuple[int, asyncio.Future[Any]]:
         """Send a request without awaiting it.
 
@@ -400,7 +402,7 @@ class LspClient:
         return request_id, future
 
     async def notify(
-        self, method: str, params: Optional[dict[str, Any]]
+        self, method: str, params: dict[str, Any] | None
     ) -> None:
         if self._writer is None:
             raise LspConnectionError(f"client is {self.state.value}")

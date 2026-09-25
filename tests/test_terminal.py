@@ -7,7 +7,9 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, cast
+
+from collections.abc import Callable
 
 import pytest
 
@@ -207,7 +209,7 @@ def test_resize_alt_screen_does_not_add_scrollback() -> None:
 
 def test_wide_character() -> None:
     emu = TerminalEmulator(6, 1)
-    emu.feed("中x".encode("utf-8"))
+    emu.feed("中x".encode())
     line = emu.view_lines(0)[0]
     assert line[0].char == "中"
     assert line[1].char == ""  # continuation column
@@ -269,7 +271,7 @@ def test_label() -> None:
 class _FakePtyImpl:
     """Stand-in for the platform PTY backend used by PtyProcess."""
 
-    instances: list["_FakePtyImpl"] = []
+    instances: list[_FakePtyImpl] = []
 
     def __init__(self, owner: PtyProcess) -> None:
         self.owner = owner
@@ -404,7 +406,7 @@ class _FailingProc:
     async def start(
         self,
         on_output: Callable[[bytes], None],
-        on_exit: Callable[[Optional[int]], None],
+        on_exit: Callable[[int | None], None],
     ) -> None:
         raise PtyProcessError("no ConPTY here")
 
@@ -418,7 +420,7 @@ class _WorkingProc:
     async def start(
         self,
         on_output: Callable[[bytes], None],
-        on_exit: Callable[[Optional[int]], None],
+        on_exit: Callable[[int | None], None],
     ) -> None:
         return None
 

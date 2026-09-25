@@ -14,7 +14,8 @@ concrete :class:`~yate.editor.Editor`.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+
+from collections.abc import Callable
 
 from yate.keymaps.base import ActionContext
 
@@ -43,7 +44,7 @@ class ActionRegistry:
         """Add (or replace) the action *name*."""
         self._actions[name] = Action(name, func, description)
 
-    def get(self, name: str) -> Optional[Action]:
+    def get(self, name: str) -> Action | None:
         """Return the :class:`Action` for *name*, or ``None``."""
         return self._actions.get(name)
 
@@ -73,7 +74,7 @@ class CommandRegistry:
     def register(self, name: str, func: CommandFunc, description: str) -> None:
         self._commands[name] = (func, description)
 
-    def get(self, name: str) -> Optional[tuple[CommandFunc, str]]:
+    def get(self, name: str) -> tuple[CommandFunc, str] | None:
         return self._commands.get(name)
 
     def names(self) -> list[str]:

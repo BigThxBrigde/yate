@@ -10,7 +10,6 @@ table modules import the editor, so the editor must not import them back).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from textual.app import App, ComposeResult
 from textual.events import Key
@@ -78,13 +77,13 @@ class YateApp(App[None]):
 
     def __init__(
         self,
-        target: Optional[str | Path] = None,
+        target: str | Path | None = None,
         *,
-        keymap: Optional[str] = None,
-        theme_name: Optional[str] = None,
-        config: Optional[YateConfig] = None,
-        ext_files: Optional[list[str | Path]] = None,
-        ext_dirs: Optional[list[str | Path]] = None,
+        keymap: str | None = None,
+        theme_name: str | None = None,
+        config: YateConfig | None = None,
+        ext_files: list[str | Path] | None = None,
+        ext_dirs: list[str | Path] | None = None,
     ) -> None:
         super().__init__()
         self.title = f"yate {__version__}"

@@ -10,7 +10,9 @@ focus and repaint) are injected callables.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from typing import Any
+
+from collections.abc import Callable
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
@@ -224,12 +226,12 @@ class PromptBar(Horizontal):
         self.prompt = Static("", id="cl_prompt")
         self.input = CommandInput(self)
         self.message = Static(" Ready. Press F1 for help.", id="cl_msg")
-        self.active_mode: Optional[str] = None
+        self.active_mode: str | None = None
         #: Who wrote the current message line (see ``OWNER_*``).
         self.owner = OWNER_IDLE
-        self._on_submit: Optional[Callable[[str], None]] = None
-        self._on_changed: Optional[Callable[[str], None]] = None
-        self._refocus: Optional[Callable[[], None]] = None
+        self._on_submit: Callable[[str], None] | None = None
+        self._on_changed: Callable[[str], None] | None = None
+        self._refocus: Callable[[], None] | None = None
 
     def compose(self) -> ComposeResult:
         yield self.prompt
@@ -253,9 +255,9 @@ class PromptBar(Horizontal):
         *,
         initial: str = "",
         placeholder: str = "",
-        on_submit: Optional[Callable[[str], None]] = None,
-        on_changed: Optional[Callable[[str], None]] = None,
-        refocus: Optional[Callable[[], None]] = None,
+        on_submit: Callable[[str], None] | None = None,
+        on_changed: Callable[[str], None] | None = None,
+        refocus: Callable[[], None] | None = None,
     ) -> bool:
         """Show the prompt in *mode*; ``False`` when the bar is not mounted.
 
@@ -293,7 +295,7 @@ class PromptBar(Horizontal):
         self.owner = OWNER_IDLE
         self._show_message(text, theme.active().fg_dim)
 
-    def _show_message(self, text: str, color: Optional[str]) -> None:
+    def _show_message(self, text: str, color: str | None) -> None:
         self.active_mode = None
         self._on_submit = None
         self._on_changed = None

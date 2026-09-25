@@ -45,7 +45,9 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, IO, Mapping, Optional, TextIO
+from typing import Any, IO, TextIO
+
+from collections.abc import Callable, Mapping
 
 from yate import __version__
 
@@ -97,8 +99,8 @@ def warn(message: str) -> None:
 def build_session_header(
     *,
     title: str,
-    extra_lines: Optional[Mapping[str, str]] = None,
-    footer_lines: Optional[Mapping[str, str]] = None,
+    extra_lines: Mapping[str, str] | None = None,
+    footer_lines: Mapping[str, str] | None = None,
 ) -> str:
     """Process-metadata header shared by the crash report and the trace log.
 
@@ -140,7 +142,7 @@ def build_session_header(
     return "\n".join(lines) + "\n"
 
 
-def resolve_level(raw: str) -> Optional[int]:
+def resolve_level(raw: str) -> int | None:
     """Map a level name to its :mod:`logging` value; ``None`` if unknown.
 
     Case- and whitespace-insensitive (``"debug"`` -> ``10``).
@@ -151,7 +153,7 @@ def resolve_level(raw: str) -> Optional[int]:
     return int(getattr(logging, name))
 
 
-def env_trace() -> Optional[bool]:
+def env_trace() -> bool | None:
     """``YATE_TRACE`` decoded; ``None`` when unset (or unrecognizable)."""
     value = os.environ.get("YATE_TRACE", "").strip().lower()
     if not value:
@@ -164,7 +166,7 @@ def env_trace() -> Optional[bool]:
     return None
 
 
-def env_level() -> Optional[str]:
+def env_level() -> str | None:
     """``YATE_TRACE_LEVEL`` normalized to upper case; ``None`` if unset/invalid."""
     value = os.environ.get("YATE_TRACE_LEVEL", "").strip()
     if not value:
@@ -230,7 +232,7 @@ class _SessionFileHandler(logging.FileHandler):
             logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
         )
         self.setLevel(level)
-        self._stream: Optional[IO[str]] = None
+        self._stream: IO[str] | None = None
         self._header_written = False
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -276,9 +278,9 @@ class CrashService:
 
     def __init__(self) -> None:
         #: Open report handle while diagnostics are installed.
-        self._err_file: Optional[TextIO] = None
+        self._err_file: TextIO | None = None
         #: Path of ``_err_file``, kept for clean-exit removal.
-        self._err_path: Optional[Path] = None
+        self._err_path: Path | None = None
         #: Set once an uncaught exception has been logged, so atexit keeps
         #: the file.
         self._crashed: bool = False
@@ -287,24 +289,24 @@ class CrashService:
         #: time) -- so a hook the host installed between import and install
         #: is the one chained to and later restored, not clobbered.
         #: ``None`` until that first install.
-        self._original_excepthook: Optional[Callable[..., Any]] = None
+        self._original_excepthook: Callable[..., Any] | None = None
         #: The bound ``_excepthook`` object currently stored in
         #: ``sys.excepthook``, or ``None`` when we are not installed. Held
         #: as a reference on purpose: ``self._excepthook`` is a *fresh*
         #: bound method on every access, so ``sys.excepthook is
         #: self._excepthook`` is never true and could not tell "still ours"
         #: from "wrapped by someone else since".
-        self._installed_excepthook: Optional[Callable[..., Any]] = None
+        self._installed_excepthook: Callable[..., Any] | None = None
 
     # --- public read-only state -------------------------------------------
 
     @property
-    def err_file(self) -> Optional[TextIO]:
+    def err_file(self) -> TextIO | None:
         """Open crash report handle, or ``None`` when not installed."""
         return self._err_file
 
     @property
-    def err_path(self) -> Optional[Path]:
+    def err_path(self) -> Path | None:
         """Path of the open crash report, or ``None``."""
         return self._err_path
 
@@ -314,7 +316,7 @@ class CrashService:
         return self._crashed
 
     @property
-    def original_excepthook(self) -> Optional[Callable[..., Any]]:
+    def original_excepthook(self) -> Callable[..., Any] | None:
         """The ``sys.excepthook`` captured at install time (chained after us).
 
         ``None`` while the service has never been installed: the constructor
@@ -415,7 +417,7 @@ class CrashService:
     # --- helpers ----------------------------------------------------------
 
     def build_err_path(
-        self, directory: Path, now: Optional[datetime] = None
+        self, directory: Path, now: datetime | None = None
     ) -> Path:
         """Build ``crash-YYYYMMDD-HHMMSS-<pid>.err`` inside *directory*.
 
@@ -430,7 +432,7 @@ class CrashService:
             / f"{ERR_PREFIX}{moment:%Y%m%d-%H%M%S}-{os.getpid()}{ERR_SUFFIX}"
         )
 
-    def current_path(self) -> Optional[Path]:
+    def current_path(self) -> Path | None:
         """Path of this process's in-progress crash report, or ``None``.
 
         The file is header-only while the process is healthy; it must be
@@ -439,7 +441,7 @@ class CrashService:
         """
         return self._err_path
 
-    def current_crash_file(self) -> Optional[Path]:
+    def current_crash_file(self) -> Path | None:
         """Alias for :meth:`current_path` (kept for :mod:`yate.diagnostics`)."""
         return self._err_path
 
@@ -455,7 +457,7 @@ class CrashService:
         self,
         exc_type: type[BaseException],
         exc_value: BaseException,
-        exc_tb: Optional[TracebackType],
+        exc_tb: TracebackType | None,
     ) -> None:
         """Append the traceback to the report, then run the original hook."""
         self._crashed = True
@@ -511,8 +513,8 @@ class TracingService:
 
     def install(
         self,
-        yate_trace: Optional[bool] = None,
-        yate_trace_level: Optional[str] = None,
+        yate_trace: bool | None = None,
+        yate_trace_level: str | None = None,
     ) -> bool:
         """(Re)configure tracing and return whether it is on.
 
@@ -570,8 +572,8 @@ class TracingService:
 
     def configure(
         self,
-        yate_trace: Optional[bool] = None,
-        yate_trace_level: Optional[str] = None,
+        yate_trace: bool | None = None,
+        yate_trace_level: str | None = None,
     ) -> None:
         """Alias for :meth:`install` -- the rc-stage re-config, spelled out.
 
@@ -590,13 +592,13 @@ class TracingService:
 
     # --- state ------------------------------------------------------------
 
-    def current_path(self) -> Optional[Path]:
+    def current_path(self) -> Path | None:
         """Path of this session's log file, or ``None`` when tracing is off."""
         for handler in self.file_handlers():
             return Path(handler.baseFilename)
         return None
 
-    def current_log_path(self) -> Optional[Path]:
+    def current_log_path(self) -> Path | None:
         """Alias for :meth:`current_path` (kept for external callers)."""
         return self.current_path()
 
@@ -614,7 +616,7 @@ class TracingService:
 
     # --- logger tree (crash has no logger) --------------------------------
 
-    def get_logger(self, name: Optional[str] = None) -> logging.Logger:
+    def get_logger(self, name: str | None = None) -> logging.Logger:
         """The shared ``yate`` logger, or a child of it.
 
         ``get_logger(__name__)`` from inside the package yields

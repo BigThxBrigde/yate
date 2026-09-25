@@ -24,7 +24,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Literal, Optional, Union
+from typing import Literal
+
+from collections.abc import Callable
 
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
@@ -42,7 +44,7 @@ class EditorSession:
         self,
         config: YateConfig,
         *,
-        on_closed: Optional[ClosedHook] = None,
+        on_closed: ClosedHook | None = None,
     ) -> None:
         self.config = config
         self.docs: list[Document] = []
@@ -78,7 +80,7 @@ class EditorSession:
         buf.tab_width = self.config.tab_width
         buf.use_spaces = self.config.use_spaces
 
-    def is_open(self, path: Path) -> Optional[Document]:
+    def is_open(self, path: Path) -> Document | None:
         """The document already showing *path*, or ``None``."""
         resolved = path.resolve()
         for doc in self.docs:
@@ -90,7 +92,7 @@ class EditorSession:
         """Make *doc* the active document."""
         self.index = self.docs.index(doc)
 
-    def open(self, path: Path) -> Optional[Document]:
+    def open(self, path: Path) -> Document | None:
         """Open (or reuse) *path* and make it active.
 
         Returns ``None`` for a binary file; the caller reports that.
@@ -110,7 +112,7 @@ class EditorSession:
         self.activate(doc)
         return doc
 
-    async def open_async(self, path: Path) -> Optional[Document]:
+    async def open_async(self, path: Path) -> Document | None:
         """Like :meth:`open`, but the disk read runs off the event loop."""
         existing = self.is_open(path)
         if existing is not None:
@@ -143,7 +145,7 @@ class EditorSession:
         """Drop the live search state (tab switches / opens clear matches)."""
         self.search = SearchEngine()
 
-    def cycle(self, delta: int) -> Optional[Document]:
+    def cycle(self, delta: int) -> Document | None:
         """Activate the tab *delta* positions away (wrapping)."""
         if len(self.docs) < 2:
             return None
@@ -226,7 +228,7 @@ class ViewState:
     """Per-(leaf, document) view: independent cursor, anchor and scroll."""
 
     cursor: Pos = (0, 0)
-    anchor: Optional[Pos] = None
+    anchor: Pos | None = None
     scroll_col: int = 0
     scroll_row: int = 0
 
@@ -260,11 +262,11 @@ class Split:
     """A horizontal/vertical arrangement; ``sizes`` sum to 1.0."""
 
     axis: Axis
-    children: list["Node"]
+    children: list[Node]
     sizes: list[float]
 
 
-Node = Union[Leaf, Split]
+Node = Leaf | Split
 
 
 # ----------------------------------------------------------------- tree ops
@@ -280,7 +282,7 @@ def leaves(node: Node) -> list[Leaf]:
     return out
 
 
-def find_leaf(node: Node, leaf_id: int) -> Optional[Leaf]:
+def find_leaf(node: Node, leaf_id: int) -> Leaf | None:
     if isinstance(node, Leaf):
         return node if node.id == leaf_id else None
     for child in node.children:
@@ -300,7 +302,7 @@ def replace_node(node: Node, target: Leaf, replacement: Node) -> Node:
     return node
 
 
-def remove_node(node: Node, target: Leaf) -> Optional[Node]:
+def remove_node(node: Node, target: Leaf) -> Node | None:
     """Return *node* without *target*; ``None`` when *target* was the root.
 
     A split left with a single child collapses (the child is hoisted).
@@ -326,7 +328,7 @@ def remove_node(node: Node, target: Leaf) -> Optional[Node]:
 
 def find_axis_split(
     node: Node, target: Leaf, axis: Axis
-) -> Optional[tuple[Split, int]]:
+) -> tuple[Split, int] | None:
     """Deepest *axis* split on the path to *target* + the child index whose
     subtree contains the target (the slot to resize)."""
     if isinstance(node, Leaf):

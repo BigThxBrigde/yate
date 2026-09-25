@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from rich.segment import Segment
 from rich.style import Style
@@ -93,7 +93,7 @@ class CompletionPopup(Widget):
         self.items: list[Completion] = []
         self.index = 0
         self.prefix = ""
-        self._anchor: Optional[tuple[int, int]] = None
+        self._anchor: tuple[int, int] | None = None
 
     def on_mount(self) -> None:
         self.display = False
@@ -108,7 +108,7 @@ class CompletionPopup(Widget):
     def item_count(self) -> int:
         return len(self.items)
 
-    def selected(self) -> Optional[Completion]:
+    def selected(self) -> Completion | None:
         if not self.items:
             return None
         return self.items[self.index]
@@ -277,7 +277,7 @@ def _words_from_buffer(buf: TextBuffer, exclude_row: int) -> set[str]:
     return words
 
 
-def _path_completions(prefix: str, base_dir: Optional[Path] = None) -> list[str]:
+def _path_completions(prefix: str, base_dir: Path | None = None) -> list[str]:
     """Filesystem entries matching a path *prefix*.
 
     Relative prefixes resolve against *base_dir* (the workspace root) when
@@ -322,8 +322,8 @@ def buffer_completions(
     buf: TextBuffer,
     row: int,
     col: int,
-    extra_buffers: Optional[list[TextBuffer]] = None,
-    base_dir: Optional[Path] = None,
+    extra_buffers: list[TextBuffer] | None = None,
+    base_dir: Path | None = None,
 ) -> tuple[list[Completion], str, int]:
     """Build completion items from the open buffers (+ filesystem paths).
 

@@ -22,7 +22,9 @@ character column against the UTF-8 encoding of its line.
 
 from __future__ import annotations
 
-from typing import Any, Iterator, Optional, Protocol
+from typing import Any, Protocol
+
+from collections.abc import Iterator
 
 from yate.editor_syntax.ts_backend.languages import (
     LoadedLanguage,
@@ -160,7 +162,7 @@ def _tokens_for_row(
         end = min(end, line_len)
         if end <= start:
             continue
-        seg_start: Optional[int] = None
+        seg_start: int | None = None
         for i in range(start, end):
             if claimed[i]:
                 if seg_start is not None:

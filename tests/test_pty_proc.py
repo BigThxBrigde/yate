@@ -32,7 +32,9 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable, Generator, Optional, cast
+from typing import Any, cast
+
+from collections.abc import Callable, Generator
 
 import pytest
 
@@ -102,12 +104,12 @@ class _StubImpl:
     live on the class and the fixture resets them before each test.
     """
 
-    instances: list["_StubImpl"] = []
-    spawn_error: Optional[BaseException] = None
-    write_error: Optional[BaseException] = None
-    resize_error: Optional[BaseException] = None
-    terminate_error: Optional[BaseException] = None
-    close_error: Optional[BaseException] = None
+    instances: list[_StubImpl] = []
+    spawn_error: BaseException | None = None
+    write_error: BaseException | None = None
+    resize_error: BaseException | None = None
+    terminate_error: BaseException | None = None
+    close_error: BaseException | None = None
 
     def __init__(self, owner: PtyProcess) -> None:
         self.owner = owner
@@ -161,7 +163,7 @@ def stub_pty(monkeypatch: pytest.MonkeyPatch) -> type[_StubImpl]:
 
 
 def _stub_process(
-    stub_pty: type[_StubImpl], argv: Optional[list[str]] = None
+    stub_pty: type[_StubImpl], argv: list[str] | None = None
 ) -> tuple[PtyProcess, _StubImpl]:
     """Build a facade over the stub backend and return both halves."""
     proc = PtyProcess(argv if argv is not None else ["shell"], Path.cwd(), 80, 24)
@@ -196,7 +198,7 @@ def test_start_spawns_through_a_thread_and_reports_exit(
     """The happy path: spawn, then a backend-reported exit settles the future."""
 
     async def _scenario() -> None:
-        exits: list[Optional[int]] = []
+        exits: list[int | None] = []
         proc, impl = _stub_process(stub_pty)
         await proc.start(lambda _data: None, exits.append)
         assert impl.spawned
@@ -334,7 +336,7 @@ def test_backend_close_failure_does_not_block_the_exit_report(
     """Failing to release PTY handles still has to report the exit code."""
 
     async def _scenario() -> None:
-        exits: list[Optional[int]] = []
+        exits: list[int | None] = []
         proc, impl = _stub_process(stub_pty)
         await proc.start(lambda _data: None, exits.append)
         stub_pty.close_error = OSError("close failed")
@@ -417,7 +419,7 @@ def test_a_raising_ui_callback_is_contained(stub_pty: type[_StubImpl]) -> None:
     """A torn-down widget must not take the PTY teardown down with it."""
 
     async def _scenario() -> None:
-        def _explode(_code: Optional[int]) -> None:
+        def _explode(_code: int | None) -> None:
             raise ValueError("widget is gone")
 
         proc, impl = _stub_process(stub_pty)
@@ -435,11 +437,11 @@ def test_a_racy_exit_future_is_tolerated(stub_pty: type[_StubImpl]) -> None:
         def done(self) -> bool:
             return False
 
-        def set_result(self, value: Optional[int]) -> None:
+        def set_result(self, value: int | None) -> None:
             raise asyncio.InvalidStateError(str(value))
 
     async def _scenario() -> None:
-        exits: list[Optional[int]] = []
+        exits: list[int | None] = []
         proc, impl = _stub_process(stub_pty)
         await proc.start(lambda _data: None, exits.append)
         loop = asyncio.get_running_loop()
@@ -482,7 +484,7 @@ def test_real_pty_streams_child_output_and_reports_its_exit_code() -> None:
 
     async def _scenario() -> None:
         chunks: list[bytes] = []
-        exits: list[Optional[int]] = []
+        exits: list[int | None] = []
         proc = PtyProcess(_child("print('pty-ping')"), Path.cwd(), 80, 24)
         with _no_inherited_std_handles():
             await proc.start(chunks.append, exits.append)
@@ -548,7 +550,7 @@ def test_real_pty_terminate_stops_a_sleeping_child() -> None:
     """Terminating the PTY really kills the child and settles the exit."""
 
     async def _scenario() -> None:
-        exits: list[Optional[int]] = []
+        exits: list[int | None] = []
         proc = PtyProcess(
             _child("print('pty-ready', flush=True)\nimport time\ntime.sleep(30)\n"),
             Path.cwd(),

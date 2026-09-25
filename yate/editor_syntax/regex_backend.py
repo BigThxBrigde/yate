@@ -26,7 +26,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Optional
 
 from yate.editor_syntax.tokens import Token
 
@@ -42,8 +41,8 @@ class LangSpec:
 
     name: str
     mode: str = "code"            # "code" | "json" | "markdown" | "config"
-    line_comment: Optional[str] = None
-    block_comment: Optional[tuple[str, str]] = None
+    line_comment: str | None = None
+    block_comment: tuple[str, str] | None = None
     triple_strings: bool = False  # Python ''' / """ multiline strings
     string_prefixes: str = ""     # letters allowed directly before a quote
     sigils: bool = False          # $variable expansion (shell)
@@ -196,8 +195,8 @@ def _spec(
     name: str,
     *,
     mode: str = "code",
-    line_comment: Optional[str] = None,
-    block_comment: Optional[tuple[str, str]] = None,
+    line_comment: str | None = None,
+    block_comment: tuple[str, str] | None = None,
     triple_strings: bool = False,
     string_prefixes: str = "",
     sigils: bool = False,
@@ -343,7 +342,7 @@ register_language(_spec("ini", mode="config", line_comment="#"), "ini", "cfg", "
 register_language(_spec("yaml", mode="config", line_comment="#"), "yaml", "yml")
 
 
-def lang_for(filetype: str) -> Optional[LangSpec]:
+def lang_for(filetype: str) -> LangSpec | None:
     """Resolve a Document ``filetype`` (file extension without dot) to a spec.
 
     Returns ``None`` for unknown / plain-text files.
@@ -351,7 +350,7 @@ def lang_for(filetype: str) -> Optional[LangSpec]:
     return _LANGUAGES.get(filetype.lower())
 
 
-def resolve_filetype(name: str) -> Optional[str]:
+def resolve_filetype(name: str) -> str | None:
     """Normalize a user-typed filetype to a registered extension key.
 
     Accepts either an extension key (``py``, ``ts``, ``c++``) or a language
@@ -366,7 +365,7 @@ def resolve_filetype(name: str) -> Optional[str]:
     return _NAME_TO_KEY.get(key)
 
 
-def language_name(filetype: str) -> Optional[str]:
+def language_name(filetype: str) -> str | None:
     """Human-readable language name for an extension key (``py`` -> python)."""
     spec = lang_for(filetype)
     return spec.name if spec is not None else None
@@ -477,7 +476,7 @@ def _tokenize_code_line(
     tokens: list[Token] = []
     n = len(line)
     pos = 0
-    pending: Optional[str] = None  # forced kind for the next identifier
+    pending: str | None = None  # forced kind for the next identifier
 
     # --- continuation of a multiline construct -----------------------------
     if state == _S_BLOCK_COMMENT:
@@ -597,11 +596,11 @@ def _tokenize_code_line(
 def _classify_ident(
     spec: LangSpec,
     word: str,
-    pending: Optional[str],
+    pending: str | None,
     *,
     line: str,
     start: int,
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """Decide the token kind of an identifier, plus the pending kind for the
     next identifier (set by ``def`` / ``class`` / ``fn`` style keywords)."""
     end = start + len(word)

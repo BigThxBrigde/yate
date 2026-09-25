@@ -11,7 +11,7 @@ import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import pytest
 
@@ -144,7 +144,7 @@ def test_uri_roundtrip() -> None:
 
 class FakeProc:
     def __init__(self) -> None:
-        self.returncode: Optional[int] = None
+        self.returncode: int | None = None
         self.terminated = False
 
     def terminate(self) -> None:
@@ -166,7 +166,7 @@ class ServerHarness:
         self.cancelled: list[Any] = []
         self.shutdown_seen = False
         self.exit_seen = False
-        self.server: Optional[asyncio.base_events.Server] = None
+        self.server: asyncio.base_events.Server | None = None
         self.proc = FakeProc()
 
     async def start(self) -> LspClient:
@@ -487,7 +487,7 @@ def test_stop_during_starting_skips_shutdown_and_terminates() -> None:
 
         class SlowProc:
             def __init__(self) -> None:
-                self.returncode: Optional[int] = None
+                self.returncode: int | None = None
                 self.terminated = False
                 self.waited = False
 
@@ -1053,11 +1053,11 @@ def test_real_subprocess_starting_shutdown_leaves_no_garbage(
 # ------------------------------------------------- python extension discovery
 
 
-def _which_none(name: str) -> Optional[str]:
+def _which_none(name: str) -> str | None:
     return None
 
 
-def _venv_none() -> Optional[str]:
+def _venv_none() -> str | None:
     return None
 
 
@@ -1084,7 +1084,7 @@ def test_interpreter_adjacent_server_found_without_path(
     monkeypatch.delenv("YATE_PYTHON_LSP", raising=False)
     fake_exe = str(tmp_path / "pyright-langserver.exe")
 
-    def fake_venv() -> Optional[str]:
+    def fake_venv() -> str | None:
         return fake_exe
 
     monkeypatch.setattr(python_lsp.shutil, "which", _which_none)
@@ -1108,7 +1108,7 @@ def test_prefers_pyright_over_pylsp(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.delenv("YATE_PYTHON_LSP", raising=False)
 
-    def fake_which(name: str) -> Optional[str]:
+    def fake_which(name: str) -> str | None:
         return f"/usr/bin/{name}" if name == "pyright-langserver" else None
 
     monkeypatch.setattr(python_lsp.shutil, "which", fake_which)
@@ -1124,7 +1124,7 @@ def test_explicit_opt_out_disables_even_with_server_on_path(
 
     monkeypatch.setenv("YATE_PYTHON_LSP", "off")
 
-    def fake_which(name: str) -> Optional[str]:
+    def fake_which(name: str) -> str | None:
         return "/usr/bin/pylsp"
 
     monkeypatch.setattr(python_lsp.shutil, "which", fake_which)

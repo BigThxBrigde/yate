@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import asyncio
 from importlib.resources import files
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from textual import events
 from textual.app import ComposeResult
@@ -248,8 +248,8 @@ class MarkdownDocScreen(ModalScreen[None]):
         self._current_widget: Widget | None = None
         # pending debounced search: the asyncio timer plus the last typed
         # query it will run (typing merges into one rebuild per window)
-        self._search_timer: Optional[asyncio.TimerHandle] = None
-        self._pending_query: Optional[str] = None
+        self._search_timer: asyncio.TimerHandle | None = None
+        self._pending_query: str | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="doc-box"):
