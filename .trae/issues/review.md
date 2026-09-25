@@ -278,6 +278,7 @@
 
 - [ ] **ctrl+digit 绑定使用 kitty 协议，大多数终端不支持** — `keymaps/base.py:105`
   *复核：仍存在 — [base.py:118-121](../../yate/keymaps/base.py) 仍编码为 CSI-u。*
+  *⏸ 暂缓（2026-09-25，P2 决策门 G1）：保留 kitty 现状，备注「待 KeyBinding 在 WT 重构后彻底修复」；届时与 N19 落地的 `FOCUS_EDITOR_KEY` 单点常量一并处理。*
 
 - [x] **`cycle_tab` 允许空操作循环** — `app.py:453`
   *复核：仍存在 — [editor.py:476-484](../../yate/editor.py) 单 tab 时仅提示。*
@@ -348,7 +349,7 @@
 
 > 来源：按 `run --coverage` 缺口补冒烟场景（计划 §7.10，提交 `0984361`）。仅记录，未修产品源码。
 
-- [ ] **action `quit` 注册后在 UI 上不可达（Low，注册冗余）** — [`keymaps/vsc.py:87`](../../yate/keymaps/vsc.py)
+- [x] **action `quit` 注册后在 UI 上不可达（Low，注册冗余）** — [`keymaps/vsc.py:87`](../../yate/keymaps/vsc.py)
   两条独立原因：① vsc 的 `<ctrl+q>` 绑定被 Textual App 级 priority binding 遮蔽
   （`App.BINDINGS` 内置 `('ctrl+q','quit', priority=True)`，[`app.py`](../../yate/app.py) 覆写 `action_quit` 直接调 `Editor.quit()`）；
   ② 命令面板刻意去重与同名 `:command` 重名的 action（[`palette.py:186-190`](../../yate/editor_view/palette.py)），
@@ -356,6 +357,7 @@
   只有 `execute_action("quit")`（扩展/测试路径）能触达该注册条目。
   **可选修法（三选一）：** ① `YateApp.action_quit` 改调 `editor.execute_action("quit")`；② 面板保留同名 action；③ 删除冗余的 vsc `<ctrl+q>` 绑定。
   冒烟侧已由 [`scenarios/files.py::quit_action_dispatch`](../../tools/smoke_test/scenarios/files.py) 覆盖，`--coverage` 达 65/65。
+  *✅ 已修复（2026-09-25，P2 决策门 G2 拍板选①）：`YateApp.action_quit` 改调 `editor.execute_action("quit")`（[app.py](../../yate/app.py)），ctrl+q 与 palette/扩展走同一注册表条目；冒烟两个 quit 场景 docstring 同步更新；守卫 `test_ctrl_q_routes_through_the_registered_quit_action`（spy 重注册 `quit` 证明键路径过注册表）。*
 
 - [x] **终端面板显示时无法用按键把焦点交回编辑器（Nice-to-have）** — [`terminal.py:193-204`](../../yate/editor_view/terminal.py)
   面板获得焦点后 `TerminalView.on_key` 吞掉除 `ctrl+`` 之外的所有按键（`ctrl+1`、`Esc`、F5 等均被 stop 并转发给 shell），
@@ -785,6 +787,7 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
 - [ ] **L0 config 惰性 import L2 `editor_view.theme`，层级方向违规** —
   [`config.py:171-173`](../../yate/config.py#L171-L173)
   存量耦合仅改为惰性；建议后续下沉或注入回调，并在架构规则中登记（类似 R11 冻结）。
+  *⏸ 暂缓（2026-09-25，P2 决策门 G3）：备注「下次做重构方案」；届时按下沉 / 注入回调二选一单独立项 + 架构规则登记。*
 
 - [x] **`visible_tree` 递归无 symlink 环防护** —
   [`workspace.py:255-272`](../../yate/services/workspace.py#L255-L272)

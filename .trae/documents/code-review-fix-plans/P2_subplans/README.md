@@ -43,9 +43,9 @@ flowchart TB
   波次收尾的冒烟全绿即其端到端验证。
 - 波次二涉及按键分发与 UI 组件，放波次一之后串行开波；三个子计划文件域互不重叠可并行。
 - 决策门三项在波次收尾后处理：N8 并入 SP5、N18 并入 SP5 或 SP6（按拍板选项）、N30 单独立项。
-- **实施进度（2026-09-25）**：波次一 ✅（SP1–SP4，14 条）与波次二 ✅（SP5–SP7，12 条）
-  全部完成——pyright 全仓 0 诊断、pytest 全量全绿、冒烟 87/87 场景 · 907/907 checks ·
-  exit 0（两波门禁数字相同）；仅剩决策门 N8 / N18 / N30 待人工输入。
+- **实施进度（2026-09-25）**：P2 全部落账——波次一 ✅（SP1–SP4，14 条）+ 波次二 ✅
+  （SP5–SP7，12 条）+ 决策门三项拍板（N18 选①已落地，N8 / N30 暂缓备注）。
+  门禁：pyright 全仓 0 诊断、pytest 全量全绿、冒烟 87/87 场景 · 907/907 checks · exit 0。
 
 ## 子计划索引
 
@@ -69,11 +69,11 @@ flowchart TB
 
 ## 决策门（不占波次，收尾后处理）
 
-| 门 | 条目 | 需要的输入 | 拍板后的并入路径 |
+| 门 | 条目 | 需要的输入 | 拍板结果（2026-09-25） |
 |---|---|---|---|
-| G1 | **N8** ctrl+digit 走 kitty CSI-u | 在 Windows Terminal / cmd 实测 `ctrl+1..9` 是否可达（计划要求人工验证）；二选一：保留 kitty 绑定 + 文档标注终端要求，或改绑 `alt+digit` | 并入 SP5 补做（`keymaps/base.py`） |
-| G2 | **N18** action `quit` 注册后 UI 不可达 | 三选一拍板（倾向 ①：`YateApp.action_quit` 改调 `editor.execute_action("quit")`，落点 `yate/app.py`；③ 删 vsc 冗余绑定，落点 `keymaps/vsc.py`） | ①→SP6（app.py 纳入其清单）；③→SP5 |
-| G3 | **N30** L0 config 惰性 import L2 theme | 架构评审：下沉 / 注入回调二选一，同步 `architecture-boundaries.md` 登记（类似 R11 冻结） | 单独立项，评审通过后主代理实施 |
+| G1 | **N8** ctrl+digit 走 kitty CSI-u | 在 Windows Terminal / cmd 实测 `ctrl+1..9` 是否可达（计划要求人工验证）；二选一：保留 kitty 绑定 + 文档标注终端要求，或改绑 `alt+digit` | **暂缓（⏸）**：保留 kitty 现状 + 备注「待 KeyBinding 在 WT 重构后彻底修复」；届时与 N19 的 `FOCUS_EDITOR_KEY` 一并处理 |
+| G2 | **N18** action `quit` 注册后 UI 不可达 | 三选一拍板（倾向 ①：`YateApp.action_quit` 改调 `editor.execute_action("quit")`，落点 `yate/app.py`；③ 删 vsc 冗余绑定，落点 `keymaps/vsc.py`） | **选①已落地（✅）**：主代理实施（波次后单独提交）——app.py 改路由 + 冒烟 quit 场景 docstring 同步 + pilot spy 守卫 |
+| G3 | **N30** L0 config 惰性 import L2 theme | 架构评审：下沉 / 注入回调二选一，同步 `architecture-boundaries.md` 登记（类似 R11 冻结） | **暂缓（⏸）**：备注「下次做重构方案」；届时单独立项 + 架构规则登记 |
 
 另：**N1（保存按原始 EOL 写回）属行为变更**——随 SP1 波次一实施 + 自动化 round-trip 守卫，
 报告后请用户在真实 CRLF 文件上做一次人工确认，不满意可低成本回退。

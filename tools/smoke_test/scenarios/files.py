@@ -351,10 +351,10 @@ async def _filetype_command_aliases(tmp: Path) -> ScenarioResult:
 async def _quit_action_ctrl_q(tmp: Path) -> ScenarioResult:
     """ctrl+q exits a clean session (the vsc-documented quit key).
 
-    ctrl+q is Textual's App-level *priority* binding, so it dispatches
-    ``YateApp.action_quit`` -> ``Editor.quit`` and never reaches the editor
-    keymap's ``quit`` action: the behaviour is covered here, but the action
-    registry counter for ``quit`` is not incremented (see the report note).
+    ctrl+q is Textual's App-level *priority* binding: it dispatches
+    ``YateApp.action_quit``, which routes through ``execute_action`` to the
+    registered ``quit`` action and on to ``Editor.quit`` (N18 option 1), so
+    the action registry counter for ``quit`` increments on this path too.
     """
     target = tmp / "clean.txt"
     target.write_text("clean\n", encoding="utf-8")
@@ -373,9 +373,9 @@ async def _quit_action_ctrl_q(tmp: Path) -> ScenarioResult:
 async def _quit_action_dispatch(tmp: Path) -> ScenarioResult:
     """``execute_action("quit")`` reaches the registered quit action.
 
-    The ctrl+q *key* is a Textual app-level priority binding
-    (``YateApp.action_quit``) and never reaches the editor keymap, so the
-    registry entry is exercised the way the palette and extensions reach it.
+    This is the same registry entry ``YateApp.action_quit`` routes the
+    ctrl+q priority binding through; the scenario exercises it directly,
+    the way the palette and extensions reach it.
     """
     target = tmp / "dispatch.txt"
     target.write_text("clean\n", encoding="utf-8")

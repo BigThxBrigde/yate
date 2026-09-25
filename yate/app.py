@@ -168,5 +168,10 @@ class YateApp(App[None]):
         }
 
     async def action_quit(self) -> None:
-        """Textual's ctrl+q priority binding — route through our guard."""
-        self.editor.quit()
+        """Textual's ctrl+q priority binding — route through the registry.
+
+        Dispatches the registered ``quit`` action (same path as the palette
+        and extensions) instead of calling :meth:`Editor.quit` directly, so
+        the registry entry is not dead weight and stays observable.
+        """
+        self.editor.execute_action("quit")

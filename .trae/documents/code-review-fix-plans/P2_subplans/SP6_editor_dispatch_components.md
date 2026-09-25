@@ -86,3 +86,8 @@ editor.py 与 editor_view（S12–S17、S30、S37、S40），以当前代码为�
 - N24：全仓 grep `on_cancel` 代码 0 残留（仅 .trae 历史规划文档提及，随本轮回填消除）。
 - N26：docstring 对照现实现重写（`try_window_prefix` arm/clear pending chord、popup 分支
   `accept_completion`、`True` 返回要求调用方 stop 事件）。
+- **决策门 G2（N18）拍板后追加（主代理实施，2026-09-25）**：`YateApp.action_quit` 改调
+  `editor.execute_action("quit")`（app.py——本子计划原禁改文件，按 README 决策门路径
+  「①→SP6」由主代理收尾补做）；冒烟 `quit_action_ctrl_q` / `quit_action_dispatch`
+  docstring 同步；守卫 `test_ctrl_q_routes_through_the_registered_quit_action`
+  （test_app_textual.py 尾部）。

@@ -24,8 +24,9 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
-from yate.keymaps.vim import VimKeymap
 from yate.editor_view.manual import MarkdownDocScreen
+from yate.keymaps.base import ActionContext
+from yate.keymaps.vim import VimKeymap
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
@@ -4542,5 +4543,39 @@ def test_doc_search_enter_flushes_pending_query_immediately(
             await pilot.press("enter")
             await pilot.pause()
             assert calls == ["key"]
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------- action_quit registry routing
+
+
+def test_ctrl_q_routes_through_the_registered_quit_action(tmp_path: Path) -> None:
+    """N18 (option 1): ctrl+q dispatches the registered ``quit`` action.
+
+    ``action_quit`` used to call ``Editor.quit`` directly, leaving the
+    registered ``quit`` action reachable only via ``execute_action``
+    (palette / extensions / smoke's quit_action_dispatch). Re-registering
+    ``quit`` with a spy proves the key path now goes through the registry.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "clean.txt"
+        target.write_text("clean\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            hits: list[str] = []
+
+            def spy_quit(ctx: ActionContext) -> None:
+                hits.append(ctx.session.doc.name or "")
+                app.editor.quit()
+
+            app.editor.actions.register("quit", spy_quit, "spy quit")
+            await pilot.press("ctrl+q")
+            await _wait_quit(app, pilot)
+
+        assert hits == ["clean.txt"]
+        assert app.return_code == 0
 
     asyncio.run(scenario())
