@@ -1,6 +1,6 @@
 # Python 最低版本升级方案（总纲）：3.10.x → 3.12.x
 
-> 状态：**方案（未执行）** · 2026-09-25 起草，同日拆分为总纲 + 5 个波次子计划。
+> 状态：**已执行完毕（2026-09-25，四波全部落地，见 §五校准记录末条）** · 2026-09-25 起草，同日拆分为总纲 + 5 个波次子计划。
 > 目标：把 `requires-python` 下限从 3.10 提到 3.12。**核心动机是运行时性能收益**
 > （3.11 ~1.25× 均值提速 + 3.12 再 +5%，零代码改动免费获得），次要是落地 3.12 语法现代写法
 > （`typing.override`、PEP 604 `X | None`、PEP 695 指引），**全程零行为变更、零回退**。
@@ -160,4 +160,23 @@ pyupgrade 为一次性 codemod，**不进 dev extras**（避免为已完成的�
   单文件方案拆为本目录（README 总纲 + plan_SP0…plan_SP4），内容无损迁移，链接深度
   `../../` → `../../../`；**修正 SP1 文件计数 9 → 8**（pyproject 的 2 处声明点此前被误计为 2 文件）；
   SP2 修订已先行落盘（4fe388c）的事实显式写入 plan_SP2。
-- （实施时回填：SP0 计数、基线数字、D1/D2 拍板结果、偏离项）
+- 2026-09-25（六批·执行回填）：四波全部落地，全程零行为变更。**SP0**：基线 pytest 1216 passed
+  / 7 skipped（连跑 3 次全绿）、pyright 0 / 142 文件、冒烟 917/917 checks 88 场景、
+  SyntaxWarning 守卫（compileall + pytest `-W error::SyntaxWarning`）均 exit 0；
+  reportImplicitOverride 试开计数 **32 处**（yate 21 + tests 11）→ **D1 拍板分支 A**（≤150）。
+  **SP1** commit `ada345b`（8 文件，双 CI 腿 3.11→3.12 无镜像报错）。**SP2** 零提交
+  （4fe388c 对照五项全在位），pyupgrade 临时装入 venv、SP4 后已卸载。**SP3** commit `866bb45`
+  （53 文件 313 处，全仓 `Optional[/Union[` 归零），偏离项：①pyupgrade 不清理多名字 typing
+  导入中的孤立名（22+13+17 处 reportUnusedImport 由一次性脚本清理，另修 2 处函数内/括号导入）；
+  ②4 处保守跳过（manager.py 嵌套 `Task[Optional[...]]` 下标、pty_proc.py `ExitFn`/`ExitState`
+  与 session.py `Node` 运行时别名）手工重写（3.12 运行时等价）；③**pyupgrade 顺带把 editor_lsp
+  5 处 `asyncio.TimeoutError` 重写为 `TimeoutError`**——超出"仅注解行"边界，但两者自 3.11 起
+  为同一对象（实测 `asyncio.TimeoutError is TimeoutError` → True），运行时等价，接受并留痕。
+  **SP4** commit `7a2cf79`（32 处 @override + `reportImplicitOverride = "error"` 永久入
+  pyproject）：SP3 改动使工单行号漂移，按"实时 pyright 诊断即工单"重取 32 处后脚本插入；
+  `App.action_quit` 因 Textual 基类确有同名 action 按工单装饰（工单优先于 `action_*` 通则）；
+  导入合并脚本曾吞换行致 test_extensions.py 粘连，已按 HEAD 基准矫正并归位 10 处导入分组。
+  **D2 未执行**（可选项）：dev venv 3.13.2 本就高于地板、四波门禁全绿、双 CI 已切 3.12，
+  未再建干净 3.12 venv；如需额外置信度可随时按 plan_SP0/D2 补做。收尾门禁与各波一致：
+  pyright 0（含新规则）+ pytest 1216 ×2 + 冒烟 917/917。
+- （实施时回填：SP0 计数、基线数字、D1/D2 拍板结果、偏离项 ← 已完成）
