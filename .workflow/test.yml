@@ -45,8 +45,8 @@ stages:
         - step: build@python
           name: pytest
           displayName: 安装依赖并运行 pytest
-          # requires-python >= 3.10；Gitee Go 公共构建机上 3.11 是稳妥选择
-          pythonVersion: '3.11'
+          # requires-python >= 3.12；Gitee Go 公共构建机使用 3.12 镜像
+          pythonVersion: '3.12'
           commands:
             - python --version
             - python -m pip install --upgrade pip

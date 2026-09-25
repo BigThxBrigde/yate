@@ -37,7 +37,7 @@ yate 采用分层架构：`editor_core` 是与界面完全解耦的纯编辑逻�
 
 | 项目 | 要求 |
 |---|---|
-| Python | ≥ 3.10 |
+| Python | ≥ 3.12 |
 | 核心依赖 | textual ≥ 8.0 |
 | 终端 | 任何支持 ANSI 转义序列的现代终端（推荐 Windows Terminal） |
 | 字体 | 建议安装 Nerd Font 以显示文件图标（见第 12 节） |

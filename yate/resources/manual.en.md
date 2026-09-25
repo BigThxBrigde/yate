@@ -39,7 +39,7 @@ handles the workspace, shell, extensions and fonts.
 
 | Item | Requirement |
 |---|---|
-| Python | ≥ 3.10 |
+| Python | ≥ 3.12 |
 | Core dependency | textual ≥ 8.0 |
 | Terminal | any modern terminal with ANSI escape support (Windows Terminal recommended) |
 | Font | a Nerd Font is recommended for file icons (see section 12) |
