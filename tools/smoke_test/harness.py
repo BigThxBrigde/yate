@@ -26,9 +26,7 @@ from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import (
-    cast,
-)
+from typing import cast
 
 from collections.abc import Awaitable, Callable, Generator, Sequence
 
