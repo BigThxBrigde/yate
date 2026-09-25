@@ -293,7 +293,9 @@ class PaletteScreen(ModalScreen[None]):
             self._status_message = " indexing workspace…"
             self._render_results()
             self.run_worker(
-                self._index_files(), group="palette-index",
+                # coroutine *function*: an eager coroutine would leak if
+                # the worker never starts (closing pump)
+                self._index_files, group="palette-index",
                 exclusive=True, exit_on_error=False,
             )
         else:

@@ -271,8 +271,10 @@ class MarkdownDocScreen(ModalScreen[None]):
             )
 
     def on_mount(self) -> None:
+        # coroutine *function*: an eager coroutine would leak if the
+        # worker never starts (closing pump)
         self.run_worker(
-            self._load_doc(), group="doc-load", exclusive=True,
+            self._load_doc, group="doc-load", exclusive=True,
             exit_on_error=False,
         )
 

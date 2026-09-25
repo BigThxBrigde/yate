@@ -53,6 +53,10 @@ exclude = ["**/__pycache__"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Unawaited coroutines (e.g. an eager coroutine handed to run_worker whose
+# worker never starts) surface as RuntimeWarning; make every one of them a
+# hard failure so the leak cannot creep back in.
+filterwarnings = ["error::RuntimeWarning"]
 # NOTE: coverage is opt-in (`pytest --cov`) and the fail-under gate lives in the
 # CI workflows, not in addopts.  A ``--cov-fail-under`` in addopts would fail
 # every partial run (e.g. `pytest tests/test_config.py`, which covers a fraction
