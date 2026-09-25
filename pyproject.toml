@@ -70,9 +70,11 @@ branch = true
 omit = ["yate/__main__.py"]
 
 [tool.coverage.report]
-show_missing = true
-skip_covered = true
-# empty __init__.py files would otherwise show up as 0%
+  show_missing = true
+  # skip_covered is deliberately OFF: the report must always list every file,
+  # including ones already at 100% -- a "N files skipped due to complete
+  # coverage" note hides real numbers and makes report lengths vary.
+  # empty __init__.py files would otherwise show up as 0%
 skip_empty = true
 # The threshold deliberately lives on the CI command lines instead of here:
 # coverage.py applies report.fail_under to *every* `--cov` run, and a partial run
