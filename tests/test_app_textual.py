@@ -1332,16 +1332,16 @@ def test_f8_opens_manual_and_esc_closes() -> None:
             await pilot.pause()
             assert isinstance(app.screen, MarkdownDocScreen)
             md = app.screen.query_one("#doc-md", Markdown)
-            # F8 opens the default (english) manual
-            assert md.source == load_manual_markdown("en")
-            # the loading placeholder is hidden once content is in (the
-            # markdown worker parses/mounts off the loop, so poll until done)
             loading = app.screen.query_one("#doc-loading", Static)
-            # generous timeout: the markdown worker parses/mounts off the
-            # loop and a fully loaded suite can starve it past 5s
+            # the markdown worker reads/parses off the loop; poll until the
+            # load completes before asserting content -- a loaded CI box can
+            # still be mid-read after the first pause (asserting the source
+            # immediately once raced as '' != manual there)
             assert await wait_until(
                 pilot, lambda: not loading.display, timeout=15.0
             )
+            # F8 opens the default (english) manual
+            assert md.source == load_manual_markdown("en")
             # the viewer follows the active yate theme via the bridge -- no
             # per-screen theme switch happens
             assert app.theme == "yate-mocha"
