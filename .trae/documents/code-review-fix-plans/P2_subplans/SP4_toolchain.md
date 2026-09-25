@@ -8,7 +8,8 @@
 - `tools/smoke_test/harness.py`（N14 N29）
 - `tools/smoke_test/testsuite.py`（N15 落点之一）
 - `tools/smoke_test/cli.py`（N15 落点之一，`--timeout` 参数）
-- `tools/changelog/gitee.py`（N16）
+- `tools/changelog/gitee.py`（N16 函数侧）
+- `tools/changelog/cli.py`（N16 调用方侧；主代理实测 `pushed_flags` 调用点在 cli.py:133 后补入授权）
 - `tools/changelog/render.py`（N17 被测对象）
 - `tools/changelog/gitdata.py`（N32）
 

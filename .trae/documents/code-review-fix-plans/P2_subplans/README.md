@@ -43,15 +43,17 @@ flowchart TB
   波次收尾的冒烟全绿即其端到端验证。
 - 波次二涉及按键分发与 UI 组件，放波次一之后串行开波；三个子计划文件域互不重叠可并行。
 - 决策门三项在波次收尾后处理：N8 并入 SP5、N18 并入 SP5 或 SP6（按拍板选项）、N30 单独立项。
+- **实施进度（2026-09-25）**：波次一 ✅ 全部完成（SP1–SP4，14 条）——pyright 全仓 0 诊断、
+  pytest 全量全绿、冒烟 87/87 场景 · 907/907 checks · exit 0；波次二与决策门待启动。
 
 ## 子计划索引
 
 | 子计划 | 条目 | 独占文件域（产品 + 测试） | 规模 | 波次 |
 |---|---|---|---|---|
-| [SP1](SP1_editor_core.md) editor_core 内核 | N1 N5 N6 | `yate/editor_core/{document,buffer,search}.py`；`tests/test_editor_core.py` | M | 1 |
-| [SP2](SP2_editor_syntax.md) editor_syntax | N2 N3 N4 | `yate/editor_syntax/regex_backend.py`、`yate/editor_syntax/ts_backend/{languages,backend}.py`；`tests/{test_highlight,test_syntax_engine,test_ts_backend}.py` | M | 1 |
-| [SP3](SP3_terminal.md) editor_term | N7 | `yate/editor_term/emulator.py`；`tests/test_terminal_emulator.py` | S | 1 |
-| [SP4](SP4_toolchain.md) 工具链 | N13 N14 N15 N16 N17 N29 N32 | `tools/smoke_test/{harness,testsuite,cli}.py`、`tools/changelog/{gitee,render,gitdata}.py`；`tests/test_smoke_tool.py`（新）、`tests/test_changelog_tool.py` | L | 1 |
+| [SP1](SP1_editor_core.md) editor_core 内核 | N1 N5 N6 | `yate/editor_core/{document,buffer,search}.py`；`tests/test_editor_core.py` | M | 1 ✅ |
+| [SP2](SP2_editor_syntax.md) editor_syntax | N2 N3 N4 | `yate/editor_syntax/regex_backend.py`、`yate/editor_syntax/ts_backend/{languages,backend}.py`；`tests/{test_highlight,test_syntax_engine,test_ts_backend}.py` | M | 1 ✅ |
+| [SP3](SP3_terminal.md) editor_term | N7 | `yate/editor_term/emulator.py`；`tests/test_terminal_emulator.py` | S | 1 ✅ |
+| [SP4](SP4_toolchain.md) 工具链 | N13 N14 N15 N16 N17 N29 N32 | `tools/smoke_test/{harness,testsuite,cli}.py`、`tools/changelog/{gitee,cli,render,gitdata}.py`；`tests/test_smoke_tool.py`（新）、`tests/test_changelog_tool.py` | L | 1 ✅ |
 | [SP5](SP5_keymaps_registry.md) keymaps 与注册表 | N20 N21 N23 N25 | `yate/keymaps/{vim,base}.py`；`tests/test_vim_keymap.py`、`tests/test_registries.py` | M | 2 |
 | [SP6](SP6_editor_dispatch_components.md) editor 调度与组件 | N10 N19 N22 N24 N26 | `yate/editor.py`、`yate/editor_view/{terminal,palette,commandline}.py`；`tests/test_app_textual.py` | M | 2 |
 | [SP7](SP7_services_logs.md) services 与日志 | N27 N28 N31 | `yate/services/{extensions,trust}.py`、`yate/logs.py`；`tests/{test_extensions,test_trust,test_tracing}.py` | S | 2 |

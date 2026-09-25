@@ -250,7 +250,13 @@ def language_from_shared_library(library_path: str, symbol: str) -> Any:
     if ts is None:
         raise RuntimeError("tree_sitter is not installed")
     dll = ctypes.CDLL(library_path)
-    fn = getattr(dll, symbol)
+    try:
+        fn = getattr(dll, symbol)
+    except AttributeError as exc:
+        raise RuntimeError(
+            f"{library_path} lacks entry point {symbol!r} -- the shared "
+            "library is not a tree-sitter grammar for this language"
+        ) from exc
     fn.restype = ctypes.c_void_p
     return ts.Language(fn())
 

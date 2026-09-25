@@ -228,9 +228,7 @@
 - [ ] **subject 字段可能包含嵌入的字段分隔符** — `tools/changelog/gitdata.py`
   理论上的问题，实际极不可能。
   *复核：仍存在（理论性）— body 经 `maxsplit` 保留杂散分隔符，subject 字段本身无防护。*
-  *⏳ 待实施（2026-09-25 复核）：未实现、未放弃——已补入
-  [P2 计划 N32](../documents/code-review-fix-plans/P2_nice_to_have_plan.md)（理论性 Low，
-  按实现固化行为或加断言/文档说明，随手清理级）。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：按实现固化——`maxsplit=4` 处补一行注释说明边界（subject 内嵌 `\x1f` 被截断进 body），一条固化用例 `test_parse_log_output_subject_with_stray_separator_truncates_into_body`；零解析逻辑变更。*
 
 - [x] **`files_dirty` 路径解析可能误处理前导空格** — `tools/release/cli.py`
   *复核：仍存在 — [cli.py:63-75](../../tools/release/cli.py) 解析逻辑未变。*
@@ -251,25 +249,32 @@
 
 ### 🟢 Nice-to-have（锦上添花）→ 计划：[P2](../documents/code-review-fix-plans/P2_nice_to_have_plan.md)
 
-- [ ] **保存始终使用 LF，忽略原始/平台换行符** — `editor_core/document.py:97`
+- [x] **保存始终使用 LF，忽略原始/平台换行符** — `editor_core/document.py:97`
   *复核：仍存在 — [document.py:50-53](../../yate/editor_core/document.py) 打开时统一归一为 LF，保存按 LF 写出。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP1）：Document 打开时记录主导 EOL（crlf/lf/cr，并列偏 CRLF），保存按其写回；新文件一律 LF。守卫：`test_save_round_trips_a_crlf_file_with_crlf_endings` 等 3 条；行为变更待用户在真实 CRLF 文件上人工确认。*
 
-- [ ] **配置模式 tokenizer 可能产生重叠 token** — `editor_syntax/regex_backend.py:636`
+- [x] **配置模式 tokenizer 可能产生重叠 token** — `editor_syntax/regex_backend.py:636`
   *复核：仍存在 — `_tokenize_config_line` 各 `finditer` 独立发射，字符串内的数字/布尔词会重复着色。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP2）：`_CONFIG_TOKEN_RE` 单次交替扫描（string|number|bool，首字符互斥），消费式扫描天然不重叠；键名内数字/布尔词不再双着色。守卫：`test_config_number_inside_string_is_not_double_colored` 等 3 条。*
 
-- [ ] **共享库缺少符号时错误无上下文** — `editor_syntax/ts_backend/languages.py:172`
+- [x] **共享库缺少符号时错误无上下文** — `editor_syntax/ts_backend/languages.py:172`
   *复核：仍存在（部分改善）— 依赖缺失已有清晰提示（[languages.py:218-221](../../yate/editor_syntax/ts_backend/languages.py)），但缺符号时 `getattr(dll, symbol)` 仍抛裸 `AttributeError`。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP2）：`getattr` 包 `try/except AttributeError`，`raise RuntimeError`（含库路径与符号名）`from exc`；`_FAILED` 缓存语义不变。守卫：`test_missing_symbol_error_includes_library_path_and_symbol`。*
 
-- [ ] **`_to_char` 中间字符字节偏移边界情况缺注释** — `editor_syntax/ts_backend/backend.py:115`
+- [x] **`_to_char` 中间字符字节偏移边界情况缺注释** — `editor_syntax/ts_backend/backend.py:115`
+  *✅ 已补（2026-09-25，P2 波次一 SP2）：`_to_char` 补 docstring——多字节中间偏移经 `errors="ignore"` 丢弃不完整尾字符、映射到所切字符首列（纯注释，与既有用例实测行为逐字核对）。*
 
-- [ ] **Outdent 移除 `tab_width` 个空格而非回到上一个 tab stop** — `editor_core/buffer.py:277`
+- [x] **Outdent 移除 `tab_width` 个空格而非回到上一个 tab stop** — `editor_core/buffer.py:277`
   *复核：基本仍存在 — [buffer.py:510-525](../../yate/editor_core/buffer.py) 已支持整 Tab 剥离，但空格缩进仍按 `tab_width` 移除而非对齐上一个 stop。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP1）：空格缩进改 `rrem = removed % tab_width` 对齐上一个 stop（3 空格→0、8 空格→4）；整 Tab 剥离不变。守卫 2 条。附带效应（符合策略本意）：1~3 空格从无操作变为归零。*
 
-- [ ] **`replace_current` 可用 `replace_range` 简化** — `editor_core/search.py:126`
+- [x] **`replace_current` 可用 `replace_range` 简化** — `editor_core/search.py:126`
   *复核：仍存在 — [search.py:102](../../yate/editor_core/search.py) 独立实现保留。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP1）：`replace_current` 改调 `buffer.replace_range`，重复实现删除；单步 undo 契约有守卫。语义校准：替换为空串从静默 no-op 变为删除匹配（与 `replace_all` 对齐；`replace_current` 无产品调用方，差异不可达）。*
 
-- [ ] **`_soft_reset`（ESC c）不退出备用屏幕** — `editor_term/emulator.py:250`
+- [x] **`_soft_reset`（ESC c）不退出备用屏幕** — `editor_term/emulator.py:250`
   *复核：仍存在 — [emulator.py:387-397](../../yate/editor_term/emulator.py) 未切换回主屏幕。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP3）：`_soft_reset` 入口调 `_set_alt_screen(False, save_cursor=False)` 回主屏（计划提名的 `_exit_alt_screen` 不存在，采用预授权的等价复位路径）。守卫：`test_soft_reset_in_alternate_screen_returns_to_primary`。*
 
 - [ ] **ctrl+digit 绑定使用 kitty 协议，大多数终端不支持** — `keymaps/base.py:105`
   *复核：仍存在 — [base.py:118-121](../../yate/keymaps/base.py) 仍编码为 CSI-u。*
@@ -277,20 +282,25 @@
 - [ ] **`cycle_tab` 允许空操作循环** — `app.py:453`
   *复核：仍存在 — [editor.py:476-484](../../yate/editor.py) 单 tab 时仅提示。*
 
-- [ ] **smoke test 工具自身无测试** — `tools/smoke_test/`
+- [x] **smoke test 工具自身无测试** — `tools/smoke_test/`
   *复核：仍存在 — `tests/` 下无 smoke 工具自测。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：新建 [test_smoke_tool.py](../../tests/test_smoke_tool.py) 14 条——`select_scenarios` 5、`Reporter` 4、`extract_svg_rows` 4、场景超时 1（harness 端到端按约定不测）。*
 
-- [ ] **SVG 提取正则脆弱，依赖 Textual 版本** — `tools/smoke_test/testsuite.py`
+- [x] **SVG 提取正则脆弱，依赖 Textual 版本** — `tools/smoke_test/testsuite.py`
   *复核：仍存在 — 提取仍基于 SVG 文本解析（[harness.py:130](../../tools/smoke_test/harness.py) `extract_svg_rows`）。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：正则收紧至 Textual 8.2.8 实测格式并注释版本；新增 `SvgDriftError`——`<text` 出现数与匹配数不符时抛错并附 SVG 头部片段；收紧前做过新旧正则等价性验证（真实 SVG 17k 字符提取结果一致）。守卫 4 条。*
 
-- [ ] **单个场景执行无超时** — `tools/smoke_test/testsuite.py`
+- [x] **单个场景执行无超时** — `tools/smoke_test/testsuite.py`
   *复核：仍存在 — 断言轮询有 5s 超时（`wait_until`），但场景整体执行无超时保护。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：`RunOptions.timeout`（默认 60s）+ CLI `--timeout`；`asyncio.wait_for` 包裹场景，超时记 error 继续跑后续场景；`--repeat` 下 `_worse()` 保证 error 结果不被好结果覆盖。守卫：`test_run_scenarios_timeout_fails_scenario_and_continues`；`--timeout 0.001` 端到端实测 exit 1。*
 
-- [ ] **`check_commit_pushed` 仅支持 `gitee.com`** — `tools/changelog/gitee.py`
+- [x] **`check_commit_pushed` 仅支持 `gitee.com`** — `tools/changelog/gitee.py`
   *复核：仍存在 — [gitee.py:61-85](../../tools/changelog/gitee.py) 其他 host 返回 `None`。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：按 host 分派（gitee OpenAPI v5 / github REST / 其它 None）；新增 `check_supported`，调用方 `cli.py` 对不支持 host 打印 `cannot verify pushes ... skipping gate` 并跳过（不再静默空过）。守卫 6 条（monkeypatch，零网络）。*
 
-- [ ] **`strip_unreleased` 边界情况（仅有 Unreleased 段）未测试** — `tools/changelog/render.py`
+- [x] **`strip_unreleased` 边界情况（仅有 Unreleased 段）未测试** — `tools/changelog/render.py`
   *复核：仍存在 — 测试文件无 `strip_unreleased` 直接用例。*
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：三条边界用例（仅有 Unreleased 段 → 只剩 header；空 Unreleased 段 → 标题连同空行剔除；Unreleased 在末尾 → 整段丢弃）。*
 
 - [x] **文档提到 e2e git 测试但实际不存在** — `tests/test_changelog_tool.py`
   **已修复（核实 2026-09-23）：** [test_changelog_tool.py:689](../../tests/test_changelog_tool.py) 已有「real git end-to-end」测试段（真实临时 git 仓库，无 git 环境时跳过）。
@@ -810,9 +820,10 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   [`document.py:86-88`](../../yate/editor_core/document.py#L86-L88)
   状态栏每键查询；可按 `content_edits` 缓存上次判定（代码注释已自认知该权衡）。
   *✅ 已修复（2026-09-24）— [document.py](../../yate/editor_core/document.py) `modified` 按 `content_edits` 计数 memo（计数不变直接返回缓存，save 末尾失效缓存防陈旧 True）；守卫 `test_modified_memo_stays_correct_across_save_and_undo`（save 失效 + 跨 undo 重算 + redo 往返）。*
-- [ ] **harness 重写行沿用 `# type: ignore`** —
+- [x] **harness 重写行沿用 `# type: ignore`** —
   [`harness.py:274-283`](../../tools/smoke_test/harness.py#L274-L283)
   工具代码沿旧模式；若属既定豁免，补理由注释归档。
+  *✅ 已修复（2026-09-25，P2 波次一 SP4）：7 处全部消除而非注释归档——1 处 `cast(Callable[..., None], ...)`，6 处经实测签名完全匹配直接删除；pyright strict 零诊断确认。*
 
 ### 四维度结论
 

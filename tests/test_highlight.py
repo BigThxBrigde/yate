@@ -305,6 +305,30 @@ def test_config_bool_words_match_on_word_boundaries_only() -> None:
             assert t.end <= only_start or t.start >= only_end
 
 
+def test_config_bool_word_does_not_match_inside_true1() -> None:
+    line = "flag1 = true1"
+    toks = hl.tokenize_document([line], "toml")[0]
+    assert all(kind != "constant" for kind, _ in _kinds(toks, line))
+    # no double coloring: token spans stay sorted and disjoint
+    spans = [(t.start, t.end) for t in toks]
+    assert spans == sorted(spans)
+    assert all(a[1] <= b[0] for a, b in zip(spans, spans[1:]))
+
+
+def test_config_number_inside_string_is_not_double_colored() -> None:
+    line = 'port = "8080"'
+    toks = hl.tokenize_document([line], "toml")[0]
+    assert ("string", '"8080"') in _kinds(toks, line)
+    assert [t.kind for t in toks] == ["property", "string"]
+
+
+def test_config_bool_word_inside_string_is_not_double_colored() -> None:
+    line = 'mode = "on"'
+    toks = hl.tokenize_document([line], "toml")[0]
+    assert ("string", '"on"') in _kinds(toks, line)
+    assert [t.kind for t in toks] == ["property", "string"]
+
+
 # --- themes -----------------------------------------------------------------
 
 

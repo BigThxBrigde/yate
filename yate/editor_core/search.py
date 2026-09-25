@@ -103,14 +103,12 @@ class SearchEngine:
         match = self.current()
         if match is None:
             return False
-        buffer.anchor = (match.row, match.start)
-        buffer.cursor = (match.row, match.end)
         if self.use_regex:
             pattern = self._compile(self.query)
             text = buffer.lines[match.row][match.start : match.end]
             if pattern is not None:
                 replacement = pattern.sub(replacement, text)
-        buffer.insert_text(replacement, kind="step")
+        buffer.replace_range((match.row, match.start), (match.row, match.end), replacement)
         # Rework matches around the edit: simplest to re-run the search.
         self.update(self.query, buffer)
         return True
