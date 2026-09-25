@@ -69,4 +69,20 @@ editor.py 与 editor_view（S12–S17、S30、S37、S40），以当前代码为�
 
 ## 校准记录
 
-（实施时回填）
+（2026-09-25 实施）
+
+- 五条锚点全部仍存在，无失效条目：N22 实际落点 palette.py:59；N24 实际落点
+  commandline.py:213/220/307 + editor.py:141。
+- N10：session 属性名为 `docs`（计划写 `tabs`），按 `len(self.session.docs) <= 1` 实现；
+  既有用例 `test_cycle_tab_with_one_tab_warns` 断言的正是被删除的行为，改写为
+  `test_cycle_tab_with_single_tab_is_silent_noop`（同一独占文件内，非扩修）。
+- N22：死语句不可直接删（首分支置空会改变 consecutive 分支语义），改三分支赋 `penalty`
+  后统一 `score += penalty`（逐值等价：+0/+1/+2+gap）。
+- N19：分支置于 dead-shell 复活分支**之前**（焦点切换不复活 shell）；改动前
+  `key_to_terminal("ctrl+1")` 本就返回 None，不影响既有转发路径；R10 自检通过（放行键
+  stop+prevent_default，不二次派发）。冒烟场景**未新增**（`tools/smoke_test/scenarios/`
+  不在独占域），pilot 用例覆盖同一断言；G1 未拍板按 `ctrl+1` 现状实现，键名收敛在
+  `FOCUS_EDITOR_KEY` 单点常量便于 G1 拍板后同步。
+- N24：全仓 grep `on_cancel` 代码 0 残留（仅 .trae 历史规划文档提及，随本轮回填消除）。
+- N26：docstring 对照现实现重写（`try_window_prefix` arm/clear pending chord、popup 分支
+  `accept_completion`、`True` 返回要求调用方 stop 事件）。

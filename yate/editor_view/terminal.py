@@ -48,6 +48,11 @@ TOGGLE_KEYS = frozenset({
     "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
 })
 
+#: Hands focus back to the editor while the terminal is focused (the
+#: terminal counterpart of the editor's own ctrl+1 chord).  Consumed by
+#: :meth:`TerminalView.on_key`, so the shell input stream never sees it.
+FOCUS_EDITOR_KEY = "ctrl+1"
+
 
 def _hex(rgb: Optional[tuple[int, int, int]]) -> Optional[str]:
     if rgb is None:
@@ -205,6 +210,13 @@ class TerminalView(Widget):
             event.stop()
             event.prevent_default()
             self.panel.toggle()
+            return
+        if event.key == FOCUS_EDITOR_KEY:
+            # Focus change only: never reaches the shell, and must not
+            # revive a dead shell either.
+            event.stop()
+            event.prevent_default()
+            self.panel.focus_editor()
             return
         event.stop()
         event.prevent_default()

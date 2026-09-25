@@ -53,4 +53,12 @@ N27 纯排序无测试）
 
 ## 校准记录
 
-（实施时回填）
+（2026-09-25 实施）
+
+- N28 行号漂移：P2 原文锚点 `trust.py:27,50,71` 为 P1 改前旧号，实测三处 `Path | None`
+  在 45/68/115（实施后签名位于 46/69/116）；补 `from typing import Optional` 导入。
+- N27 排序幅度扩为全组字母序：仅把 `registries` 提到 `trust` 前会留下 `services.trust`
+  在 `services.shell` 之前的次生乱序；最终顺序 `paths → registries → shell → trust →
+  workspace → session`，diff 仅导入顺序。
+- N31：`warn()` 入口 `if sys.stderr is None: return` + docstring 补 pythonw 行为；
+  守卫 `test_warn_silently_drops_output_when_stderr_is_none`（monkeypatch，capsys 双空断言）。

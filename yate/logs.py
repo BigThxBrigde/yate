@@ -83,7 +83,14 @@ ERR_SUFFIX = ".err"
 
 
 def warn(message: str) -> None:
-    """Print ``yate: <message>`` to stderr. Never raises."""
+    """Print ``yate: <message>`` to stderr. Never raises.
+
+    When ``sys.stderr`` is unavailable (``None``, as under ``pythonw``) the
+    message is dropped silently instead of falling back to stdout, where it
+    would corrupt the TUI or piped output.
+    """
+    if sys.stderr is None:
+        return
     print(f"yate: {message}", file=sys.stderr)
 
 

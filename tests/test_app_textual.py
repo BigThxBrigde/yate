@@ -2404,14 +2404,26 @@ def test_overlay_commands_clear_stale_message(
     asyncio.run(scenario())
 
 
-def test_cycle_tab_with_one_tab_warns() -> None:
+def test_cycle_tab_with_single_tab_is_silent_noop() -> None:
+    # N10: cycling with a single tab used to warn on every keypress;
+    # it is now a silent no-op -- repeated cycles in both directions
+    # leave the message line untouched and never raise.
     async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
+            baseline = _message_text(app)
+            assert "only one tab" not in baseline
+
             app.editor.run_command("bn")
             await pilot.pause()
-            assert "only one tab" in _message_text(app)
+            app.editor.run_command("bp")
+            await pilot.pause()
+            app.editor.cycle_tab(1)
+            app.editor.cycle_tab(-1)
+            await pilot.pause()
+            assert _message_text(app) == baseline
+            assert app.editor.session.doc is app.editor.session.docs[0]
 
     asyncio.run(scenario())
 
@@ -3249,6 +3261,32 @@ def test_ctrl_grave_toggles_focuses_and_forwards() -> None:
             await wait_until(pilot, lambda: app.editor.terminal_panel.is_visible)
             assert panel.display
             assert cast(Any, panel.view).proc is proc
+
+    asyncio.run(scenario())
+
+
+def test_terminal_focused_ctrl1_returns_focus_to_editor() -> None:
+    # N19: the terminal view used to swallow every key once focused;
+    # ctrl+1 must hand focus back to the editor without the shell
+    # input stream seeing the key (one keypress, one dispatch -- R10).
+    async def scenario() -> None:
+        app = YateApp()
+        app.editor.terminal_panel.view_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.editor.terminal_panel
+            assert panel is not None
+            await _press_toggle(pilot)
+            shown = await wait_until(pilot, lambda: panel.view.proc is not None)
+            assert shown
+            assert app.focused is panel.view
+            proc = _FakePty.instances[0]
+            assert proc.started
+
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+            assert app.focused is app.editor.panes.active_view
+            assert b"".join(proc.sent) == b""
 
     asyncio.run(scenario())
 

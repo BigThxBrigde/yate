@@ -46,9 +46,9 @@ from yate.editor_syntax.ts_backend import load_language_from_grammar
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
-from yate.services.trust import is_trusted
 from yate.registries import ActionRegistry, CommandFunc, CommandRegistry
 from yate.services.shell import ShellResult
+from yate.services.trust import is_trusted
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 

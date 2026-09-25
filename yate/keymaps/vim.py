@@ -246,7 +246,7 @@ class VimKeymap(Keymap):
         count = self._take_count()
         if key in _ARROW:
             self._motion(ctx, _ARROW[key], count, select=True)
-        elif key in _MOTION_CODES or (self.pending == "g" and key == "g"):
+        elif key in _MOTION_CODES:
             self._motion(ctx, key, count, select=True)
         else:
             return True
@@ -378,8 +378,6 @@ class VimKeymap(Keymap):
         if key in entry:
             entry[key]()
             self._enter_insert(ui)
-            if key == "o":
-                pass
             return True
         if key == "o":
             buf.move_line_end()

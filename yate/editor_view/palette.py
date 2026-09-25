@@ -56,11 +56,12 @@ def fuzzy_match(query: str, target: str) -> Optional[tuple[int, list[int]]]:
             return None
         matched.append(idx)
         if idx == ti and qi > 0:
-            score += 0  # consecutive: best
+            penalty = 0  # consecutive characters: best score
         elif idx == 0 or t[idx - 1] in "/\\._- ":
-            score += 1  # word / path boundary start
+            penalty = 1  # word / path boundary start
         else:
-            score += 2 + (idx - ti)  # gap penalty
+            penalty = 2 + (idx - ti)  # gap penalty
+        score += penalty
         # exact-case bonus
         if target[idx] == query[qi]:
             score -= 1

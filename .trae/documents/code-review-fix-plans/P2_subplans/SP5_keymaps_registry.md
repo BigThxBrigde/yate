@@ -61,4 +61,16 @@ dataclass 同名）。**已核实的事实**：`keymaps/__init__.py` 不 re-expo
 
 ## 校准记录
 
-（实施时回填）
+（2026-09-25 实施）
+
+- 四条锚点全部仍存在，无失效条目：N20 实际落点 vim.py:249（锚点 240-245，行漂移）；
+  N21 实际落点 vim.py:381-382（锚点 372-373，行漂移）；N23（base.py:229-240）、
+  N25（base.py:160/168/232）与锚点一致。
+- N20 处置：**删除死分支**（条件收敛为 `key in _MOTION_CODES`）。visual gg 实现属新功能
+  不做；删后语义不变（visual 下 `g` 命中 motion 表后 `code == "g"` 直接 break），固化用例
+  `test_visual_gg_presses_change_nothing`。
+- N25 波及面复核（比计划记载更强）：`docs/` 目录**不存在**（grep 报 IO error），
+  `keymaps/__init__.py` 确认只 re-export `ActionContext/KeyBinding/KeyUi/Keymap/key_name/
+  parse_key`；全仓 grep 确认 keymaps 别名 `Action` 引用仅 base.py 内 3 处，改名收敛单文件。
+  若后续重建 docs/ 目录需注意别名已更名。
+- N23 守卫按计划落 Keymap 层（test_vim_keymap.py 两条），未触碰 app 级测试。

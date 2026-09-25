@@ -210,14 +210,14 @@ class PromptBar(Horizontal):
         self,
         completer: PromptCompleter,
         *,
-        on_cancel: Callable[[], None],
+        cancel_hook: Callable[[], None],
         focus_editor: Callable[[], None],
         refresh: Callable[[], None],
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.completer = completer
-        self.on_cancel = on_cancel
+        self.cancel_hook = cancel_hook
         self.focus_editor = focus_editor
         #: Editor repaint hook (named apart from ``Widget.refresh``).
         self.refresh_ui = refresh
@@ -304,7 +304,7 @@ class PromptBar(Horizontal):
 
     def cancel(self) -> None:
         """Esc / ctrl+c on the prompt line: run the cancel hook and close."""
-        self.on_cancel()
+        self.cancel_hook()
         self.idle()
         self._finish()
 
