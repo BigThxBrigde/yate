@@ -38,6 +38,10 @@ class Document:
         self.path: Optional[Path] = Path(path) if path is not None else None
         self.buffer: TextBuffer = buffer or TextBuffer()
         self.encoding = encoding
+        # Dominant line ending of the file as opened (``\r\n`` / ``\n`` /
+        # ``\r``); ``save()`` converts the buffer's LF newlines back to it.
+        # New buffers keep LF.  See :meth:`open` and :meth:`_dominant_eol`.
+        self.eol: str = "\n"
         # Manual syntax/filetype override (`:set filetype=...`); ``None``
         # means the type is detected from the path suffix.
         self.filetype_override: Optional[str] = None
@@ -48,6 +52,11 @@ class Document:
         # the flag stays correct across undo/redo without a full-text join.
         self._saved_edits = self.buffer.content_edits
         self._saved_lines = tuple(self.buffer.lines)
+        # Memoized ``modified`` verdict, keyed on the buffer's edit counter:
+        # ``(edits at query time, verdict)``.  ``save()`` clears it (the
+        # baseline moves); undo/redo rewinds the counter, which simply misses
+        # the cache and recomputes, so a stale verdict can never be served.
+        self._modified_cache: Optional[tuple[int, bool]] = None
 
     # ------------------------------------------------------------- factories
 
@@ -57,10 +66,13 @@ class Document:
         p = Path(path)
         raw = p.read_bytes()
         text, encoding = cls._decode(raw)
-        # Normalize newlines: the buffer always works with LF.  Saving writes
-        # LF too (see save()), so CRLF files from Windows stay consistent.
+        # Remember the file's dominant line ending, then normalize: the
+        # buffer always works with LF, and saving converts back to the
+        # recorded EOL (see save()), so a CRLF file from Windows stays CRLF.
+        eol = cls._dominant_eol(text)
         text = text.replace("\r\n", "\n").replace("\r", "\n")
         doc = cls(p, TextBuffer(text), encoding=encoding)
+        doc.eol = eol
         doc.buffer.move_doc_start()
         return doc
 
@@ -80,20 +92,48 @@ class Document:
                 continue
         return raw.decode("utf-8", errors="replace"), "utf-8"
 
+    @staticmethod
+    def _dominant_eol(text: str) -> str:
+        """Return the dominant line ending of *text* as read from disk.
+
+        Counts CRLF, lone LF and lone CR occurrences and returns the most
+        frequent one; ties go to CRLF over the others and to LF over CR.  A
+        text without any line ending counts as LF -- the default new files
+        are saved with too.
+        """
+        crlf = text.count("\r\n")
+        lf = text.count("\n") - crlf
+        cr = text.count("\r") - crlf
+        if crlf > 0 and crlf >= lf and crlf >= cr:
+            return "\r\n"
+        if cr > lf:
+            return "\r"
+        return "\n"
+
     # ------------------------------------------------------------ properties
 
     @property
     def modified(self) -> bool:
         """Whether the buffer differs from the last saved state.
 
-        The fast path is an O(1) edit-counter comparison; when the counter
-        cannot decide (see ``__init__``) this falls back to an exact
-        ``tuple(lines)`` comparison, which is **O(N) in the line count** and
-        therefore the expensive path on large buffers.
+        The verdict is memoized on the buffer's edit counter: an unchanged
+        counter (the status bar queries this once per keystroke) returns the
+        cached verdict in O(1).  A counter that moved -- forward on edits,
+        backward on undo -- recomputes: first from the saved edit counter,
+        falling back to an exact ``tuple(lines)`` comparison when the counter
+        cannot decide (see ``__init__``), which is **O(N) in the line count**
+        and therefore the expensive path on large buffers.
         """
-        if self.buffer.content_edits == self._saved_edits:
-            return False
-        return tuple(self.buffer.lines) != self._saved_lines
+        edits = self.buffer.content_edits
+        cached = self._modified_cache
+        if cached is not None and cached[0] == edits:
+            return cached[1]
+        if edits == self._saved_edits:
+            verdict = False
+        else:
+            verdict = tuple(self.buffer.lines) != self._saved_lines
+        self._modified_cache = (edits, verdict)
+        return verdict
 
     @property
     def name(self) -> str:
@@ -128,6 +168,14 @@ class Document:
         on-disk contents.  Encoding also happens before anything is written,
         so an unencodable character still leaves the file untouched.
 
+        Line endings follow the file's original dominant EOL, recorded when
+        :meth:`open` loaded it (CRLF / LF / CR; brand-new buffers keep LF):
+        the buffer works in LF internally and ``save`` converts on the way
+        out, so a Windows CRLF file round-trips as CRLF.  The recorded EOL
+        is the one detected at open time -- re-rolling the file to different
+        line endings externally between open and save does not change what
+        the next save writes.
+
         ``os.replace`` swaps the inode, so the target's permission bits (and,
         where the platform exposes them, its extended attributes -- which is
         how POSIX ACLs are carried) are copied onto the temporary file first;
@@ -151,6 +199,11 @@ class Document:
         if self.path is None:
             raise ValueError("cannot save a document without a path")
         text = self.buffer.get_text()
+        # Write back with the EOL recorded at open time (new buffers default
+        # to LF): the buffer works in LF, so CRLF/CR files convert on the
+        # way out.  See the ``eol`` attribute for the detection boundary.
+        if self.eol != "\n":
+            text = text.replace("\n", self.eol)
         data = text.encode(self.encoding)
         target = self.path
         # A unique sibling temp file avoids collisions between concurrent
@@ -188,4 +241,5 @@ class Document:
             raise
         self._saved_edits = self.buffer.content_edits
         self._saved_lines = tuple(self.buffer.lines)
+        self._modified_cache = None
         return self.path

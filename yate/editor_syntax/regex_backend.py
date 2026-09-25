@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Optional
 
 from yate.editor_syntax.tokens import Token
@@ -408,9 +409,30 @@ _CONFIG_SECTION_RE = re.compile(r"^\s*\[[^\]]+\]")
 _CONFIG_KEY_RE = re.compile(r"^\s*[A-Za-z0-9_.\"-]+(?=\s*[:=])")
 _STRING_RE = re.compile(r'"(?:\\.|[^"\\\n])*"' + r"|'(?:\\.|[^'\\\n])*'")
 
+#: Boolean-ish words painted as ``constant`` in config files, matched only on
+#: word boundaries; precompiled once instead of per word per line.
+_CONFIG_BOOL_RE = re.compile(r"(?<!\w)(?:true|false|null|yes|no|on|off)(?!\w)")
 
+#: One-pass value scan for config lines: string | number | bool word.  A
+#: single ``finditer`` over this alternation consumes each match before
+#: scanning resumes, so tokens never overlap -- a string swallows the
+#: digits and bool words inside it instead of double-coloring them.  The
+#: branches begin with disjoint characters (quote / digit / bool letter),
+#: so the alternation order never decides which one wins.
+_CONFIG_TOKEN_RE = re.compile(
+    f"(?:{_STRING_RE.pattern})|(?:{_NUMBER_RE.pattern})"
+    f"|(?:{_CONFIG_BOOL_RE.pattern})"
+)
+
+
+@lru_cache(maxsize=None)
 def _code_line_pattern(spec: LangSpec) -> re.Pattern[str]:
-    """Build the master alternation regex for one code-like language."""
+    """Build the master alternation regex for one code-like language.
+
+    :class:`LangSpec` is a frozen, hashable dataclass and the built pattern
+    depends only on it, so results are cached per spec: repeated
+    :func:`tokenize_document` calls for the same language skip the rebuild.
+    """
     parts: list[str] = []
     if spec.block_comment is not None:
         open_, _close = spec.block_comment
@@ -663,16 +685,19 @@ def _tokenize_config_line(line: str, spec: LangSpec) -> list[Token]:
         return tokens
 
     key = _CONFIG_KEY_RE.match(line)
+    scan_from = 0
     if key is not None:
         _emit(tokens, key.start(), key.end(), "property")
+        # digits / bool words inside the key belong to the property token
+        scan_from = key.end()
 
-    for m in _STRING_RE.finditer(line):
-        _emit(tokens, m.start(), m.end(), "string")
-    for m in _NUMBER_RE.finditer(line):
-        if m.group(0) and m.group(0)[0].isdigit():
+    for m in _CONFIG_TOKEN_RE.finditer(line, scan_from):
+        text = m.group(0)
+        if text[0] in ('"', "'"):
+            _emit(tokens, m.start(), m.end(), "string")
+        elif text[0].isdigit():
             _emit(tokens, m.start(), m.end(), "number")
-    for word in ("true", "false", "null", "yes", "no", "on", "off"):
-        for m in re.finditer(rf"(?<![\w]){word}(?![\w])", line):
+        else:
             _emit(tokens, m.start(), m.end(), "constant")
     return tokens
 

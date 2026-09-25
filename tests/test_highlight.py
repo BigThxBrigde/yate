@@ -279,6 +279,56 @@ def test_extension_registers_csharp_highlighting() -> None:
     assert any(k == "string" for k, _ in pairs)
 
 
+# --- pattern caching & config boolean constants -----------------------------
+
+
+def test_code_line_pattern_is_cached_per_spec() -> None:
+    spec = hl.lang_for("py")
+    assert spec is not None
+    registry = cast(Any, hl)
+    assert registry._code_line_pattern(spec) is registry._code_line_pattern(spec)
+
+
+def test_config_bool_words_match_on_word_boundaries_only() -> None:
+    line = "a = on b = off c = yes d = no e = only"
+    toks = hl.tokenize_document([line], "toml")[0]
+    pairs = _kinds(toks, line)
+    assert ("constant", "on") in pairs
+    assert ("constant", "off") in pairs
+    assert ("constant", "yes") in pairs
+    assert ("constant", "no") in pairs
+    # "only" must not contribute a partial-word constant (its "on" prefix)
+    only_start = line.index("only")
+    only_end = only_start + len("only")
+    for t in toks:
+        if t.kind == "constant":
+            assert t.end <= only_start or t.start >= only_end
+
+
+def test_config_bool_word_does_not_match_inside_true1() -> None:
+    line = "flag1 = true1"
+    toks = hl.tokenize_document([line], "toml")[0]
+    assert all(kind != "constant" for kind, _ in _kinds(toks, line))
+    # no double coloring: token spans stay sorted and disjoint
+    spans = [(t.start, t.end) for t in toks]
+    assert spans == sorted(spans)
+    assert all(a[1] <= b[0] for a, b in zip(spans, spans[1:]))
+
+
+def test_config_number_inside_string_is_not_double_colored() -> None:
+    line = 'port = "8080"'
+    toks = hl.tokenize_document([line], "toml")[0]
+    assert ("string", '"8080"') in _kinds(toks, line)
+    assert [t.kind for t in toks] == ["property", "string"]
+
+
+def test_config_bool_word_inside_string_is_not_double_colored() -> None:
+    line = 'mode = "on"'
+    toks = hl.tokenize_document([line], "toml")[0]
+    assert ("string", '"on"') in _kinds(toks, line)
+    assert [t.kind for t in toks] == ["property", "string"]
+
+
 # --- themes -----------------------------------------------------------------
 
 

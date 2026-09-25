@@ -157,7 +157,7 @@ def key_name(key: str) -> str:
     return repr(key)
 
 
-Action = Callable[["ActionContext"], None]
+ActionFunc = Callable[["ActionContext"], None]
 
 
 @dataclass
@@ -165,7 +165,7 @@ class KeyBinding:
     """One key -> action binding, with metadata for the help system."""
 
     key: str  # raw key string (use parse_key for specs)
-    action: Union[str, Action]  # action name or direct callable
+    action: Union[str, ActionFunc]  # action name or direct callable
     description: str = ""
     category: str = "general"
 
@@ -229,13 +229,20 @@ class Keymap:
     def add_binding(
         self,
         key_spec: str,
-        action: Union[str, Action],
+        action: Union[str, ActionFunc],
         description: str = "extension binding",
         category: str = "extension",
     ) -> None:
-        """Register an extra binding (used by the extension system)."""
+        """Register an extra binding (used by the extension system).
+
+        Re-registering a key replaces its previous binding in place: the
+        stale entry is dropped from :attr:`bindings`, so consumers walking
+        the list (the help overlay) show only the newest one.
+        """
         raw = parse_key(key_spec) if key_spec.startswith("<") or len(key_spec) == 1 else key_spec
         binding = KeyBinding(raw, action, description, category)
+        if raw in self._index:
+            self.bindings = [b for b in self.bindings if b.key != raw]
         self.bindings.append(binding)
         self._index[raw] = binding
 

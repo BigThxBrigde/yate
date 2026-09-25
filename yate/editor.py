@@ -138,7 +138,7 @@ class Editor:
         # --------------------------------------------------------------- widgets
         self.prompt_bar = PromptBar(
             self.prompt_completions,
-            on_cancel=self._cancel_prompt,
+            cancel_hook=self._cancel_prompt,
             focus_editor=self.focus_editor,
             refresh=self.refresh_ui,
         )
@@ -487,10 +487,15 @@ class Editor:
         self.refresh_ui()
 
     def cycle_tab(self, delta: int) -> None:
-        """``:bn`` / ``:bp``: activate the next/previous tab."""
-        if self.session.cycle(delta) is None:
-            self.message("only one tab open", kind="warn")
+        """``:bn`` / ``:bp``: activate the next/previous tab.
+
+        With a single tab this is a silent no-op: cycling cannot move
+        anywhere, so repeating the command must not spam the message
+        line.
+        """
+        if len(self.session.docs) <= 1:
             return
+        self.session.cycle(delta)
         if self.mounted:
             self.panes.show_doc(self.panes.active, self.session.doc)
         # The previous tab's matches are (row, start, end) spans of *its*
@@ -548,8 +553,13 @@ class Editor:
         """Dispatch one key event; returns ``True`` when it was consumed.
 
         Called both by the editor view (keys typed in a pane) and by the
-        application shell (keys that bubble up from other widgets); every
-        check is pure, so a bubbling key may pass through twice safely.
+        application shell (keys that bubble up from other widgets).  The
+        dispatch is not side-effect free: :meth:`try_window_prefix` arms
+        and clears the ``ctrl+w`` pending chord (``_window_pending``) and
+        the completion-popup branch commits the highlighted candidate
+        (``accept_completion``).  A ``True`` return means the caller must
+        stop the event (R10) instead of letting it bubble into a second
+        dispatch.
         """
         if self.has_modal_screen():
             return False  # a modal screen owns input
@@ -1414,7 +1424,16 @@ class Editor:
         skipped and only genuinely new ones run.
         """
         cwd = Path.cwd()
-        trust_workspace(cwd)
+        if not trust_workspace(cwd):
+            # S39 minimal hardening: a symlinked cwd is refused by the
+            # store, and pretending otherwise (or still loading its
+            # extensions) would defeat the guard.
+            self.message(
+                f"refused to trust {cwd}: it contains a symlink component; "
+                "trust the resolved directory instead",
+                kind="error",
+            )
+            return
         directory = cwd / "extensions"
         if not directory.is_dir():
             self.message(f"trusted {cwd}; no extensions directory to load")

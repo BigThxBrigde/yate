@@ -246,7 +246,7 @@ class VimKeymap(Keymap):
         count = self._take_count()
         if key in _ARROW:
             self._motion(ctx, _ARROW[key], count, select=True)
-        elif key in _MOTION_CODES or (self.pending == "g" and key == "g"):
+        elif key in _MOTION_CODES:
             self._motion(ctx, key, count, select=True)
         else:
             return True
@@ -323,7 +323,9 @@ class VimKeymap(Keymap):
                     buf.yank_lines()
                     ui.message("yanked line")
                 return True
-            if key in _MOTION_CODES or key in _ARROW:
+            # "g" starts the gg jump, not an operator range: dg / yg would
+            # report deleted/yanked over an empty motion
+            if key != "g" and (key in _MOTION_CODES or key in _ARROW):
                 self._apply_operator(ctx, op, key, n)
                 return True
             # unknown motion: drop operator, fall through with key
@@ -376,8 +378,6 @@ class VimKeymap(Keymap):
         if key in entry:
             entry[key]()
             self._enter_insert(ui)
-            if key == "o":
-                pass
             return True
         if key == "o":
             buf.move_line_end()
@@ -493,5 +493,7 @@ class VimKeymap(Keymap):
             buf.anchor = None
             ui.message("yanked")
         else:
-            buf.delete_selection()
+            text = buf.delete_selection()
+            if text is not None:
+                buf.register = text
             ui.message("deleted")

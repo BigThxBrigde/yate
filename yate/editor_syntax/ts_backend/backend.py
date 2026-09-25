@@ -125,7 +125,14 @@ def _clip_to_rows(
 
 
 def _to_char(line_bytes: bytes, byte_col: int) -> int:
-    """Convert a tree-sitter byte column to a character column."""
+    """Convert a tree-sitter byte column to a character column.
+
+    A byte column can land inside a multi-byte UTF-8 sequence (e.g. a
+    stale offset after an edit): ``errors="ignore"`` then discards the
+    incomplete trailing character -- its lone lead byte cannot decode on
+    its own -- so such an offset maps to the first column of the character
+    it cuts into.  Columns past the line end clamp to the line length.
+    """
     if byte_col <= 0:
         return 0
     if byte_col >= len(line_bytes):

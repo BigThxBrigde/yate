@@ -48,6 +48,11 @@ TOGGLE_KEYS = frozenset({
     "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
 })
 
+#: Hands focus back to the editor while the terminal is focused (the
+#: terminal counterpart of the editor's own ctrl+1 chord).  Consumed by
+#: :meth:`TerminalView.on_key`, so the shell input stream never sees it.
+FOCUS_EDITOR_KEY = "ctrl+1"
+
 
 def _hex(rgb: Optional[tuple[int, int, int]]) -> Optional[str]:
     if rgb is None:
@@ -88,7 +93,7 @@ class TerminalView(Widget):
         self,
         argv: list[str],
         cwd: Path,
-        factory: Optional[Any] = None,
+        factory: Optional[Any] = None,  # noqa: Any - fake PTY factory for tests; no stub.
     ) -> None:
         """Spawn the shell; restarted automatically after a previous exit."""
         if self._starting or self.started:
@@ -107,11 +112,21 @@ class TerminalView(Widget):
             self._scroll = 0
             self.dead = False
             self._exit_code = None
-            make: Any = factory or PtyProcess
+            make: Any = factory or PtyProcess  # noqa: Any - fake PTY factory from tests; no stub.
             proc: PtyProcess = make(argv, cwd, cols, rows)
             self.proc = proc
             self.shell_argv = list(argv)
-            await proc.start(self._on_output, self._on_exit)
+            try:
+                await proc.start(self._on_output, self._on_exit)
+            except Exception:  # noqa: BLE001 - re-raised; reset state first
+                # A failed spawn must not leave a phantom ``started`` shell:
+                # with proc set and dead False the revive path (any key /
+                # open()) would never fire again.  Cancellation is not caught
+                # on purpose -- the spawn thread may still have created the
+                # child, so shutdown() must keep the reference to reap it.
+                self.proc = None
+                self.dead = True
+                raise
         finally:
             self._starting = False
         self._last_title = self.emulator.title
@@ -196,6 +211,13 @@ class TerminalView(Widget):
             event.prevent_default()
             self.panel.toggle()
             return
+        if event.key == FOCUS_EDITOR_KEY:
+            # Focus change only: never reaches the shell, and must not
+            # revive a dead shell either.
+            event.stop()
+            event.prevent_default()
+            self.panel.focus_editor()
+            return
         event.stop()
         event.prevent_default()
         if not self.started or self.dead:
@@ -277,7 +299,7 @@ class TerminalView(Widget):
             if style != current:
                 flush()
                 current = style
-            text_parts.append(cell.char if cell.char != " " else " ")
+            text_parts.append(cell.char)
             x += 1
         flush()
 

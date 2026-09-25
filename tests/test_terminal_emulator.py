@@ -231,6 +231,43 @@ def test_wide_character_at_the_last_column_arms_the_wrap() -> None:
     assert emu.grid[1][0].char == "好"
 
 
+def test_wide_character_at_the_last_column_is_drawn_on_the_next_line() -> None:
+    """A wide glyph at the margin is not lost: it lands whole one row down."""
+    emu = _emu(cols=3, rows=3)
+    emu.feed(b"ab")
+    emu.feed("中".encode())
+    assert emu.grid[0][2].char == ""  # the straddled margin cell is blanked
+    assert emu.grid[1][0].char == "中"  # ... and the glyph appears below it
+    assert emu.grid[1][1].char == ""  # on its own continuation column
+    assert emu.cursor == (1, 2)
+
+    # Same situation one row further down (no scrolling involved yet).
+    emu.feed("文".encode())
+    assert emu.grid[1][2].char == ""
+    assert emu.grid[2][0].char == "文"
+    assert emu.cursor == (2, 2)
+
+
+def test_wide_character_at_the_bottom_margin_wraps_through_the_scrollback() -> None:
+    """Wrapping a margin wide glyph off the last row scrolls like a LF."""
+    emu = _emu(cols=3, rows=2)
+    emu.feed(b"ab")
+    emu.feed("中".encode())  # wraps to row 1
+    emu.feed("文".encode())  # at the bottom margin: must scroll, not vanish
+    assert emu.scrollback[-1][0].char == "a"
+    assert emu.grid[0][0].char == "中"
+    assert emu.grid[1][0].char == "文"
+    assert emu.cursor == (1, 2)
+
+
+def test_wide_character_mid_line_placement_is_unchanged() -> None:
+    """Wide glyphs away from the margin still take their two cells."""
+    emu = _emu(cols=6, rows=2)
+    emu.feed("中文x".encode())
+    assert [c.char for c in emu.grid[0][:5]] == ["中", "", "文", "", "x"]
+    assert emu.cursor == (0, 5)
+
+
 # --- CSI: cursor positioning -------------------------------------------------
 
 
@@ -530,6 +567,21 @@ def test_alternate_screen_switches_and_restores() -> None:
     emu.feed(b"\x1b[?1049l")
     assert emu.in_alt is False
     assert _rows(emu) == "main"
+    assert emu.scrollback == []
+
+
+def test_soft_reset_in_alternate_screen_returns_to_primary() -> None:
+    """ESC c (RIS) leaves the alternate screen and clears the primary."""
+    emu = _emu(cols=6, rows=2)
+    emu.feed(b"main\x1b[?1049h\x1b[?25lalt")
+    assert emu.in_alt is True
+    assert _rows(emu) == "alt"
+
+    emu.feed(b"\x1bc")
+    assert emu.in_alt is False
+    assert _rows(emu) == ""
+    assert emu.cursor == (0, 0)
+    assert emu.cursor_visible is True
     assert emu.scrollback == []
 
 

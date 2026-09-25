@@ -99,15 +99,17 @@ def build_segments(
     # (the newest segment reaches up to position 0); Unreleased covers
     # everything newer than the newest cut.
     per_boundary: list[ReleaseSegment] = []
-    for position, boundary in enumerate(ordered):
-        previous_version = ordered[position - 1].version if position > 0 else None
+    for seg_index, boundary in enumerate(ordered):
+        previous_version = (
+            ordered[seg_index - 1].version if seg_index > 0 else None
+        )
         per_boundary.append(
             ReleaseSegment(
                 version=boundary.version,
                 date=boundary.date or None,
                 range_from=(f"v{previous_version}" if previous_version else "ROOT"),
                 range_to=f"v{boundary.version}",
-                initial=position == 0,
+                initial=seg_index == 0,
             )
         )
     newest_cut = cut_indexes[-1]

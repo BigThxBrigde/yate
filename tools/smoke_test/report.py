@@ -345,14 +345,17 @@ class Reporter:
         total = sum(len(r.checks) for r in results)
         fails = total - ok
         elapsed = sum(r.duration for r in results)
+        # Same "passed" rule as the CLI exit code / json totals: a scenario
+        # that raised (crash or timeout) is never a pass, even though its
+        # own checks are green.
+        passed = sum(1 for r in results if r.fail_count == 0 and r.error is None)
         body = Text()
         pct = (ok / total * 100) if total else 100.0
         style = _OK if fails == 0 else _BAD
         body.append(f"{_bar(ok, total)} ", style=style)
         body.append(f"{ok}/{total} checks ({pct:.0f}%)\n", style=f"bold {style}")
         body.append(
-            f"{sum(1 for r in results if r.fail_count == 0)}/{len(results)} "
-            f"scenarios passed",
+            f"{passed}/{len(results)} scenarios passed",
             style=style,
         )
         body.append(f"   {elapsed:.2f}s total", style=_DIM)

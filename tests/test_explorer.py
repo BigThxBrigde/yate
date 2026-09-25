@@ -17,6 +17,7 @@ from yate.editor import Editor
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_view.explorer import ExplorerTree
+from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
 
@@ -199,9 +200,45 @@ def test_close_documents_under_no_open_tabs_is_noop(tmp_path: Path) -> None:
 
     closed = session.close_under(folder)
 
-    # No run_worker calls when no file-backed docs match
+    # no run_worker calls when no file-backed docs match
     assert closed == []
     assert app.run_worker.call_count == 0
     assert lsp.closed == []
     # docs list unchanged
     assert session.docs == [scratch]
+
+
+# --- S37 regression: a vanished selection is forgotten -----------------------
+
+
+def test_restore_cursor_forgets_vanished_selection(tmp_path: Path) -> None:
+    """Deleting the selected entry must clear ``_last_selected`` (S37).
+
+    A deleted / renamed selection must not stay pinned: ``refresh_tree``
+    defers cursor restoration via ``call_after_refresh`` -- without a
+    running app the deferred callback is invoked manually after the
+    rebuild, exactly as the next refresh pass would.
+    """
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "a.txt").write_text("a\n", encoding="utf-8")
+    victim = ws / "b.txt"
+    victim.write_text("b\n", encoding="utf-8")
+    tree = ExplorerTree(
+        EditorSession(YateConfig()),
+        Workspace(ws),
+        cast(Any, _FakePrompt()),
+        open_path=lambda path: None,
+        focus_editor=lambda: None,
+        window_prefix=lambda event: False,
+    )
+
+    tree.refresh_tree()
+    # the user had selected (opened) the last entry ...
+    tree._last_selected = victim
+    # ... and it is deleted afterwards (explorer ``d`` flow / external)
+    victim.unlink()
+    tree.refresh_tree()
+    tree._restore_cursor(victim)
+
+    assert tree._last_selected is None

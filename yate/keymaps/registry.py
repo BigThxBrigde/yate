@@ -18,7 +18,12 @@ class KeymapSet:
 
     def __init__(self, keymaps: dict[str, Keymap], name: str) -> None:
         self._keymaps = dict(keymaps)
-        self._name = name if name in self._keymaps else next(iter(self._keymaps))
+        if name in self._keymaps:
+            self._name = name
+        elif self._keymaps:
+            self._name = next(iter(self._keymaps))
+        else:
+            raise ValueError("no keymaps registered")
 
     # ------------------------------------------------------------- lookups
 

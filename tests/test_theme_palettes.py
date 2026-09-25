@@ -10,7 +10,7 @@ Covers:
   they exec under exactly the namespace the real loader injects, register the
   advertised themes, are ignored in place (glob ``*.py``), and work end to
   end once copied to ``*.py`` inside a scanned directory;
-* the version bump (single-source dynamic version).
+* the version shape (single-source dynamic version).
 """
 
 from __future__ import annotations
@@ -267,8 +267,12 @@ def test_real_register_theme_via_template_source(template_cleanup: None) -> None
 # --- version ----------------------------------------------------------------
 
 
-def test_version_is_bumped() -> None:
-    assert yate.__version__ == "0.2.4"
+def test_version_matches_semver_shape() -> None:
+    # The release number moves; pin the shape (non-empty x.y.z) instead of a
+    # literal so bumps don't require editing this test.  The single dynamic
+    # version source itself is guarded by the pyproject test below.
+    assert yate.__version__
+    assert re.fullmatch(r"\d+\.\d+\.\d+", yate.__version__)
 
 
 def test_pyproject_keeps_the_single_dynamic_version_source() -> None:

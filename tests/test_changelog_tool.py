@@ -8,10 +8,13 @@ is unavailable.
 
 from __future__ import annotations
 
+import datetime
 import json
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -337,6 +340,74 @@ def test_link_construction() -> None:
     )
 
 
+# --- gitee host dispatch: unknown hosts must skip the gate, never fail ------
+
+
+class _FakeResponse:
+    """Minimal ``urlopen`` result: a context manager with a fixed status."""
+
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
+def _fake_urlopen(
+    seen: list[str], status: int
+) -> Callable[[object, float], _FakeResponse]:
+    def fake(request: object, timeout: float) -> _FakeResponse:
+        seen.append(str(getattr(request, "full_url")))
+        return _FakeResponse(status)
+
+    return fake
+
+
+def test_check_supported_dispatches_by_host() -> None:
+    assert gitee.check_supported("gitee.com")
+    assert gitee.check_supported("github.com")
+    assert not gitee.check_supported("gitlab.com")
+    assert not gitee.check_supported("example.org")
+
+
+def test_check_commit_pushed_gitee_uses_openapi_v5(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+    monkeypatch.setattr(gitee.urllib.request, "urlopen", _fake_urlopen(seen, 200))
+    remote = gitee.RemoteInfo(host="gitee.com", owner="demo", repo="yate")
+    assert gitee.check_commit_pushed(remote, "a" * 40) is True
+    assert seen == [
+        f"https://gitee.com/api/v5/repos/demo/yate/commits/{'a' * 40}"
+    ]
+
+
+def test_check_commit_pushed_github_uses_rest_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+    monkeypatch.setattr(gitee.urllib.request, "urlopen", _fake_urlopen(seen, 200))
+    remote = gitee.RemoteInfo(host="github.com", owner="demo", repo="yate")
+    assert gitee.check_commit_pushed(remote, "b" * 40) is True
+    assert seen == [
+        f"https://api.github.com/repos/demo/yate/commits/{'b' * 40}"
+    ]
+
+
+def test_check_commit_pushed_unknown_host_skips_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(request: object, timeout: float) -> _FakeResponse:
+        raise AssertionError("urlopen must not run for unknown hosts")
+
+    monkeypatch.setattr(gitee.urllib.request, "urlopen", boom)
+    remote = gitee.RemoteInfo(host="gitlab.com", owner="demo", repo="yate")
+    assert gitee.check_commit_pushed(remote, "a" * 40) is None
+
+
 # --- translations -----------------------------------------------------------
 
 
@@ -385,6 +456,18 @@ def test_parse_log_output_with_chinese_and_separators() -> None:
 def test_parse_log_output_rejects_malformed_record() -> None:
     with pytest.raises(gitdata.GitError):
         gitdata.parse_log_output("only-two\x1ffields\x1e")
+
+
+def test_parse_log_output_subject_with_stray_separator_truncates_into_body() -> None:
+    # frozen behavior: maxsplit=4 protects the body, so a \x1f inside the
+    # subject ends the subject early and everything after it (including the
+    # real body) lands in the body field
+    sha = "a" * 40
+    record = f"{sha}\x1f{sha[:7]}\x1f2026-09-13\x1ffeat: bad\x1fsep\x1freal body\x1e"
+    commits = gitdata.parse_log_output(record)
+    assert len(commits) == 1
+    assert commits[0].subject == "feat: bad"
+    assert commits[0].body == "sep\x1freal body"
 
 
 def test_parse_bump_patch_only_counts_added_lines() -> None:
@@ -513,6 +596,56 @@ def test_unreleased_lag_counts_missing_hashes() -> None:
     assert render.unreleased_lag(disk, fresh) == 2
     # no unreleased section anywhere → no lag
     assert render.unreleased_lag(disk, disk) == 0
+
+
+# --- strip_unreleased boundaries (behavior frozen as implemented) -----------
+
+def test_strip_unreleased_only_section_leaves_header() -> None:
+    doc = (
+        "# Changelog\n"
+        "\n"
+        "## [Unreleased]\n"
+        "\n"
+        "- new ([`b123456`](u))\n"
+    )
+    stripped = render.strip_unreleased(doc)
+    assert stripped == "# Changelog\n"
+    assert "Unreleased" not in stripped
+    assert "new" not in stripped
+
+
+def test_strip_unreleased_empty_section_drops_heading_and_blanks() -> None:
+    doc = (
+        "# Changelog\n"
+        "\n"
+        "## [Unreleased]\n"
+        "\n"
+        "## [0.1.0] - 2026-01-01\n"
+        "\n"
+        "- old\n"
+    )
+    # the blank line between the Unreleased heading and the next section
+    # heading belongs to the Unreleased block and is dropped with it
+    assert render.strip_unreleased(doc) == (
+        "# Changelog\n\n## [0.1.0] - 2026-01-01\n\n- old\n"
+    )
+
+
+def test_strip_unreleased_section_at_end_is_dropped_entirely() -> None:
+    doc = (
+        "# Changelog\n"
+        "\n"
+        "## [0.1.0] - 2026-01-01\n"
+        "\n"
+        "- old\n"
+        "\n"
+        "## [Unreleased]\n"
+        "\n"
+        "- new ([`b123456`](u))\n"
+    )
+    assert render.strip_unreleased(doc) == (
+        "# Changelog\n\n## [0.1.0] - 2026-01-01\n\n- old\n"
+    )
 
 
 # --- cli generate/check with stubbed git IO ---------------------------------
@@ -686,6 +819,161 @@ def test_require_zh_fails_when_translations_missing(
     ) == 0
 
 
+# --- cli --overrides flag binding (all three subcommands) --------------------
+
+
+def test_check_overrides_flag_is_honored(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    # hermetic default: the repo-level overrides file must stay untouched
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+    custom = cli_repo / "custom_overrides.json"
+    overrides: dict[str, translations.OverrideEntry] = {}
+    for sha, summary in (
+        ("a" * 7, "闪亮的新功能"), ("b" * 7, "崩溃修复"), ("d" * 7, "最早的新功能"),
+    ):
+        translations.upsert_override(overrides, sha, summary)
+    translations.save_overrides(overrides, custom)
+    # disk must match the custom-override render so the gate can be green
+    assert cli.main(["generate", "--overrides", str(custom)]) == 0
+    assert cli.main(["check", "--require-zh", "--overrides", str(custom)]) == 0
+    assert "released changelog sections are up to date" in capsys.readouterr().out
+    # without the flag the (empty) default file applies → the gate goes red
+    assert cli.main(["check", "--require-zh"]) == 1
+
+
+def test_zh_commit_overrides_flag_writes_custom_file(
+    cli_repo: Path, overrides_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+
+    def fake_resolve(repo: Path, prefix: str) -> str:
+        return "a" * 40
+
+    def fake_subject(repo: Path, sha: str) -> str:
+        return "feat: shiny thing"
+
+    monkeypatch.setattr(gitdata, "resolve_commit_sha", fake_resolve)
+    monkeypatch.setattr(gitdata, "commit_subject", fake_subject)
+    custom = cli_repo / "custom_overrides.json"
+    code = cli.main(
+        ["zh-commit", "--overrides", str(custom), "a" * 7, "闪亮的新功能"]
+    )
+    assert code == 0
+    data = json.loads(custom.read_text(encoding="utf-8"))
+    assert data["a" * 7]["summary"] == "闪亮的新功能"
+    # the default file is neither created nor modified
+    assert overrides_path.read_text(encoding="utf-8") == "{}\n"
+
+
+def test_generate_overrides_flag_renders_translations(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+    custom = cli_repo / "custom_overrides.json"
+    overrides: dict[str, translations.OverrideEntry] = {}
+    translations.upsert_override(overrides, "d" * 7, "最早的新功能")
+    translations.save_overrides(overrides, custom)
+    assert cli.main(["generate", "--overrides", str(custom)]) == 0
+    zh = (cli_repo / "CHANGELOG.zh.md").read_text(encoding="utf-8")
+    assert "- 最早的新功能" in zh
+    assert "- first thing" not in zh
+
+
+# --- cli --date and --limit flags (S22 / S23) --------------------------------
+
+
+def test_generate_date_option_stamps_generated_notes(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+) -> None:
+    resources = cli_repo / "yate" / "resources"
+    assert cli.generate(
+        cli_repo, date="2020-05-06", targets=("bundle",),
+        overrides_path=overrides_path,
+    ) == 0
+    en = (resources / "changelog.en.md").read_text(encoding="utf-8")
+    zh = (resources / "changelog.zh.md").read_text(encoding="utf-8")
+    assert "Generated from the git history on 2020-05-06 · yate 0.1.0" in en
+    assert "由 git 历史自动生成于 2020-05-06 · yate 0.1.0" in zh
+    # without --date the note falls back to today
+    today = datetime.date.today().isoformat()
+    assert cli.generate(
+        cli_repo, targets=("bundle",), overrides_path=overrides_path
+    ) == 0
+    en = (resources / "changelog.en.md").read_text(encoding="utf-8")
+    zh = (resources / "changelog.zh.md").read_text(encoding="utf-8")
+    assert f"Generated from the git history on {today} · yate 0.1.0" in en
+    assert f"由 git 历史自动生成于 {today} · yate 0.1.0" in zh
+
+
+def test_generate_cli_date_flag_is_honored(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    monkeypatch.setattr(translations, "DEFAULT_OVERRIDES_PATH", overrides_path)
+    assert cli.main(["generate", "--date", "2020-05-06", "--bundle-only"]) == 0
+    en = (
+        cli_repo / "yate" / "resources" / "changelog.en.md"
+    ).read_text(encoding="utf-8")
+    assert "Generated from the git history on 2020-05-06" in en
+
+
+def test_generate_limit_1_keeps_only_the_newest_commit(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    cli_commits: list[RawCommit], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[Optional[int]] = []
+
+    def fake_read_commits(
+        repo: Path, *, include_merges: bool = False, limit: Optional[int] = None
+    ) -> list[RawCommit]:
+        seen.append(limit)
+        # model `git log -n <limit>`: newest-first slice
+        return cli_commits[:limit] if limit is not None and limit > 0 else []
+
+    monkeypatch.setattr(gitdata, "read_commits", fake_read_commits)
+    assert cli.generate(cli_repo, limit=1, overrides_path=overrides_path) == 0
+    en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "shiny thing" in en  # newest entry survives
+    assert "broken thing" not in en
+    assert "first thing" not in en
+    assert seen == [1, 1]  # both read_commits calls forwarded the limit
+
+
+def test_generate_limit_zero_and_negative_forwarded_verbatim(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    cli_commits: list[RawCommit], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # measured: `git log -n 0` lists nothing; `git log -n -1` (exit 0) lists
+    # the whole history — the behaviour is frozen here accordingly.
+    def fake_read_commits(
+        repo: Path, *, include_merges: bool = False, limit: Optional[int] = None
+    ) -> list[RawCommit]:
+        if limit is None:
+            return cli_commits
+        if limit > 0:
+            return cli_commits[:limit]
+        if limit < 0:
+            return cli_commits
+        return []
+
+    monkeypatch.setattr(gitdata, "read_commits", fake_read_commits)
+    assert cli.generate(cli_repo, limit=0, overrides_path=overrides_path) == 0
+    en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "shiny thing" not in en
+    assert "## [0.1.0]" in en  # the boundary survives with zero entries
+    assert cli.generate(cli_repo, limit=-1, overrides_path=overrides_path) == 0
+    en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "shiny thing" in en
+    assert "first thing" in en
+
+
 # --- real git end-to-end ----------------------------------------------------
 
 
@@ -741,3 +1029,45 @@ def test_generate_and_zh_commit_in_temp_repo(tmp_path: Path) -> None:
     zh = (repo / "CHANGELOG.zh.md").read_text(encoding="utf-8")
     assert "修复空输入崩溃" in zh
     assert "[缺中文]" in zh  # the other entries remain untranslated
+
+
+# --- cli --online host dispatch (unknown hosts skip the gate) ----------------
+
+
+def test_generate_online_unknown_host_skips_push_gate(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_remote(repo: Path) -> str:
+        return "https://gitlab.com/demo/yate.git"
+
+    monkeypatch.setattr(gitdata, "remote_url", fake_remote)
+
+    def boom(remote: object, shas: object) -> dict[str, bool]:
+        raise AssertionError("pushed_flags must not run for unknown hosts")
+
+    monkeypatch.setattr(gitee, "pushed_flags", boom)
+    assert cli.generate(cli_repo, online=True, overrides_path=overrides_path) == 0
+    out = capsys.readouterr().out
+    assert "cannot verify pushes on gitlab.com" in out
+    assert "skipping gate" in out
+
+
+def test_generate_online_github_host_reports_unpushed(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_remote(repo: Path) -> str:
+        return "https://github.com/demo/yate.git"
+
+    monkeypatch.setattr(gitdata, "remote_url", fake_remote)
+
+    def fake_pushed(remote: object, shas: object) -> dict[str, bool]:
+        return {"a" * 7: False}
+
+    monkeypatch.setattr(gitee, "pushed_flags", fake_pushed)
+    assert cli.generate(cli_repo, online=True, overrides_path=overrides_path) == 0
+    out = capsys.readouterr().out
+    assert "1 commit(s) not found on github.com" in out
+    en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "(unpushed)" in en

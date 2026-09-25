@@ -7,7 +7,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Callable, Optional, cast
 
 import pytest
 
@@ -20,6 +20,7 @@ from yate.editor_term import (
     shell_label,
 )
 from yate.editor_term import pty_proc
+from yate.editor_view.terminal import TerminalView
 
 
 def _text(emu: TerminalEmulator) -> str:
@@ -387,5 +388,56 @@ def test_detach_drops_late_thread_events(fake_pty: type[_FakePtyImpl]) -> None:
         cast(Any, proc)._loop = closed_loop
         proc.emit_output(b"later\r\n")
         proc.process_finished(10)
+
+    asyncio.run(_scenario())
+
+
+# --- view spawn failure ------------------------------------------------------
+
+
+class _FailingProc:
+    """PtyProcess stand-in whose start always fails, like a dead ConPTY."""
+
+    def __init__(self, argv: list[str], cwd: Path, cols: int, rows: int) -> None:
+        self.argv = argv
+
+    async def start(
+        self,
+        on_output: Callable[[bytes], None],
+        on_exit: Callable[[Optional[int]], None],
+    ) -> None:
+        raise PtyProcessError("no ConPTY here")
+
+
+class _WorkingProc:
+    """PtyProcess stand-in that starts fine and stays quiet."""
+
+    def __init__(self, argv: list[str], cwd: Path, cols: int, rows: int) -> None:
+        self.argv = argv
+
+    async def start(
+        self,
+        on_output: Callable[[bytes], None],
+        on_exit: Callable[[Optional[int]], None],
+    ) -> None:
+        return None
+
+
+def test_spawn_failure_marks_the_view_dead_and_revivable() -> None:
+    """A failed spawn resets the view, so the revive path can fire again."""
+
+    async def _scenario() -> None:
+        view = TerminalView(cast(Any, None))
+        with pytest.raises(PtyProcessError):
+            await view.start(["shell"], Path.cwd(), factory=_FailingProc)
+        assert view.proc is None
+        assert view.dead
+        assert not view.started  # open() / any key will spawn again
+
+        # The revive path itself: a fresh start with a working process wins.
+        await view.start(["shell"], Path.cwd(), factory=_WorkingProc)
+        assert view.proc is not None
+        assert not view.dead
+        assert view.started
 
     asyncio.run(_scenario())

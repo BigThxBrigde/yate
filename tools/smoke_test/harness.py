@@ -32,6 +32,7 @@ from typing import (
     Generator,
     Optional,
     Sequence,
+    cast,
 )
 
 os.environ.setdefault("YATE_PYTHON_LSP", "off")
@@ -68,9 +69,11 @@ _speed_up_pilot()
 __all__ = [
     "Check",
     "Coverage",
+    "DEFAULT_SCENARIO_TIMEOUT_S",
     "RunOptions",
     "Scenario",
     "ScenarioResult",
+    "SvgDriftError",
     "TAGS",
     "extract_svg_rows",
     "get_seed",
@@ -123,14 +126,48 @@ def rng_for(name: str) -> random.Random:
 
 # --------------------------------------------------- SVG text extraction
 
-_TEXT_RE = re.compile(r'<text[^>]*y="([\d.]+)"[^>]*>(.*?)</text>', re.S)
+#: Textual version whose ``save_screenshot`` output the patterns below were
+#: adapted to (measured against the .venv of this checkout).
+_ADAPTED_TEXTUAL_VERSION = "8.2.8"
+
+# Textual 8.2.8 (via Rich's terminal SVG export) emits one
+# ``<text class="..." ... y="N.N" ...>content</text>`` element per text run:
+# class is always the first attribute and y is always a decimal number.
+_TEXT_RE = re.compile(
+    r'<text class="[^"]*"[^>]*?\sy="(\d+(?:\.\d+)?)"[^>]*>(.*?)</text>', re.S
+)
 _INNER_RE = re.compile(r">([^<]+)<")
 
 
+class SvgDriftError(RuntimeError):
+    """The exported SVG markup no longer matches the extraction patterns.
+
+    Raised when a screenshot contains ``<text`` elements the patterns above
+    cannot read -- almost always a Textual upgrade changing Rich's SVG
+    export format.
+    """
+
+
 def extract_svg_rows(svg: str) -> dict[int, str]:
-    """Map y-coordinate -> concatenated text content for each rendered row."""
+    """Map y-coordinate -> concatenated text content for each rendered row.
+
+    Raises :class:`SvgDriftError` instead of returning silently empty or
+    partial rows when the file contains ``<text`` elements the patterns do
+    not cover; the message carries the SVG head so the version drift is
+    diagnosed at the source rather than as a shower of empty-row failures.
+    """
+    matches = list(_TEXT_RE.finditer(svg))
+    expected = svg.count("<text")
+    if len(matches) != expected:
+        head = " ".join(svg[:200].split())
+        raise SvgDriftError(
+            f"SVG text extraction covers {len(matches)} of {expected} "
+            "<text> elements -- the markup format likely drifted with a "
+            f"Textual upgrade (patterns adapted to Textual "
+            f"{_ADAPTED_TEXTUAL_VERSION}); SVG head: {head!r}"
+        )
     rows: dict[int, str] = {}
-    for m in _TEXT_RE.finditer(svg):
+    for m in matches:
         y = int(float(m.group(1)))
         text = "".join(_INNER_RE.findall(">" + m.group(2) + "<"))
         if text:
@@ -268,18 +305,18 @@ def track_coverage() -> Generator[Coverage, None, None]:
         # built-in tables into the editor's registries (R7), so snapshot them
         # at the end of the shell's __init__ -- the editor's own __init__ runs
         # before that and would report an empty universe.
-        original_app_init(self, *args, **kwargs)  # type: ignore[arg-type]
+        cast(Callable[..., None], original_app_init)(self, *args, **kwargs)
         cov.note_registries(self.editor)
 
-    Editor.run_command = run_command  # type: ignore[method-assign]
-    Editor.execute_action = execute_action  # type: ignore[method-assign]
-    YateApp.__init__ = app_init  # type: ignore[method-assign]
+    Editor.run_command = run_command
+    Editor.execute_action = execute_action
+    YateApp.__init__ = app_init
     try:
         yield cov
     finally:
-        Editor.run_command = original_run_command  # type: ignore[method-assign]
-        Editor.execute_action = original_execute_action  # type: ignore[method-assign]
-        YateApp.__init__ = original_app_init  # type: ignore[method-assign]
+        Editor.run_command = original_run_command
+        Editor.execute_action = original_execute_action
+        YateApp.__init__ = original_app_init
 
 
 # --------------------------------------------------------------- app factory
@@ -353,11 +390,18 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
 
 # -------------------------------------------------------------------- runner
 
+#: Default per-scenario wall clock budget in seconds (``--timeout`` overrides).
+DEFAULT_SCENARIO_TIMEOUT_S = 60.0
+
 
 @dataclass
 class RunOptions:
     svg: bool = False
     invariants: bool = True
+    #: Wall clock budget per scenario in seconds: a scenario exceeding it is
+    #: cancelled and reported with ``error`` set, so one hung scenario cannot
+    #: stall the remaining ones (``--timeout`` overrides the default).
+    timeout: float = DEFAULT_SCENARIO_TIMEOUT_S
     progress: Optional[Callable[[int, int, str], None]] = None
 
 
@@ -370,7 +414,7 @@ def _run_one(
     theme_before = theme.active().name
     started = time.monotonic()
     try:
-        result = asyncio.run(_await(scenario.run, sub))
+        result = asyncio.run(_timed(scenario, sub, options.timeout))
     except BaseException as exc:  # noqa: BLE001 - a crashing scenario is a FAIL
         result = ScenarioResult(
             scenario.name, tags=scenario.tags,
@@ -392,11 +436,23 @@ def _run_one(
     return result
 
 
-async def _await(
-    run: Callable[[Path], Awaitable[ScenarioResult]], tmp: Path
+async def _timed(
+    scenario: Scenario, tmp: Path, timeout: float
 ) -> ScenarioResult:
-    """Await the scenario coroutine (``asyncio.run`` needs a coroutine)."""
-    return await run(tmp)
+    """Await one scenario under a wall clock budget (``--timeout``).
+
+    ``asyncio.wait_for`` cancels a scenario that exceeds *timeout* seconds;
+    the cancellation unwinds the scenario (shutting down its app) and the
+    runner reports the scenario as failed instead of hanging forever.
+    """
+    try:
+        return await asyncio.wait_for(scenario.run(tmp), timeout=timeout)
+    except asyncio.TimeoutError:
+        return ScenarioResult(
+            scenario.name,
+            tags=scenario.tags,
+            error=f"timeout: exceeded {timeout:g}s wall clock budget",
+        )
 
 
 def run_scenarios(

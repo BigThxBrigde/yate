@@ -10,8 +10,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from yate.config import YateConfig
-from yate.keymaps.base import ActionContext, KeyUi
+from yate.keymaps.base import ActionContext, Keymap, KeyUi
+from yate.keymaps.registry import KeymapSet
 from yate.registries import Action, ActionRegistry, CommandRegistry
 from yate.session import EditorSession
 
@@ -156,3 +159,17 @@ def test_command_registry_accepts_arbitrary_callables() -> None:
     entry = registry.get("thing")
     assert entry is not None
     assert entry[0]("") is marker
+
+
+# --- KeymapSet --------------------------------------------------------------
+
+
+def test_empty_keymap_set_raises_a_clear_error() -> None:
+    """An empty registry raises ValueError, not a bare StopIteration."""
+    with pytest.raises(ValueError, match="no keymaps registered"):
+        KeymapSet({}, "vim")
+
+
+def test_keymap_set_falls_back_to_the_first_registered_keymap() -> None:
+    """An unknown active name falls back to the first registered keymap."""
+    assert KeymapSet({"vim": Keymap()}, "nope").name == "vim"

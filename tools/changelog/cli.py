@@ -2,18 +2,22 @@
 
 Subcommands:
 
-* ``generate [--online] [--limit N] [--check] [--require-zh]
-  [--root-only|--bundle-only]`` — render and write the bilingual changelog
-  to up to four targets: ``CHANGELOG.md`` / ``CHANGELOG.zh.md`` at the
-  repository root and the end-user copies ``yate/resources/changelog.*.md``
-  (``--check`` only compares released sections against disk and exits
-  non-zero on drift; ``[Unreleased]`` may lag freely);
-* ``check [--online] [--require-zh]`` — CI gate: exit 1 when a released
-  section is missing or drifted on disk; prints ``SKIP`` (exit 0) when no
-  git history is available; ``--require-zh`` additionally fails when any
-  entry lacks a Chinese translation (gradual translation is the default);
-* ``zh-commit <hash> <summary> [<detail>]`` — upsert one Chinese translation
-  into ``tools/changelog/zh_overrides.json``.
+* ``generate [--online] [--limit N] [--date YYYY-MM-DD] [--check]
+  [--require-zh] [--overrides PATH] [--root-only|--bundle-only]`` — render
+  and write the
+  bilingual changelog to up to four targets: ``CHANGELOG.md`` /
+  ``CHANGELOG.zh.md`` at the repository root and the end-user copies
+  ``yate/resources/changelog.*.md`` (``--check`` only compares released
+  sections against disk and exits non-zero on drift; ``[Unreleased]`` may
+  lag freely);
+* ``check [--online] [--require-zh] [--overrides PATH]`` — CI gate: exit 1
+  when a released section is missing or drifted on disk; prints ``SKIP``
+  (exit 0) when no git history is available; ``--require-zh`` additionally
+  fails when any entry lacks a Chinese translation (gradual translation is
+  the default);
+* ``zh-commit <hash> <summary> [<detail>] [--overrides PATH]`` — upsert one
+  Chinese translation into ``tools/changelog/zh_overrides.json`` (or the
+  file named by ``--overrides``).
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ import argparse
 import datetime
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 from . import gitee, gitdata, render, segments, translations
 from .classify import classify_commit, is_changelog_entry
@@ -88,11 +93,12 @@ def _missing_zh(
     return [c.short_sha for c in entries if c.short_sha not in overrides]
 
 
-def _generated_notes(version: str) -> dict[str, str]:
-    today = datetime.date.today().isoformat()
+def _generated_notes(version: str, date: Optional[str]) -> dict[str, str]:
+    """The bundle-header generation note stamped with *date* or today."""
+    stamp = date if date is not None else datetime.date.today().isoformat()
     return {
-        "en": f"Generated from the git history on {today} · yate {version}",
-        "zh": f"由 git 历史自动生成于 {today} · yate {version}",
+        "en": f"Generated from the git history on {stamp} · yate {version}",
+        "zh": f"由 git 历史自动生成于 {stamp} · yate {version}",
     }
 
 
@@ -101,6 +107,7 @@ def generate(
     *,
     online: bool = False,
     limit: int | None = None,
+    date: Optional[str] = None,
     check: bool = False,
     require_zh: bool = False,
     targets: Sequence[str] = ("root", "bundle"),
@@ -123,12 +130,17 @@ def generate(
     pushed: dict[str, bool] = {}
     if online and remote is not None:
         lookup = {c.short_sha: c.sha for c in entries}
-        pushed = gitee.pushed_flags(remote, lookup)
-        unpushed = [sha for sha, ok in pushed.items() if not ok]
-        if unpushed:
-            print(f"warning: {len(unpushed)} commit(s) not found on Gitee")
+        if gitee.check_supported(remote.host):
+            pushed = gitee.pushed_flags(remote, lookup)
+            unpushed = [sha for sha, ok in pushed.items() if not ok]
+            if unpushed:
+                print(f"warning: {len(unpushed)} commit(s) not found on "
+                      f"{remote.host}")
+        else:
+            print(f"warning: cannot verify pushes on {remote.host} "
+                  "— skipping gate")
 
-    notes = _generated_notes(version)
+    notes = _generated_notes(version, date)
     docs: dict[tuple[str, str], str] = {}
     for target in targets:
         for lang in _LANGS:
@@ -250,6 +262,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     gen.add_argument("--online", action="store_true", help="verify commits on Gitee")
     gen.add_argument("--limit", type=int, default=None, help="only newest N commits")
     gen.add_argument(
+        "--date",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="stamp the generated-notes line (default: today)",
+    )
+    gen.add_argument(
         "--check", action="store_true", help="compare against disk, do not write"
     )
     gen.add_argument(
@@ -264,11 +282,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--bundle-only", action="store_true",
         help="write only yate/resources/changelog.*.md",
     )
+    gen.add_argument(
+        "--overrides", type=Path, default=None,
+        help="zh overrides JSON (default: tools/changelog/zh_overrides.json)",
+    )
 
     chk = subparsers.add_parser("check", help="CI gate: fail on stale files")
     chk.add_argument("--online", action="store_true", help="verify commits on Gitee")
     chk.add_argument(
         "--require-zh", action="store_true", help="fail when zh translations miss"
+    )
+    chk.add_argument(
+        "--overrides", type=Path, default=None,
+        help="zh overrides JSON (default: tools/changelog/zh_overrides.json)",
     )
 
     zc = subparsers.add_parser(
@@ -277,9 +303,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     zc.add_argument("hash", help="commit hash (short or full)")
     zc.add_argument("summary", help="Chinese summary")
     zc.add_argument("detail", nargs="?", default=None, help="optional Chinese detail")
+    zc.add_argument(
+        "--overrides", type=Path, default=None,
+        help="zh overrides JSON (default: tools/changelog/zh_overrides.json)",
+    )
 
     args = parser.parse_args(argv)
     repo = discover_repo_root()
+    overrides: Path = args.overrides or translations.DEFAULT_OVERRIDES_PATH
     if args.command == "generate":
         targets: tuple[str, ...] = ("root", "bundle")
         if getattr(args, "root_only", False):
@@ -290,13 +321,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             repo,
             online=args.online,
             limit=args.limit,
+            date=args.date,
             check=args.check,
             require_zh=args.require_zh,
             targets=targets,
+            overrides_path=overrides,
         )
     if args.command == "check":
-        return check(repo, online=args.online, require_zh=args.require_zh)
+        return check(
+            repo, online=args.online, require_zh=args.require_zh,
+            overrides_path=overrides,
+        )
     if args.command == "zh-commit":
-        return zh_commit(repo, args.hash, args.summary, args.detail)
+        return zh_commit(
+            repo, args.hash, args.summary, args.detail, overrides_path=overrides
+        )
     parser.error(f"unknown command {args.command!r}")
     return 2

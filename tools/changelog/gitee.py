@@ -23,6 +23,10 @@ _SCP_RE = re.compile(r"^git@(?P<host>[^:]+):(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:
 
 _ONLINE_TIMEOUT_S = 5.0
 
+#: Hosts with a public read-only commit API that ``check_commit_pushed``
+#: understands; everything else must be reported as "cannot verify".
+_GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
+
 
 @dataclass(frozen=True)
 class RemoteInfo:
@@ -59,21 +63,37 @@ def compare_url(remote: RemoteInfo, range_from: str, range_to: str) -> str:
     return f"{remote.web_base}/compare/{range_from}...{range_to}"
 
 
+def check_supported(host: str) -> bool:
+    """Whether :func:`check_commit_pushed` knows a public API for *host*.
+
+    Callers gate on this first so an unsupported host is reported as
+    "cannot verify, skipping gate", never as "unpushed".
+    """
+    return host == "gitee.com" or host in _GITHUB_HOSTS
+
+
 def check_commit_pushed(
     remote: RemoteInfo, sha: str, *, timeout: float = _ONLINE_TIMEOUT_S
 ) -> bool | None:
     """Whether ``sha`` exists on the remote host.
 
     ``True`` = pushed, ``False`` = host answered 404 (not pushed), ``None`` =
-    unknown (network error or unsupported host).  Only gitee.com's public
-    read-only OpenAPI v5 is consulted; no token is involved.
+    unknown (network error or unsupported host).  gitee.com's public
+    read-only OpenAPI v5 and github.com's public REST API are consulted;
+    no token is involved.
     """
-    if remote.host != "gitee.com":
+    if remote.host == "gitee.com":
+        api_url = (
+            f"https://{remote.host}/api/v5/repos/{remote.owner}/{remote.repo}"
+            f"/commits/{sha}"
+        )
+    elif remote.host in _GITHUB_HOSTS:
+        api_url = (
+            f"https://api.github.com/repos/{remote.owner}/{remote.repo}"
+            f"/commits/{sha}"
+        )
+    else:
         return None
-    api_url = (
-        f"https://{remote.host}/api/v5/repos/{remote.owner}/{remote.repo}"
-        f"/commits/{sha}"
-    )
     request = urllib.request.Request(api_url, headers={"User-Agent": "yate-changelog"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:

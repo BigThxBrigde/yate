@@ -9,6 +9,7 @@ import asyncio
 import os
 import stat
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -376,6 +377,24 @@ def test_modified_when_save_lands_inside_coalesced_step(tmp_path: Path) -> None:
     assert doc.modified  # "hello" != saved "hello world"
 
 
+def test_modified_memo_stays_correct_across_save_and_undo(tmp_path: Path) -> None:
+    """The dirty verdict is memoized on the buffer's edit counter; saving
+    moves the baseline and undo rewinds the counter, so neither may serve
+    a verdict cached for a different buffer state."""
+    path = tmp_path / "note.txt"
+    doc = Document(path, TextBuffer("hello"))
+    doc.buffer.move_doc_end()
+    assert not doc.modified
+    doc.buffer.insert_text("x")
+    assert doc.modified
+    doc.save()  # the baseline moves: the memo must be dropped
+    assert not doc.modified  # a stale memo from before the save would fail
+    assert doc.buffer.undo()  # rewinds the counter past the save point
+    assert doc.modified  # exact comparison: "hello" != saved "hellox"
+    assert doc.buffer.redo()
+    assert not doc.modified
+
+
 def test_modified_with_coalesced_typing_since_creation(tmp_path: Path) -> None:
     """Mirror of the undo_redo smoke scenario: type fast (coalesced into one
     undo step), undo, redo -- the dirty flag must follow the saved state."""
@@ -466,6 +485,11 @@ class _FakeApp:
     The keymap layer only needs the document session plus the :class:`KeyUi`
     callbacks, so the stand-in owns a real :class:`EditorSession` and wires a
     :class:`KeyUi` record back to its own dispatch hooks.
+
+    Hooks that are not implemented explicitly fall back to :meth:`__getattr__`,
+    which returns a call-recording no-op: a newly added action defaults to a
+    harmless no-op instead of raising AttributeError, and tests can still
+    assert the call via :attr:`messages`.
     """
 
     def __init__(self) -> None:
@@ -524,6 +548,38 @@ class _FakeApp:
         # ``half`` mirrors Editor.page's signature (actions call it with the
         # ``half=`` keyword); the stand-in only dispatches full-page actions.
         self.execute_action("page_down" if direction > 0 else "page_up")
+
+    def __getattr__(self, name: str) -> Callable[..., None]:
+        """Return a call-recording no-op for any unimplemented hook.
+
+        Newly added actions default to a no-op (recorded in ``messages``)
+        instead of raising AttributeError.  Private/dunder lookups and a
+        not-yet-initialized ``messages`` are real errors, not hooks.
+        """
+        if name.startswith("_") or name == "messages":
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}"
+            )
+
+        # *args/**kwargs: dynamic dispatch -- hooks have varied signatures.
+        def record(*args: Any, **kwargs: Any) -> None:
+            self.messages.append(name)
+
+        return record
+
+
+# --- _FakeApp fallback hook -------------------------------------------------
+
+
+def test_fake_app_unimplemented_hooks_become_recorded_noops() -> None:
+    """A hook the stand-in does not implement resolves to a call-recording
+    no-op: a newly added action cannot break these tests with
+    AttributeError, and tests can still assert the call via ``messages``."""
+    app = _FakeApp()
+    assert app.some_future_hook() is None
+    assert "some_future_hook" in app.messages
+    with pytest.raises(AttributeError):
+        getattr(app, "_private")
 
 
 # --- vsc keymap -------------------------------------------------------------
@@ -1083,3 +1139,66 @@ def test_open_falls_back_when_the_bytes_are_undecodable(
     doc = Document.open(weird)
     assert doc.encoding == "utf-8"
     assert doc.buffer.get_text() == raw.decode("utf-8", errors="replace")
+
+
+# --- Document: original line endings round-trip -----------------------------
+
+
+def test_save_round_trips_a_crlf_file_with_crlf_endings(tmp_path: Path) -> None:
+    """A CRLF file is saved back as CRLF after an edit/save cycle."""
+    path = tmp_path / "win.txt"
+    path.write_bytes(b"line1\r\nline2\r\n")
+    doc = Document.open(path)
+    assert doc.eol == "\r\n"
+    doc.buffer.insert_text("!")
+    doc.save()
+    assert path.read_bytes() == b"!line1\r\nline2\r\n"
+
+
+def test_new_document_saves_with_lf_endings(tmp_path: Path) -> None:
+    """Buffers that never came from a file keep the LF default."""
+    doc = Document(tmp_path / "new.txt", TextBuffer("a\nb"))
+    doc.save()
+    assert (tmp_path / "new.txt").read_bytes() == b"a\nb"
+
+
+def test_save_writes_back_cr_endings_for_cr_files(tmp_path: Path) -> None:
+    """A lone-CR file records CR as its EOL and saves it back unchanged."""
+    path = tmp_path / "classic.txt"
+    path.write_bytes(b"line1\rline2\r")
+    doc = Document.open(path)
+    assert doc.eol == "\r"
+    doc.buffer.insert_text("!")
+    doc.save()
+    assert path.read_bytes() == b"!line1\rline2\r"
+
+
+# --- TextBuffer: outdent aligns to the previous tab stop --------------------
+
+
+def test_outdent_of_spaces_below_a_tab_stop_removes_the_whole_indent() -> None:
+    """3 spaces with tab_width=4 sit between stops: outdent removes all 3."""
+    buf = TextBuffer("   ab", tab_width=4)
+    buf.outdent_selection()
+    assert buf.get_text() == "ab"
+
+
+def test_outdent_of_spaces_on_a_tab_stop_removes_one_tab_width() -> None:
+    """8 spaces with tab_width=4 outdent to the previous stop (4 left)."""
+    buf = TextBuffer("        ab", tab_width=4)
+    buf.outdent_selection()
+    assert buf.get_text() == "    ab"
+
+
+# --- SearchEngine: replace_current stays one undoable step ------------------
+
+
+def test_replace_current_is_a_single_undo_step() -> None:
+    """Replacing the current hit via replace_range undoes as one step."""
+    engine = SearchEngine()
+    buffer = TextBuffer("foo foo")
+    engine.update("foo", buffer)
+    engine.next(buffer)
+    assert engine.replace_current(buffer, "bar") is True
+    buffer.undo()
+    assert buffer.get_text() == "foo foo"
