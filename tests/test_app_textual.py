@@ -4503,6 +4503,12 @@ def test_doc_search_debounce_merges_rapid_typing(
             assert await wait_until(
                 pilot, lambda: not loading.display, timeout=15.0
             )
+            # freeze the trailing window before touching the input: with a
+            # 30s debounce the timer cannot fire mid-test no matter how the
+            # runner schedules the presses (a loaded CI box once let the
+            # real 0.12s window elapse between keystrokes and recorded an
+            # intermediate rebuild, ['ke', 'key'])
+            monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
             await pilot.press("slash")
             await pilot.pause()
 
@@ -4515,15 +4521,15 @@ def test_doc_search_debounce_merges_rapid_typing(
 
             monkeypatch.setattr(screen, "_run_search", counting)
 
-            # four keystrokes inside one trailing window: fewer rebuild
-            # passes than keystrokes, carrying the final query
+            # four keystrokes: zero rebuilds while typing (the merge), then
+            # one rebuild carrying the final query when the window callback
+            # runs
             keys = ("t", "h", "e", "m")
             await pilot.press(*keys)
-            assert await wait_until(
-                pilot, lambda: len(calls) >= 1, timeout=5.0
-            )
-            assert len(calls) < len(keys)
-            assert calls[-1] == "".join(keys)
+            await pilot.pause()
+            assert calls == []
+            screen._flush_search()
+            assert calls == ["".join(keys)]
 
     asyncio.run(scenario())
 
@@ -4547,6 +4553,10 @@ def test_doc_search_enter_flushes_pending_query_immediately(
             assert await wait_until(
                 pilot, lambda: not loading.display, timeout=15.0
             )
+            # freeze the trailing window before touching the input: with a
+            # 30s debounce no timer can fire, so the only way a search can
+            # run is the enter flush itself
+            monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
             await pilot.press("slash")
             await pilot.pause()
 
@@ -4559,8 +4569,8 @@ def test_doc_search_enter_flushes_pending_query_immediately(
 
             monkeypatch.setattr(screen, "_run_search", counting)
 
-            # type and submit before the 0.12s trailing window elapses:
-            # enter must flush the pending query right away
+            # type, then submit: enter must flush the pending query right
+            # away instead of waiting the (frozen) window
             await pilot.press("k", "e", "y")
             await pilot.press("enter")
             await pilot.pause()
