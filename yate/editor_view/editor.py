@@ -379,9 +379,12 @@ class EditorView(ScrollView):
         if not self.is_mounted:
             return
         # Keyed to *this* widget (not the app) so concurrent panes do
-        # not cancel each other's highlight passes.
+        # not cancel each other's highlight passes.  The coroutine
+        # *function* is passed, not an eager coroutine: if the pump is
+        # closing, the worker never starts and an eager coroutine would
+        # leak ("was never awaited" RuntimeWarning).
         self.run_worker(
-            self._highlight_later(), group="highlight",
+            self._highlight_later, group="highlight",
             exclusive=True, exit_on_error=False,
         )
 
