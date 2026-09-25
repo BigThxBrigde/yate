@@ -4528,6 +4528,9 @@ def test_doc_search_debounce_merges_rapid_typing(
             await pilot.press(*keys)
             await pilot.pause()
             assert calls == []
+            # the trailing window really is armed and pending (the manual
+            # flush below only covers the callback body, not the arming)
+            assert screen._search_timer is not None
             screen._flush_search()
             assert calls == ["".join(keys)]
 
