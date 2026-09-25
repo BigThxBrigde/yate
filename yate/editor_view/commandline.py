@@ -224,7 +224,7 @@ class PromptBar(Horizontal):
         self.prompt = Static("", id="cl_prompt")
         self.input = CommandInput(self)
         self.message = Static(" Ready. Press F1 for help.", id="cl_msg")
-        self.active_mode: str | None = None
+        self.active_mode: Optional[str] = None
         #: Who wrote the current message line (see ``OWNER_*``).
         self.owner = OWNER_IDLE
         self._on_submit: Optional[Callable[[str], None]] = None

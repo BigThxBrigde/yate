@@ -91,3 +91,21 @@ editor.py 与 editor_view（S12–S17、S30、S37、S40），以当前代码为�
   「①→SP6」由主代理收尾补做）；冒烟 `quit_action_ctrl_q` / `quit_action_dispatch`
   docstring 同步；守卫 `test_ctrl_q_routes_through_the_registered_quit_action`
   （test_app_textual.py 尾部）。
+
+## 收尾批（2026-09-25）
+
+- 登记项清账：`commandline.py:227` `active_mode: str | None` → `Optional[str]`
+  （Optional 已在导入内）；`terminal.py` `start()` 两处 `Any` 补 `# noqa: Any` 理由注释
+  （fake PTY 工厂注入，无 stub）。
+- N19 冒烟场景 `terminal_focus_editor` 补做（[integration.py](../../../tools/smoke_test/scenarios/integration.py)）：
+  现有终端场景均起真 shell（标 slow），按「冒烟不并发/不起真 shell」约束改用内存
+  fake PTY（镜像 tests 的 `_FakePty`，补 `detach()`），经 `view_factory` 注入；
+  未标 `slow`（不碰外部世界）。断言：面板显示 / proc 启动 / 终端获焦 / 焦点回编辑区 /
+  `ctrl+1` 字节未进 shell 流。
+- pilot 用例时序加固（全量跑 5 次 3 败、单跑必绿；根因均为按键/搜索先于布局或焦点
+  完成）：manual_search 等待首个 laid-out widget（`region.height > 0`）、palette 等
+  `#palette-input` 获焦后再按键、f8 worker 超时 5s → 15s。加固后连续两次全量全绿。
+- 遗留登记（未动）：`Reporter._table` 分组表的 passed 口径与 summary 同源（error 场景
+  仍计入分组表标题）、summary 面板绿色样式只看 failing checks 不看 error、
+  `terminal.py` `**kwargs: Any` / `_cell_style` / `_cursor_style` 3 处同类存量、
+  `harness.ScenarioResult.error: str | None`、`commandline.py` `**kwargs: Any`。

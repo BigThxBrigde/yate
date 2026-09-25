@@ -51,14 +51,15 @@
 - **波次一已完成 14 条（表中 ✅）**：N1–N7（SP1/SP2/SP3）、N13–N17 + N29 + N32（SP4）。
 - **波次二已完成 12 条（表中 ✅）**：N20/N21/N23/N25（SP5）、N10/N19/N22/N24/N26（SP6）、
   N27/N28/N31（SP7）。门禁实测（两波收尾各跑一轮，数字相同）：pyright 全仓 0 诊断；
-  pytest 全量全绿（7 个既有 POSIX skip）；冒烟 **87/87 场景 · 907/907 checks · exit 0**。
+  pytest 全量全绿（7 个既有 POSIX skip）；冒烟 **87/87 场景 · 907/907 checks · exit 0**
+  （收尾批补入 `terminal_focus_editor` 后为 88/88 · 917/917，见下）。
   逐条证据见 [review.md](../../issues/review.md) 对应条目的 ✅ 注记。
 - **N1 行为变更待用户人工确认**：CRLF 文件保存后保留 CRLF（不再强制 LF）——请在真实
   CRLF 文件上编辑保存一次确认；不满意可低成本回退（`Document.eol` 单点）。
 - **波次二校准**：N10 锚点为 `session.docs`（计划写 `tabs`，实际属性名 `docs`），既有用例
   `test_cycle_tab_with_one_tab_warns` 按新行为改写为静默 no-op 守卫；N19 冒烟场景未新增
-  （`tools/smoke_test/scenarios/` 不在 SP6 独占域），pilot 用例覆盖同一断言，冒烟场景留待
-  单独授权补做；N22 死语句以 `penalty` 变量等价改写（直接删会改变 consecutive 分支语义）；
+  （`tools/smoke_test/scenarios/` 不在 SP6 独占域），pilot 用例覆盖同一断言，冒烟场景已在
+  收尾批补做（见下）；N22 死语句以 `penalty` 变量等价改写（直接删会改变 consecutive 分支语义）；
   N25 复核强化——`docs/` 目录不存在（计划按「零引用」记载），`keymaps/__init__` 不
   re-export，改名收敛 base.py 单文件；N27 排序幅度扩为全组字母序（仅移 `registries` 会留下
   `trust`/`shell` 次生乱序）；N28 实测行号 45/68/115（锚点 27/50/71 为 P1 改前旧号）。
@@ -72,6 +73,17 @@
     届时与 N19 的 `FOCUS_EDITOR_KEY` 单点常量一并处理。
   - **N30 → 暂缓（⏸）**：备注「下次做重构方案」；届时按本行策略（下沉 / 注入回调二选一）
     单独立项 + 架构规则登记。
+- **收尾批（2026-09-25，登记项清账）**：① N19 冒烟场景 `terminal_focus_editor` 补做
+  （[integration.py](../../../tools/smoke_test/scenarios/integration.py)：内存 fake PTY
+  不起真 shell，故未标 `slow`；断言焦点回编辑区 + `ctrl+1` 字节未进 shell 流）；
+  ② `Reporter.summary` 的 "scenarios passed" 分子排除 error 场景（对齐 cli 退出码口径，
+  守卫 `test_summary_counts_errored_scenario_as_not_passed`）；③ `commandline.py`
+  `active_mode` 改 `Optional[str]`；④ `terminal.py` `start()` 两处 `Any` 补 `# noqa: Any`
+  理由注释。附带：3 个全量负载下时序敏感的 pilot 用例加固（manual_search 等布局就绪、
+  palette 等输入框焦点就位、f8 worker 超时放宽至 15s；加固前全量跑 5 次 3 败、
+  单跑必绿，根因均为按键/搜索先于布局或焦点完成，加固后连续两次全量全绿）。
+  收尾门禁：pyright 全仓 0 诊断、pytest 连续两次全量全绿、冒烟 **88/88 场景 ·
+  917/917 checks · exit 0**。
 - **波次一校准**：N16 的调用方 `tools/changelog/cli.py` 经主代理实测（`pushed_flags`
   调用点在 cli.py:133）补入 SP4 授权；N15 真实落点为 harness.py（testsuite.py 仅重导出）；
   N14 收紧前做过新旧正则等价性验证；N29 以消除（cast + 直删，7 处 ignore 清零）而非注释归档；

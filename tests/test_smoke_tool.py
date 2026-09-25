@@ -193,6 +193,16 @@ def test_reporter_summary_reports_failing_exit_code() -> None:
     assert "exit 1" in stream.getvalue()
 
 
+def test_summary_counts_errored_scenario_as_not_passed() -> None:
+    # Same rule as the CLI exit code: a scenario that raised (crash or
+    # timeout) must not inflate the "scenarios passed" numerator.
+    reporter, stream = _make_reporter()
+    errored = ScenarioResult("boom", tags=("edit",), error="TimeoutError: x")
+    passed = ScenarioResult("fine", checks=[Check("a", 1, 1)], tags=("edit",))
+    reporter.summary([passed, errored], exit_code=1)
+    assert "1/2 scenarios passed" in stream.getvalue()
+
+
 def test_reporter_quiet_suppresses_result_tables_and_progress() -> None:
     reporter, stream = _make_reporter(quiet=True)
     result = ScenarioResult("demo", checks=[Check("a", 1, 2)], tags=("edit",))

@@ -15,6 +15,7 @@ from typing import Any, Awaitable, Callable, cast
 import pytest
 
 from textual.strip import Strip
+from textual.widget import Widget
 from textual.widgets.tree import TreeNode
 
 # The bundled yate/extensions/ directory is auto-loaded with every YateApp;
@@ -640,8 +641,21 @@ def test_palette_down_cursor_moves(tmp_path: Path) -> None:
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
+            # the input grabs focus in on_mount; under full-suite load that
+            # can land after the press, which then sinks into the editor
+            # beneath the modal instead of bubbling to the screen
+            assert await wait_until(
+                pilot,
+                lambda: app.focused is not None
+                and app.focused.id == "palette-input",
+                timeout=5.0,
+            )
             await pilot.press("down")
-            assert screen.cursor_index == 1
+            # poll instead of asserting after one pause: under full-suite
+            # load the key event can land one pump cycle late
+            assert await wait_until(
+                pilot, lambda: screen.cursor_index == 1, timeout=5.0
+            )
 
     asyncio.run(scenario())
 
@@ -1323,8 +1337,10 @@ def test_f8_opens_manual_and_esc_closes() -> None:
             # the loading placeholder is hidden once content is in (the
             # markdown worker parses/mounts off the loop, so poll until done)
             loading = app.screen.query_one("#doc-loading", Static)
+            # generous timeout: the markdown worker parses/mounts off the
+            # loop and a fully loaded suite can starve it past 5s
             assert await wait_until(
-                pilot, lambda: not loading.display, timeout=5.0
+                pilot, lambda: not loading.display, timeout=15.0
             )
             # the viewer follows the active yate theme via the bridge -- no
             # per-screen theme switch happens
@@ -1580,8 +1596,14 @@ def test_manual_search_step_lands_on_exact_rendered_row() -> None:
             screen = app.screen
             assert isinstance(screen, MarkdownDocScreen)
             md = screen.query_one("Markdown")
+            # layout readiness, not just child count: _run_search scans
+            # widget.region.height, which is 0 for every widget until the
+            # refresh cycle lays the screen out (flaky under full-suite
+            # load, where that cycle lands after the search below)
             await wait_until(
-                pilot, lambda: len(list(md.walk_children())) > 20
+                pilot,
+                lambda: len(list(md.walk_children())) > 20
+                and any(w.region.height > 0 for w in md.walk_children(Widget)),
             )
             private = cast(Any, screen)
             scroll = screen.query_one("#doc-scroll", VerticalScroll)

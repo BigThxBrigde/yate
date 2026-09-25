@@ -102,3 +102,6 @@ N16: `check_commit_pushed` 仅 gitee；N17: `strip_unreleased` 无直接用例�
 - N13/N17/N32 按计划落地（N32 为 `maxsplit=4` 一行注释 + 固化用例，零解析逻辑变更）。
 - **登记未修（观察项）**：`Reporter.summary` 将 error 场景计入 "scenarios passed"
   分子（崩溃场景既有行为），留后续条目处理。
+  → **收尾批已修（2026-09-25）**：passed 分子口径对齐 cli 退出码（`fail_count == 0 and
+  error is None`）；守卫 `test_summary_counts_errored_scenario_as_not_passed`。
+  分组表 `Reporter._table` 的同源口径仍登记未动（见 SP6 收尾批遗留登记）。

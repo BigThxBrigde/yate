@@ -7,12 +7,64 @@ marked ``slow`` so ``--skip-slow`` keeps the suite hermetic and fast.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import message_text, run_command, type_text, wait_until
 
 __all__ = ["SCENARIOS"]
+
+
+class _FakePty:
+    """In-memory PTY substitute so no real shell is ever spawned.
+
+    Mirrors the test-suite fake in ``tests/test_app_textual.py``: the
+    constructor signature is what :meth:`TerminalView.start` calls through
+    ``view_factory``, and the ``sent`` buffer records every byte the view
+    writes, so the scenario can prove a swallowed key never reached the
+    shell input stream.
+    """
+
+    #: Instances created so far (reset when a scenario starts).
+    instances: list["_FakePty"] = []
+
+    def __init__(self, argv: list[str], cwd: Path, cols: int, rows: int) -> None:
+        self.argv = list(argv)
+        self.cwd = cwd
+        self.cols = cols
+        self.rows = rows
+        self.sent: list[bytes] = []
+        self.started = False
+        self.exited = False
+        self._on_output: Optional[Callable[[bytes], None]] = None
+        self._on_exit: Optional[Callable[[Optional[int]], None]] = None
+        _FakePty.instances.append(self)
+
+    async def start(
+        self,
+        on_output: Callable[[bytes], None],
+        on_exit: Callable[[Optional[int]], None],
+    ) -> None:
+        self.started = True
+        self._on_output = on_output
+        self._on_exit = on_exit
+
+    def write(self, data: bytes) -> None:
+        self.sent.append(data)
+
+    def resize(self, cols: int, rows: int) -> None:
+        self.cols, self.rows = cols, rows
+
+    def terminate(self) -> None:
+        if not self.exited and self._on_exit is not None:
+            self.exited = True
+            self._on_exit(0)
+
+    def detach(self) -> None:
+        """No-op: an in-memory process has nothing to reap."""
+
+    async def wait_closed(self) -> None:
+        return None
 
 
 async def _shell_command_output(tmp: Path) -> ScenarioResult:
@@ -105,11 +157,49 @@ async def _large_file_scroll(tmp: Path) -> ScenarioResult:
     return ScenarioResult("large_file_scroll", checks, rows)
 
 
+async def _terminal_focus_editor(tmp: Path) -> ScenarioResult:
+    """Ctrl+1 hands focus from the terminal back to the editor (N19).
+
+    A focused :class:`~yate.editor_view.terminal.TerminalView` swallows
+    every key except the toggle keys (see ``terminal_panel_toggle``), so
+    ``ctrl+1`` is the documented way back.  The panel runs on the
+    in-memory PTY (no real shell, hence not ``slow``), and the scenario
+    doubles as an R10 guard: the shell input stream must not see the key.
+    """
+    app = new_app(target=tmp / "a.txt")
+    app.editor.terminal_panel.view_factory = _FakePty
+    _FakePty.instances = []
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        panel = app.editor.terminal_panel
+        assert panel is not None
+        panes = app.editor.panes
+        assert panes is not None
+        await pilot.press("ctrl+`")
+        proc_ready = await wait_until(pilot, lambda: panel.view.proc is not None)
+        await pilot.pause()
+        checks.append(Check("terminal_shown", True, panel.display))
+        checks.append(Check("proc_started", True, proc_ready))
+        checks.append(Check("terminal_focused", True, app.focused is panel.view))
+        proc = _FakePty.instances[0] if proc_ready else None
+        await pilot.press("ctrl+1")
+        await pilot.pause()
+        checks.append(Check("focus_back_to_editor", True,
+                            app.focused is panes.active_view))
+        if proc is not None:
+            checks.append(Check("ctrl1_not_forwarded", 0,
+                                len(b"".join(proc.sent))))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("terminal_focus_editor", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("shell_command_output", _shell_command_output, ("integration",),
              slow=True),
     Scenario("terminal_panel_toggle", _terminal_panel_toggle, ("integration",),
              slow=True),
+    Scenario("terminal_focus_editor", _terminal_focus_editor, ("integration",)),
     Scenario("diagnostics_empty_state", _diagnostics_empty_state,
              ("integration",)),
     Scenario("large_file_scroll", _large_file_scroll, ("integration",)),

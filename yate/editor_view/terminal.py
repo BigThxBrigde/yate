@@ -93,7 +93,7 @@ class TerminalView(Widget):
         self,
         argv: list[str],
         cwd: Path,
-        factory: Optional[Any] = None,
+        factory: Optional[Any] = None,  # noqa: Any - fake PTY factory for tests; no stub.
     ) -> None:
         """Spawn the shell; restarted automatically after a previous exit."""
         if self._starting or self.started:
@@ -112,7 +112,7 @@ class TerminalView(Widget):
             self._scroll = 0
             self.dead = False
             self._exit_code = None
-            make: Any = factory or PtyProcess
+            make: Any = factory or PtyProcess  # noqa: Any - fake PTY factory from tests; no stub.
             proc: PtyProcess = make(argv, cwd, cols, rows)
             self.proc = proc
             self.shell_argv = list(argv)

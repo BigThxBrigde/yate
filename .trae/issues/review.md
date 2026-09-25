@@ -364,6 +364,7 @@
   关闭/回焦只能靠 toggle 键。这是"终端独占键盘"的设计选择且有明确出路（`ctrl+`` 关闭），但对 vscode 习惯（`ctrl+1`）不友好。
   **可选修法：** 在 `TOGGLE_KEYS` 之外放行 `ctrl+1`（`focus_editor`）；`Esc` 需先确认 shell 是否依赖。
   *✅ 已修复（2026-09-25，P2 波次二 SP6）：新增 `FOCUS_EDITOR_KEY = "ctrl+1"` 分支（stop+prevent_default 后调 `panel.focus_editor`，置于 dead-shell 复活分支之前——焦点切换不复活 shell）；`Esc` 本轮不动。R10 自检：放行键不二次派发。守卫：`test_terminal_focused_ctrl1_returns_focus_to_editor`（含 shell 输入流未收到该键断言）。*
+  *✅ 收尾批补做冒烟场景（2026-09-25）：`terminal_focus_editor`（integration.py，内存 fake PTY 不起真 shell，未标 slow；断言焦点回编辑区 + ctrl+1 字节未进 shell 流）——补齐 P2 原文要求的冒烟验收面。*
 
 ---
 
