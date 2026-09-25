@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from collections.abc import Callable
 
@@ -276,6 +276,7 @@ class PaletteScreen(ModalScreen[None]):
 
     # ------------------------------------------------------------- textual
 
+    @override
     def compose(self) -> ComposeResult:
         with Vertical(id="palette"):
             placeholder = (

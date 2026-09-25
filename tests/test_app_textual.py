@@ -10,7 +10,7 @@ import contextlib
 import os
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, override
 
 from collections.abc import Awaitable, Callable
 
@@ -3200,6 +3200,7 @@ def test_early_pty_output_survives_first_layout() -> None:
     # laid out the panel used to spawn at the 80x24 fallback size; the
     # first lines were discarded when the viewport shrank on layout.
     class _ImmediatePty(_FakePty):
+        @override
         async def start(
             self, on_output: Callable[[bytes], None],
             on_exit: Callable[[int | None], None],

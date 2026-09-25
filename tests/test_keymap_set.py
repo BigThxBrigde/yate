@@ -10,6 +10,8 @@ and ``toggle`` with one, two and three registered keymaps.
 
 from __future__ import annotations
 
+from typing import override
+
 import pytest
 
 from yate.keymaps.base import KeyBinding, Keymap, parse_key
@@ -24,6 +26,7 @@ class _FakeKeymap(Keymap):
         self.label = f"{name.title()} keys"
         super().__init__()
 
+    @override
     def build_bindings(self) -> list[KeyBinding]:
         """One binding so the keymap behaves like a real one."""
         return [KeyBinding(parse_key("<ctrl-s>"), "save", f"save in {self.name}")]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import override
+
 from yate.keymaps.base import KeyBinding, Keymap, parse_key
 
 # help categories (module level: uppercase constants)
@@ -30,6 +32,7 @@ class VscKeymap(Keymap):
     name = "vsc"
     label = "VS Code"
 
+    @override
     def build_bindings(self) -> list[KeyBinding]:
         return [
             # ---- editing

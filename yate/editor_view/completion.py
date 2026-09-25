@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from rich.segment import Segment
 from rich.style import Style
@@ -188,6 +188,7 @@ class CompletionPopup(Widget):
             widest = max(widest, total)
         return max(24, min(60, widest))
 
+    @override
     def render_line(self, y: int) -> Strip:
         t = theme.active()
         width = int(self.styles.width.value) if self.styles.width is not None else 40

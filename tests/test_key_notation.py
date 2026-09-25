@@ -9,8 +9,8 @@ fallback -- is what every keymap subclass rests on.
 
 from __future__ import annotations
 
-
 from collections.abc import Callable
+from typing import override
 
 import pytest
 
@@ -47,6 +47,7 @@ class _SampleKeymap(Keymap):
     name = "sample"
     label = "Sample"
 
+    @override
     def build_bindings(self) -> list[KeyBinding]:
         return [
             KeyBinding(parse_key("<ctrl-s>"), "save", "write the file", "file"),

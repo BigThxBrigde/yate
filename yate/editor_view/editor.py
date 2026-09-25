@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, override, Protocol
 
 from collections.abc import Callable
 
@@ -214,6 +214,7 @@ class EditorView(ScrollView):
         self.reveal_cursor()
         self.refresh()
 
+    @override
     def on_mount(self) -> None:
         """Apply the active theme background once mounted."""
         self.styles.background = theme.active().bg
@@ -435,6 +436,7 @@ class EditorView(ScrollView):
 
     # -------------------------------------------------------------- render
 
+    @override
     def render_line(self, y: int) -> Strip:
         t = theme.active()
         view_w = self.size.width or 80

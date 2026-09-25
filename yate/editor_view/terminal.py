@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from collections.abc import Callable
 
@@ -266,6 +266,7 @@ class TerminalView(Widget):
 
     # --------------------------------------------------------------- render
 
+    @override
     def render_line(self, y: int) -> Strip:
         t = theme.active()
         width = int(self.size.width) if self.size.width else self.emulator.cols
@@ -393,6 +394,7 @@ class TerminalPanel(Vertical):
         self._visible = False
         self._starting = False
 
+    @override
     def compose(self) -> Any:
         yield self.header
         yield self.view

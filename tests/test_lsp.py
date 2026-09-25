@@ -11,7 +11,7 @@ import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, override
 
 import pytest
 
@@ -843,12 +843,14 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
                 self.state = ServerState.STARTING
                 self._release = asyncio.Event()
 
+            @override
             async def start(self) -> None:
                 self.started = True
                 await self._release.wait()
                 if not self.stopped:
                     self.state = ServerState.READY
 
+            @override
             async def stop(self) -> None:
                 await super().stop()
                 self._release.set()
@@ -894,6 +896,7 @@ def test_register_replace_race_keeps_new_starting_task_tracked(
             def finish(self) -> None:
                 self._release.set()
 
+            @override
             async def start(self) -> None:
                 self.started = True
                 await self._release.wait()

@@ -10,7 +10,7 @@ focus and repaint) are injected callables.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from collections.abc import Callable
 
@@ -233,6 +233,7 @@ class PromptBar(Horizontal):
         self._on_changed: Callable[[str], None] | None = None
         self._refocus: Callable[[], None] | None = None
 
+    @override
     def compose(self) -> ComposeResult:
         yield self.prompt
         yield self.input

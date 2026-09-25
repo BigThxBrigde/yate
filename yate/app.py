@@ -10,6 +10,7 @@ table modules import the editor, so the editor must not import them back).
 from __future__ import annotations
 
 from pathlib import Path
+from typing import override
 
 from textual.app import App, ComposeResult
 from textual.events import Key
@@ -136,6 +137,7 @@ class YateApp(App[None]):
         populate(self.editor.actions, self.editor)
         register_commands(self.editor.commands, self.editor)
 
+    @override
     def compose(self) -> ComposeResult:
         yield from self.editor.compose()
 
@@ -151,6 +153,7 @@ class YateApp(App[None]):
             event.stop()
             event.prevent_default()
 
+    @override
     def get_theme_variable_defaults(self) -> dict[str, str]:
         """Provide defaults for the custom doc-hit CSS variables.
 
@@ -166,6 +169,7 @@ class YateApp(App[None]):
             "doc-hit-current-background": f"{t.yellow} 40%",
         }
 
+    @override
     async def action_quit(self) -> None:
         """Textual's ctrl+q priority binding — route through the registry.
 

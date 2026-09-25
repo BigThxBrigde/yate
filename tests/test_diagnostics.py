@@ -10,6 +10,7 @@ import importlib.metadata
 import io
 import sys
 from pathlib import Path
+from typing import override
 from unittest.mock import patch
 
 import pytest
@@ -167,6 +168,7 @@ def test_print_report_writes_plain_text_to_stdout(
 class _TtyStream(io.StringIO):
     """stdout stand-in that claims to be a terminal."""
 
+    @override
     def isatty(self) -> bool:
         return True
 

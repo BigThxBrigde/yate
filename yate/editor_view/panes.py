@@ -27,9 +27,9 @@ type-only module is needed.
 
 from __future__ import annotations
 
-from itertools import count
-
 from collections.abc import Callable
+from itertools import count
+from typing import override
 
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
@@ -476,6 +476,7 @@ class PaneHost(Widget):
         # resolve correctly against a mounted parent, so re-apply them.
         self.apply_sizes()
 
+    @override
     def compose(self):
         yield self._build(self.manager.root)
 

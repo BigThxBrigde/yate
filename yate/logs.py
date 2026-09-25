@@ -45,7 +45,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, IO, TextIO
+from typing import Any, IO, override, TextIO
 
 from collections.abc import Callable, Mapping
 
@@ -235,6 +235,7 @@ class _SessionFileHandler(logging.FileHandler):
         self._stream: IO[str] | None = None
         self._header_written = False
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         try:
             stream = self._stream
@@ -255,6 +256,7 @@ class _SessionFileHandler(logging.FileHandler):
             return
         super().emit(record)
 
+    @override
     def close(self) -> None:
         super().close()  # FileHandler.close() drops the stream handle
         # Reopen rather than write into a dropped one: without this the

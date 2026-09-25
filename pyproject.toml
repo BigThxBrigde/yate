@@ -45,6 +45,7 @@ build = ["pyinstaller>=6.0", "pillow>=10.0"]
 [tool.pyright]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
+reportImplicitOverride = "error"
 venvPath = "."
 venv = ".venv"
 include = ["yate", "tools", "tests"]
