@@ -37,4 +37,8 @@
 
 ## 校准记录
 
-（实施时回填）
+（2026-09-25 实施）
+
+- N7 锚点仍存在。**方法名校准**：计划提名的 `_exit_alt_screen()` 不存在，按预授权采用
+  等价复位路径——`_soft_reset` 入口调 `self._set_alt_screen(False, save_cursor=False)`；
+  属性实名为 `in_alt`（计划写 `alt_screen`）。守卫：`test_soft_reset_in_alternate_screen_returns_to_primary`。

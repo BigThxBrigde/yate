@@ -55,4 +55,15 @@ N6: search.py `replace_current` 独立实现），行号漂移就记录到本文
 
 ## 校准记录
 
-（实施时回填）
+（2026-09-25 实施）
+
+- 三条锚点全部仍存在，无失效条目；门禁实测：pyright 0 诊断、`test_editor_core.py` 全绿
+  （新增 6 条：CRLF round-trip、CR 写回、新建 LF、outdent 两条、单步 undo 契约）。
+- **N1 行为变更校准**：`Document.__init__` 新增 `eol: str = "\n"` 字段；`open()` 归一化前调
+  新增的 `_dominant_eol(text)`（统计 CRLF/孤立 LF/孤立 CR 取最频，并列按 CRLF > LF > CR）；
+  `save()` 在 encode 前按 `self.eol` 回写。原子写链路未动。**待用户在真实 CRLF 文件上
+  人工确认**；不满意可低成本回退（`Document.eol` 单点）。
+- **N6 语义校准（主代理接受）**：空替换从静默 no-op 变为删除匹配——`replace_current`
+  无产品调用方（仅测试触达），差异不可达；regex 反向引用展开保留。
+- N5：空格分支改 `rrem = removed % tab_width`、`" " * (removed - (rrem or tab_width))`，
+  整 Tab 剥离不动，删除 `max(0, …)`。

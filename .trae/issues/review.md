@@ -225,7 +225,7 @@
   *复核：仍存在 — [segments.py:102](../../tools/changelog/segments.py)（段序号）与 [segments.py:122](../../tools/changelog/segments.py)（commit 位置）同名。*
   *✅ 已修复（2026-09-24）— [segments.py](../../tools/changelog/segments.py) 循环变量改名 `seg_index`（L102-114），commit 拓扑位置 `position` 保持；纯重命名零行为变化，changelog 53 用例全绿。*
 
-- [ ] **subject 字段可能包含嵌入的字段分隔符** — `tools/changelog/gitdata.py`
+- [x] **subject 字段可能包含嵌入的字段分隔符** — `tools/changelog/gitdata.py`
   理论上的问题，实际极不可能。
   *复核：仍存在（理论性）— body 经 `maxsplit` 保留杂散分隔符，subject 字段本身无防护。*
   *✅ 已修复（2026-09-25，P2 波次一 SP4）：按实现固化——`maxsplit=4` 处补一行注释说明边界（subject 内嵌 `\x1f` 被截断进 body），一条固化用例 `test_parse_log_output_subject_with_stray_separator_truncates_into_body`；零解析逻辑变更。*

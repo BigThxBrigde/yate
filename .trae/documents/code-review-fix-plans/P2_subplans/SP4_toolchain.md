@@ -82,4 +82,23 @@ N16: `check_commit_pushed` 仅 gitee；N17: `strip_unreleased` 无直接用例�
 
 ## 校准记录
 
-（实施时回填）
+（2026-09-25 实施）
+
+- 七条锚点全部仍存在，无失效条目；门禁实测：pyright 0 诊断、
+  `test_smoke_tool.py`（新建 14 条）+ `test_changelog_tool.py` +10 全绿。
+- **N15 真实落点为 harness.py**（testsuite.py 仅重导出）：`RunOptions.timeout` 字段
+  （默认 `DEFAULT_SCENARIO_TIMEOUT_S = 60.0`）、`_await` 改 `_timed`
+  （`asyncio.wait_for` 包场景执行）；`--timeout` 进 cli.py argparse。附带修复
+  `--repeat` 语义洞：新增 `_worse()`，error（崩溃/超时）优先于 fail_count 比较，
+  坏结果不再被好结果覆盖。
+- **N14**：`_TEXT_RE` 收紧为带 `\sy=` 属性锚定的格式（注释记录适配 Textual 8.2.8）；
+  `<text` 出现数 ≠ 匹配数时抛 `SvgDriftError`，报错含 SVG 头部 200 字符片段。
+- **N16 调用方侧**：`tools/changelog/cli.py` 经主代理实测（`pushed_flags` 调用点
+  cli.py:133）补入授权——`generate(online=True)` 先查 `check_supported`，不支持 host
+  打印 `warning: cannot verify pushes on {host} — skipping gate` 跳过 gate；
+  gitee OpenAPI v5 / github api.github.com REST 双实现落地。
+- **N29 以消除代替注释归档**：1 处 `cast(Callable[..., None], ...)` + 6 处直删，
+  harness 内 7 处 `# type: ignore` 清零（优于计划的补注释路径）。
+- N13/N17/N32 按计划落地（N32 为 `maxsplit=4` 一行注释 + 固化用例，零解析逻辑变更）。
+- **登记未修（观察项）**：`Reporter.summary` 将 error 场景计入 "scenarios passed"
+  分子（崩溃场景既有行为），留后续条目处理。

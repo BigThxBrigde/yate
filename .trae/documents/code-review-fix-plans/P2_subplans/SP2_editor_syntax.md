@@ -54,4 +54,14 @@ py-tree-sitter 为可选依赖——N3/N4 相关测试须兼容 ts 后端缺席�
 
 ## 校准记录
 
-（实施时回填）
+（2026-09-25 实施）
+
+- 三条锚点全部仍存在，无失效条目；门禁实测：pyright 0 诊断、
+  `test_highlight.py` +3 / `test_ts_backend.py` +1（monkeypatch 假 dll）全绿。
+- **N2 实施形态**：新增模块级 `_CONFIG_TOKEN_RE`（字符串/数字/布尔三分支 alternation，
+  首字符互斥：quote / digit / bool 字母）；`_tokenize_config_line` 合并为单次
+  `finditer(line, scan_from)` 消费式扫描，`scan_from = key.end()` 修复键名内重叠匹配；
+  按 `text[0]` 分类发射（保留原 isdigit 守卫语义）。P1 引入的 `_CONFIG_BOOL_RE` 未回退。
+- **N3**：`getattr(dll, symbol)` 包 `try/except AttributeError`，抛
+  `RuntimeError(f"{library_path} lacks entry point {symbol!r} ...") from exc`。
+- N4：`_to_char` 纯注释（多字节中间偏移经 `errors="ignore"` 丢弃尾字节、映射字符首列）。
