@@ -2,7 +2,7 @@
 
 > Generated from the git history on 2026-09-26 · yate 0.2.5
 
-## [0.2.5] - 2026-09-26 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...v0.2.5)
+## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
 
 ### Features
 
@@ -21,8 +21,8 @@
 
 ### Bug Fixes
 
-- anchor the version-bump regex with re.MULTILINE ([`64b3a33`](https://gitee.com/jermaine/yate/commit/64b3a334c8484ee19bb0bbdbdbfc927b9780ac8a))
-- bump only the single dynamic version source on release ([`4cbbf2b`](https://gitee.com/jermaine/yate/commit/4cbbf2bb07acf2d2629a98d3720699057d32a438))
+- anchor the version-bump regex with re.MULTILINE ([`5b8c508`](https://gitee.com/jermaine/yate/commit/5b8c50886e062d4d41990b4a1c34d52aeebafff8))
+- bump only the single dynamic version source on release ([`0db2aab`](https://gitee.com/jermaine/yate/commit/0db2aab2392ebfeb6d3a77604b9ff82bc9ac1fb6))
 - pass coroutine functions, not eager coroutines, to run_worker ([`ba5946b`](https://gitee.com/jermaine/yate/commit/ba5946b7d20a58b9b4c5b8982198840213719762))
 - route ctrl+q through the registered quit action ([`b9e73be`](https://gitee.com/jermaine/yate/commit/b9e73be2c8a713490e28283bd5b65cba44f35314))
 - land P2 wave 1 cleanups and guards ([`2dad4fc`](https://gitee.com/jermaine/yate/commit/2dad4fcd606c4b394985ddfd7d7ff731596b68ee))
@@ -66,6 +66,8 @@
 
 ### Refactors
 
+- annotate overrides with typing.override ([`7a2cf79`](https://gitee.com/jermaine/yate/commit/7a2cf7910337fe4df3448c6c9f9cbb1d667fdf3b))
+- adopt PEP 604 unions across the codebase ([`866bb45`](https://gitee.com/jermaine/yate/commit/866bb45b434f537507515efc94e9b7002c50d44c))
 - land P2 wave 2 cleanups and guards ([`a6e6f4e`](https://gitee.com/jermaine/yate/commit/a6e6f4e73db051a886a4fe05f7ee8aa3b48691ee))
 - sink the pane tree model into session.py (Plan G) ([`2ee2586`](https://gitee.com/jermaine/yate/commit/2ee258656b04517c0a94030c990b27f6f13b1e9a))
 - split refresh_ui into focused sub-methods and update stale docs ([`f3df035`](https://gitee.com/jermaine/yate/commit/f3df0358309173d961e7a35575118b44e90dbdef))
@@ -76,7 +78,14 @@
 
 ### Documentation
 
-- fill in missing zh translations and refresh ([`8abec69`](https://gitee.com/jermaine/yate/commit/8abec69e6f8c8ff2e8dcf25adae1643d7dd2fed4))
+- translate the v0.2.5 release entries ([`46e42c3`](https://gitee.com/jermaine/yate/commit/46e42c3a12563a3519741032bc6332f076c2c98f))
+- fill in missing zh translations and refresh ([`c7fa15a`](https://gitee.com/jermaine/yate/commit/c7fa15aad14c42dda1483e0b6421d5e0113848aa))
+- record python 3.12 migration review ([`6c394d9`](https://gitee.com/jermaine/yate/commit/6c394d995607536f900e85c1547e7d004373e973))
+- backfill 3.12 upgrade execution record ([`b0c022d`](https://gitee.com/jermaine/yate/commit/b0c022dbc319ad35854b217b2f7d9d2789563ce1))
+- split python 3.12 upgrade plan into per-wave task files ([`5d9cb59`](https://gitee.com/jermaine/yate/commit/5d9cb596370d3e346f2bc562422dc2663c13a69d))
+- record 2026-09-25 review triage results ([`dfce21e`](https://gitee.com/jermaine/yate/commit/dfce21e1a2b7ac8f7323988b197f7788594b6716))
+- add python 3.12 upgrade plan ([`104a617`](https://gitee.com/jermaine/yate/commit/104a617ef53fa98b70b0e3aedf2cca2c1dd529da))
+- modernize python coding style for 3.12 ([`4fe388c`](https://gitee.com/jermaine/yate/commit/4fe388cd0863a178552bb55e24e2a3da9799540c))
 - fix yaterc plan filename typo pywright -> pyright ([`11bab59`](https://gitee.com/jermaine/yate/commit/11bab597c95329329ece2e09766e26a80517d51b))
 - merge the four remove_type_checking docs into one ADR ([`f9b4d0b`](https://gitee.com/jermaine/yate/commit/f9b4d0b626380be862385b78ba76930156f8f774))
 - backfill wave-1 subplan calibration records ([`8c30871`](https://gitee.com/jermaine/yate/commit/8c308715a0eb4e25d4e633966d746a1d982d3ec0))
@@ -150,6 +159,7 @@
 
 ### Tooling
 
+- raise python floor to 3.12 ([`ada345b`](https://gitee.com/jermaine/yate/commit/ada345b29777dbcbf50f8de1d32c632fe2eeeeb9))
 - fail on RuntimeWarning via pytest filterwarnings ([`97f9144`](https://gitee.com/jermaine/yate/commit/97f9144e540e6a1c08634651e6621c89e02728bf))
 - add permission to execute ([`beecf6c`](https://gitee.com/jermaine/yate/commit/beecf6ce9977439b7ac08bc36884a70c2803ef1f))
 - add gitee sync script with trap-based cleanup ([`3ca89c4`](https://gitee.com/jermaine/yate/commit/3ca89c424efd936b2f72aaecb6665356e30e3e68))
@@ -179,6 +189,8 @@
 
 ### Other Changes
 
+- drop stray blank line after future import ([`f010056`](https://gitee.com/jermaine/yate/commit/f010056dc6758fae19e0a8e141c8bada279a1dc2))
+- flatten single-name typing import in smoke harness ([`397ef2f`](https://gitee.com/jermaine/yate/commit/397ef2fb80a46bbdfd8caa2528e613c98df8edd5))
 - !4 fix(completion): Fix edge cases in completion triggering and validation logic ([`cc4b1f6`](https://gitee.com/jermaine/yate/commit/cc4b1f6ef164952d0dccaf60ab8d5c203539cd72))
 - !5 refactor(editor): Refactor the split pane module to resolve type circu… ([`1325f71`](https://gitee.com/jermaine/yate/commit/1325f71edbe70046ac53384d3e988f6660a9ea4c))
 - !3 fix(commands,save): improve quit handling and error coverage ([`3b4319a`](https://gitee.com/jermaine/yate/commit/3b4319a208a2c479de0c67d4d3f136743ac1f885))
@@ -283,9 +295,7 @@
 - pin gitee origin so the changelog gate passes on GitHub ([`76518e0`](https://gitee.com/jermaine/yate/commit/76518e04a14c895507a74a854e93a9fbaa7a49ef))
 - bundle tree-sitter backend and python/bash grammars in frozen builds ([`74202ac`](https://gitee.com/jermaine/yate/commit/74202accea55e7c6339eb060e3e11d4b29b22dbd))
 
-## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.1.0)
-
-_Initial release._
+## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...v0.1.0)
 
 ### Features
 
@@ -381,3 +391,7 @@ _Initial release._
 - Bundle docs and extensions inside yate; add PyInstaller packaging ([`783f491`](https://gitee.com/jermaine/yate/commit/783f49116ab521840474feaa94113f48afa4be87))
 - Initial commit ([`f690bf7`](https://gitee.com/jermaine/yate/commit/f690bf7d5f8be18de9b74b4006fcd50d18fda0d7))
 - Initial commit: yate terminal editor ([`ef1d964`](https://gitee.com/jermaine/yate/commit/ef1d964ecc5366cd6bf4c3da943e2371608e748a))
+
+## [0.2.5] · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.2.5)
+
+_Initial release._

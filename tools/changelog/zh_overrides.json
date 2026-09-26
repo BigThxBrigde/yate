@@ -43,6 +43,14 @@
   "0d4a2fe": {
     "summary": "冒烟脚本新增搜索与文件/标签场景（C/D 组）"
   },
+  "0db2aab": {
+    "summary": "发布工具只更新单一动态版本源",
+    "detail": "test_theme_palettes 的静态版本断言已在 P2 清理中移除，删除失效的第二 bump 目标"
+  },
+  "104a617": {
+    "summary": "新增 Python 3.12 升级方案",
+    "detail": "核心动机为运行时性能收益（3.11 约 1.25 倍提速），波次拆分 SP0-SP4 四提交"
+  },
   "1060811": {
     "summary": "补充变更日志门禁、运行时文档屏与 CLI 参数测试"
   },
@@ -164,6 +172,10 @@
   "3835554": {
     "summary": "英文设为默认 README，中文改名 README.zh.md"
   },
+  "397ef2f": {
+    "summary": "冒烟工具扁平化单名字 typing 导入",
+    "detail": "清理 SP3 孤立导入脚本留下的括号多行残留"
+  },
   "3a6f9f9": {
     "summary": "修复 trace 日志级别解析并改为惰性创建日志文件",
     "detail": "falsy 级别不再被改写为 DEBUG；YATE_TRACE=1 遇提前退出命令时不再残留空日志"
@@ -204,6 +216,10 @@
   },
   "44b67ea": {
     "summary": "version_lines 下沉 cli.py，统一 vim F 键无效动作处理"
+  },
+  "46e42c3": {
+    "summary": "翻译 v0.2.5 发布条目",
+    "detail": "为进入 0.2.5 段的三条发布流程提交补齐中文摘要"
   },
   "4739dc3": {
     "summary": "崩溃诊断持久化：经 faulthandler 写入 ~/.yate/data",
@@ -250,6 +266,10 @@
     "summary": "修复冒烟测试发现的三个编辑器状态缺陷",
     "detail": "涉及缩进后光标越界、保存失败清空文件、无输出命令卡死命令行"
   },
+  "4fe388c": {
+    "summary": "编码规范 3.12 化：PEP 604 翻转与 PEP 695 指引",
+    "detail": "可空标注改用 X | None，泛型首选 PEP 695 语法，新增 typing.Self 与 @override 检查项"
+  },
   "4fec66d": {
     "summary": "新增发布工具并简化发布流程"
   },
@@ -289,8 +309,16 @@
   "5b03805": {
     "summary": "修复失败的单元测试"
   },
+  "5b8c508": {
+    "summary": "版本 bump 正则加 re.MULTILINE 锚定",
+    "detail": "包 __init__ 以模块 docstring 开头，无 MULTILINE 的 ^ 锚点永远匹配不到 __version__ 行"
+  },
   "5c22c8d": {
     "summary": "冒烟脚本新增窗格、资源管理器与视图场景（E/F/G 组）"
+  },
+  "5d9cb59": {
+    "summary": "3.12 升级方案拆分为按波任务文件",
+    "detail": "总纲 README 加 plan_SP0-SP4 五份子计划，每份含独占文件清单与验证命令"
   },
   "5e69220": {
     "summary": "新增 --theme 参数，修复 --theme-dir 的 ~ 展开"
@@ -348,6 +376,10 @@
   "6bbe908": {
     "summary": "测试覆盖会话、注册表、外壳与补全模块"
   },
+  "6c394d9": {
+    "summary": "登记 Python 3.12 迁移审查记录",
+    "detail": "双校验代理复核加 6 处高危覆写抽查，两项 minor（导入残留已修、Gitee 3.12 镜像待观察）"
+  },
   "6cf4fea": {
     "summary": "LSP didChange 同步重试、扩展卸载钩子与打包规格跟踪"
   },
@@ -403,6 +435,10 @@
   "798df3a": {
     "summary": "更新变更日志"
   },
+  "7a2cf79": {
+    "summary": "以 typing.override 标注基类覆写",
+    "detail": "32 处覆写方法加 @override，reportImplicitOverride=error 写入 pyright 配置防回归"
+  },
   "7b5dd93": {
     "summary": "项目版本改为从 yate/__init__.py 动态读取"
   },
@@ -445,6 +481,10 @@
   },
   "85cb9ad": {
     "summary": "防护 tree-sitter 0.26 在 Windows 上的堆内存损坏"
+  },
+  "866bb45": {
+    "summary": "全仓采用 PEP 604 联合类型",
+    "detail": "pyupgrade 迁移 313 处 Optional/Union（53 文件），X | None 全面替代并归零旧写法"
   },
   "88d6b52": {
     "summary": "内置只读用户手册查看器（F8 / :manual）"
@@ -581,6 +621,10 @@
   "ad28ef5": {
     "summary": "LSP 支持：自动补全与诊断"
   },
+  "ada345b": {
+    "summary": "项目 Python 下限提升至 3.12",
+    "detail": "pyproject 与双 CI 声明面 bump；3.11 约 1.25 倍与 3.12 再 +5% 的运行时提速自此生效"
+  },
   "adae5f7": {
     "summary": "忽略 pyenv 本地配置 .python-version"
   },
@@ -589,6 +633,10 @@
   },
   "ae220fb": {
     "summary": "收尾 P2 跟进项并加固偶发 pilot 测试"
+  },
+  "b0c022d": {
+    "summary": "回填 3.12 升级执行记录",
+    "detail": "校准记录留痕基线数字、D1 拍板与 pyupgrade 偏离项"
   },
   "b0ca383": {
     "summary": "打包时刷新随包变更日志"
@@ -661,6 +709,10 @@
     "summary": "修复键入路径分隔符后目录补全为空",
     "detail": "此前键入 / 会清空补全弹窗，需再输入子项首字母才恢复"
   },
+  "c7fa15a": {
+    "summary": "补齐缺失的中文翻译并刷新变更日志",
+    "detail": "为 42 条缺译条目补齐中文摘要，翻译覆盖率达 254/254"
+  },
   "cc4b1f6": {
     "summary": "修复补全触发与校验逻辑的若干边界情况"
   },
@@ -702,6 +754,10 @@
   },
   "dc1f3ac": {
     "summary": "LSP 启动槽仅在自身任务持有时弹出"
+  },
+  "dfce21e": {
+    "summary": "登记 2026-09-25 审查分诊结果",
+    "detail": "EOL 误报归档，HighlightProbe 类型收紧登记待修"
   },
   "e065440": {
     "summary": "AI 文档改为英文并同步更新"
@@ -757,6 +813,9 @@
   },
   "f002de4": {
     "summary": "手册支持内置搜索（/ 或 Ctrl+F）"
+  },
+  "f010056": {
+    "summary": "去除 future 导入后的多余空行"
   },
   "f01b713": {
     "summary": "补全测试覆盖弹窗几何与缓冲区补全源"

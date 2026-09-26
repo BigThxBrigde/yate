@@ -3,7 +3,7 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
-## [0.2.5] - 2026-09-26 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...v0.2.5)
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
 
 ### 新功能
 
@@ -27,9 +27,9 @@
 
 ### 问题修复
 
-- 版本 bump 正则加 re.MULTILINE 锚定 ([`64b3a33`](https://gitee.com/jermaine/yate/commit/64b3a334c8484ee19bb0bbdbdbfc927b9780ac8a))
+- 版本 bump 正则加 re.MULTILINE 锚定 ([`5b8c508`](https://gitee.com/jermaine/yate/commit/5b8c50886e062d4d41990b4a1c34d52aeebafff8))
   - 包 __init__ 以模块 docstring 开头，无 MULTILINE 的 ^ 锚点永远匹配不到 __version__ 行
-- 发布工具只更新单一动态版本源 ([`4cbbf2b`](https://gitee.com/jermaine/yate/commit/4cbbf2bb07acf2d2629a98d3720699057d32a438))
+- 发布工具只更新单一动态版本源 ([`0db2aab`](https://gitee.com/jermaine/yate/commit/0db2aab2392ebfeb6d3a77604b9ff82bc9ac1fb6))
   - test_theme_palettes 的静态版本断言已在 P2 清理中移除，删除失效的第二 bump 目标
 - 修复 editor_view 向 run_worker 传递即时协程的问题 ([`ba5946b`](https://gitee.com/jermaine/yate/commit/ba5946b7d20a58b9b4c5b8982198840213719762))
   - 改为传协程函数由 worker 自行构建，避免协程未被消费的告警
@@ -87,6 +87,10 @@
 
 ### 重构
 
+- 以 typing.override 标注基类覆写 ([`7a2cf79`](https://gitee.com/jermaine/yate/commit/7a2cf7910337fe4df3448c6c9f9cbb1d667fdf3b))
+  - 32 处覆写方法加 @override，reportImplicitOverride=error 写入 pyright 配置防回归
+- 全仓采用 PEP 604 联合类型 ([`866bb45`](https://gitee.com/jermaine/yate/commit/866bb45b434f537507515efc94e9b7002c50d44c))
+  - pyupgrade 迁移 313 处 Optional/Union（53 文件），X | None 全面替代并归零旧写法
 - 落地 P2 第二波清理与守卫（editor/keymaps/services） ([`a6e6f4e`](https://gitee.com/jermaine/yate/commit/a6e6f4e73db051a886a4fe05f7ee8aa3b48691ee))
 - 窗格树模型下沉至 session.py（Plan G） ([`2ee2586`](https://gitee.com/jermaine/yate/commit/2ee258656b04517c0a94030c990b27f6f13b1e9a))
   - 删除 editor_view/pane_types.py，Leaf/Split/ViewState 与树操作并入 L1 session，EditorSession 仍与窗格无关
@@ -100,8 +104,22 @@
 
 ### 文档
 
-- 补齐缺失的中文翻译并刷新变更日志 ([`8abec69`](https://gitee.com/jermaine/yate/commit/8abec69e6f8c8ff2e8dcf25adae1643d7dd2fed4))
+- 翻译 v0.2.5 发布条目 ([`46e42c3`](https://gitee.com/jermaine/yate/commit/46e42c3a12563a3519741032bc6332f076c2c98f))
+  - 为进入 0.2.5 段的三条发布流程提交补齐中文摘要
+- 补齐缺失的中文翻译并刷新变更日志 ([`c7fa15a`](https://gitee.com/jermaine/yate/commit/c7fa15aad14c42dda1483e0b6421d5e0113848aa))
   - 为 42 条缺译条目补齐中文摘要，翻译覆盖率达 254/254
+- 登记 Python 3.12 迁移审查记录 ([`6c394d9`](https://gitee.com/jermaine/yate/commit/6c394d995607536f900e85c1547e7d004373e973))
+  - 双校验代理复核加 6 处高危覆写抽查，两项 minor（导入残留已修、Gitee 3.12 镜像待观察）
+- 回填 3.12 升级执行记录 ([`b0c022d`](https://gitee.com/jermaine/yate/commit/b0c022dbc319ad35854b217b2f7d9d2789563ce1))
+  - 校准记录留痕基线数字、D1 拍板与 pyupgrade 偏离项
+- 3.12 升级方案拆分为按波任务文件 ([`5d9cb59`](https://gitee.com/jermaine/yate/commit/5d9cb596370d3e346f2bc562422dc2663c13a69d))
+  - 总纲 README 加 plan_SP0-SP4 五份子计划，每份含独占文件清单与验证命令
+- 登记 2026-09-25 审查分诊结果 ([`dfce21e`](https://gitee.com/jermaine/yate/commit/dfce21e1a2b7ac8f7323988b197f7788594b6716))
+  - EOL 误报归档，HighlightProbe 类型收紧登记待修
+- 新增 Python 3.12 升级方案 ([`104a617`](https://gitee.com/jermaine/yate/commit/104a617ef53fa98b70b0e3aedf2cca2c1dd529da))
+  - 核心动机为运行时性能收益（3.11 约 1.25 倍提速），波次拆分 SP0-SP4 四提交
+- 编码规范 3.12 化：PEP 604 翻转与 PEP 695 指引 ([`4fe388c`](https://gitee.com/jermaine/yate/commit/4fe388cd0863a178552bb55e24e2a3da9799540c))
+  - 可空标注改用 X | None，泛型首选 PEP 695 语法，新增 typing.Self 与 @override 检查项
 - 修正 yaterc 方案文档文件名笔误（pywright→pyright） ([`11bab59`](https://gitee.com/jermaine/yate/commit/11bab597c95329329ece2e09766e26a80517d51b))
 - 四份 remove_type_checking 文档合并为单篇 ADR ([`f9b4d0b`](https://gitee.com/jermaine/yate/commit/f9b4d0b626380be862385b78ba76930156f8f774))
 - 回填 wave-1 子计划校准记录 ([`8c30871`](https://gitee.com/jermaine/yate/commit/8c308715a0eb4e25d4e633966d746a1d982d3ec0))
@@ -181,6 +199,8 @@
 
 ### 构建与工程
 
+- 项目 Python 下限提升至 3.12 ([`ada345b`](https://gitee.com/jermaine/yate/commit/ada345b29777dbcbf50f8de1d32c632fe2eeeeb9))
+  - pyproject 与双 CI 声明面 bump；3.11 约 1.25 倍与 3.12 再 +5% 的运行时提速自此生效
 - 测试套件对 RuntimeWarning 直接判失败 ([`97f9144`](https://gitee.com/jermaine/yate/commit/97f9144e540e6a1c08634651e6621c89e02728bf))
   - 经 pytest filterwarnings 把 async 忘 await 等运行时告警升级为错误
 - sync-to-gitee 同步脚本补充可执行权限 ([`beecf6c`](https://gitee.com/jermaine/yate/commit/beecf6ce9977439b7ac08bc36884a70c2803ef1f))
@@ -212,6 +232,9 @@
 
 ### 其他变更
 
+- 去除 future 导入后的多余空行 ([`f010056`](https://gitee.com/jermaine/yate/commit/f010056dc6758fae19e0a8e141c8bada279a1dc2))
+- 冒烟工具扁平化单名字 typing 导入 ([`397ef2f`](https://gitee.com/jermaine/yate/commit/397ef2fb80a46bbdfd8caa2528e613c98df8edd5))
+  - 清理 SP3 孤立导入脚本留下的括号多行残留
 - 修复补全触发与校验逻辑的若干边界情况 ([`cc4b1f6`](https://gitee.com/jermaine/yate/commit/cc4b1f6ef164952d0dccaf60ab8d5c203539cd72))
 - 重构窗格分割模块以解除类型循环依赖 ([`1325f71`](https://gitee.com/jermaine/yate/commit/1325f71edbe70046ac53384d3e988f6660a9ea4c))
 - 改进退出处理并补充错误覆盖 ([`3b4319a`](https://gitee.com/jermaine/yate/commit/3b4319a208a2c479de0c67d4d3f136743ac1f885))
@@ -323,9 +346,7 @@
 - 冻结构建随包捆绑 tree-sitter 后端与 python/bash 语法 ([`74202ac`](https://gitee.com/jermaine/yate/commit/74202accea55e7c6339eb060e3e11d4b29b22dbd))
   - spec 显式收集子模块、原生绑定与 *.scm 高亮查询
 
-## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.1.0)
-
-_首个版本。_
+## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...v0.1.0)
 
 ### 新功能
 
@@ -430,3 +451,7 @@ _首个版本。_
   - 新增 yate/paths.py 统一资源定位，自动加载捆绑扩展（可用 disabled_extensions 跳过）
 - 初始提交 ([`f690bf7`](https://gitee.com/jermaine/yate/commit/f690bf7d5f8be18de9b74b4006fcd50d18fda0d7))
 - 初始提交：yate 终端编辑器 ([`ef1d964`](https://gitee.com/jermaine/yate/commit/ef1d964ecc5366cd6bf4c3da943e2371608e748a))
+
+## [0.2.5] · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.2.5)
+
+_首个版本。_
