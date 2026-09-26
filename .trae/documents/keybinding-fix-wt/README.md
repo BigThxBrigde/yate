@@ -9,11 +9,16 @@
 > | 计划基线 | ✅ | `a9174fc` docs(keybinding): restore and calibrate |
 > | SP1 映射修复 | ✅ 255 定向 passed，pyright 0 | `b03e40f` fix(keymap): map ctrl+underscore to 0x1f |
 > | SP2 诊断日志 | ✅ pyright 0 | `ff3cfc0` feat(editor): log unmapped key events |
-> | SP2 pilot 守卫 | ✅ 150 passed（含反向演练：注释 ctrl+p 分支守卫捕获缺失） | `678c02c` test(editor): pin global chord dispatch branches |
+> | SP2 pilot 守卫 | ⚠️ 150 passed；但反向演练有缺陷：注释 ctrl+p 全局分支后守卫仍绿（vsc 键位下 pilot 走 keymap raw 路径，测不到分支存在性）——缺陷分析与重建见 PLAN_B_v2 §A3 | `678c02c` |
 > | SP3 文档标注 | ✅ 全量 1228 passed, 7 skipped | `f26e65d` docs(manual): note terminal compatibility |
 > | SP4 文档回填 | ✅ review.md + P2 N8 + 本批状态回写 + issue 回复草稿 | `ebee085` docs(keybinding): backfill IKH1RA disposition |
 > | SP5 门禁 | ✅ pyright 全仓 0 诊断 · 全量 1228 passed, 7 skipped · 架构守护 13 passed · 冒烟 88/88 场景 · 917/917 checks · exit 0 | — |
-> | SP5 真机矩阵 | ⏳ 待验证——SP5 文档已回填为完成版（收尾清单勾掉门禁/commit 两项，矩阵表附脚本指引与取证参考）；用 [verify_matrix.ps1](verify_matrix.ps1) 在 WT / conhost / VS Code 终端执行后回填 | — |
+> | SP5 真机矩阵 | ⚠️ **部分不符**（2026-09-26 实测：vim 下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效）→ 新根因与重排计划见 **[PLAN_B_v2_key_reachability.md](PLAN_B_v2_key_reachability.md)** | — |
+
+> **⚠️ 2026-09-26 真机验证结论**：SP1–SP3 止血只在 vsc 键位生效；新根因为
+> `EditorView.on_key` 无条件 `event.stop()`（`editor_view/editor.py:257-259`）使
+> `Editor.handle_key` 的全局分支在编辑器聚焦时不可达 + vim keymap 吞键。
+> 后续路线以 **PLAN_B_v2** 为准：Phase A（全局和弦下沉，先行）→ Phase B（Windows 驱动重写，仅剩 ctrl+1 类键）。
 
 ## 执行顺序与测试门禁（铁律）
 
