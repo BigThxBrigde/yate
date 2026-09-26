@@ -354,17 +354,21 @@ class Editor:
         if not path.exists():
             # treat as a not-yet-created file
             self.workspace.set_root(path.parent if str(path.parent) else Path.cwd())
-            self._open_readonly(self._open_document(path))
+            self._open_document(path)
             return "file"
         kind = self.workspace.open_target(path)
         if kind == "file":
-            self._open_readonly(self._open_document(path))
+            self._open_document(path)
         return kind
 
-    def _open_readonly(self, doc: Document | None) -> None:
-        """Apply the ``--readonly`` startup flag to an opened file document.
+    def _apply_session_readonly(self, doc: Document | None) -> None:
+        """Apply the ``--readonly`` session flag to a freshly opened document.
 
-        A no-op without the flag or when the open failed (binary files).
+        Called from the document-open paths so every file opened during the
+        session (``:e``, splits, the explorer, ...) starts read-only, not
+        just the startup argument.  A no-op without the flag, for a failed
+        open (binary files), and for already-open documents being re-activated
+        (a user who unlocked one keeps it unlocked).
         """
         if doc is not None and self.startup_readonly:
             doc.buffer.read_only = True
@@ -384,11 +388,14 @@ class Editor:
         self, path: Path, *, target_leaf: Leaf | None = None
     ) -> Document | None:
         """Open/reuse *path*; ``None`` when it is not a text file."""
+        reused = self.session.is_open(path) is not None
         doc = self.session.open(path)
         if doc is None:
             self._report(f"not a text file: {path.name}", kind="warn")
             log.info("open skipped (binary): %s", path)
             return None
+        if not reused:
+            self._apply_session_readonly(doc)
         self.activate_doc(doc, target_leaf)
         log.info("opened: %s", path)
         return doc
@@ -397,10 +404,13 @@ class Editor:
         self, path: Path, *, target_leaf: Leaf | None = None
     ) -> Document | None:
         """Like :meth:`_open_document`, but the disk read runs off the loop."""
+        reused = self.session.is_open(path) is not None
         doc = await self.session.open_async(path)
         if doc is None:
             self._report(f"not a text file: {path.name}", kind="warn")
             return None
+        if not reused:
+            self._apply_session_readonly(doc)
         self.activate_doc(doc, target_leaf)
         log.info("opened (async): %s", path)
         return doc
@@ -524,7 +534,10 @@ class Editor:
         """``:w``: write the active document to disk."""
         doc = self.session.doc
         if doc.buffer.read_only:
-            self._readonly_notice()
+            self.message(
+                "cannot save a read-only buffer; use :saveas to write elsewhere",
+                kind="warn",
+            )
             return
         if doc.path is None:
             log.info("save: unnamed buffer, prompting for a path")
@@ -551,14 +564,30 @@ class Editor:
             "save", initial=current, on_submit=self._submit_save_as
         )
 
+    def save_as(self, path: str | None = None) -> None:
+        """``:saveas``: persist the buffer to *path* (prompt without one).
+
+        The sanctioned escape hatch for a read-only buffer: writing to an
+        explicitly chosen path lifts the flag (vim ``:sav`` semantics) while
+        the original file stays untouched.
+        """
+        if path is not None and path.strip():
+            self._submit_save_as(path)
+            return
+        self.prompt_save_as()
+
     def _submit_save_as(self, text: str) -> None:
         text = text.strip()
         if not text:
             self.message("save cancelled")
             return
-        if self.session.doc.buffer.read_only:
-            self._readonly_notice()
-            return
+        buf = self.session.doc.buffer
+        locked = buf.read_only
+        if locked:
+            # ``:saveas`` is deliberate persistence: lift the flag so the
+            # L0 ``Document.save`` guard lets the write through (vim ``:sav``
+            # clears 'readonly' too).  Restored when the write fails.
+            buf.read_only = False
         path = Path(text)
         try:
             self.session.doc.save(path)
@@ -566,6 +595,8 @@ class Editor:
             self.explorer_tree.refresh_tree()
             self.message(f"saved {path}", kind="ok")
         except (OSError, UnicodeError) as exc:
+            if locked:
+                buf.read_only = True
             self.message(f"save failed: {exc}", kind="error")
 
     # ============================================================== key routing
@@ -677,6 +708,9 @@ class Editor:
             return self.actions.execute(name, ActionContext(self.session, self.key_ui))
         except BufferReadOnlyError:
             self._readonly_notice()
+            # the refused action may have moved the cursor / changed anchors
+            # before raising; repaint so the view never goes stale
+            self.refresh_ui()
             return True
 
     def _readonly_notice(self) -> None:
@@ -1283,6 +1317,7 @@ class Editor:
             self.completion.accept()
         except BufferReadOnlyError:
             self._readonly_notice()
+            self.refresh_ui()
 
     # =================================================================== lsp
 

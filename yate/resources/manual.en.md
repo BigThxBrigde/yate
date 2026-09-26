@@ -74,7 +74,7 @@ yate [path] [options]
 |---|---|
 | `path` (optional) | File or directory to open. A directory is browsed in the file tree; a non-existent path is treated as a new file to create |
 | `--keymap {vsc,vim,normal}` | Keymap for this session; `normal` is a compatibility alias for `vsc`. **Takes priority over yaterc** |
-| `--readonly` | Open the file argument read-only: edits and saves are refused until `:set readonly=false`; ignored when the argument is a directory |
+| `--readonly` | Start in read-only mode: the file argument and every document opened during the session (`:e`, splits, the explorer, ...) refuses edits and saves until `:set readonly=false`; ignored when the argument is a directory |
 | `-u FILE` / `--yaterc FILE` | Load only this config file (vim-style `-u`); `-u NONE` skips config loading entirely |
 | `--ext FILE` | Load one Python extension script (repeatable) |
 | `--ext-dir DIR` | Load every `*.py` extension in a directory (repeatable) |
@@ -589,6 +589,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | Command | Alias | Description |
 |---|---|---|
 | `:w` | `:write` | Save the current file |
+| `:saveas [path]` | — | Save the buffer to *path* (prompts when omitted); on a read-only buffer this is the way to write a copy elsewhere and unlocks the buffer |
 | `:q` | — | Quit yate entirely (even with multiple panes; blocked on unsaved changes, `:q!` forces) |
 | `:quit` | — | Alias of `:q` |
 | `:q!` | — | Discard changes and force quit |
@@ -1389,7 +1390,7 @@ vim keymap:
 | `Ctrl+W` `+-<>` | Resize pane height / width | `Ctrl+W` `=` / `Ctrl+W Ctrl+W` | Equalize / cycle focus |
 | `Shift+PageUp/PageDown` | Terminal scrollback | | |
 
-Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
+Command line cheat sheet: `:w` `:saveas` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
 `:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 

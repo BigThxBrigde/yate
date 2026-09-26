@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from yate.editor_core.buffer import TextBuffer
+from yate.editor_core.buffer import BufferReadOnlyError, TextBuffer
 
 
 def _current_umask() -> int:
@@ -193,6 +193,11 @@ class Document:
 
         Returns the path that was written.
         """
+        # L0 guard: the read-only flag is enforced at every write boundary,
+        # so extensions cannot bypass it via ``api.doc.save()``.  Deliberate
+        # persistence goes through :saveas, which lifts the flag first.
+        if self.buffer.read_only:
+            raise BufferReadOnlyError("buffer is read-only")
         if path is not None:
             self.path = Path(path)
         if self.path is None:

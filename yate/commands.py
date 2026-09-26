@@ -16,6 +16,20 @@ from yate.registries import CommandRegistry
 
 __all__ = ["CommandRegistry", "register_commands"]
 
+#: Values accepted by boolean ``:set`` options (``show_hidden``, ``readonly``).
+_TRUTHY = frozenset({"true", "on", "1", "yes"})
+_FALSY = frozenset({"false", "off", "0", "no"})
+
+
+def _parse_bool(value: str) -> bool | None:
+    """Parse a boolean ``:set`` value; ``None`` when it is not recognised."""
+    lowered = value.lower()
+    if lowered in _TRUTHY:
+        return True
+    if lowered in _FALSY:
+        return False
+    return None
+
 
 def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     """Register the built-in ex commands on *registry*."""
@@ -25,6 +39,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
 
     def _w(args: str) -> None:
         editor.save_document()
+
+    def _saveas(args: str) -> None:
+        editor.save_as(args or None)
 
     def _q(args: str) -> None:
         editor.quit()
@@ -43,6 +60,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
 
     reg("w", _w, "save the current file")
     reg("write", _w, "save the current file")
+    reg("saveas", _saveas,
+        "save the buffer under a new path (:saveas FILE; blank = prompt)")
     reg("q", _q, "quit yate")
     reg("quit", _q, "alias for :q")
     reg("q!", _qbang, "quit, discarding changes")
@@ -163,23 +182,26 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
             editor.terminal_panel.apply_height(height)
             editor.message(f"terminal height: {height} rows", kind="ok")
         elif key == "show_hidden":
-            val = value.lower() in ("on", "true", "1", "yes")
-            editor.set_show_hidden(val)
-            editor.message(
-                f"hidden files {'shown' if val else 'hidden'}", kind="ok"
-            )
-        elif key == "readonly":
-            truthy = ("true", "on", "1", "yes")
-            falsy = ("false", "off", "0", "no")
-            if value.lower() in truthy:
-                editor.set_readonly(True)
-            elif value.lower() in falsy:
-                editor.set_readonly(False)
+            val = _parse_bool(value)
+            if val is None:
+                editor.message(
+                    "show_hidden must be on|off (true/false/1/0/yes/no accepted)",
+                    kind="warn",
+                )
             else:
+                editor.set_show_hidden(val)
+                editor.message(
+                    f"hidden files {'shown' if val else 'hidden'}", kind="ok"
+                )
+        elif key == "readonly":
+            val = _parse_bool(value)
+            if val is None:
                 editor.message(
                     "readonly must be true|false (on/off/1/0/yes/no accepted)",
                     kind="warn",
                 )
+            else:
+                editor.set_readonly(val)
         else:
             editor.message(f"unknown option: {key}", kind="warn")
 
