@@ -118,6 +118,15 @@ async def _set_options_matrix(tmp: Path) -> ScenarioResult:
                             app.editor.config.terminal_height))
         await run_command(pilot, "set show_hidden=on")
         checks.append(Check("show_hidden", True, app.editor.workspace.show_hidden))
+        await run_command(pilot, "set readonly=true")
+        checks.append(Check("readonly", True,
+                            app.editor.session.doc.buffer.read_only))
+        await run_command(pilot, "set readonly=maybe")
+        checks.append(Check("readonly_kept", True,
+                            app.editor.session.doc.buffer.read_only))
+        await run_command(pilot, "set readonly=false")
+        checks.append(Check("readonly_off", False,
+                            app.editor.session.doc.buffer.read_only))
         await run_command(pilot, "set bogus=1")
         checks.append(Check("option_warned", True,
                             "unknown option" in message_text(app)))

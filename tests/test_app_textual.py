@@ -156,6 +156,60 @@ def test_type_save_find_help_keymap(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_readonly_blocks_edits_saves_and_unlocks(tmp_path: Path) -> None:
+    """--readonly starts locked; edits/saves are refused; :set unlocks."""
+
+    async def scenario() -> None:
+        target = tmp_path / "locked.txt"
+        target.write_text("keep", encoding="utf-8")
+        app = YateApp(target=target, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.editor.session.buffer.read_only
+            # the status bar shows the lock glyph while read-only
+            strip = "".join(
+                seg.text for seg in app.editor.status_bar.render_line(0)
+            )
+            assert "\uf023" in strip
+            # typing is refused (key consumed, buffer unchanged)
+            await pilot.press("x")
+            assert app.editor.session.buffer.get_text() == "keep"
+            # ctrl+s refuses to write the file
+            await pilot.press("ctrl+s")
+            assert target.read_text(encoding="utf-8") == "keep"
+            # :set readonly=false unlocks through the full command path
+            await pilot.press("f5")
+            await pilot.pause()
+            await pilot.press(*"set")
+            await pilot.press("space")
+            await pilot.press(*"readonly=false")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert not app.editor.session.buffer.read_only
+            # the lock glyph is gone once unlocked
+            strip = "".join(
+                seg.text for seg in app.editor.status_bar.render_line(0)
+            )
+            assert "\uf023" not in strip
+            await pilot.press("x")
+            # startup cursor sits at (0, 0), so the typing lands at the top
+            assert app.editor.session.buffer.get_text() == "xkeep"
+
+    asyncio.run(scenario())
+
+
+def test_readonly_startup_flag_ignores_directory_target(tmp_path: Path) -> None:
+    """``--readonly`` only applies to a file argument, never a directory."""
+
+    async def scenario() -> None:
+        app = YateApp(target=tmp_path, readonly=True)
+        assert app.editor.startup_readonly
+        # a directory target seeds a normal (writable) buffer
+        assert not app.editor.session.buffer.read_only
+
+    asyncio.run(scenario())
+
+
 def test_syntax_highlight_and_theme_switch(tmp_path: Path) -> None:
     from yate.editor_view import theme
 

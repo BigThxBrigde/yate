@@ -95,6 +95,12 @@ def test_keymap_flag_and_alias() -> None:
     assert build_parser().parse_args(["--keymap", "normal"]).keymap == "normal"
 
 
+def test_readonly_flag() -> None:
+    assert build_parser().parse_args([]).readonly is False
+    assert build_parser().parse_args(["--readonly"]).readonly is True
+    assert build_parser().parse_args(["f.txt", "--readonly"]).readonly is True
+
+
 def test_yaterc_none_and_path() -> None:
     assert build_parser().parse_args(["-u", "NONE"]).yaterc == "NONE"
     assert build_parser().parse_args(["-u", "rc.py"]).yaterc == "rc.py"
