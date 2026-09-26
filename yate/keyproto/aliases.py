@@ -1,5 +1,5 @@
-"""Normalize a :class:`~yate.keyproto.chords.KeyChord` to the names and raw
-bytes yate dispatches on."""
+"""Normalize a :class:`~yate.keyproto.chords.KeyChord` to the canonical
+Textual key name yate dispatches on."""
 
 from __future__ import annotations
 
@@ -28,16 +28,6 @@ _OEM_NAMES: dict[int, str] = {
     VK_OEM_6: "]",
 }
 
-#: ctrl-chord -> C0 byte for the chords legacy terminals can carry (same
-#: values as the ctrl+punctuation table in :mod:`yate.keyproto.legacy`).
-_OEM_CTRL_RAW: dict[int, int] = {
-    VK_OEM_2: 0x1F,
-    VK_OEM_3: 0x00,
-    VK_OEM_4: 0x1B,
-    VK_OEM_5: 0x1C,
-    VK_OEM_6: 0x1D,
-}
-
 
 def chord_to_key_name(chord: KeyChord) -> str:
     """Return the Textual-style key name for *chord*.
@@ -62,22 +52,3 @@ def chord_to_key_name(chord: KeyChord) -> str:
         return f"vk:{chord.vk}"
     prefix = "+".join([*mods, ""]) if mods else ""
     return f"{prefix}{base}"
-
-
-def chord_to_raw(chord: KeyChord) -> str | None:
-    """Return the legacy C0 byte for *chord*, or ``None``.
-
-    ``None`` means no legacy terminal encoding exists for the chord --
-    precisely the keys this package exists to deliver (ctrl+digit, and the
-    ctrl+shift distinctions legacy bytes collapse).  Ctrl+letter uses the
-    ``0x40`` offset arithmetic; ctrl+OEM and ctrl+space reuse the same byte
-    values the legacy codec's tables map the textual names to.
-    """
-    if chord.ctrl and not chord.alt:
-        if vk_is_letter(chord.vk):
-            return chr(chord.vk - 0x40)
-        if chord.vk in _OEM_CTRL_RAW:
-            return chr(_OEM_CTRL_RAW[chord.vk])
-        if chord.vk == VK_SPACE:
-            return "\x00"
-    return None

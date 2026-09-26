@@ -136,7 +136,6 @@ def test_invalid_keymap(tmp_path: Path) -> None:
 def test_key_protocol_defaults_and_valid_values(tmp_path: Path) -> None:
     assert cfg.YateConfig().key_protocol == "auto"
     assert _load('key_protocol = "legacy"\n', tmp_path).key_protocol == "legacy"
-    assert _load('key_protocol = "win32-input"\n', tmp_path).key_protocol == "win32-input"
 
 
 def test_invalid_key_protocol(tmp_path: Path) -> None:

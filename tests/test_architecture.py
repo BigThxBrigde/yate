@@ -68,8 +68,9 @@ ALLOWED_PROTOCOLS = {
 #: Pure logic packages / modules that must run without any widget (R4).
 #: ``config.py`` joined in N30: it used to lazily import editor_view.theme
 #: inside ``load_config`` (the only L0->L2 edge; theme support is now
-#: injected as callbacks by the L4 caller).
-UI_FREE_PACKAGES = ("keymaps", "services")
+#: injected as callbacks by the L4 caller).  ``keyproto`` joined with the
+#: Windows chord driver: a pure L0 leaf that must never reach editor_view.
+UI_FREE_PACKAGES = ("keymaps", "services", "keyproto")
 UI_FREE_FILES = ("session.py", "registries.py", "config.py")
 
 #: L3 collaborator modules that do drive a few widget types by design: they
@@ -234,8 +235,9 @@ def test_app_features_package_is_gone() -> None:
 
 
 def test_keymaps_services_and_models_stay_ui_free() -> None:
-    """``keymaps`` / ``services`` / ``session.py`` / ``registries.py`` run
-    without a mounted app: they must not import ``editor_view`` (R4)."""
+    """``keymaps`` / ``services`` / ``keyproto`` / ``session.py`` /
+    ``registries.py`` / ``config.py`` run without a mounted app: they must
+    not import ``editor_view`` (R4)."""
     targets: list[Path] = []
     for package in UI_FREE_PACKAGES:
         targets.extend(

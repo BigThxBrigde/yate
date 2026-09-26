@@ -56,9 +56,9 @@ _KNOWN_OPTIONS = (
 
 _VALID_KEYMAPS = ("vsc", "vim")
 
-#: Accepted ``key_protocol`` values: ``auto`` (Windows -> chord driver),
-#: ``legacy`` (stock driver), ``win32-input`` (explicit chord driver).
-_VALID_KEY_PROTOCOLS = ("auto", "win32-input", "legacy")
+#: Accepted ``key_protocol`` values: ``auto`` (Windows -> chord driver)
+#: and ``legacy`` (stock driver).
+_VALID_KEY_PROTOCOLS = ("auto", "legacy")
 
 #: Accepted ``yate_trace_level`` values -- :mod:`logging`'s built-in levels
 #: (single source of truth: :data:`yate.logs.LEVEL_NAMES`).
