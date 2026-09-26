@@ -103,5 +103,9 @@ flowchart LR
 
 1. **PB5 三终端矩阵**：WT 已由真机 harness 覆盖；conhost / VS Code 待人工复测
    （VS Code 集成终端在工作台层消费 ctrl+1/ctrl+\`，属宿主行为）；
-2. 冒烟命令覆盖缺 `saveas`（43/44）——历史存量，非本分支引入，不影响合并；
-3. 合并回 master 前建议再跑一次 `pytest + pyright + 冒烟` 全门禁（本报告数字即最近基线）。
+2. ~~冒烟命令覆盖缺 `saveas`（43/44）~~ **✅ 已解决（2026-09-27）**：新增
+   `saveas_command` 场景（覆盖 `:saveas FILE` 命令 + readonly 解锁 + 原文件不动 +
+   文档重定向），命令覆盖 **44/44**、冒烟 **89/89 scenarios / 932 checks** 全绿；
+3. ~~合并回 master 前建议再跑一次全门禁~~ **✅ 已复跑（2026-09-27，saveas 场景合入后）**：
+   `pytest` 1257 passed / 7 skipped · pyright strict 0 errors · 冒烟 89/89 scenarios /
+   932/932 checks（commands 44/44、actions 65/65，exit 0）。

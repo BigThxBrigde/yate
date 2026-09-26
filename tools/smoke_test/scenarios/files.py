@@ -289,6 +289,40 @@ async def _edit_command_path(tmp: Path) -> ScenarioResult:
     return ScenarioResult("edit_command_path", checks, rows)
 
 
+async def _saveas_command(tmp: Path) -> ScenarioResult:
+    """``:saveas FILE`` persists under a new path (vim ``:sav`` semantics).
+
+    Also covers the read-only escape hatch: a ``readonly`` buffer is lifted
+    by the explicit save-as (the original file stays untouched), and the
+    document retargets to the new path.
+    """
+    source = tmp / "source.txt"
+    source.write_text("seed", encoding="utf-8")
+    dest = tmp / "renamed.txt"
+    app = new_app(target=source)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await run_command(pilot, "set readonly=true")
+        checks.append(Check("readonly", True,
+                            app.editor.session.doc.buffer.read_only))
+        # Windows paths are typed with forward slashes: "\" has no stable
+        # Textual key name but Path accepts "/" on every platform.
+        typed = str(dest).replace("\\", "/")
+        await run_command(pilot, f"saveas {typed}")
+        checks.append(Check("dest_content", "seed",
+                            dest.read_text(encoding="utf-8")))
+        checks.append(Check("doc_retargeted", "renamed.txt",
+                            app.editor.session.doc.name))
+        checks.append(Check("readonly_lifted", False,
+                            app.editor.session.doc.buffer.read_only))
+        checks.append(Check("clean", False, app.editor.session.doc.modified))
+        rows = snapshot_svg(app, tmp)
+    checks.append(Check("source_untouched", "seed",
+                        source.read_text(encoding="utf-8")))
+    return ScenarioResult("saveas_command", checks, rows)
+
+
 async def _write_command_saves(tmp: Path) -> ScenarioResult:
     """:write saves the dirty buffer and clears the modified flag."""
     target = tmp / "write-me.txt"
@@ -402,6 +436,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("workspace_trust", _workspace_trust, ("files",)),
     Scenario("bnext_bprev_commands", _bnext_bprev_commands, ("files",)),
     Scenario("edit_command_path", _edit_command_path, ("files",)),
+    Scenario("saveas_command", _saveas_command, ("files",)),
     Scenario("write_command_saves", _write_command_saves, ("files",)),
     Scenario("quit_command_clean", _quit_command_clean, ("files",)),
     Scenario("filetype_command_aliases", _filetype_command_aliases, ("files",)),
