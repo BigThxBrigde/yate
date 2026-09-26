@@ -107,7 +107,8 @@ class ChordEventMonitor(win32.EventMonitor):
     inserts exactly one branch: a chorded ``KEY_EVENT_RECORD`` is delivered
     as a canonical :class:`textual.events.Key` instead of being reduced to
     its character.  Any divergence in behaviour for non-chorded records
-    would be a bug.
+    would be a bug.  The replication is pinned against Textual **8.2.8** --
+    when upgrading Textual, diff the stock ``run`` against this one first.
     """
 
     #: The stock parent stores this without an annotation; declare it so
@@ -246,7 +247,14 @@ class YateWindowsDriver(WindowsDriver):
 
     @override
     def start_application_mode(self) -> None:
-        """Start application mode with the chord-aware input monitor."""
+        """Start application mode with the chord-aware input monitor.
+
+        Replicates the stock
+        :meth:`textual.drivers.windows_driver.WindowsDriver.start_application_mode`
+        sequence (pinned against Textual **8.2.8**) with one insertion
+        (``?9001h``) and the chord monitor thread -- on a Textual upgrade,
+        diff the stock sequence against this body first.
+        """
         loop = asyncio.get_running_loop()
 
         self._restore_console = win32.enable_application_mode()

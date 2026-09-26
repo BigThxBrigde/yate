@@ -145,6 +145,10 @@ def test_frame_stream_decodes_real_probe_frames() -> None:
     # the decimal-field decoder pads missing trailing fields
     short, _ = _feed("\x1b[97_")
     assert short == [Win32InputFrame(97, 0, 0, 0, 0, 0)]
+    # empty fields decode as zero instead of raising: a malformed ";;" frame
+    # must not kill the input thread via the monitor's blanket except
+    gapped, _ = _feed("\x1b[49;;0;1;;1_")
+    assert gapped == [Win32InputFrame(49, 0, 0, 1, 0, 1)]
 
 
 def test_frame_stream_names_chords_and_respects_keyups() -> None:

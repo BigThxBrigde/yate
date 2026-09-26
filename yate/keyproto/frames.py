@@ -96,11 +96,16 @@ def _decode_frame(fields: str) -> Win32InputFrame:
     """Build a :class:`Win32InputFrame` from the raw semicolon fields.
 
     Terminals may omit trailing fields; missing or empty fields default to
-    zero, matching the "not reported" semantics of the encoding.
+    zero, matching the "not reported" semantics of the encoding.  Empty
+    fields must not raise: a malformed ``;;`` frame (the regex accepts any
+    digit/semicolon run) would otherwise kill the input thread via the
+    monitor's blanket except.
     """
     parts = fields.split(";")
     parts += ["0"] * (6 - len(parts))
-    vk, scan, char, flags, state, count = (int(part) for part in parts[:6])
+    vk, scan, char, flags, state, count = (
+        int(part) if part else 0 for part in parts[:6]
+    )
     return Win32InputFrame(vk, scan, char, flags, state, count)
 
 
