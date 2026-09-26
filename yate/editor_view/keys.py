@@ -43,7 +43,15 @@ def event_to_raw(key: str, character: str | None = None) -> str | None:
 
     Textual reports shifted punctuation as long names (``"exclamation_mark"``)
     with the actual glyph in ``event.character``; prefer that for plain keys
-    without modifiers.
+    without modifiers.  For ctrl-chords the table lookup is tried first, then
+    a C0 fallback: real-terminal drivers (observed on Windows Terminal's
+    win32 driver) spell ctrl+punctuation with long names the table does not
+    know (``ctrl+right_square_bracket``, ``ctrl+circumflex_accent``) while
+    ``event.character`` still carries the true C0 byte (``\\x1d``, ``\\x1e``)
+    -- the byte is by definition what the keymap tables dispatch on, so it
+    wins over an unknown name.  Printable characters never satisfy the
+    fallback, which keeps physically-unmappable chords (``ctrl+1`` on legacy
+    terminals) returning ``None``.
     """
     if (
         "+" not in key
@@ -52,7 +60,17 @@ def event_to_raw(key: str, character: str | None = None) -> str | None:
         and character.isprintable()
     ):
         return character
-    return textual_key_to_raw(key)
+    raw = textual_key_to_raw(key)
+    if raw is not None:
+        return raw
+    if (
+        key.startswith("ctrl+")
+        and character
+        and len(character) == 1
+        and ord(character) < 0x20
+    ):
+        return character
+    return None
 
 
 def textual_key_to_raw(key: str) -> str | None:

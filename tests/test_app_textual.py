@@ -27,6 +27,7 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
+from yate.editor_view.keys import event_to_raw
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.keymaps.base import ActionContext
 from yate.keymaps.vim import VimKeymap
@@ -77,6 +78,19 @@ def test_ctrl_and_alt() -> None:
     assert textual_key_to_raw("ctrl+underscore") == "\x1f"
     assert textual_key_to_raw("ctrl+slash") == "\x1f"
     assert textual_key_to_raw("alt+u") == "\x1bu"
+
+
+def test_event_to_raw_c0_fallback_covers_driver_name_drift() -> None:
+    """Names observed on a real Windows Terminal (IKH1RA trace): the win32
+    driver spells ctrl+punctuation with long names the table does not know,
+    while event.character still carries the true C0 byte."""
+    assert event_to_raw("ctrl+right_square_bracket", "\x1d") == "\x1d"
+    assert event_to_raw("ctrl+circumflex_accent", "\x1e") == "\x1e"
+    # canonical names keep using the table (fallback is last resort)
+    assert event_to_raw("ctrl+]", "\x1d") == "\x1d"
+    # printable characters never satisfy the fallback: ctrl+digit stays
+    # physically unmappable on legacy terminals
+    assert event_to_raw("ctrl+1", "1") is None
 
 
 def test_modified_arrows() -> None:
