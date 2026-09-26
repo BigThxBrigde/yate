@@ -66,8 +66,11 @@ ALLOWED_PROTOCOLS = {
 }
 
 #: Pure logic packages / modules that must run without any widget (R4).
+#: ``config.py`` joined in N30: it used to lazily import editor_view.theme
+#: inside ``load_config`` (the only L0->L2 edge; theme support is now
+#: injected as callbacks by the L4 caller).
 UI_FREE_PACKAGES = ("keymaps", "services")
-UI_FREE_FILES = ("session.py", "registries.py")
+UI_FREE_FILES = ("session.py", "registries.py", "config.py")
 
 #: L3 collaborator modules that do drive a few widget types by design: they
 #: still may not depend upward, and their ``editor_view`` coupling is frozen

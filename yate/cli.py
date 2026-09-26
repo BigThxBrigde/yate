@@ -261,7 +261,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         [Path.cwd() / "themes", Path.home() / ".yate" / "themes"],
         default_errors,
     )
-    config = load_config(rc_paths)
+    # Theme callbacks are injected (N30): the L0 config loader must not
+    # import the L2 UI package itself.
+    config = load_config(
+        rc_paths,
+        register_theme=theme_mod.register_theme,
+        load_theme_paths=theme_mod.load_theme_paths,
+    )
     config.errors = default_errors + config.errors
     # Expand "~" here: unlike POSIX shells, PowerShell/cmd pass it through
     # literally and Path("~")/is_dir() would silently skip the directory.

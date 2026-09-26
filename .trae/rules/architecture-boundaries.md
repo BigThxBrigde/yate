@@ -32,7 +32,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R3 — `editor_view/*` 不得 import `yate.editor` / `yate.app`**：组件只接受具体协作者
   （`EditorSession` / `Workspace` / `PromptBar` / `LspManager` / `KeymapSet` / `Textual App`）
   或 `Callable` 回调。
-- **R4 — `keymaps/*`、`services/*`、`session.py`、`registries.py` 不得 import `editor_view`**。
+- **R4 — `keymaps/*`、`services/*`、`session.py`、`registries.py`、`config.py` 不得 import `editor_view`**。
+  （`config.py` 于 N30 加入：yaterc 主题能力由 L4 `cli.py` 以回调注入
+  `load_config(register_theme=..., load_theme_paths=...)`，L0 不再反向拉起 L2 组件包。）
 - **R5 — 内置表单向**：`actions.py` / `commands.py` 可以 import `yate.editor`；反向禁止
   （`editor.py` 不得 import 它们，否则成环）。
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
@@ -80,6 +82,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 |---|---|
 | 1:1 操作 / 查询 | 直接调用具体协作者的方法（`session` / `workspace` / `lsp` / widget） |
 | 1:N 低频广播 | 回调列表或构造注入的回调（如 `EditorSession(on_closed=...)`、`TabBar(on_activate=...)`） |
+| L0 需要 UI 能力 | 构造参数注入 `Callable`（N30 模式：`load_config(register_theme=..., load_theme_paths=...)`，由 L4 `cli.py` 传入 `editor_view.theme` 同名函数；缺省 `None` = headless） |
 | UI 事件 | Textual messages（`on_key` / `Input.Submitted` / `MouseDown` 等） |
 | 异步任务 | Textual `App.run_worker(...)`；调度层提供 `*_later` 便捷入口（`open_path_later` / `run_shell_command_later`）；防抖定时用 `asyncio.get_running_loop().call_later` |
 | 插件注册 | `ActionRegistry` / `CommandRegistry` / `Keymap.add_binding`（经 `ExtensionContext` 暴露） |
@@ -117,7 +120,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R3** `editor_view/*` 不 import `yate.editor` / `yate.app`（子模块前缀匹配，不误伤 `editor_core` /
   `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
   不够：残留目录会被当作空命名空间包导入，掩盖删除）；
-- **R4** `keymaps/*`、`services/*`、`session.py`、`registries.py` 不 import `editor_view`（严格 0 违规）；
+- **R4** `keymaps/*`、`services/*`、`session.py`、`registries.py`、`config.py` 不 import
+  `editor_view`（严格 0 违规；`config.py` 为 N30 新增守卫面，负向验证过拦截有效）；
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
