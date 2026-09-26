@@ -74,6 +74,12 @@ class YateApp(App[None]):
         height: 1;
         padding: 0;
     }
+    /* Global slim scrollbars (issue IKINF3): App CSS ties the Widget default
+     * (scrollbar-size-vertical: 2) on source order -- every scrollable widget
+     * (editor, explorer, terminal, overlays) renders a 1-cell thumb. */
+    Widget {
+        scrollbar-size-vertical: 1;
+    }
     """
 
     def __init__(

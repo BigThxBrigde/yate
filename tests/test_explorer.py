@@ -12,11 +12,17 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+from rich.style import Style
+from rich.text import Text
+from textual.widgets import Tree
+from textual.widgets.tree import TreeNode
+
 from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_view.explorer import ExplorerTree
+from yate.editor_view.icons import FOLDER, FOLDER_OPEN
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
@@ -242,3 +248,90 @@ def test_restore_cursor_forgets_vanished_selection(tmp_path: Path) -> None:
     tree._restore_cursor(victim)
 
     assert tree._last_selected is None
+
+
+# --- icon-only toggle affordance (issue IKINF3) ------------------------------
+
+
+def _tree_over(ws_root: Path) -> ExplorerTree:
+    """Build an ExplorerTree over a real workspace root (no app)."""
+    return ExplorerTree(
+        EditorSession(YateConfig()),
+        Workspace(ws_root),
+        cast(Any, _FakePrompt()),
+        open_path=lambda path: None,
+        focus_editor=lambda: None,
+        window_prefix=lambda event: False,
+    )
+
+
+def _label_text(node: TreeNode[Path | None]) -> str:
+    """Plain text of a node label (``TreeNode.label`` is Text | str)."""
+    label = node.label
+    return label.plain if isinstance(label, Text) else label
+
+
+def test_toggle_arrow_glyphs_are_suppressed(tmp_path: Path) -> None:
+    """Rendered labels never contain Textual's default arrow glyphs."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "sub").mkdir()
+    (ws / "file.py").write_text("x = 1\n", encoding="utf-8")
+    tree = _tree_over(ws)
+
+    assert ExplorerTree.ICON_NODE == ""
+    assert ExplorerTree.ICON_NODE_EXPANDED == ""
+
+    tree.refresh_tree()
+    for node in [tree.root, *tree.root.children]:
+        rendered = tree.render_label(node, Style(), Style()).plain
+        assert "\u25b6" not in rendered  # Tree.ICON_NODE default "▶ "
+        assert "\u25bc" not in rendered  # Tree.ICON_NODE_EXPANDED default "▼ "
+
+
+def test_folder_glyph_flips_with_expansion(tmp_path: Path) -> None:
+    """The folder glyph itself carries the open/closed state on toggle."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    sub = ws / "sub"
+    sub.mkdir()
+    (sub / "inner.py").write_text("x = 1\n", encoding="utf-8")
+    tree = _tree_over(ws)
+    tree.refresh_tree()
+
+    node = tree._find_node(tree.root, sub)
+    assert node is not None
+    assert FOLDER in _label_text(node)
+    assert FOLDER_OPEN not in _label_text(node)
+
+    node.expand()
+    tree.on_tree_node_expanded(Tree.NodeExpanded(node))
+    assert FOLDER_OPEN in _label_text(node)
+
+    node.collapse()
+    tree.on_tree_node_collapsed(Tree.NodeCollapsed(node))
+    assert FOLDER in _label_text(node)
+    assert FOLDER_OPEN not in _label_text(node)
+
+
+def test_refresh_tree_keeps_open_glyph_for_expanded_dirs(tmp_path: Path) -> None:
+    """Rebuilding the tree renders the open glyph for expanded directories."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    sub = ws / "sub"
+    sub.mkdir()
+    (sub / "inner.py").write_text("x = 1\n", encoding="utf-8")
+    tree = _tree_over(ws)
+    tree.refresh_tree()
+
+    node = tree._find_node(tree.root, sub)
+    assert node is not None
+    node.expand()
+    tree.on_tree_node_expanded(Tree.NodeExpanded(node))
+    assert FOLDER_OPEN in _label_text(node)
+
+    tree.refresh_tree()
+    rebuilt = tree._find_node(tree.root, sub)
+    assert rebuilt is not None
+    assert rebuilt.is_expanded
+    assert FOLDER_OPEN in _label_text(rebuilt)

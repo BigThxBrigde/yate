@@ -33,11 +33,21 @@ NodeData = Path | None
 class ExplorerTree(Tree[NodeData]):
     """Directory tree with Nerd Font glyphs, lazy-loaded on expand."""
 
+    #: icon-only expand/collapse affordance (issue IKINF3): Textual's default
+    #: "▶ "/"▼ " arrows are dropped entirely -- the folder's open/closed glyph
+    #: (swapped by :meth:`_relabel` on toggle) carries the state instead.
+    ICON_NODE = ""
+    ICON_NODE_EXPANDED = ""
+
     DEFAULT_CSS = """
     ExplorerTree {
         background: $surface;
-        border-right: tall $primary 20%;
+        border-right: tall $foreground 12%;
         padding: 0 1;
+
+        & > .tree--guides {
+            color: $foreground 15%;
+        }
     }
     """
 
@@ -176,7 +186,11 @@ class ExplorerTree(Tree[NodeData]):
         for entry in self.workspace.list_dir(directory):
             if entry.name in IGNORED_NAMES:
                 continue
-            label = self._label(entry.path, entry.is_dir, False)
+            # pass the real expansion state so a rebuilt tree renders the
+            # open-folder glyph for directories that survive the rebuild
+            label = self._label(
+                entry.path, entry.is_dir, expanded is not None and entry.path in expanded
+            )
             child = node.add(label, data=entry.path, allow_expand=entry.is_dir)
             if entry.is_dir:
                 # placeholder so the node shows as expandable before load
@@ -199,6 +213,18 @@ class ExplorerTree(Tree[NodeData]):
         text.append(name, style=t.accent if is_dir else t.fg)
         return text
 
+    def _relabel(self, node: TreeNode[NodeData]) -> None:
+        """Rebuild a directory node's label to match its expansion state.
+
+        The toggle arrows are suppressed (see ``ICON_NODE``), so the folder
+        glyph itself must flip between closed and open when the node is
+        toggled.  Placeholders (``data is None``) and file nodes are left
+        alone -- only directories carry the stateful glyph.
+        """
+        path = node.data
+        if isinstance(path, Path) and node.allow_expand:
+            node.set_label(self._label(path, True, node.is_expanded))
+
     # ------------------------------------------------------------- events
 
     def on_tree_node_expanded(self, event: Tree.NodeExpanded[NodeData]) -> None:
@@ -211,13 +237,16 @@ class ExplorerTree(Tree[NodeData]):
         if len(node.children) == 1 and node.children[0].data is None:
             node.remove_children()
             self._load_children(node, path)
+        self._relabel(node)
 
     def on_tree_node_collapsed(self, event: Tree.NodeCollapsed[NodeData]) -> None:
         """Keep the lazy-load placeholder trick consistent after collapsing."""
         node = event.node
         path = node.data
-        if isinstance(path, Path) and path.is_dir() and not node.children:
-            node.add(Text("", style=theme.active().fg_dim), data=None)
+        if isinstance(path, Path) and path.is_dir():
+            if not node.children:
+                node.add(Text("", style=theme.active().fg_dim), data=None)
+            self._relabel(node)
 
     def on_tree_node_selected(self, event: Tree.NodeSelected[NodeData]) -> None:
         """Enter: toggle directories, open files in the editor."""

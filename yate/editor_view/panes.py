@@ -413,10 +413,10 @@ class PaneHost(Widget):
     }
     /* divider between two panes of a split; only the first side gets it */
     .pane-sep-h {
-        border-bottom: heavy $primary 60%;
+        border-bottom: tall $foreground 25%;
     }
     .pane-sep-v {
-        border-right: heavy $primary 60%;
+        border-right: tall $foreground 25%;
     }
     """
 
