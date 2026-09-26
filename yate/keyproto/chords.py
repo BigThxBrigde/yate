@@ -20,6 +20,23 @@ VK_OEM_5 = 0xDC  # \| on US
 VK_OEM_6 = 0xDD  # ]} on US
 VK_OEM_7 = 0xDE  # '" on US
 
+#: ``dwControlKeyState`` bits (wincon.h).  CapsLock/NumLock/ScrollLock bits
+#: are keyboard state, not modifier inputs, and must not produce chords.
+CTRL_BITS = 0x0004 | 0x0008  # RIGHT_CTRL_PRESSED | LEFT_CTRL_PRESSED
+ALT_BITS = 0x0001 | 0x0002  # RIGHT_ALT_PRESSED | LEFT_ALT_PRESSED
+SHIFT_BIT = 0x0010  # SHIFT_PRESSED
+
+#: Modifier and lock keys themselves never form chords.
+MODIFIER_VKS = frozenset(
+    [
+        0x10, 0x11, 0x12,  # VK_SHIFT, VK_CONTROL, VK_MENU
+        0x14,  # VK_CAPITAL
+        0x5B, 0x5C,  # VK_LWIN, VK_RWIN
+        0x90, 0x91,  # VK_NUMLOCK, VK_SCROLL
+        *range(0xA0, 0xA6),  # VK_L/R SHIFT, CONTROL, MENU
+    ]
+)
+
 
 def vk_is_letter(vk: int) -> bool:
     """Return whether *vk* is one of ``VK_A``..``VK_Z`` (``0x41``..``0x5A``)."""

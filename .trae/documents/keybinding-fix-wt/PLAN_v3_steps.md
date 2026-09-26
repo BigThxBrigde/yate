@@ -120,6 +120,41 @@ Get-Content ~\.yate\data\logs\yate-*.log | Select-String "key event:"
 - WT / conhost / VS Code 三终端跑 `verify_matrix.ps1`（升级版：含 ctrl+1 全部预期）；
 - 全绿 → 关账 IKH1RA（引用 PA1 证据链）→ 发布 `v0.4.0`。
 
+### PB6 — win32-input-mode（`CSI ?9001h`）帧解码接入（探针实证产物）
+
+**动机**（2026-09-26 探针 + 22:11 trace 实证）：chord 驱动只读 conpty 合成的 legacy
+record，WT 对有 legacy 编码的键（ctrl+shift+e→`\x05`、ctrl+1→`1`）在 record 里丢失
+VK+修饰键；而启用 `?9001h` 后 WT 对**所有**键发无损帧（探针实测
+`ctrl+shift+e → [69;18;5;1;56;1_`、`ctrl+1 → [49;2;0;1;40;1_`、`ctrl+space → [32;57;32;1;40;1_`），
+conpty 把帧**以文本形态透传**进 record 的 UnicodeChar 流。
+
+**步骤**：
+
+1. `keyproto/frames.py`（新，L0 纯逻辑）：`Win32InputFrame` 模型（vk/scan/char/flags/
+   state/count，字段为十进制）+ `Win32FrameStream`（跨批缓冲的流式解码：完整帧
+   `\x1b\[[0-9;]+_` 提取，尾部疑似帧前缀 holdback，其余文本原样归还）+
+   `frame_to_key_name`（chord 名 / 导航键名，修饰键与 key-up 返回 None）+
+   `frame_to_char`（可打印/控制字符归还给 legacy parser）+ `NAV_VK_NAMES`
+   （方向键/翻页/insert/delete/F1-F24 → Textual 规范名）；
+2. `chords.py`：把 `_CTRL_BITS/_ALT_BITS/_SHIFT_BIT/_MODIFIER_VKS` 提升为公共常量
+   （frames 与 driver 共享，消除双份真相）；
+3. `driver_windows.py`：`start_application_mode` 写 `\x1b[?9001h`、`stop_application_mode`
+   补 `\x1b[?9001l`；`ChordEventMonitor.run` 批内字符先过 `Win32FrameStream`，帧合成
+   `Key` 事件（沿用 `chord:` VK 级日志格式），残余文本喂 legacy parser；零 VK+有修饰
+   的 record 丢弃条件收紧为「且 character 为空」（防止帧文本在携带修饰位时被误丢）；
+   不支持的终端（conhost/VS Code）忽略 9001h → 全部走原路径，零回归；
+4. `TerminalView.on_key` 消费点取证日志（TOGGLE_KEYS/ctrl+1/转发 PTY 均可见）——
+   修复「ctrl+space 未送达却观察到面板切换」无法自证的取证盲区；
+5. 测试：以探针真实帧为 fixtures；`pb6_real_input_harness.py` 无人值守真机验证
+   （SendInput 注入真实 WT 窗口 + trace 断言）。
+
+**ctrl+space 悖论结论**（写死在此，防再犯）：yate 无任何 ctrl+space→terminal 路径
+（`TOGGLE_KEYS` 不含 `ctrl+space`；editor 分支 ctrl+space 无条件补全）。legacy 下
+ctrl+space/ctrl+` 同为 NUL（`ctrl+@` ∈ TOGGLE_KEYS），**终端聚焦时** ctrl+space 以
+NUL 形态到达才会关终端——这是 docstring 已记录的碰撞取舍；22:11 trace 的 ctrl+space
+零记录（无驱动级 `chord:` 行）= 未到达（IME 热键拦截），观察到的切换来自同窗口
+ctrl+shift+2 按键（22:14:20/35 两次终端开关）的时间交叠归因。
+
 ---
 
 ## 执行状态
