@@ -2,7 +2,7 @@
 
 > 上位文档：`../wt_keybinding_fix_plan.md`（根因与决策）；根治路线见 `../win_keybinding_plan.md`
 > 分支 / worktree：`issues/keybinding-fix-wt` @ `d:/Programming/yate-keybinding-fix-wt`
-> 状态：**SP1–SP3 已实施**（2026-09-26；SP4 文档回填随本批提交，SP5 真机矩阵待用户执行）
+> 状态：**SP1–SP5 自动化部分已实施**（2026-09-26；仅剩 SP5 真机矩阵待用户手动执行）
 >
 > | SP | 状态 | commit |
 > |---|---|---|
@@ -11,8 +11,9 @@
 > | SP2 诊断日志 | ✅ pyright 0 | `ff3cfc0` feat(editor): log unmapped key events |
 > | SP2 pilot 守卫 | ✅ 150 passed（含反向演练：注释 ctrl+p 分支守卫捕获缺失） | `678c02c` test(editor): pin global chord dispatch branches |
 > | SP3 文档标注 | ✅ 全量 1228 passed, 7 skipped | `f26e65d` docs(manual): note terminal compatibility |
-> | SP4 文档回填 | ✅ review.md + P2 N8 + 本批状态回写 | （本 commit） |
-> | SP5 门禁+真机矩阵 | ⏳ pyright/pytest/架构守护待终跑；真机矩阵需用户在 WT/conhost/VS Code 手动勾选 | — |
+> | SP4 文档回填 | ✅ review.md + P2 N8 + 本批状态回写 + issue 回复草稿 | `ebee085` docs(keybinding): backfill IKH1RA disposition |
+> | SP5 门禁 | ✅ pyright 全仓 0 诊断 · 全量 1228 passed, 7 skipped · 架构守护 13 passed · 冒烟 88/88 场景 · 917/917 checks · exit 0 | — |
+> | SP5 真机矩阵 | ⏳ 需用户在 WT / conhost / VS Code 终端手动勾选（见 [SP5_gates_matrix.md](SP5_gates_matrix.md)）；pilot 无法覆盖终端字节层 | — |
 
 ## 执行顺序与测试门禁（铁律）
 
