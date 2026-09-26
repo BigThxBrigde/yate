@@ -19,8 +19,12 @@ from textual.containers import Horizontal
 from textual.events import Key
 from textual.widgets import Input, Static
 
+from yate.logs import tracing
+
 from . import theme
 from .icons import SEARCH, TERMINAL
+
+log = tracing.get_logger(__name__)
 
 #: ``(text, mode) -> candidates`` -- bash-style tab completion.
 PromptCompleter = Callable[[str, str], list[str]]
@@ -268,6 +272,7 @@ class PromptBar(Horizontal):
         """
         if not self.is_mounted:
             return False
+        log.debug("prompt activate: mode=%s", mode)
         prefix, attr = PREFIXES.get(mode, (":", "yellow"))
         self.active_mode = mode
         self._on_submit = on_submit
@@ -307,6 +312,7 @@ class PromptBar(Horizontal):
 
     def cancel(self) -> None:
         """Esc / ctrl+c on the prompt line: run the cancel hook and close."""
+        log.debug("prompt cancelled: mode=%s", self.active_mode)
         self.cancel_hook()
         self.idle()
         self._finish()
@@ -326,6 +332,7 @@ class PromptBar(Horizontal):
             return
         handler = self._on_submit
         self.input.push_history(event.value)
+        log.debug("prompt submit: mode=%s value=%r", mode, event.value)
         if handler is not None:
             handler(event.value)
         if self.active_mode is not None:

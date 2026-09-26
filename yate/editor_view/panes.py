@@ -36,6 +36,7 @@ from textual.widget import Widget
 
 from yate.editor_core.document import Document
 from yate.editor_view.editor import EditorView
+from yate.logs import tracing
 from yate.session import (
     MIN_FRACTION,
     RESIZE_STEP,
@@ -54,6 +55,8 @@ from yate.session import (
 
 
 # ================================================================ manager
+
+log = tracing.get_logger(__name__)
 
 
 class PaneManager:
@@ -94,6 +97,7 @@ class PaneManager:
 
     def attach(self, host: PaneHost) -> None:
         self.host = host
+        log.debug("pane host attached")
 
     @property
     def leaf_count(self) -> int:
@@ -205,6 +209,7 @@ class PaneManager:
         leaf = self.leaf_by_id(leaf_id)
         if leaf is self.active:
             return
+        log.debug("pane focus: leaf=%d", leaf_id)
         self.capture_active()
         self.apply_doc(leaf)
         self.after_pane_focus()
@@ -213,6 +218,7 @@ class PaneManager:
         """Bind *doc* into *leaf* (file open / tab cycle), restoring the
         per-(leaf, doc) view state."""
         if leaf.doc is not doc:
+            log.debug("pane shows doc: leaf=%d doc=%s", leaf.id, doc.path)
             if leaf is self.active:
                 self.capture_active()
             leaf.doc = doc
@@ -223,6 +229,10 @@ class PaneManager:
         """Rebind every leaf showing *closed* to *fallback* (``:bd``)."""
         for leaf in leaves(self.root):
             if leaf.doc is closed:
+                log.debug(
+                    "pane rebound: leaf=%d %s -> %s",
+                    leaf.id, closed.path, fallback.path,
+                )
                 leaf.doc = fallback
         if self.active.doc is fallback:
             self.apply_doc(self.active)
@@ -242,6 +252,7 @@ class PaneManager:
         split = Split(axis, [source, new_leaf], [0.5, 0.5])
         self.root = replace_node(self.root, source, split)
         self.active = new_leaf
+        log.info("pane split (%s): new leaf=%d doc=%s", axis, new_leaf.id, new_leaf.doc.path)
         if self.host is not None:
             await self.host.reconcile(new_leaf)
         # Same document: cloned cursor state keeps the new pane at the same
@@ -266,8 +277,13 @@ class PaneManager:
         new_root = remove_node(self.root, self.active)
         # not the last leaf (guarded above), so the tree still exists
         assert new_root is not None
+        closed_id = self.active.id
         self.root = new_root
         self.active = following
+        log.info(
+            "pane closed: leaf=%d -> leaf=%d (remaining=%d)",
+            closed_id, following.id, len(leaves(self.root)),
+        )
         if self.host is not None:
             await self.host.reconcile(following)
         self.apply_doc(following)
@@ -281,6 +297,7 @@ class PaneManager:
         keep = self.active
         self.capture_active()
         self.root = keep
+        log.info("panes reduced to leaf=%d (:only)", keep.id)
         if self.host is not None:
             await self.host.reconcile(keep)
         self.apply_doc(keep)

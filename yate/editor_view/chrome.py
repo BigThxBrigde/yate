@@ -16,11 +16,14 @@ from textual.events import MouseDown, Resize
 from textual.widgets import Static
 
 from yate.editor_core import Document
+from yate.logs import tracing
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
 from . import theme
 from .icons import CHEVRON_RIGHT, FOLDER, icon_for_path
+
+log = tracing.get_logger(__name__)
 
 
 class TabBar(Static):
@@ -105,6 +108,7 @@ class TabBar(Static):
         for start, end, doc_idx in self._regions:
             if start <= x < end:
                 if doc_idx != self.session.index:
+                    log.debug("tab clicked: index=%d", doc_idx)
                     self.on_activate(self.session.docs[doc_idx])
                 event.stop()
                 return

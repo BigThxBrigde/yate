@@ -31,10 +31,13 @@ from yate.editor_term import (
     resolve_shell,
     shell_label,
 )
+from yate.logs import tracing
 from yate.services.workspace import Workspace
 
 from . import theme
 from .commandline import PromptBar
+
+log = tracing.get_logger(__name__)
 
 #: Names Textual gives Ctrl+grave across platforms:
 #: - "ctrl+`" / "ctrl+grave": friendly/pilot names;
@@ -436,6 +439,7 @@ class TerminalPanel(Vertical):
         if not self.view.started:
             self.spawn_shell()
         if was_hidden:
+            log.info("terminal panel shown")
             self.prompt.write("terminal shown", kind="ok")
 
     def close(self) -> None:
@@ -446,6 +450,7 @@ class TerminalPanel(Vertical):
         self.display = False
         self._visible = False
         self.focus_editor()
+        log.info("terminal panel hidden")
         self.prompt.write("terminal hidden", kind="ok")
 
     def apply_height(self, height: int) -> None:
