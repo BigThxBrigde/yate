@@ -229,6 +229,10 @@
   "4cb06a3": {
     "summary": "审计计划文档与当前代码的一致性"
   },
+  "4cbbf2b": {
+    "summary": "发布工具只更新单一动态版本源",
+    "detail": "test_theme_palettes 的静态版本断言已在 P2 清理中移除，删除失效的第二 bump 目标"
+  },
   "4ccd904": {
     "summary": "命令行裸数字跳转行号，新增 Ctrl+G 跳转提示"
   },
@@ -314,6 +318,10 @@
   },
   "649f113": {
     "summary": "修复删除文件夹关闭标签时未通知 LSP 的问题"
+  },
+  "64b3a33": {
+    "summary": "版本 bump 正则加 re.MULTILINE 锚定",
+    "detail": "包 __init__ 以模块 docstring 开头，无 MULTILINE 的 ^ 锚点永远匹配不到 __version__ 行"
   },
   "64e2dd4": {
     "summary": "PTY 测试覆盖各平台后端与门面失败路径"
@@ -446,6 +454,10 @@
   },
   "8a5d1bf": {
     "summary": "修复 workspace 与 manual 两腿 CI 的失败用例"
+  },
+  "8abec69": {
+    "summary": "补齐缺失的中文翻译并刷新变更日志",
+    "detail": "为 42 条缺译条目补齐中文摘要，翻译覆盖率达 254/254"
   },
   "8ae5da6": {
     "summary": "为所有配色方案补齐提示符配色"
