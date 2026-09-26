@@ -65,11 +65,16 @@ def test_chord_to_raw_returns_none_for_physically_unmappable_chords() -> None:
 
 def test_yate_app_selects_chord_driver_on_windows() -> None:
     from yate.app import YateApp
+    from yate.config import YateConfig
     from yate.keyproto.driver_windows import YateWindowsDriver
+    from textual.drivers.windows_driver import WindowsDriver
 
     if sys.platform != "win32":
         pytest.skip("chord driver is Windows-only")
     assert YateApp().get_driver_class() is YateWindowsDriver
+    # yaterc escape hatch: key_protocol = "legacy" restores the stock driver
+    legacy = YateApp(config=YateConfig(key_protocol="legacy"))
+    assert legacy.get_driver_class() is WindowsDriver
 
 
 def test_record_key_override_builds_phase_b_chords() -> None:

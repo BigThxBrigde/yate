@@ -133,6 +133,18 @@ def test_invalid_keymap(tmp_path: Path) -> None:
     assert any("keymap" in e for e in config.errors)
 
 
+def test_key_protocol_defaults_and_valid_values(tmp_path: Path) -> None:
+    assert cfg.YateConfig().key_protocol == "auto"
+    assert _load('key_protocol = "legacy"\n', tmp_path).key_protocol == "legacy"
+    assert _load('key_protocol = "win32-input"\n', tmp_path).key_protocol == "win32-input"
+
+
+def test_invalid_key_protocol(tmp_path: Path) -> None:
+    config = _load('key_protocol = "vt100"\n', tmp_path)
+    assert config.key_protocol == "auto"
+    assert any("key_protocol" in e for e in config.errors)
+
+
 def test_invalid_tab_width_values(tmp_path: Path) -> None:
     for value in ('"wide"', "0", "17", "True", "3.5"):
         config = _load(f"tab_width = {value}\n", tmp_path)

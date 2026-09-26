@@ -38,16 +38,17 @@ class YateApp(App[None]):
 
     @override
     def get_driver_class(self) -> type[Driver]:
-        """Pick the chord-aware driver on Windows.
+        """Pick the chord-aware driver on Windows unless yaterc opts out.
 
         The stock Windows driver reduces every key record to its character,
         losing the virtual key and modifier state -- ctrl+digit never arrives
         and ctrl+`/ctrl+space collapse into one NUL byte.  The chord driver
         synthesizes canonical key names from the console records instead
         (headless/pilot runs are unaffected: they request HeadlessDriver
-        explicitly).  Non-Windows platforms keep Textual's platform default.
+        explicitly).  ``key_protocol = "legacy"`` in yaterc restores the
+        stock driver; non-Windows platforms keep Textual's platform default.
         """
-        if sys.platform == "win32":
+        if sys.platform == "win32" and self.config.key_protocol != "legacy":
             from yate.keyproto.driver_windows import YateWindowsDriver
 
             return YateWindowsDriver
@@ -105,10 +106,12 @@ class YateApp(App[None]):
         ext_files: list[str | Path] | None = None,
         ext_dirs: list[str | Path] | None = None,
     ) -> None:
+        # self.config must exist before super().__init__(): App.__init__
+        # resolves the driver class, which consults config.key_protocol.
+        self.config = config if config is not None else YateConfig()
         super().__init__()
         self.title = f"yate {__version__}"
 
-        self.config = config if config is not None else YateConfig()
         # The color theme is process-global state (like vim's colorscheme).
         # An explicit selection (--theme) wins over the yaterc option.
         wanted_theme = theme_name if theme_name is not None else self.config.theme
