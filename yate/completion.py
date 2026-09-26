@@ -28,8 +28,11 @@ from yate.editor_lsp import LspManager
 from yate.editor_lsp.client import Completion
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.logs import tracing
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
+
+log = tracing.get_logger(__name__)
 
 
 class CompletionController:
@@ -91,6 +94,7 @@ class CompletionController:
         """
         popup = self.popup
         if popup.is_open:
+            log.debug("completion popup closed")
             popup.close()
         self._dismissed = True
 
@@ -149,6 +153,7 @@ class CompletionController:
             if self._scheduled_open and not popup.is_open:
                 return
         self._inflight_open = popup.is_open
+        log.debug("completion query (manual=%s trigger=%r)", manual, trigger_ch)
         self.app.run_worker(
             # the coroutine *function*: an eager coroutine would leak if the
             # worker never starts
@@ -190,6 +195,8 @@ class CompletionController:
                 popup.close()
                 if manual:
                     self.prompt.write("no completions", kind="info")
+                else:
+                    log.debug("completion: no buffer candidates")
                 return
             self._show_items(items, buf_prefix, editor, line, col, buf, row)
             return
@@ -227,6 +234,8 @@ class CompletionController:
             popup.close()
             if manual:
                 self.prompt.write("no completions", kind="info")
+            else:
+                log.debug("completion: no lsp candidates")
             return
         self._show_items(items, prefix, editor, line, col, buf, row)
 
@@ -272,6 +281,7 @@ class CompletionController:
             editor.gutter_width(),
             origin_y=2,
         )
+        log.debug("completion popup shown: %d items", len(items))
 
     # -------------------------------------------------------------- accept
 
@@ -307,6 +317,7 @@ class CompletionController:
             while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
                 i -= 1
             start, end = (row, i), (row, col)
+        log.debug("completion accepted: %s", item.label)
         buf.replace_range(start, end, item.insert_text)
         self.refresh()
 

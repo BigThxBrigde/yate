@@ -42,10 +42,12 @@ from typing import Any, cast
 
 from collections.abc import Callable, Sequence
 
-from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
+from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES, tracing
 
 #: File name yate looks for in the project tree.
 RC_FILENAME = "yaterc"
+
+log = tracing.get_logger(__name__)
 
 #: Recognized option variables in a yaterc file.
 _KNOWN_OPTIONS = (
@@ -238,6 +240,10 @@ def load_config(
     if load_theme_paths is not None:
         load_theme_paths(config.theme_dirs, config.errors)
     _extract_options(namespace, config)
+    log.debug(
+        "yaterc loaded: sources=%s errors=%d",
+        [str(p) for p in config.sources], len(config.errors),
+    )
     return config
 
 

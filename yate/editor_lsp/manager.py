@@ -565,6 +565,10 @@ class LspManager:
                 self._diagnostics[uri] = self._parse_diagnostics(
                     params.get("diagnostics")
                 )
+                log.debug(
+                    "diagnostics published: %s (%d item(s))",
+                    uri.rsplit("/", 1)[-1], len(self._diagnostics[uri]),
+                )
                 self._fire("diagnostics")
         elif method in (
             "window/logMessage",

@@ -12,6 +12,9 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from yate.keymaps.base import Keymap
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 
 class KeymapSet:
@@ -56,7 +59,10 @@ class KeymapSet:
     def select(self, name: str) -> bool:
         """Activate *name*; ``False`` when it is not a known keymap."""
         if name not in self._keymaps:
+            log.warning("keymap not found: %s", name)
             return False
+        if name != self._name:
+            log.debug("keymap selected: %s", name)
         self._name = name
         return True
 
