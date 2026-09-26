@@ -21,6 +21,16 @@
 > win32-input-mode 帧探测，定轻量协议 or 自建驱动）→ PB2（驱动 chord 交付）→ PB3（`key_protocol`
 > 配置）→ PB4（文档）→ PB5（矩阵复测+发布）。步骤见 [PLAN_v3_steps.md](PLAN_v3_steps.md)。
 > Phase A 合计 6 commits：`5a73fc7` `1d1f3d8` `34ab059` `beea5e0` `1db6175` `d56e43a`。
+>
+> **✅ 2026-09-26 Phase B 主体完成**（PB1/PB2/PB3/PB4/PB5-r1/PB6）：
+> `5cd97d1` `ce93090` `33f91e5` `c9713df` `54ab508` `b246fa5` `afaf000` `7b08070` `fe4d92c`。
+> PB6 起启用 **win32-input-mode（`CSI ?9001h`）无损帧解码**（`keyproto/frames.py`），真机
+> 无人值守验收（SendInput 注入真实 WT + YATE_TRACE 断言）**12/12 PASS**：x/down/ctrl+p/
+> ctrl+shift+e（与 ctrl+e 区分）/ctrl+1（legacy 无法送达）/ctrl+space（独立命名）/ctrl+\`
+> （终端开关）全部到达且单触发，ctrl+q 正常退出。ctrl+space 悖论结论（IME 拦截 + 时间交叠
+> 归因）在真机复现实锤。运行细节与抓到的缺陷（key-up 帧误判双触发等）见
+> [PLAN_v3_steps.md](PLAN_v3_steps.md) 执行状态表 PB6 行。**剩 PB5 三终端矩阵**：
+> WT 已由 harness 覆盖，conhost / VS Code 待人工复测。
 
 ## 执行顺序与测试门禁（铁律）
 

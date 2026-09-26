@@ -12,6 +12,13 @@ layers were already name-ready (``TOGGLE_KEYS`` contains ``ctrl+``, the
 completion branch matches ``ctrl+space``), so delivery alone activates the
 previously unreachable semantics.
 
+On top of the record path the driver enables win32-input-mode
+(``CSI ?9001h``): Windows Terminal then encodes every key as a structured
+frame carried as text in the character stream, decoded by
+:mod:`yate.keyproto.frames` -- the only delivery that preserves the modifier
+state of keys legacy encodes lossily (ctrl+1 arrives as bare ``1``).
+Terminals without win32-input-mode ignore the mode and keep the legacy path.
+
 Windows-only; import lazily from :meth:`yate.app.YateApp.get_driver_class`.
 """
 
@@ -33,6 +40,10 @@ from textual.message import Message
 
 from yate.keyproto.aliases import chord_to_key_name
 from yate.keyproto.chords import (
+    ALT_BITS,
+    CTRL_BITS,
+    MODIFIER_VKS,
+    SHIFT_BIT,
     VK_OEM_2,
     VK_OEM_3,
     VK_OEM_4,
@@ -41,6 +52,7 @@ from yate.keyproto.chords import (
     VK_SPACE,
     KeyChord,
 )
+from yate.keyproto.frames import Win32FrameStream, frame_to_char, frame_to_key_name
 from yate.logs import tracing
 
 log = tracing.get_logger(__name__)
@@ -62,23 +74,6 @@ _CHORD_VKS = frozenset(
     ]
 )
 
-#: dwControlKeyState bits (wincon.h).  CapsLock/NumLock/ScrollLock bits are
-#: keyboard state, not modifier inputs, and must not produce chords.
-_CTRL_BITS = 0x0004 | 0x0008  # RIGHT_CTRL_PRESSED | LEFT_CTRL_PRESSED
-_ALT_BITS = 0x0001 | 0x0002  # RIGHT_ALT_PRESSED | LEFT_ALT_PRESSED
-_SHIFT_BIT = 0x0010  # SHIFT_PRESSED
-
-#: Modifier and lock keys themselves never form chords.
-_MODIFIER_VKS = frozenset(
-    [
-        0x10, 0x11, 0x12,  # VK_SHIFT, VK_CONTROL, VK_MENU
-        0x14,  # VK_CAPITAL
-        0x5B, 0x5C,  # VK_LWIN, VK_RWIN
-        0x90, 0x91,  # VK_NUMLOCK, VK_SCROLL
-        *range(0xA0, 0xA6),  # VK_L/R SHIFT, CONTROL, MENU
-    ]
-)
-
 
 def record_key_override(
     vk: int, control_state: int, unicode_char: str
@@ -90,17 +85,17 @@ def record_key_override(
     (:data:`_CHORD_VKS`); shift is captured so ``ctrl+shift+e`` finally
     differs from ``ctrl+e``.  *unicode_char* rides along as transport data.
     """
-    if vk == 0 or vk in _MODIFIER_VKS:
+    if vk == 0 or vk in MODIFIER_VKS:
         return None
-    ctrl = bool(control_state & _CTRL_BITS)
-    alt = bool(control_state & _ALT_BITS)
+    ctrl = bool(control_state & CTRL_BITS)
+    alt = bool(control_state & ALT_BITS)
     if not (ctrl or alt) or vk not in _CHORD_VKS:
         return None
     return KeyChord(
         vk,
         ctrl=ctrl,
         alt=alt,
-        shift=bool(control_state & _SHIFT_BIT),
+        shift=bool(control_state & SHIFT_BIT),
         char=unicode_char,
     )
 
@@ -124,6 +119,10 @@ class ChordEventMonitor(win32.EventMonitor):
         """Read console input records; deliver chords as canonical key events."""
         exit_requested = self.exit_event.is_set
         parser = XTermParser(debug=constants.DEBUG)
+        # win32-input-mode frames arrive as text inside the character stream
+        # (see yate.keyproto.frames); decode them incrementally across read
+        # batches and hand only the residual text to the legacy parser.
+        frame_stream = Win32FrameStream()
         # The stock parser events are Messages at the type level; the runtime
         # input path is the same callable for both (see the Key cast below).
         deliver = cast("Callable[[Message], None]", self.process_event)
@@ -171,10 +170,14 @@ class ChordEventMonitor(win32.EventMonitor):
                         key = key_event.uChar.UnicodeChar
                         if key_event.bKeyDown:
                             # conpty emits zero-VK records for modifier
-                            # transitions; the stock driver drops them.
+                            # transitions; the stock driver drops them.  Win32-
+                            # input-mode frames ride the same shape (zero-VK
+                            # text records) but carry real characters -- keep
+                            # those so the frame stream below sees them.
                             if (
                                 key_event.dwControlKeyState
                                 and key_event.wVirtualKeyCode == 0
+                                and not key
                             ):
                                 continue
                             chord = record_key_override(
@@ -203,10 +206,33 @@ class ChordEventMonitor(win32.EventMonitor):
                         new_size = (size.X, size.Y)
 
                 if keys:
-                    for event in parser.feed(
-                        "".join(keys).encode("utf-16", "surrogatepass").decode("utf-16")
-                    ):
-                        deliver(event)
+                    text = (
+                        "".join(keys)
+                        .encode("utf-16", "surrogatepass")
+                        .decode("utf-16")
+                    )
+                    key_frames, residual = frame_stream.feed(text)
+                    residuals = [residual]
+                    for key_frame in key_frames:
+                        name = frame_to_key_name(key_frame)
+                        if name is not None:
+                            # Same VK-level evidence log as the record path.
+                            log.debug(
+                                "chord: vk=0x%02x state=0x%04x char=%r -> %s",
+                                key_frame.vk,
+                                key_frame.state,
+                                key_frame.char_text,
+                                name,
+                            )
+                            deliver(Key(name, character=key_frame.char_text))
+                            continue
+                        frame_char = frame_to_char(key_frame)
+                        if frame_char:
+                            residuals.append(frame_char)
+                    residual_text = "".join(residuals)
+                    if residual_text:
+                        for event in parser.feed(residual_text):
+                            deliver(event)
                 if new_size is not None:
                     self.on_size_change(*new_size)
 
@@ -235,6 +261,13 @@ class YateWindowsDriver(WindowsDriver):
         self.write("\x1b[?25l")  # Hide cursor
         self.write("\033[?1004h")  # Enable FocusIn/FocusOut.
         self.write("\x1b[>1u")  # https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+        # Win32-input-mode: terminals that implement it (Windows Terminal)
+        # encode every key as a full-fidelity frame (VK + modifiers), which
+        # the monitor's frame stream decodes -- this is what makes ctrl+digit
+        # and ctrl+shift+letter deliverable at all.  ConPTY forwards the
+        # frames as text; terminals without support ignore the mode and keep
+        # the legacy path.  https://learn.microsoft.com/en-us/windows/console/win32-input-mode
+        self.write("\x1b[?9001h")
         self.flush()
         self._enable_bracketed_paste()
 
@@ -242,3 +275,11 @@ class YateWindowsDriver(WindowsDriver):
             loop, self._app, self.exit_event, self.process_message
         )
         self._event_thread.start()
+
+    @override
+    def stop_application_mode(self) -> None:
+        """Stop application mode, restoring state (incl. win32-input-mode)."""
+        # Written before the stock teardown so the mode reset precedes the
+        # alt-screen leave in the output stream.
+        self.write("\x1b[?9001l")
+        super().stop_application_mode()

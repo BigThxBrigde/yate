@@ -216,6 +216,17 @@ class TerminalView(Widget):
     # --------------------------------------------------------------- input
 
     def on_key(self, event: Key) -> None:
+        # Consumption-point evidence: keys eaten here never reach the
+        # Editor.handle_key entry log, so without this line a trace cannot
+        # distinguish "key never arrived" from "arrived and was consumed by
+        # the terminal" (the 2026-09-26 ctrl+space forensics blind spot).
+        log.debug(
+            "terminal on_key: key=%s character=%r started=%s dead=%s",
+            event.key,
+            event.character,
+            self.started,
+            self.dead,
+        )
         if event.key in TOGGLE_KEYS:
             event.stop()
             event.prevent_default()
