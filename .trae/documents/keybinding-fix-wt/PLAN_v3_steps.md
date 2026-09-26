@@ -133,4 +133,4 @@ Get-Content ~\.yate\data\logs\yate-*.log | Select-String "key event:"
 | PA4 文档回填 | ✅ | `beea5e0` | — |
 | **PA2b C0 兜底（真机 trace 裁决产物）** | ✅ | `1db6175` | trace 实锤：WT win32 驱动把 ctrl+] 命名为 `ctrl+right_square_bracket`（character 仍携 `\x1d`）、ctrl+6 → `ctrl+circumflex_accent`（`\x1e`）→ `event_to_raw` 增加兜底：ctrl-chord 表查找未命中且 `event.character` 为 C0（<0x20）→ 直接采用；一次覆盖全部未知标点命名，ctrl+p trace 显示 `key=ctrl+p`（规范名，无 unmapped）；191 passed / pyright 0 |
 | **Phase A 真机验收** | ✅ | — | 2026-09-26 19:06 复测 trace：`ctrl+right_square_bracket`×4 / `ctrl+underscore`×8 / `ctrl+p` 全部**无 unmapped 行**（对照修复前 18:59 段）→ ctrl+]、ctrl+6、ctrl+/、ctrl+p 在 WT 真机全通；`escape` 关面板正常 |
-| PB1–PB5 | ⏳ 待启动 | — | 适用键：ctrl+数字、ctrl+`↔ctrl+space 碰撞、ctrl+e/ctrl+shift+e 区分、alt+digit（见 §Phase B 清单）；Phase A 交付的派发链是 B 的地基 |
+| PB1–PB5 | 🔄 **PB1 执行中（2026-09-26 启动）** | — | 适用键：ctrl+数字、ctrl+`↔ctrl+space 碰撞、ctrl+e/ctrl+shift+e 区分、alt+digit（见 §Phase B 清单）；Phase A 交付的派发链是 B 的地基 |

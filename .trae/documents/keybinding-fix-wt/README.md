@@ -15,11 +15,11 @@
 > | SP5 门禁 | ✅ pyright 全仓 0 诊断 · 全量 1228 passed, 7 skipped · 架构守护 13 passed · 冒烟 88/88 场景 · 917/917 checks · exit 0 | — |
 > | SP5 真机矩阵 | ⚠️ **部分不符**（2026-09-26 实测：vim 下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效）→ 新根因与重排计划见 **[PLAN_B_v2_key_reachability.md](PLAN_B_v2_key_reachability.md)** | — |
 
-> **✅ 2026-09-26 Phase A 真机验收通过**：复测 trace 显示 `ctrl+]`（曾名 `ctrl+right_square_bracket`）、
-> `ctrl+6`（`ctrl+circumflex_accent`）、`ctrl+/`（`ctrl+underscore`）、`ctrl+p` 全部到达派发且无 unmapped 行——
-> PA2b 的 C0 兜底（`event_to_raw`：表未命中且 `character`<0x20 → 直接采用）一次覆盖 WT win32 驱动的
-> 全部标点全名漂移。vsc/vim 双键位全通；IKH1RA 仅剩 `ctrl+1`（trace 无事件行 = 物理层丢失，
-> Phase B PB1–PB5 是唯一解，步骤已备于 [PLAN_v3_steps.md](PLAN_v3_steps.md)）。
+> **🔄 2026-09-26 Phase B 启动**：Phase B 完成后即可修复物理层键——ctrl+数字（无事件行）、
+> ctrl+`↔ctrl+space NUL 碰撞（`editor.py:587` 现状取舍：编辑器聚焦→补全、终端聚焦→关终端）、
+> ctrl+e/ctrl+shift+e 区分、alt+digit。执行顺序 PB1（keyproto L0 包）→ PB2.0（XTermParser
+> win32-input-mode 帧探测，定轻量协议 or 自建驱动）→ PB2（驱动 chord 交付）→ PB3（`key_protocol`
+> 配置）→ PB4（文档）→ PB5（矩阵复测+发布）。步骤见 [PLAN_v3_steps.md](PLAN_v3_steps.md)。
 > Phase A 合计 6 commits：`5a73fc7` `1d1f3d8` `34ab059` `beea5e0` `1db6175` `d56e43a`。
 
 ## 执行顺序与测试门禁（铁律）
