@@ -1,6 +1,10 @@
-"""Tests for the keyproto leaf package: chord model, name/raw codecs."""
+"""Tests for the keyproto leaf package: chord model, codecs, chord driver."""
 
 from __future__ import annotations
+
+import sys
+
+import pytest
 
 from yate.keyproto.aliases import chord_to_key_name, chord_to_raw
 from yate.keyproto.chords import (
@@ -57,3 +61,38 @@ def test_chord_to_raw_returns_none_for_physically_unmappable_chords() -> None:
     assert chord_to_raw(KeyChord(0x31, ctrl=True)) is None
     assert chord_to_raw(KeyChord(0x45, ctrl=True, alt=True)) is None
     assert chord_to_raw(KeyChord(0x45, shift=True)) is None
+
+
+def test_yate_app_selects_chord_driver_on_windows() -> None:
+    from yate.app import YateApp
+    from yate.keyproto.driver_windows import YateWindowsDriver
+
+    if sys.platform != "win32":
+        pytest.skip("chord driver is Windows-only")
+    assert YateApp().get_driver_class() is YateWindowsDriver
+
+
+def test_record_key_override_builds_phase_b_chords() -> None:
+    from yate.keyproto.driver_windows import record_key_override
+
+    # ctrl+1: no legacy byte, now delivered (LEFT_CTRL_PRESSED = 0x0008)
+    chord = record_key_override(0x31, 0x0008, "")
+    assert chord is not None and chord.ctrl and not chord.shift
+    # ctrl+shift+e finally differs from ctrl+e (SHIFT_PRESSED = 0x0010)
+    chord = record_key_override(0x45, 0x0008 | 0x0010, "E")
+    assert chord is not None and chord.shift and chord.ctrl
+    # alt+digit (LEFT_ALT_PRESSED = 0x0002)
+    chord = record_key_override(0x32, 0x0002, "")
+    assert chord is not None and chord.alt and not chord.ctrl
+    # capslock/numlock bits alone must not produce chords (0x0080/0x0020)
+    assert record_key_override(0x45, 0x0080, "e") is None
+    assert record_key_override(0x45, 0x0020, "e") is None
+    # plain typing keeps the legacy char path
+    assert record_key_override(0x41, 0, "a") is None
+    # modifier keys themselves never chord
+    assert record_key_override(0x11, 0x0008, "") is None
+    assert record_key_override(0x10, 0x0010, "") is None
+    # navigation VKs stay on the legacy path (not in _CHORD_VKS)
+    assert record_key_override(0x26, 0x0008, "") is None
+    # zero-VK conpty modifier records stay on the stock skip path
+    assert record_key_override(0, 0x0008, "") is None

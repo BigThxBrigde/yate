@@ -9,10 +9,12 @@ table modules import the editor, so the editor must not import them back).
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import override
 
 from textual.app import App, ComposeResult
+from textual.driver import Driver
 from textual.events import Key
 
 from yate import __version__
@@ -33,6 +35,23 @@ class YateApp(App[None]):
 
     # ctrl+p is yate's own command prompt -- disable Textual's palette.
     ENABLE_COMMAND_PALETTE = False
+
+    @override
+    def get_driver_class(self) -> type[Driver]:
+        """Pick the chord-aware driver on Windows.
+
+        The stock Windows driver reduces every key record to its character,
+        losing the virtual key and modifier state -- ctrl+digit never arrives
+        and ctrl+`/ctrl+space collapse into one NUL byte.  The chord driver
+        synthesizes canonical key names from the console records instead
+        (headless/pilot runs are unaffected: they request HeadlessDriver
+        explicitly).  Non-Windows platforms keep Textual's platform default.
+        """
+        if sys.platform == "win32":
+            from yate.keyproto.driver_windows import YateWindowsDriver
+
+            return YateWindowsDriver
+        return super().get_driver_class()
 
     CSS = """
     #bottom-dock {
