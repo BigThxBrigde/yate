@@ -37,7 +37,9 @@ _CHANGELOG_FILES = (
 )
 
 _SEMVER_RE = re.compile(r"\d+\.\d+\.\d+$")
-_INIT_VERSION_RE = re.compile(r'^(__version__\s*=\s*")([^"]+)(")')
+# MULTILINE: the package __init__ opens with a module docstring, so the
+# __version__ line is never at position 0.
+_INIT_VERSION_RE = re.compile(r'^(__version__\s*=\s*")([^"]+)(")', re.MULTILINE)
 
 
 def discover_repo_root() -> Path:
