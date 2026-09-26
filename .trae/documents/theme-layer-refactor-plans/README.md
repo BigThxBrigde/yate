@@ -299,5 +299,7 @@ theme.py（纯内聚优化，R11 冻结面不因此变化，YAGNI）；`editor_v
     （rules R4/§四/§六、app-layering README §11、P2 账、review.md）。提交 `066ae12`。
   - **SP3**：全量门禁两轮 1218+7 skipped exit 0（183.72s / 173.45s，零偶发）+
     pyright 0/0/0 + 冒烟 88/88 · 917/917 exit 0；对基线差异仅 collected +2，符合预期。
-  - **偏离**：① 依赖组需 `.[dev,ts]`；② pytest 门禁统一 `-o addopts= -q`（addopts 叠加
+  - **偏离**：① 依赖组需 `.[dev,ts]`——**已修复（同日）**：`dev` extras 并入 `ts` 全组
+    （pyproject 注明「keep in sync」），裸 `.[dev]` 安装即满足 pyright 全仓门禁，
+    实测重装 + pyright 0/0/0；② pytest 门禁统一 `-o addopts= -q`（addopts 叠加
     吞汇总行）；③ 计划的两笔提交按用户指令改为每 SP 末即提交（内容与文件域不变）。
