@@ -75,6 +75,7 @@ def test_ctrl_and_alt() -> None:
     # Legacy terminals deliver \x1f as Textual's "ctrl+underscore"; kitty
     # CSI-u ones as "ctrl+slash".  Both spellings map to the same byte.
     assert textual_key_to_raw("ctrl+underscore") == "\x1f"
+    assert textual_key_to_raw("ctrl+slash") == "\x1f"
     assert textual_key_to_raw("alt+u") == "\x1bu"
 
 
