@@ -76,7 +76,15 @@ Get-Content ~\.yate\data\logs\yate-*.log | Select-String "key event:"
 
 ---
 
-## Phase B — Windows 输入通道（ctrl+1 / ctrl+shift+e 区分的唯一解）
+## Phase B — Windows 输入通道（物理层丢失/碰撞键的唯一解）
+
+> **适用键清单（真机 trace 实证，2026-09-26）：**
+> 1. **ctrl+1 等 ctrl+数字**：trace 无事件行 —— conhost 不编 C0、win32 驱动只读 `uChar` 不读 `dwControlKeyState`；
+> 2. **ctrl+` vs ctrl+space**：两者在 WT 都坍缩为 NUL（`ctrl+@`）—— 现状取舍（`editor.py:587` 排除 +
+>    `terminal.py:49` 全名集合）：编辑器聚焦 → 补全；终端聚焦 → 关终端。win32-input-mode 下
+>    VK_OEM_3 ≠ VK_SPACE 可区分，两者才能各得其所；
+> 3. **ctrl+e / ctrl+shift+e 区分**：legacy 终端同为 `\x05`。
+> alt+digit 同类（Textual 映成 `¡` 等字符）。
 
 > 简化洞察：Textual 的 `XTermParser` 可能**原生支持** win32-input-mode 帧（`\x1b[vk;mods;...u` 形态与 kitty CSI-u 同族）。
 > 若支持，PB2 从"自建驱动"降级为"启动时启用协议 + 键名映射"，工作量减半。PB2.0 探测定方案。
@@ -125,4 +133,4 @@ Get-Content ~\.yate\data\logs\yate-*.log | Select-String "key event:"
 | PA4 文档回填 | ✅ | `beea5e0` | — |
 | **PA2b C0 兜底（真机 trace 裁决产物）** | ✅ | `1db6175` | trace 实锤：WT win32 驱动把 ctrl+] 命名为 `ctrl+right_square_bracket`（character 仍携 `\x1d`）、ctrl+6 → `ctrl+circumflex_accent`（`\x1e`）→ `event_to_raw` 增加兜底：ctrl-chord 表查找未命中且 `event.character` 为 C0（<0x20）→ 直接采用；一次覆盖全部未知标点命名，ctrl+p trace 显示 `key=ctrl+p`（规范名，无 unmapped）；191 passed / pyright 0 |
 | **Phase A 真机验收** | ✅ | — | 2026-09-26 19:06 复测 trace：`ctrl+right_square_bracket`×4 / `ctrl+underscore`×8 / `ctrl+p` 全部**无 unmapped 行**（对照修复前 18:59 段）→ ctrl+]、ctrl+6、ctrl+/、ctrl+p 在 WT 真机全通；`escape` 关面板正常 |
-| PB1–PB5 | ⏳ 待启动 | — | trace 无 ctrl+1 事件行 → 物理层丢失实锤，PB 是 ctrl+1 唯一解；Phase A 交付的派发链（全局分支 → keymap）是 B 的地基 |
+| PB1–PB5 | ⏳ 待启动 | — | 适用键：ctrl+数字、ctrl+`↔ctrl+space 碰撞、ctrl+e/ctrl+shift+e 区分、alt+digit（见 §Phase B 清单）；Phase A 交付的派发链是 B 的地基 |
