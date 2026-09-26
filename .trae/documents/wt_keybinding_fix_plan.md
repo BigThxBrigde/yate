@@ -1,6 +1,6 @@
 # Windows Terminal 键位失效修复计划（IKH1RA）
 
-> 状态：**止血切片已执行（SP1–SP3，commit `b03e40f`/`ff3cfc0`/`678c02c`/`f26e65d`），真机复测 vim 键位仅 ctrl+q 恢复 —— 后续路线移交 [`keybinding-fix-wt/PLAN_B_v2_key_reachability.md`](keybinding-fix-wt/PLAN_B_v2_key_reachability.md)**
+> 状态：**止血切片已执行（SP1–SP3），真机复测争议 → 探针实证（v3）与分步执行计划见 [`keybinding-fix-wt/PLAN_v3_steps.md`](keybinding-fix-wt/PLAN_v3_steps.md)**
 > 分支：`issues/keybinding-fix-wt`（worktree `d:/Programming/yate-keybinding-fix-wt`，
 > 基线 `issues/refine-arch` f2a0e45；原分支指针 673b077 是该基线的祖先，重置无历史丢失）
 > Issue：[Gitee IKH1RA — 部分 KeyBinding 在 Windows Terminal 下失效](https://gitee.com/jermaine/yate/issues/IKH1RA)

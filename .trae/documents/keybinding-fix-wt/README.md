@@ -15,10 +15,13 @@
 > | SP5 门禁 | ✅ pyright 全仓 0 诊断 · 全量 1228 passed, 7 skipped · 架构守护 13 passed · 冒烟 88/88 场景 · 917/917 checks · exit 0 | — |
 > | SP5 真机矩阵 | ⚠️ **部分不符**（2026-09-26 实测：vim 下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效）→ 新根因与重排计划见 **[PLAN_B_v2_key_reachability.md](PLAN_B_v2_key_reachability.md)** | — |
 
-> **⚠️ 2026-09-26 真机验证结论**：SP1–SP3 止血只在 vsc 键位生效；新根因为
-> `EditorView.on_key` 无条件 `event.stop()`（`editor_view/editor.py:257-259`）使
-> `Editor.handle_key` 的全局分支在编辑器聚焦时不可达 + vim keymap 吞键。
-> 后续路线以 **PLAN_B_v2** 为准：Phase A（全局和弦下沉，先行）→ Phase B（Windows 驱动重写，仅剩 ctrl+1 类键）。
+> **⚠️ 2026-09-26 探针实证（v3）**：`_probe_vim.py` 证明**当前分支代码**在 pilot 层 vim 模式下
+> ctrl+p（面板开）与 ctrl+/（双名字切换）全部可达——v2 的"EditorView 无条件 stop 致分支死代码"
+> 假设**不成立**（`EditorView.on_key` → `dispatch_key` 就是 `Editor.handle_key`，分支先于 keymap）。
+> 真机失败最可能是**被测了安装版旧代码**；次可能是 WT win32 驱动 event.key 命名差异。
+> 分步执行计划见 **[PLAN_v3_steps.md](PLAN_v3_steps.md)**：
+> Phase A（入口取证日志 + 别名加固 + vim 守卫）已实施 → 用 `YATE_TRACE=1` 真机复测裁决；
+> Phase B（win32-input-mode / 驱动 chord）保留为 ctrl+1 的唯一解，PB2.0 探测后定自建驱动还是轻量协议启用。
 
 ## 执行顺序与测试门禁（铁律）
 
