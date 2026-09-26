@@ -159,6 +159,11 @@ def head_sha(repo: Path) -> str:
     return run_git(["rev-parse", "HEAD"], repo=repo).strip()
 
 
+def current_branch(repo: Path) -> str:
+    """The checked-out branch name; empty string on a detached HEAD."""
+    return run_git(["branch", "--show-current"], repo=repo).strip()
+
+
 def resolve_commit_sha(repo: Path, prefix: str) -> str:
     """Expand a (short) hash prefix to the full sha; raises if unknown."""
     return run_git(["rev-parse", "--verify", f"{prefix}^{{commit}}"], repo=repo).strip()
