@@ -354,9 +354,18 @@ yate 内置两套键位：
 
 ### 终端兼容性
 
-传统终端（Windows Terminal、conhost 及多数老式模拟器）上报 `Ctrl`+数字时会丢失
-修饰键，因此 `Ctrl+1` 只在支持 kitty 键盘协议（CSI-u 序列）的终端（kitty、
-WezTerm 等）可达；其它终端请改用命令面板（`Alt+Shift+P`）或 `:` 命令行。
+Windows 上 yate 默认启用和弦驱动（`key_protocol = "auto"`）：直接读取控制台
+输入记录的虚拟键与修饰键状态，`Ctrl+1`–`Ctrl+9`、``Ctrl+` ``、`Ctrl+Shift+E`
+与 `Alt+数字` 在 Windows Terminal、conhost 及 VS Code 终端均可完整到达——
+``Ctrl+` `` 打开/关闭终端面板，`Ctrl+Space` 触发手动补全，两者不再共享同一个
+NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
+`key_protocol = "legacy"` 回退到传统字节通道（届时 `Ctrl+`+数字不可达，
+``Ctrl+` `` 与 `Ctrl+Space` 共享 NUL 字节：编辑器聚焦时为补全，终端聚焦时
+为关闭终端）。
+
+非 Windows 平台或未启用和弦驱动时，`Ctrl+1` 只在支持 kitty 键盘协议
+（CSI-u 序列）的终端（kitty、WezTerm 等）可达；其它终端请改用命令面板
+（`Alt+Shift+P`）或 `:` 命令行。
 `Ctrl+P`、`Ctrl+/`、`Ctrl+Q`、`Ctrl+W`、`Ctrl+Shift+E` 与各功能键在所有终端均可用。
 
 **帮助（Help）**

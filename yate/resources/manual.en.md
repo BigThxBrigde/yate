@@ -370,10 +370,19 @@ keymap, grouped by category, plus all `:` commands.
 
 ### Terminal compatibility
 
-Classic terminals (Windows Terminal, conhost, most legacy emulators) report
-`Ctrl` + digit with the modifier lost, so `Ctrl+1` only reaches yate in
-terminals that send kitty-protocol (CSI-u) sequences (kitty, WezTerm). There,
-use the command palette (`Alt+Shift+P`) or `:1`-style ex commands instead.
+On Windows yate enables the chord driver by default (`key_protocol = "auto"`):
+console input records are read with their virtual key and modifier state, so
+`Ctrl+1`–`Ctrl+9`, ``Ctrl+` ``, `Ctrl+Shift+E` and `Alt`+digit arrive complete
+in Windows Terminal, conhost and the VS Code terminal. ``Ctrl+` `` toggles the
+terminal panel and `Ctrl+Space` triggers manual completion -- they no longer
+share one NUL byte. If a terminal misbehaves, set `key_protocol = "legacy"`
+in your yaterc to fall back to the byte channel (there `Ctrl`+digit is
+unreachable, and ``Ctrl+` `` / `Ctrl+Space` share the NUL byte: completion
+while the editor is focused, terminal close while the panel is focused).
+
+Without the chord driver (non-Windows, or `legacy`), `Ctrl+1` only reaches
+yate in terminals that send kitty-protocol (CSI-u) sequences (kitty, WezTerm).
+There, use the command palette (`Alt+Shift+P`) or `:1`-style ex commands instead.
 `Ctrl+P`, `Ctrl+/`, `Ctrl+Q`, `Ctrl+W`, `Ctrl+Shift+E` and the function keys
 work on all terminals.
 
