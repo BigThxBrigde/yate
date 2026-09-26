@@ -35,21 +35,26 @@ keymap 切换（`ctrl+/`）、quick open（`ctrl+p`）、explorer/editor 焦点�
 在**真实终端**运行 yate（pilot 测不到终端字节层，此矩阵不可省略）。
 vim / vsc 两键位各过一遍（`ctrl+/` 切换键位本身即 SP1 的验证）：
 
+**状态：⏳ 待验证**（2026-09-26）——自动化门禁已全绿（见收尾清单），仅剩本表；
+用 [verify_matrix.ps1](verify_matrix.ps1) 执行，每终端跑完后把 `matrix_results.md` 的结论按下表回填
+（☐ 待验 / ✅ 符合预期 / ❌ 不符，❌ 必须附现象描述）：
+
 | 键 | 期望 | WT | conhost | VS Code 终端 |
 |---|---|---|---|---|
 | `ctrl+/`（键位切换） | 两键位间来回切换 | ☐ | ☐ | ☐ |
-| `ctrl+p`（文件面板） | 面板打开 | ☐ | ☐ | ☐ |
+| `ctrl+p`（文件面板） | 面板打开（vim/vsc 双键位） | ☐ | ☐ | ☐ |
 | `ctrl+q` / `ctrl+w` | 退出 / 关标签（回归） | ☐ | ☐ | ☐ |
-| `ctrl+shift+e` / `ctrl+1` | 焦点 explorer / editor | ☐ | ☐ | ☐ |
+| `ctrl+shift+e` / `ctrl+1` | 焦点 explorer / editor（`ctrl+1` 见下行） | ☐ | ☐ | ☐ |
 | `ctrl+1`（WT/conhost） | **预期失效**（已文档化）；验证替代路径 `alt+shift+p` 可达 | ☐ | ☐ | n/a |
 
-矩阵结果与实测数字回填本文件与 SP4 的 review.md 条目。
+阶段一取证参考（脚本自动打印，人工核对）：`ctrl+p/q/w` → `0x10/0x11/0x17`；`ctrl+/` → `0x1F`；
+`ctrl+1` 在 WT/conhost/VS Code → `0x31 + Control`（修饰丢失证据，与根因分析一致即通过）。
 
 ## 收尾清单
 
-- [ ] 门禁三项全绿（记录实际数字：pytest N passed / pyright 0）；
-- [ ] 真机矩阵勾完，与期望一致（`ctrl+1` 在 WT/conhost 的失效属预期）；
-- [ ] commit 历史整洁（每 SP 一个 commit，`git log --oneline` 核对）；
+- [x] 门禁三项全绿（实测：全量 pytest **1228 passed, 7 skipped** / pyright 全仓 **0 诊断** / 架构守护 **13 passed**；冒烟 **88/88 场景 · 917/917 checks · exit 0**，见 keybinding-fix-wt/README.md 状态表）；
+- [ ] 真机矩阵勾完，与期望一致（`ctrl+1` 在 WT/conhost 的失效属预期）——**待验证**，用 [verify_matrix.ps1](verify_matrix.ps1) 在 WT / conhost / VS Code 终端各跑一遍，产出 `matrix_results.md` 后回填下表；
+- [x] commit 历史整洁（每 SP 一个 commit，`git log --oneline` 核对：`a9174fc`→`b03e40f`→`ff3cfc0`→`678c02c`→`f26e65d`→`ebee085`→`3a8a29b`）；
 - [ ] push 前询问用户；如用户要求，发起 PR 并在描述中链接 Gitee issue IKH1RA 与三份计划文档；
 - [ ] 方案 B 启动提醒：下一步是 `win_keybinding_protocol_plan.md` P0（探针），其子计划届时按本目录同风格生成。
 

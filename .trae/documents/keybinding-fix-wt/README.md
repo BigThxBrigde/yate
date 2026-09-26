@@ -13,7 +13,7 @@
 > | SP3 文档标注 | ✅ 全量 1228 passed, 7 skipped | `f26e65d` docs(manual): note terminal compatibility |
 > | SP4 文档回填 | ✅ review.md + P2 N8 + 本批状态回写 + issue 回复草稿 | `ebee085` docs(keybinding): backfill IKH1RA disposition |
 > | SP5 门禁 | ✅ pyright 全仓 0 诊断 · 全量 1228 passed, 7 skipped · 架构守护 13 passed · 冒烟 88/88 场景 · 917/917 checks · exit 0 | — |
-> | SP5 真机矩阵 | ⏳ 需用户在 WT / conhost / VS Code 终端手动勾选（见 [SP5_gates_matrix.md](SP5_gates_matrix.md)）；pilot 无法覆盖终端字节层 | — |
+> | SP5 真机矩阵 | ⏳ 待验证——SP5 文档已回填为完成版（收尾清单勾掉门禁/commit 两项，矩阵表附脚本指引与取证参考）；用 [verify_matrix.ps1](verify_matrix.ps1) 在 WT / conhost / VS Code 终端执行后回填 | — |
 
 ## 执行顺序与测试门禁（铁律）
 
