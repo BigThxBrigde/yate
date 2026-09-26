@@ -1,6 +1,6 @@
 # Release 工具加固方案：前置守卫 + 自动回滚
 
-> 状态：**实施中**（核心代码已暂存，测试与门禁未做）· 2026-09-26 起草。
+> 状态：**已完成**（2026-09-26 实施完毕，S1–S6 全部落地）· 同日起草。
 > 背景：v0.2.5 发布实操暴露 release 工具三类风险——中途失败无回滚、
 > 不校验当前分支、不校验远端同步（详见 §一现状）。
 > 目标：非 master 不执行、落后远端不执行、失败自动回滚到发布前状态。
@@ -89,4 +89,31 @@ flowchart TB
 ## 七、校准记录
 
 - 2026-09-26 起草：F5 所列核心代码已暂存（未提交），S1–S6 待执行；起草时已核实编译通过、导入无残留 `Optional`（§3.2 合规）、`main()` 出口兼容。
-- （执行时回填：测试数、门禁数字、偏离项）
+- 2026-09-26 实施：S1–S6 全部落地，实测数字——
+  - 新增测试 **8 个**（守卫 ×4 / 回滚 ×3 / dry-run ×1，与 §四矩阵一一对应），专项
+    `pytest tests/test_release_tool.py` **14/14 全绿**（存量 6 + 新增 8）；
+  - 门禁：`pyright tools/ tests/` **0 errors / 0 warnings / 0 informations**；
+    `pytest tests/` 全量 **1231 collected**（基线 1223 + 8），exit 0，7 skipped 与基线一致；
+  - 提交：`4e6566b feat(tools): add pre-flight guards and rollback to release tool`
+    （cli.py +240/−39、gitdata.py +5、tests +259）；
+  - **偏离与修正**：①新增用例最初未 patch `discover_repo_root`，`release()` 逃逸到真实 yate 仓
+    （守卫读到外层分支名），且错分支用例曾"碰巧通过"——已为全部 8 个用例补
+    `_point_release_at` 指向临时仓，并把错分支断言收紧为匹配 `'dev'`；②dry-run 路径的门禁
+    是真跑的（`_run_steps` 不因 dry_run 跳过门禁），测试经 `_stub_pipeline` 控制门禁返回值，
+    cli 行为未改（与旧版 dry-run 语义一致）；③`_clone_upstream` 抽为公共 helper 复用于
+    behind / remote-tag 两用例。§五待定项（`--no-push` 是否豁免 fetch）未触发：真仓 fetch
+    本地 bare origin 离线可跑，无碍测试。
+
+## 八、验证清单（与提交说明 Test plan 同步）
+
+自动门禁（已实测通过）：
+
+- [x] `.venv\Scripts\python.exe -m pytest tests/test_release_tool.py -q` → 14 passed（存量 6 + 新增 8）
+- [x] `.venv\Scripts\python.exe -m pyright tools/ tests/` → 0 diagnostics
+- [x] `.venv\Scripts\python.exe -m pytest tests/ -q` → 1231 passed / 7 skipped（基线 1223 + 8）
+
+合并前人工验证（待执行）：
+
+- [ ] 在 feature 分支跑 `.venv\Scripts\python.exe -m tools.release <next> --dry-run`
+      → 在任何变更前被拒，消息含 `checked out on ...`
+- [ ] 在最新 master 上完整发布一次（可先 `--no-push`）→ 全流程走通
