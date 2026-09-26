@@ -628,6 +628,10 @@ class Editor:
             return False  # explorer consumes its own keys
         raw = event_to_raw(event.key, event.character)
         if raw is None:
+            # Unmapped names are normal (exotic terminals, widgets without a
+            # raw form), so this stays a debug log: YATE_TRACE turns it into
+            # evidence when chasing missing-key reports.
+            log.debug("unmapped key event: %s (character=%r)", event.key, event.character)
             return False
         return self.handle_raw_key(raw)
 
