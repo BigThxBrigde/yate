@@ -724,7 +724,12 @@ class Editor:
         with a user notice) instead of propagating the error.
         """
         try:
-            return self.actions.execute(name, ActionContext(self.session, self.key_ui))
+            handled = self.actions.execute(
+                name, ActionContext(self.session, self.key_ui)
+            )
+            if not handled:
+                log.debug("action not found: %s", name)
+            return handled
         except BufferReadOnlyError:
             self._readonly_notice()
             # the refused action may have moved the cursor / changed anchors
@@ -1285,8 +1290,10 @@ class Editor:
         name, args = parts[0], " ".join(parts[1:])
         entry = self.commands.get(name)
         if entry is None:
+            log.warning("command not found: %s", name)
             self.message(f"not an editor command: {name} (try :help)", kind="warn")
             return
+        log.debug("command: %s (args=%r)", name, args)
         entry[0](args)
 
     def install_font(self) -> None:
