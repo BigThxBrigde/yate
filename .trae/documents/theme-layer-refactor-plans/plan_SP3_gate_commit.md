@@ -32,13 +32,24 @@
 
 ---
 
-## 执行记录（回填区，执行时填写）
+## 执行记录（2026-09-26 回填）
 
 - S3.1 门禁（两轮各自记录）：
-  - `pyright yate/ tests/ tools/` → ___ errors, ___ warnings, ___ informations
-  - `pytest tests/ -q` 第一轮 → ___ collected / ___ skipped / exit ___；第二轮 → exit ___
-  - `python -m tools.smoke_test run --fail-only` → ___/___ 场景 · ___/___ checks · exit ___
-  - 与 SP0 基线差异说明（预期仅 collected +2）：
-- S3.2 回填确认：README §8 自检清单 ___/5 勾选；各 Plan 执行记录完整
-- S3.3 提交：① sha ___（___ 文件，+___/−___）；② sha ___（___ 文件，+___/−___）
+  - `pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**
+  - `pytest tests/ -o addopts= -q` 第一轮 → **1218 passed / 7 skipped / exit 0**（183.72s）；
+    第二轮 → **1218 passed / 7 skipped / exit 0**（173.45s），零时序偶发
+  - `python -m tools.smoke_test run --fail-only` → **88/88 场景 · 917/917 checks · exit 0**（71.68s）
+  - 与 SP0 基线差异：仅 collected +2（两个 headless 契约新用例），与预期一致
+- S3.2 回填确认：README §8 自检清单 **5/5** 勾选；SP0–SP3 执行记录全部完整无占位。
+- S3.3 提交：
+  - ① `bd1c2cf` refactor(config): decouple yaterc loader from editor_view.theme
+    （3 文件，+128/−20）
+  - ② `066ae12` docs(arch): enforce UI-free config layer and record N30 decision
+    （5 文件，+44/−9）
+  - ③ 本笔：计划目录执行记录回填（5 文件，SP0/SP1/SP2/SP3 记录 + README §8/§9）
 - 偏离计划项及理由：
+  1. 门禁命令统一带 `-o addopts=`（SP0 记录的 addopts 叠加问题，S3.1 起生效）。
+  2. 计划笔 ①② 原定在 SP3 一次性提交；按用户「每执行完一部分提交」指令改为
+     SP1 末提交 ①、SP2 末提交 ②，本笔为 ③（内容不变，仅时序前移）。
+  3. 计划笔 ① 原含 SP2 守卫（test_architecture.py）——实际按文件域拆分：
+     test_architecture.py 随笔 ②（docs(arch)）提交，笔 ① 纯解耦代码与测试修补。

@@ -48,11 +48,31 @@
 
 ---
 
-## 执行记录（回填区，执行时填写）
+## 执行记录（2026-09-26 回填）
 
-- S1.1–S1.4：（日期、逐步验收结果、实际改动行号 vs 计划锚点偏移）
-- S1.5 审计结论：逐点判定表（位置 → ✅ 原样 / 修补 / N/A + 理由）
-- S1.6 / S1.7：修补 diff 概要（用例名 → 处理方式）
-- S1.8：两个新用例实测输出（pytest 行）
-- S1.9 专项门禁：pyright ___ errors；`pytest tests/ -q` → ___ collected / exit ___
-- 偏离计划项及理由：
+- S1.1–S1.4：config.py——`Callable` 入 stdlib 导入组（:43）、`ThemeRegistrar` /
+  `ThemeDirLoader` 别名（:167-175）、新签名（:178-183）、惰性 import 删除、namespace
+  条件注入（:207-208）、装载改回调非 None 才调（:230-231）、模块头与 `load_config`
+  docstring 均更新（与计划锚点零偏移）；cli.py 调用点 :266-270 注入。验收：
+  `Select-String editor_view` 仅 3 处注释/docstring 文本命中、无 import；pyright 单文件 0。
+- S1.5 审计结论：全仓 `load_config\(` 38 处命中——生产 1 处（cli.py:266，已注入）；
+  文档引用 2 处（logs.py:486、cli.py:178，N/A）；test_config.py 21 处（`_load` 助手 +
+  20 直呼）；test_diagnostics.py 3 处、test_app_textual.py 1 处。逐点判定：
+  | 位置 | 判定 |
+  |---|---|
+  | test_config.py `_load`（:19） | 修补：增 keyword 透传 |
+  | test_config.py 主题段 8 处（:678/:700/:716/:734/:745/:759/:806/:845，rc 体调 register_theme 或声明 theme_dirs 且断言装载/注册结果） | 修补：传真回调 `themes.register_theme` / `themes.load_theme_paths` |
+  | test_config.py 其余 12 处（选项/错误路径/yaterc.example，rc 体不涉主题；example 的 theme_dirs/register_theme 全为注释） | N/A，原样 |
+  | test_cli.py :254-312 | N/A：不触达 load_config（未 grep 到调用） |
+  | test_app_textual.py :1026 | N/A：rc 体仅 extensions |
+  | test_diagnostics.py :32/:34/:256 | N/A：rc 体 tab_width/空 |
+- S1.6 / S1.7：修补 diff = `_load` 助手 + 8 处调用点（见上表）；另两文件零改动。
+- S1.8：新增 2 用例（:858-888）实测：
+  `test_load_config_without_theme_hooks_records_register_theme_error` /
+  `test_load_config_without_theme_hooks_keeps_theme_dirs_unloaded` 均 passed。
+- S1.9 专项门禁：pyright 全仓 **0 errors, 0 warnings, 0 informations**；
+  `pytest tests/test_config.py -o addopts= -q` → **73 passed**（1.23s）；
+  `pytest tests/ -o addopts= -q` → **1218 passed / 7 skipped / exit 0**（192.50s）。
+  既有错误消息断言逐字未动（`_extract_theme_dirs` 校验在 config 层原样保留）。
+- 偏离计划项及理由：S1.5 计划的 test_cli.py :254-312 一行经 grep 证实不调 `load_config`，
+  判 N/A（计划时按文件名预估，未逐点核实）。

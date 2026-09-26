@@ -1,7 +1,7 @@
 # 主题层级债重构计划：config 与 editor_view.theme 解耦（N30）
 
-> 状态：**SP0–SP3 全部待实施**（⏳，2026-09-26 起草并细化）。
-> 来源：[P2_nice_to_have_plan.md](../code-review-fix-plans/P2_nice_to_have_plan.md) **N30（⏸）**
+> 状态：**SP0–SP3 全部完成（✅，2026-09-26 实施并回填）**。
+> 来源：[P2_nice_to_have_plan.md](../code-review-fix-plans/P2_nice_to_have_plan.md) **N30（✅）**
 > 「L0 config 惰性 import L2 `editor_view.theme`（层级债）」，决策记录为
 > 「下次做重构方案：下沉 / 注入回调二选一 + 架构规则登记」。
 > 分支：`issues/refine-arch`（worktree `D:\Programming\yate-refine-arch`，基于 master `b599685`）。
@@ -242,10 +242,10 @@ flowchart LR
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| SP0 | [plan_SP0_baseline.md](plan_SP0_baseline.md) | **环境准备**：worktree venv + 四项基线门禁留档 | ⏳ |
-| SP1 | [plan_SP1_decouple.md](plan_SP1_decouple.md) | **config 解耦**：别名 + 签名 + 实现 + cli 注入 + 调用点审计 + 存量修补 + 新增用例 ×2（含测试清单 §4） | ⏳ |
-| SP2 | [plan_SP2_guard_docs.md](plan_SP2_guard_docs.md) | **架构守卫**：`UI_FREE_FILES` 扩员 + 负向验证 + 四处规则/账目文档回填 | ⏳ |
-| SP3 | [plan_SP3_gate_commit.md](plan_SP3_gate_commit.md) | **收尾**：全量门禁两轮 + 校准记录回填 + 两笔提交 | ⏳ |
+| SP0 | [plan_SP0_baseline.md](plan_SP0_baseline.md) | **环境准备**：worktree venv + 四项基线门禁留档 | ✅ |
+| SP1 | [plan_SP1_decouple.md](plan_SP1_decouple.md) | **config 解耦**：别名 + 签名 + 实现 + cli 注入 + 调用点审计 + 存量修补 + 新增用例 ×2（含测试清单 §4） | ✅ |
+| SP2 | [plan_SP2_guard_docs.md](plan_SP2_guard_docs.md) | **架构守卫**：`UI_FREE_FILES` 扩员 + 负向验证 + 四处规则/账目文档回填 | ✅ |
+| SP3 | [plan_SP3_gate_commit.md](plan_SP3_gate_commit.md) | **收尾**：全量门禁两轮 + 校准记录回填 + 提交 | ✅ |
 
 ## 6. 门禁命令（Windows PowerShell，worktree 根目录执行）
 
@@ -272,11 +272,11 @@ theme.py（纯内聚优化，R11 冻结面不因此变化，YAGNI）；`editor_v
 
 ## 8. 交付前自检清单
 
-- [ ] L0 无任何 `yate.editor_view` import（`UI_FREE_FILES` 守卫 + 负向验证通过）
-- [ ] 无新增 `Protocol` / `TYPE_CHECKING` / `*Host` / `*Ops` 命名
-- [ ] pyright 全仓 0 诊断、pytest 全绿（两轮）、冒烟全绿
-- [ ] architecture-boundaries.md / app-layering README / P2 账 / review.md 四处文档一致
-- [ ] 行为契约逐字节不变（装载顺序、错误消息、rc API 零变化）
+- [x] L0 无任何 `yate.editor_view` import（`UI_FREE_FILES` 守卫 + 负向验证通过）
+- [x] 无新增 `Protocol` / `TYPE_CHECKING` / `*Host` / `*Ops` 命名
+- [x] pyright 全仓 0 诊断、pytest 全绿（两轮）、冒烟全绿
+- [x] architecture-boundaries.md / app-layering README / P2 账 / review.md 四处文档一致
+- [x] 行为契约逐字节不变（装载顺序、错误消息、rc API 零变化）
 
 ## 9. 校准记录（回填区）
 
@@ -286,5 +286,18 @@ theme.py（纯内聚优化，R11 冻结面不因此变化，YAGNI）；`editor_v
 - 参考基线（同码态主工作区 2026-09-26 实测，SP0 须在 worktree 复测为准）：
   pyright 全仓 0 errors；pytest 全量 1231 collected / 7 skipped / exit 0；
   冒烟 88/88 场景 · 917/917 checks · exit 0。
-- （执行时回填：SP0 基线、SP1 审计结论与门禁、SP2 负向验证输出、SP3 全量门禁数字、
-  偏离项与理由——逐条对齐 §8 自检清单）
+- 2026-09-26 **实施完成**（19 步全走完，逐 Plan 执行记录见各文件）：
+  - **SP0**：worktree venv（`.[dev,ts]`——`ts` 为 pyright/测试基线事实必需，偏离已记录）；
+    基线：架构 13 passed · pyright 0/0/0 · pytest 1216+7 skipped exit 0 · 冒烟 88/88 · 917/917。
+  - **SP1**：config.py 归零 `editor_view` import（PEP 695 别名 + keyword-only 回调），
+    cli.py:266 注入；38 处调用点审计——8 处传真回调、其余 N/A（含计划预估的
+    test_cli.py 一行经核实改判 N/A）；新增 headless 契约用例 ×2。专项门禁：
+    test_config 73 passed、pyright 0、全量 1218+7 exit 0。提交 `bd1c2cf`。
+  - **SP2**：`UI_FREE_FILES` 收编 config.py；**负向验证**——临时加回 import 即
+    `test_keymaps_services_and_models_stay_ui_free` FAILED（断言精确指向
+    (config.py, 'yate.editor_view')），还原后 13 passed；四处文档回填
+    （rules R4/§四/§六、app-layering README §11、P2 账、review.md）。提交 `066ae12`。
+  - **SP3**：全量门禁两轮 1218+7 skipped exit 0（183.72s / 173.45s，零偶发）+
+    pyright 0/0/0 + 冒烟 88/88 · 917/917 exit 0；对基线差异仅 collected +2，符合预期。
+  - **偏离**：① 依赖组需 `.[dev,ts]`；② pytest 门禁统一 `-o addopts= -q`（addopts 叠加
+    吞汇总行）；③ 计划的两笔提交按用户指令改为每 SP 末即提交（内容与文件域不变）。

@@ -31,10 +31,22 @@
 
 ---
 
-## 执行记录（回填区，执行时填写）
+## 执行记录（2026-09-26 回填）
 
-- S2.1：（日期、diff 行号、13 passed 实测）
-- S2.2 负向验证：变红输出摘要（用例名 + assert 位置）→ 还原后 ___ passed
-- S2.3：R4 清单 / 交互表 / §六 三处改动行号
-- S2.4 / S2.5 / S2.6：各文档改动概要 + 实测数字引用（来自 SP1/SP3 门禁）
-- 四处文档一致性复核结论：
+- S2.1：`UI_FREE_FILES` 增 `"config.py"`（tests/test_architecture.py:68-73，注释注明 N30）；
+  实测 **13 passed**（扩员不新增用例，与计划一致）。
+- S2.2 负向验证：临时在 `load_config` 内加回
+  `from yate.editor_view import theme as themes` →
+  `test_keymaps_services_and_models_stay_ui_free` **FAILED**：
+  `AssertionError: (WindowsPath('.../yate/config.py'), 'yate.editor_view')`（1 failed，EXIT=1）
+  → 还原后 **13 passed**（1.60s），`git diff config.py` 为空。
+- S2.3：R4 条款（:35-37，含注入模式说明）、§四交互表新行（:85「L0 需要 UI 能力」）、
+  §六 R4 守卫清单（:123-124，注明负向验证）三处更新。
+- S2.4：app-layering README 新增 **§11 后续决策记录：config 层解耦（N30，2026-09-26）**
+  （:231-247），交叉链接 P2 账 / theme-layer README §2 / 本目录。
+- S2.5：P2 账三处——状态头（N30 拆出 ⏸）、N30 表行 ✅（含方案与门禁摘要）、
+  决策门段「N30 → 已落地（✅，2026-09-26）」。
+- S2.6：review.md N30 条目 `[ ]` → `[x]`，追加 ✅ 落地段（方案、守卫、门禁实测数字、链接）。
+- 四处文档一致性复核：R4 文件清单四处表述一致（rules / test_architecture.py /
+  review.md / P2 账）；门禁数字统一取 S3.1 实测；相对链接均已核对可达
+  （review.md → `../documents/...`，P2 账 → `../theme-layer-refactor-plans/...`）。

@@ -26,14 +26,19 @@
 
 ---
 
-## 执行记录（回填区，执行时填写）
+## 执行记录（2026-09-26 回填）
 
-> 格式参照 app-layering Plan F §F.6：命令 + 实测数字 + 偏离项。
-
-- S0.1：（日期、安装是否一次通过、特殊依赖备注）
+- S0.1：2026-09-26，`python -m venv .venv` + `pip install -e ".[dev]"` 一次通过（EXIT=0，
+  仅 pip 升级提示）；`import yate.config, yate.cli` ok。
 - S0.2 基线：
-  - `pytest tests/test_architecture.py -q` → ___ passed
-  - `pyright yate/ tests/ tools/` → ___ errors, ___ warnings, ___ informations
-  - `pytest tests/ -q` → ___ collected / ___ skipped / exit ___
-  - `python -m tools.smoke_test run --fail-only` → ___/___ 场景 · ___/___ checks · exit ___
+  - `pytest tests/test_architecture.py -q` → **13 passed**（3.14s）
+  - `pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**
+  - `pytest tests/ -q` → **1216 passed / 7 skipped / exit 0**（201.65s；与主工作区参考
+    1231 collected 差 8 = release-tool 分支新用例不在 master 基点，预期内）
+  - `python -m tools.smoke_test run --fail-only` → **88/88 场景 · 917/917 checks · exit 0**（93.20s）
 - 偏离参考值的项及原因：
+  1. **dev extras 需含 `ts`**：首装 `.[dev]` 后 pyright 报 6 errors（tests/test_ts_backend.py
+     与 languages.py 的 `tree_sitter` import 不可解析）——可选依赖组 `ts` 是 pyright/测试
+     基线的**事实必需**；补装 `.[dev,ts]` 后归零。后续 Plan 引用本记录时直接用 `.[dev,ts]`。
+  2. pytest 汇总行被吞的问题：pyproject `addopts = "-q"` 与命令行 `-q` 叠加成双 quiet；
+     门禁命令统一改用 `-o addopts= -q`（或接受退出码 + 末两行进度判定）。
