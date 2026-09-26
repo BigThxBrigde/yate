@@ -16,9 +16,19 @@ def _write(path: Path, content: str) -> Path:
     return path
 
 
-def _load(body: str, tmp_path: Path) -> cfg.YateConfig:
+def _load(
+    body: str,
+    tmp_path: Path,
+    *,
+    register_theme: cfg.ThemeRegistrar | None = None,
+    load_theme_paths: cfg.ThemeDirLoader | None = None,
+) -> cfg.YateConfig:
     rc = _write(tmp_path / "yaterc", body)
-    return cfg.load_config([rc])
+    return cfg.load_config(
+        [rc],
+        register_theme=register_theme,
+        load_theme_paths=load_theme_paths,
+    )
 
 
 # --- defaults ---------------------------------------------------------------
@@ -665,7 +675,11 @@ def test_theme_dir_single_string_loads_theme(
         'theme = "yate_test_dir_theme"\n',
     )
     registered_themes.append("yate_test_dir_theme")
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert config.errors == []
     assert config.theme_dirs == [tdir.resolve()]
     # the registry already contains the externally defined theme
@@ -683,7 +697,11 @@ def test_theme_dir_list_relative_and_single_file(
     single = _theme_file(tmp_path, "solo.py", "yate_test_dir_solo")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = ["more", "solo.py"]\n')
     registered_themes.extend(["yate_test_dir_a", "yate_test_dir_solo"])
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert config.errors == []
     assert config.theme_dirs == [tdir.resolve(), single.resolve()]
     assert "yate_test_dir_a" in themes.available()
@@ -695,7 +713,11 @@ def test_underscore_files_skipped(tmp_path: Path) -> None:
     tdir.mkdir()
     _theme_file(tdir, "_hidden.py", "yate_test_hidden")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert config.errors == []
     assert "yate_test_hidden" not in themes.available()
 
@@ -709,14 +731,22 @@ def test_broken_theme_file_is_reported_others_still_load(
     _theme_file(tdir, "good.py", "yate_test_good")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
     registered_themes.append("yate_test_good")
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert any("theme boom" in e for e in config.errors), config.errors
     assert "yate_test_good" in themes.available()
 
 
 def test_nonexistent_theme_dir_reported(tmp_path: Path) -> None:
     rc = _write(tmp_path / "yaterc", 'theme_dirs = ["missing"]\n')
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert config.theme_dirs == []
     assert any(
         "theme_dirs" in e and "does not exist" in e for e in config.errors
@@ -726,7 +756,11 @@ def test_nonexistent_theme_dir_reported(tmp_path: Path) -> None:
 def test_absolute_nonexistent_theme_dir_reported(tmp_path: Path) -> None:
     missing = (tmp_path / "nope" / "themes").as_posix()
     rc = _write(tmp_path / "yaterc", f'theme_dirs = [{missing!r}]\n')
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert config.theme_dirs == []
     assert any("does not exist" in e and "nope" in e for e in config.errors)
 
@@ -769,7 +803,11 @@ def test_theme_files_use_injected_register_helper(
     _write(tdir / "inj.py", f"register_theme(Theme({fields}))\n")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
     registered_themes.append("inj_theme")
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert config.errors == []
     assert themes.set_theme("inj_theme").name == "inj_theme"
 
@@ -804,13 +842,50 @@ def test_register_theme_from_rc(
     )
     registered_themes.append("yate_test_theme")
     rc = _write(tmp_path / "yaterc", body)
-    config = cfg.load_config([rc])
+    config = cfg.load_config(
+        [rc],
+        register_theme=themes.register_theme,
+        load_theme_paths=themes.load_theme_paths,
+    )
     assert config.errors == []
     assert config.theme == "yate_test_theme"
     activated = themes.set_theme("yate_test_theme")
     assert activated.name == "yate_test_theme"
     # mocha palette copied through
     assert activated.bg == themes.THEMES["mocha"].bg
+
+
+# --- headless mode (no injected theme callbacks) -----------------------------
+
+
+def test_load_config_without_theme_hooks_records_register_theme_error(
+    tmp_path: Path,
+) -> None:
+    # N30: with the default (None) hooks the namespace lacks register_theme;
+    # the NameError is recorded per file and the remaining files still run.
+    rc1 = _write(tmp_path / "user_rc", "register_theme(None)\n")
+    rc2 = _write(tmp_path / "project_rc", "tab_width = 2\n")
+    config = cfg.load_config([rc1, rc2])
+    assert len(config.errors) == 1, config.errors
+    assert "NameError" in config.errors[0]
+    assert "register_theme" in config.errors[0]
+    assert config.tab_width == 2
+    assert config.theme == "mocha"
+
+
+def test_load_config_without_theme_hooks_keeps_theme_dirs_unloaded(
+    tmp_path: Path,
+) -> None:
+    # N30: theme_dirs is still extracted (the caller decides what loading
+    # means); without the loader hook no theme file is ever exec'd.
+    tdir = tmp_path / "themes"
+    tdir.mkdir()
+    _theme_file(tdir, "mytheme.py", "yate_test_unloaded")
+    rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
+    config = cfg.load_config([rc])
+    assert config.theme_dirs == [tdir.resolve()]
+    assert config.errors == []
+    assert "yate_test_unloaded" not in themes.available()
 
 
 # --- app integration --------------------------------------------------------

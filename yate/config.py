@@ -1,7 +1,8 @@
 """yaterc: Python-based configuration files (vimrc / init.vim style).
 
 A ``yaterc`` file is ordinary Python.  Options are plain module-level
-variables; one injected helper (``register_theme``) allows custom themes::
+variables; theme callbacks injected by the caller (``register_theme``,
+theme-directory loading) allow custom themes::
 
     keymap = "vim"          # "vsc" (default) or "vim"
     theme = "mocha"         # mocha | macchiato | frappe | latte | <custom>
@@ -39,7 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
 
@@ -163,23 +164,48 @@ def default_rc_paths(target: Path | None = None) -> list[Path]:
     return paths
 
 
-def load_config(paths: list[Path]) -> YateConfig:
+#: Callback injected as ``register_theme`` into every yaterc namespace.  The
+#: theme object travels opaquely: L0 config must not know the Theme type
+#: (that import is exactly the N30 layering debt), hence ``Any`` here.
+type ThemeRegistrar = Callable[[Any], None]
+
+#: Callback loading one batch of rc-declared theme files/directories; same
+#: contract as :func:`yate.editor_view.theme.load_theme_paths` (problems are
+#: appended to *errors*, never raised).
+type ThemeDirLoader = Callable[[list[Path], list[str]], None]
+
+
+def load_config(
+    paths: list[Path],
+    *,
+    register_theme: ThemeRegistrar | None = None,
+    load_theme_paths: ThemeDirLoader | None = None,
+) -> YateConfig:
     """Exec the given rc files in order and return the resolved config.
 
     Files share one namespace (later files see and override earlier
     variables).  Read/compile/exec failures are recorded per file and do
     not abort the remaining files.
-    """
-    # Imported lazily: the theme registry lives in the UI package, and the
-    # config loader must not pull the whole widget stack at import time.
-    from yate.editor_view import theme as themes
 
+    Theme support is injected, not imported (N30: an L0 leaf must not
+    import the L2 UI package).  *register_theme* is exposed to rc files
+    as ``register_theme`` and *load_theme_paths* loads the ``theme_dirs``
+    entries after all files ran, before the caller applies ``theme =
+    "<custom>"``.  Both callbacks are the same-named functions of
+    :mod:`yate.editor_view.theme`; the production caller is
+    :mod:`yate.cli`.  With the defaults (``None``) the namespace simply
+    lacks ``register_theme`` -- an rc calling it records a NameError on
+    the config and the remaining files still run -- and ``theme_dirs``
+    is extracted but never loaded, so headless consumers get a UI-free
+    loader.
+    """
     config = YateConfig()
     # The rc API surface injected into every yaterc namespace.
     namespace: dict[str, Any] = {
         "__name__": "__yaterc__",
-        "register_theme": themes.register_theme,
     }
+    if register_theme is not None:
+        namespace["register_theme"] = register_theme
     for path in paths:
         try:
             source = path.read_text(encoding="utf-8")
@@ -201,7 +227,8 @@ def load_config(paths: list[Path]) -> YateConfig:
         _extract_disabled_extensions(namespace, config)
     # Register themes from rc-declared directories before the app applies
     # ``theme = "<custom>"`` (the theme registry is process-global).
-    themes.load_theme_paths(config.theme_dirs, config.errors)
+    if load_theme_paths is not None:
+        load_theme_paths(config.theme_dirs, config.errors)
     _extract_options(namespace, config)
     return config
 
