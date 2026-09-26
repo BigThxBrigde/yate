@@ -5,6 +5,22 @@
 - [x] 输入时候，屏幕会闪烁，影响输入体验，加入放抖动机制。
 - [x] yate 输入一个不存在的文件名，进程会卡住无任何输出，希望和vim一样，直接进入enew新建一个bug。
 
+## Windows Terminal 键位失效（IKH1RA）— 2026-09-26
+
+- [x] **WT 下 `ctrl+p` / `ctrl+1` / `ctrl+/` 失效，`ctrl+q` / `ctrl+w` 正常**
+  （[Gitee IKH1RA](https://gitee.com/jermaine/yate/issues/IKH1RA)，分支 `issues/keybinding-fix-wt`）
+  **根因（实测，Textual 8.2.8）：** ① `ctrl+/`：legacy 终端发 C0 字节 `\x1f`，Textual 将其命名为
+  `ctrl+underscore`，而 `event_to_raw` 只登记 `ctrl+/` → 键被静默丢弃；② `ctrl+1`：conhost 不给
+  Ctrl+数字编 C0 码，Textual win32 驱动（`drivers/win32.py`）只读 `uChar` 不读 `dwControlKeyState`，
+  修饰键丢失，WT 又不支持 kitty CSI-u → 物理不可达；③ `ctrl+p`：提交 issue 时点（09-19）keymap
+  分发前无 event.key 分支，vsc 有 `\x10` raw 绑定、vim 无绑定且吞键 → 仅 vsc 可用。
+  **处置：** `ctrl+p` 随 `9fa5ac8` 分层重构修复（`Editor.handle_key` 全局分支，vim/vsc 双键位生效）；
+  `ctrl+/` 由 `keys.py` `_CTRL_PUNCT` 补 `underscore` 条目 + `base.py` `KEY_ALIASES` 补显示别名修复
+  （全平台，顺带消除 help 面板乱码）；`ctrl+1` 文档化为 kitty/CSI-u-only（双语 manual + README，
+  替代路径 `Alt+Shift+P`），彻底根治需方案 B 自建输入通道（`win_keybinding_plan.md`，另行排期）。
+  **证据：** 定向 255 / 全量 1228 passed，pyright 0 诊断；commit `b03e40f` `ff3cfc0` `678c02c`
+  `f26e65d`；计划与执行记录见 [keybinding-fix-wt](../documents/keybinding-fix-wt/README.md)。
+
 ---
 
 ## 全量代码审查 — 2026-09-16
