@@ -214,7 +214,8 @@ def _upper(ctx):
 缓冲区只读时（`buf.read_only` 为 `True`，由 `--readonly` 或 `:set readonly=true`
 设置），所有变更方法都会抛出 `yate.editor_core.BufferReadOnlyError`；扩展若需
 容忍只读文档，请用 `try`/`except` 包裹编辑操作。直接对 `lines` 赋值不经过护栏
-（不会抛异常），但改动依然计入编辑——请先检查 `buf.read_only`。
+（不会抛异常），但改动依然计入编辑——请先检查 `buf.read_only`。直接调用
+`doc.save()` 同样绕过该标志：写入前不检查 `read_only`。
 
 **`api.doc`（Document）常用属性/方法**：
 

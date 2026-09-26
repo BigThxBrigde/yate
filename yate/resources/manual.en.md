@@ -632,7 +632,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:colorscheme [name]` | Alias of `:theme` |
 | `:set shell=<command>` | Set the terminal shell command (takes effect on the next shell launch) |
 | `:set terminal_height=<n>` | Terminal panel height in rows (`3`–`40`), applied immediately |
-| `:set readonly=<bool>` | Toggle the current buffer's read-only flag (`true`/`false`, `on`/`off`, `1`/`0`, `yes`/`no`); a read-only buffer refuses edits and saves and shows a lock in the status bar |
+| `:set readonly=<bool>` | Set the current buffer's read-only flag (`true`/`false`, `on`/`off`, `1`/`0`, `yes`/`no`); a read-only buffer refuses edits and saves and shows a lock in the status bar |
 | `:set filetype=<type>` | Force the current buffer's syntax type (aliases `ft` / `language` / `lang`); see the FAQ in section 17 |
 | `:filetype [type]` | Same as above; without arguments shows the current type and all available types (aliases `:ft`, `:language`) |
 

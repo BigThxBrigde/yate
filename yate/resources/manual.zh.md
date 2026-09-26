@@ -591,7 +591,7 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 | `:colorscheme [名称]` | `:theme` 的别名 |
 | `:set shell=<命令>` | 设置集成终端的 Shell（下次启动 Shell 时生效） |
 | `:set terminal_height=<n>` | 终端面板高度（行数，`3`–`40`），立即生效 |
-| `:set readonly=<布尔>` | 切换当前缓冲区只读标志（`true`/`false`、`on`/`off`、`1`/`0`、`yes`/`no`）；只读缓冲区拒绝编辑与保存，状态栏显示锁形标记 |
+| `:set readonly=<布尔>` | 设置当前缓冲区只读标志（`true`/`false`、`on`/`off`、`1`/`0`、`yes`/`no`）；只读缓冲区拒绝编辑与保存，状态栏显示锁形标记 |
 | `:set filetype=<类型>` | 手动指定当前缓冲区的语法类型（别名 `ft` / `language` / `lang`），见第 17 节 FAQ |
 | `:filetype [类型]` | 同上；不带参数时显示当前类型及全部可用类型（别名 `:ft`、`:language`） |
 

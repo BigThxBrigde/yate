@@ -233,7 +233,9 @@ When the buffer is read-only (`buf.read_only` is `True`, set via
 `yate.editor_core.BufferReadOnlyError`; wrap extensions' edits in
 `try`/`except` if they must tolerate read-only documents. Assigning to
 `lines` directly bypasses the guard (no exception), but the change still
-counts as an edit — check `buf.read_only` first.
+counts as an edit — check `buf.read_only` first.  Calling `doc.save()`
+directly also bypasses the flag: it writes the file without checking
+`read_only`.
 
 **Common `api.doc` (Document) members**:
 
