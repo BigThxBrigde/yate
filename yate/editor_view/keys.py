@@ -3,7 +3,6 @@ use (control codes / ANSI escape sequences)."""
 
 from __future__ import annotations
 
-
 from yate.keymaps.base import SPECIAL_KEYS
 
 # Textual canonical key names share their raw sequences with the keymap's
