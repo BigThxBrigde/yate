@@ -18,9 +18,12 @@ from dataclasses import dataclass
 from collections.abc import Callable
 
 from yate.keymaps.base import ActionContext
+from yate.logs import tracing
 
 #: A ``:`` command handler: receives the raw argument string.
 CommandFunc = Callable[[str], object]
+
+log = tracing.get_logger(__name__)
 
 
 @dataclass
@@ -42,6 +45,8 @@ class ActionRegistry:
         self, name: str, func: Callable[[ActionContext], object], description: str = ""
     ) -> None:
         """Add (or replace) the action *name*."""
+        if name in self._actions:
+            log.warning("action overwritten: %s", name)
         self._actions[name] = Action(name, func, description)
 
     def get(self, name: str) -> Action | None:
@@ -72,6 +77,8 @@ class CommandRegistry:
         self._commands: dict[str, tuple[CommandFunc, str]] = {}
 
     def register(self, name: str, func: CommandFunc, description: str) -> None:
+        if name in self._commands:
+            log.warning("command overwritten: %s", name)
         self._commands[name] = (func, description)
 
     def get(self, name: str) -> tuple[CommandFunc, str] | None:
