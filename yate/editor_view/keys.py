@@ -10,8 +10,10 @@ from yate.keymaps.base import SPECIAL_KEYS
 _NAMED_KEYS = {name: raw for name, raw in SPECIAL_KEYS.items() if name != "esc"}
 
 # Ctrl+punctuation raw bytes. Ctrl+/ is 0x1F (the vsc keymap's keymap
-# toggle); without this entry Textual's "ctrl+/" could never reach it.
-_CTRL_PUNCT = {"[": 0x1B, "\\": 0x1C, "]": 0x1D, "/": 0x1F}
+# toggle); without these entries it could never reach it -- legacy
+# terminals deliver \x1f as Textual's "ctrl+underscore", kitty CSI-u
+# ones as "ctrl+slash", so both spellings must map to the same byte.
+_CTRL_PUNCT = {"[": 0x1B, "\\": 0x1C, "]": 0x1D, "/": 0x1F, "underscore": 0x1F}
 
 _MOD_ARROWS: dict[tuple[str, ...], dict[str, str]] = {
     ("ctrl",): {"up": "\x1b[1;5A", "down": "\x1b[1;5B", "right": "\x1b[1;5C", "left": "\x1b[1;5D"},

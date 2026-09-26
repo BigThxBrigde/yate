@@ -82,6 +82,7 @@ KEY_ALIASES: dict[str, str] = {
     "\x1b[1;3C": "alt-right",
     "\x1b[1;3D": "alt-left",
     "\x1b[Z": "shift-tab",
+    "\x1f": "ctrl-/",
 }
 
 
