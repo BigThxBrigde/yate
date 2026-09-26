@@ -38,13 +38,31 @@ flowchart TD
 - keymap 层：vim 无 `\x10` 绑定且 normal/insert 尾部吞键（`vim.py:427-431` / `:185`）→ vim 下 ctrl+p 必死；vsc 有 `\x10` → 活。ctrl+q 在两键位下都有出路 → 用户实测"仅 ctrl+q 修复"与之吻合；
 - SP2 的 pilot 守卫没有拦住：`pilot.press("ctrl+p")` 在 vsc 键位走的是 keymap raw 路径而非全局分支，反向演练时注释全局分支守卫仍绿（当时误判为演练通过）——守卫设计缺陷，见 Phase A3。
 
-### 1.3 次因：WT 原生驱动下 ctrl+/ 的到达形态未取证
+### 1.3 次因：vim normal 模式吞键绕过 bindings 表（已实锤，ctrl+/ 的直接死因）
 
-SP1 修复链是 `event.key=="ctrl+underscore"` → `event_to_raw` → `"\x1f"` → vim `KeyBinding("\x1f")`（`vim.py:113`）。vim 下仍失效说明链上某环在 WT 断裂（Textual **win32 驱动**对 `\x1f` 的命名可能与 XTermParser 不同，或 character 为空导致 raw 推导失败）。需 A2 的真机取证定位。
+[vim.py:425-430](../../../yate/keymaps/vim.py)：`_handle_normal` 尾部 `# swallow unmapped normal keys → return True`，
+只查 `_extension_binding`、**从不查 bindings 表**——`KeyBinding("\x1f", "toggle_keymap")`（`vim.py:113`）
+在 normal 模式下永远不会被匹配（insert 模式 `vim.py:123` 显式判了 `\x1f` 所以通）。
+推论：SP1 修好 `event_to_raw` 后 **vsc 键位的 ctrl+/ 应已恢复**（vsc 派发查表）；vim 下死于本节。
+A2 的修复由此确定：normal 尾吞键前先按 raw/key 查 bindings（见 §A2 具体化）。
 
-### 1.4 结论
+### 1.4 各键归属判定（Phase A / B 的责任边界）
 
-止血切片（映射表修补）只在"keymap 恰好有对应 raw 绑定"时有效；**架构性修复是让全局和弦不依赖 keymap 是否吞键**（Phase A），`ctrl+1` 这类物理不可达键再上驱动重写（Phase B）。旧计划的 Phase 2（名字层接入派发 + P2.5 vim 冒泡）方向本就正确，本轮为其补上精确机制与顺序。
+| 键 | 死因层 | Phase A 能否彻底解决 | 依据 |
+|---|---|---|---|
+| ctrl+p | 派发层（1.2）+ vim 无绑定吞键 | **✅ 能**（全部终端） | WT 交付 `\x10`（C0 编码存在），A1 全局入口判定不依赖 keymap |
+| ctrl+/ | 派发层（1.2）+ **vim normal 吞键（1.3）** | **✅ 能**（全部终端，A1+A2） | vsc 侧 SP1 已通 = driver 确实交付 `\x1f`；vim 侧修吞键即可 |
+| ctrl+q / ctrl+w | 无 | ✅ 已通 | C0 编码 + 两键位都有出路 |
+| ctrl+shift+e | **物理层**：legacy 终端与 `ctrl+e` 同为 `\x05`，不可区分 | **❌ 不能** | 区分需驱动读 VK+修饰键（Phase B）；A 层若把 `ctrl+e` 也绑 focus explorer 会破坏 vim 语义（scroll down） |
+| ctrl+1 | **物理层**：conhost 无 C0 编码 + Textual win32 驱动不读 `dwControlKeyState` | **❌ 不能** | 事件到达应用前修饰键已丢，应用层无从恢复 |
+| alt+digit 等 | 同 ctrl+1 | ❌ 不能 | 同上 |
+
+### 1.5 结论：彻底解决 = Phase A + Phase B，串行不可省略
+
+- **Phase A 是派发架构的彻底修复**：ctrl+p / ctrl+/ / 现有全部 C0 编码键在 vim/vsc 双键位全平台可用——IKH1RA 报告的三个键中两个由它根治；
+- **Phase B 是物理层的唯一解**：`ctrl+1`、`ctrl+e`/`ctrl+shift+e` 区分、`alt+digit` 这类"修饰键信息在到达应用前就丢了"的键，任何应用层方案都无能为力，必须重写 Windows 输入通道（读 `dwControlKeyState` / win32-input-mode / kitty CSI-u）；
+- 两者是**依赖关系不是替代关系**：B3 的驱动注入点依赖 A1 的事件入口（驱动合成的完整 chord 仍要走"全局入口判定 → keymap"的新链路）；
+- 执行顺序：A（可独立发布 v0.3.x）→ B（v0.4.0）。若直接跳过 A 做 B，旧派发链上的 vim 吞键问题依旧，B 合成的键照死。
 
 ---
 
@@ -64,14 +82,16 @@ SP1 修复链是 `event.key=="ctrl+underscore"` → `event_to_raw` → `"\x1f"` 
 - **验收**：vim 键位 + 焦点在编辑器：ctrl+p 开面板、ctrl+shift+e 聚焦文件树、ctrl+1 聚焦编辑器（kitty 终端）；vsc 全部不回归；`tests/test_architecture.py` 13 用例全绿。
 - **测试**：`test_dispatch_guards.py` 重写（见 A3）；全量 pytest + pyright。
 
-### A2 — ctrl+/ 的 vim 路径取证与修复（P0 探针先行）
+### A2 — vim normal 模式吞键修复（ctrl+/ 死因，已定位无需再取证）
 
-- **输入**：真机脚本阶段一输出（`verify_matrix.ps1`，WT 下 ctrl+/ 的字符码/修饰键）；如仍不足，用 `YATE_TRACE=1` + A1 的 `unmapped key` debug 日志取 `event.key` 实际值
-- **分支处置**（按取证结果择一）：
-  - 到达 `event.key == "ctrl+underscore"` 但 keymap 未命中 → 查 `EditorView.dispatch_key` 的 raw 推导顺序（`editor_view/keys.py` 的 `event_to_raw(event.key, event.character)`，若 `character` 已是 `"\x1f"` 应短路命中）；
-  - Textual win32 驱动给出**其它名字**（如 `ctrl+oem_2` 之类）→ `textual_key_to_raw` 增补该名字映射（SP1 同款表项）；
-  - 根本没产生 key event → 记录为 Phase B 输入（win32-input-mode 才能救）。
-- **验收**：WT 真机 vim 键位 ctrl+/ 切换成功（或明确归入 Phase B 清单）。
+- **输入**：[vim.py:425-430](../../../yate/keymaps/vim.py)（`_handle_normal` 尾部无条件 `return True`）、
+  `vim.py:113`（`KeyBinding("\x1f", "toggle_keymap")`）、`vim.py:123`（insert 模式显式判 `\x1f`）
+- **改动**：`_handle_normal` 尾部吞键前，先按 key/raw 查 bindings 表（含 `\x1f`）与扩展绑定：
+  命中 `toggle_keymap` → 执行并 `return True`；未命中 → 维持吞键（vim 语义不变）。
+  同步审查 `_handle_visual` / `_handle_visual_line` 尾部是否有同样问题，一并修。
+- **验证**：SP1 的 `event_to_raw("\x1f")` 修复已在（vsc 侧已通 = driver 交付 `\x1f` 无疑），
+  本步骤补齐 vim 侧后 ctrl+/ 双键位全通；无需额外真机取证，直接真机矩阵复测确认。
+- **验收**：vim normal 模式按 ctrl+/ 切换到 vsc；vim 未映射键（如 `<F9>` 无绑定时）行为不变。
 
 ### A3 — 守卫重建（弥补 SP2 演练缺陷）
 
