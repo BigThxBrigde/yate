@@ -152,3 +152,43 @@ flowchart TD
 - welcome 页与普通新建缓冲区永不受 `--readonly` 影响。
 - split 窗格共享同一 Document → 只读态跨窗格同步，符合预期。
 - 扩展直改 `lines` 的越带通道保持既有契约（无法拦截），文档注明。
+
+## 五、评审处理记录（2026-09-26）
+
+### 5.1 本地评审（PR 前自查；提交 8b6b1b4、d960a08）
+
+| 问题 | 处理 |
+|---|---|
+| `statusbar.refresh_status` 的 `name_budget` 漏减 `lock_cells`：只读 + 长文件名截断时右侧块溢出 2 列被裁 | 预算补减；新增 100 字符文件名 pilot 测试锚定 |
+| `Editor.set_readonly` docstring 写 "Toggle"，实为按显式值设置；manual en/zh 同病 | 三处统一改为"设置/Set" |
+| `Editor._open_readonly` docstring 声称 unnamed/welcome no-op 情形（该路径不可达） | docstring 改写为实际情形（该方法后被 5.2 阻断1 重构删除） |
+| `Editor.execute_action` 未记录"动作因只读被拒时返回 True"契约（R10 相关） | docstring 补充 |
+| vim `i/I/a/A` 在只读缓冲仍进入 INSERT（之后逐键告警），与 `o/O` 入口拒绝不一致 | `_handle_normal` 的 insert entry 分支（`keymaps/vim.py:381`）入口预检抛 `BufferReadOnlyError`（vim E21 对齐）；6 键单测 |
+| 扩展文档未注明 `doc.save()` 直调绕过只读 | 先补注记；随 5.2 改进6 收紧为护栏语义（见下） |
+
+### 5.2 Gitee PR #24 评审（1 阻断 + 8 改进；提交 1f82fae、dd47be0）
+
+| # | 评审意见 | 处理 |
+|---|---|---|
+| 阻断1 | `--readonly` 仅作用启动文件参数，会话内后续打开的文档不继承 | 采用方案 (a)：标志下沉 `_open_document` / `_open_document_async`（所有打开路径的汇聚点），新开文档一律继承；`session.is_open` 复用检测——重开已解锁文档不重锁；`_open_readonly` 删除；manual en/zh 改为会话语义 |
+| 改进1 | `execute_action` 捕获后未刷新 UI | 补 `refresh_ui()`（被拒动作可能在抛错前移动了光标） |
+| 改进2 | 状态栏 `name_budget` 漏减 `lock_cells` | 已由 5.1 提交 8b6b1b4 修复（评审基于旧 HEAD），核实口径等价 |
+| 改进3 | 保存拒绝文案误导用户解锁后覆盖源文件；缺正规"另存"出口 | 文案改引导 `:saveas`；新增 `:saveas` 命令与 `Editor.save_as`（此前不存在）；`_submit_save_as` 对只读缓冲先解锁再写、写失败回滚（vim `:sav` 语义）；manual en/zh 补 `:saveas` 行与命令速查 |
+| 改进4 | readonly 与 show_hidden 布尔解析约定分裂 | `commands.py` 抽模块级 `_TRUTHY` / `_FALSY` + `_parse_bool` 共用；show_hidden 非法值由静默按 False 处理改为警告 |
+| 改进5 | `accept_completion` 与按键路径处理不对称 | 补 `refresh_ui()`；popup 在写缓冲前已关闭，无状态残留 |
+| 改进6 | `Document.save()` 可被扩展直调绕过只读 | 评审建议为"文档注明"，实际收紧为 L0 护栏：只读时抛 `BufferReadOnlyError`；扩展文档注记改为"先解标志再持久化（`:saveas` 即如此）" |
+| 改进7 | `icons.py` 注释字形丢失（评审工具不渲染 Nerd Font 字形所致） | 脚本恢复 `# <字形> (说明)` 约定（PLUG/LOCK 两处，repr 验证） |
+| 改进8 | 测试硬编码 `"\uf023"` 且状态栏文本拼接重复 | 断言改引 `icons.LOCK`；新增 `_status_strip` helper |
+
+### 5.3 偏离与额外发现
+
+- `:saveas` 为本次新增命令（改进3 的前置）。首版描述文本含 `t-h-e-m-e` 模糊子序列，使命令面板输入 "theme" 多匹配一条、既有 `filtered_count == 1` 断言失败；描述已改写为不含该子序列的文案。
+- 测试新增 3 例：会话级继承（含复用不重锁）、`:saveas` 另存解锁（源文件不动）、`Document.save` L0 护栏；状态栏断言共享 `_status_strip` helper。
+- changelog 仍未手改：由工具按 git 历史生成，发布流程统一刷新。
+
+### 5.4 门禁（实测，2026-09-26）
+
+- `python -m pyright yate/ tests/ tools/`：0 errors, 0 warnings, 0 informations
+- `python -m pytest tests/ -q`：1239 passed, 7 skipped in 201.67s（pytest 9.1.1 的 `-q` 不再输出汇总行，计数经 `-o addopts=""` 复核取得）
+- `python -m pytest tests/test_architecture.py -q`：13 passed
+- 提交链：cfd9d12 → 3799aa3 → 944c0a5 → ed4f924（初版）→ c3fcd6f（合入 master）→ 8b6b1b4 → d960a08（本地评审）→ 1f82fae → dd47be0（PR 评审）→ 本节（docs）
