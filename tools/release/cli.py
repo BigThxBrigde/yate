@@ -1,8 +1,8 @@
 """Command line interface: ``python -m tools.release <version>``.
 
-One-command release: bump the version (two files), commit the bump,
-regenerate the bilingual changelog, commit it, run the changelog gate and
-the version tests, then create the annotated tag and push.
+One-command release: bump the version, commit the bump, regenerate the
+bilingual changelog, commit it, run the changelog gate and the version
+tests, then create the annotated tag and push.
 
 All git access goes through :func:`tools.changelog.gitdata.run_git` (the
 single git gateway); changelog generation/gating reuses
@@ -24,8 +24,10 @@ from pathlib import Path
 from ..changelog import gitdata
 from ..changelog.cli import check, generate
 
-#: Files carrying the version; bumped and committed first.
-_VERSION_FILES = ("yate/__init__.py", "tests/test_theme_palettes.py")
+#: File carrying the version; bumped and committed first.  The package
+#: ``__version__`` is the single dynamic source (pyproject reads it; the
+#: former static assertion in test_theme_palettes.py was removed upstream).
+_VERSION_FILES = ("yate/__init__.py",)
 #: Files written by the changelog generator; committed in the second commit.
 _CHANGELOG_FILES = (
     "CHANGELOG.md",
@@ -35,8 +37,7 @@ _CHANGELOG_FILES = (
 )
 
 _SEMVER_RE = re.compile(r"\d+\.\d+\.\d+$")
-_INIT_VERSION_RE = re.compile(r'^(__version__\s*=\s*")([^"]+)(")', re.MULTILINE)
-_TEST_VERSION_RE = re.compile(r'(assert yate\.__version__\s*==\s*")([^"]+)(")')
+_INIT_VERSION_RE = re.compile(r'^(__version__\s*=\s*")([^"]+)(")')
 
 
 def discover_repo_root() -> Path:
@@ -108,17 +109,6 @@ def bump_init_py(repo: Path, version: str, *, dry_run: bool = False) -> None:
         return
     _rewrite_version(repo, _VERSION_FILES[0], _INIT_VERSION_RE, version)
     print(f"bumped {_VERSION_FILES[0]} -> {version}")
-
-
-def bump_test_assertion(
-    repo: Path, version: str, *, dry_run: bool = False
-) -> None:
-    """Set the expected version in ``test_version_is_bumped``."""
-    if dry_run:
-        print(f"[dry-run] bump {_VERSION_FILES[1]} -> {version}")
-        return
-    _rewrite_version(repo, _VERSION_FILES[1], _TEST_VERSION_RE, version)
-    print(f"bumped {_VERSION_FILES[1]} -> {version}")
 
 
 def git_add(repo: Path, files: Sequence[str], *, dry_run: bool = False) -> None:
@@ -241,16 +231,13 @@ def release(
     if dirty and not dry_run:
         raise RuntimeError(f"refusing to release: uncommitted changes in {dirty}")
 
-    # Step 1-2: bump the version in both files.
+    # Step 1: bump the version, then commit it, so the changelog generator
+    # sees the new version and the new bump commit.
     bump_init_py(repo, version, dry_run=dry_run)
-    bump_test_assertion(repo, version, dry_run=dry_run)
-
-    # Step 3: commit the bump first, so the changelog generator sees the new
-    # version and the new bump commit.
     git_add(repo, _VERSION_FILES, dry_run=dry_run)
     git_commit(repo, f"chore(release): v{version}", dry_run=dry_run)
 
-    # Step 4-5: regenerate and commit the bilingual changelog.
+    # Step 2-3: regenerate and commit the bilingual changelog.
     generate_changelog(repo, dry_run=dry_run)
     git_add(repo, _CHANGELOG_FILES, dry_run=dry_run)
     git_commit(
@@ -259,13 +246,13 @@ def release(
         dry_run=dry_run,
     )
 
-    # Step 6-7: read-only gates; the tag is created only after they pass.
+    # Step 4-5: read-only gates; the tag is created only after they pass.
     if gate_check(repo) != 0:
         raise RuntimeError("changelog gate failed")
     if run_version_tests(repo) != 0:
         raise RuntimeError("version tests failed")
 
-    # Step 8: tag, then push (unless --no-push).
+    # Step 6: tag, then push (unless --no-push).
     git_tag(repo, version, dry_run=dry_run)
     if no_push:
         print("skip push (--no-push)")
