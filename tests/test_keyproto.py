@@ -152,7 +152,7 @@ def test_frame_stream_names_chords_and_respects_keyups() -> None:
         _PROBE_FRAMES["ctrl+shift+e"]
         + _PROBE_FRAMES["ctrl+1"]
         + _PROBE_FRAMES["ctrl+space"]
-        + "\x1b[69;18;5;2;56;1_"  # same chord, key-up flag
+        + "\x1b[69;18;5;0;56;1_"  # same chord, key-up: bKeyDown BOOL 0 = up
     )
     names = [frame_to_key_name(frame) for frame in frames]
     # key-ups never produce events; downs deliver the canonical names
@@ -161,6 +161,10 @@ def test_frame_stream_names_chords_and_respects_keyups() -> None:
     plain = _feed(_PROBE_FRAMES["a"])[0][0]
     assert frame_to_key_name(plain) is None
     assert frame_to_char(plain) == "a"
+    # key-ups contribute no character either -- otherwise every typed key
+    # would reach the app twice (first real-input harness run proved it)
+    plain_up = _feed("\x1b[65;30;97;0;32;1_")[0][0]
+    assert frame_to_char(plain_up) == ""
 
 
 def test_frame_stream_names_navigation_keys_with_modifiers() -> None:

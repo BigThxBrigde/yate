@@ -75,13 +75,16 @@ class Win32InputFrame:
 
     @property
     def is_key_down(self) -> bool:
-        """Return whether the frame reports a key-down event (flag 0/1).
+        """Return whether the frame reports a key-down event.
 
-        The spec encodes key-up as flag 2 (and 3 for its synthesized
-        repeats); those must never produce key events or the app sees every
-        press twice.
+        The fourth field is conhost's ``KEY_EVENT_RECORD.bKeyDown`` (BOOL):
+        1 = down, 0 = up.  The live probe captured only downs (``...;1;...``)
+        and the first real-input harness run proved the rest: every press
+        produced a second, ~50 ms later, chord log line exactly when key-ups
+        arrived, so 0 must be treated as up -- treating it as down makes the
+        app see every key twice.
         """
-        return self.flags in (0, 1)
+        return self.flags == 1
 
     @property
     def char_text(self) -> str:
