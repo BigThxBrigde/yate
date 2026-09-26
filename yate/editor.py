@@ -565,6 +565,15 @@ class Editor:
         """
         if self.has_modal_screen():
             return False  # a modal screen owns input
+        # Entry-level evidence: YATE_TRACE turns this into the ground truth of
+        # what event.key names a real terminal actually delivers (field reports
+        # and pilot synthesis can disagree; the log settles which side erred).
+        log.debug(
+            "key event: key=%s character=%r focused=%s",
+            event.key,
+            event.character,
+            type(self.app.focused).__name__ if self.app.focused else None,
+        )
         editor_focused = isinstance(self.app.focused, EditorView)
         # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle:
         # on Windows conhost / legacy xterm Ctrl+Space and Ctrl+` share the
