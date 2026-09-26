@@ -34,7 +34,7 @@ from textual.widgets import Static
 from yate import __version__
 from yate.completion import CompletionController
 from yate.config import YateConfig
-from yate.editor_core import Document
+from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_lsp import LspManager
 from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
 from yate.editor_view import theme
@@ -91,6 +91,7 @@ class Editor:
         *,
         target: str | Path | None = None,
         keymap: str | None = None,
+        readonly: bool = False,
         ext_files: list[str | Path] | None = None,
         ext_dirs: list[str | Path] | None = None,
     ) -> None:
@@ -100,6 +101,9 @@ class Editor:
         self.ext_dirs = [Path(p) for p in (ext_dirs or [])]
         self._mounted = False
         self._window_pending = False
+        # ``--readonly`` startup flag: only the *file* argument is opened
+        # read-only (a directory argument keeps its normal behavior).
+        self.startup_readonly = readonly
         self._ext_messages: list[str] = [
             f"yaterc: {err}" for err in self.config.errors
         ]
@@ -350,12 +354,22 @@ class Editor:
         if not path.exists():
             # treat as a not-yet-created file
             self.workspace.set_root(path.parent if str(path.parent) else Path.cwd())
-            self._open_document(path)
+            self._open_readonly(self._open_document(path))
             return "file"
         kind = self.workspace.open_target(path)
         if kind == "file":
-            self._open_document(path)
+            self._open_readonly(self._open_document(path))
         return kind
+
+    def _open_readonly(self, doc: Document | None) -> None:
+        """Apply the ``--readonly`` startup flag to an opened file document.
+
+        A no-op without the flag, for a failed open (binary) and for
+        unnamed/welcome buffers.
+        """
+        if doc is not None and self.startup_readonly:
+            doc.buffer.read_only = True
+            log.info("opened read-only: %s", doc.path)
 
     # =============================================================== documents
 
@@ -510,6 +524,9 @@ class Editor:
     def save_document(self) -> None:
         """``:w``: write the active document to disk."""
         doc = self.session.doc
+        if doc.buffer.read_only:
+            self._readonly_notice()
+            return
         if doc.path is None:
             log.info("save: unnamed buffer, prompting for a path")
             self.prompt_save_as()
@@ -539,6 +556,9 @@ class Editor:
         text = text.strip()
         if not text:
             self.message("save cancelled")
+            return
+        if self.session.doc.buffer.read_only:
+            self._readonly_notice()
             return
         path = Path(text)
         try:
@@ -633,9 +653,15 @@ class Editor:
 
     def handle_raw_key(self, raw: str) -> bool:
         """Dispatch one raw key to the active keymap, then refresh the UI."""
-        handled = self.keymaps.active.handle_key(
-            ActionContext(self.session, self.key_ui), raw
-        )
+        try:
+            handled = self.keymaps.active.handle_key(
+                ActionContext(self.session, self.key_ui), raw
+            )
+        except BufferReadOnlyError:
+            # Typing / vim operators / edit actions on a read-only buffer:
+            # the key is consumed (R10) with a notice instead of an edit.
+            self._readonly_notice()
+            return True
         self.refresh_ui()
         self.completion.after_editor_key(raw)
         return handled
@@ -646,7 +672,17 @@ class Editor:
         Called by keymaps (which report an unknown name and let the key fall
         through), the palette and the extension bridge.
         """
-        return self.actions.execute(name, ActionContext(self.session, self.key_ui))
+        try:
+            return self.actions.execute(name, ActionContext(self.session, self.key_ui))
+        except BufferReadOnlyError:
+            self._readonly_notice()
+            return True
+
+    def _readonly_notice(self) -> None:
+        """User feedback for an edit refused on a read-only buffer."""
+        self.message(
+            "buffer is read-only (:set readonly=false to unlock)", kind="warn"
+        )
 
     def insert_char(self, ch: str) -> None:
         """Insert one character at the cursor (keymap ``insert_char``)."""
@@ -909,6 +945,9 @@ class Editor:
         )
 
     def _do_replace(self, find: str, replacement: str) -> None:
+        if self.session.buffer.read_only:
+            self._readonly_notice()
+            return
         matches = self.session.search.update(find, self.session.buffer)
         if not matches:
             self.message(f"no matches for {find!r}", kind="warn")
@@ -1069,6 +1108,13 @@ class Editor:
         """Paint the VS Code-style 'EXPLORER' sidebar title."""
         self.sidebar_head.styles.background = theme.active().panel
         self.sidebar_head.update(sidebar_head_text())
+
+    def set_readonly(self, value: bool) -> None:
+        """Toggle the active buffer's read-only flag (``:set readonly=``)."""
+        buf = self.session.doc.buffer
+        buf.read_only = value
+        self.message(f"readonly: {'on' if value else 'off'}", kind="ok")
+        self.refresh_ui()
 
     def set_filetype(self, value: str) -> None:
         """Force the current document's syntax type (``:set filetype=``)."""
@@ -1232,7 +1278,10 @@ class Editor:
 
     def accept_completion(self) -> None:
         """Insert the selected completion at its reported range."""
-        self.completion.accept()
+        try:
+            self.completion.accept()
+        except BufferReadOnlyError:
+            self._readonly_notice()
 
     # =================================================================== lsp
 

@@ -83,6 +83,7 @@ class YateApp(App[None]):
         keymap: str | None = None,
         theme_name: str | None = None,
         config: YateConfig | None = None,
+        readonly: bool = False,
         ext_files: list[str | Path] | None = None,
         ext_dirs: list[str | Path] | None = None,
     ) -> None:
@@ -129,6 +130,7 @@ class YateApp(App[None]):
             self.config,
             target=target,
             keymap=keymap,
+            readonly=readonly,
             ext_files=ext_files,
             ext_dirs=ext_dirs,
         )

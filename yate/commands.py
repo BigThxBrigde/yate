@@ -128,7 +128,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
             editor.message(
                 "usage: :set keymap=vsc|vim  theme=mocha  shell=powershell  "
                 "terminal_height=12  filetype=py (auto = detect)  "
-                "show_hidden=on|off",
+                "show_hidden=on|off  readonly=true|false",
                 kind="warn",
             )
             return
@@ -168,6 +168,18 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
             editor.message(
                 f"hidden files {'shown' if val else 'hidden'}", kind="ok"
             )
+        elif key == "readonly":
+            truthy = ("true", "on", "1", "yes")
+            falsy = ("false", "off", "0", "no")
+            if value.lower() in truthy:
+                editor.set_readonly(True)
+            elif value.lower() in falsy:
+                editor.set_readonly(False)
+            else:
+                editor.message(
+                    "readonly must be true|false (on/off/1/0/yes/no accepted)",
+                    kind="warn",
+                )
         else:
             editor.message(f"unknown option: {key}", kind="warn")
 
@@ -196,7 +208,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.set_filetype(args)
 
     reg("set", _set,
-        "set an option (keymap, theme, shell, terminal_height, filetype)")
+        "set an option (keymap, theme, shell, terminal_height, filetype, "
+        "readonly)")
     reg("filetype", _filetype,
         "set syntax/filetype (:filetype python; auto = detect; no arg lists all)")
     reg("ft", _filetype, "alias for :filetype")

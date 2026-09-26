@@ -78,7 +78,8 @@ LIGHTNING = "\uf0e7"      # 
 PENCIL = "\uf303"         # 
 EYE = "\uf06e"            # 
 CLOCK = "\uf017"          # 
-PLUG = "\uf1e6"           #  (extensions)
+PLUG = "\uf1e6"           #  (extensions)
+LOCK = "\uf023"           #  (read-only buffer)
 
 
 def icon_for_path(name: str, is_dir: bool, expanded: bool = False) -> str:

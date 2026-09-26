@@ -64,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("path", nargs="?", help="file or directory to open")
     parser.add_argument(
+        "--readonly",
+        action="store_true",
+        help="open the file argument read-only (edits and saves are "
+             "refused; ignored when the argument is a directory)",
+    )
+    parser.add_argument(
         "--keymap",
         choices=["vsc", "vim", "normal"],
         default=None,
@@ -310,6 +316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             keymap=keymap,
             theme_name=args.theme,
             config=config,
+            readonly=args.readonly,
             ext_files=args.ext_files,
             ext_dirs=args.ext_dirs,
         )
@@ -322,6 +329,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         keymap=keymap,
         theme_name=args.theme,
         config=config,
+        readonly=args.readonly,
         ext_files=args.ext_files,
         ext_dirs=args.ext_dirs,
     )
