@@ -1017,6 +1017,14 @@ flowchart LR
 > [readonly-option-plan.md §5](../documents/readonly-option-plan.md)。
 > **门禁（实测 2026-09-26）**：pyright 全仓 0 诊断；pytest 1239 passed / 7 skipped；
 > 架构守护测试 13 passed。
+>
+> **Gitee PR #24 AI 队友审查登记**（[原始评论](https://gitee.com/jermaine/yate/pulls/24#note_51374919_conversation_190960220)，
+> 审查时间 2026-09-26 19:30）：结论 ⛔ **1 阻断 + 8 改进，请修改后再合并**；风险等级
+> **medium**。四维度判定：功能性与逻辑 ❌ 未通过；安全性 ⚠️ 待优化；性能 ✅ 通过；
+> 可维护性 ⚠️ 待优化。潜在影响（原文摘要）：阻断项使 `--readonly` 在会话内打开新文档即
+> 失效，用户可能在自认为只读的会话中误改内容；`Document.save()` 缺 L0 护栏可被扩展经
+> `api.doc.save()` 绕过只读写盘。下方 PR 节条目已与该评论原文逐条比对（9/9 对应，无
+> 遗漏、无新增），全部修复于 `1f82fae`/`dd47be0`；改进2 与本地自查重复已去重。
 
 ### 本地自查（提交 8b6b1b4、d960a08）
 
