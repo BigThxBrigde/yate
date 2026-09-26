@@ -122,5 +122,6 @@ Get-Content ~\.yate\data\logs\yate-*.log | Select-String "key event:"
 | PA1 入口日志 | ✅ | `5a73fc7` | 150 passed / pyright 0 |
 | PA2 别名加固 | ✅ | `1d1f3d8` | 188 passed / pyright 0 |
 | PA3 vim 守卫 | ✅ | `34ab059` | 2 passed；**反向演练成功**：注释 ctrl+p 分支 → vim 守卫红（assert 1==2）/ vsc 守卫仍绿（keymap `\x10` 绑定掩盖——SP2 盲区实锤并记录） |
-| PA4 文档回填 | ✅ | （本提交） | — |
-| PB1–PB5 | ⏳ 待真机复测结果 | — | 真机若全通则 PB 仅剩 ctrl+1 价值 |
+| PA4 文档回填 | ✅ | `beea5e0` | — |
+| **PA2b C0 兜底（真机 trace 裁决产物）** | ✅ | `1db6175` | trace 实锤：WT win32 驱动把 ctrl+] 命名为 `ctrl+right_square_bracket`（character 仍携 `\x1d`）、ctrl+6 → `ctrl+circumflex_accent`（`\x1e`）→ `event_to_raw` 增加兜底：ctrl-chord 表查找未命中且 `event.character` 为 C0（<0x20）→ 直接采用；一次覆盖全部未知标点命名，ctrl+p trace 显示 `key=ctrl+p`（规范名，无 unmapped）；191 passed / pyright 0 |
+| PB1–PB5 | ⏳ 待真机复测结果 | — | trace 未见 ctrl+1 事件 → 物理层确认，PB 是唯一解；ctrl+@ 已由 completion 分支消费（trace 验证） |
