@@ -10,9 +10,11 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+import pytest
+
 from yate.actions import populate
 from yate.config import YateConfig
-from yate.editor_core import Document, TextBuffer
+from yate.editor_core import BufferReadOnlyError, Document, TextBuffer
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.registries import ActionRegistry
@@ -181,6 +183,17 @@ def test_open_line_below_and_above() -> None:
     editor.buffer.set_cursor((0, 1))
     _press(keymap, ctx, "O", "y", ESC)
     assert editor.buffer.lines == ["y", "ab"]
+
+
+def test_insert_entry_refused_on_read_only_buffer() -> None:
+    """Read-only buffers refuse all insert entries and stay in NORMAL."""
+    editor, keymap, ctx = _setup("abc")
+    editor.buffer.read_only = True
+    for key in ("i", "I", "a", "A", "o", "O"):
+        with pytest.raises(BufferReadOnlyError):
+            keymap.handle_key(ctx, key)
+        assert keymap.mode is VimMode.NORMAL
+    assert editor.buffer.get_text() == "abc"
 
 
 def test_insert_mode_editing_keys() -> None:

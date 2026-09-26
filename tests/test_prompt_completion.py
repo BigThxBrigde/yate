@@ -155,6 +155,14 @@ def test_set_show_hidden_values() -> None:
     assert _prompt("set show_hidden=") == ["set show_hidden=on", "set show_hidden=off"]
 
 
+def test_set_readonly_values() -> None:
+    """``readonly`` offers true / false."""
+    assert _prompt("set readonly=") == [
+        "set readonly=true",
+        "set readonly=false",
+    ]
+
+
 def test_set_unknown_key_offers_nothing() -> None:
     """An option without a value source offers no candidates."""
     assert _prompt("set nope=") == []

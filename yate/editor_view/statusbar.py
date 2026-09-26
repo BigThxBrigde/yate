@@ -24,7 +24,7 @@ from yate.session import EditorSession
 
 from . import theme
 from .commandline import PromptBar
-from .icons import DOT, KEYBOARD, PENCIL, PLUG, TERMINAL
+from .icons import DOT, KEYBOARD, LOCK, PENCIL, PLUG, TERMINAL
 
 
 def mode_chip(prompt: PromptBar, keymaps: KeymapSet) -> tuple[str, str]:
@@ -104,16 +104,21 @@ class StatusBar(Static):
         right_plain = f"{pos_plain}   {meta_plain}   {lsp_part}{hints_plain}"
         right_len = theme.cell_len(right_plain)
 
+        lock_cells = 2 if buf.read_only else 0
         dot_cells = 2 if doc.modified else 0
         # minimum: chip + gap + a 4-cell name + gap + right block
-        include_right = chip_len + 1 + 4 + dot_cells + 1 + right_len <= width
+        include_right = (
+            chip_len + 1 + 4 + dot_cells + lock_cells + 1 + right_len <= width
+        )
         budget = width - (1 + right_len if include_right else 0)
 
         text = Text()
         # Flat mode chip (hard color edge, no powerline triangle).
         text.append(chip, style=f"bold {t.on_accent} on {chip_bg}")
 
-        name_budget = budget - chip_len - 3 - dot_cells  # gap, pencil+space
+        name_budget = (
+            budget - chip_len - 3 - dot_cells - lock_cells  # gap, pencil+space
+        )
         name = doc.name
         if name_budget < 4:
             name = ""
@@ -124,7 +129,13 @@ class StatusBar(Static):
             text.append(f"{PENCIL} {name}", style=f"bold {t.on_accent} {bar}")
         if doc.modified:
             text.append(f" {DOT}", style=f"bold {t.yellow} {bar}")
-        used = chip_len + 1 + (theme.cell_len(name) + 2 if name else 0) + dot_cells
+        if buf.read_only:
+            text.append(f" {LOCK}", style=f"bold {t.red} {bar}")
+        used = (
+            chip_len + 1
+            + (theme.cell_len(name) + 2 if name else 0)
+            + dot_cells + lock_cells
+        )
 
         text.append(" " * max(0, width - used - (1 + right_len if include_right else 0)),
                     style=bar)

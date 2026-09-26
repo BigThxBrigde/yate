@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import override
 
-from yate.editor_core.buffer import TextBuffer, word_end
+from yate.editor_core.buffer import BufferReadOnlyError, TextBuffer, word_end
 from yate.keymaps.base import (
     ActionContext,
     KeyBinding,
@@ -379,6 +379,11 @@ class VimKeymap(Keymap):
             "A": buf.move_line_end,
         }
         if key in entry:
+            # Refuse insert entry on a read-only buffer (vim E21): stay in
+            # NORMAL and surface the notice through the dispatch handler,
+            # matching the o/O refusal path.
+            if buf.read_only:
+                raise BufferReadOnlyError("buffer is read-only")
             entry[key]()
             self._enter_insert(ui)
             return True

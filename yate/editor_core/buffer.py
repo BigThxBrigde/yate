@@ -12,6 +12,17 @@ from dataclasses import dataclass
 
 Pos = tuple[int, int]
 
+
+class BufferReadOnlyError(Exception):
+    """Raised when a mutation is attempted on a read-only :class:`TextBuffer`.
+
+    The read-only flag lives on the buffer (``read_only``) so every write
+    path -- typing, vim operators, actions, completion acceptance, search
+    replace, extensions -- funnels through the same guarded public mutation
+    methods and fails with this single exception type.
+    """
+
+
 _WORD_CHARS = re.compile(r"\w")
 
 #: Maximum undo steps kept in memory.  Each step snapshots the full line
@@ -97,12 +108,17 @@ class TextBuffer:
         *,
         tab_width: int = 4,
         use_spaces: bool = True,
+        read_only: bool = False,
     ) -> None:
         self.lines: list[str] = text.split("\n") if text else [""]
         self.cursor: Pos = (0, 0)
         self.anchor: Pos | None = None
         self.tab_width = tab_width
         self.use_spaces = use_spaces
+        # When True every public mutation raises ``BufferReadOnlyError``;
+        # cursor/selection movement stays allowed (browsing a read-only
+        # buffer must keep working).
+        self.read_only = read_only
         self.register: str = ""  # internal yank/clipboard register
         self._undo: list[_Edit] = []
         self._redo: list[_Edit] = []
@@ -124,6 +140,11 @@ class TextBuffer:
 
     # ------------------------------------------------------------------ state
 
+    def _ensure_writable(self) -> None:
+        """Raise :class:`BufferReadOnlyError` unless the buffer is writable."""
+        if self.read_only:
+            raise BufferReadOnlyError("buffer is read-only")
+
     @property
     def row(self) -> int:
         return self.cursor[0]
@@ -143,6 +164,7 @@ class TextBuffer:
         return "\n".join(self.lines)
 
     def set_text(self, text: str) -> None:
+        self._ensure_writable()
         self.lines = text.split("\n") if text else [""]
         self.cursor = (0, 0)
         self.anchor = None
@@ -222,6 +244,7 @@ class TextBuffer:
         self._commit(before, kind)
 
     def undo(self) -> bool:
+        self._ensure_writable()
         if not self._undo:
             return False
         edit = self._undo.pop()
@@ -231,6 +254,7 @@ class TextBuffer:
         return True
 
     def redo(self) -> bool:
+        self._ensure_writable()
         if not self._redo:
             return False
         edit = self._redo.pop()
@@ -307,6 +331,7 @@ class TextBuffer:
 
     def insert_text(self, text: str, kind: str = "char") -> None:
         """Insert ``text`` (may contain newlines) at the cursor."""
+        self._ensure_writable()
         if text == "":
             return
         before = self._snapshot()
@@ -340,6 +365,7 @@ class TextBuffer:
         One undo step; used for LSP completion acceptance (text may contain
         newlines).
         """
+        self._ensure_writable()
         before = self._snapshot()
         self.cursor = start
         self.anchor = None
@@ -369,6 +395,7 @@ class TextBuffer:
             self.insert_text("\t", kind="char")
 
     def delete_selection(self) -> str | None:
+        self._ensure_writable()
         sel = self.selection()
         if sel is None:
             return None
@@ -380,6 +407,7 @@ class TextBuffer:
         return text
 
     def delete_backward(self, word: bool = False) -> None:
+        self._ensure_writable()
         if self.has_selection():
             self.delete_selection()
             return
@@ -399,6 +427,7 @@ class TextBuffer:
         self._commit(before, "step" if word else "char")
 
     def delete_forward(self, word: bool = False) -> None:
+        self._ensure_writable()
         if self.has_selection():
             self.delete_selection()
             return
@@ -493,6 +522,7 @@ class TextBuffer:
     # --------------------------------------------------------- line commands
 
     def indent_selection(self) -> None:
+        self._ensure_writable()
         sel = self.selection()
         if sel is None:
             self.insert_tab()
@@ -507,6 +537,7 @@ class TextBuffer:
         self._commit(before, "step")
 
     def outdent_selection(self) -> None:
+        self._ensure_writable()
         sel = self.selection()
         if sel is None:
             r = self.cursor[0]
@@ -558,6 +589,7 @@ class TextBuffer:
 
     def delete_lines(self) -> str:
         """Delete selected lines (or the current line) and yank them."""
+        self._ensure_writable()
         before = self._snapshot()
         rows = self.selected_rows()
         if rows is None:
@@ -576,6 +608,7 @@ class TextBuffer:
         return text
 
     def duplicate_line(self) -> None:
+        self._ensure_writable()
         before = self._snapshot()
         rows = self.selected_rows()
         r1, r2 = rows if rows is not None else (self.row, self.row)
@@ -586,6 +619,7 @@ class TextBuffer:
         self._commit(before, "step")
 
     def move_line(self, delta: int) -> None:
+        self._ensure_writable()
         before = self._snapshot()
         r = self.cursor[0]
         target = r + delta
@@ -599,6 +633,7 @@ class TextBuffer:
 
     def join_lines(self) -> None:
         """Join the current line with the next one (vim ``J``)."""
+        self._ensure_writable()
         before = self._snapshot()
         r, c = self.cursor
         if r >= len(self.lines) - 1:
@@ -617,6 +652,7 @@ class TextBuffer:
 
     def delete_to_line_start(self) -> None:
         """Delete from the start of the line up to the cursor (vim ctrl-u)."""
+        self._ensure_writable()
         r, c = self.cursor
         if c == 0:
             return
@@ -628,6 +664,7 @@ class TextBuffer:
         self._commit(before, "step")
 
     def paste(self, below: bool = True) -> None:
+        self._ensure_writable()
         text = self.register
         if not text:
             return

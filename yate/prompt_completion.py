@@ -20,7 +20,7 @@ from yate.session import EditorSession
 _PATH_COMMANDS = frozenset({"e", "edit", "sp", "split", "vs", "vsplit"})
 _SET_OPTIONS = (
     "filetype", "ft", "keymap", "lang", "language", "shell",
-    "terminal_height", "theme", "show_hidden",
+    "terminal_height", "theme", "show_hidden", "readonly",
 )
 _FILETYPE_KEYS = frozenset({"filetype", "ft", "language", "lang"})
 _FILETYPE_COMMANDS = frozenset({"filetype", "ft", "language"})
@@ -75,6 +75,8 @@ def _command_completions(
                 vals = ("auto", *available_filetypes())
             elif key == "show_hidden":
                 vals = ("on", "off")
+            elif key == "readonly":
+                vals = ("true", "false")
             else:
                 return []
             return [

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from yate.editor_core.buffer import Pos, TextBuffer
+from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer
 
 
 @dataclass
@@ -99,6 +99,10 @@ class SearchEngine:
     # -------------------------------------------------------------- replace
 
     def replace_current(self, buffer: TextBuffer, replacement: str) -> bool:
+        # Guarded here (not only in ``replace_range``) so the match rework
+        # below never runs on a buffer the edit was refused for.
+        if buffer.read_only:
+            raise BufferReadOnlyError("buffer is read-only")
         match = self.current()
         if match is None:
             return False
@@ -113,6 +117,11 @@ class SearchEngine:
         return True
 
     def replace_all(self, buffer: TextBuffer, replacement: str) -> int:
+        # Guarded before the bulk edit: the direct ``buffer.lines`` writes
+        # below bypass the per-method guards, and failing midway through the
+        # loop would leave the buffer half-replaced.
+        if buffer.read_only:
+            raise BufferReadOnlyError("buffer is read-only")
         matches = self.update(self.query, buffer)
         if not matches:
             return 0
