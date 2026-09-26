@@ -26,6 +26,12 @@ keymap 切换（`ctrl+/`）、quick open（`ctrl+p`）、explorer/editor 焦点�
 
 ## 真机验证矩阵（手动，逐项勾选）
 
+> **助手脚本**：[verify_matrix.ps1](verify_matrix.ps1) —— 在**被测终端**里运行
+> `powershell -ExecutionPolicy Bypass -File .trae\documents\keybinding-fix-wt\verify_matrix.ps1`：
+> 阶段一自动逐键捕获控制台上报的字符码/修饰键（根因取证：ctrl+1 应看到 `0x31 + Control`），
+> 阶段二按下方矩阵逐项启动 yate 引导作答，结果写入同目录 `matrix_results.md`，回填本文件后可删除脚本。
+> 注意：脚本为 UTF-8 with BOM（PowerShell 5.1 兼容），编辑后需保留 BOM。
+
 在**真实终端**运行 yate（pilot 测不到终端字节层，此矩阵不可省略）。
 vim / vsc 两键位各过一遍（`ctrl+/` 切换键位本身即 SP1 的验证）：
 
