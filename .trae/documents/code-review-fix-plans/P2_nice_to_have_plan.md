@@ -3,7 +3,8 @@
 > 来源：[review.md](../../issues/review.md) 2026-09-16 审查 Nice-to-have 段（2026-09-23 复核后
 > 仍存在的条目）。均为锦上添花，不阻塞发布；随手清理即可，无独立排期。
 > **实施状态（2026-09-25）：29 条全部落账——波次一 14 条 + 波次二 12 条（表中 ✅），
-> 决策门三项已拍板：N18 选①已落地（✅），N8 / N30 挂起备注（⏸）。**
+> 决策门三项已拍板：N18 选①已落地（✅），N8 挂起备注（⏸），
+> N30 已于 2026-09-26 按重构方案落地（✅，见下）。**
 >
 > **2026-09-24 状态复核**：原 N1–N17 逐条对照当前代码核实，**全部仍存在**（行号已按
 > 现状修正）；另将 review.md 2026-09-23 / 2026-09-24 各审查段仍未修复的低影响条目
@@ -42,7 +43,7 @@
 | N27 ✅ | 内部导入组非字母序 | [extensions.py:49-53](../../../yate/services/extensions.py) | 排序 | 无 |
 | N28 ✅ | trust.py 全用 `Path \| None` | [trust.py:27,50,71](../../../yate/services/trust.py) | 统一 `Optional[X]`（与 explorer 条目同类，可合并修） | pyright 全绿 |
 | N29 ✅ | harness 重写行沿用 `# type: ignore` 无理由注释 | [harness.py:274-283](../../../tools/smoke_test/harness.py) | 补理由注释归档豁免（工具代码，若属既定豁免） | 无（注释） |
-| N30 ⏸ | L0 config 惰性 import L2 `editor_view.theme`（层级债） | [config.py:171-173](../../../yate/config.py) | 后续下沉或注入回调，并在 `architecture-boundaries.md` 登记冻结（类似 R11）；**动架构前需评审** | 架构测试 + pyright 全绿 |
+| N30 ✅ | L0 config 惰性 import L2 `editor_view.theme`（层级债） | [config.py](../../../yate/config.py) | **已落地（2026-09-26）**：注入回调方案——`load_config` 增 keyword-only `register_theme` / `load_theme_paths`（PEP 695 别名），L4 `cli.py` 注入同名函数；缺省 `None` 即 headless。`config.py` 收编 `UI_FREE_FILES`（负向验证过）；R4 / §四交互表 / §六 已登记。方案比选与实测：[theme-layer-refactor-plans](../theme-layer-refactor-plans/README.md) | 架构测试 13 passed + pyright 全仓 0 ✅ |
 | N31 ✅ | `warn()` 在 `sys.stderr` 为 None 时退化写 stdout | [logs.py:85-87](../../../yate/logs.py) | `if sys.stderr is not None:` 再 print——stderr 不可用时静默丢弃，与 docstring「Never raises」一致 | monkeypatch `sys.stderr = None` 断言不抛且不写 stdout |
 | N32 ✅ | subject 字段可能包含嵌入的分隔符（理论性 Low） | tools/changelog/gitdata.py | body 经 maxsplit 保留杂散分隔符，subject 字段本身无防护；按实现固化行为或加断言/文档说明（2026-09-25 复核补入——review.md 2026-09-16 Suggestion 段唯一漏登记条目） | 现有 changelog 测试全绿 |
 
@@ -71,8 +72,9 @@
     （1 例既有 timing 偶发单独复跑 ×3 全绿）、冒烟 87/87 · 907/907 · exit 0。
   - **N8 → 暂缓（⏸）**：保留 kitty CSI-u 现状，备注「待 KeyBinding 在 WT 重构后彻底修复」；
     届时与 N19 的 `FOCUS_EDITOR_KEY` 单点常量一并处理。
-  - **N30 → 暂缓（⏸）**：备注「下次做重构方案」；届时按本行策略（下沉 / 注入回调二选一）
-    单独立项 + 架构规则登记。
+  - **N30 → 已落地（✅，2026-09-26）**：按原策略「二选一」拍板**注入回调**并单独立项实施；
+    方案比选、19 步拆分与门禁实测见
+    [theme-layer-refactor-plans](../theme-layer-refactor-plans/README.md)（分支 `issues/refine-arch`）。
 - **收尾批（2026-09-25，登记项清账）**：① N19 冒烟场景 `terminal_focus_editor` 补做
   （[integration.py](../../../tools/smoke_test/scenarios/integration.py)：内存 fake PTY
   不起真 shell，故未标 `slow`；断言焦点回编辑区 + `ctrl+1` 字节未进 shell 流）；

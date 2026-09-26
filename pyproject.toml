@@ -17,7 +17,17 @@ dependencies = [
 yate = "yate.cli:main"
 
 [project.optional-dependencies]
-dev = ["pyright>=1.1.400", "pytest>=8.0", "pytest-cov>=5.0"]
+# dev includes the ts group: the pyright zero-diagnostics merge gate (strict,
+# whole repo) needs tree-sitter stubs for tests/test_ts_backend.py and
+# yate/editor_syntax/ts_backend/, so a bare `.[dev]` install must type check.
+dev = [
+    "pyright>=1.1.400",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "tree-sitter>=0.24,<0.26", # keep in sync with the ts group below
+    "tree-sitter-python>=0.23",
+    "tree-sitter-bash>=0.23",
+]
 # Tree-sitter syntax backend (optional): incremental-quality highlighting for
 # languages with an installed grammar pack. Without it yate falls back to the
 # built-in regex highlighter.
