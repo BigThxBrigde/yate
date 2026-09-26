@@ -43,7 +43,6 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.keys import event_to_raw
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
@@ -54,6 +53,7 @@ from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.prompt_completion import prompt_completions
 from yate.registries import ActionRegistry, CommandRegistry

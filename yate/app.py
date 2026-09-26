@@ -21,10 +21,10 @@ from yate.commands import register_commands
 from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_view import theme
-from yate.editor_view.keys import textual_key_to_raw
+from yate.keyproto.legacy import textual_key_to_raw
 
-# `textual_key_to_raw` lives in yate.editor_view.keys to avoid import cycles
-# and is re-exported here for convenience/tests.
+# `textual_key_to_raw` lives in the L0 keyproto leaf (no import cycles) and
+# is re-exported here for convenience/tests.
 __all__ = ["textual_key_to_raw", "YateApp"]
 
 

@@ -27,10 +27,10 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
-from yate.editor_view.keys import event_to_raw
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.keymaps.base import ActionContext
 from yate.keymaps.vim import VimKeymap
+from yate.keyproto.legacy import event_to_raw
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 

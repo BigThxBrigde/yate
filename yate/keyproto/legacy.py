@@ -1,5 +1,10 @@
-"""Translation from Textual key names to the raw byte sequences yate keymaps
-use (control codes / ANSI escape sequences)."""
+"""Legacy key codec: translation from Textual key names to the raw byte
+sequences yate keymaps use (control codes / ANSI escape sequences).
+
+Formerly ``yate.editor_view.keys``; moved into the L0 leaf package so
+keymaps, the driver layer and the app can share one codec without touching
+the component package.
+"""
 
 from __future__ import annotations
 
@@ -22,6 +27,12 @@ _CTRL_PUNCT = {
     "/": 0x1F,
     "underscore": 0x1F,
     "slash": 0x1F,
+    # Ctrl+grave is NUL on legacy terminals (same byte as ctrl+space --
+    # the collision the terminal panel's TOGGLE_KEYS documents); kitty
+    # spellings included so every name maps to the byte it delivers.
+    "`": 0x00,
+    "grave": 0x00,
+    "grave_accent": 0x00,
 }
 
 _MOD_ARROWS: dict[tuple[str, ...], dict[str, str]] = {
