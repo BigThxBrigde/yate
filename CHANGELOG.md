@@ -22,6 +22,22 @@
 
 ### Bug Fixes
 
+- pass coroutine functions, not eager coroutines, to run_worker ([`ba5946b`](https://gitee.com/jermaine/yate/commit/ba5946b7d20a58b9b4c5b8982198840213719762))
+- route ctrl+q through the registered quit action ([`b9e73be`](https://gitee.com/jermaine/yate/commit/b9e73be2c8a713490e28283bd5b65cba44f35314))
+- land P2 wave 1 cleanups and guards ([`2dad4fc`](https://gitee.com/jermaine/yate/commit/2dad4fcd606c4b394985ddfd7d7ff731596b68ee))
+- update .github/sync-to-gitee.sh. ([`0597289`](https://gitee.com/jermaine/yate/commit/05972894ca4dd1744be4ac440ae709d642b39a5b))
+- block scroll captures while a restore is in flight ([`1a02177`](https://gitee.com/jermaine/yate/commit/1a021773c756217bea4ec4fe9cace7102e2b6b2f))
+- retry mount-time scroll restores and guard captures ([`73110ab`](https://gitee.com/jermaine/yate/commit/73110abc034be6a1e1e562feff2ce043dabf2418))
+- surface :trust refusal and document the spawn cleanup ([`3c53fa4`](https://gitee.com/jermaine/yate/commit/3c53fa411eba15e831e2e42fda9fb7280aaf17aa))
+- robustness fixes and S39 minimal hardening ([`42d9b12`](https://gitee.com/jermaine/yate/commit/42d9b12f9527af5f9afb2de8fe21cfc6478ef7ca))
+- correctness fixes across terminal, completion and vim paths ([`66fb5ba`](https://gitee.com/jermaine/yate/commit/66fb5ba7c4aa02f58c2b8dcd44685f778fb32660))
+- cut per-frame render work and harden the toolchain ([`d7e422c`](https://gitee.com/jermaine/yate/commit/d7e422caded6e287b65e2049f4ef7ccaf18f021c))
+- detect the default release branch and pass --overrides through ([`322881c`](https://gitee.com/jermaine/yate/commit/322881c2c8f4b50942d3d33d070a00d5c25b7fae))
+- pop the starting slot only while its own task owns it ([`dc1f3ac`](https://gitee.com/jermaine/yate/commit/dc1f3ac3e32fd4f9b891c2f79237fdaa3f4b2063))
+- fail the client instead of hanging requests on any read-loop crash ([`e5a3001`](https://gitee.com/jermaine/yate/commit/e5a30018de9110ad23d3b17412f5f0547276ad21))
+- make gitee ssh banner check immune to invisible characters The live Gitee ssh greeting was observed to carry invisible characters (NBSP/zero-width) that defeat a plain substring match even though the text renders identically on screen, so a successful authentication was misreported as a failure. Match on a letters-only projection of the banner instead (tr -cd '[:alnum:]' + "successfullyauthenticated"), and always print the banner so Gitee's reply stays visible. ([`05ead06`](https://gitee.com/jermaine/yate/commit/05ead06d51b0d7e2f90f49a67976cfc2f7a81f6f))
+- sink version_lines into cli.py, unify vim F-key dead-action handling ([`44b67ea`](https://gitee.com/jermaine/yate/commit/44b67eabb7e61e282be2011522e7445734fc2201))
+- address the 2026-09-24 code-review findings ([`cf889b5`](https://gitee.com/jermaine/yate/commit/cf889b513624b1c45f8f0b4923a1c88c43c3220e))
 - address the PR #13 review findings ([`33584e6`](https://gitee.com/jermaine/yate/commit/33584e640a443b96b90e950eb99e8f1805d5ce3b))
 - let non-popup keys fall through while the popup is open ([`bbeb5f6`](https://gitee.com/jermaine/yate/commit/bbeb5f6375142e1a64febf6049a4db33812c5efa))
 - snapshot the command universe after the shell loads it ([`d6765c4`](https://gitee.com/jermaine/yate/commit/d6765c419394afeac842667d489c49973b699f6a))
@@ -49,6 +65,7 @@
 
 ### Refactors
 
+- land P2 wave 2 cleanups and guards ([`a6e6f4e`](https://gitee.com/jermaine/yate/commit/a6e6f4e73db051a886a4fe05f7ee8aa3b48691ee))
 - sink the pane tree model into session.py (Plan G) ([`2ee2586`](https://gitee.com/jermaine/yate/commit/2ee258656b04517c0a94030c990b27f6f13b1e9a))
 - split refresh_ui into focused sub-methods and update stale docs ([`f3df035`](https://gitee.com/jermaine/yate/commit/f3df0358309173d961e7a35575118b44e90dbdef))
 - drop the Feature layer for concrete editor collaborators ([`9fa5ac8`](https://gitee.com/jermaine/yate/commit/9fa5ac84b844958bd89bcc6b039dc1ed30a5897e))
@@ -58,6 +75,20 @@
 
 ### Documentation
 
+- fix yaterc plan filename typo pywright -> pyright ([`11bab59`](https://gitee.com/jermaine/yate/commit/11bab597c95329329ece2e09766e26a80517d51b))
+- merge the four remove_type_checking docs into one ADR ([`f9b4d0b`](https://gitee.com/jermaine/yate/commit/f9b4d0b626380be862385b78ba76930156f8f774))
+- backfill wave-1 subplan calibration records ([`8c30871`](https://gitee.com/jermaine/yate/commit/8c308715a0eb4e25d4e633966d746a1d982d3ec0))
+- split the P2 nice-to-have plan into wave-parallel subplans ([`ea13961`](https://gitee.com/jermaine/yate/commit/ea13961a45953f109de7990c8c4ff7fbb510f0a3))
+- add architecture overview and Textual framework hooks notes ([`f2dad15`](https://gitee.com/jermaine/yate/commit/f2dad159a6f06d6cadf9ef2dffda20364a6f141b))
+- backfill the P1 wave results and track the gitdata gap ([`6489396`](https://gitee.com/jermaine/yate/commit/6489396a4bf888d17fafed0cb420219e961b209e))
+- split the P1 suggestions plan into 7 file-exclusive subplans ([`7e1372f`](https://gitee.com/jermaine/yate/commit/7e1372f27969c5d3ff19c0d408e429d5ed0dcf31))
+- align the batch-size hard cap with the 6-agent concurrency limit ([`3ea5911`](https://gitee.com/jermaine/yate/commit/3ea5911d1f4dc4ccb08619e4d4218286cb94f75b))
+- raise the concurrent subagent cap from 5 to 6 ([`994702a`](https://gitee.com/jermaine/yate/commit/994702a6605cffee83e4ebda8650a4bb036c133b))
+- sync review findings and fix plans with code state ([`8133417`](https://gitee.com/jermaine/yate/commit/8133417a59e79528093763a533b54eeb9fce4c56))
+- register two logs.py findings in review.md ([`498fc9b`](https://gitee.com/jermaine/yate/commit/498fc9be63b92bc20bb34df71fb08df5eff8e2f7))
+- fold the 2026-09-24 review status into review.md ([`733c01b`](https://gitee.com/jermaine/yate/commit/733c01b93fc227d1459f1b364041942834760041))
+- log the 2026-09-24 branch review report ([`aba991e`](https://gitee.com/jermaine/yate/commit/aba991e3121d6e262326e158a753c203aeec7115))
+- translate the PR #13 fix entries too ([`c2e18b8`](https://gitee.com/jermaine/yate/commit/c2e18b885d4fc224ec8d3a45af05116ae9c0f707))
 - audit every test mock target after the path migration ([`406fcd8`](https://gitee.com/jermaine/yate/commit/406fcd85df4bfb354cd173cbc1dbd0bf7e68f362))
 - log the popup re-show race after escape ([`60ea88e`](https://gitee.com/jermaine/yate/commit/60ea88eb66e51f94c88cde8eab1b24cc25781152))
 - translate the remaining maintenance entries ([`217a93f`](https://gitee.com/jermaine/yate/commit/217a93f98e09413d35882f4f0852e646ee3f3b8f))
@@ -101,6 +132,13 @@
 
 ### Tests
 
+- add dedicated test modules for actions, notation, KeymapSet ([`3182414`](https://gitee.com/jermaine/yate/commit/3182414903e971c65e1c2dff8b7e11bcf2d5ad99))
+- assert manual content only after the load completes ([`331e281`](https://gitee.com/jermaine/yate/commit/331e281dc9ddfe070a82f7261d9c84b0ab320932))
+- assert the debounce window is armed in the S40 merge test ([`53a6e93`](https://gitee.com/jermaine/yate/commit/53a6e934dd2709ddd6af07fe457a40b06bdb0643))
+- make the S40 debounce tests independent of real time ([`2f7a7ad`](https://gitee.com/jermaine/yate/commit/2f7a7adfe09f787cce26374173e0269ab28dc6ac))
+- fix the two CI-leg failure sets ([`8a5d1bf`](https://gitee.com/jermaine/yate/commit/8a5d1bfb2fdd8503d6f567bdc41ebda0d5c11f55))
+- close out P2 follow-ups and harden flaky pilot tests ([`ae220fb`](https://gitee.com/jermaine/yate/commit/ae220fb7f9bf5cacfea24be8a0eb1ef9cad2a7d2))
+- add the dedicated guards for the SP3 render-path fixes ([`d0b7a9e`](https://gitee.com/jermaine/yate/commit/d0b7a9e5749829daa0aa5b1d3f512b895dcf4cf6))
 - guard the completion popup key split ([`ef63f07`](https://gitee.com/jermaine/yate/commit/ef63f073aa074d9e21a66a40d4c92ca72bd8153d))
 - exercise every registered command and action ([`0984361`](https://gitee.com/jermaine/yate/commit/09843611fdf12a69273e561750db7a75109eb65d))
 - cover the popup geometry and the buffer completion source ([`f01b713`](https://gitee.com/jermaine/yate/commit/f01b713dd490a2303decc730e21784da1a3dbaef))
@@ -110,6 +148,10 @@
 
 ### Tooling
 
+- fail on RuntimeWarning via pytest filterwarnings ([`97f9144`](https://gitee.com/jermaine/yate/commit/97f9144e540e6a1c08634651e6621c89e02728bf))
+- add permission to execute ([`beecf6c`](https://gitee.com/jermaine/yate/commit/beecf6ce9977439b7ac08bc36884a70c2803ef1f))
+- add gitee sync script with trap-based cleanup ([`3ca89c4`](https://gitee.com/jermaine/yate/commit/3ca89c424efd936b2f72aaecb6665356e30e3e68))
+- add .editorconfig matching repo conventions ([`c1db3a2`](https://gitee.com/jermaine/yate/commit/c1db3a2efd76c36c9ff14dc4e3a8f11ca7e53b21))
 - ignore the local CodeBuddy workspace data ([`b2658a6`](https://gitee.com/jermaine/yate/commit/b2658a607914ed04dc9bdae52f3e39cb248dcf87))
 - cover the vim keymap headlessly ([`0096123`](https://gitee.com/jermaine/yate/commit/009612391a2f85ca36e013ee8646949c31e0b839))
 - cover the terminal emulator headlessly ([`fdbfa10`](https://gitee.com/jermaine/yate/commit/fdbfa10566eee8086d3a27c03ee48c65fb35417c))

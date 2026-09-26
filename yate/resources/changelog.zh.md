@@ -1,6 +1,6 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-09-24 · yate 0.2.4
+> 由 git 历史自动生成于 2026-09-26 · yate 0.2.4
 
 ## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
 
@@ -26,6 +26,25 @@
 
 ### 问题修复
 
+- 修复 editor_view 向 run_worker 传递即时协程的问题 ([`ba5946b`](https://gitee.com/jermaine/yate/commit/ba5946b7d20a58b9b4c5b8982198840213719762))
+  - 改为传协程函数由 worker 自行构建，避免协程未被消费的告警
+- ctrl+q 改走注册的退出动作 ([`b9e73be`](https://gitee.com/jermaine/yate/commit/b9e73be2c8a713490e28283bd5b65cba44f35314))
+- 落地 P2 第一波清理与守卫（core/syntax/term/tools） ([`2dad4fc`](https://gitee.com/jermaine/yate/commit/2dad4fcd606c4b394985ddfd7d7ff731596b68ee))
+- 更新 .github/sync-to-gitee.sh 同步脚本 ([`0597289`](https://gitee.com/jermaine/yate/commit/05972894ca4dd1744be4ac440ae709d642b39a5b))
+- 滚动恢复进行中时拦截滚动捕获 ([`1a02177`](https://gitee.com/jermaine/yate/commit/1a021773c756217bea4ec4fe9cace7102e2b6b2f))
+  - 防止恢复期间捕获到中间态滚动位置
+- 挂载期滚动恢复失败重试并加固捕获守卫 ([`73110ab`](https://gitee.com/jermaine/yate/commit/73110abc034be6a1e1e562feff2ce043dabf2418))
+- 呈现 :trust 拒绝原因并补文档化 spawn 清理 ([`3c53fa4`](https://gitee.com/jermaine/yate/commit/3c53fa411eba15e831e2e42fda9fb7280aaf17aa))
+- logs/services/document 健壮性修复与 S39 最小加固 ([`42d9b12`](https://gitee.com/jermaine/yate/commit/42d9b12f9527af5f9afb2de8fe21cfc6478ef7ca))
+- 修复终端、补全与 vim 路径的多处正确性问题 ([`66fb5ba`](https://gitee.com/jermaine/yate/commit/66fb5ba7c4aa02f58c2b8dcd44685f778fb32660))
+- 削减逐帧渲染开销并加固工具链 ([`d7e422c`](https://gitee.com/jermaine/yate/commit/d7e422caded6e287b65e2049f4ef7ccaf18f021c))
+- 发布工具自动探测默认发布分支并透传 --overrides ([`322881c`](https://gitee.com/jermaine/yate/commit/322881c2c8f4b50942d3d33d070a00d5c25b7fae))
+- LSP 启动槽仅在自身任务持有时弹出 ([`dc1f3ac`](https://gitee.com/jermaine/yate/commit/dc1f3ac3e32fd4f9b891c2f79237fdaa3f4b2063))
+- 读循环崩溃时让 LSP 客户端失败而非挂起请求 ([`e5a3001`](https://gitee.com/jermaine/yate/commit/e5a30018de9110ad23d3b17412f5f0547276ad21))
+- Gitee SSH 横幅检测免疫不可见字符 ([`05ead06`](https://gitee.com/jermaine/yate/commit/05ead06d51b0d7e2f90f49a67976cfc2f7a81f6f))
+  - 横幅含 NBSP/零宽字符导致子串匹配误判失败；改为仅保留字母数字后匹配 successfullyauthenticated，并始终打印横幅
+- version_lines 下沉 cli.py，统一 vim F 键无效动作处理 ([`44b67ea`](https://gitee.com/jermaine/yate/commit/44b67eabb7e61e282be2011522e7445734fc2201))
+- 处置 2026-09-24 代码审查发现 ([`cf889b5`](https://gitee.com/jermaine/yate/commit/cf889b513624b1c45f8f0b4923a1c88c43c3220e))
 - 修复 PR #13 审查问题：原子保存保留权限、信任路径统一 resolve、未知 action 不再吞键等 ([`33584e6`](https://gitee.com/jermaine/yate/commit/33584e640a443b96b90e950eb99e8f1805d5ce3b))
   - 含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/issues/review.md 的 PR #13 章节
 - 修复补全弹窗吞掉按键：其余键正常分发，可继续输入过滤候选 ([`bbeb5f6`](https://gitee.com/jermaine/yate/commit/bbeb5f6375142e1a64febf6049a4db33812c5efa))
@@ -63,6 +82,7 @@
 
 ### 重构
 
+- 落地 P2 第二波清理与守卫（editor/keymaps/services） ([`a6e6f4e`](https://gitee.com/jermaine/yate/commit/a6e6f4e73db051a886a4fe05f7ee8aa3b48691ee))
 - 窗格树模型下沉至 session.py（Plan G） ([`2ee2586`](https://gitee.com/jermaine/yate/commit/2ee258656b04517c0a94030c990b27f6f13b1e9a))
   - 删除 editor_view/pane_types.py，Leaf/Split/ViewState 与树操作并入 L1 session，EditorSession 仍与窗格无关
 - 拆分 refresh_ui 为多个子方法并更新过期文档 ([`f3df035`](https://gitee.com/jermaine/yate/commit/f3df0358309173d961e7a35575118b44e90dbdef))
@@ -75,6 +95,20 @@
 
 ### 文档
 
+- 修正 yaterc 方案文档文件名笔误（pywright→pyright） ([`11bab59`](https://gitee.com/jermaine/yate/commit/11bab597c95329329ece2e09766e26a80517d51b))
+- 四份 remove_type_checking 文档合并为单篇 ADR ([`f9b4d0b`](https://gitee.com/jermaine/yate/commit/f9b4d0b626380be862385b78ba76930156f8f774))
+- 回填 wave-1 子计划校准记录 ([`8c30871`](https://gitee.com/jermaine/yate/commit/8c308715a0eb4e25d4e633966d746a1d982d3ec0))
+- P2 改进计划拆分为按波并行的子计划 ([`ea13961`](https://gitee.com/jermaine/yate/commit/ea13961a45953f109de7990c8c4ff7fbb510f0a3))
+- 新增架构总览与 Textual 框架挂点笔记（wiki） ([`f2dad15`](https://gitee.com/jermaine/yate/commit/f2dad159a6f06d6cadf9ef2dffda20364a6f141b))
+- 回填 P1 波次结果并登记 gitdata 缺口 ([`6489396`](https://gitee.com/jermaine/yate/commit/6489396a4bf888d17fafed0cb420219e961b209e))
+- P1 建议计划拆分为 7 份文件独占子计划 ([`7e1372f`](https://gitee.com/jermaine/yate/commit/7e1372f27969c5d3ff19c0d408e429d5ed0dcf31))
+- 批次大小上限规则对齐 6 代理并发上限 ([`3ea5911`](https://gitee.com/jermaine/yate/commit/3ea5911d1f4dc4ccb08619e4d4218286cb94f75b))
+- 子代理并发上限由 5 提到 6 ([`994702a`](https://gitee.com/jermaine/yate/commit/994702a6605cffee83e4ebda8650a4bb036c133b))
+- 审查发现与修复计划同步至代码现状 ([`8133417`](https://gitee.com/jermaine/yate/commit/8133417a59e79528093763a533b54eeb9fce4c56))
+- review.md 登记 logs.py 两项审查发现 ([`498fc9b`](https://gitee.com/jermaine/yate/commit/498fc9be63b92bc20bb34df71fb08df5eff8e2f7))
+- 2026-09-24 审查状态并入 review.md ([`733c01b`](https://gitee.com/jermaine/yate/commit/733c01b93fc227d1459f1b364041942834760041))
+- 登记 2026-09-24 分支审查报告 ([`aba991e`](https://gitee.com/jermaine/yate/commit/aba991e3121d6e262326e158a753c203aeec7115))
+- 变更日志补译 PR #13 修复条目 ([`c2e18b8`](https://gitee.com/jermaine/yate/commit/c2e18b885d4fc224ec8d3a45af05116ae9c0f707))
 - 全量核对测试 mock 目标，确认重构后无静默失效 ([`406fcd8`](https://gitee.com/jermaine/yate/commit/406fcd85df4bfb354cd173cbc1dbd0bf7e68f362))
 - 登记 Esc 关闭弹窗后被在途 worker 重开的竞态（仅登记未修） ([`60ea88e`](https://gitee.com/jermaine/yate/commit/60ea88eb66e51f94c88cde8eab1b24cc25781152))
 - 补齐维护类提交的中文翻译并刷新变更日志 ([`217a93f`](https://gitee.com/jermaine/yate/commit/217a93f98e09413d35882f4f0852e646ee3f3b8f))
@@ -122,6 +156,13 @@
 
 ### 测试
 
+- 键位测试独立成模块：actions、notation 与 KeymapSet ([`3182414`](https://gitee.com/jermaine/yate/commit/3182414903e971c65e1c2dff8b7e11bcf2d5ad99))
+- 手册测试改为加载完成后才断言内容 ([`331e281`](https://gitee.com/jermaine/yate/commit/331e281dc9ddfe070a82f7261d9c84b0ab320932))
+- S40 合并测试改为断言防抖窗口已布防 ([`53a6e93`](https://gitee.com/jermaine/yate/commit/53a6e934dd2709ddd6af07fe457a40b06bdb0643))
+- S40 防抖测试脱离真实时间依赖 ([`2f7a7ad`](https://gitee.com/jermaine/yate/commit/2f7a7adfe09f787cce26374173e0269ab28dc6ac))
+- 修复 workspace 与 manual 两腿 CI 的失败用例 ([`8a5d1bf`](https://gitee.com/jermaine/yate/commit/8a5d1bfb2fdd8503d6f567bdc41ebda0d5c11f55))
+- 收尾 P2 跟进项并加固偶发 pilot 测试 ([`ae220fb`](https://gitee.com/jermaine/yate/commit/ae220fb7f9bf5cacfea24be8a0eb1ef9cad2a7d2))
+- 为 SP3 渲染路径修复补齐专用守卫测试 ([`d0b7a9e`](https://gitee.com/jermaine/yate/commit/d0b7a9e5749829daa0aa5b1d3f512b895dcf4cf6))
 - 冒烟新增补全弹窗键位分工回归场景 ([`ef63f07`](https://gitee.com/jermaine/yate/commit/ef63f073aa074d9e21a66a40d4c92ca72bd8153d))
   - 字符与全局键（ctrl+z）fall-through，tab/down/esc 仍归弹窗；等待防抖落地避免竞态
 - 冒烟测试覆盖全部已注册命令与动作 ([`0984361`](https://gitee.com/jermaine/yate/commit/09843611fdf12a69273e561750db7a75109eb65d))
@@ -133,6 +174,11 @@
 
 ### 构建与工程
 
+- 测试套件对 RuntimeWarning 直接判失败 ([`97f9144`](https://gitee.com/jermaine/yate/commit/97f9144e540e6a1c08634651e6621c89e02728bf))
+  - 经 pytest filterwarnings 把 async 忘 await 等运行时告警升级为错误
+- sync-to-gitee 同步脚本补充可执行权限 ([`beecf6c`](https://gitee.com/jermaine/yate/commit/beecf6ce9977439b7ac08bc36884a70c2803ef1f))
+- 新增 Gitee 同步脚本（trap 清理） ([`3ca89c4`](https://gitee.com/jermaine/yate/commit/3ca89c424efd936b2f72aaecb6665356e30e3e68))
+- 新增符合仓库约定的 .editorconfig ([`c1db3a2`](https://gitee.com/jermaine/yate/commit/c1db3a2efd76c36c9ff14dc4e3a8f11ca7e53b21))
 - 忽略本地 CodeBuddy 工作区数据 ([`b2658a6`](https://gitee.com/jermaine/yate/commit/b2658a607914ed04dc9bdae52f3e39cb248dcf87))
 - 无头测试覆盖 vim 键位 ([`0096123`](https://gitee.com/jermaine/yate/commit/009612391a2f85ca36e013ee8646949c31e0b839))
 - 无头测试覆盖终端模拟器 ([`fdbfa10`](https://gitee.com/jermaine/yate/commit/fdbfa10566eee8086d3a27c03ee48c65fb35417c))

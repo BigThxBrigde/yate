@@ -16,6 +16,13 @@
     "summary": "保存改为原子写并限制撤销栈内存",
     "detail": "临时文件加 os.replace 落盘，撤销栈上限 1000 步，并跳过符号链接目录防止死循环"
   },
+  "0597289": {
+    "summary": "更新 .github/sync-to-gitee.sh 同步脚本"
+  },
+  "05ead06": {
+    "summary": "Gitee SSH 横幅检测免疫不可见字符",
+    "detail": "横幅含 NBSP/零宽字符导致子串匹配误判失败；改为仅保留字母数字后匹配 successfullyauthenticated，并始终打印横幅"
+  },
   "06b1f37": {
     "summary": "修复冒烟测试在文档路径为空时的崩溃"
   },
@@ -42,6 +49,9 @@
   "107b17c": {
     "summary": "刷新随包变更日志资源"
   },
+  "11bab59": {
+    "summary": "修正 yaterc 方案文档文件名笔误（pywright→pyright）"
+  },
   "1325f71": {
     "summary": "重构窗格分割模块以解除类型循环依赖"
   },
@@ -56,6 +66,10 @@
   },
   "1998c82": {
     "summary": "为两条 CI 流水线添加变更日志新鲜度门禁"
+  },
+  "1a02177": {
+    "summary": "滚动恢复进行中时拦截滚动捕获",
+    "detail": "防止恢复期间捕获到中间态滚动位置"
   },
   "1a4e493": {
     "summary": "修复 :q 始终退出；按文件启动时隐藏资源管理器"
@@ -111,9 +125,21 @@
   "2cf85a1": {
     "summary": "欢迎页横幅改用 ANSI Shadow figlet 风格"
   },
+  "2dad4fc": {
+    "summary": "落地 P2 第一波清理与守卫（core/syntax/term/tools）"
+  },
   "2ee2586": {
     "summary": "窗格树模型下沉至 session.py（Plan G）",
     "detail": "删除 editor_view/pane_types.py，Leaf/Split/ViewState 与树操作并入 L1 session，EditorSession 仍与窗格无关"
+  },
+  "2f7a7ad": {
+    "summary": "S40 防抖测试脱离真实时间依赖"
+  },
+  "3182414": {
+    "summary": "键位测试独立成模块：actions、notation 与 KeymapSet"
+  },
+  "322881c": {
+    "summary": "发布工具自动探测默认发布分支并透传 --overrides"
   },
   "32e5649": {
     "summary": "补齐全部缺失的中文翻译并刷新双语变更日志",
@@ -121,6 +147,9 @@
   },
   "33190c5": {
     "summary": "把变更日志维护附录从手册移到 README"
+  },
+  "331e281": {
+    "summary": "手册测试改为加载完成后才断言内容"
   },
   "33584e6": {
     "summary": "修复 PR #13 审查问题：原子保存保留权限、信任路径统一 resolve、未知 action 不再吞键等",
@@ -146,8 +175,17 @@
   "3b4319a": {
     "summary": "改进退出处理并补充错误覆盖"
   },
+  "3c53fa4": {
+    "summary": "呈现 :trust 拒绝原因并补文档化 spawn 清理"
+  },
   "3ca822c": {
     "summary": "修复终端面板布局晚于启动时丢失 PTY 早期输出"
+  },
+  "3ca89c4": {
+    "summary": "新增 Gitee 同步脚本（trap 清理）"
+  },
+  "3ea5911": {
+    "summary": "批次大小上限规则对齐 6 代理并发上限"
   },
   "3f4c4db": {
     "summary": "修复 Windows CI 竞态：停止期间的 LSP 子进程与 8.3 短路径"
@@ -158,8 +196,14 @@
   "4144a72": {
     "summary": "基于 git 历史的双语变更日志生成器"
   },
+  "42d9b12": {
+    "summary": "logs/services/document 健壮性修复与 S39 最小加固"
+  },
   "449eb30": {
     "summary": "在未发布段记录 pytest 迁移"
+  },
+  "44b67ea": {
+    "summary": "version_lines 下沉 cli.py，统一 vim F 键无效动作处理"
   },
   "4739dc3": {
     "summary": "崩溃诊断持久化：经 faulthandler 写入 ~/.yate/data",
@@ -174,6 +218,9 @@
   "483b667": {
     "summary": "打包新增 --dist 产物暂存并强制使用 .venv 解释器",
     "detail": "同名版本子目录被替换，写出 SHA256SUMS.txt，并以 --version 冒烟测试把关；缺少 .venv 直接报错退出"
+  },
+  "498fc9b": {
+    "summary": "review.md 登记 logs.py 两项审查发现"
   },
   "4b0695a": {
     "summary": "文档记录场景覆盖率轮次与前后对比",
@@ -205,6 +252,9 @@
   "5190225": {
     "summary": "修复撤销/重做后脏标记不准确",
     "detail": "为合并编辑引入权重计数，必要时回退到精确行比较"
+  },
+  "53a6e93": {
+    "summary": "S40 合并测试改为断言防抖窗口已布防"
   },
   "53a7e09": {
     "summary": "新增方案文档"
@@ -259,6 +309,9 @@
   "641412c": {
     "summary": "更新 CHANGELOG"
   },
+  "6489396": {
+    "summary": "回填 P1 波次结果并登记 gitdata 缺口"
+  },
   "649f113": {
     "summary": "修复删除文件夹关闭标签时未通知 LSP 的问题"
   },
@@ -267,6 +320,9 @@
   },
   "669f017": {
     "summary": "vscode 键位下 F5 打开 ex 命令行"
+  },
+  "66fb5ba": {
+    "summary": "修复终端、补全与 vim 路径的多处正确性问题"
   },
   "677f867": {
     "summary": "变更日志排除发布文档提交以稳定门禁"
@@ -301,6 +357,12 @@
   },
   "719e73a": {
     "summary": "测试显式引用主题清理 fixture 以消除告警"
+  },
+  "73110ab": {
+    "summary": "挂载期滚动恢复失败重试并加固捕获守卫"
+  },
+  "733c01b": {
+    "summary": "2026-09-24 审查状态并入 review.md"
   },
   "738204e": {
     "summary": "以窄接口模块协议替换 AppProtocol",
@@ -351,11 +413,17 @@
   "7ddaced": {
     "summary": "文档新增补全过期校验修复方案"
   },
+  "7e1372f": {
+    "summary": "P1 建议计划拆分为 7 份文件独占子计划"
+  },
   "802467d": {
     "summary": "开启第二轮覆盖率计划（PTY、字体、弹窗）"
   },
   "807c199": {
     "summary": "更新问题跟踪文档，整理全量代码审查问题"
+  },
+  "8133417": {
+    "summary": "审查发现与修复计划同步至代码现状"
   },
   "844cd0a": {
     "summary": "注释与 docstring 全部改为英文"
@@ -376,6 +444,9 @@
   "8937dc3": {
     "summary": "忽略冒烟测试生成的临时 JSON 报告"
   },
+  "8a5d1bf": {
+    "summary": "修复 workspace 与 manual 两腿 CI 的失败用例"
+  },
   "8ae5da6": {
     "summary": "为所有配色方案补齐提示符配色"
   },
@@ -389,6 +460,9 @@
   "8b66b89": {
     "summary": "新增可选的运行时 trace 日志",
     "detail": "默认关闭，经 YATE_TRACE/YATE_TRACE_LEVEL 或 yaterc 选项开启，写入 ~/.yate/data/logs"
+  },
+  "8c30871": {
+    "summary": "回填 wave-1 子计划校准记录"
   },
   "8cd80b2": {
     "summary": "键位：资源管理器与编辑器间的窗口切换"
@@ -424,8 +498,15 @@
   "97b6205": {
     "summary": "测试覆盖工作区列举、变更与嗅探路径"
   },
+  "97f9144": {
+    "summary": "测试套件对 RuntimeWarning 直接判失败",
+    "detail": "经 pytest filterwarnings 把 async 忘 await 等运行时告警升级为错误"
+  },
   "9828b24": {
     "summary": "修复 PTY 启动失败时退出 Future 未完成"
+  },
+  "994702a": {
+    "summary": "子代理并发上限由 5 提到 6"
   },
   "9b76ae4": {
     "summary": "仅 vim 键位下用 : 打开 ex 命令行"
@@ -466,6 +547,9 @@
   "a6dcbef": {
     "summary": "字体测试覆盖注册表扫描、检测、安装与设置改写"
   },
+  "a6e6f4e": {
+    "summary": "落地 P2 第二波清理与守卫（editor/keymaps/services）"
+  },
   "a819973": {
     "summary": "双语用户手册（英/中），打开时套用主题，修复表格布局"
   },
@@ -475,6 +559,9 @@
   },
   "ab75198": {
     "summary": "更新开发方案文档"
+  },
+  "aba991e": {
+    "summary": "登记 2026-09-24 分支审查报告"
   },
   "ac41c84": {
     "summary": "文档同步 --help 输出与 CLI 选项说明"
@@ -487,6 +574,9 @@
   },
   "adfbc9c": {
     "summary": "冒烟测试基线目录迁入 smoke_test 包内"
+  },
+  "ae220fb": {
+    "summary": "收尾 P2 跟进项并加固偶发 pilot 测试"
   },
   "b0ca383": {
     "summary": "打包时刷新随包变更日志"
@@ -510,6 +600,13 @@
   "b6d1071": {
     "summary": "新增 yate --diag 诊断命令并扩展 --version 输出"
   },
+  "b9e73be": {
+    "summary": "ctrl+q 改走注册的退出动作"
+  },
+  "ba5946b": {
+    "summary": "修复 editor_view 向 run_worker 传递即时协程的问题",
+    "detail": "改为传协程函数由 worker 自行构建，避免协程未被消费的告警"
+  },
   "ba6d7a6": {
     "summary": "命令面板改绑 alt+shift+p"
   },
@@ -519,6 +616,9 @@
   },
   "bcd0426": {
     "summary": "基于 buffer 的自动补全与 bash 式 Tab 补全"
+  },
+  "beecf6c": {
+    "summary": "sync-to-gitee 同步脚本补充可执行权限"
   },
   "bf2b06a": {
     "summary": "修复 Nerd Font 图标、提示符回显与重复标签栏，新增欢迎横幅",
@@ -530,11 +630,17 @@
   "c020bc6": {
     "summary": "LSP 通知改为向 worker 传递协程函数而非已构建协程"
   },
+  "c1db3a2": {
+    "summary": "新增符合仓库约定的 .editorconfig"
+  },
   "c1f83fe": {
     "summary": "文档更正退出动作结论并登记冒烟调查问题"
   },
   "c2be8dd": {
     "summary": "记录第二轮覆盖率结果与冒烟覆盖修复"
+  },
+  "c2e18b8": {
+    "summary": "变更日志补译 PR #13 修复条目"
   },
   "c33258b": {
     "summary": "新增 vscode 工作区配置并更新 gitignore"
@@ -552,6 +658,12 @@
   "cf67891": {
     "summary": "移除变更日志中的多余换行"
   },
+  "cf889b5": {
+    "summary": "处置 2026-09-24 代码审查发现"
+  },
+  "d0b7a9e": {
+    "summary": "为 SP3 渲染路径修复补齐专用守卫测试"
+  },
   "d1bfdbf": {
     "summary": "对照代码审计分层计划并收紧守护测试"
   },
@@ -567,11 +679,17 @@
   "d6765c4": {
     "summary": "修复冒烟命令总集快照时机"
   },
+  "d7e422c": {
+    "summary": "削减逐帧渲染开销并加固工具链"
+  },
   "db82bce": {
     "summary": "扩展可注册自定义语法高亮，随包附带 C# 示例"
   },
   "db93b52": {
     "summary": "随包扩展遮蔽时告警；包内剔除字节码；修复 Windows 8.3 配置路径"
+  },
+  "dc1f3ac": {
+    "summary": "LSP 启动槽仅在自身任务持有时弹出"
   },
   "e065440": {
     "summary": "AI 文档改为英文并同步更新"
@@ -588,6 +706,9 @@
   "e449dd1": {
     "summary": "测试覆盖诊断报告边界情况"
   },
+  "e5a3001": {
+    "summary": "读循环崩溃时让 LSP 客户端失败而非挂起请求"
+  },
   "e5f847b": {
     "summary": "重命名 app_parts 为 controllers，去掉 *_ops 模块名"
   },
@@ -599,6 +720,9 @@
   },
   "e8f8d05": {
     "summary": "新增拆分并移除 AppProtocol 的草案计划"
+  },
+  "ea13961": {
+    "summary": "P2 改进计划拆分为按波并行的子计划"
   },
   "ea3a323": {
     "summary": "修复 replace_all 后光标越界并在冒烟中覆盖"
@@ -637,6 +761,9 @@
   "f25aaba": {
     "summary": "冒烟脚本新增集成场景（H 组）"
   },
+  "f2dad15": {
+    "summary": "新增架构总览与 Textual 框架挂点笔记（wiki）"
+  },
   "f33c54a": {
     "summary": "重构审查记录结构并拆分修复计划"
   },
@@ -658,6 +785,9 @@
   },
   "f78bc6e": {
     "summary": "双目标渲染与已发布段新鲜度门禁"
+  },
+  "f9b4d0b": {
+    "summary": "四份 remove_type_checking 文档合并为单篇 ADR"
   },
   "fa1ae55": {
     "summary": "补全前冲刷待发的 didChange，优先用解释器旁的 pyright",
