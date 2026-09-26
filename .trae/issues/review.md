@@ -1003,3 +1003,5 @@ flowchart LR
   logs.py emit/close、vim.py/vsc.py Keymap 方法）：基类方法全部存在，签名兼容
   （pyright strict 的 reportIncompatibleMethodOverride 已覆盖），`App.action_quit` 覆写
   Textual 基类 action 合法。
+
+- 2026-09-26 全项目评审报告：[review_20260926.md](review_20260926.md)

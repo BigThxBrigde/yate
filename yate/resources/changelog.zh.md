@@ -2,7 +2,19 @@
 
 > 由 git 历史自动生成于 2026-09-26 · yate 0.2.5
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...HEAD)
+
+### 新功能
+
+- add pre-flight guards and rollback to release tool [缺中文] ([`4e6566b`](https://gitee.com/jermaine/yate/commit/4e6566bba88826b32ed68331dea4ce45ce1b88cb))
+
+### 文档
+
+- backfill hardening results and verification checklist [缺中文] ([`2ba8f69`](https://gitee.com/jermaine/yate/commit/2ba8f699c46b2d72e88f26a98e013812958086d9))
+- add release tool hardening plan [缺中文] ([`aecf3e3`](https://gitee.com/jermaine/yate/commit/aecf3e3151ef6ca10cead29d4b70ec3053bca02b))
+- translate the 3.12 migration and release entries [缺中文] ([`b599685`](https://gitee.com/jermaine/yate/commit/b5996857babbfad56b5a70e2e1e3768bbcec3bce))
+
+## [0.2.5] - 2026-09-26 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...v0.2.5)
 
 ### 新功能
 
@@ -345,7 +357,9 @@
 - 冻结构建随包捆绑 tree-sitter 后端与 python/bash 语法 ([`74202ac`](https://gitee.com/jermaine/yate/commit/74202accea55e7c6339eb060e3e11d4b29b22dbd))
   - spec 显式收集子模块、原生绑定与 *.scm 高亮查询
 
-## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...v0.1.0)
+## [0.1.0] - 2026-09-13 · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.1.0)
+
+_首个版本。_
 
 ### 新功能
 
@@ -450,7 +464,3 @@
   - 新增 yate/paths.py 统一资源定位，自动加载捆绑扩展（可用 disabled_extensions 跳过）
 - 初始提交 ([`f690bf7`](https://gitee.com/jermaine/yate/commit/f690bf7d5f8be18de9b74b4006fcd50d18fda0d7))
 - 初始提交：yate 终端编辑器 ([`ef1d964`](https://gitee.com/jermaine/yate/commit/ef1d964ecc5366cd6bf4c3da943e2371608e748a))
-
-## [0.2.5] · [compare](https://gitee.com/jermaine/yate/compare/ROOT...v0.2.5)
-
-_首个版本。_

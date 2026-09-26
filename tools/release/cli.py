@@ -4,12 +4,20 @@ One-command release: bump the version, commit the bump, regenerate the
 bilingual changelog, commit it, run the changelog gate and the version
 tests, then create the annotated tag and push.
 
+Pre-flight guards refuse to start -- before the first mutation -- unless
+the version files are clean, the checked-out branch matches the push
+target (``--branch`` or the ``origin/HEAD`` default), the local branch is
+not behind its remote counterpart, and ``v<version>`` is free both locally
+and on origin.
+
+A mid-run failure rolls the release back automatically: the created tag is
+deleted, the branch is reset to the pre-run HEAD and every touched file is
+restored from a byte-exact snapshot.  Once the branch push has succeeded
+the commits are public, so only manual recovery instructions are printed.
+
 All git access goes through :func:`tools.changelog.gitdata.run_git` (the
 single git gateway); changelog generation/gating reuses
 :func:`tools.changelog.cli.generate` / :func:`tools.changelog.cli.check`.
-Nothing is rolled back automatically — a mid-run failure raises
-:class:`RuntimeError` so the operator can inspect ``git status`` /
-``git log`` and recover manually.
 """
 
 from __future__ import annotations
@@ -19,6 +27,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..changelog import gitdata
@@ -40,6 +49,19 @@ _SEMVER_RE = re.compile(r"\d+\.\d+\.\d+$")
 # MULTILINE: the package __init__ opens with a module docstring, so the
 # __version__ line is never at position 0.
 _INIT_VERSION_RE = re.compile(r'^(__version__\s*=\s*")([^"]+)(")', re.MULTILINE)
+
+
+@dataclass
+class _RunState:
+    """Mutation flags a pipeline run sets as it progresses.
+
+    The rollback path reads them to decide how far the release got: a
+    created tag must be deleted, while an already-pushed branch forbids a
+    destructive rollback.
+    """
+
+    tag_created: bool = False
+    branch_pushed: bool = False
 
 
 def discover_repo_root() -> Path:
@@ -206,6 +228,149 @@ def _default_branch(repo: Path) -> str | None:
     return out.strip().rsplit("/", 1)[-1] or None
 
 
+def current_branch(repo: Path) -> str:
+    """The checked-out branch name (empty string on a detached HEAD)."""
+    return gitdata.current_branch(repo)
+
+
+def assert_in_sync(repo: Path, branch: str) -> None:
+    """Refuse when the local ``branch`` is behind ``origin/<branch>``.
+
+    Fetches the branch first so the comparison sees the current remote
+    state; a fetch failure (offline, unknown remote branch) surfaces as
+    :class:`~tools.changelog.gitdata.GitError` and aborts the release.
+    """
+    gitdata.run_git(["fetch", "origin", branch], repo=repo)
+    behind = gitdata.run_git(
+        ["rev-list", "--count", f"HEAD..origin/{branch}"], repo=repo
+    ).strip()
+    if behind and behind != "0":
+        raise RuntimeError(
+            f"refusing to release: local {branch} is {behind} commit(s) "
+            f"behind origin/{branch}; pull or rebase first"
+        )
+
+
+def _local_tag_exists(repo: Path, tag: str) -> bool:
+    """Whether ``refs/tags/<tag>`` resolves locally."""
+    try:
+        gitdata.run_git(
+            ["rev-parse", "-q", "--verify", f"refs/tags/{tag}"], repo=repo
+        )
+    except gitdata.GitError:
+        return False
+    return True
+
+
+def assert_tag_available(repo: Path, version: str) -> None:
+    """Refuse when ``v<version>`` already exists locally or on ``origin``."""
+    tag = f"v{version}"
+    if _local_tag_exists(repo, tag):
+        raise RuntimeError(f"refusing to release: tag {tag} already exists locally")
+    out = gitdata.run_git(
+        ["ls-remote", "--tags", "origin", f"refs/tags/{tag}"], repo=repo
+    )
+    if out.strip():
+        raise RuntimeError(f"refusing to release: tag {tag} already exists on origin")
+
+
+def _snapshot_texts(repo: Path, files: Sequence[str]) -> dict[str, str | None]:
+    """Pre-run content of *files*; ``None`` marks a not-yet-existing file."""
+    snapshots: dict[str, str | None] = {}
+    for rel in files:
+        path = repo / rel
+        snapshots[rel] = path.read_text(encoding="utf-8") if path.exists() else None
+    return snapshots
+
+
+def _run_steps(
+    repo: Path,
+    version: str,
+    push_branch: str,
+    *,
+    no_push: bool,
+    dry_run: bool,
+    state: _RunState | None = None,
+) -> None:
+    """The mutating pipeline: bump, changelog, gates, tag, push.
+
+    *state* records how far the run got (tag created / branch pushed) so
+    the rollback path knows what to undo; it is ``None`` for dry-runs.
+    """
+    bump_init_py(repo, version, dry_run=dry_run)
+    git_add(repo, _VERSION_FILES, dry_run=dry_run)
+    git_commit(repo, f"chore(release): v{version}", dry_run=dry_run)
+
+    generate_changelog(repo, dry_run=dry_run)
+    git_add(repo, _CHANGELOG_FILES, dry_run=dry_run)
+    git_commit(
+        repo,
+        f"docs(changelog): release v{version} bilingual changelog",
+        dry_run=dry_run,
+    )
+
+    if gate_check(repo) != 0:
+        raise RuntimeError("changelog gate failed")
+    if run_version_tests(repo) != 0:
+        raise RuntimeError("version tests failed")
+
+    git_tag(repo, version, dry_run=dry_run)
+    if state is not None:
+        state.tag_created = not dry_run
+    if no_push:
+        print("skip push (--no-push)")
+        return
+    git_push(repo, push_branch, dry_run=dry_run)
+    if state is not None:
+        state.branch_pushed = True
+    git_push(repo, f"v{version}", dry_run=dry_run)
+
+
+def _abort_with_rollback(
+    repo: Path,
+    exc: RuntimeError,
+    version: str,
+    push_branch: str,
+    orig_head: str,
+    snapshots: dict[str, str | None],
+    state: _RunState,
+) -> int:
+    """Report the failure, undo the partial release, return exit code 1.
+
+    ``git reset --mixed`` restores the branch pointer and the index without
+    touching the worktree; the snapshots then put every file back
+    byte-for-byte (a ``None`` snapshot deletes a file the run created).
+    Any pre-existing staged changes elsewhere end up unstaged -- their
+    content survives.  Rollback is skipped once the branch push succeeded:
+    the commits are already public, so only instructions are printed.
+    """
+    print(f"error: {exc}", file=sys.stderr)
+    if state.branch_pushed:
+        print(
+            f"rollback skipped: release commits are already on "
+            f"origin/{push_branch}; recover manually -- retry "
+            f"`git push origin v{version}`, or abandon the release with "
+            f"`git tag -d v{version}` plus a reset to origin/{push_branch}.",
+            file=sys.stderr,
+        )
+        return 1
+    if state.tag_created:
+        gitdata.run_git(["tag", "-d", f"v{version}"], repo=repo)
+    gitdata.run_git(["reset", "--mixed", orig_head], repo=repo)
+    for rel, text in snapshots.items():
+        path = repo / rel
+        if text is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_text(text, encoding="utf-8")
+    print(
+        f"rolled back: tag removed, branch reset to {orig_head[:7]}, "
+        "files restored",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def release(
     version: str,
     *,
@@ -217,8 +382,11 @@ def release(
 
     *branch* names the branch pushed to ``origin``; when omitted the remote
     default branch is detected from ``origin/HEAD``
-    (see :func:`_default_branch`), and an undetectable branch aborts the
-    release right before the push.
+    (see :func:`_default_branch`).  The pre-flight guards refuse to start
+    when the checked-out branch differs from the push target, when the
+    local branch is behind its remote counterpart, or when ``v<version>``
+    already exists locally or on origin; a mid-run failure rolls the
+    release back (see :func:`_abort_with_rollback`).
     """
     repo = discover_repo_root()
     current = read_current_version(repo)
@@ -228,45 +396,45 @@ def release(
         + (" (dry-run)" if dry_run else "")
     )
 
-    # Step 0: refuse to start with uncommitted version files.
+    # Step 0: pre-flight guards -- read-only, so a refusal leaves the tree,
+    # the history and the tags untouched.
     dirty = files_dirty(repo, _VERSION_FILES)
     if dirty and not dry_run:
         raise RuntimeError(f"refusing to release: uncommitted changes in {dirty}")
-
-    # Step 1: bump the version, then commit it, so the changelog generator
-    # sees the new version and the new bump commit.
-    bump_init_py(repo, version, dry_run=dry_run)
-    git_add(repo, _VERSION_FILES, dry_run=dry_run)
-    git_commit(repo, f"chore(release): v{version}", dry_run=dry_run)
-
-    # Step 2-3: regenerate and commit the bilingual changelog.
-    generate_changelog(repo, dry_run=dry_run)
-    git_add(repo, _CHANGELOG_FILES, dry_run=dry_run)
-    git_commit(
-        repo,
-        f"docs(changelog): release v{version} bilingual changelog",
-        dry_run=dry_run,
-    )
-
-    # Step 4-5: read-only gates; the tag is created only after they pass.
-    if gate_check(repo) != 0:
-        raise RuntimeError("changelog gate failed")
-    if run_version_tests(repo) != 0:
-        raise RuntimeError("version tests failed")
-
-    # Step 6: tag, then push (unless --no-push).
-    git_tag(repo, version, dry_run=dry_run)
-    if no_push:
-        print("skip push (--no-push)")
-    else:
-        push_branch = branch or _default_branch(repo)
-        if push_branch is None:
+    push_branch = branch or _default_branch(repo)
+    if push_branch is None:
+        raise RuntimeError("cannot determine the default branch; pass --branch")
+    if not dry_run:
+        checked_out = current_branch(repo)
+        if checked_out != push_branch:
             raise RuntimeError(
-                "cannot determine the default branch; pass --branch"
+                f"refusing to release: checked out on {checked_out!r} but "
+                f"the push target is {push_branch!r}; switch branches or "
+                f"pass --branch {checked_out!r}"
             )
-        git_push(repo, push_branch, dry_run=dry_run)
-        git_push(repo, f"v{version}", dry_run=dry_run)
+        assert_in_sync(repo, push_branch)
+        assert_tag_available(repo, version)
 
+    if dry_run:
+        _run_steps(repo, version, push_branch, no_push=no_push, dry_run=True)
+        return 0
+
+    # Rollback journal: byte-exact pre-run content of every file the
+    # pipeline may write (``None`` = file did not exist yet) plus the HEAD
+    # sha, taken before the first mutation.
+    snapshots = _snapshot_texts(repo, (*_VERSION_FILES, *_CHANGELOG_FILES))
+    orig_head = gitdata.head_sha(repo)
+    state = _RunState()
+    try:
+        _run_steps(
+            repo, version, push_branch, no_push=no_push, dry_run=False,
+            state=state,
+        )
+    except RuntimeError as exc:
+        # GitError subclasses RuntimeError, so fetch/push failures land here.
+        return _abort_with_rollback(
+            repo, exc, version, push_branch, orig_head, snapshots, state
+        )
     print(f"release v{version} complete")
     return 0
 

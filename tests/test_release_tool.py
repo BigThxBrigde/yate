@@ -1,8 +1,8 @@
 """Tests for the tools/release automation CLI.
 
-``_default_branch`` runs against real throwaway git repositories (skipped
-when git is unavailable); the ``release`` / ``main`` branch handling runs on
-stubbed collaborators, so it needs no git at all.
+Guard and rollback behaviour runs against real throwaway git repositories
+(bare ``origin`` + clones, skipped when git is unavailable); branch
+detection and the remaining edge cases run on stubbed collaborators.
 """
 
 # pyright: reportPrivateUsage=false
@@ -165,3 +165,256 @@ def test_main_passes_branch_through_to_release(
     calls.clear()
     assert cli.main(["999.0.0"]) == 0
     assert calls == [("999.0.0", None)]
+
+
+# --- pre-flight guards against real repositories -----------------------------
+
+
+def _seed_release_repo(path: Path, *, branch: str | None = None) -> None:
+    """A committed repo whose ``yate/__init__.py`` carries a version line."""
+    path.mkdir(parents=True)
+    _git(path, "init")
+    if branch is not None:
+        _git(path, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
+    _git(path, "config", "user.name", "tester")
+    _git(path, "config", "user.email", "tester@example.com")
+    pkg = path / "yate"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('__version__ = "0.1.0"\n', encoding="utf-8")
+    _git(path, "add", "-A")
+    _git(path, "commit", "-m", "seed")
+
+
+def _seed_origin_and_clone(tmp_path: Path) -> Path:
+    """Bare ``origin`` plus an up-to-date ``master`` clone; returns the clone."""
+    seed = tmp_path / "seed"
+    _seed_release_repo(seed, branch="master")
+    _git(tmp_path, "clone", "--bare", str(seed), str(tmp_path / "origin"))
+    work = tmp_path / "work"
+    _git(tmp_path, "clone", str(tmp_path / "origin"), str(work))
+    _git(work, "config", "user.name", "tester")
+    _git(work, "config", "user.email", "tester@example.com")
+    return work
+
+
+def _clone_upstream(tmp_path: Path) -> Path:
+    """A second clone of the shared bare origin, configured for commits."""
+    upstream = tmp_path / "upstream"
+    _git(tmp_path, "clone", str(tmp_path / "origin"), str(upstream))
+    _git(upstream, "config", "user.name", "tester")
+    _git(upstream, "config", "user.email", "tester@example.com")
+    return upstream
+
+
+def _commit_count(repo: Path) -> int:
+    return int(cli.gitdata.run_git(["rev-list", "--count", "HEAD"], repo=repo))
+
+
+def _tag_names(repo: Path) -> list[str]:
+    return cli.gitdata.run_git(["tag", "--list"], repo=repo).split()
+
+
+def _point_release_at(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
+    """Make ``discover_repo_root`` return the throwaway repo under test."""
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: repo)
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_refuses_on_wrong_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    _seed_release_repo(repo, branch="master")
+    _git(repo, "checkout", "-b", "dev")
+    _point_release_at(monkeypatch, repo)
+    before = _commit_count(repo)
+    with pytest.raises(RuntimeError, match="checked out on 'dev'"):
+        cli.release("999.0.0", branch="master")
+    assert _commit_count(repo) == before
+    assert _tag_names(repo) == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_refuses_when_local_branch_behind_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = _seed_origin_and_clone(tmp_path)
+    upstream = _clone_upstream(tmp_path)
+    (upstream / "ahead.txt").write_text("ahead\n", encoding="utf-8")
+    _git(upstream, "add", "-A")
+    _git(upstream, "commit", "-m", "advance origin")
+    _git(upstream, "push", "origin", "master")
+    _point_release_at(monkeypatch, work)
+    before = _commit_count(work)
+    with pytest.raises(RuntimeError, match="behind origin"):
+        cli.release("999.0.0", branch="master")
+    assert _commit_count(work) == before
+    assert _tag_names(work) == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_refuses_when_tag_exists_locally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = _seed_origin_and_clone(tmp_path)
+    _git(work, "tag", "-a", "v999.0.0", "-m", "pre-existing")
+    _point_release_at(monkeypatch, work)
+    before = _commit_count(work)
+    with pytest.raises(RuntimeError, match="already exists locally"):
+        cli.release("999.0.0", branch="master")
+    assert _commit_count(work) == before
+    assert "v999.0.0" in _tag_names(work)
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_refuses_when_tag_exists_on_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = _seed_origin_and_clone(tmp_path)
+    upstream = _clone_upstream(tmp_path)
+    _git(upstream, "tag", "-a", "v999.0.0", "-m", "remote side")
+    _git(upstream, "push", "origin", "v999.0.0")
+    _point_release_at(monkeypatch, work)
+    before = _commit_count(work)
+    with pytest.raises(RuntimeError, match="already exists on origin"):
+        cli.release("999.0.0", branch="master")
+    assert _commit_count(work) == before
+    assert _tag_names(work) == []
+
+
+# --- rollback on mid-run failure against real repositories --------------------
+
+
+def _stub_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    gate_rc: int,
+    version_test_rc: int,
+) -> None:
+    """Deterministic changelog/gate stubs for the mutating pipeline.
+
+    ``generate_changelog`` writes the four changelog files (so the rollback
+    snapshot-restore of created files is exercised for real) and no-ops on
+    dry-runs; the two gates return the configured exit codes.
+    """
+
+    def fake_generate_changelog(repo: Path, *, dry_run: bool = False) -> None:
+        if dry_run:
+            return
+        for rel in cli._CHANGELOG_FILES:
+            path = repo / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"changelog stub: {rel}\n", encoding="utf-8")
+
+    def fake_gate_check(repo: Path) -> int:
+        return gate_rc
+
+    def fake_version_tests(repo: Path) -> int:
+        return version_test_rc
+
+    monkeypatch.setattr(cli, "generate_changelog", fake_generate_changelog)
+    monkeypatch.setattr(cli, "gate_check", fake_gate_check)
+    monkeypatch.setattr(cli, "run_version_tests", fake_version_tests)
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_rolls_back_when_changelog_gate_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    work = _seed_origin_and_clone(tmp_path)
+    _stub_pipeline(monkeypatch, gate_rc=1, version_test_rc=0)
+    _point_release_at(monkeypatch, work)
+    init_before = (work / "yate" / "__init__.py").read_text(encoding="utf-8")
+    head_before = cli.gitdata.head_sha(work)
+    commits_before = _commit_count(work)
+
+    assert cli.release("999.0.0", branch="master") == 1
+
+    assert "rolled back" in capsys.readouterr().err
+    assert _commit_count(work) == commits_before
+    assert cli.gitdata.head_sha(work) == head_before
+    assert (work / "yate" / "__init__.py").read_text(encoding="utf-8") == init_before
+    for rel in cli._CHANGELOG_FILES:
+        assert not (work / rel).exists()
+    assert _tag_names(work) == []
+    assert cli.gitdata.run_git(["status", "--porcelain"], repo=work) == ""
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_rolls_back_when_version_tests_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    work = _seed_origin_and_clone(tmp_path)
+    _stub_pipeline(monkeypatch, gate_rc=0, version_test_rc=1)
+    _point_release_at(monkeypatch, work)
+    init_before = (work / "yate" / "__init__.py").read_text(encoding="utf-8")
+    head_before = cli.gitdata.head_sha(work)
+    commits_before = _commit_count(work)
+
+    assert cli.release("999.0.0", branch="master") == 1
+
+    assert "rolled back" in capsys.readouterr().err
+    assert _commit_count(work) == commits_before
+    assert cli.gitdata.head_sha(work) == head_before
+    assert (work / "yate" / "__init__.py").read_text(encoding="utf-8") == init_before
+    for rel in cli._CHANGELOG_FILES:
+        assert not (work / rel).exists()
+    assert _tag_names(work) == []
+    assert cli.gitdata.run_git(["status", "--porcelain"], repo=work) == ""
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_skips_rollback_after_branch_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    work = _seed_origin_and_clone(tmp_path)
+    _stub_pipeline(monkeypatch, gate_rc=0, version_test_rc=0)
+    _point_release_at(monkeypatch, work)
+    pushes: list[str] = []
+
+    def fake_git_push(repo: Path, refspec: str, *, dry_run: bool = False) -> None:
+        if refspec == "master":
+            pushes.append(refspec)
+            return
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(cli, "git_push", fake_git_push)
+    commits_before = _commit_count(work)
+
+    assert cli.release("999.0.0", branch="master") == 1
+
+    assert "recover manually" in capsys.readouterr().err
+    assert pushes == ["master"]
+    assert _commit_count(work) == commits_before + 2
+    assert "v999.0.0" in _tag_names(work)
+    for rel in cli._CHANGELOG_FILES:
+        assert (work / rel).exists()
+
+
+# --- dry-run performs zero mutation -------------------------------------------
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_release_dry_run_mutates_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = _seed_origin_and_clone(tmp_path)
+    _stub_pipeline(monkeypatch, gate_rc=0, version_test_rc=0)
+    _point_release_at(monkeypatch, work)
+    init_before = (work / "yate" / "__init__.py").read_text(encoding="utf-8")
+    head_before = cli.gitdata.head_sha(work)
+
+    assert cli.release("999.0.0", branch="master", dry_run=True) == 0
+
+    assert cli.gitdata.head_sha(work) == head_before
+    assert _commit_count(work) == 1
+    assert _tag_names(work) == []
+    assert (work / "yate" / "__init__.py").read_text(encoding="utf-8") == init_before
+    for rel in cli._CHANGELOG_FILES:
+        assert not (work / rel).exists()
