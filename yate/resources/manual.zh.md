@@ -352,6 +352,13 @@ yate 内置两套键位：
 | `Ctrl+PageUp` | 上一个标签 |
 | `Ctrl+PageDown` | 下一个标签 |
 
+### 终端兼容性
+
+传统终端（Windows Terminal、conhost 及多数老式模拟器）上报 `Ctrl`+数字时会丢失
+修饰键，因此 `Ctrl+1` 只在支持 kitty 键盘协议（CSI-u 序列）的终端（kitty、
+WezTerm 等）可达；其它终端请改用命令面板（`Alt+Shift+P`）或 `:` 命令行。
+`Ctrl+P`、`Ctrl+/`、`Ctrl+Q`、`Ctrl+W`、`Ctrl+Shift+E` 与各功能键在所有终端均可用。
+
 **帮助（Help）**
 
 | 按键 | 功能 |

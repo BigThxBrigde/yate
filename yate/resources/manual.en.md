@@ -368,6 +368,15 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+PageUp` | Previous tab |
 | `Ctrl+PageDown` | Next tab |
 
+### Terminal compatibility
+
+Classic terminals (Windows Terminal, conhost, most legacy emulators) report
+`Ctrl` + digit with the modifier lost, so `Ctrl+1` only reaches yate in
+terminals that send kitty-protocol (CSI-u) sequences (kitty, WezTerm). There,
+use the command palette (`Alt+Shift+P`) or `:1`-style ex commands instead.
+`Ctrl+P`, `Ctrl+/`, `Ctrl+Q`, `Ctrl+W`, `Ctrl+Shift+E` and the function keys
+work on all terminals.
+
 **Help**
 
 | Key | Action |

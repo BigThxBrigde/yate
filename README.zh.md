@@ -122,7 +122,7 @@ yate --diag                 # 打印环境与配置诊断报告后退出
 | `Ctrl+B`                        | 显示/隐藏文件树（命令面板 `explorer` 同效）                         |
 | `` Ctrl+` ``                    | 显示/隐藏底部集成终端（命令面板 `term` / `termclose`）               |
 | `Ctrl+E` / `Ctrl+Shift+E`       | 聚焦文件树（后者同 VS Code）                                   |
-| `Ctrl+1`                        | 聚焦编辑器（同 VS Code）                                     |
+| `Ctrl+1`                        | 聚焦编辑器（同 VS Code；仅 kitty/CSI-u 终端可用——Windows Terminal 与 conhost 会丢失数字上的修饰键） |
 | `Ctrl+/`                        | 在 vsc / vim 两套键位间切换（也可用 `:set keymap=…`）             |
 | `Ctrl+Space`                    | 触发补全（有语言服务器走 LSP，否则取已打开 buffer 的单词；`Tab`/`Enter` 接受） |
 | `F1` / `F8`                     | 帮助 / 全部键位 · 打开中英双语用户手册                               |

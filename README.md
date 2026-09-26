@@ -103,7 +103,7 @@ yate --diag                 # print the environment & config diagnostics, then e
 | `Ctrl+B` | show/hide the file tree (palette `explorer` does the same) |
 | `` Ctrl+` `` | show/hide the integrated terminal (palette `term` / `termclose`) |
 | `Ctrl+E` / `Ctrl+Shift+E` | focus the file tree (the latter matches VS Code) |
-| `Ctrl+1` | focus the editor (matches VS Code) |
+| `Ctrl+1` | focus the editor (matches VS Code; kitty/CSI-u terminals only — Windows Terminal and conhost drop the modifier on digits) |
 | `Ctrl+/` | toggle between the vsc and vim keymaps (or `:set keymap=…`) |
 | `Ctrl+Space` | trigger completion (LSP when a server is running, otherwise words from open buffers; accept with `Tab`/`Enter`) |
 | `F1` / `F8` | help / all key bindings · open the bilingual user manual |
