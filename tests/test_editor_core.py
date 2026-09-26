@@ -124,6 +124,16 @@ def test_read_only_release_allows_editing() -> None:
     assert buf.get_text() == "hello world"
 
 
+def test_save_refused_on_read_only_document(tmp_path: Path) -> None:
+    """Document.save honours the buffer's read-only flag (L0 boundary)."""
+    target = tmp_path / "ro.txt"
+    doc = Document(target, TextBuffer("keep"))
+    doc.buffer.read_only = True
+    with pytest.raises(BufferReadOnlyError):
+        doc.save()
+    assert not target.exists()
+
+
 def test_search_replace_refused_on_read_only_buffer() -> None:
     """The search engine refuses to mutate a read-only buffer."""
     buf = TextBuffer("a a a", read_only=True)
