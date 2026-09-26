@@ -20,6 +20,13 @@
   替代路径 `Alt+Shift+P`），彻底根治需方案 B 自建输入通道（`win_keybinding_plan.md`，另行排期）。
   **证据：** 定向 255 / 全量 1228 passed，pyright 0 诊断；commit `b03e40f` `ff3cfc0` `678c02c`
   `f26e65d`；计划与执行记录见 [keybinding-fix-wt](../documents/keybinding-fix-wt/README.md)。
+  **真机复测与 Phase A（2026-09-26，`YATE_TRACE=1` 取证）：** 首轮复测 vim 下仅 ctrl+q 通 →
+  探针实证当前代码 pilot 层全通（此前疑为旧代码误测）→ trace 裁决出**真正的根因**：WT win32
+  驱动把 ctrl+标点命名为长名（`ctrl+right_square_bracket` / `ctrl+circumflex_accent` /
+  `ctrl+underscore`）而 `event_to_raw` 表不认识 → 丢键；但 `event.character` 仍携带正确 C0 字节。
+  修复 = PA2b 通用兜底（表未命中且 character<0x20 → 直接采用，`1db6175`）+ PA1 入口日志 +
+  PA3 vim 守卫（反向演练有效）。复测 trace：四键全通、零 unmapped。**剩余：ctrl+1 物理层丢失**
+  （trace 无事件行），Phase B（win32-input-mode 驱动 chord）是唯一解，待启动。
 
 ---
 
