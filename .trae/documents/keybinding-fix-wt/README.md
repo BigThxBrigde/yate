@@ -64,6 +64,10 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 | [SP4_docs_backfill.md](SP4_docs_backfill.md) | review.md 回填、P2 N8 关账、Gitee issue 回复草稿 | `.trae/issues/review.md`、`.trae/documents/code-review-fix-plans/P2_nice_to_have_plan.md`、本目录文档 |
 | [SP5_gates_matrix.md](SP5_gates_matrix.md) | 全量门禁（pyright/pytest/冒烟）+ 真机验证矩阵 + 计划状态收尾 | `.trae/documents/**`（状态回写） |
 
+> **分支评审（2026-09-27）**：本分支全量 diff 评审报告（2 项发现已闭环 `b21ff37`、
+> 门禁实测 1257 passed / 覆盖率 90% / 冒烟 920 checks、按键管线与日志守卫流程图存档）见
+> [../../issues/review_keybinding_20260927.md](../../issues/review_keybinding_20260927.md)。
+
 ## 前置（可选）：SP0 真机取证
 
 若对根因推断有疑，先在真实 WT 下启用 `YATE_TRACE=1` 按 `ctrl+1` / `ctrl+/` / `ctrl+p`，
