@@ -149,10 +149,10 @@ sequenceDiagram
 
 1. [x] `git worktree add --track -b enh/logging-for-layers D:\Programming\yate-logging-layers origin/enh/logging-for-layers`
 2. [x] `git -C D:\Programming\yate-logging-layers merge master --no-edit` → 已合并 `108f763`（readonly-option 等），零冲突。
-3. [ ] 在 worktree 内准备解释器：若 `.venv` 不存在则 `python -m venv .venv && .venv\Scripts\pip install -e .`；**不得**把主仓 `.venv` 重装指向 worktree（editable 安装会把 `yate` 解析回主仓）。
-4. [ ] 提交本计划文档（`docs(plans): draft layered logging plan for issue IKIN1Z`）。
+3. [x] 在 worktree 内准备解释器：`.venv` 已创建并 `pip install -e .`。
+4. [x] 提交本计划文档（`docs(plans): draft layered logging plan for issue IKIN1Z`）。
 
-验收：`.venv\Scripts\python.exe -m pytest tests/ -q` 全绿（合并后基线）；`git status` 干净。
+验收：基线 `pytest tests/ -q` = **1251 passed, 7 skipped**（首跑 `test_new_file_and_folder_from_explorer` 为 pilot timing 偶发失败，单跑通过、全量重跑全绿）。
 
 ### Phase A — L4 外壳（app.py）
 
@@ -219,12 +219,66 @@ sequenceDiagram
 
 ## 七、架构合规自检
 
-- [ ] 依赖方向全部向下（`yate.logs` 为 L0 叶子），无 R1–R11 违规
-- [ ] 不新增 Protocol / `TYPE_CHECKING` / `Any` / `# type: ignore`
-- [ ] 观察点全部为纯新增 log 语句，不改控制流与函数签名
-- [ ] 新按键路径零改动（R10 无涉）
-- [ ] pyright strict 零诊断、pytest 全绿、架构测试全绿
+- [x] 依赖方向全部向下（`yate.logs` 为 L0 叶子），无 R1–R11 违规
+- [x] 不新增 Protocol / `TYPE_CHECKING` / `Any` / `# type: ignore`
+- [x] 观察点全部为纯新增 log 语句，不改控制流与函数签名
+- [x] 新按键路径零改动（R10 无涉）
+- [x] pyright strict 零诊断、pytest 全绿、架构测试全绿
 
 ## 八、校准记录（实施后回填）
 
-（待回填：各 Phase 实测 commit、测试数字、与计划的偏离项及理由）
+实施日期：2026-09-26。
+
+### 实测数字
+
+| 项 | 计划前 | 计划后 |
+|---|---|---|
+| `log.*` 调用 / 涉及文件（yate/） | 37 条 / 9 文件 | 97 条 / 24 文件（实测 Grep） |
+| pyright strict | 0 诊断 | 0 诊断（每 Phase 均复验） |
+| pytest | 1251 passed, 7 skipped | **1252 passed, 7 skipped**（+1 守卫测试） |
+| 架构测试用例 | 13 | 14（新增 `test_log_calls_use_lazy_percent_formatting`） |
+
+### 分 Phase commit
+
+| Phase | commit | 内容 |
+|---|---|---|
+| 0 | `970de77` + `548a25c` | 计划文档 + merge master |
+| A | `cc24677` | L4 app.py：mount/unmount、主题设置与降级、key fallback、quit 经注册表 |
+| B | `f575211` | L3 actions/commands 装载计数、`run_command` 派发与未命中、`execute_action` 未命中、completion 状态机 |
+| C | `2a6e712` | L2 panes/chrome/explorer/commandline/terminal |
+| D | `4fd005f` | L1 session/registries（覆盖警告）/keymaps select |
+| E | `06d99a9` | L0 buffer/search/config/lsp client+manager/tree-sitter 回退 |
+| F | （本提交） | 守卫测试 + 文档回填 |
+
+### 与计划的偏离项（含理由）
+
+1. **`diagnostics.py` 未加日志**：勘察发现它是 `yate --diag` 的一次性环境报告模块，无运行时流量；计划第三节矩阵把"LSP publish 到达"放在该模块属假设错误。运行时观察点改落在 `editor_lsp/manager.py::handle_notification`（摘要记录 uri 文件名 + 条数）。
+2. **`prompt_completion.py` 未加日志**：纯函数模块（每次 Tab 键计算候选），无状态机；交互点由 L2 `PromptBar` 的 activate/submit 日志覆盖。
+3. **`Editor.execute_action` 未做"进入即记 debug"**：它是每次按键派发的热路径（hjkl 等全部经过），违反设计原则 4；改为只记**未命中**（`action not found: %s`，罕见且有键表排障价值）。
+4. **Breadcrumbs rebuild、CompletionPopup widget 的 show/close 未记**：前者纯渲染路径，后者与 L3 controller 的 popup shown/closed 日志是同一状态转换（避免双重记录）。
+5. **LSP 响应未实现"耗时 ms"**：避免为计时引入 `_req_times` 状态表；`request -> (id=N)` 与 `response <- (id=N)` 两行的日志时间戳之差即为耗时，零新增状态。
+6. **app.py 的"resize/paste 事件转发"观察点不存在**：`app.py` 实际没有此类处理器，改为记录 `on_key` fallback（未消费键路由）与 `on_unmount`。
+7. **计划外小项**：`notify()` 与 server→client request 各记一条 debug，但 `textDocument/didChange`（逐键）与 `publishDiagnostics`（manager 侧摘要）显式静默，防高频刷屏。
+
+### 冒烟证据（Phase F.3，临时脚本已删除）
+
+`YATE_TRACE=1` + pilot 驱动"打开文件 → 输入 XYZ → `:w`（真实提示条路径）→ `:split` → quit"：14/14 断言 PASS，38 条记录，操作链完整可读：
+
+```
+23:55:38,631 DEBUG yate.config: yaterc loaded: sources=[] errors=0
+23:55:38,651 DEBUG yate.app: theme set: mocha
+23:55:38,660 DEBUG yate.session: session open: ...\notes.txt (1 docs)
+23:55:38,660 INFO  yate.editor: opened: ...\notes.txt
+23:55:38,661 DEBUG yate.editor_view.panes: pane host attached
+23:55:38,662 INFO  yate.actions: builtin actions populated: 65
+23:55:38,662 INFO  yate.commands: builtin commands registered: 44
+23:55:38,700 INFO  yate.app: app mounted: theme=mocha version=0.2.5
+23:55:39,044 DEBUG yate.editor_view.commandline: prompt activate: mode=command
+23:55:39,217 DEBUG yate.editor_view.commandline: prompt submit: mode=command value='w'
+23:55:39,217 DEBUG yate.editor: command: w (args='')
+23:55:39,220 INFO  yate.editor: saved: ...\notes.txt
+23:55:39,325 DEBUG yate.editor: command: split (args='')
+23:55:39,326 INFO  yate.editor_view.panes: pane split (horizontal): new leaf=2 doc=...\notes.txt
+23:55:39,401 DEBUG yate.app: quit via registry
+23:55:39,402 INFO  yate.editor: quit (force=False)
+```
