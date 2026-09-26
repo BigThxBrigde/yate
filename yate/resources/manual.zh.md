@@ -72,6 +72,7 @@ yate [路径] [选项]
 |---|---|
 | `路径`（可选） | 要打开的文件或目录。目录会在文件树中浏览；不存在的路径按"尚未创建的新文件"处理 |
 | `--keymap {vsc,vim,normal}` | 指定启动键位；`normal` 是 `vsc` 的兼容别名。**优先级高于 yaterc** |
+| `--readonly` | 以只读方式打开文件参数：编辑与保存被拒绝，直到 `:set readonly=false` 解锁；参数为目录时忽略 |
 | `-u FILE` / `--yaterc FILE` | 只加载指定配置文件（vim 风格 `-u`）；`-u NONE` 完全跳过配置加载 |
 | `--ext FILE` | 加载一个 Python 扩展脚本（可重复） |
 | `--ext-dir DIR` | 加载目录下所有 `*.py` 扩展（可重复） |
@@ -590,6 +591,7 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 | `:colorscheme [名称]` | `:theme` 的别名 |
 | `:set shell=<命令>` | 设置集成终端的 Shell（下次启动 Shell 时生效） |
 | `:set terminal_height=<n>` | 终端面板高度（行数，`3`–`40`），立即生效 |
+| `:set readonly=<布尔>` | 切换当前缓冲区只读标志（`true`/`false`、`on`/`off`、`1`/`0`、`yes`/`no`）；只读缓冲区拒绝编辑与保存，状态栏显示锁形标记 |
 | `:set filetype=<类型>` | 手动指定当前缓冲区的语法类型（别名 `ft` / `language` / `lang`），见第 17 节 FAQ |
 | `:filetype [类型]` | 同上；不带参数时显示当前类型及全部可用类型（别名 `:ft`、`:language`） |
 
@@ -1255,7 +1257,7 @@ vim 键位：
 
 命令行速查：`:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 
 ## 19. 构建与发布
 

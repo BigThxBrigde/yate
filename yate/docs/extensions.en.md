@@ -228,6 +228,13 @@ above are preferred):
 | `move_line_start/end()` / `move_doc_start/end()` | jumps |
 | `mark_content_changed()` | call after editing `lines` directly, refreshes highlighting/caches |
 
+When the buffer is read-only (`buf.read_only` is `True`, set via
+`--readonly` or `:set readonly=true`), every mutating method raises
+`yate.editor_core.BufferReadOnlyError`; wrap extensions' edits in
+`try`/`except` if they must tolerate read-only documents. Assigning to
+`lines` directly bypasses the guard (no exception), but the change still
+counts as an edit — check `buf.read_only` first.
+
 **Common `api.doc` (Document) members**:
 
 | Member | Description |

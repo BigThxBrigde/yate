@@ -74,6 +74,7 @@ yate [path] [options]
 |---|---|
 | `path` (optional) | File or directory to open. A directory is browsed in the file tree; a non-existent path is treated as a new file to create |
 | `--keymap {vsc,vim,normal}` | Keymap for this session; `normal` is a compatibility alias for `vsc`. **Takes priority over yaterc** |
+| `--readonly` | Open the file argument read-only: edits and saves are refused until `:set readonly=false`; ignored when the argument is a directory |
 | `-u FILE` / `--yaterc FILE` | Load only this config file (vim-style `-u`); `-u NONE` skips config loading entirely |
 | `--ext FILE` | Load one Python extension script (repeatable) |
 | `--ext-dir DIR` | Load every `*.py` extension in a directory (repeatable) |
@@ -631,6 +632,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:colorscheme [name]` | Alias of `:theme` |
 | `:set shell=<command>` | Set the terminal shell command (takes effect on the next shell launch) |
 | `:set terminal_height=<n>` | Terminal panel height in rows (`3`–`40`), applied immediately |
+| `:set readonly=<bool>` | Toggle the current buffer's read-only flag (`true`/`false`, `on`/`off`, `1`/`0`, `yes`/`no`); a read-only buffer refuses edits and saves and shows a lock in the status bar |
 | `:set filetype=<type>` | Force the current buffer's syntax type (aliases `ft` / `language` / `lang`); see the FAQ in section 17 |
 | `:filetype [type]` | Same as above; without arguments shows the current type and all available types (aliases `:ft`, `:language`) |
 
@@ -1389,7 +1391,7 @@ vim keymap:
 
 Command line cheat sheet: `:w` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
 ## 19. Build & Release
 
