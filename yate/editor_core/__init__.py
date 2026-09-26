@@ -7,8 +7,19 @@ framework, so the core can be used (and tested) headlessly and reused by
 extensions.
 """
 
-from yate.editor_core.buffer import Pos, TextBuffer
+from yate.editor_core.buffer import (
+    BufferReadOnlyError,
+    Pos,
+    TextBuffer,
+)
 from yate.editor_core.document import Document
 from yate.editor_core.search import Match, SearchEngine
 
-__all__ = ["Pos", "TextBuffer", "Document", "Match", "SearchEngine"]
+__all__ = [
+    "BufferReadOnlyError",
+    "Pos",
+    "TextBuffer",
+    "Document",
+    "Match",
+    "SearchEngine",
+]

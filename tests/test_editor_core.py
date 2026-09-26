@@ -16,7 +16,12 @@ from typing import Any, cast
 import pytest
 
 from yate.config import YateConfig
-from yate.editor_core import Document, SearchEngine, TextBuffer
+from yate.editor_core import (
+    BufferReadOnlyError,
+    Document,
+    SearchEngine,
+    TextBuffer,
+)
 from yate.editor_core.buffer import (
     MAX_UNDO_STEPS,
     next_word_start,
@@ -66,6 +71,80 @@ def test_undo_redo() -> None:
     assert buf.get_text() == "hello"
     buf.redo()
     assert buf.get_text() == "hello world"
+
+
+def test_read_only_buffer_rejects_mutations() -> None:
+    """Every public mutation raises and leaves the buffer unchanged."""
+    buf = TextBuffer("hello\nworld", read_only=True)
+    buf.cursor = (0, 1)
+    buf.register = "y"
+    mutations: list[Callable[[], object]] = [
+        lambda: buf.set_text("x"),
+        lambda: buf.insert_text("x"),
+        lambda: buf.insert_newline(),
+        lambda: buf.insert_tab(),
+        lambda: buf.replace_range((0, 0), (0, 1), "x"),
+        lambda: buf.delete_backward(),
+        lambda: buf.delete_forward(),
+        lambda: buf.delete_backward(word=True),
+        lambda: buf.delete_forward(word=True),
+        lambda: buf.indent_selection(),
+        lambda: buf.outdent_selection(),
+        lambda: buf.delete_lines(),
+        lambda: buf.duplicate_line(),
+        lambda: buf.move_line(1),
+        lambda: buf.join_lines(),
+        lambda: buf.delete_to_line_start(),
+        lambda: buf.paste(),
+        lambda: buf.undo(),
+        lambda: buf.redo(),
+    ]
+    for mutate in mutations:
+        with pytest.raises(BufferReadOnlyError):
+            mutate()
+    assert buf.get_text() == "hello\nworld"
+    assert buf.content_edits == 0
+
+
+def test_read_only_buffer_rejects_delete_selection() -> None:
+    buf = TextBuffer("hello\nworld", read_only=True)
+    buf.cursor = (0, 1)
+    buf.anchor = (0, 0)
+    with pytest.raises(BufferReadOnlyError):
+        buf.delete_selection()
+    assert buf.get_text() == "hello\nworld"
+
+
+def test_read_only_release_allows_editing() -> None:
+    """Clearing the flag restores normal editing."""
+    buf = TextBuffer("hello", read_only=True)
+    buf.read_only = False
+    buf.move_doc_end()
+    buf.insert_text(" world")
+    assert buf.get_text() == "hello world"
+
+
+def test_save_refused_on_read_only_document(tmp_path: Path) -> None:
+    """Document.save honours the buffer's read-only flag (L0 boundary)."""
+    target = tmp_path / "ro.txt"
+    doc = Document(target, TextBuffer("keep"))
+    doc.buffer.read_only = True
+    with pytest.raises(BufferReadOnlyError):
+        doc.save()
+    assert not target.exists()
+
+
+def test_search_replace_refused_on_read_only_buffer() -> None:
+    """The search engine refuses to mutate a read-only buffer."""
+    buf = TextBuffer("a a a", read_only=True)
+    engine = SearchEngine()
+    engine.update("a", buf)
+    with pytest.raises(BufferReadOnlyError):
+        engine.replace_current(buf, "b")
+    with pytest.raises(BufferReadOnlyError):
+        engine.replace_all(buf, "b")
+    assert buf.get_text() == "a a a"
+    assert buf.content_edits == 0
 
 
 def test_vertical_movement_keeps_desired_column() -> None:

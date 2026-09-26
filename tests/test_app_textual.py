@@ -27,6 +27,7 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_view.editor import EditorView
+from yate.editor_view.icons import LOCK
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.keymaps.base import ActionContext
 from yate.keymaps.vim import VimKeymap
@@ -152,6 +153,132 @@ def test_type_save_find_help_keymap(tmp_path: Path) -> None:
             assert "notes.txt" in crumbs
             assert "\uf054" in crumbs  # chevron separator
             assert "notes.txt" in app.editor.breadcrumbs.build(12).plain
+
+    asyncio.run(scenario())
+
+
+def _status_strip(app: YateApp) -> str:
+    """The status bar's rendered text as one plain string."""
+    return "".join(seg.text for seg in app.editor.status_bar.render_line(0))
+
+
+def test_readonly_blocks_edits_saves_and_unlocks(tmp_path: Path) -> None:
+    """--readonly starts locked; edits/saves are refused; :set unlocks."""
+
+    async def scenario() -> None:
+        target = tmp_path / "locked.txt"
+        target.write_text("keep", encoding="utf-8")
+        app = YateApp(target=target, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.editor.session.buffer.read_only
+            # the status bar shows the lock glyph while read-only
+            strip = _status_strip(app)
+            assert LOCK in strip
+            # typing is refused (key consumed, buffer unchanged)
+            await pilot.press("x")
+            assert app.editor.session.buffer.get_text() == "keep"
+            # ctrl+s refuses to write the file
+            await pilot.press("ctrl+s")
+            assert target.read_text(encoding="utf-8") == "keep"
+            # :set readonly=false unlocks through the full command path
+            await pilot.press("f5")
+            await pilot.pause()
+            await pilot.press(*"set")
+            await pilot.press("space")
+            await pilot.press(*"readonly=false")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert not app.editor.session.buffer.read_only
+            # the lock glyph is gone once unlocked
+            strip = _status_strip(app)
+            assert LOCK not in strip
+            await pilot.press("x")
+            # startup cursor sits at (0, 0), so the typing lands at the top
+            assert app.editor.session.buffer.get_text() == "xkeep"
+
+    asyncio.run(scenario())
+
+
+def test_readonly_statusbar_lock_keeps_right_block_visible(tmp_path: Path) -> None:
+    """A lock plus a truncated long filename must not clip the right block."""
+
+    async def scenario() -> None:
+        target = tmp_path / ("a-very-long-file-name-" + "x" * 70 + ".txt")
+        app = YateApp(target=target, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            strip = _status_strip(app)
+            assert LOCK in strip
+            # the right block (… "F1") still ends exactly at the bar's edge
+            assert strip.rstrip().endswith("F1")
+
+    asyncio.run(scenario())
+
+
+def test_readonly_session_applies_to_later_opens(tmp_path: Path) -> None:
+    """In a --readonly session, :e opens the next file read-only too."""
+
+    async def scenario() -> None:
+        first = tmp_path / "first.txt"
+        first.write_text("one", encoding="utf-8")
+        second = tmp_path / "second.txt"
+        second.write_text("two", encoding="utf-8")
+        app = YateApp(target=first, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.editor.run_command(f"e {second}")
+            await pilot.pause()
+            assert app.editor.session.doc.path == second
+            assert app.editor.session.buffer.read_only
+            # unlock the second document, hop back to the (still locked)
+            # startup file, then return: a reused document is NOT re-locked
+            app.editor.run_command("set readonly=false")
+            app.editor.run_command(f"e {first}")
+            await pilot.pause()
+            assert app.editor.session.buffer.read_only
+            app.editor.run_command(f"e {second}")
+            await pilot.pause()
+            assert not app.editor.session.buffer.read_only
+
+    asyncio.run(scenario())
+
+
+def test_readonly_saveas_writes_elsewhere_and_unlocks(tmp_path: Path) -> None:
+    """:saveas persists a read-only buffer to a new path and unlocks it."""
+
+    async def scenario() -> None:
+        source = tmp_path / "source.txt"
+        source.write_text("protected", encoding="utf-8")
+        dest = tmp_path / "copy.txt"
+        app = YateApp(target=source, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.editor.session.buffer.read_only
+            app.editor.run_command(f"saveas {dest}")
+            await pilot.pause()
+            assert dest.read_text(encoding="utf-8") == "protected"
+            # the original file is untouched and the buffer is unlocked now
+            assert source.read_text(encoding="utf-8") == "protected"
+            assert not app.editor.session.buffer.read_only
+            # a plain :w now targets the new path, not the source
+            await pilot.press("x")
+            app.editor.run_command("w")
+            await pilot.pause()
+            assert dest.read_text(encoding="utf-8") == "xprotected"
+            assert source.read_text(encoding="utf-8") == "protected"
+
+    asyncio.run(scenario())
+
+
+def test_readonly_startup_flag_ignores_directory_target(tmp_path: Path) -> None:
+    """``--readonly`` only applies to a file argument, never a directory."""
+
+    async def scenario() -> None:
+        app = YateApp(target=tmp_path, readonly=True)
+        assert app.editor.startup_readonly
+        # a directory target seeds a normal (writable) buffer
+        assert not app.editor.session.buffer.read_only
 
     asyncio.run(scenario())
 

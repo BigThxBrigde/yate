@@ -34,7 +34,7 @@ from textual.widgets import Static
 from yate import __version__
 from yate.completion import CompletionController
 from yate.config import YateConfig
-from yate.editor_core import Document
+from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_lsp import LspManager
 from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
 from yate.editor_view import theme
@@ -91,6 +91,7 @@ class Editor:
         *,
         target: str | Path | None = None,
         keymap: str | None = None,
+        readonly: bool = False,
         ext_files: list[str | Path] | None = None,
         ext_dirs: list[str | Path] | None = None,
     ) -> None:
@@ -100,6 +101,9 @@ class Editor:
         self.ext_dirs = [Path(p) for p in (ext_dirs or [])]
         self._mounted = False
         self._window_pending = False
+        # ``--readonly`` startup flag: only the *file* argument is opened
+        # read-only (a directory argument keeps its normal behavior).
+        self.startup_readonly = readonly
         self._ext_messages: list[str] = [
             f"yaterc: {err}" for err in self.config.errors
         ]
@@ -357,6 +361,19 @@ class Editor:
             self._open_document(path)
         return kind
 
+    def _apply_session_readonly(self, doc: Document | None) -> None:
+        """Apply the ``--readonly`` session flag to a freshly opened document.
+
+        Called from the document-open paths so every file opened during the
+        session (``:e``, splits, the explorer, ...) starts read-only, not
+        just the startup argument.  A no-op without the flag, for a failed
+        open (binary files), and for already-open documents being re-activated
+        (a user who unlocked one keeps it unlocked).
+        """
+        if doc is not None and self.startup_readonly:
+            doc.buffer.read_only = True
+            log.info("opened read-only: %s", doc.path)
+
     # =============================================================== documents
 
     def activate_doc(self, doc: Document, target_leaf: Leaf | None = None) -> None:
@@ -371,11 +388,14 @@ class Editor:
         self, path: Path, *, target_leaf: Leaf | None = None
     ) -> Document | None:
         """Open/reuse *path*; ``None`` when it is not a text file."""
+        reused = self.session.is_open(path) is not None
         doc = self.session.open(path)
         if doc is None:
             self._report(f"not a text file: {path.name}", kind="warn")
             log.info("open skipped (binary): %s", path)
             return None
+        if not reused:
+            self._apply_session_readonly(doc)
         self.activate_doc(doc, target_leaf)
         log.info("opened: %s", path)
         return doc
@@ -384,10 +404,13 @@ class Editor:
         self, path: Path, *, target_leaf: Leaf | None = None
     ) -> Document | None:
         """Like :meth:`_open_document`, but the disk read runs off the loop."""
+        reused = self.session.is_open(path) is not None
         doc = await self.session.open_async(path)
         if doc is None:
             self._report(f"not a text file: {path.name}", kind="warn")
             return None
+        if not reused:
+            self._apply_session_readonly(doc)
         self.activate_doc(doc, target_leaf)
         log.info("opened (async): %s", path)
         return doc
@@ -510,6 +533,12 @@ class Editor:
     def save_document(self) -> None:
         """``:w``: write the active document to disk."""
         doc = self.session.doc
+        if doc.buffer.read_only:
+            self.message(
+                "cannot save a read-only buffer; use :saveas to write elsewhere",
+                kind="warn",
+            )
+            return
         if doc.path is None:
             log.info("save: unnamed buffer, prompting for a path")
             self.prompt_save_as()
@@ -535,11 +564,30 @@ class Editor:
             "save", initial=current, on_submit=self._submit_save_as
         )
 
+    def save_as(self, path: str | None = None) -> None:
+        """``:saveas``: persist the buffer to *path* (prompt without one).
+
+        The sanctioned escape hatch for a read-only buffer: writing to an
+        explicitly chosen path lifts the flag (vim ``:sav`` semantics) while
+        the original file stays untouched.
+        """
+        if path is not None and path.strip():
+            self._submit_save_as(path)
+            return
+        self.prompt_save_as()
+
     def _submit_save_as(self, text: str) -> None:
         text = text.strip()
         if not text:
             self.message("save cancelled")
             return
+        buf = self.session.doc.buffer
+        locked = buf.read_only
+        if locked:
+            # ``:saveas`` is deliberate persistence: lift the flag so the
+            # L0 ``Document.save`` guard lets the write through (vim ``:sav``
+            # clears 'readonly' too).  Restored when the write fails.
+            buf.read_only = False
         path = Path(text)
         try:
             self.session.doc.save(path)
@@ -547,6 +595,8 @@ class Editor:
             self.explorer_tree.refresh_tree()
             self.message(f"saved {path}", kind="ok")
         except (OSError, UnicodeError) as exc:
+            if locked:
+                buf.read_only = True
             self.message(f"save failed: {exc}", kind="error")
 
     # ============================================================== key routing
@@ -633,9 +683,15 @@ class Editor:
 
     def handle_raw_key(self, raw: str) -> bool:
         """Dispatch one raw key to the active keymap, then refresh the UI."""
-        handled = self.keymaps.active.handle_key(
-            ActionContext(self.session, self.key_ui), raw
-        )
+        try:
+            handled = self.keymaps.active.handle_key(
+                ActionContext(self.session, self.key_ui), raw
+            )
+        except BufferReadOnlyError:
+            # Typing / vim operators / edit actions on a read-only buffer:
+            # the key is consumed (R10) with a notice instead of an edit.
+            self._readonly_notice()
+            return True
         self.refresh_ui()
         self.completion.after_editor_key(raw)
         return handled
@@ -644,9 +700,24 @@ class Editor:
         """Run a registered action by name; ``False`` when it is unknown.
 
         Called by keymaps (which report an unknown name and let the key fall
-        through), the palette and the extension bridge.
+        through), the palette and the extension bridge.  A refused edit on a
+        read-only buffer also reports ``True`` (the request was consumed,
+        with a user notice) instead of propagating the error.
         """
-        return self.actions.execute(name, ActionContext(self.session, self.key_ui))
+        try:
+            return self.actions.execute(name, ActionContext(self.session, self.key_ui))
+        except BufferReadOnlyError:
+            self._readonly_notice()
+            # the refused action may have moved the cursor / changed anchors
+            # before raising; repaint so the view never goes stale
+            self.refresh_ui()
+            return True
+
+    def _readonly_notice(self) -> None:
+        """User feedback for an edit refused on a read-only buffer."""
+        self.message(
+            "buffer is read-only (:set readonly=false to unlock)", kind="warn"
+        )
 
     def insert_char(self, ch: str) -> None:
         """Insert one character at the cursor (keymap ``insert_char``)."""
@@ -909,6 +980,9 @@ class Editor:
         )
 
     def _do_replace(self, find: str, replacement: str) -> None:
+        if self.session.buffer.read_only:
+            self._readonly_notice()
+            return
         matches = self.session.search.update(find, self.session.buffer)
         if not matches:
             self.message(f"no matches for {find!r}", kind="warn")
@@ -1069,6 +1143,13 @@ class Editor:
         """Paint the VS Code-style 'EXPLORER' sidebar title."""
         self.sidebar_head.styles.background = theme.active().panel
         self.sidebar_head.update(sidebar_head_text())
+
+    def set_readonly(self, value: bool) -> None:
+        """Set the active buffer's read-only flag (``:set readonly=``)."""
+        buf = self.session.doc.buffer
+        buf.read_only = value
+        self.message(f"readonly: {'on' if value else 'off'}", kind="ok")
+        self.refresh_ui()
 
     def set_filetype(self, value: str) -> None:
         """Force the current document's syntax type (``:set filetype=``)."""
@@ -1232,7 +1313,11 @@ class Editor:
 
     def accept_completion(self) -> None:
         """Insert the selected completion at its reported range."""
-        self.completion.accept()
+        try:
+            self.completion.accept()
+        except BufferReadOnlyError:
+            self._readonly_notice()
+            self.refresh_ui()
 
     # =================================================================== lsp
 
