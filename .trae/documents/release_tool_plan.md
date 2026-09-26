@@ -11,6 +11,11 @@
 > 注意：`tests/test_theme_palettes.py` 中的 `assertEqual(yate.__version__, ...)`
 > 必须与当前 `yate/__init__.py::__version__`（**0.2.4**）保持一致——
 > 这正是本工具 `_VERSION_FILES` 同时 bump 两处的原因。
+>
+> **后续增强（2026-09-26）**：v0.2.5 发布实操暴露了本方案"不自动回滚"
+> 决策与缺分支/远端守卫的风险，加固计划见
+> [release_tool_hardening_plan.md](release_tool_hardening_plan.md)
+> （前置守卫 + 自动回滚，实施中）。
 
 ## Context（为什么做这个）
 
