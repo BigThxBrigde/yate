@@ -1,8 +1,8 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-09-26 · yate 0.2.4
+> 由 git 历史自动生成于 2026-09-26 · yate 0.2.5
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...HEAD)
+## [0.2.5] - 2026-09-26 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...v0.2.5)
 
 ### 新功能
 
@@ -26,6 +26,8 @@
 
 ### 问题修复
 
+- anchor the version-bump regex with re.MULTILINE [缺中文] ([`64b3a33`](https://gitee.com/jermaine/yate/commit/64b3a334c8484ee19bb0bbdbdbfc927b9780ac8a))
+- bump only the single dynamic version source on release [缺中文] ([`4cbbf2b`](https://gitee.com/jermaine/yate/commit/4cbbf2bb07acf2d2629a98d3720699057d32a438))
 - 修复 editor_view 向 run_worker 传递即时协程的问题 ([`ba5946b`](https://gitee.com/jermaine/yate/commit/ba5946b7d20a58b9b4c5b8982198840213719762))
   - 改为传协程函数由 worker 自行构建，避免协程未被消费的告警
 - ctrl+q 改走注册的退出动作 ([`b9e73be`](https://gitee.com/jermaine/yate/commit/b9e73be2c8a713490e28283bd5b65cba44f35314))
@@ -95,6 +97,7 @@
 
 ### 文档
 
+- fill in missing zh translations and refresh [缺中文] ([`8abec69`](https://gitee.com/jermaine/yate/commit/8abec69e6f8c8ff2e8dcf25adae1643d7dd2fed4))
 - 修正 yaterc 方案文档文件名笔误（pywright→pyright） ([`11bab59`](https://gitee.com/jermaine/yate/commit/11bab597c95329329ece2e09766e26a80517d51b))
 - 四份 remove_type_checking 文档合并为单篇 ADR ([`f9b4d0b`](https://gitee.com/jermaine/yate/commit/f9b4d0b626380be862385b78ba76930156f8f774))
 - 回填 wave-1 子计划校准记录 ([`8c30871`](https://gitee.com/jermaine/yate/commit/8c308715a0eb4e25d4e633966d746a1d982d3ec0))
