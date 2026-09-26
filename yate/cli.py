@@ -13,7 +13,8 @@ import argparse
 import platform
 import sys
 from pathlib import Path
-from typing import Optional, Sequence
+
+from collections.abc import Sequence
 
 from yate import __description__, __version__
 
@@ -167,7 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     # Best-effort native-crash / uncaught-exception log (~/.yate/data/).
     # First line so even startup failures are covered.
     from yate.logs import crash, tracing  # pylint: disable=import-outside-toplevel

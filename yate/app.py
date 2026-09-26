@@ -10,7 +10,7 @@ table modules import the editor, so the editor must not import them back).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import override
 
 from textual.app import App, ComposeResult
 from textual.events import Key
@@ -78,13 +78,13 @@ class YateApp(App[None]):
 
     def __init__(
         self,
-        target: Optional[str | Path] = None,
+        target: str | Path | None = None,
         *,
-        keymap: Optional[str] = None,
-        theme_name: Optional[str] = None,
-        config: Optional[YateConfig] = None,
-        ext_files: Optional[list[str | Path]] = None,
-        ext_dirs: Optional[list[str | Path]] = None,
+        keymap: str | None = None,
+        theme_name: str | None = None,
+        config: YateConfig | None = None,
+        ext_files: list[str | Path] | None = None,
+        ext_dirs: list[str | Path] | None = None,
     ) -> None:
         super().__init__()
         self.title = f"yate {__version__}"
@@ -137,6 +137,7 @@ class YateApp(App[None]):
         populate(self.editor.actions, self.editor)
         register_commands(self.editor.commands, self.editor)
 
+    @override
     def compose(self) -> ComposeResult:
         yield from self.editor.compose()
 
@@ -152,6 +153,7 @@ class YateApp(App[None]):
             event.stop()
             event.prevent_default()
 
+    @override
     def get_theme_variable_defaults(self) -> dict[str, str]:
         """Provide defaults for the custom doc-hit CSS variables.
 
@@ -167,6 +169,7 @@ class YateApp(App[None]):
             "doc-hit-current-background": f"{t.yellow} 40%",
         }
 
+    @override
     async def action_quit(self) -> None:
         """Textual's ctrl+q priority binding — route through the registry.
 

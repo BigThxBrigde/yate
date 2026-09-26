@@ -14,7 +14,6 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -349,7 +348,7 @@ class _FakeResponse:
     def __init__(self, status: int) -> None:
         self.status = status
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, *_args: object) -> None:
@@ -928,10 +927,10 @@ def test_generate_limit_1_keeps_only_the_newest_commit(
     cli_repo: Path, overrides_path: Path, stub_gitdata: None,
     cli_commits: list[RawCommit], monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    seen: list[Optional[int]] = []
+    seen: list[int | None] = []
 
     def fake_read_commits(
-        repo: Path, *, include_merges: bool = False, limit: Optional[int] = None
+        repo: Path, *, include_merges: bool = False, limit: int | None = None
     ) -> list[RawCommit]:
         seen.append(limit)
         # model `git log -n <limit>`: newest-first slice
@@ -953,7 +952,7 @@ def test_generate_limit_zero_and_negative_forwarded_verbatim(
     # measured: `git log -n 0` lists nothing; `git log -n -1` (exit 0) lists
     # the whole history — the behaviour is frozen here accordingly.
     def fake_read_commits(
-        repo: Path, *, include_merges: bool = False, limit: Optional[int] = None
+        repo: Path, *, include_merges: bool = False, limit: int | None = None
     ) -> list[RawCommit]:
         if limit is None:
             return cli_commits

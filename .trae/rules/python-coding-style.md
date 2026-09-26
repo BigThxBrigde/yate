@@ -5,7 +5,7 @@ scene: python_coding
 
 ## 适用范围
 
-本规则适用于 yate 项目所有 Python 源码（`yate/`、`tools/`、`tests/`）。项目基于 Python 3.10+，使用 pyright strict 模式进行类型检查，**零诊断是合并的硬门槛**。
+本规则适用于 yate 项目所有 Python 源码（`yate/`、`tools/`、`tests/`）。项目基于 Python 3.12+，使用 pyright strict 模式进行类型检查，**零诊断是合并的硬门槛**。
 
 ---
 
@@ -39,7 +39,7 @@ scene: python_coding
 | 变量/参数 | `snake_case` | `config`、`path` |
 | 私有成员 | 单下划线前缀 `_` | `_logger`、`_extract_options()` |
 | 强私有 | 双下划线前缀 `__`（仅限 name mangling 必需场景） | `__dict__`（语言内置） |
-| 类型变量 | `CamelCase` | `T = TypeVar("T")` |
+| 类型变量 | `CamelCase` | `T = TypeVar("T")`（遗留；3.12 起由 PEP 695 语法隐式声明，见 §3.5） |
 | 异常 | `PascalCase` + `Error`/`Exception` 后缀 | `LoadConfigError` |
 
 ### 1.3 导入
@@ -64,7 +64,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import IO, Optional
+from typing import IO
 
 from textual.widgets import TextArea
 
@@ -121,8 +121,8 @@ from __future__ import annotations
 
 ```python
 def install(
-    yate_trace: Optional[bool] = None,
-    yate_trace_level: Optional[str] = None,
+    yate_trace: bool | None = None,
+    yate_trace_level: str | None = None,
 ) -> bool:
     """(Re)configure tracing and return whether it is on.
 
@@ -194,10 +194,14 @@ if isinstance(tab_width, int) and not isinstance(tab_width, bool):
 项目观察到的实际风格（**以现有代码为准**）：
 
 - **优先使用 Python 3.9+ 原生小写泛型**：`list[str]`、`dict[str, str]`、`tuple[str, ...]`、`set[int]`。`Dict`/`List`/`Tuple`/`Set`（typing 模块大写版本）视为遗留，新代码不使用
-- 使用 `Optional[X]` 而非 `X | None`（即使 Python 3.10 支持后者）
+- **可空标注使用 `X | None`（PEP 604）**，不再使用 `Optional[X]`（3.12 基线下的首选写法；
+  存量 308 处由升级计划 SP3 统一迁移，迁移完成前两者不得混用于新代码）
+- **联合类型使用 `X | Y`**，不再使用 `Union[X, Y]`（含运行时类型别名，如 `Node = Leaf | Split`；
+  3.12 运行时下 `|` 与 `Union[...]` 等价）
+- 方法返回自身实例类型时用 `typing.Self`（3.11+），替代字符串前向引用或自建 TypeVar
 - 使用 `cast()` 进行显式类型窄化（`cast(Sequence[Any], raw)`）
 - 类型注解仅用的导入使用叶子类型，或把类型下移到叶子模块（禁止 `TYPE_CHECKING`；不新建窄 Protocol，见 §4.3 与 `architecture-boundaries.md` R2 / R8）
-- 前向引用（引用尚未定义的类）使用字符串字面量：`Optional["YateConfig"]`
+- 前向引用（引用尚未定义的类）使用字符串字面量：`"YateConfig" | None`
 - `from __future__ import annotations` 使所有注解延迟求值，**每个模块必须包含**
 
 ### 3.3 `Any` 的使用
@@ -214,16 +218,29 @@ if isinstance(tab_width, int) and not isinstance(tab_width, bool):
 - 需要 JSON 序列化的异构映射使用 `TypedDict`
 - 不可变、固定字段使用 `NamedTuple` 或 `dataclass(frozen=True)`
 
-### 3.5 泛型与 TypeVar
+### 3.5 泛型（PEP 695，3.12 首选）
+
+新增泛型类/函数一律用 PEP 695 语法，类型别名用 `type` 语句；类型变量由语法隐式声明，
+不再手写 `TypeVar` / `Generic`：
 
 ```python
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
-
-class Registry(Generic[T]):
+# 泛型类：T 的作用域与约束由语法直接表达
+class Registry[T]:
     ...
+
+# 带约束/上界的写法
+class Cache[K: str, V: object]:
+    ...
+
+# 泛型函数
+def find_leaf[T](root: Node[T], path: str) -> T | None: ...
+
+# 类型别名（3.12 的 type 语句，惰性求值，替代 TypeAlias）
+type Node = Leaf | Split
 ```
+
+存量代码无 `TypeVar` / `Generic` / `TypeAlias` 实体用法（见升级计划 F4），
+如遇遗留写法仅限兼容场景保留，新代码不得再写。
 
 ---
 
@@ -302,6 +319,7 @@ entries = list(raw)  # type: ignore[arg-type]
 - [ ] pyright strict 零诊断
 - [ ] 所有公共函数/类有 docstring
 - [ ] 类型注解完整（参数 + 返回值 + 变量注解）
+- [ ] 可空/联合标注用 `X | None` / `X | Y`（不写 `Optional[X]` / `Union[X, Y]`）；覆写基类方法加 `@override`
 - [ ] 4 空格缩进，行宽 ≤ 100
 - [ ] 无 `import *`
 - [ ] 无裸 `except:`

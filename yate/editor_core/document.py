@@ -9,7 +9,6 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from yate.editor_core.buffer import TextBuffer
 
@@ -28,14 +27,14 @@ class Document:
 
     def __init__(
         self,
-        path: Optional[Path | str] = None,
-        buffer: Optional[TextBuffer] = None,
+        path: Path | str | None = None,
+        buffer: TextBuffer | None = None,
         *,
         encoding: str = "utf-8",
     ) -> None:
         Document._uid_counter += 1
         self.uid: int = Document._uid_counter
-        self.path: Optional[Path] = Path(path) if path is not None else None
+        self.path: Path | None = Path(path) if path is not None else None
         self.buffer: TextBuffer = buffer or TextBuffer()
         self.encoding = encoding
         # Dominant line ending of the file as opened (``\r\n`` / ``\n`` /
@@ -44,7 +43,7 @@ class Document:
         self.eol: str = "\n"
         # Manual syntax/filetype override (`:set filetype=...`); ``None``
         # means the type is detected from the path suffix.
-        self.filetype_override: Optional[str] = None
+        self.filetype_override: str | None = None
         # Buffer edit count and line snapshot at the last save.  ``modified``
         # compares the O(1) counter first; when it differs (e.g. the save
         # landed in the middle of a coalesced typing step, or the undo stack
@@ -56,12 +55,12 @@ class Document:
         # ``(edits at query time, verdict)``.  ``save()`` clears it (the
         # baseline moves); undo/redo rewinds the counter, which simply misses
         # the cache and recomputes, so a stale verdict can never be served.
-        self._modified_cache: Optional[tuple[int, bool]] = None
+        self._modified_cache: tuple[int, bool] | None = None
 
     # ------------------------------------------------------------- factories
 
     @classmethod
-    def open(cls, path: Path | str) -> "Document":
+    def open(cls, path: Path | str) -> Document:
         """Load *path* from disk, sniffing the encoding on failure."""
         p = Path(path)
         raw = p.read_bytes()
@@ -77,7 +76,7 @@ class Document:
         return doc
 
     @classmethod
-    async def open_async(cls, path: Path | str) -> "Document":
+    async def open_async(cls, path: Path | str) -> Document:
         """Off-loop variant of :meth:`open` (file read runs in a thread)."""
         return await asyncio.to_thread(cls.open, path)
 
@@ -159,7 +158,7 @@ class Document:
 
     # -------------------------------------------------------------- persist
 
-    def save(self, path: Optional[Path | str] = None) -> Path:
+    def save(self, path: Path | str | None = None) -> Path:
         """Write the buffer to disk and clear the modified flag.
 
         The write is atomic: the encoded text lands in a sibling temporary

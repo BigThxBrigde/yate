@@ -9,7 +9,8 @@ fallback -- is what every keymap subclass rests on.
 
 from __future__ import annotations
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import override
 
 import pytest
 
@@ -33,7 +34,7 @@ def _ui(
     )
 
 
-def _context(ui: Optional[KeyUi] = None) -> ActionContext:
+def _context(ui: KeyUi | None = None) -> ActionContext:
     """A real action context (the session plus the given or inert UI callbacks)."""
     session = EditorSession(YateConfig())
     session.new_buffer()
@@ -46,6 +47,7 @@ class _SampleKeymap(Keymap):
     name = "sample"
     label = "Sample"
 
+    @override
     def build_bindings(self) -> list[KeyBinding]:
         return [
             KeyBinding(parse_key("<ctrl-s>"), "save", "write the file", "file"),
@@ -437,7 +439,7 @@ def test_sample_keymap_keeps_its_own_identity() -> None:
 
 def test_binding_action_accepts_both_names_and_callables() -> None:
     """A binding action is either an action name or a direct callable."""
-    actions: list[Union[str, Callable[[ActionContext], None]]] = ["save", lambda _ctx: None]
+    actions: list[str | Callable[[ActionContext], None]] = ["save", lambda _ctx: None]
 
     assert KeyBinding("\x13", actions[0]).action == "save"
     assert callable(KeyBinding("\x13", actions[1]).action)

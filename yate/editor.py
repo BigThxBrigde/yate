@@ -21,7 +21,9 @@ import asyncio
 import re
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
+
+from collections.abc import Callable
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -87,10 +89,10 @@ class Editor:
         app: App[Any],
         config: YateConfig,
         *,
-        target: Optional[str | Path] = None,
-        keymap: Optional[str] = None,
-        ext_files: Optional[list[str | Path]] = None,
-        ext_dirs: Optional[list[str | Path]] = None,
+        target: str | Path | None = None,
+        keymap: str | None = None,
+        ext_files: list[str | Path] | None = None,
+        ext_dirs: list[str | Path] | None = None,
     ) -> None:
         self.app = app
         self.config = config
@@ -357,7 +359,7 @@ class Editor:
 
     # =============================================================== documents
 
-    def activate_doc(self, doc: Document, target_leaf: Optional[Leaf] = None) -> None:
+    def activate_doc(self, doc: Document, target_leaf: Leaf | None = None) -> None:
         """Show *doc* in a pane leaf (default: the active one)."""
         if not self.mounted:
             self.session.activate(doc)
@@ -366,8 +368,8 @@ class Editor:
         self.panes.show_doc(leaf, doc)
 
     def _open_document(
-        self, path: Path, *, target_leaf: Optional[Leaf] = None
-    ) -> Optional[Document]:
+        self, path: Path, *, target_leaf: Leaf | None = None
+    ) -> Document | None:
         """Open/reuse *path*; ``None`` when it is not a text file."""
         doc = self.session.open(path)
         if doc is None:
@@ -379,8 +381,8 @@ class Editor:
         return doc
 
     async def _open_document_async(
-        self, path: Path, *, target_leaf: Optional[Leaf] = None
-    ) -> Optional[Document]:
+        self, path: Path, *, target_leaf: Leaf | None = None
+    ) -> Document | None:
         """Like :meth:`_open_document`, but the disk read runs off the loop."""
         doc = await self.session.open_async(path)
         if doc is None:
@@ -390,7 +392,7 @@ class Editor:
         log.info("opened (async): %s", path)
         return doc
 
-    def open_document(self, path: Path) -> Optional[Document]:
+    def open_document(self, path: Path) -> Document | None:
         """Open/reuse *path* in the active pane (explorer create flow)."""
         return self._open_document(path)
 
@@ -683,7 +685,7 @@ class Editor:
             group="pane", exclusive=True, exit_on_error=False,
         )
 
-    async def _split_pane_worker(self, axis: Axis, path: Optional[Path]) -> None:
+    async def _split_pane_worker(self, axis: Axis, path: Path | None) -> None:
         if path is not None:
             # split first (the new pane becomes active), then open the file
             # into the active pane
@@ -1102,7 +1104,7 @@ class Editor:
 
     def run_shell_command(
         self, command: str, show_output: bool = True
-    ) -> Optional[ShellResult]:
+    ) -> ShellResult | None:
         """Run a shell command synchronously and capture its output.
 
         Blocking: used by the (synchronous) extension API.  Interactive
@@ -1137,7 +1139,7 @@ class Editor:
 
     async def run_shell_command_async(
         self, command: str, show_output: bool = True
-    ) -> Optional[ShellResult]:
+    ) -> ShellResult | None:
         """Run a shell command in a worker thread (UI keeps responding)."""
         command = command.strip()
         if not command:
@@ -1223,7 +1225,7 @@ class Editor:
         self.completion.close()
 
     def request_completion(
-        self, manual: bool = True, trigger_ch: Optional[str] = None
+        self, manual: bool = True, trigger_ch: str | None = None
     ) -> None:
         """Fetch completions and show the popup (worker; never blocks input)."""
         self.completion.request(manual, trigger_ch)
@@ -1309,7 +1311,7 @@ class Editor:
     def push_overlay(
         self,
         screen: Screen[Any],
-        callback: Optional[Callable[[Any], None]] = None,
+        callback: Callable[[Any], None] | None = None,
     ) -> None:
         """Push a full-screen overlay, clearing the stale bottom message first.
 

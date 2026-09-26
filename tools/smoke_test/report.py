@@ -16,7 +16,8 @@ import sys
 from datetime import datetime
 from importlib import metadata
 from pathlib import Path
-from typing import Optional, Sequence
+
+from collections.abc import Sequence
 
 from rich import box
 from rich.console import Console
@@ -124,12 +125,12 @@ class Reporter:
         self,
         *,
         color: bool = True,
-        width: Optional[int] = None,
+        width: int | None = None,
         quiet: bool = False,
         verbose: bool = False,
         fail_only: bool = False,
         svg_rows: int = 6,
-        html_path: Optional[str] = None,
+        html_path: str | None = None,
     ) -> None:
         self.console = Console(
             width=width, no_color=not color, soft_wrap=True,
@@ -156,7 +157,7 @@ class Reporter:
 
     def header(
         self, *, selected: Sequence[Scenario], tags: Sequence[str],
-        command: str, seed: Optional[int] = None, repeat: int = 1,
+        command: str, seed: int | None = None, repeat: int = 1,
     ) -> None:
         if self.quiet:
             return
@@ -283,7 +284,7 @@ class Reporter:
                       border_style=_BAD, expand=False)
             )
 
-    def _checks(self, result: ScenarioResult, into: Optional[Text] = None) -> None:
+    def _checks(self, result: ScenarioResult, into: Text | None = None) -> None:
         target = into if into is not None else Text()
         for check in result.checks:
             mark = OK_MARK if check.ok else BAD_MARK

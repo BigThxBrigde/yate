@@ -25,12 +25,12 @@ import sys
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from yate.editor_syntax.regex_backend import LangSpec, lang_for, register_language
 
 
-def _blocked_ts_version() -> Optional[str]:
+def _blocked_ts_version() -> str | None:
     """A known-broken installed tree-sitter version, or ``None``.
 
     py-tree-sitter 0.26.0 ships a Windows wheel that corrupts the heap while
@@ -139,7 +139,7 @@ def ts_available() -> bool:
     return tree_sitter() is not None
 
 
-def _load_builtin(name: str) -> Optional[LoadedLanguage]:
+def _load_builtin(name: str) -> LoadedLanguage | None:
     """Load a built-in grammar pack + bundled query, or ``None``."""
     ts = tree_sitter()
     module_name = BUILTIN_PACKS.get(name)
@@ -165,7 +165,7 @@ def load_language(
     language: Any,
     query_src: str,
     *,
-    capture_map: Optional[dict[str, str]] = None,
+    capture_map: dict[str, str] | None = None,
     extensions: tuple[str, ...] = (),
 ) -> None:
     """Register a grammar + query under a canonical language *name*.
@@ -202,7 +202,7 @@ def load_language_from_grammar(
     grammar: str,
     query_src: str,
     *,
-    capture_map: Optional[dict[str, str]] = None,
+    capture_map: dict[str, str] | None = None,
     extensions: tuple[str, ...] = (),
 ) -> None:
     """:func:`load_language` with grammar discovery for extension authors.
@@ -261,7 +261,7 @@ def language_from_shared_library(library_path: str, symbol: str) -> Any:
     return ts.Language(fn())
 
 
-def resolve(filetype: str) -> Optional[LoadedLanguage]:
+def resolve(filetype: str) -> LoadedLanguage | None:
     """The loaded language for *filetype*, loading it on first use.
 
     Returns ``None`` when the dependency is missing, the language is

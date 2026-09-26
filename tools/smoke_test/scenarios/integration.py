@@ -7,7 +7,9 @@ marked ``slow`` so ``--skip-slow`` keeps the suite hermetic and fast.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
+
+from collections.abc import Callable
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import message_text, run_command, type_text, wait_until
@@ -26,7 +28,7 @@ class _FakePty:
     """
 
     #: Instances created so far (reset when a scenario starts).
-    instances: list["_FakePty"] = []
+    instances: list[_FakePty] = []
 
     def __init__(self, argv: list[str], cwd: Path, cols: int, rows: int) -> None:
         self.argv = list(argv)
@@ -36,14 +38,14 @@ class _FakePty:
         self.sent: list[bytes] = []
         self.started = False
         self.exited = False
-        self._on_output: Optional[Callable[[bytes], None]] = None
-        self._on_exit: Optional[Callable[[Optional[int]], None]] = None
+        self._on_output: Callable[[bytes], None] | None = None
+        self._on_exit: Callable[[int | None], None] | None = None
         _FakePty.instances.append(self)
 
     async def start(
         self,
         on_output: Callable[[bytes], None],
-        on_exit: Callable[[Optional[int]], None],
+        on_exit: Callable[[int | None], None],
     ) -> None:
         self.started = True
         self._on_output = on_output

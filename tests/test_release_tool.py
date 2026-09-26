@@ -13,7 +13,6 @@ import shutil
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -26,7 +25,7 @@ def _git(repo: Path, *args: str) -> None:
     )
 
 
-def _seed_repo(path: Path, *, branch: Optional[str] = None) -> None:
+def _seed_repo(path: Path, *, branch: str | None = None) -> None:
     path.mkdir(parents=True)
     _git(path, "init")
     if branch is not None:
@@ -120,7 +119,7 @@ def test_release_aborts_without_detectable_branch(
     def fake_version_tests(repo: Path) -> int:
         return 0
 
-    def fake_default_branch(repo: Path) -> Optional[str]:
+    def fake_default_branch(repo: Path) -> str | None:
         return None
 
     def fake_git_push(
@@ -148,14 +147,14 @@ def test_release_aborts_without_detectable_branch(
 def test_main_passes_branch_through_to_release(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, Optional[str]]] = []
+    calls: list[tuple[str, str | None]] = []
 
     def fake_release(
         version: str,
         *,
         dry_run: bool = False,
         no_push: bool = False,
-        branch: Optional[str] = None,
+        branch: str | None = None,
     ) -> int:
         calls.append((version, branch))
         return 0

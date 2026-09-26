@@ -11,7 +11,9 @@ import argparse
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Optional, Sequence
+from typing import Any
+
+from collections.abc import Sequence
 
 from . import baselines
 from .harness import (
@@ -92,7 +94,7 @@ def _reporter(args: argparse.Namespace) -> Reporter:
 
 
 def _write_json(path: str, results: Sequence[ScenarioResult],
-                cov: Optional[Coverage]) -> None:
+                cov: Coverage | None) -> None:
     payload: dict[str, Any] = {
         "scenarios": [
             {

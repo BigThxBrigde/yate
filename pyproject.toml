@@ -7,7 +7,7 @@ name = "yate"
 # Single source of truth: yate/__init__.py __version__ (read by hatchling below).
 dynamic = ["version"]
 description = "yate - yet another terminal editor, built on Textual"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "textual>=8.0",
@@ -44,7 +44,8 @@ build = ["pyinstaller>=6.0", "pillow>=10.0"]
 # strict mode across the package (including bundled extensions) and tests.
 [tool.pyright]
 typeCheckingMode = "strict"
-pythonVersion = "3.10"
+pythonVersion = "3.12"
+reportImplicitOverride = "error"
 venvPath = "."
 venv = ".venv"
 include = ["yate", "tools", "tests"]

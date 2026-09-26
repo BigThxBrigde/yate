@@ -31,7 +31,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Mapping, Optional, Sequence, cast
+from typing import Any, cast
+
+from collections.abc import Callable, Mapping, Sequence
 
 from yate.config import YateConfig
 from yate.editor_lsp import LspManager
@@ -74,7 +76,7 @@ class ExtensionContext:
     #: ``message(text)`` -- report on the message line.
     message: Callable[[str], None]
     #: ``run_shell(command, show_output)`` -- synchronous shell command.
-    run_shell: Callable[[str, bool], Optional[ShellResult]]
+    run_shell: Callable[[str, bool], ShellResult | None]
     #: ``open_path(path)`` -- open a file/folder in the editor.
     open_path: Callable[[Path], None]
     #: ``save()`` -- save the active document.
@@ -92,13 +94,13 @@ class LspExtensionBridge:
         name: str,
         *,
         command: str,
-        args: Optional[Sequence[str]] = None,
+        args: Sequence[str] | None = None,
         filetypes: Sequence[str],
-        language_ids: Optional[Mapping[str, str]] = None,
+        language_ids: Mapping[str, str] | None = None,
         initialization_options: Any = None,
         settings: Any = None,
-        env: Optional[Mapping[str, str]] = None,
-        root_markers: Optional[Sequence[str]] = None,
+        env: Mapping[str, str] | None = None,
+        root_markers: Sequence[str] | None = None,
     ) -> None:
         """Register an LSP server (lazily spawned on first matching file).
 
@@ -181,7 +183,7 @@ class SyntaxExtensionBridge:
         grammar: str,
         extensions: Sequence[str],
         query: str,
-        capture_map: Optional[dict[str, str]] = None,
+        capture_map: dict[str, str] | None = None,
     ) -> None:
         """Register a tree-sitter grammar + query as language *name*.
 
@@ -275,7 +277,7 @@ class ExtensionAPI:
     def bind_key(
         self,
         key_spec: str,
-        callback: Optional[Callable[..., Any]] = None,
+        callback: Callable[..., Any] | None = None,
         *,
         keymap: str = "vsc",
         description: str = "extension binding",
@@ -347,9 +349,9 @@ class ExtensionAPI:
 class LoadedExtension:
     name: str
     path: Path
-    module: Optional[ModuleType] = None
-    error: Optional[str] = None
-    teardown: Optional[Callable[[ExtensionAPI], None]] = None
+    module: ModuleType | None = None
+    error: str | None = None
+    teardown: Callable[[ExtensionAPI], None] | None = None
 
 
 @dataclass
@@ -363,7 +365,7 @@ class ExtensionLoader:
         self,
         directory: Path,
         *,
-        exclude: Optional[Sequence[str]] = None,
+        exclude: Sequence[str] | None = None,
     ) -> list[LoadedExtension]:
         """Load every ``*.py`` script in *directory* (sorted by name).
 

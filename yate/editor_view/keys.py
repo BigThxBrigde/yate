@@ -3,8 +3,6 @@ use (control codes / ANSI escape sequences)."""
 
 from __future__ import annotations
 
-from typing import Optional
-
 from yate.keymaps.base import SPECIAL_KEYS
 
 # Textual canonical key names share their raw sequences with the keymap's
@@ -29,7 +27,7 @@ _MOD_SPECIAL: dict[tuple[str, ...], dict[str, str]] = {
 }
 
 
-def event_to_raw(key: str, character: Optional[str] = None) -> Optional[str]:
+def event_to_raw(key: str, character: str | None = None) -> str | None:
     """Map a Textual Key event to a raw key string.
 
     Textual reports shifted punctuation as long names (``"exclamation_mark"``)
@@ -46,7 +44,7 @@ def event_to_raw(key: str, character: Optional[str] = None) -> Optional[str]:
     return textual_key_to_raw(key)
 
 
-def textual_key_to_raw(key: str) -> Optional[str]:
+def textual_key_to_raw(key: str) -> str | None:
     """Translate a Textual ``event.key`` string to the raw escape/ctrl byte
     sequence that :mod:`yate.keymaps` understand.
 

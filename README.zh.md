@@ -64,7 +64,7 @@
 
 ## 环境要求
 
-- Python ≥ 3.10
+- Python ≥ 3.12
 - 依赖：[textual](https://pypi.org/project/textual/) ≥ 8.0
 
 ## 安装

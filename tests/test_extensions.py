@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, override
 from unittest.mock import MagicMock
 
 import pytest
@@ -34,6 +34,7 @@ class _LogCapture(logging.Handler):
         super().__init__()
         self.messages: list[str] = []
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         self.messages.append(record.getMessage())
 

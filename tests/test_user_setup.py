@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from typing import override
 
 import pytest
 
@@ -28,6 +29,7 @@ TEMPLATE_RELS = [
 class _FakeTTY(io.StringIO):
     """StringIO that reports itself as an interactive terminal."""
 
+    @override
     def isatty(self) -> bool:  # noqa: D401 - test double
         return True
 

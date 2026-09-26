@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass, replace
-from typing import Callable, Optional
+
+from collections.abc import Callable
 
 RGB = tuple[int, int, int]
 
@@ -68,8 +69,8 @@ class Cell:
     """One terminal character cell with its SGR attributes."""
 
     char: str = " "
-    fg: Optional[RGB] = None
-    bg: Optional[RGB] = None
+    fg: RGB | None = None
+    bg: RGB | None = None
     bold: bool = False
     dim: bool = False
     italic: bool = False
@@ -116,7 +117,7 @@ _MOD_ARROWS: dict[tuple[str, ...], dict[str, str]] = {
 }
 
 
-def key_to_terminal(key: str, character: Optional[str] = None) -> Optional[str]:
+def key_to_terminal(key: str, character: str | None = None) -> str | None:
     """Translate a Textual ``event.key`` to the byte sequence a PTY expects."""
     if "+" not in key and character and len(character) == 1:
         return character
@@ -179,7 +180,7 @@ class TerminalEmulator:
         cols: int = 80,
         rows: int = 24,
         *,
-        on_response: Optional[Callable[[bytes], None]] = None,
+        on_response: Callable[[bytes], None] | None = None,
     ) -> None:
         self.cols = max(1, cols)
         self.rows = max(1, rows)
@@ -200,8 +201,8 @@ class TerminalEmulator:
         self.bracketed_paste = False
 
         # SGR attributes.
-        self.fg: Optional[RGB] = None
-        self.bg: Optional[RGB] = None
+        self.fg: RGB | None = None
+        self.bg: RGB | None = None
         self.bold = self.dim = self.italic = False
         self.underline = self.reverse = False
 

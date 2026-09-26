@@ -15,7 +15,9 @@ import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Literal
+
+from collections.abc import Callable
 
 from yate.logs import tracing
 
@@ -23,12 +25,12 @@ from yate.logs import tracing
 log = tracing.get_logger(__name__)
 
 OutputFn = Callable[[bytes], None]
-ExitFn = Callable[[Optional[int]], None]
+ExitFn = Callable[[int | None], None]
 
 #: Result of the ConPTY exit-code query: the child's exit code, or why there
 #: is none yet -- "running" (child still alive) or "failed" (query itself
 #: could not be made).
-ExitState = Union[int, Literal["running", "failed"]]
+ExitState = int | Literal["running", "failed"]
 
 
 class PtyProcessError(RuntimeError):
@@ -44,7 +46,7 @@ class PtyProcess:
         cwd: Path,
         cols: int,
         rows: int,
-        env: Optional[dict[str, str]] = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         if not argv:
             raise PtyProcessError("empty shell command")
@@ -53,14 +55,14 @@ class PtyProcess:
         self.cols = max(1, cols)
         self.rows = max(1, rows)
         self.env = env
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._on_output: Optional[OutputFn] = None
-        self._on_exit: Optional[ExitFn] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._on_output: OutputFn | None = None
+        self._on_exit: ExitFn | None = None
         self._lock = threading.Lock()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._closing = False
         self._detached = False
-        self._exit_future: Optional[asyncio.Future[Optional[int]]] = None
+        self._exit_future: asyncio.Future[int | None] | None = None
         self._impl = _UnixPty(self) if os.name == "posix" else _ConPty(self)
 
     # ------------------------------------------------------------- lifecycle
@@ -74,7 +76,7 @@ class PtyProcess:
         the application's shutdown -- would block for good.
         """
         self._loop = asyncio.get_running_loop()
-        future: asyncio.Future[Optional[int]] = self._loop.create_future()
+        future: asyncio.Future[int | None] = self._loop.create_future()
         self._exit_future = future
         self._on_output = on_output
         self._on_exit = on_exit
@@ -93,7 +95,7 @@ class PtyProcess:
         )
         self._thread.start()
 
-    async def wait_closed(self) -> Optional[int]:
+    async def wait_closed(self) -> int | None:
         if self._exit_future is None:
             return None
         return await self._exit_future
@@ -138,7 +140,7 @@ class PtyProcess:
         if loop is not None and callback is not None:
             self._post(loop, callback, data)
 
-    def _finished(self, code: Optional[int]) -> None:
+    def _finished(self, code: int | None) -> None:
         try:
             self._impl.close()
         except OSError:
@@ -187,7 +189,7 @@ class PtyProcess:
     def emit_output(self, data: bytes) -> None:
         self._emit(data)
 
-    def process_finished(self, code: Optional[int]) -> None:
+    def process_finished(self, code: int | None) -> None:
         self._finished(code)
 
     @property
@@ -222,7 +224,7 @@ if os.name == "posix":
         def __init__(self, owner: PtyProcess) -> None:
             self._owner = owner
             self._master = -1
-            self._proc: Optional[subprocess.Popen[bytes]] = None
+            self._proc: subprocess.Popen[bytes] | None = None
 
         def _environment(self) -> dict[str, str]:
             env = dict(os.environ)
@@ -255,7 +257,7 @@ if os.name == "posix":
             self.resize(self._owner.cols, self._owner.rows)
 
         def read_loop(self) -> None:
-            code: Optional[int] = None
+            code: int | None = None
             try:
                 while True:
                     try:
@@ -523,7 +525,7 @@ class _ConPty:
     def read_loop(self) -> None:
         k = self._kernel32
         info = self._proc_info
-        watcher: Optional[threading.Thread] = None
+        watcher: threading.Thread | None = None
         if info is not None:
             watcher = threading.Thread(target=self._watch_exit, daemon=True)
             watcher.start()
@@ -565,7 +567,7 @@ class _ConPty:
                 self._kernel32["ClosePseudoConsole"](self._hpc)
                 self._hpc = None
 
-    def _exit_code(self) -> Optional[int]:
+    def _exit_code(self) -> int | None:
         """Return the child exit code, or ``None`` while it is unknowable.
 
         The two "no code yet" cases (child still alive, query itself failed)

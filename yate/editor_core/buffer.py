@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 Pos = tuple[int, int]
 
@@ -74,7 +73,7 @@ def word_end(line: str, col: int) -> int:
 class _Snapshot:
     lines: tuple[str, ...]
     cursor: Pos
-    anchor: Optional[Pos]
+    anchor: Pos | None
 
 
 @dataclass
@@ -101,7 +100,7 @@ class TextBuffer:
     ) -> None:
         self.lines: list[str] = text.split("\n") if text else [""]
         self.cursor: Pos = (0, 0)
-        self.anchor: Optional[Pos] = None
+        self.anchor: Pos | None = None
         self.tab_width = tab_width
         self.use_spaces = use_spaces
         self.register: str = ""  # internal yank/clipboard register
@@ -121,7 +120,7 @@ class TextBuffer:
         # from, so crossing a shorter line does not permanently pull the
         # cursor to that line's end.  Cleared by any horizontal move, edit
         # or explicit cursor positioning (see :meth:`set_cursor`).
-        self._goal_col: Optional[int] = None
+        self._goal_col: int | None = None
 
     # ------------------------------------------------------------------ state
 
@@ -245,13 +244,13 @@ class TextBuffer:
     def has_selection(self) -> bool:
         return self.anchor is not None and self.anchor != self.cursor
 
-    def selection(self) -> Optional[tuple[Pos, Pos]]:
+    def selection(self) -> tuple[Pos, Pos] | None:
         if not self.has_selection():
             return None
         assert self.anchor is not None
         return (min(self.anchor, self.cursor), max(self.anchor, self.cursor))
 
-    def selected_text(self) -> Optional[str]:
+    def selected_text(self) -> str | None:
         sel = self.selection()
         if sel is None:
             return None
@@ -263,7 +262,7 @@ class TextBuffer:
         parts.append(self.lines[r2][:c2])
         return "\n".join(parts)
 
-    def selected_rows(self) -> Optional[tuple[int, int]]:
+    def selected_rows(self) -> tuple[int, int] | None:
         sel = self.selection()
         if sel is None:
             return None
@@ -369,7 +368,7 @@ class TextBuffer:
         else:
             self.insert_text("\t", kind="char")
 
-    def delete_selection(self) -> Optional[str]:
+    def delete_selection(self) -> str | None:
         sel = self.selection()
         if sel is None:
             return None

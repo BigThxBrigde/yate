@@ -26,14 +26,9 @@ from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import (
-    Awaitable,
-    Callable,
-    Generator,
-    Optional,
-    Sequence,
-    cast,
-)
+from typing import cast
+
+from collections.abc import Awaitable, Callable, Generator, Sequence
 
 os.environ.setdefault("YATE_PYTHON_LSP", "off")
 
@@ -280,7 +275,7 @@ class Coverage:
 
 
 @contextmanager
-def track_coverage() -> Generator[Coverage, None, None]:
+def track_coverage() -> Generator[Coverage]:
     """Count every ``run_command`` / ``execute_action`` while active.
 
     The wrappers only *count* and delegate, so behaviour is unchanged; the
@@ -326,11 +321,11 @@ _apps: list[YateApp] = []
 
 
 def new_app(
-    target: Optional[str | Path] = None,
+    target: str | Path | None = None,
     *,
-    keymap: Optional[str] = None,
-    theme_name: Optional[str] = None,
-    config: Optional[YateConfig] = None,
+    keymap: str | None = None,
+    theme_name: str | None = None,
+    config: YateConfig | None = None,
 ) -> YateApp:
     """Create a :class:`YateApp` and register it for the invariant sweep."""
     app = YateApp(
@@ -340,7 +335,7 @@ def new_app(
     return app
 
 
-def current_app() -> Optional[YateApp]:
+def current_app() -> YateApp | None:
     """The last app the running scenario created (``None`` before any)."""
     return _apps[-1] if _apps else None
 
@@ -402,7 +397,7 @@ class RunOptions:
     #: cancelled and reported with ``error`` set, so one hung scenario cannot
     #: stall the remaining ones (``--timeout`` overrides the default).
     timeout: float = DEFAULT_SCENARIO_TIMEOUT_S
-    progress: Optional[Callable[[int, int, str], None]] = None
+    progress: Callable[[int, int, str], None] | None = None
 
 
 def _run_one(
@@ -447,7 +442,7 @@ async def _timed(
     """
     try:
         return await asyncio.wait_for(scenario.run(tmp), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return ScenarioResult(
             scenario.name,
             tags=scenario.tags,
@@ -471,8 +466,8 @@ def run_scenarios(
 def select_scenarios(
     all_scenarios: Sequence[Scenario],
     *,
-    names: Optional[Sequence[str]] = None,
-    tags: Optional[Sequence[str]] = None,
+    names: Sequence[str] | None = None,
+    tags: Sequence[str] | None = None,
     skip_slow: bool = False,
 ) -> list[Scenario]:
     """Filter *all_scenarios* by name / tag / slowness, keeping file order."""

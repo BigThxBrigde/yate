@@ -32,7 +32,9 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
+
+from collections.abc import Sequence
 
 from rich.style import Style
 from textual.color import Color as TextualColor
@@ -102,13 +104,13 @@ class Theme:
     #: extra free-form metadata (reserved for user themes)
     extra: dict[str, str] = field(default_factory=dict[str, str])
 
-    def syntax_color(self, kind: str) -> Optional[str]:
+    def syntax_color(self, kind: str) -> str | None:
         """Return the hex color for a highlight token ``kind`` (``None`` if
         the kind should be drawn with the default foreground)."""
         attr = SYNTAX_KINDS.get(kind)
         return getattr(self, attr) if attr is not None else None
 
-    def syntax_style(self, kind: str, bgcolor: Optional[str] = None) -> Style:
+    def syntax_style(self, kind: str, bgcolor: str | None = None) -> Style:
         """Rich :class:`~rich.style.Style` for a highlight token kind.
 
         Comments are rendered italic in addition to their dim color.
@@ -591,7 +593,7 @@ def _theme_namespace() -> dict[str, Any]:
     }
 
 
-def load_theme_file(path: Path | str) -> Optional[str]:
+def load_theme_file(path: Path | str) -> str | None:
     """Exec one ``*.py`` theme file.
 
     The file may call :func:`register_theme` any number of times; regular

@@ -10,7 +10,9 @@ workspace and the prompt bar -- plus the few editor callbacks it triggers
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
+
+from collections.abc import Callable
 
 from rich.text import Text
 from textual.events import Key
@@ -64,7 +66,7 @@ class ExplorerTree(Tree[NodeData]):
         #: when the tree lost focus (Textual resets cursor_line to -1 then)
         self._last_selected: Path | None = None
         #: pending prompt target of the create / rename / delete flow
-        self._target: Optional[Path] = None
+        self._target: Path | None = None
         self._is_dir = False
         # Tree's auto_expand toggles on every select, which would cancel the
         # explicit toggle in on_tree_node_selected (l/enter would do nothing)
@@ -129,7 +131,7 @@ class ExplorerTree(Tree[NodeData]):
         else:
             self._last_selected = None
 
-    def _line_of(self, path: Path) -> Optional[int]:
+    def _line_of(self, path: Path) -> int | None:
         """Visible row index of the node representing *path*.
 
         Matches Textual's rendering order: depth-first over expanded nodes.
@@ -153,7 +155,7 @@ class ExplorerTree(Tree[NodeData]):
 
     def _find_node(
         self, node: TreeNode[NodeData], path: Path
-    ) -> Optional[TreeNode[NodeData]]:
+    ) -> TreeNode[NodeData] | None:
         """Depth-first search for the node representing *path*."""
         for child in node.children:
             if isinstance(child.data, Path) and child.data == path:
@@ -168,7 +170,7 @@ class ExplorerTree(Tree[NodeData]):
         self,
         node: TreeNode[NodeData],
         directory: Path,
-        expanded: Optional[set[Path]] = None,
+        expanded: set[Path] | None = None,
     ) -> None:
         placeholder = Text("", style=theme.active().fg_dim)
         for entry in self.workspace.list_dir(directory):
@@ -307,15 +309,15 @@ class ExplorerTree(Tree[NodeData]):
 
     # ----------------------------------------------------- prompt flows
 
-    def prompt_new_file(self, directory: Optional[Path]) -> None:
+    def prompt_new_file(self, directory: Path | None) -> None:
         """``a``: prompt for a new file next to / inside *directory*."""
         self._prompt_new(directory, is_dir=False)
 
-    def prompt_new_dir(self, directory: Optional[Path]) -> None:
+    def prompt_new_dir(self, directory: Path | None) -> None:
         """``A``: prompt for a new folder next to / inside *directory*."""
         self._prompt_new(directory, is_dir=True)
 
-    def _prompt_new(self, directory: Optional[Path], *, is_dir: bool) -> None:
+    def _prompt_new(self, directory: Path | None, *, is_dir: bool) -> None:
         if directory is None:
             self.prompt.write("select a file or folder first", kind="warn")
             return
@@ -336,7 +338,7 @@ class ExplorerTree(Tree[NodeData]):
         self._target = directory
         self._is_dir = is_dir
 
-    def prompt_rename(self, path: Optional[Path]) -> None:
+    def prompt_rename(self, path: Path | None) -> None:
         """``r``: prompt for a new name for *path*."""
         if path is None:
             self.prompt.write("select a file or folder first", kind="warn")
@@ -351,7 +353,7 @@ class ExplorerTree(Tree[NodeData]):
             return
         self._target = path
 
-    def prompt_delete(self, path: Optional[Path]) -> None:
+    def prompt_delete(self, path: Path | None) -> None:
         """``d``: prompt for the confirmation that deletes *path*."""
         if path is None:
             self.prompt.write("select a file or folder first", kind="warn")

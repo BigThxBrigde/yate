@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from typing import override
+
 import pytest
 
 from yate.editor_syntax import engine, regex_backend
@@ -32,10 +34,12 @@ class _RecordingTS(_FakeTS):
         super().__init__()
         self.requested: list[str] = []
 
+    @override
     def available_for(self, filetype: str) -> bool:
         self.requested.append(filetype)
         return super().available_for(filetype)
 
+    @override
     def tokenize_document(
         self, lines: list[str], filetype: str
     ) -> list[list[Token]]:

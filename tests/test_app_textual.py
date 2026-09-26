@@ -10,7 +10,9 @@ import contextlib
 import os
 import time
 from pathlib import Path
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, cast, override
+
+from collections.abc import Awaitable, Callable
 
 import pytest
 
@@ -3124,7 +3126,7 @@ class _RcClientShim:
 class _FakePty:
     """In-memory PTY substitute used by the terminal UI tests."""
 
-    instances: list["_FakePty"] = []
+    instances: list[_FakePty] = []
 
     def __init__(self, argv: list[str], cwd: Any, cols: int, rows: int) -> None:
         self.argv = list(argv)
@@ -3198,6 +3200,7 @@ def test_early_pty_output_survives_first_layout() -> None:
     # laid out the panel used to spawn at the 80x24 fallback size; the
     # first lines were discarded when the viewport shrank on layout.
     class _ImmediatePty(_FakePty):
+        @override
         async def start(
             self, on_output: Callable[[bytes], None],
             on_exit: Callable[[int | None], None],
@@ -4460,14 +4463,13 @@ def test_render_line_computes_cursor_anchor_once_per_row(
             await pilot.pause()
             editor = app.editor.panes.active_view
             assert editor is not None
-            from typing import Optional
 
             from yate.editor_core.buffer import Pos
 
             calls = 0
             real = editor._cursor_anchor
 
-            def counting() -> tuple[Pos, Optional[Pos]]:
+            def counting() -> tuple[Pos, Pos | None]:
                 nonlocal calls
                 calls += 1
                 return real()

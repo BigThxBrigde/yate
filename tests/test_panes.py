@@ -17,7 +17,9 @@ import asyncio
 import os
 import time
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
+
+from collections.abc import Awaitable, Callable
 
 import pytest
 
@@ -523,12 +525,12 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
             # close the active pane C: B becomes focus (apply_doc restores
             # it), A stays inactive (the reconcile restore loop restores it)
             real_scroll_to = EditorView.scroll_to
-            scroll_calls: list[tuple[int, Optional[int]]] = []
+            scroll_calls: list[tuple[int, int | None]] = []
 
             def _spy_scroll_to(
                 view: EditorView,
-                x: Optional[float] = None,
-                y: Optional[float] = None,
+                x: float | None = None,
+                y: float | None = None,
                 **kwargs: Any,  # forwards Textual's own scroll_to keywords
             ) -> None:
                 scroll_calls.append((view.leaf_id, None if y is None else int(y)))

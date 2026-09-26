@@ -24,7 +24,6 @@ from __future__ import annotations
 import contextlib
 import os
 from pathlib import Path
-from typing import Optional
 
 from yate.logs import tracing
 
@@ -43,7 +42,7 @@ def _has_symlink_component(path: Path) -> bool:
     return probe.is_symlink() or any(parent.is_symlink() for parent in probe.parents)
 
 
-def load_trusted_workspaces(path: Optional[Path] = None) -> set[Path]:
+def load_trusted_workspaces(path: Path | None = None) -> set[Path]:
     """Read the trusted workspace roots from *path* (``None`` = the store).
 
     A missing store yields an empty set; blank lines and ``#`` comments
@@ -66,7 +65,7 @@ def load_trusted_workspaces(path: Optional[Path] = None) -> set[Path]:
     return trusted
 
 
-def trust_workspace(root: Path, path: Optional[Path] = None) -> bool:
+def trust_workspace(root: Path, path: Path | None = None) -> bool:
     """Record *root* as trusted, creating the store when absent.
 
     Returns ``True`` when *root* is (or just became) trusted and ``False``
@@ -113,7 +112,7 @@ def trust_workspace(root: Path, path: Optional[Path] = None) -> bool:
     return True
 
 
-def is_trusted(root: Path, path: Optional[Path] = None) -> bool:
+def is_trusted(root: Path, path: Path | None = None) -> bool:
     """Return whether *root* appears in the trust store."""
     store = TRUST_FILE if path is None else path
     return root.resolve() in load_trusted_workspaces(store)

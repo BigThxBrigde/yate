@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import override
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
@@ -42,6 +44,7 @@ class _OverlayScreen(ModalScreen[None]):
     }
     """
 
+    @override
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="overlay"):
             yield Static(self._body(), id="overlay-body")
@@ -59,6 +62,7 @@ class HelpScreen(_OverlayScreen):
         self.keymaps = keymaps
         self.commands = commands
 
+    @override
     def _body(self) -> Text:
         t = theme.active()
         text = Text()
@@ -127,6 +131,7 @@ class OutputScreen(_OverlayScreen):
         """Process exit code (``0`` = success)."""
         return self._returncode
 
+    @override
     def _body(self) -> Text:
         t = theme.active()
         text = Text()

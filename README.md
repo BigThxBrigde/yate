@@ -45,7 +45,7 @@ Release history: [CHANGELOG.md](CHANGELOG.md) · [中文](CHANGELOG.zh.md) — g
 
 ## Requirements
 
-- Python ≥ 3.10
+- Python ≥ 3.12
 - Dependency: [textual](https://pypi.org/project/textual/) ≥ 8.0
 
 ## Installation

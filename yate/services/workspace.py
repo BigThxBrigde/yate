@@ -5,7 +5,6 @@ from __future__ import annotations
 import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 # Directories that are always hidden regardless of user settings.
 IGNORED_NAMES = {
@@ -62,8 +61,8 @@ class _IgnorePattern:
 class Workspace:
     """A rooted directory tree, plus helpers for opening paths."""
 
-    def __init__(self, root: Optional[Path] = None) -> None:
-        self.root: Optional[Path] = root.resolve() if root is not None else None
+    def __init__(self, root: Path | None = None) -> None:
+        self.root: Path | None = root.resolve() if root is not None else None
         #: When ``False`` dotfiles are hidden (the default). Toggled by
         #: the user at runtime via ``:set show_hidden=on`` or the ``H``
         #: key in the explorer.
@@ -155,7 +154,7 @@ class Workspace:
         self,
         name: str,
         is_dir: bool,
-        dir_ignores: Optional[list[_IgnorePattern]] = None,
+        dir_ignores: list[_IgnorePattern] | None = None,
     ) -> bool:
         """Check ignore patterns (root + directory-level) for one entry.
 

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, override, Protocol
+
+from collections.abc import Callable
 
 from rich.segment import Segment
 from rich.style import Style
@@ -44,7 +46,7 @@ _WELCOME_BANNER = [
 ]
 
 #: One welcome-page row: (text, color, bold, centered) cell tuples.
-_WelcomeRow = list[tuple[str, Optional[str], bool, bool]]
+_WelcomeRow = list[tuple[str, str | None, bool, bool]]
 
 
 @dataclass(frozen=True)
@@ -57,7 +59,7 @@ class HighlightProbe:
     """
 
     #: Cached tokens per buffer row (``None`` until the first pass lands).
-    tokens: Optional[list[list[Token]]]
+    tokens: list[list[Token]] | None
     #: Document the cached tokens belong to.
     doc: object
     #: Buffer content version the cached tokens were tokenized at.
@@ -65,9 +67,9 @@ class HighlightProbe:
     #: Filetype the cached tokens were tokenized for.
     filetype: str
     #: (doc, filetype, version) of the pass waiting to run / in flight.
-    scheduled_key: Optional[tuple[object, str, int]]
+    scheduled_key: tuple[object, str, int] | None
     #: Debounce timer reference (``None`` when nothing is deferred).
-    timer: Optional[Timer]
+    timer: Timer | None
 
 
 class PaneRegistry(Protocol):
@@ -80,11 +82,11 @@ class PaneRegistry(Protocol):
     """
 
     @property
-    def active_view(self) -> Optional[object]: ...
+    def active_view(self) -> object | None: ...
 
     def leaf_by_id(self, leaf_id: int) -> Leaf: ...
 
-    def leaf_for(self, leaf_id: int) -> Optional[Leaf]: ...
+    def leaf_for(self, leaf_id: int) -> Leaf | None: ...
 
     def notify_focus(self, leaf_id: int) -> None: ...
 
@@ -140,7 +142,7 @@ class EditorView(ScrollView):
         # so moving through a file keeps its colors. After an edit the
         # previous tokens keep coloring the text for one debounce window
         # instead of flashing the whole view uncolored.
-        self._hl_tokens: Optional[list[list[Token]]] = None
+        self._hl_tokens: list[list[Token]] | None = None
         self._hl_doc: object = None
         self._hl_version: int = -1
         self._hl_filetype: str = ""
@@ -149,8 +151,8 @@ class EditorView(ScrollView):
         # still waiting to start; the key survives until the worker stores
         # its result, so renders can never schedule a duplicate pass for a
         # version that is already being tokenized.
-        self._hl_timer: Optional[Timer] = None
-        self._hl_scheduled_key: Optional[tuple[object, str, int]] = None
+        self._hl_timer: Timer | None = None
+        self._hl_scheduled_key: tuple[object, str, int] | None = None
         # Welcome rows cached by (theme name, vim_keys): the rows embed
         # theme colors and keymap-dependent hints, so a theme or keymap
         # switch changes the key and forces a rebuild. The welcome page
@@ -180,7 +182,7 @@ class EditorView(ScrollView):
         """Whether this view is the currently focused pane."""
         return self.panes.active_view is self
 
-    def _cursor_anchor(self) -> tuple[Pos, Optional[Pos]]:
+    def _cursor_anchor(self) -> tuple[Pos, Pos | None]:
         """Cursor/anchor to render: the live buffer for the active pane, the
         stored view state for inactive panes (independent cursors)."""
         buf = self.buffer
@@ -190,8 +192,8 @@ class EditorView(ScrollView):
         return state.cursor, state.anchor
 
     def _selection(
-        self, cursor: Pos, anchor: Optional[Pos]
-    ) -> Optional[tuple[Pos, Pos]]:
+        self, cursor: Pos, anchor: Pos | None
+    ) -> tuple[Pos, Pos] | None:
         """Normalized (start, end) pair between *cursor* and *anchor*."""
         if anchor is None or anchor == cursor:
             return None
@@ -212,6 +214,7 @@ class EditorView(ScrollView):
         self.reveal_cursor()
         self.refresh()
 
+    @override
     def on_mount(self) -> None:
         """Apply the active theme background once mounted."""
         self.styles.background = theme.active().bg
@@ -420,10 +423,10 @@ class EditorView(ScrollView):
             self._hl_scheduled_key = None
         self.refresh()
 
-    def _syntax_kinds(self, row: int, line: str, cell_count: int) -> list[Optional[str]]:
+    def _syntax_kinds(self, row: int, line: str, cell_count: int) -> list[str | None]:
         """Per-cell syntax token kind (char ranges mapped to display cells)."""
         tw = self.buffer.tab_width
-        kinds: list[Optional[str]] = [None] * cell_count
+        kinds: list[str | None] = [None] * cell_count
         for tok in self._tokens_for(row):
             cs = theme.char_to_cell(line, tok.start, tw)
             ce = theme.char_to_cell(line, tok.end, tw)
@@ -433,6 +436,7 @@ class EditorView(ScrollView):
 
     # -------------------------------------------------------------- render
 
+    @override
     def render_line(self, y: int) -> Strip:
         t = theme.active()
         view_w = self.size.width or 80
@@ -451,7 +455,7 @@ class EditorView(ScrollView):
         digits = gutter_w - 3
         segments: list[Segment] = []
 
-        def fill_line(bg: Optional[str]) -> None:
+        def fill_line(bg: str | None) -> None:
             segments.append(Segment(" " * view_w, Style(bgcolor=bg)))
 
         if self._welcome_active():
@@ -672,7 +676,7 @@ class EditorView(ScrollView):
         return flags
 
     def _row_style_ranges(
-        self, row: int, line: str, cursor: Pos, anchor: Optional[Pos]
+        self, row: int, line: str, cursor: Pos, anchor: Pos | None
     ) -> list[tuple[int, int, int]]:
         """Overlay style ranges (selection / matches / cursor) for *row*.
 
@@ -688,8 +692,8 @@ class EditorView(ScrollView):
         sel = self._selection(cursor, anchor)
         if sel is not None:
             (r1, c1), (r2, c2) = sel
-            cs: Optional[int] = None
-            ce: Optional[int] = None
+            cs: int | None = None
+            ce: int | None = None
             if r1 < row < r2:
                 cs, ce = 0, len(line)
             elif r1 == row == r2:
@@ -725,7 +729,7 @@ class EditorView(ScrollView):
         return ranges
 
     @staticmethod
-    def _cell_style(t: theme.Theme, sid: int, kind: Optional[str], line_bg: Optional[str]) -> Style:
+    def _cell_style(t: theme.Theme, sid: int, kind: str | None, line_bg: str | None) -> Style:
         """Merge a syntax token kind with an overlay (selection/match/cursor)."""
         if sid == S_MATCH:
             return Style(bgcolor=t.match_bg, color=t.on_accent)

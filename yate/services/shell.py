@@ -6,7 +6,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -21,7 +20,7 @@ class ShellResult:
         return self.returncode == 0
 
 
-def run_shell(command: str, cwd: Optional[Path] = None, timeout: float = 60.0) -> ShellResult:
+def run_shell(command: str, cwd: Path | None = None, timeout: float = 60.0) -> ShellResult:
     """Run *command* through the system shell, capturing output.
 
     The shell is the platform default (``cmd.exe`` on Windows, ``/bin/sh``

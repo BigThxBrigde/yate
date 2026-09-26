@@ -26,7 +26,6 @@ import argparse
 import datetime
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
 
 from . import gitee, gitdata, render, segments, translations
 from .classify import classify_commit, is_changelog_entry
@@ -93,7 +92,7 @@ def _missing_zh(
     return [c.short_sha for c in entries if c.short_sha not in overrides]
 
 
-def _generated_notes(version: str, date: Optional[str]) -> dict[str, str]:
+def _generated_notes(version: str, date: str | None) -> dict[str, str]:
     """The bundle-header generation note stamped with *date* or today."""
     stamp = date if date is not None else datetime.date.today().isoformat()
     return {
@@ -107,7 +106,7 @@ def generate(
     *,
     online: bool = False,
     limit: int | None = None,
-    date: Optional[str] = None,
+    date: str | None = None,
     check: bool = False,
     require_zh: bool = False,
     targets: Sequence[str] = ("root", "bundle"),

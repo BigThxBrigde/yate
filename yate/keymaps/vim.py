@@ -8,6 +8,7 @@ search via ``/``/``?``/``n``/``N`` and ex commands via ``:``.
 from __future__ import annotations
 
 from enum import Enum
+from typing import override
 
 from yate.editor_core.buffer import TextBuffer, word_end
 from yate.keymaps.base import (
@@ -57,6 +58,7 @@ class VimKeymap(Keymap):
 
     # ------------------------------------------------------------------ help
 
+    @override
     def build_bindings(self) -> list[KeyBinding]:
         return [
             KeyBinding("h", "move left", "Move left", NAV),
@@ -113,6 +115,7 @@ class VimKeymap(Keymap):
 
     # --------------------------------------------------------------- dispatch
 
+    @override
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
         # ctrl+/ is a raw (non-printable) key that never reaches mode dispatch;
         # handle it first so the toggle works in every vim mode and drops any

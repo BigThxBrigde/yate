@@ -27,8 +27,9 @@ type-only module is needed.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from itertools import count
-from typing import Callable, Optional
+from typing import override
 
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
@@ -79,7 +80,7 @@ class PaneManager:
         first = Leaf(next(self._ids), doc)
         self.root: Node = first
         self.active: Leaf = first
-        self.host: Optional[PaneHost] = None
+        self.host: PaneHost | None = None
         #: Mounted views keyed by leaf id; rebuilt on every reconcile.
         self.views: dict[int, EditorView] = {}
         #: Leaves whose widget has a scroll restore in flight (S17): the
@@ -99,7 +100,7 @@ class PaneManager:
         return len(leaves(self.root))
 
     @property
-    def active_view(self) -> Optional[EditorView]:
+    def active_view(self) -> EditorView | None:
         return self.views.get(self.active.id)
 
     def all_views(self) -> list[EditorView]:
@@ -111,7 +112,7 @@ class PaneManager:
                 if leaf.doc is doc
                 and (view := self.views.get(leaf.id)) is not None]
 
-    def leaf_for(self, leaf_id: int) -> Optional[Leaf]:
+    def leaf_for(self, leaf_id: int) -> Leaf | None:
         """Non-asserting leaf lookup for render paths that must tolerate a
         leaf already dropped from the tree (a structural reconcile such as
         ``:only`` while a framework timer still paints the removed widget).
@@ -126,7 +127,7 @@ class PaneManager:
         return leaf
 
     def make_leaf(
-        self, doc: Document, *, inherit: Optional[Leaf] = None
+        self, doc: Document, *, inherit: Leaf | None = None
     ) -> Leaf:
         """Create a leaf; optionally clone one document's view state
         (``:split`` without arguments opens at the same cursor position)."""
@@ -229,7 +230,7 @@ class PaneManager:
     # -------------------------------------------------------- structure ops
 
     async def split_active(
-        self, axis: Axis, doc: Optional[Document] = None
+        self, axis: Axis, doc: Document | None = None
     ) -> Leaf:
         """Split the active leaf; focus moves to the new leaf (vim)."""
         self.capture_active()
@@ -301,8 +302,8 @@ class PaneManager:
             return False
         ax_f, ay_f = view.region.center
         ax, ay = int(ax_f), int(ay_f)
-        best: Optional[Leaf] = None
-        best_score: Optional[tuple[int, int]] = None
+        best: Leaf | None = None
+        best_score: tuple[int, int] | None = None
         for leaf in ordered:
             if leaf is self.active:
                 continue
@@ -475,6 +476,7 @@ class PaneHost(Widget):
         # resolve correctly against a mounted parent, so re-apply them.
         self.apply_sizes()
 
+    @override
     def compose(self):
         yield self._build(self.manager.root)
 

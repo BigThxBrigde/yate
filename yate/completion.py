@@ -12,7 +12,8 @@ from __future__ import annotations
 import asyncio
 from functools import partial
 from pathlib import Path
-from typing import Callable, Optional
+
+from collections.abc import Callable
 
 from textual.app import App
 
@@ -59,7 +60,7 @@ class CompletionController:
         self.popup = popup
         self.prompt = prompt
         self.refresh = refresh
-        self._timer: Optional[asyncio.TimerHandle] = None
+        self._timer: asyncio.TimerHandle | None = None
         # A close happened since the last active trigger; pending queries
         # must not resurrect the popup after it.
         self._dismissed: bool = False
@@ -117,7 +118,7 @@ class CompletionController:
 
     # ------------------------------------------------------------- querying
 
-    def schedule(self, trigger_ch: Optional[str]) -> None:
+    def schedule(self, trigger_ch: str | None) -> None:
         # Always schedule: with an LSP we query the server, without one we
         # fall back to buffer words + paths (see _worker).  Active input
         # re-arms queries dropped by close().
@@ -131,7 +132,7 @@ class CompletionController:
             self._DEBOUNCE_S, self.request, False, trigger_ch
         )
 
-    def request(self, manual: bool = True, trigger_ch: Optional[str] = None) -> None:
+    def request(self, manual: bool = True, trigger_ch: str | None = None) -> None:
         """Fetch completions and show the popup (worker; never blocks input)."""
         if not self._mounted or self._modal:
             return
@@ -155,7 +156,7 @@ class CompletionController:
             group="lsp-completion", exclusive=True, exit_on_error=False,
         )
 
-    async def _worker(self, manual: bool, trigger_ch: Optional[str]) -> None:
+    async def _worker(self, manual: bool, trigger_ch: str | None) -> None:
         popup = self.popup
         editor = self.panes.active_view
         if editor is None:

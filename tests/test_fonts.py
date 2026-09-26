@@ -15,7 +15,7 @@ import subprocess
 import sys
 import types
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import pytest
 
@@ -33,7 +33,7 @@ class _FakeKey:
     def __init__(self, store: dict[str, str]) -> None:
         self.store = store
 
-    def __enter__(self) -> "_FakeKey":
+    def __enter__(self) -> _FakeKey:
         return self
 
     def __exit__(self, *exc_info: object) -> None:
@@ -101,7 +101,7 @@ class _SubprocessRecorder:
     #: The non-shell fc-cache call redirects stdout/stderr to DEVNULL.
     DEVNULL = subprocess.DEVNULL
 
-    def __init__(self, stdout: str = "", error: Optional[BaseException] = None) -> None:
+    def __init__(self, stdout: str = "", error: BaseException | None = None) -> None:
         self.calls: list[tuple[Any, dict[str, Any]]] = []
         self.stdout = stdout
         self.error = error
@@ -302,10 +302,10 @@ def test_font_status_summarises_the_first_three_fonts(
 # --- install ----------------------------------------------------------------
 
 
-def _unix_shutil(which: Optional[str] = None, copy2: Any = shutil.copy2) -> Any:
+def _unix_shutil(which: str | None = None, copy2: Any = shutil.copy2) -> Any:
     """A shutil stand-in: real copying, scripted ``which``."""
 
-    def _which(_name: str) -> Optional[str]:
+    def _which(_name: str) -> str | None:
         return which
 
     return _module(copy2=copy2, which=_which)

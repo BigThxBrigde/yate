@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
+
+from collections.abc import Callable
 
 __all__ = [
     "goto",
@@ -93,7 +95,7 @@ def message_text(app: Any) -> str:
     return plain_text(bar.message.content)
 
 
-def cursor_path(app: Any) -> Optional[Any]:
+def cursor_path(app: Any) -> Any | None:
     """Path of the explorer node under the cursor (``None`` if unknown)."""
     tree = app.editor.explorer_tree
     if tree is None:

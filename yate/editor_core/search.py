@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from yate.editor_core.buffer import Pos, TextBuffer
 
@@ -33,7 +32,7 @@ class SearchEngine:
 
     # ---------------------------------------------------------------- query
 
-    def _compile(self, query: str) -> Optional[re.Pattern[str]]:
+    def _compile(self, query: str) -> re.Pattern[str] | None:
         if query == "":
             return None
         pattern = query if self.use_regex else re.escape(query)
@@ -77,8 +76,8 @@ class SearchEngine:
         return len(self.matches) - 1
 
     def next(
-        self, buffer: TextBuffer, *, forward: bool = True, from_pos: Optional[Pos] = None
-    ) -> Optional[Match]:
+        self, buffer: TextBuffer, *, forward: bool = True, from_pos: Pos | None = None
+    ) -> Match | None:
         if not self.matches:
             return None
         pos = from_pos if from_pos is not None else buffer.cursor
@@ -92,7 +91,7 @@ class SearchEngine:
         buffer.cursor = (match.row, match.end)
         return match
 
-    def current(self) -> Optional[Match]:
+    def current(self) -> Match | None:
         if 0 <= self.index < len(self.matches):
             return self.matches[self.index]
         return None

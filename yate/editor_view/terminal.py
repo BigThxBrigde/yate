@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, override
+
+from collections.abc import Callable
 
 from rich.segment import Segment
 from rich.style import Style
@@ -54,7 +56,7 @@ TOGGLE_KEYS = frozenset({
 FOCUS_EDITOR_KEY = "ctrl+1"
 
 
-def _hex(rgb: Optional[tuple[int, int, int]]) -> Optional[str]:
+def _hex(rgb: tuple[int, int, int] | None) -> str | None:
     if rgb is None:
         return None
     return "#%02x%02x%02x" % rgb
@@ -75,12 +77,12 @@ class TerminalView(Widget):
         super().__init__(**kwargs)
         self.panel = panel
         self.emulator = TerminalEmulator(80, 24, on_response=self._respond)
-        self.proc: Optional[PtyProcess] = None
+        self.proc: PtyProcess | None = None
         self.shell_argv: list[str] = []
         self._scroll = 0
         self._starting = False
         self.dead = False
-        self._exit_code: Optional[int] = None
+        self._exit_code: int | None = None
         self._last_title = ""
 
     # ------------------------------------------------------------- lifecycle
@@ -93,7 +95,7 @@ class TerminalView(Widget):
         self,
         argv: list[str],
         cwd: Path,
-        factory: Optional[Any] = None,  # noqa: Any - fake PTY factory for tests; no stub.
+        factory: Any | None = None,  # noqa: Any - fake PTY factory for tests; no stub.
     ) -> None:
         """Spawn the shell; restarted automatically after a previous exit."""
         if self._starting or self.started:
@@ -168,7 +170,7 @@ class TerminalView(Widget):
             if isinstance(panel, TerminalPanel):
                 panel.refresh_header()
 
-    def _on_exit(self, code: Optional[int]) -> None:
+    def _on_exit(self, code: int | None) -> None:
         self.dead = True
         self._exit_code = code
         self._scroll = 0
@@ -264,6 +266,7 @@ class TerminalView(Widget):
 
     # --------------------------------------------------------------- render
 
+    @override
     def render_line(self, y: int) -> Strip:
         t = theme.active()
         width = int(self.size.width) if self.size.width else self.emulator.cols
@@ -280,7 +283,7 @@ class TerminalView(Widget):
         )
         segments: list[Segment] = []
         text_parts: list[str] = []
-        current: Optional[Style] = None
+        current: Style | None = None
         x = 0
 
         def flush() -> None:
@@ -384,13 +387,14 @@ class TerminalPanel(Vertical):
         self.prompt = prompt
         self.focus_editor = focus_editor
         #: Fake-PTY hook injected by the test-suite (``None`` in production).
-        self.view_factory: Optional[Callable[..., object]] = None
+        self.view_factory: Callable[..., object] | None = None
         self.header = Static("", id="terminal-title")
         self.view = TerminalView(self)
         self._cached_header = ""
         self._visible = False
         self._starting = False
 
+    @override
     def compose(self) -> Any:
         yield self.header
         yield self.view

@@ -37,7 +37,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Sequence, cast
+from typing import Any, cast
+
+from collections.abc import Sequence
 
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
 
@@ -74,8 +76,8 @@ class LanguageServerSpec:
     language_ids: dict[str, str] = field(default_factory=dict[str, str])
     initialization_options: Any = None
     settings: Any = None
-    env: Optional[dict[str, str]] = None
-    root_markers: Optional[list[str]] = None
+    env: dict[str, str] | None = None
+    root_markers: list[str] | None = None
 
 
 @dataclass
@@ -449,7 +451,7 @@ def _extract_language_servers(namespace: dict[str, Any], config: YateConfig) -> 
 
 def _parse_language_server(
     entry: dict[str, Any], errors: list[str], where: str
-) -> Optional[LanguageServerSpec]:
+) -> LanguageServerSpec | None:
     """Validate one ``language_servers`` mapping; append an error and return
     ``None`` when a required field is missing or mistyped."""
     name = entry.get("name")
@@ -480,7 +482,7 @@ def _parse_language_server(
     if args is None:
         return None
     root_markers_raw = entry.get("root_markers")
-    root_markers: Optional[list[str]] = None
+    root_markers: list[str] | None = None
     if root_markers_raw is not None:
         root_markers = _require_str_list(
             root_markers_raw, f"{where}.root_markers", errors
@@ -493,7 +495,7 @@ def _parse_language_server(
     if language_ids is None:
         return None
     env_raw = entry.get("env")
-    env: Optional[dict[str, str]] = None
+    env: dict[str, str] | None = None
     if env_raw is not None:
         env = _require_str_map(env_raw, f"{where}.env", errors)
         if env is None:
@@ -517,7 +519,7 @@ def _require_str_list(
     errors: list[str],
     *,
     nonempty: bool = False,
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Validate a ``list[str]`` (tuple accepted); ``None`` is only valid when
     the caller handles it before calling. Empty/whitespace items rejected."""
     if not isinstance(value, (list, tuple)):
@@ -537,7 +539,7 @@ def _require_str_list(
 
 def _require_str_map(
     value: Any, label: str, errors: list[str]
-) -> Optional[dict[str, str]]:
+) -> dict[str, str] | None:
     """Validate a ``dict[str, str]`` mapping."""
     if not isinstance(value, dict):
         errors.append(f"{label} must be a mapping of strings, got {value!r}")
