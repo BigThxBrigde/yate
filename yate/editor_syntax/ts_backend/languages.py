@@ -28,6 +28,9 @@ from pathlib import Path
 from typing import Any
 
 from yate.editor_syntax.regex_backend import LangSpec, lang_for, register_language
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 
 def _blocked_ts_version() -> str | None:
@@ -145,6 +148,7 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
     module_name = BUILTIN_PACKS.get(name)
     query_file = QUERIES_DIR / f"{name}.scm"
     if ts is None or module_name is None or not query_file.is_file():
+        log.debug("tree-sitter unavailable for %r (falls back to regex)", name)
         return None
     try:
         module = importlib.import_module(module_name)
@@ -154,9 +158,11 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
     except Exception:
         # optional native code / third-party grammar: any failure must
         # degrade to the regex backend, never break the editor
+        log.debug("tree-sitter load failed for %r (falls back to regex)", name)
         return None
     loaded = LoadedLanguage(name, language, query, dict(DEFAULT_CAPTURE_MAP))
     _LANGS[name] = loaded
+    log.debug("tree-sitter language loaded: %s", name)
     return loaded
 
 

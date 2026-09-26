@@ -10,7 +10,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from yate.logs import tracing
+
 Pos = tuple[int, int]
+
+log = tracing.get_logger(__name__)
 
 
 class BufferReadOnlyError(Exception):
@@ -184,6 +188,7 @@ class TextBuffer:
         way back to a clean state is saving again.  The vertical goal
         column is cleared because the lines may have changed shape.
         """
+        log.debug("out-of-band buffer change: lines=%d", len(self.lines))
         self._goal_col = None
         self.content_version += 1
         self.content_edits += 1
