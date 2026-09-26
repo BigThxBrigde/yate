@@ -364,8 +364,7 @@ class Editor:
     def _open_readonly(self, doc: Document | None) -> None:
         """Apply the ``--readonly`` startup flag to an opened file document.
 
-        A no-op without the flag, for a failed open (binary) and for
-        unnamed/welcome buffers.
+        A no-op without the flag or when the open failed (binary files).
         """
         if doc is not None and self.startup_readonly:
             doc.buffer.read_only = True
@@ -670,7 +669,9 @@ class Editor:
         """Run a registered action by name; ``False`` when it is unknown.
 
         Called by keymaps (which report an unknown name and let the key fall
-        through), the palette and the extension bridge.
+        through), the palette and the extension bridge.  A refused edit on a
+        read-only buffer also reports ``True`` (the request was consumed,
+        with a user notice) instead of propagating the error.
         """
         try:
             return self.actions.execute(name, ActionContext(self.session, self.key_ui))
@@ -1110,7 +1111,7 @@ class Editor:
         self.sidebar_head.update(sidebar_head_text())
 
     def set_readonly(self, value: bool) -> None:
-        """Toggle the active buffer's read-only flag (``:set readonly=``)."""
+        """Set the active buffer's read-only flag (``:set readonly=``)."""
         buf = self.session.doc.buffer
         buf.read_only = value
         self.message(f"readonly: {'on' if value else 'off'}", kind="ok")

@@ -116,7 +116,9 @@ class StatusBar(Static):
         # Flat mode chip (hard color edge, no powerline triangle).
         text.append(chip, style=f"bold {t.on_accent} on {chip_bg}")
 
-        name_budget = budget - chip_len - 3 - dot_cells  # gap, pencil+space
+        name_budget = (
+            budget - chip_len - 3 - dot_cells - lock_cells  # gap, pencil+space
+        )
         name = doc.name
         if name_budget < 4:
             name = ""

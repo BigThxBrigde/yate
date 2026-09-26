@@ -198,6 +198,24 @@ def test_readonly_blocks_edits_saves_and_unlocks(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_readonly_statusbar_lock_keeps_right_block_visible(tmp_path: Path) -> None:
+    """A lock plus a truncated long filename must not clip the right block."""
+
+    async def scenario() -> None:
+        target = tmp_path / ("a-very-long-file-name-" + "x" * 70 + ".txt")
+        app = YateApp(target=target, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            strip = "".join(
+                seg.text for seg in app.editor.status_bar.render_line(0)
+            )
+            assert "\uf023" in strip
+            # the right block (… "F1") still ends exactly at the bar's edge
+            assert strip.rstrip().endswith("F1")
+
+    asyncio.run(scenario())
+
+
 def test_readonly_startup_flag_ignores_directory_target(tmp_path: Path) -> None:
     """``--readonly`` only applies to a file argument, never a directory."""
 
