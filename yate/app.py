@@ -24,10 +24,13 @@ from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_view import theme
 from yate.keyproto.legacy import textual_key_to_raw
+from yate.logs import tracing
 
 # `textual_key_to_raw` lives in the L0 keyproto leaf (no import cycles) and
 # is re-exported here for convenience/tests.
 __all__ = ["textual_key_to_raw", "YateApp"]
+
+log = tracing.get_logger(__name__)
 
 
 class YateApp(App[None]):
@@ -118,7 +121,9 @@ class YateApp(App[None]):
         wanted_theme = theme_name if theme_name is not None else self.config.theme
         try:
             theme.set_theme(wanted_theme)
+            log.debug("theme set: %s", wanted_theme)
         except KeyError:
+            log.warning("unknown theme: %s", wanted_theme)
             self.config.errors.append(f"unknown theme: {wanted_theme!r}")
         # Bridge every yate theme into a Textual theme (``yate-<name>``) so
         # the app's design tokens always match the active yate palette and
@@ -138,6 +143,10 @@ class YateApp(App[None]):
         # (the reactive validator would raise InvalidThemeError otherwise).
         wanted_textual = theme.textual_theme_name(theme.active().name)
         if self.get_theme(wanted_textual) is None:
+            log.warning(
+                "theme '%s' has no usable bridge; falling back to mocha",
+                theme.active().name,
+            )
             self.config.errors.append(
                 f"theme '{theme.active().name}' has no usable bridge; "
                 f"falling back to mocha"
@@ -166,13 +175,16 @@ class YateApp(App[None]):
         yield from self.editor.compose()
 
     async def on_mount(self) -> None:
+        log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
+        log.debug("app unmount")
         await self.editor.on_unmount()
 
     def on_key(self, event: Key) -> None:
         """Fallback routing: keys not consumed by a focused widget."""
+        log.debug("key fallback: %s", event.key)
         if self.editor.handle_key(event):
             event.stop()
             event.prevent_default()
@@ -201,4 +213,5 @@ class YateApp(App[None]):
         and extensions) instead of calling :meth:`Editor.quit` directly, so
         the registry entry is not dead weight and stays observable.
         """
+        log.debug("quit via registry")
         self.editor.execute_action("quit")
