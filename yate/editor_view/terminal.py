@@ -46,8 +46,13 @@ from .commandline import PromptBar
 #:   keyboard while it is focused. The NUL byte is the same one
 #:   Ctrl+Space sends there, so elsewhere (editor/app) ctrl+@ never
 #:   opens the panel -- Ctrl+Space means manual completion instead.
+#: - "ctrl+2" / "ctrl+shift+2": other names Textual's Keys enum carries
+#:   for the same NUL byte (ctrl+2 aliases ctrl+@; shift+2 is @ on the
+#:   US layout), and what the chord driver reports when the physical
+#:   grave key sits on Shift+2 in the user's keyboard layout.
 TOGGLE_KEYS = frozenset({
     "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
+    "ctrl+2", "ctrl+shift+2",
 })
 
 #: Hands focus back to the editor while the terminal is focused (the

@@ -41,6 +41,9 @@ from yate.keyproto.chords import (
     VK_SPACE,
     KeyChord,
 )
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 #: VK codes whose chords yate can name: digits, letters, space and the
 #: US-layout punctuation OEM keys the keymaps actually reference.
@@ -180,7 +183,19 @@ class ChordEventMonitor(win32.EventMonitor):
                                 key,
                             )
                             if chord is not None:
-                                deliver(Key(chord_to_key_name(chord), character=chord.char))
+                                name = chord_to_key_name(chord)
+                                # VK-level evidence: the entry log in
+                                # yate.editor only shows the synthesized
+                                # name, which cannot explain layouts that
+                                # deliver a chord under an unexpected name.
+                                log.debug(
+                                    "chord: vk=0x%02x state=0x%04x char=%r -> %s",
+                                    key_event.wVirtualKeyCode,
+                                    key_event.dwControlKeyState,
+                                    chord.char,
+                                    name,
+                                )
+                                deliver(Key(name, character=chord.char))
                                 continue
                             append_key(key)
                     elif event_type == window_buffer_size_event:

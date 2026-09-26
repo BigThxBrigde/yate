@@ -575,16 +575,22 @@ class Editor:
             type(self.app.focused).__name__ if self.app.focused else None,
         )
         editor_focused = isinstance(self.app.focused, EditorView)
-        # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle:
-        # on Windows conhost / legacy xterm Ctrl+Space and Ctrl+` share the
-        # NUL byte (named "ctrl+@"), so there the NUL byte favors completion;
-        # Ctrl+` still closes the terminal while it is focused, and :term /
-        # the palette opens it.
-        if event.key in ("ctrl+space", "ctrl+@"):
+        # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle.
+        # The NUL byte splits by driver: the legacy conhost path collapses
+        # Ctrl+Space / Ctrl+` / Ctrl+2 into one NUL byte that Textual names
+        # "ctrl+@" -- ambiguous, so with the editor focused it favors
+        # completion (Ctrl+` still closes the panel while the terminal is
+        # focused).  The chord driver keeps the chords distinct -- it names
+        # Ctrl+Space "ctrl+space" and the Ctrl+@ key (what the grave chord
+        # looks like on layouts where the physical ` sits on Shift+2)
+        # "ctrl+2"/"ctrl+shift+2"; those toggle the terminal via TOGGLE_KEYS
+        # below.
+        nul_keys = ("ctrl+space", "ctrl+@")
+        if event.key in nul_keys:
             if editor_focused or event.key == "ctrl+space":
                 self.request_completion(manual=True)
                 return True
-        if event.key in TOGGLE_KEYS and event.key != "ctrl+@":
+        if event.key in TOGGLE_KEYS and event.key not in nul_keys:
             self.terminal_panel.toggle()
             return True
         # The completion popup owns a handful of keys while it is open; it
