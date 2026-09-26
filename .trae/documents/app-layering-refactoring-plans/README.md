@@ -227,3 +227,21 @@ python -m yate --version                   # 正常
 
 > Plan E / Plan F 的迁移与门禁执行结果（含 5 个并行子任务的交付与复核数据）见
 > [Plan E](plan_E_tests_tools.md) §E.5 / §E.6.4 与 [Plan F](plan_F_gate_docs.md) §F.6。
+
+## 11. 后续决策记录：config 层解耦（N30，2026-09-26）
+
+代码审查项 N30（见 [P2 账](../code-review-fix-plans/P2_nice_to_have_plan.md)）发现
+`yate/config.py`（L0）在 `load_config` 内惰性 import L2 `editor_view.theme`——
+全仓唯一一条 L0→L2 边，且函数内惰性写法使架构测试不可见。
+
+**决策：注入回调，不下沉主题注册表**（比选与否决证据见
+[theme-layer-refactor-plans README §2](../theme-layer-refactor-plans/README.md#2-方案比选与决策)）：
+`load_config` 增加 keyword-only `register_theme` / `load_theme_paths` 回调参数，
+由 L4 `cli.py` 注入 `editor_view.theme` 同名函数；缺省 `None` 即 headless
+UI-free 加载器（`register_theme` 缺名记 NameError，`theme_dirs` 只提取不装载）。
+下沉方案被否决：`validate_theme` 的颜色校验耦合 `textual.color`，叶子层重实现会
+重蹈 N14 的 Textual 版本漂移；校验时序后移会退化 rc 加载期诊断。
+
+**落地**：`UI_FREE_FILES` 扩员收编 `config.py`（守卫 + 负向验证）；
+架构规则 R4 / §四交互表 / §六 同步更新。行为逐字节不变，新增 2 个 headless 契约用例。
+实施记录：[theme-layer-refactor-plans](../theme-layer-refactor-plans/README.md)。

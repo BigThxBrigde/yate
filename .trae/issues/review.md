@@ -785,10 +785,18 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   `keymaps.get(target)` 返回 None 直接跳过无提示。*存量。*
   *✅ 已修复（2026-09-24）— [extensions.py](../../yate/services/extensions.py) 未命中时 `log.warning` 列出可用 keymap 名；守卫：不存在名字 → 有警告且不抛异常（守卫自带 handler 捕获——`yate` 根 logger `propagate=False`，caplog 不可见）。*
 
-- [ ] **L0 config 惰性 import L2 `editor_view.theme`，层级方向违规** —
-  [`config.py:171-173`](../../yate/config.py#L171-L173)
+- [x] **L0 config 惰性 import L2 `editor_view.theme`，层级方向违规** —
+  [`config.py`](../../yate/config.py)
   存量耦合仅改为惰性；建议后续下沉或注入回调，并在架构规则中登记（类似 R11 冻结）。
   *⏸ 暂缓（2026-09-25，P2 决策门 G3）：备注「下次做重构方案」；届时按下沉 / 注入回调二选一单独立项 + 架构规则登记。*
+  *✅ 已落地（2026-09-26）：拍板**注入回调**——`load_config` 增 keyword-only
+  `register_theme` / `load_theme_paths`（PEP 695 别名），L4 `cli.py` 注入
+  `editor_view.theme` 同名函数，缺省 `None` 即 headless UI-free 加载器（rc 调
+  `register_theme` 记 NameError 不中断，`theme_dirs` 只提取不装载）；`config.py`
+  收编 `UI_FREE_FILES`（守卫 + 负向验证拦截有效），R4 / §四交互表 / §六 已登记。
+  门禁实测：架构 13 passed、pyright 全仓 0、pytest 1218+7 skipped、冒烟
+  88/88 场景 · 917/917 checks。方案比选与 19 步实施记录：
+  [theme-layer-refactor-plans](../documents/theme-layer-refactor-plans/README.md)。*
 
 - [x] **`visible_tree` 递归无 symlink 环防护** —
   [`workspace.py:255-272`](../../yate/services/workspace.py#L255-L272)
