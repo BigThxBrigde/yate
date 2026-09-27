@@ -109,6 +109,7 @@ def test_terminal_panel_unsubscribes_on_unmount() -> None:
         async with app.run_test(size=(80, 24)):
             panel = app.editor.terminal_panel
             theme.set_theme("latte")
+            await panel.remove()  # explicit unmount, not app-shutdown driven
         header_bg = panel.header.styles.background
         theme.set_theme("mocha")
         # unmounted: the broadcast must no longer touch the dock

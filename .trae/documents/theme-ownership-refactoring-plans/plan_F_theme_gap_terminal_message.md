@@ -139,3 +139,19 @@ sequenceDiagram
    （卸载后切主题，dock 样式保持原值不变），不触碰私有面且更贴近真实契约。
 3. **`OWNER_LSP` 导入源**：计划笔误为 `theme.OWNER_LSP`，实际常量定义于
    `commandline.py`，测试从 `yate.editor_view.commandline` 导入。
+
+## F.9 四维评审跟进（2026-09-27）
+
+二轮 review 两条"建议级"整改（commit 见 §F.7 提交信息）：
+
+1. **`activate()` 清除 `_message`**：prompt 打开时丢弃上一条消息的
+   `(text, attr)` 残留——状态机收紧为"prompt 与 message 互斥且不同时持有"，
+   消除无害冗余（`display=False` 守卫本使其无后果）。
+2. **卸载测试去 shutdown 依赖**：`test_terminal_panel_unsubscribes_on_unmount`
+   改为显式 `await panel.remove()` 触发卸载（run_test 内），不再依赖
+   Textual shutdown 顺序调用 `on_unmount` 的行为；取证 `TerminalView.shutdown`
+   在 `proc is None` 时早退 + Editor 侧 try/except 兜底，显式 remove 后
+   既有退出路径安全。
+
+门禁复验：pyright 0 errors、pytest 全绿、smoke run 882/882 + compare
+932/932 exit 0 零漂移。

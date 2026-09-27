@@ -316,6 +316,9 @@ class PromptBar(Horizontal):
         self._on_submit = on_submit
         self._on_changed = on_changed
         self._refocus = refocus
+        # Either a prompt is active or a message is shown -- never both; the
+        # stored (text, attr) of the previous message is dropped here.
+        self._message = None
         self.message.display = False
         self.prompt.display = True
         self.prompt.update(prefix + " ")
