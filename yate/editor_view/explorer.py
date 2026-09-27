@@ -62,13 +62,14 @@ class ExplorerTree(Tree[NodeData]):
          * (issue IKINF3); long names stay reachable by scrolling. */
         scrollbar-size-horizontal: 1;
 
-        /* Constant, ultra-faint gray guides in every state (issue IKINF3):
-         * Tree's defaults brighten guides on hover and, worse, paint the
-         * focused selection's rails with $block-cursor-background (the
-         * mauve cursor color).  Pin every variant -- :focus / :light
-         * out-specify the plain selectors, so they must be pinned
-         * explicitly.  Alpha of $foreground reads as a neutral gray and
-         * adapts to dark and light themes alike. */
+        /* Faint gray guides in every state (issue IKINF3): Tree's defaults
+         * brighten guides on hover and, worse, paint the focused
+         * selection's rails with $block-cursor-background (the mauve
+         * cursor color).  Pin every variant -- :focus / :light out-specify
+         * the plain selectors, so they must be pinned explicitly.  The
+         * rails use the sidebar title's muted gray at 15% alpha: strictly
+         * fainter than the bold "EXPLORER" header (100% + bold), and
+         * roughly VS Code's measured indent-rail contrast. */
         & > .tree--guides,
         & > .tree--guides-hover,
         & > .tree--guides-selected,
@@ -78,7 +79,7 @@ class ExplorerTree(Tree[NodeData]):
         &:light > .tree--guides,
         &:light > .tree--guides-hover,
         &:light > .tree--guides-selected {
-            color: $foreground 5%;
+            color: $foreground-muted 15%;
         }
         /* Calm the tree cursor down (issue IKINF3): the default maps to the
          * bright accent cursor colors -- a translucent foreground tint reads

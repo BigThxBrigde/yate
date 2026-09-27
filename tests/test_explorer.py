@@ -367,15 +367,19 @@ def test_tree_h_scrollbar_stays_available_and_thin(tmp_path: Path) -> None:
 
 
 def test_guide_colors_constant_on_hover_and_selection() -> None:
-    """Guides share one ultra-faint gray tint in every state: hover,
-    selected, focused and light-mode variants must not repaint the rails."""
+    """Guides share one faint gray tint in every state: hover, selected,
+    focused and light-mode variants must not repaint the rails.  The tint
+    is the sidebar title's muted gray at low alpha -- strictly fainter
+    than the bold EXPLORER header."""
     css = ExplorerTree.DEFAULT_CSS
     for variant in ("& > ", "&:focus > ", "&:light > "):
         for cls in ("tree--guides", "tree--guides-hover", "tree--guides-selected"):
             selector = f"{variant}.{cls}"
             assert selector in css, f"missing pinned selector {selector}"
             block = css.split(selector, 1)[1].split("}", 1)[0]
-            assert "5%" in block, f"{selector} must pin the faint gray tint"
+            assert "$foreground-muted 15%" in block, (
+                f"{selector} must pin the faint muted-gray tint"
+            )
 
 
 def test_file_icons_use_fixed_seti_palette(tmp_path: Path) -> None:
