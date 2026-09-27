@@ -6,10 +6,15 @@
 
 ### Features
 
+- add a full-terminal idle screensaver: Alt+Shift+S toggle plus an idle trigger, with a 27-character shuffle roster of half-block pixel art ([`6766bed`](https://gitee.com/jermaine/yate/commit/6766bed55e0766c01088cb6cab929107a052db4c))
+  - inspired by Joel Yliluoma's "that_editor" (https://github.com/bisqwit/that_editor); all sprites are original homage approximations drawn for yate, no game assets
+- add the `screen_saver` yaterc dict option (enable / interval / switch / characters) ([`5937ce4`](https://gitee.com/jermaine/yate/commit/5937ce43630f4aabcf9b839d04ae4b9f93459dcb))
+- add `tools.pack rosters`, rendering a labeled SVG preview of the roster ([`c019f22`](https://gitee.com/jermaine/yate/commit/c019f2235d94746edfa2b1a93b7ae1fb192c7bf8))
 - add pre-flight guards and rollback to release tool ([`4e6566b`](https://gitee.com/jermaine/yate/commit/4e6566bba88826b32ed68331dea4ce45ce1b88cb))
 
 ### Documentation
 
+- add the fancy-sym screensaver plan set ([`1ba5c53`](https://gitee.com/jermaine/yate/commit/1ba5c5380c5b8258158b6280340743044ff87ff2))
 - backfill hardening results and verification checklist ([`2ba8f69`](https://gitee.com/jermaine/yate/commit/2ba8f699c46b2d72e88f26a98e013812958086d9))
 - add release tool hardening plan ([`aecf3e3`](https://gitee.com/jermaine/yate/commit/aecf3e3151ef6ca10cead29d4b70ec3053bca02b))
 - translate the 3.12 migration and release entries ([`b599685`](https://gitee.com/jermaine/yate/commit/b5996857babbfad56b5a70e2e1e3768bbcec3bce))

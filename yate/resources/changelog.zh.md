@@ -6,10 +6,17 @@
 
 ### 新功能
 
+- 新增全终端空闲屏保：`Alt+Shift+S` 手动开关 + 空闲自动触发，27 只角色
+  shuffle 轮播（半格块像素画） ([`6766bed`](https://gitee.com/jermaine/yate/commit/6766bed55e0766c01088cb6cab929107a052db4c))
+  - 灵感来自 Joel Yliluoma 的 "that_editor"（https://github.com/bisqwit/that_editor）；
+    像素画均为 yate 原创致敬近似绘制，不含任何游戏素材
+- 新增 yaterc `screen_saver` 字典选项（enable / interval / switch / characters） ([`5937ce4`](https://gitee.com/jermaine/yate/commit/5937ce43630f4aabcf9b839d04ae4b9f93459dcb))
+- 新增 `tools.pack rosters` 子命令，生成带名字标签的阵容预览 SVG ([`c019f22`](https://gitee.com/jermaine/yate/commit/c019f2235d94746edfa2b1a93b7ae1fb192c7bf8))
 - add pre-flight guards and rollback to release tool [缺中文] ([`4e6566b`](https://gitee.com/jermaine/yate/commit/4e6566bba88826b32ed68331dea4ce45ce1b88cb))
 
 ### 文档
 
+- 新增 fancy-sym 屏保方案文档集 ([`1ba5c53`](https://gitee.com/jermaine/yate/commit/1ba5c5380c5b8258158b6280340743044ff87ff2))
 - backfill hardening results and verification checklist [缺中文] ([`2ba8f69`](https://gitee.com/jermaine/yate/commit/2ba8f699c46b2d72e88f26a98e013812958086d9))
 - add release tool hardening plan [缺中文] ([`aecf3e3`](https://gitee.com/jermaine/yate/commit/aecf3e3151ef6ca10cead29d4b70ec3053bca02b))
 - translate the 3.12 migration and release entries [缺中文] ([`b599685`](https://gitee.com/jermaine/yate/commit/b5996857babbfad56b5a70e2e1e3768bbcec3bce))

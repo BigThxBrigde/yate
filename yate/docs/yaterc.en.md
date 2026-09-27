@@ -76,6 +76,7 @@ perform the work and exit:
 | `shell` | `str` | platform default | non-empty string | Shell launched in the integrated terminal (open with `` Ctrl+` ``); arguments allowed (e.g. `"pwsh -NoLogo"`). Windows default: `pwsh`→Windows PowerShell→`cmd.exe`; POSIX: `$SHELL`→`bash`→`/bin/sh`. |
 | `terminal_height` | `int` | `12` | integer `3`–`40` (bools/floats/strings rejected) | Integrated terminal panel height in rows. |
 | `language_servers` | `list[dict]` | none | see [below](#declarative-language-servers-language_servers) | Declaratively register LSP language servers; they activate automatically when matching files open -- no extension needed. |
+| `screen_saver` | `dict` | see [below](#idle-screensaver-screen_saver) | dict with `enable` / `interval` / `switch` / `characters` keys | Idle screensaver settings; see [below](#idle-screensaver-screen_saver). |
 | `yate_trace` | `bool` | `False` | `True` / `False` | Runtime trace log switch (off by default); writes to `~/.yate/data/logs/`, see [below](#runtime-trace-log-yate_trace). |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` (case-insensitive) | Trace verbosity; Python `logging`'s built-in levels. |
 
@@ -359,6 +360,36 @@ Validation and loading semantics:
 
 > For install commands and full recipes for mainstream languages, see
 > [lsp.en.md](lsp.en.md) ([中文](lsp.zh.md)).
+
+## Idle screensaver (`screen_saver`)
+
+yate ships a full-terminal idle screensaver: pixel characters parade across
+the screen while you are away. `Alt+Shift+S` toggles it any time; with the
+defaults it also starts by itself after 120 seconds without keyboard or mouse
+input, and any key or mouse movement dismisses it.
+
+```python
+screen_saver = {
+    "enable": True,        # master switch (False also disables Alt+Shift+S)
+    "interval": 120,       # idle seconds before it starts (0 = manual only)
+    "switch": 10,          # seconds one character stays on screen
+    "characters": [],      # name whitelist; [] = the whole roster
+}
+```
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `enable` | `bool` | `True` | Master switch; `False` disables both the idle trigger and the `Alt+Shift+S` toggle. |
+| `interval` | `int` `0`–`3600` | `120` | Idle seconds before an automatic start; `0` keeps it manual-only. |
+| `switch` | `int` `0`–`3600` | `10` | Seconds one character stays on screen before the next takes over. |
+| `characters` | `list[str]` | `[]` | Whitelist of roster names; empty means all. Unknown names are reported at startup. |
+
+Missing keys keep their defaults; a wrong-typed key is reported and that key
+alone falls back to its default; a later valid declaration replaces the
+previous one whole. To browse the roster (27 original, homage-style
+approximations of classic arcade / FC-era characters, plus the Digital
+Circus crew) and the exact name list, run `python -m tools.pack rosters`,
+which writes a labeled `roster.svg`.
 
 ## Command-line interaction
 

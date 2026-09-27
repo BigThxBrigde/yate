@@ -68,6 +68,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
+| `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `characters` 四键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
 | `yate_trace` | `bool` | `False` | `True` / `False` | 运行日志开关（默认关闭）；开启后写入 `~/.yate/data/logs/`，见[下文](#运行日志yate_trace) |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`（大小写不敏感） | 运行日志等级，与 Python `logging` 内置等级一致 |
 
@@ -321,6 +322,34 @@ language_servers = [
 
 > 主流语言的安装命令与完整食谱见 [lsp.zh.md](lsp.zh.md)
 > （[English](lsp.en.md)）。
+
+## 空闲屏保（`screen_saver`）
+
+yate 内置全终端空闲屏保：离开时像素小人会在屏幕上游行。`Alt+Shift+S`
+随时手动开关；默认配置下，键盘与鼠标连续 120 秒无输入也会自动进入，
+任意按键或移动鼠标即退出。
+
+```python
+screen_saver = {
+    "enable": True,        # 总开关（False 同时禁用 Alt+Shift+S）
+    "interval": 120,       # 无输入自动触发的秒数（0 = 仅手动）
+    "switch": 10,          # 每只角色的停留秒数
+    "characters": [],      # 名字白名单；[] = 全部阵容
+}
+```
+
+| 键 | 类型 | 默认 | 含义 |
+|---|---|---|---|
+| `enable` | `bool` | `True` | 总开关；`False` 同时禁用自动触发与 `Alt+Shift+S`。 |
+| `interval` | `int` `0`–`3600` | `120` | 无输入多少秒后自动进入；`0` 表示仅手动。 |
+| `switch` | `int` `0`–`3600` | `10` | 每只角色在屏幕上停留的秒数。 |
+| `characters` | `list[str]` | `[]` | 阵容名字白名单；空表示全部。未知名在启动时报告。 |
+
+缺键保默认；类型错误的键单独报错并保默认，其余键仍然生效；后加载的
+合法声明整体替换前值。阵容为 27 只致敬风格的原创像素角色（经典街机 /
+红白机形象近似绘制，外加《神奇数字马戏团》五人组），运行
+`python -m tools.pack rosters` 可生成带名字标签的 `roster.svg` 供查阅
+完整名单。
 
 ## 命令行交互
 

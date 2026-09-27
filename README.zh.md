@@ -61,6 +61,15 @@
   补全自动回退为已打开 buffer 的单词；语言服务器可在 yaterc 中用
   `language_servers` 声明式注册，也可通过扩展注册，随包 Python 服务器扩展
   会自动发现 pyright / python-lsp-server
+- **屏保模式**：全终端空闲屏保——离开时像素小人走过整个屏幕；
+  `Alt+Shift+S` 随时手动开关，无输入达到 `screen_saver.interval` 秒自动进入
+  （任意按键或移动鼠标退出）；阵容为 27 只致敬风格原创像素角色（经典街机 /
+  红白机形象，外加《神奇数字马戏团》五人组），经 yaterc 的 `screen_saver`
+  字典配置；`python -m tools.pack rosters` 可生成阵容预览
+
+灵感来自 Joel Yliluoma 的 ["that_editor"](https://github.com/bisqwit/that_editor)
+状态栏吉祥物。所有屏保像素画均为 yate 原创致敬近似绘制——不使用、不分发
+任何游戏素材。
 
 ## 环境要求
 
