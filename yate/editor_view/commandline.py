@@ -14,6 +14,7 @@ from typing import Any, override
 
 from collections.abc import Callable
 
+from rich.markup import escape
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
@@ -362,8 +363,11 @@ class PromptBar(Horizontal):
         if self._message is None:
             return
         text, attr = self._message
+        # escape(): message text is external (LSP diagnostics, file names,
+        # OS errors) and may contain brackets -- without escaping, Rich would
+        # parse "[test].py" as a markup tag and mangle or crash the render.
         self.message.update(
-            f"[{getattr(theme.active(), attr)}]{text}[/]"
+            f"[{getattr(theme.active(), attr)}]{escape(text)}[/]"
         )
 
     def cancel(self) -> None:

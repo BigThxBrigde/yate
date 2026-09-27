@@ -80,6 +80,40 @@ def test_failed_set_theme_does_not_notify() -> None:
         unsubscribe()
 
 
+def test_subscribe_collapses_duplicate_listeners() -> None:
+    """Subscribing an equal listener twice yields a single notification."""
+    calls: list[str] = []
+    hit = lambda: calls.append("hit")  # noqa: E731 - trivial test double
+    unsubscribe = theme.subscribe(hit)
+    theme.subscribe(hit)  # duplicate: must not register a second entry
+    try:
+        theme.set_theme("latte")
+        assert calls == ["hit"]
+    finally:
+        unsubscribe()  # single removal fully detaches the listener
+        theme.set_theme("mocha")
+
+
+def test_promptbar_message_escapes_markup_in_text() -> None:
+    """Message text containing brackets renders literally, not as markup."""
+    from yate.app import YateApp
+
+    async def _scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(80, 24)):
+            bar = app.editor.prompt_bar
+            bar.write("see [test].py", kind="info")
+            content = _message_content(bar)
+            assert "see [test].py" in content.plain
+            # the color tag itself must still be applied around the text
+            assert "#bac2de" in content.markup  # mocha fg_bright
+
+    try:
+        asyncio.run(_scenario())
+    finally:
+        theme.set_theme("mocha")
+
+
 def test_terminal_panel_follows_theme_change() -> None:
     """A theme switch repaints the terminal dock's header and view."""
     from yate.app import YateApp

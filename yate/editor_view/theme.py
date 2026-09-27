@@ -416,11 +416,15 @@ _listeners: list[Callable[[], None]] = []
 def subscribe(listener: Callable[[], None]) -> Callable[[], None]:
     """Register *listener* for theme changes; return its unsubscribe function.
 
-    The returned callable removes the listener again (idempotent: removing
-    an unknown listener is a no-op), so widgets can unsubscribe in their
-    ``on_unmount`` without coordination.
+    An equal listener (e.g. the same widget's bound method, should its
+    ``on_mount`` ever fire twice) is collapsed into one entry, so a single
+    ``unsubscribe`` call fully detaches it.  The returned callable removes
+    the listener again (idempotent: removing an unknown listener is a
+    no-op), so widgets can unsubscribe in their ``on_unmount`` without
+    coordination.
     """
-    _listeners.append(listener)
+    if listener not in _listeners:
+        _listeners.append(listener)
 
     def _unsubscribe() -> None:
         try:

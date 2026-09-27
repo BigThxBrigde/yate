@@ -181,8 +181,12 @@ flowchart LR
 | 10 | L0 终端不参与主题（§6 边界点 2） | — | 维持零参与；未来需要走构造注入 Callable | 按计划外推 |
 | 11 | 二轮 review 遗留①：TerminalPanel 不随主题切换（存量，旧 apply_theme 也未覆盖） | F | 三件套补齐，5 用例新测试含 TerminalPanel 两例 | 已闭合（Plan F） |
 | 12 | 二轮 review 遗留②：PromptBar 激活前缀色/消息色切主题滞留（存量瞬时态） | F | `prefix_spec` 单源默认 + `_render_message` 重渲染，owner 语义钉死 | 已闭合（Plan F） |
+| 13 | PR #29 AI 审查阻断项：`_render_message` 消息文本未转义拼 markup（存量同病） | F 跟进 | `rich.markup.escape()` 包裹插值 + 回归用例 | 已闭合（评审跟进） |
+| 14 | PR #29 AI 审查改进项：`subscribe` 不去重，重复订阅残留 stale 条目 | A 跟进 | append 前相等性折叠 + 回归用例 | 已闭合（评审跟进） |
+| 15 | PR #29 AI 审查性能项：`ExplorerTree._apply_theme` 全量 `refresh_tree()` | — | 审查自评当前频率可接受，登记挂起 | ⏸ 挂起（已知优化点） |
 
 **结论：除第 6 项（compare 门禁漏跑，已补齐并归因）外无遗漏；所有验收均实测通过。**
+PR #29 AI 审查（1 阻断 + 2 改进）处置详见 [review_ui_refine_20260927.md §七](../../issues/review_ui_refine_20260927.md)。
 
 ## 11. 提交记录
 
@@ -195,3 +199,4 @@ flowchart LR
 | `fec98ed` | Plan E：计划目录按 app-layering-plans 规格重组（README + Plan A–E 分册） |
 | （评审修复） | Plan B §B.6：补 `ExplorerTree.on_mount` / `EditorView.on_mount` 的 `super().on_mount()`（前者本轮引入、后者存量），修复 `ScrollView._refresh_scrollbars` 遮蔽；顺带清 `test_scrollbars.py` 重复 `asyncio` 导入 |
 | （Plan F） | Plan F：TerminalPanel 订阅三件套 + PromptBar `prefix_spec`/`_render_message` 动态色重渲染；`test_theme_subscribe.py` 扩 5 用例（9 passed）；pyright 0 诊断、pytest 全绿、smoke run 882/882 + compare 932/932 零漂移 |
+| （PR 审查跟进） | PR #29 AI 审查：阻断项 markup 转义（`escape()`）+ 改进项 subscribe 去重；新增 2 回归用例；review 文档 §七 登记 |

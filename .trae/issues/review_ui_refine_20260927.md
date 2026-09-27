@@ -70,3 +70,14 @@
 
 - 升级 Textual 依赖时，把 `tests/test_scrollbars.py` 列入必回归清单。
 - 若后续出现"单进程多 App"需求，T1 的 per-widget 注入方案需覆盖动态创建的 widget（pane 分屏、弹层）。
+
+## 七、PR #29 AI 审查登记（2026-09-27 21:03）
+
+> 来源：[PR #29 审查意见](https://gitee.com/jermaine/yate/pulls/29#note_51381416_conversation_190998058)（PR观察者 AI 队友）。
+> 总评：质量较高、架构方向正确；安全性 ✅ 通过；功能性与逻辑 ❌ 未通过（1 阻断）；性能 / 可维护性 ⚠️ 待优化（各 1 项）。风险等级 low。
+
+| # | 等级 | 位置 | 问题 | 处置 |
+|---|---|---|---|---|
+| 1 | **阻断** | `commandline.py::_render_message` | 消息文本（LSP 诊断、文件名、OS 错误）未转义直接拼 Rich markup，含 `[`/`]` 时被误解析为标签 → 渲染错乱 / MarkupError | **✅ 已修**：`rich.markup.escape(text)` 包裹后插值（存量 `_show_message` 同病，一并根治）；回归测试 `test_promptbar_message_escapes_markup_in_text` 钉死 |
+| 2 | 改进 | `theme.py::subscribe` | 不去重：同 listener 重复订阅（异常生命周期双 on_mount）残留 stale 条目 | **✅ 已修**：append 前按相等性折叠（bound method 语义下即同 widget 去重）；回归测试 `test_subscribe_collapses_duplicate_listeners` 钉死 |
+| 3 | 性能 | `explorer.py::_apply_theme` | 每次切主题全量 `refresh_tree()`，数千节点时可能卡顿 | **⏸ 挂起**：审查自评"当前频率下可接受"；登记为已知优化点，出现卡顿时再拆分着色与重建 |
