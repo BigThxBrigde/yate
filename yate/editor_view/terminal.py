@@ -418,7 +418,30 @@ class TerminalPanel(Vertical):
         yield self.header
         yield self.view
 
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
     def on_mount(self) -> None:
+        """Own the theme painting and register for theme-change updates."""
+        # Vertical's MRO has no public on_mount (Textual containers only
+        # implement the private _on_mount), so nothing is shadowed here.
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Paint the header and view backgrounds with the active theme.
+
+        The panel stays mounted for the whole session (hiding only flips
+        ``display``), so without the subscription a theme switch would leave
+        the dock in the old palette until the app restarts.
+        """
         t = theme.active()
         self.header.styles.background = t.panel
         self.header.styles.color = t.fg_dim

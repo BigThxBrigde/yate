@@ -97,6 +97,7 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 | C | [plan_C_widget_theme_selfhold.md](plan_C_widget_theme_selfhold.md) | **七组件自持主题**：订阅/退订 + `_apply_theme`；删 `Editor.apply_theme` / `update_sidebar_head`；L4 `watch_theme` | ✅ |
 | D | [plan_D_architecture_guards.md](plan_D_architecture_guards.md) | **架构守卫**：禁类级 patch、禁 editor.py 直改 widget styles | ✅ |
 | E | [plan_E_gate_docs.md](plan_E_gate_docs.md) | **门禁与文档**：全量门禁、smoke run/compare、基线归因、review 回填 | ✅ |
+| F | [plan_F_theme_gap_terminal_message.md](plan_F_theme_gap_terminal_message.md) | **遗留缺口收编**：TerminalPanel 订阅三件套 + PromptBar 动态色重渲染（存量旧账，非 A–E 引入） | ✅ |
 
 ### 依赖关系
 
@@ -178,6 +179,8 @@ flowchart LR
 | 8 | 实现细化两处（`@override`、`setattr`） | B/C | 已记录于对应 Plan 验收节 | 无遗漏 |
 | 9 | 风险表"分屏动态创建 view 错过广播" | C | `on_mount` 先自取主题兜底（F5 先例），探针含动态 view 路径 | 无遗漏 |
 | 10 | L0 终端不参与主题（§6 边界点 2） | — | 维持零参与；未来需要走构造注入 Callable | 按计划外推 |
+| 11 | 二轮 review 遗留①：TerminalPanel 不随主题切换（存量，旧 apply_theme 也未覆盖） | F | 三件套补齐，5 用例新测试含 TerminalPanel 两例 | 已闭合（Plan F） |
+| 12 | 二轮 review 遗留②：PromptBar 激活前缀色/消息色切主题滞留（存量瞬时态） | F | `prefix_spec` 单源默认 + `_render_message` 重渲染，owner 语义钉死 | 已闭合（Plan F） |
 
 **结论：除第 6 项（compare 门禁漏跑，已补齐并归因）外无遗漏；所有验收均实测通过。**
 
@@ -191,3 +194,4 @@ flowchart LR
 | `766b266` | Plan E：子计划拆分 + 2 处继承漂移基线重拍 |
 | `fec98ed` | Plan E：计划目录按 app-layering-plans 规格重组（README + Plan A–E 分册） |
 | （评审修复） | Plan B §B.6：补 `ExplorerTree.on_mount` / `EditorView.on_mount` 的 `super().on_mount()`（前者本轮引入、后者存量），修复 `ScrollView._refresh_scrollbars` 遮蔽；顺带清 `test_scrollbars.py` 重复 `asyncio` 导入 |
+| （Plan F） | Plan F：TerminalPanel 订阅三件套 + PromptBar `prefix_spec`/`_render_message` 动态色重渲染；`test_theme_subscribe.py` 扩 5 用例（9 passed）；pyright 0 诊断、pytest 全绿、smoke run 882/882 + compare 932/932 零漂移 |
