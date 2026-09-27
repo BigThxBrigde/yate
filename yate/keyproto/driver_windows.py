@@ -31,7 +31,6 @@ from typing import IO, cast, override
 
 from textual import constants
 from textual._xterm_parser import XTermParser
-from textual.app import App
 from textual.drivers import win32
 from textual.drivers._writer_thread import WriterThread
 from textual.drivers.windows_driver import WindowsDriver
@@ -109,11 +108,10 @@ class ChordEventMonitor(win32.EventMonitor):
     its character.  Any divergence in behaviour for non-chorded records
     would be a bug.  The replication is pinned against Textual **8.2.8** --
     when upgrading Textual, diff the stock ``run`` against this one first.
+    One deliberate deviation: the crash handler logs through yate's tracing
+    logger (with the traceback) instead of the stock ``self.app.log``
+    devtools channel, per yate's logging conventions.
     """
-
-    #: The stock parent stores this without an annotation; declare it so
-    #: pyright strict can type ``self.app.log`` below.
-    app: App[None]
 
     @override
     def run(self) -> None:
@@ -237,8 +235,8 @@ class ChordEventMonitor(win32.EventMonitor):
                 if new_size is not None:
                     self.on_size_change(*new_size)
 
-        except Exception as error:
-            self.app.log.error("EVENT MONITOR ERROR", error)
+        except Exception as error:  # noqa: BLE001 - keep the input thread alive
+            log.exception("EVENT MONITOR ERROR: %s", error)
 
 
 class YateWindowsDriver(WindowsDriver):

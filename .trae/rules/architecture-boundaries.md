@@ -52,6 +52,44 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   改 id 必须同步改 CSS。
 - **R10 — 一次按键只派发一次**：`EditorView.on_key` 处理后 `event.stop()` / `prevent_default()`，
   未被消费的键不得冒泡到外壳二次派发。
+- **R12 — 日志统一 tracing（2026-09-27）**：yate 内全部运行时日志一律走模块级
+  `log = tracing.get_logger(__name__)`（含无 App 上下文的驱动线程 / worker / 回调）；
+  **禁止**为访问 Textual devtools 日志（`app.log` / widget `self.log`）而
+  `import textual.app` 或为 `app` 属性补类型注解，业务代码不得直连 devtools 通道。
+  devtools 可视化由 L4 `YateApp` 统一桥接：`textual.logging.TextualHandler`
+  挂到 tracing 根 logger（回调模式；devtools 未连接或 tracing 未开启时零输出），
+  L0 不因日志引入 textual 依赖。
+
+  **devtools 桥接方案**（Textual 8.2.8 实证）：
+
+  ```mermaid
+  flowchart LR
+      A["业务模块 (L0-L3)<br/>log = tracing.get_logger(__name__)"] --> B["tracing 根 logger<br/>(stdlib logging, 'yate')"]
+      B -->|YATE_TRACE=1| C[trace 文件<br/>~/.yate/data/logs/]
+      B -->|"TextualHandler (L4 桥, tracing 闸门)"| D[devtools 控制台]
+      D -.->|devtools 未连接| E[静默丢弃]
+      C -.->|tracing 未设| E
+      style A fill:#bbdefb,color:#0d47a1
+      style B fill:#c8e6c9,color:#1a5e20
+      style D fill:#fff3e0,color:#e65100
+  ```
+
+  - **机制依据**：Textual 的 `App._logger = Logger(self._log, app=self)`——callable 写死为
+    devtools 写入器，**无回调/注入 API**；官方反向桥是 `textual.logging.TextualHandler`
+    （stdlib `logging.Handler`，`emit` 经 `active_app` 转发 devtools）。tracing 即 stdlib
+    logging，挂载即通；
+  - **挂载点唯一**：`YateApp.on_mount`（L4 生命周期）挂 `TextualHandler` 到 `yate` 根
+    logger，`on_unmount` **按身份**摘除本实例所挂的 handler（多 App 实例互不误摘；
+    重挂载前先摘旧实例防泄漏），handler 跟随 App 实例生命周期，不进程级残留，
+    `stderr=False, stdout=False`（无 devtools 时绝不污染 TTY）；
+  - **闸门语义（YATE_TRACE 单开关，2026-09-27 评审后收紧）**：挂到根 logger 的桥是
+    `_TracingGatedTextualHandler`——`emit` 先查 `tracing.is_enabled()`，**tracing 禁用
+    时 devtools 一并禁用**（未配置的 `yate` logger 有效级别继承 root 的 WARNING，
+    WARNING+ record 会到达每个 handler，闸门在 handler 层把它们全部挡下，devtools
+    通道零输出）；devtools 断连时 `TextualHandler.emit` 自查 `active_app` 后静默；
+  - **例外登记**：无。扫描实证全仓唯一历史违规（`driver_windows.py` 经 `self.app.log`）
+    已随 R12 落地清除（commit `003263e`）；
+  - **守卫**：§六「R12」条目（AST 取证，两个用例，负向演练通过）。
 
 ## 二、分层职责
 
@@ -62,7 +100,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 | 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`completion.py`、`prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
 | `editor_view/*`（L2） | 自己的渲染与行为（自持），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
 | `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
-| 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、配置、日志、路径、shell、workspace、字体） | 不 import 上层 |
+| 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、配置、日志、路径、shell、workspace、字体） | 不 import 上层 |
 
 ## 三、接口与代码形态设计
 
@@ -85,6 +123,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 | L0 需要 UI 能力 | 构造参数注入 `Callable`（N30 模式：`load_config(register_theme=..., load_theme_paths=...)`，由 L4 `cli.py` 传入 `editor_view.theme` 同名函数；缺省 `None` = headless） |
 | UI 事件 | Textual messages（`on_key` / `Input.Submitted` / `MouseDown` 等） |
 | 异步任务 | Textual `App.run_worker(...)`；调度层提供 `*_later` 便捷入口（`open_path_later` / `run_shell_command_later`）；防抖定时用 `asyncio.get_running_loop().call_later` |
+| 日志（含无 App 上下文的线程/worker/回调） | 模块级 `log = tracing.get_logger(__name__)`（R12）；devtools 可见性由 L4 `TextualHandler` 桥提供，业务代码不直连 `app.log` / `self.log` |
 | 插件注册 | `ActionRegistry` / `CommandRegistry` / `Keymap.add_binding`（经 `ExtensionContext` 暴露） |
 
 - **禁止**：全局 EventBus、字符串事件名、下层直接读写高层私有状态（`app._xxx`）。
@@ -108,11 +147,13 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - [ ] 新按键路径不会造成二次派发（R10）？
 - [ ] 按键分支只消费自己真正处理的键，未识别的键 fall-through 到后续分发，不无条件 `return True`
       （历史缺陷：补全弹窗曾吞掉全部按键，`Ctrl+S` / `Ctrl+Z` 失效）？
+- [ ] 日志走 tracing（R12）：没有 `self.log` / `self.app.log` 调用，没有为日志而
+      import `textual.app`？
 - [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q` 全绿？
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **13 个用例**（`python -m pytest tests/test_architecture.py -q` → 13 passed）：
+`tests/test_architecture.py` 已落地 **18 个用例**（`python -m pytest tests/test_architecture.py -q` → 18 passed）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -130,6 +171,11 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R7** 只有 `app.py` 导入内置表，且 `YateApp.__init__` 调用
   `populate(self.editor.actions, self.editor)` / `register_commands(self.editor.commands, self.editor)`；
 - **R6** 全仓无 `TYPE_CHECKING`；
+- **日志惰性格式**（`test_log_calls_use_lazy_percent_formatting`）：`log.*` 调用禁止 f-string
+  消息（AST 拦截，python-coding-style 4.6）；
+- **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
+  提及不误报）；UI-free L0（`keymaps/*` `services/*` `keyproto/*` `session.py`
+  `registries.py` `config.py` `logs.py`）不 import `textual.app`；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`
   （白名单：`PaneHost`；`*Manager` / `*Controller` 允许）。
 

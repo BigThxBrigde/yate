@@ -9,6 +9,7 @@ table modules import the editor, so the editor must not import them back).
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import override
@@ -16,6 +17,7 @@ from typing import override
 from textual.app import App, ComposeResult
 from textual.driver import Driver
 from textual.events import Key
+from textual.logging import TextualHandler
 
 from yate import __version__
 from yate.actions import populate
@@ -24,7 +26,7 @@ from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_view import theme
 from yate.keyproto.legacy import textual_key_to_raw
-from yate.logs import tracing
+from yate.logs import LOGGER_NAME, tracing
 
 # `textual_key_to_raw` lives in the L0 keyproto leaf (no import cycles) and
 # is re-exported here for convenience/tests.
@@ -33,11 +35,32 @@ __all__ = ["textual_key_to_raw", "YateApp"]
 log = tracing.get_logger(__name__)
 
 
+class _TracingGatedTextualHandler(TextualHandler):
+    """Devtools bridge that forwards records only while tracing is on (R12).
+
+    Tracing is the single switch for yate diagnostics: while it is off, no
+    record may reach the devtools console either.  The gate is needed at the
+    handler (not the logger) because the unconfigured ``yate`` logger
+    inherits the root logger's WARNING level -- WARNING+ records would flow
+    to every attached handler, devtools included.
+    """
+
+    @override
+    def emit(self, record: logging.LogRecord) -> None:
+        if not tracing.is_enabled():
+            return
+        super().emit(record)
+
+
 class YateApp(App[None]):
     """The yate Textual application: theme bridge, CSS, lifecycle, keys."""
 
     # ctrl+p is yate's own command prompt -- disable Textual's palette.
     ENABLE_COMMAND_PALETTE = False
+
+    #: R12 devtools bridge, mounted in :meth:`on_mount` and detached by
+    #: identity in :meth:`on_unmount`; ``None`` while not mounted.
+    _devtools_bridge: logging.Handler | None = None
 
     @override
     def get_driver_class(self) -> type[Driver]:
@@ -175,10 +198,30 @@ class YateApp(App[None]):
         yield from self.editor.compose()
 
     async def on_mount(self) -> None:
+        # R12: mirror tracing records into the Textual devtools console so
+        # no yate module ever needs the devtools channel (``app.log`` /
+        # widget ``self.log``) directly -- this bridge is the only sanctioned
+        # path.  Mounted here (not __init__) so the handler follows the app
+        # lifecycle, and detached by identity in on_unmount so concurrent
+        # app instances never strip each other's bridge.
+        yate_root = logging.getLogger(LOGGER_NAME)
+        if self._devtools_bridge is not None:
+            # Defensive: a remount without an unmount would otherwise leak
+            # the previous handler.
+            yate_root.removeHandler(self._devtools_bridge)
+        self._devtools_bridge = _TracingGatedTextualHandler(
+            stderr=False, stdout=False
+        )
+        yate_root.addHandler(self._devtools_bridge)
         log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
+        # Detach the R12 bridge by identity (see on_mount): removing only
+        # our own handler keeps a concurrently mounted app's bridge intact.
+        if self._devtools_bridge is not None:
+            logging.getLogger(LOGGER_NAME).removeHandler(self._devtools_bridge)
+            self._devtools_bridge = None
         log.debug("app unmount")
         await self.editor.on_unmount()
 
