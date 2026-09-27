@@ -225,15 +225,15 @@ class EditorView(ScrollView):
 
         Textual draws the scrollbar itself; without explicit styling it keeps
         the framework defaults which clash with the Catppuccin palette. The
-        colors are picked so the track nearly disappears and the thumb stays
-        legible but unobtrusive.
+        track melts into the editor background and the thumb is a faint
+        border-tinted sliver (issue IKINF3), brightening only on hover/drag.
         """
         t = theme.active()
         s = self.styles
-        s.scrollbar_background = t.border
+        s.scrollbar_background = t.bg
         s.scrollbar_background_hover = t.surface
-        s.scrollbar_color = t.fg_dim
-        s.scrollbar_color_hover = t.fg_muted
+        s.scrollbar_color = t.border
+        s.scrollbar_color_hover = t.fg_dim
         s.scrollbar_color_active = t.accent
 
     def _update_virtual_size(self) -> None:

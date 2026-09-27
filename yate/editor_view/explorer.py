@@ -39,6 +39,16 @@ class ExplorerTree(Tree[NodeData]):
     ICON_NODE = ""
     ICON_NODE_EXPANDED = ""
 
+    #: Flat indent rails (issue IKINF3): a bare "│" per level, dropping the
+    #: "├─"/"└─" branch terminators Textual renders by default so the tree
+    #: matches the reference look.  Every tuple stays 2 cells wide, so
+    #: replacing the terminators cannot shift the label column.
+    LINES: dict[str, tuple[str, str, str, str]] = {
+        "default": ("  ", "│ ", "  ", "  "),
+        "bold": ("  ", "┃ ", "  ", "  "),
+        "double": ("  ", "║ ", "  ", "  "),
+    }
+
     DEFAULT_CSS = """
     ExplorerTree {
         background: $surface;
@@ -47,6 +57,16 @@ class ExplorerTree(Tree[NodeData]):
 
         & > .tree--guides {
             color: $foreground 15%;
+        }
+        /* Calm the tree cursor down (issue IKINF3): the default maps to the
+         * bright accent cursor colors -- a translucent foreground tint reads
+         * as a quiet row highlight instead. */
+        & > .tree--cursor {
+            background: $foreground 6%;
+        }
+        &:focus > .tree--cursor {
+            color: $text;
+            background: $foreground 10%;
         }
     }
     """

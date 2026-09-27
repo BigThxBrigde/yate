@@ -1126,10 +1126,13 @@ class Editor:
             view.apply_scrollbar_theme()
             view.content_changed()
         tree = self.explorer_tree
-        tree.styles.scrollbar_background = t.border
+        # Slim-scrollbar palette (issue IKINF3): the track melts into the
+        # panel and the thumb is a faint border-tinted sliver, brightening
+        # only on hover / drag.
+        tree.styles.scrollbar_background = t.panel
         tree.styles.scrollbar_background_hover = t.surface
-        tree.styles.scrollbar_color = t.fg_dim
-        tree.styles.scrollbar_color_hover = t.fg_muted
+        tree.styles.scrollbar_color = t.border
+        tree.styles.scrollbar_color_hover = t.fg_dim
         tree.styles.scrollbar_color_active = t.accent
         tree.refresh_tree()
         self.status_bar.refresh_status()
