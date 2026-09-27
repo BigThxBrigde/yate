@@ -24,7 +24,7 @@ from yate.session import EditorSession
 
 from . import theme
 from .commandline import PromptBar
-from .icons import FILE_ICON_COLORS, extension_of, icon_for_path
+from .icons import icon_color, icon_for_path
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None
@@ -62,12 +62,13 @@ class ExplorerTree(Tree[NodeData]):
          * (issue IKINF3); long names stay reachable by scrolling. */
         scrollbar-size-horizontal: 1;
 
-        /* Constant, very faint guide color in every state (issue IKINF3):
+        /* Constant, ultra-faint gray guides in every state (issue IKINF3):
          * Tree's defaults brighten guides on hover and, worse, paint the
          * focused selection's rails with $block-cursor-background (the
          * mauve cursor color).  Pin every variant -- :focus / :light
          * out-specify the plain selectors, so they must be pinned
-         * explicitly. */
+         * explicitly.  Alpha of $foreground reads as a neutral gray and
+         * adapts to dark and light themes alike. */
         & > .tree--guides,
         & > .tree--guides-hover,
         & > .tree--guides-selected,
@@ -77,7 +78,7 @@ class ExplorerTree(Tree[NodeData]):
         &:light > .tree--guides,
         &:light > .tree--guides-hover,
         &:light > .tree--guides-selected {
-            color: $foreground 8%;
+            color: $foreground 5%;
         }
         /* Calm the tree cursor down (issue IKINF3): the default maps to the
          * bright accent cursor colors -- a translucent foreground tint reads
@@ -245,35 +246,12 @@ class ExplorerTree(Tree[NodeData]):
                     child.expand()
 
     @staticmethod
-    def _icon_color(name: str, is_dir: bool) -> str:
-        """Resolve the icon tint for a tree entry from the active theme.
-
-        Directories share the accent; file icons get a per-type color
-        (VS Code-like) and unknown types stay on the muted foreground.
-        """
-        t = theme.active()
-        if is_dir:
-            return t.accent
-        role = FILE_ICON_COLORS.get(extension_of(name), "fg_dim")
-        colors: dict[str, str] = {
-            "accent": t.accent,
-            "accent2": t.accent2,
-            "green": t.green,
-            "yellow": t.yellow,
-            "red": t.red,
-            "orange": t.orange,
-            "fg_dim": t.fg_dim,
-        }
-        return colors.get(role, t.fg_dim)
-
-    @staticmethod
     def _label(path: Path, is_dir: bool, expanded: bool) -> Text:
         t = theme.active()
         name = path.name or str(path)
         icon = icon_for_path(name, is_dir, expanded)
-        icon_color = ExplorerTree._icon_color(name, is_dir)
         text = Text()
-        text.append(icon + " ", style=icon_color)
+        text.append(icon + " ", style=icon_color(name, is_dir, t.accent))
         text.append(name, style=t.accent if is_dir else t.fg)
         return text
 

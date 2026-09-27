@@ -90,53 +90,87 @@ def icon_for_path(name: str, is_dir: bool, expanded: bool = False) -> str:
     return FILE_ICONS.get(suffix, FILE_TEXT)
 
 
-#: extension -> :class:`yate.editor_view.theme.Theme` color role, giving tree
-#: file icons a VS Code-like per-type tint (issue IKINF3).  Roles are the
-#: theme's color attribute names; ``fg_dim`` is the neutral fallback.
+#: VS Code "Seti" file-icon palette (VS Code's default icon theme): fixed
+#: hex colors that intentionally do NOT follow the active yate theme, so the
+#: tree reads exactly like VS Code on every color scheme (issue IKINF3).
+SETI_COLORS: dict[str, str] = {
+    "blue": "#519aba",
+    "yellow": "#cbcb41",
+    "green": "#8dc149",
+    "orange": "#e37933",
+    "purple": "#a074c4",
+    "red": "#cc3e44",
+    "pink": "#f55385",
+    "grey": "#6d8086",
+}
+
+#: Color for file types without a dedicated mapping (plain text, unknown).
+ICON_COLOR_FALLBACK = SETI_COLORS["grey"]
+
+#: extension -> :data:`SETI_COLORS` key, following VS Code Seti semantics.
 FILE_ICON_COLORS: dict[str, str] = {
-    "py": "yellow",
-    "pyw": "yellow",
+    "py": "blue",
+    "pyw": "blue",
     "js": "yellow",
-    "jsx": "yellow",
-    "ts": "accent",
-    "tsx": "accent",
-    "json": "orange",
-    "toml": "orange",
-    "yaml": "orange",
-    "yml": "orange",
-    "xml": "orange",
-    "sql": "orange",
+    "jsx": "blue",
+    "mjs": "yellow",
+    "cjs": "yellow",
+    "ts": "blue",
+    "tsx": "blue",
+    "json": "yellow",
+    "jsonc": "yellow",
     "html": "orange",
     "htm": "orange",
-    "css": "accent",
-    "scss": "accent",
-    "md": "accent",
-    "rst": "accent",
+    "xml": "orange",
+    "css": "blue",
+    "scss": "pink",
+    "sass": "pink",
+    "less": "blue",
+    "md": "blue",
+    "rst": "blue",
+    "toml": "purple",
+    "yaml": "purple",
+    "yml": "purple",
     "sh": "green",
     "bash": "green",
     "zsh": "green",
     "ps1": "green",
     "csv": "green",
     "vim": "green",
-    "bat": "fg_dim",
-    "cmd": "fg_dim",
-    "txt": "fg_dim",
-    "log": "fg_dim",
-    "lock": "fg_dim",
-    "c": "accent2",
-    "h": "accent2",
-    "cpp": "accent2",
-    "hpp": "accent2",
-    "cc": "accent2",
-    "php": "accent2",
-    "lua": "accent2",
+    "sql": "orange",
+    "c": "blue",
+    "h": "blue",
+    "cpp": "purple",
+    "hpp": "purple",
+    "cc": "purple",
+    "cs": "blue",
+    "go": "blue",
     "rs": "orange",
-    "go": "accent",
     "java": "red",
     "rb": "red",
+    "php": "purple",
+    "lua": "purple",
     "git": "orange",
-    "dockerfile": "accent",
+    "dockerfile": "blue",
+    # neutral grey: plain text and machine files
+    "txt": "grey",
+    "log": "grey",
+    "lock": "grey",
+    "bat": "grey",
+    "cmd": "grey",
 }
+
+
+def icon_color(name: str, is_dir: bool, dir_color: str) -> str:
+    """Return the icon color for a tree entry.
+
+    Directories take *dir_color* (the active theme accent); file icons use
+    the fixed Seti palette keyed by extension and fall back to grey.
+    """
+    if is_dir:
+        return dir_color
+    key = FILE_ICON_COLORS.get(extension_of(name))
+    return SETI_COLORS[key] if key is not None else ICON_COLOR_FALLBACK
 
 
 def extension_of(name: str) -> str:
