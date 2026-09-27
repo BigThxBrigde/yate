@@ -354,9 +354,24 @@ def test_log_calls_use_lazy_percent_formatting() -> None:
         assert lines == [], (path, lines)
 
 
+#: Per-session AST cache keyed by (path, mtime): several guards re-scan
+#: overlapping file sets, so each file is parsed (and read) once.
+_PARSE_CACHE: dict[tuple[Path, float], ast.Module] = {}
+
+
+def _parsed_tree(path: Path) -> ast.Module:
+    """Parse *path* once per (path, mtime) for the whole test session."""
+    key = (path, path.stat().st_mtime)
+    tree = _PARSE_CACHE.get(key)
+    if tree is None:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        _PARSE_CACHE[key] = tree
+    return tree
+
+
 def _module_imports(path: Path) -> set[str]:
     """Every module *path* imports (stdlib, third-party, project)."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = _parsed_tree(path)
     out: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
@@ -372,7 +387,7 @@ def _devtools_log_accesses(path: Path) -> list[str]:
     AST-based so a docstring or comment that merely mentions the devtools
     channel does not false-positive.
     """
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = _parsed_tree(path)
     out: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Attribute) or node.attr != "log":
@@ -412,6 +427,7 @@ def test_ui_free_layers_do_not_import_textual_app() -> None:
         )
     targets.extend(YATE / name for name in (*UI_FREE_FILES, "logs.py"))
     for path in targets:
+        assert path.exists(), f"stale UI-free guard target: {path}"
         assert "textual.app" not in _module_imports(path), path
 
 

@@ -153,7 +153,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **16 个用例**（`python -m pytest tests/test_architecture.py -q` → 16 passed）：
+`tests/test_architecture.py` 已落地 **18 个用例**（`python -m pytest tests/test_architecture.py -q` → 18 passed）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
