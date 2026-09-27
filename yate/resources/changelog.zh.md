@@ -6,6 +6,9 @@
 
 ### 新功能
 
+- 屏保改为小游行队：最新角色走到全程 25%–50%（随机）时产生后继，后继
+  与所有在跑精灵名字互异、行带不相交，行满则不产生；走者按当前终端
+  宽度走满全程后从右缘离场 ([`5353c9b`](https://gitee.com/jermaine/yate/commit/5353c9b575f2945161f6d510cce0771103ec014f))
 - 新增全终端空闲屏保：`Alt+Shift+S` 手动开关 + 空闲自动触发，27 只角色
   shuffle 轮播（半格块像素画） ([`6766bed`](https://gitee.com/jermaine/yate/commit/6766bed55e0766c01088cb6cab929107a052db4c))
   - 灵感来自 Joel Yliluoma 的 "that_editor"（https://github.com/bisqwit/that_editor）；

@@ -439,3 +439,25 @@ flowchart LR
 27 只与 §4.4 一致（FC 经典 + 《神奇数字马戏团》五人组 + 原创，全角色
 ≥2 帧）；jax 造型按反馈增高一档；帧数不足的旧角色（樱桃/心等）已按
 v6.1 复核替换。终态预览：`python -m tools.pack rosters` → `roster.svg`。
+
+### 二轮迭代（2026-09-28，反馈修复，提交 `5353c9b`）
+
+用户验收三点反馈，全部落地并改写 §4.2/§4.5 的单精灵模型为游行队：
+
+1. **scrollbar 闪现**：Textual `Screen` 默认 `overflow-y: auto`，首帧
+   布局未稳时瞬时超高出现滚动条；屏保 Screen 与画布改为
+   `overflow: hidden` + `width/height: 1fr` 根除。
+2. **单精灵单调 → 游行队**：`Walker` dataclass 列表——
+   最新走者走到全程 25%–50%（随机）路程点时产生一次后继；后继名字
+   必须不同于所有在跑者（洗牌袋剔除在跑名），行带与所有在跑者不相交；
+   行满不产生；全场走空立即补一只。`switch` 语义改为"两次产生的最小
+   间隔秒数"（默认 0），调大可放慢节奏。
+3. **步宽固定 → 跟随终端**：原 `switch` 秒定时先于走完触发（≈固定
+   100 列截断）；改为走者仅按"当前终端宽度 + 精灵宽"从右缘离场，
+   缩放窗口步宽自动跟随。
+
+配套：`shuffle_order` 修存量死循环（单名白名单 + avoid 撞名）；
+测试 +5（名字/行带互异、25–50% 界、switch 下限、单名 ≤1 只、满行不
+产生），`test_screensaver.py` 改用公开面（`Walker` / `walkers` /
+`advance_tick`）满足 pyright reportPrivateUsage。门禁：pyright 0 诊断、
+1331 passed / 7 skipped、架构守卫 20 passed。

@@ -7,6 +7,7 @@
 
 ### Features
 
+- rework the screensaver into a small parade: successors spawn at 25-50% of the newest walker's journey with names distinct from and row bands disjoint to every active sprite, and walkers exit through the current terminal width ([`5353c9b`](https://gitee.com/jermaine/yate/commit/5353c9b575f2945161f6d510cce0771103ec014f))
 - add a full-terminal idle screensaver: Alt+Shift+S toggle plus an idle trigger, with a 27-character shuffle roster of half-block pixel art ([`6766bed`](https://gitee.com/jermaine/yate/commit/6766bed55e0766c01088cb6cab929107a052db4c))
   - inspired by Joel Yliluoma's "that_editor" (https://github.com/bisqwit/that_editor); all sprites are original homage approximations drawn for yate, no game assets
 - add the `screen_saver` yaterc dict option (enable / interval / switch / characters) ([`5937ce4`](https://gitee.com/jermaine/yate/commit/5937ce43630f4aabcf9b839d04ae4b9f93459dcb))
