@@ -19,6 +19,12 @@ theme-directory loading) allow custom themes::
             "root_markers": ["Cargo.toml", ".git"],
         },
     ]
+    screen_saver = {                                 # idle screensaver mode
+        "enable": True,        # master switch (False also disables Alt+Shift+S)
+        "interval": 120,       # idle seconds before it starts (0 = manual only)
+        "switch": 10,          # seconds one character stays on screen
+        "characters": [],      # name whitelist; [] = the whole roster
+    }
 
 Load order (later wins, like ``~/.vimrc`` followed by ``./.vimrc``):
 
@@ -87,6 +93,24 @@ class LanguageServerSpec:
     root_markers: list[str] | None = None
 
 
+@dataclass(frozen=True)
+class ScreenSaverConfig:
+    """Resolved ``screen_saver`` dict option (idle screensaver settings).
+
+    ``interval`` of ``0`` disables the automatic idle trigger (the manual
+    :kbd:`Alt+Shift+S` toggle still works while ``enable`` is true).
+    ``characters`` is a name whitelist -- empty means the whole roster;
+    name membership is validated where the roster lives
+    (:func:`yate.editor_sprites.characters.character_names`), keeping this
+    module free of sprite-pack knowledge.
+    """
+
+    enable: bool = True
+    interval: int = 120
+    switch: int = 10
+    characters: tuple[str, ...] = ()
+
+
 @dataclass
 class YateConfig:
     """Resolved editor options plus observability metadata.
@@ -133,6 +157,8 @@ class YateConfig:
     language_servers: list[LanguageServerSpec] = field(
         default_factory=list[LanguageServerSpec]
     )
+    #: Idle screensaver settings (the ``screen_saver`` dict option).
+    screen_saver: ScreenSaverConfig = field(default_factory=ScreenSaverConfig)
     sources: list[Path] = field(default_factory=list[Path])
     errors: list[str] = field(default_factory=list[str])
 
@@ -362,6 +388,84 @@ def _extract_theme_dirs(
             config.theme_dirs.append(resolved)
 
 
+def _extract_screen_saver(
+    namespace: dict[str, Any], config: YateConfig
+) -> None:
+    """Pull the ``screen_saver`` dict option out of one rc file.
+
+    Recognized keys: ``enable`` (bool), ``interval`` (integer 0-3600, the
+    idle seconds before an automatic start; ``0`` disables it), ``switch``
+    (integer 0-3600, seconds one character stays on screen) and
+    ``characters`` (a list of roster names; empty means all).  Missing
+    keys keep their defaults; an unknown key or a wrong-typed value is
+    reported individually and that key keeps its default while the rest
+    still apply.  A later valid declaration replaces the previous one
+    whole (same semantics as ``language_servers``).
+    """
+    raw = namespace.get("screen_saver")
+    if raw is None:
+        return
+    if not isinstance(raw, dict):
+        config.errors.append(f"screen_saver must be a dict, got {raw!r}")
+        return
+    values = cast(dict[str, Any], raw)
+    known = ("enable", "interval", "switch", "characters")
+    unknown = sorted(key for key in values if key not in known)
+    if unknown:
+        config.errors.append(f"screen_saver has unknown keys: {unknown}")
+
+    enable: bool = True
+    if "enable" in values:
+        value = values["enable"]
+        if isinstance(value, bool):
+            enable = value
+        else:
+            config.errors.append(
+                f"screen_saver enable must be True or False, got {value!r}"
+            )
+
+    interval: int = 120
+    if "interval" in values:
+        value = values["interval"]
+        # bool is a subclass of int -- reject it explicitly for this option.
+        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 3600:
+            interval = value
+        else:
+            config.errors.append(
+                f"screen_saver interval must be an integer between 0 and "
+                f"3600, got {value!r}"
+            )
+
+    switch: int = 10
+    if "switch" in values:
+        value = values["switch"]
+        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 3600:
+            switch = value
+        else:
+            config.errors.append(
+                f"screen_saver switch must be an integer between 0 and "
+                f"3600, got {value!r}"
+            )
+
+    names: tuple[str, ...] = ()
+    if "characters" in values:
+        value = values["characters"]
+        valid = isinstance(value, (list, tuple)) and all(
+            isinstance(entry, str) for entry in cast(Sequence[Any], value)
+        )
+        if valid:
+            names = tuple(dict.fromkeys(cast(Sequence[str], value)))
+        else:
+            config.errors.append(
+                f"screen_saver characters must be a list of character "
+                f"names, got {value!r}"
+            )
+
+    config.screen_saver = ScreenSaverConfig(
+        enable=enable, interval=interval, switch=switch, characters=names
+    )
+
+
 def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
     """Pull recognized option variables out of the exec'd namespace."""
     options = {name: namespace[name] for name in _KNOWN_OPTIONS if name in namespace}
@@ -465,6 +569,7 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
             )
 
     _extract_language_servers(namespace, config)
+    _extract_screen_saver(namespace, config)
 
 
 def _extract_language_servers(namespace: dict[str, Any], config: YateConfig) -> None:

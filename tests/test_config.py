@@ -823,6 +823,97 @@ def test_theme_files_use_injected_register_helper(
     assert themes.set_theme("inj_theme").name == "inj_theme"
 
 
+# --- screen_saver option ----------------------------------------------------
+
+
+def test_screen_saver_defaults() -> None:
+    config = cfg.YateConfig()
+    assert config.screen_saver.enable is True
+    assert config.screen_saver.interval == 120
+    assert config.screen_saver.switch == 10
+    assert config.screen_saver.characters == ()
+
+
+def test_screen_saver_absent_keeps_defaults(tmp_path: Path) -> None:
+    config = _load('tab_width = 2\n', tmp_path)
+    assert config.errors == []
+    assert config.screen_saver == cfg.ScreenSaverConfig()
+
+
+def test_screen_saver_full_valid_dict(tmp_path: Path) -> None:
+    config = _load(
+        'screen_saver = {\n'
+        '    "enable": True,\n'
+        '    "interval": 60,\n'
+        '    "switch": 5,\n'
+        '    "characters": ["mario", "pacman", "mario"],\n'
+        "}\n",
+        tmp_path,
+    )
+    assert config.errors == []
+    assert config.screen_saver.enable is True
+    assert config.screen_saver.interval == 60
+    assert config.screen_saver.switch == 5
+    # entries keep order, duplicates collapse
+    assert config.screen_saver.characters == ("mario", "pacman")
+
+
+def test_screen_saver_partial_dict_keeps_defaults(tmp_path: Path) -> None:
+    config = _load('screen_saver = {"interval": 30}\n', tmp_path)
+    assert config.errors == []
+    assert config.screen_saver.interval == 30
+    assert config.screen_saver.enable is True
+    assert config.screen_saver.switch == 10
+    assert config.screen_saver.characters == ()
+
+
+def test_screen_saver_unknown_keys_reported(tmp_path: Path) -> None:
+    config = _load(
+        'screen_saver = {"interval": 30, "speed": 5}\n', tmp_path
+    )
+    assert config.screen_saver.interval == 30
+    assert any("speed" in e for e in config.errors)
+
+
+def test_screen_saver_bad_value_types_reported(tmp_path: Path) -> None:
+    cases = {
+        '"interval": "x"': "interval",
+        '"enable": 1': "enable",
+        '"switch": True': "switch",
+        '"characters": "mario"': "characters",
+        '"interval": -1': "interval",
+        '"switch": 3601': "switch",
+    }
+    for body, key in cases.items():
+        config = _load(f"screen_saver = {{{body}}}\n", tmp_path)
+        assert config.errors, body
+        assert any(f"screen_saver {key}" in e for e in config.errors), \
+            (body, config.errors)
+        # the failing key keeps its default
+        assert config.screen_saver == cfg.ScreenSaverConfig(), body
+
+
+def test_screen_saver_not_a_dict_reported(tmp_path: Path) -> None:
+    config = _load("screen_saver = True\n", tmp_path)
+    assert config.screen_saver == cfg.ScreenSaverConfig()
+    assert any("screen_saver" in e for e in config.errors)
+
+
+def test_screen_saver_later_rc_replaces_whole(tmp_path: Path) -> None:
+    user_rc = _write(
+        tmp_path / "user", 'screen_saver = {"interval": 30}\n'
+    )
+    project_rc = _write(
+        tmp_path / "project",
+        'screen_saver = {"enable": False, "switch": 7}\n',
+    )
+    config = cfg.load_config([user_rc, project_rc])
+    assert config.errors == []
+    assert config.screen_saver.enable is False
+    assert config.screen_saver.interval == 120  # back to the default
+    assert config.screen_saver.switch == 7
+
+
 # --- shipped example --------------------------------------------------------
 
 
