@@ -31,10 +31,13 @@ from collections.abc import Callable
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import Pos, TextBuffer
+from yate.logs import tracing
 from yate.services.workspace import Workspace
 
 #: Called with the documents a close operation removed (LSP didClose hook).
 ClosedHook = Callable[[list[Document]], None]
+
+log = tracing.get_logger(__name__)
 
 
 class EditorSession:
@@ -110,6 +113,7 @@ class EditorSession:
         self.apply_buffer_options(doc.buffer)
         self.docs.append(doc)
         self.activate(doc)
+        log.debug("session open: %s (%d docs)", path, len(self.docs))
         return doc
 
     async def open_async(self, path: Path) -> Document | None:
@@ -132,6 +136,7 @@ class EditorSession:
         self.apply_buffer_options(doc.buffer)
         self.docs.append(doc)
         self.activate(doc)
+        log.debug("session open (async): %s (%d docs)", path, len(self.docs))
         return doc
 
     def new_buffer(self) -> Document:
@@ -139,6 +144,7 @@ class EditorSession:
         doc = Document(None, self.make_buffer())
         self.docs.append(doc)
         self.activate(doc)
+        log.debug("session new buffer (%d docs)", len(self.docs))
         return doc
 
     def reset_search(self) -> None:
@@ -163,6 +169,7 @@ class EditorSession:
         """
         closed = self.doc
         self.docs.pop(self.index)
+        log.debug("session close: %s (%d docs left)", closed.path, len(self.docs))
         if self.docs:
             fallback = self.docs[min(self.index, len(self.docs) - 1)]
         else:
@@ -185,6 +192,7 @@ class EditorSession:
         if not self.docs:
             self.docs.append(Document(None, self.make_buffer()))
         self.index = max(0, min(self.index, len(self.docs) - 1))
+        log.debug("session close under %s: %d doc(s)", path, len(closed))
         self._notify_closed(closed)
         return closed
 
@@ -195,6 +203,8 @@ class EditorSession:
             if doc.path is not None and doc.path.resolve() == old.resolve():
                 doc.path = new
                 moved.append(doc)
+        if moved:
+            log.debug("session retarget: %s -> %s (%d doc(s))", old, new, len(moved))
         return moved
 
     def _notify_closed(self, closed: list[Document]) -> None:

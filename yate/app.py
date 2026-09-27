@@ -9,11 +9,13 @@ table modules import the editor, so the editor must not import them back).
 
 from __future__ import annotations
 
+import sys
 from importlib.resources import files
 from pathlib import Path
 from typing import override
 
 from textual.app import App, ComposeResult
+from textual.driver import Driver
 from textual.events import Key
 
 from yate import __version__
@@ -22,11 +24,14 @@ from yate.commands import register_commands
 from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_view import theme
-from yate.editor_view.keys import textual_key_to_raw
+from yate.keyproto.legacy import textual_key_to_raw
+from yate.logs import tracing
 
-# `textual_key_to_raw` lives in yate.editor_view.keys to avoid import cycles
-# and is re-exported here for convenience/tests.
+# `textual_key_to_raw` lives in the L0 keyproto leaf (no import cycles) and
+# is re-exported here for convenience/tests.
 __all__ = ["textual_key_to_raw", "YateApp"]
+
+log = tracing.get_logger(__name__)
 
 
 def _load_app_css() -> str:
@@ -54,6 +59,24 @@ class YateApp(App[None]):
     # ctrl+p is yate's own command prompt -- disable Textual's palette.
     ENABLE_COMMAND_PALETTE = False
 
+    @override
+    def get_driver_class(self) -> type[Driver]:
+        """Pick the chord-aware driver on Windows unless yaterc opts out.
+
+        The stock Windows driver reduces every key record to its character,
+        losing the virtual key and modifier state -- ctrl+digit never arrives
+        and ctrl+`/ctrl+space collapse into one NUL byte.  The chord driver
+        synthesizes canonical key names from the console records instead
+        (headless/pilot runs are unaffected: they request HeadlessDriver
+        explicitly).  ``key_protocol = "legacy"`` in yaterc restores the
+        stock driver; non-Windows platforms keep Textual's platform default.
+        """
+        if sys.platform == "win32" and self.config.key_protocol != "legacy":
+            from yate.keyproto.driver_windows import YateWindowsDriver
+
+            return YateWindowsDriver
+        return super().get_driver_class()
+
     CSS = _load_app_css()
 
     def __init__(
@@ -67,16 +90,20 @@ class YateApp(App[None]):
         ext_files: list[str | Path] | None = None,
         ext_dirs: list[str | Path] | None = None,
     ) -> None:
+        # self.config must exist before super().__init__(): App.__init__
+        # resolves the driver class, which consults config.key_protocol.
+        self.config = config if config is not None else YateConfig()
         super().__init__()
         self.title = f"yate {__version__}"
 
-        self.config = config if config is not None else YateConfig()
         # The color theme is process-global state (like vim's colorscheme).
         # An explicit selection (--theme) wins over the yaterc option.
         wanted_theme = theme_name if theme_name is not None else self.config.theme
         try:
             theme.set_theme(wanted_theme)
+            log.debug("theme set: %s", wanted_theme)
         except KeyError:
+            log.warning("unknown theme: %s", wanted_theme)
             self.config.errors.append(f"unknown theme: {wanted_theme!r}")
         # Bridge every yate theme into a Textual theme (``yate-<name>``) so
         # the app's design tokens always match the active yate palette and
@@ -96,6 +123,10 @@ class YateApp(App[None]):
         # (the reactive validator would raise InvalidThemeError otherwise).
         wanted_textual = theme.textual_theme_name(theme.active().name)
         if self.get_theme(wanted_textual) is None:
+            log.warning(
+                "theme '%s' has no usable bridge; falling back to mocha",
+                theme.active().name,
+            )
             self.config.errors.append(
                 f"theme '{theme.active().name}' has no usable bridge; "
                 f"falling back to mocha"
@@ -124,13 +155,16 @@ class YateApp(App[None]):
         yield from self.editor.compose()
 
     async def on_mount(self) -> None:
+        log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
+        log.debug("app unmount")
         await self.editor.on_unmount()
 
     def on_key(self, event: Key) -> None:
         """Fallback routing: keys not consumed by a focused widget."""
+        log.debug("key fallback: %s", event.key)
         if self.editor.handle_key(event):
             event.stop()
             event.prevent_default()
@@ -159,4 +193,5 @@ class YateApp(App[None]):
         and extensions) instead of calling :meth:`Editor.quit` directly, so
         the registry entry is not dead weight and stays observable.
         """
+        log.debug("quit via registry")
         self.editor.execute_action("quit")

@@ -29,6 +29,8 @@ These tests enforce the boundaries documented in
   ``session.py`` owns ``Leaf`` / ``Split`` / ``ViewState`` and the tree
   operations, ``editor_view`` imports them and never re-exports them, and
   ``editor_view/pane_types.py`` stays deleted.
+* **Logging** ``log.*`` calls use lazy ``%`` formatting, never f-strings
+  (coding-style 4.6): arguments must not be evaluated while the level is off.
 
 * **R7** the shell loads the built-in tables: ``YateApp.__init__`` calls
   ``populate(editor.actions, editor)`` / ``register_commands(editor.commands,
@@ -68,8 +70,9 @@ ALLOWED_PROTOCOLS = {
 #: Pure logic packages / modules that must run without any widget (R4).
 #: ``config.py`` joined in N30: it used to lazily import editor_view.theme
 #: inside ``load_config`` (the only L0->L2 edge; theme support is now
-#: injected as callbacks by the L4 caller).
-UI_FREE_PACKAGES = ("keymaps", "services")
+#: injected as callbacks by the L4 caller).  ``keyproto`` joined with the
+#: Windows chord driver: a pure L0 leaf that must never reach editor_view.
+UI_FREE_PACKAGES = ("keymaps", "services", "keyproto")
 UI_FREE_FILES = ("session.py", "registries.py", "config.py")
 
 #: L3 collaborator modules that do drive a few widget types by design: they
@@ -234,8 +237,9 @@ def test_app_features_package_is_gone() -> None:
 
 
 def test_keymaps_services_and_models_stay_ui_free() -> None:
-    """``keymaps`` / ``services`` / ``session.py`` / ``registries.py`` run
-    without a mounted app: they must not import ``editor_view`` (R4)."""
+    """``keymaps`` / ``services`` / ``keyproto`` / ``session.py`` /
+    ``registries.py`` / ``config.py`` run without a mounted app: they must
+    not import ``editor_view`` (R4)."""
     targets: list[Path] = []
     for package in UI_FREE_PACKAGES:
         targets.extend(
@@ -310,3 +314,33 @@ def test_pane_model_lives_in_l1_session() -> None:
     assert not (YATE / "editor_view" / "pane_types.py").exists()
     panes = (YATE / "editor_view" / "panes.py").read_text(encoding="utf-8")
     assert "backward compatibility" not in panes
+
+
+#: ``logging`` levels whose message must use lazy ``%`` placeholders.
+LOG_LEVEL_METHODS = {"debug", "info", "warning", "error", "exception", "critical"}
+
+
+def _fstring_log_calls(path: Path) -> list[int]:
+    """Line numbers of ``log.<level>(f"...")`` calls in *path* (style 4.6)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    out: list[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr in LOG_LEVEL_METHODS):
+            continue
+        if not (isinstance(func.value, ast.Name) and func.value.id == "log"):
+            continue
+        if node.args and isinstance(node.args[0], ast.JoinedStr):
+            out.append(node.lineno)
+    return out
+
+
+def test_log_calls_use_lazy_percent_formatting() -> None:
+    """``log.*`` calls never format the message with an f-string: a lazy
+    ``%`` placeholder keeps argument evaluation off while the trace level
+    filters the record (python-coding-style 4.6)."""
+    for path in _yate_files():
+        lines = _fstring_log_calls(path)
+        assert lines == [], (path, lines)

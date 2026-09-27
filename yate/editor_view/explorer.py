@@ -19,6 +19,7 @@ from textual.events import Key
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
+from yate.logs import tracing
 from yate.services.workspace import IGNORED_NAMES, Workspace
 from yate.session import EditorSession
 
@@ -28,6 +29,8 @@ from .icons import icon_for_path
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None
+
+log = tracing.get_logger(__name__)
 
 
 class ExplorerTree(Tree[NodeData]):
@@ -228,6 +231,7 @@ class ExplorerTree(Tree[NodeData]):
         if path.is_dir():
             event.node.toggle()
             return
+        log.debug("explorer open: %s", path)
         self.open_path(path)
         self.focus_editor()
 
