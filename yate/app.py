@@ -9,6 +9,7 @@ table modules import the editor, so the editor must not import them back).
 
 from __future__ import annotations
 
+from importlib.resources import files
 from pathlib import Path
 from typing import override
 
@@ -28,53 +29,34 @@ from yate.editor_view.keys import textual_key_to_raw
 __all__ = ["textual_key_to_raw", "YateApp"]
 
 
+def _load_app_css() -> str:
+    """Read the app-level stylesheet packaged at ``yate/resources/app.tcss``.
+
+    The shell's CSS is a bundled resource rather than an inline literal so it
+    gets editor syntax highlighting and ships through the same packaging
+    channels as every other file under ``yate/resources`` (hatchling wheel and
+    both PyInstaller specs already collect that directory whole).  A missing
+    resource means a broken installation: fail fast at import time with an
+    actionable message instead of a confusing stylesheet error later.
+    """
+    try:
+        return files("yate.resources").joinpath("app.tcss").read_text(
+            encoding="utf-8"
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            "bundled resource yate/resources/app.tcss is missing; "
+            "the yate installation is broken"
+        ) from exc
+
+
 class YateApp(App[None]):
     """The yate Textual application: theme bridge, CSS, lifecycle, keys."""
 
     # ctrl+p is yate's own command prompt -- disable Textual's palette.
     ENABLE_COMMAND_PALETTE = False
 
-    CSS = """
-    #bottom-dock {
-        dock: bottom;
-        height: auto;
-    }
-    #bottom {
-        height: 2;
-    }
-    #terminal-dock {
-        height: 12;
-        display: none;
-    }
-    #body {
-        height: 1fr;
-    }
-    #sidebar {
-        width: 34;
-        min-width: 16;
-        height: 1fr;
-    }
-    #sidebar-head {
-        height: 1;
-        padding: 0;
-    }
-    #explorer {
-        height: 1fr;
-    }
-    #editor-col {
-        width: 1fr;
-        height: 1fr;
-        layers: default lsp-popup;
-    }
-    #tabbar {
-        height: 1;
-        padding: 0;
-    }
-    #breadcrumbs {
-        height: 1;
-        padding: 0;
-    }
-    """
+    CSS = _load_app_css()
 
     def __init__(
         self,
