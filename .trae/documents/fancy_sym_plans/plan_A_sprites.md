@@ -1,5 +1,6 @@
 # plan_A：L0 精灵包（渲染 + 注册表 + 27 只角色位图）
 
+- **状态：已完成（2026-09-27，提交 `cb94b48`）**
 - 上级：[README](README.md) / 主方案 §2.3 §4.4
 - 工作量：**大**（位图绘制为主）｜依赖：无
 - 产物：`yate/editor_sprites/` 包 + `tests/test_editor_sprites.py`

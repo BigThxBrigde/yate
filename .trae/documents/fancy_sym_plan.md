@@ -2,8 +2,8 @@
 
 - 分支：`feat/fancy-sym`（独立 worktree；2026-09-27 master 合并后基线 =
   `19a5c1c`，master 领先 3 提交（R13 规则 / v0.2.6 发布），无代码冲突）
-- 状态：**待批准**（v6.1：master 合并后复核修订——R13 组件自持主题、
-  架构测试 18→20、app.py 空闲接线改 `on_event` 截获；详见 §0 复核记录）
+- 状态：**已实施**（2026-09-27，v6.1 复核后按子计划顺序落地；
+  实测门禁与偏离记录见 §八）
 - **实施计划已拆分为子计划**：[fancy_sym_plans/](fancy_sym_plans/README.md)
   （plan_A 精灵包 → plan_B tools.pack rosters → plan_C 配置 →
   plan_D Screen+接线 → plan_E 文档 → plan_F 门禁提交；A/C 可并行）。
@@ -380,3 +380,62 @@ flowchart LR
 - [x] 四特性：健壮（窄终端 clamp、非法 rc 值拒绝、退出不泄漏按键）、
       可维护（数据/渲染/状态机/接线分层）、性能（10fps、poke 纳秒级、
       默认关闭零开销）、扩展（角色=数据模块+注册一行；PNG 目录留待增强）。
+
+## 八、实施回填（2026-09-27）
+
+### 提交序列（feat/fancy-sym，均未推送）
+
+| 提交 | 内容 |
+|---|---|
+| `1ba5c53` | docs(plans): fancy-sym 屏保方案 + 子计划集 |
+| `cb94b48` | feat(sprites): L0 精灵包 editor_sprites（27 只、渲染 + shuffle 注册表） |
+| `c019f22` | feat(tools): `python -m tools.pack rosters` 预览生成器 |
+| `5937ce4` | feat(config): yaterc `screen_saver` 字典选项 |
+| `6766bed` | feat(screensaver): ScreensaverScreen + toggle_screensaver 动作/键位 + 空闲接线 |
+| `43a5c88` | docs(screensaver): yaterc 指南 / README 双语署名 / 双语 changelog |
+| （本次回填） | docs(plans): 主方案回填 + 子计划完成标注 |
+
+### 门禁终态（实测）
+
+- pyright（strict）：`yate/ tests/ tools/` → **0 errors, 0 warnings,
+  0 informations**；
+- pytest：**1326 passed, 7 skipped**（基线 1318 passed / 7 skipped +
+  本分支新增 8 用例：`test_idle_tracker.py` 3 + `test_screensaver.py` 5；
+  `test_action_table.py` 为运行时迭代注册表，不新增参数化用例）；
+- 架构守卫：`tests/test_architecture.py` → **20 passed**（基线同 20，
+  plan_A 已把 `editor_sprites` 登记进 `UI_FREE_PACKAGES`）；
+- `python -m tools.pack rosters` → 退出 0（生成 633 KB `roster.svg`，
+  约定 repo 根未跟踪产物，不纳入提交）；
+- 临时预览目录 `.trae/documents/fancy_sym_preview` → 不存在。
+
+### 与计划的偏离（均实测依据）
+
+1. **alt+shift+s 派发路径**（偏离 plan_D 的键位表方案）：双修饰 alt 组合
+   `textual_key_to_raw` 返回 None（keyproto/legacy.py:118-124 只映射单修饰
+   alt 组合），raw 字节派发与键位表绑定两条路必死。仿 `alt+shift+p` 先例
+   在 `Editor.handle_key` 按键名全局特判转 `toggle_screensaver`；
+   vim/vsc 键位表条目仅作帮助展示。
+2. **toggle 逻辑落点**（偏离 plan_D 的 actions.py 方案）：存量
+   `tests/test_action_table.py` 契约要求动作表全部薄转发（stub 的
+   `__getattr__` 只支持单层 hook 记录），逻辑写 actions.py 会让 stub 崩溃
+   （`'function' object has no attribute 'screen'`）。改入
+   `Editor.toggle_screensaver()`（对齐"Editor 持有跨协作者操作"惯例），
+   actions.py 保持一行转发并在 `FORWARDED_HOOKS` 登记。
+3. **plan_C**：`screen_saver` 未按原文加入 `_KNOWN_OPTIONS`，改走
+   `language_servers` 同款专用提取路径（`_extract_screen_saver` 于
+   `_extract_options` 末尾直连调用，config.py:572）。功能等价：校验与
+   错误报告全部在专用提取器内，`_KNOWN_OPTIONS` 仅服务于标量选项收集。
+4. **plan_D 内部细化**（实现期发现，设计内修复）：
+   - `_check_idle` 增加"屏保已激活则跳过"守卫：否则空闲轮询 due 恒真，
+     每秒 push/pop 振铃，且手动开启的屏保会被空闲计时器杀掉；判定用
+     `self.screen` 而非 `self.app.screen`（pyright strict 下 `Screen.app`
+     返回 `App[Unknown]`，触发 reportUnknownMemberType）；
+   - `ScreensaverScreen` 退出用 `self.dismiss()` 自弹（textual
+     screen.py:2048，类型完好，无需 App 句柄）；
+   - `IdleTracker` 支持注入时钟（测试免真实睡眠）。
+
+### 阵容终态
+
+27 只与 §4.4 一致（FC 经典 + 《神奇数字马戏团》五人组 + 原创，全角色
+≥2 帧）；jax 造型按反馈增高一档；帧数不足的旧角色（樱桃/心等）已按
+v6.1 复核替换。终态预览：`python -m tools.pack rosters` → `roster.svg`。

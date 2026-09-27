@@ -1,5 +1,7 @@
 # plan_C：yaterc `screen_saver` 字典配置
 
+- **状态：已完成（2026-09-27，提交 `5937ce4`；偏离：`screen_saver` 走
+  `language_servers` 式专用提取，未加进 `_KNOWN_OPTIONS`，见主方案 §八）**
 - 上级：[README](README.md) / 主方案 §4.3
 - 工作量：**小**｜依赖：无（可与 plan_A 并行）
 

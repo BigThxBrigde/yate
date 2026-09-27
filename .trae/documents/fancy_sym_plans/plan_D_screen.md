@@ -1,5 +1,8 @@
 # plan_D：L2 ScreensaverScreen + L3 动作/键位 + L4 空闲接线
 
+- **状态：已完成（2026-09-27，提交 `6766bed`；偏离：alt+shift+s 走
+  editor.handle_key 全局 chord、toggle 逻辑移入 `Editor.toggle_screensaver`、
+  `_check_idle` 加屏保激活守卫，见主方案 §八）**
 - 上级：[README](README.md) / 主方案 §0 §2.1 §2.2 §4.1 §4.2 §4.5
 - 工作量：**中**｜依赖：plan_A（精灵包）、plan_C（配置）
 - v6.1（master 合并后复核）：接线方式按实测修正——空闲探针用

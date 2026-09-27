@@ -1,5 +1,6 @@
 # plan_E：文档（yaterc / README / CHANGELOG）
 
+- **状态：已完成（2026-09-27，提交 `43a5c88`）**
 - 上级：[README](README.md)
 - 工作量：**小**｜依赖：plan_A–D 全部完成
 

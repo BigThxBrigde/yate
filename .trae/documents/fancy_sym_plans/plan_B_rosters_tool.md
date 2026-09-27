@@ -1,5 +1,6 @@
 # plan_B：`python -m tools.pack rosters` 预览生成器 + 临时预览退役
 
+- **状态：已完成（2026-09-27，提交 `c019f22`）**
 - 上级：[README](README.md) / 主方案 §2.3
 - 工作量：**小**｜依赖：plan_A（读产品位图）
 

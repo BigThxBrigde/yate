@@ -1,5 +1,10 @@
 # fancy_sym 子计划总纲（v6）
 
+- **状态：全部子计划已完成（2026-09-27）**：plan_A `cb94b48` →
+  plan_B `c019f22` → plan_C `5937ce4` → plan_D `6766bed` →
+  plan_E `43a5c88` → plan_F（回填提交）；实测门禁与偏离见
+  [主方案 §八](../fancy_sym_plan.md)。
+
 主方案（可行性/架构/版权/风险）：[../fancy_sym_plan.md](../fancy_sym_plan.md)。
 本文件夹把其实施步骤拆为 6 份独立可执行的子计划，每份含输入、改动文件、
 验收命令与工作量。
