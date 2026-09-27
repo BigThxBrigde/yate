@@ -1430,6 +1430,24 @@ def test_refresh_tree_keeps_expanded_dirs(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_slim_scrollbar_size(tmp_path: Path) -> None:
+    """Issue IKINF3: the app CSS overrides the Widget default (2 cells) with
+    a 1-cell vertical scrollbar on every scrollable widget."""
+
+    async def scenario() -> None:
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            assert view.styles.scrollbar_size_vertical == 1
+            explorer = app.editor.explorer_tree
+            assert explorer is not None
+            assert explorer.styles.scrollbar_size_vertical == 1
+
+    asyncio.run(scenario())
+
+
 # ------------------------------------------------------ editor background color
 
 

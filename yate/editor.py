@@ -29,7 +29,6 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
 from textual.screen import Screen
-from textual.widgets import Static
 
 from yate import __version__
 from yate.completion import CompletionController
@@ -38,7 +37,7 @@ from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_lsp import LspManager
 from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
 from yate.editor_view import theme
-from yate.editor_view.chrome import Breadcrumbs, TabBar, sidebar_head_text
+from yate.editor_view.chrome import Breadcrumbs, SidebarHead, TabBar
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
@@ -169,7 +168,7 @@ class Editor:
             self.extension_loader, id="statusbar",
         )
         self.sidebar = Vertical(id="sidebar")
-        self.sidebar_head = Static(id="sidebar-head")
+        self.sidebar_head = SidebarHead(id="sidebar-head")
         self.editor_col = Vertical(id="editor-col")
 
         # ------------------------------------------------------------ startup
@@ -256,7 +255,6 @@ class Editor:
         self.terminal_panel.display = False
         self.load_startup_services()
         await self.editor_col.mount(self.completion_popup)
-        self.apply_theme()
         self.explorer_tree.refresh_tree()
         self.sync_explorer_visibility()
         view = self.panes.active_view
@@ -1136,37 +1134,7 @@ class Editor:
                 return
         # The reactive watcher regenerates tokens and repaints every overlay.
         self.app.theme = textual_name
-        self.apply_theme()
         self.message(f"theme: {selected.label}", kind="ok")
-
-    def apply_theme(self) -> None:
-        """Push the active theme onto every widget and force a repaint."""
-        if not self.mounted:
-            return
-        t = theme.active()
-        self.app.screen.styles.background = t.bg
-        for view in self.panes.all_views():
-            view.styles.background = t.bg
-            view.apply_scrollbar_theme()
-            view.content_changed()
-        tree = self.explorer_tree
-        tree.styles.scrollbar_background = t.border
-        tree.styles.scrollbar_background_hover = t.surface
-        tree.styles.scrollbar_color = t.fg_dim
-        tree.styles.scrollbar_color_hover = t.fg_muted
-        tree.styles.scrollbar_color_active = t.accent
-        tree.refresh_tree()
-        self.status_bar.refresh_status()
-        self.prompt_bar.styles.background = t.panel
-        self.prompt_bar.refresh()
-        self.update_sidebar_head()
-        self.tabbar.refresh_tabs()
-        self.breadcrumbs.refresh_crumbs()
-
-    def update_sidebar_head(self) -> None:
-        """Paint the VS Code-style 'EXPLORER' sidebar title."""
-        self.sidebar_head.styles.background = theme.active().panel
-        self.sidebar_head.update(sidebar_head_text())
 
     def set_readonly(self, value: bool) -> None:
         """Set the active buffer's read-only flag (``:set readonly=``)."""

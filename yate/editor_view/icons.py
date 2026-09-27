@@ -82,9 +82,96 @@ PLUG = "\uf1e6"           #  (extensions)
 LOCK = "\uf023"           #  (read-only buffer)
 
 
+def extension_of(name: str) -> str:
+    """Return the lowercase extension of *name* (the whole name if none)."""
+    return name.rsplit(".", 1)[-1].lower() if "." in name else name.lower()
+
+
 def icon_for_path(name: str, is_dir: bool, expanded: bool = False) -> str:
     """Return the appropriate glyph for a tree entry."""
     if is_dir:
         return FOLDER_OPEN if expanded else FOLDER
-    suffix = name.rsplit(".", 1)[-1].lower() if "." in name else name.lower()
-    return FILE_ICONS.get(suffix, FILE_TEXT)
+    return FILE_ICONS.get(extension_of(name), FILE_TEXT)
+
+
+#: VS Code "Seti" file-icon palette (VS Code's default icon theme): fixed
+#: hex colors that intentionally do NOT follow the active yate theme, so the
+#: tree reads exactly like VS Code on every color scheme (issue IKINF3).
+SETI_COLORS: dict[str, str] = {
+    "blue": "#519aba",
+    "yellow": "#cbcb41",
+    "green": "#8dc149",
+    "orange": "#e37933",
+    "purple": "#a074c4",
+    "red": "#cc3e44",
+    "pink": "#f55385",
+    "grey": "#6d8086",
+}
+
+#: Color for file types without a dedicated mapping (plain text, unknown).
+ICON_COLOR_FALLBACK = SETI_COLORS["grey"]
+
+#: extension -> :data:`SETI_COLORS` key, following VS Code Seti semantics.
+FILE_ICON_COLORS: dict[str, str] = {
+    "py": "blue",
+    "pyw": "blue",
+    "js": "yellow",
+    "jsx": "blue",
+    "mjs": "yellow",
+    "cjs": "yellow",
+    "ts": "blue",
+    "tsx": "blue",
+    "json": "yellow",
+    "jsonc": "yellow",
+    "html": "orange",
+    "htm": "orange",
+    "xml": "orange",
+    "css": "blue",
+    "scss": "pink",
+    "sass": "pink",
+    "less": "blue",
+    "md": "blue",
+    "rst": "blue",
+    "toml": "purple",
+    "yaml": "purple",
+    "yml": "purple",
+    "sh": "green",
+    "bash": "green",
+    "zsh": "green",
+    "ps1": "green",
+    "csv": "green",
+    "vim": "green",
+    "sql": "orange",
+    "c": "blue",
+    "h": "blue",
+    "cpp": "purple",
+    "hpp": "purple",
+    "cc": "purple",
+    "cs": "blue",
+    "go": "blue",
+    "rs": "orange",
+    "java": "red",
+    "rb": "red",
+    "php": "purple",
+    "lua": "purple",
+    "git": "orange",
+    "dockerfile": "blue",
+    # neutral grey: plain text and machine files
+    "txt": "grey",
+    "log": "grey",
+    "lock": "grey",
+    "bat": "grey",
+    "cmd": "grey",
+}
+
+
+def icon_color(name: str, is_dir: bool, dir_color: str) -> str:
+    """Return the icon color for a tree entry.
+
+    Directories take *dir_color* (the active theme accent); file icons use
+    the fixed Seti palette keyed by extension and fall back to grey.
+    """
+    if is_dir:
+        return dir_color
+    key = FILE_ICON_COLORS.get(extension_of(name))
+    return SETI_COLORS[key] if key is not None else ICON_COLOR_FALLBACK

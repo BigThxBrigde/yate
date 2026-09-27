@@ -10,11 +10,12 @@ workspace and the prompt bar -- plus the few editor callbacks it triggers
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from collections.abc import Callable
 
 from rich.text import Text
+from textual.color import Color
 from textual.events import Key
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
@@ -25,7 +26,8 @@ from yate.session import EditorSession
 
 from . import theme
 from .commandline import PromptBar
-from .icons import icon_for_path
+from .icons import icon_color, icon_for_path
+from .scrollbars import apply_slim_scrollbars
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None
@@ -36,11 +38,68 @@ log = tracing.get_logger(__name__)
 class ExplorerTree(Tree[NodeData]):
     """Directory tree with Nerd Font glyphs, lazy-loaded on expand."""
 
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
+    #: icon-only expand/collapse affordance (issue IKINF3): Textual's default
+    #: "▶ "/"▼ " arrows are dropped entirely -- the folder's open/closed glyph
+    #: (swapped by :meth:`_relabel` on toggle) carries the state instead.
+    ICON_NODE = ""
+    ICON_NODE_EXPANDED = ""
+
+    #: Flat indent rails (issue IKINF3): a bare "│" per level, dropping the
+    #: "├─" branch cross Textual renders by default so the tree matches the
+    #: reference look.  Textual's slot semantics (see its render_line): the
+    #: ancestor slots draw ``vertical`` for every non-last ancestor, and the
+    #: node's own slot draws ``terminator`` when it is the last sibling or
+    #: ``cross`` otherwise.  With guide_depth=2 every slot is 2 cells and a
+    #: node's icon sits one slot right of its own slot, so both ``vertical``
+    #: and ``terminator`` land exactly beneath the parent icon.
+    LINES: dict[str, tuple[str, str, str, str]] = {
+        "default": ("  ", "│ ", "└ ", "│ "),
+        "bold": ("  ", "┃ ", "┗ ", "┃ "),
+        "double": ("  ", "║ ", "╚ ", "║ "),
+    }
+
     DEFAULT_CSS = """
     ExplorerTree {
         background: $surface;
-        border-right: tall $primary 20%;
+        border-right: tall $foreground 12%;
         padding: 0 1;
+        /* Keep the horizontal scrollbar one cell tall like the vertical one
+         * (issue IKINF3); long names stay reachable by scrolling. */
+        scrollbar-size-horizontal: 1;
+
+        /* Faint gray guides in every state (issue IKINF3): Tree's defaults
+         * brighten guides on hover and, worse, paint the focused
+         * selection's rails with $block-cursor-background (the mauve
+         * cursor color).  Pin every variant -- :focus / :light out-specify
+         * the plain selectors, so they must be pinned explicitly.  The
+         * rails use the sidebar title's muted gray at 15% alpha: strictly
+         * fainter than the bold "EXPLORER" header (100% + bold), and
+         * roughly VS Code's measured indent-rail contrast. */
+        & > .tree--guides,
+        & > .tree--guides-hover,
+        & > .tree--guides-selected,
+        &:focus > .tree--guides,
+        &:focus > .tree--guides-hover,
+        &:focus > .tree--guides-selected,
+        &:light > .tree--guides,
+        &:light > .tree--guides-hover,
+        &:light > .tree--guides-selected {
+            color: $foreground-muted 15%;
+        }
+        /* Calm the tree cursor down (issue IKINF3): the default maps to the
+         * bright accent cursor colors -- a translucent foreground tint reads
+         * as a quiet row highlight instead. */
+        & > .tree--cursor {
+            background: $foreground 6%;
+        }
+        &:focus > .tree--cursor {
+            color: $text;
+            background: $foreground 10%;
+        }
     }
     """
 
@@ -179,7 +238,11 @@ class ExplorerTree(Tree[NodeData]):
         for entry in self.workspace.list_dir(directory):
             if entry.name in IGNORED_NAMES:
                 continue
-            label = self._label(entry.path, entry.is_dir, False)
+            # pass the real expansion state so a rebuilt tree renders the
+            # open-folder glyph for directories that survive the rebuild
+            label = self._label(
+                entry.path, entry.is_dir, expanded is not None and entry.path in expanded
+            )
             child = node.add(label, data=entry.path, allow_expand=entry.is_dir)
             if entry.is_dir:
                 # placeholder so the node shows as expandable before load
@@ -198,9 +261,56 @@ class ExplorerTree(Tree[NodeData]):
         name = path.name or str(path)
         icon = icon_for_path(name, is_dir, expanded)
         text = Text()
-        text.append(icon + " ", style=t.accent if is_dir else t.fg_bright)
+        text.append(icon + " ", style=icon_color(name, is_dir, t.accent))
         text.append(name, style=t.accent if is_dir else t.fg)
         return text
+
+    def _relabel(self, node: TreeNode[NodeData]) -> None:
+        """Rebuild a directory node's label to match its expansion state.
+
+        The toggle arrows are suppressed (see ``ICON_NODE``), so the folder
+        glyph itself must flip between closed and open when the node is
+        toggled.  Placeholders (``data is None``) and file nodes are left
+        alone -- only directories carry the stateful glyph.
+        """
+        path = node.data
+        if isinstance(path, Path) and node.allow_expand:
+            node.set_label(self._label(path, True, node.is_expanded))
+
+    # ---------------------------------------------------------- lifecycle
+
+    @override
+    def on_mount(self) -> None:
+        """Own the theme painting and register for theme-change updates."""
+        # Tree inherits ScrollView.on_mount (scrollbar visibility refresh).
+        super().on_mount()
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Paint the scrollbar palette with the active theme colors.
+
+        Slim-scrollbar palette (issue IKINF3): the track is fully transparent
+        (ScrollBar composites alpha<1 over the parent background), so only
+        the thin partial-block thumb is visible; a faint tint appears on
+        hover, the thumb brightens on drag.
+        """
+        t = theme.active()
+        s = self.styles
+        s.scrollbar_background = Color(0, 0, 0, 0)
+        s.scrollbar_background_hover = Color.parse(t.surface).with_alpha(0.35)
+        s.scrollbar_color = t.border
+        s.scrollbar_color_hover = t.fg_dim
+        s.scrollbar_color_active = t.accent
+        s.scrollbar_corner_color = Color(0, 0, 0, 0)
+        self.refresh_tree()
 
     # ------------------------------------------------------------- events
 
@@ -214,13 +324,16 @@ class ExplorerTree(Tree[NodeData]):
         if len(node.children) == 1 and node.children[0].data is None:
             node.remove_children()
             self._load_children(node, path)
+        self._relabel(node)
 
     def on_tree_node_collapsed(self, event: Tree.NodeCollapsed[NodeData]) -> None:
         """Keep the lazy-load placeholder trick consistent after collapsing."""
         node = event.node
         path = node.data
-        if isinstance(path, Path) and path.is_dir() and not node.children:
-            node.add(Text("", style=theme.active().fg_dim), data=None)
+        if isinstance(path, Path) and path.is_dir():
+            if not node.children:
+                node.add(Text("", style=theme.active().fg_dim), data=None)
+            self._relabel(node)
 
     def on_tree_node_selected(self, event: Tree.NodeSelected[NodeData]) -> None:
         """Enter: toggle directories, open files in the editor."""

@@ -12,11 +12,23 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+from rich.style import Style
+from rich.text import Text
+from textual.widgets import Tree
+from textual.widgets.tree import TreeNode
+
 from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
+from yate.editor_view import theme
 from yate.editor_view.explorer import ExplorerTree
+from yate.editor_view.icons import (
+    FOLDER,
+    FOLDER_OPEN,
+    ICON_COLOR_FALLBACK,
+    SETI_COLORS,
+)
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
@@ -242,3 +254,143 @@ def test_restore_cursor_forgets_vanished_selection(tmp_path: Path) -> None:
     tree._restore_cursor(victim)
 
     assert tree._last_selected is None
+
+
+# --- icon-only toggle affordance (issue IKINF3) ------------------------------
+
+
+def _tree_over(ws_root: Path) -> ExplorerTree:
+    """Build an ExplorerTree over a real workspace root (no app)."""
+    return ExplorerTree(
+        EditorSession(YateConfig()),
+        Workspace(ws_root),
+        cast(Any, _FakePrompt()),
+        open_path=lambda path: None,
+        focus_editor=lambda: None,
+        window_prefix=lambda event: False,
+    )
+
+
+def _label_text(node: TreeNode[Path | None]) -> str:
+    """Plain text of a node label (``TreeNode.label`` is Text | str)."""
+    label = node.label
+    return label.plain if isinstance(label, Text) else label
+
+
+def test_toggle_arrow_glyphs_are_suppressed(tmp_path: Path) -> None:
+    """Rendered labels never contain Textual's default arrow glyphs."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "sub").mkdir()
+    (ws / "file.py").write_text("x = 1\n", encoding="utf-8")
+    tree = _tree_over(ws)
+
+    assert ExplorerTree.ICON_NODE == ""
+    assert ExplorerTree.ICON_NODE_EXPANDED == ""
+
+    tree.refresh_tree()
+    for node in [tree.root, *tree.root.children]:
+        rendered = tree.render_label(node, Style(), Style()).plain
+        assert "\u25b6" not in rendered  # Tree.ICON_NODE default "▶ "
+        assert "\u25bc" not in rendered  # Tree.ICON_NODE_EXPANDED default "▼ "
+
+
+def test_folder_glyph_flips_with_expansion(tmp_path: Path) -> None:
+    """The folder glyph itself carries the open/closed state on toggle."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    sub = ws / "sub"
+    sub.mkdir()
+    (sub / "inner.py").write_text("x = 1\n", encoding="utf-8")
+    tree = _tree_over(ws)
+    tree.refresh_tree()
+
+    node = tree._find_node(tree.root, sub)
+    assert node is not None
+    assert FOLDER in _label_text(node)
+    assert FOLDER_OPEN not in _label_text(node)
+
+    node.expand()
+    tree.on_tree_node_expanded(Tree.NodeExpanded(node))
+    assert FOLDER_OPEN in _label_text(node)
+
+    node.collapse()
+    tree.on_tree_node_collapsed(Tree.NodeCollapsed(node))
+    assert FOLDER in _label_text(node)
+    assert FOLDER_OPEN not in _label_text(node)
+
+
+def test_refresh_tree_keeps_open_glyph_for_expanded_dirs(tmp_path: Path) -> None:
+    """Rebuilding the tree renders the open glyph for expanded directories."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    sub = ws / "sub"
+    sub.mkdir()
+    (sub / "inner.py").write_text("x = 1\n", encoding="utf-8")
+    tree = _tree_over(ws)
+    tree.refresh_tree()
+
+    node = tree._find_node(tree.root, sub)
+    assert node is not None
+    node.expand()
+    tree.on_tree_node_expanded(Tree.NodeExpanded(node))
+    assert FOLDER_OPEN in _label_text(node)
+
+    tree.refresh_tree()
+    rebuilt = tree._find_node(tree.root, sub)
+    assert rebuilt is not None
+    assert rebuilt.is_expanded
+    assert FOLDER_OPEN in _label_text(rebuilt)
+
+
+def test_indent_rails_align_under_parent_icon(tmp_path: Path) -> None:
+    """Rails and terminators draw in the node's own slot (under the parent
+    icon); non-last nodes keep a bare rail instead of the "├─" cross."""
+    for lines in ExplorerTree.LINES.values():
+        space, vertical, terminator, cross = lines
+        assert len(space) == 2 and len(vertical) == 2, "slots stay 2 cells"
+        assert terminator in ("\u2514 ", "\u2517 ", "\u255a "), "last child gets a terminator"
+        assert cross.endswith(" "), "cross keeps a bare rail"
+    # slot geometry: vertical/terminator sit in the node's own slot, exactly
+    # one slot left of its icon == directly under the parent icon.
+    assert ExplorerTree.LINES["default"] == ("  ", "\u2502 ", "\u2514 ", "\u2502 ")
+
+
+def test_tree_h_scrollbar_stays_available_and_thin(tmp_path: Path) -> None:
+    """Horizontal scrolling stays reachable with a one-cell scrollbar."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "file.py").write_text("x = 1\n", encoding="utf-8")
+    _tree_over(ws)
+    assert "scrollbar-size-horizontal: 1" in ExplorerTree.DEFAULT_CSS
+    assert "overflow-x: hidden" not in ExplorerTree.DEFAULT_CSS
+
+
+def test_guide_colors_constant_on_hover_and_selection() -> None:
+    """Guides share one faint gray tint in every state: hover, selected,
+    focused and light-mode variants must not repaint the rails.  The tint
+    is the sidebar title's muted gray at low alpha -- strictly fainter
+    than the bold EXPLORER header."""
+    css = ExplorerTree.DEFAULT_CSS
+    for variant in ("& > ", "&:focus > ", "&:light > "):
+        for cls in ("tree--guides", "tree--guides-hover", "tree--guides-selected"):
+            selector = f"{variant}.{cls}"
+            assert selector in css, f"missing pinned selector {selector}"
+            block = css.split(selector, 1)[1].split("}", 1)[0]
+            assert "$foreground-muted 15%" in block, (
+                f"{selector} must pin the faint muted-gray tint"
+            )
+
+
+def test_file_icons_use_fixed_seti_palette(tmp_path: Path) -> None:
+    """File icons use the VS Code Seti palette regardless of the theme."""
+    theme.set_theme("mocha")
+    t = theme.active()
+    py_label = ExplorerTree._label(tmp_path / "a.py", False, False)
+    assert py_label.spans[0].style == SETI_COLORS["blue"]
+    js_label = ExplorerTree._label(tmp_path / "a.js", False, False)
+    assert js_label.spans[0].style == SETI_COLORS["yellow"]
+    unknown = ExplorerTree._label(tmp_path / "x.xyz", False, False)
+    assert unknown.spans[0].style == ICON_COLOR_FALLBACK
+    folder = ExplorerTree._label(tmp_path / "d", True, False)
+    assert folder.spans[0].style == t.accent  # folders follow the theme

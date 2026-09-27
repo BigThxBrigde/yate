@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from rich.segment import Segment
 from rich.style import Style
+from textual.color import Color
 from textual.events import Focus, Key, Resize
 from textual.geometry import Size
 from textual.scroll_view import ScrollView
@@ -26,6 +27,7 @@ from yate.keymaps.registry import KeymapSet
 from yate.session import EditorSession, Leaf
 
 from . import theme
+from .scrollbars import apply_slim_scrollbars
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL = 0
@@ -102,6 +104,10 @@ class EditorView(ScrollView):
     """
 
     can_focus = True
+
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
 
     # Trailing debounce window that merges rapid keystrokes into a single
     # background tokenize pass (same order of magnitude as the 0.12s
@@ -216,25 +222,43 @@ class EditorView(ScrollView):
 
     @override
     def on_mount(self) -> None:
-        """Apply the active theme background once mounted."""
+        """Apply the active theme and register for theme-change updates."""
+        # ScrollView.on_mount refreshes scrollbar visibility; skipping it
+        # would defer the initial show/hide decision to the first resize.
+        super().on_mount()
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast (widgets own their painting)."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Paint this view with the active theme (bg + scrollbar palette)."""
         self.styles.background = theme.active().bg
         self.apply_scrollbar_theme()
+        self.content_changed()
 
     def apply_scrollbar_theme(self) -> None:
         """Paint the vertical scrollbar with active-theme colors.
 
         Textual draws the scrollbar itself; without explicit styling it keeps
         the framework defaults which clash with the Catppuccin palette. The
-        colors are picked so the track nearly disappears and the thumb stays
-        legible but unobtrusive.
+        track is fully transparent (ScrollBar composites alpha<1 over the
+        parent background), so only the thin partial-block thumb shows
+        (issue IKINF3); a faint tint appears on hover/drag.
         """
         t = theme.active()
         s = self.styles
-        s.scrollbar_background = t.border
-        s.scrollbar_background_hover = t.surface
-        s.scrollbar_color = t.fg_dim
-        s.scrollbar_color_hover = t.fg_muted
+        s.scrollbar_background = Color(0, 0, 0, 0)
+        s.scrollbar_background_hover = Color.parse(t.surface).with_alpha(0.35)
+        s.scrollbar_color = t.border
+        s.scrollbar_color_hover = t.fg_dim
         s.scrollbar_color_active = t.accent
+        s.scrollbar_corner_color = Color(0, 0, 0, 0)
 
     def _update_virtual_size(self) -> None:
         buf = self.buffer
