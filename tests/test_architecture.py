@@ -50,7 +50,6 @@ from __future__ import annotations
 import asyncio
 import ast
 import logging
-import sys
 from pathlib import Path
 
 import pytest
@@ -425,8 +424,8 @@ def test_devtools_bridge_follows_app_lifecycle() -> None:
     from yate.app import YateApp
     from yate.logs import LOGGER_NAME
 
-    if sys.platform != "win32":  # pragma: no cover - CI matrix safety
-        pytest.skip("pilot lifecycle is exercised on Windows only")
+    # Platform-independent: run_test drives the HeadlessDriver, not the
+    # Windows console driver.
     root = logging.getLogger(LOGGER_NAME)
     app = YateApp()
 
