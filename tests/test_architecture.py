@@ -392,7 +392,7 @@ def _devtools_log_accesses(path: Path) -> list[str]:
 def test_logging_never_touches_devtools_channel() -> None:
     """``self.log`` / ``self.app.log`` is Textual's devtools channel: yate
     logs through the tracing singleton only, and devtools visibility comes
-    from the ``TextualHandler`` bridge in ``YateApp.__init__`` (R12).  The
+    from the ``TextualHandler`` bridge in ``YateApp.on_mount`` (R12).  The
     Windows chord driver once imported ``textual.app`` just to reach it."""
     for path in _yate_files():
         accesses = _devtools_log_accesses(path)
