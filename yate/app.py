@@ -25,7 +25,7 @@ from yate.actions import populate
 from yate.commands import register_commands
 from yate.config import YateConfig
 from yate.editor import Editor
-from yate.editor_view import scrollbars, theme
+from yate.editor_view import theme
 from yate.keyproto.legacy import textual_key_to_raw
 from yate.logs import LOGGER_NAME, tracing
 
@@ -119,10 +119,6 @@ class YateApp(App[None]):
         super().__init__()
         self.title = f"yate {__version__}"
 
-        # Slim scrollbars app-wide (issue IKINF3): draw thumbs as thin
-        # partial-block slivers instead of solid full-cell bands.
-        scrollbars.install_slim_scrollbars()
-
         # The color theme is process-global state (like vim's colorscheme).
         # An explicit selection (--theme) wins over the yaterc option.
         wanted_theme = theme_name if theme_name is not None else self.config.theme
@@ -181,6 +177,15 @@ class YateApp(App[None]):
     def compose(self) -> ComposeResult:
         yield from self.editor.compose()
 
+    def watch_theme(self, _theme: str) -> None:
+        """Repaint the base screen background with the active yate palette.
+
+        The screen is the one surface the shell owns; every other widget
+        paints itself via the :mod:`yate.editor_view.theme` broadcast.
+        """
+        if self.screen_stack:
+            self.screen.styles.background = theme.active().bg
+
     async def on_mount(self) -> None:
         # R12: mirror tracing records into the Textual devtools console so
         # no yate module ever needs the devtools channel (``app.log`` /
@@ -198,6 +203,9 @@ class YateApp(App[None]):
         )
         yate_root.addHandler(self._devtools_bridge)
         log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
+        # watch_theme skips pre-mount assignments (no screen yet); paint once
+        # here so the startup screen background matches the active palette.
+        self.screen.styles.background = theme.active().bg
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:

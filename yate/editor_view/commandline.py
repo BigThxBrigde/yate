@@ -14,6 +14,7 @@ from typing import Any, override
 
 from collections.abc import Callable
 
+from rich.markup import escape
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
@@ -48,6 +49,17 @@ PREFIXES = {
 
 #: message kind -> Theme attribute name for the color
 MESSAGE_COLORS = {"info": "fg_bright", "error": "red", "warn": "yellow", "ok": "green"}
+
+
+def prefix_spec(mode: str) -> tuple[str, str]:
+    """``(prefix, Theme attribute name)`` for a prompt *mode*.
+
+    Falls back to the command-mode spec for unknown modes; ``activate`` and
+    :meth:`PromptBar._apply_theme` both go through here so the default never
+    drifts between the two call sites.
+    """
+    return PREFIXES.get(mode, (":", "yellow"))
+
 
 #: Where the message line's current text came from; the LSP echo only clears
 #: its own message (``owner == "lsp"``) when the cursor leaves the diagnostic.
@@ -236,6 +248,9 @@ class PromptBar(Horizontal):
         self._on_submit: Callable[[str], None] | None = None
         self._on_changed: Callable[[str], None] | None = None
         self._refocus: Callable[[], None] | None = None
+        #: ``(text, Theme attr)`` of the current message line; re-rendered
+        #: with the active palette on theme changes (``None`` = no message).
+        self._message: tuple[str, str] | None = None
 
     @override
     def compose(self) -> ComposeResult:
@@ -243,14 +258,38 @@ class PromptBar(Horizontal):
         yield self.input
         yield self.message
 
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
     def on_mount(self) -> None:
+        """Own the theme painting and register for theme-change updates."""
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+        self.input.display = False
+        self.prompt.display = False
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Paint the bar and its children with the active theme."""
         t = theme.active()
         self.styles.background = t.panel
         self.message.styles.background = t.panel
         self.prompt.styles.background = t.panel
         self.input.styles.background = t.panel
-        self.input.display = False
-        self.prompt.display = False
+        # An open prompt's prefix color was resolved at activate() time --
+        # re-derive it so a theme switch is visible immediately.
+        if self.active_mode is not None:
+            self.prompt.styles.color = getattr(t, prefix_spec(self.active_mode)[1])
+        # The message color is baked into its markup at write time; re-render
+        # with the new palette (text and owner semantics untouched).
+        if self.message.display:
+            self._render_message()
 
     # ------------------------------------------------------------ states
 
@@ -273,11 +312,14 @@ class PromptBar(Horizontal):
         if not self.is_mounted:
             return False
         log.debug("prompt activate: mode=%s", mode)
-        prefix, attr = PREFIXES.get(mode, (":", "yellow"))
+        prefix, attr = prefix_spec(mode)
         self.active_mode = mode
         self._on_submit = on_submit
         self._on_changed = on_changed
         self._refocus = refocus
+        # Either a prompt is active or a message is shown -- never both; the
+        # stored (text, attr) of the previous message is dropped here.
+        self._message = None
         self.message.display = False
         self.prompt.display = True
         self.prompt.update(prefix + " ")
@@ -294,21 +336,39 @@ class PromptBar(Horizontal):
     def write(self, text: str, kind: str = "info", owner: str = OWNER_APP) -> None:
         """Replace the prompt line with the message *text*."""
         self.owner = owner
-        self._show_message(text, getattr(theme.active(), MESSAGE_COLORS.get(kind, "fg_bright")))
+        self._show_message(text, MESSAGE_COLORS.get(kind, "fg_bright"))
 
     def idle(self, text: str = " Ready. Press F1 for help.") -> None:
         """Back to the idle hint line."""
         self.owner = OWNER_IDLE
-        self._show_message(text, theme.active().fg_dim)
+        self._show_message(text, "fg_dim")
 
-    def _show_message(self, text: str, color: str | None) -> None:
+    def _show_message(self, text: str, attr: str) -> None:
+        """Show *text* painted with the theme color named by *attr*."""
         self.active_mode = None
         self._on_submit = None
         self._on_changed = None
         self.input.display = False
         self.prompt.display = False
         self.message.display = True
-        self.message.update(f"[{color or theme.active().fg_bright}]{text}[/]")
+        self._message = (text, attr)
+        self._render_message()
+
+    def _render_message(self) -> None:
+        """(Re)render the stored message with the active theme's color.
+
+        Purely visual: neither the message state nor the ``owner`` semantics
+        are touched, so a theme change never disturbs the LSP echo contract.
+        """
+        if self._message is None:
+            return
+        text, attr = self._message
+        # escape(): message text is external (LSP diagnostics, file names,
+        # OS errors) and may contain brackets -- without escaping, Rich would
+        # parse "[test].py" as a markup tag and mangle or crash the render.
+        self.message.update(
+            f"[{getattr(theme.active(), attr)}]{escape(text)}[/]"
+        )
 
     def cancel(self) -> None:
         """Esc / ctrl+c on the prompt line: run the cancel hook and close."""

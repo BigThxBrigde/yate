@@ -27,6 +27,7 @@ from yate.keymaps.registry import KeymapSet
 from yate.session import EditorSession, Leaf
 
 from . import theme
+from .scrollbars import apply_slim_scrollbars
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL = 0
@@ -103,6 +104,10 @@ class EditorView(ScrollView):
     """
 
     can_focus = True
+
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
 
     # Trailing debounce window that merges rapid keystrokes into a single
     # background tokenize pass (same order of magnitude as the 0.12s
@@ -217,9 +222,25 @@ class EditorView(ScrollView):
 
     @override
     def on_mount(self) -> None:
-        """Apply the active theme background once mounted."""
+        """Apply the active theme and register for theme-change updates."""
+        # ScrollView.on_mount refreshes scrollbar visibility; skipping it
+        # would defer the initial show/hide decision to the first resize.
+        super().on_mount()
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast (widgets own their painting)."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Paint this view with the active theme (bg + scrollbar palette)."""
         self.styles.background = theme.active().bg
         self.apply_scrollbar_theme()
+        self.content_changed()
 
     def apply_scrollbar_theme(self) -> None:
         """Paint the vertical scrollbar with active-theme colors.

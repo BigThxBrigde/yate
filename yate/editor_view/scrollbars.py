@@ -7,8 +7,8 @@ the one-cell scrollbar geometry (hit targets and scrolling behavior are
 untouched) but paints the thumb with an anchored partial-block glyph, so it
 reads as a sliver only a fraction of a cell thick.
 
-Installed app-wide via :func:`install_slim_scrollbars`, using Textual's
-documented :attr:`ScrollBar.renderer` hook.
+Wired per widget via :func:`apply_slim_scrollbars` (Textual's documented
+per-widget ``ScrollBar.renderer`` hook) -- no process-global patching.
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ from rich.color import Color
 from rich.segment import Segment, Segments
 from rich.style import Style
 
-from textual.scrollbar import ScrollBar, ScrollBarRender
+from textual.scrollbar import ScrollBarRender
+from textual.widget import Widget
 
 
 class SlimScrollBarRender(ScrollBarRender):
@@ -88,11 +89,21 @@ class SlimScrollBarRender(ScrollBarRender):
         return Segments((segments + [Segment.line()]) * thickness, new_lines=False)
 
 
-def install_slim_scrollbars() -> None:
-    """Point every Textual scrollbar at the slim renderer.
+def apply_slim_scrollbars(widget: Widget) -> None:
+    """Point *widget*'s own scrollbars at the slim renderer.
 
-    Idempotent; called once from :class:`yate.app.YateApp`.  Only the
-    painted glyph changes -- grabbing, hovering and click-to-scroll keep
+    Per-widget injection (no process-global patch): Textual creates scrollbar
+    widgets lazily on first property access, so reading ``vertical_scrollbar``
+    / ``horizontal_scrollbar`` here fetches -- and creates, if needed -- the
+    instances; assigning the instance attribute overrides the
+    ``ScrollBar.renderer`` class default, Textual's documented hook.  Only
+    the painted glyph changes -- grabbing, hovering and click-to-scroll keep
     working because the mouse metadata on each segment is preserved.
     """
-    ScrollBar.renderer = SlimScrollBarRender
+    # renderer is declared ClassVar upstream (typing spec frowns on instance
+    # assignment), yet per-widget override is Textual's own documented usage
+    # (scrollbar.py docstring) -- setattr makes that intent explicit.
+    vertical = widget.vertical_scrollbar
+    horizontal = widget.horizontal_scrollbar
+    setattr(vertical, "renderer", SlimScrollBarRender)
+    setattr(horizontal, "renderer", SlimScrollBarRender)

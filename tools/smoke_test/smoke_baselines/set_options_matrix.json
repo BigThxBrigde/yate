@@ -31,6 +31,24 @@
       "ok": true
     },
     {
+      "label": "readonly",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "readonly_kept",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "readonly_off",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
       "label": "option_warned",
       "expected": true,
       "actual": true,

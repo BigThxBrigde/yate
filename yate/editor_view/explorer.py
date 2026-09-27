@@ -10,11 +10,12 @@ workspace and the prompt bar -- plus the few editor callbacks it triggers
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from collections.abc import Callable
 
 from rich.text import Text
+from textual.color import Color
 from textual.events import Key
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
@@ -26,6 +27,7 @@ from yate.session import EditorSession
 from . import theme
 from .commandline import PromptBar
 from .icons import icon_color, icon_for_path
+from .scrollbars import apply_slim_scrollbars
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None
@@ -35,6 +37,10 @@ log = tracing.get_logger(__name__)
 
 class ExplorerTree(Tree[NodeData]):
     """Directory tree with Nerd Font glyphs, lazy-loaded on expand."""
+
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
 
     #: icon-only expand/collapse affordance (issue IKINF3): Textual's default
     #: "▶ "/"▼ " arrows are dropped entirely -- the folder's open/closed glyph
@@ -270,6 +276,41 @@ class ExplorerTree(Tree[NodeData]):
         path = node.data
         if isinstance(path, Path) and node.allow_expand:
             node.set_label(self._label(path, True, node.is_expanded))
+
+    # ---------------------------------------------------------- lifecycle
+
+    @override
+    def on_mount(self) -> None:
+        """Own the theme painting and register for theme-change updates."""
+        # Tree inherits ScrollView.on_mount (scrollbar visibility refresh).
+        super().on_mount()
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Paint the scrollbar palette with the active theme colors.
+
+        Slim-scrollbar palette (issue IKINF3): the track is fully transparent
+        (ScrollBar composites alpha<1 over the parent background), so only
+        the thin partial-block thumb is visible; a faint tint appears on
+        hover, the thumb brightens on drag.
+        """
+        t = theme.active()
+        s = self.styles
+        s.scrollbar_background = Color(0, 0, 0, 0)
+        s.scrollbar_background_hover = Color.parse(t.surface).with_alpha(0.35)
+        s.scrollbar_color = t.border
+        s.scrollbar_color_hover = t.fg_dim
+        s.scrollbar_color_active = t.accent
+        s.scrollbar_corner_color = Color(0, 0, 0, 0)
+        self.refresh_tree()
 
     # ------------------------------------------------------------- events
 

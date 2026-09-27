@@ -34,13 +34,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from rich.style import Style
 from textual.color import Color as TextualColor
 from textual.theme import Theme as TextualTheme
 
 from yate.editor_syntax.tokens import SYNTAX_KINDS
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Syntax palette
@@ -390,7 +393,7 @@ def active() -> Theme:
 
 
 def set_theme(name: str) -> Theme:
-    """Switch the active theme by name.
+    """Switch the active theme by name and notify subscribers.
 
     :raises KeyError: if no theme called *name* is registered.
     """
@@ -400,7 +403,51 @@ def set_theme(name: str) -> Theme:
     if name not in THEMES:
         raise KeyError(f"unknown theme: {name!r} (have: {', '.join(sorted(THEMES))})")
     _active = THEMES[name]
+    _notify()
     return _active
+
+
+#: Subscribers notified (synchronously) after a successful :func:`set_theme`.
+#: Widgets own their theme painting: they subscribe on mount and unsubscribe
+#: on unmount (rule "1:N low-frequency broadcast -> callback list").
+_listeners: list[Callable[[], None]] = []
+
+
+def subscribe(listener: Callable[[], None]) -> Callable[[], None]:
+    """Register *listener* for theme changes; return its unsubscribe function.
+
+    An equal listener (e.g. the same widget's bound method, should its
+    ``on_mount`` ever fire twice) is collapsed into one entry, so a single
+    ``unsubscribe`` call fully detaches it.  The returned callable removes
+    the listener again (idempotent: removing an unknown listener is a
+    no-op), so widgets can unsubscribe in their ``on_unmount`` without
+    coordination.
+    """
+    if listener not in _listeners:
+        _listeners.append(listener)
+
+    def _unsubscribe() -> None:
+        try:
+            _listeners.remove(listener)
+        except ValueError:
+            pass
+
+    return _unsubscribe
+
+
+def _notify() -> None:
+    """Fan the theme change out to every subscriber, isolating failures.
+
+    One misbehaving listener must not block the broadcast, so each call is
+    guarded and logged; the exception is never re-raised.
+    """
+    for listener in list(_listeners):
+        try:
+            listener()
+        except Exception as exc:  # noqa: BLE001 - isolate one bad subscriber
+            log.warning(
+                "theme listener failed: %s: %s", type(exc).__name__, exc
+            )
 
 
 def available() -> list[str]:

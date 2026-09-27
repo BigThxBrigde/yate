@@ -97,6 +97,21 @@ class TabBar(Static):
         """Re-render at the widget's current width."""
         self.render_content(self.size.width or 80)
 
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
+    def on_mount(self) -> None:
+        """Initial render, then follow theme changes (self-painted)."""
+        self._theme_unsubscribe = theme.subscribe(self.refresh_tabs)
+        self.refresh_tabs()
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
     # ------------------------------------------------------------- events
 
     def on_resize(self, _event: Resize) -> None:
@@ -192,8 +207,47 @@ class Breadcrumbs(Static):
         self.styles.background = theme.active().bg
         self.update(self.build(self.size.width or 80))
 
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
+    def on_mount(self) -> None:
+        """Initial render, then follow theme changes (self-painted)."""
+        self._theme_unsubscribe = theme.subscribe(self.refresh_crumbs)
+        self.refresh_crumbs()
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
     def on_resize(self, _event: Resize) -> None:
         self.refresh_crumbs()
+
+
+class SidebarHead(Static):
+    """The 'EXPLORER' sidebar title; owns its own theme painting."""
+
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
+    def on_mount(self) -> None:
+        """Paint initial background and title, then follow theme changes."""
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Panel background plus the bold muted title from the theme."""
+        self.styles.background = theme.active().panel
+        self.update(sidebar_head_text())
 
 
 #: The sidebar title ("EXPLORER"), kept with the rest of the static chrome.
