@@ -50,6 +50,7 @@ from __future__ import annotations
 import asyncio
 import ast
 import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -503,3 +504,40 @@ def test_devtools_bridge_forwards_only_while_tracing_enabled(
     finally:
         for handler in [h for h in root.handlers if isinstance(h, TextualHandler)]:
             root.removeHandler(handler)
+
+
+def test_no_class_level_scrollbar_renderer_patch() -> None:
+    """Slim scrollbars are injected per widget, never patched globally.
+
+    T1 governance (review_ui_refine_20260927): ``ScrollBar.renderer = ...``
+    at class level is a process-global monkey-patch that would leak across
+    every Textual app in the process.  Only per-widget instance assignment
+    (``widget.vertical_scrollbar.renderer = ...``) is allowed.
+    """
+    pattern = re.compile(r"(?m)^\s*ScrollBar\.renderer\s*=")
+    for path in _yate_files():
+        source = path.read_text(encoding="utf-8")
+        assert pattern.search(source) is None, (
+            f"{path}: class-level ScrollBar.renderer patch is banned; "
+            "use editor_view.scrollbars.apply_slim_scrollbars(widget)"
+        )
+
+
+def test_editor_does_not_paint_widget_styles() -> None:
+    """T2 governance (review_ui_refine_20260927): widgets own their theme.
+
+    The L3 ``Editor`` must not reach into widget internals: no
+    ``apply_theme`` / ``update_sidebar_head`` any more, and no direct
+    ``styles.background`` / ``styles.scrollbar_*`` assignments.  Layout
+    attributes it owns (terminal dock height) stay allowed.
+    """
+    source = (YATE / "editor.py").read_text(encoding="utf-8")
+    for banned in (
+        "def apply_theme",
+        "def update_sidebar_head",
+        ".styles.background =",
+        ".styles.scrollbar_",
+    ):
+        assert banned not in source, (
+            f"editor.py must not contain {banned!r}: widgets paint themselves"
+        )
