@@ -189,3 +189,5 @@ flowchart LR
 | `1b49208` | Plan D：2 条架构守卫 |
 | `47567db` | Plan E：review 文档回填"已治理" |
 | `766b266` | Plan E：子计划拆分 + 2 处继承漂移基线重拍 |
+| `fec98ed` | Plan E：计划目录按 app-layering-plans 规格重组（README + Plan A–E 分册） |
+| （评审修复） | Plan B §B.6：补 `ExplorerTree.on_mount` / `EditorView.on_mount` 的 `super().on_mount()`（前者本轮引入、后者存量），修复 `ScrollView._refresh_scrollbars` 遮蔽；顺带清 `test_scrollbars.py` 重复 `asyncio` 导入 |

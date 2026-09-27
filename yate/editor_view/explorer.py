@@ -282,6 +282,8 @@ class ExplorerTree(Tree[NodeData]):
     @override
     def on_mount(self) -> None:
         """Own the theme painting and register for theme-change updates."""
+        # Tree inherits ScrollView.on_mount (scrollbar visibility refresh).
+        super().on_mount()
         apply_slim_scrollbars(self)
         self._apply_theme()
         self._theme_unsubscribe = theme.subscribe(self._apply_theme)

@@ -45,7 +45,22 @@
 | `YateApp.__init__` 调 `install_slim_scrollbars()` | 各组件 `on_mount` 调 `apply_slim_scrollbars(self)` |
 | 效果：单进程所有 App | 效果：仅 yate 自己的滚动 widget |
 
-## B.5 验收证据
+## B.6 评审修复（2026-09-27，实现评审发现）
+
+按方案复审实现时发现并修复 `on_mount` 覆写遮蔽问题：
+
+- **本轮引入**：`ExplorerTree.on_mount`（Tree 继承 ScrollView）覆写时未调
+  `super().on_mount()`，遮蔽了 `ScrollView.on_mount` 的 `_refresh_scrollbars()`
+  （scroll_view.py:58 / widget.py:2078，滚动条**可见性**刷新）——已补 `super()`。
+- **存量缺陷顺带修复**：`EditorView.on_mount` 自初始提交起同样缺 `super().on_mount()`
+  （此前一直被 `watch_scroll_x/y` + resize 路径掩盖），一并补上。
+- 取证：Textual 的 `App`/`Screen` 只有**私有** `_on_mount`/`_watch_theme`（私有 handler
+  独立于公开覆写调用），故 `YateApp.watch_theme`、各 Screen 的 `on_mount` 无遮蔽问题；
+  `chrome.py` 三个类 / `PromptBar` / `StatusBar` 的 MRO 上不存在公开 `on_mount`，不加
+  `@override` 是正确的。
+- 复验：pyright（latest 版本）0 errors；pytest 全量绿；`smoke_test compare` exit 0。
+
+## B.7 验收证据
 
 - `tests/test_scrollbars.py::test_install_points_widget_scrollbars_at_slim` 重写为 **pilot 内断言**
   （懒创建需要活跃 App 上下文）：注入后 `widget.vertical_scrollbar.renderer is SlimScrollBarRender`

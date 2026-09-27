@@ -223,6 +223,9 @@ class EditorView(ScrollView):
     @override
     def on_mount(self) -> None:
         """Apply the active theme and register for theme-change updates."""
+        # ScrollView.on_mount refreshes scrollbar visibility; skipping it
+        # would defer the initial show/hide decision to the first resize.
+        super().on_mount()
         apply_slim_scrollbars(self)
         self._apply_theme()
         self._theme_unsubscribe = theme.subscribe(self._apply_theme)

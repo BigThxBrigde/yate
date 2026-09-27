@@ -92,6 +92,4 @@ def test_install_points_widget_scrollbars_at_slim() -> None:
             # The class default stays untouched: no process-global patch.
             assert ScrollBar.renderer is not SlimScrollBarRender
 
-    import asyncio
-
     asyncio.run(_scenario())
