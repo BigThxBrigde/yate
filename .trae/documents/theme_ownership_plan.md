@@ -80,6 +80,30 @@ flowchart LR
 
 ## 五、实施步骤（每步含验收）
 
+### 子计划拆分（2026-09-27 补充，按依赖关系可并行/串行）
+
+```mermaid
+flowchart LR
+    A[SP-A 主题广播基建<br/>theme.py + 单测] --> C[SP-C 组件自持迁移<br/>七组件 + 删 apply_theme]
+    B[SP-B 滚动条注入<br/>scrollbars.py + 三组件挂载点]
+    B --> D[SP-D 架构守卫<br/>2 条新守护用例]
+    C --> D
+    A --> E[SP-E 收尾<br/>全量门禁 + smoke + 文档回填]
+    B --> E
+    C --> E
+    D --> E
+```
+
+| 子计划 | 边界（独占文件） | 交付物 | 验收 | 依赖 |
+|---|---|---|---|---|
+| **SP-A** 主题广播基建 | `yate/editor_view/theme.py`、`tests/test_theme_subscribe.py` | `subscribe()`/`_notify()`（异常隔离） | 4 项单测过（触发/退订幂等/异常隔离/失败不通知） | 无 |
+| **SP-B** 滚动条注入 | `yate/editor_view/scrollbars.py`、`editor_view/{editor,explorer,manual}.py` 的 `on_mount` 一行、`tests/test_scrollbars.py` | `apply_slim_scrollbars(widget)`；`install_slim_scrollbars` 删除 | pilot 内断言实例 renderer 生效且类默认不动 | 无（与 A 可并行） |
+| **SP-C** 组件自持迁移 | `editor_view/{editor,explorer,commandline,chrome,statusbar}.py`、`yate/editor.py`、`yate/app.py` | 七组件 `_apply_theme` + 订阅/退订；`Editor.apply_theme`/`update_sidebar_head` 删除；L4 `watch_theme` | 探针断言六处 styles 随 `:theme` 切换更新 | SP-A |
+| **SP-D** 架构守卫 | `tests/test_architecture.py` | 禁类级 patch、禁 editor.py 直改 styles 两条守护 | 20 用例全过；违规即红 | SP-B、SP-C |
+| **SP-E** 收尾 | `tools/smoke_test/smoke_baselines/*.json`、`.trae/documents`、`.trae/issues` | 门禁全绿 + 基线一致 + 文档回填 | pyright 0 / pytest 绿 / smoke run + compare exit 0 | 全部 |
+
+原 S1→S5 步骤表（保留为历史验收记录）：
+
 | 步 | 内容 | 改动文件 | 验收 |
 |---|---|---|---|
 | S1 | `theme.py` 订阅机制（含异常隔离） | `yate/editor_view/theme.py` | 新增单测：注册→set_theme 触发→退订→不再触发；订阅者抛异常不影响其他订阅者；`pytest tests/test_theme*.py -q` |
@@ -120,3 +144,22 @@ flowchart LR
 | S3 | `:theme latte` 广播后各组件 styles 更新 | 一次性探针断言 prompt/sidebar_head/screen/status/view/explorer 六处全等，**过**（临时脚本已删） |
 | S4 | 2 条新守卫 | `tests/test_architecture.py` **20 passed** |
 | S5 | 全量门禁 + 冒烟 | pyright **0 errors**；pytest 全量绿（仅平台 skip）；`tools.smoke_test run --skip-slow` **882/882 checks、84/84 scenarios、exit 0** |
+
+## 九、子计划遗漏对比（2026-09-27 补充）
+
+以 §四设计 + §五 S1–S5 验收为基准，对 SP-A…SP-E 逐项盘点：
+
+| # | 基准项 | SP 覆盖 | 执行状态 | 结论 |
+|---|---|---|---|---|
+| 1 | S1 四项订阅单测 | SP-A | 4 passed | 无遗漏 |
+| 2 | S2 实例注入 + 类默认不动（F1/F2 取证） | SP-B | pilot 断言过 | 无遗漏 |
+| 3 | S3 两个调用点删除（F4：启动 `editor.py:260`、`set_theme:1140`） | SP-C | `apply_theme` 整体删除，守卫钉死 | 无遗漏 |
+| 4 | S3 `update_sidebar_head` 处置 | SP-C | 用户决策升级为彻底删除（方案 §四.3 原文是"缩为纯文本更新"），已同步 | 无遗漏（决策覆盖） |
+| 5 | S4 两条架构守卫 | SP-D | 20 用例全过 | 无遗漏 |
+| 6 | **风险表 R4：S3 后跑 `smoke_test compare` 记录视觉漂移** | SP-E | **执行时遗漏**（只跑了 `run`）→ 已补跑：发现 2 处基线漂移（`set_options_matrix` 新增 readonly 检查项、`stress_key_fuzz` 序列置换），在重构前分支 `enh/ui-refine` 上逐一复现 → **归因为 master 合并继承，非本次重构引入**；重拍该 2 基线后 compare exit 0（882/882） | **已闭合**（本节记录） |
+| 7 | §四.3 `watch_theme` 挂载前 no-op + `on_mount` 补刷 | SP-C | 已实现并探针覆盖 | 无遗漏 |
+| 8 | §八 两处实现细化（`@override`、`setattr`） | SP-B/C | 已记录 | 无遗漏 |
+| 9 | 风险表"分屏动态创建 view 错过广播" | SP-C | `on_mount` 先自取主题兜底（F5 先例），探针含动态 view 路径 | 无遗漏 |
+| 10 | L0 终端不参与主题（审计边界点 2） | — | 维持零参与；未来需要走构造注入 Callable | 按计划外推 |
+
+**结论：除第 6 项（compare 门禁漏跑，已补齐并归因）外无遗漏；所有验收均实测通过。**
