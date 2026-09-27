@@ -1,0 +1,48 @@
+/* App-level layout rules (L4 shell). Selector ids are frozen by R9:
+   changing an id requires updating this file in sync.
+   See .trae/rules/architecture-boundaries.md. */
+#bottom-dock {
+    dock: bottom;
+    height: auto;
+}
+#bottom {
+    height: 2;
+}
+#terminal-dock {
+    height: 12;
+    display: none;
+}
+#body {
+    height: 1fr;
+}
+#sidebar {
+    width: 34;
+    min-width: 16;
+    height: 1fr;
+}
+#sidebar-head {
+    height: 1;
+    padding: 0;
+}
+#explorer {
+    height: 1fr;
+}
+#editor-col {
+    width: 1fr;
+    height: 1fr;
+    layers: default lsp-popup;
+}
+#tabbar {
+    height: 1;
+    padding: 0;
+}
+#breadcrumbs {
+    height: 1;
+    padding: 0;
+}
+/* Global slim scrollbars (issue IKINF3): ties the Widget default
+ * (scrollbar-size-vertical: 2) on source order -- every scrollable widget
+ * (editor, explorer, terminal, overlays) renders a 1-cell thumb. */
+Widget {
+    scrollbar-size-vertical: 1;
+}

@@ -10,6 +10,7 @@ table modules import the editor, so the editor must not import them back).
 from __future__ import annotations
 
 import sys
+from importlib.resources import files
 from pathlib import Path
 from typing import override
 
@@ -31,6 +32,25 @@ from yate.logs import tracing
 __all__ = ["textual_key_to_raw", "YateApp"]
 
 log = tracing.get_logger(__name__)
+
+
+def _load_app_css() -> str:
+    """Read the app-level stylesheet packaged at ``yate/resources/app.tcss``.
+
+    The shell's CSS is a bundled resource rather than an inline literal so it
+    gets editor syntax highlighting and ships through the same packaging
+    channels as every other file under ``yate/resources`` (hatchling wheel and
+    both PyInstaller specs already collect that directory whole).  An
+    unreadable resource means a broken installation: fail fast at import time
+    with an actionable message instead of a confusing stylesheet error later.
+    """
+    try:
+        return files("yate.resources").joinpath("app.tcss").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RuntimeError(
+            "bundled resource yate/resources/app.tcss could not be read; "
+            "the yate installation is broken"
+        ) from exc
 
 
 class YateApp(App[None]):
@@ -57,53 +77,7 @@ class YateApp(App[None]):
             return YateWindowsDriver
         return super().get_driver_class()
 
-    CSS = """
-    #bottom-dock {
-        dock: bottom;
-        height: auto;
-    }
-    #bottom {
-        height: 2;
-    }
-    #terminal-dock {
-        height: 12;
-        display: none;
-    }
-    #body {
-        height: 1fr;
-    }
-    #sidebar {
-        width: 34;
-        min-width: 16;
-        height: 1fr;
-    }
-    #sidebar-head {
-        height: 1;
-        padding: 0;
-    }
-    #explorer {
-        height: 1fr;
-    }
-    #editor-col {
-        width: 1fr;
-        height: 1fr;
-        layers: default lsp-popup;
-    }
-    #tabbar {
-        height: 1;
-        padding: 0;
-    }
-    #breadcrumbs {
-        height: 1;
-        padding: 0;
-    }
-    /* Global slim scrollbars (issue IKINF3): App CSS ties the Widget default
-     * (scrollbar-size-vertical: 2) on source order -- every scrollable widget
-     * (editor, explorer, terminal, overlays) renders a 1-cell thumb. */
-    Widget {
-        scrollbar-size-vertical: 1;
-    }
-    """
+    CSS = _load_app_css()
 
     def __init__(
         self,
