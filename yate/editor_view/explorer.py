@@ -62,15 +62,20 @@ class ExplorerTree(Tree[NodeData]):
          * (issue IKINF3); long names stay reachable by scrolling. */
         scrollbar-size-horizontal: 1;
 
-        & > .tree--guides {
-            color: $foreground 15%;
-        }
-        /* Hover / selected rows get their own guide component classes with
-         * brighter defaults -- pin them to the resting tint so the rails
-         * keep one constant color while a folder under the cursor is
-         * expanded (issue IKINF3). */
+        /* Constant guide color in every state (issue IKINF3): Tree's
+         * defaults brighten guides on hover and, worse, paint the focused
+         * selection's rails with $block-cursor-background (the mauve cursor
+         * color).  Pin every variant -- :focus / :light out-specify the
+         * plain selectors, so they must be pinned explicitly. */
+        & > .tree--guides,
         & > .tree--guides-hover,
-        & > .tree--guides-selected {
+        & > .tree--guides-selected,
+        &:focus > .tree--guides,
+        &:focus > .tree--guides-hover,
+        &:focus > .tree--guides-selected,
+        &:light > .tree--guides,
+        &:light > .tree--guides-hover,
+        &:light > .tree--guides-selected {
             color: $foreground 15%;
         }
         /* Calm the tree cursor down (issue IKINF3): the default maps to the

@@ -20,7 +20,7 @@ from yate.actions import populate
 from yate.commands import register_commands
 from yate.config import YateConfig
 from yate.editor import Editor
-from yate.editor_view import theme
+from yate.editor_view import scrollbars, theme
 from yate.editor_view.keys import textual_key_to_raw
 
 # `textual_key_to_raw` lives in yate.editor_view.keys to avoid import cycles
@@ -95,6 +95,10 @@ class YateApp(App[None]):
     ) -> None:
         super().__init__()
         self.title = f"yate {__version__}"
+
+        # Slim scrollbars app-wide (issue IKINF3): draw thumbs as thin
+        # partial-block slivers instead of solid full-cell bands.
+        scrollbars.install_slim_scrollbars()
 
         self.config = config if config is not None else YateConfig()
         # The color theme is process-global state (like vim's colorscheme).

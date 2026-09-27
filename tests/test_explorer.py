@@ -361,10 +361,12 @@ def test_tree_h_scrollbar_stays_available_and_thin(tmp_path: Path) -> None:
 
 
 def test_guide_colors_constant_on_hover_and_selection() -> None:
-    """Hover/selected guide classes share the resting tint: expanding a
-    folder under the cursor must not brighten the rails."""
+    """Guides share the resting tint in every state: hover, selected,
+    focused and light-mode variants must not repaint the rails mauve."""
     css = ExplorerTree.DEFAULT_CSS
-    assert "tree--guides-hover" in css and "tree--guides-selected" in css
-    for cls in ("tree--guides", "tree--guides-hover", "tree--guides-selected"):
-        block = css.split(f".{cls}")[1].split("}")[0]
-        assert "15%" in block, f"{cls} must pin the resting guide tint"
+    for variant in ("& > ", "&:focus > ", "&:light > "):
+        for cls in ("tree--guides", "tree--guides-hover", "tree--guides-selected"):
+            selector = f"{variant}.{cls}"
+            assert selector in css, f"missing pinned selector {selector}"
+            block = css.split(selector, 1)[1].split("}", 1)[0]
+            assert "15%" in block, f"{selector} must pin the resting tint"
