@@ -58,6 +58,10 @@ class YateApp(App[None]):
     # ctrl+p is yate's own command prompt -- disable Textual's palette.
     ENABLE_COMMAND_PALETTE = False
 
+    #: R12 devtools bridge, mounted in :meth:`on_mount` and detached by
+    #: identity in :meth:`on_unmount`; ``None`` while not mounted.
+    _devtools_bridge: logging.Handler | None = None
+
     @override
     def get_driver_class(self) -> type[Driver]:
         """Pick the chord-aware driver on Windows unless yaterc opts out.
@@ -198,27 +202,26 @@ class YateApp(App[None]):
         # no yate module ever needs the devtools channel (``app.log`` /
         # widget ``self.log``) directly -- this bridge is the only sanctioned
         # path.  Mounted here (not __init__) so the handler follows the app
-        # lifecycle; deduped because tests create many app instances that
-        # share the process-global ``yate`` logger.
+        # lifecycle, and detached by identity in on_unmount so concurrent
+        # app instances never strip each other's bridge.
         yate_root = logging.getLogger(LOGGER_NAME)
-        if not any(
-            isinstance(handler, TextualHandler)
-            for handler in yate_root.handlers
-        ):
-            yate_root.addHandler(_TracingGatedTextualHandler(stderr=False, stdout=False))
+        if self._devtools_bridge is not None:
+            # Defensive: a remount without an unmount would otherwise leak
+            # the previous handler.
+            yate_root.removeHandler(self._devtools_bridge)
+        self._devtools_bridge = _TracingGatedTextualHandler(
+            stderr=False, stdout=False
+        )
+        yate_root.addHandler(self._devtools_bridge)
         log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
-        # Detach the R12 bridge with the app (see on_mount); the next app
-        # instance re-attaches its own handler.
-        yate_root = logging.getLogger(LOGGER_NAME)
-        for handler in [
-            handler
-            for handler in yate_root.handlers
-            if isinstance(handler, TextualHandler)
-        ]:
-            yate_root.removeHandler(handler)
+        # Detach the R12 bridge by identity (see on_mount): removing only
+        # our own handler keeps a concurrently mounted app's bridge intact.
+        if self._devtools_bridge is not None:
+            logging.getLogger(LOGGER_NAME).removeHandler(self._devtools_bridge)
+            self._devtools_bridge = None
         log.debug("app unmount")
         await self.editor.on_unmount()
 

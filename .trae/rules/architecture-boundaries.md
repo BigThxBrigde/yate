@@ -79,8 +79,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
     （stdlib `logging.Handler`，`emit` 经 `active_app` 转发 devtools）。tracing 即 stdlib
     logging，挂载即通；
   - **挂载点唯一**：`YateApp.on_mount`（L4 生命周期）挂 `TextualHandler` 到 `yate` 根
-    logger，`on_unmount` 对称摘除（handler 跟随 App 实例生命周期，不进程级残留），
-    **去重**（测试多实例共享进程级 logger，重复挂载会重复转发），
+    logger，`on_unmount` **按身份**摘除本实例所挂的 handler（多 App 实例互不误摘；
+    重挂载前先摘旧实例防泄漏），handler 跟随 App 实例生命周期，不进程级残留，
     `stderr=False, stdout=False`（无 devtools 时绝不污染 TTY）；
   - **闸门语义（YATE_TRACE 单开关，2026-09-27 评审后收紧）**：挂到根 logger 的桥是
     `_TracingGatedTextualHandler`——`emit` 先查 `tracing.is_enabled()`，**tracing 禁用
