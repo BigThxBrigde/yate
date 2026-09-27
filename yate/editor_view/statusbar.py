@@ -10,6 +10,7 @@ directly, so no host protocol is involved.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from rich.text import Text
@@ -76,8 +77,20 @@ class StatusBar(Static):
         self.prompt = prompt
         self.extension_loader = extension_loader
 
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
     def on_mount(self) -> None:
+        """Initial render, then follow theme changes (self-painted)."""
+        self._theme_unsubscribe = theme.subscribe(self.refresh_status)
         self.refresh_status()
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
 
     def refresh_status(self) -> None:
         """Rebuild the one-line status text from the current editor state."""

@@ -38,6 +38,8 @@ from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Input, Markdown, Static
 
+from .scrollbars import apply_slim_scrollbars
+
 _DOC_LANGS = ("en", "zh")
 
 #: Fixed notice rendered when a doc is not shipped with the build.  The
@@ -273,6 +275,7 @@ class MarkdownDocScreen(ModalScreen[None]):
             )
 
     def on_mount(self) -> None:
+        apply_slim_scrollbars(self.query_one("#doc-scroll", VerticalScroll))
         # coroutine *function*: an eager coroutine would leak if the
         # worker never starts (closing pump)
         self.run_worker(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from rich.color import Color
 from rich.segment import Segments
 
@@ -9,7 +11,7 @@ from textual.scrollbar import ScrollBar
 
 from yate.editor_view.scrollbars import (
     SlimScrollBarRender,
-    install_slim_scrollbars,
+    apply_slim_scrollbars,
 )
 
 #: Track/thumb colors far apart in hue so assertions can rely on glyphs.
@@ -73,7 +75,23 @@ def test_no_scroll_renders_track_only() -> None:
     assert "\u2582" not in text and "\u2590" not in text
 
 
-def test_install_points_scrollbar_renderer_at_slim() -> None:
-    """install_slim_scrollbars() wires Textual's documented renderer hook."""
-    install_slim_scrollbars()
-    assert ScrollBar.renderer is SlimScrollBarRender
+def test_install_points_widget_scrollbars_at_slim() -> None:
+    """apply_slim_scrollbars() injects the renderer per widget, not globally."""
+
+    from yate.app import YateApp
+
+    async def _scenario() -> None:
+        # Scrollbar lazy-creation needs an active app (app._start_widget).
+        app = YateApp()
+        async with app.run_test(size=(80, 24)):
+            widget = app.editor.panes.active_view
+            assert widget is not None
+            apply_slim_scrollbars(widget)
+            assert widget.vertical_scrollbar.renderer is SlimScrollBarRender
+            assert widget.horizontal_scrollbar.renderer is SlimScrollBarRender
+            # The class default stays untouched: no process-global patch.
+            assert ScrollBar.renderer is not SlimScrollBarRender
+
+    import asyncio
+
+    asyncio.run(_scenario())

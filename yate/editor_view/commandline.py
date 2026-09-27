@@ -243,14 +243,30 @@ class PromptBar(Horizontal):
         yield self.input
         yield self.message
 
+    #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: Callable[[], None] | None = None
+
     def on_mount(self) -> None:
+        """Own the theme painting and register for theme-change updates."""
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+        self.input.display = False
+        self.prompt.display = False
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Paint the bar and its children with the active theme."""
         t = theme.active()
         self.styles.background = t.panel
         self.message.styles.background = t.panel
         self.prompt.styles.background = t.panel
         self.input.styles.background = t.panel
-        self.input.display = False
-        self.prompt.display = False
 
     # ------------------------------------------------------------ states
 
