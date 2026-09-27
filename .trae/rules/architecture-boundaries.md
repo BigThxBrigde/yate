@@ -56,7 +56,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   `log = tracing.get_logger(__name__)`（含无 App 上下文的驱动线程 / worker / 回调）；
   **禁止**为访问 Textual devtools 日志（`app.log` / widget `self.log`）而
   `import textual.app` 或为 `app` 属性补类型注解，业务代码不得直连 devtools 通道。
-  devtools 可视化由 L4 `YateApp.__init__` 统一桥接：`textual.logging.TextualHandler`
+  devtools 可视化由 L4 `YateApp` 统一桥接：`textual.logging.TextualHandler`
   挂到 tracing 根 logger（回调模式；devtools 未连接或 tracing 未开启时零输出），
   L0 不因日志引入 textual 依赖。
 
@@ -78,8 +78,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
     devtools 写入器，**无回调/注入 API**；官方反向桥是 `textual.logging.TextualHandler`
     （stdlib `logging.Handler`，`emit` 经 `active_app` 转发 devtools）。tracing 即 stdlib
     logging，挂载即通；
-  - **挂载点唯一**：`YateApp.__init__`（L4，`super().__init__()` 之后）挂 `TextualHandler`
-    到 `yate` 根 logger，**去重**（测试多实例共享进程级 logger，重复挂载会重复转发），
+  - **挂载点唯一**：`YateApp.on_mount`（L4 生命周期）挂 `TextualHandler` 到 `yate` 根
+    logger，`on_unmount` 对称摘除（handler 跟随 App 实例生命周期，不进程级残留），
+    **去重**（测试多实例共享进程级 logger，重复挂载会重复转发），
     `stderr=False, stdout=False`（无 devtools 时绝不污染 TTY）；
   - **零成本保证**：Handler 只在 record 已产生时被调用——`YATE_TRACE` 未开启时 tracing
     logger 无有效 level，stdlib 在 Logger 调用前就丢弃 record，桥不参与；devtools 断连时

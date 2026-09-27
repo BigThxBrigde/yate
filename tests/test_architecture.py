@@ -47,7 +47,10 @@ smoke checklist; they have no guard here yet.
 
 from __future__ import annotations
 
+import asyncio
 import ast
+import logging
+import sys
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parent.parent
@@ -409,3 +412,34 @@ def test_ui_free_layers_do_not_import_textual_app() -> None:
     targets.extend(YATE / name for name in (*UI_FREE_FILES, "logs.py"))
     for path in targets:
         assert "textual.app" not in _module_imports(path), path
+
+
+def test_devtools_bridge_follows_app_lifecycle() -> None:
+    """The R12 ``TextualHandler`` bridge is mounted on the tracing root in
+    ``YateApp.on_mount`` and detached in ``on_unmount`` -- exactly one
+    handler per mounted app, none left behind after unmount."""
+    import pytest
+
+    from textual.logging import TextualHandler
+
+    from yate.app import YateApp
+    from yate.logs import LOGGER_NAME
+
+    if sys.platform != "win32":  # pragma: no cover - CI matrix safety
+        pytest.skip("pilot lifecycle is exercised on Windows only")
+    root = logging.getLogger(LOGGER_NAME)
+    app = YateApp()
+
+    async def _drive() -> None:
+        async with app.run_test(size=(80, 24)):
+            mounted = [h for h in root.handlers if isinstance(h, TextualHandler)]
+            assert len(mounted) == 1, mounted
+        detached = [h for h in root.handlers if isinstance(h, TextualHandler)]
+        assert detached == [], detached
+
+    try:
+        asyncio.run(_drive())
+    finally:
+        # A crash between mount and unmount must not poison other tests.
+        for handler in [h for h in root.handlers if isinstance(h, TextualHandler)]:
+            root.removeHandler(handler)

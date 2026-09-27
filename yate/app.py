@@ -116,18 +116,6 @@ class YateApp(App[None]):
         # resolves the driver class, which consults config.key_protocol.
         self.config = config if config is not None else YateConfig()
         super().__init__()
-        # R12: mirror tracing records into the Textual devtools console so
-        # no yate module ever needs the devtools channel (``app.log`` /
-        # widget ``self.log``) directly -- this bridge is the only sanctioned
-        # path.  The handler is silent unless devtools is connected (and
-        # tracing enabled), and it is attached once even across the many
-        # app instances the tests create.
-        yate_root = logging.getLogger(LOGGER_NAME)
-        if not any(
-            isinstance(handler, TextualHandler)
-            for handler in yate_root.handlers
-        ):
-            yate_root.addHandler(TextualHandler(stderr=False, stdout=False))
         self.title = f"yate {__version__}"
 
         # The color theme is process-global state (like vim's colorscheme).
@@ -189,10 +177,31 @@ class YateApp(App[None]):
         yield from self.editor.compose()
 
     async def on_mount(self) -> None:
+        # R12: mirror tracing records into the Textual devtools console so
+        # no yate module ever needs the devtools channel (``app.log`` /
+        # widget ``self.log``) directly -- this bridge is the only sanctioned
+        # path.  Mounted here (not __init__) so the handler follows the app
+        # lifecycle; deduped because tests create many app instances that
+        # share the process-global ``yate`` logger.
+        yate_root = logging.getLogger(LOGGER_NAME)
+        if not any(
+            isinstance(handler, TextualHandler)
+            for handler in yate_root.handlers
+        ):
+            yate_root.addHandler(TextualHandler(stderr=False, stdout=False))
         log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
+        # Detach the R12 bridge with the app (see on_mount); the next app
+        # instance re-attaches its own handler.
+        yate_root = logging.getLogger(LOGGER_NAME)
+        for handler in [
+            handler
+            for handler in yate_root.handlers
+            if isinstance(handler, TextualHandler)
+        ]:
+            yate_root.removeHandler(handler)
         log.debug("app unmount")
         await self.editor.on_unmount()
 
