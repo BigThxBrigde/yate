@@ -53,6 +53,8 @@ import logging
 import sys
 from pathlib import Path
 
+import pytest
+
 PROJECT = Path(__file__).resolve().parent.parent
 YATE = PROJECT / "yate"
 
@@ -418,8 +420,6 @@ def test_devtools_bridge_follows_app_lifecycle() -> None:
     """The R12 ``TextualHandler`` bridge is mounted on the tracing root in
     ``YateApp.on_mount`` and detached in ``on_unmount`` -- exactly one
     handler per mounted app, none left behind after unmount."""
-    import pytest
-
     from textual.logging import TextualHandler
 
     from yate.app import YateApp
@@ -441,5 +441,50 @@ def test_devtools_bridge_follows_app_lifecycle() -> None:
         asyncio.run(_drive())
     finally:
         # A crash between mount and unmount must not poison other tests.
+        for handler in [h for h in root.handlers if isinstance(h, TextualHandler)]:
+            root.removeHandler(handler)
+
+
+def test_devtools_bridge_forwards_only_while_tracing_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The R12 bridge is gated by the tracing switch: with tracing disabled
+    no record may reach the devtools channel (one switch for all yate
+    diagnostics), and enabled records forward to ``TextualHandler.emit``.
+
+    The bridge under test is the instance actually mounted by ``on_mount``
+    -- which also proves the mounted handler is the gated subclass."""
+    from textual.logging import TextualHandler
+
+    from yate.app import YateApp
+    from yate.logs import LOGGER_NAME, tracing
+
+    root = logging.getLogger(LOGGER_NAME)
+    app = YateApp()
+
+    async def _drive() -> None:
+        async with app.run_test(size=(80, 24)):
+            bridge = next(h for h in root.handlers if isinstance(h, TextualHandler))
+            forwarded: list[logging.LogRecord] = []
+
+            def _fake_emit(
+                sender: TextualHandler, record: logging.LogRecord
+            ) -> None:
+                forwarded.append(record)
+
+            monkeypatch.setattr(TextualHandler, "emit", _fake_emit)
+            record = logging.LogRecord(
+                "yate.test", logging.WARNING, __file__, 1, "boom", None, None
+            )
+            monkeypatch.setattr(tracing, "is_enabled", lambda: False)
+            bridge.emit(record)
+            assert forwarded == []
+            monkeypatch.setattr(tracing, "is_enabled", lambda: True)
+            bridge.emit(record)
+            assert len(forwarded) == 1
+
+    try:
+        asyncio.run(_drive())
+    finally:
         for handler in [h for h in root.handlers if isinstance(h, TextualHandler)]:
             root.removeHandler(handler)

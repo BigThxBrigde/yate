@@ -66,9 +66,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   flowchart LR
       A["业务模块 (L0-L3)<br/>log = tracing.get_logger(__name__)"] --> B["tracing 根 logger<br/>(stdlib logging, 'yate')"]
       B -->|YATE_TRACE=1| C[trace 文件<br/>~/.yate/data/logs/]
-      B -->|"TextualHandler (L4 桥)"| D[devtools 控制台]
+      B -->|"TextualHandler (L4 桥, tracing 闸门)"| D[devtools 控制台]
       D -.->|devtools 未连接| E[静默丢弃]
-      C -.->|YATE_TRACE 未设| E
+      C -.->|tracing 未设| E
       style A fill:#bbdefb,color:#0d47a1
       style B fill:#c8e6c9,color:#1a5e20
       style D fill:#fff3e0,color:#e65100
@@ -82,9 +82,11 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
     logger，`on_unmount` 对称摘除（handler 跟随 App 实例生命周期，不进程级残留），
     **去重**（测试多实例共享进程级 logger，重复挂载会重复转发），
     `stderr=False, stdout=False`（无 devtools 时绝不污染 TTY）；
-  - **零成本保证**：Handler 只在 record 已产生时被调用——`YATE_TRACE` 未开启时 tracing
-    logger 无有效 level，stdlib 在 Logger 调用前就丢弃 record，桥不参与；devtools 断连时
-    `TextualHandler.emit` 自查 `active_app` 后静默；
+  - **闸门语义（YATE_TRACE 单开关，2026-09-27 评审后收紧）**：挂到根 logger 的桥是
+    `_TracingGatedTextualHandler`——`emit` 先查 `tracing.is_enabled()`，**tracing 禁用
+    时 devtools 一并禁用**（未配置的 `yate` logger 有效级别继承 root 的 WARNING，
+    WARNING+ record 会到达每个 handler，闸门在 handler 层把它们全部挡下，devtools
+    通道零输出）；devtools 断连时 `TextualHandler.emit` 自查 `active_app` 后静默；
   - **例外登记**：无。扫描实证全仓唯一历史违规（`driver_windows.py` 经 `self.app.log`）
     已随 R12 落地清除（commit `003263e`）；
   - **守卫**：§六「R12」条目（AST 取证，两个用例，负向演练通过）。

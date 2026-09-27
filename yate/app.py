@@ -35,6 +35,23 @@ __all__ = ["textual_key_to_raw", "YateApp"]
 log = tracing.get_logger(__name__)
 
 
+class _TracingGatedTextualHandler(TextualHandler):
+    """Devtools bridge that forwards records only while tracing is on (R12).
+
+    Tracing is the single switch for yate diagnostics: while it is off, no
+    record may reach the devtools console either.  The gate is needed at the
+    handler (not the logger) because the unconfigured ``yate`` logger
+    inherits the root logger's WARNING level -- WARNING+ records would flow
+    to every attached handler, devtools included.
+    """
+
+    @override
+    def emit(self, record: logging.LogRecord) -> None:
+        if not tracing.is_enabled():
+            return
+        super().emit(record)
+
+
 class YateApp(App[None]):
     """The yate Textual application: theme bridge, CSS, lifecycle, keys."""
 
@@ -188,7 +205,7 @@ class YateApp(App[None]):
             isinstance(handler, TextualHandler)
             for handler in yate_root.handlers
         ):
-            yate_root.addHandler(TextualHandler(stderr=False, stdout=False))
+            yate_root.addHandler(_TracingGatedTextualHandler(stderr=False, stdout=False))
         log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
         await self.editor.on_mount()
 
