@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from rich.segment import Segment
 from rich.style import Style
+from textual.color import Color
 from textual.events import Focus, Key, Resize
 from textual.geometry import Size
 from textual.scroll_view import ScrollView
@@ -225,16 +226,18 @@ class EditorView(ScrollView):
 
         Textual draws the scrollbar itself; without explicit styling it keeps
         the framework defaults which clash with the Catppuccin palette. The
-        track melts into the editor background and the thumb is a faint
-        border-tinted sliver (issue IKINF3), brightening only on hover/drag.
+        track is fully transparent (ScrollBar composites alpha<1 over the
+        parent background), so only the thin partial-block thumb shows
+        (issue IKINF3); a faint tint appears on hover/drag.
         """
         t = theme.active()
         s = self.styles
-        s.scrollbar_background = t.bg
-        s.scrollbar_background_hover = t.surface
+        s.scrollbar_background = Color(0, 0, 0, 0)
+        s.scrollbar_background_hover = Color.parse(t.surface).with_alpha(0.35)
         s.scrollbar_color = t.border
         s.scrollbar_color_hover = t.fg_dim
         s.scrollbar_color_active = t.accent
+        s.scrollbar_corner_color = Color(0, 0, 0, 0)
 
     def _update_virtual_size(self) -> None:
         buf = self.buffer

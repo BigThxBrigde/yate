@@ -26,6 +26,7 @@ from typing import Any
 from collections.abc import Callable
 
 from textual.app import App, ComposeResult
+from textual.color import Color
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
 from textual.screen import Screen
@@ -1126,14 +1127,18 @@ class Editor:
             view.apply_scrollbar_theme()
             view.content_changed()
         tree = self.explorer_tree
-        # Slim-scrollbar palette (issue IKINF3): the track melts into the
-        # panel and the thumb is a faint border-tinted sliver, brightening
-        # only on hover / drag.
-        tree.styles.scrollbar_background = t.panel
-        tree.styles.scrollbar_background_hover = t.surface
+        # Slim-scrollbar palette (issue IKINF3): the track is fully
+        # transparent (ScrollBar composites alpha<1 over the parent
+        # background), so only the thin partial-block thumb is visible; a
+        # faint tint appears on hover, the thumb brightens on drag.
+        tree.styles.scrollbar_background = Color(0, 0, 0, 0)
+        tree.styles.scrollbar_background_hover = Color.parse(t.surface).with_alpha(
+            0.35
+        )
         tree.styles.scrollbar_color = t.border
         tree.styles.scrollbar_color_hover = t.fg_dim
         tree.styles.scrollbar_color_active = t.accent
+        tree.styles.scrollbar_corner_color = Color(0, 0, 0, 0)
         tree.refresh_tree()
         self.status_bar.refresh_status()
         self.prompt_bar.styles.background = t.panel

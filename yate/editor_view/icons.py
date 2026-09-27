@@ -88,3 +88,57 @@ def icon_for_path(name: str, is_dir: bool, expanded: bool = False) -> str:
         return FOLDER_OPEN if expanded else FOLDER
     suffix = name.rsplit(".", 1)[-1].lower() if "." in name else name.lower()
     return FILE_ICONS.get(suffix, FILE_TEXT)
+
+
+#: extension -> :class:`yate.editor_view.theme.Theme` color role, giving tree
+#: file icons a VS Code-like per-type tint (issue IKINF3).  Roles are the
+#: theme's color attribute names; ``fg_dim`` is the neutral fallback.
+FILE_ICON_COLORS: dict[str, str] = {
+    "py": "yellow",
+    "pyw": "yellow",
+    "js": "yellow",
+    "jsx": "yellow",
+    "ts": "accent",
+    "tsx": "accent",
+    "json": "orange",
+    "toml": "orange",
+    "yaml": "orange",
+    "yml": "orange",
+    "xml": "orange",
+    "sql": "orange",
+    "html": "orange",
+    "htm": "orange",
+    "css": "accent",
+    "scss": "accent",
+    "md": "accent",
+    "rst": "accent",
+    "sh": "green",
+    "bash": "green",
+    "zsh": "green",
+    "ps1": "green",
+    "csv": "green",
+    "vim": "green",
+    "bat": "fg_dim",
+    "cmd": "fg_dim",
+    "txt": "fg_dim",
+    "log": "fg_dim",
+    "lock": "fg_dim",
+    "c": "accent2",
+    "h": "accent2",
+    "cpp": "accent2",
+    "hpp": "accent2",
+    "cc": "accent2",
+    "php": "accent2",
+    "lua": "accent2",
+    "rs": "orange",
+    "go": "accent",
+    "java": "red",
+    "rb": "red",
+    "git": "orange",
+    "dockerfile": "accent",
+}
+
+
+def extension_of(name: str) -> str:
+    """Return the lowercase extension of *name* (the whole name if none)."""
+    return name.rsplit(".", 1)[-1].lower() if "." in name else name.lower()

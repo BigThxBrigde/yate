@@ -21,6 +21,7 @@ from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
+from yate.editor_view import theme
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.icons import FOLDER, FOLDER_OPEN
 from yate.services.workspace import Workspace
@@ -361,7 +362,7 @@ def test_tree_h_scrollbar_stays_available_and_thin(tmp_path: Path) -> None:
 
 
 def test_guide_colors_constant_on_hover_and_selection() -> None:
-    """Guides share the resting tint in every state: hover, selected,
+    """Guides share one very faint tint in every state: hover, selected,
     focused and light-mode variants must not repaint the rails mauve."""
     css = ExplorerTree.DEFAULT_CSS
     for variant in ("& > ", "&:focus > ", "&:light > "):
@@ -369,4 +370,18 @@ def test_guide_colors_constant_on_hover_and_selection() -> None:
             selector = f"{variant}.{cls}"
             assert selector in css, f"missing pinned selector {selector}"
             block = css.split(selector, 1)[1].split("}", 1)[0]
-            assert "15%" in block, f"{selector} must pin the resting tint"
+            assert "8%" in block, f"{selector} must pin the faint tint"
+
+
+def test_file_icons_are_tinted_by_type(tmp_path: Path) -> None:
+    """File icons carry a per-type theme color; unknown types stay muted."""
+    theme.set_theme("mocha")
+    t = theme.active()
+    py_label = ExplorerTree._label(tmp_path / "a.py", False, False)
+    assert py_label.spans[0].style == t.yellow  # python icon tinted yellow
+    md_label = ExplorerTree._label(tmp_path / "r.md", False, False)
+    assert md_label.spans[0].style == t.accent
+    unknown = ExplorerTree._label(tmp_path / "x.xyz", False, False)
+    assert unknown.spans[0].style == t.fg_dim
+    folder = ExplorerTree._label(tmp_path / "d", True, False)
+    assert folder.spans[0].style == t.accent
