@@ -40,18 +40,17 @@ class ExplorerTree(Tree[NodeData]):
     ICON_NODE_EXPANDED = ""
 
     #: Flat indent rails (issue IKINF3): a bare "│" per level, dropping the
-    #: "├─"/"└─" branch terminators Textual renders by default so the tree
-    #: matches the reference look.  Slot geometry: every level is 2 cells and
-    #: only the first cell of a slot is drawable, and a node's icon sits in
-    #: the *next* slot after its own -- so a non-last node draws its rail in
-    #: its own slot ("cross") and it lands exactly one slot left of its icon,
-    #: i.e. directly beneath the parent's icon (VS Code style; the rail stops
-    #: at last children via the empty "terminator").  The ancestor-slot
-    #: "vertical" keeps the continuation rails aligned the same way.
+    #: "├─" branch cross Textual renders by default so the tree matches the
+    #: reference look.  Textual's slot semantics (see its render_line): the
+    #: ancestor slots draw ``vertical`` for every non-last ancestor, and the
+    #: node's own slot draws ``terminator`` when it is the last sibling or
+    #: ``cross`` otherwise.  With guide_depth=2 every slot is 2 cells and a
+    #: node's icon sits one slot right of its own slot, so both ``vertical``
+    #: and ``terminator`` land exactly beneath the parent icon.
     LINES: dict[str, tuple[str, str, str, str]] = {
-        "default": ("  ", "│ ", "  ", "│ "),
-        "bold": ("  ", "┃ ", "  ", "┃ "),
-        "double": ("  ", "║ ", "  ", "║ "),
+        "default": ("  ", "│ ", "└ ", "│ "),
+        "bold": ("  ", "┃ ", "┗ ", "┃ "),
+        "double": ("  ", "║ ", "╚ ", "║ "),
     }
 
     DEFAULT_CSS = """
@@ -59,13 +58,19 @@ class ExplorerTree(Tree[NodeData]):
         background: $surface;
         border-right: tall $foreground 12%;
         padding: 0 1;
-        /* A file tree never scrolls horizontally (VS Code alike); without
-         * this the h-scrollbar pops in once the v-scrollbar appears and
-         * paints a stray border-colored band above the status bar
-         * (issue IKINF3). */
-        overflow-x: hidden;
+        /* Keep the horizontal scrollbar one cell tall like the vertical one
+         * (issue IKINF3); long names stay reachable by scrolling. */
+        scrollbar-size-horizontal: 1;
 
         & > .tree--guides {
+            color: $foreground 15%;
+        }
+        /* Hover / selected rows get their own guide component classes with
+         * brighter defaults -- pin them to the resting tint so the rails
+         * keep one constant color while a folder under the cursor is
+         * expanded (issue IKINF3). */
+        & > .tree--guides-hover,
+        & > .tree--guides-selected {
             color: $foreground 15%;
         }
         /* Calm the tree cursor down (issue IKINF3): the default maps to the

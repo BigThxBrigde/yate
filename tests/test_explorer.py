@@ -338,23 +338,33 @@ def test_refresh_tree_keeps_open_glyph_for_expanded_dirs(tmp_path: Path) -> None
 
 
 def test_indent_rails_align_under_parent_icon(tmp_path: Path) -> None:
-    """Non-last nodes draw their rail in their own slot (under the parent
-    icon); branch terminators are blank so rails stop at last children."""
+    """Rails and terminators draw in the node's own slot (under the parent
+    icon); non-last nodes keep a bare rail instead of the "├─" cross."""
     for lines in ExplorerTree.LINES.values():
-        term, vertical, cross_terminator, cross = lines
-        assert term == "  " and cross_terminator == "  ", "rails must end at last children"
-        assert vertical.endswith(" ") and cross.endswith(" "), "slots stay 2 cells"
-    # slot geometry: cross draws the rail in the node's own slot, which sits
-    # exactly one slot left of its icon == directly under the parent icon.
-    assert ExplorerTree.LINES["default"] == ("  ", "\u2502 ", "  ", "\u2502 ")
+        space, vertical, terminator, cross = lines
+        assert len(space) == 2 and len(vertical) == 2, "slots stay 2 cells"
+        assert terminator in ("\u2514 ", "\u2517 ", "\u255a "), "last child gets a terminator"
+        assert cross.endswith(" "), "cross keeps a bare rail"
+    # slot geometry: vertical/terminator sit in the node's own slot, exactly
+    # one slot left of its icon == directly under the parent icon.
+    assert ExplorerTree.LINES["default"] == ("  ", "\u2502 ", "\u2514 ", "\u2502 ")
 
 
-def test_tree_never_scrolls_horizontally(tmp_path: Path) -> None:
-    """overflow-x is hidden: no stray h-scrollbar band above the status bar."""
+def test_tree_h_scrollbar_stays_available_and_thin(tmp_path: Path) -> None:
+    """Horizontal scrolling stays reachable with a one-cell scrollbar."""
     ws = tmp_path / "ws"
     ws.mkdir()
     (ws / "file.py").write_text("x = 1\n", encoding="utf-8")
-    tree = _tree_over(ws)
-    # Textual's Styles.overflow_x descriptor is untyped; assert on the CSS.
-    assert "overflow-x: hidden" in ExplorerTree.DEFAULT_CSS
-    assert tree.scrollbar_size_horizontal == 0 or tree.show_horizontal_scrollbar is False
+    _tree_over(ws)
+    assert "scrollbar-size-horizontal: 1" in ExplorerTree.DEFAULT_CSS
+    assert "overflow-x: hidden" not in ExplorerTree.DEFAULT_CSS
+
+
+def test_guide_colors_constant_on_hover_and_selection() -> None:
+    """Hover/selected guide classes share the resting tint: expanding a
+    folder under the cursor must not brighten the rails."""
+    css = ExplorerTree.DEFAULT_CSS
+    assert "tree--guides-hover" in css and "tree--guides-selected" in css
+    for cls in ("tree--guides", "tree--guides-hover", "tree--guides-selected"):
+        block = css.split(f".{cls}")[1].split("}")[0]
+        assert "15%" in block, f"{cls} must pin the resting guide tint"
