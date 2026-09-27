@@ -1,3 +1,6 @@
+/* App-level layout rules (L4 shell). Selector ids are frozen by R9:
+   changing an id requires updating this file in sync.
+   See .trae/rules/architecture-boundaries.md. */
 #bottom-dock {
     dock: bottom;
     height: auto;

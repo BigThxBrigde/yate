@@ -35,17 +35,15 @@ def _load_app_css() -> str:
     The shell's CSS is a bundled resource rather than an inline literal so it
     gets editor syntax highlighting and ships through the same packaging
     channels as every other file under ``yate/resources`` (hatchling wheel and
-    both PyInstaller specs already collect that directory whole).  A missing
-    resource means a broken installation: fail fast at import time with an
-    actionable message instead of a confusing stylesheet error later.
+    both PyInstaller specs already collect that directory whole).  An
+    unreadable resource means a broken installation: fail fast at import time
+    with an actionable message instead of a confusing stylesheet error later.
     """
     try:
-        return files("yate.resources").joinpath("app.tcss").read_text(
-            encoding="utf-8"
-        )
-    except OSError as exc:
+        return files("yate.resources").joinpath("app.tcss").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
         raise RuntimeError(
-            "bundled resource yate/resources/app.tcss is missing; "
+            "bundled resource yate/resources/app.tcss could not be read; "
             "the yate installation is broken"
         ) from exc
 
