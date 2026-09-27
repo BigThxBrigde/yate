@@ -9,6 +9,7 @@ table modules import the editor, so the editor must not import them back).
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import override
@@ -16,6 +17,7 @@ from typing import override
 from textual.app import App, ComposeResult
 from textual.driver import Driver
 from textual.events import Key
+from textual.logging import TextualHandler
 
 from yate import __version__
 from yate.actions import populate
@@ -24,7 +26,7 @@ from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_view import theme
 from yate.keyproto.legacy import textual_key_to_raw
-from yate.logs import tracing
+from yate.logs import LOGGER_NAME, tracing
 
 # `textual_key_to_raw` lives in the L0 keyproto leaf (no import cycles) and
 # is re-exported here for convenience/tests.
@@ -114,6 +116,18 @@ class YateApp(App[None]):
         # resolves the driver class, which consults config.key_protocol.
         self.config = config if config is not None else YateConfig()
         super().__init__()
+        # R12: mirror tracing records into the Textual devtools console so
+        # no yate module ever needs the devtools channel (``app.log`` /
+        # widget ``self.log``) directly -- this bridge is the only sanctioned
+        # path.  The handler is silent unless devtools is connected (and
+        # tracing enabled), and it is attached once even across the many
+        # app instances the tests create.
+        yate_root = logging.getLogger(LOGGER_NAME)
+        if not any(
+            isinstance(handler, TextualHandler)
+            for handler in yate_root.handlers
+        ):
+            yate_root.addHandler(TextualHandler(stderr=False, stdout=False))
         self.title = f"yate {__version__}"
 
         # The color theme is process-global state (like vim's colorscheme).

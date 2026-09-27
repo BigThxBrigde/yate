@@ -1,7 +1,7 @@
 """Architecture guards: the narrow-interface rules must not regress.
 
 These tests enforce the boundaries documented in
-``.trae/rules/architecture-boundaries.md`` (R1-R11) and
+``.trae/rules/architecture-boundaries.md`` (R1-R12) and
 ``.trae/documents/app-layering-refactoring-plans/README.md`` (section 4,
 "dependency rules (hard)"):
 
@@ -31,6 +31,10 @@ These tests enforce the boundaries documented in
   ``editor_view/pane_types.py`` stays deleted.
 * **Logging** ``log.*`` calls use lazy ``%`` formatting, never f-strings
   (coding-style 4.6): arguments must not be evaluated while the level is off.
+* **R12** logging goes through the tracing singleton: no ``self.log`` /
+  ``self.app.log`` devtools-channel access anywhere, and no ``textual.app``
+  import in the UI-free L0 modules (devtools visibility is the L4
+  ``TextualHandler`` bridge's job, not a per-module import).
 
 * **R7** the shell loads the built-in tables: ``YateApp.__init__`` calls
   ``populate(editor.actions, editor)`` / ``register_commands(editor.commands,
@@ -344,3 +348,64 @@ def test_log_calls_use_lazy_percent_formatting() -> None:
     for path in _yate_files():
         lines = _fstring_log_calls(path)
         assert lines == [], (path, lines)
+
+
+def _module_imports(path: Path) -> set[str]:
+    """Every module *path* imports (stdlib, third-party, project)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module is not None:
+            out.add(node.module)
+        elif isinstance(node, ast.Import):
+            out.update(alias.name for alias in node.names)
+    return out
+
+
+def _devtools_log_accesses(path: Path) -> list[str]:
+    """``self.log`` / ``self.app.log`` attribute accesses in *path* (R12).
+
+    AST-based so a docstring or comment that merely mentions the devtools
+    channel does not false-positive.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute) or node.attr != "log":
+            continue
+        value = node.value
+        if isinstance(value, ast.Name) and value.id == "self":
+            out.append("self.log")
+        elif (
+            isinstance(value, ast.Attribute)
+            and value.attr == "app"
+            and isinstance(value.value, ast.Name)
+            and value.value.id == "self"
+        ):
+            out.append("self.app.log")
+    return out
+
+
+def test_logging_never_touches_devtools_channel() -> None:
+    """``self.log`` / ``self.app.log`` is Textual's devtools channel: yate
+    logs through the tracing singleton only, and devtools visibility comes
+    from the ``TextualHandler`` bridge in ``YateApp.__init__`` (R12).  The
+    Windows chord driver once imported ``textual.app`` just to reach it."""
+    for path in _yate_files():
+        accesses = _devtools_log_accesses(path)
+        assert accesses == [], (path, accesses)
+
+
+def test_ui_free_layers_do_not_import_textual_app() -> None:
+    """``textual.app`` (the shell and the devtools logger's home) stays out
+    of the UI-free L0 modules (R12): a leaf that needs it for logging is a
+    layering violation -- the L4 bridge replaces that need entirely."""
+    targets: list[Path] = []
+    for package in UI_FREE_PACKAGES:
+        targets.extend(
+            p for p in (YATE / package).rglob("*.py")
+            if "__pycache__" not in p.parts
+        )
+    targets.extend(YATE / name for name in (*UI_FREE_FILES, "logs.py"))
+    for path in targets:
+        assert "textual.app" not in _module_imports(path), path

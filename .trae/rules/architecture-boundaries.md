@@ -52,6 +52,13 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   改 id 必须同步改 CSS。
 - **R10 — 一次按键只派发一次**：`EditorView.on_key` 处理后 `event.stop()` / `prevent_default()`，
   未被消费的键不得冒泡到外壳二次派发。
+- **R12 — 日志统一 tracing（2026-09-27）**：yate 内全部运行时日志一律走模块级
+  `log = tracing.get_logger(__name__)`（含无 App 上下文的驱动线程 / worker / 回调）；
+  **禁止**为访问 Textual devtools 日志（`app.log` / widget `self.log`）而
+  `import textual.app` 或为 `app` 属性补类型注解，业务代码不得直连 devtools 通道。
+  devtools 可视化由 L4 `YateApp.__init__` 统一桥接：`textual.logging.TextualHandler`
+  挂到 tracing 根 logger（回调模式；devtools 未连接或 tracing 未开启时零输出），
+  L0 不因日志引入 textual 依赖。
 
 ## 二、分层职责
 
@@ -108,11 +115,13 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - [ ] 新按键路径不会造成二次派发（R10）？
 - [ ] 按键分支只消费自己真正处理的键，未识别的键 fall-through 到后续分发，不无条件 `return True`
       （历史缺陷：补全弹窗曾吞掉全部按键，`Ctrl+S` / `Ctrl+Z` 失效）？
+- [ ] 日志走 tracing（R12）：没有 `self.log` / `self.app.log` 调用，没有为日志而
+      import `textual.app`？
 - [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q` 全绿？
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **13 个用例**（`python -m pytest tests/test_architecture.py -q` → 13 passed）：
+`tests/test_architecture.py` 已落地 **16 个用例**（`python -m pytest tests/test_architecture.py -q` → 16 passed）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -130,6 +139,11 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R7** 只有 `app.py` 导入内置表，且 `YateApp.__init__` 调用
   `populate(self.editor.actions, self.editor)` / `register_commands(self.editor.commands, self.editor)`；
 - **R6** 全仓无 `TYPE_CHECKING`；
+- **日志惰性格式**（`test_log_calls_use_lazy_percent_formatting`）：`log.*` 调用禁止 f-string
+  消息（AST 拦截，python-coding-style 4.6）；
+- **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
+  提及不误报）；UI-free L0（`keymaps/*` `services/*` `keyproto/*` `session.py`
+  `registries.py` `config.py` `logs.py`）不 import `textual.app`；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`
   （白名单：`PaneHost`；`*Manager` / `*Controller` 允许）。
 
