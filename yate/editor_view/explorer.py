@@ -41,12 +41,17 @@ class ExplorerTree(Tree[NodeData]):
 
     #: Flat indent rails (issue IKINF3): a bare "│" per level, dropping the
     #: "├─"/"└─" branch terminators Textual renders by default so the tree
-    #: matches the reference look.  Every tuple stays 2 cells wide, so
-    #: replacing the terminators cannot shift the label column.
+    #: matches the reference look.  Slot geometry: every level is 2 cells and
+    #: only the first cell of a slot is drawable, and a node's icon sits in
+    #: the *next* slot after its own -- so a non-last node draws its rail in
+    #: its own slot ("cross") and it lands exactly one slot left of its icon,
+    #: i.e. directly beneath the parent's icon (VS Code style; the rail stops
+    #: at last children via the empty "terminator").  The ancestor-slot
+    #: "vertical" keeps the continuation rails aligned the same way.
     LINES: dict[str, tuple[str, str, str, str]] = {
-        "default": ("  ", "│ ", "  ", "  "),
-        "bold": ("  ", "┃ ", "  ", "  "),
-        "double": ("  ", "║ ", "  ", "  "),
+        "default": ("  ", "│ ", "  ", "│ "),
+        "bold": ("  ", "┃ ", "  ", "┃ "),
+        "double": ("  ", "║ ", "  ", "║ "),
     }
 
     DEFAULT_CSS = """
@@ -54,6 +59,11 @@ class ExplorerTree(Tree[NodeData]):
         background: $surface;
         border-right: tall $foreground 12%;
         padding: 0 1;
+        /* A file tree never scrolls horizontally (VS Code alike); without
+         * this the h-scrollbar pops in once the v-scrollbar appears and
+         * paints a stray border-colored band above the status bar
+         * (issue IKINF3). */
+        overflow-x: hidden;
 
         & > .tree--guides {
             color: $foreground 15%;

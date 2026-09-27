@@ -335,3 +335,26 @@ def test_refresh_tree_keeps_open_glyph_for_expanded_dirs(tmp_path: Path) -> None
     assert rebuilt is not None
     assert rebuilt.is_expanded
     assert FOLDER_OPEN in _label_text(rebuilt)
+
+
+def test_indent_rails_align_under_parent_icon(tmp_path: Path) -> None:
+    """Non-last nodes draw their rail in their own slot (under the parent
+    icon); branch terminators are blank so rails stop at last children."""
+    for lines in ExplorerTree.LINES.values():
+        term, vertical, cross_terminator, cross = lines
+        assert term == "  " and cross_terminator == "  ", "rails must end at last children"
+        assert vertical.endswith(" ") and cross.endswith(" "), "slots stay 2 cells"
+    # slot geometry: cross draws the rail in the node's own slot, which sits
+    # exactly one slot left of its icon == directly under the parent icon.
+    assert ExplorerTree.LINES["default"] == ("  ", "\u2502 ", "  ", "\u2502 ")
+
+
+def test_tree_never_scrolls_horizontally(tmp_path: Path) -> None:
+    """overflow-x is hidden: no stray h-scrollbar band above the status bar."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "file.py").write_text("x = 1\n", encoding="utf-8")
+    tree = _tree_over(ws)
+    # Textual's Styles.overflow_x descriptor is untyped; assert on the CSS.
+    assert "overflow-x: hidden" in ExplorerTree.DEFAULT_CSS
+    assert tree.scrollbar_size_horizontal == 0 or tree.show_horizontal_scrollbar is False
