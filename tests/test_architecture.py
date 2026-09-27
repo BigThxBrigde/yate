@@ -81,7 +81,7 @@ ALLOWED_PROTOCOLS = {
 #: inside ``load_config`` (the only L0->L2 edge; theme support is now
 #: injected as callbacks by the L4 caller).  ``keyproto`` joined with the
 #: Windows chord driver: a pure L0 leaf that must never reach editor_view.
-UI_FREE_PACKAGES = ("keymaps", "services", "keyproto")
+UI_FREE_PACKAGES = ("keymaps", "services", "keyproto", "editor_sprites")
 UI_FREE_FILES = ("session.py", "registries.py", "config.py")
 
 #: L3 collaborator modules that do drive a few widget types by design: they
