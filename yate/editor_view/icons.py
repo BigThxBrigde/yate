@@ -82,12 +82,16 @@ PLUG = "\uf1e6"           #  (extensions)
 LOCK = "\uf023"           #  (read-only buffer)
 
 
+def extension_of(name: str) -> str:
+    """Return the lowercase extension of *name* (the whole name if none)."""
+    return name.rsplit(".", 1)[-1].lower() if "." in name else name.lower()
+
+
 def icon_for_path(name: str, is_dir: bool, expanded: bool = False) -> str:
     """Return the appropriate glyph for a tree entry."""
     if is_dir:
         return FOLDER_OPEN if expanded else FOLDER
-    suffix = name.rsplit(".", 1)[-1].lower() if "." in name else name.lower()
-    return FILE_ICONS.get(suffix, FILE_TEXT)
+    return FILE_ICONS.get(extension_of(name), FILE_TEXT)
 
 
 #: VS Code "Seti" file-icon palette (VS Code's default icon theme): fixed
@@ -171,8 +175,3 @@ def icon_color(name: str, is_dir: bool, dir_color: str) -> str:
         return dir_color
     key = FILE_ICON_COLORS.get(extension_of(name))
     return SETI_COLORS[key] if key is not None else ICON_COLOR_FALLBACK
-
-
-def extension_of(name: str) -> str:
-    """Return the lowercase extension of *name* (the whole name if none)."""
-    return name.rsplit(".", 1)[-1].lower() if "." in name else name.lower()
