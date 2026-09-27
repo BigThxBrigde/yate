@@ -42,19 +42,25 @@ from typing import Any, cast
 
 from collections.abc import Callable, Sequence
 
-from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
+from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES, tracing
 
 #: File name yate looks for in the project tree.
 RC_FILENAME = "yaterc"
+
+log = tracing.get_logger(__name__)
 
 #: Recognized option variables in a yaterc file.
 _KNOWN_OPTIONS = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
-    "yate_trace", "yate_trace_level",
+    "yate_trace", "yate_trace_level", "key_protocol",
 )
 
 _VALID_KEYMAPS = ("vsc", "vim")
+
+#: Accepted ``key_protocol`` values: ``auto`` (Windows -> chord driver)
+#: and ``legacy`` (stock driver).
+_VALID_KEY_PROTOCOLS = ("auto", "legacy")
 
 #: Accepted ``yate_trace_level`` values -- :mod:`logging`'s built-in levels
 #: (single source of truth: :data:`yate.logs.LEVEL_NAMES`).
@@ -92,6 +98,10 @@ class YateConfig:
 
     keymap: str = "vsc"
     theme: str = "mocha"
+    #: Windows input channel selection (``key_protocol = "legacy"`` in
+    #: yaterc restores the stock driver). ``auto`` uses the chord driver on
+    #: Windows so ctrl+digit / ctrl+` / ctrl+shift+letter arrive complete.
+    key_protocol: str = "auto"
     tab_width: int = 4
     use_spaces: bool = True
     #: Shell command for the integrated terminal (empty = platform default:
@@ -230,6 +240,10 @@ def load_config(
     if load_theme_paths is not None:
         load_theme_paths(config.theme_dirs, config.errors)
     _extract_options(namespace, config)
+    log.debug(
+        "yaterc loaded: sources=%s errors=%d",
+        [str(p) for p in config.sources], len(config.errors),
+    )
     return config
 
 
@@ -359,6 +373,15 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
         else:
             config.errors.append(
                 f"keymap must be one of {_VALID_KEYMAPS}, got {keymap!r}"
+            )
+
+    key_protocol = options.get("key_protocol")
+    if key_protocol is not None:
+        if isinstance(key_protocol, str) and key_protocol in _VALID_KEY_PROTOCOLS:
+            config.key_protocol = key_protocol
+        else:
+            config.errors.append(
+                f"key_protocol must be one of {_VALID_KEY_PROTOCOLS}, got {key_protocol!r}"
             )
 
     theme_name = options.get("theme")
