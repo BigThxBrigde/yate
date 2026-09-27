@@ -399,6 +399,7 @@ class LspClient:
         future: asyncio.Future[Any] = loop.create_future()
         self._pending[request_id] = future
         await self._write_raw(protocol.build_request(request_id, method, params))
+        log.debug("lsp request -> %s (id=%d, server=%s)", method, request_id, self.config.name)
         return request_id, future
 
     async def notify(
@@ -406,6 +407,8 @@ class LspClient:
     ) -> None:
         if self._writer is None:
             raise LspConnectionError(f"client is {self.state.value}")
+        if method != "textDocument/didChange":  # per-keystroke: not logged
+            log.debug("lsp notify -> %s (server=%s)", method, self.config.name)
         await self._write_raw(protocol.build_notification(method, params))
 
     async def send_cancel(self, request_id: int) -> None:
@@ -470,9 +473,15 @@ class LspClient:
     def _dispatch(self, message: dict[str, Any]) -> None:
         if "id" in message and "method" in message:
             # server -> client request
+            log.debug(
+                "lsp server request <- %s (server=%s)",
+                message["method"], self.config.name,
+            )
             self._handle_server_request(message)
         elif "method" in message:
             method = cast(str, message["method"])
+            if method != "textDocument/publishDiagnostics":  # summarized by manager
+                log.debug("lsp notify <- %s (server=%s)", method, self.config.name)
             params_raw = message.get("params")
             if isinstance(params_raw, dict) and self._on_notification is not None:
                 self._on_notification(method, cast(dict[str, Any], params_raw))
@@ -484,6 +493,11 @@ class LspClient:
                 err_raw = message["error"]
                 if isinstance(err_raw, dict):
                     err = cast(dict[str, Any], err_raw)
+                    log.warning(
+                        "lsp error <- id=%d code=%d (server=%s): %s",
+                        message["id"], err.get("code", 0), self.config.name,
+                        err.get("message", ""),
+                    )
                     future.set_exception(
                         LspResponseError(
                             int(err.get("code", 0)),
@@ -494,6 +508,9 @@ class LspClient:
                 else:  # pragma: no cover - defensive
                     future.set_exception(LspResponseError(-32603, str(err_raw)))
             else:
+                log.debug(
+                    "lsp response <- id=%d (server=%s)", message["id"], self.config.name
+                )
                 # Results are intentionally NOT coerced: completion may be a
                 # bare JSON array, initialize a dict, shutdown null -- callers
                 # validate the shape they expect.

@@ -31,10 +31,13 @@ from yate.editor_term import (
     resolve_shell,
     shell_label,
 )
+from yate.logs import tracing
 from yate.services.workspace import Workspace
 
 from . import theme
 from .commandline import PromptBar
+
+log = tracing.get_logger(__name__)
 
 #: Names Textual gives Ctrl+grave across platforms:
 #: - "ctrl+`" / "ctrl+grave": friendly/pilot names;
@@ -46,8 +49,13 @@ from .commandline import PromptBar
 #:   keyboard while it is focused. The NUL byte is the same one
 #:   Ctrl+Space sends there, so elsewhere (editor/app) ctrl+@ never
 #:   opens the panel -- Ctrl+Space means manual completion instead.
+#: - "ctrl+2" / "ctrl+shift+2": other names Textual's Keys enum carries
+#:   for the same NUL byte (ctrl+2 aliases ctrl+@; shift+2 is @ on the
+#:   US layout), and what the chord driver reports when the physical
+#:   grave key sits on Shift+2 in the user's keyboard layout.
 TOGGLE_KEYS = frozenset({
     "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
+    "ctrl+2", "ctrl+shift+2",
 })
 
 #: Hands focus back to the editor while the terminal is focused (the
@@ -208,6 +216,17 @@ class TerminalView(Widget):
     # --------------------------------------------------------------- input
 
     def on_key(self, event: Key) -> None:
+        # Consumption-point evidence: keys eaten here never reach the
+        # Editor.handle_key entry log, so without this line a trace cannot
+        # distinguish "key never arrived" from "arrived and was consumed by
+        # the terminal" (the 2026-09-26 ctrl+space forensics blind spot).
+        log.debug(
+            "terminal on_key: key=%s character=%r started=%s dead=%s",
+            event.key,
+            event.character,
+            self.started,
+            self.dead,
+        )
         if event.key in TOGGLE_KEYS:
             event.stop()
             event.prevent_default()
@@ -431,6 +450,7 @@ class TerminalPanel(Vertical):
         if not self.view.started:
             self.spawn_shell()
         if was_hidden:
+            log.info("terminal panel shown")
             self.prompt.write("terminal shown", kind="ok")
 
     def close(self) -> None:
@@ -441,6 +461,7 @@ class TerminalPanel(Vertical):
         self.display = False
         self._visible = False
         self.focus_editor()
+        log.info("terminal panel hidden")
         self.prompt.write("terminal hidden", kind="ok")
 
     def apply_height(self, height: int) -> None:

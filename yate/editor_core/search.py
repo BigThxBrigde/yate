@@ -6,6 +6,9 @@ import re
 from dataclasses import dataclass
 
 from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 
 @dataclass
@@ -56,6 +59,7 @@ class SearchEngine:
                 if found.start() == found.end():
                     continue
                 self.matches.append(Match(row, found.start(), found.end()))
+        log.debug("search %r: %d match(es)", query, len(self.matches))
         return self.matches
 
     # ------------------------------------------------------------- navigate

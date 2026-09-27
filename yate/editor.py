@@ -44,7 +44,6 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.keys import event_to_raw
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
@@ -55,6 +54,7 @@ from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.prompt_completion import prompt_completions
 from yate.registries import ActionRegistry, CommandRegistry
@@ -616,17 +616,32 @@ class Editor:
         """
         if self.has_modal_screen():
             return False  # a modal screen owns input
+        # Entry-level evidence: YATE_TRACE turns this into the ground truth of
+        # what event.key names a real terminal actually delivers (field reports
+        # and pilot synthesis can disagree; the log settles which side erred).
+        log.debug(
+            "key event: key=%s character=%r focused=%s",
+            event.key,
+            event.character,
+            type(self.app.focused).__name__ if self.app.focused else None,
+        )
         editor_focused = isinstance(self.app.focused, EditorView)
-        # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle:
-        # on Windows conhost / legacy xterm Ctrl+Space and Ctrl+` share the
-        # NUL byte (named "ctrl+@"), so there the NUL byte favors completion;
-        # Ctrl+` still closes the terminal while it is focused, and :term /
-        # the palette opens it.
-        if event.key in ("ctrl+space", "ctrl+@"):
+        # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle.
+        # The NUL byte splits by driver: the legacy conhost path collapses
+        # Ctrl+Space / Ctrl+` / Ctrl+2 into one NUL byte that Textual names
+        # "ctrl+@" -- ambiguous, so with the editor focused it favors
+        # completion (Ctrl+` still closes the panel while the terminal is
+        # focused).  The chord driver keeps the chords distinct -- it names
+        # Ctrl+Space "ctrl+space" and the Ctrl+@ key (what the grave chord
+        # looks like on layouts where the physical ` sits on Shift+2)
+        # "ctrl+2"/"ctrl+shift+2"; those toggle the terminal via TOGGLE_KEYS
+        # below.
+        nul_keys = ("ctrl+space", "ctrl+@")
+        if event.key in nul_keys:
             if editor_focused or event.key == "ctrl+space":
                 self.request_completion(manual=True)
                 return True
-        if event.key in TOGGLE_KEYS and event.key != "ctrl+@":
+        if event.key in TOGGLE_KEYS and event.key not in nul_keys:
             self.terminal_panel.toggle()
             return True
         # The completion popup owns a handful of keys while it is open; it
@@ -679,6 +694,10 @@ class Editor:
             return False  # explorer consumes its own keys
         raw = event_to_raw(event.key, event.character)
         if raw is None:
+            # Unmapped names are normal (exotic terminals, widgets without a
+            # raw form), so this stays a debug log: YATE_TRACE turns it into
+            # evidence when chasing missing-key reports.
+            log.debug("unmapped key event: %s (character=%r)", event.key, event.character)
             return False
         return self.handle_raw_key(raw)
 
@@ -706,7 +725,12 @@ class Editor:
         with a user notice) instead of propagating the error.
         """
         try:
-            return self.actions.execute(name, ActionContext(self.session, self.key_ui))
+            handled = self.actions.execute(
+                name, ActionContext(self.session, self.key_ui)
+            )
+            if not handled:
+                log.debug("action not found: %s", name)
+            return handled
         except BufferReadOnlyError:
             self._readonly_notice()
             # the refused action may have moved the cursor / changed anchors
@@ -1274,8 +1298,10 @@ class Editor:
         name, args = parts[0], " ".join(parts[1:])
         entry = self.commands.get(name)
         if entry is None:
+            log.warning("command not found: %s", name)
             self.message(f"not an editor command: {name} (try :help)", kind="warn")
             return
+        log.debug("command: %s (args=%r)", name, args)
         entry[0](args)
 
     def install_font(self) -> None:

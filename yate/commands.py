@@ -12,9 +12,12 @@ from pathlib import Path
 
 from yate.editor import Editor
 from yate.editor_syntax import available_filetypes, language_name
+from yate.logs import tracing
 from yate.registries import CommandRegistry
 
 __all__ = ["CommandRegistry", "register_commands"]
+
+log = tracing.get_logger(__name__)
 
 #: Values accepted by boolean ``:set`` options (``show_hidden``, ``readonly``).
 _TRUTHY = frozenset({"true", "on", "1", "yes"})
@@ -203,6 +206,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
             else:
                 editor.set_readonly(val)
         else:
+            log.warning("set rejected: unknown option %r", key)
             editor.message(f"unknown option: {key}", kind="warn")
 
     def _theme(args: str) -> None:
@@ -289,3 +293,5 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     reg("diagnostics", _diagnostics,
         "list language server diagnostics for the current file")
     reg("font", _font, "install the bundled Nerd Font")
+
+    log.info("builtin commands registered: %d", len(registry.names()))

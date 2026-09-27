@@ -14,9 +14,12 @@ from __future__ import annotations
 
 from yate.editor import Editor
 from yate.keymaps.base import ActionContext
+from yate.logs import tracing
 from yate.registries import Action, ActionRegistry
 
 __all__ = ["Action", "ActionRegistry", "populate"]
+
+log = tracing.get_logger(__name__)
 
 
 def populate(registry: ActionRegistry, editor: Editor) -> None:
@@ -146,3 +149,5 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("next_tab", lambda ctx: editor.cycle_tab(1), "Next tab")
     reg("help", lambda ctx: editor.show_help(), "Keyboard shortcuts help")
     reg("toggle_keymap", lambda ctx: editor.toggle_keymap(), "Toggle vsc/vim keymap")
+
+    log.info("builtin actions populated: %d", len(registry.names()))

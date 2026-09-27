@@ -31,6 +31,7 @@ from yate.editor_view.icons import LOCK
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.keymaps.base import ActionContext
 from yate.keymaps.vim import VimKeymap
+from yate.keyproto.legacy import event_to_raw
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
@@ -73,7 +74,24 @@ def test_ctrl_and_alt() -> None:
     assert textual_key_to_raw("ctrl+c") == "\x03"
     assert textual_key_to_raw("ctrl+]") == "\x1d"
     assert textual_key_to_raw("ctrl+/") == "\x1f"
+    # Legacy terminals deliver \x1f as Textual's "ctrl+underscore"; kitty
+    # CSI-u ones as "ctrl+slash".  Both spellings map to the same byte.
+    assert textual_key_to_raw("ctrl+underscore") == "\x1f"
+    assert textual_key_to_raw("ctrl+slash") == "\x1f"
     assert textual_key_to_raw("alt+u") == "\x1bu"
+
+
+def test_event_to_raw_c0_fallback_covers_driver_name_drift() -> None:
+    """Names observed on a real Windows Terminal (IKH1RA trace): the win32
+    driver spells ctrl+punctuation with long names the table does not know,
+    while event.character still carries the true C0 byte."""
+    assert event_to_raw("ctrl+right_square_bracket", "\x1d") == "\x1d"
+    assert event_to_raw("ctrl+circumflex_accent", "\x1e") == "\x1e"
+    # canonical names keep using the table (fallback is last resort)
+    assert event_to_raw("ctrl+]", "\x1d") == "\x1d"
+    # printable characters never satisfy the fallback: ctrl+digit stays
+    # physically unmappable on legacy terminals
+    assert event_to_raw("ctrl+1", "1") is None
 
 
 def test_modified_arrows() -> None:
@@ -4228,6 +4246,32 @@ def test_nul_byte_opens_completion_not_terminal(tmp_path: Path) -> None:
             shown = await wait_until(pilot, lambda: popup.is_open)
             assert shown
             assert not app.editor.terminal_panel.is_visible
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_2_chord_names_toggle_terminal_not_completion() -> None:
+    # The chord driver reports Ctrl+@ (what US layouts deliver as Ctrl+`)
+    # as "ctrl+2" / "ctrl+shift+2" -- the names cover layouts where the
+    # physical grave key sits on Shift+2.  Unlike the legacy NUL byte,
+    # these chords are unambiguous, so they must toggle the terminal
+    # even with the editor focused (completion stays on ctrl+space).
+    async def scenario() -> None:
+        app = YateApp()
+        app.editor.terminal_panel.view_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panel = app.editor.terminal_panel
+            popup = app.editor.completion_popup
+            assert panel is not None
+            assert popup is not None
+            for chord_key in ("ctrl+2", "ctrl+shift+2"):
+                await pilot.press(chord_key)
+                assert await wait_until(pilot, lambda: panel.is_visible)
+                await pilot.press(chord_key)
+                assert await wait_until(pilot, lambda: not panel.is_visible)
+            assert not popup.is_open
 
     asyncio.run(scenario())
 

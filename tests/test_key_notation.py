@@ -150,6 +150,10 @@ def test_key_name_uses_the_alias_table_first() -> None:
     assert key_name("\x1b[4~") == "<end>"
     assert key_name("\x1b[Z") == "<shift-tab>"
     assert key_name("\x1b[1;5D") == "<ctrl-left>"
+    # \x1f is ctrl+/ on every terminal (Textual names it "ctrl+underscore"
+    # there); the alias keeps the help overlay readable instead of printing
+    # the raw control byte.
+    assert key_name("\x1f") == "<ctrl-/>"
 
 
 def test_key_name_prefers_the_canonical_special_name() -> None:
