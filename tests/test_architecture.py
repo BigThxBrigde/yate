@@ -36,6 +36,10 @@ These tests enforce the boundaries documented in
   import in the UI-free L0 modules (devtools visibility is the L4
   ``TextualHandler`` bridge's job, not a per-module import).
 
+* **R13** widgets own their theme: L3 ``editor.py`` never paints widget
+  styles or forwards theme updates, and scrollbar renderers are injected
+  per widget (``apply_slim_scrollbars``), never class-level patched.
+
 * **R7** the shell loads the built-in tables: ``YateApp.__init__`` calls
   ``populate(editor.actions, editor)`` / ``register_commands(editor.commands,
   editor)`` and is the only module importing ``actions.py`` / ``commands.py``.
