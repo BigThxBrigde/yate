@@ -110,6 +110,10 @@ class VimKeymap(Keymap):
                 "Ex command line (:w :q :e :! ...)", CMD,
             ),
             KeyBinding(parse_key("<f8>"), "manual", "Open user manual (read-only)", HLP),
+            KeyBinding(
+                parse_key("<alt-shift-s>"), "toggle_screensaver",
+                "Toggle the idle screensaver", CMD,
+            ),
             KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
         ]
 

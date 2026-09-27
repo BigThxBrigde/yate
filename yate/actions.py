@@ -149,5 +149,10 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("next_tab", lambda ctx: editor.cycle_tab(1), "Next tab")
     reg("help", lambda ctx: editor.show_help(), "Keyboard shortcuts help")
     reg("toggle_keymap", lambda ctx: editor.toggle_keymap(), "Toggle vsc/vim keymap")
+    reg(
+        "toggle_screensaver",
+        lambda ctx: editor.toggle_screensaver(),
+        "Toggle the idle screensaver",
+    )
 
     log.info("builtin actions populated: %d", len(registry.names()))

@@ -99,6 +99,7 @@ class VscKeymap(Keymap):
             # ---- view / tools
             _k("<ctrl-p>", "quick_open", "Quick file open (ctrl+p)", VIEW),
             _k("<alt-shift-p>", "command_palette", "Command palette (alt+shift+p)", VIEW),
+            _k("<alt-shift-s>", "toggle_screensaver", "Toggle the idle screensaver", VIEW),
             _raw("\x1f", "toggle_keymap", "Toggle vsc/vim keymap (ctrl+/)", VIEW),
             _k("<ctrl-e>", "focus_explorer", "Focus file explorer", VIEW),
             _k("<ctrl-shift-e>", "focus_explorer", "Focus file explorer (vscode ctrl+shift+e)", VIEW),
