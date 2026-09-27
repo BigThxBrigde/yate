@@ -34,26 +34,36 @@
 | 1 | `icons.py` 后缀解析逻辑重复（本轮自造） | 建议 | **已修** `df631e6`：`extension_of()` 提前，`icon_for_path` 复用 |
 | 2 | `scrollbars.py::render_bar` 复刻上游 1/8 粒度算法 | 记录 | 保留；Textual 升级需回归 `tests/test_scrollbars.py` |
 
-## 四、架构张力（非违规，已评估 → 待重构）
+## 四、架构张力（非违规，已评估 → 已治理）
 
-### T1 `install_slim_scrollbars()` 是进程级全局变更
+### T1 `install_slim_scrollbars()` 是进程级全局变更 —— **已治理（2026-09-27）**
 
-- **位置**：[scrollbars.py](../../yate/editor_view/scrollbars.py) `install_slim_scrollbars()`，调用点 L4 `YateApp.__init__`。
+- **位置**：[scrollbars.py](../../yate/editor_view/scrollbars.py)，调用点 L4 `YateApp.__init__`。
 - **现状**：`ScrollBar.renderer = SlimScrollBarRender` 类属性 monkey-patch，进程内所有 Textual App 的滚动条全部生效。
 - **合法性**：Textual 官方文档化钩子（`scrollbar.py` docstring 自带示例）；L4 顶层发起、方向合法；yate 单 App 进程下成立。
 - **风险**：若未来单进程多 App（测试嵌套、嵌入场景），无法按 App 粒度区分；隐式全局状态，新读者不易发现生效路径。
 - **整改方向**：改为 per-widget 注入（上游原生支持 `widget.horizontal_scrollbar.renderer = ...`），由各滚动组件自持。
+- **✅ 治理结果**：分支 `ref/theme-ownership` 删除类级 patch，改为 `apply_slim_scrollbars(widget)`
+  per-widget 注入（EditorView / ExplorerTree / MarkdownDocScreen#doc-scroll 三处 `on_mount` 调用）；
+  架构守卫 `test_no_class_level_scrollbar_renderer_patch` 固化。详见
+  [theme_ownership_plan.md](../documents/theme_ownership_plan.md)。
 
-### T2 `apply_theme`（L3 Editor）直改 widget 内部状态
+### T2 `apply_theme`（L3 Editor）直改 widget 内部状态 —— **已治理（2026-09-27）**
 
 - **位置**：[editor.py](../../yate/editor.py) `Editor.apply_theme`：直写 `tree.styles.scrollbar_*`、`view.apply_scrollbar_theme()`、`prompt_bar.styles.background`、`status_bar.refresh_status()` 等。
 - **现状**：L3 调度层伸手进 L2 组件内部样式——严格说撞"Editor 不直接持有 widget 内部状态"。属存量模式（本轮仅改色值，未扩大战果）。
 - **风险**：组件主题表现散落在 L3，新增组件时容易漏改；组件无法独立测试主题行为。
 - **整改方向**：组件自持主题——主题变化以回调广播（规则四"1:N 低频广播 → 回调列表"），各组件在 `on_mount` 订阅、`on_unmount` 退订，自己读 `theme.active()` 给自己上色；`Editor.apply_theme` 收缩为触发广播。
+- **✅ 治理结果**：`theme.py` 新增 `subscribe()`/`_notify()`（异常隔离广播）；七个组件
+  （EditorView / ExplorerTree / PromptBar / SidebarHead / TabBar / Breadcrumbs / StatusBar）
+  自持 `_apply_theme` 并订阅；`Editor.apply_theme` 与 `update_sidebar_head` **彻底删除**（用户选定）；
+  screen 背景归 L4（`YateApp.watch_theme` + `on_mount` 一次）；架构守卫
+  `test_editor_does_not_paint_widget_styles` 固化。详见
+  [theme_ownership_plan.md](../documents/theme_ownership_plan.md)。
 
 ## 五、优先整改项
 
-1. T1 + T2 一起治理：两者同属"组件自持"主题/外观，一条分支 `ref/theme-ownership` 完成（已立项）。
+1. ~~T1 + T2 一起治理~~ **✅ 已完成（2026-09-27，分支 `ref/theme-ownership`，见 §四）**。
 2. T2 治理时注意 L0 叶子（`editor_term`）不能 import L2 `theme`，颜色注入走构造回调（N30 模式先例）。
 
 ## 六、长期优化建议
