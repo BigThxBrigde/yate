@@ -132,3 +132,5 @@ class TestShuffleOrder:
     def test_single_entry_list_passes_through(self) -> None:
         rng = random.Random(1)
         assert characters.shuffle_order(["mario"], rng) == ["mario"]
+        # a single name can never avoid a replay -- must not hang
+        assert characters.shuffle_order(["mario"], rng, avoid="mario") == ["mario"]

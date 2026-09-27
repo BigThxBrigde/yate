@@ -830,7 +830,7 @@ def test_screen_saver_defaults() -> None:
     config = cfg.YateConfig()
     assert config.screen_saver.enable is True
     assert config.screen_saver.interval == 120
-    assert config.screen_saver.switch == 10
+    assert config.screen_saver.switch == 0
     assert config.screen_saver.characters == ()
 
 
@@ -863,7 +863,7 @@ def test_screen_saver_partial_dict_keeps_defaults(tmp_path: Path) -> None:
     assert config.errors == []
     assert config.screen_saver.interval == 30
     assert config.screen_saver.enable is True
-    assert config.screen_saver.switch == 10
+    assert config.screen_saver.switch == 0
     assert config.screen_saver.characters == ()
 
 

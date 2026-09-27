@@ -22,7 +22,7 @@ theme-directory loading) allow custom themes::
     screen_saver = {                                 # idle screensaver mode
         "enable": True,        # master switch (False also disables Alt+Shift+S)
         "interval": 120,       # idle seconds before it starts (0 = manual only)
-        "switch": 10,          # seconds one character stays on screen
+        "switch": 0,           # min seconds between spawns (0 = 25-50% rule)
         "characters": [],      # name whitelist; [] = the whole roster
     }
 
@@ -99,15 +99,17 @@ class ScreenSaverConfig:
 
     ``interval`` of ``0`` disables the automatic idle trigger (the manual
     :kbd:`Alt+Shift+S` toggle still works while ``enable`` is true).
-    ``characters`` is a name whitelist -- empty means the whole roster;
-    name membership is validated where the roster lives
-    (:func:`yate.editor_sprites.characters.character_names`), keeping this
-    module free of sprite-pack knowledge.
+    ``switch`` is the minimum number of seconds between two successive
+    spawns; ``0`` lets a successor spawn as soon as the newest walker is
+    25-50% through its journey.  ``characters`` is a name whitelist --
+    empty means the whole roster; name membership is validated where the
+    roster lives (:func:`yate.editor_sprites.characters.character_names`),
+    keeping this module free of sprite-pack knowledge.
     """
 
     enable: bool = True
     interval: int = 120
-    switch: int = 10
+    switch: int = 0
     characters: tuple[str, ...] = ()
 
 
@@ -395,8 +397,9 @@ def _extract_screen_saver(
 
     Recognized keys: ``enable`` (bool), ``interval`` (integer 0-3600, the
     idle seconds before an automatic start; ``0`` disables it), ``switch``
-    (integer 0-3600, seconds one character stays on screen) and
-    ``characters`` (a list of roster names; empty means all).  Missing
+    (integer 0-3600, the minimum seconds between two successive spawns;
+    ``0`` follows the 25-50%-of-journey rule alone) and ``characters``
+    (a list of roster names; empty means all).  Missing
     keys keep their defaults; an unknown key or a wrong-typed value is
     reported individually and that key keeps its default while the rest
     still apply.  A later valid declaration replaces the previous one
@@ -436,7 +439,7 @@ def _extract_screen_saver(
                 f"3600, got {value!r}"
             )
 
-    switch: int = 10
+    switch: int = 0
     if "switch" in values:
         value = values["switch"]
         if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 3600:

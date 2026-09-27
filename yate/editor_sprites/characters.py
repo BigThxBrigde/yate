@@ -123,7 +123,11 @@ def shuffle_order(
     distinct) a plain shuffle already has no adjacent duplicates, so the
     loop terminates immediately; with a whitelist small enough for
     collisions it still terminates almost surely for >= 2 distinct names.
+    A roster with a single distinct name can never avoid a replay, so it
+    is returned as-is.
     """
+    if len(set(names)) < 2:
+        return list(names)
     while True:
         order = list(names)
         rng.shuffle(order)

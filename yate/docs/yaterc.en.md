@@ -372,7 +372,7 @@ input, and any key or mouse movement dismisses it.
 screen_saver = {
     "enable": True,        # master switch (False also disables Alt+Shift+S)
     "interval": 120,       # idle seconds before it starts (0 = manual only)
-    "switch": 10,          # seconds one character stays on screen
+    "switch": 0,           # min seconds between spawns (0 = 25-50% rule)
     "characters": [],      # name whitelist; [] = the whole roster
 }
 ```
@@ -381,10 +381,16 @@ screen_saver = {
 |---|---|---|---|
 | `enable` | `bool` | `True` | Master switch; `False` disables both the idle trigger and the `Alt+Shift+S` toggle. |
 | `interval` | `int` `0`–`3600` | `120` | Idle seconds before an automatic start; `0` keeps it manual-only. |
-| `switch` | `int` `0`–`3600` | `10` | Seconds one character stays on screen before the next takes over. |
+| `switch` | `int` `0`–`3600` | `0` | Minimum seconds between two spawns; `0` spawns the next character as soon as the newest one is 25–50% (random) through its walk. |
 | `characters` | `list[str]` | `[]` | Whitelist of roster names; empty means all. Unknown names are reported at startup. |
 
-Missing keys keep their defaults; a wrong-typed key is reported and that key
+On screen the sprites form a small parade: each walker crosses the *current*
+terminal width and leaves through the right edge; when the newest walker is
+25–50% (random) through its journey a successor spawns -- always a character
+that is not currently walking, on rows no active walker occupies. When every
+row is taken, no successor spawns until walkers exit and free rows up.
+Raise `switch` to slow the parade down. Missing
+keys keep their defaults; a wrong-typed key is reported and that key
 alone falls back to its default; a later valid declaration replaces the
 previous one whole. To browse the roster (27 original, homage-style
 approximations of classic arcade / FC-era characters, plus the Digital
