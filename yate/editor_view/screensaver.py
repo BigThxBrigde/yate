@@ -222,6 +222,10 @@ class ScreensaverScreen(ModalScreen[None]):
                 if self._row_is_available(r, rows, gap_floor)
             ]
         if not row_options:
+            # the name was popped for this attempt but never shown -- hand
+            # it back so the next hand-off retries it first instead of
+            # silently advancing the playlist rotation
+            self._bag.insert(0, name)
             return
         if self._dist_bounds is not None:
             lo, hi = self._dist_bounds
@@ -253,8 +257,10 @@ class ScreensaverScreen(ModalScreen[None]):
         """
         for w in self._walkers:
             if w.row < row + rows and row < w.row + w.rows:
-                behind = self._tick_count - w.spawn_tick - w.sprite_w
-                if behind <= gap_floor:
+                # how far the walker's tail has advanced past the spawn
+                # column (the successor's right edge lands on column 0)
+                tail_gap = self._tick_count - w.spawn_tick - w.sprite_w
+                if tail_gap <= gap_floor:
                     return False
         return True
 
@@ -335,4 +341,5 @@ class ScreensaverScreen(ModalScreen[None]):
     def on_mouse_move(self, event: events.MouseMove) -> None:
         """Mouse movement counts as input and exits too."""
         event.stop()
+        event.prevent_default()
         self.dismiss()

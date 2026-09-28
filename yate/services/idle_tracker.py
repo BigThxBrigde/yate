@@ -28,13 +28,13 @@ class IdleTracker:
         """Record one input event (any key or mouse activity)."""
         self._last = self._clock()
 
-    def due(self, now: float, threshold: float) -> bool:
+    def due(self, threshold: float) -> bool:
         """Whether *threshold* seconds have elapsed since the last poke.
 
-        *now* is the caller's monotonic timestamp, so the owner can poll
-        with its own clock reading.  ``threshold <= 0`` is always due --
+        Reads the same injected clock as :meth:`poke`, so one fake clock
+        drives both sides in tests.  ``threshold <= 0`` is always due --
         the pure predicate; the caller decides that a non-positive
         threshold means the automatic trigger is disabled and skips the
         poll entirely.
         """
-        return threshold <= 0 or (now - self._last) >= threshold
+        return threshold <= 0 or (self._clock() - self._last) >= threshold

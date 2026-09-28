@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import time
 from importlib.resources import files
 from pathlib import Path
 from typing import override
@@ -280,7 +279,7 @@ class YateApp(App[None]):
             return
         if isinstance(self.screen, ScreensaverScreen):
             return
-        if self._idle.due(time.monotonic(), self.config.screen_saver.interval):
+        if self._idle.due(self.config.screen_saver.interval):
             self.editor.execute_action("toggle_screensaver")
 
     def on_key(self, event: Key) -> None:
