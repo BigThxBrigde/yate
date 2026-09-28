@@ -16,7 +16,7 @@ from enum import Enum
 from typing import override
 
 from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer, word_end
-from yate.editor_core.textobjects import find_char
+from yate.editor_core.textobjects import find_char, resolve_text_object
 from yate.keymaps.base import (
     ActionContext,
     KeyBinding,
@@ -115,6 +115,9 @@ class VimKeymap(Keymap):
             KeyBinding("d{motion}", "delete motion", "Delete over motion", EDT),
             KeyBinding("y{motion}", "yank motion", "Yank over motion", EDT),
             KeyBinding("c{motion}", "change motion", "Change over motion", EDT),
+            KeyBinding("{op}{i|a}{object}", "text object",
+                "Operate on a text object (iw aw i( i\" it ...)", EDT,
+            ),
             KeyBinding("p", "paste below", "Paste after", EDT),
             KeyBinding("P", "paste above", "Paste before", EDT),
             KeyBinding("u", "undo", "Undo", EDT),
@@ -464,6 +467,8 @@ class VimKeymap(Keymap):
         op = self.op
         if op is None:
             return False
+        if self.obj_scope is not None:
+            return self._apply_text_object(ctx, key)
         if key == op:  # dd / yy / cc
             self._linewise_op(ctx, op)
             return True
@@ -697,18 +702,45 @@ class VimKeymap(Keymap):
         buf.anchor = start
         buf.cursor = end
         if op == "y":
-            buf.yank_selection()
-            buf.cursor = start
-            buf.anchor = None
-            ui.message("yanked")
+            if buf.has_selection():
+                buf.yank_selection()
+                buf.cursor = start
+                buf.anchor = None
+                ui.message("yanked")
+            else:
+                buf.anchor = None
             return
         text = buf.delete_selection()
         if text is not None:
             buf.register = text
         if op == "c":
             self._enter_insert(ui)
-        else:
+        elif text is not None:
             ui.message("deleted")
+
+    def _apply_text_object(self, ctx: ActionContext, key: str) -> bool:
+        """Resolve *key* as a text object and run the pending operator on it.
+
+        The key is always consumed: a miss (unknown object, unbalanced pair)
+        drops the operator without touching the buffer.
+        """
+        op = self.op
+        scope = self.obj_scope
+        motion_typed = self._typed_count()
+        count = (self.op_count or 1) * (motion_typed or 1)
+        self.prefix = None
+        self.op = None
+        self.obj_scope = None
+        self.op_count = None
+        self.count_str = ""
+        assert op is not None and scope is not None
+        buf = ctx.buffer
+        span = resolve_text_object(buf.lines, buf.cursor, scope, key, count)
+        if span is None:
+            ctx.ui.message("no text object")
+            return True
+        self._apply_span(ctx, op, span[0], span[1])
+        return True
 
     @staticmethod
     def _on_non_blank(buf: TextBuffer) -> bool:

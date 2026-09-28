@@ -1040,3 +1040,85 @@ def test_operator_semicolon_deletes_through_the_repeated_find() -> None:
     _press(keymap, ctx, "f", ".")
     _press(keymap, ctx, "d", ";")
     assert editor.buffer.get_text() == "ac"
+
+
+# --- text objects ------------------------------------------------------------
+
+
+def test_ciw_changes_the_inner_word() -> None:
+    """ciw replaces the word under the cursor."""
+    editor, keymap, ctx = _setup("foo bar")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "c", "i", "w", "X", ESC)
+    assert editor.buffer.get_text() == "X bar"
+
+
+def test_daw_deletes_the_word_and_trailing_space() -> None:
+    """daw takes the following whitespace with the word."""
+    editor, keymap, ctx = _setup("foo bar")
+    _press(keymap, ctx, "d", "a", "w")
+    assert editor.buffer.get_text() == "bar"
+
+
+def test_counted_iw_extends_over_following_words() -> None:
+    """3diw covers three words without the trailing space."""
+    editor, keymap, ctx = _setup("one two three four")
+    _press(keymap, ctx, "3", "d", "i", "w")
+    assert editor.buffer.get_text() == " four"
+
+
+def test_di_paren_deletes_the_inner_block() -> None:
+    """di( empties the parens and keeps them."""
+    editor, keymap, ctx = _setup("f(a, b)g")
+    editor.buffer.set_cursor((0, 3))
+    _press(keymap, ctx, "d", "i", "(")
+    assert editor.buffer.get_text() == "f()g"
+
+
+def test_di_brace_spans_lines() -> None:
+    """di{ removes an inner block across newlines."""
+    editor, keymap, ctx = _setup("a {\n  b\n}c")
+    editor.buffer.set_cursor((1, 2))
+    _press(keymap, ctx, "d", "i", "{")
+    assert editor.buffer.get_text() == "a {}c"
+
+
+def test_ca_quote_changes_including_the_quotes() -> None:
+    """ca\" replaces the quoted text together with the quotes."""
+    editor, keymap, ctx = _setup('say "hi"!')
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "c", "a", '"', "X", ESC)
+    assert editor.buffer.get_text() == "say X!"
+
+
+def test_cit_changes_the_inner_tag_text() -> None:
+    """cit replaces the text between the tags."""
+    editor, keymap, ctx = _setup("<p>hello</p>")
+    editor.buffer.set_cursor((0, 4))
+    _press(keymap, ctx, "c", "i", "t", "X", ESC)
+    assert editor.buffer.get_text() == "<p>X</p>"
+
+
+def test_cat_changes_the_whole_tag() -> None:
+    """cat replaces the entire tag block."""
+    editor, keymap, ctx = _setup("<p>hi</p> tail")
+    _press(keymap, ctx, "c", "a", "t", "X", ESC)
+    assert editor.buffer.get_text() == "X tail"
+
+
+def test_unknown_text_object_drops_the_operator() -> None:
+    """diq is a miss: nothing happens and the next key works normally."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "i", "q")
+    assert editor.buffer.get_text() == "abc"
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "bc"
+
+
+def test_unbalanced_pair_drops_the_operator_with_a_message() -> None:
+    """di( without a closing paren reports the miss."""
+    editor, keymap, ctx = _setup("abc (def")
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "d", "i", "(")
+    assert editor.buffer.get_text() == "abc (def"
+    assert editor.messages[-1] == "no text object"
