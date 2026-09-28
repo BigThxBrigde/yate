@@ -112,6 +112,22 @@ def get_character(name: str) -> Sprite:
     return CHARACTERS[name]
 
 
+#: Rejection-sampling budget for :func:`shuffle_order` (PR #33 review).
+#: The pigeonhole guard only proves a valid order *exists*; whether
+#: random shuffles actually hit one depends on the multiset.  With a
+#: per-shuffle hit rate ``p``, the odds of *N* retries all failing are
+#: ``(1 - p) ** N`` -- exponential decay, so a budget buys most of its
+#: safety early.  Bags here are small rc-whitelist rosters, so whenever a
+#: solution exists ``p`` is realistically >= ~1%, which puts the residual
+#: failure odds after 1000 retries around 4e-5 (~1 in 23k refills); the
+#: live call chain cannot even reach multisets (screensaver names are
+#: deduplicated first), making the cap purely defensive.  Raising it
+#: only inflates the worst-case retry time for no observable gain; on
+#: exhaustion the caller degrades to the original order, whose sole
+#: consequence is a cosmetic adjacent repeat -- never a hang.
+_REJECTION_RETRIES: int = 1000
+
+
 def shuffle_order(
     names: Sequence[str], rng: random.Random, *, avoid: str | None = None
 ) -> list[str]:
@@ -125,10 +141,10 @@ def shuffle_order(
     because no amount of shuffling can satisfy the constraints: a single
     distinct name can never avoid a replay; when the most frequent name
     exceeds ``(len(names) + 1) // 2`` adjacent duplicates are unavoidable
-    (pigeonhole); and rejection sampling is capped at 1000 retries
-    (PR #33 review) because a barely-satisfiable multiset can have a tiny
-    hit rate -- the function degrades to the original order instead of
-    stalling the spawn tick.
+    (pigeonhole); and rejection sampling is capped at
+    ``_REJECTION_RETRIES`` (PR #33 review) because a barely-satisfiable
+    multiset can have a tiny hit rate -- the function degrades to the
+    original order instead of stalling the spawn tick.
     """
     if len(set(names)) < 2:
         return list(names)
@@ -137,15 +153,16 @@ def shuffle_order(
         # pigeonhole: no adjacency-free arrangement exists, so retrying
         # would loop forever -- give up on the constraint instead
         return list(names)
-    for _ in range(1000):
+    for _ in range(_REJECTION_RETRIES):
         order = list(names)
         rng.shuffle(order)
         if avoid is not None and order and order[0] == avoid:
             continue
         if all(a != b for a, b in zip(order, order[1:])):
             return order
-    # hard cap reached: a valid order exists but is too rare to hit --
-    # degrade gracefully rather than stall (PR #33 review)
+    # budget exhausted: a valid order exists but is too rare to hit --
+    # degrade to the original order rather than stall the spawn tick
+    # (residual-odds math on _REJECTION_RETRIES; PR #33 review)
     return list(names)
 
 
