@@ -3,10 +3,49 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.6...HEAD)
+
+### 新功能
+
+- 同带间隙超过距离下限即可复用行带 ([`af6dbf4`](https://gitee.com/jermaine/yate/commit/af6dbf49d16d39c173762c2bda0823aaee1c1dd1))
+- 后继产生窗口可配置 ([`30e4d4a`](https://gitee.com/jermaine/yate/commit/30e4d4ae600ee54a45962251f0a9b85a982157a7))
+
+### 问题修复
+
+- shuffle_order 拒绝采样加上限（PR #33 评审） ([`673da84`](https://gitee.com/jermaine/yate/commit/673da84d3546c916e38a6faa65d9c08ceb2cb7d8))
+- 命令行输入不再误触 alt+shift+s ([`1862386`](https://gitee.com/jermaine/yate/commit/1862386764aeb0f171fe74916aad2b79f400edb6))
+- shuffle_order 对不可救多重集保证终止 ([`00763fb`](https://gitee.com/jermaine/yate/commit/00763fbb7a1c99af88ab7ee578cd3dad0b715af8))
+- 只读会话测试轮询 :e worker 完成 ([`0ea3711`](https://gitee.com/jermaine/yate/commit/0ea3711848f2d792a6c0dab890ba6039e22bbc93))
+- 暴露测试安全的空闲轮询并修复空测试 ([`a538883`](https://gitee.com/jermaine/yate/commit/a5388835ffbd72386f9bca5cad6fbf58f7e96d86))
+- 断言内容前先等待手动文档加载 ([`6f02578`](https://gitee.com/jermaine/yate/commit/6f02578476db3aff6817f32f369c80b9d97d746e))
+
+### 重构
+
+- 收紧空闲计时器时钟与产生簿记 ([`eccf33f`](https://gitee.com/jermaine/yate/commit/eccf33fb56dfc7bed9852d9d004475de1c580635))
+
+### 文档
+
+- 新增 api.sprites 扩展注册方案 ([`1bd6975`](https://gitee.com/jermaine/yate/commit/1bd69752651e897a6a23173dab86eefd6f87a417))
+- 新增 P1-P7 评审修复方案 ([`6380ae6`](https://gitee.com/jermaine/yate/commit/6380ae664d8e4eda981b718ecddb7d2c8a98d830))
+- 新条目改用完整提交哈希 ([`834f25b`](https://gitee.com/jermaine/yate/commit/834f25bae5b62cc657d100945ed110a0348d32d4))
+- yaterc、变更日志与方案同步同带距离规则 ([`b7ed339`](https://gitee.com/jermaine/yate/commit/b7ed3396088bb24ae5def38d3b93522e9bcb068e))
+- yaterc.example 补屏保配置说明 ([`d50ecf7`](https://gitee.com/jermaine/yate/commit/d50ecf741ede3bad48558e688f84cf0f7002f584))
+- 产生窗口的变更日志条目与方案回填 ([`11245f4`](https://gitee.com/jermaine/yate/commit/11245f4a446ecf933eb7848774e6a83866cdc03e))
+
+### 构建与工程
+
+- 更新 .github/sync-to-gitee.sh ([`256d45e`](https://gitee.com/jermaine/yate/commit/256d45e48e20eae847585578d391c38b796270ef))
+- 更新 .github/sync-to-gitee.sh ([`7986aa9`](https://gitee.com/jermaine/yate/commit/7986aa9208971a02adb1e948e90c681df905344e))
+
 ## [0.2.6] - 2026-09-27 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...v0.2.6)
 
 ### 新功能
 
+- 游行队：多个互异精灵按全宽行走 ([`5353c9b`](https://gitee.com/jermaine/yate/commit/5353c9b575f2945161f6d510cce0771103ec014f))
+- 新增全终端屏保与空闲触发 ([`6766bed`](https://gitee.com/jermaine/yate/commit/6766bed55e0766c01088cb6cab929107a052db4c))
+- 新增 screen_saver 字典配置（enable/interval/switch/characters） ([`5937ce4`](https://gitee.com/jermaine/yate/commit/5937ce43630f4aabcf9b839d04ae4b9f93459dcb))
+- 新增 pack rosters 子命令渲染阵容预览 ([`c019f22`](https://gitee.com/jermaine/yate/commit/c019f2235d94746edfa2b1a93b7ae1fb192c7bf8))
+- 新增像素精灵包与洗牌注册表 ([`cb94b48`](https://gitee.com/jermaine/yate/commit/cb94b48dbb6887b20c8c4ef0306caac0601a6bc9))
 - gate the devtools bridge on the tracing switch [缺中文] ([`5d3399d`](https://gitee.com/jermaine/yate/commit/5d3399d8ad8a15a34e8f1bb8864022693c7975b9))
 - bridge tracing into devtools, add the R12 logging rule [缺中文] ([`a35a133`](https://gitee.com/jermaine/yate/commit/a35a133d36a8b24c9dfbcf876f80fc0b97653720))
 - move app-level CSS to bundled app.tcss resource [缺中文] ([`3105f66`](https://gitee.com/jermaine/yate/commit/3105f66e09cba1d282d86383c6cfb21741055342))
@@ -32,6 +71,7 @@
 
 ### 问题修复
 
+- 上报未知角色错误并守护白名单 ([`f5b2769`](https://gitee.com/jermaine/yate/commit/f5b2769ec4a0fecab1cd1dc97f832137b127f82a))
 - escape message markup and dedupe theme subscribers [缺中文] ([`02e90fe`](https://gitee.com/jermaine/yate/commit/02e90fe9d75465473cf841acac67b43c6086aad8))
 - close legacy theme gaps in TerminalPanel and PromptBar [缺中文] ([`0737bae`](https://gitee.com/jermaine/yate/commit/0737bae2d35b26e9bf601ef95c59a05510fc3996))
 - call super().on_mount() in EditorView and ExplorerTree [缺中文] ([`29eeb52`](https://gitee.com/jermaine/yate/commit/29eeb52bf82a6b92ef92d2dabaff09bd24e7f011))
@@ -65,6 +105,13 @@
 ### 文档
 
 - codify R13 widget-owned theming and extensions layering [缺中文] ([`9216480`](https://gitee.com/jermaine/yate/commit/92164801d941eee9172cf13a2f1fd50a5e547c2b))
+- 方案文档嵌入阵容预览并移除过时 venv 行 ([`0348af2`](https://gitee.com/jermaine/yate/commit/0348af27759d9d1857f77774e60e9ecb92ee54f3))
+- 回填评审修复结果与偏离记录 ([`86a7764`](https://gitee.com/jermaine/yate/commit/86a7764ea6a91c608acc5c95c9b7c5869b23c2b1))
+- 新增屏保发现项的评审修复方案 ([`5eb3c72`](https://gitee.com/jermaine/yate/commit/5eb3c72cd3e9e02dfc5e8e877be92d8a1ee5a02d))
+- 变更日志与方案记录游行队重构 ([`0a4435d`](https://gitee.com/jermaine/yate/commit/0a4435d65018004fc436cdcf55e75c1c67c99601))
+- 回填 fancy_sym 实施结果与偏离记录 ([`a92d420`](https://gitee.com/jermaine/yate/commit/a92d420e5e2f2250a7552748bc277b69afbd33b3))
+- 编写空闲屏保文档并致谢 that_editor ([`43a5c88`](https://gitee.com/jermaine/yate/commit/43a5c88317024e7f63de8a5bc7d2637ae32721f1))
+- 新增 fancy-sym 屏保方案与子计划 ([`1ba5c53`](https://gitee.com/jermaine/yate/commit/1ba5c5380c5b8258158b6280340743044ff87ff2))
 - add the plan-before-execute workflow rule [缺中文] ([`717fe08`](https://gitee.com/jermaine/yate/commit/717fe08a09ec192886ad40db70b8d6991ee2f1ee))
 - restructure theme-ownership plan into README + Plan A-E volumes [缺中文] ([`fec98ed`](https://gitee.com/jermaine/yate/commit/fec98ed60866d906e9a93d78c6f382c561c0faf5))
 - split theme-ownership into sub-plans and close smoke gap [缺中文] ([`766b266`](https://gitee.com/jermaine/yate/commit/766b266b2757a042037f7a1ddf19937c118db39a))

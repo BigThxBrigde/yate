@@ -42,6 +42,9 @@ Release history: [CHANGELOG.md](CHANGELOG.md) · [中文](CHANGELOG.zh.md) — g
 - **yaterc config**: Python-syntax config file (vimrc style) with user / project / `-u` three-level loading
 - **Python extensions**: any `.py` script registers commands, key bindings and actions through `setup(api)`; the bundled extensions in `yate/extensions/` (Python LSP, C# highlighting) auto-load at startup and can be disabled by name via yaterc's `disabled_extensions`
 - **LSP support**: zero-dependency built-in LSP client (`editor_lsp`) with completion popup and diagnostics (underlines / gutter marks / status bar counts / `:diagnostics`); with no server running, completion falls back to words collected from open buffers; servers register declaratively in yaterc (`language_servers`) or through extensions, including a bundled Python server (auto-discovers pyright / python-lsp-server)
+- **Screensaver mode**: a full-terminal idle screensaver -- pixel characters walk across the screen while you are away; `Alt+Shift+S` toggles it manually and it starts by itself after `screen_saver.interval` seconds of no input (any key or mouse movement exits); 27 original, homage-style roster (classic arcade / FC-era characters plus the Digital Circus crew), configurable via yaterc's `screen_saver` dict; preview the roster with `python -m tools.pack rosters`
+
+Inspired by Joel Yliluoma's ["that_editor"](https://github.com/bisqwit/that_editor) status-bar mascot. All screensaver sprites are original approximations drawn for yate as an homage -- no game assets are used or distributed.
 
 ## Requirements
 

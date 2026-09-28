@@ -43,6 +43,7 @@ FORWARDED_HOOKS = frozenset(
         "show_manual",
         "toggle_explorer",
         "toggle_keymap",
+        "toggle_screensaver",
     }
 )
 
