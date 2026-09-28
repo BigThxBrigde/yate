@@ -674,16 +674,17 @@ class Editor:
         if event.key == "alt+shift+p":
             self.open_command_palette()
             return True
-        # alt+shift+s toggles the screensaver: alt+shift combos have no raw
-        # byte form (keyproto.legacy maps only single-modifier alt chords),
-        # so like alt+shift+p this must be intercepted by key name.
-        if event.key == "alt+shift+s":
-            self.execute_action("toggle_screensaver")
-            return True
         if self.prompt_bar.active_mode:
             # command line is editing; enter must bubble so the Input's own
             # enter->submit binding can fire
             return False
+        # alt+shift+s toggles the screensaver: alt+shift combos have no raw
+        # byte form (keyproto.legacy maps only single-modifier alt chords),
+        # so like alt+shift+p this must be intercepted by key name.  Kept
+        # below the prompt check: typing a :command must never toggle it.
+        if event.key == "alt+shift+s":
+            self.execute_action("toggle_screensaver")
+            return True
         # vscode-style pane focus chords (CSI-u encodings, not in the raw
         # byte table)
         if event.key == "ctrl+shift+e":

@@ -182,12 +182,7 @@ class YateApp(App[None]):
         # every other yaterc error (config.py deliberately stays
         # sprite-pack free, so the roster is knowable only in the shell).
         self._idle = IdleTracker() if self.config.screen_saver.enable else None
-        known = set(character_names())
-        for name in self.config.screen_saver.characters:
-            if name not in known:
-                self.config.errors.append(
-                    f"unknown screensaver character: {name!r}"
-                )
+        self._report_unknown_screen_saver_characters()
 
         self.editor = Editor(
             self,
@@ -281,6 +276,23 @@ class YateApp(App[None]):
             return
         if self._idle.due(self.config.screen_saver.interval):
             self.editor.execute_action("toggle_screensaver")
+
+    def _report_unknown_screen_saver_characters(self) -> None:
+        """Report rc whitelist names outside the roster as config errors.
+
+        Runs from ``__init__`` before the Editor snapshots
+        ``config.errors``, so the names reach the startup warning banner
+        like every other yaterc error.  The roster lives in the sprite
+        pack, which config.py deliberately knows nothing about, so the
+        shell -- the only layer that sees both -- does the membership
+        check here.
+        """
+        known = set(character_names())
+        for name in self.config.screen_saver.characters:
+            if name not in known:
+                self.config.errors.append(
+                    f"unknown screensaver character: {name!r}"
+                )
 
     def on_key(self, event: Key) -> None:
         """Fallback routing: keys not consumed by a focused widget."""
