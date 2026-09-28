@@ -3,8 +3,10 @@
 A :class:`~textual.screen.ModalScreen` that covers the whole terminal with
 the app background while a small parade of sprites crosses it left-to-right
 (half-block pixels rendered by :mod:`yate.editor_sprites.render`).  The
-newest walker hands off to a successor once it is 25-50% (random) through
-its journey; the successor always shows a character that is not currently
+newest walker hands off to a successor once it is 1/8-1/3 (random) through
+its journey -- or inside an explicitly configured ``dist_bounds`` window,
+which also overrides the ``switch`` seconds floor.  The successor always
+shows a character that is not currently
 on screen, on rows no active walker occupies -- when every row is taken,
 no successor spawns.  A walker leaves only after it has fully crossed the
 current terminal width, so the walk distance always follows the live
@@ -76,8 +78,8 @@ class ScreensaverScreen(ModalScreen[None]):
     ``characters`` is the (already rc-filtered) name roster -- empty falls
     back to the whole registry so the screen can never end up with nothing
     to show.  ``switch_seconds`` is the minimum number of seconds between
-    two successive spawns; ``0`` lets the successor spawn as soon as the
-    newest walker is 25-50% through its journey.
+    two spawns; ``0`` lets the successor spawn as soon as the newest
+    walker is 1/8-1/3 through its journey.
     """
 
     DEFAULT_CSS = """
@@ -97,9 +99,17 @@ class ScreensaverScreen(ModalScreen[None]):
     }
     """
 
-    def __init__(self, characters: tuple[str, ...], switch_seconds: int) -> None:
+    def __init__(
+        self,
+        characters: tuple[str, ...],
+        switch_seconds: int,
+        dist_bounds: tuple[float, float] | None = None,
+    ) -> None:
         self._names = tuple(characters) if characters else character_names()
         self._switch_seconds = switch_seconds
+        #: Explicit ``(lower, upper)`` journey window from yaterc; when set
+        #: it replaces both the built-in 1/8-1/3 window and ``switch_seconds``.
+        self._dist_bounds = dist_bounds
         self._rng = random.Random()
         self._canvas = Static("", classes="canvas")
         self._hint = Static(
@@ -186,9 +196,15 @@ class ScreensaverScreen(ModalScreen[None]):
             ]
         if not row_options:
             return
-        threshold = int(
-            self._rng.uniform(0.25, 0.5) * (width + len(sprite.frames[0][0]))
-        )
+        travel = width + len(sprite.frames[0][0])
+        if self._dist_bounds is not None:
+            lo, hi = self._dist_bounds
+            spawn_at = max(1, int(self._rng.uniform(lo, hi) * travel))
+        else:
+            threshold = int(self._rng.uniform(1 / 8, 1 / 3) * travel)
+            spawn_at = max(
+                1, threshold, self._switch_seconds * TICKS_PER_SECOND
+            )
         self._walkers.append(
             Walker(
                 name=name,
@@ -196,7 +212,7 @@ class ScreensaverScreen(ModalScreen[None]):
                 row=self._rng.choice(row_options),
                 rows=rows,
                 spawn_tick=self._tick_count,
-                spawn_at=max(1, threshold, self._switch_seconds * TICKS_PER_SECOND),
+                spawn_at=spawn_at,
             )
         )
 

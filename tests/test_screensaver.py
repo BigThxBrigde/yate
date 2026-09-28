@@ -154,8 +154,8 @@ def test_parade_spawns_distinct_names_on_distinct_rows(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_successor_spawns_between_quarter_and_half_journey(tmp_path: Path) -> None:
-    """With ``switch = 0`` the hand-off point is 25-50% of the walk."""
+def test_successor_spawns_between_eighth_and_third_journey(tmp_path: Path) -> None:
+    """With ``switch = 0`` the hand-off point is 1/8-1/3 of the walk."""
 
     async def scenario() -> None:
         app = YateApp(target=_doc(tmp_path))
@@ -168,8 +168,8 @@ def test_successor_spawns_between_quarter_and_half_journey(tmp_path: Path) -> No
             assert len(screen.walkers) == 1
             walker = screen.walkers[0]
             travel = 80 + walker.sprite_w
-            assert walker.spawn_at >= int(0.25 * travel)
-            assert walker.spawn_at <= int(0.5 * travel)
+            assert walker.spawn_at >= int((1 / 8) * travel)
+            assert walker.spawn_at <= int((1 / 3) * travel)
 
     asyncio.run(scenario())
 
@@ -186,6 +186,30 @@ def test_switch_option_floors_the_spawn_delay(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, ScreensaverScreen)
             assert screen.walkers[0].spawn_at >= 5 * TICKS_PER_SECOND
+
+    asyncio.run(scenario())
+
+
+def test_dist_bounds_pin_the_spawn_point_and_ignore_switch(
+    tmp_path: Path,
+) -> None:
+    """Explicit ``dist_bounds`` replace the timing rule entirely."""
+
+    async def scenario() -> None:
+        app = YateApp(target=_doc(tmp_path))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            # switch = 10 would floor the spawn at 100 ticks; the window
+            # (0.5, 0.75) of a ~90 tick walk can never reach that floor.
+            await app.push_screen(ScreensaverScreen((), 10, (0.5, 0.75)))
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, ScreensaverScreen)
+            walker = screen.walkers[0]
+            travel = 80 + walker.sprite_w
+            assert walker.spawn_at >= int(0.5 * travel)
+            assert walker.spawn_at <= int(0.75 * travel)
+            assert walker.spawn_at < 10 * TICKS_PER_SECOND
 
     asyncio.run(scenario())
 

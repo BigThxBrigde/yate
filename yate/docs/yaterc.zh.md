@@ -68,7 +68,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
-| `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `characters` 四键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
+| `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `dist_*_bound` / `characters` 键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
 | `yate_trace` | `bool` | `False` | `True` / `False` | 运行日志开关（默认关闭）；开启后写入 `~/.yate/data/logs/`，见[下文](#运行日志yate_trace) |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`（大小写不敏感） | 运行日志等级，与 Python `logging` 内置等级一致 |
 
@@ -333,7 +333,9 @@ yate 内置全终端空闲屏保：离开时像素小人会在屏幕上游行。
 screen_saver = {
     "enable": True,        # 总开关（False 同时禁用 Alt+Shift+S）
     "interval": 120,       # 无输入自动触发的秒数（0 = 仅手动）
-    "switch": 0,           # 两次产生的最小间隔秒数（0 = 仅按 25%-50% 规则）
+    "switch": 0,           # 两次产生的最小间隔秒数（0 = 仅按 1/8-1/3 规则）
+    "dist_lower_bound": 0.125,  # 可选路程窗口（float 或 "p/q" 分数）；
+    "dist_upper_bound": "1/3",  # 两者同时设置时忽略 `switch`
     "characters": [],      # 名字白名单；[] = 全部阵容
 }
 ```
@@ -342,13 +344,16 @@ screen_saver = {
 |---|---|---|---|
 | `enable` | `bool` | `True` | 总开关；`False` 同时禁用自动触发与 `Alt+Shift+S`。 |
 | `interval` | `int` `0`–`3600` | `120` | 无输入多少秒后自动进入；`0` 表示仅手动。 |
-| `switch` | `int` `0`–`3600` | `0` | 两次产生之间的最小间隔秒数；`0` 表示最新的角色走到全程 25%–50%（随机）时立即产生下一个。 |
+| `switch` | `int` `0`–`3600` | `0` | 两次产生之间的最小间隔秒数；`0` 表示最新的角色走到全程 1/8–1/3（随机）时立即产生下一个。两个 `dist_*_bound` 同时设置时被忽略。 |
+| `dist_lower_bound` / `dist_upper_bound` | `(0, 1)` 内的 `float` 或 `"p/q"` | 未设置 | 显式指定随机产生窗口占全程的比例（如 `0.25` 或 `"1/8"`），两种写法可混用；两键必须同时设置且 `lower < upper`，此时完全取代 `switch`。 |
 | `characters` | `list[str]` | `[]` | 阵容名字白名单；空表示全部。未知名在启动时报告；若白名单没有任何有效名字，屏保拒绝启动，不回退为全部。 |
 
 屏幕上的精灵组成一支小游行队：每只走过**当前**终端宽度后从右缘离场；
-当最新的一只走到全程 25%–50%（随机）的某点时产生后继——后继必须是
+当最新的一只走到全程 1/8–1/3（随机）的某点时产生后继——后继必须是
 当前不在跑的角色，且所在行带与所有在跑者不相交；若所有行都被占满，
-则不产生，等有走者离场腾出行再说。调大 `switch` 可让游行节奏变慢。
+则不产生，等有走者离场腾出行再说。调大 `switch` 可让游行节奏变慢；
+也可用 `dist_lower_bound` / `dist_upper_bound`（float 或 `"1/8"` 式分数字符串）
+显式固定产生窗口，此时完全取代时间规则。
 缺键保默认；类型错误的键单独报错并保默认，其余键仍然生效；后加载的
 合法声明整体替换前值。阵容为 27 只致敬风格的原创像素角色（经典街机 /
 红白机形象近似绘制，外加《神奇数字马戏团》五人组），运行

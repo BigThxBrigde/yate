@@ -831,6 +831,7 @@ def test_screen_saver_defaults() -> None:
     assert config.screen_saver.enable is True
     assert config.screen_saver.interval == 120
     assert config.screen_saver.switch == 0
+    assert config.screen_saver.dist_bounds is None
     assert config.screen_saver.characters == ()
 
 
@@ -912,6 +913,62 @@ def test_screen_saver_later_rc_replaces_whole(tmp_path: Path) -> None:
     assert config.screen_saver.enable is False
     assert config.screen_saver.interval == 120  # back to the default
     assert config.screen_saver.switch == 7
+
+
+def test_screen_saver_dist_bounds_fraction_strings(tmp_path: Path) -> None:
+    config = _load(
+        'screen_saver = {"dist_lower_bound": "1/8", "dist_upper_bound": "1/3"}\n',
+        tmp_path,
+    )
+    assert config.errors == []
+    assert config.screen_saver.dist_bounds == (0.125, 1 / 3)
+
+
+def test_screen_saver_dist_bounds_accept_floats_and_mix(tmp_path: Path) -> None:
+    config = _load(
+        'screen_saver = {"dist_lower_bound": 0.1, "dist_upper_bound": 0.5}\n',
+        tmp_path,
+    )
+    assert config.errors == []
+    assert config.screen_saver.dist_bounds == (0.1, 0.5)
+    mixed = _load(
+        'screen_saver = {"dist_lower_bound": "1/4", "dist_upper_bound": 0.75}\n',
+        tmp_path,
+    )
+    assert mixed.errors == []
+    assert mixed.screen_saver.dist_bounds == (0.25, 0.75)
+
+
+def test_screen_saver_dist_bounds_require_both_keys(tmp_path: Path) -> None:
+    for body in ('"dist_lower_bound": "1/8"', '"dist_upper_bound": "1/3"'):
+        config = _load(f"screen_saver = {{{body}}}\n", tmp_path)
+        assert any("must be set together" in e for e in config.errors), body
+        # the incomplete pair falls back to the timing rule entirely
+        assert config.screen_saver.dist_bounds is None, body
+
+
+def test_screen_saver_dist_bounds_reject_bad_order(tmp_path: Path) -> None:
+    config = _load(
+        'screen_saver = {"dist_lower_bound": 0.5, "dist_upper_bound": 0.1}\n',
+        tmp_path,
+    )
+    assert any(
+        "dist_lower_bound must be less than dist_upper_bound" in e
+        for e in config.errors
+    )
+    assert config.screen_saver.dist_bounds is None
+
+
+def test_screen_saver_dist_bounds_bad_values_reported(tmp_path: Path) -> None:
+    cases = ['"dist_lower_bound": True', '"dist_upper_bound": "1/0"',
+             '"dist_upper_bound": "abc"', '"dist_upper_bound": 1.5',
+             '"dist_lower_bound": 0']
+    for body in cases:
+        config = _load(f"screen_saver = {{{body}}}\n", tmp_path)
+        assert config.errors, body
+        assert any("must be a float in (0, 1)" in e for e in config.errors), \
+            (body, config.errors)
+        assert config.screen_saver.dist_bounds is None, body
 
 
 # --- shipped example --------------------------------------------------------

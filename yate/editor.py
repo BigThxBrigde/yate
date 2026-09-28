@@ -1484,6 +1484,7 @@ class Editor:
             ScreensaverScreen(
                 wanted or character_names(),
                 self.config.screen_saver.switch,
+                self.config.screen_saver.dist_bounds,
             )
         )
 

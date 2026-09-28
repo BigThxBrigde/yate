@@ -22,7 +22,9 @@ theme-directory loading) allow custom themes::
     screen_saver = {                                 # idle screensaver mode
         "enable": True,        # master switch (False also disables Alt+Shift+S)
         "interval": 120,       # idle seconds before it starts (0 = manual only)
-        "switch": 0,           # min seconds between spawns (0 = 25-50% rule)
+        "switch": 0,           # min seconds between spawns (0 = 1/8-1/3 rule)
+        "dist_lower_bound": 0.125,  # optional journey window (float or "p/q");
+        "dist_upper_bound": "1/3",  # when BOTH are set, `switch` is ignored
         "characters": [],      # name whitelist; [] = the whole roster
     }
 
@@ -101,7 +103,10 @@ class ScreenSaverConfig:
     :kbd:`Alt+Shift+S` toggle still works while ``enable`` is true).
     ``switch`` is the minimum number of seconds between two successive
     spawns; ``0`` lets a successor spawn as soon as the newest walker is
-    25-50% through its journey.  ``characters`` is a name whitelist --
+    1/8-1/3 through its journey.  When both ``dist_lower_bound`` and
+    ``dist_upper_bound`` are set (fractions of the walk, via
+    :attr:`dist_bounds`) they define that random spawn window explicitly
+    and ``switch`` is ignored.  ``characters`` is a name whitelist --
     empty means the whole roster; name membership is validated where the
     roster lives (:func:`yate.editor_sprites.characters.character_names`),
     keeping this module free of sprite-pack knowledge.
@@ -111,6 +116,23 @@ class ScreenSaverConfig:
     interval: int = 120
     switch: int = 0
     characters: tuple[str, ...] = ()
+    #: Lower edge of the spawn window as a fraction of the journey
+    #: (``None`` = unset; both bounds must be set to take effect).
+    dist_lower_bound: float | None = None
+    #: Upper edge of the spawn window as a fraction of the journey.
+    dist_upper_bound: float | None = None
+
+    @property
+    def dist_bounds(self) -> tuple[float, float] | None:
+        """The ``(lower, upper)`` spawn window when both edges are set.
+
+        Any other combination (only one edge, or a rejected pair cleared
+        to ``None`` by the loader) yields ``None`` and the screen falls
+        back to its built-in 1/8-1/3 window plus the ``switch`` floor.
+        """
+        if self.dist_lower_bound is None or self.dist_upper_bound is None:
+            return None
+        return (self.dist_lower_bound, self.dist_upper_bound)
 
 
 @dataclass
@@ -390,6 +412,40 @@ def _extract_theme_dirs(
             config.theme_dirs.append(resolved)
 
 
+def _parse_journey_fraction(
+    value: Any, key: str, config: YateConfig
+) -> float | None:
+    """Parse one ``screen_saver`` journey bound and report bad values.
+
+    Accepts a float (integers included, bools rejected as usual) or a
+    ``"p/q"`` fraction string such as ``"1/8"``.  Returns the parsed
+    fraction when it lies in ``(0, 1)``; otherwise appends an error to
+    *config* and returns ``None``.
+    """
+    parsed: float | None = None
+    if isinstance(value, bool):
+        pass  # bool is a subclass of int -- reject it explicitly
+    elif isinstance(value, (int, float)):
+        parsed = float(value)
+    elif isinstance(value, str):
+        numerator, slash, denominator = value.partition("/")
+        if (
+            slash
+            and numerator.strip().lstrip("-").isdigit()
+            and denominator.strip().lstrip("-").isdigit()
+        ):
+            bottom = int(denominator)
+            if bottom != 0:
+                parsed = int(numerator) / bottom
+    if parsed is None or not 0.0 < parsed < 1.0:
+        config.errors.append(
+            f"screen_saver {key} must be a float in (0, 1) or a fraction "
+            f'like "1/8", got {value!r}'
+        )
+        return None
+    return parsed
+
+
 def _extract_screen_saver(
     namespace: dict[str, Any], config: YateConfig
 ) -> None:
@@ -398,9 +454,13 @@ def _extract_screen_saver(
     Recognized keys: ``enable`` (bool), ``interval`` (integer 0-3600, the
     idle seconds before an automatic start; ``0`` disables it), ``switch``
     (integer 0-3600, the minimum seconds between two successive spawns;
-    ``0`` follows the 25-50%-of-journey rule alone) and ``characters``
-    (a list of roster names; empty means all).  Missing
-    keys keep their defaults; an unknown key or a wrong-typed value is
+    ``0`` follows the 1/8-1/3-of-journey rule alone), ``dist_lower_bound``
+    / ``dist_upper_bound`` (float or ``"p/q"`` fraction in ``(0, 1)``,
+    pinning the random spawn window as a fraction of the walk -- when
+    both are set ``switch`` is ignored) and ``characters`` (a list of
+    roster names; empty means all).  The two bounds must appear together
+    with ``lower < upper`` or the pair is rejected whole.  Missing keys
+    keep their defaults; an unknown key or a wrong-typed value is
     reported individually and that key keeps its default while the rest
     still apply.  A later valid declaration replaces the previous one
     whole (same semantics as ``language_servers``).
@@ -412,7 +472,14 @@ def _extract_screen_saver(
         config.errors.append(f"screen_saver must be a dict, got {raw!r}")
         return
     values = cast(dict[str, Any], raw)
-    known = ("enable", "interval", "switch", "characters")
+    known = (
+        "enable",
+        "interval",
+        "switch",
+        "dist_lower_bound",
+        "dist_upper_bound",
+        "characters",
+    )
     unknown = sorted(key for key in values if key not in known)
     if unknown:
         config.errors.append(f"screen_saver has unknown keys: {unknown}")
@@ -464,8 +531,36 @@ def _extract_screen_saver(
                 f"names, got {value!r}"
             )
 
+    lower: float | None = None
+    if "dist_lower_bound" in values:
+        lower = _parse_journey_fraction(
+            values["dist_lower_bound"], "dist_lower_bound", config
+        )
+    upper: float | None = None
+    if "dist_upper_bound" in values:
+        upper = _parse_journey_fraction(
+            values["dist_upper_bound"], "dist_upper_bound", config
+        )
+    if (lower is None) != (upper is None):
+        config.errors.append(
+            "screen_saver dist_lower_bound and dist_upper_bound must be "
+            "set together"
+        )
+        lower = upper = None
+    elif lower is not None and upper is not None and lower >= upper:
+        config.errors.append(
+            "screen_saver dist_lower_bound must be less than "
+            f"dist_upper_bound, got {lower!r} >= {upper!r}"
+        )
+        lower = upper = None
+
     config.screen_saver = ScreenSaverConfig(
-        enable=enable, interval=interval, switch=switch, characters=names
+        enable=enable,
+        interval=interval,
+        switch=switch,
+        dist_lower_bound=lower,
+        dist_upper_bound=upper,
+        characters=names,
     )
 
 
