@@ -461,3 +461,21 @@ v6.1 复核替换。终态预览：`python -m tools.pack rosters` → `roster.sv
 产生），`test_screensaver.py` 改用公开面（`Walker` / `walkers` /
 `advance_tick`）满足 pyright reportPrivateUsage。门禁：pyright 0 诊断、
 1331 passed / 7 skipped、架构守卫 20 passed。
+
+### 三轮迭代（2026-09-28，产生窗口可配置，提交 `30e4d4a`）
+
+1. **默认窗口再调**：后继产生点由 25%–50% 改为全程 **1/8–1/3**
+   （随机），`ScreensaverScreen._spawn` 与测试同步。
+2. **`dist_lower_bound` / `dist_upper_bound` 新键**：显式固定产生窗口，
+   接受 `(0, 1)` 内 float 或 `"p/q"` 分数字符串（可混用）。两键同时
+   设置则完全取代 `switch`；只设其一、`lower >= upper` 或值越界整对
+   拒绝并入 `config.errors`（`ScreenSaverConfig.dist_bounds` 属性
+   聚合判定；未设或被拒均为 `None`，屏保回退内置窗口 + switch 下限）。
+   解析器 `_parse_journey_fraction` 拒绝 bool（int 子类）、除零与
+   非数字串。
+3. 文档：双语 yaterc（示例 + 键表 + 游行队段落，顺手修正残留的
+   25%–50% 旧表述）。
+
+门禁：pyright 全仓 0 诊断；1343 passed / 7 skipped（新增 6 用例：
+分数/浮点/混用解析、缺一键、逆序、5 种非法值、bounds 压过
+switch=10 的行为验证）。

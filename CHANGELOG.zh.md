@@ -7,6 +7,9 @@
 
 ### 新功能
 
+- 屏保游行队节奏调优：默认产生窗口改为全程 1/8–1/3，新增
+  `dist_lower_bound` / `dist_upper_bound` 键显式固定窗口（float 或
+  `"p/q"` 分数，设置后忽略 `switch`） ([`30e4d4a`](https://gitee.com/jermaine/yate/commit/30e4d4ae600ee54a45962251f0a9b85a982157a7))
 - 屏保改为小游行队：最新角色走到全程 25%–50%（随机）时产生后继，后继
   与所有在跑精灵名字互异、行带不相交，行满则不产生；走者按当前终端
   宽度走满全程后从右缘离场 ([`5353c9b`](https://gitee.com/jermaine/yate/commit/5353c9b575f2945161f6d510cce0771103ec014f))
