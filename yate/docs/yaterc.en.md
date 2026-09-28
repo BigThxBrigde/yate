@@ -390,8 +390,13 @@ screen_saver = {
 On screen the sprites form a small parade: each walker crosses the *current*
 terminal width and leaves through the right edge; when the newest walker is
 1/8–1/3 (random) through its journey a successor spawns -- always a character
-that is not currently walking, on rows no active walker occupies. When every
-row is taken, no successor spawns until walkers exit and free rows up.
+that is not currently walking. The successor's row band must either be free
+or lie far enough behind every walker overlapping it: the gap between that
+walker's tail and the spawn column has to exceed `dist_upper_bound` of the
+journey (built-in 1/3 when no explicit window is set). Because every sprite
+walks at the same speed, spacing set at spawn time holds forever, so sprites
+never overlap. When no row satisfies the rule, no successor spawns until
+walkers exit and free bands up.
 Raise `switch` to slow the parade down, or pin the spawn window explicitly
 with `dist_lower_bound` / `dist_upper_bound` (floats or `"1/8"`-style
 fraction strings), which replaces the timing rule altogether. Missing

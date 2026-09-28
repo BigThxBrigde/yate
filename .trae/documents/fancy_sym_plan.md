@@ -479,3 +479,35 @@ v6.1 复核替换。终态预览：`python -m tools.pack rosters` → `roster.sv
 门禁：pyright 全仓 0 诊断；1343 passed / 7 skipped（新增 6 用例：
 分数/浮点/混用解析、缺一键、逆序、5 种非法值、bounds 压过
 switch=10 的行为验证）。
+
+### 四轮迭代（2026-09-28，同带距离规则，提交 `af6dbf4`；master 合并 `fbb8bf5`）
+
+用户指令：同一行带上两只精灵的间距超过 `dist_upper_bound` 即允许产生，
+但**重叠绝对不允许**（含极小情况）。落地为四点：
+
+1. **行带复用规则**（`_row_is_available` 新方法）：行带要么无走者
+   （原空闲规则），要么所有与其相交的走者都已走远——走者尾部
+   （`elapsed − sprite_w`）与产生列（右缘 0）之间的间隙必须**严格大于**
+   `dist_upper_bound × 行程`；未配置 `dist_bounds` 时用内置上限 1/3。
+2. **触发时机不变**（一次性交接）：数学上可证触发走者自身的行带永远
+   不可用（`gap = spawn_at − w_trigger ≤ upper×(W+w_trigger) − w_trigger
+   < upper×(W+w_new) = floor`），同带复用只发生在更早出生、已走远的
+   走者行带——不引入逐 tick 重试，洗牌袋语义不受影响。
+3. **重叠结构性排除**：`gap > floor > 0` 保证出生瞬间不接触；所有
+   精灵同速（每 tick 一列），出生间距终身不变 → 出生不重叠则永不
+   重叠，无需运行时碰撞检测。
+4. **`_paint` 同带合成**：原"每行单精灵"（`setdefault`）会吞掉同文本
+   行的第二只精灵；重写为按 x 排序 + 光标补空格的多精灵合成，双缘
+   裁剪保持不变。
+
+测试：parade 用例改写为"同带对间距 > `dist_upper_bound`×行程"不变量
+（600 tick 全程断言），新增 80×3 单行带 + `switch=8` 的确定性同带产生
+用例；修两处 pyright 类型问题（属性窄化继承导致 `Never`，改为先捕获
+快照再断言）。
+
+门禁：pyright 全仓 0 诊断；**1344 passed / 7 skipped**（基线 1343 +
+新增 1）。master（e048938，只动 `tests/test_app_textual.py`）合并干净，
+合并后全量门禁复跑通过。
+
+文档回填：yaterc 双语游行队段落改为同带距离规则表述；changelog 四
+件套各加一条（`af6dbf4`）。

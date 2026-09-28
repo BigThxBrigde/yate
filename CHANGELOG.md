@@ -7,6 +7,7 @@
 
 ### Features
 
+- let the screensaver parade reuse a busy row band once the gap to its walker's tail exceeds `dist_upper_bound` of the journey, compositing several well-spaced sprites per row while overlap stays structurally impossible ([`af6dbf4`](https://gitee.com/jermaine/yate/commit/af6dbf4))
 - retune the screensaver parade: the default spawn window moves to 1/8-1/3 of the walk, and the new `dist_lower_bound` / `dist_upper_bound` keys pin it explicitly (float or `"p/q"` fraction, overriding `switch`) ([`30e4d4a`](https://gitee.com/jermaine/yate/commit/30e4d4ae600ee54a45962251f0a9b85a982157a7))
 - rework the screensaver into a small parade: successors spawn at 25-50% of the newest walker's journey with names distinct from and row bands disjoint to every active sprite, and walkers exit through the current terminal width ([`5353c9b`](https://gitee.com/jermaine/yate/commit/5353c9b575f2945161f6d510cce0771103ec014f))
 - add a full-terminal idle screensaver: Alt+Shift+S toggle plus an idle trigger, with a 27-character shuffle roster of half-block pixel art ([`6766bed`](https://gitee.com/jermaine/yate/commit/6766bed55e0766c01088cb6cab929107a052db4c))

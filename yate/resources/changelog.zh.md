@@ -6,6 +6,9 @@
 
 ### 新功能
 
+- 屏保游行队支持复用繁忙行带：与走者尾部的间隙超过 `dist_upper_bound` ×
+  全程即可在同一行带产生后继，同行合成多只拉开距离的精灵，结构上保证
+  绝不重叠 ([`af6dbf4`](https://gitee.com/jermaine/yate/commit/af6dbf4))
 - 屏保游行队节奏调优：默认产生窗口改为全程 1/8–1/3，新增
   `dist_lower_bound` / `dist_upper_bound` 键显式固定窗口（float 或
   `"p/q"` 分数，设置后忽略 `switch`） ([`30e4d4a`](https://gitee.com/jermaine/yate/commit/30e4d4ae600ee54a45962251f0a9b85a982157a7))
