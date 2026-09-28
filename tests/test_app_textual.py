@@ -246,17 +246,24 @@ def test_readonly_session_applies_to_later_opens(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             app.editor.run_command(f"e {second}")
-            await pilot.pause()
-            assert app.editor.session.doc.path == second
+            # :e opens through an exclusive "open" worker -- poll, don't assume
+            # a single pause is enough (raced on loaded CI boxes)
+            assert await wait_until(
+                pilot, lambda: app.editor.session.doc.path == second,
+            )
             assert app.editor.session.buffer.read_only
             # unlock the second document, hop back to the (still locked)
             # startup file, then return: a reused document is NOT re-locked
             app.editor.run_command("set readonly=false")
             app.editor.run_command(f"e {first}")
-            await pilot.pause()
+            assert await wait_until(
+                pilot, lambda: app.editor.session.doc.path == first,
+            )
             assert app.editor.session.buffer.read_only
             app.editor.run_command(f"e {second}")
-            await pilot.pause()
+            assert await wait_until(
+                pilot, lambda: app.editor.session.doc.path == second,
+            )
             assert not app.editor.session.buffer.read_only
 
     asyncio.run(scenario())
