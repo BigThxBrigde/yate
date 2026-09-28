@@ -11,6 +11,7 @@ import pytest
 from yate import config as cfg
 from yate.app import YateApp
 from yate.editor_view.screensaver import TICKS_PER_SECOND, ScreensaverScreen
+from yate.editor_sprites.render import walk_x
 from yate.services.idle_tracker import IdleTracker
 
 
@@ -122,12 +123,15 @@ def test_narrow_terminal_pushes_without_raising(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_parade_spawns_distinct_names_on_distinct_rows(tmp_path: Path) -> None:
-    """Successors differ from every active walker and never share rows.
+def test_parade_keeps_names_distinct_and_sprites_never_overlap(
+    tmp_path: Path,
+) -> None:
+    """Successors differ from every active walker and pixels never collide.
 
     Driving ticks by hand keeps the test deterministic: names on screen
-    stay unique and row bands ([row, row + rows)) stay disjoint while the
-    parade grows past a single walker.
+    stay unique, and sprites whose row bands intersect stay horizontally
+    spaced beyond ``dist_upper_bound`` of the journey -- a band may host
+    several walkers, but overlap is never allowed.
     """
 
     async def scenario() -> None:
@@ -139,16 +143,28 @@ def test_parade_spawns_distinct_names_on_distinct_rows(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, ScreensaverScreen)
             saw_two = False
+            tick = 0
             for _ in range(600):
                 screen.advance_tick()
+                tick += 1
                 walkers = screen.walkers
                 if len(walkers) >= 2:
                     saw_two = True
                 names = [w.name for w in walkers]
                 assert len(names) == len(set(names))
-                spans = sorted((w.row, w.row + w.rows) for w in walkers)
-                for (_, a_end), (b_start, _) in zip(spans, spans[1:]):
-                    assert a_end <= b_start
+                for i, a in enumerate(walkers):
+                    for b in walkers[i + 1 :]:
+                        if not (
+                            a.row < b.row + b.rows and b.row < a.row + a.rows
+                        ):
+                            continue  # vertically apart: no shared row
+                        ax = walk_x(tick - a.spawn_tick, 80, a.sprite_w)
+                        bx = walk_x(tick - b.spawn_tick, 80, b.sprite_w)
+                        behind = a if ax < bx else b
+                        gap = max(ax, bx) - (min(ax, bx) + behind.sprite_w)
+                        # the trailing walker's spawn enforced the floor and
+                        # equal speeds keep the spacing constant forever
+                        assert gap > (1 / 3) * (80 + behind.sprite_w)
             assert saw_two
 
     asyncio.run(scenario())
@@ -233,12 +249,61 @@ def test_no_spawn_while_the_only_name_is_walking(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_no_spawn_when_all_rows_are_taken(tmp_path: Path) -> None:
-    """A 3-row terminal is filled by any sprite, so no successor spawns.
+def test_same_band_spawn_once_the_gap_exceeds_the_upper_bound(
+    tmp_path: Path,
+) -> None:
+    """A busy band is reusable once its walker is ``dist_upper_bound`` ahead.
 
-    The shortest roster sprite is 7 pixels tall (4 text rows), so on a
-    3-row screen every spawn clips at row 0 and occupies every row; the
-    parade stays at exactly one walker yet never empties out.
+    On a 3-row terminal every sprite clips into the single band, so a
+    successor can only appear by sharing it.  A large ``switch`` delays
+    the hand-off far past the random window, so when it fires the walker
+    ahead is guaranteed to be beyond the distance floor.
+    """
+
+    async def scenario() -> None:
+        app = YateApp(target=_doc(tmp_path))
+        async with app.run_test(size=(80, 3)) as pilot:
+            await pilot.pause()
+            await app.push_screen(ScreensaverScreen((), 8))
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, ScreensaverScreen)
+            initial = screen.walkers
+            assert len(initial) == 1
+            for _ in range(8 * TICKS_PER_SECOND):
+                screen.advance_tick()
+            live = screen.walkers
+            assert len(live) == 2
+            ahead, behind = live[0], live[1]
+            # both sprites occupy the one band there is
+            assert ahead.row < behind.row + behind.rows
+            assert behind.row < ahead.row + ahead.rows
+            # the successor spawns at column 0 (right edge), so the gap to
+            # the walker ahead is its elapsed distance minus its own width
+            gap = 8 * TICKS_PER_SECOND - ahead.sprite_w
+            assert gap > (1 / 3) * (80 + behind.sprite_w)
+            # one more tick repaints the canvas with both on the same band
+            screen.advance_tick()
+            live = screen.walkers
+            assert len(live) == 2
+            xs = [walk_x(81 - w.spawn_tick, 80, w.sprite_w) for w in live]
+            left = live[xs.index(min(xs))]
+            assert max(xs) - (min(xs) + left.sprite_w) > 0
+
+    asyncio.run(scenario())
+
+
+def test_no_spawn_while_the_band_is_within_the_distance_floor(
+    tmp_path: Path,
+) -> None:
+    """A saturated band stays closed while its walker is inside the floor.
+
+    On a 3-row terminal every sprite clips into the single band, so any
+    successor would have to share it -- but at the one-shot hand-off the
+    triggering walker's tail is still inside the distance floor (the
+    random window can never push it beyond ``dist_upper_bound`` of the
+    successor's journey), so the spawn is refused and the parade keeps
+    exactly one walker per lap.
     """
 
     async def scenario() -> None:

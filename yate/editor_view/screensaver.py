@@ -6,11 +6,13 @@ the app background while a small parade of sprites crosses it left-to-right
 newest walker hands off to a successor once it is 1/8-1/3 (random) through
 its journey -- or inside an explicitly configured ``dist_bounds`` window,
 which also overrides the ``switch`` seconds floor.  The successor always
-shows a character that is not currently
-on screen, on rows no active walker occupies -- when every row is taken,
-no successor spawns.  A walker leaves only after it has fully crossed the
-current terminal width, so the walk distance always follows the live
-terminal size, and the parade self-regulates to a few concurrent sprites.
+shows a character that is not currently on screen, on a row band that is
+either free or far enough behind every walker overlapping it: the gap from
+the spawn column must exceed ``dist_upper_bound`` of the journey, and any
+pixel overlap is never allowed.  A walker leaves only after it has fully
+crossed the current terminal width, so the walk distance always follows the
+live terminal size, and the parade self-regulates to a few concurrent
+sprites.
 
 Dismissal is self-contained (R10): any key or mouse movement pops the
 screen and is stopped right here, so the keystroke never leaks into the
@@ -44,6 +46,12 @@ TICKS_PER_SECOND = 10
 #: Animation frames change every this many ticks (~3.3 fps).
 _FRAME_EVERY = 3
 
+#: Built-in hand-off window as a fraction of the journey: the newest walker
+#: spawns a successor once it is 1/8-1/3 (random) through its walk.  The
+#: upper edge also floors the same-band distance rule when no ``dist_bounds``
+#: are configured.
+_DEFAULT_DIST_BOUNDS: tuple[float, float] = (1 / 8, 1 / 3)
+
 
 @dataclass
 class Walker:
@@ -55,7 +63,8 @@ class Walker:
 
     name: str
     sprite: Sprite
-    #: Top text row of the sprite; its row band is owned exclusively.
+    #: Top text row of the sprite; the band may host several walkers kept
+    #: apart by the same-band distance floor.
     row: int
     #: Text rows the sprite occupies (``ceil(pixel rows / 2)``).
     rows: int
@@ -79,7 +88,10 @@ class ScreensaverScreen(ModalScreen[None]):
     back to the whole registry so the screen can never end up with nothing
     to show.  ``switch_seconds`` is the minimum number of seconds between
     two spawns; ``0`` lets the successor spawn as soon as the newest
-    walker is 1/8-1/3 through its journey.
+    walker is 1/8-1/3 through its journey.  A successor may share a row
+    band with a walker only when that walker is beyond the distance floor
+    (``dist_upper_bound`` of the journey, default 1/3) ahead of the spawn
+    column -- sprites never overlap.
     """
 
     DEFAULT_CSS = """
@@ -170,10 +182,15 @@ class ScreensaverScreen(ModalScreen[None]):
     def _spawn(self) -> None:
         """Introduce a walker that differs from every active one.
 
-        The name must not be on screen and the sprite's rows must be free;
-        when no such row exists the spawn is skipped -- the parade simply
-        stays as it is until walkers exiting free rows up.  A sprite taller
-        than the terminal is still allowed, drawn clipped from the top row.
+        The name must not be on screen, and the sprite's row band must
+        either be free or sit far enough behind every walker overlapping
+        it: the gap between the spawn column and that walker's tail must
+        exceed ``dist_upper_bound`` of the journey (all walkers move at
+        the same speed, so the spacing holds for the whole walk, and a
+        positive gap rules out any pixel overlap).  When no such row
+        exists the spawn is skipped -- the parade simply stays as it is
+        until walkers exiting free rows up.  A sprite taller than the
+        terminal is still allowed, drawn clipped from the top row.
         """
         width = max(1, self.size.width)
         height = max(1, self.size.height)
@@ -183,25 +200,31 @@ class ScreensaverScreen(ModalScreen[None]):
             return
         sprite = get_character(name)
         rows = (len(sprite.frames[0]) + 1) // 2
-        occupied: set[int] = set()
-        for w in self._walkers:
-            occupied.update(range(w.row, w.row + w.rows))
+        travel = width + len(sprite.frames[0][0])
+        upper = (
+            self._dist_bounds[1]
+            if self._dist_bounds is not None
+            else _DEFAULT_DIST_BOUNDS[1]
+        )
+        gap_floor = upper * travel
         if rows >= height:
-            row_options = [0] if 0 not in occupied else []
+            row_options = (
+                [0] if self._row_is_available(0, rows, gap_floor) else []
+            )
         else:
             row_options = [
                 r
                 for r in range(height - rows + 1)
-                if not any(o in occupied for o in range(r, r + rows))
+                if self._row_is_available(r, rows, gap_floor)
             ]
         if not row_options:
             return
-        travel = width + len(sprite.frames[0][0])
         if self._dist_bounds is not None:
             lo, hi = self._dist_bounds
             spawn_at = max(1, int(self._rng.uniform(lo, hi) * travel))
         else:
-            threshold = int(self._rng.uniform(1 / 8, 1 / 3) * travel)
+            lo, hi = _DEFAULT_DIST_BOUNDS
+            threshold = int(self._rng.uniform(lo, hi) * travel)
             spawn_at = max(
                 1, threshold, self._switch_seconds * TICKS_PER_SECOND
             )
@@ -215,6 +238,21 @@ class ScreensaverScreen(ModalScreen[None]):
                 spawn_at=spawn_at,
             )
         )
+
+    def _row_is_available(self, row: int, rows: int, gap_floor: float) -> bool:
+        """Whether a sprite of *rows* text rows may start at *row*.
+
+        A band with no walker on it is free.  A band overlapping active
+        walkers is usable only when every overlapping walker has walked
+        far enough that the gap between its tail and the spawn column
+        exceeds *gap_floor*.
+        """
+        for w in self._walkers:
+            if w.row < row + rows and row < w.row + w.rows:
+                behind = self._tick_count - w.spawn_tick - w.sprite_w
+                if behind <= gap_floor:
+                    return False
+        return True
 
     def _next_name(self, taken: set[str]) -> str | None:
         """Return a playlist name that is not currently walking.
@@ -236,10 +274,15 @@ class ScreensaverScreen(ModalScreen[None]):
                 return name
 
     def _paint(self) -> None:
-        """Rebuild the whole canvas: one walker owns each row it spans."""
+        """Rebuild the whole canvas, compositing every walker per row.
+
+        Several well-spaced walkers may share a text row; each row
+        collects the walker slices spanning it and paints them left to
+        right -- sprites never overlap, so the slices never collide.
+        """
         width = max(1, self.size.width)
         height = max(1, self.size.height)
-        by_row: dict[int, tuple[list[tuple[str, str]], int]] = {}
+        by_row: dict[int, list[tuple[int, list[tuple[str, str]]]]] = {}
         for w in self._walkers:
             elapsed = self._tick_count - w.spawn_tick
             frame = w.sprite.frames[
@@ -248,25 +291,27 @@ class ScreensaverScreen(ModalScreen[None]):
             rendered = render_rows(frame, w.sprite.palette)
             x = walk_x(elapsed, width, len(frame[0]))
             for offset, cells in enumerate(rendered):
-                by_row.setdefault(w.row + offset, (cells, x))
+                by_row.setdefault(w.row + offset, []).append((x, cells))
         out = Text()
         for row_no in range(height):
             if row_no:
                 out.append("\n")
-            hit = by_row.get(row_no)
-            if hit is None:
+            hits = by_row.get(row_no)
+            if not hits:
                 continue
-            cells, x = hit
-            # visible sprite columns: clip against both screen edges so a
-            # half-entered / half-exited sprite never widens the canvas
-            x0 = max(x, 0)
-            x1 = min(x + len(cells), width)
-            if x0 >= x1:
-                continue
-            if x0:
-                out.append(" " * x0)
-            for glyph, style in cells[x0 - x : x1 - x]:
-                out.append(glyph, style=style or None)
+            cursor = 0
+            for x, cells in sorted(hits, key=lambda hit: hit[0]):
+                # visible sprite columns: clip against both screen edges so
+                # a half-entered / half-exited sprite never widens the canvas
+                x0 = max(x, 0)
+                x1 = min(x + len(cells), width)
+                if x0 >= x1:
+                    continue
+                if x0 > cursor:
+                    out.append(" " * (x0 - cursor))
+                for glyph, style in cells[x0 - x : x1 - x]:
+                    out.append(glyph, style=style or None)
+                cursor = x1
         self._canvas.update(out)
 
     def _hide_hint(self) -> None:
