@@ -16,6 +16,7 @@ from enum import Enum
 from typing import override
 
 from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer, word_end
+from yate.editor_core.textobjects import find_char
 from yate.keymaps.base import (
     ActionContext,
     KeyBinding,
@@ -68,6 +69,8 @@ class VimKeymap(Keymap):
         self.obj_scope: str | None = None  # text-object scope: "i" or "a"
         self.op_count: int | None = None  # count typed before the operator
         self.count_str = ""
+        # (char, backward, till) of the last successful find, for ; and ,
+        self.last_find: tuple[str, bool, bool] | None = None
 
     # ------------------------------------------------------------------ help
 
@@ -85,6 +88,12 @@ class VimKeymap(Keymap):
             KeyBinding("$", "line end", "Line end", NAV),
             KeyBinding("gg", "doc start", "Document start", NAV),
             KeyBinding("G", "doc end", "Document end / jump to [count]", NAV),
+            KeyBinding("f{char}", "find char", "Find char forward", NAV),
+            KeyBinding("F{char}", "find char back", "Find char backward", NAV),
+            KeyBinding("t{char}", "till char", "To char forward", NAV),
+            KeyBinding("T{char}", "till char back", "To char backward", NAV),
+            KeyBinding(";", "find repeat", "Repeat the last find forward", NAV),
+            KeyBinding(",", "find repeat back", "Repeat the last find backward", NAV),
             KeyBinding(parse_key("<ctrl-g>"), "go to line", "Go to line (enter line number)", NAV),
             KeyBinding(parse_key("<ctrl-d>"), "half page down", "Half page down", NAV),
             KeyBinding(parse_key("<ctrl-u>"), "half page up", "Half page up", NAV),
@@ -309,10 +318,19 @@ class VimKeymap(Keymap):
             self.count_str += key
             return True
 
-        # resolve an armed prefix: "g" completes on a second "g"; the other
-        # prefixes wait for their argument key in the stages that follow
+        # resolve an armed prefix: "g" completes on a second "g", the
+        # find-char prefixes complete on their printable argument key
         if self.prefix == "g" and key == "g":
             self._resolve_gg(ctx)
+            return True
+        if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
+            assert self.prefix is not None
+            self._resolve_find(
+                ctx,
+                key,
+                backward=self.prefix in ("F", "T"),
+                till=self.prefix in ("t", "T"),
+            )
             return True
         if self.prefix is not None:
             # unknown follower: drop the prefix, process the key as a fresh one
@@ -337,6 +355,10 @@ class VimKeymap(Keymap):
         if key in _ARROW or key in _MOTION_CODES:
             self._motion(ctx, _ARROW.get(key, key), self._typed_count(), select=False)
             self.count_str = ""
+            return True
+
+        if key in (";", ",") and self.last_find is not None:
+            self._repeat_find(ctx, key)
             return True
 
         if key == "x":
@@ -451,6 +473,9 @@ class VimKeymap(Keymap):
         if key in _PREFIX_MOTIONS:
             self.prefix = key
             return True
+        if key in (";", ",") and self.last_find is not None:
+            self._repeat_find(ctx, key)
+            return True
         if key in _MOTION_CODES or key in _ARROW:
             self._apply_operator(ctx, op, _ARROW.get(key, key))
             return True
@@ -512,6 +537,71 @@ class VimKeymap(Keymap):
         else:
             buf.delete_selection()
             self._enter_insert(ui)
+
+    def _find_target(
+        self, ctx: ActionContext, ch: str, backward: bool, till: bool
+    ) -> Pos | None:
+        """Locate the counted occurrence of *ch* on the cursor row.
+
+        The count is the operator count times the motion count (vim ``2dfx``
+        deletes through the second ``x``).  ``None`` when the row has fewer
+        matches, in which case nothing moves.
+        """
+        buf = ctx.buffer
+        motion_typed = self._typed_count()
+        self.count_str = ""
+        n = (self.op_count or 1) * (motion_typed or 1)
+        col = find_char(buf.lines[buf.row], buf.col, ch, count=n, backward=backward, till=till)
+        if col is None:
+            return None
+        return (buf.row, col)
+
+    def _resolve_find(
+        self,
+        ctx: ActionContext,
+        ch: str,
+        *,
+        backward: bool,
+        till: bool,
+        record: bool = True,
+    ) -> None:
+        """Complete a find-char prefix: move, or run the pending operator.
+
+        A miss reports through the UI and leaves the buffer untouched.  The
+        operator span is inclusive of both the found char and the cursor char
+        (vim ``dfx`` / ``dFx``); *record* is ``False`` for ``;``/`,` repeats
+        so the direction flip on ``,` never rewrites the stored find.
+        """
+        op = self.op
+        target = self._find_target(ctx, ch, backward, till)
+        self.prefix = None
+        self.op = None
+        self.obj_scope = None
+        self.op_count = None
+        if target is None:
+            ctx.ui.message("not found")
+            return
+        if record:
+            self.last_find = (ch, backward, till)
+        buf = ctx.buffer
+        if op is None:
+            buf.set_cursor(target)
+            return
+        if backward:
+            # [target, cursor] inclusive -> half-open [target, cursor+1)
+            end = (buf.row, min(buf.col + 1, len(buf.lines[buf.row])))
+            self._apply_span(ctx, op, target, end)
+        else:
+            # [cursor, target] inclusive -> half-open [cursor, target+1)
+            self._apply_span(ctx, op, buf.cursor, (buf.row, target[1] + 1))
+
+    def _repeat_find(self, ctx: ActionContext, key: str) -> None:
+        """Re-run the last find: ``;`` keeps its direction, ``,`` flips it."""
+        assert self.last_find is not None
+        ch, backward, till = self.last_find
+        if key == ",":
+            backward = not backward
+        self._resolve_find(ctx, ch, backward=backward, till=till, record=False)
 
     def _enter_insert(self, ui: KeyUi) -> None:
         self.mode = VimMode.INSERT

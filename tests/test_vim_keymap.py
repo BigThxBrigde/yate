@@ -893,3 +893,150 @@ def test_c_dollar_changes_to_the_line_end() -> None:
     editor.buffer.set_cursor((0, 5))
     _press(keymap, ctx, "c", "$", "X", ESC)
     assert editor.buffer.get_text() == "helloX"
+
+
+# --- find-char motions (f/F/t/T/;/,) -----------------------------------------
+
+
+def test_find_char_moves_to_the_next_occurrence() -> None:
+    """fx lands on the next x; the cursor char itself is never a match."""
+    editor, keymap, ctx = _setup("a b c ab")
+    _press(keymap, ctx, "f", "b")
+    assert editor.buffer.cursor == (0, 2)
+
+
+def test_counted_find_char_skips_occurrences() -> None:
+    """2fx jumps to the second occurrence."""
+    editor, keymap, ctx = _setup("a b c ab")
+    _press(keymap, ctx, "2", "f", "b")
+    assert editor.buffer.cursor == (0, 7)
+
+
+def test_find_char_backward_and_till_variants() -> None:
+    """F/T/t mirror the forward find with vim's landing rules."""
+    editor, keymap, ctx = _setup("abcde cde")
+    editor.buffer.set_cursor((0, 8))
+    _press(keymap, ctx, "F", "c")
+    assert editor.buffer.cursor == (0, 6)
+
+    editor, keymap, ctx = _setup("abcde cde")
+    editor.buffer.set_cursor((0, 8))
+    _press(keymap, ctx, "T", "c")
+    assert editor.buffer.cursor == (0, 7)
+
+    editor, keymap, ctx = _setup("a cde")
+    _press(keymap, ctx, "t", "c")
+    assert editor.buffer.cursor == (0, 1)
+
+
+def test_failed_find_leaves_the_buffer_untouched_and_reports() -> None:
+    """A miss moves nothing, says so, and the keymap keeps working."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "f", "z")
+    assert editor.buffer.get_text() == "abc"
+    assert editor.buffer.cursor == (0, 0)
+    assert editor.messages[-1] == "not found"
+    _press(keymap, ctx, "l")
+    assert editor.buffer.cursor == (0, 1)
+
+
+def test_find_char_does_not_cross_lines() -> None:
+    """f searches the cursor row only, even from a matching cursor char."""
+    editor, keymap, ctx = _setup("ax\nbxa")
+    _press(keymap, ctx, "f", "a")
+    assert editor.buffer.cursor == (0, 0)
+    assert editor.messages[-1] == "not found"
+
+
+def test_semicolon_repeats_and_comma_flips_the_last_find() -> None:
+    """; keeps the recorded direction, , flips it -- the record survives ,"""
+    editor, keymap, ctx = _setup("a.b.c.d")
+    _press(keymap, ctx, "f", ".")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, ";")
+    assert editor.buffer.cursor == (0, 3)
+    _press(keymap, ctx, ",")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, ";")
+    assert editor.buffer.cursor == (0, 3)
+
+
+def test_df_deletes_through_the_found_char() -> None:
+    """dfx is inclusive of x on the forward side."""
+    editor, keymap, ctx = _setup("hello world")
+    _press(keymap, ctx, "d", "f", "w")
+    assert editor.buffer.get_text() == "orld"
+
+
+def test_counted_operator_find_uses_the_multiplied_count() -> None:
+    """2df- deletes through the second dash (operator x motion counts)."""
+    editor, keymap, ctx = _setup("a-b-c-d")
+    _press(keymap, ctx, "2", "d", "f", "-")
+    assert editor.buffer.get_text() == "c-d"
+
+
+def test_dF_deletes_backward_including_both_ends() -> None:
+    """dFx spans from the found char through the cursor char."""
+    editor, keymap, ctx = _setup("hello world")
+    editor.buffer.set_cursor((0, 10))
+    _press(keymap, ctx, "d", "F", "o")
+    assert editor.buffer.get_text() == "hello w"
+
+
+def test_dF_from_the_line_end_clamps_the_span() -> None:
+    """A cursor parked on the EOL column must not overshoot the line."""
+    editor, keymap, ctx = _setup("abxba")
+    editor.buffer.set_cursor((0, 5))
+    _press(keymap, ctx, "d", "F", "x")
+    assert editor.buffer.get_text() == "ab"
+
+
+def test_dt_and_dT_stop_short_of_the_char() -> None:
+    """till variants exclude the found char from the operator span."""
+    editor, keymap, ctx = _setup("func(x)")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "d", "t", "(")
+    assert editor.buffer.get_text() == "f(x)"
+
+    editor, keymap, ctx = _setup("func(xy)")
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "d", "T", "(")
+    assert editor.buffer.get_text() == "func()"
+
+
+def test_cf_changes_through_the_found_char() -> None:
+    """cf) deletes through ) and inserts in its place."""
+    editor, keymap, ctx = _setup("x = f(y);")
+    editor.buffer.set_cursor((0, 4))
+    _press(keymap, ctx, "c", "f", ")")
+    assert keymap.mode is VimMode.INSERT
+    _press(keymap, ctx, "4", "2", ESC)
+    assert editor.buffer.get_text() == "x = 42;"
+
+
+def test_yf_yanks_through_the_found_char() -> None:
+    """yfx keeps the text and puts the span into the register."""
+    editor, keymap, ctx = _setup("key: value")
+    _press(keymap, ctx, "y", "f", ":")
+    assert editor.buffer.get_text() == "key: value"
+    _press(keymap, ctx, "P")
+    assert editor.buffer.get_text() == "key:key: value"
+
+
+def test_failed_operator_find_deletes_nothing() -> None:
+    """dfz with no z drops the operator and keeps the buffer."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "f", "z")
+    assert editor.buffer.get_text() == "abc"
+    assert editor.messages[-1] == "not found"
+    # the dropped operator does not swallow the next command
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "bc"
+
+
+def test_operator_semicolon_deletes_through_the_repeated_find() -> None:
+    """d; combines the operator with the recorded find."""
+    editor, keymap, ctx = _setup("a.b.c")
+    _press(keymap, ctx, "f", ".")
+    _press(keymap, ctx, "d", ";")
+    assert editor.buffer.get_text() == "ac"
