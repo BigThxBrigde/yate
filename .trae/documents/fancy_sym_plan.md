@@ -524,3 +524,32 @@ Gitee PR #33「PR 观察者」审查结论：无阻断项，1 项改进建议（
 | `alt+shift+s` 同时存在于 keymap 绑定（vsc/vim）与 editor 全局拦截 | 🟢 轻微 | **登记不动**：全局拦截优先执行，不会双重触发（P6 修复后顺序正确）；未来扩展若绑同键再在扩展文档声明优先级 | 与 P6 修复一致的行为 |
 
 门禁：pyright 全仓 0 诊断；pytest 1347 passed / 7 skipped（+2 cap 测试）。
+
+### 本地分支评审 P1-P7 处理（2026-09-28，提交 `00763fb`..`6380ae6`）
+
+本地全分支评审（健壮性 92/100）发现 1 项严重潜在 + 6 项建议/备案，
+逐条处置：
+
+| # | 发现 | 处置 | 提交 |
+|---|---|---|---|
+| P1 | `shuffle_order` 多重集鸽笼死循环：最频名字 > 其余数+1 时 `while True` 无合法排列，10Hz tick 上永久冻结 | **已修**：鸽笼守卫（最频 > `(n+1)//2` 无解即原样返回）+ 屏保对 rc 白名单 `dict.fromkeys` 去重 + 不可救多重集测试；后续 `673da84` 按 PR #33 补 1000 次 cap | `00763fb` |
+| P2 | `IdleTracker.due(now, threshold)` 双时钟源冗余，poke/due 窗口可能静默错位 | **已修**：`due(threshold)` 单时钟（poke 注入钟为准），`app.py` 随删 `import time` | `eccf33f` |
+| P3 | `on_mouse_move` 只 `stop()` 未 `prevent_default()`，与 `on_key` 不对称 | **已修**：补 `prevent_default()` | `eccf33f` |
+| P4 | `_row_is_available` 变量 `behind` 实为"走者尾部领先产生列的距离"，命名反直觉 | **已修**：改名 `tail_gap` | `eccf33f` |
+| P5 | `_spawn` 先弹名字后判行带，行带不可用提前返回时该名字已烧出洗牌袋 | **已修**：拒绝产生时名字还回袋首 | `eccf33f` |
+| P6 | `alt+shift+s` 拦截在命令行早退之前，输入 `:` 命令时误触屏保 | **已修**：拦截块移到命令行早退之后（存量 `alt+shift+p` 同模式行为未动，范围外） | `1862386` |
+| P7 | L4 `YateApp.__init__` 直接 `config.errors.append` 白名单未知名（roster 在 sprite 包内、config 刻意不知 sprite 的妥协） | **已修**（结构）：提取 `_report_unknown_screen_saver_characters()`，妥协理由入 docstring；行为不变 | `1862386` |
+
+长期建议三条同步登记：
+
+1. **精灵注册开放给扩展** → 方案已落盘
+   （`.trae/documents/screensaver_extension_api_plan.md`，提交 `1bd6975`），
+   待实施；
+2. **`_paint` 增量重绘** → 登记不动（~10Hz、2-4 走者规模可接受，
+   PR #33 bot 同判断）；
+3. **roster 数据外置（TOML/JSON）** → 登记维持现状（每角色一文件 +
+   import 期校验在可维护性上更优）。
+
+修复方案文档：`.trae/documents/screensaver_review_fixes_plan.md`（`6380ae6`）。
+门禁：pyright 全仓 0 诊断；pytest 1345 passed / 7 skipped（P1-P7 后，
++1 不可救多重集测试）、1347 passed / 7 skipped（cap 后）。
