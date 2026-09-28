@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from typing import cast
 
 import pytest
 
@@ -144,3 +145,31 @@ class TestShuffleOrder:
         rng = random.Random(42)
         names = ("mario", "mario", "mario", "luigi")
         assert characters.shuffle_order(names, rng) == list(names)
+
+    def test_rejection_sampling_is_capped(self) -> None:
+        """Rejection sampling gives up after 1000 tries instead of stalling.
+
+        A stub shuffle that always leaves the order untouched forces every
+        retry to fail on this pigeonhole-passing but adjacency-duplicated
+        list, so only the hard cap can end the loop (PR #33 review).
+        """
+        class _StuckRng:
+            def shuffle(self, order: list[str]) -> None:
+                pass  # never rearranges: every retry is rejected
+
+        stuck = cast(random.Random, _StuckRng())
+        names = ("a", "a", "b")
+        assert characters.shuffle_order(names, stuck) == list(names)
+
+    def test_barely_satisfiable_multiset_terminates(self) -> None:
+        """A tight multiset with avoid returns a permutation every time.
+
+        Three a's against two b's and two c's plus ``avoid="b"`` leaves
+        only a handful of valid orders; the 1000-retry cap guarantees the
+        call always comes back (PR #33 review).
+        """
+        rng = random.Random(42)
+        names = ("a", "a", "a", "b", "b", "c", "c")
+        for _ in range(50):
+            order = characters.shuffle_order(names, rng, avoid="b")
+            assert sorted(order) == sorted(names)

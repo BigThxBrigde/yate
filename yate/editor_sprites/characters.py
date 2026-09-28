@@ -119,15 +119,16 @@ def shuffle_order(
 
     Used for the screensaver playlist: *avoid* is the character shown
     right before this draw (the previous cycle's last entry), so a
-    reshuffle never replays it first.  Draws repeatedly until the order
-    satisfies both constraints -- for the built-in roster (all entries
-    distinct) a plain shuffle already has no adjacent duplicates, so the
-    loop terminates immediately; with a whitelist small enough for
-    collisions it still terminates almost surely for >= 2 distinct names.
-    Two multisets are returned as-is because no shuffle can ever satisfy
-    the constraints: a single distinct name can never avoid a replay, and
-    when the most frequent name exceeds ``(len(names) + 1) // 2`` adjacent
-    duplicates are unavoidable (pigeonhole) -- looping would hang forever.
+    reshuffle never replays it first.  For the built-in roster (all
+    entries distinct) a plain shuffle already has no adjacent duplicates,
+    so the first draw succeeds.  Three multisets are returned as-is
+    because no amount of shuffling can satisfy the constraints: a single
+    distinct name can never avoid a replay; when the most frequent name
+    exceeds ``(len(names) + 1) // 2`` adjacent duplicates are unavoidable
+    (pigeonhole); and rejection sampling is capped at 1000 retries
+    (PR #33 review) because a barely-satisfiable multiset can have a tiny
+    hit rate -- the function degrades to the original order instead of
+    stalling the spawn tick.
     """
     if len(set(names)) < 2:
         return list(names)
@@ -136,13 +137,16 @@ def shuffle_order(
         # pigeonhole: no adjacency-free arrangement exists, so retrying
         # would loop forever -- give up on the constraint instead
         return list(names)
-    while True:
+    for _ in range(1000):
         order = list(names)
         rng.shuffle(order)
         if avoid is not None and order and order[0] == avoid:
             continue
         if all(a != b for a, b in zip(order, order[1:])):
             return order
+    # hard cap reached: a valid order exists but is too rare to hit --
+    # degrade gracefully rather than stall (PR #33 review)
+    return list(names)
 
 
 def _validate() -> None:
