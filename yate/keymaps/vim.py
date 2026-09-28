@@ -109,6 +109,7 @@ class VimKeymap(Keymap):
             KeyBinding("v", "visual mode", "Characterwise visual mode", EDT),
             KeyBinding("V", "visual line mode", "Linewise visual mode", EDT),
             KeyBinding("x", "delete char", "Delete character", EDT),
+            KeyBinding("r{char}", "replace char", "Replace [count] chars with {char}", EDT),
             KeyBinding("dd", "delete line", "Delete line", EDT),
             KeyBinding("yy", "yank line", "Yank line", EDT),
             KeyBinding("cc", "change line", "Change line", EDT),
@@ -243,6 +244,10 @@ class VimKeymap(Keymap):
             if linewise:
                 if key == "y":
                     buf.yank_lines()
+                    sel = buf.selection()
+                    if sel is not None:
+                        # vim lands on the first column of the first yanked row
+                        buf.set_cursor((sel[0][0], 0))
                     ui.message("yanked lines")
                 else:
                     buf.delete_lines()
@@ -335,6 +340,9 @@ class VimKeymap(Keymap):
                 till=self.prefix in ("t", "T"),
             )
             return True
+        if self.prefix == "r" and len(key) == 1 and key.isprintable():
+            self._resolve_replace(ctx, key)
+            return True
         if self.prefix is not None:
             # unknown follower: drop the prefix, process the key as a fresh one
             self.prefix = None
@@ -345,6 +353,11 @@ class VimKeymap(Keymap):
         # arm a prefix key ("g" / find-char / "r"); a pending operator survives
         # for the motion-completing prefixes and was already dropped otherwise
         if key in _PREFIX_KEYS:
+            if key == "r" and self.op is not None:
+                # r cannot complete an operator, vim cancels it instead
+                self.op = None
+                self.obj_scope = None
+                self.op_count = None
             self.prefix = key
             return True
 
@@ -402,7 +415,9 @@ class VimKeymap(Keymap):
         entry = {
             "i": lambda: None,
             "I": buf.move_line_start,
-            "a": buf.move_right,
+            # set_cursor clamps to the line end, so "a" never spills onto the
+            # next line the way raw move_right does from the EOL column
+            "a": lambda: buf.set_cursor((buf.row, buf.col + 1)),
             "A": buf.move_line_end,
         }
         if key in entry:
@@ -607,6 +622,23 @@ class VimKeymap(Keymap):
         if key == ",":
             backward = not backward
         self._resolve_find(ctx, ch, backward=backward, till=till, record=False)
+
+    def _resolve_replace(self, ctx: ActionContext, ch: str) -> None:
+        """Complete ``r{char}``: swap *count* chars for *ch*, or report.
+
+        vim refuses a replace that would run past the end of the line; the
+        cursor ends on the last replaced character.
+        """
+        self.prefix = None
+        buf = ctx.buffer
+        n = self._take_count()
+        r, c = buf.cursor
+        line = buf.lines[r]
+        if c + n > len(line):
+            ctx.ui.message("nothing to replace")
+            return
+        buf.replace_range((r, c), (r, c + n), ch * n)
+        buf.cursor = (r, c + n - 1)
 
     def _enter_insert(self, ui: KeyUi) -> None:
         self.mode = VimMode.INSERT

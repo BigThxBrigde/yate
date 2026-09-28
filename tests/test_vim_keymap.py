@@ -1122,3 +1122,73 @@ def test_unbalanced_pair_drops_the_operator_with_a_message() -> None:
     _press(keymap, ctx, "d", "i", "(")
     assert editor.buffer.get_text() == "abc (def"
     assert editor.messages[-1] == "no text object"
+
+
+# --- replace and insert-entry fixes ------------------------------------------
+
+
+def test_r_replaces_the_char_under_the_cursor() -> None:
+    """rx swaps one char and leaves the cursor on it."""
+    editor, keymap, ctx = _setup("abc")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "r", "X")
+    assert editor.buffer.get_text() == "aXc"
+    assert editor.buffer.cursor == (0, 1)
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_counted_r_replaces_n_chars() -> None:
+    """3rx swaps three chars; the cursor ends on the last one."""
+    editor, keymap, ctx = _setup("abcdef")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "3", "r", "X")
+    assert editor.buffer.get_text() == "aXXXef"
+    assert editor.buffer.cursor == (0, 3)
+
+
+def test_r_beyond_the_line_end_reports_and_keeps_the_text() -> None:
+    """vim refuses a replace running past the end of the line."""
+    editor, keymap, ctx = _setup("abc")
+    editor.buffer.set_cursor((0, 2))
+    _press(keymap, ctx, "2", "r", "X")
+    assert editor.buffer.get_text() == "abc"
+    assert editor.messages[-1] == "nothing to replace"
+
+
+def test_r_with_a_non_printable_follower_is_dropped() -> None:
+    """r esc cancels the replace and esc still clears pending state."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "r", ESC, "x")
+    assert editor.buffer.get_text() == "bc"
+
+
+def test_operator_is_cancelled_by_r() -> None:
+    """drx cancels d and replaces one char, like vim."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "r", "X")
+    assert editor.buffer.get_text() == "Xbc"
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_append_at_the_end_of_a_line_stays_on_the_line() -> None:
+    """a never spills onto the next line, even from the EOL column."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "a", "X", ESC)
+    assert editor.buffer.get_text() == "abX\ncd"
+
+    editor, keymap, ctx = _setup("ab\ncd")
+    editor.buffer.set_cursor((0, 2))  # the EOL column
+    _press(keymap, ctx, "a", "X", ESC)
+    assert editor.buffer.get_text() == "abX\ncd"
+
+
+def test_visual_line_yank_lands_on_the_first_row() -> None:
+    """Vy leaves the cursor on the first column of the first yanked row."""
+    editor, keymap, ctx = _setup("one\ntwo\nthree")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "V", "j", "y")
+    assert editor.buffer.register == "two\nthree\n"
+    assert editor.buffer.cursor == (1, 0)
+    assert editor.buffer.has_selection() is False
+    assert keymap.mode is VimMode.NORMAL
