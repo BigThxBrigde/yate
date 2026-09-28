@@ -21,6 +21,9 @@ L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split
          registries.py / keymaps/registry.py（KeymapSet）
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / paths /
          config / services/* / keymaps/base|vim|vsc
+插件：extensions/*（由 L4 外壳经 L3 services/extensions.py 装载；只依赖
+         services/extensions 暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
+         禁止 import editor / editor_view / app）
 ```
 
 - **R1 — `YateApp` 是顶层，不被下层引用**：`yate/` 内只有 `cli.py` 允许 `import yate.app`。
@@ -90,6 +93,17 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   - **例外登记**：无。扫描实证全仓唯一历史违规（`driver_windows.py` 经 `self.app.log`）
     已随 R12 落地清除（commit `003263e`）；
   - **守卫**：§六「R12」条目（AST 取证，两个用例，负向演练通过）。
+- **R13 — 组件自持主题与滚动条注入（2026-09-27，theme-ownership T1/T2 治理）**：
+  主题着色的所有权归 L2 组件——组件在挂载或收到主题广播时自行读 `theme.active()`
+  上色；L3 `Editor` 只触发 `theme.set_theme(name)`（内部经 `theme.subscribe()` 回调
+  列表 1:N 广播），**禁止**直改 widget 样式（`.styles.background` /
+  `.styles.scrollbar_*`）或定义 `apply_theme` / `update_sidebar_head` 类转发方法；
+  Textual 主题注册（`app.register_theme` / `get_theme_variable_defaults`）仍归 L4 外壳。
+  滚动条渲染器只允许 per-widget 实例注入
+  （`editor_view.scrollbars.apply_slim_scrollbars(widget)`），**禁止**类级
+  `ScrollBar.renderer = ...` 进程级 monkey-patch（ClassVar 赋值会泄漏到同进程
+  全部 Textual App，含测试嵌套）。
+  **守卫**：§六「T1 / T2」条目（theme-ownership Plan D 新增两条用例）。
 
 ## 二、分层职责
 
@@ -98,7 +112,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 | `YateApp`（L4） | Textual 生命周期、`CSS`、主题桥（`get_theme_variable_defaults` / `theme.*` 注册）、事件转发、装载内置表 | 不持有业务状态、不实现业务操作 |
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
 | 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`completion.py`、`prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
-| `editor_view/*`（L2） | 自己的渲染与行为（自持），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
+| `editor_view/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
 | `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
 | 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、配置、日志、路径、shell、workspace、字体） | 不 import 上层 |
 
@@ -119,7 +133,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 | 场景 | 规定机制 |
 |---|---|
 | 1:1 操作 / 查询 | 直接调用具体协作者的方法（`session` / `workspace` / `lsp` / widget） |
-| 1:N 低频广播 | 回调列表或构造注入的回调（如 `EditorSession(on_closed=...)`、`TabBar(on_activate=...)`） |
+| 1:N 低频广播 | 回调列表或构造注入的回调（如 `EditorSession(on_closed=...)`、`TabBar(on_activate=...)`、`theme.subscribe(listener)` 返回退订函数） |
 | L0 需要 UI 能力 | 构造参数注入 `Callable`（N30 模式：`load_config(register_theme=..., load_theme_paths=...)`，由 L4 `cli.py` 传入 `editor_view.theme` 同名函数；缺省 `None` = headless） |
 | UI 事件 | Textual messages（`on_key` / `Input.Submitted` / `MouseDown` 等） |
 | 异步任务 | Textual `App.run_worker(...)`；调度层提供 `*_later` 便捷入口（`open_path_later` / `run_shell_command_later`）；防抖定时用 `asyncio.get_running_loop().call_later` |
@@ -149,11 +163,14 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
       （历史缺陷：补全弹窗曾吞掉全部按键，`Ctrl+S` / `Ctrl+Z` 失效）？
 - [ ] 日志走 tracing（R12）：没有 `self.log` / `self.app.log` 调用，没有为日志而
       import `textual.app`？
+- [ ] 主题与滚动条归组件自持（R13）：没有在 L3 直改 widget `.styles.*` 着色、
+      没有类级 `ScrollBar.renderer` patch、新主题感知组件已订阅
+      `theme.subscribe` 自行上色？
 - [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q` 全绿？
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **18 个用例**（`python -m pytest tests/test_architecture.py -q` → 18 passed）：
+`tests/test_architecture.py` 已落地 **20 个用例**（`python -m pytest tests/test_architecture.py -q` → 20 passed）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -176,6 +193,12 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
   提及不误报）；UI-free L0（`keymaps/*` `services/*` `keyproto/*` `session.py`
   `registries.py` `config.py` `logs.py`）不 import `textual.app`；
+- **T1**（`test_no_class_level_scrollbar_renderer_patch`）全仓禁止类级
+  `ScrollBar.renderer = ...` 进程级 patch（正则锚定行首，`widget.vertical_scrollbar.renderer`
+  等带接收者的实例赋值不误伤）；注入统一走 `editor_view.scrollbars.apply_slim_scrollbars(widget)`；
+- **T2**（`test_editor_does_not_paint_widget_styles`）`editor.py` 无 `def apply_theme` /
+  `def update_sidebar_head` / `.styles.background =` / `.styles.scrollbar_`（文本断言；
+  Editor 自有的布局职责如 terminal dock 高度不误伤）；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`
   （白名单：`PaneHost`；`*Manager` / `*Controller` 允许）。
 

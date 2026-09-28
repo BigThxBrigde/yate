@@ -1644,7 +1644,7 @@ def test_valid_custom_yate_theme_gets_working_bridge() -> None:
 )
 def test_manual_command_selects_language(cmd_arg: str, lang: str) -> None:
     async def scenario() -> None:
-        from textual.widgets import Markdown
+        from textual.widgets import Markdown, Static
 
         from yate.editor_view.manual import load_manual_markdown
 
@@ -1654,6 +1654,13 @@ def test_manual_command_selects_language(cmd_arg: str, lang: str) -> None:
             app.editor.run_command(f"manual {cmd_arg}".strip())
             await pilot.pause()
             assert isinstance(app.screen, MarkdownDocScreen)
+            loading = app.screen.query_one("#doc-loading", Static)
+            # the document loads in a background worker; a loaded CI box can
+            # still be mid-read after the first pause (pipeline #82 raced
+            # '' != manual there) -- poll until the load lands first
+            assert await wait_until(
+                pilot, lambda: not loading.display, timeout=15.0
+            )
             md = app.screen.query_one("#doc-md", Markdown)
             assert md.source == load_manual_markdown(lang)
 
@@ -1686,6 +1693,12 @@ def test_manual_search_filters_and_cycles_matches() -> None:
             field = screen.query_one("#doc-search-input", Input)
             status = screen.query_one("#doc-search-status", Static)
             md = screen.query_one("#doc-md", Markdown)
+            # same worker-race guard as test_manual_command_selects_language:
+            # searching an unloaded document would race 0 hits
+            loading = screen.query_one("#doc-loading", Static)
+            assert await wait_until(
+                pilot, lambda: not loading.display, timeout=15.0
+            )
 
             def footer_text() -> str:
                 return _widget_plain_text(

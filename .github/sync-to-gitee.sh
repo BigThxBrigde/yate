@@ -41,9 +41,8 @@ GITEE_URL="git@gitee.com:jermaine/yate.git"
 # ---------- 1. Connectivity test (exit immediately on failure; nothing to
 # clean up yet) ----------
 echo "==> [1/5] testing ssh connectivity to gitee ..."
-ssh_test="$(ssh -T git@gitee.com 2>&1)"
 
-if printf '%s\n' "$ssh_test" | grep -q "successfully authenticated"; then
+if ssh -T git@gitee.com; then
     echo "==> [1/5] ok: authenticated"
 else
     echo "error: gitee ssh connectivity test failed" >&2

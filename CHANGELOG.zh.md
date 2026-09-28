@@ -3,7 +3,7 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...HEAD)
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.6...HEAD)
 
 ### 新功能
 
@@ -16,14 +16,134 @@
     像素画均为 yate 原创致敬近似绘制，不含任何游戏素材
 - 新增 yaterc `screen_saver` 字典选项（enable / interval / switch / characters） ([`5937ce4`](https://gitee.com/jermaine/yate/commit/5937ce43630f4aabcf9b839d04ae4b9f93459dcb))
 - 新增 `tools.pack rosters` 子命令，生成带名字标签的阵容预览 SVG ([`c019f22`](https://gitee.com/jermaine/yate/commit/c019f2235d94746edfa2b1a93b7ae1fb192c7bf8))
-- add pre-flight guards and rollback to release tool [缺中文] ([`4e6566b`](https://gitee.com/jermaine/yate/commit/4e6566bba88826b32ed68331dea4ce45ce1b88cb))
 
 ### 文档
 
 - 新增 fancy-sym 屏保方案文档集 ([`1ba5c53`](https://gitee.com/jermaine/yate/commit/1ba5c5380c5b8258158b6280340743044ff87ff2))
+
+## [0.2.6] - 2026-09-27 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...v0.2.6)
+
+### 新功能
+
+- gate the devtools bridge on the tracing switch [缺中文] ([`5d3399d`](https://gitee.com/jermaine/yate/commit/5d3399d8ad8a15a34e8f1bb8864022693c7975b9))
+- bridge tracing into devtools, add the R12 logging rule [缺中文] ([`a35a133`](https://gitee.com/jermaine/yate/commit/a35a133d36a8b24c9dfbcf876f80fc0b97653720))
+- move app-level CSS to bundled app.tcss resource [缺中文] ([`3105f66`](https://gitee.com/jermaine/yate/commit/3105f66e09cba1d282d86383c6cfb21741055342))
+- decode win32-input-mode frames in the chord driver [缺中文] ([`afaf000`](https://gitee.com/jermaine/yate/commit/afaf000f160021ceed5b9819643acd55cb96c026))
+- add trace logs to L0 leaves [缺中文] ([`06d99a9`](https://gitee.com/jermaine/yate/commit/06d99a9a811e0122eabca176204c0b0fcfe3d413))
+- add trace logs to L1 session and registries [缺中文] ([`4fd005f`](https://gitee.com/jermaine/yate/commit/4fd005f53829395ad2c96b640248fa10d6e0b3fa))
+- add trace logs to L2 editor_view widgets [缺中文] ([`2a6e712`](https://gitee.com/jermaine/yate/commit/2a6e712f5b144ba56c2d84ecc93448294d2fc9e3))
+- add trace logs to L3 tables and completion flow [缺中文] ([`f575211`](https://gitee.com/jermaine/yate/commit/f5752116c2bbd3c1d66b6660d26633223fe28c8b))
+- add trace logs to the L4 app shell [缺中文] ([`cc24677`](https://gitee.com/jermaine/yate/commit/cc246770784df6e9622601ba4ddb2ed17a4353ae))
+- add key_protocol option with auto detection [缺中文] ([`33f91e5`](https://gitee.com/jermaine/yate/commit/33f91e58e46be4d9621ac2d45973223406d5ebff))
+- deliver full chords via windows console records [缺中文] ([`ce93090`](https://gitee.com/jermaine/yate/commit/ce93090453e5630dcd02dc44628934cfa6934747))
+- add key chord model and legacy codec package [缺中文] ([`5cd97d1`](https://gitee.com/jermaine/yate/commit/5cd97d1ca253f5a8e3e33a959f377aecfadb6d9b))
+- log key events at entry for terminal diagnostics [缺中文] ([`5a73fc7`](https://gitee.com/jermaine/yate/commit/5a73fc7e9747a7e2ad282218e631b73b54b5808b))
+- log unmapped key events at debug level for diagnostics [缺中文] ([`ff3cfc0`](https://gitee.com/jermaine/yate/commit/ff3cfc096acd62622f8b84b61e0e92ff055e8868))
+- adopt VS Code Seti icon palette, fade indent guides to 5% [缺中文] ([`50c5e7c`](https://gitee.com/jermaine/yate/commit/50c5e7c1e26f7d0ec114508424aa5eaa77579abe))
+- fainter tree guides, transparent scrollbar tracks, tinted file icons [缺中文] ([`12640b7`](https://gitee.com/jermaine/yate/commit/12640b735e120196aee74a607e78d0f28b76c4da))
+- slim scrollbar thumbs and state-constant tree guide colors [缺中文] ([`3054769`](https://gitee.com/jermaine/yate/commit/30547694e40d789be140614ef696488f815ce113))
+- calm tree cursor, flatten indent rails, mute scrollbars [缺中文] ([`b3df11a`](https://gitee.com/jermaine/yate/commit/b3df11a687a455132ee5fa387b45bd7a42d0092d))
+- refine explorer icons, scrollbars and dividers [缺中文] ([`b21afe7`](https://gitee.com/jermaine/yate/commit/b21afe71ce323cd66ea8f4fa65591f2642426a76))
+- add --readonly startup flag and :set readonly option [缺中文] ([`3799aa3`](https://gitee.com/jermaine/yate/commit/3799aa3e218bbff4edf9498cb9f5a51385d2cbda))
+- guard buffer mutations behind a read-only flag [缺中文] ([`cfd9d12`](https://gitee.com/jermaine/yate/commit/cfd9d124a051c7f212359ff86ccb178ac8c80890))
+- add pre-flight guards and rollback to release tool [缺中文] ([`4e6566b`](https://gitee.com/jermaine/yate/commit/4e6566bba88826b32ed68331dea4ce45ce1b88cb))
+
+### 问题修复
+
+- escape message markup and dedupe theme subscribers [缺中文] ([`02e90fe`](https://gitee.com/jermaine/yate/commit/02e90fe9d75465473cf841acac67b43c6086aad8))
+- close legacy theme gaps in TerminalPanel and PromptBar [缺中文] ([`0737bae`](https://gitee.com/jermaine/yate/commit/0737bae2d35b26e9bf601ef95c59a05510fc3996))
+- call super().on_mount() in EditorView and ExplorerTree [缺中文] ([`29eeb52`](https://gitee.com/jermaine/yate/commit/29eeb52bf82a6b92ef92d2dabaff09bd24e7f011))
+- adopt the PR #28 review suggestions [缺中文] ([`c13f407`](https://gitee.com/jermaine/yate/commit/c13f4077937566db3d45f93fd84b529117a769ee))
+- detach the devtools bridge by identity [缺中文] ([`e754b27`](https://gitee.com/jermaine/yate/commit/e754b2714ac26f52adc703903b3bd82bc978f047))
+- skip Windows-only keyproto driver tests on non-Windows [缺中文] ([`b9ad621`](https://gitee.com/jermaine/yate/commit/b9ad6212bf66506c356acd05b17cfe7f7224ba31))
+- tolerate empty fields in win32-input-mode frames [缺中文] ([`b21ff37`](https://gitee.com/jermaine/yate/commit/b21ff378b991f1eef360a68e479cda645485a3a9))
+- treat win32-input-mode flag 0 as key-up [缺中文] ([`7b08070`](https://gitee.com/jermaine/yate/commit/7b0807073d95cd726665fa0d5fdf1c5c7fb944aa))
+- route ctrl+2 chord names to terminal toggle [缺中文] ([`54ab508`](https://gitee.com/jermaine/yate/commit/54ab5086081611e03f54af879a7fa9e4c1c54342))
+- fall back to C0 character for unknown ctrl chord names [缺中文] ([`1db6175`](https://gitee.com/jermaine/yate/commit/1db6175d0e62891df95adda23e15c00ffa1f910c))
+- accept ctrl+slash alias for the 0x1f toggle byte [缺中文] ([`1d1f3d8`](https://gitee.com/jermaine/yate/commit/1d1f3d852a1415c489cf34026b41c734d149e596))
+- map ctrl+underscore to 0x1f so ctrl+/ works on legacy terminals [缺中文] ([`b03e40f`](https://gitee.com/jermaine/yate/commit/b03e40f16d255bc75559002e345958933ce1aa32))
+- dim indent guides below the sidebar title's muted gray [缺中文] ([`0221ffa`](https://gitee.com/jermaine/yate/commit/0221ffa629ba7930e939253940ec4727a3356833))
+- restore tree h-scrollbar, add last-child terminator, pin guide colors [缺中文] ([`196d9e0`](https://gitee.com/jermaine/yate/commit/196d9e005b8b529772158ad37c836442c8788691))
+- align indent rails under parent icons, drop tree h-scrollbar [缺中文] ([`fbcab99`](https://gitee.com/jermaine/yate/commit/fbcab9994f0505597aa0f19bd536d368a1836da9))
+- address PR 24 review on the readonly feature [缺中文] ([`1f82fae`](https://gitee.com/jermaine/yate/commit/1f82fae3020351849b334644b8caec2f7cee629f))
+- close review gaps in the read-only feature [缺中文] ([`8b6b1b4`](https://gitee.com/jermaine/yate/commit/8b6b1b4598ef30054307c1c5f9c6e0c18d04e9dc))
+- include tree-sitter deps in the dev extra [缺中文] ([`f57db3c`](https://gitee.com/jermaine/yate/commit/f57db3c7146524128318e4f933df76d3422649d5))
+
+### 重构
+
+- tighten prompt state machine and decouple unmount test [缺中文] ([`d1dbb79`](https://gitee.com/jermaine/yate/commit/d1dbb79bafb3b971d360e6280da5302163cc7dbf))
+- widgets own theme painting and scrollbar injection [缺中文] ([`046fcff`](https://gitee.com/jermaine/yate/commit/046fcffe1129c0e42eeb5ea855ea6caca668536f))
+- mount the devtools bridge on the app lifecycle [缺中文] ([`036bd2a`](https://gitee.com/jermaine/yate/commit/036bd2acadb3a5800122b366a5c3c378fd41f4d7))
+- log monitor crashes via tracing, drop the App import [缺中文] ([`003263e`](https://gitee.com/jermaine/yate/commit/003263efaf958ad066e3bad69c9968b8b7cc0f78))
+- polish tcss loader after review [缺中文] ([`7e51d6b`](https://gitee.com/jermaine/yate/commit/7e51d6bec52ba534f61d92cd671146a067342d37))
+- drop dead raw-byte table and guard the leaf package [缺中文] ([`f10002e`](https://gitee.com/jermaine/yate/commit/f10002e0f37d129d423984194a68b6ecb1915f61))
+- deduplicate file-extension parsing in icons [缺中文] ([`df631e6`](https://gitee.com/jermaine/yate/commit/df631e6dffe8651fe96bc7e74e24b35bcdd6460d))
+- decouple yaterc loader from editor_view.theme [缺中文] ([`bd1c2cf`](https://gitee.com/jermaine/yate/commit/bd1c2cf7a1ed3a761df94a6c172b599a9809e503))
+
+### 文档
+
+- codify R13 widget-owned theming and extensions layering [缺中文] ([`9216480`](https://gitee.com/jermaine/yate/commit/92164801d941eee9172cf13a2f1fd50a5e547c2b))
+- add the plan-before-execute workflow rule [缺中文] ([`717fe08`](https://gitee.com/jermaine/yate/commit/717fe08a09ec192886ad40db70b8d6991ee2f1ee))
+- restructure theme-ownership plan into README + Plan A-E volumes [缺中文] ([`fec98ed`](https://gitee.com/jermaine/yate/commit/fec98ed60866d906e9a93d78c6f382c561c0faf5))
+- split theme-ownership into sub-plans and close smoke gap [缺中文] ([`766b266`](https://gitee.com/jermaine/yate/commit/766b266b2757a042037f7a1ddf19937c118db39a))
+- backfill theme-ownership governance results [缺中文] ([`47567db`](https://gitee.com/jermaine/yate/commit/47567db411560fc6d7424fae618dd3548fab5304))
+- register the ui-refine review with architecture tensions [缺中文] ([`7c2ea3e`](https://gitee.com/jermaine/yate/commit/7c2ea3e6cebe2f1a7daad520f6bd4b9989fab5d1))
+- correct the fix commit hash in the PR #28 registration [缺中文] ([`392d038`](https://gitee.com/jermaine/yate/commit/392d0381dde8c8e5206913a28eefcc3ffc9ffe54))
+- register the logging-branch review round [缺中文] ([`81b9525`](https://gitee.com/jermaine/yate/commit/81b952591c9d103cbc4e60c7244befce015a1d46))
+- fix stale bridge mount point in a guard docstring [缺中文] ([`44972c9`](https://gitee.com/jermaine/yate/commit/44972c9b8de7aeb5b1135de4c4d240ca663dc05b))
+- expand R12 with the devtools bridge design [缺中文] ([`b7a30f9`](https://gitee.com/jermaine/yate/commit/b7a30f97238a0c8282b499f1bc912ea8e0186371))
+- add tcss implementation review report [缺中文] ([`25e111c`](https://gitee.com/jermaine/yate/commit/25e111c2970ecac7c0ff6b27d7781df6eb7f96f6))
+- add tcss split plan for issue IKINFT [缺中文] ([`b8d9e59`](https://gitee.com/jermaine/yate/commit/b8d9e5988adf347693d562fe1d1a1d47d3ac883f))
+- register the Gitee PR #26 AI review into review.md [缺中文] ([`89956da`](https://gitee.com/jermaine/yate/commit/89956da0ac03797688c6a9bc22870cbc1ba88ade))
+- register the keybinding branch review report [缺中文] ([`7a6cbe8`](https://gitee.com/jermaine/yate/commit/7a6cbe8d9d1d64b31bad5568a2811b151c3e4e1f))
+- record PB6 real-input verification in plan status [缺中文] ([`24266a6`](https://gitee.com/jermaine/yate/commit/24266a638d1ecf984ca07021cf1881214332390a))
+- backfill calibration results into logging plan [缺中文] ([`3e8329a`](https://gitee.com/jermaine/yate/commit/3e8329a36746f6394e62dc00bfde6cd0373812b8))
+- draft layered logging plan for issue IKIN1Z [缺中文] ([`970de77`](https://gitee.com/jermaine/yate/commit/970de7796fd50c780f9fccd56487d45adadd5ca9))
+- record NUL chord naming round in Phase B status [缺中文] ([`b246fa5`](https://gitee.com/jermaine/yate/commit/b246fa557d3a36ea1ed890848d56e601069e7fd8))
+- document key_protocol and windows chord availability [缺中文] ([`c9713df`](https://gitee.com/jermaine/yate/commit/c9713df993b7926eb55fdd38cdd736d54dd3e3d1))
+- open Phase B execution [缺中文] ([`816f60d`](https://gitee.com/jermaine/yate/commit/816f60d99c8b591ade6615d1690802c0f57cad96))
+- record ctrl-grave NUL collision in Phase B scope [缺中文] ([`8eb49f3`](https://gitee.com/jermaine/yate/commit/8eb49f3c68163d5189aed9ee2644e31828a87a3a))
+- close Phase A with field trace verdict [缺中文] ([`91daf6c`](https://gitee.com/jermaine/yate/commit/91daf6c0b835c86e8aa9571612fdc783ebd3c087))
+- record trace verdict and PA2b fallback in v3 status [缺中文] ([`d56e43a`](https://gitee.com/jermaine/yate/commit/d56e43ad31ce100d42836533a11523506d8bd2f6))
+- record probe findings and v3 plan [缺中文] ([`beea5e0`](https://gitee.com/jermaine/yate/commit/beea5e07bdaf68856bf1a73d4bc1b8bea8174e8d))
+- scope phase A vs B per key with vim swallow root cause [缺中文] ([`c2405a2`](https://gitee.com/jermaine/yate/commit/c2405a2f4c369ccf8db9f1735a35b78aeb39c91e))
+- replan as Phase A reachability fix after partial field result [缺中文] ([`218765f`](https://gitee.com/jermaine/yate/commit/218765fefa0886963003d76f85a6493d72cc92d3))
+- mark SP5 gates done and matrix pending verification [缺中文] ([`333c95d`](https://gitee.com/jermaine/yate/commit/333c95da427b8032231345da68a6d26618c343b8))
+- record gate results in keybinding-fix subplan [缺中文] ([`85d5e77`](https://gitee.com/jermaine/yate/commit/85d5e77ed8488947a9e5049daf3306bf56bc9568))
+- backfill IKH1RA disposition into review and P2 plan [缺中文] ([`ebee085`](https://gitee.com/jermaine/yate/commit/ebee085f05ceea43ce15ecb9b9ca4d854d78c678))
+- note terminal compatibility for ctrl+digit keybindings [缺中文] ([`f26e65d`](https://gitee.com/jermaine/yate/commit/f26e65d9724b8c7f88713bf9fd2d7ed51324357f))
+- restore and calibrate Windows Terminal keybinding plans [缺中文] ([`a9174fc`](https://gitee.com/jermaine/yate/commit/a9174fc66fd1c73f8eccc3ca031515eaed23e483))
+- add ui refine design plan for issue IKINF3 [缺中文] ([`a6f336f`](https://gitee.com/jermaine/yate/commit/a6f336f0c253df25c75443add715f4271abf61c0))
+- register the Gitee PR 24 review verdict metadata [缺中文] ([`98eebb7`](https://gitee.com/jermaine/yate/commit/98eebb72e1e8602c1756a95f6f34e0abbd7c2b16))
+- record the readonly review rounds in the review list [缺中文] ([`635f50e`](https://gitee.com/jermaine/yate/commit/635f50eaf84b95c5d81c9ba2efbd8fb0719b5f50))
+- record the readonly review rounds in the plan document [缺中文] ([`e7e6fed`](https://gitee.com/jermaine/yate/commit/e7e6fed17209b70ae66052403e74573ed85d5fd5))
+- align readonly wording in manual and extension notes [缺中文] ([`d960a08`](https://gitee.com/jermaine/yate/commit/d960a08c437136fa82e32e439262916c6f2cbc0c))
+- backfill theme refactor execution records [缺中文] ([`d6868bf`](https://gitee.com/jermaine/yate/commit/d6868bfc877f69fd8c22f1d3da7280a3e6f9557e))
+- enforce UI-free config layer and record N30 decision [缺中文] ([`066ae12`](https://gitee.com/jermaine/yate/commit/066ae124571b1fda0d5e77114cda54dd0465b770))
+- add theme layer refactor plan set (N30) [缺中文] ([`7370918`](https://gitee.com/jermaine/yate/commit/737091845c2a6b59a6107bc3d8d1afa7fade1811))
+- document the readonly option in manual and extension notes [缺中文] ([`ed4f924`](https://gitee.com/jermaine/yate/commit/ed4f9246b75619ffd531f488d8b1e06c5bcfbd1e))
+- add 2026-09-26 full project review report [缺中文] ([`44f2f53`](https://gitee.com/jermaine/yate/commit/44f2f5385b4123aca748906a7371f498a5bce8de))
+- regenerate bilingual changelogs with correct segments [缺中文] ([`faa6d75`](https://gitee.com/jermaine/yate/commit/faa6d754bc734b267665ff237b36e3d1fcbb53d7))
 - backfill hardening results and verification checklist [缺中文] ([`2ba8f69`](https://gitee.com/jermaine/yate/commit/2ba8f699c46b2d72e88f26a98e013812958086d9))
 - add release tool hardening plan [缺中文] ([`aecf3e3`](https://gitee.com/jermaine/yate/commit/aecf3e3151ef6ca10cead29d4b70ec3053bca02b))
 - translate the 3.12 migration and release entries [缺中文] ([`b599685`](https://gitee.com/jermaine/yate/commit/b5996857babbfad56b5a70e2e1e3768bbcec3bce))
+
+### 测试
+
+- guard per-widget scrollbar injection and theme ownership [缺中文] ([`1b49208`](https://gitee.com/jermaine/yate/commit/1b49208b6bb3738d9b31783fda5f821634ca6837))
+- drop the needless win32 skip from the bridge lifecycle guard [缺中文] ([`905385f`](https://gitee.com/jermaine/yate/commit/905385fce642009654b2a3197695b4ea1d8c9052))
+- cover the saveas command, closing the command-coverage gap [缺中文] ([`91abd8d`](https://gitee.com/jermaine/yate/commit/91abd8dec70c49abd34a2b23453abe82ff042c5a))
+- add unattended real-input harness for the chord driver [缺中文] ([`fe4d92c`](https://gitee.com/jermaine/yate/commit/fe4d92ce5c8a729e4b28c6053ea0a07811030f48))
+- guard lazy log formatting [缺中文] ([`89c1319`](https://gitee.com/jermaine/yate/commit/89c1319ad23966b1d63448bc35fbb28ff6445914))
+- pin vim-mode reachability for global chords [缺中文] ([`34ab059`](https://gitee.com/jermaine/yate/commit/34ab0594a36e1c02a97880b46e2c6df304d2077c))
+- pin global chord dispatch branches with pilot guards [缺中文] ([`678c02c`](https://gitee.com/jermaine/yate/commit/678c02cd163df7b9b15646932c5308ed585e6466))
+- cover session-wide readonly, saveas and the save guard [缺中文] ([`dd47be0`](https://gitee.com/jermaine/yate/commit/dd47be0ed9dd33062320f12e9921a89325b87343))
+- cover the read-only buffer, command and startup flows [缺中文] ([`944c0a5`](https://gitee.com/jermaine/yate/commit/944c0a5e6f18b676e6e36fd43f9edc739a3f1bb4))
+
+### 构建与工程
+
+- add SP5 manual matrix verification script [缺中文] ([`3a8a29b`](https://gitee.com/jermaine/yate/commit/3a8a29ba6beec7263a425ae95d67592b315c392b))
+- add agents links [缺中文] ([`479f192`](https://gitee.com/jermaine/yate/commit/479f1923a641c3388cc6c3cef3a4febb34ca9f45))
 
 ## [0.2.5] - 2026-09-26 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.4...v0.2.5)
 
