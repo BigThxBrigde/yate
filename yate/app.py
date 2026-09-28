@@ -89,8 +89,14 @@ class YateApp(App[None]):
 
     #: Idle-input tracker for the screensaver trigger; ``None`` while
     #: ``screen_saver.enable`` is off.  Poked from :meth:`on_event`, polled
-    #: once a second from :meth:`on_mount`.
+    #: once a second from :meth:`on_mount`.  Read tests through the
+    #: :attr:`idle_tracker` property; this attribute stays private.
     _idle: IdleTracker | None = None
+
+    @property
+    def idle_tracker(self) -> IdleTracker | None:
+        """The active idle tracker, or ``None`` when the screensaver is off."""
+        return self._idle
 
     @override
     def get_driver_class(self) -> type[Driver]:
@@ -231,7 +237,7 @@ class YateApp(App[None]):
         # watch_theme skips pre-mount assignments (no screen yet); paint once
         # here so the startup screen background matches the active palette.
         self.screen.styles.background = theme.active().bg
-        self.set_interval(1.0, self._check_idle)
+        self.set_interval(1.0, self.poll_idle)
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
@@ -257,15 +263,18 @@ class YateApp(App[None]):
             self._idle.poke()
         await super().on_event(event)
 
-    def _check_idle(self) -> None:
+    def poll_idle(self) -> None:
         """Start the idle screensaver once ``screen_saver.interval`` elapses.
 
-        The poll keeps firing while no input arrives, so it must skip when
-        the screensaver is already up: otherwise the toggle action would
-        push and immediately pop in a one-second loop, and a manually
-        started screensaver would never survive continued idle.  (The
-        registered ``toggle_screensaver`` re-checks the screen type too,
-        which keeps the palette / extension paths safe the same way.)
+        Public so tests can drive the poll deterministically instead of
+        waiting on the real one-second interval.  (Named to avoid Textual's
+        own ``MessagePump.check_idle``, which this must not shadow.)  The
+        poll keeps firing while no input arrives, so it must skip when the
+        screensaver is already up: otherwise the toggle action would push
+        and immediately pop in a one-second loop, and a manually started
+        screensaver would never survive continued idle.  (The registered
+        ``toggle_screensaver`` re-checks the screen type too, which keeps
+        the palette / extension paths safe the same way.)
         """
         if self._idle is None or self.config.screen_saver.interval <= 0:
             return

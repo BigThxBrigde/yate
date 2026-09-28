@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from typing import cast, override
+
+import pytest
 
 from yate import config as cfg
 from yate.app import YateApp
@@ -18,6 +21,7 @@ class _CountingTracker(IdleTracker):
         super().__init__(clock=lambda: 0.0)
         self.pokes = 0
 
+    @override
     def poke(self) -> None:
         self.pokes += 1
         super().poke()
@@ -225,24 +229,28 @@ def test_no_spawn_when_all_rows_are_taken(tmp_path: Path) -> None:
                 screen.advance_tick()
                 assert len(screen.walkers) == 1
 
+    asyncio.run(scenario())
 
-# --- idle auto-trigger wiring (YateApp.on_event poke + _check_idle poll) ----
+
+# --- idle auto-trigger wiring (YateApp.on_event poke + check_idle poll) -----
 
 
 def test_idle_poll_auto_starts_screensaver(tmp_path: Path) -> None:
-    """A due tracker plus the 1 s poll opens the screensaver on its own.
+    """A due tracker plus the poll opens the screensaver on its own.
 
-    The real tracker starts "now"; swapping in a clock frozen at 0.0 makes
-    it permanently due, so one synchronous ``_check_idle()`` call exercises
+    With ``interval = 1`` the real tracker becomes due after about a
+    second of silence, so one synchronous ``check_idle()`` call exercises
     the exact code path the app's interval timer drives.
     """
 
     async def scenario() -> None:
-        app = YateApp(target=_doc(tmp_path))
+        rc = tmp_path / "yaterc"
+        rc.write_text('screen_saver = {"interval": 1}\n', encoding="utf-8")
+        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            app._idle = IdleTracker(clock=lambda: 0.0)
-            app._check_idle()
+            await pilot.pause(1.1)
+            app.poll_idle()
             await pilot.pause()
             assert isinstance(app.screen, ScreensaverScreen)
 
@@ -258,16 +266,18 @@ def test_idle_poll_never_retriggers_while_active(tmp_path: Path) -> None:
     """
 
     async def scenario() -> None:
-        app = YateApp(target=_doc(tmp_path))
+        rc = tmp_path / "yaterc"
+        rc.write_text('screen_saver = {"interval": 1}\n', encoding="utf-8")
+        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            app._idle = IdleTracker(clock=lambda: 0.0)
-            app._check_idle()
+            await pilot.pause(1.1)
+            app.poll_idle()
             await pilot.pause()
             assert isinstance(app.screen, ScreensaverScreen)
             depth = len(app.screen_stack)
             for _ in range(5):
-                app._check_idle()
+                app.poll_idle()
             await pilot.pause()
             assert isinstance(app.screen, ScreensaverScreen)
             assert len(app.screen_stack) == depth
@@ -284,9 +294,8 @@ def test_idle_poll_skips_when_interval_zero(tmp_path: Path) -> None:
         app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            assert app._idle is not None
-            app._idle = IdleTracker(clock=lambda: 0.0)
-            app._check_idle()
+            await pilot.pause(1.1)
+            app.poll_idle()
             await pilot.pause()
             assert not isinstance(app.screen, ScreensaverScreen)
 
@@ -302,23 +311,30 @@ def test_idle_poll_skips_when_disabled(tmp_path: Path) -> None:
         app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            assert app._idle is None
-            app._check_idle()
+            assert app.idle_tracker is None
+            app.poll_idle()
             await pilot.pause()
             assert not isinstance(app.screen, ScreensaverScreen)
 
     asyncio.run(scenario())
 
 
-def test_on_event_pokes_idle_tracker(tmp_path: Path) -> None:
-    """Every input event pokes the tracker through ``App.on_event``."""
+def test_on_event_pokes_idle_tracker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every input event pokes the tracker through ``App.on_event``.
+
+    Swapping the class before construction routes the app's own tracker
+    through the counting probe; the press then must have poked it.
+    """
 
     async def scenario() -> None:
+        monkeypatch.setattr("yate.app.IdleTracker", _CountingTracker)
         app = YateApp(target=_doc(tmp_path))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            tracker = _CountingTracker()
-            app._idle = tracker
+            tracker = cast(_CountingTracker, app.idle_tracker)
+            assert tracker is not None
             await pilot.press("x")
             await pilot.pause()
             assert tracker.pokes >= 1
