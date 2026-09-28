@@ -134,3 +134,13 @@ class TestShuffleOrder:
         assert characters.shuffle_order(["mario"], rng) == ["mario"]
         # a single name can never avoid a replay -- must not hang
         assert characters.shuffle_order(["mario"], rng, avoid="mario") == ["mario"]
+
+    def test_unsalvageable_multiset_returns_as_is(self) -> None:
+        """A multiset with no adjacency-free order returns without looping.
+
+        Three marios and one luigi can never avoid adjacent duplicates
+        (pigeonhole), so retrying would hang the spawn tick forever.
+        """
+        rng = random.Random(42)
+        names = ("mario", "mario", "mario", "luigi")
+        assert characters.shuffle_order(names, rng) == list(names)

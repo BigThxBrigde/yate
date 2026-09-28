@@ -117,7 +117,11 @@ class ScreensaverScreen(ModalScreen[None]):
         switch_seconds: int,
         dist_bounds: tuple[float, float] | None = None,
     ) -> None:
-        self._names = tuple(characters) if characters else character_names()
+        # dict.fromkeys keeps the rc order while dropping duplicates, so
+        # the shuffle bag never receives a multiset (P1 hang guard).
+        self._names = (
+            tuple(dict.fromkeys(characters)) if characters else character_names()
+        )
         self._switch_seconds = switch_seconds
         #: Explicit ``(lower, upper)`` journey window from yaterc; when set
         #: it replaces both the built-in 1/8-1/3 window and ``switch_seconds``.

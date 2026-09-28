@@ -10,6 +10,7 @@ bitmap module fails fast instead of rendering garbage.
 from __future__ import annotations
 
 import random
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -123,10 +124,17 @@ def shuffle_order(
     distinct) a plain shuffle already has no adjacent duplicates, so the
     loop terminates immediately; with a whitelist small enough for
     collisions it still terminates almost surely for >= 2 distinct names.
-    A roster with a single distinct name can never avoid a replay, so it
-    is returned as-is.
+    Two multisets are returned as-is because no shuffle can ever satisfy
+    the constraints: a single distinct name can never avoid a replay, and
+    when the most frequent name exceeds ``(len(names) + 1) // 2`` adjacent
+    duplicates are unavoidable (pigeonhole) -- looping would hang forever.
     """
     if len(set(names)) < 2:
+        return list(names)
+    counts = Counter(names)
+    if max(counts.values()) > (len(names) + 1) // 2:
+        # pigeonhole: no adjacency-free arrangement exists, so retrying
+        # would loop forever -- give up on the constraint instead
         return list(names)
     while True:
         order = list(names)
