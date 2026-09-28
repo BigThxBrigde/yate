@@ -1,8 +1,13 @@
 """Modal vim key map for yate.
 
 Implements a practical vim subset: NORMAL / INSERT / VISUAL / VISUAL-LINE
-modes, counts, operator+motion (d/y), word motions, marks-less navigation,
-search via ``/``/``?``/``n``/``N`` and ex commands via ``:``.
+modes, counts, operator+motion (``d``/``y``/``c``), word motions, marks-less
+navigation, search via ``/``/``?``/``n``/``N`` and ex commands via ``:``.
+
+Operator-pending state is kept in structured fields (:attr:`op`,
+:attr:`prefix`, :attr:`obj_scope`) so combinations like ``c`` + text object
+resolve unambiguously; counts multiply between the operator and the motion
+(``2d3w`` deletes six words).
 """
 
 from __future__ import annotations
@@ -10,7 +15,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import override
 
-from yate.editor_core.buffer import BufferReadOnlyError, TextBuffer, word_end
+from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer, word_end
 from yate.keymaps.base import (
     ActionContext,
     KeyBinding,
@@ -36,6 +41,11 @@ _ARROW = {
     "\x1b[B": "j",
 }
 
+#: Prefix keys that arm a second key: the ones before the bar can complete an
+#: operator (``dg g``/``df x``), ``r`` cannot and drops a pending operator.
+_PREFIX_MOTIONS = ("g", "f", "F", "t", "T")
+_PREFIX_KEYS = (*_PREFIX_MOTIONS, "r")
+
 _FUNCTION_KEYS = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
 # help categories (module level: uppercase constants)
@@ -53,7 +63,10 @@ class VimKeymap(Keymap):
     def __init__(self) -> None:
         super().__init__()
         self.mode = VimMode.NORMAL
-        self.pending = ""  # operator prefix: "d", "y", "g"
+        self.op: str | None = None  # armed operator: "d", "y" or "c"
+        self.prefix: str | None = None  # armed prefix key: g/f/F/t/T/r
+        self.obj_scope: str | None = None  # text-object scope: "i" or "a"
+        self.op_count: int | None = None  # count typed before the operator
         self.count_str = ""
 
     # ------------------------------------------------------------------ help
@@ -89,8 +102,10 @@ class VimKeymap(Keymap):
             KeyBinding("x", "delete char", "Delete character", EDT),
             KeyBinding("dd", "delete line", "Delete line", EDT),
             KeyBinding("yy", "yank line", "Yank line", EDT),
+            KeyBinding("cc", "change line", "Change line", EDT),
             KeyBinding("d{motion}", "delete motion", "Delete over motion", EDT),
             KeyBinding("y{motion}", "yank motion", "Yank over motion", EDT),
+            KeyBinding("c{motion}", "change motion", "Change over motion", EDT),
             KeyBinding("p", "paste below", "Paste after", EDT),
             KeyBinding("P", "paste above", "Paste before", EDT),
             KeyBinding("u", "undo", "Undo", EDT),
@@ -105,8 +120,7 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<f2>"), "shell_prompt", "Run shell command", CMD),
             KeyBinding(parse_key("<f3>"), "find_next", "Next match", CMD),
             KeyBinding(parse_key("<f4>"), "replace", "Find & replace", CMD),
-            KeyBinding(
-                parse_key("<f5>"), "command_prompt",
+            KeyBinding(parse_key("<f5>"), "command_prompt",
                 "Ex command line (:w :q :e :! ...)", CMD,
             ),
             KeyBinding(parse_key("<f8>"), "manual", "Open user manual (read-only)", HLP),
@@ -121,13 +135,11 @@ class VimKeymap(Keymap):
         # handle it first so the toggle works in every vim mode and drops any
         # half-finished operator/count state.
         if key == "\x1f":
-            self.pending = ""
-            self.count_str = ""
+            self._clear_pending()
             ctx.ui.toggle_keymap()
             return True
         if key in _FUNCTION_KEYS:
-            self.pending = ""
-            self.count_str = ""
+            self._clear_pending()
             binding = self.lookup(key)
             if binding is not None:
                 # A dead action (typo / unloaded extension) is reported by
@@ -148,6 +160,14 @@ class VimKeymap(Keymap):
         if binding is not None and binding.category == "extension":
             return self.dispatch(binding, ctx)
         return False
+
+    def _clear_pending(self) -> None:
+        """Drop every half-finished operator/prefix/count state."""
+        self.op = None
+        self.prefix = None
+        self.obj_scope = None
+        self.op_count = None
+        self.count_str = ""
 
     # ------------------------------------------------------------- insert mode
 
@@ -245,12 +265,14 @@ class VimKeymap(Keymap):
             buf.clear_selection()
             ui.find_prompt(False)
             return True
-        # motions extend the selection
-        count = self._take_count()
+        # motions extend the selection; digits are consumed but not stored
+        # (visual mode deliberately ignores counts, see the test pinning it)
+        typed = self._typed_count()
+        self.count_str = ""
         if key in _ARROW:
-            self._motion(ctx, _ARROW[key], count, select=True)
+            self._motion(ctx, _ARROW[key], typed, select=True)
         elif key in _MOTION_CODES:
-            self._motion(ctx, key, count, select=True)
+            self._motion(ctx, key, typed, select=True)
         else:
             return True
         if self.mode == VimMode.VISUAL_LINE:
@@ -275,13 +297,11 @@ class VimKeymap(Keymap):
         buf = ctx.buffer
 
         if key == "\x1b":
-            self.pending = ""
-            self.count_str = ""
+            self._clear_pending()
             return True
 
         if key == "\x07":  # ctrl-g: go to line (same as typing :42)
-            self.pending = ""
-            self.count_str = ""
+            self._clear_pending()
             ui.goto_prompt()
             return True
 
@@ -289,54 +309,34 @@ class VimKeymap(Keymap):
             self.count_str += key
             return True
 
-        count = self._peek_count()
+        # resolve an armed prefix: "g" completes on a second "g"; the other
+        # prefixes wait for their argument key in the stages that follow
+        if self.prefix == "g" and key == "g":
+            self._resolve_gg(ctx)
+            return True
+        if self.prefix is not None:
+            # unknown follower: drop the prefix, process the key as a fresh one
+            self.prefix = None
 
-        # g prefix
-        if self.pending == "g" and key == "g":
-            self.pending = ""
-            n = self._take_count()
-            if self.count_str == "" and n == 1:
-                buf.move_doc_start()
-            else:
-                # motion needs direct cursor placement; TextBuffer.set_cursor
-                # provides the clamp/anchor semantics for an arbitrary jump
-                buf.set_cursor((n - 1, 0))
+        if self.op is not None and self._handle_operator_pending(ctx, key):
             return True
-        if key == "g" and self.pending == "":
-            self.pending = "g"
-            return True
-        if self.pending == "g":
-            # "g" followed by something we don't support: drop the prefix.
-            self.pending = ""
 
-        # operators d / y
-        if key in ("d", "y") and self.pending == "":
-            self.pending = key
+        # arm a prefix key ("g" / find-char / "r"); a pending operator survives
+        # for the motion-completing prefixes and was already dropped otherwise
+        if key in _PREFIX_KEYS:
+            self.prefix = key
             return True
-        if self.pending in ("d", "y"):
-            op = self.pending
-            self.pending = ""
-            n = self._take_count()
-            if key == op:
-                # dd / yy
-                if op == "d":
-                    buf.delete_lines()
-                    ui.message("deleted line")
-                else:
-                    buf.yank_lines()
-                    ui.message("yanked line")
-                return True
-            # "g" starts the gg jump, not an operator range: dg / yg would
-            # report deleted/yanked over an empty motion
-            if key != "g" and (key in _MOTION_CODES or key in _ARROW):
-                self._apply_operator(ctx, op, key, n)
-                return True
-            # unknown motion: drop operator, fall through with key
+
+        # arm an operator
+        if key in ("d", "y", "c"):
+            self.op = key
+            self.op_count = self._typed_count()
             self.count_str = ""
+            return True
 
         if key in _ARROW or key in _MOTION_CODES:
-            self._motion(ctx, _ARROW.get(key, key), count, select=False)
-            self._take_count()
+            self._motion(ctx, _ARROW.get(key, key), self._typed_count(), select=False)
+            self.count_str = ""
             return True
 
         if key == "x":
@@ -344,10 +344,12 @@ class VimKeymap(Keymap):
                 buf.delete_forward()
             return True
         if key == "p":
-            buf.paste(below=True)
+            for _ in range(self._take_count()):
+                buf.paste(below=True)
             return True
         if key == "P":
-            buf.paste(below=False)
+            for _ in range(self._take_count()):
+                buf.paste(below=False)
             return True
         if key == "u":
             buf.undo()
@@ -435,23 +437,106 @@ class VimKeymap(Keymap):
         # swallow unmapped normal keys
         return True
 
+    def _handle_operator_pending(self, ctx: ActionContext, key: str) -> bool:
+        """Resolve *key* against the armed operator; ``False`` drops it."""
+        op = self.op
+        if op is None:
+            return False
+        if key == op:  # dd / yy / cc
+            self._linewise_op(ctx, op)
+            return True
+        if key in ("i", "a"):
+            self.obj_scope = key
+            return True
+        if key in _PREFIX_MOTIONS:
+            self.prefix = key
+            return True
+        if key in _MOTION_CODES or key in _ARROW:
+            self._apply_operator(ctx, op, _ARROW.get(key, key))
+            return True
+        return False
+
+    def _linewise_op(self, ctx: ActionContext, op: str) -> None:
+        """Run a counted linewise ``dd`` / ``yy`` / ``cc``."""
+        buf = ctx.buffer
+        ui = ctx.ui
+        n = self.op_count or 1
+        self.op = None
+        self.obj_scope = None
+        self.op_count = None
+        r1 = buf.row
+        col = buf.col  # yy keeps the cursor where it is, like vim
+        r2 = min(r1 + n - 1, len(buf.lines) - 1)
+        buf.anchor = (r1, 0)
+        buf.cursor = (r2, len(buf.lines[r2]))
+        if op == "d":
+            buf.delete_lines()
+            ui.message("deleted line")
+        elif op == "y":
+            buf.yank_lines()
+            buf.anchor = None
+            buf.cursor = (r1, min(col, len(buf.lines[r1])))
+            ui.message("yanked line")
+        else:
+            # change: the merged remains collapse into one empty line
+            buf.delete_selection()
+            self._enter_insert(ui)
+
+    def _resolve_gg(self, ctx: ActionContext) -> None:
+        """Complete ``gg``: a jump, or a linewise span for a pending operator."""
+        self.prefix = None
+        buf = ctx.buffer
+        ui = ctx.ui
+        motion_typed = self._typed_count()
+        self.count_str = ""
+        target = motion_typed if motion_typed is not None else self.op_count or 1
+        op = self.op
+        self.op = None
+        self.obj_scope = None
+        self.op_count = None
+        if op is None:
+            buf.set_cursor((target - 1, 0))
+            return
+        r1, r2 = sorted((target - 1, buf.row))
+        r2 = min(r2, len(buf.lines) - 1)
+        buf.anchor = (r1, 0)
+        buf.cursor = (r2, len(buf.lines[r2]))
+        if op == "y":
+            buf.yank_lines()
+            buf.anchor = None
+            buf.cursor = (r1, 0)
+            ui.message("yanked")
+        elif op == "d":
+            buf.delete_lines()
+            ui.message("deleted")
+        else:
+            buf.delete_selection()
+            self._enter_insert(ui)
+
     def _enter_insert(self, ui: KeyUi) -> None:
         self.mode = VimMode.INSERT
         ui.message("-- INSERT --")
 
-    # -------------------------------------------------------------- motions
+    # -------------------------------------------------------------- counts
 
-    def _peek_count(self) -> int:
-        return int(self.count_str) if self.count_str else 1
+    def _typed_count(self) -> int | None:
+        """The count typed so far, or ``None`` when no digits were given."""
+        return int(self.count_str) if self.count_str else None
 
     def _take_count(self) -> int:
         n = self._peek_count()
         self.count_str = ""
         return n
 
-    def _motion(self, ctx: ActionContext, code: str, count: int, select: bool) -> None:
+    def _peek_count(self) -> int:
+        return int(self.count_str) if self.count_str else 1
+
+    # -------------------------------------------------------------- motions
+
+    def _motion(self, ctx: ActionContext, code: str, count: int | None, select: bool) -> None:
         buf = ctx.buffer
-        for _ in range(count):
+        n = count if count is not None else 1
+        for _ in range(n):
             if code == "h":
                 buf.move_left(select=select)
             elif code == "l":
@@ -479,9 +564,9 @@ class VimKeymap(Keymap):
             elif code == "$":
                 buf.move_line_end(select=select)
             elif code == "G":
-                if self.count_str:
-                    # jump, not repeatable
-                    buf.set_cursor((self._take_count() - 1, 0), select=select)
+                if count is not None:
+                    # jump, not repeatable: the count names the target line
+                    buf.set_cursor((count - 1, 0), select=select)
                 else:
                     buf.move_doc_end(select=select)
                 break  # G is a jump, never repeat it count times
@@ -489,19 +574,54 @@ class VimKeymap(Keymap):
                 # pending gg handled in caller
                 break
 
-    def _apply_operator(self, ctx: ActionContext, op: str, code: str, count: int) -> None:
+    # ------------------------------------------------------------ operators
+
+    def _apply_operator(self, ctx: ActionContext, op: str, code: str) -> None:
+        """Run *op* over the charwise region covered by motion *code*."""
+        motion_typed = self._typed_count()
+        self.count_str = ""
+        effective = (self.op_count or 1) * (motion_typed or 1)
+        given = self.op_count is not None or motion_typed is not None
+        count = effective if given else None
+        self.op = None
+        self.obj_scope = None
+        self.op_count = None
         buf = ctx.buffer
-        ui = ctx.ui
         start = buf.cursor
+        if op == "c" and code == "w" and self._on_non_blank(buf):
+            # vim special case: cw on a word is ce; on whitespace it stays dw
+            code = "e"
         buf.anchor = start
         self._motion(ctx, code, count, select=True)
+        if code == "G" and count is not None:
+            # vim's G lands on the first char of the target line and the
+            # operator span includes it; yate selections are half-open
+            r = buf.row
+            buf.cursor = (r, min(1, len(buf.lines[r])))
+        self._apply_span(ctx, op, start, buf.cursor)
+
+    def _apply_span(self, ctx: ActionContext, op: str, start: Pos, end: Pos) -> None:
+        """Run *op* over the charwise span from *start* to *end* (inclusive)."""
+        buf = ctx.buffer
+        ui = ctx.ui
+        buf.anchor = start
+        buf.cursor = end
         if op == "y":
             buf.yank_selection()
             buf.cursor = start
             buf.anchor = None
             ui.message("yanked")
+            return
+        text = buf.delete_selection()
+        if text is not None:
+            buf.register = text
+        if op == "c":
+            self._enter_insert(ui)
         else:
-            text = buf.delete_selection()
-            if text is not None:
-                buf.register = text
             ui.message("deleted")
+
+    @staticmethod
+    def _on_non_blank(buf: TextBuffer) -> bool:
+        """Whether the cursor sits on a non-blank character."""
+        line = buf.lines[buf.row]
+        return buf.col < len(line) and not line[buf.col].isspace()

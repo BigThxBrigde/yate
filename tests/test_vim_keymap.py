@@ -803,3 +803,93 @@ def test_visual_line_toggle_on_an_empty_line() -> None:
     _press(keymap, ctx, "V")
     assert keymap.mode is VimMode.VISUAL
     assert editor.buffer.has_selection() is False
+
+
+# --- counted operators and the change operator -------------------------------
+
+
+def test_counted_dd_deletes_n_lines() -> None:
+    """3dd removes three lines into the register."""
+    editor, keymap, ctx = _setup("one\ntwo\nthree\nfour")
+    _press(keymap, ctx, "3", "d", "d")
+    assert editor.buffer.lines == ["four"]
+    assert editor.buffer.register == "one\ntwo\nthree\n"
+
+
+def test_counted_yy_yanks_n_lines_and_keeps_the_cursor() -> None:
+    """2yy yanks two lines; the cursor stays put like vim."""
+    editor, keymap, ctx = _setup("one\ntwo\nthree")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "2", "y", "y")
+    assert editor.buffer.register == "one\ntwo\n"
+    assert editor.buffer.cursor == (0, 1)
+    assert editor.buffer.has_selection() is False
+
+
+def test_operator_count_multiplies_the_motion_count() -> None:
+    """2d3w covers six words: operator and motion counts multiply."""
+    editor, keymap, ctx = _setup("one two three four five six seven")
+    _press(keymap, ctx, "2", "d", "3", "w")
+    assert editor.buffer.get_text() == "seven"
+
+
+def test_d5G_deletes_through_the_first_char_of_line_five() -> None:
+    """d5G is charwise inclusive of the target line's first character."""
+    editor, keymap, ctx = _setup("l1\nl2\nl3\nl4\nl5\nl6")
+    editor.buffer.set_cursor((2, 1))
+    _press(keymap, ctx, "d", "5", "G")
+    assert editor.buffer.lines == ["l1", "l2", "l5", "l6"]
+
+
+def test_5dG_also_targets_line_five() -> None:
+    """A count before the operator reaches the G motion too."""
+    editor, keymap, ctx = _setup("l1\nl2\nl3\nl4\nl5\nl6")
+    _press(keymap, ctx, "5", "d", "G")
+    assert editor.buffer.lines == ["5", "l6"]
+
+
+def test_dgg_deletes_the_lines_up_to_the_first_one() -> None:
+    """dgg removes the lines from the top through the cursor line."""
+    editor, keymap, ctx = _setup("l1\nl2\nl3")
+    editor.buffer.set_cursor((2, 0))
+    _press(keymap, ctx, "d", "g", "g")
+    assert editor.buffer.get_text() == ""
+    assert editor.buffer.register == "l1\nl2\nl3\n"
+
+
+def test_cw_changes_the_word_without_trailing_space() -> None:
+    """cw on a word is ce: the trailing space survives."""
+    editor, keymap, ctx = _setup("foo bar")
+    _press(keymap, ctx, "c", "w", "X", ESC)
+    assert editor.buffer.get_text() == "X bar"
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_cw_on_whitespace_deletes_to_the_next_word() -> None:
+    """cw on whitespace behaves like dw."""
+    editor, keymap, ctx = _setup("a   b")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "c", "w", "X", ESC)
+    assert editor.buffer.get_text() == "aXb"
+
+
+def test_cc_clears_the_line_and_enters_insert() -> None:
+    """cc empties the current line for typing."""
+    editor, keymap, ctx = _setup("hello")
+    _press(keymap, ctx, "c", "c", "X", ESC)
+    assert editor.buffer.lines == ["X"]
+
+
+def test_counted_cc_clears_n_lines_into_one_empty_line() -> None:
+    """3cc collapses three lines into a single empty one."""
+    editor, keymap, ctx = _setup("aa\nbb\nccc")
+    _press(keymap, ctx, "3", "c", "c", "X", ESC)
+    assert editor.buffer.lines == ["X"]
+
+
+def test_c_dollar_changes_to_the_line_end() -> None:
+    """c$ clears the rest of the line and inserts."""
+    editor, keymap, ctx = _setup("hello world")
+    editor.buffer.set_cursor((0, 5))
+    _press(keymap, ctx, "c", "$", "X", ESC)
+    assert editor.buffer.get_text() == "helloX"
