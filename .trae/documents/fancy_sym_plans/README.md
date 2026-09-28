@@ -13,7 +13,6 @@
 
 ```powershell
 # worktree 根目录执行；解释器一律 .venv\Scripts\python.exe
-py -3.12 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e ".[dev,ts]"
 .venv\Scripts\python.exe -m pytest tests/ -q   # 基线全绿
 .venv\Scripts\python.exe -m pyright yate/ tests/ tools/   # 零诊断
@@ -55,3 +54,7 @@ A 与 C 可并行；B/C 完成后才进 D；顺序执行 E、F。
   make_roster_preview.py`（27 只 ASCII 位图 + 调色板，plan_B 落地后该
   目录整体删除）。
 - 每份子计划完成后跑各自验收命令；全部完成后再进 plan_F 统一门禁。
+
+## 人物预览图
+
+![](roster.svg)
