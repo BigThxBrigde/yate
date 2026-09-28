@@ -1455,11 +1455,15 @@ class Editor:
         """Enter or leave the full-terminal idle screensaver.
 
         While the screensaver is up this pops it; otherwise ``enable =
-        False`` only reports on the message line and a real entry filters
-        the rc ``characters`` whitelist against the roster first (unknown
-        names were already reported at startup) and pushes the overlay.
-        The idle poll re-checks the screen type before calling, so this
-        pop branch only serves the direct action paths (palette, keys).
+        False`` only reports on the message line.  A configured
+        ``characters`` whitelist that matches no roster entry refuses to
+        start too (every name was already reported at startup) -- falling
+        back to the whole roster would silently betray the explicit
+        whitelist.  A real entry filters the rc names against the roster
+        and pushes the overlay; an unconfigured whitelist (empty tuple)
+        means the whole roster.  The idle poll re-checks the screen type
+        before calling, so this pop branch only serves the direct action
+        paths (palette, keys).
         """
         if isinstance(self.app.screen, ScreensaverScreen):
             self.app.pop_screen()
@@ -1467,10 +1471,15 @@ class Editor:
         if not self.config.screen_saver.enable:
             self.message("screensaver disabled (screen_saver.enable = False)")
             return
+        configured = self.config.screen_saver.characters
         known = set(character_names())
-        wanted = tuple(
-            name for name in self.config.screen_saver.characters if name in known
-        )
+        if configured:
+            wanted = tuple(name for name in configured if name in known)
+            if not wanted:
+                self.message("screensaver: no valid screen_saver.characters entry")
+                return
+        else:
+            wanted = ()
         self.push_overlay(
             ScreensaverScreen(
                 wanted or character_names(),

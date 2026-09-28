@@ -169,6 +169,21 @@ class YateApp(App[None]):
         else:
             self.theme = wanted_textual
 
+        # Idle screensaver trigger: input activity pokes the tracker (see
+        # on_event) and a once-a-second poll in on_mount starts the
+        # screensaver when the configured interval elapses.  Unknown rc
+        # character names are reported here, before the Editor snapshot of
+        # ``config.errors`` so they reach the startup warning banner like
+        # every other yaterc error (config.py deliberately stays
+        # sprite-pack free, so the roster is knowable only in the shell).
+        self._idle = IdleTracker() if self.config.screen_saver.enable else None
+        known = set(character_names())
+        for name in self.config.screen_saver.characters:
+            if name not in known:
+                self.config.errors.append(
+                    f"unknown screensaver character: {name!r}"
+                )
+
         self.editor = Editor(
             self,
             self.config,
@@ -182,18 +197,6 @@ class YateApp(App[None]):
         # import the editor, so the editor must never import them back.
         populate(self.editor.actions, self.editor)
         register_commands(self.editor.commands, self.editor)
-        # Idle screensaver trigger: input activity pokes the tracker (see
-        # on_event) and a once-a-second poll in on_mount starts the
-        # screensaver when the configured interval elapses.  Unknown rc
-        # character names are reported here, where the roster is knowable
-        # (config.py deliberately stays sprite-pack free).
-        self._idle = IdleTracker() if self.config.screen_saver.enable else None
-        known = set(character_names())
-        for name in self.config.screen_saver.characters:
-            if name not in known:
-                self.config.errors.append(
-                    f"unknown screensaver character: {name!r}"
-                )
 
     @override
     def compose(self) -> ComposeResult:

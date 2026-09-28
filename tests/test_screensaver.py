@@ -8,6 +8,19 @@ from pathlib import Path
 from yate import config as cfg
 from yate.app import YateApp
 from yate.editor_view.screensaver import TICKS_PER_SECOND, ScreensaverScreen
+from yate.services.idle_tracker import IdleTracker
+
+
+class _CountingTracker(IdleTracker):
+    """Idle tracker that counts pokes (test probe for ``on_event``)."""
+
+    def __init__(self) -> None:
+        super().__init__(clock=lambda: 0.0)
+        self.pokes = 0
+
+    def poke(self) -> None:
+        self.pokes += 1
+        super().poke()
 
 
 def _doc(tmp_path: Path) -> Path:
@@ -211,5 +224,129 @@ def test_no_spawn_when_all_rows_are_taken(tmp_path: Path) -> None:
             for _ in range(300):
                 screen.advance_tick()
                 assert len(screen.walkers) == 1
+
+
+# --- idle auto-trigger wiring (YateApp.on_event poke + _check_idle poll) ----
+
+
+def test_idle_poll_auto_starts_screensaver(tmp_path: Path) -> None:
+    """A due tracker plus the 1 s poll opens the screensaver on its own.
+
+    The real tracker starts "now"; swapping in a clock frozen at 0.0 makes
+    it permanently due, so one synchronous ``_check_idle()`` call exercises
+    the exact code path the app's interval timer drives.
+    """
+
+    async def scenario() -> None:
+        app = YateApp(target=_doc(tmp_path))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            app._idle = IdleTracker(clock=lambda: 0.0)
+            app._check_idle()
+            await pilot.pause()
+            assert isinstance(app.screen, ScreensaverScreen)
+
+    asyncio.run(scenario())
+
+
+def test_idle_poll_never_retriggers_while_active(tmp_path: Path) -> None:
+    """The poll skips while the screensaver is up: no push/pop loop.
+
+    The docstring-promised guard keeps the one-second poll from toggling
+    the overlay away again; the screen stack must stay exactly as the
+    single auto-start left it.
+    """
+
+    async def scenario() -> None:
+        app = YateApp(target=_doc(tmp_path))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            app._idle = IdleTracker(clock=lambda: 0.0)
+            app._check_idle()
+            await pilot.pause()
+            assert isinstance(app.screen, ScreensaverScreen)
+            depth = len(app.screen_stack)
+            for _ in range(5):
+                app._check_idle()
+            await pilot.pause()
+            assert isinstance(app.screen, ScreensaverScreen)
+            assert len(app.screen_stack) == depth
+
+    asyncio.run(scenario())
+
+
+def test_idle_poll_skips_when_interval_zero(tmp_path: Path) -> None:
+    """``interval = 0`` disables the automatic trigger even when due."""
+
+    async def scenario() -> None:
+        rc = tmp_path / "yaterc"
+        rc.write_text('screen_saver = {"interval": 0}\n', encoding="utf-8")
+        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            assert app._idle is not None
+            app._idle = IdleTracker(clock=lambda: 0.0)
+            app._check_idle()
+            await pilot.pause()
+            assert not isinstance(app.screen, ScreensaverScreen)
+
+    asyncio.run(scenario())
+
+
+def test_idle_poll_skips_when_disabled(tmp_path: Path) -> None:
+    """``enable = False`` costs the tracker entirely: nothing polls."""
+
+    async def scenario() -> None:
+        rc = tmp_path / "yaterc"
+        rc.write_text('screen_saver = {"enable": False}\n', encoding="utf-8")
+        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            assert app._idle is None
+            app._check_idle()
+            await pilot.pause()
+            assert not isinstance(app.screen, ScreensaverScreen)
+
+    asyncio.run(scenario())
+
+
+def test_on_event_pokes_idle_tracker(tmp_path: Path) -> None:
+    """Every input event pokes the tracker through ``App.on_event``."""
+
+    async def scenario() -> None:
+        app = YateApp(target=_doc(tmp_path))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            tracker = _CountingTracker()
+            app._idle = tracker
+            await pilot.press("x")
+            await pilot.pause()
+            assert tracker.pokes >= 1
+
+    asyncio.run(scenario())
+
+
+def test_all_invalid_whitelist_is_reported_and_refused(tmp_path: Path) -> None:
+    """Every whitelist name unknown: reported at startup, refused on toggle.
+
+    The unknown names reach ``config.errors`` before the Editor snapshots
+    them, so the startup banner carries them; the toggle itself refuses
+    instead of silently falling back to the whole roster.
+    """
+
+    async def scenario() -> None:
+        rc = tmp_path / "yaterc"
+        rc.write_text(
+            'screen_saver = {"characters": ["nope1", "nope2"]}\n',
+            encoding="utf-8",
+        )
+        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        assert "unknown screensaver character: 'nope1'" in app.config.errors
+        assert "unknown screensaver character: 'nope2'" in app.config.errors
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            app.editor.execute_action("toggle_screensaver")
+            await pilot.pause()
+            assert not isinstance(app.screen, ScreensaverScreen)
 
     asyncio.run(scenario())

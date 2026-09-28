@@ -382,7 +382,7 @@ screen_saver = {
 | `enable` | `bool` | `True` | Master switch; `False` disables both the idle trigger and the `Alt+Shift+S` toggle. |
 | `interval` | `int` `0`–`3600` | `120` | Idle seconds before an automatic start; `0` keeps it manual-only. |
 | `switch` | `int` `0`–`3600` | `0` | Minimum seconds between two spawns; `0` spawns the next character as soon as the newest one is 25–50% (random) through its walk. |
-| `characters` | `list[str]` | `[]` | Whitelist of roster names; empty means all. Unknown names are reported at startup. |
+| `characters` | `list[str]` | `[]` | Whitelist of roster names; empty means all. Unknown names are reported at startup; a whitelist with no valid entry at all refuses to start the screensaver instead of falling back to all. |
 
 On screen the sprites form a small parade: each walker crosses the *current*
 terminal width and leaves through the right edge; when the newest walker is
