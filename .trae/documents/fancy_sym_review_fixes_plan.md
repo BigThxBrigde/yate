@@ -161,3 +161,18 @@ flowchart TB
     style A2 fill:#c8e6c9,color:#1a5e20
     style B fill:#bbdefb,color:#0d47a1
 ```
+
+## 六、执行结果回填（2026-09-28）
+
+| 步骤 | 结果 |
+|---|---|
+| Step 1（F1 时序前移） | 完成：校验块 + `_idle` 创建移至 `Editor(...)` 之前（app.py:172-185），注释同步改写为快照时序说明 |
+| Step 2（F3 守卫） | 完成：`configured` 为空 → 全量花名册；非空过滤后为空 → `message()` 报错并拒绝开屏（editor.py toggle_screensaver） |
+| Step 3（F2 测试） | 完成：新增 6 条用例（自动开屏 / 防重复触发 / interval=0 / enable=False / on_event poke / 全无效白名单拒绝），文件内 19 用例全绿 |
+| Step 4（文档） | 命中并修改：yaterc.en.md:385、yaterc.zh.md:346 补充"全无效白名单拒绝启动、不回退全部" |
+| Step 5（门禁） | `pytest tests/ -q` 全绿；`python -m tools.smoke_test run --fail-only` 932/932 checks、89/89 scenarios、exit 0 |
+
+- 提交：`f5b2769 fix(screensaver): surface unknown character errors and guard whitelist`
+- 偏离记录：无实质偏离。pyright 按计划在 worktree 豁免（venv editable `.pth`
+  指向主仓导致解析伪影），合并前需在标准环境跑
+  `python -m pyright yate/ tests/ tools/` 终验。
