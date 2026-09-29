@@ -39,7 +39,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, cast
 
-GITHUB_WIKI_URL: Final[str] = "https://github.com/BigThxBrigde/yate.wiki"
+GITHUB_WIKI_URL: Final[str] = "https://github.com/BigThxBrigde/yate.wiki.git"
 
 #: Name of the translation manifest written at the wiki repo root.
 MANIFEST_NAME: Final[str] = ".translation-manifest.json"
