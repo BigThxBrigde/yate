@@ -417,7 +417,10 @@ class Editor:
         self._mounted = True
         self.terminal_panel.styles.height = self.config.terminal_height
         self.terminal_panel.display = False
-        self._ext_messages.extend(self.extension_flows.load_startup_services())
+        # buffer the loader warnings BEFORE registering the servers, so a
+        # registration failure cannot lose them (baseline on_mount ordering)
+        self._ext_messages.extend(self.extension_flows.load_extensions())
+        self.extension_flows.register_configured_servers()
         await self.editor_col.mount(self.completion_popup)
         self.explorer_tree.refresh_tree()
         self.sync_explorer_visibility()

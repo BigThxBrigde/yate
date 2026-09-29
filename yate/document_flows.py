@@ -161,17 +161,20 @@ class DocumentFlows:
     def open_path(self, path: Path) -> None:
         """Open a file or switch the workspace to a directory (sync)."""
         try:
-            if path.is_dir():
-                log.info("opened folder: %s", path)
-                self.workspace.set_root(path)
-                self.explorer_tree.refresh_tree()
-                self._reveal_explorer()
-                # focus the tree so keyboard nav works immediately
-                self.explorer_tree.focus()
-                self._message(f"opened folder {path}", "info")
-                return
+            is_dir = path.is_dir()
         except OSError:
-            pass
+            is_dir = False
+        if is_dir:
+            log.info("opened folder: %s", path)
+            # OSError past the probe surfaces to the caller (fail loudly)
+            # instead of masquerading below as a failed file open
+            self.workspace.set_root(path)
+            self.explorer_tree.refresh_tree()
+            self._reveal_explorer()
+            # focus the tree so keyboard nav works immediately
+            self.explorer_tree.focus()
+            self._message(f"opened folder {path}", "info")
+            return
         if self._open_document(path) is None:
             return
         self.explorer_tree.refresh_tree()
@@ -191,8 +194,6 @@ class DocumentFlows:
             self.open_path(path)
             return
         if await self._open_document_async(path) is None:
-            return
-        if not self._mounted():
             return
         self.explorer_tree.refresh_tree()
         self.session.reset_search()

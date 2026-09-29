@@ -46,24 +46,23 @@ class ExtensionFlows:
         self.ext_files = ext_files
         self._message = message
 
-    def load_startup_services(self) -> list[str]:
-        """Load extensions and register the yaterc-declared LSP servers.
+    def load_extensions(self) -> list[str]:
+        """Load extensions from every configured source; return the warnings.
 
-        Returns the loader's warnings for the caller to buffer (the editor
-        owns its pre-mount message buffer; headless ``--diag`` runs drop
-        them, exactly as before).  Headless safe: shared by
+        The caller owns the warnings from here on: the editor buffers them
+        in its pre-mount message list *before* the servers are registered
+        (:meth:`register_configured_servers`), so a registration failure
+        cannot lose them.  Headless safe: shared by
         :meth:`yate.editor.Editor.on_mount` and ``yate --diag`` so the
         diagnostics always show exactly what a real start would load.  No
         LSP process is spawned here (servers start lazily).
         """
-        warnings = load_startup_extensions(
+        return load_startup_extensions(
             self.extension_loader,
             self.config,
             ext_dirs=self.ext_dirs,
             ext_files=self.ext_files,
         )
-        self._register_configured_servers()
-        return warnings
 
     def trust_cwd_extensions(self) -> None:
         """Trust the current workspace and load its ``./extensions`` now.
@@ -102,10 +101,10 @@ class ExtensionFlows:
         for record in failures:
             self._message(f"extension {record.name}: {record.error}", "error")
 
-    def _register_configured_servers(self) -> None:
+    def register_configured_servers(self) -> None:
         """Register LSP servers declared by the yaterc ``language_servers``.
 
-        Registration happens after extensions so an explicit rc entry with a
+        Must run after :meth:`load_extensions` so an explicit rc entry with a
         server's name replaces a same-named extension registration. Nothing
         is spawned here: the manager starts the process lazily the first time
         a matching file is shown, so merely configuring a server is free.

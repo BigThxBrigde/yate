@@ -38,11 +38,15 @@ class _FakeFlows:
     """The slice of ExtensionFlows that main() touches on the --diag path."""
 
     def __init__(self) -> None:
-        self.load_startup_services_called = False
+        self.extensions_loaded = False
+        self.servers_registered = False
 
-    def load_startup_services(self) -> list[str]:
-        self.load_startup_services_called = True
+    def load_extensions(self) -> list[str]:
+        self.extensions_loaded = True
         return []
+
+    def register_configured_servers(self) -> None:
+        self.servers_registered = True
 
 
 class _FakeEditor:
@@ -243,8 +247,9 @@ def test_diag_prints_report_without_running_tui(
     assert fmt.call_count == 1
     editor_arg = fmt.call_args.args[0]
     assert isinstance(editor_arg, _FakeEditor)
-    # startup services were loaded so the report reflects real state
-    assert editor_arg.extension_flows.load_startup_services_called
+    # extension startup ran so the report reflects real state
+    assert editor_arg.extension_flows.extensions_loaded
+    assert editor_arg.extension_flows.servers_registered
 
 
 def test_diag_with_none_yaterc_reports_no_rc_loaded(
