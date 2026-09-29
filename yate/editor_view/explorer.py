@@ -111,7 +111,7 @@ class ExplorerTree(Tree[NodeData]):
         *,
         open_path: Callable[[Path], None] | None = None,
         focus_editor: Callable[[], None],
-        window_prefix: Callable[[Key], bool],
+        window_prefix: Callable[[Key], bool] | None = None,
         **kwargs: Any,
     ) -> None:
         # The root node shows the open folder name; refresh_tree() fills it in.
@@ -367,7 +367,7 @@ class ExplorerTree(Tree[NodeData]):
         # the vim ctrl+w window chord runs before everything else (same as
         # the editor view): the pending hjkl would otherwise be eaten by
         # the navigation handlers below
-        if self.window_prefix(event):
+        if self.window_prefix is not None and self.window_prefix(event):
             event.stop()
             event.prevent_default()
             return

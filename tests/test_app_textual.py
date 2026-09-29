@@ -2053,10 +2053,10 @@ def test_vim_ctrl_w_prefix_switches_panes(pane_root: Path) -> None:
             # ctrl+w arms the prefix, h goes to the left pane (explorer)
             await pilot.press("ctrl+w")
             await pilot.pause()
-            assert app.editor.window_pending
+            assert app.editor.window_flows.window_pending
             await pilot.press("h")
             await pilot.pause()
-            assert not app.editor.window_pending
+            assert not app.editor.window_flows.window_pending
             assert app.focused is app.editor.explorer_tree
             # l goes back to the right pane (editor)
             await pilot.press("ctrl+w")
@@ -2081,12 +2081,12 @@ def test_vim_window_prefix_cancelled_by_other_keys(pane_root: Path) -> None:
             await pilot.pause()
             await pilot.press("ctrl+w")
             await pilot.pause()
-            assert app.editor.window_pending
+            assert app.editor.window_flows.window_pending
             # an unrelated key cancels the prefix and is processed normally
             before = app.editor.session.buffer.lines[0]
             await pilot.press("x")
             await pilot.pause()
-            assert not app.editor.window_pending
+            assert not app.editor.window_flows.window_pending
             assert app.editor.session.buffer.lines[0] == before[1:]  # x deleted a char
 
     asyncio.run(scenario())
@@ -2103,7 +2103,7 @@ def test_vim_insert_mode_ctrl_w_not_intercepted(pane_root: Path) -> None:
             await pilot.pause()
             await pilot.press("ctrl+w")
             await pilot.pause()
-            assert not app.editor.window_pending
+            assert not app.editor.window_flows.window_pending
 
     asyncio.run(scenario())
 

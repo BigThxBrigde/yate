@@ -15,9 +15,9 @@ scene: architecture
 ```
 L4 外壳：app.py（YateApp） / cli.py（唯一入口）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / 流程模块
-         （completion.py / prompt_flows.py / document_flows.py / shell_flows.py /
-         overlays.py / lsp_sync.py / prompt_completion.py / diagnostics.py）/
-         services/extensions.py
+         （completion.py / prompt_flows.py / document_flows.py / window_flows.py /
+         shell_flows.py / overlays.py / lsp_sync.py / prompt_completion.py /
+         diagnostics.py）/ services/extensions.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py / keymaps/registry.py（KeymapSet）
@@ -48,11 +48,12 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   （`editor.py` 不得 import 它们，否则成环）。
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`completion.py` / `prompt_flows.py` /
-  `document_flows.py` / `shell_flows.py` / `overlays.py` / `lsp_sync.py` /
-  `prompt_completion.py`）**允许** import `editor_view`（存量耦合，冻结）；
+  `document_flows.py` / `window_flows.py` / `shell_flows.py` / `overlays.py` /
+  `lsp_sync.py` / `prompt_completion.py`）**允许** import `editor_view`（存量耦合，冻结）；
   禁止向上 import `yate.editor` / `yate.app`，且**新增** `editor_view` 导入必须先在
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记
-  （`document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline）。
+  （`document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
+  `window_flows.py` 于 wave-4 以同组面登记）。
 - **R7 — 外壳装载内置表**：`YateApp.__init__` 调 `populate(editor.actions, editor)` 与
   `register_commands(editor.commands, editor)`。
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /

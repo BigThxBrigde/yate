@@ -73,16 +73,16 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- panes -------------------------------------------------------------
 
     def _split(args: str) -> None:
-        editor.split_with_path("horizontal", args)
+        editor.window_flows.split_with_path("horizontal", args)
 
     def _vsplit(args: str) -> None:
-        editor.split_with_path("vertical", args)
+        editor.window_flows.split_with_path("vertical", args)
 
     def _only(args: str) -> None:
-        editor.only_pane()
+        editor.window_flows.only_pane()
 
     def _close(args: str) -> None:
-        editor.close_pane()
+        editor.window_flows.close_pane()
 
     reg("split", _split, "split the window horizontally (:sp [file])")
     reg("sp", _split, "alias for :split")

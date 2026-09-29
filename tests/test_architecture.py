@@ -105,6 +105,12 @@ UI_FROZEN_FILES = {
         "yate.editor_view.explorer",
         "yate.editor_view.panes",
     },
+    "window_flows.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
+        "yate.editor_view.explorer",
+        "yate.editor_view.panes",
+    },
     "completion.py": {
         "yate.editor_view",
         "yate.editor_view.theme",

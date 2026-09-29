@@ -45,7 +45,7 @@ from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vsc import VscKeymap
-from yate.keymaps.vim import VimKeymap, VimMode
+from yate.keymaps.vim import VimKeymap
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.lsp_sync import LspSync
@@ -61,19 +61,12 @@ from yate.services.extensions import (
 )
 from yate.services.trust import trust_workspace
 from yate.services.workspace import Workspace
-from yate.session import Axis, EditorSession
+from yate.session import EditorSession
 from yate.shell_flows import ShellFlows
+from yate.window_flows import WindowFlows
 
 #: Trace logger ("yate.editor"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
-
-#: The keys accepted as the second half of a vim ``ctrl+w`` chord.
-_WINDOW_KEYS = frozenset(
-    {"h", "j", "k", "l", "s", "v", "q", "o",
-     "+", "plus", "-", "minus",
-     "<", "less_than_sign", ">", "greater_than_sign",
-     "=", "equals_sign", "ctrl+w"}
-)
 
 
 # ------------------------------------------------------------------- assembly
@@ -139,7 +132,6 @@ def _build_widgets(ed: Editor) -> None:
         ed.workspace,
         ed.prompt_bar,
         focus_editor=ed.focus_editor,
-        window_prefix=ed.try_window_prefix,
         id="explorer",
     )
     ed.status_bar = StatusBar(
@@ -170,9 +162,8 @@ def _build_widgets(ed: Editor) -> None:
     )
     ed.tabbar = TabBar(ed.session, ed.document_flows.activate_doc, id="tabbar")
     # The explorer is built before the flows; its open callback (fire only
-    # on user interaction, never during this synchronous construction) is
-    # bound here -- the same late-binding ``_build_pane_stack`` applies to
-    # the ctrl+w prefix in the window-flows wave.
+    # on user interaction, never during this synchronous construction) and
+    # the ctrl+w prefix hook are bound late in ``_build_pane_stack``.
     ed.explorer_tree.open_path = ed.document_flows.open_path_later
 
 
@@ -264,6 +255,24 @@ def _build_pane_stack(ed: Editor) -> None:
         readonly_notice=ed.readonly_notice,
     )
     ed.document_flows.attach_pane_stack(ed.panes, ed.completion)
+    # Window flows need the pane stack, the document flows (``:sp <dir>``
+    # opens a directory) and the widgets; the explorer's ctrl+w prefix hook
+    # is late-bound here for the same construction-order reason.
+    ed.window_flows = WindowFlows(
+        ed.app,
+        ed.session,
+        ed.panes,
+        ed.keymaps,
+        ed.document_flows,
+        ed.explorer_tree,
+        ed.prompt_bar,
+        message=ed.message,
+        has_modal_screen=ed.has_modal_screen,
+        focus_editor=ed.focus_editor,
+        focus_explorer=ed.focus_explorer,
+        after_pane_focus=ed.after_pane_focus,
+    )
+    ed.explorer_tree.window_prefix = ed.window_flows.try_window_prefix
 
 
 def _build_key_ui(ed: Editor) -> None:
@@ -317,6 +326,7 @@ class Editor:
     completion: CompletionFlows
     prompt_flows: PromptFlows
     document_flows: DocumentFlows
+    window_flows: WindowFlows
 
     def __init__(
         self,
@@ -334,7 +344,6 @@ class Editor:
         self.ext_files = [Path(p) for p in (ext_files or [])]
         self.ext_dirs = [Path(p) for p in (ext_dirs or [])]
         self._mounted = False
-        self._window_pending = False
         # ``--readonly`` startup flag: only the *file* argument is opened
         # read-only (a directory argument keeps its normal behavior).
         self.startup_readonly = readonly
@@ -505,9 +514,9 @@ class Editor:
 
         Called both by the editor view (keys typed in a pane) and by the
         application shell (keys that bubble up from other widgets).  The
-        dispatch is not side-effect free: :meth:`try_window_prefix` arms
-        and clears the ``ctrl+w`` pending chord (``_window_pending``) and
-        the completion-popup branch commits the highlighted candidate
+        dispatch is not side-effect free: the window flows arm and clear
+        the ``ctrl+w`` pending chord (``window_flows.try_window_prefix``)
+        and the completion-popup branch commits the highlighted candidate
         (``completion.accept``).  A ``True`` return means the caller must
         stop the event (R10) instead of letting it bubble into a second
         dispatch.
@@ -564,7 +573,7 @@ class Editor:
                 return True
         # vim ctrl+w window chord (armed or pending); before the other
         # chords so the prefix is consumed wherever focus currently is
-        if self.try_window_prefix(event):
+        if self.window_flows.try_window_prefix(event):
             return True
         # Global chords that raw byte dispatch cannot represent reliably.
         # alt+shift+p is the default: Windows Terminal reserves ctrl+shift+p
@@ -652,146 +661,6 @@ class Editor:
     def insert_char(self, ch: str) -> None:
         """Insert one character at the cursor (keymap ``insert_char``)."""
         self.session.buffer.insert_text(ch)
-
-    # ================================================================== panes
-
-    def split_with_path(self, axis: Axis, args: str) -> None:
-        """``:sp`` / ``:vs``: split a pane, optionally opening *args*."""
-        text = args.strip()
-        if not text:
-            self._split_pane(axis)
-            return
-        path = Path(text).expanduser()
-        if not path.is_absolute():
-            # vim resolves :sp/:vs relative paths against the current file's
-            # directory (falling back to cwd for unnamed buffers)
-            doc = self.session.doc
-            base = doc.path.parent if doc.path else Path.cwd()
-            path = base / path
-        try:
-            is_dir = path.is_dir()
-        except OSError:
-            is_dir = False
-        if is_dir:
-            self.document_flows.open_path(path)
-            return
-        self.app.run_worker(
-            partial(self._split_pane_worker, axis, path),
-            group="pane", exclusive=True, exit_on_error=False,
-        )
-
-    def _split_pane(self, axis: Axis) -> None:
-        self.app.run_worker(
-            partial(self._split_pane_worker, axis, None),
-            group="pane", exclusive=True, exit_on_error=False,
-        )
-
-    async def _split_pane_worker(self, axis: Axis, path: Path | None) -> None:
-        if path is not None:
-            # split first (the new pane becomes active), then open the file
-            # into the active pane
-            await self.panes.split_active(axis)
-            await self.document_flows.open_path_async(path)
-        else:
-            await self.panes.split_active(axis)
-            self.after_pane_focus()
-
-    def only_pane(self) -> None:
-        """``:only``: keep the active pane, close the others."""
-        self.app.run_worker(
-            # coroutine *functions* (partial), never built coroutines: an
-            # eager coroutine leaks when the worker never starts
-            partial(self.panes.only_active),
-            group="pane", exclusive=True, exit_on_error=False,
-        )
-
-    def close_pane(self) -> None:
-        """``ctrl+w q``: close the active pane (documents stay open)."""
-        if self.panes.leaf_count <= 1:
-            self.message("only one pane open (use :q to quit)", kind="warn")
-            return
-        self.app.run_worker(
-            partial(self.panes.close_active),
-            group="pane", exclusive=True, exit_on_error=False,
-        )
-
-    def resize_pane(self, key: str) -> None:
-        """``ctrl+w + - < > =``: resize the panes around the active one."""
-        if key in ("+", "plus"):
-            moved = self.panes.resize("horizontal", 1)
-        elif key in ("-", "minus"):
-            moved = self.panes.resize("horizontal", -1)
-        elif key in (">", "greater_than_sign"):
-            moved = self.panes.resize("vertical", 1)
-        elif key in ("=", "equals_sign"):
-            self.panes.equalize()
-            moved = True
-        else:  # "<" / "less_than_sign"
-            moved = self.panes.resize("vertical", -1)
-        if not moved and key not in ("=", "equals_sign"):
-            self.message("pane already at its minimum size", kind="warn")
-
-    @property
-    def window_pending(self) -> bool:
-        """True while a vim ``ctrl+w`` window chord awaits its second key."""
-        return self._window_pending
-
-    def try_window_prefix(self, event: Key) -> bool:
-        """Handle the vim ``ctrl+w`` window chord; True when consumed.
-
-        Called from the editor view *before* keymap dispatch (the vim
-        keymap swallows unmapped keys, so the shell would never see them)
-        and from :meth:`handle_key` for the other focused widgets.
-        """
-        if self.has_modal_screen():
-            return False
-        if self.prompt_bar.active_mode:
-            return False
-        if self._window_pending:
-            self._window_pending = False
-            if event.key in _WINDOW_KEYS:
-                self._window_command(event.key)
-                return True
-            return False  # any other key cancels and is processed normally
-        if self.keymaps.name == "vim" and event.key == "ctrl+w":
-            vim = self.keymaps.get("vim")
-            if isinstance(vim, VimKeymap) and vim.mode is VimMode.NORMAL:
-                self._window_pending = True
-                self.message(
-                    "ctrl+w-  (s/:split v/:vsplit q close o :only  "
-                    "h j k l move, ctrl+w cycle  + - < > = resize)"
-                )
-                return True
-        return False
-
-    def _window_command(self, key: str) -> None:
-        """Execute the second key of a vim ``ctrl+w`` window chord."""
-        if key == "ctrl+w":  # round-robin: explorer <-> every editor pane
-            self.panes.cycle_focus(
-                explorer_focused=self.app.focused is self.explorer_tree
-            )
-            return
-        if self.app.focused is self.explorer_tree:
-            # The explorer plays the left-neighbour pane: only ctrl+w l/j/k
-            # returns to an editor pane from it.
-            if key in ("l", "j", "k"):
-                self.focus_editor()
-            return
-        if key == "h":
-            if not self.panes.focus_direction("h"):
-                self.focus_explorer()
-        elif key in ("j", "k", "l"):
-            self.panes.focus_direction(key)
-        elif key == "s":
-            self._split_pane("horizontal")
-        elif key == "v":
-            self._split_pane("vertical")
-        elif key == "q":
-            self.close_pane()
-        elif key == "o":
-            self.only_pane()
-        else:  # + - < > = (canonical and raw symbol names)
-            self.resize_pane(key)
 
     # ================================================================== focus
 
