@@ -102,12 +102,14 @@
 
 1. **`legacy-issues.md` 无日期**：原 `## 历史问题` 章节未记载任何日期（两条早期 UX 问题，
    早于 2026-09-16 首次全量审查），故未按 `YYYY-MM-DD-` 前缀命名。是否补一个推定日期需确认。
-2. **仓库内仍有 3 处指向旧路径 `.trae/issues/review.md` 的引用**，均在本目录之外，
-   本次按独占边界**未修改**：
-   - `CHANGELOG.zh.md:225`
-   - `yate/resources/changelog.zh.md:224`
-   - `tools/changelog/zh_overrides.json:194`
-   建议改为指向 `.trae/review/2026-09-24-pr13-review.md`（PR #13 章节所在新文件）。
+2. ~~仓库内仍有 3 处指向旧路径 `.trae/issues/review.md` 的引用~~
+   **（2026-09-29 已修复**：三处均已改为指向 `.trae/review/2026-09-24-pr13-review.md`，
+   以 `tools/changelog/zh_overrides.json` 为源修改并重新生成全部四个 changelog 目标，
+   `python -m tools.changelog check` 通过；同时按 d66ace9 惯例回填合并后新出现的
+   8 个提交的中文摘要，缺译 112 → 104，剩余均为 v0.2.6 之前积压**）**：
+   - `CHANGELOG.zh.md`（已重新生成）
+   - `yate/resources/changelog.zh.md`（已重新生成）
+   - `tools/changelog/zh_overrides.json`（源）
 3. **同日同名章节**：原 `review.md` 中「日志/devtools 桥接评审（fix/logging-tracing-wt）— 2026-09-27」
    出现两次且标题完全相同（前者为分支评审，后者为 PR #28 AI 审查），拆分时按内容区分为
    `-devtools-bridge` 与 `-pr28-devtools-bridge` 两个文件，未合并。

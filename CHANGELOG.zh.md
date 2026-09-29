@@ -7,11 +7,13 @@
 
 ### 新功能
 
+- 每个新任务要求独立 worktree ([`07fe1a6`](https://gitee.com/jermaine/yate/commit/07fe1a6982498088e072fc261cdbff0208cffc2a))
 - 同带间隙超过距离下限即可复用行带 ([`af6dbf4`](https://gitee.com/jermaine/yate/commit/af6dbf49d16d39c173762c2bda0823aaee1c1dd1))
 - 后继产生窗口可配置 ([`30e4d4a`](https://gitee.com/jermaine/yate/commit/30e4d4ae600ee54a45962251f0a9b85a982157a7))
 
 ### 问题修复
 
+- 子代理文件对齐 Trae 规范 ([`b7b71f8`](https://gitee.com/jermaine/yate/commit/b7b71f8616e65df9fba1c3a26b715721bbfb2a6e))
 - shuffle_order 拒绝采样加上限（PR #33 评审） ([`673da84`](https://gitee.com/jermaine/yate/commit/673da84d3546c916e38a6faa65d9c08ceb2cb7d8))
 - 命令行输入不再误触 alt+shift+s ([`1862386`](https://gitee.com/jermaine/yate/commit/1862386764aeb0f171fe74916aad2b79f400edb6))
 - shuffle_order 对不可救多重集保证终止 ([`00763fb`](https://gitee.com/jermaine/yate/commit/00763fbb7a1c99af88ab7ee578cd3dad0b715af8))
@@ -21,10 +23,14 @@
 
 ### 重构
 
+- 把 shuffle 重试预算提取为常量 ([`cd46611`](https://gitee.com/jermaine/yate/commit/cd4661194cd61ca4df2ccf1981354a5408403cba))
 - 收紧空闲计时器时钟与产生簿记 ([`eccf33f`](https://gitee.com/jermaine/yate/commit/eccf33fb56dfc7bed9852d9d004475de1c580635))
 
 ### 文档
 
+- 新增任务闭环编排规则 task-orchestration ([`f085a07`](https://gitee.com/jermaine/yate/commit/f085a07ab9af5718711f3c2be1dc4ec2cbfacbf9))
+- 审查问题巨型文件拆分为带时间戳的 review 目录 ([`ca9b802`](https://gitee.com/jermaine/yate/commit/ca9b8025132823f53350d18c9a197298f9e68fc8))
+- 重新生成双语变更日志并回填中文 ([`d66ace9`](https://gitee.com/jermaine/yate/commit/d66ace9637c2ef1ca8fec2e8ebc75ccccf31a4a4))
 - 新增 api.sprites 扩展注册方案 ([`1bd6975`](https://gitee.com/jermaine/yate/commit/1bd69752651e897a6a23173dab86eefd6f87a417))
 - 新增 P1-P7 评审修复方案 ([`6380ae6`](https://gitee.com/jermaine/yate/commit/6380ae664d8e4eda981b718ecddb7d2c8a98d830))
 - 新条目改用完整提交哈希 ([`834f25b`](https://gitee.com/jermaine/yate/commit/834f25bae5b62cc657d100945ed110a0348d32d4))
@@ -34,6 +40,8 @@
 
 ### 构建与工程
 
+- 移除 task-coordinator 子代理剧本 ([`30d7909`](https://gitee.com/jermaine/yate/commit/30d790938b2116b351e8b29eade0b3412e405405))
+- 新增 plan-execute-review 代理团队定义 ([`af566a2`](https://gitee.com/jermaine/yate/commit/af566a2481f3c5510decdb4d0ad68be25c0d812b))
 - 更新 .github/sync-to-gitee.sh ([`256d45e`](https://gitee.com/jermaine/yate/commit/256d45e48e20eae847585578d391c38b796270ef))
 - 更新 .github/sync-to-gitee.sh ([`7986aa9`](https://gitee.com/jermaine/yate/commit/7986aa9208971a02adb1e948e90c681df905344e))
 
@@ -222,7 +230,7 @@
 - version_lines 下沉 cli.py，统一 vim F 键无效动作处理 ([`44b67ea`](https://gitee.com/jermaine/yate/commit/44b67eabb7e61e282be2011522e7445734fc2201))
 - 处置 2026-09-24 代码审查发现 ([`cf889b5`](https://gitee.com/jermaine/yate/commit/cf889b513624b1c45f8f0b4923a1c88c43c3220e))
 - 修复 PR #13 审查问题：原子保存保留权限、信任路径统一 resolve、未知 action 不再吞键等 ([`33584e6`](https://gitee.com/jermaine/yate/commit/33584e640a443b96b90e950eb99e8f1805d5ce3b))
-  - 含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/issues/review.md 的 PR #13 章节
+  - 含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/review/2026-09-24-pr13-review.md 的 PR #13 章节
 - 修复补全弹窗吞掉按键：其余键正常分发，可继续输入过滤候选 ([`bbeb5f6`](https://gitee.com/jermaine/yate/commit/bbeb5f6375142e1a64febf6049a4db33812c5efa))
   - 弹窗打开时仅消费 tab/enter/up/down/esc，字符照常写入缓冲区并按新前缀重新查询；Ctrl+S / Ctrl+Z 等全局快捷键恢复；新增测试与冒烟守卫（原场景此前恒真）
 - 修复冒烟命令总集快照时机 ([`d6765c4`](https://gitee.com/jermaine/yate/commit/d6765c419394afeac842667d489c49973b699f6a))
