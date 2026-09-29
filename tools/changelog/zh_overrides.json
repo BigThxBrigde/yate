@@ -32,6 +32,9 @@
   "06b1f37": {
     "summary": "修复冒烟测试在文档路径为空时的崩溃"
   },
+  "07fe1a6": {
+    "summary": "每个新任务要求独立 worktree"
+  },
   "082bc7d": {
     "summary": "语法高亮防抖并复用未失效的 token",
     "detail": "编辑时沿用上一帧 token 缓存着色，文档或文件类型切换仍立即失效"
@@ -170,6 +173,9 @@
   "2f7a7ad": {
     "summary": "S40 防抖测试脱离真实时间依赖"
   },
+  "30d7909": {
+    "summary": "移除 task-coordinator 子代理剧本"
+  },
   "30e4d4a": {
     "summary": "后继产生窗口可配置"
   },
@@ -191,7 +197,7 @@
   },
   "33584e6": {
     "summary": "修复 PR #13 审查问题：原子保存保留权限、信任路径统一 resolve、未知 action 不再吞键等",
-    "detail": "含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/issues/review.md 的 PR #13 章节"
+    "detail": "含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/review/2026-09-24-pr13-review.md 的 PR #13 章节"
   },
   "35830eb": {
     "summary": "更新日志重构计划"
@@ -703,6 +709,9 @@
   "ae220fb": {
     "summary": "收尾 P2 跟进项并加固偶发 pilot 测试"
   },
+  "af566a2": {
+    "summary": "新增 plan-execute-review 代理团队定义"
+  },
   "af6dbf4": {
     "summary": "同带间隙超过距离下限即可复用行带"
   },
@@ -731,6 +740,9 @@
   },
   "b6d1071": {
     "summary": "新增 yate --diag 诊断命令并扩展 --version 输出"
+  },
+  "b7b71f8": {
+    "summary": "子代理文件对齐 Trae 规范"
   },
   "b7ed339": {
     "summary": "yaterc、变更日志与方案同步同带距离规则"
@@ -791,11 +803,17 @@
     "summary": "补齐缺失的中文翻译并刷新变更日志",
     "detail": "为 42 条缺译条目补齐中文摘要，翻译覆盖率达 254/254"
   },
+  "ca9b802": {
+    "summary": "审查问题巨型文件拆分为带时间戳的 review 目录"
+  },
   "cb94b48": {
     "summary": "新增像素精灵包与洗牌注册表"
   },
   "cc4b1f6": {
     "summary": "修复补全触发与校验逻辑的若干边界情况"
+  },
+  "cd46611": {
+    "summary": "把 shuffle 重试预算提取为常量"
   },
   "ceba77f": {
     "summary": "修复 test_vsplit_with_file_and_only 并升级版本"
@@ -823,6 +841,9 @@
   },
   "d50ecf7": {
     "summary": "yaterc.example 补屏保配置说明"
+  },
+  "d66ace9": {
+    "summary": "重新生成双语变更日志并回填中文"
   },
   "d6765c4": {
     "summary": "修复冒烟命令总集快照时机"
@@ -909,6 +930,9 @@
   },
   "f056703": {
     "summary": "新增 AI 协作文档"
+  },
+  "f085a07": {
+    "summary": "新增任务闭环编排规则 task-orchestration"
   },
   "f0da8b2": {
     "summary": "退出时干净拆解后台服务，避免打印 traceback"

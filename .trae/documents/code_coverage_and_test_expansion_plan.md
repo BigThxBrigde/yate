@@ -199,7 +199,8 @@ fail_under = 60
 ### 7.5 冒烟
 
 按 §3.2 补了三个场景：`workspace_trust`（未信任工作区跳过 `./extensions` 并在 `:trust` 后加载；信任库重定向到临时文件，不碰用户 `~/.yate`）、
-`undo_redo_goal_col`、`replace_all_clamp`。冒烟从 **62/62 场景、651 checks → 65/65 场景、688 checks**。
+`undo_redo_goal_col`、`replace_all_clamp`。冒烟从 **62/62 场景、651 checks → 65/65 场景、688 checks**
+（**2026-09-28 核对：现 89/89 场景、932/932 checks**，`python -m tools.smoke_test run --fail-only` exit 0）。
 
 **一处偏离 §六 的产品修复**：`replace_all_clamp` 触发了 harness 的 `invariant:cursor_col`
 （"光标必须落在行内"），根因是 `SearchEngine.replace_all` 把行改短后未钳制光标（§2.2 本来就要求这条行为存在）。
@@ -282,7 +283,7 @@ Linux 侧总量只在 CI 上测得到，本地没有它的数字；在没有两�
 
 | 指标 | 补测前 | 补测后 |
 |---|---|---|
-| 场景 / checks | 65 / 688 | **86 / 889** |
+| 场景 / checks | 65 / 688 | **86 / 889**（**2026-09-28 核对：现 89 / 932**，此后场景持续增长） |
 | 命令覆盖 | 27/43 (63%) | **43/43 (100%)** |
 | action 覆盖 | 51/65 (78%) | **65/65 (100%)** |
 

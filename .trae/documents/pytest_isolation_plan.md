@@ -7,8 +7,13 @@
 >   已加入。
 > - `pyproject.toml`：`dev` 含 `pytest>=8.0`，并已配置
 >   `[tool.pytest.ini_options]`（`testpaths = ["tests"]`、`addopts = "-q"`）。
-> - 测试文件已全部为 pytest 函数风格（23 个 `tests/test_*.py` 加
->   `conftest.py`），不再依赖逐用例手动 patch HOME。
+>   **（2026-09-28 核对）** `dev` 现还含 `pytest-cov>=5.0` 与 tree-sitter 三件套
+>   （`pyproject.toml:23-30`，pyright strict 需要 ts stubs）；`[tool.pytest.ini_options]`
+>   另有 `filterwarnings = ["error::RuntimeWarning"]`（:70，未 await 的协程一律硬失败）。
+>   覆盖率门槛（75）**不在** `addopts`，只在 CI 命令行，见
+>   `pyproject.toml:71-76` 与 `.github/workflows/test.yml:69`。
+> - 测试文件已全部为 pytest 函数风格（**2026-09-28 核对：现 47 个 `tests/test_*.py`**
+>   加 `conftest.py`），不再依赖逐用例手动 patch HOME。
 > - CI 双流水线均运行 `python -m pytest tests`；`.github/workflows/test.yml`
 >   另有 `fetch-depth: 0` 与 `python -m tools.changelog check`。
 
@@ -136,6 +141,28 @@ testpaths = ["tests"]
 addopts = "-q"
 ```
 
+**（2026-09-28 核对：当前实际值）**
+
+```toml
+dev = [
+    "pyright>=1.1.400",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "tree-sitter>=0.24,<0.26",
+    "tree-sitter-python>=0.23",
+    "tree-sitter-bash>=0.23",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["error::RuntimeWarning"]
+```
+
+覆盖率配置（新增 `[tool.coverage.run]` / `[tool.coverage.report]`，`source = ["yate"]`、
+`branch = true`、`omit = ["yate/__main__.py"]`、CI 门槛 `--cov-fail-under=75`）见
+`pyproject.toml:64-103` —— 属后序覆盖率计划产物，不在本计划范围内。
+
 实施时在 .venv 执行 `pip install -e ".[dev]"`。
 
 ### 4.2 CI（两个 workflow 同步切）
@@ -214,7 +241,7 @@ python -m pytest tests -q        # 仍全绿、无 leak 标记、无 traceback
 |------|------|------|
 | `tests/conftest.py` | 新增 | autouse `isolated_home`（Path.home + USERPROFILE/HOME → tmp） |
 | `tests/test_isolation.py` | 新增 | 哨兵：隔离生效自检 |
-| `tests/*.py`（20 个） | 重写 | unittest → pytest 函数风格，见第 3 节对照表 |
+| `tests/*.py`（当时 20 个；**2026-09-28 核对：现 47 个**） | 重写 | unittest → pytest 函数风格，见第 3 节对照表 |
 | `pyproject.toml` | 修改 | dev 加 pytest；新增 `[tool.pytest.ini_options]` |
 | `.github/workflows/test.yml` | 修改 | 安装 `-e ".[dev]"`、运行 `python -m pytest tests` |
 | `.workflow/test.yml` | 修改 | 同上（Gitee Go） |

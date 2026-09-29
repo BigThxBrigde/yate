@@ -3,14 +3,19 @@
 > **实施状态（2026-09-22 核对）：✅ 已实现。**
 >
 > `tools/release/`（`__init__.py` / `__main__.py` / `cli.py`）已落地，
-> 含 `release(version, *, dry_run=False, no_push=False)`、各 helper、
-> `_VERSION_FILES` 两处 bump（`yate/__init__.py` 与
-> `tests/test_theme_palettes.py`）与"先 bump 再 generate"的两阶段提交顺序；
+> 含 `release(version, *, dry_run=False, no_push=False, branch=None)`、各 helper、
+> `_VERSION_FILES` 与"先 bump 再 generate"的两阶段提交顺序；
 > `tools/release/__init__.py` 原为空文件，现已填入 docstring。
 >
-> 注意：`tests/test_theme_palettes.py` 中的 `assertEqual(yate.__version__, ...)`
-> 必须与当前 `yate/__init__.py::__version__`（**0.2.4**）保持一致——
-> 这正是本工具 `_VERSION_FILES` 同时 bump 两处的原因。
+> **（2026-09-28 核对修正）** ① `release()` 现多一个 `branch: str | None = None`
+> 形参，CLI 增 `--branch`（`tools/release/cli.py:379,456`）；② `_VERSION_FILES`
+> **只 bump 一处**——现为 `("yate/__init__.py",)`（`cli.py:39`），
+> `tests/test_theme_palettes.py` 的静态 `assertEqual(yate.__version__, ...)`
+> 已在上游删除，改为形状断言 `test_version_matches_semver_shape`
+> （`tests/test_theme_palettes.py:270`）与"版本单一来源"断言
+> `test_pyproject_keeps_the_single_dynamic_version_source`（:278），
+> 故 helper `bump_test_assertion()` 已不存在；③ 当前
+> `yate/__init__.py:13` 为 `__version__ = "0.2.6"`。
 >
 > **后续增强（2026-09-26）**：v0.2.5 发布实操暴露了本方案"不自动回滚"
 > 决策与缺分支/远端守卫的风险，加固计划见
@@ -43,22 +48,29 @@
 python -m tools.release <version>           # 完整发布
 python -m tools.release <version> --dry-run # 只打印计划，不改文件/git
 python -m tools.release <version> --no-push # 全部做完但不推送
+python -m tools.release <version> --branch <name>  # 指定推送分支（2026-09-28 核对补入）
 ```
 - argparse（与 `tools.changelog` 一致，不用 click/typer）
 - `main(argv=None)` 可测试，返回 int 退出码
-- `release(version, *, dry_run=False, no_push=False) -> int` — 核心函数，`no_push=True` 对应 `--no-push`
+- `release(version, *, dry_run=False, no_push=False, branch=None) -> int` — 核心函数，
+  `no_push=True` 对应 `--no-push`，`branch` 对应 `--branch`（省略时从 `origin/HEAD` 探测，
+  探测失败直接拒绝，`tools/release/cli.py:404-406`）
 
-## 版本文件（bump 两处）
+## 版本文件（2026-09-28 核对：bump 一处）
 
-1. [yate/\_\_init\_\_.py:11](yate/__init__.py#L11) — `__version__ = "X.Y.Z"`
-2. [tests/test_theme_palettes.py:249](tests/test_theme_palettes.py#L249) — `self.assertEqual(yate.__version__, "X.Y.Z")`
+1. [yate/\_\_init\_\_.py:13](yate/__init__.py#L13) — `__version__ = "X.Y.Z"`
 
-**不碰 pyproject.toml**——hatchling 用 `dynamic = ["version"]` 从 `yate/__init__.py` 读取版本。
+> 原第 2 处 `tests/test_theme_palettes.py` 的静态版本断言已在上游删除
+> （现为 semver 形状断言 + pyproject 单一来源断言，见文首核对说明），
+> 因此不再参与 bump。
+
+**不碰 pyproject.toml**——hatchling 用 `dynamic = ["version"]` 从 `yate/__init__.py` 读取版本
+（`pyproject.toml:8,105-108`）。
 
 ## 模块常量
 
 ```python
-_VERSION_FILES = ("yate/__init__.py", "tests/test_theme_palettes.py")
+_VERSION_FILES = ("yate/__init__.py",)
 _CHANGELOG_FILES = (
     "CHANGELOG.md",
     "CHANGELOG.zh.md",
@@ -74,14 +86,14 @@ _CHANGELOG_FILES = (
 | `discover_repo_root()` | `-> Path` | `Path(__file__).resolve().parents[2]`（同 changelog 的实现） |
 | `read_current_version(repo)` | `-> str` | 复用 `gitdata.read_current_version(repo)` 读 `yate/__init__.py` |
 | `validate_version(version, current)` | `-> None` | semver `X.Y.Z` 格式 + 严格大于 current，失败抛 `RuntimeError` |
-| `files_dirty(repo, files)` | `-> list[str]` | `git status --porcelain -- <files>`，返回有改动的文件名列表 |
+| `files_dirty(repo, files)` | `-> list[str]` | `git status --porcelain -z -- <files>`（2026-09-28 核对：补 `-z` 以 NUL 分隔、原样保留含空格/引号/非 ASCII 的路径，`cli.py:98`），返回有改动的文件名列表 |
 | `bump_init_py(repo, version, *, dry_run)` | `-> None` | 正则替换 `__version__ = "..."`，dry_run 时只打印 |
-| `bump_test_assertion(repo, version, *, dry_run)` | `-> None` | 正则替换 `assertEqual(yate.__version__, "...")`，dry_run 时只打印 |
+| ~~`bump_test_assertion(repo, version, *, dry_run)`~~ | — | **（2026-09-28 核对：已删除）** 静态版本断言已从测试侧移除，`_VERSION_FILES` 只剩 `yate/__init__.py` |
 | `git_add(repo, files, *, dry_run)` | `-> None` | `git add <files>`，dry_run 时只打印 |
 | `git_commit(repo, message, *, dry_run)` | `-> None` | `git commit -m <message>`，dry_run 时只打印 |
 | `generate_changelog(repo, *, dry_run)` | `-> None` | 调用 `tools.changelog.cli.generate(repo)`，dry_run 时只打印 |
 | `gate_check(repo)` | `-> int` | 调用 `tools.changelog.cli.check(repo)`，返回退出码 |
-| `run_version_tests(repo)` | `-> int` | `python -m pytest tests/test_theme_palettes.py -v`，返回退出码 |
+| `run_version_tests(repo)` | `-> int` | `python -m pytest tests/test_theme_palettes.py -q -k version`（2026-09-28 核对：现为 `-q -k version`，只选两个版本守卫，`cli.py:178-191`），返回退出码 |
 | `git_tag(repo, version, *, dry_run)` | `-> None` | `git tag -a v{version} -m "Release v{version}"`，dry_run 时只打印 |
 | `git_push(repo, refspec, *, dry_run)` | `-> None` | `git push origin <refspec>`，dry_run 时只打印 |
 
@@ -90,7 +102,10 @@ _CHANGELOG_FILES = (
 ## release 函数主流程
 
 ```python
-def release(version: str, *, dry_run: bool = False, no_push: bool = False) -> int:
+def release(
+    version: str, *, dry_run: bool = False, no_push: bool = False,
+    branch: str | None = None,
+) -> int:
     repo = discover_repo_root()
     current = read_current_version(repo)
     validate_version(version, current)
@@ -100,9 +115,14 @@ def release(version: str, *, dry_run: bool = False, no_push: bool = False) -> in
     if dirty and not dry_run:
         raise RuntimeError(f"refusing to release: uncommitted changes in {dirty}")
 
-    # Step 1-2: bump 版本
+    # Step 0b（2026-09-28 核对补入）：分支/远端/tag 前置守卫，见
+    # release_tool_hardening_plan.md
+    push_branch = branch or _default_branch(repo)   # origin/HEAD，探测失败即拒绝
+    assert_in_sync(repo, push_branch)
+    assert_tag_available(repo, version)
+
+    # Step 1-2: bump 版本（2026-09-28 核对：只 bump yate/__init__.py）
     bump_init_py(repo, version, dry_run=dry_run)
-    bump_test_assertion(repo, version, dry_run=dry_run)
 
     # Step 3: 提交版本 bump
     git_add(repo, _VERSION_FILES, dry_run=dry_run)
@@ -123,10 +143,10 @@ def release(version: str, *, dry_run: bool = False, no_push: bool = False) -> in
     if run_version_tests(repo) != 0:
         raise RuntimeError("version tests failed")
 
-    # Step 8: 打 tag + 推送
+    # Step 8: 打 tag + 推送（2026-09-28 核对：推 push_branch 而非硬编码 "master"）
     git_tag(repo, version, dry_run=dry_run)
-    if not no_push and not dry_run:
-        git_push(repo, "master", dry_run=dry_run)
+    if not no_push:
+        git_push(repo, push_branch, dry_run=dry_run)
         git_push(repo, f"v{version}", dry_run=dry_run)
     return 0
 ```
@@ -157,6 +177,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 **tag 在测试通过后才创建**——测试失败则 tag 不存在，操作者可修正后重跑，无需先删 tag。
 
 **不自动回滚**——中途失败抛 `RuntimeError`，`main()` 捕获后打印并返回 1。操作者自行检查 `git log` / `git status`，跨两个 commit + tag 的自动回滚太脆弱。
+**（2026-09-28 核对：此决策已被推翻）** v0.2.5 实操后，加固计划
+[release_tool_hardening_plan.md](release_tool_hardening_plan.md) 已落地自动回滚
+（`_snapshot_texts` + `_abort_with_rollback`，`tools/release/cli.py:277-371`）：
+中途失败会删 tag、`reset --mixed` 回原 HEAD 并字节级还原文件，仅在分支已推送后才降级为人工指引。
 
 **用 pytest**——CI 用 `python -m pytest tests`，与项目测试框架一致。
 
@@ -177,7 +201,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 实现后从仓库根目录测试：
 
-1. `python -m tools.release 0.2.0 --dry-run` — 应报错 "version 0.2.0 is not greater than current 0.2.1"
+1. `python -m tools.release 0.2.0 --dry-run` — 应报错 "version 0.2.0 is not greater than current X"
+   （2026-09-28 核对：示例中的 current 为当时的 0.2.1，现 `yate/__init__.py:13` 为 **0.2.6**，
+   请以实际当前版本为准）
 2. `python -m tools.release 0.3.0 --dry-run` — 应打印各步骤的 dry-run 信息并退出 0
 3. `python -m tools.release 0.3.0` — 完整发布，结束后 `git log --oneline -3` 看到两个新 commit，`git tag --list v0.3.0` 有 tag
 4. `python -m tools.release 0.3.1 --no-push` — 全部做完但跳过推送

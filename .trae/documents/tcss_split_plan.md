@@ -2,7 +2,8 @@
 
 - Issue: <https://gitee.com/jermaine/yate/issues/IKINFT>（ENH - 从app里面拆分css到tcss文件，集成打包）
 - 分支: `enh/tcss-enh`（基于 master@479f192，worktree 位于仓库同级目录）
-- 状态: 待执行
+- 状态: ✅ **已执行**（代码侧已全部落地；**2026-09-28 核对修正**：原记"待执行"与代码不符，
+  落地证据见文末 §9「实施现状」）
 - 前置结论（已验证的事实）:
   - Textual 8.2.8 中 `App.CSS`（字符串）与 `App.CSS_PATH`（文件）最终产出的样式表等价；
     `CSS_PATH` 由 `App.__init__` 相对「App 子类所在模块目录」解析，CSS 文件在挂载时读取，
@@ -44,7 +45,7 @@
 | R2/R6/R8 | 不新增 Protocol、不引入 `TYPE_CHECKING`、不建新抽象——加载函数是一个 3 行函数 |
 | R9 | 10 个选择器全是 R9 冻结 id；「改 id 必须同步改 CSS」的同步对象从 `app.py` 变为 `app.tcss`（在 §6 步骤中注明，规则文件无需改动） |
 | 资源单一路径 | 复用 `files("yate.resources")` 先例；**不**为 CSS 扩展 `yate/paths.py` 的职责（其 docstring 明确只管 extensions/fonts） |
-| 架构测试 | `tests/test_architecture.py` 的 import 图不受影响，预期 13 用例不变绿转红 |
+| 架构测试 | `tests/test_architecture.py` 的 import 图不受影响，预期 13 用例不变绿转红（**2026-09-28 核对**：该用例数已随后续规则增至 **20**，全部通过） |
 | 大任务拆分 | 单文件、单函数级变更，规模不足以拆子计划；步骤间严格串行 |
 
 ## 4. 方案设计
@@ -222,9 +223,31 @@ flowchart LR
 
 ## 8. 交付前自检（本计划）
 
+> **2026-09-28 核对**：本计划代码侧 Step 1–Step 5 均已落地（见 §9），状态已由「待执行」改为「已执行」。
+
 - [x] 步骤粒度可执行：每步有输入/操作/验收，命令可直接复制运行
 - [x] 架构合规：不破坏依赖方向、R2/R6/R8/R9；分层职责与先例（manual.py、spec datas）对齐
 - [x] 四性覆盖：健壮性（fail-fast + 冒烟）、可维护性（先例同构、单一加载点）、
       性能（启动一次毫秒级）、扩展性（CSS_PATH 可平滑升级）
 - [x] 图表：两种运行模式资源解析图 + 打包链路图（Mermaid）
 - [x] 无遗漏：三种运行模式、两套打包通道、测试/门禁/提交/回滚均已覆盖
+
+---
+
+## 9. 实施现状（2026-09-28 文档-代码核对）
+
+本文档原记「状态: 待执行」，与当前代码不符。实测证据如下（均在 worktree `yate-enh-docs-update` 内取得）：
+
+| 计划项 | 现状 |
+|---|---|
+| Step 1 `yate/resources/app.tcss` | ✅ 已存在。含 10 条 R9 冻结 id 规则（`#bottom-dock` `#bottom` `#terminal-dock` `#body` `#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs`），外加 1 条后加的 `Widget { scrollbar-size-vertical: 1; }`（全局细滚动条，issue IKINF3）；文件头注释即声明 "selector ids are frozen by R9" |
+| Step 2 `yate/app.py` | ✅ 内联 CSS 字面量已删除；模块级 `_load_app_css()`（`app.py:43-59`，`from importlib.resources import files` + 失败即 `RuntimeError`），类体 `CSS = _load_app_css()`（`app.py:118`）。`yate/app.py` 内已无 CSS 字面量 |
+| Step 3 `tests/test_app_css.py` | ✅ 已存在，两个用例 `test_app_tcss_resource_exists_and_is_nonempty` / `test_yateapp_css_matches_bundled_tcss` 与计划一致；`python -m pytest tests/test_app_css.py --collect-only` → `2 tests collected` |
+| Step 4 `pyproject.toml` 注释 | ✅ `[tool.hatch.build.targets.wheel]` 的注释已列 `resources/app.tcss`（`pyproject.toml:113`），配置键零改动 |
+| Step 5 全量门禁 | ✅ `python -m pyright yate/ tests/ tools/` → `0 errors, 0 warnings, 0 informations`；`python -m pytest tests/ -q` → exit 0（1354 收集，架构守卫 20 passed） |
+
+未核对项（超出本次文档核对范围，需另跑）：Step 6 打包验证（wheel zip 断言、`pack/pack.ps1` 冒烟）
+与 Step 7 的提交 / issue 引用；本节不对二者作结论。
+
+**与计划的偏离**：`app.tcss` 现含 11 条规则（10 条 id + 1 条 `Widget`），比计划描述的
+"10 条纯 id 规则" 多一条后加的全局滚动条规则；"不含任何 `$theme` 变量" 的结论仍成立。

@@ -6,6 +6,29 @@
 > 性质：这不是一次补丁，而是一次**输入层重构 + 新特性（可配置键盘协议层）**。
 
 > **⚠️ 2026-09-26 分层重构后校准**（2026-09-19 定稿，重构后复核）：
+
+> **🧭 2026-09-28 文档-代码核对补注**（只补事实，不改历史正文与结论）：
+>
+> 1. **路径迁移**：全文引用的 `yate/editor_view/keys.py` **已不存在**——其 C0 编解码整体迁入
+>    `yate/keyproto/legacy.py`（`event_to_raw` L52 / `textual_key_to_raw` L87，`_CTRL_PUNCT` L23），
+>    变更见 `keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md` 执行状态表 PB1 行；`yate/interfaces.py` 亦已删除（R2）。
+> 2. **`keyproto/` 实际模块构成（6 个，非 §3 设想的 8 个）**：`chords.py`（`KeyChord` + VK/修饰位常量）、
+>    `aliases.py`（`chord_to_key_name`）、`frames.py`（`Win32InputFrame` / `Win32FrameStream` /
+>    `frame_to_key_name` / `frame_to_char` / `NAV_VK_NAMES`）、`legacy.py`、`driver_windows.py`、`__init__.py`。
+>    §3 表中的 `model.py`→ 实为 `chords.py`；`win32_input.py` + `stream.py` → 实为 `frames.py`；
+>    **`kitty.py` 与 `negotiate.py` 未落地**（实测两文件不存在；驱动只启用 win32-input-mode，见
+>    `driver_windows.py:276` 写 `\x1b[?9001h`、`:290` 写 `\x1b[?9001l`）。
+> 3. **`Ctrl+/` 已修复**（不再是下文第 2 条所述"仍失效"）：`legacy.py:28` 已登记 `"underscore": 0x1F`、
+>    `keymaps/base.py:85` 已登记 `KEY_ALIASES["\x1f"] = "ctrl-/"`（SP1，commit `b03e40f`）。
+> 4. **`Ctrl+1` 现状**：和弦驱动（`keyproto/driver_windows.py`）+ PB6 的 `?9001h` 帧解码后，
+>    WT 下 `ctrl+1` **已可达**（真机无人值守验收 12/12 PASS，见 `keybinding_fix_wt_steps_plan_g.md` PB6 行；
+>    用户手册已改写：`yate/resources/manual.en.md:374-385`）。config 侧 `key_protocol` 现只接受
+>    `auto` / `legacy`（`config.py:64,71,152`），**无** `win32`/`kitty`/`off` 三档，也无
+>    `--key-protocol` / `--reset-terminal` CLI 参数。
+> 5. **未落地的可观测性项**：`:keys` 排障面板（无该命令，`commands.py` 未注册）与
+>    `diagnostics.py` 的 `[keyboard]` 段（实测 `diagnostics.py:68-81` 的 `sections` 表无此段）。
+> 6. **行号一律会漂移**：正文/§9 速查表里的旧行号（`app.py:985-999`、`vim.py:170,415-416`、
+>    `emulator.py:139-148` 等）按本文档自述"以注释/符号名为准"处理，本次不逐条改写。
 >
 > 1. **P2.4 已被重构顺带完成**（`9fa5ac8`）：app 层 `ctrl+shift+e`/`ctrl+1`/`ctrl+p` 字符串特例已迁为
 >    `Editor.handle_key`（`yate/editor.py:618-626`，L3）的 event.key 分支，先于 keymap 派发——
@@ -14,7 +37,10 @@
 > 2. **`Ctrl+/` 仍失效且根因未变**：`\x1f` 被 Textual 命名为 `ctrl+underscore`，`event_to_raw` 无此条目 → 键被丢弃
 >    （本日实测：`XTermParser` 对 `\x1f` 输出 `ctrl+underscore`；vim `_handle_insert` L185 / `_handle_normal` L431 双吞键点）。
 >    修复 = `wt_keybinding_fix_plan.md` SP1（`_CTRL_PUNCT` 补 `underscore` + `KEY_ALIASES` 补显示别名）。
+>    **（2026-09-28 核对：已修复，见上方核对注 3。）**
 > 3. **`Ctrl+1` 结论不变**：conhost/Textual 双双丢修饰，物理不可达；唯一根治路径仍是本计划方案 B（P3–P6）。
+>    **（2026-09-28 核对：legacy 路径结论仍成立；但和弦驱动 + win32-input-mode 帧解码落地后
+>    WT 下已可达，见上方核对注 4。）**
 > 4. **锚点换算**：`yate/interfaces.py` 已删除（R2），`app.py:985-999` 等旧引用全部失效——
 >    完整换算表见姊妹文档头部「2026-09-26 校准」节，全文以其为准。
 > 5. **先行切片**：`wt_keybinding_fix_plan.md`（= 方案 A 的 P2 快速止血子集，可独立发布）已生成于本文档同目录。
@@ -31,7 +57,7 @@
 | 接管粒度（review 后修订） | **三档来源策略**：`OFF`→Textual 原生驱动；`STREAM`→接管字节流（协议帧）；`RECORD`→我们的驱动内部退回 Win32 记录读取（等价今天行为）。判定在 **driver 内部**完成且**运行时可回退**，而不是按"终端是不是 WT + 支不支持 kitty"在 App 构造前一次性选 driver class（理由见 §3.1） |
 | 方案 A 的处置 | 不再是"可选修复"，降为 **B 的前置内嵌子模块**（Phase 1–2）。它是 B 能生效的必要条件，且**可独立发布**为一次 bugfix |
 | 方案 C 的处置 | 明确**移出本计划**（WT `settings.json` unbound/sendInput）——它是"最后一公里"的用户配置助手，另立计划 |
-| 新建代码 | 新子包 `yate/keyproto/`（8 个模块）+ `YateWindowsDriver` + 新 CLI/yaterc 选项 + `:keys` 排障面板 |
+| 新建代码 | 新子包 `yate/keyproto/`（**2026-09-28 核对：实际落地 6 个模块**，非原设想的 8 个——见下方核对注）+ `YateWindowsDriver` + 新 CLI/yaterc 选项 + `:keys` 排障面板（**核对：`:keys` 面板与 `--key-protocol` / `--reset-terminal` CLI 均未落地**） |
 | 顺序铁律 | `P0 探针 → P1 KeyChord → P2 名字层(可发布) → P3 帧编解码 → P4 Driver 重构 → P5 协商 → P6 闭环(可发布) → P7 可观测性 → P8 跨平台对齐 → P9 发布`，**不许跳跃/并行换序**（理由见 §4 与姊妹文档 §12） |
 
 ---
@@ -104,6 +130,11 @@
 | `yate/keyproto/negotiate.py` | 能力探测、顺序、超时、降级、运行时状态 |
 | `yate/keyproto/stream.py` | 字节流分帧器（协议帧 vs 透传） |
 | `yate/keyproto/driver_windows.py` | `YateWindowsDriver`：替换输入线程 + 尺寸轮询 + 三级恢复 |
+
+> **2026-09-28 核对**：上表为**目标形态**，实际落地见文首核对注 2——`model.py`→`chords.py`、
+> `win32_input.py`+`stream.py`→`frames.py`（`Win32FrameStream`）、`kitty.py` 与 `negotiate.py` 未落地；
+> `aliases.py` 现只导出 `chord_to_key_name()`（无 `CANONICAL_ALIASES` / `CANONICAL_NAMES`），
+> `legacy.py` 现只导出 `event_to_raw()` / `textual_key_to_raw()`（无 `to_legacy_bytes()`）。
 
 ### 3.1 输入来源策略（review 后修订）
 
@@ -211,6 +242,10 @@
 ---
 
 ## 9. 关键证据速查
+
+> **2026-09-28 核对**：本表是 2026-09-19 的历史取证快照（行号属当时布局）。其中
+> `editor_view/keys.py` 已迁至 `keyproto/legacy.py`、`yate/app.py:985-999` 等 app 层锚点已随分层
+> 重构失效，详见文首核对注 1 / 注 6；表内 yate 侧现状（如"yate 只认 `ctrl+/`"）已被 SP1 修复改写。
 
 | 事实 | 位置 |
 |---|---|

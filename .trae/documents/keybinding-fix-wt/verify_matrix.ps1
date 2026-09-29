@@ -8,7 +8,7 @@
 #   （ctrl+字母应为 0x10/0x11/0x17/0x1F 等 C0 码；ctrl+1 在 WT/conhost 下应显示
 #    字符 0x31 + Control 修饰 —— 证明修饰键没有进入字符流，应用层无从恢复）
 # 阶段二（交互）: 按 SP5 矩阵逐项提示，启动 yate 实测后人工确认
-# 产物: 同目录 matrix_results.md（回填 SP5_gates_matrix.md 后可删除）
+# 产物: 同目录 matrix_results.md（回填 keybinding_fix_wt_gates_matrix_plan_e.md 后可删除）
 
 param(
     [string]$Python = 'd:\Programming\yate\.venv\Scripts\python.exe'
@@ -144,11 +144,11 @@ $chkLines
 
 ## 结论
 
-（回填 SP5_gates_matrix.md 矩阵与 keybinding-fix-wt/README.md 状态表后删除本文件）
+（回填 keybinding_fix_wt_gates_matrix_plan_e.md 矩阵与 keybinding-fix-wt/overview.md 状态表后删除本文件）
 "@
 
 $out = Join-Path $PSScriptRoot 'matrix_results.md'
 $report | Out-File -FilePath $out -Encoding utf8
 Write-Host "`n结果已写入: $out"
-Write-Host '请将结果回填 SP5_gates_matrix.md 与 README.md 状态表; 全部通过后本脚本可删除。'
+Write-Host '请将结果回填 keybinding_fix_wt_gates_matrix_plan_e.md 与 overview.md 状态表; 全部通过后本脚本可删除。'
 Read-Host '按回车退出'

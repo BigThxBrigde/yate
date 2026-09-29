@@ -1,16 +1,18 @@
 # Changelog
 
-> Generated from the git history on 2026-09-28 · yate 0.2.6
+> Generated from the git history on 2026-09-29 · yate 0.2.6
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.6...HEAD)
 
 ### Features
 
+- require a dedicated worktree per new task ([`07fe1a6`](https://gitee.com/jermaine/yate/commit/07fe1a6982498088e072fc261cdbff0208cffc2a))
 - reuse a busy band once the gap exceeds the distance floor ([`af6dbf4`](https://gitee.com/jermaine/yate/commit/af6dbf49d16d39c173762c2bda0823aaee1c1dd1))
 - make the successor spawn window configurable ([`30e4d4a`](https://gitee.com/jermaine/yate/commit/30e4d4ae600ee54a45962251f0a9b85a982157a7))
 
 ### Bug Fixes
 
+- conform subagent files to Trae spec ([`b7b71f8`](https://gitee.com/jermaine/yate/commit/b7b71f8616e65df9fba1c3a26b715721bbfb2a6e))
 - cap shuffle_order rejection sampling (PR #33 review) ([`673da84`](https://gitee.com/jermaine/yate/commit/673da84d3546c916e38a6faa65d9c08ceb2cb7d8))
 - keep alt+shift+s out of command-line editing ([`1862386`](https://gitee.com/jermaine/yate/commit/1862386764aeb0f171fe74916aad2b79f400edb6))
 - make shuffle_order total for unsalvageable multisets ([`00763fb`](https://gitee.com/jermaine/yate/commit/00763fbb7a1c99af88ab7ee578cd3dad0b715af8))
@@ -20,10 +22,14 @@
 
 ### Refactors
 
+- extract the shuffle retry budget into a constant ([`cd46611`](https://gitee.com/jermaine/yate/commit/cd4661194cd61ca4df2ccf1981354a5408403cba))
 - tighten tracker clocking and spawn bookkeeping ([`eccf33f`](https://gitee.com/jermaine/yate/commit/eccf33fb56dfc7bed9852d9d004475de1c580635))
 
 ### Documentation
 
+- add task-orchestration rule for the closed-loop workflow ([`f085a07`](https://gitee.com/jermaine/yate/commit/f085a07ab9af5718711f3c2be1dc4ec2cbfacbf9))
+- split the issues megafile into a timestamped review directory ([`ca9b802`](https://gitee.com/jermaine/yate/commit/ca9b8025132823f53350d18c9a197298f9e68fc8))
+- regenerate the bilingual changelog and backfill zh ([`d66ace9`](https://gitee.com/jermaine/yate/commit/d66ace9637c2ef1ca8fec2e8ebc75ccccf31a4a4))
 - add the api.sprites extension registration plan ([`1bd6975`](https://gitee.com/jermaine/yate/commit/1bd69752651e897a6a23173dab86eefd6f87a417))
 - add the P1-P7 review fix plan ([`6380ae6`](https://gitee.com/jermaine/yate/commit/6380ae664d8e4eda981b718ecddb7d2c8a98d830))
 - use the full commit hash in the new entries ([`834f25b`](https://gitee.com/jermaine/yate/commit/834f25bae5b62cc657d100945ed110a0348d32d4))
@@ -33,6 +39,8 @@
 
 ### Tooling
 
+- drop the task-coordinator subagent script ([`30d7909`](https://gitee.com/jermaine/yate/commit/30d790938b2116b351e8b29eade0b3412e405405))
+- add plan-execute-review agent team definitions ([`af566a2`](https://gitee.com/jermaine/yate/commit/af566a2481f3c5510decdb4d0ad68be25c0d812b))
 - update .github/sync-to-gitee.sh. ([`256d45e`](https://gitee.com/jermaine/yate/commit/256d45e48e20eae847585578d391c38b796270ef))
 - update .github/sync-to-gitee.sh. ([`7986aa9`](https://gitee.com/jermaine/yate/commit/7986aa9208971a02adb1e948e90c681df905344e))
 

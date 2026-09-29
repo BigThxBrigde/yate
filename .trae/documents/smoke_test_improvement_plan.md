@@ -18,8 +18,9 @@
 ## 与当前实现的差异（回写，2026-09-22）
 
 - **§现状盘点已过时**：`theme_switch` / `help_modal` 已改用 F5 入口、
-  `keymap_toggle` 已修复；`tools/smoke_baselines/` **已存在**（62 个 `.json`），
-  `compare` 不再必然输出 `no baselines`。
+  `keymap_toggle` 已修复；基线目录**已存在**（**2026-09-28 核对：路径为
+  `tools/smoke_test/smoke_baselines/`，非 `tools/smoke_baselines/`；现 63 个 `.json`**，
+  原记 62 个），`compare` 不再必然输出 `no baselines`。
 - **报告渲染**：不再集中在 `testsuite.py::_print_table`（232–249 行），
   已拆到 `tools/smoke_test/report.py`；`testsuite.py` 只保留 main 与对外重导出。
 - **文件组织**（与任务 3 的建议一致）：`cli.py` / `report.py` / `baselines.py` /
@@ -261,7 +262,10 @@ KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
 
 1. 每个场景写成 `async def _xxx(tmp: Path) -> ScenarioResult`，沿用 `Check(label, expected, actual)` + `_snapshot(app, tmp)` 结构。
 2. `Scenario` 增 `tags` 字段并追加进 `SCENARIOS`（`testsuite.py:189`）；场景数量上去后建议按标签拆到 `scenarios/` 子模块（见任务 3 的文件拆分）。
-3. 全部加完后统一跑 `python -m tools.smoke_test snapshot` 生成 `tools/smoke_baselines/*.json`（该目录当前不存在，需创建；若不想入库则在 `.gitignore` 声明）。
+3. 全部加完后统一跑 `python -m tools.smoke_test snapshot` 生成基线 `*.json`。
+   **（2026-09-28 核对）** 基线目录现为 **`tools/smoke_test/smoke_baselines/`**
+   （缺省输出目录即 `baselines.default_baseline_dir()`），已入库，现 **63 个** `.json`；
+   也可用 `--outdir DIR` 另指定。
 4. 命令名以 `yate/app_features/commands.py:67-278` 注册表为准（`w/write`、`q/quit`、`q!`、`wq`、`e/edit`、`sp/split`、`vs/vsplit`、`only`、`close`、`bn/bp`、`bd`、`set`、`theme`、`filetype`、`help`、`manual`、`changelog`、`explorer`、`diagnostics`…），动作名以 `yate/actions.py:64-168` 为准，避免臆造。
 
 ### 2.6 R 组：回归防护 `regression`（防止历史修复回退）

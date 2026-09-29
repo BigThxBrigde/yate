@@ -4,7 +4,7 @@
   `19a5c1c`，master 领先 3 提交（R13 规则 / v0.2.6 发布），无代码冲突）
 - 状态：**已实施**（2026-09-27，v6.1 复核后按子计划顺序落地；
   实测门禁与偏离记录见 §八）
-- **实施计划已拆分为子计划**：[fancy_sym_plans/](fancy_sym_plans/README.md)
+- **实施计划已拆分为子计划**：[fancy_sym_plans/](fancy_sym_plans/overview.md)
   （plan_A 精灵包 → plan_B tools.pack rosters → plan_C 配置 →
   plan_D Screen+接线 → plan_E 文档 → plan_F 门禁提交；A/C 可并行）。
   本文保留可行性/架构/版权/风险，执行细节以下分子计划为准。
@@ -35,7 +35,7 @@
    config.py `_KNOWN_OPTIONS` + `_extract_*` 形态不变（plan_C 原样有效）；
    tools/pack cli.py+icon.py 结构不变（plan_B 原样有效）；actions.py 导入
    editor_view 无架构守卫阻碍（R5 只禁 editor.py→actions 反向）。
-6. **worktree 尚无 .venv**：按 [子计划 README](fancy_sym_plans/README.md)
+6. **worktree 尚无 .venv**：按 [子计划 README](fancy_sym_plans/overview.md)
    执行前准备步骤创建（master v0.2.6 发布不改变依赖清单）。
 
 ## 一、目标与非目标
@@ -262,16 +262,16 @@ squid/crab/octopus、ufo、battle city 坦克），加入《神奇数字马戏�
 - 退出即 `pop_screen`；`on_unmount` 摘除定时器（Textual 随 Screen
   生命周期自动清理）。
 
-## 五、分步实施计划（概要；细化步骤见 [fancy_sym_plans/](fancy_sym_plans/README.md)）
+## 五、分步实施计划（概要；细化步骤见 [fancy_sym_plans/](fancy_sym_plans/overview.md)）
 
 > 解释器统一 `.venv\Scripts\python.exe`，worktree 根目录执行。
 > 以下为原步骤概览，**逐步执行的输入/文件/验收以对应子计划为准**：
-> Step 1 → [plan_A](fancy_sym_plans/plan_A_sprites.md)；
-> tools.pack rosters → [plan_B](fancy_sym_plans/plan_B_rosters_tool.md)；
-> Step 2 → [plan_C](fancy_sym_plans/plan_C_config.md)；
-> Step 3 → [plan_D](fancy_sym_plans/plan_D_screen.md)；
-> Step 4 → [plan_E](fancy_sym_plans/plan_E_docs.md)；
-> Step 5 → [plan_F](fancy_sym_plans/plan_F_final.md)。
+> Step 1 → [plan_A](fancy_sym_plans/fancy_sym_sprites_plan_a.md)；
+> tools.pack rosters → [plan_B](fancy_sym_plans/fancy_sym_rosters_tool_plan_b.md)；
+> Step 2 → [plan_C](fancy_sym_plans/fancy_sym_config_plan_c.md)；
+> Step 3 → [plan_D](fancy_sym_plans/fancy_sym_screen_plan_d.md)；
+> Step 4 → [plan_E](fancy_sym_plans/fancy_sym_docs_plan_e.md)；
+> Step 5 → [plan_F](fancy_sym_plans/fancy_sym_final_plan_f.md)。
 
 ### Step 0：worktree 环境
 

@@ -40,7 +40,7 @@ scene: python_coding
 | 私有成员 | 单下划线前缀 `_` | `_logger`、`_extract_options()` |
 | 强私有 | 双下划线前缀 `__`（仅限 name mangling 必需场景） | `__dict__`（语言内置） |
 | 类型变量 | `CamelCase` | `T = TypeVar("T")`（遗留；3.12 起由 PEP 695 语法隐式声明，见 §3.5） |
-| 异常 | `PascalCase` + `Error`/`Exception` 后缀 | `LoadConfigError` |
+| 异常 | `PascalCase` + `Error`/`Exception` 后缀 | `LspConnectionError`（`editor_lsp/client.py:76`） |
 
 ### 1.3 导入
 
@@ -66,7 +66,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import IO
 
-from textual.widgets import TextArea
+from textual.app import App, ComposeResult
 
 from yate.logs import tracing
 ```
@@ -99,10 +99,10 @@ from yate.logs import tracing
 - 可以包含 Usage 示例（使用 `::` 引导 reST 代码块）
 
 ```python
-"""Runtime trace logging for yate: stdlib :mod:`logging`, off by default.
+"""Unified logging for yate: crash reports and runtime tracing.
 
-yate has no runtime log until it is asked for one -- normal sessions write
-nothing and pay nothing ...
+:data:`tracing` is opt-in -- a normal session writes nothing and pays
+nothing ...
 
 Usage in a module::
 
@@ -195,7 +195,8 @@ if isinstance(tab_width, int) and not isinstance(tab_width, bool):
 
 - **优先使用 Python 3.9+ 原生小写泛型**：`list[str]`、`dict[str, str]`、`tuple[str, ...]`、`set[int]`。`Dict`/`List`/`Tuple`/`Set`（typing 模块大写版本）视为遗留，新代码不使用
 - **可空标注使用 `X | None`（PEP 604）**，不再使用 `Optional[X]`（3.12 基线下的首选写法；
-  存量 308 处由升级计划 SP3 统一迁移，迁移完成前两者不得混用于新代码）
+  2026-09-28 核对：升级计划 SP3 的存量迁移**已完成**，全仓（`yate/` + `tests/` + `tools/`）
+  `Optional[` 与 `Union[` 均为 **0 处**，新代码不得再引入）
 - **联合类型使用 `X | Y`**，不再使用 `Union[X, Y]`（含运行时类型别名，如 `Node = Leaf | Split`；
   3.12 运行时下 `|` 与 `Union[...]` 等价）
 - 方法返回自身实例类型时用 `typing.Self`（3.11+），替代字符串前向引用或自建 TypeVar

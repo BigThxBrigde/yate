@@ -21,6 +21,19 @@
 > 因此 §4.4 的 JS 扩展示例应同步改为直接导入（配 `from __future__ import
 > annotations`），否则会引入本仓库已清除的 `TYPE_CHECKING` 模式。
 > §5.0 依赖的"键位层支持带修饰 F 键"与 F5→F7 迁移仍未做。
+>
+> **2026-09-28 核对（补充）**：
+> - `yate/editor_view/keys.py` **已不存在**——键名↔raw 字节翻译已并入 L0 叶包
+>   **`yate/keyproto/legacy.py`**（`event_to_raw` :52、`textual_key_to_raw` :87）；
+>   文中所有指向 `editor_view/keys.py` 的引用（§5.0、§7 键位层表、§13 文件清单等）
+>   实施时一律改指 `keyproto/legacy.py`。新增 `yate/keyproto/` 是**键弦模型 + Windows
+>   驱动**叶包（`chords.py` / `aliases.py` / `legacy.py` / `driver_windows.py`），
+>   与本次键位扩展相关。
+> - `yate/app_features/terminal.py`（§3 集成终端表中的"feature 层"）**已随分层重构删除**，
+>   终端相关逻辑现只存在于 `yate/editor_view/terminal.py`（`TerminalPanel` :372）与
+>   `yate/editor_term/`。
+> - §3 表中的行号（statusbar.py、diagnostics.py、cli.py 等）已整体漂移，实施时重新定位；
+>   `--diag` 入口现为 `yate/cli.py:317-331`（`diagnostics.print_report(app.editor)`）。
 
 > 新增 `yate/editor_dap` 包（零第三方依赖、纯标准库、UI 无关），
 > 架构完全镜像 `editor_lsp`：DAP-over-stdio 客户端 + 会话/断点管理器；
@@ -85,9 +98,9 @@
 | ex 命令注册表 | [app_features/commands.py:25-42](yate/app_features/commands.py#L25-L42) `CommandRegistry`；内置命令 `register_commands` [L45-197](yate/app_features/commands.py#L45-L197)（`:term` 等 [L190-196](yate/app_features/commands.py#L190-L196)）；App 构造于 [app.py:181-182](yate/app.py#L181-L182) | `:debug` 系列在此注册；**不是** `editor_view/commands.py`（不存在） |
 | feature 生命周期模块范式 | [app_features/terminal.py](yate/app_features/terminal.py)：`toggle/open/close/spawn` 均为接收 app 的模块级函数，面板 widget 与状态标志留在 app | 新增 `app_features/debug.py` 同构：面板开关、launch/步进动作的 worker 编排、与终端面板互斥 |
 | 底部面板范式（widget） | [editor_view/terminal.py](yate/editor_view/terminal.py)：`TerminalPanel(Vertical)`（[L326](yate/editor_view/terminal.py#L326)）包 `TerminalView(Widget, can_focus=True)`（[L56](yate/editor_view/terminal.py#L56)），`TOGGLE_KEYS` [L45-47](yate/editor_view/terminal.py#L45-L47)；挂载于 [app.py:1695-1699](yate/app.py#L1695-L1699) `#bottom-dock`（注释在 L1693-1694），初始 `display=False` [L1710-1712](yate/app.py#L1710-L1712) | `DebugPanel(Vertical)` 同构挂同一 dock、terminal 之上；同一时刻只显一个；高度复用 `terminal_height` |
-| 集成终端后端（PTY/VT，新包） | [`yate/editor_term/`](yate/editor_term)：`emulator.py`（VT 仿真，内含自己的 `_MOD_ARROWS` [L108](yate/editor_term/emulator.py#L108)）、`pty_proc.py`（跨平台 PTY/`PtyProcessError`）、`shells.py`（`resolve_shell`）；`TerminalView` 经 [terminal.py:23](yate/editor_view/terminal.py#L23) import 使用，feature 层在 [terminal.py:68](yate/app_features/terminal.py#L68) 解析 shell | **Phase 1 不碰**（internalConsole 经 DAP output event 回传）；Phase 3 的 `console: "integratedTerminal"`/RunInTerminal 让 debuggee 经该 PTY 后端跑入面板（§12） |
+| 集成终端后端（PTY/VT，新包） | [`yate/editor_term/`](yate/editor_term)：`emulator.py`（VT 仿真，内含自己的 `_MOD_ARROWS` [L108](yate/editor_term/emulator.py#L108)）、`pty_proc.py`（跨平台 PTY/`PtyProcessError`）、`shells.py`（`resolve_shell`）；`TerminalView` 经 [terminal.py:23](yate/editor_view/terminal.py#L23) import 使用，~~feature 层在 [terminal.py:68](yate/app_features/terminal.py#L68) 解析 shell~~（**2026-09-28 核对：`yate/app_features/` 已随分层重构删除**，shell 解析现只在 `yate/editor_term/shells.py` / `yate/editor_view/terminal.py`） | **Phase 1 不碰**（internalConsole 经 DAP output event 回传）；Phase 3 的 `console: "integratedTerminal"`/RunInTerminal 让 debuggee 经该 PTY 后端跑入面板（§12） |
 | 状态栏分段 | [statusbar.py:40-95](yate/editor_view/statusbar.py#L40-L95) `refresh_status`；`_lsp_segment` [L97-122](yate/editor_view/statusbar.py#L97-L122)（state→文案/样式，READY 附 ✖/▲ 计数） | 仿加 `_debug_segment()`，插入右侧拼装链 [L57-60](yate/editor_view/statusbar.py#L57-L60) |
-| 键位层（原始字节） | [keymaps/base.py:22-52](yate/keymaps/base.py#L22-L52) `SPECIAL_KEYS`、[L80-117](yate/keymaps/base.py#L80-L117) `parse_key`、[L120-150](yate/keymaps/base.py#L120-L150) `key_name`、[L204-215](yate/keymaps/base.py#L204-L215) `add_binding`；Textual 键名→原始字节 [editor_view/keys.py:49-86](yate/editor_view/keys.py#L49-L86) `textual_key_to_raw`（修饰表 `_MOD_ARROWS` L18-23/`_MOD_SPECIAL` L25-29 在同文件顶部） | **需先扩展**：`<shift-f5>` 等带修饰 F 键当前解析为裸 F5（[base.py:96-98](yate/keymaps/base.py#L96-L98) 只处理单字符 shift），详见 §5.0 |
+| 键位层（原始字节） | [keymaps/base.py:22-52](yate/keymaps/base.py#L22-L52) `SPECIAL_KEYS`、[L80-117](yate/keymaps/base.py#L80-L117) `parse_key`、[L120-150](yate/keymaps/base.py#L120-L150) `key_name`、[L204-215](yate/keymaps/base.py#L204-L215) `add_binding`；Textual 键名→原始字节 **[keyproto/legacy.py:87](yate/keyproto/legacy.py#L87) `textual_key_to_raw`**（2026-09-28 核对：原 `editor_view/keys.py` 已并入该 L0 叶包，`event_to_raw` 在 :52） | **需先扩展**：`<shift-f5>` 等带修饰 F 键当前解析为裸 F5（[base.py:96-98](yate/keymaps/base.py#L96-L98) 只处理单字符 shift），详见 §5.0 |
 | 诊断报告 | [diagnostics.py:86-99](yate/diagnostics.py#L86-L99) 节注册表；lsp 节 [L391-414](yate/diagnostics.py#L391-L414)；config 节 [L288-302](yate/diagnostics.py#L288-L302)；`--diag` 入口 [cli.py:256-268](yate/cli.py#L256-L268) | 在 lsp 之后插入 `dap` 节；注意测试里有硬编码 12 节清单（见 §8.2） |
 | 模板分发 | [services/user_setup.py:102-106](yate/services/user_setup.py#L102-L106) 对内置扩展目录通配拷贝 `*.py.example` | `example_js_dap.py.example` 零改动自动随 `--setup-defaults` 分发 |
 
@@ -633,7 +646,8 @@ L172/L314/L331/L499/L518/L1213。
 **事实 2：带修饰的 F 键当前无法解析。** [parse_key](yate/keymaps/base.py#L80-L117)
 对 `<shift-f5>` 会退化为裸 F5 序列（shift 分支只大写单字符，
 [base.py:96-98](yate/keymaps/base.py#L96-L98)）；
-[textual_key_to_raw](yate/editor_view/keys.py#L49-L86)
+[textual_key_to_raw](yate/keyproto/legacy.py#L87)（2026-09-28 核对：原
+`editor_view/keys.py` 已并入该 L0 叶包）
 的修饰表只覆盖方向键/home/end/tab，没有 F 键。Shift+F5/Shift+F11
 无可用键位。
 
@@ -664,10 +678,10 @@ L172/L314/L331/L499/L518/L1213。
      `parse_key` 对 `~` 族 F 键按修饰符拼参数序列；`key_name` 与
      `KEY_ALIASES`（[L55-77](yate/keymaps/base.py#L55-L77)）
      增加逆映射，帮助覆盖层能显示 `<shift+f5>`；
-   - [editor_view/keys.py](yate/editor_view/keys.py)：
+   - [keyproto/legacy.py](yate/keyproto/legacy.py)（2026-09-28 核对：原
+     `editor_view/keys.py`）：
      `textual_key_to_raw` 识别 Textual 的 `shift+f5`/`ctrl+shift+f5`
-     事件名（mods 排序元组匹配，风格同现有 `_MOD_ARROWS`
-     [L18-23](yate/editor_view/keys.py#L18-L23)）；
+     事件名（mods 排序元组匹配，风格同现有修饰表）；
    - 本期只实现调试实际用到的 shift 组合（Shift+F5、Shift+F11），
      其余参数序列一次性支持但不绑定。
 3. **两套键位都加调试键**：vsc 全局生效；vim 仅 NORMAL/VISUAL 模式
@@ -1044,7 +1058,7 @@ python -m pytest tests/ -v
 | `yate/services/extensions.py` | 修改 | DapExtensionBridge + `api.dap` property |
 | `yate/config.py` | 修改 | `debug_options` 选项与白名单（`_KNOWN_OPTIONS` [L48-51](yate/config.py#L48-L51)） |
 | `yate/keymaps/base.py` | **修改（前置）** | 带修饰 F 键 parse/key_name/KEY_ALIASES（§5.0） |
-| `yate/editor_view/keys.py` | **修改（前置）** | textual_key_to_raw 识别 shift/ctrl+shift + F 键 |
+| `yate/keyproto/legacy.py`（2026-09-28 核对：原 `yate/editor_view/keys.py` 已并入此 L0 叶包） | **修改（前置）** | textual_key_to_raw 识别 shift/ctrl+shift + F 键 |
 | `yate/keymaps/vsc.py`、`yate/keymaps/vim.py` | 修改 | F7=command_prompt 迁移；F5/F6/F9/F10/F11/F12/Shift+F5/Shift+F11 调试动作；vim 限 NORMAL/VISUAL；DBG 分类 |
 | `yate/actions.py` | 修改 | `populate` 增调试动作（L154 view 段附近） |
 | `yate/app_features/commands.py` | 修改 | `register_commands` 注册 `:debug` 系列 |
