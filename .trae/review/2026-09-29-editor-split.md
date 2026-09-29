@@ -59,7 +59,7 @@ OverlayFlows / CompletionFlows / ShellFlows / PromptFlows / LspSync 同构
 | # | 位置 | 内容 | 处置 |
 |---|---|---|---|
 | 1 | `yate/document_flows.py`（attach_pane_stack 双属性） | `panes` / `completion` 仅在 `attach_pane_stack` 赋值，类体无声明，二段注入不变量靠调用纪律维持 | ✅ 已当场修复（`a4990c2`：类体注解，与 Editor 工厂装配属性惯例一致） |
-| 2 | `yate/extension_flows.py::load_startup_services` | 时序细微差：旧代码先 extend 缓冲后注册服务器；现告警在注册之后才返回，若 `register_server` 抛错则告警丢失。当前注册为纯内存操作，不可观测 | 📌 信息级登记（无行为差异，无需改动） |
+| 2 | `yate/extension_flows.py::load_startup_services` | 时序细微差：旧代码先 extend 缓冲后注册服务器；现告警在注册之后才返回，若 `register_server` 抛错则告警丢失。当前注册为纯内存操作，不可观测 | ✅ 同日 TRAE-code-review 复核确认后修复（`8d1fb42`：拆分 `load_extensions` / `register_configured_servers`，缓冲先于注册，精确恢复基线 on_mount 时序） |
 | 3 | `yate/editor.py::_build_pane_stack` docstring | 仍只枚举 4 个控制器，未提及 DocumentFlows 接线与 WindowFlows 构造 | ✅ 已当场修复（`a4990c2`） |
 
 ## 四、结论
@@ -67,3 +67,21 @@ OverlayFlows / CompletionFlows / ShellFlows / PromptFlows / LspSync 同构
 **通过，可合并。** 0 blocker / 0 major；3 minor 中 2 条当场修复（`a4990c2`）、
 1 条信息级保留。系列为行为保持的纪律性拆分：门禁全绿、架构边界守卫化、
 命名统一 `*Flows`、每波单独提交可独立 revert。
+
+## 五、复核记录（同日 TRAE-code-review，双校验代理共识裁决）
+
+对同一范围（`a267b7d..HEAD`）按通用评审流程二次评审：逐字对照基线取证 +
+2 个独立校验代理对全部候选问题做存在性/严重度/可达性三重裁决。
+
+- **确认并修复（`8d1fb42`，门禁全绿后提交）**：
+  1. `extension_flows` 告警时序（= §三 #2，见上表）；
+  2. `document_flows.open_path` try 范围过宽（基线逐字迁移的存量怪癖）：
+     目录分支 OSError 曾静默落入 `_open_document` 误报 "not a text file"，
+     现收窄 try 到 `is_dir` 探测、错误显式暴露；
+  3. `open_path_async` 未挂载早退守卫（基线逐字迁移、全部调用方挂载后运行、
+     不可达防御代码）：删除，与同步版尾部一致。
+- **判为误报剔除**：DocumentFlows 二段注入无运行时守卫——`attach_pane_stack`
+  在同步 `__init__` 内完成、用户流均在挂载后派发，运行时守卫即死代码
+  （不变量已由 `a4990c2` 类注解固化）。
+- 修复后门禁复测：pyright 0 诊断 / pytest 全绿（覆盖率 90.74%）/
+  架构 20 passed / 冒烟 932/932 / `--diag` 退出码 0。
