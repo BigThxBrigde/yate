@@ -234,3 +234,5 @@ master（含 screensaver 等）已合入（merge `6ec0cad`，无冲突）；合�
 **测试**：更新 2 处旧钉定（`test_word_motions` 的 e → col 6；wrap 测试 (1,0) → (1,1) 并补空行跳过变体）；新增 4 个测试（词尾字符落点 + doc 末尾不动 + 分隔符起跳 + count、punct 类边界、`de` 词尾延伸、`cw` 词尾单字符）。
 
 **门禁实测**：pyright 0 诊断；pytest 全绿 + 覆盖率 **90.62%** 达标（首轮与 pyright 并跑时 `test_edit_keeps_colors_instead_of_flashing` 偶发失败，单跑与全量复跑均绿，判定并发干扰非回归）；冒烟 **89/89 场景、932/932 检查 exit 0**；架构守护 20 例随全量通过。
+
+后续复查又发现 4 个同性质 motion 偏差（`w`/`b` 跨行落点、`$` 落点、`G`/`gg` first non-blank），修复方案独立成文：[`vim_keymap_review_motion_fixes_plan.md`](vim_keymap_review_motion_fixes_plan.md)。
