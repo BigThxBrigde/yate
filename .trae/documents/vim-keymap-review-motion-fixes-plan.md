@@ -1,6 +1,6 @@
 # vim motion 边界偏差修复方案（w/b/$/G，review-vim-keymap 续作）
 
-> 来源评审：[`vim_keymap_review_plan.md`](vim_keymap_review_plan.md)（§三「e motion
+> 来源评审：[`vim-keymap-review-plan.md`](vim-keymap-review-plan.md)（§三「e motion
 > 边界修复」之后的复查发现）。本文件为该评审修复批次的独立方案。
 
 ## 一、目标与非目标
@@ -48,7 +48,7 @@
 - `python -m pyright yate/ tests/ tools/`（0 诊断）；
 - `python -m pytest tests --cov=yate --cov-branch --cov-fail-under=75 -q`（全绿，覆盖率不回退）；
 - `python -m tools.smoke_test run`（89/89）；
-- 计划文档回填（本文件 + vim_keymap_review_plan.md 补记）→ 按 git-commit-message 分笔提交。
+- 计划文档回填（本文件 + vim-keymap-review-plan.md 补记）→ 按 git-commit-message 分笔提交。
 
 ## 四、风险与回滚
 
