@@ -61,6 +61,7 @@
 | 2026-09-27 | tcss 拆分实现评审（分支 `enh/tcss-enh`，Issue IKINFT） | ✅ 通过（总评 93/100） | 0 阻断 / 3 建议 | ✅ 已全修（全部当场修复于 `7e51d6b`） | [2026-09-27-tcss-split.md](2026-09-27-tcss-split.md) |
 | 2026-09-27 | UI refine 评审（分支 `enh/ui-refine`，Issue IKINF3）+ **PR #29** AI 审查 | ❌ PR #29 功能性未通过（1 阻断）→ ✅ 已修复 | 1 阻断 / 3 改进（PR #29）+ 2 架构张力 | 🟡 部分待修：阻断与改进已修 + T1/T2 已治理；1 性能项 ⏸ 挂起、1 项 📌 记录保留 | [2026-09-27-ui-refine.md](2026-09-27-ui-refine.md) |
 | 2026-09-29 | **Gitee PR #35** 评审（vim 键位保真分支，AI 队友审查） | ⛔ 1 阻断（operator 排他端点未钳制）→ ✅ 修复后通过 | 1 阻断 / 3 改进 | ✅ 阻断与 2 项改进已修（`c7c7f69`）；1 项 ⏸ 明确不修（见速览 #11） | [2026-09-29-pr35-vim-keymap.md](2026-09-29-pr35-vim-keymap.md) |
+| 2026-09-29 | editor-split 系列评审（分支 `ref/editor-refactoring`，5 提交，editor.py 1425→882 行） | ✅ 通过（0 阻断 / 0 major） | 0 阻断 / 3 minor | ✅ 2 minor 当场修复（`a4990c2`）、1 项 📌 信息级登记 | [2026-09-29-editor-split.md](2026-09-29-editor-split.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
