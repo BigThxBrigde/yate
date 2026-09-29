@@ -165,8 +165,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - [ ] 组件行为写在组件内部（自持），而不是加回 `Editor` 或外壳？
 - [ ] `Editor` 只新增"横跨多个协作者的操作"；单一流程已拆成独立模块（参照 `completion.py`）？
 - [ ] 没有新增 `Protocol`（除 `PaneRegistry`）、`TYPE_CHECKING`、`Any`、`# type: ignore`？
-- [ ] 没有使用 `*Feature` / `*Host` / `*Ops` / `*Delegate` 命名？
-      （白名单：`PaneHost`、`PaneManager`、`LspManager`；`*Controller` 仅限流程类如 `CompletionController`）
+- [ ] 没有使用 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `*Controller` 命名？
+      （白名单：`PaneHost`、`PaneManager`、`LspManager`；流程模块按职责命名：
+      UI 流程编排一律 `*Flows`，同步适配器按动词命名如 `LspSync`；
+      存量 `ShellFlow` / `CompletionController` / `OverlayController` 随 flows-rename 迁移）
 - [ ] 新 widget 需要外壳 CSS 时，id 已由 `Editor` 传入（R9），且已同步
       `yate/resources/app.tcss`（外壳 CSS 现为该打包资源，非 `app.py` 内联字符串）？
 - [ ] 新按键路径不会造成二次派发（R10）？
@@ -219,7 +221,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `def update_sidebar_head` / `.styles.background =` / `.styles.scrollbar_`（文本断言；
   Editor 自有的布局职责如 terminal dock 高度不误伤）；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`
-  （白名单：`PaneHost`；`*Manager` / `*Controller` 允许）。
+  （白名单：`PaneHost`；`*Manager` / `*Controller` 允许——flows-rename 落地后
+  `*Controller` 收紧进禁用列表，与自检清单一致）。
 
 **20 个用例逐条对照**（2026-09-28 实测 `20 passed`）：
 
