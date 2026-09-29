@@ -48,7 +48,7 @@
 > | P5.5 `--key-protocol` / `--reset-terminal` CLI | ❌ **未落地**（`cli.py` 无这两个参数） |
 > | P7.1 `:keys` 面板 / P7.2 `[keyboard]` diag | ❌ **未落地**（`commands.py` 无 `keys` 命令；`diagnostics.py:68-81` 的 `sections` 表无 `keyboard`）——PB4 已登记为"暂缓" |
 > | P0 `tools/probe_keys.py` / `tests/fixtures/win32_input_frames.py` | ❌ 未入库（两路径实测不存在）；探针产物留在 `keybinding-fix-wt/win32im_probe.py`、`pb6_real_input_harness.py` |
-> | P9.4 `.trae/issues/issues.md:171` | ⚠️ `.trae/issues/` 目录已不存在（审查文档整体迁至 `.trae/review/`） |
+> | P9.4 `.trae/issues/issues.md:171` | ⚠️ `.trae/issues/` 目录已不存在（审查文档整体迁至 `.trae/reviews/`） |
 > | 测试文件命名 | 实际为 **`tests/test_keyproto.py`**（单文件，覆盖 chord / 别名 / 帧 / legacy），非 §7 列的 `test_keyproto_model.py` / `_frames` / `_negotiate` / `_driver` / `_source` / `_recovery` |
 
 ---

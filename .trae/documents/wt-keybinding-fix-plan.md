@@ -175,7 +175,7 @@ flowchart LR
 - **输入**：SP1-SP3 的实施结果。
 - **改动**：
   - `.trae/issues/review.md`：**（2026-09-28 核对：`.trae/issues/` 目录已不存在，审查文档整体迁至
-    `.trae/review/`——现路径 `.trae/review/review.md`）** 历史问题区新增「Windows Terminal 键位失效（IKH1RA）」条目，标注 `ctrl+p` 已随重构修复、`ctrl+/` 由本计划修复、`ctrl+1` 受终端限制文档化；
+    `.trae/reviews/`——现路径 `.trae/reviews/review.md`）** 历史问题区新增「Windows Terminal 键位失效（IKH1RA）」条目，标注 `ctrl+p` 已随重构修复、`ctrl+/` 由本计划修复、`ctrl+1` 受终端限制文档化；
   - `.trae/documents/code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md`：N8 状态从 ⏸ 改为 ✅（ctrl+/ 修复落地 + ctrl+1 kitty-only 说明），撤销"待 KeyBinding 在 WT 重构后彻底修复"备注；
   - 本文档状态改为"已实施"，附实测数字（pyright/pytest/冒烟）与偏离校准。
 - **输出**：三处文档与代码状态一致。

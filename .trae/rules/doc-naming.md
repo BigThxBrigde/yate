@@ -25,12 +25,12 @@
 
 ## 二、审查与评审文档
 
-### 2.1 评审记录（`.trae/review/`）
+### 2.1 评审记录（`.trae/reviews/`）
 
 | 对象 | 命名 | 示例 |
 |---|---|---|
 | 单次评审记录 | `YYYY-MM-DD-<topic>.md`（日期前缀 + 连字符分词主题） | `2026-09-27-ui-refine.md` |
-| 目录索引 | `README.md`（review 目录保留 README 惯例） | `.trae/review/README.md` |
+| 目录索引 | `README.md`（reviews 目录保留 README 惯例） | `.trae/reviews/README.md` |
 | 历史遗留汇总 | `legacy-issues.md`（已定案保留命名） | — |
 
 同日多次评审以主题区分，不使用 `-2` / `-v2` 序号后缀。

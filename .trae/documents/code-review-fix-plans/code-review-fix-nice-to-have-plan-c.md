@@ -1,6 +1,6 @@
 # P2 Nice-to-have 修复计划
 
-> 来源：[review.md](../../review/2026-09-16-full-review.md) 2026-09-16 审查 Nice-to-have 段（2026-09-23 复核后
+> 来源：[review.md](../../reviews/2026-09-16-full-review.md) 2026-09-16 审查 Nice-to-have 段（2026-09-23 复核后
 > 仍存在的条目）。均为锦上添花，不阻塞发布；随手清理即可，无独立排期。
 > **实施状态（2026-09-25）：29 条全部落账——波次一 14 条 + 波次二 12 条（表中 ✅），
 > 决策门三项已拍板：N18 选①已落地（✅），N8 挂起备注（⏸），
@@ -54,7 +54,7 @@
   N27/N28/N31（SP7）。门禁实测（两波收尾各跑一轮，数字相同）：pyright 全仓 0 诊断；
   pytest 全量全绿（7 个既有 POSIX skip）；冒烟 **87/87 场景 · 907/907 checks · exit 0**
   （收尾批补入 `terminal_focus_editor` 后为 88/88 · 917/917，见下）。
-  逐条证据见 [review.md](../../review/2026-09-16-full-review.md) 对应条目的 ✅ 注记。
+  逐条证据见 [review.md](../../reviews/2026-09-16-full-review.md) 对应条目的 ✅ 注记。
 - **N1 行为变更待用户人工确认**：CRLF 文件保存后保留 CRLF（不再强制 LF）——请在真实
   CRLF 文件上编辑保存一次确认；不满意可低成本回退（`Document.eol` 单点）。
 - **波次二校准**：N10 锚点为 `session.docs`（计划写 `tabs`，实际属性名 `docs`），既有用例

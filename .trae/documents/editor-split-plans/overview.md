@@ -152,7 +152,7 @@ flowchart TB
 | wave-4 | `63717cf` | **window_flows.py**（211 行，9 方法 + property + 弦表）；editor.py 1089→958 |
 | wave-5 | `d1c1a2c` | **extension_flows.py**（125 行，装载/信任/LSP 注册）；editor.py 958→882 |
 | wave-6 修复 | `a4990c2` | 评审 minor #1/#3：DocumentFlows 类体注解 + `_build_pane_stack` docstring |
-| wave-6 评审 | `c0787e5` | 评审记录 [`.trae/review/2026-09-29-editor-split.md`](../../review/2026-09-29-editor-split.md) |
+| wave-6 评审 | `c0787e5` | 评审记录 [`.trae/reviews/2026-09-29-editor-split.md`](../../reviews/2026-09-29-editor-split.md) |
 
 **editor.py：1425 → 884 行**（目标 ~800；差额为组装工厂保留并新增三模块装配线，
 属计划内"保留组装工厂"条款，见 §一.4）。
@@ -185,7 +185,7 @@ flowchart TB
 
 0 blocker / 0 major / 3 minor（2 条当场修复于 `a4990c2`，1 条信息级保留）——
 **通过，可合并**。详见评审记录
-[`.trae/review/2026-09-29-editor-split.md`](../../review/2026-09-29-editor-split.md)。
+[`.trae/reviews/2026-09-29-editor-split.md`](../../reviews/2026-09-29-editor-split.md)。
 
 ### 偏离汇总（各子计划 §八已详录）
 

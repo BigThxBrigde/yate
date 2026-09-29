@@ -246,7 +246,7 @@ pytest 全绿 + 覆盖率 90.62% 持平、冒烟 89/89。执行记录与 2 条�
 Gitee AI 队友在
 [PR #35 评审评论](https://gitee.com/jermaine/yate/pulls/35#note_51401700_conversation_191134324)
 给出 1 阻断项 + 3 改进项。逐条登记与处置（含取证）见评审记录
-[`2026-09-29-pr35-vim-keymap.md`](../review/2026-09-29-pr35-vim-keymap.md)；
+[`2026-09-29-pr35-vim-keymap.md`](../reviews/2026-09-29-pr35-vim-keymap.md)；
 本节记修复实施。
 
 **取证结论（阻断项）**：越界路径经公开行为不可达——forward `find_char` 返回值受

@@ -19,7 +19,7 @@
 
 ## E.2 review 文档回填
 
-[review_ui_refine_20260927.md](../../review/2026-09-27-ui-refine.md) 同步三处：
+[review_ui_refine_20260927.md](../../reviews/2026-09-27-ui-refine.md) 同步三处：
 
 - §四 标题"待重构"→"已治理"，T1/T2 各追加"✅ 治理结果"段（指向本目录各 Plan）；
 - §五 整改项划线标注完成；

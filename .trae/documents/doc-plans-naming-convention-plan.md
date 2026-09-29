@@ -120,7 +120,7 @@
    `tools/`），把文件名与相对链接逐一替换为新名；相对路径前缀保持原样只换文件名。
 3. **验收命令**：
    - 全仓 `grep` 旧名 → 0 命中（`git grep` 实测）；
-   - 链接解析脚本：`.trae/review/` + 根 CHANGELOG + 全部 documents 目录的
+   - 链接解析脚本：`.trae/reviews/` + 根 CHANGELOG + 全部 documents 目录的
      markdown 相对链接全部可解析（本次扩展扫描范围到 `.trae/documents`）；
    - `git status` 确认全部为 rename。
 4. **提交**：`docs(plans): unify plan and subplan naming convention`。
@@ -148,7 +148,7 @@
      + 1 个总纲），第二轮补充纳入，命名 `code_review_fix_p1|p2_<topic>_plan_<a-g>.md`；
   3. 顺手修复 8 条历史坏链（`../../issues/review.md` 等指向已拆分 review 的相对路径，
      早前按 `.trae/issues/` 字面量 grep 漏掉的形态）→ 定向到拆分后文件
-     （`2026-09-16-full-review.md` / `2026-09-27-ui-refine.md` / `review/README.md`）；
+     （`2026-09-16-full-review.md` / `2026-09-27-ui-refine.md` / `reviews/README.md`）；
 - **遗留登记**（未动，历史遗留与本次改动无关）：
   `code_review_fix_p2_editor_dispatch_components_plan_f.md` 内
   `../../../tools/smoke_test/scenarios/integration.py` 层级少一层（HEAD 同坏）。
