@@ -5,7 +5,7 @@
 > 关联 issue：[IKINFT](https://gitee.com/jermaine/yate/issues/IKINFT)（ENH - 从 app 里面拆分 css 到 tcss 文件，集成打包）
 > 评审范围：[yate/app.py](../../yate/app.py)、[yate/resources/app.tcss](../../yate/resources/app.tcss)、[tests/test_app_css.py](../../tests/test_app_css.py)、pyproject.toml（仅注释行）
 > 评审方式：主代理多维评审 + 2 个子代理交叉验证（见 §六 诚实性说明）→ 主代理自审兜底；全部结论基于第一手 diff 与实测命令
-> 计划文档：[tcss_split_plan.md](../documents/tcss_split_plan.md)（方案 A 选型、备选否决记录、8 步执行记录）
+> 计划文档：[tcss-split-plan.md](../documents/tcss-split-plan.md)（方案 A 选型、备选否决记录、8 步执行记录）
 
 ---
 

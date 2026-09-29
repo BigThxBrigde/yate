@@ -17,7 +17,7 @@
 | pyright strict（yate/ + tests/ + tools/） | **0 errors** | 主代理与验证员各跑一次 |
 | 行覆盖率（branch 模式） | **90%**（10333 stmts / 829 partial），高于 CI gate 75 | `pytest --cov=yate --cov-branch` |
 | 冒烟 `tools.smoke_test run --coverage` | **920/920 checks（88/88 scenarios）**；命令覆盖 43/44（缺 `saveas`）、action 65/65 | exit 0 |
-| 真机无人值守验收（PB6） | SendInput 注入真实 WT + YATE_TRACE 断言 **12/12 PASS** | 见 keybinding_fix_wt_steps_plan_g.md 执行状态表 PB6 行 |
+| 真机无人值守验收（PB6） | SendInput 注入真实 WT + YATE_TRACE 断言 **12/12 PASS** | 见 keybinding-fix-wt-steps-plan-g.md 执行状态表 PB6 行 |
 
 ## 二、整体质量评分
 

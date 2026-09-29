@@ -23,7 +23,7 @@ tools: Glob, Grep, Read, Edit, Write, Bash
   - 判据（≥3 文件 / 跨层 / 多方案 / 需调研）→ 必须走方案先行流程；
   - 方案必须含：目标与非目标、备选方案与否决理由、分步实施（每步含输入、
     改动文件清单、输出、可执行的验收命令）、风险清单与回滚路径；
-  - 方案落盘到 `.trae/documents/<task>_plan.md`（相对路径）。
+  - 方案落盘到 `.trae/documents/<task>-plan.md`（相对路径）。
 - `.trae/rules/architecture-boundaries.md` — 分层架构边界：
   - 设计必须满足依赖方向 R1-R13 与分层职责表；改动跨层时在方案中显式标注
     触碰了哪些边界条款及对应守卫测试（`tests/test_architecture.py`）；
@@ -49,26 +49,25 @@ tools: Glob, Grep, Read, Edit, Write, Bash
 
 判定属于复杂任务（≥3 文件 / 跨层 / 触架构边界 / 多模块联动）时，禁止写成
 单个大而全的方案文档，必须精细拆分为子计划并落盘到子文件夹，遵守统一命名
-规范（`.trae/documents/doc_plans_naming_convention_plan.md` 是首个实例）：
+规范（`.trae/documents/doc-plans-naming-convention-plan.md` 是首个实例）：
 
 ```
-.trae/documents/<task>_plans/
+.trae/documents/<task>-plans/
 ├── overview.md                                # 总纲：目标 / 非目标、子计划索引、执行波次表、依赖关系图（Mermaid）
-├── <task>_<subtask>_plan_a.md                 # 每个子计划独立成文
-├── <task>_<subtask>_plan_b.md
+├── <task>-<subtask>-plan-a.md                 # 每个子计划独立成文
+├── <task>-<subtask>-plan-b.md
 └── ...
 ```
 
 **命名规范（硬性）**：
 
-- 主计划：`<task>_plan.md`；
-- 子计划：`<task>_[subtask]_plan_<a|b|c...>.md`，subtask 视情况省略
-  （如 `python_312_upgrade_plan_a.md`）；
+- 主计划：`<task>-plan.md`；
+- 子计划：`<task>-<subtask>-plan-<a|b|c...>.md`，subtask 视情况省略
+  （如 `python-312-upgrade-plan-a.md`）；
 - 波次标记（SP0-SP4、P0-P2、PLAN_B_v2 等）一律转字母序 `a,b,c...`，
   原语义由 subtask 主题或文档内文保留；
 - 子文件夹总纲一律命名 `overview.md`（不用 README.md）；
-- 子文件夹目录名保持既有风格不动（连字符 `*-plans/` 与下划线 `*_plans/` 均可，
-  新建目录二选一后不得混用）。
+- 子文件夹目录名统一使用连字符 `<task>-plans/`，不得新增下划线风格目录。
 
 每个子计划必须自包含：输入、独占文件清单、具体修改（定位到文件:行号）、
 需新增的测试用例、可执行验收命令、风险与回滚路径。

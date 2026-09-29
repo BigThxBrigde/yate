@@ -6,7 +6,7 @@
 > master 的 `c3fcd6f`）。两轮评审：**本地自查**（PR 前主代理 + 2 个验证子代理交叉复核，
 > 修复提交 `8b6b1b4`/`d960a08`）与 **Gitee PR #24 评审**（1 阻断 + 8 改进，修复提交
 > `1f82fae`/`dd47be0`）。逐条处理依据与实测门禁详见
-> [readonly_option_plan.md §5](../documents/readonly_option_plan.md)。
+> [readonly-option-plan.md §5](../documents/readonly-option-plan.md)。
 > **门禁（实测 2026-09-26）**：pyright 全仓 0 诊断；pytest 1239 passed / 7 skipped；
 > 架构守护测试 13 passed。
 >
