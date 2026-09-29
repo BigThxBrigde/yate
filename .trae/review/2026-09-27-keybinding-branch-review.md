@@ -5,7 +5,7 @@
 > 评审范围：键位修复主线（L0 新包 `yate/keyproto`：键弦模型 + Windows chord 驱动 + win32-input-mode 帧解码；
 > `key_protocol` 配置；双键位守卫测试）+ 分层 trace 日志（L0-L4 接入 + AST 架构守卫）
 > 评审方式：主代理通读全量 diff + 对照 Textual 8.2.8 stock 源码逐行核实 + 2 个独立验证子代理交叉复核 + 全门禁复跑
-> 历史审查：全项目级审查见 [review_20260926.md](review_20260926.md) / [review.md](review.md)，本文只记分支增量
+> 历史审查：全项目级审查见 [2026-09-26-full-project-review.md](2026-09-26-full-project-review.md) / [README.md](README.md)（评审总纲索引），本文只记分支增量
 
 ---
 

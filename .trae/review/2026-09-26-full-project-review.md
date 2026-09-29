@@ -4,7 +4,7 @@
 > 评审对象：commit `faa6d75`（master），worktree `d:/Programming/yate-review-20260926`，分支 `issues/reivew-20260926`
 > 评审范围：`yate/`（10 包 / 55 文件 / 约 16.4k 行）、`tests/`（40 文件）、`tools/`、`pyproject.toml`、CI 配置
 > 评审方式：主代理统筹 + 5 个只读子代理按模块分工评审 + 关键发现逐条实读复核 + 双跑门禁
-> 历史审查：本文不重复 [review.md](review.md) 中 2026-09-16 全量审查已闭环条目，仅记录增量发现
+> 历史审查：本文不重复 [2026-09-16-full-review.md](2026-09-16-full-review.md) 中 2026-09-16 全量审查已闭环条目，仅记录增量发现
 
 ---
 
@@ -33,7 +33,7 @@
 
 ## 三、核心问题清单
 
-**本轮未发现「致命 / 严重」级缺陷。** 历史 Critical（`:wq` 保存失败退出、LSP `_read_loop` 挂起、`register_server` 竞态等）已全部修复并带守卫测试（见 [review.md](review.md)）。以下为经实读复核确认成立的**建议级**问题，按影响排序：
+**本轮未发现「致命 / 严重」级缺陷。** 历史 Critical（`:wq` 保存失败退出、LSP `_read_loop` 挂起、`register_server` 竞态等）已全部修复并带守卫测试（见 [2026-09-16-full-review.md](2026-09-16-full-review.md)）。以下为经实读复核确认成立的**建议级**问题，按影响排序：
 
 ### 1. ConPTY 句柄跨线程关闭竞态（理论性，未定义行为类）
 - **位置**：[pty_proc.py:600-636](../../yate/editor_term/pty_proc.py#L600-L636) 与 [pty_proc.py:564-568](../../yate/editor_term/pty_proc.py#L564-L568)
