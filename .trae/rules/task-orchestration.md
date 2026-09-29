@@ -14,8 +14,16 @@
 ## 二、闭环流程（逐步登记，文档是唯一事实来源）
 
 1. 【领会】分析任务；**新任务**先建独立 worktree 与分支
-   （`git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`），
-   **续作任务**先 `git worktree list` 复用现有 worktree，禁止重复新建。
+   （`git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`）；
+   **worktree 不与主仓共享虚拟环境**——新建 worktree 后必须在其目录内重建沙箱，
+   否则后续 pyright / pytest / 冒烟全部指向主仓 `.venv`，污染主环境：
+   ```powershell
+   python -m venv .venv
+   .venv\Scripts\python.exe -m pip install -e ".[dev]"
+   ```
+   安装完成须在 worktree 内自证沙箱生效
+   （`.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` 应指向该 worktree 路径）；
+   **续作任务**先 `git worktree list` 复用现有 worktree（含其已有 `.venv`，不得重复新建）。
 2. 【方案】按 [plan-architect-designer](../agents/plan-architect-designer.md) 剧本产出方案，落盘
    `.trae/documents/<task>-plan.md`（相对路径；复杂任务拆子计划到
    `.trae/documents/<task>-plans/` 并严格定制执行波次）。**命名规范**：
