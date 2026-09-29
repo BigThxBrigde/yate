@@ -1,5 +1,13 @@
 # Issue IKH1RA 回复草稿（人工粘贴用，不自动发布）
 
+> **2026-09-28 核对警示（草稿未发布，粘贴前请按此更新口径）**：
+> 1. 正文第 1 段写的 `editor_view/keys.py` 已随 PB1 迁入 `yate/keyproto/legacy.py`（原文件删除）；
+> 2. 第 3 段「`ctrl+1` 在 WT/conhost 下物理不可达」**已过期**：和弦驱动 + win32-input-mode 帧解码
+>    （PB2/PB6）落地后，Windows 上 `ctrl+1` 已可达（真机 12/12 PASS，见 `keybinding_fix_wt_steps_plan_g.md` PB6 行）；
+>    现行用户口径见 `yate/resources/manual.en.md:374-385` / `manual.zh.md:358-368`；
+> 3. 验证数字（255 项定向 / 1228 项全量）为 2026-09-26 时点值，2026-09-28 实测为全量 1354 收集、exit 0。
+> 草稿正文按历史保留，未改写。
+
 > 原文：https://gitee.com/jermaine/yate/issues/IKH1RA
 > 「部分KeyBinding在Windows Terminal下失效：`ctrl+p`, `ctrl+1`, `ctrl+/` 等，但 `ctrl+q`, `ctrl+w` 可正常工作」
 

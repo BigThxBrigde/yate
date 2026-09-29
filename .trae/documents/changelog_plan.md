@@ -14,7 +14,12 @@
 >   （id 前缀 `doc-*`）+ `load_doc_markdown` / `load_changelog_markdown`
 >   （资源缺失返回占位文案、不抛异常）；`yate/app_features/docs.py` 提供
 >   模块级 `show_changelog(app, lang)`；`yate/cli.py` 已有 `--changelog [en|zh]`
->   早返回；`:changelog` 已在 `app_features/commands.py` 注册。
+>   早返回；`:changelog` 已在 `yate/commands.py` 注册。
+>   **（2026-09-28 核对修正）** 原写 `app_features/commands.py`：该包已在分层重构中
+>   **删除**（`yate/app_features/` 目录不存在，架构测试
+>   `tests/test_architecture.py::test_app_features_package_is_gone` 守护），
+>   `:changelog` 现由 `yate/commands.py:269` 的 `reg("changelog", _changelog, ...)`
+>   在 `register_commands()` 中注册（转发到 `Editor.show_changelog`，`yate/editor.py:1423`）。
 > - CI：`.github/workflows/test.yml` 已 `fetch-depth: 0` 并加入
 >   `python -m tools.changelog check`；`.workflow/test.yml` 同步加入该门禁。
 > - 与本文档的差异（回写，2026-09-23 更新）：`app_features/docs.py` 已删除，

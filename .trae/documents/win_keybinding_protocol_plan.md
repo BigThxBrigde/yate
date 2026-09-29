@@ -18,8 +18,8 @@
 > | `yate/app.py:918-951`（ctrl+w 和弦） | `yate/editor.py:603`（`try_window_prefix`） | 位置变了，语义不变 |
 > | `yate/app.py:957-964`（ctrl+@ 双语义） | `yate/editor.py:574-577` | 同上 |
 > | `yate/app.py:158`（driver_class 注入点） | `yate/app.py:31`（`YateApp` 类属性，需新增） | 当前无 driver_class 覆盖，P4a.3 落地时新增 |
-> | `yate/editor_view/keys.py:16`（`_CTRL_PUNCT`） | `yate/editor_view/keys.py:14` | 同文件 |
-> | `yate/editor_view/keys.py:49-86`（映射规则） | `yate/editor_view/keys.py:47-84`（`textual_key_to_raw`） | 同文件 |
+> | `yate/editor_view/keys.py:16`（`_CTRL_PUNCT`） | `yate/keyproto/legacy.py:23`（**2026-09-28 核对**：`editor_view/keys.py` 已删除，模块整体迁入 `keyproto/legacy.py`） | 已迁包 |
+> | `yate/editor_view/keys.py:49-86`（映射规则） | `yate/keyproto/legacy.py:87`（`textual_key_to_raw`；`event_to_raw` 在 `:52`） | 已迁包 |
 > | `yate/keymaps/vim.py:170,415-416`（吞键点） | `yate/keymaps/vim.py:185`（insert 尾）/ `:427-431`（normal 尾 `# swallow unmapped normal keys`） | P2.5 目标 |
 > | `yate/editor_term/emulator.py:139-148` / `:156-161` | `yate/editor_term/emulator.py:143-144` / `:157-162` | `ctrl+/` 仍缺失（`^`/`_`/`?` 已在），P2.6 目标 |
 > | `yate/config.py`（`_KNOWN_OPTIONS:48-51`） | `yate/config.py:50` | P5.5 落点 |
@@ -31,7 +31,25 @@
 > **P2 状态重估**：P2.4 ✅（重构完成，改做回归守卫）；P2.3 大部分 ✅（`Editor.handle_key` 原生持有 event.key，只剩"名字传入 keymap 查找"一环）。P2.1 / P2.2 / P2.5 / P2.6 / P2.7 / P2.8 未做。
 > **P2 的精化与先行实施文档**：`wt_keybinding_fix_plan.md`（快速止血子集：ctrl+/ 映射修复 + 守卫 + 文档化），作为 P2 的第一个可交付切片先行落地。
 >
-> **架构合规**（新增约束，实施时必须遵守）：`yate/keyproto/` 定位 **L0 叶子包**（不 import yate 上层；`driver_windows.py` 只依赖 Textual 第三方）；`keymaps/base.py`(L1)、`editor_view/keys.py`(L2)、`editor_term/emulator.py`(L0) → keyproto 均为向下依赖，合规；不新增 `Protocol`（R2）/`TYPE_CHECKING`（R6）/`Any`；`KeyChord` 用 PEP 695/3.12 dataclass 风格；pyright strict 零诊断；`tests/test_architecture.py` 13 用例保持全绿；driver 合成的事件进入既有派发路径，不得绕过 `EditorView.on_key` 的 R10 单次派发约定。
+> **架构合规**（新增约束，实施时必须遵守）：`yate/keyproto/` 定位 **L0 叶子包**（不 import yate 上层；`driver_windows.py` 只依赖 Textual 第三方）；`keymaps/base.py`(L1)、~~`editor_view/keys.py`(L2)~~、**（2026-09-28 核对：该模块已删除、内容并入
+`yate/keyproto/legacy.py`，此处所指依赖方向现为 `keyproto → keymaps.base`，仍合规）**、`editor_term/emulator.py`(L0) → keyproto 均为向下依赖，合规；不新增 `Protocol`（R2）/`TYPE_CHECKING`（R6）/`Any`；`KeyChord` 用 PEP 695/3.12 dataclass 风格；pyright strict 零诊断；**2026-09-28 核对**：
+`tests/test_architecture.py` 实测 **20 个用例**（本文原写 13；`python -m pytest tests/test_architecture.py --collect-only`
+→ `tests/test_architecture.py: 20`）；driver 合成的事件进入既有派发路径，不得绕过 `EditorView.on_key` 的 R10 单次派发约定。
+
+> **🧭 2026-09-28 实施现状核对**（本计划 P0–P9 的实际推进，依据代码与 `keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md` 执行状态表）：
+>
+> | 计划项 | 现状（实测） |
+> |---|---|
+> | P1 `KeyChord` + 别名 + 旧表迁入 | ✅ 落地为 `keyproto/{chords,aliases,legacy}.py`（PB1 `5cd97d1`）；**无 `model.py`**（`KeyChord` 在 `chords.py:52`） |
+> | P3 win32 帧编解码 | ✅ 落地为 `keyproto/frames.py`（PB6；`Win32InputFrame` / `Win32FrameStream` / `frame_to_key_name` / `frame_to_char`）。**`win32_input.py` 未独立成文件** |
+> | P3 kitty 帧（`kitty.py`） | ❌ **未落地**（文件不存在）；驱动仅在 `driver_windows.py:269` 复用 Textual 的 `\x1b[>1u` push |
+> | P4a/P4b 驱动 | ✅ `keyproto/driver_windows.py`（`YateWindowsDriver` L242、`ChordEventMonitor` L102、`record_key_override` L77）；`?9001h/l` 见 L276 / L290；**尺寸轮询与"三级恢复 + 残留自愈"未在代码中出现** |
+> | P5 协商状态机（`negotiate.py`） | ❌ **未落地**（文件不存在）；`key_protocol` 实际取值仅 `auto` / `legacy`（`config.py:64,71,152`），无 `win32` / `kitty` / `off` |
+> | P5.5 `--key-protocol` / `--reset-terminal` CLI | ❌ **未落地**（`cli.py` 无这两个参数） |
+> | P7.1 `:keys` 面板 / P7.2 `[keyboard]` diag | ❌ **未落地**（`commands.py` 无 `keys` 命令；`diagnostics.py:68-81` 的 `sections` 表无 `keyboard`）——PB4 已登记为"暂缓" |
+> | P0 `tools/probe_keys.py` / `tests/fixtures/win32_input_frames.py` | ❌ 未入库（两路径实测不存在）；探针产物留在 `keybinding-fix-wt/win32im_probe.py`、`pb6_real_input_harness.py` |
+> | P9.4 `.trae/issues/issues.md:171` | ⚠️ `.trae/issues/` 目录已不存在（审查文档整体迁至 `.trae/review/`） |
+> | 测试文件命名 | 实际为 **`tests/test_keyproto.py`**（单文件，覆盖 chord / 别名 / 帧 / legacy），非 §7 列的 `test_keyproto_model.py` / `_frames` / `_negotiate` / `_driver` / `_source` / `_recovery` |
 
 ---
 
@@ -179,7 +197,7 @@ CANONICAL_ALIASES = {
     "ctrl+@": "ctrl+space",           # 注意：保留 widget 侧的双语义，见主计划 §5
 }
 ```
-`legacy.to_legacy_bytes(chord)` 的规则（替代 `editor_view/keys.py:49-86`）：
+`keyproto.legacy` 的规则（替代原 `editor_view/keys.py:49-86`，该模块已迁入 `keyproto/legacy.py`）：
 - ctrl + `a-z` → `chr(ord-96)`；ctrl + `[ \ ] ^ _ ? /` → C0；ctrl + 空格 → `\x00`；
 - **ctrl + 数字 → `\x1b[<ord>;5u`**（与 `keymaps/base.py:110-113` 一致，保持绑定表自洽）；
 - ctrl + shift + 字母 → C0（沿用 `emulator.py:156-161` 现状）；
@@ -245,7 +263,8 @@ CANONICAL_ALIASES = {
 - [x] **P2.3（已 moot，仅存一环，由 P2.2 收尾）**：`Editor.handle_key`（`yate/editor.py:554`）重构后原生持有 `event.key`；`YateApp.on_key`（`yate/app.py:150-154`）无需改动。
 - [x] **P2.4（✅ 已由重构完成，`9fa5ac8`）** `ctrl+shift+e`/`ctrl+1`/`ctrl+p` 已是 `yate/editor.py:618-626` 的 event.key 分支 + `vsc.py`/`vim.py` 正式绑定；**剩余工作仅为回归守卫**（见 `wt_keybinding_fix_plan.md` SP2）：vim 模式吞键不再影响这三个键（分支先于 keymap 派发）。
 - [ ] **P2.5** `yate/keymaps/vim.py:427-431`（normal 尾）与 `:185`（insert 尾）：未映射的**不可打印**键返回 `False` 冒泡；补 vim 回归用例（注意 R10：冒泡后由 `Editor.handle_key` 的 `return False` → `YateApp.on_key` 不 `stop`，单一冒泡路径，无二次派发）。
-- [ ] **P2.6** `yate/editor_term/emulator.py:143-144` 的 ctrl 映射补 `/`（`0x1F`），`key_to_terminal` 与 `keyproto.legacy.to_legacy_bytes` 合并共用内核（P1.2 落地后转发）。
+- [ ] **P2.6** `yate/editor_term/emulator.py:143-144` 的 ctrl 映射补 `/`（`0x1F`），`key_to_terminal` 与 `keyproto.legacy` 合并共用内核（P1.2 落地后转发）。（**2026-09-28 核对**：`legacy.py` 现只导出
+   `event_to_raw()` / `textual_key_to_raw()`，**无** `to_legacy_bytes()`。）
 - [ ] **P2.7** 单测：真实拼写驱动的派发测试（**不经过 `pilot.press` 的名称合成**，用 XTermParser 喂真实字节 → Editor.handle_key）；`ctrl+@`/`ctrl+grave` 双语义回归测试（`yate/editor.py:574-577`）。
 - [ ] **P2.8** 手册（`yate/resources/manual.zh.md` 键位章节）与 CHANGELOG 更新。
 - **DoD**：`Ctrl+/` 在 WT/conhost/WezTerm/kitty 全部生效；vim 下 `Ctrl+P`/`Ctrl+1` 生效；pytest+pyright 全绿。

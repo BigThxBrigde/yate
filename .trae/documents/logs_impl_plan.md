@@ -73,7 +73,7 @@ yate 目前只有**崩溃诊断**（`yate/crash.py` → `~/.yate/data/crash-*.er
 | **默认关闭** | 不设置开关时零文件、零输出、零开销（无 handler 即无 I/O） |
 | **开关** | 环境变量 `YATE_TRACE` 或 yaterc 选项 `yate_trace` |
 | **等级** | 环境变量 `YATE_TRACE_LEVEL` 或 yaterc 选项 `yate_trace_level`，与 `logging` 内置等级（DEBUG/INFO/WARNING/ERROR/CRITICAL）对齐 |
-| **落盘位置** | `~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log` |
+| **落盘位置** | `~/.yate/data/logs/yate-YYYYMMDD-HHMMSS-<pid>.log`（**2026-09-28 核对**：文件名已追加 pid 后缀，见下文命名说明） |
 | **零侵入** | 日志初始化失败（目录不可写等）不影响编辑器启动（best-effort，与 `crash.py` 同哲学） |
 
 ### 1.3 非目标（后续可扩展方向）
@@ -135,7 +135,10 @@ yaterc 选项 yate_trace / yate_trace_level（项目 rc 覆盖用户 rc，同现
 ~/.yate/data/logs/yate-20260920-101530.log
 ```
 
-- 命名：`yate-YYYYMMDD-HHMMSS.log`（与 `crash-YYYYMMDD-HHMMSS.err` 风格一致）
+- 命名：`yate-YYYYMMDD-HHMMSS-<pid>.log`（与 `crash-YYYYMMDD-HHMMSS-<pid>.err` 风格一致）。
+  **（2026-09-28 核对）** 两者均已追加 **pid 后缀**（`yate/logs.py:561-564` 与 `:424,432-435`）：
+  秒级时间戳无法区分同一秒启动的两个进程，而 trace/crash 文件都以 `"w"` 模式打开，
+  同名会让后者截断前者。
 - **追加模式**打开（`mode="a"`）：同一秒内启动的第二个实例复用文件而非失败/覆盖
 - 每次进程启动先写**会话头**（含 pid 区分同文件的多个会话）：
 

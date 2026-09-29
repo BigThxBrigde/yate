@@ -5,21 +5,24 @@
 > - 纯数据模型位于 `yate/session.py`（`Leaf` / `Split` / `Node` /
 >   `ViewState` 与树工具；2026-09-23 Plan G 已将其从 `yate/editor_view/pane_types.py`
 >   下沉至 L1 并删除原文件，见
->   [app-layering-refactoring-plans/plan_G_pane_model_to_session.md](app-layering-refactoring-plans/plan_G_pane_model_to_session.md)），
+>   [app-layering-refactoring-plans/app_layering_refactoring_pane_model_to_session_plan_g.md](app-layering-refactoring-plans/app_layering_refactoring_pane_model_to_session_plan_g.md)），
 >   Textual 侧为 `yate/editor_view/panes.py`
 >   （`PaneManager` + `PaneHost`）；`EditorView` 已参数化 `leaf_id` 与宿主，
 >   焦点切换经 `PaneManager.capture_active()` / `apply_doc()` 同步视图状态
 >   （同文档多窗格光标/选区/滚动独立）。
-> - 命令已在 `app_features/commands.py` 注册：`:split` / `:sp`、
->   `:vsplit` / `:vs`、`:only`、`:close`；vim NORMAL 下 `Ctrl+W` 和弦
->   （`s`/`v`/`q`/`o`/`h-j-k-l`/`+ - < >`/`=`）已在 `app.py` 接线。
+> - 命令已在 **`yate/commands.py`** 注册（**2026-09-28 核对修正**：原写的
+>   `app_features/commands.py` 已随目录整体删除，现为 `yate/commands.py::register_commands()`）：
+>   `:split` / `:sp`、`:vsplit` / `:vs`、`:only`、`:close`；vim NORMAL 下 `Ctrl+W` 和弦
+>   （`s`/`v`/`q`/`o`/`h-j-k-l`/`+ - < >`/`=`）已在 **`yate/editor.py`** 接线
+>   （`_WINDOW_KEYS`，`editor.py:77`；不再是 `app.py`）。
 > - 测试：`tests/test_panes.py`（模型）+ `tests/test_app_textual.py`（pilot）已覆盖。
 > - 与本文档的差异：`Leaf.states` 的键**不是** `id(doc)`，而是稳定的
 >   `Document.uid`（`session.py::Leaf.state_for`（原 `pane_types.py::Leaf.state_for`），注释说明用于规避文档重建
->   导致的键失效，见 `remove_type_checking_review_v3.md`）；`PaneManager`
+>   导致的键失效，见 `remove_type_checking_refactor.md` —— **2026-09-28 核对修正**：原引用的
+>   `remove_type_checking_review_v3.md` 已与另外 3 份文档合并为该文件，不再单独存在）；`PaneManager`
 >   构造为 `PaneManager(session: EditorSession, doc: Document, ...)`（2026-09-23
 >   更新：不再使用 `AppProtocol`，改为具体对象注入），Textual 宿主类为
->   `yate/editor_view/panes.py::PaneHost`（`reconcile` 目前是整树重建，文件内
+>   `yate/editor_view/panes.py::PaneHost`（`reconcile` 目前是整树重建，`panes.py:528`
 >   留有 `TODO(perf)`）。
 
 ## 需求（已与用户确认）
@@ -113,6 +116,9 @@ SplitBox（Horizontal/Vertical 容器）与子 EditorView：`width/height: 1fr/1
   - `+/-/< >/=` 后容器宽高百分比生效；
   - `:bd` 关闭多窗共有文档后各叶子正确改绑；隐藏 buffer 有改动时 `:q` 退出仍被 dirty 拦截。
 - pyright strict 0/0；全量 `pytest tests`（当前 296 个 + 新增）通过。
+  （**2026-09-28 核对**：`python -m pytest tests/ --collect-only` → **1354 tests collected**，
+  `python -m pytest tests/ -q` exit 0；`python -m pyright yate/ tests/ tools/` → 0 errors / 0 warnings /
+  0 informations。`tests/test_panes.py` 现有 **15** 个用例。）
 - 不涉及打包/frozen 路径，无需重建产物。
 
 ## 风险与处理

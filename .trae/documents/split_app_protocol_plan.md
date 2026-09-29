@@ -6,8 +6,10 @@
 > **但它引入的窄接口（Host / Ops Protocol）与 `app_features/*` Feature 层已在紧随其后的
 > 「分层重构」中移除**：共享状态改为**具体对象**（`EditorSession` / `KeymapSet` /
 > `ActionRegistry` / `CommandRegistry`），操作逻辑上移到 `yate/editor.py`（`Editor`），
-> `app_features/`（6 文件 1070 行）整体删除，`YateApp` 瘦到 152 行。
-> **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
+> `app_features/`（6 文件 1070 行）整体删除，`YateApp` 瘦到 152 行
+> （**2026-09-28 核对修正**：实测 **285 非空行 / 总 329**；外壳此后新增驱动选择、devtools
+> 日志桥接（R12）、屏保空闲轮询与 CSS 外置加载，仍是"无业务操作"的薄壳）。
+> **当前权威架构定义请以 [app-layering-refactoring-plans/overview.md](app-layering-refactoring-plans/overview.md)
 > 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**；
 > 本文档保留作为架构决策记录（ADR）。
 >
@@ -556,13 +558,19 @@ Stage 2 的 explorer/terminal 可拆两个 commit，便于 `git bisect`。
 ### D. 后续可选深化（实施记录）
 
 1. ✅ **`config.py` 解耦 `editor_view.theme`**：改为 `load_config()` 内延迟导入，`config` 回归叶子。
+   （**2026-09-28 核对补注**：N30 后改为更彻底的方案——`load_config` 增加 keyword-only
+   `register_theme` / `load_theme_paths` 回调参数，由 L4 `cli.py` 注入，`config.py` 已列入
+   `tests/test_architecture.py` 的 `UI_FREE_FILES` 守卫面；见总纲 README §11。）
 2. ✅ **`editor_view/__init__.py` 惰性化**：删除 eager widget re-export（确认无使用者），
    `import yate.editor_view` 不再加载 widget 栈。
 3. ✅ **`services/__init__.py` 惰性化**：删除无使用者的 re-export，
    `from yate.services import fonts` 不再连带 extension / workspace 栈。
 4. ✅ **终端面板协议收窄**：`TerminalPanelOps`（6 方法）替代 app 的 6 个面板代理方法，
    `app.py` 减 38 行（2042 → 2004）。
-5. ⏳ **`EditorSession`**（`yate/services/session.py`）：抽出 `docs`/`doc_index`/`search` 与会话操作，
+5. ⏳ **`EditorSession`**（`yate/services/session.py`）：（2026-09-28 核对：`EditorSession` 已落地为
+   `yate/session.py`，与原文设想的 `yate/services/session.py` 路径不同；`docs` / `doc_index` /
+   `search` 与 `close_under` / `retarget` 均在其内，且窗格树模型（Plan G）也同处该模块。）
+   抽出 `docs`/`doc_index`/`search` 与会话操作，
    让 `YateApp` 只做组合根；`close_documents_under`/`retarget_document` 的逻辑移入
    （大改动，尚未实施）。
 6. ⏳ **扩展 API 的 `api.app` 最终退场**：如未来允许破坏性变更，改为细分访问器

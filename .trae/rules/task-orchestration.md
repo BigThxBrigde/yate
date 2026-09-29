@@ -13,18 +13,26 @@
 1. 【领会】分析任务；**新任务**先建独立 worktree 与分支
    （`git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`），
    **续作任务**先 `git worktree list` 复用现有 worktree，禁止重复新建。
-2. 【方案】按 `plan-architect-designer` 剧本产出方案，落盘
+2. 【方案】按 [plan-architect-designer](../agents/plan-architect-designer.md) 剧本产出方案，落盘
    `.trae/documents/<task>_plan.md`（相对路径；复杂任务拆子计划到
-   `.trae/documents/<task>_plans/` 并严格定制执行波次）。
+   `.trae/documents/<task>_plans/` 并严格定制执行波次）。**命名规范**：
+   主计划 `<task>_plan.md`；子计划 `<task>_[subtask]_plan_<a|b|c...>.md`
+   （subtask 可省略，SP/P 等波次标记一律转字母序）；子计划目录总纲命名
+   `overview.md`；目录名保持既有风格。
 3. 【批准】向用户呈现方案，**未经批准不得进入执行**（plan-before-execute 硬性流程）。
-4. 【执行】按 `plan-executor` 剧本实施：独占文件清单 + 计划内验收命令；
+4. 【执行】按 [plan-executor](../agents/plan-executor.md) 剧本实施：独占文件清单 + 计划内验收命令；
    文件不重叠的步骤按波次并行，波次间串行。
-5. 【审核】按 `code-review-expert` 剧本评审全部改动：pyright / pytest /
+5. 【审核】按 [code-review-expert](../agents/code-review-expert.md) 剧本评审全部改动：pyright / pytest /
    架构测试 / 覆盖率（`--cov-fail-under=75`）/ 冒烟，结论附实测结果与退出码。
 6. 【迭代】存在 blocker / major → 回到步骤 2 重新设计；仅 minor → 登记待办。
    迭代上不封顶，直至无 blocker / major。
 7. 【收尾】主代理亲自跑全量门禁（pyright + pytest + 架构测试，退出码 0），
    回填文档（真实前后数字、偏离记录），按 `git-commit-message.md` 提交。
+
+> **提交纪律**：以上每一步完成后，须按 `git-commit-message.md` 将本步骤产物
+> **单独提交一次**（scope 取该步对象，如 `docs(rules): ...`），不得把多步改动
+> 攒成一笔提交；**只提交、不推送** —— 闭环流程内禁止执行 `git push`，
+> 推送必须由用户显式要求后才进行。
 
 ## 三、调度方式
 

@@ -39,7 +39,7 @@ yate 当时**没有**任何崩溃诊断机制：
 |------|----------------------|
 | **native crash**：所有线程的 Python 回溯落盘 | `faulthandler.enable(file=handle, all_threads=True)`，句柄在 `install()` 时已被**急切打开**（崩溃时无法再可靠地做文件 I/O） |
 | **未捕获 Python 异常**：追加到同一文件 | `sys.excepthook = CrashService._excepthook`，写 `=== uncaught Python exception ===` + 回溯块，最后**链回原 hook** |
-| **文件位置** | `~/.yate/data/crash-YYYYMMDD-HHMMSS.err`（`build_err_path()`） |
+| **文件位置** | `~/.yate/data/crash-YYYYMMDD-HHMMSS-<pid>.err`（`build_err_path()`）**（2026-09-28 核对：文件名已追加 pid 后缀，见 §2.3）** |
 | **零侵入**：诊断失败不影响启动 | 目录/句柄不可用 → 回退 `faulthandler.enable(sys.stderr)` 并直接返回；`excepthook` 内部 `try/except` 吞掉所有异常 |
 | *（新增）* 健康退出不留垃圾 | `atexit` → `cleanup_on_exit()`：关闭句柄，若从未记录过异常则删除只含头部的报告 |
 | *（新增）* Windows 句柄可控 | `uninstall()`：`faulthandler.disable()` + `cleanup_on_exit()`；`yate --cleanup-defaults --include-data` 先调用它，否则打开的句柄会让删除 `data/` 失败 |
@@ -95,10 +95,13 @@ if args.include_data:
 ### 2.3 文件命名
 
 ```
-~/.yate/data/crash-20260913-101530.err
+~/.yate/data/crash-20260913-101530-12345.err
 ```
 
-格式：`crash-YYYYMMDD-HHMMSS.err`（本地时间；同名冲突极少，靠时间戳区分）。
+格式：**（2026-09-28 核对修正）** `crash-YYYYMMDD-HHMMSS-<pid>.err`——本地时间 +
+**进程 pid**。加 pid 的原因：同一秒启动的两个 yate 进程会以 `"w"` 模式打开同名报告，
+后者的头部会把前者的内容截断；时间戳只有秒级粒度，无法区分。
+（`yate/logs.py:424,432-435`；trace 日志同理，见 `logs.py:561-564`。）
 生成逻辑集中在 `CrashService.build_err_path()`，测试可用 `now=` 注入固定时间。
 
 ### 2.4 文件内容结构
@@ -235,11 +238,14 @@ class CrashService:
 ```
 
 （`cleanup_on_exit()` / `uninstall()` / `build_err_path()` / 只读属性的完整实现见
-`yate/logs.py`，行号约 249–407。）
+`yate/logs.py`。**（2026-09-28 核对）** 原文"行号约 249–407"已漂移：现为
+`logs.py:268` 起的 `class CrashService`，该文件共 **536 行**。）
 
-单例在模块末尾创建：`crash = CrashService()`；`yate/crash.py` 把它作为
-`_service` 私有别名导入，只再导出 `crash_data_dir` / `install` / `uninstall` /
-`current_crash_file`。
+单例在模块末尾创建：`crash = CrashService()`。
+**（2026-09-28 核对修正）** 下文"……`yate/crash.py` 把它作为 `_service` 私有别名导入，
+只再导出 `crash_data_dir` / `install` / `uninstall` / `current_crash_file`"的描述
+**已不成立**：`yate/crash.py` 薄壳在最终版**已删除**（见 §8 第 1 条；仓库内该文件不存在），
+调用点一律 `from yate.logs import crash`。
 
 ### 步骤 2：修改 `yate/cli.py`
 
@@ -251,7 +257,7 @@ def main(argv=None):
     # ... 原有逻辑；yaterc 加载后 tracing.configure(...)
 ```
 
-### 步骤 3：测试 `tests/test_crash.py`（11 项）
+### 步骤 3：测试 `tests/test_crash.py`（2026-09-28 核对：现 **14 项**，原记 11 项）
 
 覆盖清单（现行）：
 
@@ -285,8 +291,8 @@ def main(argv=None):
 ### 5.1 单元测试
 
 ```powershell
-python -m pytest tests/test_crash.py -q      # 11 项
-python -m pytest tests/                      # 全量 612 passed
+python -m pytest tests/test_crash.py -q      # 2026-09-28 核对：14 项（原记 11 项）
+python -m pytest tests/                      # 2026-09-28 核对：全量 1354 collected（原记 612 passed）
 pyright                                      # strict，0 errors
 ```
 
