@@ -310,7 +310,7 @@ explorer `Optional[X]`；palette 用 `cell_len`；`document.py` 新文件按 uma
   收编 `UI_FREE_FILES`（守卫 + 负向验证拦截有效），R4 / §四交互表 / §六 已登记。
   门禁实测：架构 13 passed、pyright 全仓 0、pytest 1218+7 skipped、冒烟
   88/88 场景 · 917/917 checks。方案比选与 19 步实施记录：
-  [theme-layer-refactor-plans](../documents/theme-layer-refactor-plans/README.md)。*
+  [theme-layer-refactor-plans](../documents/theme-layer-refactor-plans/overview.md)。*
 
 - [x] **`visible_tree` 递归无 symlink 环防护** —
   [`workspace.py:255-272`](../../yate/services/workspace.py#L255-L272)

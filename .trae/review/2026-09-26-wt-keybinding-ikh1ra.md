@@ -14,7 +14,7 @@
   （全平台，顺带消除 help 面板乱码）；`ctrl+1` 文档化为 kitty/CSI-u-only（双语 manual + README，
   替代路径 `Alt+Shift+P`），彻底根治需方案 B 自建输入通道（`win_keybinding_plan.md`，另行排期）。
   **证据：** 定向 255 / 全量 1228 passed，pyright 0 诊断；commit `b03e40f` `ff3cfc0` `678c02c`
-  `f26e65d`；计划与执行记录见 [keybinding-fix-wt](../documents/keybinding-fix-wt/README.md)。
+  `f26e65d`；计划与执行记录见 [keybinding-fix-wt](../documents/keybinding-fix-wt/overview.md)。
   **真机复测与 Phase A（2026-09-26，`YATE_TRACE=1` 取证）：** 首轮复测 vim 下仅 ctrl+q 通 →
   探针实证当前代码 pilot 层全通（此前疑为旧代码误测）→ trace 裁决出**真正的根因**：WT win32
   驱动把 ctrl+标点命名为长名（`ctrl+right_square_bracket` / `ctrl+circumflex_accent` /

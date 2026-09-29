@@ -9,7 +9,7 @@
 > `app_features/`（6 文件 1070 行）整体删除，`YateApp` 瘦到 152 行
 > （**2026-09-28 核对修正**：实测 **285 非空行 / 总 329**；外壳此后新增驱动选择、devtools
 > 日志桥接（R12）、屏保空闲轮询与 CSS 外置加载，仍是"无业务操作"的薄壳）。
-> **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
+> **当前权威架构定义请以 [app-layering-refactoring-plans/overview.md](app-layering-refactoring-plans/overview.md)
 > 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**；
 > 本文档保留作为架构决策记录（ADR）。
 >

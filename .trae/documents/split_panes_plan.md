@@ -5,7 +5,7 @@
 > - 纯数据模型位于 `yate/session.py`（`Leaf` / `Split` / `Node` /
 >   `ViewState` 与树工具；2026-09-23 Plan G 已将其从 `yate/editor_view/pane_types.py`
 >   下沉至 L1 并删除原文件，见
->   [app-layering-refactoring-plans/plan_G_pane_model_to_session.md](app-layering-refactoring-plans/plan_G_pane_model_to_session.md)），
+>   [app-layering-refactoring-plans/app_layering_refactoring_pane_model_to_session_plan_g.md](app-layering-refactoring-plans/app_layering_refactoring_pane_model_to_session_plan_g.md)），
 >   Textual 侧为 `yate/editor_view/panes.py`
 >   （`PaneManager` + `PaneHost`）；`EditorView` 已参数化 `leaf_id` 与宿主，
 >   焦点切换经 `PaneManager.capture_active()` / `apply_doc()` 同步视图状态

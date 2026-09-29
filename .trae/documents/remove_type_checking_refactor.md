@@ -33,7 +33,7 @@
 >    禁止直连 Textual devtools 通道；R13 组件自持主题与滚动条注入。本 ADR 正文
 >    （§1–§8）写于此前，未涵盖这两条。
 >
-> **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
+> **当前权威架构定义请以 [app-layering-refactoring-plans/overview.md](app-layering-refactoring-plans/overview.md)
 > 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**；
 > 本文档保留作为架构决策记录（ADR），正文描述的是**历史实现**，请勿与当前代码对照。
 
@@ -850,4 +850,4 @@ python -m yate --help  # CLI 正常
 
 > 上述方向均基于"继续使用 Protocol"的前提。**实际演进路径是另一条**：整体的
 > `interfaces.py` / `app_features/*` 被删除，改为具体对象 + `Editor` 上移 —— 详见
-> [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)。
+> [app-layering-refactoring-plans/overview.md](app-layering-refactoring-plans/overview.md)。

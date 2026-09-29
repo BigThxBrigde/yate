@@ -1,10 +1,10 @@
 # Windows Terminal 键位失效修复计划（IKH1RA）
 
-> 状态：**止血切片已执行（SP1–SP3），真机复测争议 → 探针实证（v3）与分步执行计划见 [`keybinding-fix-wt/PLAN_v3_steps.md`](keybinding-fix-wt/PLAN_v3_steps.md)**
+> 状态：**止血切片已执行（SP1–SP3），真机复测争议 → 探针实证（v3）与分步执行计划见 [`keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md`](keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md)**
 > 分支：`issues/keybinding-fix-wt`（worktree `d:/Programming/yate-keybinding-fix-wt`，
 > 基线 `issues/refine-arch` f2a0e45；原分支指针 673b077 是该基线的祖先，重置无历史丢失）
 > Issue：[Gitee IKH1RA — 部分 KeyBinding 在 Windows Terminal 下失效](https://gitee.com/jermaine/yate/issues/IKH1RA)
-> 关联：`.trae/documents/code-review-fix-plans/P2_nice_to_have_plan.md` N8（ctrl+digit kitty CSI-u，暂缓备注"待 KeyBinding 在 WT 重构后彻底修复"——本计划即其落地）；
+> 关联：`.trae/documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md` N8（ctrl+digit kitty CSI-u，暂缓备注"待 KeyBinding 在 WT 重构后彻底修复"——本计划即其落地）；
 > 根治（`Ctrl+1` 等无 legacy 编码的键）走 `win_keybinding_plan.md` 方案 B（P3–P6），本计划不重复其内容
 > 计划评审：2026-09-26 —— 与恢复的 `win_keybinding_*` 两份计划（同目录）合并校准，锚点为重构后（L0–L4）现状
 
@@ -57,7 +57,7 @@ event.key 快速分支 → `event_to_raw`（`yate/editor_view/keys.py` L30；**2
 | `ctrl+w` | ✅ 正常 | `\x17` 命名正确；vim 走 `try_window_prefix`，vsc 绑 close_tab |
 | `ctrl+p` | ✅ **已修复**（重构副产品） | `9fa5ac8` 起在 `Editor.handle_key` 增加 `event.key == "ctrl+p"` 分支（L624；**2026-09-28 核对：现 `editor.py:696`**），先于 keymap 分发，与键位无关 |
 | `ctrl+/` | ❌ **仍失效**（vim/vsc 双键位、WT 与 Linux xterm 等所有 legacy 终端） | WT 发 `\x1f` → Textual 命名 `ctrl+underscore` → `textual_key_to_raw("ctrl+underscore")` 返回 `None` → 键被丢弃。现有映射表只登记了 `ctrl+/`（`_CTRL_PUNCT["/"]`），而真实终端永远不会产生这个名字（`tests/test_app_textual.py:74` 断言的名字恰是终端不发的那一个）。**（2026-09-28 核对：本行已过期——SP1 `b03e40f` 已补 `keyproto/legacy.py:28` `"underscore": 0x1F` 与 `keymaps/base.py:85` `KEY_ALIASES["\x1f"]="ctrl-/"`，`ctrl+/` 已修复）** |
-| `ctrl+1` | ❌ **仍失效**（WT） | 修饰在 conhost/Textual 双双丢失，物理不可达；vsc `<ctrl-1>` 经 `parse_key` 编码为 kitty CSI-u `\x1b[49;5u`，仅 kitty 终端可用。**（2026-09-28 核对：legacy 路径仍成立；但和弦驱动 + win32-input-mode 帧解码（PB2/PB6）落地后 WT 下 `ctrl+1` 已可达，真机 12/12 PASS，见 `keybinding-fix-wt/PLAN_v3_steps.md` PB6 行与 `manual.en.md:374-385`）** |
+| `ctrl+1` | ❌ **仍失效**（WT） | 修饰在 conhost/Textual 双双丢失，物理不可达；vsc `<ctrl-1>` 经 `parse_key` 编码为 kitty CSI-u `\x1b[49;5u`，仅 kitty 终端可用。**（2026-09-28 核对：legacy 路径仍成立；但和弦驱动 + win32-input-mode 帧解码（PB2/PB6）落地后 WT 下 `ctrl+1` 已可达，真机 12/12 PASS，见 `keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md` PB6 行与 `manual.en.md:374-385`）** |
 | help 面板显示（附带） | ❌ 乱码 | `key_name("\x1f")` 返回原始控制字符（无 KEY_ALIASES 条目），vsc/vim 的 ctrl+/ 绑定在帮助面板显示为乱码 |
 
 ### 2.3 对"vsc 键位有效"线索的解释（历史行为）
@@ -126,7 +126,7 @@ flowchart LR
 
 ## 五、实施步骤（不执行，仅计划）
 
-> **➡️ 可执行版本已拆分至子文件夹 [`keybinding-fix-wt/`](keybinding-fix-wt/README.md)**：
+> **➡️ 可执行版本已拆分至子文件夹 [`keybinding-fix-wt/`](keybinding-fix-wt/overview.md)**：
 > `README.md`（总纲：串行铁律 + 每 SP 测试门禁 + commit 规范）+ SP1–SP5 各含精确文件行号锚点、
 > 测试命令与验收标准。本节保留为概览，实施以子计划为准。
 
@@ -176,7 +176,7 @@ flowchart LR
 - **改动**：
   - `.trae/issues/review.md`：**（2026-09-28 核对：`.trae/issues/` 目录已不存在，审查文档整体迁至
     `.trae/review/`——现路径 `.trae/review/review.md`）** 历史问题区新增「Windows Terminal 键位失效（IKH1RA）」条目，标注 `ctrl+p` 已随重构修复、`ctrl+/` 由本计划修复、`ctrl+1` 受终端限制文档化；
-  - `.trae/documents/code-review-fix-plans/P2_nice_to_have_plan.md`：N8 状态从 ⏸ 改为 ✅（ctrl+/ 修复落地 + ctrl+1 kitty-only 说明），撤销"待 KeyBinding 在 WT 重构后彻底修复"备注；
+  - `.trae/documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md`：N8 状态从 ⏸ 改为 ✅（ctrl+/ 修复落地 + ctrl+1 kitty-only 说明），撤销"待 KeyBinding 在 WT 重构后彻底修复"备注；
   - 本文档状态改为"已实施"，附实测数字（pyright/pytest/冒烟）与偏离校准。
 - **输出**：三处文档与代码状态一致。
 - **验收**：交叉引用检查——review.md、P2、本计划、Gitee issue 回复草稿四方口径一致。

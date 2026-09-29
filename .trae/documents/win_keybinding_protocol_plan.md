@@ -36,7 +36,7 @@
 `tests/test_architecture.py` 实测 **20 个用例**（本文原写 13；`python -m pytest tests/test_architecture.py --collect-only`
 → `tests/test_architecture.py: 20`）；driver 合成的事件进入既有派发路径，不得绕过 `EditorView.on_key` 的 R10 单次派发约定。
 
-> **🧭 2026-09-28 实施现状核对**（本计划 P0–P9 的实际推进，依据代码与 `keybinding-fix-wt/PLAN_v3_steps.md` 执行状态表）：
+> **🧭 2026-09-28 实施现状核对**（本计划 P0–P9 的实际推进，依据代码与 `keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md` 执行状态表）：
 >
 > | 计划项 | 现状（实测） |
 > |---|---|

@@ -11,7 +11,7 @@
 >
 > 1. **路径迁移**：全文引用的 `yate/editor_view/keys.py` **已不存在**——其 C0 编解码整体迁入
 >    `yate/keyproto/legacy.py`（`event_to_raw` L52 / `textual_key_to_raw` L87，`_CTRL_PUNCT` L23），
->    变更见 `keybinding-fix-wt/PLAN_v3_steps.md` 执行状态表 PB1 行；`yate/interfaces.py` 亦已删除（R2）。
+>    变更见 `keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md` 执行状态表 PB1 行；`yate/interfaces.py` 亦已删除（R2）。
 > 2. **`keyproto/` 实际模块构成（6 个，非 §3 设想的 8 个）**：`chords.py`（`KeyChord` + VK/修饰位常量）、
 >    `aliases.py`（`chord_to_key_name`）、`frames.py`（`Win32InputFrame` / `Win32FrameStream` /
 >    `frame_to_key_name` / `frame_to_char` / `NAV_VK_NAMES`）、`legacy.py`、`driver_windows.py`、`__init__.py`。
@@ -21,7 +21,7 @@
 > 3. **`Ctrl+/` 已修复**（不再是下文第 2 条所述"仍失效"）：`legacy.py:28` 已登记 `"underscore": 0x1F`、
 >    `keymaps/base.py:85` 已登记 `KEY_ALIASES["\x1f"] = "ctrl-/"`（SP1，commit `b03e40f`）。
 > 4. **`Ctrl+1` 现状**：和弦驱动（`keyproto/driver_windows.py`）+ PB6 的 `?9001h` 帧解码后，
->    WT 下 `ctrl+1` **已可达**（真机无人值守验收 12/12 PASS，见 `PLAN_v3_steps.md` PB6 行；
+>    WT 下 `ctrl+1` **已可达**（真机无人值守验收 12/12 PASS，见 `keybinding_fix_wt_steps_plan_g.md` PB6 行；
 >    用户手册已改写：`yate/resources/manual.en.md:374-385`）。config 侧 `key_protocol` 现只接受
 >    `auto` / `legacy`（`config.py:64,71,152`），**无** `win32`/`kitty`/`off` 三档，也无
 >    `--key-protocol` / `--reset-terminal` CLI 参数。
