@@ -1934,7 +1934,7 @@ def test_shell_command_runs_without_freezing_ui() -> None:
             await pilot.pause()
             prompt_bar = app.editor.prompt_bar
             assert prompt_bar is not None
-            with patch("yate.editor.run_shell", side_effect=slow_shell):
+            with patch("yate.shell_flow.run_shell", side_effect=slow_shell):
                 # F2 opens the shell prompt in vsc mode (":" is vim-only)
                 await pilot.press("f2")
                 assert prompt_bar.active_mode == "shell"

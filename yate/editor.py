@@ -34,7 +34,6 @@ from yate.completion import CompletionController
 from yate.config import YateConfig
 from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_lsp import LspManager
-from yate.editor_sprites.characters import character_names
 from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
 from yate.editor_view import theme
 from yate.editor_view.chrome import Breadcrumbs, SidebarHead, TabBar
@@ -42,11 +41,7 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.manual import MarkdownDocScreen
-from yate.editor_view.modals import HelpScreen
-from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.panes import PaneHost, PaneManager
-from yate.editor_view.screensaver import ScreensaverScreen
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.keymaps.base import ActionContext, KeyUi
@@ -56,6 +51,7 @@ from yate.keymaps.vim import VimKeymap, VimMode
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.lsp_sync import LspSync
+from yate.overlays import OverlayController
 from yate.prompt_completion import prompt_completions
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.extensions import (
@@ -117,7 +113,7 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     # editor, so only the shell may load them (R5/R7 -- see YateApp).
     ed.actions = ActionRegistry()
     ed.commands = CommandRegistry()
-    ed.extension_api = ExtensionAPI(ed._extension_context())
+    ed.extension_api = ExtensionAPI(ed.extension_context())
     ed.extension_loader = ExtensionLoader(ed.extension_api)
     ed.key_ui = KeyUi(
         execute_action=ed.execute_action,
@@ -133,7 +129,7 @@ def _build_widgets(ed: Editor) -> None:
     """Create the widget tree members and keep the references ops need."""
     ed.prompt_bar = PromptBar(
         ed.prompt_completions,
-        cancel_hook=ed._cancel_prompt,
+        cancel_hook=ed.cancel_prompt,
         focus_editor=ed.focus_editor,
         refresh=ed.refresh_ui,
     )
@@ -165,7 +161,7 @@ def _build_widgets(ed: Editor) -> None:
 def _open_startup_target(ed: Editor, target: str | Path | None) -> None:
     """Open the startup target (file or directory) and seed an empty buffer."""
     if target is not None:
-        kind = ed._open_target(Path(target))
+        kind = ed.open_target(Path(target))
         # A directory argument opens in browse mode (explorer visible);
         # a file argument opens in edit mode (explorer hidden; Ctrl+B /
         # :explorer reveals it later). With no argument the workspace
@@ -176,7 +172,12 @@ def _open_startup_target(ed: Editor, target: str | Path | None) -> None:
 
 
 def _build_pane_stack(ed: Editor) -> None:
-    """Build the pane tree, its host widget and the completion controller."""
+    """Build the pane tree, its host widget and the flow controllers.
+
+    The controllers (:class:`LspSync` / :class:`OverlayController` /
+    :class:`ShellFlow` / :class:`CompletionController`) own the multi-step
+    flows; the editor keeps thin delegating methods as its public face.
+    """
     # The pane tree owns editor windows; it starts with one leaf on the
     # startup document and grows with :split / :vsplit.
     ed.panes = PaneManager(
@@ -186,7 +187,7 @@ def _build_pane_stack(ed: Editor) -> None:
         after_pane_focus=ed.after_pane_focus,
         focus_explorer=ed.focus_explorer,
     )
-    ed.pane_host = PaneHost(ed.panes, ed._make_view)
+    ed.pane_host = PaneHost(ed.panes, ed.make_view)
     ed.lsp_sync = LspSync(
         ed.app,
         ed.lsp,
@@ -197,6 +198,22 @@ def _build_pane_stack(ed: Editor) -> None:
         message=ed.message,
         mounted=lambda: ed.mounted,
     )
+    ed.overlays = OverlayController(
+        ed.app,
+        ed.config,
+        ed.keymaps,
+        ed.commands,
+        ed.actions,
+        ed.workspace,
+        ed.prompt_bar,
+        message=ed.message,
+        mounted=lambda: ed.mounted,
+        open_path=ed.open_path_later,
+        focus_editor=ed.focus_editor,
+        execute_action=ed.execute_action,
+        run_command=ed.run_command,
+        refresh=ed.refresh_ui,
+    )
     ed.shell = ShellFlow(
         ed.app,
         ed.session,
@@ -206,7 +223,7 @@ def _build_pane_stack(ed: Editor) -> None:
         mounted=lambda: ed.mounted,
         focus_editor=ed.focus_editor,
         refresh=ed.refresh_ui,
-        push_overlay=ed.push_overlay,
+        push_overlay=ed.overlays.push,
     )
     ed.completion = CompletionController(
         ed.app,
@@ -250,6 +267,7 @@ class Editor:
     panes: PaneManager
     pane_host: PaneHost
     lsp_sync: LspSync
+    overlays: OverlayController
     shell: ShellFlow
     completion: CompletionController
 
@@ -283,7 +301,8 @@ class Editor:
 
     # ================================================================ wiring
 
-    def _extension_context(self) -> ExtensionContext:
+    def extension_context(self) -> ExtensionContext:
+        """Build the :class:`ExtensionContext` handed to extensions."""
         return ExtensionContext(
             session=self.session,
             workspace=self.workspace,
@@ -297,7 +316,8 @@ class Editor:
             save=self.save_document,
         )
 
-    def _make_view(self, leaf_id: int) -> EditorView:
+    def make_view(self, leaf_id: int) -> EditorView:
+        """Build the :class:`EditorView` widget for one pane leaf."""
         return EditorView(
             leaf_id,
             panes=self.panes,
@@ -424,7 +444,7 @@ class Editor:
 
     # ================================================================ target
 
-    def _open_target(self, path: Path) -> str:
+    def open_target(self, path: Path) -> str:
         """Open the startup target and return ``"dir"`` or ``"file"``."""
         if not path.exists():
             # treat as a not-yet-created file
@@ -997,7 +1017,7 @@ class Editor:
 
     # =============================================================== prompts
 
-    def _cancel_prompt(self) -> None:
+    def cancel_prompt(self) -> None:
         """Prompt cancelled (esc): clear live search highlights."""
         if self.session.search.query:
             self.session.search.update("", self.session.buffer)
@@ -1339,93 +1359,32 @@ class Editor:
         screen: Screen[Any],
         callback: Callable[[Any], None] | None = None,
     ) -> None:
-        """Push a full-screen overlay, clearing the stale bottom message first.
-
-        The prompt/message line is hidden behind the overlay while it is up,
-        so reset it to the idle hint now; otherwise the previous command's
-        message (e.g. "saved …") would reappear, untouched, once the overlay
-        closes -- looking like the overlay command itself had no feedback.
-        """
-        self.prompt_bar.idle()
-        self.app.push_screen(screen, callback=callback)
+        """Push a full-screen overlay (see :meth:`OverlayController.push`)."""
+        self.overlays.push(screen, callback)
 
     def show_help(self) -> None:
         """Open the keybinding reference overlay."""
-        if self.mounted:
-            self.push_overlay(HelpScreen(self.keymaps, self.commands))
+        self.overlays.show_help()
 
     def show_manual(self, lang: str = "en") -> None:
         """Open the bundled user manual, rendered as read-only markdown."""
-        self._open_doc(kind="manual", lang=lang, title="user manual")
+        self.overlays.show_manual(lang)
 
     def show_changelog(self, lang: str = "en") -> None:
         """Open the bundled bilingual changelog viewer."""
-        self._open_doc(kind="changelog", lang=lang, title="changelog")
-
-    def _open_doc(self, *, kind: str, lang: str, title: str) -> None:
-        if not self.mounted or isinstance(self.app.screen, MarkdownDocScreen):
-            return
-        self.push_overlay(MarkdownDocScreen(kind=kind, lang=lang, title=title))
+        self.overlays.show_changelog(lang)
 
     def open_file_palette(self) -> None:
         """Quick file open: fuzzy palette over the workspace files (ctrl+p)."""
-        if self.mounted:
-            self.push_overlay(self._palette("files"))
+        self.overlays.open_file_palette()
 
     def open_command_palette(self) -> None:
         """Command palette: fuzzy search over commands (alt+shift+p)."""
-        if self.mounted:
-            self.push_overlay(self._palette("commands"))
-
-    def _palette(self, mode: str) -> PaletteScreen:
-        return PaletteScreen(
-            mode,
-            workspace=self.workspace,
-            commands=self.commands,
-            actions=self.actions,
-            open_path=self.open_path_later,
-            focus_editor=self.focus_editor,
-            execute_action=self.execute_action,
-            run_command=self.run_command,
-            refresh=self.refresh_ui,
-        )
+        self.overlays.open_command_palette()
 
     def toggle_screensaver(self) -> None:
-        """Enter or leave the full-terminal idle screensaver.
-
-        While the screensaver is up this pops it; otherwise ``enable =
-        False`` only reports on the message line.  A configured
-        ``characters`` whitelist that matches no roster entry refuses to
-        start too (every name was already reported at startup) -- falling
-        back to the whole roster would silently betray the explicit
-        whitelist.  A real entry filters the rc names against the roster
-        and pushes the overlay; an unconfigured whitelist (empty tuple)
-        means the whole roster.  The idle poll re-checks the screen type
-        before calling, so this pop branch only serves the direct action
-        paths (palette, keys).
-        """
-        if isinstance(self.app.screen, ScreensaverScreen):
-            self.app.pop_screen()
-            return
-        if not self.config.screen_saver.enable:
-            self.message("screensaver disabled (screen_saver.enable = False)")
-            return
-        configured = self.config.screen_saver.characters
-        known = set(character_names())
-        if configured:
-            wanted = tuple(name for name in configured if name in known)
-            if not wanted:
-                self.message("screensaver: no valid screen_saver.characters entry")
-                return
-        else:
-            wanted = ()
-        self.push_overlay(
-            ScreensaverScreen(
-                wanted or character_names(),
-                self.config.screen_saver.switch,
-                self.config.screen_saver.dist_bounds,
-            )
-        )
+        """Enter or leave the full-terminal idle screensaver."""
+        self.overlays.toggle_screensaver()
 
     # ============================================================== explorer
 
