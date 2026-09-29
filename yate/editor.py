@@ -53,6 +53,7 @@ from yate.logs import tracing
 from yate.lsp_sync import LspSync
 from yate.overlays import OverlayController
 from yate.prompt_completion import prompt_completions
+from yate.prompt_flows import PromptFlows
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.extensions import (
     ExtensionAPI,
@@ -188,6 +189,14 @@ def _build_pane_stack(ed: Editor) -> None:
         focus_explorer=ed.focus_explorer,
     )
     ed.pane_host = PaneHost(ed.panes, ed.make_view)
+    ed.prompt_flows = PromptFlows(
+        ed.session,
+        ed.panes,
+        ed.prompt_bar,
+        message=ed.message,
+        readonly_notice=ed.readonly_notice,
+        refresh=ed.refresh_ui,
+    )
     ed.lsp_sync = LspSync(
         ed.app,
         ed.lsp,
@@ -270,6 +279,7 @@ class Editor:
     overlays: OverlayController
     shell: ShellFlow
     completion: CompletionController
+    prompt_flows: PromptFlows
 
     def __init__(
         self,
@@ -811,7 +821,7 @@ class Editor:
         except BufferReadOnlyError:
             # Typing / vim operators / edit actions on a read-only buffer:
             # the key is consumed (R10) with a notice instead of an edit.
-            self._readonly_notice()
+            self.readonly_notice()
             return True
         self.refresh_ui()
         self.completion.after_editor_key(raw)
@@ -833,13 +843,13 @@ class Editor:
                 log.debug("action not found: %s", name)
             return handled
         except BufferReadOnlyError:
-            self._readonly_notice()
+            self.readonly_notice()
             # the refused action may have moved the cursor / changed anchors
             # before raising; repaint so the view never goes stale
             self.refresh_ui()
             return True
 
-    def _readonly_notice(self) -> None:
+    def readonly_notice(self) -> None:
         """User feedback for an edit refused on a read-only buffer."""
         self.message(
             "buffer is read-only (:set readonly=false to unlock)", kind="warn"
@@ -1053,110 +1063,27 @@ class Editor:
 
     def find_prompt(self, forward: bool) -> None:
         """Open the search prompt (``/``, ``?``, ctrl+f)."""
-        self.prompt_bar.activate(
-            "find" if forward else "find_back",
-            initial=self.session.search.query,
-            placeholder="search pattern (enter to jump, esc to cancel)",
-            on_submit=lambda text: self._submit_search(text, forward),
-            on_changed=self._live_search,
-        )
-
-    def _live_search(self, text: str) -> None:
-        """Highlight matches while the search prompt is being typed."""
-        self.session.search.update(text, self.session.buffer)
-        for view in self.panes.views_for(self.session.doc):
-            view.refresh()
-
-    def _submit_search(self, text: str, forward: bool) -> None:
-        if not text:
-            return
-        self.find_next(forward)
+        self.prompt_flows.find_prompt(forward)
 
     def find_next(self, forward: bool) -> None:
         """``n``/``N``: jump to the next / previous match."""
-        search = self.session.search
-        if not search.query:
-            self.message("no active search — press / to start one", kind="warn")
-            return
-        match = search.next(self.session.buffer, forward=forward)
-        if match is None:
-            self.message(f"no matches for {search.query!r}", kind="warn")
-        else:
-            self.message(
-                f"[{search.index + 1}/{len(search.matches)}] {search.query!r}"
-            )
+        self.prompt_flows.find_next(forward)
 
     def replace_prompt(self) -> None:
         """``:s`` style replace: ask for the search text."""
-        self.prompt_bar.activate(
-            "replace_find",
-            placeholder="text to find",
-            on_submit=self._replace_find_step,
-        )
-
-    def _replace_find_step(self, find: str) -> None:
-        find = find.strip()
-        if not find:
-            self.message("replace cancelled")
-            return
-        self.prompt_bar.activate(
-            "replace_with",
-            placeholder="replacement text",
-            on_submit=lambda replacement: self._do_replace(find, replacement),
-        )
-
-    def _do_replace(self, find: str, replacement: str) -> None:
-        if self.session.buffer.read_only:
-            self._readonly_notice()
-            return
-        matches = self.session.search.update(find, self.session.buffer)
-        if not matches:
-            self.message(f"no matches for {find!r}", kind="warn")
-            return
-        count = self.session.search.replace_all(self.session.buffer, replacement)
-        self.message(f"replaced {count} occurrence(s) of {find!r}", kind="ok")
+        self.prompt_flows.replace_prompt()
 
     def goto_prompt(self) -> None:
         """Open the command line in go-to-line mode (Ctrl+G)."""
-        line_count = self.session.buffer.line_count
-        self.prompt_bar.activate(
-            "goto",
-            placeholder=f"line number (1-{line_count})",
-            on_submit=self.goto_line_command,
-        )
+        self.prompt_flows.goto_prompt()
 
     def goto_line_command(self, text: str) -> None:
         """Jump to an absolute (``42``) or signed-relative (``+5``) line."""
-        text = text.strip()
-        if not re.fullmatch(r"[+-]?\d+", text):
-            self.message(f"not a line number: {text!r}", kind="warn")
-            return
-        value = int(text)
-        buf = self.session.buffer
-        if text[:1] in ("+", "-"):
-            target = buf.row + 1 + value  # 1-based current row + offset
-        else:
-            target = value
-        self.goto_line(target)
+        self.prompt_flows.goto_line_command(text)
 
     def goto_line(self, line: int) -> None:
-        """Move the cursor to 1-based *line*, clamped to the document.
-
-        The column is preserved (clamped to the destination line), matching
-        VS Code's Go to Line; the selection is cleared and the view follows.
-        """
-        buf = self.session.buffer
-        row = max(0, min(line - 1, buf.line_count - 1))
-        col = min(buf.col, len(buf.lines[row]))
-        buf.anchor = None
-        buf.set_cursor((row, col))
-        self.session.search.update("", buf)
-        view = self.panes.active_view
-        if view is not None:
-            view.scroll_col = 0
-            view.reveal_cursor()
-        self.message(f"line {row + 1} of {buf.line_count}")
-        self.refresh_ui()
+        """Move the cursor to 1-based *line*, clamped to the document."""
+        self.prompt_flows.goto_line(line)
 
     def page(self, direction: int, half: bool = False) -> None:
         """Scroll the active view by (half) a page."""
@@ -1343,7 +1270,7 @@ class Editor:
         try:
             self.completion.accept()
         except BufferReadOnlyError:
-            self._readonly_notice()
+            self.readonly_notice()
             self.refresh_ui()
 
     # =================================================================== lsp
