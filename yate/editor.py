@@ -82,8 +82,149 @@ _WINDOW_KEYS = frozenset(
 )
 
 
+# ------------------------------------------------------------------- assembly
+
+def _build_models(ed: Editor, keymap: str | None) -> None:
+    """Create the models and services the editor operations work on.
+
+    Module-level factory (review 20260926 #5): keeps :meth:`Editor.__init__`
+    a readable sequence of build steps.  Callbacks are bound methods of the
+    not-yet-fully-initialized *ed*; they only fire after construction, so
+    the half-built state is never observed.
+    """
+    ed.session = EditorSession(ed.config, on_closed=ed._lsp_documents_closed)
+    ed.workspace = Workspace()
+    # propagate the yaterc show_hidden default to the workspace
+    ed.workspace.show_hidden = ed.config.show_hidden
+    ed.explorer_visible = True
+    # Language Server Protocol: registered servers come from extensions
+    # and the yaterc ``language_servers`` option; the manager is UI
+    # independent and safe to keep even with no server.  It is created
+    # before the extension API, which wires ``api.lsp`` straight to it.
+    ed.lsp = LspManager(
+        workspace_root=lambda: ed.workspace.root,
+        on_event=ed._on_lsp_event,
+    )
+    ed.keymaps = KeymapSet(
+        {"vsc": VscKeymap(), "vim": VimKeymap()},
+        keymap if keymap is not None else ed.config.keymap,
+    )
+    # Empty tables: the built-in action / command modules import the
+    # editor, so only the shell may load them (R5/R7 -- see YateApp).
+    ed.actions = ActionRegistry()
+    ed.commands = CommandRegistry()
+    ed.extension_api = ExtensionAPI(ed._extension_context())
+    ed.extension_loader = ExtensionLoader(ed.extension_api)
+    ed.key_ui = KeyUi(
+        execute_action=ed.execute_action,
+        message=ed.message,
+        command_prompt=ed.command_prompt,
+        find_prompt=ed.find_prompt,
+        goto_prompt=ed.goto_prompt,
+        toggle_keymap=ed.toggle_keymap,
+    )
+
+
+def _build_widgets(ed: Editor) -> None:
+    """Create the widget tree members and keep the references ops need."""
+    ed.prompt_bar = PromptBar(
+        ed.prompt_completions,
+        cancel_hook=ed._cancel_prompt,
+        focus_editor=ed.focus_editor,
+        refresh=ed.refresh_ui,
+    )
+    ed.tabbar = TabBar(ed.session, ed.activate_doc, id="tabbar")
+    ed.breadcrumbs = Breadcrumbs(ed.session, ed.workspace, id="breadcrumbs")
+    ed.completion_popup = CompletionPopup()
+    ed.terminal_panel = TerminalPanel(
+        ed.config, ed.workspace, ed.prompt_bar,
+        focus_editor=ed.focus_editor, id="terminal-dock",
+    )
+    ed.explorer_tree = ExplorerTree(
+        ed.session,
+        ed.workspace,
+        ed.prompt_bar,
+        open_path=ed.open_path_later,
+        focus_editor=ed.focus_editor,
+        window_prefix=ed.try_window_prefix,
+        id="explorer",
+    )
+    ed.status_bar = StatusBar(
+        ed.session, ed.lsp, ed.keymaps, ed.prompt_bar,
+        ed.extension_loader, id="statusbar",
+    )
+    ed.sidebar = Vertical(id="sidebar")
+    ed.sidebar_head = SidebarHead(id="sidebar-head")
+    ed.editor_col = Vertical(id="editor-col")
+
+
+def _open_startup_target(ed: Editor, target: str | Path | None) -> None:
+    """Open the startup target (file or directory) and seed an empty buffer."""
+    if target is not None:
+        kind = ed._open_target(Path(target))
+        # A directory argument opens in browse mode (explorer visible);
+        # a file argument opens in edit mode (explorer hidden; Ctrl+B /
+        # :explorer reveals it later). With no argument the workspace
+        # root is None and the explorer stays hidden regardless.
+        ed.explorer_visible = kind == "dir"
+    if not ed.session.docs:
+        ed.session.new_buffer()
+
+
+def _build_pane_stack(ed: Editor) -> None:
+    """Build the pane tree, its host widget and the completion controller."""
+    # The pane tree owns editor windows; it starts with one leaf on the
+    # startup document and grows with :split / :vsplit.
+    ed.panes = PaneManager(
+        ed.session,
+        ed.session.doc,
+        is_mounted=lambda: ed.mounted,
+        after_pane_focus=ed.after_pane_focus,
+        focus_explorer=ed.focus_explorer,
+    )
+    ed.pane_host = PaneHost(ed.panes, ed._make_view)
+    ed.completion = CompletionController(
+        ed.app,
+        session=ed.session,
+        lsp=ed.lsp,
+        workspace=ed.workspace,
+        keymaps=ed.keymaps,
+        panes=ed.panes,
+        popup=ed.completion_popup,
+        prompt=ed.prompt_bar,
+        refresh=ed.refresh_ui,
+    )
+
+
 class Editor:
     """The running editor: models, widgets and the operations that tie them."""
+
+    # Attributes assembled by the module-level _build_* factories above;
+    # declared here because pyright strict cannot infer instance attributes
+    # assigned outside the class methods.
+    session: EditorSession
+    workspace: Workspace
+    lsp: LspManager
+    keymaps: KeymapSet
+    actions: ActionRegistry
+    commands: CommandRegistry
+    extension_api: ExtensionAPI
+    extension_loader: ExtensionLoader
+    key_ui: KeyUi
+    prompt_bar: PromptBar
+    tabbar: TabBar
+    breadcrumbs: Breadcrumbs
+    completion_popup: CompletionPopup
+    terminal_panel: TerminalPanel
+    explorer_tree: ExplorerTree
+    status_bar: StatusBar
+    sidebar: Vertical
+    sidebar_head: SidebarHead
+    editor_col: Vertical
+    explorer_visible: bool
+    panes: PaneManager
+    pane_host: PaneHost
+    completion: CompletionController
 
     def __init__(
         self,
@@ -108,103 +249,10 @@ class Editor:
         self._ext_messages: list[str] = [
             f"yaterc: {err}" for err in self.config.errors
         ]
-
-        # ------------------------------------------------------- models/services
-        self.session = EditorSession(config, on_closed=self._lsp_documents_closed)
-        self.workspace = Workspace()
-        # propagate the yaterc show_hidden default to the workspace
-        self.workspace.show_hidden = config.show_hidden
-        self.explorer_visible = True
-        # Language Server Protocol: registered servers come from extensions
-        # and the yaterc ``language_servers`` option; the manager is UI
-        # independent and safe to keep even with no server.  It is created
-        # before the extension API, which wires ``api.lsp`` straight to it.
-        self.lsp = LspManager(
-            workspace_root=lambda: self.workspace.root,
-            on_event=self._on_lsp_event,
-        )
-        self.keymaps = KeymapSet(
-            {"vsc": VscKeymap(), "vim": VimKeymap()},
-            keymap if keymap is not None else config.keymap,
-        )
-        # Empty tables: the built-in action / command modules import the
-        # editor, so only the shell may load them (R5/R7 -- see YateApp).
-        self.actions = ActionRegistry()
-        self.commands = CommandRegistry()
-        self.extension_api = ExtensionAPI(self._extension_context())
-        self.extension_loader = ExtensionLoader(self.extension_api)
-        self.key_ui = KeyUi(
-            execute_action=self.execute_action,
-            message=self.message,
-            command_prompt=self.command_prompt,
-            find_prompt=self.find_prompt,
-            goto_prompt=self.goto_prompt,
-            toggle_keymap=self.toggle_keymap,
-        )
-
-        # --------------------------------------------------------------- widgets
-        self.prompt_bar = PromptBar(
-            self.prompt_completions,
-            cancel_hook=self._cancel_prompt,
-            focus_editor=self.focus_editor,
-            refresh=self.refresh_ui,
-        )
-        self.tabbar = TabBar(self.session, self.activate_doc, id="tabbar")
-        self.breadcrumbs = Breadcrumbs(self.session, self.workspace, id="breadcrumbs")
-        self.completion_popup = CompletionPopup()
-        self.terminal_panel = TerminalPanel(
-            config, self.workspace, self.prompt_bar,
-            focus_editor=self.focus_editor, id="terminal-dock",
-        )
-        self.explorer_tree = ExplorerTree(
-            self.session,
-            self.workspace,
-            self.prompt_bar,
-            open_path=self.open_path_later,
-            focus_editor=self.focus_editor,
-            window_prefix=self.try_window_prefix,
-            id="explorer",
-        )
-        self.status_bar = StatusBar(
-            self.session, self.lsp, self.keymaps, self.prompt_bar,
-            self.extension_loader, id="statusbar",
-        )
-        self.sidebar = Vertical(id="sidebar")
-        self.sidebar_head = SidebarHead(id="sidebar-head")
-        self.editor_col = Vertical(id="editor-col")
-
-        # ------------------------------------------------------------ startup
-        if target is not None:
-            kind = self._open_target(Path(target))
-            # A directory argument opens in browse mode (explorer visible);
-            # a file argument opens in edit mode (explorer hidden; Ctrl+B /
-            # :explorer reveals it later). With no argument the workspace
-            # root is None and the explorer stays hidden regardless.
-            self.explorer_visible = kind == "dir"
-        if not self.session.docs:
-            self.session.new_buffer()
-
-        # The pane tree owns editor windows; it starts with one leaf on the
-        # startup document and grows with :split / :vsplit.
-        self.panes = PaneManager(
-            self.session,
-            self.session.doc,
-            is_mounted=lambda: self.mounted,
-            after_pane_focus=self.after_pane_focus,
-            focus_explorer=self.focus_explorer,
-        )
-        self.pane_host = PaneHost(self.panes, self._make_view)
-        self.completion = CompletionController(
-            app,
-            session=self.session,
-            lsp=self.lsp,
-            workspace=self.workspace,
-            keymaps=self.keymaps,
-            panes=self.panes,
-            popup=self.completion_popup,
-            prompt=self.prompt_bar,
-            refresh=self.refresh_ui,
-        )
+        _build_models(self, keymap)
+        _build_widgets(self)
+        _open_startup_target(self, target)
+        _build_pane_stack(self)
 
     # ================================================================ wiring
 
