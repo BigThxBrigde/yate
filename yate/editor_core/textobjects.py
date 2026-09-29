@@ -119,14 +119,17 @@ def at_word_end(line: str, col: int) -> bool:
     return col + 1 == len(line) or _class(line[col + 1]) != _class(line[col])
 
 
-def word_end_column(line: str, col: int) -> int | None:
-    """Find the next vim ``e`` landing column strictly after *col*.
+def word_end_column(line: str, col: int, *, from_start: bool = False) -> int | None:
+    """Find the next vim ``e`` landing column after *col*.
 
     Scans forward for the end of the next word or punctuation run and
     returns ``None`` when the rest of the line offers no landing, so the
-    caller can wrap to the following lines.
+    caller can wrap to the following lines.  The scan starts strictly
+    after *col*; *from_start* scans the whole line from column 0 instead
+    (a wrapped ``e`` may land on the first word).
     """
-    for i in range(col + 1, len(line)):
+    start = 0 if from_start else col + 1
+    for i in range(start, len(line)):
         if at_word_end(line, i):
             return i
     return None

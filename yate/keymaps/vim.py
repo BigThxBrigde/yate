@@ -198,11 +198,15 @@ class VimKeymap(Keymap):
 
     def _clear_pending(self) -> None:
         """Drop every half-finished operator/prefix/count state."""
-        self.op = None
+        self._clear_operator()
         self.prefix = None
+        self.count_str = ""
+
+    def _clear_operator(self) -> None:
+        """Drop the armed operator with its scope and count companions."""
+        self.op = None
         self.obj_scope = None
         self.op_count = None
-        self.count_str = ""
 
     # ------------------------------------------------------------- insert mode
 
@@ -381,9 +385,7 @@ class VimKeymap(Keymap):
         if key in _PREFIX_KEYS:
             if key == "r" and self.op is not None:
                 # r cannot complete an operator, vim cancels it instead
-                self.op = None
-                self.obj_scope = None
-                self.op_count = None
+                self._clear_operator()
             self.prefix = key
             return True
 
@@ -536,9 +538,7 @@ class VimKeymap(Keymap):
         buf = ctx.buffer
         ui = ctx.ui
         n = self.op_count or 1
-        self.op = None
-        self.obj_scope = None
-        self.op_count = None
+        self._clear_operator()
         r1 = buf.row
         col = buf.col  # yy keeps the cursor where it is, like vim
         r2 = min(r1 + n - 1, len(buf.lines) - 1)
@@ -566,9 +566,7 @@ class VimKeymap(Keymap):
         self.count_str = ""
         target = motion_typed if motion_typed is not None else self.op_count or 1
         op = self.op
-        self.op = None
-        self.obj_scope = None
-        self.op_count = None
+        self._clear_operator()
         if op is None:
             r = min(target - 1, len(buf.lines) - 1)
             buf.set_cursor((r, first_non_blank(buf.lines[r])))
@@ -626,9 +624,7 @@ class VimKeymap(Keymap):
         op = self.op
         target = self._find_target(ctx, ch, backward, till)
         self.prefix = None
-        self.op = None
-        self.obj_scope = None
-        self.op_count = None
+        self._clear_operator()
         if target is None:
             ctx.ui.message("not found")
             return
@@ -716,7 +712,7 @@ class VimKeymap(Keymap):
                 nc = word_end_column(buf.lines[r], c)
                 while nc is None and r < len(buf.lines) - 1:
                     r += 1
-                    nc = word_end_column(buf.lines[r], -1)  # col 0 may land
+                    nc = word_end_column(buf.lines[r], 0, from_start=True)
                 if nc is not None:
                     # normal mode lands on the word's last char; visual and
                     # operator mode land one past it so the half-open
@@ -762,9 +758,7 @@ class VimKeymap(Keymap):
         effective = (self.op_count or 1) * (motion_typed or 1)
         given = self.op_count is not None or motion_typed is not None
         count = effective if given else None
-        self.op = None
-        self.obj_scope = None
-        self.op_count = None
+        self._clear_operator()
         buf = ctx.buffer
         start = buf.cursor
         if code == "w":
@@ -798,9 +792,19 @@ class VimKeymap(Keymap):
         self._apply_span(ctx, op, start, buf.cursor)
 
     def _apply_span(self, ctx: ActionContext, op: str, start: Pos, end: Pos) -> None:
-        """Run *op* over the charwise span from *start* to *end* (inclusive)."""
+        """Run *op* over the charwise span from *start* inclusive to *end* exclusive.
+
+        *end* is the first kept column, so ``len(row)`` is a legal end (span
+        reaches the line end).  Callers build endpoints with ``+1`` arithmetic
+        and pass through object spans; clamping the column here keeps an
+        overshoot from reaching the buffer's half-open deletion, whose
+        multi-row join would silently swallow text past the row end.
+        """
         buf = ctx.buffer
         ui = ctx.ui
+        er, ec = end
+        if er < len(buf.lines) and ec > len(buf.lines[er]):
+            end = (er, len(buf.lines[er]))
         buf.anchor = start
         buf.cursor = end
         if op == "y":
@@ -831,9 +835,7 @@ class VimKeymap(Keymap):
         motion_typed = self._typed_count()
         count = (self.op_count or 1) * (motion_typed or 1)
         self.prefix = None
-        self.op = None
-        self.obj_scope = None
-        self.op_count = None
+        self._clear_operator()
         self.count_str = ""
         assert op is not None and scope is not None
         buf = ctx.buffer
