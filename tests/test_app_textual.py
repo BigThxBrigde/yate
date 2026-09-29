@@ -1113,11 +1113,11 @@ def test_ctrl_slash_drops_pending_vim_state() -> None:
             await pilot.press("d")  # pending delete operator
             await pilot.pause()
             vim = cast(VimKeymap, app.editor.keymaps.active)
-            assert vim.pending == "d"
+            assert vim.op == "d"
             await pilot.press("ctrl+/")
             await pilot.pause()
             assert app.editor.keymaps.name == "vsc"
-            assert vim.pending == ""
+            assert vim.op is None
             assert vim.count_str == ""
 
     asyncio.run(scenario())

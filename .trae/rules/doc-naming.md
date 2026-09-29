@@ -44,9 +44,8 @@ review 语义并入 `task`：
 - 合规格式：`<task>-plan.md`，task 中含 `review` 词根
   （存量合规例：`code-review-fixes-plan.md`、`fancy-sym-review-fixes-plan.md`、
   `vim-keymap-review-plan.md`）；
-- **禁止下划线分词**（存量反例 `vim_keymap_review_plan.md`，位于
-  `review-vim-keymap` worktree 分支，须随该分支改为
-  `vim-keymap-review-plan.md` 后再合并）；
+- **禁止下划线分词**（存量反例 `vim_keymap_review_plan.md` 已随
+  `review-vim-keymap` 分支改为 `vim-keymap-review-plan.md`）；
 - 评审记录与修复方案必须互相链接（记录 → 方案；方案 → 来源记录），
   但文件各自独立，不合并成一份。
 
