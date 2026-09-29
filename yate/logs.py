@@ -20,6 +20,11 @@ other. Callers import them straight from this module::
   ``~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log``; the file is created on the
   first emitted record, so an early-exit command (``yate --version``) leaves no
   empty shell behind even with ``YATE_TRACE=1``.
+* :func:`create_devtools_bridge` -- the R12 devtools bridge (a tracing-gated
+  ``TextualHandler``), constructed only by the L4 shell and mounted on the
+  ``yate`` root logger.  ``textual`` is imported inside the factory, not at
+  module scope, so this module's stdlib-only import surface survives for
+  every headless caller.
 
 The two share nothing but the module-level helpers below them -- no base class,
 no cross-reference between the classes, no :mod:`yate.config` dependency (the
@@ -641,3 +646,38 @@ crash = CrashService()
 
 #: Runtime trace log of this process. Knows nothing about :data:`crash`.
 tracing = TracingService()
+
+
+# ==============================================================
+# R12 devtools bridge -- constructed only by the L4 shell (YateApp)
+# ==============================================================
+
+
+def create_devtools_bridge(stderr: bool, stdout: bool) -> logging.Handler:
+    """Build the devtools bridge: a ``TextualHandler`` gated on tracing.
+
+    The gate lives at the handler (not the logger) because the unconfigured
+    ``yate`` logger inherits the root logger's WARNING level -- WARNING+
+    records would flow to every attached handler, devtools included, even
+    while tracing is off.  Returning plain :class:`logging.Handler` keeps the
+    Textual dependency inside this factory: :mod:`textual.logging` is
+    imported lazily (the bridge is only ever constructed from a mounted
+    :class:`~yate.app.YateApp`), so importing :mod:`yate.logs` stays
+    stdlib-only for every headless caller -- see the module docstring.
+
+    *stderr* / *stdout* forward to the stock ``TextualHandler`` fallback
+    sinks (used when no app is active); the shell passes ``False, False`` so
+    a disconnected devtools means zero output instead of TTY corruption.
+    """
+    from textual.logging import TextualHandler
+
+    class _TracingGatedTextualHandler(TextualHandler):
+        """Devtools bridge that forwards records only while tracing is on (R12)."""
+
+        @override
+        def emit(self, record: logging.LogRecord) -> None:
+            if not tracing.is_enabled():
+                return
+            super().emit(record)
+
+    return _TracingGatedTextualHandler(stderr=stderr, stdout=stdout)

@@ -63,9 +63,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
   其中 `#statusbar` 只是 widget id（其样式由组件自持：`editor_view/statusbar.py:57`
   的 `DEFAULT_CSS` 用类选择器 `StatusBar`），其余 id 均被外壳 CSS 直接引用——该 CSS
-  已不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`（`YateApp.CSS =
-  _load_app_css()`，app.py:118；文件头注释即声明"selector ids are frozen by R9"）：
-  改 id 必须同步改该 `.tcss` 文件。
+  已不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`
+  （`YateApp.CSS = paths.load_tcss("app.tcss")`；公共加载器 `yate/paths.py` 的
+  `load_tcss()` 供 L2 组件同源装载自有 tcss，如 `screensaver.tcss`；文件头注释即声明
+  "selector ids are frozen by R9"）：改 id 必须同步改该 `.tcss` 文件。
 - **R10 — 一次按键只派发一次**：`EditorView.on_key` 处理后 `event.stop()` / `prevent_default()`，
   未被消费的键不得冒泡到外壳二次派发。
 - **R12 — 日志统一 tracing（2026-09-27）**：yate 内全部运行时日志一律走模块级
@@ -74,7 +75,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `import textual.app` 或为 `app` 属性补类型注解，业务代码不得直连 devtools 通道。
   devtools 可视化由 L4 `YateApp` 统一桥接：`textual.logging.TextualHandler`
   挂到 tracing 根 logger（回调模式；devtools 未连接或 tracing 未开启时零输出），
-  L0 不因日志引入 textual 依赖。
+  L0 不因日志在 import 时引入 textual 依赖（闸门 handler 定义在 `yate/logs.py`
+  的 `create_devtools_bridge()` 工厂里，`textual.logging` 由工厂内懒加载，
+  `import yate.logs` 保持 stdlib-only 导入面）。
 
   **devtools 桥接方案**（Textual 8.2.8 实证）：
 
@@ -82,7 +85,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   flowchart LR
       A["业务模块 (L0-L3)<br/>log = tracing.get_logger(__name__)"] --> B["tracing 根 logger<br/>(stdlib logging, 'yate')"]
       B -->|YATE_TRACE=1| C[trace 文件<br/>~/.yate/data/logs/]
-      B -->|"TextualHandler (L4 桥, tracing 闸门)"| D[devtools 控制台]
+      B -->|"create_devtools_bridge (logs.py 工厂, tracing 闸门)"| D[devtools 控制台]
       D -.->|devtools 未连接| E[静默丢弃]
       C -.->|tracing 未设| E
       style A fill:#bbdefb,color:#0d47a1
@@ -94,12 +97,14 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
     devtools 写入器，**无回调/注入 API**；官方反向桥是 `textual.logging.TextualHandler`
     （stdlib `logging.Handler`，`emit` 经 `active_app` 转发 devtools）。tracing 即 stdlib
     logging，挂载即通；
-  - **挂载点唯一**：`YateApp.on_mount`（L4 生命周期）挂 `TextualHandler` 到 `yate` 根
+  - **挂载点唯一**：`YateApp.on_mount`（L4 生命周期）以 `create_devtools_bridge()`
+    构造桥并挂到 `yate` 根
     logger，`on_unmount` **按身份**摘除本实例所挂的 handler（多 App 实例互不误摘；
     重挂载前先摘旧实例防泄漏），handler 跟随 App 实例生命周期，不进程级残留，
     `stderr=False, stdout=False`（无 devtools 时绝不污染 TTY）；
   - **闸门语义（YATE_TRACE 单开关，2026-09-27 评审后收紧）**：挂到根 logger 的桥是
-    `_TracingGatedTextualHandler`——`emit` 先查 `tracing.is_enabled()`，**tracing 禁用
+    `yate/logs.py` 工厂内的 `_TracingGatedTextualHandler`——`emit` 先查
+    `tracing.is_enabled()`，**tracing 禁用
     时 devtools 一并禁用**（未配置的 `yate` logger 有效级别继承 root 的 WARNING，
     WARNING+ record 会到达每个 handler，闸门在 handler 层把它们全部挡下，devtools
     通道零输出）；devtools 断连时 `TextualHandler.emit` 自查 `active_app` 后静默；

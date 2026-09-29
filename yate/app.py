@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from importlib.resources import files
 from pathlib import Path
 from typing import override
 
@@ -19,7 +18,6 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.driver import Driver
 from textual.events import Key
-from textual.logging import TextualHandler
 
 from yate import __version__
 from yate.actions import populate
@@ -30,7 +28,8 @@ from yate.editor_sprites.characters import character_names
 from yate.editor_view import theme
 from yate.editor_view.screensaver import ScreensaverScreen
 from yate.keyproto.legacy import textual_key_to_raw
-from yate.logs import LOGGER_NAME, tracing
+from yate.logs import LOGGER_NAME, create_devtools_bridge, tracing
+from yate.paths import load_tcss
 from yate.services.idle_tracker import IdleTracker
 
 # `textual_key_to_raw` lives in the L0 keyproto leaf (no import cycles) and
@@ -40,42 +39,6 @@ __all__ = ["textual_key_to_raw", "YateApp"]
 log = tracing.get_logger(__name__)
 
 
-def _load_app_css() -> str:
-    """Read the app-level stylesheet packaged at ``yate/resources/app.tcss``.
-
-    The shell's CSS is a bundled resource rather than an inline literal so it
-    gets editor syntax highlighting and ships through the same packaging
-    channels as every other file under ``yate/resources`` (hatchling wheel and
-    both PyInstaller specs already collect that directory whole).  An
-    unreadable resource means a broken installation: fail fast at import time
-    with an actionable message instead of a confusing stylesheet error later.
-    """
-    try:
-        return files("yate.resources").joinpath("app.tcss").read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise RuntimeError(
-            "bundled resource yate/resources/app.tcss could not be read; "
-            "the yate installation is broken"
-        ) from exc
-
-
-class _TracingGatedTextualHandler(TextualHandler):
-    """Devtools bridge that forwards records only while tracing is on (R12).
-
-    Tracing is the single switch for yate diagnostics: while it is off, no
-    record may reach the devtools console either.  The gate is needed at the
-    handler (not the logger) because the unconfigured ``yate`` logger
-    inherits the root logger's WARNING level -- WARNING+ records would flow
-    to every attached handler, devtools included.
-    """
-
-    @override
-    def emit(self, record: logging.LogRecord) -> None:
-        if not tracing.is_enabled():
-            return
-        super().emit(record)
-
-
 class YateApp(App[None]):
     """The yate Textual application: theme bridge, CSS, lifecycle, keys."""
 
@@ -83,7 +46,8 @@ class YateApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     #: R12 devtools bridge, mounted in :meth:`on_mount` and detached by
-    #: identity in :meth:`on_unmount`; ``None`` while not mounted.
+    #: identity in :meth:`on_unmount`; ``None`` while not mounted.  The
+    #: tracing-gated handler is built by :func:`yate.logs.create_devtools_bridge`.
     _devtools_bridge: logging.Handler | None = None
 
     #: Idle-input tracker for the screensaver trigger; ``None`` while
@@ -115,7 +79,8 @@ class YateApp(App[None]):
             return YateWindowsDriver
         return super().get_driver_class()
 
-    CSS = _load_app_css()
+    #: Shell stylesheet, a bundled resource (see :func:`yate.paths.load_tcss`).
+    CSS = load_tcss("app.tcss")
 
     def __init__(
         self,
@@ -223,9 +188,7 @@ class YateApp(App[None]):
             # Defensive: a remount without an unmount would otherwise leak
             # the previous handler.
             yate_root.removeHandler(self._devtools_bridge)
-        self._devtools_bridge = _TracingGatedTextualHandler(
-            stderr=False, stdout=False
-        )
+        self._devtools_bridge = create_devtools_bridge(stderr=False, stdout=False)
         yate_root.addHandler(self._devtools_bridge)
         log.info("app mounted: theme=%s version=%s", theme.active().name, __version__)
         # watch_theme skips pre-mount assignments (no screen yet); paint once
