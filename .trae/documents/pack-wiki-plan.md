@@ -138,6 +138,34 @@ flowchart LR
     style J fill:#fff3e0,color:#e65100
 ```
 
-## 八、执行记录（收尾回填）
+## 八、执行记录（收尾回填，2026-09-29 实测）
 
-（待回填：各波实测数字、偏离记录、提交哈希）
+### 提交哈希
+
+| 仓库 | 提交 | 内容 |
+|---|---|---|
+| yate（worktree feat/pack-wiki） | `ab50d66` / `c1dc4f3` / `49659d7` | Wave A 工具实现 / 测试 / github wiki URL 补 `.git` 后缀小修 |
+| yate.wiki | `78ab3df` `c36ca1a` | 用户自行 `--push` 时工具产生的两笔部分提交 |
+| yate.wiki | `c3e27e4` | 合并 github 远端分叉提交 `a4486a6 Initial Home page`（Home.md 冲突取本地生成版） |
+| yate.wiki | `81be3c8` | `docs: add english translations`：122 文件 +21978 行，工作区清零 |
+
+### 各波实测数字
+
+- **Wave A**：`tools/pack/wiki.py` 新模块 + `cli.py` 注册；`tests/test_pack_wiki.py` 14 个用例；pyright 0 诊断。
+- **Wave B**：zh 页落盘 **134** 篇（计划预估 133，源文档在此期间新增 1 篇）；首轮 `--check`：en kept 12 / missing 122 / stale 0，退出码 1。
+- **Wave C**：122 篇存量译文全部落盘；终验 `--check` = **kept 134 / missing 0 / stale 0，退出码 0**。
+- **收尾门禁**：全量 pytest 退出码 0（全绿）；`pyright yate/ tests/ tools/` 零诊断。
+
+### 子代理执行实况（如实记录）
+
+- 项目无 `general-purpose` 子代理，按规则新建自定义 `translator` 成员定义（`.codebuddy/agents/translator.md`）。
+- **首批 3 个成员中 2 个判死**（探活 `Recipient not found`、成员表为空、零落盘）：tr-g01 完成 2 篇后消亡，tr-g02/g03 零产出。按纪律变更配置（`acceptEdits`→`bypassPermissions`、批大小 3→1）重试 1 次即成功。
+- 此后全部批次（`bypassPermissions`，3 个/批，共 14 批 34 个成员）**零再发失败**；证实"默认权限模式下写盘卡审批"是成员静默死亡根因。
+- **中途事故**：用户在终端排障 push 期间，wiki 仓库约 40 篇根目录 en 页被经资源管理器删除（进回收站）。37 篇从回收站恢复；**12 篇子目录页被永久删除**（含主代理一次清理脚本用错路径判断、`Remove-Item` 直删的错位副本），已由 3 个修复成员重译补齐。教训：翻译产物落盘后立即 git 提交，勿依赖工作区。
+
+### 偏离计划项
+
+1. 翻译执行方式：未走 `--translate-cmd` 外部钩子，而是主代理派子代理直接把 en 页写盘（计划 §三.1 的"译本落盘充当缓存"机制不变，钩子留作后续增量维护）。
+2. 批量与权限：实践 3 个/批（计划 2~3）、`bypassPermissions`（计划默认 acceptEdits，实测会卡审批致死）。
+3. 页面基数：zh 134（非 133）；en 页总量 134，双语源直拷 4 对 + manual 不变。
+4. push 纪律：计划"本任务闭环内不执行 push"，实际用户自行执行了 `--push`（含一次 github 拒绝与合并处理）；最终译文提交 `81be3c8` 仅本地，**未推送**，由用户决定。
