@@ -1,26 +1,27 @@
 # doc-naming（文档命名规范）
 
 本规则固化仓库内各类文档的命名约定。新建文档必须遵守；存量文档已于
-2026-09-29 统一过一轮（62 个计划文件重命名，见
-`.trae/documents/doc_plans_naming_convention_plan.md` 执行记录）。
+2026-09-29 统一过一轮（计划文档由下划线分词统一迁移为连字符分词，见
+`.trae/documents/doc-plans-naming-convention-plan.md` 执行记录）。
 
 ## 一、计划与子计划（`.trae/documents/`）
 
 | 对象 | 命名 | 示例 |
 |---|---|---|
-| 主计划 | `<task>_plan.md` | `wt_keybinding_fix_plan.md` |
-| 子计划目录 | `<task>_plans/` | `fancy_sym_plans/` |
-| 子计划文件 | `<task>_[subtask]_plan_<a\|b\|c...>.md` | `app_layering_refactoring_leaf_models_plan_a.md`、`python_312_upgrade_plan_a.md`（subtask 省略） |
+| 主计划 | `<task>-plan.md` | `wt-keybinding-fix-plan.md` |
+| 子计划目录 | `<task>-plans/` | `fancy-sym-plans/` |
+| 子计划文件 | `<task>-<subtask>-plan-<a\|b\|c...>.md` | `app-layering-refactoring-leaf-models-plan-a.md`、`python-312-upgrade-plan-a.md`（subtask 省略） |
 | 子计划目录总纲 | `overview.md`（**不用** README.md） | `theme-layer-refactor-plans/overview.md` |
 
 硬性要求：
 
-- `task` / `subtask` 用小写下划线分词，与目录 task 保持一致；
+- `task` / `subtask` 用小写连字符分词，与目录 task 保持一致；
 - 波次标记（SP0-SP4、P0-P2、PLAN_B_v2 等）一律转字母序 `a,b,c...`，
   原语义由 subtask 主题或文档内文保留；
-- 子计划目录名保持既有风格不动（连字符 `*-plans/` 与下划线 `*_plans/`
-  均为存量合法形态；新建目录二选一后不得混用）；
-- 方案文档自身也按本规范命名（如 `doc_plans_naming_convention_plan.md`）。
+- 子计划目录名统一使用连字符 `<task>-plans/` 形态：存量中既有连字符
+  `*-plans/` 与下划线 `*_plans/` 两种，下划线形态须迁移为连字符，不得
+  新增下划线风格目录；
+- 方案文档自身也按本规范命名（如 `doc-plans-naming-convention-plan.md`）。
 
 ## 二、审查与评审文档
 
@@ -40,12 +41,12 @@
 评审发现需要修复时，修复方案按 §一 主计划规范落在 `.trae/documents/` 根，
 review 语义并入 `task`：
 
-- 合规格式：`<task>_plan.md`，task 中含 `review` 词根
-  （存量合规例：`code_review_fixes_plan.md`、`fancy_sym_review_fixes_plan.md`、
-  `vim_keymap_review_plan.md`）；
-- **禁止连字符分词**（存量反例 `vim-keymap-review-plan.md`，位于
+- 合规格式：`<task>-plan.md`，task 中含 `review` 词根
+  （存量合规例：`code-review-fixes-plan.md`、`fancy-sym-review-fixes-plan.md`、
+  `vim-keymap-review-plan.md`）；
+- **禁止下划线分词**（存量反例 `vim_keymap_review_plan.md`，位于
   `review-vim-keymap` worktree 分支，须随该分支改为
-  `vim_keymap_review_plan.md` 后再合并）；
+  `vim-keymap-review-plan.md` 后再合并）；
 - 评审记录与修复方案必须互相链接（记录 → 方案；方案 → 来源记录），
   但文件各自独立，不合并成一份。
 
@@ -64,10 +65,10 @@ review 语义并入 `task`：
 
 ## 五、通用反例（禁止）
 
-- 禁止模糊/无意义命名：`app_parts`、`app_helpers`、`misc_docs`、`temp`、`old`；
-- 禁止与现有规则冲突的后缀（`*_ops`、`*_feature` 已在代码层废止，文档同理）；
+- 禁止模糊/无意义命名：`app-parts`、`app-helpers`、`misc-docs`、`temp`、`old`；
+- 禁止与现有规则冲突的后缀（`*-ops`、`*-feature` 已在代码层废止，文档同理）；
 - 禁止中英混合文件名；文件名一律 ASCII；
-- 禁止日期与主题混排格式（`review_20260926.md` 型已废止，见 §二）。
+- 禁止日期与主题混排格式（`review-20260926.md` 型已废止，见 §二）。
 
 ## 六、与其它规则的关系
 

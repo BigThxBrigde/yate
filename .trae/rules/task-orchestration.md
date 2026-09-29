@@ -14,11 +14,11 @@
    （`git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`），
    **续作任务**先 `git worktree list` 复用现有 worktree，禁止重复新建。
 2. 【方案】按 [plan-architect-designer](../agents/plan-architect-designer.md) 剧本产出方案，落盘
-   `.trae/documents/<task>_plan.md`（相对路径；复杂任务拆子计划到
-   `.trae/documents/<task>_plans/` 并严格定制执行波次）。**命名规范**：
-   主计划 `<task>_plan.md`；子计划 `<task>_[subtask]_plan_<a|b|c...>.md`
+   `.trae/documents/<task>-plan.md`（相对路径；复杂任务拆子计划到
+   `.trae/documents/<task>-plans/` 并严格定制执行波次）。**命名规范**：
+   主计划 `<task>-plan.md`；子计划 `<task>-<subtask>-plan-<a|b|c...>.md`
    （subtask 可省略，SP/P 等波次标记一律转字母序）；子计划目录总纲命名
-   `overview.md`；目录名保持既有风格。
+   `overview.md`；目录名统一连字符 `<task>-plans/`。
 3. 【批准】向用户呈现方案，**未经批准不得进入执行**（plan-before-execute 硬性流程）。
 4. 【执行】按 [plan-executor](../agents/plan-executor.md) 剧本实施：独占文件清单 + 计划内验收命令；
    文件不重叠的步骤按波次并行，波次间串行。

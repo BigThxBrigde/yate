@@ -255,5 +255,5 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - 架构决策变更必须**同步更新**本规则与
   `.trae/documents/app-layering-refactoring-plans/`（总纲 + 对应 Plan）。
 - 前序重构（拆分并移除 `AppProtocol`）的方案文档：
-  [`.trae/documents/split_app_protocol_plan.md`](../documents/split_app_protocol_plan.md)；其产物
+  [`.trae/documents/split-app-protocol-plan.md`](../documents/split-app-protocol-plan.md)；其产物
   `app_features/` 已在本轮 Plan D 删除。
