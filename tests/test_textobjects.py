@@ -159,6 +159,14 @@ def test_quote_object_fails_outside_or_across_lines() -> None:
     assert resolve_text_object(['"ab', 'cd"'], (0, 1), "i", '"') is None
 
 
+def test_quote_object_with_cursor_on_the_quote() -> None:
+    """Sitting on a real quote prefers reading it as the opener."""
+    assert resolve_text_object(['say "hi"'], (0, 4), "i", '"') == ((0, 5), (0, 7))
+    assert resolve_text_object(['say "hi"'], (0, 7), "i", '"') == ((0, 5), (0, 7))
+    # a lone quote has neither a follower nor a predecessor: no object
+    assert resolve_text_object(['say "'], (0, 4), "i", '"') is None
+
+
 def test_quote_span_ignores_escaped_quotes() -> None:
     """``\\"`` is content, not a delimiter; the real pair wins."""
     line = 'say "hi\\"there" ok'  # say "hi\"there" ok

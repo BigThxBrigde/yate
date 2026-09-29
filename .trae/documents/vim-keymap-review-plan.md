@@ -213,3 +213,9 @@ master（含 screensaver 等）已合入（merge `6ec0cad`，无冲突）；合�
 3. **`_quote_span` 不处理转义（minor）**：`find`/`rfind` 把 `\"` 当真引号。修复：新增 `_quote_positions` 逐字符扫描跳过 `\` 转义；cursor 落在转义引号上时解析外层配对。
 
 修复后门禁：pyright 0 诊断；`pytest tests/` 全绿（新增 6 个测试）；架构守护 20 例通过。
+
+### 冒烟与覆盖率（2026-09-29 补测）
+
+- **常驻冒烟**：`python -m tools.smoke_test run` → **89/89 场景、932/932 检查全过（exit 0）**。
+- **新增键位 pilot 冒烟**（一次性脚本，跑后即删）：真实 app 内驱动 `r`/`f`/`t`/`cw`/`cit`/`3dd`/`;` 全部符合预期；顺带确认 master 既有怪癖——`e` motion 落在词后分隔列而非词尾字符（`test_word_motions` 钉定，非本分支回归）。
+- **覆盖率门禁**（CI 同款命令）：`--cov=yate --cov-branch --cov-fail-under=75` → **总覆盖 90.53%，达标**；本分支核心模块 `textobjects.py` 90%、`vim.py` 97%，剩余未覆盖为防御性边界（空行守卫、未闭合 tag 扫描边界）；补 1 个 cursor-on-quote 测试钉住高频路径。
