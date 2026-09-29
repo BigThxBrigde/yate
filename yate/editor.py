@@ -56,6 +56,7 @@ from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
+from yate.lsp_sync import LspSync
 from yate.prompt_completion import prompt_completions
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services import fonts
@@ -92,7 +93,9 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     not-yet-fully-initialized *ed*; they only fire after construction, so
     the half-built state is never observed.
     """
-    ed.session = EditorSession(ed.config, on_closed=ed._lsp_documents_closed)
+    ed.session = EditorSession(
+        ed.config, on_closed=lambda docs: ed.lsp_sync.documents_closed(docs)
+    )
     ed.workspace = Workspace()
     # propagate the yaterc show_hidden default to the workspace
     ed.workspace.show_hidden = ed.config.show_hidden
@@ -101,9 +104,11 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     # and the yaterc ``language_servers`` option; the manager is UI
     # independent and safe to keep even with no server.  It is created
     # before the extension API, which wires ``api.lsp`` straight to it.
+    # The event callback defers through lsp_sync, which is built with the
+    # pane stack (it needs the widgets); both callbacks only fire later.
     ed.lsp = LspManager(
         workspace_root=lambda: ed.workspace.root,
-        on_event=ed._on_lsp_event,
+        on_event=lambda event: ed.lsp_sync.on_event(event),
     )
     ed.keymaps = KeymapSet(
         {"vsc": VscKeymap(), "vim": VimKeymap()},
@@ -183,6 +188,16 @@ def _build_pane_stack(ed: Editor) -> None:
         focus_explorer=ed.focus_explorer,
     )
     ed.pane_host = PaneHost(ed.panes, ed._make_view)
+    ed.lsp_sync = LspSync(
+        ed.app,
+        ed.lsp,
+        ed.session,
+        ed.panes,
+        ed.status_bar,
+        ed.prompt_bar,
+        message=ed.message,
+        mounted=lambda: ed.mounted,
+    )
     ed.completion = CompletionController(
         ed.app,
         session=ed.session,
@@ -224,6 +239,7 @@ class Editor:
     explorer_visible: bool
     panes: PaneManager
     pane_host: PaneHost
+    lsp_sync: LspSync
     completion: CompletionController
 
     def __init__(
@@ -391,9 +407,9 @@ class Editor:
 
     def _refresh_lsp(self) -> None:
         """Push debounced edits and update the LSP echo."""
-        self._lsp_doc_shown_later()
+        self.lsp_sync.doc_shown_later()
         self.lsp.notify_edit(self.session.doc)
-        self._update_lsp_echo()
+        self.lsp_sync.update_echo()
 
     # ================================================================ target
 
@@ -1372,75 +1388,9 @@ class Editor:
 
     # =================================================================== lsp
 
-    def _lsp_documents_closed(self, closed: list[Document]) -> None:
-        """Session hook: tell the servers the documents were closed.
-
-        Hand the worker the *bound coroutine function*, never the coroutine:
-        an eagerly built coroutine lives outside the worker's lifecycle, so a
-        worker that never starts (quit cancels the "lsp-sync" group) drops
-        the didClose and leaks "coroutine was never awaited".
-        """
-        for doc in closed:
-            self.app.run_worker(
-                partial(self.lsp.on_document_closed, doc),
-                group="lsp-sync", exclusive=False, exit_on_error=False,
-            )
-
-    def _lsp_doc_shown_later(self) -> None:
-        """Open the active document on its server once a server is registered."""
-        doc = self.session.doc
-        if not self.lsp.supports(doc) or self.lsp.is_open(doc):
-            return
-        self.app.run_worker(
-            partial(self.lsp.on_document_shown, doc),
-            group="lsp-sync", exclusive=False, exit_on_error=False,
-        )
-
-    def _on_lsp_event(self, event: str) -> None:
-        """Manager callback (event loop thread): repaint after LSP updates."""
-        if not self.mounted:
-            return
-        for view in self.panes.all_views():
-            view.refresh()
-        self.status_bar.refresh_status()
-        if event == "diagnostics":
-            self._update_lsp_echo()
-
-    def _update_lsp_echo(self) -> None:
-        """Show the diagnostic under the cursor on the message line."""
-        prompt = self.prompt_bar
-        if prompt.active_mode is not None:
-            return
-        buf = self.session.buffer
-        diag = self.lsp.diagnostic_at(self.session.doc, buf.row, buf.col)
-        if diag is not None:
-            glyph = "✖" if diag.is_error else ("▲" if diag.is_warning else "●")
-            source = f"{diag.source}: " if diag.source else ""
-            prompt.write(
-                f"{glyph} {source}{diag.message}",
-                kind="error" if diag.is_error else "warn",
-                owner="lsp",
-            )
-        elif prompt.owner == "lsp":
-            prompt.idle()
-
     def show_diagnostics(self) -> None:
         """``:diagnostics`` -- list the active document's LSP diagnostics."""
-        doc = self.session.doc
-        diags = self.lsp.diagnostics_for(doc)
-        if not diags:
-            self.message("no diagnostics", kind="ok")
-            return
-        labels = {1: "error", 2: "warning", 3: "info", 4: "hint"}
-        lines = [
-            f"L{d.start_row + 1}:{d.start_col + 1}  "
-            f"{labels.get(d.severity, str(d.severity)).upper():7}  "
-            f"{('[' + d.source + '] ') if d.source else ''}{d.message}"
-            for d in diags
-        ]
-        errors, warnings = self.lsp.counts_for(doc)
-        title = f"diagnostics — {errors} error(s), {warnings} warning(s)"
-        self.push_overlay(OutputScreen(title, "\n".join(lines), 0))
+        self.lsp_sync.show_diagnostics()
 
     # =============================================================== overlays
 
