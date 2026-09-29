@@ -91,7 +91,8 @@
 
 **statusbar.py**：右侧 meta 区增加 LSP 状态与计数（如 `{} 2 ! 1`，无 server/无诊断时不显示）；新增图标从 `icons.py` 取（无合适则用文本 `LSP`）。
 
-**keys.py**：`("ctrl",) + "space"` → `\x00`；补全不走 raw binding，而由 EditorView 直接认 `event.key == "ctrl+space"`（与现有显式分支风格一致，且能在 vim INSERT 下工作）。
+**keys.py**（2026-09-28 核对：该文件已不存在，现为 L0 叶包 `yate/keyproto/legacy.py`
+——`event_to_raw` :52 / `textual_key_to_raw` :87）：`("ctrl",) + "space"` → `\x00`；补全不走 raw binding，而由 EditorView 直接认 `event.key == "ctrl+space"`（与现有显式分支风格一致，且能在 vim INSERT 下工作）。
 
 ### 扩展 API（`services/extensions.py`）
 
@@ -127,7 +128,7 @@
 - `yate/app.py`（manager 生命周期、文档钩子、补全 worker、`:diagnostics`、popup mount）
 - `yate/editor_view/editor.py`（弹窗按键拦截、自动触发、诊断渲染：gutter 标记+下划线+行号色）
 - `yate/editor_view/statusbar.py`（LSP 状态/计数）
-- `yate/editor_view/keys.py`（ctrl+space）
+- `yate/keyproto/legacy.py`（ctrl+space；2026-09-28 核对：原 `yate/editor_view/keys.py` 已并入此 L0 叶包）
 - `yate/services/extensions.py`（api.lsp 桥）
 - `tests/test_app_textual.py`（补全/诊断 UI 测试）
 - `yate/resources/manual.en.md`、`manual.zh.md`、`README.md`、`docs/yaterc.md`（小）、`extensions/example_ext.py`（docstring 小改）

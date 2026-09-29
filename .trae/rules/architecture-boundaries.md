@@ -6,8 +6,8 @@ scene: architecture
 # yate 架构边界规则
 
 本规则固化「分层重构」后的目标架构。完整方案与执行记录见
-[`.trae/documents/app-layering-refactoring-plans/`](../documents/app-layering-refactoring-plans/README.md)
-（总纲 `README.md` + `plan_A`…`plan_G`）。
+[`.trae/documents/app-layering-refactoring-plans/`](../documents/app-layering-refactoring-plans/overview.md)
+（总纲 `overview.md` + `plan_a`…`plan_g`）。
 **所有新增/修改代码都必须遵守，不得因为新功能而破坏这些边界。**
 
 ## 一、依赖方向（硬性规则）
@@ -19,8 +19,10 @@ L3 调度：editor.py（Editor）/ actions.py / commands.py / completion.py /
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py / keymaps/registry.py（KeymapSet）
-L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / paths /
-         config / services/* / keymaps/base|vim|vsc
+L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
+        editor_sprites / logs / paths / config / services/* / keymaps/base|vim|vsc
+        （2026-09-28 核对补入：`keyproto/` 键弦模型与 Windows 驱动、`editor_sprites/`
+        屏保精灵数据/渲染，二者皆为纯 L0 叶包）
 插件：extensions/*（由 L4 外壳经 L3 services/extensions.py 装载；只依赖
          services/extensions 暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
          禁止 import editor / editor_view / app）
@@ -35,7 +37,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R3 — `editor_view/*` 不得 import `yate.editor` / `yate.app`**：组件只接受具体协作者
   （`EditorSession` / `Workspace` / `PromptBar` / `LspManager` / `KeymapSet` / `Textual App`）
   或 `Callable` 回调。
-- **R4 — `keymaps/*`、`services/*`、`session.py`、`registries.py`、`config.py` 不得 import `editor_view`**。
+- **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、`registries.py`、`config.py` 不得 import `editor_view`**。
+  （2026-09-28 核对补入 `keyproto/*`、`editor_sprites/*`：二者已是
+  `tests/test_architecture.py:88` `UI_FREE_PACKAGES` 的守卫面，规则文本此前漏列。）
   （`config.py` 于 N30 加入：yaterc 主题能力由 L4 `cli.py` 以回调注入
   `load_config(register_theme=..., load_theme_paths=...)`，L0 不再反向拉起 L2 组件包。）
 - **R5 — 内置表单向**：`actions.py` / `commands.py` 可以 import `yate.editor`；反向禁止
@@ -51,8 +55,11 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上 id
   （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`），
   `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
-  其中 `#statusbar` 只是 widget id（CSS 用类选择器 `StatusBar`），其余 id 均被 `app.py` 的 CSS 直接引用：
-  改 id 必须同步改 CSS。
+  其中 `#statusbar` 只是 widget id（其样式由组件自持：`editor_view/statusbar.py:57`
+  的 `DEFAULT_CSS` 用类选择器 `StatusBar`），其余 id 均被外壳 CSS 直接引用——该 CSS
+  已不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`（`YateApp.CSS =
+  _load_app_css()`，app.py:118；文件头注释即声明"selector ids are frozen by R9"）：
+  改 id 必须同步改该 `.tcss` 文件。
 - **R10 — 一次按键只派发一次**：`EditorView.on_key` 处理后 `event.stop()` / `prevent_default()`，
   未被消费的键不得冒泡到外壳二次派发。
 - **R12 — 日志统一 tracing（2026-09-27）**：yate 内全部运行时日志一律走模块级
@@ -92,7 +99,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
     通道零输出）；devtools 断连时 `TextualHandler.emit` 自查 `active_app` 后静默；
   - **例外登记**：无。扫描实证全仓唯一历史违规（`driver_windows.py` 经 `self.app.log`）
     已随 R12 落地清除（commit `003263e`）；
-  - **守卫**：§六「R12」条目（AST 取证，两个用例，负向演练通过）。
+  - **守卫**：§六「R12」条目（2026-09-28 核对修正：共 **4 个用例**——
+    `test_logging_never_touches_devtools_channel` / `test_ui_free_layers_do_not_import_textual_app`
+    两条 AST 静态取证，加 `test_devtools_bridge_follows_app_lifecycle` /
+    `test_devtools_bridge_forwards_only_while_tracing_enabled` 两条运行时用例；负向演练通过）。
 - **R13 — 组件自持主题与滚动条注入（2026-09-27，theme-ownership T1/T2 治理）**：
   主题着色的所有权归 L2 组件——组件在挂载或收到主题广播时自行读 `theme.active()`
   上色；L3 `Editor` 只触发 `theme.set_theme(name)`（内部经 `theme.subscribe()` 回调
@@ -109,12 +119,12 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 
 | 层 | 可以做什么 | 不可以做什么 |
 |---|---|---|
-| `YateApp`（L4） | Textual 生命周期、`CSS`、主题桥（`get_theme_variable_defaults` / `theme.*` 注册）、事件转发、装载内置表 | 不持有业务状态、不实现业务操作 |
+| `YateApp`（L4） | Textual 生命周期、`CSS`（装载 `yate/resources/app.tcss`）、主题桥（`get_theme_variable_defaults` / `theme.*` 注册）、驱动选择（`get_driver_class`）、事件转发与空闲探测（`on_event`）、装载内置表 | 不持有业务状态、不实现业务操作（屏保只由外壳"轮询 + 触发 action"，画面与精灵渲染分别归 `editor_view/screensaver.py` 与 `editor_sprites/*`） |
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
 | 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`completion.py`、`prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
 | `editor_view/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
 | `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
-| 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、配置、日志、路径、shell、workspace、字体） | 不 import 上层 |
+| 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、屏保精灵数据与纯渲染 `editor_sprites/*`、配置、日志、路径、shell、workspace、字体、空闲跟踪 `services/idle_tracker.py`） | 不 import 上层 |
 
 ## 三、接口与代码形态设计
 
@@ -157,7 +167,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - [ ] 没有新增 `Protocol`（除 `PaneRegistry`）、`TYPE_CHECKING`、`Any`、`# type: ignore`？
 - [ ] 没有使用 `*Feature` / `*Host` / `*Ops` / `*Delegate` 命名？
       （白名单：`PaneHost`、`PaneManager`、`LspManager`；`*Controller` 仅限流程类如 `CompletionController`）
-- [ ] 新 widget 需要外壳 CSS 时，id 已由 `Editor` 传入（R9）？
+- [ ] 新 widget 需要外壳 CSS 时，id 已由 `Editor` 传入（R9），且已同步
+      `yate/resources/app.tcss`（外壳 CSS 现为该打包资源，非 `app.py` 内联字符串）？
 - [ ] 新按键路径不会造成二次派发（R10）？
 - [ ] 按键分支只消费自己真正处理的键，未识别的键 fall-through 到后续分发，不无条件 `return True`
       （历史缺陷：补全弹窗曾吞掉全部按键，`Ctrl+S` / `Ctrl+Z` 失效）？
@@ -170,7 +181,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **20 个用例**（`python -m pytest tests/test_architecture.py -q` → 20 passed）：
+`tests/test_architecture.py` 已落地 **20 个用例**（2026-09-28 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `20 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -178,8 +190,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **R3** `editor_view/*` 不 import `yate.editor` / `yate.app`（子模块前缀匹配，不误伤 `editor_core` /
   `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
   不够：残留目录会被当作空命名空间包导入，掩盖删除）；
-- **R4** `keymaps/*`、`services/*`、`session.py`、`registries.py`、`config.py` 不 import
-  `editor_view`（严格 0 违规；`config.py` 为 N30 新增守卫面，负向验证过拦截有效）；
+- **R4** `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、
+  `registries.py`、`config.py` 不 import `editor_view`（严格 0 违规；`config.py` 为 N30 新增
+  守卫面，`keyproto/*`、`editor_sprites/*` 于 2026-09-28 核对补入，均见
+  `tests/test_architecture.py:88` `UI_FREE_PACKAGES`；负向验证过拦截有效）；
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
@@ -191,8 +205,13 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
 - **日志惰性格式**（`test_log_calls_use_lazy_percent_formatting`）：`log.*` 调用禁止 f-string
   消息（AST 拦截，python-coding-style 4.6）；
 - **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
-  提及不误报）；UI-free L0（`keymaps/*` `services/*` `keyproto/*` `session.py`
-  `registries.py` `config.py` `logs.py`）不 import `textual.app`；
+  提及不误报）；UI-free L0（`keymaps/*` `services/*` `keyproto/*` `editor_sprites/*`
+  `session.py` `registries.py` `config.py` `logs.py`，见
+  `tests/test_architecture.py:88` `UI_FREE_PACKAGES`）不 import `textual.app`；
+  另有两条运行时用例：`test_devtools_bridge_follows_app_lifecycle`（挂载期恰好 1 个
+  handler、`on_unmount` 按身份摘除）与
+  `test_devtools_bridge_forwards_only_while_tracing_enabled`（tracing 关闭时闸门阻断、
+  开启时转发 1 条）；
 - **T1**（`test_no_class_level_scrollbar_renderer_patch`）全仓禁止类级
   `ScrollBar.renderer = ...` 进程级 patch（正则锚定行首，`widget.vertical_scrollbar.renderer`
   等带接收者的实例赋值不误伤）；注入统一走 `editor_view.scrollbars.apply_slim_scrollbars(widget)`；
@@ -201,6 +220,31 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / logs / path
   Editor 自有的布局职责如 terminal dock 高度不误伤）；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`
   （白名单：`PaneHost`；`*Manager` / `*Controller` 允许）。
+
+**20 个用例逐条对照**（2026-09-28 实测 `20 passed`）：
+
+| # | 用例 | 守卫项 |
+|---|---|---|
+| 1 | `test_no_app_protocol` | R2 |
+| 2 | `test_interfaces_module_is_gone` | R2 |
+| 3 | `test_no_new_protocols` | R2（4 类白名单） |
+| 4 | `test_no_type_checking` | R6 |
+| 5 | `test_only_cli_imports_app` | R1 |
+| 6 | `test_editor_view_does_not_import_upward` | R3 |
+| 7 | `test_app_features_package_is_gone` | R3 |
+| 8 | `test_keymaps_services_and_models_stay_ui_free` | R4 |
+| 9 | `test_collaborators_keep_widget_coupling_frozen` | R11 |
+| 10 | `test_editor_does_not_import_action_tables` | R5 |
+| 11 | `test_shell_loads_the_builtin_tables` | R7 |
+| 12 | `test_no_banned_identifier_names` | 命名守卫 |
+| 13 | `test_pane_model_lives_in_l1_session` | 窗格模型归 L1 |
+| 14 | `test_log_calls_use_lazy_percent_formatting` | 日志惰性格式 |
+| 15 | `test_logging_never_touches_devtools_channel` | R12 |
+| 16 | `test_ui_free_layers_do_not_import_textual_app` | R12 |
+| 17 | `test_devtools_bridge_follows_app_lifecycle` | R12 |
+| 18 | `test_devtools_bridge_forwards_only_while_tracing_enabled` | R12 |
+| 19 | `test_no_class_level_scrollbar_renderer_patch` | T1 |
+| 20 | `test_editor_does_not_paint_widget_styles` | T2 |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

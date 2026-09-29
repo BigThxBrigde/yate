@@ -2,15 +2,27 @@
 
 > **实施状态（2026-09-22 核对）：✅ 已实现。**
 >
-> - `yate/diagnostics.py` 提供 `version_lines()` 与
->   `format_report(app, *, color=False)`，节注册表为 **12 节**：system /
+> - `yate/diagnostics.py` 提供 `format_report(editor, *, color=False)` 与
+>   `print_report(editor)`，节注册表为 **12 节**：system /
 >   terminal / shell / paths / yaterc / config / themes / syntax / extensions /
 >   lsp / fonts / packages（**无 `dap` 节**，因 DAP 未实施，见
 >   `dap_support_plan.md`）。
+>   **（2026-09-28 核对修正）**：① `version_lines()` **不在** `diagnostics.py`，
+>   它在 `yate/cli.py:24`（后经 `44b67ea` 由 diagnostics 下沉到 cli），
+>   `diagnostics.py:61/105` 只有 `format_report` / `print_report`；
+>   ② 两个函数的入参是 **`editor`（`Editor`）而非 `app`**——分层重构后诊断读的是
+>   `Editor`，CLI 调用点为 `diagnostics.print_report(app.editor)`（`yate/cli.py:330`）。
+>   12 节的划分与"无 dap 节"实测仍成立（`diagnostics.py:163-430` 共 12 个 `_section_*`）。
 > - `yate/cli.py`：`--version` 为多行输出（yate / Python / 平台）；
 >   `--diag` 走与正常启动相同的构造路径（`YateApp(...)` →
 >   `load_startup_services()` → 打印报告 → 退出，不进入 TUI）。
-> - `YateApp.load_startup_services()` 与 `LspManager.configs()` 只读访问器均已落地。
+> - `load_startup_services()` 与 `LspManager.configs()` 只读访问器均已落地。
+>   **（2026-09-28 核对修正）**：该方法**不在 `YateApp` 上**——分层重构后它在
+>   `yate/editor.py:1525`（`Editor.load_startup_services`），由 `Editor.on_mount`
+>   调用（`editor.py:258`）；`--diag` 路径的调用点是
+>   `app.editor.load_startup_services()`（`yate/cli.py:329`）。
+>   `LspManager.configs()` 实测仍在（`yate/editor_lsp/manager.py:131`），
+>   另有 `config_names()`（:128）与 `states()`（:147）。
 > - 未实施（本文档 §6 的后续方向）：`--diag --check`、`:diag` 应用内命令、
 >   崩溃/追踪状态行、脱敏清单可配置化。
 
@@ -38,7 +50,7 @@ parser.add_argument("--version", action="version", version=f"yate {__version__}"
 
 | 诊断信息 | 现有来源 |
 |----------|----------|
-| yate 版本 | `yate.__version__`；`pyproject.toml` 声明 `requires-python >= 3.10`，依赖 `textual>=8.0` |
+| yate 版本 | `yate.__version__`；`pyproject.toml` 声明 `requires-python >= 3.12`（2026-09-28 核对：原写 `>= 3.10`，实际 `pyproject.toml:10` 已是 `>=3.12`，`[tool.pyright] pythonVersion = "3.12"`），依赖 `textual>=8.0`（仍成立） |
 | 包根目录 / 冻结模式 | [paths.py](yate/paths.py)：`package_root()`、`bundled_extensions_dir()`，`sys.frozen` / `sys._MEIPASS` |
 | Python / OS | 标准库 `sys`、`platform`、`importlib.metadata` |
 | 终端类型 | [fonts.py](yate/services/fonts.py#L126)：`detect_terminal()`（识别 windows_terminal / vscode / iterm2 / apple_terminal / conhost） |
@@ -208,7 +220,7 @@ _packages`，每个返回 `list[str]`，由 `format_report` 统一拼装；
 - LSP 节：通过步骤 3 新增的 `app.lsp.configs()` 读取配置，
   `states()` 读状态；`env` 仅输出 `sorted(env.keys())`
 
-### 步骤 2：`yate/app.py` —— 抽出公开的启动加载方法
+### 步骤 2：抽出公开的启动加载方法（2026-09-28 核对：落地位置是 `yate/editor.py`，不是 `yate/app.py`）
 
 `on_mount()` 中的两行：
 
