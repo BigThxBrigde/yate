@@ -219,3 +219,18 @@ master（含 screensaver 等）已合入（merge `6ec0cad`，无冲突）；合�
 - **常驻冒烟**：`python -m tools.smoke_test run` → **89/89 场景、932/932 检查全过（exit 0）**。
 - **新增键位 pilot 冒烟**（一次性脚本，跑后即删）：真实 app 内驱动 `r`/`f`/`t`/`cw`/`cit`/`3dd`/`;` 全部符合预期；顺带确认 master 既有怪癖——`e` motion 落在词后分隔列而非词尾字符（`test_word_motions` 钉定，非本分支回归）。
 - **覆盖率门禁**（CI 同款命令）：`--cov=yate --cov-branch --cov-fail-under=75` → **总覆盖 90.53%，达标**；本分支核心模块 `textobjects.py` 90%、`vim.py` 97%，剩余未覆盖为防御性边界（空行守卫、未闭合 tag 扫描边界）；补 1 个 cursor-on-quote 测试钉住高频路径。
+
+### e motion 边界修复（2026-09-29，用户指令）
+
+**问题**（master 既有怪癖，非本分支回归）：vim 的 `e` 应落在词的最后一个字符上；旧实现用 `word_end`（排他端点）直接落位，normal 模式落在词后分隔列/虚拟 EOL 列，wrap 时落下一行 col 0 而非词尾。
+
+**修复**：
+- `editor_core/textobjects.py` 新增公共纯函数 `at_word_end(line, col)`（cursor 处是否 run 末字符）与 `word_end_column(line, col)`（col 之后下一个 `e` 落点列，无则 None），复用 `_class` 的 word/punct/space 三类分类。
+- `vim.py` `e` 分支重写：当前行无落点则逐行向下 wrap（空行自然跳过），全文档无处可去则原地不动；落点按模式区分——`select=False`（normal）落含尾位 `nc`，`select=True`（visual/operator）落排他位 `nc+1`，保持半开选区等价 vim 含尾选区。
+- `vim.py` import 移除不再使用的 `word_end`（buffer.py 的 `move_*` 仍在内部使用，函数保留）。
+
+**偏离计划记录（1 条）**：原分析认为 `de`/`cw`/`ve` 位位等价、仅 normal 落点变化；实施推演发现 cursor 恰在词尾字符上时，`cw` 会从「只改该字符」（vim 行为，旧实现正确）回归为「改到下一词尾」。新增护栏：`_apply_operator` 的 cw 特判在 `count is None` 且 `at_word_end` 为真时改走 motion `l`（只改 cursor 一个字符）；带 count 的 `2cw` 保持走 `e`（与旧实现及 vim 计数语义一致）。连带收益：`de`/`ce` 在词尾字符上由「少删/少改」修正为 vim 的「延伸到下一词尾」。
+
+**测试**：更新 2 处旧钉定（`test_word_motions` 的 e → col 6；wrap 测试 (1,0) → (1,1) 并补空行跳过变体）；新增 4 个测试（词尾字符落点 + doc 末尾不动 + 分隔符起跳 + count、punct 类边界、`de` 词尾延伸、`cw` 词尾单字符）。
+
+**门禁实测**：pyright 0 诊断；pytest 全绿 + 覆盖率 **90.62%** 达标（首轮与 pyright 并跑时 `test_edit_keeps_colors_instead_of_flashing` 偶发失败，单跑与全量复跑均绿，判定并发干扰非回归）；冒烟 **89/89 场景、932/932 检查 exit 0**；架构守护 20 例随全量通过。
