@@ -2,19 +2,21 @@
 
 > 所属总纲：[overview.md](overview.md) · wave-3（串行，改 editor.py）
 > 模式：既有 L3 流程模块形态——构造注入具体协作者、不向上依赖。
+> 行号锚点：wave-2（删薄委托）后 editor.py 1425→1196 行，2026-09-29 实测 grep
+> 复核并更新；成员集、调用点、装配点与原方案一致，仅行号偏移。
 
 ## 一、职责与迁移清单
 
-**文档生命周期**（editor.py:455-705 + 提示项两方法），19 个成员整体迁移：
+**文档生命周期**（editor.py:473-721 + 提示项两方法），19 个成员整体迁移：
 
-| 成员 | 原行号 |
+| 成员 | 行号（wave-2 后实测） |
 |---|---|
-| open_target / _apply_session_readonly | 457-467 / 469-480 |
-| activate_doc / _open_document / _open_document_async / open_document | 484-525 |
-| open_path / open_path_async / open_path_later | 527-575 |
-| new_buffer / show_welcome / close_tab / cycle_tab | 577-636 |
-| save_document / prompt_save_as / save_as / _submit_save_as | 638-705 |
-| prompt_open / _submit_open（`:e` 路径提示，属打开流程） | 1035-1046 |
+| open_target / _apply_session_readonly | 473-483 / 485-498 |
+| activate_doc / _open_document / _open_document_async / open_document | 500-541 |
+| open_path / open_path_async / open_path_later | 543-591 |
+| new_buffer / show_welcome / close_tab / cycle_tab | 593-652 |
+| save_document / prompt_save_as / save_as / _submit_save_as | 654-721 |
+| prompt_open / _submit_open（`:e` 路径提示，属打开流程） | 1050-1061 |
 
 ## 二、构造签名与装配
 
@@ -40,10 +42,11 @@ DocumentFlows(
 
 ## 三、调用方改直调（grep 驱动，断言语义不变）
 
-- **editor.py**：装配 `_open_startup_target`（:162-172）→ `ed.document_flows.open_target`；
-  :148（explorer_tree open_path 注入）、:220（OverlayFlows open_path 注入）、
-  :325（extension_context open_path）→ `ed.document_flows.open_path_later`；
-  :882/:900（split 流程内 open_path/open_path_async）→ `self.document_flows.*`
+- **editor.py**：装配 `_open_startup_target`（:155-166，:158 取 `ed.open_target`）→
+  `ed.document_flows.open_target`；
+  :141（explorer_tree open_path 注入）、:213（OverlayFlows open_path 注入）、
+  :341（extension_context open_path）→ `ed.document_flows.open_path_later`；
+  :898/:916（split 流程内 open_path/open_path_async）→ `self.document_flows.*`
   （plan-e 收口为注入对象，回填记录）。
 - **actions.py / commands.py**：grep
   `editor\.(open_path|open_document|new_buffer|show_welcome|close_tab|cycle_tab|save_document|save_as|prompt_open|activate_doc|open_target)`
