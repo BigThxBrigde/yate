@@ -15,9 +15,23 @@
 >
 > 本方案的直接目标（移除 `TYPE_CHECKING`）已达成，但中间产物
 > `yate/interfaces.py`（`AppProtocol`）与 `app_features/*` 已在紧随其后的
-> 「分层重构」中**整体删除**。当前架构不使用任何 `Protocol`：共享状态改为
+> 「分层重构」中**整体删除**。当前架构不再有"全应用协议"：共享状态改为
 > **具体对象**（`EditorSession` / `KeymapSet` / `ActionRegistry` /
 > `CommandRegistry`），操作逻辑上移到 `yate/editor.py`（`Editor`）。
+>
+> **2026-09-28 核对补注**（仅订正"当前架构"相关描述，历史正文不动）：
+>
+> 1. **"不使用任何 `Protocol`" 需加限定**：当前仍保留 **4 个存量冻结**的 `Protocol` 类
+>    （`editor_view/editor.py::PaneRegistry`、`editor_syntax/engine.py::SyntaxBackend`、
+>    `editor_syntax/ts_backend/backend.py::_TsPoint` / `_TsNode`），由
+>    `tests/test_architecture.py:77-81` `ALLOWED_PROTOCOLS` 白名单冻结、禁止新增
+>    （rules R2）。准确表述是"无 `AppProtocol`、无中央接口层、不新增 `Protocol`"。
+> 2. **新增的 L0 叶包**：`yate/keyproto/`（键弦模型 + Windows 和弦驱动；原
+>    `yate/editor_view/keys.py` 已并入 `yate/keyproto/legacy.py`）与 `yate/editor_sprites/`
+>    （屏保精灵数据与纯渲染），二者与 `keymaps/*`、`services/*` 同受 R4 UI-free 守卫。
+> 3. **规则已扩展到 R12 / R13**（2026-09-27 起）：R12 全仓日志走 `tracing` 单例、
+>    禁止直连 Textual devtools 通道；R13 组件自持主题与滚动条注入。本 ADR 正文
+>    （§1–§8）写于此前，未涵盖这两条。
 >
 > **当前权威架构定义请以 [app-layering-refactoring-plans/README.md](app-layering-refactoring-plans/README.md)
 > 与 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) 为准**；
@@ -741,18 +755,19 @@ if row < r0 or row > r1:      # 或 if not (r0 <= row <= r1):
 
 > 复核结论：历史评审记录；阻断项均已修复，评审对象已被后续重构取代。
 > `yate/interfaces.py` 与 `AppProtocol` 在「分层重构」中**整体删除**，`app_features/*`
-> 目录也已删除；当前架构使用具体对象与 `yate/editor.py`（`Editor`），不再依赖任何 `Protocol`。
+> 目录也已删除；当前架构使用具体对象与 `yate/editor.py`（`Editor`），不再依赖 `AppProtocol`
+> 或任何中央接口层（仍保留 4 个冻结白名单 `Protocol`，见文首 2026-09-28 补注）。
 
 | 来源 | 问题 | 最终处置 |
 | --- | --- | --- |
 | 评审 v2 阻断 | `accept()` 跨行条件 `row != r0 or row != r1` | ✅ 已修复：改按行范围判定，并叠加列 / 前缀守卫（见 `completion_staleness_check_plan.md`） |
 | 评审 v2 改进 1 | `AppProtocol` 过多 `Any` | ⛔ 不适用：`AppProtocol` 已删除 |
-| 评审 v2 改进 2 | `Leaf.states` 的 `default_factory` | ✅ 演进：现为 `dict[int, ViewState]`，键由 `id(doc)` 改为稳定的 `Document.uid`（见 `yate/editor_view/pane_types.py`） |
-| 评审 v2 改进 3 | `remove_node` 原地修改 | ✅ 保留设计：`pane_types.py` 维持模型"就地重建"策略，详见文件内注释与 `split_panes_plan.md` |
+| 评审 v2 改进 2 | `Leaf.states` 的 `default_factory` | ✅ 演进：现为 `dict[int, ViewState]`，键由 `id(doc)` 改为稳定的 `Document.uid`（**2026-09-28 核对修正**：原注的 `yate/editor_view/pane_types.py` 已删除，模型现位于 `yate/session.py`，见 `session.py:260` `Leaf.state_for`） |
+| 评审 v2 改进 3 | `remove_node` 原地修改 | ✅ 保留设计：`session.py`（原 `pane_types.py`）维持模型"就地重建"策略，详见文件内注释与 `split_panes_plan.md` |
 | 评审 v3 阻断 1 | `_vim_insert_mode` 直接取 `keymaps["vim"]` 可能 `KeyError` | ✅ 已修复：改安全访问（原 `app_features/completion.py` 已删除，逻辑迁至 `yate/completion.py`） |
 | 评审 v3 阻断 2 | `reconcile` 用 `id()` 作状态键 | ✅ 已修复：改用 `Document.uid`（稳定自增 id），`Leaf.states: dict[int, ViewState]`，注释说明用于规避文档重建导致的键失效 |
 | 评审 v3 改进 1 | `reconcile` 全量重建 widget 树 | ℹ️ 有意设计：`PaneHost` 明确"整树重建 + EditorView 廉价可抛弃、状态全部外置模型"，见 `split_panes_plan.md` |
-| 评审 v3 改进 2 | `panes.py` 再导出缺少说明 | ✅ 已收敛：纯数据模型抽到 `pane_types.py`，`panes.py` 作为 UI 侧入口 |
+| 评审 v3 改进 2 | `panes.py` 再导出缺少说明 | ✅ 已收敛：纯数据模型先抽到 `pane_types.py`，2026-09-23 Plan G 又下沉至 `yate/session.py`（L1）；`panes.py` 的 deprecated 重导出与 `__all__` 已删除，只留 `PaneManager` / `PaneHost` |
 
 ---
 

@@ -2,6 +2,9 @@
 
 > 前置：SP1 已提交
 > 预估：40min　|　独占文件：`yate/editor.py`、`tests/test_app_textual.py`
+> **（2026-09-28 核对补注：行号已漂移——`Editor.handle_key` 现 `editor.py:604`，三个 event.key 全局分支
+> 现 `editor.py:690`（`ctrl+shift+e`）/ `:693`（`ctrl+1`）/ `:696`（`ctrl+p`）；
+> D2 诊断日志现 `editor.py:706`；模块级 `log` 现 `editor.py:74`。）**
 
 ## 目标
 

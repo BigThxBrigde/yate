@@ -343,12 +343,12 @@ def test_pane_model_lives_in_l1_session() -> None:
 | 范围 | 结果 |
 |---|---|
 | `yate/editor_view/pane_types.py` | ✅ 删除（155 行整体迁入 `yate/session.py`，搬运段与原文件**逐字等价**：归一化换行后 `segment_equal=True`） |
-| `yate/session.py` | 161 → **281 行**（非空行口径）：`EditorSession` 类零改动，新增窗格树模型段 120 行 |
+| `yate/session.py` | 161 → **281 行**（非空行口径）：`EditorSession` 类零改动，新增窗格树模型段 120 行（**2026-09-28 核对：实测 297 行**，含 R12 的 `tracing` 引入等后续增量） |
 | 消费者 import | ✅ `editor_view/editor.py` / `editor_view/panes.py` / `editor.py` / `tests/test_panes.py` / `tests/test_app_textual.py` 全部改到 `yate.session` |
 | deprecated 重导出 | ✅ `panes.py` 的 `backward compatibility` 段与 `__all__` 已删（模型符号全仓无残留调用者） |
 | pyright | ✅ `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations** |
-| pytest | ✅ `python -m pytest tests/ -q` exit 0 全绿；`test_architecture.py` + `test_panes.py` = **25 passed**（架构守护 12 → **13**） |
-| 冒烟 | ✅ `python -m tools.smoke_test run --fail-only` → **86/86 场景、889/889 checks**（100%，exit 0，68.61s） |
+| pytest | ✅ `python -m pytest tests/ -q` exit 0 全绿；`test_architecture.py` + `test_panes.py` = **25 passed**（架构守护 12 → **13**）（**2026-09-28 核对：20 + 15 = 35 passed**） |
+| 冒烟 | ✅ `python -m tools.smoke_test run --fail-only` → **86/86 场景、889/889 checks**（100%，exit 0，68.61s）（**2026-09-28 核对：89/89 场景、932/932 checks，exit 0，94.59s**） |
 | `--diag` / `--version` | ✅ 正常 |
 
 ### 与计划的偏离（实测依据）

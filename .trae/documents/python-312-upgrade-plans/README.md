@@ -32,8 +32,8 @@
 | F7 | `asyncio.wait_for` 共 38 处（yate 6 处在 editor_lsp，其余在 tests） | grep |
 | F8 | 下限声明散布非代码文件：pyproject（2 处）、`.github/workflows/test.yml`（3.11）、`.workflow/test.yml`（Gitee Go，3.11）、README.md / README.zh.md、resources/manual.{en,zh}.md、`.trae/rules/python-coding-style.md` §开头 | grep `3\.10|3\.11` |
 | F9 | `asyncio.timeout`（3.11+）/ `itertools.batched`（3.12）/ `tomllib`（3.11）**均无落地场景**：yaterc 解析是手写 parser；`wait_for` 迁移到 `asyncio.timeout` 属语义重构（取消时机与嵌套语义有差异），零收益 | grep + config.py 现状 |
-| F10 | pyupgrade `--py312-plus` 可重写目标：旧式泛型 `Dict[`/`List[`/`Tuple[`/`Set[` 与 `TypeAlias` **0 处**；**5 处 `Union[`**（[session.py](../../../yate/session.py#L267) L267、[keymaps/base.py](../../../yate/keymaps/base.py#L168) L168/L232、[pty_proc.py](../../../yate/editor_term/pty_proc.py#L31) L31、[test_key_notation.py](../../../tests/test_key_notation.py#L440) L440）+ 308 处 `Optional[`（F11）——PEP 604 codemod 目标面 | 全仓 grep + pyupgrade 能力对照 |
-| F11 | `Optional[` 全仓 **308 处 / 53 文件**（yate 37 文件 248 处；tests 9 文件 38 处；tools 7 文件 22 处）；**无引号形态 `Optional["..."]`**，pyupgrade 重写面均匀无特例 | grep 逐文件计数（2026-09-25 实测） |
+| F10 | pyupgrade `--py312-plus` 可重写目标：旧式泛型 `Dict[`/`List[`/`Tuple[`/`Set[` 与 `TypeAlias` **0 处**；**5 处 `Union[`**（[session.py](../../../yate/session.py#L267) L267、[keymaps/base.py](../../../yate/keymaps/base.py#L168) L168/L232、[pty_proc.py](../../../yate/editor_term/pty_proc.py#L31) L31、[test_key_notation.py](../../../tests/test_key_notation.py#L440) L440）+ 308 处 `Optional[`（F11）——PEP 604 codemod 目标面 | 全仓 grep + pyupgrade 能力对照（**2026-09-28 核对：SP3 已执行完毕，全仓 `Optional[` / `Union[` 均 0 处**） |
+| F11 | `Optional[` 全仓 **308 处 / 53 文件**（yate 37 文件 248 处；tests 9 文件 38 处；tools 7 文件 22 处）；**无引号形态 `Optional["..."]`**，pyupgrade 重写面均匀无特例 | grep 逐文件计数（2026-09-25 实测；**2026-09-28 核对：现全仓 0 处 / 0 文件**） |
 
 ## 二、风险与防护
 
@@ -142,7 +142,7 @@ pyupgrade 为一次性 codemod，**不进 dev extras**（避免为已完成的�
   结论落为「工具化策略评估」小节；新增 F10，5 处 `Union[` 收编入计划，
   F3 证据面扩充（`asyncore`/`asynchat`/`smtpd`/`imp`、`rmtree(onerror=)`、`randrange` 浮点均 0 命中）。
 - 2026-09-25（二批修订）：**拍板 §3.2 全面切换 `X | None`**（推翻此前"Optional 保留"约定），
-  波次重切为 SP0→D1→SP1→SP2→SP3→SP4（四提交）；新增 F11（`Optional[` 308 处/53 文件逐文件实测，
+  波次重切为 SP0→D1→SP1→SP2→SP3→SP4（四提交）；新增 F11（`Optional[` 308 处/53 文件逐文件实测（**2026-09-28 核对：此为迁移前基数，现全仓 0 处**），
   无引号形态）；工具化策略评估改写——pyupgrade（`--keep-percent-format`）转正为 SP3 指定 codemod，
   `@override` 仍走 pyright 工单闭环；SP2 规则修订与 SP1 版本号行**已先行落盘**
   （python-coding-style.md §适用范围/§1.2/§1.3/§2.3/§3.2/§3.5/§五清单，
@@ -180,3 +180,16 @@ pyupgrade 为一次性 codemod，**不进 dev extras**（避免为已完成的�
   未再建干净 3.12 venv；如需额外置信度可随时按 plan_SP0/D2 补做。收尾门禁与各波一致：
   pyright 0（含新规则）+ pytest 1216 ×2 + 冒烟 917/917。
 - （实施时回填：SP0 计数、基线数字、D1/D2 拍板结果、偏离项 ← 已完成）
+- 2026-09-28（核对）：复核本目录全部结论与代码实现的一致性——
+  - **SP3 结论仍成立**：全仓（`yate/` + `tests/` + `tools/`）`Optional[` 与 `Union[` 实测均 **0 处**
+    （`search_content` 全仓计数 0），与 §五「SP3 执行回填」一致；本文 §一 F10/F11 与
+    `plan_SP3.md` 标题中的 "308 / 313 处" 均为**迁移前基数**，已在各处就地加注，未改写历史值。
+  - **`@override`（SP4）**：`pyproject.toml:58` 仍为 `reportImplicitOverride = "error"`，实测
+    `python -m pyright yate/ tests/ tools/` → 0 errors / 0 warnings / 0 informations。
+  - **SP1 地板**：`pyproject.toml:10` `requires-python = ">=3.12"`、`[tool.pyright] pythonVersion = "3.12"`
+    （:57）、`.github/workflows/test.yml:41` 与 `.workflow/test.yml` 的 CI Python 均为 3.12。
+  - **基线数字现状**（原记录值仍保留）：`pytest tests/` 现 **1354 collected**（当时 1216 passed /
+    1231 collected）；`tests/test_architecture.py` 现 **20 passed**（当时 13）；
+    冒烟现 **89/89 场景、932/932 checks**（当时 88/88、917/917）。
+  - **文件面变化**：`plan_SP3.md` §3b 表中的 `yate/editor_view/keys.py` 已不存在（并入
+    `yate/keyproto/legacy.py`），已就地加注。

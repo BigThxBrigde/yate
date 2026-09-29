@@ -49,9 +49,13 @@
 ## A.5 验收证据
 
 - `yate/session.py` 的项目内 import 仅 `config` / `editor_core`（含 `editor_core.buffer`）/ `services.workspace`
-  （无 `textual`、无 `editor_lsp`、无 `editor_view`）。
-- `yate/registries.py` 仅 import `keymaps.base`。
+  （无 `textual`、无 `editor_lsp`、无 `editor_view`）。**2026-09-28 核对补注**：R12 落地后另增
+  `logs`（`tracing.get_logger`），仍无 `textual` / `editor_lsp` / `editor_view`，R4 守卫通过。
+- `yate/registries.py` 仅 import `keymaps.base`（2026-09-28 核对：同样另增 `logs`）。
 - 构造点唯一：`yate/editor.py:106` `EditorSession(config, on_closed=self._lsp_documents_closed)`；
   `yate/editor.py:119` `KeymapSet(...)`。（旧测试里的 `ActionContext(cast(Any, app))` 属于 Plan E 迁移范围。）
+  **2026-09-28 核对修正**：两处行号已漂移为 `yate/editor.py:113`（`EditorSession`）与
+  `yate/editor.py:126`（`KeymapSet`）；构造形态与唯一性不变。
 - `python -m pyright yate/` → 0 诊断。
-- **2026-09-23 审计复核**：以上三条与两个行号仍精确命中（行数口径为非空行，见总纲 §1）。
+- **2026-09-23 审计复核**：以上三条与当时的两个行号仍精确命中（行数口径为非空行，见总纲 §1）；
+  2026-09-28 核对时行号已漂移，见上条修正。

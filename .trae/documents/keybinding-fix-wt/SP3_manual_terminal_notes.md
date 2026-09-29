@@ -8,6 +8,12 @@
 把「哪些键受终端能力限制」写成用户可见文档：`ctrl+1`（及同族 kitty CSI-u 编码键）仅 kitty/CSI-u 终端可用；
 Windows Terminal / conhost 因修饰键丢失不可达。`ctrl+/` 与 `ctrl+p` 全平台可用（SP1/重构已修）。
 
+> **2026-09-28 核对补注**：本 SP 的"WT/conhost 不可达"结论**已被后续 PB2/PB6 改写**——和弦驱动
+> （`yate/keyproto/driver_windows.py`）+ win32-input-mode 帧解码落地后，Windows 上 `ctrl+1` 已可达
+> （真机无人值守验收 12/12 PASS，见 `PLAN_v3_steps.md` PB6 行）。双语 manual 已由 PB4 改写为
+> 「Windows 默认启用和弦驱动，`Ctrl+1` 可用；`key_protocol = "legacy"` 回退时仅 kitty/CSI-u 终端可用」
+> （`yate/resources/manual.en.md:374-385` / `manual.zh.md:358-368`）。本节保留为当时的用户文档口径。
+
 ## 实施步骤
 
 ### 步骤 3.1　定位键位表

@@ -1,6 +1,10 @@
 # 方案 B v2 — 按键可达性重构 + Windows 输入通道（真机验证后的重排）
 
 > 状态：**计划（待实施）**；取代 `wt_keybinding_fix_plan.md` SP1–SP3 的后续路线
+> **（2026-09-28 核对补注：本文 §一 的根因假设（§1.2 全局分支不可达 / §1.3 vim normal 吞键）
+> 已被 `_probe_vim.py` 探针证伪，A1/A2 未按本文执行；排期由
+> [PLAN_v3_steps.md](PLAN_v3_steps.md) 取代——见该文件头部"取代"说明与执行状态表。本文保留为历史推演。）**
+> **（核对补注 2：文中"架构守护 13 用例"（§A1 验收、§四自检）实测为 20 个用例。）**
 > 触发：2026-09-26 真机验证结果 —— **vim 键位下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效**（ctrl+1 失效属预期）
 > 前置文档：`../win_keybinding_plan.md`（方案 B 决策）、`../win_keybinding_protocol_plan.md`（旧实施排期，本文重排）、
 > `../wt_keybinding_fix_plan.md`（止血切片，部分有效）、`README.md`（SP1–SP5 执行记录）

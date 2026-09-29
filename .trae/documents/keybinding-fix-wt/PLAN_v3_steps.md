@@ -1,6 +1,8 @@
 # 方案 v3 — 分步执行计划（探针实证修订版）
 
 > 状态：**Phase A 执行中 / Phase B 待启动**
+> **（2026-09-28 核对修正：该状态已过期——Phase A（PA1–PA4 + PA2b）与 Phase B 主体（PB1–PB4、
+> PB5-r1、PB6）在执行状态表中均已 ✅，仅剩 **PB5 真机矩阵**（三终端人工复测）⏳；详见文末执行状态表。）**
 > 取代：`PLAN_B_v2_key_reachability.md` §A1/A2 的根因假设（被 `_probe_vim.py` 探针证伪）；Phase B 保留并简化
 > 探针结论（2026-09-26，当前分支代码）：
 > - vim + 编辑器聚焦 + `ctrl+p` → 面板**打开**（分支先于 keymap，`editor.py:624`，接线 `handle_key=self.handle_key` editor.py:227）

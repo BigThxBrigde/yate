@@ -31,7 +31,7 @@ flowchart TB
     G2 -- 是 --> G3["守卫 3：fetch origin + rev-list 计数<br/>落后 >0 → 拒绝"]
     G3 --> G4{"守卫 4：tag 本地/远端已存在？"}
     G4 -- 存在 --> REFUSE
-    G4 -- 全部通过 --> SNAP["快照 journal：<br/>7 文件字节内容 + HEAD sha + _RunState"]
+    G4 -- 全部通过 --> SNAP["快照 journal：<br/>5 文件字节内容 + HEAD sha + _RunState"]
     SNAP --> RUN["_run_steps 流水线<br/>bump → changelog → 门禁 → tag → push"]
     RUN -- "RuntimeError（含 GitError）" --> RB{"branch_pushed？"}
     RB -- 否 --> ROLL["回滚：删 tag → reset --mixed 回 orig_head<br/>→ 快照字节级还原文件 → exit 1"]
@@ -42,7 +42,13 @@ flowchart TB
 **关键设计决策**：
 
 1. **守卫全只读**：G0–G4 任一拒绝时，树、历史、tag、远端全部未动——回滚机制只服务于流水线中途失败（G4 之后）。
-2. **快照而非 diff**：直接存 7 个目标文件的字节内容（`_VERSION_FILES` 1 个 + `_CHANGELOG_FILES` 6 个），还原即写回；`reset --mixed` 只回退分支指针与索引，不碰工作区，两者配合保证字节级复原且不吞并发改动。
+2. **快照而非 diff**：直接存目标文件的字节内容——**（2026-09-28 核对：共 5 个，不是 7 个）**
+   `_VERSION_FILES` 1 个（`yate/__init__.py`）+ `_CHANGELOG_FILES` **4 个**（`CHANGELOG.md` /
+   `CHANGELOG.zh.md` / `yate/resources/changelog.en.md` / `yate/resources/changelog.zh.md`），
+   见 `tools/release/cli.py:39-46`；还原即写回；`reset --mixed` 只回退分支指针与索引，
+   不碰工作区，两者配合保证字节级复原且不吞并发改动。
+   （快照数量减少的原因：`_VERSION_FILES` 中的 `tests/test_theme_palettes.py` 静态版本断言
+   已在上游删除，不再参与 bump。）
 3. **branch_pushed 后不回滚**：分支已上远端，reset 会制造分叉，比失败本身更糟——降级为打印两条人工指令（补推 tag / 废弃发布）。
 4. **GitError 归一**：fetch/push 失败均为 `gitdata.GitError(RuntimeError)` 子类，单层 `except RuntimeError` 全兜住。
 5. **dry-run 不进 journal**：守卫在 dry-run 下跳过分支/远端/tag 三项（不 fetch），仅保留版本文件 dirty 与默认分支探测，行为与旧版兼容。
@@ -52,7 +58,7 @@ flowchart TB
 | 步 | 动作 | 输入 | 输出 | 验收 |
 |---|---|---|---|---|
 | S1 | 补测试：守卫组 ×4——错分支拒绝 / 落后远端拒绝 / tag 本地已存在拒绝 / tag 远端已存在拒绝（真 git 仓 + `ls-remote` 打本地 bare origin） | F5 守卫函数 | test_release_tool.py 新用例 4 个 | 新用例全绿；被拒场景 `git log` 计数不变（零副作用断言） |
-| S2 | 补测试：回滚组 ×3——门禁失败回滚（monkeypatch `gate_check` 抛错）/ 版本测试失败回滚 / branch_pushed 后跳过回滚（fake push 分支成功、tag 失败） | `_abort_with_rollback` | 新用例 3 个 | 回滚后 HEAD == orig_head、tag 不存在、7 文件字节相等；跳过分支打印指引且不 reset |
+| S2 | 补测试：回滚组 ×3——门禁失败回滚（monkeypatch `gate_check` 抛错）/ 版本测试失败回滚 / branch_pushed 后跳过回滚（fake push 分支成功、tag 失败） | `_abort_with_rollback` | 新用例 3 个 | 回滚后 HEAD == orig_head、tag 不存在、5 文件字节相等（2026-09-28 核对：原写 7 文件）；跳过分支打印指引且不 reset |
 | S3 | 补测试：dry-run 零变更冒烟（守卫放宽路径） | `release(dry_run=True)` | 1 个用例 | exit 0 且仓库无新提交、无 tag |
 | S4 | 门禁 | — | — | `pyright tools/ tests/` 0；`pytest tests/test_release_tool.py -q` 全绿；`pytest tests/ -q` 全量全绿 |
 | S5 | 提交 | S1–S4 产物 | 单 commit `feat(tools): add pre-flight guards and rollback to release tool` | `git status` 干净；不推送由用户定 |
@@ -82,7 +88,7 @@ flowchart TB
 
 ## 六、不做什么（防过度工程）
 
-- 不做 stash 级完整工作区快照（只快照工具管辖的 7 个文件）；
+- 不做 stash 级完整工作区快照（只快照工具管辖的文件；**2026-09-28 核对：现为 5 个**，见 §二第 2 条）；
 - 不做 tag 的远端删除回滚（远端 tag 仅在 `ls-remote` 守卫中出现，流水线不推远端 tag 失败后的删远端属人工决策）；
 - 不引入外部库（shutil/os 字节读写 + gitdata 足够）。
 
@@ -103,6 +109,12 @@ flowchart TB
     cli 行为未改（与旧版 dry-run 语义一致）；③`_clone_upstream` 抽为公共 helper 复用于
     behind / remote-tag 两用例。§五待定项（`--no-push` 是否豁免 fetch）未触发：真仓 fetch
     本地 bare origin 离线可跑，无碍测试。
+- **2026-09-28 核对**（仅更新实测数字，不改结论）：
+  - `pytest tests/test_release_tool.py -q` → **14 passed**（与记录一致，未变）；
+  - `pytest tests/ --collect-only -q` → **1354 collected**（记录中的 1223 / 1231 为当时值，
+    此后全仓测试持续增长）；`pytest tests/ -q` exit 0 全绿；
+  - `pyright yate/ tests/ tools/` → **0 errors / 0 warnings / 0 informations**；
+  - 快照文件数由 7 改为 **5**（`_VERSION_FILES` 现只含 `yate/__init__.py`），见 §二第 2 条。
 
 ## 八、验证清单（与提交说明 Test plan 同步）
 

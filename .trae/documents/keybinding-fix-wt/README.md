@@ -15,6 +15,13 @@
 > | SP5 门禁 | ✅ pyright 全仓 0 诊断 · 全量 1228 passed, 7 skipped · 架构守护 13 passed · 冒烟 88/88 场景 · 917/917 checks · exit 0 | — |
 > | SP5 真机矩阵 | ⚠️ **部分不符**（2026-09-26 实测：vim 下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效）→ 新根因与重排计划见 **[PLAN_B_v2_key_reachability.md](PLAN_B_v2_key_reachability.md)** | — |
 
+> **🧭 2026-09-28 文档-代码核对复核**（上表为 2026-09-26 时点值，本次实测）：
+> `python -m pytest tests/ --collect-only` → **1354 tests collected**，`python -m pytest tests/ -q` exit 0；
+> `pytest tests/test_architecture.py` → **20 passed**（上表"架构守护 13 passed"为当时值）；
+> `python -m pyright yate/ tests/ tools/` → 0 errors / 0 warnings / 0 informations；
+> `python -m tools.smoke_test run --fail-only` → **89/89 场景、932/932 checks**（当时 88/88、917/917）。
+> 另：SP1 独占的 `yate/editor_view/keys.py` 已随 PB1 整体迁入 `yate/keyproto/legacy.py`（见下表注）。
+
 > **🔄 2026-09-26 Phase B 启动**：Phase B 完成后即可修复物理层键——ctrl+数字（无事件行）、
 > ctrl+`↔ctrl+space NUL 碰撞（`editor.py:587` 现状取舍：编辑器聚焦→补全、终端聚焦→关终端）、
 > ctrl+e/ctrl+shift+e 区分、alt+digit。执行顺序 PB1（keyproto L0 包）→ PB2.0（XTermParser
@@ -58,7 +65,7 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 
 | 文件 | 内容 | 独占文件 |
 |---|---|---|
-| [SP1_ctrl_slash_mapping.md](SP1_ctrl_slash_mapping.md) | `ctrl+/`（`\x1f`→`ctrl+underscore`）映射修复 + help 显示修复 | `yate/editor_view/keys.py`、`yate/keymaps/base.py`、两个测试文件 |
+| [SP1_ctrl_slash_mapping.md](SP1_ctrl_slash_mapping.md) | `ctrl+/`（`\x1f`→`ctrl+underscore`）映射修复 + help 显示修复 | `yate/keyproto/legacy.py`（**2026-09-28 核对：原写 `yate/editor_view/keys.py`，该模块已随 PB1 迁入 keyproto 并删除**）、`yate/keymaps/base.py`、两个测试文件 |
 | [SP2_dispatch_guards_diag.md](SP2_dispatch_guards_diag.md) | `ctrl+p`/`ctrl+1`/`ctrl+shift+e` pilot 回归守卫 + 未映射键诊断日志（D2） | `yate/editor.py`、`tests/test_app_textual.py` |
 | [SP3_manual_terminal_notes.md](SP3_manual_terminal_notes.md) | manual 中 `ctrl+1` 等键的终端兼容性标注（D1=A） | `yate/resources/manual.*.md`、README 键位段 |
 | [SP4_docs_backfill.md](SP4_docs_backfill.md) | review.md 回填、P2 N8 关账、Gitee issue 回复草稿 | `.trae/issues/review.md`、`.trae/documents/code-review-fix-plans/P2_nice_to_have_plan.md`、本目录文档 |
@@ -66,7 +73,9 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 
 > **分支评审（2026-09-27）**：本分支全量 diff 评审报告（2 项发现已闭环 `b21ff37`、
 > 门禁实测 1257 passed / 覆盖率 90% / 冒烟 920 checks、按键管线与日志守卫流程图存档）见
-> [../../issues/review_keybinding_20260927.md](../../issues/review_keybinding_20260927.md)。
+> [../../review/2026-09-27-keybinding-branch-review.md](../../review/2026-09-27-keybinding-branch-review.md)
+> （**2026-09-28 核对修正**：原链接 `../../issues/review_keybinding_20260927.md` 已失效——
+> `.trae/issues/` 目录整体迁至 `.trae/review/`，该文件重命名为 `2026-09-27-keybinding-branch-review.md`）。
 
 ## 前置（可选）：SP0 真机取证
 
@@ -76,8 +85,17 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 
 ## 已核实的关键事实（实施不再复测）
 
+> **2026-09-28 核对**：本节是**实施前**的根因快照；其中 2、3 两条描述的缺陷**均已修复**（见行内注），
+> `ctrl+1` 一条也已由 PB2/PB6 改写。保留原表述作为历史取证，不要按现状理解。
+
 - Textual 8.2.8 `XTermParser`：`b"\x1f"` → `Key("ctrl+underscore")`；`b"\x10"` → `ctrl+p`；`b"\x11"`/`b"\x17"` → `ctrl+q`/`ctrl+w`。
 - `textual_key_to_raw("ctrl+underscore")` 当前返回 `None`（`_CTRL_PUNCT` 无此键）→ 键被静默丢弃。
+  **（2026-09-28 核对：已修复——`yate/keyproto/legacy.py:28` 已登记 `"underscore": 0x1F`，
+  该函数现在返回 `"\x1f"`；注意模块已从 `editor_view/keys.py` 迁入 `keyproto/legacy.py`。）**
 - `key_name("\x1f")` 当前返回原始控制字符（`KEY_ALIASES` 无条目）→ help 面板乱码。
-- `ctrl+p` 已修（`Editor.handle_key` L624 分支）；`ctrl+1` 物理不可达（WT 无 kitty 协议 + Textual 不读修饰键）。
+  **（2026-09-28 核对：已修复——`yate/keymaps/base.py:85` 已登记 `"\x1f": "ctrl-/"`，现返回 `<ctrl-/>`。）**
+- `ctrl+p` 已修（`Editor.handle_key` L624 分支；**2026-09-28 核对：现 `editor.py:696`**）；
+  `ctrl+1` 物理不可达（WT 无 kitty 协议 + Textual 不读修饰键）。**（2026-09-28 核对：legacy 路径
+  仍然成立；和弦驱动 + win32-input-mode 帧解码（PB2/PB6）后 WT 下已可达，见 `PLAN_v3_steps.md` PB6 行。）**
 - `editor.py:73` 已有 `log = tracing.get_logger(__name__)`，D2 诊断日志零新增依赖。
+  **（2026-09-28 核对：现 `editor.py:74`。）**

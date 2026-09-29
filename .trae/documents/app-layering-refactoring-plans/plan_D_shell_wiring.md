@@ -100,7 +100,10 @@
 - [x] `python -m pyright yate/` 0 诊断
 - [x] `python -m yate --diag` 正常打印，`python -m yate --version` 正常
 - [x] `grep -rn "app_features" yate/` 为空（tests/tools 留给 Plan E）
-- [x] `yate/app.py` = **152 非空行**（总 172；"≤ 170" 按非空行口径）
+- [x] `yate/app.py` = **152 非空行**（总 172；"≤ 170" 按非空行口径）——
+  **2026-09-28 核对修正**：实测 **285 非空行（总 329）**；外壳此后新增驱动选择
+  （`get_driver_class`）、devtools 桥接（R12）、屏保空闲轮询与 CSS 外置加载（app.tcss），
+  "≤ 170" 已不成立，但"外壳不实现业务操作"的职责边界不变。
 - [x] `yate/` 内除 `cli.py` 无 `import yate.app`
 
 ---
@@ -109,7 +112,7 @@
 
 | 项 | 结果 |
 |---|---|
-| `yate/app.py` | 2005 行 → **152 行**；仅剩 `ENABLE_COMMAND_PALETTE` / `CSS` / `__init__`（标题、config、主题引导、构造 `Editor`、装载内置表）/ `editor` / `compose` / `on_mount` / `on_unmount` / `on_key` / `get_theme_variable_defaults` / `action_quit` |
+| `yate/app.py` | 2005 行 → **152 行**；当时仅剩 `ENABLE_COMMAND_PALETTE` / `CSS` / `__init__`（标题、config、主题引导、构造 `Editor`、装载内置表）/ `editor` / `compose` / `on_mount` / `on_unmount` / `on_key` / `get_theme_variable_defaults` / `action_quit`（**2026-09-28 核对补注**：此后新增 `_load_app_css()` / `get_driver_class()` / `watch_theme()` / `on_event()` / `poll_idle()` / `_report_unknown_screen_saver_characters()` / `idle_tracker`，CSS 由 `yate/resources/app.tcss` 装载，行数 285；仍是"无业务操作"的薄壳） |
 | `yate/app_features/` | 6 文件、1070 行**全部删除**（`__init__` / `commands` / `completion` / `docs` / `explorer` / `terminal`） |
 | 解环（D.1） | `yate/editor.py` 不再 import `yate.actions` / `yate.commands`；改为 `YateApp.__init__` 装载（R7） |
 | `yate/editor.py` | 新建 **1245 非空行**（总 1388），承载原 `app.py` 的全部业务操作；`KeyUi` / `ActionContext(self.session, self.key_ui)` 在 `handle_key` / `execute_action` 处构建 |
@@ -121,5 +124,6 @@
 → [Plan E](plan_E_tests_tools.md)；用户文档 / CHANGELOG / 架构规则文档同步 → [Plan F](plan_F_gate_docs.md)。
 
 > **2026-09-23 审计复核**：`app.py` / `editor.py` 的非空行数仍为 152 / 1245（口径见总纲 §1）；
+> **2026-09-28 核对修正**：实测为 **285 / 1442**（总行 329 / 1601），数值随后续子系统增长而漂移；
 > D.3 的 widget id 清单已按代码补齐——连同 `compose()` 的容器 id
 > （`#body` `#bottom-dock` `#bottom`）见总纲 §4 R9。

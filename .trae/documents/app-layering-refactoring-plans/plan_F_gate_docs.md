@@ -1,8 +1,10 @@
 # Plan F — 门禁与文档
 
 > 状态：✅ **已完成**（2026-09-23 收口）· 前置：[Plan E](plan_E_tests_tools.md) ✅ · 后置：无
-> 门禁（实测）：`pyright yate/ tests/ tools/` 0 诊断 · `pytest tests/ -q` 全绿 ·
+> 门禁（2026-09-23 实测）：`pyright yate/ tests/ tools/` 0 诊断 · `pytest tests/ -q` 全绿 ·
 > `--diag` / `--version` 正常 · 冒烟 62/62 场景、651/651 checks。结果见 §F.6。
+> **2026-09-28 核对复核**：四项门禁仍全绿，冒烟实测为 **89/89 场景、932/932 checks**，
+> `pytest tests/` 收集 **1354** 个用例，`test_architecture.py` **20 passed**。
 
 ---
 
@@ -37,6 +39,9 @@ python -m yate --changelog zh
 
 ### F.3.0 已定位的待改点（2026-09-22 预扫描；2026-09-23 复核：4 处行号仍精确命中）
 
+> **2026-09-28 核对**：表中 4 处文档改动均已落地——`yate/` 全仓 `ExtensionHost` **0 命中**，
+> `yate/docs/extensions.en.md` / `extensions.zh.md` 已改写为 `ExtensionContext`。
+
 | 位置 | 现状 | 应改为 |
 |---|---|---|
 | `yate/docs/extensions.en.md:175` | `\| api.app \| ExtensionHost \| the application host protocol (advanced use) \|` | `\| api.app \| ExtensionContext \| the concrete services an extension drives (advanced use) \|` |
@@ -62,10 +67,13 @@ python -m yate --changelog zh
 ## F.4 完成检查
 
 - [x] 四项门禁命令全通过（见 §F.6 实测）
-- [x] 冒烟清单 1–8 全通过（`tools.smoke_test run --fail-only` → 62/62 场景、651/651 checks）
+- [x] 冒烟清单 1–8 全通过（`tools.smoke_test run --fail-only` → 62/62 场景、651/651 checks；
+  **2026-09-28 核对：89/89 场景、932/932 checks**）
 - [x] 文档已更新：扩展文档（`api.app` / `api.keymaps`）、manual、根 `README.md` / `README.zh.md` 模块地图与导语；CHANGELOG 走生成器（`zh-commit` 已登记中文，未发布段发布时刷新）
 - [x] `git status` 中不再有 `yate/app_features/`（目录已删除，非仅 `__init__.py`）
 - [x] `yate/app.py` = 152 非空行（≤ 170）、`yate/editor.py`（1245 非空行）保持为唯一的编排大类
+  ——**2026-09-28 核对修正**：实测 `app.py` **285** 非空行（总 329）、`editor.py` **1442** 非空行
+  （总 1601）；"≤ 170" 已不成立，但两者仍分别是薄壳与唯一编排大类
 - [x] `pytest tests/ -q` 全绿（迁移前阻塞收集的 3 个模块已全部修好）
 
 ---

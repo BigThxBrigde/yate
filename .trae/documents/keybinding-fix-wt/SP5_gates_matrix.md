@@ -13,11 +13,13 @@
 d:\Programming\yate\.venv\Scripts\python.exe -m pyright yate tests tools
 $env:PYTHONDONTWRITEBYTECODE='1'; d:\Programming\yate\.venv\Scripts\python.exe -m pytest tests\ -q
 d:\Programming\yate\.venv\Scripts\python.exe -m pytest tests\test_architecture.py -q   # 13 passed
+                                                                                        # 2026-09-28 核对：现 20 passed
 ```
 
 - pyright：**0 诊断**（合并硬门槛）；
 - pytest：全绿；偶发失败先重跑确认（并发 pilot 干扰史），不许直接改断言；
-- 架构守护：13 用例通过（R2/R3/R6/命名守卫等未被触碰）。
+- 架构守护：13 用例通过（R2/R3/R6/命名守卫等未被触碰）。**（2026-09-28 核对：实测 20 个用例——
+  此后 R12/R13、日志惰性格式、T1/T2 治理等守卫陆续加入。）**
 
 ## 冒烟（Textual pilot harness）
 
@@ -52,7 +54,8 @@ vim / vsc 两键位各过一遍（`ctrl+/` 切换键位本身即 SP1 的验证�
 
 ## 收尾清单
 
-- [x] 门禁三项全绿（实测：全量 pytest **1228 passed, 7 skipped** / pyright 全仓 **0 诊断** / 架构守护 **13 passed**；冒烟 **88/88 场景 · 917/917 checks · exit 0**，见 keybinding-fix-wt/README.md 状态表）；
+- [x] 门禁三项全绿（2026-09-26 实测：全量 pytest **1228 passed, 7 skipped** / pyright 全仓 **0 诊断** / 架构守护 **13 passed**；冒烟 **88/88 场景 · 917/917 checks · exit 0**，见 keybinding-fix-wt/README.md 状态表）；
+  **2026-09-28 复核：全量收集 1354、exit 0；pyright 0 诊断；架构守护 20 passed；冒烟 89/89 场景 · 932/932 checks · exit 0。**
 - [ ] 真机矩阵勾完，与期望一致（`ctrl+1` 在 WT/conhost 的失效属预期）——**待验证**，用 [verify_matrix.ps1](verify_matrix.ps1) 在 WT / conhost / VS Code 终端各跑一遍，产出 `matrix_results.md` 后回填下表；
 - [x] commit 历史整洁（每 SP 一个 commit，`git log --oneline` 核对：`a9174fc`→`b03e40f`→`ff3cfc0`→`678c02c`→`f26e65d`→`ebee085`→`3a8a29b`）；
 - [ ] push 前询问用户；如用户要求，发起 PR 并在描述中链接 Gitee issue IKH1RA 与三份计划文档；

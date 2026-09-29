@@ -32,7 +32,8 @@
 | `palette.py` | `PaletteScreen(ModalScreen)` | 文件/命令面板：模糊匹配、候选构建、执行 | `Workspace`、`CommandRegistry`、`ActionRegistry`；`open_path` / `focus_editor` / `execute_action` / `run_command` / `refresh` |
 | | `fuzzy_match()` / `_walk()` | 纯函数工具 | — |
 | `editor.py`（视图） | `EditorView(ScrollView)` | 文本渲染、光标/选区、按键转发给 `handle_key` | `leaf_id`、`PaneRegistry`（**唯一保留的 Protocol**）、`EditorSession`、`LspManager`、`KeymapSet`、`handle_key` |
-| `theme.py` / `icons.py` / `keys.py` / `manual.py` | 主题、图标、键名转换、手册屏幕 | 自持纯逻辑 | — |
+| `theme.py` / `icons.py` / `manual.py` / `scrollbars.py` / `screensaver.py` | 主题、图标、手册屏幕、slim 滚动条注入、屏保画面 | 自持纯逻辑 | — |
+| ~~`keys.py`~~ | 键名转换 | **2026-09-28 核对修正**：该模块已迁出 L2，现为 L0 `yate/keyproto/legacy.py`（`textual_key_to_raw` 由 `app.py` 再导出） | — |
 
 ## B.3 设计要点
 

@@ -11,33 +11,38 @@
 
 ---
 
-## 1. 事实基线（2026-09-22 实测 / 2026-09-23 复核）
+## 1. 事实基线（2026-09-22 实测 / 2026-09-23 复核 / 2026-09-28 核对）
 
 > **行数口径：非空行**。`wc -l` 或编辑器显示的总行数会多算空行
-> （例：`app.py` 总 172 / 非空 152；`editor.py` 总 1388 / 非空 1245）。
+> （2026-09-28 实测例：`app.py` 总 329 / 非空 285；`editor.py` 总 1601 / 非空 1442）。
 
 | 指标 | 值 |
 |---|---|
-| `yate/app.py` | **152 行**（重构前 2005 行） |
-| `yate/editor.py` | 1274 行（`Editor`：唯一允许的编排大类） |
-| `yate/session.py` | 281 行（`EditorSession` 161 行 + 窗格树模型 120 行，无 UI） |
-| `yate/registries.py` / `actions.py` / `commands.py` | 60 / 111 / 207 行 |
-| `yate/completion.py` / `prompt_completion.py` | 280 / 126 行 |
+| `yate/app.py` | **285 行**（重构前 2005 行；2026-09-28 核对修正：外壳此后新增驱动选择 / devtools 桥接 / 屏保空闲轮询，行数回增） |
+| `yate/editor.py` | 1442 行（`Editor`：唯一允许的编排大类） |
+| `yate/session.py` | 297 行（`EditorSession` + 窗格树模型，无 UI） |
+| `yate/registries.py` / `actions.py` / `commands.py` | 66 / 131 / 242 行 |
+| `yate/completion.py` / `prompt_completion.py` | 322 / 133 行 |
 | 已删除 | `yate/app_features/`（6 文件 / 1070 行）、`app.py` 内 1875 行业务代码（均为历史值）、`yate/editor_view/pane_types.py`（155 行，Plan G 下沉至 `session.py`） |
 | `AppProtocol` / `yate.interfaces` | 定义 **0 处**（字面量仅存于 `tests/test_architecture.py` 的禁用名守卫） |
 | 新增模块 | `session.py`、`registries.py`、`editor.py`、`actions.py`、`commands.py`、`completion.py`、`prompt_completion.py`、`editor_view/chrome.py`、`keymaps/registry.py` |
-| 门禁现状 | `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**；`pytest tests/` **全绿**；`tools.smoke_test run --fail-only` → **86/86 场景、889/889 checks**（2026-09-23 **Plan G 收口**实测；§1.1 是 Plan E 时点的旧值，场景/checks 数此后随新增场景增长） |
+| 门禁现状 | `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**；`pytest tests/` **全绿**；`tools.smoke_test run --fail-only` → **89/89 场景、932/932 checks**（**2026-09-28 核对实测**：exit 0，94.59s；2026-09-23 Plan G 收口时为 86/86 场景、889/889 checks；§1.1 是 Plan E 时点的旧值，场景/checks 数此后随新增场景增长） |
 
 ### 1.1 迁移与门禁收口（2026-09-23 实测）
 
 | 范围 | 结果 |
 |---|---|
-| E1 `tests/test_app_textual.py` | ✅ **137 passed**（旧属性路径 ≈250 处全部迁移） |
-| E2 `test_explorer.py` / `test_changelog_view.py` / `test_diagnostics.py` | ✅ **26 passed**（收集期中断消除） |
-| E3 `test_cli` / `test_config` / `test_panes` / `test_editor_core` / `test_extensions` / `test_highlight` | ✅ **175 passed** |
+| E1 `tests/test_app_textual.py` | ✅ **137 passed**（旧属性路径 ≈250 处全部迁移；2026-09-28 核对：**156**） |
+| E2 `test_explorer.py` / `test_changelog_view.py` / `test_diagnostics.py` | ✅ **26 passed**（收集期中断消除；2026-09-28 核对：**45**） |
+| E3 `test_cli` / `test_config` / `test_panes` / `test_editor_core` / `test_extensions` / `test_highlight` | ✅ **175 passed**（2026-09-28 核对：**286**） |
 | E4 `tools/smoke_test/scenarios/`（8 个未迁移场景） | ✅ 全量 `run --fail-only` → **62/62 场景、651/651 checks** |
 | 全量门禁 | ✅ `pytest tests/ -q` exit 0 · `pyright yate/ tests/ tools/` 0 诊断 · `yate --diag` / `--version` 正常 |
 | 迁移记录 | 逐文件方式见 [Plan E](plan_E_tests_tools.md) §E.5 / §E.6.4；属性映射见 §E.1 |
+
+> **2026-09-28 核对复核**（本目录文档与代码对照）：`pytest tests/` 收集 **1354** 个用例、exit 0 全绿；
+> `pytest tests/test_architecture.py` → **20 passed**（Plan G 收口时为 13，此后 R12 / R13 / 日志惰性格式等
+> 守卫陆续加入）；`pyright yate/ tests/ tools/` → 0 诊断；`tools.smoke_test run --fail-only` → 89/89 场景、
+> 932/932 checks。上表的 E1–E3 数值为 2026-09-23 收口时点值，括号中为 2026-09-28 实测值。
 
 ### 1.2 复核命令
 
@@ -62,22 +67,25 @@ L3 表     yate/actions.py        populate(registry, editor)
 L3 流程   yate/completion.py     CompletionController                     会话级流程（补全）
           yate/prompt_completion.py  prompt_completions(...)              无状态候选生成（允许 import editor_view.theme，R11）
           yate/diagnostics.py    format_report(editor) / print_report(editor)  函数式报告
-L2 组件   yate/editor_view/*     TabBar / Breadcrumbs / PromptBar / ExplorerTree /
+L2 组件   yate/editor_view/*     TabBar / Breadcrumbs / SidebarHead / PromptBar / ExplorerTree /
                                  TerminalPanel / PaneHost / StatusBar / CompletionPopup /
-                                 HelpScreen / OutputScreen / PaletteScreen / MarkdownDocScreen / EditorView
+                                 HelpScreen / OutputScreen / PaletteScreen / MarkdownDocScreen /
+                                 ScreensaverScreen / EditorView
 L1 会话   yate/session.py        EditorSession + 窗格树模型（Leaf / Split / ViewState / 树操作）
            └ 模块内容             文档 / 标签 / 搜索 + 无 UI 的窗口布局模型（无 UI、无 LSP）
 L1 模型   yate/registries.py     ActionRegistry / CommandRegistry（叶子容器）
           yate/keymaps/registry.py  KeymapSet（键映射集合 + 活动项）
 L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / config / logs / paths /
           keymaps/base|vim|vsc（`keymaps/registry.py` 属 L1，键映射集合本身无 UI 但被各层共享）
+          keyproto / editor_sprites（2026-09-28 核对补入：前者是键弦模型 + Windows 和弦驱动，
+          原 `editor_view/keys.py` 已并入 `keyproto/legacy.py`；后者是屏保精灵数据与纯渲染）
 ```
 
 **一句话职责划分**
 
 | 层 | 干什么 | 不干什么 |
 |---|---|---|
-| `YateApp`（外壳） | 调 `Editor`；持有 Textual 生命周期、主题桥、CSS、内置表装载 | 不实现任何业务操作 |
+| `YateApp`（外壳） | 调 `Editor`；持有 Textual 生命周期、主题桥、CSS（2026-09-28 核对：已外置为打包资源 `yate/resources/app.tcss`，`app.py:118` `CSS = _load_app_css()`）、内置表装载；后续新增的驱动选择（`get_driver_class`）、devtools 日志桥接（R12）与屏保空闲轮询亦归外壳 | 不实现任何业务操作（屏保只"轮询 + 触发 action"，画面归 `editor_view/screensaver.py`、精灵归 `editor_sprites/*`） |
 | `Editor`（调度） | 组合模型/服务/组件，实现"操作"（打开、保存、窗格、键分发、提示、主题、shell、LSP、覆盖层、扩展） | 不做渲染、不做文本编辑算法、不写补全候选算法 |
 | 表 / 流程模块 | 把"内置能力"登记到注册表；把可独立成段的流程挪出 `Editor` | 不反向被 `editor.py` 导入（防环） |
 | Widget（组件） | 自持自己的行为与渲染，构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app` |
@@ -85,12 +93,15 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 | 窗格模型（同 `session.py`，L1） | 窗格树 / 每文档视口状态（`Leaf` / `Split` / `ViewState` + 树纯函数），被 L2/L3 直接 import | 不碰 UI；窗口布局仍由 L2 `PaneManager` 持有、L3 `Editor` 组装 |
 | 叶子 | 纯逻辑 | 不 import 上层 |
 
-`yate/editor_view/` 模块清单：`chrome.py`（TabBar / Breadcrumbs / `sidebar_head_text()`）、`commandline.py`（PromptBar / CommandInput）、
+`yate/editor_view/` 模块清单：`chrome.py`（TabBar / Breadcrumbs / SidebarHead / `sidebar_head_text()`）、`commandline.py`（PromptBar / CommandInput）、
 `explorer.py`（ExplorerTree）、`completion.py`（CompletionPopup）、`editor.py`（EditorView + 唯一保留的
 `PaneRegistry` Protocol）、`panes.py`（PaneManager / PaneHost）、
 `statusbar.py`（StatusBar + `mode_chip()`）、`terminal.py`（TerminalView / TerminalPanel）、
 `modals.py`（Help 与输出覆盖层）、`palette.py`（文件/命令面板）、`manual.py`（手册屏幕）、
-`theme.py`（主题与单元格宽度工具）、`icons.py` / `keys.py`。
+`screensaver.py`（ScreensaverScreen，屏保画面）、`scrollbars.py`（`apply_slim_scrollbars()` 按 widget 注入）、
+`theme.py`（主题与单元格宽度工具）、`icons.py`。
+（2026-09-28 核对修正：原列的 `keys.py` 已不存在——其键名转换能力迁至 L0 `yate/keyproto/legacy.py`，
+`textual_key_to_raw` 由 `app.py` 再导出。）
 
 ---
 
@@ -117,6 +128,9 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 - **R2** 不得新增 `Protocol`；仅保留 4 个**存量冻结**协议类（见下"冻结清单"）。
 - **R3** `editor_view/*` 不得 import `yate.editor` / `yate.app`（组件向上只收回调/具体对象）。
 - **R4** `keymaps/*`、`services/*`、`session.py`、`registries.py` 不得 import `editor_view`。
+  （2026-09-28 核对修正：守卫面已扩员——`keyproto/*`、`editor_sprites/*`、`config.py` 同样不得
+  import `editor_view`，见 `tests/test_architecture.py:88` `UI_FREE_PACKAGES` /
+  `UI_FREE_FILES` 与 rules R4。）
 - **R5** `actions.py` / `commands.py` 可以 import `yate.editor`；**反向禁止**（`editor.py` 不得 import 它们，否则成环）。
 - **R6** 不使用 `TYPE_CHECKING`。
 - **R7** 内置表由**外壳装载**：`YateApp.__init__` 调 `populate(editor.actions, editor)` 与
@@ -126,11 +140,19 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 - **R9** 组件 id 归调度层：`Editor` 构造 widget 时带上 id（`#sidebar` `#sidebar-head` `#explorer`
   `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`），`compose()` 里再带上
   容器 id（`#body` `#bottom-dock` `#bottom`）。其中 `#statusbar` 只是 widget id（CSS 用类选择器
-  `StatusBar`），其余 id 均被 `app.py` 的 CSS 直接引用 —— 改 id 必须同步改 CSS。
+  `StatusBar`），其余 id 均被外壳样式表直接引用 —— **2026-09-28 核对修正**：该 CSS 已不再内联于
+  `app.py`，而是打包资源 `yate/resources/app.tcss`（`app.py:118` `CSS = _load_app_css()`，文件头
+  注释即声明 "selector ids are frozen by R9"），改 id 必须同步改该 `.tcss` 文件。
 - **R10** 一次按键只派发一次：`EditorView.on_key` 处理后 `stop()` / `prevent_default()`，未消费的键不再冒泡。
 - **R11**（新增，Plan E 落地）`completion.py` / `prompt_completion.py` 作为 L3 流程模块**允许** import
   `editor_view`（存量耦合，冻结）；但禁止向上 import `yate.editor` / `yate.app`，且新增 `editor_view`
   导入必须在 `tests/test_architecture.py` 的白名单中登记。
+- **R12 / R13**（本目录成文之后新增，2026-09-28 核对补注）：R12 要求全仓日志走 `tracing` 单例、
+  禁止直连 Textual devtools 通道（`self.log` / `self.app.log`），UI-free 叶层不得为日志引入
+  `textual.app`，devtools 可见性由 L4 `YateApp` 的 `TextualHandler` 桥提供；R13 要求"组件自持主题与
+  滚动条注入"：L3 `Editor` 不得直改 widget 样式、不得类级 patch `ScrollBar.renderer`，注入统一走
+  `editor_view.scrollbars.apply_slim_scrollbars(widget)`。两者均已在 `tests/test_architecture.py`
+  落地守卫，权威定义见 [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md)。
 
 ### 冻结清单（存量，禁止新增）
 
@@ -140,11 +162,12 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 | 禁用命名 | 仅 `PaneHost`（`editor_view/panes.py` 的 Textual 容器 widget）、`PaneManager` / `LspManager`（存量）、`CompletionController`（流程类） | 其余 `*Feature` / `*Host` / `*Ops` / `*Delegate` 一律禁止 |
 | UI 耦合 | `completion.py` / `prompt_completion.py` → `editor_view` | 见 R11；新增导入须登记 |
 
-### 守护覆盖（2026-09-23 实测）
+### 守护覆盖（2026-09-23 实测 / 2026-09-28 复核）
 
-`tests/test_architecture.py` 的 **13 个用例**实际覆盖：**R1 / R2 / R3 / R4 / R5 / R6 / R7 / R11 +
-窗格模型归属 + 命名守卫**（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`），以及 `app_features/`
-**目录**与 `yate/interfaces.py` 已消失。其中「窗格模型归属」由 `test_pane_model_lives_in_l1_session` 守护：
+`tests/test_architecture.py` 的 **20 个用例**（2026-09-28 实测；Plan G 收口时为 13）实际覆盖：
+**R1 / R2 / R3 / R4 / R5 / R6 / R7 / R11 / R12 / R13 + 窗格模型归属 + 命名守卫**
+（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`）、日志惰性 `%` 格式与 T1 / T2 治理项，
+以及 `app_features/` **目录**与 `yate/interfaces.py` 已消失。其中「窗格模型归属」由 `test_pane_model_lives_in_l1_session` 守护：
 窗格树模型（`Leaf` / `Split` / `ViewState` + `find_leaf` 等树操作）归 L1 `yate/session.py` 所有，
 `editor_view/` 只 import、不再重导出（`editor_view/pane_types.py` 已删除）。R7 由 `test_shell_loads_the_builtin_tables` 守护：
 断言 `app.py` 含 `populate(self.editor.actions, self.editor)` /
@@ -201,7 +224,7 @@ python -m yate --version                   # 正常
 |---|---|
 | [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md) | 本重构的**硬性边界规则**（已按新分层改写），随代码一起被守护 |
 | [`.trae/documents/split_app_protocol_plan.md`](../split_app_protocol_plan.md) | **前序重构**：拆分并移除 `AppProtocol`，其产物 `app_features/` 在本轮 Plan D 删除；其正文 §3.2 的 R1–R6 为**旧编号**，勿与本目录的 R1–R11 对照 |
-| [`.trae/issues/review.md`](../../issues/review.md) | 代码审查问题清单（多项落在 `app_features/*`，随目录删除而消解） |
+| [`.trae/review/review.md`](../../review/review.md) | 代码审查问题清单（多项落在 `app_features/*`，随目录删除而消解）。（**2026-09-28 核对修正**：原路径 `.trae/issues/review.md` 已随审查文档整体迁至 `.trae/review/`，`.trae/issues/` 目录不再存在） |
 
 ## 10. 审计记录（2026-09-23）
 

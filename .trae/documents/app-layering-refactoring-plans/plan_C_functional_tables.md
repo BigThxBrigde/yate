@@ -38,7 +38,7 @@
 
 | 旧 | 新 |
 |---|---|
-| `app_features/commands.py::CommandsFeature`（339 行） | `yate/commands.py::register_commands()`（203 行） |
+| `app_features/commands.py::CommandsFeature`（339 行） | `yate/commands.py::register_commands()`（203 行；2026-09-28 核对：**242** 非空行） |
 | `app_features/completion.py::CompletionFeature`（307 行） | `yate/completion.py::CompletionController`（280 行）+ `yate/prompt_completion.py`（126 行） |
 | `app_features/docs.py`（59 行） | `Editor._open_doc` / `EditorView` / `manual.py` |
 | `app_features/explorer.py`（211 行） | `ExplorerTree`（Plan B） |
@@ -47,8 +47,10 @@
 | `api.app` → `YateApp` | `api.app` → `ExtensionContext`（用户可见变化） |
 | `AppDiagnostics(app)` | `print_report(editor)` / `format_report(editor)` |
 
-> 行数口径同总纲 §1：**非空行**（`commands.py` 总 251 / 非空 203，`completion.py` 总 310 / 非空 280，
-> `prompt_completion.py` 总 139 / 非空 126；2026-09-23 复核）。
+> 行数口径同总纲 §1：**非空行**（2026-09-23 复核值：`commands.py` 总 251 / 非空 203，`completion.py`
+> 总 310 / 非空 280，`prompt_completion.py` 总 139 / 非空 126。
+> **2026-09-28 核对修正（实测）**：`commands.py` 总 297 / 非空 242，`completion.py` 总 355 / 非空 322，
+> `prompt_completion.py` 总 146 / 非空 133。）
 
 ## C.5 验收证据
 

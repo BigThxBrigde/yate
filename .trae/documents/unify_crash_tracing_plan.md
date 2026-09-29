@@ -12,6 +12,12 @@
 > `yate/logs.py` 仍保持叶子（只依赖标准库 + `yate.__version__`）；
 > `tests/test_crash.py` / `tests/test_tracing.py` 单例直连，`tests/test_cli.py`
 > 的 patch 目标为 `yate.logs.crash.*`。
+>
+> **2026-09-28 复核**：上述各条**仍成立**。新增一条现状补充——两个服务的落盘文件名
+> 现均带 **pid 后缀**：`crash-YYYYMMDD-HHMMSS-<pid>.err`（`logs.py:424,432-435`）与
+> `yate-YYYYMMDD-HHMMSS-<pid>.log`（`logs.py:561-564`），秒级时间戳无法区分同秒启动的
+> 两个进程；本文头部示例里的 `crash-*.err` / `yate-*.log` 通配写法不受影响。
+> 行号与测试文件长度的现状值见 §最终文件布局与 §验证结果。
 
 ## 目标
 
@@ -105,7 +111,7 @@ has no attribute 'get_logger' (most likely due to a circular import)
 
 ```
 yate/
-├── logs.py                  ← 新增（576 行）实现：常量、纯函数、
+├── logs.py                  ← 新增（2026-09-28 核对：现 536 行）实现：常量、纯函数、
 │                                    _SessionFileHandler、CrashService、
 │                                    TracingService、两个单例
 ├── cli.py                   ← from yate.logs import crash, tracing
@@ -119,9 +125,9 @@ yate/
     └── extensions.py        ← from yate.logs import tracing
 
 tests/
-├── test_crash.py            ← 改动（199 行）单例直连；patch 打 yate.logs 的模块全局
-├── test_tracing.py          ← 改动（278 行）单例直连；常量/函数按名导入
-└── test_cli.py              ← 改动（443 行）patch 目标改为 "yate.logs.crash.install" 等
+├── test_crash.py            ← 改动（2026-09-28 核对：209 行）单例直连；patch 打 yate.logs 的模块全局
+├── test_tracing.py          ← 改动（2026-09-28 核对：225 行）单例直连；常量/函数按名导入
+└── test_cli.py              ← 改动（2026-09-28 核对：368 行）patch 目标改为 "yate.logs.crash.install" 等
 ```
 
 ## 依赖关系（最终）
@@ -389,7 +395,7 @@ level = resolved if resolved is not None else logging.DEBUG   # 显式 None 判�
 | 1 | 无 `TYPE_CHECKING` / `YateConfig` / `from yate.config`（`logs.py` 与 `cli.py`） | `grep` | 0 命中 |
 | 2 | 两个类之间无互相引用 | 在 `yate/logs.py` 中 grep `tracing.` / `crash.` | 只有 docstring 里的用法示例 |
 | 3 | 严格类型检查 | `pyright`（1.1.414，`typeCheckingMode = "strict"`，含 `yate`、`tools`、`tests`） | **0 errors, 0 warnings** |
-| 4 | 全量测试 | `python -m pytest tests/` | **612 passed in 137.77s** |
+| 4 | 全量测试 | `python -m pytest tests/` | **612 passed in 137.77s**（2026-09-28 核对：`--collect-only` 现为 **1354 collected**，exit 0 全绿；612 为当时值） |
 | 5 | 头部字节 | 将 `build_session_header(...)` / `_trace_header(...)` 与历史格式串比对 | 两者均**逐字节一致** |
 | 6 | 导入顺序 | 分别以 `import yate.logs` / `yate.config` / `yate.cli` / `yate.app` / `yate.services.extensions` / `yate.diagnostics` 作为首个导入 | 全部干净，无环 |
 | 7 | `YATE_TRACE=1 yate --version` | 沙箱 HOME | 立即退出、**不生成日志文件**（懒创建），也不残留 `.err` |

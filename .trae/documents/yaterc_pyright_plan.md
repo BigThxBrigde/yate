@@ -99,7 +99,9 @@
 - `yate/services/workspace.py` 新增 `walk_files(limit=2000)`：递归 iterdir，跳过 `IGNORED_NAMES` + `is_text_file` 过滤，返回相对 root 的 Path 列表。
 - `actions.py`：`command_palette`（现 L184 误指向 `command_prompt`）改为打开面板；新增 `quick_open`。
 
-**按键路由**（`yate/editor_view/keys.py`）：raw 串完全由 keys.py 生成，用合成 raw 最干净：
+**按键路由**（2026-09-28 核对：原 `yate/editor_view/keys.py` **已不存在**，键名↔raw 字节
+翻译现位于 L0 叶包 **`yate/keyproto/legacy.py`** —— `event_to_raw` :52 /
+`textual_key_to_raw` :87）：raw 串完全由 keyproto 生成，用合成 raw 最干净：
 - `"ctrl+shift+p"` → `"\x1b\x10"`（= alt+ctrl+p 序列；yate 绑定宇宙内无冲突），`KEY_ALIASES["\x1b\x10"]="ctrl-shift-p"`（帮助正确显示）。
 - `"ctrl+underscore"` 与 `"ctrl+slash"`（Textual 键名，实装时用 pilot 验证其一）→ `"\x1f"`，`KEY_ALIASES["\x1f"]="ctrl-slash"`。
 - vsc 键绑：`<ctrl-p>` → `quick_open`；新增 `_raw("\x1b\x10", "command_palette", ...)`、`_raw("\x1f", "toggle_keymap", ...)`（落地帮助文案承诺的 ctrl+/ 切换）；`_k(":", ...)`。
@@ -162,7 +164,8 @@ reportUnknownParameterType = false
 2. **pyright 接入**：装 pyright+pylance、写配置、清全库类型问题（顺带修 app.py L359）。
 3. **config.py + CLI `-u` + TextBuffer 传播 + test_config.py**。
 4. **纯渲染改版**：theme 调色 → statusbar 平化 → render_tabbar → 侧栏头部 → breadcrumbs。
-5. **交互**：`walk_files` → palette.py → keys.py 合成键 → ctrl+p/ctrl+shift+p 重绑 → welcome 渲染 + pilot 测试。
+5. **交互**：`walk_files` → palette.py → `keyproto/legacy.py` 合成键（2026-09-28 核对：原 keys.py）
+   → ctrl+p/ctrl+shift+p 重绑 → welcome 渲染 + pilot 测试。
 6. **收尾**：`yaterc.example`、pyright 0 errors 复验、全量测试、`yate --version` 双入口、真实 TUI 启动冒烟。
 
 ## 风险

@@ -24,7 +24,7 @@
 | N5 ✅ | Outdent 按 tab_width 而非上一个 tab stop | [buffer.py:510-535](../../../yate/editor_core/buffer.py) | 空格行改算 `rrem = removed % tab_width`，`removed - (rrem or tab_width)` 对齐上一个 stop；整 Tab 剥离保留 | 3 空格缩进 + tab_width=4 → 移除 3；8 空格 → 移除 4 |
 | N6 ✅ | `replace_current` 可用 `replace_range` 简化 | [search.py:102-116](../../../yate/editor_core/search.py) | 内部改调 `replace_range(buffer, match_span, replacement)`，删重复实现 | 现有 replace 用例全绿 |
 | N7 ✅ | `_soft_reset`（ESC c）不退备用屏幕 | [emulator.py:387-397](../../../yate/editor_term/emulator.py) | 加 `self._exit_alt_screen()`（或等价状态复位），对齐 xterm RIS 部分语义 | 写入 `ESC c` 后断言 alt_screen 为 False |
-| N8 ✅ | ctrl+digit 用 kitty CSI-u | [base.py:118-121](../../../yate/keymaps/base.py) | **已落地（2026-09-26）**：保留 kitty 绑定 + 双语文档标注终端要求与替代路径；`ctrl+/` 同族命名漂移问题已随 [keybinding-fix-wt](../keybinding-fix-wt/README.md) 修复 | 255 定向 / 1228 全量 passed，pyright 0 |
+| N8 ✅ | ctrl+digit 用 kitty CSI-u | [base.py:118-121](../../../yate/keymaps/base.py) | **已落地（2026-09-26）**：保留 kitty 绑定 + 双语文档标注终端要求与替代路径；`ctrl+/` 同族命名漂移问题已随 [keybinding-fix-wt](../keybinding-fix-wt/README.md) 修复 | 255 定向 / 1354 全量 passed（2026-09-28 核对修正：当前全量 1354，原 1228），pyright 0 |
 | N10 ✅ | `cycle_tab` 空操作循环 | [editor.py:489-493](../../../yate/editor.py) | 单 tab 时 no-op 且不提示（或保留提示但仅 verbose）；倾向静默 no-op | 单 tab 连按断言无消息、无异常 |
 | N13 ✅ | smoke 工具自身无测试 | [tools/smoke_test/](../../../tools/smoke_test/) | 对纯函数部分（场景解析、报告渲染、`extract_svg_rows`）补 `tests/test_smoke_tool.py`；harness 端到端不测（冒烟本身即验证） | 新测试文件 |
 | N14 ✅ | SVG 提取正则依赖 Textual 版本 | [harness.py:130](../../../tools/smoke_test/harness.py) | 提取失败时给明确报错并打印 SVG 头部片段（诊断版本漂移）；正则收紧为当前实测格式并在注释记录适配的 Textual 版本 | 喂旧版/新版 SVG 样例断言行为 |
@@ -43,7 +43,7 @@
 | N27 ✅ | 内部导入组非字母序 | [extensions.py:49-53](../../../yate/services/extensions.py) | 排序 | 无 |
 | N28 ✅ | trust.py 全用 `Path \| None` | [trust.py:27,50,71](../../../yate/services/trust.py) | 统一 `Optional[X]`（与 explorer 条目同类，可合并修） | pyright 全绿 |
 | N29 ✅ | harness 重写行沿用 `# type: ignore` 无理由注释 | [harness.py:274-283](../../../tools/smoke_test/harness.py) | 补理由注释归档豁免（工具代码，若属既定豁免） | 无（注释） |
-| N30 ✅ | L0 config 惰性 import L2 `editor_view.theme`（层级债） | [config.py](../../../yate/config.py) | **已落地（2026-09-26）**：注入回调方案——`load_config` 增 keyword-only `register_theme` / `load_theme_paths`（PEP 695 别名），L4 `cli.py` 注入同名函数；缺省 `None` 即 headless。`config.py` 收编 `UI_FREE_FILES`（负向验证过）；R4 / §四交互表 / §六 已登记。方案比选与实测：[theme-layer-refactor-plans](../theme-layer-refactor-plans/README.md) | 架构测试 13 passed + pyright 全仓 0 ✅ |
+| N30 ✅ | L0 config 惰性 import L2 `editor_view.theme`（层级债） | [config.py](../../../yate/config.py) | **已落地（2026-09-26）**：注入回调方案——`load_config` 增 keyword-only `register_theme` / `load_theme_paths`（PEP 695 别名），L4 `cli.py` 注入同名函数；缺省 `None` 即 headless。`config.py` 收编 `UI_FREE_FILES`（负向验证过）；R4 / §四交互表 / §六 已登记。方案比选与实测：[theme-layer-refactor-plans](../theme-layer-refactor-plans/README.md) | 架构测试 20 passed（2026-09-28 核对修正：当前 20 条用例；原 13 为落地时实测）+ pyright 全仓 0 ✅ |
 | N31 ✅ | `warn()` 在 `sys.stderr` 为 None 时退化写 stdout | [logs.py:85-87](../../../yate/logs.py) | `if sys.stderr is not None:` 再 print——stderr 不可用时静默丢弃，与 docstring「Never raises」一致 | monkeypatch `sys.stderr = None` 断言不抛且不写 stdout |
 | N32 ✅ | subject 字段可能包含嵌入的分隔符（理论性 Low） | tools/changelog/gitdata.py | body 经 maxsplit 保留杂散分隔符，subject 字段本身无防护；按实现固化行为或加断言/文档说明（2026-09-25 复核补入——review.md 2026-09-16 Suggestion 段唯一漏登记条目） | 现有 changelog 测试全绿 |
 
@@ -78,7 +78,7 @@
     `ctrl+1` 物理不可达，彻底根治需自建输入通道（`win_keybinding_plan.md` 方案 B，另行排期）。
     详见 [keybinding-fix-wt](../keybinding-fix-wt/README.md) 与
     [wt_keybinding_fix_plan.md](../wt_keybinding_fix_plan.md)；N19 的 `FOCUS_EDITOR_KEY`
-    单点常量随方案 B 一并处理。门禁：255 定向 / 1228 全量 passed，pyright 0 诊断。
+    单点常量随方案 B 一并处理。门禁：255 定向 / 1354 全量 passed（2026-09-28 核对修正：当前全量 1354），pyright 0 诊断。
   - **N30 → 已落地（✅，2026-09-26）**：按原策略「二选一」拍板**注入回调**并单独立项实施；
     方案比选、19 步拆分与门禁实测见
     [theme-layer-refactor-plans](../theme-layer-refactor-plans/README.md)（分支 `issues/refine-arch`）。
@@ -91,8 +91,8 @@
   理由注释。附带：3 个全量负载下时序敏感的 pilot 用例加固（manual_search 等布局就绪、
   palette 等输入框焦点就位、f8 worker 超时放宽至 15s；加固前全量跑 5 次 3 败、
   单跑必绿，根因均为按键/搜索先于布局或焦点完成，加固后连续两次全量全绿）。
-  收尾门禁：pyright 全仓 0 诊断、pytest 连续两次全量全绿、冒烟 **88/88 场景 ·
-  917/917 checks · exit 0**。
+  收尾门禁：pyright 全仓 0 诊断、pytest 连续两次全量全绿、冒烟 **89/89 场景 ·（2026-09-28 核对修正：当前 89/89·932/932；原文 88/88·917/917）
+  932/932 checks · exit 0**。
 - **波次一校准**：N16 的调用方 `tools/changelog/cli.py` 经主代理实测（`pushed_flags`
   调用点在 cli.py:133）补入 SP4 授权；N15 真实落点为 harness.py（testsuite.py 仅重导出）；
   N14 收紧前做过新旧正则等价性验证；N29 以消除（cast + 直删，7 处 ignore 清零）而非注释归档；

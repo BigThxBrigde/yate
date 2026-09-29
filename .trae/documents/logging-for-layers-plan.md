@@ -10,7 +10,8 @@ Gitee issue [IKIN1Z](https://gitee.com/jermaine/yate/issues/IKIN1Z) 要求：按
 
 ### 现状盘点（merge master 后实测）
 
-全仓 37 条 `log.*` 调用，分布 9 个文件：
+全仓 37 条 `log.*` 调用，分布 9 个文件：**（2026-09-28 核对：以上为计划起草时的快照；
+本计划实施后现约 93 条 / 25 文件，app.py 等"零日志"缺口已补齐，详见 §八 校准记录。）**
 
 | 层 | 文件 | 条数 | 已覆盖内容 |
 |---|---|---|---|
@@ -235,8 +236,9 @@ sequenceDiagram
 |---|---|---|
 | `log.*` 调用 / 涉及文件（yate/） | 37 条 / 9 文件 | 97 条 / 24 文件（实测 Grep） |
 | pyright strict | 0 诊断 | 0 诊断（每 Phase 均复验） |
-| pytest | 1251 passed, 7 skipped | **1252 passed, 7 skipped**（+1 守卫测试） |
-| 架构测试用例 | 13 | 14（新增 `test_log_calls_use_lazy_percent_formatting`） |
+| pytest | 1251 passed, 7 skipped | **1252 passed, 7 skipped**（+1 守卫测试）（**2026-09-28 核对：现 1354 collected，exit 0 全绿**） |
+| 架构测试用例 | 13 | 14（新增 `test_log_calls_use_lazy_percent_formatting`）（**2026-09-28 核对：现 20 个用例**，此后 R12/R13/T1/T2 等守卫陆续加入） |
+| `log.*` 调用 / 涉及文件（yate/） | — | —（**2026-09-28 核对：现约 93 条 / 25 文件**，与当时的 97/24 口径略有差异） |
 
 ### 分 Phase commit
 

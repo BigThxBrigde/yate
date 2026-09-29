@@ -1,7 +1,9 @@
 # SP4 — 文档回填与 Issue 关账
 
 > 前置：SP1–SP3 已提交
-> 预估：30min　|　独占文件：`.trae/issues/review.md`、`.trae/documents/code-review-fix-plans/P2_nice_to_have_plan.md`、`.trae/documents/keybinding-fix-wt/*.md`
+> 预估：30min　|　独占文件：`.trae/review/review.md`、`.trae/documents/code-review-fix-plans/P2_nice_to_have_plan.md`、`.trae/documents/keybinding-fix-wt/*.md`
+> **（2026-09-28 核对修正：原写 `.trae/issues/review.md`——`.trae/issues/` 目录已整体迁至 `.trae/review/`，
+> 现路径为 `.trae/review/review.md`。）**
 
 ## 目标
 
@@ -9,7 +11,7 @@
 
 ## 实施步骤
 
-### 步骤 4.1　`.trae/issues/review.md`
+### 步骤 4.1　`.trae/review/review.md`（原 `.trae/issues/review.md`，2026-09-28 核对时已迁目录）
 
 历史问题区新增条目「Windows Terminal 键位失效（IKH1RA）」：
 

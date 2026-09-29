@@ -57,7 +57,7 @@ pyupgrade 顺带清空被掏空的 `typing` 导入（`Optional`/`Union` 不再�
 | `yate/editor_view/terminal.py` | 8 |
 | `yate/editor_view/panes.py` | 7 |
 | `yate/editor_view/completion.py` | 5 |
-| `yate/editor_view/keys.py` | 3 |
+| ~~`yate/editor_view/keys.py`~~ | ~~3~~ |
 | `yate/editor_view/theme.py` | 3 |
 | `yate/editor_view/palette.py` | 2 |
 | `yate/editor_view/manual.py` | 2 |
@@ -65,6 +65,11 @@ pyupgrade 顺带清空被掏空的 `typing` 导入（`Optional`/`Union` 不再�
 | `yate/completion.py` | 4 |
 | `yate/app.py` | 6 |
 | `yate/cli.py` | 1 |
+
+> **（2026-09-28 核对）** 划掉的 `yate/editor_view/keys.py`（当时 3 处）**该文件已不存在**：
+> 键名→raw 字节翻译已并入 L0 叶包 `yate/keyproto/legacy.py`
+> （`event_to_raw` :52 / `textual_key_to_raw` :87）。表中其余计数均为迁移当时值；
+> 迁移结果仍成立——全仓 `Optional[` / `Union[` 实测 **0 处**。
 
 批级验证同 3a。
 

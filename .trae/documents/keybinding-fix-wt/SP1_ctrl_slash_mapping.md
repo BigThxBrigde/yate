@@ -1,7 +1,9 @@
 # SP1 — `ctrl+/` 全平台修复 + help 显示修复
 
 > 前置：无（首个可执行子计划）
-> 预估：30min　|　独占文件：`yate/editor_view/keys.py`、`yate/keymaps/base.py`、`tests/test_app_textual.py`、`tests/test_key_notation.py`
+> 预估：30min　|　独占文件：`yate/keyproto/legacy.py`、`yate/keymaps/base.py`、`tests/test_app_textual.py`、`tests/test_key_notation.py`
+> **（2026-09-28 核对修正：原写 `yate/editor_view/keys.py`——该模块在 SP1 之后随 PB1（`5cd97d1`）整体迁入
+> `yate/keyproto/legacy.py` 并删除；本文步骤 1.1 的"第 12-14 行 `\_CTRL_PUNCT`"现位于 `legacy.py:23-36`。）**
 
 ## 目标
 
@@ -13,7 +15,7 @@
 
 ### 步骤 1.1　`_CTRL_PUNCT` 补条目
 
-文件 `yate/editor_view/keys.py`，第 12-14 行（当前）：
+文件 `yate/keyproto/legacy.py`（原 `yate/editor_view/keys.py`，2026-09-28 核对时已迁包），当时第 12-14 行（当前）：
 
 ```python
 # Ctrl+punctuation raw bytes. Ctrl+/ is 0x1F (the vsc keymap's keymap
