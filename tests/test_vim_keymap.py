@@ -288,7 +288,7 @@ def test_word_motions() -> None:
     _press(keymap, ctx, "b")
     assert editor.buffer.col == 4
     _press(keymap, ctx, "e")
-    assert editor.buffer.col == 7
+    assert editor.buffer.col == 6
     _press(keymap, ctx, "0", "2", "w")
     assert editor.buffer.col == 8
 
@@ -756,11 +756,64 @@ def test_add_binding_over_a_built_in_key_keeps_one_list_entry() -> None:
 
 
 def test_word_end_motion_wraps_to_the_next_line() -> None:
-    """e at the end of a line steps onto the next one."""
+    """e past a line's last word lands on the next line's word end."""
     editor, keymap, ctx = _setup("ab\ncd")
     _press(keymap, ctx, "$")
     _press(keymap, ctx, "e")
-    assert editor.buffer.cursor == (1, 0)
+    assert editor.buffer.cursor == (1, 1)
+
+    editor, keymap, ctx = _setup("ab\n\ncd")
+    _press(keymap, ctx, "$")
+    _press(keymap, ctx, "e")
+    assert editor.buffer.cursor == (2, 1)  # blank lines are skipped
+
+
+def test_word_end_motion_lands_on_the_last_char() -> None:
+    """e stops on the word's final char and stays put with no next word."""
+    editor, keymap, ctx = _setup("foo bar baz")
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 2
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 6
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 10
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 10  # document end: no landing, no move
+
+    editor.buffer.set_cursor((0, 3))
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 6  # from a delimiter: next word's end
+
+    editor.buffer.set_cursor((0, 0))
+    _press(keymap, ctx, "2", "e")
+    assert editor.buffer.col == 6  # counts repeat the landing
+
+
+def test_word_end_motion_treats_punctuation_as_a_word() -> None:
+    """e lands on the last char of word and punctuation runs alike."""
+    editor, keymap, ctx = _setup("ab! cd")
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 1
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 2
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 5
+
+
+def test_delete_over_e_from_the_word_end_takes_the_next_word() -> None:
+    """de on a word's last char deletes through the next word's end."""
+    editor, keymap, ctx = _setup("ab cd")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "d", "e")
+    assert editor.buffer.get_text() == "a"
+
+
+def test_cw_on_the_last_char_changes_only_that_char() -> None:
+    """vim's cw special case is one char when the cursor ends the word."""
+    editor, keymap, ctx = _setup("foo bar")
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "c", "w", "X", ESC)
+    assert editor.buffer.get_text() == "foo baX"
 
 
 def test_operator_with_the_g_motion_deletes_nothing() -> None:

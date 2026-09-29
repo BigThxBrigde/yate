@@ -108,6 +108,30 @@ def _class(ch: str) -> str:
     return "punct"
 
 
+def at_word_end(line: str, col: int) -> bool:
+    """Whether the char at *col* is the last char of its non-blank run.
+
+    A run ends here when the line ends, a blank follows, or the next char
+    switches char class (word / punctuation) -- vim's ``e`` landing test.
+    """
+    if col >= len(line) or line[col].isspace():
+        return False
+    return col + 1 == len(line) or _class(line[col + 1]) != _class(line[col])
+
+
+def word_end_column(line: str, col: int) -> int | None:
+    """Find the next vim ``e`` landing column strictly after *col*.
+
+    Scans forward for the end of the next word or punctuation run and
+    returns ``None`` when the rest of the line offers no landing, so the
+    caller can wrap to the following lines.
+    """
+    for i in range(col + 1, len(line)):
+        if at_word_end(line, i):
+            return i
+    return None
+
+
 def _word_span(
     lines: list[str], pos: Pos, scope: str, count: int
 ) -> tuple[Pos, Pos] | None:

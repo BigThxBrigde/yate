@@ -15,8 +15,13 @@ from __future__ import annotations
 from enum import Enum
 from typing import override
 
-from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer, word_end
-from yate.editor_core.textobjects import find_char, resolve_text_object
+from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer
+from yate.editor_core.textobjects import (
+    at_word_end,
+    find_char,
+    resolve_text_object,
+    word_end_column,
+)
 from yate.keymaps.base import (
     ActionContext,
     KeyBinding,
@@ -695,12 +700,15 @@ class VimKeymap(Keymap):
                 buf.move_left(select=select, word=True)
             elif code == "e":
                 r, c = buf.cursor
-                line = buf.lines[r]
-                nc = word_end(line, c)
-                if nc == c and r < len(buf.lines) - 1:
+                nc = word_end_column(buf.lines[r], c)
+                while nc is None and r < len(buf.lines) - 1:
                     r += 1
-                    nc = 0
-                buf.set_cursor((r, nc), select=select)
+                    nc = word_end_column(buf.lines[r], -1)  # col 0 may land
+                if nc is not None:
+                    # normal mode lands on the word's last char; visual and
+                    # operator mode land one past it so the half-open
+                    # selection keeps the whole word
+                    buf.set_cursor((r, nc + 1 if select else nc), select=select)
             elif code == "0":
                 # move_line_start has a "col 0 <-> first non-blank" toggle;
                 # vim's 0 always lands on column 0
@@ -733,8 +741,13 @@ class VimKeymap(Keymap):
         buf = ctx.buffer
         start = buf.cursor
         if op == "c" and code == "w" and self._on_non_blank(buf):
-            # vim special case: cw on a word is ce; on whitespace it stays dw
-            code = "e"
+            # vim special case: cw on a word is ce; on whitespace it stays dw.
+            # On the last char of that word vim changes only that char --
+            # the e motion would run on to the end of the next word.
+            if count is None and at_word_end(buf.lines[start[0]], start[1]):
+                code = "l"
+            else:
+                code = "e"
         buf.anchor = start
         self._motion(ctx, code, count, select=True)
         if code == "G" and count is not None:
