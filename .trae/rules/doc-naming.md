@@ -22,15 +22,32 @@
   均为存量合法形态；新建目录二选一后不得混用）；
 - 方案文档自身也按本规范命名（如 `doc_plans_naming_convention_plan.md`）。
 
-## 二、审查记录（`.trae/review/`）
+## 二、审查与评审文档
+
+### 2.1 评审记录（`.trae/review/`）
 
 | 对象 | 命名 | 示例 |
 |---|---|---|
-| 单次审查 | `YYYY-MM-DD-<topic>.md`（日期前缀 + 连字符分词主题） | `2026-09-27-ui-refine.md` |
+| 单次评审记录 | `YYYY-MM-DD-<topic>.md`（日期前缀 + 连字符分词主题） | `2026-09-27-ui-refine.md` |
 | 目录索引 | `README.md`（review 目录保留 README 惯例） | `.trae/review/README.md` |
 | 历史遗留汇总 | `legacy-issues.md`（已定案保留命名） | — |
 
-同日多次审查以主题区分，不使用 `-2` / `-v2` 序号后缀。
+同日多次评审以主题区分，不使用 `-2` / `-v2` 序号后缀。
+评审记录是**只读事实文档**：只记录发现与核对结论，不放修复排期。
+
+### 2.2 评审修复方案（`.trae/documents/`）
+
+评审发现需要修复时，修复方案按 §一 主计划规范落在 `.trae/documents/` 根，
+review 语义并入 `task`：
+
+- 合规格式：`<task>_plan.md`，task 中含 `review` 词根
+  （存量合规例：`code_review_fixes_plan.md`、`fancy_sym_review_fixes_plan.md`、
+  `vim_keymap_review_plan.md`）；
+- **禁止连字符分词**（存量反例 `vim-keymap-review-plan.md`，位于
+  `review-vim-keymap` worktree 分支，须随该分支改为
+  `vim_keymap_review_plan.md` 后再合并）；
+- 评审记录与修复方案必须互相链接（记录 → 方案；方案 → 来源记录），
+  但文件各自独立，不合并成一份。
 
 ## 三、双语手册（`yate/docs/`）
 
