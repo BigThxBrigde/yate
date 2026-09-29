@@ -240,3 +240,38 @@ master（含 screensaver 等）已合入（merge `6ec0cad`，无冲突）；合�
 **该批次已完成**（2026-09-29）：textobjects 新增 `first_non_blank` / `next_word_pos` / `prev_word_pos`
 （含 w 的行内最后字符中间落点）、vim.py 五处 motion/operator 落点修正；门禁实测 pyright 0 诊断、
 pytest 全绿 + 覆盖率 90.62% 持平、冒烟 89/89。执行记录与 2 条偏离详见该方案 §五。
+
+### PR35 AI 评审修复（2026-09-29，用户指令）
+
+Gitee AI 队友在
+[PR #35 评审评论](https://gitee.com/jermaine/yate/pulls/35#note_51401700_conversation_191134324)
+给出 1 阻断项 + 3 改进项。逐条登记与处置（含取证）见评审记录
+[`2026-09-29-pr35-vim-keymap.md`](../review/2026-09-29-pr35-vim-keymap.md)；
+本节记修复实施。
+
+**取证结论（阻断项）**：越界路径经公开行为不可达——forward `find_char` 返回值受
+`i < len(line)` 约束，`target[1] + 1 <= len(line)` 恒成立；`_word_span` 的 end 循环
+均以 `end < len(line)` 为界。但 `_delete_range` 多行拼接 `lines[r1][:c1] + lines[r2][c2:]`
+在 `c2 > len` 时切片为空会静默吞文本，多调用点的 `+1` 算术不宜靠自律——
+在 `_apply_span` 入口做单点防御钳制（评审建议方向正确，采纳）。
+
+**修复（3 处）**：
+
+1. `_apply_span` 入口钳制：`end` 列超出 `len(lines[er])` 时钳到行尾（`ec == len`
+   合法保留——半开排他端点删到行尾是既有语义）；评审者建议的 `min(ec, len+1)`
+   不采纳（`len+1` 对半开端点无意义且重新引入越界）。顺带修正 docstring：
+   原写 "(inclusive)" 与实际半开语义不符，改为 "inclusive to *end* exclusive"。
+2. 提取 `_clear_operator()` helper（`op`/`obj_scope`/`op_count` 三连重置），
+   替换 6 处重复站点（r 取消分支、`_linewise_op`、`_resolve_gg`、`_resolve_find`、
+   `_apply_operator`、`_apply_text_object`）；`_clear_pending` 复用之。
+3. `word_end_column` 增加关键字参数 `from_start: bool = False` 显式表达
+   "从列 0 起扫"，e 分支 wrap 调用点由负数哨兵 `-1` 改为
+   `word_end_column(buf.lines[r], 0, from_start=True)`，行为不变。
+
+**won't-fix（1 项）**：配对/标签扫描加 `max_lines` 上限——与偏离记录 #8
+（无界扫描为已批准语义，截断会让深层嵌套配对静默失配）冲突，理由登记于评审记录。
+
+**门禁实测**：pyright 0 诊断；pytest 全绿（定向 + 全量 exit=0）+ 覆盖率
+**90.61%** 达标（较基线 90.62% 回落 0.01pp：新增钳制分支经公开行为不可达故未覆盖，
+正是取证结论本身）；冒烟 **89/89 场景、932/932 检查 exit 0**；架构守护 20 例随全量通过。
+纯防御/纯重构改动，无新增测试（越界场景无法经公开行为构造）。
