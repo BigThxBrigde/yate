@@ -15,6 +15,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import override
 
+from textual import events
 from textual.app import App, ComposeResult
 from textual.driver import Driver
 from textual.events import Key
@@ -25,9 +26,12 @@ from yate.actions import populate
 from yate.commands import register_commands
 from yate.config import YateConfig
 from yate.editor import Editor
+from yate.editor_sprites.characters import character_names
 from yate.editor_view import theme
+from yate.editor_view.screensaver import ScreensaverScreen
 from yate.keyproto.legacy import textual_key_to_raw
 from yate.logs import LOGGER_NAME, tracing
+from yate.services.idle_tracker import IdleTracker
 
 # `textual_key_to_raw` lives in the L0 keyproto leaf (no import cycles) and
 # is re-exported here for convenience/tests.
@@ -81,6 +85,17 @@ class YateApp(App[None]):
     #: R12 devtools bridge, mounted in :meth:`on_mount` and detached by
     #: identity in :meth:`on_unmount`; ``None`` while not mounted.
     _devtools_bridge: logging.Handler | None = None
+
+    #: Idle-input tracker for the screensaver trigger; ``None`` while
+    #: ``screen_saver.enable`` is off.  Poked from :meth:`on_event`, polled
+    #: once a second from :meth:`on_mount`.  Read tests through the
+    #: :attr:`idle_tracker` property; this attribute stays private.
+    _idle: IdleTracker | None = None
+
+    @property
+    def idle_tracker(self) -> IdleTracker | None:
+        """The active idle tracker, or ``None`` when the screensaver is off."""
+        return self._idle
 
     @override
     def get_driver_class(self) -> type[Driver]:
@@ -159,6 +174,16 @@ class YateApp(App[None]):
         else:
             self.theme = wanted_textual
 
+        # Idle screensaver trigger: input activity pokes the tracker (see
+        # on_event) and a once-a-second poll in on_mount starts the
+        # screensaver when the configured interval elapses.  Unknown rc
+        # character names are reported here, before the Editor snapshot of
+        # ``config.errors`` so they reach the startup warning banner like
+        # every other yaterc error (config.py deliberately stays
+        # sprite-pack free, so the roster is knowable only in the shell).
+        self._idle = IdleTracker() if self.config.screen_saver.enable else None
+        self._report_unknown_screen_saver_characters()
+
         self.editor = Editor(
             self,
             self.config,
@@ -206,6 +231,7 @@ class YateApp(App[None]):
         # watch_theme skips pre-mount assignments (no screen yet); paint once
         # here so the startup screen background matches the active palette.
         self.screen.styles.background = theme.active().bg
+        self.set_interval(1.0, self.poll_idle)
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
@@ -216,6 +242,57 @@ class YateApp(App[None]):
             self._devtools_bridge = None
         log.debug("app unmount")
         await self.editor.on_unmount()
+
+    @override
+    async def on_event(self, event: events.Event) -> None:
+        """Poke the idle tracker on every input event, then dispatch normally.
+
+        ``App.on_event`` sees every Key / Mouse record before the focused
+        widget does -- including records a widget then consumes -- which
+        makes it the only reliable "user is active" probe.  Only
+        ``InputEvent`` subclasses count as activity; every event continues
+        through the normal dispatch either way.
+        """
+        if self._idle is not None and isinstance(event, events.InputEvent):
+            self._idle.poke()
+        await super().on_event(event)
+
+    def poll_idle(self) -> None:
+        """Start the idle screensaver once ``screen_saver.interval`` elapses.
+
+        Public so tests can drive the poll deterministically instead of
+        waiting on the real one-second interval.  (Named to avoid Textual's
+        own ``MessagePump.check_idle``, which this must not shadow.)  The
+        poll keeps firing while no input arrives, so it must skip when the
+        screensaver is already up: otherwise the toggle action would push
+        and immediately pop in a one-second loop, and a manually started
+        screensaver would never survive continued idle.  (The registered
+        ``toggle_screensaver`` re-checks the screen type too, which keeps
+        the palette / extension paths safe the same way.)
+        """
+        if self._idle is None or self.config.screen_saver.interval <= 0:
+            return
+        if isinstance(self.screen, ScreensaverScreen):
+            return
+        if self._idle.due(self.config.screen_saver.interval):
+            self.editor.execute_action("toggle_screensaver")
+
+    def _report_unknown_screen_saver_characters(self) -> None:
+        """Report rc whitelist names outside the roster as config errors.
+
+        Runs from ``__init__`` before the Editor snapshots
+        ``config.errors``, so the names reach the startup warning banner
+        like every other yaterc error.  The roster lives in the sprite
+        pack, which config.py deliberately knows nothing about, so the
+        shell -- the only layer that sees both -- does the membership
+        check here.
+        """
+        known = set(character_names())
+        for name in self.config.screen_saver.characters:
+            if name not in known:
+                self.config.errors.append(
+                    f"unknown screensaver character: {name!r}"
+                )
 
     def on_key(self, event: Key) -> None:
         """Fallback routing: keys not consumed by a focused widget."""

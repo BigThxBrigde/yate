@@ -1,11 +1,50 @@
 # Changelog
 
-> Generated from the git history on 2026-09-27 · yate 0.2.6
+> Generated from the git history on 2026-09-28 · yate 0.2.6
+
+## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.6...HEAD)
+
+### Features
+
+- reuse a busy band once the gap exceeds the distance floor ([`af6dbf4`](https://gitee.com/jermaine/yate/commit/af6dbf49d16d39c173762c2bda0823aaee1c1dd1))
+- make the successor spawn window configurable ([`30e4d4a`](https://gitee.com/jermaine/yate/commit/30e4d4ae600ee54a45962251f0a9b85a982157a7))
+
+### Bug Fixes
+
+- cap shuffle_order rejection sampling (PR #33 review) ([`673da84`](https://gitee.com/jermaine/yate/commit/673da84d3546c916e38a6faa65d9c08ceb2cb7d8))
+- keep alt+shift+s out of command-line editing ([`1862386`](https://gitee.com/jermaine/yate/commit/1862386764aeb0f171fe74916aad2b79f400edb6))
+- make shuffle_order total for unsalvageable multisets ([`00763fb`](https://gitee.com/jermaine/yate/commit/00763fbb7a1c99af88ab7ee578cd3dad0b715af8))
+- poll for :e worker completion in readonly session test ([`0ea3711`](https://gitee.com/jermaine/yate/commit/0ea3711848f2d792a6c0dab890ba6039e22bbc93))
+- expose a test-safe idle poll and fix an empty test ([`a538883`](https://gitee.com/jermaine/yate/commit/a5388835ffbd72386f9bca5cad6fbf58f7e96d86))
+- wait for manual doc load before asserting content ([`6f02578`](https://gitee.com/jermaine/yate/commit/6f02578476db3aff6817f32f369c80b9d97d746e))
+
+### Refactors
+
+- tighten tracker clocking and spawn bookkeeping ([`eccf33f`](https://gitee.com/jermaine/yate/commit/eccf33fb56dfc7bed9852d9d004475de1c580635))
+
+### Documentation
+
+- add the api.sprites extension registration plan ([`1bd6975`](https://gitee.com/jermaine/yate/commit/1bd69752651e897a6a23173dab86eefd6f87a417))
+- add the P1-P7 review fix plan ([`6380ae6`](https://gitee.com/jermaine/yate/commit/6380ae664d8e4eda981b718ecddb7d2c8a98d830))
+- use the full commit hash in the new entries ([`834f25b`](https://gitee.com/jermaine/yate/commit/834f25bae5b62cc657d100945ed110a0348d32d4))
+- same-band distance rule in yaterc, changelog and plan ([`b7ed339`](https://gitee.com/jermaine/yate/commit/b7ed3396088bb24ae5def38d3b93522e9bcb068e))
+- document the screensaver option in yaterc.example ([`d50ecf7`](https://gitee.com/jermaine/yate/commit/d50ecf741ede3bad48558e688f84cf0f7002f584))
+- changelog entries and plan backfill for the spawn window ([`11245f4`](https://gitee.com/jermaine/yate/commit/11245f4a446ecf933eb7848774e6a83866cdc03e))
+
+### Tooling
+
+- update .github/sync-to-gitee.sh. ([`256d45e`](https://gitee.com/jermaine/yate/commit/256d45e48e20eae847585578d391c38b796270ef))
+- update .github/sync-to-gitee.sh. ([`7986aa9`](https://gitee.com/jermaine/yate/commit/7986aa9208971a02adb1e948e90c681df905344e))
 
 ## [0.2.6] - 2026-09-27 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...v0.2.6)
 
 ### Features
 
+- walk a parade of distinct sprites across the full width ([`5353c9b`](https://gitee.com/jermaine/yate/commit/5353c9b575f2945161f6d510cce0771103ec014f))
+- add full-terminal screensaver with idle trigger ([`6766bed`](https://gitee.com/jermaine/yate/commit/6766bed55e0766c01088cb6cab929107a052db4c))
+- add screen_saver dict option (enable/interval/switch/characters) ([`5937ce4`](https://gitee.com/jermaine/yate/commit/5937ce43630f4aabcf9b839d04ae4b9f93459dcb))
+- add pack rosters subcommand rendering roster preview ([`c019f22`](https://gitee.com/jermaine/yate/commit/c019f2235d94746edfa2b1a93b7ae1fb192c7bf8))
+- add pixel sprite pack and shuffle registry ([`cb94b48`](https://gitee.com/jermaine/yate/commit/cb94b48dbb6887b20c8c4ef0306caac0601a6bc9))
 - gate the devtools bridge on the tracing switch ([`5d3399d`](https://gitee.com/jermaine/yate/commit/5d3399d8ad8a15a34e8f1bb8864022693c7975b9))
 - bridge tracing into devtools, add the R12 logging rule ([`a35a133`](https://gitee.com/jermaine/yate/commit/a35a133d36a8b24c9dfbcf876f80fc0b97653720))
 - move app-level CSS to bundled app.tcss resource ([`3105f66`](https://gitee.com/jermaine/yate/commit/3105f66e09cba1d282d86383c6cfb21741055342))
@@ -31,6 +70,7 @@
 
 ### Bug Fixes
 
+- surface unknown character errors and guard whitelist ([`f5b2769`](https://gitee.com/jermaine/yate/commit/f5b2769ec4a0fecab1cd1dc97f832137b127f82a))
 - escape message markup and dedupe theme subscribers ([`02e90fe`](https://gitee.com/jermaine/yate/commit/02e90fe9d75465473cf841acac67b43c6086aad8))
 - close legacy theme gaps in TerminalPanel and PromptBar ([`0737bae`](https://gitee.com/jermaine/yate/commit/0737bae2d35b26e9bf601ef95c59a05510fc3996))
 - call super().on_mount() in EditorView and ExplorerTree ([`29eeb52`](https://gitee.com/jermaine/yate/commit/29eeb52bf82a6b92ef92d2dabaff09bd24e7f011))
@@ -64,6 +104,13 @@
 ### Documentation
 
 - codify R13 widget-owned theming and extensions layering ([`9216480`](https://gitee.com/jermaine/yate/commit/92164801d941eee9172cf13a2f1fd50a5e547c2b))
+- embed the roster preview and drop the stale venv line ([`0348af2`](https://gitee.com/jermaine/yate/commit/0348af27759d9d1857f77774e60e9ecb92ee54f3))
+- backfill review-fixes results and deviations ([`86a7764`](https://gitee.com/jermaine/yate/commit/86a7764ea6a91c608acc5c95c9b7c5869b23c2b1))
+- add review-fixes plan for the screensaver findings ([`5eb3c72`](https://gitee.com/jermaine/yate/commit/5eb3c72cd3e9e02dfc5e8e877be92d8a1ee5a02d))
+- record the parade rework in changelog and plan ([`0a4435d`](https://gitee.com/jermaine/yate/commit/0a4435d65018004fc436cdcf55e75c1c67c99601))
+- backfill fancy_sym implementation results and deviations ([`a92d420`](https://gitee.com/jermaine/yate/commit/a92d420e5e2f2250a7552748bc277b69afbd33b3))
+- document the idle screensaver and credit that_editor ([`43a5c88`](https://gitee.com/jermaine/yate/commit/43a5c88317024e7f63de8a5bc7d2637ae32721f1))
+- add fancy-sym screensaver plan with sub-plans ([`1ba5c53`](https://gitee.com/jermaine/yate/commit/1ba5c5380c5b8258158b6280340743044ff87ff2))
 - add the plan-before-execute workflow rule ([`717fe08`](https://gitee.com/jermaine/yate/commit/717fe08a09ec192886ad40db70b8d6991ee2f1ee))
 - restructure theme-ownership plan into README + Plan A-E volumes ([`fec98ed`](https://gitee.com/jermaine/yate/commit/fec98ed60866d906e9a93d78c6f382c561c0faf5))
 - split theme-ownership into sub-plans and close smoke gap ([`766b266`](https://gitee.com/jermaine/yate/commit/766b266b2757a042037f7a1ddf19937c118db39a))

@@ -35,6 +35,7 @@ from yate.completion import CompletionController
 from yate.config import YateConfig
 from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_lsp import LspManager
+from yate.editor_sprites.characters import character_names
 from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
 from yate.editor_view import theme
 from yate.editor_view.chrome import Breadcrumbs, SidebarHead, TabBar
@@ -46,6 +47,7 @@ from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.panes import PaneHost, PaneManager
+from yate.editor_view.screensaver import ScreensaverScreen
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.keymaps.base import ActionContext, KeyUi
@@ -676,6 +678,13 @@ class Editor:
             # command line is editing; enter must bubble so the Input's own
             # enter->submit binding can fire
             return False
+        # alt+shift+s toggles the screensaver: alt+shift combos have no raw
+        # byte form (keyproto.legacy maps only single-modifier alt chords),
+        # so like alt+shift+p this must be intercepted by key name.  Kept
+        # below the prompt check: typing a :command must never toggle it.
+        if event.key == "alt+shift+s":
+            self.execute_action("toggle_screensaver")
+            return True
         # vscode-style pane focus chords (CSI-u encodings, not in the raw
         # byte table)
         if event.key == "ctrl+shift+e":
@@ -1441,6 +1450,43 @@ class Editor:
             execute_action=self.execute_action,
             run_command=self.run_command,
             refresh=self.refresh_ui,
+        )
+
+    def toggle_screensaver(self) -> None:
+        """Enter or leave the full-terminal idle screensaver.
+
+        While the screensaver is up this pops it; otherwise ``enable =
+        False`` only reports on the message line.  A configured
+        ``characters`` whitelist that matches no roster entry refuses to
+        start too (every name was already reported at startup) -- falling
+        back to the whole roster would silently betray the explicit
+        whitelist.  A real entry filters the rc names against the roster
+        and pushes the overlay; an unconfigured whitelist (empty tuple)
+        means the whole roster.  The idle poll re-checks the screen type
+        before calling, so this pop branch only serves the direct action
+        paths (palette, keys).
+        """
+        if isinstance(self.app.screen, ScreensaverScreen):
+            self.app.pop_screen()
+            return
+        if not self.config.screen_saver.enable:
+            self.message("screensaver disabled (screen_saver.enable = False)")
+            return
+        configured = self.config.screen_saver.characters
+        known = set(character_names())
+        if configured:
+            wanted = tuple(name for name in configured if name in known)
+            if not wanted:
+                self.message("screensaver: no valid screen_saver.characters entry")
+                return
+        else:
+            wanted = ()
+        self.push_overlay(
+            ScreensaverScreen(
+                wanted or character_names(),
+                self.config.screen_saver.switch,
+                self.config.screen_saver.dist_bounds,
+            )
         )
 
     # ============================================================== explorer

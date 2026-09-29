@@ -76,6 +76,7 @@ perform the work and exit:
 | `shell` | `str` | platform default | non-empty string | Shell launched in the integrated terminal (open with `` Ctrl+` ``); arguments allowed (e.g. `"pwsh -NoLogo"`). Windows default: `pwsh`→Windows PowerShell→`cmd.exe`; POSIX: `$SHELL`→`bash`→`/bin/sh`. |
 | `terminal_height` | `int` | `12` | integer `3`–`40` (bools/floats/strings rejected) | Integrated terminal panel height in rows. |
 | `language_servers` | `list[dict]` | none | see [below](#declarative-language-servers-language_servers) | Declaratively register LSP language servers; they activate automatically when matching files open -- no extension needed. |
+| `screen_saver` | `dict` | see [below](#idle-screensaver-screen_saver) | dict with `enable` / `interval` / `switch` / `dist_*_bound` / `characters` keys | Idle screensaver settings; see [below](#idle-screensaver-screen_saver). |
 | `yate_trace` | `bool` | `False` | `True` / `False` | Runtime trace log switch (off by default); writes to `~/.yate/data/logs/`, see [below](#runtime-trace-log-yate_trace). |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` (case-insensitive) | Trace verbosity; Python `logging`'s built-in levels. |
 
@@ -359,6 +360,52 @@ Validation and loading semantics:
 
 > For install commands and full recipes for mainstream languages, see
 > [lsp.en.md](lsp.en.md) ([中文](lsp.zh.md)).
+
+## Idle screensaver (`screen_saver`)
+
+yate ships a full-terminal idle screensaver: pixel characters parade across
+the screen while you are away. `Alt+Shift+S` toggles it any time; with the
+defaults it also starts by itself after 120 seconds without keyboard or mouse
+input, and any key or mouse movement dismisses it.
+
+```python
+screen_saver = {
+    "enable": True,        # master switch (False also disables Alt+Shift+S)
+    "interval": 120,       # idle seconds before it starts (0 = manual only)
+    "switch": 0,           # min seconds between spawns (0 = 1/8-1/3 rule)
+    "dist_lower_bound": 0.125,  # optional journey window (float or "p/q");
+    "dist_upper_bound": "1/3",  # when BOTH are set, `switch` is ignored
+    "characters": [],      # name whitelist; [] = the whole roster
+}
+```
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `enable` | `bool` | `True` | Master switch; `False` disables both the idle trigger and the `Alt+Shift+S` toggle. |
+| `interval` | `int` `0`–`3600` | `120` | Idle seconds before an automatic start; `0` keeps it manual-only. |
+| `switch` | `int` `0`–`3600` | `0` | Minimum seconds between two spawns; `0` spawns the next character as soon as the newest one is 1/8–1/3 (random) through its walk. Ignored when both `dist_*_bound` keys are set. |
+| `dist_lower_bound` / `dist_upper_bound` | `float` or `"p/q"` in `(0, 1)` | unset | Explicit random spawn window as a fraction of the journey (e.g. `0.25` or `"1/8"`); accepts mixed forms. Both keys must be set with `lower < upper`; then `switch` is ignored entirely. |
+| `characters` | `list[str]` | `[]` | Whitelist of roster names; empty means all. Unknown names are reported at startup; a whitelist with no valid entry at all refuses to start the screensaver instead of falling back to all. |
+
+On screen the sprites form a small parade: each walker crosses the *current*
+terminal width and leaves through the right edge; when the newest walker is
+1/8–1/3 (random) through its journey a successor spawns -- always a character
+that is not currently walking. The successor's row band must either be free
+or lie far enough behind every walker overlapping it: the gap between that
+walker's tail and the spawn column has to exceed `dist_upper_bound` of the
+journey (built-in 1/3 when no explicit window is set). Because every sprite
+walks at the same speed, spacing set at spawn time holds forever, so sprites
+never overlap. When no row satisfies the rule, no successor spawns until
+walkers exit and free bands up.
+Raise `switch` to slow the parade down, or pin the spawn window explicitly
+with `dist_lower_bound` / `dist_upper_bound` (floats or `"1/8"`-style
+fraction strings), which replaces the timing rule altogether. Missing
+keys keep their defaults; a wrong-typed key is reported and that key
+alone falls back to its default; a later valid declaration replaces the
+previous one whole. To browse the roster (27 original, homage-style
+approximations of classic arcade / FC-era characters, plus the Digital
+Circus crew) and the exact name list, run `python -m tools.pack rosters`,
+which writes a labeled `roster.svg`.
 
 ## Command-line interaction
 

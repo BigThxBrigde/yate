@@ -1,9 +1,15 @@
 {
+  "00763fb": {
+    "summary": "shuffle_order 对不可救多重集保证终止"
+  },
   "0096123": {
     "summary": "无头测试覆盖 vim 键位"
   },
   "033c7e9": {
     "summary": "修复追踪测试在 pyright 严格模式下的告警"
+  },
+  "0348af2": {
+    "summary": "方案文档嵌入阵容预览并移除过时 venv 行"
   },
   "03c9dee": {
     "summary": "更新变更日志"
@@ -37,6 +43,9 @@
     "summary": "冒烟测试覆盖全部已注册命令与动作",
     "detail": "新增 19 个场景（65→86），命令与动作覆盖达到 43/43、65/65，未改动产品代码"
   },
+  "0a4435d": {
+    "summary": "变更日志与方案记录游行队重构"
+  },
   "0d06e94": {
     "summary": "打包脚本改用 .NET SHA256 接口计算文件哈希"
   },
@@ -47,6 +56,9 @@
     "summary": "发布工具只更新单一动态版本源",
     "detail": "test_theme_palettes 的静态版本断言已在 P2 清理中移除，删除失效的第二 bump 目标"
   },
+  "0ea3711": {
+    "summary": "只读会话测试轮询 :e worker 完成"
+  },
   "104a617": {
     "summary": "新增 Python 3.12 升级方案",
     "detail": "核心动机为运行时性能收益（3.11 约 1.25 倍提速），波次拆分 SP0-SP4 四提交"
@@ -56,6 +68,9 @@
   },
   "107b17c": {
     "summary": "刷新随包变更日志资源"
+  },
+  "11245f4": {
+    "summary": "产生窗口的变更日志条目与方案回填"
   },
   "11bab59": {
     "summary": "修正 yaterc 方案文档文件名笔误（pywright→pyright）"
@@ -72,6 +87,9 @@
   "17a0259": {
     "summary": "删除旧的未更名 manual.md"
   },
+  "1862386": {
+    "summary": "命令行输入不再误触 alt+shift+s"
+  },
   "1998c82": {
     "summary": "为两条 CI 流水线添加变更日志新鲜度门禁"
   },
@@ -81,6 +99,12 @@
   },
   "1a4e493": {
     "summary": "修复 :q 始终退出；按文件启动时隐藏资源管理器"
+  },
+  "1ba5c53": {
+    "summary": "新增 fancy-sym 屏保方案与子计划"
+  },
+  "1bd6975": {
+    "summary": "新增 api.sprites 扩展注册方案"
   },
   "1c0a086": {
     "summary": "修复日志卸载钩子：恢复 sys.excepthook 并去重 atexit"
@@ -103,6 +127,9 @@
   },
   "2490bb3": {
     "summary": "README 与手册补充变更日志入口"
+  },
+  "256d45e": {
+    "summary": "更新 .github/sync-to-gitee.sh"
   },
   "25fdbd8": {
     "summary": "冒烟脚本新增历史缺陷回归守卫（R 组）"
@@ -142,6 +169,9 @@
   },
   "2f7a7ad": {
     "summary": "S40 防抖测试脱离真实时间依赖"
+  },
+  "30e4d4a": {
+    "summary": "后继产生窗口可配置"
   },
   "3182414": {
     "summary": "键位测试独立成模块：actions、notation 与 KeymapSet"
@@ -211,6 +241,9 @@
   "42d9b12": {
     "summary": "logs/services/document 健壮性修复与 S39 最小加固"
   },
+  "43a5c88": {
+    "summary": "编写空闲屏保文档并致谢 that_editor"
+  },
   "449eb30": {
     "summary": "在未发布段记录 pytest 迁移"
   },
@@ -277,6 +310,9 @@
     "summary": "修复撤销/重做后脏标记不准确",
     "detail": "为合并编辑引入权重计数，必要时回退到精确行比较"
   },
+  "5353c9b": {
+    "summary": "游行队：多个互异精灵按全宽行走"
+  },
   "53a6e93": {
     "summary": "S40 合并测试改为断言防抖窗口已布防"
   },
@@ -299,6 +335,9 @@
   },
   "57bcdd6": {
     "summary": "按单模块设计重写崩溃与追踪计划"
+  },
+  "5937ce4": {
+    "summary": "新增 screen_saver 字典配置（enable/interval/switch/characters）"
   },
   "5a1afbd": {
     "summary": "变更日志记录补全弹窗按键放行修复"
@@ -323,6 +362,9 @@
   "5e69220": {
     "summary": "新增 --theme 参数，修复 --theme-dir 的 ~ 展开"
   },
+  "5eb3c72": {
+    "summary": "新增屏保发现项的评审修复方案"
+  },
   "5f4cc48": {
     "summary": "随主题变色的滚动条与可点击标签栏"
   },
@@ -337,6 +379,9 @@
   },
   "61f988d": {
     "summary": "测试与冒烟场景迁移至编辑器层"
+  },
+  "6380ae6": {
+    "summary": "新增 P1-P7 评审修复方案"
   },
   "641412c": {
     "summary": "更新 CHANGELOG"
@@ -359,6 +404,12 @@
   },
   "66fb5ba": {
     "summary": "修复终端、补全与 vim 路径的多处正确性问题"
+  },
+  "673da84": {
+    "summary": "shuffle_order 拒绝采样加上限（PR #33 评审）"
+  },
+  "6766bed": {
+    "summary": "新增全终端屏保与空闲触发"
   },
   "677f867": {
     "summary": "变更日志排除发布文档提交以稳定门禁"
@@ -388,6 +439,9 @@
   },
   "6e9f013": {
     "summary": "新增 Python 代码风格规范"
+  },
+  "6f02578": {
+    "summary": "断言内容前先等待手动文档加载"
   },
   "6fa7663": {
     "summary": "为发布提交补充中文翻译"
@@ -432,6 +486,9 @@
   "78a2696": {
     "summary": "日志重构：移除 crash/tracing 外壳，直接导入单例"
   },
+  "7986aa9": {
+    "summary": "更新 .github/sync-to-gitee.sh"
+  },
   "798df3a": {
     "summary": "更新变更日志"
   },
@@ -469,6 +526,9 @@
   "8133417": {
     "summary": "审查发现与修复计划同步至代码现状"
   },
+  "834f25b": {
+    "summary": "新条目改用完整提交哈希"
+  },
   "844cd0a": {
     "summary": "注释与 docstring 全部改为英文"
   },
@@ -485,6 +545,9 @@
   "866bb45": {
     "summary": "全仓采用 PEP 604 联合类型",
     "detail": "pyupgrade 迁移 313 处 Optional/Union（53 文件），X | None 全面替代并归零旧写法"
+  },
+  "86a7764": {
+    "summary": "回填评审修复结果与偏离记录"
   },
   "88d6b52": {
     "summary": "内置只读用户手册查看器（F8 / :manual）"
@@ -596,6 +659,9 @@
     "summary": "新增 One Dark/Light 与 Gruvbox dark/light 四套内置主题",
     "detail": "内置主题由 4 套扩至 8 套，默认仍为 mocha，可用 :theme 即时切换"
   },
+  "a538883": {
+    "summary": "暴露测试安全的空闲轮询并修复空测试"
+  },
   "a6dcbef": {
     "summary": "字体测试覆盖注册表扫描、检测、安装与设置改写"
   },
@@ -608,6 +674,9 @@
   "a89a720": {
     "summary": "扩展加载增加工作区信任门禁",
     "detail": "新增 :trust 命令与 ~/.yate/trusted_workspaces 信任库；未受信工作区的 ./extensions 不再自动加载"
+  },
+  "a92d420": {
+    "summary": "回填 fancy_sym 实施结果与偏离记录"
   },
   "ab75198": {
     "summary": "更新开发方案文档"
@@ -634,6 +703,9 @@
   "ae220fb": {
     "summary": "收尾 P2 跟进项并加固偶发 pilot 测试"
   },
+  "af6dbf4": {
+    "summary": "同带间隙超过距离下限即可复用行带"
+  },
   "b0c022d": {
     "summary": "回填 3.12 升级执行记录",
     "detail": "校准记录留痕基线数字、D1 拍板与 pyupgrade 偏离项"
@@ -659,6 +731,9 @@
   },
   "b6d1071": {
     "summary": "新增 yate --diag 诊断命令并扩展 --version 输出"
+  },
+  "b7ed339": {
+    "summary": "yaterc、变更日志与方案同步同带距离规则"
   },
   "b9e73be": {
     "summary": "ctrl+q 改走注册的退出动作"
@@ -687,6 +762,9 @@
   "bf46092": {
     "summary": "新增扩展、主题与 LSP 配置指南"
   },
+  "c019f22": {
+    "summary": "新增 pack rosters 子命令渲染阵容预览"
+  },
   "c020bc6": {
     "summary": "LSP 通知改为向 worker 传递协程函数而非已构建协程"
   },
@@ -712,6 +790,9 @@
   "c7fa15a": {
     "summary": "补齐缺失的中文翻译并刷新变更日志",
     "detail": "为 42 条缺译条目补齐中文摘要，翻译覆盖率达 254/254"
+  },
+  "cb94b48": {
+    "summary": "新增像素精灵包与洗牌注册表"
   },
   "cc4b1f6": {
     "summary": "修复补全触发与校验逻辑的若干边界情况"
@@ -739,6 +820,9 @@
   },
   "d4919c7": {
     "summary": "重写崩溃与追踪计划以匹配实现"
+  },
+  "d50ecf7": {
+    "summary": "yaterc.example 补屏保配置说明"
   },
   "d6765c4": {
     "summary": "修复冒烟命令总集快照时机"
@@ -801,6 +885,9 @@
   "ecadd41": {
     "summary": "新增 vim 风格窗格分割与资源管理器过滤"
   },
+  "eccf33f": {
+    "summary": "收紧空闲计时器时钟与产生簿记"
+  },
   "ee7cd53": {
     "summary": "集成终端面板（PTY 驱动），快捷键开关"
   },
@@ -847,6 +934,9 @@
   "f3e8c89": {
     "summary": "README 补充可执行文件图标章节并同步中文版",
     "detail": "中文版删除重复拼接内容并镜像英文更新，测试数修正为 612"
+  },
+  "f5b2769": {
+    "summary": "上报未知角色错误并守护白名单"
   },
   "f677c73": {
     "summary": "整理并修正 git 提交规范文档"

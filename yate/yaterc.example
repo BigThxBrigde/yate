@@ -145,6 +145,31 @@ use_spaces = True
 #     },
 # ]
 
+# ------------------------------------------------------ idle screensaver
+#
+# A full-terminal screensaver: a small parade of pixel-art characters
+# walking across the screen. `Alt+Shift+S` toggles it any time; with
+# `interval` > 0 it also starts by itself after that many seconds without
+# keyboard or mouse input, and any key or mouse movement dismisses it.
+# Keys: enable (bool), interval (0-3600, 0 = manual only), switch
+# (0-3600, minimum seconds between two spawns), characters (name
+# whitelist; [] = all 27).
+#
+# Spawn pacing: by default the newest walker hands off to a successor when
+# it is 1/8-1/3 (random) through its journey. Set BOTH dist keys to pin
+# that window explicitly -- each accepts a float in (0, 1) or a "p/q"
+# fraction string; then `switch` is ignored entirely. Run
+# `python -m tools.pack rosters` for a labeled SVG of the roster.
+#
+# screen_saver = {
+#     "enable": True,             # master switch (False also disables Alt+Shift+S)
+#     "interval": 120,            # idle seconds before it starts (0 = manual only)
+#     "switch": 0,                # min seconds between spawns (0 = 1/8-1/3 rule)
+#     "dist_lower_bound": 0.125,  # optional journey window; BOTH set ->
+#     "dist_upper_bound": "1/3",  #   `switch` is ignored
+#     "characters": [],           # name whitelist; [] = the whole roster
+# }
+
 # ------------------------------------------------------- custom theme demo
 #
 # A theme is a yate.editor_view.theme.Theme instance. The easiest way to
