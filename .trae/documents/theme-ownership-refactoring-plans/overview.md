@@ -33,7 +33,7 @@
 | `pytest tests/ -q` | **全绿**（仅平台性 skip） |
 | `pytest tests/test_architecture.py -q` | **20 passed**（原 18 + 本轮 2 条新守卫） |
 | `tools.smoke_test run --skip-slow` | **882/882 checks、84/84 scenarios、exit 0** |
-| `tools.smoke_test compare --skip-slow` | **exit 0**（2 处继承漂移已归因并重拍基线，见 [Plan E](theme_ownership_refactoring_gate_docs_plan_e.md) §E.4） |
+| `tools.smoke_test compare --skip-slow` | **exit 0**（2 处继承漂移已归因并重拍基线，见 [Plan E](theme-ownership-refactoring-gate-docs-plan-e.md) §E.4） |
 
 ### 1.3 复核命令
 
@@ -92,12 +92,12 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| A | [theme_ownership_refactoring_theme_broadcast_plan_a.md](theme_ownership_refactoring_theme_broadcast_plan_a.md) | **主题广播基建**：`theme.py` 订阅/派发（异常隔离）+ 4 项单测 | ✅ |
-| B | [theme_ownership_refactoring_scrollbar_injection_plan_b.md](theme_ownership_refactoring_scrollbar_injection_plan_b.md) | **滚动条 per-widget 注入**：`apply_slim_scrollbars(widget)`，删类级 patch，三处挂载点 | ✅ |
-| C | [theme_ownership_refactoring_widget_theme_selfhold_plan_c.md](theme_ownership_refactoring_widget_theme_selfhold_plan_c.md) | **七组件自持主题**：订阅/退订 + `_apply_theme`；删 `Editor.apply_theme` / `update_sidebar_head`；L4 `watch_theme` | ✅ |
-| D | [theme_ownership_refactoring_architecture_guards_plan_d.md](theme_ownership_refactoring_architecture_guards_plan_d.md) | **架构守卫**：禁类级 patch、禁 editor.py 直改 widget styles | ✅ |
-| E | [theme_ownership_refactoring_gate_docs_plan_e.md](theme_ownership_refactoring_gate_docs_plan_e.md) | **门禁与文档**：全量门禁、smoke run/compare、基线归因、review 回填 | ✅ |
-| F | [theme_ownership_refactoring_theme_gap_terminal_message_plan_f.md](theme_ownership_refactoring_theme_gap_terminal_message_plan_f.md) | **遗留缺口收编**：TerminalPanel 订阅三件套 + PromptBar 动态色重渲染（存量旧账，非 A–E 引入） | ✅ |
+| A | [theme-ownership-refactoring-theme-broadcast-plan-a.md](theme-ownership-refactoring-theme-broadcast-plan-a.md) | **主题广播基建**：`theme.py` 订阅/派发（异常隔离）+ 4 项单测 | ✅ |
+| B | [theme-ownership-refactoring-scrollbar-injection-plan-b.md](theme-ownership-refactoring-scrollbar-injection-plan-b.md) | **滚动条 per-widget 注入**：`apply_slim_scrollbars(widget)`，删类级 patch，三处挂载点 | ✅ |
+| C | [theme-ownership-refactoring-widget-theme-selfhold-plan-c.md](theme-ownership-refactoring-widget-theme-selfhold-plan-c.md) | **七组件自持主题**：订阅/退订 + `_apply_theme`；删 `Editor.apply_theme` / `update_sidebar_head`；L4 `watch_theme` | ✅ |
+| D | [theme-ownership-refactoring-architecture-guards-plan-d.md](theme-ownership-refactoring-architecture-guards-plan-d.md) | **架构守卫**：禁类级 patch、禁 editor.py 直改 widget styles | ✅ |
+| E | [theme-ownership-refactoring-gate-docs-plan-e.md](theme-ownership-refactoring-gate-docs-plan-e.md) | **门禁与文档**：全量门禁、smoke run/compare、基线归因、review 回填 | ✅ |
+| F | [theme-ownership-refactoring-theme-gap-terminal-message-plan-f.md](theme-ownership-refactoring-theme-gap-terminal-message-plan-f.md) | **遗留缺口收编**：TerminalPanel 订阅三件套 + PromptBar 动态色重渲染（存量旧账，非 A–E 引入） | ✅ |
 
 ### 依赖关系
 
@@ -160,7 +160,7 @@ flowchart LR
 |---|---|
 | [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md) | 硬性边界规则（R1–R12）；本轮无规则变更，仅新增 2 条守护用例 |
 | [`.trae/rules/plan-before-execute.md`](../../rules/plan-before-execute.md) | 本轮流程教训的固化：复杂任务先方案后执行 |
-| [`../theme_ownership_plan.md`](../theme_ownership_plan.md) | 前序单文件方案（已被本目录取代，保留为指针） |
+| [`../theme-ownership-plan.md`](../theme-ownership-plan.md) | 前序单文件方案（已被本目录取代，保留为指针） |
 | [`../../review/2026-09-27-ui-refine.md`](../../review/2026-09-27-ui-refine.md) | T1/T2 的发现来源；§四已回填治理结果 |
 
 ## 10. 审计记录（2026-09-27）

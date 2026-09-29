@@ -1,7 +1,7 @@
 # SP2 — 终端子系统健壮性（S6 + S10 + S16 + S32 + S43）
 
-> 来源：[P1 批次二（S6/S10）](../code_review_fix_suggestions_plan_b.md)、[批次三（S16）](../code_review_fix_suggestions_plan_b.md)、
-> [批次四（S43）](../code_review_fix_suggestions_plan_b.md)、[批次六（S32）](../code_review_fix_suggestions_plan_b.md)。
+> 来源：[P1 批次二（S6/S10）](../code-review-fix-suggestions-plan-b.md)、[批次三（S16）](../code-review-fix-suggestions-plan-b.md)、
+> [批次四（S43）](../code-review-fix-suggestions-plan-b.md)、[批次六（S32）](../code-review-fix-suggestions-plan-b.md)。
 > 统一门禁见 [README §五](overview.md)。
 
 ## 条目

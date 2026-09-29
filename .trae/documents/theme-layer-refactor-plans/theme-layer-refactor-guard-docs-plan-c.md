@@ -1,6 +1,6 @@
 # Plan SP2 — 架构守卫 + 规则与账目文档回填
 
-> 状态：⏳ **待实施** · 前置：[Plan SP1](theme_layer_refactor_decouple_plan_b.md) ✅ · 后置：[Plan SP3](theme_layer_refactor_gate_commit_plan_d.md)
+> 状态：⏳ **待实施** · 前置：[Plan SP1](theme-layer-refactor-decouple-plan-b.md) ✅ · 后置：[Plan SP3](theme-layer-refactor-gate-commit-plan-d.md)
 > 工作量：M · 步骤：S2.1 → S2.2 → S2.3 串行；S2.4 / S2.5 / S2.6 纯文档互不依赖，可并行
 > 决策依据（注入回调 vs 下沉）：[README §2](overview.md#2-方案比选与决策)。
 
@@ -14,7 +14,7 @@
 | S2.2 | **负向验证**：临时在 config.py 加回惰性 `from yate.editor_view import theme` → `test_keymaps_services_and_models_stay_ui_free` 必须红 → 还原 | S2.1 | 守卫有效性证据 | 变红输出留档「执行记录」；还原后 13 passed |
 | S2.3 | architecture-boundaries.md：R4 文件清单加 `config.py`；§四「跨模块交互」表补「L0 需要 UI 能力 → 构造参数注入 Callable（N30 模式：`load_config(register_theme=..., load_theme_paths=...)`）」行；§六说明用例计数维持 13 及理由 | S2.2 | 规则文档更新 | 规则与代码实际一致 |
 | S2.4 | app-layering-refactoring-plans/overview.md 增补决策记录段（注入回调而非下沉，引 [README §2.2](overview.md#22-方案-b-的否决理由关键证据) 否决依据） | README §2 | README 记录段 | 交叉引用可达 |
-| S2.5 | code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md：N30 行 ⏸ → ✅ + 状态段补记并链接本目录 | S2.3 | 账目更新 | 链接可达、与规则一致 |
+| S2.5 | code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md：N30 行 ⏸ → ✅ + 状态段补记并链接本目录 | S2.3 | 账目更新 | 链接可达、与规则一致 |
 | S2.6 | .trae/issues/review.md：N30 条目回填 ✅ + 实测证据 | S2.5 | review.md 更新 | 与 P2 账一致 |
 
 > 交叉引用关系：规则（S2.3）是其余三处文档的锚，先做；S2.4/S2.5/S2.6 并行后由主代理统一复核一致性。
@@ -26,7 +26,7 @@
 | `tests/test_architecture.py` | 代码（守卫扩员），仅本 Plan 触碰 |
 | `.trae/rules/architecture-boundaries.md` | 规则文档 |
 | `.trae/documents/app-layering-refactoring-plans/overview.md` | 前序重构总纲（追加记录段） |
-| `.trae/documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md` | P2 账目 |
+| `.trae/documents/code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md` | P2 账目 |
 | `.trae/issues/review.md` | issue 账目 |
 
 ---

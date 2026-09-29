@@ -1,6 +1,6 @@
 # Plan D — 外壳瘦身与接线
 
-> 状态：✅ **已完成**（2026-09-22）· 前置：[Plan A](app_layering_refactoring_leaf_models_plan_a.md)–[C](app_layering_refactoring_functional_tables_plan_c.md) · 后置：[Plan E](app_layering_refactoring_tests_tools_plan_e.md)
+> 状态：✅ **已完成**（2026-09-22）· 前置：[Plan A](app-layering-refactoring-leaf-models-plan-a.md)–[C](app-layering-refactoring-functional-tables-plan-c.md) · 后置：[Plan E](app-layering-refactoring-tests-tools-plan-e.md)
 > 门禁（实际执行结果）：`python -c "import yate.app"` 成功；`python -m pyright yate/` → **0 errors, 0 warnings**；
 > `python -m yate --diag` 正常输出。（测试迁移属于 Plan E。）
 > 实施结果见 §D.6。
@@ -121,7 +121,7 @@
 | 综合门禁 | `pyright yate/` → 0 errors / 0 warnings；`python -m yate --diag`、`--version` 正常 |
 
 **未完成项移交**：`tests/` 与 `tools/` 中 `app.<业务属性>` 的迁移、`tests/test_architecture.py` 规则更新
-→ [Plan E](app_layering_refactoring_tests_tools_plan_e.md)；用户文档 / CHANGELOG / 架构规则文档同步 → [Plan F](app_layering_refactoring_gate_docs_plan_f.md)。
+→ [Plan E](app-layering-refactoring-tests-tools-plan-e.md)；用户文档 / CHANGELOG / 架构规则文档同步 → [Plan F](app-layering-refactoring-gate-docs-plan-f.md)。
 
 > **2026-09-23 审计复核**：`app.py` / `editor.py` 的非空行数仍为 152 / 1245（口径见总纲 §1）；
 > **2026-09-28 核对修正**：实测为 **285 / 1442**（总行 329 / 1601），数值随后续子系统增长而漂移；

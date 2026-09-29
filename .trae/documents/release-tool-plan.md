@@ -19,7 +19,7 @@
 >
 > **后续增强（2026-09-26）**：v0.2.5 发布实操暴露了本方案"不自动回滚"
 > 决策与缺分支/远端守卫的风险，加固计划见
-> [release_tool_hardening_plan.md](release_tool_hardening_plan.md)
+> [release-tool-hardening-plan.md](release-tool-hardening-plan.md)
 > （前置守卫 + 自动回滚，实施中）。
 
 ## Context（为什么做这个）
@@ -116,7 +116,7 @@ def release(
         raise RuntimeError(f"refusing to release: uncommitted changes in {dirty}")
 
     # Step 0b（2026-09-28 核对补入）：分支/远端/tag 前置守卫，见
-    # release_tool_hardening_plan.md
+    # release-tool-hardening-plan.md
     push_branch = branch or _default_branch(repo)   # origin/HEAD，探测失败即拒绝
     assert_in_sync(repo, push_branch)
     assert_tag_available(repo, version)
@@ -178,7 +178,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 **不自动回滚**——中途失败抛 `RuntimeError`，`main()` 捕获后打印并返回 1。操作者自行检查 `git log` / `git status`，跨两个 commit + tag 的自动回滚太脆弱。
 **（2026-09-28 核对：此决策已被推翻）** v0.2.5 实操后，加固计划
-[release_tool_hardening_plan.md](release_tool_hardening_plan.md) 已落地自动回滚
+[release-tool-hardening-plan.md](release-tool-hardening-plan.md) 已落地自动回滚
 （`_snapshot_texts` + `_abort_with_rollback`，`tools/release/cli.py:277-371`）：
 中途失败会删 tag、`reset --mixed` 回原 HEAD 并字节级还原文件，仅在分支已推送后才降级为人工指引。
 

@@ -4,7 +4,7 @@
 >
 > 崩溃诊断现位于统一日志模块 `yate/logs.py::CrashService`（单例 `crash`），
 > `yate/crash.py` 薄壳已删除。本模块（§2 起的"现行"描述）与代码基本一致；
-> 最终设计与实现细节以 `unify_crash_tracing_plan.md` 为准。
+> 最终设计与实现细节以 `unify-crash-tracing-plan.md` 为准。
 
 > 将 `faulthandler` 与自定义 `sys.excepthook` 集成到 yate，
 > 在进程异常退出（native crash / 未捕获 Python 异常）时，
@@ -15,8 +15,8 @@
 > `yate/logs.py`（`CrashService` + `TracingService` 两个互不引用的单例），
 > 本文档已按当前代码回写；与初稿的差异见 §8。
 >
-> 姊妹文档：`logs_impl_plan.md`（运行日志 `YATE_TRACE`）、
-> `unify_crash_tracing_plan.md`（两服务统一后的设计）。
+> 姊妹文档：`logs-impl-plan.md`（运行日志 `YATE_TRACE`）、
+> `unify-crash-tracing-plan.md`（两服务统一后的设计）。
 
 ---
 

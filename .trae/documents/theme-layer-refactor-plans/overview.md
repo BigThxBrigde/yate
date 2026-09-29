@@ -1,7 +1,7 @@
 # 主题层级债重构计划：config 与 editor_view.theme 解耦（N30）
 
 > 状态：**SP0–SP3 全部完成（✅，2026-09-26 实施并回填）**。
-> 来源：[code_review_fix_nice_to_have_plan_c.md](../code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md) **N30（✅）**
+> 来源：[code-review-fix-nice-to-have-plan-c.md](../code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md) **N30（✅）**
 > 「L0 config 惰性 import L2 `editor_view.theme`（层级债）」，决策记录为
 > 「下次做重构方案：下沉 / 注入回调二选一 + 架构规则登记」。
 > 分支：`issues/refine-arch`（worktree `D:\Programming\yate-refine-arch`，基于 master `b599685`）。
@@ -218,7 +218,7 @@ config = load_config(
 |---|---|
 | `yate/config.py` | 新增 2 个 `type` 别名、签名、删惰性 import 与直接调用、docstring 更新（模块头「one injected helper」表述同步改） |
 | `yate/cli.py` | 仅 264 行一处调用点 |
-| `tests/test_config.py` | `_load` 助手增可选透传；依赖注入名 / theme_dirs 装载的用例传真回调（详见 [Plan SP1](theme_layer_refactor_decouple_plan_b.md) §4 审计修补表） |
+| `tests/test_config.py` | `_load` 助手增可选透传；依赖注入名 / theme_dirs 装载的用例传真回调（详见 [Plan SP1](theme-layer-refactor-decouple-plan-b.md) §4 审计修补表） |
 | `tests/test_app_textual.py`、`tests/test_diagnostics.py` | 仅复核各自 `load_config(` 调用点（1026 / 32 / 34 / 256），涉主题则补回调 |
 | `tests/test_architecture.py` | **SP2** 域，SP1 不动 |
 
@@ -242,10 +242,10 @@ flowchart LR
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| SP0 | [theme_layer_refactor_baseline_plan_a.md](theme_layer_refactor_baseline_plan_a.md) | **环境准备**：worktree venv + 四项基线门禁留档 | ✅ |
-| SP1 | [theme_layer_refactor_decouple_plan_b.md](theme_layer_refactor_decouple_plan_b.md) | **config 解耦**：别名 + 签名 + 实现 + cli 注入 + 调用点审计 + 存量修补 + 新增用例 ×2（含测试清单 §4） | ✅ |
-| SP2 | [theme_layer_refactor_guard_docs_plan_c.md](theme_layer_refactor_guard_docs_plan_c.md) | **架构守卫**：`UI_FREE_FILES` 扩员 + 负向验证 + 四处规则/账目文档回填 | ✅ |
-| SP3 | [theme_layer_refactor_gate_commit_plan_d.md](theme_layer_refactor_gate_commit_plan_d.md) | **收尾**：全量门禁两轮 + 校准记录回填 + 提交 | ✅ |
+| SP0 | [theme-layer-refactor-baseline-plan-a.md](theme-layer-refactor-baseline-plan-a.md) | **环境准备**：worktree venv + 四项基线门禁留档 | ✅ |
+| SP1 | [theme-layer-refactor-decouple-plan-b.md](theme-layer-refactor-decouple-plan-b.md) | **config 解耦**：别名 + 签名 + 实现 + cli 注入 + 调用点审计 + 存量修补 + 新增用例 ×2（含测试清单 §4） | ✅ |
+| SP2 | [theme-layer-refactor-guard-docs-plan-c.md](theme-layer-refactor-guard-docs-plan-c.md) | **架构守卫**：`UI_FREE_FILES` 扩员 + 负向验证 + 四处规则/账目文档回填 | ✅ |
+| SP3 | [theme-layer-refactor-gate-commit-plan-d.md](theme-layer-refactor-gate-commit-plan-d.md) | **收尾**：全量门禁两轮 + 校准记录回填 + 提交 | ✅ |
 
 ## 6. 门禁命令（Windows PowerShell，worktree 根目录执行）
 
@@ -261,7 +261,7 @@ flowchart LR
 
 | 风险 | 对策 |
 |---|---|
-| 测试调用点遗漏 → hooks=None 静默跳过 theme 装载，断言失败或假绿 | S1.5 全仓 `load_config\(` 审计清单逐点核对（审计表见 [Plan SP1](theme_layer_refactor_decouple_plan_b.md) §4） |
+| 测试调用点遗漏 → hooks=None 静默跳过 theme 装载，断言失败或假绿 | S1.5 全仓 `load_config\(` 审计清单逐点核对（审计表见 [Plan SP1](theme-layer-refactor-decouple-plan-b.md) §4） |
 | 未来调用方忘传钩子，`register_theme` 失效 | 失败信号非静默（NameError 记入 `config.errors`）；S1.8 新守卫用例锚定该语义；docstring 显式声明 |
 | 装载顺序漂移 | 回调调用保持原位（`_extract_options` 之前）；theme 相关单测 + 冒烟覆盖 |
 | `Any` 参数引入类型弱化 | 仅 `ThemeRegistrar` 一处，附理由注释；pyright strict 全仓门禁兜底 |
@@ -281,7 +281,7 @@ theme.py（纯内聚优化，R11 冻结面不因此变化，YAGNI）；`editor_v
 ## 9. 校准记录（回填区）
 
 - 2026-09-26 计划细化：SP0–SP3 拆为 **19 个可执行步骤**（S0.1–S3.3，各 Plan 文件内），
-  固化新增测试 ×2 与存量审计修补表 ×5 行（[Plan SP1](theme_layer_refactor_decouple_plan_b.md) §4），
+  固化新增测试 ×2 与存量审计修补表 ×5 行（[Plan SP1](theme-layer-refactor-decouple-plan-b.md) §4），
   补步骤依赖图（§4）与可并行点说明。
 - 参考基线（同码态主工作区 2026-09-26 实测，SP0 须在 worktree 复测为准）：
   pyright 全仓 0 errors；pytest 全量 1231 collected / 7 skipped / exit 0；

@@ -1,6 +1,6 @@
 # P1 Suggestion 子计划拆分总纲
 
-> 来源：[code_review_fix_suggestions_plan_b.md](../code_review_fix_suggestions_plan_b.md)（2026-09-24 复核版）。
+> 来源：[code-review-fix-suggestions-plan-b.md](../code-review-fix-suggestions-plan-b.md)（2026-09-24 复核版）。
 > 现存 36 条，其中 S7 已随 PR #13 审查修复（原文存档），**待实施 35 条 → 拆为 7 个子计划**。
 >
 > **拆分原则**：① 文件独占——任意两个子计划的独占文件清单零交集，可安全并行；
@@ -14,13 +14,13 @@
 
 | 子计划 | 条目 | 独占文件（只许改这些） | 规模 | 波次 |
 |---|---|---|---|---|
-| [SP1](code_review_fix_p1_syntax_highlight_perf_plan_a.md) 语法高亮内核性能 | S1 S2 | `yate/editor_syntax/regex_backend.py`、`tests/test_highlight.py` | M | 2 |
-| [SP2](code_review_fix_p1_terminal_subsystem_plan_b.md) 终端子系统健壮性 | S6 S10 S16 S32 S43 | `yate/editor_term/emulator.py`、`yate/editor_term/pty_proc.py`、`yate/editor_view/terminal.py`、`tests/test_terminal_emulator.py`、`tests/test_pty_proc.py`、`tests/test_terminal.py` | M | 2 |
-| [SP3](code_review_fix_p1_editor_view_rendering_plan_c.md) editor_view 渲染与交互 | S4 S12 S13 S14 S15 S17 S28 S37 S40 S42 | `yate/editor_view/editor.py`、`yate/editor_view/explorer.py`、`yate/editor_view/panes.py`、`yate/editor_view/manual.py`、`tests/test_app_textual.py` | L | 1 |
-| [SP4](code_review_fix_p1_keymaps_and_completion_plan_d.md) 键映射与补全语义 | S30 S31 S35 S38 | `yate/completion.py`、`yate/keymaps/vim.py`、`yate/keymaps/registry.py`、`tests/test_completion_popup.py`、`tests/test_vim_keymap.py`、`tests/test_registries.py` | S | 2 |
-| [SP5](code_review_fix_p1_services_and_logs_plan_e.md) 服务与日志健壮性 | S5 S11 S33 S34 S36 S39（决策门） | `yate/logs.py`、`yate/services/workspace.py`、`yate/services/extensions.py`、`yate/services/trust.py`、`tests/test_crash.py`、`tests/test_tracing.py`、`tests/test_workspace_filter.py`、`tests/test_extensions.py`、`tests/test_trust.py` | M | 3 |
-| [SP6](code_review_fix_p1_test_hygiene_and_document_plan_f.md) 测试卫生与文档内核 | S20 S21 S29 S41 | `tests/test_lsp.py`、`tests/test_theme_palettes.py`、`tests/test_editor_core.py`、`yate/editor_core/document.py` | S | 3 |
-| [SP7](code_review_fix_p1_toolchain_plan_g.md) 工具链 | S22 S23 S25 S27 | `tools/changelog/cli.py`、`tools/changelog/segments.py`、`tools/release/cli.py`、`tests/test_changelog_tool.py`、`tests/test_release_tool.py` | S | 1 |
+| [SP1](code-review-fix-p1-syntax-highlight-perf-plan-a.md) 语法高亮内核性能 | S1 S2 | `yate/editor_syntax/regex_backend.py`、`tests/test_highlight.py` | M | 2 |
+| [SP2](code-review-fix-p1-terminal-subsystem-plan-b.md) 终端子系统健壮性 | S6 S10 S16 S32 S43 | `yate/editor_term/emulator.py`、`yate/editor_term/pty_proc.py`、`yate/editor_view/terminal.py`、`tests/test_terminal_emulator.py`、`tests/test_pty_proc.py`、`tests/test_terminal.py` | M | 2 |
+| [SP3](code-review-fix-p1-editor-view-rendering-plan-c.md) editor_view 渲染与交互 | S4 S12 S13 S14 S15 S17 S28 S37 S40 S42 | `yate/editor_view/editor.py`、`yate/editor_view/explorer.py`、`yate/editor_view/panes.py`、`yate/editor_view/manual.py`、`tests/test_app_textual.py` | L | 1 |
+| [SP4](code-review-fix-p1-keymaps-and-completion-plan-d.md) 键映射与补全语义 | S30 S31 S35 S38 | `yate/completion.py`、`yate/keymaps/vim.py`、`yate/keymaps/registry.py`、`tests/test_completion_popup.py`、`tests/test_vim_keymap.py`、`tests/test_registries.py` | S | 2 |
+| [SP5](code-review-fix-p1-services-and-logs-plan-e.md) 服务与日志健壮性 | S5 S11 S33 S34 S36 S39（决策门） | `yate/logs.py`、`yate/services/workspace.py`、`yate/services/extensions.py`、`yate/services/trust.py`、`tests/test_crash.py`、`tests/test_tracing.py`、`tests/test_workspace_filter.py`、`tests/test_extensions.py`、`tests/test_trust.py` | M | 3 |
+| [SP6](code-review-fix-p1-test-hygiene-and-document-plan-f.md) 测试卫生与文档内核 | S20 S21 S29 S41 | `tests/test_lsp.py`、`tests/test_theme_palettes.py`、`tests/test_editor_core.py`、`yate/editor_core/document.py` | S | 3 |
+| [SP7](code-review-fix-p1-toolchain-plan-g.md) 工具链 | S22 S23 S25 S27 | `tools/changelog/cli.py`、`tools/changelog/segments.py`、`tools/release/cli.py`、`tests/test_changelog_tool.py`、`tests/test_release_tool.py` | S | 1 |
 
 规模标定：S = 单文件局部改动；M = 跨方法/需新守卫；L = 多文件协调或含前置决策。
 

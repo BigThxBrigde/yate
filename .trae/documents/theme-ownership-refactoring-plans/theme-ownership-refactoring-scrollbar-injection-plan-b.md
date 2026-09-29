@@ -1,7 +1,7 @@
 # Plan B — 滚动条 per-widget 注入：删除进程级 monkey-patch（T1 治理）
 
-> 状态：✅ **已完成**（2026-09-27）· 前置：无（与 [Plan A](theme_ownership_refactoring_theme_broadcast_plan_a.md) 可并行）·
-> 后置：[Plan D](theme_ownership_refactoring_architecture_guards_plan_d.md)
+> 状态：✅ **已完成**（2026-09-27）· 前置：无（与 [Plan A](theme-ownership-refactoring-theme-broadcast-plan-a.md) 可并行）·
+> 后置：[Plan D](theme-ownership-refactoring-architecture-guards-plan-d.md)
 > 独占文件：`yate/editor_view/scrollbars.py`、`yate/editor_view/{editor,explorer,manual}.py`（仅 `on_mount` 挂载行）、
 > `yate/app.py`（仅删除调用）、`tests/test_scrollbars.py`
 > 门禁：`tests/test_scrollbars.py` 全过；`ScrollBar.renderer` 类默认在测试中断言**未被改动**
@@ -66,6 +66,6 @@
   （懒创建需要活跃 App 上下文）：注入后 `widget.vertical_scrollbar.renderer is SlimScrollBarRender`
   且 `widget.horizontal_scrollbar.renderer` 同；**并断言 `ScrollBar.renderer is not SlimScrollBarRender`**
   ——类默认未被改动，进程级 patch 不复存在。
-- 架构守卫 [Plan D](theme_ownership_refactoring_architecture_guards_plan_d.md) 的
+- 架构守卫 [Plan D](theme-ownership-refactoring-architecture-guards-plan-d.md) 的
   `test_no_class_level_scrollbar_renderer_patch` 长期钉住本结论。
 - `pyright yate/ tests/ tools/` → 0 诊断；`tools.smoke_test` 滚动条相关场景全过。

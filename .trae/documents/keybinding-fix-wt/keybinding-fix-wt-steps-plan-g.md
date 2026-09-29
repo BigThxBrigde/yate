@@ -3,7 +3,7 @@
 > 状态：**Phase A 执行中 / Phase B 待启动**
 > **（2026-09-28 核对修正：该状态已过期——Phase A（PA1–PA4 + PA2b）与 Phase B 主体（PB1–PB4、
 > PB5-r1、PB6）在执行状态表中均已 ✅，仅剩 **PB5 真机矩阵**（三终端人工复测）⏳；详见文末执行状态表。）**
-> 取代：`keybinding_fix_wt_key_reachability_plan_f.md` §A1/A2 的根因假设（被 `_probe_vim.py` 探针证伪）；Phase B 保留并简化
+> 取代：`keybinding-fix-wt-key-reachability-plan-f.md` §A1/A2 的根因假设（被 `_probe_vim.py` 探针证伪）；Phase B 保留并简化
 > 探针结论（2026-09-26，当前分支代码）：
 > - vim + 编辑器聚焦 + `ctrl+p` → 面板**打开**（分支先于 keymap，`editor.py:624`，接线 `handle_key=self.handle_key` editor.py:227）
 > - vim 任意模式 + `\x1f` → **切换成功**（`vim.py:123` 是 handle_key 入口、模式无关检查）
@@ -51,8 +51,8 @@
 - **改动**：
   - 本文件勾选 PA 状态与实测数字；
   - `overview.md` 状态表更新（v2 假设证伪 → v3）；
-  - `keybinding_fix_wt_gates_matrix_plan_e.md` 复测指引加 **`YATE_TRACE=1` 环境变量步骤**：真机复测前 set，跑完把 trace 里 `key event:` 行贴回（裁决"驱动命名差异 vs 旧代码"）；
-  - `wt_keybinding_fix_plan.md` 状态行指向本文件。
+  - `keybinding-fix-wt-gates-matrix-plan-e.md` 复测指引加 **`YATE_TRACE=1` 环境变量步骤**：真机复测前 set，跑完把 trace 里 `key event:` 行贴回（裁决"驱动命名差异 vs 旧代码"）；
+  - `wt-keybinding-fix-plan.md` 状态行指向本文件。
 - **提交**：`docs(keybinding): record probe findings and v3 plan`
 
 ### Phase A 验收口径

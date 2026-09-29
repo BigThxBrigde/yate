@@ -1,6 +1,6 @@
 # Plan E — 测试与冒烟脚本迁移
 
-> 状态：✅ **已完成**（2026-09-23 收口）· 前置：[Plan D](app_layering_refactoring_shell_wiring_plan_d.md) · 后置：[Plan F](app_layering_refactoring_gate_docs_plan_f.md)
+> 状态：✅ **已完成**（2026-09-23 收口）· 前置：[Plan D](app-layering-refactoring-shell-wiring-plan-d.md) · 后置：[Plan F](app-layering-refactoring-gate-docs-plan-f.md)
 > 门禁（实测）：`python -m pytest tests/ -q` 全绿 · `python -m pyright yate/ tests/ tools/` 0 诊断 ·
 > 冒烟 `run --fail-only` → 62/62 场景、651/651 checks
 > 子任务划分见 §E.2，落地记录见 §E.5，逐文件迁移清单与实测见 §E.6。
@@ -164,7 +164,7 @@ Plan D 之后 `YateApp` 不再持有业务状态，测试与冒烟脚本里所�
 
 > 收尾时补录 E1–E4：每个文件最终的迁移方式、`python -m pytest <file> -q` 结果、剩余失败项与原因
 > （迁移前的完整待办见 §E.6）。
-> 迁移完成后，本 Plan 状态改为 ✅，并把总纲 §1.1 / §5 与 [Plan F](app_layering_refactoring_gate_docs_plan_f.md) 的前置同步更新。
+> 迁移完成后，本 Plan 状态改为 ✅，并把总纲 §1.1 / §5 与 [Plan F](app-layering-refactoring-gate-docs-plan-f.md) 的前置同步更新。
 
 ---
 

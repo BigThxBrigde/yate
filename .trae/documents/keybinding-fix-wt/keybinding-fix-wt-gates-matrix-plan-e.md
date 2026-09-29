@@ -59,7 +59,7 @@ vim / vsc 两键位各过一遍（`ctrl+/` 切换键位本身即 SP1 的验证�
 - [ ] 真机矩阵勾完，与期望一致（`ctrl+1` 在 WT/conhost 的失效属预期）——**待验证**，用 [verify_matrix.ps1](verify_matrix.ps1) 在 WT / conhost / VS Code 终端各跑一遍，产出 `matrix_results.md` 后回填下表；
 - [x] commit 历史整洁（每 SP 一个 commit，`git log --oneline` 核对：`a9174fc`→`b03e40f`→`ff3cfc0`→`678c02c`→`f26e65d`→`ebee085`→`3a8a29b`）；
 - [ ] push 前询问用户；如用户要求，发起 PR 并在描述中链接 Gitee issue IKH1RA 与三份计划文档；
-- [ ] 方案 B 启动提醒：下一步是 `win_keybinding_protocol_plan.md` P0（探针），其子计划届时按本目录同风格生成。
+- [ ] 方案 B 启动提醒：下一步是 `win-keybinding-protocol-plan.md` P0（探针），其子计划届时按本目录同风格生成。
 
 ## 回滚
 

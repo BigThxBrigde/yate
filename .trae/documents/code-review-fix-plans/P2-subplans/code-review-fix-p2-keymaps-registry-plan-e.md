@@ -1,6 +1,6 @@
 # SP5 — keymaps 与注册表（N20 N21 N23 N25）
 
-> 波次二 · 规模 M · [P2 原文](../code_review_fix_nice_to_have_plan_c.md)为唯一规范来源。
+> 波次二 · 规模 M · [P2 原文](../code-review-fix-nice-to-have-plan-c.md)为唯一规范来源。
 
 ## 独占文件清单
 

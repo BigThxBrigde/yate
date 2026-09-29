@@ -1,6 +1,6 @@
 # Plan A — 叶子模型：会话 / 注册表 / 键映射
 
-> 状态：✅ **已完成**（工作区）· 前置：无 · 后置：[Plan B](app_layering_refactoring_widget_selfhold_plan_b.md)
+> 状态：✅ **已完成**（工作区）· 前置：无 · 后置：[Plan B](app-layering-refactoring-widget-selfhold-plan-b.md)
 > 产出：`yate/session.py`、`yate/registries.py`、`yate/keymaps/registry.py`、`KeyUi`（改造）
 > 门禁：`python -c "import yate.session, yate.registries"` 无错；`python -m pyright yate/` 0 诊断
 

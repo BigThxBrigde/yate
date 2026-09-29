@@ -760,13 +760,13 @@ if row < r0 or row > r1:      # 或 if not (r0 <= row <= r1):
 
 | 来源 | 问题 | 最终处置 |
 | --- | --- | --- |
-| 评审 v2 阻断 | `accept()` 跨行条件 `row != r0 or row != r1` | ✅ 已修复：改按行范围判定，并叠加列 / 前缀守卫（见 `completion_staleness_check_plan.md`） |
+| 评审 v2 阻断 | `accept()` 跨行条件 `row != r0 or row != r1` | ✅ 已修复：改按行范围判定，并叠加列 / 前缀守卫（见 `completion-staleness-check-plan.md`） |
 | 评审 v2 改进 1 | `AppProtocol` 过多 `Any` | ⛔ 不适用：`AppProtocol` 已删除 |
 | 评审 v2 改进 2 | `Leaf.states` 的 `default_factory` | ✅ 演进：现为 `dict[int, ViewState]`，键由 `id(doc)` 改为稳定的 `Document.uid`（**2026-09-28 核对修正**：原注的 `yate/editor_view/pane_types.py` 已删除，模型现位于 `yate/session.py`，见 `session.py:260` `Leaf.state_for`） |
-| 评审 v2 改进 3 | `remove_node` 原地修改 | ✅ 保留设计：`session.py`（原 `pane_types.py`）维持模型"就地重建"策略，详见文件内注释与 `split_panes_plan.md` |
+| 评审 v2 改进 3 | `remove_node` 原地修改 | ✅ 保留设计：`session.py`（原 `pane_types.py`）维持模型"就地重建"策略，详见文件内注释与 `split-panes-plan.md` |
 | 评审 v3 阻断 1 | `_vim_insert_mode` 直接取 `keymaps["vim"]` 可能 `KeyError` | ✅ 已修复：改安全访问（原 `app_features/completion.py` 已删除，逻辑迁至 `yate/completion.py`） |
 | 评审 v3 阻断 2 | `reconcile` 用 `id()` 作状态键 | ✅ 已修复：改用 `Document.uid`（稳定自增 id），`Leaf.states: dict[int, ViewState]`，注释说明用于规避文档重建导致的键失效 |
-| 评审 v3 改进 1 | `reconcile` 全量重建 widget 树 | ℹ️ 有意设计：`PaneHost` 明确"整树重建 + EditorView 廉价可抛弃、状态全部外置模型"，见 `split_panes_plan.md` |
+| 评审 v3 改进 1 | `reconcile` 全量重建 widget 树 | ℹ️ 有意设计：`PaneHost` 明确"整树重建 + EditorView 廉价可抛弃、状态全部外置模型"，见 `split-panes-plan.md` |
 | 评审 v3 改进 2 | `panes.py` 再导出缺少说明 | ✅ 已收敛：纯数据模型先抽到 `pane_types.py`，2026-09-23 Plan G 又下沉至 `yate/session.py`（L1）；`panes.py` 的 deprecated 重导出与 `__all__` 已删除，只留 `PaneManager` / `PaneHost` |
 
 ---

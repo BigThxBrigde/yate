@@ -7,10 +7,10 @@
 >
 > | 分册 | 内容 |
 > |---|---|
-> | [theme_ownership_refactoring_theme_broadcast_plan_a.md](theme-ownership-refactoring-plans/theme_ownership_refactoring_theme_broadcast_plan_a.md) | 主题广播基建（theme.py 订阅/派发） |
-> | [theme_ownership_refactoring_scrollbar_injection_plan_b.md](theme-ownership-refactoring-plans/theme_ownership_refactoring_scrollbar_injection_plan_b.md) | 滚动条 per-widget 注入（T1） |
-> | [theme_ownership_refactoring_widget_theme_selfhold_plan_c.md](theme-ownership-refactoring-plans/theme_ownership_refactoring_widget_theme_selfhold_plan_c.md) | 七组件自持主题 + 删 apply_theme（T2） |
-> | [theme_ownership_refactoring_architecture_guards_plan_d.md](theme-ownership-refactoring-plans/theme_ownership_refactoring_architecture_guards_plan_d.md) | 2 条架构守卫 |
-> | [theme_ownership_refactoring_gate_docs_plan_e.md](theme-ownership-refactoring-plans/theme_ownership_refactoring_gate_docs_plan_e.md) | 门禁 / 基线归因 / 文档回填 |
+> | [theme-ownership-refactoring-theme-broadcast-plan-a.md](theme-ownership-refactoring-plans/theme-ownership-refactoring-theme-broadcast-plan-a.md) | 主题广播基建（theme.py 订阅/派发） |
+> | [theme-ownership-refactoring-scrollbar-injection-plan-b.md](theme-ownership-refactoring-plans/theme-ownership-refactoring-scrollbar-injection-plan-b.md) | 滚动条 per-widget 注入（T1） |
+> | [theme-ownership-refactoring-widget-theme-selfhold-plan-c.md](theme-ownership-refactoring-plans/theme-ownership-refactoring-widget-theme-selfhold-plan-c.md) | 七组件自持主题 + 删 apply_theme（T2） |
+> | [theme-ownership-refactoring-architecture-guards-plan-d.md](theme-ownership-refactoring-plans/theme-ownership-refactoring-architecture-guards-plan-d.md) | 2 条架构守卫 |
+> | [theme-ownership-refactoring-gate-docs-plan-e.md](theme-ownership-refactoring-plans/theme-ownership-refactoring-gate-docs-plan-e.md) | 门禁 / 基线归因 / 文档回填 |
 >
 > 状态：Plan A–E 全部完成（分支 `ref/theme-ownership`）。本文件不再维护。

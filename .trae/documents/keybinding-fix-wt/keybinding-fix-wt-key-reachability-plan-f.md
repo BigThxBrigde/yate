@@ -1,13 +1,13 @@
 # 方案 B v2 — 按键可达性重构 + Windows 输入通道（真机验证后的重排）
 
-> 状态：**计划（待实施）**；取代 `wt_keybinding_fix_plan.md` SP1–SP3 的后续路线
+> 状态：**计划（待实施）**；取代 `wt-keybinding-fix-plan.md` SP1–SP3 的后续路线
 > **（2026-09-28 核对补注：本文 §一 的根因假设（§1.2 全局分支不可达 / §1.3 vim normal 吞键）
 > 已被 `_probe_vim.py` 探针证伪，A1/A2 未按本文执行；排期由
-> [keybinding_fix_wt_steps_plan_g.md](keybinding_fix_wt_steps_plan_g.md) 取代——见该文件头部"取代"说明与执行状态表。本文保留为历史推演。）**
+> [keybinding-fix-wt-steps-plan-g.md](keybinding-fix-wt-steps-plan-g.md) 取代——见该文件头部"取代"说明与执行状态表。本文保留为历史推演。）**
 > **（核对补注 2：文中"架构守护 13 用例"（§A1 验收、§四自检）实测为 20 个用例。）**
 > 触发：2026-09-26 真机验证结果 —— **vim 键位下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效**（ctrl+1 失效属预期）
-> 前置文档：`../win_keybinding_plan.md`（方案 B 决策）、`../win_keybinding_protocol_plan.md`（旧实施排期，本文重排）、
-> `../wt_keybinding_fix_plan.md`（止血切片，部分有效）、`overview.md`（SP1–SP5 执行记录）
+> 前置文档：`../win-keybinding-plan.md`（方案 B 决策）、`../win-keybinding-protocol-plan.md`（旧实施排期，本文重排）、
+> `../wt-keybinding-fix-plan.md`（止血切片，部分有效）、`overview.md`（SP1–SP5 执行记录）
 
 ---
 
@@ -108,14 +108,14 @@ A2 的修复由此确定：normal 尾吞键前先按 raw/key 查 bindings（见 
 
 ### A4 — 文档与收尾
 
-- `keybinding_fix_wt_gates_matrix_plan_e.md` 真机矩阵按 Phase A 后的复测结果回填；`review.md` IKH1RA 条目补记"vim 下仍失效→Phase A"段；本文件勾选状态；issue 回复草稿改写（解释两层根因）。
+- `keybinding-fix-wt-gates-matrix-plan-e.md` 真机矩阵按 Phase A 后的复测结果回填；`review.md` IKH1RA 条目补记"vim 下仍失效→Phase A"段；本文件勾选状态；issue 回复草稿改写（解释两层根因）。
 - **可发布点**：`v0.3.1`（Phase A 单独成版，不含驱动改动）。
 
 ---
 
 ## 三、Phase B — Windows 输入通道重写（方案 B 主体，仅剩 ctrl+1 类键的理由）
 
-> 重排自 `win_keybinding_protocol_plan.md`（P0–P9），锚点已按分层重构校准（见该文件头部 2026-09-26 校准表）。
+> 重排自 `win-keybinding-protocol-plan.md`（P0–P9），锚点已按分层重构校准（见该文件头部 2026-09-26 校准表）。
 > Phase A 落地后重新评估：若 vim/vsc 下除 ctrl+1 外全部可用，Phase B 的用户价值 = `ctrl+1`/`alt+digit` 等
 > 无 legacy 编码键 + `:keys` 排障面板，可按需求热度决定是否启动。
 

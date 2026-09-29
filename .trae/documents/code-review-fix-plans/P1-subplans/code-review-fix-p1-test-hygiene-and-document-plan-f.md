@@ -1,7 +1,7 @@
 # SP6 — 测试卫生与文档内核（S20 + S21 + S29 + S41）
 
-> 来源：[P1 批次四（S20/S21/S29）](../code_review_fix_suggestions_plan_b.md)、
-> [批次七（S41）](../code_review_fix_suggestions_plan_b.md)。统一门禁见 [README §五](overview.md)。
+> 来源：[P1 批次四（S20/S21/S29）](../code-review-fix-suggestions-plan-b.md)、
+> [批次七（S41）](../code-review-fix-suggestions-plan-b.md)。统一门禁见 [README §五](overview.md)。
 
 ## 条目
 

@@ -1,7 +1,7 @@
 # yate 键盘输入重构 · 主计划（Windows Terminal 快捷键失效的根治）
 
 > 命名前缀：`win_keybinding_*`
-> 姊妹文档：**`win_keybinding_protocol_plan.md`**（方案 B 的逐步实施计划，含严格顺序）
+> 姊妹文档：**`win-keybinding-protocol-plan.md`**（方案 B 的逐步实施计划，含严格顺序）
 > 状态：**决策已定 —— 采用方案 B（自建 Windows 输入通道 + 键盘协议协商）**
 > 性质：这不是一次补丁，而是一次**输入层重构 + 新特性（可配置键盘协议层）**。
 
@@ -11,7 +11,7 @@
 >
 > 1. **路径迁移**：全文引用的 `yate/editor_view/keys.py` **已不存在**——其 C0 编解码整体迁入
 >    `yate/keyproto/legacy.py`（`event_to_raw` L52 / `textual_key_to_raw` L87，`_CTRL_PUNCT` L23），
->    变更见 `keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md` 执行状态表 PB1 行；`yate/interfaces.py` 亦已删除（R2）。
+>    变更见 `keybinding-fix-wt/keybinding-fix-wt-steps-plan-g.md` 执行状态表 PB1 行；`yate/interfaces.py` 亦已删除（R2）。
 > 2. **`keyproto/` 实际模块构成（6 个，非 §3 设想的 8 个）**：`chords.py`（`KeyChord` + VK/修饰位常量）、
 >    `aliases.py`（`chord_to_key_name`）、`frames.py`（`Win32InputFrame` / `Win32FrameStream` /
 >    `frame_to_key_name` / `frame_to_char` / `NAV_VK_NAMES`）、`legacy.py`、`driver_windows.py`、`__init__.py`。
@@ -21,7 +21,7 @@
 > 3. **`Ctrl+/` 已修复**（不再是下文第 2 条所述"仍失效"）：`legacy.py:28` 已登记 `"underscore": 0x1F`、
 >    `keymaps/base.py:85` 已登记 `KEY_ALIASES["\x1f"] = "ctrl-/"`（SP1，commit `b03e40f`）。
 > 4. **`Ctrl+1` 现状**：和弦驱动（`keyproto/driver_windows.py`）+ PB6 的 `?9001h` 帧解码后，
->    WT 下 `ctrl+1` **已可达**（真机无人值守验收 12/12 PASS，见 `keybinding_fix_wt_steps_plan_g.md` PB6 行；
+>    WT 下 `ctrl+1` **已可达**（真机无人值守验收 12/12 PASS，见 `keybinding-fix-wt-steps-plan-g.md` PB6 行；
 >    用户手册已改写：`yate/resources/manual.en.md:374-385`）。config 侧 `key_protocol` 现只接受
 >    `auto` / `legacy`（`config.py:64,71,152`），**无** `win32`/`kitty`/`off` 三档，也无
 >    `--key-protocol` / `--reset-terminal` CLI 参数。
@@ -33,17 +33,17 @@
 > 1. **P2.4 已被重构顺带完成**（`9fa5ac8`）：app 层 `ctrl+shift+e`/`ctrl+1`/`ctrl+p` 字符串特例已迁为
 >    `Editor.handle_key`（`yate/editor.py:618-626`，L3）的 event.key 分支，先于 keymap 派发——
 >    **vim 吞键不再影响这三个键，`Ctrl+P` 在 vim/vsc 双键位下均已恢复**（Issue IKH1RA 三键之一）。
->    剩余工作仅为回归守卫（`wt_keybinding_fix_plan.md` SP2）。
+>    剩余工作仅为回归守卫（`wt-keybinding-fix-plan.md` SP2）。
 > 2. **`Ctrl+/` 仍失效且根因未变**：`\x1f` 被 Textual 命名为 `ctrl+underscore`，`event_to_raw` 无此条目 → 键被丢弃
 >    （本日实测：`XTermParser` 对 `\x1f` 输出 `ctrl+underscore`；vim `_handle_insert` L185 / `_handle_normal` L431 双吞键点）。
->    修复 = `wt_keybinding_fix_plan.md` SP1（`_CTRL_PUNCT` 补 `underscore` + `KEY_ALIASES` 补显示别名）。
+>    修复 = `wt-keybinding-fix-plan.md` SP1（`_CTRL_PUNCT` 补 `underscore` + `KEY_ALIASES` 补显示别名）。
 >    **（2026-09-28 核对：已修复，见上方核对注 3。）**
 > 3. **`Ctrl+1` 结论不变**：conhost/Textual 双双丢修饰，物理不可达；唯一根治路径仍是本计划方案 B（P3–P6）。
 >    **（2026-09-28 核对：legacy 路径结论仍成立；但和弦驱动 + win32-input-mode 帧解码落地后
 >    WT 下已可达，见上方核对注 4。）**
 > 4. **锚点换算**：`yate/interfaces.py` 已删除（R2），`app.py:985-999` 等旧引用全部失效——
 >    完整换算表见姊妹文档头部「2026-09-26 校准」节，全文以其为准。
-> 5. **先行切片**：`wt_keybinding_fix_plan.md`（= 方案 A 的 P2 快速止血子集，可独立发布）已生成于本文档同目录。
+> 5. **先行切片**：`wt-keybinding-fix-plan.md`（= 方案 A 的 P2 快速止血子集，可独立发布）已生成于本文档同目录。
 > 6. **§2 证据表与 §9 速查表保留 2026-09-19 原貌作为历史取证**（引用的 `app.py:985-999` 等为当时布局），
 >    实施时一律使用校准表中的重构后锚点。
 
@@ -234,7 +234,7 @@
 
 ## 8. 明确不在本计划范围
 
-- 方案 C：WT `settings.json` 的 unbound / sendInput 助手（未来 `terminal_keys_install_plan.md`）。
+- 方案 C：WT `settings.json` 的 unbound / sendInput 助手（未来 `terminal-keys-install-plan.md`）。
 - yaterc 的 `[keys]` 自定义绑定体系（可作为 P7 的可选子项，单独立项）。
 - 集成终端模拟器（`yate/editor_term`）对 win32-input-mode 的支持（面板里跑 nvim 自己开协议的情形）。
 - macOS `modifyOtherKeys` 后端（P8 的 optional，不阻塞发布）。
@@ -265,4 +265,4 @@
 | WT 1.25 preview 起支持 kitty 键盘协议 | devblogs：Windows Terminal Preview 1.25 Release（2026-03-05） |
 | nvim 经 `'keyprotocol'` 协商 kitty/xterm/microsoft(win32-input-mode) | Neovim `:help tui-input`、`:help 'keyprotocol'` |
 
-> 逐步实施细节、接口签名、表内容、序列顺序、测试与工作量估算见 **`win_keybinding_protocol_plan.md`**。
+> 逐步实施细节、接口签名、表内容、序列顺序、测试与工作量估算见 **`win-keybinding-protocol-plan.md`**。

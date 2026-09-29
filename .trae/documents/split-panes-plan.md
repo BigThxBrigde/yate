@@ -5,7 +5,7 @@
 > - 纯数据模型位于 `yate/session.py`（`Leaf` / `Split` / `Node` /
 >   `ViewState` 与树工具；2026-09-23 Plan G 已将其从 `yate/editor_view/pane_types.py`
 >   下沉至 L1 并删除原文件，见
->   [app-layering-refactoring-plans/app_layering_refactoring_pane_model_to_session_plan_g.md](app-layering-refactoring-plans/app_layering_refactoring_pane_model_to_session_plan_g.md)），
+>   [app-layering-refactoring-plans/app-layering-refactoring-pane-model-to-session-plan-g.md](app-layering-refactoring-plans/app-layering-refactoring-pane-model-to-session-plan-g.md)），
 >   Textual 侧为 `yate/editor_view/panes.py`
 >   （`PaneManager` + `PaneHost`）；`EditorView` 已参数化 `leaf_id` 与宿主，
 >   焦点切换经 `PaneManager.capture_active()` / `apply_doc()` 同步视图状态
@@ -18,7 +18,7 @@
 > - 测试：`tests/test_panes.py`（模型）+ `tests/test_app_textual.py`（pilot）已覆盖。
 > - 与本文档的差异：`Leaf.states` 的键**不是** `id(doc)`，而是稳定的
 >   `Document.uid`（`session.py::Leaf.state_for`（原 `pane_types.py::Leaf.state_for`），注释说明用于规避文档重建
->   导致的键失效，见 `remove_type_checking_refactor.md` —— **2026-09-28 核对修正**：原引用的
+>   导致的键失效，见 `remove-type-checking-refactor.md` —— **2026-09-28 核对修正**：原引用的
 >   `remove_type_checking_review_v3.md` 已与另外 3 份文档合并为该文件，不再单独存在）；`PaneManager`
 >   构造为 `PaneManager(session: EditorSession, doc: Document, ...)`（2026-09-23
 >   更新：不再使用 `AppProtocol`，改为具体对象注入），Textual 宿主类为

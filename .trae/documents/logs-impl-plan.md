@@ -10,7 +10,7 @@
 >
 > 因此本文档 **§2.1（新增 `yate/tracing.py`）、§2.5（`tracing.install(config)`）、
 > §2.7（`crash.py` 埋点）、§6 文件清单中的模块名/路径已过时**；最终设计以
-> `unify_crash_tracing_plan.md` 为准。配置项校验、两阶段安装、`uninstall`
+> `unify-crash-tracing-plan.md` 为准。配置项校验、两阶段安装、`uninstall`
 > 释放句柄（`--include-data`）、`get_logger` / `resolve_level` / `env_trace` /
 > `env_level`、`logs_dir()` 等行为均按本计划实现。
 
@@ -49,7 +49,7 @@
 未变：`YATE_TRACE` / `YATE_TRACE_LEVEL`、yaterc `yate_trace` /
 `yate_trace_level`、默认关闭、等级解析、`~/.yate/data/logs/yate-*.log` 命名、
 文件懒创建、`--cleanup-defaults --include-data` 前 `uninstall()` 释放句柄、
-`atexit` 兜底。最终设计见 `unify_crash_tracing_plan.md`。
+`atexit` 兜底。最终设计见 `unify-crash-tracing-plan.md`。
 
 ---
 
@@ -649,7 +649,7 @@ python -m yate --cleanup-defaults --include-data --force
 | `tests/test_tracing.py` | 新增 | 单元测试 |
 | `tests/test_config.py` | 修改 | 新选项校验测试 |
 | `CHANGELOG.md` / `CHANGELOG.zh.md` | 修改 | 条目 |
-| `.trae/documents/logs_impl_plan.md` | 新增 | 本文档 |
+| `.trae/documents/logs-impl-plan.md` | 新增 | 本文档 |
 
 ---
 

@@ -3,7 +3,7 @@
 ## 全量代码审查 — 2026-09-23
 
 > 7 项全部修复，方案与验证记录见
-> [`.trae/documents/code_review_fixes_plan.md`](../documents/code_review_fixes_plan.md)
+> [`.trae/documents/code-review-fixes-plan.md`](../documents/code-review-fixes-plan.md)
 > （提交 `05106d5` / `5190225` / `b0d154d` / `a89a720`）。
 
 - [x] **`Document.save()` 非原子写入（High，数据完整性）** — 崩溃/磁盘满可毁原文件。

@@ -8,7 +8,7 @@
 > - 架构现状（2026-09-23 更新）：`AppProtocol`（`yate/interfaces.py`）已在
 >   「分层重构」中删除。当前 `EditorView` / 补全弹窗等接收具体对象
 >   （`EditorSession` / `LspManager` / `KeymapSet` 等），不再依赖任何 `Protocol`。
-> - 后续演进：补全陈旧守卫已按 `completion_staleness_check_plan.md` 加强；
+> - 后续演进：补全陈旧守卫已按 `completion-staleness-check-plan.md` 加强；
 >   文档屏/主题等 UI 细节以当前代码为准。
 > - 枚举与数据类命名（如 `ServerState`、`ServerConfig`）请以
 >   `yate/editor_lsp/client.py` 现状为准，本文档正文为其早期形态。

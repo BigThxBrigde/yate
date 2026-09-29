@@ -1,7 +1,7 @@
 # SP4 — 文档回填与 Issue 关账
 
 > 前置：SP1–SP3 已提交
-> 预估：30min　|　独占文件：`.trae/review/review.md`、`.trae/documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md`、`.trae/documents/keybinding-fix-wt/*.md`
+> 预估：30min　|　独占文件：`.trae/review/review.md`、`.trae/documents/code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md`、`.trae/documents/keybinding-fix-wt/*.md`
 > **（2026-09-28 核对修正：原写 `.trae/issues/review.md`——`.trae/issues/` 目录已整体迁至 `.trae/review/`，
 > 现路径为 `.trae/review/review.md`。）**
 
@@ -18,14 +18,14 @@
 - 现象：WT 下 `ctrl+p`/`ctrl+1`/`ctrl+/` 失效；
 - 根因：`\x1f` 命名漂移（`ctrl+underscore` 未登记）+ conhost/Textual 双丢修饰（`ctrl+1` 无 legacy 编码）；
 - 处置：`ctrl+p` 随 `9fa5ac8` 重构修复；`ctrl+/` 由 SP1 修复；`ctrl+1` 文档化为 CSI-u-only（SP3），
-  根治走 `win_keybinding_plan.md` 方案 B；
+  根治走 `win-keybinding-plan.md` 方案 B；
 - 附实测数字（pytest/pyright 通过数，取 SP5 实际值）。
 
 ### 步骤 4.2　P2 计划 N8 关账
 
-`.trae/documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md` 中 N8：
+`.trae/documents/code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md` 中 N8：
 状态 ⏸ → ✅；撤销备注「待 KeyBinding 在 WT 重构后彻底修复」；
-链接本子计划集与 `wt_keybinding_fix_plan.md`；注明 `ctrl+1` 部分转为方案 B 范畴。
+链接本子计划集与 `wt-keybinding-fix-plan.md`；注明 `ctrl+1` 部分转为方案 B 范畴。
 
 ### 步骤 4.3　子计划集状态回写
 

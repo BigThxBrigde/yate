@@ -1,6 +1,6 @@
 # SP1 — 语法高亮内核性能（S1 + S2）
 
-> 来源：[P1 批次一](../code_review_fix_suggestions_plan_b.md)。纯性能改造，零行为变化。
+> 来源：[P1 批次一](../code-review-fix-suggestions-plan-b.md)。纯性能改造，零行为变化。
 > 统一门禁见 [README §五](overview.md)。
 
 ## 条目

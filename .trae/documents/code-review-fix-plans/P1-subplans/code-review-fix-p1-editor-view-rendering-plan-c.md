@@ -1,7 +1,7 @@
 # SP3 — editor_view 渲染与交互（S4 S12 S13 S14 S15 S17 S28 S37 S40 S42）
 
-> 来源：[P1 批次三](../code_review_fix_suggestions_plan_b.md)、[批次四（S28/S42）](../code_review_fix_suggestions_plan_b.md)、
-> [批次六（S37）](../code_review_fix_suggestions_plan_b.md)、[批次七（S40）](../code_review_fix_suggestions_plan_b.md)。
+> 来源：[P1 批次三](../code-review-fix-suggestions-plan-b.md)、[批次四（S28/S42）](../code-review-fix-suggestions-plan-b.md)、
+> [批次六（S37）](../code-review-fix-suggestions-plan-b.md)、[批次七（S40）](../code-review-fix-suggestions-plan-b.md)。
 > 全部落在渲染热路径 / editor_view 域，波次一优先执行。统一门禁见 [README §五](overview.md)。
 
 ## 条目

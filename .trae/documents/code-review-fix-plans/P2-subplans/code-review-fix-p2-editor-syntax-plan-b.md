@@ -1,6 +1,6 @@
 # SP2 — editor_syntax 语法（N2 N3 N4）
 
-> 波次一 · 规模 M · [P2 原文](../code_review_fix_nice_to_have_plan_c.md)为唯一规范来源。
+> 波次一 · 规模 M · [P2 原文](../code-review-fix-nice-to-have-plan-c.md)为唯一规范来源。
 
 ## 独占文件清单
 

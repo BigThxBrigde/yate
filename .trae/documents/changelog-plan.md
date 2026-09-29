@@ -27,7 +27,7 @@
 >   `yate/editor.py`（`Editor.show_manual` / `show_changelog` 方法）。
 >   不再使用 `AppProtocol`，改为 `Editor` 的具体方法。
 >   `_prev_manual_theme` / `_prev_doc_theme` 已不存在——文档屏的临时主题
->   切换/恢复机制被 `overlay_theme_consistency_plan.md` 移除（改由 Textual
+>   切换/恢复机制被 `overlay-theme-consistency-plan.md` 移除（改由 Textual
 >   主题桥支撑），`MarkdownDocScreen(app, kind=..., lang=..., title=...)`
 >   仍保留 `app` 参数（用于推屏与资源加载，不再持有主题状态）。
 
@@ -671,7 +671,7 @@ python -m hatchling build
 | `yate/resources/manual.zh.md` / `manual.en.md` | 修改 | 刷新发布附录；命令表/CLI 示例补 changelog |
 | `.github/workflows/test.yml` | 修改 | checkout 改 `fetch-depth: 0` + 增加 `changelog check` 门禁 |
 | `.workflow/test.yml` | 修改 | 增加 `changelog check` 门禁（Gitee Go 完整克隆） |
-| `.trae/documents/changelog_plan.md` | 修改 | 本文档（本次更新） |
+| `.trae/documents/changelog-plan.md` | 修改 | 本文档（本次更新） |
 
 ---
 

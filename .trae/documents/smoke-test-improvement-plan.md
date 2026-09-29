@@ -274,15 +274,15 @@ KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
 
 | # | 场景 | P | 守护的修复 | 用户路径与断言 |
 |---|---|---|---|---|
-| R1 | `regress_wq_multi_tab` | P0 | `wq_safety_plan`（多 tab dirty 被静默丢弃） | 两个 tab，只保存当前 tab 后 `:wq` → **不应退出**；断言仍在运行、`len(app.docs)` 未丢、有 warn 提示 |
-| R2 | `regress_unicode_save` | P0 | `wq_safety_plan`（`UnicodeEncodeError` 未被捕获 → 进程终止） | 保存含当前编码无法表示字符的缓冲 → 断言 app 未崩溃、`doc.modified` 仍为 True、有 error 消息 |
-| R3 | `regress_typing_flicker` | P0 | `typing_flicker_debounce_plan` + `highlight_comment_flicker_plan` | 连续输入 20 字符 → 断言高亮 token 缓存不在击键后整屏脱色（`_tokens_for` 非空、`content_version` 单调） |
-| R4 | `regress_split_panes` | P0 | `split_panes_plan` | `:vs`/`:sp`/`:only` 后叶子数与焦点稳定（与 E1 视角不同：此处断言**焦点与文档绑定**不串台） |
-| R5 | `regress_tab_click` | P1 | `scrollbar_tab_click_plan` | 点击 `#tabbar` 上的非活动标签切换文档（需先确认 `pilot.click()` 在该 Textual 版本可用） |
-| R6 | `regress_overlay_theme` | P1 | `overlay_theme_consistency_plan` | 切到 latte 后打开 F1/F8/输出浮层，断言弹层 token 与主主题同源 |
-| R7 | `regress_completion_staleness` | P1 | `completion_staleness_check_plan` | 触发补全后继续输入 → 不弹出/不接受陈旧项（LSP off 时走 buffer words 路径） |
-| R8 | `regress_diagnostics_cmd` | P1 | `diag_command_plan` | LSP 关闭时 `:diagnostics` 不崩且给出空态提示 |
-| R9 | `regress_theme_expansion` | P1 | `themes_expansion_plan` | 遍历 `theme.available()` 逐个切换再还原，断言无异常且终态为 mocha |
+| R1 | `regress_wq_multi_tab` | P0 | `wq-safety-plan`（多 tab dirty 被静默丢弃） | 两个 tab，只保存当前 tab 后 `:wq` → **不应退出**；断言仍在运行、`len(app.docs)` 未丢、有 warn 提示 |
+| R2 | `regress_unicode_save` | P0 | `wq-safety-plan`（`UnicodeEncodeError` 未被捕获 → 进程终止） | 保存含当前编码无法表示字符的缓冲 → 断言 app 未崩溃、`doc.modified` 仍为 True、有 error 消息 |
+| R3 | `regress_typing_flicker` | P0 | `typing-flicker-debounce-plan` + `highlight-comment-flicker-plan` | 连续输入 20 字符 → 断言高亮 token 缓存不在击键后整屏脱色（`_tokens_for` 非空、`content_version` 单调） |
+| R4 | `regress_split_panes` | P0 | `split-panes-plan` | `:vs`/`:sp`/`:only` 后叶子数与焦点稳定（与 E1 视角不同：此处断言**焦点与文档绑定**不串台） |
+| R5 | `regress_tab_click` | P1 | `scrollbar-tab-click-plan` | 点击 `#tabbar` 上的非活动标签切换文档（需先确认 `pilot.click()` 在该 Textual 版本可用） |
+| R6 | `regress_overlay_theme` | P1 | `overlay-theme-consistency-plan` | 切到 latte 后打开 F1/F8/输出浮层，断言弹层 token 与主主题同源 |
+| R7 | `regress_completion_staleness` | P1 | `completion-staleness-check-plan` | 触发补全后继续输入 → 不弹出/不接受陈旧项（LSP off 时走 buffer words 路径） |
+| R8 | `regress_diagnostics_cmd` | P1 | `diag-command-plan` | LSP 关闭时 `:diagnostics` 不崩且给出空态提示 |
+| R9 | `regress_theme_expansion` | P1 | `themes-expansion-plan` | 遍历 `theme.available()` 逐个切换再还原，断言无异常且终态为 mocha |
 
 > R 组的价值不在「多测几条路径」，而在**把事故变成断言**：每新增一个历史修复，就往这张表补一行。建议在 `tests/` 之外单列一个 `HISTORY_FIXES` 注释，标明每行对应的 plan 文档，方便回溯。
 

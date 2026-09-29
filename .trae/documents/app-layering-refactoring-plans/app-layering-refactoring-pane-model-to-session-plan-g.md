@@ -1,6 +1,6 @@
 # Plan G — 窗格模型下沉：`pane_types.py` 并入 `session.py`（L1）
 
-> 状态：✅ **已完成**（2026-09-23 落地）· 前置：[Plan A](app_layering_refactoring_leaf_models_plan_a.md)–[Plan F](app_layering_refactoring_gate_docs_plan_f.md) 全部完成
+> 状态：✅ **已完成**（2026-09-23 落地）· 前置：[Plan A](app-layering-refactoring-leaf-models-plan-a.md)–[Plan F](app-layering-refactoring-gate-docs-plan-f.md) 全部完成
 > 归属：**总纲** [overview.md](overview.md) 的后续子计划（§5 索引已登记），同时直接受
 > [architecture-boundaries.md](../../rules/architecture-boundaries.md) §三.1 / §三.6 / §五 约束。
 > 类型：**代码搬运 + 删除**（不重写任何算法、不改任何行为）
@@ -230,8 +230,8 @@ rg -n "pane_types" yate tests tools
 | 同上 §六 | 若新增守护见 G.6.3，同步用例数与描述 |
 | [overview.md](overview.md) §2 模块清单 | 删除 `pane_types.py` 条目；`session.py` 条目补「+ 窗格树模型」 |
 | 同上 §4 冻结清单 | `PaneRegistry` 的"唯一新增环打断器"表述保持不变（本 Plan 不动它） |
-| [app_layering_refactoring_widget_selfhold_plan_b.md](app_layering_refactoring_widget_selfhold_plan_b.md) §B.2 | `pane_types.py` 行迁移目标改为 `session.py`（保留历史说明：原为 `editor_view/pane_types.py`） |
-| [../split_panes_plan.md](../split_panes_plan.md) 实施状态段 | `pane_types.py` 路径更新为 `session.py`，或追加一句"（2026-09-23 Plan G：已下沉至 `session.py`）" |
+| [app-layering-refactoring-widget-selfhold-plan-b.md](app-layering-refactoring-widget-selfhold-plan-b.md) §B.2 | `pane_types.py` 行迁移目标改为 `session.py`（保留历史说明：原为 `editor_view/pane_types.py`） |
+| [../split-panes-plan.md](../split-panes-plan.md) 实施状态段 | `pane_types.py` 路径更新为 `session.py`，或追加一句"（2026-09-23 Plan G：已下沉至 `session.py`）" |
 | `yate/resources/changelog.zh.md` / `.en.md` | 按项目惯例追加一条内部分层条目（若本轮随 CHANGELOG 一起发布） |
 
 ---
@@ -296,7 +296,7 @@ def test_pane_model_lives_in_l1_session() -> None:
     assert "backward compatibility" not in panes
 ```
 
-> 若采纳，rules §六 的用例数由 12 → 13，需同步 [Plan E](app_layering_refactoring_tests_tools_plan_e.md) 的计数描述。
+> 若采纳，rules §六 的用例数由 12 → 13，需同步 [Plan E](app-layering-refactoring-tests-tools-plan-e.md) 的计数描述。
 
 ### G.6.4 冒烟（行为回归防护）
 
@@ -330,9 +330,9 @@ def test_pane_model_lives_in_l1_session() -> None:
 - [x] 4 处源码引用 + 2 处测试引用全部迁移，无 deprecated 重导出残留；
 - [x] `rg -n "pane_types" yate tests tools` → 0；
 - [x] pyright 0 诊断 / pytest 全绿 / `test_architecture.py` 全过；
-- [x] `architecture-boundaries.md`、本目录 README §2、`plan_B` §B.2、`split_panes_plan.md` 已回填；
+- [x] `architecture-boundaries.md`、本目录 README §2、`plan_B` §B.2、`split-panes-plan.md` 已回填；
 - [x] （已采纳 G.6.3）新增守护用例 `test_pane_model_lives_in_l1_session` 并通过，
-  rules §六 与 [Plan E](app_layering_refactoring_tests_tools_plan_e.md) 计数同步（12 → 13）；
+  rules §六 与 [Plan E](app-layering-refactoring-tests-tools-plan-e.md) 计数同步（12 → 13）；
 - [x] CHANGELOG：仓库 CHANGELOG 由 `tools.changelog` 自动生成（文件头写明
   *do not edit by hand*），本轮不手工追加，条目随提交信息生成。
 

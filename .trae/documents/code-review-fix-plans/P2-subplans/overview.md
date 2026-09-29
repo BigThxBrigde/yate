@@ -1,6 +1,6 @@
-# P2 子计划总纲（P2_subplans）
+# P2 子计划总纲（P2-subplans）
 
-> 来源：[code_review_fix_nice_to_have_plan_c.md](../code_review_fix_nice_to_have_plan_c.md)（2026-09-25 复核后 29 条待实施
+> 来源：[code-review-fix-nice-to-have-plan-c.md](../code-review-fix-nice-to-have-plan-c.md)（2026-09-25 复核后 29 条待实施
 > + 3 项决策门）。本目录把 P2 按**文件独占域**拆为 7 个可独立验证的子计划（SP1–SP7），
 > 分两个实施波次并行落地；3 项需人工输入/评审的条目单列为决策门，不占波次。
 >
@@ -53,13 +53,13 @@ flowchart TB
 
 | 子计划 | 条目 | 独占文件域（产品 + 测试） | 规模 | 波次 |
 |---|---|---|---|---|
-| [SP1](code_review_fix_p2_editor_core_plan_a.md) editor_core 内核 | N1 N5 N6 | `yate/editor_core/{document,buffer,search}.py`；`tests/test_editor_core.py` | M | 1 ✅ |
-| [SP2](code_review_fix_p2_editor_syntax_plan_b.md) editor_syntax | N2 N3 N4 | `yate/editor_syntax/regex_backend.py`、`yate/editor_syntax/ts_backend/{languages,backend}.py`；`tests/{test_highlight,test_syntax_engine,test_ts_backend}.py` | M | 1 ✅ |
-| [SP3](code_review_fix_p2_terminal_plan_c.md) editor_term | N7 | `yate/editor_term/emulator.py`；`tests/test_terminal_emulator.py` | S | 1 ✅ |
-| [SP4](code_review_fix_p2_toolchain_plan_d.md) 工具链 | N13 N14 N15 N16 N17 N29 N32 | `tools/smoke_test/{harness,testsuite,cli}.py`、`tools/changelog/{gitee,cli,render,gitdata}.py`；`tests/test_smoke_tool.py`（新）、`tests/test_changelog_tool.py` | L | 1 ✅ |
-| [SP5](code_review_fix_p2_keymaps_registry_plan_e.md) keymaps 与注册表 | N20 N21 N23 N25 | `yate/keymaps/{vim,base}.py`；`tests/test_vim_keymap.py`、`tests/test_registries.py` | M | 2 ✅ |
-| [SP6](code_review_fix_p2_editor_dispatch_components_plan_f.md) editor 调度与组件 | N10 N19 N22 N24 N26 | `yate/editor.py`、`yate/editor_view/{terminal,palette,commandline}.py`；`tests/test_app_textual.py` | M | 2 ✅ |
-| [SP7](code_review_fix_p2_services_logs_plan_g.md) services 与日志 | N27 N28 N31 | `yate/services/{extensions,trust}.py`、`yate/logs.py`；`tests/{test_extensions,test_trust,test_tracing}.py` | S | 2 ✅ |
+| [SP1](code-review-fix-p2-editor-core-plan-a.md) editor_core 内核 | N1 N5 N6 | `yate/editor_core/{document,buffer,search}.py`；`tests/test_editor_core.py` | M | 1 ✅ |
+| [SP2](code-review-fix-p2-editor-syntax-plan-b.md) editor_syntax | N2 N3 N4 | `yate/editor_syntax/regex_backend.py`、`yate/editor_syntax/ts_backend/{languages,backend}.py`；`tests/{test_highlight,test_syntax_engine,test_ts_backend}.py` | M | 1 ✅ |
+| [SP3](code-review-fix-p2-terminal-plan-c.md) editor_term | N7 | `yate/editor_term/emulator.py`；`tests/test_terminal_emulator.py` | S | 1 ✅ |
+| [SP4](code-review-fix-p2-toolchain-plan-d.md) 工具链 | N13 N14 N15 N16 N17 N29 N32 | `tools/smoke_test/{harness,testsuite,cli}.py`、`tools/changelog/{gitee,cli,render,gitdata}.py`；`tests/test_smoke_tool.py`（新）、`tests/test_changelog_tool.py` | L | 1 ✅ |
+| [SP5](code-review-fix-p2-keymaps-registry-plan-e.md) keymaps 与注册表 | N20 N21 N23 N25 | `yate/keymaps/{vim,base}.py`；`tests/test_vim_keymap.py`、`tests/test_registries.py` | M | 2 ✅ |
+| [SP6](code-review-fix-p2-editor-dispatch-components-plan-f.md) editor 调度与组件 | N10 N19 N22 N24 N26 | `yate/editor.py`、`yate/editor_view/{terminal,palette,commandline}.py`；`tests/test_app_textual.py` | M | 2 ✅ |
+| [SP7](code-review-fix-p2-services-logs-plan-g.md) services 与日志 | N27 N28 N31 | `yate/services/{extensions,trust}.py`、`yate/logs.py`；`tests/{test_extensions,test_trust,test_tracing}.py` | S | 2 ✅ |
 
 文件独占已逐一核对零交集。两处跨子计划注意点：
 

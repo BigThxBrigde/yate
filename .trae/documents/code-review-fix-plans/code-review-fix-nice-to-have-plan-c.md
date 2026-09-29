@@ -11,7 +11,7 @@
 > 补入为 **N18–N31**。已修复条目（如 e2e git 测试缺失）见 review.md 对应 [x] 标注。
 > 编号 N9 / N11 / N12 为登记时的跳号（无对应条目），非遗漏。
 >
-> 统一门槛同 [P0](code_review_fix_critical_plan_a.md)（pyright 零诊断、pytest 全绿、
+> 统一门槛同 [P0](code-review-fix-critical-plan-a.md)（pyright 零诊断、pytest 全绿、
 > **冒烟 `python -m tools.smoke_test run --fail-only` 全绿**——每批收尾必跑；
 > 纯注释 / 纯文档条目也不例外，随批验证）。
 
@@ -75,9 +75,9 @@
     经 `keys.py` `_CTRL_PUNCT` 补条目修复（全平台），`ctrl+1` 保留 kitty CSI-u 绑定并在双语
     manual/README 标注「仅 kitty/CSI-u 终端可用」+ 替代路径。实测：Textual 8.2.8 XTermParser 对
     `\x1f` 输出 `ctrl+underscore`；WT/conhost 无 kitty 协议且 Textual win32 驱动不读修饰键，
-    `ctrl+1` 物理不可达，彻底根治需自建输入通道（`win_keybinding_plan.md` 方案 B，另行排期）。
+    `ctrl+1` 物理不可达，彻底根治需自建输入通道（`win-keybinding-plan.md` 方案 B，另行排期）。
     详见 [keybinding-fix-wt](../keybinding-fix-wt/overview.md) 与
-    [wt_keybinding_fix_plan.md](../wt_keybinding_fix_plan.md)；N19 的 `FOCUS_EDITOR_KEY`
+    [wt-keybinding-fix-plan.md](../wt-keybinding-fix-plan.md)；N19 的 `FOCUS_EDITOR_KEY`
     单点常量随方案 B 一并处理。门禁：255 定向 / 1354 全量 passed（2026-09-28 核对修正：当前全量 1354），pyright 0 诊断。
   - **N30 → 已落地（✅，2026-09-26）**：按原策略「二选一」拍板**注入回调**并单独立项实施；
     方案比选、19 步拆分与门禁实测见

@@ -1,7 +1,7 @@
 # SP7 — 工具链（S22 + S23 + S25 + S27）
 
-> 来源：[P1 批次五（S22/S27）](../code_review_fix_suggestions_plan_b.md)、
-> [批次四（S23）](../code_review_fix_suggestions_plan_b.md)、[批次二（S25）](../code_review_fix_suggestions_plan_b.md)。
+> 来源：[P1 批次五（S22/S27）](../code-review-fix-suggestions-plan-b.md)、
+> [批次四（S23）](../code-review-fix-suggestions-plan-b.md)、[批次二（S25）](../code-review-fix-suggestions-plan-b.md)。
 > 仅涉及 `tools/` 与 `tests/`，无需产品源码授权，可直接下发子代理。
 > 统一门禁见 [README §五](overview.md)。
 

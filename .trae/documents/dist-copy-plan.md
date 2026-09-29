@@ -1,4 +1,4 @@
-﻿# pack 脚本 `--dist` 产物归集选项实施计划
+# pack 脚本 `--dist` 产物归集选项实施计划
 
 > **实施状态（2026-09-22 核对）：✅ 已实现。**
 >
@@ -345,7 +345,7 @@ py -3.11 -m pip uninstall yate
 | `pack/pack.bat` | 修改 | 仅头部注释补示例（逻辑仍为透传） |
 | `.gitignore` | 修改 | 忽略 `release/` 示例归集目录 |
 | `yate/resources/manual.zh.md` / `manual.en.md` | 修改 | 发布附录补 `--dist` 用法与归集目录布局说明；并提醒"必须在 .venv 中打包" |
-| `.trae/documents/dist_copy_plan.md` | 新增 | 本文档 |
+| `.trae/documents/dist-copy-plan.md` | 新增 | 本文档 |
 
 > 本计划与 changelog 计划独立，可单独实施；若两者同时落地，执行顺序为
 > changelog 刷新 → PyInstaller 构建 → `--dist` 归集，互不耦合。

@@ -1,6 +1,6 @@
 # Plan SP0 — 环境准备（worktree 基线）
 
-> 状态：⏳ **待实施** · 前置：无 · 后置：[Plan SP1](theme_layer_refactor_decouple_plan_b.md)
+> 状态：⏳ **待实施** · 前置：无 · 后置：[Plan SP1](theme-layer-refactor-decouple-plan-b.md)
 > 工作量：S · 步骤：S0.1 → S0.2
 > 目的：worktree 独立 venv 就绪 + 四项门禁**基线数字留档**，供 SP3 收尾对比（证明改动本身零回归）。
 

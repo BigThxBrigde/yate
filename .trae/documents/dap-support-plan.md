@@ -1040,7 +1040,7 @@ python -m pytest tests/ -v
 | `yate/extensions/example_js_dap.py.example`（新增） | JS/Node（js-debug-adapter）完整扩展示例：discover + 注册 + pwa-node launch 模板 + 限制注释 |
 | `README.md` / `README.zh.md` | 特性区（[README.md:24-40](README.md#L24-L40)）特性行增加 debugging（DAP：内置 debugpy + JS 扩展示例）；F5=命令行的键位表行改写为 F7 并补调试键（[README.md:89](README.md#L89)、[README.zh.md:109](README.zh.md#L109) 与 [L412](README.zh.md#L412)，zh 有两处表）；结构树（L212-228 的 app_features/extensions/docs 说明）补 editor_dap/editor_term |
 | `yate/editor_dap/__init__.py` | 包 docstring 说明模块划分与 UI 无关边界（仿 [editor_lsp/__init__.py](yate/editor_lsp/__init__.py)） |
-| `.trae/documents/dap_support_plan.md` | 本文档 |
+| `.trae/documents/dap-support-plan.md` | 本文档 |
 
 ---
 
@@ -1074,7 +1074,7 @@ python -m pytest tests/ -v
 | `tests/test_dap_protocol.py`、`test_dap_client.py`、`test_dap_manager.py`、`test_python_dap_ext.py`、`test_dap_examples.py` | 新增 | 核心测试 |
 | `tests/test_extensions.py`、`test_config.py`、`test_app_textual.py`、`test_diagnostics.py`、`test_user_setup.py`、`test_cli.py` | 修改 | 桥接/配置/UI/节清单/模板分发/diag 接线测试（**无** test_extensions_bridge.py，该文件不存在） |
 | `pack/yate.spec`、`pack/yate-onefile.spec`、`pyproject.toml` | **不改** | spec 的 Tree 整树收集与 hatchling `packages=["yate"]` 自动覆盖新文件（§首节说明） |
-| `.trae/documents/dap_support_plan.md` | 修改 | 本文档（2026-09-15 校准） |
+| `.trae/documents/dap-support-plan.md` | 修改 | 本文档（2026-09-15 校准） |
 
 **明确不做（Phase 1）**：不动 editor_lsp 任何代码（只 import 分帧）、
 不改 Theme 数据结构、不做 socket/attach、不做 integratedTerminal

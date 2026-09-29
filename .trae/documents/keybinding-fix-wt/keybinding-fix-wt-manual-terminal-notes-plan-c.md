@@ -10,7 +10,7 @@ Windows Terminal / conhost 因修饰键丢失不可达。`ctrl+/` 与 `ctrl+p` �
 
 > **2026-09-28 核对补注**：本 SP 的"WT/conhost 不可达"结论**已被后续 PB2/PB6 改写**——和弦驱动
 > （`yate/keyproto/driver_windows.py`）+ win32-input-mode 帧解码落地后，Windows 上 `ctrl+1` 已可达
-> （真机无人值守验收 12/12 PASS，见 `keybinding_fix_wt_steps_plan_g.md` PB6 行）。双语 manual 已由 PB4 改写为
+> （真机无人值守验收 12/12 PASS，见 `keybinding-fix-wt-steps-plan-g.md` PB6 行）。双语 manual 已由 PB4 改写为
 > 「Windows 默认启用和弦驱动，`Ctrl+1` 可用；`key_protocol = "legacy"` 回退时仅 kitty/CSI-u 终端可用」
 > （`yate/resources/manual.en.md:374-385` / `manual.zh.md:358-368`）。本节保留为当时的用户文档口径。
 
@@ -33,7 +33,7 @@ Windows Terminal / conhost 因修饰键丢失不可达。`ctrl+/` 与 `ctrl+p` �
 
 要点：
 - 给出**替代路径**（`alt+shift+p` 命令面板 / `:` 命令），不只是"不支持"；
-- 提及 `win_keybinding_plan.md` 的根治路线可放在 `.trae` 文档而非用户手册（手册面向用户，不引用内部计划）。
+- 提及 `win-keybinding-plan.md` 的根治路线可放在 `.trae` 文档而非用户手册（手册面向用户，不引用内部计划）。
 
 ### 步骤 3.3　README 键位速览
 

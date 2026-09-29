@@ -100,7 +100,7 @@ sequenceDiagram
   - 约束（≥2 帧、几何一致、调色板覆盖）与 `ValueError` → 扩展加载失败消息；
   - 完整示例扩展（注册 + teardown 注销）；
   - 白名单时序注意点（启动警告无害、toggle 时生效）与 `api.sprites.names()` 自检。
-- **文件**：`.trae/documents/fancy_sym_plan.md` 新 §九：登记三条长期建议，
+- **文件**：`.trae/documents/fancy-sym-plan.md` 新 §九：登记三条长期建议，
   第 1 条标记本轮落地（提交号回填）。
 - **验收**：全量 `pyright yate/ tests/ tools/` 0 诊断 + `pytest tests/ -q` 全绿。
 - **提交**：`docs(extensions): document the screensaver sprite registration API`

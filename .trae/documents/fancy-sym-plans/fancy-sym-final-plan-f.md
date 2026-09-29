@@ -19,7 +19,7 @@ Test-Path .trae\documents\fancy_sym_preview               # False（临时目录
 
 ### 2. 主方案回填
 
-[../fancy_sym_plan.md](../fancy_sym_plan.md) 状态行改为"已实施"，回填：
+[../fancy-sym-plan.md](../fancy-sym-plan.md) 状态行改为"已实施"，回填：
 真实测试数（基线 → 终态）、pyright 诊断数（0）、与计划的偏离点及实测
 依据（如角色造型微调、尺寸变化）；子计划文件头部标完成日期。
 

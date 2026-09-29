@@ -1,7 +1,7 @@
 # SP5 — 服务与日志健壮性（S5 + S11 + S33 + S34 + S36 + S39 决策门）
 
-> 来源：[P1 批次二（S5）](../code_review_fix_suggestions_plan_b.md)、[批次五（S11）](../code_review_fix_suggestions_plan_b.md)、
-> [批次六（S33/S34/S36/S39）](../code_review_fix_suggestions_plan_b.md)。统一门禁见 [README §五](overview.md)。
+> 来源：[P1 批次二（S5）](../code-review-fix-suggestions-plan-b.md)、[批次五（S11）](../code-review-fix-suggestions-plan-b.md)、
+> [批次六（S33/S34/S36/S39）](../code-review-fix-suggestions-plan-b.md)。统一门禁见 [README §五](overview.md)。
 
 ## 条目
 

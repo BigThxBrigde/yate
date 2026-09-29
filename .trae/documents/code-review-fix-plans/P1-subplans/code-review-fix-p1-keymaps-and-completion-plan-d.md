@@ -1,6 +1,6 @@
 # SP4 — 键映射与补全语义（S30 + S31 + S35 + S38）
 
-> 来源：[P1 批次六](../code_review_fix_suggestions_plan_b.md)。统一门禁见 [README §五](overview.md)。
+> 来源：[P1 批次六](../code-review-fix-suggestions-plan-b.md)。统一门禁见 [README §五](overview.md)。
 
 ## 条目
 

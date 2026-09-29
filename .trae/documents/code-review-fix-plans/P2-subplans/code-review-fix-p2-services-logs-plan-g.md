@@ -1,6 +1,6 @@
 # SP7 — services 与日志（N27 N28 N31）
 
-> 波次二 · 规模 S · [P2 原文](../code_review_fix_nice_to_have_plan_c.md)为唯一规范来源。
+> 波次二 · 规模 S · [P2 原文](../code-review-fix-nice-to-have-plan-c.md)为唯一规范来源。
 
 ## 独占文件清单
 

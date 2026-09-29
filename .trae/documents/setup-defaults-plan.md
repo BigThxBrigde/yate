@@ -1,4 +1,4 @@
-﻿# `--setup-defaults` / `--cleanup-defaults` 用户配置初始化与清理计划
+# `--setup-defaults` / `--cleanup-defaults` 用户配置初始化与清理计划
 
 > **实施状态（2026-09-22 核对）：✅ 已实现。**
 >
@@ -310,7 +310,7 @@ python -m pytest tests/ -v
 | `yate/docs/yaterc.zh.md` / `yaterc.en.md` | 配置文件位置章节补 setup/cleanup |
 | `README.md` / `README.zh.md` | 快速开始增加初始化命令一行 |
 | `yate/cli.py` epilog | 加 `yate --setup-defaults` / `--cleanup-defaults` 示例 |
-| `.trae/documents/setup_defaults_plan.md` | 本文档 |
+| `.trae/documents/setup-defaults-plan.md` | 本文档 |
 
 模板文件自身（dracula/ayu `.example`、extensions `*.example`）头部注释
 补一句"由 `yate --setup-defaults` 安装；重命名为 .py 激活；本文件会在
@@ -330,7 +330,7 @@ python -m pytest tests/ -v
 | `yate/extensions/example_ext.py.example`、`yatesh_syntax.py.example` | 修改 | 同上 |
 | `yate/yaterc.example` | 修改 | 头部补 setup 提示 |
 | `manual.zh/en.md`、`themes.zh/en.md`、`yaterc.zh/en.md`、`README(.zh).md` | 修改 | 文档同步 |
-| `.trae/documents/setup_defaults_plan.md` | 新增 | 本文档 |
+| `.trae/documents/setup-defaults-plan.md` | 新增 | 本文档 |
 
 **不改动**：主题/扩展/yaterc 的任何加载逻辑（cli.py 现有默认扫描、
 config.py、app.py 扩展加载）、paths.py、PyInstaller spec、`~/.yate/data`

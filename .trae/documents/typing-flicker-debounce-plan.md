@@ -8,7 +8,7 @@
 >   version)` 键重建 timer；`_schedule_highlight()` / `_launch_highlight()` /
 >   `_highlight_later()` 对应落地。
 > - 因此"整屏脱色帧"已消除（首次/切文档/切 filetype 仍 delay=0，不受影响）。
-> - **仍未实施**：其后续计划 `highlight_comment_flicker_plan.md`
+> - **仍未实施**：其后续计划 `highlight-comment-flicker-plan.md`
 >   （变化行 regex 同步替换 + multiline 向后传播），故防抖窗口内的
 >   **行尾 token 边界漂移**仍按设计存在。
 

@@ -12,8 +12,8 @@
 >   `include = ["yate", "tools", "tests"]`（比本文档 §4 的 basic/override 方案
 >   更严格），当前 0 诊断。
 > - **过时内容**：§3 描述的"单一 VSCode Dark Modern 主题常量"已被后续主题系统
->   取代（8 套内置 + 模板 + Textual 主题桥，见 `themes_expansion_plan.md` /
->   `overlay_theme_consistency_plan.md`）。
+>   取代（8 套内置 + 模板 + Textual 主题桥，见 `themes-expansion-plan.md` /
+>   `overlay-theme-consistency-plan.md`）。
 
 ## 与当前实现的差异（回写，2026-09-22）
 
@@ -24,11 +24,11 @@
   `yate/editor_view/theme.py` 现有 8 套内置主题（Catppuccin 4 + One/Gruvbox 4）
   与 `resources/theme_examples/*.example` 模板，并桥接为 `yate-<name>` Textual
   主题（`textual_theme_name` / `to_textual_theme` / `validate_theme`），
-  所有覆盖屏跟随当前主题（见 `themes_expansion_plan.md` /
-  `overlay_theme_consistency_plan.md`）。
+  所有覆盖屏跟随当前主题（见 `themes-expansion-plan.md` /
+  `overlay-theme-consistency-plan.md`）。
 - **§2 重命名**：`yate/keymaps/vsc.py` 存在，`keymaps/normal.py` 不存在；
   `render_tabbar` 现为 `build_tabbar(width)`（配套 `TabBar` 点击命中，
-  见 `scrollbar_tab_click_plan.md`）。
+  见 `scrollbar-tab-click-plan.md`）。
 - **§5 / §6 测试**：已迁移 pytest，`tests/conftest.py::isolated_home` 提供全局
   隔离；正文中的 `unittest` 相关描述与 `tests/test_editor_core.py` 的旧断言
   已过时。

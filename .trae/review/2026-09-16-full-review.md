@@ -10,11 +10,11 @@
 > `.trae/documents/code-review-fix-plans/`；2026-09-24 起随状态复核更新，
 > 已修复 / 方案变更 / 补入条目均标注在各计划内）：
 >
-> - Critical → [code_review_fix_critical_plan_a.md](../documents/code-review-fix-plans/code_review_fix_critical_plan_a.md)
-> - Suggestion → [code_review_fix_suggestions_plan_b.md](../documents/code-review-fix-plans/code_review_fix_suggestions_plan_b.md)
-> - Nice-to-have → [code_review_fix_nice_to_have_plan_c.md](../documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md)
+> - Critical → [code-review-fix-critical-plan-a.md](../documents/code-review-fix-plans/code-review-fix-critical-plan-a.md)
+> - Suggestion → [code-review-fix-suggestions-plan-b.md](../documents/code-review-fix-plans/code-review-fix-suggestions-plan-b.md)
+> - Nice-to-have → [code-review-fix-nice-to-have-plan-c.md](../documents/code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md)
 
-### 🔴 Critical（必须修复）→ 计划：[P0](../documents/code-review-fix-plans/code_review_fix_critical_plan_a.md)
+### 🔴 Critical（必须修复）→ 计划：[P0](../documents/code-review-fix-plans/code-review-fix-critical-plan-a.md)
 
 - [x] **`:wq` 保存失败时仍退出，导致数据丢失** — `app_features/commands.py:54`
   `_wq` 调用 `save_document()` 后无条件 `quit(force=True)`。若保存失败（无路径、用户取消、权限错误），`force=True` 跳过未保存检查直接退出，丢失工作内容。
@@ -89,7 +89,7 @@
 
 ---
 
-### 🟡 Suggestion（建议修复）→ 计划：[P1](../documents/code-review-fix-plans/code_review_fix_suggestions_plan_b.md)
+### 🟡 Suggestion（建议修复）→ 计划：[P1](../documents/code-review-fix-plans/code-review-fix-suggestions-plan-b.md)
 
 - [x] **正则模式每次 tokenize 重新编译** — `editor_syntax/regex_backend.py:570`
   每次 `tokenize_document` 调用都重新构建并编译主正则。spec 不可变，结果始终相同。
@@ -242,7 +242,7 @@
 
 ---
 
-### 🟢 Nice-to-have（锦上添花）→ 计划：[P2](../documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md)
+### 🟢 Nice-to-have（锦上添花）→ 计划：[P2](../documents/code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md)
 
 - [x] **保存始终使用 LF，忽略原始/平台换行符** — `editor_core/document.py:97`
   *复核：仍存在 — [document.py:50-53](../../yate/editor_core/document.py) 打开时统一归一为 LF，保存按 LF 写出。*

@@ -3,9 +3,9 @@
 - **状态：全部子计划已完成（2026-09-27）**：plan_A `cb94b48` →
   plan_B `c019f22` → plan_C `5937ce4` → plan_D `6766bed` →
   plan_E `43a5c88` → plan_F（回填提交）；实测门禁与偏离见
-  [主方案 §八](../fancy_sym_plan.md)。
+  [主方案 §八](../fancy-sym-plan.md)。
 
-主方案（可行性/架构/版权/风险）：[../fancy_sym_plan.md](../fancy_sym_plan.md)。
+主方案（可行性/架构/版权/风险）：[../fancy-sym-plan.md](../fancy-sym-plan.md)。
 本文件夹把其实施步骤拆为 6 份独立可执行的子计划，每份含输入、改动文件、
 验收命令与工作量。
 
@@ -33,12 +33,12 @@ flowchart LR
 
 | 子计划 | 内容 | 主要交付物 | 工作量 | 依赖 |
 |---|---|---|---|---|
-| [plan_A](fancy_sym_sprites_plan_a.md) | L0 精灵包：半格块渲染纯函数、注册表+shuffle、27 只角色位图 | `yate/editor_sprites/*` + 测试 | 大 | 无 |
-| [plan_B](fancy_sym_rosters_tool_plan_b.md) | `python -m tools.pack rosters` 预览生成器；临时预览目录退役 | `tools/pack/rosters.py` | 小 | A |
-| [plan_C](fancy_sym_config_plan_c.md) | yaterc `screen_saver` 字典配置（enable/interval/switch/characters） | `yate/config.py` + 测试 | 小 | 无 |
-| [plan_D](fancy_sym_screen_plan_d.md) | L2 ScreensaverScreen + L3 动作/键位 + L4 空闲接线 | `editor_view/screensaver.py` 等 + 测试 | 中 | A、C |
-| [plan_E](fancy_sym_docs_plan_e.md) | yaterc 文档 / README / CHANGELOG（含 Inspired by 署名） | 文档四件套 | 小 | A–D |
-| [plan_F](fancy_sym_final_plan_f.md) | 全量门禁 + 主方案回填 + 临时文件清理核验 + 提交 | 提交系列 | 小 | A–E |
+| [plan_A](fancy-sym-sprites-plan-a.md) | L0 精灵包：半格块渲染纯函数、注册表+shuffle、27 只角色位图 | `yate/editor_sprites/*` + 测试 | 大 | 无 |
+| [plan_B](fancy-sym-rosters-tool-plan-b.md) | `python -m tools.pack rosters` 预览生成器；临时预览目录退役 | `tools/pack/rosters.py` | 小 | A |
+| [plan_C](fancy-sym-config-plan-c.md) | yaterc `screen_saver` 字典配置（enable/interval/switch/characters） | `yate/config.py` + 测试 | 小 | 无 |
+| [plan_D](fancy-sym-screen-plan-d.md) | L2 ScreensaverScreen + L3 动作/键位 + L4 空闲接线 | `editor_view/screensaver.py` 等 + 测试 | 中 | A、C |
+| [plan_E](fancy-sym-docs-plan-e.md) | yaterc 文档 / README / CHANGELOG（含 Inspired by 署名） | 文档四件套 | 小 | A–D |
+| [plan_F](fancy-sym-final-plan-f.md) | 全量门禁 + 主方案回填 + 临时文件清理核验 + 提交 | 提交系列 | 小 | A–E |
 
 A 与 C 可并行；B/C 完成后才进 D；顺序执行 E、F。
 

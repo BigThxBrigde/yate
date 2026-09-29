@@ -1,6 +1,6 @@
 # 方案 B 详细实施计划：Windows 键盘输入通道重构 + 键盘协议层
 
-> 命名前缀：`win_keybinding_*`（主计划：`win_keybinding_plan.md`；本文件：`win_keybinding_protocol_plan.md`）
+> 命名前缀：`win_keybinding_*`（主计划：`win-keybinding-plan.md`；本文件：`win-keybinding-protocol-plan.md`）
 > 本计划是**重构 + 新特性**：新增 `yate/keyproto/` 子包、自建 Windows 输入源、可配置键盘协议层与排障面板。
 > **执行顺序不可调整**：见 §4 逐步 checklist 与 §12 顺序禁忌清单。
 
@@ -29,14 +29,14 @@
 > | `crash.py:85-102` | `yate/logs/` 包的 crash 服务（tracing 体系重构后归属） | P4b.5 接入点 |
 >
 > **P2 状态重估**：P2.4 ✅（重构完成，改做回归守卫）；P2.3 大部分 ✅（`Editor.handle_key` 原生持有 event.key，只剩"名字传入 keymap 查找"一环）。P2.1 / P2.2 / P2.5 / P2.6 / P2.7 / P2.8 未做。
-> **P2 的精化与先行实施文档**：`wt_keybinding_fix_plan.md`（快速止血子集：ctrl+/ 映射修复 + 守卫 + 文档化），作为 P2 的第一个可交付切片先行落地。
+> **P2 的精化与先行实施文档**：`wt-keybinding-fix-plan.md`（快速止血子集：ctrl+/ 映射修复 + 守卫 + 文档化），作为 P2 的第一个可交付切片先行落地。
 >
 > **架构合规**（新增约束，实施时必须遵守）：`yate/keyproto/` 定位 **L0 叶子包**（不 import yate 上层；`driver_windows.py` 只依赖 Textual 第三方）；`keymaps/base.py`(L1)、~~`editor_view/keys.py`(L2)~~、**（2026-09-28 核对：该模块已删除、内容并入
 `yate/keyproto/legacy.py`，此处所指依赖方向现为 `keyproto → keymaps.base`，仍合规）**、`editor_term/emulator.py`(L0) → keyproto 均为向下依赖，合规；不新增 `Protocol`（R2）/`TYPE_CHECKING`（R6）/`Any`；`KeyChord` 用 PEP 695/3.12 dataclass 风格；pyright strict 零诊断；**2026-09-28 核对**：
 `tests/test_architecture.py` 实测 **20 个用例**（本文原写 13；`python -m pytest tests/test_architecture.py --collect-only`
 → `tests/test_architecture.py: 20`）；driver 合成的事件进入既有派发路径，不得绕过 `EditorView.on_key` 的 R10 单次派发约定。
 
-> **🧭 2026-09-28 实施现状核对**（本计划 P0–P9 的实际推进，依据代码与 `keybinding-fix-wt/keybinding_fix_wt_steps_plan_g.md` 执行状态表）：
+> **🧭 2026-09-28 实施现状核对**（本计划 P0–P9 的实际推进，依据代码与 `keybinding-fix-wt/keybinding-fix-wt-steps-plan-g.md` 执行状态表）：
 >
 > | 计划项 | 现状（实测） |
 > |---|---|
@@ -254,14 +254,14 @@ CANONICAL_ALIASES = {
 ### Phase 2 — 名字层接入派发（原方案 A 落地；**可独立发布 bugfix**）
 
 > 2026-09-26 校准：P2.4 已被分层重构完成（特例已迁至 `Editor.handle_key`），本 Phase 以其校准后的锚点为准；
-> 快速止血子集（P2.6 的 ctrl+/ 部分 + 守卫测试）已由 `wt_keybinding_fix_plan.md` 细化为先行切片。
+> 快速止血子集（P2.6 的 ctrl+/ 部分 + 守卫测试）已由 `wt-keybinding-fix-plan.md` 细化为先行切片。
 > 原 P2.2/P2.3 中的 interfaces.py 依赖不复存在——名字层接入改为**只扩展 `Editor`（L3）与 keymap（L1）**，
 > `YateApp`（L4）保持纯转发（R1/R7 合规）。
 
 - [ ] **P2.1** `yate/keymaps/base.py`：`Keymap` 增加 canonical 名索引（用 `keyproto.aliases` 的 canonical + 别名）；`lookup(key, name=None)`、`handle_key(ctx, key, name=None)`、`add_binding` 同步登记。
 - [ ] **P2.2**（原 interfaces.py:156 扩签名，文件已删除）`yate/editor.py:634` 扩签名 `handle_raw_key(raw, name: str | None = None)`；调用点 `yate/editor.py:629-632` 传入 `event.key`。
 - [x] **P2.3（已 moot，仅存一环，由 P2.2 收尾）**：`Editor.handle_key`（`yate/editor.py:554`）重构后原生持有 `event.key`；`YateApp.on_key`（`yate/app.py:150-154`）无需改动。
-- [x] **P2.4（✅ 已由重构完成，`9fa5ac8`）** `ctrl+shift+e`/`ctrl+1`/`ctrl+p` 已是 `yate/editor.py:618-626` 的 event.key 分支 + `vsc.py`/`vim.py` 正式绑定；**剩余工作仅为回归守卫**（见 `wt_keybinding_fix_plan.md` SP2）：vim 模式吞键不再影响这三个键（分支先于 keymap 派发）。
+- [x] **P2.4（✅ 已由重构完成，`9fa5ac8`）** `ctrl+shift+e`/`ctrl+1`/`ctrl+p` 已是 `yate/editor.py:618-626` 的 event.key 分支 + `vsc.py`/`vim.py` 正式绑定；**剩余工作仅为回归守卫**（见 `wt-keybinding-fix-plan.md` SP2）：vim 模式吞键不再影响这三个键（分支先于 keymap 派发）。
 - [ ] **P2.5** `yate/keymaps/vim.py:427-431`（normal 尾）与 `:185`（insert 尾）：未映射的**不可打印**键返回 `False` 冒泡；补 vim 回归用例（注意 R10：冒泡后由 `Editor.handle_key` 的 `return False` → `YateApp.on_key` 不 `stop`，单一冒泡路径，无二次派发）。
 - [ ] **P2.6** `yate/editor_term/emulator.py:143-144` 的 ctrl 映射补 `/`（`0x1F`），`key_to_terminal` 与 `keyproto.legacy` 合并共用内核（P1.2 落地后转发）。（**2026-09-28 核对**：`legacy.py` 现只导出
    `event_to_raw()` / `textual_key_to_raw()`，**无** `to_legacy_bytes()`。）

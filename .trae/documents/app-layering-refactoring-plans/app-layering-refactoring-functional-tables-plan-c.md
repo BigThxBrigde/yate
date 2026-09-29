@@ -1,6 +1,6 @@
 # Plan C — 函数化的表与流程：`populate` / `register_commands` / 补全 / 扩展
 
-> 状态：✅ **已完成**（工作区）· 前置：[Plan B](app_layering_refactoring_widget_selfhold_plan_b.md) · 后置：[Plan D](app_layering_refactoring_shell_wiring_plan_d.md)
+> 状态：✅ **已完成**（工作区）· 前置：[Plan B](app-layering-refactoring-widget-selfhold-plan-b.md) · 后置：[Plan D](app-layering-refactoring-shell-wiring-plan-d.md)
 > 门禁：`python -m pyright yate/` 0 诊断；内置表可由外部装载（不产生导入环）
 
 ---

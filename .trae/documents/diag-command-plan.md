@@ -1,4 +1,4 @@
-﻿# `--version` 与 `--diag` 诊断命令实施计划
+# `--version` 与 `--diag` 诊断命令实施计划
 
 > **实施状态（2026-09-22 核对）：✅ 已实现。**
 >
@@ -6,7 +6,7 @@
 >   `print_report(editor)`，节注册表为 **12 节**：system /
 >   terminal / shell / paths / yaterc / config / themes / syntax / extensions /
 >   lsp / fonts / packages（**无 `dap` 节**，因 DAP 未实施，见
->   `dap_support_plan.md`）。
+>   `dap-support-plan.md`）。
 >   **（2026-09-28 核对修正）**：① `version_lines()` **不在** `diagnostics.py`，
 >   它在 `yate/cli.py:24`（后经 `44b67ea` 由 diagnostics 下沉到 cli），
 >   `diagnostics.py:61/105` 只有 `format_report` / `print_report`；
@@ -338,7 +338,7 @@ yate --diag > diag.txt       # 重定向到文件，便于随 issue 上传
 | `yate/editor_lsp/manager.py` | 修改 | 新增 `configs()` 只读访问器 |
 | `tests/test_cli.py` | 修改 | `--version` / `--diag` CLI 层用例 |
 | `tests/test_diagnostics.py` | 新增 | 报告内容、脱敏、best-effort 用例 |
-| `.trae/documents/diag_command_plan.md` | 新增 | 本文档 |
+| `.trae/documents/diag-command-plan.md` | 新增 | 本文档 |
 
 ---
 

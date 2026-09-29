@@ -1,8 +1,8 @@
 # Plan E — 门禁、冒烟基线与文档回填
 
-> 状态：✅ **已完成**（2026-09-27）· 前置：[Plan A](theme_ownership_refactoring_theme_broadcast_plan_a.md)–[Plan D](theme_ownership_refactoring_architecture_guards_plan_d.md) 全部完成
+> 状态：✅ **已完成**（2026-09-27）· 前置：[Plan A](theme-ownership-refactoring-theme-broadcast-plan-a.md)–[Plan D](theme-ownership-refactoring-architecture-guards-plan-d.md) 全部完成
 > 独占文件：`tools/smoke_test/smoke_baselines/*.json`（2 个）、`.trae/issues/review_ui_refine_20260927.md`、
-> `.trae/documents/theme_ownership_plan.md`
+> `.trae/documents/theme-ownership-plan.md`
 > 门禁：总纲 §1.2 全表（pyright 0 / pytest 绿 / run + compare 均 exit 0）
 
 ---
@@ -27,7 +27,7 @@
 
 ## E.3 计划文档迁移
 
-原单文件方案 `theme_ownership_plan.md` 的内容按 app-layering-plans 规格拆分为本目录
+原单文件方案 `theme-ownership-plan.md` 的内容按 app-layering-plans 规格拆分为本目录
 （README 总纲 + Plan A–E 分册）；原文件改为**指针 stub**，避免双份真相。
 
 ## E.4 冒烟基线漂移：发现 → 归因 → 闭合
