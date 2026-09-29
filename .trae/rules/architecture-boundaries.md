@@ -7,7 +7,7 @@ scene: architecture
 
 本规则固化「分层重构」后的目标架构。完整方案与执行记录见
 [`.trae/documents/app-layering-refactoring-plans/`](../documents/app-layering-refactoring-plans/overview.md)
-（总纲 `README.md` + `plan_A`…`plan_G`）。
+（总纲 `overview.md` + `plan_a`…`plan_g`）。
 **所有新增/修改代码都必须遵守，不得因为新功能而破坏这些边界。**
 
 ## 一、依赖方向（硬性规则）

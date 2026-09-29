@@ -48,16 +48,27 @@ tools: Glob, Grep, Read, Edit, Write, Bash
 ## 子计划拆分与执行波次（复杂任务硬性要求）
 
 判定属于复杂任务（≥3 文件 / 跨层 / 触架构边界 / 多模块联动）时，禁止写成
-单个大而全的方案文档，必须精细拆分为子计划并落盘到子文件夹，沿用既有
-`.trae/documents/app-layering-refactoring-plans/` 的命名约定：
+单个大而全的方案文档，必须精细拆分为子计划并落盘到子文件夹，遵守统一命名
+规范（`.trae/documents/doc_plans_naming_convention_plan.md` 是首个实例）：
 
 ```
 .trae/documents/<task>_plans/
-├── README.md      # 总纲：目标 / 非目标、子计划索引、执行波次表、依赖关系图（Mermaid）
-├── plan_A.md      # 每个子计划独立成文
-├── plan_B.md
+├── overview.md                                # 总纲：目标 / 非目标、子计划索引、执行波次表、依赖关系图（Mermaid）
+├── <task>_<subtask>_plan_a.md                 # 每个子计划独立成文
+├── <task>_<subtask>_plan_b.md
 └── ...
 ```
+
+**命名规范（硬性）**：
+
+- 主计划：`<task>_plan.md`；
+- 子计划：`<task>_[subtask]_plan_<a|b|c...>.md`，subtask 视情况省略
+  （如 `python_312_upgrade_plan_a.md`）；
+- 波次标记（SP0-SP4、P0-P2、PLAN_B_v2 等）一律转字母序 `a,b,c...`，
+  原语义由 subtask 主题或文档内文保留；
+- 子文件夹总纲一律命名 `overview.md`（不用 README.md）；
+- 子文件夹目录名保持既有风格不动（连字符 `*-plans/` 与下划线 `*_plans/` 均可，
+  新建目录二选一后不得混用）。
 
 每个子计划必须自包含：输入、独占文件清单、具体修改（定位到文件:行号）、
 需新增的测试用例、可执行验收命令、风险与回滚路径。
@@ -68,7 +79,7 @@ tools: Glob, Grep, Read, Edit, Write, Bash
   （调度方按 subagent-workflow 以 2~3 个一批并行下发）；
 - 波次间存在依赖的必须**串行**：上一波全部子计划验收通过（验收命令退出码 0）
   才允许进入下一波；
-- 每个子计划标注所属波次，如 `wave-1: plan_A ∥ plan_B`、`wave-2: plan_C`；
+- 每个子计划标注所属波次，如 `wave-1: plan_a ∥ plan_b`、`wave-2: plan_c`；
 - 波次表是 task-coordinator 并行调度的唯一依据，波次一经批准不得在执行中
   临时重排；确需调整须回填文档并说明实测依据。
 
