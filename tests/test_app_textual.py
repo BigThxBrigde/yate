@@ -32,6 +32,7 @@ from yate.editor_view.manual import MarkdownDocScreen
 from yate.keymaps.base import ActionContext
 from yate.keymaps.vim import VimKeymap
 from yate.keyproto.legacy import event_to_raw
+from yate.prompt_completion import prompt_completions
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
@@ -627,7 +628,7 @@ def test_file_palette_filters_and_opens(tmp_path: Path) -> None:
         (tmp_path / "data.txt").write_text("data\n", encoding="utf-8")
         app = YateApp(target=tmp_path)
         async with app.run_test(size=(100, 30)) as pilot:
-            app.editor.open_file_palette()
+            app.editor.overlays.open_file_palette()
             await pilot.pause()
             assert isinstance(app.screen, PaletteScreen)
             for ch in "note":
@@ -704,7 +705,7 @@ def test_command_palette_lists_all_commands_and_actions() -> None:
                                   "zz palette command")
             app.editor.actions.register(
                 "zzz_palette_action", _act, "zz palette action")
-            app.editor.open_command_palette()
+            app.editor.overlays.open_command_palette()
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
@@ -739,7 +740,7 @@ def test_command_palette_runs_action_by_full_name() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             assert app.editor.keymaps.name == "vsc"
-            app.editor.open_command_palette()
+            app.editor.overlays.open_command_palette()
             await pilot.pause()
             assert isinstance(app.screen, PaletteScreen)
             for ch in "toggle_keymap":
@@ -764,7 +765,7 @@ def test_command_palette_searches_descriptions() -> None:
     async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            app.editor.open_command_palette()
+            app.editor.overlays.open_command_palette()
             await pilot.pause()
             for ch in "switch color theme":
                 await pilot.press(ch)
@@ -791,7 +792,7 @@ def test_palette_down_cursor_moves(tmp_path: Path) -> None:
             (tmp_path / name).write_text("x\n", encoding="utf-8")
         app = YateApp(target=tmp_path)
         async with app.run_test(size=(100, 30)) as pilot:
-            app.editor.open_file_palette()
+            app.editor.overlays.open_file_palette()
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
@@ -2292,7 +2293,10 @@ def test_tab_cycles_multiple_command_matches() -> None:
             await pilot.pause()
             inp = app.editor.prompt_bar.input if app.editor.prompt_bar else None
             assert inp is not None
-            matches = app.editor.prompt_completions("w", "command")
+            matches = prompt_completions(
+                "w", "command", commands=app.editor.commands,
+                session=app.editor.session, workspace=app.editor.workspace,
+            )
             assert len(matches) > 1
             await pilot.press("tab")
             await pilot.pause()
@@ -2424,18 +2428,25 @@ def test_tab_completions_for_filetype() -> None:
     async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
-            assert app.editor.prompt_completions("set filetype=pyt", "command") == [
+            def completions(text: str, mode: str) -> list[str]:
+                return prompt_completions(
+                    text, mode, commands=app.editor.commands,
+                    session=app.editor.session,
+                    workspace=app.editor.workspace,
+                )
+
+            assert completions("set filetype=pyt", "command") == [
                 "set filetype=python"
             ]
             # "r" prefix matches both the "rs" extension key and the
             # "rust" language name.
-            assert sorted(app.editor.prompt_completions("filetype r", "command")) == [
+            assert sorted(completions("filetype r", "command")) == [
                 "filetype rs", "filetype rust"
             ]
-            vals = app.editor.prompt_completions("set ft=", "command")
+            vals = completions("set ft=", "command")
             assert "set ft=auto" in vals
             assert "set ft=python" in vals
-            assert app.editor.prompt_completions("set file", "command") == [
+            assert completions("set file", "command") == [
                 "set filetype"
             ]
             await pilot.pause()
@@ -2554,7 +2565,7 @@ def test_goto_prompt_rejects_non_numeric() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             _seed_goto(app)
-            app.editor.goto_prompt()
+            app.editor.prompt_flows.goto_prompt()
             await pilot.pause()
             prompt_bar = app.editor.prompt_bar
             assert prompt_bar is not None
@@ -2679,7 +2690,7 @@ def test_cycle_tab_resets_the_previous_search(tmp_path: Path) -> None:
             assert app.editor.session.search.query == ""
 
             # ``n`` must not jump to the old document's out-of-range coords.
-            app.editor.find_next(True)
+            app.editor.prompt_flows.find_next(True)
             await pilot.pause()
             row, _col = app.editor.session.buffer.cursor
             assert 0 <= row < app.editor.session.buffer.line_count

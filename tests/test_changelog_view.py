@@ -149,7 +149,7 @@ def test_load_manual_markdown_keeps_behaviour() -> None:
 def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
     app = _FakeApp()
     editor = _make_editor(app)
-    editor.show_changelog("zh")
+    editor.overlays.show_changelog("zh")
     assert len(app.pushed) == 1
     screen, callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
@@ -165,7 +165,7 @@ def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
 def test_show_manual_pushes_manual_screen() -> None:
     app = _FakeApp()
     editor = _make_editor(app)
-    editor.show_manual("en")
+    editor.overlays.show_manual("en")
     screen, _callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
     assert screen._kind == "manual"
@@ -175,7 +175,7 @@ def test_show_manual_pushes_manual_screen() -> None:
 def test_not_mounted_does_not_push() -> None:
     app = _FakeApp()
     editor = _make_editor(app, mounted=False)
-    editor.show_changelog()
+    editor.overlays.show_changelog()
     assert app.pushed == []
     assert app.theme == "yate-mocha"
 
@@ -184,7 +184,7 @@ def test_already_on_doc_screen_does_not_stack() -> None:
     app = _FakeApp(screen=MarkdownDocScreen(kind="manual", lang="en",
                                             title="user manual"))
     editor = _make_editor(app)
-    editor.show_changelog()
+    editor.overlays.show_changelog()
     assert app.pushed == []
 
 
@@ -197,10 +197,13 @@ def test_changelog_command_registered() -> None:
     registry = CommandRegistry()
     forwarded: list[str] = []
 
-    class StubEditor:
+    class StubOverlays:
         @staticmethod
         def show_changelog(lang: str = "en") -> None:
             forwarded.append(lang)
+
+    class StubEditor:
+        overlays = StubOverlays()
 
     register_commands(registry, cast(Any, StubEditor()))
     assert "changelog" in registry.names()

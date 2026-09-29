@@ -20,34 +20,65 @@ from yate.session import EditorSession
 
 #: Every editor hook the built-in table forwards to.  A typo in ``actions.py``
 #: (a hook the real editor does not have) shows up here as an unexpected name.
+#: Hooks on the flow collaborators (``prompt_flows`` / ``overlays`` / ``shell``)
+#: are recorded with their dotted path (``overlays.show_help``).
 FORWARDED_HOOKS = frozenset(
     {
         "close_tab",
         "command_prompt",
         "cycle_tab",
-        "find_next",
-        "find_prompt",
         "focus_editor",
         "focus_explorer",
-        "goto_prompt",
         "new_buffer",
-        "open_command_palette",
-        "open_file_palette",
+        "overlays.open_command_palette",
+        "overlays.open_file_palette",
+        "overlays.show_help",
+        "overlays.show_manual",
+        "overlays.toggle_screensaver",
         "page",
+        "prompt_flows.find_next",
+        "prompt_flows.find_prompt",
+        "prompt_flows.goto_prompt",
+        "prompt_flows.replace_prompt",
         "prompt_open",
         "quit",
-        "replace_prompt",
         "save_document",
-        "shell_prompt",
-        "show_help",
-        "show_manual",
+        "shell.open_prompt",
         "toggle_explorer",
         "toggle_keymap",
-        "toggle_screensaver",
     }
 )
 
+#: Editor members the table reaches through (each a flow collaborator).
+_FLOW_NAMESPACES = frozenset({"prompt_flows", "overlays", "shell", "lsp_sync"})
+
 Call = tuple[str, tuple[Any, ...], dict[str, Any]]
+
+
+class _StubFlows:
+    """Records calls on one of the editor's flow collaborators.
+
+    The table calls through ``editor.<flows>.<hook>``; the stub mirrors
+    that shape and records the dotted name so :meth:`_StubEditor.calls_to`
+    keeps a single flat namespace.
+    """
+
+    def __init__(self, parent: _StubEditor, namespace: str) -> None:
+        self._parent = parent
+        self._namespace = namespace
+
+    def __getattr__(self, name: str) -> Callable[..., None]:
+        if name.startswith("_"):
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}"
+            )
+
+        def record(*args: Any, **kwargs: Any) -> None:
+            self._parent.calls.append(
+                (f"{self._namespace}.{name}", args, kwargs)
+            )
+
+        return record
 
 
 class _StubEditor:
@@ -56,14 +87,19 @@ class _StubEditor:
     Hooks are not implemented: :meth:`__getattr__` returns a call-recording
     no-op (the same idea as ``_FakeApp`` in ``test_editor_core.py``), so a
     newly added action stays a harmless no-op instead of raising
-    ``AttributeError``, while tests can still assert the call.  Private and
-    dunder lookups are real errors.
+    ``AttributeError``, while tests can still assert the call.  Flow
+    collaborators (:data:`_FLOW_NAMESPACES`) return a :class:`_StubFlows`
+    sub-recorder.  Private and dunder lookups are real errors.
     """
 
     def __init__(self) -> None:
         self.calls: list[Call] = []
 
-    def __getattr__(self, name: str) -> Callable[..., None]:
+    def __getattr__(
+        self, name: str
+    ) -> Callable[..., None] | _StubFlows:
+        if name in _FLOW_NAMESPACES:
+            return _StubFlows(self, name)
         if name.startswith("_") or name == "calls":
             raise AttributeError(
                 f"{type(self).__name__!r} object has no attribute {name!r}"
@@ -290,9 +326,11 @@ def test_search_actions_forward_the_direction() -> None:
     for name in ("find", "find_next", "find_prev", "replace"):
         assert registry.execute(name, ctx) is True
 
-    assert editor.calls_to("find_prompt") == [((True,), {})]
-    assert editor.calls_to("find_next") == [((True,), {}), ((False,), {})]
-    assert editor.calls_to("replace_prompt") == [((), {})]
+    assert editor.calls_to("prompt_flows.find_prompt") == [((True,), {})]
+    assert editor.calls_to("prompt_flows.find_next") == [
+        ((True,), {}), ((False,), {})
+    ]
+    assert editor.calls_to("prompt_flows.replace_prompt") == [((), {})]
 
 
 def test_view_and_file_actions_forward_to_their_hook() -> None:
@@ -304,15 +342,15 @@ def test_view_and_file_actions_forward_to_their_hook() -> None:
         "close_tab": "close_tab",
         "quit": "quit",
         "command_prompt": "command_prompt",
-        "goto_prompt": "goto_prompt",
-        "quick_open": "open_file_palette",
-        "command_palette": "open_command_palette",
+        "goto_prompt": "prompt_flows.goto_prompt",
+        "quick_open": "overlays.open_file_palette",
+        "command_palette": "overlays.open_command_palette",
         "focus_explorer": "focus_explorer",
         "focus_editor": "focus_editor",
         "toggle_explorer": "toggle_explorer",
-        "manual": "show_manual",
-        "shell_prompt": "shell_prompt",
-        "help": "show_help",
+        "manual": "overlays.show_manual",
+        "shell_prompt": "shell.open_prompt",
+        "help": "overlays.show_help",
     }
     for action, hook in expected.items():
         assert registry.execute(action, _context()) is True

@@ -84,6 +84,12 @@ class ShellFlows:
             group="shell", exclusive=False, exit_on_error=False,
         )
 
+    def open_prompt(self) -> None:
+        """Open the shell prompt (``:!`` / F2)."""
+        self.prompt.activate(
+            "shell", placeholder="shell command", on_submit=self.run_later,
+        )
+
     async def run_async(
         self, command: str, show_output: bool = True
     ) -> ShellResult | None:

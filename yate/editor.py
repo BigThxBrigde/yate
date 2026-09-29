@@ -22,12 +22,9 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from collections.abc import Callable
-
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
-from textual.screen import Screen
 
 from yate import __version__
 from yate.completion import CompletionFlows
@@ -61,7 +58,6 @@ from yate.services.extensions import (
     ExtensionLoader,
     load_startup_extensions,
 )
-from yate.services.shell import ShellResult
 from yate.services.trust import trust_workspace
 from yate.services.workspace import Workspace
 from yate.session import Axis, EditorSession, Leaf
@@ -116,20 +112,17 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     ed.commands = CommandRegistry()
     ed.extension_api = ExtensionAPI(ed.extension_context())
     ed.extension_loader = ExtensionLoader(ed.extension_api)
-    ed.key_ui = KeyUi(
-        execute_action=ed.execute_action,
-        message=ed.message,
-        command_prompt=ed.command_prompt,
-        find_prompt=ed.find_prompt,
-        goto_prompt=ed.goto_prompt,
-        toggle_keymap=ed.toggle_keymap,
-    )
 
 
 def _build_widgets(ed: Editor) -> None:
     """Create the widget tree members and keep the references ops need."""
     ed.prompt_bar = PromptBar(
-        ed.prompt_completions,
+        partial(
+            prompt_completions,
+            commands=ed.commands,
+            session=ed.session,
+            workspace=ed.workspace,
+        ),
         cancel_hook=ed.cancel_prompt,
         focus_editor=ed.focus_editor,
         refresh=ed.refresh_ui,
@@ -177,7 +170,7 @@ def _build_pane_stack(ed: Editor) -> None:
 
     The controllers (:class:`LspSync` / :class:`OverlayFlows` /
     :class:`ShellFlows` / :class:`CompletionFlows`) own the multi-step
-    flows; the editor keeps thin delegating methods as its public face.
+    flows; callers invoke them directly.
     """
     # The pane tree owns editor windows; it starts with one leaf on the
     # startup document and grows with :split / :vsplit.
@@ -244,6 +237,24 @@ def _build_pane_stack(ed: Editor) -> None:
         popup=ed.completion_popup,
         prompt=ed.prompt_bar,
         refresh=ed.refresh_ui,
+        readonly_notice=ed.readonly_notice,
+    )
+
+
+def _build_key_ui(ed: Editor) -> None:
+    """Build the keymap UI record once the flow modules exist.
+
+    ``find_prompt`` / ``goto_prompt`` bind straight to
+    :class:`PromptFlows` (the editor keeps no delegates), so this runs
+    last -- after :func:`_build_pane_stack` has created them.
+    """
+    ed.key_ui = KeyUi(
+        execute_action=ed.execute_action,
+        message=ed.message,
+        command_prompt=ed.command_prompt,
+        find_prompt=ed.prompt_flows.find_prompt,
+        goto_prompt=ed.prompt_flows.goto_prompt,
+        toggle_keymap=ed.toggle_keymap,
     )
 
 
@@ -308,6 +319,7 @@ class Editor:
         _build_widgets(self)
         _open_startup_target(self, target)
         _build_pane_stack(self)
+        _build_key_ui(self)
 
     # ================================================================ wiring
 
@@ -321,7 +333,11 @@ class Editor:
             actions=self.actions,
             commands=self.commands,
             message=self.message,
-            run_shell=self.run_shell_command,
+            # the shell does not exist yet (it is built with the pane
+            # stack); resolve it on first call like the callbacks above
+            run_shell=lambda command, show_output=True: self.shell.run(
+                command, show_output
+            ),
             open_path=self.open_path_later,
             save=self.save_document,
         )
@@ -543,7 +559,7 @@ class Editor:
             return
         self.explorer_tree.refresh_tree()
         self.session.reset_search()
-        self.close_completion()
+        self.completion.close()
         self.message(f"opened {self.session.doc.name}")
         self.refresh_ui()
 
@@ -563,7 +579,7 @@ class Editor:
             return
         self.explorer_tree.refresh_tree()
         self.session.reset_search()
-        self.close_completion()
+        self.completion.close()
         self.message(f"opened {self.session.doc.name}")
         self.refresh_ui()
 
@@ -585,7 +601,7 @@ class Editor:
         if self.mounted:
             self.panes.show_doc(self.panes.active, doc)
         self.session.reset_search()
-        self.close_completion()
+        self.completion.close()
         if show:
             # A user-requested buffer (:enew / new tab) dismisses the
             # one-time welcome page for the rest of the session. Internal
@@ -612,7 +628,7 @@ class Editor:
             # other panes keep their documents and independent view states.
             self.panes.document_closed(closed, fallback)
         self.session.reset_search()
-        self.close_completion()
+        self.completion.close()
         self.message("closed tab")
         self.refresh_ui()
 
@@ -632,7 +648,7 @@ class Editor:
         # buffer: keeping them would paint stale highlights on the new
         # document and send ``n`` to out-of-range coordinates.
         self.session.reset_search()
-        self.close_completion()
+        self.completion.close()
         self.refresh_ui()
 
     def save_document(self) -> None:
@@ -714,7 +730,7 @@ class Editor:
         dispatch is not side-effect free: :meth:`try_window_prefix` arms
         and clears the ``ctrl+w`` pending chord (``_window_pending``) and
         the completion-popup branch commits the highlighted candidate
-        (``accept_completion``).  A ``True`` return means the caller must
+        (``completion.accept``).  A ``True`` return means the caller must
         stop the event (R10) instead of letting it bubble into a second
         dispatch.
         """
@@ -743,7 +759,7 @@ class Editor:
         nul_keys = ("ctrl+space", "ctrl+@")
         if event.key in nul_keys:
             if editor_focused or event.key == "ctrl+space":
-                self.request_completion(manual=True)
+                self.completion.request(manual=True)
                 return True
         if event.key in TOGGLE_KEYS and event.key not in nul_keys:
             self.terminal_panel.toggle()
@@ -757,7 +773,7 @@ class Editor:
         popup = self.completion_popup
         if popup.is_open:
             if event.key in ("tab", "enter"):
-                self.accept_completion()
+                self.completion.accept()
                 return True
             if event.key == "up":
                 popup.select_prev()
@@ -777,7 +793,7 @@ class Editor:
         # for its own command palette, and ctrl+shift+a clashes with other
         # terminal emulators; alt+shift+p is unbound in both.
         if event.key == "alt+shift+p":
-            self.open_command_palette()
+            self.overlays.open_command_palette()
             return True
         if self.prompt_bar.active_mode:
             # command line is editing; enter must bubble so the Input's own
@@ -799,7 +815,7 @@ class Editor:
             self.focus_editor()
             return True
         if event.key == "ctrl+p":
-            self.open_file_palette()
+            self.overlays.open_file_palette()
             return True
         if self.app.focused is self.explorer_tree:
             return False  # explorer consumes its own keys
@@ -1022,7 +1038,7 @@ class Editor:
 
     def after_pane_focus(self) -> None:
         """Editor-level sync after the active pane changed."""
-        self.close_completion()
+        self.completion.close()
         self.refresh_ui()
 
     # =============================================================== prompts
@@ -1053,38 +1069,6 @@ class Editor:
             on_submit=self.run_command,
         )
 
-    def shell_prompt(self) -> None:
-        """Open the shell prompt (``:!`` / F2)."""
-        self.prompt_bar.activate(
-            "shell",
-            placeholder="shell command",
-            on_submit=lambda text: self.shell.run_later(text),
-        )
-
-    def find_prompt(self, forward: bool) -> None:
-        """Open the search prompt (``/``, ``?``, ctrl+f)."""
-        self.prompt_flows.find_prompt(forward)
-
-    def find_next(self, forward: bool) -> None:
-        """``n``/``N``: jump to the next / previous match."""
-        self.prompt_flows.find_next(forward)
-
-    def replace_prompt(self) -> None:
-        """``:s`` style replace: ask for the search text."""
-        self.prompt_flows.replace_prompt()
-
-    def goto_prompt(self) -> None:
-        """Open the command line in go-to-line mode (Ctrl+G)."""
-        self.prompt_flows.goto_prompt()
-
-    def goto_line_command(self, text: str) -> None:
-        """Jump to an absolute (``42``) or signed-relative (``+5``) line."""
-        self.prompt_flows.goto_line_command(text)
-
-    def goto_line(self, line: int) -> None:
-        """Move the cursor to 1-based *line*, clamped to the document."""
-        self.prompt_flows.goto_line(line)
-
     def page(self, direction: int, half: bool = False) -> None:
         """Scroll the active view by (half) a page."""
         view = self.panes.active_view
@@ -1094,18 +1078,6 @@ class Editor:
         buf = self.session.buffer
         target = max(0, min(buf.row + rows, buf.line_count - 1))
         buf.cursor = (target, min(buf.col, len(buf.lines[target])))
-
-    # ----------------------------------------------------- prompt completion
-
-    def prompt_completions(self, text: str, mode: str) -> list[str]:
-        """Tab-completion candidates for the bottom prompt."""
-        return prompt_completions(
-            text,
-            mode,
-            commands=self.commands,
-            session=self.session,
-            workspace=self.workspace,
-        )
 
     # ================================================================ keymap
 
@@ -1206,16 +1178,6 @@ class Editor:
 
     # ================================================================= shell
 
-    def run_shell_command(
-        self, command: str, show_output: bool = True
-    ) -> ShellResult | None:
-        """Run a shell command synchronously and capture its output."""
-        return self.shell.run(command, show_output)
-
-    def run_shell_command_later(self, command: str) -> None:
-        """Schedule a non-blocking shell run from a sync handler."""
-        self.shell.run_later(command)
-
     def run_command(self, text: str) -> None:
         """``:`` command line: dispatch one ex command."""
         text = text.strip()
@@ -1227,7 +1189,7 @@ class Editor:
         # A bare number is a line jump (vim's :42, same as VS Code's
         # Ctrl+G -> go to line). An optional sign makes it relative: :+5.
         if re.fullmatch(r"[+-]?\d+", text):
-            self.goto_line_command(text)
+            self.prompt_flows.goto_line_command(text)
             return
         parts = text.split()
         name, args = parts[0], " ".join(parts[1:])
@@ -1239,10 +1201,6 @@ class Editor:
         log.debug("command: %s (args=%r)", name, args)
         entry[0](args)
 
-    def install_font(self) -> None:
-        """``:font``: install the bundled Nerd Font (off the event loop)."""
-        self.shell.install_font()
-
     def quit(self, force: bool = False) -> None:
         """``:q``: leave yate (blocked while a buffer is modified)."""
         if not force and any(doc.modified for doc in self.session.docs):
@@ -1253,76 +1211,12 @@ class Editor:
         if self.mounted:
             self.app.exit()
 
-    # ============================================================= completion
-
-    def close_completion(self) -> None:
-        """Dismiss the completion popup if it is open."""
-        self.completion.close()
-
-    def request_completion(
-        self, manual: bool = True, trigger_ch: str | None = None
-    ) -> None:
-        """Fetch completions and show the popup (worker; never blocks input)."""
-        self.completion.request(manual, trigger_ch)
-
-    def accept_completion(self) -> None:
-        """Insert the selected completion at its reported range."""
-        try:
-            self.completion.accept()
-        except BufferReadOnlyError:
-            self.readonly_notice()
-            self.refresh_ui()
-
-    # =================================================================== lsp
-
-    def show_diagnostics(self) -> None:
-        """``:diagnostics`` -- list the active document's LSP diagnostics."""
-        self.lsp_sync.show_diagnostics()
-
-    # =============================================================== overlays
-
-    def push_overlay(
-        self,
-        screen: Screen[Any],
-        callback: Callable[[Any], None] | None = None,
-    ) -> None:
-        """Push a full-screen overlay (see :meth:`OverlayFlows.push`)."""
-        self.overlays.push(screen, callback)
-
-    def show_help(self) -> None:
-        """Open the keybinding reference overlay."""
-        self.overlays.show_help()
-
-    def show_manual(self, lang: str = "en") -> None:
-        """Open the bundled user manual, rendered as read-only markdown."""
-        self.overlays.show_manual(lang)
-
-    def show_changelog(self, lang: str = "en") -> None:
-        """Open the bundled bilingual changelog viewer."""
-        self.overlays.show_changelog(lang)
-
-    def open_file_palette(self) -> None:
-        """Quick file open: fuzzy palette over the workspace files (ctrl+p)."""
-        self.overlays.open_file_palette()
-
-    def open_command_palette(self) -> None:
-        """Command palette: fuzzy search over commands (alt+shift+p)."""
-        self.overlays.open_command_palette()
-
-    def toggle_screensaver(self) -> None:
-        """Enter or leave the full-terminal idle screensaver."""
-        self.overlays.toggle_screensaver()
-
     # ============================================================== explorer
-
-    def refresh_explorer(self) -> None:
-        """Rebuild the explorer tree (after create / rename / delete)."""
-        self.explorer_tree.refresh_tree()
 
     def set_show_hidden(self, flag: bool) -> None:
         """Show/hide dotfiles in the explorer and refresh the tree."""
         self.workspace.show_hidden = flag
-        self.refresh_explorer()
+        self.explorer_tree.refresh_tree()
 
     def toggle_explorer(self) -> None:
         """``:explorer`` / ctrl+b: show or hide the sidebar."""

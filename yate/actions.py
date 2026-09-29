@@ -129,29 +129,35 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
 
     # -------------------------------------------------------------- search
 
-    reg("find", lambda ctx: editor.find_prompt(True), "Find")
-    reg("find_next", lambda ctx: editor.find_next(True), "Next match")
-    reg("find_prev", lambda ctx: editor.find_next(False), "Previous match")
-    reg("replace", lambda ctx: editor.replace_prompt(), "Find & replace")
+    reg("find", lambda ctx: editor.prompt_flows.find_prompt(True), "Find")
+    reg("find_next", lambda ctx: editor.prompt_flows.find_next(True),
+        "Next match")
+    reg("find_prev", lambda ctx: editor.prompt_flows.find_next(False),
+        "Previous match")
+    reg("replace", lambda ctx: editor.prompt_flows.replace_prompt(),
+        "Find & replace")
 
     # ---------------------------------------------------------------- view
 
     reg("command_prompt", lambda ctx: editor.command_prompt(), "Ex command prompt")
-    reg("goto_prompt", lambda ctx: editor.goto_prompt(), "Go to line (enter a line number)")
-    reg("quick_open", lambda ctx: editor.open_file_palette(), "Quick file open")
-    reg("command_palette", lambda ctx: editor.open_command_palette(), "Command palette")
+    reg("goto_prompt", lambda ctx: editor.prompt_flows.goto_prompt(),
+        "Go to line (enter a line number)")
+    reg("quick_open", lambda ctx: editor.overlays.open_file_palette(),
+        "Quick file open")
+    reg("command_palette", lambda ctx: editor.overlays.open_command_palette(),
+        "Command palette")
     reg("focus_explorer", lambda ctx: editor.focus_explorer(), "Focus explorer")
     reg("focus_editor", lambda ctx: editor.focus_editor(), "Focus editor")
     reg("toggle_explorer", lambda ctx: editor.toggle_explorer(), "Toggle explorer")
-    reg("manual", lambda ctx: editor.show_manual(), "Open the user manual")
-    reg("shell_prompt", lambda ctx: editor.shell_prompt(), "Run shell command")
+    reg("manual", lambda ctx: editor.overlays.show_manual(), "Open the user manual")
+    reg("shell_prompt", lambda ctx: editor.shell.open_prompt(), "Run shell command")
     reg("prev_tab", lambda ctx: editor.cycle_tab(-1), "Previous tab")
     reg("next_tab", lambda ctx: editor.cycle_tab(1), "Next tab")
-    reg("help", lambda ctx: editor.show_help(), "Keyboard shortcuts help")
+    reg("help", lambda ctx: editor.overlays.show_help(), "Keyboard shortcuts help")
     reg("toggle_keymap", lambda ctx: editor.toggle_keymap(), "Toggle vsc/vim keymap")
     reg(
         "toggle_screensaver",
-        lambda ctx: editor.toggle_screensaver(),
+        lambda ctx: editor.overlays.toggle_screensaver(),
         "Toggle the idle screensaver",
     )
 

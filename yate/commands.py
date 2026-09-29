@@ -119,10 +119,10 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.close_tab()
 
     def _files(args: str) -> None:
-        editor.open_file_palette()
+        editor.overlays.open_file_palette()
 
     def _palette(args: str) -> None:
-        editor.open_command_palette()
+        editor.overlays.open_command_palette()
 
     def _trust(args: str) -> None:
         editor.trust_cwd_extensions()
@@ -252,13 +252,13 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.select_keymap("vsc")
 
     def _help(args: str) -> None:
-        editor.show_help()
+        editor.overlays.show_help()
 
     def _manual(args: str) -> None:
-        editor.show_manual(args or "en")
+        editor.overlays.show_manual(args or "en")
 
     def _changelog(args: str) -> None:
-        editor.show_changelog(args or "en")
+        editor.overlays.show_changelog(args or "en")
 
     reg("vim", _vim, "switch to vim key map")
     reg("vsc", _vsc, "switch to the vsc key map")
@@ -281,10 +281,10 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.terminal_panel.close()
 
     def _diagnostics(args: str) -> None:
-        editor.show_diagnostics()
+        editor.lsp_sync.show_diagnostics()
 
     def _font(args: str) -> None:
-        editor.install_font()
+        editor.shell.install_font()
 
     reg("explorer", _explorer, "toggle the file explorer")
     reg("term", _term, "open/focus the integrated terminal")
