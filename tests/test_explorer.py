@@ -1,5 +1,5 @@
 """Tests for yate.editor_view.explorer (ExplorerTree) and the session-side
-document cleanup behind it (EditorSession.close_under / Editor._lsp_documents_closed)."""
+document cleanup behind it (EditorSession.close_under / LspSync.documents_closed)."""
 
 # pyright: reportPrivateUsage=false
 
@@ -18,7 +18,6 @@ from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
 from yate.config import YateConfig
-from yate.editor import Editor
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_view import theme
@@ -29,6 +28,7 @@ from yate.editor_view.icons import (
     ICON_COLOR_FALLBACK,
     SETI_COLORS,
 )
+from yate.lsp_sync import LspSync
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
@@ -125,7 +125,7 @@ def test_submit_delete_cancelled_does_nothing(tmp_path: Path) -> None:
     assert prompt.writes == [("delete cancelled", "info")]
 
 
-# --- EditorSession.close_under / Editor._lsp_documents_closed --------------
+# --- EditorSession.close_under / LspSync.documents_closed ------------------
 
 
 class _LspRecorder:
@@ -141,7 +141,7 @@ class _LspRecorder:
 def _session_with_hook(lsp: _LspRecorder) -> tuple[EditorSession, MagicMock]:
     app = MagicMock()
     host = SimpleNamespace(app=app, lsp=lsp)
-    notify = cast(Any, Editor._lsp_documents_closed)
+    notify = cast(Any, LspSync.documents_closed)
     session = EditorSession(
         YateConfig(), on_closed=lambda closed: notify(host, closed)
     )
