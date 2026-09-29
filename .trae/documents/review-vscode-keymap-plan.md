@@ -113,16 +113,20 @@ vim 侧 `<alt-shift-s>` 行（vim.py:158-161）为 help-only 行，实际派发�
 - [x] 步骤 2：新增 `tests/test_vsc_keymap.py`（3 用例：无重复 raw key / action 全注册 /
   ctrl+w=close_tab）。定向键表测试全绿：`pytest tests/test_vsc_keymap.py tests/test_keymap_set.py
   tests/test_vim_keymap.py -q` → 127 passed。
-- [x] 步骤 3 全量门禁（junitxml 实测）：
-  - `pytest tests/ --deselect tests/test_app_textual.py::test_syntax_highlight_and_theme_switch`：
-    **1457 项 = 1450 passed + 7 skipped + 0 failed + 0 errors**（退出码 0）。
-  - `pyright --outputjson yate/ tests/ tools/`（strict）：**198 files，0 errors / 0 warnings /
-    0 informations**。
+- [x] 步骤 3 全量门禁（最终以项目 venv 解释器复跑，junitxml 实测）：
+  - `pytest tests/`（`D:\Programming\yate\.venv`，Python 3.13.2 + textual 8.2.8）：
+    **1458 项 = 1451 passed + 7 skipped + 0 failed + 0 errors**，退出码 0，无需 deselect。
+  - `pyright yate/ tests/ tools/`（strict）：**0 errors / 0 warnings / 0 informations**。
   - 架构测试 `tests/test_architecture.py` 随全量通过。
 - 偏离记录：
-  - 项目 `.venv` 损坏（缺 `pyvenv.cfg` 与 `Lib/`，只剩 `Scripts/`），门禁改用系统 Python 3.13
-    （`D:\Python\Python313`，textual 等依赖齐备）执行，pyright 经 `--pythonpath` 指向同一解释器；
-    修 venv 不在本任务范围。
-  - `tests/test_app_textual.py::test_syntax_highlight_and_theme_switch`（Catppuccin Mocha 主题色断言）
-    在干净 master 主仓复跑同样失败——存量环境差异（系统 textual 版本与主题色值），与本次 keymap
-    改动无关，按计划预估以 deselect 处理并在此如实登记。
+  - **更正（2026-09-29 晚）**：本会话早前"项目 `.venv` 损坏（缺 pyvenv.cfg / Lib）"的诊断有误
+    （当轮工具输出失真所致）；实测 venv 健康（Python 3.13.2、textual 8.2.8、pytest 9.1.1、
+    yate editable 安装齐全）。中间曾用系统 Python 3.13 跑过门禁（数字：deselect 1 例后
+    1457 项 0 失败），最终以上方 venv 复跑数字为准。
+  - `tests/test_app_textual.py::test_syntax_highlight_and_theme_switch` 为**负载敏感 flaky 用例**
+    （Textual pilot 时序：高负载下 `pilot.pause()` 后高亮段未就绪）：全量/混跑偶发失败、
+    独立复跑稳定通过（多轮实测含 master 与本分支、venv 与系统解释器各组合），与本次改动无关；
+    修复该 flake 属独立任务，未纳入本计划。
+  - worktree 不共享未跟踪目录（无 `.venv`，pyright 报 "venv .venv subdirectory not found"）：
+    以**目录联接** `.venv → D:\Programming\yate\.venv` 补齐（`.gitignore:101` 已覆盖，无 git 污染；
+    实测 `import yate` 仍解析到 worktree 源码），pyright 的 `venvPath/venv` 配置由此直接生效。
