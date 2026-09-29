@@ -85,3 +85,8 @@ OverlayFlows / CompletionFlows / ShellFlows / PromptFlows / LspSync 同构
   （不变量已由 `a4990c2` 类注解固化）。
 - 修复后门禁复测：pyright 0 诊断 / pytest 全绿（覆盖率 90.74%）/
   架构 20 passed / 冒烟 932/932 / `--diag` 退出码 0。
+
+## 六、关联登记
+
+同日 Gitee PR #37 平台 AI 审查（PR观察者，无阻断项、1 条可维护性建议）
+已登记于 [2026-09-29-pr37-editor-split.md](2026-09-29-pr37-editor-split.md)。
