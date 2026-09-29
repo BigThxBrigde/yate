@@ -20,6 +20,7 @@ from yate.editor_view.manual import (
     load_doc_markdown,
     load_manual_markdown,
 )
+from yate.overlays import OverlayFlows
 from yate.registries import CommandRegistry
 
 
@@ -49,11 +50,32 @@ class _FakeApp:
 
 
 def _make_editor(app: _FakeApp, *, mounted: bool = True) -> Editor:
-    """An Editor bound to *app* without running __init__ (overlay path only)."""
+    """An Editor bound to *app* without running __init__ (overlay path only).
+
+    Attaches a real :class:`OverlayFlows`: the push guards under test
+    live there since the overlay-flow extraction; the collaborators it does
+    not touch on this path are stubbed with ``None``.
+    """
     editor = object.__new__(Editor)
     editor.app = cast(Any, app)
     editor._mounted = mounted
     editor.prompt_bar = cast(Any, _FakePromptBar())
+    editor.overlays = OverlayFlows(
+        cast(Any, app),
+        cast(Any, None),  # config: only the screensaver flow reads it
+        cast(Any, None),  # keymaps / commands / actions / workspace: unused
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, None),
+        cast(Any, _FakePromptBar()),
+        message=lambda text, kind: None,
+        mounted=lambda: mounted,
+        open_path=lambda path: None,
+        focus_editor=lambda: None,
+        execute_action=lambda name: True,
+        run_command=lambda text: None,
+        refresh=lambda: None,
+    )
     return editor
 
 
@@ -127,7 +149,7 @@ def test_load_manual_markdown_keeps_behaviour() -> None:
 def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
     app = _FakeApp()
     editor = _make_editor(app)
-    editor.show_changelog("zh")
+    editor.overlays.show_changelog("zh")
     assert len(app.pushed) == 1
     screen, callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
@@ -143,7 +165,7 @@ def test_show_changelog_pushes_doc_screen_without_changing_theme() -> None:
 def test_show_manual_pushes_manual_screen() -> None:
     app = _FakeApp()
     editor = _make_editor(app)
-    editor.show_manual("en")
+    editor.overlays.show_manual("en")
     screen, _callback = app.pushed[0]
     assert isinstance(screen, MarkdownDocScreen)
     assert screen._kind == "manual"
@@ -153,7 +175,7 @@ def test_show_manual_pushes_manual_screen() -> None:
 def test_not_mounted_does_not_push() -> None:
     app = _FakeApp()
     editor = _make_editor(app, mounted=False)
-    editor.show_changelog()
+    editor.overlays.show_changelog()
     assert app.pushed == []
     assert app.theme == "yate-mocha"
 
@@ -162,7 +184,7 @@ def test_already_on_doc_screen_does_not_stack() -> None:
     app = _FakeApp(screen=MarkdownDocScreen(kind="manual", lang="en",
                                             title="user manual"))
     editor = _make_editor(app)
-    editor.show_changelog()
+    editor.overlays.show_changelog()
     assert app.pushed == []
 
 
@@ -175,10 +197,13 @@ def test_changelog_command_registered() -> None:
     registry = CommandRegistry()
     forwarded: list[str] = []
 
-    class StubEditor:
+    class StubOverlays:
         @staticmethod
         def show_changelog(lang: str = "en") -> None:
             forwarded.append(lang)
+
+    class StubEditor:
+        overlays = StubOverlays()
 
     register_commands(registry, cast(Any, StubEditor()))
     assert "changelog" in registry.names()

@@ -18,13 +18,16 @@ These tests enforce the boundaries documented in
   ``commands.py`` -- they import the editor, so the reverse is a cycle.
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
-* **R11** the two L3 collaborator modules that drive widgets
-  (``completion.py`` / ``prompt_completion.py``) keep that coupling frozen
-  and never look upward.
+* **R11** the L3 collaborator modules that drive widgets
+  (``completion.py`` / ``prompt_completion.py`` / ``lsp_sync.py`` /
+  ``shell_flows.py`` / ``overlays.py`` / ``prompt_flows.py``) keep that
+  coupling frozen and never look upward.
 * **Naming** (unnumbered guard, rules section 6): no ``*Feature`` / ``*Host``
   / ``*Ops`` / ``*Delegate`` identifiers and no ``AppProtocol``.  ``PaneHost``
   is a real Textual container widget (not a protocol / thin delegate) and is
-  whitelisted; ``*Manager`` and flow-level ``*Controller`` names stay allowed.
+  whitelisted.  UI flow modules are named by duty: ``*Flows`` for
+  multi-step orchestration, verb names like ``LspSync`` for sync adapters;
+  new ``*Controller`` names are banned.
 * **Panes** the pane tree model is L1 state, not a widget-package type layer:
   ``session.py`` owns ``Leaf`` / ``Split`` / ``ViewState`` and the tree
   operations, ``editor_view`` imports them and never re-exports them, and
@@ -96,12 +99,49 @@ UI_FROZEN_FILES = {
         "yate.editor_view",
         "yate.editor_view.theme",
     },
+    "document_flows.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
+        "yate.editor_view.explorer",
+        "yate.editor_view.panes",
+    },
+    "window_flows.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
+        "yate.editor_view.explorer",
+        "yate.editor_view.panes",
+    },
     "completion.py": {
         "yate.editor_view",
         "yate.editor_view.theme",
         "yate.editor_view.commandline",
         "yate.editor_view.completion",
         "yate.editor_view.editor",
+        "yate.editor_view.panes",
+    },
+    "lsp_sync.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
+        "yate.editor_view.modals",
+        "yate.editor_view.panes",
+        "yate.editor_view.statusbar",
+    },
+    "shell_flows.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
+        "yate.editor_view.modals",
+    },
+    "overlays.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
+        "yate.editor_view.modals",
+        "yate.editor_view.manual",
+        "yate.editor_view.palette",
+        "yate.editor_view.screensaver",
+    },
+    "prompt_flows.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
         "yate.editor_view.panes",
     },
 }
@@ -114,8 +154,9 @@ BUILTIN_TABLE_MODULES = ("yate.actions", "yate.commands")
 
 #: Banned identifier suffixes (R7): no protocol-ish / thin-delegate naming.
 #: ``PaneHost`` is the Textual widget container in ``editor_view/panes.py``,
-#: so it is whitelisted; ``*Manager`` and ``*Controller`` remain legal.
-BANNED_SUFFIXES = ("Feature", "Host", "Ops", "Delegate")
+#: so it is whitelisted.  Flow modules are named by duty (``*Flows`` /
+#: ``LspSync``); ``*Controller`` is banned for new code.
+BANNED_SUFFIXES = ("Feature", "Host", "Ops", "Delegate", "Controller")
 BANNED_SUFFIX_WHITELIST = {"PaneHost"}
 
 #: Banned identifier names (R2 / R7).

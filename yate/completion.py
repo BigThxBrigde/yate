@@ -22,7 +22,7 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup, buffer_completions
 from yate.editor_view.editor import EditorView
 from yate.editor_view.panes import PaneManager
-from yate.editor_core import Document
+from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp import LspManager
 from yate.editor_lsp.client import Completion
@@ -35,7 +35,7 @@ from yate.session import EditorSession
 log = tracing.get_logger(__name__)
 
 
-class CompletionController:
+class CompletionFlows:
     """Debounced completion queries behind the active editor view."""
 
     #: Idle delay after the last keystroke before the popup is queried.
@@ -53,6 +53,7 @@ class CompletionController:
         popup: CompletionPopup,
         prompt: PromptBar,
         refresh: Callable[[], None],
+        readonly_notice: Callable[[], None],
     ) -> None:
         self.app = app
         self.session = session
@@ -63,6 +64,7 @@ class CompletionController:
         self.popup = popup
         self.prompt = prompt
         self.refresh = refresh
+        self._readonly_notice = readonly_notice
         self._timer: asyncio.TimerHandle | None = None
         # A close happened since the last active trigger; pending queries
         # must not resurrect the popup after it.
@@ -318,7 +320,14 @@ class CompletionController:
                 i -= 1
             start, end = (row, i), (row, col)
         log.debug("completion accepted: %s", item.label)
-        buf.replace_range(start, end, item.insert_text)
+        try:
+            buf.replace_range(start, end, item.insert_text)
+        except BufferReadOnlyError:
+            # Refused edit on a read-only buffer: report it like every
+            # other refused edit and repaint (the popup is already closed).
+            self._readonly_notice()
+            self.refresh()
+            return
         self.refresh()
 
     # -------------------------------------------------------------- helpers

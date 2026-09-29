@@ -33,7 +33,8 @@ def _build_app(*, yaterc: str | None = None, ext_files: list[str | Path] | None 
     else:
         config = load_config([])
     app = YateApp(config=config, ext_files=ext_files or [])
-    app.editor.load_startup_services()
+    app.editor.extension_flows.load_extensions()
+    app.editor.extension_flows.register_configured_servers()
     return app
 
 
@@ -255,7 +256,8 @@ def test_rc_and_ext_dir_candidates_are_listed(tmp_path: Path) -> None:
 
     app = YateApp(config=load_config([]), ext_dirs=[ext_dir])
     app.editor.config.extension_paths.append(rc_dir)
-    app.editor.load_startup_services()
+    app.editor.extension_flows.load_extensions()
+    app.editor.extension_flows.register_configured_servers()
 
     report = diagnostics.format_report(app.editor)
 

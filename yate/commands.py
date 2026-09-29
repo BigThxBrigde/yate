@@ -41,10 +41,10 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- save / quit -------------------------------------------------------
 
     def _w(args: str) -> None:
-        editor.save_document()
+        editor.document_flows.save_document()
 
     def _saveas(args: str) -> None:
-        editor.save_as(args or None)
+        editor.document_flows.save_as(args or None)
 
     def _q(args: str) -> None:
         editor.quit()
@@ -53,7 +53,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.quit(force=True)
 
     def _wq(args: str) -> None:
-        editor.save_document()
+        editor.document_flows.save_document()
         # Only quit once the text is safely on disk: a failed save (I/O
         # error) or a still-pending save-as prompt leaves the document
         # modified, and force-quitting then would discard the work.
@@ -73,16 +73,16 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- panes -------------------------------------------------------------
 
     def _split(args: str) -> None:
-        editor.split_with_path("horizontal", args)
+        editor.window_flows.split_with_path("horizontal", args)
 
     def _vsplit(args: str) -> None:
-        editor.split_with_path("vertical", args)
+        editor.window_flows.split_with_path("vertical", args)
 
     def _only(args: str) -> None:
-        editor.only_pane()
+        editor.window_flows.only_pane()
 
     def _close(args: str) -> None:
-        editor.close_pane()
+        editor.window_flows.close_pane()
 
     reg("split", _split, "split the window horizontally (:sp [file])")
     reg("sp", _split, "alias for :split")
@@ -99,33 +99,33 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _edit(args: str) -> None:
         args = args.strip()
         if args:
-            editor.open_path_later(Path(args))
+            editor.document_flows.open_path_later(Path(args))
         else:
-            editor.prompt_open()
+            editor.document_flows.prompt_open()
 
     def _enew(args: str) -> None:
-        editor.new_buffer()
+        editor.document_flows.new_buffer()
 
     def _welcome(args: str) -> None:
-        editor.show_welcome()
+        editor.document_flows.show_welcome()
 
     def _bn(args: str) -> None:
-        editor.cycle_tab(1)
+        editor.document_flows.cycle_tab(1)
 
     def _bp(args: str) -> None:
-        editor.cycle_tab(-1)
+        editor.document_flows.cycle_tab(-1)
 
     def _bd(args: str) -> None:
-        editor.close_tab()
+        editor.document_flows.close_tab()
 
     def _files(args: str) -> None:
-        editor.open_file_palette()
+        editor.overlays.open_file_palette()
 
     def _palette(args: str) -> None:
-        editor.open_command_palette()
+        editor.overlays.open_command_palette()
 
     def _trust(args: str) -> None:
-        editor.trust_cwd_extensions()
+        editor.extension_flows.trust_cwd_extensions()
 
     reg("e", _edit, "open a file or directory by path")
     reg("edit", _edit, "open a file or directory by path")
@@ -252,13 +252,13 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.select_keymap("vsc")
 
     def _help(args: str) -> None:
-        editor.show_help()
+        editor.overlays.show_help()
 
     def _manual(args: str) -> None:
-        editor.show_manual(args or "en")
+        editor.overlays.show_manual(args or "en")
 
     def _changelog(args: str) -> None:
-        editor.show_changelog(args or "en")
+        editor.overlays.show_changelog(args or "en")
 
     reg("vim", _vim, "switch to vim key map")
     reg("vsc", _vsc, "switch to the vsc key map")
@@ -281,10 +281,10 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.terminal_panel.close()
 
     def _diagnostics(args: str) -> None:
-        editor.show_diagnostics()
+        editor.lsp_sync.show_diagnostics()
 
     def _font(args: str) -> None:
-        editor.install_font()
+        editor.shell.install_font()
 
     reg("explorer", _explorer, "toggle the file explorer")
     reg("term", _term, "open/focus the integrated terminal")

@@ -109,9 +109,9 @@ class ExplorerTree(Tree[NodeData]):
         workspace: Workspace,
         prompt: PromptBar,
         *,
-        open_path: Callable[[Path], None],
+        open_path: Callable[[Path], None] | None = None,
         focus_editor: Callable[[], None],
-        window_prefix: Callable[[Key], bool],
+        window_prefix: Callable[[Key], bool] | None = None,
         **kwargs: Any,
     ) -> None:
         # The root node shows the open folder name; refresh_tree() fills it in.
@@ -345,7 +345,8 @@ class ExplorerTree(Tree[NodeData]):
             event.node.toggle()
             return
         log.debug("explorer open: %s", path)
-        self.open_path(path)
+        if self.open_path is not None:
+            self.open_path(path)
         self.focus_editor()
 
     # ------------------------------------------------------- vim-style keys
@@ -366,7 +367,7 @@ class ExplorerTree(Tree[NodeData]):
         # the vim ctrl+w window chord runs before everything else (same as
         # the editor view): the pending hjkl would otherwise be eaten by
         # the navigation handlers below
-        if self.window_prefix(event):
+        if self.window_prefix is not None and self.window_prefix(event):
             event.stop()
             event.prevent_default()
             return
@@ -511,7 +512,8 @@ class ExplorerTree(Tree[NodeData]):
         self.prompt.write(f"created {target.name}", kind="ok")
         if not self._is_dir:
             # VS Code behavior: a new file opens right away
-            self.open_path(target)
+            if self.open_path is not None:
+                self.open_path(target)
 
     def submit_rename(self, name: str) -> None:
         """Prompt submitted: rename the pending path."""

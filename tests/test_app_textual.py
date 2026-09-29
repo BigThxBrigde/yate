@@ -32,6 +32,7 @@ from yate.editor_view.manual import MarkdownDocScreen
 from yate.keymaps.base import ActionContext
 from yate.keymaps.vim import VimKeymap
 from yate.keyproto.legacy import event_to_raw
+from yate.prompt_completion import prompt_completions
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
@@ -627,7 +628,7 @@ def test_file_palette_filters_and_opens(tmp_path: Path) -> None:
         (tmp_path / "data.txt").write_text("data\n", encoding="utf-8")
         app = YateApp(target=tmp_path)
         async with app.run_test(size=(100, 30)) as pilot:
-            app.editor.open_file_palette()
+            app.editor.overlays.open_file_palette()
             await pilot.pause()
             assert isinstance(app.screen, PaletteScreen)
             for ch in "note":
@@ -704,7 +705,7 @@ def test_command_palette_lists_all_commands_and_actions() -> None:
                                   "zz palette command")
             app.editor.actions.register(
                 "zzz_palette_action", _act, "zz palette action")
-            app.editor.open_command_palette()
+            app.editor.overlays.open_command_palette()
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
@@ -739,7 +740,7 @@ def test_command_palette_runs_action_by_full_name() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             assert app.editor.keymaps.name == "vsc"
-            app.editor.open_command_palette()
+            app.editor.overlays.open_command_palette()
             await pilot.pause()
             assert isinstance(app.screen, PaletteScreen)
             for ch in "toggle_keymap":
@@ -764,7 +765,7 @@ def test_command_palette_searches_descriptions() -> None:
     async def scenario() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
-            app.editor.open_command_palette()
+            app.editor.overlays.open_command_palette()
             await pilot.pause()
             for ch in "switch color theme":
                 await pilot.press(ch)
@@ -791,7 +792,7 @@ def test_palette_down_cursor_moves(tmp_path: Path) -> None:
             (tmp_path / name).write_text("x\n", encoding="utf-8")
         app = YateApp(target=tmp_path)
         async with app.run_test(size=(100, 30)) as pilot:
-            app.editor.open_file_palette()
+            app.editor.overlays.open_file_palette()
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
@@ -1934,7 +1935,7 @@ def test_shell_command_runs_without_freezing_ui() -> None:
             await pilot.pause()
             prompt_bar = app.editor.prompt_bar
             assert prompt_bar is not None
-            with patch("yate.editor.run_shell", side_effect=slow_shell):
+            with patch("yate.shell_flows.run_shell", side_effect=slow_shell):
                 # F2 opens the shell prompt in vsc mode (":" is vim-only)
                 await pilot.press("f2")
                 assert prompt_bar.active_mode == "shell"
@@ -2052,10 +2053,10 @@ def test_vim_ctrl_w_prefix_switches_panes(pane_root: Path) -> None:
             # ctrl+w arms the prefix, h goes to the left pane (explorer)
             await pilot.press("ctrl+w")
             await pilot.pause()
-            assert app.editor.window_pending
+            assert app.editor.window_flows.window_pending
             await pilot.press("h")
             await pilot.pause()
-            assert not app.editor.window_pending
+            assert not app.editor.window_flows.window_pending
             assert app.focused is app.editor.explorer_tree
             # l goes back to the right pane (editor)
             await pilot.press("ctrl+w")
@@ -2080,12 +2081,12 @@ def test_vim_window_prefix_cancelled_by_other_keys(pane_root: Path) -> None:
             await pilot.pause()
             await pilot.press("ctrl+w")
             await pilot.pause()
-            assert app.editor.window_pending
+            assert app.editor.window_flows.window_pending
             # an unrelated key cancels the prefix and is processed normally
             before = app.editor.session.buffer.lines[0]
             await pilot.press("x")
             await pilot.pause()
-            assert not app.editor.window_pending
+            assert not app.editor.window_flows.window_pending
             assert app.editor.session.buffer.lines[0] == before[1:]  # x deleted a char
 
     asyncio.run(scenario())
@@ -2102,7 +2103,7 @@ def test_vim_insert_mode_ctrl_w_not_intercepted(pane_root: Path) -> None:
             await pilot.pause()
             await pilot.press("ctrl+w")
             await pilot.pause()
-            assert not app.editor.window_pending
+            assert not app.editor.window_flows.window_pending
 
     asyncio.run(scenario())
 
@@ -2174,7 +2175,7 @@ def test_completion_popup_keeps_typing_and_filters(tmp_path: Path) -> None:
     keep typing to refine the candidates nor use global chords.  Only the
     popup-owned keys (tab / enter / up / down / escape) may be consumed; every
     other key must reach the normal dispatch, insert its character and
-    re-query the candidates via ``CompletionController.after_editor_key``.
+    re-query the candidates via ``CompletionFlows.after_editor_key``.
     """
 
     async def scenario() -> None:
@@ -2292,7 +2293,10 @@ def test_tab_cycles_multiple_command_matches() -> None:
             await pilot.pause()
             inp = app.editor.prompt_bar.input if app.editor.prompt_bar else None
             assert inp is not None
-            matches = app.editor.prompt_completions("w", "command")
+            matches = prompt_completions(
+                "w", "command", commands=app.editor.commands,
+                session=app.editor.session, workspace=app.editor.workspace,
+            )
             assert len(matches) > 1
             await pilot.press("tab")
             await pilot.pause()
@@ -2424,18 +2428,25 @@ def test_tab_completions_for_filetype() -> None:
     async def scenario() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
-            assert app.editor.prompt_completions("set filetype=pyt", "command") == [
+            def completions(text: str, mode: str) -> list[str]:
+                return prompt_completions(
+                    text, mode, commands=app.editor.commands,
+                    session=app.editor.session,
+                    workspace=app.editor.workspace,
+                )
+
+            assert completions("set filetype=pyt", "command") == [
                 "set filetype=python"
             ]
             # "r" prefix matches both the "rs" extension key and the
             # "rust" language name.
-            assert sorted(app.editor.prompt_completions("filetype r", "command")) == [
+            assert sorted(completions("filetype r", "command")) == [
                 "filetype rs", "filetype rust"
             ]
-            vals = app.editor.prompt_completions("set ft=", "command")
+            vals = completions("set ft=", "command")
             assert "set ft=auto" in vals
             assert "set ft=python" in vals
-            assert app.editor.prompt_completions("set file", "command") == [
+            assert completions("set file", "command") == [
                 "set filetype"
             ]
             await pilot.pause()
@@ -2554,7 +2565,7 @@ def test_goto_prompt_rejects_non_numeric() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             _seed_goto(app)
-            app.editor.goto_prompt()
+            app.editor.prompt_flows.goto_prompt()
             await pilot.pause()
             prompt_bar = app.editor.prompt_bar
             assert prompt_bar is not None
@@ -2627,8 +2638,8 @@ def test_cycle_tab_with_single_tab_is_silent_noop() -> None:
             await pilot.pause()
             app.editor.run_command("bp")
             await pilot.pause()
-            app.editor.cycle_tab(1)
-            app.editor.cycle_tab(-1)
+            app.editor.document_flows.cycle_tab(1)
+            app.editor.document_flows.cycle_tab(-1)
             await pilot.pause()
             assert _message_text(app) == baseline
             assert app.editor.session.doc is app.editor.session.docs[0]
@@ -2654,9 +2665,9 @@ def test_cycle_tab_resets_the_previous_search(tmp_path: Path) -> None:
 
             # Open a second tab, then return to alpha so the search lands on
             # the first document and a later ``:bn`` moves away from it.
-            app.editor.open_path(beta)
+            app.editor.document_flows.open_path(beta)
             await pilot.pause()
-            app.editor.cycle_tab(-1)
+            app.editor.document_flows.cycle_tab(-1)
             await pilot.pause()
             first = app.editor.session.doc
             assert first.name == "alpha.txt"
@@ -2672,20 +2683,20 @@ def test_cycle_tab_resets_the_previous_search(tmp_path: Path) -> None:
             assert len(app.editor.session.search.matches) == 2
 
             # ``:bn`` switches tabs and must drop the previous tab's spans.
-            app.editor.cycle_tab(1)
+            app.editor.document_flows.cycle_tab(1)
             await pilot.pause()
             assert app.editor.session.doc.name == "beta.txt"
             assert app.editor.session.search.matches == []
             assert app.editor.session.search.query == ""
 
             # ``n`` must not jump to the old document's out-of-range coords.
-            app.editor.find_next(True)
+            app.editor.prompt_flows.find_next(True)
             await pilot.pause()
             row, _col = app.editor.session.buffer.cursor
             assert 0 <= row < app.editor.session.buffer.line_count
 
             # Switching back is harmless and the state stays reset.
-            app.editor.cycle_tab(-1)
+            app.editor.document_flows.cycle_tab(-1)
             await pilot.pause()
             assert app.editor.session.doc is first
             assert app.editor.session.search.matches == []
@@ -2702,7 +2713,7 @@ def test_click_tab_switches_document(tmp_path: Path) -> None:
         app = YateApp(str(a))
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            app.editor.open_path(b)
+            app.editor.document_flows.open_path(b)
             await pilot.pause()
             assert len(app.editor.session.docs) == 2
             assert app.editor.session.index == 1  # b is active after open
@@ -2856,7 +2867,7 @@ def test_disabled_extensions_skip_bundled_not_project_dir(
             # and no Python server got registered while LSP was off
             assert app.editor.lsp.config_for("py") is None
             # :trust is the explicit confirmation that loads them now
-            app.editor.trust_cwd_extensions()
+            app.editor.extension_flows.trust_cwd_extensions()
             await pilot.pause()
             names = {r.name for r in app.editor.extension_loader.loaded}
             assert "myext" in names
@@ -3199,7 +3210,7 @@ def test_rc_configured_server_activates_on_later_open(tmp_path: Path) -> None:
             from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS
             assert registered.root_markers == list(DEFAULT_ROOT_MARKERS)
             # opening the matching file activates the server
-            app.editor.open_path(rs)
+            app.editor.document_flows.open_path(rs)
             await pilot.pause()
             activated = await wait_until(
                 pilot, lambda: bool(created) and created[0].opened
@@ -4049,7 +4060,7 @@ def test_wq_does_not_quit_when_other_tab_is_dirty(tmp_path: Path) -> None:
             first = app.editor.session.docs[0]
 
             # open the second tab and dirty it
-            app.editor.open_path(other)
+            app.editor.document_flows.open_path(other)
             await pilot.pause()
             assert len(app.editor.session.docs) == 2
             assert app.editor.session.doc.path == other
@@ -4058,7 +4069,7 @@ def test_wq_does_not_quit_when_other_tab_is_dirty(tmp_path: Path) -> None:
             assert app.editor.session.doc.modified
 
             # switch back to saved.txt (the first tab, clean)
-            app.editor.activate_doc(first)
+            app.editor.document_flows.activate_doc(first)
             assert app.editor.session.doc is first
             assert not app.editor.session.doc.modified
 
@@ -4435,7 +4446,7 @@ def test_palette_entries_exclude_palette_command() -> None:
                 workspace=app.editor.workspace,
                 commands=app.editor.commands,
                 actions=app.editor.actions,
-                open_path=app.editor.open_path_later,
+                open_path=app.editor.document_flows.open_path_later,
                 focus_editor=app.editor.focus_editor,
                 execute_action=app.editor.execute_action,
                 run_command=app.editor.run_command,

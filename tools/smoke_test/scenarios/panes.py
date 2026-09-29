@@ -69,10 +69,10 @@ async def _pane_focus_window_keys(tmp: Path) -> ScenarioResult:
         focused_after_split = panes.active.id
         await pilot.press("ctrl+w")
         await pilot.pause()
-        checks.append(Check("chord_armed", True, app.editor.window_pending))
+        checks.append(Check("chord_armed", True, app.editor.window_flows.window_pending))
         await pilot.press("h")
         await pilot.pause()
-        checks.append(Check("chord_consumed", False, app.editor.window_pending))
+        checks.append(Check("chord_consumed", False, app.editor.window_flows.window_pending))
         checks.append(Check("focus_moved", True,
                             panes.active.id != focused_after_split))
         rows = snapshot_svg(app, tmp)

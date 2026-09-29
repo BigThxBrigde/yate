@@ -8,6 +8,7 @@ points the table calls.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -105,6 +106,32 @@ class _Editor:
 
     def show_help(self) -> None:
         self.help_shown += 1
+
+    # The tables reach some hooks through the flow collaborators
+    # (editor.prompt_flows / overlays / shell); these stand-ins keep the
+    # calls recording into the same lists, so the assertions do not move.
+    @property
+    def prompt_flows(self) -> SimpleNamespace:
+        """Flow-collaborator stand-in for the prompt hooks."""
+        return SimpleNamespace(
+            find_prompt=self.find_prompt,
+            find_next=self.find_next,
+            replace_prompt=self.replace_prompt,
+            goto_prompt=self.goto_prompt,
+        )
+
+    @property
+    def overlays(self) -> SimpleNamespace:
+        """Flow-collaborator stand-in for the overlay hooks."""
+        return SimpleNamespace(
+            show_help=self.show_help,
+            show_manual=self.show_manual,
+        )
+
+    @property
+    def shell(self) -> SimpleNamespace:
+        """Flow-collaborator stand-in for the shell hooks."""
+        return SimpleNamespace(open_prompt=self.shell_prompt)
 
     def save_document(self) -> None:
         self.prompts.append(("save", True))

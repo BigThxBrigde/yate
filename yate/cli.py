@@ -313,7 +313,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # --diag builds the app through the exact same constructor path as a
     # normal run so the report reflects what would actually be loaded, but
-    # never enters the TUI. load_startup_services() is headless-safe.
+    # never enters the TUI.  ExtensionFlows.load_extensions() /
+    # register_configured_servers() are headless-safe.
     if args.diag:
         from yate import diagnostics
 
@@ -326,7 +327,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ext_files=args.ext_files,
             ext_dirs=args.ext_dirs,
         )
-        app.editor.load_startup_services()
+        app.editor.extension_flows.load_extensions()
+        app.editor.extension_flows.register_configured_servers()
         diagnostics.print_report(app.editor)
         return 0
 

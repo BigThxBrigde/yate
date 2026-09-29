@@ -151,7 +151,7 @@ async def _explorer_delete_open_folder(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         # setup: open the file that is about to lose its folder
-        app.editor.open_path(sub / "x.txt")
+        app.editor.document_flows.open_path(sub / "x.txt")
         await wait_until(pilot, lambda: app.editor.session.doc.name == "x.txt")
         checks.append(Check("opened", "x.txt", app.editor.session.doc.name))
         checks.append(Check("two_docs", 2, len(app.editor.session.docs)))

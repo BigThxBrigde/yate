@@ -14,8 +14,10 @@ scene: architecture
 
 ```
 L4 外壳：app.py（YateApp） / cli.py（唯一入口）
-L3 调度：editor.py（Editor）/ actions.py / commands.py / completion.py /
-         prompt_completion.py / diagnostics.py / services/extensions.py
+L3 调度：editor.py（Editor）/ actions.py / commands.py / 流程模块
+         （completion.py / prompt_flows.py / document_flows.py / window_flows.py /
+         extension_flows.py / shell_flows.py / overlays.py / lsp_sync.py /
+         prompt_completion.py / diagnostics.py）/ services/extensions.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py / keymaps/registry.py（KeymapSet）
@@ -45,9 +47,13 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **R5 — 内置表单向**：`actions.py` / `commands.py` 可以 import `yate.editor`；反向禁止
   （`editor.py` 不得 import 它们，否则成环）。
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
-- **R11 — 冻结 UI 耦合**：`completion.py` / `prompt_completion.py` 是 L3 流程模块，**允许** import
-  `editor_view`（存量耦合，冻结）；两者禁止向上 import `yate.editor` / `yate.app`，且**新增**
-  `editor_view` 导入必须先在 `tests/test_architecture.py` 的白名单中登记。
+- **R11 — 冻结 UI 耦合**：L3 流程模块（`completion.py` / `prompt_flows.py` /
+  `document_flows.py` / `window_flows.py` / `shell_flows.py` / `overlays.py` /
+  `lsp_sync.py` / `prompt_completion.py`）**允许** import `editor_view`（存量耦合，冻结）；
+  禁止向上 import `yate.editor` / `yate.app`，且**新增** `editor_view` 导入必须先在
+  `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记
+  （`document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
+  `window_flows.py` 于 wave-4 以同组面登记）。
 - **R7 — 外壳装载内置表**：`YateApp.__init__` 调 `populate(editor.actions, editor)` 与
   `register_commands(editor.commands, editor)`。
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
@@ -146,7 +152,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 1:N 低频广播 | 回调列表或构造注入的回调（如 `EditorSession(on_closed=...)`、`TabBar(on_activate=...)`、`theme.subscribe(listener)` 返回退订函数） |
 | L0 需要 UI 能力 | 构造参数注入 `Callable`（N30 模式：`load_config(register_theme=..., load_theme_paths=...)`，由 L4 `cli.py` 传入 `editor_view.theme` 同名函数；缺省 `None` = headless） |
 | UI 事件 | Textual messages（`on_key` / `Input.Submitted` / `MouseDown` 等） |
-| 异步任务 | Textual `App.run_worker(...)`；调度层提供 `*_later` 便捷入口（`open_path_later` / `run_shell_command_later`）；防抖定时用 `asyncio.get_running_loop().call_later` |
+| 异步任务 | Textual `App.run_worker(...)`；调度层提供 `*_later` 便捷入口（如 `open_path_later`）；防抖定时用 `asyncio.get_running_loop().call_later` |
 | 日志（含无 App 上下文的线程/worker/回调） | 模块级 `log = tracing.get_logger(__name__)`（R12）；devtools 可见性由 L4 `TextualHandler` 桥提供，业务代码不直连 `app.log` / `self.log` |
 | 插件注册 | `ActionRegistry` / `CommandRegistry` / `Keymap.add_binding`（经 `ExtensionContext` 暴露） |
 
@@ -165,8 +171,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - [ ] 组件行为写在组件内部（自持），而不是加回 `Editor` 或外壳？
 - [ ] `Editor` 只新增"横跨多个协作者的操作"；单一流程已拆成独立模块（参照 `completion.py`）？
 - [ ] 没有新增 `Protocol`（除 `PaneRegistry`）、`TYPE_CHECKING`、`Any`、`# type: ignore`？
-- [ ] 没有使用 `*Feature` / `*Host` / `*Ops` / `*Delegate` 命名？
-      （白名单：`PaneHost`、`PaneManager`、`LspManager`；`*Controller` 仅限流程类如 `CompletionController`）
+- [ ] 没有使用 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `*Controller` 命名？
+      （白名单：`PaneHost`、`PaneManager`、`LspManager`；流程模块按职责命名：
+      UI 流程编排一律 `*Flows`，同步适配器按动词命名如 `LspSync`；
+      存量流程模块已统一为 `ShellFlows` / `CompletionFlows` / `OverlayFlows`）
 - [ ] 新 widget 需要外壳 CSS 时，id 已由 `Editor` 传入（R9），且已同步
       `yate/resources/app.tcss`（外壳 CSS 现为该打包资源，非 `app.py` 内联字符串）？
 - [ ] 新按键路径不会造成二次派发（R10）？
@@ -218,8 +226,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **T2**（`test_editor_does_not_paint_widget_styles`）`editor.py` 无 `def apply_theme` /
   `def update_sidebar_head` / `.styles.background =` / `.styles.scrollbar_`（文本断言；
   Editor 自有的布局职责如 terminal dock 高度不误伤）；
-- **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`
-  （白名单：`PaneHost`；`*Manager` / `*Controller` 允许）。
+- **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` /
+  `*Controller` / `AppProtocol`
+  （白名单：`PaneHost`；`*Manager` 允许。流程模块按职责命名：UI 流程编排一律
+  `*Flows`，同步适配器按动词命名如 `LspSync`，禁新增 `*Controller`）。
 
 **20 个用例逐条对照**（2026-09-28 实测 `20 passed`）：
 

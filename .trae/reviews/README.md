@@ -13,7 +13,7 @@
 
 ## 一、速览：仍未闭环 / 尚未通过的项
 
-以下 11 项为各轮评审中**仍未关闭**的条目（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察），
+以下 12 项为各轮评审中**仍未关闭**的条目（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察），
 按所属轮次日期排列。除此之外各轮均**已通过并全修**。
 
 | # | 日期 | 未闭环项 | 标记 | 出处 |
@@ -29,6 +29,7 @@
 | 9 | 2026-09-27 | `scrollbars.py::render_bar` 复刻上游 1/8 粒度算法 | 📌 记录保留（Textual 升级需回归 `tests/test_scrollbars.py`） | [2026-09-27-ui-refine.md](2026-09-27-ui-refine.md) |
 | 10 | 2026-09-27 | PB5 三终端矩阵：conhost / VS Code 待人工复测（WT 已由真机 harness 覆盖） | 🔧 遗留人工项 | [2026-09-27-keybinding-branch-review.md](2026-09-27-keybinding-branch-review.md) |
 | 11 | 2026-09-29 | 配对/标签扫描无搜索半径上限（AI 建议 `max_lines` 兜底） | ⏸ 明确不修（与已批准偏离记录 #8「无界扫描」语义冲突，截断会让深层嵌套配对静默失配） | [2026-09-29-pr35-vim-keymap.md](2026-09-29-pr35-vim-keymap.md) |
+| 12 | 2026-09-29 | `_submit_save_as` 临时解除的 `read_only` 标志仅 OSError/UnicodeError 分支恢复，未预期异常无兜底 | 🔧 待修（Low/可维护性，基线存量非 PR 引入） | [2026-09-29-pr37-editor-split.md](2026-09-29-pr37-editor-split.md) |
 
 ---
 
@@ -61,6 +62,8 @@
 | 2026-09-27 | tcss 拆分实现评审（分支 `enh/tcss-enh`，Issue IKINFT） | ✅ 通过（总评 93/100） | 0 阻断 / 3 建议 | ✅ 已全修（全部当场修复于 `7e51d6b`） | [2026-09-27-tcss-split.md](2026-09-27-tcss-split.md) |
 | 2026-09-27 | UI refine 评审（分支 `enh/ui-refine`，Issue IKINF3）+ **PR #29** AI 审查 | ❌ PR #29 功能性未通过（1 阻断）→ ✅ 已修复 | 1 阻断 / 3 改进（PR #29）+ 2 架构张力 | 🟡 部分待修：阻断与改进已修 + T1/T2 已治理；1 性能项 ⏸ 挂起、1 项 📌 记录保留 | [2026-09-27-ui-refine.md](2026-09-27-ui-refine.md) |
 | 2026-09-29 | **Gitee PR #35** 评审（vim 键位保真分支，AI 队友审查） | ⛔ 1 阻断（operator 排他端点未钳制）→ ✅ 修复后通过 | 1 阻断 / 3 改进 | ✅ 阻断与 2 项改进已修（`c7c7f69`）；1 项 ⏸ 明确不修（见速览 #11） | [2026-09-29-pr35-vim-keymap.md](2026-09-29-pr35-vim-keymap.md) |
+| 2026-09-29 | editor-split 系列评审（分支 `ref/editor-refactoring`，5 提交，editor.py 1425→882 行） | ✅ 通过（0 阻断 / 0 major） | 0 阻断 / 3 minor | ✅ 3 项均修复（`a4990c2` + 同日 TRAE-code-review 复核 `8d1fb42`） | [2026-09-29-editor-split.md](2026-09-29-editor-split.md) |
+| 2026-09-29 | **Gitee PR #37** 评审（editor-split 分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | 🟡 1 项 🔧 登记待办（`read_only` 异常恢复兜底，基线存量） | [2026-09-29-pr37-editor-split.md](2026-09-29-pr37-editor-split.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

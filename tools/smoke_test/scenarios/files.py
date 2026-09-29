@@ -99,7 +99,7 @@ async def _tab_cycle(tmp: Path) -> ScenarioResult:
         # Setup only: the second tab is opened through the app API so the
         # scenario stays about tab cycling (typing the absolute path is
         # covered by open_path_prompt and costs ~70ms per character).
-        app.editor.open_path(tmp / "b.txt")
+        app.editor.document_flows.open_path(tmp / "b.txt")
         await wait_until(pilot, lambda: app.editor.session.doc.name == "b.txt")
         checks.append(Check("opened_b", "b.txt", app.editor.session.doc.name))
         await pilot.press("ctrl+pagedown")
@@ -252,7 +252,7 @@ async def _bnext_bprev_commands(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        app.editor.open_path(tmp / "b.txt")
+        app.editor.document_flows.open_path(tmp / "b.txt")
         await wait_until(pilot, lambda: app.editor.session.doc.name == "b.txt")
         checks.append(Check("opened_b", "b.txt", app.editor.session.doc.name))
         checks.append(Check("index_b", 1, app.editor.session.index))
