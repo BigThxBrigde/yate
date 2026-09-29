@@ -197,7 +197,7 @@
   },
   "33584e6": {
     "summary": "修复 PR #13 审查问题：原子保存保留权限、信任路径统一 resolve、未知 action 不再吞键等",
-    "detail": "含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/review/2026-09-24-pr13-review.md 的 PR #13 章节"
+    "detail": "含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/reviews/2026-09-24-pr13-review.md 的 PR #13 章节"
   },
   "35830eb": {
     "summary": "更新日志重构计划"

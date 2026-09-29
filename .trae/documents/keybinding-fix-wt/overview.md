@@ -73,9 +73,9 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 
 > **分支评审（2026-09-27）**：本分支全量 diff 评审报告（2 项发现已闭环 `b21ff37`、
 > 门禁实测 1257 passed / 覆盖率 90% / 冒烟 920 checks、按键管线与日志守卫流程图存档）见
-> [../../review/2026-09-27-keybinding-branch-review.md](../../review/2026-09-27-keybinding-branch-review.md)
+> [../../reviews/2026-09-27-keybinding-branch-review.md](../../reviews/2026-09-27-keybinding-branch-review.md)
 > （**2026-09-28 核对修正**：原链接 `../../issues/review_keybinding_20260927.md` 已失效——
-> `.trae/issues/` 目录整体迁至 `.trae/review/`，该文件重命名为 `2026-09-27-keybinding-branch-review.md`）。
+> `.trae/issues/` 目录整体迁至 `.trae/reviews/`，该文件重命名为 `2026-09-27-keybinding-branch-review.md`）。
 
 ## 前置（可选）：SP0 真机取证
 

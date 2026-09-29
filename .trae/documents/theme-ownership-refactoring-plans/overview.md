@@ -1,7 +1,7 @@
 # 主题归属重构计划：滚动条注入 + 组件自持主题（T1/T2 治理）
 
 > 状态：**Plan A–E 全部完成**（2026-09-27 落地，分支 `ref/theme-ownership`）。
-> 目标：消除 [review_ui_refine_20260927.md](../../review/2026-09-27-ui-refine.md) §四记录的两条架构张力，
+> 目标：消除 [review_ui_refine_20260927.md](../../reviews/2026-09-27-ui-refine.md) §四记录的两条架构张力，
 > 使滚动条注入与主题着色都符合"组件自持 + 严格分层"；改动性质以**代码搬运 + 删除**为主，
 > 不重写渲染算法、不改任何视觉表现。
 > 本目录是本轮重构的**唯一计划来源**；硬性边界同时固化在
@@ -161,7 +161,7 @@ flowchart LR
 | [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md) | 硬性边界规则（R1–R12）；本轮无规则变更，仅新增 2 条守护用例 |
 | [`.trae/rules/plan-before-execute.md`](../../rules/plan-before-execute.md) | 本轮流程教训的固化：复杂任务先方案后执行 |
 | [`../theme-ownership-plan.md`](../theme-ownership-plan.md) | 前序单文件方案（已被本目录取代，保留为指针） |
-| [`../../review/2026-09-27-ui-refine.md`](../../review/2026-09-27-ui-refine.md) | T1/T2 的发现来源；§四已回填治理结果 |
+| [`../../review/2026-09-27-ui-refine.md`](../../reviews/2026-09-27-ui-refine.md) | T1/T2 的发现来源；§四已回填治理结果 |
 
 ## 10. 审计记录（2026-09-27）
 
@@ -186,7 +186,7 @@ flowchart LR
 | 15 | PR #29 AI 审查性能项：`ExplorerTree._apply_theme` 全量 `refresh_tree()` | — | 审查自评当前频率可接受，登记挂起 | ⏸ 挂起（已知优化点） |
 
 **结论：除第 6 项（compare 门禁漏跑，已补齐并归因）外无遗漏；所有验收均实测通过。**
-PR #29 AI 审查（1 阻断 + 2 改进）处置详见 [review_ui_refine_20260927.md §七](../../review/2026-09-27-ui-refine.md)。
+PR #29 AI 审查（1 阻断 + 2 改进）处置详见 [review_ui_refine_20260927.md §七](../../reviews/2026-09-27-ui-refine.md)。
 
 ## 11. 提交记录
 

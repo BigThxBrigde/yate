@@ -1,6 +1,6 @@
 # P1 Suggestion 修复计划
 
-> 来源：[review.md](../../review/2026-09-16-full-review.md) 2026-09-16 审查 Suggestion 段（2026-09-23 复核后
+> 来源：[review.md](../../reviews/2026-09-16-full-review.md) 2026-09-16 审查 Suggestion 段（2026-09-23 复核后
 > 仍存在的条目）。按主题分批，批内按影响排序；每条含证据、策略、测试要点。
 > **本文档仅为计划，未实施。** 统一门槛同 [P0](code-review-fix-critical-plan-a.md)
 > （pyright 零诊断、pytest 全绿、**冒烟 `python -m tools.smoke_test run --fail-only`
@@ -471,7 +471,7 @@ symlink 展开不栈溢出。
 
 ## 批次六：2026-09-23 / 2026-09-24 审查补充（正确性与语义）
 
-> 来源：[review.md](../../review/2026-09-16-full-review.md) 2026-09-24 状态复核时补入——
+> 来源：[review.md](../../reviews/2026-09-16-full-review.md) 2026-09-24 状态复核时补入——
 > 「补全弹窗按键放行修复的附带发现（2026-09-23）」、「冒烟补场景调查（2026-09-23）」、
 > 「PR #13 审查修复（2026-09-24）」遗留项、「全量代码审查（2026-09-24）」存量 Minor
 > 与 Suggestion、「复审补充（logs.py）（2026-09-24）」中**仍未修复**的条目。

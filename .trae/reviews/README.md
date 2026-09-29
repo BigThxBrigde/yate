@@ -1,6 +1,6 @@
 # yate Code Review（评审总纲索引）
 
-> 本目录原名 `.trae/issues/`，本次整理后统一为 `.trae/review/`。
+> 本目录原名 `.trae/issues/`，本次整理后统一为 `.trae/reviews/`。
 > 原 111 KB 巨型文件 `review.md` 已按「**一轮评审 = 一个带时间戳的文档**」逐章拆分为独立文件，
 > 内容**逐字迁移**（含已修复条目的证据与处置记录，未删除任何评审内容）。
 > 目录深度未变，文件内指向 `yate/**`、`tests/**`、`tools/**`、`.trae/documents/**`、
@@ -91,7 +91,7 @@
 
 **原独立文件改名：**
 
-| 原文件（`.trae/issues/`） | 新文件（`.trae/review/`） |
+| 原文件（`.trae/issues/`） | 新文件（`.trae/reviews/`） |
 |---|---|
 | `review_20260926.md` | `2026-09-26-full-project-review.md` |
 | `review_20260927.md` | `2026-09-27-tcss-split.md` |
@@ -106,7 +106,7 @@
    早于 2026-09-16 首次全量审查），故未按 `YYYY-MM-DD-` 前缀命名。
    **（2026-09-29 决策：保持现状**——文件名保留 `legacy-issues.md` 不加日期前缀**）**。
 2. ~~仓库内仍有 3 处指向旧路径 `.trae/issues/review.md` 的引用~~
-   **（2026-09-29 已修复**：三处均已改为指向 `.trae/review/2026-09-24-pr13-review.md`，
+   **（2026-09-29 已修复**：三处均已改为指向 `.trae/reviews/2026-09-24-pr13-review.md`，
    以 `tools/changelog/zh_overrides.json` 为源修改并重新生成全部四个 changelog 目标，
    `python -m tools.changelog check` 通过；同时按 d66ace9 惯例回填合并后新出现的
    8 个提交的中文摘要，缺译 112 → 104，剩余均为 v0.2.6 之前积压**）**：
