@@ -9,7 +9,13 @@ from __future__ import annotations
 
 import pytest
 
-from yate.editor_core.textobjects import find_char, resolve_text_object
+from yate.editor_core.textobjects import (
+    find_char,
+    first_non_blank,
+    next_word_pos,
+    prev_word_pos,
+    resolve_text_object,
+)
 
 #: 'x' sits at columns 4, 9 and 14.
 LINE = "abc xabc xabc x"
@@ -198,3 +204,33 @@ def test_self_closing_tag_is_not_an_enclosing_tag() -> None:
 
 def test_unknown_object_key_fails() -> None:
     assert resolve_text_object(["abc"], (0, 1), "i", "z") is None
+
+
+# --- cross-line word motion positions -----------------------------------------
+
+
+def test_first_non_blank() -> None:
+    assert first_non_blank("  ab") == 2
+    assert first_non_blank("ab") == 0
+    assert first_non_blank("   ") == 3  # all blank: the virtual EOL column
+    assert first_non_blank("") == 0
+
+
+def test_next_word_pos_scans_the_row_then_wraps_down() -> None:
+    lines = ["ab cd", "  ef", "", "gh"]
+    assert next_word_pos(lines, 0, 0) == (0, 3)
+    assert next_word_pos(lines, 0, 3) == (0, 4)  # last word: stop on the last char
+    assert next_word_pos(lines, 0, 4) == (1, 2)  # wrap lands on first non-blank
+    assert next_word_pos(lines, 1, 2) == (1, 3)  # same rule on the indented row
+    assert next_word_pos(lines, 1, 3) == (2, 0)  # empty lines stop the motion
+    assert next_word_pos(lines, 2, 0) == (3, 0)  # resume after the empty line
+    assert next_word_pos(lines, 3, 0) == (3, 1)
+    assert next_word_pos(lines, 3, 1) is None
+
+
+def test_prev_word_pos_scans_the_row_then_wraps_up() -> None:
+    lines = ["ab cd", "  ef", "", "gh"]
+    assert prev_word_pos(lines, 1, 3) == (1, 2)
+    assert prev_word_pos(lines, 1, 2) == (0, 3)  # wrap lands on last word start
+    assert prev_word_pos(lines, 2, 0) == (1, 2)  # blank row wraps upward
+    assert prev_word_pos(lines, 0, 0) is None

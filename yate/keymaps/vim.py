@@ -15,10 +15,18 @@ from __future__ import annotations
 from enum import Enum
 from typing import override
 
-from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer
+from yate.editor_core.buffer import (
+    BufferReadOnlyError,
+    Pos,
+    TextBuffer,
+    next_word_start,
+)
 from yate.editor_core.textobjects import (
     at_word_end,
     find_char,
+    first_non_blank,
+    next_word_pos,
+    prev_word_pos,
     resolve_text_object,
     word_end_column,
 )
@@ -562,7 +570,8 @@ class VimKeymap(Keymap):
         self.obj_scope = None
         self.op_count = None
         if op is None:
-            buf.set_cursor((target - 1, 0))
+            r = min(target - 1, len(buf.lines) - 1)
+            buf.set_cursor((r, first_non_blank(buf.lines[r])))
             return
         r1, r2 = sorted((target - 1, buf.row))
         r2 = min(r2, len(buf.lines) - 1)
@@ -695,9 +704,13 @@ class VimKeymap(Keymap):
             elif code == "k":
                 buf.move_up(select=select)
             elif code == "w":
-                buf.move_right(select=select, word=True)
+                pos = next_word_pos(buf.lines, buf.row, buf.col)
+                if pos is not None:
+                    buf.set_cursor(pos, select=select)
             elif code == "b":
-                buf.move_left(select=select, word=True)
+                pos = prev_word_pos(buf.lines, buf.row, buf.col)
+                if pos is not None:
+                    buf.set_cursor(pos, select=select)
             elif code == "e":
                 r, c = buf.cursor
                 nc = word_end_column(buf.lines[r], c)
@@ -714,13 +727,27 @@ class VimKeymap(Keymap):
                 # vim's 0 always lands on column 0
                 buf.set_cursor((buf.row, 0), select=select)
             elif code == "$":
-                buf.move_line_end(select=select)
-            elif code == "G":
-                if count is not None:
-                    # jump, not repeatable: the count names the target line
-                    buf.set_cursor((count - 1, 0), select=select)
+                if select:
+                    buf.move_line_end(select=True)
                 else:
-                    buf.move_doc_end(select=select)
+                    # vim's $ sits on the last char; operator and visual mode
+                    # keep the virtual EOL column so half-open spans reach it
+                    r = buf.row
+                    buf.set_cursor((r, max(0, len(buf.lines[r]) - 1)))
+            elif code == "G":
+                # jump, not repeatable: a count names the target line.  Normal
+                # mode lands on the first non-blank like vim's G; visual and
+                # operator mode keep the line-edge column so half-open spans
+                # (d5G, dG) still reach the target char.
+                if count is not None:
+                    r = count - 1
+                else:
+                    r = len(buf.lines) - 1
+                if select:
+                    col = 0 if count is not None else len(buf.lines[r])
+                    buf.set_cursor((r, col), select=True)
+                else:
+                    buf.set_cursor((r, first_non_blank(buf.lines[r])))
                 break  # G is a jump, never repeat it count times
             elif code == "g":
                 # pending gg handled in caller
@@ -740,14 +767,27 @@ class VimKeymap(Keymap):
         self.op_count = None
         buf = ctx.buffer
         start = buf.cursor
-        if op == "c" and code == "w" and self._on_non_blank(buf):
-            # vim special case: cw on a word is ce; on whitespace it stays dw.
-            # On the last char of that word vim changes only that char --
-            # the e motion would run on to the end of the next word.
-            if count is None and at_word_end(buf.lines[start[0]], start[1]):
-                code = "l"
-            else:
-                code = "e"
+        if code == "w":
+            row = buf.lines[start[0]]
+            nc = next_word_start(row, start[1])
+            if not start[1] < nc < len(row):
+                # vim's exclusive rule: when w leaves the row (no further
+                # word start on it) the operator stops at the line end
+                # instead of swallowing the newline
+                code = "$"
+            elif op == "c" and self._on_non_blank(buf):
+                # vim special case: cw on a word is ce; on whitespace it
+                # stays dw.  On the last char of that word vim changes only
+                # that char -- the e motion would run on to the next word.
+                if count is None and at_word_end(buf.lines[start[0]], start[1]):
+                    code = "l"
+                else:
+                    code = "e"
+        elif code == "b":
+            pos = prev_word_pos(buf.lines, *start)
+            if pos is None or pos[0] != start[0]:
+                # same rule backwards: b stops at the line start
+                code = "0"
         buf.anchor = start
         self._motion(ctx, code, count, select=True)
         if code == "G" and count is not None:

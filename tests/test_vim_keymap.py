@@ -293,6 +293,63 @@ def test_word_motions() -> None:
     assert editor.buffer.col == 8
 
 
+def test_word_motion_wraps_to_the_next_line_word_start() -> None:
+    """w past the row's last word stops on the last char, then wraps."""
+    editor, keymap, ctx = _setup("ab cd\n  ef")
+    _press(keymap, ctx, "w", "w")
+    assert editor.buffer.cursor == (0, 4)  # the row's last char first
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 2)  # wrap lands on the first non-blank
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 3)  # same rule on the indented row
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 3)  # document end: no landing
+
+
+def test_word_motion_stops_on_an_empty_line() -> None:
+    """w stops on an empty line instead of skipping it."""
+    editor, keymap, ctx = _setup("ab\n\ncd")
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (0, 1)  # the row's last char first
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 0)  # the empty line stops the motion
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (2, 0)
+
+
+def test_backward_word_motion_wraps_to_the_last_word_start() -> None:
+    """b from a line start lands on the previous line's last word start."""
+    editor, keymap, ctx = _setup("ab cd\nef")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "b")
+    assert editor.buffer.cursor == (0, 3)
+
+
+def test_delete_word_stops_at_the_line_end() -> None:
+    """dw on the row's last word does not swallow the newline."""
+    editor, keymap, ctx = _setup("ab cd\nef")
+    editor.buffer.set_cursor((0, 3))
+    _press(keymap, ctx, "d", "w")
+    assert editor.buffer.lines == ["ab ", "ef"]
+
+
+def test_delete_word_back_stops_at_the_line_start() -> None:
+    """db from a line start does not reach into the previous line."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "d", "b")
+    assert editor.buffer.lines == ["ab", "cd"]
+
+
+def test_upper_g_lands_on_the_first_non_blank() -> None:
+    """G skips leading indent; gg starts on the first line's word."""
+    editor, keymap, ctx = _setup("l1\n  l2")
+    _press(keymap, ctx, "G")
+    assert editor.buffer.cursor == (1, 2)
+    _press(keymap, ctx, "g", "g")
+    assert editor.buffer.cursor == (0, 0)
+
+
 def test_zero_always_lands_on_column_zero() -> None:
     """Unlike the vsc binding, vim's 0 ignores the indent."""
     editor, keymap, ctx = _setup("    indented")
@@ -302,19 +359,19 @@ def test_zero_always_lands_on_column_zero() -> None:
 
 
 def test_dollar_moves_to_the_line_end() -> None:
-    """$ goes past the last character."""
+    """$ sits on the last character like vim."""
     editor, keymap, ctx = _setup("abc\nde")
     _press(keymap, ctx, "$")
-    assert editor.buffer.cursor == (0, 3)
+    assert editor.buffer.cursor == (0, 2)
     _press(keymap, ctx, "j", "$")
-    assert editor.buffer.cursor == (1, 2)
+    assert editor.buffer.cursor == (1, 1)
 
 
 def test_gg_and_upper_g_jump_to_the_document_edges() -> None:
     """gg is the start, G the end; a count makes both a line jump."""
     editor, keymap, ctx = _setup("l1\nl2\nl3")
     _press(keymap, ctx, "G")
-    assert editor.buffer.cursor == (2, 2)
+    assert editor.buffer.cursor == (2, 0)  # first non-blank of "l3"
     _press(keymap, ctx, "g", "g")
     assert editor.buffer.cursor == (0, 0)
 
@@ -462,7 +519,7 @@ def test_unknown_motion_after_an_operator_is_dropped() -> None:
     assert keymap.op is None
     _press(keymap, ctx, "w")  # must not fire a delayed dw
     assert editor.buffer.get_text() == "aaa"
-    assert editor.buffer.cursor == (0, 3)  # w ran as a plain motion
+    assert editor.buffer.cursor == (0, 2)  # w ran as a plain motion
 
 
 def test_unknown_operator_follower_runs_its_own_key_once() -> None:
@@ -472,7 +529,7 @@ def test_unknown_operator_follower_runs_its_own_key_once() -> None:
     assert editor.buffer.get_text() == "bc"
     assert keymap.op is None
     _press(keymap, ctx, "w")
-    assert editor.buffer.cursor == (0, 2)  # plain motion, nothing deleted
+    assert editor.buffer.cursor == (0, 1)  # plain motion, nothing deleted
 
 
 def test_g_prefix_with_an_unknown_key_is_dropped() -> None:
@@ -673,7 +730,7 @@ def test_non_extension_binding_is_not_dispatched_by_fallback() -> None:
 
     _press(keymap, ctx, "w")
     assert calls == []
-    assert editor.buffer.col == 3  # the motion ran instead
+    assert editor.buffer.col == 2  # the motion ran instead
 
 
 def test_unmapped_normal_key_is_swallowed() -> None:

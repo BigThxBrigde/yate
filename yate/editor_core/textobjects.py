@@ -12,7 +12,7 @@ selection primitives.
 
 from __future__ import annotations
 
-from yate.editor_core.buffer import Pos
+from yate.editor_core.buffer import Pos, next_word_start, prev_word_start
 
 #: Delimiter keys accepted after ``i``/``a``, mapped to their (open, close).
 _PAIR_ALIASES = {
@@ -129,6 +129,63 @@ def word_end_column(line: str, col: int) -> int | None:
     for i in range(col + 1, len(line)):
         if at_word_end(line, i):
             return i
+    return None
+
+
+def first_non_blank(line: str) -> int:
+    """Column of the first non-blank char, or ``len(line)`` when all blank."""
+    for i, ch in enumerate(line):
+        if not ch.isspace():
+            return i
+    return len(line)
+
+
+def next_word_pos(lines: list[str], row: int, col: int) -> Pos | None:
+    """Position of vim ``w`` from ``(row, col)``: the next word start.
+
+    The row is scanned first; past the row's last word vim's exclusive
+    motion stops on the row's last char and only wraps on the next press.
+    Wrapping lands on the first non-blank char of content lines and stops
+    on empty lines, while blank-only lines are skipped.  ``None`` when
+    nothing below offers a landing.
+    """
+    nc = next_word_start(lines[row], col)
+    if col < nc < len(lines[row]):
+        return (row, nc)
+    if col < len(lines[row]) - 1:
+        return (row, len(lines[row]) - 1)
+    for r in range(row + 1, len(lines)):
+        line = lines[r]
+        if not line:
+            return (r, 0)  # vim stops on empty lines
+        f = first_non_blank(line)
+        if f < len(line):
+            return (r, f)
+    return None
+
+
+def prev_word_pos(lines: list[str], row: int, col: int) -> Pos | None:
+    """Position of vim ``b`` from ``(row, col)``: the previous word start.
+
+    Mirrors :func:`next_word_pos` upward: the row is scanned first, then
+    earlier lines land on their last word start, empty lines stop the
+    motion and blank-only lines are skipped.  ``None`` when nothing above
+    offers a landing.
+    """
+    pc = prev_word_start(lines[row], col)
+    # prev_word_start returns 0 when nothing precedes *col*; column 0 only
+    # counts as a landing when it actually starts a word
+    if 0 < pc < col or (pc == 0 and not lines[row][:1].isspace() and col > 0):
+        return (row, pc)
+    for r in range(row - 1, -1, -1):
+        line = lines[r]
+        if not line:
+            return (r, 0)  # vim stops on empty lines
+        i = len(line)
+        while i > 0 and line[i - 1].isspace():
+            i -= 1
+        if i > 0:
+            return (r, prev_word_start(line, i))
     return None
 
 
