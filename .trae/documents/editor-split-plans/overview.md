@@ -78,7 +78,7 @@ recorder）。
 | wave-1（并行） | [plan-b](editor-split-flows-rename-plan-b.md) 流程模块统一 *Flows | shell_flow.py、completion.py、overlays.py、editor.py、tests/×2、test_architecture.py、architecture-boundaries.md | `refactor: unify flow module naming to *Flows` |
 | wave-2（串行） | [plan-c](editor-split-delegates-plan-c.md) 删全部薄委托/薄壳 | editor.py、shell_flows.py、completion.py、actions.py、commands.py、tests/×3、architecture-boundaries.md | `refactor(editor): drop thin delegates and shells, call owners directly` |
 | wave-3（串行） | [plan-d](editor-split-documents-plan-d.md) 抽 DocumentFlows | editor.py、document_flows.py(新)、actions.py、commands.py、tests/×n、test_architecture.py、architecture-boundaries.md | `refactor(editor): extract document lifecycle flows` |
-| wave-4（串行） | [plan-e](editor-split-windows-plan-e.md) 抽 WindowFlows | editor.py、window_flows.py(新)、tests/×n、test_architecture.py、architecture-boundaries.md | `refactor(editor): extract window pane flows` |
+| wave-4（串行） | [plan-e](editor-split-windows-plan-e.md) 抽 WindowFlows | editor.py、window_flows.py(新)、editor_view/explorer.py、commands.py、tests/×n、tools/smoke_test/scenarios/panes.py、test_architecture.py、architecture-boundaries.md | `refactor(editor): extract window pane flows` |
 | wave-5（串行） | [plan-f](editor-split-extension-flows-plan-f.md) 抽 ExtensionFlows | editor.py、extension_flows.py(新)、cli.py、commands.py、tests/×n、architecture-boundaries.md | `refactor(editor): extract extension startup flows` |
 | wave-6（串行） | 评审：code-review-expert 剧本，记录落 `.trae/review/2026-09-29-editor-split.md` 与总纲互链；blocker/major → 回到本总纲迭代 | 评审记录 | `docs(review): record the editor split review` |
 | wave-6（串行） | 收尾：主代理全量门禁 → 回填真实数字与偏离 → docs 提交 | overview/plan-* | `docs(plans): backfill editor split results` |
