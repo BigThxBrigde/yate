@@ -47,6 +47,11 @@ _ARROW = {
 _PREFIX_MOTIONS = ("g", "f", "F", "t", "T")
 _PREFIX_KEYS = (*_PREFIX_MOTIONS, "r")
 
+#: Prefixes whose follower is a printable argument: a digit typed after them
+#: is that argument (vim ``f3`` finds the char "3", ``r5`` replaces with "5"),
+#: not a count.  The ``g`` prefix keeps taking digits for ``g{count}g``.
+_ARG_PREFIXES = ("f", "F", "t", "T", "r")
+
 _FUNCTION_KEYS = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
 # help categories (module level: uppercase constants)
@@ -326,7 +331,11 @@ class VimKeymap(Keymap):
             ui.goto_prompt()
             return True
 
-        if key.isdigit() and not (key == "0" and not self.count_str):
+        if (
+            key.isdigit()
+            and not (key == "0" and not self.count_str)
+            and self.prefix not in _ARG_PREFIXES
+        ):
             self.count_str += key
             return True
 
@@ -503,6 +512,10 @@ class VimKeymap(Keymap):
         if key in _MOTION_CODES or key in _ARROW:
             self._apply_operator(ctx, op, _ARROW.get(key, key))
             return True
+        # Not a motion this operator understands: cancel it like vim does and
+        # let the key fall through as a fresh normal-mode key.  Leaving the
+        # operator armed would fire it on the next motion key instead.
+        self._clear_pending()
         return False
 
     def _linewise_op(self, ctx: ActionContext, op: str) -> None:

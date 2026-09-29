@@ -147,31 +147,45 @@ def _word_span(
     return (r, start), (r, end)
 
 
+def _quote_positions(line: str, quote: str) -> list[int]:
+    """Columns of *quote* characters in *line* that are not backslash-escaped."""
+    cols: list[int] = []
+    i = 0
+    while i < len(line):
+        if line[i] == "\\":
+            i += 2  # skip the escaped character wholesale
+            continue
+        if line[i] == quote:
+            cols.append(i)
+        i += 1
+    return cols
+
+
 def _quote_span(
     lines: list[str], pos: Pos, quote: str, scope: str
 ) -> tuple[Pos, Pos] | None:
-    """The single-row *quote* pair enclosing *pos*."""
+    """The single-row *quote* pair enclosing *pos*, honoring ``\\`` escapes."""
     r, c = pos
     if not (0 <= r < len(lines)):
         return None
     line = lines[r]
     c = min(c, len(line))
-    if c < len(line) and line[c] == quote:
-        closer = line.find(quote, c + 1)
-        if closer != -1:
-            opener = c
+    quotes = _quote_positions(line, quote)
+    if c in quotes:
+        # cursor on a real quote: prefer treating it as the opener
+        idx = quotes.index(c)
+        if idx + 1 < len(quotes):
+            opener, closer = c, quotes[idx + 1]
+        elif idx > 0:
+            opener, closer = quotes[idx - 1], c
         else:
-            opener = line.rfind(quote, 0, c)
-            if opener == -1:
-                return None
-            closer = c
+            return None
     else:
-        opener = line.rfind(quote, 0, c)
-        if opener == -1:
+        before = [q for q in quotes if q < c]
+        after = [q for q in quotes if q > c]
+        if not before or not after:
             return None
-        closer = line.find(quote, opener + 1)
-        if closer == -1 or closer < c:
-            return None
+        opener, closer = before[-1], after[0]
     if scope == "a":
         return (r, opener), (r, closer + 1)
     return (r, opener + 1), (r, closer)

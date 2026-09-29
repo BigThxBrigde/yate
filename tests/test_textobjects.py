@@ -159,6 +159,15 @@ def test_quote_object_fails_outside_or_across_lines() -> None:
     assert resolve_text_object(['"ab', 'cd"'], (0, 1), "i", '"') is None
 
 
+def test_quote_span_ignores_escaped_quotes() -> None:
+    """``\\"`` is content, not a delimiter; the real pair wins."""
+    line = 'say "hi\\"there" ok'  # say "hi\"there" ok
+    assert resolve_text_object([line], (0, 6), "i", '"') == ((0, 5), (0, 14))
+    assert resolve_text_object([line], (0, 6), "a", '"') == ((0, 4), (0, 15))
+    # cursor on the escaped quote itself still resolves the enclosing pair
+    assert resolve_text_object([line], (0, 8), "i", '"') == ((0, 5), (0, 14))
+
+
 def test_tag_objects_on_the_inner_text() -> None:
     assert resolve_text_object(["<p>x</p>"], (0, 3), "i", "t") == ((0, 3), (0, 4))
     assert resolve_text_object(["<p>x</p>"], (0, 3), "a", "t") == ((0, 0), (0, 8))

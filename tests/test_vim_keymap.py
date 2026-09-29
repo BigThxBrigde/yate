@@ -455,12 +455,24 @@ def test_join_lines_key() -> None:
 
 
 def test_unknown_motion_after_an_operator_is_dropped() -> None:
-    """An operator without a motion deletes nothing."""
+    """An operator without a motion is cancelled, not deferred."""
     editor, keymap, ctx = _setup("aaa")
     _press(keymap, ctx, "d", "z")
     assert editor.buffer.get_text() == "aaa"
-    _press(keymap, ctx, "x")
-    assert editor.buffer.get_text() == "aa"
+    assert keymap.op is None
+    _press(keymap, ctx, "w")  # must not fire a delayed dw
+    assert editor.buffer.get_text() == "aaa"
+    assert editor.buffer.cursor == (0, 3)  # w ran as a plain motion
+
+
+def test_unknown_operator_follower_runs_its_own_key_once() -> None:
+    """dx deletes one char like plain x and does not leave d armed."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "x")
+    assert editor.buffer.get_text() == "bc"
+    assert keymap.op is None
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (0, 2)  # plain motion, nothing deleted
 
 
 def test_g_prefix_with_an_unknown_key_is_dropped() -> None:
@@ -929,6 +941,19 @@ def test_find_char_backward_and_till_variants() -> None:
     assert editor.buffer.cursor == (0, 1)
 
 
+def test_find_char_accepts_digit_characters() -> None:
+    """A digit after an armed find prefix is the target char, not a count."""
+    editor, keymap, ctx = _setup("a3b3c3")
+    _press(keymap, ctx, "f", "3")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, "f", "3")
+    assert editor.buffer.cursor == (0, 3)
+    _press(keymap, ctx, "F", "3")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, "2", "f", "3")  # counted find still works
+    assert editor.buffer.cursor == (0, 5)
+
+
 def test_failed_find_leaves_the_buffer_untouched_and_reports() -> None:
     """A miss moves nothing, says so, and the keymap keeps working."""
     editor, keymap, ctx = _setup("abc")
@@ -1144,6 +1169,17 @@ def test_counted_r_replaces_n_chars() -> None:
     _press(keymap, ctx, "3", "r", "X")
     assert editor.buffer.get_text() == "aXXXef"
     assert editor.buffer.cursor == (0, 3)
+
+
+def test_replace_accepts_digit_characters() -> None:
+    """r5 swaps the char for a literal 5; the count form still works."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "r", "5")
+    assert editor.buffer.get_text() == "5bc"
+
+    editor, keymap, ctx = _setup("abcdef")
+    _press(keymap, ctx, "2", "r", "5")
+    assert editor.buffer.get_text() == "55cdef"
 
 
 def test_r_beyond_the_line_end_reports_and_keeps_the_text() -> None:
