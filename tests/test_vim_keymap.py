@@ -288,9 +288,66 @@ def test_word_motions() -> None:
     _press(keymap, ctx, "b")
     assert editor.buffer.col == 4
     _press(keymap, ctx, "e")
-    assert editor.buffer.col == 7
+    assert editor.buffer.col == 6
     _press(keymap, ctx, "0", "2", "w")
     assert editor.buffer.col == 8
+
+
+def test_word_motion_wraps_to_the_next_line_word_start() -> None:
+    """w past the row's last word stops on the last char, then wraps."""
+    editor, keymap, ctx = _setup("ab cd\n  ef")
+    _press(keymap, ctx, "w", "w")
+    assert editor.buffer.cursor == (0, 4)  # the row's last char first
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 2)  # wrap lands on the first non-blank
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 3)  # same rule on the indented row
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 3)  # document end: no landing
+
+
+def test_word_motion_stops_on_an_empty_line() -> None:
+    """w stops on an empty line instead of skipping it."""
+    editor, keymap, ctx = _setup("ab\n\ncd")
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (0, 1)  # the row's last char first
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (1, 0)  # the empty line stops the motion
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (2, 0)
+
+
+def test_backward_word_motion_wraps_to_the_last_word_start() -> None:
+    """b from a line start lands on the previous line's last word start."""
+    editor, keymap, ctx = _setup("ab cd\nef")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "b")
+    assert editor.buffer.cursor == (0, 3)
+
+
+def test_delete_word_stops_at_the_line_end() -> None:
+    """dw on the row's last word does not swallow the newline."""
+    editor, keymap, ctx = _setup("ab cd\nef")
+    editor.buffer.set_cursor((0, 3))
+    _press(keymap, ctx, "d", "w")
+    assert editor.buffer.lines == ["ab ", "ef"]
+
+
+def test_delete_word_back_stops_at_the_line_start() -> None:
+    """db from a line start does not reach into the previous line."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "d", "b")
+    assert editor.buffer.lines == ["ab", "cd"]
+
+
+def test_upper_g_lands_on_the_first_non_blank() -> None:
+    """G skips leading indent; gg starts on the first line's word."""
+    editor, keymap, ctx = _setup("l1\n  l2")
+    _press(keymap, ctx, "G")
+    assert editor.buffer.cursor == (1, 2)
+    _press(keymap, ctx, "g", "g")
+    assert editor.buffer.cursor == (0, 0)
 
 
 def test_zero_always_lands_on_column_zero() -> None:
@@ -302,19 +359,19 @@ def test_zero_always_lands_on_column_zero() -> None:
 
 
 def test_dollar_moves_to_the_line_end() -> None:
-    """$ goes past the last character."""
+    """$ sits on the last character like vim."""
     editor, keymap, ctx = _setup("abc\nde")
     _press(keymap, ctx, "$")
-    assert editor.buffer.cursor == (0, 3)
+    assert editor.buffer.cursor == (0, 2)
     _press(keymap, ctx, "j", "$")
-    assert editor.buffer.cursor == (1, 2)
+    assert editor.buffer.cursor == (1, 1)
 
 
 def test_gg_and_upper_g_jump_to_the_document_edges() -> None:
     """gg is the start, G the end; a count makes both a line jump."""
     editor, keymap, ctx = _setup("l1\nl2\nl3")
     _press(keymap, ctx, "G")
-    assert editor.buffer.cursor == (2, 2)
+    assert editor.buffer.cursor == (2, 0)  # first non-blank of "l3"
     _press(keymap, ctx, "g", "g")
     assert editor.buffer.cursor == (0, 0)
 
@@ -455,12 +512,24 @@ def test_join_lines_key() -> None:
 
 
 def test_unknown_motion_after_an_operator_is_dropped() -> None:
-    """An operator without a motion deletes nothing."""
+    """An operator without a motion is cancelled, not deferred."""
     editor, keymap, ctx = _setup("aaa")
     _press(keymap, ctx, "d", "z")
     assert editor.buffer.get_text() == "aaa"
-    _press(keymap, ctx, "x")
-    assert editor.buffer.get_text() == "aa"
+    assert keymap.op is None
+    _press(keymap, ctx, "w")  # must not fire a delayed dw
+    assert editor.buffer.get_text() == "aaa"
+    assert editor.buffer.cursor == (0, 2)  # w ran as a plain motion
+
+
+def test_unknown_operator_follower_runs_its_own_key_once() -> None:
+    """dx deletes one char like plain x and does not leave d armed."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "x")
+    assert editor.buffer.get_text() == "bc"
+    assert keymap.op is None
+    _press(keymap, ctx, "w")
+    assert editor.buffer.cursor == (0, 1)  # plain motion, nothing deleted
 
 
 def test_g_prefix_with_an_unknown_key_is_dropped() -> None:
@@ -661,7 +730,7 @@ def test_non_extension_binding_is_not_dispatched_by_fallback() -> None:
 
     _press(keymap, ctx, "w")
     assert calls == []
-    assert editor.buffer.col == 3  # the motion ran instead
+    assert editor.buffer.col == 2  # the motion ran instead
 
 
 def test_unmapped_normal_key_is_swallowed() -> None:
@@ -744,11 +813,64 @@ def test_add_binding_over_a_built_in_key_keeps_one_list_entry() -> None:
 
 
 def test_word_end_motion_wraps_to_the_next_line() -> None:
-    """e at the end of a line steps onto the next one."""
+    """e past a line's last word lands on the next line's word end."""
     editor, keymap, ctx = _setup("ab\ncd")
     _press(keymap, ctx, "$")
     _press(keymap, ctx, "e")
-    assert editor.buffer.cursor == (1, 0)
+    assert editor.buffer.cursor == (1, 1)
+
+    editor, keymap, ctx = _setup("ab\n\ncd")
+    _press(keymap, ctx, "$")
+    _press(keymap, ctx, "e")
+    assert editor.buffer.cursor == (2, 1)  # blank lines are skipped
+
+
+def test_word_end_motion_lands_on_the_last_char() -> None:
+    """e stops on the word's final char and stays put with no next word."""
+    editor, keymap, ctx = _setup("foo bar baz")
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 2
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 6
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 10
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 10  # document end: no landing, no move
+
+    editor.buffer.set_cursor((0, 3))
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 6  # from a delimiter: next word's end
+
+    editor.buffer.set_cursor((0, 0))
+    _press(keymap, ctx, "2", "e")
+    assert editor.buffer.col == 6  # counts repeat the landing
+
+
+def test_word_end_motion_treats_punctuation_as_a_word() -> None:
+    """e lands on the last char of word and punctuation runs alike."""
+    editor, keymap, ctx = _setup("ab! cd")
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 1
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 2
+    _press(keymap, ctx, "e")
+    assert editor.buffer.col == 5
+
+
+def test_delete_over_e_from_the_word_end_takes_the_next_word() -> None:
+    """de on a word's last char deletes through the next word's end."""
+    editor, keymap, ctx = _setup("ab cd")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "d", "e")
+    assert editor.buffer.get_text() == "a"
+
+
+def test_cw_on_the_last_char_changes_only_that_char() -> None:
+    """vim's cw special case is one char when the cursor ends the word."""
+    editor, keymap, ctx = _setup("foo bar")
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "c", "w", "X", ESC)
+    assert editor.buffer.get_text() == "foo baX"
 
 
 def test_operator_with_the_g_motion_deletes_nothing() -> None:
@@ -803,3 +925,416 @@ def test_visual_line_toggle_on_an_empty_line() -> None:
     _press(keymap, ctx, "V")
     assert keymap.mode is VimMode.VISUAL
     assert editor.buffer.has_selection() is False
+
+
+# --- counted operators and the change operator -------------------------------
+
+
+def test_counted_dd_deletes_n_lines() -> None:
+    """3dd removes three lines into the register."""
+    editor, keymap, ctx = _setup("one\ntwo\nthree\nfour")
+    _press(keymap, ctx, "3", "d", "d")
+    assert editor.buffer.lines == ["four"]
+    assert editor.buffer.register == "one\ntwo\nthree\n"
+
+
+def test_counted_yy_yanks_n_lines_and_keeps_the_cursor() -> None:
+    """2yy yanks two lines; the cursor stays put like vim."""
+    editor, keymap, ctx = _setup("one\ntwo\nthree")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "2", "y", "y")
+    assert editor.buffer.register == "one\ntwo\n"
+    assert editor.buffer.cursor == (0, 1)
+    assert editor.buffer.has_selection() is False
+
+
+def test_operator_count_multiplies_the_motion_count() -> None:
+    """2d3w covers six words: operator and motion counts multiply."""
+    editor, keymap, ctx = _setup("one two three four five six seven")
+    _press(keymap, ctx, "2", "d", "3", "w")
+    assert editor.buffer.get_text() == "seven"
+
+
+def test_d5G_deletes_through_the_first_char_of_line_five() -> None:
+    """d5G is charwise inclusive of the target line's first character."""
+    editor, keymap, ctx = _setup("l1\nl2\nl3\nl4\nl5\nl6")
+    editor.buffer.set_cursor((2, 1))
+    _press(keymap, ctx, "d", "5", "G")
+    assert editor.buffer.lines == ["l1", "l2", "l5", "l6"]
+
+
+def test_5dG_also_targets_line_five() -> None:
+    """A count before the operator reaches the G motion too."""
+    editor, keymap, ctx = _setup("l1\nl2\nl3\nl4\nl5\nl6")
+    _press(keymap, ctx, "5", "d", "G")
+    assert editor.buffer.lines == ["5", "l6"]
+
+
+def test_dgg_deletes_the_lines_up_to_the_first_one() -> None:
+    """dgg removes the lines from the top through the cursor line."""
+    editor, keymap, ctx = _setup("l1\nl2\nl3")
+    editor.buffer.set_cursor((2, 0))
+    _press(keymap, ctx, "d", "g", "g")
+    assert editor.buffer.get_text() == ""
+    assert editor.buffer.register == "l1\nl2\nl3\n"
+
+
+def test_cw_changes_the_word_without_trailing_space() -> None:
+    """cw on a word is ce: the trailing space survives."""
+    editor, keymap, ctx = _setup("foo bar")
+    _press(keymap, ctx, "c", "w", "X", ESC)
+    assert editor.buffer.get_text() == "X bar"
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_cw_on_whitespace_deletes_to_the_next_word() -> None:
+    """cw on whitespace behaves like dw."""
+    editor, keymap, ctx = _setup("a   b")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "c", "w", "X", ESC)
+    assert editor.buffer.get_text() == "aXb"
+
+
+def test_cc_clears_the_line_and_enters_insert() -> None:
+    """cc empties the current line for typing."""
+    editor, keymap, ctx = _setup("hello")
+    _press(keymap, ctx, "c", "c", "X", ESC)
+    assert editor.buffer.lines == ["X"]
+
+
+def test_counted_cc_clears_n_lines_into_one_empty_line() -> None:
+    """3cc collapses three lines into a single empty one."""
+    editor, keymap, ctx = _setup("aa\nbb\nccc")
+    _press(keymap, ctx, "3", "c", "c", "X", ESC)
+    assert editor.buffer.lines == ["X"]
+
+
+def test_c_dollar_changes_to_the_line_end() -> None:
+    """c$ clears the rest of the line and inserts."""
+    editor, keymap, ctx = _setup("hello world")
+    editor.buffer.set_cursor((0, 5))
+    _press(keymap, ctx, "c", "$", "X", ESC)
+    assert editor.buffer.get_text() == "helloX"
+
+
+# --- find-char motions (f/F/t/T/;/,) -----------------------------------------
+
+
+def test_find_char_moves_to_the_next_occurrence() -> None:
+    """fx lands on the next x; the cursor char itself is never a match."""
+    editor, keymap, ctx = _setup("a b c ab")
+    _press(keymap, ctx, "f", "b")
+    assert editor.buffer.cursor == (0, 2)
+
+
+def test_counted_find_char_skips_occurrences() -> None:
+    """2fx jumps to the second occurrence."""
+    editor, keymap, ctx = _setup("a b c ab")
+    _press(keymap, ctx, "2", "f", "b")
+    assert editor.buffer.cursor == (0, 7)
+
+
+def test_find_char_backward_and_till_variants() -> None:
+    """F/T/t mirror the forward find with vim's landing rules."""
+    editor, keymap, ctx = _setup("abcde cde")
+    editor.buffer.set_cursor((0, 8))
+    _press(keymap, ctx, "F", "c")
+    assert editor.buffer.cursor == (0, 6)
+
+    editor, keymap, ctx = _setup("abcde cde")
+    editor.buffer.set_cursor((0, 8))
+    _press(keymap, ctx, "T", "c")
+    assert editor.buffer.cursor == (0, 7)
+
+    editor, keymap, ctx = _setup("a cde")
+    _press(keymap, ctx, "t", "c")
+    assert editor.buffer.cursor == (0, 1)
+
+
+def test_find_char_accepts_digit_characters() -> None:
+    """A digit after an armed find prefix is the target char, not a count."""
+    editor, keymap, ctx = _setup("a3b3c3")
+    _press(keymap, ctx, "f", "3")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, "f", "3")
+    assert editor.buffer.cursor == (0, 3)
+    _press(keymap, ctx, "F", "3")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, "2", "f", "3")  # counted find still works
+    assert editor.buffer.cursor == (0, 5)
+
+
+def test_failed_find_leaves_the_buffer_untouched_and_reports() -> None:
+    """A miss moves nothing, says so, and the keymap keeps working."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "f", "z")
+    assert editor.buffer.get_text() == "abc"
+    assert editor.buffer.cursor == (0, 0)
+    assert editor.messages[-1] == "not found"
+    _press(keymap, ctx, "l")
+    assert editor.buffer.cursor == (0, 1)
+
+
+def test_find_char_does_not_cross_lines() -> None:
+    """f searches the cursor row only, even from a matching cursor char."""
+    editor, keymap, ctx = _setup("ax\nbxa")
+    _press(keymap, ctx, "f", "a")
+    assert editor.buffer.cursor == (0, 0)
+    assert editor.messages[-1] == "not found"
+
+
+def test_semicolon_repeats_and_comma_flips_the_last_find() -> None:
+    """; keeps the recorded direction, , flips it -- the record survives ,"""
+    editor, keymap, ctx = _setup("a.b.c.d")
+    _press(keymap, ctx, "f", ".")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, ";")
+    assert editor.buffer.cursor == (0, 3)
+    _press(keymap, ctx, ",")
+    assert editor.buffer.cursor == (0, 1)
+    _press(keymap, ctx, ";")
+    assert editor.buffer.cursor == (0, 3)
+
+
+def test_df_deletes_through_the_found_char() -> None:
+    """dfx is inclusive of x on the forward side."""
+    editor, keymap, ctx = _setup("hello world")
+    _press(keymap, ctx, "d", "f", "w")
+    assert editor.buffer.get_text() == "orld"
+
+
+def test_counted_operator_find_uses_the_multiplied_count() -> None:
+    """2df- deletes through the second dash (operator x motion counts)."""
+    editor, keymap, ctx = _setup("a-b-c-d")
+    _press(keymap, ctx, "2", "d", "f", "-")
+    assert editor.buffer.get_text() == "c-d"
+
+
+def test_dF_deletes_backward_including_both_ends() -> None:
+    """dFx spans from the found char through the cursor char."""
+    editor, keymap, ctx = _setup("hello world")
+    editor.buffer.set_cursor((0, 10))
+    _press(keymap, ctx, "d", "F", "o")
+    assert editor.buffer.get_text() == "hello w"
+
+
+def test_dF_from_the_line_end_clamps_the_span() -> None:
+    """A cursor parked on the EOL column must not overshoot the line."""
+    editor, keymap, ctx = _setup("abxba")
+    editor.buffer.set_cursor((0, 5))
+    _press(keymap, ctx, "d", "F", "x")
+    assert editor.buffer.get_text() == "ab"
+
+
+def test_dt_and_dT_stop_short_of_the_char() -> None:
+    """till variants exclude the found char from the operator span."""
+    editor, keymap, ctx = _setup("func(x)")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "d", "t", "(")
+    assert editor.buffer.get_text() == "f(x)"
+
+    editor, keymap, ctx = _setup("func(xy)")
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "d", "T", "(")
+    assert editor.buffer.get_text() == "func()"
+
+
+def test_cf_changes_through_the_found_char() -> None:
+    """cf) deletes through ) and inserts in its place."""
+    editor, keymap, ctx = _setup("x = f(y);")
+    editor.buffer.set_cursor((0, 4))
+    _press(keymap, ctx, "c", "f", ")")
+    assert keymap.mode is VimMode.INSERT
+    _press(keymap, ctx, "4", "2", ESC)
+    assert editor.buffer.get_text() == "x = 42;"
+
+
+def test_yf_yanks_through_the_found_char() -> None:
+    """yfx keeps the text and puts the span into the register."""
+    editor, keymap, ctx = _setup("key: value")
+    _press(keymap, ctx, "y", "f", ":")
+    assert editor.buffer.get_text() == "key: value"
+    _press(keymap, ctx, "P")
+    assert editor.buffer.get_text() == "key:key: value"
+
+
+def test_failed_operator_find_deletes_nothing() -> None:
+    """dfz with no z drops the operator and keeps the buffer."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "f", "z")
+    assert editor.buffer.get_text() == "abc"
+    assert editor.messages[-1] == "not found"
+    # the dropped operator does not swallow the next command
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "bc"
+
+
+def test_operator_semicolon_deletes_through_the_repeated_find() -> None:
+    """d; combines the operator with the recorded find."""
+    editor, keymap, ctx = _setup("a.b.c")
+    _press(keymap, ctx, "f", ".")
+    _press(keymap, ctx, "d", ";")
+    assert editor.buffer.get_text() == "ac"
+
+
+# --- text objects ------------------------------------------------------------
+
+
+def test_ciw_changes_the_inner_word() -> None:
+    """ciw replaces the word under the cursor."""
+    editor, keymap, ctx = _setup("foo bar")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "c", "i", "w", "X", ESC)
+    assert editor.buffer.get_text() == "X bar"
+
+
+def test_daw_deletes_the_word_and_trailing_space() -> None:
+    """daw takes the following whitespace with the word."""
+    editor, keymap, ctx = _setup("foo bar")
+    _press(keymap, ctx, "d", "a", "w")
+    assert editor.buffer.get_text() == "bar"
+
+
+def test_counted_iw_extends_over_following_words() -> None:
+    """3diw covers three words without the trailing space."""
+    editor, keymap, ctx = _setup("one two three four")
+    _press(keymap, ctx, "3", "d", "i", "w")
+    assert editor.buffer.get_text() == " four"
+
+
+def test_di_paren_deletes_the_inner_block() -> None:
+    """di( empties the parens and keeps them."""
+    editor, keymap, ctx = _setup("f(a, b)g")
+    editor.buffer.set_cursor((0, 3))
+    _press(keymap, ctx, "d", "i", "(")
+    assert editor.buffer.get_text() == "f()g"
+
+
+def test_di_brace_spans_lines() -> None:
+    """di{ removes an inner block across newlines."""
+    editor, keymap, ctx = _setup("a {\n  b\n}c")
+    editor.buffer.set_cursor((1, 2))
+    _press(keymap, ctx, "d", "i", "{")
+    assert editor.buffer.get_text() == "a {}c"
+
+
+def test_ca_quote_changes_including_the_quotes() -> None:
+    """ca\" replaces the quoted text together with the quotes."""
+    editor, keymap, ctx = _setup('say "hi"!')
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "c", "a", '"', "X", ESC)
+    assert editor.buffer.get_text() == "say X!"
+
+
+def test_cit_changes_the_inner_tag_text() -> None:
+    """cit replaces the text between the tags."""
+    editor, keymap, ctx = _setup("<p>hello</p>")
+    editor.buffer.set_cursor((0, 4))
+    _press(keymap, ctx, "c", "i", "t", "X", ESC)
+    assert editor.buffer.get_text() == "<p>X</p>"
+
+
+def test_cat_changes_the_whole_tag() -> None:
+    """cat replaces the entire tag block."""
+    editor, keymap, ctx = _setup("<p>hi</p> tail")
+    _press(keymap, ctx, "c", "a", "t", "X", ESC)
+    assert editor.buffer.get_text() == "X tail"
+
+
+def test_unknown_text_object_drops_the_operator() -> None:
+    """diq is a miss: nothing happens and the next key works normally."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "i", "q")
+    assert editor.buffer.get_text() == "abc"
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "bc"
+
+
+def test_unbalanced_pair_drops_the_operator_with_a_message() -> None:
+    """di( without a closing paren reports the miss."""
+    editor, keymap, ctx = _setup("abc (def")
+    editor.buffer.set_cursor((0, 6))
+    _press(keymap, ctx, "d", "i", "(")
+    assert editor.buffer.get_text() == "abc (def"
+    assert editor.messages[-1] == "no text object"
+
+
+# --- replace and insert-entry fixes ------------------------------------------
+
+
+def test_r_replaces_the_char_under_the_cursor() -> None:
+    """rx swaps one char and leaves the cursor on it."""
+    editor, keymap, ctx = _setup("abc")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "r", "X")
+    assert editor.buffer.get_text() == "aXc"
+    assert editor.buffer.cursor == (0, 1)
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_counted_r_replaces_n_chars() -> None:
+    """3rx swaps three chars; the cursor ends on the last one."""
+    editor, keymap, ctx = _setup("abcdef")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "3", "r", "X")
+    assert editor.buffer.get_text() == "aXXXef"
+    assert editor.buffer.cursor == (0, 3)
+
+
+def test_replace_accepts_digit_characters() -> None:
+    """r5 swaps the char for a literal 5; the count form still works."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "r", "5")
+    assert editor.buffer.get_text() == "5bc"
+
+    editor, keymap, ctx = _setup("abcdef")
+    _press(keymap, ctx, "2", "r", "5")
+    assert editor.buffer.get_text() == "55cdef"
+
+
+def test_r_beyond_the_line_end_reports_and_keeps_the_text() -> None:
+    """vim refuses a replace running past the end of the line."""
+    editor, keymap, ctx = _setup("abc")
+    editor.buffer.set_cursor((0, 2))
+    _press(keymap, ctx, "2", "r", "X")
+    assert editor.buffer.get_text() == "abc"
+    assert editor.messages[-1] == "nothing to replace"
+
+
+def test_r_with_a_non_printable_follower_is_dropped() -> None:
+    """r esc cancels the replace and esc still clears pending state."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "r", ESC, "x")
+    assert editor.buffer.get_text() == "bc"
+
+
+def test_operator_is_cancelled_by_r() -> None:
+    """drx cancels d and replaces one char, like vim."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "d", "r", "X")
+    assert editor.buffer.get_text() == "Xbc"
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_append_at_the_end_of_a_line_stays_on_the_line() -> None:
+    """a never spills onto the next line, even from the EOL column."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    editor.buffer.set_cursor((0, 1))
+    _press(keymap, ctx, "a", "X", ESC)
+    assert editor.buffer.get_text() == "abX\ncd"
+
+    editor, keymap, ctx = _setup("ab\ncd")
+    editor.buffer.set_cursor((0, 2))  # the EOL column
+    _press(keymap, ctx, "a", "X", ESC)
+    assert editor.buffer.get_text() == "abX\ncd"
+
+
+def test_visual_line_yank_lands_on_the_first_row() -> None:
+    """Vy leaves the cursor on the first column of the first yanked row."""
+    editor, keymap, ctx = _setup("one\ntwo\nthree")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "V", "j", "y")
+    assert editor.buffer.register == "two\nthree\n"
+    assert editor.buffer.cursor == (1, 0)
+    assert editor.buffer.has_selection() is False
+    assert keymap.mode is VimMode.NORMAL
