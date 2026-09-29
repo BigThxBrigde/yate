@@ -26,6 +26,11 @@ tools: Glob, Grep, Read, Edit, Write, Bash, TodoWrite
 
 1. 【领会】分析任务，按判据（≥3 文件 / 跨层 / 多方案 / 需调研）确认走闭环流程；
    用 TodoWrite 建立步骤清单并随进度更新。
+   【工作区隔离】**新任务**开工前必须先建独立 worktree 与对应分支：
+   `git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`（目录名与分支名用任务标识，
+   之后的方案、执行、审核、提交全部在该 worktree 内进行，不污染主工作区）；
+   **续作已有任务**先用 `git worktree list` 查找现有 worktree 与分支，直接复用，
+   **禁止**为进行中的任务重复新建。
 2. 【方案】调用 plan-architect-designer：任务书声明"以规则文档为唯一规范来源"，
    要求方案落盘 `.trae/documents/<task>_plan.md`（相对路径），含定位到代码文件的
    具体修改与需新增的测试用例。
