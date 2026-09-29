@@ -1,6 +1,6 @@
 # Windows Terminal 键位修复（IKH1RA）· 子计划总纲
 
-> 上位文档：`../wt_keybinding_fix_plan.md`（根因与决策）；根治路线见 `../win_keybinding_plan.md`
+> 上位文档：`../wt-keybinding-fix-plan.md`（根因与决策）；根治路线见 `../win-keybinding-plan.md`
 > 分支 / worktree：`issues/keybinding-fix-wt` @ `d:/Programming/yate-keybinding-fix-wt`
 > 状态：**SP1–SP5 自动化部分已实施**（2026-09-26；仅剩 SP5 真机矩阵待用户手动执行）
 >
@@ -13,7 +13,7 @@
 > | SP3 文档标注 | ✅ 全量 1228 passed, 7 skipped | `f26e65d` docs(manual): note terminal compatibility |
 > | SP4 文档回填 | ✅ review.md + P2 N8 + 本批状态回写 + issue 回复草稿 | `ebee085` docs(keybinding): backfill IKH1RA disposition |
 > | SP5 门禁 | ✅ pyright 全仓 0 诊断 · 全量 1228 passed, 7 skipped · 架构守护 13 passed · 冒烟 88/88 场景 · 917/917 checks · exit 0 | — |
-> | SP5 真机矩阵 | ⚠️ **部分不符**（2026-09-26 实测：vim 下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效）→ 新根因与重排计划见 **[keybinding_fix_wt_key_reachability_plan_f.md](keybinding_fix_wt_key_reachability_plan_f.md)** | — |
+> | SP5 真机矩阵 | ⚠️ **部分不符**（2026-09-26 实测：vim 下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效）→ 新根因与重排计划见 **[keybinding-fix-wt-key-reachability-plan-f.md](keybinding-fix-wt-key-reachability-plan-f.md)** | — |
 
 > **🧭 2026-09-28 文档-代码核对复核**（上表为 2026-09-26 时点值，本次实测）：
 > `python -m pytest tests/ --collect-only` → **1354 tests collected**，`python -m pytest tests/ -q` exit 0；
@@ -26,7 +26,7 @@
 > ctrl+`↔ctrl+space NUL 碰撞（`editor.py:587` 现状取舍：编辑器聚焦→补全、终端聚焦→关终端）、
 > ctrl+e/ctrl+shift+e 区分、alt+digit。执行顺序 PB1（keyproto L0 包）→ PB2.0（XTermParser
 > win32-input-mode 帧探测，定轻量协议 or 自建驱动）→ PB2（驱动 chord 交付）→ PB3（`key_protocol`
-> 配置）→ PB4（文档）→ PB5（矩阵复测+发布）。步骤见 [keybinding_fix_wt_steps_plan_g.md](keybinding_fix_wt_steps_plan_g.md)。
+> 配置）→ PB4（文档）→ PB5（矩阵复测+发布）。步骤见 [keybinding-fix-wt-steps-plan-g.md](keybinding-fix-wt-steps-plan-g.md)。
 > Phase A 合计 6 commits：`5a73fc7` `1d1f3d8` `34ab059` `beea5e0` `1db6175` `d56e43a`。
 >
 > **✅ 2026-09-26 Phase B 主体完成**（PB1/PB2/PB3/PB4/PB5-r1/PB6）：
@@ -36,7 +36,7 @@
 > ctrl+shift+e（与 ctrl+e 区分）/ctrl+1（legacy 无法送达）/ctrl+space（独立命名）/ctrl+\`
 > （终端开关）全部到达且单触发，ctrl+q 正常退出。ctrl+space 悖论结论（IME 拦截 + 时间交叠
 > 归因）在真机复现实锤。运行细节与抓到的缺陷（key-up 帧误判双触发等）见
-> [keybinding_fix_wt_steps_plan_g.md](keybinding_fix_wt_steps_plan_g.md) 执行状态表 PB6 行。**剩 PB5 三终端矩阵**：
+> [keybinding-fix-wt-steps-plan-g.md](keybinding-fix-wt-steps-plan-g.md) 执行状态表 PB6 行。**剩 PB5 三终端矩阵**：
 > WT 已由 harness 覆盖，conhost / VS Code 待人工复测。
 
 ## 执行顺序与测试门禁（铁律）
@@ -65,11 +65,11 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 
 | 文件 | 内容 | 独占文件 |
 |---|---|---|
-| [keybinding_fix_wt_ctrl_slash_mapping_plan_a.md](keybinding_fix_wt_ctrl_slash_mapping_plan_a.md) | `ctrl+/`（`\x1f`→`ctrl+underscore`）映射修复 + help 显示修复 | `yate/keyproto/legacy.py`（**2026-09-28 核对：原写 `yate/editor_view/keys.py`，该模块已随 PB1 迁入 keyproto 并删除**）、`yate/keymaps/base.py`、两个测试文件 |
-| [keybinding_fix_wt_dispatch_guards_diag_plan_b.md](keybinding_fix_wt_dispatch_guards_diag_plan_b.md) | `ctrl+p`/`ctrl+1`/`ctrl+shift+e` pilot 回归守卫 + 未映射键诊断日志（D2） | `yate/editor.py`、`tests/test_app_textual.py` |
-| [keybinding_fix_wt_manual_terminal_notes_plan_c.md](keybinding_fix_wt_manual_terminal_notes_plan_c.md) | manual 中 `ctrl+1` 等键的终端兼容性标注（D1=A） | `yate/resources/manual.*.md`、README 键位段 |
-| [keybinding_fix_wt_docs_backfill_plan_d.md](keybinding_fix_wt_docs_backfill_plan_d.md) | review.md 回填、P2 N8 关账、Gitee issue 回复草稿 | `.trae/issues/review.md`、`.trae/documents/code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md`、本目录文档 |
-| [keybinding_fix_wt_gates_matrix_plan_e.md](keybinding_fix_wt_gates_matrix_plan_e.md) | 全量门禁（pyright/pytest/冒烟）+ 真机验证矩阵 + 计划状态收尾 | `.trae/documents/**`（状态回写） |
+| [keybinding-fix-wt-ctrl-slash-mapping-plan-a.md](keybinding-fix-wt-ctrl-slash-mapping-plan-a.md) | `ctrl+/`（`\x1f`→`ctrl+underscore`）映射修复 + help 显示修复 | `yate/keyproto/legacy.py`（**2026-09-28 核对：原写 `yate/editor_view/keys.py`，该模块已随 PB1 迁入 keyproto 并删除**）、`yate/keymaps/base.py`、两个测试文件 |
+| [keybinding-fix-wt-dispatch-guards-diag-plan-b.md](keybinding-fix-wt-dispatch-guards-diag-plan-b.md) | `ctrl+p`/`ctrl+1`/`ctrl+shift+e` pilot 回归守卫 + 未映射键诊断日志（D2） | `yate/editor.py`、`tests/test_app_textual.py` |
+| [keybinding-fix-wt-manual-terminal-notes-plan-c.md](keybinding-fix-wt-manual-terminal-notes-plan-c.md) | manual 中 `ctrl+1` 等键的终端兼容性标注（D1=A） | `yate/resources/manual.*.md`、README 键位段 |
+| [keybinding-fix-wt-docs-backfill-plan-d.md](keybinding-fix-wt-docs-backfill-plan-d.md) | review.md 回填、P2 N8 关账、Gitee issue 回复草稿 | `.trae/issues/review.md`、`.trae/documents/code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md`、本目录文档 |
+| [keybinding-fix-wt-gates-matrix-plan-e.md](keybinding-fix-wt-gates-matrix-plan-e.md) | 全量门禁（pyright/pytest/冒烟）+ 真机验证矩阵 + 计划状态收尾 | `.trae/documents/**`（状态回写） |
 
 > **分支评审（2026-09-27）**：本分支全量 diff 评审报告（2 项发现已闭环 `b21ff37`、
 > 门禁实测 1257 passed / 覆盖率 90% / 冒烟 920 checks、按键管线与日志守卫流程图存档）见
@@ -80,7 +80,7 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 ## 前置（可选）：SP0 真机取证
 
 若对根因推断有疑，先在真实 WT 下启用 `YATE_TRACE=1` 按 `ctrl+1` / `ctrl+/` / `ctrl+p`，
-确认到达的 `event.key` 形态与 `../wt_keybinding_fix_plan.md` §2.1 表格一致，再开工 SP1。
+确认到达的 `event.key` 形态与 `../wt-keybinding-fix-plan.md` §2.1 表格一致，再开工 SP1。
 无出入则跳过。
 
 ## 已核实的关键事实（实施不再复测）
@@ -96,6 +96,6 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
   **（2026-09-28 核对：已修复——`yate/keymaps/base.py:85` 已登记 `"\x1f": "ctrl-/"`，现返回 `<ctrl-/>`。）**
 - `ctrl+p` 已修（`Editor.handle_key` L624 分支；**2026-09-28 核对：现 `editor.py:696`**）；
   `ctrl+1` 物理不可达（WT 无 kitty 协议 + Textual 不读修饰键）。**（2026-09-28 核对：legacy 路径
-  仍然成立；和弦驱动 + win32-input-mode 帧解码（PB2/PB6）后 WT 下已可达，见 `keybinding_fix_wt_steps_plan_g.md` PB6 行。）**
+  仍然成立；和弦驱动 + win32-input-mode 帧解码（PB2/PB6）后 WT 下已可达，见 `keybinding-fix-wt-steps-plan-g.md` PB6 行。）**
 - `editor.py:73` 已有 `log = tracing.get_logger(__name__)`，D2 诊断日志零新增依赖。
   **（2026-09-28 核对：现 `editor.py:74`。）**

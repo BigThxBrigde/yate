@@ -37,7 +37,7 @@
 | E3 `test_cli` / `test_config` / `test_panes` / `test_editor_core` / `test_extensions` / `test_highlight` | ✅ **175 passed**（2026-09-28 核对：**286**） |
 | E4 `tools/smoke_test/scenarios/`（8 个未迁移场景） | ✅ 全量 `run --fail-only` → **62/62 场景、651/651 checks** |
 | 全量门禁 | ✅ `pytest tests/ -q` exit 0 · `pyright yate/ tests/ tools/` 0 诊断 · `yate --diag` / `--version` 正常 |
-| 迁移记录 | 逐文件方式见 [Plan E](app_layering_refactoring_tests_tools_plan_e.md) §E.5 / §E.6.4；属性映射见 §E.1 |
+| 迁移记录 | 逐文件方式见 [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.5 / §E.6.4；属性映射见 §E.1 |
 
 > **2026-09-28 核对复核**（本目录文档与代码对照）：`pytest tests/` 收集 **1354** 个用例、exit 0 全绿；
 > `pytest tests/test_architecture.py` → **20 passed**（Plan G 收口时为 13，此后 R12 / R13 / 日志惰性格式等
@@ -174,7 +174,7 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 `register_commands(self.editor.commands, self.editor)`，且 `actions.py` / `commands.py` 只被 `app.py` 导入。
 
 > **R8 / R9 / R10 仍无自动守护**（R8 仅被 R2 的协议守卫间接覆盖）：依赖代码评审与
-> [Plan F](app_layering_refactoring_gate_docs_plan_f.md) 冒烟清单。
+> [Plan F](app-layering-refactoring-gate-docs-plan-f.md) 冒烟清单。
 
 ---
 
@@ -182,13 +182,13 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| A | [app_layering_refactoring_leaf_models_plan_a.md](app_layering_refactoring_leaf_models_plan_a.md) | 叶子模型：`session.py`、`registries.py`、`keymaps/registry.py`、`KeyUi` | ✅ |
-| B | [app_layering_refactoring_widget_selfhold_plan_b.md](app_layering_refactoring_widget_selfhold_plan_b.md) | 组件自持：`chrome.py`、`commandline.py`、`explorer.py`、`terminal.py`、`panes.py`、`statusbar.py`、`modals.py`、`palette.py`、`editor.py` | ✅ |
-| C | [app_layering_refactoring_functional_tables_plan_c.md](app_layering_refactoring_functional_tables_plan_c.md) | 函数化表与流程：`prompt_completion.py`、`completion.py`、`actions.py`、`commands.py`、`services/extensions.py`、`editor.py` | ✅ |
-| D | [app_layering_refactoring_shell_wiring_plan_d.md](app_layering_refactoring_shell_wiring_plan_d.md) | **外壳瘦身与接线**：解环、`app.py` 瘦到 152 行、删除 `app_features/`、cli 走 `app.editor` | ✅ |
-| E | [app_layering_refactoring_tests_tools_plan_e.md](app_layering_refactoring_tests_tools_plan_e.md) | **测试与冒烟脚本迁移**：`app.X` → `app.editor.*`；架构守护规则更新（§E.5 落地记录、§E.6 迁移清单与实测） | ✅ |
-| F | [app_layering_refactoring_gate_docs_plan_f.md](app_layering_refactoring_gate_docs_plan_f.md) | **门禁与文档**：pyright / pytest / `--diag` / 冒烟清单、扩展与用户文档、CHANGELOG、`architecture-boundaries.md` | ✅ |
-| G | [app_layering_refactoring_pane_model_to_session_plan_g.md](app_layering_refactoring_pane_model_to_session_plan_g.md) | **窗格模型下沉**：删除 `editor_view/pane_types.py`，模型并入 `session.py`（L1）；清掉 `panes.py` 的 deprecated 重导出 | ✅ |
+| A | [app-layering-refactoring-leaf-models-plan-a.md](app-layering-refactoring-leaf-models-plan-a.md) | 叶子模型：`session.py`、`registries.py`、`keymaps/registry.py`、`KeyUi` | ✅ |
+| B | [app-layering-refactoring-widget-selfhold-plan-b.md](app-layering-refactoring-widget-selfhold-plan-b.md) | 组件自持：`chrome.py`、`commandline.py`、`explorer.py`、`terminal.py`、`panes.py`、`statusbar.py`、`modals.py`、`palette.py`、`editor.py` | ✅ |
+| C | [app-layering-refactoring-functional-tables-plan-c.md](app-layering-refactoring-functional-tables-plan-c.md) | 函数化表与流程：`prompt_completion.py`、`completion.py`、`actions.py`、`commands.py`、`services/extensions.py`、`editor.py` | ✅ |
+| D | [app-layering-refactoring-shell-wiring-plan-d.md](app-layering-refactoring-shell-wiring-plan-d.md) | **外壳瘦身与接线**：解环、`app.py` 瘦到 152 行、删除 `app_features/`、cli 走 `app.editor` | ✅ |
+| E | [app-layering-refactoring-tests-tools-plan-e.md](app-layering-refactoring-tests-tools-plan-e.md) | **测试与冒烟脚本迁移**：`app.X` → `app.editor.*`；架构守护规则更新（§E.5 落地记录、§E.6 迁移清单与实测） | ✅ |
+| F | [app-layering-refactoring-gate-docs-plan-f.md](app-layering-refactoring-gate-docs-plan-f.md) | **门禁与文档**：pyright / pytest / `--diag` / 冒烟清单、扩展与用户文档、CHANGELOG、`architecture-boundaries.md` | ✅ |
+| G | [app-layering-refactoring-pane-model-to-session-plan-g.md](app-layering-refactoring-pane-model-to-session-plan-g.md) | **窗格模型下沉**：删除 `editor_view/pane_types.py`，模型并入 `session.py`（L1）；清掉 `panes.py` 的 deprecated 重导出 | ✅ |
 
 ---
 
@@ -216,14 +216,14 @@ python -m yate --version                   # 正常
 
 ## 8. 冒烟清单
 
-见 [app_layering_refactoring_gate_docs_plan_f.md](app_layering_refactoring_gate_docs_plan_f.md) §F.2（启动 / explorer / 终端 / 补全 / vim / 命令 / 扩展 / `--diag`）。
+见 [app-layering-refactoring-gate-docs-plan-f.md](app-layering-refactoring-gate-docs-plan-f.md) §F.2（启动 / explorer / 终端 / 补全 / vim / 命令 / 扩展 / `--diag`）。
 
 ## 9. 相关文档
 
 | 文档 | 关系 |
 |---|---|
 | [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md) | 本重构的**硬性边界规则**（已按新分层改写），随代码一起被守护 |
-| [`.trae/documents/split_app_protocol_plan.md`](../split_app_protocol_plan.md) | **前序重构**：拆分并移除 `AppProtocol`，其产物 `app_features/` 在本轮 Plan D 删除；其正文 §3.2 的 R1–R6 为**旧编号**，勿与本目录的 R1–R11 对照 |
+| [`.trae/documents/split-app-protocol-plan.md`](../split-app-protocol-plan.md) | **前序重构**：拆分并移除 `AppProtocol`，其产物 `app_features/` 在本轮 Plan D 删除；其正文 §3.2 的 R1–R6 为**旧编号**，勿与本目录的 R1–R11 对照 |
 | [`.trae/review/review.md`](../../review/README.md) | 代码审查问题清单（多项落在 `app_features/*`，随目录删除而消解）。（**2026-09-28 核对修正**：原路径 `.trae/issues/review.md` 已随审查文档整体迁至 `.trae/review/`，`.trae/issues/` 目录不再存在） |
 
 ## 10. 审计记录（2026-09-23）
@@ -238,22 +238,22 @@ python -m yate --version                   # 正常
 | 2 | 本 README §4 R9、§7；Plan B §B.5 | id 清单漏 compose 容器 `#body` `#bottom-dock` `#bottom`；`#statusbar` 并非 CSS 选择器 | 按代码更正并说明 |
 | 3 | 本 README §4 守护清单 | 误写"由 R1/R2/R4/R5/R6/R7/R11 守护" | 更正为 R1/R2/R3/R4/R5/R6/R11 + 命名守卫，并注明 R7/R9/R10 无自动守护 |
 | 4 | 本 README §2 | `keymaps` 同时出现在 L0 与 L1 | L0 限定 `keymaps/base|vim|vsc`；`keymaps/registry.py` 归 L1 |
-| 5 | [Plan E](app_layering_refactoring_tests_tools_plan_e.md) §E.1 | `app.editor.window_pending` 被标成**方法** | 更正为**属性**（`@property`，加括号会 `TypeError`） |
-| 6 | [Plan E](app_layering_refactoring_tests_tools_plan_e.md) §E.2 / §E.3 | 迁移理由与用例名过期（`test_terminal.py` 本无需迁移；用例已改名） | 更正并补 `test_highlight.py`、`*Ops` / `*Delegate` |
-| 7 | [Plan E](app_layering_refactoring_tests_tools_plan_e.md) §E.5 | 未记录 E1–E4 的真实进度 | 改为实测状态 + 新增 §E.6 逐文件待迁移清单 |
-| 8 | [Plan F](app_layering_refactoring_gate_docs_plan_f.md) §F.3 / §F.2 | 文档现状记错（扩展文档写的是 `ExtensionHost`，非 `YateApp`；rules 已是 R1–R11；`api.keymaps` 仍是 `dict`） | 已更正，并入 §F.5 |
+| 5 | [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.1 | `app.editor.window_pending` 被标成**方法** | 更正为**属性**（`@property`，加括号会 `TypeError`） |
+| 6 | [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.2 / §E.3 | 迁移理由与用例名过期（`test_terminal.py` 本无需迁移；用例已改名） | 更正并补 `test_highlight.py`、`*Ops` / `*Delegate` |
+| 7 | [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.5 | 未记录 E1–E4 的真实进度 | 改为实测状态 + 新增 §E.6 逐文件待迁移清单 |
+| 8 | [Plan F](app-layering-refactoring-gate-docs-plan-f.md) §F.3 / §F.2 | 文档现状记错（扩展文档写的是 `ExtensionHost`，非 `YateApp`；rules 已是 R1–R11；`api.keymaps` 仍是 `dict`） | 已更正，并入 §F.5 |
 | 9 | `tests/test_architecture.py` docstring；`.trae/rules/architecture-boundaries.md` | 引用不存在的 `app_layering_plan.md`；命名守卫冒用 R7 编号；`test_collaborators_*` 标 R4（实为 R11）；R9 id 清单同上 | 已修正（§F.5） |
-| 10 | `.trae/rules/python-coding-style.md`、`.trae/skills/textual-pilot-smoke/SKILL.md`、`split_app_protocol_plan.md` | 残留"窄 Protocol（Host/Ops）"指导、`yate/tracing.py` / `yate/crash.py` 失效路径、错误的 baseline 目录、旧 R 编号 | 已修正（§F.5） |
+| 10 | `.trae/rules/python-coding-style.md`、`.trae/skills/textual-pilot-smoke/SKILL.md`、`split-app-protocol-plan.md` | 残留"窄 Protocol（Host/Ops）"指导、`yate/tracing.py` / `yate/crash.py` 失效路径、错误的 baseline 目录、旧 R 编号 | 已修正（§F.5） |
 | 11 | `yate/app_features/` 残留目录（同日追加） | 目录只剩 `__pycache__`，`import yate.app_features` 仍**成功**（空命名空间包），而原用例只断言 `__init__.py` 不存在 | 删除残留目录；`test_app_features_package_is_gone` 改为断言**目录**不存在；rules §六 同步 |
-| 12 | `tests/test_architecture.py`（同日追加） | R7（外壳装载内置表）此前**无自动守护** | 补 `test_shell_loads_the_builtin_tables`（用例数 11 → 12），rules §六 与 [Plan E](app_layering_refactoring_tests_tools_plan_e.md) §E.3 / §E.5 同步 |
-| 13 | [Plan G](app_layering_refactoring_pane_model_to_session_plan_g.md) 落地（同日追加） | 窗格模型挂在 L2 `editor_view/pane_types.py`，与「状态放在正确的层 / 不建公共类型层」冲突 | `pane_types.py` 整体删除、模型下沉 `yate/session.py`（L1，与 `EditorSession` 同模块但类本身零改动）；`panes.py` 的 deprecated 重导出与 `__all__` 清理；新增架构守护用例 `test_pane_model_lives_in_l1_session`（用例数 12 → 13）；`.trae/rules/architecture-boundaries.md` §一 / §二 / §三.6 / §六、本 README §2 / §4、[Plan B](app_layering_refactoring_widget_selfhold_plan_b.md) §B.2、[split_panes_plan.md](../split_panes_plan.md) 实施状态段同步回填；本 README §1 行数已按实测回填（`session.py` 161 → 281 行）。落地实测见 [Plan G](app_layering_refactoring_pane_model_to_session_plan_g.md) §G.9 |
+| 12 | `tests/test_architecture.py`（同日追加） | R7（外壳装载内置表）此前**无自动守护** | 补 `test_shell_loads_the_builtin_tables`（用例数 11 → 12），rules §六 与 [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.3 / §E.5 同步 |
+| 13 | [Plan G](app-layering-refactoring-pane-model-to-session-plan-g.md) 落地（同日追加） | 窗格模型挂在 L2 `editor_view/pane_types.py`，与「状态放在正确的层 / 不建公共类型层」冲突 | `pane_types.py` 整体删除、模型下沉 `yate/session.py`（L1，与 `EditorSession` 同模块但类本身零改动）；`panes.py` 的 deprecated 重导出与 `__all__` 清理；新增架构守护用例 `test_pane_model_lives_in_l1_session`（用例数 12 → 13）；`.trae/rules/architecture-boundaries.md` §一 / §二 / §三.6 / §六、本 README §2 / §4、[Plan B](app-layering-refactoring-widget-selfhold-plan-b.md) §B.2、[split-panes-plan.md](../split-panes-plan.md) 实施状态段同步回填；本 README §1 行数已按实测回填（`session.py` 161 → 281 行）。落地实测见 [Plan G](app-layering-refactoring-pane-model-to-session-plan-g.md) §G.9 |
 
 > Plan E / Plan F 的迁移与门禁执行结果（含 5 个并行子任务的交付与复核数据）见
-> [Plan E](app_layering_refactoring_tests_tools_plan_e.md) §E.5 / §E.6.4 与 [Plan F](app_layering_refactoring_gate_docs_plan_f.md) §F.6。
+> [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.5 / §E.6.4 与 [Plan F](app-layering-refactoring-gate-docs-plan-f.md) §F.6。
 
 ## 11. 后续决策记录：config 层解耦（N30，2026-09-26）
 
-代码审查项 N30（见 [P2 账](../code-review-fix-plans/code_review_fix_nice_to_have_plan_c.md)）发现
+代码审查项 N30（见 [P2 账](../code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md)）发现
 `yate/config.py`（L0）在 `load_config` 内惰性 import L2 `editor_view.theme`——
 全仓唯一一条 L0→L2 边，且函数内惰性写法使架构测试不可见。
 

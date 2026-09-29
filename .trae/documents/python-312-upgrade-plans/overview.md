@@ -11,11 +11,11 @@
 
 | 子计划 | 波次 | 性质 | 前置 | 交付 |
 |---|---|---|---|---|
-| [python_312_upgrade_plan_a.md](python_312_upgrade_plan_a.md) | 勘察与基线 | 只读勘察（主代理，串行前置） | — | @override 落点清单 + 计数（供 D1）+ 基线数字回填本文校准记录；**不提交** |
-| [python_312_upgrade_plan_b.md](python_312_upgrade_plan_b.md) | 声明面 bump | 机械改 8 文件 | SP0 | commit `chore(project): raise python floor to 3.12`；**性能收益自此全额生效** |
-| [python_312_upgrade_plan_c.md](python_312_upgrade_plan_c.md) | 规则 3.12 化与工具引入 | 纯文档（修订已先行落盘） | SP1 | 复核 commit `docs(rules)`（4fe388c）+ pyupgrade 就位 |
-| [python_312_upgrade_plan_d.md](python_312_upgrade_plan_d.md) | PEP 604 存量迁移 | pyupgrade codemod ×3 子批 | SP2 | commit `refactor(types): adopt PEP 604 unions across the codebase` |
-| [python_312_upgrade_plan_e.md](python_312_upgrade_plan_e.md) | `typing.override` 落地 | 手工装饰（按 D1 分支） | SP3 + D1 | commit `refactor(types): annotate overrides with typing.override` |
+| [python-312-upgrade-plan-a.md](python-312-upgrade-plan-a.md) | 勘察与基线 | 只读勘察（主代理，串行前置） | — | @override 落点清单 + 计数（供 D1）+ 基线数字回填本文校准记录；**不提交** |
+| [python-312-upgrade-plan-b.md](python-312-upgrade-plan-b.md) | 声明面 bump | 机械改 8 文件 | SP0 | commit `chore(project): raise python floor to 3.12`；**性能收益自此全额生效** |
+| [python-312-upgrade-plan-c.md](python-312-upgrade-plan-c.md) | 规则 3.12 化与工具引入 | 纯文档（修订已先行落盘） | SP1 | 复核 commit `docs(rules)`（4fe388c）+ pyupgrade 就位 |
+| [python-312-upgrade-plan-d.md](python-312-upgrade-plan-d.md) | PEP 604 存量迁移 | pyupgrade codemod ×3 子批 | SP2 | commit `refactor(types): adopt PEP 604 unions across the codebase` |
+| [python-312-upgrade-plan-e.md](python-312-upgrade-plan-e.md) | `typing.override` 落地 | 手工装饰（按 D1 分支） | SP3 + D1 | commit `refactor(types): annotate overrides with typing.override` |
 
 决策门：**D1** 在 SP0 末拍板（SP4 消费）；**D2** 收尾可选验证（见 §三波次图）。
 
@@ -183,7 +183,7 @@ pyupgrade 为一次性 codemod，**不进 dev extras**（避免为已完成的�
 - 2026-09-28（核对）：复核本目录全部结论与代码实现的一致性——
   - **SP3 结论仍成立**：全仓（`yate/` + `tests/` + `tools/`）`Optional[` 与 `Union[` 实测均 **0 处**
     （`search_content` 全仓计数 0），与 §五「SP3 执行回填」一致；本文 §一 F10/F11 与
-    `python_312_upgrade_plan_d.md` 标题中的 "308 / 313 处" 均为**迁移前基数**，已在各处就地加注，未改写历史值。
+    `python-312-upgrade-plan-d.md` 标题中的 "308 / 313 处" 均为**迁移前基数**，已在各处就地加注，未改写历史值。
   - **`@override`（SP4）**：`pyproject.toml:58` 仍为 `reportImplicitOverride = "error"`，实测
     `python -m pyright yate/ tests/ tools/` → 0 errors / 0 warnings / 0 informations。
   - **SP1 地板**：`pyproject.toml:10` `requires-python = ">=3.12"`、`[tool.pyright] pythonVersion = "3.12"`
@@ -191,5 +191,5 @@ pyupgrade 为一次性 codemod，**不进 dev extras**（避免为已完成的�
   - **基线数字现状**（原记录值仍保留）：`pytest tests/` 现 **1354 collected**（当时 1216 passed /
     1231 collected）；`tests/test_architecture.py` 现 **20 passed**（当时 13）；
     冒烟现 **89/89 场景、932/932 checks**（当时 88/88、917/917）。
-  - **文件面变化**：`python_312_upgrade_plan_d.md` §3b 表中的 `yate/editor_view/keys.py` 已不存在（并入
+  - **文件面变化**：`python-312-upgrade-plan-d.md` §3b 表中的 `yate/editor_view/keys.py` 已不存在（并入
     `yate/keyproto/legacy.py`），已就地加注。

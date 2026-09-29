@@ -12,7 +12,7 @@
   **处置：** `ctrl+p` 随 `9fa5ac8` 分层重构修复（`Editor.handle_key` 全局分支，vim/vsc 双键位生效）；
   `ctrl+/` 由 `keys.py` `_CTRL_PUNCT` 补 `underscore` 条目 + `base.py` `KEY_ALIASES` 补显示别名修复
   （全平台，顺带消除 help 面板乱码）；`ctrl+1` 文档化为 kitty/CSI-u-only（双语 manual + README，
-  替代路径 `Alt+Shift+P`），彻底根治需方案 B 自建输入通道（`win_keybinding_plan.md`，另行排期）。
+  替代路径 `Alt+Shift+P`），彻底根治需方案 B 自建输入通道（`win-keybinding-plan.md`，另行排期）。
   **证据：** 定向 255 / 全量 1228 passed，pyright 0 诊断；commit `b03e40f` `ff3cfc0` `678c02c`
   `f26e65d`；计划与执行记录见 [keybinding-fix-wt](../documents/keybinding-fix-wt/overview.md)。
   **真机复测与 Phase A（2026-09-26，`YATE_TRACE=1` 取证）：** 首轮复测 vim 下仅 ctrl+q 通 →
