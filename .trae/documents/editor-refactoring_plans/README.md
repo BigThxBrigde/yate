@@ -106,3 +106,60 @@ yate.app / actions / commands**；`editor_view` 导入按 R11 规则登记进
 | 行为漂移 | 委托门面 + 外部调用点零 diff + 1400+ 测试与 smoke 全程绿 |
 | 命名守卫误伤 | 类名避开 `*Feature/*Host/*Ops/*Delegate`；`*Controller` 为流程类合法后缀 |
 | 回滚 | 每波单独提交，`git revert <wave-commit>` 即回到上一波；文档随收尾波回填真实数字 |
+
+## 九、执行结果回填（2026-09-29 实测）
+
+### 9.1 波次与提交
+
+| 波次 | 提交 | 结果 |
+|---|---|---|
+| W1 组装工厂化 | `80215c5` | `__init__` 120→26 行；模块级 `_build_models` / `_build_widgets` / `_open_startup_target` / `_build_pane_stack`；类体补 23 个裸注解声明 |
+| W2 lsp_sync | `6f564a6` | 新建 `yate/lsp_sync.py`（LspSync，122 行）；editor 删 5 个 LSP 方法，保留 `show_diagnostics` 委托 |
+| W2 遗留补丁 | `d7f474f` | `tests/test_explorer.py` 跟随 `_lsp_documents_closed` → `LspSync.documents_closed`（W2 漏提交，单独补齐） |
+| W3 shell | `e7c9691` | 新建 `yate/shell_flow.py`（ShellFlow，136 行）；editor 删 run_shell/shell_name/fonts 相关代码 |
+| W4 overlays | `ebc0657` | 新建 `yate/overlays.py`（OverlayController，163 行）；editor 覆盖层段替换为 7 个薄委托；ShellFlow 的 push_overlay 改绑 `ed.overlays.push` |
+| W5 prompt flows | `dd8a33d` | 新建 `yate/prompt_flows.py`（PromptFlows，144 行）；editor 保留 6 个薄委托，4 个私有步骤内部化 |
+
+### 9.2 门禁实测（每波相同命令，退出码全 0）
+
+| 门禁 | W1-W4 结果 | W5（收尾）结果 |
+|---|---|---|
+| pyright strict（yate/tests/tools） | 0 诊断 | 0 诊断 |
+| pytest tests/ | 全绿 exit 0 | 全绿 exit 0 |
+| smoke（`tools.smoke_test run`） | 932/932 checks，89/89 scenarios | 932/932 checks，89/89 scenarios |
+| coverage（仅收尾波） | — | 90.62%（门槛 75%） |
+
+注：smoke 实际规模为 **89 场景 / 932 检查**（本文档 §七 与 plan_C 写的「5 场景」是旧信息，以实测为准）。
+
+### 9.3 行数结果（对照 §一 目标 4）
+
+| 文件 | 前 | 后 |
+|---|---|---|
+| `yate/editor.py` | 1600 | **1425**（净 −175，−10.9%；五波合计 +243/−419） |
+| 新流程模块 | — | lsp_sync 122 / shell_flow 136 / overlays 163 / prompt_flows 144（均 ≤ 180 目标） |
+
+**目标偏差**：editor.py 终值 1425 高于计划的约 1230。原因：薄委托门面（每波保留
+6-7 个带 docstring 的委托方法）、类级注解声明区与工厂 docstring 均计入行数，且
+W4/W5 实际外移量低于估算。行为零变更与模块内聚目标达成，行数目标部分达成。
+
+### 9.4 偏离计划记录（均附实测依据）
+
+1. **W1 埋雷，W4 修复**：模块级工厂访问 `ed._extension_context` / `ed._cancel_prompt` /
+   `ed._open_target` / `ed._make_view` 触发 pyright `reportPrivateUsage`（4 错误，HEAD
+   实测复现）。W4 将四个成员改为公开名（`extension_context` / `make_view` /
+   `open_target` / `cancel_prompt`），与 `diagnostics.py` 模块级函数只走公开面的先例一致。
+2. **W3 构造参数补缺**：`ShellFlow` 补 `focus_editor` / `refresh` 回调
+   （`run_shell_command_later` 原体调用它们，plan_C 参数表漏列）。
+3. **W2 push 语义内联**：`LspSync.show_diagnostics` 内联 `prompt.idle()` +
+   `app.push_screen(OutputScreen(...))` 而非注入 push 回调；W4 落地 `overlays.push` 后
+   ShellFlow 已改绑，LspSync 保持内联（单一调用点，注入反而多一跳）。
+4. **R11 白名单补项**：`lsp_sync.py` 需 `yate.editor_view.panes`（PaneManager 参数）、
+   `prompt_flows.py` 需 `yate.editor_view.panes`（同上）——plan_B/plan_E 给的白名单集合
+   漏列，按实际 import 补齐。
+5. **W5 构造参数补缺**：`PromptFlows` 补 `refresh` 回调（`goto_line` 末尾重绘 UI，
+   plan_E 参数表漏列；与 W3 同类偏差）。
+6. **W4 测试跟随**：`test_app_textual.py` 的 `run_shell` patch 目标改为
+   `yate.shell_flow.run_shell`；`test_changelog_view.py` 的 Editor 骨架改为挂真实
+   `OverlayController`（push 守卫已随流程外移）。
+7. **test_manual_command_selects_language[zh] 一次 ScreenStackError**：单独重跑 35 项
+   全绿，确认为时序偶发而非回归，未改断言。
