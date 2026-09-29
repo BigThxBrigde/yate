@@ -1,8 +1,9 @@
 # editor 拆分总纲（editor-split）
 
 > 续作任务：复用 worktree `D:\Programming\yate-editor-refactoring`（分支
-> `ref/editor-refactoring`，HEAD `c04d202` 已合并 master：文档命名迁移为连字符 +
-> 规则重读完成）。基线 editor.py 1425 行（HEAD `07004a0` 侧五波产物，master 从未
+> `ref/editor-refactoring`，合并点 `a267b7d` 已合并 master：文档命名迁移为连字符 +
+> 规则重读完成；总纲早期文本曾记合并后 HEAD 为 `c04d202`，实为笔误，勘正于此）。
+> 基线 editor.py 1425 行（HEAD `07004a0` 侧五波产物，master 从未
 > 含这些模块；合并自动取我方版本，工作区干净）。
 > 用户裁定：editor.py 太大难维护——去掉所有薄委托转发/薄壳，按职责拆分，职责单一、
 > 扩展性好，不破坏边界与现有架构；**流程模块命名统一 `*Flows`（Controller 不好，
@@ -132,3 +133,63 @@ flowchart TB
 | DocumentFlows↔WindowFlows 依赖环 | 单向：WindowFlows 注入 DocumentFlows 具体对象（R8） |
 | 改名波漏 patch 字符串 | grep `shell_flow|OverlayController|CompletionController` 兜底 |
 | 回滚 | 每波一笔独立提交 `git revert`；波间串行 |
+
+## 九、执行记录（2026-09-29 收尾回填）
+
+**状态：全部波次完成，评审通过，门禁全绿。** 行文口径：行数一律 Python
+`splitlines()` 总行数（此前 plan-e 执行记录曾误用 `Measure-Object -Line`
+非空行口径，已在 plan-e §八勘正）。
+
+### 波次产物
+
+| 波次 | 提交 | 产物 |
+|---|---|---|
+| wave-1a | `9a0f7a8` | 旧方案文档改名迁移（doc-naming 连字符规范） |
+| wave-1b | `e6d32ac` | 流程模块统一 `*Flows`（shell_flow.py→shell_flows.py 等） |
+| wave-2 | `d634079` | 删 23 个薄委托/薄壳，调用方直调 |
+| 锚点复核 | `1ff34d3` | plan-d/e/f 行号锚点 grep 实测回写 |
+| wave-3 | `0cff320` | **document_flows.py**（353 行，19 方法）；editor.py 1196→1089 |
+| wave-4 | `63717cf` | **window_flows.py**（211 行，9 方法 + property + 弦表）；editor.py 1089→958 |
+| wave-5 | `d1c1a2c` | **extension_flows.py**（125 行，装载/信任/LSP 注册）；editor.py 958→882 |
+| wave-6 修复 | `a4990c2` | 评审 minor #1/#3：DocumentFlows 类体注解 + `_build_pane_stack` docstring |
+| wave-6 评审 | `c0787e5` | 评审记录 [`.trae/review/2026-09-29-editor-split.md`](../../review/2026-09-29-editor-split.md) |
+
+**editor.py：1425 → 884 行**（目标 ~800；差额为组装工厂保留并新增三模块装配线，
+属计划内"保留组装工厂"条款，见 §一.4）。
+
+### 关键实现决策（跨波）
+
+- **装配点时序**（plan-d 定案，e/f 沿用）：DocumentFlows 在 `_build_widgets` 尾构造，
+  pane stack 相关协作者经 `attach_pane_stack` 二段注入（仿 PaneManager.attach 先例）；
+  TabBar 构造后移、explorer `open_path` / `window_prefix` 晚挂（构造参数
+  `| None = None` + 调用点守卫）、`extension_context` 前向 lambda——全部沿用
+  `_build_models` 既有前向引用惯例。
+- **WindowFlows 注入 DocumentFlows** 单向依赖（§八风险表预案落地）。
+- **ExtensionFlows** 返回告警列表而非回写 Editor 私有缓冲（缓冲所有权留 Editor）；
+  cli/`--diag` 丢弃返回值行为等价；零 editor_view 依赖，不做 R11 登记。
+- **规则同步**：§一 L3 枚举现含全部 10 个流程模块；R11 冻结面增
+  document_flows / window_flows（panes/explorer/commandline 组）；
+  `UI_FROZEN_FILES` 同步两实体条目；命名守卫收紧后全仓禁 `*Controller`。
+
+### 终验门禁（主代理亲跑，退出码全 0）
+
+| 门禁 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/`（strict） | 0 errors / 0 warnings |
+| `pytest tests/ -q --cov=yate --cov-fail-under=75` | 全绿，覆盖率 **90.70%** |
+| `pytest tests/test_architecture.py -q` | **20 passed** |
+| `python -m tools.smoke_test run` | **932/932 checks，89/89 scenarios** |
+| `python -m yate --diag` | 退出码 0，`[extensions]` 节正常 |
+
+### 评审结论
+
+0 blocker / 0 major / 3 minor（2 条当场修复于 `a4990c2`，1 条信息级保留）——
+**通过，可合并**。详见评审记录
+[`.trae/review/2026-09-29-editor-split.md`](../../review/2026-09-29-editor-split.md)。
+
+### 偏离汇总（各子计划 §八已详录）
+
+1. 行号锚点跨波漂移：每波动工前 grep 实测复核，`1ff34d3` 统一回写一次。
+2. plan-d/e 装配点改为二段注入 + 晚挂（原计划单一装配点不可满足构造时序）。
+3. `Editor._report` 改公开 `report`（DocumentFlows 注入点需公开可注入）。
+4. editor.py 目标 ~800 行实际 884：组装工厂按计划保留并新增装配线，非超纲。
