@@ -161,6 +161,49 @@ def test_stale_is_reported_then_force_retranslates(
     assert wiki.run(target, "fake-cmd", check=True, repo_root=repo) == 0
 
 
+def test_force_without_translator_reports_stale(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def v1_translate(text: str, translate_cmd: str) -> str | None:
+        return "# orphan en v1\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", v1_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    _touch(repo, ".trae/documents/set-plans/beta-plan.md", "# beta v2\n")
+
+    # --force without a translator hook must still count the outdated page
+    # as stale so --check gates on it (blocking review finding #1).
+    assert wiki.run(target, None, force=True, check=True, repo_root=repo) == 1
+    assert (
+        target / "set-plans/beta-plan.en.md"
+    ).read_text(encoding="utf-8") == "# orphan en v1\n"
+
+
+def test_load_manifest_tolerates_corruption(repo: Path, tmp_path: Path) -> None:
+    assert wiki.load_manifest(tmp_path) == {}
+
+    corrupt = tmp_path / wiki.MANIFEST_NAME
+    corrupt.write_text("{not json", encoding="utf-8")
+    assert wiki.load_manifest(tmp_path) == {}
+
+    corrupt.write_text('["not", "an", "object"]', encoding="utf-8")
+    assert wiki.load_manifest(tmp_path) == {}
+
+    corrupt.write_text('{"a.zh.md": "deadbeef"}', encoding="utf-8")
+    assert wiki.load_manifest(tmp_path) == {"a.zh.md": "deadbeef"}
+
+
+def test_translate_helper_survives_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def timed_out_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd=[str(cmd)], timeout=900)
+
+    monkeypatch.setattr(wiki.subprocess, "run", timed_out_run)
+    assert wiki.translate_via_cmd("# zh in\n", "slow-cmd") is None
+
+
 def test_nav_links_resolve_to_pages(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -196,6 +239,22 @@ def test_push_sequence_commits_and_pushes_both_remotes(
     assert ("remote", "add", "github", wiki.GITHUB_WIKI_URL) in calls
     assert ("push", "origin", wiki.WIKI_BRANCH) in calls
     assert ("push", "github", wiki.WIKI_BRANCH) in calls
+
+
+def test_push_aborts_when_git_add_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args == ("add", "-A"):
+            return subprocess.CompletedProcess(args, 128, "", "disk full")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(wiki, "run_git", fake_git)
+    assert wiki.push_wiki(tmp_path) == 1
+    assert calls == [("add", "-A")]
 
 
 def test_push_reports_failures(

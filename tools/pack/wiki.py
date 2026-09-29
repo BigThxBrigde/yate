@@ -36,6 +36,7 @@ import json
 import subprocess
 import sys
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
 from typing import Final, cast
 
@@ -216,9 +217,10 @@ def _page_base(page: WikiPage) -> str:
 
 def _page_title(source: Path) -> str:
     """Return the first ``# `` heading of *source* (fallback: file stem)."""
-    for line in source.read_text(encoding="utf-8", errors="replace").splitlines()[:30]:
-        if line.startswith("# "):
-            return line[2:].strip()
+    with source.open(encoding="utf-8", errors="replace") as fh:
+        for line in islice(fh, 30):
+            if line.startswith("# "):
+                return line[2:].strip()
     return source.stem
 
 
@@ -258,11 +260,24 @@ def default_target(repo_root: Path) -> Path:
 
 
 def load_manifest(target: Path) -> dict[str, str]:
-    """Load the sha256 manifest from *target*; missing file yields empty."""
+    """Load the sha256 manifest from *target*.
+
+    A missing file yields an empty manifest; a truncated or malformed one
+    is reported on stderr and treated as empty so the generator can start
+    over instead of crashing on leftover partial state.
+    """
     path = target / MANIFEST_NAME
     if not path.exists():
         return {}
-    data = cast("dict[str, object]", json.loads(path.read_text(encoding="utf-8")))
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        print("wiki: manifest unreadable, starting fresh", file=sys.stderr)
+        return {}
+    if not isinstance(raw, dict):
+        print("wiki: manifest is not an object, starting fresh", file=sys.stderr)
+        return {}
+    data = cast("dict[str, object]", raw)
     return {str(k): str(v) for k, v in data.items()}
 
 
@@ -275,19 +290,24 @@ def store_manifest(target: Path, manifest: dict[str, str]) -> None:
 def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
     """Pipe Chinese markdown through the external translator command.
 
-    Returns the translated text, or ``None`` when the command fails or
-    produces empty output (the failure is reported on stderr).
+    Returns the translated text, or ``None`` when the command fails,
+    times out, or produces empty output (the failure is reported on
+    stderr).
     """
-    proc = subprocess.run(
-        translate_cmd,
-        shell=True,
-        input=text,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=900,
-    )
+    try:
+        proc = subprocess.run(
+            translate_cmd,
+            shell=True,
+            input=text,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=900,
+        )
+    except subprocess.TimeoutExpired:
+        print("wiki: translate-cmd timed out after 900s", file=sys.stderr)
+        return None
     if proc.returncode != 0 or not proc.stdout.strip():
         detail = (proc.stderr or proc.stdout).strip()
         print(f"wiki: translate-cmd failed (rc={proc.returncode}): {detail}", file=sys.stderr)
@@ -301,7 +321,11 @@ def push_wiki(target: Path) -> int:
     An empty commit is tolerated (nothing to commit).  The ``github``
     remote is added on first use.
     """
-    run_git(target, "add", "-A")
+    added = run_git(target, "add", "-A")
+    if added.returncode != 0:
+        detail = (added.stderr or added.stdout).strip()
+        print(f"wiki: git add failed: {detail}", file=sys.stderr)
+        return 1
     commit = run_git(target, "commit", "-m", COMMIT_MESSAGE)
     if commit.returncode != 0:
         print(f"wiki: commit: {(commit.stderr or commit.stdout).strip()}")
@@ -330,7 +354,10 @@ def _nav_documents(pages: list[WikiPage]) -> tuple[str, str, str, str]:
         by_section[page.section].append(page)
     for bucket in by_section.values():
         bucket.sort(key=lambda p: p.zh_target)
-    groups = sorted({p.group for p in pages if p.group is not None}, key=str.lower)
+    groups = sorted(
+        {p.group for p in by_section[SECTION_SETS] if p.group is not None},
+        key=str.lower,
+    )
 
     def zh_entry(page: WikiPage, with_en: bool) -> str:
         line = f"- [{_page_title(page.zh_source)}]({_link(page.zh_target)})"
@@ -468,8 +495,13 @@ def run(
         if translate_cmd is None:
             if not has_en:
                 missing.append(page.en_target)
+            else:
+                # --force was requested but no translator is available:
+                # report the outdated page as stale so a following --check
+                # gates on it instead of silently ignoring it.
+                stale.append(page.en_target)
             continue
-        english = translate_via_cmd(zh_bytes.decode("utf-8"), translate_cmd)
+        english = translate_via_cmd(zh_bytes.decode("utf-8", errors="replace"), translate_cmd)
         if english is None:
             missing.append(page.en_target)
             continue
