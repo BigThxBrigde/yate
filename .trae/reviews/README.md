@@ -30,6 +30,7 @@
 | 10 | 2026-09-27 | PB5 三终端矩阵：conhost / VS Code 待人工复测（WT 已由真机 harness 覆盖） | 🔧 遗留人工项 | [2026-09-27-keybinding-branch-review.md](2026-09-27-keybinding-branch-review.md) |
 | 11 | 2026-09-29 | 配对/标签扫描无搜索半径上限（AI 建议 `max_lines` 兜底） | ⏸ 明确不修（与已批准偏离记录 #8「无界扫描」语义冲突，截断会让深层嵌套配对静默失配） | [2026-09-29-pr35-vim-keymap.md](2026-09-29-pr35-vim-keymap.md) |
 | 12 | 2026-09-29 | `_submit_save_as` 临时解除的 `read_only` 标志仅 OSError/UnicodeError 分支恢复，未预期异常无兜底 | 🔧 待修（Low/可维护性，基线存量非 PR 引入） | [2026-09-29-pr37-editor-split.md](2026-09-29-pr37-editor-split.md) |
+| 13 | 2026-09-29 | `test_vsc_has_no_duplicate_raw_keys` 断言仅报数量不匹配，未列出重复的 raw key（`Keymap._index` 静默覆盖守护测试的失败输出应点名重复键） | 🔧 待修（Low/可维护性，PR #38 AI 改进项） | [2026-09-29-pr38-vscode-keymap.md](2026-09-29-pr38-vscode-keymap.md) |
 
 ---
 
@@ -64,6 +65,7 @@
 | 2026-09-29 | **Gitee PR #35** 评审（vim 键位保真分支，AI 队友审查） | ⛔ 1 阻断（operator 排他端点未钳制）→ ✅ 修复后通过 | 1 阻断 / 3 改进 | ✅ 阻断与 2 项改进已修（`c7c7f69`）；1 项 ⏸ 明确不修（见速览 #11） | [2026-09-29-pr35-vim-keymap.md](2026-09-29-pr35-vim-keymap.md) |
 | 2026-09-29 | editor-split 系列评审（分支 `ref/editor-refactoring`，5 提交，editor.py 1425→882 行） | ✅ 通过（0 阻断 / 0 major） | 0 阻断 / 3 minor | ✅ 3 项均修复（`a4990c2` + 同日 TRAE-code-review 复核 `8d1fb42`） | [2026-09-29-editor-split.md](2026-09-29-editor-split.md) |
 | 2026-09-29 | **Gitee PR #37** 评审（editor-split 分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | 🟡 1 项 🔧 登记待办（`read_only` 异常恢复兜底，基线存量） | [2026-09-29-pr37-editor-split.md](2026-09-29-pr37-editor-split.md) |
+| 2026-09-29 | **Gitee PR #38** 评审（vscode keymap review 分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | 🟡 1 项 🔧 登记待办（重复键断言诊断信息，见速览 #13） | [2026-09-29-pr38-vscode-keymap.md](2026-09-29-pr38-vscode-keymap.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
