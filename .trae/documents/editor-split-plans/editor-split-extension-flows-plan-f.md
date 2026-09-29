@@ -89,3 +89,36 @@ Select-String -Path yate/editor.py -Pattern "def load_startup_services|def trust
 - `load_startup_services` 返回值语义变化（None → list[str]）只影响 editor.py 内
   extend 调用点；cli/测试丢弃返回值，与现状行为等价（见 §一取证）。
 - 回滚：单提交 `git revert`。
+
+## 八、执行记录（wave-5 实测回填，2026-09-29）
+
+**结果：全部门禁绿，已按 §六 提交。**
+
+| 门禁 | 命令 | 实测结果 |
+|---|---|---|
+| pyright strict | `python -m pyright yate/ tests/ tools/` | **0 errors**（首跑即 0） |
+| pytest 全量 | `python -m pytest tests/ -q --cov=yate --cov-fail-under=75` | 全绿，**覆盖率 90.72%** |
+| 架构守护 | `python -m pytest tests/test_architecture.py -q` | **20 passed** |
+| `--diag` 实测 | `python -m yate --diag` | 退出码 0，`[extensions]` 节正常渲染 |
+| 冒烟 | `python -m tools.smoke_test run` | **932/932 checks，89/89 scenarios，exit 0**（82.3s） |
+| 探针 | `Select-String -Path yate/editor.py -Pattern "def load_startup_services|def trust_cwd_extensions|_register_configured_servers"` | 无命中（成员已离开 editor.py） |
+
+**行数**：editor.py 958 → **882**（numstat +12/-88）；新建 `extension_flows.py` **125** 行。
+
+**偏离与实施要点**（相对计划文本）：
+
+1. **行号锚点**：wave-4 后再次漂移，实测 def 起点 `load_startup_services` :882 /
+   `trust_cwd_extensions` :899 / `_register_configured_servers` :935、on_mount 调用点 :414、
+   cli.py :329、commands.py :128（成员集与依赖取证与计划一致）。
+2. **extensions 节即文件尾**：删除该节时连带清理了文件尾 3 行历史空行，editor.py 以
+   `sync_explorer_visibility` 收尾（单换行，PEP 8）。
+3. **`load_startup_services` 返回 `list[str]`**：按 §一 裁定实现——loader 告警 return 给调用方，
+   on_mount 内 `self._ext_messages.extend(...)`，缓冲所有权留在 Editor；headless `--diag` 丢弃
+   返回值，行为与迁移前等价（实测通过）。
+4. **test_cli 桩**：按计划新增 `_FakeFlows`（`load_startup_services` 返回 `[]` 并计数），
+   `_FakeEditor.extension_flows` 持有之；断言改 `editor_arg.extension_flows.load_startup_services_called`，
+   断言语义不变。
+5. **`message` 注入为 `Callable[[str, str], None]`**：`trust_cwd_extensions` 内 4 处消息调用
+   改 2 参位置形式（`"error"` / `"info"`），与 window_flows/document_flows 约定一致。
+6. **规则同步**：§一 L3 枚举补 `extension_flows.py`；R11 的 editor_view 冻结清单**不含**它
+   （零 editor_view 依赖，计划 §四 明确不做 R11 登记）；`UI_FROZEN_FILES` 不增条目。

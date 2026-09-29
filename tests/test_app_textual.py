@@ -2867,7 +2867,7 @@ def test_disabled_extensions_skip_bundled_not_project_dir(
             # and no Python server got registered while LSP was off
             assert app.editor.lsp.config_for("py") is None
             # :trust is the explicit confirmation that loads them now
-            app.editor.trust_cwd_extensions()
+            app.editor.extension_flows.trust_cwd_extensions()
             await pilot.pause()
             names = {r.name for r in app.editor.extension_loader.loaded}
             assert "myext" in names

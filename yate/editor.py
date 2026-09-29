@@ -42,6 +42,7 @@ from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.panes import PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
+from yate.extension_flows import ExtensionFlows
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vsc import VscKeymap
@@ -53,13 +54,7 @@ from yate.overlays import OverlayFlows
 from yate.prompt_completion import prompt_completions
 from yate.prompt_flows import PromptFlows
 from yate.registries import ActionRegistry, CommandRegistry
-from yate.services.extensions import (
-    ExtensionAPI,
-    ExtensionContext,
-    ExtensionLoader,
-    load_startup_extensions,
-)
-from yate.services.trust import trust_workspace
+from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 from yate.shell_flows import ShellFlows
@@ -106,6 +101,14 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     ed.commands = CommandRegistry()
     ed.extension_api = ExtensionAPI(ed.extension_context())
     ed.extension_loader = ExtensionLoader(ed.extension_api)
+    ed.extension_flows = ExtensionFlows(
+        ed.extension_loader,
+        ed.extension_api,
+        ed.config,
+        ed.ext_dirs,
+        ed.ext_files,
+        message=ed.message,
+    )
 
 
 def _build_widgets(ed: Editor) -> None:
@@ -327,6 +330,7 @@ class Editor:
     prompt_flows: PromptFlows
     document_flows: DocumentFlows
     window_flows: WindowFlows
+    extension_flows: ExtensionFlows
 
     def __init__(
         self,
@@ -411,7 +415,7 @@ class Editor:
         self._mounted = True
         self.terminal_panel.styles.height = self.config.terminal_height
         self.terminal_panel.display = False
-        self.load_startup_services()
+        self._ext_messages.extend(self.extension_flows.load_startup_services())
         await self.editor_col.mount(self.completion_popup)
         self.explorer_tree.refresh_tree()
         self.sync_explorer_visibility()
@@ -876,83 +880,3 @@ class Editor:
         visible = self.explorer_visible and self.workspace.root is not None
         self.explorer_tree.display = visible
         self.sidebar.display = visible
-
-    # ============================================================ extensions
-
-    def load_startup_services(self) -> None:
-        """Load extensions and register the yaterc-declared LSP servers.
-
-        Headless safe: shared by ``on_mount`` and ``yate --diag`` so the
-        diagnostics always show exactly what a real start would load.  No
-        LSP process is spawned here (servers start lazily).
-        """
-        self._ext_messages.extend(
-            load_startup_extensions(
-                self.extension_loader,
-                self.config,
-                ext_dirs=self.ext_dirs,
-                ext_files=self.ext_files,
-            )
-        )
-        self._register_configured_servers()
-
-    def trust_cwd_extensions(self) -> None:
-        """Trust the current workspace and load its ``./extensions`` now.
-
-        The explicit confirmation step of workspace trust: startup skips
-        an untrusted project ``./extensions`` (opening a repository must
-        not execute that repository's own code), and ``:trust`` both
-        records the workspace in ``~/.yate/trusted_workspaces`` and loads
-        the directory immediately.  Re-running is safe -- the loader
-        de-duplicates by resolved path, so already-loaded scripts are
-        skipped and only genuinely new ones run.
-        """
-        cwd = Path.cwd()
-        if not trust_workspace(cwd):
-            # S39 minimal hardening: a symlinked cwd is refused by the
-            # store, and pretending otherwise (or still loading its
-            # extensions) would defeat the guard.
-            self.message(
-                f"refused to trust {cwd}: it contains a symlink component; "
-                "trust the resolved directory instead",
-                kind="error",
-            )
-            return
-        directory = cwd / "extensions"
-        if not directory.is_dir():
-            self.message(f"trusted {cwd}; no extensions directory to load")
-            return
-        records = self.extension_loader.load_directory(directory)
-        failures = [record for record in records if record.error]
-        loaded = len(records) - len(failures)
-        self.message(
-            f"trusted {cwd}; loaded {loaded} extension(s) from {directory}"
-        )
-        for record in failures:
-            self.message(f"extension {record.name}: {record.error}",
-                         kind="error")
-
-    def _register_configured_servers(self) -> None:
-        """Register LSP servers declared by the yaterc ``language_servers``.
-
-        Registration happens after extensions so an explicit rc entry with a
-        server's name replaces a same-named extension registration. Nothing
-        is spawned here: the manager starts the process lazily the first time
-        a matching file is shown, so merely configuring a server is free.
-        """
-        bridge = self.extension_api.lsp
-        for spec in self.config.language_servers:
-            bridge.register_server(
-                spec.name,
-                command=spec.command,
-                args=spec.args,
-                filetypes=spec.filetypes,
-                language_ids=spec.language_ids,
-                initialization_options=spec.initialization_options,
-                settings=spec.settings,
-                env=spec.env,
-                root_markers=spec.root_markers,
-            )
-
-
-

@@ -125,7 +125,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.overlays.open_command_palette()
 
     def _trust(args: str) -> None:
-        editor.trust_cwd_extensions()
+        editor.extension_flows.trust_cwd_extensions()
 
     reg("e", _edit, "open a file or directory by path")
     reg("edit", _edit, "open a file or directory by path")

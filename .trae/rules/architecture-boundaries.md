@@ -16,8 +16,8 @@ scene: architecture
 L4 外壳：app.py（YateApp） / cli.py（唯一入口）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / 流程模块
          （completion.py / prompt_flows.py / document_flows.py / window_flows.py /
-         shell_flows.py / overlays.py / lsp_sync.py / prompt_completion.py /
-         diagnostics.py）/ services/extensions.py
+         extension_flows.py / shell_flows.py / overlays.py / lsp_sync.py /
+         prompt_completion.py / diagnostics.py）/ services/extensions.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py / keymaps/registry.py（KeymapSet）

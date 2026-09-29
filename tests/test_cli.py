@@ -34,14 +34,22 @@ register_theme(replace(
 """
 
 
-class _FakeEditor:
-    """The slice of Editor that main() touches on the --diag path."""
+class _FakeFlows:
+    """The slice of ExtensionFlows that main() touches on the --diag path."""
 
     def __init__(self) -> None:
         self.load_startup_services_called = False
 
-    def load_startup_services(self) -> None:
+    def load_startup_services(self) -> list[str]:
         self.load_startup_services_called = True
+        return []
+
+
+class _FakeEditor:
+    """The slice of Editor that main() touches on the --diag path."""
+
+    def __init__(self) -> None:
+        self.extension_flows = _FakeFlows()
 
 
 class _FakeApp:
@@ -236,7 +244,7 @@ def test_diag_prints_report_without_running_tui(
     editor_arg = fmt.call_args.args[0]
     assert isinstance(editor_arg, _FakeEditor)
     # startup services were loaded so the report reflects real state
-    assert editor_arg.load_startup_services_called
+    assert editor_arg.extension_flows.load_startup_services_called
 
 
 def test_diag_with_none_yaterc_reports_no_rc_loaded(
