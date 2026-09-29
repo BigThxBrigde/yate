@@ -236,3 +236,7 @@ master（含 screensaver 等）已合入（merge `6ec0cad`，无冲突）；合�
 **门禁实测**：pyright 0 诊断；pytest 全绿 + 覆盖率 **90.62%** 达标（首轮与 pyright 并跑时 `test_edit_keeps_colors_instead_of_flashing` 偶发失败，单跑与全量复跑均绿，判定并发干扰非回归）；冒烟 **89/89 场景、932/932 检查 exit 0**；架构守护 20 例随全量通过。
 
 后续复查又发现 4 个同性质 motion 偏差（`w`/`b` 跨行落点、`$` 落点、`G`/`gg` first non-blank），修复方案独立成文：[`vim_keymap_review_motion_fixes_plan.md`](vim_keymap_review_motion_fixes_plan.md)。
+
+**该批次已完成**（2026-09-29）：textobjects 新增 `first_non_blank` / `next_word_pos` / `prev_word_pos`
+（含 w 的行内最后字符中间落点）、vim.py 五处 motion/operator 落点修正；门禁实测 pyright 0 诊断、
+pytest 全绿 + 覆盖率 90.62% 持平、冒烟 89/89。执行记录与 2 条偏离详见该方案 §五。
