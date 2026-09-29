@@ -35,7 +35,7 @@ from yate.session import EditorSession
 log = tracing.get_logger(__name__)
 
 
-class CompletionController:
+class CompletionFlows:
     """Debounced completion queries behind the active editor view."""
 
     #: Idle delay after the last keystroke before the popup is queried.

@@ -1934,7 +1934,7 @@ def test_shell_command_runs_without_freezing_ui() -> None:
             await pilot.pause()
             prompt_bar = app.editor.prompt_bar
             assert prompt_bar is not None
-            with patch("yate.shell_flow.run_shell", side_effect=slow_shell):
+            with patch("yate.shell_flows.run_shell", side_effect=slow_shell):
                 # F2 opens the shell prompt in vsc mode (":" is vim-only)
                 await pilot.press("f2")
                 assert prompt_bar.active_mode == "shell"
@@ -2174,7 +2174,7 @@ def test_completion_popup_keeps_typing_and_filters(tmp_path: Path) -> None:
     keep typing to refine the candidates nor use global chords.  Only the
     popup-owned keys (tab / enter / up / down / escape) may be consumed; every
     other key must reach the normal dispatch, insert its character and
-    re-query the candidates via ``CompletionController.after_editor_key``.
+    re-query the candidates via ``CompletionFlows.after_editor_key``.
     """
 
     async def scenario() -> None:

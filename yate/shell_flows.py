@@ -3,7 +3,7 @@
 Extracted from :mod:`yate.editor` (review 20260926 #5).  The synchronous
 runner (extension API), the worker-based async runner, the output overlay
 and the ``:font`` installer are one flow that only needs the collaborators
-given to :class:`ShellFlow`.  Like :class:`~yate.completion.CompletionController`
+given to :class:`ShellFlows`.  Like :class:`~yate.completion.CompletionFlows`
 this module is constructed by the editor and never imports upward.
 """
 
@@ -26,7 +26,7 @@ from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
 
-class ShellFlow:
+class ShellFlows:
     """Runs shell commands and the font installer, reporting on the UI."""
 
     def __init__(

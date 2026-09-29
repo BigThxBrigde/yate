@@ -20,7 +20,7 @@ from yate.editor_view.manual import (
     load_doc_markdown,
     load_manual_markdown,
 )
-from yate.overlays import OverlayController
+from yate.overlays import OverlayFlows
 from yate.registries import CommandRegistry
 
 
@@ -52,7 +52,7 @@ class _FakeApp:
 def _make_editor(app: _FakeApp, *, mounted: bool = True) -> Editor:
     """An Editor bound to *app* without running __init__ (overlay path only).
 
-    Attaches a real :class:`OverlayController`: the push guards under test
+    Attaches a real :class:`OverlayFlows`: the push guards under test
     live there since the overlay-flow extraction; the collaborators it does
     not touch on this path are stubbed with ``None``.
     """
@@ -60,7 +60,7 @@ def _make_editor(app: _FakeApp, *, mounted: bool = True) -> Editor:
     editor.app = cast(Any, app)
     editor._mounted = mounted
     editor.prompt_bar = cast(Any, _FakePromptBar())
-    editor.overlays = OverlayController(
+    editor.overlays = OverlayFlows(
         cast(Any, app),
         cast(Any, None),  # config: only the screensaver flow reads it
         cast(Any, None),  # keymaps / commands / actions / workspace: unused

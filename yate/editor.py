@@ -30,7 +30,7 @@ from textual.events import Key
 from textual.screen import Screen
 
 from yate import __version__
-from yate.completion import CompletionController
+from yate.completion import CompletionFlows
 from yate.config import YateConfig
 from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_lsp import LspManager
@@ -51,7 +51,7 @@ from yate.keymaps.vim import VimKeymap, VimMode
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.lsp_sync import LspSync
-from yate.overlays import OverlayController
+from yate.overlays import OverlayFlows
 from yate.prompt_completion import prompt_completions
 from yate.prompt_flows import PromptFlows
 from yate.registries import ActionRegistry, CommandRegistry
@@ -65,7 +65,7 @@ from yate.services.shell import ShellResult
 from yate.services.trust import trust_workspace
 from yate.services.workspace import Workspace
 from yate.session import Axis, EditorSession, Leaf
-from yate.shell_flow import ShellFlow
+from yate.shell_flows import ShellFlows
 
 #: Trace logger ("yate.editor"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -175,8 +175,8 @@ def _open_startup_target(ed: Editor, target: str | Path | None) -> None:
 def _build_pane_stack(ed: Editor) -> None:
     """Build the pane tree, its host widget and the flow controllers.
 
-    The controllers (:class:`LspSync` / :class:`OverlayController` /
-    :class:`ShellFlow` / :class:`CompletionController`) own the multi-step
+    The controllers (:class:`LspSync` / :class:`OverlayFlows` /
+    :class:`ShellFlows` / :class:`CompletionFlows`) own the multi-step
     flows; the editor keeps thin delegating methods as its public face.
     """
     # The pane tree owns editor windows; it starts with one leaf on the
@@ -207,7 +207,7 @@ def _build_pane_stack(ed: Editor) -> None:
         message=ed.message,
         mounted=lambda: ed.mounted,
     )
-    ed.overlays = OverlayController(
+    ed.overlays = OverlayFlows(
         ed.app,
         ed.config,
         ed.keymaps,
@@ -223,7 +223,7 @@ def _build_pane_stack(ed: Editor) -> None:
         run_command=ed.run_command,
         refresh=ed.refresh_ui,
     )
-    ed.shell = ShellFlow(
+    ed.shell = ShellFlows(
         ed.app,
         ed.session,
         ed.workspace,
@@ -234,7 +234,7 @@ def _build_pane_stack(ed: Editor) -> None:
         refresh=ed.refresh_ui,
         push_overlay=ed.overlays.push,
     )
-    ed.completion = CompletionController(
+    ed.completion = CompletionFlows(
         ed.app,
         session=ed.session,
         lsp=ed.lsp,
@@ -276,9 +276,9 @@ class Editor:
     panes: PaneManager
     pane_host: PaneHost
     lsp_sync: LspSync
-    overlays: OverlayController
-    shell: ShellFlow
-    completion: CompletionController
+    overlays: OverlayFlows
+    shell: ShellFlows
+    completion: CompletionFlows
     prompt_flows: PromptFlows
 
     def __init__(
@@ -1286,7 +1286,7 @@ class Editor:
         screen: Screen[Any],
         callback: Callable[[Any], None] | None = None,
     ) -> None:
-        """Push a full-screen overlay (see :meth:`OverlayController.push`)."""
+        """Push a full-screen overlay (see :meth:`OverlayFlows.push`)."""
         self.overlays.push(screen, callback)
 
     def show_help(self) -> None:

@@ -1,10 +1,10 @@
 """Full-screen overlay flows: help, manual, changelog, palettes, screensaver.
 
 Extracted from :mod:`yate.editor` (review 20260926 #5).  Every overlay is
-pushed through :meth:`OverlayController.push`, which also clears the stale
+pushed through :meth:`OverlayFlows.push`, which also clears the stale
 bottom message (the prompt line is hidden behind the overlay; a leftover
 "saved ..." note would reappear on close and read like missing feedback).
-Like :class:`~yate.completion.CompletionController` this module is
+Like :class:`~yate.completion.CompletionFlows` this module is
 constructed by the editor and never imports upward.
 """
 
@@ -29,7 +29,7 @@ from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
 
-class OverlayController:
+class OverlayFlows:
     """Pushes the editor's full-screen overlays and keeps them consistent."""
 
     def __init__(
