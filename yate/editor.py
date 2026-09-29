@@ -188,7 +188,9 @@ def _build_pane_stack(ed: Editor) -> None:
 
     The controllers (:class:`LspSync` / :class:`OverlayFlows` /
     :class:`ShellFlows` / :class:`CompletionFlows`) own the multi-step
-    flows; callers invoke them directly.
+    flows; callers invoke them directly.  DocumentFlows (built earlier,
+    without the pane stack) receives its pane-stack collaborators here,
+    and WindowFlows is constructed once the stack exists.
     """
     # The pane tree owns editor windows; it starts with one leaf on the
     # startup document and grows with :split / :vsplit.

@@ -39,6 +39,12 @@ log = tracing.get_logger(__name__)
 class DocumentFlows:
     """Owns the open / save / close / cycle lifecycle of documents."""
 
+    #: Bound only in :meth:`attach_pane_stack` (the pane tree seeds its
+    #: first leaf from the startup document, so neither collaborator can
+    #: exist at construction time); every use happens post-mount.
+    panes: PaneManager
+    completion: CompletionFlows
+
     def __init__(
         self,
         app: App[object],
