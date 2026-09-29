@@ -1066,7 +1066,7 @@ def test_app_applies_config() -> None:
         assert app.editor.session.buffer.tab_width == 2
         assert not app.editor.session.buffer.use_spaces
         # buffers created afterwards inherit the options too
-        app.editor.new_buffer(show=False)
+        app.editor.document_flows.new_buffer(show=False)
         assert app.editor.session.buffer.tab_width == 2
     finally:
         themes.set_theme("mocha")

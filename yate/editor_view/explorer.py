@@ -109,7 +109,7 @@ class ExplorerTree(Tree[NodeData]):
         workspace: Workspace,
         prompt: PromptBar,
         *,
-        open_path: Callable[[Path], None],
+        open_path: Callable[[Path], None] | None = None,
         focus_editor: Callable[[], None],
         window_prefix: Callable[[Key], bool],
         **kwargs: Any,
@@ -345,7 +345,8 @@ class ExplorerTree(Tree[NodeData]):
             event.node.toggle()
             return
         log.debug("explorer open: %s", path)
-        self.open_path(path)
+        if self.open_path is not None:
+            self.open_path(path)
         self.focus_editor()
 
     # ------------------------------------------------------- vim-style keys
@@ -511,7 +512,8 @@ class ExplorerTree(Tree[NodeData]):
         self.prompt.write(f"created {target.name}", kind="ok")
         if not self._is_dir:
             # VS Code behavior: a new file opens right away
-            self.open_path(target)
+            if self.open_path is not None:
+                self.open_path(target)
 
     def submit_rename(self, name: str) -> None:
         """Prompt submitted: rename the pending path."""

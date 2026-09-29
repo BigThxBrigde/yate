@@ -37,7 +37,7 @@ async def _regress_wq_multi_tab(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        app.editor.open_path(tmp / "b.txt")
+        app.editor.document_flows.open_path(tmp / "b.txt")
         await wait_until(pilot, lambda: app.editor.session.doc.name == "b.txt")
         await pilot.press("ctrl+end")
         await type_text(pilot, " B")
@@ -145,7 +145,7 @@ async def _regress_tab_click(tmp: Path) -> ScenarioResult:
     checks: list[Check] = []
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        app.editor.open_path(tmp / "b.txt")
+        app.editor.document_flows.open_path(tmp / "b.txt")
         await wait_until(pilot, lambda: app.editor.session.doc.name == "b.txt")
         tabbar = app.editor.tabbar
         assert tabbar is not None

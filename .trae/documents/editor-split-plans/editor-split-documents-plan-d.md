@@ -77,3 +77,39 @@ git grep -n -I "editor\.\(open_path\|open_document\|new_buffer\|show_welcome\|cl
 | `_report` 缓冲语义丢失 | 注入 `report=ed._report`，语义逐字保留 |
 | startup_readonly 快照时机 | 构造期传值（`--readonly` 仅启动期生效） |
 | 回滚 | 单笔提交 `git revert` |
+
+## 七、执行记录（wave-3，2026-09-29）
+
+**实测数字**：editor.py 1196 → **989** 行（新 document_flows.py 309 行）；pyright 0 诊断；
+pytest 全绿 cov **90.69%**；架构测试 **20/20**；探针 `git grep editor\.(open_path|…)`
+退出码 1（零残留）；冒烟 **932/932（89 场景）**。提交：`refactor(editor): extract
+document lifecycle flows`。
+
+**偏离计划（均附实测依据）**：
+
+1. **构造时序修正（§二装配点不成立）**：`_open_startup_target` 在 `_build_pane_stack`
+   之前运行（PaneManager 以 `ed.session.doc` 播种首叶，editor.py:201-207），故
+   DocumentFlows 改在 **`_build_widgets` 尾部**构造；`panes`/`completion` 经二段
+   `attach_pane_stack(panes, completion)` 注入（`_build_pane_stack` 尾、CompletionFlows
+   之后）。先例：`PaneManager.attach(host)`。
+2. **§二签名补 `mounted`/`reveal_explorer` 两个 Callable**：原签名漏了
+   `self.mounted`（5 处分支）与 `explorer_visible=True + sync_explorer_visibility()`
+   （open_path 目录分支）；Editor 新增 2 行方法 `reveal_explorer`（自有侧栏状态，非委托）。
+3. **ExplorerTree.open_path 晚挂**：explorer 先于 flows 构造，原「:141 直接改注入」
+   不成立——参数改 `Callable[[Path], None] | None = None`，调用点 :348/:514 加 None
+   守卫，`_build_widgets` 内 `ed.explorer_tree.open_path = ed.document_flows.open_path_later`
+   （与 plan-e 的 window_prefix 晚挂同型）。
+4. **TabBar 构造后移**：`on_activate` 绑 `document_flows.activate_doc`，故 TabBar 在
+   flows 之后构造（compose 顺序不受影响，R9 id 不变）。
+5. **extension_context 前向 lambda**：`open_path`/`save` 在 `_build_models` 期消费，
+   flows 尚未存在——`lambda path: self.document_flows.open_path_later(path)` /
+   `lambda: self.document_flows.save_document()`，与既有 `run_shell` 前向引用同型。
+6. **`Editor._report` 改公开 `report`**：迁移后 editor.py 内无剩余调用者，唯一消费点
+   是工厂注入（`report=ed._report` 触发 pyright reportPrivateUsage）；语义逐字保留。
+7. **message 回调对齐模块约定**：`Callable[[str, str], None]`（prompt_flows/overlays/
+   lsp_sync/shell_flows 同型），原 1 参调用补 `"info"` 位置实参，语义不变。
+8. **调用方清单补遗**（§三 grep 清单漏 `open_path_later`）：commands.py:102（`:e FILE`）、
+   test_app_textual.py:4449（OverlayFlows 桩注入）、tools/smoke_test/scenarios 7 处
+   （files×2 / explorer / stress×2 / regression×2）；test_action_table.py 的 recorder
+   桩：`FORWARDED_HOOKS` 5 个钩子转 `document_flows.*` 点路径、`_FLOW_NAMESPACES`
+   增 `document_flows`（断言语义不变）。

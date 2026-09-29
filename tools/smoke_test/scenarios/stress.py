@@ -69,7 +69,7 @@ async def _stress_many_tabs(tmp: Path) -> ScenarioResult:
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         for path in paths[1:]:
-            app.editor.open_path(path)
+            app.editor.document_flows.open_path(path)
         await pilot.pause()
         checks.append(Check("twenty_tabs", 20, len(app.editor.session.docs)))
         for _ in range(19):
@@ -136,7 +136,7 @@ async def _stress_reopen_same_file(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         checks.append(Check("closed", 1, len(app.editor.session.docs)))
         checks.append(Check("scratch", None, app.editor.session.doc.path))
-        app.editor.open_path(target)
+        app.editor.document_flows.open_path(target)
         await pilot.pause()
         checks.append(Check("reopened", "one.txt", app.editor.session.doc.name))
         checks.append(Check("disk_version", "one",

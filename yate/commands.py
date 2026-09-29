@@ -41,10 +41,10 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- save / quit -------------------------------------------------------
 
     def _w(args: str) -> None:
-        editor.save_document()
+        editor.document_flows.save_document()
 
     def _saveas(args: str) -> None:
-        editor.save_as(args or None)
+        editor.document_flows.save_as(args or None)
 
     def _q(args: str) -> None:
         editor.quit()
@@ -53,7 +53,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.quit(force=True)
 
     def _wq(args: str) -> None:
-        editor.save_document()
+        editor.document_flows.save_document()
         # Only quit once the text is safely on disk: a failed save (I/O
         # error) or a still-pending save-as prompt leaves the document
         # modified, and force-quitting then would discard the work.
@@ -99,24 +99,24 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _edit(args: str) -> None:
         args = args.strip()
         if args:
-            editor.open_path_later(Path(args))
+            editor.document_flows.open_path_later(Path(args))
         else:
-            editor.prompt_open()
+            editor.document_flows.prompt_open()
 
     def _enew(args: str) -> None:
-        editor.new_buffer()
+        editor.document_flows.new_buffer()
 
     def _welcome(args: str) -> None:
-        editor.show_welcome()
+        editor.document_flows.show_welcome()
 
     def _bn(args: str) -> None:
-        editor.cycle_tab(1)
+        editor.document_flows.cycle_tab(1)
 
     def _bp(args: str) -> None:
-        editor.cycle_tab(-1)
+        editor.document_flows.cycle_tab(-1)
 
     def _bd(args: str) -> None:
-        editor.close_tab()
+        editor.document_flows.close_tab()
 
     def _files(args: str) -> None:
         editor.overlays.open_file_palette()

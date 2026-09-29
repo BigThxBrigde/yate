@@ -2638,8 +2638,8 @@ def test_cycle_tab_with_single_tab_is_silent_noop() -> None:
             await pilot.pause()
             app.editor.run_command("bp")
             await pilot.pause()
-            app.editor.cycle_tab(1)
-            app.editor.cycle_tab(-1)
+            app.editor.document_flows.cycle_tab(1)
+            app.editor.document_flows.cycle_tab(-1)
             await pilot.pause()
             assert _message_text(app) == baseline
             assert app.editor.session.doc is app.editor.session.docs[0]
@@ -2665,9 +2665,9 @@ def test_cycle_tab_resets_the_previous_search(tmp_path: Path) -> None:
 
             # Open a second tab, then return to alpha so the search lands on
             # the first document and a later ``:bn`` moves away from it.
-            app.editor.open_path(beta)
+            app.editor.document_flows.open_path(beta)
             await pilot.pause()
-            app.editor.cycle_tab(-1)
+            app.editor.document_flows.cycle_tab(-1)
             await pilot.pause()
             first = app.editor.session.doc
             assert first.name == "alpha.txt"
@@ -2683,7 +2683,7 @@ def test_cycle_tab_resets_the_previous_search(tmp_path: Path) -> None:
             assert len(app.editor.session.search.matches) == 2
 
             # ``:bn`` switches tabs and must drop the previous tab's spans.
-            app.editor.cycle_tab(1)
+            app.editor.document_flows.cycle_tab(1)
             await pilot.pause()
             assert app.editor.session.doc.name == "beta.txt"
             assert app.editor.session.search.matches == []
@@ -2696,7 +2696,7 @@ def test_cycle_tab_resets_the_previous_search(tmp_path: Path) -> None:
             assert 0 <= row < app.editor.session.buffer.line_count
 
             # Switching back is harmless and the state stays reset.
-            app.editor.cycle_tab(-1)
+            app.editor.document_flows.cycle_tab(-1)
             await pilot.pause()
             assert app.editor.session.doc is first
             assert app.editor.session.search.matches == []
@@ -2713,7 +2713,7 @@ def test_click_tab_switches_document(tmp_path: Path) -> None:
         app = YateApp(str(a))
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            app.editor.open_path(b)
+            app.editor.document_flows.open_path(b)
             await pilot.pause()
             assert len(app.editor.session.docs) == 2
             assert app.editor.session.index == 1  # b is active after open
@@ -3210,7 +3210,7 @@ def test_rc_configured_server_activates_on_later_open(tmp_path: Path) -> None:
             from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS
             assert registered.root_markers == list(DEFAULT_ROOT_MARKERS)
             # opening the matching file activates the server
-            app.editor.open_path(rs)
+            app.editor.document_flows.open_path(rs)
             await pilot.pause()
             activated = await wait_until(
                 pilot, lambda: bool(created) and created[0].opened
@@ -4060,7 +4060,7 @@ def test_wq_does_not_quit_when_other_tab_is_dirty(tmp_path: Path) -> None:
             first = app.editor.session.docs[0]
 
             # open the second tab and dirty it
-            app.editor.open_path(other)
+            app.editor.document_flows.open_path(other)
             await pilot.pause()
             assert len(app.editor.session.docs) == 2
             assert app.editor.session.doc.path == other
@@ -4069,7 +4069,7 @@ def test_wq_does_not_quit_when_other_tab_is_dirty(tmp_path: Path) -> None:
             assert app.editor.session.doc.modified
 
             # switch back to saved.txt (the first tab, clean)
-            app.editor.activate_doc(first)
+            app.editor.document_flows.activate_doc(first)
             assert app.editor.session.doc is first
             assert not app.editor.session.doc.modified
 
@@ -4446,7 +4446,7 @@ def test_palette_entries_exclude_palette_command() -> None:
                 workspace=app.editor.workspace,
                 commands=app.editor.commands,
                 actions=app.editor.actions,
-                open_path=app.editor.open_path_later,
+                open_path=app.editor.document_flows.open_path_later,
                 focus_editor=app.editor.focus_editor,
                 execute_action=app.editor.execute_action,
                 run_command=app.editor.run_command,

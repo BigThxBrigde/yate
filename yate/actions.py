@@ -121,10 +121,13 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
 
     # --------------------------------------------------------------- files
 
-    reg("save", lambda ctx: editor.save_document(), "Save file")
-    reg("open_prompt", lambda ctx: editor.prompt_open(), "Open file by path")
-    reg("new_buffer", lambda ctx: editor.new_buffer(), "New empty buffer")
-    reg("close_tab", lambda ctx: editor.close_tab(), "Close current tab")
+    reg("save", lambda ctx: editor.document_flows.save_document(), "Save file")
+    reg("open_prompt", lambda ctx: editor.document_flows.prompt_open(),
+        "Open file by path")
+    reg("new_buffer", lambda ctx: editor.document_flows.new_buffer(),
+        "New empty buffer")
+    reg("close_tab", lambda ctx: editor.document_flows.close_tab(),
+        "Close current tab")
     reg("quit", lambda ctx: editor.quit(), "Quit yate")
 
     # -------------------------------------------------------------- search
@@ -151,8 +154,9 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("toggle_explorer", lambda ctx: editor.toggle_explorer(), "Toggle explorer")
     reg("manual", lambda ctx: editor.overlays.show_manual(), "Open the user manual")
     reg("shell_prompt", lambda ctx: editor.shell.open_prompt(), "Run shell command")
-    reg("prev_tab", lambda ctx: editor.cycle_tab(-1), "Previous tab")
-    reg("next_tab", lambda ctx: editor.cycle_tab(1), "Next tab")
+    reg("prev_tab", lambda ctx: editor.document_flows.cycle_tab(-1),
+        "Previous tab")
+    reg("next_tab", lambda ctx: editor.document_flows.cycle_tab(1), "Next tab")
     reg("help", lambda ctx: editor.overlays.show_help(), "Keyboard shortcuts help")
     reg("toggle_keymap", lambda ctx: editor.toggle_keymap(), "Toggle vsc/vim keymap")
     reg(

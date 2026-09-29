@@ -29,7 +29,8 @@ from textual.events import Key
 from yate import __version__
 from yate.completion import CompletionFlows
 from yate.config import YateConfig
-from yate.editor_core import BufferReadOnlyError, Document
+from yate.document_flows import DocumentFlows
+from yate.editor_core import BufferReadOnlyError
 from yate.editor_lsp import LspManager
 from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
 from yate.editor_view import theme
@@ -60,7 +61,7 @@ from yate.services.extensions import (
 )
 from yate.services.trust import trust_workspace
 from yate.services.workspace import Workspace
-from yate.session import Axis, EditorSession, Leaf
+from yate.session import Axis, EditorSession
 from yate.shell_flows import ShellFlows
 
 #: Trace logger ("yate.editor"); silent unless yate_trace is on.
@@ -127,7 +128,6 @@ def _build_widgets(ed: Editor) -> None:
         focus_editor=ed.focus_editor,
         refresh=ed.refresh_ui,
     )
-    ed.tabbar = TabBar(ed.session, ed.activate_doc, id="tabbar")
     ed.breadcrumbs = Breadcrumbs(ed.session, ed.workspace, id="breadcrumbs")
     ed.completion_popup = CompletionPopup()
     ed.terminal_panel = TerminalPanel(
@@ -138,7 +138,6 @@ def _build_widgets(ed: Editor) -> None:
         ed.session,
         ed.workspace,
         ed.prompt_bar,
-        open_path=ed.open_path_later,
         focus_editor=ed.focus_editor,
         window_prefix=ed.try_window_prefix,
         id="explorer",
@@ -150,12 +149,37 @@ def _build_widgets(ed: Editor) -> None:
     ed.sidebar = Vertical(id="sidebar")
     ed.sidebar_head = SidebarHead(id="sidebar-head")
     ed.editor_col = Vertical(id="editor-col")
+    # Document flows need the widgets above; the tab bar needs the flows
+    # (tab clicks activate documents), so it is built right after them.
+    # The pane stack does not exist yet -- the first pane leaf seeds from
+    # the startup document -- so those collaborators arrive via
+    # ``attach_pane_stack`` in ``_build_pane_stack``.
+    ed.document_flows = DocumentFlows(
+        ed.app,
+        ed.session,
+        ed.workspace,
+        ed.lsp,
+        ed.explorer_tree,
+        ed.prompt_bar,
+        message=ed.message,
+        report=ed.report,
+        refresh_ui=ed.refresh_ui,
+        mounted=lambda: ed.mounted,
+        reveal_explorer=ed.reveal_explorer,
+        startup_readonly=ed.startup_readonly,
+    )
+    ed.tabbar = TabBar(ed.session, ed.document_flows.activate_doc, id="tabbar")
+    # The explorer is built before the flows; its open callback (fire only
+    # on user interaction, never during this synchronous construction) is
+    # bound here -- the same late-binding ``_build_pane_stack`` applies to
+    # the ctrl+w prefix in the window-flows wave.
+    ed.explorer_tree.open_path = ed.document_flows.open_path_later
 
 
 def _open_startup_target(ed: Editor, target: str | Path | None) -> None:
     """Open the startup target (file or directory) and seed an empty buffer."""
     if target is not None:
-        kind = ed.open_target(Path(target))
+        kind = ed.document_flows.open_target(Path(target))
         # A directory argument opens in browse mode (explorer visible);
         # a file argument opens in edit mode (explorer hidden; Ctrl+B /
         # :explorer reveals it later). With no argument the workspace
@@ -210,7 +234,7 @@ def _build_pane_stack(ed: Editor) -> None:
         ed.prompt_bar,
         message=ed.message,
         mounted=lambda: ed.mounted,
-        open_path=ed.open_path_later,
+        open_path=ed.document_flows.open_path_later,
         focus_editor=ed.focus_editor,
         execute_action=ed.execute_action,
         run_command=ed.run_command,
@@ -239,6 +263,7 @@ def _build_pane_stack(ed: Editor) -> None:
         refresh=ed.refresh_ui,
         readonly_notice=ed.readonly_notice,
     )
+    ed.document_flows.attach_pane_stack(ed.panes, ed.completion)
 
 
 def _build_key_ui(ed: Editor) -> None:
@@ -291,6 +316,7 @@ class Editor:
     shell: ShellFlows
     completion: CompletionFlows
     prompt_flows: PromptFlows
+    document_flows: DocumentFlows
 
     def __init__(
         self,
@@ -333,13 +359,13 @@ class Editor:
             actions=self.actions,
             commands=self.commands,
             message=self.message,
-            # the shell does not exist yet (it is built with the pane
-            # stack); resolve it on first call like the callbacks above
+            # document_flows is built with the widgets (after this factory
+            # runs); resolve it on first call like the shell callback above
             run_shell=lambda command, show_output=True: self.shell.run(
                 command, show_output
             ),
-            open_path=self.open_path_later,
-            save=self.save_document,
+            open_path=lambda path: self.document_flows.open_path_later(path),
+            save=lambda: self.document_flows.save_document(),
         )
 
     def make_view(self, leaf_id: int) -> EditorView:
@@ -420,8 +446,12 @@ class Editor:
         """True while an overlay screen (help, palette, output, ...) owns input."""
         return len(self.app.screen_stack) > 1
 
-    def _report(self, text: str, kind: str = "info") -> None:
-        """Report *text* on the message line (buffered before the first mount)."""
+    def report(self, text: str, kind: str = "info") -> None:
+        """Report *text* on the message line (buffered before the first mount).
+
+        The buffered variant handed to :class:`~yate.document_flows.DocumentFlows`
+        so pre-mount warnings (binary files, ...) surface on first mount.
+        """
         if self.mounted:
             self.message(text, kind)
         else:
@@ -431,7 +461,7 @@ class Editor:
         """Write *text* on the message line and refresh the status chip.
 
         Dropped before the first mount (nothing is composed yet); callers that
-        must not lose a pre-mount message go through :meth:`_report`, which
+        must not lose a pre-mount message go through :meth:`report`, which
         buffers them.
         """
         if not self.mounted:
@@ -467,258 +497,6 @@ class Editor:
         self.lsp_sync.doc_shown_later()
         self.lsp.notify_edit(self.session.doc)
         self.lsp_sync.update_echo()
-
-    # ================================================================ target
-
-    def open_target(self, path: Path) -> str:
-        """Open the startup target and return ``"dir"`` or ``"file"``."""
-        if not path.exists():
-            # treat as a not-yet-created file
-            self.workspace.set_root(path.parent if str(path.parent) else Path.cwd())
-            self._open_document(path)
-            return "file"
-        kind = self.workspace.open_target(path)
-        if kind == "file":
-            self._open_document(path)
-        return kind
-
-    def _apply_session_readonly(self, doc: Document | None) -> None:
-        """Apply the ``--readonly`` session flag to a freshly opened document.
-
-        Called from the document-open paths so every file opened during the
-        session (``:e``, splits, the explorer, ...) starts read-only, not
-        just the startup argument.  A no-op without the flag, for a failed
-        open (binary files), and for already-open documents being re-activated
-        (a user who unlocked one keeps it unlocked).
-        """
-        if doc is not None and self.startup_readonly:
-            doc.buffer.read_only = True
-            log.info("opened read-only: %s", doc.path)
-
-    # =============================================================== documents
-
-    def activate_doc(self, doc: Document, target_leaf: Leaf | None = None) -> None:
-        """Show *doc* in a pane leaf (default: the active one)."""
-        if not self.mounted:
-            self.session.activate(doc)
-            return
-        leaf = target_leaf if target_leaf is not None else self.panes.active
-        self.panes.show_doc(leaf, doc)
-
-    def _open_document(
-        self, path: Path, *, target_leaf: Leaf | None = None
-    ) -> Document | None:
-        """Open/reuse *path*; ``None`` when it is not a text file."""
-        reused = self.session.is_open(path) is not None
-        doc = self.session.open(path)
-        if doc is None:
-            self._report(f"not a text file: {path.name}", kind="warn")
-            log.info("open skipped (binary): %s", path)
-            return None
-        if not reused:
-            self._apply_session_readonly(doc)
-        self.activate_doc(doc, target_leaf)
-        log.info("opened: %s", path)
-        return doc
-
-    async def _open_document_async(
-        self, path: Path, *, target_leaf: Leaf | None = None
-    ) -> Document | None:
-        """Like :meth:`_open_document`, but the disk read runs off the loop."""
-        reused = self.session.is_open(path) is not None
-        doc = await self.session.open_async(path)
-        if doc is None:
-            self._report(f"not a text file: {path.name}", kind="warn")
-            return None
-        if not reused:
-            self._apply_session_readonly(doc)
-        self.activate_doc(doc, target_leaf)
-        log.info("opened (async): %s", path)
-        return doc
-
-    def open_document(self, path: Path) -> Document | None:
-        """Open/reuse *path* in the active pane (explorer create flow)."""
-        return self._open_document(path)
-
-    def open_path(self, path: Path) -> None:
-        """Open a file or switch the workspace to a directory (sync)."""
-        try:
-            if path.is_dir():
-                log.info("opened folder: %s", path)
-                self.workspace.set_root(path)
-                self.explorer_tree.refresh_tree()
-                self.explorer_visible = True
-                self.sync_explorer_visibility()
-                # focus the tree so keyboard nav works immediately
-                self.explorer_tree.focus()
-                self.message(f"opened folder {path}")
-                return
-        except OSError:
-            pass
-        if self._open_document(path) is None:
-            return
-        self.explorer_tree.refresh_tree()
-        self.session.reset_search()
-        self.completion.close()
-        self.message(f"opened {self.session.doc.name}")
-        self.refresh_ui()
-
-    async def open_path_async(self, path: Path) -> None:
-        """Open a file without blocking the UI (directory opens stay sync:
-        the tree only lists the bounded root level)."""
-        try:
-            is_dir = path.is_dir()
-        except OSError:
-            is_dir = False
-        if is_dir:
-            self.open_path(path)
-            return
-        if await self._open_document_async(path) is None:
-            return
-        if not self.mounted:
-            return
-        self.explorer_tree.refresh_tree()
-        self.session.reset_search()
-        self.completion.close()
-        self.message(f"opened {self.session.doc.name}")
-        self.refresh_ui()
-
-    def open_path_later(self, path: Path) -> None:
-        """Schedule a non-blocking file open from a synchronous handler."""
-        self.app.run_worker(
-            partial(self.open_path_async, path),
-            group="open", exclusive=True, exit_on_error=False,
-        )
-
-    def new_buffer(self, show: bool = True) -> None:
-        """``:enew`` / new tab: append an empty buffer and make it active.
-
-        ``show=False`` is for internal replacements (the startup seed, the
-        fallback after closing the last tab): they must not dismiss the
-        welcome page or print a message.
-        """
-        doc = self.session.new_buffer()
-        if self.mounted:
-            self.panes.show_doc(self.panes.active, doc)
-        self.session.reset_search()
-        self.completion.close()
-        if show:
-            # A user-requested buffer (:enew / new tab) dismisses the
-            # one-time welcome page for the rest of the session. Internal
-            # replacements (startup seed, close-last-tab fallback) pass
-            # show=False and leave the flag untouched.
-            self.session.welcome_visible = False
-            self.message("new buffer")
-        self.refresh_ui()
-
-    def show_welcome(self) -> None:
-        """Re-enable the welcome page (``:welcome``)."""
-        self.session.welcome_visible = True
-        self.refresh_ui()
-        self.message("welcome page enabled")
-
-    def close_tab(self) -> None:
-        """``:bd``: close the active tab (LSP didClose is reported)."""
-        if not self.session.docs:
-            return
-        closed, fallback = self.session.close_active()
-        log.info("closing tab: %s", closed.path)
-        if self.mounted:
-            # Every pane showing the closed document rebinds to the fallback;
-            # other panes keep their documents and independent view states.
-            self.panes.document_closed(closed, fallback)
-        self.session.reset_search()
-        self.completion.close()
-        self.message("closed tab")
-        self.refresh_ui()
-
-    def cycle_tab(self, delta: int) -> None:
-        """``:bn`` / ``:bp``: activate the next/previous tab.
-
-        With a single tab this is a silent no-op: cycling cannot move
-        anywhere, so repeating the command must not spam the message
-        line.
-        """
-        if len(self.session.docs) <= 1:
-            return
-        self.session.cycle(delta)
-        if self.mounted:
-            self.panes.show_doc(self.panes.active, self.session.doc)
-        # The previous tab's matches are (row, start, end) spans of *its*
-        # buffer: keeping them would paint stale highlights on the new
-        # document and send ``n`` to out-of-range coordinates.
-        self.session.reset_search()
-        self.completion.close()
-        self.refresh_ui()
-
-    def save_document(self) -> None:
-        """``:w``: write the active document to disk."""
-        doc = self.session.doc
-        if doc.buffer.read_only:
-            self.message(
-                "cannot save a read-only buffer; use :saveas to write elsewhere",
-                kind="warn",
-            )
-            return
-        if doc.path is None:
-            log.info("save: unnamed buffer, prompting for a path")
-            self.prompt_save_as()
-            return
-        try:
-            doc.save()
-            self.explorer_tree.refresh_tree()
-            self.app.run_worker(
-                partial(self.lsp.notify_saved, doc),
-                group="lsp-sync", exclusive=False, exit_on_error=False,
-            )
-            self.message(f"saved {doc.path}", kind="ok")
-            log.info("saved: %s", doc.path)
-        except (OSError, UnicodeError) as exc:
-            self.message(f"save failed: {exc}", kind="error")
-            log.warning("save failed: %s: %s", doc.path, exc)
-        self.refresh_ui()
-
-    def prompt_save_as(self) -> None:
-        """Prompt for the path of an unnamed buffer."""
-        current = str(self.session.doc.path) if self.session.doc.path else ""
-        self.prompt_bar.activate(
-            "save", initial=current, on_submit=self._submit_save_as
-        )
-
-    def save_as(self, path: str | None = None) -> None:
-        """``:saveas``: persist the buffer to *path* (prompt without one).
-
-        The sanctioned escape hatch for a read-only buffer: writing to an
-        explicitly chosen path lifts the flag (vim ``:sav`` semantics) while
-        the original file stays untouched.
-        """
-        if path is not None and path.strip():
-            self._submit_save_as(path)
-            return
-        self.prompt_save_as()
-
-    def _submit_save_as(self, text: str) -> None:
-        text = text.strip()
-        if not text:
-            self.message("save cancelled")
-            return
-        buf = self.session.doc.buffer
-        locked = buf.read_only
-        if locked:
-            # ``:saveas`` is deliberate persistence: lift the flag so the
-            # L0 ``Document.save`` guard lets the write through (vim ``:sav``
-            # clears 'readonly' too).  Restored when the write fails.
-            buf.read_only = False
-        path = Path(text)
-        try:
-            self.session.doc.save(path)
-            self.workspace.set_root(path.parent)
-            self.explorer_tree.refresh_tree()
-            self.message(f"saved {path}", kind="ok")
-        except (OSError, UnicodeError) as exc:
-            if locked:
-                buf.read_only = True
-            self.message(f"save failed: {exc}", kind="error")
 
     # ============================================================== key routing
 
@@ -895,7 +673,7 @@ class Editor:
         except OSError:
             is_dir = False
         if is_dir:
-            self.open_path(path)
+            self.document_flows.open_path(path)
             return
         self.app.run_worker(
             partial(self._split_pane_worker, axis, path),
@@ -913,7 +691,7 @@ class Editor:
             # split first (the new pane becomes active), then open the file
             # into the active pane
             await self.panes.split_active(axis)
-            await self.open_path_async(path)
+            await self.document_flows.open_path_async(path)
         else:
             await self.panes.split_active(axis)
             self.after_pane_focus()
@@ -1047,19 +825,6 @@ class Editor:
         """Prompt cancelled (esc): clear live search highlights."""
         if self.session.search.query:
             self.session.search.update("", self.session.buffer)
-
-    def prompt_open(self) -> None:
-        """``:e`` (no argument): ask for a path."""
-        self.prompt_bar.activate(
-            "open",
-            placeholder="path to a file or directory",
-            on_submit=self._submit_open,
-        )
-
-    def _submit_open(self, text: str) -> None:
-        text = text.strip()
-        if text:
-            self.open_path_later(Path(text))
 
     def command_prompt(self) -> None:
         """Open the ex command line (``:``)."""
@@ -1231,6 +996,11 @@ class Editor:
                          "A new folder, r rename, d delete, H toggle hidden, esc back")
         else:
             self.message(f"explorer {'shown' if self.explorer_visible else 'hidden'}")
+
+    def reveal_explorer(self) -> None:
+        """Show the sidebar (document flows reveal it on directory opens)."""
+        self.explorer_visible = True
+        self.sync_explorer_visibility()
 
     def sync_explorer_visibility(self) -> None:
         """Apply the explorer visibility to the sidebar widgets."""

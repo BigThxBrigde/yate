@@ -20,16 +20,19 @@ from yate.session import EditorSession
 
 #: Every editor hook the built-in table forwards to.  A typo in ``actions.py``
 #: (a hook the real editor does not have) shows up here as an unexpected name.
-#: Hooks on the flow collaborators (``prompt_flows`` / ``overlays`` / ``shell``)
-#: are recorded with their dotted path (``overlays.show_help``).
+#: Hooks on the flow collaborators (``document_flows`` / ``prompt_flows`` /
+#: ``overlays`` / ``shell``) are recorded with their dotted path
+#: (``overlays.show_help``).
 FORWARDED_HOOKS = frozenset(
     {
-        "close_tab",
         "command_prompt",
-        "cycle_tab",
+        "document_flows.close_tab",
+        "document_flows.cycle_tab",
+        "document_flows.new_buffer",
+        "document_flows.prompt_open",
+        "document_flows.save_document",
         "focus_editor",
         "focus_explorer",
-        "new_buffer",
         "overlays.open_command_palette",
         "overlays.open_file_palette",
         "overlays.show_help",
@@ -40,9 +43,7 @@ FORWARDED_HOOKS = frozenset(
         "prompt_flows.find_prompt",
         "prompt_flows.goto_prompt",
         "prompt_flows.replace_prompt",
-        "prompt_open",
         "quit",
-        "save_document",
         "shell.open_prompt",
         "toggle_explorer",
         "toggle_keymap",
@@ -50,7 +51,9 @@ FORWARDED_HOOKS = frozenset(
 )
 
 #: Editor members the table reaches through (each a flow collaborator).
-_FLOW_NAMESPACES = frozenset({"prompt_flows", "overlays", "shell", "lsp_sync"})
+_FLOW_NAMESPACES = frozenset(
+    {"document_flows", "prompt_flows", "overlays", "shell", "lsp_sync"}
+)
 
 Call = tuple[str, tuple[Any, ...], dict[str, Any]]
 
@@ -285,7 +288,7 @@ def test_save_forwards_to_the_editor_once() -> None:
     """save calls the editor's save hook exactly once, with no arguments."""
     registry, editor = _table()
     assert registry.execute("save", _context()) is True
-    assert editor.calls_to("save_document") == [((), {})]
+    assert editor.calls_to("document_flows.save_document") == [((), {})]
 
 
 def test_toggle_keymap_forwards_to_the_editor() -> None:
@@ -316,7 +319,7 @@ def test_tab_cycle_actions_forward_the_delta() -> None:
     ctx = _context()
     assert registry.execute("next_tab", ctx) is True
     assert registry.execute("prev_tab", ctx) is True
-    assert editor.calls_to("cycle_tab") == [((1,), {}), ((-1,), {})]
+    assert editor.calls_to("document_flows.cycle_tab") == [((1,), {}), ((-1,), {})]
 
 
 def test_search_actions_forward_the_direction() -> None:
@@ -337,9 +340,9 @@ def test_view_and_file_actions_forward_to_their_hook() -> None:
     """Prompts, palettes, panels and tab/file operations reach the editor."""
     registry, editor = _table()
     expected = {
-        "open_prompt": "prompt_open",
-        "new_buffer": "new_buffer",
-        "close_tab": "close_tab",
+        "open_prompt": "document_flows.prompt_open",
+        "new_buffer": "document_flows.new_buffer",
+        "close_tab": "document_flows.close_tab",
         "quit": "quit",
         "command_prompt": "command_prompt",
         "goto_prompt": "prompt_flows.goto_prompt",
