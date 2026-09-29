@@ -7,6 +7,8 @@ scene: python_coding
 
 本规则适用于 yate 项目所有 Python 源码（`yate/`、`tools/`、`tests/`）。项目基于 Python 3.12+，使用 pyright strict 模式进行类型检查，**零诊断是合并的硬门槛**。
 
+风格标准是 **PEP 8 + PEP 20 双轨**：PEP 8 管"长什么样"（版式、命名、导入），PEP 20 *The Zen of Python* 管"怎么想"（pythonic 语义）。两者冲突时以 PEP 20 为准，逐条对照与裁决顺序见 §六。
+
 ---
 
 ## 一、代码风格（PEP 8）
@@ -77,7 +79,7 @@ from yate.logs import tracing
 - `if`/`elif`/`else`、`try`/`except`/`else`/`finally`、`with` 之间不加空行
 - 布尔判断使用 `if x is not None:` 而非 `if x != None:`；`if x:` / `if not x:` 用于真值测试
 - 列表推导式、生成器表达式长度超 80 字符时分行
-- 字符串格式化优先使用 f-string（`f"path: {path}"`），其次 `str.format()`，禁止 `%` 格式化
+- 字符串格式化优先使用 f-string（`f"path: {path}"`），其次 `str.format()`，禁止 `%` 格式化（唯一例外：日志用惰性 `%` 占位符，见 §4.6 —— practicality beats purity）
 
 ---
 
@@ -325,4 +327,167 @@ entries = list(raw)  # type: ignore[arg-type]
 - [ ] 无 `import *`
 - [ ] 无裸 `except:`
 - [ ] `Any` 使用有理由注释
+- [ ] 嵌套 ≤ 3 层，卫语句早返回（Flat is better than nested）
+- [ ] pythonic 写法按 §6.2 首选：真值测试 / 推导式 / 解包 / `enumerate` / `with`；但可读性优先，不做技巧堆砌
+- [ ] 无静默吞异常：每个 `except` 块记日志或向用户反馈（PEP 20: errors should never pass silently）
 - [ ] `pytest tests/` 全部通过
+
+---
+
+## 六、PEP 20：The Zen of Python（与 PEP 8 的结合）
+
+PEP 8 管"长什么样"，PEP 20 管"怎么想"。PEP 8 官方开篇即引用
+*"A Foolish Consistency is the Hobgoblin of Little Minds"*——风格规则是 PEP 20 的
+下游手段而非目的：当字面遵守 PEP 8 反而伤害可读性时，以 PEP 20 为准。
+Zen 全文速查：`python -m this`。模式速查另可参照《Pythonic：Python 语言习惯和哲学的代码风格》
+（<https://jishuzhan.net/article/1945060183000002562>）。
+
+### 6.1 Zen 原则 → 本仓库落地规则对照
+
+| Zen 原则 | 本仓库的落地 |
+|---|---|
+| Beautiful is better than ugly / Readability counts | §一 版式与命名；宁可多写三行，不写难读的一行 |
+| Explicit is better than implicit | 跨层传具体对象、不造窄协议（`architecture-boundaries.md` R8）；可空显式写 `X | None`（§3.2）；不写隐式魔法 |
+| Simple is better than complex | 能用函数实现的就不造类（`architecture-boundaries.md` §三.6）；不为假设性需求加抽象 |
+| Complex is better than complicated | 复杂度无法回避时，用显式结构（dataclass / 明确分支）表达，不堆砌嵌套技巧 |
+| Flat is better than nested | 卫语句早返回，嵌套 ≤ 3 层（见 §6.2） |
+| Sparse is better than dense | §1.1 空行与分组；一行只做一件事 |
+| Special cases aren't special enough to break the rules | 禁止 `# type: ignore` 豁免诊断（§4.2）；架构测试不得用豁免注释绕过 |
+| Although practicality beats purity | 行宽 100 而非 79（§1.1）；日志用惰性 `%` 占位符而非 f-string（§4.6）；存量遗留写法仅限兼容场景保留（§3.5） |
+| Errors should never pass silently / Unless explicitly silenced | §4.5：禁止裸 `except:`；每个 `except` 块必须记日志或反馈——"silenced" 只指显式捕获并记录 |
+| In the face of ambiguity, refuse the temptation to guess | 类型注解完整 + pyright strict 零诊断（§三.1 / §4.2）；边界输入显式校验，不做隐式猜测转换 |
+| There should be one-- and preferably only one --obvious way to do it | 全仓统一一种写法：`X | None` 而非 `Optional[X]`（§3.2）、PEP 695 泛型而非 TypeVar（§3.5）、f-string 而非 `%` / `.format()`（§1.4） |
+| Now is better than never / Although never is often better than *right* now | 小步及时合入；但半成品不入库——pyright / pytest 全绿才是合并门槛（§4.2 / §4.7），无实测依据的预优化不做 |
+| If the implementation is hard to explain, it's a bad idea | §二：难以解释的实现先重构再注释；docstring 解释不了的设计就是坏设计 |
+| Namespaces are one honking great idea | 包 `__init__.py` 保持惰性、不 re-export 子模块符号（`architecture-boundaries.md` §三.5）；不建中央接口文件 |
+
+（未列出的 Zen 条目为元幽默或语境性表述，不映射工程规则。）
+
+### 6.2 pythonic 写法对照（首选 vs 避免）
+
+**卫语句早返回（Flat is better than nested）**
+
+```python
+# 首选：卫语句先排除边界，主干不缩进
+def find_leaf(root: Node | None, path: str) -> Leaf | None:
+    if root is None or not path:
+        return None
+    ...
+
+# 避免：主干整体嵌套在 if 里，两层缩进才到正题
+def find_leaf(root: Node | None, path: str) -> Leaf | None:
+    if root is not None:
+        if path:
+            ...
+```
+
+**真值测试（Readability counts）**
+
+```python
+if not items: ...          # 首选：空容器与 None 的"没有"语义统一时
+if obj is None: ...        # 首选：None 判断必须用 is
+if len(items) == 0: ...    # 避免
+if obj == None: ...        # 禁止
+```
+
+**链式比较（Readability counts）**
+
+```python
+if 0 < x < 10: ...          # 首选：链式比较，语义与数学一致，中间项只求值一次
+if x > 0 and x < 10: ...    # 避免
+```
+
+**推导式与生成器（One obvious way）**
+
+```python
+# 首选：映射 + 过滤一步到位
+names = [p.name for p in plugins if p.enabled]
+
+# 避免：手动 append 循环
+names = []
+for p in plugins:
+    if p.enabled:
+        names.append(p.name)
+```
+
+超过 80 字符（§1.4）或需要嵌套两层 for/if 时改回普通循环——可读性优先于"用了推导式"。
+
+**enumerate / zip 替代下标循环**
+
+```python
+for i, item in enumerate(items, start=1): ...   # 首选
+for x, y in zip(xs, ys): ...                     # 首选：并行遍历
+for i in range(len(items)): ...                  # 避免
+```
+
+**解包与交换（Explicit）**
+
+```python
+first, second = pair                 # 结构化解包
+first, *rest = items                 # 头尾分离
+a, b = b, a                          # 交换
+name, ext = filename.rsplit(".", 1)  # 比下标 [0] / [1] 更显式
+```
+
+**默认参数与可变默认值（Explicit）**
+
+```python
+def greet(name: str = "stranger") -> None: ...   # 首选：默认参数简化调用签名
+
+# 禁止：可变默认参数——默认值只在定义时求值一次，跨调用共享同一个对象
+def add(item: str, items: list[str] = []) -> None: ...
+
+# 首选：None 哨兵 + 函数体内新建（生产环境标准做法）
+def add(item: str, items: list[str] | None = None) -> None:
+    target = [] if items is None else items
+    ...
+```
+
+**容器成员与元组匹配**
+
+```python
+if ch in "aeiou": ...                              # 首选：成员测试
+if target in items: ...                            # 首选：替代手工 found 标志循环
+if name.startswith(("test_", "spec_")): ...        # 首选：startswith / endswith 接受元组
+isinstance(x, (int, float))                        # isinstance 同样接受元组
+if ch == "a" or ch == "e" or ch == "i": ...        # 避免
+if name.startswith("test_") or name.startswith("spec_"): ...  # 避免
+```
+
+手工 found 标志循环（遍历 + `break` + 事后 `if found:`）一律用 `in` 成员测试替代。
+
+**EAFP：只在密集路径用（Errors should never pass silently 的正面用法）**
+
+```python
+# 密集循环内"先查后取"（LBYL 两次查表）→ 首选 EAFP
+try:
+    value = mapping[key]
+except KeyError:
+    value = default
+
+# 一次性的简单场景，条件表达式更直白，不必强行 try
+value = mapping[key] if key in mapping else default
+```
+
+规则：`try` 只包会抛的那一行；`except` 捕获具体异常；不为"省一次判断"写 EAFP，
+更不允许 EAFP 成为静默吞异常的借口（§4.5）。
+
+**上下文管理器（Simple is better than complex）**
+
+```python
+with path.open(encoding="utf-8") as f: ...   # 首选
+f = path.open(encoding="utf-8")              # 避免：手动 try/finally close
+```
+
+**纠偏：pythonic ≠ 技巧堆砌**
+
+以上对照是"首选"，不是"必须"。一行塞三个推导式、lambda 链、炫技切片都违反
+Beautiful is better than ugly。判断标准：换一个人第一次读，能否在一遍内看懂。
+
+### 6.3 规则冲突时的裁决顺序
+
+1. **正确 > 清晰 > 简短 > 快**：先保证行为正确，再保证读得懂；性能优化必须以
+   profiler 实测为前提，不做预优化。
+2. **可读性 > 风格一致性**：PEP 8 自身的例外条款——不要为了一致而一致
+   （A Foolish Consistency is the Hobgoblin of Little Minds）。
+3. **显式 > 隐式**：两种写法都合规时，选更显式的那个。
