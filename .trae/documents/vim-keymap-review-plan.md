@@ -203,3 +203,13 @@ flowchart TD
 7. **`iw` count 语义**：`3diw` 实现为 "当前词 + 吞分隔与后续 run" 的扩展（`_word_span` count 参数），未做 vim 的 "重复 3 次 iw 对象（含空格归属规则）" 全语义；登记为文档化简化。
 8. **跨行扫描半径**（计划 §S3 写 "限搜索半径 ±200 行"）：实测 pair/tag 扫描在编辑器文档规模无性能问题，实现为**无界扫描**（`_unmatched_backward` / `_matching_forward` / `_matching_tag_close` / `_enclosing_tag`），未加半径。
 9. **S1 遗留修复计入 S2**：S1 验收只跑了 `tests/test_vim_keymap.py`；全量时发现 `tests/test_app_textual.py` 断言旧字段 `pending`（S1 改为结构化 `op` 字段），修正随 S2 提交（`c6f2677`）。
+
+### 合并 master 后的分支评审修复（2026-09-29）
+
+master（含 screensaver 等）已合入（merge `6ec0cad`，无冲突）；合并后门禁 pyright 0 诊断、pytest exit=0（1437 收集）。随后按 code-review 流程（2 个并行验证代理 2/2 确认）发现并修复 3 个问题，commit `0ad1fdb`：
+
+1. **操作符未知后继键不清 op（major）**：`_handle_operator_pending` 走 `return False` 时不清理状态，与 docstring "``False`` drops it" 矛盾；`d z` 后按 `w` 会误触发 `dw`、`d x` 会删字符且 `d` 仍武装（重构前代码会丢弃操作符，属回归；现有测试只断言文本不变而掩盖）。修复：`return False` 前调 `_clear_pending()`，键继续 fall-through。
+2. **数字不能作 f/F/t/T/r 参数（major）**：数字分支先于前缀解析，`f3`/`r5` 把数字当 count（`f0` 仅因裸 0 规则碰巧可用）。修复：新增 `_ARG_PREFIXES`，这些前缀武装时跳过数字累加（`g` 前缀保留 `g{count}g` 行为）；`2f3` 计数形式不受影响。
+3. **`_quote_span` 不处理转义（minor）**：`find`/`rfind` 把 `\"` 当真引号。修复：新增 `_quote_positions` 逐字符扫描跳过 `\` 转义；cursor 落在转义引号上时解析外层配对。
+
+修复后门禁：pyright 0 诊断；`pytest tests/` 全绿（新增 6 个测试）；架构守护 20 例通过。
