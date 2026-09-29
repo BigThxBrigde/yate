@@ -101,8 +101,12 @@ class VscKeymap(Keymap):
             _k("<alt-shift-p>", "command_palette", "Command palette (alt+shift+p)", VIEW),
             _k("<alt-shift-s>", "toggle_screensaver", "Toggle the idle screensaver", VIEW),
             _raw("\x1f", "toggle_keymap", "Toggle vsc/vim keymap (ctrl+/)", VIEW),
-            _k("<ctrl-e>", "focus_explorer", "Focus file explorer", VIEW),
-            _k("<ctrl-shift-e>", "focus_explorer", "Focus file explorer (vscode ctrl+shift+e)", VIEW),
+            # ctrl+shift+e is the vscode spelling of the same explorer focus:
+            # legacy terminals send the identical \x05 byte for both chords,
+            # and the chord driver names it distinctly (intercepted by the
+            # shell), so a second binding row would only shadow ctrl+e in
+            # _index and duplicate the help entry.
+            _k("<ctrl-e>", "focus_explorer", "Focus file explorer (vscode ctrl+shift+e)", VIEW),
             _k("<ctrl-1>", "focus_editor", "Focus editor (vscode ctrl+1)", VIEW),
             _k("<ctrl-b>", "toggle_explorer", "Toggle file explorer", VIEW),
             _k("<f2>", "shell_prompt", "Run shell command", VIEW),
