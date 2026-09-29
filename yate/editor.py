@@ -17,7 +17,6 @@ collaborator is a concrete object or a plain callable.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from functools import partial
 from pathlib import Path
@@ -44,7 +43,7 @@ from yate.editor_view.completion import CompletionPopup
 from yate.editor_view.editor import EditorView
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.manual import MarkdownDocScreen
-from yate.editor_view.modals import HelpScreen, OutputScreen
+from yate.editor_view.modals import HelpScreen
 from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.panes import PaneHost, PaneManager
 from yate.editor_view.screensaver import ScreensaverScreen
@@ -59,17 +58,17 @@ from yate.logs import tracing
 from yate.lsp_sync import LspSync
 from yate.prompt_completion import prompt_completions
 from yate.registries import ActionRegistry, CommandRegistry
-from yate.services import fonts
 from yate.services.extensions import (
     ExtensionAPI,
     ExtensionContext,
     ExtensionLoader,
     load_startup_extensions,
 )
-from yate.services.shell import ShellResult, run_shell, shell_name
+from yate.services.shell import ShellResult
 from yate.services.trust import trust_workspace
 from yate.services.workspace import Workspace
 from yate.session import Axis, EditorSession, Leaf
+from yate.shell_flow import ShellFlow
 
 #: Trace logger ("yate.editor"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -198,6 +197,17 @@ def _build_pane_stack(ed: Editor) -> None:
         message=ed.message,
         mounted=lambda: ed.mounted,
     )
+    ed.shell = ShellFlow(
+        ed.app,
+        ed.session,
+        ed.workspace,
+        ed.prompt_bar,
+        message=ed.message,
+        mounted=lambda: ed.mounted,
+        focus_editor=ed.focus_editor,
+        refresh=ed.refresh_ui,
+        push_overlay=ed.push_overlay,
+    )
     ed.completion = CompletionController(
         ed.app,
         session=ed.session,
@@ -240,6 +250,7 @@ class Editor:
     panes: PaneManager
     pane_host: PaneHost
     lsp_sync: LspSync
+    shell: ShellFlow
     completion: CompletionController
 
     def __init__(
@@ -1017,7 +1028,7 @@ class Editor:
         self.prompt_bar.activate(
             "shell",
             placeholder="shell command",
-            on_submit=lambda text: self.run_shell_command_later(text),
+            on_submit=lambda text: self.shell.run_later(text),
         )
 
     def find_prompt(self, forward: bool) -> None:
@@ -1251,68 +1262,12 @@ class Editor:
     def run_shell_command(
         self, command: str, show_output: bool = True
     ) -> ShellResult | None:
-        """Run a shell command synchronously and capture its output.
-
-        Blocking: used by the (synchronous) extension API.  Interactive
-        callers go through :meth:`run_shell_command_later` so the TUI stays
-        responsive while the command runs.
-        """
-        command = command.strip()
-        if not command:
-            return None
-        cwd = self._shell_cwd()
-        result = run_shell(command, cwd=cwd)
-        if show_output and self.mounted:
-            self._show_shell_result(command, result, cwd)
-        return result
+        """Run a shell command synchronously and capture its output."""
+        return self.shell.run(command, show_output)
 
     def run_shell_command_later(self, command: str) -> None:
         """Schedule a non-blocking shell run from a sync handler."""
-        command = command.strip()
-        if not command:
-            return
-        # the prompt bar stays in its active mode until a command messages
-        # back; the background job only reports when it finishes, so close
-        # the prompt up front (otherwise focus vanishes when it hides)
-        if self.prompt_bar.active_mode in ("shell", "command"):
-            self.prompt_bar.idle()
-            self.focus_editor()
-            self.refresh_ui()
-        self.app.run_worker(
-            partial(self.run_shell_command_async, command),
-            group="shell", exclusive=False, exit_on_error=False,
-        )
-
-    async def run_shell_command_async(
-        self, command: str, show_output: bool = True
-    ) -> ShellResult | None:
-        """Run a shell command in a worker thread (UI keeps responding)."""
-        command = command.strip()
-        if not command:
-            return None
-        cwd = self._shell_cwd()
-        self.message(f"running: {command}", kind="info")
-        result = await asyncio.to_thread(run_shell, command, cwd=cwd)
-        if show_output and self.mounted:
-            self._show_shell_result(command, result, cwd)
-        return result
-
-    def _shell_cwd(self) -> Path:
-        doc = self.session.doc
-        return (
-            self.workspace.root
-            or (doc.path.parent if doc.path is not None else None)
-            or Path.cwd()
-        )
-
-    def _show_shell_result(
-        self, command: str, result: ShellResult, cwd: Path
-    ) -> None:
-        body = (
-            f"(cwd: {cwd} · {shell_name()})\n\n"
-            f"{result.output or '(no output)'}"
-        )
-        self.push_overlay(OutputScreen(f"$ {command}", body, result.returncode))
+        self.shell.run_later(command)
 
     def run_command(self, text: str) -> None:
         """``:`` command line: dispatch one ex command."""
@@ -1320,7 +1275,7 @@ class Editor:
         if not text:
             return
         if text.startswith("!"):
-            self.run_shell_command_later(text[1:])
+            self.shell.run_later(text[1:])
             return
         # A bare number is a line jump (vim's :42, same as VS Code's
         # Ctrl+G -> go to line). An optional sign makes it relative: :+5.
@@ -1339,22 +1294,7 @@ class Editor:
 
     def install_font(self) -> None:
         """``:font``: install the bundled Nerd Font (off the event loop)."""
-        # registry lookups / font registration touch subprocess and would
-        # freeze the TUI on some systems; run off the event loop
-        self.message("checking Nerd Font…", kind="info")
-        self.app.run_worker(
-            self._font_command_async, group="font",
-            exclusive=True, exit_on_error=False,
-        )
-
-    async def _font_command_async(self) -> None:
-        status = await asyncio.to_thread(fonts.ensure_font)
-        if self.mounted:
-            self.message(
-                status.detail or ("Nerd Font ready" if status.has_nerd_font
-                                  else "font setup failed"),
-                kind="ok" if status.has_nerd_font else "error",
-            )
+        self.shell.install_font()
 
     def quit(self, force: bool = False) -> None:
         """``:q``: leave yate (blocked while a buffer is modified)."""

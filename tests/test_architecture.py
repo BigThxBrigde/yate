@@ -19,8 +19,8 @@ These tests enforce the boundaries documented in
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
 * **R11** the L3 collaborator modules that drive widgets
-  (``completion.py`` / ``prompt_completion.py`` / ``lsp_sync.py``) keep that
-  coupling frozen and never look upward.
+  (``completion.py`` / ``prompt_completion.py`` / ``lsp_sync.py`` /
+  ``shell_flow.py``) keep that coupling frozen and never look upward.
 * **Naming** (unnumbered guard, rules section 6): no ``*Feature`` / ``*Host``
   / ``*Ops`` / ``*Delegate`` identifiers and no ``AppProtocol``.  ``PaneHost``
   is a real Textual container widget (not a protocol / thin delegate) and is
@@ -109,6 +109,11 @@ UI_FROZEN_FILES = {
         "yate.editor_view.commandline",
         "yate.editor_view.modals",
         "yate.editor_view.statusbar",
+    },
+    "shell_flow.py": {
+        "yate.editor_view",
+        "yate.editor_view.commandline",
+        "yate.editor_view.modals",
     },
 }
 
