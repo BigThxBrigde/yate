@@ -1,0 +1,172 @@
+# translate-cmd 工具计划：用 codebuddy-code 实现 `--translate-cmd`
+
+> 需求：用 `codebuddy-code` CLI 实现一个 `tools.translate` 模块作为 wiki 的
+> `--translate-cmd`，接受"输入文档名 / 输出文档名"，免费模型用 `Hy4 preview` / `Hy3`。
+
+## 一、实测事实（2026-09-30）
+
+| 事实 | 证据 |
+|---|---|
+| 本机已装 CLI：`codebuddy-code`（别名 `cbc`），`@tencent-ai/codebuddy-code@2.154.0`，位于 `D:\npm\npm-global\codebuddy-code.ps1` | 实测 |
+| 非交互模式：`-p/--print`（"Print response and exit (useful for pipes)"），`--output-format text` | `codebuddy-code --help` 实测 |
+| `--model` 支持项含 `hy4-preview-f`、`hy3`、`hy3-x`、`deepseek-v4.1-flash`、`glm-*`、`kimi-*` 等；`--fallback-model` 可过载兜底 | help 实测 |
+| 无工具调用时 stdout **纯净**：`codebuddy-code -p "Reply with exactly: PONG" --model hy4-preview-f --output-format text --tools "" --max-turns 1 --no-session-persistence` → stdout 仅 `PONG`，exit 0 | 实测 |
+| 启用 `Read` 工具时**每个工具调用占用一个 turn**：`--max-turns 2` 报 `Max turns (2) exceeded`；需 `--max-turns >= 10` | 实测 |
+| 非交互下 `Read` 需权限放行：默认报 "The Read tool was denied because permission prompts can't be shown in this non-interactive session"，提示用 `-y` 或 `--permission-mode bypassPermissions` | 实测 |
+| **未实测**：`--permission-mode bypassPermissions` + `--tools "Read"` 组合是否稳定产出纯 Markdown（本次该命令被跳过，未执行） | 待实施第一步验证 |
+
+## 二、目标与非目标
+
+**目标**
+
+1. 新增 `tools/translate`：`python -m tools.translate [IN] [OUT]`，把中文 Markdown 译为英文并落盘；
+   无位置参数时读 stdin、写 stdout（兼容 wiki 现有 `--translate-cmd` 协议，**wiki.py 无需改动**）。
+2. 模型可配：默认 `hy4-preview-f`，`--model` 可切 `hy3` / `hy3-x`，`--fallback-model` 过载兜底。
+3. 输出校验：非空、无外层代码围栏、结构与源文档基本对齐；失败退出码非 0 并报 stderr。
+4. 离线可测：测试全部 monkeypatch 掉子进程，不联网。
+
+**非目标**
+
+- 不内置任何 LLM SDK / API Key（全部走本机已登录的 CLI）；
+- 不改 `tools/pack/wiki.py` 的钩子协议；
+- 不做批量并发调度（wiki 本身是逐页串行调用）。
+
+## 三、选型与否决理由
+
+| 方案 | 结论 | 理由 |
+|---|---|---|
+| A. 正文直接塞进 `-p` 的 prompt | **否**（小文档备选） | Windows 命令行 argv 上限约 32K 字符；`.trae/documents` 单篇最大 ~47 KB，超限 |
+| B. 让代理自己读 IN、写 OUT（给 `Read`+`Write`） | 否 | 需要写权限，且结果要从文件二次读取；权限面更大 |
+| C. **Python 负责全部 I/O，代理只 `Read` + 输出**（推荐） | **采用** | 落盘由我们控制，stdout 即译文；配合 `--tools "Read"` 把能力面压到最小 |
+| D. `--serve` / `--acp` 长连接 | 否 | 需起服务、管生命周期，复杂度远高于逐页调用 |
+| E. 用 `--output-format json` 解析结构化结果 | 否 | text 模式 stdout 已纯净（实测），json 增加解析负担 |
+
+## 四、接口设计
+
+```
+python -m tools.translate                      # stdin -> stdout（供 --translate-cmd 使用）
+python -m tools.translate IN.md OUT.md         # 文件 -> 文件（同时把译文打印到 stdout）
+python -m tools.translate IN.md OUT.md --model hy3 --max-turns 10 --timeout 600
+python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命令与 prompt，不调用模型
+```
+
+接线示例（wiki 侧零改动）：
+
+```
+.venv\Scripts\python -m tools.pack wiki ^
+  --translate-cmd ".venv\Scripts\python -m tools.translate --model hy4-preview-f"
+```
+
+内部流程：解析 IN（参数缺失则落临时文件）→ 组装 prompt（"读 IN，译为英文，只输出 Markdown"）
+→ 调 `codebuddy-code -p <prompt> --model M --output-format text --tools "Read"
+--permission-mode bypassPermissions --max-turns N --no-session-persistence`
+→ 校验 stdout（非空 / 去围栏 / 结构对齐）→ 写 OUT → 打印译文。
+
+模块结构（`tools/translate/`）：`__init__.py`、`__main__.py`、`cli.py`、`runner.py`；
+测试 `tests/test_tools_translate.py`。
+
+## 五、分步实施
+
+1. **前置验证**（必做）：跑通 `--permission-mode bypassPermissions` + `--tools "Read"` 的探针，确认 stdout 纯净；
+   若不纯净则回退到方案 A（分批把正文直接放入 prompt，仅用于小文档）或改用 `--output-format json` 取字段。
+2. **实现 runner**：命令拼装、子进程调用、超时、退出码与 stderr 透传、输出清洗（去 ``` 围栏、去首尾空行）。
+3. **实现 cli + `__main__`**：两种模式（stdin/文件）、`--model` / `--max-turns` / `--timeout` / `--fallback-model` / `--dry-run`。
+4. **写测试**（monkeypatch 子进程）：命令序列、prompt 含路径、stdout 清洗、空输出失败、超时失败、文件模式落盘。
+5. **真机冒烟**：对 1 篇小文档跑一次全流程，确认 wiki `--check` 侧可被采纳（manifest 记录新 digest）。
+
+验收命令：
+
+```
+.venv\Scripts\python -m pytest tests/test_tools_translate.py -q
+.venv\Scripts\python -m pyright tools/ tests/ yate/
+.venv\Scripts\python -m pytest tests -q
+```
+
+## 六、`--translate-cmd` 扩展：`--translate-needed` 参数设计
+
+> 需求（用户指定）：设计一个可选参数，限定**仅翻译状态为 stale 和 missing 的条目**；
+> 未指定时默认翻译全部内容。命名候选 `--if-required` / `--only-missing` /
+> `--translate-needed`，允许取更贴切的名称。
+
+### 6.1 参数命名（定案）
+
+**采用 `--translate-needed`**（布尔开关，`action="store_true"`）。
+
+否决理由：
+
+- `--if-required`：语义模糊——"required" 由谁定义、对什么 required 未表达，读命令行时无法直觉理解；
+- `--only-missing`：以偏概全——需求是 stale **和** missing 两类，该名会漏掉 stale，误导排障；
+- `--translate-needed`：正向陈述"只译有需要的（stale/missing）"，与判定逻辑一一对应。
+
+### 6.2 语义与默认行为
+
+| 调用形态 | 行为 |
+|---|---|
+| `wiki --translate-cmd CMD`（**未指定**，默认） | **翻译全部内容**：对所有非双语直拷的 zh 条目调用 CMD——包括已有 fresh en 的页面（等价于对 fresh 页隐含 super-force，**会覆盖现有 en 译文**） |
+| `wiki --translate-cmd CMD --translate-needed` | **仅翻译需要的**：只对状态为 stale 或 missing 的条目调用 CMD；fresh/外部维护页保持不动 |
+
+> ⚠️ 破坏性提示：默认"翻译全部"与现行实现（fresh 页从不送翻）不同，且会覆盖已有译文。
+> 缓解：计划在 help 文本与模块 docstring 中显式警示；建议生产用法始终搭配 `--check`
+> 或先 `--dry-run` 预览送翻清单；wiki 仓库本身受 git 保护，可 revert。
+
+### 6.3 stale / missing 判定逻辑（与现行实现一致，仅显式化）
+
+对每个非双语直拷条目（`en_source is None`）：
+
+1. 计算 zh 源摘要 `digest = sha256(zh_bytes)`；
+2. 读 manifest 记录 `recorded = manifest[zh_target]`（可能缺失）；
+3. `has_en = en 文件存在且 size > 0`；
+4. 分类（互斥，if/elif 链，天然去重）：
+   - **missing**：`not has_en`；
+   - **stale**：`has_en and recorded is not None and recorded != digest`；
+   - **fresh**：`has_en and (recorded == digest or recorded is None)`——后者是
+     "外部维护页首次被采纳"（如代理直译落盘）。fresh 不属于 needed，即使
+     `--translate-needed` 也不送翻；
+   - 边界：双语直拷页（`en_source` 非空）永远跳过翻译，两类参数都不影响。
+
+### 6.4 参数解析与兼容性（与现有 `--translate-cmd` 流程完全兼容）
+
+- `cli.py`：`wiki_cmd.add_argument("--translate-needed", action="store_true", help=...)`，
+  `_wiki()` 透传 `translate_needed=args.translate_needed`；
+- `wiki.run()`：新增**仅关键字**参数 `translate_needed: bool = False`（默认值保证
+  既有调用方与既有测试零改动即兼容）；
+- `tools.translate` 模块不受影响：它只翻译被送来的那一份，"送哪些页"始终由 wiki 侧判定；
+- 与现有开关的交互矩阵：
+
+| 组合 | 行为 |
+|---|---|
+| `--translate-needed` 单独 | stale + missing 送翻；fresh 不动 |
+| `--translate-needed --force` | 同上（force 在 needed 模式下冗余但不报错，保持兼容） |
+| `--force`（无 needed，现行行为） | missing 送翻；stale 送翻；fresh 仍不动 |
+| 默认（两者皆无） | **全部送翻**（新默认语义，见 6.2 警示） |
+| `--check` | 门禁统计口径不变：仍按 missing/stale 全集判定退出码，与本参数正交 |
+
+### 6.5 去重逻辑
+
+1. **分类互斥**：单次 `run()` 内每页只进 `missing` / `stale` / `kept` / `translated`
+   四类之一，if/elif 链保证不会一页两算、不会重复送翻；
+2. **run 内去重**：翻译成功后立即 `manifest[zh_target] = digest` 并写入 en，同一页
+   不会在本次 run 中被二次处理（循环每页仅一次）；
+3. **跨 run 去重**：成功页的 digest 已更新，下次 run 判为 fresh，不再送翻；失败页
+   状态不变（仍 missing/stale），下次 run 会再次尝试——这是有意的重试语义；
+4. **`_assert_unique`**：收集阶段已保证 zh/en 目标名全局唯一，不存在两源映射同页导致的重复翻译。
+
+### 6.6 实施增量与测试
+
+- 实施步骤新增：在原步骤 3（cli）中加参数注册与透传；在原步骤 4（测试）中加 4 个用例：
+  1. 默认（无参数）：fresh 页也送翻且 en 被覆盖（断言 hook 调用次数 = 全部非直拷页数）；
+  2. `--translate-needed`：仅 stale + missing 送翻，fresh 的 en 内容不变；
+  3. `--translate-needed` 下 stale 与 missing 分类互斥（断言两列表无交集、总数守恒）；
+  4. `--translate-needed --force` 组合不报错、行为与单独 needed 一致。
+- 验收命令不变（见 §五）。
+
+## 七、风险与回滚
+
+| 风险 | 缓解 |
+|---|---|
+| `bypassPermissions` 权限面 | 仅授 `Read`；prompt 只读不改；文档外路径不传入 |
+| `--translate-needed` 缺省时"翻译全部"覆盖现有译文 | help/docstring 显式警示；建议搭配 `--check` 或先对小样本验证；wiki 仓库受 git 保护可 revert |
+| 免费模型配额/速率 | `--fallback-model hy3`、调用失败明确报错不静默 |
+| 输出被代码围栏包裹或夹带说明文字 | 输出清洗 + 结构校验；异常即失败退出（不写脏译文） |
+| 大文档 turn 消耗、单次耗时 ~14–22 s | `--max-turns 10`、单页超时可配；全量 122 页需较长时间，建议分批 |
+| 回滚 | 该模块独立，删除目录 + 还原 `--translate-cmd` 用法即可；wiki.py 不受影响 |
