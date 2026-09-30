@@ -458,7 +458,7 @@ def run(
     translate_cmd: str | None,
     *,
     force: bool = False,
-    translate_needed: bool = False,
+    translate_all: bool = False,
     check: bool = False,
     push: bool = False,
     repo_root: Path | None = None,
@@ -466,15 +466,15 @@ def run(
     """Generate the wiki into *target* and return the process exit code.
 
     Chinese pages are always rebuilt from their sources.  With
-    *translate_cmd* set, every non-bilingual page is (re-)translated
-    through it -- including fresh ones, overwriting existing English
-    pages.  Pass *translate_needed* to restrict the hook to pages whose
-    English page is missing or stale and keep fresh ones.  Without a
-    hook, missing/stale pages are reported instead of translated.
-    *force* is accepted for backward compatibility only and no longer
-    changes the outcome.  With *check* the exit code is 1 while any
-    English page is missing or stale; with *push* the wiki repo is
-    committed and pushed (skipped when the check fails).
+    *translate_cmd* set, pages whose English page is missing or stale
+    (Chinese source changed) are (re-)translated through it; fresh pages
+    are kept as-is.  Pass *translate_all* to also re-translate fresh
+    pages, overwriting their existing English pages.  Without a hook,
+    missing/stale pages are reported instead of translated.  *force* is
+    accepted for backward compatibility only and no longer changes the
+    outcome.  With *check* the exit code is 1 while any English page is
+    missing or stale; with *push* the wiki repo is committed and pushed
+    (skipped when the check fails).
     """
     root = repo_root if repo_root is not None else Path(__file__).resolve().parents[2]
     pages = collect_sources(root)
@@ -483,9 +483,9 @@ def run(
     # recorded hash so a later --force run still sees them as stale instead
     # of adopting the outdated English page as externally maintained.
     manifest = dict(load_manifest(target))
-    if translate_needed and translate_cmd is None:
+    if translate_all and translate_cmd is None:
         print(
-            "wiki: --translate-needed has no effect without --translate-cmd",
+            "wiki: --translate-all has no effect without --translate-cmd",
             file=sys.stderr,
         )
     kept = 0
@@ -510,13 +510,12 @@ def run(
         is_stale = has_en and recorded is not None and recorded != digest
         if has_en and not is_stale:
             # Fresh or externally maintained (e.g. agent-translated).
-            if translate_cmd is None or translate_needed:
+            if translate_cmd is None or not translate_all:
                 manifest[page.zh_target] = digest
                 kept += 1
                 continue
-            # Default mode re-translates every non-bilingual page through
-            # the hook, overwriting even fresh English pages; pass
-            # --translate-needed to keep them instead.  The digest is only
+            # --translate-all re-translates even fresh pages through the
+            # hook, overwriting their English pages.  The digest is only
             # recorded after a successful re-translation below, so a failed
             # one does not silently bless an outdated English page.
         elif translate_cmd is None:

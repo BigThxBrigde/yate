@@ -116,11 +116,11 @@ def build_parser() -> argparse.ArgumentParser:
              "re-translated whenever --translate-cmd is given",
     )
     wiki_cmd.add_argument(
-        "--translate-needed",
+        "--translate-all",
         action="store_true",
-        help="with --translate-cmd, only translate pages whose English page "
-             "is missing or stale and keep fresh ones (default: re-translate "
-             "every non-bilingual page, overwriting existing English pages)",
+        help="with --translate-cmd, also re-translate fresh pages, "
+             "overwriting their existing English pages (default: only "
+             "translate pages that are missing or stale)",
     )
     wiki_cmd.add_argument(
         "--check",
@@ -166,7 +166,7 @@ def _wiki(args: argparse.Namespace) -> int:
         target,
         args.translate_cmd,
         force=args.force,
-        translate_needed=args.translate_needed,
+        translate_all=args.translate_all,
         check=args.check,
         push=args.push,
         repo_root=repo_root,
