@@ -13,7 +13,7 @@
 | 无工具调用时 stdout **纯净**：`codebuddy-code -p "Reply with exactly: PONG" --model hy4-preview-f --output-format text --tools "" --max-turns 1 --no-session-persistence` → stdout 仅 `PONG`，exit 0 | 实测 |
 | 启用 `Read` 工具时**每个工具调用占用一个 turn**：`--max-turns 2` 报 `Max turns (2) exceeded`；需 `--max-turns >= 10` | 实测 |
 | 非交互下 `Read` 需权限放行：默认报 "The Read tool was denied because permission prompts can't be shown in this non-interactive session"，提示用 `-y` 或 `--permission-mode bypassPermissions` | 实测 |
-| **未实测**：`--permission-mode bypassPermissions` + `--tools "Read"` 组合是否稳定产出纯 Markdown（本次该命令被跳过，未执行） | 待实施第一步验证 |
+| `--permission-mode bypassPermissions` + `--tools "Read"` 探针：17.6s 输出纯净英文 Markdown（结构保留、代码块未译），exit 0 | 已实测验证 |
 
 ## 二、目标与非目标
 
@@ -137,7 +137,7 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
 |---|---|
 | `--translate-needed` 单独 | stale + missing 送翻；fresh 不动 |
 | `--translate-needed --force` | 同上（force 在 needed 模式下冗余但不报错，保持兼容） |
-| `--force`（无 needed，现行行为） | missing 送翻；stale 送翻；fresh 仍不动 |
+| `--force`（无 needed） | 同默认：全部送翻——force 已成兼容性 no-op（见 §八 偏离记录） |
 | 默认（两者皆无） | **全部送翻**（新默认语义，见 6.2 警示） |
 | `--check` | 门禁统计口径不变：仍按 missing/stale 全集判定退出码，与本参数正交 |
 
@@ -170,3 +170,24 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
 | 输出被代码围栏包裹或夹带说明文字 | 输出清洗 + 结构校验；异常即失败退出（不写脏译文） |
 | 大文档 turn 消耗、单次耗时 ~14–22 s | `--max-turns 10`、单页超时可配；全量 122 页需较长时间，建议分批 |
 | 回滚 | 该模块独立，删除目录 + 还原 `--translate-cmd` 用法即可；wiki.py 不受影响 |
+
+## 八、执行记录（收尾回填，2026-09-30 实测）
+
+- 前置探针：`bypassPermissions + --tools "Read"` 对真实文件产出纯净英文 Markdown
+  （17.6s，exit 0，代码块未译）——§一"未实测"行已转为已验证。
+- 交付：`tools/translate/`（`__init__` / `runner` / `cli` / `__main__`，共 4 文件）+
+  `tests/test_tools_translate.py`（12 用例）；wiki 侧 `--translate-needed`
+  （`wiki.run` 新增仅关键字参数、cli 注册与透传、help 更新）+ `tests/test_pack_wiki.py`
+  重构/新增用例。
+- 实施中发现并修复：npm 的 `codebuddy-code` shim 是 `.cmd`/`.ps1`，裸
+  `subprocess.run` argv 报 `WinError 2`——runner 增加 `shutil.which` 解析
+  （PATH/PATHEXT 感知），找不到时转为明确的 `TranslateError`；成员测试全 mock
+  子进程未暴露该问题，由真机冒烟暴露。
+- 真机冒烟：`python -m tools.translate theme-ownership-plan.zh.md <tmp>/out.md`
+  → exit 0，译文纯净落盘。
+- 门禁实测：全量 `pytest tests -q` **54 用例全绿**（新增 12 + wiki 侧重构/新增）；
+  `pyright yate/ tests/ tools/` 0 errors / 0 warnings。
+- 偏离记录：§6.4 矩阵初稿中 `--force` 行与默认行语义矛盾，实施时定案为
+  **force = 兼容性 no-op**（stale 在有钩子时一律重译），help 与矩阵已同步；
+  `--translate-needed` 缺省"翻译全部"按用户要求保留为默认语义（破坏性已在
+  help/文档警示）。
