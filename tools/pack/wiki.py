@@ -293,6 +293,26 @@ def store_manifest(target: Path, manifest: dict[str, str]) -> None:
     (target / MANIFEST_NAME).write_text(f"{text}\n", encoding="utf-8")
 
 
+def prune_orphan_pages(target: Path, keep: set[str]) -> int:
+    """Delete generated wiki pages whose source document no longer exists.
+
+    *keep* holds the ``zh``/``en`` target names produced by this run.  Every
+    other ``*.md`` file in *target* is a dead link left behind by a source
+    that was renamed or deleted, so it is removed -- except the generated
+    ``Home`` / ``_Sidebar`` navigation and anything inside ``.git``.  Returns
+    the number of removed files.
+    """
+    protected = {"Home.md", "_Sidebar.md", "Home.en.md", "_Sidebar.en.md"}
+    removed = 0
+    for existing in target.rglob("*.md"):
+        rel = existing.relative_to(target)
+        if ".git" in rel.parts or rel.as_posix() in keep or existing.name in protected:
+            continue
+        existing.unlink()
+        removed += 1
+    return removed
+
+
 def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
     """Pipe Chinese markdown through the external translator command.
 
@@ -539,6 +559,11 @@ def run(
         translated += 1
     collected = {page.zh_target for page in pages}
     manifest = {key: value for key, value in manifest.items() if key in collected}
+    # Sources that vanished must not leave dead links behind in the wiki.
+    expected = {page.zh_target for page in pages} | {page.en_target for page in pages}
+    orphans = prune_orphan_pages(target, expected)
+    if orphans:
+        print(f"wiki: removed {orphans} orphan page(s) with no source document")
 
     home_zh, sidebar_zh, home_en, sidebar_en = _nav_documents(pages)
     (target / "Home.md").write_text(home_zh, encoding="utf-8")

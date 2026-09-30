@@ -90,8 +90,9 @@ def build_parser() -> argparse.ArgumentParser:
                     "*.zh.md / *.en.md page pairs plus Home/_Sidebar "
                     "navigation into the <repo>.wiki git repository next to "
                     "the checkout. English pages live in the wiki repo itself "
-                    "and are never overwritten once written; missing ones can "
-                    "be filled via --translate-cmd. See tools.pack.wiki.",
+                    "as the translation cache: with --translate-cmd only "
+                    "missing and stale ones are re-translated (see "
+                    "--translate-all). See tools.pack.wiki.",
     )
     wiki_cmd.add_argument(
         "--target",
@@ -106,8 +107,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CMD",
         help="shell command translating Chinese markdown on stdin to "
-             "English on stdout (used only for missing pages); it is run "
-             "via the shell and must come from a trusted source",
+             "English on stdout (used for missing and stale pages; see "
+             "--translate-all); it is run via the shell and must come "
+             "from a trusted source",
     )
     wiki_cmd.add_argument(
         "--force",
