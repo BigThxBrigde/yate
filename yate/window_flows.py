@@ -20,7 +20,6 @@ from textual.worker import Worker
 
 from yate.document_flows import DocumentFlows
 from yate.editor_view.commandline import PromptBar
-from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.panes import PaneManager
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
@@ -48,7 +47,6 @@ class WindowFlows:
         panes: PaneManager,
         keymaps: KeymapSet,
         document_flows: DocumentFlows,
-        explorer_tree: ExplorerTree,
         prompt_bar: PromptBar,
         message: Callable[[str, str], None],
         has_modal_screen: Callable[[], bool],
@@ -64,7 +62,6 @@ class WindowFlows:
         self.panes = panes
         self.keymaps = keymaps
         self.document_flows = document_flows
-        self.explorer_tree = explorer_tree
         self.prompt_bar = prompt_bar
         self._message = message
         self._has_modal_screen = has_modal_screen

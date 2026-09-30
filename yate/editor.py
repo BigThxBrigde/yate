@@ -276,7 +276,6 @@ def _build_pane_stack(ed: Editor) -> None:
         panes=ed.panes,
         keymaps=ed.keymaps,
         document_flows=ed.document_flows,
-        explorer_tree=ed.explorer_tree,
         prompt_bar=ed.prompt_bar,
         message=ed.message,
         has_modal_screen=ed.has_modal_screen,
