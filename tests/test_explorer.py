@@ -140,7 +140,9 @@ class _LspRecorder:
 
 def _session_with_hook(lsp: _LspRecorder) -> tuple[EditorSession, MagicMock]:
     app = MagicMock()
-    host = SimpleNamespace(app=app, lsp=lsp)
+    # LspSync.documents_closed is driven unbound: the host only needs the
+    # collaborators the method touches (the spawn verb records calls).
+    host = SimpleNamespace(_spawn=app.run_worker, lsp=lsp)
     notify = cast(Any, LspSync.documents_closed)
     session = EditorSession(
         YateConfig(), on_closed=lambda closed: notify(host, closed)
