@@ -165,6 +165,7 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
 | 风险 | 缓解 |
 |---|---|
 | `bypassPermissions` 权限面 | 仅授 `Read`；prompt 只读不改；文档外路径不传入 |
+| **残留风险（评审 M1，已文档化）**：源文档是不可信内容，代理可读任意路径，恶意文档可注入指令把敏感文件并进"译文"，随 `--push` 外泄到公开远端 | 已在模块 docstring 显式声明"仅对可信文档使用"；如需更强隔离，后续可评估 codebuddy-code 的目录白名单/沙箱参数 |
 | `--translate-needed` 缺省时"翻译全部"覆盖现有译文 | help/docstring 显式警示；建议搭配 `--check` 或先对小样本验证；wiki 仓库受 git 保护可 revert |
 | 免费模型配额/速率 | `--fallback-model hy3`、调用失败明确报错不静默 |
 | 输出被代码围栏包裹或夹带说明文字 | 输出清洗 + 结构校验；异常即失败退出（不写脏译文） |
@@ -191,3 +192,22 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
   **force = 兼容性 no-op**（stale 在有钩子时一律重译），help 与矩阵已同步；
   `--translate-needed` 缺省"翻译全部"按用户要求保留为默认语义（破坏性已在
   help/文档警示）。
+
+## 九、评审与修复记录（code-review-expert，2026-09-30）
+
+评审实测：pytest 1487 passed / 7 skipped（覆盖率 90.74% ≥ 75% 门禁）、
+pyright 0 诊断。结论：1 blocker + 1 major + 5 minor，已全部处置：
+
+| 级别 | 发现 | 处置 |
+|---|---|---|
+| B1 阻断 | stdin/stdout 管道编码错配：wiki 钩子按 UTF-8 读写，模块用裸 `sys.stdin/stdout`（中文 Windows 管道继承 GBK）→ 静默乱码/崩溃；单测 mock 管道层未暴露 | `cli._force_utf8_pipes()`：非 tty 流 `reconfigure(encoding="utf-8")`（cast 到 `TextIOWrapper`，容忍 `UnsupportedOperation`）；新增**真实子进程管道集成测试**（`.cmd` stub，CRLF 归一化断言）；stdin 读取加异常兜底（随修 minor 3） |
+| M1 major | 源文档不可信时，代理可被注入指令读任意文件并随 `--push` 外泄 | 模块 docstring 显式声明"仅对可信文档使用"；计划 §七风险表补录；更强隔离（目录白名单/沙箱）登记为后续可选项 |
+| minor 1 | 默认模式 fresh 页重翻失败时 manifest 已提前写入新 digest，报告口径与 manifest 不一致 | digest 写入移到重翻**成功之后**；新增回归测试（失败后 manifest 保持空） |
+| minor 2 | `clean_output` 会误剥"译文整体是一个合法代码块"的首尾围栏 | 仅当首行为无语言标签的裸 ` ``` ` 时才视为包装；新增测试 |
+| minor 3 | stdin 非编码异常产生 traceback | 随 B1 一并兜底（`UnicodeDecodeError`/`OSError` → stderr + exit 1） |
+| minor 4 | wiki 钩子超时硬编码 900s 与模块 `--timeout` 脱节 | 登记为已知项，不阻断合并（外层先到时错误信息可溯源） |
+| minor 5 | `--max-turns` / `--timeout` 无正整数校验 | argparse 后校验，非正数 `parser.error`（exit 2）；新增测试 |
+| nice | `--translate-needed` 无钩子时静默忽略；tmp 文件遗留 | 前者：stderr 一行提示已加；后者待用户手动删除 `.trae/tmp-missing-en.txt` |
+
+修复后门禁：全量 `pytest tests -q` **58 用例全绿**；`pyright yate/ tests/ tools/`
+0 errors / 0 warnings；stdin 模式真机复验（真实管道 + 真实模型）exit 0 无乱码。
