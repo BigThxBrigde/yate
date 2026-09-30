@@ -156,6 +156,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 1:1 操作 / 查询 | 直接调用具体协作者的方法（`session` / `workspace` / `lsp` / widget） |
 | 1:N 低频广播 | 回调列表或构造注入的回调（如 `EditorSession(on_closed=...)`、`TabBar(on_activate=...)`、`theme.subscribe(listener)` 返回退订函数） |
 | L0 需要 UI 能力 | 构造参数注入 `Callable`（N30 模式：`load_config(register_theme=..., load_theme_paths=...)`，由 L4 `cli.py` 传入 `editor_view.theme` 同名函数；缺省 `None` = headless） |
+| L3 需要外壳能力 | 语义能力注入（issue IKJB0Q）：**动词**=绑定方法注入（`spawn=app.run_worker` / `push_screen=app.push_screen`），pyright 在接线处自动推导完整签名；**状态查询**=Editor 语义 `Callable`（`has_modal_screen` / `explorer_focused` / `current_screen`）。`editor.py` 是 L3 唯一 `App[None]` 持有者与能力分发点，流程模块不得持有 App 句柄（守卫：§六「能力注入」条目） |
 | UI 事件 | Textual messages（`on_key` / `Input.Submitted` / `MouseDown` 等） |
 | 异步任务 | Textual `App.run_worker(...)`；调度层提供 `*_later` 便捷入口（如 `open_path_later`）；防抖定时用 `asyncio.get_running_loop().call_later` |
 | 日志（含无 App 上下文的线程/worker/回调） | 模块级 `log = tracing.get_logger(__name__)`（R12）；devtools 可见性由 L4 `TextualHandler` 桥提供，业务代码不直连 `app.log` / `self.log` |
@@ -194,8 +195,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **20 个用例**（2026-09-28 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `20 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **22 个用例**（2026-09-30 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `22 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -231,12 +232,17 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **T2**（`test_editor_does_not_paint_widget_styles`）`editor.py` 无 `def apply_theme` /
   `def update_sidebar_head` / `.styles.background =` / `.styles.scrollbar_`（文本断言；
   Editor 自有的布局职责如 terminal dock 高度不误伤）；
+- **能力注入**（issue IKJB0Q，2026-09-30 新增两条）：`test_app_annotations_are_precise`
+  AST 扫 `yate/**` 禁 `App[Any]` / `App[object]` 下标（`App[None]` 是唯一精确形态）；
+  `test_flow_modules_hold_no_app_handle` AST 扫 `yate/*.py` 顶层（排除 `editor.py`）
+  禁 `self.app` 属性链——动词与查询都是注入能力，Editor 是 L3 唯一 App 句柄持有者。
+  两条均经负向演练（临时回填违规确认拦截后还原）；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` /
   `*Controller` / `AppProtocol`
   （白名单：`PaneHost`；`*Manager` 允许。流程模块按职责命名：UI 流程编排一律
   `*Flows`，同步适配器按动词命名如 `LspSync`，禁新增 `*Controller`）。
 
-**20 个用例逐条对照**（2026-09-28 实测 `20 passed`）：
+**22 个用例逐条对照**（2026-09-30 实测 `22 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -260,6 +266,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 18 | `test_devtools_bridge_forwards_only_while_tracing_enabled` | R12 |
 | 19 | `test_no_class_level_scrollbar_renderer_patch` | T1 |
 | 20 | `test_editor_does_not_paint_widget_styles` | T2 |
+| 21 | `test_app_annotations_are_precise` | 能力注入（禁 `App[Any]` / `App[object]`） |
+| 22 | `test_flow_modules_hold_no_app_handle` | 能力注入（流程模块禁 `self.app`） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

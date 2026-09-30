@@ -39,10 +39,10 @@
 | 全量门禁 | ✅ `pytest tests/ -q` exit 0 · `pyright yate/ tests/ tools/` 0 诊断 · `yate --diag` / `--version` 正常 |
 | 迁移记录 | 逐文件方式见 [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.5 / §E.6.4；属性映射见 §E.1 |
 
-> **2026-09-28 核对复核**（本目录文档与代码对照）：`pytest tests/` 收集 **1354** 个用例、exit 0 全绿；
-> `pytest tests/test_architecture.py` → **20 passed**（Plan G 收口时为 13，此后 R12 / R13 / 日志惰性格式等
-> 守卫陆续加入）；`pyright yate/ tests/ tools/` → 0 诊断；`tools.smoke_test run --fail-only` → 89/89 场景、
-> 932/932 checks。上表的 E1–E3 数值为 2026-09-23 收口时点值，括号中为 2026-09-28 实测值。
+> **2026-09-30 核对复核**（本目录文档与代码对照）：`pytest tests/` 收集 **1460** 个用例、exit 0 全绿；
+> `pytest tests/test_architecture.py` → **22 passed**（Plan G 收口时为 13，此后 R12 / R13 / 日志惰性格式 /
+> 能力注入等守卫陆续加入）；`pyright yate/ tests/ tools/` → 0 诊断；`tools.smoke_test run --fail-only` →
+> 89/89 场景、932/932 checks。上表的 E1–E3 数值为 2026-09-23 收口时点值，括号中为 2026-09-28 实测值。
 
 ### 1.2 复核命令
 
@@ -153,6 +153,13 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
   滚动条注入"：L3 `Editor` 不得直改 widget 样式、不得类级 patch `ScrollBar.renderer`，注入统一走
   `editor_view.scrollbars.apply_slim_scrollbars(widget)`。两者均已在 `tests/test_architecture.py`
   落地守卫，权威定义见 [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md)。
+- **语义能力注入**（issue IKJB0Q，2026-09-30 落地）：L3 流程模块不再持有 App 句柄——
+  **动词**以绑定方法注入（`spawn=app.run_worker`、`push_screen=app.push_screen`、
+  `push_overlay=OverlayFlows.push`），**状态查询**以 Editor 语义 `Callable` 注入
+  （`has_modal_screen` / `explorer_focused` / `current_screen`）；`editor.py` 是 L3 唯一
+  `App[None]` 持有者与能力分发点，`YateApp` 下标一律精确为 `App[None]`。守卫：
+  `test_app_annotations_are_precise` / `test_flow_modules_hold_no_app_handle`（两条 AST 用例），
+  交互表见 rules §四「L3 需要外壳能力」行。
 
 ### 冻结清单（存量，禁止新增）
 
@@ -162,11 +169,12 @@ L0 叶子   editor_core / editor_lsp / editor_syntax / editor_term / services / 
 | 禁用命名 | 仅 `PaneHost`（`editor_view/panes.py` 的 Textual 容器 widget）、`PaneManager` / `LspManager`（存量）、`CompletionController`（流程类） | 其余 `*Feature` / `*Host` / `*Ops` / `*Delegate` 一律禁止 |
 | UI 耦合 | `completion.py` / `prompt_completion.py` → `editor_view` | 见 R11；新增导入须登记 |
 
-### 守护覆盖（2026-09-23 实测 / 2026-09-28 复核）
+### 守护覆盖（2026-09-23 实测 / 2026-09-30 复核）
 
-`tests/test_architecture.py` 的 **20 个用例**（2026-09-28 实测；Plan G 收口时为 13）实际覆盖：
+`tests/test_architecture.py` 的 **22 个用例**（2026-09-30 实测；Plan G 收口时为 13）实际覆盖：
 **R1 / R2 / R3 / R4 / R5 / R6 / R7 / R11 / R12 / R13 + 窗格模型归属 + 命名守卫**
-（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`）、日志惰性 `%` 格式与 T1 / T2 治理项，
+（`*Feature` / `*Host` / `*Ops` / `*Delegate` / `AppProtocol`）、日志惰性 `%` 格式、T1 / T2 治理项与
+语义能力注入（`App[Any]` / `App[object]` 下标禁用 + 流程模块 `self.app` 禁用），
 以及 `app_features/` **目录**与 `yate/interfaces.py` 已消失。其中「窗格模型归属」由 `test_pane_model_lives_in_l1_session` 守护：
 窗格树模型（`Leaf` / `Split` / `ViewState` + `find_leaf` 等树操作）归 L1 `yate/session.py` 所有，
 `editor_view/` 只 import、不再重导出（`editor_view/pane_types.py` 已删除）。R7 由 `test_shell_loads_the_builtin_tables` 守护：

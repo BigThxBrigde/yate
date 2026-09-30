@@ -43,6 +43,13 @@ These tests enforce the boundaries documented in
   styles or forwards theme updates, and scrollbar renderers are injected
   per widget (``apply_slim_scrollbars``), never class-level patched.
 
+* **Capability injection** (semantic capability injection, issue IKJB0Q):
+  the L3 flow modules never hold the App handle -- verbs are injected as
+  bound methods (``spawn=app.run_worker``, ``push_screen=app.push_screen``)
+  and state queries as semantic callables owned by ``editor.py``, the one
+  L3 ``App[None]`` holder and capability distributor.  Imprecise
+  ``App[Any]`` / ``App[object]`` annotations are banned everywhere.
+
 * **R7** the shell loads the built-in tables: ``YateApp.__init__`` calls
   ``populate(editor.actions, editor)`` / ``register_commands(editor.commands,
   editor)`` and is the only module importing ``actions.py`` / ``commands.py``.
@@ -586,3 +593,99 @@ def test_editor_does_not_paint_widget_styles() -> None:
         assert banned not in source, (
             f"editor.py must not contain {banned!r}: widgets paint themselves"
         )
+
+
+def _stringified_imprecise(annotation: ast.expr) -> bool:
+    """Whether *annotation* is a stringified ``App[Any]`` / ``App[object]``.
+
+    Quoted forward references parse as plain ``Constant`` strings, so they
+    hide the subscript from the ``Subscript`` branch of the guard.
+    """
+    return (
+        isinstance(annotation, ast.Constant)
+        and isinstance(annotation.value, str)
+        and annotation.value.strip() in ("App[Any]", "App[object]")
+    )
+
+
+def _imprecise_app_annotations(path: Path) -> list[int]:
+    """Line numbers of ``App[Any]`` / ``App[object]`` subscripts in *path*.
+
+    AST-based so docstrings mentioning the shapes do not false-positive.
+    ``App[None]`` (the shell's precise message type) is the only allowed
+    ``App`` subscript.  Matches the bare (``App[...]``) and qualified
+    (``textual.app.App[...]``) spellings plus stringified forward
+    references at the variable-annotation, parameter and return positions.
+    """
+    tree = _parsed_tree(path)
+    out: list[int] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript):
+            value = node.value
+            named = (isinstance(value, ast.Name) and value.id == "App") or (
+                isinstance(value, ast.Attribute) and value.attr == "App"
+            )
+            if not named:
+                continue
+            subscript = node.slice
+            if isinstance(subscript, ast.Name) and subscript.id in ("Any", "object"):
+                out.append(node.lineno)
+            elif _stringified_imprecise(subscript):
+                out.append(node.lineno)
+        elif isinstance(node, ast.AnnAssign):
+            if _stringified_imprecise(node.annotation):
+                out.append(node.lineno)
+        elif isinstance(node, ast.arg):
+            if node.annotation is not None and _stringified_imprecise(node.annotation):
+                out.append(node.lineno)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.returns is not None and _stringified_imprecise(node.returns):
+                out.append(node.lineno)
+    return out
+
+
+def test_app_annotations_are_precise() -> None:
+    """``App[Any]`` / ``App[object]`` are banned across ``yate/``.
+
+    The shell is ``App[None]``; collaborators receive that precise type or
+    injected capabilities, never a vague App handle to reach ``.run_worker``
+    through (issue IKJB0Q -- the ``App[object]`` / ``App[Any]`` muddle).
+    """
+    for path in _yate_files():
+        lines = _imprecise_app_annotations(path)
+        assert lines == [], (path, lines)
+
+
+def _self_app_accesses(path: Path) -> list[int]:
+    """Line numbers of ``self.app`` attribute chains in *path*.
+
+    AST-based so a docstring that merely mentions the handle does not
+    false-positive (same rationale as the R12 devtools guard).
+    """
+    tree = _parsed_tree(path)
+    out: list[int] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr == "app"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "self"
+        ):
+            out.append(node.lineno)
+    return out
+
+
+def test_flow_modules_hold_no_app_handle() -> None:
+    """Top-level modules other than ``editor.py`` never hold the App handle.
+
+    Verbs are injected as bound methods and state queries as editor-owned
+    semantic callables (semantic capability injection, issue IKJB0Q);
+    ``editor.py`` is the one L3 ``App[None]`` holder and capability
+    distributor.  The scan covers top-level ``yate/*.py`` (non-recursive),
+    matching the plan's Stage 3 declaration.
+    """
+    for path in YATE.glob("*.py"):
+        if path.name == "editor.py":
+            continue
+        lines = _self_app_accesses(path)
+        assert lines == [], (path, lines)

@@ -14,7 +14,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from textual.app import App
 from textual.screen import Screen
 
 from yate.config import YateConfig
@@ -34,7 +33,9 @@ class OverlayFlows:
 
     def __init__(
         self,
-        app: App[Any],
+        push_screen: Callable[..., object],
+        pop_screen: Callable[[], object],
+        current_screen: Callable[[], Screen[Any]],
         config: YateConfig,
         keymaps: KeymapSet,
         commands: CommandRegistry,
@@ -49,7 +50,11 @@ class OverlayFlows:
         run_command: Callable[[str], None],
         refresh: Callable[[], None],
     ) -> None:
-        self.app = app
+        # Screen-stack verbs and the top-screen query, injected as bound
+        # methods / callables by the editor (no App handle is held here).
+        self._push_screen = push_screen
+        self._pop_screen = pop_screen
+        self._current_screen = current_screen
         self.config = config
         self.keymaps = keymaps
         self.commands = commands
@@ -77,7 +82,7 @@ class OverlayFlows:
         closes -- looking like the overlay command itself had no feedback.
         """
         self.prompt.idle()
-        self.app.push_screen(screen, callback=callback)
+        self._push_screen(screen, callback=callback)
 
     def show_help(self) -> None:
         """Open the keybinding reference overlay."""
@@ -94,7 +99,7 @@ class OverlayFlows:
 
     def _open_doc(self, *, kind: str, lang: str, title: str) -> None:
         """Push a markdown document screen unless one is already up."""
-        if not self._mounted() or isinstance(self.app.screen, MarkdownDocScreen):
+        if not self._mounted() or isinstance(self._current_screen(), MarkdownDocScreen):
             return
         self.push(MarkdownDocScreen(kind=kind, lang=lang, title=title))
 
@@ -136,8 +141,8 @@ class OverlayFlows:
         before calling, so this pop branch only serves the direct action
         paths (palette, keys).
         """
-        if isinstance(self.app.screen, ScreensaverScreen):
-            self.app.pop_screen()
+        if isinstance(self._current_screen(), ScreensaverScreen):
+            self._pop_screen()
             return
         if not self.config.screen_saver.enable:
             self._message("screensaver disabled (screen_saver.enable = False)",

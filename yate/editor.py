@@ -25,6 +25,7 @@ from typing import Any
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
+from textual.screen import Screen
 
 from yate import __version__
 from yate.completion import CompletionFlows
@@ -150,12 +151,12 @@ def _build_widgets(ed: Editor) -> None:
     # the startup document -- so those collaborators arrive via
     # ``attach_pane_stack`` in ``_build_pane_stack``.
     ed.document_flows = DocumentFlows(
-        ed.app,
-        ed.session,
-        ed.workspace,
-        ed.lsp,
-        ed.explorer_tree,
-        ed.prompt_bar,
+        spawn=ed.app.run_worker,
+        session=ed.session,
+        workspace=ed.workspace,
+        lsp=ed.lsp,
+        explorer_tree=ed.explorer_tree,
+        prompt_bar=ed.prompt_bar,
         message=ed.message,
         report=ed.report,
         refresh_ui=ed.refresh_ui,
@@ -210,24 +211,18 @@ def _build_pane_stack(ed: Editor) -> None:
         readonly_notice=ed.readonly_notice,
         refresh=ed.refresh_ui,
     )
-    ed.lsp_sync = LspSync(
-        ed.app,
-        ed.lsp,
-        ed.session,
-        ed.panes,
-        ed.status_bar,
-        ed.prompt_bar,
-        message=ed.message,
-        mounted=lambda: ed.mounted,
-    )
+    # Overlays is built before its consumers: LspSync / ShellFlows receive
+    # ``push_overlay`` (the shared pre-clear-prompt-then-push verb).
     ed.overlays = OverlayFlows(
-        ed.app,
-        ed.config,
-        ed.keymaps,
-        ed.commands,
-        ed.actions,
-        ed.workspace,
-        ed.prompt_bar,
+        push_screen=ed.app.push_screen,
+        pop_screen=ed.app.pop_screen,
+        current_screen=ed.current_screen,
+        config=ed.config,
+        keymaps=ed.keymaps,
+        commands=ed.commands,
+        actions=ed.actions,
+        workspace=ed.workspace,
+        prompt=ed.prompt_bar,
         message=ed.message,
         mounted=lambda: ed.mounted,
         open_path=ed.document_flows.open_path_later,
@@ -236,11 +231,22 @@ def _build_pane_stack(ed: Editor) -> None:
         run_command=ed.run_command,
         refresh=ed.refresh_ui,
     )
+    ed.lsp_sync = LspSync(
+        spawn=ed.app.run_worker,
+        lsp=ed.lsp,
+        session=ed.session,
+        panes=ed.panes,
+        status_bar=ed.status_bar,
+        prompt=ed.prompt_bar,
+        message=ed.message,
+        mounted=lambda: ed.mounted,
+        push_overlay=ed.overlays.push,
+    )
     ed.shell = ShellFlows(
-        ed.app,
-        ed.session,
-        ed.workspace,
-        ed.prompt_bar,
+        spawn=ed.app.run_worker,
+        session=ed.session,
+        workspace=ed.workspace,
+        prompt=ed.prompt_bar,
         message=ed.message,
         mounted=lambda: ed.mounted,
         focus_editor=ed.focus_editor,
@@ -248,7 +254,7 @@ def _build_pane_stack(ed: Editor) -> None:
         push_overlay=ed.overlays.push,
     )
     ed.completion = CompletionFlows(
-        ed.app,
+        spawn=ed.app.run_worker,
         session=ed.session,
         lsp=ed.lsp,
         workspace=ed.workspace,
@@ -258,24 +264,25 @@ def _build_pane_stack(ed: Editor) -> None:
         prompt=ed.prompt_bar,
         refresh=ed.refresh_ui,
         readonly_notice=ed.readonly_notice,
+        has_modal_screen=ed.has_modal_screen,
     )
     ed.document_flows.attach_pane_stack(ed.panes, ed.completion)
     # Window flows need the pane stack, the document flows (``:sp <dir>``
     # opens a directory) and the widgets; the explorer's ctrl+w prefix hook
     # is late-bound here for the same construction-order reason.
     ed.window_flows = WindowFlows(
-        ed.app,
-        ed.session,
-        ed.panes,
-        ed.keymaps,
-        ed.document_flows,
-        ed.explorer_tree,
-        ed.prompt_bar,
+        spawn=ed.app.run_worker,
+        session=ed.session,
+        panes=ed.panes,
+        keymaps=ed.keymaps,
+        document_flows=ed.document_flows,
+        prompt_bar=ed.prompt_bar,
         message=ed.message,
         has_modal_screen=ed.has_modal_screen,
         focus_editor=ed.focus_editor,
         focus_explorer=ed.focus_explorer,
         after_pane_focus=ed.after_pane_focus,
+        explorer_focused=ed.explorer_focused,
     )
     ed.explorer_tree.window_prefix = ed.window_flows.try_window_prefix
 
@@ -336,7 +343,7 @@ class Editor:
 
     def __init__(
         self,
-        app: App[Any],
+        app: App[None],
         config: YateConfig,
         *,
         target: str | Path | None = None,
@@ -463,6 +470,14 @@ class Editor:
     def has_modal_screen(self) -> bool:
         """True while an overlay screen (help, palette, output, ...) owns input."""
         return len(self.app.screen_stack) > 1
+
+    def explorer_focused(self) -> bool:
+        """True while the explorer tree widget holds the focus."""
+        return self.app.focused is self.explorer_tree
+
+    def current_screen(self) -> Screen[Any]:
+        """The screen currently on top of the shell's screen stack."""
+        return self.app.screen
 
     def report(self, text: str, kind: str = "info") -> None:
         """Report *text* on the message line (buffered before the first mount).
@@ -613,7 +628,7 @@ class Editor:
         if event.key == "ctrl+p":
             self.overlays.open_file_palette()
             return True
-        if self.app.focused is self.explorer_tree:
+        if self.explorer_focused():
             return False  # explorer consumes its own keys
         raw = event_to_raw(event.key, event.character)
         if raw is None:
