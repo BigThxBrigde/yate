@@ -209,16 +209,8 @@ def _build_pane_stack(ed: Editor) -> None:
         readonly_notice=ed.readonly_notice,
         refresh=ed.refresh_ui,
     )
-    ed.lsp_sync = LspSync(
-        ed.app,
-        ed.lsp,
-        ed.session,
-        ed.panes,
-        ed.status_bar,
-        ed.prompt_bar,
-        message=ed.message,
-        mounted=lambda: ed.mounted,
-    )
+    # Overlays is built before its consumers: LspSync / ShellFlows receive
+    # ``push_overlay`` (the shared pre-clear-prompt-then-push verb).
     ed.overlays = OverlayFlows(
         ed.app,
         ed.config,
@@ -234,6 +226,17 @@ def _build_pane_stack(ed: Editor) -> None:
         execute_action=ed.execute_action,
         run_command=ed.run_command,
         refresh=ed.refresh_ui,
+    )
+    ed.lsp_sync = LspSync(
+        spawn=ed.app.run_worker,
+        lsp=ed.lsp,
+        session=ed.session,
+        panes=ed.panes,
+        status_bar=ed.status_bar,
+        prompt=ed.prompt_bar,
+        message=ed.message,
+        mounted=lambda: ed.mounted,
+        push_overlay=ed.overlays.push,
     )
     ed.shell = ShellFlows(
         spawn=ed.app.run_worker,

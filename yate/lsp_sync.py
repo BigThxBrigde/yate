@@ -12,8 +12,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
+from typing import Any
 
-from textual.app import App
+from textual.screen import Screen
+from textual.worker import Worker
 
 from yate.editor_core import Document
 from yate.editor_lsp import LspManager
@@ -29,7 +31,7 @@ class LspSync:
 
     def __init__(
         self,
-        app: App[None],
+        spawn: Callable[..., Worker[object]],
         lsp: LspManager,
         session: EditorSession,
         panes: PaneManager,
@@ -37,8 +39,11 @@ class LspSync:
         prompt: PromptBar,
         message: Callable[[str, str], None],
         mounted: Callable[[], bool],
+        push_overlay: Callable[[Screen[Any]], None],
     ) -> None:
-        self.app = app
+        # Bound ``App.run_worker``: the background-work verb injected by the
+        # editor (this module never holds the App handle itself).
+        self._spawn = spawn
         self.lsp = lsp
         self.session = session
         self.panes = panes
@@ -46,6 +51,7 @@ class LspSync:
         self.prompt = prompt
         self._message = message
         self._mounted = mounted
+        self._push_overlay = push_overlay
 
     def documents_closed(self, closed: list[Document]) -> None:
         """Session hook: tell the servers the documents were closed.
@@ -56,7 +62,7 @@ class LspSync:
         the didClose and leaks "coroutine was never awaited".
         """
         for doc in closed:
-            self.app.run_worker(
+            self._spawn(
                 partial(self.lsp.on_document_closed, doc),
                 group="lsp-sync", exclusive=False, exit_on_error=False,
             )
@@ -66,7 +72,7 @@ class LspSync:
         doc = self.session.doc
         if not self.lsp.supports(doc) or self.lsp.is_open(doc):
             return
-        self.app.run_worker(
+        self._spawn(
             partial(self.lsp.on_document_shown, doc),
             group="lsp-sync", exclusive=False, exit_on_error=False,
         )
@@ -115,7 +121,4 @@ class LspSync:
         ]
         errors, warnings = self.lsp.counts_for(doc)
         title = f"diagnostics — {errors} error(s), {warnings} warning(s)"
-        # Same pre-clear as the editor's push_overlay: the overlay hides the
-        # message line, so a stale message would reappear after it closes.
-        self.prompt.idle()
-        self.app.push_screen(OutputScreen(title, "\n".join(lines), 0))
+        self._push_overlay(OutputScreen(title, "\n".join(lines), 0))
