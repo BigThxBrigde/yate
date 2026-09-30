@@ -257,6 +257,69 @@ def test_push_aborts_when_git_add_fails(
     assert calls == [("add", "-A")]
 
 
+def test_push_aborts_when_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args[:1] == ("commit",):
+            return subprocess.CompletedProcess(args, 128, "", "fatal: no identity")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(wiki, "run_git", fake_git)
+    assert wiki.push_wiki(tmp_path) == 1
+    assert ("push", "origin", wiki.WIKI_BRANCH) not in calls
+    assert ("push", "github", wiki.WIKI_BRANCH) not in calls
+
+
+def test_push_continues_on_empty_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        if args[:1] == ("commit",):
+            return subprocess.CompletedProcess(args, 1, "", "nothing to commit, working tree clean\n")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(wiki, "run_git", fake_git)
+    assert wiki.push_wiki(tmp_path) == 0
+
+
+def test_load_manifest_aborts_on_read_error(tmp_path: Path) -> None:
+    manifest = tmp_path / wiki.MANIFEST_NAME
+    manifest.mkdir()  # a directory: exists() is True, read_text() raises OSError
+    with pytest.raises(SystemExit):
+        wiki.load_manifest(tmp_path)
+
+
+def test_force_retranslate_failure_reports_stale(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def v1_translate(text: str, translate_cmd: str) -> str | None:
+        return "# en v1\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", v1_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    _touch(repo, ".trae/documents/set-plans/beta-plan.md", "# beta v2\n")
+
+    def failing_translate(text: str, translate_cmd: str) -> str | None:
+        return None
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", failing_translate)
+    assert wiki.run(target, "fake-cmd", force=True, check=True, repo_root=repo) == 1
+    out = capsys.readouterr().out
+    assert "stale en: set-plans/beta-plan.en.md" in out
+    assert "missing 0" in out
+    assert (target / "set-plans/beta-plan.en.md").read_text(
+        encoding="utf-8"
+    ) == "# en v1\n"
+
+
 def test_push_reports_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -271,9 +271,15 @@ def load_manifest(target: Path) -> dict[str, str]:
         return {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        print("wiki: manifest unreadable, starting fresh", file=sys.stderr)
+    except json.JSONDecodeError:
+        print("wiki: manifest corrupt, starting fresh", file=sys.stderr)
         return {}
+    except OSError as exc:
+        # A read error (permissions, disk trouble) must not silently reset
+        # the sha256 records: the next store_manifest() would overwrite the
+        # file and every stale marker would be lost.  Abort instead.
+        print(f"wiki: manifest read error: {exc}", file=sys.stderr)
+        sys.exit(1)
     if not isinstance(raw, dict):
         print("wiki: manifest is not an object, starting fresh", file=sys.stderr)
         return {}
@@ -293,6 +299,10 @@ def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
     Returns the translated text, or ``None`` when the command fails,
     times out, or produces empty output (the failure is reported on
     stderr).
+
+    *translate_cmd* is executed through the shell so pipelines and
+    redirections work; it must therefore come from a trusted source
+    (the local CLI invocation / yaterc), never from untrusted input.
     """
     try:
         proc = subprocess.run(
@@ -328,7 +338,11 @@ def push_wiki(target: Path) -> int:
         return 1
     commit = run_git(target, "commit", "-m", COMMIT_MESSAGE)
     if commit.returncode != 0:
-        print(f"wiki: commit: {(commit.stderr or commit.stdout).strip()}")
+        out = f"{commit.stdout}{commit.stderr}".strip()
+        if "nothing to commit" not in out and "nothing added to commit" not in out:
+            print(f"wiki: commit failed: {out}", file=sys.stderr)
+            return 1
+        print(f"wiki: commit: {out}")
     if run_git(target, "remote", "get-url", "github").returncode != 0:
         run_git(target, "remote", "add", "github", GITHUB_WIKI_URL)
     failures = 0
@@ -503,7 +517,12 @@ def run(
             continue
         english = translate_via_cmd(zh_bytes.decode("utf-8", errors="replace"), translate_cmd)
         if english is None:
-            missing.append(page.en_target)
+            if has_en:
+                # A stale page whose forced re-translation failed is still
+                # stale, not missing -- report it under the right heading.
+                stale.append(page.en_target)
+            else:
+                missing.append(page.en_target)
             continue
         en_path.write_text(english, encoding="utf-8")
         manifest[page.zh_target] = digest

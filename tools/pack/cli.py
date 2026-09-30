@@ -106,7 +106,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CMD",
         help="shell command translating Chinese markdown on stdin to "
-             "English on stdout (used only for missing pages)",
+             "English on stdout (used only for missing pages); it is run "
+             "via the shell and must come from a trusted source",
     )
     wiki_cmd.add_argument(
         "--force",
