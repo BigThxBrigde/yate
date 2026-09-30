@@ -36,7 +36,7 @@ class _FakePromptBar:
 
 
 class _FakeApp:
-    """Enough app surface for Editor._open_doc: screen + push_screen."""
+    """Screen-stack stand-in injected into OverlayFlows by the editor."""
 
     def __init__(self, *, screen: object | None = None):
         self.screen: object = _FakeScreen() if screen is None else screen
@@ -54,20 +54,22 @@ def _make_editor(app: _FakeApp, *, mounted: bool = True) -> Editor:
 
     Attaches a real :class:`OverlayFlows`: the push guards under test
     live there since the overlay-flow extraction; the collaborators it does
-    not touch on this path are stubbed with ``None``.
+    not touch on this path are stubbed with ``None``.  The screen-stack
+    verbs/query are injected the same way :mod:`yate.editor` wires them.
     """
     editor = object.__new__(Editor)
-    editor.app = cast(Any, app)
     editor._mounted = mounted
     editor.prompt_bar = cast(Any, _FakePromptBar())
     editor.overlays = OverlayFlows(
-        cast(Any, app),
-        cast(Any, None),  # config: only the screensaver flow reads it
-        cast(Any, None),  # keymaps / commands / actions / workspace: unused
-        cast(Any, None),
-        cast(Any, None),
-        cast(Any, None),
-        cast(Any, _FakePromptBar()),
+        push_screen=app.push_screen,
+        pop_screen=lambda: None,
+        current_screen=lambda: app.screen,
+        config=cast(Any, None),  # config: only the screensaver flow reads it
+        keymaps=cast(Any, None),  # keymaps / commands / actions / workspace
+        commands=cast(Any, None),
+        actions=cast(Any, None),
+        workspace=cast(Any, None),
+        prompt=cast(Any, _FakePromptBar()),
         message=lambda text, kind: None,
         mounted=lambda: mounted,
         open_path=lambda path: None,

@@ -20,10 +20,12 @@ from __future__ import annotations
 import re
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
+from textual.screen import Screen
 
 from yate import __version__
 from yate.completion import CompletionFlows
@@ -212,13 +214,15 @@ def _build_pane_stack(ed: Editor) -> None:
     # Overlays is built before its consumers: LspSync / ShellFlows receive
     # ``push_overlay`` (the shared pre-clear-prompt-then-push verb).
     ed.overlays = OverlayFlows(
-        ed.app,
-        ed.config,
-        ed.keymaps,
-        ed.commands,
-        ed.actions,
-        ed.workspace,
-        ed.prompt_bar,
+        push_screen=ed.app.push_screen,
+        pop_screen=ed.app.pop_screen,
+        current_screen=ed.current_screen,
+        config=ed.config,
+        keymaps=ed.keymaps,
+        commands=ed.commands,
+        actions=ed.actions,
+        workspace=ed.workspace,
+        prompt=ed.prompt_bar,
         message=ed.message,
         mounted=lambda: ed.mounted,
         open_path=ed.document_flows.open_path_later,
@@ -471,6 +475,10 @@ class Editor:
     def explorer_focused(self) -> bool:
         """True while the explorer tree widget holds the focus."""
         return self.app.focused is self.explorer_tree
+
+    def current_screen(self) -> Screen[Any]:
+        """The screen currently on top of the shell's screen stack."""
+        return self.app.screen
 
     def report(self, text: str, kind: str = "info") -> None:
         """Report *text* on the message line (buffered before the first mount).
