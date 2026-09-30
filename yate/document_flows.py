@@ -47,7 +47,7 @@ class DocumentFlows:
 
     def __init__(
         self,
-        app: App[object],
+        app: App[None],
         session: EditorSession,
         workspace: Workspace,
         lsp: LspManager,

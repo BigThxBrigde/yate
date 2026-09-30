@@ -20,7 +20,6 @@ from __future__ import annotations
 import re
 from functools import partial
 from pathlib import Path
-from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -336,7 +335,7 @@ class Editor:
 
     def __init__(
         self,
-        app: App[Any],
+        app: App[None],
         config: YateConfig,
         *,
         target: str | Path | None = None,

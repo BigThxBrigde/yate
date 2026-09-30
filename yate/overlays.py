@@ -34,7 +34,7 @@ class OverlayFlows:
 
     def __init__(
         self,
-        app: App[Any],
+        app: App[None],
         config: YateConfig,
         keymaps: KeymapSet,
         commands: CommandRegistry,

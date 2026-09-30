@@ -43,7 +43,7 @@ class WindowFlows:
 
     def __init__(
         self,
-        app: App[object],
+        app: App[None],
         session: EditorSession,
         panes: PaneManager,
         keymaps: KeymapSet,

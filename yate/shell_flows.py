@@ -31,7 +31,7 @@ class ShellFlows:
 
     def __init__(
         self,
-        app: App[Any],
+        app: App[None],
         session: EditorSession,
         workspace: Workspace,
         prompt: PromptBar,

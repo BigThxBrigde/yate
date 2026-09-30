@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-from typing import Any
 
 from textual.app import App
 
@@ -30,7 +29,7 @@ class LspSync:
 
     def __init__(
         self,
-        app: App[Any],
+        app: App[None],
         lsp: LspManager,
         session: EditorSession,
         panes: PaneManager,
