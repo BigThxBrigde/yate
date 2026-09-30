@@ -44,3 +44,25 @@ force-无钩子报 stale、translate 超时返回 None、manifest 损坏容错�
 - 偏离记录：无选型偏离。测试 `test_force_without_translator_reports_stale`
   首版直接在无译本基线上跑 `--force`，因无 stale 可报而失败——修正为
   先经翻译器产出 v1 译本再变异源文档（测试自身缺陷，非实现问题）。
+
+## 五、第二轮评审修复（Gitee PR #39 note_51410673，2026-09-30）
+
+评审针对第一轮修复后的代码，给出 2 阻断 + 2 改进：
+
+| # | 级别 | 问题 | 处置 |
+|---|---|---|---|
+| 1 | 阻断 | `push_wiki` 无差别容忍 commit 失败，可能推送非预期状态 | 区分 "nothing to commit" 与真实错误；真实错误 stderr 报告并返回 1、不再 push |
+| 2 | 阻断 | `load_manifest` 捕获 `OSError` 后重置为空，`store_manifest` 随后覆盖文件，静默丢失全部 sha256 记录 | 仅容错 `JSONDecodeError`；`OSError` stderr 报告后 `sys.exit(1)` 中止 |
+| 3 | 改进 | `translate_via_cmd` `shell=True` 的命令注入面 | **偏离评审建议**：保留 `shell=True`（Windows 下 `shlex.split` 会破坏反斜杠路径，且用户可能依赖管道/重定向），改为在模块 docstring 与 `--translate-cmd` help 中显式声明"必须来自可信来源" |
+| 4 | 改进 | `--force` 重译失败且页面已存在时误报为 missing | `has_en` 时归入 `stale`，否则 `missing` |
+
+新增回归测试 4 个：commit 真实失败中止 push、空提交继续 push、manifest 读取错误
+`SystemExit`、force 重译失败报 stale（capsys 断言）。
+
+### 第二轮实测
+
+- 提交：见 git log（`fix(tools): ...` 第二笔）。
+- 门禁实测：`pytest tests/test_pack_wiki.py -q` **22 用例全绿**（18 + 4）；
+  `pyright yate/ tests/ tools/` 0 errors / 0 warnings；全量 `pytest tests -q` 退出码 0。
+- 偏离记录：仅上表 #3（文档化替代 shlex），理由如上，实测依据为
+  `shlex.split(r"C:\tools\trans.py")` 在 Windows 会把 `\t` 当转义序列拆坏路径。
