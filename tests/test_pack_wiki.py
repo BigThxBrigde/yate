@@ -109,7 +109,8 @@ def test_translate_cmd_fills_missing_pages(
     assert calls == ["fake-cmd"] * 8
     assert (target / "orphan.en.md").read_text(encoding="utf-8") == "# orphan en\n\ntranslated\n"
     assert "orphan.zh.md" in wiki.load_manifest(target)
-    assert wiki.run(target, "fake-cmd", check=True, repo_root=repo) == 0
+    # --translate-needed keeps the now-fresh pages, so no further calls.
+    assert wiki.run(target, "fake-cmd", check=True, translate_needed=True, repo_root=repo) == 0
     assert calls == ["fake-cmd"] * 8
 
 
@@ -126,13 +127,13 @@ def test_existing_en_is_adopted_not_overwritten(
         return "# en\n"
 
     monkeypatch.setattr(wiki, "translate_via_cmd", fail_translate)
-    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    assert wiki.run(target, "fake-cmd", translate_needed=True, repo_root=repo) == 0
     assert (target / "orphan.en.md").read_text(encoding="utf-8") == "# kept\n"
     assert all("# orphan zh" not in text for text in seen)
     assert "orphan.zh.md" in wiki.load_manifest(target)
 
 
-def test_stale_is_reported_then_force_retranslates(
+def test_stale_is_reported_then_retranslated(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def v1_translate(text: str, translate_cmd: str) -> str | None:
@@ -143,22 +144,65 @@ def test_stale_is_reported_then_force_retranslates(
     assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
     _touch(repo, ".trae/documents/set-plans/beta-plan.md", "# beta v2\n")
 
-    def stale_translate(text: str, cmd: str) -> str | None:
-        raise AssertionError("stale pages need --force")
+    # With --translate-needed a failing hook keeps the outdated page stale.
+    def failing_translate(text: str, translate_cmd: str) -> str | None:
+        return None
 
-    monkeypatch.setattr(wiki, "translate_via_cmd", stale_translate)
-    assert wiki.run(target, "fake-cmd", check=True, repo_root=repo) == 1
+    monkeypatch.setattr(wiki, "translate_via_cmd", failing_translate)
+    assert wiki.run(target, "fake-cmd", check=True, translate_needed=True, repo_root=repo) == 1
+
+    # A working hook re-translates exactly the stale page, nothing else.
+    calls: list[str] = []
 
     def v2_translate(text: str, translate_cmd: str) -> str | None:
+        calls.append(translate_cmd)
         return "# beta en v2\n"
 
     monkeypatch.setattr(wiki, "translate_via_cmd", v2_translate)
-    assert wiki.run(target, "fake-cmd", force=True, repo_root=repo) == 0
+    assert wiki.run(target, "fake-cmd", translate_needed=True, repo_root=repo) == 0
+    assert calls == ["fake-cmd"]
     assert (
         (target / "set-plans/beta-plan.en.md").read_text(encoding="utf-8")
         == "# beta en v2\n"
     )
-    assert wiki.run(target, "fake-cmd", check=True, repo_root=repo) == 0
+
+
+def test_default_mode_retranslates_every_page(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    counter = {"n": 0}
+
+    def counting_translate(text: str, translate_cmd: str) -> str | None:
+        counter["n"] += 1
+        return "# en v1\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", counting_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    first = counter["n"]
+    assert first == 8
+    # Without --translate-needed every non-bilingual page is sent again,
+    # overwriting even fresh English pages.
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    assert counter["n"] == first * 2
+
+
+def test_translate_needed_with_force_is_accepted(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def any_translate(text: str, translate_cmd: str) -> str | None:
+        return "# en\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", any_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, None, repo_root=repo) == 0
+    _touch(repo, ".trae/documents/set-plans/beta-plan.md", "# beta v2\n")
+    assert (
+        wiki.run(target, "fake-cmd", force=True, translate_needed=True, repo_root=repo) == 0
+    )
+    assert (target / "set-plans/beta-plan.en.md").read_text(
+        encoding="utf-8"
+    ) == "# en\n"
 
 
 def test_force_without_translator_reports_stale(
@@ -172,9 +216,9 @@ def test_force_without_translator_reports_stale(
     assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
     _touch(repo, ".trae/documents/set-plans/beta-plan.md", "# beta v2\n")
 
-    # --force without a translator hook must still count the outdated page
-    # as stale so --check gates on it (blocking review finding #1).
-    assert wiki.run(target, None, force=True, check=True, repo_root=repo) == 1
+    # Without a translator hook the outdated page must still count as
+    # stale so --check gates on it (blocking review finding #1).
+    assert wiki.run(target, None, check=True, repo_root=repo) == 1
     assert (
         target / "set-plans/beta-plan.en.md"
     ).read_text(encoding="utf-8") == "# orphan en v1\n"
@@ -395,13 +439,14 @@ def test_cli_wiki_subcommand_wiring(
         translate_cmd: str | None,
         *,
         force: bool = False,
+        translate_needed: bool = False,
         check: bool = False,
         push: bool = False,
         repo_root: Path | None = None,
     ) -> int:
         seen["target"] = target
         seen["translate_cmd"] = translate_cmd
-        seen["flags"] = (force, check, push)
+        seen["flags"] = (force, translate_needed, check, push)
         seen["repo_root"] = repo_root
         return 0
 
@@ -413,11 +458,12 @@ def test_cli_wiki_subcommand_wiring(
         "--translate-cmd",
         "tr",
         "--force",
+        "--translate-needed",
         "--check",
         "--push",
     ]
     assert cli.main(argv) == 0
     assert seen["target"] == tmp_path / "w"
     assert seen["translate_cmd"] == "tr"
-    assert seen["flags"] == (True, True, True)
+    assert seen["flags"] == (True, True, True, True)
     assert seen["repo_root"] == Path(cli.__file__).resolve().parents[2]
