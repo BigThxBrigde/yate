@@ -267,18 +267,19 @@ def _build_pane_stack(ed: Editor) -> None:
     # opens a directory) and the widgets; the explorer's ctrl+w prefix hook
     # is late-bound here for the same construction-order reason.
     ed.window_flows = WindowFlows(
-        ed.app,
-        ed.session,
-        ed.panes,
-        ed.keymaps,
-        ed.document_flows,
-        ed.explorer_tree,
-        ed.prompt_bar,
+        spawn=ed.app.run_worker,
+        session=ed.session,
+        panes=ed.panes,
+        keymaps=ed.keymaps,
+        document_flows=ed.document_flows,
+        explorer_tree=ed.explorer_tree,
+        prompt_bar=ed.prompt_bar,
         message=ed.message,
         has_modal_screen=ed.has_modal_screen,
         focus_editor=ed.focus_editor,
         focus_explorer=ed.focus_explorer,
         after_pane_focus=ed.after_pane_focus,
+        explorer_focused=ed.explorer_focused,
     )
     ed.explorer_tree.window_prefix = ed.window_flows.try_window_prefix
 
@@ -467,6 +468,10 @@ class Editor:
         """True while an overlay screen (help, palette, output, ...) owns input."""
         return len(self.app.screen_stack) > 1
 
+    def explorer_focused(self) -> bool:
+        """True while the explorer tree widget holds the focus."""
+        return self.app.focused is self.explorer_tree
+
     def report(self, text: str, kind: str = "info") -> None:
         """Report *text* on the message line (buffered before the first mount).
 
@@ -616,7 +621,7 @@ class Editor:
         if event.key == "ctrl+p":
             self.overlays.open_file_palette()
             return True
-        if self.app.focused is self.explorer_tree:
+        if self.explorer_focused():
             return False  # explorer consumes its own keys
         raw = event_to_raw(event.key, event.character)
         if raw is None:

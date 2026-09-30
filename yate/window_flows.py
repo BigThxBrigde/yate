@@ -15,8 +15,8 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from textual.app import App
 from textual.events import Key
+from textual.worker import Worker
 
 from yate.document_flows import DocumentFlows
 from yate.editor_view.commandline import PromptBar
@@ -43,7 +43,7 @@ class WindowFlows:
 
     def __init__(
         self,
-        app: App[None],
+        spawn: Callable[..., Worker[object]],
         session: EditorSession,
         panes: PaneManager,
         keymaps: KeymapSet,
@@ -55,8 +55,11 @@ class WindowFlows:
         focus_editor: Callable[[], None],
         focus_explorer: Callable[[], None],
         after_pane_focus: Callable[[], None],
+        explorer_focused: Callable[[], bool],
     ) -> None:
-        self.app = app
+        # Bound ``App.run_worker``: the background-work verb injected by the
+        # editor (this module never holds the App handle itself).
+        self._spawn = spawn
         self.session = session
         self.panes = panes
         self.keymaps = keymaps
@@ -68,6 +71,7 @@ class WindowFlows:
         self._focus_editor = focus_editor
         self._focus_explorer = focus_explorer
         self._after_pane_focus = after_pane_focus
+        self._explorer_focused = explorer_focused
         self._window_pending = False
 
     def split_with_path(self, axis: Axis, args: str) -> None:
@@ -90,13 +94,13 @@ class WindowFlows:
         if is_dir:
             self.document_flows.open_path(path)
             return
-        self.app.run_worker(
+        self._spawn(
             partial(self._split_pane_worker, axis, path),
             group="pane", exclusive=True, exit_on_error=False,
         )
 
     def _split_pane(self, axis: Axis) -> None:
-        self.app.run_worker(
+        self._spawn(
             partial(self._split_pane_worker, axis, None),
             group="pane", exclusive=True, exit_on_error=False,
         )
@@ -113,7 +117,7 @@ class WindowFlows:
 
     def only_pane(self) -> None:
         """``:only``: keep the active pane, close the others."""
-        self.app.run_worker(
+        self._spawn(
             # coroutine *functions* (partial), never built coroutines: an
             # eager coroutine leaks when the worker never starts
             partial(self.panes.only_active),
@@ -125,7 +129,7 @@ class WindowFlows:
         if self.panes.leaf_count <= 1:
             self._message("only one pane open (use :q to quit)", "warn")
             return
-        self.app.run_worker(
+        self._spawn(
             partial(self.panes.close_active),
             group="pane", exclusive=True, exit_on_error=False,
         )
@@ -184,11 +188,9 @@ class WindowFlows:
     def _window_command(self, key: str) -> None:
         """Execute the second key of a vim ``ctrl+w`` window chord."""
         if key == "ctrl+w":  # round-robin: explorer <-> every editor pane
-            self.panes.cycle_focus(
-                explorer_focused=self.app.focused is self.explorer_tree
-            )
+            self.panes.cycle_focus(explorer_focused=self._explorer_focused())
             return
-        if self.app.focused is self.explorer_tree:
+        if self._explorer_focused():
             # The explorer plays the left-neighbour pane: only ctrl+w l/j/k
             # returns to an editor pane from it.
             if key in ("l", "j", "k"):
