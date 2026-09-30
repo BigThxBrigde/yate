@@ -61,7 +61,8 @@ force-无钩子报 stale、translate 超时返回 None、manifest 损坏容错�
 
 ### 第二轮实测
 
-- 提交：见 git log（`fix(tools): ...` 第二笔）。
+- 提交：`92c2e49` `fix(tools): address second-round wiki review findings`（3 文件 +88/-5）；
+  回填笔 `88f452b` `docs(plans): backfill round-2 review fixes record`。
 - 门禁实测：`pytest tests/test_pack_wiki.py -q` **22 用例全绿**（18 + 4）；
   `pyright yate/ tests/ tools/` 0 errors / 0 warnings；全量 `pytest tests -q` 退出码 0。
 - 偏离记录：仅上表 #3（文档化替代 shlex），理由如上，实测依据为
