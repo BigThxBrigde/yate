@@ -21,7 +21,7 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from textual.app import App
+from textual.worker import Worker
 
 from yate.completion import CompletionFlows
 from yate.editor_core import Document
@@ -47,7 +47,7 @@ class DocumentFlows:
 
     def __init__(
         self,
-        app: App[None],
+        spawn: Callable[..., Worker[object]],
         session: EditorSession,
         workspace: Workspace,
         lsp: LspManager,
@@ -60,7 +60,9 @@ class DocumentFlows:
         reveal_explorer: Callable[[], None],
         startup_readonly: bool,
     ) -> None:
-        self.app = app
+        # Bound ``App.run_worker``: the background-work verb injected by the
+        # editor (this module never holds the App handle itself).
+        self._spawn = spawn
         self.session = session
         self.workspace = workspace
         self.lsp = lsp
@@ -203,7 +205,7 @@ class DocumentFlows:
 
     def open_path_later(self, path: Path) -> None:
         """Schedule a non-blocking file open from a synchronous handler."""
-        self.app.run_worker(
+        self._spawn(
             partial(self.open_path_async, path),
             group="open", exclusive=True, exit_on_error=False,
         )
@@ -285,7 +287,7 @@ class DocumentFlows:
         try:
             doc.save()
             self.explorer_tree.refresh_tree()
-            self.app.run_worker(
+            self._spawn(
                 partial(self.lsp.notify_saved, doc),
                 group="lsp-sync", exclusive=False, exit_on_error=False,
             )

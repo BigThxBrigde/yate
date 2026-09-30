@@ -149,12 +149,12 @@ def _build_widgets(ed: Editor) -> None:
     # the startup document -- so those collaborators arrive via
     # ``attach_pane_stack`` in ``_build_pane_stack``.
     ed.document_flows = DocumentFlows(
-        ed.app,
-        ed.session,
-        ed.workspace,
-        ed.lsp,
-        ed.explorer_tree,
-        ed.prompt_bar,
+        spawn=ed.app.run_worker,
+        session=ed.session,
+        workspace=ed.workspace,
+        lsp=ed.lsp,
+        explorer_tree=ed.explorer_tree,
+        prompt_bar=ed.prompt_bar,
         message=ed.message,
         report=ed.report,
         refresh_ui=ed.refresh_ui,
