@@ -7,7 +7,7 @@
 
 | 事实 | 证据 |
 |---|---|
-| 本机已装 CLI：`codebuddy-code`（别名 `cbc`），`@tencent-ai/codebuddy-code@2.154.0`，位于 `D:\npm\npm-global\codebuddy-code.ps1` | 实测 |
+| 本机已装 CLI：`codebuddy-code`（别名 `cbc`），`@tencent-ai/codebuddy-code@2.154.0`，全局安装并已加入 PATH | 实测 |
 | 非交互模式：`-p/--print`（"Print response and exit (useful for pipes)"），`--output-format text` | `codebuddy-code --help` 实测 |
 | `--model` 支持项含 `hy4-preview-f`、`hy3`、`hy3-x`、`deepseek-v4.1-flash`、`glm-*`、`kimi-*` 等；`--fallback-model` 可过载兜底 | help 实测 |
 | 无工具调用时 stdout **纯净**：`codebuddy-code -p "Reply with exactly: PONG" --model hy4-preview-f --output-format text --tools "" --max-turns 1 --no-session-persistence` → stdout 仅 `PONG`，exit 0 | 实测 |
