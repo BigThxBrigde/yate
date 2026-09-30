@@ -263,3 +263,41 @@ def test_cli_missing_executable_fails_cleanly(
 def test_clean_output_leaves_plain_text_untouched() -> None:
     """Non-fenced output only loses its surrounding whitespace."""
     assert runner.clean_output("  # Title\n\nBody  ") == "# Title\n\nBody"
+
+
+def test_clean_output_keeps_leading_code_block() -> None:
+    """A translation that legitimately starts with a fence is not unwrapped."""
+    text = "```python\nprint('hi')\n```\n\nBody\n"
+    assert runner.clean_output(text) == text.strip()
+
+
+def test_cli_rejects_non_positive_numeric_options(source: Path) -> None:
+    """``--max-turns`` / ``--timeout`` must be positive integers."""
+    with pytest.raises(SystemExit):
+        cli.main([str(source), "--max-turns", "0"])
+    with pytest.raises(SystemExit):
+        cli.main([str(source), "--timeout", "-5"])
+
+
+def test_stdin_stdout_pipe_survives_ansi_codepage(tmp_path: Path) -> None:
+    """Real pipe round-trip: UTF-8 in, UTF-8 out (review finding B1).
+
+    Spawns the module as an actual child process so the Windows ANSI
+    code-page pipe encoding (GBK on this machine) is exercised -- the
+    mocked unit tests cannot see that layer.  The stub translator is a
+    ``.cmd`` file, which also pins the ``shutil.which`` resolution fix.
+    """
+    stub = tmp_path / "stub.cmd"
+    stub.write_text("@echo # Title\r\n", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "-m", "tools.translate", "--cmd", str(stub)],
+        input="# 中文标题\n\n正文\n".encode("utf-8"),
+        capture_output=True,
+        cwd=Path(__file__).resolve().parents[1],
+        timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
+    # Windows text mode emits CRLF; the wiki side reads with universal
+    # newlines, so normalise before comparing.
+    assert proc.stdout.decode("utf-8").replace("\r\n", "\n") == "# Title\n"

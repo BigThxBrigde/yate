@@ -14,7 +14,9 @@ import dataclasses
 import shlex
 import sys
 import tempfile
+from io import TextIOWrapper
 from pathlib import Path
+from typing import cast
 
 from tools.translate import runner
 
@@ -86,6 +88,10 @@ def _parse_args(argv: list[str] | None) -> _Options:
         help="print the command and prompt, then exit without translating",
     )
     args = parser.parse_args(argv)
+    if args.max_turns <= 0:
+        parser.error("--max-turns must be a positive integer")
+    if args.timeout <= 0:
+        parser.error("--timeout must be a positive integer")
     return _Options(
         input=args.input,
         output=args.output,
@@ -136,8 +142,29 @@ def _translate_file(source_path: Path, source_text: str, options: _Options) -> i
     return 0
 
 
+def _force_utf8_pipes() -> None:
+    """Pin non-tty stdin/stdout to UTF-8.
+
+    The wiki hook (``tools.pack.wiki.translate_via_cmd``) speaks UTF-8 on
+    both pipe ends, but on Windows a Python child inherits the ANSI code
+    page (e.g. GBK) for pipes, which silently mangles Chinese input and
+    crashes on non-GBK output.  Reconfiguring is skipped on consoles and
+    on test doubles that lack :meth:`reconfigure`.
+    """
+    for stream in (sys.stdin, sys.stdout):
+        if stream.isatty() or not hasattr(stream, "reconfigure"):
+            continue
+        wrapper = cast("TextIOWrapper", stream)
+        try:
+            wrapper.reconfigure(encoding="utf-8")
+        except (OSError, ValueError):
+            # io.UnsupportedOperation: leave the stream untouched.
+            continue
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the translator; see :mod:`tools.translate` for the I/O protocol."""
+    _force_utf8_pipes()
     options = _parse_args(argv)
     if options.input is not None:
         try:
@@ -146,7 +173,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wiki-translate: cannot read {options.input}: {exc}", file=sys.stderr)
             return 1
         return _translate_file(options.input, source_text, options)
-    source_text = sys.stdin.read()
+    try:
+        source_text = sys.stdin.read()
+    except (UnicodeDecodeError, OSError) as exc:
+        print(f"wiki-translate: cannot read stdin: {exc}", file=sys.stderr)
+        return 1
     with tempfile.TemporaryDirectory(prefix="wiki-translate-") as tmp:
         temp_path = Path(tmp) / "stdin.md"
         temp_path.write_text(source_text, encoding="utf-8")

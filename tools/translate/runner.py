@@ -88,7 +88,9 @@ def clean_output(raw: str) -> str:
     """
     text = raw.strip()
     lines = text.splitlines()
-    if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].strip() == "```":
+    # Only a bare ``` (no language tag) counts as a wrapper: a translation
+    # that legitimately starts with a fenced code block must survive.
+    if len(lines) >= 2 and lines[0].strip() == "```" and lines[-1].strip() == "```":
         return "\n".join(lines[1:-1]).strip()
     return text
 
