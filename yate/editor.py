@@ -250,7 +250,7 @@ def _build_pane_stack(ed: Editor) -> None:
         push_overlay=ed.overlays.push,
     )
     ed.completion = CompletionFlows(
-        ed.app,
+        spawn=ed.app.run_worker,
         session=ed.session,
         lsp=ed.lsp,
         workspace=ed.workspace,
@@ -260,6 +260,7 @@ def _build_pane_stack(ed: Editor) -> None:
         prompt=ed.prompt_bar,
         refresh=ed.refresh_ui,
         readonly_notice=ed.readonly_notice,
+        has_modal_screen=ed.has_modal_screen,
     )
     ed.document_flows.attach_pane_stack(ed.panes, ed.completion)
     # Window flows need the pane stack, the document flows (``:sp <dir>``

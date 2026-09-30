@@ -10,12 +10,11 @@ bar (for "no completions" feedback).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from collections.abc import Callable
-
-from textual.app import App
+from textual.worker import Worker
 
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
@@ -43,7 +42,7 @@ class CompletionFlows:
 
     def __init__(
         self,
-        app: App[None],
+        spawn: Callable[..., Worker[object]],
         *,
         session: EditorSession,
         lsp: LspManager,
@@ -54,8 +53,11 @@ class CompletionFlows:
         prompt: PromptBar,
         refresh: Callable[[], None],
         readonly_notice: Callable[[], None],
+        has_modal_screen: Callable[[], bool],
     ) -> None:
-        self.app = app
+        # Bound ``App.run_worker``: the background-work verb injected by the
+        # editor (this module never holds the App handle itself).
+        self._spawn = spawn
         self.session = session
         self.lsp = lsp
         self.workspace = workspace
@@ -65,6 +67,7 @@ class CompletionFlows:
         self.prompt = prompt
         self.refresh = refresh
         self._readonly_notice = readonly_notice
+        self._has_modal_screen = has_modal_screen
         self._timer: asyncio.TimerHandle | None = None
         # A close happened since the last active trigger; pending queries
         # must not resurrect the popup after it.
@@ -79,10 +82,6 @@ class CompletionFlows:
     @property
     def _mounted(self) -> bool:
         return self.popup.is_mounted
-
-    @property
-    def _modal(self) -> bool:
-        return len(self.app.screen_stack) > 1
 
     def close(self) -> None:
         """Dismiss the popup and drop any query already on its way.
@@ -140,7 +139,7 @@ class CompletionFlows:
 
     def request(self, manual: bool = True, trigger_ch: str | None = None) -> None:
         """Fetch completions and show the popup (worker; never blocks input)."""
-        if not self._mounted or self._modal:
+        if not self._mounted or self._has_modal_screen():
             return
         if not self._vim_insert_mode():
             return
@@ -156,7 +155,7 @@ class CompletionFlows:
                 return
         self._inflight_open = popup.is_open
         log.debug("completion query (manual=%s trigger=%r)", manual, trigger_ch)
-        self.app.run_worker(
+        self._spawn(
             # the coroutine *function*: an eager coroutine would leak if the
             # worker never starts
             partial(self._worker, manual, trigger_ch),
