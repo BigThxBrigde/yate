@@ -242,3 +242,18 @@ def current_screen(self) -> Screen[Any]:
    按 git 历史全量生成，CHANGELOG 上次生成时点早于 master `919ec4d` 等提交，
    属工具正常补全；本轮 9 个 commit 的中文 override 已逐条登记
    （`tools/changelog/zh_overrides.json`），存量历史 `[缺中文]` 不在本轮范围。
+
+### 8.4 代码审核（2026-09-30，双审查员交叉验证）
+
+两位独立审查员并行审查全部改动（各自独立重跑门禁），一致结论：
+**0 blocker / 0 major**；语义等价性逐点对照 master（含 lsp_sync `prompt.idle()`
+预清场经 `OverlayFlows.push` 完整保留、`run_worker` ×12 kwargs 逐一保留）、
+构造顺序、测试宿主、AST 守卫正反例探针均无问题。3 条 minor 全部修复：
+
+| # | 问题 | 修复 commit |
+|---|---|---|
+| 1 | `WindowFlows.explorer_tree` 死参数（原读取点已被 `explorer_focused` 注入取代） | `2632a19` `ref(window)` |
+| 2 | App 句柄守卫 docstring 格式（§2.3）与扫描面措辞修正 | `f264058` `test(architecture)` |
+| 3 | App 注解守卫补强：qualified 形态（`textual.app.App[Any]`）与三个位置的字符串化注解（变量/参数/返回值），9 例正反探针验证 | `f264058` `test(architecture)` |
+
+修复后复测：pyright 0 诊断、架构测试 22 passed、全量 pytest exit 0。
