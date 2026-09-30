@@ -39,7 +39,7 @@
 | 全量门禁 | ✅ `pytest tests/ -q` exit 0 · `pyright yate/ tests/ tools/` 0 诊断 · `yate --diag` / `--version` 正常 |
 | 迁移记录 | 逐文件方式见 [Plan E](app-layering-refactoring-tests-tools-plan-e.md) §E.5 / §E.6.4；属性映射见 §E.1 |
 
-> **2026-09-30 核对复核**（本目录文档与代码对照）：`pytest tests/` 收集 **1356** 个用例、exit 0 全绿；
+> **2026-09-30 核对复核**（本目录文档与代码对照）：`pytest tests/` 收集 **1460** 个用例、exit 0 全绿；
 > `pytest tests/test_architecture.py` → **22 passed**（Plan G 收口时为 13，此后 R12 / R13 / 日志惰性格式 /
 > 能力注入等守卫陆续加入）；`pyright yate/ tests/ tools/` → 0 诊断；`tools.smoke_test run --fail-only` →
 > 89/89 场景、932/932 checks。上表的 E1–E3 数值为 2026-09-23 收口时点值，括号中为 2026-09-28 实测值。
