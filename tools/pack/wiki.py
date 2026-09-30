@@ -483,6 +483,11 @@ def run(
     # recorded hash so a later --force run still sees them as stale instead
     # of adopting the outdated English page as externally maintained.
     manifest = dict(load_manifest(target))
+    if translate_needed and translate_cmd is None:
+        print(
+            "wiki: --translate-needed has no effect without --translate-cmd",
+            file=sys.stderr,
+        )
     kept = 0
     translated = 0
     missing: list[str] = []
@@ -505,13 +510,15 @@ def run(
         is_stale = has_en and recorded is not None and recorded != digest
         if has_en and not is_stale:
             # Fresh or externally maintained (e.g. agent-translated).
-            manifest[page.zh_target] = digest
             if translate_cmd is None or translate_needed:
+                manifest[page.zh_target] = digest
                 kept += 1
                 continue
             # Default mode re-translates every non-bilingual page through
             # the hook, overwriting even fresh English pages; pass
-            # --translate-needed to keep them instead.
+            # --translate-needed to keep them instead.  The digest is only
+            # recorded after a successful re-translation below, so a failed
+            # one does not silently bless an outdated English page.
         elif translate_cmd is None:
             # No translator available: report the gap so --check gates on it.
             if not has_en:

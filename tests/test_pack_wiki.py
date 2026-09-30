@@ -167,6 +167,32 @@ def test_stale_is_reported_then_retranslated(
     )
 
 
+def test_failed_fresh_retranslation_does_not_bless_manifest(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed default-mode re-translation must not record the new digest.
+
+    The externally maintained page (no manifest entry) keeps its ``None``
+    marker on failure instead of being silently blessed as fresh.
+    """
+    target = tmp_path / "wiki"
+    target.mkdir()
+    _touch(target, "orphan.en.md", "# kept from an older source\n")
+
+    def failing_translate(text: str, translate_cmd: str) -> str | None:
+        return None
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", failing_translate)
+    assert wiki.run(target, "fake-cmd", check=True, repo_root=repo) == 1
+    assert wiki.load_manifest(target) == {}
+    assert (target / "orphan.en.md").read_text(encoding="utf-8") == (
+        "# kept from an older source\n"
+    )
+
+
 def test_default_mode_retranslates_every_page(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
