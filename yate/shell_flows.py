@@ -15,8 +15,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from textual.app import App
 from textual.screen import Screen
+from textual.worker import Worker
 
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.modals import OutputScreen
@@ -31,7 +31,7 @@ class ShellFlows:
 
     def __init__(
         self,
-        app: App[None],
+        spawn: Callable[..., Worker[object]],
         session: EditorSession,
         workspace: Workspace,
         prompt: PromptBar,
@@ -41,7 +41,9 @@ class ShellFlows:
         refresh: Callable[[], None],
         push_overlay: Callable[[Screen[Any]], None],
     ) -> None:
-        self.app = app
+        # Bound ``App.run_worker``: the background-work verb injected by the
+        # editor (this module never holds the App handle itself).
+        self._spawn = spawn
         self.session = session
         self.workspace = workspace
         self.prompt = prompt
@@ -79,7 +81,7 @@ class ShellFlows:
             self.prompt.idle()
             self._focus_editor()
             self._refresh()
-        self.app.run_worker(
+        self._spawn(
             partial(self.run_async, command),
             group="shell", exclusive=False, exit_on_error=False,
         )
@@ -126,7 +128,7 @@ class ShellFlows:
         # registry lookups / font registration touch subprocess and would
         # freeze the TUI on some systems; run off the event loop
         self._message("checking Nerd Font…", "info")
-        self.app.run_worker(
+        self._spawn(
             self._font_async, group="font",
             exclusive=True, exit_on_error=False,
         )

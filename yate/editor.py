@@ -236,10 +236,10 @@ def _build_pane_stack(ed: Editor) -> None:
         refresh=ed.refresh_ui,
     )
     ed.shell = ShellFlows(
-        ed.app,
-        ed.session,
-        ed.workspace,
-        ed.prompt_bar,
+        spawn=ed.app.run_worker,
+        session=ed.session,
+        workspace=ed.workspace,
+        prompt=ed.prompt_bar,
         message=ed.message,
         mounted=lambda: ed.mounted,
         focus_editor=ed.focus_editor,
