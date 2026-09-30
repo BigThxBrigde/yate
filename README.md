@@ -404,6 +404,42 @@ gradually via `zh-commit`; `python -m tools.changelog check` gates the
 released sections in CI (the `[Unreleased]` section may lag and is refreshed
 wholesale by `generate` at release time).
 
+### Bilingual project wiki generator
+
+`python -m tools.pack wiki` publishes the `.trae` documents, the
+`yate/docs` bilingual guides and the user manual into a `<repo>.wiki`
+repository next to the checkout (gitee/github wiki layout): Chinese pages
+are rebuilt from the sources, English pages live on disk as
+`<name>.en.md` and act as the translation cache (`sha256` records live in
+`.translation-manifest.json`). Together with the `tools.translate` module
+(which drives the locally installed `codebuddy-code` CLI against free
+models) missing English pages can be filled automatically:
+
+```powershell
+cd d:\Programming\yate-pack-wiki   # any checkout works
+
+.venv\Scripts\python -m tools.pack wiki `
+  --translate-cmd ".venv\Scripts\python -m tools.translate --model hy4-preview-f" `
+  --translate-needed `
+  --push
+```
+
+- `--translate-cmd`: a shell command, Chinese Markdown on stdin, English on
+  stdout (must come from a trusted source);
+- `--translate-needed`: **only translate pages that are missing (no English
+  page) or stale (Chinese source changed)**; without it everything is
+  re-translated (overwriting existing English pages — use with care);
+- `--push`: once every translation succeeds, commits and pushes to
+  `origin` (gitee) and `github`; any failed page skips the push so dirty
+  state never reaches the remotes.
+
+```powershell
+.venv\Scripts\python -m tools.pack wiki --check   # gate: exit 1 while missing/stale
+```
+
+Security note: the translation agent runs unattended and can read any path
+the user can — only feed documents from trusted sources.
+
 ## License
 
 MIT
