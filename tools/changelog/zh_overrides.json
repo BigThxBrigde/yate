@@ -166,6 +166,9 @@
   "2dad4fc": {
     "summary": "落地 P2 第一波清理与守卫（core/syntax/term/tools）"
   },
+  "2ebcdf4": {
+    "summary": "窗格流程注入 spawn 动词与 explorer_focused 查询"
+  },
   "2ee2586": {
     "summary": "窗格树模型下沉至 session.py（Plan G）",
     "detail": "删除 editor_view/pane_types.py，Leaf/Split/ViewState 与树操作并入 L1 session，EditorSession 仍与窗格无关"
@@ -316,6 +319,9 @@
     "summary": "修复撤销/重做后脏标记不准确",
     "detail": "为合并编辑引入权重计数，必要时回退到精确行比较"
   },
+  "51a5af2": {
+    "summary": "LSP 同步注入 spawn 动词并复用 overlays.push"
+  },
   "5353c9b": {
     "summary": "游行队：多个互异精灵按全宽行走"
   },
@@ -424,6 +430,9 @@
     "summary": "修复保存失败时 :wq 仍强制退出",
     "detail": "保存失败或未命名缓冲区现保留编辑并提示，避免丢失未保存内容"
   },
+  "6b03fca": {
+    "summary": "补全流程注入 spawn 动词与 has_modal_screen 查询"
+  },
   "6b43972": {
     "summary": "文档收尾 Plan E/F：计划、规则、用户文档与变更日志"
   },
@@ -448,6 +457,9 @@
   },
   "6f02578": {
     "summary": "断言内容前先等待手动文档加载"
+  },
+  "6f6baee": {
+    "summary": "覆盖层注入屏幕栈动词与 current_screen 查询"
   },
   "6fa7663": {
     "summary": "为发布提交补充中文翻译"
@@ -516,6 +528,9 @@
   },
   "7d0e698": {
     "summary": "修复字体安装跳过无法删除的注册表残留"
+  },
+  "7d7b6cf": {
+    "summary": "外壳流程注入 run_worker 派生动词"
   },
   "7ddaced": {
     "summary": "文档新增补全过期校验修复方案"
@@ -626,6 +641,12 @@
   "9828b24": {
     "summary": "修复 PTY 启动失败时退出 Future 未完成"
   },
+  "98a1128": {
+    "summary": "explorer 测试适配 LspSync 的 spawn 动词"
+  },
+  "993c9c3": {
+    "summary": "编辑器注入点注解精确为 App[None]"
+  },
   "994702a": {
     "summary": "子代理并发上限由 5 提到 6"
   },
@@ -708,6 +729,9 @@
   },
   "ae220fb": {
     "summary": "收尾 P2 跟进项并加固偶发 pilot 测试"
+  },
+  "ae2c6ec": {
+    "summary": "文档流程注入 run_worker 派生动词"
   },
   "af566a2": {
     "summary": "新增 plan-execute-review 代理团队定义"
@@ -859,6 +883,9 @@
   },
   "dc1f3ac": {
     "summary": "LSP 启动槽仅在自身任务持有时弹出"
+  },
+  "de33c2b": {
+    "summary": "架构守卫：App 注解精确化与流程模块禁持句柄"
   },
   "dfce21e": {
     "summary": "登记 2026-09-25 审查分诊结果",

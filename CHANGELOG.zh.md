@@ -21,6 +21,8 @@
 
 ### 问题修复
 
+- remove duplicate ctrl+shift+e binding shadowing ctrl+e [缺中文] ([`6832024`](https://gitee.com/jermaine/yate/commit/6832024d70f240d3a7f2665fbf86fa26f1d11014))
+- apply code-review follow-ups to flow modules [缺中文] ([`8d1fb42`](https://gitee.com/jermaine/yate/commit/8d1fb423771301ba9bed584530a41353ad8fec5f))
 - clamp operator span ends and dedupe operator resets [缺中文] ([`c7c7f69`](https://gitee.com/jermaine/yate/commit/c7c7f69e795755d62f6d4633184263c2216a003b))
 - align w, b, dollar and G motion landings with vim semantics [缺中文] ([`43ee62d`](https://gitee.com/jermaine/yate/commit/43ee62d75ffc5d99112b8b2d81463183950c950e))
 - land the e motion on the last char of the word [缺中文] ([`df5a179`](https://gitee.com/jermaine/yate/commit/df5a179f44d604d81f1c1f1d7946291c6ff76939))
@@ -36,12 +38,48 @@
 
 ### 重构
 
+- move devtools bridge to logs and externalize screensaver CSS [缺中文] ([`2686635`](https://gitee.com/jermaine/yate/commit/2686635326f155afa7b7ca2016317323209ba568))
+- declare two-phase flow attributes [缺中文] ([`a4990c2`](https://gitee.com/jermaine/yate/commit/a4990c2f7edf3db9c934cbdac8d5e872ed136992))
+- extract extension startup flows [缺中文] ([`d1c1a2c`](https://gitee.com/jermaine/yate/commit/d1c1a2c3e07e9423e130919a20162847062dd2ee))
+- extract window pane flows [缺中文] ([`63717cf`](https://gitee.com/jermaine/yate/commit/63717cfaeeb9040f2d1be029bfafd589e2ab0688))
+- extract document lifecycle flows [缺中文] ([`0cff320`](https://gitee.com/jermaine/yate/commit/0cff320b84c53bce4e47b0f6007687f37d60c084))
+- drop thin delegates and shells, call owners directly [缺中文] ([`d634079`](https://gitee.com/jermaine/yate/commit/d634079bcccb1e58d87d7c7f00164a9176bd71d2))
+- unify flow module naming to *Flows [缺中文] ([`e6d32ac`](https://gitee.com/jermaine/yate/commit/e6d32ace24532abc7f2a9db7f4d81cdc83738dda))
+- extract prompt flows [缺中文] ([`dd8a33d`](https://gitee.com/jermaine/yate/commit/dd8a33d0ff1d475fc7f54b371cad5788100e2211))
+- extract overlays flow [缺中文] ([`ebc0657`](https://gitee.com/jermaine/yate/commit/ebc06572de6b2758d475eb5298ad074e28fe689a))
+- extract shell flow [缺中文] ([`e7c9691`](https://gitee.com/jermaine/yate/commit/e7c9691d0a1a6eaa2c924af0ac69bd60b044d889))
+- extract lsp_sync flow [缺中文] ([`6f564a6`](https://gitee.com/jermaine/yate/commit/6f564a61347652b7a0719e8701aa68263a1305da))
+- extract assembly factories [缺中文] ([`80215c5`](https://gitee.com/jermaine/yate/commit/80215c52b72084aefd2a66093224b27d8b64bc14))
 - 把 shuffle 重试预算提取为常量 ([`cd46611`](https://gitee.com/jermaine/yate/commit/cd4661194cd61ca4df2ccf1981354a5408403cba))
 - 收紧空闲计时器时钟与产生簿记 ([`eccf33f`](https://gitee.com/jermaine/yate/commit/eccf33fb56dfc7bed9852d9d004475de1c580635))
 - structured operator-pending state and the c operator [缺中文] ([`75d45c7`](https://gitee.com/jermaine/yate/commit/75d45c751f3caea1c0646167a27f981fc822f5c7))
 
 ### 文档
 
+- rename editor-refactoring-plan sub folder [缺中文] ([`919ec4d`](https://gitee.com/jermaine/yate/commit/919ec4db8ce68320aaeea63768ea5f5adb638ec9))
+- register pr40 bot review finding [缺中文] ([`5bf4778`](https://gitee.com/jermaine/yate/commit/5bf4778c2e1df99754b754a840d65645f320e5e1))
+- require sandbox venv rebuild in new task worktrees [缺中文] ([`9060c2c`](https://gitee.com/jermaine/yate/commit/9060c2c3a20c15827f8db426dad5a82bc8cf3505))
+- register pr38 bot review finding [缺中文] ([`3f9e499`](https://gitee.com/jermaine/yate/commit/3f9e499c6aab966ff9d27651e0dcbc67e6eca594))
+- correct venv diagnosis and record flaky theme test [缺中文] ([`a429251`](https://gitee.com/jermaine/yate/commit/a429251443970e5fe6d15975bdb65cd7a8d8cb58))
+- record review-vscode-keymap execution results [缺中文] ([`bf1b362`](https://gitee.com/jermaine/yate/commit/bf1b362163e3e73bb9e79346a94bf1cae8f7e564))
+- register gitee PR 37 bot review [缺中文] ([`e91d433`](https://gitee.com/jermaine/yate/commit/e91d4338856f89a6c7c206120d4707e1c0a56b8f))
+- record the TRAE-code-review second pass [缺中文] ([`0ab9e6d`](https://gitee.com/jermaine/yate/commit/0ab9e6de5a53685aa074bcfc419a21fd15a4a1d2))
+- backfill editor split results [缺中文] ([`4050121`](https://gitee.com/jermaine/yate/commit/4050121bfb4caef82ae479e07fe1d1d07cafa483))
+- record the editor split review [缺中文] ([`c0787e5`](https://gitee.com/jermaine/yate/commit/c0787e5f7b69476974ef0fa9ba77278a109d4ebb))
+- re-verify editor split plan line anchors after wave-2 [缺中文] ([`1ff34d3`](https://gitee.com/jermaine/yate/commit/1ff34d3f595b211f4f5ac8addbb786450b93db62))
+- add editor-split plan-e and plan-f subplans [缺中文] ([`7c4b154`](https://gitee.com/jermaine/yate/commit/7c4b154fdc74292e12894466b9ecb532d54d0a51))
+- rename editor refactoring plans to the naming convention [缺中文] ([`9a0f7a8`](https://gitee.com/jermaine/yate/commit/9a0f7a8168dff6ee1c9ce1166a76709f2592bace))
+- name flow modules by duty rather than LspSync exception [缺中文] ([`783f187`](https://gitee.com/jermaine/yate/commit/783f187a6b30ca2f7f44e51cef1d323e365662c8))
+- add editor-split plan documents [缺中文] ([`1573bac`](https://gitee.com/jermaine/yate/commit/1573bacb0024257b730e7de330c9d2357de90df9))
+- backfill editor refactoring results and deviations [缺中文] ([`09c4d24`](https://gitee.com/jermaine/yate/commit/09c4d24e1f5aec694468b79b03f1310f7935b124))
+- add editor refactoring wave plans [缺中文] ([`51e14ee`](https://gitee.com/jermaine/yate/commit/51e14eea543d73f635af183d68936caf8c994522))
+- rename doc-naming to doc-conventions and mandate relative paths [缺中文] ([`a32f99a`](https://gitee.com/jermaine/yate/commit/a32f99afbf5e6f88f3834af9c1a0b99319e89cfe))
+- invoke TRAE-code-review skill as review entry point [缺中文] ([`4153dfd`](https://gitee.com/jermaine/yate/commit/4153dfd0084fb29b0c5b199a7f1e01a8d77b1e82))
+- add PEP 20 zen principles and pythonic patterns to coding style [缺中文] ([`19a08ef`](https://gitee.com/jermaine/yate/commit/19a08ef747184c84c38041bbab8daf87a58c9daf))
+- repoint path references from .trae/review to .trae/reviews [缺中文] ([`e42170e`](https://gitee.com/jermaine/yate/commit/e42170e14cac01dd67d324474654dcb5d6d48e18))
+- rename .trae/review to reviews and .trae/wiki to wikis [缺中文] ([`ed5369e`](https://gitee.com/jermaine/yate/commit/ed5369e0e54c128edc4e8114525915df9a322402))
+- add keyword triggers for closed-loop orchestration [缺中文] ([`539269c`](https://gitee.com/jermaine/yate/commit/539269c89c0c8ce61dc7fa6892d50e8bad5742b8))
+- Update bilingual changelogs in English and Chinese, syncing newly added features, fixes, refactors, and documentation content. [缺中文] ([`4db462f`](https://gitee.com/jermaine/yate/commit/4db462f86f4d80438d66020a8424fba21a0d3a0e))
 - index the PR35 review round in the review README [缺中文] ([`58339d6`](https://gitee.com/jermaine/yate/commit/58339d6ed9dc82a23f3d209ec97a00e33af4e98c))
 - record the PR35 review findings and fixes [缺中文] ([`5fc7a28`](https://gitee.com/jermaine/yate/commit/5fc7a2802cd4ef236a2471be81896587c6f77463))
 - mark the vim keymap plan rename as done [缺中文] ([`8a8202b`](https://gitee.com/jermaine/yate/commit/8a8202bc8b5acb198217ab8f4f068a51bec9ef8a))
@@ -82,6 +120,9 @@
 
 ### 测试
 
+- 架构守卫：App 注解精确化与流程模块禁持句柄 ([`de33c2b`](https://gitee.com/jermaine/yate/commit/de33c2bee1b0e05e5dbf4747211c7258aad2b319))
+- explorer 测试适配 LspSync 的 spawn 动词 ([`98a1128`](https://gitee.com/jermaine/yate/commit/98a1128518f29a082eb9d0ceda738fbd188b032f))
+- follow LspSync.documents_closed extraction [缺中文] ([`d7f474f`](https://gitee.com/jermaine/yate/commit/d7f474f9c63b545b3aa9812d983370a2570083dc))
 - pin cursor-on-quote resolution and record smoke results [缺中文] ([`3c5a84c`](https://gitee.com/jermaine/yate/commit/3c5a84cd06214cdb62e92f1e4b5ef4e38423b980))
 
 ### 构建与工程
@@ -90,6 +131,16 @@
 - 新增 plan-execute-review 代理团队定义 ([`af566a2`](https://gitee.com/jermaine/yate/commit/af566a2481f3c5510decdb4d0ad68be25c0d812b))
 - 更新 .github/sync-to-gitee.sh ([`256d45e`](https://gitee.com/jermaine/yate/commit/256d45e48e20eae847585578d391c38b796270ef))
 - 更新 .github/sync-to-gitee.sh ([`7986aa9`](https://gitee.com/jermaine/yate/commit/7986aa9208971a02adb1e948e90c681df905344e))
+
+### 其他变更
+
+- 覆盖层注入屏幕栈动词与 current_screen 查询 ([`6f6baee`](https://gitee.com/jermaine/yate/commit/6f6baee46d07cce96435026bf3c4dffaf80174a3))
+- 窗格流程注入 spawn 动词与 explorer_focused 查询 ([`2ebcdf4`](https://gitee.com/jermaine/yate/commit/2ebcdf4a4e68e884d9aa6913fc2d7d3ef2cdf12c))
+- 补全流程注入 spawn 动词与 has_modal_screen 查询 ([`6b03fca`](https://gitee.com/jermaine/yate/commit/6b03fca88d65ddaae774191e79c9c782b52b6dac))
+- LSP 同步注入 spawn 动词并复用 overlays.push ([`51a5af2`](https://gitee.com/jermaine/yate/commit/51a5af27d878488cbcd43be6920a72e0f5eae47a))
+- 外壳流程注入 run_worker 派生动词 ([`7d7b6cf`](https://gitee.com/jermaine/yate/commit/7d7b6cfdcad7a681149d0adcca5ec28541ab4e51))
+- 文档流程注入 run_worker 派生动词 ([`ae2c6ec`](https://gitee.com/jermaine/yate/commit/ae2c6ec7d5e1d0fe6e4aecec5d731d55b4545ea0))
+- 编辑器注入点注解精确为 App[None] ([`993c9c3`](https://gitee.com/jermaine/yate/commit/993c9c38b3e6235809da3a6dc5e779e6387f802e))
 
 ## [0.2.6] - 2026-09-27 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.5...v0.2.6)
 
