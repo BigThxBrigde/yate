@@ -423,8 +423,9 @@ cd d:\Programming\yate-pack-wiki   # 任意检出均可
 ```
 
 - `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文（必须来自可信来源）；
-- `--translate-needed`：**只翻译 missing（无英文页）与 stale（中文源已变更）**
-  的条目；缺省则是全量重译（会覆盖现有英文页，慎用）；
+- 缺省（增量）：**只翻译 missing（无英文页）与 stale（中文源已变更）** 的条目，
+  fresh 页保持不动；
+- `--translate-all`：全量重译——额外把 fresh 页也送翻并覆盖现有英文页（慎用）；
 - `--push`：翻译全部成功后自动 commit 并推送 `origin`（gitee）与 `github`；
   只要有失败页就跳过推送，不带脏状态上远端。
 

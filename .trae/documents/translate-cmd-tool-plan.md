@@ -82,32 +82,32 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
 .venv\Scripts\python -m pytest tests -q
 ```
 
-## 六、`--translate-cmd` 扩展：`--translate-needed` 参数设计
+## 六、`--translate-cmd` 扩展：翻译范围参数（缺省增量，`--translate-all` 全量）
 
-> 需求（用户指定）：设计一个可选参数，限定**仅翻译状态为 stale 和 missing 的条目**；
-> 未指定时默认翻译全部内容。命名候选 `--if-required` / `--only-missing` /
-> `--translate-needed`，允许取更贴切的名称。
+> 需求演进：第一版设计为 `--translate-needed`（缺省全量、开关限增量）；
+> 2026-09-30 用户决策反转为**缺省增量（仅译 stale+missing）、显式 `--translate-all`
+> 才全量**，并更名。本节按最终定案描述。
 
 ### 6.1 参数命名（定案）
 
-**采用 `--translate-needed`**（布尔开关，`action="store_true"`）。
+- **缺省行为**：增量——只翻译状态为 stale 或 missing 的条目，fresh 页保持不动；
+- **`--translate-all`**（布尔开关，`action="store_true"`）：全量——对包括 fresh 在内的
+  所有非双语直拷条目送翻，覆盖现有英文页。
 
-否决理由：
-
-- `--if-required`：语义模糊——"required" 由谁定义、对什么 required 未表达，读命令行时无法直觉理解；
-- `--only-missing`：以偏概全——需求是 stale **和** missing 两类，该名会漏掉 stale，误导排障；
-- `--translate-needed`：正向陈述"只译有需要的（stale/missing）"，与判定逻辑一一对应。
+命名理由：全量是破坏性的少用操作，应显式声明，`--translate-all` 直白表达"全部重译"；
+增量是日常安全路径，无需开关（`--force` 因此降级为兼容性 no-op）。
+否决：`--translate-needed`（第一版名称，随语义反转废弃——"needed" 现在是缺省，无需开关）；
+`--if-required`（语义模糊）；`--only-missing`（漏掉 stale）；`--refresh`（未表达"全量重译"）。
 
 ### 6.2 语义与默认行为
 
 | 调用形态 | 行为 |
 |---|---|
-| `wiki --translate-cmd CMD`（**未指定**，默认） | **翻译全部内容**：对所有非双语直拷的 zh 条目调用 CMD——包括已有 fresh en 的页面（等价于对 fresh 页隐含 super-force，**会覆盖现有 en 译文**） |
-| `wiki --translate-cmd CMD --translate-needed` | **仅翻译需要的**：只对状态为 stale 或 missing 的条目调用 CMD；fresh/外部维护页保持不动 |
+| `wiki --translate-cmd CMD`（**缺省**） | **增量**：只对状态为 stale 或 missing 的条目调用 CMD；fresh/外部维护页保持不动 |
+| `wiki --translate-cmd CMD --translate-all` | **全量**：对所有非双语直拷的 zh 条目调用 CMD——包括 fresh 页，**会覆盖现有 en 译文**（慎用） |
 
-> ⚠️ 破坏性提示：默认"翻译全部"与现行实现（fresh 页从不送翻）不同，且会覆盖已有译文。
-> 缓解：计划在 help 文本与模块 docstring 中显式警示；建议生产用法始终搭配 `--check`
-> 或先 `--dry-run` 预览送翻清单；wiki 仓库本身受 git 保护，可 revert。
+> 缺省增量是安全路径；`--translate-all` 的覆盖行为受 git 保护（可 revert），
+> 且 digest 仍只在重翻成功后写入 manifest（见 6.4）。
 
 ### 6.3 stale / missing 判定逻辑（与现行实现一致，仅显式化）
 
@@ -120,25 +120,24 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
    - **missing**：`not has_en`；
    - **stale**：`has_en and recorded is not None and recorded != digest`；
    - **fresh**：`has_en and (recorded == digest or recorded is None)`——后者是
-     "外部维护页首次被采纳"（如代理直译落盘）。fresh 不属于 needed，即使
-     `--translate-needed` 也不送翻；
+     "外部维护页首次被采纳"（如代理直译落盘）。fresh 缺省不送翻，
+     仅 `--translate-all` 送翻；
    - 边界：双语直拷页（`en_source` 非空）永远跳过翻译，两类参数都不影响。
 
 ### 6.4 参数解析与兼容性（与现有 `--translate-cmd` 流程完全兼容）
 
-- `cli.py`：`wiki_cmd.add_argument("--translate-needed", action="store_true", help=...)`，
-  `_wiki()` 透传 `translate_needed=args.translate_needed`；
-- `wiki.run()`：新增**仅关键字**参数 `translate_needed: bool = False`（默认值保证
-  既有调用方与既有测试零改动即兼容）；
+- `cli.py`：`wiki_cmd.add_argument("--translate-all", action="store_true", help=...)`，
+  `_wiki()` 透传 `translate_all=args.translate_all`；
+- `wiki.run()`：**仅关键字**参数 `translate_all: bool = False`（缺省增量保证
+  既有调用方零改动即兼容）；
 - `tools.translate` 模块不受影响：它只翻译被送来的那一份，"送哪些页"始终由 wiki 侧判定；
 - 与现有开关的交互矩阵：
 
 | 组合 | 行为 |
 |---|---|
-| `--translate-needed` 单独 | stale + missing 送翻；fresh 不动 |
-| `--translate-needed --force` | 同上（force 在 needed 模式下冗余但不报错，保持兼容） |
-| `--force`（无 needed） | 同默认：全部送翻——force 已成兼容性 no-op（见 §八 偏离记录） |
-| 默认（两者皆无） | **全部送翻**（新默认语义，见 6.2 警示） |
+| 缺省（无开关） | 仅 stale + missing 送翻；fresh 不动 |
+| `--translate-all` | 全部送翻（含 fresh，覆盖现有 en） |
+| `--force` | 兼容性 no-op（见 §八 偏离记录）；可与 `--translate-all` 同用 |
 | `--check` | 门禁统计口径不变：仍按 missing/stale 全集判定退出码，与本参数正交 |
 
 ### 6.5 去重逻辑
@@ -153,11 +152,11 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
 
 ### 6.6 实施增量与测试
 
-- 实施步骤新增：在原步骤 3（cli）中加参数注册与透传；在原步骤 4（测试）中加 4 个用例：
-  1. 默认（无参数）：fresh 页也送翻且 en 被覆盖（断言 hook 调用次数 = 全部非直拷页数）；
-  2. `--translate-needed`：仅 stale + missing 送翻，fresh 的 en 内容不变；
-  3. `--translate-needed` 下 stale 与 missing 分类互斥（断言两列表无交集、总数守恒）；
-  4. `--translate-needed --force` 组合不报错、行为与单独 needed 一致。
+- 实施步骤：cli 注册与透传；测试覆盖：
+  1. 缺省：fresh 页不送翻、en 内容不变（hook 调用次数只含 missing/stale）；
+  2. `--translate-all`：fresh 页也送翻且 en 被覆盖（断言 hook 调用次数翻倍）；
+  3. stale 与 missing 分类互斥（断言两列表无交集、总数守恒）；
+  4. `--translate-all --force` 组合不报错、行为与单独 `--translate-all` 一致。
 - 验收命令不变（见 §五）。
 
 ## 七、风险与回滚
@@ -166,7 +165,7 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
 |---|---|
 | `bypassPermissions` 权限面 | 仅授 `Read`；prompt 只读不改；文档外路径不传入 |
 | **残留风险（评审 M1，已文档化）**：源文档是不可信内容，代理可读任意路径，恶意文档可注入指令把敏感文件并进"译文"，随 `--push` 外泄到公开远端 | 已在模块 docstring 显式声明"仅对可信文档使用"；如需更强隔离，后续可评估 codebuddy-code 的目录白名单/沙箱参数 |
-| `--translate-needed` 缺省时"翻译全部"覆盖现有译文 | help/docstring 显式警示；建议搭配 `--check` 或先对小样本验证；wiki 仓库受 git 保护可 revert |
+| `--translate-all` 全量重译覆盖现有译文 | help 显式警示；缺省是安全的增量路径；建议搭配 `--check` 或先对小样本验证；wiki 仓库受 git 保护可 revert |
 | 免费模型配额/速率 | `--fallback-model hy3`、调用失败明确报错不静默 |
 | 输出被代码围栏包裹或夹带说明文字 | 输出清洗 + 结构校验；异常即失败退出（不写脏译文） |
 | 大文档 turn 消耗、单次耗时 ~14–22 s | `--max-turns 10`、单页超时可配；全量 122 页需较长时间，建议分批 |
@@ -177,7 +176,7 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
 - 前置探针：`bypassPermissions + --tools "Read"` 对真实文件产出纯净英文 Markdown
   （17.6s，exit 0，代码块未译）——§一"未实测"行已转为已验证。
 - 交付：`tools/translate/`（`__init__` / `runner` / `cli` / `__main__`，共 4 文件）+
-  `tests/test_tools_translate.py`（12 用例）；wiki 侧 `--translate-needed`
+  `tests/test_tools_translate.py`（12 用例）；wiki 侧 `--translate-needed`（初版，后按用户决策更名 `--translate-all` 并反转缺省语义，见 §十）
   （`wiki.run` 新增仅关键字参数、cli 注册与透传、help 更新）+ `tests/test_pack_wiki.py`
   重构/新增用例。
 - 实施中发现并修复：npm 的 `codebuddy-code` shim 是 `.cmd`/`.ps1`，裸
@@ -190,8 +189,8 @@ python -m tools.translate --dry-run IN.md OUT.md   # 只打印将要执行的命
   `pyright yate/ tests/ tools/` 0 errors / 0 warnings。
 - 偏离记录：§6.4 矩阵初稿中 `--force` 行与默认行语义矛盾，实施时定案为
   **force = 兼容性 no-op**（stale 在有钩子时一律重译），help 与矩阵已同步；
-  `--translate-needed` 缺省"翻译全部"按用户要求保留为默认语义（破坏性已在
-  help/文档警示）。
+  `--translate-needed` 缺省"翻译全部"为第一版实现语义（破坏性已在
+  help/文档警示；后按用户决策反转，见 §十）。
 
 ## 九、评审与修复记录（code-review-expert，2026-09-30）
 
@@ -207,7 +206,28 @@ pyright 0 诊断。结论：1 blocker + 1 major + 5 minor，已全部处置：
 | minor 3 | stdin 非编码异常产生 traceback | 随 B1 一并兜底（`UnicodeDecodeError`/`OSError` → stderr + exit 1） |
 | minor 4 | wiki 钩子超时硬编码 900s 与模块 `--timeout` 脱节 | 登记为已知项，不阻断合并（外层先到时错误信息可溯源） |
 | minor 5 | `--max-turns` / `--timeout` 无正整数校验 | argparse 后校验，非正数 `parser.error`（exit 2）；新增测试 |
-| nice | `--translate-needed` 无钩子时静默忽略；tmp 文件遗留 | 前者：stderr 一行提示已加；后者待用户手动删除 `.trae/tmp-missing-en.txt` |
+| nice | `--translate-needed` 无钩子时静默忽略；tmp 文件遗留 | 前者：stderr 一行提示已加（随语义调整改为 `--translate-all` 提示）；后者待用户手动删除 `.trae/tmp-missing-en.txt` |
+
+## 十、参数语义调整（2026-09-30 用户决策）
+
+第一版把"翻译全部"作为缺省、`--translate-needed` 作为增量开关。用户决策反转为
+**缺省增量（仅 stale+missing）、`--translate-all` 显式全量**，理由：增量是日常
+安全路径（不覆盖已有译文），全量是破坏性的少用操作，应显式声明。
+
+落地改动：
+
+- `wiki.run()`：`translate_needed: bool = False` → `translate_all: bool = False`，
+  分支条件取反（fresh 仅在 `translate_all` 且有钩子时送翻）；
+- `cli.py`：`--translate-needed` 移除，新增 `--translate-all`，help 更新；
+- `--force` 维持兼容性 no-op 不变；
+- 测试：`test_default_mode_retranslates_every_page` →
+  `test_translate_all_mode_retranslates_every_page`（送翻断言移到 translate_all
+  分支）、`test_translate_needed_with_force_is_accepted` →
+  `test_translate_all_with_force_is_accepted`，其余用例移除 needed 标志；
+- 文档：README.zh.md / README.md 示例与参数说明、本计划 §六、风险表同步更新。
+
+门禁复测：全量 `pytest tests -q` 58 用例全绿、`pyright yate/ tests/ tools/`
+0 errors / 0 warnings。
 
 修复后门禁：全量 `pytest tests -q` **58 用例全绿**；`pyright yate/ tests/ tools/`
 0 errors / 0 warnings；stdin 模式真机复验（真实管道 + 真实模型）exit 0 无乱码。

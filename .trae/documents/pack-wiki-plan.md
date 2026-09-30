@@ -68,7 +68,7 @@
 CLI 规格：
 
 ```
-python -m tools.pack wiki [--target DIR] [--translate-cmd CMD] [--check] [--force] [--push]
+python -m tools.pack wiki [--target DIR] [--translate-cmd CMD] [--translate-all] [--check] [--force] [--push]
 ```
 
 模块设计（函数式，遵守 python-coding-style：`from __future__ import annotations`、完整注解、docstring、无 TYPE_CHECKING/Any）：

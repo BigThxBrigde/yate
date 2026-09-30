@@ -426,9 +426,10 @@ cd d:\Programming\yate-pack-wiki   # any checkout works
 
 - `--translate-cmd`: a shell command, Chinese Markdown on stdin, English on
   stdout (must come from a trusted source);
-- `--translate-needed`: **only translate pages that are missing (no English
-  page) or stale (Chinese source changed)**; without it everything is
-  re-translated (overwriting existing English pages — use with care);
+- default (incremental): **only translate pages that are missing (no English
+  page) or stale (Chinese source changed)**; fresh pages are kept as-is;
+- `--translate-all`: full re-translation — fresh pages are also sent through
+  the hook, overwriting their existing English pages (use with care);
 - `--push`: once every translation succeeds, commits and pushes to
   `origin` (gitee) and `github`; any failed page skips the push so dirty
   state never reaches the remotes.
