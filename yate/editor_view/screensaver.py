@@ -39,6 +39,7 @@ from yate.editor_sprites.characters import (
     shuffle_order,
 )
 from yate.editor_sprites.render import render_rows, walk_x
+from yate.paths import load_tcss
 
 #: Animation ticks per second (each walker advances one column per tick).
 TICKS_PER_SECOND = 10
@@ -94,22 +95,10 @@ class ScreensaverScreen(ModalScreen[None]):
     column -- sprites never overlap.
     """
 
-    DEFAULT_CSS = """
-    ScreensaverScreen {
-        background: $background;
-        overflow: hidden;
-    }
-    ScreensaverScreen .canvas {
-        width: 1fr;
-        height: 1fr;
-        overflow: hidden;
-    }
-    ScreensaverScreen .hint {
-        dock: bottom;
-        color: $text-muted;
-        padding: 0 1;
-    }
-    """
+    #: Stylesheet, a bundled resource (see :func:`yate.paths.load_tcss`) --
+    #: not an inline literal, so it gets editor syntax highlighting and ships
+    #: with the rest of ``yate/resources``.
+    DEFAULT_CSS = load_tcss("screensaver.tcss")
 
     def __init__(
         self,

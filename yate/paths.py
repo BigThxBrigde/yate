@@ -10,9 +10,12 @@ story for three run modes:
 * PyInstaller bundle (``sys.frozen``) -- the extracted ``yate`` folder
   inside ``sys._MEIPASS`` (onefile) or next to the executable (onedir).
 
-Other shipped data does not need a helper here: manuals are read via
-``importlib.resources.files("yate.resources")`` (see editor_view.manual),
-while the ``docs`` guides and the ``yaterc.example`` template are plain
+Other shipped data does not need a helper here, with one exception: the
+bundled TCSS stylesheets are read through :func:`load_tcss` (the shell's
+``app.tcss`` and the screensaver's ``screensaver.tcss`` -- one public loader
+so every consumer shares the same fail-fast contract), while manuals are read
+via ``importlib.resources.files("yate.resources")`` (see editor_view.manual)
+and the ``docs`` guides plus the ``yaterc.example`` template are plain
 shipped files users open/copy by their documented package-relative paths.
 
 Writable, user-edited data (``~/.yate/yaterc``, themes, user extensions) is
@@ -22,6 +25,7 @@ Writable, user-edited data (``~/.yate/yaterc``, themes, user extensions) is
 from __future__ import annotations
 
 import sys
+from importlib.resources import files
 from pathlib import Path
 
 #: Folder name of the bundled-extension directory inside the package.
@@ -45,3 +49,24 @@ def package_root() -> Path:
 def bundled_extensions_dir() -> Path:
     """The directory of extensions shipped with yate (auto-loaded)."""
     return package_root() / EXTENSIONS_DIRNAME
+
+
+def load_tcss(name: str) -> str:
+    """Read a bundled TCSS stylesheet from ``yate/resources``.
+
+    *name* is the file name (``"app.tcss"`` for the shell stylesheet,
+    ``"screensaver.tcss"`` for the screensaver screen).  The stylesheets are
+    bundled resources rather than inline literals so they get editor syntax
+    highlighting and ship through the same packaging channels as every other
+    file under ``yate/resources`` (hatchling wheel and both PyInstaller specs
+    already collect that directory whole).  An unreadable resource means a
+    broken installation: fail fast with an actionable message instead of a
+    confusing stylesheet error later.
+    """
+    try:
+        return files("yate.resources").joinpath(name).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RuntimeError(
+            f"bundled resource yate/resources/{name} could not be read; "
+            "the yate installation is broken"
+        ) from exc

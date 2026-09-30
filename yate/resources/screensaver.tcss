@@ -1,0 +1,14 @@
+ScreensaverScreen {
+    background: $background;
+    overflow: hidden;
+}
+ScreensaverScreen .canvas {
+    width: 1fr;
+    height: 1fr;
+    overflow: hidden;
+}
+ScreensaverScreen .hint {
+    dock: bottom;
+    color: $text-muted;
+    padding: 0 1;
+}
