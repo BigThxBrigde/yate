@@ -418,7 +418,6 @@ cd d:\Programming\yate-pack-wiki   # 任意检出均可
 
 .venv\Scripts\python -m tools.pack wiki `
   --translate-cmd ".venv\Scripts\python -m tools.translate --model hy4-preview-f" `
-  --translate-needed `
   --push
 ```
 
