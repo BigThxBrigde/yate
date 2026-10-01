@@ -231,17 +231,3 @@ pyright 0 诊断。结论：1 blocker + 1 major + 5 minor，已全部处置：
 
 修复后门禁：全量 `pytest tests -q` **58 用例全绿**；`pyright yate/ tests/ tools/`
 0 errors / 0 warnings；stdin 模式真机复验（真实管道 + 真实模型）exit 0 无乱码。
-
-## 十一、第三轮评审登记（Gitee PR #39 note_51421951，2026-10-01）
-
-评审实测：四项规则 3 通过 + 1 待优化（可维护性）；**无阻断项**，风险等级 low，
-结论"可优化后合并"。
-
-| 级别 | 发现 | 状态 |
-|---|---|---|
-| 改进项 | `_collect_bilingual` TOCTOU 竞态：收集阶段以 `en_src.exists()` 判定 `page.en_source`，后续 `run()` 直接 `read_bytes()`；若期间文件被删/移动，抛未捕获 `FileNotFoundError` 致全流程崩溃。建议：读取时捕获 `OSError`，降级为缺失页处理（落入翻译路径），不崩溃 | **已登记，待修复** |
-
-处置说明：该竞态仅在"收集与写入之间源文件被并发删除"的极端场景触发，
-评审亦定级为可维护性改进而非缺陷；修复点在 `run()` 的 `en_source` 读取分支
-（try/except OSError 后按 missing 页走翻译路径），测试需覆盖"收集后删除 en 源"
-的场景。待用户确认后实施。
