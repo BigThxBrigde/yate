@@ -9,6 +9,7 @@ with an "unknown action" notice at dispatch time).
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import cast
 
 from yate.actions import populate
@@ -20,8 +21,9 @@ from yate.registries import ActionRegistry
 def test_vsc_has_no_duplicate_raw_keys() -> None:
     """Every raw key appears once: ``_index`` must never silently override."""
     vsc = VscKeymap()
-    keys = [b.key for b in vsc.bindings]
-    assert len(keys) == len(set(keys))
+    counts = Counter(b.key for b in vsc.bindings)
+    dupes = [k for k, c in counts.items() if c > 1]
+    assert not dupes, f"duplicate raw keys found: {dupes}"
 
 
 def test_vsc_bindings_use_registered_actions() -> None:
