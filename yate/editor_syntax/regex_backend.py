@@ -730,3 +730,29 @@ def tokenize_document(lines: list[str], filetype: str) -> list[list[Token]]:
         tokens, state = _tokenize_code_line(line, spec, pattern, state)
         result.append(tokens)
     return result
+
+
+def tokenize_line(line: str, filetype: str, state: int = 0) -> tuple[list[Token], int]:
+    """Tokenize one line synchronously, carrying the multiline state.
+
+    The per-line dispatch mirrors :func:`tokenize_document` exactly
+    (markdown, config and code modes), so threading the returned state from
+    row to row reproduces the same per-line tokens a whole-document call
+    produces.  *state* carries a multiline construct across line boundaries
+    (block comment, triple string, Markdown fence); the result pairs the
+    row's tokens with the state entering the next row.
+
+    A line tokenizes in microseconds, which makes this function safe to run
+    on the UI thread: the view layer calls it to re-tokenize edited rows
+    while the debounced whole-document pass is pending, eliminating the
+    end-of-line boundary drift of stale tokens for every token kind.
+    Unknown filetypes tokenize to no tokens and pass *state* through.
+    """
+    spec = lang_for(filetype)
+    if spec is None:
+        return [], state
+    if spec.mode == "markdown":
+        return _tokenize_markdown_line(line, state)
+    if spec.mode == "config":
+        return _tokenize_config_line(line, spec), state
+    return _tokenize_code_line(line, spec, _code_line_pattern(spec), state)

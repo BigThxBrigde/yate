@@ -91,3 +91,20 @@ def tokenize_document(lines: list[str], filetype: str) -> list[list[Token]]:
         if ts is not None and ts.available_for(filetype):
             return ts.tokenize_document(lines, filetype)
     return regex_backend.tokenize_document(lines, filetype)
+
+
+def tokenize_line_sync(
+    line: str, filetype: str, multiline_state: int = 0
+) -> tuple[list[Token], int]:
+    """Tokenize a single line synchronously via the regex backend.
+
+    The row-level companion of :func:`tokenize_document`: it always uses the
+    regex backend (microsecond-fast, covers every registered language) so the
+    view layer can re-tokenize edited rows on the UI thread while the
+    debounced whole-document pass is pending -- tree-sitter precision arrives
+    with that pass.  *multiline_state* threads the multiline construct state
+    (block comment / triple string / fence) exactly like the per-line loop of
+    the regex backend's :func:`~yate.editor_syntax.regex_backend.tokenize_document`,
+    and unknown filetypes produce no tokens and pass the state through.
+    """
+    return regex_backend.tokenize_line(line, filetype, multiline_state)
