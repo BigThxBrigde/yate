@@ -377,13 +377,15 @@ class _ConPty:
         self._attr_buffer: Any = None
         self._si_ex: Any = None
         # Guards the write side of the Win32 handle fields (_hpc / _in_write /
-        # _out_read) across the UI / reader / watcher threads, plus
-        # read_loop's read snapshot of _out_read.  RLock because close()
-        # nests _close_pty().  _proc_info has no lock on its read side: reads
-        # stay snapshot-then-use, so a close() nulling it in between only
-        # routes calls on the closed handle to WAIT_FAILED / "failed" -- a
-        # residual window whose full elimination needs the RAII handle class
-        # (a long-term item).
+        # _out_read / _proc_info) across the UI / reader / watcher threads,
+        # plus read_loop's read snapshot of _out_read.  RLock because close()
+        # nests _close_pty().  spawn() holds the lock for its whole body, so a
+        # close() racing a startup spawn serializes behind it and sees the
+        # fully published handles.  _proc_info has no lock on its read side:
+        # reads stay snapshot-then-use, so a close() nulling it in between
+        # only routes calls on the closed handle to WAIT_FAILED / "failed" --
+        # a residual window whose full elimination needs the RAII handle
+        # class (a long-term item).
         self._handle_lock = threading.RLock()
         self._kernel32 = self._load_functions()
 
@@ -456,6 +458,15 @@ class _ConPty:
             raise PtyProcessError(f"{what} failed: HRESULT 0x{hr & 0xFFFFFFFF:08X}")
 
     def spawn(self) -> None:
+        # Held for the whole body: close() / terminate() from the UI thread
+        # serialize behind the spawn, so a close during startup sees the
+        # fully published handles instead of racing a half-built state (the
+        # ConPTY and the child could leak otherwise).  _close_pty() in the
+        # failure paths re-enters the RLock on this same thread.
+        with self._handle_lock:
+            self._spawn_locked()
+
+    def _spawn_locked(self) -> None:
         k = self._kernel32
         in_read, in_write = wintypes.HANDLE(), wintypes.HANDLE()
         out_read, out_write = wintypes.HANDLE(), wintypes.HANDLE()

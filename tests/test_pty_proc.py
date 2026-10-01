@@ -30,6 +30,7 @@ import ctypes
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -838,6 +839,83 @@ def test_conpty_setup_failures_raise_and_release_handles(
         assert impl._hpc is None  # the pseudo console never leaks
         assert impl._in_write is None
         assert impl._out_read is None
+
+    asyncio.run(_scenario())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_spawn_holds_the_handle_lock() -> None:
+    """spawn keeps ``_handle_lock`` for its whole body: close cannot interleave.
+
+    Regression guard for the review finding that the handle fields were
+    published from the spawn thread without the lock -- a close() racing a
+    startup spawn would have seen all-``None`` fields and leaked the ConPTY
+    and the child.  A delegating recorder stands in for the lock and tracks
+    acquisition depth: ``max_depth >= 1`` proves spawn entered the lock,
+    ``depth == 0`` afterwards proves the failure path released it.
+    """
+
+    class _LockRecorder:
+        """Delegate to a real ``RLock`` while recording nesting depth."""
+
+        def __init__(self, lock: threading.RLock) -> None:
+            self._lock = lock
+            self.depth = 0
+            self.max_depth = 0
+
+        def acquire(self, blocking: bool = True) -> bool:
+            got = self._lock.acquire(blocking)
+            if got:
+                self.depth += 1
+                self.max_depth = max(self.max_depth, self.depth)
+            return got
+
+        def release(self) -> None:
+            self._lock.release()
+            self.depth -= 1
+
+        def __enter__(self) -> _LockRecorder:
+            self.acquire()
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            self.release()
+
+    async def _scenario() -> None:
+        proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+        impl = cast(Any, proc)._impl
+        recorder = _LockRecorder(impl._handle_lock)
+        impl._handle_lock = recorder
+
+        def _create_pipe(
+            _read: object, _write: object, _attrs: object, _size: object
+        ) -> int:
+            return 1
+
+        def _create_pseudoconsole(
+            _size: object,
+            _in_read: object,
+            _out_write: object,
+            _flags: int,
+            _hpc: object,
+        ) -> int:
+            # spawn passes byref() wrappers; the values never matter here
+            # because the HRESULT fails before any consumer reads them.
+            return -2147467259  # 0x80004005: fail mid-spawn
+
+        def _close_handle(_handle: object) -> int:
+            return 1
+
+        impl._kernel32 = {
+            "CreatePipe": _create_pipe,
+            "CreatePseudoConsole": _create_pseudoconsole,
+            "CloseHandle": _close_handle,
+        }
+        with pytest.raises(PtyProcessError):
+            impl.spawn()
+        assert recorder.max_depth >= 1  # spawn ran under the lock ...
+        assert impl._hpc is None  # ... and never published the console
+        assert recorder.depth == 0  # released despite the raise
 
     asyncio.run(_scenario())
 
