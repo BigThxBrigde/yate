@@ -3,15 +3,38 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Iterator
 from typing import cast
 
 import pytest
 
 from yate.editor_sprites import characters
 from yate.editor_sprites.render import render_rows, walk_x
+from yate.services.extensions import SpriteExtensionBridge
 
 RED = "#ff0000"
 BLUE = "#0000ff"
+
+#: Snapshot of the import-time roster, taken before any test registers
+#: runtime characters; the cleanup fixture removes everything else.
+_BUILTIN_NAMES = frozenset(characters.character_names())
+
+#: A minimal valid extension sprite: 2 frames, uniform 2x2 geometry.
+_FRAMES: tuple[tuple[str, ...], ...] = (("AA", "BB"), ("AA", "BB"))
+_PALETTE = {"A": RED, "B": BLUE}
+
+
+@pytest.fixture
+def clean_registry() -> Iterator[None]:
+    """Remove runtime-registered characters after the test.
+
+    The registry is global state; without this sweep a failed assertion
+    could leak an extension name into other tests' roster-count checks.
+    """
+    yield
+    for name in characters.character_names():
+        if name not in _BUILTIN_NAMES:
+            characters.unregister_character(name)
 
 
 class TestRenderRows:
@@ -173,3 +196,103 @@ class TestShuffleOrder:
         for _ in range(50):
             order = characters.shuffle_order(names, rng, avoid="b")
             assert sorted(order) == sorted(names)
+
+
+@pytest.mark.usefixtures("clean_registry")
+class TestRegistration:
+    """Runtime register/unregister API (extension characters, W2)."""
+
+    def test_registered_character_is_gettable(self) -> None:
+        characters.register_character("ext_blob", _FRAMES, _PALETTE)
+        sprite = characters.get_character("ext_blob")
+        assert sprite.frames == _FRAMES
+        assert sprite.palette == _PALETTE
+        assert "ext_blob" in characters.character_names()
+
+    def test_registered_frames_and_palette_are_copies(self) -> None:
+        frames: list[tuple[str, ...]] = [("AA", "BB"), ("AA", "BB")]
+        palette = {"A": RED, "B": BLUE}
+        characters.register_character("ext_blob", frames, palette)
+        frames.append(("CC", "CC"))
+        palette["A"] = "#123456"
+        sprite = characters.get_character("ext_blob")
+        assert sprite.frames == _FRAMES
+        assert sprite.palette == {"A": RED, "B": BLUE}
+
+    def test_duplicate_registration_is_rejected(self) -> None:
+        characters.register_character("ext_blob", _FRAMES, _PALETTE)
+        with pytest.raises(ValueError, match="already registered"):
+            characters.register_character("ext_blob", _FRAMES, _PALETTE)
+
+    def test_builtin_name_registration_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="already registered"):
+            characters.register_character("mario", _FRAMES, _PALETTE)
+
+    def test_empty_name_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            characters.register_character("", _FRAMES, _PALETTE)
+
+    def test_single_frame_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="at least 2"):
+            characters.register_character("ext_one", (("AA", "BB"),), _PALETTE)
+
+    def test_ragged_frames_are_rejected(self) -> None:
+        frames = (("AAA", "BB"), ("AA", "BB"))
+        with pytest.raises(ValueError, match="ragged"):
+            characters.register_character("ext_ragged", frames, _PALETTE)
+
+    def test_unknown_palette_key_is_rejected(self) -> None:
+        frames = (("AA", "BZ"), ("AA", "BZ"))
+        with pytest.raises(ValueError, match="palette"):
+            characters.register_character("ext_palette", frames, {"A": RED})
+
+    def test_unregister_removes_extension_character(self) -> None:
+        characters.register_character("ext_blob", _FRAMES, _PALETTE)
+        characters.unregister_character("ext_blob")
+        assert "ext_blob" not in characters.character_names()
+        with pytest.raises(KeyError):
+            characters.get_character("ext_blob")
+
+    def test_reregister_after_unregister_works(self) -> None:
+        characters.register_character("ext_blob", _FRAMES, _PALETTE)
+        characters.unregister_character("ext_blob")
+        characters.register_character("ext_blob", (("CC",), ("CC",)), {"C": BLUE})
+        assert characters.get_character("ext_blob").palette == {"C": BLUE}
+
+    def test_unregister_unknown_name_raises_key_error(self) -> None:
+        with pytest.raises(KeyError):
+            characters.unregister_character("ext_missing")
+
+    def test_unregister_builtin_name_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="built-in"):
+            characters.unregister_character("mario")
+        assert "mario" in characters.character_names()
+
+
+@pytest.mark.usefixtures("clean_registry")
+class TestSpriteBridge:
+    """``api.sprites`` bridge over the registry (services/extensions.py)."""
+
+    def test_register_unregister_names_roundtrip(self) -> None:
+        bridge = SpriteExtensionBridge()
+        assert "ext_bridge" not in bridge.names()
+        bridge.register("ext_bridge", _FRAMES, _PALETTE)
+        assert "ext_bridge" in bridge.names()
+        bridge.unregister("ext_bridge")
+        assert "ext_bridge" not in bridge.names()
+
+    def test_names_include_builtin_roster(self) -> None:
+        bridge = SpriteExtensionBridge()
+        assert "mario" in bridge.names()
+
+    def test_invalid_frames_raise_value_error(self) -> None:
+        bridge = SpriteExtensionBridge()
+        with pytest.raises(ValueError, match="at least 2"):
+            bridge.register("ext_bad", (("AA", "BB"),), _PALETTE)
+        # nothing half-registered by the failed call
+        assert "ext_bad" not in bridge.names()
+
+    def test_unregister_builtin_is_rejected(self) -> None:
+        bridge = SpriteExtensionBridge()
+        with pytest.raises(ValueError, match="built-in"):
+            bridge.unregister("mario")

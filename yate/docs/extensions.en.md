@@ -396,6 +396,94 @@ A full template ships as `yate/extensions/yatesh_syntax.py.example`.
 Note: `api.highlight.register` (section 4.7) always wins over the built-in
 tree-sitter registration for the same extension key.
 
+### 4.9 Screensaver characters (`api.sprites`)
+
+`api.sprites.register` adds a custom character to the idle screensaver
+(`Alt+Shift+S`): it joins the 27 built-in sprites in the parade, takes part
+in playlist shuffling, and can be named in the yaterc
+`screen_saver.characters` whitelist.
+
+**Frame format** -- a character is a sequence of frames plus a palette.
+Each frame is a sequence of strings, one string per pixel row, all rows the
+same length; every character in a row is either a palette key (a colored
+pixel) or `.` (transparent). The palette maps every key character to a
+`"#rrggbb"` color string:
+
+```python
+FRAMES = (
+    (   # frame 1: eyes open
+        "..GG..",
+        ".GGGG.",
+        "GGWWGG",
+        ".GGGG.",
+        "..GG..",
+    ),
+    (   # frame 2: eyes red
+        "..GG..",
+        ".GGGG.",
+        "GGRRGG",
+        ".GGGG.",
+        "..GG..",
+    ),
+)
+PALETTE = {"G": "#00aa00", "W": "#ffffff", "R": "#cc0000"}
+
+def setup(api):
+    api.sprites.register("blob", FRAMES, PALETTE)
+```
+
+**Rendering rules** -- the screensaver draws two pixel rows per terminal
+text row with Unicode half blocks: the upper pixel becomes the foreground
+of `▀` and the lower pixel its background (same color → solid `█`, only a
+lower pixel → `▄`, nothing → blank space). A sprite of *n* pixel rows
+therefore occupies `ceil(n / 2)` text rows, and *w* pixel columns occupy
+*w* text columns (1 pixel = 1 cell). Keep sprites small enough for a
+24-row terminal (about 40 pixel rows at most) so the parade never clips.
+
+**Constraints** -- validated at registration, with the same rules the
+built-in roster enforces at import:
+
+- at least 2 animation frames;
+- all frames share one width and one height (no ragged frames);
+- every non-`.` pixel has a palette entry.
+
+Violations raise `ValueError`; the loader reports it on the startup
+message bar as `extension <name>: ValueError ...` and the character is
+not registered. Duplicates are rejected too -- including built-in names,
+which an extension can never replace.
+
+**API**:
+
+| Method | Purpose |
+|---|---|
+| `api.sprites.register(name, frames, palette)` | register a character; raises `ValueError` on duplicates or invalid data |
+| `api.sprites.unregister(name)` | remove a character this extension registered (built-ins cannot be removed; unknown names raise `KeyError`) |
+| `api.sprites.names()` | every registered character name (built-ins + extensions), usable as a self-check |
+
+**Full example with teardown**:
+
+```python
+# ~/.yate/extensions/blob.py
+FRAMES = (...)   # as above
+PALETTE = {"G": "#00aa00", "W": "#ffffff", "R": "#cc0000"}
+
+def setup(api):
+    api.sprites.register("blob", FRAMES, PALETTE)
+    assert "blob" in api.sprites.names()  # self-check
+
+def teardown(api):
+    api.sprites.unregister("blob")  # no ghost names on reload
+```
+
+**Whitelist timing** -- yaterc's `screen_saver.characters` whitelist is
+checked at startup, when only the built-in roster is known, so a whitelist
+entry naming an extension character produces one harmless startup warning
+(`unknown screensaver character: 'blob'`). The warning is cosmetic: the
+screensaver re-filters the whitelist against the live registry every time
+it is toggled on, so the extension character works as soon as its
+extension has loaded. Either accept the known noise or leave the whitelist
+unset (empty = the whole roster, extensions included).
+
 ---
 
 ## 5. Full example: word count + uppercase selection
