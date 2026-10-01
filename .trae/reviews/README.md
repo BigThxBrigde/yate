@@ -14,7 +14,7 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-✅ 已修＝2026-10-01 整改轮闭环销账）。当前仍未关闭 **8 项**；
+✅ 已修＝2026-10-01 整改轮闭环销账）。当前仍未关闭 **9 项**；
 已闭环的 7 项（#1 / #3 / #5 / #6 / #12 / #13 / #15）保留行并标注处置，
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
@@ -36,6 +36,7 @@
 | 13 | 2026-09-29 | `test_vsc_has_no_duplicate_raw_keys` 断言仅报数量不匹配，未列出重复的 raw key（`Keymap._index` 静默覆盖守护测试的失败输出应点名重复键） | ✅ 已修（2026-10-01，`3c1cee2`：Counter 形态，失败输出点名重复键） | [2026-09-29-pr38-vscode-keymap.md](2026-09-29-pr38-vscode-keymap.md) |
 | 14 | 2026-09-30 | `_TracingGatedTextualHandler` 定义在 `create_devtools_bridge` 工厂内部，每次调用重新创建类对象（审查者自评"保持现状即可，仅作记录"） | ⏸ 明确不修（textual 懒加载约束下无法模块顶层继承；桥仅单点构造，出现复用需求再评估） | [2026-09-30-pr40-logs-tcss-shell-refactor.md](2026-09-30-pr40-logs-tcss-shell-refactor.md) |
 | 15 | 2026-10-01 | `_collect_bilingual` TOCTOU：收集阶段 `exists()` 判定的 `en_source` 在 `run()` 读取时可能已被删除，未捕获 `FileNotFoundError` 致全流程崩溃 | ✅ 已修（2026-10-01，`714183b`：OSError 降级为缺失页走翻译路径 + 回归用例） | [2026-10-01-pack-wiki-round3-review.md](2026-10-01-pack-wiki-round3-review.md) |
+| 16 | 2026-10-02 | PR #43 AI 评审 3 项改进：`_submit_save_as` 的 `saved = True` 位置致部分成功场景语义混淆（Low，功能）；`_rebuild_tokens_on_edit` 极端 multiline 场景全量遍历（Low，性能，评审自评现状合理仅记录）；`_warn_degraded_once` 占位符 `%r`/`%s` 风格不一（Nit，可维护） | 👀 登记待决策（3 项均 Low/Nit 无阻断） | [2026-10-02-pr43-reviews-sweep-review.md](2026-10-02-pr43-reviews-sweep-review.md) |
 
 ---
 
@@ -73,6 +74,7 @@
 | 2026-09-29 | **Gitee PR #38** 评审（vscode keymap review 分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | ✅ 已修（2026-10-01，`3c1cee2`：Counter 断言形态，见速览 #13） | [2026-09-29-pr38-vscode-keymap.md](2026-09-29-pr38-vscode-keymap.md) |
 | 2026-09-30 | **Gitee PR #40** 评审（logs/tcss 外壳重构分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | ✅ 无需改动（唯一改进项审查者自评"保持现状"，仅作记录，见速览 #14） | [2026-09-30-pr40-logs-tcss-shell-refactor.md](2026-09-30-pr40-logs-tcss-shell-refactor.md) |
 | 2026-10-01 | **Gitee PR #39** 第三轮评审（wiki 生成器 + translate 模块，AI 队友审查） | ✅ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | ✅ 已修（2026-10-01，`714183b`：TOCTOU OSError 降级 + 回归用例，见速览 #15） | [2026-10-01-pack-wiki-round3-review.md](2026-10-01-pack-wiki-round3-review.md) |
+| 2026-10-02 | **Gitee PR #43** 评审（reviews-open-issues-fixes 分支全量 22 提交，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 3 改进（Low×2 + Nit×1）+ 2 正面 | 👀 登记待决策（改进项 2 评审自评现状合理仅记录，见速览 #16） | [2026-10-02-pr43-reviews-sweep-review.md](2026-10-02-pr43-reviews-sweep-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
