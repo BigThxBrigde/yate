@@ -154,7 +154,7 @@ flowchart LR
 
 执行器把下述脚本复制到 Temp 后用 .venv\Scripts\python.exe 运行即可复现各类别的精确 文件:行号 清单。
 
-`python
+```python
 """Read-only style probe for the yate worktree (v2, refined).
 
 Measures violations per .trae/rules/python-coding-style.md across yate/,
@@ -490,5 +490,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-`
+```
