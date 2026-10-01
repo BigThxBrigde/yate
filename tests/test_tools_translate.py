@@ -285,10 +285,17 @@ def test_stdin_stdout_pipe_survives_ansi_codepage(tmp_path: Path) -> None:
     Spawns the module as an actual child process so the Windows ANSI
     code-page pipe encoding (GBK on this machine) is exercised -- the
     mocked unit tests cannot see that layer.  The stub translator is a
-    ``.cmd`` file, which also pins the ``shutil.which`` resolution fix.
+    ``.cmd`` file on Windows, which also pins the ``shutil.which``
+    resolution fix; POSIX needs a real executable script instead
+    (``shutil.which`` demands the exec bit, and batch files cannot run).
     """
-    stub = tmp_path / "stub.cmd"
-    stub.write_text("@echo # Title\r\n", encoding="utf-8")
+    if sys.platform == "win32":
+        stub = tmp_path / "stub.cmd"
+        stub.write_text("@echo # Title\r\n", encoding="utf-8")
+    else:
+        stub = tmp_path / "stub.sh"
+        stub.write_text("#!/bin/sh\necho '# Title'\n", encoding="utf-8")
+        stub.chmod(0o755)
     proc = subprocess.run(
         [sys.executable, "-m", "tools.translate", "--cmd", str(stub)],
         input="# 中文标题\n\n正文\n".encode("utf-8"),
