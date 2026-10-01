@@ -32,6 +32,7 @@
 | 12 | 2026-09-29 | `_submit_save_as` 临时解除的 `read_only` 标志仅 OSError/UnicodeError 分支恢复，未预期异常无兜底 | 🔧 待修（Low/可维护性，基线存量非 PR 引入） | [2026-09-29-pr37-editor-split.md](2026-09-29-pr37-editor-split.md) |
 | 13 | 2026-09-29 | `test_vsc_has_no_duplicate_raw_keys` 断言仅报数量不匹配，未列出重复的 raw key（`Keymap._index` 静默覆盖守护测试的失败输出应点名重复键） | 🔧 待修（Low/可维护性，PR #38 AI 改进项） | [2026-09-29-pr38-vscode-keymap.md](2026-09-29-pr38-vscode-keymap.md) |
 | 14 | 2026-09-30 | `_TracingGatedTextualHandler` 定义在 `create_devtools_bridge` 工厂内部，每次调用重新创建类对象（审查者自评"保持现状即可，仅作记录"） | ⏸ 明确不修（textual 懒加载约束下无法模块顶层继承；桥仅单点构造，出现复用需求再评估） | [2026-09-30-pr40-logs-tcss-shell-refactor.md](2026-09-30-pr40-logs-tcss-shell-refactor.md) |
+| 15 | 2026-10-01 | `_collect_bilingual` TOCTOU：收集阶段 `exists()` 判定的 `en_source` 在 `run()` 读取时可能已被删除，未捕获 `FileNotFoundError` 致全流程崩溃 | 🔧 待修（Low/可维护性，PR #39 第三轮 AI 改进项） | [2026-10-01-pack-wiki-round3-review.md](2026-10-01-pack-wiki-round3-review.md) |
 
 ---
 
@@ -68,6 +69,7 @@
 | 2026-09-29 | **Gitee PR #37** 评审（editor-split 分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | 🟡 1 项 🔧 登记待办（`read_only` 异常恢复兜底，基线存量） | [2026-09-29-pr37-editor-split.md](2026-09-29-pr37-editor-split.md) |
 | 2026-09-29 | **Gitee PR #38** 评审（vscode keymap review 分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | 🟡 1 项 🔧 登记待办（重复键断言诊断信息，见速览 #13） | [2026-09-29-pr38-vscode-keymap.md](2026-09-29-pr38-vscode-keymap.md) |
 | 2026-09-30 | **Gitee PR #40** 评审（logs/tcss 外壳重构分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | ✅ 无需改动（唯一改进项审查者自评"保持现状"，仅作记录，见速览 #14） | [2026-09-30-pr40-logs-tcss-shell-refactor.md](2026-09-30-pr40-logs-tcss-shell-refactor.md) |
+| 2026-10-01 | **Gitee PR #39** 第三轮评审（wiki 生成器 + translate 模块，AI 队友审查） | ✅ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | 🟡 1 项 🔧 登记待办（`_collect_bilingual` TOCTOU，见速览 #15） | [2026-10-01-pack-wiki-round3-review.md](2026-10-01-pack-wiki-round3-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
