@@ -21,7 +21,7 @@ from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_lsp import Diagnostic, LspManager
-from yate.editor_syntax import tokenize_document
+from yate.editor_syntax.engine import tokenize_document_with_states
 from yate.editor_syntax.engine import tokenize_line_sync
 from yate.editor_syntax.tokens import Token
 from yate.keymaps.registry import KeymapSet
@@ -60,27 +60,16 @@ def _tokenize_with_states(
 ) -> tuple[list[list[Token]], tuple[int, ...]]:
     """Tokenize a whole document plus the regex multiline state per row.
 
-    Runs inside the highlight worker thread: :func:`tokenize_document` picks
-    the best backend for the tokens while the companion loop threads the
-    regex backend's multiline state machine (block comments, triple strings,
-    fences) row by row.  The resulting state sequence is what
-    :meth:`EditorView._rebuild_tokens_on_edit` resumes from after an edit --
-    it is intentionally regex-native even when the tokens came from
-    tree-sitter, because the row-level resync re-tokenizes with the regex
-    backend.  A row whose regex tokenization fails keeps the previous state
-    (the worker pass itself still lands its tokens).
+    Runs inside the highlight worker thread.  The states are what
+    :meth:`EditorView._rebuild_tokens_on_edit` resumes from after an
+    edit -- they are intentionally regex-native even when the tokens came
+    from tree-sitter, because the row-level resync re-tokenizes with the
+    regex backend.  With the regex backend the combined engine pass
+    produces both artifacts in one scan; the tree-sitter path threads the
+    states in a guarded regex companion pass (a broken custom LangSpec
+    keeps prior states instead of killing the worker pass).
     """
-    tokens = tokenize_document(lines, filetype)
-    states: list[int] = []
-    state = 0
-    for line in lines:
-        try:
-            _row_tokens, state = tokenize_line_sync(line, filetype, state)
-        except Exception:  # noqa: BLE001 - a broken custom LangSpec must not
-            # kill the whole worker pass; the row just keeps the prior state
-            log.debug("regex state threading failed for %s rows", filetype)
-        states.append(state)
-    return tokens, tuple(states)
+    return tokenize_document_with_states(lines, filetype)
 
 
 @dataclass(frozen=True)
@@ -411,13 +400,16 @@ class EditorView(ScrollView):
         the diff and the debounced worker still replaces everything with
         exact tokens.
 
-        Reuse resumes at the first row where the threaded multiline state
-        matches the state recorded for it: below a block comment or triple
-        string that the edit opened or closed, the old tokens would keep
-        painting the rest of the file as one construct, so those rows are
-        re-tokenized until the two state sequences agree again. Without a
-        usable snapshot, or when the line count shifted drastically
-        (> 5 rows), this degrades to plain stale reuse.
+        Reuse is per row and shift-aware: new row r maps to cache row
+        j = r - delta (delta = line-count change), and whenever the row
+        text is unchanged and the threaded multiline state equals the state
+        the cached tokens were built from, the cached tokens are reused
+        verbatim (O(1) per row) -- so a line-inserting edit only pays real
+        tokenization for rows whose text or surrounding construct actually
+        changed, and rows below an inserted blank line reuse instantly
+        instead of re-tokenizing to end of file. Without a usable
+        snapshot, or when the line count shifted drastically (> 5 rows),
+        this degrades to plain stale reuse.
         """
         tokens = self._hl_tokens
         snapshot = self._hl_line_snapshot
@@ -437,9 +429,8 @@ class EditorView(ScrollView):
             return tokens[row] if row < len(tokens) else []
 
         lines = buf.lines
-        old_count = len(snapshot)
         cur_count = buf.line_count
-        common = min(old_count, cur_count)
+        common = min(len(snapshot), cur_count)
         changed = {i for i in range(common) if snapshot[i] != lines[i]}
         changed.update(range(common, cur_count))
         if not changed:
@@ -448,7 +439,7 @@ class EditorView(ScrollView):
             return tokens[row] if row < len(tokens) else []
 
         first = min(changed)
-        last = max(changed)
+        delta = cur_count - len(snapshot)
         # Rows above the first change are identical to the snapshot, so the
         # multiline state entering the changed region carries over verbatim.
         state = ml_states[first - 1] if 0 < first <= len(ml_states) else 0
@@ -456,12 +447,24 @@ class EditorView(ScrollView):
         states: list[int] = list(ml_states[:first])
         r = first
         while r < cur_count:
-            if r > last and state == (
-                ml_states[r - 1] if 0 < r <= len(ml_states) else 0
+            # Shift-aware cache row: below the edited region, new row r
+            # holds old row r - delta's text (mismatches fall through to a
+            # fresh tokenization, so a wrong mapping can only cost work).
+            j = r - delta
+            if (
+                0 <= j < len(tokens)
+                and lines[r] == snapshot[j]
+                and state == (ml_states[j - 1] if j > 0 else 0)
             ):
-                # States re-synced with the previous tokenization: rows below
-                # are unchanged and tokenize identically -- reuse the rest.
-                break
+                # Text unchanged and the threaded state matches the state the
+                # cached tokens were built from: reuse them verbatim and jump
+                # to the recorded next state -- O(1) per row, which keeps
+                # line-inserting edits cheap on large files.
+                state = ml_states[j]
+                rebuilt.append(tokens[j])
+                states.append(state)
+                r += 1
+                continue
             try:
                 row_tokens, state = tokenize_line_sync(
                     lines[r], doc.filetype, state
@@ -474,8 +477,6 @@ class EditorView(ScrollView):
             rebuilt.append(row_tokens)
             states.append(state)
             r += 1
-        rebuilt.extend(tokens[r:cur_count])
-        states.extend(ml_states[r:cur_count])
 
         self._hl_tokens = rebuilt
         self._hl_version = buf.content_version

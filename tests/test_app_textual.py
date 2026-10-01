@@ -771,6 +771,83 @@ def test_line_resync_reuses_snapshot_on_cursor_movement(
     asyncio.run(scenario())
 
 
+def test_line_resync_keeps_construct_below_inserted_line(
+    tmp_path: Path,
+) -> None:
+    """Rows below an inserted line reuse their token objects unchanged."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text('x = 1\nmsg = """\nhello\nworld\n"""\n', encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            hello_row = editor.tokens_for(2)
+            world_row = editor.tokens_for(3)
+            # inserting a line shifts the triple-string body down one row;
+            # the shift-aware snapshot mapping must reuse those rows as-is
+            # (object identity) instead of re-tokenizing the whole tail
+            buf.cursor = (0, 5)
+            buf.insert_text("\n# spacer")
+            assert editor.tokens_for(1) == [Token(0, 8, "comment")]
+            assert editor.tokens_for(3) is hello_row
+            assert editor.tokens_for(4) is world_row
+            assert editor.tokens_for(3) == [Token(0, 5, "string")]
+            assert editor._hl_line_snapshot == tuple(buf.lines)
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_repaints_construct_opened_by_inserted_line(
+    tmp_path: Path,
+) -> None:
+    """An inserted triple-quote opener repaints the rows below it."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("x = 1\ny = 2\nz = 3\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            stale_row = editor.tokens_for(1)
+            # inserting an opener shifts "y = 2" / "z = 3" into a triple
+            # string; the state guard must forbid reusing their stale code
+            # tokens and repaint both rows as string immediately
+            buf.cursor = (0, 5)
+            buf.insert_text('\ns = """')
+            assert editor.tokens_for(2) is not stale_row
+            assert editor.tokens_for(2) == [Token(0, 5, "string")]
+            assert editor.tokens_for(3) == [Token(0, 5, "string")]
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
 def test_explorer_open_file(tmp_path: Path) -> None:
     async def scenario() -> None:
         root = tmp_path
@@ -4887,13 +4964,13 @@ def test_discarded_highlight_pass_reschedules_immediately(
 
             import yate.editor_view.editor as editor_module
 
-            real_tokenize = editor_module.tokenize_document
+            real_tokenize = editor_module._tokenize_with_states
             started = threading.Event()
             gate = threading.Event()
 
             def slow_tokenize(
                 lines: list[str], filetype: str
-            ) -> list[list[Token]]:
+            ) -> tuple[list[list[Token]], tuple[int, ...]]:
                 # hold the in-flight pass until the test has bumped the
                 # buffer version, making the pending result stale
                 started.set()
@@ -4901,7 +4978,7 @@ def test_discarded_highlight_pass_reschedules_immediately(
                 return real_tokenize(lines, filetype)
 
             monkeypatch.setattr(
-                editor_module, "tokenize_document", slow_tokenize
+                editor_module, "_tokenize_with_states", slow_tokenize
             )
             delays: list[float] = []
             real_schedule = editor._schedule_highlight

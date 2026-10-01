@@ -272,3 +272,59 @@ def test_resolve_blocked_build_warns_once_per_language(
         assert len(capture.messages) == 1
     finally:
         logger.removeHandler(capture)
+
+
+# --- combined tokens+states pass --------------------------------------------
+
+
+def test_with_states_tokens_match_whole_document_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The combined pass returns the whole-document token lists verbatim."""
+    monkeypatch.setattr(engine, "_ts", lambda: None)
+    lines = ["x = 1", 'msg = """', "hello", '"""', "# tail"]
+    tokens, states = engine.tokenize_document_with_states(lines, "py")
+    assert tokens == regex_backend.tokenize_document(lines, "py")
+    assert len(states) == len(lines)
+
+
+def test_with_states_threads_multiline_constructs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """states[r] carries the regex state entering row r+1."""
+    monkeypatch.setattr(engine, "_ts", lambda: None)
+    lines = ['msg = """', "hello", '"""', "x = 1"]
+    _, states = engine.tokenize_document_with_states(lines, "py")
+    assert states == (
+        regex_backend._S_TRIPLE_DQ,
+        regex_backend._S_TRIPLE_DQ,
+        regex_backend._S_CODE,
+        regex_backend._S_CODE,
+    )
+
+
+def test_with_states_pairs_ts_tokens_with_regex_states(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tree-sitter serves the tokens while regex states thread alongside."""
+    fake = _FakeTS()
+    fake.filetypes.add("py")
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    lines = ['msg = """', "hello", '"""']
+    tokens, states = engine.tokenize_document_with_states(lines, "py")
+    assert tokens == fake.tokenize_document(lines, "py")
+    assert states == (
+        regex_backend._S_TRIPLE_DQ,
+        regex_backend._S_TRIPLE_DQ,
+        regex_backend._S_CODE,
+    )
+
+
+def test_with_states_unknown_filetype_is_plain_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unknown filetypes yield no tokens and all-code states."""
+    monkeypatch.setattr(engine, "_ts", lambda: None)
+    tokens, states = engine.tokenize_document_with_states(["hello"], "xyz")
+    assert tokens == [[]]
+    assert states == (0,)

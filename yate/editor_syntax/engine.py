@@ -25,6 +25,9 @@ from typing import Protocol
 
 from yate.editor_syntax import regex_backend
 from yate.editor_syntax.tokens import Token
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 
 class SyntaxBackend(Protocol):
@@ -91,6 +94,54 @@ def tokenize_document(lines: list[str], filetype: str) -> list[list[Token]]:
         if ts is not None and ts.available_for(filetype):
             return ts.tokenize_document(lines, filetype)
     return regex_backend.tokenize_document(lines, filetype)
+
+
+def tokenize_document_with_states(
+    lines: list[str], filetype: str
+) -> tuple[list[list[Token]], tuple[int, ...]]:
+    """Whole-document tokens plus the regex multiline state per row.
+
+    The states are always regex-native (the view layer's row-level resync
+    re-tokenizes with the regex backend), so when the tree-sitter backend
+    serves the tokens a regex companion pass threads the states; with the
+    regex backend the single combined pass produces both artifacts without
+    a second full-document scan.
+    """
+    key = filetype.lower().lstrip(".")
+    if key not in _REGEX_PINNED:
+        ts = _ts()
+        if ts is not None and ts.available_for(filetype):
+            return ts.tokenize_document(lines, filetype), _regex_states(
+                lines, filetype
+            )
+    return regex_backend.tokenize_document_with_states(lines, filetype)
+
+
+def _regex_states(lines: list[str], filetype: str) -> tuple[int, ...]:
+    """Thread the regex multiline state per row (companion to ts tokens).
+
+    A row whose regex tokenization fails keeps the prior state: a broken
+    custom LangSpec must not kill the whole worker pass.  The first failure
+    logs once instead of once per row.
+    """
+    state = 0
+    states: list[int] = []
+    reported = False
+    for lineno, line in enumerate(lines):
+        try:
+            _row_tokens, state = regex_backend.tokenize_line(line, filetype, state)
+        except Exception:  # noqa: BLE001 - degraded state threading must not
+            # kill the worker pass; the row keeps the prior state
+            if not reported:
+                reported = True
+                log.debug(
+                    "regex state threading failed for %s at row %d; "
+                    "keeping prior state",
+                    filetype,
+                    lineno,
+                )
+        states.append(state)
+    return tuple(states)
 
 
 def tokenize_line_sync(

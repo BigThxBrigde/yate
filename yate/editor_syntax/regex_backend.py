@@ -701,35 +701,52 @@ def _tokenize_config_line(line: str, spec: LangSpec) -> list[Token]:
     return tokens
 
 
-def tokenize_document(lines: list[str], filetype: str) -> list[list[Token]]:
-    """Tokenize a whole document, returning tokens per line.
+def tokenize_document_with_states(
+    lines: list[str], filetype: str
+) -> tuple[list[list[Token]], tuple[int, ...]]:
+    """Tokenize a whole document in one pass: tokens plus multiline state.
 
-    Multiline state is carried top to bottom so triple strings, block
-    comments and code fences highlight correctly across line boundaries.
+    Returns the per-line token lists :func:`tokenize_document` produces
+    paired with the regex multiline state entering each next row -- the
+    sequence the view layer's row-level resync resumes from.  One pass
+    yields both artifacts, so callers that need the states (the highlight
+    worker) do not pay a second full-document scan.  Multiline state is
+    carried top to bottom so triple strings, block comments and code
+    fences highlight correctly across line boundaries.
     """
     spec = lang_for(filetype)
     if spec is None:
-        return [[] for _ in lines]
+        return [[] for _ in lines], (0,) * len(lines)
 
     result: list[list[Token]] = []
+    states: list[int] = []
     state = _S_CODE
 
     if spec.mode == "markdown":
         for line in lines:
             tokens, state = _tokenize_markdown_line(line, state)
             result.append(tokens)
-        return result
-
-    if spec.mode == "config":
+            states.append(state)
+    elif spec.mode == "config":
         for line in lines:
             result.append(_tokenize_config_line(line, spec))
-        return result
+            states.append(state)
+    else:
+        pattern = _code_line_pattern(spec)
+        for line in lines:
+            tokens, state = _tokenize_code_line(line, spec, pattern, state)
+            result.append(tokens)
+            states.append(state)
+    return result, tuple(states)
 
-    pattern = _code_line_pattern(spec)
-    for line in lines:
-        tokens, state = _tokenize_code_line(line, spec, pattern, state)
-        result.append(tokens)
-    return result
+
+def tokenize_document(lines: list[str], filetype: str) -> list[list[Token]]:
+    """Tokenize a whole document, returning tokens per line.
+
+    Multiline state is carried top to bottom so triple strings, block
+    comments and code fences highlight correctly across line boundaries.
+    """
+    return tokenize_document_with_states(lines, filetype)[0]
 
 
 def tokenize_line(line: str, filetype: str, state: int = 0) -> tuple[list[Token], int]:
