@@ -249,8 +249,9 @@ when the overlay closes.
    (`:term` / `:termclose` do the same); the shell keeps running while the
    panel is hidden.
 
-> Note: clipboard operations (cut/copy/paste) use yate's **internal
-> registers** and do not touch the system clipboard (see section 5.1).
+> Note: clipboard operations (cut/copy/paste) sync with the **system
+> clipboard** by default; when the system clipboard is unavailable, yate
+> falls back to its internal registers (see sections 5.1 / 5.2).
 
 ## 5. Key Bindings
 
@@ -318,12 +319,13 @@ keymap, grouped by category, plus all `:` commands.
 |---|---|
 | `Ctrl+Z` | Undo (contiguous typing merges into one step) |
 | `Ctrl+Y` | Redo |
-| `Ctrl+X` | Cut selection / current line to the internal register |
-| `Ctrl+C` | Copy selection / current line to the internal register |
-| `Ctrl+V` | Paste from the internal register |
+| `Ctrl+X` | Cut selection / current line to the system clipboard (internal register kept in sync) |
+| `Ctrl+C` | Copy selection / current line to the system clipboard (internal register kept in sync) |
+| `Ctrl+V` | Paste from the system clipboard (falls back to the internal register when unavailable or empty) |
 
-> Clipboard note: copy/cut/paste use the editor's internal yank/clipboard
-> register and do not exchange data with the OS clipboard.
+> Clipboard note: copy/cut write both the system clipboard and the editor's
+> internal register; paste reads the system clipboard first and falls back
+> to the internal register when the system clipboard is unavailable or empty.
 
 **File**
 
@@ -431,11 +433,12 @@ e.g. `3j`, `2dd`, `5w`.
 | Key | Action |
 |---|---|
 | `x` | Delete character at cursor (countable) |
-| `dd` | Delete (cut) current line |
-| `yy` | Yank current line |
+| `dd` | Delete (cut) current line into the unnamed register and the system clipboard |
+| `yy` | Yank current line into the unnamed register and the system clipboard |
 | `d{motion}` | Delete through motion (e.g. `dw`, `d$`, `dj`) |
 | `y{motion}` | Yank through motion |
-| `p` / `P` | Paste below / above |
+| `"{a-z}` | Named register a-z: yank/delete/paste there (pure internal, never touches the system clipboard) |
+| `p` / `P` | Paste below / above (system clipboard first, falls back to the unnamed register) |
 | `u` | Undo |
 | `Ctrl+R` | Redo |
 | `J` | Join next line |

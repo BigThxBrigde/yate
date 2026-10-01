@@ -37,6 +37,7 @@ from yate.keymaps.base import (
     Keymap,
     parse_key,
 )
+from yate.services.clipboard import copy_text, paste_text
 
 
 class VimMode(str, Enum):
@@ -89,6 +90,12 @@ class VimKeymap(Keymap):
         self.count_str = ""
         # (char, backward, till) of the last successful find, for ; and ,
         self.last_find: tuple[str, bool, bool] | None = None
+        # ``"`` register prefix state: "" = waiting for the register letter,
+        # "a".."z" = a named register is pending, None = nothing pending.
+        self.pending_register: str | None = None
+        # Target named register of the armed operator (``"add``), consumed
+        # when the operator resolves.
+        self.op_register: str | None = None
 
     # ------------------------------------------------------------------ help
 
@@ -139,6 +146,9 @@ class VimKeymap(Keymap):
             ),
             KeyBinding("p", "paste below", "Paste after", EDT),
             KeyBinding("P", "paste above", "Paste before", EDT),
+            KeyBinding('"{a-z}', "named register",
+                "Yank/delete/paste via register a-z", EDT,
+            ),
             KeyBinding("u", "undo", "Undo", EDT),
             KeyBinding(parse_key("<ctrl-r>"), "redo", "Redo", EDT),
             KeyBinding("J", "join lines", "Join lines", EDT),
@@ -201,12 +211,14 @@ class VimKeymap(Keymap):
         self._clear_operator()
         self.prefix = None
         self.count_str = ""
+        self.pending_register = None
 
     def _clear_operator(self) -> None:
         """Drop the armed operator with its scope and count companions."""
         self.op = None
         self.obj_scope = None
         self.op_count = None
+        self.op_register = None
 
     # ------------------------------------------------------------- insert mode
 
@@ -253,6 +265,7 @@ class VimKeymap(Keymap):
         if key == "\x1b":
             buf.clear_selection()
             self.mode = VimMode.NORMAL
+            self.pending_register = None
             ui.message("-- NORMAL --")
             return True
         if key == "v":
@@ -266,30 +279,40 @@ class VimKeymap(Keymap):
             self.mode = VimMode.VISUAL_LINE if not linewise else VimMode.VISUAL
             self._fix_linewise(buf)
             return True
+        if self.pending_register == "":
+            # waiting for the register letter after ": a-z names it, any
+            # other key is silently dropped (unmapped-swallow semantics)
+            if len(key) == 1 and "a" <= key <= "z":
+                self.pending_register = key
+            else:
+                self.pending_register = None
+            return True
+        if key == '"':
+            self.pending_register = ""
+            return True
         if key in ("y", "d", "x"):
+            reg = self._take_named_register()
             if linewise:
                 if key == "y":
-                    buf.yank_lines()
+                    self._mirror(buf.yank_lines(named=reg), reg)
                     sel = buf.selection()
                     if sel is not None:
                         # vim lands on the first column of the first yanked row
                         buf.set_cursor((sel[0][0], 0))
                     ui.message("yanked lines")
                 else:
-                    buf.delete_lines()
+                    self._mirror(buf.delete_lines(named=reg), reg)
                     ui.message("deleted lines")
             else:
                 if key == "y":
-                    buf.yank_selection()
+                    self._mirror(buf.yank_selection(named=reg), reg)
                     ui.message("yanked")
                     sel = buf.selection()
                     r, c = sel[0] if sel is not None else buf.cursor
                     buf.clear_selection()
                     buf.cursor = (r, c)
                 else:
-                    text = buf.delete_selection()
-                    if text is not None:
-                        buf.register = text
+                    self._store_deleted(buf, buf.delete_selection(), reg)
                     ui.message("deleted selection")
             self.mode = VimMode.NORMAL
             return True
@@ -348,6 +371,15 @@ class VimKeymap(Keymap):
             ui.goto_prompt()
             return True
 
+        if self.pending_register == "":
+            # waiting for the register letter after ": a-z names it, any
+            # other key is silently dropped (unmapped-swallow semantics)
+            if len(key) == 1 and "a" <= key <= "z":
+                self.pending_register = key
+            else:
+                self.pending_register = None
+            return True
+
         if (
             key.isdigit()
             and not (key == "0" and not self.count_str)
@@ -380,6 +412,12 @@ class VimKeymap(Keymap):
         if self.op is not None and self._handle_operator_pending(ctx, key):
             return True
 
+        if key == '"':
+            # register prefix.  Kept after operator-pending: " is also a
+            # text object target there (ca" changes inside the quotes).
+            self.pending_register = ""
+            return True
+
         # arm a prefix key ("g" / find-char / "r"); a pending operator survives
         # for the motion-completing prefixes and was already dropped otherwise
         if key in _PREFIX_KEYS:
@@ -393,6 +431,7 @@ class VimKeymap(Keymap):
         if key in ("d", "y", "c"):
             self.op = key
             self.op_count = self._typed_count()
+            self.op_register = self._take_named_register()
             self.count_str = ""
             return True
 
@@ -410,12 +449,16 @@ class VimKeymap(Keymap):
                 buf.delete_forward()
             return True
         if key == "p":
+            reg = self._take_named_register()
+            self._prime_paste(buf, reg)
             for _ in range(self._take_count()):
-                buf.paste(below=True)
+                buf.paste(below=True, named=reg)
             return True
         if key == "P":
+            reg = self._take_named_register()
+            self._prime_paste(buf, reg)
             for _ in range(self._take_count()):
-                buf.paste(below=False)
+                buf.paste(below=False, named=reg)
             return True
         if key == "u":
             buf.undo()
@@ -538,6 +581,7 @@ class VimKeymap(Keymap):
         buf = ctx.buffer
         ui = ctx.ui
         n = self.op_count or 1
+        reg = self.op_register
         self._clear_operator()
         r1 = buf.row
         col = buf.col  # yy keeps the cursor where it is, like vim
@@ -545,16 +589,16 @@ class VimKeymap(Keymap):
         buf.anchor = (r1, 0)
         buf.cursor = (r2, len(buf.lines[r2]))
         if op == "d":
-            buf.delete_lines()
+            self._mirror(buf.delete_lines(named=reg), reg)
             ui.message("deleted line")
         elif op == "y":
-            buf.yank_lines()
+            self._mirror(buf.yank_lines(named=reg), reg)
             buf.anchor = None
             buf.cursor = (r1, min(col, len(buf.lines[r1])))
             ui.message("yanked line")
         else:
             # change: the merged remains collapse into one empty line
-            buf.delete_selection()
+            self._store_deleted(buf, buf.delete_selection(), reg)
             self._enter_insert(ui)
 
     def _resolve_gg(self, ctx: ActionContext) -> None:
@@ -566,6 +610,7 @@ class VimKeymap(Keymap):
         self.count_str = ""
         target = motion_typed if motion_typed is not None else self.op_count or 1
         op = self.op
+        reg = self.op_register
         self._clear_operator()
         if op is None:
             r = min(target - 1, len(buf.lines) - 1)
@@ -576,15 +621,15 @@ class VimKeymap(Keymap):
         buf.anchor = (r1, 0)
         buf.cursor = (r2, len(buf.lines[r2]))
         if op == "y":
-            buf.yank_lines()
+            self._mirror(buf.yank_lines(named=reg), reg)
             buf.anchor = None
             buf.cursor = (r1, 0)
             ui.message("yanked")
         elif op == "d":
-            buf.delete_lines()
+            self._mirror(buf.delete_lines(named=reg), reg)
             ui.message("deleted")
         else:
-            buf.delete_selection()
+            self._store_deleted(buf, buf.delete_selection(), reg)
             self._enter_insert(ui)
 
     def _find_target(
@@ -622,6 +667,7 @@ class VimKeymap(Keymap):
         so the direction flip on ``,` never rewrites the stored find.
         """
         op = self.op
+        reg = self.op_register
         target = self._find_target(ctx, ch, backward, till)
         self.prefix = None
         self._clear_operator()
@@ -637,10 +683,10 @@ class VimKeymap(Keymap):
         if backward:
             # [target, cursor] inclusive -> half-open [target, cursor+1)
             end = (buf.row, min(buf.col + 1, len(buf.lines[buf.row])))
-            self._apply_span(ctx, op, target, end)
+            self._apply_span(ctx, op, target, end, reg=reg)
         else:
             # [cursor, target] inclusive -> half-open [cursor, target+1)
-            self._apply_span(ctx, op, buf.cursor, (buf.row, target[1] + 1))
+            self._apply_span(ctx, op, buf.cursor, (buf.row, target[1] + 1), reg=reg)
 
     def _repeat_find(self, ctx: ActionContext, key: str) -> None:
         """Re-run the last find: ``;`` keeps its direction, ``,`` flips it."""
@@ -684,6 +730,57 @@ class VimKeymap(Keymap):
 
     def _peek_count(self) -> int:
         return int(self.count_str) if self.count_str else 1
+
+    # ----------------------------------------------------------- registers
+
+    def _take_named_register(self) -> str | None:
+        """Consume the pending ``"`` register (None when there is none)."""
+        reg = self.pending_register
+        self.pending_register = None
+        return reg
+
+    def _mirror(self, text: str, named: str | None) -> None:
+        """Mirror an unnamed-register write to the system clipboard.
+
+        Only unnamed writes are mirrored: an explicit ``"`` register is
+        pure internal storage and never touches the system clipboard.
+        The copy is best effort -- an unavailable backend stays silent
+        (the service logs it) -- so key paths never see a failure.
+        """
+        if named is None and text:
+            copy_text(text)
+
+    def _store_deleted(
+        self, buf: TextBuffer, text: str | None, named: str | None
+    ) -> None:
+        """Store a ``delete_selection`` result and sync the system clipboard.
+
+        ``None`` (no selection) is a no-op.  Unnamed deletes land in
+        :attr:`TextBuffer.register` and mirror to the system clipboard;
+        named ones go to :attr:`TextBuffer.named_registers` internally.
+        """
+        if text is None:
+            return
+        if named is None:
+            buf.register = text
+            copy_text(text)
+        else:
+            buf.named_registers[named] = text
+
+    def _prime_paste(self, buf: TextBuffer, named: str | None) -> None:
+        """Seed the unnamed register from the system clipboard once per paste.
+
+        A named register pastes from internal storage only -- the system
+        clipboard is not read.  Otherwise the clipboard is read exactly
+        once here, at the command entry, so a count paste (``3p``) never
+        re-reads it mid-loop; an unavailable or empty clipboard leaves
+        the unnamed register untouched (internal content is pasted).
+        """
+        if named is not None:
+            return
+        text = paste_text()
+        if text:
+            buf.register = text
 
     # -------------------------------------------------------------- motions
 
@@ -758,6 +855,7 @@ class VimKeymap(Keymap):
         effective = (self.op_count or 1) * (motion_typed or 1)
         given = self.op_count is not None or motion_typed is not None
         count = effective if given else None
+        reg = self.op_register
         self._clear_operator()
         buf = ctx.buffer
         start = buf.cursor
@@ -789,16 +887,21 @@ class VimKeymap(Keymap):
             # operator span includes it; yate selections are half-open
             r = buf.row
             buf.cursor = (r, min(1, len(buf.lines[r])))
-        self._apply_span(ctx, op, start, buf.cursor)
+        self._apply_span(ctx, op, start, buf.cursor, reg=reg)
 
-    def _apply_span(self, ctx: ActionContext, op: str, start: Pos, end: Pos) -> None:
+    def _apply_span(
+        self, ctx: ActionContext, op: str, start: Pos, end: Pos, *,
+        reg: str | None = None,
+    ) -> None:
         """Run *op* over the charwise span from *start* inclusive to *end* exclusive.
 
         *end* is the first kept column, so ``len(row)`` is a legal end (span
         reaches the line end).  Callers build endpoints with ``+1`` arithmetic
         and pass through object spans; clamping the column here keeps an
         overshoot from reaching the buffer's half-open deletion, whose
-        multi-row join would silently swallow text past the row end.
+        multi-row join would silently swallow text past the row end.  *reg*
+        is the target ``"`` register taken from :attr:`op_register` by the
+        caller before the operator was cleared (None = unnamed).
         """
         buf = ctx.buffer
         ui = ctx.ui
@@ -809,7 +912,7 @@ class VimKeymap(Keymap):
         buf.cursor = end
         if op == "y":
             if buf.has_selection():
-                buf.yank_selection()
+                self._mirror(buf.yank_selection(named=reg), reg)
                 buf.cursor = start
                 buf.anchor = None
                 ui.message("yanked")
@@ -817,8 +920,7 @@ class VimKeymap(Keymap):
                 buf.anchor = None
             return
         text = buf.delete_selection()
-        if text is not None:
-            buf.register = text
+        self._store_deleted(buf, text, reg)
         if op == "c":
             self._enter_insert(ui)
         elif text is not None:
@@ -832,6 +934,7 @@ class VimKeymap(Keymap):
         """
         op = self.op
         scope = self.obj_scope
+        reg = self.op_register
         motion_typed = self._typed_count()
         count = (self.op_count or 1) * (motion_typed or 1)
         self.prefix = None
@@ -843,7 +946,7 @@ class VimKeymap(Keymap):
         if span is None:
             ctx.ui.message("no text object")
             return True
-        self._apply_span(ctx, op, span[0], span[1])
+        self._apply_span(ctx, op, span[0], span[1], reg=reg)
         return True
 
     @staticmethod

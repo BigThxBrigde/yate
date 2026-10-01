@@ -16,6 +16,7 @@ import pytest
 from yate.actions import populate
 from yate.config import YateConfig
 from yate.editor_core import BufferReadOnlyError, Document, TextBuffer
+from yate.keymaps import vim as vim_module
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.registries import ActionRegistry
@@ -1365,3 +1366,151 @@ def test_visual_line_yank_lands_on_the_first_row() -> None:
     assert editor.buffer.cursor == (1, 0)
     assert editor.buffer.has_selection() is False
     assert keymap.mode is VimMode.NORMAL
+
+
+# --- registers and system clipboard sync -------------------------------------
+
+
+class _FakeClip:
+    """Recording stand-in for the clipboard service entry points."""
+
+    def __init__(self) -> None:
+        self.copies: list[str] = []
+        self.pastes: list[int] = []
+        self.paste_result: str | None = None
+
+    def copy_text(self, text: str) -> bool:
+        self.copies.append(text)
+        return True
+
+    def paste_text(self) -> str | None:
+        self.pastes.append(1)
+        return self.paste_result
+
+
+@pytest.fixture()
+def fake_clip(monkeypatch: pytest.MonkeyPatch) -> _FakeClip:
+    """Patch the clipboard entries imported into the vim keymap module."""
+    fake = _FakeClip()
+    monkeypatch.setattr(vim_module, "copy_text", fake.copy_text)
+    monkeypatch.setattr(vim_module, "paste_text", fake.paste_text)
+    return fake
+
+
+def test_linewise_yy_mirrors_unnamed_to_clipboard(fake_clip: _FakeClip) -> None:
+    """yy writes the unnamed register and mirrors it to the system clipboard."""
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, "y", "y")
+    assert editor.buffer.register == "alpha\n"
+    assert fake_clip.copies == ["alpha\n"]
+
+
+def test_delete_dd_mirrors_unnamed_to_clipboard(fake_clip: _FakeClip) -> None:
+    """dd mirrors the deleted line to the system clipboard."""
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, "d", "d")
+    assert editor.buffer.get_text() == "beta"
+    assert fake_clip.copies == ["alpha\n"]
+
+
+def test_charwise_yank_mirrors_to_clipboard(fake_clip: _FakeClip) -> None:
+    """yw yanks the motion span into the unnamed register and mirrors it."""
+    _editor, keymap, ctx = _setup("hello")
+    _press(keymap, ctx, "y", "w")
+    assert fake_clip.copies == ["hello"]
+
+
+def test_paste_prefers_clipboard_and_reads_once_for_count(fake_clip: _FakeClip) -> None:
+    """3p pastes the system clipboard text three times, reading it once."""
+    editor, keymap, ctx = _setup("")
+    editor.buffer.register = "OLD"
+    fake_clip.paste_result = "SYS"
+    _press(keymap, ctx, "3", "p")
+    assert editor.buffer.get_text() == "SYSSYSSYS"
+    assert len(fake_clip.pastes) == 1
+
+
+def test_paste_falls_back_to_unnamed_when_clipboard_unavailable(
+    fake_clip: _FakeClip,
+) -> None:
+    """A failed clipboard read (None) leaves the unnamed register intact."""
+    editor, keymap, ctx = _setup("hello")
+    fake_clip.paste_result = None
+    _press(keymap, ctx, "y", "y", "p")
+    assert editor.buffer.get_text() == "hello\nhello"
+
+
+def test_paste_falls_back_when_clipboard_empty(fake_clip: _FakeClip) -> None:
+    """An empty clipboard ("") counts as no text: the unnamed register wins."""
+    editor, keymap, ctx = _setup("hello")
+    fake_clip.paste_result = ""
+    _press(keymap, ctx, "y", "y", "p")
+    assert editor.buffer.get_text() == "hello\nhello"
+
+
+def test_named_register_yy_stores_internally_without_clipboard(
+    fake_clip: _FakeClip,
+) -> None:
+    """"ayy fills register a only: no unnamed write, no clipboard mirror."""
+    editor, keymap, ctx = _setup("alpha")
+    _press(keymap, ctx, '"', "a", "y", "y")
+    assert editor.buffer.named_registers["a"] == "alpha\n"
+    assert fake_clip.copies == []
+    assert editor.buffer.register == ""
+
+
+def test_named_register_paste_reads_internal_only(fake_clip: _FakeClip) -> None:
+    """"ap pastes register a without touching the system clipboard."""
+    editor, keymap, ctx = _setup("alpha")
+    _press(keymap, ctx, '"', "a", "y", "y", '"', "a", "p")
+    assert editor.buffer.get_text() == "alpha\nalpha"
+    assert len(fake_clip.pastes) == 0
+
+
+def test_bare_quote_with_invalid_follower_is_swallowed(fake_clip: _FakeClip) -> None:
+    """A non a-z follower of " is dropped silently and clears the pending."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, '"', "5")
+    assert keymap.pending_register is None
+    assert keymap.count_str == ""
+    assert editor.buffer.get_text() == "abc"
+
+
+def test_quote_then_motion_keeps_register_for_next_operator(
+    fake_clip: _FakeClip,
+) -> None:
+    """"a survives a motion key and applies to the next yank operator."""
+    editor, keymap, ctx = _setup("one two")
+    _press(keymap, ctx, '"', "a", "w", "y", "w")
+    assert editor.buffer.named_registers["a"] == "two"
+    assert fake_clip.copies == []
+
+
+def test_visual_quote_ay_yanks_to_named_register(fake_clip: _FakeClip) -> None:
+    """v"a y fills register a from the selection without mirroring."""
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, "v", '"', "a", "y")
+    assert editor.buffer.named_registers["a"] == "alpha"
+    assert fake_clip.copies == []
+
+
+def test_linewise_cc_writes_register_and_mirrors(fake_clip: _FakeClip) -> None:
+    """cc stores the cleared line in the unnamed register and mirrors it.
+
+    cc clears via ``delete_selection`` (charwise), so the stored text is
+    the line content without the trailing newline.
+    """
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, "c", "c", "N", "E", "W", ESC)
+    assert editor.buffer.get_text() == "NEW\nbeta"
+    assert editor.buffer.register == "alpha"
+    assert fake_clip.copies == ["alpha"]
+
+
+def test_operator_register_prefix_yiw_paths(fake_clip: _FakeClip) -> None:
+    """"adw deletes into register a without mirroring to the clipboard."""
+    editor, keymap, ctx = _setup("alpha beta")
+    _press(keymap, ctx, '"', "a", "d", "w")
+    assert editor.buffer.get_text() == "beta"
+    assert editor.buffer.named_registers["a"] == "alpha "
+    assert fake_clip.copies == []
