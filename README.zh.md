@@ -405,6 +405,35 @@ python -m tools.release 0.3.0 --no-push # 全部做完但不推送
 `python -m tools.changelog check` 会在 CI 中校验已发布段未过期
 （`[Unreleased]` 段允许滞后，发布时由 `generate` 统一刷新）。
 
+### 双语项目 Wiki 生成
+
+`python -m tools.pack wiki` 把 `.trae` 文档、`yate/docs` 双语指南与用户手册
+发布为 `<repo>` 旁的 `<repo>.wiki` 仓库（gitee/github wiki 布局）：
+中文页自源文档重建，英文页以 `<name>.en.md` 落盘充当翻译缓存
+（`sha256` 记录在 `.translation-manifest.json`）。配合 `tools.translate`
+模块（经本机 `codebuddy-code` CLI 调用免费模型）可自动补齐英文页：
+
+```powershell
+cd d:\Programming\yate-pack-wiki   # 任意检出均可
+
+.venv\Scripts\python -m tools.pack wiki `
+  --translate-cmd ".venv\Scripts\python -m tools.translate --model hy4-preview-f" `
+  --push
+```
+
+- `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文（必须来自可信来源）；
+- 缺省（增量）：**只翻译 missing（无英文页）与 stale（中文源已变更）** 的条目，
+  fresh 页保持不动；
+- `--translate-all`：全量重译——额外把 fresh 页也送翻并覆盖现有英文页（慎用）；
+- `--push`：翻译全部成功后自动 commit 并推送 `origin`（gitee）与 `github`；
+  只要有失败页就跳过推送，不带脏状态上远端。
+
+```powershell
+.venv\Scripts\python -m tools.pack wiki --check   # 门禁：仍有 missing/stale 时退出码 1
+```
+
+安全提示：翻译代理以无人值守方式运行且可读取任意路径，只对可信文档使用。
+
 ## 许可
 
 MIT
