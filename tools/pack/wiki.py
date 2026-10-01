@@ -520,8 +520,18 @@ def run(
         digest = hashlib.sha256(zh_bytes).hexdigest()
         en_path = target / page.en_target
         en_path.parent.mkdir(parents=True, exist_ok=True)
+        en_bytes: bytes | None = None
         if page.en_source is not None:
-            en_path.write_bytes(page.en_source.read_bytes())
+            # TOCTOU: _collect_bilingual verified en_source with exists()
+            # at collection time, but the file may be deleted before this
+            # read; treat the failure as a missing page (translation path
+            # below) instead of crashing the whole run.
+            try:
+                en_bytes = page.en_source.read_bytes()
+            except OSError:
+                en_bytes = None
+        if en_bytes is not None:
+            en_path.write_bytes(en_bytes)
             manifest.pop(page.zh_target, None)
             kept += 1
             continue
