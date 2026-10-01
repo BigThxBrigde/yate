@@ -208,6 +208,8 @@ flowchart LR
 | `e3c7105` | docs(pty): 句柄锁注释如实化 + 持锁阻塞点说明 | 评审迭代 minor |
 | `ddfb18e` | fix(syntax): blocked build 分支 warning 一次 + 回归用例 | 评审迭代 minor |
 | `144931b` | docs(reviews): 五项闭环销账回填（README + 5 个 review 文档） | 收尾回填 |
+| `c27be65` | docs(plans): 本节实施结果回填 | 收尾回填 |
+| `1394ff2` | fix(term): spawn 全程持 `_handle_lock`（评审二轮问题 1，句柄发布持锁 + 深度记录器用例） | 评审二轮 |
 
 ### 7.2 门禁实测（收尾，主代理亲自执行，退出码均为 0）
 
@@ -239,3 +241,11 @@ flowchart LR
    运行时行为一致），已由 plan-executor 显式上报并经主代理复核采纳。
 5. **F2 修法位置**：按 §四备选表采纳窄捕获（manager 解析段）而非 review 案 A
    （`_worker` 全体包 except），理由同备选表。
+6. **评审二轮（TRAE-code-review，用户发起）**：5 个候选经 2 名并行校验代理
+   交叉裁定，4 个判 false positive / 既定取舍（持锁阻塞调用＝UI 线程串行无死锁、
+   F2 宽 except＝已记录取舍、降级 warning＝F3 设计目标、wiki 写盘不降级＝
+   比评审字面建议更正确）；1 个确认成立——`spawn()` 自 worker 线程发布句柄
+   未持锁，close-during-spawn 会泄漏 ConPTY 与子进程，且锁注释守卫面与事实
+   不符。修复 `1394ff2`：spawn 全程持锁（失败路径同线程 RLock 重入），
+   close/terminate 自然串行于 spawn 之后，泄漏不可能；新增
+   `test_conpty_spawn_holds_the_handle_lock`（深度记录器）钉住不变量。
