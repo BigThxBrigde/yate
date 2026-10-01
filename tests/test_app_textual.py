@@ -297,6 +297,47 @@ def test_readonly_saveas_writes_elsewhere_and_unlocks(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_readonly_saveas_unexpected_error_restores_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed :saveas re-locks the buffer, even on unexpected errors."""
+
+    async def scenario() -> None:
+        from yate.editor_core.document import Document
+
+        source = tmp_path / "source.txt"
+        source.write_text("protected", encoding="utf-8")
+        app = YateApp(target=source, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.editor.session.buffer.read_only
+            real_save = Document.save
+
+            def boom(doc: Document, path: Path | str | None = None) -> Path:
+                raise RuntimeError("boom")
+
+            monkeypatch.setattr(Document, "save", boom)
+
+            # an unexpected error propagates to the caller without taking
+            # the app down, and the finally re-locks the buffer
+            with pytest.raises(RuntimeError):
+                app.editor.run_command(f"saveas {tmp_path / 'copy.txt'}")
+            assert app.editor.session.buffer.read_only
+            assert app.is_running
+
+            # expected failures (OSError) still report "save failed" and
+            # restore the lock too
+            monkeypatch.setattr(Document, "save", real_save)
+            blocked = tmp_path / "no-such-dir" / "out.txt"
+            app.editor.run_command(f"saveas {blocked}")
+            await pilot.pause()
+            assert "save failed" in _message_text(app)
+            assert app.editor.session.buffer.read_only
+            assert not blocked.exists()
+
+    asyncio.run(scenario())
+
+
 def test_readonly_startup_flag_ignores_directory_target(tmp_path: Path) -> None:
     """``--readonly`` only applies to a file argument, never a directory."""
 
