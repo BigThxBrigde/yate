@@ -111,3 +111,22 @@
 - 子代理执行：5 个只读子代理（按 editor_view / core+term+lsp / L3+L4 / 叶包 / tests+tools 分工）。4 个经一次格式纠正后产出可用报告；**core/term/lsp 代理两次均零结构化产出**，按规则不再重试，该区域由主代理亲自评审兜底（pty_proc / buffer / document / manager / completion 实读，client.py 依赖 2026-09-24 修复记录 + 门禁佐证）。
 - 所有上表问题均经主代理实读复核到行级；被排除指控见第四节。
 - 局限：`client.py` / `editor_lsp` 协议细节未做逐行二轮深读（近期已有专项修复与守卫）；`tools/` 脚本未逐行评审（有 test_release_tool / test_smoke_tool / test_changelog_tool 守卫）。
+
+---
+
+## 八、整改回填（2026-10-01，分支 `fix/reviews-open-issues-fixes`，Gitee Issue IKJFMO）
+
+经逐条核实（仍存在 / 已被后续重构修复 / 处置仍有效）后闭环，方案与核实证据见
+[reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md) §二：
+
+| # | 原问题 | 核实结论（2026-10-01） | 处置 |
+|---|---|---|---|
+| 1 | ConPTY 句柄跨线程关闭竞态 | 仍存在（`write`/`resize`/`close` 判空与调用无锁） | ✅ 已修 `55e1055`：单一 `_handle_lock`（RLock）+ 持锁快照；评审迭代修正测试 fake 的 pyright 注解与锁注释如实性 |
+| 2 | 补全 worker 残余异常静默 | 仍存在（解析段在 try 外） | ✅ 已修 `9c8bd3a`：manager 侧窄捕获解析段，`log.exception` 后返回 `[]` |
+| 3 | 高亮降级零日志 | 部分改善（仅有 debug 级，正常会话无感知） | ✅ 已修 `aece343`：按语言首次 `log.warning`、成功加载后复位；评审迭代补 blocked build 路径告警 |
+| 4 | 扩展 setup 半注册 | 仍存在 | ✅ 契约文档化 `962666c`（最低成本案：loader docstring + 双语手册；回滚实现仍为长期项） |
+| 5 | `editor.py` 组装过载 | 已被 editor-split 重构修复（组装拆为 `_build_models` / `_build_widgets` / `_build_pane_stack` 模块级工厂，1323→822 行） | ✅ 销项（改码不再需要） |
+| 6 | 测试失败路径断言偏弱 | 已被后续轮次修复（`:wq` 失败有 is_running / `doc.modified` / 文本保留 / `"save failed"` 消息级断言；cut/copy 有选区与无选区分支覆盖） | ✅ 销项（改码不再需要） |
+
+门禁实测（worktree 沙箱）：pyright 0 诊断、`pytest tests/ -q` 全绿、架构测试 22 用例通过、
+分支覆盖率 90.78%（≥75）、冒烟 89/89 场景通过（2026-10-01 评审轮实测）。

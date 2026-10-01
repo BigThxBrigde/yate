@@ -29,7 +29,7 @@ cli `--diag` 两连调、规则文本与 `UI_FROZEN_FILES` 白名单同步。
 
 | # | 位置 | 内容 | 处置 |
 |---|---|---|---|
-| 1 | `yate/document_flows.py::_submit_save_as` | 写入前临时解除 `buf.read_only`，仅在 `except (OSError, UnicodeError)` 分支恢复为 True；若后续扩大异常类型，标志可能残留为解锁态。建议 `finally` + 成功标志兜底恢复，或在 docstring 记录"仅 OSError/UnicodeError 触发回滚"契约。机器人自注：该逻辑系基线逐字迁移、非本 PR 引入 | 🔧 登记待办（Low / 可维护性） |
+| 1 | `yate/document_flows.py::_submit_save_as` | 写入前临时解除 `buf.read_only`，仅在 `except (OSError, UnicodeError)` 分支恢复为 True；若后续扩大异常类型，标志可能残留为解锁态。建议 `finally` + 成功标志兜底恢复，或在 docstring 记录"仅 OSError/UnicodeError 触发回滚"契约。机器人自注：该逻辑系基线逐字迁移、非本 PR 引入 | ✅ 已修（2026-10-01，`17e2804`，`saved` 标志 + `finally` 兜底恢复，docstring 成文契约；见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md) F5） |
 
 主代理核对：机器人引用的代码与
 [document_flows.py](../../yate/document_flows.py#L324-L339) 逐行一致
