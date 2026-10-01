@@ -240,3 +240,35 @@ def test_load_builtin_warns_once_per_language_until_success(
         ]
     finally:
         logger.removeHandler(capture)
+
+
+def test_resolve_blocked_build_warns_once_per_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The blocked tree-sitter branch degrades loudly once, then silently."""
+    monkeypatch.setattr(languages, "_BLOCKED_TS", "0.26.0")
+    monkeypatch.setattr(languages, "_DEGRADED_WARNED", set[str]())
+    monkeypatch.setattr(languages, "_FAILED", set[str]())
+    monkeypatch.setattr(languages, "_LANGS", {})
+    monkeypatch.setattr(languages, "_EXT_TO_LANG", {})
+    capture = _LogCapture()
+    logger = logging.getLogger("yate.editor_syntax.ts_backend.languages")
+    logger.addHandler(capture)
+    try:
+        # First resolution of a language under a blocked build warns once ...
+        assert languages.resolve("py") is None
+        assert capture.messages == [
+            "tree-sitter python is a blocked build (falls back to regex)"
+        ]
+
+        # ... a repeat is short-circuited by _FAILED and stays silent ...
+        assert languages.resolve("py") is None
+        assert len(capture.messages) == 1
+
+        # ... and so is a third attempt with _FAILED cleared: the per-language
+        # dedup set kept by the warning helper absorbs it.
+        monkeypatch.setattr(languages, "_FAILED", set[str]())
+        assert languages.resolve("py") is None
+        assert len(capture.messages) == 1
+    finally:
+        logger.removeHandler(capture)
