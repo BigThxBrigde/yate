@@ -188,3 +188,54 @@ flowchart LR
 .venv\Scripts\python.exe -m pytest tests/test_pty_proc.py tests/test_lsp.py tests/test_syntax_engine.py tests/test_vsc_keymap.py tests/test_pack_wiki.py -q
 .venv\Scripts\python.exe -m pytest tests/ -q
 ```
+
+## 七、实施结果回填（2026-10-01 收尾）
+
+### 7.1 提交清单（分支 `fix/reviews-open-issues-fixes`，worktree `../yate-reviews-open-issues-fixes`）
+
+| 提交 | 内容 | 对应项 |
+|---|---|---|
+| `c52ebe0` | docs(plans): 本方案文档 | 流程 |
+| `55e1055` | fix(term): ConPTY 句柄访问统一单锁（`_handle_lock` RLock + 持锁快照） | F1 |
+| `9c8bd3a` | fix(lsp): 补全解析异常守卫（`log.exception` + 返回 `[]`） | F2 |
+| `aece343` | fix(syntax): tree-sitter 降级 warning 每语言一次（`_warn_degraded_once`） | F3 |
+| `17e2804` | fix(flows): save_as 任意失败恢复 read_only（saved 标志 + finally） | F5 |
+| `3c1cee2` | test(keymaps): vsc 重复 raw key 断言点名（Counter 形态） | F6 |
+| `714183b` | fix(tools): en 源收集后删除不崩溃（OSError 降级翻译路径）+ 回归用例 | F7 |
+| `68ad332` | refactor(view): HighlightProbe doc 类型收紧 | F8 |
+| `962666c` | docs(extensions): 半注册契约（模块 docstring + 双语手册同步） | F4 |
+| `f490e28` | test(pty): ConPTY fake 注解化（pyright blocker 清零） | 评审迭代 blocker |
+| `e3c7105` | docs(pty): 句柄锁注释如实化 + 持锁阻塞点说明 | 评审迭代 minor |
+| `ddfb18e` | fix(syntax): blocked build 分支 warning 一次 + 回归用例 | 评审迭代 minor |
+| `144931b` | docs(reviews): 五项闭环销账回填（README + 5 个 review 文档） | 收尾回填 |
+
+### 7.2 门禁实测（收尾，主代理亲自执行，退出码均为 0）
+
+| 门禁 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations |
+| `pytest tests/ -q` | 全绿（exit 0） |
+| `pytest tests/test_architecture.py -q` | 22 passed |
+| `pytest tests --cov=yate --cov-branch --cov-fail-under=75` | 覆盖率 **90.78%**（门槛 75） |
+| `tools.smoke_test run` | **89/89** 场景、932/932 检查通过 |
+
+### 7.3 偏离计划记录
+
+1. **流程纠正（执行前半段）**：任务最初在主仓直接开改，未先建 worktree；
+   经用户指出后按 task-orchestration 补救——stash 任务改动 → 重建
+   worktree `../yate-reviews-open-issues-fixes`（分支 `fix/reviews-open-issues-fixes`）
+   → 沙箱 venv 重建并自证（`yate.__file__` 指向 worktree）→ 分步单独提交。
+   F1（`55e1055`）实施于流程纠正之前，由主代理亲自完成，其余经 plan-executor 剧本派发。
+2. **F8 类型形态**：评审原文建议 `Document`，实测 probe 可在首遍前被调用，
+   pyright strict 零诊断的精确形态为 `Document | None`（`68ad332`），依据见
+   §四备选表同行。
+3. **F3 blocked 分支（评审迭代补强）**：初版仅覆盖 builtin 加载失败路径；
+   code-review 评审指出 `_BLOCKED_TS` 分支仍静默，补 `ddfb18e`
+   （`_warn_degraded_once` + `test_resolve_blocked_build_warns_once_per_language`）。
+4. **评审迭代 blocker（test fake 注解）**：F1 新增用例的 5 处 lambda 赋值
+   `impl._kernel32[...]`（`dict[str, Any]`）致 pyright 21 errors，`f490e28`
+   改为带完整注解的局部函数；`_COORD` 为 Windows-only 私有名，POSIX leg 上
+   模块级导入会 ImportError，改用形状镜像类 `_FakeCoord`（`c_short` 同构，
+   运行时行为一致），已由 plan-executor 显式上报并经主代理复核采纳。
+5. **F2 修法位置**：按 §四备选表采纳窄捕获（manager 解析段）而非 review 案 A
+   （`_worker` 全体包 except），理由同备选表。
