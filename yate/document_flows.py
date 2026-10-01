@@ -318,6 +318,13 @@ class DocumentFlows:
         self.prompt_save_as()
 
     def _submit_save_as(self, text: str) -> None:
+        """Persist the buffer under *text* (the ``:saveas`` submit path).
+
+        A locked buffer is lifted for the write (vim ``:sav`` semantics) and
+        the lift survives a successful save; any failure -- caught
+        (``OSError`` / ``UnicodeError``) or not -- restores the lock in the
+        ``finally`` below, so the buffer never stays silently writable.
+        """
         text = text.strip()
         if not text:
             self._message("save cancelled", "info")
@@ -327,18 +334,21 @@ class DocumentFlows:
         if locked:
             # ``:saveas`` is deliberate persistence: lift the flag so the
             # L0 ``Document.save`` guard lets the write through (vim ``:sav``
-            # clears 'readonly' too).  Restored when the write fails.
+            # clears 'readonly' too).  Restored on any failure (finally).
             buf.read_only = False
         path = Path(text)
+        saved = False
         try:
             self.session.doc.save(path)
             self.workspace.set_root(path.parent)
             self.explorer_tree.refresh_tree()
             self._message(f"saved {path}", "ok")
+            saved = True
         except (OSError, UnicodeError) as exc:
-            if locked:
-                buf.read_only = True
             self._message(f"save failed: {exc}", "error")
+        finally:
+            if locked and not saved:
+                buf.read_only = True
 
     # ============================================================== prompts
 

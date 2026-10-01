@@ -1,6 +1,6 @@
 # Plan SP2 — 架构守卫 + 规则与账目文档回填
 
-> 状态：⏳ **待实施** · 前置：[Plan SP1](theme-layer-refactor-decouple-plan-b.md) ✅ · 后置：[Plan SP3](theme-layer-refactor-gate-commit-plan-d.md)
+> 状态：✅ **已完成（2026-09-26 实施并回填；2026-10-01 状态头照实补记）** · 前置：[Plan SP1](theme-layer-refactor-decouple-plan-b.md) ✅ · 后置：[Plan SP3](theme-layer-refactor-gate-commit-plan-d.md)
 > 工作量：M · 步骤：S2.1 → S2.2 → S2.3 串行；S2.4 / S2.5 / S2.6 纯文档互不依赖，可并行
 > 决策依据（注入回调 vs 下沉）：[README §2](overview.md#2-方案比选与决策)。
 

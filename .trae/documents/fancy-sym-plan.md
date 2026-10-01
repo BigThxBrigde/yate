@@ -544,7 +544,8 @@ Gitee PR #33「PR 观察者」审查结论：无阻断项，1 项改进建议（
 
 1. **精灵注册开放给扩展** → 方案已落盘
    （`.trae/documents/screensaver-extension-api-plan.md`，提交 `1bd6975`），
-   待实施；
+   已实施（2026-10-01 本轮落地，见 `reviews-plans-full-sweep-plan.md` W2；
+   commit `2ac19ed`）；
 2. **`_paint` 增量重绘** → 登记不动（~10Hz、2-4 走者规模可接受，
    PR #33 bot 同判断）；
 3. **roster 数据外置（TOML/JSON）** → 登记维持现状（每角色一文件 +

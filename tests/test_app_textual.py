@@ -26,6 +26,7 @@ from textual.widgets.tree import TreeNode
 os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
+from yate.editor_syntax.tokens import Token
 from yate.editor_view.editor import EditorView
 from yate.editor_view.icons import LOCK
 from yate.editor_view.manual import MarkdownDocScreen
@@ -297,6 +298,47 @@ def test_readonly_saveas_writes_elsewhere_and_unlocks(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_readonly_saveas_unexpected_error_restores_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed :saveas re-locks the buffer, even on unexpected errors."""
+
+    async def scenario() -> None:
+        from yate.editor_core.document import Document
+
+        source = tmp_path / "source.txt"
+        source.write_text("protected", encoding="utf-8")
+        app = YateApp(target=source, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.editor.session.buffer.read_only
+            real_save = Document.save
+
+            def boom(doc: Document, path: Path | str | None = None) -> Path:
+                raise RuntimeError("boom")
+
+            monkeypatch.setattr(Document, "save", boom)
+
+            # an unexpected error propagates to the caller without taking
+            # the app down, and the finally re-locks the buffer
+            with pytest.raises(RuntimeError):
+                app.editor.run_command(f"saveas {tmp_path / 'copy.txt'}")
+            assert app.editor.session.buffer.read_only
+            assert app.is_running
+
+            # expected failures (OSError) still report "save failed" and
+            # restore the lock too
+            monkeypatch.setattr(Document, "save", real_save)
+            blocked = tmp_path / "no-such-dir" / "out.txt"
+            app.editor.run_command(f"saveas {blocked}")
+            await pilot.pause()
+            assert "save failed" in _message_text(app)
+            assert app.editor.session.buffer.read_only
+            assert not blocked.exists()
+
+    asyncio.run(scenario())
+
+
 def test_readonly_startup_flag_ignores_directory_target(tmp_path: Path) -> None:
     """``--readonly`` only applies to a file argument, never a directory."""
 
@@ -423,11 +465,15 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
             assert mocha.syn_keyword.lower() in colors_at(0)
 
             # An edit must NOT drop the colors while the debounced
-            # tokenize pass is pending: the stale tokens keep coloring
-            # the view right after the keypress (no uncolored frame).
+            # tokenize pass is pending: the resynced tokens keep the row
+            # syntax-colored right after the keypress (no uncolored
+            # frame). The default vsc keymap inserts "x", so "def" merges
+            # into the identifier "xdef" and legitimately loses its
+            # keyword token; the function color of "foo" proves the row
+            # is still colored, not plain.
             await pilot.press("x")
             assert editor.tokens_for(0)
-            assert mocha.syn_keyword.lower() in colors_at(0)
+            assert mocha.syn_function.lower() in colors_at(0)
 
             # Exactly one debounced pass is pending for the latest
             # version, and repeated renders for the same version reuse
@@ -497,6 +543,305 @@ def test_stale_highlight_not_reused_on_filetype_or_document_switch(
                 lambda: editor.highlight_probe().doc is editor.doc
                 and editor.highlight_probe().version
                 == app.editor.session.buffer.content_version,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------- row-level token resync
+
+
+def test_line_resync_updates_keyword_boundary_on_edit(tmp_path: Path) -> None:
+    """Editing inside a keyword resyncs token boundaries in the same frame."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            # "def" -> "deXf": the stale keyword token (0, 3) would keep
+            # coloring the shifted text for one debounce window; the row
+            # resync must drop it immediately and move the function token
+            # past the inserted character.
+            buf.cursor = (0, 2)
+            buf.insert_text("X")
+            toks = editor.tokens_for(0)
+            assert toks
+            assert Token(0, 3, "keyword") not in toks
+            assert Token(5, 8, "function") in toks
+            # the debounced worker still converges to the edited version
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_updates_string_boundary_on_edit(tmp_path: Path) -> None:
+    """Typing before a closing quote extends the string token immediately."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text('msg = "hello"\n', encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            # "hello" -> "helloX": the stale string token (6, 13) would
+            # leave the moved closing quote uncolored; the resync must
+            # cover the whole literal right away.
+            buf.cursor = (0, 12)
+            buf.insert_text("X")
+            toks = editor.tokens_for(0)
+            assert toks
+            assert Token(6, 13, "string") not in toks
+            assert Token(6, 14, "string") in toks
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_updates_number_boundary_on_edit(tmp_path: Path) -> None:
+    """Extending a number resyncs the number token in the same frame."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            # 42 -> 423: the stale number token (11, 13) would leave the
+            # typed digit in default foreground until the worker lands.
+            buf.cursor = (0, 13)
+            buf.insert_text("3")
+            toks = editor.tokens_for(0)
+            assert toks
+            assert Token(11, 13, "number") not in toks
+            assert Token(11, 14, "number") in toks
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_updates_decorator_boundary_on_edit(
+    tmp_path: Path,
+) -> None:
+    """Extending a decorator resyncs the decorator token immediately."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("@property\nx = 1\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            # @property -> @propertyX: the stale decorator token (0, 9)
+            # would leave the typed character uncolored for one window.
+            buf.cursor = (0, 9)
+            buf.insert_text("X")
+            toks = editor.tokens_for(0)
+            assert toks
+            assert Token(0, 9, "decorator") not in toks
+            assert Token(0, 10, "decorator") in toks
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_updates_block_comment_boundary_on_edit(
+    tmp_path: Path,
+) -> None:
+    """Typing inside a C block comment extends the comment token at once."""
+
+    async def scenario() -> None:
+        target = tmp_path / "code.c"
+        target.write_text("/* comment */\nint main(void) {}\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            # /* comment */ -> /* comment X*/: the stale comment token
+            # (0, 13) would drop the shifted terminator out of the span.
+            buf.cursor = (0, 12)
+            buf.insert_text("X")
+            toks = editor.tokens_for(0)
+            assert toks
+            assert Token(0, 13, "comment") not in toks
+            assert Token(0, 14, "comment") in toks
+            # the line below the comment is untouched and stays colored
+            assert editor.tokens_for(1)
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_reuses_snapshot_on_cursor_movement(
+    tmp_path: Path,
+) -> None:
+    """Cursor movement neither rebuilds nor reschedules the token cache."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("def foo():\n    return 42\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            probe = editor.highlight_probe()
+            tokens = probe.tokens
+            assert tokens is not None
+            version = probe.version
+            snapshot = editor._hl_line_snapshot
+            assert snapshot is not None
+            # moving the cursor never bumps content_version: the cached
+            # tokens and the row snapshot are reused exactly as stored
+            # (arrow keys only -- letters would type in the vsc keymap)
+            await pilot.press("down", "right")
+            probe = editor.highlight_probe()
+            assert probe.tokens is tokens
+            assert probe.version == version
+            assert probe.scheduled_key is None
+            assert probe.timer is None
+            assert editor.tokens_for(0) is tokens[0]
+            assert editor._hl_line_snapshot == tuple(
+                app.editor.session.buffer.lines
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_keeps_construct_below_inserted_line(
+    tmp_path: Path,
+) -> None:
+    """Rows below an inserted line reuse their token objects unchanged."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text('x = 1\nmsg = """\nhello\nworld\n"""\n', encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            hello_row = editor.tokens_for(2)
+            world_row = editor.tokens_for(3)
+            # inserting a line shifts the triple-string body down one row;
+            # the shift-aware snapshot mapping must reuse those rows as-is
+            # (object identity) instead of re-tokenizing the whole tail
+            buf.cursor = (0, 5)
+            buf.insert_text("\n# spacer")
+            assert editor.tokens_for(1) == [Token(0, 8, "comment")]
+            assert editor.tokens_for(3) is hello_row
+            assert editor.tokens_for(4) is world_row
+            assert editor.tokens_for(3) == [Token(0, 5, "string")]
+            assert editor._hl_line_snapshot == tuple(buf.lines)
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_line_resync_repaints_construct_opened_by_inserted_line(
+    tmp_path: Path,
+) -> None:
+    """An inserted triple-quote opener repaints the rows below it."""
+
+    async def scenario() -> None:
+        target = tmp_path / "script.py"
+        target.write_text("x = 1\ny = 2\nz = 3\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            assert await wait_until(
+                pilot, lambda: editor.highlight_probe().tokens is not None,
+                timeout=5.0,
+            )
+            buf = app.editor.session.buffer
+            stale_row = editor.tokens_for(1)
+            # inserting an opener shifts "y = 2" / "z = 3" into a triple
+            # string; the state guard must forbid reusing their stale code
+            # tokens and repaint both rows as string immediately
+            buf.cursor = (0, 5)
+            buf.insert_text('\ns = """')
+            assert editor.tokens_for(2) is not stale_row
+            assert editor.tokens_for(2) == [Token(0, 5, "string")]
+            assert editor.tokens_for(3) == [Token(0, 5, "string")]
+            assert await wait_until(
+                pilot,
+                lambda: editor.highlight_probe().version
+                == buf.content_version
+                and editor.highlight_probe().scheduled_key is None,
                 timeout=5.0,
             )
 
@@ -4618,15 +4963,14 @@ def test_discarded_highlight_pass_reschedules_immediately(
             import threading
 
             import yate.editor_view.editor as editor_module
-            from yate.editor_syntax.tokens import Token
 
-            real_tokenize = editor_module.tokenize_document
+            real_tokenize = editor_module._tokenize_with_states
             started = threading.Event()
             gate = threading.Event()
 
             def slow_tokenize(
                 lines: list[str], filetype: str
-            ) -> list[list[Token]]:
+            ) -> tuple[list[list[Token]], tuple[int, ...]]:
                 # hold the in-flight pass until the test has bumped the
                 # buffer version, making the pending result stale
                 started.set()
@@ -4634,7 +4978,7 @@ def test_discarded_highlight_pass_reschedules_immediately(
                 return real_tokenize(lines, filetype)
 
             monkeypatch.setattr(
-                editor_module, "tokenize_document", slow_tokenize
+                editor_module, "_tokenize_with_states", slow_tokenize
             )
             delays: list[float] = []
             real_schedule = editor._schedule_highlight

@@ -11,7 +11,7 @@
 
 ### AI 发现逐条登记与处置
 
-- [ ] **改进项：重复键检测断言的诊断信息不足（可维护性，low）** —
+- [x] **改进项：重复键检测断言的诊断信息不足（可维护性，low）** —
   [`tests/test_vsc_keymap.py`](../../tests/test_vsc_keymap.py)
   `test_vsc_has_no_duplicate_raw_keys` 使用
   `assert len(keys) == len(set(keys))`，失败时 pytest 仅显示数量不匹配，
@@ -30,5 +30,8 @@
       assert not dupes, f"duplicate raw keys found: {dupes}"
   ```
 
-  *🔧 登记待办（2026-09-29）——Low/可维护性，不阻断合并；建议合并前顺手采纳
-  （改动仅限该测试文件的断言写法，测试行为与通过状态不变）。*
+  *✅ 已修（2026-10-01，`3c1cee2`）——按评审给定 Counter 形态采纳：
+  `test_vsc_has_no_duplicate_raw_keys` 改为 `Counter` 统计 + `dupes` 列表 +
+  `assert not dupes, f"duplicate raw keys found: {dupes}"`，失败输出直接点名重复键；
+  测试行为与通过状态不变。（整改来源：
+  [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)）*

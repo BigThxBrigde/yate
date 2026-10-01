@@ -442,15 +442,23 @@ class LspManager:
             raw = await future
         except (LspError, OSError, asyncio.CancelledError):
             return []
-        items, item_defaults = self._unwrap_completion(raw)
-        completions: list[Completion] = []
-        for item in items:
-            parsed = self._parse_completion_item(
-                item, item_defaults, row, col, prefix_start_col
-            )
-            if parsed is not None:
-                completions.append(parsed)
-        completions.sort(key=lambda c: (c.sort_text or c.label.lower(), c.label))
+        # A malformed server response must not kill the completion worker:
+        # it runs with exit_on_error=False, so an exception here would be
+        # swallowed silently.  Degrade to "no completions" instead, like a
+        # failed request does above.
+        try:
+            items, item_defaults = self._unwrap_completion(raw)
+            completions: list[Completion] = []
+            for item in items:
+                parsed = self._parse_completion_item(
+                    item, item_defaults, row, col, prefix_start_col
+                )
+                if parsed is not None:
+                    completions.append(parsed)
+            completions.sort(key=lambda c: (c.sort_text or c.label.lower(), c.label))
+        except Exception:  # noqa: BLE001 - rationale in the comment above
+            log.exception("failed to parse completion response for %s", uri)
+            return []
         return completions
 
     @staticmethod

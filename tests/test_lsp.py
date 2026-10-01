@@ -782,6 +782,32 @@ def test_bare_array_completion_with_prefix_fallback_range(tmp_path: Path) -> Non
     asyncio.run(scenario())
 
 
+def test_completion_parse_error_returns_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        fakes: list[FakeClient] = []
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            fake = FakeClient(config, path, completion=[{"label": "alpha"}])
+            fakes.append(fake)
+            return fake
+
+        def boom(raw: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+            raise ValueError(f"malformed completion payload: {raw!r}")
+
+        monkeypatch.setattr(LspManager, "_unwrap_completion", staticmethod(boom))
+        mgr = LspManager(client_factory=cast(Any, factory))
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path), "ab\n")
+        await mgr.on_document_shown(doc)
+        # A malformed response must degrade to "no completions", not raise.
+        assert await mgr.request_completion(doc, 0, 2, prefix_start_col=0) == []
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
 def test_diagnostics_delivery_and_queries(session: ManagerSession) -> None:
     async def scenario() -> None:
         mgr = session.mgr
