@@ -128,6 +128,13 @@ Both receive the same `ExtensionAPI` instance. Any exception inside an
 extension never crashes the editor: errors appear in the message bar as
 `extension <name>: <exception>`.
 
+One caveat: if `setup` raises partway through, the actions and commands
+registered before the failure are **not** rolled back -- they stay
+registered for the rest of the session. Perform every validation that can
+fail (checking for an executable, reading a config file, ...) before the
+first registration call, so a failed setup leaves nothing half-registered
+behind.
+
 ---
 
 ## 4. API reference

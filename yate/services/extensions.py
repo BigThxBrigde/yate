@@ -3,7 +3,10 @@
 An extension is any ``.py`` file exposing a ``setup(api)`` function (and an
 optional ``teardown(api)``).  ``setup`` receives an :class:`ExtensionAPI`
 through which it can register actions, key bindings, ``:`` commands, run
-shell commands and manipulate the active document.
+shell commands and manipulate the active document.  If ``setup`` raises
+partway through, anything registered before the failure is not guaranteed
+to be reclaimed -- perform every validation that can fail ahead of the
+first registration call.
 
 Example bundled extension ``yate/extensions/uppercase.py``::
 
