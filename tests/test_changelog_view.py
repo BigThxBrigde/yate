@@ -92,6 +92,8 @@ class _Missing:
 
 
 class _MissingFiles:
+    """Resource-container stand-in whose every entry is missing."""
+
     def joinpath(self, *_parts: str) -> Any:
         return _Missing()
 
@@ -200,11 +202,15 @@ def test_changelog_command_registered() -> None:
     forwarded: list[str] = []
 
     class StubOverlays:
+        """Overlay-flow stand-in recording each show_changelog call."""
+
         @staticmethod
         def show_changelog(lang: str = "en") -> None:
             forwarded.append(lang)
 
     class StubEditor:
+        """Editor stand-in exposing only the overlays collaborator."""
+
         overlays = StubOverlays()
 
     register_commands(registry, cast(Any, StubEditor()))

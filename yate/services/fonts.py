@@ -57,6 +57,8 @@ def bundled_font_files() -> list[Path]:
 
 @dataclass
 class FontStatus:
+    """Result of one Nerd Font detection probe (see :func:`font_status`)."""
+
     has_nerd_font: bool
     installed_fonts: list[str] = field(default_factory=list[str])
     terminal: str = "unknown"
@@ -160,6 +162,8 @@ def font_status() -> FontStatus:
 
 @dataclass
 class InstallResult:
+    """Outcome of one :func:`install_bundled_fonts` run."""
+
     ok: bool
     installed: list[str] = field(default_factory=list[str])
     skipped: list[str] = field(default_factory=list[str])

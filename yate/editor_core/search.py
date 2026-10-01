@@ -13,6 +13,8 @@ log = tracing.get_logger(__name__)
 
 @dataclass
 class Match:
+    """One search hit: row plus start/end columns on that line."""
+
     row: int
     start: int
     end: int

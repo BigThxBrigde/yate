@@ -40,6 +40,8 @@ from yate.keymaps.base import (
 
 
 class VimMode(str, Enum):
+    """The modal states the vim keymap dispatches on."""
+
     NORMAL = "normal"
     INSERT = "insert"
     VISUAL = "visual"
@@ -76,6 +78,14 @@ HLP = "Vim: help"
 
 
 class VimKeymap(Keymap):
+    """Mode-aware vim keymap provider dispatching on :class:`VimMode`.
+
+    Pending chord state (:attr:`mode`, :attr:`op`, :attr:`prefix`,
+    :attr:`obj_scope`, :attr:`count_str`) is instance-local, so every
+    keypress extends or resolves exactly one in-flight chord and no
+    half-typed combination ever leaks between keymap instances.
+    """
+
     name = "vim"
     label = "Vim (modal)"
 

@@ -10,6 +10,8 @@ from pathlib import Path
 
 @dataclass
 class ShellResult:
+    """Outcome of one :func:`run_shell` call: command, exit code, output, cwd."""
+
     command: str
     returncode: int
     output: str

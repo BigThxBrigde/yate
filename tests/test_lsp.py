@@ -143,6 +143,8 @@ def test_uri_roundtrip() -> None:
 
 
 class FakeProc:
+    """Fake process handle recording terminate() calls, never a real child."""
+
     def __init__(self) -> None:
         self.returncode: int | None = None
         self.terminated = False
@@ -486,6 +488,8 @@ def test_stop_during_starting_skips_shutdown_and_terminates() -> None:
         port = list(sockets)[0].getsockname()[1]
 
         class SlowProc:
+            """Process double tracking terminate/wait for the quit-during-start test."""
+
             def __init__(self) -> None:
                 self.returncode: int | None = None
                 self.terminated = False
@@ -838,6 +842,8 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
 
     async def scenario() -> None:
         class SlowStartClient(FakeClient):
+            """FakeClient double whose start() blocks in STARTING until stop()."""
+
             def __init__(self, *a: Any, **kw: Any) -> None:
                 super().__init__(*a, **kw)
                 self.state = ServerState.STARTING
@@ -888,6 +894,8 @@ def test_register_replace_race_keeps_new_starting_task_tracked(
 
     async def scenario() -> None:
         class SlowStartClient(FakeClient):
+            """FakeClient double parked in STARTING until finish() releases it."""
+
             def __init__(self, *a: Any, **kw: Any) -> None:
                 super().__init__(*a, **kw)
                 self.state = ServerState.STARTING
