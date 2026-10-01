@@ -1,10 +1,16 @@
 """Screensaver character registry: name -> sprite frames + palette.
 
-All 27 characters are original approximations drawn for yate (homage, not
-copies of game assets) -- see the fancy_sym plan for the attribution.
-Every character carries >= 2 animation frames with uniform geometry;
-invariants are re-checked at import by :func:`_validate` so a typo in a
-bitmap module fails fast instead of rendering garbage.
+The 27 built-in characters are original approximations drawn for yate
+(homage, not copies of game assets) -- see the fancy_sym plan for the
+attribution.  Every character carries >= 2 animation frames with uniform
+geometry; invariants are re-checked at import by :func:`_validate` so a
+typo in a bitmap module fails fast instead of rendering garbage.
+
+Extensions add characters at runtime via :func:`register_character` (the
+``api.sprites`` bridge in :mod:`yate.services.extensions` is a thin
+facade over it) and remove their own with :func:`unregister_character`.
+Runtime registrations go through the same :func:`_validate_one` rules as
+the import-time roster; built-in names can never be replaced or removed.
 """
 
 from __future__ import annotations
@@ -112,6 +118,69 @@ def get_character(name: str) -> Sprite:
     return CHARACTERS[name]
 
 
+#: Names added at runtime through :func:`register_character` (the built-in
+#: roster is import-time data) -- the only ones :func:`unregister_character`
+#: may remove.  yate runs a single registry per process with no concurrent
+#: writers, so a plain set needs no locking.
+_EXTENSION_NAMES: set[str] = set()
+
+
+def register_character(
+    name: str, frames: Sequence[Frame], palette: Palette
+) -> None:
+    """Register a custom screensaver character under *name*.
+
+    *frames* is the animation: a sequence of frames, each frame a tuple
+    of equal-length string rows (one character per pixel, ``.`` =
+    transparent), and *palette* maps every other key character to a
+    ``"#rrggbb"`` color -- the same format the built-in roster modules
+    use.  *name* must be a non-empty string.
+
+    Validation matches the import-time invariants: at least 2 animation
+    frames, uniform frame geometry and full palette coverage.  The
+    frames and palette are copied, so later mutation of the caller's
+    containers cannot change a validated character behind the registry's
+    back.
+
+    Raises ``ValueError`` for an empty name, a duplicate registration
+    (built-in names included -- replacing a built-in is never allowed)
+    or any validation failure.  Extension load errors surface the
+    message as ``extension <name>: ...``.
+    """
+    if not name:
+        raise ValueError("character name must be a non-empty string")
+    if name in CHARACTERS:
+        raise ValueError(f"character already registered: {name}")
+    # Freeze the caller's containers two levels deep: frames become tuples
+    # of tuples (rows are immutable strings), so later mutation of any list
+    # the caller passed cannot change the registered sprite.
+    sprite = Sprite(
+        frames=tuple(tuple(frame) for frame in frames),
+        palette=dict(palette),
+    )
+    _validate_one(name, sprite)
+    CHARACTERS[name] = sprite
+    _EXTENSION_NAMES.add(name)
+
+
+def unregister_character(name: str) -> None:
+    """Remove the extension-registered character *name*.
+
+    Only runtime registrations can be removed; built-in roster names are
+    import-time data, and refusing to delete them keeps the built-in
+    playlist observable from yaterc.  Raises ``KeyError`` for a name that
+    is not registered at all and ``ValueError`` when *name* is a built-in
+    character.  Removing a name makes it registerable again, which is how
+    an extension expresses an explicit replacement of its own character.
+    """
+    if name not in CHARACTERS:
+        raise KeyError(f"unknown screensaver character: {name}")
+    if name not in _EXTENSION_NAMES:
+        raise ValueError(f"cannot unregister built-in character: {name}")
+    del CHARACTERS[name]
+    _EXTENSION_NAMES.discard(name)
+
+
 #: Rejection-sampling budget for :func:`shuffle_order` (PR #33 review).
 #: The pigeonhole guard only proves a valid order *exists*; whether
 #: random shuffles actually hit one depends on the multiset.  With a
@@ -166,26 +235,37 @@ def shuffle_order(
     return list(names)
 
 
+def _validate_one(name: str, sprite: Sprite) -> None:
+    """Check one sprite's invariants, raising ``ValueError`` on violation.
+
+    The rules are shared by the import-time roster sweep (:func:`_validate`)
+    and runtime registration (:func:`register_character`): at least 2
+    animation frames, uniform frame geometry (every frame the same width
+    and height) and a palette entry for every non-transparent pixel key.
+    """
+    if len(sprite.frames) < 2:
+        raise ValueError(f"{name}: needs at least 2 animation frames")
+    widths = {len(row) for frame in sprite.frames for row in frame}
+    heights = {len(frame) for frame in sprite.frames}
+    if len(widths) != 1 or len(heights) != 1:
+        raise ValueError(
+            f"{name}: ragged frames (widths={sorted(widths)}, "
+            f"heights={sorted(heights)})"
+        )
+    keys = set(sprite.palette)
+    for frame in sprite.frames:
+        for row in frame:
+            unknown = set(row) - keys - {"."}
+            if unknown:
+                raise ValueError(
+                    f"{name}: unknown palette keys {sorted(unknown)}"
+                )
+
+
 def _validate() -> None:
     """Fail fast on malformed bitmap data at import time."""
     for name, sprite in CHARACTERS.items():
-        if len(sprite.frames) < 2:
-            raise ValueError(f"{name}: needs at least 2 animation frames")
-        widths = {len(row) for frame in sprite.frames for row in frame}
-        heights = {len(frame) for frame in sprite.frames}
-        if len(widths) != 1 or len(heights) != 1:
-            raise ValueError(
-                f"{name}: ragged frames (widths={sorted(widths)}, "
-                f"heights={sorted(heights)})"
-            )
-        keys = set(sprite.palette)
-        for frame in sprite.frames:
-            for row in frame:
-                unknown = set(row) - keys - {"."}
-                if unknown:
-                    raise ValueError(
-                        f"{name}: unknown palette keys {sorted(unknown)}"
-                    )
+        _validate_one(name, sprite)
 
 
 _validate()

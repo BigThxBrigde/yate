@@ -3,7 +3,8 @@
 - 分支：`enh/ui-refine`（worktree：`../yate-ui-refine-wt/`，基于 `master@479f192`）
 - Issue：gitee `jermaine/yate#IKINF3`「ENH - 美观优化」
 - 日期：2026-09-27
-- 状态：已确认 3 项视觉决策（见 §2），待实施
+- 状态：✅ 已实施（2026-09-27 分支 `enh/ui-refine` 交付，评审与修复记录见
+  [2026-09-27-ui-refine.md](../reviews/2026-09-27-ui-refine.md)；2026-10-01 状态头照实回填）
 
 ## 1. 需求与目标
 

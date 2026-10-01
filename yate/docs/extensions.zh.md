@@ -112,6 +112,11 @@ extensions = [
 两个函数都接收同一个 `ExtensionAPI` 实例。扩展中的任何异常都不会导致
 编辑器崩溃：错误以 `extension <名字>: <异常>` 的形式显示在消息栏。
 
+需要注意：如果 `setup` 执行到一半抛出异常，抛出前已经注册的动作与命令
+**不会**被回滚——它们在本次会话内保持注册状态。请把所有可能失败的
+前置校验（如查找可执行文件、读取配置文件等）放在第一次注册调用之前，
+让失败的 setup 不留下半注册的能力。
+
 ---
 
 ## 4. API 参考
@@ -359,6 +364,88 @@ capture 名（`@keyword`、`@comment`、`@function.call` 等），由默认映�
 完整模板见包内随附的 `yate/extensions/yatesh_syntax.py.example`。
 注意：同一扩展名上，`api.highlight.register`（4.7 节）的注册始终优先于
 tree-sitter。
+
+### 4.9 屏保精灵（`api.sprites`）
+
+`api.sprites.register` 为空闲屏保（`Alt+Shift+S`）注册自定义角色：
+它与 27 个内置精灵一起混入游行队、参与播放列表洗牌，也可以写进
+yaterc 的 `screen_saver.characters` 白名单。
+
+**帧格式** —— 一个角色由若干帧加一个调色板组成。每帧是等长的字符串
+序列，每行对应一个像素行；行内每个字符要么是调色板键（一个着色
+像素），要么是 `.`（透明）。调色板把每个键字符映射为 `"#rrggbb"`
+颜色字符串：
+
+```python
+FRAMES = (
+    (   # 第 1 帧：睁眼
+        "..GG..",
+        ".GGGG.",
+        "GGWWGG",
+        ".GGGG.",
+        "..GG..",
+    ),
+    (   # 第 2 帧：红眼
+        "..GG..",
+        ".GGGG.",
+        "GGRRGG",
+        ".GGGG.",
+        "..GG..",
+    ),
+)
+PALETTE = {"G": "#00aa00", "W": "#ffffff", "R": "#cc0000"}
+
+def setup(api):
+    api.sprites.register("blob", FRAMES, PALETTE)
+```
+
+**渲染规则** —— 屏保用 Unicode 半块字符把两个像素行画进一个终端
+文本行：上像素成为 `▀` 的前景色，下像素成为其背景色（同色 → 实心
+`█`，只有下像素 → `▄`，都没有 → 空格）。因此 *n* 个像素行占
+`ceil(n / 2)` 个文本行，*w* 个像素列占 *w* 个文本列（1 像素 = 1
+字符格）。请把精灵控制在 24 行终端能容纳的尺寸（约至多 40 像素
+行），避免游行画面被裁切。
+
+**约束** —— 注册时校验，规则与内置名册导入期校验完全一致：
+
+- 至少 2 帧；
+- 所有帧同宽同高（不允许参差帧）；
+- 每个非 `.` 像素都有调色板条目。
+
+违规抛出 `ValueError`，加载器会在启动消息栏报告
+`extension <名字>: ValueError ...`，该角色不会被注册。重名同样被
+拒绝——包括内置名，扩展永远不能替换内置角色。
+
+**API**：
+
+| 方法 | 作用 |
+|---|---|
+| `api.sprites.register(name, frames, palette)` | 注册角色；重名或数据非法时抛 `ValueError` |
+| `api.sprites.unregister(name)` | 移除本扩展注册的角色（内置名不可删；未知名抛 `KeyError`） |
+| `api.sprites.names()` | 当前全部角色名（内置 + 扩展），可用作注册自检 |
+
+**完整示例（含 teardown）**：
+
+```python
+# ~/.yate/extensions/blob.py
+FRAMES = (...)   # 同上
+PALETTE = {"G": "#00aa00", "W": "#ffffff", "R": "#cc0000"}
+
+def setup(api):
+    api.sprites.register("blob", FRAMES, PALETTE)
+    assert "blob" in api.sprites.names()  # 注册自检
+
+def teardown(api):
+    api.sprites.unregister("blob")  # 热重载不残留幽灵名字
+```
+
+**白名单时序** —— yaterc 的 `screen_saver.characters` 白名单在启动期
+校验，此刻只知道内置名册；扩展角色在扩展加载期才注册，因此白名单
+引用扩展角色会先收到一条无害的启动警告
+（`unknown screensaver character: 'blob'`）。该警告不影响功能：屏保
+每次开启时都会按实时注册表重新过滤白名单，扩展加载完成后角色即
+生效。可以接受这条已知噪音，也可以不设白名单（空 = 全部角色，
+含扩展角色）。
 
 ---
 

@@ -73,9 +73,9 @@ flowchart TB
 
 | 门 | 条目 | 需要的输入 | 拍板结果（2026-09-25） |
 |---|---|---|---|
-| G1 | **N8** ctrl+digit 走 kitty CSI-u | 在 Windows Terminal / cmd 实测 `ctrl+1..9` 是否可达（计划要求人工验证）；二选一：保留 kitty 绑定 + 文档标注终端要求，或改绑 `alt+digit` | **暂缓（⏸）**：保留 kitty 现状 + 备注「待 KeyBinding 在 WT 重构后彻底修复」；届时与 N19 的 `FOCUS_EDITOR_KEY` 一并处理 |
+| G1 | **N8** ctrl+digit 走 kitty CSI-u | 在 Windows Terminal / cmd 实测 `ctrl+1..9` 是否可达（计划要求人工验证）；二选一：保留 kitty 绑定 + 文档标注终端要求，或改绑 `alt+digit` | **暂缓（⏸）**：保留 kitty 现状 + 备注「待 KeyBinding 在 WT 重构后彻底修复」；届时与 N19 的 `FOCUS_EDITOR_KEY` 一并处理 **（2026-10-01 回填：已被 keybinding-fix-wt 取代处理——ctrl+/ 修复落地，ctrl+1 由 Phase B win32-input-mode 覆盖，legacy 终端限制由 PB4 双语 manual 标注；见 [keybinding-fix-wt/overview.md](../../keybinding-fix-wt/overview.md)）** |
 | G2 | **N18** action `quit` 注册后 UI 不可达 | 三选一拍板（倾向 ①：`YateApp.action_quit` 改调 `editor.execute_action("quit")`，落点 `yate/app.py`；③ 删 vsc 冗余绑定，落点 `keymaps/vsc.py`） | **选①已落地（✅）**：主代理实施（波次后单独提交）——app.py 改路由 + 冒烟 quit 场景 docstring 同步 + pilot spy 守卫 |
-| G3 | **N30** L0 config 惰性 import L2 theme | 架构评审：下沉 / 注入回调二选一，同步 `architecture-boundaries.md` 登记（类似 R11 冻结） | **暂缓（⏸）**：备注「下次做重构方案」；届时单独立项 + 架构规则登记 |
+| G3 | **N30** L0 config 惰性 import L2 theme | 架构评审：下沉 / 注入回调二选一，同步 `architecture-boundaries.md` 登记（类似 R11 冻结） | **暂缓（⏸）**：备注「下次做重构方案」；届时单独立项 + 架构规则登记 **（2026-10-01 回填：✅ N30 已由 theme-layer-refactor 落地——config.py 回调注入 register_theme / load_theme_paths，规则 R4 登记；见 [theme-layer-refactor-plans/overview.md](../../theme-layer-refactor-plans/overview.md)）** |
 
 另：**N1（保存按原始 EOL 写回）属行为变更**——随 SP1 波次一实施 + 自动化 round-trip 守卫，
 报告后请用户在真实 CRLF 文件上做一次人工确认，不满意可低成本回退。

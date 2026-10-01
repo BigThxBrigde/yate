@@ -3,7 +3,10 @@
 An extension is any ``.py`` file exposing a ``setup(api)`` function (and an
 optional ``teardown(api)``).  ``setup`` receives an :class:`ExtensionAPI`
 through which it can register actions, key bindings, ``:`` commands, run
-shell commands and manipulate the active document.
+shell commands and manipulate the active document.  If ``setup`` raises
+partway through, anything registered before the failure is not guaranteed
+to be reclaimed -- perform every validation that can fail ahead of the
+first registration call.
 
 Example bundled extension ``yate/extensions/uppercase.py``::
 
@@ -38,6 +41,11 @@ from collections.abc import Callable, Mapping, Sequence
 from yate.config import YateConfig
 from yate.editor_lsp import LspManager
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
+from yate.editor_sprites.characters import (
+    character_names,
+    register_character,
+    unregister_character,
+)
 from yate.editor_syntax import (
     LangSpec,
     available_filetypes,
@@ -221,6 +229,51 @@ class SyntaxExtensionBridge:
         )
 
 
+class SpriteExtensionBridge:
+    """``api.sprites`` -- custom characters for the idle screensaver.
+
+    A character is a small pixel animation: each frame is a tuple of
+    equal-length strings, one character per pixel (``.`` = transparent),
+    and the palette maps every other key character to a ``"#rrggbb"``
+    color.  The screensaver renders two pixel rows per terminal text row
+    (``▀`` / ``▄`` / ``█`` half blocks), so keep sprites small enough for
+    a 24-row terminal.  Registration validates like the built-in roster
+    (>= 2 frames, uniform geometry, full palette coverage) and rejects
+    duplicates -- built-in names included.  A failing call raises
+    ``ValueError``, which the loader reports as
+    ``extension <name>: ...``.  See the extension manual, section
+    "Screensaver characters", for the full reference and an example.
+    """
+
+    def register(
+        self, name: str, frames: Sequence[Sequence[str]], palette: Mapping[str, str]
+    ) -> None:
+        """Register screensaver character *name* from *frames* + *palette*.
+
+        *frames* is a sequence of frames, each frame a sequence of pixel
+        rows; *palette* maps the row characters to hex colors.  Both are
+        copied by the registry, so tuples and lists both work.  Call once
+        from ``setup``; the character joins the parade, playlist shuffling
+        and the rc whitelist immediately.
+        """
+        register_character(
+            name, tuple(tuple(rows) for rows in frames), dict(palette)
+        )
+
+    def unregister(self, name: str) -> None:
+        """Remove the character *name* this extension registered.
+
+        Built-in names cannot be removed (``ValueError``); unknown names
+        raise ``KeyError``.  Call from ``teardown`` so a reloaded
+        extension does not accumulate ghost names.
+        """
+        unregister_character(name)
+
+    def names(self) -> list[str]:
+        """Every registered character name (built-in roster + extensions)."""
+        return list(character_names())
+
+
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
@@ -229,6 +282,7 @@ class ExtensionAPI:
         self._lsp = LspExtensionBridge(ctx.lsp)
         self._highlight = HighlightExtensionBridge()
         self._syntax = SyntaxExtensionBridge()
+        self._sprites = SpriteExtensionBridge()
 
     # ------------------------------------------------------------- accessors
 
@@ -267,6 +321,11 @@ class ExtensionAPI:
     def syntax(self) -> SyntaxExtensionBridge:
         """Register tree-sitter grammars (``api.syntax.register_tree_sitter``)."""
         return self._syntax
+
+    @property
+    def sprites(self) -> SpriteExtensionBridge:
+        """Register custom screensaver characters (``api.sprites.register``)."""
+        return self._sprites
 
     # ------------------------------------------------------------ registrars
 

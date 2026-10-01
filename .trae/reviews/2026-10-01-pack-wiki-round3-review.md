@@ -21,7 +21,7 @@
 源文件的情况下存在极小的崩溃风险；对不可信文档注入和 shell 执行风险均有显式
 声明和隔离措施；采用短路读取和单次遍历清理孤儿文件，效率良好。
 
-## 二、改进项（唯一，🔧 待修）
+## 二、改进项（唯一，✅ 已修）
 
 ### `_collect_bilingual` 的 TOCTOU（Time-of-check to time-of-use）竞态
 
@@ -52,8 +52,13 @@ if page.en_source is not None:
 
 ## 三、处置状态
 
-- 🔧 **待修**（Low / 可维护性）：修法明确、改动小（try/except + 1 个回归用例），
-  待用户确认后实施。
+- ✅ **已修**（2026-10-01，`714183b`）：按评审原文修法实施——`run()` 中
+  `en_source.read_bytes()` 包 `try/except OSError`，失败时降级为缺失页处理
+  （落入翻译路径），不再崩溃；并按测试要求补回归用例
+  `test_en_source_deleted_after_collect_takes_missing_path`
+  （`tests/test_pack_wiki.py`，构造双语对 → 收集后删 en 源 → `run()` 不崩溃且
+  该页按 missing 走翻译路径）。（整改来源：
+  [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)）
 - 登记轨迹：本文件为唯一登记处（原误登记于
   `.trae/documents/translate-cmd-tool-plan.md` §十一，已按用户要求撤销并移至
   本目录，见 `3b4b889` revert）。
