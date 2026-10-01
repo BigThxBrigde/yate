@@ -151,7 +151,13 @@ def register_character(
         raise ValueError("character name must be a non-empty string")
     if name in CHARACTERS:
         raise ValueError(f"character already registered: {name}")
-    sprite = Sprite(frames=tuple(frames), palette=dict(palette))
+    # Freeze the caller's containers two levels deep: frames become tuples
+    # of tuples (rows are immutable strings), so later mutation of any list
+    # the caller passed cannot change the registered sprite.
+    sprite = Sprite(
+        frames=tuple(tuple(frame) for frame in frames),
+        palette=dict(palette),
+    )
     _validate_one(name, sprite)
     CHARACTERS[name] = sprite
     _EXTENSION_NAMES.add(name)

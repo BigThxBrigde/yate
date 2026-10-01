@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import cast
 
 import pytest
@@ -218,6 +218,15 @@ class TestRegistration:
         sprite = characters.get_character("ext_blob")
         assert sprite.frames == _FRAMES
         assert sprite.palette == {"A": RED, "B": BLUE}
+
+    def test_registered_inner_frame_containers_are_copied(self) -> None:
+        """List-typed frames (JSON-style payloads) freeze two levels deep."""
+        frames: list[list[str]] = [["AA", "BB"], ["AA", "BB"]]
+        characters.register_character(
+            "ext_blob", cast(Sequence[characters.Frame], frames), _PALETTE
+        )
+        frames[0].append("CC")
+        assert characters.get_character("ext_blob").frames == _FRAMES
 
     def test_duplicate_registration_is_rejected(self) -> None:
         characters.register_character("ext_blob", _FRAMES, _PALETTE)
