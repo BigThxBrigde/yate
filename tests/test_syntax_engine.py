@@ -4,12 +4,17 @@
 
 from __future__ import annotations
 
+import logging
+import sys
+import types
+from pathlib import Path
 from typing import override
 
 import pytest
 
 from yate.editor_syntax import engine, regex_backend
 from yate.editor_syntax.tokens import Token
+from yate.editor_syntax.ts_backend import languages
 
 
 class _FakeTS:
@@ -140,3 +145,98 @@ def test_prefer_regex_pins_each_argument(
     monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
     engine.prefer_regex("py", ".RS", "")
     assert engine._REGEX_PINNED == {"py", "rs"}
+
+
+# --- ts_backend.languages degradation warnings ------------------------------
+
+
+class _LogCapture(logging.Handler):
+    """Collect messages from one logger.
+
+    The ``yate`` root logger never propagates (``propagate = False``), so
+    pytest's caplog cannot see child-logger records; attach this instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @override
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+
+class _FakeTSModule:
+    """Minimal ``tree_sitter`` stand-in with working Language/Query."""
+
+    @staticmethod
+    def Language(_pointer: object) -> str:
+        return "<language>"
+
+    @staticmethod
+    def Query(_language: object, _source: str) -> str:
+        return "<query>"
+
+
+class _BrokenTSModule:
+    """``tree_sitter`` stand-in whose Language constructor fails."""
+
+    @staticmethod
+    def Language(_pointer: object) -> str:
+        raise RuntimeError("broken grammar")
+
+
+def test_load_builtin_warns_once_per_language_until_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """First degradation warns once; success re-arms the warning."""
+    monkeypatch.setattr(languages, "_DEGRADED_WARNED", set[str]())
+    monkeypatch.setattr(languages, "_LANGS", {})
+    monkeypatch.setattr(languages, "QUERIES_DIR", tmp_path)
+    (tmp_path / "fakelang.scm").write_text("(comment) @comment", encoding="utf-8")
+    monkeypatch.setattr(languages, "BUILTIN_PACKS", {"fakelang": "tree_sitter_fakelang"})
+    pack = types.ModuleType("tree_sitter_fakelang")
+    setattr(pack, "language", lambda: 0)
+    monkeypatch.setitem(sys.modules, "tree_sitter_fakelang", pack)
+
+    capture = _LogCapture()
+    logger = logging.getLogger("yate.editor_syntax.ts_backend.languages")
+    logger.addHandler(capture)
+    try:
+        # First failure (dependency missing): warn once ...
+        monkeypatch.setattr(languages, "tree_sitter", lambda: None)
+        assert languages._load_builtin("fakelang") is None
+        assert capture.messages == [
+            "tree-sitter unavailable for 'fakelang' (falls back to regex)"
+        ]
+
+        # ... a second failure of the same language stays silent ...
+        assert languages._load_builtin("fakelang") is None
+        assert capture.messages == [
+            "tree-sitter unavailable for 'fakelang' (falls back to regex)"
+        ]
+
+        # ... and the other failure path (broken grammar) is deduplicated too.
+        monkeypatch.setattr(languages, "tree_sitter", _BrokenTSModule)
+        assert languages._load_builtin("fakelang") is None
+        assert capture.messages == [
+            "tree-sitter unavailable for 'fakelang' (falls back to regex)"
+        ]
+
+        # A successful load clears the dedup entry ...
+        monkeypatch.setattr(languages, "tree_sitter", _FakeTSModule)
+        assert languages._load_builtin("fakelang") is not None
+        assert capture.messages == [
+            "tree-sitter unavailable for 'fakelang' (falls back to regex)"
+        ]
+
+        # ... so a later failure warns again.
+        monkeypatch.setattr(languages, "tree_sitter", lambda: None)
+        assert languages._load_builtin("fakelang") is None
+        assert capture.messages == [
+            "tree-sitter unavailable for 'fakelang' (falls back to regex)",
+            "tree-sitter unavailable for 'fakelang' (falls back to regex)",
+        ]
+    finally:
+        logger.removeHandler(capture)

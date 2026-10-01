@@ -12,8 +12,9 @@ Discovery order for a filetype:
    (:data:`BUILTIN_PACKS`) plus a bundled ``queries/<name>.scm`` file.
 
 Load failures (dependency missing, broken pack, bad query) are remembered
-in ``_FAILED`` and never retried: the backend degrades to regex silently
-instead of paying for repeated failures on every keystroke.
+in ``_FAILED`` and never retried: the backend degrades to regex instead of
+paying for repeated failures on every keystroke, reporting the first
+degradation per language at warning level (:data:`_DEGRADED_WARNED`).
 """
 
 from __future__ import annotations
@@ -127,6 +128,20 @@ _LANGS: dict[str, LoadedLanguage] = {}
 _EXT_TO_LANG: dict[str, str] = {}
 _FAILED: set[str] = set()
 
+#: Languages whose tree-sitter -> regex degradation has already been
+#: reported at warning level, so a normal session (no ``YATE_TRACE``)
+#: still notices it without repeated warnings; a successful load clears
+#: the entry and re-arms the warning for a later failure.
+_DEGRADED_WARNED: set[str] = set()
+
+
+def _warn_degraded_once(name: str, message: str) -> None:
+    """Report a grammar degradation at warning level, once per language."""
+    if name in _DEGRADED_WARNED:
+        return
+    _DEGRADED_WARNED.add(name)
+    log.warning(message, name)
+
 
 def tree_sitter() -> Any:
     """The ``tree_sitter`` module, or ``None`` when not installed."""
@@ -148,6 +163,7 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
     module_name = BUILTIN_PACKS.get(name)
     query_file = QUERIES_DIR / f"{name}.scm"
     if ts is None or module_name is None or not query_file.is_file():
+        _warn_degraded_once(name, "tree-sitter unavailable for %r (falls back to regex)")
         log.debug("tree-sitter unavailable for %r (falls back to regex)", name)
         return None
     try:
@@ -158,10 +174,12 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
     except Exception:
         # optional native code / third-party grammar: any failure must
         # degrade to the regex backend, never break the editor
+        _warn_degraded_once(name, "tree-sitter load failed for %r (falls back to regex)")
         log.debug("tree-sitter load failed for %r (falls back to regex)", name)
         return None
     loaded = LoadedLanguage(name, language, query, dict(DEFAULT_CAPTURE_MAP))
     _LANGS[name] = loaded
+    _DEGRADED_WARNED.discard(name)
     log.debug("tree-sitter language loaded: %s", name)
     return loaded
 
