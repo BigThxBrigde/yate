@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ctypes
 import os
 import subprocess
 import sys
@@ -597,6 +598,18 @@ def test_real_pty_write_after_exit_is_a_noop() -> None:
 # --- Windows backend internals ---------------------------------------------
 
 
+class _FakeCoord(ctypes.Structure):
+    """Shape mirror of ``pty_proc._COORD`` (private and Windows-only).
+
+    The production resize path passes a real ``_COORD`` instance; this
+    stand-in exists only so the fake's parameter can carry a fully typed
+    shape without importing a private, Windows-only name at module level
+    (which would break the POSIX leg of the suite).
+    """
+
+    _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+
 @pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
 def test_conpty_check_hr_accepts_success_and_rejects_failure() -> None:
     """The HRESULT guard passes 0 and raises with the code for a failure."""
@@ -640,12 +653,19 @@ def test_conpty_write_and_resize_drive_handles_under_the_lock() -> None:
         impl._hpc = 0x1002
         writes: list[Any] = []
         resizes: list[tuple[int, int]] = []
-        impl._kernel32["WriteFile"] = (
-            lambda h, buf, n, written, _ov: writes.append(h)
-        )
-        impl._kernel32["ResizePseudoConsole"] = (
-            lambda h, size: resizes.append((size.X, size.Y)) or 0
-        )
+
+        def _fake_writefile(
+            h: int, buf: object, n: int, written: object, _ov: object
+        ) -> int:
+            writes.append(h)
+            return 1
+
+        def _fake_resize(hpc: int, size: _FakeCoord) -> int:
+            resizes.append((size.X, size.Y))
+            return 0
+
+        impl._kernel32["WriteFile"] = _fake_writefile
+        impl._kernel32["ResizePseudoConsole"] = _fake_resize
         impl.write(b"hi")
         impl.resize(90, 20)
         assert writes == [0x1001]
@@ -670,9 +690,11 @@ def test_conpty_write_and_resize_after_close_are_noops() -> None:
         impl._out_read = 0x1003
         closed: list[Any] = []
         impl._kernel32["CloseHandle"] = closed.append
-        impl._kernel32["ClosePseudoConsole"] = lambda h: closed.append(
-            ("hpc", h)
-        )
+
+        def _fake_close_pseudo_console(h: int) -> None:
+            closed.append(("hpc", h))
+
+        impl._kernel32["ClosePseudoConsole"] = _fake_close_pseudo_console
         impl.close()
         assert impl._in_write is None
         assert impl._hpc is None
@@ -680,13 +702,20 @@ def test_conpty_write_and_resize_after_close_are_noops() -> None:
         assert closed  # close() went through the fake Win32 table
         settled = len(closed)
         writes: list[Any] = []
-        impl._kernel32["WriteFile"] = (
-            lambda h, buf, n, written, _ov: writes.append(h)
-        )
+
+        def _fake_writefile(
+            h: int, buf: object, n: int, written: object, _ov: object
+        ) -> int:
+            writes.append(h)
+            return 1
+
+        impl._kernel32["WriteFile"] = _fake_writefile
         resizes: list[tuple[int, int]] = []
-        impl._kernel32["ResizePseudoConsole"] = (
-            lambda h, size: resizes.append((size.X, size.Y))
-        )
+
+        def _fake_resize(hpc: int, size: _FakeCoord) -> None:
+            resizes.append((size.X, size.Y))
+
+        impl._kernel32["ResizePseudoConsole"] = _fake_resize
         impl.write(b"late keystroke")
         impl.resize(90, 20)
         assert writes == []
