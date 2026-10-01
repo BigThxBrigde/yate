@@ -1,6 +1,6 @@
 # Plan SP1 — config 解耦 + cli 注入 + 测试修补
 
-> 状态：⏳ **待实施** · 前置：[Plan SP0](theme-layer-refactor-baseline-plan-a.md) ✅ · 后置：[Plan SP2](theme-layer-refactor-guard-docs-plan-c.md)
+> 状态：✅ **已完成（2026-09-26 实施并回填；2026-10-01 状态头照实补记）** · 前置：[Plan SP0](theme-layer-refactor-baseline-plan-a.md) ✅ · 后置：[Plan SP2](theme-layer-refactor-guard-docs-plan-c.md)
 > 工作量：M · 步骤：S1.1 → … → S1.9（串行）
 > 接口设计与行为契约的唯一来源：[README §3](overview.md#3-接口设计方案-a-落地形态)。
 > 硬约束：既有错误消息断言逐字不动（行为零漂移）；`tests/test_architecture.py` 属 SP2 域，本 Plan 不动。
