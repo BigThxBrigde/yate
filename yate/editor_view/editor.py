@@ -62,8 +62,8 @@ class HighlightProbe:
 
     #: Cached tokens per buffer row (``None`` until the first pass lands).
     tokens: list[list[Token]] | None
-    #: Document the cached tokens belong to.
-    doc: object
+    #: Document the cached tokens belong to (``None`` until the first pass).
+    doc: Document | None
     #: Buffer content version the cached tokens were tokenized at.
     version: int
     #: Filetype the cached tokens were tokenized for.
@@ -149,7 +149,7 @@ class EditorView(ScrollView):
         # previous tokens keep coloring the text for one debounce window
         # instead of flashing the whole view uncolored.
         self._hl_tokens: list[list[Token]] | None = None
-        self._hl_doc: object = None
+        self._hl_doc: Document | None = None
         self._hl_version: int = -1
         self._hl_filetype: str = ""
         # Pending/in-flight highlight pass, keyed by (doc, filetype,
