@@ -629,6 +629,73 @@ def test_conpty_operations_without_a_spawned_child_are_safe() -> None:
     asyncio.run(_scenario())
 
 
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_write_and_resize_drive_handles_under_the_lock() -> None:
+    """write/resize snapshot the handles under the lock and call Win32."""
+
+    async def _scenario() -> None:
+        proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+        impl = cast(Any, proc)._impl
+        impl._in_write = 0x1001
+        impl._hpc = 0x1002
+        writes: list[Any] = []
+        resizes: list[tuple[int, int]] = []
+        impl._kernel32["WriteFile"] = (
+            lambda h, buf, n, written, _ov: writes.append(h)
+        )
+        impl._kernel32["ResizePseudoConsole"] = (
+            lambda h, size: resizes.append((size.X, size.Y)) or 0
+        )
+        impl.write(b"hi")
+        impl.resize(90, 20)
+        assert writes == [0x1001]
+        assert resizes == [(90, 20)]
+
+    asyncio.run(_scenario())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_write_and_resize_after_close_are_noops() -> None:
+    """After close() the None snapshots short-circuit before any Win32 call.
+
+    Lock-protected snapshotting is what makes this deterministic: without
+    it a write racing close() could hit a stale handle value.
+    """
+
+    async def _scenario() -> None:
+        proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+        impl = cast(Any, proc)._impl
+        impl._in_write = 0x1001
+        impl._hpc = 0x1002
+        impl._out_read = 0x1003
+        closed: list[Any] = []
+        impl._kernel32["CloseHandle"] = closed.append
+        impl._kernel32["ClosePseudoConsole"] = lambda h: closed.append(
+            ("hpc", h)
+        )
+        impl.close()
+        assert impl._in_write is None
+        assert impl._hpc is None
+        assert impl._out_read is None
+        assert closed  # close() went through the fake Win32 table
+        settled = len(closed)
+        writes: list[Any] = []
+        impl._kernel32["WriteFile"] = (
+            lambda h, buf, n, written, _ov: writes.append(h)
+        )
+        resizes: list[tuple[int, int]] = []
+        impl._kernel32["ResizePseudoConsole"] = (
+            lambda h, size: resizes.append((size.X, size.Y))
+        )
+        impl.write(b"late keystroke")
+        impl.resize(90, 20)
+        assert writes == []
+        assert resizes == []
+        assert len(closed) == settled  # no further Win32 traffic
+
+    asyncio.run(_scenario())
+
+
 def _conpty_exit_query_impl(hprocess: int) -> Any:
     """Return a real ``_ConPty`` whose exit query sees *hprocess*.
 

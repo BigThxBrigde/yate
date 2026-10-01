@@ -376,7 +376,13 @@ class _ConPty:
         self._proc_info: Any = None
         self._attr_buffer: Any = None
         self._si_ex: Any = None
-        self._hpc_lock = threading.Lock()
+        # Guards the Win32 handle fields (_hpc / _in_write / _out_read /
+        # _proc_info) across the UI / reader / watcher threads.  RLock
+        # because close() nests _close_pty().  Blocking calls run on a local
+        # snapshot taken under the lock: once a handle value is snapshotted,
+        # another thread closing it stays a narrow residual window (fully
+        # eliminating it needs the RAII handle class, a long-term item).
+        self._handle_lock = threading.RLock()
         self._kernel32 = self._load_functions()
 
     def _load_functions(self) -> dict[str, Any]:
@@ -533,8 +539,16 @@ class _ConPty:
         read_bytes = wintypes.DWORD(0)
         try:
             while not self._owner.is_closing:
+                # Snapshot the read handle under the lock: ReadFile blocks,
+                # so it must not run holding the lock -- a concurrent close
+                # can still retire the snapshotted handle (residual window,
+                # see the _handle_lock comment in __init__).
+                with self._handle_lock:
+                    out_read = self._out_read
+                if out_read is None:
+                    break
                 ok = k["ReadFile"](
-                    self._out_read, buffer, ctypes.sizeof(buffer),
+                    out_read, buffer, ctypes.sizeof(buffer),
                     ctypes.byref(read_bytes), None,
                 )
                 count = read_bytes.value
@@ -562,7 +576,7 @@ class _ConPty:
         self._close_pty()
 
     def _close_pty(self) -> None:
-        with self._hpc_lock:
+        with self._handle_lock:
             if self._hpc is not None:
                 self._kernel32["ClosePseudoConsole"](self._hpc)
                 self._hpc = None
@@ -598,42 +612,48 @@ class _ConPty:
         return "failed"
 
     def write(self, data: bytes) -> None:
-        if self._in_write is None:
-            return
-        written = wintypes.DWORD(0)
-        self._kernel32["WriteFile"](
-            self._in_write, data, len(data), ctypes.byref(written), None
-        )
+        with self._handle_lock:
+            handle = self._in_write
+            if handle is None:
+                return
+            written = wintypes.DWORD(0)
+            self._kernel32["WriteFile"](
+                handle, data, len(data), ctypes.byref(written), None
+            )
 
     def resize(self, cols: int, rows: int) -> None:
-        if self._hpc is not None:
-            hr = self._kernel32["ResizePseudoConsole"](
-                self._hpc, _COORD(cols, rows)
-            )
-            self._check_hr(hr, "ResizePseudoConsole")
+        with self._handle_lock:
+            hpc = self._hpc
+            if hpc is not None:
+                hr = self._kernel32["ResizePseudoConsole"](
+                    hpc, _COORD(cols, rows)
+                )
+                self._check_hr(hr, "ResizePseudoConsole")
 
     def terminate(self) -> None:
         k = self._kernel32
-        info = self._proc_info
-        if info is not None:
-            k["TerminateProcess"](info.hProcess, 1)
-            k["WaitForSingleObject"](info.hProcess, 2000)
-        self._close_pty()
+        with self._handle_lock:
+            info = self._proc_info
+            if info is not None:
+                k["TerminateProcess"](info.hProcess, 1)
+                k["WaitForSingleObject"](info.hProcess, 2000)
+            self._close_pty()
 
     def close(self) -> None:
         k = self._kernel32
-        self._close_pty()
-        info = self._proc_info
-        if info is not None:
-            k["CloseHandle"](info.hThread)
-            k["CloseHandle"](info.hProcess)
-            self._proc_info = None
-        if self._in_write is not None:
-            k["CloseHandle"](self._in_write)
-            self._in_write = None
-        if self._out_read is not None:
-            k["CloseHandle"](self._out_read)
-            self._out_read = None
+        with self._handle_lock:
+            self._close_pty()
+            info = self._proc_info
+            if info is not None:
+                k["CloseHandle"](info.hThread)
+                k["CloseHandle"](info.hProcess)
+                self._proc_info = None
+            if self._in_write is not None:
+                k["CloseHandle"](self._in_write)
+                self._in_write = None
+            if self._out_read is not None:
+                k["CloseHandle"](self._out_read)
+                self._out_read = None
 
 
 # Platform-specific placeholder types for static analysis.
