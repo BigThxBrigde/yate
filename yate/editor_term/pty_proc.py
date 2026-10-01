@@ -376,12 +376,14 @@ class _ConPty:
         self._proc_info: Any = None
         self._attr_buffer: Any = None
         self._si_ex: Any = None
-        # Guards the Win32 handle fields (_hpc / _in_write / _out_read /
-        # _proc_info) across the UI / reader / watcher threads.  RLock
-        # because close() nests _close_pty().  Blocking calls run on a local
-        # snapshot taken under the lock: once a handle value is snapshotted,
-        # another thread closing it stays a narrow residual window (fully
-        # eliminating it needs the RAII handle class, a long-term item).
+        # Guards the write side of the Win32 handle fields (_hpc / _in_write /
+        # _out_read) across the UI / reader / watcher threads, plus
+        # read_loop's read snapshot of _out_read.  RLock because close()
+        # nests _close_pty().  _proc_info has no lock on its read side: reads
+        # stay snapshot-then-use, so a close() nulling it in between only
+        # routes calls on the closed handle to WAIT_FAILED / "failed" -- a
+        # residual window whose full elimination needs the RAII handle class
+        # (a long-term item).
         self._handle_lock = threading.RLock()
         self._kernel32 = self._load_functions()
 
@@ -613,6 +615,8 @@ class _ConPty:
 
     def write(self, data: bytes) -> None:
         with self._handle_lock:
+            # Held through the WriteFile call: releasing it would reopen the
+            # close-vs-use window; blocking is bounded by the pipe write.
             handle = self._in_write
             if handle is None:
                 return
@@ -633,6 +637,8 @@ class _ConPty:
     def terminate(self) -> None:
         k = self._kernel32
         with self._handle_lock:
+            # Held through both calls: releasing the lock around them would
+            # reopen the close-vs-use window; blocking is bounded (2 s wait).
             info = self._proc_info
             if info is not None:
                 k["TerminateProcess"](info.hProcess, 1)
