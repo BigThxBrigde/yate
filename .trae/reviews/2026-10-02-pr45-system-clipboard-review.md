@@ -101,3 +101,45 @@
   [clipboard-review-round2-fixes-plan.md](../documents/clipboard-review-round2-fixes-plan.md)
   （含否决路线与实施偏离记录）。门禁：pytest 全量退出码 0、
   pyright strict 0 诊断。
+
+---
+
+## 第三轮评审（2026-10-02 19:07，comment [`note_51430464`](https://gitee.com/jermaine/yate/pulls/45#note_51430464_conversation_191324690)）
+
+> 第二轮修复（`ec2606e`）推送后触发复审。
+
+### 四维度结论（第三轮）
+
+| 评审规则 | 结论 |
+|---|---|
+| 功能性与逻辑 | ⚠️ 待优化 |
+| 安全性 | ✅ 通过 |
+| 性能 | ✅ 通过 |
+| 可维护性 | ✅ 通过 |
+
+**总体结论**：⚠️ 无阻断项，2 个改进建议，风险等级 medium。评审认可
+「经过两轮评审修复后，整体质量较高」。
+
+### 改进项（2 项）与处置（用户决策：登记不修）
+
+1. **vsc `cut` 动作的原子性**（功能性与逻辑，`yate/actions.py:102-118`）：
+   先 `buf.register = buf.selected_text()` 后 `delete_selection()`，只读
+   缓冲区上删除抛 `BufferReadOnlyError` 时寄存器已被污染——与首轮 paste
+   问题同类（先写寄存器、后失败），vim 侧 `_store_deleted` 为「先删除再
+   写入」的相反顺序。⏸ **明确不修**（2026-10-02 用户决策，登记留档）；
+   如后续调整只读交互契约（见第 2 项），可一并重审两处动作的失败语义。
+2. **vsc `paste` 只读缓冲区建议静默返回**（功能性与逻辑，
+   `yate/actions.py:142-146`）：评审建议去掉 `buf.paste()` 的只读抛错、
+   改为提前 return。⏸ **明确不修**（2026-10-02 用户决策，登记留档）。
+   登记备注：现行契约是只读操作显式抛 `BufferReadOnlyError` 由调度层
+   通知用户（与 vim 键位只读拒绝路径一致），静默返回会把失败降级为
+   无反馈 no-op；且回归用例
+   `test_paste_action_on_read_only_buffer_does_not_prime_register`
+   已锚定抛错语义——采纳建议需先推翻该契约，非本项「开销」层面的
+   小改动。
+
+### 第三轮处置状态
+
+- ⏸ **登记即止**（2026-10-02）：2 项均按用户决策不修复，无提交、
+  无门禁变更；此前两轮修复与门禁状态不变
+  （`64f5eeb` + `ec2606e`，pytest 退出码 0、pyright strict 0 诊断）。
