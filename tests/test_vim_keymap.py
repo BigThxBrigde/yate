@@ -1392,16 +1392,17 @@ def test_visual_line_yank_lands_on_the_first_row() -> None:
 
 
 class _FakeClip:
-    """Recording stand-in for the clipboard service entry points."""
+    """Recording stand-in replacing the clipboard entries in the keymap."""
 
     def __init__(self) -> None:
         self.copies: list[str] = []
         self.pastes: list[int] = []
         self.paste_result: str | None = None
+        self.copy_result: bool = True
 
     def copy_text(self, text: str) -> bool:
         self.copies.append(text)
-        return True
+        return self.copy_result
 
     def paste_text(self) -> str | None:
         self.pastes.append(1)
@@ -1512,6 +1513,37 @@ def test_register_prefix_does_not_survive_an_insert_roundtrip(
     assert editor.buffer.register == "alpha\n"
     assert editor.buffer.named_registers == {}
     assert fake_clip.copies == ["alpha\n"]
+
+
+def test_register_prefix_does_not_survive_an_unrelated_command(
+    fake_clip: _FakeClip,
+) -> None:
+    """"ax drops the pending register: the next yy yanks to unnamed."""
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, '"', "a", "x", "y", "y")
+    assert editor.buffer.register == "lpha\n"
+    assert editor.buffer.named_registers == {}
+    assert fake_clip.copies == ["lpha\n"]
+
+
+def test_yy_survives_unavailable_clipboard_backend(fake_clip: _FakeClip) -> None:
+    """An unavailable backend must not break the yank key path."""
+    fake_clip.copy_result = False
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, "y", "y")
+    assert editor.buffer.register == "alpha\n"
+
+
+def test_visual_delete_with_empty_result_never_touches_clipboard(
+    fake_clip: _FakeClip,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty delete result updates the unnamed register, not the clipboard."""
+    editor, keymap, ctx = _setup("alpha")
+    monkeypatch.setattr(editor.buffer, "delete_selection", lambda: "")
+    _press(keymap, ctx, "v", "d")
+    assert editor.buffer.register == ""
+    assert fake_clip.copies == []
 
 
 def test_bare_quote_with_invalid_follower_is_swallowed(fake_clip: _FakeClip) -> None:

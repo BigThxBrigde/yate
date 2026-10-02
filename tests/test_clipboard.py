@@ -254,4 +254,4 @@ def test_paste_action_on_read_only_buffer_does_not_prime_register(
     with pytest.raises(BufferReadOnlyError):
         registry.execute("paste", ctx)
     assert ctx.buffer.register == "OLD"
-    assert recording_clip.pastes == [1]
+    assert recording_clip.pastes == []

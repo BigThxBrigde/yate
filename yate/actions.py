@@ -103,38 +103,46 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         """Cut the selection (or the whole line) into the system clipboard.
 
         The internal register is kept in sync too, so a clipboard-unavailable
-        fallback still behaves like before.
+        fallback still behaves like before.  An empty text never reaches the
+        system clipboard, so a doomed cut cannot wipe the user's copy.
         """
         buf = ctx.buffer
         if buf.has_selection():
             buf.register = buf.selected_text() or ""
             buf.delete_selection()
-            clipboard.copy_text(buf.register)
+            if buf.register:
+                clipboard.copy_text(buf.register)
         else:
             text = buf.delete_lines()
-            clipboard.copy_text(text)
+            if text:
+                clipboard.copy_text(text)
 
     def copy(ctx: ActionContext) -> None:
-        """Yank the selection (or the whole line) into the system clipboard."""
+        """Yank the selection (or the whole line) into the system clipboard.
+
+        An empty yank updates the register but skips the system clipboard.
+        """
         buf = ctx.buffer
         if buf.has_selection():
             text = buf.yank_selection()
         else:
             text = buf.yank_lines()
-        clipboard.copy_text(text)
+        if text:
+            clipboard.copy_text(text)
 
     def paste(ctx: ActionContext) -> None:
         """Paste from the system clipboard, falling back to the register.
 
         When the system clipboard is unavailable (or empty), the internal
         unnamed register is pasted as before.  A read-only buffer skips the
-        register priming entirely so a doomed paste cannot clobber the
-        yanked text (mirrors the vim-side ``_prime_paste`` guard).
+        clipboard read and the register priming entirely -- a doomed paste
+        mirrors the vim-side ``_prime_paste`` guard and pays no system call.
         """
         buf = ctx.buffer
-        text = clipboard.paste_text()
-        if text and not buf.read_only:
-            buf.register = text
+        if not buf.read_only:
+            text = clipboard.paste_text()
+            if text:
+                buf.register = text
         buf.paste()
 
     reg("cut", cut, "Cut")

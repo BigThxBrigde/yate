@@ -463,6 +463,9 @@ class VimKeymap(Keymap):
             return True
 
         if key == "x":
+            # a register prefix only arms operators/pastes: any other command
+            # drops it first, so "ax cannot swallow the next yy into register a
+            self.pending_register = None
             for _ in range(self._take_count()):
                 buf.delete_forward()
             return True
@@ -479,24 +482,31 @@ class VimKeymap(Keymap):
                 buf.paste(below=False, named=reg)
             return True
         if key == "u":
+            self.pending_register = None
             buf.undo()
             return True
         if key == "\x12":  # ctrl-r
+            self.pending_register = None
             buf.redo()
             return True
         if key == "J":
+            self.pending_register = None
             ui.execute_action("join_lines")
             return True
         if key == "\x04":  # ctrl-d
+            self.pending_register = None
             ui.execute_action("page_half_down")
             return True
         if key == "\x15":  # ctrl-u
+            self.pending_register = None
             ui.execute_action("page_half_up")
             return True
         if key == "\x06":  # ctrl-f
+            self.pending_register = None
             ui.execute_action("page_down")
             return True
         if key == "\x02":  # ctrl-b
+            self.pending_register = None
             ui.execute_action("page_up")
             return True
 
@@ -544,20 +554,28 @@ class VimKeymap(Keymap):
             return True
 
         if key == "/":
+            self.pending_register = None
             ui.find_prompt(True)
             return True
         if key == "?":
+            self.pending_register = None
             ui.find_prompt(False)
             return True
         if key == ":":
+            self.pending_register = None
             ui.command_prompt()
             return True
         if key == "n":
+            self.pending_register = None
             ui.execute_action("find_next")
             return True
         if key == "N":
+            self.pending_register = None
             ui.execute_action("find_prev")
             return True
+
+        # a register prefix never reaches extension bindings or unmapped keys
+        self.pending_register = None
 
         # extensions may bind extra keys in normal mode
         if self._extension_binding(ctx, key):
@@ -775,14 +793,16 @@ class VimKeymap(Keymap):
         """Store a ``delete_selection`` result and sync the system clipboard.
 
         ``None`` (no selection) is a no-op.  Unnamed deletes land in
-        :attr:`TextBuffer.register` and mirror to the system clipboard;
-        named ones go to :attr:`TextBuffer.named_registers` internally.
+        :attr:`TextBuffer.register` and mirror to the system clipboard
+        (an empty string never reaches the clipboard); named ones go to
+        :attr:`TextBuffer.named_registers` internally.
         """
         if text is None:
             return
         if named is None:
             buf.register = text
-            copy_text(text)
+            if text:
+                copy_text(text)
         else:
             buf.named_registers[named] = text
 
