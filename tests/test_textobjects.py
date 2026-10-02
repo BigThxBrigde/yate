@@ -18,7 +18,7 @@ from yate.editor_core.textobjects import (
 )
 
 #: 'x' sits at columns 4, 9 and 14.
-LINE = "abc xabc xabc x"
+LINE: str = "abc xabc xabc x"
 
 
 @pytest.mark.parametrize(

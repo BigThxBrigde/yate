@@ -24,6 +24,7 @@ class _CountingTracker(IdleTracker):
 
     @override
     def poke(self) -> None:
+        """Count the poke, then apply the real idle reset."""
         self.pokes += 1
         super().poke()
 

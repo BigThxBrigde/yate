@@ -18,7 +18,7 @@ from yate.editor_lsp.client import ServerConfig
 from yate.extensions import python_lsp
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
 
-_EXT_PATH = (
+_EXT_PATH: Path = (
     Path(__file__).resolve().parent.parent / "yate" / "extensions" / "python_lsp.py"
 )
 
@@ -30,6 +30,7 @@ class _LspRecorder:
         self.configs: list[ServerConfig] = []
 
     def register_server(self, config: ServerConfig) -> None:
+        """Record the server config handed over by the extension."""
         self.configs.append(config)
 
 

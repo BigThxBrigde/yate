@@ -14,8 +14,8 @@ from yate.editor_view.scrollbars import (
 )
 
 #: Track/thumb colors far apart in hue so assertions can rely on glyphs.
-_BACK = Color.parse("#181825")
-_BAR = Color.parse("#45475a")
+_BACK: Color = Color.parse("#181825")
+_BAR: Color = Color.parse("#45475a")
 
 
 def _segments_text(renderable: Segments) -> str:

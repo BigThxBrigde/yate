@@ -44,6 +44,7 @@ from yate.session import (
 
 
 def make_doc(text: str = "") -> Document:
+    """Build a :class:`Document` over a fresh :class:`TextBuffer`."""
     return Document(None, TextBuffer(text))
 
 
@@ -439,7 +440,7 @@ def test_remove_node_renormalizes_nested_survivors() -> None:
 # (focus leaf), so a real app under pilot is required.
 
 
-async def _wait_until(
+async def _wait_until(  # noqa: Any - Textual pilot probe; no stubs
     pilot: Any, predicate: Callable[[], bool], timeout: float = 5.0
 ) -> bool:
     """Poll *predicate* between pilot pauses; False on timeout."""

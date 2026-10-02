@@ -21,16 +21,16 @@ from yate.keymaps.vim import VimKeymap, VimMode
 from yate.registries import ActionRegistry
 from yate.session import EditorSession
 
-ESC = "\x1b"
-CTRL_R = "\x12"
-CTRL_G = "\x07"
-CTRL_D = "\x04"
-CTRL_U = "\x15"
-CTRL_F = "\x06"
-CTRL_B = "\x02"
-CTRL_W = "\x17"
-CTRL_SLASH = "\x1f"
-DEL = "\x1b[3~"
+ESC: str = "\x1b"
+CTRL_R: str = "\x12"
+CTRL_G: str = "\x07"
+CTRL_D: str = "\x04"
+CTRL_U: str = "\x15"
+CTRL_F: str = "\x06"
+CTRL_B: str = "\x02"
+CTRL_W: str = "\x17"
+CTRL_SLASH: str = "\x1f"
+DEL: str = "\x1b[3~"
 
 
 class _Editor:
@@ -55,56 +55,72 @@ class _Editor:
         self.populate()
 
     def populate(self) -> None:
+        """Load the built-in action table bound to this stand-in editor."""
         populate(self.actions, cast(Any, self))
 
     # ---------------------------------------------------------- state access
     @property
     def doc(self) -> Document:
+        """The active document."""
         return self.session.doc
 
     @property
     def buffer(self) -> TextBuffer:
+        """The active text buffer."""
         return self.session.buffer
 
     def context(self) -> ActionContext:
+        """Build an action context against this editor."""
         return ActionContext(self.session, self.ui)
 
     # ------------------------------------------------------- UI entry points
     def execute_action(self, name: str) -> bool:
+        """Run a named action from the registry."""
         return self.actions.execute(name, self.context())
 
     def message(self, text: str) -> None:
+        """Record a status message."""
         self.messages.append(text)
 
     def command_prompt(self) -> None:
+        """Record the command prompt opening."""
         self.prompts.append(("command", True))
 
     def find_prompt(self, forward: bool) -> None:
+        """Record the find prompt opening with its direction."""
         self.prompts.append(("find", forward))
 
     def goto_prompt(self) -> None:
+        """Record the go-to-line prompt opening."""
         self.prompts.append(("goto", True))
 
     def toggle_keymap(self) -> None:
+        """Record a keymap toggle request."""
         self.prompts.append(("toggle", True))
 
     # ------------------------------------------------- editor-side entry points
     def page(self, direction: int, half: bool = False) -> None:
+        """Record a page scroll with direction and half-page flag."""
         self.pages.append((direction, half))
 
     def find_next(self, forward: bool) -> None:
+        """Record a find-next dispatch with its direction."""
         self.prompts.append(("next", forward))
 
     def replace_prompt(self) -> None:
+        """Record the replace prompt opening."""
         self.prompts.append(("replace", True))
 
     def show_manual(self) -> None:
+        """Record the manual overlay opening."""
         self.prompts.append(("manual", True))
 
     def shell_prompt(self) -> None:
+        """Record the shell prompt opening."""
         self.prompts.append(("shell", True))
 
     def show_help(self) -> None:
+        """Count a help overlay opening."""
         self.help_shown += 1
 
     # The tables reach some hooks through the flow collaborators
@@ -134,15 +150,19 @@ class _Editor:
         return SimpleNamespace(open_prompt=self.shell_prompt)
 
     def save_document(self) -> None:
+        """Record a save-document dispatch."""
         self.prompts.append(("save", True))
 
     def prompt_open(self) -> None:
+        """Record the open-file prompt opening."""
         self.prompts.append(("open", True))
 
     def new_buffer(self) -> None:
+        """Record a new-buffer dispatch."""
         self.prompts.append(("new", True))
 
     def close_tab(self) -> None:
+        """Record a close-tab dispatch."""
         self.prompts.append(("close", True))
 
 

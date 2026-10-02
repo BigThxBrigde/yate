@@ -18,7 +18,7 @@ import pytest
 from yate.paths import package_root
 from yate.services import user_setup as us
 
-TEMPLATE_RELS = [
+TEMPLATE_RELS: list[str] = [
     "themes/dracula_theme.example",
     "themes/ayu_theme.example",
     "extensions/example_ext.py.example",
@@ -31,6 +31,7 @@ class _FakeTTY(io.StringIO):
 
     @override
     def isatty(self) -> bool:  # noqa: D401 - test double
+        """Report an interactive terminal."""
         return True
 
 

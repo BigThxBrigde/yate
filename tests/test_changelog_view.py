@@ -32,6 +32,7 @@ class _FakePromptBar:
     """Minimal PromptBar stand-in: Editor.push_overlay idles it."""
 
     def idle(self) -> None:
+        """Accept the editor's push-overlay idle notification (no-op)."""
         pass
 
 
@@ -46,6 +47,7 @@ class _FakeApp:
     def push_screen(
         self, screen: MarkdownDocScreen, callback: object = None
     ) -> None:
+        """Record the pushed screen and its callback like the real app."""
         self.pushed.append((screen, callback))
 
 
@@ -85,9 +87,11 @@ class _Missing:
     """Resource stand-in where nothing exists."""
 
     def is_file(self) -> bool:
+        """The resource never exists on disk."""
         return False
 
     def read_text(self, encoding: str = "utf-8") -> str:
+        """Raise like reading a missing bundled resource would."""
         raise FileNotFoundError("changelog.<lang>.md")
 
 
@@ -95,6 +99,7 @@ class _MissingFiles:
     """Resource-container stand-in whose every entry is missing."""
 
     def joinpath(self, *_parts: str) -> Any:
+        """Every child of this container is missing too."""
         return _Missing()
 
 
@@ -206,6 +211,7 @@ def test_changelog_command_registered() -> None:
 
         @staticmethod
         def show_changelog(lang: str = "en") -> None:
+            """Record the language the command forwarded."""
             forwarded.append(lang)
 
     class StubEditor:

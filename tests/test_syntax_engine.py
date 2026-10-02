@@ -24,11 +24,13 @@ class _FakeTS:
         self.filetypes: set[str] = set()
 
     def available_for(self, filetype: str) -> bool:
+        """Report availability for the fake's registered filetypes."""
         return filetype.lower().lstrip(".") in self.filetypes
 
     def tokenize_document(
         self, lines: list[str], filetype: str
     ) -> list[list[Token]]:
+        """Return a single comment token spanning each line."""
         return [[Token(0, len(line), "comment")] for line in lines]
 
 
@@ -41,6 +43,7 @@ class _RecordingTS(_FakeTS):
 
     @override
     def available_for(self, filetype: str) -> bool:
+        """Record the requested filetype, then delegate."""
         self.requested.append(filetype)
         return super().available_for(filetype)
 
@@ -48,6 +51,7 @@ class _RecordingTS(_FakeTS):
     def tokenize_document(
         self, lines: list[str], filetype: str
     ) -> list[list[Token]]:
+        """Record the tokenize request, then delegate."""
         self.requested.append(f"tokenize:{filetype}")
         return super().tokenize_document(lines, filetype)
 
@@ -60,8 +64,9 @@ def test_falls_back_to_regex_backend(
 ) -> None:
     fake = _FakeTS()  # no filetype registered -> unavailable
     monkeypatch.setattr(engine, "_ts", lambda: fake)
-    assert engine.tokenize_document(["x = 1"], "py") == \
+    assert engine.tokenize_document(["x = 1"], "py") == (
         regex_backend.tokenize_document(["x = 1"], "py")
+    )
 
 
 def test_ts_backend_wins_when_available(
@@ -87,8 +92,9 @@ def test_ts_import_failure_falls_back(
 ) -> None:
     # _ts() returning None (dependency missing) must degrade to regex.
     monkeypatch.setattr(engine, "_ts", lambda: None)
-    assert engine.tokenize_document(["def f(): pass"], "py") == \
+    assert engine.tokenize_document(["def f(): pass"], "py") == (
         regex_backend.tokenize_document(["def f(): pass"], "py")
+    )
 
 
 def test_filetype_is_forwarded_unnormalized_to_the_backend(
@@ -112,8 +118,9 @@ def test_prefer_regex_pins_filetype(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
     monkeypatch.setattr(engine, "_ts", lambda: fake)
     engine.prefer_regex("py")
-    assert engine.tokenize_document(["x = 1"], "py") == \
+    assert engine.tokenize_document(["x = 1"], "py") == (
         regex_backend.tokenize_document(["x = 1"], "py")
+    )
 
 
 def test_prefer_regex_normalizes_keys(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -123,8 +130,9 @@ def test_prefer_regex_normalizes_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(engine, "_ts", lambda: fake)
     engine.prefer_regex(".PY", "")
     # ".PY" normalizes to "py" and pins it; the empty key is dropped
-    assert engine.tokenize_document(["x = 1"], "py") == \
+    assert engine.tokenize_document(["x = 1"], "py") == (
         regex_backend.tokenize_document(["x = 1"], "py")
+    )
 
 
 def test_pin_matches_on_the_request_side_too(
@@ -135,8 +143,9 @@ def test_pin_matches_on_the_request_side_too(
     monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
     monkeypatch.setattr(engine, "_ts", lambda: fake)
     engine.prefer_regex(".PY")
-    assert engine.tokenize_document(["x = 1"], "PY") == \
+    assert engine.tokenize_document(["x = 1"], "PY") == (
         regex_backend.tokenize_document(["x = 1"], "PY")
+    )
 
 
 def test_prefer_regex_pins_each_argument(
@@ -163,6 +172,7 @@ class _LogCapture(logging.Handler):
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
+        """Collect the record's rendered message."""
         self.messages.append(record.getMessage())
 
 
@@ -171,10 +181,12 @@ class _FakeTSModule:
 
     @staticmethod
     def Language(_pointer: object) -> str:
+        """Fake tree-sitter Language recorded by the stub engine."""
         return "<language>"
 
     @staticmethod
     def Query(_language: object, _source: str) -> str:
+        """Fake tree-sitter Query recorded by the stub engine."""
         return "<query>"
 
 
@@ -183,6 +195,7 @@ class _BrokenTSModule:
 
     @staticmethod
     def Language(_pointer: object) -> str:
+        """Fake tree-sitter Language constructor that always fails."""
         raise RuntimeError("broken grammar")
 
 

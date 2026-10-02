@@ -125,8 +125,9 @@ def test_comments_keywords_strings_commands() -> None:
 @_python_skip
 def test_engine_uses_ts_for_python() -> None:
     lines = ["# note", "def foo(): pass"]
-    assert engine.tokenize_document(lines, "py") == \
+    assert engine.tokenize_document(lines, "py") == (
         ts_backend.tokenize_document(lines, "py")
+    )
 
 
 @_python_skip
@@ -136,8 +137,9 @@ def test_prefer_regex_still_overrides_ts(
     lines = ["# note"]
     monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
     engine.prefer_regex("py")
-    assert engine.tokenize_document(lines, "py") == \
+    assert engine.tokenize_document(lines, "py") == (
         regex_backend.tokenize_document(lines, "py")
+    )
 
 
 # --- blocked-version guard --------------------------------------------------
@@ -158,8 +160,7 @@ def test_version_classifier(monkeypatch: pytest.MonkeyPatch) -> None:
             return raw
 
         monkeypatch.setattr(ts_langs, "version", fake_version)
-        assert ts_langs._blocked_ts_version() == expected, \
-            f"{platform_name} / {raw}"
+        assert ts_langs._blocked_ts_version() == expected, f"{platform_name} / {raw}"
 
 
 def test_blocked_build_disables_ts_and_routes_to_regex(
@@ -176,8 +177,9 @@ def test_blocked_build_disables_ts_and_routes_to_regex(
     assert not ts_runtime.available_for("py")
     assert ts_langs.resolve("py") is None
     assert "python" in ts_langs._FAILED
-    assert engine.tokenize_document(lines, "py") == \
+    assert engine.tokenize_document(lines, "py") == (
         regex_backend.tokenize_document(lines, "py")
+    )
 
 
 # --- syntax extension bridge ------------------------------------------------
@@ -204,11 +206,13 @@ def test_pack_registration_and_query_file(tmp_path: Path) -> None:
         "(comment) @comment\n(string) @string\n", encoding="utf-8"
     )
     bridge = ext_services.SyntaxExtensionBridge()
-    with mock.patch.dict(ts_langs._LANGS), \
-            mock.patch.dict(ts_langs._EXT_TO_LANG), \
-            mock.patch.object(ts_langs, "_FAILED", set[str]()), \
-            mock.patch.dict(regex_backend._LANGUAGES), \
-            mock.patch.dict(regex_backend._NAME_TO_KEY):
+    with (
+        mock.patch.dict(ts_langs._LANGS),
+        mock.patch.dict(ts_langs._EXT_TO_LANG),
+        mock.patch.object(ts_langs, "_FAILED", set[str]()),
+        mock.patch.dict(regex_backend._LANGUAGES),
+        mock.patch.dict(regex_backend._NAME_TO_KEY),
+    ):
         bridge.register_tree_sitter(
             "pytestlang",
             grammar="tree_sitter_python",
@@ -221,8 +225,9 @@ def test_pack_registration_and_query_file(tmp_path: Path) -> None:
         assert ("comment", "# hi") in _kinds(toks[0], lines[0])
         assert ("string", '"s"') in _kinds(toks[1], lines[1])
         # routed through the engine, and visible in :set filetype
-        assert engine.tokenize_document(lines, "ptl") == \
+        assert engine.tokenize_document(lines, "ptl") == (
             ts_backend.tokenize_document(lines, "ptl")
+        )
         assert "ptl" in available_filetypes()
 
 
@@ -282,8 +287,9 @@ def test_single_line_node() -> None:
 
 def test_multiline_node_fills_inner_rows() -> None:
     node = _Node(_Point(0, 1), _Point(2, 1))
-    assert _clip(node, ["ab", "cd", "ef"]) == \
+    assert _clip(node, ["ab", "cd", "ef"]) == (
         [(0, 1, 2), (1, 0, 2), (2, 0, 1)]
+    )
 
 
 def test_node_starting_past_document_end_is_dropped() -> None:
@@ -305,8 +311,9 @@ def test_empty_intervals_produce_no_tokens() -> None:
 
 
 def test_single_span() -> None:
-    assert ts_runtime._tokens_for_row([(0, 3, "keyword")], 5) == \
+    assert ts_runtime._tokens_for_row([(0, 3, "keyword")], 5) == (
         [Token(0, 3, "keyword")]
+    )
 
 
 def test_nested_span_inner_wins_and_gaps_keep_outer_kind() -> None:
@@ -321,23 +328,27 @@ def test_nested_span_inner_wins_and_gaps_keep_outer_kind() -> None:
 
 
 def test_adjacent_same_kind_runs_are_merged() -> None:
-    assert ts_runtime._tokens_for_row([(0, 2, "x"), (2, 4, "x")], 4) == \
+    assert ts_runtime._tokens_for_row([(0, 2, "x"), (2, 4, "x")], 4) == (
         [Token(0, 4, "x")]
+    )
 
 
 def test_adjacent_different_kinds_stay_separate() -> None:
-    assert ts_runtime._tokens_for_row([(0, 2, "a"), (2, 4, "b")], 4) == \
+    assert ts_runtime._tokens_for_row([(0, 2, "a"), (2, 4, "b")], 4) == (
         [Token(0, 2, "a"), Token(2, 4, "b")]
+    )
 
 
 def test_spans_are_clipped_to_line_bounds() -> None:
-    assert ts_runtime._tokens_for_row([(-3, 2, "a"), (4, 99, "b")], 5) == \
+    assert ts_runtime._tokens_for_row([(-3, 2, "a"), (4, 99, "b")], 5) == (
         [Token(0, 2, "a"), Token(4, 5, "b")]
+    )
 
 
 def test_zero_length_span_is_dropped() -> None:
-    assert ts_runtime._tokens_for_row([(2, 2, "a"), (0, 1, "b")], 5) == \
+    assert ts_runtime._tokens_for_row([(2, 2, "a"), (0, 1, "b")], 5) == (
         [Token(0, 1, "b")]
+    )
 
 
 def test_unsorted_input_comes_out_position_sorted() -> None:
@@ -356,8 +367,9 @@ def test_empty_document_returns_no_rows() -> None:
 
 
 def test_unknown_filetype_is_plain_text_per_line() -> None:
-    assert ts_backend.tokenize_document(["a", "bb"], "not_a_language_xyz") == \
+    assert ts_backend.tokenize_document(["a", "bb"], "not_a_language_xyz") == (
         [[], []]
+    )
 
 
 # --- cross-module invariants ------------------------------------------------
@@ -543,6 +555,7 @@ def test_missing_query_file_returns_none(
 
 @pytest.fixture
 def bridge() -> ext_services.SyntaxExtensionBridge:
+    """Provide a fresh syntax extension bridge."""
     return ext_services.SyntaxExtensionBridge()
 
 

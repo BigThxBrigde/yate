@@ -20,7 +20,7 @@ from yate.app import YateApp
 from yate.config import load_config
 from yate.editor_lsp.client import ServerConfig
 
-_ALL_SECTIONS = (
+_ALL_SECTIONS: tuple[str, ...] = (
     "system", "terminal", "shell", "paths", "yaterc", "config",
     "themes", "syntax", "extensions", "lsp", "fonts", "packages",
 )
@@ -74,8 +74,9 @@ def test_kv_separator_is_colon_everywhere() -> None:
             continue  # titles, bullets, divider, bare labels
         if ": " in stripped and not stripped.endswith(":"):
             key = stripped.split(": ", 1)[0]
-            assert " = " not in stripped and "= " not in key, \
+            assert " = " not in stripped and "= " not in key, (
                 f"non-uniform separator in line: {line!r}"
+            )
 
 
 # --- extensions section -----------------------------------------------------
@@ -171,6 +172,7 @@ class _TtyStream(io.StringIO):
 
     @override
     def isatty(self) -> bool:
+        """Claim to be a terminal so the report is rendered in color."""
         return True
 
 

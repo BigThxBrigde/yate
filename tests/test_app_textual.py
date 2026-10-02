@@ -36,7 +36,7 @@ from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
 
-async def wait_until(
+async def wait_until(  # noqa: Any - Textual pilot probe; no stubs
     pilot: Any, predicate: Callable[[], bool],
     timeout: float = 5.0, step: float = 0.05,
 ) -> bool:
@@ -1823,8 +1823,7 @@ def test_every_editor_cell_has_explicit_bg(tmp_path: Path) -> None:
             for row in range(min(4, app.editor.session.buffer.line_count)):
                 for seg in editor.render_line(row):
                     bg = getattr(seg.style, "bgcolor", None)
-                    assert bg is not None, \
-                        f"bg=None cell at row {row}: {seg.text!r}"
+                    assert bg is not None, f"bg=None cell at row {row}: {seg.text!r}"
                     assert repr(bg) in allowed
                     checked += 1
             assert checked > 12
@@ -1939,6 +1938,7 @@ def test_startup_falls_back_to_mocha_when_selected_theme_bridge_fails() -> None:
         d = {f.name: getattr(base, f.name) for f in dc_fields(base)}
         d["name"] = "broken-bridge"
         d["bg"] = "#gggggg"  # invalid -> to_textual_theme raises
+        # d re-uses Theme's real field names; pyright only sees dict[str, object].
         broken = Theme(**d)  # type: ignore[arg-type]
         THEMES["broken-bridge"] = broken
         try:
@@ -1967,6 +1967,7 @@ def test_valid_custom_yate_theme_gets_working_bridge() -> None:
         d = {f.name: getattr(base, f.name) for f in dc_fields(base)}
         d["name"] = "custom-ok"
         d["accent2"] = "#ff00ff"  # distinct so the bridge border is testable
+        # d re-uses Theme's real field names; pyright only sees dict[str, object].
         custom = Theme(**d)  # type: ignore[arg-type]
         THEMES["custom-ok"] = custom
         try:
@@ -3303,7 +3304,7 @@ def test_rc_declaring_the_bundled_dir_does_not_warn_shadow(
 # ----------------------------------------------------------------- LSP UI fake
 
 
-def _install_fake_server(
+def _install_fake_server(  # noqa: Any - fake LSP server boundary; no stubs
     app: YateApp, completions: list[dict[str, Any]] | None = None
 ) -> list[Any]:
     from yate.editor_lsp.client import ServerConfig
@@ -3330,31 +3331,38 @@ def _install_fake_server(
             created.append(self)
 
         async def start(self) -> None:
+            """Fake start: nothing to launch, the client stays READY."""
             return None
 
         async def stop(self) -> None:
+            """Fake stop: flips the state to STOPPED."""
             from yate.editor_lsp import ServerState
             self.state = ServerState.STOPPED
 
         async def notify(self, method: str, params: Any) -> None:
+            """Fake notify: records ``didOpen`` payloads."""
             if method == "textDocument/didOpen":
                 self.opened.append(params)
 
         async def request(self, method: str, params: Any) -> Any:
+            """Fake request: serves the canned completion list."""
             return {"isIncomplete": False, "items": completions}
 
         async def start_request(self, method: str, params: Any) -> Any:
+            """Fake start_request: returns an already-done future."""
             import asyncio
             future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
             future.set_result({"isIncomplete": False, "items": completions})
             return 1, future
 
         async def send_cancel(self, request_id: int) -> None:
+            """Fake cancel: discards the request id."""
             return None
 
-        def publish_diagnostics(
+        def publish_diagnostics(  # noqa: Any - fake LSP server boundary; no stubs
             self, manager: Any, uri: str, entries: list[dict[str, Any]]
         ) -> None:
+            """Fake diagnostics pump: forwards entries to the manager."""
             manager.handle_notification(
                 "textDocument/publishDiagnostics",
                 {"uri": uri, "diagnostics": entries},
@@ -3637,25 +3645,31 @@ class _RcClientShim:
         created.append(self)
 
     async def start(self) -> None:
+        """Fake start: nothing to launch, the client stays READY."""
         return None
 
     async def stop(self) -> None:
+        """Fake stop: flips the state to STOPPED."""
         from yate.editor_lsp import ServerState
         self.state = ServerState.STOPPED
 
     async def notify(self, method: str, params: Any) -> None:
+        """Fake notify: records ``didOpen`` payloads."""
         if method == "textDocument/didOpen":
             self.opened.append(params)
 
     async def request(self, method: str, params: Any) -> Any:
+        """Fake request: no scripted result, always ``None``."""
         return None
 
     async def start_request(self, method: str, params: Any) -> Any:
+        """Fake start_request: future resolved with ``None``."""
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         future.set_result(None)
         return 1, future
 
     async def send_cancel(self, request_id: int) -> None:
+        """Fake cancel: discards the request id."""
         return None
 
 
@@ -3682,29 +3696,36 @@ class _FakePty:
         self, on_output: Callable[[bytes], None],
         on_exit: Callable[[int | None], None],
     ) -> None:
+        """Fake counterpart of :meth:`PtyProcess.start` recording the callbacks."""
         self.started = True
         self._on_output = on_output
         self._on_exit = on_exit
 
     def write(self, data: bytes) -> None:
+        """Fake counterpart of :meth:`PtyProcess.write` recording the bytes."""
         self.sent.append(data)
 
     def resize(self, cols: int, rows: int) -> None:
+        """Fake counterpart of :meth:`PtyProcess.resize` storing the size."""
         self.cols, self.rows = cols, rows
 
     def exit(self, code: int = 0) -> None:
+        """Fake child exit: fires the exit callback at most once."""
         if not self.exited and self._on_exit is not None:
             self.exited = True
             self._on_exit(code)
 
     def emit_output(self, data: bytes) -> None:
+        """Fake counterpart of :meth:`PtyProcess.emit_output` for tests."""
         if self._on_output is not None:
             self._on_output(data)
 
     def terminate(self) -> None:
+        """Fake terminate: delegates to the fake exit with code 0."""
         self.exit(0)
 
     async def wait_closed(self) -> None:
+        """Fake wait: returns once the fake child has exited."""
         for _ in range(200):
             if self.exited:
                 return
@@ -3744,6 +3765,7 @@ def test_early_pty_output_survives_first_layout() -> None:
             self, on_output: Callable[[bytes], None],
             on_exit: Callable[[int | None], None],
         ) -> None:
+            """Fake start that emits a banner before the first layout."""
             await super().start(on_output, on_exit)
             loop = asyncio.get_running_loop()
             loop.call_soon(

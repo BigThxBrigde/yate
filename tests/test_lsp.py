@@ -46,6 +46,7 @@ class FakeReader:
         self._pos = 0
 
     async def readline(self) -> bytes:
+        """Fake counterpart of :meth:`asyncio.StreamReader.readline`."""
         start = self._pos
         nl = self._data.find(b"\n", start)
         if nl == -1:
@@ -55,6 +56,7 @@ class FakeReader:
         return self._data[start : self._pos]
 
     async def readexactly(self, n: int) -> bytes:
+        """Fake counterpart of :meth:`asyncio.StreamReader.readexactly`."""
         chunk = self._data[self._pos : self._pos + n]
         if len(chunk) != n:
             raise asyncio.IncompleteReadError(chunk, n)
@@ -63,6 +65,7 @@ class FakeReader:
 
 
 def frame(payload: dict[str, Any], extra_headers: str = "") -> bytes:
+    """Encode *payload* as one LSP frame with optional extra headers."""
     body = json.dumps(payload).encode("utf-8")
     head = f"Content-Length: {len(body)}\r\n".encode("ascii")
     if extra_headers:
@@ -150,6 +153,7 @@ class FakeProc:
         self.terminated = False
 
     def terminate(self) -> None:
+        """Fake terminate: flags the call and reports the SIGTERM code."""
         self.terminated = True
         self.returncode = -15
 
@@ -172,6 +176,7 @@ class ServerHarness:
         self.proc = FakeProc()
 
     async def start(self) -> LspClient:
+        """Serve a loopback JSON-RPC fake and return a connected client."""
         async def serve(
             reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         ) -> None:
@@ -237,6 +242,7 @@ class ServerHarness:
         return client
 
     async def close(self) -> None:
+        """Stop the loopback server and wait for its sockets."""
         if self.server is not None:
             self.server.close()
             await self.server.wait_closed()
@@ -496,9 +502,11 @@ def test_stop_during_starting_skips_shutdown_and_terminates() -> None:
                 self.waited = False
 
             def terminate(self) -> None:
+                """Fake terminate: flags the call for the assertions."""
                 self.terminated = True
 
             async def wait(self) -> int:
+                """Fake wait: reports the SIGTERM code like a reaped child."""
                 self.waited = True
                 self.returncode = -15
                 return -15
@@ -546,7 +554,7 @@ def test_stop_during_starting_skips_shutdown_and_terminates() -> None:
 class FakeClient:
     """Stand-in for LspClient used by manager tests (never spawns)."""
 
-    def __init__(
+    def __init__(  # noqa: Any - fake LSP server boundary; no stubs
         self,
         config: ServerConfig,
         root: Path,
@@ -566,34 +574,42 @@ class FakeClient:
         self._completion: Any = completion if completion is not None else []
 
     async def start(self) -> None:
+        """Fake start: only records that the client was started."""
         self.started = True
 
     async def stop(self) -> None:
+        """Fake stop: marks stopped and flips the state to STOPPED."""
         self.stopped = True
         self.state = ServerState.STOPPED
 
     async def notify(self, method: str, params: Any) -> None:
+        """Fake notify: records the (method, params) pair."""
         self.sent.append((method, params))
 
     async def request(self, method: str, params: Any) -> Any:
+        """Fake request: records the call and replays the scripted result."""
         self.sent.append((method, params))
         return self._completion
 
     async def start_request(self, method: str, params: Any) -> tuple[int, Any]:
+        """Fake start_request: records the call; the future is already done."""
         self.sent.append((method, params))
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         future.set_result(self._completion)
         return 1, future
 
     async def send_cancel(self, request_id: int) -> None:
+        """Fake cancel: records the $/cancelRequest notification."""
         self.sent.append(("$/cancelRequest", request_id))
 
     def publish(self, params: dict[str, Any]) -> None:
+        """Fake diagnostics pump: feeds the notification sink."""
         if self._on_notification is not None:
             self._on_notification("textDocument/publishDiagnostics", params)
 
 
 def make_python_doc(tmp: str, text: str = "x = 1\n") -> Document:
+    """Write *text* to a Python file under *tmp* and open it as a Document."""
     path = Path(tmp) / "mod.py"
     path.write_text(text, encoding="utf-8")
     return Document.open(path)
@@ -641,12 +657,14 @@ class ManagerSession:
     fakes: list[FakeClient]
 
     def client(self) -> FakeClient:
+        """The single fake created by the fixture (exact count asserted)."""
         assert len(self.fakes) == 1
         return self.fakes[0]
 
 
 @pytest.fixture
 def session(tmp_path: Path) -> ManagerSession:
+    """Manager plus one fake client and an event log for lifecycle tests."""
     events: list[str] = []
     fakes: list[FakeClient] = []
     managers: list[LspManager] = []
@@ -877,6 +895,7 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
 
             @override
             async def start(self) -> None:
+                """Park in STARTING until ``stop`` releases the event."""
                 self.started = True
                 await self._release.wait()
                 if not self.stopped:
@@ -884,6 +903,7 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
 
             @override
             async def stop(self) -> None:
+                """Release the parked start, then run the fake stop."""
                 await super().stop()
                 self._release.set()
 
@@ -928,10 +948,12 @@ def test_register_replace_race_keeps_new_starting_task_tracked(
                 self._release = asyncio.Event()
 
             def finish(self) -> None:
+                """Test hook: release the parked start() manually."""
                 self._release.set()
 
             @override
             async def start(self) -> None:
+                """Park in STARTING until ``finish`` releases the event."""
                 self.started = True
                 await self._release.wait()
                 if not self.stopped:
@@ -1055,8 +1077,10 @@ def test_real_subprocess_starting_shutdown_leaves_no_garbage(
             # 30 x 0.05s: the child self-terminates after ~2s, so reaching
             # STARTING must happen inside that window.
             for _ in range(30):
-                if clients and next(iter(clients.values())).state \
-                        is ServerState.STARTING:
+                if (
+                    clients and next(iter(clients.values())).state
+                    is ServerState.STARTING
+                ):
                     break
                 await asyncio.sleep(0.05)
             real_client = next(iter(clients.values()))

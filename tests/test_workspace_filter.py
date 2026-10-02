@@ -29,10 +29,13 @@ def root_of(ws: Workspace) -> Path:
 
 
 def entry_names(entries: list[Entry]) -> list[str]:
+    """Map a listed entry batch to its names."""
     return [e.name for e in entries]
 
 
 def list_names(ws: Workspace, path: Path | None = None) -> list[str]:
+    """List entry names under the workspace root or an explicit directory."""
+    # ws.root is Optional[Path]; the fixture always constructs a rooted ws.
     return entry_names(ws.list_dir(path if path is not None else ws.root))  # type: ignore[arg-type]
 
 
@@ -50,6 +53,7 @@ def test_hidden_flag_is_dot_prefix() -> None:
 
 @pytest.fixture
 def ws(tmp_path: Path) -> Workspace:
+    """A workspace over entries covering plain, dotfile, dot-dir and sub."""
     (tmp_path / "plain.py").write_text("x\n", encoding="utf-8")
     (tmp_path / ".dotfile").write_text("x\n", encoding="utf-8")
     (tmp_path / ".config").mkdir()
@@ -96,6 +100,7 @@ def test_visible_tree_respects_show_hidden(ws: Workspace) -> None:
 
 
 def parse_ignore(text: str) -> list[tuple[str, bool, bool]]:
+    """Run *text* through the private parser and return plain tuples."""
     pats = Workspace._parse_ignore(text)
     return [(p.pattern, p.negated, p.dir_only) for p in pats]
 

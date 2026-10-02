@@ -17,7 +17,7 @@ import pytest
 from yate.editor_term.shells import resolve_shell, shell_label
 from yate.services.shell import ShellResult, run_shell, shell_name
 
-_WINDOWS = sys.platform.startswith("win")
+_WINDOWS: bool = sys.platform.startswith("win")
 
 
 def _which(mapping: dict[str, str | None]) -> Any:

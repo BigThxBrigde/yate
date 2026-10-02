@@ -26,7 +26,7 @@ from tools.changelog.model import (
     VersionBump,
 )
 
-REMOTE = gitee.RemoteInfo(host="gitee.com", owner="demo", repo="yate")
+REMOTE: gitee.RemoteInfo = gitee.RemoteInfo(host="gitee.com", owner="demo", repo="yate")
 
 
 def _raw(sha: str, subject: str, *, body: str = "", date: str = "2026-01-01") -> RawCommit:
@@ -115,6 +115,7 @@ def test_release_doc_commit_is_not_an_entry() -> None:
 
 @pytest.fixture
 def topo_commits() -> list[RawCommit]:
+    """Three raw commits in topo order (newest first), dates not monotonic."""
     # topo order newest → oldest; dates are deliberately NOT monotonic
     return [
         _raw("a" * 40, "feat: newest", date="2026-01-01"),
@@ -125,6 +126,7 @@ def topo_commits() -> list[RawCommit]:
 
 @pytest.fixture
 def topo_entries(topo_commits: list[RawCommit]) -> list[Commit]:
+    """Classified changelog entries derived from the topo-ordered commits."""
     return _entries(*topo_commits)
 
 
@@ -237,6 +239,7 @@ def test_boundaries_ignore_dates_and_follow_topo(
 
 @pytest.fixture
 def breaking_segments() -> list[segments.ReleaseSegment]:
+    """Segments for a release that contains a breaking change plus entries."""
     full = [
         _raw("a" * 40, "feat!: new config format", body="BREAKING CHANGE: old keys gone"),
         _raw("b" * 40, "feat(editor): tab bar", date="2026-02-02"),
@@ -491,6 +494,7 @@ def test_parse_bump_patch_only_counts_added_lines() -> None:
 
 @pytest.fixture
 def cold_start_segments() -> list[segments.ReleaseSegment]:
+    """Segments for a repository with no tags and no bumps (cold start)."""
     full = [_raw("a" * 40, "feat: thing", date="2026-02-02")]
     boundaries = segments.build_boundaries([], [], full, current_version="0.1.0")
     return segments.build_segments(
@@ -651,17 +655,20 @@ def test_strip_unreleased_section_at_end_is_dropped_entirely() -> None:
 
 @pytest.fixture
 def cli_repo(tmp_path: Path) -> Path:
+    """A tmp repository dir pre-seeded with an empty zh overrides file."""
     (tmp_path / "zh_overrides.json").write_text("{}\n", encoding="utf-8")
     return tmp_path
 
 
 @pytest.fixture
 def overrides_path(cli_repo: Path) -> Path:
+    """Path of the zh overrides file inside :func:`cli_repo`."""
     return cli_repo / "zh_overrides.json"
 
 
 @pytest.fixture
 def cli_commits() -> list[RawCommit]:
+    """Four commits: two unreleased, one release boundary, one released."""
     # newest → oldest: two unreleased entries, the v0.1.0 boundary (a
     # chore(release) commit that never renders as an entry) and one
     # released entry.
@@ -675,6 +682,7 @@ def cli_commits() -> list[RawCommit]:
 
 @pytest.fixture
 def stub_gitdata(cli_commits: list[RawCommit], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub every ``gitdata`` reader with fakes backed by ``cli_commits``."""
     def fake_read_commits(
         repo: Path, *, include_merges: bool = False, limit: int | None = None
     ) -> list[RawCommit]:
