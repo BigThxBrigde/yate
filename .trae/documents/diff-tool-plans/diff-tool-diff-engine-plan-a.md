@@ -105,3 +105,38 @@ python -m pyright yate/editor_core/diff.py tests/test_editor_core_diff.py
 
 - 风险：`hunk_replacement` 末行半开区间 off-by-one —— 由最后两条用例锁定；`Pos` 为 tuple 别名，pyright 下注意按 `tuple[int, int]` 形状比较。
 - 回滚：纯新增文件，`git revert` 该提交即可，无共享文件触碰。
+
+## 执行记录（2026-10-02，wave-1 实测回填）
+
+### 实际改动
+
+| 文件 | 动作 | 规模 |
+|---|---|---|
+| `yate/editor_core/diff.py` | 新增 | 225 行（DiffHunk / DiffResult+align / MergeRegion / diff_lines / diff_words / diff3_regions / hunk_replacement + 私有 `_merge_spans` / `_side_span`；`Pos` 自 `yate.editor_core.buffer` 导入，未重复定义） |
+| `tests/test_editor_core_diff.py` | 新增 | 103 行，13 用例 |
+
+`yate/editor_core/__init__.py` 未触碰（保持惰性，§三.5）；无其它文件改动（`git status` 仅上述两个未跟踪文件）。
+
+### 验收命令真实输出（cwd = feat/diff-tool worktree）
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| `.venv\Scripts\python.exe -m pytest tests/test_editor_core_diff.py -q` | `13 passed` | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/test_editor_core.py -q` | `71 passed, 1 skipped`（修复后复跑与 diff 合跑：`105 passed, 1 skipped`） | 0 |
+| `.venv\Scripts\python.exe -m pyright yate/editor_core/diff.py tests/test_editor_core_diff.py` | `0 errors, 0 warnings, 0 informations` | 0（修复 2 诊断后） |
+
+首次 pyright 报 2 个 `reportArgumentType`：`get_opcodes()` 返回 `list[tuple[Literal[...], ...]]` 无法赋给 `list[tuple[str, ...]]` 形参（list 不变性）——`_side_span` 形参改为协变 `Sequence[tuple[str, int, int, int, int]]`（pyright 提示方案）后归零。环境注记：worktree 的 `.venv` 与主仓共享（`yate.__file__` 解析指向主仓安装），但 cwd=worktree 时 import 解析到 worktree 的 `yate` 包（实测探针确认），Python 3.13.2 + pyright 1.1.414。
+
+### 偏离记录（均有实测依据）
+
+1. **执行位置澄清**（非设计偏离）：会话以 `d:\Programming\yate`（master worktree）启动，`feat/diff-tool` 的实际 worktree 为 `D:\Programming\yate-diff-tool`（`git worktree list` 实证）；全程在后者内执行，未触碰 master worktree。
+2. **`hunk_replacement` 分支语义按测试表格裁决**：本计划「具体修改」第 5 条字面（`copy_into="b"` → 目标区间用 `(b_start,0)-(b_end,0)`、文本取 `source` 的 a 区间）与用例 12/13 的精确期望值冲突——用例 12 的 hunk 形状 `(1,2)/(1,3)` 仅在 target 对应 a 侧时与 difflib 真实 opcode 一致（`diff(["a","x","c"],["a","y1","y2","c"])` → `replace(1,2,1,3)`），且用例 13 的「文本以 `\n` 开头」在字面语义下无解（insert 型 hunk 的 a 侧区间恒空，文本必为空串）。实现采用用例唯一自洽语义：**`copy_into` 指明内容来源侧，目标区间用对侧坐标**（`"b"` → a 坐标 + `source` 的 b 区间；`"a"` 对称）；第 5 条的全部几何细节（EOF 半开终点 `(n-1, len(line))`、`"\n".join`、对称性）原样保留，仅 a/b 分支标签按用例对调。
+3. **`diff_words` 用例 7 断言值修正 `(4,7)` → `(6,7)`**：第 3 条实现要点与主计划 D1 均为「字符级 SequenceMatcher」，实测 `SequenceMatcher(None, "foo bar", "foo baz", autojunk=False).get_opcodes()` = `[('equal',0,6,0,6),('replace',6,7,6,7)]`，非 equal 区间为 `(6,7)`；`(4,7)` 是词级区间，与两处「字符级」及用例名 `..._returns_char_ranges_...` 矛盾（表格笔误）。断言按字符级实测值落实。
+4. **autojunk 用例构造增强**：表格原构造（300 行相同 + 末行 1 处修改）实测在 `autojunk=True` 下同样产出 `('replace', 299, 300, 299, 300)`（两开关结果一致，锁不死 autojunk——匹配种子虽被清除，逐元素扩展比较仍复原匹配）。改为 300 行高重复输入（每行出现 5 次 > popular 阈值 4）+ 中间 1 处修改：实测 `autojunk=True` → `('replace', 150, 301, 150, 301)`（边界错误）、`autojunk=False` → `('replace', 150, 151, 150, 151)`（正确）。断言在表格 `len(hunks) == 1` 基础上补充 kind 与精确边界，使删除 `autojunk=False` 立即失败。
+5. **用例 10 断言形态**：第 4 条实现要点规定 same 区保留在输出中，故「恰两个 region」落实为 `[region.kind for region in regions] == ["local", "same", "remote"]`（两个非 same 分类、无 conflict、按 base 顺序）。
+6. **计划外防御分支**：`hunk_replacement` 对空 target（`line_count == 0`）加卫语句返回 `((0,0),(0,0),text)`（表格用例未覆盖空文件，不加则 `target[-1]` IndexError；纯防御，不影响任何已锁定行为）。
+7. **断言超集**（非语义偏离）：用例 1 补 `b_lines == 2`；用例 13 按表格「精确期望值以实现定义为准」锁定 `text == "\nnew"`。
+
+### 遗留
+
+无。边界条款遵守：未改 `tests/test_architecture.py`（`editor_core` 纳入 R4 扫描面留待 plan-c）。
