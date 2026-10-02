@@ -25,6 +25,7 @@ from yate.editor_syntax.engine import tokenize_line_sync
 from yate.editor_syntax.tokens import Token
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
+from yate.paths import load_tcss
 from yate.session import EditorSession, Leaf
 
 from . import theme
@@ -139,12 +140,7 @@ class EditorView(ScrollView):
     # completion popup debounce).
     _HIGHLIGHT_DEBOUNCE_S = 0.08
 
-    DEFAULT_CSS = """
-    EditorView {
-        padding: 0;
-        overflow-x: hidden;
-    }
-    """
+    DEFAULT_CSS = load_tcss("editor-view.tcss")
 
     def __init__(
         self,

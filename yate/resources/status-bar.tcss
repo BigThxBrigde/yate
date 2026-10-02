@@ -1,0 +1,6 @@
+/* StatusBar widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/statusbar.py via yate.paths.load_tcss. */
+StatusBar {
+    height: 1;
+    padding: 0;
+}

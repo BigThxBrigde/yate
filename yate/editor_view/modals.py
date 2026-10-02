@@ -12,6 +12,7 @@ from textual.widgets import Static
 
 from yate.keymaps.base import KeyBinding
 from yate.keymaps.registry import KeymapSet
+from yate.paths import load_tcss
 from yate.registries import CommandRegistry
 
 from . import theme
@@ -27,22 +28,7 @@ class _OverlayScreen(ModalScreen[None]):
         ("ctrl+c", "dismiss", "close"),
     ]
 
-    DEFAULT_CSS = """
-    _OverlayScreen {
-        align: center middle;
-    }
-    _OverlayScreen #overlay {
-        width: 90%;
-        height: 85%;
-        border: tall $primary;
-        background: $surface;
-        padding: 1 2;
-    }
-    _OverlayScreen .hint {
-        color: $text-muted;
-        text-align: center;
-    }
-    """
+    DEFAULT_CSS = load_tcss("overlay-screen.tcss")
 
     @override
     def compose(self) -> ComposeResult:

@@ -1,0 +1,22 @@
+/* PromptBar widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/commandline.py via yate.paths.load_tcss. */
+PromptBar {
+    height: 1;
+    background: $surface;
+    padding: 0;
+}
+PromptBar Static {
+    height: 1;
+    padding: 0;
+    background: $surface;
+}
+PromptBar #cl_prompt {
+    width: auto;
+    min-width: 2;
+}
+PromptBar #cl_msg {
+    height: 1;
+}
+PromptBar CommandInput {
+    width: 1fr;
+}

@@ -20,6 +20,7 @@ from textual.events import Key
 from textual.widgets import Input, Static
 
 from yate.logs import tracing
+from yate.paths import load_tcss
 
 from . import theme
 from .icons import SEARCH, TERMINAL
@@ -72,20 +73,7 @@ OWNER_IDLE: str = "idle"
 class CommandInput(Input):
     """Input with command history (up/down) and escape-to-cancel."""
 
-    DEFAULT_CSS = """
-    CommandInput {
-        background: $surface;
-        border: none !important;
-        height: 1;
-        padding: 0;
-    }
-    /* Textual's built-in Input:focus adds a tall border which would cover
-       the only content row of this height-1 widget, hiding typed text. */
-    CommandInput:focus {
-        border: none !important;
-        background-tint: transparent;
-    }
-    """
+    DEFAULT_CSS = load_tcss("command-input.tcss")
 
     def __init__(self, bar: PromptBar) -> None:
         super().__init__()
@@ -204,28 +192,7 @@ class PromptBar(Horizontal):
     active prompt and :meth:`write` replaces the line with a message.
     """
 
-    DEFAULT_CSS = """
-    PromptBar {
-        height: 1;
-        background: $surface;
-        padding: 0;
-    }
-    PromptBar Static {
-        height: 1;
-        padding: 0;
-        background: $surface;
-    }
-    PromptBar #cl_prompt {
-        width: auto;
-        min-width: 2;
-    }
-    PromptBar #cl_msg {
-        height: 1;
-    }
-    PromptBar CommandInput {
-        width: 1fr;
-    }
-    """
+    DEFAULT_CSS = load_tcss("prompt-bar.tcss")
 
     def __init__(
         self,

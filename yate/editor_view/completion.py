@@ -25,6 +25,7 @@ from textual.widget import Widget
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.client import Completion
+from yate.paths import load_tcss
 
 from . import theme
 
@@ -77,16 +78,7 @@ class CompletionPopup(Widget):
 
     can_focus = False
 
-    DEFAULT_CSS = """
-    CompletionPopup {
-        layer: lsp-popup;
-        position: absolute;
-        height: 0;
-        width: 0;
-        padding: 0;
-        margin: 0;
-    }
-    """
+    DEFAULT_CSS = load_tcss("completion-popup.tcss")
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)

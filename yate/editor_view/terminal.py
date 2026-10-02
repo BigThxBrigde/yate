@@ -31,6 +31,7 @@ from yate.editor_term import (
     shell_label,
 )
 from yate.logs import tracing
+from yate.paths import load_tcss
 from yate.services.workspace import Workspace
 
 from . import theme
@@ -74,11 +75,7 @@ class TerminalView(Widget):
 
     can_focus = True
 
-    DEFAULT_CSS = """
-    TerminalView {
-        padding: 0;
-    }
-    """
+    DEFAULT_CSS = load_tcss("terminal-view.tcss")
 
     def __init__(self, panel: TerminalPanel, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -386,18 +383,7 @@ class TerminalPanel(Vertical):
     suite injects (``None`` in production).
     """
 
-    DEFAULT_CSS = """
-    TerminalPanel {
-        height: 1fr;
-    }
-    #terminal-title {
-        height: 1;
-        padding: 0 1;
-    }
-    TerminalView {
-        height: 1fr;
-    }
-    """
+    DEFAULT_CSS = load_tcss("terminal-panel.tcss")
 
     def __init__(
         self,
