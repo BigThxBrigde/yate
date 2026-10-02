@@ -1,0 +1,16 @@
+/* _OverlayScreen widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/modals.py via yate.paths.load_tcss. */
+_OverlayScreen {
+    align: center middle;
+}
+_OverlayScreen #overlay {
+    width: 90%;
+    height: 85%;
+    border: tall $primary;
+    background: $surface;
+    padding: 1 2;
+}
+_OverlayScreen .hint {
+    color: $text-muted;
+    text-align: center;
+}

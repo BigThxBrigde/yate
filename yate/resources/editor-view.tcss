@@ -1,0 +1,6 @@
+/* EditorView widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/editor.py via yate.paths.load_tcss. */
+EditorView {
+    padding: 0;
+    overflow-x: hidden;
+}

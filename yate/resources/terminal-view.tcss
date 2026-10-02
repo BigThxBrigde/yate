@@ -1,0 +1,5 @@
+/* TerminalView widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/terminal.py via yate.paths.load_tcss. */
+TerminalView {
+    padding: 0;
+}

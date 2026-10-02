@@ -25,6 +25,7 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
+from yate.paths import load_tcss
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
@@ -78,31 +79,7 @@ class PaletteScreen(ModalScreen[None]):
         ("ctrl+c", "dismiss", "close"),
     ]
 
-    DEFAULT_CSS = """
-    PaletteScreen {
-        align: center top;
-    }
-    PaletteScreen #palette {
-        width: 70%;
-        max-width: 90;
-        height: 14;
-        margin-top: 3;
-        border: tall $primary;
-        background: $surface;
-        padding: 0 1;
-    }
-    PaletteScreen #palette-input {
-        height: 1;
-        border: none;
-        background: $surface;
-        padding: 0;
-    }
-    PaletteScreen #palette-results {
-        height: 1fr;
-        padding: 0;
-        background: $surface;
-    }
-    """
+    DEFAULT_CSS = load_tcss("palette-screen.tcss")
 
     def __init__(
         self,

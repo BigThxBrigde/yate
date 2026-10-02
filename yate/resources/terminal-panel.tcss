@@ -1,0 +1,12 @@
+/* TerminalPanel widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/terminal.py via yate.paths.load_tcss. */
+TerminalPanel {
+    height: 1fr;
+}
+#terminal-title {
+    height: 1;
+    padding: 0 1;
+}
+TerminalView {
+    height: 1fr;
+}

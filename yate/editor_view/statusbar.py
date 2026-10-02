@@ -20,6 +20,7 @@ from yate.editor_core import Document
 from yate.editor_lsp import LspManager, ServerState
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.paths import load_tcss
 from yate.services.extensions import ExtensionLoader
 from yate.session import EditorSession
 
@@ -54,12 +55,7 @@ def mode_chip(prompt: PromptBar, keymaps: KeymapSet) -> tuple[str, str]:
 class StatusBar(Static):
     """One line of context information, flat VS Code styled."""
 
-    DEFAULT_CSS = """
-    StatusBar {
-        height: 1;
-        padding: 0;
-    }
-    """
+    DEFAULT_CSS = load_tcss("status-bar.tcss")
 
     def __init__(
         self,

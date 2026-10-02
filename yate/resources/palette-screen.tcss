@@ -1,0 +1,25 @@
+/* PaletteScreen widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/palette.py via yate.paths.load_tcss. */
+PaletteScreen {
+    align: center top;
+}
+PaletteScreen #palette {
+    width: 70%;
+    max-width: 90;
+    height: 14;
+    margin-top: 3;
+    border: tall $primary;
+    background: $surface;
+    padding: 0 1;
+}
+PaletteScreen #palette-input {
+    height: 1;
+    border: none;
+    background: $surface;
+    padding: 0;
+}
+PaletteScreen #palette-results {
+    height: 1fr;
+    padding: 0;
+    background: $surface;
+}

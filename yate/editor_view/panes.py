@@ -37,6 +37,7 @@ from textual.widget import Widget
 from yate.editor_core.document import Document
 from yate.editor_view.editor import EditorView
 from yate.logs import tracing
+from yate.paths import load_tcss
 from yate.session import (
     MIN_FRACTION,
     RESIZE_STEP,
@@ -421,27 +422,7 @@ class PaneManager:
 class PaneHost(Widget):
     """Renders the :class:`PaneManager` tree and reconciles on changes."""
 
-    DEFAULT_CSS = """
-    PaneHost {
-        width: 100%;
-        height: 1fr;
-    }
-    .pane-box {
-        width: 100%;
-        height: 100%;
-    }
-    PaneHost EditorView {
-        width: 100%;
-        height: 100%;
-    }
-    /* divider between two panes of a split; only the first side gets it */
-    .pane-sep-h {
-        border-bottom: tall $foreground 25%;
-    }
-    .pane-sep-v {
-        border-right: tall $foreground 25%;
-    }
-    """
+    DEFAULT_CSS = load_tcss("pane-host.tcss")
 
     def __init__(self, manager: PaneManager, make_view: Callable[[int], EditorView]) -> None:
         super().__init__()

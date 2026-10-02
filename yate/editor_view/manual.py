@@ -38,6 +38,8 @@ from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Input, Markdown, Static
 
+from yate.paths import load_tcss
+
 from .scrollbars import apply_slim_scrollbars
 
 _DOC_LANGS: tuple[str, ...] = ("en", "zh")
@@ -176,68 +178,7 @@ class MarkdownDocScreen(ModalScreen[None]):
     #: and completion debounces).
     _SEARCH_DEBOUNCE_S = 0.12
 
-    DEFAULT_CSS = """
-    MarkdownDocScreen {
-        align: center middle;
-    }
-    MarkdownDocScreen #doc-box {
-        width: 90%;
-        height: 90%;
-        background: $surface;
-        border: tall $primary;
-        padding: 0 2;
-    }
-    MarkdownDocScreen #doc-search-bar {
-        height: 3;
-        padding: 0 1;
-        background: $surface;
-        display: none;
-    }
-    MarkdownDocScreen #doc-search-input {
-        width: 1fr;
-        height: 3;
-        border: none;
-        background: $surface;
-        padding: 0;
-    }
-    MarkdownDocScreen #doc-search-status {
-        width: auto;
-        min-width: 14;
-        height: 1;
-        padding: 1 1;
-        color: $text-muted;
-        background: $surface;
-    }
-    MarkdownDocScreen #doc-scroll {
-        height: 1fr;
-    }
-    MarkdownDocScreen #doc-loading {
-        height: 1;
-        padding: 1 0;
-        color: $text-muted;
-    }
-    MarkdownDocScreen .hint {
-        height: 1;
-        color: $text-muted;
-        text-align: center;
-    }
-    /* search hit tints: the two doc-hit variables follow the active yate
-       theme's yellow accent through the Textual theme bridge (see
-       YateApp.get_theme_variable_defaults and theme.to_textual_theme) */
-    MarkdownDocScreen .doc-hit {
-        background: $doc-hit-background;
-    }
-    MarkdownDocScreen .doc-hit-current {
-        background: $doc-hit-current-background;
-        text-style: bold;
-    }
-    /* table cells default to a squeezed 1fr grid which wraps long CJK
-       labels and breaks the keyline alignment; auto-width renders each
-       cell on a single line with clean borders */
-    MarkdownDocScreen MarkdownTable {
-        width: auto;
-    }
-    """
+    DEFAULT_CSS = load_tcss("markdown-doc-screen.tcss")
 
     def __init__(self, *, kind: str, lang: str, title: str) -> None:
         super().__init__()

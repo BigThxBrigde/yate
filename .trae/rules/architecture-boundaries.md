@@ -61,8 +61,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上 id
   （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`），
   `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
-  其中 `#statusbar` 只是 widget id（其样式由组件自持：`editor_view/statusbar.py:57`
-  的 `DEFAULT_CSS` 用类选择器 `StatusBar`），其余 id 均被外壳 CSS 直接引用——该 CSS
+  其中 `#statusbar` 只是 widget id（其样式由组件自持：
+  `yate/resources/status-bar.tcss`——组件 `DEFAULT_CSS` 均为打包 tcss 资源、
+  经 `yate.paths.load_tcss` 装载，issue IKJHPH；类选择器 `StatusBar` 不变），
+  其余 id 均被外壳 CSS 直接引用——该 CSS
   已不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`
   （`YateApp.CSS = paths.load_tcss("app.tcss")`；公共加载器 `yate/paths.py` 的
   `load_tcss()` 供 L2 组件同源装载自有 tcss，如 `screensaver.tcss`；文件头注释即声明
