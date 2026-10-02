@@ -16,7 +16,7 @@ import pytest
 
 from yate.actions import populate
 from yate.config import YateConfig
-from yate.editor_core import Document
+from yate.editor_core import BufferReadOnlyError, Document
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.registries import ActionRegistry
 from yate.services import clipboard as clipboard_service
@@ -239,3 +239,19 @@ def test_paste_action_falls_back_when_clipboard_empty(
 
     assert registry.execute("paste", ctx) is True
     assert ctx.buffer.get_text() == "OLD"
+
+
+def test_paste_action_on_read_only_buffer_does_not_prime_register(
+    recording_clip: _RecordingClip,
+) -> None:
+    """A read-only buffer fails the paste with the register left intact."""
+    registry = _action_table()
+    ctx = _action_context("KEEP")
+    ctx.buffer.read_only = True
+    ctx.buffer.register = "OLD"
+    recording_clip.paste_result = "SYS"
+
+    with pytest.raises(BufferReadOnlyError):
+        registry.execute("paste", ctx)
+    assert ctx.buffer.register == "OLD"
+    assert recording_clip.pastes == [1]

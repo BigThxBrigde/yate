@@ -127,11 +127,13 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         """Paste from the system clipboard, falling back to the register.
 
         When the system clipboard is unavailable (or empty), the internal
-        unnamed register is pasted as before.
+        unnamed register is pasted as before.  A read-only buffer skips the
+        register priming entirely so a doomed paste cannot clobber the
+        yanked text (mirrors the vim-side ``_prime_paste`` guard).
         """
         buf = ctx.buffer
         text = clipboard.paste_text()
-        if text:
+        if text and not buf.read_only:
             buf.register = text
         buf.paste()
 
