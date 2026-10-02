@@ -450,7 +450,10 @@ def _section_packages() -> list[str]:
     ordered = ["core"] + sorted(
         name for name in groups if name != "core" and name not in _SKIPPED_EXTRAS
     )
-    if not any(groups.get(group) for group in ordered):
+    # "core" leads unconditionally but may be empty (every requirement
+    # carries an extra marker); drop empty groups before rendering.
+    ordered = [name for name in ordered if groups.get(name)]
+    if not ordered:
         return []
     width = max(len(name) for group in ordered for name in groups[group])
     lines: list[str] = []

@@ -439,3 +439,32 @@ def test_packages_section_without_requires_metadata_is_empty() -> None:
     """``requires()`` returning ``None`` renders an empty inventory."""
     with patch("yate.diagnostics.importlib_metadata.requires", return_value=None):
         assert _private("_section_packages")() == []
+
+
+def test_packages_section_without_core_requirements_renders_extras_only() -> None:
+    """Every requirement carrying an extra marker still renders, coreless.
+
+    Regression guard: "core" leads ``ordered`` unconditionally, so an empty
+    core group must be dropped instead of raising ``KeyError`` (review round
+    1) -- here all requirements are extra-marked and the report shows the
+    ``ts`` group only.
+    """
+    requirements = [
+        "tree-sitter>=0.24,<0.26; extra == 'ts'",
+        "tree-sitter-python>=0.23; extra == 'ts'",
+    ]
+
+    def fake_version(name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    with (
+        patch("yate.diagnostics.importlib_metadata.requires", return_value=requirements),
+        patch("yate.diagnostics.importlib_metadata.version", side_effect=fake_version),
+    ):
+        lines: list[str] = _private("_section_packages")()
+
+    assert lines  # the ts group renders despite the empty core group
+    assert "  core:" not in lines
+    groups = _group_slices(lines)
+    assert list(groups) == ["ts"]
+    assert all("not installed" in row for row in groups["ts"])
