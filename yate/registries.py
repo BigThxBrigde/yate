@@ -13,9 +13,8 @@ concrete :class:`~yate.editor.Editor`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from yate.keymaps.base import ActionContext
 from yate.logs import tracing
@@ -77,16 +76,20 @@ class CommandRegistry:
         self._commands: dict[str, tuple[CommandFunc, str]] = {}
 
     def register(self, name: str, func: CommandFunc, description: str) -> None:
+        """Add (or replace) the ``:`` command *name*."""
         if name in self._commands:
             log.warning("command overwritten: %s", name)
         self._commands[name] = (func, description)
 
     def get(self, name: str) -> tuple[CommandFunc, str] | None:
+        """Return the ``(handler, description)`` pair for *name*, or ``None``."""
         return self._commands.get(name)
 
     def names(self) -> list[str]:
+        """Sorted list of registered command names."""
         return sorted(self._commands)
 
     def describe(self, name: str) -> str:
+        """The description of *name*; empty string when unknown."""
         entry = self._commands.get(name)
         return entry[1] if entry else ""

@@ -39,9 +39,9 @@ from yate.editor_view.theme import (
     validate_theme,
 )
 
-HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+HEX: re.Pattern[str] = re.compile(r"^#[0-9a-fA-F]{6}$")
 
-BUILTIN_THEMES = [
+BUILTIN_THEMES: list[str] = [
     "frappe",
     "gruvbox-dark",
     "gruvbox-light",
@@ -51,13 +51,13 @@ BUILTIN_THEMES = [
     "onedark",
     "onelight",
 ]
-_BUILTIN_THEME_SET = set(BUILTIN_THEMES)
+_BUILTIN_THEME_SET: set[str] = set(BUILTIN_THEMES)
 
-TEMPLATE_FILES = ["dracula_theme.example", "ayu_theme.example"]
-TEMPLATE_THEMES = ["dracula", "ayu-dark", "ayu-mirage", "ayu-light"]
+TEMPLATE_FILES: list[str] = ["dracula_theme.example", "ayu_theme.example"]
+TEMPLATE_THEMES: list[str] = ["dracula", "ayu-dark", "ayu-mirage", "ayu-light"]
 
 #: Theme fields that must hold a hex color (everything except identity/extra).
-COLOR_FIELDS = [
+COLOR_FIELDS: list[str] = [
     f.name
     for f in fields(Theme)
     if f.name not in ("name", "label", "dark", "extra")
@@ -339,6 +339,7 @@ def _bad(**overrides: object) -> Theme:
     base = THEMES["mocha"]
     fields_dict = {f.name: getattr(base, f.name) for f in fields(base)}
     fields_dict.update(overrides)
+    # Theme validates field values itself; the dict here is loosely typed.
     return Theme(**fields_dict)  # type: ignore[arg-type]
 
 
@@ -353,6 +354,7 @@ def test_validate_theme_rejects_empty_name(builtin_baseline: None) -> None:
 
 
 def test_validate_theme_rejects_non_bool_dark(builtin_baseline: None) -> None:
+    # a non-bool dark is the invalid input under test
     problems = validate_theme(_bad(name="bad-dark", dark="yes"))  # type: ignore[arg-type]
     assert any("dark" in p for p in problems)
 

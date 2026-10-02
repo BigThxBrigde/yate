@@ -27,12 +27,12 @@ class BufferReadOnlyError(Exception):
     """
 
 
-_WORD_CHARS = re.compile(r"\w")
+_WORD_CHARS: re.Pattern[str] = re.compile(r"\w")
 
 #: Maximum undo steps kept in memory.  Each step snapshots the full line
 #: list, so an unbounded stack would grow without limit on large documents;
 #: oldest steps are dropped once the cap is reached (like most editors).
-MAX_UNDO_STEPS = 1000
+MAX_UNDO_STEPS: int = 1000
 
 
 def _is_word(ch: str) -> bool:
@@ -154,23 +154,29 @@ class TextBuffer:
 
     @property
     def row(self) -> int:
+        """Return the cursor's row index (0-based)."""
         return self.cursor[0]
 
     @property
     def col(self) -> int:
+        """Return the cursor's column index (character offset on the row)."""
         return self.cursor[1]
 
     @property
     def line_count(self) -> int:
+        """Return the number of lines in the buffer."""
         return len(self.lines)
 
     def line(self, row: int) -> str:
+        """Return the text of *row*, clamped to the valid row range."""
         return self.lines[max(0, min(row, len(self.lines) - 1))]
 
     def get_text(self) -> str:
+        """Return the buffer content as a single string joined by newlines."""
         return "\n".join(self.lines)
 
     def set_text(self, text: str) -> None:
+        """Replace the whole content, resetting cursor, selection and history."""
         self._ensure_writable()
         self.lines = text.split("\n") if text else [""]
         self.cursor = (0, 0)
@@ -252,6 +258,7 @@ class TextBuffer:
         self._commit(before, kind)
 
     def undo(self) -> bool:
+        """Undo the most recent edit; return ``False`` when history is empty."""
         self._ensure_writable()
         if not self._undo:
             return False
@@ -262,6 +269,7 @@ class TextBuffer:
         return True
 
     def redo(self) -> bool:
+        """Redo the most recently undone edit; return ``False`` when none is pending."""
         self._ensure_writable()
         if not self._redo:
             return False
@@ -274,15 +282,18 @@ class TextBuffer:
     # -------------------------------------------------------------- selection
 
     def has_selection(self) -> bool:
+        """Return whether an active selection spans at least one character."""
         return self.anchor is not None and self.anchor != self.cursor
 
     def selection(self) -> tuple[Pos, Pos] | None:
+        """Return the selection as ordered (start, end) positions, or ``None``."""
         if not self.has_selection():
             return None
         assert self.anchor is not None
         return (min(self.anchor, self.cursor), max(self.anchor, self.cursor))
 
     def selected_text(self) -> str | None:
+        """Return the selected text (possibly spanning rows), or ``None``."""
         sel = self.selection()
         if sel is None:
             return None
@@ -295,12 +306,14 @@ class TextBuffer:
         return "\n".join(parts)
 
     def selected_rows(self) -> tuple[int, int] | None:
+        """Return the (first, last) rows covered by the selection, or ``None``."""
         sel = self.selection()
         if sel is None:
             return None
         return sel[0][0], sel[1][0]
 
     def clear_selection(self) -> None:
+        """Drop the selection anchor, keeping the cursor where it is."""
         self.anchor = None
 
     def set_cursor(self, pos: Pos, select: bool = False) -> None:
@@ -321,6 +334,7 @@ class TextBuffer:
         self._goal_col = None
 
     def select_all(self) -> None:
+        """Select the whole document from (0, 0) to the end of the last line."""
         self.anchor = (0, 0)
         self.cursor = (len(self.lines) - 1, len(self.lines[-1]))
         self._goal_col = None
@@ -390,6 +404,7 @@ class TextBuffer:
         self.insert_text("\n" + indent, kind="char")
 
     def insert_tab(self) -> None:
+        """Insert a tab or spaces to the next tab stop, indenting a multi-row selection."""
         if self.has_selection():
             rows = self.selected_rows()
             if rows is not None and rows[0] != rows[1]:
@@ -403,6 +418,7 @@ class TextBuffer:
             self.insert_text("\t", kind="char")
 
     def delete_selection(self) -> str | None:
+        """Delete the selection and return the removed text, or ``None``."""
         self._ensure_writable()
         sel = self.selection()
         if sel is None:
@@ -415,6 +431,7 @@ class TextBuffer:
         return text
 
     def delete_backward(self, word: bool = False) -> None:
+        """Delete backward one character (or *word*), joining rows at column 0."""
         self._ensure_writable()
         if self.has_selection():
             self.delete_selection()
@@ -435,6 +452,7 @@ class TextBuffer:
         self._commit(before, "step" if word else "char")
 
     def delete_forward(self, word: bool = False) -> None:
+        """Delete forward one character (or *word*), joining rows at end of line."""
         self._ensure_writable()
         if self.has_selection():
             self.delete_selection()
@@ -456,6 +474,7 @@ class TextBuffer:
     # ------------------------------------------------------------- movements
 
     def move_left(self, select: bool = False, word: bool = False) -> None:
+        """Move left one character (or *word*), wrapping to the previous row."""
         r, c = self.cursor
         if word and c > 0:
             c = prev_word_start(self.lines[r], c)
@@ -470,6 +489,7 @@ class TextBuffer:
         self.set_cursor((r, c), select)
 
     def move_right(self, select: bool = False, word: bool = False) -> None:
+        """Move right one character (or *word*), wrapping to the next row."""
         r, c = self.cursor
         line = self.lines[r]
         if word:
@@ -489,6 +509,7 @@ class TextBuffer:
         self.set_cursor((r, c), select)
 
     def move_up(self, select: bool = False) -> None:
+        """Move up one row, keeping the vertical goal column."""
         r, c = self.cursor
         goal = self._goal_col if self._goal_col is not None else c
         if r > 0:
@@ -499,6 +520,7 @@ class TextBuffer:
         self._goal_col = goal
 
     def move_down(self, select: bool = False) -> None:
+        """Move down one row, keeping the vertical goal column."""
         r, c = self.cursor
         goal = self._goal_col if self._goal_col is not None else c
         if r < len(self.lines) - 1:
@@ -507,6 +529,7 @@ class TextBuffer:
         self._goal_col = goal
 
     def move_line_start(self, select: bool = False, toggle: bool = True) -> None:
+        """Move to the first non-blank column, toggling to column 0 when already there."""
         r, c = self.cursor
         line = self.lines[r]
         first_non_ws = len(line) - len(line.lstrip(" \t"))
@@ -517,19 +540,23 @@ class TextBuffer:
         self.set_cursor((r, target), select)
 
     def move_line_end(self, select: bool = False) -> None:
+        """Move the cursor to the end of the current row."""
         r, _ = self.cursor
         self.set_cursor((r, len(self.lines[r])), select)
 
     def move_doc_start(self, select: bool = False) -> None:
+        """Move the cursor to the start of the document."""
         self.set_cursor((0, 0), select)
 
     def move_doc_end(self, select: bool = False) -> None:
+        """Move the cursor to the end of the last row."""
         r = len(self.lines) - 1
         self.set_cursor((r, len(self.lines[r])), select)
 
     # --------------------------------------------------------- line commands
 
     def indent_selection(self) -> None:
+        """Indent the selected rows by one unit (a lone cursor inserts a tab)."""
         self._ensure_writable()
         sel = self.selection()
         if sel is None:
@@ -545,6 +572,7 @@ class TextBuffer:
         self._commit(before, "step")
 
     def outdent_selection(self) -> None:
+        """Outdent the selected rows (or the cursor row) by one tab stop."""
         self._ensure_writable()
         sel = self.selection()
         if sel is None:
@@ -637,6 +665,7 @@ class TextBuffer:
         return text
 
     def duplicate_line(self) -> None:
+        """Duplicate the selected rows (or the current row) directly below them."""
         self._ensure_writable()
         before = self._snapshot()
         rows = self.selected_rows()
@@ -648,6 +677,7 @@ class TextBuffer:
         self._commit(before, "step")
 
     def move_line(self, delta: int) -> None:
+        """Move the current row by *delta* rows; no-op when the target is out of range."""
         self._ensure_writable()
         before = self._snapshot()
         r = self.cursor[0]

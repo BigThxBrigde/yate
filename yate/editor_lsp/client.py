@@ -20,11 +20,10 @@ from __future__ import annotations
 import asyncio
 import enum
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
-
-from collections.abc import Awaitable, Callable
 
 from yate.logs import tracing
 
@@ -38,10 +37,10 @@ ConnectFn = Callable[[], Awaitable[tuple[Any, Any, Any]]]
 NotificationFn = Callable[[str, dict[str, Any]], None]
 
 #: LSP error codes we care about.
-ERR_METHOD_NOT_FOUND = -32601
-ERR_REQUEST_CANCELLED = -32800
+ERR_METHOD_NOT_FOUND: int = -32601
+ERR_REQUEST_CANCELLED: int = -32800
 
-DEFAULT_ROOT_MARKERS = (
+DEFAULT_ROOT_MARKERS: tuple[str, ...] = (
     ".git",
     "pyproject.toml",
     "setup.py",
@@ -52,6 +51,12 @@ DEFAULT_ROOT_MARKERS = (
 
 
 class ServerState(str, enum.Enum):
+    """Lifecycle of one language server connection.
+
+    Only ``READY`` accepts requests; ``FAILED`` carries the reason in
+    :attr:`LspClient.error`.
+    """
+
     CONFIGURED = "configured"
     STARTING = "starting"
     READY = "ready"
@@ -97,9 +102,11 @@ class ServerConfig:
     root_markers: list[str] = field(default_factory=lambda: list(DEFAULT_ROOT_MARKERS))
 
     def language_id(self, filetype: str) -> str:
+        """The LSP ``languageId`` for a file type (identity unless remapped)."""
         return self.language_ids.get(filetype, filetype)
 
     def handles(self, filetype: str) -> bool:
+        """Whether this server is registered for *filetype*."""
         return filetype in self.filetypes
 
 
@@ -122,6 +129,7 @@ class Completion:
     range_end_col: int | None = None
 
     def has_range(self) -> bool:
+        """True when the server supplied a full replacement range."""
         return (
             self.range_start_row is not None
             and self.range_start_col is not None
@@ -144,14 +152,22 @@ class Diagnostic:
 
     @property
     def is_error(self) -> bool:
+        """Whether the severity is ``ERROR``."""
         return self.severity == DiagnosticSeverity.ERROR
 
     @property
     def is_warning(self) -> bool:
+        """Whether the severity is ``WARNING``."""
         return self.severity == DiagnosticSeverity.WARNING
 
 
 class DiagnosticSeverity(enum.IntEnum):
+    """Severity of a :class:`Diagnostic`, using the LSP wire codes.
+
+    Values 1-4 mirror the ``textDocument/publishDiagnostics``
+    specification (error, warning, information, hint).
+    """
+
     ERROR = 1
     WARNING = 2
     INFORMATION = 3
@@ -366,7 +382,7 @@ class LspClient:
 
     # ------------------------------------------------------------ rpc layer
 
-    async def request(
+    async def request(  # noqa: Any - raw LSP results have no static type
         self, method: str, params: dict[str, Any] | None
     ) -> Any:
         """Send a request and await its raw ``result`` (raises on error)."""
@@ -376,7 +392,7 @@ class LspClient:
         finally:
             self._pending.pop(request_id, None)
 
-    async def start_request(
+    async def start_request(  # noqa: Any - LSP payloads are dynamically typed
         self, method: str, params: dict[str, Any] | None
     ) -> tuple[int, asyncio.Future[Any]]:
         """Send a request without awaiting it.
@@ -402,9 +418,10 @@ class LspClient:
         log.debug("lsp request -> %s (id=%d, server=%s)", method, request_id, self.config.name)
         return request_id, future
 
-    async def notify(
+    async def notify(  # noqa: Any - JSON-RPC params are dynamically typed
         self, method: str, params: dict[str, Any] | None
     ) -> None:
+        """Send a notification (no response expected); raises when unconnected."""
         if self._writer is None:
             raise LspConnectionError(f"client is {self.state.value}")
         if method != "textDocument/didChange":  # per-keystroke: not logged
@@ -584,5 +601,5 @@ def _yate_version() -> str:
         from yate import __version__
 
         return __version__
-    except Exception:  # pragma: no cover - defensive
+    except Exception:  # pragma: no cover - defensive  # noqa: BLE001 - version probe is optional
         return "0.0.0"

@@ -395,7 +395,7 @@ def test_buffer_completions_trims_to_sixty_four_items() -> None:
 # --- controller dismissal (S30) ---------------------------------------------
 
 
-async def _wait_until(
+async def _wait_until(  # noqa: Any - Textual's Pilot type is not worth stubbing for a poll helper
     pilot: Any, predicate: Callable[[], bool], timeout: float = 5.0
 ) -> bool:
     """Pause until *predicate* holds; its final value on timeout."""

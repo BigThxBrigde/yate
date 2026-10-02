@@ -25,10 +25,12 @@ __all__ = [
 
 
 def repo_root() -> Path:
+    """The yate repository root (two levels above this package)."""
     return Path(__file__).resolve().parents[2]
 
 
 def default_baseline_dir() -> Path:
+    """The shipped baseline directory inside the repository."""
     return repo_root() / "tools" / "smoke_test" / "smoke_baselines"
 
 
@@ -53,6 +55,7 @@ def _jsonable(value: Any) -> Any:
 
 
 def serialize(result: ScenarioResult) -> dict[str, Any]:
+    """Reduce *result* to a JSON-compatible dict (checks + svg rows)."""
     return {
         "checks": [
             {
@@ -68,6 +71,7 @@ def serialize(result: ScenarioResult) -> dict[str, Any]:
 
 
 def write_baselines(results: list[ScenarioResult], outdir: Path) -> int:
+    """Write one JSON baseline per result into *outdir*; returns the count."""
     outdir.mkdir(parents=True, exist_ok=True)
     for r in results:
         (outdir / f"{r.name}.json").write_text(
@@ -78,10 +82,11 @@ def write_baselines(results: list[ScenarioResult], outdir: Path) -> int:
 
 
 def load_baseline(path: Path) -> dict[str, Any]:
+    """Read one baseline JSON file back into a dict."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def diff_baseline(
+def diff_baseline(  # noqa: Any - raw JSON payloads, keys checked at use sites
     expected: dict[str, Any], actual: dict[str, Any]
 ) -> list[str]:
     """Human readable ``- missing`` / ``~ drift`` / ``+ new`` diff lines."""

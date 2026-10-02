@@ -29,18 +29,18 @@ from yate.editor_lsp.client import Completion
 from . import theme
 
 #: Maximum number of completion rows visible at once.
-MAX_VISIBLE = 8
+MAX_VISIBLE: int = 8
 
 #: Completion item kinds reused from the LSP item kind table.
-_KIND_TEXT = 0          # plain word / unknown
-_KIND_FILE = 17         # "D" glyph, used for path entries here
+_KIND_TEXT: int = 0          # plain word / unknown
+_KIND_FILE: int = 17         # "D" glyph, used for path entries here
 
 #: Characters that count as part of an identifier prefix when completing.
-_IDENT_RE = re.compile(r"[A-Za-z0-9_]")
+_IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z0-9_]")
 
 #: A "word" in the buffer is a run of identifier characters; shorter runs are
 #: noise and skipped.
-_WORD_RE = re.compile(r"[A-Za-z_]\w{1,}")
+_WORD_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w{1,}")
 
 #: Kind -> (letter, theme color attribute), mirroring the VS Code item kinds.
 _KIND_GLYPHS: dict[int, tuple[str, str]] = {
@@ -96,19 +96,23 @@ class CompletionPopup(Widget):
         self._anchor: tuple[int, int] | None = None
 
     def on_mount(self) -> None:
+        """Start hidden; :meth:`show` makes the popup visible."""
         self.display = False
 
     # -------------------------------------------------------------- state
 
     @property
     def is_open(self) -> bool:
+        """Whether the popup is visible and holds at least one item."""
         return bool(self.display) and bool(self.items)
 
     @property
     def item_count(self) -> int:
+        """Number of completion items currently held."""
         return len(self.items)
 
     def selected(self) -> Completion | None:
+        """Return the currently highlighted item, or ``None`` when empty."""
         if not self.items:
             return None
         return self.items[self.index]
@@ -161,6 +165,7 @@ class CompletionPopup(Widget):
         self.refresh()
 
     def close(self) -> None:
+        """Hide the popup and drop all completion state."""
         self.items = []
         self.index = 0
         self.prefix = ""
@@ -168,11 +173,13 @@ class CompletionPopup(Widget):
         self.display = False
 
     def select_next(self) -> None:
+        """Advance the highlight to the next item (wrapping around)."""
         if self.items:
             self.index = (self.index + 1) % len(self.items)
             self.refresh()
 
     def select_prev(self) -> None:
+        """Move the highlight to the previous item (wrapping around)."""
         if self.items:
             self.index = (self.index - 1) % len(self.items)
             self.refresh()
@@ -190,6 +197,7 @@ class CompletionPopup(Widget):
 
     @override
     def render_line(self, y: int) -> Strip:
+        """Render one popup row: border, item (glyph, label, detail) or filler."""
         t = theme.active()
         width = int(self.styles.width.value) if self.styles.width is not None else 40
         height = int(self.styles.height.value) if self.styles.height is not None else 0
@@ -388,4 +396,3 @@ def buffer_completions(
 
     # trim to a sane limit (the popup caps visible rows anyway)
     return items[:64], prefix, start_col
-

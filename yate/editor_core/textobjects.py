@@ -15,7 +15,7 @@ from __future__ import annotations
 from yate.editor_core.buffer import Pos, next_word_start, prev_word_start
 
 #: Delimiter keys accepted after ``i``/``a``, mapped to their (open, close).
-_PAIR_ALIASES = {
+_PAIR_ALIASES: dict[str, tuple[str, str]] = {
     "(": ("(", ")"),
     ")": ("(", ")"),
     "b": ("(", ")"),

@@ -10,8 +10,8 @@ import pytest
 
 from yate import config as cfg
 from yate.app import YateApp
-from yate.editor_view.screensaver import TICKS_PER_SECOND, ScreensaverScreen
 from yate.editor_sprites.render import walk_x
+from yate.editor_view.screensaver import TICKS_PER_SECOND, ScreensaverScreen
 from yate.services.idle_tracker import IdleTracker
 
 
@@ -24,6 +24,7 @@ class _CountingTracker(IdleTracker):
 
     @override
     def poke(self) -> None:
+        """Count the poke, then apply the real idle reset."""
         self.pokes += 1
         super().poke()
 

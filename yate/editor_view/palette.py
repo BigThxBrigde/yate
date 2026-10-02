@@ -14,10 +14,9 @@ score better than gap matches.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, override
-
-from collections.abc import Callable
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -33,7 +32,7 @@ from . import theme
 from .icons import GEAR, KEYBOARD, icon_for_path
 
 #: maximum number of result rows rendered under the input
-MAX_VISIBLE = 12
+MAX_VISIBLE: int = 12
 
 
 def fuzzy_match(query: str, target: str) -> tuple[int, list[int]] | None:
@@ -209,6 +208,7 @@ class PaletteScreen(ModalScreen[None]):
         self.refilter(query)
 
     def refilter(self, query: str) -> None:
+        """Rescore entries against *query* and re-render the result list."""
         scored: list[tuple[int, list[int], int]] = []
         for i, (display, hint, _payload) in enumerate(self._entries):
             match = fuzzy_match(query, display)
@@ -278,6 +278,7 @@ class PaletteScreen(ModalScreen[None]):
 
     @override
     def compose(self) -> ComposeResult:
+        """Compose the query input and the results line."""
         with Vertical(id="palette"):
             placeholder = (
                 "search files by name…" if self.mode == "files"
@@ -287,6 +288,7 @@ class PaletteScreen(ModalScreen[None]):
             yield Static(id="palette-results")
 
     def on_mount(self) -> None:
+        """Index files (worker) or build command entries, then focus the input."""
         # Colors come from the DEFAULT_CSS design tokens ($surface/$primary),
         # which track Textual's dark/light mode; result rows use the active
         # Catppuccin palette via Rich styles.
@@ -307,15 +309,18 @@ class PaletteScreen(ModalScreen[None]):
         self.query_one("#palette-input", Input).focus()
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        """Refilter the entries as the query changes."""
         if event.input.id == "palette-input":
             self.refilter(event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter picks the highlighted entry."""
         if event.input.id != "palette-input":
             return
         self._choose()
 
     def on_key(self, event: Key) -> None:
+        """Move the selection (a unique Tab match is chosen at once)."""
         if event.key in ("up", "ctrl+p", "shift+tab"):
             event.stop()
             event.prevent_default()

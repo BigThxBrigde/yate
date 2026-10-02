@@ -60,14 +60,17 @@ class _FakeWinreg(types.ModuleType):
         return self.stores.setdefault(hive, {})
 
     def OpenKey(self, hive: int, path: str) -> _FakeKey:  # noqa: N802 - mirrors winreg
+        """Fake counterpart of the win32 ``OpenKey``: only existing hives."""
         if hive not in self.stores:
             raise FileNotFoundError(path)
         return _FakeKey(self.stores[hive])
 
     def CreateKey(self, hive: int, path: str) -> _FakeKey:  # noqa: N802
+        """Fake counterpart of the win32 ``CreateKey``: makes the hive store."""
         return _FakeKey(self.store(hive))
 
     def EnumValue(self, key: _FakeKey, index: int) -> tuple[str, str, int]:  # noqa: N802
+        """Fake counterpart of the win32 ``EnumValue``: iterates the store."""
         items = list(key.store.items())
         if index >= len(items):
             raise OSError("no more values")
@@ -75,6 +78,7 @@ class _FakeWinreg(types.ModuleType):
         return name, value, self.REG_SZ
 
     def QueryValueEx(self, key: _FakeKey, name: str) -> tuple[str, int]:  # noqa: N802
+        """Fake counterpart of the win32 ``QueryValueEx``: reads one value."""
         if name not in key.store:
             raise FileNotFoundError(name)
         return key.store[name], self.REG_SZ
@@ -82,10 +86,12 @@ class _FakeWinreg(types.ModuleType):
     def SetValueEx(  # noqa: N802
         self, key: _FakeKey, name: str, reserved: int, kind: int, value: str
     ) -> None:
+        """Fake counterpart of the win32 ``SetValueEx``: records the write."""
         key.store[name] = value
         self.written.append(name)
 
     def DeleteValue(self, key: _FakeKey, name: str) -> None:  # noqa: N802
+        """Fake counterpart of the win32 ``DeleteValue``: may refuse."""
         if self.fail_delete or name not in key.store:
             raise OSError(f"cannot delete {name}")
         del key.store[name]
@@ -107,6 +113,7 @@ class _SubprocessRecorder:
         self.error = error
 
     def run(self, *args: Any, **kwargs: Any) -> Any:
+        """Fake counterpart of :func:`subprocess.run`: records the call."""
         self.calls.append((args, kwargs))
         if self.error is not None:
             raise self.error

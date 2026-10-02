@@ -6,10 +6,9 @@ marked ``slow`` so ``--skip-slow`` keeps the suite hermetic and fast.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
-from collections.abc import Callable
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import message_text, run_command, type_text, wait_until
@@ -47,17 +46,21 @@ class _FakePty:
         on_output: Callable[[bytes], None],
         on_exit: Callable[[int | None], None],
     ) -> None:
+        """Record the callbacks; nothing real is spawned."""
         self.started = True
         self._on_output = on_output
         self._on_exit = on_exit
 
     def write(self, data: bytes) -> None:
+        """Record the bytes the view wrote (asserted by scenarios)."""
         self.sent.append(data)
 
     def resize(self, cols: int, rows: int) -> None:
+        """Store the new size."""
         self.cols, self.rows = cols, rows
 
     def terminate(self) -> None:
+        """Fire the exit callback once (exit code 0)."""
         if not self.exited and self._on_exit is not None:
             self.exited = True
             self._on_exit(0)
@@ -66,6 +69,7 @@ class _FakePty:
         """No-op: an in-memory process has nothing to reap."""
 
     async def wait_closed(self) -> None:
+        """Return immediately: nothing to wait for."""
         return None
 
 

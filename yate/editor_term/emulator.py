@@ -19,17 +19,16 @@ The parser implements the subset that makes modern shells usable:
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from collections.abc import Callable
-
-RGB = tuple[int, int, int]
+type RGB = tuple[int, int, int]
 
 #: Maximum scrollback lines kept (older lines are dropped).
-MAX_SCROLLBACK = 5000
+MAX_SCROLLBACK: int = 5000
 
 #: Classic xterm 16-color palette.
-_ANSI_16 = (
+_ANSI_16: tuple[str, ...] = (
     "#000000", "#cc0000", "#4e9a06", "#c4a000",
     "#3465a4", "#75507b", "#06989a", "#d3d7cf",
     "#555753", "#ef2929", "#8ae234", "#fce94f",
@@ -78,6 +77,7 @@ class Cell:
     reverse: bool = False
 
     def style_key(self) -> tuple[object, ...]:
+        """Hashable SGR signature of the cell (colors and flags, no glyph)."""
         return (self.fg, self.bg, self.bold, self.dim, self.italic,
                 self.underline, self.reverse)
 
@@ -165,11 +165,11 @@ def key_to_terminal(key: str, character: str | None = None) -> str | None:
 
 # ------------------------------------------------------------------ emulator
 
-_GROUND = 0
-_ESCAPE = 1
-_CSI = 2
-_OSC = 3
-_ESC_INTERMEDIATE = 4
+_GROUND: int = 0
+_ESCAPE: int = 1
+_CSI: int = 2
+_OSC: int = 3
+_ESC_INTERMEDIATE: int = 4
 
 
 class TerminalEmulator:
@@ -239,6 +239,7 @@ class TerminalEmulator:
 
     @property
     def cursor(self) -> tuple[int, int]:
+        """Cursor ``(row, col)`` of the active screen (primary or alternate)."""
         cur = self._alt_cur if self.in_alt else self._cur
         return cur[0], cur[1]
 
@@ -284,6 +285,11 @@ class TerminalEmulator:
     # ----------------------------------------------------------------- feed
 
     def feed(self, data: bytes) -> None:
+        """Decode raw PTY output as UTF-8 and parse each character.
+
+        Undecodable sequences are replaced, so malformed output can never
+        abort the parser.
+        """
         text = data.decode("utf-8", errors="replace")
         for ch in text:
             self._consume(ch)

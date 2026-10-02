@@ -29,18 +29,18 @@ from typing import TextIO
 from yate.paths import bundled_extensions_dir, package_root
 
 #: Name of the user configuration directory (relative to the home dir).
-USER_DIRNAME = ".yate"
-RC_FILENAME = "yaterc"
-RC_TEMPLATE = "yaterc.example"
-RC_BACKUP = "yaterc.yate-bak"
-DATA_DIRNAME = "data"
-MANAGED_DIRS = ("themes", "extensions")
+USER_DIRNAME: str = ".yate"
+RC_FILENAME: str = "yaterc"
+RC_TEMPLATE: str = "yaterc.example"
+RC_BACKUP: str = "yaterc.yate-bak"
+DATA_DIRNAME: str = "data"
+MANAGED_DIRS: tuple[str, ...] = ("themes", "extensions")
 
 #: Theme templates shipped as package resources (extension templates are
 #: discovered dynamically via the bundled extensions dir's ``*.py.example``
 #: glob, so real built-in ``*.py`` extensions can never be selected).
-_THEME_EXAMPLES_DIR = ("resources", "theme_examples")
-_THEME_TEMPLATES = (
+_THEME_EXAMPLES_DIR: tuple[str, ...] = ("resources", "theme_examples")
+_THEME_TEMPLATES: tuple[str, ...] = (
     "dracula_theme.example",
     "ayu_theme.example",
 )

@@ -29,7 +29,7 @@ from yate.session import EditorSession
 class ShellFlows:
     """Runs shell commands and the font installer, reporting on the UI."""
 
-    def __init__(
+    def __init__(  # noqa: Any - push_overlay accepts any Textual Screen type
         self,
         spawn: Callable[..., Worker[object]],
         session: EditorSession,

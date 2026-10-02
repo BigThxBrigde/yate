@@ -15,3 +15,5 @@ the "translation", which then lands on publicly pushable wiki remotes.  Only
 feed documents from trusted sources; never point this tool at untrusted
 content.
 """
+
+from __future__ import annotations

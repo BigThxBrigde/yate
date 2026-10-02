@@ -29,7 +29,7 @@ from importlib.resources import files
 from pathlib import Path
 
 #: Folder name of the bundled-extension directory inside the package.
-EXTENSIONS_DIRNAME = "extensions"
+EXTENSIONS_DIRNAME: str = "extensions"
 
 
 def package_root() -> Path:

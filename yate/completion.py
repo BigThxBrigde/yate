@@ -16,15 +16,15 @@ from pathlib import Path
 
 from textual.worker import Worker
 
+from yate.editor_core import BufferReadOnlyError, Document
+from yate.editor_core.buffer import TextBuffer
+from yate.editor_lsp import LspManager
+from yate.editor_lsp.client import Completion
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup, buffer_completions
 from yate.editor_view.editor import EditorView
 from yate.editor_view.panes import PaneManager
-from yate.editor_core import BufferReadOnlyError, Document
-from yate.editor_core.buffer import TextBuffer
-from yate.editor_lsp import LspManager
-from yate.editor_lsp.client import Completion
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.logs import tracing
@@ -124,6 +124,7 @@ class CompletionFlows:
     # ------------------------------------------------------------- querying
 
     def schedule(self, trigger_ch: str | None) -> None:
+        """(Re)arm the debounced completion query after active input."""
         # Always schedule: with an LSP we query the server, without one we
         # fall back to buffer words + paths (see _worker).  Active input
         # re-arms queries dropped by close().

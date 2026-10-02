@@ -59,10 +59,12 @@ class _FakePrompt:
         on_submit: object = None,
         refocus: object = None,
     ) -> bool:
+        """Record the requested mode and answer with the canned verdict."""
         self.modes.append(mode)
         return self.allows
 
     def write(self, text: str, kind: str = "info") -> None:
+        """Record a (text, kind) message like the real prompt bar."""
         self.writes.append((text, kind))
 
 
@@ -135,6 +137,7 @@ class _LspRecorder:
         self.closed: list[Document] = []
 
     async def on_document_closed(self, doc: Document) -> None:
+        """Record the didClose notification raised for *doc*."""
         self.closed.append(doc)
 
 

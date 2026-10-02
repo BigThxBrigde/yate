@@ -4,17 +4,19 @@ Requires a Nerd Font patched terminal (https://www.nerdfonts.com/).
 Each constant is a single private-use-area codepoint.
 """
 
+from __future__ import annotations
+
 # --- files & folders (nf-fa / nf-seti)
-FOLDER = "\uf07b"          # 
-FOLDER_OPEN = "\uf07c"     # 
-FILE = "\uf15b"            # 
-FILE_TEXT = "\uf0f6"       # 
-CHEVRON_RIGHT = "\uf054"   # 
-CHEVRON_DOWN = "\uf078"    # 
-DOT = "\uf111"             #  (modified marker)
+FOLDER: str = "\uf07b"          # 
+FOLDER_OPEN: str = "\uf07c"     # 
+FILE: str = "\uf15b"            # 
+FILE_TEXT: str = "\uf0f6"       # 
+CHEVRON_RIGHT: str = "\uf054"   # 
+CHEVRON_DOWN: str = "\uf078"    # 
+DOT: str = "\uf111"             #  (modified marker)
 
 # --- file type icons (nf-dev / nf-seti)
-FILE_ICONS = {
+FILE_ICONS: dict[str, str] = {
     "py": "\ue73c",        #  python
     "pyw": "\ue73c",
     "js": "\ue781",        #  nodejs
@@ -60,26 +62,26 @@ FILE_ICONS = {
 }
 
 # --- UI symbols (nf-fa / powerline)
-SEARCH = "\uf002"         # 
-TERMINAL = "\uf120"       # 
-SAVE = "\uf0c7"           # 
-GEAR = "\uf013"           # 
-KEYBOARD = "\uf11c"       # 
-CODE_FORK = "\uf126"      # 
-CHECK = "\uf00c"          # 
-TIMES = "\uf00d"          # 
-BAN = "\uf05e"            # 
-ARROW_RIGHT = "\uf061"    # 
-TRIANGLE_RIGHT = "\ue0b0"  #  (powerline)
-TRIANGLE_LEFT = "\ue0b2"   # 
-LINE_NUMBERS = "\uf0cb"   # 
-BRANCH = "\ue0a0"         #  (powerline branch)
-LIGHTNING = "\uf0e7"      # 
-PENCIL = "\uf303"         # 
-EYE = "\uf06e"            # 
-CLOCK = "\uf017"          # 
-PLUG = "\uf1e6"           #  (extensions)
-LOCK = "\uf023"           #  (read-only buffer)
+SEARCH: str = "\uf002"         # 
+TERMINAL: str = "\uf120"       # 
+SAVE: str = "\uf0c7"           # 
+GEAR: str = "\uf013"           # 
+KEYBOARD: str = "\uf11c"       # 
+CODE_FORK: str = "\uf126"      # 
+CHECK: str = "\uf00c"          # 
+TIMES: str = "\uf00d"          # 
+BAN: str = "\uf05e"            # 
+ARROW_RIGHT: str = "\uf061"    # 
+TRIANGLE_RIGHT: str = "\ue0b0"  #  (powerline)
+TRIANGLE_LEFT: str = "\ue0b2"   # 
+LINE_NUMBERS: str = "\uf0cb"   # 
+BRANCH: str = "\ue0a0"         #  (powerline branch)
+LIGHTNING: str = "\uf0e7"      # 
+PENCIL: str = "\uf303"         # 
+EYE: str = "\uf06e"            # 
+CLOCK: str = "\uf017"          # 
+PLUG: str = "\uf1e6"           #  (extensions)
+LOCK: str = "\uf023"           #  (read-only buffer)
 
 
 def extension_of(name: str) -> str:
@@ -109,7 +111,7 @@ SETI_COLORS: dict[str, str] = {
 }
 
 #: Color for file types without a dedicated mapping (plain text, unknown).
-ICON_COLOR_FALLBACK = SETI_COLORS["grey"]
+ICON_COLOR_FALLBACK: str = SETI_COLORS["grey"]
 
 #: extension -> :data:`SETI_COLORS` key, following VS Code Seti semantics.
 FILE_ICON_COLORS: dict[str, str] = {

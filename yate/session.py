@@ -22,11 +22,10 @@ and composed by ``Editor`` (L3).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
-
-from collections.abc import Callable
 
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
@@ -227,10 +226,10 @@ class EditorSession:
 Axis = Literal["horizontal", "vertical"]
 
 #: Smallest share of a split any one pane may hold while resizing.
-MIN_FRACTION = 0.12
+MIN_FRACTION: float = 0.12
 
 #: Fraction transferred per ``ctrl+w +/-/< />`` keypress.
-RESIZE_STEP = 0.08
+RESIZE_STEP: float = 0.08
 
 
 @dataclass
@@ -258,6 +257,7 @@ class Leaf:
     )
 
     def state_for(self, doc: Document) -> ViewState:
+        """The view state for *doc*, created from its cursor on first use."""
         state = self.states.get(doc.uid)
         if state is None:
             state = ViewState(
@@ -293,6 +293,7 @@ def leaves(node: Node) -> list[Leaf]:
 
 
 def find_leaf(node: Node, leaf_id: int) -> Leaf | None:
+    """The leaf with *leaf_id*, or ``None`` when absent."""
     if isinstance(node, Leaf):
         return node if node.id == leaf_id else None
     for child in node.children:

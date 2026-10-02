@@ -61,30 +61,30 @@ smoke checklist; they have no guard here yet.
 
 from __future__ import annotations
 
-import asyncio
 import ast
+import asyncio
 import logging
 import re
 from pathlib import Path
 
 import pytest
 
-PROJECT = Path(__file__).resolve().parent.parent
-YATE = PROJECT / "yate"
+PROJECT: Path = Path(__file__).resolve().parent.parent
+YATE: Path = PROJECT / "yate"
 
-_SELF = Path(__file__).resolve()
+_SELF: Path = Path(__file__).resolve()
 
 #: Only the CLI entry point may import the application class (R1).
-APP_IMPORTERS_ALLOWED = {"cli.py"}
+APP_IMPORTERS_ALLOWED: set[str] = {"cli.py"}
 
 #: Modules no layer below the shell may look back up at (R3 / R4).
-UPWARD_MODULES = ("yate.editor", "yate.app")
+UPWARD_MODULES: tuple[str, ...] = ("yate.editor", "yate.app")
 
 #: The frozen ``Protocol`` whitelist (R2): ``PaneRegistry`` breaks the
 #: ``PaneHost`` <-> ``EditorView`` construction cycle, ``SyntaxBackend`` and
 #: the ``_Ts*`` structural types are leaf-package types that predate this
 #: refactoring.  Any other ``Protocol`` class fails the build.
-ALLOWED_PROTOCOLS = {
+ALLOWED_PROTOCOLS: dict[str, set[str]] = {
     "editor_view/editor.py": {"PaneRegistry"},
     "editor_syntax/engine.py": {"SyntaxBackend"},
     "editor_syntax/ts_backend/backend.py": {"_TsPoint", "_TsNode"},
@@ -95,13 +95,13 @@ ALLOWED_PROTOCOLS = {
 #: inside ``load_config`` (the only L0->L2 edge; theme support is now
 #: injected as callbacks by the L4 caller).  ``keyproto`` joined with the
 #: Windows chord driver: a pure L0 leaf that must never reach editor_view.
-UI_FREE_PACKAGES = ("keymaps", "services", "keyproto", "editor_sprites")
-UI_FREE_FILES = ("session.py", "registries.py", "config.py")
+UI_FREE_PACKAGES: tuple[str, ...] = ("keymaps", "services", "keyproto", "editor_sprites")
+UI_FREE_FILES: tuple[str, ...] = ("session.py", "registries.py", "config.py")
 
 #: L3 collaborator modules that do drive a few widget types by design: they
 #: still may not depend upward, and their ``editor_view`` coupling is frozen
 #: here, so a new widget import fails until it is justified (R4).
-UI_FROZEN_FILES = {
+UI_FROZEN_FILES: dict[str, set[str]] = {
     "prompt_completion.py": {
         "yate.editor_view",
         "yate.editor_view.theme",
@@ -154,20 +154,20 @@ UI_FROZEN_FILES = {
 }
 
 #: The built-in tables import the editor; the editor must not import them (R5).
-EDITOR_FORBIDDEN_IMPORTS = ("yate.actions", "yate.commands")
+EDITOR_FORBIDDEN_IMPORTS: tuple[str, ...] = ("yate.actions", "yate.commands")
 
 #: The built-in tables the shell registers into the editor's registries (R7).
-BUILTIN_TABLE_MODULES = ("yate.actions", "yate.commands")
+BUILTIN_TABLE_MODULES: tuple[str, ...] = ("yate.actions", "yate.commands")
 
 #: Banned identifier suffixes (R7): no protocol-ish / thin-delegate naming.
 #: ``PaneHost`` is the Textual widget container in ``editor_view/panes.py``,
 #: so it is whitelisted.  Flow modules are named by duty (``*Flows`` /
 #: ``LspSync``); ``*Controller`` is banned for new code.
-BANNED_SUFFIXES = ("Feature", "Host", "Ops", "Delegate", "Controller")
-BANNED_SUFFIX_WHITELIST = {"PaneHost"}
+BANNED_SUFFIXES: tuple[str, ...] = ("Feature", "Host", "Ops", "Delegate", "Controller")
+BANNED_SUFFIX_WHITELIST: set[str] = {"PaneHost"}
 
 #: Banned identifier names (R2 / R7).
-BANNED_NAMES = {"AppProtocol"}
+BANNED_NAMES: set[str] = {"AppProtocol"}
 
 
 def _python_files() -> list[Path]:
@@ -378,7 +378,7 @@ def test_pane_model_lives_in_l1_session() -> None:
 
 
 #: ``logging`` levels whose message must use lazy ``%`` placeholders.
-LOG_LEVEL_METHODS = {"debug", "info", "warning", "error", "exception", "critical"}
+LOG_LEVEL_METHODS: set[str] = {"debug", "info", "warning", "error", "exception", "critical"}
 
 
 def _fstring_log_calls(path: Path) -> list[int]:

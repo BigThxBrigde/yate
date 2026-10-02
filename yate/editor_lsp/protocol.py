@@ -21,11 +21,11 @@ from typing import Any, cast
 from urllib.parse import unquote, urlparse
 
 #: Protocol version advertised to the server.
-JSONRPC = "2.0"
+JSONRPC: str = "2.0"
 
 #: Maximum body size accepted for one message (32 MiB).  Guards against a
 #: corrupt length prefix making the reader allocate forever.
-MAX_MESSAGE_BYTES = 32 * 1024 * 1024
+MAX_MESSAGE_BYTES: int = 32 * 1024 * 1024
 
 
 class LspProtocolError(RuntimeError):
@@ -38,9 +38,10 @@ def encode_message(payload: dict[str, Any]) -> bytes:
     return b"Content-Length: " + str(len(body)).encode("ascii") + b"\r\n\r\n" + body
 
 
-def build_request(
+def build_request(  # noqa: Any - JSON-RPC payloads are dynamically typed
     request_id: int, method: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
+    """Build a JSON-RPC request message with an id and optional params."""
     msg: dict[str, Any] = {"jsonrpc": JSONRPC, "id": request_id, "method": method}
     if params is not None:
         msg["params"] = params
@@ -48,6 +49,7 @@ def build_request(
 
 
 def build_notification(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a JSON-RPC notification (no id, no response expected)."""
     msg: dict[str, Any] = {"jsonrpc": JSONRPC, "method": method}
     if params is not None:
         msg["params"] = params
@@ -55,10 +57,12 @@ def build_notification(method: str, params: dict[str, Any] | None = None) -> dic
 
 
 def build_response(request_id: int, result: Any) -> dict[str, Any]:
+    """Build a success response echoing *request_id* with a raw result."""
     return {"jsonrpc": JSONRPC, "id": request_id, "result": result}
 
 
 def build_error(request_id: int, code: int, message: str) -> dict[str, Any]:
+    """Build a JSON-RPC error response for *request_id*."""
     return {
         "jsonrpc": JSONRPC,
         "id": request_id,

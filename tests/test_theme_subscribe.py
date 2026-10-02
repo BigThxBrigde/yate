@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-
 from collections.abc import Callable
 from typing import cast
 
@@ -35,7 +34,10 @@ def test_subscribe_listener_notified_on_set_theme() -> None:
 def test_unsubscribe_stops_notifications_and_is_idempotent() -> None:
     """After unsubscribing (twice) the listener is never called again."""
     calls: list[str] = []
-    hit = lambda: calls.append("hit")  # noqa: E731 - trivial test double
+
+    def hit() -> None:
+        calls.append("hit")
+
     unsubscribe = theme.subscribe(hit)
     unsubscribe()
     unsubscribe()  # second removal must be a no-op, not ValueError
@@ -83,7 +85,10 @@ def test_failed_set_theme_does_not_notify() -> None:
 def test_subscribe_collapses_duplicate_listeners() -> None:
     """Subscribing an equal listener twice yields a single notification."""
     calls: list[str] = []
-    hit = lambda: calls.append("hit")  # noqa: E731 - trivial test double
+
+    def hit() -> None:
+        calls.append("hit")
+
     unsubscribe = theme.subscribe(hit)
     theme.subscribe(hit)  # duplicate: must not register a second entry
     try:

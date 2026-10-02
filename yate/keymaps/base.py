@@ -9,9 +9,8 @@ of UI callbacks built by the editor, so no host protocol is involved.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
@@ -173,6 +172,7 @@ class KeyBinding:
 
     @property
     def key_label(self) -> str:
+        """Human readable form of the raw key (for the help overlay)."""
         return key_name(self.key)
 
 
@@ -202,10 +202,12 @@ class ActionContext:
 
     @property
     def buffer(self) -> TextBuffer:
+        """The document's text buffer."""
         return self.session.buffer
 
     @property
     def doc(self) -> Document:
+        """The document being edited."""
         return self.session.doc
 
 
@@ -224,6 +226,7 @@ class Keymap:
         self._index: dict[str, KeyBinding] = {b.key: b for b in self.bindings}
 
     def build_bindings(self) -> list[KeyBinding]:
+        """The keymap's binding table (empty in the base class)."""
         return []
 
     # ------------------------------------------------------------ extension
@@ -249,11 +252,18 @@ class Keymap:
         self._index[raw] = binding
 
     def lookup(self, key: str) -> KeyBinding | None:
+        """The binding for a raw key, or ``None`` when unbound."""
         return self._index.get(key)
 
     # -------------------------------------------------------------- dispatch
 
     def dispatch(self, binding: KeyBinding, ctx: ActionContext) -> bool:
+        """Run *binding*'s action; ``False`` when the action is unknown.
+
+        Direct callables run as-is; named actions go through
+        :attr:`KeyUi.execute_action`, and a miss is reported to the user so
+        the key counts as unhandled.
+        """
         action = binding.action
         if callable(action):
             action(ctx)
@@ -267,6 +277,7 @@ class Keymap:
         return False
 
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
+        """Dispatch one key: a bound binding wins, else the unbound fallback."""
         binding = self.lookup(key)
         if binding is not None:
             return self.dispatch(binding, ctx)

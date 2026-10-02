@@ -49,6 +49,7 @@ class _SampleKeymap(Keymap):
 
     @override
     def build_bindings(self) -> list[KeyBinding]:
+        """Two sample file bindings: ctrl-s save and ctrl-q quit."""
         return [
             KeyBinding(parse_key("<ctrl-s>"), "save", "write the file", "file"),
             KeyBinding(parse_key("<ctrl-q>"), "quit", "leave the editor", "file"),

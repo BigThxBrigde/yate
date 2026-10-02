@@ -13,12 +13,15 @@ log = tracing.get_logger(__name__)
 
 @dataclass
 class Match:
+    """One search hit: row plus start/end columns on that line."""
+
     row: int
     start: int
     end: int
 
     @property
     def pos(self) -> Pos:
+        """Return the match start as a (row, col) position."""
         return (self.row, self.start)
 
 
@@ -48,6 +51,7 @@ class SearchEngine:
             return None
 
     def update(self, query: str, buffer: TextBuffer) -> list[Match]:
+        """Recompute all matches for *query* and reset the active index."""
         self.query = query
         self.matches = []
         self.index = -1
@@ -82,6 +86,11 @@ class SearchEngine:
     def next(
         self, buffer: TextBuffer, *, forward: bool = True, from_pos: Pos | None = None
     ) -> Match | None:
+        """Select the next (or previous) match in the buffer and return it.
+
+        The first call after :meth:`update` starts from the match nearest
+        the cursor (or *from_pos*); later calls step through the list.
+        """
         if not self.matches:
             return None
         pos = from_pos if from_pos is not None else buffer.cursor
@@ -96,6 +105,7 @@ class SearchEngine:
         return match
 
     def current(self) -> Match | None:
+        """Return the currently active match, or ``None`` when none is active."""
         if 0 <= self.index < len(self.matches):
             return self.matches[self.index]
         return None
@@ -103,6 +113,7 @@ class SearchEngine:
     # -------------------------------------------------------------- replace
 
     def replace_current(self, buffer: TextBuffer, replacement: str) -> bool:
+        """Replace the active match and refresh the match list; return success."""
         # Guarded here (not only in ``replace_range``) so the match rework
         # below never runs on a buffer the edit was refused for.
         if buffer.read_only:
@@ -121,6 +132,7 @@ class SearchEngine:
         return True
 
     def replace_all(self, buffer: TextBuffer, replacement: str) -> int:
+        """Replace every match in one undoable step and return the count."""
         # Guarded before the bulk edit: the direct ``buffer.lines`` writes
         # below bypass the per-method guards, and failing midway through the
         # loop would leave the buffer half-replaced.

@@ -4,6 +4,8 @@ The package is UI independent: :mod:`yate.editor_view.terminal` renders the
 emulator state in Textual and feeds key bytes back in.
 """
 
+from __future__ import annotations
+
 from .emulator import Cell, TerminalEmulator, key_to_terminal
 from .pty_proc import PtyProcess, PtyProcessError
 from .shells import resolve_shell, shell_label

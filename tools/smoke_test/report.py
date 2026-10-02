@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import platform
 import sys
+from collections.abc import Sequence
 from datetime import datetime
 from importlib import metadata
 from pathlib import Path
-
-from collections.abc import Sequence
 
 from rich import box
 from rich.console import Console
@@ -29,10 +28,10 @@ from .harness import Coverage, Scenario, ScenarioResult
 
 __all__ = ["Reporter", "run_header_lines"]
 
-_OK = "green"
-_BAD = "red"
-_WARN = "yellow"
-_DIM = "dim"
+_OK: str = "green"
+_BAD: str = "red"
+_WARN: str = "yellow"
+_DIM: str = "dim"
 
 
 def _version(name: str) -> str:
@@ -57,12 +56,12 @@ def _stream_supports(sample: str) -> bool:
     return True
 
 
-_UNICODE = _stream_supports("✔✘█░│─╭╯")
+_UNICODE: bool = _stream_supports("✔✘█░│─╭╯")
 
 #: Glyphs used by the report; ASCII fallbacks on legacy code pages.
 OK_MARK, BAD_MARK = ("✔", "✘") if _UNICODE else ("+", "x")
 FILL, EMPTY = ("█", "░") if _UNICODE else ("#", ".")
-TABLE_BOX = box.SIMPLE_HEAVY if _UNICODE else box.ASCII
+TABLE_BOX: box.Box = box.SIMPLE_HEAVY if _UNICODE else box.ASCII
 
 
 def _bar(done: int, total: int, width: int = 24) -> str:
@@ -146,6 +145,7 @@ class Reporter:
     # ------------------------------------------------------------ progress
 
     def progress(self, done: int, total: int, name: str) -> None:
+        """Print the ``[done/total] running <name>`` line (unless quiet)."""
         if self.quiet:
             return
         self.console.print(
@@ -159,6 +159,7 @@ class Reporter:
         self, *, selected: Sequence[Scenario], tags: Sequence[str],
         command: str, seed: int | None = None, repeat: int = 1,
     ) -> None:
+        """Print the header panel: command, versions, scenarios and knobs."""
         if self.quiet:
             return
         lines = run_header_lines()
@@ -297,6 +298,7 @@ class Reporter:
     # -------------------------------------------------------------- svg
 
     def svg(self, results: Sequence[ScenarioResult]) -> None:
+        """Print captured SVG text rows per scenario (first ``svg_rows``)."""
         if self.quiet or self.svg_rows <= 0:
             return
         for r in results:
@@ -317,6 +319,7 @@ class Reporter:
     # ---------------------------------------------------------- coverage
 
     def coverage(self, cov: Coverage) -> None:
+        """Print the command/action coverage panel with hit bars."""
         if self.quiet:
             return
         (c_hit, c_total, c_missing), (a_hit, a_total, a_missing) = cov.report()
@@ -342,6 +345,7 @@ class Reporter:
     # ----------------------------------------------------------- summary
 
     def summary(self, results: Sequence[ScenarioResult], *, exit_code: int) -> None:
+        """Print the final summary panel and export HTML when configured."""
         ok = sum(r.ok_count for r in results)
         total = sum(len(r.checks) for r in results)
         fails = total - ok
@@ -384,6 +388,7 @@ class Reporter:
     def compare(
         self, name: str, status: str, diffs: Sequence[str] = ()
     ) -> None:
+        """Print one ``compare`` line (MATCH/SKIP/DRIFT) plus diff lines."""
         if status == "MATCH":
             self.console.print(
                 f"  [{_OK}]{OK_MARK}[/{_OK}] {name}: [{_OK}]MATCH[/]"
@@ -414,8 +419,10 @@ class Reporter:
     # ------------------------------------------------------------ misc
 
     def note(self, text: str, *, style: str = _DIM) -> None:
+        """Print a dim auxiliary note (unless quiet)."""
         if not self.quiet:
             self.console.print(text, style=style, markup=False)
 
     def json_written(self, path: Path) -> None:
+        """Report where the JSON report was written."""
         self.note(f"json report: {path}")
