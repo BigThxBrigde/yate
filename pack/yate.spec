@@ -79,6 +79,11 @@ for _ts_pkg in ("tree_sitter", "tree_sitter_python", "tree_sitter_bash"):
     # and the Windows blocked-version guard) rely on it.
     ts_datas += copy_metadata(_ts_pkg)
 
+# yate's own dist-info: diagnostics._section_packages derives the
+# [packages] inventory from importlib.metadata.requires("yate"),
+# which reads this metadata inside the frozen app (issue IKJJFI).
+yate_datas = copy_metadata("yate")
+
 # Bundled extensions are loaded from disk at runtime via
 # importlib.util.spec_from_file_location (not normal imports), so the .py
 # scripts must ship as data files -- as must every non-code resource. Tree
@@ -105,7 +110,7 @@ a = Analysis(
     [pkg_path("__main__.py")],
     pathex=[PROJECT_ROOT],
     binaries=ts_binaries,
-    datas=datas + ts_datas,
+    datas=datas + ts_datas + yate_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
