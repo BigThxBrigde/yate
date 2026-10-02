@@ -251,6 +251,8 @@ def zh_commit(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Parse arguments and dispatch to the ``generate`` / ``check`` /
+    ``zh-commit`` handlers."""
     parser = argparse.ArgumentParser(
         prog="python -m tools.changelog",
         description="Maintain the bilingual CHANGELOG.md / CHANGELOG.zh.md.",

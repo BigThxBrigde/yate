@@ -32,6 +32,7 @@ from . import icon, rosters, wiki
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the parser for the ``icon`` / ``rosters`` / ``wiki`` subcommands."""
     parser = argparse.ArgumentParser(
         prog="python -m tools.pack",
         description="Packaging helpers for the standalone executables.",
@@ -176,6 +177,7 @@ def _wiki(args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Dispatch the parsed arguments to the selected subcommand handler."""
     args = build_parser().parse_args(argv)
     if args.command == "icon":
         return _icon(args.source, args.target, args.sizes)

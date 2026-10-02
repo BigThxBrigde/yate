@@ -31,7 +31,7 @@ from yate.services.workspace import Workspace
 class OverlayFlows:
     """Pushes the editor's full-screen overlays and keeps them consistent."""
 
-    def __init__(
+    def __init__(  # noqa: Any - current_screen query returns any Textual Screen
         self,
         push_screen: Callable[..., object],
         pop_screen: Callable[[], object],
@@ -69,7 +69,7 @@ class OverlayFlows:
         self._run_command = run_command
         self._refresh = refresh
 
-    def push(
+    def push(  # noqa: Any - any Textual screen, callback payload untyped
         self,
         screen: Screen[Any],
         callback: Callable[[Any], None] | None = None,

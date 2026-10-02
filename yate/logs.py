@@ -241,6 +241,7 @@ class _SessionFileHandler(logging.FileHandler):
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
+        """Open the file lazily, write the header once, then emit."""
         try:
             stream = self._stream
             if stream is None:
@@ -262,6 +263,7 @@ class _SessionFileHandler(logging.FileHandler):
 
     @override
     def close(self) -> None:
+        """Close the handler and forget the stream so the next emit reopens it."""
         super().close()  # FileHandler.close() drops the stream handle
         # Reopen rather than write into a dropped one: without this the
         # handler would keep claiming "already open" and every later record
@@ -349,7 +351,7 @@ class CrashService:
             # on stderr so a native crash leaves *some* trace behind.
             try:
                 faulthandler.enable(file=sys.stderr, all_threads=True)
-            except Exception:
+            except Exception:  # noqa: BLE001 - faulthandler fallback is best-effort
                 pass
             return
 
@@ -473,7 +475,7 @@ class CrashService:
                 handle.write("\n=== uncaught Python exception ===\n")
                 traceback.print_exception(exc_type, exc_value, exc_tb, file=handle)
                 handle.flush()
-            except Exception:
+            except Exception:  # noqa: BLE001 - keep the original failure visible
                 # Never let diagnostics mask the original failure.
                 pass
         original = self._original_excepthook
@@ -675,6 +677,7 @@ def create_devtools_bridge(stderr: bool, stdout: bool) -> logging.Handler:
 
         @override
         def emit(self, record: logging.LogRecord) -> None:
+            """Forward the record to devtools only while tracing is on."""
             if not tracing.is_enabled():
                 return
             super().emit(record)

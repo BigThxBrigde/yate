@@ -38,6 +38,7 @@ class RemoteInfo:
 
     @property
     def web_base(self) -> str:
+        """The web UI base URL of the remote repository."""
         return f"https://{self.host}/{self.owner}/{self.repo}"
 
 
@@ -56,10 +57,12 @@ def parse_remote(url: str) -> RemoteInfo | None:
 
 
 def commit_url(remote: RemoteInfo, sha: str) -> str:
+    """The web URL of commit *sha* on the remote."""
     return f"{remote.web_base}/commit/{sha}"
 
 
 def compare_url(remote: RemoteInfo, range_from: str, range_to: str) -> str:
+    """The web URL diffing ``range_from...range_to`` on the remote."""
     return f"{remote.web_base}/compare/{range_from}...{range_to}"
 
 

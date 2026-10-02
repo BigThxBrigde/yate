@@ -447,6 +447,7 @@ class Editor:
         self.refresh_ui()
 
     async def on_unmount(self) -> None:
+        """Tear the extension hooks, terminal and LSP services down in order."""
         # Each teardown is isolated: a failing terminal/LSP shutdown must not
         # leave the other background service (and its threads) untouched.
         # Extension hooks run first (sync, while editor state is still

@@ -84,6 +84,7 @@ def discover_command() -> tuple[str, list[str]]:
 
 
 def setup(api: ExtensionAPI) -> None:
+    """Discover a Python language server and register it (possibly empty)."""
     command, args = discover_command()
     is_pyright = "pyright" in Path(command).stem.lower()
     api.lsp.register_server(

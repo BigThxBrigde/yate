@@ -130,6 +130,7 @@ def find_installed_nerd_fonts() -> list[str]:
 
 
 def detect_terminal() -> str:
+    """Best-effort host terminal identification for status reports."""
     if os.environ.get("WT_SESSION"):
         return "windows_terminal"
     prog = os.environ.get("TERM_PROGRAM", "")
@@ -145,6 +146,7 @@ def detect_terminal() -> str:
 
 
 def font_status() -> FontStatus:
+    """Probe for installed Nerd Fonts and the host terminal."""
     installed = find_installed_nerd_fonts()
     terminal = detect_terminal()
     has = bool(installed)
@@ -305,7 +307,7 @@ def install_bundled_fonts() -> InstallResult:
             installed, skipped = _register_windows_user_font(fonts_dir)
         else:
             installed, skipped = _install_unix()
-    except Exception as exc:  # environment issues must not crash the editor
+    except Exception as exc:  # noqa: BLE001 - environment issues must not crash the editor
         return InstallResult(False, message=f"font install failed: {type(exc).__name__}: {exc}")
 
     parts = [f"installed {len(installed)} font file(s) into your user font directory"]
@@ -318,6 +320,7 @@ def install_bundled_fonts() -> InstallResult:
 # ------------------------------------------------- Windows Terminal setup
 
 def windows_terminal_settings_path() -> Path | None:
+    """Windows Terminal's ``settings.json``; ``None`` when not installed."""
     local = os.environ.get("LOCALAPPDATA")
     if not local:
         return None

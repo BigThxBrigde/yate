@@ -170,6 +170,7 @@ def _execute(
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    """``run``: execute the selected scenarios and report PASS/FAIL."""
     selected = select_scenarios(
         SCENARIOS, names=args.scenario, tags=args.tag,
         skip_slow=args.skip_slow,
@@ -212,6 +213,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_snapshot(args: argparse.Namespace) -> int:
+    """``snapshot``: run scenarios and write JSON baselines."""
     selected = select_scenarios(
         SCENARIOS, names=args.scenario, tags=args.tag,
         skip_slow=args.skip_slow,
@@ -253,6 +255,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
 
 
 def cmd_compare(args: argparse.Namespace) -> int:
+    """``compare``: re-run scenarios and diff against the stored baselines."""
     baseline_dir = (
         Path(args.baseline) if args.baseline
         else baselines.default_baseline_dir()
@@ -323,6 +326,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the parser for the ``run`` / ``snapshot`` / ``compare`` commands."""
     p = argparse.ArgumentParser(
         prog="tools.smoke_test",
         description="yate headless smoke harness",
@@ -362,6 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse arguments and dispatch to the selected subcommand."""
     p = build_parser()
     args = p.parse_args(argv)
     return int(args.func(args))

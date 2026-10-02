@@ -128,6 +128,7 @@ class ScreensaverScreen(ModalScreen[None]):
 
     @override
     def compose(self) -> ComposeResult:
+        """Stack the animation canvas and the exit hint line."""
         yield self._canvas
         yield self._hint
 

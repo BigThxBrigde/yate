@@ -257,6 +257,7 @@ class Leaf:
     )
 
     def state_for(self, doc: Document) -> ViewState:
+        """The view state for *doc*, created from its cursor on first use."""
         state = self.states.get(doc.uid)
         if state is None:
             state = ViewState(
@@ -292,6 +293,7 @@ def leaves(node: Node) -> list[Leaf]:
 
 
 def find_leaf(node: Node, leaf_id: int) -> Leaf | None:
+    """The leaf with *leaf_id*, or ``None`` when absent."""
     if isinstance(node, Leaf):
         return node if node.id == leaf_id else None
     for child in node.children:

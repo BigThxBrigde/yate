@@ -104,7 +104,7 @@ def _widget_plain_text(widget: Widget) -> str:
     if not getattr(widget, "children", ()):
         try:
             rendered = widget.render()
-        except Exception:
+        except Exception:  # noqa: BLE001 - render is best-effort; empty text is the fallback
             return ""
         plain = getattr(rendered, "plain", None)
         if isinstance(plain, str):
@@ -256,6 +256,7 @@ class MarkdownDocScreen(ModalScreen[None]):
 
     @override
     def compose(self) -> ComposeResult:
+        """Compose the doc box: search bar, scrollable markdown and footer."""
         with Vertical(id="doc-box"):
             with Horizontal(id="doc-search-bar"):
                 yield _SearchInput(
@@ -275,6 +276,7 @@ class MarkdownDocScreen(ModalScreen[None]):
             )
 
     def on_mount(self) -> None:
+        """Style the scrollbar and start the background document loader."""
         apply_slim_scrollbars(self.query_one("#doc-scroll", VerticalScroll))
         # coroutine *function*: an eager coroutine would leak if the
         # worker never starts (closing pump)
@@ -300,7 +302,7 @@ class MarkdownDocScreen(ModalScreen[None]):
             await markdown.update(source)
             if self.is_mounted:
                 loading.display = False
-        except Exception:
+        except Exception:  # noqa: BLE001 - re-raises; only post-esc teardown drops
             # widget torn down mid-update after a quick esc/q; nothing to do
             if self.is_mounted:
                 raise
@@ -337,22 +339,27 @@ class MarkdownDocScreen(ModalScreen[None]):
             cast(Static, footer.first()).update(text)
 
     def action_search_next(self) -> None:
+        """Binding for ``n``: step to the next match."""
         self.search_step(1)
 
     def action_search_prev(self) -> None:
+        """Binding for ``N``: step to the previous match."""
         self.search_step(-1)
 
     def search_step(self, delta: int) -> None:
+        """Advance the current hit by *delta* and scroll it into view."""
         if not self._hits:
             return
         self._hit_index = (self._hit_index + delta) % len(self._hits)
         self._goto_current_hit()
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        """Re-run the search (debounced) while typing in the search field."""
         if event.input.id == "doc-search-input":
             self._schedule_search(event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter in the search field: jump to the next match."""
         if event.input.id == "doc-search-input":
             # enter cycles matches: flush the pending query first so the
             # step below sees the hits for what was actually typed
@@ -414,7 +421,7 @@ class MarkdownDocScreen(ModalScreen[None]):
                 for row in range(widget.region.height):
                     try:
                         line = _strip_text(widget.render_line(row)).lower()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - skip unrenderable rows
                         continue
                     start = 0
                     while True:

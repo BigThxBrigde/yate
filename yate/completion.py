@@ -124,6 +124,7 @@ class CompletionFlows:
     # ------------------------------------------------------------- querying
 
     def schedule(self, trigger_ch: str | None) -> None:
+        """(Re)arm the debounced completion query after active input."""
         # Always schedule: with an LSP we query the server, without one we
         # fall back to buffer words + paths (see _worker).  Active input
         # re-arms queries dropped by close().

@@ -46,6 +46,7 @@ class _OverlayScreen(ModalScreen[None]):
 
     @override
     def compose(self) -> ComposeResult:
+        """Scrollable overlay box with the body text and a close hint."""
         with VerticalScroll(id="overlay"):
             yield Static(self._body(), id="overlay-body")
             yield Static(" press esc or q to close ", classes="hint")

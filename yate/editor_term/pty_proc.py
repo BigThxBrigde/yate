@@ -81,7 +81,7 @@ class PtyProcess:
         self._on_exit = on_exit
         try:
             await asyncio.to_thread(self._impl.spawn)
-        except BaseException:
+        except BaseException:  # noqa: BLE001 - re-raised below; settles the exit future
             # Re-raised below, cancellation included -- nothing is swallowed;
             # the settle only keeps shutdown's wait_closed() from blocking
             # forever on a spawn that never happened.
@@ -95,6 +95,7 @@ class PtyProcess:
         self._thread.start()
 
     async def wait_closed(self) -> int | None:
+        """Await the child's exit code; ``None`` before start or on a failed spawn."""
         if self._exit_future is None:
             return None
         return await self._exit_future
@@ -110,6 +111,7 @@ class PtyProcess:
             pass
 
     def resize(self, cols: int, rows: int) -> None:
+        """Update the stored size and propagate it to the PTY (best effort)."""
         cols = max(1, cols)
         rows = max(1, rows)
         if cols == self.cols and rows == self.rows:
@@ -186,16 +188,20 @@ class PtyProcess:
 
     # Bridges used by the platform implementation objects.
     def emit_output(self, data: bytes) -> None:
+        """Bridge a reader-thread output chunk onto the event loop."""
         self._emit(data)
 
     def process_finished(self, code: int | None) -> None:
+        """Bridge a reader-thread exit report onto the event loop."""
         self._finished(code)
 
     @property
     def is_closing(self) -> bool:
+        """True once termination started or the child already died."""
         return self._closing
 
     def mark_closing(self) -> None:
+        """Stop the read loop once the child exited (watcher-thread bridge)."""
         self._closing = True
 
     def detach(self) -> None:
@@ -213,6 +219,7 @@ class PtyProcess:
 # ===================================================================== POSIX
 
 if os.name == "posix":
+    # POSIX-only stdlib modules (absent on Windows), hence the ignores.
     import fcntl  # type: ignore[import-not-found]
     import pty  # type: ignore[import-not-found]
     import signal  # type: ignore[import-not-found]
@@ -233,6 +240,11 @@ if os.name == "posix":
             return env
 
         def spawn(self) -> None:
+            """Open a PTY pair and start the child attached to the slave end.
+
+            The parent closes the slave descriptor after the fork; a failed
+            start cleans up both ends and raises :class:`PtyProcessError`.
+            """
             master, slave = pty.openpty()
             try:
                 self._proc = subprocess.Popen(  # noqa: S603 - argv from config/user
@@ -256,6 +268,12 @@ if os.name == "posix":
             self.resize(self._owner.cols, self._owner.rows)
 
         def read_loop(self) -> None:
+            """Pump master-fd output until EOF, then report the exit code.
+
+            Runs on the dedicated reader thread: every chunk goes to
+            :meth:`PtyProcess.emit_output`; the ``finally`` block waits for
+            the child and closes the master before reporting completion.
+            """
             code: int | None = None
             try:
                 while True:
@@ -279,15 +297,22 @@ if os.name == "posix":
             self._owner.process_finished(code)
 
         def write(self, data: bytes) -> None:
+            """Write keystrokes to the PTY master (no-op once closed)."""
             if self._master >= 0:
                 os.write(self._master, data)
 
         def resize(self, cols: int, rows: int) -> None:
+            """Push the new window size to the kernel (TIOCSWINSZ ioctl)."""
             if self._master >= 0:
                 size = struct.pack("HHHH", rows, cols, 0, 0)
                 fcntl.ioctl(self._master, termios.TIOCSWINSZ, size)
 
         def terminate(self) -> None:
+            """SIGTERM the child's process group, escalating to SIGKILL.
+
+            A daemon thread kills the group when the child ignores SIGTERM
+            for 1.5 s; an already-exited process is left untouched.
+            """
             proc = self._proc
             if proc is None or proc.poll() is not None:
                 return
@@ -311,6 +336,7 @@ if os.name == "posix":
             threading.Thread(target=_kill_later, daemon=True).start()
 
         def close(self) -> None:
+            """Nothing to release: the read loop closes the master fd."""
             pass
 
 
@@ -389,6 +415,7 @@ class _ConPty:
         self._kernel32 = self._load_functions()
 
     def _load_functions(self) -> dict[str, Any]:
+        # WinDLL exists only on Windows; the ctypes stubs guard the attribute.
         k32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
 
         k32.CreatePseudoConsole.argtypes = [
@@ -457,6 +484,11 @@ class _ConPty:
             raise PtyProcessError(f"{what} failed: HRESULT 0x{hr & 0xFFFFFFFF:08X}")
 
     def spawn(self) -> None:
+        """Create the ConPTY and start the child attached to it.
+
+        Holds the handle lock for the whole spawn so a concurrent close
+        serializes behind it (see the comment inside :meth:`_spawn_locked`).
+        """
         # Held for the whole body: close() / terminate() from the UI thread
         # serialize behind the spawn, so a close during startup sees the
         # fully published handles instead of racing a half-built state (the
@@ -518,7 +550,7 @@ class _ConPty:
                 flags, None, cwd_arg,
                 ctypes.byref(si_ex.StartupInfo), ctypes.byref(proc_info),
             )
-        except BaseException:
+        except BaseException:  # noqa: BLE001 - re-raised after handle cleanup
             # Re-raised, never swallowed: cleanup on *any* failure path
             # (including CancelledError) so the ConPTY and pipe handles
             # created above cannot leak past a failed spawn.
@@ -530,6 +562,7 @@ class _ConPty:
             raise
         k["DeleteProcThreadAttributeList"](attr_ptr)
         if not created:
+            # get_last_error is Windows-only per the ctypes stubs.
             err = ctypes.get_last_error()  # type: ignore[attr-defined]
             self._close_pty()
             k["CloseHandle"](in_write)
@@ -541,6 +574,12 @@ class _ConPty:
         self._proc_info = proc_info
 
     def read_loop(self) -> None:
+        """Read rendered output until the console closes, report exit code.
+
+        Runs on the reader thread: ``ReadFile`` chunks go to
+        :meth:`PtyProcess.emit_output`; a watcher thread breaks the blocking
+        read when the child dies (ConPTY pipes never EOF).
+        """
         k = self._kernel32
         info = self._proc_info
         watcher: threading.Thread | None = None
@@ -624,6 +663,7 @@ class _ConPty:
         return "failed"
 
     def write(self, data: bytes) -> None:
+        """Write keystrokes into the ConPTY input pipe under the lock."""
         with self._handle_lock:
             # Held through the WriteFile call: releasing it would reopen the
             # close-vs-use window; blocking is bounded by the pipe write.
@@ -636,6 +676,7 @@ class _ConPty:
             )
 
     def resize(self, cols: int, rows: int) -> None:
+        """Resize the pseudo console under the lock (HRESULT checked)."""
         with self._handle_lock:
             hpc = self._hpc
             if hpc is not None:
@@ -645,6 +686,7 @@ class _ConPty:
                 self._check_hr(hr, "ResizePseudoConsole")
 
     def terminate(self) -> None:
+        """Kill the child, wait up to 2 s, then close the pseudo console."""
         k = self._kernel32
         with self._handle_lock:
             # Held through both calls: releasing the lock around them would
@@ -656,6 +698,7 @@ class _ConPty:
             self._close_pty()
 
     def close(self) -> None:
+        """Release every handle: console, process/thread, pipe ends."""
         k = self._kernel32
         with self._handle_lock:
             self._close_pty()

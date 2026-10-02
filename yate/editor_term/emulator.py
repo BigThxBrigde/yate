@@ -77,6 +77,7 @@ class Cell:
     reverse: bool = False
 
     def style_key(self) -> tuple[object, ...]:
+        """Hashable SGR signature of the cell (colors and flags, no glyph)."""
         return (self.fg, self.bg, self.bold, self.dim, self.italic,
                 self.underline, self.reverse)
 
@@ -238,6 +239,7 @@ class TerminalEmulator:
 
     @property
     def cursor(self) -> tuple[int, int]:
+        """Cursor ``(row, col)`` of the active screen (primary or alternate)."""
         cur = self._alt_cur if self.in_alt else self._cur
         return cur[0], cur[1]
 
@@ -283,6 +285,11 @@ class TerminalEmulator:
     # ----------------------------------------------------------------- feed
 
     def feed(self, data: bytes) -> None:
+        """Decode raw PTY output as UTF-8 and parse each character.
+
+        Undecodable sequences are replaced, so malformed output can never
+        abort the parser.
+        """
         text = data.decode("utf-8", errors="replace")
         for ch in text:
             self._consume(ch)

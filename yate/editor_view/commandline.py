@@ -95,6 +95,7 @@ class CommandInput(Input):
         self._tab_index: int = -1
 
     def push_history(self, text: str) -> None:
+        """Append *text* unless it duplicates the newest entry, then reset the cursor."""
         if text and (not self.history or self.history[-1] != text):
             self.history.append(text)
         self.reset_history_cursor()
@@ -158,6 +159,7 @@ class CommandInput(Input):
             self._apply_value(matches[0])
 
     def on_key(self, event: Key) -> None:
+        """Handle cancel/tab-completion/history keys; leave the rest to Input."""
         if event.key in ("escape", "ctrl+c"):
             event.stop()
             event.prevent_default()
@@ -253,6 +255,7 @@ class PromptBar(Horizontal):
 
     @override
     def compose(self) -> ComposeResult:
+        """Lay out the prompt prefix, input and message widgets in a row."""
         yield self.prompt
         yield self.input
         yield self.message
@@ -386,6 +389,7 @@ class PromptBar(Horizontal):
     # ---------------------------------------------------------- submission
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Record history, run the submit handler, then close or chain."""
         mode = self.active_mode
         if mode is None or event.input is not self.input:
             return
@@ -405,6 +409,7 @@ class PromptBar(Horizontal):
         self._finish()
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        """Forward live input changes to the active prompt's on_changed hook."""
         if event.input is not self.input or self._on_changed is None:
             return
         self._on_changed(event.value)

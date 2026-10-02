@@ -104,7 +104,7 @@ def cursor_path(app: Any) -> Any | None:
     return data if data is not None else None
 
 
-async def wait_until(
+async def wait_until(  # noqa: Any - naming Pilot would import textual into this helper
     pilot: Any,
     predicate: Callable[[], bool],
     timeout: float = 5.0,

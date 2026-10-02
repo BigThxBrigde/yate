@@ -542,7 +542,7 @@ def validate_theme(t: Theme) -> list[str]:
             continue
         try:
             parsed = TextualColor.parse(value)
-        except Exception:
+        except Exception:  # noqa: BLE001 - reported via the problems list
             problems.append(f"{field_name}={value!r} is not a valid color")
             continue
         if field_name in _OPAQUE_FIELDS and parsed.a != 1.0:
@@ -557,6 +557,7 @@ def validate_theme(t: Theme) -> list[str]:
         value = t.extra[key]
         match = (
             _DOC_HIT_RE.match(value)
+            # runtime value may violate the declared type (see note above)
             if isinstance(value, str)  # pyright: ignore[reportUnnecessaryIsInstance]
             else None
         )
@@ -568,7 +569,7 @@ def validate_theme(t: Theme) -> list[str]:
         hex_part, pct_part = match.group(1), match.group(2)
         try:
             TextualColor.parse(hex_part)
-        except Exception:
+        except Exception:  # noqa: BLE001 - reported via the problems list
             problems.append(
                 f"extra[{key!r}]={value!r}: hex part is not a valid color"
             )

@@ -29,7 +29,7 @@ from yate.session import EditorSession
 class LspSync:
     """Drives the LSP manager from editor events and reports diagnostics."""
 
-    def __init__(
+    def __init__(  # noqa: Any - push_overlay accepts any Textual Screen type
         self,
         spawn: Callable[..., Worker[object]],
         lsp: LspManager,

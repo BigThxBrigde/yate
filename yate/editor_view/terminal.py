@@ -96,13 +96,14 @@ class TerminalView(Widget):
 
     @property
     def started(self) -> bool:
+        """Whether the shell process exists and has not exited."""
         return self.proc is not None and not self.dead
 
-    async def start(
+    async def start(  # noqa: Any - fake PTY factory for tests; no stub.
         self,
         argv: list[str],
         cwd: Path,
-        factory: Any | None = None,  # noqa: Any - fake PTY factory for tests; no stub.
+        factory: Any | None = None,
     ) -> None:
         """Spawn the shell; restarted automatically after a previous exit."""
         if self._starting or self.started:
@@ -152,7 +153,7 @@ class TerminalView(Widget):
         proc.terminate()
         try:
             await proc.wait_closed()
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort teardown; must still detach
             # Cancelled teardown (or a PTY error) must still detach the
             # process so its reader thread can never post into the closed
             # event loop after yate is gone.
@@ -203,6 +204,7 @@ class TerminalView(Widget):
         return max(1, width), max(1, height)
 
     def on_resize(self, _event: Resize) -> None:
+        """Resize the emulator and PTY to the new grid size."""
         cols, rows = self._grid_size()
         if (cols, rows) == (self.emulator.cols, self.emulator.rows):
             return
@@ -215,6 +217,7 @@ class TerminalView(Widget):
     # --------------------------------------------------------------- input
 
     def on_key(self, event: Key) -> None:
+        """Forward keys to the shell; toggle/focus keys stay local."""
         # Consumption-point evidence: keys eaten here never reach the
         # Editor.handle_key entry log, so without this line a trace cannot
         # distinguish "key never arrived" from "arrived and was consumed by
@@ -254,6 +257,7 @@ class TerminalView(Widget):
             self.scroll_by(-(self.emulator.rows - 1))
 
     def on_paste(self, event: Paste) -> None:
+        """Send pasted text to the shell (bracketed when enabled)."""
         if not self.started or self.dead or not event.text:
             return
         event.stop()
@@ -266,18 +270,22 @@ class TerminalView(Widget):
         self._scroll = 0
 
     def on_mouse_scroll_up(self, event: MouseScrollUp) -> None:
+        """Scroll the terminal history up three rows."""
         event.stop()
         self.scroll_by(3)
 
     def on_mouse_scroll_down(self, event: MouseScrollDown) -> None:
+        """Scroll the terminal history down three rows."""
         event.stop()
         self.scroll_by(-3)
 
     def proc_write(self, data: bytes) -> None:
+        """Write raw bytes to the shell process, if one is running."""
         if self.proc is not None:
             self.proc.write(data)
 
     def scroll_by(self, delta: int) -> None:
+        """Scroll the viewport by *delta* rows, clamped to history."""
         maximum = self.emulator.max_scroll()
         self._scroll = max(0, min(self._scroll + delta, maximum))
         self.refresh()
@@ -286,6 +294,7 @@ class TerminalView(Widget):
 
     @override
     def render_line(self, y: int) -> Strip:
+        """Render one terminal row from the emulator grid (cursor highlighted)."""
         t = theme.active()
         width = int(self.size.width) if self.size.width else self.emulator.cols
         lines = self.emulator.view_lines(self._scroll)
@@ -414,6 +423,7 @@ class TerminalPanel(Vertical):
 
     @override
     def compose(self) -> Any:
+        """Stack the title header and the terminal view."""
         yield self.header
         yield self.view
 
@@ -523,6 +533,7 @@ class TerminalPanel(Vertical):
         return self._cached_header
 
     def refresh_header(self) -> None:
+        """Rebuild the title line (no-op when the text is unchanged)."""
         name = shell_label(self.view.shell_argv) if self.view.shell_argv else "shell"
         title = self.view.emulator.title
         if self.view.dead:

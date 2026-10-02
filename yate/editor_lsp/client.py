@@ -102,9 +102,11 @@ class ServerConfig:
     root_markers: list[str] = field(default_factory=lambda: list(DEFAULT_ROOT_MARKERS))
 
     def language_id(self, filetype: str) -> str:
+        """The LSP ``languageId`` for a file type (identity unless remapped)."""
         return self.language_ids.get(filetype, filetype)
 
     def handles(self, filetype: str) -> bool:
+        """Whether this server is registered for *filetype*."""
         return filetype in self.filetypes
 
 
@@ -127,6 +129,7 @@ class Completion:
     range_end_col: int | None = None
 
     def has_range(self) -> bool:
+        """True when the server supplied a full replacement range."""
         return (
             self.range_start_row is not None
             and self.range_start_col is not None
@@ -149,10 +152,12 @@ class Diagnostic:
 
     @property
     def is_error(self) -> bool:
+        """Whether the severity is ``ERROR``."""
         return self.severity == DiagnosticSeverity.ERROR
 
     @property
     def is_warning(self) -> bool:
+        """Whether the severity is ``WARNING``."""
         return self.severity == DiagnosticSeverity.WARNING
 
 
@@ -377,7 +382,7 @@ class LspClient:
 
     # ------------------------------------------------------------ rpc layer
 
-    async def request(
+    async def request(  # noqa: Any - raw LSP results have no static type
         self, method: str, params: dict[str, Any] | None
     ) -> Any:
         """Send a request and await its raw ``result`` (raises on error)."""
@@ -387,7 +392,7 @@ class LspClient:
         finally:
             self._pending.pop(request_id, None)
 
-    async def start_request(
+    async def start_request(  # noqa: Any - LSP payloads are dynamically typed
         self, method: str, params: dict[str, Any] | None
     ) -> tuple[int, asyncio.Future[Any]]:
         """Send a request without awaiting it.
@@ -413,9 +418,10 @@ class LspClient:
         log.debug("lsp request -> %s (id=%d, server=%s)", method, request_id, self.config.name)
         return request_id, future
 
-    async def notify(
+    async def notify(  # noqa: Any - JSON-RPC params are dynamically typed
         self, method: str, params: dict[str, Any] | None
     ) -> None:
+        """Send a notification (no response expected); raises when unconnected."""
         if self._writer is None:
             raise LspConnectionError(f"client is {self.state.value}")
         if method != "textDocument/didChange":  # per-keystroke: not logged
@@ -595,5 +601,5 @@ def _yate_version() -> str:
         from yate import __version__
 
         return __version__
-    except Exception:  # pragma: no cover - defensive
+    except Exception:  # pragma: no cover - defensive  # noqa: BLE001 - version probe is optional
         return "0.0.0"

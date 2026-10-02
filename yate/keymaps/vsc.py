@@ -34,6 +34,7 @@ class VscKeymap(Keymap):
 
     @override
     def build_bindings(self) -> list[KeyBinding]:
+        """The modeless binding table mirroring common VS Code shortcuts."""
         return [
             # ---- editing
             _k("<enter>", "newline", "Insert newline (auto-indent)", EDIT),

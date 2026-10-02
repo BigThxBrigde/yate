@@ -104,6 +104,7 @@ class VimKeymap(Keymap):
 
     @override
     def build_bindings(self) -> list[KeyBinding]:
+        """The vim binding table (normal, insert and visual share one list)."""
         return [
             KeyBinding("h", "move left", "Move left", NAV),
             KeyBinding("l", "move right", "Move right", NAV),
@@ -176,6 +177,12 @@ class VimKeymap(Keymap):
 
     @override
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
+        """Dispatch one key according to the current vim mode.
+
+        The ctrl+/ keymap toggle and the function keys are handled before
+        mode dispatch (see the comment below); everything else routes to
+        the insert, visual or normal handler.
+        """
         # ctrl+/ is a raw (non-printable) key that never reaches mode dispatch;
         # handle it first so the toggle works in every vim mode and drops any
         # half-finished operator/count state.

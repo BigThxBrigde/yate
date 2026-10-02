@@ -96,19 +96,23 @@ class CompletionPopup(Widget):
         self._anchor: tuple[int, int] | None = None
 
     def on_mount(self) -> None:
+        """Start hidden; :meth:`show` makes the popup visible."""
         self.display = False
 
     # -------------------------------------------------------------- state
 
     @property
     def is_open(self) -> bool:
+        """Whether the popup is visible and holds at least one item."""
         return bool(self.display) and bool(self.items)
 
     @property
     def item_count(self) -> int:
+        """Number of completion items currently held."""
         return len(self.items)
 
     def selected(self) -> Completion | None:
+        """Return the currently highlighted item, or ``None`` when empty."""
         if not self.items:
             return None
         return self.items[self.index]
@@ -161,6 +165,7 @@ class CompletionPopup(Widget):
         self.refresh()
 
     def close(self) -> None:
+        """Hide the popup and drop all completion state."""
         self.items = []
         self.index = 0
         self.prefix = ""
@@ -168,11 +173,13 @@ class CompletionPopup(Widget):
         self.display = False
 
     def select_next(self) -> None:
+        """Advance the highlight to the next item (wrapping around)."""
         if self.items:
             self.index = (self.index + 1) % len(self.items)
             self.refresh()
 
     def select_prev(self) -> None:
+        """Move the highlight to the previous item (wrapping around)."""
         if self.items:
             self.index = (self.index - 1) % len(self.items)
             self.refresh()
@@ -190,6 +197,7 @@ class CompletionPopup(Widget):
 
     @override
     def render_line(self, y: int) -> Strip:
+        """Render one popup row: border, item (glyph, label, detail) or filler."""
         t = theme.active()
         width = int(self.styles.width.value) if self.styles.width is not None else 40
         height = int(self.styles.height.value) if self.styles.height is not None else 0

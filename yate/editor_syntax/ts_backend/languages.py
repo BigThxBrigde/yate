@@ -171,7 +171,7 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
         language = ts.Language(module.language())
         query_src = query_file.read_text(encoding="utf-8")
         query = ts.Query(language, query_src)
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional native code: degrade, never crash
         # optional native code / third-party grammar: any failure must
         # degrade to the regex backend, never break the editor
         _warn_degraded_once(name, "tree-sitter load failed for %r (falls back to regex)")
@@ -184,7 +184,7 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
     return loaded
 
 
-def load_language(
+def load_language(  # noqa: Any - tree_sitter.Language is an untyped C binding
     name: str,
     language: Any,
     query_src: str,

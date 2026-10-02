@@ -165,6 +165,7 @@ class YateApp(App[None]):
 
     @override
     def compose(self) -> ComposeResult:
+        """Compose the shell's widget tree (delegates to the editor)."""
         yield from self.editor.compose()
 
     def watch_theme(self, _theme: str) -> None:
@@ -177,6 +178,7 @@ class YateApp(App[None]):
             self.screen.styles.background = theme.active().bg
 
     async def on_mount(self) -> None:
+        """Attach the devtools bridge, start the idle poll, mount the editor."""
         # R12: mirror tracing records into the Textual devtools console so
         # no yate module ever needs the devtools channel (``app.log`` /
         # widget ``self.log``) directly -- this bridge is the only sanctioned
@@ -198,6 +200,7 @@ class YateApp(App[None]):
         await self.editor.on_mount()
 
     async def on_unmount(self) -> None:
+        """Detach the devtools bridge and tear the editor down."""
         # Detach the R12 bridge by identity (see on_mount): removing only
         # our own handler keeps a concurrently mounted app's bridge intact.
         if self._devtools_bridge is not None:

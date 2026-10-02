@@ -156,6 +156,7 @@ def remote_url(repo: Path) -> str:
 
 
 def head_sha(repo: Path) -> str:
+    """The full sha of the current ``HEAD``."""
     return run_git(["rev-parse", "HEAD"], repo=repo).strip()
 
 
@@ -170,6 +171,7 @@ def resolve_commit_sha(repo: Path, prefix: str) -> str:
 
 
 def commit_subject(repo: Path, sha: str) -> str:
+    """The subject line (first line) of *sha*'s commit message."""
     return run_git(["log", "-1", "--pretty=%s", sha], repo=repo).strip()
 
 

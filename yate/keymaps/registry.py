@@ -32,6 +32,7 @@ class KeymapSet:
     # ------------------------------------------------------------- lookups
 
     def get(self, name: str) -> Keymap | None:
+        """The keymap called *name*, or ``None`` when not registered."""
         return self._keymaps.get(name)
 
     def __getitem__(self, name: str) -> Keymap:

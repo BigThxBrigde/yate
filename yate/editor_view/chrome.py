@@ -115,6 +115,7 @@ class TabBar(Static):
     # ------------------------------------------------------------- events
 
     def on_resize(self, _event: Resize) -> None:
+        """Re-render the tab line at the new width."""
         self.refresh_tabs()
 
     def on_mouse_down(self, event: MouseDown) -> None:
@@ -223,6 +224,7 @@ class Breadcrumbs(Static):
             self._theme_unsubscribe = None
 
     def on_resize(self, _event: Resize) -> None:
+        """Re-render the crumb line at the new width."""
         self.refresh_crumbs()
 
 

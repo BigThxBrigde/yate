@@ -19,6 +19,7 @@ class ShellResult:
 
     @property
     def ok(self) -> bool:
+        """True when the command exited successfully."""
         return self.returncode == 0
 
 

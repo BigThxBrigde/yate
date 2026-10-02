@@ -440,6 +440,7 @@ def release(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Parse arguments and run (or dry-run) the release pipeline."""
     parser = argparse.ArgumentParser(
         prog="python -m tools.release",
         description="One-command release: bump version, changelog, commit, tag, push.",

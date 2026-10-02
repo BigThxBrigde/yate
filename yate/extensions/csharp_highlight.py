@@ -86,4 +86,5 @@ CSHARP_SPEC = LangSpec(
 
 
 def setup(api: ExtensionAPI) -> None:
+    """Register the C# highlighter for ``.cs`` / ``.csx`` files."""
     api.highlight.register(CSHARP_SPEC, "cs", "csx")

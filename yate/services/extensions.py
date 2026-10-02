@@ -96,7 +96,7 @@ class LspExtensionBridge:
     def __init__(self, lsp: LspManager) -> None:
         self._lsp = lsp
 
-    def register_server(
+    def register_server(  # noqa: Any - LSP JSON payload forwarded verbatim
         self,
         name: str,
         *,
@@ -133,6 +133,7 @@ class LspExtensionBridge:
         return {name: state.value for name, state in self._lsp.states().items()}
 
     def has_state(self, name: str, state: str) -> bool:
+        """True when server *name* currently reports the state *state*."""
         current = self._lsp.states().get(name)
         return current is not None and current.value == state
 
@@ -292,18 +293,22 @@ class ExtensionAPI:
 
     @property
     def buffer(self):
+        """The buffer of the active document."""
         return self._ctx.session.buffer
 
     @property
     def doc(self):
+        """The active document."""
         return self._ctx.session.doc
 
     @property
     def workspace(self):
+        """The open workspace."""
         return self._ctx.workspace
 
     @property
     def keymaps(self) -> KeymapSet:
+        """The loaded keymap set (``vsc`` / ``vim``)."""
         return self._ctx.keymaps
 
     @property
@@ -332,7 +337,7 @@ class ExtensionAPI:
         """Register a named action (usable from key maps / commands)."""
         self._ctx.actions.register(name, func, description=description or "extension action")
 
-    def bind_key(
+    def bind_key(  # noqa: Any - extension-supplied callbacks, untyped boundary
         self,
         key_spec: str,
         callback: Callable[..., Any] | None = None,
@@ -386,20 +391,25 @@ class ExtensionAPI:
         return _decorator
 
     def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
+        """Register a ``:`` command (the non-decorator form)."""
         self._ctx.commands.register(name, func, description or "extension command")
 
     # -------------------------------------------------------------- services
 
     def message(self, text: str) -> None:
+        """Show *text* on the message line."""
         self._ctx.message(text)
 
     def shell(self, command: str) -> object:
+        """Run *command* synchronously without showing its output."""
         return self._ctx.run_shell(command, False)
 
     def open_path(self, path: str | Path) -> None:
+        """Open *path* (file or folder) in the editor."""
         self._ctx.open_path(Path(path))
 
     def save(self) -> None:
+        """Save the active document."""
         self._ctx.save()
 
 
@@ -449,6 +459,12 @@ class ExtensionLoader:
         return results
 
     def load_file(self, path: Path) -> LoadedExtension:
+        """Load the extension at *path* once and run its ``setup(api)``.
+
+        Re-loading an already-loaded path (resolved comparison) hands back
+        the earlier record.  Failures are stored on the record and logged,
+        never raised.
+        """
         path = Path(path)
         # The same script can be reached via several sources (an rc-declared
         # path, the default ./extensions directory, a --ext flag); loading it
@@ -492,7 +508,7 @@ class ExtensionLoader:
                 record.teardown = cast(
                     Callable[[ExtensionAPI], None], hook
                 )
-        except Exception as exc:  # extensions are user code - never crash the app
+        except Exception as exc:  # noqa: BLE001 - extensions are user code, never crash the app
             # Drop the half-initialized module again: a leftover under
             # sys.modules would make a later import of the same name hit the
             # broken remains instead of a clean retry (S33).

@@ -136,6 +136,7 @@ class Document:
 
     @property
     def name(self) -> str:
+        """Return the file name, or ``[no name]`` for an unsaved document."""
         return self.path.name if self.path is not None else "[no name]"
 
     @property
@@ -154,6 +155,7 @@ class Document:
 
     @property
     def display_path(self) -> str:
+        """Return the full path as text, or ``[no name]`` for an unsaved document."""
         return str(self.path) if self.path is not None else "[no name]"
 
     # -------------------------------------------------------------- persist
@@ -233,7 +235,7 @@ class Document:
                 # A new file gets the umask default, not mkstemp's 0600.
                 os.chmod(tmp, 0o666 & ~_current_umask())
             os.replace(tmp, target)
-        except BaseException:
+        except BaseException:  # noqa: BLE001 - re-raises after best-effort cleanup
             # Wide on purpose: this path only re-raises after a best-effort
             # cleanup, so no failure is ever swallowed.  Cleanup must not
             # replace the original exception either.
