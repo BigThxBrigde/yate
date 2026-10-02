@@ -86,10 +86,16 @@ for _ts_pkg in ("tree_sitter", "tree_sitter_python", "tree_sitter_bash"):
     # and the Windows blocked-version guard) rely on it.
     ts_datas += copy_metadata(_ts_pkg)
 
-# yate's own dist-info: diagnostics._section_packages derives the
-# [packages] inventory from importlib.metadata.requires("yate"),
-# which reads this metadata inside the frozen app (issue IKJJFI).
+# yate's own + core dependencies' dist-info: diagnostics._section_packages
+# derives the [packages] inventory from importlib.metadata.requires("yate")
+# and probes the versions with importlib.metadata.version() -- both read
+# dist-info metadata that must ship inside the frozen app (issue IKJJFI).
+# Without the core entries the exe reports bundled packages (pyperclip)
+# as "not installed"; textual is also covered by a contrib hook, duplicate
+# datas entries are deduplicated by PyInstaller.
 yate_datas = copy_metadata("yate")
+for _core_pkg in ("pyperclip", "textual"):
+    yate_datas += copy_metadata(_core_pkg)
 
 # Bundled extensions are loaded from disk at runtime via
 # importlib.util.spec_from_file_location (not normal imports), so the .py
