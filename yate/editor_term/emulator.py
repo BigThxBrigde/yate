@@ -19,9 +19,8 @@ The parser implements the subset that makes modern shells usable:
 from __future__ import annotations
 
 import unicodedata
-from dataclasses import dataclass, replace
-
 from collections.abc import Callable
+from dataclasses import dataclass, replace
 
 RGB = tuple[int, int, int]
 

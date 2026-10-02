@@ -9,13 +9,11 @@ import asyncio
 import contextlib
 import os
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, cast, override
 
-from collections.abc import Awaitable, Callable
-
 import pytest
-
 from textual.strip import Strip
 from textual.widget import Widget
 from textual.widgets.tree import TreeNode
@@ -3319,6 +3317,8 @@ def _install_fake_server(
     ]
 
     class UiFakeClient:
+        """Fake LSP double recording ``didOpen`` and serving canned completions."""
+
         def __init__(self, config: Any, root: Any) -> None:
             self.config = config
             self.root_path = root

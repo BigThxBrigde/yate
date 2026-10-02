@@ -16,7 +16,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-
 from tools.changelog import cli, gitee, gitdata, render, segments, translations
 from tools.changelog.classify import classify_commit, is_changelog_entry
 from tools.changelog.model import (

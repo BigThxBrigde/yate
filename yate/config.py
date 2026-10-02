@@ -44,11 +44,10 @@ nor an invalid option ever crashes the editor: problems are collected on
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
-
-from collections.abc import Callable, Sequence
 
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES, tracing
 

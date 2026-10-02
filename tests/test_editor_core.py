@@ -30,8 +30,8 @@ from yate.editor_core.buffer import (
 )
 from yate.editor_core.search import Match
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
-from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.keymaps.vsc import VscKeymap
 from yate.session import EditorSession
 
 

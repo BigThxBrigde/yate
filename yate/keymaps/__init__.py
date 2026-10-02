@@ -6,6 +6,8 @@
 * :class:`yate.keymaps.vim.VimKeymap` -- modal vim bindings
 """
 
+from __future__ import annotations
+
 from yate.keymaps.base import (
     ActionContext,
     KeyBinding,

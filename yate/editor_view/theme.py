@@ -30,11 +30,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-from collections.abc import Callable, Sequence
 
 from rich.style import Style
 from textual.color import Color as TextualColor
@@ -556,7 +555,11 @@ def validate_theme(t: Theme) -> list[str]:
         if key not in t.extra:
             continue
         value = t.extra[key]
-        match = _DOC_HIT_RE.match(value) if isinstance(value, str) else None  # pyright: ignore[reportUnnecessaryIsInstance]
+        match = (
+            _DOC_HIT_RE.match(value)
+            if isinstance(value, str)  # pyright: ignore[reportUnnecessaryIsInstance]
+            else None
+        )
         if match is None:
             problems.append(
                 f"extra[{key!r}]={value!r} must be '<hex> <percent>'"

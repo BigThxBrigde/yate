@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
-
-from collections.abc import Sequence
 
 from . import baselines
 from .harness import (

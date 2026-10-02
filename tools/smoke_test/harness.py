@@ -23,12 +23,11 @@ import random
 import re
 import time
 from collections import Counter
+from collections.abc import Awaitable, Callable, Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
-
-from collections.abc import Awaitable, Callable, Generator, Sequence
 
 os.environ.setdefault("YATE_PYTHON_LSP", "off")
 
@@ -197,6 +196,8 @@ class Check:
 
 @dataclass
 class ScenarioResult:
+    """Outcome of one scenario run: checks, SVG rows, duration, error."""
+
     name: str
     checks: list[Check] = field(default_factory=lambda: [])
     svg_rows: dict[int, str] = field(default_factory=lambda: {})
@@ -220,6 +221,8 @@ class ScenarioResult:
 
 @dataclass
 class Scenario:
+    """One named smoke scenario with an async run function and tags."""
+
     name: str
     run: Callable[[Path], Awaitable[ScenarioResult]]
     tags: tuple[str, ...] = ()
@@ -391,6 +394,8 @@ DEFAULT_SCENARIO_TIMEOUT_S = 60.0
 
 @dataclass
 class RunOptions:
+    """Knobs for one harness run: SVG capture, invariants, timeout."""
+
     svg: bool = False
     invariants: bool = True
     #: Wall clock budget per scenario in seconds: a scenario exceeding it is

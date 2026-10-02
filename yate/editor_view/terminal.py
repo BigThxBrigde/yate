@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, override
-
-from collections.abc import Callable
 
 from rich.segment import Segment
 from rich.style import Style
@@ -67,7 +66,7 @@ FOCUS_EDITOR_KEY = "ctrl+1"
 def _hex(rgb: tuple[int, int, int] | None) -> str | None:
     if rgb is None:
         return None
-    return "#%02x%02x%02x" % rgb
+    return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
 
 class TerminalView(Widget):

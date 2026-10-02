@@ -14,10 +14,9 @@ import asyncio
 import os
 import subprocess
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
-
-from collections.abc import Callable
 
 from yate.logs import tracing
 

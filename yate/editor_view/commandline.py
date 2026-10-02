@@ -10,9 +10,8 @@ focus and repaint) are injected callables.
 
 from __future__ import annotations
 
-from typing import Any, override
-
 from collections.abc import Callable
+from typing import Any, override
 
 from rich.markup import escape
 from textual.app import ComposeResult

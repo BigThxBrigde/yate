@@ -16,3 +16,5 @@ model, plus the byte-level codecs the rest of yate already speaks:
 L0 leaf package: it must not import any other yate module except
 :mod:`yate.keymaps.base` (also an L0 leaf, for the ``SPECIAL_KEYS`` table).
 """
+
+from __future__ import annotations

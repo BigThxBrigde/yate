@@ -9,10 +9,9 @@ workspace and the prompt bar -- plus the few editor callbacks it triggers
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, override
-
-from collections.abc import Callable
 
 from rich.text import Text
 from textual.color import Color

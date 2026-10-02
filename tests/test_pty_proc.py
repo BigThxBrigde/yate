@@ -32,11 +32,10 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Generator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
-
-from collections.abc import Callable, Generator
 
 import pytest
 

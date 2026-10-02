@@ -6,10 +6,9 @@ marked ``slow`` so ``--skip-slow`` keeps the suite hermetic and fast.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
-from collections.abc import Callable
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import message_text, run_command, type_text, wait_until

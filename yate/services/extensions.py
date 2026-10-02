@@ -31,12 +31,11 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
-
-from collections.abc import Callable, Mapping, Sequence
 
 from yate.config import YateConfig
 from yate.editor_lsp import LspManager
@@ -406,6 +405,12 @@ class ExtensionAPI:
 
 @dataclass
 class LoadedExtension:
+    """Record of one extension discovered on disk.
+
+    A healthy load fills ``module`` and ``teardown`` and leaves ``error``
+    ``None``; any failure stores the exception summary there.
+    """
+
     name: str
     path: Path
     module: ModuleType | None = None

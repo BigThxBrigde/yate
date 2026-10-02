@@ -16,11 +16,10 @@ and calls :meth:`request_completion` for the popup.  Incoming
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
-
-from collections.abc import Awaitable, Callable
 
 from yate.editor_core.document import Document
 from yate.logs import tracing
@@ -55,6 +54,12 @@ log = tracing.get_logger(__name__)
 
 @dataclass
 class OpenDocState:
+    """State of one text document currently open with a server.
+
+    ``version``/``last_synced`` advance only after a successful didChange
+    notify; pushes whose text matches ``last_synced`` are skipped.
+    """
+
     uri: str
     config_name: str
     client_key: ClientKey

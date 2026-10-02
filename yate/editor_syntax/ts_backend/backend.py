@@ -22,17 +22,16 @@ character column against the UTF-8 encoding of its line.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any, Protocol
 
-from collections.abc import Iterator
-
+from yate.editor_syntax.tokens import Token
 from yate.editor_syntax.ts_backend.languages import (
     LoadedLanguage,
     resolve,
     tree_sitter,
     tree_sitter_blocked,
 )
-from yate.editor_syntax.tokens import Token
 
 __all__ = ["available_for", "tokenize_document"]
 

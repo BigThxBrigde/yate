@@ -20,11 +20,10 @@ from __future__ import annotations
 import asyncio
 import enum
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
-
-from collections.abc import Awaitable, Callable
 
 from yate.logs import tracing
 
@@ -52,6 +51,12 @@ DEFAULT_ROOT_MARKERS = (
 
 
 class ServerState(str, enum.Enum):
+    """Lifecycle of one language server connection.
+
+    Only ``READY`` accepts requests; ``FAILED`` carries the reason in
+    :attr:`LspClient.error`.
+    """
+
     CONFIGURED = "configured"
     STARTING = "starting"
     READY = "ready"
@@ -152,6 +157,12 @@ class Diagnostic:
 
 
 class DiagnosticSeverity(enum.IntEnum):
+    """Severity of a :class:`Diagnostic`, using the LSP wire codes.
+
+    Values 1-4 mirror the ``textDocument/publishDiagnostics``
+    specification (error, warning, information, hint).
+    """
+
     ERROR = 1
     WARNING = 2
     INFORMATION = 3

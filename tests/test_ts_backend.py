@@ -20,9 +20,9 @@ from unittest import mock
 import pytest
 
 from yate.editor_syntax import available_filetypes, engine, regex_backend, ts_backend
+from yate.editor_syntax.tokens import SYNTAX_KINDS, Token
 from yate.editor_syntax.ts_backend import backend as ts_runtime
 from yate.editor_syntax.ts_backend import languages as ts_langs
-from yate.editor_syntax.tokens import SYNTAX_KINDS, Token
 from yate.services import extensions as ext_services
 
 has_bash = importlib.util.find_spec("tree_sitter_bash") is not None

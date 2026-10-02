@@ -6,7 +6,6 @@ import asyncio
 
 from rich.color import Color
 from rich.segment import Segments
-
 from textual.scrollbar import ScrollBar
 
 from yate.editor_view.scrollbars import (

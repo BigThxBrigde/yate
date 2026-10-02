@@ -388,4 +388,3 @@ def buffer_completions(
 
     # trim to a sane limit (the popup caps visible rows anyway)
     return items[:64], prefix, start_col
-

@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import platform
 import sys
+from collections.abc import Sequence
 from datetime import datetime
 from importlib import metadata
 from pathlib import Path
-
-from collections.abc import Sequence
 
 from rich import box
 from rich.console import Console

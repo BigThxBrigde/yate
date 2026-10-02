@@ -13,9 +13,8 @@ concrete :class:`~yate.editor.Editor`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from yate.keymaps.base import ActionContext
 from yate.logs import tracing

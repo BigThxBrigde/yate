@@ -16,10 +16,9 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
-
-from collections.abc import Awaitable, Callable
 
 import pytest
 

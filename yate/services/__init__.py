@@ -6,3 +6,5 @@ extension loader and the rest of the service stack. Import from the
 submodule that defines the symbol
 (``from yate.services.workspace import Workspace``).
 """
+
+from __future__ import annotations

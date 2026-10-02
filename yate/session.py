@@ -22,11 +22,10 @@ and composed by ``Editor`` (L3).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
-
-from collections.abc import Callable
 
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine

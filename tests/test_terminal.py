@@ -6,10 +6,9 @@ import asyncio
 import os
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
-
-from collections.abc import Callable
 
 import pytest
 

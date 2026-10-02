@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, override, Protocol
-
-from collections.abc import Callable
 
 from rich.segment import Segment
 from rich.style import Style

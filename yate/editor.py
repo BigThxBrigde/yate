@@ -46,8 +46,8 @@ from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.extension_flows import ExtensionFlows
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
-from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap
+from yate.keymaps.vsc import VscKeymap
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.lsp_sync import LspSync

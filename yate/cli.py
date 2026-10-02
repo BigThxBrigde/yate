@@ -12,9 +12,8 @@ from __future__ import annotations
 import argparse
 import platform
 import sys
-from pathlib import Path
-
 from collections.abc import Sequence
+from pathlib import Path
 
 from yate import __description__, __version__
 

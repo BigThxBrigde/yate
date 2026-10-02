@@ -14,10 +14,9 @@ scenario bodies to "press keys, read app state, append a :class:`Check`":
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
-from collections.abc import Callable
 
 __all__ = [
     "goto",

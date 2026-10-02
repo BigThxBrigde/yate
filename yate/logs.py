@@ -47,12 +47,11 @@ import logging
 import os
 import sys
 import traceback
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, IO, override, TextIO
-
-from collections.abc import Callable, Mapping
 
 from yate import __version__
 

@@ -4,6 +4,8 @@ Requires a Nerd Font patched terminal (https://www.nerdfonts.com/).
 Each constant is a single private-use-area codepoint.
 """
 
+from __future__ import annotations
+
 # --- files & folders (nf-fa / nf-seti)
 FOLDER = "\uf07b"          # 
 FOLDER_OPEN = "\uf07c"     # 

@@ -9,9 +9,8 @@ of UI callbacks built by the editor, so no host protocol is involved.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document

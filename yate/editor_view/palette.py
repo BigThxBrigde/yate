@@ -14,10 +14,9 @@ score better than gap matches.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, override
-
-from collections.abc import Callable
 
 from rich.text import Text
 from textual.app import ComposeResult
