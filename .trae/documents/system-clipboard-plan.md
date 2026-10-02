@@ -643,3 +643,28 @@ wave-2：buffer/vim/test；wave-3：actions/manual/test），互不产生半成�
 - 端到端手工验证（真实终端 vsc/vim 键位、F1 帮助条目、F8 手册）未在本轮自动化
   执行，留给合并前人工抽查。
 - CHANGELOG 未手工改（工具生成）；`pack/yate.spec` 未改动。
+
+### 评审与收尾回填（2026-10-02，task-orchestration 步骤 5-7）
+
+- 评审结论：**有条件通过（仅 minor，无 blocker/major）**。三项设计决策逐条核验
+  通过；架构边界 R1-R13 无违规；`_store_deleted`/`_mirror` 无空串写入系统剪贴板、
+  六个 operator 汇聚点均在 `_clear_operator` 前取 `op_register`、p/P count 只读一次
+  均经实证。
+- 评审实测门禁：全量 `pytest --cov --cov-fail-under=75` 绿（覆盖率 90.75%）；
+  `pyright yate/ tests/ tools/` 0 errors；架构 22 passed；OS 剪贴板冒烟
+  `True 'yate-review'`；`tools.smoke_test run` 89 scenarios / 932 checks 全过
+  （含 clipboard_roundtrip、vim_modal_editing）。
+- 评审 minor 两项已在收尾前修复：
+  1. 补 3 个覆盖洞用例（`test_visual_quote_with_invalid_follower_is_swallowed` /
+     `test_delete_dd_into_named_register_stays_internal` /
+     `test_change_gg_into_named_register_stays_internal`，锚定 visual `"` 非法跟随
+     清理、`"add` named 路径、c-gg 行为修正分支）；修复后
+     `test_vim_keymap.py + test_clipboard.py` 139 passed、pyright 0 errors。
+  2. `tests/test_clipboard.py` import 组序（stdlib `typing` 移到第三方前）。
+- 最终门禁（主代理亲跑，退出码 0）：全量 `pytest tests/ -q --cov=yate
+  --cov-fail-under=75` 通过，**总覆盖率 90.81%**；`pyright yate/ tests/ tools/`
+  **0 errors, 0 warnings, 0 informations**；用例总数 1521 passed + 7 skipped
+  （1518 评审实测 + 3 补洞，全绿）。
+- 遗留（合并前人工抽查）：真实终端端到端（vsc Ctrl+C/V 双向、vim `yy`/`"ayy`/
+  `"ap`/`3p`、F1 帮助条目、F8 手册双语）；PyInstaller frozen 冒烟（仅打包时验证，
+  应急点见 §步骤 3 末尾）。
