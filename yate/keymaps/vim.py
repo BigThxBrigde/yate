@@ -272,6 +272,7 @@ class VimKeymap(Keymap):
             if self.mode == VimMode.VISUAL:
                 buf.clear_selection()
                 self.mode = VimMode.NORMAL
+                self.pending_register = None  # same cleanup as the ESC branch
             else:
                 self.mode = VimMode.VISUAL
             return True
@@ -714,6 +715,7 @@ class VimKeymap(Keymap):
         buf.cursor = (r, c + n - 1)
 
     def _enter_insert(self, ui: KeyUi) -> None:
+        self.pending_register = None  # a register prefix never survives insert
         self.mode = VimMode.INSERT
         ui.message("-- INSERT --")
 
@@ -775,8 +777,10 @@ class VimKeymap(Keymap):
         once here, at the command entry, so a count paste (``3p``) never
         re-reads it mid-loop; an unavailable or empty clipboard leaves
         the unnamed register untouched (internal content is pasted).
+        Read-only buffers skip the priming entirely: a paste that is
+        about to fail must not mutate the register either.
         """
-        if named is not None:
+        if named is not None or buf.read_only:
             return
         text = paste_text()
         if text:

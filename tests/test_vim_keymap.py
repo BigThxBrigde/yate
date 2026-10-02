@@ -1448,6 +1448,21 @@ def test_paste_falls_back_when_clipboard_empty(fake_clip: _FakeClip) -> None:
     assert editor.buffer.get_text() == "hello\nhello"
 
 
+def test_paste_on_a_read_only_buffer_does_not_prime_the_register(
+    fake_clip: _FakeClip,
+) -> None:
+    """p on a read-only buffer fails without touching the unnamed register."""
+    editor, keymap, ctx = _setup("hello")
+    editor.buffer.register = "KEEP"
+    editor.buffer.read_only = True
+    fake_clip.paste_result = "SYS"
+
+    with pytest.raises(BufferReadOnlyError):
+        keymap.handle_key(ctx, "p")
+    assert editor.buffer.register == "KEEP"
+    assert fake_clip.pastes == []
+
+
 def test_named_register_yy_stores_internally_without_clipboard(
     fake_clip: _FakeClip,
 ) -> None:
@@ -1465,6 +1480,18 @@ def test_named_register_paste_reads_internal_only(fake_clip: _FakeClip) -> None:
     _press(keymap, ctx, '"', "a", "y", "y", '"', "a", "p")
     assert editor.buffer.get_text() == "alpha\nalpha"
     assert len(fake_clip.pastes) == 0
+
+
+def test_register_prefix_does_not_survive_an_insert_roundtrip(
+    fake_clip: _FakeClip,
+) -> None:
+    """"ai then ESC discards the pending register: the next yy yanks unnamed."""
+    editor, keymap, ctx = _setup("alpha")
+    _press(keymap, ctx, '"', "a", "i", ESC, "y", "y")
+    assert keymap.pending_register is None
+    assert editor.buffer.register == "alpha\n"
+    assert editor.buffer.named_registers == {}
+    assert fake_clip.copies == ["alpha\n"]
 
 
 def test_bare_quote_with_invalid_follower_is_swallowed(fake_clip: _FakeClip) -> None:
@@ -1525,6 +1552,17 @@ def test_visual_quote_with_invalid_follower_is_swallowed(
     assert keymap.pending_register is None
     assert editor.buffer.get_text() == "alpha\nbeta"
     assert fake_clip.copies == []
+
+
+def test_visual_quote_then_v_exit_does_not_leak_the_wait_state() -> None:
+    """Exiting visual with v clears a '"' wait exactly like the ESC branch."""
+    editor, keymap, ctx = _setup("alpha")
+    _press(keymap, ctx, "v", '"', "v")
+    assert keymap.mode is VimMode.NORMAL
+    assert keymap.pending_register is None
+    # the next key must run as a fresh command, not be swallowed by the wait
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "lpha"
 
 
 def test_delete_dd_into_named_register_stays_internal(
