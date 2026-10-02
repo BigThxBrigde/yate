@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import importlib.metadata
 import io
+import re
 import sys
 from pathlib import Path
-from typing import override
+from typing import Any, override
 from unittest.mock import patch
 
 import pytest
@@ -314,3 +315,127 @@ def test_missing_packages_are_reported_as_not_installed() -> None:
     ):
         report = diagnostics.format_report(app.editor)
     assert "not installed" in report
+
+
+# --- packages section -------------------------------------------------------
+
+
+def _private(name: str) -> Any:
+    """Reach a diagnostics module-private on purpose (they carry the logic)."""
+    return getattr(diagnostics, name)
+
+
+#: Extra-group marker in a Requires-Dist string; kept as an independent
+#: oracle here instead of reusing ``diagnostics._REQ_EXTRA_RE``.
+_EXTRA_MARKER_RE: re.Pattern[str] = re.compile(r"\bextra\s*==\s*['\"]([^'\"]+)['\"]")
+
+
+def _group_slices(lines: list[str]) -> dict[str, list[str]]:
+    """Split ``_section_packages()`` output into ``{group: [detail rows]}``.
+
+    Label lines carry a two-space indent (``  ts:``) and detail rows a
+    four-space one, so the indent width tells the two kinds apart.
+    """
+    slices: dict[str, list[str]] = {}
+    current = ""
+    for line in lines:
+        if line.startswith("  ") and not line.startswith("    "):
+            current = line.strip().removesuffix(":")
+            slices[current] = []
+        else:
+            slices[current].append(line)
+    return slices
+
+
+def test_packages_section_derives_core_dependencies_from_metadata() -> None:
+    """Real dist metadata drives the inventory: core deps are complete.
+
+    The issue's root cause was a hand-kept name list missing ``pyperclip``;
+    deriving from Requires-Dist keeps the report in sync with pyproject.toml.
+    """
+    lines: list[str] = _private("_section_packages")()
+    assert "  core:" in lines
+    core_rows = _group_slices(lines)["core"]
+    for name in ("pyperclip", "textual"):
+        rows = [row for row in core_rows if name in row]
+        assert rows, f"missing core row for {name}"
+        assert ": " in rows[0]
+        assert "not installed" not in rows[0]
+
+
+def test_packages_section_lists_declared_feature_extras_and_skips_tooling() -> None:
+    """Declared feature extras each get a group; dev/build tooling stays out."""
+    lines: list[str] = _private("_section_packages")()
+    raw = importlib.metadata.requires("yate") or []
+    declared = {
+        match.group(1)
+        for req in raw
+        if (match := _EXTRA_MARKER_RE.search(req)) is not None
+    }
+    skipped: frozenset[str] = _private("_SKIPPED_EXTRAS")
+    shown = sorted(declared - skipped)
+    assert shown, "expected the ts feature extra to be declared in pyproject"
+    for extra in shown:
+        assert f"  {extra}:" in lines
+    for extra in sorted(declared & skipped):
+        assert f"  {extra}:" not in lines
+    assert "  dev:" not in lines
+    assert "  build:" not in lines
+    for tool in ("pyright", "pytest", "pyinstaller", "pillow"):
+        assert not any(tool in line for line in lines), tool
+    core_index = lines.index("  core:")
+    extra_indexes = [lines.index(f"  {extra}:") for extra in shown]
+    assert all(core_index < index for index in extra_indexes)
+    ts_rows = _group_slices(lines).get("ts", [])
+    assert any("tree-sitter" in row for row in ts_rows)
+
+
+def test_packages_section_parses_controlled_requirements() -> None:
+    """Controlled metadata: grouping, dedup, canonical keys, display shape."""
+    requirements = [
+        "textual>=8.0",
+        "pyperclip>=1.8.2; extra == 'ts'",
+        "pyperclip>=1.8.2; extra == 'ts'",  # duplicate canonical -> one row
+        "Foo_Bar>=1.0; extra == 'ts'",      # canonical foo-bar, display kept
+        "pyright>=1.1.400; extra == 'dev'", # skipped group -> not rendered
+    ]
+
+    def fake_version(name: str) -> str:
+        if name == "Foo_Bar":
+            return "9.9"
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    with (
+        patch("yate.diagnostics.importlib_metadata.requires", return_value=requirements),
+        patch("yate.diagnostics.importlib_metadata.version", side_effect=fake_version),
+    ):
+        lines: list[str] = _private("_section_packages")()
+
+    groups = _group_slices(lines)
+    assert list(groups) == ["core", "ts"]  # dev filtered out entirely
+    assert len(groups["core"]) == 1 and "textual" in groups["core"][0]
+    assert len(groups["ts"]) == 2
+    pyperclip_rows = [row for row in groups["ts"] if "pyperclip" in row]
+    assert len(pyperclip_rows) == 1 and "not installed" in pyperclip_rows[0]
+    foo_rows = [row for row in groups["ts"] if "Foo_Bar" in row]
+    assert len(foo_rows) == 1 and ": 9.9" in foo_rows[0]
+    assert not any("pyright" in line for line in lines)
+    # label lines indent 2, detail rows 4 -- and each kind matches only its
+    # own colorizer regex, so coloring stays unambiguous.
+    label_re: re.Pattern[str] = _private("_LABEL_LINE_RE")
+    kv_re: re.Pattern[str] = _private("_KV_LINE_RE")
+    for line in lines:
+        if line.endswith(":"):
+            assert line.startswith("  ") and not line.startswith("    ")
+            assert label_re.match(line) is not None
+            assert kv_re.match(line) is None
+        else:
+            assert line.startswith("    ")
+            assert kv_re.match(line) is not None
+            assert label_re.match(line) is None
+
+
+def test_packages_section_without_requires_metadata_is_empty() -> None:
+    """``requires()`` returning ``None`` renders an empty inventory."""
+    with patch("yate.diagnostics.importlib_metadata.requires", return_value=None):
+        assert _private("_section_packages")() == []
