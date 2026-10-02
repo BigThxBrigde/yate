@@ -34,8 +34,10 @@
   统一生效。被否决路线：运行时解析源码树 pyproject.toml（wheel/exe 不带
   该文件）、构建期生成清单资源（多一套生成物）、仅补一行硬编码（不根治）；
 - 展示形态：按 extra 分组（`core` 恒最前，extra 组按名排序；组内按名排序、
-  规范名去重）；组间不去重（tree-sitter 同属 dev 与 ts，各自如实列出）；
-  dev/build 组的 not installed 噪音接受（分组标签自解释）。
+  规范名去重）；**dev / build 两个工具链 extra 不进诊断清单**（用户决策：
+  pyinstaller / pillow / pytest 等与运行诊断无关；按 extra 组名过滤属于展示
+  策略，成员资格仍由元数据自动派生，未来新增功能 extra 默认显示）。
+  tree-sitter 三包由 ts extra 声明，照常显示。
 
 ## 三、子计划索引与执行波次
 

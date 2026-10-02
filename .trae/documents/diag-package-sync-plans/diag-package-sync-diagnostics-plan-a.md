@@ -31,7 +31,7 @@
 
 ## 三、具体修改
 
-### 3.1 新增两个模块级正则（放在 `_LABEL_LINE_RE` 之后、`_SECTION_TITLE_RE` 附近）
+### 3.1 新增两个模块级正则与一个跳过集（放在 `_LABEL_LINE_RE` 之后、`_SECTION_TITLE_RE` 附近）
 
 ```python
 #: Distribution name at the start of a Requires-Dist string.
@@ -39,6 +39,12 @@ _REQ_DIST_RE: re.Pattern[str] = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 
 #: Extra group inside a requirement marker (``; extra == 'ts'``).
 _REQ_EXTRA_RE: re.Pattern[str] = re.compile(r"\bextra\s*==\s*['\"]([^'\"]+)['\"]")
+
+#: Tooling extras kept out of the diagnostics inventory: their members are
+#: development / build machinery, not runtime packages (user decision on
+#: issue IKJJFI). Membership still comes from metadata -- only the display
+#: of these extra groups is filtered.
+_SKIPPED_EXTRAS: frozenset[str] = frozenset({"dev", "build"})
 ```
 
 ### 3.2 重写 `_section_packages()`（替换 415-428 行整段）
@@ -56,8 +62,8 @@ def _section_packages() -> list[str]:
     dependencies and extras into the installed dist-info (Requires-Dist
     headers), so the report always matches what was declared at build time
     -- no hand-kept list to drift. Core requirements render under a
-    ``core:`` label first, then one label per extra in name order; a
-    package required by several extras is listed in each of them.
+    ``core:`` label first, then one label per extra in name order; the
+    tooling extras in :data:`_SKIPPED_EXTRAS` stay out of the report.
     """
     raw = importlib_metadata.requires("yate")
     if raw is None:
@@ -72,11 +78,13 @@ def _section_packages() -> list[str]:
         group = marker.group(1) if marker else "core"
         canonical = re.sub(r"[-_.]+", "-", name).lower()
         groups.setdefault(group, {})[canonical] = name
-    if not groups:
+    ordered = ["core"] + sorted(
+        name for name in groups if name != "core" and name not in _SKIPPED_EXTRAS
+    )
+    if not any(groups.get(group) for group in ordered):
         return []
-    width = max(len(name) for members in groups.values() for name in members.values())
+    width = max(len(name) for group in ordered for name in groups[group])
     lines: list[str] = []
-    ordered = ["core"] + sorted(name for name in groups if name != "core")
     for group in ordered:
         lines.append(f"  {group}:")
         for name in sorted(groups[group].values()):
@@ -90,10 +98,13 @@ def _section_packages() -> list[str]:
 
 - `requires()` 抛 `PackageNotFoundError`（无 yate dist-info 的怪异安装）→
   向上传播，由 `format_report` 降级为 `<probe failed: ...>` 行，不炸整报；
-- `requires()` 返回 `None`（理论上不发生）或解析结果为空 → 空清单，节渲染
-  `(none)`；
-- 组间不去重：tree-sitter 同属 dev 与 ts，两组各列一行（如实反映元数据，
-  避免引入组优先级魔法）；
+- `requires()` 返回 `None`（理论上不发生）或过滤后无组可显示 → 空清单，
+  节渲染 `(none)`；
+- `dev` / `build` extra 组按 `_SKIPPED_EXTRAS` 过滤（展示策略，成员资格仍
+  自动派生）；tree-sitter 三包由 ts extra 声明，照常显示——即使某环境只装
+  了 dev extra，ts 组声明的成员也在清单中（显示安装状态）；
+- 组间不去重：tree-sitter 同属 dev 与 ts，在 ts 组显示一行（dev 组已整组
+  过滤，无重复行）；
 - 展示名用 Requires-Dist 里的书写形态（如 `tree-sitter-python` 连字符形态）。
 
 ## 四、新增测试用例（三要素齐全）
@@ -116,42 +127,46 @@ def _section_packages() -> list[str]:
     `": "` 分隔）；
   - 两行的值都不是 `"not installed"`（core 依赖必然随 yate 安装）。
 
-### T2 `test_packages_section_lists_every_declared_extra_group`
+### T2 `test_packages_section_lists_declared_feature_extras_and_skips_tooling`
 
-- **验证目标**：extras 自动成组（自动同步的核心承诺）。
+- **验证目标**：功能 extra 自动成组（自动同步的核心承诺）；dev / build
+  工具链 extra 按策略过滤。
 - **前置**：同 T1。
 - **操作**：`lines = diagnostics._section_packages()`；从
   `importlib.metadata.requires("yate")` 解析出声明的 extra 名集合。
-- **断言**：对每个声明的 extra 名 `e`，`f"  {e}:" in lines`（当前 pyproject
-  即 `build` / `dev` / `ts` 三组都出现）；core 标签行索引小于全部 extra 标签
-  行索引（core 恒最前）。
+- **断言**：
+  - 对每个声明的、不在 `_SKIPPED_EXTRAS` 中的 extra 名 `e`，`f"  {e}:" in
+    lines`（当前 pyproject 即 `ts` 组出现）；
+  - `  dev:` 与 `  build:` 标签行不存在；
+  - `pyright` / `pytest` / `pyinstaller` / `pillow` 不出现在任何行；
+  - core 标签行索引小于全部 extra 标签行索引（core 恒最前）；
+  - `tree-sitter` 出现在 ts 组切片内。
 
 ### T3 `test_packages_section_parses_controlled_requirements`
 
 - **验证目标**：解析逻辑的确定性——extra 归组、组内去重、规范名键、
-  展示名保留书写形态、not installed 降级。
+  展示名保留书写形态、not installed 降级、跳过集过滤。
 - **前置**：patch `yate.diagnostics.importlib_metadata.requires` 返回：
 
   ```python
   [
       "textual>=8.0",
-      "pyperclip>=1.8.2; extra == 'dev'",
       "pyperclip>=1.8.2; extra == 'ts'",
       "pyperclip>=1.8.2; extra == 'ts'",  # 组内重复 → 去重为 1 行
       "Foo_Bar>=1.0; extra == 'ts'",      # 规范名 foo-bar，展示名保留
+      "pyright>=1.1.400; extra == 'dev'", # 跳过集成员 → 不显示
   ]
   ```
 
-  patch `yate.diagnostics.importlib_metadata.version`：
-  `side_effect=lambda n: "9.9" if n == "Foo_Bar" else raise PackageNotFoundError`；
-  另需 patch `yate.diagnostics.importlib_metadata.requires` 的真实读取（已
-  patch）避免受环境影响。
+  patch `yate.diagnostics.importlib_metadata.version` 为普通函数
+  `side_effect`：`Foo_Bar` 返回 `"9.9"`，其余名字抛
+  `importlib.metadata.PackageNotFoundError`。
 - **操作**：`lines = diagnostics._section_packages()`；按标签行切片分组。
 - **断言**：
-  - `dev` 组恰有 1 条 pyperclip 行且值为 `"not installed"`；
+  - `core` 组恰有 1 条 textual 行；
   - `ts` 组恰有 2 条：pyperclip（not installed）与 `Foo_Bar : 9.9`
     （展示名保留大小写/下划线书写形态）；
-  - `core` 组恰有 1 条 textual 行；
+  - `dev` 组不渲染，`pyright` 不出现在任何行；
   - 明细行缩进 4 空格、标签行缩进 2 空格（命中着色正则的形态）。
 
 ### T4 `test_packages_section_without_requires_metadata_is_empty`
