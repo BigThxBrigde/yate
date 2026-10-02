@@ -29,7 +29,7 @@ from yate.session import Axis, EditorSession
 log = tracing.get_logger(__name__)
 
 #: The keys accepted as the second half of a vim ``ctrl+w`` chord.
-_WINDOW_KEYS = frozenset(
+_WINDOW_KEYS: frozenset[str] = frozenset(
     {"h", "j", "k", "l", "s", "v", "q", "o",
      "+", "plus", "-", "minus",
      "<", "less_than_sign", ">", "greater_than_sign",

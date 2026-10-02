@@ -40,7 +40,7 @@ from textual.widgets import Input, Markdown, Static
 
 from .scrollbars import apply_slim_scrollbars
 
-_DOC_LANGS = ("en", "zh")
+_DOC_LANGS: tuple[str, ...] = ("en", "zh")
 
 #: Fixed notice rendered when a doc is not shipped with the build.  The
 #: changelog (unlike the manual) is a generated artifact that a build may

@@ -32,7 +32,7 @@ from . import theme
 from .icons import GEAR, KEYBOARD, icon_for_path
 
 #: maximum number of result rows rendered under the input
-MAX_VISIBLE = 12
+MAX_VISIBLE: int = 12
 
 
 def fuzzy_match(query: str, target: str) -> tuple[int, list[int]] | None:

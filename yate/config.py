@@ -52,26 +52,26 @@ from typing import Any, cast
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES, tracing
 
 #: File name yate looks for in the project tree.
-RC_FILENAME = "yaterc"
+RC_FILENAME: str = "yaterc"
 
 log = tracing.get_logger(__name__)
 
 #: Recognized option variables in a yaterc file.
-_KNOWN_OPTIONS = (
+_KNOWN_OPTIONS: tuple[str, ...] = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
     "yate_trace", "yate_trace_level", "key_protocol",
 )
 
-_VALID_KEYMAPS = ("vsc", "vim")
+_VALID_KEYMAPS: tuple[str, ...] = ("vsc", "vim")
 
 #: Accepted ``key_protocol`` values: ``auto`` (Windows -> chord driver)
 #: and ``legacy`` (stock driver).
-_VALID_KEY_PROTOCOLS = ("auto", "legacy")
+_VALID_KEY_PROTOCOLS: tuple[str, ...] = ("auto", "legacy")
 
 #: Accepted ``yate_trace_level`` values -- :mod:`logging`'s built-in levels
 #: (single source of truth: :data:`yate.logs.LEVEL_NAMES`).
-_VALID_TRACE_LEVELS = LEVEL_NAMES
+_VALID_TRACE_LEVELS: tuple[str, ...] = LEVEL_NAMES
 
 
 @dataclass

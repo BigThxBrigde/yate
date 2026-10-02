@@ -29,18 +29,18 @@ from yate.editor_lsp.client import Completion
 from . import theme
 
 #: Maximum number of completion rows visible at once.
-MAX_VISIBLE = 8
+MAX_VISIBLE: int = 8
 
 #: Completion item kinds reused from the LSP item kind table.
-_KIND_TEXT = 0          # plain word / unknown
-_KIND_FILE = 17         # "D" glyph, used for path entries here
+_KIND_TEXT: int = 0          # plain word / unknown
+_KIND_FILE: int = 17         # "D" glyph, used for path entries here
 
 #: Characters that count as part of an identifier prefix when completing.
-_IDENT_RE = re.compile(r"[A-Za-z0-9_]")
+_IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z0-9_]")
 
 #: A "word" in the buffer is a run of identifier characters; shorter runs are
 #: noise and skipped.
-_WORD_RE = re.compile(r"[A-Za-z_]\w{1,}")
+_WORD_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w{1,}")
 
 #: Kind -> (letter, theme color attribute), mirroring the VS Code item kinds.
 _KIND_GLYPHS: dict[int, tuple[str, str]] = {

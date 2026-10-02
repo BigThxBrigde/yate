@@ -30,7 +30,7 @@ log = tracing.get_logger(__name__)
 PromptCompleter = Callable[[str, str], list[str]]
 
 # prompt prefixes per mode: (prefix, Theme attribute name for the color)
-PREFIXES = {
+PREFIXES: dict[str, tuple[str, str]] = {
     "command": (":", "yellow"),
     "goto": (":", "yellow"),
     "find": (SEARCH, "accent"),
@@ -47,7 +47,9 @@ PREFIXES = {
 }
 
 #: message kind -> Theme attribute name for the color
-MESSAGE_COLORS = {"info": "fg_bright", "error": "red", "warn": "yellow", "ok": "green"}
+MESSAGE_COLORS: dict[str, str] = {
+    "info": "fg_bright", "error": "red", "warn": "yellow", "ok": "green",
+}
 
 
 def prefix_spec(mode: str) -> tuple[str, str]:
@@ -62,9 +64,9 @@ def prefix_spec(mode: str) -> tuple[str, str]:
 
 #: Where the message line's current text came from; the LSP echo only clears
 #: its own message (``owner == "lsp"``) when the cursor leaves the diagnostic.
-OWNER_APP = "app"
-OWNER_LSP = "lsp"
-OWNER_IDLE = "idle"
+OWNER_APP: str = "app"
+OWNER_LSP: str = "lsp"
+OWNER_IDLE: str = "idle"
 
 
 class CommandInput(Input):

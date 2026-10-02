@@ -100,7 +100,7 @@ TAGS: tuple[str, ...] = (
 
 # --------------------------------------------------------- fuzz seed
 
-_DEFAULT_SEED = 1337
+_DEFAULT_SEED: int = 1337
 _seed = _DEFAULT_SEED
 
 
@@ -124,15 +124,15 @@ def rng_for(name: str) -> random.Random:
 
 #: Textual version whose ``save_screenshot`` output the patterns below were
 #: adapted to (measured against the .venv of this checkout).
-_ADAPTED_TEXTUAL_VERSION = "8.2.8"
+_ADAPTED_TEXTUAL_VERSION: str = "8.2.8"
 
 # Textual 8.2.8 (via Rich's terminal SVG export) emits one
 # ``<text class="..." ... y="N.N" ...>content</text>`` element per text run:
 # class is always the first attribute and y is always a decimal number.
-_TEXT_RE = re.compile(
+_TEXT_RE: re.Pattern[str] = re.compile(
     r'<text class="[^"]*"[^>]*?\sy="(\d+(?:\.\d+)?)"[^>]*>(.*?)</text>', re.S
 )
-_INNER_RE = re.compile(r">([^<]+)<")
+_INNER_RE: re.Pattern[str] = re.compile(r">([^<]+)<")
 
 
 class SvgDriftError(RuntimeError):
@@ -398,7 +398,7 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
 # -------------------------------------------------------------------- runner
 
 #: Default per-scenario wall clock budget in seconds (``--timeout`` overrides).
-DEFAULT_SCENARIO_TIMEOUT_S = 60.0
+DEFAULT_SCENARIO_TIMEOUT_S: float = 60.0
 
 
 @dataclass

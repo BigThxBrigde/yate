@@ -22,7 +22,7 @@ __all__ = ["SCENARIOS"]
 
 #: Pause long enough for the auto-completion debounce (0.12s) to fire and its
 #: worker to land, so a late ``popup.show()`` cannot race an assertion.
-_SETTLE_S = 0.3
+_SETTLE_S: float = 0.3
 
 
 async def _regress_wq_multi_tab(tmp: Path) -> ScenarioResult:

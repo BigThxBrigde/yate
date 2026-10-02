@@ -22,13 +22,13 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-RGB = tuple[int, int, int]
+type RGB = tuple[int, int, int]
 
 #: Maximum scrollback lines kept (older lines are dropped).
-MAX_SCROLLBACK = 5000
+MAX_SCROLLBACK: int = 5000
 
 #: Classic xterm 16-color palette.
-_ANSI_16 = (
+_ANSI_16: tuple[str, ...] = (
     "#000000", "#cc0000", "#4e9a06", "#c4a000",
     "#3465a4", "#75507b", "#06989a", "#d3d7cf",
     "#555753", "#ef2929", "#8ae234", "#fce94f",
@@ -165,11 +165,11 @@ def key_to_terminal(key: str, character: str | None = None) -> str | None:
 
 # ------------------------------------------------------------------ emulator
 
-_GROUND = 0
-_ESCAPE = 1
-_CSI = 2
-_OSC = 3
-_ESC_INTERMEDIATE = 4
+_GROUND: int = 0
+_ESCAPE: int = 1
+_CSI: int = 2
+_OSC: int = 3
+_ESC_INTERMEDIATE: int = 4
 
 
 class TerminalEmulator:

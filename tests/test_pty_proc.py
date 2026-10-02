@@ -829,7 +829,7 @@ class _FakeKernel32:
         "create-process-raises",
     ],
 )
-def test_conpty_setup_failures_raise_and_release_handles(
+def test_conpty_setup_failures_raise_and_release_handles(  # noqa: Any - fake results dict
     tmp_path: Path, results: dict[str, Any], expected: type[BaseException]
 ) -> None:
     """A failed ConPTY setup step reports it and releases what it opened.

@@ -20,8 +20,8 @@ __all__ = ["CommandRegistry", "register_commands"]
 log = tracing.get_logger(__name__)
 
 #: Values accepted by boolean ``:set`` options (``show_hidden``, ``readonly``).
-_TRUTHY = frozenset({"true", "on", "1", "yes"})
-_FALSY = frozenset({"false", "off", "0", "no"})
+_TRUTHY: frozenset[str] = frozenset({"true", "on", "1", "yes"})
+_FALSY: frozenset[str] = frozenset({"false", "off", "0", "no"})
 
 
 def _parse_bool(value: str) -> bool | None:

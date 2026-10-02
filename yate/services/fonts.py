@@ -34,15 +34,15 @@ log = tracing.get_logger(__name__)
 # nerd-fonts v3 ships a short GDI family name on Windows ("NFM" = Nerd Font
 # Mono); the long name only exists as the typographic family (name ID 16),
 # which GDI EnumFontFamilies/InstalledFontCollection never report.
-FAMILY = "JetBrainsMono NFM"
+FAMILY: str = "JetBrainsMono NFM"
 
 # Win32 constants for the font-change broadcast (SendModuleMessage family).
-HWND_BROADCAST = 0xFFFF
-WM_FONTCHANGE = 0x001D
-SMTO_ABORTIFHUNG = 0x0002
+HWND_BROADCAST: int = 0xFFFF
+WM_FONTCHANGE: int = 0x001D
+SMTO_ABORTIFHUNG: int = 0x0002
 
 # Registry value suffix for TrueType fonts on Windows.
-_TTF_SUFFIX = " (TrueType)"
+_TTF_SUFFIX: str = " (TrueType)"
 
 
 # ---------------------------------------------------------------- bundled

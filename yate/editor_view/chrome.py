@@ -253,7 +253,7 @@ class SidebarHead(Static):
 
 
 #: The sidebar title ("EXPLORER"), kept with the rest of the static chrome.
-SIDEBAR_TITLE = " EXPLORER"
+SIDEBAR_TITLE: str = " EXPLORER"
 
 
 def sidebar_head_text() -> Text:

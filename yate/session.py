@@ -226,10 +226,10 @@ class EditorSession:
 Axis = Literal["horizontal", "vertical"]
 
 #: Smallest share of a split any one pane may hold while resizing.
-MIN_FRACTION = 0.12
+MIN_FRACTION: float = 0.12
 
 #: Fraction transferred per ``ctrl+w +/-/< />`` keypress.
-RESIZE_STEP = 0.08
+RESIZE_STEP: float = 0.08
 
 
 @dataclass

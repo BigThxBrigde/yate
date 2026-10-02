@@ -26,7 +26,7 @@ from yate.editor_lsp.client import (
     ServerConfig,
 )
 
-PY_CONFIG = ServerConfig(
+PY_CONFIG: ServerConfig = ServerConfig(
     name="python",
     command="fake-pylsp",
     args=["--stdio"],

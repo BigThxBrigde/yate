@@ -81,7 +81,7 @@ _HEADERS: dict[str, str] = {
 # the header carries neither the "do not edit" wording nor a sibling link.
 _BUNDLE_HEADERS: dict[str, str] = {"en": "# Changelog", "zh": "# 变更日志"}
 
-_MISSING_ZH_MARK = "[缺中文]"
+_MISSING_ZH_MARK: str = "[缺中文]"
 _UNPUSHED_MARKS: dict[str, str] = {"en": "(unpushed)", "zh": "(本地未推送)"}
 
 _UNRELEASED_HEADINGS: tuple[str, ...] = ("## [Unreleased]", "## [未发布]")

@@ -37,14 +37,14 @@ from .client import (
 
 #: TextDocumentSyncKind.Full -- resending the whole buffer on every change is
 #: supported by every server and avoids fragile incremental position math.
-_SYNC_FULL = 1
+_SYNC_FULL: int = 1
 
 #: Debounce for didChange (keystrokes coalesce into one notification).
-CHANGE_DEBOUNCE_S = 0.25
+CHANGE_DEBOUNCE_S: float = 0.25
 
 #: Trigger kinds for textDocument/completion.
-TRIGGER_INVOKED = 1
-TRIGGER_CHARACTER = 2
+TRIGGER_INVOKED: int = 1
+TRIGGER_CHARACTER: int = 2
 
 ClientKey = tuple[str, str]
 

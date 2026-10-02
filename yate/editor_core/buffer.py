@@ -27,12 +27,12 @@ class BufferReadOnlyError(Exception):
     """
 
 
-_WORD_CHARS = re.compile(r"\w")
+_WORD_CHARS: re.Pattern[str] = re.compile(r"\w")
 
 #: Maximum undo steps kept in memory.  Each step snapshots the full line
 #: list, so an unbounded stack would grow without limit on large documents;
 #: oldest steps are dropped once the cap is reached (like most editors).
-MAX_UNDO_STEPS = 1000
+MAX_UNDO_STEPS: int = 1000
 
 
 def _is_word(ch: str) -> bool:

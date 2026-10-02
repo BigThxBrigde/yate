@@ -37,10 +37,10 @@ ConnectFn = Callable[[], Awaitable[tuple[Any, Any, Any]]]
 NotificationFn = Callable[[str, dict[str, Any]], None]
 
 #: LSP error codes we care about.
-ERR_METHOD_NOT_FOUND = -32601
-ERR_REQUEST_CANCELLED = -32800
+ERR_METHOD_NOT_FOUND: int = -32601
+ERR_REQUEST_CANCELLED: int = -32800
 
-DEFAULT_ROOT_MARKERS = (
+DEFAULT_ROOT_MARKERS: tuple[str, ...] = (
     ".git",
     "pyproject.toml",
     "setup.py",

@@ -64,7 +64,7 @@ def _blocked_ts_version() -> str | None:
 #: ``None`` when the installed tree-sitter is fine; otherwise the blocked
 #: version string, under which every grammar degrades to the regex backend.
 #: Computed once at import.
-_BLOCKED_TS = _blocked_ts_version()
+_BLOCKED_TS: str | None = _blocked_ts_version()
 
 
 def tree_sitter_blocked() -> bool:
@@ -82,7 +82,7 @@ BUILTIN_PACKS: dict[str, str] = {
     "shell": "tree_sitter_bash",
 }
 
-QUERIES_DIR = Path(__file__).parent / "queries"
+QUERIES_DIR: Path = Path(__file__).parent / "queries"
 
 # tree-sitter capture name -> SYNTAX_KINDS key.  Captures not listed here
 # (variables, punctuation, ...) intentionally inherit the default

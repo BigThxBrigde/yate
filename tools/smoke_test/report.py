@@ -28,10 +28,10 @@ from .harness import Coverage, Scenario, ScenarioResult
 
 __all__ = ["Reporter", "run_header_lines"]
 
-_OK = "green"
-_BAD = "red"
-_WARN = "yellow"
-_DIM = "dim"
+_OK: str = "green"
+_BAD: str = "red"
+_WARN: str = "yellow"
+_DIM: str = "dim"
 
 
 def _version(name: str) -> str:
@@ -56,12 +56,12 @@ def _stream_supports(sample: str) -> bool:
     return True
 
 
-_UNICODE = _stream_supports("✔✘█░│─╭╯")
+_UNICODE: bool = _stream_supports("✔✘█░│─╭╯")
 
 #: Glyphs used by the report; ASCII fallbacks on legacy code pages.
 OK_MARK, BAD_MARK = ("✔", "✘") if _UNICODE else ("+", "x")
 FILL, EMPTY = ("█", "░") if _UNICODE else ("#", ".")
-TABLE_BOX = box.SIMPLE_HEAVY if _UNICODE else box.ASCII
+TABLE_BOX: box.Box = box.SIMPLE_HEAVY if _UNICODE else box.ASCII
 
 
 def _bar(done: int, total: int, width: int = 24) -> str:

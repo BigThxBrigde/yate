@@ -6,6 +6,7 @@ reproducible: re-run with the same seed to get the same keystrokes.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..harness import (
@@ -22,7 +23,11 @@ from yate.editor_view import theme
 __all__ = ["SCENARIOS"]
 
 #: Keys a fuzz run may press: plain text plus harmless cursor motions.
-_FUZZ_KEYS = (
+#:
+#: Typed as :class:`~collections.abc.Sequence` rather than ``list`` on
+#: purpose: pyright infers ``list[LiteralString]`` for the literal ``.split()``
+#: and ``list`` is invariant, so only the covariant sequence accepts it.
+_FUZZ_KEYS: Sequence[str] = (
     "a b c d e space 1 2 3 x y z".split()
     + ["enter", "backspace", "left", "right", "up", "down", "home", "end"]
 )

@@ -42,10 +42,10 @@ from yate.editor_sprites.render import render_rows, walk_x
 from yate.paths import load_tcss
 
 #: Animation ticks per second (each walker advances one column per tick).
-TICKS_PER_SECOND = 10
+TICKS_PER_SECOND: int = 10
 
 #: Animation frames change every this many ticks (~3.3 fps).
-_FRAME_EVERY = 3
+_FRAME_EVERY: int = 3
 
 #: Built-in hand-off window as a fraction of the journey: the newest walker
 #: spawns a successor once it is 1/8-1/3 (random) through its walk.  The

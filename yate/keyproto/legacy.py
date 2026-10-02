@@ -12,7 +12,7 @@ from yate.keymaps.base import SPECIAL_KEYS
 
 # Textual canonical key names share their raw sequences with the keymap's
 # SPECIAL_KEYS table (minus the "esc" alias -- Textual always reports "escape").
-_NAMED_KEYS = {name: raw for name, raw in SPECIAL_KEYS.items() if name != "esc"}
+_NAMED_KEYS: dict[str, str] = {name: raw for name, raw in SPECIAL_KEYS.items() if name != "esc"}
 
 # Ctrl+punctuation raw bytes. Ctrl+/ is 0x1F (the vsc keymap's keymap
 # toggle); without these entries it could never reach it -- terminals and
@@ -20,7 +20,7 @@ _NAMED_KEYS = {name: raw for name, raw in SPECIAL_KEYS.items() if name != "esc"}
 # \x1f as "ctrl+underscore", kitty CSI-u as "ctrl+slash", and some win32
 # driver paths use "ctrl+slash" for the bare name too, so every spelling
 # must map to the same byte.
-_CTRL_PUNCT = {
+_CTRL_PUNCT: dict[str, int] = {
     "[": 0x1B,
     "\\": 0x1C,
     "]": 0x1D,

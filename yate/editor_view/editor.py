@@ -33,15 +33,15 @@ from .scrollbars import apply_slim_scrollbars
 log = tracing.get_logger(__name__)
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
-S_NORMAL = 0
-S_MATCH = 1
-S_SELECTION = 2
-S_MATCH_ACTIVE = 3
-S_CURSOR = 4
+S_NORMAL: int = 0
+S_MATCH: int = 1
+S_SELECTION: int = 2
+S_MATCH_ACTIVE: int = 3
+S_CURSOR: int = 4
 
 # Welcome-page banner: "YATE" in the ANSI Shadow figlet style
 # (generated with https://patorjk.com/software/taag/, f=ANSI Shadow).
-_WELCOME_BANNER = [
+_WELCOME_BANNER: list[str] = [
     "██╗   ██╗ █████╗ ████████╗███████╗",
     "╚██╗ ██╔╝██╔══██╗╚══██╔══╝██╔════╝",
     " ╚████╔╝ ███████║   ██║   █████╗",

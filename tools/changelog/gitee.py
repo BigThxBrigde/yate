@@ -13,19 +13,22 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-_HTTPS_RE = re.compile(
+_HTTPS_RE: re.Pattern[str] = re.compile(
     r"^https?://(?P<host>[^/]+)/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
 )
-_SSH_RE = re.compile(
+_SSH_RE: re.Pattern[str] = re.compile(
     r"^ssh://git@(?P<host>[^/]+)/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$"
 )
-_SCP_RE = re.compile(r"^git@(?P<host>[^:]+):(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$")
+_SCP_RE: re.Pattern[str] = re.compile(
+    r"^git@(?P<host>[^:]+):"
+    r"(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$"
+)
 
-_ONLINE_TIMEOUT_S = 5.0
+_ONLINE_TIMEOUT_S: float = 5.0
 
 #: Hosts with a public read-only commit API that ``check_commit_pushed``
 #: understands; everything else must be reported as "cannot verify".
-_GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
+_GITHUB_HOSTS: frozenset[str] = frozenset({"github.com", "www.github.com"})
 
 
 @dataclass(frozen=True)

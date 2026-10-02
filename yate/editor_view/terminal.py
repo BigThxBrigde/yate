@@ -52,7 +52,7 @@ log = tracing.get_logger(__name__)
 #:   for the same NUL byte (ctrl+2 aliases ctrl+@; shift+2 is @ on the
 #:   US layout), and what the chord driver reports when the physical
 #:   grave key sits on Shift+2 in the user's keyboard layout.
-TOGGLE_KEYS = frozenset({
+TOGGLE_KEYS: frozenset[str] = frozenset({
     "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
     "ctrl+2", "ctrl+shift+2",
 })
@@ -60,7 +60,7 @@ TOGGLE_KEYS = frozenset({
 #: Hands focus back to the editor while the terminal is focused (the
 #: terminal counterpart of the editor's own ctrl+1 chord).  Consumed by
 #: :meth:`TerminalView.on_key`, so the shell input stream never sees it.
-FOCUS_EDITOR_KEY = "ctrl+1"
+FOCUS_EDITOR_KEY: str = "ctrl+1"
 
 
 def _hex(rgb: tuple[int, int, int] | None) -> str | None:

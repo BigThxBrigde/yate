@@ -21,25 +21,25 @@ from yate.editor_sprites.render import Frame, Palette
 from .icon import repo_root
 
 #: Default output path (repository root, untracked).
-DEFAULT_OUTPUT = repo_root() / "roster.svg"
+DEFAULT_OUTPUT: Path = repo_root() / "roster.svg"
 
 #: SVG canvas background.
-_BG = "#1e1e2e"
+_BG: str = "#1e1e2e"
 #: Checkerboard fills marking transparent sprite pixels.
-_CHECKER_A = "#2a2a3c"
-_CHECKER_B = "#222232"
+_CHECKER_A: str = "#2a2a3c"
+_CHECKER_B: str = "#222232"
 #: Heading / annotation text colors.
-_TITLE = "#cdd6f4"
-_LABEL = "#a6adc8"
+_TITLE: str = "#cdd6f4"
+_LABEL: str = "#a6adc8"
 
 #: Enlarged-grid scale: screen pixels drawn per sprite pixel.
-_ZOOM = 10
+_ZOOM: int = 10
 #: Horizontal gap between adjacent frames in a section.
-_GAP = 46
+_GAP: int = 46
 #: Left padding of every section.
-_PAD_X = 24
+_PAD_X: int = 24
 #: Canvas width -- the widest section (mario, 3 frames) fits comfortably.
-_WIDTH = 760
+_WIDTH: int = 760
 
 
 def _label(x: float, y: float, text: str, size: int = 22,

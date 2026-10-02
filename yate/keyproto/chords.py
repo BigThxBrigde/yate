@@ -7,27 +7,27 @@ from dataclasses import dataclass
 
 #: Win32 virtual-key codes yate can name (US-layout subset; sufficient for
 #: every chord the keymaps dispatch on).
-VK_SPACE = 0x20
-VK_OEM_1 = 0xBA  # ;: on US
-VK_OEM_PLUS = 0xBB  # =+ on US
-VK_OEM_COMMA = 0xBC  # ,< on US
-VK_OEM_MINUS = 0xBD  # -_ on US
-VK_OEM_PERIOD = 0xBE  # .> on US
-VK_OEM_2 = 0xBF  # /? on US
-VK_OEM_3 = 0xC0  # `~ on US
-VK_OEM_4 = 0xDB  # [{ on US
-VK_OEM_5 = 0xDC  # \| on US
-VK_OEM_6 = 0xDD  # ]} on US
-VK_OEM_7 = 0xDE  # '" on US
+VK_SPACE: int = 0x20
+VK_OEM_1: int = 0xBA  # ;: on US
+VK_OEM_PLUS: int = 0xBB  # =+ on US
+VK_OEM_COMMA: int = 0xBC  # ,< on US
+VK_OEM_MINUS: int = 0xBD  # -_ on US
+VK_OEM_PERIOD: int = 0xBE  # .> on US
+VK_OEM_2: int = 0xBF  # /? on US
+VK_OEM_3: int = 0xC0  # `~ on US
+VK_OEM_4: int = 0xDB  # [{ on US
+VK_OEM_5: int = 0xDC  # \| on US
+VK_OEM_6: int = 0xDD  # ]} on US
+VK_OEM_7: int = 0xDE  # '" on US
 
 #: ``dwControlKeyState`` bits (wincon.h).  CapsLock/NumLock/ScrollLock bits
 #: are keyboard state, not modifier inputs, and must not produce chords.
-CTRL_BITS = 0x0004 | 0x0008  # RIGHT_CTRL_PRESSED | LEFT_CTRL_PRESSED
-ALT_BITS = 0x0001 | 0x0002  # RIGHT_ALT_PRESSED | LEFT_ALT_PRESSED
-SHIFT_BIT = 0x0010  # SHIFT_PRESSED
+CTRL_BITS: int = 0x0004 | 0x0008  # RIGHT_CTRL_PRESSED | LEFT_CTRL_PRESSED
+ALT_BITS: int = 0x0001 | 0x0002  # RIGHT_ALT_PRESSED | LEFT_ALT_PRESSED
+SHIFT_BIT: int = 0x0010  # SHIFT_PRESSED
 
 #: Modifier and lock keys themselves never form chords.
-MODIFIER_VKS = frozenset(
+MODIFIER_VKS: frozenset[int] = frozenset(
     [
         0x10, 0x11, 0x12,  # VK_SHIFT, VK_CONTROL, VK_MENU
         0x14,  # VK_CAPITAL

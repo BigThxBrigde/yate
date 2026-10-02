@@ -14,19 +14,19 @@ import subprocess
 from pathlib import Path
 
 #: Default translator CLI binary (``codebuddy-code``, alias ``cbc``).
-DEFAULT_CMD = "codebuddy-code"
+DEFAULT_CMD: str = "codebuddy-code"
 
 #: Default model (free Hy4 preview).
-DEFAULT_MODEL = "hy4-preview-f"
+DEFAULT_MODEL: str = "hy4-preview-f"
 
 #: Default max agent turns -- each Read tool call consumes one turn.
-DEFAULT_MAX_TURNS = 10
+DEFAULT_MAX_TURNS: int = 10
 
 #: Default per-document timeout in seconds (a single page takes ~14-22 s).
-DEFAULT_TIMEOUT = 900
+DEFAULT_TIMEOUT: int = 900
 
 #: The only tool the translation agent is granted.
-_ALLOWED_TOOLS = "Read"
+_ALLOWED_TOOLS: str = "Read"
 
 
 class TranslateError(Exception):

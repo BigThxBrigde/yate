@@ -49,8 +49,8 @@ class VimMode(str, Enum):
 
 
 # Motion keys accepted after an operator or in visual mode.
-_MOTION_CODES = {"h", "l", "j", "k", "w", "b", "e", "0", "$", "g", "G"}
-_ARROW = {
+_MOTION_CODES: set[str] = {"h", "l", "j", "k", "w", "b", "e", "0", "$", "g", "G"}
+_ARROW: dict[str, str] = {
     "\x1b[D": "h",
     "\x1b[C": "l",
     "\x1b[A": "k",
@@ -59,22 +59,22 @@ _ARROW = {
 
 #: Prefix keys that arm a second key: the ones before the bar can complete an
 #: operator (``dg g``/``df x``), ``r`` cannot and drops a pending operator.
-_PREFIX_MOTIONS = ("g", "f", "F", "t", "T")
-_PREFIX_KEYS = (*_PREFIX_MOTIONS, "r")
+_PREFIX_MOTIONS: tuple[str, ...] = ("g", "f", "F", "t", "T")
+_PREFIX_KEYS: tuple[str, ...] = (*_PREFIX_MOTIONS, "r")
 
 #: Prefixes whose follower is a printable argument: a digit typed after them
 #: is that argument (vim ``f3`` finds the char "3", ``r5`` replaces with "5"),
 #: not a count.  The ``g`` prefix keeps taking digits for ``g{count}g``.
-_ARG_PREFIXES = ("f", "F", "t", "T", "r")
+_ARG_PREFIXES: tuple[str, ...] = ("f", "F", "t", "T", "r")
 
-_FUNCTION_KEYS = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
+_FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
 # help categories (module level: uppercase constants)
-NAV = "Vim: motion"
-INS = "Vim: insert"
-EDT = "Vim: edit"
-CMD = "Vim: command"
-HLP = "Vim: help"
+NAV: str = "Vim: motion"
+INS: str = "Vim: insert"
+EDT: str = "Vim: edit"
+CMD: str = "Vim: command"
+HLP: str = "Vim: help"
 
 
 class VimKeymap(Keymap):

@@ -36,19 +36,21 @@ from ..changelog.cli import check, generate
 #: File carrying the version; bumped and committed first.  The package
 #: ``__version__`` is the single dynamic source (pyproject reads it; the
 #: former static assertion in test_theme_palettes.py was removed upstream).
-_VERSION_FILES = ("yate/__init__.py",)
+_VERSION_FILES: tuple[str, ...] = ("yate/__init__.py",)
 #: Files written by the changelog generator; committed in the second commit.
-_CHANGELOG_FILES = (
+_CHANGELOG_FILES: tuple[str, ...] = (
     "CHANGELOG.md",
     "CHANGELOG.zh.md",
     "yate/resources/changelog.en.md",
     "yate/resources/changelog.zh.md",
 )
 
-_SEMVER_RE = re.compile(r"\d+\.\d+\.\d+$")
+_SEMVER_RE: re.Pattern[str] = re.compile(r"\d+\.\d+\.\d+$")
 # MULTILINE: the package __init__ opens with a module docstring, so the
 # __version__ line is never at position 0.
-_INIT_VERSION_RE = re.compile(r'^(__version__\s*=\s*")([^"]+)(")', re.MULTILINE)
+_INIT_VERSION_RE: re.Pattern[str] = re.compile(
+    r'^(__version__\s*=\s*")([^"]+)(")', re.MULTILINE
+)
 
 
 @dataclass

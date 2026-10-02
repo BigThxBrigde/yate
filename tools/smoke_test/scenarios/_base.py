@@ -30,7 +30,7 @@ __all__ = [
 
 # F5 is the ex command line entry point in vsc mode (":" is intentionally
 # unbound there and types literally), and it works in vim mode too.
-_COMMAND_KEY = "f5"
+_COMMAND_KEY: str = "f5"
 
 
 async def type_text(pilot: Any, text: str, *, pause: bool = True) -> None:

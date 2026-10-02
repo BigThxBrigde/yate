@@ -21,11 +21,11 @@ from typing import Any, cast
 from urllib.parse import unquote, urlparse
 
 #: Protocol version advertised to the server.
-JSONRPC = "2.0"
+JSONRPC: str = "2.0"
 
 #: Maximum body size accepted for one message (32 MiB).  Guards against a
 #: corrupt length prefix making the reader allocate forever.
-MAX_MESSAGE_BYTES = 32 * 1024 * 1024
+MAX_MESSAGE_BYTES: int = 32 * 1024 * 1024
 
 
 class LspProtocolError(RuntimeError):

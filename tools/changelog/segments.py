@@ -24,7 +24,7 @@ from .model import Boundary, Commit, RawCommit, ReleaseSegment, TagRef, VersionB
 
 #: Position used for boundaries whose sha is not in the collected history
 #: (unreachable/shallow) — treated as older than everything collected.
-_UNREACHABLE = 10**9
+_UNREACHABLE: int = 10**9
 
 
 def build_boundaries(

@@ -60,27 +60,27 @@ from yate import __version__
 # ==============================================================
 
 #: Root logger name; every yate logger is ``yate`` or a child of it.
-LOGGER_NAME = "yate"
+LOGGER_NAME: str = "yate"
 
 #: Accepted level names -- :mod:`logging`'s built-ins, in increasing order.
 LEVEL_NAMES: tuple[str, ...] = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 #: Level used when tracing is enabled without an explicit level.
-DEFAULT_LEVEL = "DEBUG"
+DEFAULT_LEVEL: str = "DEBUG"
 
 #: Accepted spellings of ``YATE_TRACE`` (compared lower-cased).
-TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
-FALSE_VALUES = frozenset({"0", "false", "no", "off"})
+TRUE_VALUES: frozenset[str] = frozenset({"1", "true", "yes", "on"})
+FALSE_VALUES: frozenset[str] = frozenset({"0", "false", "no", "off"})
 
 #: ``~/.yate/data`` parent and ``~/.yate/data/logs`` child.
-DATA_DIRNAME = "data"
-LOG_DIRNAME = "logs"
+DATA_DIRNAME: str = "data"
+LOG_DIRNAME: str = "logs"
 
 #: Filename stems/suffixes for the two services.
-LOG_PREFIX = "yate-"
-LOG_SUFFIX = ".log"
-ERR_PREFIX = "crash-"
-ERR_SUFFIX = ".err"
+LOG_PREFIX: str = "yate-"
+LOG_SUFFIX: str = ".log"
+ERR_PREFIX: str = "crash-"
+ERR_SUFFIX: str = ".err"
 
 
 # ==============================================================

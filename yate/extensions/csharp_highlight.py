@@ -29,7 +29,7 @@ from yate.services.extensions import ExtensionAPI
 
 # Reserved keywords (true/false/null live in constants below so they get the
 # constant color, as in most C# themes; primitive types live in _CS_TYPES).
-_CS_KEYWORDS = frozenset({
+_CS_KEYWORDS: frozenset[str] = frozenset({
     "abstract", "as", "base", "break", "case", "catch", "checked", "class",
     "const", "continue", "default", "delegate", "do", "else", "enum", "event",
     "explicit", "extern", "finally", "fixed", "for", "foreach", "goto", "if",
@@ -45,9 +45,9 @@ _CS_KEYWORDS = frozenset({
     "when", "where", "yield", "init", "required", "with",
 })
 
-_CS_CONSTANTS = frozenset({"true", "false", "null"})
+_CS_CONSTANTS: frozenset[str] = frozenset({"true", "false", "null"})
 
-_CS_TYPES = frozenset({
+_CS_TYPES: frozenset[str] = frozenset({
     # built-in value/reference type keywords
     "bool", "byte", "char", "decimal", "double", "dynamic", "float", "int",
     "long", "nint", "nuint", "object", "sbyte", "short", "string", "uint",
@@ -65,12 +65,12 @@ _CS_TYPES = frozenset({
     "Span", "ReadOnlySpan", "Memory", "ReadOnlyMemory", "CancellationToken",
 })
 
-_CS_BUILTINS = frozenset({
+_CS_BUILTINS: frozenset[str] = frozenset({
     "Console", "Math", "Convert", "Environment", "Debug", "Trace", "GC",
     "StringComparer", "File", "Directory", "Path",
 })
 
-CSHARP_SPEC = LangSpec(
+CSHARP_SPEC: LangSpec = LangSpec(
     name="csharp",
     mode="code",
     line_comment="//",

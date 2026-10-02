@@ -37,7 +37,7 @@ _BUNDLE_FILES: dict[str, str] = {
     "en": "yate/resources/changelog.en.md",
     "zh": "yate/resources/changelog.zh.md",
 }
-_LANGS = ("en", "zh")
+_LANGS: tuple[str, ...] = ("en", "zh")
 
 
 def discover_repo_root() -> Path:

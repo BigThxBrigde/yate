@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 #: Module providing the image conversion (Pillow).
-_IMAGE_MODULE = "PIL.Image"
+_IMAGE_MODULE: str = "PIL.Image"
 
 def repo_root() -> Path:
     """The repository root: two levels above this module (tools/pack/icon.py)."""
@@ -29,9 +29,9 @@ def repo_root() -> Path:
 
 
 #: Logo shipped with the package -- the single source for the icon.
-DEFAULT_SOURCE = repo_root() / "yate" / "yate.jpg"
+DEFAULT_SOURCE: Path = repo_root() / "yate" / "yate.jpg"
 #: Icon consumed by the PyInstaller specs.
-DEFAULT_TARGET = repo_root() / "pack" / "yate.ico"
+DEFAULT_TARGET: Path = repo_root() / "pack" / "yate.ico"
 
 #: Windows icon sizes: Explorer scales between them, 256 is the modern max.
 ICON_SIZES: tuple[int, ...] = (16, 24, 32, 48, 64, 128, 256)

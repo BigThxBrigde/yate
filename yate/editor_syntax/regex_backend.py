@@ -55,15 +55,17 @@ class LangSpec:
     macro_call: bool = False      # identifier followed by '!' (Rust macros)
 
 
-_PY_KEYWORDS = frozenset({
+_PY_KEYWORDS: frozenset[str] = frozenset({
     "and", "as", "assert", "async", "await", "break", "class", "continue",
     "def", "del", "elif", "else", "except", "finally", "for", "from",
     "global", "if", "import", "in", "is", "lambda", "nonlocal", "not",
     "or", "pass", "raise", "return", "try", "while", "with", "yield",
     "match", "case",
 })
-_PY_CONSTANTS = frozenset({"True", "False", "None", "NotImplemented", "Ellipsis", "__debug__"})
-_PY_BUILTINS = frozenset({
+_PY_CONSTANTS: frozenset[str] = frozenset({
+    "True", "False", "None", "NotImplemented", "Ellipsis", "__debug__",
+})
+_PY_BUILTINS: frozenset[str] = frozenset({
     "print", "len", "range", "enumerate", "zip", "map", "filter", "sum",
     "min", "max", "abs", "open", "input", "sorted", "reversed", "any",
     "all", "repr", "format", "dir", "vars", "getattr", "setattr",
@@ -72,34 +74,34 @@ _PY_BUILTINS = frozenset({
     "oct", "bin", "chr", "ord", "round", "pow", "divmod", "callable",
     "compile", "eval", "exec", "globals", "locals", "help", "exit", "quit",
 })
-_PY_TYPES = frozenset({
+_PY_TYPES: frozenset[str] = frozenset({
     "int", "str", "float", "bool", "bytes", "bytearray", "complex", "list",
     "dict", "set", "frozenset", "tuple", "object", "type", "Exception",
     "ValueError", "TypeError", "KeyError", "IndexError", "RuntimeError",
     "StopIteration",
 })
 
-_C_KEYWORDS = frozenset({
+_C_KEYWORDS: frozenset[str] = frozenset({
     "auto", "break", "case", "const", "continue", "default", "do", "else",
     "enum", "extern", "for", "goto", "if", "inline", "register", "restrict",
     "return", "sizeof", "static", "struct", "switch", "typedef", "union",
     "volatile", "while",
 })
-_C_BUILTINS = frozenset({
+_C_BUILTINS: frozenset[str] = frozenset({
     "printf", "fprintf", "sprintf", "snprintf", "puts", "putchar", "getchar",
     "malloc", "calloc", "realloc", "free", "memcpy", "memset", "memmove",
     "strlen", "strcmp", "strncmp", "strcpy", "strncpy", "atoi", "atof",
     "fopen", "fclose", "fread", "fwrite", "fgets", "fputs", "exit", "abort",
 })
 
-_C_TYPES = frozenset({
+_C_TYPES: frozenset[str] = frozenset({
     "int", "char", "float", "double", "void", "long", "short", "signed",
     "unsigned", "size_t", "ssize_t", "ptrdiff_t", "FILE", "bool", "uint8_t",
     "uint16_t", "uint32_t", "uint64_t", "int8_t", "int16_t", "int32_t",
     "int64_t", "NULL",
 })
 
-_CPP_EXTRA = frozenset({
+_CPP_EXTRA: frozenset[str] = frozenset({
     "class", "public", "private", "protected", "virtual", "new", "delete",
     "namespace", "template", "typename", "this", "nullptr", "throw", "try",
     "catch", "operator", "using", "friend", "constexpr", "decltype",
@@ -107,13 +109,13 @@ _CPP_EXTRA = frozenset({
     "static_cast", "reinterpret_cast", "const_cast", "co_await", "co_return",
     "co_yield", "concept", "requires", "noexcept",
 })
-_CPP_TYPES = frozenset({
+_CPP_TYPES: frozenset[str] = frozenset({
     "std", "string", "vector", "map", "unordered_map", "set", "list",
     "shared_ptr", "unique_ptr", "weak_ptr", "optional", "variant",
     "pair", "tuple", "array", "function", "auto",
 })
 
-_JAVA_KEYWORDS = frozenset({
+_JAVA_KEYWORDS: frozenset[str] = frozenset({
     "abstract", "assert", "boolean", "break", "byte", "case", "catch",
     "char", "class", "const", "continue", "default", "do", "double", "else",
     "enum", "extends", "final", "finally", "float", "for", "goto", "if",
@@ -124,71 +126,71 @@ _JAVA_KEYWORDS = frozenset({
     "while", "var", "record", "sealed", "permits", "yield",
 })
 
-_RUST_KEYWORDS = frozenset({
+_RUST_KEYWORDS: frozenset[str] = frozenset({
     "as", "async", "await", "break", "const", "continue", "crate", "dyn",
     "else", "enum", "extern", "fn", "for", "if", "impl", "in", "let",
     "loop", "match", "mod", "move", "mut", "pub", "ref", "return", "self",
     "Self", "static", "struct", "super", "trait", "type", "unsafe", "use",
     "where", "while",
 })
-_RUST_CONSTANTS = frozenset({"true", "false", "Some", "None", "Ok", "Err"})
-_RUST_TYPES = frozenset({
+_RUST_CONSTANTS: frozenset[str] = frozenset({"true", "false", "Some", "None", "Ok", "Err"})
+_RUST_TYPES: frozenset[str] = frozenset({
     "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64",
     "u128", "usize", "f32", "f64", "bool", "char", "str", "String", "Vec",
     "Box", "Option", "Result", "HashMap", "BTreeMap", "HashSet", "Rc", "Arc",
 })
 
-_GO_KEYWORDS = frozenset({
+_GO_KEYWORDS: frozenset[str] = frozenset({
     "break", "case", "chan", "const", "continue", "default", "defer", "else",
     "fallthrough", "for", "func", "go", "goto", "if", "import", "interface",
     "map", "package", "range", "return", "select", "struct", "switch",
     "type", "var",
 })
-_GO_CONSTANTS = frozenset({"true", "false", "nil", "iota"})
-_GO_BUILTINS = frozenset({
+_GO_CONSTANTS: frozenset[str] = frozenset({"true", "false", "nil", "iota"})
+_GO_BUILTINS: frozenset[str] = frozenset({
     "make", "len", "cap", "new", "append", "copy", "delete", "panic",
     "println", "print", "recover", "complex", "real", "imag", "close",
 })
-_GO_TYPES = frozenset({
+_GO_TYPES: frozenset[str] = frozenset({
     "string", "int", "int8", "int16", "int32", "int64", "uint", "uint8",
     "uint16", "uint32", "uint64", "float32", "float64", "bool", "byte",
     "rune", "error", "any",
 })
 
-_JS_KEYWORDS = frozenset({
+_JS_KEYWORDS: frozenset[str] = frozenset({
     "break", "case", "catch", "class", "const", "continue", "debugger",
     "default", "delete", "do", "else", "export", "extends", "finally", "for",
     "function", "if", "import", "in", "instanceof", "let", "new", "return",
     "super", "switch", "this", "throw", "try", "typeof", "var", "void",
     "while", "with", "yield", "static", "from", "as", "async", "await", "of",
 })
-_JS_CONSTANTS = frozenset({"true", "false", "null", "undefined", "NaN", "Infinity"})
-_JS_BUILTINS = frozenset({
+_JS_CONSTANTS: frozenset[str] = frozenset({"true", "false", "null", "undefined", "NaN", "Infinity"})
+_JS_BUILTINS: frozenset[str] = frozenset({
     "console", "document", "window", "Math", "JSON", "Object", "Array",
     "String", "Number", "Boolean", "Promise", "Map", "Set", "WeakMap",
     "WeakSet", "Symbol", "BigInt", "setTimeout", "setInterval",
     "clearTimeout", "clearInterval", "fetch", "require", "module",
     "process", "exports", "globalThis", "URL", "Error", "Date", "RegExp",
 })
-_TS_TYPES = frozenset({
+_TS_TYPES: frozenset[str] = frozenset({
     "string", "number", "boolean", "any", "unknown", "never", "void", "null",
     "undefined", "object", "symbol", "bigint", "interface", "type", "enum",
     "namespace", "public", "private", "protected", "readonly", "implements",
     "declare", "abstract", "keyof", "infer", "is",
 })
 
-_SHELL_KEYWORDS = frozenset({
+_SHELL_KEYWORDS: frozenset[str] = frozenset({
     "if", "then", "else", "elif", "fi", "for", "while", "do", "done",
     "case", "esac", "function", "in", "select", "until", "time", "local",
     "return", "exit", "export", "source", "alias", "unset", "shift", "set",
 })
-_SHELL_BUILTINS = frozenset({
+_SHELL_BUILTINS: frozenset[str] = frozenset({
     "echo", "cd", "ls", "pwd", "cat", "grep", "sed", "awk", "rm", "cp",
     "mv", "mkdir", "touch", "chmod", "chown", "curl", "wget", "git", "python",
     "python3", "pip", "sudo", "apt", "brew", "npm", "node", "make",
 })
 
-_JSON_CONSTANTS = frozenset({"true", "false", "null"})
+_JSON_CONSTANTS: frozenset[str] = frozenset({"true", "false", "null"})
 
 
 def _spec(
@@ -380,7 +382,7 @@ def available_filetypes() -> list[str]:
 # Regex building
 # ---------------------------------------------------------------------------
 
-_NUMBER_RE = re.compile(
+_NUMBER_RE: re.Pattern[str] = re.compile(
     r"(?:"
     r"0[xX][0-9a-fA-F_]+"        # hex
     r"|0[oO][0-7_]+"             # octal
@@ -388,14 +390,14 @@ _NUMBER_RE = re.compile(
     r"|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d[\d_]*)?"  # decimal / float
     r")[uUlLfFjJ]*"
 )
-_IDENT_RE = re.compile(r"[A-Za-z_]\w*")
-_SIGIL_RE = re.compile(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?")
-_DECORATOR_RE = re.compile(r"@[A-Za-z_][\w.]*")
-_OPERATOR_RE = re.compile(r"(?:->|=>|\.\.\.|::|[-+*/%=<>!&|^~?:]+)")
+_IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w*")
+_SIGIL_RE: re.Pattern[str] = re.compile(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?")
+_DECORATOR_RE: re.Pattern[str] = re.compile(r"@[A-Za-z_][\w.]*")
+_OPERATOR_RE: re.Pattern[str] = re.compile(r"(?:->|=>|\.\.\.|::|[-+*/%=<>!&|^~?:]+)")
 
-_MD_HEADING_RE = re.compile(r"^(#{1,6})\s+.*$")
-_MD_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
-_MD_RULES = re.compile(
+_MD_HEADING_RE: re.Pattern[str] = re.compile(r"^(#{1,6})\s+.*$")
+_MD_FENCE_RE: re.Pattern[str] = re.compile(r"^\s*(`{3,}|~{3,})")
+_MD_RULES: re.Pattern[str] = re.compile(
     r"(`+)(?:[^`\n]|`(?!\1))*?\1"          # code span
     r"|\[[^\]\n]+\]\([^)\n]*\)"            # link [text](url)
     r"|\*\*[^*\n]+\*\*|__[^_\n]+__"        # bold
@@ -404,13 +406,13 @@ _MD_RULES = re.compile(
     r"|`[^`\n]*`?"
 )
 
-_CONFIG_SECTION_RE = re.compile(r"^\s*\[[^\]]+\]")
-_CONFIG_KEY_RE = re.compile(r"^\s*[A-Za-z0-9_.\"-]+(?=\s*[:=])")
-_STRING_RE = re.compile(r'"(?:\\.|[^"\\\n])*"' + r"|'(?:\\.|[^'\\\n])*'")
+_CONFIG_SECTION_RE: re.Pattern[str] = re.compile(r"^\s*\[[^\]]+\]")
+_CONFIG_KEY_RE: re.Pattern[str] = re.compile(r"^\s*[A-Za-z0-9_.\"-]+(?=\s*[:=])")
+_STRING_RE: re.Pattern[str] = re.compile(r'"(?:\\.|[^"\\\n])*"' + r"|'(?:\\.|[^'\\\n])*'")
 
 #: Boolean-ish words painted as ``constant`` in config files, matched only on
 #: word boundaries; precompiled once instead of per word per line.
-_CONFIG_BOOL_RE = re.compile(r"(?<!\w)(?:true|false|null|yes|no|on|off)(?!\w)")
+_CONFIG_BOOL_RE: re.Pattern[str] = re.compile(r"(?<!\w)(?:true|false|null|yes|no|on|off)(?!\w)")
 
 #: One-pass value scan for config lines: string | number | bool word.  A
 #: single ``finditer`` over this alternation consumes each match before
@@ -418,7 +420,7 @@ _CONFIG_BOOL_RE = re.compile(r"(?<!\w)(?:true|false|null|yes|no|on|off)(?!\w)")
 #: digits and bool words inside it instead of double-coloring them.  The
 #: branches begin with disjoint characters (quote / digit / bool letter),
 #: so the alternation order never decides which one wins.
-_CONFIG_TOKEN_RE = re.compile(
+_CONFIG_TOKEN_RE: re.Pattern[str] = re.compile(
     f"(?:{_STRING_RE.pattern})|(?:{_NUMBER_RE.pattern})"
     f"|(?:{_CONFIG_BOOL_RE.pattern})"
 )
@@ -457,11 +459,11 @@ def _code_line_pattern(spec: LangSpec) -> re.Pattern[str]:
 # ---------------------------------------------------------------------------
 
 # Multiline tokenizer states.
-_S_CODE = 0
-_S_BLOCK_COMMENT = 1
-_S_TRIPLE_DQ = 2
-_S_TRIPLE_SQ = 3
-_S_MD_FENCE = 4
+_S_CODE: int = 0
+_S_BLOCK_COMMENT: int = 1
+_S_TRIPLE_DQ: int = 2
+_S_TRIPLE_SQ: int = 3
+_S_MD_FENCE: int = 4
 
 
 def _emit(tokens: list[Token], start: int, end: int, kind: str) -> None:
