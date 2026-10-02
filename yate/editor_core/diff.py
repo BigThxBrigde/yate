@@ -201,10 +201,12 @@ def hunk_replacement(
     ``(start, end, text)`` feeds
     :meth:`yate.editor_core.buffer.TextBuffer.replace_range` directly:
     ``end`` falls back to the last line's end when the span reaches end of
-    file, and a pure end-of-file insertion collapses to that position with
-    a leading ``"\\n"`` so the new lines append after it.  The buffer
-    itself is never touched here -- the caller applies the triple, which
-    keeps this module unit-testable.
+    file, a pure end-of-file insertion collapses to that position with
+    a leading ``"\\n"`` so the new lines append after it, and a
+    mid-document span re-emits the newline its range consumes (an empty
+    replacement is a pure line deletion and keeps no trailing newline).
+    The buffer itself is never touched here -- the caller applies the
+    triple, which keeps this module unit-testable.
     """
     if copy_into == "b":
         t_start, t_end = hunk.a_start, hunk.a_end
@@ -215,6 +217,11 @@ def hunk_replacement(
     text = "\n".join(source[s_start:s_end])
     line_count = len(target)
     if t_end < line_count:
+        # A (t_start, 0) - (t_end, 0) span consumes the newline after the
+        # last replaced line; re-emit it so the following line stays put.
+        # An empty text is a pure line deletion and needs no newline.
+        if text:
+            text += "\n"
         return (t_start, 0), (t_end, 0), text
     if line_count == 0:
         # Empty target: the only expressible position is the document start.

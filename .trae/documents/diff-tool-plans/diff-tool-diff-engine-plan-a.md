@@ -140,3 +140,16 @@ python -m pyright yate/editor_core/diff.py tests/test_editor_core_diff.py
 ### 遗留
 
 无。边界条款遵守：未改 `tests/test_architecture.py`（`editor_core` 纳入 R4 扫描面留待 plan-c）。
+
+### 执行记录·裁定回修（wave-2 移交项，主代理裁定）
+
+- **裁定**：偏离 4 的 L0 语义缺口回修本模块——`hunk_replacement` 中段分支
+  （`t_end < line_count`）在 text 非空时补尾 `\n`（`replace_range` 删除
+  `(t_start,0)-(t_end,0)` 区间会吞掉被替换末行后的换行符；纯删除 text 为空不加）。
+  EOF 分支与空 target 分支语义不变。
+- 测试：用例 12 期望更新为 `"y1\ny2\n"`；新增
+  `test_hunk_replacement_triple_replays_through_replace_range`（构造 TextBuffer
+  回放三元组，锁定 `["one","TWO","three"]` → `["one","two","three"]`）。
+- 实测：`pytest tests/test_editor_core_diff.py tests/test_diffview.py -q` →
+  25 passed；`pyright yate/editor_core/diff.py yate/editor_view/diffview.py
+  tests/test_editor_core_diff.py` → 0 errors；架构测试 22 passed。

@@ -128,3 +128,81 @@ python -m pyright yate/editor_view/diffview.py tests/test_diffview.py
 - R-2 大文件阻塞：`_MAX_LINES` 常量拒绝（测试锁定）；后续可改 worker。
 - R-10 键面回归：编辑键表 miss 必须 fall-through；负向用例 `test_edit_mode_esc_returns_to_nav_and_unmapped_key_falls_through` 锁定。
 - 回滚：纯新增文件 revert 即可；`diff-view.tcss` 为独立资源无交叉引用。
+
+## 执行记录（2026-10-02，plan-executor）
+
+### 验收结果（实测，均在 worktree `D:\Programming\yate-diff-tool`，分支 `feat/diff-tool`）
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| `.venv\Scripts\python.exe -m pytest tests/test_diffview.py -q` | `11 passed` | 0 |
+| `python -m pyright yate/editor_view/diffview.py tests/test_diffview.py` | `0 errors, 0 warnings` | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | `22 passed` | 0 |
+
+### 实际改动
+
+- `yate/editor_view/diffview.py` 新增（~1010 行）：`MAX_DIFF_LINES`、`check_sizes`、`_replacement_triple`、
+  `_undo`、编辑键表三函数、`PaneDiffState`、`DiffPane`（`PaneChanged` 消息 / `render_line` / nav-edit 双模式 `on_key`）、
+  `DiffScreen`（BINDINGS 17 条 / `_recompute` / 2way+3way 复制 / 编辑 / 保存 / 撤销 / 两段关闭守卫）。
+- `yate/resources/diff-view.tcss` 新增：布局骨架，全部 `DiffScreen` 前缀选择器（先例 `overlay-screen.tcss`），
+  颜色全走主题变量；未改 `app.tcss`。
+- `tests/test_diffview.py` 新增：11 用例（pilot `_Host` 宿主），全部通过。
+
+### 偏离记录（附实测依据）
+
+1. **执行位置**：会话启动于 master 主仓库目录，实际 worktree 为 `D:\Programming\yate-diff-tool`
+   （`git worktree list` 实证），全部工作在该 worktree 完成。
+2. **`_MAX_LINES` → `MAX_DIFF_LINES`**：子计划 62 行写 `_MAX_LINES`，按任务书"导出供 plan-c 校验"落实为公开常量。
+3. **`_check_sizes` → `check_sizes`（公开名）**：pyright strict `reportUnusedFunction` 拦截"私有名且模块内零调用"
+   （实测诊断原文：`无法存取函数"_check_sizes" (reportUnusedFunction)`）；该函数本就是 plan-c 的外部接口，改公开名，
+   不用 `# pyright: ignore`（风格规则 §4.2 禁止）。
+4. **复制链路补 `_replacement_triple` 包装**（重要，建议主代理裁定是否回修 wave-1）：
+   `hunk_replacement` 的中段三元组（`t_end < line_count`）text 不带尾 `\n`，而
+   `TextBuffer._delete_range` 对 `(t_start,0)-(t_end,0)` 会消费被替换段末尾换行——直接回放把下一行并入替换文本
+   （实测：`["one","TWO","three"]` 应用 `((1,0),(2,0),"two")` 得 `["one","twothree"]`）；
+   纯插入子段（`t_start==t_end` 且中段）同样缺尾 `\n`。EOF 两分支实测正确（`_delete_range` 终点取行尾、
+   尾行内容充当拼接载体）。wave-1 锁定测试只断言三元组形态、未回放，故未暴露。
+   修复落在本波独占文件内：`_replacement_triple` 调 L0 后按 `t_end < len(target)` 且 text 非空补尾 `\n`；
+   **未改** `yate/editor_core/diff.py`（非本波独占文件）。
+5. **`dismiss_guarded` 无条件两段式**：第一次 esc/q 总置 `_confirm_close` + hint（dirty → "unsaved changes — ..."，
+   非 dirty → "press esc again to close"），第二次才 pop。子计划 76 行只规定 dirty 分支、未明文规定无 dirty 行为，
+   字面实现（非 dirty 直接 pop）会使用例 7 的"q 后屏仍开着"断言矛盾；本实现使 7/8 两用例断言全部按字面通过。
+6. **用例 4 act 补 arrange 键 `alt+down`**：`_copy` 在 `_current == -1` 时 hint "no change selected"
+   （D4 语义"当前差异"要求先选中）；偏离用例 act 字面，plan 文字只写 `press("alt+right")`。
+7. **用例 6 断言修正**：计划只要求"regions 反映新文本"；原写 `len(_regions) == 2` 在两行文档上不可达
+   （"xone" vs "one" 与 "two" vs "TWO" 相邻差异合并为单一 `(0,2,0,2)` replace hunk，实测）。改为断言
+   hunk 边界由 `(1,2)` 变 `(0,2)`，即重算真实反映了键入。
+8. **用例 9 补 `tab` 移焦**：计划 BINDINGS 表中 alt+right 无焦点移动语义，焦点仍在 pane 0，ctrl+s 存"焦点侧"
+   → 测试在复制后按 tab 聚焦目标侧再 ctrl+s；未擅自给复制加焦点移动行为。
+9. **3way 复制**：将 `MergeRegion` 的源/目标区间打包成临时 `DiffHunk` 复用 `hunk_replacement`（含上面的
+   `_replacement_triple` 修正），EOF 边界处理免费获得。
+10. **新增 `DiffPane.PaneChanged(Message)`**：pane → screen 的编辑/内容变化通知（Textual 标准消息机制），
+    screen 收到后 `_recompute`；仅在 `content_version` 或 `editing` 变化时发送，光标移动键不触发 O(N) 重算。
+    子计划未规定重算触发机制，此为落实"`_recompute` 反映编辑"的最小实现。
+11. **`check_sizes` 返回 `str | None`**：计划 113 行"返回错误消息字符串 / 抛 ValueError（以导出 API 为准断言）"
+    二选一，取返回值形态。
+12. **渲染细节**：行底色用 `Color.blend`（状态色按 `_TINTS` 强度混入 bg，conflict 0.45 最强）；changed 徽标用
+    `~`（计划 46 行只列 `+`/`-`/`!` 三个符号，但 `line_states` 有 5 种状态，replace 型需第四符号）。
+13. **命名与注解（pyright strict 实测驱动）**：`enter_edit_mode`/`exit_edit_mode`/`vim_insert`/`pending_d`
+    用公开名（`reportPrivateUsage` 实证跨对象访问即公共面）；`**kwargs: Any`（仓库先例 editor.py:154 等 8 处）；
+    DiffScreen.on_mount 不加 `@override`（Screen 无该基方法，先例 screensaver.py:140；DiffPane.on_mount 保留，
+    ScrollView 有基方法）；关闭走 `self.dismiss(None)` 而非 `self.app.pop_screen()`
+    （ModalScreen 自有 API，避免 L2 持 App 句柄）。
+14. **vsc 键表 `ctrl+z`**：`buffer.undo()` 返回 bool，键表值类型 `-> None`，加 `_undo` 适配函数。
+
+### 遗留与移交
+
+- 偏离 4 的 L0 语义缺口（`hunk_replacement` 中段三元组直接回放会并行）建议主代理裁定：要么回修
+  `yate/editor_core/diff.py`（plan-a 范围，其锁定测试需同步加"回放断言"），要么维持现状
+  （调用方包装）；本波已在消费侧修复并有测试锁定（用例 4）。
+- 手工验证项（计划"验证方案"节）：CJK 宽字符列对齐、深浅主题切换重绘——本波无入口（plan-c 接 `:diff`），
+  以临时脚本目视验证属主代理收尾事项；自动化面已由 11 用例覆盖。
+- 未执行 `git commit`（按任务书由主代理统一提交）。
+
+### 裁定结果（主代理，wave-2 收口前）
+
+- 已回修 L0：`hunk_replacement` 中段分支补尾 `\n`（text 非空时），见 plan-a
+  「执行记录·裁定回修」；本模块 `_replacement_triple` 包装删除，3 处调用点直调
+  `hunk_replacement`（diffview.py:869/874/906 附近）。
+- 回修后复测：`pytest tests/test_editor_core_diff.py tests/test_diffview.py -q`
+  → 25 passed（L0 14 + L2 11）；pyright 三文件 0 errors；架构测试 22 passed。

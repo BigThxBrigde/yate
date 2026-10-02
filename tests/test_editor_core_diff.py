@@ -11,6 +11,7 @@ Run with:  python -m pytest tests/test_editor_core_diff.py -q
 
 from __future__ import annotations
 
+from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.diff import (
     DiffHunk,
     diff3_regions,
@@ -131,7 +132,18 @@ def test_hunk_replacement_b_side_spans_target_range() -> None:
     source = ["a", "y1", "y2", "c"]
     hunk = DiffHunk(kind="replace", a_start=1, a_end=2, b_start=1, b_end=3)
     start, end, text = hunk_replacement(target, hunk, source, copy_into="b")
-    assert (start, end, text) == ((1, 0), (2, 0), "y1\ny2")
+    assert (start, end, text) == ((1, 0), (2, 0), "y1\ny2\n")
+
+
+def test_hunk_replacement_triple_replays_through_replace_range() -> None:
+    """The triple must merge cleanly through TextBuffer.replace_range."""
+    target = ["one", "TWO", "three"]
+    source = ["one", "two", "three"]
+    hunk = DiffHunk(kind="replace", a_start=1, a_end=2, b_start=1, b_end=2)
+    start, end, text = hunk_replacement(target, hunk, source, copy_into="b")
+    buffer = TextBuffer("\n".join(target))
+    buffer.replace_range(start, end, text)
+    assert buffer.lines == ["one", "two", "three"]
 
 
 def test_hunk_replacement_at_end_of_buffer_handles_last_line() -> None:
