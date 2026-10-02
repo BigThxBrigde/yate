@@ -38,7 +38,7 @@
 | 15 | 2026-10-01 | `_collect_bilingual` TOCTOU：收集阶段 `exists()` 判定的 `en_source` 在 `run()` 读取时可能已被删除，未捕获 `FileNotFoundError` 致全流程崩溃 | ✅ 已修（2026-10-01，`714183b`：OSError 降级为缺失页走翻译路径 + 回归用例） | [2026-10-01-pack-wiki-round3-review.md](2026-10-01-pack-wiki-round3-review.md) |
 | 16 | 2026-10-02 | PR #43 AI 评审 3 项改进：`_submit_save_as` 的 `saved = True` 位置致部分成功场景语义混淆（Low，功能）；`_rebuild_tokens_on_edit` 极端 multiline 场景全量遍历（Low，性能，评审自评现状合理仅记录）；`_warn_degraded_once` 占位符 `%r`/`%s` 风格不一（Nit，可维护） | 👀 登记待决策（3 项均 Low/Nit 无阻断） | [2026-10-02-pr43-reviews-sweep-review.md](2026-10-02-pr43-reviews-sweep-review.md) |
 | 17 | 2026-10-02 | PR #44 AI 评审 1 项改进：`tools/__init__.py` 模块 docstring 的 RST 内联标记被误插（"hatchling" 前多一对反引号，inline-literal 永不闭合） | ✅ 已修（2026-10-02，`56815e0`） | [2026-10-02-pr44-py-style-audit-review.md](2026-10-02-pr44-py-style-audit-review.md) |
-| 18 | 2026-10-02 | PR #45 AI 评审 1 项改进：vsc paste 动作在只读缓冲区先覆写 unnamed 寄存器再抛 `BufferReadOnlyError`，粘贴失败仍丢失已 yank 内容 | ✅ 已修（2026-10-02，`64f5eeb`：`read_only` 守卫与 vim 侧 `_prime_paste` 对称 + 回归用例） | [2026-10-02-pr45-system-clipboard-review.md](2026-10-02-pr45-system-clipboard-review.md) |
+| 18 | 2026-10-02 | PR #45 AI 评审（两轮）：首轮 vsc paste 只读缓冲覆写 unnamed 寄存器；第二轮 pending_register 生命周期过宽、空串镜像守卫缺失、只读 paste 多余剪贴板读取、缺后端不可用钉用例 | ✅ 已修（2026-10-02，首轮 `64f5eeb`；第二轮 3 修 + 1 钉） | [2026-10-02-pr45-system-clipboard-review.md](2026-10-02-pr45-system-clipboard-review.md) |
 
 ---
 
@@ -78,7 +78,7 @@
 | 2026-10-01 | **Gitee PR #39** 第三轮评审（wiki 生成器 + translate 模块，AI 队友审查） | ✅ 无阻断项，可优化后合并 | 0 阻断 / 1 改进 | ✅ 已修（2026-10-01，`714183b`：TOCTOU OSError 降级 + 回归用例，见速览 #15） | [2026-10-01-pack-wiki-round3-review.md](2026-10-01-pack-wiki-round3-review.md) |
 | 2026-10-02 | **Gitee PR #43** 评审（reviews-open-issues-fixes 分支全量 22 提交，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 3 改进（Low×2 + Nit×1）+ 2 正面 | 👀 登记待决策（改进项 2 评审自评现状合理仅记录，见速览 #16） | [2026-10-02-pr43-reviews-sweep-review.md](2026-10-02-pr43-reviews-sweep-review.md) |
 | 2026-10-02 | **Gitee PR #44** 评审（py-style-audit 风格规范化分支全量，AI 队友审查，两轮） | ⚠️ 无阻断项，可优化后合并（首轮 1 阻断 → 复审降为 1 改进） | 首轮 1 阻断 / 1 改进 → 复审 0 阻断 / 1 改进 | ✅ 已修（2026-10-02，`56815e0`：还原 docstring 成对 RST 标记，见速览 #17） | [2026-10-02-pr44-py-style-audit-review.md](2026-10-02-pr44-py-style-audit-review.md) |
-| 2026-10-02 | **Gitee PR #45** 评审（system-clipboard 系统剪贴板集成分支，AI 队友审查） | ⚠️ 无阻断项，可优化后合并 | 0 阻断 / 1 改进（Medium，功能性） | ✅ 已修（2026-10-02，`64f5eeb`：只读守卫 + 回归用例，见速览 #18） | [2026-10-02-pr45-system-clipboard-review.md](2026-10-02-pr45-system-clipboard-review.md) |
+| 2026-10-02 | **Gitee PR #45** 评审（system-clipboard 系统剪贴板集成分支，AI 队友审查，两轮） | ⚠️ 无阻断项，可优化后合并（两轮均无阻断） | 首轮 0 阻断 / 1 改进 → 第二轮 0 阻断 / 4 改进（low） | ✅ 已修（2026-10-02，首轮 `64f5eeb`：只读守卫；第二轮：pending 前缀生命周期 + 空串守卫 + paste 零读取对称，见速览 #18） | [2026-10-02-pr45-system-clipboard-review.md](2026-10-02-pr45-system-clipboard-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

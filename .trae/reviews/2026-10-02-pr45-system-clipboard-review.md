@@ -50,3 +50,54 @@
   编号说明：速览 #17 已由 py-style-audit 分支的 PR #44 评审登记占用
   （文档 `2026-10-02-pr44-py-style-audit-review.md`，随该分支合并后与本
   文件同目录），本分支顺延取 #18，两分支合并后编号连续不重复。
+
+---
+
+## 第二轮评审（2026-10-02 14:10，comment [`note_51428848`](https://gitee.com/jermaine/yate/pulls/45#note_51428848_conversation_191310328)）
+
+> 首轮修复（`64f5eeb`）与合并 master（`455948e`）推送后触发复审。
+
+### 四维度结论（第二轮）
+
+| 评审规则 | 结论 |
+|---|---|
+| 功能性与逻辑 | ⚠️ 待优化 |
+| 安全性 | ✅ 通过 |
+| 性能 | ⚠️ 待优化 |
+| 可维护性 | ⚠️ 待优化 |
+
+**总体结论**：⚠️ 无阻断项，4 个改进建议，风险等级 low。历史项「vsc paste
+覆写只读缓冲区 unnamed 寄存器」被评审确认已在 `64f5eeb` 闭环。
+
+### 改进项（4 项）与处置
+
+1. **`pending_register` 在非操作符命令后未清理**（功能性与逻辑，
+   `yate/keymaps/vim.py`）：`"a` 后执行 `x`/`u`/`J`/`o` 等无关命令后前缀
+   残留，后续一次 `yy` 被静默写入命名寄存器 a 且不镜像剪贴板。
+   ✅ 已修（本批）：`_handle_normal` 全部非消费分支显式清理——`x`（含注释
+   说明动机）、`u`/ctrl-r/`J`/页键、`/`/`?`/`:`、`n`/`N`、extension 绑定与
+   未映射吞没的统一清理点；插入入口既有 `_enter_insert` 清理覆盖。
+   回归用例 `test_register_prefix_does_not_survive_an_unrelated_command`
+   （`"ax`→`yy` 落 unnamed + 镜像、`named_registers` 为空）。
+2. **「空串不写系统剪贴板」守卫仅存在于 `_mirror`**（功能性与逻辑）：
+   `_store_deleted` 与 `actions.cut`（两处）/`actions.copy` 无条件调用
+   `copy_text`。✅ 已修（本批）：三处补真值守卫——空串仍写内部 unnamed
+   寄存器，仅跳过剪贴板；守卫钉用例
+   `test_visual_delete_with_empty_result_never_touches_clipboard`（经公开
+   键位路径 + 实例桩模拟空删除结果；真实按键路径下空串近似不可达，
+   actions 侧守卫同此理由不设牵强用例）。
+3. **vsc `paste` 只读缓冲区仍先读系统剪贴板**（性能，`yate/actions.py`）：
+   与 vim `_prime_paste` 不对称（后者只读时零读取）。
+   ✅ 已修（本批）：`read_only` 检查前置，只读粘贴零剪贴板系统调用；
+   回归断言同步为 `pastes == []`。
+4. **缺「后端不可用时按键路径不抛异常」键位层用例**（可维护性）。
+   ✅ 已钉（本批）：`_FakeClip.copy_result` 可失败，新增
+   `test_yy_survives_unavailable_clipboard_backend`（`yy` 不抛异常、
+   unnamed 寄存器正常填充），将设计目标 §二.3 降级语义固化到键位层。
+
+### 第二轮处置状态
+
+- ✅ **已闭环**（2026-10-02）：4 项全部处置（3 修 + 1 钉）。方案文档：
+  [clipboard-review-round2-fixes-plan.md](../documents/clipboard-review-round2-fixes-plan.md)
+  （含否决路线与实施偏离记录）。门禁：pytest 全量退出码 0、
+  pyright strict 0 诊断。
