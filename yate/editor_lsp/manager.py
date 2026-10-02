@@ -16,11 +16,10 @@ and calls :meth:`request_completion` for the popup.  Incoming
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
-
-from collections.abc import Awaitable, Callable
 
 from yate.editor_core.document import Document
 from yate.logs import tracing
@@ -38,14 +37,14 @@ from .client import (
 
 #: TextDocumentSyncKind.Full -- resending the whole buffer on every change is
 #: supported by every server and avoids fragile incremental position math.
-_SYNC_FULL = 1
+_SYNC_FULL: int = 1
 
 #: Debounce for didChange (keystrokes coalesce into one notification).
-CHANGE_DEBOUNCE_S = 0.25
+CHANGE_DEBOUNCE_S: float = 0.25
 
 #: Trigger kinds for textDocument/completion.
-TRIGGER_INVOKED = 1
-TRIGGER_CHARACTER = 2
+TRIGGER_INVOKED: int = 1
+TRIGGER_CHARACTER: int = 2
 
 ClientKey = tuple[str, str]
 
@@ -55,6 +54,12 @@ log = tracing.get_logger(__name__)
 
 @dataclass
 class OpenDocState:
+    """State of one text document currently open with a server.
+
+    ``version``/``last_synced`` advance only after a successful didChange
+    notify; pushes whose text matches ``last_synced`` are skipped.
+    """
+
     uri: str
     config_name: str
     client_key: ClientKey
@@ -126,6 +131,7 @@ class LspManager:
         )
 
     def config_names(self) -> list[str]:
+        """Registered server config names (in registration order)."""
         return [c.name for c in self._configs]
 
     def configs(self) -> list[ServerConfig]:
@@ -134,6 +140,7 @@ class LspManager:
         return list(self._configs)
 
     def config_for(self, filetype: str) -> ServerConfig | None:
+        """The server config claiming *filetype*, or ``None``."""
         return self._by_filetype.get(filetype)
 
     def supports(self, doc: Document) -> bool:
@@ -167,6 +174,7 @@ class LspManager:
         return self.states().get(cfg.name) if cfg is not None else None
 
     def error_for(self, config_name: str) -> str:
+        """The failure message of a FAILED client for *config_name* (else "")."""
         for (name, _root), client in self._clients.items():
             if name == config_name and client.state is ServerState.FAILED:
                 return client.error
@@ -183,6 +191,12 @@ class LspManager:
     # --------------------------------------------------------- root/client
 
     def root_for(self, config: ServerConfig, doc: Document) -> Path:
+        """Resolve the workspace root to start the server in for *doc*.
+
+        The editor workspace wins when it contains the file; otherwise the
+        closest directory holding one of *config*'s root markers (searching
+        from the file's own directory upward), else the file's directory.
+        """
         assert doc.path is not None
         doc_dir = doc.path.parent
         ws = self._workspace_root() if self._workspace_root is not None else None
@@ -303,6 +317,7 @@ class LspManager:
         self._diagnostics.pop(uri, None)
 
     async def on_document_closed(self, doc: Document) -> None:
+        """Forget *doc*'s didOpen state and notify didClose (best effort)."""
         if doc.path is None:
             return
         uri = self._uri(doc)
@@ -385,6 +400,7 @@ class LspManager:
             state.last_synced = text
 
     async def notify_saved(self, doc: Document) -> None:
+        """Send didSave for *doc* when it is open on a ready client."""
         state = self._open.get(self._uri(doc)) if doc.path is not None else None
         if state is None:
             return
@@ -507,7 +523,7 @@ class LspManager:
             int(end.get("character", 0)),
         )
 
-    def _parse_completion_item(
+    def _parse_completion_item(  # noqa: Any - completion items are untyped server wire data
         self,
         item: dict[str, Any],
         defaults: dict[str, Any],
@@ -567,6 +583,12 @@ class LspManager:
     # ---------------------------------------------------------- diagnostics
 
     def handle_notification(self, method: str, params: dict[str, Any]) -> None:
+        """Entry point for server-initiated notifications.
+
+        ``publishDiagnostics`` is stored per URI and fires the
+        ``diagnostics`` event; log/telemetry/progress messages are
+        acknowledged but not surfaced yet.
+        """
         if method == "textDocument/publishDiagnostics":
             uri = params.get("uri")
             if isinstance(uri, str):
@@ -625,6 +647,7 @@ class LspManager:
         return result
 
     def diagnostics_for(self, doc: Document) -> list[Diagnostic]:
+        """The stored diagnostics for *doc* (a copy, sorted by position)."""
         if doc.path is None:
             return []
         return list(self._diagnostics.get(self._uri(doc), []))
@@ -654,11 +677,18 @@ class LspManager:
         return best
 
     def diagnostics_on_line(self, doc: Document, row: int) -> list[Diagnostic]:
+        """The stored diagnostics whose vertical range covers *row*."""
         return [d for d in self.diagnostics_for(doc) if d.start_row <= row <= d.end_row]
 
     # ------------------------------------------------------------- teardown
 
     async def shutdown_all(self) -> None:
+        """Stop every client and cancel timers, starts and pending pushes.
+
+        The interruption order matters: clients first (unblocks start tasks
+        still waiting on their handshake), then start tasks, then in-flight
+        didChange pushes -- all bounded so teardown cannot hang.
+        """
         log.info("shutting down %s server client(s)", len(self._clients))
         self._shutting_down = True
         for timer in self._change_timers.values():

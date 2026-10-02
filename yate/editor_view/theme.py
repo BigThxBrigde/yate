@@ -30,11 +30,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-from collections.abc import Callable, Sequence
 
 from rich.style import Style
 from textual.color import Color as TextualColor
@@ -175,7 +174,7 @@ def _catppuccin(name: str, label: str, dark: bool, p: dict[str, str]) -> Theme:
     )
 
 
-_LATTE = {
+_LATTE: dict[str, str] = {
     "rosewater": "#dc8a78", "flamingo": "#dd7878", "pink": "#ea76cb",
     "mauve": "#8839ef", "red": "#d20f39", "maroon": "#e64553",
     "peach": "#fe640b", "yellow": "#df8e1d", "green": "#40a02b",
@@ -187,7 +186,7 @@ _LATTE = {
     "mantle": "#e6e9ef", "crust": "#dce0e8",
 }
 
-_FRAPPE = {
+_FRAPPE: dict[str, str] = {
     "rosewater": "#f2d5cf", "flamingo": "#eebebe", "pink": "#f4b8e4",
     "mauve": "#ca9ee6", "red": "#e78284", "maroon": "#ea999c",
     "peach": "#ef9f76", "yellow": "#e5c890", "green": "#a6d189",
@@ -199,7 +198,7 @@ _FRAPPE = {
     "mantle": "#292c3c", "crust": "#232634",
 }
 
-_MACCHIATO = {
+_MACCHIATO: dict[str, str] = {
     "rosewater": "#f4dbd6", "flamingo": "#f0c6c6", "pink": "#f5bde6",
     "mauve": "#c6a0f6", "red": "#ed8796", "maroon": "#ee99a0",
     "peach": "#f5a97f", "yellow": "#eed49f", "green": "#a6da95",
@@ -211,7 +210,7 @@ _MACCHIATO = {
     "mantle": "#1e2030", "crust": "#181926",
 }
 
-_MOCHA = {
+_MOCHA: dict[str, str] = {
     "rosewater": "#f5e0dc", "flamingo": "#f2cdcd", "pink": "#f5c2e7",
     "mauve": "#cba6f7", "red": "#f38ba8", "maroon": "#eba0ac",
     "peach": "#fab387", "yellow": "#f9e2af", "green": "#a6e3a1",
@@ -278,7 +277,7 @@ def _one_family(name: str, label: str, dark: bool, p: dict[str, str]) -> Theme:
     )
 
 
-_ONE_DARK = {
+_ONE_DARK: dict[str, str] = {
     "bg": "#282c34", "panel": "#21252b", "surface": "#2c313a",
     "border": "#3a3f4b", "selection": "#3e4451",
     "fg": "#abb2bf", "fg_dim": "#5c6370", "fg_muted": "#636d83",
@@ -288,7 +287,7 @@ _ONE_DARK = {
     "cyan": "#56b6c2", "on_accent": "#282c34",
 }
 
-_ONE_LIGHT = {
+_ONE_LIGHT: dict[str, str] = {
     "bg": "#fafafa", "panel": "#f0f0f1", "surface": "#f0f0f1",
     "border": "#d4d4d4", "selection": "#e5e5e6",
     "fg": "#383a42", "fg_dim": "#a0a1a7", "fg_muted": "#696c77",
@@ -351,7 +350,7 @@ def _gruvbox(name: str, label: str, dark: bool, p: dict[str, str]) -> Theme:
     )
 
 
-_GRUVBOX_DARK = {
+_GRUVBOX_DARK: dict[str, str] = {
     "bg": "#282828", "panel": "#3c3836", "surface": "#3c3836",
     "border": "#504945", "selection": "#504945",
     "fg": "#ebdbb2", "fg_dim": "#928374", "fg_muted": "#a89984",
@@ -361,7 +360,7 @@ _GRUVBOX_DARK = {
     "orange": "#fe8019", "on_accent": "#282828",
 }
 
-_GRUVBOX_LIGHT = {
+_GRUVBOX_LIGHT: dict[str, str] = {
     "bg": "#fbf1c7", "panel": "#ebdbb2", "surface": "#ebdbb2",
     "border": "#d5c4a1", "selection": "#d5c4a1",
     "fg": "#3c3836", "fg_dim": "#7c6f64", "fg_muted": "#665c54",
@@ -382,7 +381,7 @@ THEMES: dict[str, Theme] = {
     "gruvbox-light": _gruvbox("gruvbox-light", "Gruvbox Light", False, _GRUVBOX_LIGHT),
 }
 
-DEFAULT_THEME = "mocha"
+DEFAULT_THEME: str = "mocha"
 
 _active: Theme = THEMES[DEFAULT_THEME]
 
@@ -484,7 +483,7 @@ def register_theme(theme: Theme) -> None:
 # ---------------------------------------------------------------------------
 
 #: Prefix for every bridged Textual theme name (``yate-mocha``, ...).
-TEXTUAL_THEME_PREFIX = "yate-"
+TEXTUAL_THEME_PREFIX: str = "yate-"
 
 
 def textual_theme_name(name: str) -> str:
@@ -504,7 +503,7 @@ _MAPPED_COLOR_FIELDS: tuple[str, ...] = (
 _OPAQUE_FIELDS: tuple[str, ...] = ("bg", "panel", "surface", "fg")
 
 #: Regex for the generated doc-hit ``<hex> <percent>`` variables.
-_DOC_HIT_RE = re.compile(
+_DOC_HIT_RE: re.Pattern[str] = re.compile(
     r"^(#[0-9a-fA-F]{6})\s+(\d{1,3})(?:%)?\s*$"
 )
 
@@ -543,7 +542,7 @@ def validate_theme(t: Theme) -> list[str]:
             continue
         try:
             parsed = TextualColor.parse(value)
-        except Exception:
+        except Exception:  # noqa: BLE001 - reported via the problems list
             problems.append(f"{field_name}={value!r} is not a valid color")
             continue
         if field_name in _OPAQUE_FIELDS and parsed.a != 1.0:
@@ -556,7 +555,12 @@ def validate_theme(t: Theme) -> list[str]:
         if key not in t.extra:
             continue
         value = t.extra[key]
-        match = _DOC_HIT_RE.match(value) if isinstance(value, str) else None  # pyright: ignore[reportUnnecessaryIsInstance]
+        match = (
+            _DOC_HIT_RE.match(value)
+            # runtime value may violate the declared type (see note above)
+            if isinstance(value, str)  # pyright: ignore[reportUnnecessaryIsInstance]
+            else None
+        )
         if match is None:
             problems.append(
                 f"extra[{key!r}]={value!r} must be '<hex> <percent>'"
@@ -565,7 +569,7 @@ def validate_theme(t: Theme) -> list[str]:
         hex_part, pct_part = match.group(1), match.group(2)
         try:
             TextualColor.parse(hex_part)
-        except Exception:
+        except Exception:  # noqa: BLE001 - reported via the problems list
             problems.append(
                 f"extra[{key!r}]={value!r}: hex part is not a valid color"
             )

@@ -43,7 +43,8 @@ async def _duplicate_delete_line(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("ctrl+d")
         await pilot.pause()
-        checks.append(Check("duplicated", ["one", "one", "two"], list(app.editor.session.buffer.lines)))
+        checks.append(Check("duplicated", ["one", "one", "two"],
+                            list(app.editor.session.buffer.lines)))
         # "ctrl+shift+k" has no raw translation; the keymap folds shift into
         # the ctrl code, so the binding is reached with ctrl+k.
         await pilot.press("ctrl+k")
@@ -257,7 +258,8 @@ async def _select_all_indent(tmp: Path) -> ScenarioResult:
         checks.append(Check("all_selected", True, app.editor.session.buffer.has_selection()))
         await pilot.press("ctrl+]")
         await pilot.pause()
-        checks.append(Check("indented", ["    one", "    two"], list(app.editor.session.buffer.lines)))
+        checks.append(Check("indented", ["    one", "    two"],
+                            list(app.editor.session.buffer.lines)))
         await pilot.press("escape")
         await pilot.pause()
         checks.append(Check("anchor_cleared", None, app.editor.session.buffer.anchor))

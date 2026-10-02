@@ -44,35 +44,34 @@ nor an invalid option ever crashes the editor: problems are collected on
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
-from collections.abc import Callable, Sequence
-
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES, tracing
 
 #: File name yate looks for in the project tree.
-RC_FILENAME = "yaterc"
+RC_FILENAME: str = "yaterc"
 
 log = tracing.get_logger(__name__)
 
 #: Recognized option variables in a yaterc file.
-_KNOWN_OPTIONS = (
+_KNOWN_OPTIONS: tuple[str, ...] = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
     "yate_trace", "yate_trace_level", "key_protocol",
 )
 
-_VALID_KEYMAPS = ("vsc", "vim")
+_VALID_KEYMAPS: tuple[str, ...] = ("vsc", "vim")
 
 #: Accepted ``key_protocol`` values: ``auto`` (Windows -> chord driver)
 #: and ``legacy`` (stock driver).
-_VALID_KEY_PROTOCOLS = ("auto", "legacy")
+_VALID_KEY_PROTOCOLS: tuple[str, ...] = ("auto", "legacy")
 
 #: Accepted ``yate_trace_level`` values -- :mod:`logging`'s built-in levels
 #: (single source of truth: :data:`yate.logs.LEVEL_NAMES`).
-_VALID_TRACE_LEVELS = LEVEL_NAMES
+_VALID_TRACE_LEVELS: tuple[str, ...] = LEVEL_NAMES
 
 
 @dataclass
@@ -297,7 +296,7 @@ def load_config(
     return config
 
 
-def _extract_extensions(
+def _extract_extensions(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
     namespace: dict[str, Any], config: YateConfig, rc_dir: Path
 ) -> None:
     """Pull the ``extensions`` option out of one rc file's namespace.
@@ -337,7 +336,7 @@ def _extract_extensions(
             config.extension_paths.append(resolved)
 
 
-def _extract_disabled_extensions(
+def _extract_disabled_extensions(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
     namespace: dict[str, Any], config: YateConfig
 ) -> None:
     """Pull the ``disabled_extensions`` option out of one rc file.
@@ -371,7 +370,7 @@ def _extract_disabled_extensions(
             config.disabled_extensions.append(name)
 
 
-def _extract_theme_dirs(
+def _extract_theme_dirs(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
     namespace: dict[str, Any], config: YateConfig, rc_dir: Path
 ) -> None:
     """Pull the ``theme_dirs`` option out of one rc file's namespace.
@@ -412,7 +411,7 @@ def _extract_theme_dirs(
             config.theme_dirs.append(resolved)
 
 
-def _parse_journey_fraction(
+def _parse_journey_fraction(  # noqa: Any - raw yaterc value, parsed and validated below
     value: Any, key: str, config: YateConfig
 ) -> float | None:
     """Parse one ``screen_saver`` journey bound and report bad values.
@@ -446,7 +445,7 @@ def _parse_journey_fraction(
     return parsed
 
 
-def _extract_screen_saver(
+def _extract_screen_saver(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
     namespace: dict[str, Any], config: YateConfig
 ) -> None:
     """Pull the ``screen_saver`` dict option out of one rc file.
@@ -702,7 +701,7 @@ def _extract_language_servers(namespace: dict[str, Any], config: YateConfig) -> 
     config.language_servers = specs
 
 
-def _parse_language_server(
+def _parse_language_server(  # noqa: Any - raw yaterc mapping, validated field by field
     entry: dict[str, Any], errors: list[str], where: str
 ) -> LanguageServerSpec | None:
     """Validate one ``language_servers`` mapping; append an error and return
@@ -766,7 +765,7 @@ def _parse_language_server(
     )
 
 
-def _require_str_list(
+def _require_str_list(  # noqa: Any - raw yaterc value, validated below
     value: Any,
     label: str,
     errors: list[str],
@@ -790,7 +789,7 @@ def _require_str_list(
     return result
 
 
-def _require_str_map(
+def _require_str_map(  # noqa: Any - raw yaterc value, validated below
     value: Any, label: str, errors: list[str]
 ) -> dict[str, str] | None:
     """Validate a ``dict[str, str]`` mapping."""

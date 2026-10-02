@@ -19,8 +19,8 @@ from yate.services.extensions import (
     load_startup_extensions,
 )
 
-_SETUP_OK = "def setup(api):\n    pass\n"
-_SETUP_BAD = "def setup(api):\n    raise RuntimeError('boom')\n"
+_SETUP_OK: str = "def setup(api):\n    pass\n"
+_SETUP_BAD: str = "def setup(api):\n    raise RuntimeError('boom')\n"
 
 
 class _LogCapture(logging.Handler):
@@ -36,6 +36,7 @@ class _LogCapture(logging.Handler):
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
+        """Collect the formatted message of every record."""
         self.messages.append(record.getMessage())
 
 
@@ -58,6 +59,7 @@ def _extension_api() -> ExtensionAPI:
 
 @pytest.fixture
 def loader() -> ExtensionLoader:
+    """An ExtensionLoader wired to the minimal API fixture."""
     return ExtensionLoader(_extension_api())
 
 

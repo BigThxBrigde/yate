@@ -46,8 +46,8 @@ from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.extension_flows import ExtensionFlows
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
-from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap
+from yate.keymaps.vsc import VscKeymap
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.lsp_sync import LspSync
@@ -447,6 +447,7 @@ class Editor:
         self.refresh_ui()
 
     async def on_unmount(self) -> None:
+        """Tear the extension hooks, terminal and LSP services down in order."""
         # Each teardown is isolated: a failing terminal/LSP shutdown must not
         # leave the other background service (and its threads) untouched.
         # Extension hooks run first (sync, while editor state is still

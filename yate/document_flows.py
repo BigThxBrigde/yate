@@ -30,8 +30,8 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.panes import PaneManager
 from yate.logs import tracing
-from yate.session import EditorSession, Leaf
 from yate.services.workspace import Workspace
+from yate.session import EditorSession, Leaf
 
 log = tracing.get_logger(__name__)
 

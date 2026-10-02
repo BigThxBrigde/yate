@@ -30,8 +30,8 @@ from yate.editor_core.buffer import (
 )
 from yate.editor_core.search import Match
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
-from yate.keymaps.vsc import VscKeymap
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.keymaps.vsc import VscKeymap
 from yate.session import EditorSession
 
 
@@ -591,39 +591,50 @@ class _FakeApp:
 
     @property
     def doc(self) -> Document:
+        """The session's active document."""
         return self.session.doc
 
     @doc.setter
     def doc(self, doc: Document) -> None:
+        """Swap the active document inside the session."""
         self.session.docs[self.session.index] = doc
 
     @property
     def buffer(self) -> TextBuffer:
+        """The active document's text buffer."""
         return self.session.buffer
 
     def execute_action(self, name: str) -> bool:
+        """Dispatch *name* through the session with this stand-in's UI."""
         return self.actions.execute(name, ActionContext(self.session, self.ui))
 
     def insert_char(self, ch: str) -> None:
+        """Insert one character at the cursor."""
         self.buffer.insert_text(ch)
 
     def message(self, text: str) -> None:
+        """Record a status message for assertions."""
         self.messages.append(text)
 
     # vim-keymap-only hooks (not used by normal mode tests)
     def command_prompt(self) -> None:
+        """Record the ':' ex-prompt invocation."""
         self.messages.append("command_prompt")
 
     def find_prompt(self, forward: bool) -> None:
+        """Record a find-prompt invocation and its direction."""
         self.messages.append(("find", forward))
 
     def goto_prompt(self) -> None:
+        """Record the goto-prompt invocation."""
         self.messages.append("goto_prompt")
 
     def toggle_keymap(self) -> None:
+        """Record the keymap toggle invocation."""
         self.messages.append("toggle_keymap")
 
     def page(self, direction: int, half: bool = False) -> None:
+        """Page down/up by direction; the half-page flag is not dispatched."""
         # ``half`` mirrors Editor.page's signature (actions call it with the
         # ``half=`` keyword); the stand-in only dispatches full-page actions.
         self.execute_action("page_down" if direction > 0 else "page_up")

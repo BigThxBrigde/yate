@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, override, Protocol
-
-from collections.abc import Callable
 
 from rich.segment import Segment
 from rich.style import Style
@@ -34,15 +33,15 @@ from .scrollbars import apply_slim_scrollbars
 log = tracing.get_logger(__name__)
 
 # per-cell overlay ids (stacked on top of syntax foreground colors)
-S_NORMAL = 0
-S_MATCH = 1
-S_SELECTION = 2
-S_MATCH_ACTIVE = 3
-S_CURSOR = 4
+S_NORMAL: int = 0
+S_MATCH: int = 1
+S_SELECTION: int = 2
+S_MATCH_ACTIVE: int = 3
+S_CURSOR: int = 4
 
 # Welcome-page banner: "YATE" in the ANSI Shadow figlet style
 # (generated with https://patorjk.com/software/taag/, f=ANSI Shadow).
-_WELCOME_BANNER = [
+_WELCOME_BANNER: list[str] = [
     "██╗   ██╗ █████╗ ████████╗███████╗",
     "╚██╗ ██╔╝██╔══██╗╚══██╔══╝██╔════╝",
     " ╚████╔╝ ███████║   ██║   █████╗",
@@ -105,13 +104,18 @@ class PaneRegistry(Protocol):
     """
 
     @property
-    def active_view(self) -> object | None: ...
+    def active_view(self) -> object | None:
+        """The active pane's mounted view, or ``None`` before it is built."""
 
-    def leaf_by_id(self, leaf_id: int) -> Leaf: ...
+    def leaf_by_id(self, leaf_id: int) -> Leaf:
+        """Return the pane-tree leaf with *leaf_id*; it must still exist."""
+        ...
 
-    def leaf_for(self, leaf_id: int) -> Leaf | None: ...
+    def leaf_for(self, leaf_id: int) -> Leaf | None:
+        """Return the leaf with *leaf_id*, or ``None`` when it left the tree."""
 
-    def notify_focus(self, leaf_id: int) -> None: ...
+    def notify_focus(self, leaf_id: int) -> None:
+        """EditorView focus hook: switch the active pane to *leaf_id*."""
 
 
 class EditorView(ScrollView):
@@ -311,6 +315,7 @@ class EditorView(ScrollView):
         event.prevent_default()
 
     def reveal_cursor(self) -> None:
+        """Scroll the view so the cursor stays inside the visible area."""
         buf = self.buffer
         row, col = self._cursor_anchor()[0]
         if not self.is_active_view:
@@ -337,6 +342,7 @@ class EditorView(ScrollView):
         self.refresh()
 
     def page_delta(self, half: bool = False) -> int:
+        """Rows per full page (or half page when *half* is set)."""
         return max(1, ((self.size.height or 20) // 2) if half else (self.size.height or 20))
 
     def gutter_width(self) -> int:
@@ -603,6 +609,7 @@ class EditorView(ScrollView):
 
     @override
     def render_line(self, y: int) -> Strip:
+        """Render one visible row (welcome page, gutter, syntax, selection, cursor)."""
         t = theme.active()
         view_w = self.size.width or 80
         # Textual may schedule one final compositor render for an EditorView

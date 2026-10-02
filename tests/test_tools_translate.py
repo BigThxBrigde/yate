@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-
 from tools.translate import cli, runner
 
 

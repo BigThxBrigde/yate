@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 from rich.console import Console
-
 from tools.smoke_test.harness import (
     Check,
     RunOptions,
@@ -78,7 +77,7 @@ def test_select_scenarios_unknown_tag_raises_system_exit() -> None:
 #: Trimmed from a real ``save_screenshot`` export of this checkout's
 #: Textual 8.2.8 (Rich terminal SVG): class is the first attribute, y is a
 #: decimal, and entities like ``&#160;`` stay undecoded in the row text.
-_CURRENT_FORMAT_SVG = (
+_CURRENT_FORMAT_SVG: str = (
     '<svg class="rich-terminal" viewBox="0 0 1238 782.0" '
     'xmlns="http://www.w3.org/2000/svg">\n'
     "    <!-- Generated with Rich https://www.textualize.io -->\n"
@@ -91,14 +90,14 @@ _CURRENT_FORMAT_SVG = (
 
 #: The same shape with single-quoted attributes (a plausible drift variant):
 #: every ``<text`` element becomes unreadable for the patterns.
-_DRIFTED_FORMAT_SVG = (
+_DRIFTED_FORMAT_SVG: str = (
     "<svg>\n"
     "    <text class='terminal-1-r6' x='12.2' y='68.8'>orphan</text>\n"
     "</svg>\n"
 )
 
 #: Half readable, half drifted: the partial-coverage guard must also fire.
-_PARTIAL_DRIFT_SVG = (
+_PARTIAL_DRIFT_SVG: str = (
     "<svg>\n"
     '    <text class="terminal-1-r1" x="12.2" y="20">kept</text>\n'
     "    <text class='terminal-1-r6' x='12.2' y='68.8'>orphan</text>\n"

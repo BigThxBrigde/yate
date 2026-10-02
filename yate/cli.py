@@ -12,9 +12,8 @@ from __future__ import annotations
 import argparse
 import platform
 import sys
-from pathlib import Path
-
 from collections.abc import Sequence
+from pathlib import Path
 
 from yate import __description__, __version__
 
@@ -37,6 +36,7 @@ def version_lines() -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the :mod:`argparse` parser for every option, flag and default."""
     parser = argparse.ArgumentParser(
         prog="yate",
         description=f"yate - {__description__}",
@@ -175,6 +175,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Handle the side commands first, then build and run the TUI app.
+
+    Returns the process exit code: ``1`` when a side command reports
+    errors, ``2`` when a cleanup confirmation was declined.
+    """
     # Best-effort native-crash / uncaught-exception log (~/.yate/data/).
     # First line so even startup failures are covered.
     from yate.logs import crash, tracing  # pylint: disable=import-outside-toplevel

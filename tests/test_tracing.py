@@ -69,7 +69,10 @@ def test_get_logger_names_children_without_doubling_prefix() -> None:
 # --- off by default ----------------------------------------------------------
 
 
-def test_off_by_default_writes_nothing(isolated_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_off_by_default_writes_nothing(
+    isolated_home: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     assert tracing.install() is False
     assert tracing.is_enabled() is False
     tracing.get_logger("demo").warning("must not appear anywhere")
@@ -84,7 +87,11 @@ def test_off_by_default_writes_nothing(isolated_home: Path, capsys: pytest.Captu
 
 
 @pytest.mark.parametrize("value", ["1", "true", "YES", "on"])
-def test_env_trace_on_values(value: str, isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_env_trace_on_values(
+    value: str,
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("YATE_TRACE", value)
     assert tracing.install() is True
     # Nothing is written until the first record: an early-exit command
@@ -102,7 +109,11 @@ def test_env_trace_on_values(value: str, isolated_home: Path, monkeypatch: pytes
 
 
 @pytest.mark.parametrize("value", ["0", "false", "No", "OFF"])
-def test_env_trace_off_values(value: str, isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_env_trace_off_values(
+    value: str,
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("YATE_TRACE", value)
     assert tracing.install(yate_trace=False) is False
     assert not tracing.is_enabled()
@@ -234,7 +245,10 @@ def test_install_is_idempotent(isolated_home: Path, monkeypatch: pytest.MonkeyPa
     assert _log_text().count("trace session ===") == 1
 
 
-def test_install_off_detaches_handlers(isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_install_off_detaches_handlers(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("YATE_TRACE", "1")
     tracing.install()
     monkeypatch.setenv("YATE_TRACE", "0")

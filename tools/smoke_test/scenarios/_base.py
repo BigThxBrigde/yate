@@ -14,10 +14,9 @@ scenario bodies to "press keys, read app state, append a :class:`Check`":
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
-from collections.abc import Callable
 
 __all__ = [
     "goto",
@@ -31,7 +30,7 @@ __all__ = [
 
 # F5 is the ex command line entry point in vsc mode (":" is intentionally
 # unbound there and types literally), and it works in vim mode too.
-_COMMAND_KEY = "f5"
+_COMMAND_KEY: str = "f5"
 
 
 async def type_text(pilot: Any, text: str, *, pause: bool = True) -> None:
@@ -105,7 +104,7 @@ def cursor_path(app: Any) -> Any | None:
     return data if data is not None else None
 
 
-async def wait_until(
+async def wait_until(  # noqa: Any - naming Pilot would import textual into this helper
     pilot: Any,
     predicate: Callable[[], bool],
     timeout: float = 5.0,

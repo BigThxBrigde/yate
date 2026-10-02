@@ -15,17 +15,19 @@ from pathlib import Path
 from .model import RawCommit, TagRef, VersionBump
 
 #: Field separator inside one log record.
-_FIELD_SEP = "\x1f"
+_FIELD_SEP: str = "\x1f"
 #: Record separator between two log records.
-_RECORD_SEP = "\x1e"
+_RECORD_SEP: str = "\x1e"
 
-_LOG_FORMAT = (
+_LOG_FORMAT: str = (
     f"%H{_FIELD_SEP}%h{_FIELD_SEP}%ad{_FIELD_SEP}%s{_FIELD_SEP}%b{_RECORD_SEP}"
 )
 
-_BUMP_LINE_RE = re.compile(r'^\+__version__\s*=\s*"([^"]+)"')
-_SHA_LINE_RE = re.compile(r"^[0-9a-f]{40}$")
-_VERSION_LINE_RE = re.compile(r'^__version__\s*=\s*"([^"]+)"', re.MULTILINE)
+_BUMP_LINE_RE: re.Pattern[str] = re.compile(r'^\+__version__\s*=\s*"([^"]+)"')
+_SHA_LINE_RE: re.Pattern[str] = re.compile(r"^[0-9a-f]{40}$")
+_VERSION_LINE_RE: re.Pattern[str] = re.compile(
+    r'^__version__\s*=\s*"([^"]+)"', re.MULTILINE
+)
 
 
 class GitError(RuntimeError):
@@ -156,6 +158,7 @@ def remote_url(repo: Path) -> str:
 
 
 def head_sha(repo: Path) -> str:
+    """The full sha of the current ``HEAD``."""
     return run_git(["rev-parse", "HEAD"], repo=repo).strip()
 
 
@@ -170,6 +173,7 @@ def resolve_commit_sha(repo: Path, prefix: str) -> str:
 
 
 def commit_subject(repo: Path, sha: str) -> str:
+    """The subject line (first line) of *sha*'s commit message."""
     return run_git(["log", "-1", "--pretty=%s", sha], repo=repo).strip()
 
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Directories that are always hidden regardless of user settings.
-IGNORED_NAMES = {
+IGNORED_NAMES: set[str] = {
     ".git",
     ".hg",
     ".svn",
@@ -23,9 +23,9 @@ IGNORED_NAMES = {
 }
 
 #: Files whose contents are read as ignore-pattern sources.
-IGNORE_FILENAMES = (".gitignore", ".yateignore")
+IGNORE_FILENAMES: tuple[str, ...] = (".gitignore", ".yateignore")
 
-TEXT_SUFFIXES = {
+TEXT_SUFFIXES: set[str] = {
     ".txt", ".md", ".rst", ".py", ".pyw", ".js", ".ts", ".jsx", ".tsx",
     ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".xml",
     ".html", ".htm", ".css", ".scss", ".less", ".csv", ".tsv", ".sh",
@@ -46,6 +46,7 @@ class Entry:
 
     @property
     def hidden(self) -> bool:
+        """True for dotfile names (hidden unless ``show_hidden`` is on)."""
         return self.name.startswith(".")
 
 
@@ -76,6 +77,7 @@ class Workspace:
     # ----------------------------------------------------------------- setup
 
     def set_root(self, path: Path) -> None:
+        """Point the workspace at *path* and reload its ignore files."""
         self.root = path.resolve()
         self._load_root_ignores()
 

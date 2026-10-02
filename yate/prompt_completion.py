@@ -17,14 +17,14 @@ from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
 #: Commands whose single argument is a filesystem path.
-_PATH_COMMANDS = frozenset({"e", "edit", "sp", "split", "vs", "vsplit"})
-_SET_OPTIONS = (
+_PATH_COMMANDS: frozenset[str] = frozenset({"e", "edit", "sp", "split", "vs", "vsplit"})
+_SET_OPTIONS: tuple[str, ...] = (
     "filetype", "ft", "keymap", "lang", "language", "shell",
     "terminal_height", "theme", "show_hidden", "readonly",
 )
-_FILETYPE_KEYS = frozenset({"filetype", "ft", "language", "lang"})
-_FILETYPE_COMMANDS = frozenset({"filetype", "ft", "language"})
-_MANUAL_LANGS = ("en", "zh")
+_FILETYPE_KEYS: frozenset[str] = frozenset({"filetype", "ft", "language", "lang"})
+_FILETYPE_COMMANDS: frozenset[str] = frozenset({"filetype", "ft", "language"})
+_MANUAL_LANGS: tuple[str, ...] = ("en", "zh")
 
 
 def prompt_completions(

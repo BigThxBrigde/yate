@@ -7,15 +7,15 @@ from typing import override
 from yate.keymaps.base import KeyBinding, Keymap, parse_key
 
 # help categories (module level: uppercase constants)
-EDIT = "Editing"
-NAV = "Navigation"
-SEL = "Selection"
-HIST = "History"
-FILE = "File"
-SRCH = "Search"
-VIEW = "View"
-TAB = "Tabs"
-HELP = "Help"
+EDIT: str = "Editing"
+NAV: str = "Navigation"
+SEL: str = "Selection"
+HIST: str = "History"
+FILE: str = "File"
+SRCH: str = "Search"
+VIEW: str = "View"
+TAB: str = "Tabs"
+HELP: str = "Help"
 
 
 def _k(spec: str, action: str, description: str, category: str) -> KeyBinding:
@@ -34,6 +34,7 @@ class VscKeymap(Keymap):
 
     @override
     def build_bindings(self) -> list[KeyBinding]:
+        """The modeless binding table mirroring common VS Code shortcuts."""
         return [
             # ---- editing
             _k("<enter>", "newline", "Insert newline (auto-indent)", EDIT),

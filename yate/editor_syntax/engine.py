@@ -79,6 +79,7 @@ def _ts() -> SyntaxBackend | None:
         from yate.editor_syntax import ts_backend
     except ImportError:
         return None
+    # The module object is duck-typed as SyntaxBackend (optional dependency).
     return ts_backend  # type: ignore[no-any-return]
 
 

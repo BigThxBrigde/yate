@@ -32,11 +32,10 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Generator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
-
-from collections.abc import Callable, Generator
 
 import pytest
 
@@ -44,7 +43,7 @@ from yate.editor_term import PtyProcess, PtyProcessError
 from yate.editor_term import pty_proc
 
 #: Seconds a real child gets to produce output / exit before a test fails.
-REAL_PTY_TIMEOUT = 20.0
+REAL_PTY_TIMEOUT: float = 20.0
 
 
 def _child(code: str) -> list[str]:
@@ -80,6 +79,7 @@ def _no_inherited_std_handles() -> Generator[None]:
         return
     import ctypes
 
+    # WinDLL exists only on Windows; the POSIX pyright stubs lack the attribute.
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
     kernel32.GetStdHandle.argtypes = [ctypes.c_uint32]
     kernel32.GetStdHandle.restype = ctypes.c_void_p
@@ -123,29 +123,35 @@ class _StubImpl:
         _StubImpl.instances.append(self)
 
     def spawn(self) -> None:
+        """Fake spawn: raises the scripted error, else flags the child."""
         if self.spawn_error is not None:
             raise self.spawn_error
         self.spawned = True
 
     def read_loop(self) -> None:
+        """Fake read loop: no reader thread behind the stub."""
         pass
 
     def write(self, data: bytes) -> None:
+        """Fake write: raises the scripted error, else records the bytes."""
         if self.write_error is not None:
             raise self.write_error
         self.sent.append(data)
 
     def resize(self, cols: int, rows: int) -> None:
+        """Fake resize: raises the scripted error, else records the size."""
         if self.resize_error is not None:
             raise self.resize_error
         self.resizes.append((cols, rows))
 
     def terminate(self) -> None:
+        """Fake terminate: raises the scripted error, else flags the call."""
         if self.terminate_error is not None:
             raise self.terminate_error
         self.terminated = True
 
     def close(self) -> None:
+        """Fake close: raises the scripted error, else flags the handle."""
         if self.close_error is not None:
             raise self.close_error
         self.closed = True
@@ -393,11 +399,13 @@ class _RefusingLoop:
     """A loop that is open but refuses to schedule (as during shutdown)."""
 
     def is_closed(self) -> bool:
+        """Fake counterpart of :meth:`asyncio.loop.is_closed`: never closed."""
         return False
 
-    def call_soon_threadsafe(
+    def call_soon_threadsafe(  # noqa: Any - asyncio fake loop hook; no stubs
         self, callback: Callable[..., Any], *args: Any
     ) -> None:
+        """Fake counterpart of the loop hook: always refuses to schedule."""
         raise RuntimeError("event loop is closed")
 
 
@@ -437,9 +445,11 @@ def test_a_racy_exit_future_is_tolerated(stub_pty: type[_StubImpl]) -> None:
 
     class _RacyFuture:
         def done(self) -> bool:
+            """Fake counterpart of :meth:`asyncio.Future.done`: never done."""
             return False
 
         def set_result(self, value: int | None) -> None:
+            """Fake counterpart of :meth:`asyncio.Future.set_result`: raises."""
             raise asyncio.InvalidStateError(str(value))
 
     async def _scenario() -> None:
@@ -819,7 +829,7 @@ class _FakeKernel32:
         "create-process-raises",
     ],
 )
-def test_conpty_setup_failures_raise_and_release_handles(
+def test_conpty_setup_failures_raise_and_release_handles(  # noqa: Any - fake results dict
     tmp_path: Path, results: dict[str, Any], expected: type[BaseException]
 ) -> None:
     """A failed ConPTY setup step reports it and releases what it opened.
@@ -864,6 +874,7 @@ def test_conpty_spawn_holds_the_handle_lock() -> None:
             self.max_depth = 0
 
         def acquire(self, blocking: bool = True) -> bool:
+            """Delegate to the real lock, tracking the nesting depth."""
             got = self._lock.acquire(blocking)
             if got:
                 self.depth += 1
@@ -871,6 +882,7 @@ def test_conpty_spawn_holds_the_handle_lock() -> None:
             return got
 
         def release(self) -> None:
+            """Delegate to the real lock and drop the recorded depth."""
             self._lock.release()
             self.depth -= 1
 

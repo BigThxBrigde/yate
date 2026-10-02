@@ -37,7 +37,7 @@ _BUNDLE_FILES: dict[str, str] = {
     "en": "yate/resources/changelog.en.md",
     "zh": "yate/resources/changelog.zh.md",
 }
-_LANGS = ("en", "zh")
+_LANGS: tuple[str, ...] = ("en", "zh")
 
 
 def discover_repo_root() -> Path:
@@ -251,6 +251,8 @@ def zh_commit(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Parse arguments and dispatch to the ``generate`` / ``check`` /
+    ``zh-commit`` handlers."""
     parser = argparse.ArgumentParser(
         prog="python -m tools.changelog",
         description="Maintain the bilingual CHANGELOG.md / CHANGELOG.zh.md.",

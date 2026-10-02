@@ -60,7 +60,7 @@ log = tracing.get_logger(__name__)
 #: US-layout punctuation OEM keys the keymaps actually reference.
 #: Everything else keeps the legacy char path (arrows, F-keys, navigation --
 #: their chord names are not wired into yate's tables).
-_CHORD_VKS = frozenset(
+_CHORD_VKS: frozenset[int] = frozenset(
     [
         *range(0x30, 0x3A),  # VK_0..VK_9
         *range(0x41, 0x5B),  # VK_A..VK_Z

@@ -6,10 +6,9 @@ import asyncio
 import os
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
-
-from collections.abc import Callable
 
 import pytest
 
@@ -284,24 +283,30 @@ class _FakePtyImpl:
         _FakePtyImpl.instances.append(self)
 
     def spawn(self) -> None:
+        """Record that the backend spawned."""
         self.spawned = True
 
     def read_loop(self) -> None:
+        """Emit a banner, wait for termination, then report an exit code."""
         self.owner.emit_output(b"welcome\r\n")
         self.proceed.wait(timeout=2)
         self.owner.process_finished(0 if self.terminated else 7)
 
     def write(self, data: bytes) -> None:
+        """Record the bytes the process would have received."""
         self.sent.append(data)
 
     def resize(self, cols: int, rows: int) -> None:
+        """Record the resize request."""
         self.resizes.append((cols, rows))
 
     def terminate(self) -> None:
+        """Flag termination and release the blocked read loop."""
         self.terminated = True
         self.proceed.set()
 
     def close(self) -> None:
+        """Record that the process was closed."""
         self.closed = True
 
 
@@ -408,6 +413,7 @@ class _FailingProc:
         on_output: Callable[[bytes], None],
         on_exit: Callable[[int | None], None],
     ) -> None:
+        """Always fail: the fake ConPTY backend is dead."""
         raise PtyProcessError("no ConPTY here")
 
 
@@ -422,6 +428,7 @@ class _WorkingProc:
         on_output: Callable[[bytes], None],
         on_exit: Callable[[int | None], None],
     ) -> None:
+        """Start successfully, then stay silent (no output, no exit)."""
         return None
 
 

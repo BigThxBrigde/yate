@@ -25,3 +25,5 @@ Widgets are deliberately **not** re-exported here: importing this package
 build the whole widget stack. Import widgets from their own modules
 (``from yate.editor_view.editor import EditorView``).
 """
+
+from __future__ import annotations

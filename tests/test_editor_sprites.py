@@ -12,16 +12,16 @@ from yate.editor_sprites import characters
 from yate.editor_sprites.render import render_rows, walk_x
 from yate.services.extensions import SpriteExtensionBridge
 
-RED = "#ff0000"
-BLUE = "#0000ff"
+RED: str = "#ff0000"
+BLUE: str = "#0000ff"
 
 #: Snapshot of the import-time roster, taken before any test registers
 #: runtime characters; the cleanup fixture removes everything else.
-_BUILTIN_NAMES = frozenset(characters.character_names())
+_BUILTIN_NAMES: frozenset[str] = frozenset(characters.character_names())
 
 #: A minimal valid extension sprite: 2 frames, uniform 2x2 geometry.
 _FRAMES: tuple[tuple[str, ...], ...] = (("AA", "BB"), ("AA", "BB"))
-_PALETTE = {"A": RED, "B": BLUE}
+_PALETTE: dict[str, str] = {"A": RED, "B": BLUE}
 
 
 @pytest.fixture
@@ -178,6 +178,7 @@ class TestShuffleOrder:
         """
         class _StuckRng:
             def shuffle(self, order: list[str]) -> None:
+                """Never rearrange: every rejection-sampling retry fails."""
                 pass  # never rearranges: every retry is rejected
 
         stuck = cast(random.Random, _StuckRng())

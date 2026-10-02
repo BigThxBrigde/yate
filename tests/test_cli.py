@@ -23,7 +23,7 @@ import pytest
 import yate
 from yate.cli import build_parser, main, version_lines
 
-_CUSTOM_THEME_SRC = """\
+_CUSTOM_THEME_SRC: str = """\
 from dataclasses import replace
 
 from yate.editor_view.theme import THEMES, register_theme
@@ -42,10 +42,12 @@ class _FakeFlows:
         self.servers_registered = False
 
     def load_extensions(self) -> list[str]:
+        """Record the startup load and report no extension output."""
         self.extensions_loaded = True
         return []
 
     def register_configured_servers(self) -> None:
+        """Record the LSP server registration."""
         self.servers_registered = True
 
 
@@ -68,6 +70,7 @@ class _FakeApp:
         self.editor = _FakeEditor()
 
     def run(self) -> None:
+        """Do nothing; the TUI is never launched."""
         return None
 
 
@@ -147,9 +150,11 @@ def test_changelog_flag_defaults_to_en() -> None:
 def _run_changelog(
     argv: list[str], capsys: pytest.CaptureFixture[str]
 ) -> tuple[int, str]:
-    with patch("yate.app.YateApp") as fake_app, \
-            patch("yate.config.load_config") as load_config, \
-            patch("yate.logs.crash.install"):
+    with (
+        patch("yate.app.YateApp") as fake_app,
+        patch("yate.config.load_config") as load_config,
+        patch("yate.logs.crash.install"),
+    ):
         rc = main(argv)
     out = capsys.readouterr().out
     fake_app.assert_not_called()
@@ -190,9 +195,11 @@ def test_changelog_missing_resource_degrades_without_raising(
 def test_version_prints_basic_info_and_exits_zero(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    with patch("yate.app.YateApp") as fake_app, \
-            patch("yate.config.load_config") as load_config, \
-            patch("yate.logs.crash.install"):
+    with (
+        patch("yate.app.YateApp") as fake_app,
+        patch("yate.config.load_config") as load_config,
+        patch("yate.logs.crash.install"),
+    ):
         rc = main(["--version"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -237,9 +244,11 @@ def test_diag_prints_report_without_running_tui(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     sentinel = "DIAG-REPORT-SENTINEL"
-    with patch("yate.app.YateApp", _FakeApp), \
-            patch("yate.diagnostics.format_report", return_value=sentinel) as fmt, \
-            patch("yate.logs.crash.install"):
+    with (
+        patch("yate.app.YateApp", _FakeApp),
+        patch("yate.diagnostics.format_report", return_value=sentinel) as fmt,
+        patch("yate.logs.crash.install"),
+    ):
         rc = main(["-u", "NONE", "--diag"])
     assert rc == 0
     assert sentinel in capsys.readouterr().out
@@ -279,14 +288,16 @@ def _custom_theme_cleanup() -> Any:
 # pytest resolves fixtures by parameter name (see the two tests below), so
 # nothing ever refers to the definition itself. Keep one explicit reference
 # so static analysis does not report it as dead code.
-_THEME_FIXTURES = (_custom_theme_cleanup,)
+_THEME_FIXTURES: tuple[object, ...] = (_custom_theme_cleanup,)
 
 
 def _run_main(
     argv: list[str], capsys: pytest.CaptureFixture[str]
 ) -> dict[str, object]:
-    with patch("yate.app.YateApp", _FakeApp), \
-            patch("yate.logs.crash.install") as install_crash:
+    with (
+        patch("yate.app.YateApp", _FakeApp),
+        patch("yate.logs.crash.install") as install_crash,
+    ):
         rc = main(argv)
     capsys.readouterr()  # drain main()'s stdout
     assert rc == 0
@@ -345,8 +356,7 @@ def test_unknown_theme_override_is_recorded_as_config_error() -> None:
     from yate.app import YateApp
 
     app = YateApp(theme_name="definitely-not-a-theme")
-    assert any("unknown theme" in err for err in app.config.errors), \
-        app.config.errors
+    assert any("unknown theme" in err for err in app.config.errors), app.config.errors
 
 
 def test_theme_name_defaults_to_none_when_flag_absent(
@@ -372,11 +382,13 @@ def _run_setup(
         setup = MagicMock()
     if cleanup is None:
         cleanup = MagicMock()
-    with patch("yate.app.YateApp") as fake_app, \
-            patch("yate.config.load_config") as load_config, \
-            patch("yate.logs.crash.install"), \
-            patch.object(user_setup, "setup_defaults", setup) as s, \
-            patch.object(user_setup, "cleanup_defaults", cleanup) as c:
+    with (
+        patch("yate.app.YateApp") as fake_app,
+        patch("yate.config.load_config") as load_config,
+        patch("yate.logs.crash.install"),
+        patch.object(user_setup, "setup_defaults", setup) as s,
+        patch.object(user_setup, "cleanup_defaults", cleanup) as c,
+    ):
         rc = main(argv)
     out = capsys.readouterr().out
     fake_app.assert_not_called()

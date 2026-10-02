@@ -25,13 +25,13 @@ from yate.editor import Editor
 
 # Terminal environment variables worth surfacing.  Values are shown for the
 # descriptive ones; opaque session ids are reported as ``<set>`` / ``<unset>``.
-_TERMINAL_ENV = (
+_TERMINAL_ENV: tuple[str, ...] = (
     "TERM",
     "COLORTERM",
     "TERM_PROGRAM",
     "TERM_PROGRAM_VERSION",
 )
-_OPAQUE_TERMINAL_ENV = ("WT_SESSION",)
+_OPAQUE_TERMINAL_ENV: tuple[str, ...] = ("WT_SESSION",)
 
 
 # ------------------------------------------------------------------- color
@@ -39,21 +39,21 @@ _OPAQUE_TERMINAL_ENV = ("WT_SESSION",)
 # ANSI SGR codes; the report stays plain text whenever stdout is not a
 # terminal (``format_report(color=False)``), so redirection / issue pasting
 # never carries escape sequences.
-_ANSI_RESET = "\x1b[0m"
-_ANSI_BOLD = "\x1b[1m"
-_ANSI_DIM = "\x1b[2m"
-_ANSI_CYAN = "\x1b[36m"
-_ANSI_BOLD_CYAN = "\x1b[1;36m"
-_ANSI_GREEN = "\x1b[32m"
-_ANSI_RED = "\x1b[31m"
+_ANSI_RESET: str = "\x1b[0m"
+_ANSI_BOLD: str = "\x1b[1m"
+_ANSI_DIM: str = "\x1b[2m"
+_ANSI_CYAN: str = "\x1b[36m"
+_ANSI_BOLD_CYAN: str = "\x1b[1;36m"
+_ANSI_GREEN: str = "\x1b[32m"
+_ANSI_RED: str = "\x1b[31m"
 
 #: ``  key: value`` / ``    key: value`` -- the unified key-value shape every
 #: section uses (keys never start with a space or hyphen, so bullets and
 #: list items are excluded).
-_KV_LINE_RE = re.compile(r"^( +)([^ -].*?): (.+)$")
+_KV_LINE_RE: re.Pattern[str] = re.compile(r"^( +)([^ -].*?): (.+)$")
 #: ``  label:`` -- a sub-header that introduces an indented list below it.
-_LABEL_LINE_RE = re.compile(r"^( +)(\S.*):$")
-_SECTION_TITLE_RE = re.compile(r"^\[[a-z]+\]$")
+_LABEL_LINE_RE: re.Pattern[str] = re.compile(r"^( +)(\S.*):$")
+_SECTION_TITLE_RE: re.Pattern[str] = re.compile(r"^\[[a-z]+\]$")
 
 
 # ------------------------------------------------------------------ report

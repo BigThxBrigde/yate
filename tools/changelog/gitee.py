@@ -13,19 +13,22 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-_HTTPS_RE = re.compile(
+_HTTPS_RE: re.Pattern[str] = re.compile(
     r"^https?://(?P<host>[^/]+)/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
 )
-_SSH_RE = re.compile(
+_SSH_RE: re.Pattern[str] = re.compile(
     r"^ssh://git@(?P<host>[^/]+)/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$"
 )
-_SCP_RE = re.compile(r"^git@(?P<host>[^:]+):(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$")
+_SCP_RE: re.Pattern[str] = re.compile(
+    r"^git@(?P<host>[^:]+):"
+    r"(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$"
+)
 
-_ONLINE_TIMEOUT_S = 5.0
+_ONLINE_TIMEOUT_S: float = 5.0
 
 #: Hosts with a public read-only commit API that ``check_commit_pushed``
 #: understands; everything else must be reported as "cannot verify".
-_GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
+_GITHUB_HOSTS: frozenset[str] = frozenset({"github.com", "www.github.com"})
 
 
 @dataclass(frozen=True)
@@ -38,6 +41,7 @@ class RemoteInfo:
 
     @property
     def web_base(self) -> str:
+        """The web UI base URL of the remote repository."""
         return f"https://{self.host}/{self.owner}/{self.repo}"
 
 
@@ -56,10 +60,12 @@ def parse_remote(url: str) -> RemoteInfo | None:
 
 
 def commit_url(remote: RemoteInfo, sha: str) -> str:
+    """The web URL of commit *sha* on the remote."""
     return f"{remote.web_base}/commit/{sha}"
 
 
 def compare_url(remote: RemoteInfo, range_from: str, range_to: str) -> str:
+    """The web URL diffing ``range_from...range_to`` on the remote."""
     return f"{remote.web_base}/compare/{range_from}...{range_to}"
 
 

@@ -7,17 +7,17 @@ import re
 from .model import Category, Commit, RawCommit
 
 #: ``type(scope)!:: subject`` — bang marks a breaking change.
-_CONVENTIONAL_RE = re.compile(
+_CONVENTIONAL_RE: re.Pattern[str] = re.compile(
     r"^(?P<type>[A-Za-z]+)(?:\((?P<scope>[^)]*)\))?(?P<bang>!)?: (?P<subject>.+)$"
 )
 #: Footer line form: ``BREAKING CHANGE: ...`` (also ``BREAKING-CHANGE:``).
-_BREAKING_FOOTER_RE = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
+_BREAKING_FOOTER_RE: re.Pattern[str] = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
 #: The release tool's own changelog bookkeeping commit
 #: (``tools.release`` writes ``docs(changelog): release vX.Y.Z bilingual
 #: changelog``).  Like the release-bump commit it is tool-generated and can
 #: never be a stable entry: the tag points at this very commit, so the
 #: changelog it commits cannot contain its own line.
-_RELEASE_DOC_RE = re.compile(
+_RELEASE_DOC_RE: re.Pattern[str] = re.compile(
     r"^release v\d+\.\d+\.\d+ bilingual changelog$"
 )
 

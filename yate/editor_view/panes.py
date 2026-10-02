@@ -96,22 +96,27 @@ class PaneManager:
     # ------------------------------------------------------------- lookups
 
     def attach(self, host: PaneHost) -> None:
+        """Register the Textual host that reconciles the widget tree."""
         self.host = host
         log.debug("pane host attached")
 
     @property
     def leaf_count(self) -> int:
+        """Number of leaves (editor windows) in the pane tree."""
         return len(leaves(self.root))
 
     @property
     def active_view(self) -> EditorView | None:
+        """The active pane's mounted view, or ``None`` before it is built."""
         return self.views.get(self.active.id)
 
     def all_views(self) -> list[EditorView]:
+        """Every mounted view, in pane-tree order."""
         return [view for leaf in leaves(self.root)
                 if (view := self.views.get(leaf.id)) is not None]
 
     def views_for(self, doc: Document) -> list[EditorView]:
+        """All mounted views bound to *doc*."""
         return [view for leaf in leaves(self.root)
                 if leaf.doc is doc
                 and (view := self.views.get(leaf.id)) is not None]
@@ -125,6 +130,7 @@ class PaneManager:
         return find_leaf(self.root, leaf_id)
 
     def leaf_by_id(self, leaf_id: int) -> Leaf:
+        """Return the pane-tree leaf with *leaf_id*, asserting it is live."""
         leaf = find_leaf(self.root, leaf_id)
         # the id always comes from a live EditorView built from this tree
         assert leaf is not None, f"pane leaf {leaf_id} not found"
@@ -489,12 +495,14 @@ class PaneHost(Widget):
         self.call_after_refresh(self.restore_scroll, view, state, attempts + 1)
 
     def on_mount(self) -> None:
+        """Re-apply fractional sizes now that the parent is mounted."""
         # compose() built the tree before mount; fractional sizes only
         # resolve correctly against a mounted parent, so re-apply them.
         self.apply_sizes()
 
     @override
     def compose(self):
+        """Build the widget tree mirroring the pane model root."""
         yield self._build(self.manager.root)
 
     def _build(self, node: Node) -> Widget:

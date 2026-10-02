@@ -64,7 +64,7 @@ def _blocked_ts_version() -> str | None:
 #: ``None`` when the installed tree-sitter is fine; otherwise the blocked
 #: version string, under which every grammar degrades to the regex backend.
 #: Computed once at import.
-_BLOCKED_TS = _blocked_ts_version()
+_BLOCKED_TS: str | None = _blocked_ts_version()
 
 
 def tree_sitter_blocked() -> bool:
@@ -82,7 +82,7 @@ BUILTIN_PACKS: dict[str, str] = {
     "shell": "tree_sitter_bash",
 }
 
-QUERIES_DIR = Path(__file__).parent / "queries"
+QUERIES_DIR: Path = Path(__file__).parent / "queries"
 
 # tree-sitter capture name -> SYNTAX_KINDS key.  Captures not listed here
 # (variables, punctuation, ...) intentionally inherit the default
@@ -171,7 +171,7 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
         language = ts.Language(module.language())
         query_src = query_file.read_text(encoding="utf-8")
         query = ts.Query(language, query_src)
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional native code: degrade, never crash
         # optional native code / third-party grammar: any failure must
         # degrade to the regex backend, never break the editor
         _warn_degraded_once(name, "tree-sitter load failed for %r (falls back to regex)")
@@ -184,7 +184,7 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
     return loaded
 
 
-def load_language(
+def load_language(  # noqa: Any - tree_sitter.Language is an untyped C binding
     name: str,
     language: Any,
     query_src: str,

@@ -340,8 +340,7 @@ def test_required_fields(tmp_path: Path) -> None:
     for body, field_name in cases.items():
         config = _load(f"language_servers = [{body}]\n", tmp_path)
         assert config.language_servers == [], body
-        assert any(field_name in e for e in config.errors), \
-            (body, config.errors)
+        assert any(field_name in e for e in config.errors), (body, config.errors)
 
 
 def test_bad_nested_field_types(tmp_path: Path) -> None:
@@ -441,8 +440,7 @@ def test_non_mapping_map_fields_rejected(tmp_path: Path) -> None:
             tmp_path,
         )
         assert config.language_servers == [], field_body
-        assert any("mapping" in e for e in config.errors), \
-            (field_body, config.errors)
+        assert any("mapping" in e for e in config.errors), (field_body, config.errors)
 
 
 def test_non_string_dict_key_rejected(tmp_path: Path) -> None:
@@ -463,8 +461,7 @@ def test_dot_only_filetypes_rejected(tmp_path: Path) -> None:
             tmp_path,
         )
         assert config.language_servers == [], value
-        assert any("name an extension" in e for e in config.errors), \
-            (value, config.errors)
+        assert any("name an extension" in e for e in config.errors), (value, config.errors)
 
 
 def test_name_and_command_are_stripped(tmp_path: Path) -> None:
@@ -539,8 +536,9 @@ def test_default_rc_paths_dedupes(
 
 
 def test_user_config_path_layout(isolated_home: Path) -> None:
-    assert cfg.user_config_path() == \
+    assert cfg.user_config_path() == (
         isolated_home / ".yate" / cfg.RC_FILENAME
+    )
 
 
 def test_default_rc_paths_without_any_rc(
@@ -888,8 +886,7 @@ def test_screen_saver_bad_value_types_reported(tmp_path: Path) -> None:
     for body, key in cases.items():
         config = _load(f"screen_saver = {{{body}}}\n", tmp_path)
         assert config.errors, body
-        assert any(f"screen_saver {key}" in e for e in config.errors), \
-            (body, config.errors)
+        assert any(f"screen_saver {key}" in e for e in config.errors), (body, config.errors)
         # the failing key keeps its default
         assert config.screen_saver == cfg.ScreenSaverConfig(), body
 
@@ -966,8 +963,7 @@ def test_screen_saver_dist_bounds_bad_values_reported(tmp_path: Path) -> None:
     for body in cases:
         config = _load(f"screen_saver = {{{body}}}\n", tmp_path)
         assert config.errors, body
-        assert any("must be a float in (0, 1)" in e for e in config.errors), \
-            (body, config.errors)
+        assert any("must be a float in (0, 1)" in e for e in config.errors), (body, config.errors)
         assert config.screen_saver.dist_bounds is None, body
 
 

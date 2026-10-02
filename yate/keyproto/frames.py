@@ -34,14 +34,14 @@ from yate.keyproto.chords import (
 )
 
 #: Complete win32-input-mode frame: ESC [ <digits/semicolons> _ .
-_FRAME_RE = re.compile(r"\x1b\[([0-9;]+)_")
+_FRAME_RE: re.Pattern[str] = re.compile(r"\x1b\[([0-9;]+)_")
 
 #: Trailing text that might still grow into a frame (ESC [ followed only by
 #: digits/semicolons).  Held back across :meth:`Win32FrameStream.feed` calls
 #: so a frame split between two read batches still decodes; anything else
 #: (e.g. a legacy ``ESC [ A`` arrow sequence, whose char after ``[`` is not a
 #: digit) is returned to the caller immediately.
-_HOLD_RE = re.compile(r"\x1b\[[0-9;]*\Z")
+_HOLD_RE: re.Pattern[str] = re.compile(r"\x1b\[[0-9;]*\Z")
 
 #: Virtual-key codes that arrive with a zero character and must be named
 #: directly (the legacy parser has no bytes for them).  Covers navigation,

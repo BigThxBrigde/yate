@@ -12,3 +12,5 @@ Individual bundled extensions can be turned off with the yaterc
 ``disabled_extensions`` option. User/project extensions still live in
 ``~/.yate/extensions/`` and ``./extensions/``.
 """
+
+from __future__ import annotations

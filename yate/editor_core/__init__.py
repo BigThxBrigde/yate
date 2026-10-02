@@ -7,6 +7,8 @@ framework, so the core can be used (and tested) headlessly and reused by
 extensions.
 """
 
+from __future__ import annotations
+
 from yate.editor_core.buffer import (
     BufferReadOnlyError,
     Pos,

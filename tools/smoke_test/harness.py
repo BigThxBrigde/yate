@@ -23,12 +23,11 @@ import random
 import re
 import time
 from collections import Counter
+from collections.abc import Awaitable, Callable, Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
-
-from collections.abc import Awaitable, Callable, Generator, Sequence
 
 os.environ.setdefault("YATE_PYTHON_LSP", "off")
 
@@ -53,6 +52,7 @@ def _speed_up_pilot() -> None:
     use :func:`wait_until` (an explicit ``asyncio.sleep``), not this.
     """
     try:
+        # Private on purpose upstream: the constant has no public accessor.
         from textual import _wait  # pyright: ignore[reportPrivateUsage]
     except ImportError:  # pragma: no cover - every Textual ships this module
         return
@@ -100,7 +100,7 @@ TAGS: tuple[str, ...] = (
 
 # --------------------------------------------------------- fuzz seed
 
-_DEFAULT_SEED = 1337
+_DEFAULT_SEED: int = 1337
 _seed = _DEFAULT_SEED
 
 
@@ -111,6 +111,7 @@ def set_seed(value: int) -> None:
 
 
 def get_seed() -> int:
+    """The seed set by :func:`set_seed` (default: 1337)."""
     return _seed
 
 
@@ -123,15 +124,15 @@ def rng_for(name: str) -> random.Random:
 
 #: Textual version whose ``save_screenshot`` output the patterns below were
 #: adapted to (measured against the .venv of this checkout).
-_ADAPTED_TEXTUAL_VERSION = "8.2.8"
+_ADAPTED_TEXTUAL_VERSION: str = "8.2.8"
 
 # Textual 8.2.8 (via Rich's terminal SVG export) emits one
 # ``<text class="..." ... y="N.N" ...>content</text>`` element per text run:
 # class is always the first attribute and y is always a decimal number.
-_TEXT_RE = re.compile(
+_TEXT_RE: re.Pattern[str] = re.compile(
     r'<text class="[^"]*"[^>]*?\sy="(\d+(?:\.\d+)?)"[^>]*>(.*?)</text>', re.S
 )
-_INNER_RE = re.compile(r">([^<]+)<")
+_INNER_RE: re.Pattern[str] = re.compile(r">([^<]+)<")
 
 
 class SvgDriftError(RuntimeError):
@@ -192,11 +193,14 @@ class Check:
 
     @property
     def ok(self) -> bool:
+        """Whether expected and actual match."""
         return self.expected == self.actual
 
 
 @dataclass
 class ScenarioResult:
+    """Outcome of one scenario run: checks, SVG rows, duration, error."""
+
     name: str
     checks: list[Check] = field(default_factory=lambda: [])
     svg_rows: dict[int, str] = field(default_factory=lambda: {})
@@ -207,19 +211,24 @@ class ScenarioResult:
 
     @property
     def ok_count(self) -> int:
+        """Number of passing checks."""
         return sum(1 for c in self.checks if c.ok)
 
     @property
     def fail_count(self) -> int:
+        """Number of failing checks."""
         return len(self.checks) - self.ok_count
 
     @property
     def failed(self) -> list[Check]:
+        """The failing checks, in insertion order."""
         return [c for c in self.checks if not c.ok]
 
 
 @dataclass
 class Scenario:
+    """One named smoke scenario with an async run function and tags."""
+
     name: str
     run: Callable[[Path], Awaitable[ScenarioResult]]
     tags: tuple[str, ...] = ()
@@ -228,6 +237,7 @@ class Scenario:
 
     @property
     def primary_tag(self) -> str:
+        """The first tag, or ``"misc"`` when the scenario has none."""
         return self.tags[0] if self.tags else "misc"
 
 
@@ -249,6 +259,7 @@ class Coverage:
         self.action_universe.update(editor.actions.names())
 
     def note_command(self, text: str) -> None:
+        """Count a ``:`` command (shell ``!`` lines and line jumps excluded)."""
         text = text.strip()
         if not text or text.startswith("!"):
             return
@@ -258,6 +269,7 @@ class Coverage:
         self.commands[text.split()[0]] += 1
 
     def note_action(self, name: str) -> None:
+        """Count a named action invocation."""
         if name:
             self.actions[name] += 1
 
@@ -386,11 +398,13 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
 # -------------------------------------------------------------------- runner
 
 #: Default per-scenario wall clock budget in seconds (``--timeout`` overrides).
-DEFAULT_SCENARIO_TIMEOUT_S = 60.0
+DEFAULT_SCENARIO_TIMEOUT_S: float = 60.0
 
 
 @dataclass
 class RunOptions:
+    """Knobs for one harness run: SVG capture, invariants, timeout."""
+
     svg: bool = False
     invariants: bool = True
     #: Wall clock budget per scenario in seconds: a scenario exceeding it is

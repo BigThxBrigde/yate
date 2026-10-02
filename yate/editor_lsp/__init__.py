@@ -13,6 +13,8 @@ Language servers are registered by extensions through
 ``api.lsp.register_server(...)``; the core editor ships no servers itself.
 """
 
+from __future__ import annotations
+
 from yate.editor_lsp.client import (
     Completion,
     Diagnostic,

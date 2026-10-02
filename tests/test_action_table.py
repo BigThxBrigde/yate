@@ -23,7 +23,7 @@ from yate.session import EditorSession
 #: Hooks on the flow collaborators (``document_flows`` / ``prompt_flows`` /
 #: ``overlays`` / ``shell``) are recorded with their dotted path
 #: (``overlays.show_help``).
-FORWARDED_HOOKS = frozenset(
+FORWARDED_HOOKS: frozenset[str] = frozenset(
     {
         "command_prompt",
         "document_flows.close_tab",
@@ -51,7 +51,7 @@ FORWARDED_HOOKS = frozenset(
 )
 
 #: Editor members the table reaches through (each a flow collaborator).
-_FLOW_NAMESPACES = frozenset(
+_FLOW_NAMESPACES: frozenset[str] = frozenset(
     {"document_flows", "prompt_flows", "overlays", "shell", "lsp_sync"}
 )
 

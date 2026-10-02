@@ -6,7 +6,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from tools.pack import wiki
 
 
@@ -378,7 +377,9 @@ def test_push_continues_on_empty_commit(
 ) -> None:
     def fake_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         if args[:1] == ("commit",):
-            return subprocess.CompletedProcess(args, 1, "", "nothing to commit, working tree clean\n")
+            return subprocess.CompletedProcess(
+                args, 1, "", "nothing to commit, working tree clean\n"
+            )
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(wiki, "run_git", fake_git)
