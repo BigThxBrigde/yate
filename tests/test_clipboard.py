@@ -9,9 +9,10 @@ real system clipboard is never touched.
 
 from __future__ import annotations
 
+from typing import Any, Callable, cast
+
 import pyperclip
 import pytest
-from typing import Any, Callable, cast
 
 from yate.actions import populate
 from yate.config import YateConfig

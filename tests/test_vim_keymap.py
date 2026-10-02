@@ -1514,3 +1514,40 @@ def test_operator_register_prefix_yiw_paths(fake_clip: _FakeClip) -> None:
     assert editor.buffer.get_text() == "beta"
     assert editor.buffer.named_registers["a"] == "alpha "
     assert fake_clip.copies == []
+
+
+def test_visual_quote_with_invalid_follower_is_swallowed(
+    fake_clip: _FakeClip,
+) -> None:
+    """A non a-z follower of " in visual mode drops the pending silently."""
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, "v", '"', "5")
+    assert keymap.pending_register is None
+    assert editor.buffer.get_text() == "alpha\nbeta"
+    assert fake_clip.copies == []
+
+
+def test_delete_dd_into_named_register_stays_internal(
+    fake_clip: _FakeClip,
+) -> None:
+    """"add deletes the line into register a: no unnamed write, no mirror."""
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, '"', "a", "d", "d")
+    assert editor.buffer.get_text() == "beta"
+    assert editor.buffer.named_registers["a"] == "alpha\n"
+    assert fake_clip.copies == []
+
+
+def test_change_gg_into_named_register_stays_internal(
+    fake_clip: _FakeClip,
+) -> None:
+    """"acgg clears the span into register a without touching the clipboard.
+
+    Behaviour-fix anchor: the c branch of the gg resolution writes the
+    deleted span into the register (same as cc) instead of dropping it.
+    """
+    editor, keymap, ctx = _setup("alpha\nbeta")
+    _press(keymap, ctx, '"', "a", "c", "g", "g", "N", "E", "W", ESC)
+    assert editor.buffer.get_text() == "NEW\nbeta"
+    assert editor.buffer.named_registers["a"] == "alpha"
+    assert fake_clip.copies == []
