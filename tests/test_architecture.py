@@ -13,7 +13,9 @@ These tests enforce the boundaries documented in
   (they receive concrete collaborators or callbacks); the ``app_features``
   package deleted in Plan D stays deleted.
 * **R4** the UI-free layers (``keymaps/*``, ``services/*``, ``session.py``,
-  ``registries.py``) never import ``editor_view``.
+  ``registries.py``) never import ``editor_view``.  ``editor_core`` joined
+  with the diff tool (wave-3): the L0 engine package (buffer / document /
+  diff / ...) is scanned by the same UI-free guards.
 * **R5** ``editor.py`` never imports the built-in tables ``actions.py`` /
   ``commands.py`` -- they import the editor, so the reverse is a cycle.
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
@@ -95,7 +97,15 @@ ALLOWED_PROTOCOLS: dict[str, set[str]] = {
 #: inside ``load_config`` (the only L0->L2 edge; theme support is now
 #: injected as callbacks by the L4 caller).  ``keyproto`` joined with the
 #: Windows chord driver: a pure L0 leaf that must never reach editor_view.
-UI_FREE_PACKAGES: tuple[str, ...] = ("keymaps", "services", "keyproto", "editor_sprites")
+#: ``editor_core`` joined with the diff tool (wave-3): the whole L0 engine
+#: package (buffer / document / diff / ...) stays widget-free.
+UI_FREE_PACKAGES: tuple[str, ...] = (
+    "keymaps",
+    "services",
+    "keyproto",
+    "editor_sprites",
+    "editor_core",
+)
 UI_FREE_FILES: tuple[str, ...] = ("session.py", "registries.py", "config.py")
 
 #: L3 collaborator modules that do drive a few widget types by design: they
@@ -141,8 +151,9 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
     "overlays.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",
-        "yate.editor_view.modals",
+        "yate.editor_view.diffview",
         "yate.editor_view.manual",
+        "yate.editor_view.modals",
         "yate.editor_view.palette",
         "yate.editor_view.screensaver",
     },

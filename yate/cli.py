@@ -56,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  yate --changelog zh       print the changelog (en|zh) and exit\n"
             "  yate --install-font       install the bundled Nerd Font and exit\n"
             "  yate --diag               print the environment & config report and exit\n"
+            "  yate --diff old.py new.py compare two files in the diff view\n"
             "  yate --setup-defaults     create ~/.yate with a default yaterc\n"
             "                            and bundled *.example templates, then exit\n"
             "  yate --cleanup-defaults   remove ~/.yate config (data/ kept unless\n"
@@ -171,6 +172,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="print a full environment & configuration diagnostics report "
              "(extensions, LSP, fonts, ...) and exit",
     )
+    diff_group = parser.add_mutually_exclusive_group()
+    diff_group.add_argument(
+        "--2way",
+        dest="two_way",
+        action="store_true",
+        help="with --diff: force two-way compare (default)",
+    )
+    diff_group.add_argument(
+        "--3way",
+        dest="three_way",
+        action="store_true",
+        help="with --diff: three-way compare (base local remote)",
+    )
+    parser.add_argument(
+        "--diff",
+        dest="diff_files",
+        nargs="+",
+        metavar="FILE",
+        help="open the diff view instead of the editor: 2 files = two-way, "
+             "3 files = three-way (base local remote)",
+    )
     return parser
 
 
@@ -192,6 +214,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # --diff validates its own combination rules up front (parser.error exits
+    # with code 2, like every other argparse rejection).
+    if args.diff_files:
+        if args.path:
+            parser.error("--diff cannot be combined with a startup path argument")
+        if len(args.diff_files) not in (2, 3):
+            parser.error("--diff expects 2 or 3 files")
+        if len(args.diff_files) == 2 and args.three_way:
+            parser.error("--3way requires three files")
+        if len(args.diff_files) == 3 and args.two_way:
+            parser.error("--2way requires exactly two files")
 
     # --version prints basic information without loading any configuration
     # or touching the terminal. Handle it first so it stays instant.
@@ -331,6 +365,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             readonly=args.readonly,
             ext_files=args.ext_files,
             ext_dirs=args.ext_dirs,
+            diff_files=[Path(p) for p in args.diff_files]
+            if args.diff_files
+            else None,
         )
         app.editor.extension_flows.load_extensions()
         app.editor.extension_flows.register_configured_servers()
@@ -345,6 +382,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         readonly=args.readonly,
         ext_files=args.ext_files,
         ext_dirs=args.ext_dirs,
+        diff_files=[Path(p) for p in args.diff_files]
+        if args.diff_files
+        else None,
     )
     app.run()
     return 0

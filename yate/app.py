@@ -92,6 +92,7 @@ class YateApp(App[None]):
         readonly: bool = False,
         ext_files: list[str | Path] | None = None,
         ext_dirs: list[str | Path] | None = None,
+        diff_files: list[Path] | None = None,
     ) -> None:
         # self.config must exist before super().__init__(): App.__init__
         # resolves the driver class, which consults config.key_protocol.
@@ -162,6 +163,9 @@ class YateApp(App[None]):
         # import the editor, so the editor must never import them back.
         populate(self.editor.actions, self.editor)
         register_commands(self.editor.commands, self.editor)
+        # CLI --diff request: handed to the overlay flow once mounted.  The
+        # 2way/3way mode is derived from the file count by open_diff itself.
+        self._diff_files = diff_files
 
     @override
     def compose(self) -> ComposeResult:
@@ -198,6 +202,13 @@ class YateApp(App[None]):
         self.screen.styles.background = theme.active().bg
         self.set_interval(1.0, self.poll_idle)
         await self.editor.on_mount()
+        if self._diff_files:
+            # call_after_refresh lets the base screen finish its first layout
+            # pass before the modal diff screen is pushed (same layer of
+            # safety as the poll_idle screen-type check).
+            self.call_after_refresh(
+                self.editor.overlays.open_diff, self._diff_files
+            )
 
     async def on_unmount(self) -> None:
         """Detach the devtools bridge and tear the editor down."""

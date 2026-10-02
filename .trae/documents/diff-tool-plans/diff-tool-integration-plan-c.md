@@ -169,3 +169,36 @@ python -m pyright yate/ tests/ tools/
 - R-7 守卫面扩大误伤：`editor_core` 现状已 UI-free（buffer/document/search/textobjects 均不 import textual/editor_view），落表前先全量跑架构测试确认。
 - R-4/R-5 同主计划风险表；集成用例覆盖关闭后按键回落。
 - 回滚：本计划单提交（`feat(diff): wire diff view into commands, overlays and cli`），revert 即整体退出集成；plan-a/b 产物无破坏（守卫登记回退一行）。
+
+## 执行记录（2026-10-02，plan-executor 实测回填）
+
+### 实际改动（文件:行号级，均已落盘于本 worktree）
+
+| 文件 | 改动 |
+|---|---|
+| `yate/overlays.py` | 导入区 :20/:23 增 `yate.editor_core.document.Document` 与 `yate.editor_view.diffview.MAX_DIFF_LINES, DiffScreen`；`open_diff` :118-158（置于 `open_command_palette` 与 `_palette` 之间，防重入/数量/存在性/文本类型/行数校验顺序照计划） |
+| `yate/commands.py` | "diff" 小节 :297-316：`_diff`（`-3`/`--3way` 剥离、2 文件+旗标拒绝、数量 usage 提示、转交 `open_diff`）+ `reg("diff", ...)` |
+| `yate/cli.py` | epilog 示例行 :59；`--2way`/`--3way` 互斥组 + `--diff` 参数 :175-195；`main()` 校验块 :218-228（`parser.error` ×4）；--diag 分支 :368-370 与正常分支 :385-387 两处 `YateApp` 构造均传 `diff_files=` |
+| `yate/app.py` | `__init__` 签名 `diff_files: list[Path] \| None = None` :95，存 `self._diff_files` :166-168；`on_mount` 在 `await self.editor.on_mount()` 后 `call_after_refresh(self.editor.overlays.open_diff, self._diff_files)` :205-211 |
+| `tests/test_architecture.py` | docstring R4 行补 `editor_core` 纳管说明 :15-18；`UI_FREE_PACKAGES` 注释 + 集合追加 `"editor_core"` :95-108（落表前先全量跑架构测试 + grep 取证 editor_core 包内 0 处 `editor_view`/`textual` 导入）；`UI_FROZEN_FILES["overlays.py"]` 追加 `"yate.editor_view.diffview"` :154 |
+| `tests/test_cli.py` | `--diff` 段 :147-192：7 条用例（按计划表格命名与断言）+ `_expect_cli_error` 辅助 |
+| `tests/test_diff_integration.py` | 新增：宿主 `YateApp(target=tmp_path)` / `YateApp(diff_files=...)` + `run_test(size=(100, 30))`，7 条 pilot 用例照计划表格；文件头同 test_app_textual 设 `YATE_PYTHON_LSP=off` |
+
+### 验收命令实测结果（全部退出码 0）
+
+| 命令 | 结果 |
+|---|---|
+| `.venv\Scripts\python.exe -m pytest tests/test_diff_integration.py tests/test_cli.py -q` | 45 passed（7 + 38），EXIT=0 |
+| `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | 22 passed（用例数不变，守卫面扩大后全绿），EXIT=0 |
+| `python -m pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations，EXIT=0 |
+| `.venv\Scripts\python.exe -m pytest tests/ -q` | **1608 passed, 7 skipped** in 264.86s，EXIT=0 |
+
+（守卫面扩大的前置取证：`UI_FREE_PACKAGES` 纳入 `editor_core` 前，架构测试仅 1 条 R11 失败——即待登记的 `overlays.py → yate.editor_view.diffview`，其余全过；grep 全包取证 `editor_core/` 内 0 处 `editor_view` / `textual` 导入后落表。）
+
+### 偏离记录（均附实测依据，未静默改设计）
+
+1. **工作目录定位**：执行环境启动于主仓库目录（master），任务书所指 feat/diff-tool worktree 实际为 `D:\Programming\yate-diff-tool`；全部改动与验收命令均在该 worktree 内执行（文件内容与分支 HEAD 核对无误）。
+2. **test_cli.py 用例 3-6 的 act 落地为 `main(argv)`**：计划表格写 `parse_args([...])` 于 `pytest.raises(SystemExit)` 内，但按第 3 节规范代码形态，位置冲突/数量/旗标组合校验位于 `main()` 的 `parser.error`——argparse 对 `["f", "--diff", "a", "b"]`、`["--diff", "a"]`、`["--diff", "a", "b", "--3way"]`、`["--diff", "a", "b", "c", "--2way"]` 均正常解析不抛错（实测）。落地为 `main(argv)` + 断言退出码 2（断言目标不变）；用例 7（`--2way --3way`）由 argparse 原生互斥组在 `parse_args` 即抛，保持表格字面。
+3. **test_diff_integration.py 用例 7 的按键序列扩展为 `alt+down → alt+right → tab → ctrl+s`**：表格简写为 `alt+right → ctrl+s`；plan-b 既有实测行为决定——`_current` 初始为 -1 时 `_copy` 直接拒绝（须先 `alt+down` 选中 hunk，见 `tests/test_diffview.py::test_alt_right_copies_hunk_and_diff_recomputes`），且 `ctrl+s` 只保存 focused pane（须先 `tab` 聚焦被修改的目标侧，见 `tests/test_diffview.py::test_ctrl_s_saves_focused_pane_document`）。均为 plan-b 已锁定行为，非新设计；断言（磁盘 f2 == f1）不变。
+4. **超限消息的行数值用 `MAX_DIFF_LINES` 插值**：计划字面 `(>20000 lines)`，落地 `f"...(>{MAX_DIFF_LINES} lines)"`——当前值即 20000，语义一致，且与 plan-b `check_sizes` 的动态消息风格统一。
+
