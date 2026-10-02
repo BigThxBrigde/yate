@@ -122,6 +122,27 @@ def test_alt_down_steps_hunk_and_scrolls_panes(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_alt_up_steps_back_and_clamps_at_first_hunk(tmp_path: Path) -> None:
+    """alt+up steps back through hunks and clamps at the first one."""
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["a\nb\nc\nd\ne", "A\nb\nC\nd\nE"])
+        app = _Host(docs, "2way", _keymaps("vsc"), ["left", "right"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            await pilot.press("alt+down", "alt+down")
+            assert screen._current == 1
+            await pilot.press("alt+up")
+            assert screen._current == 0
+            await pilot.press("alt+up")
+            assert screen._current == 0  # clamped, no wrap-around
+            assert "no previous change" in screen._hint_text()
+
+    asyncio.run(scenario())
+
+
 def test_alt_right_copies_hunk_and_diff_recomputes(tmp_path: Path) -> None:
     """alt+right applies the left side's lines to the right and recomputes."""
 
@@ -156,6 +177,24 @@ def test_alt_left_copy_into_readonly_side_refused(tmp_path: Path) -> None:
             await pilot.press("alt+left")
             assert docs[0].buffer.lines[1] == "two"
             assert "read-only" in screen._hint_text()
+
+    asyncio.run(scenario())
+
+
+def test_alt_right_3way_copies_local_side_into_remote(tmp_path: Path) -> None:
+    """3way alt+right applies the local side's lines onto the remote side."""
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["a\nb\nc", "a\nB\nc", "a\nC\nc"])
+        app = _Host(docs, "3way", _keymaps("vsc"), ["base", "local", "remote"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            await pilot.press("alt+down")  # select the conflict region
+            assert screen._current == 0
+            await pilot.press("alt+right")  # local -> remote
+            assert docs[2].buffer.lines == ["a", "B", "c"]
 
     asyncio.run(scenario())
 
@@ -258,6 +297,27 @@ def test_ctrl_s_saves_focused_pane_document(tmp_path: Path) -> None:
             path = docs[1].path
             assert path is not None
             assert path.read_text(encoding="utf-8") == "one\ntwo"
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_z_undoes_copied_side_and_restores_regions(tmp_path: Path) -> None:
+    """ctrl+z undoes the focused side's copy; the diff reappears."""
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["one\ntwo\nthree", "one\nTWO\nthree"])
+        app = _Host(docs, "2way", _keymaps("vsc"), ["left", "right"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            await pilot.press("alt+down")  # select the only hunk
+            await pilot.press("alt+right")  # copy left -> right
+            assert docs[1].buffer.lines == ["one", "two", "three"]
+            await pilot.press("tab")  # focus the modified (right) side
+            await pilot.press("ctrl+z")
+            assert docs[1].buffer.lines == ["one", "TWO", "three"]
+            assert len(screen._regions) == 1
 
     asyncio.run(scenario())
 

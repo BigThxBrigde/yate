@@ -62,8 +62,11 @@ log = tracing.get_logger(__name__)
 
 #: Maximum lines accepted per file side.  ``diff_lines`` / ``diff3_regions``
 #: run on the UI loop and ``difflib`` degrades badly beyond this size, so
-#: callers (plan-c entry points) must reject larger files up front via
-#: :func:`check_sizes` instead of opening the screen.
+#: callers must reject larger files up front instead of opening the screen:
+#: the overlay entry point (:meth:`~yate.overlays.OverlayFlows.open_diff`)
+#: compares against this constant directly so its message can name the
+#: file, while :func:`check_sizes` is the exported verdict helper for
+#: callers that only need a pass/fail answer.
 MAX_DIFF_LINES: int = 20000
 
 
@@ -72,7 +75,10 @@ def check_sizes(sides: Sequence[Sequence[str]]) -> str | None:
 
     *sides* holds one line sequence per file side (2 or 3 entries).  The
     message names the first offending side (1-based) with its line count;
-    ``None`` means every side fits and the screen may be opened.
+    ``None`` means every side fits and the screen may be opened.  This is
+    the generic, side-numbering helper -- the overlay entry point reports
+    the offending file name instead and checks :data:`MAX_DIFF_LINES`
+    directly.
     """
     for index, lines in enumerate(sides, start=1):
         count = len(lines)

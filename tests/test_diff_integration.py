@@ -116,6 +116,32 @@ def test_command_diff_missing_file_reports_and_stays(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_command_diff_directory_with_text_suffix_reports_and_stays(
+    tmp_path: Path,
+) -> None:
+    """A directory named like a text file is refused; no crash, no screen.
+
+    ``Workspace.is_text_file`` trusts TEXT_SUFFIXES before any content
+    sniffing, so the entry point must check ``is_file()`` first --
+    ``Document.open`` would otherwise raise ``IsADirectoryError`` straight
+    into the crash path (command actions have no try/except).
+    """
+
+    async def scenario() -> None:
+        fake = tmp_path / "fake.txt"
+        fake.mkdir()
+        f2 = _write(tmp_path, "right.txt", "one")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.editor.run_command(f"diff {fake} {f2}")
+            await pilot.pause()
+            assert len(app.screen_stack) == 1
+            assert "no such file" in _message_text(app)
+
+    asyncio.run(scenario())
+
+
 def test_cli_boot_diff_flag_opens_screen_after_mount(tmp_path: Path) -> None:
     """``YateApp(diff_files=...)`` pushes the diff screen after mount."""
 

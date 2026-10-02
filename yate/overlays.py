@@ -119,24 +119,34 @@ class OverlayFlows:
         """Open the two- or three-way diff overlay for *paths*.
 
         Mode is derived from the count (2 -> 2way, 3 -> 3way with the
-        base/local/remote order).  Missing, non-text or oversized files are
-        refused on the message line; the screen never opens half-configured.
+        base/local/remote order).  Missing, non-text, unreadable or
+        oversized files are refused on the message line; the screen never
+        opens half-configured.
         """
         if not self._mounted():
             return
         if isinstance(self._current_screen(), DiffScreen):
+            self._message("diff view is already open", "info")
             return
         if len(paths) not in (2, 3):
             self._message("usage: :diff [--3way] FILE1 FILE2 [FILE3]", "warn")
             return
         for path in paths:
-            if not path.exists():
+            # is_file(), not exists(): a directory wearing a text suffix
+            # would pass the suffix check and crash Document.open with
+            # IsADirectoryError (no try/except around command actions).
+            if not path.is_file():
                 self._message(f"no such file: {path}", "warn")
                 return
             if not Workspace.is_text_file(path):
                 self._message(f"not a text file: {path.name}", "warn")
                 return
-        docs = [Document.open(path) for path in paths]
+        try:
+            docs = [Document.open(path) for path in paths]
+        except OSError as exc:
+            # the file vanished / was locked after the is_file() check
+            self._message(f"cannot open file: {exc}", "warn")
+            return
         for doc in docs:
             if doc.buffer.line_count > MAX_DIFF_LINES:
                 self._message(

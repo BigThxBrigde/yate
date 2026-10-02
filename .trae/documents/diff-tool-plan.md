@@ -185,3 +185,49 @@ python -m pyright yate/ tests/ tools/
 ```
 
 两者零诊断/全绿后，回填各子计划"执行记录"并按 `git-commit-message.md` 提交（建议每波一提交：`feat(diff): ...`）。
+
+## 八、执行记录（闭环收尾回填，2026-10-02）
+
+### 执行概况
+
+- worktree：`feat/diff-tool` 分支（独立 `.venv`，已自证 `import yate` 指向 worktree）。
+- 三波串行全部完成，每波验收命令退出码 0：
+  - wave-1：`test_editor_core_diff.py` 13 用例 + 同包回归 71 passed, 1 skipped + pyright 0 诊断。
+  - wave-2：`test_diffview.py` 11 用例 + pyright 0 诊断 + 架构 22 用例。
+  - wave-3：`test_diff_integration.py`(7) + `test_cli.py`(38) + 架构 22 + 全仓 pyright 0 诊断 + 全量 pytest 退出码 0。
+- wave-2 移交的 L0 语义缺口已由主代理裁定回修：`hunk_replacement` 中段分支补尾 `\n`
+  （`replace_range` 会吞被替换末行后的换行符），L2 删 `_replacement_triple` 包装直调；
+  新增 TextBuffer 回放锁定用例。详见 plan-a「执行记录·裁定回修」。
+- 评审（code-review-expert）：整体 MINOR，无 blocker/major；实测 pyright 0 诊断 /
+  全量 pytest 全绿 / 架构 22 / 覆盖率 90.43%（`--cov-fail-under=75` 过），新模块覆盖
+  diff.py 97%、diffview.py 78%、overlays.py 87%。
+- 评审修复轮：W1（`open_diff` 改 `path.is_file()` + `Document.open` 包 `OSError` →
+  message，防目录/不可读文件崩溃）+ S1（`check_sizes` docstring 与接线对齐）+
+  S4（已开屏改 message 提示）+ W2 补 3 条用例（alt+up 步进与 clamp、3way 复制
+  local→remote、ctrl+z 撤销恢复 regions）+ W1 守卫用例 1 条；复测
+  `test_diffview + test_diff_integration` 22 passed、pyright 0 诊断、架构 22 passed。
+- 收尾全量门禁（主代理亲跑）：`python -m pyright yate/ tests/ tools/` → 0 errors,
+  0 warnings, 0 informations；`.venv\Scripts\python.exe -m pytest tests/ -q --tb=no`
+  → 退出码 0（wave-3 实测 1608 passed, 7 skipped，评审修复轮 +4 ⇒ 1612 passed,
+  7 skipped）。
+
+### 偏离汇总（相对本计划的显式偏离，均附子计划执行记录实测依据）
+
+1. `hunk_replacement` 中段三元组补尾 `\n`（D4/plan-a 契约强化，见上）。
+2. wave-2 偏离 14 条、wave-3 偏离 4 条（`main(argv)`+SystemExit 形态、键序扩展等），
+   逐条见各子计划「执行记录」。
+3. 评审后修复轮为本计划未预设的增量波（范围限定 W1/S1/S4/W2-3 条，不构成设计变更）。
+
+### 遗留待办（非阻塞，登记后续）
+
+- S2：diffview.py 编辑键表每键重建 dict，可提为模块级常量（性能微优化）。
+- S3：vim normal 模式单字母（e/q）fall-through 到 screen 绑定与 vim 肌肉记忆冲突，
+  设计权衡——建议页头 hint 或后续 help 注明。
+- S5：`:diff` 的 `args.split()` 不支持含空格路径，需对齐 `:e` 的引号解析先例或
+  引入 `shlex.split`（涉及命令行解析口径，独立任务处理）。
+- W2 余量：`_copy_3way` 反方向（remote→local）、只读侧拒进编辑、save 的
+  None/`BufferReadOnlyError`/`OSError` 路径、insert/delete 型 hunk 行状态、
+  3way 当前区加亮锚点、vim insert 子模式等未测行（diffview.py 78% → 余下为
+  低风险分支），随下次修改顺手补。
+- 手工目视项：CJK 宽字符列对齐、深浅主题切换重绘（plan-b 验证方案节）留待
+  真终端验证。
