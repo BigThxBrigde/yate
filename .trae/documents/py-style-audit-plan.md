@@ -150,6 +150,54 @@ flowchart LR
   架构 22 用例每波随 pytest 全绿验证；
 - 提交规范按 `../../rules/git-commit-message.md`；每波单独提交、只提交不推送。
 
+## 七、执行记录（完成后回填，2026-10-02）
+
+### 7.1 波次执行结果
+
+| 波次 | 提交 | 文件数 | 增/删 | 内容摘要 |
+|---|---|---|---|---|
+| 方案 | c5476f8 → da6ba8a | 1 | — | 方案落盘与修订 |
+| A 机械微修 | eec9572 | 62 | +134/−85 | 导入归一（future/组序/字母序/断空行）、EOF 空行、行宽折行、`%`→f-string、lambda→def、模块/类 docstring |
+| B yate/tools 注释 | 52b22e3 | 53 | +337/−43 | 函数/方法 docstring 221、`Any` 理由 23、BLE001 理由 11、ignore 理由 10 |
+| C tests 专项 | feaae60 | 31 | +290/−117 | 测试 docstring 125、`\` 续行折括号 ~40、常量注解 54、`Any` 8、ignore 理由 6 |
+| D 常量注解 | 3a4d7da | 54 | +300/−284 | 281 个模块级常量 PEP 526 注解；`emulator.py` 的 RGB 转 PEP 695 `type RGB = tuple[int, int, int]` |
+
+执行中途插播用户指令「合并 master 到当前分支」（merge commit `6e8d20a`，无冲突），
+四波在合并后的基线上继续。
+
+### 7.2 门禁终态
+
+- 探针复查：可修类别全部归零（导入 4 类、future、EOF、行宽、`%`、lambda、
+  doc-missing-module/class/func/test、const-unannotated、any-no-reason、
+  except-broad-no-ble001、续行真违规）；
+- 保留类终态：`print-call` 77（CLI 输出/崩溃报告）、`ignore-comment` 19
+  （13 处 yate/tools + 6 处 tests，均确认/补全理由注释）、`func-naming` 9
+  （win32 注册表与 tree-sitter API mock 镜像被模拟 API）、`type-checking` 2
+  （test_architecture.py docstring 文字误报）、`backslash-eol` 1
+  （test_cli.py `"""\` 三引号字符串起始，反斜杠属字符串语义）；
+- pyright strict：`0 errors, 0 warnings, 0 informations`；
+- pytest：全绿，覆盖率 79.06%（门槛 75%，TOTAL 15970 stmts / 3462 miss；
+  低覆盖集中在 tools/smoke_test scenarios 与 win32 驱动，属既有事实非本次回归）；
+- 冒烟：`python -m yate --version` → `yate 0.2.6 — yet another terminal editor (Textual based)`。
+
+### 7.3 偏离记录
+
+1. **4 处「真静默」except 裁定为显式静默**（manual.py×2、terminal.py、logs.py）：
+   核实均为设计内 best-effort 回退（渲染失败回退空文本、teardown 尽力而为、
+   faulthandler 兜底），不改控制流，按 Zen「errors should never pass silently —
+   unless explicitly silenced」补 `# noqa: BLE001 - <理由>` 注解；
+2. **个别常量注解类型按实测对齐**：`_THEME_FIXTURES: tuple[object, ...]`、
+   `_FUZZ_KEYS: Sequence[str]`、`_BACK` / `_BAR` / `REMOTE` 按实际类型注解，
+   非方案预设的窄类型；
+3. **Wave D 引入 3 处注解超长行回归**（regex_backend.py `_PY_CONSTANTS`、
+   commandline.py `MESSAGE_COLORS`、gitee.py `_SCP_RE` 拆两个隐式拼接 raw
+   string），折行修复归零后随 Wave D 提交；
+4. **子代理漏项与拆包疏漏**：B 波漏 buffer.py:701 `paste` docstring、
+   C 波漏 test_workspace_filter.py:36 `list_names` docstring（子代理漏项），
+   test_lsp.py:29 `PY_CONFIG` 注解与 test_pty_proc.py 的 `Any` 注解
+   （主代理拆包疏漏）——均在波末探针复查中由主代理补齐；
+5. **提交纪律**：每波单独提交、全程未推送。
+
 ## 附录 A — 探针脚本（只读 AST + 行扫描，临时工具）
 
 执行器把下述脚本复制到 Temp 后用 .venv\Scripts\python.exe 运行即可复现各类别的精确 文件:行号 清单。
