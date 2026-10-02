@@ -87,7 +87,74 @@ flowchart LR
 
 ## 七、执行记录（收尾回填）
 
-- [ ] wave-1 plan-a 实测结果
-- [ ] wave-1 plan-b 实测结果
-- [ ] wave-2 门禁数字与冻结冒烟
-- [ ] 偏离记录
+**wave-1（2026-10-02，两子计划并行派发 plan-executor 成员，主代理独立复核）**
+
+- plan-a：`tests/test_diagnostics.py` 26→27 passed（含审核轮 1 追加的 T6）、
+  `pyright yate/diagnostics.py tests/test_diagnostics.py` 0 诊断、
+  `python -m yate --diag` 实测 `[packages]` 节为 core:（pyperclip 1.11.0 /
+  textual 8.2.8）+ ts:（tree-sitter 0.25.2 / tree-sitter-bash 0.25.1 /
+  tree-sitter-python 0.25.0），无 dev/build/工具链行；
+- plan-b：两 spec 追加段与 datas 拼接逐字同构，`compile()` 语法冒烟 exit 0；
+- 提交：`feat(diag)` 8d5ba7a、`fix(pack)` 79d41ac；迭代：`fix(diag)` 8ec8e92
+  （审核轮 1 major）、`fix(pack)` eb8d8af（冻结冒烟迭代 2）。
+
+**wave-2（主代理执行）**
+
+- 全量门禁：`pytest tests/ -q` → 1573 passed / 7 skipped，exit 0；
+  `pyright yate/ tests/ tools/` → 0 errors 0 warnings 0 informations，exit 0；
+  `tests/test_architecture.py` → 22 passed；
+  覆盖率闸门 → 90.97%（≥75），exit 0；
+- 冻结冒烟（`pack\pack.ps1` → `dist\yate\yate.exe --diag`，exit 0，
+  无 `<probe failed>`）：
+
+  ```ini
+  [packages]
+    core:
+      pyperclip         : 1.11.0
+      textual           : 8.2.8
+    ts:
+      tree-sitter       : 0.25.2
+      tree-sitter-bash  : 0.25.1
+      tree-sitter-python: 0.25.0
+  ```
+
+  首轮冒烟暴露迭代 2：exe 内 pyperclip 显示 "not installed"（代码已打入、
+  dist-info 未带；textual 因 contrib hook 侥幸正确）→ plan-b 追加
+  core 依赖 dist-info 循环（eb8d8af），复测通过（上表即复测结果）；
+  其间一次冒烟误读旧产物（重建未完成即执行），已重跑纠正；
+- 终态确认：`tests/test_diagnostics.py + tests/test_architecture.py`
+  49 passed、`pyright yate/ tests/ tools/` 0 诊断（全 exit 0）；
+- 构建副产物：pack.ps1 刷新了 `yate/resources/changelog.*.md`（含本次提交
+  的条目），是否随发布提交属发布决策，按脚本指引保留为未提交改动并在此
+  备案。
+
+**审核（code-review-expert，轮 1）结论与处理**
+
+- major：空 core 组 `KeyError`（`ordered` 无条件含 core，`groups` 可能无该
+  键；评审探针实测复现）→ 已修（渲染前丢弃空组，8ec8e92）并同步 plan-a
+  §3.2 片段、追加 T6 守卫用例；
+- minor（`_group_slices` 首标签行前明细行"静默落入空组"）：核实为**非问题**
+  ——该场景 `slices[""]` 从未播种，实际抛 `KeyError`（响式失败，测试会报
+  错），不采纳建议的 `assert "" not in slices`（死代码）；
+- nit（`_REQ_EXTRA_RE` 复合 marker 取首组）：hatchling 每 extra 单行输出，
+  当前元数据不可达，接受现状；
+- nit（偏离未回填）：已由本节补记。
+
+**偏离记录**
+
+1. plan-a 蓝本 `_kv()`（2 空格缩进明细行）与方案 T3「明细行缩进 4 空格」
+   自相矛盾；实现取 4 空格 f-string，与本文件 paths/yaterc/extensions 节
+   「2 空格标签 + 4 空格条目」惯例一致，`_KV_LINE_RE` docstring 明示该形态
+   合法；
+2. 测试经 `_private()` getattr 访问模块私有成员（直写 `diagnostics._...`
+   触发 pyright strict `reportPrivateUsage`）；test_fonts.py /
+   test_completion_popup.py 同款既有惯例，零 ignore 注释；
+3. pack.ps1 在 Windows PowerShell 5.1 + `$ErrorActionPreference = "Stop"`
+   下，PyInstaller 缺失时 `import PyInstaller` 的 stderr 触发
+   NativeCommandError 提前退出（脚本既有脆弱点，与本 issue 无关，未修）；
+   按 plan-b 验证说明先 `pip install -e ".[build,ts]"` 后重跑规避。
+
+- [x] wave-1 plan-a 实测结果
+- [x] wave-1 plan-b 实测结果
+- [x] wave-2 门禁数字与冻结冒烟
+- [x] 偏离记录

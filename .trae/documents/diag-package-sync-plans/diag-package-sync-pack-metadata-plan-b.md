@@ -28,10 +28,16 @@
 在 ts 循环之后追加一段（yate.spec 约在 80 行后、onefile spec 约在 87 行后）：
 
 ```python
-# yate's own dist-info: diagnostics._section_packages derives the
-# [packages] inventory from importlib.metadata.requires("yate"),
-# which reads this metadata inside the frozen app (issue IKJJFI).
+# yate's own + core dependencies' dist-info: diagnostics._section_packages
+# derives the [packages] inventory from importlib.metadata.requires("yate")
+# and probes the versions with importlib.metadata.version() -- both read
+# dist-info metadata that must ship inside the frozen app (issue IKJJFI).
+# Without the core entries the exe reports bundled packages (pyperclip)
+# as "not installed"; textual is also covered by a contrib hook, duplicate
+# datas entries are deduplicated by PyInstaller.
 yate_datas = copy_metadata("yate")
+for _core_pkg in ("pyperclip", "textual"):
+    yate_datas += copy_metadata(_core_pkg)
 ```
 
 并把 `Analysis` 的 datas 参数由 `datas + ts_datas` 改为
@@ -39,6 +45,10 @@ yate_datas = copy_metadata("yate")
 
 不改 ts 循环本体（Windows blocked-version 守卫与 `--diag` 的 `version()`
 定点探测继续依赖那三份元数据）。
+
+> 迭代记录（wave-2 冻结冒烟发现）：初版只带 `copy_metadata("yate")`，exe 内
+> 节渲染正常但 `pyperclip : not installed`（代码已打入、dist-info 未带）；
+> 追加 core 依赖 dist-info 循环后复测通过。
 
 ## 四、验证方案
 

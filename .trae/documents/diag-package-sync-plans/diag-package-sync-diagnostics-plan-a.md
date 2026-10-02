@@ -81,7 +81,10 @@ def _section_packages() -> list[str]:
     ordered = ["core"] + sorted(
         name for name in groups if name != "core" and name not in _SKIPPED_EXTRAS
     )
-    if not any(groups.get(group) for group in ordered):
+    # "core" leads unconditionally but may be empty (every requirement
+    # carries an extra marker); drop empty groups before rendering.
+    ordered = [name for name in ordered if groups.get(name)]
+    if not ordered:
         return []
     width = max(len(name) for group in ordered for name in groups[group])
     lines: list[str] = []
@@ -174,6 +177,16 @@ def _section_packages() -> list[str]:
 - **验证目标**：`requires()` 返回 `None` 的边界 → 空清单（节渲染 `(none)`）。
 - **前置**：patch `requires` 返回 `None`。
 - **操作 / 断言**：`diagnostics._section_packages() == []`。
+
+### T6 `test_packages_section_without_core_requirements_renders_extras_only`（审核轮 1 追加）
+
+- **验证目标**：全带 extra marker（core 组为空）时不抛 `KeyError: 'core'`、
+  不渲染空 core 标签（评审轮 1 major 缺陷的回归守卫）。
+- **前置**：patch `requires` 返回仅含 `extra == 'ts'` 的两条；patch
+  `version` 全抛 `PackageNotFoundError`。
+- **操作**：`lines = diagnostics._section_packages()`。
+- **断言**：`lines` 非空；`"  core:" not in lines`；分组恰为 `["ts"]` 且
+  全部行含 `not installed`。
 
 ### T5 既有 `test_missing_packages_are_reported_as_not_installed`（不改，回归）
 
