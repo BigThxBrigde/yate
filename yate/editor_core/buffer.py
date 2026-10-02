@@ -124,6 +124,9 @@ class TextBuffer:
         # buffer must keep working).
         self.read_only = read_only
         self.register: str = ""  # internal yank/clipboard register
+        #: Explicit ``"a``-``"z`` registers (vim named registers).  Purely
+        #: internal storage -- they never mirror the system clipboard.
+        self.named_registers: dict[str, str] = {}
         self._undo: list[_Edit] = []
         self._redo: list[_Edit] = []
         # Bumped whenever the textual content (not just the cursor or
@@ -600,28 +603,46 @@ class TextBuffer:
             self.cursor = (row, min(self.col, len(self.lines[row])))
         self._commit(before, "step")
 
-    def yank_lines(self) -> str:
-        """Yank the selected lines, or the current line (line-wise)."""
+    def yank_lines(self, *, named: str | None = None) -> str:
+        """Yank the selected lines, or the current line (line-wise).
+
+        With *named* the text goes to that explicit ``"`` register instead
+        of the unnamed one (and never touches the system clipboard).
+        """
         rows = self.selected_rows()
         if rows is None:
             r1 = r2 = self.cursor[0]
         else:
             r1, r2 = rows
         text = "\n".join(self.lines[r1 : r2 + 1]) + "\n"
-        self.register = text
+        if named is None:
+            self.register = text
+        else:
+            self.named_registers[named] = text
         return text
 
-    def yank_selection(self) -> str:
-        """Yank the selection, or the current line if there is none."""
+    def yank_selection(self, *, named: str | None = None) -> str:
+        """Yank the selection, or the current line if there is none.
+
+        With *named* the text goes to that explicit ``"`` register instead
+        of the unnamed one (and never touches the system clipboard).
+        """
         if self.has_selection():
             text = self.selected_text() or ""
         else:
             text = self.lines[self.cursor[0]]
-        self.register = text
+        if named is None:
+            self.register = text
+        else:
+            self.named_registers[named] = text
         return text
 
-    def delete_lines(self) -> str:
-        """Delete selected lines (or the current line) and yank them."""
+    def delete_lines(self, *, named: str | None = None) -> str:
+        """Delete selected lines (or the current line) and yank them.
+
+        With *named* the deleted text goes to that explicit ``"`` register
+        instead of the unnamed one (and never touches the system clipboard).
+        """
         self._ensure_writable()
         before = self._snapshot()
         rows = self.selected_rows()
@@ -630,7 +651,10 @@ class TextBuffer:
         else:
             r1, r2 = rows
         text = "\n".join(self.lines[r1 : r2 + 1]) + "\n"
-        self.register = text
+        if named is None:
+            self.register = text
+        else:
+            self.named_registers[named] = text
         del self.lines[r1 : r2 + 1]
         if not self.lines:
             self.lines = [""]
@@ -698,10 +722,16 @@ class TextBuffer:
         self.anchor = None
         self._commit(before, "step")
 
-    def paste(self, below: bool = True) -> None:
-        """Paste the register at the cursor, line-wise below/above or inline."""
+    def paste(self, below: bool = True, *, named: str | None = None) -> None:
+        """Paste a register at the cursor (below it when *below*).
+
+        With *named* the text comes from that explicit ``"`` register
+        instead of the unnamed one; a missing named register is a no-op.
+        """
         self._ensure_writable()
-        text = self.register
+        text = (
+            self.named_registers.get(named, "") if named is not None else self.register
+        )
         if not text:
             return
         if text.endswith("\n"):

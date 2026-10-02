@@ -16,6 +16,7 @@ from yate.editor import Editor
 from yate.keymaps.base import ActionContext
 from yate.logs import tracing
 from yate.registries import Action, ActionRegistry
+from yate.services import clipboard
 
 __all__ = ["Action", "ActionRegistry", "populate"]
 
@@ -99,25 +100,54 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("redo", lambda ctx: ctx.buffer.redo(), "Redo")
 
     def cut(ctx: ActionContext) -> None:
-        """Cut the selection (or the whole line) into the register."""
+        """Cut the selection (or the whole line) into the system clipboard.
+
+        The internal register is kept in sync too, so a clipboard-unavailable
+        fallback still behaves like before.  An empty text never reaches the
+        system clipboard, so a doomed cut cannot wipe the user's copy.
+        """
         buf = ctx.buffer
         if buf.has_selection():
             buf.register = buf.selected_text() or ""
             buf.delete_selection()
+            if buf.register:
+                clipboard.copy_text(buf.register)
         else:
-            buf.delete_lines()
+            text = buf.delete_lines()
+            if text:
+                clipboard.copy_text(text)
 
     def copy(ctx: ActionContext) -> None:
-        """Yank the selection (or the whole line) into the register."""
+        """Yank the selection (or the whole line) into the system clipboard.
+
+        An empty yank updates the register but skips the system clipboard.
+        """
         buf = ctx.buffer
         if buf.has_selection():
-            buf.yank_selection()
+            text = buf.yank_selection()
         else:
-            buf.yank_lines()
+            text = buf.yank_lines()
+        if text:
+            clipboard.copy_text(text)
+
+    def paste(ctx: ActionContext) -> None:
+        """Paste from the system clipboard, falling back to the register.
+
+        When the system clipboard is unavailable (or empty), the internal
+        unnamed register is pasted as before.  A read-only buffer skips the
+        clipboard read and the register priming entirely -- a doomed paste
+        mirrors the vim-side ``_prime_paste`` guard and pays no system call.
+        """
+        buf = ctx.buffer
+        if not buf.read_only:
+            text = clipboard.paste_text()
+            if text:
+                buf.register = text
+        buf.paste()
 
     reg("cut", cut, "Cut")
     reg("copy", copy, "Copy")
-    reg("paste", lambda ctx: ctx.buffer.paste(), "Paste")
+    reg("paste", paste, "Paste")
 
     # --------------------------------------------------------------- files
 
