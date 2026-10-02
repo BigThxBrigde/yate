@@ -5,6 +5,7 @@
 > 已被 `_probe_vim.py` 探针证伪，A1/A2 未按本文执行；排期由
 > [keybinding-fix-wt-steps-plan-g.md](keybinding-fix-wt-steps-plan-g.md) 取代——见该文件头部"取代"说明与执行状态表。本文保留为历史推演。）**
 > **（核对补注 2：文中"架构守护 13 用例"（§A1 验收、§四自检）实测为 20 个用例。）**
+> **（2026-10-01 终态补注：Phase A 与 Phase B 主体已按 [keybinding-fix-wt-steps-plan-g.md](keybinding-fix-wt-steps-plan-g.md) 执行完成（PB1–PB6 ✅），仅剩 PB5 真机矩阵人工复测；本文定格为「已由 steps-plan-g 取代的历史推演」。）**
 > 触发：2026-09-26 真机验证结果 —— **vim 键位下仅 ctrl+q 恢复，ctrl+p / ctrl+/ 仍失效**（ctrl+1 失效属预期）
 > 前置文档：`../win-keybinding-plan.md`（方案 B 决策）、`../win-keybinding-protocol-plan.md`（旧实施排期，本文重排）、
 > `../wt-keybinding-fix-plan.md`（止血切片，部分有效）、`overview.md`（SP1–SP5 执行记录）

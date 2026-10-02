@@ -89,6 +89,37 @@ def test_run_reports_missing_without_translator(repo: Path, tmp_path: Path) -> N
     assert code == 0
 
 
+def test_en_source_deleted_after_collect_takes_missing_path(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An en source vanishing after collect must not crash the run.
+
+    Regression guard for the collect-time ``exists()`` TOCTOU: the page
+    keeps a non-``None`` ``en_source`` whose file is already gone by the
+    time ``run()`` reads it -- it must degrade to the missing/translation
+    path instead of raising ``FileNotFoundError``.
+    """
+    original_collect = wiki.collect_sources
+
+    def collect_then_delete_en(repo_root: Path) -> list[wiki.WikiPage]:
+        pages = original_collect(repo_root)
+        (repo / "yate" / "docs" / "topic.en.md").unlink()
+        return pages
+
+    monkeypatch.setattr(wiki, "collect_sources", collect_then_delete_en)
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return "# topic en\n\ntranslated after vanishing\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    assert (target / "topic.en.md").read_text(
+        encoding="utf-8"
+    ) == "# topic en\n\ntranslated after vanishing\n"
+    assert "topic.zh.md" in wiki.load_manifest(target)
+
+
 def test_check_fails_while_missing(repo: Path, tmp_path: Path) -> None:
     code = wiki.run(tmp_path / "wiki", None, check=True, repo_root=repo)
     assert code == 1

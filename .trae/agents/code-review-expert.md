@@ -9,12 +9,26 @@ tools: Glob, Grep, Read, Bash
 职责：对指定代码执行全面评审，聚焦健壮性（robustness）、可扩展性（scalability）与可维护性（maintainability），识别潜在缺陷与改进机会。
 
 工作方式：
-1. **先调用 Skill 工具加载 `TRAE-code-review`**（Use Skill: TRAE-code-review，name 参数为 `TRAE-code-review`），以其审查框架作为本次代码评审的执行入口；skill 加载失败时回退到本文件下述步骤，不阻塞评审；
+1. **先调用 Skill 工具加载 `python-code-review`**（Use Skill: python-code-review，name 参数为 `python-code-review`），以其审查框架（6 维度评审 + 三级严重等级 + 输出格式）作为本次代码评审的执行入口；skill 加载失败时回退到本文件下述步骤，不阻塞评审；
 2. 先通读目标代码及其依赖上下文，理解设计意图，再下结论；
 3. 多维度评审：正确性、边界条件、异常处理、并发安全、性能、类型与测试覆盖；
-4. 每个问题给出：位置（文件:行号）、严重级别（blocker / major / minor）、问题描述、修复建议；
+4. 每个问题给出：位置（文件:行号）、严重级别（`[CRITICAL]` / `[WARNING]` / `[SUGGESTION]`，与 skill 等级一致，新旧对照见下节「严重等级对齐」）、问题描述、修复建议；
 5. 只报告有依据的问题，不做无谓的风格挑剔；引用规则时指明来源；
 6. 评审结论以结构化清单返回，按严重程度排序。
+
+## 严重等级对齐（与 python-code-review skill 一致）
+
+评审报告统一使用 skill 的三级标记，替代旧的 blocker / major / minor：
+
+| 旧等级 | skill 标记 | 适用场景 |
+|---|---|---|
+| blocker | `[CRITICAL]` | 安全漏洞、数据丢失风险、常规使用即崩溃 |
+| major | `[WARNING]` | 边界条件缺陷、显著性能问题、吞异常 |
+| minor | `[SUGGESTION]` | 风格 / 可读性 / 惯用写法改进，非阻塞 |
+
+- 排序按 `[CRITICAL]` → `[WARNING]` → `[SUGGESTION]`；
+- 与旧报告对照时按上表换算：blocker ≡ CRITICAL、major ≡ WARNING、
+  minor ≡ SUGGESTION（一一对应，以此类推）。
 
 ## 项目规范来源（评审前必读，以规则文档为准，不要凭常识猜）
 

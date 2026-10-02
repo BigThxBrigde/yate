@@ -29,7 +29,7 @@
   [terminal.py:224](../../yate/editor_view/terminal.py#L224)），故字面 `\r` 无入口进缓冲区。
   **将来若增加系统剪贴板粘贴入口，必须在该入口做 CR 归一化**，否则会写出含裸 CR 的文件。
 
-- [ ] **`HighlightProbe.doc` 建议使用精确类型（Low，可维护性）** —
+- [x] **`HighlightProbe.doc` 建议使用精确类型（Low，可维护性）** —
   [`editor.py:62`](../../yate/editor_view/editor.py#L62)
   ```python
   @dataclass(frozen=True)
@@ -45,3 +45,8 @@
     而 `HighlightProbe.doc` 字段由 `highlight_probe()` 构造时传入真值，可写 `Document` 不必 Optional；
   - 受影响守卫见 [test_app_textual.py:338-343](../../tests/test_app_textual.py#L338-L343)
     （`highlight_probe().doc is editor.doc`）——为身份比较，收紧类型不影响通过。
+  **✅ 已修（2026-10-01，`68ad332`，分支 `fix/reviews-open-issues-fixes`）**：
+  `doc: object` → `doc: Document | None`，`_hl_doc: object = None` → `Document | None = None`。
+  与原文"probe 字段可写 `Document` 不必 Optional"的偏离（`highlight_probe()` 可在首遍前合法调用，
+  pyright strict 下 `Document | None` 才是零诊断形态）见
+  [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md) §三 F8 偏离记录。

@@ -26,9 +26,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ctypes
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -597,6 +599,18 @@ def test_real_pty_write_after_exit_is_a_noop() -> None:
 # --- Windows backend internals ---------------------------------------------
 
 
+class _FakeCoord(ctypes.Structure):
+    """Shape mirror of ``pty_proc._COORD`` (private and Windows-only).
+
+    The production resize path passes a real ``_COORD`` instance; this
+    stand-in exists only so the fake's parameter can carry a fully typed
+    shape without importing a private, Windows-only name at module level
+    (which would break the POSIX leg of the suite).
+    """
+
+    _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+
 @pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
 def test_conpty_check_hr_accepts_success_and_rejects_failure() -> None:
     """The HRESULT guard passes 0 and raises with the code for a failure."""
@@ -625,6 +639,89 @@ def test_conpty_operations_without_a_spawned_child_are_safe() -> None:
         impl._close_pty()  # idempotent
         impl.close()
         impl.terminate()  # no process info: nothing to kill
+
+    asyncio.run(_scenario())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_write_and_resize_drive_handles_under_the_lock() -> None:
+    """write/resize snapshot the handles under the lock and call Win32."""
+
+    async def _scenario() -> None:
+        proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+        impl = cast(Any, proc)._impl
+        impl._in_write = 0x1001
+        impl._hpc = 0x1002
+        writes: list[Any] = []
+        resizes: list[tuple[int, int]] = []
+
+        def _fake_writefile(
+            h: int, buf: object, n: int, written: object, _ov: object
+        ) -> int:
+            writes.append(h)
+            return 1
+
+        def _fake_resize(hpc: int, size: _FakeCoord) -> int:
+            resizes.append((size.X, size.Y))
+            return 0
+
+        impl._kernel32["WriteFile"] = _fake_writefile
+        impl._kernel32["ResizePseudoConsole"] = _fake_resize
+        impl.write(b"hi")
+        impl.resize(90, 20)
+        assert writes == [0x1001]
+        assert resizes == [(90, 20)]
+
+    asyncio.run(_scenario())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_write_and_resize_after_close_are_noops() -> None:
+    """After close() the None snapshots short-circuit before any Win32 call.
+
+    Lock-protected snapshotting is what makes this deterministic: without
+    it a write racing close() could hit a stale handle value.
+    """
+
+    async def _scenario() -> None:
+        proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+        impl = cast(Any, proc)._impl
+        impl._in_write = 0x1001
+        impl._hpc = 0x1002
+        impl._out_read = 0x1003
+        closed: list[Any] = []
+        impl._kernel32["CloseHandle"] = closed.append
+
+        def _fake_close_pseudo_console(h: int) -> None:
+            closed.append(("hpc", h))
+
+        impl._kernel32["ClosePseudoConsole"] = _fake_close_pseudo_console
+        impl.close()
+        assert impl._in_write is None
+        assert impl._hpc is None
+        assert impl._out_read is None
+        assert closed  # close() went through the fake Win32 table
+        settled = len(closed)
+        writes: list[Any] = []
+
+        def _fake_writefile(
+            h: int, buf: object, n: int, written: object, _ov: object
+        ) -> int:
+            writes.append(h)
+            return 1
+
+        impl._kernel32["WriteFile"] = _fake_writefile
+        resizes: list[tuple[int, int]] = []
+
+        def _fake_resize(hpc: int, size: _FakeCoord) -> None:
+            resizes.append((size.X, size.Y))
+
+        impl._kernel32["ResizePseudoConsole"] = _fake_resize
+        impl.write(b"late keystroke")
+        impl.resize(90, 20)
+        assert writes == []
+        assert resizes == []
+        assert len(closed) == settled  # no further Win32 traffic
 
     asyncio.run(_scenario())
 
@@ -742,6 +839,83 @@ def test_conpty_setup_failures_raise_and_release_handles(
         assert impl._hpc is None  # the pseudo console never leaks
         assert impl._in_write is None
         assert impl._out_read is None
+
+    asyncio.run(_scenario())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_spawn_holds_the_handle_lock() -> None:
+    """spawn keeps ``_handle_lock`` for its whole body: close cannot interleave.
+
+    Regression guard for the review finding that the handle fields were
+    published from the spawn thread without the lock -- a close() racing a
+    startup spawn would have seen all-``None`` fields and leaked the ConPTY
+    and the child.  A delegating recorder stands in for the lock and tracks
+    acquisition depth: ``max_depth >= 1`` proves spawn entered the lock,
+    ``depth == 0`` afterwards proves the failure path released it.
+    """
+
+    class _LockRecorder:
+        """Delegate to a real ``RLock`` while recording nesting depth."""
+
+        def __init__(self, lock: threading.RLock) -> None:
+            self._lock = lock
+            self.depth = 0
+            self.max_depth = 0
+
+        def acquire(self, blocking: bool = True) -> bool:
+            got = self._lock.acquire(blocking)
+            if got:
+                self.depth += 1
+                self.max_depth = max(self.max_depth, self.depth)
+            return got
+
+        def release(self) -> None:
+            self._lock.release()
+            self.depth -= 1
+
+        def __enter__(self) -> _LockRecorder:
+            self.acquire()
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            self.release()
+
+    async def _scenario() -> None:
+        proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+        impl = cast(Any, proc)._impl
+        recorder = _LockRecorder(impl._handle_lock)
+        impl._handle_lock = recorder
+
+        def _create_pipe(
+            _read: object, _write: object, _attrs: object, _size: object
+        ) -> int:
+            return 1
+
+        def _create_pseudoconsole(
+            _size: object,
+            _in_read: object,
+            _out_write: object,
+            _flags: int,
+            _hpc: object,
+        ) -> int:
+            # spawn passes byref() wrappers; the values never matter here
+            # because the HRESULT fails before any consumer reads them.
+            return -2147467259  # 0x80004005: fail mid-spawn
+
+        def _close_handle(_handle: object) -> int:
+            return 1
+
+        impl._kernel32 = {
+            "CreatePipe": _create_pipe,
+            "CreatePseudoConsole": _create_pseudoconsole,
+            "CloseHandle": _close_handle,
+        }
+        with pytest.raises(PtyProcessError):
+            impl.spawn()
+        assert recorder.max_depth >= 1  # spawn ran under the lock ...
+        assert impl._hpc is None  # ... and never published the console
+        assert recorder.depth == 0  # released despite the raise
 
     asyncio.run(_scenario())
 

@@ -1,6 +1,6 @@
 # Plan SP3 — 收尾门禁、校准回填与提交
 
-> 状态：⏳ **待实施** · 前置：[Plan SP1](theme-layer-refactor-decouple-plan-b.md) ✅ + [Plan SP2](theme-layer-refactor-guard-docs-plan-c.md) ✅ · 后置：无
+> 状态：✅ **已完成（2026-09-26 实施并回填；2026-10-01 状态头照实补记）** · 前置：[Plan SP1](theme-layer-refactor-decouple-plan-b.md) ✅ + [Plan SP2](theme-layer-refactor-guard-docs-plan-c.md) ✅ · 后置：无
 > 工作量：S · 步骤：S3.1 → S3.2 → S3.3
 > 门槛：pyright 全仓 0 诊断 · pytest 全量两轮全绿（防时序偶发，本项目惯例）· 冒烟全绿。
 
