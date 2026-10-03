@@ -96,7 +96,8 @@ flowchart LR
   tree-sitter-python 0.25.0），无 dev/build/工具链行；
 - plan-b：两 spec 追加段与 datas 拼接逐字同构，`compile()` 语法冒烟 exit 0；
 - 提交：`feat(diag)` 8d5ba7a、`fix(pack)` 79d41ac；迭代：`fix(diag)` 8ec8e92
-  （审核轮 1 major）、`fix(pack)` eb8d8af（冻结冒烟迭代 2）。
+  （审核轮 1 major）、`fix(pack)` eb8d8af（冻结冒烟迭代 2）；后续指派：
+  `fix(pack)` pack.ps1 stderr 脆弱点修复 + `docs(plan)` 本条回填。
 
 **wave-2（主代理执行）**
 
@@ -151,8 +152,13 @@ flowchart LR
    test_completion_popup.py 同款既有惯例，零 ignore 注释；
 3. pack.ps1 在 Windows PowerShell 5.1 + `$ErrorActionPreference = "Stop"`
    下，PyInstaller 缺失时 `import PyInstaller` 的 stderr 触发
-   NativeCommandError 提前退出（脚本既有脆弱点，与本 issue 无关，未修）；
-   按 plan-b 验证说明先 `pip install -e ".[build,ts]"` 后重跑规避。
+   NativeCommandError 提前退出（脚本既有脆弱点，与本 issue 无关）；
+   初次以先 `pip install -e ".[build,ts]"` 后重跑规避，**后续用户指派修复**：
+   脚本不再重定向原生命令 stderr（5.1 下被重定向的 stderr 即终止性错误，
+   7.2 修复），PyInstaller 探测改用 `importlib.util.find_spec`（零输出），
+   另两处 `2>&1` 一并移除，统一由 `$LASTEXITCODE` 判定；实测从
+   PyInstaller 缺失态起步 → 自动装依赖 → 构建完成 exit 0
+   （`fix(pack)` 提交，见 wave-2 提交清单）。
 
 - [x] wave-1 plan-a 实测结果
 - [x] wave-1 plan-b 实测结果
