@@ -265,7 +265,13 @@ if os.name == "posix":
                 ) from exc
             os.close(slave)
             self._master = master
-            self.resize(self._owner.cols, self._owner.rows)
+            try:
+                self.resize(self._owner.cols, self._owner.rows)
+            except OSError:
+                # Best effort: the child is already running, so a failed
+                # initial TIOCSWINSZ must not orphan it -- the reader loop
+                # still has to start and own the eventual cleanup.
+                pass
 
         def read_loop(self) -> None:
             """Pump master-fd output until EOF, then report the exit code.

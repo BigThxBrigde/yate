@@ -43,6 +43,11 @@ _FRAME_RE: re.Pattern[str] = re.compile(r"\x1b\[([0-9;]+)_")
 #: digit) is returned to the caller immediately.
 _HOLD_RE: re.Pattern[str] = re.compile(r"\x1b\[[0-9;]*\Z")
 
+#: Maximum bytes held back for a partial frame prefix; a longer match is
+#: pathological input (legitimate frames carry at most a few digits) and is
+#: dropped instead of buffering it forever across feeds.
+_PENDING_MAX: int = 64
+
 #: Virtual-key codes that arrive with a zero character and must be named
 #: directly (the legacy parser has no bytes for them).  Covers navigation,
 #: editing and the F-key row; letters/digits/Enter/Tab/Backspace/Escape ride
@@ -142,7 +147,11 @@ class Win32FrameStream:
         residual = "".join(parts)
         hold = _HOLD_RE.search(residual)
         if hold is not None:
-            self._pending = hold.group(0)
+            if len(hold.group(0)) <= _PENDING_MAX:
+                self._pending = hold.group(0)
+            # An overlong hold cannot be a legitimate frame prefix (frames
+            # carry at most a few digits): drop it instead of buffering it
+            # forever across feeds.
             residual = residual[: hold.start()]
         return frames, residual
 

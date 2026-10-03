@@ -18,14 +18,25 @@ The parser implements the subset that makes modern shells usable:
 
 from __future__ import annotations
 
+import codecs
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+
+from yate.keyproto.legacy import modified_key_sequence
 
 type RGB = tuple[int, int, int]
 
 #: Maximum scrollback lines kept (older lines are dropped).
 MAX_SCROLLBACK: int = 5000
+
+#: Maximum bytes buffered for a partial CSI sequence; a malformed stream
+#: that never terminates the sequence cannot grow the parser state.
+_CSI_MAX: int = 64
+
+#: Maximum bytes buffered for an OSC string (OSC 52 payloads can be large,
+#: hence the generous cap); beyond it the string is discarded.
+_OSC_MAX: int = 1 << 20
 
 #: Classic xterm 16-color palette.
 _ANSI_16: tuple[str, ...] = (
@@ -106,15 +117,10 @@ _NAMED: dict[str, str] = {
     "f9": "\x1b[20~", "f10": "\x1b[21~", "f11": "\x1b[23~", "f12": "\x1b[24~",
 }
 
-_MOD_ARROWS: dict[tuple[str, ...], dict[str, str]] = {
-    ("ctrl",): {"up": "\x1b[1;5A", "down": "\x1b[1;5B",
-                "right": "\x1b[1;5C", "left": "\x1b[1;5D"},
-    ("shift",): {"up": "\x1b[1;2A", "down": "\x1b[1;2B",
-                 "right": "\x1b[1;2C", "left": "\x1b[1;2D",
-                 "tab": "\x1b[Z"},
-    ("alt",): {"up": "\x1b[1;3A", "down": "\x1b[1;3B",
-               "right": "\x1b[1;3C", "left": "\x1b[1;3D"},
-}
+#: Shared with the driver-side codec: modified special keys resolve through
+#: :func:`yate.keyproto.legacy.modified_key_sequence` so the two tables
+#: cannot drift (the former local copy missed ctrl+shift arrows and modified
+#: home/end, silently dropping those keys in the integrated terminal).
 
 
 def key_to_terminal(key: str, character: str | None = None) -> str | None:
@@ -131,11 +137,10 @@ def key_to_terminal(key: str, character: str | None = None) -> str | None:
         return None
     mods = frozenset(parts[:-1])
     base = parts[-1]
-    ordered = tuple(sorted(mods))
 
-    table = _MOD_ARROWS.get(ordered)
-    if table is not None and base in table:
-        return table[base]
+    shared = modified_key_sequence(mods, base)
+    if shared is not None:
+        return shared
 
     if mods == frozenset({"ctrl"}):
         if base in ("space", "@"):
@@ -216,6 +221,9 @@ class TerminalEmulator:
         self._csi = ""
         self._osc = ""
         self._osc_via_st = False
+        # Incremental UTF-8 decoder held across feeds: a multi-byte sequence
+        # split across two read blocks decodes once both halves arrived.
+        self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
         self._reset_grids()
 
@@ -285,13 +293,15 @@ class TerminalEmulator:
     # ----------------------------------------------------------------- feed
 
     def feed(self, data: bytes) -> None:
-        """Decode raw PTY output as UTF-8 and parse each character.
+        """Decode raw PTY output incrementally and parse each character.
 
-        Undecodable sequences are replaced, so malformed output can never
-        abort the parser.
+        The decoder persists between feeds, so a multi-byte UTF-8 sequence
+        split across two read blocks decodes once both halves arrived
+        (per-call decoding would turn each half into U+FFFD).  Undecodable
+        sequences are replaced, so malformed output can never abort the
+        parser.
         """
-        text = data.decode("utf-8", errors="replace")
-        for ch in text:
+        for ch in self._decoder.decode(data):
             self._consume(ch)
 
     def _respond(self, payload: str) -> None:
@@ -307,13 +317,20 @@ class TerminalEmulator:
             # Charset designators etc. -- final byte is ignored.
             self._state = _GROUND
         elif self._state == _CSI:
-            if 0x40 <= ord(ch) <= 0x7E:
+            if ch == "\x1b":
+                # ESC aborts a partial CSI (malformed stream): the next
+                # character dispatches as the start of the new sequence.
+                self._csi = ""
+                self._state = _ESCAPE
+            elif 0x40 <= ord(ch) <= 0x7E:
                 params = self._csi
                 self._csi = ""
                 self._state = _GROUND
                 self._csi_dispatch(ch, params)
-            else:
+            elif len(self._csi) < _CSI_MAX:
                 self._csi += ch
+            # Parameter bytes past _CSI_MAX are dropped; the final byte
+            # still terminates the (garbage) sequence.
         elif self._state == _OSC:
             if ch == "\x07":
                 self._osc_finish()
@@ -321,8 +338,10 @@ class TerminalEmulator:
                 # Possible ST (ESC \\); the backslash is consumed in _escape.
                 self._state = _ESCAPE
                 self._osc_via_st = True
-            else:
+            elif len(self._osc) < _OSC_MAX:
                 self._osc += ch
+            # Payloads past _OSC_MAX are dropped (the terminator still
+            # returns the parser to ground).
 
     def _osc_finish(self) -> None:
         text = self._osc
@@ -356,9 +375,9 @@ class TerminalEmulator:
             self._osc_via_st = False
             if ch == "\\":
                 self._osc_finish()
-            else:
-                self._state = _GROUND
-            return
+                return
+            # A bare ESC aborted the OSC: fall through and dispatch *ch* as
+            # the start of the next escape sequence instead of eating it.
         if ch == "[":
             self._state = _CSI
             self._csi = ""
@@ -824,9 +843,14 @@ class TerminalEmulator:
                            for _ in range(-start)])
             start = 0
         end = min(total, start + self.rows)
-        pool = self.scrollback + self.grid
+        sb_len = len(self.scrollback)
         for idx in range(max(0, start), end):
-            result.append(list(pool[idx]))
+            # Index into the two sources directly: concatenating
+            # scrollback + grid copies every line pointer on each frame.
+            if idx < sb_len:
+                result.append(list(self.scrollback[idx]))
+            else:
+                result.append(list(self.grid[idx - sb_len]))
         while len(result) < self.rows:
             result.append([Cell() for _ in range(self.cols)])
         return result
