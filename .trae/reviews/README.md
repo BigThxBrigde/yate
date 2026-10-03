@@ -42,6 +42,7 @@
 | 19 | 2026-10-02 | PR #46 AI 评审 1 项改进：`test_app_css.py` 的 `_default_css_violations` 只扫 `ast.Assign`，`DEFAULT_CSS: str = "inline"`（`ast.AnnAssign`）静默放行 | ✅ 已修（分支 commit `5fca69b`：全模块扫 Assign + AnnAssign + 负向演练；评审时点未推送故 PR 可见提交不含修复，推送后随 PR 闭环）；本次 ⏸ 登记不另修（2026-10-02 用户决策） | [2026-10-02-pr46-remove-inline-default-css-review.md](2026-10-02-pr46-remove-inline-default-css-review.md) |
 | 20 | 2026-10-03 | PR #47 AI 评审 2 项改进：`_section_packages()` 列宽按规范名（键）计算、渲染却用展示名（值），展示名更长时 `[packages]` 列对齐错乱；两 spec 硬编码 core 依赖名，与"单一事实来源"目标张力 | ✅ 已修（2026-10-03：`2696aa1` 抽取 stdlib-only `yate/dist_meta.py` + `c9c8348` 列宽按 `.values()` + `736c637` spec 构建期派生，见该文档） | [2026-10-03-pr47-ai-review.md](2026-10-03-pr47-ai-review.md) |
 | 21 | 2026-10-03 | PR #49 AI 评审 3 项改进：含 tab 行 inline diff 高亮偏移（渲染正确性，未复核）；超长行全量 `expand_char` 展开浪费（性能，未复核）；两处 `on_unmount` 缺 `@override`（一致性，已核实属实） | ⏸ 本次登记不另修（2026-10-03 用户决策；登记于 diff-tool-plan.md 遗留待办） | [2026-10-03-pr49-diff-tool-ai-review.md](2026-10-03-pr49-diff-tool-ai-review.md) |
+| 22 | 2026-10-03 | 全量 python-code-review 评审 83 项（0 CRITICAL / 15 WARNING / 68 SUGGESTION，覆盖 yate/ tools/ tests/ pack/）：R-19（on_key 无条件吞键）与架构规则 R10 冲突依规则不修，其余 82 项全部修复并回填 | ✅ 已全修（2026-10-03，`90ad524`…`867acea` 十笔修复/用例提交；方案与处置表见 [python-code-review-fixes-plan.md](../documents/python-code-review-fixes-plan.md)，门禁实测 pyright 0 errors + pytest 全绿 + 覆盖率 91.26%） | [2026-10-03-python-code-review.md](2026-10-03-python-code-review.md) |
 
 ---
 
@@ -85,6 +86,7 @@
 | 2026-10-02 | **Gitee PR #46** 评审（remove-inline-default-css 分支，issue IKJHPH，AI 队友审查） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 1 改进 | ✅ 改进项已在分支修复（`5fca69b`，AnnAssign 入扫；评审时点未推送）；⏸ 本次登记不另修（用户决策，见速览 #19） | [2026-10-02-pr46-remove-inline-default-css-review.md](2026-10-02-pr46-remove-inline-default-css-review.md) |
 | 2026-10-03 | **Gitee PR #47** 评审（diag-package-sync 分支，issue IKJJFI，AI 队友审查） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 2 改进 | ✅ 已全修（2026-10-03，`2696aa1` / `c9c8348` / `736c637`，见速览 #20） | [2026-10-03-pr47-ai-review.md](2026-10-03-pr47-ai-review.md) |
 | 2026-10-03 | **Gitee PR #49** 评审（diff-tool 分支，issue IKJC88，AI 队友审查） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 3 改进 | ⏸ 本次登记不另修（2026-10-03 用户决策，见速览 #21） | [2026-10-03-pr49-diff-tool-ai-review.md](2026-10-03-pr49-diff-tool-ai-review.md) |
+| 2026-10-03 | **全量 python-code-review**（master `2c124a7` 全仓 Python，技能六维度框架，7 只读评审子代理并行 + 主代理核实修复） | ⚠️ MINOR ISSUES（0 CRITICAL，无阻断；R-19 与 R10 冲突依规则不修） | 0 CRITICAL / 15 WARNING / 68 SUGGESTION | ✅ 已全修（82/83，`90ad524`…`867acea`；处置表见 [python-code-review-fixes-plan.md](../documents/python-code-review-fixes-plan.md)） | [2026-10-03-python-code-review.md](2026-10-03-python-code-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

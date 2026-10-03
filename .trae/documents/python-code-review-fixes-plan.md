@@ -87,12 +87,31 @@ flowchart LR
 
 ## 四、处置表（逐条结论回填处）
 
-执行中逐条回填"核实结论 → 处置（已修 commit / 误报销项 / 无法修复理由）"。汇总：
+**实际执行记录（2026-10-03 闭环）**：
 
-| 组 | 条目 | 预期处置 |
-|---|---|---|
-| 不修 | R-19 | 与架构规则 R10 冲突，无法修复，保留现状（核实记录见评审文档） |
-| 修复 | R-01…R-18、R-20…R-83 | 逐条修复 + 波内验收（误报者在执行中核实后销项并注明证据） |
+| 组 | 条目 | 处置 | 落点 |
+|---|---|---|---|
+| 不修 | R-19 | 与架构规则 R10 直接冲突，无法修复，保留现状（核实记录见评审文档） | — |
+| 修复 | R-01…R-08 | ✅ 已修（`90ad524`；`Document.resolved_path` 缓存涉及 `editor_core/document.py`，W1 文件清单偏离，已按计划 §五记录） | W1 |
+| 修复 | R-09…R-18 | ✅ 已修（`5a25613`；路径展开收敛于 `DocumentFlows.resolve_input_path`，`:sp` 的"当前文件目录"语义不受影响） | W2 |
+| 修复 | R-20…R-31（除 R-19） | ✅ 已修（`11b4a9d`；R-31 以 `theme.attach/detach` 助手收敛 9 处订阅样板，setattr 显式意图先例同 `apply_slim_scrollbars`；editor.py 原有实例方法 `apply_scrollbar_theme` 一并收敛为模块级助手） | W3 |
+| 修复 | R-32…R-38 | ✅ 已修（`22ca26e`；UTF-16 换算带 `isascii()` 快速路径，`OpenDocState` 增持 `doc` 引用供收方向换算） | W4 |
+| 修复 | R-39…R-46 | ✅ 已修（`c8293d9`；R-42 经 `keyproto.legacy.modified_key_sequence` 共享表，emulator 本地漂移副本删除） | W5 |
+| 修复 | R-57…R-65 | ✅ 已修（`5c51180`；R-57/R-61 为行为变更，`test_vim_keymap.py` 原 `test_visual_quote_then_v_exit_does_not_leak_the_wait_state` 锁定的是缺陷行为，已按新语义改写为 `test_visual_quote_then_v_names_the_register`） | W6 |
+| 修复 | R-47…R-56, R-66 | ✅ 已修（子代理 tools-fixer 落盘，`ad7619a`；含新 `tools/_util.py`、`pack/_common.py`） | P1 |
+| 修复 | R-67…R-73, R-77 | ✅ 已修（子代理 tests-fix-a 落盘，`bea5e6a`；共享助手收敛至 `tests/conftest.py`） | P2 |
+| 修复 | R-74…R-76, R-78…R-83 | ✅ 已修（子代理 tests-fix-b 落盘，`036073b`） | P3 |
+| 回归用例 | R-20/R-32/R-33/R-34/R-39/R-40/R-42/R-57/R-58/R-59/R-61 | ✅ 锁定（主代理 `c07b9b5` + `867acea`；LSP 私有助手访问按 `test_workspace_filter` 先例加文件级 pyright pragma） | W7 |
+
+**门禁实测（收尾，主代理亲跑）**：
+- `pyright yate/ tests/ tools/ pack/` → **0 errors, 0 warnings**；
+- `pytest tests/ -q --cov=yate --cov-fail-under=75` → **全绿，覆盖率 91.26%**；
+- `pytest tests/test_architecture.py -q` → **22 passed**。
+
+**偏离记录**：
+1. 分支上出现一笔计划外 `1852fc5 Merge branch 'master'`（子代理违规执行 git 操作；带入内容为用户在 master 新增的规则提交 `3fe93c6`——100 次请求上限续作硬规则，内容合法予以保留）。
+2. tests-fix-a 首轮约 5 分钟零落盘（探活已发、未判死），后续正常产出全部 9 个名下文件；未触发重建。
+3. 其余按计划执行，无范围/阈值偏离。
 
 ## 五、风险清单与回滚
 
