@@ -13,17 +13,12 @@ handoff (F4 + R10) and the copy + save round trip on real temp files.
 from __future__ import annotations
 
 import asyncio
-import os
 from pathlib import Path
-from typing import Any
-
-# The bundled yate/extensions/ directory is auto-loaded with every YateApp;
-# make sure the Python LSP extension never probes PATH or spawns a real server
-# while the UI test suite runs.
-os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp
 from yate.editor_view.diffview import MAX_DIFF_LINES, DiffPane, DiffScreen
+
+from conftest import message_text
 
 
 def _write(tmp_path: Path, name: str, text: str) -> Path:
@@ -31,19 +26,6 @@ def _write(tmp_path: Path, name: str, text: str) -> Path:
     path = tmp_path / name
     path.write_text(text, encoding="utf-8")
     return path
-
-
-def _plain(content: Any) -> str:
-    """Plain text of a widget renderable (rich Text, str, or other)."""
-    plain = getattr(content, "plain", None)
-    return plain if isinstance(plain, str) else str(content)
-
-
-def _message_text(app: YateApp) -> str:
-    """The prompt bar's message-line text (refusals from open_diff)."""
-    prompt_bar = app.editor.prompt_bar
-    assert prompt_bar is not None
-    return _plain(prompt_bar.message.content)
 
 
 def test_command_diff_opens_two_way_screen(tmp_path: Path) -> None:
@@ -118,7 +100,7 @@ def test_command_diff_bad_arg_count_stays_on_base(tmp_path: Path) -> None:
             app.editor.run_command("diff onlyone")
             await pilot.pause()
             assert len(app.screen_stack) == 1
-            assert "usage" in _message_text(app)
+            assert "usage" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -135,7 +117,7 @@ def test_command_diff_missing_file_reports_and_stays(tmp_path: Path) -> None:
             app.editor.run_command(f"diff {f1} {nope}")
             await pilot.pause()
             assert len(app.screen_stack) == 1
-            assert "no such file" in _message_text(app)
+            assert "no such file" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -161,7 +143,7 @@ def test_command_diff_directory_with_text_suffix_reports_and_stays(
             app.editor.run_command(f"diff {fake} {f2}")
             await pilot.pause()
             assert len(app.screen_stack) == 1
-            assert "no such file" in _message_text(app)
+            assert "no such file" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -183,7 +165,7 @@ def test_command_diff_oversized_file_reports_and_stays(tmp_path: Path) -> None:
             app.editor.run_command(f"diff {big} {f2}")
             await pilot.pause()
             assert len(app.screen_stack) == 1
-            assert "too large" in _message_text(app)
+            assert "too large" in message_text(app)
 
     asyncio.run(scenario())
 

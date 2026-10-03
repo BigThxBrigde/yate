@@ -15,12 +15,11 @@ import pyperclip
 import pytest
 
 from yate.actions import populate
-from yate.config import YateConfig
-from yate.editor_core import BufferReadOnlyError, Document
-from yate.keymaps.base import ActionContext, KeyUi
+from yate.editor_core import BufferReadOnlyError
 from yate.registries import ActionRegistry
 from yate.services import clipboard as clipboard_service
-from yate.session import EditorSession
+
+from conftest import make_action_context
 
 
 # ------------------------------------------------------------- group A
@@ -115,22 +114,6 @@ def recording_clip(monkeypatch: pytest.MonkeyPatch) -> _RecordingClip:
     return fake
 
 
-def _action_context(text: str = "") -> ActionContext:
-    """A real action context whose active buffer holds *text*."""
-    session = EditorSession(YateConfig())
-    session.new_buffer()
-    session.docs[session.index] = Document(None, session.make_buffer(text))
-    ui = KeyUi(
-        execute_action=lambda _name: True,
-        message=lambda _text: None,
-        command_prompt=lambda: None,
-        find_prompt=lambda _forward: None,
-        goto_prompt=lambda: None,
-        toggle_keymap=lambda: None,
-    )
-    return ActionContext(session, ui)
-
-
 def _recording_editor() -> Any:
     """A recording stand-in for the editor hooks editing actions never reach."""
     class _RecordingEditor:
@@ -156,7 +139,7 @@ def test_copy_action_mirrors_register_to_clipboard(
 ) -> None:
     """copy with a selection fills the register and the system clipboard."""
     registry = _action_table()
-    ctx = _action_context("hello world")
+    ctx = make_action_context("hello world")
     ctx.buffer.set_cursor((0, 5), select=True)
 
     assert registry.execute("copy", ctx) is True
@@ -169,7 +152,7 @@ def test_copy_action_without_selection_yanks_line_and_mirrors(
 ) -> None:
     """copy without a selection yanks the line (linewise) and mirrors it."""
     registry = _action_table()
-    ctx = _action_context("line1")
+    ctx = make_action_context("line1")
 
     assert registry.execute("copy", ctx) is True
     assert ctx.buffer.register == "line1\n"
@@ -181,7 +164,7 @@ def test_cut_action_mirrors_deleted_text_to_clipboard(
 ) -> None:
     """cut with a selection deletes the text and mirrors it."""
     registry = _action_table()
-    ctx = _action_context("hello world")
+    ctx = make_action_context("hello world")
     ctx.buffer.set_cursor((0, 5), select=True)
 
     assert registry.execute("cut", ctx) is True
@@ -194,7 +177,7 @@ def test_cut_action_without_selection_cuts_line_and_mirrors(
 ) -> None:
     """cut without a selection cuts the whole line and mirrors it."""
     registry = _action_table()
-    ctx = _action_context("one\ntwo\nthree")
+    ctx = make_action_context("one\ntwo\nthree")
     ctx.buffer.set_cursor((1, 1))
 
     assert registry.execute("cut", ctx) is True
@@ -207,7 +190,7 @@ def test_paste_action_prefers_system_clipboard(
 ) -> None:
     """paste takes the system clipboard text over the unnamed register."""
     registry = _action_table()
-    ctx = _action_context("")
+    ctx = make_action_context("")
     ctx.buffer.register = "OLD"
     recording_clip.paste_result = "SYS"
 
@@ -220,7 +203,7 @@ def test_paste_action_falls_back_to_register_on_failure(
 ) -> None:
     """A failed clipboard read (None) pastes the unnamed register."""
     registry = _action_table()
-    ctx = _action_context("")
+    ctx = make_action_context("")
     ctx.buffer.register = "OLD"
     recording_clip.paste_result = None
 
@@ -233,7 +216,7 @@ def test_paste_action_falls_back_when_clipboard_empty(
 ) -> None:
     """An empty clipboard ("") pastes the unnamed register."""
     registry = _action_table()
-    ctx = _action_context("")
+    ctx = make_action_context("")
     ctx.buffer.register = "OLD"
     recording_clip.paste_result = ""
 
@@ -246,7 +229,7 @@ def test_paste_action_on_read_only_buffer_does_not_prime_register(
 ) -> None:
     """A read-only buffer fails the paste with the register left intact."""
     registry = _action_table()
-    ctx = _action_context("KEEP")
+    ctx = make_action_context("KEEP")
     ctx.buffer.read_only = True
     ctx.buffer.register = "OLD"
     recording_clip.paste_result = "SYS"
