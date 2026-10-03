@@ -27,10 +27,11 @@
 
 | # | 级别 | 位置 | 问题 | 状态 |
 |---|---|---|---|---|
-| R1 | WARNING | yate/editor_view/diffview.py:154-156 | `append_at` 用 `move_right()`，行尾跨行（buffer.py:503-506），与主 vim keymap（keymaps/vim.py:517-519 `set_cursor` 钳制）语义不一致 | 待修 |
-| R2 | WARNING | yate/editor_view/diffview.py:609-612 → 658-675 | 编辑模式每键 `PaneChanged` → `_recompute()` 全量重跑 difflib（最坏 O(n·m)）+ `_states_*` 全量重建；`MAX_DIFF_LINES=20000` 上限下连续打字可卡 UI 循环 | 待修 |
-| R3 | SUGGESTION | yate/editor_view/diffview.py:251, 595 | `DiffPane.role` 存后生产/测试零引用（死参数），且 compose 3way 分支 `(_2WAY_ROLES + _3WAY_ROLES)[i]` 取到 "left"/"right"/"base" 而非 "base"/"local"/"remote" | 待修 |
-| R4 | SUGGESTION | yate/editor_view/diffview.py:73-90 | `check_sizes` 仅 tests/test_diffview.py 引用，生产路径 overlays.py 直接比较 `MAX_DIFF_LINES`（为报文件名）；违反"不为假设性需求加抽象" | 待修 |
+| R1 | WARNING | yate/editor_view/diffview.py:154-156 | `append_at` 用 `move_right()`，行尾跨行（buffer.py:503-506），与主 vim keymap（keymaps/vim.py:517-519 `set_cursor` 钳制）语义不一致 | 已修（commit 8770b9f，守卫用例 test_vim_append_at_eol_stays_on_line） |
+| R2 | WARNING | yate/editor_view/diffview.py:609-612 → 658-675 | 编辑模式每键 `PaneChanged` → `_recompute()` 全量重跑 difflib（最坏 O(n·m)）+ `_states_*` 全量重建；`MAX_DIFF_LINES=20000` 上限下连续打字可卡 UI 循环 | 已修（commit 8770b9f，0.15s 防抖 + latch 语义修正，守卫用例 test_debounced_recompute_applies_burst） |
+| R3 | SUGGESTION | yate/editor_view/diffview.py:251, 595 | `DiffPane.role` 存后生产/测试零引用（死参数），且 compose 3way 分支 `(_2WAY_ROLES + _3WAY_ROLES)[i]` 取到 "left"/"right"/"base" 而非 "base"/"local"/"remote" | 已修（commit 8770b9f，删形参/属性/实参） |
+| R4 | SUGGESTION | yate/editor_view/diffview.py:73-90 | `check_sizes` 仅 tests/test_diffview.py 引用，生产路径 overlays.py 直接比较 `MAX_DIFF_LINES`（为报文件名）；违反"不为假设性需求加抽象" | 已修（commit 8770b9f，删函数与单测，超大拒绝改由集成用例 test_command_diff_oversized_file_reports_and_stays 锁定真实入口） |
+| R5 | SUGGESTION | yate/editor_view/diffview.py:169 | 偏离发现：vim 键表 `"$"` 条目永不匹配——Textual 将 `$` 规范化为 `dollar_sign`（探针 `_character_to_key` 实证：`'$'→'dollar_sign'`、`'0'→'0'`）；R1 守卫用例首次按 `$` 后光标未动暴露 | 已修（commit 8770b9f，键名改 `dollar_sign`，随 R1 用例锁定） |
 
 配套发现（本轮核实，随 R4 顺带处理）：`open_diff` 的 `>MAX_DIFF_LINES` 拒绝分支
 在 test_diff_integration.py 无覆盖（grep 取证 0 命中），R4 删除 `check_sizes`
@@ -151,4 +152,45 @@ flowchart LR
 
 ## 七、执行记录（收尾回填）
 
-- 待回填：各步验收命令实测输出与退出码、偏离记录、登记表状态列。
+### 执行概况
+
+- 续作任务：复用 worktree `D:\Programming\yate-diff-tool`（feat/diff-tool 分支），
+  沙箱自证 `.venv/Scripts/python.exe -c "import yate; print(yate.__file__)"` →
+  指向该 worktree ✓。
+- Step 0 登记：commit `c06e789` `docs(plans): register diff second-review findings`
+  （本文件新建 + diff-tool-plan.md 遗留待办交叉引用）。
+- Step 1 wave-a：全部改动亲自实施（单模块精确小改，未派子代理），commit
+  `8770b9f` `fix(diffview): apply second-review fixes to diff screen`
+  （3 files, +126/−46）。
+
+### 验收实测（均主代理亲跑）
+
+- `python -m pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**（latch
+  修正后复跑同结果）。
+- 定向：`pytest tests/test_diffview.py tests/test_diff_integration.py
+  tests/test_editor_core_diff.py tests/test_architecture.py -q` → 60 passed（架构 22 含）。
+- 全量：`pytest tests/ -q --cov=yate --cov-fail-under=75` → 退出码 0，
+  1621 collected（基线 1619 +3 新增 −1 删除；1614 passed, 7 skipped），
+  总覆盖率 **90.73%**（门槛 75%）；diffview.py **86%**（修复前 78%，+8pp），
+  overlays.py 86%。
+
+### 偏离记录（相对本计划 §四 Step 1，均附实测依据）
+
+1. **R5（新增，范围外一行修复）**：R1 守卫用例首跑失败（`'rX1' != 'r1X'`）暴露
+   `"$"` 键名死键；探针 `textual.keys._character_to_key('$')` → `'dollar_sign'`
+   实证后键名修正。同文件同键表、与 R1 用例直接绑定，随本轮修复并在登记表登记。
+2. **R2 latch 重置位置修正**：定向复测中 `test_unsaved_close_requires_second_escape`
+   失败（全量首跑因时序抖动侥幸通过）——escape 退出编辑调度的防抖 `_recompute`
+   恰在两次 escape 之间 fire，无条件重置 `_confirm_close` 吞掉关闭守卫。修正为
+   latch 重置绑定在内容变化动作处（`_pane_changed` / `_apply_copy` /
+   `action_undo_pane`），`_recompute` 变为纯渲染刷新（docstring 同步）。该失败
+   修正后定向 + 全量复跑均绿。
+3. 计划预期 "1613 passed 基础上 -1 删 +3 增" 与实测 1621 collected 口径差异：
+   计划按 passed 数估算（1612+3=1615?），实际基线收集 1619（1612 passed + 7
+   skipped），1621 = 1619 +3 −1，换算 passed 1614 —— 与计划意图一致，仅口径笔误。
+
+### 遗留待办（本轮新增）
+
+- 无新增未修项。backlog S2/S3/S5 与 W2 余量维持原登记（diff-tool-plan.md 遗留待办）；
+  W2 余量中"vim insert 子模式等未测行"已部分收窄（R1/R5/R2 用例覆盖了 append、
+  `$`、防抖路径），diffview.py 78% → 86%。
