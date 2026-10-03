@@ -239,6 +239,12 @@ python -m pyright yate/ tests/ tools/
   无集成测试；`_strip_quotes('""')`、引号包裹 `--3way` flag、引号闭合紧贴拼接
   三处口径缺锁定断言；`wait_until` 第三份拷贝宜下沉 conftest；
   `:diff --3way` flag 分支零覆盖。
+- PR 51 机器人审查 1 条（评审记录
+  [2026-10-03-pr51-path-space-ai-review.md](../reviews/2026-10-03-pr51-path-space-ai-review.md)，来源
+  [PR 51 评论](https://gitee.com/jermaine/yate/pulls/51#note_51435445_conversation_191349311)，
+  2026-10-03，登记不修）：`_saveas` / `_split` / `_vsplit` 的 `_strip_quotes`
+  调用缺前置 `.strip()`（防御一致性；核对 `run_command` 入口已 strip，
+  失败场景当前不可达）。
 - PR 49 机器人审查 3 条（评审记录
   [2026-10-03-pr49-diff-tool-ai-review.md](../reviews/2026-10-03-pr49-diff-tool-ai-review.md)，来源
   [PR 49 评论](https://gitee.com/jermaine/yate/pulls/49#note_51434360_conversation_191342700)，
