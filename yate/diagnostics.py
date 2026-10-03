@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yate import __version__
+from yate.dist_meta import requirement_groups
 from yate.editor import Editor
 
 # Terminal environment variables worth surfacing.  Values are shown for the
@@ -53,12 +54,6 @@ _ANSI_RED: str = "\x1b[31m"
 _KV_LINE_RE: re.Pattern[str] = re.compile(r"^( +)([^ -].*?): (.+)$")
 #: ``  label:`` -- a sub-header that introduces an indented list below it.
 _LABEL_LINE_RE: re.Pattern[str] = re.compile(r"^( +)(\S.*):$")
-#: Distribution name at the start of a Requires-Dist string.
-_REQ_DIST_RE: re.Pattern[str] = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
-
-#: Extra group inside a requirement marker (``; extra == 'ts'``).
-_REQ_EXTRA_RE: re.Pattern[str] = re.compile(r"\bextra\s*==\s*['\"]([^'\"]+)['\"]")
-
 #: Tooling extras kept out of the diagnostics inventory: their members are
 #: development / build machinery, not runtime packages (user decision on
 #: issue IKJJFI). Membership still comes from metadata -- only the display
@@ -434,19 +429,7 @@ def _section_packages() -> list[str]:
     ``core:`` label first, then one label per extra in name order; the
     tooling extras in :data:`_SKIPPED_EXTRAS` stay out of the report.
     """
-    raw = importlib_metadata.requires("yate")
-    if raw is None:
-        return []
-    groups: dict[str, dict[str, str]] = {}
-    for req in raw:
-        name_match = _REQ_DIST_RE.match(req)
-        if name_match is None:
-            continue  # malformed entry -- hatchling output is always valid
-        name = name_match.group(1)
-        marker = _REQ_EXTRA_RE.search(req)
-        group = marker.group(1) if marker else "core"
-        canonical = re.sub(r"[-_.]+", "-", name).lower()
-        groups.setdefault(group, {})[canonical] = name
+    groups = requirement_groups()
     ordered = ["core"] + sorted(
         name for name in groups if name != "core" and name not in _SKIPPED_EXTRAS
     )

@@ -326,7 +326,7 @@ def _private(name: str) -> Any:
 
 
 #: Extra-group marker in a Requires-Dist string; kept as an independent
-#: oracle here instead of reusing ``diagnostics._REQ_EXTRA_RE``.
+#: oracle here instead of reusing ``dist_meta._REQ_EXTRA_RE``.
 _EXTRA_MARKER_RE: re.Pattern[str] = re.compile(r"\bextra\s*==\s*['\"]([^'\"]+)['\"]")
 
 
@@ -406,7 +406,7 @@ def test_packages_section_parses_controlled_requirements() -> None:
         raise importlib.metadata.PackageNotFoundError(name)
 
     with (
-        patch("yate.diagnostics.importlib_metadata.requires", return_value=requirements),
+        patch("yate.dist_meta.importlib_metadata.requires", return_value=requirements),
         patch("yate.diagnostics.importlib_metadata.version", side_effect=fake_version),
     ):
         lines: list[str] = _private("_section_packages")()
@@ -437,7 +437,7 @@ def test_packages_section_parses_controlled_requirements() -> None:
 
 def test_packages_section_without_requires_metadata_is_empty() -> None:
     """``requires()`` returning ``None`` renders an empty inventory."""
-    with patch("yate.diagnostics.importlib_metadata.requires", return_value=None):
+    with patch("yate.dist_meta.importlib_metadata.requires", return_value=None):
         assert _private("_section_packages")() == []
 
 
@@ -458,7 +458,7 @@ def test_packages_section_without_core_requirements_renders_extras_only() -> Non
         raise importlib.metadata.PackageNotFoundError(name)
 
     with (
-        patch("yate.diagnostics.importlib_metadata.requires", return_value=requirements),
+        patch("yate.dist_meta.importlib_metadata.requires", return_value=requirements),
         patch("yate.diagnostics.importlib_metadata.version", side_effect=fake_version),
     ):
         lines: list[str] = _private("_section_packages")()
