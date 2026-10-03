@@ -6,20 +6,51 @@
 
 ### 新功能
 
+- wire diff view into commands, overlays and cli [缺中文] ([`9103f27`](https://gitee.com/jermaine/yate/commit/9103f2780e2534d00af8360887d07ccfae35b090))
+- add DiffScreen diff view with panes and edit mode [缺中文] ([`bd3147a`](https://gitee.com/jermaine/yate/commit/bd3147ab2ee84bf0143c4240f18418851897173a))
+- add L0 diff engine with line, word and 3way merge support [缺中文] ([`58a1da9`](https://gitee.com/jermaine/yate/commit/58a1da9b035e7d39e82368ad78b08dd75f67f71b))
+- rich translation progress and clean Ctrl+C exit [缺中文] ([`6a03d6b`](https://gitee.com/jermaine/yate/commit/6a03d6bd87c433d18bcc3c99ebd5a3008b8f9531))
 - default to hy3 with glm-5.3-flash fallback [缺中文] ([`24cf85a`](https://gitee.com/jermaine/yate/commit/24cf85a074aeee5d4b5bdd33c3c2a53ca4af8622))
+
+### 问题修复
+
+- preserve inner whitespace when splitting ex args [缺中文] ([`7a91c80`](https://gitee.com/jermaine/yate/commit/7a91c80ff42bec6b36d14102cc0634901d663715))
+- parse quoted paths with spaces on the ex command line [缺中文] ([`d7b84be`](https://gitee.com/jermaine/yate/commit/d7b84be988a9023ddb80585e4944018294d5cf69))
+- resolve backlog S2 and S3 in the edit key tables [缺中文] ([`f78f65b`](https://gitee.com/jermaine/yate/commit/f78f65b1e60a5bc25b834efd90f205c139ed66ad))
+- apply second-review fixes to diff screen [缺中文] ([`8770b9f`](https://gitee.com/jermaine/yate/commit/8770b9f6ae191ed5b8be4dfb2b0837130652850d))
+- harden open_diff file validation and add review tests [缺中文] ([`4999ac9`](https://gitee.com/jermaine/yate/commit/4999ac985e5682447c054f871fb0014303151e2d))
+- address review findings on preview and progress [缺中文] ([`19f44f0`](https://gitee.com/jermaine/yate/commit/19f44f0afc2eb902eed1ddf3eece4c6367cb740d))
 
 ### 文档
 
+- register PR 51 bot-review as a review record [缺中文] ([`704a773`](https://gitee.com/jermaine/yate/commit/704a773afefbc5e641e98086297056a6f4f368fd))
+- backfill path-space-handling outcomes and S5 closure [缺中文] ([`6073ef6`](https://gitee.com/jermaine/yate/commit/6073ef6f7298c054fc07f97f7057e37fcb7f0c2e))
+- add path-space-handling plan for issue IKJK0B [缺中文] ([`e7da154`](https://gitee.com/jermaine/yate/commit/e7da154bca5593e82fb13c63b86862d97a820522))
+- register PR 49 bot-review as a review record [缺中文] ([`f78ba0f`](https://gitee.com/jermaine/yate/commit/f78ba0f0daba04d7052621b36810d3c97eab3f9e))
+- backfill diff tool entries and add unreleased section [缺中文] ([`18f266d`](https://gitee.com/jermaine/yate/commit/18f266db4212e05858e20900bc1a00648f2710ed))
+- register the wiki translate progress review [缺中文] ([`9b173ef`](https://gitee.com/jermaine/yate/commit/9b173ef82d07f15d18205f2d54de28ddd45ac031))
 - register PR 49 bot-review findings without fixing [缺中文] ([`21d4dff`](https://gitee.com/jermaine/yate/commit/21d4dff841f1d6bfdefb615fe7322dd5c6874fea))
+- mark backlog W2 as fixed [缺中文] ([`38266f2`](https://gitee.com/jermaine/yate/commit/38266f2128e0c0073ff827fa39ed9507e3da78c3))
+- mark backlog S2 and S3 as fixed [缺中文] ([`fb04d5f`](https://gitee.com/jermaine/yate/commit/fb04d5f0a2304f833121a705e453c25b89c8651c))
+- backfill diff-review-fixes execution record [缺中文] ([`c5f8f02`](https://gitee.com/jermaine/yate/commit/c5f8f0273a8fec619f3d1dd6d1367cfb32da0ed6))
+- register diff second-review findings [缺中文] ([`c06e789`](https://gitee.com/jermaine/yate/commit/c06e789fb9a70fe0e66b142c37dee3a8757e83f9))
+- add diff tool implementation plan [缺中文] ([`e3b7bef`](https://gitee.com/jermaine/yate/commit/e3b7befc22b3a423d2d190a7d31075f0bca308f9))
+- backfill wiki translate progress execution record [缺中文] ([`a10d6ed`](https://gitee.com/jermaine/yate/commit/a10d6ed8b9109b61ad7aa02b2844e0aafbdd4a63))
+- add wiki translate progress plan [缺中文] ([`2ac8453`](https://gitee.com/jermaine/yate/commit/2ac8453403e6c3282395fb2f630d704b34e91086))
+
+### 测试
+
+- cover quoted and space-containing path parsing [缺中文] ([`528648b`](https://gitee.com/jermaine/yate/commit/528648b97c196e705c4b8e2b8f8c97bf36405896))
+
+### 构建与工程
+
+- cover remaining W2 behavior paths in diff viewer [缺中文] ([`8d07460`](https://gitee.com/jermaine/yate/commit/8d0746039575d268403e1bcca23633729669ffe9))
 
 ## [0.2.7] - 2026-10-03 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.6...v0.2.7)
 
 ### 新功能
 
 - derive [packages] inventory from yate dist metadata [缺中文] ([`8d5ba7a`](https://gitee.com/jermaine/yate/commit/8d5ba7ab5e9f5eeca65396b1d5793ab4c7902614))
-- wire diff view into commands, overlays and cli [缺中文] ([`9103f27`](https://gitee.com/jermaine/yate/commit/9103f2780e2534d00af8360887d07ccfae35b090))
-- add DiffScreen diff view with panes and edit mode [缺中文] ([`bd3147a`](https://gitee.com/jermaine/yate/commit/bd3147ab2ee84bf0143c4240f18418851897173a))
-- add L0 diff engine with line, word and 3way merge support [缺中文] ([`58a1da9`](https://gitee.com/jermaine/yate/commit/58a1da9b035e7d39e82368ad78b08dd75f67f71b))
 - sync editor registers with the system clipboard [缺中文] ([`0f0252f`](https://gitee.com/jermaine/yate/commit/0f0252fea8f0eb84c2d65aeb8f02886abd3e2ea3))
 - expose api.sprites for custom screensaver characters [缺中文] ([`2ac19ed`](https://gitee.com/jermaine/yate/commit/2ac19ed741a1f1966d39a231b69ff2ffa08f89b9))
 - flip wiki translate scope default and add --translate-all [缺中文] ([`0a9a4f9`](https://gitee.com/jermaine/yate/commit/0a9a4f9e8de76b5db9ade074ccfaeb79e7096ebc))
@@ -46,9 +77,6 @@
 - ship core deps dist-info for frozen version probes [缺中文] ([`eb8d8af`](https://gitee.com/jermaine/yate/commit/eb8d8af34f5b542cad7ccf74a7bb07aaecef0598))
 - drop empty groups before rendering [packages] [缺中文] ([`8ec8e92`](https://gitee.com/jermaine/yate/commit/8ec8e920786e084ecbe6253279addab66e3f25c3))
 - bundle yate dist-info in frozen builds [缺中文] ([`79d41ac`](https://gitee.com/jermaine/yate/commit/79d41ac9dc6447c80dff4c50b8c446ad6f7a955b))
-- resolve backlog S2 and S3 in the edit key tables [缺中文] ([`f78f65b`](https://gitee.com/jermaine/yate/commit/f78f65b1e60a5bc25b834efd90f205c139ed66ad))
-- apply second-review fixes to diff screen [缺中文] ([`8770b9f`](https://gitee.com/jermaine/yate/commit/8770b9f6ae191ed5b8be4dfb2b0837130652850d))
-- harden open_diff file validation and add review tests [缺中文] ([`4999ac9`](https://gitee.com/jermaine/yate/commit/4999ac985e5682447c054f871fb0014303151e2d))
 - drop stale register prefix and guard empty clipboard writes [缺中文] ([`ec2606e`](https://gitee.com/jermaine/yate/commit/ec2606ea3fa21fad5b9a92f9ef69c74bb928ff6d))
 - skip register priming on read-only buffers [缺中文] ([`64f5eeb`](https://gitee.com/jermaine/yate/commit/64f5eebc6eca1f8ecafb085d510db4edcc1f5a26))
 - clear pending register on insert entry and visual exit [缺中文] ([`ffdde7c`](https://gitee.com/jermaine/yate/commit/ffdde7c65570f8fffd5a435b82ccb833ea389262))
@@ -118,11 +146,6 @@
 - backfill diag-package-sync execution record [缺中文] ([`07984cd`](https://gitee.com/jermaine/yate/commit/07984cd91b5fe83639096da7a6e878050c11e6f8))
 - adopt requires("yate") route and filter tooling extras [缺中文] ([`a61f855`](https://gitee.com/jermaine/yate/commit/a61f855b00ad5282b62ec23fdefd7c96c9752ae9))
 - add diag-package-sync sub-plans for issue IKJJFI [缺中文] ([`c798cd9`](https://gitee.com/jermaine/yate/commit/c798cd980f5e9a2a789ac7341ad3616e498334ff))
-- mark backlog W2 as fixed [缺中文] ([`38266f2`](https://gitee.com/jermaine/yate/commit/38266f2128e0c0073ff827fa39ed9507e3da78c3))
-- mark backlog S2 and S3 as fixed [缺中文] ([`fb04d5f`](https://gitee.com/jermaine/yate/commit/fb04d5f0a2304f833121a705e453c25b89c8651c))
-- backfill diff-review-fixes execution record [缺中文] ([`c5f8f02`](https://gitee.com/jermaine/yate/commit/c5f8f0273a8fec619f3d1dd6d1367cfb32da0ed6))
-- register diff second-review findings [缺中文] ([`c06e789`](https://gitee.com/jermaine/yate/commit/c06e789fb9a70fe0e66b142c37dee3a8757e83f9))
-- add diff tool implementation plan [缺中文] ([`e3b7bef`](https://gitee.com/jermaine/yate/commit/e3b7befc22b3a423d2d190a7d31075f0bca308f9))
 - register PR #46 AI review finding [缺中文] ([`d910bf9`](https://gitee.com/jermaine/yate/commit/d910bf91147591b068cb31bfb8661783bcde3b78))
 - add remove-inline-default-css plans for issue IKJHPH [缺中文] ([`380fccc`](https://gitee.com/jermaine/yate/commit/380fccc151a6072a608f3e6fec7801776c5ae902))
 - register the PR #45 third-round bot review [缺中文] ([`fe73f3a`](https://gitee.com/jermaine/yate/commit/fe73f3a8456de92a01849f5b71707410e2aa7987))
@@ -249,7 +272,6 @@
 ### 构建与工程
 
 - track the CodeBuddy master rules loader [缺中文] ([`7f7ccf9`](https://gitee.com/jermaine/yate/commit/7f7ccf97d9675a61b797ccfa518d613aa656470e))
-- cover remaining W2 behavior paths in diff viewer [缺中文] ([`8d07460`](https://gitee.com/jermaine/yate/commit/8d0746039575d268403e1bcca23633729669ffe9))
 - fill clipboard coverage gaps and fix import grouping [缺中文] ([`72020bb`](https://gitee.com/jermaine/yate/commit/72020bbc599d643af911d9288ba91af8e5c1bae0))
 - add coder 和 translator agent [缺中文] ([`f080c0d`](https://gitee.com/jermaine/yate/commit/f080c0da2a690df3daba6147fb46ff66834dbd92))
 - 移除 task-coordinator 子代理剧本 ([`30d7909`](https://gitee.com/jermaine/yate/commit/30d790938b2116b351e8b29eade0b3412e405405))
