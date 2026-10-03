@@ -12,6 +12,6 @@ A Textual based terminal text editor with:
 
 from __future__ import annotations
 
-__version__ = "0.2.7"
+__version__ = "0.2.8"
 __description__ = "yet another terminal editor (Textual based)"
 __all__ = ["__version__", "__description__"]
