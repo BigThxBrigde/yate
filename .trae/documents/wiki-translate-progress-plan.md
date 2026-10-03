@@ -85,7 +85,8 @@
 
 - **提交**：`2ac8453`（方案）→ `6a03d6b`（feat 实现）→ 评审修复提交（本笔）；
 - **评审**（code-review-expert 子代理，实测三项命令全 0 退出码）：
-  2 个 major + 3 个 minor，全部修复：
+  2 个 major + 3 个 minor，全部修复（逐条登记见
+  [`../reviews/2026-10-03-wiki-translate-progress.md`](../reviews/2026-10-03-wiki-translate-progress.md)）：
   1. **major** `--translate-all` 下预扫描与主循环漂移（recorded-fresh 页预告
      "nothing to translate" 但实际被翻译、进度条不启动）→ `needs_translation`
      改为 adopted/fresh 均返回 `translate_all`，矩阵测试补该格；
