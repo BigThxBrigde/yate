@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yate import __version__
+from yate.dist_meta import requirement_groups
 from yate.editor import Editor
 
 # Terminal environment variables worth surfacing.  Values are shown for the
@@ -53,6 +54,12 @@ _ANSI_RED: str = "\x1b[31m"
 _KV_LINE_RE: re.Pattern[str] = re.compile(r"^( +)([^ -].*?): (.+)$")
 #: ``  label:`` -- a sub-header that introduces an indented list below it.
 _LABEL_LINE_RE: re.Pattern[str] = re.compile(r"^( +)(\S.*):$")
+#: Tooling extras kept out of the diagnostics inventory: their members are
+#: development / build machinery, not runtime packages (user decision on
+#: issue IKJJFI). Membership still comes from metadata -- only the display
+#: of these extra groups is filtered.
+_SKIPPED_EXTRAS: frozenset[str] = frozenset({"dev", "build"})
+
 _SECTION_TITLE_RE: re.Pattern[str] = re.compile(r"^\[[a-z]+\]$")
 
 
@@ -413,18 +420,32 @@ def _section_fonts() -> list[str]:
 # ---------------------------------------------------------------- packages
 
 def _section_packages() -> list[str]:
-    names = [
-        "textual",
-        "tree_sitter",
-        "tree_sitter_python",
-        "tree_sitter_bash",
-    ]
+    """Derive the package inventory from yate's own dist metadata.
+
+    Single source of truth (issue IKJJFI): hatchling bakes pyproject.toml's
+    dependencies and extras into the installed dist-info (Requires-Dist
+    headers), so the report always matches what was declared at build time
+    -- no hand-kept list to drift. Core requirements render under a
+    ``core:`` label first, then one label per extra in name order; the
+    tooling extras in :data:`_SKIPPED_EXTRAS` stay out of the report.
+    """
+    groups = requirement_groups()
+    ordered = ["core"] + sorted(
+        name for name in groups if name != "core" and name not in _SKIPPED_EXTRAS
+    )
+    # "core" leads unconditionally but may be empty (every requirement
+    # carries an extra marker); drop empty groups before rendering.
+    ordered = [name for name in ordered if groups.get(name)]
+    if not ordered:
+        return []
+    width = max(len(name) for group in ordered for name in groups[group].values())
     lines: list[str] = []
-    width = max(len(n) for n in names)
-    for name in names:
-        version = _package_version(name)
-        display = version if version is not None else "not installed"
-        lines.append(_kv(name, display, width=width))
+    for group in ordered:
+        lines.append(f"  {group}:")
+        for name in sorted(groups[group].values()):
+            version = _package_version(name)
+            display = version if version is not None else "not installed"
+            lines.append(f"    {name.ljust(width)}: {display}")
     return lines
 
 

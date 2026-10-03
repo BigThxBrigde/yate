@@ -48,6 +48,11 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(SPECPATH))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+# Spec files run top to bottom with plain script semantics: this import
+# resolves "yate" through sys.path, so it must stay below the PROJECT_ROOT
+# injection above.
+from yate.dist_meta import requirement_groups
+
 
 def pkg_path(*parts: str) -> str:
     """Absolute path to a file or directory inside the yate source tree."""
@@ -86,6 +91,20 @@ for _ts_pkg in ("tree_sitter", "tree_sitter_python", "tree_sitter_bash"):
     # and the Windows blocked-version guard) rely on it.
     ts_datas += copy_metadata(_ts_pkg)
 
+# yate's own + core dependencies' dist-info: diagnostics._section_packages
+# derives the [packages] inventory from importlib.metadata.requires("yate")
+# and probes the versions with importlib.metadata.version() -- both read
+# dist-info metadata that must ship inside the frozen app (issue IKJJFI).
+# Without the core entries the exe reports bundled packages as
+# "not installed"; textual is also covered by a contrib hook, duplicate
+# datas entries are deduplicated by PyInstaller.
+yate_datas = copy_metadata("yate")
+# Core dependencies derive from yate's own dist metadata (same parser
+# as yate.diagnostics): whatever pyproject lists without an extra
+# marker ships its dist-info, so a new core dep never needs a spec edit.
+for _core_pkg in sorted(requirement_groups().get("core", {}).values()):
+    yate_datas += copy_metadata(_core_pkg)
+
 # Bundled extensions are loaded from disk at runtime via
 # importlib.util.spec_from_file_location (not normal imports), so the .py
 # scripts must ship as data files -- as must every non-code resource. Tree
@@ -113,7 +132,7 @@ a = Analysis(
     [pkg_path("__main__.py")],
     pathex=[PROJECT_ROOT],
     binaries=ts_binaries,
-    datas=datas + ts_datas,
+    datas=datas + ts_datas + yate_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

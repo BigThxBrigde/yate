@@ -417,7 +417,7 @@ python -m tools.release 0.3.0 --no-push # 全部做完但不推送
 cd d:\Programming\yate-pack-wiki   # 任意检出均可
 
 .venv\Scripts\python -m tools.pack wiki `
-  --translate-cmd ".venv\Scripts\python -m tools.translate --model hy4-preview-f" `
+  --translate-cmd ".venv\Scripts\python -m tools.translate" `
   --push
 ```
 

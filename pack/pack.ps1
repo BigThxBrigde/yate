@@ -75,7 +75,7 @@ try {
         )
     }
 
-    & $pythonExe --version 2>&1 | Out-Null
+    & $pythonExe --version | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Stop-WithMessage "Python interpreter not found ('$pythonExe'). Activate your .venv and try again."
     }
@@ -83,7 +83,12 @@ try {
     # Make sure the build extra (PyInstaller) is available. The [ts] extra
     # (tree-sitter + python/bash grammar packs) is installed too so the
     # standalone executable ships the tree-sitter highlighting backend.
-    & $pythonExe -c "import PyInstaller" 2>$null
+    # The probe must not print a traceback to stderr: redirected native
+    # stderr is a terminating NativeCommandError trap in Windows PowerShell
+    # 5.1 while $ErrorActionPreference is "Stop" (fixed in PowerShell 7.2).
+    # This script therefore never redirects native stderr and decides from
+    # $LASTEXITCODE -- find_spec is silent whether the package is present.
+    & $pythonExe -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('PyInstaller') is not None else 1)"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "PyInstaller not found; installing build+ts extras (pip install -e `".[build,ts]`") ..." -ForegroundColor Yellow
         & $pythonExe -m pip install -e ".[build,ts]"
@@ -200,7 +205,9 @@ try {
         }
         "$hash  yate.exe" | Set-Content -Encoding ascii (Join-Path $stage 'SHA256SUMS.txt')
 
-        $smoke = & $exe --version 2>&1
+        # No stderr redirect here either (same Windows PowerShell 5.1 trap):
+        # a failing exe prints to the console while $LASTEXITCODE decides.
+        $smoke = & $exe --version
         if ($LASTEXITCODE -ne 0 -or ($smoke -join ' ') -notlike "*$version*") {
             Stop-WithMessage "Smoke test failed ('$exe --version' did not report $version). Stage kept at: $stage"
         }
