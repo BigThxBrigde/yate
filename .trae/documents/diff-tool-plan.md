@@ -231,6 +231,18 @@ python -m pyright yate/ tests/ tools/
   `test_vim_normal_e_moves_word_end_and_q_is_inert`）；
 - S5：`:diff` 的 `args.split()` 不支持含空格路径，需对齐 `:e` 的引号解析先例或
   引入 `shlex.split`（涉及命令行解析口径，独立任务处理）。
+- PR 49 机器人审查 3 条（来源
+  [PR 49 评论](https://gitee.com/jermaine/yate/pulls/49#note_51434360_conversation_191342700)，
+  2026-10-03，登记不修，修复时先复核）：
+  1. 渲染正确性——`render_line` 的字符索引 `span` 把 tab 展开的空格 cell 也计入，
+     含 tab 行上 `diff_words` 的 char-based inline 高亮映射到错误 display cell；
+     建议修复方向为循环前用 `theme.char_to_cell` 将 char-ranges 预转 cell-index set
+     （参照 EditorView 模式）；
+  2. 性能——`render_line` 先全量 `expand_char` 再只渲染前 `text_w` 个 cell，
+     超长行（200+ 字符 / 80 列终端）一半展开计算被浪费；建议按
+     `min(len(line), text_w * 2 + buf.tab_width)` 预截断输入；
+  3. 一致性——`DiffPane.on_unmount` / `DiffScreen.on_unmount` 缺 `@override`
+     （已核实属实：diffview.py:287 / :620；同文件 `DiffPane.on_mount` 有标记）。
 - W2 余量：已修（commit 8d07460）——27 条 pilot 用例补齐登记路径（copy_3way 反方向、
   只读侧拒编辑/存盘、save 的 OSError 路径、insert/delete 型 hunk 行状态、3way 加亮
   锚点、vim insert 子模式、dd 弦、undo、fall-through、渲染边界），diffview.py
