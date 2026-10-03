@@ -182,3 +182,36 @@ flowchart TD
 
 回滚：各步独立提交，`git revert` 对应提交即可；无数据/格式迁移，
 diagnostics 输出形态除列对齐修复外逐字节不变。
+
+## 六、执行记录（2026-10-03 回填）
+
+按步骤 1-5 全部完成，提交序列（`fix/diag-package-sync`）：
+`28f4588` docs(plan) → `fc5dd06` docs(reviews) → `2696aa1`
+refactor(diag) 抽取 `yate/dist_meta.py` → `c9c8348` fix(diag) 列宽 →
+`736c637` fix(pack) spec 派生 → 本次回填 docs。
+
+实测门禁（worktree）：
+
+- `pytest tests/` → **1575 passed, 7 skipped**（全绿；含新增对齐守卫
+  `test_packages_section_column_alignment_uses_display_names` 1 例，较方案
+  预期 1574 多 1 系前序会话基线记录口径偏差，硬门槛为全绿）；
+- `pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**；
+- `pytest tests/test_architecture.py -q` → **22 passed**；
+- `py_compile pack/yate.spec pack/yate-onefile.spec` → exit 0；
+- 派生探针：`sorted(requirement_groups().get("core", {}).values())` ==
+  `['pyperclip', 'textual']`（临时脚本验后删除）；
+- 冻结重建（`pack\pack.ps1 -SkipChangelog`）+ `dist\yate\yate.exe --diag`
+  冒烟：exit 0，`[packages]` 节 core 行 `pyperclip 1.11.0` /
+  `textual 8.2.8`、ts 行版本正常（dist-info 完整打入，spec 派生构建期
+  生效），全部明细行 `": "` 列位唯一（列 22 对齐）。
+
+步骤 3 负向演练：仅加测试时新用例失败（列位 `{11, 12}`，exit 1），修复后
+28 passed（exit 0）。
+
+偏离记录（1 项，已披露）：步骤 2 顺带将 `tests/test_diagnostics.py` 中
+`_EXTRA_MARKER_RE` 注释里失效的 `diagnostics._REQ_EXTRA_RE` 引用同步改为
+`dist_meta._REQ_EXTRA_RE`（纯注释、同文件一致性修正）。
+
+验证过程更正：门禁复跑时一次误将 cwd 留在主仓（跑成 master 测试集），
+已识别并以 worktree cwd 全量重跑为准；另 pyproject `addopts` 已含 `-q`，
+命令行再传 `-q` 叠成 `-qq` 会抑制 pytest 摘要行（排查记录）。
