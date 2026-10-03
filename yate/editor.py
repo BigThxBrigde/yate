@@ -850,8 +850,8 @@ class Editor:
         if re.fullmatch(r"[+-]?\d+", text):
             self.prompt_flows.goto_line_command(text)
             return
-        parts = text.split()
-        name, args = parts[0], " ".join(parts[1:])
+        parts = text.split(maxsplit=1)
+        name, args = parts[0], parts[1] if len(parts) > 1 else ""
         entry = self.commands.get(name)
         if entry is None:
             log.warning("command not found: %s", name)
