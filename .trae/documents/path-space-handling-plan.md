@@ -134,11 +134,27 @@ flowchart LR
 | 未闭合引号 best-effort 与用户直觉不符 | 行尾剩余整体一个 token（"忘记闭合"直觉）；单测锁定 | 同上 |
 | `:sp "x y"` 剥引号后为空字符串 | `_strip_quotes` 空串不剥（len<2 卫语句），行为同现状 | 同上 |
 
-## 七、执行记录（回填区）
+## 七、执行记录（2026-10-03 回填）
 
-- [ ] Step 1 结果：
-- [ ] Step 2 结果：
-- [ ] Step 3 结果：
-- [ ] Step 4 结果：
-- [ ] Step 5 门禁（pyright / pytest / 覆盖率 / 退出码）：
-- [ ] 偏离记录：
+- [x] Step 1：commit `d7b84be`（`fix(commands)`，+53/−6）——`_strip_quotes`
+  （commands.py:37-46）与 `_split_paths`（commands.py:49-77）落位；
+  `:diff` / `:e` / `:saveas` / `:sp` / `:vs` 五处接线与 §四口径一致，
+  usage 提示补 `(quote paths with spaces)`。
+- [x] Step 2：commit `7a91c80`（`fix(editor)`，+2/−2）——`run_command`
+  改 `split(maxsplit=1)`（editor.py:853-854）。
+- [x] Step 3：commit `528648b`（`test(commands)`，+202）——新建
+  `tests/test_command_path_args.py` 13 例（helper 单测 10 + pilot 3），
+  `tests/test_diff_integration.py` 增补引号含空格目录双栏用例 1 例。
+  测试基建说明：`wait_until` 因 tests/ 无 `__init__.py` 无法跨文件复用，
+  按 `test_app_textual.py` 先例内联，并用精确 `Pilot[None]` 泛型避免 `Any`。
+- [x] Step 4：本提交——S5 状态与 4 条 minor 待办登记回填 diff-tool-plan.md。
+- [x] Step 5 门禁（code-review-expert 实测 + 主代理复核，退出码均 0）：
+  pyright `yate/ tests/` 0 errors；`pytest tests/ -q` 全绿（1 skipped）；
+  架构测试 `tests/test_architecture.py` 22 passed；覆盖率 91.39%
+  （`--cov-fail-under=75` 达标，改动行 0 missing）；冒烟 89/89 场景、
+  932/932 checks。
+- [x] 评审结论（closed-loop 步骤 5）：无 blocker / major；1 WARNING（方案
+  文档回填缺口）已由本提交补齐；4 条 minor（引号路径集成测试 ×3 命令、
+  边界口径锁定断言、`wait_until` 下沉 conftest、`:diff --3way` flag 覆盖）
+  登记至 diff-tool-plan.md 遗留待办，不在本轮扩 scope。
+- [x] 偏离记录：无。

@@ -229,8 +229,16 @@ python -m pyright yate/ tests/ tools/
   editor_core/textobjects.py 的 `word_end_column`）、`q` 惰性消费，
   均不再 fall-through 到 screen 绑定（守卫用例
   `test_vim_normal_e_moves_word_end_and_q_is_inert`）；
-- S5：`:diff` 的 `args.split()` 不支持含空格路径，需对齐 `:e` 的引号解析先例或
-  引入 `shlex.split`（涉及命令行解析口径，独立任务处理）。
+- S5：已修（issue IKJK0B，commits d7b84be / 7a91c80 / 528648b，方案见
+  [path-space-handling-plan.md](path-space-handling-plan.md)）——`:diff` 改引号感知
+  tokenizer `_split_paths`（否决 shlex：posix=True 吃 Windows 反斜杠 / posix=False
+  不剥引号）；核实 `:e` 并无"引号解析先例"（原文表述不准确），实为整段单路径，
+  故为 `:e` / `:saveas` / `:sp` / `:vs` 补成对引号剥离 `_strip_quotes`；
+  `run_command` 改 `split(maxsplit=1)` 保留路径内连续空格；
+- 本任务（IKJK0B）评审 4 条 minor 已登记待办：`:sp` / `:vs` / `:saveas` 引号路径
+  无集成测试；`_strip_quotes('""')`、引号包裹 `--3way` flag、引号闭合紧贴拼接
+  三处口径缺锁定断言；`wait_until` 第三份拷贝宜下沉 conftest；
+  `:diff --3way` flag 分支零覆盖。
 - PR 49 机器人审查 3 条（评审记录
   [2026-10-03-pr49-diff-tool-ai-review.md](../reviews/2026-10-03-pr49-diff-tool-ai-review.md)，来源
   [PR 49 评论](https://gitee.com/jermaine/yate/pulls/49#note_51434360_conversation_191342700)，
