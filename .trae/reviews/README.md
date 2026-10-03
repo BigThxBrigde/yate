@@ -14,8 +14,8 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-✅ 已修＝2026-10-01 整改轮闭环销账）。当前仍未关闭 **9 项**；
-已闭环的 10 项（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #18 / #19）保留行并标注处置，
+✅ 已修＝2026-10-01 整改轮闭环销账）。当前仍未关闭 **10 项**；
+已闭环的 11 项（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #18 / #19 / #20）保留行并标注处置，
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
 
@@ -40,6 +40,8 @@
 | 17 | 2026-10-02 | PR #44 AI 评审 1 项改进：`tools/__init__.py` 模块 docstring 的 RST 内联标记被误插（"hatchling" 前多一对反引号，inline-literal 永不闭合） | ✅ 已修（2026-10-02，`56815e0`） | [2026-10-02-pr44-py-style-audit-review.md](2026-10-02-pr44-py-style-audit-review.md) |
 | 18 | 2026-10-02 | PR #45 AI 评审（三轮）：首轮 vsc paste 只读缓冲覆写 unnamed 寄存器；第二轮 pending_register 生命周期过宽、空串镜像守卫缺失、只读 paste 多余剪贴板读取、缺后端不可用钉用例；第三轮 vsc cut 原子性（先写寄存器后删除）、只读 paste 建议静默返回 | 🟡 首轮/第二轮已修（2026-10-02，`64f5eeb` + 3 修 1 钉）；第三轮 ⏸ 登记不修（2026-10-02 用户决策） | [2026-10-02-pr45-system-clipboard-review.md](2026-10-02-pr45-system-clipboard-review.md) |
 | 19 | 2026-10-02 | PR #46 AI 评审 1 项改进：`test_app_css.py` 的 `_default_css_violations` 只扫 `ast.Assign`，`DEFAULT_CSS: str = "inline"`（`ast.AnnAssign`）静默放行 | ✅ 已修（分支 commit `5fca69b`：全模块扫 Assign + AnnAssign + 负向演练；评审时点未推送故 PR 可见提交不含修复，推送后随 PR 闭环）；本次 ⏸ 登记不另修（2026-10-02 用户决策） | [2026-10-02-pr46-remove-inline-default-css-review.md](2026-10-02-pr46-remove-inline-default-css-review.md) |
+| 20 | 2026-10-03 | PR #47 AI 评审 2 项改进：`_section_packages()` 列宽按规范名（键）计算、渲染却用展示名（值），展示名更长时 `[packages]` 列对齐错乱；两 spec 硬编码 core 依赖名，与"单一事实来源"目标张力 | ✅ 已修（2026-10-03：`2696aa1` 抽取 stdlib-only `yate/dist_meta.py` + `c9c8348` 列宽按 `.values()` + `736c637` spec 构建期派生，见该文档） | [2026-10-03-pr47-ai-review.md](2026-10-03-pr47-ai-review.md) |
+| 21 | 2026-10-03 | PR #49 AI 评审 3 项改进：含 tab 行 inline diff 高亮偏移（渲染正确性，未复核）；超长行全量 `expand_char` 展开浪费（性能，未复核）；两处 `on_unmount` 缺 `@override`（一致性，已核实属实） | ⏸ 本次登记不另修（2026-10-03 用户决策；登记于 diff-tool-plan.md 遗留待办） | [2026-10-03-pr49-diff-tool-ai-review.md](2026-10-03-pr49-diff-tool-ai-review.md) |
 
 ---
 
@@ -81,6 +83,8 @@
 | 2026-10-02 | **Gitee PR #44** 评审（py-style-audit 风格规范化分支全量，AI 队友审查，两轮） | ⚠️ 无阻断项，可优化后合并（首轮 1 阻断 → 复审降为 1 改进） | 首轮 1 阻断 / 1 改进 → 复审 0 阻断 / 1 改进 | ✅ 已修（2026-10-02，`56815e0`：还原 docstring 成对 RST 标记，见速览 #17） | [2026-10-02-pr44-py-style-audit-review.md](2026-10-02-pr44-py-style-audit-review.md) |
 | 2026-10-02 | **Gitee PR #45** 评审（system-clipboard 系统剪贴板集成分支，AI 队友审查，三轮） | ⚠️ 无阻断项（三轮均无阻断；第三轮 2 项按用户决策登记不修） | 首轮 1 改进 → 第二轮 4 改进（low）→ 第三轮 2 改进（medium） | 🟡 首轮/第二轮已修（`64f5eeb`：只读守卫；`ec2606e`：pending 前缀生命周期 + 空串守卫 + paste 零读取对称）；⏸ 第三轮不修（只读契约保持显式抛错，见速览 #18） | [2026-10-02-pr45-system-clipboard-review.md](2026-10-02-pr45-system-clipboard-review.md) |
 | 2026-10-02 | **Gitee PR #46** 评审（remove-inline-default-css 分支，issue IKJHPH，AI 队友审查） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 1 改进 | ✅ 改进项已在分支修复（`5fca69b`，AnnAssign 入扫；评审时点未推送）；⏸ 本次登记不另修（用户决策，见速览 #19） | [2026-10-02-pr46-remove-inline-default-css-review.md](2026-10-02-pr46-remove-inline-default-css-review.md) |
+| 2026-10-03 | **Gitee PR #47** 评审（diag-package-sync 分支，issue IKJJFI，AI 队友审查） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 2 改进 | ✅ 已全修（2026-10-03，`2696aa1` / `c9c8348` / `736c637`，见速览 #20） | [2026-10-03-pr47-ai-review.md](2026-10-03-pr47-ai-review.md) |
+| 2026-10-03 | **Gitee PR #49** 评审（diff-tool 分支，issue IKJC88，AI 队友审查） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 3 改进 | ⏸ 本次登记不另修（2026-10-03 用户决策，见速览 #21） | [2026-10-03-pr49-diff-tool-ai-review.md](2026-10-03-pr49-diff-tool-ai-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

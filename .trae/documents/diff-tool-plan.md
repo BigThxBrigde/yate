@@ -231,7 +231,8 @@ python -m pyright yate/ tests/ tools/
   `test_vim_normal_e_moves_word_end_and_q_is_inert`）；
 - S5：`:diff` 的 `args.split()` 不支持含空格路径，需对齐 `:e` 的引号解析先例或
   引入 `shlex.split`（涉及命令行解析口径，独立任务处理）。
-- PR 49 机器人审查 3 条（来源
+- PR 49 机器人审查 3 条（评审记录
+  [2026-10-03-pr49-diff-tool-ai-review.md](../reviews/2026-10-03-pr49-diff-tool-ai-review.md)，来源
   [PR 49 评论](https://gitee.com/jermaine/yate/pulls/49#note_51434360_conversation_191342700)，
   2026-10-03，登记不修，修复时先复核）：
   1. 渲染正确性——`render_line` 的字符索引 `span` 把 tab 展开的空格 cell 也计入，
