@@ -79,14 +79,12 @@ class StatusBar(Static):
 
     def on_mount(self) -> None:
         """Initial render, then follow theme changes (self-painted)."""
-        self._theme_unsubscribe = theme.subscribe(self.refresh_status)
+        theme.attach(self, self.refresh_status)
         self.refresh_status()
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     def refresh_status(self) -> None:
         """Rebuild the one-line status text from the current editor state."""

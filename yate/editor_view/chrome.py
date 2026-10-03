@@ -103,14 +103,12 @@ class TabBar(Static):
 
     def on_mount(self) -> None:
         """Initial render, then follow theme changes (self-painted)."""
-        self._theme_unsubscribe = theme.subscribe(self.refresh_tabs)
+        theme.attach(self, self.refresh_tabs)
         self.refresh_tabs()
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     # ------------------------------------------------------------- events
 
@@ -185,7 +183,15 @@ class Breadcrumbs(Static):
             extra = 1 + 1 + theme.cell_len(label)  # icon + space + label
             if chosen:
                 extra += 3  # " <chevron> " separator
-            if used + extra > width and chosen:
+            if used + extra > width:
+                if not chosen:
+                    # A single over-wide crumb (usually the file name) is
+                    # truncated to the remaining budget instead of letting
+                    # it overflow the whole line (icon + space = 2 cells).
+                    truncated = theme.truncate_to_cells(
+                        label, max(0, width - used - 2)
+                    )
+                    chosen.insert(0, (crumb[0], truncated, crumb[2]))
                 break
             chosen.insert(0, crumb)
             used += extra
@@ -214,14 +220,12 @@ class Breadcrumbs(Static):
 
     def on_mount(self) -> None:
         """Initial render, then follow theme changes (self-painted)."""
-        self._theme_unsubscribe = theme.subscribe(self.refresh_crumbs)
+        theme.attach(self, self.refresh_crumbs)
         self.refresh_crumbs()
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     def on_resize(self, _event: Resize) -> None:
         """Re-render the crumb line at the new width."""

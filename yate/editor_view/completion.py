@@ -269,13 +269,45 @@ def _ident_prefix(line: str, col: int) -> tuple[str, int]:
 
 
 def _words_from_buffer(buf: TextBuffer, exclude_row: int) -> set[str]:
-    """All identifier-like words in *buf* (skipping the cursor row)."""
+    """All identifier-like words in *buf* (skipping the cursor row).
+
+    The per-row word sets come from the per-content-version cache
+    (:func:`_buffer_row_words`), so the repeated full-buffer regex scan per
+    keystroke becomes a union over cached sets.  A word appearing on both
+    the excluded and another row is still collected (union, not
+    subtraction).
+    """
     words: set[str] = set()
-    for r, line in enumerate(buf.lines):
-        if r == exclude_row:
-            continue
-        words.update(_WORD_RE.findall(line))
+    for r, row_words in enumerate(_buffer_row_words(buf)):
+        if r != exclude_row:
+            words |= row_words
     return words
+
+
+#: Per-row word sets cached per ``(buffer, content version)``.  Scanning
+#: every open buffer per keystroke dominated completion latency on large
+#: files; the cache is invalidated by the version counter and bounded in
+#: size.  The key holds the buffer itself (not its id) so a closed buffer
+#: cannot be recycled into a stale entry; entries drop when the cap is hit.
+_row_word_cache: dict[tuple[TextBuffer, int], list[set[str]]] = {}
+_ROW_WORD_CACHE_MAX: int = 16
+
+
+def _buffer_row_words(buf: TextBuffer) -> list[set[str]]:
+    """Per-row identifier words of *buf*, cached per content version."""
+    key = (buf, buf.content_version)
+    cached = _row_word_cache.get(key)
+    if cached is not None:
+        return cached
+    rows = [set(_WORD_RE.findall(line)) for line in buf.lines]
+    if len(_row_word_cache) >= _ROW_WORD_CACHE_MAX:
+        # Bounded: drop the stalest (insertion-order first) entries.
+        for stale in list(_row_word_cache)[
+            : len(_row_word_cache) - _ROW_WORD_CACHE_MAX + 1
+        ]:
+            del _row_word_cache[stale]
+    _row_word_cache[key] = rows
+    return rows
 
 
 def _path_completions(prefix: str, base_dir: Path | None = None) -> list[str]:
@@ -346,14 +378,12 @@ def buffer_completions(
 
     # 1) words from the current buffer and any extra open buffers
     seen: set[str] = set()
-    for word in _words_from_buffer(buf, row):
+    candidates = _words_from_buffer(buf, row)
+    for other in extra_buffers or []:
+        candidates |= _words_from_buffer(other, -1)
+    for word in candidates:
         if word.lower().startswith(needle) and word != prefix:
             seen.add(word)
-    if extra_buffers:
-        for other in extra_buffers:
-            for word in _words_from_buffer(other, -1):
-                if word.lower().startswith(needle) and word != prefix:
-                    seen.add(word)
     for word in sorted(seen):
         items.append(
             Completion(

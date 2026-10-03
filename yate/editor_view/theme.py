@@ -38,6 +38,7 @@ from typing import Any
 from rich.style import Style
 from textual.color import Color as TextualColor
 from textual.theme import Theme as TextualTheme
+from textual.widget import Widget
 
 from yate.editor_syntax.tokens import SYNTAX_KINDS
 from yate.logs import tracing
@@ -447,6 +448,28 @@ def _notify() -> None:
             log.warning(
                 "theme listener failed: %s: %s", type(exc).__name__, exc
             )
+
+
+def attach(widget: Widget, repaint: Callable[[], None]) -> None:
+    """Subscribe *widget* to theme broadcasts (call from ``on_mount``).
+
+    Stores the unsubscribe hook on *widget* as ``_theme_unsubscribe`` --
+    the attribute every self-painting component declares.  The assignment
+    goes through ``setattr`` (same explicit-intent pattern as
+    :func:`yate.editor_view.scrollbars.apply_slim_scrollbars`) because the
+    hook lives on concrete widget classes, not on :class:`Widget` itself,
+    and a lookup protocol would violate the R2 architecture rule.
+    :func:`detach` undoes it from the unmount path.
+    """
+    setattr(widget, "_theme_unsubscribe", subscribe(repaint))
+
+
+def detach(widget: Widget) -> None:
+    """Unsubscribe *widget* from theme broadcasts (idempotent unmount)."""
+    hook = getattr(widget, "_theme_unsubscribe", None)
+    if callable(hook):
+        hook()
+    setattr(widget, "_theme_unsubscribe", None)
 
 
 def available() -> list[str]:

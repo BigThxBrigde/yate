@@ -236,15 +236,13 @@ class PromptBar(Horizontal):
     def on_mount(self) -> None:
         """Own the theme painting and register for theme-change updates."""
         self._apply_theme()
-        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+        theme.attach(self, self._apply_theme)
         self.input.display = False
         self.prompt.display = False
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     def _apply_theme(self) -> None:
         """Paint the bar and its children with the active theme."""

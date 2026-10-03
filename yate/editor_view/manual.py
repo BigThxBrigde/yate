@@ -93,7 +93,7 @@ def _widget_plain_text(widget: Widget) -> str:
     ``render()`` for childless widgets. Layout containers (whose children
     own the text) stay empty so matches are not double counted.
     """
-    content = getattr(widget, "_content", None)
+    content = getattr(widget, "_content", None)  # Textual 8.2.8 internal
     if content is not None and hasattr(content, "plain"):
         plain = cast(str, content.plain)
         if plain:
@@ -116,6 +116,8 @@ def _widget_plain_text(widget: Widget) -> str:
 
 def _strip_text(strip: Any) -> str:
     """Plain text of one rendered row (Strip)."""
+    # ``Strip._segments`` is a Textual internal (pinned to 8.2.8); the
+    # public ``segments`` property is the documented fallback.
     segments = getattr(strip, "_segments", None)
     if segments is None:
         segments = getattr(strip, "segments", ())

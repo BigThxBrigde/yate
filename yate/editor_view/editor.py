@@ -9,7 +9,6 @@ from typing import Any, override, Protocol
 
 from rich.segment import Segment
 from rich.style import Style
-from textual.color import Color
 from textual.events import Focus, Key, Resize
 from textual.geometry import Size
 from textual.scroll_view import ScrollView
@@ -19,6 +18,7 @@ from textual.timer import Timer
 from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
 from yate.editor_core.document import Document
+from yate.editor_core.search import Match, SearchEngine
 from yate.editor_lsp import Diagnostic, LspManager
 from yate.editor_syntax.engine import tokenize_document_with_states
 from yate.editor_syntax.engine import tokenize_line_sync
@@ -29,7 +29,7 @@ from yate.paths import load_tcss
 from yate.session import EditorSession, Leaf
 
 from . import theme
-from .scrollbars import apply_slim_scrollbars
+from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 log = tracing.get_logger(__name__)
 
@@ -169,6 +169,12 @@ class EditorView(ScrollView):
         # so moving through a file keeps its colors. After an edit the
         # previous tokens keep coloring the text for one debounce window
         # instead of flashing the whole view uncolored.
+        # Search-match buckets for the render path (see _matches_for_row):
+        # keyed on the matches *list object* identity, which SearchEngine
+        # replaces wholesale on every update.
+        self._match_buckets: tuple[
+            list[Match], dict[int, list[tuple[int, Match]]]
+        ] | None = None
         self._hl_tokens: list[list[Token]] | None = None
         self._hl_doc: Document | None = None
         self._hl_version: int = -1
@@ -256,37 +262,17 @@ class EditorView(ScrollView):
         super().on_mount()
         apply_slim_scrollbars(self)
         self._apply_theme()
-        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+        theme.attach(self, self._apply_theme)
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast (widgets own their painting)."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     def _apply_theme(self) -> None:
         """Paint this view with the active theme (bg + scrollbar palette)."""
         self.styles.background = theme.active().bg
-        self.apply_scrollbar_theme()
+        apply_scrollbar_theme(self)
         self.content_changed()
-
-    def apply_scrollbar_theme(self) -> None:
-        """Paint the vertical scrollbar with active-theme colors.
-
-        Textual draws the scrollbar itself; without explicit styling it keeps
-        the framework defaults which clash with the Catppuccin palette. The
-        track is fully transparent (ScrollBar composites alpha<1 over the
-        parent background), so only the thin partial-block thumb shows
-        (issue IKINF3); a faint tint appears on hover/drag.
-        """
-        t = theme.active()
-        s = self.styles
-        s.scrollbar_background = Color(0, 0, 0, 0)
-        s.scrollbar_background_hover = Color.parse(t.surface).with_alpha(0.35)
-        s.scrollbar_color = t.border
-        s.scrollbar_color_hover = t.fg_dim
-        s.scrollbar_color_active = t.accent
-        s.scrollbar_corner_color = Color(0, 0, 0, 0)
 
     def _update_virtual_size(self) -> None:
         buf = self.buffer
@@ -437,7 +423,11 @@ class EditorView(ScrollView):
         changed.update(range(common, cur_count))
         if not changed:
             # Version bumped without any line changing (out-of-band mark):
-            # the cached tokens still match the text exactly.
+            # the cached tokens still match the text exactly, so record the
+            # version here too -- without this the version-staleness check
+            # in :meth:`_tokens_for` would re-run the O(lines) diff on
+            # every render until the worker replaces the cache.
+            self._hl_version = buf.content_version
             return tokens[row] if row < len(tokens) else []
 
         first = min(changed)
@@ -879,9 +869,7 @@ class EditorView(ScrollView):
         # the same file would otherwise paint matches on wrong rows anyway.
         search = self.session.search
         if search.query and self.doc is self.session.doc:
-            for i, match in enumerate(search.matches):
-                if match.row != row:
-                    continue
+            for i, match in self._matches_for_row(row, search):
                 sid = S_MATCH_ACTIVE if i == search.index else S_MATCH
                 ranges.append((
                     theme.char_to_cell(line, match.start, tw),
@@ -895,6 +883,26 @@ class EditorView(ScrollView):
 
         ranges.sort()
         return ranges
+
+    def _matches_for_row(
+        self, row: int, search: SearchEngine
+    ) -> list[tuple[int, Match]]:
+        """The search matches on *row*, from a per-row bucket cache.
+
+        ``render_line`` asks for matches once per visible row per frame;
+        scanning the full match list for every row is O(visible x total
+        matches).  The buckets are rebuilt only when the match list object
+        changes (:meth:`SearchEngine.update` assigns a fresh list), so an
+        incremental-search keystroke pays one O(matches) pass per repaint.
+        """
+        cached = self._match_buckets
+        if cached is None or cached[0] is not search.matches:
+            buckets: dict[int, list[tuple[int, Match]]] = {}
+            for i, match in enumerate(search.matches):
+                buckets.setdefault(match.row, []).append((i, match))
+            cached = (search.matches, buckets)
+            self._match_buckets = cached
+        return cached[1].get(row, [])
 
     @staticmethod
     def _cell_style(t: theme.Theme, sid: int, kind: str | None, line_bg: str | None) -> Style:

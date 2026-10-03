@@ -311,8 +311,9 @@ class PaletteScreen(ModalScreen[None]):
                 self._cursor = (self._cursor + 1) % len(self._filtered)
                 self._render_results()
                 # A single match is unambiguous: let Tab choose it immediately
-                # (bash-style: unique completion is applied at once).
-                if len(self._filtered) == 1:
+                # (bash-style: unique completion is applied at once).  Plain
+                # cursor movement (down / ctrl+n) must never execute anything.
+                if event.key == "tab" and len(self._filtered) == 1:
                     self._choose()
 
     # ------------------------------------------------------------- actions
@@ -337,7 +338,10 @@ class PaletteScreen(ModalScreen[None]):
                 self.run_command(str(name))
 
 
-def _walk(root: Path, limit: int = 5000) -> list[Path]:
-    """Fallback file walk (no workspace root set); mirrors Workspace logic."""
-    ws = Workspace(root)
-    return ws.walk_files(limit=limit)
+def _walk(root: Path) -> list[Path]:
+    """Fallback file walk (no workspace root set); mirrors Workspace logic.
+
+    Uses :meth:`Workspace.walk_files`' own default limit so the two entry
+    points cannot drift apart.
+    """
+    return Workspace(root).walk_files()

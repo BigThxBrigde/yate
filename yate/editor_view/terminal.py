@@ -8,7 +8,6 @@ grid, forwards keystrokes to the PTY and manages scrollback.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, override
@@ -422,13 +421,11 @@ class TerminalPanel(Vertical):
         # Vertical's MRO has no public on_mount (Textual containers only
         # implement the private _on_mount), so nothing is shadowed here.
         self._apply_theme()
-        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+        theme.attach(self, self._apply_theme)
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     def _apply_theme(self) -> None:
         """Paint the header and view backgrounds with the active theme.
@@ -534,5 +531,10 @@ class TerminalPanel(Vertical):
         if text == self._cached_header:
             return
         self._cached_header = text
-        with contextlib.suppress(Exception):
+        try:
             self.header.update(text)
+        except Exception as exc:  # noqa: BLE001 - unmount race, best effort
+            # The only expected failure is updating a header already torn
+            # down during unmount; anything else is logged for diagnosis
+            # instead of vanishing.
+            log.debug("terminal header update skipped: %s", exc)
