@@ -1,8 +1,8 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-10-03 · yate 0.2.7
+> 由 git 历史自动生成于 2026-10-03 · yate 0.2.8
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.7...HEAD)
+## [0.2.8] - 2026-10-03 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.7...v0.2.8)
 
 ### 新功能
 
@@ -14,6 +14,7 @@
 
 ### 问题修复
 
+- regnerate changelog to settle slate state [缺中文] ([`844e1f2`](https://gitee.com/jermaine/yate/commit/844e1f2de8d8960cc5ff6e09fa76b9abc3da91ad))
 - preserve inner whitespace when splitting ex args [缺中文] ([`7a91c80`](https://gitee.com/jermaine/yate/commit/7a91c80ff42bec6b36d14102cc0634901d663715))
 - parse quoted paths with spaces on the ex command line [缺中文] ([`d7b84be`](https://gitee.com/jermaine/yate/commit/d7b84be988a9023ddb80585e4944018294d5cf69))
 - resolve backlog S2 and S3 in the edit key tables [缺中文] ([`f78f65b`](https://gitee.com/jermaine/yate/commit/f78f65b1e60a5bc25b834efd90f205c139ed66ad))
