@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Final, cast
 
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import (
     BarColumn,
     Progress,
@@ -366,9 +367,9 @@ def needs_translation(
 
     Mirrors the in-loop decision for the pre-loop preview count.  Pages
     with an ``en_source`` twin are copied verbatim, never translated.  A
-    missing or empty English page is pending; an adopted page (no
-    manifest record) is pending only under *translate_all*; a recorded
-    page is pending exactly when its digest went stale.
+    missing or empty English page is pending; an adopted (no manifest
+    record) or fresh page is pending only under *translate_all*; a stale
+    page is always pending.
 
     Known edge: an ``en_source`` file deleted after collection (TOCTOU)
     counts as copied here while the main loop takes the translation path
@@ -379,11 +380,13 @@ def needs_translation(
     en_path = target / page.en_target
     if not en_path.exists() or en_path.stat().st_size == 0:
         return True
-    recorded = manifest.get(page.zh_target)
-    if recorded is None:
-        return translate_all
     digest = hashlib.sha256(page.zh_source.read_bytes()).hexdigest()
-    return recorded != digest
+    recorded = manifest.get(page.zh_target)
+    if recorded is None or recorded == digest:
+        # Adopted (externally maintained) or fresh: pending only when
+        # --translate-all re-translates every page.
+        return translate_all
+    return True
 
 
 def push_wiki(target: Path) -> int:
@@ -550,15 +553,21 @@ def run(
             file=sys.stderr,
         )
     console = Console(file=sys.stderr)
+    run_started = time.monotonic()
     pending = 0
     if translate_cmd is not None:
         pending = sum(
-            1 for page in pages if needs_translation(page, target, manifest, translate_all)
+            1
+            for page in pages
+            if needs_translation(page, target, manifest, translate_all)
         )
         if pending:
-            console.print(f"wiki: {pending} page(s) to translate")
+            console.print(f"wiki: {pending} page(s) to translate", markup=False)
         else:
-            console.print(f"wiki: nothing to translate ({len(pages)} pages up to date)")
+            console.print(
+                f"wiki: nothing to translate ({len(pages)} pages up to date)",
+                markup=False,
+            )
     kept = 0
     translated = 0
     missing: list[str] = []
@@ -576,7 +585,8 @@ def run(
     if active:
         progress.start()
     try:
-        for done, page in enumerate(pages, start=1):
+        attempted = 0
+        for page in pages:
             zh_bytes = page.zh_source.read_bytes()
             zh_path = target / page.zh_target
             zh_path.parent.mkdir(parents=True, exist_ok=True)
@@ -619,8 +629,11 @@ def run(
                 else:
                     stale.append(page.en_target)
                 continue
-            progress.update(overall, description=f"translating {page.en_target}")
+            progress.update(
+                overall, description=f"translating {escape(page.en_target)}"
+            )
             started = time.monotonic()
+            attempted += 1
             english = translate_via_cmd(
                 zh_bytes.decode("utf-8", errors="replace"), translate_cmd
             )
@@ -629,7 +642,9 @@ def run(
                 # not missing -- report it under the right heading.
                 elapsed = time.monotonic() - started
                 console.print(
-                    f"wiki: [{done}/{len(pages)}] {page.en_target} failed ({elapsed:.1f}s)"
+                    f"wiki: [{attempted}/{pending}] {page.en_target} failed"
+                    f" ({elapsed:.1f}s)",
+                    markup=False,
                 )
                 if has_en:
                     stale.append(page.en_target)
@@ -662,7 +677,7 @@ def run(
     print(
         f"wiki: {len(pages)} pages -> {target} "
         f"(en kept {kept} / translated {translated} / "
-        f"missing {len(missing)} / stale {len(stale)})"
+        f"missing {len(missing)} / stale {len(stale)}) in {time.monotonic() - run_started:.1f}s"
     )
     for name in missing:
         print(f"  missing en: {name}")

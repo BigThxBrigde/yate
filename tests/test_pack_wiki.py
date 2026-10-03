@@ -548,6 +548,8 @@ def test_needs_translation_decision_matrix(
     digest = hashlib.sha256(page.zh_source.read_bytes()).hexdigest()
     manifest[page.zh_target] = digest
     assert not wiki.needs_translation(page, target, manifest, translate_all=False)
+    # Recorded-fresh but --translate-all: pending again (review major #1).
+    assert wiki.needs_translation(page, target, manifest, translate_all=True)
     # Dual-source pages are copied verbatim, never translated.
     assert not wiki.needs_translation(pages["topic.zh.md"], target, manifest, True)
 
@@ -564,10 +566,17 @@ def test_run_previews_pending_count_and_failure_lines(
         return None if calls["n"] == 1 else "# en\n\ntranslated\n"
 
     monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
-    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo) == 0
+    target = tmp_path / "wiki"
+    # Expected pending count mirrors the predicate against the pristine
+    # target (no English pages yet), instead of hard-coding the fixture size.
+    expected = sum(
+        1
+        for page in wiki.collect_sources(repo)
+        if wiki.needs_translation(page, target, {}, translate_all=False)
+    )
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
     err = capsys.readouterr().err
-    # The fixture repo has exactly 8 translatable pages (see the fills test).
-    assert "8 page(s) to translate" in err
+    assert f"{expected} page(s) to translate" in err
     assert "failed" in err
 
 
