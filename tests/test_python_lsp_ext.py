@@ -141,6 +141,26 @@ def test_override_is_split_with_shell_quoting(monkeypatch: pytest.MonkeyPatch) -
     )
 
 
+def test_windows_override_keeps_backslashes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Windows path override survives shlex (2026-10-03 review R-58).
+
+    posix=True treated ``\\`` as an escape and turned the documented
+    ``C:\\tools\\pyright-langserver.cmd`` example into ``C:tools...``;
+    Windows now splits with the platform-native rules and strips the
+    outer quotes posix=False preserves.
+    """
+    monkeypatch.setattr("yate.extensions.python_lsp.os.name", "nt")
+    monkeypatch.setenv(
+        "YATE_PYTHON_LSP", r'"C:\tools\pyright-langserver.cmd" --stdio'
+    )
+    assert python_lsp.discover_command() == (
+        r"C:\tools\pyright-langserver.cmd",
+        ["--stdio"],
+    )
+
+
 def test_blank_override_falls_through_to_the_path_lookup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -829,3 +829,46 @@ def test_invalid_utf8_bytes_become_replacement_characters() -> None:
     assert emu.grid[0][0].char == "a"
     assert emu.grid[0][1].char == "\ufffd"
     assert emu.grid[0][2].char == "b"
+
+
+# --- 2026-10-03 review regressions (R-39 / R-40 / R-42) ----------------------
+
+
+def test_split_multibyte_sequence_survives_the_feed_boundary() -> None:
+    """A multi-byte UTF-8 char split across two feeds renders as one char.
+
+    The incremental decoder persists between ``feed`` calls; per-call
+    decoding turned each half of a split CJK character into U+FFFD (R-39).
+    """
+    emu = _emu()
+    raw = "中".encode()
+    emu.feed(raw[:1])
+    emu.feed(raw[1:])
+    assert _rows(emu) == "中"
+
+
+def test_osc_aborted_by_esc_redispatches_the_next_sequence() -> None:
+    """A bare ESC inside OSC aborts it; the next char starts a fresh CSI.
+
+    The old ``_osc_via_st`` branch consumed the dispatch character, so
+    ``ESC [`` of the following sequence lost its ``[`` (R-40).
+    """
+    emu = _emu()
+    emu.feed(b"\x1b]0;title\x1b[Hok")
+    assert emu.cursor == (0, 2)
+    assert _rows(emu) == "ok"
+
+
+def test_esc_aborts_a_partial_csi_sequence() -> None:
+    """ESC in the middle of a CSI parameter aborts and re-dispatches."""
+    emu = _emu()
+    emu.feed(b"\x1b[12\x1b[2Xok")
+    assert _rows(emu) == "ok"
+    assert emu.cursor == (0, 2)
+
+
+def test_modified_special_keys_come_from_the_shared_table() -> None:
+    """ctrl+shift arrows and modified home/end reach the PTY (R-42)."""
+    assert key_to_terminal("ctrl+shift+right") == "\x1b[1;6C"
+    assert key_to_terminal("ctrl+home") == "\x1b[1;5H"
+    assert key_to_terminal("shift+end") == "\x1b[1;2F"

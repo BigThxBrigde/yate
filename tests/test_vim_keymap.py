@@ -1623,6 +1623,20 @@ def test_visual_quote_then_v_names_the_register() -> None:
     assert editor.buffer.get_text() == "lpha"
 
 
+def test_d2dd_multiplies_counts_and_does_not_leak_the_count() -> None:
+    """``d2dd`` deletes two lines and leaves no count on the next key.
+
+    The linewise op used to drop the motion count (deleting one line) and
+    to leak ``count_str``, so a following ``x`` deleted two characters
+    (2026-10-03 review R-57).
+    """
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma\ndelta")
+    _press(keymap, ctx, "d", "2", "d")
+    assert editor.buffer.get_text() == "gamma\ndelta"
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "amma\ndelta"
+
+
 def test_delete_dd_into_named_register_stays_internal(
     fake_clip: _FakeClip,
 ) -> None:
