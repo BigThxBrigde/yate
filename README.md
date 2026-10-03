@@ -431,7 +431,10 @@ cd d:\Programming\yate-pack-wiki   # any checkout works
   the hook, overwriting their existing English pages (use with care);
 - `--push`: once every translation succeeds, commits and pushes to
   `origin` (gitee) and `github`; any failed page skips the push so dirty
-  state never reaches the remotes.
+  state never reaches the remotes;
+- progress: translations run behind a rich progress bar on stderr (current
+  page name + overall progress); `Ctrl+C` exits cleanly with code 130 and
+  no traceback -- already translated pages are adopted on the next run.
 
 ```powershell
 .venv\Scripts\python -m tools.pack wiki --check   # gate: exit 1 while missing/stale

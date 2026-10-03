@@ -177,13 +177,22 @@ def _wiki(args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Dispatch the parsed arguments to the selected subcommand handler."""
+    """Dispatch the parsed arguments to the selected subcommand handler.
+
+    A ``Ctrl+C`` during a long-running subcommand (wiki translation, git
+    push) prints a one-line note on stderr and maps to exit code 130 --
+    never a traceback.
+    """
     args = build_parser().parse_args(argv)
-    if args.command == "icon":
-        return _icon(args.source, args.target, args.sizes)
-    if args.command == "rosters":
-        return _rosters(args.output)
-    if args.command == "wiki":
-        return _wiki(args)
+    try:
+        if args.command == "icon":
+            return _icon(args.source, args.target, args.sizes)
+        if args.command == "rosters":
+            return _rosters(args.output)
+        if args.command == "wiki":
+            return _wiki(args)
+    except KeyboardInterrupt:
+        print("\ntools.pack: interrupted", file=sys.stderr)
+        return 130
     build_parser().error(f"unknown command {args.command!r}")
     return 2
