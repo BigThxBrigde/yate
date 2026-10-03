@@ -105,8 +105,8 @@ def _write_json(path: str, results: Sequence[ScenarioResult],
                 "checks": [
                     {
                         "label": c.label,
-                        "expected": c.expected,
-                        "actual": c.actual,
+                        "expected": baselines.jsonable(c.expected),
+                        "actual": baselines.jsonable(c.actual),
                         "ok": c.ok,
                         "invariant": c.invariant,
                     }

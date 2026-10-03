@@ -7,10 +7,14 @@ Build with (after ``pip install -e ".[build,ts]"``), from the repository root::
 
 The output is dist/yate/yate.exe (a one-folder build). Resources are located
 at runtime through yate.paths, which checks sys._MEIPASS, so the data layout
-below must mirror the source tree (everything lands inside a top-level
-``yate`` package folder in the bundle).
+shared with pack/_common.py must mirror the source tree (everything lands
+inside a top-level ``yate`` package folder in the bundle).
 
 For a single self-extracting exe instead, use ``pack/yate-onefile.spec``.
+Every build step the two specs share (icon, hidden imports, tree-sitter
+binaries, dist-info metadata, data files, extensions Tree) lives in
+``pack/_common.py``; this file keeps only the one-folder Analysis/EXE/COLLECT
+differences.
 
 This spec lives in pack/, one level below the repository root. PyInstaller
 resolves every source path in the spec relative to the spec's own directory
@@ -21,118 +25,37 @@ Note: ``*.spec`` is git-ignored by default; this file is tracked on purpose
 (``git add -f pack/yate.spec``).
 """
 
-import importlib.util
 import os
 import sys
 
-from PyInstaller.building.datastruct import Tree
-from PyInstaller.utils.hooks import (
-    collect_dynamic_libs,
-    collect_submodules,
-    copy_metadata,
-)
-
 # SPECPATH is injected by PyInstaller: the directory containing this file
-# (…/pack). The actual sources and resources sit one level above it.
-PROJECT_ROOT = os.path.dirname(os.path.abspath(SPECPATH))
-
-# Make the package importable regardless of the directory pyinstaller was
-# invoked from (collect_submodules below resolves "yate" via sys.path).
+# (.../pack).  Spec files are exec'd as plain scripts, so the spec directory
+# is put on sys.path explicitly before importing _common, and the repository
+# root before _common imports the "yate" package for its dist metadata.
+SPEC_DIR = os.path.abspath(SPECPATH)
+if SPEC_DIR not in sys.path:
+    sys.path.insert(0, SPEC_DIR)
+PROJECT_ROOT = os.path.dirname(SPEC_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# Spec files run top to bottom with plain script semantics: this import
-# resolves "yate" through sys.path, so it must stay below the PROJECT_ROOT
-# injection above.
-from yate.dist_meta import requirement_groups
+import _common  # noqa: E402
 
-
-def pkg_path(*parts: str) -> str:
-    """Absolute path to a file or directory inside the yate source tree."""
-    return os.path.join(PROJECT_ROOT, "yate", *parts)
-
-
-# Executable icon: PyInstaller takes a .ico on Windows (a .icns on macOS) --
-# the JPEG logo cannot be passed directly, so yate/yate.jpg is converted into
-# pack/yate.ico by "python -m tools.pack icon" (re-run after the logo changes).
-# Linux builds (pack/pack.sh) get no icon; EXE(icon=None) is the default.
-ICON = (
-    os.path.join(os.path.abspath(SPECPATH), "yate.ico")
-    if sys.platform == "win32"
-    else None
-)
-
-
-# yate's own submodules are statically imported; collect the full package so a
-# newly added screen/service never silently drops out of a frozen build.
-hiddenimports = collect_submodules("yate")
-
-# The optional tree-sitter backend loads tree_sitter and the built-in grammar
-# packs lazily via importlib.import_module (see
-# yate.editor_syntax.ts_backend.languages), which static analysis cannot
-# follow -- without this the frozen app reports the grammars "not installed".
-# The packages come from the [ts] extra; when it is absent in the build
-# environment the executable simply ships regex-only (the loop skips them).
-ts_binaries = []
-ts_datas = []
-for _ts_pkg in ("tree_sitter", "tree_sitter_python", "tree_sitter_bash"):
-    if importlib.util.find_spec(_ts_pkg) is None:
-        continue
-    hiddenimports += collect_submodules(_ts_pkg)
-    ts_binaries += collect_dynamic_libs(_ts_pkg)
-    # dist-info metadata: importlib.metadata.version() probes (yate --diag
-    # and the Windows blocked-version guard) rely on it.
-    ts_datas += copy_metadata(_ts_pkg)
-
-# yate's own + core dependencies' dist-info: diagnostics._section_packages
-# derives the [packages] inventory from importlib.metadata.requires("yate")
-# and probes the versions with importlib.metadata.version() -- both read
-# dist-info metadata that must ship inside the frozen app (issue IKJJFI).
-# Without the core entries the exe reports bundled packages as
-# "not installed"; textual is also covered by a contrib hook, duplicate
-# datas entries are deduplicated by PyInstaller.
-yate_datas = copy_metadata("yate")
-# Core dependencies derive from yate's own dist metadata (same parser
-# as yate.diagnostics): whatever pyproject lists without an extra
-# marker ships its dist-info, so a new core dep never needs a spec edit.
-for _core_pkg in sorted(requirement_groups().get("core", {}).values()):
-    yate_datas += copy_metadata(_core_pkg)
-
-# Bundled extensions are loaded from disk at runtime via
-# importlib.util.spec_from_file_location (not normal imports), so the .py
-# scripts must ship as data files -- as must every non-code resource. Tree
-# (rather than a plain directory tuple) keeps development bytecode caches out
-# of the distributable.
-extensions_tree = Tree(
-    pkg_path("extensions"),
-    prefix="yate/extensions",
-    excludes=["__pycache__", "*.pyc", "*.pyo"],
-)
-datas = [
-    (pkg_path("resources"), "yate/resources"),
-    (pkg_path("docs"), "yate/docs"),
-    # tree-sitter highlight queries are package data read via Path(__file__);
-    # PyInstaller only collects code from the package, so ship them explicitly.
-    (
-        pkg_path("editor_syntax", "ts_backend", "queries"),
-        "yate/editor_syntax/ts_backend/queries",
-    ),
-    (pkg_path("yaterc.example"), "yate"),
-]
+inputs = _common.collect(SPECPATH)
 
 a = Analysis(
-    [pkg_path("__main__.py")],
+    [inputs.pkg_path("__main__.py")],
     pathex=[PROJECT_ROOT],
-    binaries=ts_binaries,
-    datas=datas + ts_datas + yate_datas,
-    hiddenimports=hiddenimports,
+    binaries=inputs.ts_binaries,
+    datas=inputs.datas + inputs.ts_datas + inputs.yate_datas,
+    hiddenimports=inputs.hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
 )
-a.datas += extensions_tree
+a.datas += inputs.extensions_tree
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -141,7 +64,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="yate",
-    icon=ICON,
+    icon=inputs.icon,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

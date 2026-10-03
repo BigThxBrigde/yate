@@ -13,20 +13,17 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence, cast
 
+from .._util import repo_root
 from .harness import ScenarioResult
 
 __all__ = [
     "default_baseline_dir",
     "diff_baseline",
+    "jsonable",
     "repo_root",
     "serialize",
     "write_baselines",
 ]
-
-
-def repo_root() -> Path:
-    """The yate repository root (two levels above this package)."""
-    return Path(__file__).resolve().parents[2]
 
 
 def default_baseline_dir() -> Path:
@@ -34,12 +31,13 @@ def default_baseline_dir() -> Path:
     return repo_root() / "tools" / "smoke_test" / "smoke_baselines"
 
 
-def _jsonable(value: Any) -> Any:
+def jsonable(value: Any) -> Any:
     """Make a check value storable in JSON.
 
     Scenarios mostly assert on strings / ints / bools, but a stray
     ``Path`` (or anything else Rich can render and JSON cannot) must not
-    abort the whole snapshot run.
+    abort the whole run -- this is the shared cleaner for baseline writes
+    and the CLI's ``--json`` report.
     """
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
@@ -47,10 +45,10 @@ def _jsonable(value: Any) -> Any:
         return str(value)
     if isinstance(value, (list, tuple)):
         seq = cast("Sequence[Any]", value)
-        return [_jsonable(v) for v in seq]
+        return [jsonable(v) for v in seq]
     if isinstance(value, dict):
         raw = cast("Mapping[Any, Any]", value)
-        return {str(k): _jsonable(v) for k, v in raw.items()}
+        return {str(k): jsonable(v) for k, v in raw.items()}
     return repr(value)
 
 
@@ -60,8 +58,8 @@ def serialize(result: ScenarioResult) -> dict[str, Any]:
         "checks": [
             {
                 "label": c.label,
-                "expected": _jsonable(c.expected),
-                "actual": _jsonable(c.actual),
+                "expected": jsonable(c.expected),
+                "actual": jsonable(c.actual),
                 "ok": c.ok,
             }
             for c in result.checks

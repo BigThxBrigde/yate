@@ -20,12 +20,10 @@ import importlib
 from pathlib import Path
 from typing import Any
 
+from .._util import repo_root
+
 #: Module providing the image conversion (Pillow).
 _IMAGE_MODULE: str = "PIL.Image"
-
-def repo_root() -> Path:
-    """The repository root: two levels above this module (tools/pack/icon.py)."""
-    return Path(__file__).resolve().parents[2]
 
 
 #: Logo shipped with the package -- the single source for the icon.

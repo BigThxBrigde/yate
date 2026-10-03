@@ -372,10 +372,15 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
     checks: list[Check] = []
     buf = app.editor.session.buffer
     row, col = buf.cursor
+    row_in_lines = 0 <= row < len(buf.lines)
     checks.append(Check("invariant:cursor_row", True,
-                        0 <= row < len(buf.lines), invariant=True))
-    checks.append(Check("invariant:cursor_col", True,
-                        0 <= col <= len(buf.lines[row]), invariant=True))
+                        row_in_lines, invariant=True))
+    # Guard the column probe: a crashing scenario can leave the cursor out
+    # of range, and this sweep runs outside _run_one's try/except -- it must
+    # record a failed check, never IndexError the whole harness.
+    checks.append(Check(
+        "invariant:cursor_col", True,
+        row_in_lines and 0 <= col <= len(buf.lines[row]), invariant=True))
     checks.append(Check("invariant:no_leftover_modal", True,
                         len(app.screen_stack) <= 1, invariant=True))
     rc = app.return_code
@@ -424,6 +429,10 @@ def _run_one(
     started = time.monotonic()
     try:
         result = asyncio.run(_timed(scenario, sub, options.timeout))
+    except (KeyboardInterrupt, SystemExit):
+        # Ctrl+C must still abort the whole suite: a crashing scenario is a
+        # FAIL, an interrupted operator is not.
+        raise
     except BaseException as exc:  # noqa: BLE001 - a crashing scenario is a FAIL
         result = ScenarioResult(
             scenario.name, tags=scenario.tags,

@@ -52,6 +52,8 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from .. import _util
+
 GITHUB_WIKI_URL: Final[str] = "https://github.com/BigThxBrigde/yate.wiki.git"
 
 #: Name of the translation manifest written at the wiki repo root.
@@ -90,6 +92,20 @@ _ZH_SECTION_LABELS: Final[dict[str, str]] = {
     SECTION_SETS: "计划集",
     SECTION_REVIEWS: "评审记录",
 }
+
+#: Wall clock budget for one git command (a first ``git push`` of a large
+#: wiki repo included): a hung git must not block the run forever.
+GIT_TIMEOUT_S: Final[float] = 120.0
+
+
+class WikiError(RuntimeError):
+    """A wiki operation failed and the run must abort.
+
+    Raised by library code (never ``sys.exit``); the CLI layer
+    (:mod:`tools.pack.cli`) catches it, prints the message on stderr and
+    maps it to exit code 1 -- mirroring
+    :class:`tools.translate.runner.TranslateError`.
+    """
 
 _EN_SECTION_LABELS: Final[dict[str, str]] = {
     SECTION_GUIDES: "Guides",
@@ -242,14 +258,26 @@ def _link(target: str) -> str:
 
 
 def run_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    """Run a git command inside *cwd*, capturing output as text."""
-    return subprocess.run(
-        ["git", "-C", str(cwd), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    """Run a git command inside *cwd*, capturing output as text.
+
+    The command is bounded by :data:`GIT_TIMEOUT_S`; on timeout the child is
+    killed and a synthetic failed ``CompletedProcess`` (exit code 124, the
+    ``timeout(1)`` convention) is returned, so every caller reports a clean
+    stderr error instead of hanging forever -- mirroring
+    :func:`tools.changelog.gitdata.run_git`.
+    """
+    try:
+        return subprocess.run(
+            ["git", "-C", str(cwd), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        detail = f"git timed out after {GIT_TIMEOUT_S:g}s: git {' '.join(args)}"
+        return subprocess.CompletedProcess(args, 124, "", detail)
 
 
 def default_target(repo_root: Path) -> Path:
@@ -289,9 +317,9 @@ def load_manifest(target: Path) -> dict[str, str]:
     except OSError as exc:
         # A read error (permissions, disk trouble) must not silently reset
         # the sha256 records: the next store_manifest() would overwrite the
-        # file and every stale marker would be lost.  Abort instead.
-        print(f"wiki: manifest read error: {exc}", file=sys.stderr)
-        sys.exit(1)
+        # file and every stale marker would be lost.  Abort via WikiError so
+        # the CLI layer reports it and exits 1 (library code never sys.exit).
+        raise WikiError(f"manifest read error: {exc}") from exc
     if not isinstance(raw, dict):
         print("wiki: manifest is not an object, starting fresh", file=sys.stderr)
         return {}
@@ -540,7 +568,7 @@ def run(
     missing or stale; with *push* the wiki repo is committed and pushed
     (skipped when the check fails).
     """
-    root = repo_root if repo_root is not None else Path(__file__).resolve().parents[2]
+    root = repo_root if repo_root is not None else _util.repo_root()
     pages = collect_sources(root)
     target.mkdir(parents=True, exist_ok=True)
     # The manifest carries over across runs: stale pages keep their old
