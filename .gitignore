@@ -137,7 +137,12 @@ cython_debug/
 !.vscode/settings.json
 .idea/
 # CodeBuddy workspace data (agents / teams / automations), machine-local
-.codebuddy/
+# — except the master rules loader, which must survive in worktrees
+# (it forces loading the tracked .trae/rules/* as the rule source)
+.codebuddy/*
+!.codebuddy/rules/
+.codebuddy/rules/*
+!.codebuddy/rules/yate-rules.md
 
 # OS files
 .DS_Store
