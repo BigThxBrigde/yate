@@ -17,8 +17,10 @@ from typing import Any
 from textual.screen import Screen
 
 from yate.config import YateConfig
+from yate.editor_core.document import Document
 from yate.editor_sprites.characters import character_names
 from yate.editor_view.commandline import PromptBar
+from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen
 from yate.editor_view.palette import PaletteScreen
@@ -112,6 +114,58 @@ class OverlayFlows:
         """Command palette: fuzzy search over commands (alt+shift+p)."""
         if self._mounted():
             self.push(self._palette("commands"))
+
+    def open_diff(self, paths: list[Path]) -> None:
+        """Open the two- or three-way diff overlay for *paths*.
+
+        Mode is derived from the count (2 -> 2way, 3 -> 3way with the
+        base/local/remote order).  Missing, non-text, unreadable or
+        oversized files are refused on the message line; the screen never
+        opens half-configured.
+        """
+        if not self._mounted():
+            return
+        if isinstance(self._current_screen(), DiffScreen):
+            self._message("diff view is already open", "info")
+            return
+        if len(paths) not in (2, 3):
+            self._message("usage: :diff [--3way] FILE1 FILE2 [FILE3]", "warn")
+            return
+        for path in paths:
+            # is_file(), not exists(): a directory wearing a text suffix
+            # would pass the suffix check and crash Document.open with
+            # IsADirectoryError (no try/except around command actions).
+            if not path.is_file():
+                self._message(f"no such file: {path}", "warn")
+                return
+            if not Workspace.is_text_file(path):
+                self._message(f"not a text file: {path.name}", "warn")
+                return
+        try:
+            docs = [Document.open(path) for path in paths]
+        except OSError as exc:
+            # the file vanished / was locked after the is_file() check
+            self._message(f"cannot open file: {exc}", "warn")
+            return
+        for doc in docs:
+            if doc.buffer.line_count > MAX_DIFF_LINES:
+                self._message(
+                    f"file too large for diff view: {doc.name}"
+                    f" (>{MAX_DIFF_LINES} lines)",
+                    "warn",
+                )
+                return
+        labels = (
+            ["base", "local", "remote"] if len(docs) == 3 else ["left", "right"]
+        )
+        self.push(
+            DiffScreen(
+                docs,
+                mode="3way" if len(docs) == 3 else "2way",
+                keymaps=self.keymaps,
+                labels=labels,
+            )
+        )
 
     def _palette(self, mode: str) -> PaletteScreen:
         """Build the palette screen for *mode* (``files`` / ``commands``)."""
