@@ -144,6 +144,54 @@ def test_changelog_flag_defaults_to_en() -> None:
         build_parser().parse_args(["--changelog", "fr"])
 
 
+# --- --diff -----------------------------------------------------------------
+
+
+def test_cli_diff_two_files_defaults_two_way() -> None:
+    args = build_parser().parse_args(["--diff", "a", "b"])
+    assert args.diff_files == ["a", "b"]
+    assert args.three_way is False
+    assert args.two_way is False
+
+
+def test_cli_diff_three_files_with_flag_parses() -> None:
+    args = build_parser().parse_args(["--diff", "a", "b", "c", "--3way"])
+    assert args.diff_files == ["a", "b", "c"]
+    assert args.three_way is True
+
+
+def _expect_cli_error(argv: list[str]) -> None:
+    """main() rejects *argv* through ``parser.error`` (exit code 2)."""
+    with (
+        patch("yate.logs.crash.install"),
+        pytest.raises(SystemExit) as ctx,
+    ):
+        main(argv)
+    assert ctx.value.code == 2
+
+
+def test_cli_diff_rejects_positional_conflict() -> None:
+    _expect_cli_error(["f", "--diff", "a", "b"])
+
+
+def test_cli_diff_rejects_wrong_file_count() -> None:
+    _expect_cli_error(["--diff", "a"])
+
+
+def test_cli_three_way_requires_three_files() -> None:
+    _expect_cli_error(["--diff", "a", "b", "--3way"])
+
+
+def test_cli_two_way_rejects_three_files() -> None:
+    _expect_cli_error(["--diff", "a", "b", "c", "--2way"])
+
+
+def test_cli_two_and_three_way_mutually_exclusive() -> None:
+    with pytest.raises(SystemExit) as ctx:
+        build_parser().parse_args(["--diff", "a", "b", "--2way", "--3way"])
+    assert ctx.value.code == 2
+
+
 # --- --changelog ------------------------------------------------------------
 
 

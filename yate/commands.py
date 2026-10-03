@@ -294,4 +294,25 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         "list language server diagnostics for the current file")
     reg("font", _font, "install the bundled Nerd Font")
 
+    # ---- diff ---------------------------------------------------------------
+
+    def _diff(args: str) -> None:
+        tokens = args.split()
+        three = False
+        names: list[str] = []
+        for token in tokens:
+            if token in ("-3", "--3way"):
+                three = True
+            else:
+                names.append(token)
+        if len(names) == 2 and three:
+            editor.message("--3way needs three files", kind="warn")
+            return
+        if len(names) not in (2, 3):
+            editor.message("usage: :diff [--3way] FILE1 FILE2 [FILE3]", kind="warn")
+            return
+        editor.overlays.open_diff([Path(p) for p in names])
+
+    reg("diff", _diff, "compare files in a diff view (:diff [--3way] F1 F2 [F3])")
+
     log.info("builtin commands registered: %d", len(registry.names()))
