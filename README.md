@@ -419,7 +419,7 @@ models) missing English pages can be filled automatically:
 cd d:\Programming\yate-pack-wiki   # any checkout works
 
 .venv\Scripts\python -m tools.pack wiki `
-  --translate-cmd ".venv\Scripts\python -m tools.translate --model hy4-preview-f" `
+  --translate-cmd ".venv\Scripts\python -m tools.translate" `
   --push
 ```
 

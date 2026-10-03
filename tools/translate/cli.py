@@ -62,8 +62,8 @@ def _parse_args(argv: list[str] | None) -> _Options:
     )
     parser.add_argument(
         "--fallback-model",
-        default=None,
-        help="model to fall back to on overload (default: none)",
+        default=runner.DEFAULT_FALLBACK_MODEL,
+        help="model to fall back to on overload (default: %(default)s)",
     )
     parser.add_argument(
         "--max-turns",
