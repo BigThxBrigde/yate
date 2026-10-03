@@ -220,6 +220,9 @@ python -m pyright yate/ tests/ tools/
 
 ### 遗留待办（非阻塞，登记后续）
 
+- 二轮评审（python-code-review）4 条（vim `a` 行尾跨行、编辑重算无防抖、
+  `DiffPane.role` 死参数、`check_sizes` 无生产调用方）已登记至
+  [diff-review-fixes-plan.md](diff-review-fixes-plan.md) 并随该任务修复；
 - S2：diffview.py 编辑键表每键重建 dict，可提为模块级常量（性能微优化）。
 - S3：vim normal 模式单字母（e/q）fall-through 到 screen 绑定与 vim 肌肉记忆冲突，
   设计权衡——建议页头 hint 或后续 help 注明。
