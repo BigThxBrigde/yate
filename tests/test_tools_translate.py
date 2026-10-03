@@ -109,7 +109,7 @@ def test_cli_builds_expected_command(
     assert _argv_value(argv, "--permission-mode") == "bypassPermissions"
     assert _argv_value(argv, "--max-turns") == "12"
     assert "--no-session-persistence" in argv
-    assert "--fallback-model" not in argv
+    assert _argv_value(argv, "--fallback-model") == "glm-5.3-flash"
     assert calls[0]["shell"] is False
     assert calls[0]["encoding"] == "utf-8"
     assert calls[0]["errors"] == "replace"
@@ -117,11 +117,14 @@ def test_cli_builds_expected_command(
     assert capsys.readouterr().out == "# Title\n\nBody\n"
 
 
-def test_cli_appends_fallback_model_only_when_given(
+def test_cli_fallback_model_default_and_override(
     source: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``--fallback-model`` reaches the argv, and is absent without it."""
+    """``--fallback-model`` defaults to the runner constant, override wins."""
+    calls = _patch_run(monkeypatch, stdout="# Title\n\nBody\n")
+    assert cli.main([str(source)]) == 0
+    assert _argv_value(_argv(calls), "--fallback-model") == "glm-5.3-flash"
     calls = _patch_run(monkeypatch, stdout="# Title\n\nBody\n")
     assert cli.main([str(source), "--fallback-model", "hy3-x"]) == 0
     assert _argv_value(_argv(calls), "--fallback-model") == "hy3-x"
