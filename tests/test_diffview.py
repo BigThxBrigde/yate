@@ -365,6 +365,34 @@ def test_vim_append_at_eol_stays_on_line(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_vim_normal_e_moves_word_end_and_q_is_inert(tmp_path: Path) -> None:
+    """vim normal ``e`` lands on the word end; ``q`` stays inert (backlog S3).
+
+    Unmapped, both keys fell through to the screen bindings: ``e`` toggled
+    edit mode off and ``q`` armed the close guard -- vim muscle-memory traps.
+    """
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["one two\nthree", "one two\nthree"])
+        app = _Host(docs, "2way", _keymaps("vim"), ["left", "right"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            pane = screen.query_one("#diff-pane-0", DiffPane)
+            await pilot.press("enter")  # vim normal
+            assert pane.editing
+            await pilot.press("e")
+            assert pane.editing  # did not toggle edit mode off
+            assert pane.buffer.cursor == (0, 2)  # word end of "one"
+            await pilot.press("q")
+            assert pane.editing
+            assert "press esc again" not in screen._hint_text()
+            assert app.screen is screen
+
+    asyncio.run(scenario())
+
+
 def test_debounced_recompute_applies_burst(tmp_path: Path) -> None:
     """Rapid keystrokes collapse into one recompute after the window.
 

@@ -52,6 +52,7 @@ from yate.editor_core.diff import (
     hunk_replacement,
 )
 from yate.editor_core.document import Document
+from yate.editor_core.textobjects import word_end_column
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.paths import load_tcss
@@ -94,7 +95,7 @@ class PaneDiffState:
 
 
 # ---------------------------------------------------------------------------
-# Edit-mode key tables (module-level functions, not classes)
+# Edit-mode key tables (module-level constants, built once)
 # ---------------------------------------------------------------------------
 
 
@@ -103,72 +104,95 @@ def _undo(pane: DiffPane) -> None:
     pane.buffer.undo()
 
 
-def _vsc_edit_keys() -> dict[str, Callable[[DiffPane], None]]:
-    """VS Code-style edit table: cursor keys, deletion, newline, undo.
+def _vim_arm_dd(pane: DiffPane) -> None:
+    """Arm the ``dd`` line-delete chord; a second ``d`` completes it."""
+    pane.pending_d = True
 
-    Printable characters are handled by the pane itself (``is_printable``),
-    so the table only lists named keys.
+
+def _vim_insert_at(pane: DiffPane) -> None:
+    """Switch to the vim insert sub-table before the cursor."""
+    pane.vim_insert = True
+
+
+def _vim_append_at(pane: DiffPane) -> None:
+    """Switch to the vim insert sub-table after the cursor (never wrapping).
+
+    ``set_cursor`` clamps to the line end (same as the main vim keymap), so
+    ``a`` never spills onto the next line.
     """
-    return {
-        "up": lambda pane: pane.buffer.move_up(),
-        "down": lambda pane: pane.buffer.move_down(),
-        "left": lambda pane: pane.buffer.move_left(),
-        "right": lambda pane: pane.buffer.move_right(),
-        "home": lambda pane: pane.buffer.move_line_start(),
-        "end": lambda pane: pane.buffer.move_line_end(),
-        "backspace": lambda pane: pane.buffer.delete_backward(),
-        "delete": lambda pane: pane.buffer.delete_forward(),
-        "enter": lambda pane: pane.buffer.insert_newline(),
-        "ctrl+z": _undo,
-    }
+    pane.buffer.set_cursor((pane.buffer.row, pane.buffer.col + 1))
+    pane.vim_insert = True
 
 
-def _vim_edit_keys() -> dict[str, Callable[[DiffPane], None]]:
-    """Vim normal-mode edit table (main-plan D2: bounded subset).
+def _vim_open_below(pane: DiffPane) -> None:
+    """Open a new line below and switch to the insert sub-table."""
+    pane.buffer.move_line_end()
+    pane.buffer.insert_newline()
+    pane.vim_insert = True
 
-    ``d`` arms the ``dd`` line-delete chord (second ``d`` deletes, any other
-    key cancels); ``i``/``a``/``o`` switch to the insert sub-table.
+
+def _vim_word_end(pane: DiffPane) -> None:
+    """Move to the current line's next word end (vim ``e``, in-line only).
+
+    The cross-line walk of the main vim keymap is out of the bounded
+    subset; at a line's last word end the key is a no-op.
     """
-
-    def arm_dd(pane: DiffPane) -> None:
-        pane.pending_d = True
-
-    def insert_at(pane: DiffPane) -> None:
-        pane.vim_insert = True
-
-    def append_at(pane: DiffPane) -> None:
-        # set_cursor clamps to the line end (same as the main vim keymap),
-        # so "a" never spills onto the next line.
-        pane.buffer.set_cursor((pane.buffer.row, pane.buffer.col + 1))
-        pane.vim_insert = True
-
-    def open_below(pane: DiffPane) -> None:
-        pane.buffer.move_line_end()
-        pane.buffer.insert_newline()
-        pane.vim_insert = True
-
-    return {
-        "h": lambda pane: pane.buffer.move_left(),
-        "j": lambda pane: pane.buffer.move_down(),
-        "k": lambda pane: pane.buffer.move_up(),
-        "l": lambda pane: pane.buffer.move_right(),
-        "0": lambda pane: pane.buffer.set_cursor((pane.buffer.row, 0)),
-        # Textual normalizes "$" to its unicode key name (probe: _character_to_key).
-        "dollar_sign": lambda pane: pane.buffer.move_line_end(),
-        "x": lambda pane: pane.buffer.delete_forward(),
-        "d": arm_dd,
-        "i": insert_at,
-        "a": append_at,
-        "o": open_below,
-    }
+    col = word_end_column(pane.buffer.lines[pane.buffer.row], pane.buffer.col)
+    if col is not None:
+        pane.buffer.set_cursor((pane.buffer.row, col))
 
 
-def vim_insert_keys() -> dict[str, Callable[[DiffPane], None]]:
-    """Vim insert sub-table: printable characters fall through to typing."""
-    return {
-        "enter": lambda pane: pane.buffer.insert_newline(),
-        "backspace": lambda pane: pane.buffer.delete_backward(),
-    }
+def _vim_inert(pane: DiffPane) -> None:
+    """Consume ``q`` with no effect (backlog S3).
+
+    Unmapped, it reaches the screen bindings and arms the close guard --
+    a vim muscle-memory trap, since ``q`` means macro recording there.
+    """
+    return None
+
+
+#: VS Code-style edit table: cursor keys, deletion, newline, undo.
+#: Printable characters are handled by the pane itself (``is_printable``),
+#: so the table only lists named keys.
+_VSC_EDIT_KEYS: dict[str, Callable[[DiffPane], None]] = {
+    "up": lambda pane: pane.buffer.move_up(),
+    "down": lambda pane: pane.buffer.move_down(),
+    "left": lambda pane: pane.buffer.move_left(),
+    "right": lambda pane: pane.buffer.move_right(),
+    "home": lambda pane: pane.buffer.move_line_start(),
+    "end": lambda pane: pane.buffer.move_line_end(),
+    "backspace": lambda pane: pane.buffer.delete_backward(),
+    "delete": lambda pane: pane.buffer.delete_forward(),
+    "enter": lambda pane: pane.buffer.insert_newline(),
+    "ctrl+z": _undo,
+}
+
+#: Vim normal-mode edit table (main-plan D2: bounded subset).  ``d`` arms
+#: the ``dd`` line-delete chord (second ``d`` deletes, any other key
+#: cancels); ``i``/``a``/``o`` switch to the insert sub-table; ``e`` moves
+#: to the current line's word end; ``q`` is consumed inert (backlog S3).
+_VIM_EDIT_KEYS: dict[str, Callable[[DiffPane], None]] = {
+    "h": lambda pane: pane.buffer.move_left(),
+    "j": lambda pane: pane.buffer.move_down(),
+    "k": lambda pane: pane.buffer.move_up(),
+    "l": lambda pane: pane.buffer.move_right(),
+    "0": lambda pane: pane.buffer.set_cursor((pane.buffer.row, 0)),
+    # Textual normalizes "$" to its unicode key name (probe: _character_to_key).
+    "dollar_sign": lambda pane: pane.buffer.move_line_end(),
+    "x": lambda pane: pane.buffer.delete_forward(),
+    "e": _vim_word_end,
+    "q": _vim_inert,
+    "d": _vim_arm_dd,
+    "i": _vim_insert_at,
+    "a": _vim_append_at,
+    "o": _vim_open_below,
+}
+
+#: Vim insert sub-table: printable characters fall through to typing.
+_VIM_INSERT_KEYS: dict[str, Callable[[DiffPane], None]] = {
+    "enter": lambda pane: pane.buffer.insert_newline(),
+    "backspace": lambda pane: pane.buffer.delete_backward(),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +471,7 @@ class DiffPane(ScrollView):
                 self.exit_edit_mode()
             return True
         if table == "vsc":
-            handler = _vsc_edit_keys().get(event.key)
+            handler = _VSC_EDIT_KEYS.get(event.key)
             if handler is not None:
                 handler(self)
                 return True
@@ -457,7 +481,7 @@ class DiffPane(ScrollView):
             return False
         # vim: normal vs insert sub-mode
         if self.vim_insert:
-            handler = vim_insert_keys().get(event.key)
+            handler = _VIM_INSERT_KEYS.get(event.key)
             if handler is not None:
                 handler(self)
                 return True
@@ -471,7 +495,7 @@ class DiffPane(ScrollView):
                 self.buffer.delete_lines()
                 return True
             # any other key cancels the chord and is handled normally
-        handler = _vim_edit_keys().get(event.key)
+        handler = _VIM_EDIT_KEYS.get(event.key)
         if handler is not None:
             handler(self)
             return True
