@@ -25,6 +25,10 @@ IGNORED_NAMES: set[str] = {
 #: Files whose contents are read as ignore-pattern sources.
 IGNORE_FILENAMES: tuple[str, ...] = (".gitignore", ".yateignore")
 
+#: Cap on the per-directory ignore-pattern cache (deep trees list many
+#: directories; the wholesale reset keeps the memory bounded).
+_DIR_IGNORE_CACHE_MAX: int = 256
+
 TEXT_SUFFIXES: set[str] = {
     ".txt", ".md", ".rst", ".py", ".pyw", ".js", ".ts", ".jsx", ".tsx",
     ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".xml",
@@ -71,6 +75,13 @@ class Workspace:
         #: Patterns loaded from ``.gitignore`` / ``.yateignore`` at the
         #: workspace root; reloaded when the root changes.
         self._root_ignores: list[_IgnorePattern] = []
+        #: Per-directory ignore-pattern cache keyed on the ignore files'
+        #: own mtimes: re-listing a directory (every explorer refresh and
+        #: quick-open walk) must not re-read and re-parse the files, but an
+        #: edited ``.gitignore`` must take effect.
+        self._dir_ignore_cache: dict[
+            tuple[Path, tuple[float, ...]], list[_IgnorePattern]
+        ] = {}
         if self.root is not None:
             self._load_root_ignores()
 
@@ -141,7 +152,21 @@ class Workspace:
         return patterns
 
     def _dir_ignores(self, directory: Path) -> list[_IgnorePattern]:
-        """Load ignore patterns from a specific directory (directory-level)."""
+        """Load ignore patterns from a specific directory (directory-level).
+
+        Cached on the ignore files' own mtimes (see ``_dir_ignore_cache``);
+        the cache is bounded and reset wholesale when the cap is hit.
+        """
+        stamps: list[float] = []
+        for name in IGNORE_FILENAMES:
+            try:
+                stamps.append((directory / name).stat().st_mtime)
+            except OSError:
+                stamps.append(-1.0)
+        key = (directory, tuple(stamps))
+        cached = self._dir_ignore_cache.get(key)
+        if cached is not None:
+            return cached
         patterns: list[_IgnorePattern] = []
         for name in IGNORE_FILENAMES:
             ignore_file = directory / name
@@ -150,6 +175,9 @@ class Workspace:
             except OSError:
                 continue
             patterns.extend(self._parse_ignore(text))
+        if len(self._dir_ignore_cache) >= _DIR_IGNORE_CACHE_MAX:
+            self._dir_ignore_cache.clear()
+        self._dir_ignore_cache[key] = patterns
         return patterns
 
     def _is_ignored(
@@ -190,17 +218,18 @@ class Workspace:
         dir_ignores = self._dir_ignores(path)
         entries: list[Entry] = []
         try:
-            children = sorted(
-                path.iterdir(),
-                key=lambda p: (not p.is_dir(), p.name.lower()),
+            # Decorate-sort-undecorate: is_dir() is a stat call, and the
+            # sort key plus the loop body used to stat every entry twice.
+            decorated = sorted(
+                ((child, child.is_dir()) for child in path.iterdir()),
+                key=lambda t: (not t[1], t[0].name.lower()),
             )
         except (PermissionError, OSError):
             return entries
-        for child in children:
+        for child, is_dir in decorated:
             name = child.name
             if name in IGNORED_NAMES:
                 continue
-            is_dir = child.is_dir()
             if not self.show_hidden and name.startswith("."):
                 continue
             if self._is_ignored(name, is_dir, dir_ignores):
@@ -238,17 +267,16 @@ class Workspace:
             dir_ignores = self._dir_ignores(directory)
             try:
                 found = sorted(
-                    directory.iterdir(),
-                    key=lambda p: (not p.is_dir(), p.name.lower()),
+                    ((child, child.is_dir()) for child in directory.iterdir()),
+                    key=lambda t: (not t[1], t[0].name.lower()),
                 )
             except (PermissionError, OSError):
                 return []
             kept: list[tuple[Path, bool]] = []
-            for child in found:
+            for child, is_dir in found:
                 name = child.name
                 if name in IGNORED_NAMES:
                     continue
-                is_dir = child.is_dir()
                 if not self.show_hidden and name.startswith("."):
                     continue
                 if self._is_ignored(name, is_dir, dir_ignores):
@@ -370,7 +398,13 @@ class Workspace:
             try:
                 with path.open("rb") as fh:
                     chunk = fh.read(2048)
-                chunk.decode("utf-8")
+                try:
+                    chunk.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    # The 2048-byte cut can land inside a multi-byte UTF-8
+                    # sequence; retry without the truncated tail before
+                    # calling a legitimate (e.g. Chinese) text file binary.
+                    chunk[: exc.start].decode("utf-8")
                 return b"\x00" not in chunk
             except (OSError, UnicodeDecodeError):
                 return False

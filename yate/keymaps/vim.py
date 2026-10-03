@@ -217,9 +217,17 @@ class VimKeymap(Keymap):
         return self._handle_normal(ctx, key)
 
     def _extension_binding(self, ctx: ActionContext, key: str) -> bool:
-        """Run an extension-registered binding for *key*, if any."""
+        """Run an extension-registered binding for *key*, if any.
+
+        Only the built-in ``"general"`` category is excluded -- normal-mode
+        built-ins were already handled above.  The extension API allows any
+        custom *category* string, and such bindings must dispatch exactly
+        like ``category="extension"`` ones: filtering on the literal name
+        silently dropped custom-category bindings in vim mode while the
+        same binding worked under the vsc keymap.
+        """
         binding = self._index.get(key)
-        if binding is not None and binding.category == "extension":
+        if binding is not None and binding.category != "general":
             return self.dispatch(binding, ctx)
         return False
 
@@ -285,6 +293,21 @@ class VimKeymap(Keymap):
             self.pending_register = None
             ui.message("-- NORMAL --")
             return True
+        if self.pending_register == "":
+            # waiting for the register letter after ": a-z names it, any
+            # other key is silently dropped (unmapped-swallow semantics).
+            # Checked before the v/V mode switches so `"v` names register v
+            # instead of leaving visual mode -- the same order as
+            # _handle_normal, where the register wait sits in front of
+            # every command branch.
+            if len(key) == 1 and "a" <= key <= "z":
+                self.pending_register = key
+            else:
+                self.pending_register = None
+            return True
+        if key == '"':
+            self.pending_register = ""
+            return True
         if key == "v":
             if self.mode == VimMode.VISUAL:
                 buf.clear_selection()
@@ -296,17 +319,6 @@ class VimKeymap(Keymap):
         if key == "V":
             self.mode = VimMode.VISUAL_LINE if not linewise else VimMode.VISUAL
             self._fix_linewise(buf)
-            return True
-        if self.pending_register == "":
-            # waiting for the register letter after ": a-z names it, any
-            # other key is silently dropped (unmapped-swallow semantics)
-            if len(key) == 1 and "a" <= key <= "z":
-                self.pending_register = key
-            else:
-                self.pending_register = None
-            return True
-        if key == '"':
-            self.pending_register = ""
             return True
         if key in ("y", "d", "x"):
             reg = self._take_named_register()
@@ -581,7 +593,10 @@ class VimKeymap(Keymap):
         if self._extension_binding(ctx, key):
             return True
 
-        # swallow unmapped normal keys
+        # swallow unmapped normal keys.  Vim discards a pending count with
+        # them (``5<C-e>``-style garbage must not leak into the next
+        # command, e.g. turning a later ``x`` into ``5x``).
+        self.count_str = ""
         return True
 
     def _handle_operator_pending(self, ctx: ActionContext, key: str) -> bool:
@@ -616,9 +631,14 @@ class VimKeymap(Keymap):
         """Run a counted linewise ``dd`` / ``yy`` / ``cc``."""
         buf = ctx.buffer
         ui = ctx.ui
-        n = self.op_count or 1
+        # ``d2dd`` multiplies the operator's count with the motion's (vim
+        # semantics); previously the motion count was dropped -- and worse,
+        # ``count_str`` was never reset here, so the ``2`` leaked into the
+        # next command.
+        n = (self.op_count or 1) * (self._typed_count() or 1)
         reg = self.op_register
         self._clear_operator()
+        self.count_str = ""
         r1 = buf.row
         col = buf.col  # yy keeps the cursor where it is, like vim
         r2 = min(r1 + n - 1, len(buf.lines) - 1)

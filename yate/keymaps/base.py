@@ -84,6 +84,13 @@ KEY_ALIASES: dict[str, str] = {
     "\x1f": "ctrl-/",
 }
 
+#: Inverse of :data:`KEY_ALIASES` (canonical name -> raw sequence).
+#: :func:`parse_key` uses it for shift+special specs, whose real sequences
+#: differ from the unmodified key instead of deriving from it.
+_KEY_ALIASES_INV: dict[str, str] = {
+    name: raw for raw, name in KEY_ALIASES.items()
+}
+
 
 def parse_key(spec: str) -> str:
     """Parse a human key spec (``"<ctrl-s>"``) into a raw key string."""
@@ -102,8 +109,22 @@ def parse_key(spec: str) -> str:
         raise ValueError(f"unknown key name in spec: {spec!r}")
 
     if "shift" in modifiers:
-        if len(base) == 1:
+        if name == "tab":
+            # shift-tab is a real sequence (``\x1b[Z``), not "T" -- uppercasing
+            # the single-character base would silently alias plain tab.
+            base = "\x1b[Z"
+        elif len(base) == 1:
             base = base.upper()
+        else:
+            # Real terminals encode shift+special with modified CSI
+            # parameters; silently dropping the modifier would alias the
+            # plain key (``<shift-up>`` would bind exactly like ``<up>``).
+            # Resolve through the alias table when the combination is
+            # known, reject it otherwise (mirrors the ctrl handling).
+            shifted = _KEY_ALIASES_INV.get(f"shift-{name}")
+            if shifted is None:
+                raise ValueError(f"unsupported shift key: {spec!r}")
+            base = shifted
     if "alt" in modifiers:
         base = "\x1b" + base
     if "ctrl" in modifiers:
