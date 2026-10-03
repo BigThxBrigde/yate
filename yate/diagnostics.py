@@ -438,7 +438,7 @@ def _section_packages() -> list[str]:
     ordered = [name for name in ordered if groups.get(name)]
     if not ordered:
         return []
-    width = max(len(name) for group in ordered for name in groups[group])
+    width = max(len(name) for group in ordered for name in groups[group].values())
     lines: list[str] = []
     for group in ordered:
         lines.append(f"  {group}:")

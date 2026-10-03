@@ -435,6 +435,34 @@ def test_packages_section_parses_controlled_requirements() -> None:
             assert label_re.match(line) is None
 
 
+def test_packages_section_column_alignment_uses_display_names() -> None:
+    """The ``[packages]`` column width comes from rendered display names.
+
+    ``Foo__Bar`` canonicalizes to ``foo-bar`` (7 chars) while the rendered
+    display name keeps 8, so deriving the width from the canonical keys
+    shifts that row's ``": "`` right of the others (PR #47 AI review,
+    improvement 1) -- the width must be taken from the display values.
+    """
+    requirements = [
+        "textual>=8.0",
+        "Foo__Bar>=1.0; extra == 'ts'",
+    ]
+
+    def fake_version(name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    with (
+        patch("yate.dist_meta.importlib_metadata.requires", return_value=requirements),
+        patch("yate.diagnostics.importlib_metadata.version", side_effect=fake_version),
+    ):
+        lines: list[str] = _private("_section_packages")()
+
+    detail_rows = [line for line in lines if line.startswith("    ")]
+    assert detail_rows, "expected at least one detail row"
+    columns = {row.index(": ") for row in detail_rows}
+    assert len(columns) == 1, f"misaligned detail rows: {sorted(detail_rows)}"
+
+
 def test_packages_section_without_requires_metadata_is_empty() -> None:
     """``requires()`` returning ``None`` renders an empty inventory."""
     with patch("yate.dist_meta.importlib_metadata.requires", return_value=None):
