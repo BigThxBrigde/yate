@@ -111,7 +111,10 @@ flowchart LR
 **偏离记录**：
 1. 分支上出现一笔计划外 `1852fc5 Merge branch 'master'`（子代理违规执行 git 操作；带入内容为用户在 master 新增的规则提交 `3fe93c6`——100 次请求上限续作硬规则，内容合法予以保留）。
 2. tests-fix-a 首轮约 5 分钟零落盘（探活已发、未判死），后续正常产出全部 9 个名下文件；未触发重建。
-3. 其余按计划执行，无范围/阈值偏离。
+3. **R-72 评审记录误标文件**：`test_app_textual.py:429/231` 实际不含硬编码防抖 sleep；真实目标是 `tests/test_diffview.py:231/429`（不在任何成员独占清单）。由主代理接手修复（`wait_until` 轮询替代两处 `asyncio.sleep`），见 `b0d1a3c` 之前的 test_diffview 提交。
+4. **R-81 现状偏离**：wiki 的 missing/stale 列表产品侧用 `print()` 落 **stdout**（`tools/pack/wiki.py`），并非任务书假设的 stderr；tests-fix-b 按实际行为断言 stdout。若要求报告走 stderr 属产品改动，登记为后续产品评审项。
+5. **R-79 衍生产品侧遗留**：trust 加载把 U+FFFD 乱码行当相对路径按 cwd 解析进信任集合（tests-fix-b 实测发现）；本次按评审记录仅删除断言，产品侧行为登记为后续评审项。
+6. 其余按计划执行，无范围/阈值偏离。
 
 ## 五、风险清单与回滚
 

@@ -28,6 +28,8 @@ from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap
 from yate.keymaps.vsc import VscKeymap
 
+from conftest import wait_until
+
 
 class _Host(App[None]):
     """Minimal host app that pushes the DiffScreen under test."""
@@ -228,11 +230,18 @@ def test_edit_mode_types_into_focused_buffer(tmp_path: Path) -> None:
             assert pane.editing
             await pilot.press("x")
             assert "x" in pane.doc.buffer.lines[pane.buffer.row]
-            await asyncio.sleep(0.25)  # cross the debounced recompute window
-            # the typed "x" widens the single hunk onto line 0 as well:
-            # "xone" vs "one" and "two" vs "TWO" now both differ
-            regions = cast(list[DiffHunk], screen._regions)
-            assert [(h.a_start, h.a_end) for h in regions] == [(0, 2)]
+            # Poll instead of sleeping past the debounced recompute window:
+            # the typed "x" widens the single hunk onto line 0 as well --
+            # "xone" vs "one" and "two" vs "TWO" now both differ.
+            assert await wait_until(
+                pilot,
+                lambda: [
+                    (h.a_start, h.a_end)
+                    for h in cast(list[DiffHunk], screen._regions)
+                ]
+                == [(0, 2)],
+                timeout=5.0,
+            )
 
     asyncio.run(scenario())
 
@@ -426,15 +435,24 @@ def test_debounced_recompute_applies_burst(tmp_path: Path) -> None:
             pane = screen.query_one("#diff-pane-0", DiffPane)
             await pilot.press("enter")  # edit mode
             await pilot.press("x", "y")  # burst: two PaneChanged messages
-            await asyncio.sleep(0.3)  # > RECOMPUTE_DEBOUNCE_SECONDS
+            # Poll until the debounced recompute converges instead of
+            # sleeping past RECOMPUTE_DEBOUNCE_SECONDS.
+            fresh = diff_lines(docs[0].buffer.lines, docs[1].buffer.lines)
+            expected = [
+                (h.a_start, h.a_end, h.b_start, h.b_end) for h in fresh.hunks
+            ]
+            assert await wait_until(
+                pilot,
+                lambda: [
+                    (h.a_start, h.a_end, h.b_start, h.b_end)
+                    for h in cast(list[DiffHunk], screen._regions)
+                ]
+                == expected,
+                timeout=5.0,
+            )
             await pilot.pause()
             line = pane.doc.buffer.lines[pane.buffer.row]
             assert "x" in line and "y" in line
-            regions = cast(list[DiffHunk], screen._regions)
-            fresh = diff_lines(docs[0].buffer.lines, docs[1].buffer.lines)
-            assert [(h.a_start, h.a_end, h.b_start, h.b_end) for h in regions] == [
-                (h.a_start, h.a_end, h.b_start, h.b_end) for h in fresh.hunks
-            ]
 
     asyncio.run(scenario())
 
