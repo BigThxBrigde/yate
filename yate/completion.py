@@ -34,6 +34,20 @@ from yate.session import EditorSession
 log = tracing.get_logger(__name__)
 
 
+def _identifier_prefix(line: str, col: int) -> tuple[str, int]:
+    """Scan backwards from *col* to the start of the identifier prefix.
+
+    The single definition of "identifier prefix" (``isalnum() or "_"``),
+    shared by the query, the accept and the staleness paths -- splitting
+    the definition would desynchronize the three.  Returns the prefix text
+    and the column it starts at.
+    """
+    i = col
+    while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
+        i -= 1
+    return line[i:col], i
+
+
 class CompletionFlows:
     """Debounced completion queries behind the active editor view."""
 
@@ -144,6 +158,13 @@ class CompletionFlows:
             return
         if not self._vim_insert_mode():
             return
+        # A manual request must also cancel an armed debounce timer, not
+        # just drop the handle: otherwise the pending query still fires
+        # after the debounce delay and re-runs the (possibly cross-process)
+        # LSP query a second time.
+        timer = self._timer
+        if timer is not None:
+            timer.cancel()
         self._timer = None
         popup = self.popup
         if not manual:
@@ -173,10 +194,7 @@ class CompletionFlows:
         row, col = buf.row, buf.col
         line = buf.lines[row] if row < buf.line_count else ""
         col = min(col, len(line))
-        i = col
-        while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
-            i -= 1
-        prefix = line[i:col]
+        prefix, prefix_start = _identifier_prefix(line, col)
 
         # No language server for this document -> buffer-based completion
         # (words from every open buffer + filesystem paths).
@@ -215,7 +233,7 @@ class CompletionFlows:
         kind = 2 if trigger_ch in triggers else 1
         items = await self.lsp.request_completion(
             doc, row, col,
-            prefix_start_col=i,
+            prefix_start_col=prefix_start,
             trigger_kind=kind,
             trigger_character=trigger_ch if kind == 2 else None,
         )
@@ -314,11 +332,9 @@ class CompletionFlows:
                 return  # cursor moved away: discard rather than corrupt text
             start, end = (r0, c0), (r1, c1)
         else:
-            i = col
             line = buf.lines[row]
-            while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
-                i -= 1
-            start, end = (row, i), (row, col)
+            _, start_col = _identifier_prefix(line, col)
+            start, end = (row, start_col), (row, col)
         log.debug("completion accepted: %s", item.label)
         try:
             buf.replace_range(start, end, item.insert_text)
@@ -337,17 +353,15 @@ class CompletionFlows:
         """Recompute the identifier prefix at the buffer's current cursor.
 
         Mirrors the prefix definition used in :meth:`_worker` and
-        :meth:`accept` (``isalnum() or "_"``).  Returned tuple is
-        ``(prefix_text, current_column)`` — the column is clamped to the
-        line length so callers can compare it against a previously captured
-        column without extra guards.
+        :meth:`accept` (``isalnum() or "_"``, see :func:`_identifier_prefix`).
+        Returned tuple is ``(prefix_text, current_column)`` — the column is
+        clamped to the line length so callers can compare it against a
+        previously captured column without extra guards.
         """
         line = buf.lines[row] if row < buf.line_count else ""
         col = min(buf.col, len(line))
-        i = col
-        while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
-            i -= 1
-        return line[i:col], col
+        prefix, _start = _identifier_prefix(line, col)
+        return prefix, col
 
     def _is_completion_char(self, ch: str) -> bool:
         if ch.isalnum() or ch == "_":

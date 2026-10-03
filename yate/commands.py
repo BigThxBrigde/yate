@@ -87,7 +87,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.document_flows.save_document()
 
     def _saveas(args: str) -> None:
-        editor.document_flows.save_as(_strip_quotes(args) or None)
+        editor.document_flows.save_as(_strip_quotes(args.strip()) or None)
 
     def _q(args: str) -> None:
         editor.quit()
@@ -358,7 +358,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
                 kind="warn",
             )
             return
-        editor.overlays.open_diff([Path(p) for p in names])
+        editor.overlays.open_diff([
+            editor.document_flows.resolve_input_path(Path(p)) for p in names
+        ])
 
     reg("diff", _diff, "compare files in a diff view (:diff [--3way] F1 F2 [F3])")
 

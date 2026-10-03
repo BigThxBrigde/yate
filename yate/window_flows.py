@@ -107,7 +107,12 @@ class WindowFlows:
             # split first (the new pane becomes active), then open the file
             # into the active pane
             await self.panes.split_active(axis)
-            await self.document_flows.open_path_async(path)
+            opened = await self.document_flows.open_path_async(path)
+            if not opened:
+                # The open failed (e.g. not a text file): roll the split
+                # back so a failed command leaves the layout untouched.
+                await self.panes.close_active()
+                return
         else:
             await self.panes.split_active(axis)
             self._after_pane_focus()
