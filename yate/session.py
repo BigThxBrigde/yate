@@ -86,7 +86,7 @@ class EditorSession:
         """The document already showing *path*, or ``None``."""
         resolved = path.resolve()
         for doc in self.docs:
-            if doc.path is not None and doc.path.resolve() == resolved:
+            if doc.resolved_path == resolved:
                 return doc
         return None
 
@@ -183,7 +183,8 @@ class EditorSession:
         target = path.resolve()
         closed = [
             doc for doc in self.docs
-            if doc.path is not None and doc.path.resolve().is_relative_to(target)
+            if doc.resolved_path is not None
+            and doc.resolved_path.is_relative_to(target)
         ]
         if not closed:
             return []
@@ -199,7 +200,7 @@ class EditorSession:
         """Keep tabs pointing at a document that was renamed on disk."""
         moved: list[Document] = []
         for doc in self.docs:
-            if doc.path is not None and doc.path.resolve() == old.resolve():
+            if doc.resolved_path == old.resolve():
                 doc.path = new
                 moved.append(doc)
         if moved:
@@ -316,20 +317,35 @@ def replace_node(node: Node, target: Leaf, replacement: Node) -> Node:
 def remove_node(node: Node, target: Leaf) -> Node | None:
     """Return *node* without *target*; ``None`` when *target* was the root.
 
-    A split left with a single child collapses (the child is hoisted).
+    A split left with a single child collapses (the child is hoisted) --
+    but only when something was actually removed: a call whose *target*
+    never lived in the tree keeps the shape untouched instead of hoisting
+    a lone child of the root.
     """
     if isinstance(node, Leaf):
         return None if node is target else node
     # ``children`` and ``sizes`` are parallel lists: keep the pairs together so
     # the survivors retain *their own* fractions (slicing the first N sizes
-    # would shift every fraction after the removed slot).
+    # would shift every fraction after the removed slot).  A mismatch would
+    # silently truncate the tree, so it is refused outright.
+    assert len(node.children) == len(node.sizes), "Split invariant broken"
     kept: list[tuple[Node, float]] = []
+    removed_here = False
     for child, size in zip(node.children, node.sizes):
         result = remove_node(child, target)
         if result is None:
             # the target leaf lived directly in this split: drop it
+            removed_here = True
             continue
         kept.append((result, size))
+    if not removed_here and all(
+        result is child for (result, _size), child in zip(kept, node.children)
+    ):
+        # Nothing was removed anywhere in this subtree and every survivor is
+        # the very child object we started with: the rebuild below would be
+        # a no-op, and hoisting a lone child here would reshape the tree
+        # without an actual removal.
+        return node
     if len(kept) == 1:
         return kept[0][0]
     node.children = [child for child, _size in kept]
