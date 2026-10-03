@@ -304,7 +304,6 @@ def test_server_request_and_publish_notification() -> None:
                     if msg is None:
                         return
                     if msg.get("id") == 90:
-                        assert msg.get("result") == [{}]
                         await answer.put(msg)
                         return
             except (asyncio.IncompleteReadError, ConnectionResetError):
@@ -334,6 +333,9 @@ def test_server_request_and_publish_notification() -> None:
         assert client.state == ServerState.READY
         responded = await asyncio.wait_for(answer.get(), timeout=2.0)
         assert responded["id"] == 90
+        # the response body is checked on the test side: a mismatch now
+        # fails with the real values instead of decaying into a timeout
+        assert responded["result"] == [{}]
         assert any(
             m == "textDocument/publishDiagnostics" for m, _ in events)
         await client.stop()

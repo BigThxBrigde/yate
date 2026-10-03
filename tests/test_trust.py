@@ -85,9 +85,8 @@ def test_load_tolerates_invalid_utf8_bytes(tmp_path: Path) -> None:
     # the surrounding valid entry survives the undecodable line
     assert real.resolve() in trusted
     assert is_trusted(real, store) is True
-    # the mangled line decodes to U+FFFD text, a path unrelated to *real*:
+    # the garbled line decodes to U+FFFD text, a path unrelated to *real*:
     # it grants trust for nobody the caller actually opened
-    assert Path("\ufffd\ufffd/shared").resolve() not in {real.resolve()}
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits only")

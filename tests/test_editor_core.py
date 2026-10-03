@@ -409,12 +409,8 @@ def test_failed_save_keeps_previous_contents(tmp_path: Path) -> None:
     doc.buffer.set_text("emoji 😀")
     # ascii cannot encode the emoji: the save must fail without destroying
     # the on-disk file or leaving a .yate-tmp sibling behind
-    try:
+    with pytest.raises(UnicodeEncodeError):
         doc.save()
-        raised = False
-    except UnicodeEncodeError:
-        raised = True
-    assert raised
     assert path.read_text(encoding="utf-8") == "original"
     assert list(tmp_path.iterdir()) == [path]
 

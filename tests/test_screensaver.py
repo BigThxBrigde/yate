@@ -29,6 +29,18 @@ class _CountingTracker(IdleTracker):
         super().poke()
 
 
+class _ControllableTracker(IdleTracker):
+    """Idle tracker driven by a mutable fake clock (test probe).
+
+    Tests advance :attr:`now` to make the tracker due instantly, so the
+    idle poll is exercised without waiting on the real monotonic clock.
+    """
+
+    def __init__(self) -> None:
+        self.now: float = 0.0
+        super().__init__(clock=lambda: self.now)
+
+
 def _doc(tmp_path: Path) -> Path:
     doc = tmp_path / "note.txt"
     doc.write_text("hello\n", encoding="utf-8")
@@ -325,21 +337,27 @@ def test_no_spawn_while_the_band_is_within_the_distance_floor(
 # --- idle auto-trigger wiring (YateApp.on_event poke + check_idle poll) -----
 
 
-def test_idle_poll_auto_starts_screensaver(tmp_path: Path) -> None:
+def test_idle_poll_auto_starts_screensaver(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A due tracker plus the poll opens the screensaver on its own.
 
-    With ``interval = 1`` the real tracker becomes due after about a
-    second of silence, so one synchronous ``check_idle()`` call exercises
-    the exact code path the app's interval timer drives.
+    The tracker class is swapped for a fake with a controllable clock, so
+    ``interval = 1`` becomes due by advancing the fake time instead of
+    sleeping: one synchronous ``poll_idle()`` call then exercises the
+    exact code path the app's interval timer drives.
     """
 
     async def scenario() -> None:
+        monkeypatch.setattr("yate.app.IdleTracker", _ControllableTracker)
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"interval": 1}\n', encoding="utf-8")
         app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            await pilot.pause(1.1)
+            tracker = cast(_ControllableTracker, app.idle_tracker)
+            assert tracker is not None
+            tracker.now = 2.0
             app.poll_idle()
             await pilot.pause()
             assert isinstance(app.screen, ScreensaverScreen)
@@ -347,7 +365,9 @@ def test_idle_poll_auto_starts_screensaver(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_idle_poll_never_retriggers_while_active(tmp_path: Path) -> None:
+def test_idle_poll_never_retriggers_while_active(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The poll skips while the screensaver is up: no push/pop loop.
 
     The docstring-promised guard keeps the one-second poll from toggling
@@ -356,16 +376,20 @@ def test_idle_poll_never_retriggers_while_active(tmp_path: Path) -> None:
     """
 
     async def scenario() -> None:
+        monkeypatch.setattr("yate.app.IdleTracker", _ControllableTracker)
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"interval": 1}\n', encoding="utf-8")
         app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            await pilot.pause(1.1)
+            tracker = cast(_ControllableTracker, app.idle_tracker)
+            assert tracker is not None
+            tracker.now = 2.0
             app.poll_idle()
             await pilot.pause()
             assert isinstance(app.screen, ScreensaverScreen)
             depth = len(app.screen_stack)
+            tracker.now = 60.0
             for _ in range(5):
                 app.poll_idle()
             await pilot.pause()
@@ -375,16 +399,21 @@ def test_idle_poll_never_retriggers_while_active(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_idle_poll_skips_when_interval_zero(tmp_path: Path) -> None:
+def test_idle_poll_skips_when_interval_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """``interval = 0`` disables the automatic trigger even when due."""
 
     async def scenario() -> None:
+        monkeypatch.setattr("yate.app.IdleTracker", _ControllableTracker)
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"interval": 0}\n', encoding="utf-8")
         app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            await pilot.pause(1.1)
+            tracker = cast(_ControllableTracker, app.idle_tracker)
+            assert tracker is not None
+            tracker.now = 2.0
             app.poll_idle()
             await pilot.pause()
             assert not isinstance(app.screen, ScreensaverScreen)
