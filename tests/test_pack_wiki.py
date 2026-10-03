@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from pathlib import Path
 
@@ -523,3 +524,98 @@ def test_cli_wiki_subcommand_wiring(
     assert seen["translate_cmd"] == "tr"
     assert seen["flags"] == (True, True, True, True)
     assert seen["repo_root"] == Path(cli.__file__).resolve().parents[2]
+
+
+def test_needs_translation_decision_matrix(
+    repo: Path, tmp_path: Path
+) -> None:
+    """The preview predicate mirrors the in-loop translation decision."""
+    target = tmp_path / "wiki"
+    target.mkdir()
+    pages = {page.zh_target: page for page in wiki.collect_sources(repo)}
+    page = pages["orphan.zh.md"]
+    manifest: dict[str, str] = {}
+    # Missing English page: always pending.
+    assert wiki.needs_translation(page, target, manifest, translate_all=False)
+    (target / page.en_target).write_text("# adopted en\n", encoding="utf-8")
+    # Adopted (no manifest record): pending only under --translate-all.
+    assert not wiki.needs_translation(page, target, manifest, translate_all=False)
+    assert wiki.needs_translation(page, target, manifest, translate_all=True)
+    # Stale: manifest record differs from the source digest.
+    stale_record = "0" * 64
+    manifest[page.zh_target] = stale_record
+    assert wiki.needs_translation(page, target, manifest, translate_all=False)
+    digest = hashlib.sha256(page.zh_source.read_bytes()).hexdigest()
+    manifest[page.zh_target] = digest
+    assert not wiki.needs_translation(page, target, manifest, translate_all=False)
+    # Recorded-fresh but --translate-all: pending again (review major #1).
+    assert wiki.needs_translation(page, target, manifest, translate_all=True)
+    # Dual-source pages are copied verbatim, never translated.
+    assert not wiki.needs_translation(pages["topic.zh.md"], target, manifest, True)
+
+
+def test_run_previews_pending_count_and_failure_lines(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The preview names the pending total; failures land on stderr."""
+    calls = {"n": 0}
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        calls["n"] += 1
+        return None if calls["n"] == 1 else "# en\n\ntranslated\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    # Expected pending count mirrors the predicate against the pristine
+    # target (no English pages yet), instead of hard-coding the fixture size.
+    expected = sum(
+        1
+        for page in wiki.collect_sources(repo)
+        if wiki.needs_translation(page, target, {}, translate_all=False)
+    )
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    err = capsys.readouterr().err
+    assert f"{expected} page(s) to translate" in err
+    assert "failed" in err
+
+
+def test_run_reports_nothing_to_translate_when_fresh(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A second run over an up-to-date wiki announces zero pending pages."""
+    def fresh_translate(text: str, cmd: str) -> str | None:
+        return "# en\n\ntranslated\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fresh_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    capsys.readouterr()
+    assert wiki.run(target, "fake-cmd", check=True, repo_root=repo) == 0
+    err = capsys.readouterr().err
+    assert "nothing to translate" in err
+
+
+def test_keyboard_interrupt_maps_to_exit_130(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Ctrl+C during translation exits 130 with a note, never a traceback."""
+    from tools.pack import cli
+
+    def interrupted(text: str, translate_cmd: str) -> str | None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", interrupted)
+    argv = [
+        "wiki",
+        "--target",
+        str(tmp_path / "wiki"),
+        "--translate-cmd",
+        "fake-cmd",
+    ]
+    assert cli.main(argv) == 130
+    err = capsys.readouterr().err
+    assert "interrupted" in err
+    assert "Traceback" not in err

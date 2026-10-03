@@ -35,10 +35,22 @@ import hashlib
 import json
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 from typing import Final, cast
+
+from rich.console import Console
+from rich.markup import escape
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 GITHUB_WIKI_URL: Final[str] = "https://github.com/BigThxBrigde/yate.wiki.git"
 
@@ -345,6 +357,38 @@ def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
     return proc.stdout
 
 
+def needs_translation(
+    page: WikiPage,
+    target: Path,
+    manifest: dict[str, str],
+    translate_all: bool,
+) -> bool:
+    """Return whether the main loop would translate *page*.
+
+    Mirrors the in-loop decision for the pre-loop preview count.  Pages
+    with an ``en_source`` twin are copied verbatim, never translated.  A
+    missing or empty English page is pending; an adopted (no manifest
+    record) or fresh page is pending only under *translate_all*; a stale
+    page is always pending.
+
+    Known edge: an ``en_source`` file deleted after collection (TOCTOU)
+    counts as copied here while the main loop takes the translation path
+    -- acceptable skew for a preview counter.
+    """
+    if page.en_source is not None:
+        return False
+    en_path = target / page.en_target
+    if not en_path.exists() or en_path.stat().st_size == 0:
+        return True
+    digest = hashlib.sha256(page.zh_source.read_bytes()).hexdigest()
+    recorded = manifest.get(page.zh_target)
+    if recorded is None or recorded == digest:
+        # Adopted (externally maintained) or fresh: pending only when
+        # --translate-all re-translates every page.
+        return translate_all
+    return True
+
+
 def push_wiki(target: Path) -> int:
     """Commit *target* and push it to both remotes; 0 on full success.
 
@@ -508,65 +552,113 @@ def run(
             "wiki: --translate-all has no effect without --translate-cmd",
             file=sys.stderr,
         )
+    console = Console(file=sys.stderr)
+    run_started = time.monotonic()
+    pending = 0
+    if translate_cmd is not None:
+        pending = sum(
+            1
+            for page in pages
+            if needs_translation(page, target, manifest, translate_all)
+        )
+        if pending:
+            console.print(f"wiki: {pending} page(s) to translate", markup=False)
+        else:
+            console.print(
+                f"wiki: nothing to translate ({len(pages)} pages up to date)",
+                markup=False,
+            )
     kept = 0
     translated = 0
     missing: list[str] = []
     stale: list[str] = []
-    for page in pages:
-        zh_bytes = page.zh_source.read_bytes()
-        zh_path = target / page.zh_target
-        zh_path.parent.mkdir(parents=True, exist_ok=True)
-        zh_path.write_bytes(zh_bytes)
-        digest = hashlib.sha256(zh_bytes).hexdigest()
-        en_path = target / page.en_target
-        en_path.parent.mkdir(parents=True, exist_ok=True)
-        en_bytes: bytes | None = None
-        if page.en_source is not None:
-            # TOCTOU: _collect_bilingual verified en_source with exists()
-            # at collection time, but the file may be deleted before this
-            # read; treat the failure as a missing page (translation path
-            # below) instead of crashing the whole run.
-            try:
-                en_bytes = page.en_source.read_bytes()
-            except OSError:
-                en_bytes = None
-        if en_bytes is not None:
-            en_path.write_bytes(en_bytes)
-            manifest.pop(page.zh_target, None)
-            kept += 1
-            continue
-        recorded = manifest.get(page.zh_target)
-        has_en = en_path.exists() and en_path.stat().st_size > 0
-        is_stale = has_en and recorded is not None and recorded != digest
-        if has_en and not is_stale:
-            # Fresh or externally maintained (e.g. agent-translated).
-            if translate_cmd is None or not translate_all:
-                manifest[page.zh_target] = digest
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    )
+    overall = progress.add_task("translating", total=pending)
+    active = pending > 0
+    if active:
+        progress.start()
+    try:
+        attempted = 0
+        for page in pages:
+            zh_bytes = page.zh_source.read_bytes()
+            zh_path = target / page.zh_target
+            zh_path.parent.mkdir(parents=True, exist_ok=True)
+            zh_path.write_bytes(zh_bytes)
+            digest = hashlib.sha256(zh_bytes).hexdigest()
+            en_path = target / page.en_target
+            en_path.parent.mkdir(parents=True, exist_ok=True)
+            en_bytes: bytes | None = None
+            if page.en_source is not None:
+                # TOCTOU: _collect_bilingual verified en_source with exists()
+                # at collection time, but the file may be deleted before this
+                # read; treat the failure as a missing page (translation path
+                # below) instead of crashing the whole run.
+                try:
+                    en_bytes = page.en_source.read_bytes()
+                except OSError:
+                    en_bytes = None
+            if en_bytes is not None:
+                en_path.write_bytes(en_bytes)
+                manifest.pop(page.zh_target, None)
                 kept += 1
                 continue
-            # --translate-all re-translates even fresh pages through the
-            # hook, overwriting their English pages.  The digest is only
-            # recorded after a successful re-translation below, so a failed
-            # one does not silently bless an outdated English page.
-        elif translate_cmd is None:
-            # No translator available: report the gap so --check gates on it.
-            if not has_en:
-                missing.append(page.en_target)
-            else:
-                stale.append(page.en_target)
-            continue
-        english = translate_via_cmd(zh_bytes.decode("utf-8", errors="replace"), translate_cmd)
-        if english is None:
-            # An existing page whose re-translation failed is still stale,
-            # not missing -- report it under the right heading.
-            if has_en:
-                stale.append(page.en_target)
-            else:
-                missing.append(page.en_target)
-            continue
-        en_path.write_text(english, encoding="utf-8")
-        manifest[page.zh_target] = digest
-        translated += 1
+            recorded = manifest.get(page.zh_target)
+            has_en = en_path.exists() and en_path.stat().st_size > 0
+            is_stale = has_en and recorded is not None and recorded != digest
+            if has_en and not is_stale:
+                # Fresh or externally maintained (e.g. agent-translated).
+                if translate_cmd is None or not translate_all:
+                    manifest[page.zh_target] = digest
+                    kept += 1
+                    continue
+                # --translate-all re-translates even fresh pages through the
+                # hook, overwriting their English pages.  The digest is only
+                # recorded after a successful re-translation below, so a failed
+                # one does not silently bless an outdated English page.
+            elif translate_cmd is None:
+                # No translator available: report the gap so --check gates on it.
+                if not has_en:
+                    missing.append(page.en_target)
+                else:
+                    stale.append(page.en_target)
+                continue
+            progress.update(
+                overall, description=f"translating {escape(page.en_target)}"
+            )
+            started = time.monotonic()
+            attempted += 1
+            english = translate_via_cmd(
+                zh_bytes.decode("utf-8", errors="replace"), translate_cmd
+            )
+            if english is None:
+                # An existing page whose re-translation failed is still stale,
+                # not missing -- report it under the right heading.
+                elapsed = time.monotonic() - started
+                console.print(
+                    f"wiki: [{attempted}/{pending}] {page.en_target} failed"
+                    f" ({elapsed:.1f}s)",
+                    markup=False,
+                )
+                if has_en:
+                    stale.append(page.en_target)
+                else:
+                    missing.append(page.en_target)
+                progress.advance(overall)
+                continue
+            en_path.write_text(english, encoding="utf-8")
+            manifest[page.zh_target] = digest
+            translated += 1
+            progress.advance(overall)
+    finally:
+        if active:
+            progress.stop()
     collected = {page.zh_target for page in pages}
     manifest = {key: value for key, value in manifest.items() if key in collected}
     # Sources that vanished must not leave dead links behind in the wiki.
@@ -585,7 +677,7 @@ def run(
     print(
         f"wiki: {len(pages)} pages -> {target} "
         f"(en kept {kept} / translated {translated} / "
-        f"missing {len(missing)} / stale {len(stale)})"
+        f"missing {len(missing)} / stale {len(stale)}) in {time.monotonic() - run_started:.1f}s"
     )
     for name in missing:
         print(f"  missing en: {name}")
