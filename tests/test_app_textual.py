@@ -1135,6 +1135,46 @@ def test_palette_down_cursor_moves(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_palette_down_on_a_single_result_does_not_execute_it(tmp_path: Path) -> None:
+    """Down only moves the cursor: a unique result executes on Tab alone.
+
+    The single-match fast path sat inside the branch shared with
+    down / ctrl+n, so pressing Down on the one result opened the file
+    (2026-10-03 review R-20).
+    """
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
+        (tmp_path / "only.txt").write_text("x\n", encoding="utf-8")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.editor.overlays.open_file_palette()
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot,
+                lambda: app.focused is not None
+                and app.focused.id == "palette-input",
+                timeout=5.0,
+            )
+            # wait for the file walk to populate the single entry
+            assert await wait_until(
+                pilot, lambda: len(screen._filtered) == 1, timeout=5.0
+            )
+            await pilot.press("down")
+            await pilot.pause()
+            assert isinstance(app.screen, PaletteScreen)
+            await pilot.press("tab")
+            assert await wait_until(
+                pilot,
+                lambda: not isinstance(app.screen, PaletteScreen),
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
 # ------------------------------------------------------------- editor scrolling
 
 

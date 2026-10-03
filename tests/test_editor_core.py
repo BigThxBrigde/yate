@@ -1083,6 +1083,21 @@ def test_paste_character_wise_inserts_at_the_cursor() -> None:
     assert buf.get_text() == "aXYb"
 
 
+def test_linewise_paste_below_on_the_last_line_appends_after_it() -> None:
+    """Linewise ``p`` on the last line pastes *below* it (2026-10-03 R-33).
+
+    set_cursor clamped the target row back onto the current one and the
+    insert split it, so the pasted lines landed *above* the cursor's line
+    instead of after it.
+    """
+    buf = TextBuffer("a\nc")
+    buf.cursor = (1, 0)
+    buf.register = "b\n"
+    buf.paste(below=True)
+    assert buf.lines == ["a", "c", "b"]
+    assert buf.cursor[0] == 2
+
+
 # --- SearchEngine: options, navigation and replace -------------------------
 
 
