@@ -64,6 +64,30 @@ def test_command_diff_opens_two_way_screen(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_command_diff_quoted_paths_in_spaced_dir_open_two_panes(
+    tmp_path: Path,
+) -> None:
+    """Quoted paths inside a directory with spaces open the two-pane screen."""
+
+    async def scenario() -> None:
+        spaced = tmp_path / "my dir"
+        spaced.mkdir()
+        f1 = spaced / "left one.txt"
+        f1.write_text("one\ntwo\nthree", encoding="utf-8")
+        f2 = spaced / "right two.txt"
+        f2.write_text("one\nTWO\nthree", encoding="utf-8")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.editor.run_command(f'diff "{f1}" "{f2}"')
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            assert len(screen.query(DiffPane)) == 2
+
+    asyncio.run(scenario())
+
+
 def test_command_diff_three_files_open_three_panes(tmp_path: Path) -> None:
     """Three files open the 3way screen and classify the conflict."""
 

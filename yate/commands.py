@@ -34,6 +34,49 @@ def _parse_bool(value: str) -> bool | None:
     return None
 
 
+def _strip_quotes(text: str) -> str:
+    """Strip one surrounding quote pair from *text* when present.
+
+    Only a matching ``"`` or ``'`` pair that wraps the whole string is
+    removed; an unpaired quote, a single character or an empty string is
+    returned unchanged, so unquoted paths with spaces keep working.
+    """
+    if len(text) >= 2 and text[0] in "\"'" and text[0] == text[-1]:
+        return text[1:-1]
+    return text
+
+
+def _split_paths(args: str) -> list[str]:
+    """Split an ex argument string into path tokens, quote-aware.
+
+    Whitespace separates tokens unless it sits inside a ``"`` or ``'``
+    section; the quote characters themselves are stripped and never appear
+    in a token.  An unclosed quote keeps everything up to the end of the
+    line as a single token (best effort for a forgotten closing quote).
+    Empty tokens produced by adjacent quotes are discarded.
+    """
+    tokens: list[str] = []
+    buf: list[str] = []
+    quote: str | None = None
+    for ch in args:
+        if quote is not None:
+            if ch == quote:
+                quote = None
+            else:
+                buf.append(ch)
+        elif ch in "\"'":
+            quote = ch
+        elif ch.isspace():
+            if buf:
+                tokens.append("".join(buf))
+                buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        tokens.append("".join(buf))
+    return tokens
+
+
 def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     """Register the built-in ex commands on *registry*."""
     reg = registry.register
@@ -44,7 +87,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.document_flows.save_document()
 
     def _saveas(args: str) -> None:
-        editor.document_flows.save_as(args or None)
+        editor.document_flows.save_as(_strip_quotes(args) or None)
 
     def _q(args: str) -> None:
         editor.quit()
@@ -73,10 +116,10 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- panes -------------------------------------------------------------
 
     def _split(args: str) -> None:
-        editor.window_flows.split_with_path("horizontal", args)
+        editor.window_flows.split_with_path("horizontal", _strip_quotes(args))
 
     def _vsplit(args: str) -> None:
-        editor.window_flows.split_with_path("vertical", args)
+        editor.window_flows.split_with_path("vertical", _strip_quotes(args))
 
     def _only(args: str) -> None:
         editor.window_flows.only_pane()
@@ -97,7 +140,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- open / buffers ----------------------------------------------------
 
     def _edit(args: str) -> None:
-        args = args.strip()
+        args = _strip_quotes(args.strip())
         if args:
             editor.document_flows.open_path_later(Path(args))
         else:
@@ -297,7 +340,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- diff ---------------------------------------------------------------
 
     def _diff(args: str) -> None:
-        tokens = args.split()
+        tokens = _split_paths(args)
         three = False
         names: list[str] = []
         for token in tokens:
@@ -309,7 +352,11 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
             editor.message("--3way needs three files", kind="warn")
             return
         if len(names) not in (2, 3):
-            editor.message("usage: :diff [--3way] FILE1 FILE2 [FILE3]", kind="warn")
+            editor.message(
+                "usage: :diff [--3way] FILE1 FILE2 [FILE3] "
+                "(quote paths with spaces)",
+                kind="warn",
+            )
             return
         editor.overlays.open_diff([Path(p) for p in names])
 
