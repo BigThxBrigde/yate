@@ -231,9 +231,9 @@ python -m pyright yate/ tests/ tools/
   `test_vim_normal_e_moves_word_end_and_q_is_inert`）；
 - S5：`:diff` 的 `args.split()` 不支持含空格路径，需对齐 `:e` 的引号解析先例或
   引入 `shlex.split`（涉及命令行解析口径，独立任务处理）。
-- W2 余量：`_copy_3way` 反方向（remote→local）、只读侧拒进编辑、save 的
-  None/`BufferReadOnlyError`/`OSError` 路径、insert/delete 型 hunk 行状态、
-  3way 当前区加亮锚点、vim insert 子模式等未测行（diffview.py 78% → 余下为
-  低风险分支），随下次修改顺手补。
+- W2 余量：已修（commit 8d07460）——27 条 pilot 用例补齐登记路径（copy_3way 反方向、
+  只读侧拒编辑/存盘、save 的 OSError 路径、insert/delete 型 hunk 行状态、3way 加亮
+  锚点、vim insert 子模式、dd 弦、undo、fall-through、渲染边界），diffview.py
+  86% → 99%（miss 0；唯一剩余分支 `on_mount` 空窗格守卫为不可达防御代码）。
 - 手工目视项：CJK 宽字符列对齐、深浅主题切换重绘（plan-b 验证方案节）留待
   真终端验证。
