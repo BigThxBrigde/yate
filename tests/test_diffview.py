@@ -16,13 +16,11 @@ from typing import Literal, cast
 
 from textual.app import App
 
-from yate.editor_core.diff import DiffHunk
+from yate.editor_core.diff import DiffHunk, diff_lines
 from yate.editor_core.document import Document
 from yate.editor_view.diffview import (
-    MAX_DIFF_LINES,
     DiffPane,
     DiffScreen,
-    check_sizes,
 )
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap
@@ -214,7 +212,7 @@ def test_edit_mode_types_into_focused_buffer(tmp_path: Path) -> None:
             assert pane.editing
             await pilot.press("x")
             assert "x" in pane.doc.buffer.lines[pane.buffer.row]
-            await pilot.pause()  # let the PaneChanged recompute land
+            await asyncio.sleep(0.25)  # cross the debounced recompute window
             # the typed "x" widens the single hunk onto line 0 as well:
             # "xone" vs "one" and "two" vs "TWO" now both differ
             regions = cast(list[DiffHunk], screen._regions)
@@ -342,11 +340,56 @@ def test_vim_keymap_edit_table_moves_with_hjkl(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_oversized_file_rejected_constant() -> None:
-    """check_sizes refuses sides beyond MAX_DIFF_LINES and passes fitting ones."""
-    oversized = ["x"] * (MAX_DIFF_LINES + 1)
-    fitting = ["x"] * MAX_DIFF_LINES
-    error = check_sizes([oversized, oversized])
-    assert error is not None
-    assert str(MAX_DIFF_LINES) in error
-    assert check_sizes([fitting, fitting]) is None
+def test_vim_append_at_eol_stays_on_line(tmp_path: Path) -> None:
+    """vim ``a`` at end of line inserts there instead of spilling to the next.
+
+    The main vim keymap relies on ``set_cursor`` clamping the column; the
+    ``move_right`` used here before would wrap onto the next row at EOL.
+    """
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["r1\nr2\nr3", "r1\nr2\nr3"])
+        app = _Host(docs, "2way", _keymaps("vim"), ["left", "right"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            pane = screen.query_one("#diff-pane-0", DiffPane)
+            await pilot.press("enter")  # edit mode with the vim table
+            await pilot.press("$")  # end of line 0
+            await pilot.press("a")  # append: clamped, no wrap
+            await pilot.press("X")
+            assert pane.buffer.lines[0] == "r1X"
+            assert pane.buffer.cursor[0] == 0
+
+    asyncio.run(scenario())
+
+
+def test_debounced_recompute_applies_burst(tmp_path: Path) -> None:
+    """Rapid keystrokes collapse into one recompute after the window.
+
+    Both typed characters must land, and once the debounced recompute
+    fires the screen's regions must equal a fresh L0 diff of the buffers.
+    """
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["one\ntwo", "one\nTWO"])
+        app = _Host(docs, "2way", _keymaps("vsc"), ["left", "right"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            pane = screen.query_one("#diff-pane-0", DiffPane)
+            await pilot.press("enter")  # edit mode
+            await pilot.press("x", "y")  # burst: two PaneChanged messages
+            await asyncio.sleep(0.3)  # > RECOMPUTE_DEBOUNCE_SECONDS
+            await pilot.pause()
+            line = pane.doc.buffer.lines[pane.buffer.row]
+            assert "x" in line and "y" in line
+            regions = cast(list[DiffHunk], screen._regions)
+            fresh = diff_lines(docs[0].buffer.lines, docs[1].buffer.lines)
+            assert [(h.a_start, h.a_end, h.b_start, h.b_end) for h in regions] == [
+                (h.a_start, h.a_end, h.b_start, h.b_end) for h in fresh.hunks
+            ]
+
+    asyncio.run(scenario())

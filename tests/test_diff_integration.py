@@ -23,7 +23,7 @@ from typing import Any
 os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp
-from yate.editor_view.diffview import DiffPane, DiffScreen
+from yate.editor_view.diffview import MAX_DIFF_LINES, DiffPane, DiffScreen
 
 
 def _write(tmp_path: Path, name: str, text: str) -> Path:
@@ -138,6 +138,28 @@ def test_command_diff_directory_with_text_suffix_reports_and_stays(
             await pilot.pause()
             assert len(app.screen_stack) == 1
             assert "no such file" in _message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_command_diff_oversized_file_reports_and_stays(tmp_path: Path) -> None:
+    """A file beyond MAX_DIFF_LINES is refused; the base screen stays.
+
+    The refusal branch lives in :meth:`OverlayFlows.open_diff` (its message
+    names the file); this locks the real entry path after the unused
+    ``check_sizes`` helper was removed.
+    """
+
+    async def scenario() -> None:
+        big = _write(tmp_path, "big.txt", "x\n" * (MAX_DIFF_LINES + 1))
+        f2 = _write(tmp_path, "right.txt", "one")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.editor.run_command(f"diff {big} {f2}")
+            await pilot.pause()
+            assert len(app.screen_stack) == 1
+            assert "too large" in _message_text(app)
 
     asyncio.run(scenario())
 

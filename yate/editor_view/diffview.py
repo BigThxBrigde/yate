@@ -22,7 +22,8 @@ Usage (plan-c wires the entry points)::
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, override
 
@@ -62,32 +63,16 @@ log = tracing.get_logger(__name__)
 
 #: Maximum lines accepted per file side.  ``diff_lines`` / ``diff3_regions``
 #: run on the UI loop and ``difflib`` degrades badly beyond this size, so
-#: callers must reject larger files up front instead of opening the screen:
+#: callers must reject larger files up front instead of opening the screen;
 #: the overlay entry point (:meth:`~yate.overlays.OverlayFlows.open_diff`)
-#: compares against this constant directly so its message can name the
-#: file, while :func:`check_sizes` is the exported verdict helper for
-#: callers that only need a pass/fail answer.
+#: compares against this constant directly so its message can name the file.
 MAX_DIFF_LINES: int = 20000
 
-
-def check_sizes(sides: Sequence[Sequence[str]]) -> str | None:
-    """Return an error message when any side exceeds :data:`MAX_DIFF_LINES`.
-
-    *sides* holds one line sequence per file side (2 or 3 entries).  The
-    message names the first offending side (1-based) with its line count;
-    ``None`` means every side fits and the screen may be opened.  This is
-    the generic, side-numbering helper -- the overlay entry point reports
-    the offending file name instead and checks :data:`MAX_DIFF_LINES`
-    directly.
-    """
-    for index, lines in enumerate(sides, start=1):
-        count = len(lines)
-        if count > MAX_DIFF_LINES:
-            return (
-                f"file {index} has {count} lines "
-                f"(limit is {MAX_DIFF_LINES} per side)"
-            )
-    return None
+#: Debounce window for post-edit recomputes (main-plan review R2): every
+#: edit-mode keystroke posts a :class:`DiffPane.PaneChanged` and each
+#: recompute re-runs the full difflib pass on the UI loop, so bursts of
+#: keystrokes collapse into one recompute scheduled after the last one.
+RECOMPUTE_DEBOUNCE_SECONDS: float = 0.15
 
 
 @dataclass(frozen=True)
@@ -152,7 +137,9 @@ def _vim_edit_keys() -> dict[str, Callable[[DiffPane], None]]:
         pane.vim_insert = True
 
     def append_at(pane: DiffPane) -> None:
-        pane.buffer.move_right()
+        # set_cursor clamps to the line end (same as the main vim keymap),
+        # so "a" never spills onto the next line.
+        pane.buffer.set_cursor((pane.buffer.row, pane.buffer.col + 1))
         pane.vim_insert = True
 
     def open_below(pane: DiffPane) -> None:
@@ -166,7 +153,8 @@ def _vim_edit_keys() -> dict[str, Callable[[DiffPane], None]]:
         "k": lambda pane: pane.buffer.move_up(),
         "l": lambda pane: pane.buffer.move_right(),
         "0": lambda pane: pane.buffer.set_cursor((pane.buffer.row, 0)),
-        "$": lambda pane: pane.buffer.move_line_end(),
+        # Textual normalizes "$" to its unicode key name (probe: _character_to_key).
+        "dollar_sign": lambda pane: pane.buffer.move_line_end(),
         "x": lambda pane: pane.buffer.delete_forward(),
         "d": arm_dd,
         "i": insert_at,
@@ -241,14 +229,12 @@ class DiffPane(ScrollView):
     def __init__(
         self,
         doc: Document,
-        role: str,
         title: str,
         read_only: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.doc = doc
-        self.role = role
         self.title = title
         self.read_only = read_only
         #: Edit mode is entered/exited by the screen (``toggle_edit``).
@@ -580,6 +566,8 @@ class DiffScreen(ModalScreen[None]):
         self._edit_table: str = "vsc"
         self._panes: list[DiffPane] = []
         self._hint: str = ""
+        #: Pending debounced recompute handle; ``None`` when nothing scheduled.
+        self._recompute_handle: asyncio.TimerHandle | None = None
 
     # ------------------------------------------------------------ compose
 
@@ -592,7 +580,6 @@ class DiffScreen(ModalScreen[None]):
                 for i, doc in enumerate(self._docs):
                     yield DiffPane(
                         doc,
-                        role=(_2WAY_ROLES + _3WAY_ROLES)[i],
                         title=self._labels[i],
                         read_only=doc.buffer.read_only,
                         id=f"diff-pane-{i}",
@@ -606,10 +593,30 @@ class DiffScreen(ModalScreen[None]):
         if self._panes:
             self._panes[0].focus()
 
+    def on_unmount(self) -> None:
+        """Cancel a pending debounced recompute (the screen is going away)."""
+        if self._recompute_handle is not None:
+            self._recompute_handle.cancel()
+            self._recompute_handle = None
+
     @on(DiffPane.PaneChanged)
     def _pane_changed(self, event: DiffPane.PaneChanged) -> None:
-        """A pane edited its buffer or toggled edit mode: recompute."""
-        self._recompute()
+        """A pane edited its buffer or toggled edit mode: recompute (debounced).
+
+        Every keystroke in edit mode posts a :class:`DiffPane.PaneChanged`;
+        each recompute re-runs the full difflib pass on the UI loop, so a
+        burst collapses into one :meth:`_recompute` scheduled
+        :data:`RECOMPUTE_DEBOUNCE_SECONDS` after the last message.  The
+        close-guard latch resets here -- at the moment the action happens --
+        not inside the deferred recompute, which may fire after the user
+        already started the two-step close.
+        """
+        self._confirm_close = False
+        if self._recompute_handle is not None:
+            self._recompute_handle.cancel()
+        self._recompute_handle = asyncio.get_running_loop().call_later(
+            RECOMPUTE_DEBOUNCE_SECONDS, self._recompute
+        )
 
     # ------------------------------------------------------------ helpers
 
@@ -658,9 +665,15 @@ class DiffScreen(ModalScreen[None]):
     def _recompute(self) -> None:
         """Re-run the L0 diff and repaint every pane + header.
 
-        Any content change (edit, copy, undo) resets the close-guard latch.
+        Pure render refresh: the close-guard latch is reset by the actions
+        that change content (:meth:`_pane_changed`, :meth:`_apply_copy`,
+        :meth:`action_undo_pane`), never by a deferred recompute.  Direct
+        callers (copy, undo, mount) cancel a pending debounced recompute
+        here, so the synchronous result is final.
         """
-        self._confirm_close = False
+        if self._recompute_handle is not None:
+            self._recompute_handle.cancel()
+            self._recompute_handle = None
         if self._is_3way:
             base, local, remote = (doc.buffer.lines for doc in self._docs)
             self._all_regions = diff3_regions(base, local, remote)
@@ -858,6 +871,7 @@ class DiffScreen(ModalScreen[None]):
             self._set_hint("side is read-only")
             log.debug("diff copy refused: target side is read-only")
             return
+        self._confirm_close = False
         self._recompute()
         self._current = self._nearest_region(start[0], side)
         if self._current >= 0:
@@ -984,6 +998,7 @@ class DiffScreen(ModalScreen[None]):
         except BufferReadOnlyError:
             self._set_hint("side is read-only")
             return
+        self._confirm_close = False
         self._recompute()
 
     # -------------------------------------------------------------- closing
