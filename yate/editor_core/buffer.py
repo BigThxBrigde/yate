@@ -700,7 +700,9 @@ class TextBuffer:
         cur = self.lines[r]
         nxt = self.lines[r + 1]
         if cur and not cur.endswith((" ", "\t")) and nxt and not nxt.startswith((" ", "\t")):
-            joined = cur + " " + nxt.lstrip(" \t") if nxt else cur + nxt
+            # ``nxt`` is non-empty here (guarded above), so a single join
+            # with a separating space is all that is needed.
+            joined = cur + " " + nxt.lstrip(" \t")
         else:
             joined = cur + nxt
         self.lines[r] = joined
@@ -737,6 +739,17 @@ class TextBuffer:
         if text.endswith("\n"):
             # line-wise paste
             r = self.cursor[0]
+            if below and r >= len(self.lines) - 1:
+                # Pasting below the last line: set_cursor would clamp the
+                # target row back onto r and split the current line, so the
+                # pasted lines would land *above* the cursor's line.  Append
+                # from the end of the last line instead (vim ``p`` inserts
+                # after the current line).
+                self.set_cursor((r, len(self.lines[r])))
+                self.insert_text("\n" + text[:-1], kind="step")
+                self.move_line_end()
+                self.move_left()
+                return
             target = r + 1 if below else r
             self.set_cursor((target, 0))
             self.insert_text(text[:-1] + "\n", kind="step")

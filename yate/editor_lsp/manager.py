@@ -52,6 +52,30 @@ ClientKey = tuple[str, str]
 log = tracing.get_logger(__name__)
 
 
+def _to_utf16(line: str, col: int) -> int:
+    """Buffer column (code points) -> LSP UTF-16 code unit offset.
+
+    The LSP spec measures ``character`` offsets in UTF-16 code units, so a
+    non-BMP character (emoji, some CJK extension blocks) counts as two.
+    ASCII-only lines -- the overwhelming majority -- are the fast path.
+    """
+    if line.isascii():
+        return col
+    return len(line[:col].encode("utf-16-le")) // 2
+
+
+def _from_utf16(line: str, units: int) -> int:
+    """LSP UTF-16 code unit offset -> buffer column (code points)."""
+    if line.isascii():
+        return units
+    seen = 0
+    for i, ch in enumerate(line):
+        if seen >= units:
+            return i
+        seen += 2 if ord(ch) > 0xFFFF else 1
+    return len(line)
+
+
 @dataclass
 class OpenDocState:
     """State of one text document currently open with a server.
@@ -66,6 +90,9 @@ class OpenDocState:
     language_id: str
     version: int
     last_synced: str
+    #: The open document, kept so incoming server positions (UTF-16 code
+    #: units) can be converted back to buffer columns (code points).
+    doc: Document
 
 
 class LspManager:
@@ -311,6 +338,7 @@ class LspManager:
             language_id=config.language_id(doc.filetype),
             version=1,
             last_synced=text,
+            doc=doc,
         )
         # Pending diagnostics may already be stale relative to buffer content;
         # the server republishes after didOpen.
@@ -446,9 +474,12 @@ class LspManager:
         context: dict[str, Any] = {"triggerKind": trigger_kind}
         if trigger_character is not None:
             context["triggerCharacter"] = trigger_character
+        cursor_line = (
+            doc.buffer.lines[row] if row < doc.buffer.line_count else ""
+        )
         params: dict[str, Any] = {
             "textDocument": {"uri": uri},
-            "position": {"line": row, "character": col},
+            "position": {"line": row, "character": _to_utf16(cursor_line, col)},
             "context": context,
         }
         try:
@@ -456,7 +487,11 @@ class LspManager:
                 "textDocument/completion", params
             )
             raw = await future
-        except (LspError, OSError, asyncio.CancelledError):
+        except asyncio.CancelledError:
+            # Cancellation is control flow, not "no completions": the
+            # awaiting caller (Task.cancel / wait_for) must observe it.
+            raise
+        except (LspError, OSError):
             return []
         # A malformed server response must not kill the completion worker:
         # it runs with exit_on_error=False, so an exception here would be
@@ -467,7 +502,7 @@ class LspManager:
             completions: list[Completion] = []
             for item in items:
                 parsed = self._parse_completion_item(
-                    item, item_defaults, row, col, prefix_start_col
+                    item, item_defaults, doc, row, col, prefix_start_col
                 )
                 if parsed is not None:
                     completions.append(parsed)
@@ -523,10 +558,22 @@ class LspManager:
             int(end.get("character", 0)),
         )
 
+    @staticmethod
+    def _range_to_buffer_cols(
+        rng: tuple[int, int, int, int], doc: Document
+    ) -> tuple[int, int, int, int]:
+        """Convert a server range's UTF-16 columns to buffer columns."""
+        r0, c0, r1, c1 = rng
+        lines = doc.buffer.lines
+        line0 = lines[r0] if 0 <= r0 < len(lines) else ""
+        line1 = lines[r1] if 0 <= r1 < len(lines) else ""
+        return (r0, _from_utf16(line0, c0), r1, _from_utf16(line1, c1))
+
     def _parse_completion_item(  # noqa: Any - completion items are untyped server wire data
         self,
         item: dict[str, Any],
         defaults: dict[str, Any],
+        doc: Document,
         row: int,
         col: int,
         prefix_start_col: int,
@@ -554,6 +601,10 @@ class LspManager:
 
         if rng is None:
             rng = self._range_from(defaults.get("editRange"))
+        if rng is not None:
+            # Server columns are UTF-16 code units; the buffer counts code
+            # points (ASCII lines, the fast path, are identical).
+            rng = self._range_to_buffer_cols(rng, doc)
         if rng is None:
             # No server range: replace the identifier prefix the UI computed.
             rng = (row, prefix_start_col, row, col)
@@ -592,8 +643,10 @@ class LspManager:
         if method == "textDocument/publishDiagnostics":
             uri = params.get("uri")
             if isinstance(uri, str):
+                state = self._open.get(uri)
+                lines = state.doc.buffer.lines if state is not None else None
                 self._diagnostics[uri] = self._parse_diagnostics(
-                    params.get("diagnostics")
+                    params.get("diagnostics"), lines
                 )
                 log.debug(
                     "diagnostics published: %s (%d item(s))",
@@ -609,9 +662,25 @@ class LspManager:
             pass  # acknowledged but not surfaced yet
 
     @staticmethod
-    def _parse_diagnostics(raw: Any) -> list[Diagnostic]:
-        if not isinstance(raw, list):
-            return []
+    def _parse_diagnostics(
+        raw: Any, lines: list[str] | None = None
+    ) -> list[Diagnostic]:
+        """Parse a publishDiagnostics payload, skipping malformed entries.
+
+        Numeric coercion is defensive -- a single malformed notification
+        must not kill the connection (the caller runs inside the read
+        loop), so a non-integer coordinate degrades to 0 instead of
+        crashing the session.  Server columns are UTF-16 code units;
+        *lines* (the document's current lines) converts them to buffer
+        columns.
+        """
+
+        def _coord(pos: dict[str, Any], key: str) -> int:
+            value = pos.get(key, 0)
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value
+            return 0
+
         result: list[Diagnostic] = []
         for entry_raw in cast(list[Any], raw):
             if not isinstance(entry_raw, dict):
@@ -633,11 +702,23 @@ class LspManager:
             message = entry.get("message", "")
             source = entry.get("source", "")
             severity = entry.get("severity")
+            start_row = max(0, _coord(start, "line"))
+            end_row = max(0, _coord(end, "line"))
+            line0 = (
+                lines[start_row]
+                if lines is not None and start_row < len(lines)
+                else ""
+            )
+            line1 = (
+                lines[end_row]
+                if lines is not None and end_row < len(lines)
+                else ""
+            )
             result.append(Diagnostic(
-                start_row=max(0, int(start.get("line", 0))),
-                start_col=max(0, int(start.get("character", 0))),
-                end_row=max(0, int(end.get("line", 0))),
-                end_col=max(0, int(end.get("character", 0))),
+                start_row=start_row,
+                start_col=max(0, _from_utf16(line0, _coord(start, "character"))),
+                end_row=end_row,
+                end_col=max(0, _from_utf16(line1, _coord(end, "character"))),
                 severity=int(severity) if isinstance(severity, int)
                 else DiagnosticSeverity.ERROR,
                 message=message if isinstance(message, str) else "",
