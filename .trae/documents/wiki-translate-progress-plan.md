@@ -1,6 +1,7 @@
 # wiki-translate-progress-plan
 
-> 状态：已批准（2026-10-03，用户修改：1. 新建 worktree 走闭环；2. 进度显示用 rich 库）
+> 状态：已批准（2026-10-03，用户修改：1. 新建 worktree 走闭环；2. 进度显示用 rich 库）；
+> **已实现**（见文末执行记录）。
 
 ## 目标
 
@@ -79,3 +80,30 @@
 按用户指示建独立 worktree `../yate-wiki-translate-progress`
 （分支 `feat/wiki-translate-progress`，自 master 切出），worktree 内重建
 `.venv` 并自证沙箱生效；每步单独提交、不推送。
+
+## 执行记录（2026-10-03 回填）
+
+- **提交**：`2ac8453`（方案）→ `6a03d6b`（feat 实现）→ 评审修复提交（本笔）；
+- **评审**（code-review-expert 子代理，实测三项命令全 0 退出码）：
+  2 个 major + 3 个 minor，全部修复：
+  1. **major** `--translate-all` 下预扫描与主循环漂移（recorded-fresh 页预告
+     "nothing to translate" 但实际被翻译、进度条不启动）→ `needs_translation`
+     改为 adopted/fresh 均返回 `translate_all`，矩阵测试补该格；
+  2. **major** 页名直入 rich markup（`[edit]` 被吞 / 平衡方括号触发
+     MarkupError 打崩 run）→ 预告/失败行 `markup=False`，进度描述
+     `rich.markup.escape`；
+  3. **minor** 失败行分母与进度条口径不一（`[k/len(pages)]` vs `total=pending`）
+     → 统一为 `[attempted/pending]`（偏离方案原文字面，实测依据：双分母并存
+     易误读，评审建议采纳）；
+  4. **minor** 汇总行补总耗时（`in N.Ns`，兑现方案"结束后报告结果与耗时"）；
+  5. **minor** 预告数断言改为按 `needs_translation` 现算期望值，解除夹具耦合；
+  - 未采纳（nice-to-have）：92 字符 genexp 折行（合规 ≤100）、
+    `pending==0` 时 `add_task` 语义噪音（无行为影响）。
+- **门禁实测**：`pytest tests/test_pack_wiki.py -q` 30 passed（exit 0）；
+  `pyright yate/ tests/ tools/` 0 errors（exit 0）；全量 `pytest tests/ -q`
+  全绿（exit 0；`test_manual_search_step_lands_on_exact_rendered_row` 首轮
+  timing 偶发失败，重跑通过后确认与本次改动无关——该用例不触及 tools/pack）；
+- **冒烟说明**：交互式 Ctrl+C 冒烟未执行（本会话无法向子进程发送 SIGINT），
+  中断路径由 `test_keyboard_interrupt_maps_to_exit_130` 覆盖（断言 exit 130、
+  stderr 含 "interrupted"、无 "Traceback"）；非交互进度输出形态由
+  预告/失败行用例覆盖（rich 非 TTY 自动退化为普通输出）。
