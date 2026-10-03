@@ -223,9 +223,12 @@ python -m pyright yate/ tests/ tools/
 - 二轮评审（python-code-review）4 条（vim `a` 行尾跨行、编辑重算无防抖、
   `DiffPane.role` 死参数、`check_sizes` 无生产调用方）已登记至
   [diff-review-fixes-plan.md](diff-review-fixes-plan.md) 并随该任务修复；
-- S2：diffview.py 编辑键表每键重建 dict，可提为模块级常量（性能微优化）。
-- S3：vim normal 模式单字母（e/q）fall-through 到 screen 绑定与 vim 肌肉记忆冲突，
-  设计权衡——建议页头 hint 或后续 help 注明。
+- S2：已修（commit f78f65b）——三张编辑键表提为模块级常量（`_VSC_EDIT_KEYS` /
+  `_VIM_EDIT_KEYS` / `_VIM_INSERT_KEYS`），vim 闭包改为模块级命名函数；
+- S3：已修（commit f78f65b）——vim normal 下 `e` 映射行内词尾（复用
+  editor_core/textobjects.py 的 `word_end_column`）、`q` 惰性消费，
+  均不再 fall-through 到 screen 绑定（守卫用例
+  `test_vim_normal_e_moves_word_end_and_q_is_inert`）；
 - S5：`:diff` 的 `args.split()` 不支持含空格路径，需对齐 `:e` 的引号解析先例或
   引入 `shlex.split`（涉及命令行解析口径，独立任务处理）。
 - W2 余量：`_copy_3way` 反方向（remote→local）、只读侧拒进编辑、save 的
