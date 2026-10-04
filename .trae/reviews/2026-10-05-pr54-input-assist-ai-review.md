@@ -1,13 +1,16 @@
 # Gitee PR !54 评审（enh/input-assist 输入辅助，AI 队友审查）— 2026-10-05
 
-> 来源：Gitee PR #54 评论
-> [`note_51443873`](https://gitee.com/jermaine/yate/pulls/54#note_51443873_conversation_191386654)
-> （conversation `191386654`，评论者「PR观察者」`pull_review_bot_2f642dd39f557e6f`，
-> 创建 2026-10-04 23:12:02 +08:00，最后更新 2026-10-04 23:28:27 +08:00）。
-> 触发评论为同 PR 的 `note_51443872`（作者本人于 2026-10-04 23:12:01 发 `/review`）。
-> 本条目是该评论的落盘记录；修复方案与门禁回填见
-> [`../documents/input-assist-review-fixes-plan.md`](../documents/input-assist-review-fixes-plan.md) 第五节
-> （第二轮）。
+> **本文登记 PR !54 的两轮 Gitee AI 队友评审**（同一 PR、同一评审者「PR观察者」）：
+>
+> | 轮次 | 评论 | 时间 | 结论 |
+> |---|---|---|---|
+> | 第二轮 | [`note_51443873`](https://gitee.com/jermaine/yate/pulls/54#note_51443873_conversation_191386654)（conversation `191386654`） | 2026-10-04 23:12:02 → 23:28:27 +08:00 | ⛔ 未通过：1 阻断 / 2 改进 |
+> | 第三轮 | [`note_51445224`](https://gitee.com/jermaine/yate/pulls/54#note_51445224_conversation_191392268)（conversation `191392268`） | 2026-10-05 07:37:20 → 07:46:21 +08:00 | ⚠️ 无阻断，2 改进建议 |
+>
+> 第二轮的触发评论是 `note_51443872`（作者本人于 2026-10-04 23:12:01 发 `/review`）。
+> 第二轮修复方案与门禁回填见
+> [`../documents/input-assist-review-fixes-plan.md`](../documents/input-assist-review-fixes-plan.md) 第五节；
+> 第三轮见本文第七 / 八节（§七.1 改进项 1 已由用户手动处置，§七.2 登记为 G9-3）。
 
 - **评审对象**：分支 `enh/input-assist`（worktree `../yate-input-assist`），PR !54 标题
   `Merge branch 'master' into enh/input-assist`，评审时点 13 提交 / 13 文件；实现 issue
@@ -127,3 +130,65 @@ AI 队友摘要：「⛔ 发现 1 个阻断项，2 个改进项。请修改后�
 |---|---|---|---|
 | G9-1 | VISUAL 模式下 `3>` 忽略计数前缀，与 vim（visual 中 `>` 是 operator，count 应重复缩进）仍有差异 | ⏸ 登记不修 | 评审明确将影响范围限定为 NORMAL 模式（"单次按键和 VISUAL 模式均不受影响"）；手册 3.5 / 5.2 两处表格已按 NORMAL / VISUAL 分行写明"按 vim 惯例忽略计数前缀"，测试亦 pin（`test_vim_visual_indent_does_not_leak_a_typed_count_into_normal_mode`）。改动属评审范围外的行为变更，需产品决策 |
 | G9-2 | G9 性能基准取均值而非单次上限 | ⏸ 登记不修 | 评审者自评无需改动（阈值余量约 500 倍） |
+
+---
+
+## 七、第三轮：Gitee PR !54 第二条 AI 队友评审（note 51445224）
+
+- **来源**：Gitee PR !54 评论
+  [`note_51445224`](https://gitee.com/jermaine/yate/pulls/54#note_51445224_conversation_191392268)
+  （conversation `191392268`，同为「PR观察者」），创建 2026-10-05 07:37:20 +08:00，
+  最后更新 2026-10-05 07:46:21 +08:00。会话级评论，`path` / `position` / `new_line` /
+  `commit_id` 均为 `null`，未锚定具体代码行。
+- **总体结论**：⚠️ **无阻断项，2 个改进建议，可优化后合并**。四维表：功能性与逻辑 ✅、
+  安全性 ✅、性能 ✅、可维护性 ⚠️。风险等级自评 **low**。
+- **与前两轮的关系**：本轮在第二轮（B1 / M1 / M2）修复**之后**产生，
+  功能侧三项（补全、跳过、包裹、删除、缩进）经代码追踪验证无误，**第二轮的阻断项
+  未再出现**，评审焦点已转向 PR 范围整洁度与未接线代码。
+- **本轮处置**：改进项 1 已由用户手动处置；改进项 2 登记为遗留观察项。
+  按用户指示**本轮不做测试验证**（未跑 pyright / pytest / 架构测试 / 覆盖率）。
+
+### 7.1 改进项 1（PR 范围混入无关文档）— 已由用户处置
+
+问题描述：PR 中包含 `.trae/documents/ai-specs/add-ai-chat-agent/` 下的
+`spec.md` / `tasks.md` / `checklist.md`，描述的是一个**尚未实现**、与 input-assist
+主题完全无关的 AI Chat/Agent 特性；混合提交会稀释提交历史清晰度并增加评审噪音。
+
+修正建议（原评）：拆分到独立 PR 或分支，保持当前 PR 专注 input-assist。
+
+**处置（2026-10-05，用户手动执行）**：三个文档已删除，提交 `6937900`
+（`docs: remove irrelevant docs`）。主代理核实：worktree 内该目录已不存在，
+`git log --diff-filter=D` 确认删除即在 `6937900`。按用户指示，此项**不作为待办登记**。
+
+### 7.2 改进项 2（`closes_block` 未接入产品路径）— 登记为遗留观察项
+
+问题描述：`closes_block` 已在 `yate/editor_core/indentation.py` 实现并有完整契约测试，
+但**产品路径从不调用**，仅作为预留扩展接缝存在；长期保留未使用代码可能增加维护负担。
+
+修正建议（原评）：**认可**保留为扩展接缝的裁决，但建议后续版本若长期不接线，
+需评估移除或明确标记为实验性。
+
+**主代理核实（2026-10-05，只读取证）**：属实。`closes_block` 全仓 5 处命中——
+`indentation.py:118`（定义）、`:61`（`LanguageRules` 注释说明其剥离尾随冒号）、
+`tests/test_input_assist.py:29`（import）与 `:871-900`（契约测试
+`test_closes_block_matches_the_python_dedent_keywords`，12 组断言）。**产品路径
+（`buffer.py` / `keymaps/*` / `actions.py`）零调用**，与
+[`../documents/input-assist-plan.md`](../documents/input-assist-plan.md) §七 **D2** 的
+裁决一致——保留为未接线的扩展点，由契约测试直接定契约，docstring 已写明"本版未接线"。
+
+**登记为遗留观察项 G9-3**（见 §八），理由：接线与否属产品功能决策（语法级回退缩进是
+issue IKJMQ2 明确列出的"V1 可选、暂不实现"非目标），不是评审要求当场修的缺陷；
+评审本身也认可保留裁决，仅建议后续版本复评。
+
+### 7.3 事实注记
+
+评审正文称"新增了 58 条验收测试用例 `tests/test_input_assist.py`"——该数字对应
+**第二轮修复前**的文件状态（第一轮 F1–F9 处置后即为 59 条）。当前分支经第二轮修复后
+为 **63 条**（+4：末行截断 / 撤销单步 / 反缩进下限 / 孤立空行）。此处仅作快照差异
+说明，不构成对评审的异议。
+
+## 八、遗留登记（第三轮新增）
+
+| # | 项 | 标记 | 理由 |
+|---|---|---|---|
+| G9-3 | `closes_block` 已实现且有契约测试，但产品路径零调用，作为"未来语法级回退缩进"的扩展接缝长期未接线 | 👀 登记待复评 | 评审**认可**保留裁决（§七.2），仅建议后续版本若长期不接线则评估移除或标记为实验性。接线与否属产品功能决策（语法级回退缩进是 issue IKJMQ2 明确列出的"V1 可选、暂不实现"非目标），不由评审驱动；docstring 已写明"本版未接线" |
