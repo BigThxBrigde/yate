@@ -305,8 +305,16 @@ class Keymap:
         return self.handle_unbound(ctx, key)
 
     def handle_unbound(self, ctx: ActionContext, key: str) -> bool:
-        """Default: printable characters insert themselves."""
+        """Default: printable characters insert themselves.
+
+        The fallback goes through
+        :meth:`~yate.editor_core.buffer.TextBuffer.type_char` rather than
+        :meth:`~yate.editor_core.buffer.TextBuffer.insert_text`, so every
+        modeless keymap inherits bracket auto-completion, closing-symbol
+        skipping and selection wrapping; the active document's *filetype*
+        travels with the call so the language rules stay in one place.
+        """
         if len(key) == 1 and key.isprintable():
-            ctx.buffer.insert_text(key)
+            ctx.buffer.type_char(key, language=ctx.doc.filetype)
             return True
         return False
