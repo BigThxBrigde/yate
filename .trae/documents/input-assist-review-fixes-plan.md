@@ -201,3 +201,49 @@ if stripped and opens_block(rules, stripped):
 基线（第一轮修复后）：`pyright` 0 诊断；`test_input_assist.py` 59 条；全量
 `1740 passed / 7 skipped`；架构 `22 passed`；覆盖率 `91.35%`。本轮修复后用例数只增不减，
 覆盖率不得低于基线。
+
+### 5.6 执行记录（2026-10-05，主代理回填）
+
+**5.6.1 门禁实测**（主代理亲自在 worktree 沙箱跑，退出码均 0）
+
+| 命令 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| `pytest tests/test_architecture.py` | `22 passed` |
+| `pytest tests/test_input_assist.py` | **`63 passed`**（基线 59，+4） |
+| `pytest tests/ --cov=yate --cov-report=term --cov-fail-under=75` | **`1788 passed, 30 skipped`**，覆盖率 **91.27%** |
+
+对比第一轮基线（`1740 / 7`、91.35%）：全量用例 **+48**（含 master 经 `5c40f99` 带入的
+syntax 用例，非本轮新增），`test_input_assist.py` **+4**，覆盖率 91.35% → 91.27%
+（−0.08，属新增分支路径的正常波动，仍远高于 75% 门槛）。
+
+**5.6.2 逐项处置结果**
+
+| # | 结果 |
+|---|---|
+| B1 | **已改**（`5c41d69`）：`_shift_row` 选区由光标行延伸至 `row + count - 1`（clamp 到末行），`indent_selection` / `outdent_selection` 各调一次。主代理用探针实测 8 个边界场景全部符合 vim 语义：`3>` 于 4 行 → 前 3 行各 +1 级、光标 `(0, 4)`；于 2 行 → 2 行全缩进（静默截断）；`3<` 于 4×8 空格 → 前 3 行各留 4 空格；`3<` 于 4 空格 → 落到 0 不为负；空行作首行且下方有行 → 按普通行加缩进；孤立空行 → `insert_tab` 一个单位。帮助文案 `Indent [count] lines` 由此**转为正确**，未改一字 |
+| M1 | **已改**（`5c41d69`）：`self.cursor = (r, c - 1)` → `self.set_cursor((r, c - 1))`。探针实测行为等价（`a()b` + BS → `a()` 光标 `(0, 3)`，`()` + BS → `x` 未越界，undo 复原） |
+| M2 | **不改**：按评审者自评登记（阈值余量约 500 倍） |
+| 用例 | **已改**（`ca6d204`）：3 条改写 + 4 条新增（末行截断 / 撤销单步 / 不低于 0 / 孤立空行），共 59 → 63 |
+| 手册 | **已改**（`ca6d204`）：中英成对 3 处（3.5 节缩进键表、5.2 节按键表、命令速查表）+ 3.5 节正文明示"计数按行数向下生效、行数不足只作用到文件末尾"；VISUAL 表述未动 |
+
+**5.6.3 与方案的偏离**
+
+| # | 偏离 | 依据 |
+|---|---|---|
+| P5 | **实现追加了一次"光标行回走"**（§5.2 的语义定义里没写这一步） | 主代理探针实测发现：只选一次区时 `indent_selection` 把光标留在**末行**（`3>` 于 4 行 → `cursor=(2, 4)`），与 vim 落在起始行首个非空白列不符。补 `buf.set_cursor((row, 0))` 后再 `move_line_start(toggle=False)`，复跑探针 8 场景全绿（`cursor=(0, 4)`）。这是 §5.2"光标落在光标行"这一既定语义的实现补齐，不是新增语义 |
+| P6 | **worktree 沙箱补装 `tree-sitter-css`** | 全量首跑 1 条失败 `test_ts_backend.py::test_scss_and_less_do_not_borrow_the_css_grammar`，实测 `find_spec('tree_sitter_css') is None` 而 `pyproject.toml:40,75`（`ts` 与 `dev` extras）均已声明该依赖——该用例由 master 经 `5c40f99` 带入，沙箱未装齐所致，与本轮改动无关。`pip install "tree-sitter-css>=0.25"` 后复跑全绿。仅动沙箱环境，无代码或依赖声明变更 |
+| P7 | **VISUAL 模式的 count 差异未修** | 评审明确将影响范围限定为 NORMAL（"单次按键和 VISUAL 模式均不受影响"）；手册 3.5 / 5.2 两表已按 NORMAL / VISUAL 分行写明忽略计数前缀，测试亦 pin。改动属评审范围外的产品行为变更，登记为遗留项（见评审记录 §六 G9-1） |
+
+**5.6.4 子代理分工与产出**（只认落盘结果，主代理已逐条 `git diff` 复核 + 重跑）
+
+| 成员 | 名下文件 | 产出 |
+|---|---|---|
+| `tests-writer`（`acceptEdits`） | `tests/test_input_assist.py` | 63 passed，主代理复核通过 |
+| `docs-writer`（`acceptEdits`） | `yate/resources/manual.zh.md` / `manual.en.md` | 中英成对 3 处 + 正文，主代理复核通过 |
+| 主代理 | `yate/keymaps/vim.py`、`yate/editor_core/buffer.py`、两份 `.trae/` 文档 | 产品源码按规则不由子代理改动 |
+
+**5.6.5 提交**（只提交、不推送）
+
+`4b81e54` 评审记录 → `d1d1a41` 方案 → `5c41d69` 源码修复 → `ca6d204` 用例与手册，
+共 4 笔。

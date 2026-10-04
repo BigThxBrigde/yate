@@ -20,6 +20,10 @@
   性能 ⚠️、可维护性 ⚠️；AI 队友明确「请修改后再合并」。风险等级自评 **low**。
 - **处置**：**已修复**（2026-10-05，阻断项与改进项 1 采纳对齐 vim 方案，改进项 2 按
   评审者自评仅作登记）。逐条处置与门禁回填见方案文档第五节。
+- **门禁实测**（worktree 沙箱，主代理亲自跑，退出码均 0）：`pyright yate/ tests/ tools/`
+  → `0 errors, 0 warnings, 0 informations`；`pytest tests/test_architecture.py` → `22 passed`；
+  `pytest tests/test_input_assist.py` → `63 passed`（改前 59）；`pytest tests/ --cov=yate
+  --cov-fail-under=75` → `1788 passed, 30 skipped`，覆盖率 **91.27%**。
 
 ---
 
