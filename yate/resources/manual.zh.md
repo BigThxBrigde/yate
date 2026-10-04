@@ -741,7 +741,8 @@ yate --setup-defaults
   加 `--force` 才会覆盖，覆盖前旧文件备份为 `yaterc.yate-bak`（已存在备份时
   保留最早的一份）；
 - 把官方主题/扩展模板以 `.example` 原后缀放到 `~/.yate/themes/` 与
-  `~/.yate/extensions/`（Dracula、Ayu 主题及两个扩展示例）。启动扫描只加载
+  `~/.yate/extensions/`（Dracula、Ayu 主题及七个扩展示例：batch、diff、
+  fsharp、git、ini，以及 `example_ext` / `yatesh` 两个走查模板）。启动扫描只加载
   `*.py`，所以把想用的模板**改名成 `.py` 即激活**，删掉即停用；
 - `.example` 模板由 yate 托管，**每次运行 setup 都会刷新覆盖**，请在改名后的
   `.py` 副本里定制，不要直接改 `.example`；
@@ -891,7 +892,7 @@ extensions = [
   （按解析后的绝对路径去重）。
 
 除 rc 声明外，yate 会先自动加载**包内随附扩展**（`yate/extensions/` 中的
-`python_lsp`、`csharp_highlight`，任何工作目录下都生效），再扫描默认目录
+`python_lsp`，任何工作目录下都生效），再扫描默认目录
 `./extensions/`、`~/.yate/extensions/`，也可用 `--ext <文件>` /
 `--ext-dir <目录>` 追加（详见第 15 节）。要跳过某个随包默认扩展，在
 yaterc 中按文件名主干设置 `disabled_extensions = ["python_lsp"]`。
@@ -1094,7 +1095,7 @@ def setup(api):
 加载来源（可组合，按解析后的绝对路径去重）：
 
 1. yaterc 的 `extensions` 选项（用户级先于项目级）；
-2. 包内随附扩展 `yate/extensions/`（`python_lsp`、`csharp_highlight`，
+2. 包内随附扩展 `yate/extensions/`（目前为 `python_lsp`，
    任何工作目录下都自动加载；yaterc 的 `disabled_extensions` 可按主干禁用）；
 3. 默认目录 `./extensions/` 与 `~/.yate/extensions/`（启动自动加载）；
 4. 命令行 `--ext <文件>` / `--ext-dir <目录>`。
@@ -1102,8 +1103,10 @@ def setup(api):
 扩展中的异常不会导致编辑器崩溃，错误以 `extension <名字>: ...` 显示在消息栏。
 包内模板 `yate/extensions/example_ext.py.example`（去掉 `.example` 后缀后
 使用，提供 `:upper` / `:lower` / `:words` / `:sh` 命令与 `Alt+U` 绑定），
-可作模板；`yate/extensions/csharp_highlight.py` 则演示了如何用
-`api.highlight.register` 为 C#（`.cs`/`.csx`）添加语法高亮。
+可作模板；语法高亮模板 `batch_syntax.py.example` / `ini_syntax.py.example` /
+`git_syntax.py.example` / `diff_syntax.py.example` 演示了如何用
+`api.highlight.register` 为其它语言添加声明式高亮（如 Windows batch），
+`fsharp_syntax.py.example` 则演示 `api.syntax.register_tree_sitter`。
 
 > 扩展 API 完整参考（命令、动作、按键绑定、buffer/doc/workspace 访问、
 > LSP 注册、自定义语法高亮与 `LangSpec` 字段）见
@@ -1244,22 +1247,30 @@ yate 会拦截带未保存修改的退出。`:w` 保存后 `:q`，或 `:q!` 放�
 
 **支持哪些语言的语法高亮？**
 内置高亮引擎按扩展名识别：Python（`py`/`pyi`/`pyw`）、C（`c`/`h`）、
-C++（`cpp`/`cc`/`cxx`/`c++`/`hpp`/`hxx`/`h++`/`hh`/`ino`）、Java（`java`）、
-Rust（`rs`）、Go（`go`）、JavaScript（`js`/`mjs`/`cjs`/`jsx`）、
-TypeScript（`ts`/`tsx`/`mts`/`cts`）、Shell（`sh`/`bash`/`zsh`/`fish`）、
-JSON（`json`/`jsonc`）、Markdown（`md`/`markdown`/`mdx`）、TOML（`toml`）、
-INI（`ini`/`cfg`/`conf`/`properties`）、YAML（`yaml`/`yml`）。
+C++（`cpp`/`cc`/`cxx`/`c++`/`hpp`/`hxx`/`h++`/`hh`/`ino`）、
+C#（`cs`/`csx`）、Java（`java`）、Rust（`rs`）、Go（`go`）、
+JavaScript（`js`/`mjs`/`cjs`/`jsx`）、TypeScript（`ts`/`tsx`/`mts`/`cts`）、
+Shell（`sh`/`bash`/`zsh`/`fish`）、HTML（`html`/`htm`）、
+CSS（`css`/`scss`/`less`）、JSON（`json`/`jsonc`）、
+Markdown（`md`/`markdown`/`mdx`）、TOML（`toml`）、
+INI（`ini`/`cfg`/`conf`/`properties`）、YAML（`yaml`/`yml`）、XML（`xml`）、
+XAML（`xaml`）、PowerShell（`ps1`/`psm1`/`psd1`）、Lua（`lua`）、
+Make（`mak`/`mk`）、Perl（`pl`/`pm`）、PHP（`php`）、Ruby（`rb`）、
+SQL（`sql`）、Zig（`zig`）。
 其他类型按纯文本渲染。安装可选 tree-sitter 后端（`pip install yate[ts]`）
-后，Python 与 Shell 改由真实语法树解析驱动的高亮。
+后，这 30 种语言中的 25 种改由真实语法树解析驱动的高亮——除 JSONC、INI、
+Perl、SCSS、LESS 外的全部内置语言。SCSS 与 LESS 沿用 CSS 单词表：PyPI 没有
+对应语法包，而 CSS 语法会把 `$var` / `@mixin` / `//` 解析成错误节点。
 
 **如何增加新语言（或覆盖某种语言）的语法高亮？**
 通过扩展的 `api.highlight.register(spec, *扩展名)` 注册一个声明式的
 `LangSpec`（注释标记、关键字、类型、常量等单词集合；字符串、数字、多行
-状态由引擎处理），注册后即可自动高亮并用于 `:set filetype=`。随包扩展
-`yate/extensions/csharp_highlight.py` 为 C#（`cs`/`csx`）提供高亮，随包
-启动即自动加载（可用 `disabled_extensions = ["csharp_highlight"]` 关闭），
-也可用 `yate --ext csharp_highlight.py` 显式加载一份修改版；完整字段
-说明见 [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md) 的 4.7 节。
+状态由引擎处理），注册后即可自动高亮并用于 `:set filetype=`（对同一扩展名
+会替换内置规格）。主流语言已内置——C# 等上文列出的语言无需扩展；
+模板以 `*.py.example` 形式随包提供（`batch_syntax.py.example`、
+`ini_syntax.py.example`、`git_syntax.py.example`、
+`diff_syntax.py.example`、`fsharp_syntax.py.example`），去掉 `.example` 后缀
+复制到扩展目录即可；完整字段说明见 [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md) 的 4.7 节。
 
 若要为自定义语言（例如你自己实现的 shell）提供基于语法树的精确高亮，
 扩展可通过 `api.syntax.register_tree_sitter(...)` 绑定编译好的

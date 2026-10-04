@@ -10,7 +10,9 @@ optional grammar packs are installed.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -117,6 +119,241 @@ def test_comments_keywords_strings_commands() -> None:
     assert ("keyword", "then") in pairs2
     assert ("function", "ls") in pairs2
     assert ("keyword", "fi") in pairs2
+
+
+# --- built-in grammar packs -------------------------------------------------
+
+
+@dataclass
+class _PackCase:
+    """One representative highlighting sample for a built-in grammar pack."""
+
+    pack: str  # key in BUILTIN_PACKS
+    filetype: str
+    lines: list[str]
+    expected: tuple[tuple[int, str, str], ...]  # (row, kind, text)
+
+
+_PACK_CASES: list[_PackCase] = [
+    _PackCase(
+        "csharp", "cs",
+        ["// note", "public class Foo {", '    string s = "x";'],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "public"), (1, "keyword", "class"),
+            (2, "type", "string"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "rust", "rs",
+        ["// note", "fn main() {", '    let s = "x";', "}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "fn"),
+            (2, "keyword", "let"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "javascript", "js",
+        ["// note", "function f() {", '    const s = "x";', "}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "function"),
+            (2, "keyword", "const"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "typescript", "ts",
+        ["// note", "const n: number = 1;"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "const"), (1, "type", "number"),
+            (1, "number", "1"),
+        ),
+    ),
+    _PackCase(
+        "c", "c",
+        ["// note", "int main(void) {", "    return 0;"],
+        (
+            (0, "comment", "// note"),
+            (1, "type", "int"), (1, "function", "main"), (1, "type", "void"),
+            (2, "keyword", "return"), (2, "number", "0"),
+        ),
+    ),
+    _PackCase(
+        "cpp", "cpp",
+        ["// note", "class Foo {", "};"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "class"), (1, "type", "Foo"),
+        ),
+    ),
+    _PackCase(
+        "go", "go",
+        ["// note", "func main() {", '    s := "x"'],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "func"), (1, "function", "main"),
+            (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "java", "java",
+        ["// note", "class Foo {", "    void f() {}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "class"), (1, "type", "Foo"),
+            (2, "type", "void"), (2, "function", "f"),
+        ),
+    ),
+    _PackCase(
+        "html", "html",
+        ["<!-- note -->", '<div class="x">hi</div>'],
+        (
+            (0, "comment", "<!-- note -->"),
+            (1, "type", "div"), (1, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "css", "css",
+        ["/* note */", "div {", "    color: red;", "a:hover {"],
+        (
+            (0, "comment", "/* note */"),
+            (1, "type", "div"),
+            (2, "property", "color"),
+            # ':hover' is bound twice -- (class_name) @type and the narrower
+            # (pseudo_class_selector (class_name) @property) -- and the kind
+            # precedence table must settle it as a type.
+            (3, "type", "a"), (3, "type", "hover"),
+        ),
+    ),
+    _PackCase(
+        "json", "json",
+        ['{"k": 1, "s": "v"}'],
+        (
+            (0, "property", '"k"'), (0, "number", "1"),
+            (0, "property", '"s"'), (0, "string", '"v"'),
+        ),
+    ),
+    _PackCase(
+        "toml", "toml",
+        ['name = "yate" # note'],
+        (
+            (0, "property", "name"), (0, "string", '"yate"'),
+            (0, "comment", "# note"),
+        ),
+    ),
+    _PackCase(
+        "yaml", "yaml",
+        ["# note", "key: value"],
+        ((0, "comment", "# note"), (1, "property", "key")),
+    ),
+    _PackCase(
+        "sql", "sql",
+        ["-- note", "select * from t where x = 1;"],
+        (
+            (0, "comment", "-- note"),
+            (1, "keyword", "select"), (1, "keyword", "from"),
+            (1, "keyword", "where"),
+        ),
+    ),
+    _PackCase(
+        "lua", "lua",
+        ["-- note", "local function f()", '    print("x")', "end"],
+        (
+            (0, "comment", "-- note"),
+            (1, "keyword", "local"), (1, "keyword", "function"),
+            (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "make", "mak",
+        ["# note", "all: build"],
+        ((0, "comment", "# note"), (1, "function", "all")),
+    ),
+    _PackCase(
+        "powershell", "ps1",
+        ["# note", "if ($true) {", '    Write-Output "x"'],
+        (
+            (0, "comment", "# note"),
+            (1, "keyword", "if"),
+            (2, "function", "Write-Output"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "php", "php",
+        ["<?php", "// note", "function f() {}"],
+        (
+            (1, "comment", "// note"),
+            (2, "keyword", "function"), (2, "function", "f"),
+        ),
+    ),
+    _PackCase(
+        "ruby", "rb",
+        ["# note", "def f", "  puts 'x'", "end"],
+        (
+            (0, "comment", "# note"),
+            (1, "keyword", "def"), (1, "function", "f"),
+            (2, "string", "'x'"), (3, "keyword", "end"),
+        ),
+    ),
+    _PackCase(
+        "markdown", "md",
+        ["# Title", "```py", "code = 1"],
+        # The heading marker is a ``heading`` capture (SYNTAX_KINDS paints it
+        # like a keyword) and the fence's info string is ``builtin`` -- both
+        # must be registered in DEFAULT_CAPTURE_MAP or they are dropped.
+        ((0, "heading", "#"), (1, "builtin", "py"), (2, "string", "code = 1")),
+    ),
+    _PackCase(
+        "xml", "xml",
+        ["<!-- note -->", '<root attr="1">x</root>'],
+        (
+            (0, "comment", "<!-- note -->"),
+            (1, "type", "root"), (1, "string", '"1"'),
+        ),
+    ),
+    _PackCase(
+        "xaml", "xaml",
+        ["<!-- note -->", "<Grid>x</Grid>"],
+        ((0, "comment", "<!-- note -->"), (1, "type", "Grid")),
+    ),
+    _PackCase(
+        "zig", "zig",
+        ["// note", "pub fn main() void {", '    const s = "x";', "}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "pub"), (1, "keyword", "fn"),
+            (1, "type", "void"),
+        ),
+    ),
+]
+
+_PACK_PARAMS: list[object] = [
+    pytest.param(
+        case.filetype,
+        case.lines,
+        case.expected,
+        id=case.pack,
+        marks=[pytest.mark.skipif(
+            importlib.util.find_spec(ts_langs.BUILTIN_PACKS[case.pack]) is None,
+            reason=f"{ts_langs.BUILTIN_PACKS[case.pack]} is not installed",
+        )],
+    )
+    for case in _PACK_CASES
+]
+
+
+@pytest.mark.parametrize(("filetype", "lines", "expected"), _PACK_PARAMS)
+def test_builtin_pack_highlights_representative_tokens(
+    filetype: str,
+    lines: list[str],
+    expected: tuple[tuple[int, str, str], ...],
+) -> None:
+    """Each built-in grammar pack paints its sample's representative tokens."""
+    toks = ts_backend.tokenize_document(lines, filetype)
+    for row, kind, text in expected:
+        assert (kind, text) in _kinds(toks[row], lines[row])
 
 
 # --- engine routing ---------------------------------------------------------
@@ -384,6 +621,173 @@ def test_builtin_packs_ship_a_query_file() -> None:
     for name in ts_langs.BUILTIN_PACKS:
         query = ts_langs.QUERIES_DIR / f"{name}.scm"
         assert query.is_file(), f"missing bundled query {query}"
+
+
+#: ``@name`` in a query source; the trailing boundary keeps ``@name.foo``
+#: (dotted capture names) intact.
+_CAPTURE_RE = re.compile(r"@([A-Za-z_][\w.]*)")
+
+
+#: ``(#eq? @a "b")`` style predicates: the captures inside them are ordinary
+#: captures, but a predicate argument may hold a literal that looks like one.
+_PREDICATE_RE = re.compile(r"\(#[^()]*\)")
+_STRING_LITERAL_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
+
+
+def _capture_names_in(text: str) -> set[str]:
+    """Capture names in one query source, ignoring ``;`` comment lines.
+
+    Predicate tails and string literals are stripped first -- ``(#eq? @a
+    "@b")`` mentions a name that is not a capture at all, and flagging it
+    would be a false positive on any predicate line.
+    """
+    names: set[str] = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(";"):
+            continue
+        cleaned = _STRING_LITERAL_RE.sub('""', _PREDICATE_RE.sub(" ", stripped))
+        names.update(_CAPTURE_RE.findall(cleaned))
+    return names
+
+
+def _query_capture_names() -> dict[str, set[str]]:
+    """Capture names per bundled query file.
+
+    Deliberately dependency-free: a grammar-pack install is not required, so
+    the invariant still holds in a regex-only checkout.
+    """
+    return {
+        scm.stem: _capture_names_in(scm.read_text(encoding="utf-8"))
+        for scm in sorted(ts_langs.QUERIES_DIR.glob("*.scm"))
+    }
+
+
+def test_bundled_queries_only_use_registered_captures() -> None:
+    # An unregistered capture name is dropped by the backend (``kind is None``),
+    # so the span renders with the default foreground -- a silent failure that
+    # no per-language sample test can catch when its grammar pack is absent.
+    for stem, names in _query_capture_names().items():
+        unregistered = names - set(ts_langs.DEFAULT_CAPTURE_MAP)
+        assert unregistered == set(), f"{stem}.scm uses unregistered {unregistered}"
+
+
+def test_markdown_heading_and_fence_language_are_registered() -> None:
+    # The two markdown captures that regressed once: the heading markers and
+    # the fence info string (the ```py language tag).
+    names = _query_capture_names()["markdown"]
+    assert "heading" in names
+    assert "builtin" in names
+
+
+def test_builtin_packs_match_packaging_manifests() -> None:
+    # BUILTIN_PACKS, the [ts] extra and PyInstaller's _TS_PACKAGES are three
+    # copies of one list, previously kept in sync by a prose comment.  They
+    # must agree: a grammar missing from the extra is uninstallable, and one
+    # missing from _TS_PACKAGES is invisible in a frozen build.
+    root = Path(__file__).resolve().parents[1]
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    extras = pyproject["project"]["optional-dependencies"]
+    ts_extra = cast(list[str], extras["ts"])
+    dev_extra = cast(list[str], extras["dev"])
+
+    def modules(requirements: list[str]) -> set[str]:
+        names: set[str] = set()
+        for requirement in requirements:
+            base = re.split(r"[<>=!~\[; ]", requirement.strip(), maxsplit=1)[0]
+            names.add(base.replace("-", "_"))
+        return names
+
+    common_src = (root / "pack" / "_common.py").read_text(encoding="utf-8")
+    tuple_body = re.search(
+        r"_TS_PACKAGES[^=]*=\s*\(([^)]*)\)", common_src, re.DOTALL
+    )
+    assert tuple_body is not None, "pack/_common.py lost its _TS_PACKAGES tuple"
+    pack_modules = set(re.findall(r'"([\w.]+)"', tuple_body.group(1)))
+
+    assert modules(ts_extra) == pack_modules
+    # ``dev`` is a superset: it adds the test/type tooling on top of [ts].
+    assert pack_modules <= modules(dev_extra)
+    # Every pack a language needs, and nothing else (xml/xaml share one module,
+    # hence the set comparison rather than equal counts).
+    assert set(ts_langs.BUILTIN_PACKS.values()) == pack_modules - {"tree_sitter"}
+
+
+def test_same_span_tie_break_is_a_total_order_over_bindable_kinds() -> None:
+    # "Deterministic" is only true if no two kinds share a rank: an equal-rank
+    # pair would fall back to the dict order of QueryCursor.captures(), which
+    # is exactly the non-determinism the table removes.
+    ranks = ts_runtime._KIND_RANK
+    assert len(set(ranks.values())) == len(ranks)
+    # Every kind a bundled query can bind is ranked, and every rank is a kind
+    # SYNTAX_KINDS actually knows.
+    bound = {
+        ts_langs.DEFAULT_CAPTURE_MAP[name]
+        for names in _query_capture_names().values()
+        for name in names
+        if name in ts_langs.DEFAULT_CAPTURE_MAP
+    }
+    assert bound <= set(ranks)
+    assert set(ranks) <= set(SYNTAX_KINDS)
+    assert ts_runtime._KIND_RANK_OTHER == len(ts_runtime._KIND_PRECEDENCE)
+    # A pseudo-class name is a type, not a member access: 'type' must outrank
+    # the 'property' catch-all or CSS ':hover' silently changes color.
+    assert ranks["type"] < ranks["property"] < ranks["string"]
+
+
+def test_capture_scan_ignores_predicates_and_string_literals() -> None:
+    # "(#eq? @a \"@b\")" mentions a name that is not a capture; flagging it
+    # would make the registration guard cry wolf on any predicate line.
+    found = _capture_names_in('((identifier) @var (#eq? @var "@not_a_capture"))')
+    assert "var" in found
+    assert "not_a_capture" not in found
+    # A real capture in a comment or a literal stays invisible, too.
+    assert _capture_names_in("; @nope\n") == set()
+    assert _capture_names_in('(string) @string ; "@nope"') == {"string"}
+
+
+def test_same_span_captures_resolve_by_kind_precedence() -> None:
+    # Bundled queries keep a wide catch-all next to a narrow capture (a query
+    # cannot express "not a call"); the winner must not depend on the dict
+    # order of QueryCursor.captures(), which py-tree-sitter does not document.
+    # The intervals carry *kinds*: capture_map has already folded
+    # function.call / function.method onto "function" by then.
+    both = [(0, 3, "function"), (0, 3, "property")]
+    assert [t.kind for t in ts_runtime._tokens_for_row(both, 3)] == ["function"]
+    # ... and the same answer whichever way the candidates arrive.
+    assert [t.kind for t in ts_runtime._tokens_for_row(both[::-1], 3)] == [
+        "function"
+    ]
+    # A kind outside the table can only come from an extension capture_map; it
+    # shares the last rank rather than silently outranking a bundled kind.
+    unknown = [(0, 3, "totally_custom"), (0, 3, "property")]
+    assert [t.kind for t in ts_runtime._tokens_for_row(unknown, 3)] == ["property"]
+
+
+def test_builtin_grammar_coverage_matches_the_documented_counts() -> None:
+    # Six docs say "30 built-in languages, 25 of them parser-driven, every one
+    # except JSONC, INI, Perl, SCSS and LESS".  Pin the relationship rather
+    # than the prose: adding a language without a grammar fails here, and the
+    # fix is to update the docs and this set together.
+    names = set(regex_backend._NAME_TO_KEY)
+    without_grammar = names - set(ts_langs.BUILTIN_PACKS)
+    assert without_grammar == {"ini", "jsonc", "less", "perl", "scss"}
+    assert len(names) == 30
+    assert len(names) - len(without_grammar) == 25
+
+
+def test_scss_and_less_do_not_borrow_the_css_grammar() -> None:
+    # They share the CSS word lists but must keep their own language name: the
+    # tree-sitter resolver looks a grammar up by LangSpec.name, and a shared
+    # "css" name would parse $var / @mixin / // with the CSS grammar.
+    for name in ("css", "scss", "less"):
+        spec = regex_backend.lang_for(name)
+        assert spec is not None
+        assert spec.name == name
+    if has_tree_sitter:
+        assert ts_backend.available_for("css")
+        assert not ts_backend.available_for("scss")
+        assert not ts_backend.available_for("less")
 
 
 def test_symbol_name_replaces_non_identifier_characters() -> None:

@@ -1,0 +1,27 @@
+"""INI syntax highlighting for yate, as a copy-to-use extension.
+
+Copy this file to ``~/.yate/extensions/ini_syntax.py`` (or a project
+``./extensions/`` directory) without the ``.example`` suffix. It then loads
+at startup and overrides the built-in ``ini`` highlighter for
+``.ini`` / ``.cfg`` / ``.conf`` files -- re-registering an existing key
+replaces its highlighter, which is exactly what this example demonstrates.
+
+The ``config`` mode gives you section headers, ``key = value`` lines,
+quoted strings, numbers and boolean-ish words for free; only the comment
+marker is language specific here (``;`` -- change it to ``#`` for
+gitconfig-style dialects).
+"""
+
+from __future__ import annotations
+
+from yate.services.extensions import ExtensionAPI
+
+
+def setup(api: ExtensionAPI) -> None:
+    """Register a custom INI highlighter overriding the built-in one."""
+    spec = api.highlight.spec(
+        name="ini",
+        mode="config",
+        line_comment=";",
+    )
+    api.highlight.register(spec, "ini", "cfg", "conf")

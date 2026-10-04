@@ -33,7 +33,11 @@ from yate.config import YateConfig
 from yate.document_flows import DocumentFlows
 from yate.editor_core import BufferReadOnlyError
 from yate.editor_lsp import LspManager
-from yate.editor_syntax import available_filetypes, language_name, resolve_filetype
+from yate.editor_syntax import (
+    format_filetype_candidates,
+    language_name,
+    resolve_filetype,
+)
 from yate.editor_view import theme
 from yate.editor_view.chrome import Breadcrumbs, SidebarHead, TabBar
 from yate.editor_view.commandline import PromptBar
@@ -820,7 +824,7 @@ class Editor:
                 doc.filetype_override = raw
                 self.message(
                     f"filetype set to {raw!r} -- no built-in highlighter "
-                    f"(available: {', '.join(available_filetypes())})",
+                    f"(available: {format_filetype_candidates()})",
                     kind="warn",
                 )
             else:

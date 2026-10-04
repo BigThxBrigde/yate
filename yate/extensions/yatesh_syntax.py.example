@@ -1,4 +1,4 @@
-"""Example tree-sitter syntax extension for yate (template, not auto-loaded).
+r"""Example tree-sitter syntax extension for yate (template, not auto-loaded).
 
 This file ships as ``yate/extensions/yatesh_syntax.py.example``; the
 ``.example`` suffix keeps it out of the startup ``*.py`` scan. Easiest

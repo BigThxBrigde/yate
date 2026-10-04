@@ -50,7 +50,9 @@ def test_bundled_extensions_ship_inside_package() -> None:
     names = {p.name for p in directory.glob("*.py")}
     assert "__init__.py" in names
     assert "python_lsp.py" in names
-    assert "csharp_highlight.py" in names
+    # csharp highlighting is built-in now: the bundled script is gone
+    assert "csharp_highlight.py" not in names
+    assert names == {"__init__.py", "python_lsp.py"}
     # the example template must not be auto-loaded as a script
     assert (directory / "example_ext.py.example").is_file()
     assert "example_ext.py" not in names
