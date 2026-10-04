@@ -343,6 +343,324 @@ register_language(_spec("toml", mode="config", line_comment="#"), "toml")
 register_language(_spec("ini", mode="config", line_comment="#"), "ini", "cfg", "conf", "properties")
 register_language(_spec("yaml", mode="config", line_comment="#"), "yaml", "yml")
 
+# --- regex fallbacks for the issue-IKJLTB languages ------------------------
+# These languages ship a tree-sitter pack (see ts_backend.languages
+# BUILTIN_PACKS); the specs below keep them highlighted in a bare
+# ``pip install yate`` (no [ts] extra) and provide the filetype mapping the
+# tree-sitter resolver relies on.  Perl has no grammar pack at all: regex
+# is its only backend for now.
+
+_CS_KEYWORDS: frozenset[str] = frozenset({
+    "abstract", "as", "base", "break", "case", "catch", "checked", "class",
+    "const", "continue", "default", "delegate", "do", "else", "enum", "event",
+    "explicit", "extern", "finally", "fixed", "for", "foreach", "goto", "if",
+    "implicit", "in", "interface", "internal", "is", "lock", "namespace",
+    "new", "operator", "out", "override", "params", "private", "protected",
+    "public", "readonly", "ref", "return", "sealed", "sizeof", "stackalloc",
+    "static", "struct", "switch", "this", "throw", "try", "typeof",
+    "unchecked", "unsafe", "using", "virtual", "volatile", "while",
+    "add", "alias", "ascending", "async", "await", "by", "descending", "equals",
+    "from", "get", "global", "group", "into", "join", "let", "nameof", "on",
+    "orderby", "partial", "record", "remove", "select", "set", "value", "var",
+    "when", "where", "yield", "init", "required", "with",
+})
+_CS_CONSTANTS: frozenset[str] = frozenset({"true", "false", "null"})
+_CS_TYPES: frozenset[str] = frozenset({
+    "bool", "byte", "char", "decimal", "double", "dynamic", "float", "int",
+    "long", "nint", "nuint", "object", "sbyte", "short", "string", "uint",
+    "ulong", "ushort", "void",
+    "String", "Int32", "Int64", "Boolean", "Double", "Single", "Decimal",
+    "Char", "Byte", "Object", "Guid", "DateTime", "DateTimeOffset", "TimeSpan",
+    "Nullable", "Exception", "Task", "ValueTask", "Action", "Func",
+    "List", "IList", "IReadOnlyList", "Dictionary", "IDictionary",
+    "HashSet", "IEnumerable", "ICollection", "IDisposable",
+    "Span", "ReadOnlySpan", "Memory", "ReadOnlyMemory", "CancellationToken",
+})
+_CS_BUILTINS: frozenset[str] = frozenset({
+    "Console", "Math", "Convert", "Environment", "Debug", "Trace", "GC",
+    "File", "Directory", "Path",
+})
+
+register_language(
+    _spec(
+        "csharp", line_comment="//", block_comment=("/*", "*/"),
+        string_prefixes="@$",
+        keywords=_CS_KEYWORDS, builtins=_CS_BUILTINS,
+        constants=_CS_CONSTANTS, types=_CS_TYPES,
+        type_def_words=frozenset({"class", "struct", "interface", "enum", "record"}),
+    ),
+    "cs", "csx",
+)
+
+_HTML_TAGS: frozenset[str] = frozenset({
+    "a", "abbr", "address", "area", "article", "aside", "audio", "b", "base",
+    "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption",
+    "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del",
+    "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset",
+    "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5",
+    "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img",
+    "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map",
+    "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol",
+    "optgroup", "option", "output", "p", "picture", "pre", "progress", "q",
+    "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select",
+    "slot", "small", "source", "span", "strong", "style", "sub", "summary",
+    "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th",
+    "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr",
+})
+
+register_language(
+    _spec("html", block_comment=("<!--", "-->"), types=_HTML_TAGS),
+    "html", "htm",
+)
+
+_CSS_PROPERTIES: frozenset[str] = frozenset({
+    "align-content", "align-items", "align-self", "animation", "background",
+    "background-color", "background-image", "background-position",
+    "background-repeat", "background-size", "border", "border-color",
+    "border-radius", "border-style", "border-width", "bottom", "box-shadow",
+    "box-sizing", "color", "content", "cursor", "display", "flex", "flex-basis",
+    "flex-direction", "flex-grow", "flex-shrink", "flex-wrap", "float",
+    "font", "font-family", "font-size", "font-style", "font-weight", "gap",
+    "grid", "grid-template-columns", "grid-template-rows", "height", "inset",
+    "justify-content", "justify-items", "justify-self", "left", "letter-spacing",
+    "line-height", "list-style", "margin", "margin-bottom", "margin-left",
+    "margin-right", "margin-top", "max-height", "max-width", "min-height",
+    "min-width", "object-fit", "opacity", "order", "outline", "overflow",
+    "overflow-x", "overflow-y", "padding", "padding-bottom", "padding-left",
+    "padding-right", "padding-top", "pointer-events", "position", "right",
+    "row-gap", "text-align", "text-decoration", "text-overflow",
+    "text-transform", "top", "transform", "transition", "user-select",
+    "vertical-align", "visibility", "white-space", "width", "word-break",
+    "word-spacing", "writing-mode", "z-index",
+})
+_CSS_COLORS: frozenset[str] = frozenset({
+    "black", "white", "red", "green", "blue", "yellow", "orange", "purple",
+    "gray", "grey", "silver", "maroon", "olive", "lime", "aqua", "cyan",
+    "magenta", "fuchsia", "navy", "teal", "pink", "brown", "beige", "gold",
+    "indigo", "violet", "transparent", "currentColor", "inherit", "initial",
+    "unset", "revert",
+})
+_CSS_TAGS: frozenset[str] = frozenset({
+    "html", "body", "head", "div", "span", "p", "a", "ul", "ol", "li",
+    "table", "tr", "td", "th", "form", "input", "button", "select", "option",
+    "textarea", "label", "img", "section", "header", "footer", "nav",
+    "article", "aside", "main", "h1", "h2", "h3", "h4", "h5", "h6", "strong",
+    "em", "code", "pre", "blockquote", "script", "style", "link", "meta",
+    "title",
+})
+
+register_language(
+    _spec(
+        "css", block_comment=("/*", "*/"),
+        builtins=_CSS_PROPERTIES, constants=_CSS_COLORS, types=_CSS_TAGS,
+    ),
+    "css", "scss", "less",
+)
+
+_PS_KEYWORDS: frozenset[str] = frozenset({
+    "if", "elseif", "else", "switch", "for", "foreach", "while", "do",
+    "until", "break", "continue", "return", "throw", "try", "catch",
+    "finally", "trap", "function", "filter", "param", "in", "begin",
+    "process", "end", "class", "enum", "exit", "from", "hidden", "static",
+    "default", "dynamicparam", "data", "workflow", "parallel", "sequence",
+})
+_PS_TYPES: frozenset[str] = frozenset({
+    "string", "int", "bool", "long", "double", "object", "byte", "char",
+    "decimal", "single", "float", "array", "hashtable", "psobject", "void",
+    "switch", "ref", "scriptblock", "xml", "wmi", "wmiclass", "regex",
+    "pscustomobject",
+})
+
+register_language(
+    _spec("powershell", line_comment="#", sigils=True,
+          keywords=_PS_KEYWORDS, types=_PS_TYPES),
+    "ps1", "psm1", "psd1",
+)
+
+_LUA_KEYWORDS: frozenset[str] = frozenset({
+    "and", "break", "do", "else", "elseif", "end", "for", "function", "goto",
+    "if", "in", "local", "not", "or", "repeat", "return", "then", "until",
+    "while",
+})
+_LUA_CONSTANTS: frozenset[str] = frozenset({"true", "false", "nil"})
+_LUA_BUILTINS: frozenset[str] = frozenset({
+    "print", "type", "tostring", "tonumber", "pairs", "ipairs", "require",
+    "error", "pcall", "xpcall", "setmetatable", "getmetatable", "rawget",
+    "rawset", "rawequal", "rawlen", "select", "next", "assert", "unpack",
+    "load", "loadstring", "dofile", "collectgarbage", "setfenv", "getfenv",
+})
+_LUA_TYPES: frozenset[str] = frozenset({
+    "table", "string", "number", "boolean", "function", "thread", "userdata",
+})
+
+register_language(
+    _spec(
+        "lua", line_comment="--",
+        keywords=_LUA_KEYWORDS, builtins=_LUA_BUILTINS,
+        constants=_LUA_CONSTANTS, types=_LUA_TYPES,
+        func_def_words=frozenset({"function"}),
+    ),
+    "lua",
+)
+
+_MAKE_KEYWORDS: frozenset[str] = frozenset({
+    "ifeq", "ifneq", "ifdef", "ifndef", "else", "endif", "include",
+    "-include", "define", "endef", "export", "unexport", "override",
+    "undefine", "private", "vpath", "foreach", "call", "eval", "value",
+})
+
+register_language(
+    _spec("make", line_comment="#", sigils=True, keywords=_MAKE_KEYWORDS),
+    "mak", "mk",
+)
+
+register_language(
+    _spec("xml", block_comment=("<!--", "-->")),
+    "xml",
+)
+register_language(
+    _spec("xaml", block_comment=("<!--", "-->")),
+    "xaml",
+)
+
+_PERL_KEYWORDS: frozenset[str] = frozenset({
+    "my", "our", "local", "sub", "if", "elsif", "else", "unless", "while",
+    "until", "for", "foreach", "do", "last", "next", "redo", "return", "use",
+    "no", "require", "package", "new", "bless", "ref", "defined", "exists",
+    "delete", "grep", "map", "sort", "join", "split", "print", "printf",
+    "sprintf", "say", "open", "close", "opendir", "closedir", "chomp", "chop",
+    "shift", "unshift", "push", "pop", "keys", "values", "each", "wantarray",
+    "eval", "try", "catch", "finally", "die", "warn", "given", "when",
+    "default", "state", "local", "format", "sub",
+})
+
+register_language(
+    _spec("perl", line_comment="#", sigils=True, keywords=_PERL_KEYWORDS),
+    "pl", "pm",
+)
+
+_PHP_KEYWORDS: frozenset[str] = frozenset({
+    "abstract", "and", "array", "as", "break", "callable", "case", "catch",
+    "class", "clone", "const", "continue", "declare", "default", "do", "echo",
+    "else", "elseif", "empty", "enddeclare", "endfor", "endforeach", "endif",
+    "endswitch", "endwhile", "enum", "extends", "final", "finally", "fn",
+    "for", "foreach", "function", "global", "goto", "if", "implements",
+    "include", "include_once", "instanceof", "insteadof", "interface",
+    "isset", "list", "match", "namespace", "new", "or", "print", "private",
+    "protected", "public", "readonly", "require", "require_once", "return",
+    "static", "switch", "throw", "trait", "try", "unset", "use", "var",
+    "while", "xor", "yield",
+})
+_PHP_CONSTANTS: frozenset[str] = frozenset({
+    "true", "false", "null", "TRUE", "FALSE", "NULL",
+})
+_PHP_TYPES: frozenset[str] = frozenset({
+    "int", "float", "bool", "string", "void", "mixed", "object", "callable",
+    "iterable", "never", "static", "parent", "self",
+})
+
+register_language(
+    _spec(
+        "php", line_comment="//",
+        keywords=_PHP_KEYWORDS, constants=_PHP_CONSTANTS, types=_PHP_TYPES,
+        func_def_words=frozenset({"function"}),
+        type_def_words=frozenset({"class", "interface", "trait", "enum"}),
+    ),
+    "php",
+)
+
+_RUBY_KEYWORDS: frozenset[str] = frozenset({
+    "alias", "and", "begin", "break", "case", "class", "def", "do", "each",
+    "else", "elsif", "end", "ensure", "for", "if", "in", "module", "next",
+    "not", "or", "redo", "rescue", "retry", "return", "self", "super", "then",
+    "undef", "unless", "until", "when", "while", "yield", "require",
+    "require_relative", "include", "extend", "raise", "attr_accessor",
+    "attr_reader", "attr_writer", "new", "lambda", "proc", "puts", "print",
+    "loop", "fail", "catch", "throw",
+})
+_RUBY_CONSTANTS: frozenset[str] = frozenset({"true", "false", "nil"})
+_RUBY_TYPES: frozenset[str] = frozenset({
+    "String", "Integer", "Float", "Array", "Hash", "Symbol", "Proc", "Range",
+    "Regexp", "Struct", "Exception", "StandardError", "Object", "Class",
+    "Module", "Numeric", "Comparable", "Enumerable", "Kernel", "IO", "File",
+    "Dir", "Time", "Date", "Set",
+})
+
+register_language(
+    _spec(
+        "ruby", line_comment="#",
+        keywords=_RUBY_KEYWORDS, constants=_RUBY_CONSTANTS, types=_RUBY_TYPES,
+        func_def_words=frozenset({"def"}),
+        type_def_words=frozenset({"class", "module"}),
+    ),
+    "rb",
+)
+
+_SQL_KEYWORDS: frozenset[str] = frozenset({
+    "select", "from", "where", "insert", "into", "values", "update", "delete",
+    "set", "create", "table", "drop", "alter", "add", "column", "index",
+    "view", "join", "inner", "left", "right", "outer", "full", "cross", "on",
+    "group", "by", "order", "having", "limit", "offset", "union", "all",
+    "distinct", "as", "and", "or", "not", "in", "between", "like", "ilike",
+    "exists", "case", "when", "then", "else", "end", "primary", "key",
+    "foreign", "references", "default", "check", "unique", "constraint",
+    "begin", "commit", "rollback", "transaction", "truncate", "grant",
+    "revoke", "asc", "desc", "is", "with", "using", "natural", "returning",
+    "over", "partition", "window", "recursive", "analyze", "explain",
+    "vacuum", "if", "temp", "temporary", "cascade", "restrict",
+})
+_SQL_TYPES: frozenset[str] = frozenset({
+    "int", "integer", "bigint", "smallint", "varchar", "char", "text", "date",
+    "datetime", "timestamp", "boolean", "bool", "decimal", "numeric", "float",
+    "double", "real", "blob", "json", "jsonb", "uuid", "serial", "bigserial",
+    "time", "interval", "bytea", "clob",
+})
+_SQL_BUILTINS: frozenset[str] = frozenset({
+    "count", "sum", "avg", "min", "max", "coalesce", "nullif", "cast",
+    "concat", "upper", "lower", "substring", "length", "now", "current_date",
+    "current_timestamp", "row_number", "rank", "dense_rank", "abs", "round",
+    "replace", "trim", "ltrim", "rtrim", "date_trunc", "date_part",
+    "string_agg", "group_concat", "extract", "greatest", "least",
+})
+
+register_language(
+    _spec(
+        "sql", line_comment="--", block_comment=("/*", "*/"),
+        keywords=_SQL_KEYWORDS | {w.upper() for w in _SQL_KEYWORDS},
+        builtins=_SQL_BUILTINS | {w.upper() for w in _SQL_BUILTINS},
+        constants=frozenset({"null", "true", "false", "NULL", "TRUE", "FALSE"}),
+        types=_SQL_TYPES | {w.upper() for w in _SQL_TYPES},
+    ),
+    "sql",
+)
+
+_ZIG_KEYWORDS: frozenset[str] = frozenset({
+    "align", "allowzero", "and", "anyframe", "anytype", "asm", "async",
+    "await", "break", "callconv", "catch", "comptime", "const", "continue",
+    "defer", "else", "enum", "errdefer", "error", "export", "extern", "fn",
+    "for", "if", "inline", "noasync", "nosuspend", "opaque", "or", "orelse",
+    "packed", "pub", "resume", "return", "linksection", "struct", "suspend",
+    "switch", "test", "threadlocal", "try", "union", "usingnamespace", "var",
+    "volatile", "while",
+})
+_ZIG_TYPES: frozenset[str] = frozenset({
+    "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64",
+    "u128", "usize", "f16", "f32", "f64", "f128", "bool", "void", "noreturn",
+    "type", "anyerror", "anyopaque", "c_int", "c_uint", "c_long", "c_ulong",
+    "c_short", "c_ushort", "c_char", "comptime_int", "comptime_float",
+})
+
+register_language(
+    _spec(
+        "zig", line_comment="//",
+        keywords=_ZIG_KEYWORDS, types=_ZIG_TYPES,
+        constants=frozenset({"true", "false", "null", "undefined"}),
+        func_def_words=frozenset({"fn"}),
+        type_def_words=frozenset({"struct", "enum", "union"}),
+    ),
+    "zig",
+)
+
 
 def lang_for(filetype: str) -> LangSpec | None:
     """Resolve a Document ``filetype`` (file extension without dot) to a spec.

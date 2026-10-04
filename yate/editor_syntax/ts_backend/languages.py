@@ -80,6 +80,39 @@ def tree_sitter_blocked() -> bool:
 BUILTIN_PACKS: dict[str, str] = {
     "python": "tree_sitter_python",
     "shell": "tree_sitter_bash",
+    "c": "tree_sitter_c",
+    "cpp": "tree_sitter_cpp",
+    "csharp": "tree_sitter_c_sharp",
+    "rust": "tree_sitter_rust",
+    "go": "tree_sitter_go",
+    "java": "tree_sitter_java",
+    "javascript": "tree_sitter_javascript",
+    "typescript": "tree_sitter_typescript",
+    "html": "tree_sitter_html",
+    "css": "tree_sitter_css",
+    "xml": "tree_sitter_xml",
+    "xaml": "tree_sitter_xml",       # XAML shares the XML grammar
+    "json": "tree_sitter_json",
+    "toml": "tree_sitter_toml",
+    "yaml": "tree_sitter_yaml",
+    "sql": "tree_sitter_sql",
+    "lua": "tree_sitter_lua",
+    "make": "tree_sitter_make",
+    "powershell": "tree_sitter_powershell",
+    "php": "tree_sitter_php",
+    "ruby": "tree_sitter_ruby",
+    "markdown": "tree_sitter_markdown",
+    "zig": "tree_sitter_zig",
+}
+
+#: Some grammar packs ship several languages, so the C entry point is not
+#: ``language()``.  Maps a canonical language name onto the module attribute
+#: to call; languages missing here use the plain ``language()`` default.
+BUILTIN_ENTRY: dict[str, str] = {
+    "typescript": "language_typescript",
+    "xml": "language_xml",
+    "xaml": "language_xml",
+    "php": "language_php",
 }
 
 QUERIES_DIR: Path = Path(__file__).parent / "queries"
@@ -111,6 +144,8 @@ DEFAULT_CAPTURE_MAP: dict[str, str] = {
     "type.builtin": "type",
     "type.definition": "type",
     "property": "property",
+    "heading": "heading",
+    "emphasis": "emphasis",
 }
 
 
@@ -167,7 +202,8 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
         return None
     try:
         module = importlib.import_module(module_name)
-        language = ts.Language(module.language())
+        entry = getattr(module, BUILTIN_ENTRY.get(name, "language"))
+        language = ts.Language(entry())
         query_src = query_file.read_text(encoding="utf-8")
         query = ts.Query(language, query_src)
     except Exception:  # noqa: BLE001 - optional native code: degrade, never crash

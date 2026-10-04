@@ -144,7 +144,7 @@ class HighlightExtensionBridge:
     The built-in tokenizer is declarative: a :class:`LangSpec` lists comment
     markers, keyword/type/builtin word sets and a few lexical flags, and the
     engine handles strings, numbers, comments and multiline state for free.
-    See ``yate/extensions/csharp_highlight.py`` for a complete example.
+    See ``yate/extensions/batch_syntax.py.example`` for a complete example.
     """
 
     #: Re-exported so extensions can build specs via ``api.highlight.LangSpec``.
