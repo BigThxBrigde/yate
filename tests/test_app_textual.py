@@ -2820,10 +2820,10 @@ def test_tab_completions_for_filetype() -> None:
             assert completions("set filetype=pyt", "command") == [
                 "set filetype=python"
             ]
-            # "r" prefix matches both the "rs" extension key and the
-            # "rust" language name.
+            # "r" prefix matches the "rb" / "rs" extension keys and the
+            # "ruby" / "rust" language names.
             assert sorted(completions("filetype r", "command")) == [
-                "filetype rs", "filetype rust"
+                "filetype rb", "filetype rs", "filetype ruby", "filetype rust"
             ]
             vals = completions("set ft=", "command")
             assert "set ft=auto" in vals
@@ -3201,11 +3201,11 @@ def test_bundled_extensions_load_regardless_of_cwd(
                 r.name: r for r in app.editor.extension_loader.loaded
             }
             assert "python_lsp" in records
-            assert "csharp_highlight" in records
+            # csharp highlighting is built-in now: the bundled script is gone
+            assert "csharp_highlight" not in records
             # the .example template is never auto-loaded
             assert "example_ext" not in records
             assert records["python_lsp"].error is None
-            assert records["csharp_highlight"].error is None
 
     monkeypatch.chdir(tmp_path)
     asyncio.run(scenario())
@@ -3223,9 +3223,7 @@ def test_disabled_extensions_skip_bundled_not_project_dir(
     (project_ext / "myext.py").write_text(
         "def setup(api):\n    pass\n", encoding="utf-8"
     )
-    config = YateConfig(
-        disabled_extensions=["python_lsp", "csharp_highlight"]
-    )
+    config = YateConfig(disabled_extensions=["python_lsp"])
     monkeypatch.setattr(trust, "TRUST_FILE", root / "trusted_workspaces")
 
     async def scenario() -> None:
@@ -3234,7 +3232,6 @@ def test_disabled_extensions_skip_bundled_not_project_dir(
             await pilot.pause()
             names = {r.name for r in app.editor.extension_loader.loaded}
             assert "python_lsp" not in names
-            assert "csharp_highlight" not in names
             # an untrusted workspace must not run its project scripts
             assert "myext" not in names
             assert any(
@@ -3263,7 +3260,7 @@ def test_rc_same_stem_extension_is_named_as_shadowed(tmp_path: Path) -> None:
     root = tmp_path
     rc_dir = root / "rc_extensions"
     rc_dir.mkdir()
-    (rc_dir / "csharp_highlight.py").write_text(
+    (rc_dir / "python_lsp.py").write_text(
         "def setup(api):\n    pass\n", encoding="utf-8"
     )
     config = YateConfig(extension_paths=[rc_dir])
@@ -3274,7 +3271,7 @@ def test_rc_same_stem_extension_is_named_as_shadowed(tmp_path: Path) -> None:
             await pilot.pause()
             messages = app.editor._ext_messages
             assert any(
-                "csharp_highlight" in m
+                "python_lsp" in m
                 and "shadowed by the bundled default" in m
                 for m in messages
             ), messages
@@ -3291,12 +3288,12 @@ def test_disabled_bundled_extension_does_not_warn_shadow(
     root = tmp_path
     rc_dir = root / "rc_extensions"
     rc_dir.mkdir()
-    (rc_dir / "csharp_highlight.py").write_text(
+    (rc_dir / "python_lsp.py").write_text(
         "def setup(api):\n    pass\n", encoding="utf-8"
     )
     config = YateConfig(
         extension_paths=[rc_dir],
-        disabled_extensions=["csharp_highlight"],
+        disabled_extensions=["python_lsp"],
     )
 
     async def scenario() -> None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -220,42 +219,18 @@ def test_register_overrides_existing_key() -> None:
     assert hl.lang_for("py") is original
 
 
-# --- bundled C# extension ---------------------------------------------------
+# --- built-in C# (regex fallback of the tree-sitter pack) -------------------
 
 
-def test_extension_registers_csharp_highlighting() -> None:
-    from yate.services.extensions import (
-        ExtensionAPI,
-        ExtensionContext,
-        ExtensionLoader,
-    )
-
-    # the highlight bridge never touches the rest of the host, so the context
-    # is built with inert collaborators and only registration is exercised.
-    ctx = ExtensionContext(
-        session=cast(Any, None),
-        workspace=cast(Any, None),
-        lsp=cast(Any, None),
-        keymaps=cast(Any, None),
-        actions=cast(Any, None),
-        commands=cast(Any, None),
-        message=lambda _text: None,
-        run_shell=lambda _command, _show: None,
-        open_path=lambda _path: None,
-        save=lambda: None,
-    )
-    ext_path = (
-        Path(__file__).resolve().parent.parent
-        / "yate" / "extensions" / "csharp_highlight.py"
-    )
-    api = ExtensionAPI(ctx)
-    record = ExtensionLoader(api).load_file(ext_path)
-    assert record.error is None, record.error or ""
-
+def test_csharp_is_a_builtin_language() -> None:
+    # csharp_highlight.py was removed: the language is registered by the
+    # built-in regex table (and served by tree-sitter when installed).
     assert hl.resolve_filetype("csharp") == "cs"
     assert hl.resolve_filetype(".csx") == "csx"
     assert "csharp" in hl.available_filetypes()
 
+
+def test_csharp_regex_highlighting() -> None:
     line = "public async Task<string> GetName(int id) { return null; }"
     pairs = _kinds(hl.tokenize_document([line], "cs")[0], line)
     assert ("keyword", "public") in pairs
@@ -277,6 +252,126 @@ def test_extension_registers_csharp_highlighting() -> None:
     pairs = _kinds(hl.tokenize_document([mix], "cs")[0], mix)
     assert ("comment", "// ok") in pairs
     assert any(k == "string" for k, _ in pairs)
+
+
+# --- regex fallbacks for the issue-IKJLTB languages -------------------------
+
+
+def test_html_tags_and_comment() -> None:
+    lines = ["<!-- note -->", '<div class="x">hi</div>']
+    toks = hl.tokenize_document(lines, "html")
+    assert toks[0]
+    assert all(t.kind == "comment" for t in toks[0])
+    pairs = _kinds(toks[1], lines[1])
+    assert ("type", "div") in pairs
+    assert ("string", '"x"') in pairs
+
+
+def test_css_properties_and_colors() -> None:
+    lines = ["/* note */", "div {", "    color: red;"]
+    toks = hl.tokenize_document(lines, "css")
+    assert toks[0]
+    assert all(t.kind == "comment" for t in toks[0])
+    assert ("type", "div") in _kinds(toks[1], lines[1])
+    pairs = _kinds(toks[2], lines[2])
+    assert ("builtin", "color") in pairs
+    assert ("constant", "red") in pairs
+
+
+def test_powershell_keywords_and_sigils() -> None:
+    lines = ["# note", "if ($env:Path) {", "    $name = 'x'"]
+    toks = hl.tokenize_document(lines, "ps1")
+    assert ("comment", "# note") in _kinds(toks[0], lines[0])
+    assert ("keyword", "if") in _kinds(toks[1], lines[1])
+    pairs = _kinds(toks[2], lines[2])
+    assert ("property", "$name") in pairs
+    assert ("string", "'x'") in pairs
+
+
+def test_lua_keywords_and_comment() -> None:
+    lines = ["-- note", "local function f()", '    print("x")']
+    toks = hl.tokenize_document(lines, "lua")
+    assert ("comment", "-- note") in _kinds(toks[0], lines[0])
+    assert ("keyword", "local") in _kinds(toks[1], lines[1])
+    assert ("function", "f") in _kinds(toks[1], lines[1])
+    pairs = _kinds(toks[2], lines[2])
+    assert ("builtin", "print") in pairs
+    assert ("string", '"x"') in pairs
+
+
+def test_make_keywords_and_comment() -> None:
+    lines = ["# note", "ifeq ($(OS), Windows_NT)"]
+    toks = hl.tokenize_document(lines, "mak")
+    assert ("comment", "# note") in _kinds(toks[0], lines[0])
+    assert ("keyword", "ifeq") in _kinds(toks[1], lines[1])
+
+
+def test_xml_comment_and_string() -> None:
+    lines = ["<!-- note -->", '<root attr="1">x</root>']
+    toks = hl.tokenize_document(lines, "xml")
+    assert toks[0]
+    assert all(t.kind == "comment" for t in toks[0])
+    assert ("string", '"1"') in _kinds(toks[1], lines[1])
+
+
+def test_xaml_comment_and_string() -> None:
+    lines = ["<!-- note -->", '<Grid Text="hi">x</Grid>']
+    toks = hl.tokenize_document(lines, "xaml")
+    assert toks[0]
+    assert all(t.kind == "comment" for t in toks[0])
+    assert ("string", '"hi"') in _kinds(toks[1], lines[1])
+
+
+def test_perl_keywords_and_sigils() -> None:
+    line = "my $name = 'x';"
+    pairs = _kinds(hl.tokenize_document([line], "pl")[0], line)
+    assert ("keyword", "my") in pairs
+    assert ("property", "$name") in pairs
+    assert ("string", "'x'") in pairs
+
+
+def test_perl_line_comment() -> None:
+    assert ("comment", "# note") in _kinds(
+        hl.tokenize_document(["# note"], "pl")[0], "# note"
+    )
+
+
+def test_php_keywords_and_function() -> None:
+    lines = ["// note", "function f() {", "    return true;"]
+    toks = hl.tokenize_document(lines, "php")
+    assert ("comment", "// note") in _kinds(toks[0], lines[0])
+    assert ("keyword", "function") in _kinds(toks[1], lines[1])
+    assert ("function", "f") in _kinds(toks[1], lines[1])
+    assert ("constant", "true") in _kinds(toks[2], lines[2])
+
+
+def test_ruby_keywords_and_comment() -> None:
+    lines = ["# note", "def f", "  puts 'x'", "end"]
+    toks = hl.tokenize_document(lines, "rb")
+    assert ("comment", "# note") in _kinds(toks[0], lines[0])
+    assert ("keyword", "def") in _kinds(toks[1], lines[1])
+    assert ("function", "f") in _kinds(toks[1], lines[1])
+    assert ("string", "'x'") in _kinds(toks[2], lines[2])
+    assert ("keyword", "end") in _kinds(toks[3], lines[3])
+
+
+def test_sql_keywords_are_case_insensitive() -> None:
+    lines = ["-- note", "select * from t where x = 1;"]
+    toks = hl.tokenize_document(lines, "sql")
+    assert ("comment", "-- note") in _kinds(toks[0], lines[0])
+    pairs = _kinds(toks[1], lines[1])
+    assert ("keyword", "select") in pairs
+    assert ("keyword", "from") in pairs
+    assert ("keyword", "where") in pairs
+
+
+def test_zig_keywords_and_types() -> None:
+    line = "pub fn main() void {"
+    pairs = _kinds(hl.tokenize_document([line], "zig")[0], line)
+    assert ("keyword", "pub") in pairs
+    assert ("keyword", "fn") in pairs
+    assert ("function", "main") in pairs
+    assert ("type", "void") in pairs
 
 
 # --- pattern caching & config boolean constants -----------------------------

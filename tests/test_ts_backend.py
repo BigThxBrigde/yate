@@ -119,6 +119,234 @@ def test_comments_keywords_strings_commands() -> None:
     assert ("keyword", "fi") in pairs2
 
 
+# --- built-in grammar packs -------------------------------------------------
+
+
+@dataclass
+class _PackCase:
+    """One representative highlighting sample for a built-in grammar pack."""
+
+    pack: str  # key in BUILTIN_PACKS
+    filetype: str
+    lines: list[str]
+    expected: tuple[tuple[int, str, str], ...]  # (row, kind, text)
+
+
+_PACK_CASES: list[_PackCase] = [
+    _PackCase(
+        "csharp", "cs",
+        ["// note", "public class Foo {", '    string s = "x";'],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "public"), (1, "keyword", "class"),
+            (2, "type", "string"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "rust", "rs",
+        ["// note", "fn main() {", '    let s = "x";', "}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "fn"),
+            (2, "keyword", "let"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "javascript", "js",
+        ["// note", "function f() {", '    const s = "x";', "}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "function"),
+            (2, "keyword", "const"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "typescript", "ts",
+        ["// note", "const n: number = 1;"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "const"), (1, "type", "number"),
+            (1, "number", "1"),
+        ),
+    ),
+    _PackCase(
+        "c", "c",
+        ["// note", "int main(void) {", "    return 0;"],
+        (
+            (0, "comment", "// note"),
+            (1, "type", "int"), (1, "function", "main"), (1, "type", "void"),
+            (2, "keyword", "return"), (2, "number", "0"),
+        ),
+    ),
+    _PackCase(
+        "cpp", "cpp",
+        ["// note", "class Foo {", "};"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "class"), (1, "type", "Foo"),
+        ),
+    ),
+    _PackCase(
+        "go", "go",
+        ["// note", "func main() {", '    s := "x"'],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "func"), (1, "function", "main"),
+            (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "java", "java",
+        ["// note", "class Foo {", "    void f() {}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "class"), (1, "type", "Foo"),
+            (2, "type", "void"), (2, "function", "f"),
+        ),
+    ),
+    _PackCase(
+        "html", "html",
+        ["<!-- note -->", '<div class="x">hi</div>'],
+        (
+            (0, "comment", "<!-- note -->"),
+            (1, "type", "div"), (1, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "css", "css",
+        ["/* note */", "div {", "    color: red;"],
+        (
+            (0, "comment", "/* note */"),
+            (1, "type", "div"),
+            (2, "property", "color"),
+        ),
+    ),
+    _PackCase(
+        "json", "json",
+        ['{"k": 1, "s": "v"}'],
+        (
+            (0, "property", '"k"'), (0, "number", "1"),
+            (0, "property", '"s"'), (0, "string", '"v"'),
+        ),
+    ),
+    _PackCase(
+        "toml", "toml",
+        ['name = "yate" # note'],
+        (
+            (0, "property", "name"), (0, "string", '"yate"'),
+            (0, "comment", "# note"),
+        ),
+    ),
+    _PackCase(
+        "yaml", "yaml",
+        ["# note", "key: value"],
+        ((0, "comment", "# note"), (1, "property", "key")),
+    ),
+    _PackCase(
+        "sql", "sql",
+        ["-- note", "select * from t where x = 1;"],
+        (
+            (0, "comment", "-- note"),
+            (1, "keyword", "select"), (1, "keyword", "from"),
+            (1, "keyword", "where"),
+        ),
+    ),
+    _PackCase(
+        "lua", "lua",
+        ["-- note", "local function f()", '    print("x")', "end"],
+        (
+            (0, "comment", "-- note"),
+            (1, "keyword", "local"), (1, "keyword", "function"),
+            (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "make", "mak",
+        ["# note", "all: build"],
+        ((0, "comment", "# note"), (1, "function", "all")),
+    ),
+    _PackCase(
+        "powershell", "ps1",
+        ["# note", "if ($true) {", '    Write-Output "x"'],
+        (
+            (0, "comment", "# note"),
+            (1, "keyword", "if"),
+            (2, "function", "Write-Output"), (2, "string", '"x"'),
+        ),
+    ),
+    _PackCase(
+        "php", "php",
+        ["<?php", "// note", "function f() {}"],
+        (
+            (1, "comment", "// note"),
+            (2, "keyword", "function"), (2, "function", "f"),
+        ),
+    ),
+    _PackCase(
+        "ruby", "rb",
+        ["# note", "def f", "  puts 'x'", "end"],
+        (
+            (0, "comment", "# note"),
+            (1, "keyword", "def"), (1, "function", "f"),
+            (2, "string", "'x'"), (3, "keyword", "end"),
+        ),
+    ),
+    _PackCase(
+        "markdown", "md",
+        ["# Title", "```py", "code = 1"],
+        ((0, "keyword", "#"), (2, "string", "code = 1")),
+    ),
+    _PackCase(
+        "xml", "xml",
+        ["<!-- note -->", '<root attr="1">x</root>'],
+        (
+            (0, "comment", "<!-- note -->"),
+            (1, "type", "root"), (1, "string", '"1"'),
+        ),
+    ),
+    _PackCase(
+        "xaml", "xaml",
+        ["<!-- note -->", "<Grid>x</Grid>"],
+        ((0, "comment", "<!-- note -->"), (1, "type", "Grid")),
+    ),
+    _PackCase(
+        "zig", "zig",
+        ["// note", "pub fn main() void {", '    const s = "x";', "}"],
+        (
+            (0, "comment", "// note"),
+            (1, "keyword", "pub"), (1, "keyword", "fn"),
+            (1, "type", "void"),
+        ),
+    ),
+]
+
+_PACK_PARAMS: list[object] = [
+    pytest.param(
+        case.filetype,
+        case.lines,
+        case.expected,
+        id=case.pack,
+        marks=[pytest.mark.skipif(
+            importlib.util.find_spec(ts_langs.BUILTIN_PACKS[case.pack]) is None,
+            reason=f"{ts_langs.BUILTIN_PACKS[case.pack]} is not installed",
+        )],
+    )
+    for case in _PACK_CASES
+]
+
+
+@pytest.mark.parametrize(("filetype", "lines", "expected"), _PACK_PARAMS)
+def test_builtin_pack_highlights_representative_tokens(
+    filetype: str,
+    lines: list[str],
+    expected: tuple[tuple[int, str, str], ...],
+) -> None:
+    """Each built-in grammar pack paints its sample's representative tokens."""
+    toks = ts_backend.tokenize_document(lines, filetype)
+    for row, kind, text in expected:
+        assert (kind, text) in _kinds(toks[row], lines[row])
+
+
 # --- engine routing ---------------------------------------------------------
 
 
