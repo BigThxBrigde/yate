@@ -36,6 +36,9 @@
 - [ ] `write_file` / `run_command` 被拒绝时"用户拒绝"作为工具结果回填模型
 - [ ] `max_tool_rounds`（25）与 `max_tool_calls_per_session`（50）双上限生效，
       超限终止且不再发起新请求
+- [ ] 工具参数经 JSON Schema 校验：编造参数/缺必填不执行，以 `is_error`
+      回填模型自我修正（防参数幻觉）
+- [ ] 同一（工具, 参数）连续 ≥3 次调用时注入防循环警告结果
 - [ ] 编辑器侧工具（get_editor_content / get_cursor_position /
       insert_at_cursor / replace_selection）操作真实缓冲区，写操作可 Ctrl+Z 撤销
 
@@ -55,6 +58,8 @@
 - [ ] `YATE_AI_PROVIDER` / `YATE_AI_MODEL` / `YATE_AI_MODE` 优先于配置
 
 ## 架构与非功能
+- [ ] Agent 循环为自研轻量实现；未引入 langchain / langgraph / llamaindex，
+      pyproject 新增依赖仅 `ai = ["httpx>=0.27"]`
 - [ ] `editor_ai/` 不 import textual / editor_view / yate.editor / yate.app；
       `UI_FREE_PACKAGES` 守卫含 `editor_ai`，架构测试全绿
 - [ ] 无全局 EventBus / 字符串事件名；无新增 Protocol / TYPE_CHECKING；

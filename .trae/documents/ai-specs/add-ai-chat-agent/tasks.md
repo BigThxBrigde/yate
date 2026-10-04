@@ -91,14 +91,16 @@
 - [ ] Task 7: 工具引擎与内置工具（L0）
   - [ ] 7.1 `yate/editor_ai/tools.py`：工具注册表（ToolDefinition →
         executor Callable）+ `run_tool()` 统一执行入口（结果包装为
-        ToolResult，异常转 is_error）
+        ToolResult，异常转 is_error）；执行前按 `parameters` JSON Schema
+        校验参数（防参数幻觉：编造参数/缺必填 → `is_error` ToolResult
+        回填，不执行）
   - [ ] 7.2 文件系统工具（沙箱内）：`read_file` / `list_directory` /
         `search_in_files` / `write_file` / `edit_file`——路径解析锚定
         workspace 根，`..` 与根外绝对路径拒绝
   - [ ] 7.3 Shell 工具：`run_command` / `run_tests`——subprocess 带
         `tool_timeout` 超时
   - [ ] 7.4 `tests/test_editor_ai.py`：沙箱逃逸拒绝、超时、edit_file
-        替换语义
+        替换语义、参数校验（编造参数/缺必填 → is_error 回填）
 - [ ] Task 8: 权限网关与审计（L0）
   - [ ] 8.1 `yate/editor_ai/permissions.py`：`ToolPermission` 三级 +
         `PermissionPolicy`（级别覆盖 + glob allow/deny patterns，
@@ -113,6 +115,7 @@
         tool_calls → 权限网关（confirm_callback 注入，返回
         allow_once/allow_session/deny）→ 执行 → 结果回填 → 续环；
         `max_tool_rounds` / `max_tool_calls_per_session` 双上限；
+        防循环护栏（同一（工具, 参数）连续 ≥3 次注入警告结果）；
         每轮事件经回调流式上报（供面板卡片渲染）
   - [ ] 9.2 编辑器侧工具执行器（L3 注入）：`get_editor_content` /
         `get_cursor_position` / `insert_at_cursor` / `replace_selection`
@@ -122,7 +125,7 @@
         confirm_callback、`Ctrl+A d` 工具详情
   - [ ] 9.4 `tests/test_editor_ai.py`：假 provider 驱动多轮工具调用、
         确认三路径（once/session/deny 回填）、双上限终止、模式矩阵
-        （Chat 不下发工具）
+        （Chat 不下发工具）、防循环护栏（同参数第 3 次注入警告）
 
 ## Phase 5：打磨与稳定
 

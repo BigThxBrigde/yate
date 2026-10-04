@@ -23,6 +23,40 @@ Chat/Agent 运行时切换、多 Provider 多模型动态注册与切换、三�
 | `models = []` 动态获取 | openai 兼容 Provider 可选 `fetch_models = True`，经 `GET {base_url}/models` 拉取并缓存 | 保留外部 spec 能力 |
 | 权限域 Project/Global 持久化 | 本期实现 Once / Session 两级作用域；Project/Global 持久化授权为非目标 | 收敛范围 |
 
+## 技术选型：Agent 实现路线（自研循环，否决框架）
+
+参考输入给出两条主流路线：**轻量自研 Agent 循环**（用户消息 → LLM →
+tool_calls? → 执行工具 → 结果回填 → 循环）与 **LangGraph / LlamaIndex
+框架**。本 spec **选用自研轻量循环**，否决引入 LangGraph / LangChain /
+LlamaIndex，理由：
+
+- **类型门槛冲突**：仓库硬门槛是 pyright strict 零诊断、禁 `Any` /
+  `# type: ignore`（R2/R6、python-coding-style §四）；LangChain 系以
+  动态类型与宽松注解著称，接入即产生大量无法豁免的诊断
+- **依赖最小化**：现依赖仅 textual + pyperclip；langgraph 会拖入 pydantic、
+  langsmith 等传递依赖，直接违反启动增量 <50ms 与内存 <30MB 预算，且恶化
+  PyInstaller 打包体积（tools/pack）
+- **控制面需求**：流式渲染（≤30fps 节流）、Esc 中断、工具确认 UI、权限
+  网关都需要贴近 HTTP/SSE 层的直控；框架的中断/回调机制在此之上再包一层，
+  接线复杂度不降反升
+- **循环本身极小**：所需 Agent 就是最经典的单 Agent ReAct 循环（约百行），
+  外部 spec 的双上限（25 轮 / 50 次）、会话级授权、参数校验、审计在自研
+  循环内一处实现即可
+- **协议层已自研**：OpenAI 兼容客户端天然覆盖 DeepSeek / 通义千问 /
+  智谱清言 / Kimi / Ollama / OpenRouter（均为 OpenAI 风格 API），框架只是
+  在这层之上重复抽象
+
+Agent 四大件在 yate 的落位：**LLM 基座** → `AiProvider` 抽象（OpenAI 兼容
++ Anthropic 两套协议客户端）；**Tools** → `ToolEngine` + 权限网关；
+**Memory** → `AiSession` 的 messages 列表（短期记忆）+ token 预算截断
+（长期记忆/向量库见非目标）；**调度器** → ReAct 式单 Agent 循环
+（Plan-and-Solve / 多智能体见非目标）。
+
+常见坑与本 spec 的对策：模型不支持 function calling → `supports_tools`
+回退 Chat 模式（不采用 Prompt+正则解析工具的脆弱兜底）；上下文溢出 →
+token 预算按优先级截断；工具参数幻觉 → JSON Schema 校验、非法参数以
+`is_error` 回填自我修正；死循环 → 双上限 + 同参数连续调用防循环护栏。
+
 ## What Changes
 - 新增 L0 叶包 `yate/editor_ai/`：消息/工具/权限类型、SSE 解析、
   `AiProvider` 基类 + OpenAI 兼容 / Anthropic 两套协议客户端、
@@ -71,6 +105,9 @@ Chat/Agent 运行时切换、多 Provider 多模型动态注册与切换、三�
 - ExtensionAPI 暴露 AI 能力（`api.ai` 桥）。
 - 编辑器 inline 代码补全。
 - MCP / 外部工具协议接入。
+- 长期记忆 / 向量库 RAG（Chroma/Pinecone 等）、多智能体分工、
+  Plan-and-Solve 规划器（参考输入的扩展方向，本期不做）。
+- 代码解释器沙箱（模型生成 Python 代码执行）。
 
 ## ADDED Requirements
 
@@ -184,6 +221,19 @@ LLM 继续，直到无 tool_calls 或达上限。每次工具调用以可折叠�
 （`⚙ read_file("src/main.rs") ✓`）在会话流可见。
 `max_tool_rounds`（默认 25，循环轮次）与
 `max_tool_calls_per_session`（默认 50，单对话累计）双上限。
+工具参数 SHALL 在执行前经 `ToolDefinition.parameters` JSON Schema 校验
+（防参数幻觉）：编造的不存在参数或缺失必填参数不触发执行，以 `is_error`
+ToolResult 回填 LLM 自我修正；同一（工具, 参数）组合连续调用 ≥3 次时
+注入防循环警告结果。
+
+#### Scenario: 参数幻觉防护
+- **WHEN** 模型以不存在的参数名或缺失必填参数发起工具调用
+- **THEN** 不执行工具，参数校验错误作为 `is_error` ToolResult 回填，
+  LLM 可据此修正后重试
+
+#### Scenario: 防循环护栏
+- **WHEN** 模型以完全相同的（工具, 参数）连续调用第 3 次
+- **THEN** 本次执行结果附带防循环警告，提示模型改用其它途径
 
 #### Scenario: Confirm 工具确认
 - **WHEN** Agent 发起 `write_file`
