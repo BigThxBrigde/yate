@@ -391,23 +391,37 @@ def test_css_dashed_lookup_falls_back_to_its_base_word() -> None:
             kind == "builtin" and base in text for kind, text in pairs
         ), line
     # A dashed word whose segments are all unknown stays uncolored, and one
-    # that merely contains a tag name ('.nav-item') must not be painted as
-    # that tag either: a class selector is not a property name.
+    # that merely contains a tag or property name ('.nav-item', '.border-x')
+    # must not be painted as that tag either: a class selector is not a
+    # property name.  Substring semantics, so a token claiming the whole class
+    # name as a word-list hit is caught however it is split.
     for name in (
         "btn-primary", "text-muted", "nav-item", "main-content",
         "form-control", "section-header", "code-block", "link-button",
-        "a-b", "my-custom-prop",
+        "a-b", "my-custom-prop", "border-x", "flex-center", "no-div-here",
+        "my-a-thing",
     ):
         line = f".{name} {{ color: red; }}"
         pairs = _kinds(hl.tokenize_document([line], "css")[0], line)
         for kind in ("type", "builtin", "constant", "keyword"):
-            assert (kind, name) not in pairs, f"{name} as {kind}"
+            assert not any(
+                k == kind and name in text for k, text in pairs
+            ), f"{name} painted as {kind}"
         # Whatever it is, 'red' after the colon still gets its own color.
         assert ("constant", "red") in pairs, name
-    # A member access keeps the pre-existing property coloring.
+    # A member access keeps the pre-existing property coloring -- the same one
+    # a plain '.foo' has always had, not something this fallback introduced.
     assert ("property", "nav-item") in _kinds(
         hl.tokenize_document([".nav-item { color: red; }"], "css")[0],
         ".nav-item { color: red; }",
+    )
+    # '.border' (and '.border-', whose trailing dash leaves a bare 'border'
+    # token) keeps the color the built-in CSS word lists always gave it: the
+    # plain whole-word lookup runs before the selector rules, and that predates
+    # hyphenated_idents.
+    assert ("builtin", "border") in _kinds(
+        hl.tokenize_document([".border { color: red; }"], "css")[0],
+        ".border { color: red; }",
     )
 
 
