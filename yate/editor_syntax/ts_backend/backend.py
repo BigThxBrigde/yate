@@ -143,23 +143,50 @@ def _to_char(line_bytes: bytes, byte_col: int) -> int:
     return len(line_bytes[:byte_col].decode("utf-8", errors="ignore"))
 
 
-#: Tie-break for captures covering the exact same span, most specific first.
+#: Tie-break for captures covering the exact same span, winner first.
 #: A tree-sitter query cannot express "this identifier is *not* a call", so
 #: bundled queries keep a wide catch-all ``@property`` next to the narrow
 #: ``@function.method`` it overlaps with, and rely on this table to pick a
 #: winner.  The order is a hard rule rather than an accident of the dict
 #: iteration order of ``QueryCursor.captures()``, which py-tree-sitter does
 #: not document across versions.
+#:
+#: It is a *total* order over every SYNTAX_KINDS key, so no pair can end up
+#: undecided: two same-span captures of equal rank would fall back to dict
+#: order, which is exactly the non-determinism this table removes.
+#: ``tests/test_ts_backend.py`` guards both properties.  Semantics from the top:
+#: a call beats a plain name, a declared/element name beats the property
+#: catch-all (``css.scm``'s ``(class_name) @type`` inside a pseudo-class
+#: selector), a property key beats its bare string, and literals/comments --
+#: which bundled queries never bind twice to one span -- come last.
+#: Entries are *kinds*, not capture names: ``capture_map`` has already folded
+#: ``function.call`` / ``type.builtin`` / ... onto their kind by the time an
+#: interval reaches this table.
 _KIND_PRECEDENCE: tuple[str, ...] = (
     "function",
-    "function.call",
-    "function.method",
-    "function.builtin",
+    "type",
     "property",
+    "builtin",
+    "constant",
+    "string",
+    "number",
+    "keyword",
+    "decorator",
+    "operator",
+    "comment",
+    "heading",
+    "emphasis",
+    "link",
 )
 
 #: Precomputed ranks: lower sorts first, i.e. wins the same-span contest.
 _KIND_RANK: dict[str, int] = {kind: rank for rank, kind in enumerate(_KIND_PRECEDENCE)}
+
+#: Rank for a kind outside the table.  Only reachable through an extension's own
+#: ``capture_map`` (bundled queries are covered above), and shared by every such
+#: kind, so a collision between two of them is undecided -- documented rather
+#: than pretended away.
+_KIND_RANK_OTHER: int = len(_KIND_PRECEDENCE)
 
 
 def _tokens_for_row(
@@ -167,14 +194,15 @@ def _tokens_for_row(
 ) -> list[Token]:
     """Resolve overlapping capture spans into flat, non-overlapping tokens.
 
-    Ordering is fully deterministic: shorter spans claim their range first
-    (nested captures win over the enclosing one), spans starting earlier win
-    over later ones, and captures covering the *same* span are decided by
-    :data:`_KIND_PRECEDENCE` (a call over a plain member access over the
-    generic ``property`` fallback).  Every other kind carries the same rank,
-    which is harmless because bundled queries never bind one span to two of
-    them.  Gaps between claimed ranges are then filled by wider spans;
-    adjacent runs of the same kind are merged.
+    Ordering is deterministic for everything a bundled query can produce:
+    shorter spans claim their range first (nested captures win over the
+    enclosing one), spans starting earlier win over later ones, and captures
+    covering the *same* span are decided by the total order in
+    :data:`_KIND_PRECEDENCE`.  Only a kind that reached the backend through an
+    extension's own ``capture_map`` can share a rank with another, and that
+    pair stays undecided (see :data:`_KIND_RANK_OTHER`).  Gaps between claimed
+    ranges are then filled by wider spans; adjacent runs of the same kind are
+    merged.
     """
     if not intervals:
         return []
@@ -182,7 +210,7 @@ def _tokens_for_row(
     flat: list[tuple[int, int, str]] = []
     for start, end, kind in sorted(
         intervals,
-        key=lambda iv: (iv[1] - iv[0], iv[0], _KIND_RANK.get(iv[2], len(_KIND_PRECEDENCE))),
+        key=lambda iv: (iv[1] - iv[0], iv[0], _KIND_RANK.get(iv[2], _KIND_RANK_OTHER)),
     ):
         start = max(0, start)
         end = min(end, line_len)

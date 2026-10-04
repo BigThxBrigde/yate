@@ -626,20 +626,22 @@ register_language(
     "php",
 )
 
+#: Keywords only.  Library methods that read like keywords (``require``,
+#: ``include``, ``attr_accessor``, ...) live in :data:`_RUBY_BUILTINS`: keywords
+#: are matched first, so listing a word in both tables would make the builtins
+#: entry dead data.
 _RUBY_KEYWORDS: frozenset[str] = frozenset({
     "alias", "and", "begin", "break", "case", "class", "def", "do",
     "else", "elsif", "end", "ensure", "for", "if", "in", "module", "next",
     "not", "or", "redo", "rescue", "retry", "return", "self", "super", "then",
-    "undef", "unless", "until", "when", "while", "yield", "require",
-    "require_relative", "include", "extend", "attr_accessor",
-    "attr_reader", "attr_writer",
+    "undef", "unless", "until", "when", "while", "yield",
 })
-#: Kernel methods, not keywords (``each`` is not a keyword at all -- it is an
-#: Enumerable/Array method and has no business in the keyword table).
+#: Kernel / Enumerable methods, not keywords (``each`` is not a keyword at all
+#: -- it is an Array method and has no business in the keyword table).
 _RUBY_BUILTINS: frozenset[str] = frozenset({
     "new", "raise", "fail", "puts", "print", "loop", "lambda", "proc",
     "catch", "throw", "require", "require_relative", "include", "extend",
-    "attr_accessor", "attr_reader", "attr_writer",
+    "attr_accessor", "attr_reader", "attr_writer", "each", "map",
 })
 _RUBY_CONSTANTS: frozenset[str] = frozenset({"true", "false", "nil"})
 _RUBY_TYPES: frozenset[str] = frozenset({
@@ -773,10 +775,11 @@ def format_filetype_candidates(limit: int = 12) -> str:
 
     The registry holds 60+ keys plus every language name, which no status-bar
     width can show in full -- callers used to inline ``", ".join(...)`` and
-    silently lose everything past the wrap column.  Shows *limit* entries and
-    appends ``"... (N total)"`` for the rest.
+    silently lose everything past the wrap column.  Shows *limit* entries (at
+    least one) and appends ``"... (N total)"`` for the rest.
     """
     filetypes = available_filetypes()
+    limit = max(1, limit)
     shown = ", ".join(filetypes[:limit])
     if len(filetypes) > limit:
         shown += f", ... ({len(filetypes)} total)"
@@ -797,11 +800,12 @@ _NUMBER_RE: re.Pattern[str] = re.compile(
 )
 _IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w*")
 _SIGIL_RE: re.Pattern[str] = re.compile(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?")
-#: ``$(VAR)`` / ``${VAR}``-free make-style expansion; only the ``$(...)`` form
-#: is worth a pattern, the single-char ``$@`` / ``$<`` are punctuation to the
-#: eye anyway.  Kept separate from :data:`_SIGIL_RE` because a parenthesized
-#: name may contain characters an identifier may not.
-_PAREN_VAR_RE: re.Pattern[str] = re.compile(r"\$\([^)\n]*\)")
+#: ``$(VAR)``-style make expansion.  The single-char ``$@`` / ``$<`` forms are
+#: punctuation to the eye and get no pattern.  One level of nesting is allowed
+#: (``$(shell echo $(X))``) so the token does not stop at the first ``)`` and
+#: leave a stray one uncolored.  Kept separate from :data:`_SIGIL_RE` because a
+#: parenthesized name may contain characters an identifier may not.
+_PAREN_VAR_RE: re.Pattern[str] = re.compile(r"\$\((?:[^()\n]|\([^()\n]*\))*\)")
 _DECORATOR_RE: re.Pattern[str] = re.compile(r"@[A-Za-z_][\w.]*")
 #: Dash-joined identifiers (``font-size``).  Each segment must start with a
 #: letter, so ``x-1`` still scans as ``x``, operator ``-``, number ``1``.
@@ -990,7 +994,10 @@ def _tokenize_code_line(
             pos = end
             continue
 
-        if spec.sigils and text[0] == "$":
+        if (spec.sigils or spec.paren_vars) and text[0] == "$":
+            # Both switches paint a sigil as a property, and either one alone
+            # must reach this branch: a $(VAR) matched by _PAREN_VAR_RE would
+            # otherwise be consumed with no token emitted at all.
             _emit(tokens, start, end, "property")
             pos = end
             continue
@@ -1047,6 +1054,22 @@ def _classify_ident(
         return "type", None
     if word in spec.builtins:
         return "builtin", None
+    if spec.hyphenated_idents and "-" in word:
+        # A dashed word that is not itself a known name is looked up segment by
+        # segment, so vendor prefixes ('-webkit-transform') and custom
+        # properties ('--brand-color') keep the color of their base word --
+        # what the fragment scan produced before the whole word was captured.
+        # Left to right: the first hit wins, and a name whose segments are all
+        # unknown ('btn-primary') still stays uncolored.
+        for part in word.split("-"):
+            if part in spec.keywords:
+                return "keyword", None
+            if part in spec.types:
+                return "type", None
+            if part in spec.builtins:
+                return "builtin", None
+            if part in spec.constants:
+                return "constant", None
     after = line[end:end + 2]
     if spec.macro_call and after.startswith("!"):
         return "function", None

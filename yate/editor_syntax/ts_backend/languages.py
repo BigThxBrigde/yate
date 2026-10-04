@@ -123,10 +123,13 @@ QUERIES_DIR: Path = Path(__file__).parent / "queries"
 #
 # Bundled queries may only use names registered here -- an unregistered name is
 # silently dropped by the backend, so ``tests/test_ts_backend.py`` guards the
-# invariant statically.  A handful of entries (``attribute``, ``escape_sequence``,
-# ``keyword.*``, ...) are not used by any bundled query: they are the reserved
-# vocabulary for extension-supplied grammars, whose ``highlights.scm`` follows
-# upstream conventions and reaches for exactly these names.
+# invariant statically.  These entries are the reserved vocabulary rather than
+# dead weight: extension-supplied grammars follow upstream tree-sitter
+# conventions and reach for names no bundled query happens to use.
+#: Reserved (no bundled query uses them): ``attribute``, ``attribute.builtin``,
+#: ``constant.builtin``, ``escape_sequence``, ``emphasis``, ``keyword.function``,
+#: ``keyword.modifier``, ``keyword.operator``, ``type.definition``,
+#: ``variable.builtin``.  Everything else below is exercised by a bundled query.
 DEFAULT_CAPTURE_MAP: dict[str, str] = {
     "comment": "comment",
     "string": "string",
