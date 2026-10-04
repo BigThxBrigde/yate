@@ -200,7 +200,7 @@ and leaves the cursor between the two.
 `python`):
 
 - a line ending with `:` indents one more level;
-- an empty line keeps the previous line's indent without adding a level;
+- an empty line keeps its own indent without adding a level;
 - a line starting with one of the 9 keywords `break` / `continue` / `elif` /
   `else` / `except` / `finally` / `pass` / `raise` / `return` **and not ending
   with `:`** keeps the current level without adding one;
