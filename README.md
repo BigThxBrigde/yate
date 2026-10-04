@@ -29,7 +29,7 @@ Release history: [CHANGELOG.md](CHANGELOG.md) · [中文](CHANGELOG.zh.md) — g
 
 - **VS Code-style layout**: active tab bar, EXPLORER file tree sidebar, breadcrumb path bar, flat status bar
 - **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL/VISUAL-LINE modes + `:` ex command line); `Ctrl+/` toggles between them at runtime
-- **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with a bundled C# extension and `:set filetype=` manual override; optional tree-sitter backend (`pip install -e ".[ts]"`) drives Python/Shell highlighting from a real parser, and extensions can register custom grammars (`api.syntax`)
+- **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with `:set filetype=` manual override; the regex backend covers ~28 languages out of the box (C#, Rust, Go, HTML, CSS, YAML, SQL, Lua, Perl, PHP, Ruby, PowerShell, Zig and more), and the optional tree-sitter backend (`pip install -e ".[ts]"`) upgrades 25 built-in languages (everything above plus Python/Shell) to real-parser highlighting; extensions can register custom grammars (`api.syntax`)
 - **Eight built-in themes**: four Catppuccin flavors (`mocha` default dark, `macchiato`, `frappe`, `latte` light) plus One Dark/Light and Gruvbox dark/light; Dracula and Ayu ship as copy-to-activate templates; register custom themes in yaterc, or bulk-load theme files via `theme_dirs` / `--theme-dir`
 - **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font and configures Windows Terminal)
 - **Fuzzy finding**: `Ctrl+P` quick open (fzf-style subsequence matching with hit highlighting), `Alt+Shift+P` command palette (every `:` command and named action)
@@ -40,7 +40,7 @@ Release history: [CHANGELOG.md](CHANGELOG.md) · [中文](CHANGELOG.zh.md) — g
 - **Shell commands**: `F2` or `:!cmd` (e.g. `:!git status`) runs a command in a background worker; stdout/stderr show in a scrollable overlay annotated with the exit code
 - **Integrated terminal**: `` Ctrl+` `` toggles a bottom terminal panel (VS Code-style layout) running a real shell over a PTY (Windows ConPTY / POSIX pty); `:term` / `:termclose`; the shell is configurable via yaterc's `shell` option, panel height via `terminal_height` (default 12 rows)
 - **yaterc config**: Python-syntax config file (vimrc style) with user / project / `-u` three-level loading
-- **Python extensions**: any `.py` script registers commands, key bindings and actions through `setup(api)`; the bundled extensions in `yate/extensions/` (Python LSP, C# highlighting) auto-load at startup and can be disabled by name via yaterc's `disabled_extensions`
+- **Python extensions**: any `.py` script registers commands, key bindings and actions through `setup(api)`; the bundled Python LSP extension in `yate/extensions/` auto-loads at startup and can be disabled by name via yaterc's `disabled_extensions`
 - **LSP support**: zero-dependency built-in LSP client (`editor_lsp`) with completion popup and diagnostics (underlines / gutter marks / status bar counts / `:diagnostics`); with no server running, completion falls back to words collected from open buffers; servers register declaratively in yaterc (`language_servers`) or through extensions, including a bundled Python server (auto-discovers pyright / python-lsp-server)
 - **Screensaver mode**: a full-terminal idle screensaver -- pixel characters walk across the screen while you are away; `Alt+Shift+S` toggles it manually and it starts by itself after `screen_saver.interval` seconds of no input (any key or mouse movement exits); 27 original, homage-style roster (classic arcade / FC-era characters plus the Digital Circus crew), configurable via yaterc's `screen_saver` dict; preview the roster with `python -m tools.pack rosters`
 
@@ -142,7 +142,7 @@ extensions = [            # extra extension paths (dirs or .py files, accumulate
     "~/.yate/extensions",
     "./tools/my_ext.py",
 ]
-disabled_extensions = []  # turn off bundled defaults, e.g. ["python_lsp", "csharp_highlight"]
+disabled_extensions = []  # turn off bundled defaults, e.g. ["python_lsp"]
 language_servers = [      # declarative LSP: auto-activates when a matching file opens, no extension needed
     {"name": "rust-analyzer", "command": "rust-analyzer",
      "filetypes": ["rs"], "language_ids": {"rs": "rust"},
@@ -224,8 +224,9 @@ yate/
   editor_view/   # Textual UI: editor, file tree, status bar, palette, terminal, themes
   keymaps/        # vsc / vim keymap definitions and action dispatch
   services/       # workspace traversal, shell, extension loading, font installation
-  extensions/     # bundled extensions: python_lsp (built-in LSP), csharp_highlight (C# highlighting),
-                  #   example_ext.py.example (template; the .example suffix is never auto-loaded)
+  extensions/     # bundled extension: python_lsp (built-in LSP) + *.py.example templates
+                  #   (example_ext and syntax templates for batch/ini/fsharp/git/diff;
+                  #   the .example suffix is never auto-loaded)
   docs/           # bilingual docs: yaterc config, extension API, themes, LSP recipes
                   #   (*.zh.md / *.en.md)
   resources/      # manual.zh.md / manual.en.md bilingual manual, bundled fonts
@@ -272,8 +273,8 @@ pack\pack.bat --onefile
 ```
 
 The build scripts in [pack/](pack/) pick the `.venv` interpreter when present,
-auto-install the `build,ts` extras (PyInstaller plus tree-sitter and the
-python/bash grammar packs) if PyInstaller is missing, and choose the
+auto-install the `build,ts` extras (PyInstaller plus tree-sitter and the 24
+grammar packs) if PyInstaller is missing, and choose the
 spec purely from the onefile flag. You can also call PyInstaller directly:
 `pyinstaller pack/yate.spec` (one-folder) /
 `pyinstaller pack/yate-onefile.spec` (onefile). The standalone executable

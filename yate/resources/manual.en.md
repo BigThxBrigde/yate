@@ -887,7 +887,7 @@ Rules:
   once, it loads exactly once (deduplicated by resolved absolute path).
 
 Beyond rc declarations, yate first auto-loads the **bundled extensions**
-(`python_lsp` and `csharp_highlight` from `yate/extensions/`, regardless of
+(`python_lsp` from `yate/extensions/`, regardless of
 the working directory), then scans the default directories `./extensions/`
 and `~/.yate/extensions/`, and finally accepts `--ext <file>` /
 `--ext-dir <dir>` (see section 15). To skip a bundled default, list its stem
@@ -1124,8 +1124,8 @@ directly as `"a"`, `"1"`, `":"`, `"/"`. Modifiers join with `-`, e.g.
 Loading sources (combinable, deduplicated by resolved absolute path):
 
 1. yaterc's `extensions` option (user level before project level);
-2. The bundled extensions in `yate/extensions/` (`python_lsp`,
-   `csharp_highlight`; auto-loaded from any working directory; skip stems
+2. The bundled extensions in `yate/extensions/` (currently `python_lsp`;
+   auto-loaded from any working directory; skip stems
    with yaterc's `disabled_extensions`);
 3. Default directories `./extensions/` and `~/.yate/extensions/`
    (auto-loaded at startup);
@@ -1135,9 +1135,12 @@ Exceptions inside extensions never crash the editor; errors appear in the
 message bar as `extension <name>: ...`. The bundled template
 `yate/extensions/example_ext.py.example` (use it after dropping the
 `.example` suffix; it provides the `:upper` / `:lower` / `:words` / `:sh`
-commands and an `Alt+U` binding) is a good starting point;
-`yate/extensions/csharp_highlight.py` shows how `api.highlight.register` adds
-highlighting for C# (`.cs`/`.csx`).
+commands and an `Alt+U` binding) is a good starting point; the
+syntax-highlighting templates `batch_syntax.py.example` /
+`ini_syntax.py.example` / `git_syntax.py.example` /
+`diff_syntax.py.example` show how `api.highlight.register` adds declarative
+highlighting for another language (e.g. Windows batch files), and
+`fsharp_syntax.py.example` demonstrates `api.syntax.register_tree_sitter`.
 
 > For the full extension API reference (commands, actions, key bindings,
 > buffer/doc/workspace access, LSP registration, custom syntax highlighting
@@ -1298,23 +1301,29 @@ tab and unsaved changes do not block).
 **Which languages get syntax highlighting?**
 The built-in highlighter recognizes by extension: Python (`py`/`pyi`/`pyw`),
 C (`c`/`h`), C++ (`cpp`/`cc`/`cxx`/`c++`/`hpp`/`hxx`/`h++`/`hh`/`ino`),
-Java (`java`), Rust (`rs`), Go (`go`), JavaScript (`js`/`mjs`/`cjs`/`jsx`),
-TypeScript (`ts`/`tsx`/`mts`/`cts`), Shell (`sh`/`bash`/`zsh`/`fish`),
+C# (`cs`/`csx`), Java (`java`), Rust (`rs`), Go (`go`), JavaScript
+(`js`/`mjs`/`cjs`/`jsx`), TypeScript (`ts`/`tsx`/`mts`/`cts`), Shell
+(`sh`/`bash`/`zsh`/`fish`), HTML (`html`/`htm`), CSS (`css`/`scss`/`less`),
 JSON (`json`/`jsonc`), Markdown (`md`/`markdown`/`mdx`), TOML (`toml`),
-INI (`ini`/`cfg`/`conf`/`properties`), YAML (`yaml`/`yml`).
-Everything else renders as plain text. With the optional tree-sitter
-backend installed (`pip install yate[ts]`), Python and Shell are
-highlighted through a real parser instead of word lists.
+INI (`ini`/`cfg`/`conf`/`properties`), YAML (`yaml`/`yml`), XML (`xml`),
+XAML (`xaml`), PowerShell (`ps1`/`psm1`/`psd1`), Lua (`lua`),
+Make (`mak`/`mk`), Perl (`pl`/`pm`), PHP (`php`), Ruby (`rb`), SQL (`sql`)
+and Zig (`zig`). Everything else renders as plain text. With the optional
+tree-sitter backend installed (`pip install yate[ts]`), 25 of these
+languages (all except JSONC, INI and Perl) are highlighted through a real
+parser instead of word lists.
 
 **How do I add highlighting for another language (or override one)?**
 An extension can register a declarative `LangSpec` via
 `api.highlight.register(spec, *extensions)` -- comment markers and word sets
 for keywords/types/constants; the engine handles strings, numbers and
 multiline state. Once registered it highlights automatically and works with
-`:set filetype=`. The bundled `yate/extensions/csharp_highlight.py` provides
-C# (`cs`/`csx`): it auto-loads at startup from any working directory (turn it
-off with `disabled_extensions = ["csharp_highlight"]`), or load a modified
-copy explicitly with `yate --ext csharp_highlight.py`. See section 4.7 of
+`:set filetype=` (and replaces the built-in spec for the same extension).
+The main languages are already built in -- C# and the rest above need no
+extension. Templates ship as `*.py.example` files under
+`yate/extensions/` (`batch_syntax.py.example`, `ini_syntax.py.example`,
+`git_syntax.py.example`, `diff_syntax.py.example`; drop the `.example`
+suffix and copy into an extension directory). See section 4.7 of
 [`yate/docs/extensions.en.md`](../docs/extensions.en.md) for the full field list.
 
 For syntax-tree based highlighting of a custom language (e.g. your own

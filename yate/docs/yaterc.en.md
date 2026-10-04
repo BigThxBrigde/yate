@@ -289,7 +289,7 @@ Path rules and loading behavior:
   resolved absolute path), preventing duplicate command/binding registration.
 
 Beyond rc declarations, yate first auto-loads the **bundled extensions** in
-`yate/extensions/` (currently `python_lsp` and `csharp_highlight`, from any
+`yate/extensions/` (currently `python_lsp`, from any
 working directory), then scans the default directories `./extensions/`
 (only in workspaces trusted via `:trust` -- see extensions.md) and
 `~/.yate/extensions/`; command-line `--ext <file>` / `--ext-dir <dir>` adds
@@ -298,7 +298,6 @@ more. To skip a bundled default, list its stem (file name without `.py`) in
 
 ```python
 disabled_extensions = ["python_lsp"]
-disabled_extensions = ["python_lsp", "csharp_highlight"]
 ```
 
 The option accepts a string or a list of strings (whitespace trimmed),

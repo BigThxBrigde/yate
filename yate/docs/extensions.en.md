@@ -43,12 +43,15 @@ absolute path** (a script hit by several sources still runs exactly once):
 
 1. The `extensions` option in yaterc (user rc before project rc; entries
    **accumulate**, they do not overwrite);
-2. **Bundled extensions** in `yate/extensions/` (`python_lsp`,
-   `csharp_highlight`); they auto-load regardless of the working directory;
-   disable individual defaults via yaterc's `disabled_extensions` (see
-   below). The directory also ships templates (`*.py.example`, never
-   auto-loaded): `example_ext.py.example` and the tree-sitter grammar
-   template `yatesh_syntax.py.example`;
+2. **Bundled extensions** in `yate/extensions/` (currently `python_lsp`,
+   the Python language server); they auto-load regardless of the working
+   directory; disable individual defaults via yaterc's
+   `disabled_extensions` (see below). The directory also ships templates
+   (`*.py.example`, never auto-loaded): `example_ext.py.example`, the
+   tree-sitter grammar template `yatesh_syntax.py.example`, and
+   syntax-highlighting templates `batch_syntax.py.example`,
+   `ini_syntax.py.example`, `fsharp_syntax.py.example`,
+   `git_syntax.py.example` and `diff_syntax.py.example`;
 3. Default directories: `./extensions/` in the working directory and
    `~/.yate/extensions/` (every `*.py` inside is auto-loaded at startup,
    files starting with an underscore are skipped). The project directory
@@ -88,7 +91,6 @@ yaterc:
 
 ```python
 disabled_extensions = ["python_lsp"]
-disabled_extensions = ["python_lsp", "csharp_highlight"]
 ```
 
 - Accepts a string or a list of strings; entries **accumulate** and de-duplicate
@@ -348,13 +350,21 @@ completion and status-bar type sync. Words in `type_def_words` /
 | `type_def_words` | `frozenset()` | the next identifier is colored as a type name (`class`, `struct`, `interface`) |
 | `macro_call` | `False` | an identifier immediately followed by `!` is colored as a function (Rust macros) |
 
-For a complete example see the bundled
-`yate/extensions/csharp_highlight.py` (C# highlighting for `cs`/`csx`:
-keywords, contextual keywords, BCL types, `$`/`@` string prefixes, etc.; this
-extension is bundled and auto-loaded with no need to be in the working
-directory). Turn it off in yaterc with
-`disabled_extensions = ["csharp_highlight"]`, or load a modified copy
-explicitly with `yate --ext csharp_highlight.py`.
+**Built-in languages**: the languages yate already recognizes need no
+extension. The regex backend ships word-list highlighting for Python, C,
+C++, Java, Rust, Go, JavaScript, TypeScript, Shell, JSON, Markdown, TOML,
+INI, YAML, C#, HTML, CSS, PowerShell, Lua, Make, XML, XAML, Perl, PHP, Ruby,
+SQL and Zig; with the optional tree-sitter backend installed
+(`pip install yate[ts]`), 25 of them (all of the above except JSONC, INI and
+Perl) are highlighted through a real parser instead.
+
+For a complete example see the template
+`yate/extensions/batch_syntax.py.example` (declarative highlighting for
+Windows batch files: `rem` comments, keywords, `%VAR%` variables;
+`ini_syntax.py.example`, `git_syntax.py.example` and `diff_syntax.py.example`
+cover config-mode INI/Git files and diffs). Drop the `.example` suffix, copy
+the file into an extension directory and it registers on the next launch --
+a registered extension replaces the built-in spec for the same extension.
 
 ### 4.8 Syntax highlighting via tree-sitter (custom grammars)
 
@@ -392,7 +402,9 @@ mapped onto yate's token kinds by a default table
 (`yate/editor_syntax/ts_backend/languages.py`); `capture_map` adds or
 overrides single mappings.
 
-A full template ships as `yate/extensions/yatesh_syntax.py.example`.
+A full template ships as `yate/extensions/yatesh_syntax.py.example`;
+`fsharp_syntax.py.example` demonstrates binding a grammar from a pip pack
+(`tree-sitter-fsharp`) instead of a compiled `.so`/`.dll`.
 Note: `api.highlight.register` (section 4.7) always wins over the built-in
 tree-sitter registration for the same extension key.
 

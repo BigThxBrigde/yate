@@ -67,16 +67,16 @@ use_spaces = True
 
 # ------------------------------------------------------------- extensions
 #
-# yate ships with bundled extensions in yate/extensions/ (auto-loaded at
+# yate ships with a bundled extension in yate/extensions/ (auto-loaded at
 # startup from the package directory, regardless of the current directory):
 #   python_lsp         Python language server support (autocomplete/diagnostics)
-#   csharp_highlight   C# / .csx syntax highlighting
+# (syntax highlighting for C# and many other languages is built into the
+# editor itself and needs no extension)
 #
 # Skip one or more bundled defaults by stem name (entries accumulate across
 # rc files; user/project extension scripts keep loading regardless):
 #
 # disabled_extensions = ["python_lsp"]
-# disabled_extensions = ["python_lsp", "csharp_highlight"]
 #
 # Extra extension scripts to load at startup. A path string or a list of
 # paths; each entry is either a directory (all *.py inside are loaded) or a
