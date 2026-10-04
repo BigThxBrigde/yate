@@ -1,0 +1,34 @@
+"""Diff/patch syntax highlighting for yate, as a copy-to-use extension.
+
+Copy this file to ``~/.yate/extensions/diff_syntax.py`` (or a project
+``./extensions/`` directory) without the ``.example`` suffix. It then loads
+at startup and highlights ``.diff`` / ``.patch`` files.
+
+Known limitation: the declarative :class:`LangSpec` tokenizer colors words,
+strings, numbers and comments -- it cannot paint whole lines by prefix, so
+added (``+``) / removed (``-``) lines keep the default foreground and only
+the metadata words below are highlighted. Line-level diff coloring would
+need a dedicated tokenizer mode and is out of scope for this example.
+"""
+
+from __future__ import annotations
+
+from yate.services.extensions import ExtensionAPI
+
+#: Git writes these headers in lower case (``diff --git``, ``Binary files ...``)
+#: and the tokenizer matches case-sensitively, so they are listed lower case only.
+_DIFF_KEYWORDS: frozenset[str] = frozenset({
+    "diff", "index", "new", "old", "mode", "file", "from", "to",
+    "similarity", "rename", "copy", "deleted", "created", "binary",
+    "patch",
+})
+
+
+def setup(api: ExtensionAPI) -> None:
+    """Register the diff highlighter for ``.diff`` / ``.patch`` files."""
+    spec = api.highlight.spec(
+        name="diff",
+        mode="code",
+        keywords=_DIFF_KEYWORDS,
+    )
+    api.highlight.register(spec, "diff", "patch")

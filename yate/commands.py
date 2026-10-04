@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from yate.editor import Editor
-from yate.editor_syntax import available_filetypes, language_name
+from yate.editor_syntax import format_filetype_candidates, language_name
 from yate.logs import tracing
 from yate.registries import CommandRegistry
 
@@ -271,7 +271,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
             shown = f"{doc.filetype} ({label})" if label else doc.filetype
             editor.message(
                 f"filetype: {shown} [{source}] · "
-                f"available: {', '.join(available_filetypes())}"
+                f"available: {format_filetype_candidates()}"
             )
             return
         editor.set_filetype(args)

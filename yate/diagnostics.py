@@ -305,7 +305,7 @@ def _section_themes() -> list[str]:
 # ------------------------------------------------------------------ syntax
 
 def _section_syntax() -> list[str]:
-    from yate.editor_syntax import available_filetypes, resolve_filetype
+    from yate.editor_syntax import format_filetype_candidates, resolve_filetype
     from yate.editor_syntax.ts_backend import available_for, ts_available
     from yate.editor_syntax.ts_backend.languages import BUILTIN_PACKS
 
@@ -326,11 +326,9 @@ def _section_syntax() -> list[str]:
     else:
         lines.append(_kv("tree-sitter", "not available (tree_sitter not installed)", width=14))
 
-    filetypes = available_filetypes()
-    shown = ", ".join(filetypes[:12])
-    if len(filetypes) > 12:
-        shown += f", ... ({len(filetypes)} total)"
-    lines.append(_kv("regex languages", shown, width=14))
+    lines.append(
+        _kv("regex languages", format_filetype_candidates(), width=14)
+    )
     return lines
 
 

@@ -1,0 +1,44 @@
+"""DOS batch syntax highlighting for yate, as a copy-to-use extension.
+
+Copy this file to ``~/.yate/extensions/batch_syntax.py`` (or a project
+``./extensions/`` directory) without the ``.example`` suffix; it then loads
+at startup and ``.bat`` / ``.cmd`` files highlight automatically. The type
+is also selectable manually with ``:set filetype=bat``.
+
+The highlighter is a declarative :class:`LangSpec` registered through the
+documented extension surface (``api.highlight.register``): the built-in
+tokenizer already handles strings, numbers, comments and word coloring --
+only the word lists are language specific.  Batch has no lexical form the
+word-list backend can express, so ``%VAR%`` expansion and ``:label`` targets
+stay uncolored.
+
+Note: ``api.highlight.register`` pins the registered extensions to the
+regex backend, which is what a simple line-oriented language like batch
+wants.
+"""
+
+from __future__ import annotations
+
+from yate.services.extensions import ExtensionAPI
+
+_BAT_KEYWORDS: frozenset[str] = frozenset({
+    "echo", "off", "on", "set", "setlocal", "endlocal", "if", "exist", "not",
+    "else", "for", "in", "do", "goto", "call", "exit", "shift", "pause",
+    "cls", "rem", "defined", "errorlevel", "enabledelayedexpansion",
+    "enableextensions", "type", "del", "copy", "move", "mkdir", "rmdir",
+    "cd", "pushd", "popd", "start", "title", "where", "choice",
+})
+
+
+def setup(api: ExtensionAPI) -> None:
+    """Register the DOS batch highlighter for ``.bat`` / ``.cmd`` files."""
+    spec = api.highlight.spec(
+        name="batch",
+        mode="code",
+        line_comment="rem",
+        # '@' prefixes a command ('@echo off'), never a decorator -- without
+        # this the tokenizer paints '@echo' as a Python-style annotation.
+        at_sigil=True,
+        keywords=_BAT_KEYWORDS,
+    )
+    api.highlight.register(spec, "bat", "cmd")
