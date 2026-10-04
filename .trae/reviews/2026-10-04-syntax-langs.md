@@ -1,5 +1,11 @@
 # syntax-langs 分支评审（issue IKJLTB 内置语法高亮扩展）— 2026-10-04
 
+> 来源：Gitee PR #53 评论
+> [`note_51442774`](https://gitee.com/jermaine/yate/pulls/53#note_51442774_conversation_191380732)
+> （conversation `191380732`）。本条目即该评论所对应的分支评审与后续三轮修复的
+> 落盘记录：评审结论见下文，修复方案与门禁回填见
+> [`../documents/syntax-langs-review-fixes-plan.md`](../documents/syntax-langs-review-fixes-plan.md)。
+
 - **评审对象**：分支 `enh/syntax-langs`（worktree `../yate-syntax-langs`，基线 `master`），7 笔提交 / 51 文件 / +2182 −223，核心是 `yate/editor_syntax/`（23 个新 `.scm` + 13 条 regex 回退 `LangSpec` + `BUILTIN_ENTRY`）、`pyproject.toml` 与 `pack/_common.py` 的 22 个语法包、`yate/extensions/` 5 个 `*.py.example` 模板、7 个文档文件。
 - **评审方法**：两件事并行——①按方案文档 [`../documents/syntax-langs-plan.md`](../documents/syntax-langs-plan.md) 逐波次（W1–W5）对账实施完整性；②按 `.trae/skills/python-code-review/SKILL.md` 六维度框架（正确性 / 安全 / 性能 / Pythonic / 可维护性 / 错误处理）做代码评审，3 个只读 `code-explorer` 子代理按互不重叠文件切分并行（regex 后端 + `tests/test_highlight.py` / ts 后端 + 23 个 scm + `tests/test_ts_backend.py` / examples + pack + docs），主代理汇总并**逐条复核**——本文所有条目的问题描述均带主代理实测证据，子代理自述数字不直接引用。
 - **基线门禁**（主代理在 worktree 沙箱亲自复跑）：`python -m pyright yate/ tests/ tools/` → 0 errors / 0 warnings / 0 informations；`python -m pytest tests/` → **1718 passed, 7 skipped**；`python -m pytest tests/test_architecture.py` → **22 passed**；`python -m pytest tests/ -q --cov=yate --cov-fail-under=75` → **91.29%**。四项 EXIT=0，与方案 §八 记载一致。
