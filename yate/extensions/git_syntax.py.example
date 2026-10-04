@@ -1,0 +1,34 @@
+"""Git file syntax highlighting for yate, as a copy-to-use extension.
+
+Copy this file to ``~/.yate/extensions/git_syntax.py`` (or a project
+``./extensions/`` directory) without the ``.example`` suffix. It then loads
+at startup and highlights ``.gitignore`` / ``.gitconfig`` / ``.gitmodules``
+files.
+
+Two declarative :class:`LangSpec` variants are registered: the ignore-file
+dialect (pattern lines, ``#`` comments) and the config dialect (``config``
+mode gives section headers and ``key = value`` coloring for free).
+``.gitignore`` files have no leading basename -- their suffix is
+``.gitignore`` itself, which becomes the filetype key ``gitignore``.
+"""
+
+from __future__ import annotations
+
+from yate.services.extensions import ExtensionAPI
+
+
+def setup(api: ExtensionAPI) -> None:
+    """Register highlighters for gitignore / gitconfig / gitmodules files."""
+    ignore = api.highlight.spec(
+        name="gitignore",
+        mode="config",
+        line_comment="#",
+    )
+    api.highlight.register(ignore, "gitignore")
+
+    config = api.highlight.spec(
+        name="gitconfig",
+        mode="config",
+        line_comment=";",
+    )
+    api.highlight.register(config, "gitconfig", "gitmodules")

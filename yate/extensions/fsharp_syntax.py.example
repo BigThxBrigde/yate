@@ -1,0 +1,62 @@
+"""F# syntax highlighting via tree-sitter, as a copy-to-use extension.
+
+Copy this file to ``~/.yate/extensions/fsharp_syntax.py`` (or a project
+``./extensions/`` directory) without the ``.example`` suffix, and install
+the grammar pack::
+
+    pip install tree-sitter-fsharp
+
+After loading, ``.fs`` / ``.fsi`` / ``.fsx`` files highlight through the
+tree-sitter backend (when the optional dependency is installed; otherwise
+the type falls back to plain text).
+
+This example demonstrates ``api.syntax.register_tree_sitter``: it takes a
+grammar pack name (or a compiled shared library path), a highlights query
+source and the file extensions to claim. Captures are mapped onto theme
+colors through ``DEFAULT_CAPTURE_MAP`` (comment/string/number/keyword/
+function/type/property/...); unmapped captures inherit the default
+foreground.
+
+If the query below stops matching after a grammar upgrade, adjust the node
+names to the installed grammar version -- the query is plain
+tree-sitter ``highlights.scm`` source.
+"""
+
+from __future__ import annotations
+
+from yate.services.extensions import ExtensionAPI
+
+_QUERY = """\
+(comment) @comment
+(string) @string
+(triple_quoted_string) @string
+(number) @number
+
+[
+  "abstract" "and" "as" "assert" "base" "begin" "class" "default" "delegate"
+  "do" "done" "downcast" "downto" "elif" "else" "end" "exception" "extern"
+  "false" "finally" "for" "fun" "function" "global" "if" "in" "inherit"
+  "inline" "interface" "internal" "lazy" "let" "match" "member" "module"
+  "mutable" "namespace" "new" "not" "null" "of" "open" "or" "override"
+  "private" "public" "rec" "return" "static" "struct" "then" "to" "true"
+  "try" "type" "upcast" "use" "val" "void" "when" "while" "with" "yield"
+] @keyword
+
+(function_or_value_definition (function_name (identifier) @function))
+(typar) @type
+"""
+
+_CAPTURE_MAP: dict[str, str] = {
+    "identifier": "function",
+}
+
+
+def setup(api: ExtensionAPI) -> None:
+    """Register F# via the tree-sitter bridge (requires tree-sitter-fsharp)."""
+    api.syntax.register_tree_sitter(
+        "fsharp",
+        grammar="tree_sitter_fsharp",
+        extensions=("fs", "fsi", "fsx"),
+        query=_QUERY,
+        capture_map=_CAPTURE_MAP,
+    )
