@@ -262,10 +262,13 @@ def load_language(  # noqa: Any - tree_sitter.Language is an untyped C binding
     _LANGS[key] = LoadedLanguage(key, language, ts.Query(language, query_src), merged)
     _FAILED.discard(key)
     if extensions:
-        # register a bare LangSpec under the extension keys so they show up
-        # in ``:set filetype=`` completion and keep a minimal regex fallback
-        # (strings / numbers / operators) should the grammar fail to load;
-        # tree-sitter still handles them (they are not regex-pinned)
+        # Publish the extension keys so they show up in ``:set filetype=``
+        # completion.  Reached only once the grammar and the query are loaded:
+        # a missing tree_sitter raises above and a bad query raises on the
+        # ts.Query line, so there is no partial state to fall back from.  The
+        # bare spec covers strings / numbers / operators only -- an extension
+        # that wants a real fallback should register a LangSpec itself through
+        # api.highlight.register (which also pins the key to regex).
         register_language(LangSpec(name=key), *extensions)
         for ext in extensions:
             ext_key = ext.lower().lstrip(".")
