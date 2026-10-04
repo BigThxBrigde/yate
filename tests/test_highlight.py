@@ -375,6 +375,77 @@ def test_css_scans_hyphenated_properties_as_one_identifier() -> None:
     assert ("operator", ":") in pairs
 
 
+def test_css_dashed_lookup_falls_back_to_its_base_word() -> None:
+    # Capturing the whole word must not lose what the fragment scan colored:
+    # a vendor prefix or a custom property still shows its base name.
+    for line, base in (
+        ("-webkit-transform: none;", "transform"),
+        ("-ms-grid-row: 1;", "grid"),
+        ("--brand-color: red;", "color"),
+        ("color: var(--brand-color);", "color"),
+    ):
+        pairs = _kinds(hl.tokenize_document([line], "css")[0], line)
+        # The base word is colored, whether the token spans the whole dashed
+        # name or just the part of it that carries the meaning.
+        assert any(
+            kind == "builtin" and base in text for kind, text in pairs
+        ), line
+    # A dashed word whose segments are all unknown stays uncolored, so the
+    # fallback cannot invent a color for every hyphenated class name.
+    line = ".btn-primary { color: red; }"
+    pairs = _kinds(hl.tokenize_document([line], "css")[0], line)
+    assert ("builtin", "btn-primary") not in pairs
+    assert ("builtin", "primary") not in pairs
+
+
+def test_paren_vars_works_without_the_sigils_switch() -> None:
+    # The two switches are independent: paren_vars alone must not silently
+    # drop every $(...) it matched.
+    spec = hl.LangSpec(name="parenonly", mode="code", paren_vars=True)
+    registry = cast(Any, hl)
+    try:
+        hl.register_language(spec, "zzparenonly")
+        line = "x = $(VAR) y"
+        assert ("property", "$(VAR)") in _kinds(
+            hl.tokenize_document([line], "zzparenonly")[0], line
+        )
+    finally:
+        registry._LANGUAGES.pop("zzparenonly", None)
+        registry._NAME_TO_KEY.pop("parenonly", None)
+
+
+def test_paren_vars_tolerates_one_level_of_nesting() -> None:
+    line = "a = $(shell echo $(X))"
+    pairs = _kinds(hl.tokenize_document([line], "mak")[0], line)
+    assert ("property", "$(shell echo $(X))") in pairs
+
+
+def test_ruby_library_methods_are_builtins_not_keywords() -> None:
+    # keywords win over builtins, so a word in both tables is dead data.
+    for word in ("require", "include", "attr_accessor"):
+        line = f"{word} 'x'"
+        assert ("builtin", word) in _kinds(
+            hl.tokenize_document([line], "rb")[0], line
+        ), word
+    # 'each' is not a ruby keyword at all -- it must not end up colorless.
+    assert ("builtin", "each") in _kinds(
+        hl.tokenize_document(["[1, 2].each { }"], "rb")[0], "[1, 2].each { }"
+    )
+
+
+def test_langspec_word_tables_have_no_unreachable_entries() -> None:
+    # keywords win over types, and types over builtins, so a word in both
+    # tables makes the weaker entry dead weight.
+    for spec in (
+        hl.lang_for("lua"), hl.lang_for("ps1"), hl.lang_for("php"),
+        hl.lang_for("pl"), hl.lang_for("rb"),
+    ):
+        assert spec is not None
+        assert not spec.types & spec.keywords
+        assert not spec.types & spec.builtins
+        assert not spec.builtins & spec.keywords
+
+
 def test_scss_and_less_reuse_the_css_word_lists() -> None:
     for filetype in ("scss", "less"):
         spec = hl.lang_for(filetype)
@@ -387,15 +458,6 @@ def test_scss_and_less_reuse_the_css_word_lists() -> None:
         assert ("type", "a") in pairs or ("builtin", "color") in pairs
 
 
-def test_langspec_word_lists_have_no_unreachable_entries() -> None:
-    # keywords win over types (and types over builtins) in the classifier, so a
-    # word in both tables makes the types entry dead weight.
-    for spec in (hl.lang_for("lua"), hl.lang_for("ps1"), hl.lang_for("php")):
-        assert spec is not None
-        assert not spec.types & spec.keywords
-        assert not spec.types & spec.builtins
-
-
 def test_filetype_candidate_list_is_truncated_with_a_total() -> None:
     # The registry outgrew the message width; an untruncated join silently lost
     # everything past the wrap column.
@@ -406,6 +468,10 @@ def test_filetype_candidate_list_is_truncated_with_a_total() -> None:
     assert head == ", ".join(hl.available_filetypes()[:12])
     assert hl.format_filetype_candidates(limit=4).startswith(
         ", ".join(hl.available_filetypes()[:4])
+    )
+    # A zero limit would render ", ... (72 total)" with an empty head.
+    assert hl.format_filetype_candidates(limit=0).startswith(
+        hl.available_filetypes()[0]
     )
 
 

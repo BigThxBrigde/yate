@@ -54,13 +54,17 @@ def _templates() -> list[Path]:
 
 def _extension_api() -> ExtensionAPI:
     """An :class:`ExtensionAPI` over a minimal context (templates only set up)."""
+    # MagicMock stands in for the collaborators a template never touches; R2/R6
+    # forbid a narrow Protocol or a type-only import block, so a cast is the
+    # only compliant seam (the shape tests/test_highlight.py already uses).
+    mock = cast(Any, MagicMock())
     ctx = ExtensionContext(
-        session=cast(Any, MagicMock()),
-        workspace=cast(Any, MagicMock()),
-        lsp=cast(Any, MagicMock()),
-        keymaps=cast(Any, MagicMock()),
-        actions=cast(Any, MagicMock()),
-        commands=cast(Any, MagicMock()),
+        session=mock,
+        workspace=mock,
+        lsp=mock,
+        keymaps=mock,
+        actions=mock,
+        commands=mock,
         message=lambda _text: None,
         run_shell=lambda _command, _show: None,
         open_path=lambda _path: None,

@@ -624,11 +624,19 @@ def test_builtin_packs_ship_a_query_file() -> None:
 _CAPTURE_RE = re.compile(r"@([A-Za-z_][\w.]*)")
 
 
+#: ``(#eq? @a "b")`` style predicates: the captures inside them are ordinary
+#: captures, but a predicate argument may hold a literal that looks like one.
+_PREDICATE_RE = re.compile(r"\(#[^()]*\)")
+_STRING_LITERAL_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
+
+
 def _query_capture_names() -> dict[str, set[str]]:
     """Capture names per bundled query file, ignoring ``;`` comment lines.
 
     Deliberately dependency-free: a grammar-pack install is not required, so
-    the invariant still holds in a regex-only checkout.
+    the invariant still holds in a regex-only checkout.  Predicate tails and
+    string literals are stripped first -- ``(#eq? @a "@b")`` mentions a name
+    that is not a capture at all, and flagging it would be a false positive.
     """
     found: dict[str, set[str]] = {}
     for scm in sorted(ts_langs.QUERIES_DIR.glob("*.scm")):
@@ -637,7 +645,8 @@ def _query_capture_names() -> dict[str, set[str]]:
             stripped = line.strip()
             if stripped.startswith(";"):
                 continue
-            names.update(_CAPTURE_RE.findall(stripped))
+            cleaned = _STRING_LITERAL_RE.sub('""', _PREDICATE_RE.sub(" ", stripped))
+            names.update(_CAPTURE_RE.findall(cleaned))
         found[scm.stem] = names
     return found
 
@@ -692,18 +701,59 @@ def test_builtin_packs_match_packaging_manifests() -> None:
     assert set(ts_langs.BUILTIN_PACKS.values()) == pack_modules - {"tree_sitter"}
 
 
+def test_same_span_tie_break_is_a_total_order_over_bindable_kinds() -> None:
+    # "Deterministic" is only true if no two kinds share a rank: an equal-rank
+    # pair would fall back to the dict order of QueryCursor.captures(), which
+    # is exactly the non-determinism the table removes.
+    ranks = ts_runtime._KIND_RANK
+    assert len(set(ranks.values())) == len(ranks)
+    # Every kind a bundled query can bind is ranked, and every rank is a kind
+    # SYNTAX_KINDS actually knows.
+    bound = {
+        ts_langs.DEFAULT_CAPTURE_MAP[name]
+        for names in _query_capture_names().values()
+        for name in names
+        if name in ts_langs.DEFAULT_CAPTURE_MAP
+    }
+    assert bound <= set(ranks)
+    assert set(ranks) <= set(SYNTAX_KINDS)
+    assert ts_runtime._KIND_RANK_OTHER == len(ts_runtime._KIND_PRECEDENCE)
+    # A pseudo-class name is a type, not a member access: 'type' must outrank
+    # the 'property' catch-all or CSS ':hover' silently changes color.
+    assert ranks["type"] < ranks["property"] < ranks["string"]
+
+
+def test_capture_scan_ignores_predicates_and_string_literals() -> None:
+    # "(#eq? @a \"@b\")" mentions a name that is not a capture; flagging it
+    # would make the registration guard cry wolf on any predicate line.
+    scm = ts_langs.QUERIES_DIR / "c.scm"
+    original = scm.read_text(encoding="utf-8")
+    injected = original + '\n((identifier) @var (#eq? @var "@not_a_capture"))\n'
+    try:
+        scm.write_text(injected, encoding="utf-8")
+        found = _query_capture_names()["c"]
+        assert "var" in found
+        assert "not_a_capture" not in found
+    finally:
+        scm.write_text(original, encoding="utf-8")
+
+
 def test_same_span_captures_resolve_by_kind_precedence() -> None:
     # Bundled queries keep a wide catch-all next to a narrow capture (a query
     # cannot express "not a call"); the winner must not depend on the dict
     # order of QueryCursor.captures(), which py-tree-sitter does not document.
-    both = [(0, 3, "function.method"), (0, 3, "property")]
-    assert [t.kind for t in ts_runtime._tokens_for_row(both, 3)] == ["function.method"]
+    # The intervals carry *kinds*: capture_map has already folded
+    # function.call / function.method onto "function" by then.
+    both = [(0, 3, "function"), (0, 3, "property")]
+    assert [t.kind for t in ts_runtime._tokens_for_row(both, 3)] == ["function"]
     # ... and the same answer whichever way the candidates arrive.
     assert [t.kind for t in ts_runtime._tokens_for_row(both[::-1], 3)] == [
-        "function.method"
+        "function"
     ]
-    assert ts_runtime._KIND_RANK["function.method"] < ts_runtime._KIND_RANK["property"]
-    assert ts_runtime._KIND_RANK["property"] < len(ts_runtime._KIND_PRECEDENCE)
+    # A kind outside the table can only come from an extension capture_map; it
+    # shares the last rank rather than silently outranking a bundled kind.
+    unknown = [(0, 3, "totally_custom"), (0, 3, "property")]
+    assert [t.kind for t in ts_runtime._tokens_for_row(unknown, 3)] == ["property"]
 
 
 def test_scss_and_less_do_not_borrow_the_css_grammar() -> None:
