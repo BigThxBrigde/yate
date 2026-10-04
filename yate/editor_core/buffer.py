@@ -545,7 +545,11 @@ class TextBuffer:
         line = self.lines[r]
         if not word and 0 < c < len(line) and is_pair_of(line[c - 1], line[c]):
             self.lines[r] = line[: c - 1] + line[c + 1 :]
-            self.cursor = (r, c - 1)
+            # set_cursor, not a bare assignment: the row just lost two
+            # characters, and the buffer's invariant ends vertical goal-column
+            # tracking only when the cursor is placed through here.  Same
+            # rationale as the selection-wrapping branch in ``type_char``.
+            self.set_cursor((r, c - 1))
             self._commit(before, "char")
             return
         if c == 0:

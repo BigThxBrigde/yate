@@ -658,7 +658,7 @@ class VimKeymap(Keymap):
         return False
 
     def _shift_row(self, buf: TextBuffer, key: str, count: int) -> None:
-        """Indent or outdent the cursor's line *count* times (``>`` / ``<``).
+        """Indent or outdent *count* lines from the cursor's row (``>`` / ``<``).
 
         Normal mode carries no selection, and
         :meth:`~yate.editor_core.buffer.TextBuffer.indent_selection` falls back to
@@ -668,7 +668,7 @@ class VimKeymap(Keymap):
         the whole row first is what makes the command mean "shift this line"
         wherever the cursor happens to sit.
 
-        The row is selected through
+        The rows are selected through
         :meth:`~yate.editor_core.buffer.TextBuffer.set_cursor` instead of by
         assigning ``anchor`` / ``cursor`` directly: the two calls spell out
         "start at the line start, then extend to its end" (a lone
@@ -678,26 +678,43 @@ class VimKeymap(Keymap):
         whatever the edit happens to do downstream, which silently stops
         holding as soon as one of the paths becomes a no-op.
 
-        An empty row cannot be selected (anchor equals cursor, so there is no
-        span) and keeps the ``insert_tab`` fallback, which is the sensible
-        reading there: one unit at column 0.  Either way the selection is
-        dropped afterwards and the cursor returns to the first non-blank
-        column, the landing spot vim uses.
+        *count* spans that many rows downward, each shifted by a single unit,
+        which is what ``3>`` does in vim: the count is a line count, not a
+        repeat count.  Reading the row inside the loop instead would re-indent
+        the *same* line N times, and vim's own help text for these bindings
+        ("Indent [count] lines") counts lines.  Fewer rows than asked for is
+        not an error -- vim shifts what is there when ``3>`` runs near the end
+        of the file, and so does the ``min`` below.  One selection covering
+        the whole span also keeps the edit a single ``"step"`` undo entry,
+        where a per-row loop committed one step per row.
+
+        A span that degenerates to a single empty row (the anchor would equal
+        the cursor, so there is no span to select) keeps the ``insert_tab``
+        fallback, which is the sensible reading there: one unit at column 0.
+        Either way the selection is dropped afterwards and the cursor returns
+        to the first non-blank column of the row the command started from --
+        the span's own end would leave it on the last row touched, which is
+        not where vim puts it.
 
         *count* is passed in rather than read here because the caller has to
         consume it before dropping the pending command state.
         """
         row = buf.row
-        for _ in range(count):
-            buf.set_cursor((row, 0))
-            buf.set_cursor((row, len(buf.lines[row])), select=True)
-            if key == ">":
-                buf.indent_selection()
-            else:
-                buf.outdent_selection()
+        last = min(row + count - 1, len(buf.lines) - 1)
+        buf.set_cursor((row, 0))
+        buf.set_cursor((last, len(buf.lines[last])), select=True)
+        if key == ">":
+            buf.indent_selection()
+        else:
+            buf.outdent_selection()
         buf.clear_selection()
-        # toggle=False: a toggle would bounce off the first non-blank column
-        # back to 0 on a second press, and the row may well sit there already.
+        # indent_selection leaves the cursor at the end of the *span*, but vim
+        # lands on the line the command started from, so walk back to it first
+        # -- otherwise ``3>`` on a four-line file would drop the cursor on the
+        # third line.  toggle=False on the move below: a toggle would bounce
+        # off the first non-blank column back to 0 on a second press, and the
+        # row may well sit there already.
+        buf.set_cursor((row, 0))
         buf.move_line_start(toggle=False)
 
     def _linewise_op(self, ctx: ActionContext, op: str) -> None:
