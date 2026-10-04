@@ -106,11 +106,6 @@ def indent_unit(tab_width: int, use_spaces: bool) -> str:
     return "\t"
 
 
-def leading_indent(line: str) -> str:
-    """Return the leading run of spaces and tabs of *line* (empty when unindented)."""
-    return line[: len(line) - len(line.lstrip(" \t"))]
-
-
 def opens_block(rules: LanguageRules, line: str) -> bool:
     """Return whether *line* ends with one of *rules*' block openers.
 
@@ -141,11 +136,6 @@ def closes_block(rules: LanguageRules, line: str) -> bool:
     if not words:
         return False
     return words[0].rstrip(":") in rules.dedent_keywords
-
-
-def is_blank(line: str) -> bool:
-    """Return whether *line* consists of whitespace only."""
-    return not line.strip()
 
 
 def pair_for(ch: str) -> str | None:

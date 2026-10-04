@@ -13,9 +13,7 @@ from dataclasses import dataclass
 from yate.editor_core.indentation import (
     CLOSERS,
     indent_unit,
-    is_blank,
     is_pair_of,
-    leading_indent,
     opens_block,
     pair_for,
     rules_for,
@@ -429,6 +427,11 @@ class TextBuffer:
         every language.  Should pairs ever diverge (Python quote handling, say),
         dispatch on the value right here -- no keymap change needed.
         """
+        # Explicit guard, not a redundant one: the "closing symbol in front of
+        # its twin" branch further down returns without touching the text, so
+        # nothing it calls would ever raise on a read-only buffer.  Delegating
+        # the check to ``insert_text`` alone would let that path type happily
+        # on a buffer that must refuse every mutation.
         self._ensure_writable()
         if len(ch) != 1 or not ch.isprintable():
             self.insert_text(ch)
@@ -442,8 +445,13 @@ class TextBuffer:
             (r1, c1), (r2, c2) = sel
             inner = self.selected_text() or ""
             before = self._snapshot()
-            self.cursor = (r1, c1)
-            self.anchor = None
+            # Deliberately not :meth:`replace_range`: it hard-codes
+            # ``kind="step"``, and the wrap has to stay a ``"char"`` edit so
+            # that the auto-completed pair merges with the keystrokes around
+            # it into one undo entry.  Under ``"step"`` the closing symbol
+            # would survive a Ctrl+Z that takes back the opening one, leaving
+            # an orphan bracket behind (issue G8).
+            self.set_cursor((r1, c1))
             self._delete_range((r1, c1), (r2, c2))
             self._apply_text(f"{ch}{inner}{right}")
             self.move_left()  # park before the closing symbol, not after it
@@ -475,11 +483,21 @@ class TextBuffer:
         undoing a level on ``else:`` / ``elif:`` is a syntax-level feature V1
         leaves out.
         """
+        self._ensure_writable()
         r, _ = self.cursor
         line = self.lines[r]
+        # Two scans where the old code made three.  ``strip`` answers both the
+        # blank test and the block test at once, and ``opens_block`` rstrips
+        # internally anyway, so handing it the stripped text means that third
+        # scan now walks no characters.  The indent keeps its own left-only
+        # strip: slicing ``line[: len(line) - len(stripped)]`` would be shorter
+        # code but wrong whenever the line has trailing whitespace, because
+        # ``strip`` eats both ends and the slice would then reach past the
+        # indent into the line's own text (``"if x:  "`` -> ``"if"``).
+        stripped = line.strip()
+        indent = line[: len(line) - len(line.lstrip(" \t"))]
         rules = rules_for(language)
-        indent = leading_indent(line)
-        if not is_blank(line) and opens_block(rules, line):
+        if stripped and opens_block(rules, stripped):
             indent += indent_unit(self.tab_width, self.use_spaces)
         self.insert_text("\n" + indent, kind="char")
 
