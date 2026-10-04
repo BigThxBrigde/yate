@@ -58,7 +58,7 @@ from yate.logs import tracing
 from yate.paths import load_tcss
 
 from . import theme
-from .scrollbars import apply_slim_scrollbars
+from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 log = tracing.get_logger(__name__)
 
@@ -254,13 +254,14 @@ class DiffPane(ScrollView):
         self,
         doc: Document,
         title: str,
-        read_only: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.doc = doc
         self.title = title
-        self.read_only = read_only
+        # Read-only enforcement reads ``self.buffer.read_only`` directly (it
+        # is the single source of truth and can change between diff runs);
+        # a pane-level copy of the flag would only drift from it.
         #: Edit mode is entered/exited by the screen (``toggle_edit``).
         self.editing: bool = False
         self._state: PaneDiffState | None = None
@@ -281,26 +282,17 @@ class DiffPane(ScrollView):
         super().on_mount()
         apply_slim_scrollbars(self)
         self._apply_theme()
-        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+        theme.attach(self, self._apply_theme)
         self._update_virtual_size()
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast (widgets own their painting)."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     def _apply_theme(self) -> None:
         """Paint this pane with the active theme (bg + scrollbar palette)."""
-        t = theme.active()
-        self.styles.background = t.bg
-        s = self.styles
-        s.scrollbar_background = Color(0, 0, 0, 0)
-        s.scrollbar_background_hover = Color.parse(t.surface).with_alpha(0.35)
-        s.scrollbar_color = t.border
-        s.scrollbar_color_hover = t.fg_dim
-        s.scrollbar_color_active = t.accent
-        s.scrollbar_corner_color = Color(0, 0, 0, 0)
+        self.styles.background = theme.active().bg
+        apply_scrollbar_theme(self)
         self.refresh()
 
     # ------------------------------------------------------------- state
@@ -605,7 +597,6 @@ class DiffScreen(ModalScreen[None]):
                     yield DiffPane(
                         doc,
                         title=self._labels[i],
-                        read_only=doc.buffer.read_only,
                         id=f"diff-pane-{i}",
                     )
             yield Static("", id="diff-hint")
@@ -1030,8 +1021,9 @@ class DiffScreen(ModalScreen[None]):
     def action_dismiss_guarded(self) -> None:
         """Two-step close: first press warns, second press pops.
 
-        Any edit / copy resets the latch (via :meth:`_recompute`), so the
-        warning always reflects the state at warning time.
+        Any edit / copy resets the latch (:meth:`_pane_changed`,
+        :meth:`_apply_copy`, :meth:`action_undo_pane`), so the warning
+        always reflects the state at warning time.
         """
         if self._confirm_close:
             self.dismiss(None)

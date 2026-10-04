@@ -2,6 +2,8 @@
 and the UI-independent manager (registry, document sync, completion,
 diagnostics).  No real language server is required."""
 
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import asyncio
@@ -304,7 +306,6 @@ def test_server_request_and_publish_notification() -> None:
                     if msg is None:
                         return
                     if msg.get("id") == 90:
-                        assert msg.get("result") == [{}]
                         await answer.put(msg)
                         return
             except (asyncio.IncompleteReadError, ConnectionResetError):
@@ -334,6 +335,9 @@ def test_server_request_and_publish_notification() -> None:
         assert client.state == ServerState.READY
         responded = await asyncio.wait_for(answer.get(), timeout=2.0)
         assert responded["id"] == 90
+        # the response body is checked on the test side: a mismatch now
+        # fails with the real values instead of decaying into a timeout
+        assert responded["result"] == [{}]
         assert any(
             m == "textDocument/publishDiagnostics" for m, _ in events)
         await client.stop()
@@ -629,6 +633,57 @@ def test_register_index_and_replace() -> None:
     mgr.register_server(other)
     assert mgr.config_names() == ["python"]
     assert mgr.config_for("pyi") == other
+
+
+def test_utf16_position_helpers_round_trip_non_bmp_text() -> None:
+    """LSP character offsets are UTF-16 units; the buffer counts code points.
+
+    The manager used to send and apply raw code-point columns, so any
+    non-BMP character (emoji, CJK extension blocks) shifted every later
+    position on the line (2026-10-03 review R-34).
+    """
+    from yate.editor_lsp.manager import _from_utf16, _to_utf16
+
+    line = "a\U0001f600bcd"
+    assert _to_utf16(line, 1) == 1
+    assert _to_utf16(line, 2) == 3
+    assert _from_utf16(line, 3) == 2
+    assert _from_utf16(line, 4) == 3
+
+
+def test_diagnostics_with_malformed_coordinates_degrade_to_zero() -> None:
+    """A single malformed entry must not kill the LSP session (R-32).
+
+    ``int(start.get("line", 0))`` raised on an explicit ``null`` / string
+    coordinate, and the read-loop fallback failed the whole client.
+    """
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": None, "character": "x"},
+            "end": {"line": 0, "character": 0},
+        },
+        "message": "boom",
+    }]
+    diags = LspManager._parse_diagnostics(raw, ["hello"])
+    assert len(diags) == 1
+    assert (diags[0].start_row, diags[0].start_col) == (0, 0)
+    assert diags[0].message == "boom"
+
+
+def test_diagnostic_columns_are_converted_from_utf16() -> None:
+    """Server UTF-16 columns land on the right buffer columns (R-34)."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": 0, "character": 3},
+            "end": {"line": 0, "character": 5},
+        },
+        "message": "m",
+        "severity": 1,
+    }]
+    diags = LspManager._parse_diagnostics(raw, ["a\U0001f600bcd"])
+    # UTF-16 units 3..5 cover "bc" (the emoji is two units), i.e. buffer
+    # columns 2..4.
+    assert (diags[0].start_col, diags[0].end_col) == (2, 4)
 
 
 def test_root_marker_discovery(tmp_path: Path) -> None:

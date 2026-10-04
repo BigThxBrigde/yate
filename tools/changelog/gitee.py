@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Final
 
 _HTTPS_RE: re.Pattern[str] = re.compile(
     r"^https?://(?P<host>[^/]+)/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
@@ -25,6 +26,12 @@ _SCP_RE: re.Pattern[str] = re.compile(
 )
 
 _ONLINE_TIMEOUT_S: float = 5.0
+
+#: Upper bound on the per-run online commit checks in :func:`pushed_flags`:
+#: each entry costs one public-API request, so a long backlog would block
+#: the ``--online`` run for minutes; entries beyond the cap stay "unknown"
+#: (the render never gates on unknown states).
+MAX_ONLINE_CHECKS: Final[int] = 200
 
 #: Hosts with a public read-only commit API that ``check_commit_pushed``
 #: understands; everything else must be reported as "cannot verify".
@@ -113,15 +120,25 @@ def check_commit_pushed(
 
 
 def pushed_flags(
-    remote: RemoteInfo | None, shas: Mapping[str, str]
+    remote: RemoteInfo | None,
+    shas: Mapping[str, str],
+    *,
+    max_checks: int = MAX_ONLINE_CHECKS,
 ) -> dict[str, bool]:
-    """Check a mapping of ``short_sha -> full_sha``; stops at the first
-    network failure and keeps only definite answers (``False`` = unpushed).
+    """Check a mapping of ``short_sha -> full_sha`` against the remote API.
+
+    At most *max_checks* commits are queried (one public-API request each)
+    so ``--online`` over a long backlog cannot block for minutes; entries
+    beyond the cap are left "unknown" and never gate the render.  The run
+    stops at the first network failure and keeps only definite answers
+    (``False`` = unpushed).
     """
     if remote is None:
         return {}
     flags: dict[str, bool] = {}
-    for short_sha, sha in shas.items():
+    for index, (short_sha, sha) in enumerate(shas.items()):
+        if index >= max_checks:
+            break
         state = check_commit_pushed(remote, sha)
         if state is False:
             flags[short_sha] = False

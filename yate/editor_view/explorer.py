@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, override
 
 from rich.text import Text
-from textual.color import Color
 from textual.events import Key
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
@@ -27,7 +26,7 @@ from yate.session import EditorSession
 from . import theme
 from .commandline import PromptBar
 from .icons import icon_color, icon_for_path
-from .scrollbars import apply_slim_scrollbars
+from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None
@@ -247,30 +246,22 @@ class ExplorerTree(Tree[NodeData]):
         super().on_mount()
         apply_slim_scrollbars(self)
         self._apply_theme()
-        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+        theme.attach(self, self._apply_theme)
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
-        if self._theme_unsubscribe is not None:
-            self._theme_unsubscribe()
-            self._theme_unsubscribe = None
+        theme.detach(self)
 
     def _apply_theme(self) -> None:
         """Paint the scrollbar palette with the active theme colors.
 
-        Slim-scrollbar palette (issue IKINF3): the track is fully transparent
-        (ScrollBar composites alpha<1 over the parent background), so only
-        the thin partial-block thumb is visible; a faint tint appears on
-        hover, the thumb brightens on drag.
+        Slim-scrollbar palette (issue IKINF3), shared with the editor view
+        and the diff panes: the track is fully transparent (ScrollBar
+        composites alpha<1 over the parent background), so only the thin
+        partial-block thumb is visible; a faint tint appears on hover, the
+        thumb brightens on drag.
         """
-        t = theme.active()
-        s = self.styles
-        s.scrollbar_background = Color(0, 0, 0, 0)
-        s.scrollbar_background_hover = Color.parse(t.surface).with_alpha(0.35)
-        s.scrollbar_color = t.border
-        s.scrollbar_color_hover = t.fg_dim
-        s.scrollbar_color_active = t.accent
-        s.scrollbar_corner_color = Color(0, 0, 0, 0)
+        apply_scrollbar_theme(self)
         self.refresh_tree()
 
     # ------------------------------------------------------------- events

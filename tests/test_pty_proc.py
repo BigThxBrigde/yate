@@ -460,11 +460,13 @@ def test_a_racy_exit_future_is_tolerated(stub_pty: type[_StubImpl]) -> None:
         logged: list[dict[str, Any]] = []
         previous = loop.get_exception_handler()
         loop.set_exception_handler(lambda _loop, ctx: logged.append(ctx))
-        cast(Any, proc)._exit_future = _RacyFuture()
-        impl.owner.process_finished(4)
-        assert await _wait_for(lambda: exits == [4])
-        await asyncio.sleep(0.05)
-        loop.set_exception_handler(previous)
+        try:
+            cast(Any, proc)._exit_future = _RacyFuture()
+            impl.owner.process_finished(4)
+            assert await _wait_for(lambda: exits == [4])
+            await asyncio.sleep(0.05)
+        finally:
+            loop.set_exception_handler(previous)
         assert logged == []
 
     asyncio.run(_scenario())

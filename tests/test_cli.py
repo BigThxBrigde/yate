@@ -285,7 +285,12 @@ def test_version_never_imports_the_tui_stack() -> None:
         "assert 'yate.editor' not in sys.modules, 'yate.editor imported';"
         "assert 'textual' not in sys.modules, 'textual imported'"
     )
-    subprocess.run([sys.executable, "-c", code], check=True)
+    proc = subprocess.run(
+        [sys.executable, "-c", code], check=False, capture_output=True, text=True
+    )
+    assert proc.returncode == 0, (
+        f"child exited {proc.returncode}\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
 
 
 def test_diag_prints_report_without_running_tui(

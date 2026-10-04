@@ -7,9 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import os
-import time
-from collections.abc import Awaitable, Callable
+import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast, override
 
@@ -17,11 +16,6 @@ import pytest
 from textual.strip import Strip
 from textual.widget import Widget
 from textual.widgets.tree import TreeNode
-
-# The bundled yate/extensions/ directory is auto-loaded with every YateApp;
-# make sure the Python LSP extension never probes PATH or spawns a real server
-# while the UI test suite runs.
-os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_syntax.tokens import Token
@@ -35,26 +29,7 @@ from yate.prompt_completion import prompt_completions
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
-
-async def wait_until(  # noqa: Any - Textual pilot probe; no stubs
-    pilot: Any, predicate: Callable[[], bool],
-    timeout: float = 5.0, step: float = 0.05,
-) -> bool:
-    """Pause until *predicate* holds; False on timeout (for worker tests)."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        # pilot.pause lets background workers/to_thread callbacks progress
-        result: Awaitable[None] = pilot.pause(step)
-        await result
-        if predicate():
-            return True
-    return predicate()
-
-
-def plain_text(content: Any) -> str:
-    """Plain text of a widget renderable (rich Text, str, or other)."""
-    plain = getattr(content, "plain", None)
-    return plain if isinstance(plain, str) else str(content)
+from conftest import message_text, plain_text, wait_until
 
 
 # ------------------------------------------------------------------ key mapping
@@ -330,7 +305,7 @@ def test_readonly_saveas_unexpected_error_restores_lock(
             blocked = tmp_path / "no-such-dir" / "out.txt"
             app.editor.run_command(f"saveas {blocked}")
             await pilot.pause()
-            assert "save failed" in _message_text(app)
+            assert "save failed" in message_text(app)
             assert app.editor.session.buffer.read_only
             assert not blocked.exists()
 
@@ -379,10 +354,12 @@ def test_syntax_highlight_and_theme_switch(tmp_path: Path) -> None:
 
             # switch theme via the app action (the ":" ex line is
             # vim-only; the same command is reached via the vsc palette)
-            app.editor.set_theme("latte")
-            await pilot.pause()
-            assert theme.active().name == "latte"
-            theme.set_theme("mocha")  # restore default for other tests
+            try:
+                app.editor.set_theme("latte")
+                await pilot.pause()
+                assert theme.active().name == "latte"
+            finally:
+                theme.set_theme("mocha")  # restore default for other tests
 
     asyncio.run(scenario())
 
@@ -1158,6 +1135,46 @@ def test_palette_down_cursor_moves(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_palette_down_on_a_single_result_does_not_execute_it(tmp_path: Path) -> None:
+    """Down only moves the cursor: a unique result executes on Tab alone.
+
+    The single-match fast path sat inside the branch shared with
+    down / ctrl+n, so pressing Down on the one result opened the file
+    (2026-10-03 review R-20).
+    """
+    from yate.editor_view.palette import PaletteScreen
+
+    async def scenario() -> None:
+        (tmp_path / "only.txt").write_text("x\n", encoding="utf-8")
+        app = YateApp(target=tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.editor.overlays.open_file_palette()
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot,
+                lambda: app.focused is not None
+                and app.focused.id == "palette-input",
+                timeout=5.0,
+            )
+            # wait for the file walk to populate the single entry
+            assert await wait_until(
+                pilot, lambda: len(screen._filtered) == 1, timeout=5.0
+            )
+            await pilot.press("down")
+            await pilot.pause()
+            assert isinstance(app.screen, PaletteScreen)
+            await pilot.press("tab")
+            assert await wait_until(
+                pilot,
+                lambda: not isinstance(app.screen, PaletteScreen),
+                timeout=5.0,
+            )
+
+    asyncio.run(scenario())
+
+
 # ------------------------------------------------------------- editor scrolling
 
 
@@ -1892,37 +1909,45 @@ def test_set_theme_switches_textual_theme_and_overlay_border() -> None:
         from yate.editor_view import theme as yate_theme
 
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            # switch to latte -> app.theme becomes yate-latte, the overlay
-            # border token ($primary) resolves to latte's accent2 (mauve)
-            app.editor.run_command("set theme=latte")
-            await pilot.pause()
-            await pilot.pause()
-            assert app.theme == "yate-latte"
-            # open the help overlay and inspect its border color -- it must
-            # follow the latte palette, not the textual-dark blue.  The border
-            # shorthand returns an Edges NamedTuple of (type, Color) per side.
-            await pilot.press("f1")
-            await pilot.pause()
-            overlay = app.screen.query_one("#overlay")
-            border_color = overlay.styles.border.top[1]
-            expected = Color.parse(yate_theme.THEMES["latte"].accent2)
-            assert border_color.hex == expected.hex
-            await pilot.press("escape")
-            await pilot.pause()
+        try:
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                # switch to latte -> app.theme becomes yate-latte, the
+                # overlay border token ($primary) resolves to latte's
+                # accent2 (mauve)
+                app.editor.run_command("set theme=latte")
+                await pilot.pause()
+                await pilot.pause()
+                assert app.theme == "yate-latte"
+                # open the help overlay and inspect its border color -- it
+                # must follow the latte palette, not the textual-dark blue.
+                # The border shorthand returns an Edges NamedTuple of
+                # (type, Color) per side.
+                await pilot.press("f1")
+                await pilot.pause()
+                overlay = app.screen.query_one("#overlay")
+                border_color = overlay.styles.border.top[1]
+                expected = Color.parse(yate_theme.THEMES["latte"].accent2)
+                assert border_color.hex == expected.hex
+                await pilot.press("escape")
+                await pilot.pause()
 
-            # one non-Mocha dark theme proves the textual-dark blue is gone
-            app.editor.run_command("set theme=onedark")
-            await pilot.pause()
-            await pilot.pause()
-            assert app.theme == "yate-onedark"
-            await pilot.press("f1")
-            await pilot.pause()
-            overlay = app.screen.query_one("#overlay")
-            border_color = overlay.styles.border.top[1]
-            expected = Color.parse(yate_theme.THEMES["onedark"].accent2)
-            assert border_color.hex == expected.hex
+                # one non-Mocha dark theme proves the textual-dark blue is
+                # gone
+                app.editor.run_command("set theme=onedark")
+                await pilot.pause()
+                await pilot.pause()
+                assert app.theme == "yate-onedark"
+                await pilot.press("f1")
+                await pilot.pause()
+                overlay = app.screen.query_one("#overlay")
+                border_color = overlay.styles.border.top[1]
+                expected = Color.parse(yate_theme.THEMES["onedark"].accent2)
+                assert border_color.hex == expected.hex
+        finally:
+            # restore the default theme even on failure: a leaked latte /
+            # onedark would cascade into every later theme-sensitive test
+            yate_theme.set_theme("mocha")
 
     asyncio.run(scenario())
 
@@ -2225,9 +2250,10 @@ def test_manual_paints_before_content_loads() -> None:
     from yate.editor_view import manual as manual_mod
 
     original = manual_mod.load_doc_markdown
+    gate = threading.Event()
 
     def slow_load(kind: str, lang: str = "en") -> str:
-        time.sleep(1.5)
+        gate.wait(timeout=10.0)
         return original(kind, lang)
 
     async def scenario() -> None:
@@ -2246,6 +2272,9 @@ def test_manual_paints_before_content_loads() -> None:
                 loading = app.screen.query_one("#doc-loading", Static)
                 assert md.source == ""
                 assert loading.display
+                # responsiveness proven: release the parked reader thread so
+                # the content arrives without a fixed sleep
+                gate.set()
                 # content then arrives without dismissing the screen
                 loaded = await wait_until(
                     pilot,
@@ -2266,11 +2295,13 @@ def test_shell_command_runs_without_freezing_ui() -> None:
     from yate.editor_view.modals import OutputScreen
     from yate.services.shell import ShellResult
 
+    gate = threading.Event()
+
     def slow_shell(command: str, cwd: object = None,
                    timeout: float = 60.0) -> ShellResult:
-        # long enough that headless message-pump slowness cannot let it
-        # finish before the responsiveness assertions run
-        time.sleep(2.0)
+        # parked until the test has proven the UI stays responsive, so
+        # headless message-pump slowness cannot let it finish too early
+        gate.wait(timeout=10.0)
         return ShellResult(command, 0, "yate-async-marker", Path.cwd())
 
     async def scenario() -> None:
@@ -2297,6 +2328,9 @@ def test_shell_command_runs_without_freezing_ui() -> None:
                 assert len(app.screen_stack) == 2
                 await pilot.press("escape")
                 await pilot.pause(0.1)
+                # responsiveness proven: release the parked shell thread so
+                # the output screen arrives without a fixed sleep
+                gate.set()
             # the output screen appears when the worker finishes
             shown = await wait_until(
                 pilot, lambda: isinstance(app.screen, OutputScreen),
@@ -2324,8 +2358,10 @@ def test_file_palette_indexes_in_background(tmp_path: Path) -> None:
     app = YateApp(target=root)
 
     async def scenario() -> None:
+        gate = threading.Event()
+
         def slow_walk(self: Workspace, limit: int = 5000) -> list[Path]:
-            time.sleep(1.5)
+            gate.wait(timeout=10.0)
             return [root / "notes.txt"]
 
         def status_text() -> str:
@@ -2339,6 +2375,8 @@ def test_file_palette_indexes_in_background(tmp_path: Path) -> None:
                 assert isinstance(app.screen, PaletteScreen)
                 palette = cast(PaletteScreen, app.screen)
                 assert "indexing" in status_text()
+                # responsiveness proven: release the parked indexing thread
+                gate.set()
                 done = await wait_until(
                     pilot, lambda: palette.filtered_count == 1,
                     timeout=10.0,
@@ -2928,11 +2966,6 @@ def test_goto_prompt_rejects_non_numeric() -> None:
 # ------------------------------------------------------------- command feedback
 
 
-def _message_text(app: YateApp) -> str:
-    assert app.editor.prompt_bar is not None
-    return plain_text(app.editor.prompt_bar.message.content)
-
-
 @pytest.mark.parametrize(
     "command,cls_name",
     [
@@ -2959,10 +2992,10 @@ def test_overlay_commands_clear_stale_message(
             app.editor.run_command(command)
             await pilot.pause()
             assert type(app.screen).__name__ == cls_name
-            assert "stale note" not in _message_text(app)
+            assert "stale note" not in message_text(app)
             await pilot.press("escape")
             await pilot.pause()
-            assert "stale note" not in _message_text(app)
+            assert "stale note" not in message_text(app)
 
     asyncio.run(scenario())
 
@@ -2975,7 +3008,7 @@ def test_cycle_tab_with_single_tab_is_silent_noop() -> None:
         app = YateApp()
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            baseline = _message_text(app)
+            baseline = message_text(app)
             assert "only one tab" not in baseline
 
             app.editor.run_command("bn")
@@ -2985,7 +3018,7 @@ def test_cycle_tab_with_single_tab_is_silent_noop() -> None:
             app.editor.document_flows.cycle_tab(1)
             app.editor.document_flows.cycle_tab(-1)
             await pilot.pause()
-            assert _message_text(app) == baseline
+            assert message_text(app) == baseline
             assert app.editor.session.doc is app.editor.session.docs[0]
 
     asyncio.run(scenario())
@@ -3090,16 +3123,16 @@ def test_set_terminal_height_reports_and_validates() -> None:
             app.editor.run_command("set terminal_height=20")
             await pilot.pause()
             assert app.editor.config.terminal_height == 20
-            assert "terminal height: 20 rows" in _message_text(app)
+            assert "terminal height: 20 rows" in message_text(app)
 
             app.editor.run_command("set terminal_height=99")
             await pilot.pause()
             assert app.editor.config.terminal_height == 20  # rejected
-            assert "between 3 and 40" in _message_text(app)
+            assert "between 3 and 40" in message_text(app)
 
             app.editor.run_command("set terminal_height=abc")
             await pilot.pause()
-            assert "integer" in _message_text(app)
+            assert "integer" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -3112,7 +3145,7 @@ def test_termclose_without_open_terminal_warns() -> None:
             assert not app.editor.terminal_panel.is_visible
             app.editor.run_command("termclose")
             await pilot.pause()
-            assert "already hidden" in _message_text(app)
+            assert "already hidden" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -3127,11 +3160,11 @@ def test_term_commands_report_shown_and_hidden() -> None:
             assert panel is not None
             app.editor.run_command("term")
             await wait_until(pilot, lambda: panel.view.proc is not None)
-            assert "terminal shown" in _message_text(app)
+            assert "terminal shown" in message_text(app)
             app.editor.run_command("termclose")
             await pilot.pause()
             assert not panel.display
-            assert "terminal hidden" in _message_text(app)
+            assert "terminal hidden" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -3143,13 +3176,13 @@ def test_setting_commands_confirm_success() -> None:
             await pilot.pause()
             app.editor.run_command("set keymap=vim")
             await pilot.pause()
-            assert "keymap:" in _message_text(app)
+            assert "keymap:" in message_text(app)
             app.editor.run_command("set theme=latte")
             await pilot.pause()
-            assert "theme:" in _message_text(app)
+            assert "theme:" in message_text(app)
             app.editor.run_command("set filetype=python")
             await pilot.pause()
-            assert "filetype set to" in _message_text(app)
+            assert "filetype set to" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -4121,6 +4154,23 @@ def test_vsplit_with_file_and_only(pane_root: Path) -> None:
     asyncio.run(scenario())
 
 
+async def _wait_quit(app: YateApp, pilot: Any) -> None:
+    """Pump the pilot until *app* exits (mirrors the :q tests above).
+
+    After the pump loop the app must have exited cleanly: ``_exception``
+    being set would mean the shutdown crashed rather than quit, and that
+    must not pass silently as a successful quit.
+    """
+    for _ in range(5):
+        with contextlib.suppress(Exception):
+            await pilot.pause()
+        if not app.is_running:
+            break
+    for _ in range(3):
+        await asyncio.sleep(0)
+    assert app._exception is None
+
+
 def test_chord_split_resize_close_and_q(pane_root: Path) -> None:
     async def scenario() -> None:
         app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
@@ -4157,15 +4207,7 @@ def test_chord_split_resize_close_and_q(pane_root: Path) -> None:
             await pilot.pause()
             assert app.is_running
             app.editor.run_command("q!")
-            for _ in range(5):
-                with contextlib.suppress(Exception):
-                    await pilot.pause()
-                if not app.is_running:
-                    break
-            # let any worker scheduled by the final shutdown render start
-            # (so its coroutine is awaited rather than GC'd at loop close)
-            for _ in range(3):
-                await asyncio.sleep(0)
+            await _wait_quit(app, pilot)
             assert not app.is_running
 
     asyncio.run(scenario())
@@ -4204,13 +4246,7 @@ def test_q_always_quits_whole_editor_with_panes(pane_root: Path) -> None:
             assert panes.leaf_count == 2
 
             app.editor.run_command("q!")  # discard and quit the whole editor
-            for _ in range(5):
-                with contextlib.suppress(Exception):
-                    await pilot.pause()
-                if not app.is_running:
-                    break
-            for _ in range(3):
-                await asyncio.sleep(0)
+            await _wait_quit(app, pilot)
             assert not app.is_running
 
     asyncio.run(scenario())
@@ -4230,30 +4266,13 @@ def test_q_quits_immediately_with_clean_panes(pane_root: Path) -> None:
             await pilot.press("ctrl+w", "s")
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             app.editor.run_command("q")
-            for _ in range(5):
-                with contextlib.suppress(Exception):
-                    await pilot.pause()
-                if not app.is_running:
-                    break
-            for _ in range(3):
-                await asyncio.sleep(0)
+            await _wait_quit(app, pilot)
             assert not app.is_running
 
     asyncio.run(scenario())
 
 
 # --------------------------------------------------------------- :wq guarding
-
-
-async def _wait_quit(app: YateApp, pilot: Any) -> None:
-    """Pump the pilot until *app* exits (mirrors the :q tests above)."""
-    for _ in range(5):
-        with contextlib.suppress(Exception):
-            await pilot.pause()
-        if not app.is_running:
-            break
-    for _ in range(3):
-        await asyncio.sleep(0)
 
 
 def test_wq_saves_and_quits_when_save_succeeds(tmp_path: Path) -> None:
@@ -4320,7 +4339,7 @@ def test_wq_does_not_quit_when_save_fails(tmp_path: Path) -> None:
             assert app.is_running
             assert app.editor.session.doc.modified
             assert app.editor.session.doc.buffer.get_text() == "keep"
-            assert "save failed" in _message_text(app)
+            assert "save failed" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -4354,7 +4373,7 @@ def test_wq_does_not_quit_for_unnamed_modified_buffer() -> None:
             assert app.is_running
             assert app.editor.session.doc.modified
             assert app.editor.session.doc.buffer.get_text() == "work"
-            assert "save cancelled" in _message_text(app)
+            assert "save cancelled" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -4459,7 +4478,7 @@ def test_wq_does_not_quit_when_other_tab_is_dirty(tmp_path: Path) -> None:
             # the dirty tab is untouched
             assert app.editor.session.docs[1].modified
             assert other.read_text(encoding="utf-8") == "pristine"
-            assert "unsaved changes" in _message_text(app)
+            assert "unsaved changes" in message_text(app)
 
     asyncio.run(scenario())
 
@@ -4499,7 +4518,7 @@ def test_wq_does_not_crash_on_unicode_encode_error(tmp_path: Path) -> None:
             # bytes survive the failed write untouched.
             assert app.is_running
             assert app.editor.session.doc.modified
-            assert "save failed" in _message_text(app)
+            assert "save failed" in message_text(app)
             assert app.editor.session.doc.buffer.get_text() == "caf\u00e9\U0001f600"
             assert target.read_bytes() == "caf\xe9".encode("cp1252")
 
@@ -4956,11 +4975,13 @@ def test_welcome_rows_cached_per_theme_and_keymap() -> None:
             assert editor._welcome_lines(theme.active(), vim_keys=True) is vim_rows
 
             # theme switch changes the key too -> rebuilt under latte
-            app.editor.set_theme("latte")
-            await pilot.pause()
-            latte_rows = editor._welcome_lines(theme.active(), vim_keys=True)
-            assert latte_rows is not vim_rows
-            theme.set_theme("mocha")  # restore default for other tests
+            try:
+                app.editor.set_theme("latte")
+                await pilot.pause()
+                latte_rows = editor._welcome_lines(theme.active(), vim_keys=True)
+                assert latte_rows is not vim_rows
+            finally:
+                theme.set_theme("mocha")  # restore default for other tests
 
     asyncio.run(scenario())
 
@@ -4981,8 +5002,6 @@ def test_discarded_highlight_pass_reschedules_immediately(
                 pilot, lambda: editor.highlight_probe().tokens is not None,
                 timeout=5.0,
             )
-
-            import threading
 
             import yate.editor_view.editor as editor_module
 

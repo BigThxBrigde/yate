@@ -28,6 +28,18 @@ def root_of(ws: Workspace) -> Path:
     return ws.root
 
 
+def test_is_text_file_tolerates_a_cut_multibyte_sequence(tmp_path: Path) -> None:
+    """A multi-byte char cut by the sniff window is not misread as binary.
+
+    The 2048-byte sniff chunk used to fail ``decode("utf-8")`` outright
+    when the cut landed inside a multi-byte sequence, excluding legitimate
+    extension-less text files from quick open (2026-10-03 review R-59).
+    """
+    path = tmp_path / "noext"
+    path.write_bytes(b"a" * 2046 + "中中".encode())
+    assert Workspace.is_text_file(path)
+
+
 def entry_names(entries: list[Entry]) -> list[str]:
     """Map a listed entry batch to its names."""
     return [e.name for e in entries]

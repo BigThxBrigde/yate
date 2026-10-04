@@ -9,9 +9,8 @@ buffer/path candidate builders are plain functions over a ``TextBuffer``.
 from __future__ import annotations
 
 import asyncio
-import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -20,6 +19,8 @@ from yate.editor_core import Document
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.client import Completion
 from yate.editor_view import completion
+
+from conftest import wait_until
 
 
 def _private(name: str) -> Any:
@@ -395,18 +396,6 @@ def test_buffer_completions_trims_to_sixty_four_items() -> None:
 # --- controller dismissal (S30) ---------------------------------------------
 
 
-async def _wait_until(  # noqa: Any - Textual's Pilot type is not worth stubbing for a poll helper
-    pilot: Any, predicate: Callable[[], bool], timeout: float = 5.0
-) -> bool:
-    """Pause until *predicate* holds; its final value on timeout."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        await pilot.pause(0.05)
-        if predicate():
-            return True
-    return predicate()
-
-
 def _typed_doc_app(tmp_path: Path) -> YateApp:
     """An app over a document whose tail line holds the half-typed ``al``."""
     doc = tmp_path / "note.txt"
@@ -433,21 +422,21 @@ def test_escape_dismissal_survives_a_pending_debounce(tmp_path: Path) -> None:
             app.editor.session.buffer.insert_text("\nal")
             app.editor.refresh_ui()
             await pilot.press("ctrl+space")
-            assert await _wait_until(pilot, lambda: popup.is_open)
+            assert await wait_until(pilot, lambda: popup.is_open)
 
             # schedule the guarded re-query, then close the widget the way
             # the popup's Esc binding does -- both in one loop tick, so the
             # 0.12s debounce cannot fire in between
             controller.after_editor_key("p")
             popup.close()
-            resurrected = await _wait_until(
+            resurrected = await wait_until(
                 pilot, lambda: popup.is_open, timeout=0.5
             )
             assert not resurrected
 
             # typing again is active input: the popup re-opens
             controller.after_editor_key("p")
-            assert await _wait_until(pilot, lambda: popup.is_open)
+            assert await wait_until(pilot, lambda: popup.is_open)
 
     asyncio.run(scenario())
 
@@ -468,7 +457,7 @@ def test_escape_dismissal_survives_the_in_flight_worker(
             app.editor.session.buffer.insert_text("\nal")
             app.editor.refresh_ui()
             await pilot.press("ctrl+space")
-            assert await _wait_until(pilot, lambda: popup.is_open)
+            assert await wait_until(pilot, lambda: popup.is_open)
 
             # hold the next query mid-flight so the close lands first
             gate = asyncio.Event()
@@ -504,7 +493,7 @@ def test_escape_dismissal_survives_the_in_flight_worker(
             popup.close()  # the popup's Esc binding, mid-flight
             gate.set()
             await pilot.pause()
-            resurrected = await _wait_until(
+            resurrected = await wait_until(
                 pilot, lambda: popup.is_open, timeout=0.3
             )
             assert not resurrected
@@ -525,18 +514,18 @@ def test_escape_then_ctrl_space_restores_the_popup(tmp_path: Path) -> None:
             app.editor.session.buffer.insert_text("\nal")
             app.editor.refresh_ui()
             await pilot.press("ctrl+space")
-            assert await _wait_until(pilot, lambda: popup.is_open)
+            assert await wait_until(pilot, lambda: popup.is_open)
 
             await pilot.press("p")  # schedules the guarded re-query
             await pilot.press("escape")  # closes the widget directly
             await pilot.pause()
             assert not popup.is_open
-            resurrected = await _wait_until(
+            resurrected = await wait_until(
                 pilot, lambda: popup.is_open, timeout=0.5
             )
             assert not resurrected
 
             await pilot.press("ctrl+space")
-            assert await _wait_until(pilot, lambda: popup.is_open)
+            assert await wait_until(pilot, lambda: popup.is_open)
 
     asyncio.run(scenario())

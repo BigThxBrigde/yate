@@ -14,31 +14,15 @@ from typing import override
 
 import pytest
 
-from yate.config import YateConfig
-from yate.keymaps.base import ActionContext, KeyBinding, Keymap, KeyUi, key_name, parse_key
-from yate.session import EditorSession
+from yate.keymaps.base import (
+    ActionContext,
+    KeyBinding,
+    Keymap,
+    key_name,
+    parse_key,
+)
 
-
-def _ui(
-    execute: Callable[[str], bool] = lambda _name: True,
-    on_message: Callable[[str], None] = lambda _text: None,
-) -> KeyUi:
-    """A KeyUi recording what it is asked to do (inert by default)."""
-    return KeyUi(
-        execute_action=execute,
-        message=on_message,
-        command_prompt=lambda: None,
-        find_prompt=lambda _forward: None,
-        goto_prompt=lambda: None,
-        toggle_keymap=lambda: None,
-    )
-
-
-def _context(ui: KeyUi | None = None) -> ActionContext:
-    """A real action context (the session plus the given or inert UI callbacks)."""
-    session = EditorSession(YateConfig())
-    session.new_buffer()
-    return ActionContext(session, ui if ui is not None else _ui())
+from conftest import make_action_context, make_key_ui
 
 
 class _SampleKeymap(Keymap):
@@ -325,7 +309,7 @@ def test_dispatch_calls_a_callable_action() -> None:
     keymap = Keymap()
     keymap.add_binding("<ctrl-s>", seen.append)
 
-    ctx = _context()
+    ctx = make_action_context()
     binding = keymap.lookup("\x13")
     assert binding is not None
     assert keymap.dispatch(binding, ctx) is True
@@ -340,7 +324,7 @@ def test_dispatch_reports_true_for_a_known_string_action() -> None:
         executed.append(name)
         return True
 
-    ctx = _context(_ui(execute=execute))
+    ctx = make_action_context(ui=make_key_ui(execute=execute))
     keymap = _SampleKeymap()
     binding = keymap.lookup("\x13")
     assert binding is not None
@@ -358,7 +342,9 @@ def test_dispatch_reports_an_unknown_action_and_returns_false() -> None:
     def message(text: str) -> None:
         messages.append(text)
 
-    ctx = _context(_ui(execute=execute, on_message=message))
+    ctx = make_action_context(
+        ui=make_key_ui(execute=execute, on_message=message)
+    )
     keymap = Keymap()
     keymap.add_binding("<ctrl-s>", "no-such-action")
 
@@ -374,7 +360,7 @@ def test_handle_key_dispatches_a_bound_key() -> None:
     keymap = Keymap()
     keymap.add_binding("<ctrl-s>", seen.append)
 
-    ctx = _context()
+    ctx = make_action_context()
     assert keymap.handle_key(ctx, "\x13") is True
     assert len(seen) == 1
     assert ctx.buffer.get_text() == ""
@@ -383,7 +369,7 @@ def test_handle_key_dispatches_a_bound_key() -> None:
 def test_handle_key_falls_back_to_the_unbound_handler() -> None:
     """An unbound key is left to handle_unbound."""
     keymap = Keymap()
-    ctx = _context()
+    ctx = make_action_context()
 
     assert keymap.handle_key(ctx, "x") is True
     assert ctx.buffer.get_text() == "x"
@@ -391,7 +377,7 @@ def test_handle_key_falls_back_to_the_unbound_handler() -> None:
 
 def test_handle_unbound_inserts_printable_characters() -> None:
     """The default fallback self-inserts single printable characters."""
-    ctx = _context()
+    ctx = make_action_context()
 
     assert Keymap().handle_unbound(ctx, "h") is True
     assert Keymap().handle_unbound(ctx, "i") is True
@@ -400,7 +386,7 @@ def test_handle_unbound_inserts_printable_characters() -> None:
 
 def test_handle_unbound_rejects_non_printable_and_multichar_keys() -> None:
     """Sequences and control codes are not inserted; the buffer is untouched."""
-    ctx = _context()
+    ctx = make_action_context()
     keymap = Keymap()
 
     assert keymap.handle_unbound(ctx, "\x1b[A") is False
@@ -414,7 +400,7 @@ def test_handle_unbound_rejects_non_printable_and_multichar_keys() -> None:
 
 def test_action_context_exposes_the_session_buffer_and_doc() -> None:
     """Actions reach the edited text through the context shortcuts."""
-    ctx = _context()
+    ctx = make_action_context()
 
     assert ctx.buffer is ctx.session.buffer
     assert ctx.doc is ctx.session.doc
@@ -427,8 +413,8 @@ def test_action_context_carries_the_ui_callbacks() -> None:
     def message(text: str) -> None:
         messages.append(text)
 
-    ui = _ui(on_message=message)
-    ctx = _context(ui)
+    ui = make_key_ui(on_message=message)
+    ctx = make_action_context(ui=ui)
 
     assert ctx.ui is ui
     ctx.ui.message("hello")

@@ -84,9 +84,23 @@ def test_run_writes_zh_pages_paired_en_and_nav(repo: Path, tmp_path: Path) -> No
     assert wiki.load_manifest(target) == {}
 
 
-def test_run_reports_missing_without_translator(repo: Path, tmp_path: Path) -> None:
-    code = wiki.run(tmp_path / "wiki", None, repo_root=repo)
+def test_run_reports_missing_without_translator(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Without a hook the run still reports each missing page by name."""
+    target = tmp_path / "wiki"
+    code = wiki.run(target, None, repo_root=repo)
     assert code == 0
+    # every page without an en twin must be listed so --check gaps can be
+    # triaged; the listing lands on stdout next to the run summary
+    expected_missing = {
+        page.en_target for page in wiki.collect_sources(repo)
+        if page.en_source is None
+    }
+    out = capsys.readouterr().out
+    for name in expected_missing:
+        assert f"  missing en: {name}" in out
+    assert f"missing {len(expected_missing)}" in out
 
 
 def test_en_source_deleted_after_collect_takes_missing_path(
@@ -136,13 +150,20 @@ def test_translate_cmd_fills_missing_pages(
 
     monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
     target = tmp_path / "wiki"
+    # Expected call count mirrors the pending predicate against the pristine
+    # target instead of hard-coding the fixture size.
+    expected = sum(
+        1
+        for page in wiki.collect_sources(repo)
+        if wiki.needs_translation(page, target, {}, translate_all=False)
+    )
     assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
-    assert calls == ["fake-cmd"] * 8
+    assert calls == ["fake-cmd"] * expected
     assert (target / "orphan.en.md").read_text(encoding="utf-8") == "# orphan en\n\ntranslated\n"
     assert "orphan.zh.md" in wiki.load_manifest(target)
     # Fresh pages are kept by default, so no further calls happen.
     assert wiki.run(target, "fake-cmd", check=True, repo_root=repo) == 0
-    assert calls == ["fake-cmd"] * 8
+    assert calls == ["fake-cmd"] * expected
 
 
 def test_existing_en_is_adopted_not_overwritten(
@@ -235,9 +256,16 @@ def test_translate_all_mode_retranslates_every_page(
 
     monkeypatch.setattr(wiki, "translate_via_cmd", counting_translate)
     target = tmp_path / "wiki"
+    # Expected count mirrors the pending predicate against the pristine
+    # target instead of hard-coding the fixture size.
+    expected = sum(
+        1
+        for page in wiki.collect_sources(repo)
+        if wiki.needs_translation(page, target, {}, translate_all=False)
+    )
     assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
     first = counter["n"]
-    assert first == 8
+    assert first == expected
     # --translate-all sends every non-bilingual page again, overwriting
     # even fresh English pages.
     assert wiki.run(target, "fake-cmd", translate_all=True, repo_root=repo) == 0
@@ -390,8 +418,9 @@ def test_push_continues_on_empty_commit(
 def test_load_manifest_aborts_on_read_error(tmp_path: Path) -> None:
     manifest = tmp_path / wiki.MANIFEST_NAME
     manifest.mkdir()  # a directory: exists() is True, read_text() raises OSError
-    with pytest.raises(SystemExit):
+    with pytest.raises(wiki.WikiError) as excinfo:
         wiki.load_manifest(tmp_path)
+    assert "manifest read error" in str(excinfo.value)
 
 
 def test_force_retranslate_failure_reports_stale(

@@ -164,7 +164,6 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
     query_file = QUERIES_DIR / f"{name}.scm"
     if ts is None or module_name is None or not query_file.is_file():
         _warn_degraded_once(name, "tree-sitter unavailable for %r (falls back to regex)")
-        log.debug("tree-sitter unavailable for %r (falls back to regex)", name)
         return None
     try:
         module = importlib.import_module(module_name)
@@ -175,7 +174,6 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
         # optional native code / third-party grammar: any failure must
         # degrade to the regex backend, never break the editor
         _warn_degraded_once(name, "tree-sitter load failed for %r (falls back to regex)")
-        log.debug("tree-sitter load failed for %r (falls back to regex)", name)
         return None
     loaded = LoadedLanguage(name, language, query, dict(DEFAULT_CAPTURE_MAP))
     _LANGS[name] = loaded

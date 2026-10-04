@@ -24,7 +24,6 @@ Known limitation: verbatim strings that actually span several source lines
 
 from __future__ import annotations
 
-from yate.editor_syntax import LangSpec
 from yate.services.extensions import ExtensionAPI
 
 # Reserved keywords (true/false/null live in constants below so they get the
@@ -70,21 +69,28 @@ _CS_BUILTINS: frozenset[str] = frozenset({
     "StringComparer", "File", "Directory", "Path",
 })
 
-CSHARP_SPEC: LangSpec = LangSpec(
-    name="csharp",
-    mode="code",
-    line_comment="//",
-    block_comment=("/*", "*/"),
-    # $ interpolated, @ verbatim, and $@ / @$ combinations (up to 2 prefixes).
-    string_prefixes="@$",
-    keywords=_CS_KEYWORDS,
-    builtins=_CS_BUILTINS,
-    constants=_CS_CONSTANTS,
-    types=_CS_TYPES,
-    type_def_words=frozenset({"class", "struct", "interface", "enum", "record"}),
-)
-
-
 def setup(api: ExtensionAPI) -> None:
-    """Register the C# highlighter for ``.cs`` / ``.csx`` files."""
-    api.highlight.register(CSHARP_SPEC, "cs", "csx")
+    """Register the C# highlighter for ``.cs`` / ``.csx`` files.
+
+    The spec is built through the documented extension surface
+    (``api.highlight.spec``) rather than by importing ``LangSpec``
+    directly: bundled extensions should model the narrow API a third-party
+    extension is expected to use.
+    """
+    spec = api.highlight.spec(
+        name="csharp",
+        mode="code",
+        line_comment="//",
+        block_comment=("/*", "*/"),
+        # $ interpolated, @ verbatim, and $@ / @$ combinations (up to 2
+        # prefixes).
+        string_prefixes="@$",
+        keywords=_CS_KEYWORDS,
+        builtins=_CS_BUILTINS,
+        constants=_CS_CONSTANTS,
+        types=_CS_TYPES,
+        type_def_words=frozenset({
+            "class", "struct", "interface", "enum", "record"
+        }),
+    )
+    api.highlight.register(spec, "cs", "csx")

@@ -27,13 +27,17 @@ def requirement_groups() -> dict[str, dict[str, str]]:
     """Parse ``requires("yate")`` into ``{extra: {canonical: display}}``.
 
     Requirements without an extra marker land in the ``core`` group; when
-    the yate distribution is missing (``requires()`` returning ``None``)
-    the result is ``{}``.  Entries without a leading distribution name are
-    skipped -- hatchling output is always valid, so this is purely
-    defensive.  Keys are PEP 503-canonical names, values keep the declared
-    display spelling.
+    the yate distribution is not installed (``requires()`` raising
+    ``PackageNotFoundError``) or has no Requires-Dist header
+    (``requires()`` returning ``None``) the result is ``{}``.  Entries
+    without a leading distribution name are skipped -- hatchling output
+    is always valid, so this is purely defensive.  Keys are PEP
+    503-canonical names, values keep the declared display spelling.
     """
-    raw = importlib_metadata.requires("yate")
+    try:
+        raw = importlib_metadata.requires("yate")
+    except importlib_metadata.PackageNotFoundError:
+        return {}
     if raw is None:
         return {}
     groups: dict[str, dict[str, str]] = {}

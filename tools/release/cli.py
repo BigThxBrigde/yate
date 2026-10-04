@@ -30,6 +30,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from .._util import repo_root
 from ..changelog import gitdata
 from ..changelog.cli import check, generate
 
@@ -67,8 +68,8 @@ class _RunState:
 
 
 def discover_repo_root() -> Path:
-    """The repository root is two levels above this package."""
-    return Path(__file__).resolve().parents[2]
+    """The repository root (single point: :func:`tools._util.repo_root`)."""
+    return repo_root()
 
 
 def read_current_version(repo: Path) -> str:

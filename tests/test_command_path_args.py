@@ -14,37 +14,13 @@ contain spaces, including the unquoted double-space case that
 from __future__ import annotations
 
 import asyncio
-import os
-import time
-from collections.abc import Callable
 from pathlib import Path
-
-# The bundled yate/extensions/ directory is auto-loaded with every YateApp;
-# make sure the Python LSP extension never probes PATH or spawns a real server
-# while the UI test suite runs.
-os.environ["YATE_PYTHON_LSP"] = "off"
-
-from textual.pilot import Pilot
 
 from yate.app import YateApp
 from yate.commands import _split_paths, _strip_quotes
 from yate.editor_view.diffview import DiffPane, DiffScreen
 
-
-async def wait_until(
-    pilot: Pilot[None],
-    predicate: Callable[[], bool],
-    timeout: float = 5.0,
-    step: float = 0.05,
-) -> bool:
-    """Pause until *predicate* holds; False on timeout (for worker tests)."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        # pilot.pause lets background workers/to_thread callbacks progress
-        await pilot.pause(step)
-        if predicate():
-            return True
-    return predicate()
+from conftest import wait_until
 
 
 # ---- _split_paths ---------------------------------------------------------

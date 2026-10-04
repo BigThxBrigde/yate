@@ -135,7 +135,14 @@ class ShellFlows:
 
     async def _font_async(self) -> None:
         """Install the font in a worker thread, then report the outcome."""
-        status = await asyncio.to_thread(fonts.ensure_font)
+        try:
+            status = await asyncio.to_thread(fonts.ensure_font)
+        except Exception as exc:  # noqa: BLE001 - report instead of dying silently
+            # The worker is spawned with exit_on_error=False, so an escaping
+            # exception would vanish and leave the "checking…" message up.
+            if self._mounted():
+                self._message(f"font setup failed: {exc}", "error")
+            return
         if self._mounted():
             self._message(
                 status.detail or ("Nerd Font ready" if status.has_nerd_font

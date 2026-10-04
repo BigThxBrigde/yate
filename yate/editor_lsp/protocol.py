@@ -27,6 +27,10 @@ JSONRPC: str = "2.0"
 #: corrupt length prefix making the reader allocate forever.
 MAX_MESSAGE_BYTES: int = 32 * 1024 * 1024
 
+#: Maximum header block size (64 KiB).  A server that never sends the blank
+#: CRLF terminator must not grow the header buffer without bound.
+MAX_HEADER_BYTES: int = 64 * 1024
+
 
 class LspProtocolError(RuntimeError):
     """Raised when a peer violates the LSP framing protocol."""
@@ -117,6 +121,10 @@ async def read_message(reader: Any) -> dict[str, Any] | None:
                 raise LspProtocolError("EOF in the middle of message headers")
             return None
         header_lines += line
+        if len(header_lines) > MAX_HEADER_BYTES:
+            # A server that never sends the blank CRLF line terminator must
+            # not grow our buffer without bound.
+            raise LspProtocolError("oversized headers")
         if line in (b"\r\n", b"\n"):
             break
     length = parse_headers(header_lines)

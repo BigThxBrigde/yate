@@ -254,9 +254,10 @@ class _SessionFileHandler(logging.FileHandler):
                 # Mark it written only once it really is: a failed write
                 # must not silently drop the header forever.
                 self._header_written = True
-        except OSError:
-            # Only I/O is forgiven (logging must never break the editor); a
-            # genuine bug in the header still has to surface.
+        except (OSError, ValueError):
+            # I/O failures and writes into a stream already closed during
+            # interpreter shutdown are forgiven (logging must never break
+            # the editor); a genuine bug in the header still has to surface.
             self.handleError(record)
             return
         super().emit(record)

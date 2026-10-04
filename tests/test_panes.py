@@ -14,17 +14,10 @@ leaf).
 from __future__ import annotations
 
 import asyncio
-import os
-import time
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
-
-# The S17 regression test launches the real app; make sure the bundled
-# Python LSP extension never probes PATH or spawns a server in tests.
-os.environ["YATE_PYTHON_LSP"] = "off"
 
 from yate.app import YateApp
 from yate.config import YateConfig
@@ -41,6 +34,8 @@ from yate.session import (
     leaves,
     remove_node,
 )
+
+from conftest import wait_until
 
 
 def make_doc(text: str = "") -> Document:
@@ -440,19 +435,6 @@ def test_remove_node_renormalizes_nested_survivors() -> None:
 # (focus leaf), so a real app under pilot is required.
 
 
-async def _wait_until(  # noqa: Any - Textual pilot probe; no stubs
-    pilot: Any, predicate: Callable[[], bool], timeout: float = 5.0
-) -> bool:
-    """Poll *predicate* between pilot pauses; False on timeout."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        result: Awaitable[None] = pilot.pause(0.05)
-        await result
-        if predicate():
-            return True
-    return predicate()
-
-
 def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -502,7 +484,7 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
 
             # split: the first leaf goes inactive with its scroll captured
             app.editor.run_command("split")
-            assert await _wait_until(pilot, lambda: panes.leaf_count == 2)
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             await pilot.pause()
             root = panes.root
             assert isinstance(root, Split)
@@ -513,7 +495,7 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
 
             # split the active pane again: three leaves, C active
             app.editor.run_command("vsplit")
-            assert await _wait_until(pilot, lambda: panes.leaf_count == 3)
+            assert await wait_until(pilot, lambda: panes.leaf_count == 3)
             await pilot.pause()
             ordered = leaves(panes.root)
             assert ordered[0] is a_leaf
@@ -539,11 +521,11 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
             monkeypatch.setattr(EditorView, "scroll_to", _spy_scroll_to)
 
             app.editor.run_command("close")
-            assert await _wait_until(pilot, lambda: panes.leaf_count == 2)
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             # the rebuild's mount-time restores are retried until the fresh
             # views have been laid out (S17): both surviving panes end up
             # showing the saved row again, no manual re-apply needed
-            assert await _wait_until(
+            assert await wait_until(
                 pilot,
                 lambda: panes.views[a_leaf.id].scroll_offset.y == saved
                 and panes.views[b_leaf.id].scroll_offset.y == saved,
@@ -564,7 +546,7 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
             # focusing the inactive pane re-applies its saved scroll through
             # the same apply_doc path -- post-layout the widget keeps it
             panes.views[a_leaf.id].focus()
-            assert await _wait_until(
+            assert await wait_until(
                 pilot, lambda: panes.views[a_leaf.id].scroll_offset.y == saved
             )
             assert panes.active is a_leaf

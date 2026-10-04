@@ -49,6 +49,23 @@ _MOD_SPECIAL: dict[tuple[str, ...], dict[str, str]] = {
 }
 
 
+def modified_key_sequence(mods: frozenset[str], base: str) -> str | None:
+    """Raw sequence for a modified special key, or ``None``.
+
+    Single shared table for the driver-side codec and the terminal panel's
+    PTY writer (:func:`yate.editor_term.emulator.key_to_terminal`), so the
+    two cannot drift apart -- the emulator's local copy used to miss
+    ctrl+shift arrows and modified home/end/pageup/pagedown, silently
+    dropping those keys in the integrated terminal.
+    """
+    ordered = tuple(sorted(mods))
+    for table in (_MOD_ARROWS, _MOD_SPECIAL):
+        entry = table.get(ordered)
+        if entry is not None and base in entry:
+            return entry[base]
+    return None
+
+
 def event_to_raw(key: str, character: str | None = None) -> str | None:
     """Map a Textual Key event to a raw key string.
 

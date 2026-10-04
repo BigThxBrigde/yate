@@ -27,6 +27,7 @@ import datetime
 from collections.abc import Sequence
 from pathlib import Path
 
+from .._util import repo_root
 from . import gitee, gitdata, render, segments, translations
 from .classify import classify_commit, is_changelog_entry
 from .model import Commit, ReleaseSegment
@@ -41,8 +42,8 @@ _LANGS: tuple[str, ...] = ("en", "zh")
 
 
 def discover_repo_root() -> Path:
-    """The repository root is two levels above this package."""
-    return Path(__file__).resolve().parents[2]
+    """The repository root (single point: :func:`tools._util.repo_root`)."""
+    return repo_root()
 
 
 def _output_paths(repo: Path, target: str) -> dict[str, Path]:
@@ -243,7 +244,8 @@ def zh_commit(
     if not changed:
         print(f"unchanged: {short_sha} already has this translation")
         return 0
-    translations.save_overrides(overrides, overrides_path)
+    if not translations.save_overrides(overrides, overrides_path):
+        return 1
     print(f"saved zh override for {short_sha}")
     print(f"  en: {english}")
     print(f"  zh: {summary}" + (f"\n  detail: {detail}" if detail else ""))

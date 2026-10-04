@@ -28,6 +28,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from .. import _util
 from . import icon, rosters, wiki
 
 
@@ -163,17 +164,25 @@ def _rosters(output: Path) -> int:
 
 
 def _wiki(args: argparse.Namespace) -> int:
-    repo_root = Path(__file__).resolve().parents[2]
-    target = args.target if args.target is not None else wiki.default_target(repo_root)
-    return wiki.run(
-        target,
-        args.translate_cmd,
-        force=args.force,
-        translate_all=args.translate_all,
-        check=args.check,
-        push=args.push,
-        repo_root=repo_root,
-    )
+    try:
+        repo_root = _util.repo_root()
+        target = (
+            args.target
+            if args.target is not None
+            else wiki.default_target(repo_root)
+        )
+        return wiki.run(
+            target,
+            args.translate_cmd,
+            force=args.force,
+            translate_all=args.translate_all,
+            check=args.check,
+            push=args.push,
+            repo_root=repo_root,
+        )
+    except wiki.WikiError as exc:
+        print(f"tools.pack: {exc}", file=sys.stderr)
+        return 1
 
 
 def main(argv: Sequence[str] | None = None) -> int:

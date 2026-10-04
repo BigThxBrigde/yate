@@ -90,11 +90,27 @@ class DocumentFlows:
 
     # ================================================================ target
 
+    def resolve_input_path(self, path: Path) -> Path:
+        """Normalize a user-typed path before it reaches the open flows.
+
+        ``~`` is expanded (Windows shells pass it through literally) and a
+        relative path resolves against the workspace root -- the same base
+        the path-completion candidates use -- not the process cwd (yate
+        never chdirs, so the two differ whenever yate was launched from
+        another directory).  Absolute paths pass through unchanged; with no
+        workspace root a relative path keeps its cwd-relative meaning (the
+        startup target, which *defines* the root).
+        """
+        expanded = Path(path).expanduser()
+        if not expanded.is_absolute() and self.workspace.root is not None:
+            return self.workspace.root / expanded
+        return expanded
+
     def open_target(self, path: Path) -> str:
         """Open the startup target and return ``"dir"`` or ``"file"``."""
         if not path.exists():
             # treat as a not-yet-created file
-            self.workspace.set_root(path.parent if str(path.parent) else Path.cwd())
+            self.workspace.set_root(path.parent)
             self._open_document(path)
             return "file"
         kind = self.workspace.open_target(path)
@@ -160,8 +176,22 @@ class DocumentFlows:
         """Open/reuse *path* in the active pane (explorer create flow)."""
         return self._open_document(path)
 
+    def _after_open(self) -> None:
+        """Shared post-open bookkeeping (tree, search, popup, message).
+
+        The tail of both :meth:`open_path` and :meth:`open_path_async` --
+        any future open side effect belongs here so the two entry points
+        cannot drift apart.
+        """
+        self.explorer_tree.refresh_tree()
+        self.session.reset_search()
+        self.completion.close()
+        self._message(f"opened {self.session.doc.name}", "info")
+        self._refresh_ui()
+
     def open_path(self, path: Path) -> None:
         """Open a file or switch the workspace to a directory (sync)."""
+        path = self.resolve_input_path(path)
         try:
             is_dir = path.is_dir()
         except OSError:
@@ -179,29 +209,28 @@ class DocumentFlows:
             return
         if self._open_document(path) is None:
             return
-        self.explorer_tree.refresh_tree()
-        self.session.reset_search()
-        self.completion.close()
-        self._message(f"opened {self.session.doc.name}", "info")
-        self._refresh_ui()
+        self._after_open()
 
-    async def open_path_async(self, path: Path) -> None:
-        """Open a file without blocking the UI (directory opens stay sync:
-        the tree only lists the bounded root level)."""
+    async def open_path_async(self, path: Path) -> bool:
+        """Open a file without blocking the UI; ``False`` when it failed.
+
+        Directory opens stay sync (the tree only lists the bounded root
+        level) and report success.  The boolean result lets the split flow
+        roll a failed open back (see
+        :meth:`~yate.window_flows.WindowFlows._split_pane_worker`).
+        """
+        path = self.resolve_input_path(path)
         try:
             is_dir = path.is_dir()
         except OSError:
             is_dir = False
         if is_dir:
             self.open_path(path)
-            return
+            return True
         if await self._open_document_async(path) is None:
-            return
-        self.explorer_tree.refresh_tree()
-        self.session.reset_search()
-        self.completion.close()
-        self._message(f"opened {self.session.doc.name}", "info")
-        self._refresh_ui()
+            return False
+        self._after_open()
+        return True
 
     def open_path_later(self, path: Path) -> None:
         """Schedule a non-blocking file open from a synchronous handler."""

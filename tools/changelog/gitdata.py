@@ -98,16 +98,33 @@ def read_commits(
     return parse_log_output(run_git(args, repo=repo))
 
 
+#: One ``for-each-ref`` record: name and the peeled commit sha (annotated
+#: tags resolve through ``%(*objectname)``, lightweight through ``%(objectname)``).
+_TAG_REF_FORMAT: str = (
+    "%(refname:short) %(if)%(*objectname)%(then)%(*objectname)"
+    "%(else)%(objectname)%(end)"
+)
+
+
 def read_tags(repo: Path) -> list[TagRef]:
-    """Read ``v*`` tags newest-creation-date first, resolving each to a sha."""
-    out = run_git(["tag", "--list", "v*", "--sort=-creatordate"], repo=repo)
+    """Read ``v*`` tags newest-creation-date first, resolving each to a sha.
+
+    One ``git for-each-ref`` call resolves every tag in a single subprocess;
+    the former per-tag ``rev-list`` spawn scaled linearly with the tag count.
+    """
+    out = run_git(
+        [
+            "for-each-ref",
+            "--sort=-creatordate",
+            f"--format={_TAG_REF_FORMAT}",
+            "refs/tags/v*",
+        ],
+        repo=repo,
+    )
     tags: list[TagRef] = []
-    for name in out.splitlines():
-        name = name.strip()
-        if not name:
-            continue
-        sha = run_git(["rev-list", "-n1", name], repo=repo).strip()
-        if sha:
+    for line in out.splitlines():
+        name, _, sha = line.strip().partition(" ")
+        if name and sha:
             tags.append(TagRef(name=name, sha=sha))
     return tags
 

@@ -23,6 +23,9 @@ from typing import Any, Callable
 from yate import __version__
 from yate.dist_meta import requirement_groups
 from yate.editor import Editor
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 # Terminal environment variables worth surfacing.  Values are shown for the
 # descriptive ones; opaque session ids are reported as ``<set>`` / ``<unset>``.
@@ -134,7 +137,7 @@ def _enable_windows_ansi() -> None:
         if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
             kernel32.SetConsoleMode(handle, mode.value | 0x0004)  # noqa: PLR2004
     except Exception:  # noqa: BLE001 - best-effort, never block the report
-        pass
+        log.debug("SetConsoleMode failed", exc_info=True)
 
 
 def _colorize_line(line: str) -> str:

@@ -244,7 +244,11 @@ def load_config(
 
     Files share one namespace (later files see and override earlier
     variables).  Read/compile/exec failures are recorded per file and do
-    not abort the remaining files.
+    not abort the remaining files.  Note that a file failing mid-way keeps
+    the side effects of its earlier statements: a scalar assignment
+    executed before the failing line stays in the shared namespace and
+    therefore still applies -- only that file's remaining lines are
+    skipped.
 
     Theme support is injected, not imported (N30: an L0 leaf must not
     import the L2 UI package).  *register_theme* is exposed to rc files
@@ -296,17 +300,23 @@ def load_config(
     return config
 
 
-def _extract_extensions(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
-    namespace: dict[str, Any], config: YateConfig, rc_dir: Path
+def _extract_path_list(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
+    namespace: dict[str, Any],
+    config: YateConfig,
+    rc_dir: Path,
+    key: str,
+    target: list[Path],
 ) -> None:
-    """Pull the ``extensions`` option out of one rc file's namespace.
+    """Pull one path-string-or-list option (*key*) out of one rc namespace.
 
-    The value is a path string or a list/tuple of path strings; each entry
-    may point at a directory (all ``*.py`` inside are loaded) or a single
-    ``.py`` file.  ``~`` is expanded and relative paths resolve against
-    *rc_dir*.  Entries accumulate across rc files and are de-duplicated.
+    Shared body of :func:`_extract_extensions` and
+    :func:`_extract_theme_dirs` -- only the option *key* and the target
+    list differ.  The value is a path string or a list/tuple of path
+    strings; each entry may point at a directory or a single ``.py`` file.
+    ``~`` is expanded and relative paths resolve against *rc_dir*.
+    Entries accumulate across rc files and are de-duplicated into *target*.
     """
-    raw = namespace.get("extensions")
+    raw = namespace.get(key)
     if raw is None:
         return
     entries: list[Any]
@@ -316,24 +326,38 @@ def _extract_extensions(  # noqa: Any - raw yaterc exec-namespace values, narrow
         entries = list(cast(Sequence[Any], raw))
     else:
         config.errors.append(
-            f"extensions must be a path string or a list of strings, got {raw!r}"
+            f"{key} must be a path string or a list of strings, got {raw!r}"
         )
         return
     for entry in entries:
         if not isinstance(entry, str) or not entry.strip():
             config.errors.append(
-                f"extensions entries must be non-empty strings, got {entry!r}"
+                f"{key} entries must be non-empty strings, got {entry!r}"
             )
             continue
         path = Path(entry.strip()).expanduser()
         if not path.is_absolute():
             path = rc_dir / path
         if not path.exists():
-            config.errors.append(f"extensions path does not exist: {entry}")
+            config.errors.append(f"{key} path does not exist: {entry}")
             continue
         resolved = path.resolve()
-        if resolved not in config.extension_paths:
-            config.extension_paths.append(resolved)
+        if resolved not in target:
+            target.append(resolved)
+
+
+def _extract_extensions(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
+    namespace: dict[str, Any], config: YateConfig, rc_dir: Path
+) -> None:
+    """Pull the ``extensions`` option out of one rc file's namespace.
+
+    A thin wrapper over :func:`_extract_path_list`: each entry may point at
+    a directory (all ``*.py`` inside are loaded) or a single ``.py`` file;
+    resolved entries accumulate into ``config.extension_paths``.
+    """
+    _extract_path_list(
+        namespace, config, rc_dir, "extensions", config.extension_paths
+    )
 
 
 def _extract_disabled_extensions(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
@@ -375,40 +399,14 @@ def _extract_theme_dirs(  # noqa: Any - raw yaterc exec-namespace values, narrow
 ) -> None:
     """Pull the ``theme_dirs`` option out of one rc file's namespace.
 
-    Mirrors :func:`_extract_extensions`: a path string or a list/tuple of
-    path strings; an entry may be a directory (every ``*.py`` inside is
-    loaded as a theme file) or a single ``.py`` theme file.  ``~`` is
-    expanded and relative paths resolve against *rc_dir*.  Entries
-    accumulate across rc files and are de-duplicated.
+    A thin wrapper over :func:`_extract_path_list` (which see): an entry
+    may be a directory (every ``*.py`` inside is loaded as a theme file)
+    or a single ``.py`` theme file; resolved entries accumulate into
+    ``config.theme_dirs``.
     """
-    raw = namespace.get("theme_dirs")
-    if raw is None:
-        return
-    entries: list[Any]
-    if isinstance(raw, str):
-        entries = [raw]
-    elif isinstance(raw, (list, tuple)):
-        entries = list(cast(Sequence[Any], raw))
-    else:
-        config.errors.append(
-            f"theme_dirs must be a path string or a list of strings, got {raw!r}"
-        )
-        return
-    for entry in entries:
-        if not isinstance(entry, str) or not entry.strip():
-            config.errors.append(
-                f"theme_dirs entries must be non-empty strings, got {entry!r}"
-            )
-            continue
-        path = Path(entry.strip()).expanduser()
-        if not path.is_absolute():
-            path = rc_dir / path
-        if not path.exists():
-            config.errors.append(f"theme_dirs path does not exist: {entry}")
-            continue
-        resolved = path.resolve()
-        if resolved not in config.theme_dirs:
-            config.theme_dirs.append(resolved)
+    _extract_path_list(
+        namespace, config, rc_dir, "theme_dirs", config.theme_dirs
+    )
 
 
 def _parse_journey_fraction(  # noqa: Any - raw yaterc value, parsed and validated below

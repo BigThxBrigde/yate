@@ -34,7 +34,10 @@ class Document:
     ) -> None:
         Document._uid_counter += 1
         self.uid: int = Document._uid_counter
-        self.path: Path | None = Path(path) if path is not None else None
+        self._path: Path | None = Path(path) if path is not None else None
+        # Memoized ``Path.resolve()`` of the current *path* (see
+        # :attr:`resolved_path`); the ``path`` setter invalidates it.
+        self._resolved: Path | None = None
         self.buffer: TextBuffer = buffer or TextBuffer()
         self.encoding = encoding
         # Dominant line ending of the file as opened (``\r\n`` / ``\n`` /
@@ -133,6 +136,29 @@ class Document:
             verdict = tuple(self.buffer.lines) != self._saved_lines
         self._modified_cache = (edits, verdict)
         return verdict
+
+    @property
+    def path(self) -> Path | None:
+        """The file this document is bound to (``None`` = unnamed scratch)."""
+        return self._path
+
+    @path.setter
+    def path(self, value: Path | None) -> None:
+        self._path = value
+        self._resolved = None
+
+    @property
+    def resolved_path(self) -> Path | None:
+        """``path`` fully resolved, computed once per path value.
+
+        :class:`~yate.session.EditorSession` compares documents by resolved
+        path on every open / retarget / close-under; resolving is a syscall
+        chain, so the result is memoized and invalidated by the
+        :attr:`path` setter (e.g. a retarget or save-as).
+        """
+        if self._path is not None and self._resolved is None:
+            self._resolved = self._path.resolve()
+        return self._resolved
 
     @property
     def name(self) -> str:

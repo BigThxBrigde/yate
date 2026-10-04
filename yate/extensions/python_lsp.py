@@ -68,7 +68,19 @@ def discover_command() -> tuple[str, list[str]]:
         # Explicit opt-out: register the server but never spawn anything.
         return "", []
     if override:
-        parts = shlex.split(override, posix=True)
+        # posix=True eats backslashes on Windows (``C:\tools`` becomes
+        # ``C:tools`` -- the docstring example above would break), so the
+        # platform-native rules apply.  posix=False preserves the quote
+        # characters, so matching outer quotes are stripped afterwards the
+        # same way the terminal shell resolver does.
+        parts = shlex.split(override, posix=os.name != "nt")
+        if os.name == "nt":
+            parts = [
+                part[1:-1]
+                if len(part) > 1 and part[0] == part[-1] and part[0] in "\"'"
+                else part
+                for part in parts
+            ]
         if parts:
             return parts[0], parts[1:]
     pyright = shutil.which("pyright-langserver")

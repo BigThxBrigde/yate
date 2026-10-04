@@ -1606,15 +1606,35 @@ def test_visual_quote_with_invalid_follower_is_swallowed(
     assert fake_clip.copies == []
 
 
-def test_visual_quote_then_v_exit_does_not_leak_the_wait_state() -> None:
-    """Exiting visual with v clears a '"' wait exactly like the ESC branch."""
+def test_visual_quote_then_v_names_the_register() -> None:
+    """In visual mode `"v` names register v instead of leaving visual.
+
+    The register wait sits in front of the v/V mode switches (mirroring
+    normal mode, 2026-10-03 review R-61): previously `"v` toggled the mode
+    and dropped the selection, so the selection could never be yanked into
+    a named register in visual mode.
+    """
     editor, keymap, ctx = _setup("alpha")
-    _press(keymap, ctx, "v", '"', "v")
+    _press(keymap, ctx, "v", '"', "v", "y")
     assert keymap.mode is VimMode.NORMAL
-    assert keymap.pending_register is None
+    assert editor.buffer.named_registers["v"] == "alpha"
     # the next key must run as a fresh command, not be swallowed by the wait
     _press(keymap, ctx, "x")
     assert editor.buffer.get_text() == "lpha"
+
+
+def test_d2dd_multiplies_counts_and_does_not_leak_the_count() -> None:
+    """``d2dd`` deletes two lines and leaves no count on the next key.
+
+    The linewise op used to drop the motion count (deleting one line) and
+    to leak ``count_str``, so a following ``x`` deleted two characters
+    (2026-10-03 review R-57).
+    """
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma\ndelta")
+    _press(keymap, ctx, "d", "2", "d")
+    assert editor.buffer.get_text() == "gamma\ndelta"
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "amma\ndelta"
 
 
 def test_delete_dd_into_named_register_stays_internal(

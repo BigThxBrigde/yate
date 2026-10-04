@@ -32,7 +32,17 @@ def resolve_shell(configured: str = "") -> list[str]:
             candidate = Path(text)
             if candidate.is_file():
                 return [str(candidate)]
-        return shlex.split(text, posix=not sys.platform.startswith("win"))
+        parts = shlex.split(text, posix=False)
+        # posix=False keeps the quote characters (they only protect embedded
+        # spaces during the split): strip matching outer quotes so a quoted
+        # path like "C:\Program Files\...\bash.exe -l" reaches Popen as a
+        # clean argv instead of failing on the literal quotes.
+        return [
+            part[1:-1]
+            if len(part) > 1 and part[0] == part[-1] and part[0] in "\"'"
+            else part
+            for part in parts
+        ]
 
     if sys.platform.startswith("win"):
         return _windows_default()

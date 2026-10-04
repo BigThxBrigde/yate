@@ -6,6 +6,7 @@ import asyncio
 import os
 import sys
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -29,6 +30,20 @@ def _text(emu: TerminalEmulator) -> str:
         "".join(cell.char for cell in line).rstrip()
         for line in emu.view_lines(0)
     )
+
+
+async def _wait_for(predicate: Callable[[], bool], timeout: float = 5.0) -> bool:
+    """Poll *predicate* until it holds; ``False`` on timeout, never raising.
+
+    Local copy of the helper from :mod:`test_pty_proc` -- importing across
+    test modules would couple their collection order.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        await asyncio.sleep(0.02)
+    return predicate()
 
 
 # --- key encoding -----------------------------------------------------------
@@ -327,7 +342,9 @@ def test_start_write_resize_terminate(fake_pty: type[_FakePtyImpl]) -> None:
         await proc.start(outputs.append, exits.append)
         proc.write(b"ls\r")
         proc.resize(100, 30)
-        await asyncio.sleep(0.05)
+        # the reader thread delivers the banner asynchronously: poll for it
+        # instead of a fixed sleep that CI cannot guarantee
+        assert await _wait_for(lambda: any(b"welcome" in c for c in outputs))
         proc.terminate()
         code = await asyncio.wait_for(proc.wait_closed(), 3)
         impl = fake_pty.instances[0]

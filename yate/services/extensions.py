@@ -479,7 +479,10 @@ class ExtensionLoader:
                     return existing
             except OSError:
                 continue
-        mod_name = f"yate_ext_{path.stem}"
+        # The resolved-path hash keeps same-stem extensions from different
+        # directories under distinct sys.modules entries, so a failed
+        # second load cannot pop the first one's module on cleanup (S33).
+        mod_name = f"yate_ext_{path.stem}_{hash(resolved) & 0xFFFFFFFF:08x}"
         record = LoadedExtension(name=path.stem, path=path)
         log.debug("loading extension: %s", path)
         try:

@@ -19,8 +19,11 @@ from typing import ClassVar, override
 from rich.color import Color
 from rich.segment import Segment, Segments
 from rich.style import Style
+from textual.color import Color as TextualColor
 from textual.scrollbar import ScrollBarRender
 from textual.widget import Widget
+
+from . import theme
 
 
 class SlimScrollBarRender(ScrollBarRender):
@@ -106,3 +109,22 @@ def apply_slim_scrollbars(widget: Widget) -> None:
     horizontal = widget.horizontal_scrollbar
     setattr(vertical, "renderer", SlimScrollBarRender)
     setattr(horizontal, "renderer", SlimScrollBarRender)
+
+
+def apply_scrollbar_theme(widget: Widget) -> None:
+    """Paint *widget*'s scrollbar palette from the active theme.
+
+    Shared tail of the per-component ``_apply_theme`` implementations
+    (editor view, explorer, diff panes): the track is fully transparent --
+    ``ScrollBar`` composites alpha<1 over the parent background -- so only
+    the thin partial-block thumb shows (issue IKINF3); a faint tint
+    appears on hover, the thumb brightens on drag.
+    """
+    t = theme.active()
+    s = widget.styles
+    s.scrollbar_background = TextualColor(0, 0, 0, 0)
+    s.scrollbar_background_hover = TextualColor.parse(t.surface).with_alpha(0.35)
+    s.scrollbar_color = t.border
+    s.scrollbar_color_hover = t.fg_dim
+    s.scrollbar_color_active = t.accent
+    s.scrollbar_corner_color = TextualColor(0, 0, 0, 0)
