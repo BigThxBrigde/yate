@@ -328,9 +328,11 @@ def setup(api):
 **内置语言**：yate 已识别的语言无需扩展。regex 后端为 Python、C、C++、
 Java、Rust、Go、JavaScript、TypeScript、Shell、JSON、Markdown、TOML、
 INI、YAML、C#、HTML、CSS、PowerShell、Lua、Make、XML、XAML、Perl、PHP、
-Ruby、SQL、Zig 提供单词表高亮；安装可选 tree-sitter 后端
-（`pip install yate[ts]`）后，其中 25 种（除 JSONC、INI、Perl 外的上述
-全部语言）改由真实语法树解析驱动。SCSS 与 LESS 复用 CSS 单词表并留在
+Ruby、SQL、Zig、JSONC、SCSS、LESS 提供单词表高亮（共 30 种）；安装可选
+tree-sitter 后端
+（`pip install yate[ts]`）后，其中 25 种改由真实语法树解析驱动——除
+JSONC、INI、Perl、SCSS、LESS 外的全部内置语言。SCSS 与 LESS 复用 CSS
+单词表并留在
 regex 后端——PyPI 没有对应的 tree-sitter 语法包，而用 CSS 语法解析它们会
 把 `$var` / `@mixin` / `//` 解析成错误节点。
 
@@ -365,7 +367,9 @@ def setup(api):
 ```
 
 注册后 `*.ysh` / `*.yatesh` 文件自动高亮，`:set filetype=ysh` 立即可用
-（支持 Tab 补全）；grammar 加载失败时这些扩展名仍保留最小 regex 回退。
+（支持 Tab 补全）。注册是全有或全无：扩展名只在 grammar 与 query 都加载成功
+后才登记，缺 `tree_sitter`、缺语法包或 query 非法都会一条都不注册并报错。需要
+回退的话，另用 `api.highlight.register` 为同一批扩展名注册 `LangSpec`。
 
 grammar 库的构建方式：`npm install -g tree-sitter-cli`，在你的 grammar
 仓库中运行 `tree-sitter generate` 后编译（POSIX：

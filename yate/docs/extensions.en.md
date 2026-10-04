@@ -357,10 +357,11 @@ completion and status-bar type sync. Words in `type_def_words` /
 extension. The regex backend ships word-list highlighting for Python, C,
 C++, Java, Rust, Go, JavaScript, TypeScript, Shell, JSON, Markdown, TOML,
 INI, YAML, C#, HTML, CSS, PowerShell, Lua, Make, XML, XAML, Perl, PHP, Ruby,
-SQL and Zig; with the optional tree-sitter backend installed
-(`pip install yate[ts]`), 25 of them (all of the above except JSONC, INI and
-Perl) are highlighted through a real parser instead. SCSS and LESS share the
-CSS word lists and stay on the regex backend -- no tree-sitter grammar for
+SQL, Zig, JSONC, SCSS and LESS -- 30 in all; with the optional
+tree-sitter backend installed
+(`pip install yate[ts]`), 25 of them are highlighted through a real parser
+instead -- every one except JSONC, INI, Perl, SCSS and LESS. SCSS and LESS
+share the CSS word lists and stay on the regex backend -- no grammar for
 them exists, and routing them through the CSS grammar would mis-parse
 `$var` / `@mixin` / `//`.
 
@@ -398,8 +399,11 @@ def setup(api):
 ```
 
 After registration `*.ysh` / `*.yatesh` files highlight automatically and
-`:set filetype=ysh` works (with Tab completion); the keys keep a minimal
-regex fallback should the grammar fail to load.
+`:set filetype=ysh` works (with Tab completion). Registration is
+all-or-nothing: the keys are published only after the grammar and the query
+load, so a missing `tree_sitter`, a missing pack or an invalid query registers
+nothing and the extension reports an error. If you want a fallback, register a
+`LangSpec` for the same extensions through `api.highlight.register` as well.
 
 Building the grammar library: `npm install -g tree-sitter-cli`, then in
 your grammar repo run `tree-sitter generate` and compile

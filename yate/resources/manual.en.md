@@ -1310,11 +1310,11 @@ INI (`ini`/`cfg`/`conf`/`properties`), YAML (`yaml`/`yml`), XML (`xml`),
 XAML (`xaml`), PowerShell (`ps1`/`psm1`/`psd1`), Lua (`lua`),
 Make (`mak`/`mk`), Perl (`pl`/`pm`), PHP (`php`), Ruby (`rb`), SQL (`sql`)
 and Zig (`zig`). Everything else renders as plain text. With the optional
-tree-sitter backend installed (`pip install yate[ts]`), 25 of these
-languages (all except JSONC, INI and Perl) are highlighted through a real
-parser instead of word lists. SCSS and LESS keep the CSS word lists: no
-tree-sitter grammar exists for them, and the CSS grammar mis-parses
-`$var` / `@mixin` / `//`.
+tree-sitter backend installed (`pip install yate[ts]`), 25 of these 30
+languages are highlighted through a real parser instead of word lists --
+every one except JSONC, INI, Perl, SCSS and LESS. SCSS and LESS keep the CSS
+word lists: no tree-sitter grammar exists for them, and the CSS grammar
+mis-parses `$var` / `@mixin` / `//`.
 
 **How do I add highlighting for another language (or override one)?**
 An extension can register a declarative `LangSpec` via

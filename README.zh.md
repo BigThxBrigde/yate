@@ -28,10 +28,10 @@
 - **两套内置键位**：`vsc`（VS Code 风格、无模式，默认）与 `vim`（NORMAL/INSERT/VISUAL/VISUAL-LINE
   模式 + `:` ex 命令行），运行中可用 `Ctrl+/` 一键切换
 - **语法高亮**：内置高亮引擎，按文件类型着色关键字/字符串/数字/注释/函数等，
-  可用 `:set filetype=` 手动指定语法类型；regex 后端开箱覆盖约 28 种语言
+  可用 `:set filetype=` 手动指定语法类型；regex 后端开箱覆盖 30 种内置语言
   （C#、Rust、Go、HTML、CSS、YAML、SQL、Lua、Perl、PHP、Ruby、PowerShell、
-  Zig 等），安装可选 tree-sitter 后端（`pip install -e ".[ts]"`）后，25 种
-  内置语言（除 JSONC、INI、Perl 外的全部内置语言）改由真实语法树解析驱动；
+  Zig 等），安装可选 tree-sitter 后端（`pip install -e ".[ts]"`）后，其中 25 种
+  （除 JSONC、INI、Perl、SCSS、LESS 外）改由真实语法树解析驱动；
   扩展也可注册自定义语法（`api.syntax`）
 - **八套内置主题**：四套 Catppuccin（`mocha` 默认深色、`macchiato`、`frappe`、
   `latte` 浅色）外加 One Dark/Light 与 Gruvbox dark/light；Dracula 与 Ayu

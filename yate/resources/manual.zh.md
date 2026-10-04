@@ -1184,9 +1184,9 @@ XAML（`xaml`）、PowerShell（`ps1`/`psm1`/`psd1`）、Lua（`lua`）、
 Make（`mak`/`mk`）、Perl（`pl`/`pm`）、PHP（`php`）、Ruby（`rb`）、
 SQL（`sql`）、Zig（`zig`）。
 其他类型按纯文本渲染。安装可选 tree-sitter 后端（`pip install yate[ts]`）
-后，其中 25 种语言（除 JSONC、INI、Perl 外）改由真实语法树解析驱动的高亮。
-SCSS 与 LESS 沿用 CSS 单词表：PyPI 没有对应语法包，而 CSS 语法会把
-`$var` / `@mixin` / `//` 解析成错误节点。
+后，这 30 种语言中的 25 种改由真实语法树解析驱动的高亮——除 JSONC、INI、
+Perl、SCSS、LESS 外的全部内置语言。SCSS 与 LESS 沿用 CSS 单词表：PyPI 没有
+对应语法包，而 CSS 语法会把 `$var` / `@mixin` / `//` 解析成错误节点。
 
 **如何增加新语言（或覆盖某种语言）的语法高亮？**
 通过扩展的 `api.highlight.register(spec, *扩展名)` 注册一个声明式的
