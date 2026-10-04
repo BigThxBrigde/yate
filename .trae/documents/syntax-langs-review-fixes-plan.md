@@ -266,6 +266,8 @@ flowchart TD
 
 ## 九、迭代记录（轮次 2：修复轮评审 W1–W6 / S1–S7）
 
+> 轮次 2 的复核结论与轮次 3 的后续处理见下一节（§十）；本节保留轮次 2 的原始记录。
+
 派发 `code-review-expert` 成员只读复核 `c67c382..0867015`，实测结论
 **0 CRITICAL / 6 WARNING / 7 SUGGESTION**，门禁四项 + TUI 冒烟（932/932
 checks、89/89 scenarios）全绿。按 `task-orchestration.md` §二.6，WARNING 属
@@ -312,4 +314,38 @@ tie-break 修正后的关键样本实测（与评审 W4 指出的方向逐条对
    （后者是既有行为）；
 4. fsharp 模板的节点名未经运行时验证（`tree-sitter-fsharp` 未装，走 `skipif` +
    静态捕获名检查）；一旦有人装上该包，模板可能注册即失败；
-5. 模板 docstring 的散文承诺无自动化守护（行为侧已钉住，见 S7）。
+5. 模板 docstring 的散文承诺无自动化守护（行为侧已钉住，见 S7）；
+6. `python.scm` / `shell.scm` 在提交树里带 CRLF 行尾（**非本轮引入**，git 已跟踪故
+   `git status` 干净）；加 `.gitattributes` 统一行尾会动全仓策略，超出本轮范围。
+
+## 十、迭代记录（轮次 3：修复轮复核 W2' 与 4 条新 SUGGESTION）
+
+轮次 2 定向复核结论：**W1、W3、W4、W5、W6 已修实**（W4 的根因——排序键携带的是
+`capture_map` 映射后的 kind，而旧表混入了 capture 名——经成员用 `raw()` 复刻
+`_highlight` 区间收集独立确认成立；表已验证为 SYNTAX_KINDS 上的全序：缺失 0 /
+多余 0 / 重复排名 False，捆绑查询绑定的 12 种 kind 全在表内，25 语言 × 200 次
+shuffle **0 行非确定**；新旧输出逐行比对**仅 CSS `:hover` 一行差异**，其余 24
+语言完全一致）。**W2 部分修实，并引入 1 条新 WARNING。**
+
+| 编号 | 性质 | 处置 |
+|---|---|---|
+| W2' | **轮次 2 修法的副作用**：分段兜底"任一段命中即整串着色"，把 23 个真实 CSS 类名中 21 个错涂（`type` 20 个走 `_CSS_TAGS`、`builtin` 1 个走 `_CSS_PROPERTIES`），如 `.nav-item` / `.main-content` / `.form-control`；受害面正是"仅 regex 安装"这条本轮要保的回退路径；且反向断言只查 `builtin` 一种 kind、只 1 个类名，`type` 路径完全没覆盖 | ✅ 修：把兜底**移到 `.` 与 `(` 规则之后**——`.nav-item` 落到既有"前导点 → `property`"语义（与今天的 `.foo` 一致，非新增行为）；反向断言扩为 10 个类名 × `type`/`builtin`/`constant`/`keyword` 四种 kind 全查。实测 5 个类名全部 `property`（0 错涂），`-webkit-transform` / `--brand-color` / `var(--brand-color)` / `font-size` 仍着色（**W2 收益零损失**） |
+| 新 S1 | 见上（反向断言覆盖面不足） | ✅ 修（同上），并逐个断言 `red` 仍着色 |
+| 新 S2 | CSS `:hover` 只有结构性断言（`ranks["type"] < ranks["property"]`），缺端到端样本 | ✅ 修：`_PackCase` 的 css 样例加 `a:hover {` 行，端到端断言 `type 'a'` + `type 'hover'`（删掉 `css.scm` 的 `(class_name) @type` 会红） |
+| 新 S3 | `_classify_ident` 整串与分段两条路径查表顺序不一致（纯可维护性；CSS 三张表两两不交故当前无误分类） | ✅ 修：两条路径统一为 keywords → constants → types → builtins |
+| 新 S5 | "30 种内置语言 / 25 种语法树驱动"是 6 处文档的硬编码数字，无任何测试钉在引擎上 | ✅ 修：新增 `test_builtin_grammar_coverage_matches_the_documented_counts`，断言"无语法包者 == `{ini, jsonc, less, perl, scss}`"与 30 / 25 两数——将来加语言测试先红，强制同步文档 |
+| 新 S4 | `python.scm` / `shell.scm` 带 CRLF 行尾（非本轮引入） | ⬜ 登记为已知限制 |
+
+### 轮次 3 门禁实测（主代理亲自跑）
+
+| 门禁 | 结果 |
+|---|---|
+| pyright strict | **0 errors, 0 warnings, 0 informations** |
+| pytest 全量 | **1747 passed, 8 skipped in 251.10s**（较轮次 2 的 1746 +1） |
+| 架构测试 | **22 passed** |
+| 覆盖率 | **91.19%**（≥75） |
+
+> 踩坑记录：一次覆盖率运行里 `tests/test_completion_popup.py::
+> test_escape_then_ctrl_space_restores_the_popup` 失败，按 `subagent-workflow.md`
+> §三.3 复跑确认——整文件 33 条与该条单独跑均通过，属并发跑 pytest 时的 Textual
+> pilot 计时抖动（审核成员同期在跑验证），**未改断言**；随后的覆盖率运行无失败。
