@@ -718,7 +718,8 @@ This creates `~/.yate/` and:
   as `yaterc.yate-bak`; if a backup already exists the earliest one is kept);
 - places the official theme/extension templates under `~/.yate/themes/` and
   `~/.yate/extensions/` **keeping the `.example` suffix** (Dracula/Ayu themes
-  and the two extension examples). Startup scans load `*.py` only, so
+  and seven extension examples: batch, diff, fsharp, git, ini plus the
+  `example_ext` / `yatesh` walkthroughs). Startup scans load `*.py` only, so
   **rename a template to `.py` to activate it** and delete it to deactivate;
 - the `*.example` templates are yate-managed and **refreshed on every setup
   run** (e.g. on upgrade) -- customize the renamed `.py` copy, not the
@@ -1311,7 +1312,9 @@ Make (`mak`/`mk`), Perl (`pl`/`pm`), PHP (`php`), Ruby (`rb`), SQL (`sql`)
 and Zig (`zig`). Everything else renders as plain text. With the optional
 tree-sitter backend installed (`pip install yate[ts]`), 25 of these
 languages (all except JSONC, INI and Perl) are highlighted through a real
-parser instead of word lists.
+parser instead of word lists. SCSS and LESS keep the CSS word lists: no
+tree-sitter grammar exists for them, and the CSS grammar mis-parses
+`$var` / `@mixin` / `//`.
 
 **How do I add highlighting for another language (or override one)?**
 An extension can register a declarative `LangSpec` via

@@ -667,7 +667,8 @@ yate --setup-defaults
   加 `--force` 才会覆盖，覆盖前旧文件备份为 `yaterc.yate-bak`（已存在备份时
   保留最早的一份）；
 - 把官方主题/扩展模板以 `.example` 原后缀放到 `~/.yate/themes/` 与
-  `~/.yate/extensions/`（Dracula、Ayu 主题及两个扩展示例）。启动扫描只加载
+  `~/.yate/extensions/`（Dracula、Ayu 主题及七个扩展示例：batch、diff、
+  fsharp、git、ini，以及 `example_ext` / `yatesh` 两个走查模板）。启动扫描只加载
   `*.py`，所以把想用的模板**改名成 `.py` 即激活**，删掉即停用；
 - `.example` 模板由 yate 托管，**每次运行 setup 都会刷新覆盖**，请在改名后的
   `.py` 副本里定制，不要直接改 `.example`；
@@ -1184,6 +1185,8 @@ Make（`mak`/`mk`）、Perl（`pl`/`pm`）、PHP（`php`）、Ruby（`rb`）、
 SQL（`sql`）、Zig（`zig`）。
 其他类型按纯文本渲染。安装可选 tree-sitter 后端（`pip install yate[ts]`）
 后，其中 25 种语言（除 JSONC、INI、Perl 外）改由真实语法树解析驱动的高亮。
+SCSS 与 LESS 沿用 CSS 单词表：PyPI 没有对应语法包，而 CSS 语法会把
+`$var` / `@mixin` / `//` 解析成错误节点。
 
 **如何增加新语言（或覆盖某种语言）的语法高亮？**
 通过扩展的 `api.highlight.register(spec, *扩展名)` 注册一个声明式的
@@ -1192,8 +1195,8 @@ SQL（`sql`）、Zig（`zig`）。
 会替换内置规格）。主流语言已内置——C# 等上文列出的语言无需扩展；
 模板以 `*.py.example` 形式随包提供（`batch_syntax.py.example`、
 `ini_syntax.py.example`、`git_syntax.py.example`、
-`diff_syntax.py.example`），去掉 `.example` 后缀复制到扩展目录即可；
-完整字段说明见 [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md) 的 4.7 节。
+`diff_syntax.py.example`、`fsharp_syntax.py.example`），去掉 `.example` 后缀
+复制到扩展目录即可；完整字段说明见 [`yate/docs/extensions.zh.md`](../docs/extensions.zh.md) 的 4.7 节。
 
 若要为自定义语言（例如你自己实现的 shell）提供基于语法树的精确高亮，
 扩展可通过 `api.syntax.register_tree_sitter(...)` 绑定编译好的

@@ -342,6 +342,9 @@ completion and status-bar type sync. Words in `type_def_words` /
 | `triple_strings` | `False` | Python-style `'''`/`"""` multiline strings |
 | `string_prefixes` | `""` | prefix characters allowed right before a quote (1–2), e.g. C#'s `"@$"` |
 | `sigils` | `False` | highlight `$var`/`${var}` forms (shell) |
+| `at_sigil` | `False` | `@name` is a variable sigil, not a decorator (perl/ruby/PowerShell) |
+| `paren_vars` | `False` | highlight `$(VAR)` expansions (make) |
+| `hyphenated_idents` | `False` | `font-size` scans as one identifier (CSS property names) |
 | `keywords` | `frozenset()` | keywords |
 | `builtins` | `frozenset()` | built-in functions/objects |
 | `constants` | `frozenset()` | constants (`true`/`false`/`null`, etc.) |
@@ -356,15 +359,21 @@ C++, Java, Rust, Go, JavaScript, TypeScript, Shell, JSON, Markdown, TOML,
 INI, YAML, C#, HTML, CSS, PowerShell, Lua, Make, XML, XAML, Perl, PHP, Ruby,
 SQL and Zig; with the optional tree-sitter backend installed
 (`pip install yate[ts]`), 25 of them (all of the above except JSONC, INI and
-Perl) are highlighted through a real parser instead.
+Perl) are highlighted through a real parser instead. SCSS and LESS share the
+CSS word lists and stay on the regex backend -- no tree-sitter grammar for
+them exists, and routing them through the CSS grammar would mis-parse
+`$var` / `@mixin` / `//`.
 
 For a complete example see the template
 `yate/extensions/batch_syntax.py.example` (declarative highlighting for
-Windows batch files: `rem` comments, keywords, `%VAR%` variables;
-`ini_syntax.py.example`, `git_syntax.py.example` and `diff_syntax.py.example`
-cover config-mode INI/Git files and diffs). Drop the `.example` suffix, copy
-the file into an extension directory and it registers on the next launch --
-a registered extension replaces the built-in spec for the same extension.
+Windows batch files: `rem` comments plus keyword word lists -- `%VAR%`
+expansion and `:label` targets have no lexical form the word-list backend can
+paint); `ini_syntax.py.example`, `git_syntax.py.example` and
+`diff_syntax.py.example` cover config-mode INI/Git files and diffs, and
+`fsharp_syntax.py.example` shows the tree-sitter bridge. Drop the `.example`
+suffix, copy the file into an extension directory and it registers on the
+next launch -- a registered extension replaces the built-in spec for the same
+extension.
 
 ### 4.8 Syntax highlighting via tree-sitter (custom grammars)
 

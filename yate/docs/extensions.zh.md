@@ -314,6 +314,9 @@ def setup(api):
 | `triple_strings` | `False` | 是否支持 Python 式 `'''`/`"""` 跨行字符串 |
 | `string_prefixes` | `""` | 允许紧贴引号前的前缀字符（1–2 个），如 C# 的 `"@$"` |
 | `sigils` | `False` | 是否高亮 `$var`/`${var}` 形式（shell） |
+| `at_sigil` | `False` | `@name` 视为变量 sigil 而非装饰器（perl/ruby/PowerShell） |
+| `paren_vars` | `False` | 是否高亮 `$(VAR)` 展开（make） |
+| `hyphenated_idents` | `False` | `font-size` 按单个标识符扫描（CSS 属性名） |
 | `keywords` | `frozenset()` | 关键字 |
 | `builtins` | `frozenset()` | 内建函数/对象 |
 | `constants` | `frozenset()` | 常量（`true`/`false`/`null` 等） |
@@ -327,13 +330,17 @@ Java、Rust、Go、JavaScript、TypeScript、Shell、JSON、Markdown、TOML、
 INI、YAML、C#、HTML、CSS、PowerShell、Lua、Make、XML、XAML、Perl、PHP、
 Ruby、SQL、Zig 提供单词表高亮；安装可选 tree-sitter 后端
 （`pip install yate[ts]`）后，其中 25 种（除 JSONC、INI、Perl 外的上述
-全部语言）改由真实语法树解析驱动。
+全部语言）改由真实语法树解析驱动。SCSS 与 LESS 复用 CSS 单词表并留在
+regex 后端——PyPI 没有对应的 tree-sitter 语法包，而用 CSS 语法解析它们会
+把 `$var` / `@mixin` / `//` 解析成错误节点。
 
 完整实例见模板 `yate/extensions/batch_syntax.py.example`（Windows batch
-的声明式高亮：`rem` 注释、关键字、`%VAR%` 变量；`ini_syntax.py.example`、
+的声明式高亮：`rem` 注释加关键字单词表——`%VAR%` 展开与 `:label` 目标没有
+单词表后端可表达的词法形式）；`ini_syntax.py.example`、
 `git_syntax.py.example`、`diff_syntax.py.example` 分别演示 config 模式的
-INI/Git 文件与 diff 文件）。去掉 `.example` 后缀复制到扩展目录即可，
-下次启动自动注册——扩展对同一扩展名的注册会替换内置规格。
+INI/Git 文件与 diff 文件，`fsharp_syntax.py.example` 演示 tree-sitter 通道。
+去掉 `.example` 后缀复制到扩展目录即可，下次启动自动注册——扩展对同一扩展名的
+注册会替换内置规格。
 
 ### 4.8 基于 tree-sitter 的语法高亮（自定义语法）
 
