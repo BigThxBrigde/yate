@@ -4,7 +4,7 @@
 - **评审方法**：两件事并行——①按方案文档 [`../documents/syntax-langs-plan.md`](../documents/syntax-langs-plan.md) 逐波次（W1–W5）对账实施完整性；②按 `.trae/skills/python-code-review/SKILL.md` 六维度框架（正确性 / 安全 / 性能 / Pythonic / 可维护性 / 错误处理）做代码评审，3 个只读 `code-explorer` 子代理按互不重叠文件切分并行（regex 后端 + `tests/test_highlight.py` / ts 后端 + 23 个 scm + `tests/test_ts_backend.py` / examples + pack + docs），主代理汇总并**逐条复核**——本文所有条目的问题描述均带主代理实测证据，子代理自述数字不直接引用。
 - **基线门禁**（主代理在 worktree 沙箱亲自复跑）：`python -m pyright yate/ tests/ tools/` → 0 errors / 0 warnings / 0 informations；`python -m pytest tests/` → **1718 passed, 7 skipped**；`python -m pytest tests/test_architecture.py` → **22 passed**；`python -m pytest tests/ -q --cov=yate --cov-fail-under=75` → **91.29%**。四项 EXIT=0，与方案 §八 记载一致。
 - **总体结论**：`MINOR ISSUES` — 0 CRITICAL / 5 WARNING（计划核对阶段 G1–G5）/ 若干 SUGGESTION。**实施完整性：W1/W2/W4/W5 通过，W3 的验收未执行**（详见 §一）。
-- **处置**：待用户决策修复范围（本文只登记发现与核对结论，不含修复排期）。按 `doc-conventions.md` §二.2，若进入修复，方案将落 `.trae/documents/syntax-langs-review-fixes-plan.md` 并与本文互相链接。
+- **处置**：**已修复**（2026-10-04，用户批准"全部范围"）。方案、逐条处置与门禁回填见 [`../documents/syntax-langs-review-fixes-plan.md`](../documents/syntax-langs-review-fixes-plan.md)（本文为只读事实记录，结论不因修复而改写）。§一 W3 的"验收未执行"已由 `tests/test_extension_examples.py` 补做：4 个声明式模板经真实 `ExtensionAPI` 注册并断言 tokenize 非空，fsharp 因缺 `tree-sitter-fsharp` 走 `skipif` + 静态捕获名检查。
 
 ---
 

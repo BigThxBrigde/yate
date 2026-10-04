@@ -42,7 +42,7 @@ worktree：`../yate-syntax-langs`，分支 `enh/syntax-langs`（沙箱已重建�
 | 22/23 语言有 PyPI 语法包；`tree-sitter-perl` 不存在 | pip index 实测（2026-10-04） |
 | xaml 可复用 `tree_sitter_xml` 模块（`_load_builtin` 只调 `module.language()`） | `languages.py:169-170` |
 | `LangSpec.mode` 支持 code/json/markdown/config | `regex_backend.py:43` |
-| `test_builtin_packs_ship_a_query_file` 自动校验每个新 scm 存在 | `tests/test_ts_backend.py:383-386` |
+| `test_builtin_packs_ship_a_query_file` 自动校验每个新 scm 存在 | `tests/test_ts_backend.py`（2026-10-04 评审 G8 校准：原标注 `:383-386` 已失效，该用例在"cross-module invariants"节，引用时按用例名定位） |
 | 子代理不得改 `yate/` 产品源码 → 23 个 scm 由主代理亲自写 | `subagent-workflow.md` §一.3 |
 
 ### PyPI 语法包实测版本（pip index versions，2026-10-04）
