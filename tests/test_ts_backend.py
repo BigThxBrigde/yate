@@ -216,11 +216,15 @@ _PACK_CASES: list[_PackCase] = [
     ),
     _PackCase(
         "css", "css",
-        ["/* note */", "div {", "    color: red;"],
+        ["/* note */", "div {", "    color: red;", "a:hover {"],
         (
             (0, "comment", "/* note */"),
             (1, "type", "div"),
             (2, "property", "color"),
+            # ':hover' is bound twice -- (class_name) @type and the narrower
+            # (pseudo_class_selector (class_name) @property) -- and the kind
+            # precedence table must settle it as a type.
+            (3, "type", "a"), (3, "type", "hover"),
         ),
     ),
     _PackCase(
@@ -758,6 +762,18 @@ def test_same_span_captures_resolve_by_kind_precedence() -> None:
     # shares the last rank rather than silently outranking a bundled kind.
     unknown = [(0, 3, "totally_custom"), (0, 3, "property")]
     assert [t.kind for t in ts_runtime._tokens_for_row(unknown, 3)] == ["property"]
+
+
+def test_builtin_grammar_coverage_matches_the_documented_counts() -> None:
+    # Six docs say "30 built-in languages, 25 of them parser-driven, every one
+    # except JSONC, INI, Perl, SCSS and LESS".  Pin the relationship rather
+    # than the prose: adding a language without a grammar fails here, and the
+    # fix is to update the docs and this set together.
+    names = set(regex_backend._NAME_TO_KEY)
+    without_grammar = names - set(ts_langs.BUILTIN_PACKS)
+    assert without_grammar == {"ini", "jsonc", "less", "perl", "scss"}
+    assert len(names) == 30
+    assert len(names) - len(without_grammar) == 25
 
 
 def test_scss_and_less_do_not_borrow_the_css_grammar() -> None:

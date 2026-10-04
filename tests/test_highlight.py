@@ -390,12 +390,25 @@ def test_css_dashed_lookup_falls_back_to_its_base_word() -> None:
         assert any(
             kind == "builtin" and base in text for kind, text in pairs
         ), line
-    # A dashed word whose segments are all unknown stays uncolored, so the
-    # fallback cannot invent a color for every hyphenated class name.
-    line = ".btn-primary { color: red; }"
-    pairs = _kinds(hl.tokenize_document([line], "css")[0], line)
-    assert ("builtin", "btn-primary") not in pairs
-    assert ("builtin", "primary") not in pairs
+    # A dashed word whose segments are all unknown stays uncolored, and one
+    # that merely contains a tag name ('.nav-item') must not be painted as
+    # that tag either: a class selector is not a property name.
+    for name in (
+        "btn-primary", "text-muted", "nav-item", "main-content",
+        "form-control", "section-header", "code-block", "link-button",
+        "a-b", "my-custom-prop",
+    ):
+        line = f".{name} {{ color: red; }}"
+        pairs = _kinds(hl.tokenize_document([line], "css")[0], line)
+        for kind in ("type", "builtin", "constant", "keyword"):
+            assert (kind, name) not in pairs, f"{name} as {kind}"
+        # Whatever it is, 'red' after the colon still gets its own color.
+        assert ("constant", "red") in pairs, name
+    # A member access keeps the pre-existing property coloring.
+    assert ("property", "nav-item") in _kinds(
+        hl.tokenize_document([".nav-item { color: red; }"], "css")[0],
+        ".nav-item { color: red; }",
+    )
 
 
 def test_paren_vars_works_without_the_sigils_switch() -> None:
