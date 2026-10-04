@@ -630,25 +630,33 @@ _PREDICATE_RE = re.compile(r"\(#[^()]*\)")
 _STRING_LITERAL_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
 
 
+def _capture_names_in(text: str) -> set[str]:
+    """Capture names in one query source, ignoring ``;`` comment lines.
+
+    Predicate tails and string literals are stripped first -- ``(#eq? @a
+    "@b")`` mentions a name that is not a capture at all, and flagging it
+    would be a false positive on any predicate line.
+    """
+    names: set[str] = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(";"):
+            continue
+        cleaned = _STRING_LITERAL_RE.sub('""', _PREDICATE_RE.sub(" ", stripped))
+        names.update(_CAPTURE_RE.findall(cleaned))
+    return names
+
+
 def _query_capture_names() -> dict[str, set[str]]:
-    """Capture names per bundled query file, ignoring ``;`` comment lines.
+    """Capture names per bundled query file.
 
     Deliberately dependency-free: a grammar-pack install is not required, so
-    the invariant still holds in a regex-only checkout.  Predicate tails and
-    string literals are stripped first -- ``(#eq? @a "@b")`` mentions a name
-    that is not a capture at all, and flagging it would be a false positive.
+    the invariant still holds in a regex-only checkout.
     """
-    found: dict[str, set[str]] = {}
-    for scm in sorted(ts_langs.QUERIES_DIR.glob("*.scm")):
-        names: set[str] = set()
-        for line in scm.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped.startswith(";"):
-                continue
-            cleaned = _STRING_LITERAL_RE.sub('""', _PREDICATE_RE.sub(" ", stripped))
-            names.update(_CAPTURE_RE.findall(cleaned))
-        found[scm.stem] = names
-    return found
+    return {
+        scm.stem: _capture_names_in(scm.read_text(encoding="utf-8"))
+        for scm in sorted(ts_langs.QUERIES_DIR.glob("*.scm"))
+    }
 
 
 def test_bundled_queries_only_use_registered_captures() -> None:
@@ -726,16 +734,12 @@ def test_same_span_tie_break_is_a_total_order_over_bindable_kinds() -> None:
 def test_capture_scan_ignores_predicates_and_string_literals() -> None:
     # "(#eq? @a \"@b\")" mentions a name that is not a capture; flagging it
     # would make the registration guard cry wolf on any predicate line.
-    scm = ts_langs.QUERIES_DIR / "c.scm"
-    original = scm.read_text(encoding="utf-8")
-    injected = original + '\n((identifier) @var (#eq? @var "@not_a_capture"))\n'
-    try:
-        scm.write_text(injected, encoding="utf-8")
-        found = _query_capture_names()["c"]
-        assert "var" in found
-        assert "not_a_capture" not in found
-    finally:
-        scm.write_text(original, encoding="utf-8")
+    found = _capture_names_in('((identifier) @var (#eq? @var "@not_a_capture"))')
+    assert "var" in found
+    assert "not_a_capture" not in found
+    # A real capture in a comment or a literal stays invisible, too.
+    assert _capture_names_in("; @nope\n") == set()
+    assert _capture_names_in('(string) @string ; "@nope"') == {"string"}
 
 
 def test_same_span_captures_resolve_by_kind_precedence() -> None:
