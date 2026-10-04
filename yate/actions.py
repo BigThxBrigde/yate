@@ -33,7 +33,11 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
 
     # ------------------------------------------------------------- editing
 
-    reg("newline", lambda ctx: ctx.buffer.insert_newline(), "Insert newline (auto-indent)")
+    reg(
+        "newline",
+        lambda ctx: ctx.buffer.insert_newline(language=ctx.doc.filetype),
+        "Insert newline (auto-indent)",
+    )
     reg("insert_tab", lambda ctx: ctx.buffer.insert_tab(), "Indent / insert tab")
     reg("delete_backward", lambda ctx: ctx.buffer.delete_backward(), "Delete char before cursor")
     reg("delete_forward", lambda ctx: ctx.buffer.delete_forward(), "Delete char after cursor")

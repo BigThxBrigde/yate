@@ -145,6 +145,8 @@ class VimKeymap(Keymap):
             KeyBinding("v", "visual mode", "Characterwise visual mode", EDT),
             KeyBinding("V", "visual line mode", "Linewise visual mode", EDT),
             KeyBinding("x", "delete char", "Delete character", EDT),
+            KeyBinding(">", "indent", "Indent [count] lines", EDT),
+            KeyBinding("<", "outdent", "Outdent [count] lines", EDT),
             KeyBinding("r{char}", "replace char", "Replace [count] chars with {char}", EDT),
             KeyBinding("dd", "delete line", "Delete line", EDT),
             KeyBinding("yy", "yank line", "Yank line", EDT),
@@ -276,7 +278,8 @@ class VimKeymap(Keymap):
             self._motion(ctx, _ARROW[key], 1, select=False)
             return True
         if len(key) == 1 and key.isprintable():
-            ctx.buffer.insert_text(key)
+            # same auto-complete / skip / wrap path as the modeless fallback
+            ctx.buffer.type_char(key, language=ctx.doc.filetype)
             return True
         return True
 
@@ -360,6 +363,18 @@ class VimKeymap(Keymap):
             self.mode = VimMode.NORMAL
             buf.clear_selection()
             ui.find_prompt(False)
+            return True
+        if key == ">" or key == "<":
+            # shift the selected rows in place; the mode and the selection stay
+            # as they are, so the range can be shifted again (vim behaviour).
+            # Visual mode ignores counts by convention, so a typed count is
+            # dropped here rather than left to leak into the next normal-mode
+            # command once the selection is left.
+            self.count_str = ""
+            if key == ">":
+                buf.indent_selection()
+            else:
+                buf.outdent_selection()
             return True
         # motions extend the selection; digits are consumed but not stored
         # (visual mode deliberately ignores counts, see the test pinning it)
@@ -468,6 +483,18 @@ class VimKeymap(Keymap):
         if key in _ARROW or key in _MOTION_CODES:
             self._motion(ctx, _ARROW.get(key, key), self._typed_count(), select=False)
             self.count_str = ""
+            return True
+
+        if key == ">" or key == "<":
+            # must precede the extension-binding fallback: the help entries
+            # above put "indent" / "outdent" in ``_index``, so falling through
+            # would report them as unknown actions instead of shifting lines.
+            # A shift is a complete command, so every half-finished operator /
+            # prefix / register goes with it; the count is read *first* because
+            # _clear_pending() empties count_str as well.
+            count = self._take_count()
+            self._clear_pending()
+            self._shift_row(buf, key, count)
             return True
 
         if key in (";", ",") and self.last_find is not None:
@@ -626,6 +653,49 @@ class VimKeymap(Keymap):
         # operator armed would fire it on the next motion key instead.
         self._clear_pending()
         return False
+
+    def _shift_row(self, buf: TextBuffer, key: str, count: int) -> None:
+        """Indent or outdent the cursor's line *count* times (``>`` / ``<``).
+
+        Normal mode carries no selection, and
+        :meth:`~yate.editor_core.buffer.TextBuffer.indent_selection` falls back to
+        :meth:`~yate.editor_core.buffer.TextBuffer.insert_tab` without one --
+        which pads to the next tab stop *at the cursor*, not at the line start,
+        so a cursor mid-row would get spaces spliced into the text.  Selecting
+        the whole row first is what makes the command mean "shift this line"
+        wherever the cursor happens to sit.
+
+        The row is selected through
+        :meth:`~yate.editor_core.buffer.TextBuffer.set_cursor` instead of by
+        assigning ``anchor`` / ``cursor`` directly: the two calls spell out
+        "start at the line start, then extend to its end" (a lone
+        ``select=True`` anchors at the *current* cursor, not at column 0), and
+        the buffer's own invariant ends vertical goal-column tracking on the
+        way.  Writing the attributes by hand would leave that clearing to
+        whatever the edit happens to do downstream, which silently stops
+        holding as soon as one of the paths becomes a no-op.
+
+        An empty row cannot be selected (anchor equals cursor, so there is no
+        span) and keeps the ``insert_tab`` fallback, which is the sensible
+        reading there: one unit at column 0.  Either way the selection is
+        dropped afterwards and the cursor returns to the first non-blank
+        column, the landing spot vim uses.
+
+        *count* is passed in rather than read here because the caller has to
+        consume it before dropping the pending command state.
+        """
+        row = buf.row
+        for _ in range(count):
+            buf.set_cursor((row, 0))
+            buf.set_cursor((row, len(buf.lines[row])), select=True)
+            if key == ">":
+                buf.indent_selection()
+            else:
+                buf.outdent_selection()
+        buf.clear_selection()
+        # toggle=False: a toggle would bounce off the first non-blank column
+        # back to 0 on a second press, and the row may well sit there already.
+        buf.move_line_start(toggle=False)
 
     def _linewise_op(self, ctx: ActionContext, op: str) -> None:
         """Run a counted linewise ``dd`` / ``yy`` / ``cc``."""
