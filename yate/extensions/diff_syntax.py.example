@@ -15,10 +15,12 @@ from __future__ import annotations
 
 from yate.services.extensions import ExtensionAPI
 
+#: Git writes these headers in lower case (``diff --git``, ``Binary files ...``)
+#: and the tokenizer matches case-sensitively, so they are listed lower case only.
 _DIFF_KEYWORDS: frozenset[str] = frozenset({
     "diff", "index", "new", "old", "mode", "file", "from", "to",
-    "similarity", "rename", "copy", "deleted", "created", "Binary",
-    "GIT", "binary", "patch",
+    "similarity", "rename", "copy", "deleted", "created", "binary",
+    "patch",
 })
 
 

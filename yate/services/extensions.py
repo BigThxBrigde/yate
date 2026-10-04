@@ -205,12 +205,17 @@ class SyntaxExtensionBridge:
         (resolve it against your extension's ``__file__`` for robustness).
 
         *extensions* are the file extensions (``"ysh"``, ...) that select
-        the language; they become available from ``:set filetype=`` with a
-        minimal regex fallback should the grammar fail to load.
+        the language; they become available from ``:set filetype=`` once the
+        grammar is registered.  Note that registration is all-or-nothing: the
+        keys are only published *after* the grammar and query load, so a
+        missing dependency, a missing pack or an invalid query registers
+        nothing at all (there is no regex fallback -- register a
+        :class:`LangSpec` through ``api.highlight.register`` for that).
 
         *capture_map* optionally overrides/extends the default
         capture-name -> token-kind mapping (see
-        ``yate/editor_syntax/ts_backend/languages.py``).
+        ``yate/editor_syntax/ts_backend/languages.py``).  A capture name that
+        is in neither map is silently dropped by the backend.
 
         Raises ``RuntimeError`` when ``tree_sitter`` is not installed,
         ``ValueError`` for unresolvable grammars, and query errors straight

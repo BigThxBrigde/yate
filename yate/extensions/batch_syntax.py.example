@@ -7,8 +7,10 @@ is also selectable manually with ``:set filetype=bat``.
 
 The highlighter is a declarative :class:`LangSpec` registered through the
 documented extension surface (``api.highlight.register``): the built-in
-tokenizer already handles strings, numbers, labels and word coloring --
-only the word lists are language specific.
+tokenizer already handles strings, numbers, comments and word coloring --
+only the word lists are language specific.  Batch has no lexical form the
+word-list backend can express, so ``%VAR%`` expansion and ``:label`` targets
+stay uncolored.
 
 Note: ``api.highlight.register`` pins the registered extensions to the
 regex backend, which is what a simple line-oriented language like batch
@@ -34,6 +36,9 @@ def setup(api: ExtensionAPI) -> None:
         name="batch",
         mode="code",
         line_comment="rem",
+        # '@' prefixes a command ('@echo off'), never a decorator -- without
+        # this the tokenizer paints '@echo' as a Python-style annotation.
+        at_sigil=True,
         keywords=_BAT_KEYWORDS,
     )
     api.highlight.register(spec, "bat", "cmd")

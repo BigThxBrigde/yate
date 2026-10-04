@@ -8,8 +8,12 @@ files.
 Two declarative :class:`LangSpec` variants are registered: the ignore-file
 dialect (pattern lines, ``#`` comments) and the config dialect (``config``
 mode gives section headers and ``key = value`` coloring for free).
-``.gitignore`` files have no leading basename -- their suffix is
-``.gitignore`` itself, which becomes the filetype key ``gitignore``.
+
+``.gitignore`` has no extension to derive a type from -- a leading-dot name
+has no suffix, so the document falls back to ``plaintext`` and the ignore-file
+spec never engages on its own.  Select it manually with
+``:set filetype=gitignore`` (or rename the file).  ``.gitconfig`` /
+``.gitmodules`` do have suffixes and highlight automatically.
 """
 
 from __future__ import annotations

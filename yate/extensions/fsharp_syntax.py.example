@@ -7,8 +7,9 @@ the grammar pack::
     pip install tree-sitter-fsharp
 
 After loading, ``.fs`` / ``.fsi`` / ``.fsx`` files highlight through the
-tree-sitter backend (when the optional dependency is installed; otherwise
-the type falls back to plain text).
+tree-sitter backend.  There is no silent fallback: without ``tree_sitter`` or
+without the grammar pack the registration raises, and the extension then fails
+to load with an ``extension fsharp: ...`` message -- nothing is registered.
 
 This example demonstrates ``api.syntax.register_tree_sitter``: it takes a
 grammar pack name (or a compiled shared library path), a highlights query
@@ -19,7 +20,8 @@ foreground.
 
 If the query below stops matching after a grammar upgrade, adjust the node
 names to the installed grammar version -- the query is plain
-tree-sitter ``highlights.scm`` source.
+tree-sitter ``highlights.scm`` source.  A wrong node name is not a silent
+no-op either: ``ts.Query`` rejects it at registration time.
 """
 
 from __future__ import annotations
@@ -46,9 +48,11 @@ _QUERY = """\
 (typar) @type
 """
 
-_CAPTURE_MAP: dict[str, str] = {
-    "identifier": "function",
-}
+#: Extra capture overrides for ``api.syntax.register_tree_sitter``.  The
+#: default map already covers every name used above; pass e.g.
+#: ``{"variable": "property"}`` here when a query of yours uses a name that is
+#: not registered by default, otherwise that capture is dropped silently.
+_CAPTURE_MAP: dict[str, str] = {}
 
 
 def setup(api: ExtensionAPI) -> None:
