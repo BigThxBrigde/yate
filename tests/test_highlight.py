@@ -320,6 +320,93 @@ def test_xaml_comment_and_string() -> None:
     assert toks[0]
     assert all(t.kind == "comment" for t in toks[0])
     assert ("string", '"hi"') in _kinds(toks[1], lines[1])
+    # The XAML vocabulary: without it the fallback only ever paints comments
+    # and attribute values.
+    assert ("type", "Grid") in _kinds(toks[1], lines[1])
+
+
+def test_perl_sub_names_the_function() -> None:
+    # `sub foo {` -- 'foo' is followed by a space, not '(', so only
+    # func_def_words can color it.
+    line = "sub foo {"
+    assert ("keyword", "sub") in _kinds(hl.tokenize_document([line], "pl")[0], line)
+    assert ("function", "foo") in _kinds(hl.tokenize_document([line], "pl")[0], line)
+
+
+def test_perl_library_functions_are_builtins_not_keywords() -> None:
+    # Same classification convention as _PY_BUILTINS / _GO_BUILTINS.
+    line = "print 'x';"
+    assert ("builtin", "print") in _kinds(hl.tokenize_document([line], "pl")[0], line)
+
+
+def test_at_sigil_is_a_variable_where_the_language_says_so() -> None:
+    for filetype, line, text in (
+        ("pl", "push @items;", "@items"),
+        ("rb", "@ivar = 1", "@ivar"),
+        ("ps1", "Write-Output @rest", "@rest"),
+    ):
+        assert ("property", text) in _kinds(
+            hl.tokenize_document([line], filetype)[0], line
+        ), filetype
+    # ... while python keeps @ as a decorator.
+    line = "@dataclass"
+    assert ("decorator", "@dataclass") in _kinds(
+        hl.tokenize_document([line], "py")[0], line
+    )
+
+
+def test_make_expands_parenthesised_variables() -> None:
+    # Makefile variables are $(VAR) / $@ / $<, not $VAR.
+    line = "all: $(OS)"
+    assert ("property", "$(OS)") in _kinds(hl.tokenize_document([line], "mak")[0], line)
+    # '-include' was unreachable: _IDENT_RE has no '-', so it could never match.
+    spec = hl.lang_for("mak")
+    assert spec is not None
+    assert "include" in spec.keywords
+    assert "-include" not in spec.keywords
+
+
+def test_css_scans_hyphenated_properties_as_one_identifier() -> None:
+    line = "font-size: 12px;"
+    pairs = _kinds(hl.tokenize_document([line], "css")[0], line)
+    assert ("builtin", "font-size") in pairs
+    # The value still scans: the dashed pattern only joins letter-led segments.
+    assert ("number", "12") in pairs
+    assert ("operator", ":") in pairs
+
+
+def test_scss_and_less_reuse_the_css_word_lists() -> None:
+    for filetype in ("scss", "less"):
+        spec = hl.lang_for(filetype)
+        assert spec is not None
+        assert spec.name == filetype          # own name -> no ts grammar lookup
+        assert spec.hyphenated_idents
+    line = "a { color: red; }"
+    for filetype in ("scss", "less"):
+        pairs = _kinds(hl.tokenize_document([line], filetype)[0], line)
+        assert ("type", "a") in pairs or ("builtin", "color") in pairs
+
+
+def test_langspec_word_lists_have_no_unreachable_entries() -> None:
+    # keywords win over types (and types over builtins) in the classifier, so a
+    # word in both tables makes the types entry dead weight.
+    for spec in (hl.lang_for("lua"), hl.lang_for("ps1"), hl.lang_for("php")):
+        assert spec is not None
+        assert not spec.types & spec.keywords
+        assert not spec.types & spec.builtins
+
+
+def test_filetype_candidate_list_is_truncated_with_a_total() -> None:
+    # The registry outgrew the message width; an untruncated join silently lost
+    # everything past the wrap column.
+    shown = hl.format_filetype_candidates()
+    total = len(hl.available_filetypes())
+    head = shown.split(", ...")[0]
+    assert shown.endswith(f"... ({total} total)")
+    assert head == ", ".join(hl.available_filetypes()[:12])
+    assert hl.format_filetype_candidates(limit=4).startswith(
+        ", ".join(hl.available_filetypes()[:4])
+    )
 
 
 def test_perl_keywords_and_sigils() -> None:
@@ -356,13 +443,19 @@ def test_ruby_keywords_and_comment() -> None:
 
 
 def test_sql_keywords_are_case_insensitive() -> None:
-    lines = ["-- note", "select * from t where x = 1;"]
+    lines = ["-- note", "select * from t where x = 1;", "SELECT COUNT(*) FROM t"]
     toks = hl.tokenize_document(lines, "sql")
     assert ("comment", "-- note") in _kinds(toks[0], lines[0])
     pairs = _kinds(toks[1], lines[1])
     assert ("keyword", "select") in pairs
     assert ("keyword", "from") in pairs
     assert ("keyword", "where") in pairs
+    # The upper half only passes because the registry expands every word list
+    # with its upper-case spelling -- drop that expansion and this goes red.
+    upper = _kinds(toks[2], lines[2])
+    assert ("keyword", "SELECT") in upper
+    assert ("keyword", "FROM") in upper
+    assert ("builtin", "COUNT") in upper
 
 
 def test_zig_keywords_and_types() -> None:

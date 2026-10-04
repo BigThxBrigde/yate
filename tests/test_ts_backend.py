@@ -10,7 +10,9 @@ optional grammar packs are installed.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -294,7 +296,10 @@ _PACK_CASES: list[_PackCase] = [
     _PackCase(
         "markdown", "md",
         ["# Title", "```py", "code = 1"],
-        ((0, "keyword", "#"), (2, "string", "code = 1")),
+        # The heading marker is a ``heading`` capture (SYNTAX_KINDS paints it
+        # like a keyword) and the fence's info string is ``builtin`` -- both
+        # must be registered in DEFAULT_CAPTURE_MAP or they are dropped.
+        ((0, "heading", "#"), (1, "builtin", "py"), (2, "string", "code = 1")),
     ),
     _PackCase(
         "xml", "xml",
@@ -612,6 +617,107 @@ def test_builtin_packs_ship_a_query_file() -> None:
     for name in ts_langs.BUILTIN_PACKS:
         query = ts_langs.QUERIES_DIR / f"{name}.scm"
         assert query.is_file(), f"missing bundled query {query}"
+
+
+#: ``@name`` in a query source; the trailing boundary keeps ``@name.foo``
+#: (dotted capture names) intact.
+_CAPTURE_RE = re.compile(r"@([A-Za-z_][\w.]*)")
+
+
+def _query_capture_names() -> dict[str, set[str]]:
+    """Capture names per bundled query file, ignoring ``;`` comment lines.
+
+    Deliberately dependency-free: a grammar-pack install is not required, so
+    the invariant still holds in a regex-only checkout.
+    """
+    found: dict[str, set[str]] = {}
+    for scm in sorted(ts_langs.QUERIES_DIR.glob("*.scm")):
+        names: set[str] = set()
+        for line in scm.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith(";"):
+                continue
+            names.update(_CAPTURE_RE.findall(stripped))
+        found[scm.stem] = names
+    return found
+
+
+def test_bundled_queries_only_use_registered_captures() -> None:
+    # An unregistered capture name is dropped by the backend (``kind is None``),
+    # so the span renders with the default foreground -- a silent failure that
+    # no per-language sample test can catch when its grammar pack is absent.
+    for stem, names in _query_capture_names().items():
+        unregistered = names - set(ts_langs.DEFAULT_CAPTURE_MAP)
+        assert unregistered == set(), f"{stem}.scm uses unregistered {unregistered}"
+
+
+def test_markdown_heading_and_fence_language_are_registered() -> None:
+    # The two markdown captures that regressed once: the heading markers and
+    # the fence info string (the ```py language tag).
+    names = _query_capture_names()["markdown"]
+    assert "heading" in names
+    assert "builtin" in names
+
+
+def test_builtin_packs_match_packaging_manifests() -> None:
+    # BUILTIN_PACKS, the [ts] extra and PyInstaller's _TS_PACKAGES are three
+    # copies of one list, previously kept in sync by a prose comment.  They
+    # must agree: a grammar missing from the extra is uninstallable, and one
+    # missing from _TS_PACKAGES is invisible in a frozen build.
+    root = Path(__file__).resolve().parents[1]
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    extras = pyproject["project"]["optional-dependencies"]
+    ts_extra = cast(list[str], extras["ts"])
+    dev_extra = cast(list[str], extras["dev"])
+
+    def modules(requirements: list[str]) -> set[str]:
+        names: set[str] = set()
+        for requirement in requirements:
+            base = re.split(r"[<>=!~\[; ]", requirement.strip(), maxsplit=1)[0]
+            names.add(base.replace("-", "_"))
+        return names
+
+    common_src = (root / "pack" / "_common.py").read_text(encoding="utf-8")
+    tuple_body = re.search(
+        r"_TS_PACKAGES[^=]*=\s*\(([^)]*)\)", common_src, re.DOTALL
+    )
+    assert tuple_body is not None, "pack/_common.py lost its _TS_PACKAGES tuple"
+    pack_modules = set(re.findall(r'"([\w.]+)"', tuple_body.group(1)))
+
+    assert modules(ts_extra) == pack_modules
+    # ``dev`` is a superset: it adds the test/type tooling on top of [ts].
+    assert pack_modules <= modules(dev_extra)
+    # Every pack a language needs, and nothing else (xml/xaml share one module,
+    # hence the set comparison rather than equal counts).
+    assert set(ts_langs.BUILTIN_PACKS.values()) == pack_modules - {"tree_sitter"}
+
+
+def test_same_span_captures_resolve_by_kind_precedence() -> None:
+    # Bundled queries keep a wide catch-all next to a narrow capture (a query
+    # cannot express "not a call"); the winner must not depend on the dict
+    # order of QueryCursor.captures(), which py-tree-sitter does not document.
+    both = [(0, 3, "function.method"), (0, 3, "property")]
+    assert [t.kind for t in ts_runtime._tokens_for_row(both, 3)] == ["function.method"]
+    # ... and the same answer whichever way the candidates arrive.
+    assert [t.kind for t in ts_runtime._tokens_for_row(both[::-1], 3)] == [
+        "function.method"
+    ]
+    assert ts_runtime._KIND_RANK["function.method"] < ts_runtime._KIND_RANK["property"]
+    assert ts_runtime._KIND_RANK["property"] < len(ts_runtime._KIND_PRECEDENCE)
+
+
+def test_scss_and_less_do_not_borrow_the_css_grammar() -> None:
+    # They share the CSS word lists but must keep their own language name: the
+    # tree-sitter resolver looks a grammar up by LangSpec.name, and a shared
+    # "css" name would parse $var / @mixin / // with the CSS grammar.
+    for name in ("css", "scss", "less"):
+        spec = regex_backend.lang_for(name)
+        assert spec is not None
+        assert spec.name == name
+    if has_tree_sitter:
+        assert ts_backend.available_for("css")
+        assert not ts_backend.available_for("scss")
+        assert not ts_backend.available_for("less")
 
 
 def test_symbol_name_replaces_non_identifier_characters() -> None:
