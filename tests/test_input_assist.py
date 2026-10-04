@@ -500,22 +500,46 @@ def test_shift_tab_on_an_unindented_row_leaves_it_at_zero() -> None:
     assert buf.lines[0].startswith(" ") is False
 
 
-def test_vim_normal_mode_count_indents_the_current_line() -> None:
-    """``3>`` shifts the line by three levels, one per count."""
-    editor = _Editor("abc")
+def test_vim_normal_mode_count_indents_that_many_lines() -> None:
+    """``3>`` counts rows, not levels: three rows gain one level each.
+
+    Vim's own help for the binding reads ``Indent [count] lines``, so the count
+    is a line count.  Re-reading the cursor row on every pass would instead put
+    three levels on the *current* row and leave the rows below it alone, which
+    is the reading this pin makes visible.
+    """
+    editor = _Editor("a\nb\nc\nd")
     keymap = VimKeymap()
 
     _press(keymap, editor.context(), "3", ">")
-    assert editor.buffer.lines == ["            abc"]
+    assert editor.buffer.lines == ["    a", "    b", "    c", "d"]
+    # the cursor keeps its own row and lands on that row's first non-blank column
+    assert editor.buffer.cursor == (0, 4)
 
 
-def test_vim_normal_mode_outdent_stops_at_column_zero() -> None:
-    """``3<`` on an 8-space line removes both levels and then stops at zero."""
-    editor = _Editor("        abc")
+def test_vim_normal_mode_count_outdents_that_many_lines() -> None:
+    """``3<`` is the mirror image: three rows lose one level, the fourth is spared."""
+    editor = _Editor("        a\n        b\n        c\n        d")
     keymap = VimKeymap()
 
     _press(keymap, editor.context(), "3", "<")
-    assert editor.buffer.lines == ["abc"]
+    assert editor.buffer.lines == ["    a", "    b", "    c", "        d"]
+    assert editor.buffer.cursor == (0, 4)
+
+
+def test_vim_normal_mode_count_outdent_stops_at_column_zero() -> None:
+    """A row with a single level to give loses it and stops, whatever the count.
+
+    Since the count is a row count, ``3<`` on a lone four-space row is one
+    outdent, not three.  The row holds nothing but whitespace so the assertion
+    is about the indent alone: outdenting never goes below column zero, and what
+    zero indent means on such a row is an empty line rather than a negative one.
+    """
+    editor = _Editor("    ")
+    keymap = VimKeymap()
+
+    _press(keymap, editor.context(), "3", "<")
+    assert editor.buffer.lines == [""]
 
 
 def test_vim_normal_mode_indent_shifts_the_whole_line_from_any_column() -> None:
@@ -548,18 +572,70 @@ def test_vim_normal_mode_outdent_shifts_the_whole_line_from_any_column() -> None
     assert editor.buffer.has_selection() is False
 
 
-def test_vim_normal_mode_indent_on_an_empty_row_adds_one_unit_per_count() -> None:
-    """An empty row cannot be selected, so it keeps the ``insert_tab`` fallback.
+def test_vim_normal_mode_indent_on_an_empty_row_shifts_the_rows_below() -> None:
+    """An empty row inside the span is shifted like any other row.
+
+    Only a span that *degenerates* to a single empty row has nothing to select,
+    so an empty row that merely leads a multi-row span takes the ordinary path
+    and gains the same single unit as the rows below it.
+    """
+    editor = _Editor("\na\nb")
+    keymap = VimKeymap()
+
+    _press(keymap, editor.context(), "3", ">")
+    assert editor.buffer.lines == ["    ", "    a", "    b"]
+
+
+def test_vim_normal_mode_indent_on_a_lone_empty_row_adds_one_unit() -> None:
+    """A lone empty row cannot be selected, so it keeps the ``insert_tab`` fallback.
 
     That is the sensible reading -- one unit at column 0 -- and it is pinned
-    here so the fallback is a documented behaviour rather than an accident.
+    here so the fallback is a documented behaviour rather than an accident.  The
+    trailing row of ``"abc\\n"`` is the one case where the span has nothing to
+    span, and the count being a row count rather than a repeat count is what
+    keeps the fallback at a single unit instead of one per count.
     """
     editor = _Editor("abc\n")
     editor.buffer.set_cursor((1, 0))
     keymap = VimKeymap()
 
     _press(keymap, editor.context(), "3", ">")
-    assert editor.buffer.lines == ["abc", "            "]
+    assert editor.buffer.lines == ["abc", "    "]
+
+
+def test_vim_normal_mode_count_truncates_at_the_last_row() -> None:
+    """``3>`` with two rows left shifts both of them and raises nothing.
+
+    vim shifts whatever is there when the count runs past the end of the file,
+    so a short buffer is a silent truncation -- not an error, and not a refusal
+    to act on the rows that do exist.
+    """
+    editor = _Editor("a\nb")
+    keymap = VimKeymap()
+    ctx = editor.context()
+
+    _press(keymap, ctx, "3")
+    assert keymap.handle_key(ctx, ">") is True
+    assert editor.buffer.lines == ["    a", "    b"]
+
+
+def test_vim_normal_mode_count_indent_undoes_the_whole_span_in_one_step() -> None:
+    """One ``u`` after ``3>`` brings back all three rows, not just the last one.
+
+    The span is committed as a single ``"step"``, where shifting row by row
+    would have left two of the three shifts still applied after one undo.  The
+    assertion is the exact restored text rather than a count of indents, so an
+    undo that ran too far would fail here instead of passing by coincidence.
+    """
+    editor = _Editor("a\nb\nc")
+    keymap = VimKeymap()
+    ctx = editor.context()
+
+    _press(keymap, ctx, "3", ">")
+    assert editor.buffer.lines == ["    a", "    b", "    c"]
+
+    _press(keymap, ctx, "u")
+    assert editor.buffer.lines == ["a", "b", "c"]
 
 
 def test_vsc_indent_action_without_a_selection_pads_at_the_cursor() -> None:
