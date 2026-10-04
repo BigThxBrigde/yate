@@ -18,7 +18,12 @@
 (null_scalar) @constant
 
 ; --- keys & anchors -------------------------------------------------------
+; A key is a flow_node: plain (plain_scalar) or quoted (double_quote_scalar /
+; single_quote_scalar) -- the quoted forms have no (string_scalar) child, so
+; they need patterns of their own to paint like the plain one.
 (block_mapping_pair key: (flow_node (plain_scalar (string_scalar) @property)))
+(block_mapping_pair key: (flow_node (double_quote_scalar) @property))
+(block_mapping_pair key: (flow_node (single_quote_scalar) @property))
 (anchor) @decorator
 (alias) @decorator
 (tag) @decorator

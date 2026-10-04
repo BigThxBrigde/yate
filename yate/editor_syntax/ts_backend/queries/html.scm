@@ -11,10 +11,12 @@
 (doctype) @decorator
 
 ; --- tags -----------------------------------------------------------------
+; (start_tag) / (self_closing_tag) nest inside (element), so a bare
+; (element (start_tag (tag_name) @type)) pattern would only duplicate the span
+; already claimed above -- children of start_tag match on their own.
 (start_tag (tag_name) @type)
 (end_tag (tag_name) @type)
 (self_closing_tag (tag_name) @type)
-(element (start_tag (tag_name) @type))
 
 ; --- attributes -----------------------------------------------------------
 (attribute (attribute_name) @property)

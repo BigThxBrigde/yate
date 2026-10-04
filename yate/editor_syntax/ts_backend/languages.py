@@ -120,6 +120,13 @@ QUERIES_DIR: Path = Path(__file__).parent / "queries"
 # tree-sitter capture name -> SYNTAX_KINDS key.  Captures not listed here
 # (variables, punctuation, ...) intentionally inherit the default
 # foreground color, matching the regex backend's visual density.
+#
+# Bundled queries may only use names registered here -- an unregistered name is
+# silently dropped by the backend, so ``tests/test_ts_backend.py`` guards the
+# invariant statically.  A handful of entries (``attribute``, ``escape_sequence``,
+# ``keyword.*``, ...) are not used by any bundled query: they are the reserved
+# vocabulary for extension-supplied grammars, whose ``highlights.scm`` follows
+# upstream conventions and reaches for exactly these names.
 DEFAULT_CAPTURE_MAP: dict[str, str] = {
     "comment": "comment",
     "string": "string",
@@ -139,6 +146,9 @@ DEFAULT_CAPTURE_MAP: dict[str, str] = {
     "function.call": "function",
     "function.method": "function",
     "function.builtin": "builtin",
+    # ``@name`` with no registered capture of its own (e.g. the language tag
+    # of a Markdown fenced code block); ``builtin`` is a valid SYNTAX_KINDS key.
+    "builtin": "builtin",
     "variable.builtin": "builtin",
     "type": "type",
     "type.builtin": "type",
@@ -206,10 +216,15 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
         language = ts.Language(entry())
         query_src = query_file.read_text(encoding="utf-8")
         query = ts.Query(language, query_src)
-    except Exception:  # noqa: BLE001 - optional native code: degrade, never crash
+    except Exception as exc:  # noqa: BLE001 - optional native code: degrade, never crash
         # optional native code / third-party grammar: any failure must
-        # degrade to the regex backend, never break the editor
+        # degrade to the regex backend, never break the editor.  The generic
+        # warning above stays user-facing; the exception text goes to debug
+        # level because it is the only clue for the #1 risk of this layer --
+        # a query naming a node the installed grammar does not have (a
+        # QueryError), which silently costs the user the tree-sitter backend.
         _warn_degraded_once(name, "tree-sitter load failed for %r (falls back to regex)")
+        log.debug("tree-sitter load error for %s: %s", name, exc)
         return None
     loaded = LoadedLanguage(name, language, query, dict(DEFAULT_CAPTURE_MAP))
     _LANGS[name] = loaded

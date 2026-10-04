@@ -14,7 +14,9 @@ Capture resolution:
   ``capture_map`` (unmapped captures inherit the default foreground);
 * overlapping captures are resolved shortest-span-wins (a narrow capture
   inside a wide one repaints over it), matching the master-regex
-  backend's flat, non-overlapping token output.
+  backend's flat, non-overlapping token output.  Captures covering the
+  *exact same* span are resolved by :data:`_KIND_PRECEDENCE`; see
+  :func:`_tokens_for_row`.
 
 Tree-sitter points carry *byte* columns; every offset is converted to a
 character column against the UTF-8 encoding of its line.
@@ -141,21 +143,46 @@ def _to_char(line_bytes: bytes, byte_col: int) -> int:
     return len(line_bytes[:byte_col].decode("utf-8", errors="ignore"))
 
 
+#: Tie-break for captures covering the exact same span, most specific first.
+#: A tree-sitter query cannot express "this identifier is *not* a call", so
+#: bundled queries keep a wide catch-all ``@property`` next to the narrow
+#: ``@function.method`` it overlaps with, and rely on this table to pick a
+#: winner.  The order is a hard rule rather than an accident of the dict
+#: iteration order of ``QueryCursor.captures()``, which py-tree-sitter does
+#: not document across versions.
+_KIND_PRECEDENCE: tuple[str, ...] = (
+    "function",
+    "function.call",
+    "function.method",
+    "function.builtin",
+    "property",
+)
+
+#: Precomputed ranks: lower sorts first, i.e. wins the same-span contest.
+_KIND_RANK: dict[str, int] = {kind: rank for rank, kind in enumerate(_KIND_PRECEDENCE)}
+
+
 def _tokens_for_row(
     intervals: list[tuple[int, int, str]], line_len: int
 ) -> list[Token]:
     """Resolve overlapping capture spans into flat, non-overlapping tokens.
 
-    Shorter spans claim their range first (nested captures win over the
-    enclosing one), then gaps are filled by wider spans; adjacent runs of
-    the same kind are merged.
+    Ordering is fully deterministic: shorter spans claim their range first
+    (nested captures win over the enclosing one), spans starting earlier win
+    over later ones, and captures covering the *same* span are decided by
+    :data:`_KIND_PRECEDENCE` (a call over a plain member access over the
+    generic ``property`` fallback).  Every other kind carries the same rank,
+    which is harmless because bundled queries never bind one span to two of
+    them.  Gaps between claimed ranges are then filled by wider spans;
+    adjacent runs of the same kind are merged.
     """
     if not intervals:
         return []
     claimed = bytearray(line_len)
     flat: list[tuple[int, int, str]] = []
     for start, end, kind in sorted(
-        intervals, key=lambda iv: (iv[1] - iv[0], iv[0])
+        intervals,
+        key=lambda iv: (iv[1] - iv[0], iv[0], _KIND_RANK.get(iv[2], len(_KIND_PRECEDENCE))),
     ):
         start = max(0, start)
         end = min(end, line_len)

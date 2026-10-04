@@ -6,7 +6,11 @@
 (comment) @comment
 
 ; --- strings & numbers ----------------------------------------------------
+; (string) covers single-quoted and heredoc bodies; a double-quoted string with
+; interpolation is an (encapsed_string) holding (string_content) fragments and
+; (variable_name) holes, so it needs its own pattern or it stays unpainted.
 (string) @string
+(encapsed_string) @string
 (heredoc_body) @string
 (escape_sequence) @string
 (integer) @number

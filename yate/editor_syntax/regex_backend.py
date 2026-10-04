@@ -46,6 +46,9 @@ class LangSpec:
     triple_strings: bool = False  # Python ''' / """ multiline strings
     string_prefixes: str = ""     # letters allowed directly before a quote
     sigils: bool = False          # $variable expansion (shell)
+    at_sigil: bool = False        # '@name' is a variable, not a decorator
+    paren_vars: bool = False      # '$(VAR)' expansion (make)
+    hyphenated_idents: bool = False  # 'font-size' is one identifier (CSS)
     keywords: frozenset[str] = frozenset()
     builtins: frozenset[str] = frozenset()
     constants: frozenset[str] = frozenset()
@@ -202,6 +205,9 @@ def _spec(
     triple_strings: bool = False,
     string_prefixes: str = "",
     sigils: bool = False,
+    at_sigil: bool = False,
+    paren_vars: bool = False,
+    hyphenated_idents: bool = False,
     keywords: frozenset[str] = frozenset(),
     builtins: frozenset[str] = frozenset(),
     constants: frozenset[str] = frozenset(),
@@ -214,7 +220,9 @@ def _spec(
     return LangSpec(
         name=name, mode=mode, line_comment=line_comment,
         block_comment=block_comment, triple_strings=triple_strings,
-        string_prefixes=string_prefixes, sigils=sigils, keywords=keywords,
+        string_prefixes=string_prefixes, sigils=sigils, at_sigil=at_sigil,
+        paren_vars=paren_vars, hyphenated_idents=hyphenated_idents,
+        keywords=keywords,
         builtins=builtins, constants=constants, types=types,
         func_def_words=func_def_words, type_def_words=type_def_words,
         macro_call=macro_call,
@@ -449,13 +457,24 @@ _CSS_TAGS: frozenset[str] = frozenset({
     "title",
 })
 
-register_language(
-    _spec(
-        "css", block_comment=("/*", "*/"),
+#: ``scss`` / ``less`` get their own specs instead of sharing the ``css`` one:
+#: the tree-sitter resolver looks a grammar up by ``LangSpec.name``, so a
+#: shared name would route ``.scss`` files into the CSS grammar and produce
+#: ERROR nodes for ``$var`` / ``@mixin`` / ``//``.  Separate names keep them on
+#: the regex backend (no ``tree-sitter-scss`` / ``-less`` exists on PyPI)
+#: without changing any extension key.
+def _css_family(name: str) -> LangSpec:
+    """The shared CSS word lists under a language name of its own."""
+    return _spec(
+        name, block_comment=("/*", "*/"),
         builtins=_CSS_PROPERTIES, constants=_CSS_COLORS, types=_CSS_TAGS,
-    ),
-    "css", "scss", "less",
-)
+        hyphenated_idents=True,
+    )
+
+
+register_language(_css_family("css"), "css")
+register_language(_css_family("scss"), "scss")
+register_language(_css_family("less"), "less")
 
 _PS_KEYWORDS: frozenset[str] = frozenset({
     "if", "elseif", "else", "switch", "for", "foreach", "while", "do",
@@ -464,15 +483,16 @@ _PS_KEYWORDS: frozenset[str] = frozenset({
     "process", "end", "class", "enum", "exit", "from", "hidden", "static",
     "default", "dynamicparam", "data", "workflow", "parallel", "sequence",
 })
+#: ``switch`` is absent on purpose: it is a PowerShell keyword.
 _PS_TYPES: frozenset[str] = frozenset({
     "string", "int", "bool", "long", "double", "object", "byte", "char",
     "decimal", "single", "float", "array", "hashtable", "psobject", "void",
-    "switch", "ref", "scriptblock", "xml", "wmi", "wmiclass", "regex",
+    "ref", "scriptblock", "xml", "wmi", "wmiclass", "regex",
     "pscustomobject",
 })
 
 register_language(
-    _spec("powershell", line_comment="#", sigils=True,
+    _spec("powershell", line_comment="#", sigils=True, at_sigil=True,
           keywords=_PS_KEYWORDS, types=_PS_TYPES),
     "ps1", "psm1", "psd1",
 )
@@ -489,8 +509,10 @@ _LUA_BUILTINS: frozenset[str] = frozenset({
     "rawset", "rawequal", "rawlen", "select", "next", "assert", "unpack",
     "load", "loadstring", "dofile", "collectgarbage", "setfenv", "getfenv",
 })
+#: ``function`` is absent on purpose: it is a Lua keyword, and keywords are
+#: matched before types, so listing it here would be dead weight.
 _LUA_TYPES: frozenset[str] = frozenset({
-    "table", "string", "number", "boolean", "function", "thread", "userdata",
+    "table", "string", "number", "boolean", "thread", "userdata",
 })
 
 register_language(
@@ -505,12 +527,16 @@ register_language(
 
 _MAKE_KEYWORDS: frozenset[str] = frozenset({
     "ifeq", "ifneq", "ifdef", "ifndef", "else", "endif", "include",
-    "-include", "define", "endef", "export", "unexport", "override",
+    "define", "endef", "export", "unexport", "override",
     "undefine", "private", "vpath", "foreach", "call", "eval", "value",
 })
 
+#: ``-include`` is deliberately absent: ``_IDENT_RE`` has no ``-``, so a leading
+#: dash could never be classified as a keyword.  Makefile variables are spelled
+#: ``$(VAR)`` / ``$@`` / ``$<``, covered by :attr:`LangSpec.paren_vars`.
 register_language(
-    _spec("make", line_comment="#", sigils=True, keywords=_MAKE_KEYWORDS),
+    _spec("make", line_comment="#", sigils=True, paren_vars=True,
+          keywords=_MAKE_KEYWORDS),
     "mak", "mk",
 )
 
@@ -518,24 +544,54 @@ register_language(
     _spec("xml", block_comment=("<!--", "-->")),
     "xml",
 )
+
+#: Common WPF / UWP / Avalonia element and property names.  XML itself has no
+#: vocabulary worth listing (tags are open-ended), but XAML is a fixed UI
+#: vocabulary, and without it the regex fallback only ever paints comments and
+#: attribute values.
+_XAML_TYPES: frozenset[str] = frozenset({
+    "Application", "Window", "UserControl", "Page", "ContentControl",
+    "Grid", "StackPanel", "Canvas", "WrapPanel", "DockPanel", "Panel",
+    "Border", "ScrollViewer", "Viewbox", "ItemsControl", "ListBox",
+    "ListView", "GridView", "ComboBox", "TabControl", "Menu", "ToolBar",
+    "Button", "ToggleButton", "RadioButton", "CheckBox", "TextBox",
+    "PasswordBox", "Label", "TextBlock", "RichTextBlock", "Image",
+    "ProgressBar", "Slider", "Separator", "ContextMenu", "MenuItem",
+    "RowDefinition", "ColumnDefinition", "GridLength", "Thickness",
+    "SolidColorBrush", "LinearGradientBrush", "DataTemplate",
+    "ControlTemplate", "Style", "Setter", "Trigger", "Storyboard",
+    "ResourceDictionary", "TemplateBinding", "Binding", "RelativeSource",
+    "DependencyProperty", "DependencyObject", "DispatcherTimer",
+})
+
 register_language(
-    _spec("xaml", block_comment=("<!--", "-->")),
+    _spec("xaml", block_comment=("<!--", "-->"), types=_XAML_TYPES),
     "xaml",
 )
 
 _PERL_KEYWORDS: frozenset[str] = frozenset({
     "my", "our", "local", "sub", "if", "elsif", "else", "unless", "while",
     "until", "for", "foreach", "do", "last", "next", "redo", "return", "use",
-    "no", "require", "package", "new", "bless", "ref", "defined", "exists",
-    "delete", "grep", "map", "sort", "join", "split", "print", "printf",
-    "sprintf", "say", "open", "close", "opendir", "closedir", "chomp", "chop",
-    "shift", "unshift", "push", "pop", "keys", "values", "each", "wantarray",
-    "eval", "try", "catch", "finally", "die", "warn", "given", "when",
-    "default", "state", "local", "format", "sub",
+    "no", "require", "package", "state", "format", "given", "when", "default",
+})
+#: Perl spells its library functions without a receiver (``print STDERR ...``),
+#: so they are builtins rather than keywords -- keeping them out of
+#: ``_PERL_KEYWORDS`` is what makes ``print`` paint like ``len`` in Python
+#: instead of like ``return``.
+_PERL_BUILTINS: frozenset[str] = frozenset({
+    "new", "bless", "ref", "defined", "exists", "delete", "grep", "map",
+    "sort", "join", "split", "print", "printf", "sprintf", "say", "open",
+    "close", "opendir", "closedir", "chomp", "chop", "shift", "unshift",
+    "push", "pop", "keys", "values", "each", "wantarray", "eval", "try",
+    "catch", "finally", "die", "warn", "scalar", "length", "substr", "reverse",
 })
 
 register_language(
-    _spec("perl", line_comment="#", sigils=True, keywords=_PERL_KEYWORDS),
+    _spec(
+        "perl", line_comment="#", sigils=True, at_sigil=True,
+        keywords=_PERL_KEYWORDS, builtins=_PERL_BUILTINS,
+        func_def_words=frozenset({"sub"}),
+    ),
     "pl", "pm",
 )
 
@@ -554,9 +610,10 @@ _PHP_KEYWORDS: frozenset[str] = frozenset({
 _PHP_CONSTANTS: frozenset[str] = frozenset({
     "true", "false", "null", "TRUE", "FALSE", "NULL",
 })
+#: ``callable`` and ``static`` are absent on purpose: both are PHP keywords.
 _PHP_TYPES: frozenset[str] = frozenset({
-    "int", "float", "bool", "string", "void", "mixed", "object", "callable",
-    "iterable", "never", "static", "parent", "self",
+    "int", "float", "bool", "string", "void", "mixed", "object",
+    "iterable", "never", "parent", "self",
 })
 
 register_language(
@@ -570,13 +627,19 @@ register_language(
 )
 
 _RUBY_KEYWORDS: frozenset[str] = frozenset({
-    "alias", "and", "begin", "break", "case", "class", "def", "do", "each",
+    "alias", "and", "begin", "break", "case", "class", "def", "do",
     "else", "elsif", "end", "ensure", "for", "if", "in", "module", "next",
     "not", "or", "redo", "rescue", "retry", "return", "self", "super", "then",
     "undef", "unless", "until", "when", "while", "yield", "require",
-    "require_relative", "include", "extend", "raise", "attr_accessor",
-    "attr_reader", "attr_writer", "new", "lambda", "proc", "puts", "print",
-    "loop", "fail", "catch", "throw",
+    "require_relative", "include", "extend", "attr_accessor",
+    "attr_reader", "attr_writer",
+})
+#: Kernel methods, not keywords (``each`` is not a keyword at all -- it is an
+#: Enumerable/Array method and has no business in the keyword table).
+_RUBY_BUILTINS: frozenset[str] = frozenset({
+    "new", "raise", "fail", "puts", "print", "loop", "lambda", "proc",
+    "catch", "throw", "require", "require_relative", "include", "extend",
+    "attr_accessor", "attr_reader", "attr_writer",
 })
 _RUBY_CONSTANTS: frozenset[str] = frozenset({"true", "false", "nil"})
 _RUBY_TYPES: frozenset[str] = frozenset({
@@ -588,8 +651,9 @@ _RUBY_TYPES: frozenset[str] = frozenset({
 
 register_language(
     _spec(
-        "ruby", line_comment="#",
-        keywords=_RUBY_KEYWORDS, constants=_RUBY_CONSTANTS, types=_RUBY_TYPES,
+        "ruby", line_comment="#", at_sigil=True,
+        keywords=_RUBY_KEYWORDS, builtins=_RUBY_BUILTINS,
+        constants=_RUBY_CONSTANTS, types=_RUBY_TYPES,
         func_def_words=frozenset({"def"}),
         type_def_words=frozenset({"class", "module"}),
     ),
@@ -623,13 +687,21 @@ _SQL_BUILTINS: frozenset[str] = frozenset({
     "string_agg", "group_concat", "extract", "greatest", "least",
 })
 
+#: SQL keywords / types / functions are case-insensitive, and the engine
+#: matches identifiers case-sensitively -- so both spellings are listed.  Named
+#: constants rather than inline comprehensions: the expansion is part of the
+#: contract with the word lists above, and its size should be readable.
+_SQL_KEYWORDS_ALL: frozenset[str] = _SQL_KEYWORDS | {w.upper() for w in _SQL_KEYWORDS}
+_SQL_BUILTINS_ALL: frozenset[str] = _SQL_BUILTINS | {w.upper() for w in _SQL_BUILTINS}
+_SQL_TYPES_ALL: frozenset[str] = _SQL_TYPES | {w.upper() for w in _SQL_TYPES}
+
 register_language(
     _spec(
         "sql", line_comment="--", block_comment=("/*", "*/"),
-        keywords=_SQL_KEYWORDS | {w.upper() for w in _SQL_KEYWORDS},
-        builtins=_SQL_BUILTINS | {w.upper() for w in _SQL_BUILTINS},
+        keywords=_SQL_KEYWORDS_ALL,
+        builtins=_SQL_BUILTINS_ALL,
         constants=frozenset({"null", "true", "false", "NULL", "TRUE", "FALSE"}),
-        types=_SQL_TYPES | {w.upper() for w in _SQL_TYPES},
+        types=_SQL_TYPES_ALL,
     ),
     "sql",
 )
@@ -696,6 +768,21 @@ def available_filetypes() -> list[str]:
     return sorted(set(_LANGUAGES) | set(_NAME_TO_KEY))
 
 
+def format_filetype_candidates(limit: int = 12) -> str:
+    """:func:`available_filetypes` as a message-ready, truncated list.
+
+    The registry holds 60+ keys plus every language name, which no status-bar
+    width can show in full -- callers used to inline ``", ".join(...)`` and
+    silently lose everything past the wrap column.  Shows *limit* entries and
+    appends ``"... (N total)"`` for the rest.
+    """
+    filetypes = available_filetypes()
+    shown = ", ".join(filetypes[:limit])
+    if len(filetypes) > limit:
+        shown += f", ... ({len(filetypes)} total)"
+    return shown
+
+
 # ---------------------------------------------------------------------------
 # Regex building
 # ---------------------------------------------------------------------------
@@ -710,7 +797,15 @@ _NUMBER_RE: re.Pattern[str] = re.compile(
 )
 _IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w*")
 _SIGIL_RE: re.Pattern[str] = re.compile(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?")
+#: ``$(VAR)`` / ``${VAR}``-free make-style expansion; only the ``$(...)`` form
+#: is worth a pattern, the single-char ``$@`` / ``$<`` are punctuation to the
+#: eye anyway.  Kept separate from :data:`_SIGIL_RE` because a parenthesized
+#: name may contain characters an identifier may not.
+_PAREN_VAR_RE: re.Pattern[str] = re.compile(r"\$\([^)\n]*\)")
 _DECORATOR_RE: re.Pattern[str] = re.compile(r"@[A-Za-z_][\w.]*")
+#: Dash-joined identifiers (``font-size``).  Each segment must start with a
+#: letter, so ``x-1`` still scans as ``x``, operator ``-``, number ``1``.
+_DASHED_IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w*(?:-[A-Za-z_]\w*)*")
 _OPERATOR_RE: re.Pattern[str] = re.compile(r"(?:->|=>|\.\.\.|::|[-+*/%=<>!&|^~?:]+)")
 
 _MD_HEADING_RE: re.Pattern[str] = re.compile(r"^(#{1,6})\s+.*$")
@@ -767,6 +862,10 @@ def _code_line_pattern(spec: LangSpec) -> re.Pattern[str]:
     parts.append(_DECORATOR_RE.pattern)
     if spec.sigils:
         parts.append(_SIGIL_RE.pattern)
+    if spec.paren_vars:
+        parts.append(_PAREN_VAR_RE.pattern)
+    if spec.hyphenated_idents:
+        parts.append(_DASHED_IDENT_RE.pattern)
     parts.append(_IDENT_RE.pattern)
     parts.append(_OPERATOR_RE.pattern)
     return re.compile("|".join(f"(?:{p})" for p in parts))
@@ -883,7 +982,10 @@ def _tokenize_code_line(
             continue
 
         if text[0] == "@":
-            _emit(tokens, start, end, "decorator")
+            # '@' is a decorator in Python / C# / Java, but a sigil in perl
+            # (@array), ruby (@ivar) and PowerShell (@splat) -- the spec says
+            # which one it means.
+            _emit(tokens, start, end, "property" if spec.at_sigil else "decorator")
             pending = None
             pos = end
             continue
