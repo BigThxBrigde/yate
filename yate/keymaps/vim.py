@@ -70,6 +70,9 @@ _ARG_PREFIXES: tuple[str, ...] = ("f", "F", "t", "T", "r")
 
 _FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
+#: The two shift keys that indent / outdent whole lines in vim mode.
+_SHIFT_KEYS: frozenset[str] = frozenset({">", "<"})
+
 # help categories (module level: uppercase constants)
 NAV: str = "Vim: motion"
 INS: str = "Vim: insert"
@@ -364,7 +367,7 @@ class VimKeymap(Keymap):
             buf.clear_selection()
             ui.find_prompt(False)
             return True
-        if key == ">" or key == "<":
+        if key in _SHIFT_KEYS:
             # shift the selected rows in place; the mode and the selection stay
             # as they are, so the range can be shifted again (vim behaviour).
             # Visual mode ignores counts by convention, so a typed count is
@@ -485,7 +488,7 @@ class VimKeymap(Keymap):
             self.count_str = ""
             return True
 
-        if key == ">" or key == "<":
+        if key in _SHIFT_KEYS:
             # must precede the extension-binding fallback: the help entries
             # above put "indent" / "outdent" in ``_index``, so falling through
             # would report them as unknown actions instead of shifting lines.
