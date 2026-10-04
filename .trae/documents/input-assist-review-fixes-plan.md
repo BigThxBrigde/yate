@@ -122,3 +122,82 @@ if stripped and opens_block(rules, stripped):
 ### 4.4 提交
 
 `fix(editor-core)` / `fix(keymaps)` / `test(input-assist)` / `docs(input-assist)` ×2，共 5 笔（只提交、不推送）。
+
+---
+
+## 五、第二轮：Gitee PR !54 AI 队友评审（2026-10-05）
+
+- **来源**：Gitee PR !54 评论
+  [`note_51443873`](https://gitee.com/jermaine/yate/pulls/54#note_51443873_conversation_191386654)
+  （conversation `191386654`，「PR观察者」）。落盘记录见
+  [`../reviews/2026-10-05-pr54-input-assist-ai-review.md`](../reviews/2026-10-05-pr54-input-assist-ai-review.md)。
+- **结论**：⛔ 未通过——1 阻断 / 2 改进，风险自评 low。
+- **状态**：已修复（2026-10-05）。
+
+### 5.1 处置总表
+
+| # | 维度 | 问题 | 处置 |
+|---|---|---|---|
+| B1 | 功能性与逻辑 | `_shift_row` 的 `row` 在循环外只取一次，`3>` = 当前行缩进 3 级，与 vim 的"向下 3 行各 1 级"不一致 | **改代码对齐 vim**（§5.2 路线 A），非改文案 |
+| M1 | 可维护性 | `delete_backward` 成对删除分支裸赋 `self.cursor`，绕过 `set_cursor` 的 `_goal_col` 复位 | **改**：`self.set_cursor((r, c - 1))` |
+| M2 | 性能 | G9 基准取 1000 次按键均值而非单次上限 | **不改**：评审者自评无需改动（阈值余量约 500 倍），仅登记 |
+
+### 5.2 B1 选型：为什么对齐 vim 而非改文案
+
+评审给了两条互斥路线，裁决如下。
+
+| | 路线 A：对齐 vim（`3>` 向下 3 行各 1 级） | 路线 B：保留"当前行 ×N 级"，改文案 |
+|---|---|---|
+| 产品定位 | 符合 `enh/vim-keymap` 一贯的"保真复刻 vim"验收口径 | 功能差异仍在，只是说清楚了 |
+| 与既有文案的关系 | `vim.py:151-152` 的 `Indent [count] lines` / `Outdent [count] lines` **转为正确**（现文案即 vim 口径） | 必须把 `lines` 改成"当前行重复 N 次" |
+| 副作用 | 撤销步从 count 次降为 **1 次**（一次跨行选区 + 一次 commit） | 无 |
+| issue 授权 | G6 原文只写"增/减一级"，未排除多行；§3.3 只写"支持 `3>` 计数"，从未规定计数作用于行还是级；D5 的"`3>` = 3 级"是**实施记录**而非方案决策 | 同左，不越界 |
+| 代价 | 需改 3 条 pin 旧语义的用例 + 手册 3 处措辞（中英各 3） | 需改手册 3 处措辞 + 2 条帮助文案 |
+
+裁决：**路线 A**。决定性证据是帮助文案本身写着 `lines`——文案侧站的才是 vim 惯例，
+偏差在实现侧；路线 B 等于让实现迁就一段本来就与自身矛盾的文字。
+
+**新语义定义**（本节即唯一规范来源）：
+
+- NORMAL 模式 `count>` / `count<`：对**光标行及其下方共 `count` 行**（不足则截断到
+  文件末尾，不报错）各增/减**一个**缩进单位；
+- 行数不足时按实际行数截断，与 vim 一致（vim 的 `3>` 在只剩 2 行时同样只作用 2 行）；
+- 空行不再有"每 count 一个单位"的特殊语义：多行选区覆盖时按普通行处理；仅当整个
+  作用范围退化为**单个空行**（选区 anchor == cursor，`selection()` 返回 `None`）时，
+  才落回 `indent_selection()` 的 `insert_tab()` 分支，即列 0 处一个单位；
+- 结束后光标落在**光标行**的首个非空白列，选区清空（均不变）；
+- 撤销：整个 `count` 行的缩进是**一个** `"step"`（`indent_selection` / `outdent_selection`
+  内部各 commit 一次）。
+
+### 5.3 改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `yate/keymaps/vim.py` | `_shift_row` 重写：选区从 `(row, 0)` 延伸到 `(row + count - 1, 行尾)`，clamp 到末行；`indent_selection` / `outdent_selection` 各调用一次；docstring 改写为行数语义并说明末行截断；帮助文案**不动**（已与新语义一致） |
+| `yate/editor_core/buffer.py` | `delete_backward` 成对删除分支 `self.cursor = (r, c - 1)` → `self.set_cursor((r, c - 1))`，与 F3 口径统一 |
+| `tests/test_input_assist.py` | 3 条 pin 旧语义的用例改写（详见 §5.4）+ 补末行截断与撤销步用例 |
+| `yate/resources/manual.zh.md` / `manual.en.md` | 3 处措辞明确"计数作用于行数"：3.5 节缩进键表、5.2 节按键表、命令速查表（中英成对，共 6 处） |
+
+### 5.4 受语义变更影响的用例（改写，非删除）
+
+| 用例 | 旧断言 | 新语义下的期望 |
+|---|---|---|
+| `test_vim_normal_mode_count_indents_the_current_line`（`:503`） | 单行 `3>` → 12 空格 | 改为多行：`a\nb\nc\nd` 光标在 row 0，`3>` → 前 3 行各 +1 级，第 4 行不动 |
+| `test_vim_normal_mode_outdent_stops_at_column_zero`（`:512`） | 单行 8 空格 `3<` → `abc`（0） | 改为多行 4 行各 8 空格，`3<` → 前 3 行各留 4 空格、第 4 行不动；"不低于 0" 由新增单行 4 空格 `3<` → `""` 的用例 pin |
+| `test_vim_normal_mode_indent_on_an_empty_row_adds_one_unit_per_count`（`:551`） | 空行 `3>` → 12 空格 | 改为：空行作为首行且下方有 2 行时，`3>` 三行各 +1 级（含空行变 4 空格）；"单个空行落回 `insert_tab`"的语义由新用例 pin（单行 buffer 的空行 `3>` → 1 个单位） |
+
+### 5.5 验收命令（worktree 内，`.venv\Scripts\python.exe`）
+
+```powershell
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pytest tests/test_input_assist.py tests/test_editor_core.py tests/test_vim_keymap.py tests/test_vsc_keymap.py tests/test_action_table.py
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py
+.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-report=term-missing --cov-fail-under=75
+```
+
+> 承接 §三 提示：`addopts` 已含 `-q`，命令行**不要**再叠 `-q`；覆盖率必须由**全量**
+> `pytest tests/` 产出，只跑 22 条架构测试达不到 75%。
+
+基线（第一轮修复后）：`pyright` 0 诊断；`test_input_assist.py` 59 条；全量
+`1740 passed / 7 skipped`；架构 `22 passed`；覆盖率 `91.35%`。本轮修复后用例数只增不减，
+覆盖率不得低于基线。
