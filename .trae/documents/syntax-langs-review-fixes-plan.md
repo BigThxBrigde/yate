@@ -262,5 +262,54 @@ flowchart TD
 5. H10 的 php `#` 行注释 / powershell `<# #>` 块注释未做（需第二组注释字段）；
 6. **子代理未派发**：可委派面只有 `tests/`，其断言依赖 W1 未定稿实现；W1/W2 全在
    `yate/`（`subagent-workflow.md` §一.3），故 W1–W4 由主代理执行。
-7. 遗留：`_gate_pytest.txt`（本轮门禁输出，未跟踪）因删除命令审批超时未能清掉，
-   **未纳入任何提交**，需后续 `Remove-Item` 或提示用户删除。
+7. 遗留：`_gate_pytest.txt`（本轮门禁输出，未跟踪）已删除（见 §九 轮次 2）。
+
+## 九、迭代记录（轮次 2：修复轮评审 W1–W6 / S1–S7）
+
+派发 `code-review-expert` 成员只读复核 `c67c382..0867015`，实测结论
+**0 CRITICAL / 6 WARNING / 7 SUGGESTION**，门禁四项 + TUI 冒烟（932/932
+checks、89/89 scenarios）全绿。按 `task-orchestration.md` §二.6，WARNING 属
+major，全部修复如下（成员自述数字不直接引用，均由主代理复跑）。
+
+| 编号 | 性质 | 处置 |
+|---|---|---|
+| W1 | 扩展文档残留"最小 regex 回退"承诺，与同提交新测试直接矛盾 | ✅ 修：`extensions.en.md` / `.zh.md` §4.8 改为"注册全有或全无，需要回退请另用 `api.highlight.register`"，与 `services/extensions.py` 措辞对齐 |
+| W2 | **本轮引入的回归**：`hyphenated_idents` 使"整串不在词表"标识符彻底失色（vendor prefix / CSS 自定义属性） | ✅ 修：`_classify_ident` 增加**分段兜底**（整串未命中时按段左→右查词表），`-webkit-transform` / `-ms-grid-row` / `--brand-color` 恢复基线着色且整词更完整；`.btn-primary` 之类全未知分段仍不着色；补 2 条断言 |
+| W3 | `paren_vars` 静默依赖 `sigils=True`，单独开启会无声丢弃 `$(VAR)` | ✅ 修：分词器条件改为 `(spec.sigils or spec.paren_vars)`，两开关互相独立；补"只开 `paren_vars`"用例 |
+| W4 | `property` 越权压过 `type`（CSS `:hover` 由 `type` 变 `property`）；"完全确定"说法过强，其依赖的不变式无测试；**根因：表里混入了 capture 名（`function.call` 等）而排序键携带的是 kind，这些条目一直是死项** | ✅ 修：`_KIND_PRECEDENCE` 重写为 **SYNTAX_KINDS 上的全序**（`function` > `type` > `property` > `builtin` > `constant` > `string` > `number` > `keyword` > `decorator` > `operator` > `comment` > `heading` > `emphasis` > `link`），`type` 前置消除 CSS 副作用；新增 `_KIND_RANK_OTHER` + docstring 写实"扩展自定义 kind 仍可能并列"；补"全序 + 无重复排名 + 捆绑查询 kind 全覆盖 + `type` < `property` < `string`"守护 |
+| W5 | README 语言口径错（`~28` 实为 30、例外清单漏 SCSS/LESS，而 SCSS/LESS 正是本轮 G5 变成 regex-only 的），手册与扩展文档三行内自我否定 | ✅ 修：实测 30 个 `LangSpec.name` / 25 个有语法包 / 无包者为 `{ini, jsonc, less, perl, scss}` / 候选 72 项；README×2、manual×2、extensions×2 统一为"30 种内置语言，其中 25 种由语法树驱动——除 JSONC、INI、Perl、SCSS、LESS 外" |
+| W6 | ruby 词表迁移半途：7 词同时在 `keywords` 与 `builtins`（keywords 优先 → 死数据），`each`/`map` 被丢进空集 | ✅ 修：`_RUBY_KEYWORDS` 去掉 `require`/`include`/`extend`/`attr_*`，`_RUBY_BUILTINS` 补 `each`/`map`；实测 `keywords ∩ builtins == ∅`（perl 同）；不变式测试扩到 5 个语言并加入 `builtins ∩ keywords` |
+| S1 | 捕获名扫描会误报 tree-sitter 谓词与字符串字面量里的 `@name` | ✅ 修：扫描前剥离 `(#...)` 谓词尾部与引号串；新增注入式守护用例（注入后 `not_a_capture` 不被误报、`var` 仍被发现） |
+| S2 | `_PAREN_VAR_RE` 贪婪度不足，`$(shell echo $(X))` 尾部 `)` 失色 | ✅ 修：允许一层嵌套；补断言 |
+| S3 | `format_filetype_candidates(limit=0)` 首项为空 | ✅ 修：`limit = max(1, limit)`；补断言 |
+| S4 | `_css_family` 是全文件唯一 helper，视觉上打断"词表→注册"节奏 | ⬜ 不改（成员明确标注可接受；逻辑位置紧随 CSS 词表合理，动机已注释） |
+| S5 | `at_sigil` 两处缺口：ruby `@@rest` 前导 `@` 落空、PowerShell `@(Get-Process)` 数组子表达式不着色（后者为既有行为，非本轮引入） | ⬜ 登记为已知限制（见下） |
+| S6 | `cast(Any, MagicMock())` ×6 无理由注释（`python-coding-style.md` §3.3） | ✅ 修：合并为单个 `mock` 变量并补 R2/R6 理由注释 |
+| S7 | 模板 docstring 文本本身仍无守护（把 `.gitignore` 那句谎话改回去，12 条用例仍全绿） | ⬜ 登记为已知限制：行为侧已由 `tokenize_document(["*.log"], "plaintext") == [[]]` 钉住，对散文做文本匹配属高脆性断言，不值得换取 |
+
+### 轮次 2 门禁实测（主代理亲自跑）
+
+| 门禁 | 结果 |
+|---|---|
+| pyright strict | **0 errors, 0 warnings, 0 informations** |
+| pytest 全量 | **1746 passed, 8 skipped in 238.53s**（较轮次 1 的 1740 +6） |
+| 架构测试 | **22 passed**（途中因注释里出现被禁词触发 `test_no_type_checking`，改写措辞后恢复） |
+| 覆盖率 | **91.20%**（≥75） |
+
+tie-break 修正后的关键样本实测（与评审 W4 指出的方向逐条对齐）：
+`json '{"k": 1, "s": "v"}'` → `property '"k"'` / `number 1` / `property '"s"'` /
+`string '"v"'`；`js 'obj.m();'` → `function 'm'`；`css 'a:hover { b: c }'` →
+`type 'a'` / `type 'hover'` / `property 'b'`（**恢复基线**）；`yaml 'key: "v"'` →
+`property 'key'` / `string '"v"'`。
+
+### 遗留已知限制（登记，不在本轮范围）
+
+1. `sql.scm` 数值着色：`tree-sitter-sql 0.3.11` 只有单一 `(literal)` 节点同时覆盖
+   字符串与数值，语法层客观不可区分；
+2. php `#` 行注释 / PowerShell `<# #>` 块注释：`LangSpec` 只有单组注释字段，
+   兼得需新增第二组；
+3. `at_sigil` 对 ruby `@@rest` 的前导 `@`、PowerShell `@(...)` 数组子表达式不覆盖
+   （后者是既有行为）；
+4. fsharp 模板的节点名未经运行时验证（`tree-sitter-fsharp` 未装，走 `skipif` +
+   静态捕获名检查）；一旦有人装上该包，模板可能注册即失败；
+5. 模板 docstring 的散文承诺无自动化守护（行为侧已钉住，见 S7）。
