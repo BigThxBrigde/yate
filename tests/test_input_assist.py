@@ -337,6 +337,22 @@ def test_enter_after_a_python_colon_indents_the_new_line_by_one_unit() -> None:
     assert editor.buffer.cursor == (1, 4)
 
 
+def test_enter_after_a_python_colon_with_trailing_blanks_keeps_the_indent_intact() -> None:
+    """Trailing blanks after the ``:`` must not leak into the new line's indent.
+
+    The indent is the line's *leading* whitespace, so deriving it from a
+    ``strip()``-based length would reach past the indent and slice the line's
+    own text in instead (``"if True:  "`` would indent with ``"if"``).
+    """
+    editor = _Editor("if True:  ", path="demo.py")
+    vsc = VscKeymap()
+    editor.buffer.move_line_end()
+
+    vsc.handle_key(editor.context(), parse_key("<enter>"))
+    assert editor.buffer.lines == ["if True:  ", "    "]
+    assert editor.buffer.cursor == (1, 4)
+
+
 def test_enter_after_a_python_filetype_override_indents_the_new_line() -> None:
     """``:set filetype=python`` reaches the same rules as the ``.py`` suffix."""
     editor = _Editor("if True:", filetype="python")
