@@ -1054,22 +1054,6 @@ def _classify_ident(
         return "type", None
     if word in spec.builtins:
         return "builtin", None
-    if spec.hyphenated_idents and "-" in word:
-        # A dashed word that is not itself a known name is looked up segment by
-        # segment, so vendor prefixes ('-webkit-transform') and custom
-        # properties ('--brand-color') keep the color of their base word --
-        # what the fragment scan produced before the whole word was captured.
-        # Left to right: the first hit wins, and a name whose segments are all
-        # unknown ('btn-primary') still stays uncolored.
-        for part in word.split("-"):
-            if part in spec.keywords:
-                return "keyword", None
-            if part in spec.types:
-                return "type", None
-            if part in spec.builtins:
-                return "builtin", None
-            if part in spec.constants:
-                return "constant", None
     after = line[end:end + 2]
     if spec.macro_call and after.startswith("!"):
         return "function", None
@@ -1077,6 +1061,27 @@ def _classify_ident(
         return "function", None
     if start > 0 and line[start - 1] == ".":
         return "property", None
+    if spec.hyphenated_idents and "-" in word:
+        # Last resort, after the '.' and '(' rules above: a dashed word that is
+        # not itself a known name is looked up segment by segment, so vendor
+        # prefixes ('-webkit-transform') and custom properties
+        # ('--brand-color') keep the color of their base word -- what the
+        # fragment scan produced before the whole word was captured.  Left to
+        # right, the first hit wins.
+        #
+        # Being last is the whole point: '.nav-item' is a class selector, not a
+        # property, and must not be painted as the <nav> tag just because one
+        # of its segments is a known tag name.  A name whose segments are all
+        # unknown ('btn-primary') stays uncolored.
+        for part in word.split("-"):
+            if part in spec.keywords:
+                return "keyword", None
+            if part in spec.constants:
+                return "constant", None
+            if part in spec.types:
+                return "type", None
+            if part in spec.builtins:
+                return "builtin", None
     return None, None
 
 
