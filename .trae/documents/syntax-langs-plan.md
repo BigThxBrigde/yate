@@ -186,9 +186,68 @@ flowchart LR
    能力，而非新增能力。
 4. csharp 从"捆绑 regex 扩展"迁移为"内置 ts + regex 回退"，删除旧扩展文件。
 
-## 八、执行记录（收尾回填）
+## 八、执行记录（2026-10-04 回填）
 
-- [ ] W1 结果（探针逐包数字）
-- [ ] W2/W3/W4 成员存活与产出
-- [ ] W5 门禁实测（pyright / pytest / 架构 / 覆盖率，含退出码）
-- [ ] 偏离记录（如有新增）
+### W1 核心注册表与依赖（主代理，commit `8aea808`）
+
+- 探针实测：**25/25 全通过，0 失败**——每个 `BUILTIN_PACKS` 条目真实
+  load（`importlib` + `ts.Language` + `ts.Query`）并对样例文本产出
+  非默认 token kinds；临时探针脚本验证后已删除。
+- 探针驱动的重要校准（偏离原方案的实现细节，非范围偏离）：
+  - 新增 `BUILTIN_ENTRY` 表（`languages.py`）：`tree_sitter_typescript` /
+    `tree_sitter_xml` / `tree_sitter_php` 等多语言包的 C 入口不是
+    `language()`，按语言映射到 `language_typescript` / `language_xml` /
+    `language_php`；
+  - 若干语法包的 token 形态与上游常见假设不同，已按
+    `node_kind_for_id` 枚举实证修正 scm（c/cpp 的 `true/false/null` 是命名
+    节点而 `nullptr`/`NULL` 是匿名 token；cpp 无 `*_cast` token；rust 的
+    `mut`/`super` 不可查询、`mut` 走 `(mutable_specifier)`；java 无
+    `text_block`/`var`/`const`/`goto` token；xml 节点为
+    `STag/ETag/EmptyElemTag/Attribute` 首字母大写形态；ruby 无 `symbol`
+    节点；markdown 包为块级语法（`(inline)` 是单一 catchall，无
+    `heading_content`/行内节点）；php 的 `empty/isset/var` 等上下文关键字
+    不可查询；make 的 `function_call` 内无直接 `word`）；
+  - `DEFAULT_CAPTURE_MAP` 补 `heading` / `emphasis` 两个捕获映射。
+- 依赖实测安装 25 个 tree-sitter 包（运行时 + 24 语法包）。
+
+### W2/W3/W4 并行产出与主代理兜底
+
+- **成员存活与产出**：`tests-updater` 与 `docs-updater` 均以 `acceptEdits`
+  spawn 成功、探活消息已送达，且**均有真实落盘产出**（tests/ 6 文件
+  +396 行；docs/manual/README/yaterc.example 9 文件）。但两成员在产出
+  后约 10 分钟内对进度询问与 shutdown 请求均零回信（未判死为"零产出"，
+  按"只认落盘结果"直接验证其产物）。
+- **主代理复核发现并修复 7 个失败用例**（成员断言与真实 grammar 行为
+  不符）：rust/js/zig 样例缺闭合 `}`、lua 缺 `end`——不完整结构下
+  tree-sitter 不产生定义捕获；css 的 `red` 实际不着色（无
+  `color_value` 捕获命中）；markdown 围栏内容 token 是整行文本；
+  `TEMPLATE_RELS` 缺 5 个新模板；`filetype r` 补全缺 `rb`/`ruby`。
+  另清理成员遗留临时文件 `tests/_pytest_out.txt`、`pytest_out.txt`。
+- W3（主代理）：5 个 `*.py.example` 落盘（commit `0497d39`）。
+
+### W5 全量门禁（主代理亲自跑，worktree 沙箱）
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| pyright strict | `python -m pyright yate/ tests/ tools/` | **0 errors, 0 warnings, 0 informations**，EXIT=0 |
+| pytest 全量 | `python -m pytest tests/ -q` | **1718 passed, 7 skipped**，EXIT=0 |
+| 架构测试 | `python -m pytest tests/test_architecture.py -q` | **22 passed**，EXIT=0 |
+| 覆盖率 | `python -m pytest tests/ -q --cov=yate --cov-fail-under=75` | **91.30%**（≥75），EXIT=0 |
+
+### 提交清单（只提交未推送）
+
+- `b8c3767` docs(syntax-langs): 实施方案
+- `8aea808` feat(syntax): 22 个语法包 + 23 个 scm + 13 条 regex 回退
+- `0497d39` feat(extensions): 5 个 example 扩展模板
+- `08a6396` test(syntax): 新语言测试覆盖
+- `ea28852` docs(syntax): 双语文档同步
+- `857a11a` chore(tests): 清理误提交临时文件
+
+### 偏离汇总（对 issue 原文）
+
+1. perl 不做 ts 化（PyPI 无语法包），regex 兜底——方案 §三.1，维持。
+2. markdown/ts 行内 injections 不做，块级着色 + 文档登记限制——维持。
+3. ini 同时存在于内置与 example——维持。
+4. csharp 由捆绑扩展迁移为内置（删除 `csharp_highlight.py`）——维持。
+5. 新增：多语言包入口映射 `BUILTIN_ENTRY`（typescript/xml/xaml/php），
+   属实现细节校准，不改变交付范围。
