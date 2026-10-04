@@ -80,6 +80,39 @@ def tree_sitter_blocked() -> bool:
 BUILTIN_PACKS: dict[str, str] = {
     "python": "tree_sitter_python",
     "shell": "tree_sitter_bash",
+    "c": "tree_sitter_c",
+    "cpp": "tree_sitter_cpp",
+    "csharp": "tree_sitter_c_sharp",
+    "rust": "tree_sitter_rust",
+    "go": "tree_sitter_go",
+    "java": "tree_sitter_java",
+    "javascript": "tree_sitter_javascript",
+    "typescript": "tree_sitter_typescript",
+    "html": "tree_sitter_html",
+    "css": "tree_sitter_css",
+    "xml": "tree_sitter_xml",
+    "xaml": "tree_sitter_xml",       # XAML shares the XML grammar
+    "json": "tree_sitter_json",
+    "toml": "tree_sitter_toml",
+    "yaml": "tree_sitter_yaml",
+    "sql": "tree_sitter_sql",
+    "lua": "tree_sitter_lua",
+    "make": "tree_sitter_make",
+    "powershell": "tree_sitter_powershell",
+    "php": "tree_sitter_php",
+    "ruby": "tree_sitter_ruby",
+    "markdown": "tree_sitter_markdown",
+    "zig": "tree_sitter_zig",
+}
+
+#: Some grammar packs ship several languages, so the C entry point is not
+#: ``language()``.  Maps a canonical language name onto the module attribute
+#: to call; languages missing here use the plain ``language()`` default.
+BUILTIN_ENTRY: dict[str, str] = {
+    "typescript": "language_typescript",
+    "xml": "language_xml",
+    "xaml": "language_xml",
+    "php": "language_php",
 }
 
 QUERIES_DIR: Path = Path(__file__).parent / "queries"
@@ -87,6 +120,16 @@ QUERIES_DIR: Path = Path(__file__).parent / "queries"
 # tree-sitter capture name -> SYNTAX_KINDS key.  Captures not listed here
 # (variables, punctuation, ...) intentionally inherit the default
 # foreground color, matching the regex backend's visual density.
+#
+# Bundled queries may only use names registered here -- an unregistered name is
+# silently dropped by the backend, so ``tests/test_ts_backend.py`` guards the
+# invariant statically.  These entries are the reserved vocabulary rather than
+# dead weight: extension-supplied grammars follow upstream tree-sitter
+# conventions and reach for names no bundled query happens to use.
+#: Reserved (no bundled query uses them): ``attribute``, ``attribute.builtin``,
+#: ``constant.builtin``, ``escape_sequence``, ``emphasis``, ``keyword.function``,
+#: ``keyword.modifier``, ``keyword.operator``, ``type.definition``,
+#: ``variable.builtin``.  Everything else below is exercised by a bundled query.
 DEFAULT_CAPTURE_MAP: dict[str, str] = {
     "comment": "comment",
     "string": "string",
@@ -106,11 +149,16 @@ DEFAULT_CAPTURE_MAP: dict[str, str] = {
     "function.call": "function",
     "function.method": "function",
     "function.builtin": "builtin",
+    # ``@name`` with no registered capture of its own (e.g. the language tag
+    # of a Markdown fenced code block); ``builtin`` is a valid SYNTAX_KINDS key.
+    "builtin": "builtin",
     "variable.builtin": "builtin",
     "type": "type",
     "type.builtin": "type",
     "type.definition": "type",
     "property": "property",
+    "heading": "heading",
+    "emphasis": "emphasis",
 }
 
 
@@ -167,13 +215,19 @@ def _load_builtin(name: str) -> LoadedLanguage | None:
         return None
     try:
         module = importlib.import_module(module_name)
-        language = ts.Language(module.language())
+        entry = getattr(module, BUILTIN_ENTRY.get(name, "language"))
+        language = ts.Language(entry())
         query_src = query_file.read_text(encoding="utf-8")
         query = ts.Query(language, query_src)
-    except Exception:  # noqa: BLE001 - optional native code: degrade, never crash
+    except Exception as exc:  # noqa: BLE001 - optional native code: degrade, never crash
         # optional native code / third-party grammar: any failure must
-        # degrade to the regex backend, never break the editor
+        # degrade to the regex backend, never break the editor.  The generic
+        # warning above stays user-facing; the exception text goes to debug
+        # level because it is the only clue for the #1 risk of this layer --
+        # a query naming a node the installed grammar does not have (a
+        # QueryError), which silently costs the user the tree-sitter backend.
         _warn_degraded_once(name, "tree-sitter load failed for %r (falls back to regex)")
+        log.debug("tree-sitter load error for %s: %s", name, exc)
         return None
     loaded = LoadedLanguage(name, language, query, dict(DEFAULT_CAPTURE_MAP))
     _LANGS[name] = loaded
@@ -208,10 +262,13 @@ def load_language(  # noqa: Any - tree_sitter.Language is an untyped C binding
     _LANGS[key] = LoadedLanguage(key, language, ts.Query(language, query_src), merged)
     _FAILED.discard(key)
     if extensions:
-        # register a bare LangSpec under the extension keys so they show up
-        # in ``:set filetype=`` completion and keep a minimal regex fallback
-        # (strings / numbers / operators) should the grammar fail to load;
-        # tree-sitter still handles them (they are not regex-pinned)
+        # Publish the extension keys so they show up in ``:set filetype=``
+        # completion.  Reached only once the grammar and the query are loaded:
+        # a missing tree_sitter raises above and a bad query raises on the
+        # ts.Query line, so there is no partial state to fall back from.  The
+        # bare spec covers strings / numbers / operators only -- an extension
+        # that wants a real fallback should register a LangSpec itself through
+        # api.highlight.register (which also pins the key to regex).
         register_language(LangSpec(name=key), *extensions)
         for ext in extensions:
             ext_key = ext.lower().lstrip(".")

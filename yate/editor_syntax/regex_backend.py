@@ -46,6 +46,9 @@ class LangSpec:
     triple_strings: bool = False  # Python ''' / """ multiline strings
     string_prefixes: str = ""     # letters allowed directly before a quote
     sigils: bool = False          # $variable expansion (shell)
+    at_sigil: bool = False        # '@name' is a variable, not a decorator
+    paren_vars: bool = False      # '$(VAR)' expansion (make)
+    hyphenated_idents: bool = False  # 'font-size' is one identifier (CSS)
     keywords: frozenset[str] = frozenset()
     builtins: frozenset[str] = frozenset()
     constants: frozenset[str] = frozenset()
@@ -202,6 +205,9 @@ def _spec(
     triple_strings: bool = False,
     string_prefixes: str = "",
     sigils: bool = False,
+    at_sigil: bool = False,
+    paren_vars: bool = False,
+    hyphenated_idents: bool = False,
     keywords: frozenset[str] = frozenset(),
     builtins: frozenset[str] = frozenset(),
     constants: frozenset[str] = frozenset(),
@@ -214,7 +220,9 @@ def _spec(
     return LangSpec(
         name=name, mode=mode, line_comment=line_comment,
         block_comment=block_comment, triple_strings=triple_strings,
-        string_prefixes=string_prefixes, sigils=sigils, keywords=keywords,
+        string_prefixes=string_prefixes, sigils=sigils, at_sigil=at_sigil,
+        paren_vars=paren_vars, hyphenated_idents=hyphenated_idents,
+        keywords=keywords,
         builtins=builtins, constants=constants, types=types,
         func_def_words=func_def_words, type_def_words=type_def_words,
         macro_call=macro_call,
@@ -343,6 +351,390 @@ register_language(_spec("toml", mode="config", line_comment="#"), "toml")
 register_language(_spec("ini", mode="config", line_comment="#"), "ini", "cfg", "conf", "properties")
 register_language(_spec("yaml", mode="config", line_comment="#"), "yaml", "yml")
 
+# --- regex fallbacks for the issue-IKJLTB languages ------------------------
+# These languages ship a tree-sitter pack (see ts_backend.languages
+# BUILTIN_PACKS); the specs below keep them highlighted in a bare
+# ``pip install yate`` (no [ts] extra) and provide the filetype mapping the
+# tree-sitter resolver relies on.  Perl has no grammar pack at all: regex
+# is its only backend for now.
+
+_CS_KEYWORDS: frozenset[str] = frozenset({
+    "abstract", "as", "base", "break", "case", "catch", "checked", "class",
+    "const", "continue", "default", "delegate", "do", "else", "enum", "event",
+    "explicit", "extern", "finally", "fixed", "for", "foreach", "goto", "if",
+    "implicit", "in", "interface", "internal", "is", "lock", "namespace",
+    "new", "operator", "out", "override", "params", "private", "protected",
+    "public", "readonly", "ref", "return", "sealed", "sizeof", "stackalloc",
+    "static", "struct", "switch", "this", "throw", "try", "typeof",
+    "unchecked", "unsafe", "using", "virtual", "volatile", "while",
+    "add", "alias", "ascending", "async", "await", "by", "descending", "equals",
+    "from", "get", "global", "group", "into", "join", "let", "nameof", "on",
+    "orderby", "partial", "record", "remove", "select", "set", "value", "var",
+    "when", "where", "yield", "init", "required", "with",
+})
+_CS_CONSTANTS: frozenset[str] = frozenset({"true", "false", "null"})
+_CS_TYPES: frozenset[str] = frozenset({
+    "bool", "byte", "char", "decimal", "double", "dynamic", "float", "int",
+    "long", "nint", "nuint", "object", "sbyte", "short", "string", "uint",
+    "ulong", "ushort", "void",
+    "String", "Int32", "Int64", "Boolean", "Double", "Single", "Decimal",
+    "Char", "Byte", "Object", "Guid", "DateTime", "DateTimeOffset", "TimeSpan",
+    "Nullable", "Exception", "Task", "ValueTask", "Action", "Func",
+    "List", "IList", "IReadOnlyList", "Dictionary", "IDictionary",
+    "HashSet", "IEnumerable", "ICollection", "IDisposable",
+    "Span", "ReadOnlySpan", "Memory", "ReadOnlyMemory", "CancellationToken",
+})
+_CS_BUILTINS: frozenset[str] = frozenset({
+    "Console", "Math", "Convert", "Environment", "Debug", "Trace", "GC",
+    "File", "Directory", "Path",
+})
+
+register_language(
+    _spec(
+        "csharp", line_comment="//", block_comment=("/*", "*/"),
+        string_prefixes="@$",
+        keywords=_CS_KEYWORDS, builtins=_CS_BUILTINS,
+        constants=_CS_CONSTANTS, types=_CS_TYPES,
+        type_def_words=frozenset({"class", "struct", "interface", "enum", "record"}),
+    ),
+    "cs", "csx",
+)
+
+_HTML_TAGS: frozenset[str] = frozenset({
+    "a", "abbr", "address", "area", "article", "aside", "audio", "b", "base",
+    "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption",
+    "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del",
+    "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset",
+    "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5",
+    "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img",
+    "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map",
+    "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol",
+    "optgroup", "option", "output", "p", "picture", "pre", "progress", "q",
+    "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select",
+    "slot", "small", "source", "span", "strong", "style", "sub", "summary",
+    "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th",
+    "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr",
+})
+
+register_language(
+    _spec("html", block_comment=("<!--", "-->"), types=_HTML_TAGS),
+    "html", "htm",
+)
+
+_CSS_PROPERTIES: frozenset[str] = frozenset({
+    "align-content", "align-items", "align-self", "animation", "background",
+    "background-color", "background-image", "background-position",
+    "background-repeat", "background-size", "border", "border-color",
+    "border-radius", "border-style", "border-width", "bottom", "box-shadow",
+    "box-sizing", "color", "content", "cursor", "display", "flex", "flex-basis",
+    "flex-direction", "flex-grow", "flex-shrink", "flex-wrap", "float",
+    "font", "font-family", "font-size", "font-style", "font-weight", "gap",
+    "grid", "grid-template-columns", "grid-template-rows", "height", "inset",
+    "justify-content", "justify-items", "justify-self", "left", "letter-spacing",
+    "line-height", "list-style", "margin", "margin-bottom", "margin-left",
+    "margin-right", "margin-top", "max-height", "max-width", "min-height",
+    "min-width", "object-fit", "opacity", "order", "outline", "overflow",
+    "overflow-x", "overflow-y", "padding", "padding-bottom", "padding-left",
+    "padding-right", "padding-top", "pointer-events", "position", "right",
+    "row-gap", "text-align", "text-decoration", "text-overflow",
+    "text-transform", "top", "transform", "transition", "user-select",
+    "vertical-align", "visibility", "white-space", "width", "word-break",
+    "word-spacing", "writing-mode", "z-index",
+})
+_CSS_COLORS: frozenset[str] = frozenset({
+    "black", "white", "red", "green", "blue", "yellow", "orange", "purple",
+    "gray", "grey", "silver", "maroon", "olive", "lime", "aqua", "cyan",
+    "magenta", "fuchsia", "navy", "teal", "pink", "brown", "beige", "gold",
+    "indigo", "violet", "transparent", "currentColor", "inherit", "initial",
+    "unset", "revert",
+})
+_CSS_TAGS: frozenset[str] = frozenset({
+    "html", "body", "head", "div", "span", "p", "a", "ul", "ol", "li",
+    "table", "tr", "td", "th", "form", "input", "button", "select", "option",
+    "textarea", "label", "img", "section", "header", "footer", "nav",
+    "article", "aside", "main", "h1", "h2", "h3", "h4", "h5", "h6", "strong",
+    "em", "code", "pre", "blockquote", "script", "style", "link", "meta",
+    "title",
+})
+
+#: ``scss`` / ``less`` get their own specs instead of sharing the ``css`` one:
+#: the tree-sitter resolver looks a grammar up by ``LangSpec.name``, so a
+#: shared name would route ``.scss`` files into the CSS grammar and produce
+#: ERROR nodes for ``$var`` / ``@mixin`` / ``//``.  Separate names keep them on
+#: the regex backend (no ``tree-sitter-scss`` / ``-less`` exists on PyPI)
+#: without changing any extension key.
+def _css_family(name: str) -> LangSpec:
+    """The shared CSS word lists under a language name of its own."""
+    return _spec(
+        name, block_comment=("/*", "*/"),
+        builtins=_CSS_PROPERTIES, constants=_CSS_COLORS, types=_CSS_TAGS,
+        hyphenated_idents=True,
+    )
+
+
+register_language(_css_family("css"), "css")
+register_language(_css_family("scss"), "scss")
+register_language(_css_family("less"), "less")
+
+_PS_KEYWORDS: frozenset[str] = frozenset({
+    "if", "elseif", "else", "switch", "for", "foreach", "while", "do",
+    "until", "break", "continue", "return", "throw", "try", "catch",
+    "finally", "trap", "function", "filter", "param", "in", "begin",
+    "process", "end", "class", "enum", "exit", "from", "hidden", "static",
+    "default", "dynamicparam", "data", "workflow", "parallel", "sequence",
+})
+#: ``switch`` is absent on purpose: it is a PowerShell keyword.
+_PS_TYPES: frozenset[str] = frozenset({
+    "string", "int", "bool", "long", "double", "object", "byte", "char",
+    "decimal", "single", "float", "array", "hashtable", "psobject", "void",
+    "ref", "scriptblock", "xml", "wmi", "wmiclass", "regex",
+    "pscustomobject",
+})
+
+register_language(
+    _spec("powershell", line_comment="#", sigils=True, at_sigil=True,
+          keywords=_PS_KEYWORDS, types=_PS_TYPES),
+    "ps1", "psm1", "psd1",
+)
+
+_LUA_KEYWORDS: frozenset[str] = frozenset({
+    "and", "break", "do", "else", "elseif", "end", "for", "function", "goto",
+    "if", "in", "local", "not", "or", "repeat", "return", "then", "until",
+    "while",
+})
+_LUA_CONSTANTS: frozenset[str] = frozenset({"true", "false", "nil"})
+_LUA_BUILTINS: frozenset[str] = frozenset({
+    "print", "type", "tostring", "tonumber", "pairs", "ipairs", "require",
+    "error", "pcall", "xpcall", "setmetatable", "getmetatable", "rawget",
+    "rawset", "rawequal", "rawlen", "select", "next", "assert", "unpack",
+    "load", "loadstring", "dofile", "collectgarbage", "setfenv", "getfenv",
+})
+#: ``function`` is absent on purpose: it is a Lua keyword, and keywords are
+#: matched before types, so listing it here would be dead weight.
+_LUA_TYPES: frozenset[str] = frozenset({
+    "table", "string", "number", "boolean", "thread", "userdata",
+})
+
+register_language(
+    _spec(
+        "lua", line_comment="--",
+        keywords=_LUA_KEYWORDS, builtins=_LUA_BUILTINS,
+        constants=_LUA_CONSTANTS, types=_LUA_TYPES,
+        func_def_words=frozenset({"function"}),
+    ),
+    "lua",
+)
+
+_MAKE_KEYWORDS: frozenset[str] = frozenset({
+    "ifeq", "ifneq", "ifdef", "ifndef", "else", "endif", "include",
+    "define", "endef", "export", "unexport", "override",
+    "undefine", "private", "vpath", "foreach", "call", "eval", "value",
+})
+
+#: ``-include`` is deliberately absent: ``_IDENT_RE`` has no ``-``, so a leading
+#: dash could never be classified as a keyword.  Makefile variables are spelled
+#: ``$(VAR)`` / ``$@`` / ``$<``, covered by :attr:`LangSpec.paren_vars`.
+register_language(
+    _spec("make", line_comment="#", sigils=True, paren_vars=True,
+          keywords=_MAKE_KEYWORDS),
+    "mak", "mk",
+)
+
+register_language(
+    _spec("xml", block_comment=("<!--", "-->")),
+    "xml",
+)
+
+#: Common WPF / UWP / Avalonia element and property names.  XML itself has no
+#: vocabulary worth listing (tags are open-ended), but XAML is a fixed UI
+#: vocabulary, and without it the regex fallback only ever paints comments and
+#: attribute values.
+_XAML_TYPES: frozenset[str] = frozenset({
+    "Application", "Window", "UserControl", "Page", "ContentControl",
+    "Grid", "StackPanel", "Canvas", "WrapPanel", "DockPanel", "Panel",
+    "Border", "ScrollViewer", "Viewbox", "ItemsControl", "ListBox",
+    "ListView", "GridView", "ComboBox", "TabControl", "Menu", "ToolBar",
+    "Button", "ToggleButton", "RadioButton", "CheckBox", "TextBox",
+    "PasswordBox", "Label", "TextBlock", "RichTextBlock", "Image",
+    "ProgressBar", "Slider", "Separator", "ContextMenu", "MenuItem",
+    "RowDefinition", "ColumnDefinition", "GridLength", "Thickness",
+    "SolidColorBrush", "LinearGradientBrush", "DataTemplate",
+    "ControlTemplate", "Style", "Setter", "Trigger", "Storyboard",
+    "ResourceDictionary", "TemplateBinding", "Binding", "RelativeSource",
+    "DependencyProperty", "DependencyObject", "DispatcherTimer",
+})
+
+register_language(
+    _spec("xaml", block_comment=("<!--", "-->"), types=_XAML_TYPES),
+    "xaml",
+)
+
+_PERL_KEYWORDS: frozenset[str] = frozenset({
+    "my", "our", "local", "sub", "if", "elsif", "else", "unless", "while",
+    "until", "for", "foreach", "do", "last", "next", "redo", "return", "use",
+    "no", "require", "package", "state", "format", "given", "when", "default",
+})
+#: Perl spells its library functions without a receiver (``print STDERR ...``),
+#: so they are builtins rather than keywords -- keeping them out of
+#: ``_PERL_KEYWORDS`` is what makes ``print`` paint like ``len`` in Python
+#: instead of like ``return``.
+_PERL_BUILTINS: frozenset[str] = frozenset({
+    "new", "bless", "ref", "defined", "exists", "delete", "grep", "map",
+    "sort", "join", "split", "print", "printf", "sprintf", "say", "open",
+    "close", "opendir", "closedir", "chomp", "chop", "shift", "unshift",
+    "push", "pop", "keys", "values", "each", "wantarray", "eval", "try",
+    "catch", "finally", "die", "warn", "scalar", "length", "substr", "reverse",
+})
+
+register_language(
+    _spec(
+        "perl", line_comment="#", sigils=True, at_sigil=True,
+        keywords=_PERL_KEYWORDS, builtins=_PERL_BUILTINS,
+        func_def_words=frozenset({"sub"}),
+    ),
+    "pl", "pm",
+)
+
+_PHP_KEYWORDS: frozenset[str] = frozenset({
+    "abstract", "and", "array", "as", "break", "callable", "case", "catch",
+    "class", "clone", "const", "continue", "declare", "default", "do", "echo",
+    "else", "elseif", "empty", "enddeclare", "endfor", "endforeach", "endif",
+    "endswitch", "endwhile", "enum", "extends", "final", "finally", "fn",
+    "for", "foreach", "function", "global", "goto", "if", "implements",
+    "include", "include_once", "instanceof", "insteadof", "interface",
+    "isset", "list", "match", "namespace", "new", "or", "print", "private",
+    "protected", "public", "readonly", "require", "require_once", "return",
+    "static", "switch", "throw", "trait", "try", "unset", "use", "var",
+    "while", "xor", "yield",
+})
+_PHP_CONSTANTS: frozenset[str] = frozenset({
+    "true", "false", "null", "TRUE", "FALSE", "NULL",
+})
+#: ``callable`` and ``static`` are absent on purpose: both are PHP keywords.
+_PHP_TYPES: frozenset[str] = frozenset({
+    "int", "float", "bool", "string", "void", "mixed", "object",
+    "iterable", "never", "parent", "self",
+})
+
+register_language(
+    _spec(
+        "php", line_comment="//",
+        keywords=_PHP_KEYWORDS, constants=_PHP_CONSTANTS, types=_PHP_TYPES,
+        func_def_words=frozenset({"function"}),
+        type_def_words=frozenset({"class", "interface", "trait", "enum"}),
+    ),
+    "php",
+)
+
+#: Keywords only.  Library methods that read like keywords (``require``,
+#: ``include``, ``attr_accessor``, ...) live in :data:`_RUBY_BUILTINS`: keywords
+#: are matched first, so listing a word in both tables would make the builtins
+#: entry dead data.
+_RUBY_KEYWORDS: frozenset[str] = frozenset({
+    "alias", "and", "begin", "break", "case", "class", "def", "do",
+    "else", "elsif", "end", "ensure", "for", "if", "in", "module", "next",
+    "not", "or", "redo", "rescue", "retry", "return", "self", "super", "then",
+    "undef", "unless", "until", "when", "while", "yield",
+})
+#: Kernel / Enumerable methods, not keywords (``each`` is not a keyword at all
+#: -- it is an Array method and has no business in the keyword table).
+_RUBY_BUILTINS: frozenset[str] = frozenset({
+    "new", "raise", "fail", "puts", "print", "loop", "lambda", "proc",
+    "catch", "throw", "require", "require_relative", "include", "extend",
+    "attr_accessor", "attr_reader", "attr_writer", "each", "map",
+})
+_RUBY_CONSTANTS: frozenset[str] = frozenset({"true", "false", "nil"})
+_RUBY_TYPES: frozenset[str] = frozenset({
+    "String", "Integer", "Float", "Array", "Hash", "Symbol", "Proc", "Range",
+    "Regexp", "Struct", "Exception", "StandardError", "Object", "Class",
+    "Module", "Numeric", "Comparable", "Enumerable", "Kernel", "IO", "File",
+    "Dir", "Time", "Date", "Set",
+})
+
+register_language(
+    _spec(
+        "ruby", line_comment="#", at_sigil=True,
+        keywords=_RUBY_KEYWORDS, builtins=_RUBY_BUILTINS,
+        constants=_RUBY_CONSTANTS, types=_RUBY_TYPES,
+        func_def_words=frozenset({"def"}),
+        type_def_words=frozenset({"class", "module"}),
+    ),
+    "rb",
+)
+
+_SQL_KEYWORDS: frozenset[str] = frozenset({
+    "select", "from", "where", "insert", "into", "values", "update", "delete",
+    "set", "create", "table", "drop", "alter", "add", "column", "index",
+    "view", "join", "inner", "left", "right", "outer", "full", "cross", "on",
+    "group", "by", "order", "having", "limit", "offset", "union", "all",
+    "distinct", "as", "and", "or", "not", "in", "between", "like", "ilike",
+    "exists", "case", "when", "then", "else", "end", "primary", "key",
+    "foreign", "references", "default", "check", "unique", "constraint",
+    "begin", "commit", "rollback", "transaction", "truncate", "grant",
+    "revoke", "asc", "desc", "is", "with", "using", "natural", "returning",
+    "over", "partition", "window", "recursive", "analyze", "explain",
+    "vacuum", "if", "temp", "temporary", "cascade", "restrict",
+})
+_SQL_TYPES: frozenset[str] = frozenset({
+    "int", "integer", "bigint", "smallint", "varchar", "char", "text", "date",
+    "datetime", "timestamp", "boolean", "bool", "decimal", "numeric", "float",
+    "double", "real", "blob", "json", "jsonb", "uuid", "serial", "bigserial",
+    "time", "interval", "bytea", "clob",
+})
+_SQL_BUILTINS: frozenset[str] = frozenset({
+    "count", "sum", "avg", "min", "max", "coalesce", "nullif", "cast",
+    "concat", "upper", "lower", "substring", "length", "now", "current_date",
+    "current_timestamp", "row_number", "rank", "dense_rank", "abs", "round",
+    "replace", "trim", "ltrim", "rtrim", "date_trunc", "date_part",
+    "string_agg", "group_concat", "extract", "greatest", "least",
+})
+
+#: SQL keywords / types / functions are case-insensitive, and the engine
+#: matches identifiers case-sensitively -- so both spellings are listed.  Named
+#: constants rather than inline comprehensions: the expansion is part of the
+#: contract with the word lists above, and its size should be readable.
+_SQL_KEYWORDS_ALL: frozenset[str] = _SQL_KEYWORDS | {w.upper() for w in _SQL_KEYWORDS}
+_SQL_BUILTINS_ALL: frozenset[str] = _SQL_BUILTINS | {w.upper() for w in _SQL_BUILTINS}
+_SQL_TYPES_ALL: frozenset[str] = _SQL_TYPES | {w.upper() for w in _SQL_TYPES}
+
+register_language(
+    _spec(
+        "sql", line_comment="--", block_comment=("/*", "*/"),
+        keywords=_SQL_KEYWORDS_ALL,
+        builtins=_SQL_BUILTINS_ALL,
+        constants=frozenset({"null", "true", "false", "NULL", "TRUE", "FALSE"}),
+        types=_SQL_TYPES_ALL,
+    ),
+    "sql",
+)
+
+_ZIG_KEYWORDS: frozenset[str] = frozenset({
+    "align", "allowzero", "and", "anyframe", "anytype", "asm", "async",
+    "await", "break", "callconv", "catch", "comptime", "const", "continue",
+    "defer", "else", "enum", "errdefer", "error", "export", "extern", "fn",
+    "for", "if", "inline", "noasync", "nosuspend", "opaque", "or", "orelse",
+    "packed", "pub", "resume", "return", "linksection", "struct", "suspend",
+    "switch", "test", "threadlocal", "try", "union", "usingnamespace", "var",
+    "volatile", "while",
+})
+_ZIG_TYPES: frozenset[str] = frozenset({
+    "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64",
+    "u128", "usize", "f16", "f32", "f64", "f128", "bool", "void", "noreturn",
+    "type", "anyerror", "anyopaque", "c_int", "c_uint", "c_long", "c_ulong",
+    "c_short", "c_ushort", "c_char", "comptime_int", "comptime_float",
+})
+
+register_language(
+    _spec(
+        "zig", line_comment="//",
+        keywords=_ZIG_KEYWORDS, types=_ZIG_TYPES,
+        constants=frozenset({"true", "false", "null", "undefined"}),
+        func_def_words=frozenset({"fn"}),
+        type_def_words=frozenset({"struct", "enum", "union"}),
+    ),
+    "zig",
+)
+
 
 def lang_for(filetype: str) -> LangSpec | None:
     """Resolve a Document ``filetype`` (file extension without dot) to a spec.
@@ -378,6 +770,22 @@ def available_filetypes() -> list[str]:
     return sorted(set(_LANGUAGES) | set(_NAME_TO_KEY))
 
 
+def format_filetype_candidates(limit: int = 12) -> str:
+    """:func:`available_filetypes` as a message-ready, truncated list.
+
+    The registry holds 60+ keys plus every language name, which no status-bar
+    width can show in full -- callers used to inline ``", ".join(...)`` and
+    silently lose everything past the wrap column.  Shows *limit* entries (at
+    least one) and appends ``"... (N total)"`` for the rest.
+    """
+    filetypes = available_filetypes()
+    limit = max(1, limit)
+    shown = ", ".join(filetypes[:limit])
+    if len(filetypes) > limit:
+        shown += f", ... ({len(filetypes)} total)"
+    return shown
+
+
 # ---------------------------------------------------------------------------
 # Regex building
 # ---------------------------------------------------------------------------
@@ -392,7 +800,16 @@ _NUMBER_RE: re.Pattern[str] = re.compile(
 )
 _IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w*")
 _SIGIL_RE: re.Pattern[str] = re.compile(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?")
+#: ``$(VAR)``-style make expansion.  The single-char ``$@`` / ``$<`` forms are
+#: punctuation to the eye and get no pattern.  One level of nesting is allowed
+#: (``$(shell echo $(X))``) so the token does not stop at the first ``)`` and
+#: leave a stray one uncolored.  Kept separate from :data:`_SIGIL_RE` because a
+#: parenthesized name may contain characters an identifier may not.
+_PAREN_VAR_RE: re.Pattern[str] = re.compile(r"\$\((?:[^()\n]|\([^()\n]*\))*\)")
 _DECORATOR_RE: re.Pattern[str] = re.compile(r"@[A-Za-z_][\w.]*")
+#: Dash-joined identifiers (``font-size``).  Each segment must start with a
+#: letter, so ``x-1`` still scans as ``x``, operator ``-``, number ``1``.
+_DASHED_IDENT_RE: re.Pattern[str] = re.compile(r"[A-Za-z_]\w*(?:-[A-Za-z_]\w*)*")
 _OPERATOR_RE: re.Pattern[str] = re.compile(r"(?:->|=>|\.\.\.|::|[-+*/%=<>!&|^~?:]+)")
 
 _MD_HEADING_RE: re.Pattern[str] = re.compile(r"^(#{1,6})\s+.*$")
@@ -449,6 +866,10 @@ def _code_line_pattern(spec: LangSpec) -> re.Pattern[str]:
     parts.append(_DECORATOR_RE.pattern)
     if spec.sigils:
         parts.append(_SIGIL_RE.pattern)
+    if spec.paren_vars:
+        parts.append(_PAREN_VAR_RE.pattern)
+    if spec.hyphenated_idents:
+        parts.append(_DASHED_IDENT_RE.pattern)
     parts.append(_IDENT_RE.pattern)
     parts.append(_OPERATOR_RE.pattern)
     return re.compile("|".join(f"(?:{p})" for p in parts))
@@ -565,12 +986,18 @@ def _tokenize_code_line(
             continue
 
         if text[0] == "@":
-            _emit(tokens, start, end, "decorator")
+            # '@' is a decorator in Python / C# / Java, but a sigil in perl
+            # (@array), ruby (@ivar) and PowerShell (@splat) -- the spec says
+            # which one it means.
+            _emit(tokens, start, end, "property" if spec.at_sigil else "decorator")
             pending = None
             pos = end
             continue
 
-        if spec.sigils and text[0] == "$":
+        if (spec.sigils or spec.paren_vars) and text[0] == "$":
+            # Both switches paint a sigil as a property, and either one alone
+            # must reach this branch: a $(VAR) matched by _PAREN_VAR_RE would
+            # otherwise be consumed with no token emitted at all.
             _emit(tokens, start, end, "property")
             pos = end
             continue
@@ -634,6 +1061,27 @@ def _classify_ident(
         return "function", None
     if start > 0 and line[start - 1] == ".":
         return "property", None
+    if spec.hyphenated_idents and "-" in word:
+        # Last resort, after the '.' and '(' rules above: a dashed word that is
+        # not itself a known name is looked up segment by segment, so vendor
+        # prefixes ('-webkit-transform') and custom properties
+        # ('--brand-color') keep the color of their base word -- what the
+        # fragment scan produced before the whole word was captured.  Left to
+        # right, the first hit wins.
+        #
+        # Being last is the whole point: '.nav-item' is a class selector, not a
+        # property, and must not be painted as the <nav> tag just because one
+        # of its segments is a known tag name.  A name whose segments are all
+        # unknown ('btn-primary') stays uncolored.
+        for part in word.split("-"):
+            if part in spec.keywords:
+                return "keyword", None
+            if part in spec.constants:
+                return "constant", None
+            if part in spec.types:
+                return "type", None
+            if part in spec.builtins:
+                return "builtin", None
     return None, None
 
 

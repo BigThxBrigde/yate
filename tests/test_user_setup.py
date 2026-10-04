@@ -23,6 +23,11 @@ TEMPLATE_RELS: list[str] = [
     "themes/ayu_theme.example",
     "extensions/example_ext.py.example",
     "extensions/yatesh_syntax.py.example",
+    "extensions/batch_syntax.py.example",
+    "extensions/diff_syntax.py.example",
+    "extensions/fsharp_syntax.py.example",
+    "extensions/git_syntax.py.example",
+    "extensions/ini_syntax.py.example",
 ]
 
 

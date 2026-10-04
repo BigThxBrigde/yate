@@ -26,6 +26,7 @@ from yate.editor_syntax.engine import prefer_regex, tokenize_document
 from yate.editor_syntax.regex_backend import (
     LangSpec,
     available_filetypes,
+    format_filetype_candidates,
     lang_for,
     language_name,
     register_language,
@@ -38,6 +39,7 @@ __all__ = [
     "LangSpec",
     "Token",
     "available_filetypes",
+    "format_filetype_candidates",
     "lang_for",
     "language_name",
     "prefer_regex",

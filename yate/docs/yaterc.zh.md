@@ -259,7 +259,7 @@ extensions = [
   （按解析后的绝对路径去重），避免命令/绑定重复注册。
 
 除 rc 声明外，yate 会先自动加载**包内随附扩展** `yate/extensions/`
-（目前为 `python_lsp`、`csharp_highlight`，无论工作目录在哪都生效），
+（目前为 `python_lsp`，无论工作目录在哪都生效），
 再扫描默认目录 `./extensions/`（仅限已用 `:trust` 信任的工作区——见
 extensions.md）和 `~/.yate/extensions/`，也可用命令行
 `--ext <文件>` / `--ext-dir <目录>` 追加。要跳过某个随包默认扩展，用
@@ -267,7 +267,6 @@ extensions.md）和 `~/.yate/extensions/`，也可用命令行
 
 ```python
 disabled_extensions = ["python_lsp"]
-disabled_extensions = ["python_lsp", "csharp_highlight"]
 ```
 
 该选项接受字符串或字符串列表（空白自动去除），多个 rc 文件之间累加并

@@ -39,11 +39,13 @@ def setup(api):
 来源命中也只会执行一次）：
 
 1. yaterc 中的 `extensions` 选项（用户级先于项目级，**累加**而非覆盖）；
-2. **随包扩展** `yate/extensions/`（`python_lsp`、`csharp_highlight`，
+2. **随包扩展** `yate/extensions/`（目前为 `python_lsp`，Python 语言服务器，
    无论当前工作目录在哪都会自动加载；可用 yaterc 的 `disabled_extensions`
    按文件名主干禁用，见下文）。目录内还提供模板（`*.py.example`，不会被
-   自动加载）：`example_ext.py.example` 与 tree-sitter grammar 模板
-   `yatesh_syntax.py.example`；
+   自动加载）：`example_ext.py.example`、tree-sitter grammar 模板
+   `yatesh_syntax.py.example`，以及语法高亮模板 `batch_syntax.py.example`、
+   `ini_syntax.py.example`、`fsharp_syntax.py.example`、
+   `git_syntax.py.example`、`diff_syntax.py.example`；
 3. 默认目录：工作目录下的 `./extensions/` 与 `~/.yate/extensions/`
    （启动时自动加载其中所有 `*.py`，下划线开头的文件跳过）。项目目录
    只在**受信任工作区**中自动加载——见下文「工作区信任（:trust）」；
@@ -77,7 +79,6 @@ def setup(api):
 
 ```python
 disabled_extensions = ["python_lsp"]
-disabled_extensions = ["python_lsp", "csharp_highlight"]
 ```
 
 - 接受字符串或字符串列表，多个 rc 文件之间**累加**并去重；
@@ -313,6 +314,9 @@ def setup(api):
 | `triple_strings` | `False` | 是否支持 Python 式 `'''`/`"""` 跨行字符串 |
 | `string_prefixes` | `""` | 允许紧贴引号前的前缀字符（1–2 个），如 C# 的 `"@$"` |
 | `sigils` | `False` | 是否高亮 `$var`/`${var}` 形式（shell） |
+| `at_sigil` | `False` | `@name` 视为变量 sigil 而非装饰器（perl/ruby/PowerShell） |
+| `paren_vars` | `False` | 是否高亮 `$(VAR)` 展开（make） |
+| `hyphenated_idents` | `False` | `font-size` 按单个标识符扫描（CSS 属性名） |
 | `keywords` | `frozenset()` | 关键字 |
 | `builtins` | `frozenset()` | 内建函数/对象 |
 | `constants` | `frozenset()` | 常量（`true`/`false`/`null` 等） |
@@ -321,11 +325,24 @@ def setup(api):
 | `type_def_words` | `frozenset()` | 其后一个标识符按类型名着色（`class`、`struct`、`interface`） |
 | `macro_call` | `False` | 标识符紧跟 `!` 时按函数着色（Rust 宏） |
 
-完整实例见包内随附的 `yate/extensions/csharp_highlight.py`
-（C# 高亮：`cs`/`csx`，含关键字、上下文关键字、BCL 类型、`$`/`@` 字符串前缀等；
-该扩展随包自动加载，无需放在工作目录内；不想加载时在 yaterc 中设置
-`disabled_extensions = ["csharp_highlight"]`，也可用
-`yate --ext csharp_highlight.py` 显式加载一份修改版）。
+**内置语言**：yate 已识别的语言无需扩展。regex 后端为 Python、C、C++、
+Java、Rust、Go、JavaScript、TypeScript、Shell、JSON、Markdown、TOML、
+INI、YAML、C#、HTML、CSS、PowerShell、Lua、Make、XML、XAML、Perl、PHP、
+Ruby、SQL、Zig、JSONC、SCSS、LESS 提供单词表高亮（共 30 种）；安装可选
+tree-sitter 后端
+（`pip install yate[ts]`）后，其中 25 种改由真实语法树解析驱动——除
+JSONC、INI、Perl、SCSS、LESS 外的全部内置语言。SCSS 与 LESS 复用 CSS
+单词表并留在
+regex 后端——PyPI 没有对应的 tree-sitter 语法包，而用 CSS 语法解析它们会
+把 `$var` / `@mixin` / `//` 解析成错误节点。
+
+完整实例见模板 `yate/extensions/batch_syntax.py.example`（Windows batch
+的声明式高亮：`rem` 注释加关键字单词表——`%VAR%` 展开与 `:label` 目标没有
+单词表后端可表达的词法形式）；`ini_syntax.py.example`、
+`git_syntax.py.example`、`diff_syntax.py.example` 分别演示 config 模式的
+INI/Git 文件与 diff 文件，`fsharp_syntax.py.example` 演示 tree-sitter 通道。
+去掉 `.example` 后缀复制到扩展目录即可，下次启动自动注册——扩展对同一扩展名的
+注册会替换内置规格。
 
 ### 4.8 基于 tree-sitter 的语法高亮（自定义语法）
 
@@ -350,7 +367,9 @@ def setup(api):
 ```
 
 注册后 `*.ysh` / `*.yatesh` 文件自动高亮，`:set filetype=ysh` 立即可用
-（支持 Tab 补全）；grammar 加载失败时这些扩展名仍保留最小 regex 回退。
+（支持 Tab 补全）。注册是全有或全无：扩展名只在 grammar 与 query 都加载成功
+后才登记，缺 `tree_sitter`、缺语法包或 query 非法都会一条都不注册并报错。需要
+回退的话，另用 `api.highlight.register` 为同一批扩展名注册 `LangSpec`。
 
 grammar 库的构建方式：`npm install -g tree-sitter-cli`，在你的 grammar
 仓库中运行 `tree-sitter generate` 后编译（POSIX：
@@ -361,7 +380,9 @@ capture 名（`@keyword`、`@comment`、`@function.call` 等），由默认映�
 （`yate/editor_syntax/ts_backend/languages.py`）转换成 yate 的 token
 种类；`capture_map` 可增改单个映射。
 
-完整模板见包内随附的 `yate/extensions/yatesh_syntax.py.example`。
+完整模板见包内随附的 `yate/extensions/yatesh_syntax.py.example`；
+`fsharp_syntax.py.example` 演示了直接绑定 pip 语法包
+（`tree-sitter-fsharp`）而非编译好的 `.so`/`.dll`。
 注意：同一扩展名上，`api.highlight.register`（4.7 节）的注册始终优先于
 tree-sitter。
 
