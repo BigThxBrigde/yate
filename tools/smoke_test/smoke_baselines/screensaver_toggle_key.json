@@ -1,0 +1,119 @@
+{
+  "checks": [
+    {
+      "label": "stale_message_present",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "prompt_idle_before",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "opened",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "screen_is_screensaver",
+      "expected": "ScreensaverScreen",
+      "actual": "ScreensaverScreen",
+      "ok": true
+    },
+    {
+      "label": "walker_spawned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "prompt_idled_by_push",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "stale_message_cleared",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "dismissed_by_key",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "back_to_editor",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "reopened",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "reopen_screen",
+      "expected": "ScreensaverScreen",
+      "actual": "ScreensaverScreen",
+      "ok": true
+    },
+    {
+      "label": "reopen_walker",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "action_ran",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "closed_by_action",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

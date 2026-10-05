@@ -1,0 +1,173 @@
+{
+  "checks": [
+    {
+      "label": "one_pane",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "in_vim",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "sp_splits",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "equal_at_first",
+      "expected": [
+        0.5,
+        0.5
+      ],
+      "actual": [
+        0.5,
+        0.5
+      ],
+      "ok": true
+    },
+    {
+      "label": "chord_armed",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "chord_consumed",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "plus_grew_active",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "fractions_sum_to_one",
+      "expected": 1.0,
+      "actual": 1.0,
+      "ok": true
+    },
+    {
+      "label": "equalized",
+      "expected": [
+        0.5,
+        0.5
+      ],
+      "actual": [
+        0.5,
+        0.5
+      ],
+      "ok": true
+    },
+    {
+      "label": "minimum_warned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "stopped_at_minimum",
+      "expected": [
+        0.88,
+        0.12
+      ],
+      "actual": [
+        0.88,
+        0.12
+      ],
+      "ok": true
+    },
+    {
+      "label": "closed",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "last_pane_kept",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "last_pane_warned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "vertical_tree_unchanged",
+      "expected": [
+        0.5,
+        0.5
+      ],
+      "actual": [
+        0.5,
+        0.5
+      ],
+      "ok": true
+    },
+    {
+      "label": "vertical_tree_warned",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "one_pane_again",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "a\n",
+      "actual": "a\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

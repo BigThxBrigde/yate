@@ -1,0 +1,119 @@
+{
+  "checks": [
+    {
+      "label": "started_on_file",
+      "expected": "a.txt",
+      "actual": "a.txt",
+      "ok": true
+    },
+    {
+      "label": "explorer_hidden",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "tree_hidden",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "root_before",
+      "expected": "open_directory_switches_workspace",
+      "actual": "open_directory_switches_workspace",
+      "ok": true
+    },
+    {
+      "label": "rerooted",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "root_after",
+      "expected": "proj",
+      "actual": "proj",
+      "ok": true
+    },
+    {
+      "label": "explorer_shown",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "tree_shown",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "tree_focused",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "folder_message",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "doc_untouched",
+      "expected": "a.txt",
+      "actual": "a.txt",
+      "ok": true
+    },
+    {
+      "label": "still_one_pane",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "terminal_root",
+      "expected": "proj",
+      "actual": "proj",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "a\n",
+      "actual": "a\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "unknown_command",
+      "expected": "not an editor command: nosuchcmd (try :help)",
+      "actual": "not an editor command: nosuchcmd (try :help)",
+      "ok": true
+    },
+    {
+      "label": "execute_action_false",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "binding_registered",
+      "expected": "nosuch_action",
+      "actual": "nosuch_action",
+      "ok": true
+    },
+    {
+      "label": "unknown_action",
+      "expected": "unknown action: nosuch_action",
+      "actual": "unknown action: nosuch_action",
+      "ok": true
+    },
+    {
+      "label": "no_phantom_insert",
+      "expected": "",
+      "actual": "",
+      "ok": true
+    },
+    {
+      "label": "dispatch_unhandled",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "binding_not_leaked",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

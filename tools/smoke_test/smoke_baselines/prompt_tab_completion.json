@@ -1,0 +1,113 @@
+{
+  "checks": [
+    {
+      "label": "command_mode",
+      "expected": "command",
+      "actual": "command",
+      "ok": true
+    },
+    {
+      "label": "option_completed",
+      "expected": "set readonly",
+      "actual": "set readonly",
+      "ok": true
+    },
+    {
+      "label": "tab_noop",
+      "expected": "set readonly",
+      "actual": "set readonly",
+      "ok": true
+    },
+    {
+      "label": "cancelled",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "theme_candidates",
+      "expected": 8,
+      "actual": 8,
+      "ok": true
+    },
+    {
+      "label": "first_value",
+      "expected": "set theme=frappe",
+      "actual": "set theme=frappe",
+      "ok": true
+    },
+    {
+      "label": "theme_applied",
+      "expected": "frappe",
+      "actual": "frappe",
+      "ok": true
+    },
+    {
+      "label": "theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "open_mode",
+      "expected": "open",
+      "actual": "open",
+      "ok": true
+    },
+    {
+      "label": "path_common_prefix",
+      "expected": "sub",
+      "actual": "sub",
+      "ok": true
+    },
+    {
+      "label": "path_cycled",
+      "expected": "sub/",
+      "actual": "sub/",
+      "ok": true
+    },
+    {
+      "label": "path_descended",
+      "expected": "sub/inner.txt",
+      "actual": "sub/inner.txt",
+      "ok": true
+    },
+    {
+      "label": "open_cancelled",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
