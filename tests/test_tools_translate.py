@@ -212,6 +212,32 @@ def test_cli_nonzero_exit_fails(
     assert "model overloaded" in err
 
 
+def test_cli_interrupt_exits_130_without_a_traceback(
+    source: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``Ctrl+C`` inside the agent child is a clean 130, not a traceback.
+
+    The wiki generator runs several translators in one console and the
+    console broadcasts the interrupt to all of them; without this guard
+    every page shipped a ``KeyboardInterrupt`` traceback into the parent.
+    130 is the code the parent recognises as "interrupted".
+    """
+
+    def interrupting(*args: object, **kwargs: object) -> str:
+        del args, kwargs
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "run_translation", interrupting)
+    out_path = source.parent / "out.md"
+    assert cli.main([str(source), str(out_path)]) == 130
+    err = capsys.readouterr().err
+    assert "wiki-translate: interrupted" in err
+    assert "Traceback" not in err
+    assert not out_path.exists()
+
+
 def test_cli_identical_translation_fails(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

@@ -455,6 +455,67 @@ def _install_display(monkeypatch: pytest.MonkeyPatch, display: Progress) -> None
     monkeypatch.setattr(wiki, "Progress", factory)
 
 
+def test_console_interrupt_stops_the_run_instead_of_failing_every_page(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One interrupted child ends the whole run, quietly.
+
+    The ``Ctrl+C`` that kills a translator reaches every sibling as well,
+    so the failure channel is the wrong place for it: the run would print
+    one ``error[WIKI-0201]`` per remaining page (traceback included) and
+    keep translating after the user asked to stop.  The pool must stop,
+    and the CLI boundary must turn the interrupt into exit code 130.
+    """
+    started: list[str] = []
+    lock = threading.Lock()
+
+    def interrupted(text: str, translate_cmd: str) -> str | None:
+        del translate_cmd
+        with lock:
+            started.append(text)
+            first = len(started) == 1
+        if first:
+            raise KeyboardInterrupt
+        return _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", interrupted)
+    target = tmp_path / "wiki"
+    with pytest.raises(KeyboardInterrupt):
+        wiki.run(target, "fake-cmd", repo_root=repo, jobs=2)
+    # Not one page per remaining document: the stop signal cut the queue.
+    assert len(started) <= 4
+    err = capsys.readouterr().err
+    assert f"error[{wiki.Code.WIKI_TRANSLATE_FAILED}]" not in err
+    assert "Traceback" not in err
+
+
+def test_console_interrupt_reaches_the_cli_as_exit_130(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The same interrupt through the CLI is a clean 130, not exit 1."""
+    monkeypatch.setattr(wiki, "translate_via_cmd", _raise_keyboard_interrupt)
+    monkeypatch.setattr("tools._util.repo_root", lambda: repo)
+    argv = [
+        "wiki",
+        "--target",
+        str(tmp_path / "wiki"),
+        "--translate-cmd",
+        "fake-cmd",
+    ]
+    assert cli.main(argv) == 130
+    err = capsys.readouterr().err
+    assert "interrupted" in err
+    assert "Traceback" not in err
+
+
+def _raise_keyboard_interrupt(text: str, translate_cmd: str) -> str | None:
+    """Fake translator that always reports an interrupt."""
+    del text, translate_cmd
+    raise KeyboardInterrupt
+
+
 def test_batch_progress_advances_page_by_page_while_a_batch_runs(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

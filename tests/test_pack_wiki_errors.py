@@ -263,6 +263,35 @@ def test_translate_via_cmd_timeout_reports_wiki_0202_on_stderr(
     assert _TRACEBACK_HEAD not in err
 
 
+@pytest.mark.parametrize("returncode", [130, 0xC000013A, 0xC000013A - 0x100000000, -2])
+def test_translate_via_cmd_maps_a_console_interrupt_to_keyboard_interrupt(
+    returncode: int,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A ``Ctrl+C`` child raises instead of reporting a failed page.
+
+    The console broadcasts the interrupt to the whole process group, so
+    every translator of a run dies of it -- Windows with
+    ``STATUS_CONTROL_C_EXIT`` (3221225786), POSIX with ``-SIGINT``, and the
+    bundled translator itself with 130 once it handles the interrupt
+    cleanly.  Treating that as a translation failure used to print one
+    ``error[WIKI-0201]`` (traceback and all) per remaining page while the
+    run kept going after the user asked to stop.
+    """
+    traceback = "Traceback (most recent call last):\nKeyboardInterrupt\n^C\n"
+
+    def interrupted_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([str(cmd)], returncode, "", traceback)
+
+    monkeypatch.setattr(wiki.subprocess, "run", interrupted_run)
+    with pytest.raises(KeyboardInterrupt):
+        wiki.translate_via_cmd("# zh in\n", "fake-cmd")
+    err = capsys.readouterr().err
+    assert f"error[{Code.WIKI_TRANSLATE_FAILED}]" not in err
+    assert _TRACEBACK_HEAD not in err
+
+
 def test_load_manifest_unreadable_reports_wiki_0104(tmp_path: Path) -> None:
     """A manifest that cannot be read aborts with ``WIKI-0104``, not a reset.
 
