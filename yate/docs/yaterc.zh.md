@@ -34,7 +34,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 
 - 多个文件在**同一个命名空间**内依次执行，因此项目级配置能看到（并覆盖）
   用户级配置里已设置的变量。
-- 配置文件里被识别的选项只有下表九个；**未识别的变量会被静默忽略**，
+- 配置文件里被识别的选项只有下表所列的那些；**未识别的变量会被静默忽略**，
   但你可以在里面定义任意辅助变量/函数供后续使用。
 - 任何文件读取失败、语法错误、运行时异常都**不会导致编辑器崩溃**：
   出错的文件被跳过，问题以 `yaterc: ...` 前缀显示在启动时的消息栏，
@@ -59,6 +59,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | 选项 | 类型 | 默认值 | 合法值 | 说明 |
 |---|---|---|---|---|
 | `keymap` | `str` | `"vsc"` | `"vsc"` / `"vim"` | 按键映射。非法值回退默认并报错 |
+| `key_protocol` | `str` | `"auto"` | `"auto"` / `"legacy"` | Windows 键盘输入通道，启动时读取一次。`auto` 使用能还原和弦的驱动，使 ctrl+数字 / ctrl+` / ctrl+shift+字母 完整送达；`legacy` 恢复 Windows 原生驱动。非 Windows 平台忽略该项。非法值回退默认并报错 |
 | `theme` | `str` | `"mocha"` | 内置主题名或自定义主题名 | 配色方案，见下文 |
 | `tab_width` | `int` | `4` | `1`–`16` 的整数 | Tab 键插入的空格数，也是 Tab 的显示宽度与**缩进单位**（自动缩进、回车续缩进、增/减缩进都按它计算）；`True`/`False` 等非整数被拒绝 |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 与缩进用空格；`False` 时插入真实制表符 |
@@ -67,6 +68,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `theme_dirs` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 客制化主题目录（或单个 `*.py` 主题文件），见[下文](#客制化主题目录theme_dirs)；多个 rc 文件**累加**而非覆盖 |
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
+| `show_hidden` | `bool` | `False` | `True` / `False` | 文件树是否默认显示点文件（隐藏文件）；`False` 表示默认隐藏，需手动切换。非布尔值被拒绝 |
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
 | `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `dist_*_bound` / `characters` 键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
 | `yate_trace` | `bool` | `False` | `True` / `False` | 运行日志开关（默认关闭）；开启后写入 `~/.yate/data/logs/`，见[下文](#运行日志yate_trace) |
@@ -79,7 +81,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 - `keymap` / `theme` 在启动时生效；`theme` 是进程级全局状态（同 vim 的
   colorscheme）。
 - `tab_width` / `use_spaces` 会传播到**所有新建和打开的 buffer**
-  （见 [yate/app.py](../app.py) 中 `_make_buffer` / `_apply_buffer_options`），
+  （见 [yate/session.py](../session.py) 中 `make_buffer` / `apply_buffer_options`），
   同时决定缩进单位（见 3.5 节「输入辅助」）。
 - `shell` 在启动终端 Shell 时读取（会话内 `:set shell=…` 后需重启 Shell 生效）；
   `terminal_height` 同时支持会话内 `:set terminal_height=<n>` 立即调整。
@@ -89,7 +91,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 ## 运行日志（`yate_trace`）
 
 yate 默认**不写任何日志**。排查问题时打开开关，日志以追加方式写入
-`~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log`——与崩溃报告
+`~/.yate/data/logs/yate-YYYYMMDD-HHMMSS-<pid>.log`——与崩溃报告
 `~/.yate/data/crash-*.err` 同级目录：前者覆盖"活着但不对"，后者覆盖"死得难看"。
 
 ```python

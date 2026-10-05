@@ -37,7 +37,7 @@ Loading details (implementation in [yate/config.py](../config.py)):
 
 - Multiple files execute in order inside **the same namespace**, so project
   config can see (and override) variables already set by user config.
-- Only the nine options in the table below are recognized; **unrecognized
+- Only the options listed in the table below are recognized; **unrecognized
   variables are silently ignored**, though you can freely define helper
   variables/functions for later use.
 - File read failures, syntax errors and runtime exceptions **never crash the
@@ -67,6 +67,7 @@ perform the work and exit:
 | Option | Type | Default | Valid values | Description |
 |---|---|---|---|---|
 | `keymap` | `str` | `"vsc"` | `"vsc"` / `"vim"` | Key map. Invalid values fall back to the default and report an error. |
+| `key_protocol` | `str` | `"auto"` | `"auto"` / `"legacy"` | Windows keyboard input channel, read once at startup. `auto` uses the chord-aware driver so ctrl+digit / ctrl+` / ctrl+shift+letter arrive complete; `legacy` restores the stock Windows driver. Ignored on non-Windows platforms. Invalid values fall back to the default and report an error. |
 | `theme` | `str` | `"mocha"` | built-in or custom theme name | Color scheme; see below. |
 | `tab_width` | `int` | `4` | integer `1`–`16` | Spaces inserted per Tab, Tab display width, and the **indent unit** (auto-indent, indent kept on Enter, indent/outdent all compute with it); non-integers such as `True`/`False` are rejected. |
 | `use_spaces` | `bool` | `True` | `True` / `False` | `True` uses spaces for Tab and indenting; `False` inserts a real tab character. |
@@ -75,6 +76,7 @@ perform the work and exit:
 | `theme_dirs` | `str` or `list[str]` | none | existing file/directory paths | Custom theme directories (or a single `*.py` theme file), see [below](#custom-theme-directories-theme_dirs); **accumulates** across rc files. |
 | `shell` | `str` | platform default | non-empty string | Shell launched in the integrated terminal (open with `` Ctrl+` ``); arguments allowed (e.g. `"pwsh -NoLogo"`). Windows default: `pwsh`→Windows PowerShell→`cmd.exe`; POSIX: `$SHELL`→`bash`→`/bin/sh`. |
 | `terminal_height` | `int` | `12` | integer `3`–`40` (bools/floats/strings rejected) | Integrated terminal panel height in rows. |
+| `show_hidden` | `bool` | `False` | `True` / `False` | Whether the file explorer shows dotfiles by default; `False` keeps them hidden until you toggle them. Non-boolean values are rejected. |
 | `language_servers` | `list[dict]` | none | see [below](#declarative-language-servers-language_servers) | Declaratively register LSP language servers; they activate automatically when matching files open -- no extension needed. |
 | `screen_saver` | `dict` | see [below](#idle-screensaver-screen_saver) | dict with `enable` / `interval` / `switch` / `dist_*_bound` / `characters` keys | Idle screensaver settings; see [below](#idle-screensaver-screen_saver). |
 | `yate_trace` | `bool` | `False` | `True` / `False` | Runtime trace log switch (off by default); writes to `~/.yate/data/logs/`, see [below](#runtime-trace-log-yate_trace). |
@@ -88,9 +90,9 @@ Option scope:
 - `keymap` / `theme` apply at startup; `theme` is process-global state (like
   vim's colorscheme).
 - `tab_width` / `use_spaces` propagate to **every new and opened buffer**
-  (see `_make_buffer` / `_apply_buffer_options` in [yate/app.py](../app.py))
-  and also define the indent unit (see "Input assist" in section 3.5 of the
-  manual).
+  (see `make_buffer` / `apply_buffer_options` in
+  [yate/session.py](../session.py)) and also define the indent unit (see "Input
+  assist" in section 3.5 of the manual).
 - `shell` is read when a terminal shell is launched (restart the shell after
   `:set shell=…`); `terminal_height` also supports immediate in-session changes
   via `:set terminal_height=<n>`.
@@ -101,7 +103,7 @@ Option scope:
 
 yate writes **no log at all** by default. Turn the switch on when something
 needs debugging: records are appended to
-`~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log` — next to the
+`~/.yate/data/logs/yate-YYYYMMDD-HHMMSS-<pid>.log` — next to the
 `~/.yate/data/crash-*.err` reports, which cover "died badly" while these cover
 "alive but misbehaving".
 

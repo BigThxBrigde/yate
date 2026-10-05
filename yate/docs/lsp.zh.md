@@ -108,9 +108,13 @@ pip install pyright               # 另一种方式
    `set YATE_PYTHON_LSP=C:\tools\pyright-langserver.cmd --stdio`。
    设为 `0`/`off`/`false`/`none`/`no` 可彻底禁用（保留注册但不启动）。
 2. `PATH` 上的 `pyright-langserver`（自动附加 `--stdio`）。
-3. `PATH` 上的 `pylsp`。
+3. 正在运行的解释器旁边的 `pyright-langserver`，即该环境的 scripts 目录
+   （Windows 为 `.venv\Scripts\pyright-langserver.exe`，POSIX 为
+   `.venv/bin/pyright-langserver`）。这一步能命中"pip install pyright 装进
+   了 scripts 目录不在 `PATH` 上的虚拟环境"的情况；同样自动附加 `--stdio`。
+4. `PATH` 上的 `pylsp`。
 
-三者都没有时不会启动进程也不弹错；打开 Python 文件时状态栏显示 `LSP ✖`。
+四者都没有时不会启动进程也不弹错；打开 Python 文件时状态栏显示 `LSP ✖`。
 
 ---
 

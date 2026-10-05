@@ -946,7 +946,7 @@ Copy-Item <资源目录>\theme_examples\ayu_theme.example     "$HOME\.yate\theme
 ```
 
 资源目录可用 `yate --diag` 的 paths 节查看；完整主题定制说明见
-[yate/docs/themes.zh.md](docs/themes.zh.md)（[English](docs/themes.en.md)）。
+[yate/docs/themes.zh.md](../docs/themes.zh.md)（[English](../docs/themes.en.md)）。
 
 ## 12. 字体与 Nerd Font 图标
 
@@ -1158,9 +1158,13 @@ pip install pyright               # 另一种方式，同样会安装该可执�
    设为 `0`、`off`、`false`、`none` 或 `no` 时彻底禁用 Python 服务器
    （保留注册，但绝不启动进程）。
 2. `PATH` 上的 `pyright-langserver`（自动附加 `--stdio`）。
-3. `PATH` 上的 `pylsp`。
+3. 运行解释器旁边的 `pyright-langserver`（虚拟环境的 scripts 目录，如
+   `.venv\Scripts\pyright-langserver.exe` 或 `.venv/bin/pyright-langserver`）——
+   当 pyright 由 `pip install pyright` 装进虚拟环境、而该环境的 scripts 目录
+   不在 `PATH` 上时，这是唯一能发现它的途径。
+4. `PATH` 上的 `pylsp`。
 
-三者都没有时不会启动任何进程，也不弹错误；直到打开 Python 文件，状态栏
+四者都没有时不会启动任何进程，也不弹错误；直到打开 Python 文件，状态栏
 才会显示 `LSP ✖`。
 
 ### 16.2 在 yaterc 中声明语言服务器（自动激活）

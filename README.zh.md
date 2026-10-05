@@ -76,7 +76,9 @@
 ## 环境要求
 
 - Python ≥ 3.12
-- 依赖：[textual](https://pypi.org/project/textual/) ≥ 8.0
+- 依赖：[textual](https://pypi.org/project/textual/) ≥ 8.0 与
+  [pyperclip](https://pypi.org/project/pyperclip/) ≥ 1.8.2（系统剪贴板，
+  供 yank / put 使用）
 
 ## 安装
 
@@ -109,12 +111,21 @@ yate --ext mytool.py        # 加载扩展脚本（可重复）
 yate --ext-dir ./exts       # 加载目录下所有扩展（可重复）
 yate --theme-dir ./themes   # 加载客制化主题目录（也接受单个 .py，可重复）
 yate --theme my-mocha       # 以指定主题启动（覆盖 yaterc）
+yate --diff old.py new.py   # 直接打开 diff 视图而非编辑器
+yate --diff f1 f2 f3        # 三个文件 = 三路对比（base local remote）
+yate --2way                 # 配合 --diff：强制两路对比（默认）
+yate --3way                 # 配合 --diff：强制三路对比
+yate --readonly notes.txt   # 以只读方式打开文件（拒绝编辑与保存）
 yate --install-font         # 安装随包 Nerd Font 后退出
 yate --setup-defaults       # 创建 ~/.yate 并写入默认 yaterc 与 *.example 模板后退出
 yate --cleanup-defaults     # 删除上述配置后退出（data/ 保留，加 --include-data 一并删除）
 yate --changelog zh         # 打印中文变更日志后退出
 yate --diag                 # 打印环境与配置诊断报告后退出
+yate --version              # 打印 yate / Python / 平台版本信息后退出
 ```
+
+同一对比在会话内也可用 `:diff [--3way] 文件1 文件2 [文件3]`
+（含空格的路径需加引号）。
 
 ### 常用键位（vsc 键位）
 
@@ -195,7 +206,10 @@ def setup(api):
 
 - **随包扩展**：`yate/extensions/` 中的 `*.py` 启动时自动加载（任何工作目录下）；
   yaterc 中 `disabled_extensions = ["python_lsp"]` 可按文件名主干禁用
-- 放入 `./extensions/` 或 `~/.yate/extensions/`（启动自动加载）
+- 放入 `./extensions/` 或 `~/.yate/extensions/`（启动自动加载）；项目内的
+  `./extensions/` 只在**受信任工作区**中自动加载——先在该目录执行一次
+  `:trust`，否则启动会跳过它并提示
+  `extensions: skipped untrusted <路径> (run :trust to load them)`
 - yaterc 中 `extensions = [...]` 声明路径
 - 命令行 `--ext 文件.py` / `--ext-dir 目录`
 
@@ -239,14 +253,18 @@ yate/
   editor_syntax/ # 与 UI 无关的语法层：token 契约、正则 tokenizer 后端、
                  #   可选 tree-sitter 后端、按文件类型选择后端
   editor_view/   # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、主题
+  editor_sprites/ # 屏保精灵包：像素帧、角色名册、半块渲染
   keymaps/        # vsc / vim 键位定义与动作分发
+  keyproto/       # 底层按键和弦模型与字节编解码（Windows 输入通道）
   services/       # workspace 遍历、shell、扩展加载、字体安装
   extensions/     # 随包扩展：python_lsp（内置 LSP）+ *.py.example 模板
                   #   （example_ext 与 batch/ini/fsharp/git/diff 语法模板，
                   #   .example 后缀不会自动加载）
   docs/           # 中英双语文档：yaterc 配置、扩展 API、主题、LSP 配置食谱
                   #   （*.zh.md / *.en.md）
-  resources/      # manual.zh.md / manual.en.md 双语用户手册、随包字体
+  resources/      # manual.zh.md / manual.en.md 双语用户手册、构建期生成的
+                  #   changelog.en.md / changelog.zh.md、*.tcss 样式表、
+                  #   fonts/、theme_examples/（拷贝即用的主题模板）
   __init__.py     # 包元数据（__version__）
   __main__.py     # `python -m yate` 模块入口
   actions.py      # 内置动作表（注册表本体在 `registries.py`）
@@ -262,6 +280,8 @@ yate/
   diagnostics.py  # `yate --diag` 环境与配置诊断报告
   logs.py         # 崩溃报告 + 可选的运行时 trace 单例
   paths.py        # 统一资源定位（源码 / wheel / PyInstaller frozen 三种布局）
+  *_flows.py      # Editor 驱动的分领域操作流：document / extension /
+                  #   prompt / shell / window
   yaterc.example  # 配置模板
 tests/            # 单元测试 + Textual pilot 端到端测试
 tools/            # 维护工具：changelog、release、smoke_test、pack（图标生成）
@@ -342,20 +362,25 @@ UI 回归；框架内置已提交的 JSON 基线，用于快照预期行为。
 # 运行全部场景（默认 80x24 终端；CI 机器上约 48 秒）
 python -m tools.smoke_test run
 
-# 按标签过滤（标签：core、editing、selection、search、files、panes、
-# explorer、commands、misc、regress、stress、slow）
+# 按标签过滤（标签：edit、select、search、files、panes、explorer、
+# command、view、integration、regression、stress）
 python -m tools.smoke_test run --tag explorer
 python -m tools.smoke_test run --tag files --tag search
 
 # 跳过较慢的集成/压测（P2）场景
 python -m tools.smoke_test run --skip-slow
 
-# 打印命令/动作覆盖率面板（目标：命令 >=60%，动作 >=50%）
+# 打印命令/动作覆盖率面板（命令与动作同用 60% 阈值）
 python -m tools.smoke_test run --coverage
 
 # 可复现性：固定随机种子并重复 N 次，以暴露偶发（flaky）场景
 python -m tools.smoke_test run --seed 1 --repeat 3
 ```
+
+`--tag` 只接受上面列出的标签；遇到未知标签会直接报错退出并打印可用标签。
+报告表格按每个场景的**主标签**分组——即它的第一个标签，未声明任何标签时
+兜底为 `misc`，因此 `misc` 是展示用的归类桶、并非可选标签。`slow` 也不是
+标签：它是 `--skip-slow` 对应的场景级布尔开关（P2 集成 / 压测场景）。
 
 提供三个子命令：
 
@@ -368,8 +393,9 @@ python -m tools.smoke_test run --seed 1 --repeat 3
   （退出码 0）。在 CI 中运行它可捕捉非预期的 UI 回归。
 
 常用选项：`--no-color`（CI 日志）、`--quiet`（仅摘要）、`--fail-only`（仅失败
-详情）、`--no-invariant`（跳过全局不变量检查）、`--json PATH` / `--report PATH`
-（机器可读输出）、`--width N`（窄终端布局检查，如 79 列）。
+详情）、`--no-invariant`（跳过全局不变量检查）、`--json PATH`（机器可读的
+JSON 报告）、`--report PATH`（把带颜色的报告导出为独立 HTML 文件）、
+`--width N`（窄终端布局检查，如 79 列）。
 
 ### 发布与双语 Changelog 维护
 
@@ -417,7 +443,7 @@ python -m tools.release 0.3.0 --no-push # 全部做完但不推送
 模块（经本机 `codebuddy-code` CLI 调用免费模型）可自动补齐英文页：
 
 ```powershell
-cd d:\Programming\yate-pack-wiki   # 任意检出均可
+cd <checkout>   # 任意检出均可
 
 .venv\Scripts\python -m tools.pack wiki `
   --translate-cmd ".venv\Scripts\python -m tools.translate" `

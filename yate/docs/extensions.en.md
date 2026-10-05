@@ -60,10 +60,12 @@ absolute path** (a script hit by several sources still runs exactly once):
 4. Command line: `--ext <file>` loads a single file, `--ext-dir <dir>` loads
    every `*.py` in a directory (both repeatable).
 
-Load order is the numbering above; the same path runs once, so a modified copy
-dropped into `~/.yate/extensions/` (step 3) can override the registrations of
-the bundled same-named extension. Underscore-prefixed files and templates with
-a `.example` suffix are never loaded.
+Load order is the numbering above **except** for `--ext-dir`: those directories
+load *before* the two default directories, so the real sequence is step 1 →
+step 2 → `--ext-dir` → step 3 → `--ext <file>`. The same path runs once, so a
+modified copy dropped into `~/.yate/extensions/` (step 3) can override the
+registrations of the bundled same-named extension. Underscore-prefixed files and
+templates with a `.example` suffix are never loaded.
 
 ### Workspace trust (:trust)
 
@@ -79,6 +81,10 @@ message bar. Run
 ```
 
 to trust the current workspace and load its `./extensions/` immediately.
+A workspace whose path contains a symlink component is **refused**: the trust
+store holds resolved roots, so a symlinked cwd cannot be trusted as-is. yate
+reports `refused to trust <path>: it contains a symlink component` and you
+should trust the resolved directory instead.
 Trusted workspaces are recorded one resolved absolute path per line in
 `~/.yate/trusted_workspaces`; delete the line to stop trusting a workspace.
 rc-declared paths, `--ext` / `--ext-dir` and `~/.yate/extensions/` are
