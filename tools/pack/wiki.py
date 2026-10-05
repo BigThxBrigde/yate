@@ -1022,7 +1022,14 @@ def run(
     """
     root = repo_root if repo_root is not None else _util.repo_root()
     pages = collect_sources(root)
-    target.mkdir(parents=True, exist_ok=True)
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise WikiError(
+            f"cannot create the wiki repo directory {target}: {exc}",
+            code=Code.WIKI_PAGE_WRITE,
+            hint="pass --target with a writable directory",
+        ) from exc
     # The manifest carries over across runs: stale pages keep their old
     # recorded hash so a later --force run still sees them as stale instead
     # of adopting the outdated English page as externally maintained.
