@@ -93,8 +93,13 @@ def _excludes() -> list[str]:
     return entries
 
 
+@functools.lru_cache(maxsize=None)
 def _parse(path: Path) -> ast.Module:
-    """The AST of a Python source file (``pack/_common.py``, a ``.spec``, ``yate/**``)."""
+    """The AST of a Python source file (``pack/_common.py``, a ``.spec``, ``yate/**``).
+
+    Memoised like :func:`_load_common`: the guards ask for the same handful of
+    files repeatedly, and the trees are never mutated by the callers.
+    """
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
