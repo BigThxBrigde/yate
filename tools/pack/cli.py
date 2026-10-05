@@ -10,6 +10,7 @@ Commands::
     python -m tools.pack wiki                  # regenerate the ../yate.wiki repo
     python -m tools.pack wiki --check          # gate: exit 1 on missing/stale en
     python -m tools.pack wiki --push           # commit + push origin/github
+    python -m tools.pack wiki --jobs 8         # cap concurrent translations
 
 ``icon`` regenerates the Windows executable icon consumed by the
 PyInstaller specs (see :mod:`tools.pack.icon`); run it after changing the
@@ -19,6 +20,10 @@ logo. The built ``.ico`` is committed, so a normal build
 ``rosters`` regenerates the screensaver roster preview from the product
 sprite pack (see :mod:`tools.pack.rosters`); run it after touching any
 sprite bitmap.
+
+Every failure is printed as ``error[<CODE>]: <message>`` on stderr (see
+:mod:`tools.pack.errors`); tracebacks stay in the log channel and only
+reach the terminal with ``wiki --debug``.
 """
 
 from __future__ import annotations
@@ -29,7 +34,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .. import _util
-from . import icon, rosters, wiki
+from . import errors, icon, rosters, wiki
+from .errors import Code
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -136,6 +142,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="commit the wiki repo and push it to origin (gitee) and github",
     )
+    wiki_cmd.add_argument(
+        "--jobs",
+        type=int,
+        default=None,
+        metavar="N",
+        help="maximum number of concurrent translation tasks; the pages are "
+             "split into tasks of at most 10 documents and the value is "
+             "clamped to the machine ceiling (CPU cores x 2, the default)",
+    )
+    wiki_cmd.add_argument(
+        "--debug",
+        action="store_true",
+        help="also print the traceback of a failure (errors themselves are "
+             "always reported as error[CODE]: message)",
+    )
     return parser
 
 
@@ -143,8 +164,11 @@ def _icon(source: Path, target: Path, sizes: Sequence[int] | None) -> int:
     chosen = tuple(sizes) if sizes else icon.ICON_SIZES
     try:
         written = icon.build_icon(source, target, chosen)
+    except errors.PackError as exc:
+        errors.report(exc)
+        return 1
     except (OSError, RuntimeError, ValueError) as exc:
-        print(f"tools.pack: {exc}", file=sys.stderr)
+        errors.report(errors.PackError(Code.ICON_BUILD, f"{exc}"))
         return 1
     print(
         f"wrote {written} ({written.stat().st_size // 1024} KB) "
@@ -156,14 +180,18 @@ def _icon(source: Path, target: Path, sizes: Sequence[int] | None) -> int:
 def _rosters(output: Path) -> int:
     try:
         written = rosters.render_roster_svg(output)
+    except errors.PackError as exc:
+        errors.report(exc)
+        return 1
     except OSError as exc:
-        print(f"tools.pack: {exc}", file=sys.stderr)
+        errors.report(errors.PackError(Code.ROSTERS_RENDER, f"{exc}"))
         return 1
     print(f"wrote {written} ({written.stat().st_size // 1024} KB)")
     return 0
 
 
 def _wiki(args: argparse.Namespace) -> int:
+    debug = bool(args.debug)
     try:
         repo_root = _util.repo_root()
         target = (
@@ -179,9 +207,10 @@ def _wiki(args: argparse.Namespace) -> int:
             check=args.check,
             push=args.push,
             repo_root=repo_root,
+            jobs=args.jobs,
         )
-    except wiki.WikiError as exc:
-        print(f"tools.pack: {exc}", file=sys.stderr)
+    except errors.PackError as exc:
+        errors.report(exc, debug=debug)
         return 1
 
 
@@ -190,9 +219,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     A ``Ctrl+C`` during a long-running subcommand (wiki translation, git
     push) prints a one-line note on stderr and maps to exit code 130 --
-    never a traceback.
+    never a traceback.  Every other failure is rendered by
+    :func:`tools.pack.errors.report` as ``error[<CODE>]: <message>`` and
+    maps to exit code 1, including exceptions that escaped a subcommand's
+    own guard: the CLI is the boundary where a traceback must never reach
+    the terminal.
     """
     args = build_parser().parse_args(argv)
+    debug = bool(getattr(args, "debug", False))
     try:
         if args.command == "icon":
             return _icon(args.source, args.target, args.sizes)
@@ -203,5 +237,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("\ntools.pack: interrupted", file=sys.stderr)
         return 130
+    except errors.PackError as exc:
+        errors.report(exc, debug=debug)
+        return 1
+    except Exception as exc:  # noqa: BLE001 - CLI boundary, must not leak tracebacks
+        errors.report(exc, debug=debug)
+        return 1
     build_parser().error(f"unknown command {args.command!r}")
     return 2
