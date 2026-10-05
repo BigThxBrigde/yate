@@ -30,14 +30,15 @@ gate); ``--push`` commits the wiki repo and pushes it to ``origin``
 
 Translation runs through a thread pool: pending pages are split into
 tasks of at most :data:`BATCH_SIZE` documents and at most
-``cpu_count() * 2`` tasks run concurrently (issue IKJPEK), with one
-progress row per batch that advances page by page (and names the page in
-flight) plus a permanent line per finished batch and per failed page.
-``--jobs`` lowers that ceiling (it can never raise it), and up to
-``jobs * 10`` translators may therefore run at the same time.  Every
-failure carries a stable ``WIKI-*`` code from :mod:`tools.pack.errors` --
-a vanished Chinese source aborts the run with ``error[WIKI-0102]``
-instead of a traceback.
+``cpu_count() * 2`` tasks run concurrently (issue IKJPEK).  The live
+progress advances page by page -- one row per batch naming the page in
+flight, plus the overall row with its own ``pages done / batches queued /
+workers`` text -- and a permanent line is printed per finished batch and
+per failed page.  ``--jobs`` lowers that ceiling (it can never raise it),
+and up to ``jobs * 10`` translators may therefore run at the same time.
+Every failure carries a stable ``WIKI-*`` code from
+:mod:`tools.pack.errors` -- a vanished Chinese source aborts the run with
+``error[WIKI-0102]`` instead of a traceback.
 """
 
 from __future__ import annotations
@@ -49,7 +50,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from itertools import islice
@@ -757,44 +758,64 @@ def chunk_pages[T](items: Sequence[T], size: int = BATCH_SIZE) -> list[list[T]]:
     return [list(items[start : start + size]) for start in range(0, len(items), size)]
 
 
-def _progress_reporter(
-    progress: Progress,
-    overall: TaskID,
-    batch_tasks: dict[int, TaskID],
-    batch_count: int,
-) -> tuple[Callable[[int, WikiPage], None], Callable[[int], None]]:
-    """Build the page-level progress callbacks handed to the pool workers.
+@dataclass
+class _ProgressBoard:
+    """Page-level progress reporting for the translation pool.
 
-    Returns ``(page_started, page_done)``.  A worker calls them as its own
-    page starts and lands, so the batch row moves once per page instead of
-    jumping from 0% to 100% when the whole batch reports back: with ten
-    pages per batch the old batch-granular update left a row frozen for
-    minutes.  rich serialises :meth:`~rich.progress.Progress.update` and
-    :meth:`~rich.progress.Progress.advance` under its own lock, so calling
-    them from several workers is safe (verified by probe; see
-    ``.trae/documents/pack-wiki-progress-refresh-plan.md``).
+    Every batch row and the overall row move as each page lands, and the
+    overall row also carries its own description (``pages done · batches
+    queued · workers``): the bar and the sentence next to it used to
+    disagree for minutes, because the text was only refreshed when a whole
+    batch reported back.
 
-    Only the progress object crosses the thread boundary: terminal writes,
-    page writes and the interrupt path stay on the main thread.  Page names
-    are markup-escaped because a Windows file name may contain brackets,
-    which would otherwise raise :class:`rich.errors.MarkupError` inside a
-    worker and abort the run (the same class of bug review #2 fixed for the
-    permanent lines).
+    Workers call :meth:`page_started` / :meth:`page_done`; the main thread
+    calls :meth:`batch_finished`.  rich updates task fields under
+    ``Progress._lock`` and paints frames from its own refresh thread under
+    ``Live._lock``, so one frame may show a row one step ahead of another
+    -- cosmetic only.  Keeping the updates on the workers is what makes the
+    bar live at all; the alternative (the main thread draining the pool)
+    would mean either latency or a rewrite of the interrupt path.
+
+    *queued* is the one field the main thread mutates; every other field is
+    set once at construction.
     """
 
-    def page_started(index: int, page: WikiPage) -> None:
-        """Show which page the batch *index* is translating right now."""
-        progress.update(
-            batch_tasks[index],
-            description=f"batch {index}/{batch_count} · {escape(page.en_target)}",
+    progress: Progress
+    overall: TaskID
+    batch_tasks: dict[int, TaskID]
+    batch_count: int
+    total_pages: int
+    workers: int
+    queued: int
+
+    def _description(self) -> str:
+        """Render the overall row text from the live counters."""
+        done = int(self.progress.tasks[self.overall].completed)
+        return (
+            f"translating {done}/{self.total_pages} page(s)"
+            f" · {self.queued} batch(es) queued · {self.workers} worker(s)"
         )
 
-    def page_done(index: int) -> None:
-        """Advance the batch row and the overall row by one finished page."""
-        progress.advance(batch_tasks[index])
-        progress.advance(overall)
+    def page_started(self, index: int, page: WikiPage) -> None:
+        """Show which page batch *index* is translating right now."""
+        self.progress.update(
+            self.batch_tasks[index],
+            description=f"batch {index}/{self.batch_count} · {escape(page.en_target)}",
+        )
 
-    return page_started, page_done
+    def page_done(self, index: int) -> None:
+        """Advance the batch row and the overall row by one finished page.
+
+        The two rows move together on purpose: the bar percentage and the
+        page count in the text must never disagree.
+        """
+        self.progress.advance(self.batch_tasks[index])
+        self.progress.update(self.overall, advance=1, description=self._description())
+
+    def batch_finished(self) -> None:
+        """Note that one batch reported back: one batch less queued."""
+        self.queued -= 1
+        self.progress.update(self.overall, description=self._description())
 
 
 def _run_batch(
@@ -802,39 +823,43 @@ def _run_batch(
     translate_cmd: str,
     stop: threading.Event,
     index: int,
-    page_started: Callable[[int, WikiPage], None],
-    page_done: Callable[[int], None],
+    board: _ProgressBoard,
 ) -> list[_PageOutcome]:
     """Translate one batch, capturing every failure as an outcome value.
 
-    Nothing may propagate out of a pool worker: an exception escaping here
-    leaves its ``Future`` permanently pending, which would hang
-    :func:`concurrent.futures.as_completed` forever, and a
-    ``KeyboardInterrupt`` raised in a worker thread must be re-raised by the
-    main thread anyway.  Threads are the right primitive because the work
-    is a blocking external subprocess (:func:`translate_via_cmd`), which
-    holds no shared interpreter state.
+    Nothing may propagate out of a pool worker: an escaping exception is
+    turned into a failed ``Future`` by the pool, so the main thread would
+    see it at ``future.result()`` -- outside the ``outcome.error`` branch
+    below, skipping both ``stop.set()`` and the cancellation of the queued
+    batches.  A ``KeyboardInterrupt`` raised in a worker must be re-raised
+    by the main thread anyway.  Threads are the right primitive because the
+    work is a blocking external subprocess (:func:`translate_via_cmd`),
+    which holds no shared interpreter state.
 
     *stop* is checked before every page: once the main thread cancels the
     run (an interrupt in any worker), a batch stops instead of starting the
     next translation -- otherwise ``Ctrl+C`` would still pay for every
     page of every queued batch.
 
-    *page_started* / *page_done* move the progress rows for batch *index*
-    as each page starts and lands, so the bar tracks single pages; a failed
-    page still counts as finished.  The page that raised is *not* counted:
-    its outcome travels to the main thread, which re-raises and tears the
-    display down anyway.
+    *board* moves the progress rows for batch *index* as each page starts
+    and lands, so the bar tracks single pages; a page whose translation
+    failed still counts as finished.  The page that raised is *not* counted
+    -- its outcome travels to the main thread, which re-raises and tears
+    the display down anyway.  The reporting callbacks sit inside the same
+    ``try`` as the translation: they only touch rich's in-memory task
+    fields, and their keys come from :attr:`_ProgressBoard.batch_tasks`,
+    the same mapping the pool submits from, so a failure here means a bug
+    in rich rather than a mismatch of batch indices.
     """
     outcomes: list[_PageOutcome] = []
     for plan in plans:
         if stop.is_set():
             break
-        page_started(index, plan.page)
         started = time.monotonic()
         try:
+            board.page_started(index, plan.page)
             english: str | None = translate_via_cmd(plan.text, translate_cmd)
-            page_done(index)
+            board.page_done(index)
             outcomes.append(
                 _PageOutcome(plan, english, None, time.monotonic() - started)
             )
@@ -973,8 +998,14 @@ def _translate_pending(
         index: display.add_task(f"batch {index}/{len(batches)}", total=len(batch))
         for index, batch in enumerate(batches, start=1)
     }
-    page_started, page_done = _progress_reporter(
-        display, overall, batch_tasks, len(batches)
+    board = _ProgressBoard(
+        progress=display,
+        overall=overall,
+        batch_tasks=batch_tasks,
+        batch_count=len(batches),
+        total_pages=len(plans),
+        workers=workers,
+        queued=len(batches),
     )
     done = 0
     stop = threading.Event()
@@ -986,14 +1017,12 @@ def _translate_pending(
     try:
         futures: dict[Future[list[_PageOutcome]], int] = {
             pool.submit(
-                _run_batch, batch, translate_cmd, stop, index, page_started, page_done
+                _run_batch, batches[index - 1], translate_cmd, stop, index, board
             ): index
-            for index, batch in enumerate(batches, start=1)
+            for index in batch_tasks
         }
-        queued = len(futures)
         for future in as_completed(futures):
             index = futures[future]
-            queued -= 1
             batch = batches[index - 1]
             failed_here = 0
             for outcome in future.result():
@@ -1024,13 +1053,7 @@ def _translate_pending(
                 _write_page_text(target / page.en_target, outcome.english)
                 digests[page.zh_target] = outcome.plan.digest
                 translated += 1
-            display.update(
-                overall,
-                description=(
-                    f"translating {done}/{len(plans)} page(s)"
-                    f" · {queued} batch(es) queued · {workers} worker(s)"
-                ),
-            )
+            board.batch_finished()
             console.print(
                 f"wiki: batch {index}/{len(batches)} done"
                 f" ({len(batch) - failed_here}/{len(batch)} ok,"
