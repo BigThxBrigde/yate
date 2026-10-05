@@ -139,7 +139,88 @@ sequenceDiagram
 
 ## 七、执行记录（回填）
 
-- 基线（改动前，worktree 内实测）：`_internal` **60.6 MiB / 334 文件**；
-  `PIL/` **13.1 MiB / 7 文件**；布局 `dist/yate/{yate.exe, _internal/}`；
-  冒烟 `dist\yate\yate.exe --version` → `yate 0.2.9 yet another terminal editor (Textual based)`，退出码 0。
-- 待回填：S1-S6 各自的实测数字、审核结论、偏离记录。
+### 7.1 基线（改动前，worktree 内实测）
+
+`python -m PyInstaller --noconfirm --clean --distpath dist --workpath build pack/yate.spec`（退出码 0，耗时 ~32 s）：
+
+| 指标 | 基线值 |
+|---|---|
+| 单目录整包体积 | **68.4 MiB** |
+| 文件数 | 341（`_internal` 334 + `yate.exe` 1 + 其它 6） |
+| 布局 | `dist/yate/{yate.exe, _internal/…}` |
+| `PIL/` | **13.1 MiB / 7 文件** |
+| `_elementtree.pyd` | 132 KiB（由 PIL 侧引入） |
+| 冒烟 | `dist\yate\yate.exe --version` → `yate 0.2.9 …`，退出码 0 |
+
+### 7.2 S1-S3 + S6 实测（提交 `527a65c`）
+
+单目录（`--distpath dist_new`，退出码 0，耗时 ~26 s）：
+
+| 指标 | 基线 | 改后 | 变化 |
+|---|---|---|---|
+| 整包体积 | 68.4 MiB | **54.8 MiB** | **-13.5 MiB（-19.8%）** |
+| 文件数 | 341 | **327** | -14 |
+| 顶层结构 | `yate.exe` + `_internal/` | `yate.exe` + 54 个同级目录 + 65 个同级文件 | **`_internal` 消失** |
+| `PIL/` | 存在 | **不存在**（`Test-Path dist_new\yate\PIL` → `False`） | 已移除 |
+| `_elementtree.pyd` | 存在 | 不存在 | 随 PIL 一并消失 |
+| 冒烟 | 通过 | `dist_new\yate\yate.exe --version` → `yate 0.2.9 …`，退出码 0 | 通过 |
+
+单文件（issue 第三段）：
+
+| 指标 | 基线（临时把 excludes 置空构建） | 改后 | 变化 |
+|---|---|---|---|
+| `dist*/yate.exe` | 26.6 MiB | **19.5 MiB** | **-7.1 MiB（-26.7%）** |
+| 冒烟 | — | `--version` → `yate 0.2.9 …`，退出码 0 | 通过 |
+
+基线构建方式说明：单文件基线是**临时**把 `pack/yate-onefile.spec` 的 `excludes` 改回 `[]`
+构建一次后立即还原（未提交），以保证与改后同环境、同版本、可直接比较。
+
+### 7.3 步骤状态
+
+- S1 `pack/_common.py`：`EXCLUDES = ("PIL", "numpy")` + `SpecInputs.excludes` → 完成（提交 `527a65c`）
+- S2 `pack/yate.spec`：`excludes=inputs.excludes` + `EXE(contents_directory=".")` → 完成（提交 `527a65c`）
+- S3 `pack/yate-onefile.spec`：`excludes=inputs.excludes` → 完成（提交 `527a65c`）
+- S4 `tests/test_pack_spec.py`：10 个静态守卫 → 完成（提交 `9730874`）
+- S5 `README.md` / `README.zh.md` 双语说明 + 订正过期的"约 16 MB" → 完成（提交 `d7f6a22`、`d25b111`）
+- S6 真实构建与冒烟：完成（数字见 §7.2，最终代码复测见 §7.5）
+
+### 7.4 子代理执行情况（如实记录）
+
+| 成员 | 名下文件 | 落盘结果 | 主代理复核 |
+|---|---|---|---|
+| `pack-spec-tests` | `tests/test_pack_spec.py` | 有产出（214 行） | `pytest tests/test_pack_spec.py -q` → 10 passed；`pyright` → 0 errors。主代理另修一处 pyright `reportUnknownArgumentType`（`len()` 收到 `tuple[Unknown, ...]`）与 docstring 里的体积数字（60.6 → 68.4 MiB） |
+| `pack-readme-docs` | `README.md`、`README.zh.md` | 有产出（双语各 3 段） | diff 复核通过；其上报的两项待裁决（过期"约 16 MB"、中文译法）由主代理改完并回执 |
+| `pack-review` | 只读评审 | **零产出**：两次探活（间隔 >5 min）无回信，且按任务书不得写文件故无产物可查 | 按 `subagent-workflow.md` §五.3 判死；评审由主代理亲自执行（§7.6），如实标注为"主代理自评" |
+
+### 7.5 最终代码复测（提交态）
+
+以最终提交重新构建 `pack/yate.spec`（退出码 0）：`dist\yate\yate.exe` 存在、
+`dist\yate\_internal` **不存在**、327 文件 / 54.8 MiB、`--version` 退出码 0
+（与 §7.2 一致）。构建产物与临时探针脚本已清理，工作区仅剩方案文档的未提交回填。
+
+### 7.6 审核结论（主代理自评，round 1）
+
+对 `master...HEAD` 全量 diff 逐文件核对：
+
+| 严重度 | 数量 | 说明 |
+|---|---|---|
+| blocker | 0 | — |
+| major | 0 | — |
+| minor | 2（已修） | ① `pack/_common.py` 注释里的"PIL 占 60.6 MiB 中的一部分"未写清 60.6 MiB 只是 `_internal` 目录、整包是 68.4 MiB，易误导；② `pack/yate.spec` docstring 折行被新插入段打断 |
+
+排除项运行时安全性复核：`pygments/formatters.img` 的 PIL 导入在 `try/except ImportError`
+内（`img.py:21-25`），yate 全仓零 PIL 静态引用（唯一引用 `tools/pack/icon.py` 为动态
+import 且不在冻结入口内），最终产物 `--version` 冒烟通过 → 排除安全。
+
+### 7.7 全量门禁（主代理亲跑，退出码 0）
+
+| 门禁 | 结果 |
+|---|---|
+| `python -m pyright yate/ tests/ tools/` | **0 errors, 0 warnings, 0 informations** |
+| `python -m pytest tests/ -q` | **1918 passed, 8 skipped**（4:11） |
+| `python -m pytest tests/test_architecture.py -q` | **22 passed** |
+| `python -m pytest tests --cov=yate --cov-branch --cov-fail-under=75` | **91.26%**（13126 语句 / 928 missing / 4368 分支 / 427 missing），阈值 75% 达标 |
+| `python -m pytest tests/test_pack_spec.py -q` | 10 passed |
+
+> 注：`pack/` 不在 `pyproject.toml` 的 pyright `include` 范围内（F9），其正确性由上述
+> 真实构建 + `tests/test_pack_spec.py` 静态守卫共同覆盖。

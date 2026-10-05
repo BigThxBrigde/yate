@@ -7,10 +7,10 @@ Build with (after ``pip install -e ".[build,ts]"``), from the repository root::
 
 The output is dist/yate/yate.exe (a one-folder build) with the runtime files
 placed right next to the executable -- no ``_internal/`` subdirectory
-(issue IKJPVB). Resources are located at
-runtime through yate.paths, which checks sys._MEIPASS, so the data layout
-shared with pack/_common.py must mirror the source tree (everything lands
-inside a top-level ``yate`` package folder in the bundle).
+(issue IKJPVB).  Resources are located at runtime through yate.paths, which
+checks sys._MEIPASS, so the data layout shared with pack/_common.py must
+mirror the source tree (everything lands inside a top-level ``yate`` package
+folder in the bundle).
 
 Modules that are dragged in transitively but never used at runtime (Pillow
 and numpy) are dropped from the frozen graph via

@@ -1,0 +1,5 @@
+docs(plan): backfill the IKJPVB gate numbers and the review round
+
+Record the measured before/after bundle sizes, the subagent outcomes
+including the reviewer's zero output, the round-1 self review with its two
+fixed minors, and the full gate run.
