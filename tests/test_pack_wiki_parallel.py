@@ -16,6 +16,7 @@ bound is asserted, so the tests do not jitter.
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from collections.abc import Generator
@@ -465,31 +466,116 @@ def test_batch_progress_advances_page_by_page_while_a_batch_runs(
     run (ten pages per batch, ~20 s per page).
 
     ``jobs=1`` makes the observation deterministic -- page *n+1* of a batch
-    starts only after page *n* returned -- so the overall count observed
-    when a page starts must already include its finished predecessors.  The
-    batch-granular advance reported 0 for every page but the last.
+    starts only after page *n* returned -- so what a page sees when it
+    starts must already include its finished predecessors, on the overall
+    row *and* on its own batch row.  The batch-granular advance reported 0
+    on both rows for every page but the last of a batch.
     """
     stream = StringIO()
     progress = _live_display(stream)
     _install_display(monkeypatch, progress)
 
-    observed: dict[str, int] = {}
+    observed: dict[str, tuple[int, int]] = {}
     lock = threading.Lock()
 
     def fake_translate(text: str, translate_cmd: str) -> str | None:
         stem = text.splitlines()[0].removeprefix("# ")
-        # The overall row is the display's first task.
+        # Row 0 is the overall task, row 1 the first batch (the generator
+        # adds the overall task before the per-batch ones).
         with lock:
-            observed[stem] = int(progress.tasks[progress.task_ids[0]].completed)
+            observed[stem] = (
+                int(progress.tasks[progress.task_ids[0]].completed),
+                int(progress.tasks[progress.task_ids[1]].completed),
+            )
         return _english_for(text)
 
     monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
     assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=1) == 0
+    assert len(observed) == PAGE_COUNT
     # Second page of the first batch: one page must already be counted.
-    assert observed["page02"] == 1
-    assert observed["page10"] == 9
-    assert observed["page11"] == 10
-    assert progress.tasks[progress.task_ids[0]].completed == PAGE_COUNT
+    assert observed["page02"] == (1, 1)
+    assert observed["page10"] == (9, 9)
+    # First page of the second batch: batch one is full (the snapshot always
+    # reads row 1, whichever batch the page belongs to).
+    assert observed["page11"] == (10, 10)
+    overall_row, *batch_rows = (progress.tasks[tid] for tid in progress.task_ids)
+    assert overall_row.completed == PAGE_COUNT
+    assert [row.completed for row in batch_rows] == [10, 10, 5]
+    # No row may run past its total (a double advance would show here).
+    assert all(
+        row.total is not None and row.completed <= row.total for row in batch_rows
+    )
+
+
+def test_concurrent_workers_keep_the_progress_rows_consistent(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Concurrent page reports neither lose nor double-count a page.
+
+    This is the scenario the per-page callbacks exist for: several workers
+    advance the same rows at once.  The first two arrivals park on a
+    :class:`threading.Barrier`, so parallelism is proved rather than raced
+    for; the per-page samples then show a batch row moving mid-run.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+    gate = threading.Barrier(2)
+    arrivals: list[int] = []
+    mid_run: list[bool] = []
+    arrivals_lock = threading.Lock()
+    lock = threading.Lock()
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        del translate_cmd
+        with arrivals_lock:
+            arrivals.append(1)
+            waits = len(arrivals) <= 2
+        if waits:
+            gate.wait(timeout=30)
+        with lock:
+            # Some batch row must already have moved while the run is going.
+            mid_run.append(
+                any(
+                    int(progress.tasks[tid].completed) > 0
+                    for tid in progress.task_ids[1:]
+                )
+            )
+        time.sleep(0.01)
+        return _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=2) == 0
+    overall_row, *batch_rows = (progress.tasks[tid] for tid in progress.task_ids)
+    assert overall_row.completed == PAGE_COUNT
+    assert sum(int(row.completed) for row in batch_rows) == PAGE_COUNT
+    assert [row.completed for row in batch_rows] == [10, 10, 5]
+    assert any(mid_run)
+
+
+def test_failed_page_still_advances_the_progress_rows(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A page whose translation failed still counts as finished.
+
+    Pinned because the failure branch returns normally (``None`` instead of
+    raising): if it skipped the page report, the bar would stop short of
+    its total and a run with failures would look like it hung.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return None if "page07" in text else _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo, jobs=1) == 0
+    assert not (target / "page07.en.md").exists()
+    overall_row, *batch_rows = (progress.tasks[tid] for tid in progress.task_ids)
+    assert overall_row.completed == PAGE_COUNT
+    assert sum(int(row.completed) for row in batch_rows) == PAGE_COUNT
 
 
 def test_batch_row_names_the_page_in_flight_and_escapes_markup(
@@ -498,10 +584,11 @@ def test_batch_row_names_the_page_in_flight_and_escapes_markup(
     """The batch row names the page in flight, brackets included.
 
     ``README.md`` promises "current page name + overall progress", and a
-    Windows file name may legally contain brackets.  Handing those to rich
-    unescaped raises :class:`rich.errors.MarkupError` inside a worker,
-    which would abort the whole run -- the same hazard review #2 fixed for
-    the permanent lines.
+    Windows file name may legally contain brackets.  rich renders a
+    description as markup, so an unescaped ``[name]`` is swallowed as a
+    style tag (the row would read ``bracket.en.md``) and a closing-only
+    ``[/x]`` even raises :class:`rich.errors.MarkupError` inside the render
+    thread, freezing the display.  Escaping the page name avoids both.
     """
     stream = StringIO()
     progress = _live_display(stream)
@@ -519,6 +606,7 @@ def test_batch_row_names_the_page_in_flight_and_escapes_markup(
         with lock:
             # Sorted collection puts bracket[name].md first, so the row
             # opens on it; refresh forces the markup parser to run.
+            assert progress.live.is_started
             described.append(str(progress.tasks[progress.task_ids[1]].description))
             progress.refresh()
             rendered.append(stream.getvalue())
@@ -531,3 +619,35 @@ def test_batch_row_names_the_page_in_flight_and_escapes_markup(
     # Rendering unescapes back to the literal page name (and never raises).
     assert "bracket[name].en.md" in rendered[0]
     assert progress.tasks[progress.task_ids[1]].description == "batch 1/1 · plain.en.md"
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows file names cannot contain a slash"
+)
+def test_batch_row_survives_a_closing_markup_tag_in_the_page_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A page name that looks like a closing markup tag cannot kill the run.
+
+    ``[/x]`` is the only shape rich actually rejects (:class:`rich.errors.
+    MarkupError`), and it needs a slash -- so this is reachable on POSIX
+    only.  The error would surface inside rich's render thread, which has no
+    guard at all, leaving a frozen display rather than a clean failure.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+    root = tmp_path / "repo-closing-tag"
+    _touch(root, ".trae/documents/bracket[/x].md", "# bracket\n\n中文正文\n")
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        del text, translate_cmd
+        assert progress.live.is_started
+        progress.refresh()
+        return "# en\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=root, jobs=1) == 0
+    assert (target / "bracket[/x].en.md").exists()
+    assert "bracket[/x].en.md" in stream.getvalue()
