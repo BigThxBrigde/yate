@@ -68,8 +68,8 @@ perform the work and exit:
 |---|---|---|---|---|
 | `keymap` | `str` | `"vsc"` | `"vsc"` / `"vim"` | Key map. Invalid values fall back to the default and report an error. |
 | `theme` | `str` | `"mocha"` | built-in or custom theme name | Color scheme; see below. |
-| `tab_width` | `int` | `4` | integer `1`–`16` | Spaces inserted per Tab and Tab display width; non-integers such as `True`/`False` are rejected. |
-| `use_spaces` | `bool` | `True` | `True` / `False` | `True` inserts spaces for Tab; `False` inserts a real tab character. |
+| `tab_width` | `int` | `4` | integer `1`–`16` | Spaces inserted per Tab, Tab display width, and the **indent unit** (auto-indent, indent kept on Enter, indent/outdent all compute with it); non-integers such as `True`/`False` are rejected. |
+| `use_spaces` | `bool` | `True` | `True` / `False` | `True` uses spaces for Tab and indenting; `False` inserts a real tab character. |
 | `extensions` | `str` or `list[str]` | none | existing file/directory paths | Extra extension script paths, see [below](#extension-paths-extensions); **accumulates** across rc files rather than overwriting. |
 | `disabled_extensions` | `str` or `list[str]` | none | non-empty extension-name strings | Disable bundled default extensions by stem (e.g. `["python_lsp"]`), see [below](#extension-paths-extensions); accumulates and de-duplicates across rc files. |
 | `theme_dirs` | `str` or `list[str]` | none | existing file/directory paths | Custom theme directories (or a single `*.py` theme file), see [below](#custom-theme-directories-theme_dirs); **accumulates** across rc files. |
@@ -88,7 +88,9 @@ Option scope:
 - `keymap` / `theme` apply at startup; `theme` is process-global state (like
   vim's colorscheme).
 - `tab_width` / `use_spaces` propagate to **every new and opened buffer**
-  (see `_make_buffer` / `_apply_buffer_options` in [yate/app.py](../app.py)).
+  (see `_make_buffer` / `_apply_buffer_options` in [yate/app.py](../app.py))
+  and also define the indent unit (see "Input assist" in section 3.5 of the
+  manual).
 - `shell` is read when a terminal shell is launched (restart the shell after
   `:set shell=…`); `terminal_height` also supports immediate in-session changes
   via `:set terminal_height=<n>`.

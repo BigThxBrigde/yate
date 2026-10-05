@@ -167,7 +167,96 @@ yate's layout mimics VS Code, top to bottom:
   buffer" action) dismisses it, and it never comes back when switching tabs;
   run `:welcome` to show it again (on an empty unnamed buffer).
 
-### 3.5 Status bar
+### 3.5 Input assist
+
+Input assist is driven by **key presses** and does no lexical state tracking:
+it works inside strings and comments too.
+
+**Paired-symbol completion**: typing a left symbol inserts its right symbol
+and leaves the cursor between the two.
+
+| Typed | Result | Cursor |
+|---|---|---|
+| `(` | `()` | between `(` and `)` |
+| `[` | `[]` | between `[` and `]` |
+| `{` | `{}` | between `{` and `}` |
+| `'` | `''` | between the two `'` |
+| `"` | `""` | between the two `"` |
+
+- **Smart skip**: when the cursor sits right before an auto-inserted right
+  symbol, typing that same right symbol again only moves the cursor one
+  column instead of inserting a duplicate. The decision is made on the
+  **character value** — an adjacent hand-typed occurrence is skipped too
+  (same semantics as VS Code). Quotes obey the same rule: typing a second `'` or
+  `"` between an auto-completed pair only steps over it, so to type a lone quote
+  inside an auto-closed string step past the closing quote (or delete it) first.
+- **Paired deletion**: with the cursor between a pair, `Backspace` deletes
+  both characters at once; otherwise it deletes a single character as usual.
+- **Selection wrap**: with a selection active, typing a left symbol wraps the
+  selected text and leaves the cursor at the end of the wrapped content
+  (before the closing symbol).
+
+**Auto-indent on Enter** (decided by `filetype`; Python means `py` and
+`python`):
+
+- a line ending with `:` indents one more level;
+- an empty line keeps its own indent without adding a level;
+- a line starting with one of the 9 keywords `break` / `continue` / `elif` /
+  `else` / `except` / `finally` / `pass` / `raise` / `return` **and not ending
+  with `:`** keeps the current level without adding one;
+- but a line that itself ends with `:`, such as `else:` or `elif cond:`, falls
+  under the first rule: Enter still adds one level, because this release never
+  outdents first (see the note at the end of this section);
+- in non-Python files Enter only copies the current line's indent, with no
+  block-level reasoning.
+
+The indent unit comes from yaterc's `tab_width` and `use_spaces` (2 spaces /
+4 spaces / tab character); see section 10.
+
+**Indent keys**:
+
+| Keymap | Key | Action |
+|---|---|---|
+| vsc | `Tab` | indent one level (line by line for a multi-line selection) |
+| vsc | `Shift+Tab` | outdent one level (line by line, never below 0) |
+| vim | `>` | NORMAL: indent one level, a count applies to lines (`3>` = 3 lines from the cursor line) |
+| vim | `<` | NORMAL: outdent one level, a count applies to lines (`3<` = 3 lines from the cursor line) |
+| vim | `>` | VISUAL: indent one level (a count prefix is ignored, as in vim) |
+| vim | `<` | VISUAL: outdent one level (a count prefix is ignored, as in vim) |
+
+In NORMAL mode `>` / `<` work on the **whole line** and leave the cursor on that
+line's **first non-blank column** (as vim does); a count applies to the **number
+of lines**: `3>` indents the cursor line and the two lines below it by one level
+each, stopping at the end of the file when fewer lines are left. In VISUAL mode
+they still work on the whole line, but the **selection is kept** (it expands to
+the full lines) and the cursor stays at the end of the last line instead of
+jumping to the first non-blank column (as vim does). As in vim, a count prefix
+is ignored here.
+The built-in `indent` / `outdent` actions (vsc's `Ctrl+]` is one of them) instead
+pad to the next tab stop **at the cursor** when there is no selection — the
+pre-existing, cursor-relative semantics. The **outdent floor of 0** stated in the
+table holds for all of these.
+
+With `Tab` / `Shift+Tab` / `Ctrl+]` and an **active selection**, indenting expands
+the selection to the full lines (pre-existing `indent` action semantics, as always
+the case for multi-line selections); the selection is not preserved as-is.
+
+**Exceptions and undo**:
+
+- Pasted text never triggers auto-completion — pasting takes its own path
+  instead of going through key handling.
+- On a read-only buffer (documents opened under `--readonly`, or turned
+  read-only with `:set readonly=true`) and in read-only built-in views (such as
+  the `F8` manual), all auto-completion and indent logic is disabled.
+- An auto-inserted pair of symbols is **one undo step**: a single `Ctrl+Z`
+  (vim `u`) removes the whole pair.
+
+> This release does **not** include syntax-aware dedent: a line ending with `:`
+> (`else:` / `elif cond:` / `except E:` / `finally:`) puts the new block **one
+> level deeper** than the syntax expects — it never outdents first — so use
+> `Shift+Tab` (vsc) or `<` (vim) to bring it back by hand.
+
+### 3.6 Status bar
 
 Left: mode block + file info; right: position and metadata.
 
@@ -179,7 +268,7 @@ Left: mode block + file info; right: position and metadata.
   then the hint icon area: loaded extension count, `:!` (shell command), `F1`
   (help).
 
-### 3.6 Command line / message bar
+### 3.7 Command line / message bar
 
 The bottom line shows messages when idle
 (`yate 0.1.0 — F1 help, Ctrl+P quick open, Alt+Shift+P command palette` in
@@ -212,7 +301,7 @@ means an error. Commands that open a full-screen overlay (`:manual`, `:help`,
 its idle hint first, so a previous command's message never reappears, stale,
 when the overlay closes.
 
-### 3.7 Command palette
+### 3.8 Command palette
 
 - `Alt+Shift+P` opens the **command palette**: lists every `:` command
   (gear icon) and named action (keyboard icon), fuzzy-searchable by full
@@ -221,7 +310,7 @@ when the overlay closes.
   and open the selected one.
 - Both share one component; see section 9.
 
-### 3.8 Integrated terminal
+### 3.9 Integrated terminal
 
 - A bottom panel (between the editor and the status bar) hosts a real shell
   over a pseudo terminal; `` Ctrl+` `` toggles it and focuses the shell.
@@ -288,7 +377,7 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+Shift+K` | Delete current line |
 | `Alt+↑` / `Alt+↓` | Move current line up / down |
 | `Ctrl+]` | Increase indent (line / selection) |
-| `Shift+Tab` | Decrease indent (line / selection) |
+| `Shift+Tab` | Decrease indent (line / selection, never below 0) |
 | `Ctrl+J` | Join lines |
 
 **Navigation**
@@ -340,7 +429,7 @@ keymap, grouped by category, plus all `:` commands.
 > `:` is **not** a vsc-mode binding — it is typed into the buffer like any
 > other character. To run ex commands in vsc mode press `F5` to open the
 > command line (type `w`, `q`, … without the leading colon), or open the
-> command palette with `Alt+Shift+P` (section 3.7).
+> command palette with `Alt+Shift+P` (section 3.8).
 
 **Search**
 
@@ -442,6 +531,8 @@ e.g. `3j`, `2dd`, `5w`.
 | `u` | Undo |
 | `Ctrl+R` | Redo |
 | `J` | Join next line |
+| `>` / `<` | NORMAL: increase / decrease indent, a count applies to lines (`3>` / `3<` = 3 lines from the cursor line) |
+| `>` / `<` | VISUAL: increase / decrease indent (the selection expands to full lines; a count prefix is ignored, as in vim) |
 | `v` | Character visual mode (`-- VISUAL --`) |
 | `V` | Line visual mode (`-- VISUAL LINE --`) |
 
@@ -1421,7 +1512,7 @@ vim keymap:
 | `Ctrl+G` | Go to line | `` Ctrl+` `` | Toggle integrated terminal |
 | `Ctrl+W` `s/v/q/o` | HSplit / vsplit / close pane / only | `Ctrl+W` `hjkl` | Move focus between panes |
 | `Ctrl+W` `+-<>` | Resize pane height / width | `Ctrl+W` `=` / `Ctrl+W Ctrl+W` | Equalize / cycle focus |
-| `Shift+PageUp/PageDown` | Terminal scrollback | | |
+| `Shift+PageUp/PageDown` | Terminal scrollback | `>` / `<` | Increase / decrease indent (a count is a line count, e.g. `3>` = 3 lines) |
 
 Command line cheat sheet: `:w` `:saveas` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`

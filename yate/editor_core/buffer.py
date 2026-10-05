@@ -10,6 +10,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from yate.editor_core.indentation import (
+    CLOSERS,
+    indent_unit,
+    is_pair_of,
+    opens_block,
+    pair_for,
+    rules_for,
+)
 from yate.logs import tracing
 
 Pos = tuple[int, int]
@@ -396,20 +404,108 @@ class TextBuffer:
         self.anchor = None
         self._commit(before, "step")
 
-    def insert_newline(self) -> None:
-        """Insert a newline, continuing the indentation of the current line."""
+    def type_char(self, ch: str, *, language: str = "plaintext") -> None:
+        """Insert a typed character, auto-completing and skipping bracket pairs.
+
+        This is the single entry point the keymaps use for printable keys, so
+        every editor mode shares one behaviour.  Branches, in priority order:
+        anything that is not a single printable character falls back to
+        :meth:`insert_text`; a selection wraps (``(sel) -> (sel)`` with the
+        cursor left before the closing symbol) or, for any other key, is
+        replaced as usual; **without** a selection a closing symbol typed in
+        front of its twin only moves right instead of doubling it -- that test
+        runs before the completion branch on purpose, so the quotes (whose
+        left and right halves are the same character) skip too; otherwise a
+        left symbol inserts both halves and parks the cursor between them.
+        Both halves of an auto-completed pair land in one undo step
+        (``"char"`` kind), so a single Ctrl+Z never leaves an orphan bracket
+        behind.
+
+        *language* is the seam that keeps the feature extensible per language:
+        the keymaps pass :attr:`~yate.session.Document.filetype` straight
+        through, and V1 reads it not at all because one pair table serves
+        every language.  Should pairs ever diverge (Python quote handling, say),
+        dispatch on the value right here -- no keymap change needed.
+        """
+        # Explicit guard, not a redundant one: the "closing symbol in front of
+        # its twin" branch further down returns without touching the text, so
+        # nothing it calls would ever raise on a read-only buffer.  Delegating
+        # the check to ``insert_text`` alone would let that path type happily
+        # on a buffer that must refuse every mutation.
+        self._ensure_writable()
+        if len(ch) != 1 or not ch.isprintable():
+            self.insert_text(ch)
+            return
+        right = pair_for(ch)
+        sel = self.selection()
+        if sel is not None:
+            if right is None:
+                self.insert_text(ch)
+                return
+            (r1, c1), (r2, c2) = sel
+            inner = self.selected_text() or ""
+            before = self._snapshot()
+            # Deliberately not :meth:`replace_range`: it hard-codes
+            # ``kind="step"``, and the wrap has to stay a ``"char"`` edit so
+            # that the auto-completed pair merges with the keystrokes around
+            # it into one undo entry.  Under ``"step"`` the closing symbol
+            # would survive a Ctrl+Z that takes back the opening one, leaving
+            # an orphan bracket behind (issue G8).
+            self.set_cursor((r1, c1))
+            self._delete_range((r1, c1), (r2, c2))
+            self._apply_text(f"{ch}{inner}{right}")
+            self.move_left()  # park before the closing symbol, not after it
+            self._commit(before, "char")
+            return
+        r, c = self.cursor
+        line = self.lines[r]
+        # Ahead of the completion branch: for the quotes ``pair_for`` returns
+        # the character itself, so a completion-first order would make the
+        # skip unreachable and turn `""` + `"` into `""""`.
+        if ch in CLOSERS and c < len(line) and line[c] == ch:
+            self.move_right()
+            return
+        if right is not None:
+            before = self._snapshot()
+            self._apply_text(ch + right)
+            self.move_left()
+            self._commit(before, "char")
+            return
+        self.insert_text(ch)
+
+    def insert_newline(self, *, language: str = "plaintext") -> None:
+        """Insert a newline carrying (or opening) the current line's indentation.
+
+        The new line starts with the current line's leading whitespace, plus one
+        :func:`~yate.editor_core.indentation.indent_unit` when that line opens a
+        block for *language* (in Python: a trailing ``:``).  Blank lines and
+        block-closing statements such as ``return`` keep the current level --
+        undoing a level on ``else:`` / ``elif:`` is a syntax-level feature V1
+        leaves out.
+        """
+        self._ensure_writable()
         r, _ = self.cursor
-        matched = re.match(r"[ \t]*", self.lines[r])
-        indent = matched.group(0) if matched is not None else ""
+        line = self.lines[r]
+        # Two scans where the old code made three.  ``strip`` answers both the
+        # blank test and the block test at once, and ``opens_block`` rstrips
+        # internally anyway, so handing it the stripped text means that third
+        # scan now walks no characters.  The indent keeps its own left-only
+        # strip: slicing ``line[: len(line) - len(stripped)]`` would be shorter
+        # code but wrong whenever the line has trailing whitespace, because
+        # ``strip`` eats both ends and the slice would then reach past the
+        # indent into the line's own text (``"if x:  "`` -> ``"if"``).
+        stripped = line.strip()
+        indent = line[: len(line) - len(line.lstrip(" \t"))]
+        rules = rules_for(language)
+        if stripped and opens_block(rules, stripped):
+            indent += indent_unit(self.tab_width, self.use_spaces)
         self.insert_text("\n" + indent, kind="char")
 
     def insert_tab(self) -> None:
-        """Insert a tab or spaces to the next tab stop, indenting a multi-row selection."""
+        """Indent the selected rows, or insert a tab / spaces to the next tab stop."""
         if self.has_selection():
-            rows = self.selected_rows()
-            if rows is not None and rows[0] != rows[1]:
-                self.indent_selection()
-                return
+            self.indent_selection()
+            return
         _, c = self.cursor
         if self.use_spaces:
             width = self.tab_width - (c % self.tab_width)
@@ -431,7 +527,13 @@ class TextBuffer:
         return text
 
     def delete_backward(self, word: bool = False) -> None:
-        """Delete backward one character (or *word*), joining rows at column 0."""
+        """Delete backward one character (or *word*), joining rows at column 0.
+
+        With the cursor between the two halves of an emptied bracket pair,
+        Backspace removes both of them at once (unless *word* asks for a whole
+        word) -- they go as a single ``"char"`` undo step, so one Ctrl+Z undoes
+        the pair-typed and the pair-deleted keystroke together.
+        """
         self._ensure_writable()
         if self.has_selection():
             self.delete_selection()
@@ -439,6 +541,16 @@ class TextBuffer:
         before = self._snapshot()
         r, c = self.cursor
         if r == 0 and c == 0:
+            return
+        line = self.lines[r]
+        if not word and 0 < c < len(line) and is_pair_of(line[c - 1], line[c]):
+            self.lines[r] = line[: c - 1] + line[c + 1 :]
+            # set_cursor, not a bare assignment: the row just lost two
+            # characters, and the buffer's invariant ends vertical goal-column
+            # tracking only when the cursor is placed through here.  Same
+            # rationale as the selection-wrapping branch in ``type_char``.
+            self.set_cursor((r, c - 1))
+            self._commit(before, "char")
             return
         if c == 0:
             prev_len = len(self.lines[r - 1])

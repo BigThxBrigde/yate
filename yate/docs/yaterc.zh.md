@@ -60,8 +60,8 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 |---|---|---|---|---|
 | `keymap` | `str` | `"vsc"` | `"vsc"` / `"vim"` | 按键映射。非法值回退默认并报错 |
 | `theme` | `str` | `"mocha"` | 内置主题名或自定义主题名 | 配色方案，见下文 |
-| `tab_width` | `int` | `4` | `1`–`16` 的整数 | Tab 键插入的空格数，也是 Tab 的显示宽度；`True`/`False` 等非整数被拒绝 |
-| `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 插入空格；`False` 时插入真实制表符 |
+| `tab_width` | `int` | `4` | `1`–`16` 的整数 | Tab 键插入的空格数，也是 Tab 的显示宽度与**缩进单位**（自动缩进、回车续缩进、增/减缩进都按它计算）；`True`/`False` 等非整数被拒绝 |
+| `use_spaces` | `bool` | `True` | `True` / `False` | `True` 时 Tab 与缩进用空格；`False` 时插入真实制表符 |
 | `extensions` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 额外扩展脚本路径，见[下文](#扩展路径extensions)；多个 rc 文件**累加**而非覆盖 |
 | `disabled_extensions` | `str` 或 `list[str]` | 无 | 非空扩展名字符串 | 按文件名主干禁用随包默认扩展（如 `["python_lsp"]`），见[下文](#扩展路径extensions)；多个 rc 文件**累加**去重 |
 | `theme_dirs` | `str` 或 `list[str]` | 无 | 存在的文件/目录路径 | 客制化主题目录（或单个 `*.py` 主题文件），见[下文](#客制化主题目录theme_dirs)；多个 rc 文件**累加**而非覆盖 |
@@ -79,7 +79,8 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 - `keymap` / `theme` 在启动时生效；`theme` 是进程级全局状态（同 vim 的
   colorscheme）。
 - `tab_width` / `use_spaces` 会传播到**所有新建和打开的 buffer**
-  （见 [yate/app.py](../app.py) 中 `_make_buffer` / `_apply_buffer_options`）。
+  （见 [yate/app.py](../app.py) 中 `_make_buffer` / `_apply_buffer_options`），
+  同时决定缩进单位（见 3.5 节「输入辅助」）。
 - `shell` 在启动终端 Shell 时读取（会话内 `:set shell=…` 后需重启 Shell 生效）；
   `terminal_height` 同时支持会话内 `:set terminal_height=<n>` 立即调整。
 - `yate_trace` / `yate_trace_level` 在**启动时**读取（进程生命周期内不变），
