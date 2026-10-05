@@ -119,6 +119,17 @@ GIT_TIMEOUT_S: Final[float] = 120.0
 #: Wall clock budget for one page translation.
 TRANSLATE_TIMEOUT_S: Final[float] = 900.0
 
+#: Exit codes that mean "the console interrupted this child", not "the
+#: translation failed".  A ``Ctrl+C`` in the wiki run is broadcast to the
+#: whole process group, so every translator dies of it; Windows reports
+#: that as ``STATUS_CONTROL_C_EXIT`` (``0xC000013A``), POSIX as
+#: ``-SIGINT``, and :mod:`tools.translate` maps a cleanly handled
+#: interrupt to 130.  The signed form of ``0xC000013A`` is listed too
+#: because a shell reports it either way depending on how it is invoked.
+_INTERRUPT_EXIT_CODES: Final[frozenset[int]] = frozenset(
+    {130, 0xC000013A, 0xC000013A - 0x100000000, -2}
+)
+
 #: Documents per translation task.  A task is the unit handed to a pool
 #: worker, so a pool failure costs at most this many translations.
 BATCH_SIZE: Final[int] = 10
@@ -474,6 +485,14 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
     The shell, the stdin/stdout protocol and :data:`TRANSLATE_TIMEOUT_S` are
     unchanged -- only the reporting is factored out so the caller decides
     where the message goes.
+
+    Raises :exc:`KeyboardInterrupt` when the child died *because* the
+    console was interrupted (see :data:`_INTERRUPT_EXIT_CODES`).  That is
+    not a translation failure: the interrupt reaches every translator of
+    the run, so mapping it onto the failure channel would print one error
+    per remaining page and keep translating after the user asked to stop.
+    Handing the interrupt back instead lets the pool stop, cancel the
+    queued batches and the CLI exit with code 130.
     """
     try:
         proc = subprocess.run(
@@ -491,6 +510,8 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
             f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out"
             f" after {TRANSLATE_TIMEOUT_S:g}s"
         )
+    if proc.returncode in _INTERRUPT_EXIT_CODES:
+        raise KeyboardInterrupt
     if proc.returncode != 0 or not proc.stdout.strip():
         detail = (proc.stderr or proc.stdout).strip()
         return None, (
@@ -513,7 +534,10 @@ def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
 
     A per-page failure is reported as ``error[WIKI-0201]`` /
     ``error[WIKI-0202]`` and degraded to ``None`` -- one bad page never
-    aborts the whole run, and ``--check`` still gates on it.
+    aborts the whole run, and ``--check`` still gates on it.  A console
+    interrupt is the exception: it raises :exc:`KeyboardInterrupt` out of
+    :func:`_run_translate` so the run stops instead of reporting a failed
+    page per remaining document.
     """
     english, failure = _run_translate(text, translate_cmd)
     if failure is not None:

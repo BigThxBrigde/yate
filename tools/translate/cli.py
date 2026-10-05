@@ -163,22 +163,35 @@ def _force_utf8_pipes() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the translator; see :mod:`tools.translate` for the I/O protocol."""
-    _force_utf8_pipes()
-    options = _parse_args(argv)
-    if options.input is not None:
-        try:
-            source_text = options.input.read_text(encoding="utf-8")
-        except OSError as exc:
-            print(f"wiki-translate: cannot read {options.input}: {exc}", file=sys.stderr)
-            return 1
-        return _translate_file(options.input, source_text, options)
+    """Run the translator; see :mod:`tools.translate` for the I/O protocol.
+
+    A ``Ctrl+C`` is reported as a one-line note on stderr and mapped to
+    exit code 130, never a traceback.  It has to be handled here because
+    the wiki generator runs several of these translators in one console
+    and the console broadcasts the interrupt to the whole process group:
+    without this guard every page would ship a ``KeyboardInterrupt``
+    traceback into the parent's error report.  Exit code 130 is what the
+    parent recognises as "interrupted" rather than "failed".
+    """
     try:
-        source_text = sys.stdin.read()
-    except (UnicodeDecodeError, OSError) as exc:
-        print(f"wiki-translate: cannot read stdin: {exc}", file=sys.stderr)
-        return 1
-    with tempfile.TemporaryDirectory(prefix="wiki-translate-") as tmp:
-        temp_path = Path(tmp) / "stdin.md"
-        temp_path.write_text(source_text, encoding="utf-8")
-        return _translate_file(temp_path, source_text, options)
+        _force_utf8_pipes()
+        options = _parse_args(argv)
+        if options.input is not None:
+            try:
+                source_text = options.input.read_text(encoding="utf-8")
+            except OSError as exc:
+                print(f"wiki-translate: cannot read {options.input}: {exc}", file=sys.stderr)
+                return 1
+            return _translate_file(options.input, source_text, options)
+        try:
+            source_text = sys.stdin.read()
+        except (UnicodeDecodeError, OSError) as exc:
+            print(f"wiki-translate: cannot read stdin: {exc}", file=sys.stderr)
+            return 1
+        with tempfile.TemporaryDirectory(prefix="wiki-translate-") as tmp:
+            temp_path = Path(tmp) / "stdin.md"
+            temp_path.write_text(source_text, encoding="utf-8")
+            return _translate_file(temp_path, source_text, options)
+    except KeyboardInterrupt:
+        print("\nwiki-translate: interrupted", file=sys.stderr)
+        return 130
