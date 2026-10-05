@@ -1,6 +1,6 @@
 # pack-wiki 评审修复计划（PR #39 AI 队友审查项）
 
-> 任务来源：Gitee PR #39 评论 `note_51410631`（2026-09-30，2 阻断 + 5 改进）。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 改动范围：`tools/pack/wiki.py` 单文件（评审指令明确，按 plan-before-execute §一直接执行），
 > 配套测试 `tests/test_pack_wiki.py`。
 

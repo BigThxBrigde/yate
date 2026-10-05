@@ -1,6 +1,6 @@
 # reviews-plans-full-sweep-plan（reviews + plans 全量清查与未闭环项修复）
 
-> 来源：用户指令「查看一遍所有文档，reviews + 所有的 plans，把所有的 issue 都修复了」。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 清查范围：`.trae/reviews/` 28 份文档（索引 `README.md` §一 + `legacy-issues.md`）与
 > `.trae/documents/` 全部计划文档（含各子计划目录 overview）。核实基准：2026-10-01 worktree 代码。
 > 前序整改轮：`reviews-open-issues-fixes-plan.md`（F1–F8 已闭环，16 commits 在本分支）。
@@ -42,7 +42,7 @@
 
 | 条目 | 标记 | 证据 |
 |---|---|---|
-| kitty `ctrl+digit`（README #1/#6） | ✅ 已被 Phase B 覆盖 | `keybinding-fix-wt/overview.md:32`「Phase B 主体完成（PB1–PB6）」；`keyproto/driver_windows.py:276` 启用 win32-input-mode；PB6 探针实证 `ctrl+1 → [49;2;0;1;40;1_`；应用层 pilot 断言在位（`tests/test_dispatch_guards.py:35-49`）；PB4 已改写双语 manual 终端兼容性节。仅剩 conhost/VS Code 物理层不可达（PB4 文档已标注），归 PB5 人工矩阵 |
+| kitty `ctrl+digit`（README #1/#6） | ✅ 已被 Phase B 覆盖 | `keybinding-fix-wt-plans/overview.md:32`「Phase B 主体完成（PB1–PB6）」；`keyproto/driver_windows.py:276` 启用 win32-input-mode；PB6 探针实证 `ctrl+1 → [49;2;0;1;40;1_`；应用层 pilot 断言在位（`tests/test_dispatch_guards.py:35-49`）；PB4 已改写双语 manual 终端兼容性节。仅剩 conhost/VS Code 物理层不可达（PB4 文档已标注），归 PB5 人工矩阵 |
 | Windows `os.replace`（README #2） | ⏸ | `document.py` 实现未变，错误路径安全取舍不变（上轮核实） |
 | Gitee Go 3.12 镜像（README #4） | 👀 | 基础设施观察项 |
 | 输入线程宽 except 残余（README #7） | 👀 | 与 stock 复刻基线张力仍在，待与上游对齐 |
@@ -113,11 +113,11 @@ W1 与 W2 文件零交集可并行；W3 doc-only 可并行。
 | 文件 | 回填内容 | 证据 |
 |---|---|---|
 | `.trae/reviews/README.md` §一 | #1 行 → ✅ 已修（Phase B win32-input-mode 覆盖 WT，legacy 终端限制已由 PB4 文档标注）；#6 行 → Phase B 主体完成，仅剩 PB5 人工矩阵（并入 #10） | 本方案 §二.3 |
-| `code-review-fix-plans/P2-subplans/overview.md:76` | G1 行 → 已被 keybinding-fix-wt 取代处理（ctrl+/ 修复 + ctrl+1 Phase B 落地） | `wt-keybinding-fix-plan.md:179` |
+| `code-review-fix-plans/code-review-fix-p2-plans/overview.md:76` | G1 行 → 已被 keybinding-fix-wt 取代处理（ctrl+/ 修复 + ctrl+1 Phase B 落地） | `wt-keybinding-fix-plan.md:179` |
 | 同上 `:78` | G3 行 → ✅ N30 已由 theme-layer-refactor 落地（config.py 回调注入） | `theme-layer-refactor-plans/overview.md:3`；`config.py:241-242` |
 | `theme-layer-refactor-plans/` SP0–SP3 四文件 `:3` | 状态头 ⏳ 待实施 → ✅（2026-09-26 实施并回填） | 同上 overview:3 + 245-248 状态表 |
-| `keybinding-fix-wt/keybinding-fix-wt-steps-plan-g.md:3` | 状态头「Phase A 执行中 / Phase B 待启动」→「Phase A ✅ / Phase B 主体 ✅，仅剩 PB5 真机矩阵 ⏳」 | overview:32-40 |
-| `keybinding-fix-wt/keybinding-fix-wt-key-reachability-plan-f.md:3` | 补终态注记：Phase A/B 已完成（根因假设证伪与实际执行见 steps-plan-g） | overview:30-33 |
+| `keybinding-fix-wt-plans/keybinding-fix-wt-steps-plan-g.md:3` | 状态头「Phase A 执行中 / Phase B 待启动」→「Phase A ✅ / Phase B 主体 ✅，仅剩 PB5 真机矩阵 ⏳」 | overview:32-40 |
+| `keybinding-fix-wt-plans/keybinding-fix-wt-key-reachability-plan-f.md:3` | 补终态注记：Phase A/B 已完成（根因假设证伪与实际执行见 steps-plan-g） | overview:30-33 |
 | `ui-refine-plan.md:6` | 状态「待实施」→ ✅ 已实施（2026-09-27 分支交付，评审记录 `2026-09-27-ui-refine.md`） | 评审记录 §结论 |
 
 - **验收**：逐文件人工核对链接可达（相对路径），无代码门禁。
@@ -164,7 +164,7 @@ W1 与 W2 文件零交集可并行；W3 doc-only 可并行。
   `Sequence[Frame]` + 桥侧归一化（子代理自报，主代理独立复跑 41 passed 复核）。
 - [x] W3 F3 文档回填：**已完成**（8 处，随本文件所在提交落盘）。
   `reviews/README.md` 速览 #1/#6 行与 §二 2026-09-16 / IKH1RA 行 →
-  ✅ 已回填注记；`code-review-fix-plans/P2-subplans/overview.md` G1/G3 行
+  ✅ 已回填注记；`code-review-fix-plans/code-review-fix-p2-plans/overview.md` G1/G3 行
   回填终态与相对链接；theme-layer SP0-SP3 四份子计划状态头 ⏳→✅；
   `keybinding-fix-wt-steps-plan-g.md` 状态头（Phase A ✅ / Phase B 主体 ✅，
   仅剩 PB5 真机矩阵 ⏳）与 `keybinding-fix-wt-key-reachability-plan-f.md`

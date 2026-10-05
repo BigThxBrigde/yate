@@ -19,6 +19,13 @@
 # Key map: "vsc" (VS Code style, default) or "vim".
 keymap = "vsc"
 
+# Keyboard protocol: "auto" (default) or "legacy".
+# "auto" enables the native chords driver plus win32-input-mode frame decoding
+# on Windows, so ctrl+1 and friends survive a Windows Terminal that does not
+# speak kitty CSI-u; "legacy" keeps the old kitty-only encoding. Read once at
+# startup and ignored on non-Windows platforms.
+# key_protocol = "auto"
+
 # Color theme: one of the eight built-in themes
 #   Catppuccin: mocha (default, dark) | macchiato | frappe | latte (light)
 #   One/Gruvbox: onedark | onelight (light) | gruvbox-dark | gruvbox-light
@@ -47,11 +54,16 @@ use_spaces = True
 #
 # terminal_height = 12
 
+# Show dotfiles in the file tree by default. The file tree toggles this
+# interactively; this only sets the startup default (false).
+#
+# show_hidden = false
+
 # ------------------------------------------------------------- trace log
 #
 # Runtime debug log, off by default: nothing is written until it is turned
-# on. Files land in ~/.yate/data/logs/yate-YYYYMMDD-HHMMSS.log (next to the
-# crash-*.err reports), one per process, appended to.
+# on. Files land in ~/.yate/data/logs/yate-YYYYMMDD-HHMMSS-<pid>.log (next to
+# the crash-*.err reports), one per process, appended to.
 #
 # The level names are Python's built-in logging levels (case-insensitive):
 # DEBUG (10) | INFO (20) | WARNING (30) | ERROR (40) | CRITICAL (50).

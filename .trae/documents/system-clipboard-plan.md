@@ -1,6 +1,6 @@
 # system-clipboard-plan（系统剪贴板集成，Gitee issue IKJHBO）
 
-- 分支 / worktree：`feat/system-clipboard`（本仓库 worktree，下文所有路径均为
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
   仓库根相对路径，所有命令均在 worktree 根执行）
 - 规则依据：`plan-before-execute.md`（方案先行）、`architecture-boundaries.md`
   （R1-R13）、`python-coding-style.md`（pyright strict 零诊断）、`doc-conventions.md`

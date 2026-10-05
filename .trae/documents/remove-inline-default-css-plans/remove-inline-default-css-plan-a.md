@@ -1,6 +1,6 @@
 # remove-inline-default-css plan-a：load_tcss 进程级缓存（wave-1）
 
-> 总纲见 [overview.md](overview.md)。独占文件清单：`yate/paths.py`、`pyproject.toml`。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 
 ## 一、目标
 

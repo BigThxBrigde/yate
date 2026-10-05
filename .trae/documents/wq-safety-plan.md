@@ -1,7 +1,7 @@
 
 # :wq 数据丢失残留修复计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现（Issue 1 与 Issue 2 均已修复）。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - **Issue 1**：`yate/app_features/commands.py::_wq` 现在只在 `save_document()`
 >   后仍 `host.doc.modified` 为假时调用 `host.quit()`（**无 `force=True`**），
@@ -25,12 +25,12 @@
 | # | 事实 | 证据 |
 |---|------|------|
 | F1 | `_wq` 先 `save_document()`，guard 过 `doc.modified` 之后调的是 **`app.quit(force=True)`** | [commands.py:61](../yate/app_features/commands.py#L61) |
-| F2 | `quit(force=False)` 内置多 tab dirty 拦截：`any(doc.modified for doc in self.docs)` → 提示 `:q! to quit anyway`；**但 `force=True` 跳过这一切** | [app.py:1605-1610](../yate/app.py#L1605-L1610) |
-| F3 | `save_document()` 的 except 只覆盖 `OSError`，**不捕获 `UnicodeError`** | [app.py:543](../yate/app.py#L543) `except OSError as exc:` |
-| F4 | `_do_save_as()` 同样只捕获 `OSError` | [app.py:565](../yate/app.py#L565) `except OSError as exc:` |
-| F5 | `Document.save()` 内部调 `self.path.write_text(text, encoding=self.encoding, newline="\n")`，**当 buffer 含当前文件编码无法表示的字符时抛 `UnicodeEncodeError`**（`UnicodeError` 子类 → `ValueError` 子类，不属于 `OSError`） | [document.py:102](../yate/editor_core/document.py#L102) |
-| F6 | 文件编码由 `Document.open` 嗅探确定，候选集为 `utf-8 → locale → cp1252`，**cp1252/gbk 文件含 emoji(😀)、中日韩扩展区字符等必然触发 UnicodeEncodeError** | [document.py:51-60](../yate/editor_core/document.py#L51-L60) |
-| F7 | `run_command` 无兜底，任何未捕获异常进入 Textual crash handler → 进程终止（用户工作丢失） | [app.py:1546-1563](../yate/app.py#L1546-L1563)（上一轮审查已确认） |
+| F2 | `quit(force=False)` 内置多 tab dirty 拦截：`any(doc.modified for doc in self.docs)` → 提示 `:q! to quit anyway`；**但 `force=True` 跳过这一切** | ](../../yate/app.py#L1605-L1610) |
+| F3 | `save_document()` 的 except 只覆盖 `OSError`，**不捕获 `UnicodeError`** | ](../../yate/app.py#L543) `except OSError as exc:` |
+| F4 | `_do_save_as()` 同样只捕获 `OSError` | ](../../yate/app.py#L565) `except OSError as exc:` |
+| F5 | `Document.save()` 内部调 `self.path.write_text(text, encoding=self.encoding, newline="\n")`，**当 buffer 含当前文件编码无法表示的字符时抛 `UnicodeEncodeError`**（`UnicodeError` 子类 → `ValueError` 子类，不属于 `OSError`） | ](../../yate/editor_core/document.py#L102) |
+| F6 | 文件编码由 `Document.open` 嗅探确定，候选集为 `utf-8 → locale → cp1252`，**cp1252/gbk 文件含 emoji(😀)、中日韩扩展区字符等必然触发 UnicodeEncodeError** | ](../../yate/editor_core/document.py#L51-L60) |
+| F7 | `run_command` 无兜底，任何未捕获异常进入 Textual crash handler → 进程终止（用户工作丢失） | ](../../yate/app.py#L1546-L1563)（上一轮审查已确认） |
 | F8 | 当前 commit 新增的 5 个 `:wq` 测试中，**两个 mock 了 quit 并断言 `quit_calls == [True]`**（force=True）——改完 Issue 1 后需同步改断言 | [changes.diff:75](../changes.diff) `assert quit_calls == [True]`（两处，约 line 75 与 line 190） |
 | F9 | `_wq` 的 `doc.modified` 守卫仅覆盖 **当前 doc**，完全不感知其他 tab 的 dirty 状态 | [commands.py:59](../yate/app_features/commands.py#L59) |
 

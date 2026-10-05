@@ -1,6 +1,6 @@
 # Plan A — 主题广播基建：`theme.py` 订阅/派发机制
 
-> 状态：✅ **已完成**（2026-09-27）· 前置：无 · 后置：[Plan C](theme-ownership-refactoring-widget-theme-selfhold-plan-c.md)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 独占文件：`yate/editor_view/theme.py`、`tests/test_theme_subscribe.py`
 > 门禁：`pytest tests/test_theme_subscribe.py -q` → **4 passed**；`pyright yate/ tests/ tools/` → 0 诊断
 

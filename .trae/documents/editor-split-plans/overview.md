@@ -1,6 +1,6 @@
 # editor 拆分总纲（editor-split）
 
-> 续作任务：复用 worktree `D:\Programming\yate-editor-refactoring`（分支
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > `ref/editor-refactoring`，合并点 `a267b7d` 已合并 master：文档命名迁移为连字符 +
 > 规则重读完成；总纲早期文本曾记合并后 HEAD 为 `c04d202`，实为笔误，勘正于此）。
 > 基线 editor.py 1425 行（HEAD `07004a0` 侧五波产物，master 从未

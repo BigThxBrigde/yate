@@ -1,6 +1,6 @@
 # 冒烟测试改进计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - 骨架已按任务 3 拆分：`tools/smoke_test/` 下
 >   `cli.py` / `report.py` / `baselines.py` / `harness.py` / `testsuite.py`

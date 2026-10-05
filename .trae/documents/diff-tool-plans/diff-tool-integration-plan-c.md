@@ -1,6 +1,6 @@
 # diff-tool-integration-plan-c（wave-3：L3/L4 集成 + 架构守卫登记）
 
-主计划：[../diff-tool-plan.md](../diff-tool-plan.md) · 总纲：[overview.md](overview.md)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 前置：wave-1、wave-2 验收通过（`DiffScreen` 可独立构造运行）。
 
 ## 输入
@@ -22,7 +22,7 @@
 
 ## 具体修改
 
-### 1. [overlays.py](../../yate/overlays.py) — `OverlayFlows.open_diff`
+### 1. ](../../../yate/overlays.py) — `OverlayFlows.open_diff`
 
 - 导入区（:11-28）新增：`from yate.editor_view.diffview import DiffScreen` 与 `from yate.editor_core.document import Document`。前者触发 **R11 登记**（见第 5 步）；`Workspace.is_text_file` 已可用（`Workspace` 已导入于 :28）。
 - 新方法置于 `open_command_palette`（:111-114）与 `_palette` 之间：
@@ -45,7 +45,7 @@ def open_diff(self, paths: list[Path]) -> None:
 5. `self.push(DiffScreen(docs, mode="3way" if len(docs) == 3 else "2way", keymaps=self.keymaps, labels=[...角色标签 base/local/remote 或 left/right]))`。
 - 不新增注入依赖：push_screen/prompt/message/mounted/current_screen/keymaps 均为既有构造参数（:34-70）——能力注入条款（IKJB0Q）无需新边。
 
-### 2. [commands.py](../../yate/commands.py) — `:diff`
+### 2. ](../../../yate/commands.py) — `:diff`
 
 - 在 "explorer / terminal / diagnostics" 段（:272-295）后新增 "diff" 小节：
 
@@ -72,7 +72,7 @@ reg("diff", _diff, "compare files in a diff view (:diff [--3way] F1 F2 [F3])")
 
 - R5/R7 不受影响：仍只 import editor（:13），app.py 仍是唯一装表者（守卫 `test_shell_loads_the_builtin_tables` 的 importer 断言不涉 commands 内部）。
 
-### 3. [cli.py](../../yate/cli.py) — `--diff`
+### 3. ](../../../yate/cli.py) — `--diff`
 
 - `build_parser()`（:38-174）在 `--diag`（:168-173）后追加：
 
@@ -105,7 +105,7 @@ if args.diff_files:
 - `YateApp(...)` 两处构造（--diag 分支 :326-334 与正常分支 :340-348）均增 keyword：`diff_files=[Path(p) for p in args.diff_files] if args.diff_files else None`（--diag 分支同样传入以保持构造路径一致，但 diag 不进入 TUI、不触发推送）。
 - R1 不变：仍只有 cli.py import yate.app。
 
-### 4. [app.py](../../yate/app.py) — 转交与触发
+### 4. ](../../../yate/app.py) — 转交与触发
 
 - `__init__`（:85-95）签名追加 `diff_files: list[Path] | None = None`（`--3way` 语义已由文件数承载，不再传布尔）；存 `self._diff_files = diff_files`。
 - `on_mount`（:180-200）在 `await self.editor.on_mount()`（:200）之后追加：
@@ -119,7 +119,7 @@ if self._diff_files:
 
 `call_after_refresh` 保证基屏已完成首轮布局后再 push（与 poll_idle 的 screen 类型判断同层安全）。
 
-### 5. [test_architecture.py](../../tests/test_architecture.py) — 守卫登记
+### 5. ](../../../tests/test_architecture.py) — 守卫登记
 
 - `UI_FROZEN_FILES["overlays.py"]`（:141-148）集合内新增 `"yate.editor_view.diffview"`（R11：先登记后使用，`test_collaborators_keep_widget_coupling_frozen` 自动生效）。
 - `UI_FREE_PACKAGES`（:98）追加 `"editor_core"`（R4 守卫面扩大：`editor_core/diff.py` 与整个包从此被"不 import editor_view / 不 import textual.app"两条守卫扫描）。执行顺序：先跑一遍架构测试确认存量 `editor_core` 干净，再落表（回滚 = 删该项）。
@@ -197,7 +197,7 @@ python -m pyright yate/ tests/ tools/
 
 ### 偏离记录（均附实测依据，未静默改设计）
 
-1. **工作目录定位**：执行环境启动于主仓库目录（master），任务书所指 feat/diff-tool worktree 实际为 `D:\Programming\yate-diff-tool`；全部改动与验收命令均在该 worktree 内执行（文件内容与分支 HEAD 核对无误）。
+1. **工作目录定位**：执行环境启动于主仓库目录（master），任务书所指 feat/diff-tool worktree 实际为 `<worktree>`；全部改动与验收命令均在该 worktree 内执行（文件内容与分支 HEAD 核对无误）。
 2. **test_cli.py 用例 3-6 的 act 落地为 `main(argv)`**：计划表格写 `parse_args([...])` 于 `pytest.raises(SystemExit)` 内，但按第 3 节规范代码形态，位置冲突/数量/旗标组合校验位于 `main()` 的 `parser.error`——argparse 对 `["f", "--diff", "a", "b"]`、`["--diff", "a"]`、`["--diff", "a", "b", "--3way"]`、`["--diff", "a", "b", "c", "--2way"]` 均正常解析不抛错（实测）。落地为 `main(argv)` + 断言退出码 2（断言目标不变）；用例 7（`--2way --3way`）由 argparse 原生互斥组在 `parse_args` 即抛，保持表格字面。
 3. **test_diff_integration.py 用例 7 的按键序列扩展为 `alt+down → alt+right → tab → ctrl+s`**：表格简写为 `alt+right → ctrl+s`；plan-b 既有实测行为决定——`_current` 初始为 -1 时 `_copy` 直接拒绝（须先 `alt+down` 选中 hunk，见 `tests/test_diffview.py::test_alt_right_copies_hunk_and_diff_recomputes`），且 `ctrl+s` 只保存 focused pane（须先 `tab` 聚焦被修改的目标侧，见 `tests/test_diffview.py::test_ctrl_s_saves_focused_pane_document`）。均为 plan-b 已锁定行为，非新设计；断言（磁盘 f2 == f1）不变。
 4. **超限消息的行数值用 `MAX_DIFF_LINES` 插值**：计划字面 `(>20000 lines)`，落地 `f"...(>{MAX_DIFF_LINES} lines)"`——当前值即 20000，语义一致，且与 plan-b `check_sizes` 的动态消息风格统一。

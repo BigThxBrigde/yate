@@ -1,6 +1,6 @@
 # diff-tool-diff-engine-plan-a（wave-1：L0 diff 引擎）
 
-主计划：[../diff-tool-plan.md](../diff-tool-plan.md) · 总纲：[overview.md](overview.md)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 
 ## 输入
 
@@ -129,7 +129,7 @@ python -m pyright yate/editor_core/diff.py tests/test_editor_core_diff.py
 
 ### 偏离记录（均有实测依据）
 
-1. **执行位置澄清**（非设计偏离）：会话以 `d:\Programming\yate`（master worktree）启动，`feat/diff-tool` 的实际 worktree 为 `D:\Programming\yate-diff-tool`（`git worktree list` 实证）；全程在后者内执行，未触碰 master worktree。
+1. **执行位置澄清**（非设计偏离）：会话以 `<worktree>`（master worktree）启动，`feat/diff-tool` 的实际 worktree 为 `<worktree>`（`git worktree list` 实证）；全程在后者内执行，未触碰 master worktree。
 2. **`hunk_replacement` 分支语义按测试表格裁决**：本计划「具体修改」第 5 条字面（`copy_into="b"` → 目标区间用 `(b_start,0)-(b_end,0)`、文本取 `source` 的 a 区间）与用例 12/13 的精确期望值冲突——用例 12 的 hunk 形状 `(1,2)/(1,3)` 仅在 target 对应 a 侧时与 difflib 真实 opcode 一致（`diff(["a","x","c"],["a","y1","y2","c"])` → `replace(1,2,1,3)`），且用例 13 的「文本以 `\n` 开头」在字面语义下无解（insert 型 hunk 的 a 侧区间恒空，文本必为空串）。实现采用用例唯一自洽语义：**`copy_into` 指明内容来源侧，目标区间用对侧坐标**（`"b"` → a 坐标 + `source` 的 b 区间；`"a"` 对称）；第 5 条的全部几何细节（EOF 半开终点 `(n-1, len(line))`、`"\n".join`、对称性）原样保留，仅 a/b 分支标签按用例对调。
 3. **`diff_words` 用例 7 断言值修正 `(4,7)` → `(6,7)`**：第 3 条实现要点与主计划 D1 均为「字符级 SequenceMatcher」，实测 `SequenceMatcher(None, "foo bar", "foo baz", autojunk=False).get_opcodes()` = `[('equal',0,6,0,6),('replace',6,7,6,7)]`，非 equal 区间为 `(6,7)`；`(4,7)` 是词级区间，与两处「字符级」及用例名 `..._returns_char_ranges_...` 矛盾（表格笔误）。断言按字符级实测值落实。
 4. **autojunk 用例构造增强**：表格原构造（300 行相同 + 末行 1 处修改）实测在 `autojunk=True` 下同样产出 `('replace', 299, 300, 299, 300)`（两开关结果一致，锁不死 autojunk——匹配种子虽被清除，逐元素扩展比较仍复原匹配）。改为 300 行高重复输入（每行出现 5 次 > popular 阈值 4）+ 中间 1 处修改：实测 `autojunk=True` → `('replace', 150, 301, 150, 301)`（边界错误）、`autojunk=False` → `('replace', 150, 151, 150, 151)`（正确）。断言在表格 `len(hunks) == 1` 基础上补充 kind 与精确边界，使删除 `autojunk=False` 立即失败。

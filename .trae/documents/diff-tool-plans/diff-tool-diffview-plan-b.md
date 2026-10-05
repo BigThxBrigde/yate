@@ -1,6 +1,6 @@
 # diff-tool-diffview-plan-b（wave-2：L2 DiffScreen / DiffPane）
 
-主计划：[../diff-tool-plan.md](../diff-tool-plan.md) · 总纲：[overview.md](overview.md)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 前置：wave-1（plan-a）全部验收通过——本计划 import `yate.editor_core.diff` 的数据类型。
 
 ## 输入
@@ -131,7 +131,7 @@ python -m pyright yate/editor_view/diffview.py tests/test_diffview.py
 
 ## 执行记录（2026-10-02，plan-executor）
 
-### 验收结果（实测，均在 worktree `D:\Programming\yate-diff-tool`，分支 `feat/diff-tool`）
+### 验收结果（实测，均在 worktree `<worktree>`，分支 `feat/diff-tool`）
 
 | 命令 | 结果 | 退出码 |
 |---|---|---|
@@ -150,7 +150,7 @@ python -m pyright yate/editor_view/diffview.py tests/test_diffview.py
 
 ### 偏离记录（附实测依据）
 
-1. **执行位置**：会话启动于 master 主仓库目录，实际 worktree 为 `D:\Programming\yate-diff-tool`
+1. **执行位置**：会话启动于 master 主仓库目录，实际 worktree 为 `<worktree>`
    （`git worktree list` 实证），全部工作在该 worktree 完成。
 2. **`_MAX_LINES` → `MAX_DIFF_LINES`**：子计划 62 行写 `_MAX_LINES`，按任务书"导出供 plan-c 校验"落实为公开常量。
 3. **`_check_sizes` → `check_sizes`（公开名）**：pyright strict `reportUnusedFunction` 拦截"私有名且模块内零调用"

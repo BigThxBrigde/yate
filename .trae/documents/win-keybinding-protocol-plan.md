@@ -1,6 +1,7 @@
 # 方案 B 详细实施计划：Windows 键盘输入通道重构 + 键盘协议层
 
-> 命名前缀：`win_keybinding_*`（主计划：`win-keybinding-plan.md`；本文件：`win-keybinding-protocol-plan.md`）
+> **实施状态**：🟡 部分实施 —— 2026-10-05 全量核对：`keyproto/` 已落地 5 模块；`kitty.py`、`negotiate.py`、`--key-protocol`、`tools/probe_keys.py` 未落地。
+> ⚠️ 本计划**仅部分落地**，未完成部分见正文，引用产物前请先确认其存在。
 > 本计划是**重构 + 新特性**：新增 `yate/keyproto/` 子包、自建 Windows 输入源、可配置键盘协议层与排障面板。
 > **执行顺序不可调整**：见 §4 逐步 checklist 与 §12 顺序禁忌清单。
 
@@ -36,7 +37,7 @@
 `tests/test_architecture.py` 实测 **20 个用例**（本文原写 13；`python -m pytest tests/test_architecture.py --collect-only`
 → `tests/test_architecture.py: 20`）；driver 合成的事件进入既有派发路径，不得绕过 `EditorView.on_key` 的 R10 单次派发约定。
 
-> **🧭 2026-09-28 实施现状核对**（本计划 P0–P9 的实际推进，依据代码与 `keybinding-fix-wt/keybinding-fix-wt-steps-plan-g.md` 执行状态表）：
+> **🧭 2026-09-28 实施现状核对**（本计划 P0–P9 的实际推进，依据代码与 `keybinding-fix-wt-plans/keybinding-fix-wt-steps-plan-g.md` 执行状态表）：
 >
 > | 计划项 | 现状（实测） |
 > |---|---|
@@ -47,7 +48,7 @@
 > | P5 协商状态机（`negotiate.py`） | ❌ **未落地**（文件不存在）；`key_protocol` 实际取值仅 `auto` / `legacy`（`config.py:64,71,152`），无 `win32` / `kitty` / `off` |
 > | P5.5 `--key-protocol` / `--reset-terminal` CLI | ❌ **未落地**（`cli.py` 无这两个参数） |
 > | P7.1 `:keys` 面板 / P7.2 `[keyboard]` diag | ❌ **未落地**（`commands.py` 无 `keys` 命令；`diagnostics.py:68-81` 的 `sections` 表无 `keyboard`）——PB4 已登记为"暂缓" |
-> | P0 `tools/probe_keys.py` / `tests/fixtures/win32_input_frames.py` | ❌ 未入库（两路径实测不存在）；探针产物留在 `keybinding-fix-wt/win32im_probe.py`、`pb6_real_input_harness.py` |
+> | P0 `tools/probe_keys.py` / `tests/fixtures/win32_input_frames.py` | ❌ 未入库（两路径实测不存在）；探针产物留在 `keybinding-fix-wt-plans/win32im_probe.py`、`pb6_real_input_harness.py` |
 > | P9.4 `.trae/issues/issues.md:171` | ⚠️ `.trae/issues/` 目录已不存在（审查文档整体迁至 `.trae/reviews/`） |
 > | 测试文件命名 | 实际为 **`tests/test_keyproto.py`**（单文件，覆盖 chord / 别名 / 帧 / legacy），非 §7 列的 `test_keyproto_model.py` / `_frames` / `_negotiate` / `_driver` / `_source` / `_recovery` |
 

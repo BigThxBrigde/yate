@@ -1,6 +1,6 @@
 # editor_lsp：LSP 支持（autocomplete + diagnostics）实施计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - `yate/editor_lsp/`（`protocol.py` / `client.py` / `manager.py`）、
 >   `yate/editor_view/completion.py`、`extensions/python_lsp.py`、
@@ -75,7 +75,7 @@
   弹窗分支搬入 `Editor.handle_key` 后，未消费的键不再冒泡，缺陷才显现；现已修复回本设计的 fall-through
   （`yate/editor.py::handle_key` 只消费上述 5 个键）。守卫见
   `tests/test_app_textual.py::test_completion_popup_keeps_typing_and_filters` 与冒烟 `regress_completion_staleness`，
-  问题记录见 [`../issues/review.md`](../issues/review.md)。*
+  问题记录见 ](../reviews/README.md)。*
 - 弹窗未打开时：可打印字符分发后，若该文件有注册 server 且字符为标识符字符或 server 声明的 triggerCharacters，调度去抖 ~120ms 的自动补全请求。
 - 诊断渲染叠加：
   - 行号着色：含 error 的行行号/行首用红，warning 用黄（复用 theme 的 red/yellow）。

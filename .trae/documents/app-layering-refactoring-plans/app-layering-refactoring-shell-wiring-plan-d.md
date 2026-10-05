@@ -1,6 +1,6 @@
 # Plan D — 外壳瘦身与接线
 
-> 状态：✅ **已完成**（2026-09-22）· 前置：[Plan A](app-layering-refactoring-leaf-models-plan-a.md)–[C](app-layering-refactoring-functional-tables-plan-c.md) · 后置：[Plan E](app-layering-refactoring-tests-tools-plan-e.md)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 门禁（实际执行结果）：`python -c "import yate.app"` 成功；`python -m pyright yate/` → **0 errors, 0 warnings**；
 > `python -m yate --diag` 正常输出。（测试迁移属于 Plan E。）
 > 实施结果见 §D.6。

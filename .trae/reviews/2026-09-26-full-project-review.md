@@ -1,7 +1,7 @@
 # yate 全项目代码评审报告（2026-09-26）
 
 > 生成时间：2026-09-26 10:46:18 +08:00
-> 评审对象：commit `faa6d75`（master），worktree `d:/Programming/yate-review-20260926`，分支 `issues/reivew-20260926`
+> 评审对象：commit `faa6d75`（master），worktree `<worktree>`，分支 `issues/reivew-20260926`
 > 评审范围：`yate/`（10 包 / 55 文件 / 约 16.4k 行）、`tests/`（40 文件）、`tools/`、`pyproject.toml`、CI 配置
 > 评审方式：主代理统筹 + 5 个只读子代理按模块分工评审 + 关键发现逐条实读复核 + 双跑门禁
 > 历史审查：本文不重复 [2026-09-16-full-review.md](2026-09-16-full-review.md) 中 2026-09-16 全量审查已闭环条目，仅记录增量发现

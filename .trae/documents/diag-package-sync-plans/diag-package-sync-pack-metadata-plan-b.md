@@ -1,6 +1,6 @@
 # plan-b：冻结构建补 yate dist-info（wave-1）
 
-> 所属总纲：[overview.md](overview.md) ｜ wave-1，与 plan-a 并行（文件不重叠）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 
 ## 一、独占文件清单
 
@@ -11,13 +11,13 @@
 
 ## 二、现状取证（文件:行号）
 
-- [pack/yate.spec](../../pack/yate.spec#L71-L80)：ts 循环对
+- ](../../../pack/yate.spec#L71-L80)：ts 循环对
   `tree_sitter` / `tree_sitter_python` / `tree_sitter_bash` 逐个
   `copy_metadata(_ts_pkg)`，注释明说 dist-info 供 `importlib.metadata.version()`
   探测使用——**未带 yate 自身 dist-info**；
-- [pack/yate-onefile.spec](../../pack/yate-onefile.spec#L78-L87)：同构循环，
+- ](../../../pack/yate-onefile.spec#L78-L87)：同构循环，
   同样缺失；
-- `datas` 汇总点：[pack/yate.spec](../../pack/yate.spec#L104-L114) 与
+- `datas` 汇总点：](../../../pack/yate.spec#L104-L114) 与
   onefile spec 的 `Analysis(datas=datas + ts_datas, ...)`；
 - 后果：plan-a 落地后，exe 内 `importlib.metadata.requires("yate")` 会抛
   `PackageNotFoundError`，`[packages]` 节降级为 `<probe failed>` —— 冻结

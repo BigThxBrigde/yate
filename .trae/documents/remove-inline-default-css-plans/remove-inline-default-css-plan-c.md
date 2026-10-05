@@ -1,6 +1,6 @@
 # remove-inline-default-css plan-c：资源化守卫测试（wave-2）
 
-> 总纲见 [overview.md](overview.md)。独占文件清单：`tests/test_app_css.py`。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 依赖 plan-a（缓存用例）与 plan-b（AST 扫描要求 `yate/**` 已零内联），
 > 故置于 wave-2 串行执行。
 

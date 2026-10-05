@@ -1,6 +1,6 @@
 # `--version` 与 `--diag` 诊断命令实施计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - `yate/diagnostics.py` 提供 `format_report(editor, *, color=False)` 与
 >   `print_report(editor)`，节注册表为 **12 节**：system /
@@ -38,7 +38,7 @@
 
 ### 1.1 `--version` 现状
 
-[yate/cli.py](yate/cli.py#L95) 第 95 行：
+](../../yate/cli.py#L95) 第 95 行：
 
 ```python
 parser.add_argument("--version", action="version", version=f"yate {__version__}")
@@ -51,18 +51,18 @@ parser.add_argument("--version", action="version", version=f"yate {__version__}"
 | 诊断信息 | 现有来源 |
 |----------|----------|
 | yate 版本 | `yate.__version__`；`pyproject.toml` 声明 `requires-python >= 3.12`（2026-09-28 核对：原写 `>= 3.10`，实际 `pyproject.toml:10` 已是 `>=3.12`，`[tool.pyright] pythonVersion = "3.12"`），依赖 `textual>=8.0`（仍成立） |
-| 包根目录 / 冻结模式 | [paths.py](yate/paths.py)：`package_root()`、`bundled_extensions_dir()`，`sys.frozen` / `sys._MEIPASS` |
+| 包根目录 / 冻结模式 | ](../../yate/paths.py)：`package_root()`、`bundled_extensions_dir()`，`sys.frozen` / `sys._MEIPASS` |
 | Python / OS | 标准库 `sys`、`platform`、`importlib.metadata` |
-| 终端类型 | [fonts.py](yate/services/fonts.py#L126)：`detect_terminal()`（识别 windows_terminal / vscode / iterm2 / apple_terminal / conhost） |
-| 字体 | [fonts.py](yate/services/fonts.py#L141)：`font_status()` → `has_nerd_font` / `installed_fonts` / `terminal` / `detail` |
-| 集成终端 shell | [shells.py](yate/editor_term/shells.py#L21)：`resolve_shell(config.shell)` → 实际 `[executable, ...args]` |
-| `:!` 命令 shell | [shell.py](yate/services/shell.py#L53)：`shell_name()` |
-| yaterc 位置 | [config.py](yate/config.py#L115)：`user_config_path()`、`find_project_config()`、`default_rc_paths()`；加载结果在 `config.sources` / `config.errors` |
+| 终端类型 | ](../../yate/services/fonts.py#L126)：`detect_terminal()`（识别 windows_terminal / vscode / iterm2 / apple_terminal / conhost） |
+| 字体 | ](../../yate/services/fonts.py#L141)：`font_status()` → `has_nerd_font` / `installed_fonts` / `terminal` / `detail` |
+| 集成终端 shell | ](../../yate/editor_term/shells.py#L21)：`resolve_shell(config.shell)` → 实际 `[executable, ...args]` |
+| `:!` 命令 shell | ](../../yate/services/shell.py#L53)：`shell_name()` |
+| yaterc 位置 | ](../../yate/config.py#L115)：`user_config_path()`、`find_project_config()`、`default_rc_paths()`；加载结果在 `config.sources` / `config.errors` |
 | 全部配置项 | `YateConfig` dataclass：keymap / theme / tab_width / use_spaces / shell / terminal_height / show_hidden / extension_paths / disabled_extensions / theme_dirs / language_servers / sources / errors |
 | 主题 | `editor_view.theme.available()`（内置 + rc/theme-dir 注册） |
-| tree-sitter 后端 | [ts_backend/__init__.py](yate/editor_syntax/ts_backend/__init__.py)：`ts_available()`；regex 后端 `available_filetypes()` |
-| 扩展 | [extensions.py](yate/services/extensions.py#L300)：`ExtensionLoader.loaded`（`LoadedExtension.name/path/error`） |
-| LSP 服务器 | [manager.py](yate/editor_lsp/manager.py)：`config_names()`、`states()`；`ServerConfig`（name/command/args/filetypes/language_ids/root_markers/env） |
+| tree-sitter 后端 | ](../../yate/editor_syntax/ts_backend/__init__.py)：`ts_available()`；regex 后端 `available_filetypes()` |
+| 扩展 | ](../../yate/services/extensions.py#L300)：`ExtensionLoader.loaded`（`LoadedExtension.name/path/error`） |
+| LSP 服务器 | ](../../yate/editor_lsp/manager.py)：`config_names()`、`states()`；`ServerConfig`（name/command/args/filetypes/language_ids/root_markers/env） |
 | 崩溃报告 | `~/.yate/data/crash-*.err`（上一阶段 crash 功能落盘目录） |
 
 ### 1.3 关键约束
@@ -114,8 +114,8 @@ yate 0.1.0 — diagnostics
   :! default   : cmd.exe
 
 [paths]
-  package root        : d:\Programming\yate\yate
-  bundled extensions  : d:\Programming\yate\yate\extensions
+  package root        : <worktree>\yate
+  bundled extensions  : <worktree>\yate\extensions
   user dir (~/.yate)  : C:\Users\xxx\.yate
   crash data dir      : C:\Users\xxx\.yate\data (2 个 .err 文件)
 
@@ -149,7 +149,7 @@ yate 0.1.0 — diagnostics
   候选目录 :
     bundled : d:\...\yate\extensions (2 个脚本)
     user    : C:\Users\xxx\.yate\extensions (不存在)
-    project : d:\Programming\yate\extensions (不存在)
+    project : <worktree>\extensions (不存在)
   已加载 :
     [ok]    python_lsp        d:\...\extensions\python_lsp.py
     [ok]    csharp_highlight  d:\...\extensions\csharp_highlight.py
@@ -284,7 +284,7 @@ app.run()
 
 ### 步骤 5：测试
 
-扩展现有 [tests/test_cli.py](tests/test_cli.py)（沿用 `_FakeApp` + patch 风格）：
+扩展现有 ](../../tests/test_cli.py)（沿用 `_FakeApp` + patch 风格）：
 
 - `--version`：输出含 `yate 0.1.0`、`Python`、平台串；退出码 0；
   断言未构造 `YateApp`、未读配置

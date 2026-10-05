@@ -1,6 +1,6 @@
 # diff-tool-plan（Gitee issue IKJC88：FEAT — diff 工具的实现和集成）
 
-> 大任务，已拆分子计划：[`diff-tool-plans/overview.md`](diff-tool-plans/overview.md)。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 本文件是主计划：目标 / 非目标、设计决策、备选与否决、波次表、风险与回滚。
 > 各波次的具体改动定位、测试三要素与验收命令在各子计划内自包含。
 

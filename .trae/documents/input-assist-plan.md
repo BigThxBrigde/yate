@@ -1,6 +1,6 @@
 # input-assist 方案（issue IKJMQ2：输入辅助——成对符号自动补全 / 智能跳过 / 成对删除 / 选区包裹 / Python 自动缩进）
 
-- **Issue**：<https://gitee.com/jermaine/yate/issues/IKJMQ2>（ENH - 输入时候，自动补全括弧，自动缩进等，V1.0）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：原状态头「待用户批准（尚未写任何产品代码）」作废；`editor_core/indentation.py`、`tests/test_input_assist.py`、双语手册 §3.5 均已落地。
 - **分支 / worktree**：`enh/input-assist` @ `../yate-input-assist`
 - **状态**：待用户批准（尚未写任何产品代码）
 
@@ -297,7 +297,7 @@ flowchart TD
    `_tmp_probe_input_assist.py`（core-autopair）、`_probe_old_order.py`（key-wiring）。
    子代理的 `delete_file` 因"worktree 在 workspace 之外"被拒，两次 `Remove-Item`
    审批请求均超时未获批 → 需人工执行一次
-   `Remove-Item d:\Programming\yate-input-assist\_tmp_probe_input_assist.py, d:\Programming\yate-input-assist\_probe_old_order.py -Force`。
+   `Remove-Item <worktree>\_tmp_probe_input_assist.py, <worktree>\_probe_old_order.py -Force`。
 2. **本任务未推送**（按闭环纪律：只提交、不推送）。
 3. 评审提出的两条major 处置结果：M2 **已修**（D4）；M1（`closes_block` 未接线）与
    M3（选区扩展）**不改代码**，改以"测试意图声明 + 文档说明 + 方案偏离记录"处置（D2 / D10）。

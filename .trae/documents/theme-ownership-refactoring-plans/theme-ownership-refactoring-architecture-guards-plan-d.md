@@ -1,6 +1,6 @@
 # Plan D — 架构守卫：钉住 T1/T2 治理结果
 
-> 状态：✅ **已完成**（2026-09-27）· 前置：[Plan B](theme-ownership-refactoring-scrollbar-injection-plan-b.md)、
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > [Plan C](theme-ownership-refactoring-widget-theme-selfhold-plan-c.md) · 后置：[Plan E](theme-ownership-refactoring-gate-docs-plan-e.md)
 > 独占文件：`tests/test_architecture.py`
 > 门禁：`pytest tests/test_architecture.py -q` → **20 passed**（原 18 + 本轮 2）

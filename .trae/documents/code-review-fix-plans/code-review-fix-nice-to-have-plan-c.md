@@ -1,6 +1,6 @@
 # P2 Nice-to-have 修复计划
 
-> 来源：[review.md](../../reviews/2026-09-16-full-review.md) 2026-09-16 审查 Nice-to-have 段（2026-09-23 复核后
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 仍存在的条目）。均为锦上添花，不阻塞发布；随手清理即可，无独立排期。
 > **实施状态（2026-09-25）：29 条全部落账——波次一 14 条 + 波次二 12 条（表中 ✅），
 > 决策门三项已拍板：N18 选①已落地（✅），N8 挂起备注（⏸），
@@ -24,7 +24,7 @@
 | N5 ✅ | Outdent 按 tab_width 而非上一个 tab stop | [buffer.py:510-535](../../../yate/editor_core/buffer.py) | 空格行改算 `rrem = removed % tab_width`，`removed - (rrem or tab_width)` 对齐上一个 stop；整 Tab 剥离保留 | 3 空格缩进 + tab_width=4 → 移除 3；8 空格 → 移除 4 |
 | N6 ✅ | `replace_current` 可用 `replace_range` 简化 | [search.py:102-116](../../../yate/editor_core/search.py) | 内部改调 `replace_range(buffer, match_span, replacement)`，删重复实现 | 现有 replace 用例全绿 |
 | N7 ✅ | `_soft_reset`（ESC c）不退备用屏幕 | [emulator.py:387-397](../../../yate/editor_term/emulator.py) | 加 `self._exit_alt_screen()`（或等价状态复位），对齐 xterm RIS 部分语义 | 写入 `ESC c` 后断言 alt_screen 为 False |
-| N8 ✅ | ctrl+digit 用 kitty CSI-u | [base.py:118-121](../../../yate/keymaps/base.py) | **已落地（2026-09-26）**：保留 kitty 绑定 + 双语文档标注终端要求与替代路径；`ctrl+/` 同族命名漂移问题已随 [keybinding-fix-wt](../keybinding-fix-wt/overview.md) 修复 | 255 定向 / 1354 全量 passed（2026-09-28 核对修正：当前全量 1354，原 1228），pyright 0 |
+| N8 ✅ | ctrl+digit 用 kitty CSI-u | [base.py:118-121](../../../yate/keymaps/base.py) | **已落地（2026-09-26）**：保留 kitty 绑定 + 双语文档标注终端要求与替代路径；`ctrl+/` 同族命名漂移问题已随 [keybinding-fix-wt](../keybinding-fix-wt-plans/overview.md) 修复 | 255 定向 / 1354 全量 passed（2026-09-28 核对修正：当前全量 1354，原 1228），pyright 0 |
 | N10 ✅ | `cycle_tab` 空操作循环 | [editor.py:489-493](../../../yate/editor.py) | 单 tab 时 no-op 且不提示（或保留提示但仅 verbose）；倾向静默 no-op | 单 tab 连按断言无消息、无异常 |
 | N13 ✅ | smoke 工具自身无测试 | [tools/smoke_test/](../../../tools/smoke_test/) | 对纯函数部分（场景解析、报告渲染、`extract_svg_rows`）补 `tests/test_smoke_tool.py`；harness 端到端不测（冒烟本身即验证） | 新测试文件 |
 | N14 ✅ | SVG 提取正则依赖 Textual 版本 | [harness.py:130](../../../tools/smoke_test/harness.py) | 提取失败时给明确报错并打印 SVG 头部片段（诊断版本漂移）；正则收紧为当前实测格式并在注释记录适配的 Textual 版本 | 喂旧版/新版 SVG 样例断言行为 |
@@ -76,7 +76,7 @@
     manual/README 标注「仅 kitty/CSI-u 终端可用」+ 替代路径。实测：Textual 8.2.8 XTermParser 对
     `\x1f` 输出 `ctrl+underscore`；WT/conhost 无 kitty 协议且 Textual win32 驱动不读修饰键，
     `ctrl+1` 物理不可达，彻底根治需自建输入通道（`win-keybinding-plan.md` 方案 B，另行排期）。
-    详见 [keybinding-fix-wt](../keybinding-fix-wt/overview.md) 与
+    详见 [keybinding-fix-wt](../keybinding-fix-wt-plans/overview.md) 与
     [wt-keybinding-fix-plan.md](../wt-keybinding-fix-plan.md)；N19 的 `FOCUS_EDITOR_KEY`
     单点常量随方案 B 一并处理。门禁：255 定向 / 1354 全量 passed（2026-09-28 核对修正：当前全量 1354），pyright 0 诊断。
   - **N30 → 已落地（✅，2026-09-26）**：按原策略「二选一」拍板**注入回调**并单独立项实施；

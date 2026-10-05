@@ -1,6 +1,6 @@
 # pack-wiki 计划：tools.pack 新增 wiki 生成器（双语项目 Wiki）
 
-> 任务来源：用户需求「在 tools.pack 加新的子模块 `python -m tools.pack wiki`，生成 wiki 到同级 `${repo}.wiki`」。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 分支 `feat/pack-wiki`（worktree `../yate-pack-wiki`）。
 
 ## 一、目标与非目标
@@ -27,7 +27,7 @@
 | `.trae/reviews` 23 篇、`.trae/wikis` 2 篇（本次重命名后路径） | 实测 |
 | `yate/docs` 8 篇 = 4 对双语（extensions/lsp/themes/yaterc）；`yate/resources` 有 `manual.zh.md` + `manual.en.md`；`changelog.*.md` 按需求排除 | 实测 |
 | **需补英文译本的中文文档：128 篇，合计 1.4 MB** | 实测 |
-| `d:\Programming\yate.wiki` 已存在：git 仓库、`master` 分支、origin 已指向 gitee wiki、仅一个 `Home.md` 占位页 | 实测 |
+| `<worktree>.wiki` 已存在：git 仓库、`master` 分支、origin 已指向 gitee wiki、仅一个 `Home.md` 占位页 | 实测 |
 | 本任务在 worktree 运行时仓库目录名为 `yate-pack-wiki`，**默认 target 不能按目录名推导** | 约束 |
 
 ## 三、选型与否决理由
@@ -92,7 +92,7 @@ python -m tools.pack wiki [--target DIR] [--translate-cmd CMD] [--translate-all]
 ### Wave B：首跑生成（零翻译）
 
 ```
-.venv\Scripts\python -m tools.pack wiki        # target 推导为 d:\Programming\yate.wiki
+.venv\Scripts\python -m tools.pack wiki        # target 推导为 <worktree>.wiki
 ```
 
 验收：zh 133 页 + 双语源直拷 + Home/_Sidebar ×2 落盘；`--check` 报 128 missing（预期）；wiki 仓库 `git status` 可见全部新增。

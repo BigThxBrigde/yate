@@ -1,6 +1,6 @@
 # 屏保精灵注册开放给扩展（`api.sprites`）方案
 
-> 来源：feat/fancy-sym 评审长期建议第 1 条，用户指令"暴露可以给外部挂载，需要详细说明文档"。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 顺带把三条长期建议补登记进主方案（§九）。
 
 ## 一、目标与非目标
@@ -23,9 +23,9 @@
 ## 二、关键事实（取证）
 
 - `ExtensionAPI` bridge 先例：`LspExtensionBridge` / `HighlightExtensionBridge` /
-  `SyntaxExtensionBridge`（[extensions.py:86-221](../yate/services/extensions.py)）；
+  `SyntaxExtensionBridge`（](../../yate/services/extensions.py)）；
   语法 bridge 靠抛异常让 loader 捕获成 `extension <name>: <error>` 消息——sprites 沿用。
-- 扩展加载点 [editor.py:1533](../yate/editor.py)（Editor 构造后）；
+- 扩展加载点 ](../../yate/editor.py)（Editor 构造后）；
   白名单启动校验在 `YateApp.__init__`（更早）→ **时序缺口**：rc 白名单引用扩展角色
   必然先收到一条启动警告（banner 此刻只知道内置 27 名）。
   消解：`toggle_screensaver` 已按当前注册表实时过滤（扩展名可用、生效），

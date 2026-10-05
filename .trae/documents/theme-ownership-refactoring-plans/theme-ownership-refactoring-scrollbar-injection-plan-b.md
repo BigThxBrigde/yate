@@ -1,6 +1,6 @@
 # Plan B — 滚动条 per-widget 注入：删除进程级 monkey-patch（T1 治理）
 
-> 状态：✅ **已完成**（2026-09-27）· 前置：无（与 [Plan A](theme-ownership-refactoring-theme-broadcast-plan-a.md) 可并行）·
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 后置：[Plan D](theme-ownership-refactoring-architecture-guards-plan-d.md)
 > 独占文件：`yate/editor_view/scrollbars.py`、`yate/editor_view/{editor,explorer,manual}.py`（仅 `on_mount` 挂载行）、
 > `yate/app.py`（仅删除调用）、`tests/test_scrollbars.py`

@@ -1,6 +1,6 @@
 # PR #47 评审修复方案（pr47-review-fixes）
 
-> 来源：[评审记录](../reviews/2026-10-03-pr47-ai-review.md) ← Gitee PR #47
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > AI 队友审查（[note_51433486](https://gitee.com/jermaine/yate/pulls/47#note_51433486_conversation_191338572)）。
 > 分支：`fix/diag-package-sync`；本方案为该 PR 的追加修复，随 PR 一并合并。
 > 依据 plan-before-execute §一判据 1/2（改动 ≥3 文件、涉及运行时与构建期两侧）落盘。
@@ -70,7 +70,7 @@ flowchart TD
 ## 四、分步实施
 
 > 每步独立提交；提交信息按 `git-commit-message.md`（英文，PowerShell
-> here-string）。工作目录：worktree `D:\Programming\yate-diag-package-sync`。
+> here-string）。工作目录：worktree `<worktree>`。
 
 ### 步骤 1：登记与方案文档（批准后先行提交）
 

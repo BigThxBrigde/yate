@@ -1,6 +1,6 @@
 # 主题归属重构计划：滚动条注入 + 组件自持主题（T1/T2 治理）
 
-> 状态：**Plan A–E 全部完成**（2026-09-27 落地，分支 `ref/theme-ownership`）。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 目标：消除 [review_ui_refine_20260927.md](../../reviews/2026-09-27-ui-refine.md) §四记录的两条架构张力，
 > 使滚动条注入与主题着色都符合"组件自持 + 严格分层"；改动性质以**代码搬运 + 删除**为主，
 > 不重写渲染算法、不改任何视觉表现。
@@ -86,7 +86,7 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 | D. 保留类级 patch（否决） | T1 不动 | 隐式全局状态正是本次要消除的张力 |
 
 **已确认决策（2026-09-27 用户选定）**：`Editor.apply_theme` **彻底删除**（不保留薄壳）；
-"先方案后执行"规则落主仓 `d:/Programming/yate/.trae/rules/plan-before-execute.md`。
+"先方案后执行"规则落主仓 `<worktree>/.trae/rules/plan-before-execute.md`。
 
 ## 5. Plan 索引（按序执行，每个 Plan 结束跑门禁）
 

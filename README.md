@@ -49,7 +49,9 @@ Inspired by Joel Yliluoma's ["that_editor"](https://github.com/bisqwit/that_edit
 ## Requirements
 
 - Python ≥ 3.12
-- Dependency: [textual](https://pypi.org/project/textual/) ≥ 8.0
+- Dependencies: [textual](https://pypi.org/project/textual/) ≥ 8.0 and
+  [pyperclip](https://pypi.org/project/pyperclip/) ≥ 1.8.2 (system clipboard for
+  yank / put)
 
 ## Installation
 
@@ -82,12 +84,21 @@ yate --ext mytool.py        # load an extension script (repeatable)
 yate --ext-dir ./exts       # load every extension in a directory (repeatable)
 yate --theme-dir ./themes   # load a custom theme directory (a single .py works too; repeatable)
 yate --theme my-mocha       # start with a specific theme (overrides yaterc)
+yate --diff old.py new.py   # open the diff view instead of the editor
+yate --diff f1 f2 f3        # three files = three-way compare (base local remote)
+yate --2way                 # with --diff: force two-way compare (the default)
+yate --3way                 # with --diff: force three-way compare
+yate --readonly notes.txt   # open the file read-only (edits and saves are refused)
 yate --install-font         # install the bundled Nerd Font and exit
 yate --setup-defaults       # create ~/.yate with a default yaterc + *.example templates, then exit
 yate --cleanup-defaults     # remove that configuration (data/ kept unless --include-data), then exit
 yate --changelog zh         # print the changelog in Chinese, then exit
 yate --diag                 # print the environment & config diagnostics, then exit
+yate --version              # print yate / Python / platform information, then exit
 ```
+
+The same comparison is available in-session as
+`:diff [--3way] FILE1 FILE2 [FILE3]` (quote paths that contain spaces).
 
 ### Common keys (vsc keymap)
 
@@ -173,7 +184,10 @@ Loading sources (combinable):
 - **Bundled**: every `*.py` in `yate/extensions/` auto-loads at startup (from
   any working directory); disable stems in yaterc via
   `disabled_extensions = ["python_lsp"]`
-- Drop into `./extensions/` or `~/.yate/extensions/` (auto-loaded at startup)
+- Drop into `./extensions/` or `~/.yate/extensions/` (auto-loaded at startup);
+  a project-local `./extensions/` only auto-loads in a **trusted workspace** —
+  run `:trust` in that directory once, otherwise startup skips it and reports
+  `extensions: skipped untrusted <path> (run :trust to load them)`
 - Declare paths with `extensions = [...]` in yaterc
 - On the command line: `--ext file.py` / `--ext-dir dir`
 
@@ -222,14 +236,18 @@ yate/
   editor_syntax/ # UI-agnostic syntax layer: token contract, regex tokenizer backend,
                  #   optional tree-sitter backend, per-filetype backend selection
   editor_view/   # Textual UI: editor, file tree, status bar, palette, terminal, themes
+  editor_sprites/ # screensaver sprite pack: pixel frames, character roster, half-block rendering
   keymaps/        # vsc / vim keymap definitions and action dispatch
+  keyproto/       # low-level key-chord model + byte codecs for the Windows input channel
   services/       # workspace traversal, shell, extension loading, font installation
   extensions/     # bundled extension: python_lsp (built-in LSP) + *.py.example templates
                   #   (example_ext and syntax templates for batch/ini/fsharp/git/diff;
                   #   the .example suffix is never auto-loaded)
   docs/           # bilingual docs: yaterc config, extension API, themes, LSP recipes
                   #   (*.zh.md / *.en.md)
-  resources/      # manual.zh.md / manual.en.md bilingual manual, bundled fonts
+  resources/      # manual.zh.md / manual.en.md bilingual manual, build-generated
+                  #   changelog.en.md / changelog.zh.md, *.tcss stylesheets,
+                  #   fonts/, theme_examples/ (copy-to-activate theme templates)
   __init__.py     # package metadata (__version__)
   __main__.py     # `python -m yate` entry
   actions.py      # the built-in action table (the registry itself is `registries.py`)
@@ -245,6 +263,8 @@ yate/
   diagnostics.py  # `yate --diag` environment & configuration report
   logs.py         # crash reports + opt-in runtime tracing singletons
   paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)
+  *_flows.py      # per-area operation flows driven by Editor: document / extension /
+                  #   prompt / shell / window
   yaterc.example  # configuration template
 tests/            # unit tests + Textual pilot end-to-end tests
 tools/            # maintenance tooling: changelog, release, smoke_test, pack (icon builder)
@@ -333,20 +353,27 @@ JSON baselines that snapshot expected behavior.
 # Run every scenario (default 80x24 terminal; ~48s on CI hardware)
 python -m tools.smoke_test run
 
-# Filter by tag (tags: core, editing, selection, search, files, panes,
-# explorer, commands, misc, regress, stress, slow)
+# Filter by tag (tags: edit, select, search, files, panes, explorer,
+# command, view, integration, regression, stress)
 python -m tools.smoke_test run --tag explorer
 python -m tools.smoke_test run --tag files --tag search
 
 # Skip the slower integration/stress (P2) scenarios
 python -m tools.smoke_test run --skip-slow
 
-# Print a command/action coverage panel (targets: commands >=60%, actions >=50%)
+# Print a command/action coverage panel (both bar colors turn green at >= 60%)
 python -m tools.smoke_test run --coverage
 
 # Reproducibility: fixed seed + N repeats to surface flaky scenarios
 python -m tools.smoke_test run --seed 1 --repeat 3
 ```
+
+`--tag` only accepts the tags listed above; an unknown tag aborts the run and
+prints the available ones. Report tables are grouped by each scenario's
+*primary* tag — its first tag, or `misc` when a scenario declares none — which
+makes `misc` a display bucket rather than a selectable tag. `slow` is not a tag
+either: it is the per-scenario boolean behind `--skip-slow` (the P2
+integration / stress scenarios).
 
 Three sub-commands are available:
 
@@ -362,8 +389,9 @@ Three sub-commands are available:
 
 Useful flags: `--no-color` (CI logs), `--quiet` (summary only),
 `--fail-only` (failed detail only), `--no-invariant` (skip global invariant
-checks), `--json PATH` / `--report PATH` (machine-readable output), `--width N`
-(narrow-terminal layout checks, e.g. 79 columns).
+checks), `--json PATH` (machine-readable JSON report), `--report PATH` (export
+the colored report as a standalone HTML file), `--width N` (narrow-terminal
+layout checks, e.g. 79 columns).
 
 ### Release & bilingual changelog workflow
 
@@ -374,7 +402,9 @@ content also ships inside the package as `yate/resources/changelog.en.md` /
 `changelog.zh.md` (the pack scripts refresh them with
 `generate --bundle-only` before building). The single version source is
 `__version__` in `yate/__init__.py`, which `pyproject.toml` reads dynamically
-via hatchling.
+via hatchling. If a build ships no changelog resource, every entry point falls
+back to a "no changelog is shipped with this build" placeholder notice instead
+of failing.
 
 Release is automated by `python -m tools.release`, which bumps both
 version files, commits the bump, regenerates the changelog, commits it,
@@ -417,7 +447,7 @@ are rebuilt from the sources, English pages live on disk as
 models) missing English pages can be filled automatically:
 
 ```powershell
-cd d:\Programming\yate-pack-wiki   # any checkout works
+cd <checkout>   # any checkout works
 
 .venv\Scripts\python -m tools.pack wiki `
   --translate-cmd ".venv\Scripts\python -m tools.translate" `

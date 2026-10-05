@@ -1,6 +1,6 @@
 # editor_view：滚动条主题化 + Tab 点击切换 实施计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - **滚动条主题化**：`EditorView.apply_scrollbar_theme()`
 >   （`yate/editor_view/editor.py`，`on_mount` 中调用）写入 5 个

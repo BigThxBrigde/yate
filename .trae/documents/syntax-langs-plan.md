@@ -1,6 +1,6 @@
 # syntax-langs-plan（issue IKJLTB：扩展内置语法高亮）
 
-来源 issue：<https://gitee.com/jermaine/yate/issues/IKJLTB>
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 worktree：`../yate-syntax-langs`，分支 `enh/syntax-langs`（沙箱已重建并自证：
 `.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` 指向 worktree）。
 

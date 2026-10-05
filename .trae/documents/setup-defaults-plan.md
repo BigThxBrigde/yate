@@ -1,6 +1,6 @@
 # `--setup-defaults` / `--cleanup-defaults` 用户配置初始化与清理计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - `yate/services/user_setup.py` 已落地（`SetupReport` / `CleanupReport`、
 >   `setup_defaults` / `cleanup_defaults`、模板清单、确认异常）。
@@ -42,17 +42,17 @@
 
 | 事实 | 证据 |
 |------|------|
-| 用户配置根目录 | `~/.yate/`，[config.py:115-117](yate/config.py#L115-L117) `user_config_path()` = `~/.yate/yaterc` |
-| 默认 yaterc 加载 | [config.py:136](yate/config.py#L136) `default_rc_paths()`：用户 rc 存在才加载；缺失不是错误 |
-| 主题默认扫描目录 | [cli.py:175-178](yate/cli.py#L175-L178)：`./themes`、`~/.yate/themes`；目录扫描只 glob `*.py`，`.example` 天然不加载 |
-| 扩展默认扫描目录 | [app.py:1805-1811](yate/app.py#L1805-L1811)：`./extensions`、`~/.yate/extensions`，只加载 `*.py` |
+| 用户配置根目录 | `~/.yate/`，](../../yate/config.py#L115-L117) `user_config_path()` = `~/.yate/yaterc` |
+| 默认 yaterc 加载 | ](../../yate/config.py#L136) `default_rc_paths()`：用户 rc 存在才加载；缺失不是错误 |
+| 主题默认扫描目录 | ](../../yate/cli.py#L175-L178)：`./themes`、`~/.yate/themes`；目录扫描只 glob `*.py`，`.example` 天然不加载 |
+| 扩展默认扫描目录 | ](../../yate/app.py#L1805-L1811)：`./extensions`、`~/.yate/extensions`，只加载 `*.py` |
 | 随包 yaterc 模板 | `yate/yaterc.example`（包根；含生效默认值 keymap/theme + 大量注释教学，适合作为初始 rc） |
 | 随包主题模板（已存在） | `yate/resources/theme_examples/dracula_theme.example`、`ayu_theme.example` |
 | 随包扩展示例 | `yate/extensions/example_ext.py.example`、`yatesh_syntax.py.example`（同目录还有真实内置扩展 `*.py`，**绝不能拷**） |
-| 包资源统一入口 | [paths.py](yate/paths.py) `package_root()`（支持 PyInstaller frozen）、`bundled_extensions_dir()` |
+| 包资源统一入口 | ](../../yate/paths.py) `package_root()`（支持 PyInstaller frozen）、`bundled_extensions_dir()` |
 | `~/.yate/data/` 是运行时数据 | [crash.py:53-54](yate/crash.py#L53-L54)：崩溃日志 `crash-*.err`，健康退出自动清理；属诊断证据而非配置 |
-| CLI 既有"执行后退出"范式 | `--install-font`、`--version`、`--changelog`、`--diag`（[cli.py](yate/cli.py)），早返回、不构造 YateApp |
-| 备份惯例 | [fonts.py:379](yate/services/fonts.py#L379) 写配置前留 `*.yate-bak` |
+| CLI 既有"执行后退出"范式 | `--install-font`、`--version`、`--changelog`、`--diag`（](../../yate/cli.py)），早返回、不构造 YateApp |
+| 备份惯例 | ](../../yate/services/fonts.py#L379) 写配置前留 `*.yate-bak` |
 | 服务层归属 | 一次性用户环境操作在 `yate/services/`（fonts.py 同构） |
 | `--diag` 已展示 user dir / extensions 路径 | diagnostics.py 231/366 行；setup 后诊断自然反映，无需改诊断代码 |
 
@@ -148,7 +148,7 @@ _TEMPLATE_MAP = (
 ```
 
 `yaterc` 固定来自 `package_root() / "yaterc.example"`。
-所有源读取走 [paths.py](yate/paths.py)，
+所有源读取走 ](../../yate/paths.py)，
 PyInstaller onefile/onedir 自动正确。
 
 ### 3.3 函数
@@ -207,7 +207,7 @@ parser.add_argument("--include-data", action="store_true",
 
 ```text
 $ yate --setup-defaults
-yate user directory: C:\Users\i77\.yate
+yate user directory: C:\Users\<user>\.yate
   created  themes/
   created  extensions/
   installed yaterc  (from yaterc.example)
@@ -224,7 +224,7 @@ $ yate --setup-defaults        # 第二次
   ...
 
 $ yate --cleanup-defaults
-about to remove configuration under C:\Users\i77\.yate:
+about to remove configuration under C:\Users\<user>\.yate:
   yaterc
   themes/        (4 files)
   extensions/    (2 files)

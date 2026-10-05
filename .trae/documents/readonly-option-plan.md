@@ -1,6 +1,6 @@
 # 计划：只读选项与命令（issue IKHAD5）
 
-## 一、背景
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 
 Gitee issue [IKHAD5](https://gitee.com/jermaine/yate/issues/IKHAD5) 要求为 yate 增加只读能力：
 
@@ -65,9 +65,9 @@ flowchart TD
 
 ### Phase 0 — worktree 准备与合并
 
-1. `git worktree add D:\Programming\yate-readonly-opt-impl issues/readonly-opt-impl`
-2. `git -C D:\Programming\yate-readonly-opt-impl merge master` → 预期 fast-forward 到 `a0a416c`（分支是 master 祖先，零冲突）。
-3. 在 worktree 内准备解释器（对齐 yate-refine-arch 的既有做法）：若 `D:\Programming\yate-readonly-opt-impl\.venv` 不存在则创建并 `pip install -e .`。**不得**把主仓 `.venv` 重装指向 worktree（editable 安装会把 `yate` 解析回主仓代码，测试将测错对象）。
+1. `git worktree add <worktree> issues/readonly-opt-impl`
+2. `git -C <worktree> merge master` → 预期 fast-forward 到 `a0a416c`（分支是 master 祖先，零冲突）。
+3. 在 worktree 内准备解释器（对齐 yate-refine-arch 的既有做法）：若 `.venv` 不存在则创建并 `pip install -e .`。**不得**把主仓 `.venv` 重装指向 worktree（editable 安装会把 `yate` 解析回主仓代码，测试将测错对象）。
 4. 将本计划文档移入 worktree 的 `.trae/documents/`（随分支提交，遵守仓库 docs(plans) 惯例）。
 
 验收：`git -C <worktree> log --oneline -1` = a0a416c；`git status` 干净；`.venv\Scripts\python.exe -m pytest tests/ -q` 全绿（合并后基线）。

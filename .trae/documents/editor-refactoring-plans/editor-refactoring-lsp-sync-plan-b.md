@@ -1,6 +1,6 @@
 # plan_B — lsp_sync 流程外移（Wave 2）
 
-## 目标
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 把 Editor 的 LSP 胶水（worker 派发 / 事件重绘 / 诊断回显 / 诊断浮层）外移到
 `yate/lsp_sync.py`。模块名对齐既有 worker 组名 `"lsp-sync"`（editor.py:1338 等多处）。
 review 问题 5 点名的「completion/LSP 两块」之 LSP 半边。

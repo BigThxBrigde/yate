@@ -1,6 +1,6 @@
 # plan-a：diagnostics 包清单派生逻辑 + 测试（wave-1）
 
-> 所属总纲：[overview.md](overview.md) ｜ wave-1，与 plan-b 并行（文件不重叠）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 
 ## 一、独占文件清单
 
@@ -11,19 +11,19 @@
 
 ## 二、现状取证（文件:行号）
 
-- [yate/diagnostics.py](../../yate/diagnostics.py#L18)：`from importlib import
+- ](../../../yate/diagnostics.py#L18)：`from importlib import
   metadata as importlib_metadata`（既有导入，复用）；
-- [yate/diagnostics.py](../../yate/diagnostics.py#L415-L428)：
+- ](../../../yate/diagnostics.py#L415-L428)：
   `_section_packages()` 硬编码
   `names = ["textual", "tree_sitter", "tree_sitter_python", "tree_sitter_bash"]`
   → 缺 pyperclip（issue 根因）；
-- [yate/diagnostics.py](../../yate/diagnostics.py#L431-L436)：
+- ](../../../yate/diagnostics.py#L431-L436)：
   `_package_version(name)` 探测版本，缺失返回 `None`（复用，不改）；
-- [yate/diagnostics.py](../../yate/diagnostics.py#L49-L55)：着色正则
+- ](../../../yate/diagnostics.py#L49-L55)：着色正则
   `_KV_LINE_RE = r"^( +)([^ -].*?): (.+)$"` 与 `_LABEL_LINE_RE =
   r"^( +)(\S.*):$"` —— 分组标签行（如 `  core:`）命中后者、明细 kv 行命中
   前者，格式兼容；
-- [yate/diagnostics.py](../../yate/diagnostics.py#L87-L93)：`format_report`
+- ](../../../yate/diagnostics.py#L87-L93)：`format_report`
   best-effort 机制——单节异常降级为 `<probe failed: ...>` 行；
 - 实测（worktree 沙箱）：`importlib.metadata.requires("yate")` 返回 13 条
   Requires-Dist，extras 带 `; extra == 'x'` 标记；`version("tree-sitter")`

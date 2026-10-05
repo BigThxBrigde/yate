@@ -1,6 +1,6 @@
 # Plan C — 七组件自持主题：删除 `Editor.apply_theme`（T2 治理）
 
-> 状态：✅ **已完成**（2026-09-27）· 前置：[Plan A](theme-ownership-refactoring-theme-broadcast-plan-a.md)（广播原语）·
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 后置：[Plan D](theme-ownership-refactoring-architecture-guards-plan-d.md)
 > 独占文件：`yate/editor_view/{editor,explorer,commandline,chrome,statusbar}.py`、
 > `yate/editor.py`、`yate/app.py`

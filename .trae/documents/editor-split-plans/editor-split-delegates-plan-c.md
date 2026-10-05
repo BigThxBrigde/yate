@@ -1,6 +1,6 @@
 # plan-c：删除全部薄委托/薄壳（delegates）
 
-> 所属总纲：[overview.md](overview.md) · wave-2（串行；基线为 plan-b 之后的
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > `ShellFlows`/`OverlayFlows`/`CompletionFlows` 命名。行号基于 `07004a0`，改名波
 > 不改行号结构，执行时以实测为准）
 > 机制依据：architecture-boundaries §四第 1 行「1:1 直调具体协作者的方法」。
@@ -79,9 +79,9 @@
 ## 四、验收命令（全部退出码 0；探针退出码 1 = 通过）
 
 ```powershell
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 git grep -n -I "editor\.find_prompt\|editor\.find_next\|editor\.replace_prompt\|editor\.goto_prompt\|editor\.goto_line\|editor\.show_\|editor\.push_overlay\|editor\.open_file_palette\|editor\.open_command_palette\|editor\.toggle_screensaver\|editor\.run_shell_command\|editor\.shell_prompt()\|editor\.install_font\|editor\.close_completion\|editor\.request_completion\|editor\.accept_completion\|editor\.refresh_explorer" -- yate tests
 ```
 

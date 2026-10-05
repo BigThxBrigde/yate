@@ -37,8 +37,8 @@ yate 的颜色主题由两部分组成：**界面配色**（背景、状态栏�
 
 ### 方式 A：在 yaterc 中内联注册
 
-yaterc 的执行命名空间里注入了 `Theme` 与 `register_theme()`，少量改色
-可以直接写：
+yaterc 的执行命名空间里注入了 `register_theme()` 函数（仅此一个名字，
+`Theme` 类只在主题**文件**里可用，见方式 B），少量改色可以直接写：
 
 ```python
 from dataclasses import replace

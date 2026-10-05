@@ -41,8 +41,9 @@ permanent. An unknown theme name errors out and lists the available themes.
 
 ### Option A: inline registration in yaterc
 
-`Theme` and `register_theme()` are injected into the yaterc execution
-namespace, so a handful of tweaks can live directly there:
+A `register_theme()` function is injected into the yaterc execution namespace
+(only that one name -- the `Theme` class is available inside theme *files*,
+see Option B), so a handful of tweaks can live directly there:
 
 ```python
 from dataclasses import replace

@@ -1,6 +1,6 @@
 # doc_plans_naming_convention_plan
 
-## 目标
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 
 统一 `.trae/documents/` 下计划与子计划的命名规范：
 
@@ -62,7 +62,7 @@
 | `fancy_sym_docs_plan_e.md` | `fancy_sym_docs_plan_e.md` |
 | `fancy_sym_final_plan_f.md` | `fancy_sym_final_plan_f.md` |
 
-### keybinding-fix-wt/（task=keybinding_fix_wt；脚本与 issue_reply_IKH1RA.md 不动）
+### keybinding-fix-wt-plans/（task=keybinding_fix_wt；脚本与 keybinding-fix-wt-issue-reply.md 不动）
 
 | 旧名 | 新名 |
 |---|---|

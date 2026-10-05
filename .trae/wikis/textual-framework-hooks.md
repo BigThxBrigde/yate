@@ -8,9 +8,9 @@
 > 它们并非死代码，而是 Textual 框架的**内置扩展点（模板方法模式）**：
 > 子类覆写，框架反向回调。因此在这个文件里 grep 不到调用是正常的。
 >
-> 行号于 2026-09-28 按当前 `yate/app.py` 重新核对（文件已增长，旧行号全部失效）。
+> 行号于 2026-10-05 按当前 `yate/app.py` 重新核对（文件已增长，旧行号全部失效）。
 
-## 1. `get_theme_variable_defaults()`（app.py:305）
+## 1. `get_theme_variable_defaults()`（app.py:282）
 
 ### 是什么
 
@@ -20,14 +20,16 @@ Textual `App` 的内置方法，基类默认实现返回 `{}`。框架在构建�
 
 ### yate 覆盖它的原因
 
-`yate/editor_view/manual.py` 的 CSS 引用了两个自定义变量：
+`yate/editor_view/manual.py:183` 的 `DEFAULT_CSS = load_tcss("markdown-doc-screen.tcss")`
+装载的样式表（即资源文件 `yate/resources/markdown-doc-screen.tcss`，
+变量引用不在 `manual.py` 内）引用了两个自定义变量：
 
 ```css
-background: $doc-hit-background;          /* manual.py:228 */
-background: $doc-hit-current-background;  /* manual.py:231 */
+background: $doc-hit-background;          /* resources/markdown-doc-screen.tcss:51 */
+background: $doc-hit-current-background;  /* resources/markdown-doc-screen.tcss:54 */
 ```
 
-正常情况下，桥接主题（`yate/editor_view/theme.py:618-619`）会定义这两个变量。
+正常情况下，桥接主题（`yate/editor_view/theme.py:645-646`）会定义这两个变量。
 但如果某个主题的桥接失败、或 fallback 到未定义这两个变量的主题，Textual 的
 CSS 解析器在启动时会因变量缺省而**直接解析失败**。这个 override 提供兜底
 默认值，取自当前 yate 主题的黄色高亮：
@@ -46,7 +48,7 @@ CSS 解析器在启动时会因变量缺省而**直接解析失败**。这个 ov
 
 **删除后果**：特定主题状态下启动会因 CSS 变量缺失而崩溃。
 
-## 2. `action_quit()`（app.py:321）
+## 2. `action_quit()`（app.py:298）
 
 ### 是什么
 
@@ -68,14 +70,14 @@ Binding(
 ### yate 覆盖它的原因
 
 把 Textual 自带的 `ctrl+q` 退出路径重定向回注册表：实现是
-`self.editor.execute_action("quit")`（app.py:329，与 palette / 扩展走同一条
+`self.editor.execute_action("quit")`（app.py:306，与 palette / 扩展走同一条
 分发路径），而不是直接调 `Editor.quit()`，因此仍经过 yate 自己的退出守卫
 （例如有未保存修改时的确认流程）。yate 代码库内没有任何地方
 绑定 `ctrl+q`，正是依赖 Textual 的这个内置绑定。
 
 **删除后果**：`ctrl+q` 会绕过退出守卫直接强退。
 
-## 3. `ENABLE_COMMAND_PALETTE = False`（app.py:83）
+## 3. `ENABLE_COMMAND_PALETTE = False`（app.py:46）
 
 ### 是什么
 
@@ -86,7 +88,7 @@ Textual `App` 的类属性，框架启动时读取。设为 `False` 禁用 Textu
 
 `ctrl+p` 是 yate 自己的命令提示（command prompt），需要让位，避免按键冲突。
 
-## 4. `get_driver_class()`（app.py:101，2026-09-28 补录）
+## 4. `get_driver_class()`（app.py:65，2026-10-05 复核）
 
 ### 是什么
 
@@ -101,7 +103,7 @@ Windows 上原驱动的按键记录会退化成字符，虚拟键码与修饰位
 
 **删除后果**：Windows 下键弦失效，`ctrl+数字` 等绑定不可达。
 
-## 5. `on_event()`（app.py:247，2026-09-28 补录）
+## 5. `on_event()`（app.py:224，2026-10-05 复核）
 
 ### 是什么
 

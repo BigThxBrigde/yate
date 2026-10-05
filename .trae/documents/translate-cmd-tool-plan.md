@@ -1,6 +1,6 @@
 # translate-cmd 工具计划：用 codebuddy-code 实现 `--translate-cmd`
 
-> 需求：用 `codebuddy-code` CLI 实现一个 `tools.translate` 模块作为 wiki 的
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > `--translate-cmd`，接受"输入文档名 / 输出文档名"，免费模型用 `Hy4 preview` / `Hy3`。
 
 ## 一、实测事实（2026-09-30）

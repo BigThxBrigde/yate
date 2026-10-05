@@ -1,6 +1,6 @@
 # P1 Suggestion 修复计划
 
-> 来源：[review.md](../../reviews/2026-09-16-full-review.md) 2026-09-16 审查 Suggestion 段（2026-09-23 复核后
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：原状态头「仅为计划，未实施」与同文后续记录矛盾，作废；条目已拆为 `code-review-fix-p1-plans/` 并实施完成。
 > 仍存在的条目）。按主题分批，批内按影响排序；每条含证据、策略、测试要点。
 > **本文档仅为计划，未实施。** 统一门槛同 [P0](code-review-fix-critical-plan-a.md)
 > （pyright 零诊断、pytest 全绿、**冒烟 `python -m tools.smoke_test run --fail-only`
@@ -13,7 +13,7 @@
 > 与批次四增补（S42 / S43）。
 >
 > **2026-09-24 实施拆分**：全部条目已拆为
-> [P1-subplans/](P1-subplans/overview.md) 七个文件独占子计划（SP1–SP7，三波次）。
+> ](../code-review-fix-p1-plans/overview.md) 七个文件独占子计划（SP1–SP7，三波次）。
 > 波次一（SP3 + SP7，14 条）、波次二（SP1 + SP2 + SP4，11 条）、
 > 波次三（SP5 + SP6，10 条）已全部实施完成并过全量门禁，各条附「✅ 已修复」标注。
 > **P1 计划全部条目至此清零**（S4/S7 复核为已修免实施）。
@@ -290,7 +290,7 @@ worker 组本就 exclusive（`group="highlight"`），被丢弃的 worker 已结
 > ✅ **已修复（2026-09-24，SP3）**：[panes.py](../../../yate/editor_view/panes.py)
 > reconcile 恢复循环跳过 focus 叶子（三个调用方 split/close/only 均随后
 > `apply_doc(focus)` 恢复活动叶子，重复仅此一份；非活动叶子无 follow-up、恢复保留）。
-> 语义差异记录见 [SP3](P1-subplans/code-review-fix-p1-editor-view-rendering-plan-c.md)。守卫：
+> 语义差异记录见 ](../code-review-fix-p1-plans/code-review-fix-p1-editor-view-rendering-plan-c.md)。守卫：
 > `test_split_close_restores_scroll_for_focus_and_inactive_leaves`（两条恢复路径的
 > 调用语义 + state 保留 + 稳定期端到端）。
 > **守卫探明的存量产品缺口——已修复（2026-09-25）**：mount 期（首次 layout 前）的

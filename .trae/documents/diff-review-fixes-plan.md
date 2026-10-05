@@ -1,6 +1,6 @@
 # diff-review-fixes-plan（diff-tool 二轮评审 issue 登记 + 修复）
 
-来源：feat/diff-tool 分支二轮评审（python-code-review 六维框架，本轮产出 4 条，
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 此前 code-review-expert 一轮已修项 W1/S1/S4 与 backlog S2/S3/S5 不在本任务范围）。
 本文件同时充当 issue 登记册：下表即本轮全部 issue 的登记与修复状态，收尾时回填实测结果。
 
@@ -154,7 +154,7 @@ flowchart LR
 
 ### 执行概况
 
-- 续作任务：复用 worktree `D:\Programming\yate-diff-tool`（feat/diff-tool 分支），
+- 续作任务：复用 worktree `<worktree>`（feat/diff-tool 分支），
   沙箱自证 `.venv/Scripts/python.exe -c "import yate; print(yate.__file__)"` →
   指向该 worktree ✓。
 - Step 0 登记：commit `c06e789` `docs(plans): register diff second-review findings`

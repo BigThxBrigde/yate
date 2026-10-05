@@ -1,10 +1,10 @@
 # 主题层级债重构计划：config 与 editor_view.theme 解耦（N30）
 
-> 状态：**SP0–SP3 全部完成（✅，2026-09-26 实施并回填）**。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 来源：[code-review-fix-nice-to-have-plan-c.md](../code-review-fix-plans/code-review-fix-nice-to-have-plan-c.md) **N30（✅）**
 > 「L0 config 惰性 import L2 `editor_view.theme`（层级债）」，决策记录为
 > 「下次做重构方案：下沉 / 注入回调二选一 + 架构规则登记」。
-> 分支：`issues/refine-arch`（worktree `D:\Programming\yate-refine-arch`，基于 master `b599685`）。
+> 分支：`issues/refine-arch`（worktree `<worktree>`，基于 master `b599685`）。
 > **本目录是本次重构的唯一计划来源**；代码侧的硬性边界同时固化在
 > [`.trae/rules/architecture-boundaries.md`](../../rules/architecture-boundaries.md)，
 > 由 `tests/test_architecture.py` 守护。执行结果回填各 Plan 的「执行记录」与本 README §9。

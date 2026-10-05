@@ -1039,8 +1039,8 @@ Copy-Item <resources>\theme_examples\ayu_theme.example     "$HOME\.yate\themes\a
 ```
 
 Find the resources directory in the paths section of `yate --diag`; for full
-theme customization see [yate/docs/themes.en.md](docs/themes.en.md)
-([中文](docs/themes.zh.md)).
+theme customization see [yate/docs/themes.en.md](../docs/themes.en.md)
+([中文](../docs/themes.zh.md)).
 
 ## 12. Fonts and Nerd Font Icons
 
@@ -1291,7 +1291,12 @@ Server discovery, in order:
    Setting it to `0`, `off`, `false`, `none` or `no` disables the Python
    server entirely (registration stays, nothing spawns).
 2. `pyright-langserver` on `PATH` (started with `--stdio`).
-3. `pylsp` on `PATH`.
+3. `pyright-langserver` next to the running interpreter (the virtualenv
+   scripts directory, e.g. `.venv\Scripts\pyright-langserver.exe` or
+   `.venv/bin/pyright-langserver`) -- this is the only way to find a pyright
+   installed by `pip install pyright` into a virtualenv whose scripts directory
+   is not on `PATH`.
+4. `pylsp` on `PATH`.
 
 If none is found, nothing is spawned and no error is shown until a Python
 file is opened; the status bar then reports `LSP ✖`.

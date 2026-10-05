@@ -48,5 +48,5 @@
   私有类 `_TracingGatedTextualHandler` 跨模块引用、lambda 参数类型未知——重构为经
   公开挂载路径取真实桥实例 + 顶部导入 + 具名函数，全部消除。
 - **验证子代理读主仓路径误报**：一名验证员称 app.py「未见挂载逻辑」——实为读到了
-  主仓 `d:\Programming\yate`（无此改动）而非 worktree。交叉复核时须显式钉死
+  主仓 `<worktree>`（无此改动）而非 worktree。交叉复核时须显式钉死
   worktree 绝对路径。

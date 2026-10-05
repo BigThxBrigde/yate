@@ -123,9 +123,14 @@ Server discovery order:
    Set it to `0`/`off`/`false`/`none`/`no` to disable completely (registration
    stays but nothing ever starts).
 2. `pyright-langserver` on `PATH` (started with `--stdio` appended).
-3. `pylsp` on `PATH`.
+3. `pyright-langserver` next to the running interpreter, i.e. in that
+   environment's scripts directory (`.venv\Scripts\pyright-langserver.exe` on
+   Windows, `.venv/bin/pyright-langserver` on POSIX). This catches
+   `pip install pyright` into a virtualenv whose scripts directory is not on
+   `PATH`; started with `--stdio` appended.
+4. `pylsp` on `PATH`.
 
-When none of the three is available, no process starts and no error pops up;
+When none of the four is available, no process starts and no error pops up;
 opening a Python file shows `LSP ✖` in the status bar.
 
 ---

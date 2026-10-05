@@ -1,7 +1,8 @@
 # Editor 重构拆分总纲（issue IKIPP2）
 
-> 依据：`.trae/issues/review_20260926.md` 问题 5（editor.py 组装职责过载）+ §六-4（Editor 瘦身持续机制）。
-> 分支 `ref/editor-refactoring`，worktree `D:/Programming/yate-editor-refactoring`（已 fast-forward 合并 master `30d7909`）。
+> **实施状态**：📌 已被取代 —— 2026-10-05 全量核对：历史总纲，产物已并入 `app-layering-refactoring-plans/` 与 `editor-split-plans/`。
+> ℹ️ 本计划**已被取代**，仅作历史记录；请以上文指明的现行来源为准。
+> 分支 `ref/editor-refactoring`，worktree `<worktree>`（已 fast-forward 合并 master `30d7909`）。
 > 基线：editor.py **1600 物理行**（pyright strict 0 诊断 / pytest 全绿 / 架构测试 20 用例）。
 
 ## 一、目标
@@ -47,11 +48,11 @@
 
 | 波次 | 子计划 | 产出模块 | editor.py 变化 | 提交 |
 |---|---|---|---|---|
-| W1 | [plan_A](plan_A_assembly.md) 组装工厂化 | （无新文件） | `__init__` 120→~25 行，模块级 `_build_*` 工厂 | `refactor(editor): extract assembly factories` |
-| W2 | [plan_B](plan_B_lsp_sync.md) LSP 胶水 | `yate/lsp_sync.py`（LspSync） | −75 外移 / +15 委托与重接 | `refactor(editor): extract lsp_sync flow` |
-| W3 | [plan_C](plan_C_shell.md) shell+font | `yate/shell_flow.py`（ShellFlow） | −100 / +12 | `refactor(editor): extract shell flow` |
-| W4 | [plan_D](plan_D_overlays.md) 覆盖层 | `yate/overlays.py`（OverlayController） | −100 / +35 | `refactor(editor): extract overlays flow` |
-| W5 | [plan_E](plan_E_prompt_flows.md) 查找/替换/跳转 | `yate/prompt_flows.py`（PromptFlows） | −150 / +24 | `refactor(editor): extract prompt flows` |
+| W1 | ](editor-refactoring-assembly-plan-a.md) 组装工厂化 | （无新文件） | `__init__` 120→~25 行，模块级 `_build_*` 工厂 | `refactor(editor): extract assembly factories` |
+| W2 | ](editor-refactoring-lsp-sync-plan-b.md) LSP 胶水 | `yate/lsp_sync.py`（LspSync） | −75 外移 / +15 委托与重接 | `refactor(editor): extract lsp_sync flow` |
+| W3 | ](editor-refactoring-shell-plan-c.md) shell+font | `yate/shell_flow.py`（ShellFlow） | −100 / +12 | `refactor(editor): extract shell flow` |
+| W4 | ](editor-refactoring-overlays-plan-d.md) 覆盖层 | `yate/overlays.py`（OverlayController） | −100 / +35 | `refactor(editor): extract overlays flow` |
+| W5 | ](editor-refactoring-prompt-flows-plan-e.md) 查找/替换/跳转 | `yate/prompt_flows.py`（PromptFlows） | −150 / +24 | `refactor(editor): extract prompt flows` |
 
 每波独立验收、独立提交（单波回滚 = revert 单个提交）；任一波失败即停，不带病前进。
 
