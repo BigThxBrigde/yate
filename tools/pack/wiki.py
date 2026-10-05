@@ -46,6 +46,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import queue
 import subprocess
 import sys
 import threading
@@ -53,6 +54,7 @@ import time
 from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from enum import StrEnum
 from itertools import islice
 from pathlib import Path
 from typing import Final, cast
@@ -134,6 +136,10 @@ _INTERRUPT_EXIT_CODES: Final[frozenset[int]] = frozenset(
 #: worker, so a pool failure costs at most this many translations.
 BATCH_SIZE: Final[int] = 10
 
+#: Sentinel hook for :func:`needs_translation`: the preview is only asked
+#: when a translator is wired up, so any non-``None`` value says "present".
+_PREVIEW_TRANSLATE_HOOK: Final[str] = "<preview-hook>"
+
 
 class WikiError(PackError):
     """A wiki operation failed and the run must abort.
@@ -170,6 +176,11 @@ def _read_source_bytes(path: Path, *, code: Code = Code.WIKI_ZH_SOURCE_MISSING) 
     Sources can disappear between collection and use (issue IKJPEK: a plan
     renamed mid-run); a bare ``FileNotFoundError`` used to escape as a full
     traceback, so the run now aborts with ``error[WIKI-0102]`` instead.
+
+    Any other :class:`OSError` -- permissions, a spinning disk, a network
+    share -- reports ``WIKI-0103`` instead: it means "unreadable", and
+    calling it "vanished" sent the reader after a rename that never
+    happened (review R-04).
     """
     try:
         return path.read_bytes()
@@ -180,7 +191,11 @@ def _read_source_bytes(path: Path, *, code: Code = Code.WIKI_ZH_SOURCE_MISSING) 
             hint="re-run once the source tree is complete",
         ) from exc
     except OSError as exc:
-        raise WikiError(f"cannot read source {path.name}: {exc}", code=code) from exc
+        raise WikiError(
+            f"cannot read source {path.name}: {exc}",
+            code=Code.WIKI_SOURCE_UNREADABLE,
+            hint="check file permissions and disk availability",
+        ) from exc
 
 
 def _write_page_bytes(path: Path, data: bytes) -> None:
@@ -192,13 +207,19 @@ def _write_page_bytes(path: Path, data: bytes) -> None:
         raise WikiError(f"cannot write page {path.name}: {exc}", code=Code.WIKI_PAGE_WRITE) from exc
 
 
-def _write_page_text(path: Path, text: str) -> None:
-    """Write a generated page as UTF-8 text (``error[WIKI-0106]`` on failure)."""
+def _write_page_text(path: Path, text: str, *, code: Code = Code.WIKI_PAGE_WRITE) -> None:
+    """Write a generated page as UTF-8 text.
+
+    *code* lets the manifest report its own failure (``WIKI-0105``): the
+    store is read back on the next run, so a write that failed silently
+    there must be distinguishable from an ordinary page write (review
+    R-03 -- ``WIKI_MANIFEST_WRITE`` existed but nothing ever raised it).
+    """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
     except OSError as exc:
-        raise WikiError(f"cannot write page {path.name}: {exc}", code=Code.WIKI_PAGE_WRITE) from exc
+        raise WikiError(f"cannot write page {path.name}: {exc}", code=code) from exc
 
 
 @dataclass(frozen=True)
@@ -431,7 +452,7 @@ def load_manifest(target: Path) -> dict[str, str]:
 def store_manifest(target: Path, manifest: dict[str, str]) -> None:
     """Write the sha256 manifest to *target* (sorted, stable diffs)."""
     text = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True)
-    _write_page_text(target / MANIFEST_NAME, f"{text}\n")
+    _write_page_text(target / MANIFEST_NAME, f"{text}\n", code=Code.WIKI_MANIFEST_WRITE)
 
 
 def prune_orphan_pages(target: Path, keep: set[str]) -> int:
@@ -463,20 +484,36 @@ def prune_orphan_pages(target: Path, keep: set[str]) -> int:
 #: Terminal write policy for :func:`translate_via_cmd` failures.  ``"print"``
 #: is the serial default; the parallel stage flips it to ``"collect"`` so a
 #: worker never writes into the live region rich is repainting -- the main
-#: thread drains :data:`_COLLECTED_FAILURES` and prints them instead.  Only
-#: the main thread mutates either global, and the list is only ever appended
-#: to (atomic under the GIL) or fully cleared.
+#: thread drains the queue and prints instead.  Only the main thread mutates
+#: the mode, and the queue is only ever appended to (atomic under the GIL)
+#: or fully drained.
+#:
+#: A queue rather than a list on purpose (review R-05): a worker that
+#: finishes after ``pool.shutdown(wait=False)`` used to append to a list the
+#: main thread had already cleared, so the message was silently lost.  An
+#: unbounded queue cannot lose it -- a late message simply surfaces on the
+#: next drain.
 _emit_mode: str = "print"
 
-_COLLECTED_FAILURES: list[str] = []
+_COLLECTED_FAILURES: queue.SimpleQueue[str] = queue.SimpleQueue()
 
 
 def _emit_translate_failure(message: str) -> None:
     """Report one translation failure honouring :data:`_emit_mode`."""
     if _emit_mode == "collect":
-        _COLLECTED_FAILURES.append(message)
+        _COLLECTED_FAILURES.put(message)
         return
     print(message, file=sys.stderr)
+
+
+def _drain_collected_failures() -> list[str]:
+    """Take every queued failure message, leaving the queue empty."""
+    messages: list[str] = []
+    while True:
+        try:
+            messages.append(_COLLECTED_FAILURES.get_nowait())
+        except queue.Empty:
+            return messages
 
 
 def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
@@ -545,6 +582,55 @@ def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
     return english
 
 
+class _PageState(StrEnum):
+    """The one verdict about a page's English counterpart (review R-06).
+
+    :func:`needs_translation` (the preview) and :func:`_prepare_pages` (the
+    rebuild) used to spell this rule out twice, so the preview count and
+    the real loop could drift apart.  Both now ask this enum.
+    """
+
+    COPIED = "copied"
+    FRESH = "fresh"
+    MISSING = "missing"
+    STALE = "stale"
+    TRANSLATE = "translate"
+
+
+def _has_english_page(en_path: Path) -> bool:
+    """Return whether *en_path* holds a non-empty English page."""
+    return en_path.exists() and en_path.stat().st_size > 0
+
+
+def _translation_state(
+    *,
+    has_en_source: bool,
+    has_en: bool,
+    recorded: str | None,
+    digest: str,
+    translate_cmd: str | None,
+    translate_all: bool,
+) -> _PageState:
+    """Classify one page from the facts both callers already know.
+
+    The single source of truth for "copied / fresh / missing / stale /
+    translate".  *translate_cmd* is ``None`` when no translator is wired
+    up: a page that would need one is then reported (missing or stale)
+    rather than queued.
+    """
+    if has_en_source:
+        return _PageState.COPIED
+    if not has_en:
+        return _PageState.MISSING
+    if recorded is not None and recorded != digest:
+        return _PageState.STALE
+    # Fresh or adopted (no manifest record): --translate-all still re-runs
+    # it, otherwise the existing English page is kept as-is.
+    if translate_cmd is None or not translate_all:
+        return _PageState.FRESH
+    return _PageState.TRANSLATE
+
+
 def needs_translation(
     page: WikiPage,
     target: Path,
@@ -553,28 +639,36 @@ def needs_translation(
 ) -> bool:
     """Return whether the main loop would translate *page*.
 
-    Mirrors the in-loop decision for the pre-loop preview count.  Pages
-    with an ``en_source`` twin are copied verbatim, never translated.  A
-    missing or empty English page is pending; an adopted (no manifest
-    record) or fresh page is pending only under *translate_all*; a stale
-    page is always pending.
+    A thin preview over :func:`_translation_state`, kept because the
+    decision matrix is worth stating on its own: pages with an
+    ``en_source`` twin are copied verbatim, never translated; a missing or
+    empty English page is pending; an adopted (no manifest record) or
+    fresh page is pending only under *translate_all*; a stale page is
+    always pending.
+
+    *translate_cmd* is assumed to be present -- this is only ever asked
+    when a hook is wired up.
 
     Known edge: an ``en_source`` file deleted after collection (TOCTOU)
     counts as copied here while the main loop takes the translation path
     -- acceptable skew for a preview counter.
     """
+    # Same short-circuit as the original implementation: a page that is
+    # already decided must not need its source read (a vanished source
+    # would raise here, which the caller never had to expect).
     if page.en_source is not None:
         return False
-    en_path = target / page.en_target
-    if not en_path.exists() or en_path.stat().st_size == 0:
+    if not _has_english_page(target / page.en_target):
         return True
-    digest = hashlib.sha256(_read_source_bytes(page.zh_source)).hexdigest()
-    recorded = manifest.get(page.zh_target)
-    if recorded is None or recorded == digest:
-        # Adopted (externally maintained) or fresh: pending only when
-        # --translate-all re-translates every page.
-        return translate_all
-    return True
+    state = _translation_state(
+        has_en_source=False,
+        has_en=True,
+        recorded=manifest.get(page.zh_target),
+        digest=hashlib.sha256(_read_source_bytes(page.zh_source)).hexdigest(),
+        translate_cmd=_PREVIEW_TRANSLATE_HOOK,
+        translate_all=translate_all,
+    )
+    return state in (_PageState.MISSING, _PageState.STALE, _PageState.TRANSLATE)
 
 
 def push_wiki(target: Path) -> int:
@@ -830,11 +924,14 @@ class _ProgressBoard:
     def page_done(self, index: int) -> None:
         """Advance the batch row and the overall row by one finished page.
 
-        The two rows move together on purpose: the bar percentage and the
-        page count in the text must never disagree.
+        The text is rendered *after* the advance, never as an argument of
+        the same call: arguments are evaluated first, so passing it inline
+        would publish the pre-advance count and leave the row permanently
+        one page behind its own bar.
         """
         self.progress.advance(self.batch_tasks[index])
-        self.progress.update(self.overall, advance=1, description=self._description())
+        self.progress.update(self.overall, advance=1)
+        self.progress.update(self.overall, description=self._description())
 
     def batch_finished(self) -> None:
         """Note that one batch reported back: one batch less queued."""
@@ -936,25 +1033,31 @@ def _prepare_pages(
             kept += 1
             continue
         recorded = manifest.get(page.zh_target)
-        has_en = en_path.exists() and en_path.stat().st_size > 0
-        is_stale = has_en and recorded is not None and recorded != digest
-        if has_en and not is_stale:
+        has_en = _has_english_page(en_path)
+        state = _translation_state(
+            has_en_source=False,
+            has_en=has_en,
+            recorded=recorded,
+            digest=digest,
+            translate_cmd=translate_cmd,
+            translate_all=translate_all,
+        )
+        if state is _PageState.FRESH:
             # Fresh or externally maintained (e.g. agent-translated).
-            if translate_cmd is None or not translate_all:
-                manifest[page.zh_target] = digest
-                kept += 1
-                continue
-            # --translate-all re-translates even fresh pages through the
-            # hook, overwriting their English pages.  The digest is only
-            # recorded after a successful re-translation, so a failed one
-            # does not silently bless an outdated English page.
-        elif translate_cmd is None:
+            manifest[page.zh_target] = digest
+            kept += 1
+            continue
+        if translate_cmd is None and state in (_PageState.MISSING, _PageState.STALE):
             # No translator available: report the gap so --check gates on it.
-            if not has_en:
+            if state is _PageState.MISSING:
                 missing.append(page.en_target)
             else:
                 stale.append(page.en_target)
             continue
+        # TRANSLATE -- or MISSING/STALE with a hook wired up.  A stale page
+        # keeps its old digest out of the manifest until the new
+        # translation lands, so a failed re-translation never blesses an
+        # outdated English page.
         plans.append(
             _PagePlan(
                 page=page,
@@ -987,6 +1090,11 @@ def _translate_pending(
     serialises internally) -- so no lock is needed and page completion order
     is irrelevant (every page owns its target path and manifest key).
     """
+    if not plans:
+        # ``min(resolve_jobs(...), 0)`` would hand ``max_workers=0`` to the
+        # pool, which raises; ``run()`` filters this out, the function
+        # itself should not depend on its caller to (review R-07).
+        return _TranslationReport(0, {}, [], [])
     batches = chunk_pages(plans)
     ceiling = job_ceiling()
     workers = min(resolve_jobs(jobs), len(batches))
@@ -1009,7 +1117,7 @@ def _translate_pending(
     digests: dict[str, str] = {}
     missing: list[str] = []
     stale: list[str] = []
-    display = Progress(
+    progress = Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -1017,13 +1125,13 @@ def _translate_pending(
         TimeElapsedColumn(),
         console=console,
     )
-    overall = display.add_task("translating", total=len(plans))
+    overall = progress.add_task("translating", total=len(plans))
     batch_tasks = {
-        index: display.add_task(f"batch {index}/{len(batches)}", total=len(batch))
+        index: progress.add_task(f"batch {index}/{len(batches)}", total=len(batch))
         for index, batch in enumerate(batches, start=1)
     }
     board = _ProgressBoard(
-        progress=display,
+        progress=progress,
         overall=overall,
         batch_tasks=batch_tasks,
         batch_count=len(batches),
@@ -1033,10 +1141,9 @@ def _translate_pending(
     )
     done = 0
     stop = threading.Event()
-    global _emit_mode, _COLLECTED_FAILURES
+    global _emit_mode
     _emit_mode = "collect"
-    _COLLECTED_FAILURES.clear()
-    display.start()
+    progress.start()
     pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="wiki-translate")
     try:
         futures: dict[Future[list[_PageOutcome]], int] = {
@@ -1087,13 +1194,15 @@ def _translate_pending(
     finally:
         # Never block the interrupt path: queued tasks are cancelled and the
         # in-flight translators are left to the console event that already
-        # reached them, instead of waiting out every remaining page.
+        # reached them, instead of waiting out every remaining page.  A
+        # failure message from a translator that is still running therefore
+        # arrives after this drain -- with the queue it surfaces on the next
+        # one instead of being dropped (review R-05).
         stop.set()
         pool.shutdown(wait=False, cancel_futures=True)
-        display.stop()
-        for message in _COLLECTED_FAILURES:
+        progress.stop()
+        for message in _drain_collected_failures():
             console.print(message, markup=False)
-        _COLLECTED_FAILURES.clear()
         _emit_mode = "print"
     return _TranslationReport(translated, digests, missing, stale)
 
