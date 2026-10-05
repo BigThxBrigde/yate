@@ -33,6 +33,11 @@
 | R-08 | SUGGESTION | `Analysis(excludes=...)` 守卫只查属性名不查宿主，`excludes=other.excludes` 也能通过 | 清单转发链被换对象时守卫漏报 | ✅ 已修（`a0d1813`：断言 `.value` 是 `Name` 且 `id == "inputs"`；负向演练确认被拦） |
 | R-09 | SUGGESTION | `pack/_common.py` `EXCLUDES` 注释 13 行，把体积数字与 import 链路压在代码上 | issue 关闭后数字腐化；三处副本漂移 | ✅ 已修（`a0d1813`：压缩为前提 + 指向守卫用例与 `xref`/`warn` 取证报告；数字只留在 plan §7.2 与 README 双语） |
 
+| R-10 | WARNING | R-02 新增守卫只扫 `*.py`，漏掉随包分发、运行时由 `importlib.util.spec_from_file_location` 导入的 `yate/extensions/*.py.example` | 冻结产物可用性（扩展示例 import 被排除包 → 用户侧 ImportError） | ✅ 已修（`cb082c2`：`_yate_sources()` 纳入 `extensions/*.py.example`，实测扫描面 120 个文件 / 其中 10 个扩展） |
+| R-11 | WARNING | R-02 新增守卫的动态 import 分支只匹配裸 `__import__` 名称，`importlib.import_module("PIL")`（`ast.Attribute`）与 `from importlib import import_module` 形式漏检 | 同上，守卫可被绕过 | ✅ 已修（`cb082c2`：新增 `_dynamic_import_name` 覆盖三种写法；负向演练确认三种全部被拦） |
+| R-12 | SUGGESTION | `pack/*.spec` 仍无静态类型检查——R-03 只把 `pack/_common.py` 纳入 pyright，pyright 只分析 `.py` | 两个 spec 的类型/语法错误只能在真实构建时暴露 | 📌 仅登记（补偿手段已到位：AST 守卫逐个关键字断言 + 每次改动的真实构建；已在守卫模块 docstring 写明该边界） |
+| R-13 | SUGGESTION | 守卫的残余局限：运行时拼出的模块名（`name = "PIL"` 后 `import_module(name)`）无法静态识别 | 理论上可绕过前提守卫 | 📌 仅登记（已在用例 docstring 与本表标注；静态守卫的固有上限，需靠 code review 拦截） |
+
 ### 修复过程中的自我发现
 
 | # | 发现 | 处置 |
@@ -102,8 +107,25 @@ PIL"。今天安全（`yate/**` 大小写敏感检索 0 命中），但一旦新
 | 轮次 | 范围 | 结论 | 处置 |
 |---|---|---|---|
 | 1 | `pack/_common.py` / 两个 spec / `tests/test_pack_spec.py` | `MINOR ISSUES`：0 CRITICAL / 4 WARNING / 5 SUGGESTION | 全部修复（`a0d1813`），R-04 转 📌 仅登记 |
-| 2 | 同上（修复后复审） | 见 §四 | 见 §四 |
+| 2 | 同上（迭代 1 修复后复审） | `MINOR ISSUES`：0 CRITICAL / 2 WARNING / 2 SUGGESTION（R-10…R-13，其中 2 项由主代理自查发现） | 全部处置（`cb082c2` 修R-10/R-11，R-12/R-13 转 📌 仅登记） |
+| 3 | 同上（迭代 2 修复后复审） | 见 §五 | 见 §五 |
 
-## 四、第二轮复审（修复后）
+## 四、第二轮复审（迭代 1 修复后）
+
+结论：`MINOR ISSUES` —0 CRITICAL / 2 WARNING / 2 SUGGESTION（R-10…R-13）。
+两条 WARNING 都是**修复 R-02 时新引入的覆盖洞**，由主代理在复审中自查发现并经负向演练确认：
+守卫的扫描面与动态 import 识别都不完整（R-10、R-11）。两条 SUGGESTION 是覆盖边界本身
+（R-12 pyright 不检查 `.spec`；R-13 运行时拼名不可静态识别），只能登记为已知局限。
+
+实测：`python -m pytest tests/ -p no:cacheprovider` → **1919 passed, 8 skipped**（退出码 0）；
+`python -m pyright`（`include` 已含 `pack/`）→ **0 errors, 0 warnings, 0 informations**；
+`python -m pytest tests/test_architecture.py -q` → 22 passed。
+
+负向演练（真实守卫函数 + 内存合成 AST，6 组）：`from PIL import Image`、
+`importlib.import_module('numpy')`、`from importlib import import_module` + `import_module('PIL')`、
+`__import__('PIL.Image')` 全部 REJECTED；`importlib.import_module('textual')`（无关包）与
+真实 `yate/` 树（含 10 个扩展文件）ACCEPTED；运行时拼名按预期 ACCEPTED（R-13 已登记）。
+
+## 五、第三轮复审（迭代 2 修复后）
 
 待回填。
