@@ -326,10 +326,13 @@ wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版
 目录 `sys._MEIPASS`、退出时清理——资源在 exe **内部**而非 exe 旁边；更在意启动
 速度时请选单目录版。
 
-单目录产物是**平铺**的。PyInstaller 6 及以上默认把运行时文件放进 `_internal/`
-子目录，而 `pack/yate.spec` 设了 `contents_directory="."`，因此 `dist/yate/yate.exe`
-与 `python313.dll`、`base_library.zip`、`yate/` 包目录等运行时文件**同级平铺**，
-没有 `_internal` 这一层。
+Windows 上的单目录产物是**平铺**的。PyInstaller 6 及以上默认把运行时文件放进
+`_internal/` 子目录，而 `pack/yate.spec` 设了 `contents_directory="."`，因此
+`dist/yate/yate.exe` 与 `python313.dll`、`base_library.zip`、`yate/` 包目录等运行时
+文件**同级平铺**，没有 `_internal` 这一层。平铺仅限 Windows：POSIX 没有 `.exe`
+后缀，可执行程序本身就是 `dist/yate/yate`——恰好是内置 `yate/` 包数据需要占用的
+目录路径，会让构建中断。因此 Linux 与 macOS 仍保留 PyInstaller 默认的 `_internal/`
+目录。
 
 两个 spec 还会剔除被顺带拖进打包依赖图、但运行时从不使用的模块：
 `pygments.formatters.img` 为 yate 从不调用的图片格式化器把 Pillow（及其可选

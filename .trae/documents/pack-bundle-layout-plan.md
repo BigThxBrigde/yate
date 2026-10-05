@@ -83,7 +83,7 @@ S4 说明：守卫测试**不导入 PyInstaller**（`build` extra 不在 CI 的 
 | # | 风险 | 缓解 | 回滚 |
 |---|---|---|---|
 | R1 | 排除 PIL 后运行时 `ImportError` | F6 已证 `pygments.formatters.img` 捕获 `ImportError`；F5 已证 yate 自身零引用；S6 用真实 exe `--version` + 启动冒烟验证 | 还原 S1 的 `EXCLUDES` 一行 |
-| R2 | 扁平布局下产物与 `yate.exe` 同级，可能出现同名覆盖（PyInstaller 对 `EXECUTABLE` 与 `BINARY` 目标同名会报错而非静默覆盖） | S6 真实构建会立刻暴露；构建日志保留 | 还原 S2 的一行 |
+| R2 | **已实证并已修复（见 §7.8）**：Windows 因 `.exe` 后缀而幸免，但 POSIX 上 exe 即 `dist/yate/yate`，与内置 `yate/` 包数据目录同名，`COLLECT.assemble` 的 `os.makedirs` 会抛 `SystemExit`（PyInstaller `api.py:1189-1194`） | 落地为平台条件式 `contents_directory="." if sys.platform == "win32" else "_internal"`（`api.py:529-532` 证明 `.exe` 仅在 `is_win or is_cygwin` 追加）；`tests/test_pack_spec.py` 钉住该三元形状 | 还原为 `contents_directory="."` 即回到缺陷态（守卫会红） |
 | R3 | 诱人的 `libcrypto/libssl`（5.9 MiB）未砍 | 明确列为非目标；它们来自 stdlib ssl 栈，删除会波及 `hashlib`/LSP 相关路径 | — |
 | R4 | 旧版 PyInstaller（<6.0）不识别 `contents_directory` | `build` extra 已锁 `pyinstaller>=6.0`（F8），该参数自 6.0 引入 | — |
 
@@ -172,6 +172,10 @@ sequenceDiagram
 | `dist*/yate.exe` | 26.6 MiB | **19.5 MiB** | **-7.1 MiB（-26.7%）** |
 | 冒烟 | — | `--version` → `yate 0.2.9 …`，退出码 0 | 通过 |
 
+> **验收环境：`win32`。** 上表全部数字只覆盖 Windows 构建。POSIX 侧的
+> 平铺布局缺陷直到 §7.8 的第二轮审核才被发现并修掉——Windows 恰是唯一
+> 不暴露该缺陷的平台（见 §五 R2），"在 Windows 上构建成功"不构成跨平台结论。
+
 基线构建方式说明：单文件基线是**临时**把 `pack/yate-onefile.spec` 的 `excludes` 改回 `[]`
 构建一次后立即还原（未提交），以保证与改后同环境、同版本、可直接比较。
 
@@ -190,7 +194,7 @@ sequenceDiagram
 |---|---|---|---|
 | `pack-spec-tests` | `tests/test_pack_spec.py` | 有产出（214 行） | `pytest tests/test_pack_spec.py -q` → 10 passed；`pyright` → 0 errors。主代理另修一处 pyright `reportUnknownArgumentType`（`len()` 收到 `tuple[Unknown, ...]`）与 docstring 里的体积数字（60.6 → 68.4 MiB） |
 | `pack-readme-docs` | `README.md`、`README.zh.md` | 有产出（双语各 3 段） | diff 复核通过；其上报的两项待裁决（过期"约 16 MB"、中文译法）由主代理改完并回执 |
-| `pack-review` | 只读评审 | **零产出**：两次探活（间隔 >5 min）无回信，且按任务书不得写文件故无产物可查 | 按 `subagent-workflow.md` §五.3 判死；评审由主代理亲自执行（§7.6），如实标注为"主代理自评" |
+| `pack-review` | 只读评审 | **有产出（延迟到达）**：首轮两次探活无回信，主代理按 §五.3 判死并自行评审（§7.6）；成员在团队回收后补发完整报告，报出 1 blocker + 3 major + 4 minor | 主代理逐条独立复核（§7.8），**blocker 属实并已修复**；报告本身是有效产出，"零产出"的初判按 §五.4 规则修正 |
 
 ### 7.5 最终代码复测（提交态）
 
@@ -224,3 +228,60 @@ import 且不在冻结入口内），最终产物 `--version` 冒烟通过 → �
 
 > 注：`pack/` 不在 `pyproject.toml` 的 pyright `include` 范围内（F9），其正确性由上述
 > 真实构建 + `tests/test_pack_spec.py` 静态守卫共同覆盖。
+
+### 7.8 第二轮审核（`pack-review` 报告 + 主代理复核，round 2）
+
+评审成员在回收后补发完整报告：**1 blocker / 3 major / 4 minor**。主代理逐条独立复核：
+
+| # | 严重度 | 结论 | 处置 |
+|---|---|---|---|
+| 1 | blocker | **属实**：`contents_directory="."` 在 POSIX 上使单目录构建必然失败 | 采纳方案 A，见下 |
+| 2 | major | 属实：§五 R2 的乐观判断被推翻，且 S6 只验了 Windows | R2 已改写为实证结论；§7.2 加"验收环境 win32"警示 |
+| 3 | major | 属实：守卫只钉字面量 `"."`，A 方案下会变红 | 守卫重写为三元形状断言（§7.9） |
+| 4 | major | 属实：README quick-ref `~16 MB` 与正文 19.5 MiB 自相矛盾 | 已订正为 `~20 MB`（提交 `d25b111`） |
+| 5 | minor | `numpy` 条目当前空转（构建环境未装 numpy） | `_common.py` 注释补"防御性"说明 |
+| 6 | minor | 裸 `next()` 让守卫失败退化为 `StopIteration` | 改为带说明的 assert（`_functions` / `_returned_call`） |
+| 7 | minor | 只查属性名不查宿主 | **不改**：keyword 改名会先被 `collect()` 守卫拦下，且"不绑死中间变量名"与本轮修复方向一致 |
+| 8 | minor | `60.6 MiB`（`_internal` 口径）与 `68.4 MiB`（整包）并存易误读 | `_common.py` 注释注明口径 |
+
+**blocker 的独立复核证据**（主代理亲读 PyInstaller 6.22.3 源码，非引用报告）：
+
+- `building/api.py:529-532`：`.exe` 后缀在 `if is_win or is_cygwin:` 分支内追加
+  → POSIX 上 exe 基名就是 `yate`，落在 `dist/yate/yate`；
+- `building/api.py:1183-1194`：`EXECUTABLE` 走 `join(self.name, dest_name)`，
+  其它走 `join(self.name, contents_directory or "", dest_name)`，随后
+  `os.makedirs(dest_dir, exist_ok=True)`，捕获 `FileExistsError` 后
+  `raise SystemExit("... there already exists a file at that path!")`
+  → 数据项 `yate/resources` 要求 `dist/yate/yate/` 是目录，与 exe 撞名即中断；
+- Windows 幸免的原因正是产物里 `yate`（目录）与 `yate.exe`（文件）并存。
+
+**修复（方案 A，评审与主代理一致选定）**：`contents_directory="." if sys.platform == "win32" else "_internal"`。
+`sys` 早已在 `pack/yate.spec:35` import，零新增依赖；POSIX 分支落在 PyInstaller 默认值上，
+可单点回滚。否决的 B（改 exe 基名）会波及 `pack/pack.sh:107` 的 `artifact="dist/yate/yate"`、
+`README.md:290` / `README.zh.md:307` 的产物承诺；C（改数据前缀）破坏 `yate.paths.package_root()` 语义。
+
+### 7.9 平台条件式落地与守卫重写
+
+四处联动修改（`pack/yate.spec` 三处 + `tests/test_pack_spec.py` 一处），按"两处文件编辑
+连续完成、中间不跑任何命令"的协议执行，随后统一跑门禁：
+
+1. `pack/yate.spec:81` → `contents_directory="." if sys.platform == "win32" else "_internal"`；
+2. `pack/yate.spec` 行内注释 → 补平台限定与撞名原因；
+3. `pack/yate.spec` 模块 docstring → 由"无条件平铺"改为"Windows 平铺 + POSIX 保留 `_internal`"；
+4. `tests/test_pack_spec.py` → 守卫重写为四段断言：关键字必须显式存在 / 必须是
+   `ast.IfExp` / `ast.unparse(test) == "sys.platform == 'win32'"` / `body == "'.'"` 且
+   `orelse == "'_internal'"`；docstring 如实标注局限——**只证形状、不证分支语义**，
+   POSIX 真实行为需一次 Linux 构建，CI 不具备该能力。
+
+负向演练（主代理用真实守卫函数 + 内存合成 AST，5 组）：
+
+| 输入形态 | 结果 |
+|---|---|
+| `contents_directory="." if sys.platform == "win32" else "_internal"` | ACCEPTED |
+| `contents_directory="."`（修复前形态） | REJECTED：`must be a sys.platform conditional, got Constant` |
+| `contents_directory="_internal"` | REJECTED：同上 |
+| 两分支对调 | REJECTED |
+| 删掉 `contents_directory` | REJECTED：`the one-folder build lost its layout choice` |
+
+A 方案不改变 Windows 产物行为，故 §7.2 的体积/文件数/冒烟数字**无需复测**；
+`README.md:290` / `README.zh.md:307` 承诺的 `dist/yate/yate` 在 A 下重新成立。

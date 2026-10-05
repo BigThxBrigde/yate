@@ -314,11 +314,15 @@ The onefile build unpacks into a temporary `sys._MEIPASS` directory on every
 launch and cleans it up on exit, so the resources live *inside* the exe rather
 than next to it; pick one-folder when faster startup matters.
 
-The one-folder bundle is **flat**. PyInstaller 6 and newer put the runtime
-files into an `_internal/` subdirectory by default, but `pack/yate.spec` sets
-`contents_directory="."`, so `dist/yate/yate.exe` sits *next to*
-`python313.dll`, `base_library.zip`, the `yate/` package directory and the rest
-of the runtime files — there is no `_internal` level.
+On Windows the one-folder bundle is **flat**. PyInstaller 6 and newer put the
+runtime files into an `_internal/` subdirectory by default, but
+`pack/yate.spec` sets `contents_directory="."`, so `dist/yate/yate.exe` sits
+*next to* `python313.dll`, `base_library.zip`, the `yate/` package directory
+and the rest of the runtime files — there is no `_internal` level. The flat
+layout is Windows-only: a POSIX build has no `.exe` suffix, so the
+executable itself would be `dist/yate/yate` — exactly the path the bundled
+`yate/` package data needs as a directory, which aborts the build. Linux and
+macOS therefore keep PyInstaller's default `_internal/` directory.
 
 Both specs also drop modules that are dragged into the frozen graph
 transitively but never touched at runtime: `pygments.formatters.img` pulls in
