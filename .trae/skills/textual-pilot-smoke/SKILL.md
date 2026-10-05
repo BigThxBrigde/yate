@@ -129,8 +129,10 @@ $env:PYTHONDONTWRITEBYTECODE='1'
 
 Scenarios live in the `tools/smoke_test/scenarios/` package, grouped by area
 (`core` / `edit` / `search` / `files` / `panes` / `explorer` / `view` /
-`integration` / `regression` / `stress` / `aliases`); every submodule exposes
-`SCENARIOS`, and `tools/smoke_test/scenarios/__init__.py` concatenates them.
+`integration` / `regression` / `stress` / `aliases`, plus `diffview` /
+`guards` / `screensaver` / `workspace_nav` / `vim_advanced` from the
+2026-10-05 expansion); every submodule exposes `SCENARIOS`, and
+`tools/smoke_test/scenarios/__init__.py` concatenates them.
 Pick a subset with `--scenario NAME` or `--tag TAG` (both repeatable); skip the
 slow group with `--skip-slow`; `--seed N` pins the fuzz scenarios;
 `--fail-only` / `--json PATH` / `--report PATH` help when triaging.
@@ -142,6 +144,22 @@ the helpers re-exported from `.scenarios`: `new_app`, `type_text`,
 `run_command`, `goto`, `wait_until`, `snapshot_svg`.
 Baselines live under `tools/smoke_test/smoke_baselines/*.json` and should be
 re-snapshotted after intentional UI changes.
+
+Four traps that cost real time when writing scenarios (all hit in the
+2026-10-05 expansion, see
+`../../documents/smoke-test-expansion-plan.md` §7.4):
+
+- **Assert messages by substring, never by equality.** `PromptBar` writes Rich
+  markup (`"[#f9e2af]...[/]"`) into the `Static`, so `message_text()` returns
+  markup, not plain text.
+- **Read private widget/flow state through `getattr` + `cast`.** pyright strict
+  rejects direct private access outside the defining module, and `# type: ignore`
+  is forbidden.
+- **Assert the stack depth yourself.** `invariant:no_leftover_modal` runs after
+  `run_test()` has already torn the stack down, so it cannot catch a screen a
+  scenario forgot to close.
+- **Do not assume a value cycles.** Tab completion cycles path candidates;
+  `set` option values do not (completing the value empties the candidate list).
 
 ## Cleanup and final gate
 

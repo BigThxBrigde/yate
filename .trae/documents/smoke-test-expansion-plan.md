@@ -1,7 +1,7 @@
 # 冒烟测试扩充计划（smoke-test-expansion）
 
-> **实施状态**：🔄 方案已落盘，执行中（2026-10-05 起）。
-> 结论回填与实测数字见文末「执行记录」。
+> **实施状态**：✅ 已实施 —— 2026-10-05，14 个新场景 + 65 条新单测落地，
+> 命令/动作覆盖补到 45/45 与 66/66。真实数字见文末「执行记录」。
 
 ## 一、目标与非目标
 
@@ -169,5 +169,100 @@ flowchart LR
 
 ## 七、执行记录
 
-（待回填：真实场景数、检查数、命令 / 动作覆盖、pytest / pyright 数字、
-子代理存活与零产出情况、偏离计划的校准理由。）
+### 7.1 实测数字（2026-10-05，worktree `enh/smoke-test-scenarios`）
+
+| 项 | 实施前 | 实施后 |
+|---|---|---|
+| 场景数 | 89 | **103**（+14） |
+| 检查数 | 932 | **1247**（100% 通过） |
+| 命令覆盖 | 44/45（缺 `diff`） | **45/45（100%）** |
+| 动作覆盖 | 65/66（缺 `toggle_screensaver`） | **66/66（100%）** |
+| 基线文件 | 63 | **77**（只增 14，既有 63 个零改动） |
+| 冒烟单测 | 14 | **79**（+65） |
+| 全量 pytest | 1810 passed / 8 skipped | **1875 passed / 8 skipped**，exit 0 |
+| 覆盖率 | — | **91%**（`--cov=yate`，门禁 75） |
+| pyright strict | 0 | **0 errors**（`yate/ tests/ tools/`） |
+| 架构测试 | 22 passed | **22 passed** |
+| `compare` | — | **全 MATCH，exit 0** |
+| 全量冒烟耗时 | 82–89s | 89s（`run`）／95s（`compare`） |
+
+### 7.2 交付物（按提交顺序）
+
+| 提交 | 内容 |
+|---|---|
+| `2ba17c5` | 本方案文档 |
+| `bf9b197` | `scenarios/diffview.py`（3 场景）+ 接线 |
+| `c37c55b` | `scenarios/guards.py`（4 场景）+ 接线 |
+| `4a1c636` | `scenarios/screensaver.py`（2 场景）+ 接线 |
+| `d186c26` | `scenarios/workspace_nav.py`（3 场景） |
+| `09c4aa3` | `scenarios/vim_advanced.py`（2 场景）+ 两个模块的接线 |
+| `e8786aa` | `tests/test_smoke_baselines.py` / `test_smoke_cli.py` / `test_smoke_harness.py`（65 用例） |
+| `fdfa2a1` | 14 个新场景的基线 JSON |
+
+### 7.3 子代理执行情况（按 `subagent-workflow.md` 如实汇报）
+
+- 波 1 三名成员（diff / guards / screensaver）、波 2 三名成员（workspace_nav /
+  vim_advanced / harness 单测）**全部存活并落盘**，零产出 0 人；全部以
+  `bypassPermissions` 下发，spawn 与验证同回合闭合。
+- 所有成员的**自述数字均由主代理独立复核**：pyright 逐文件重跑、五个新场景在
+  接线后经 `--scenario` 重跑、65 条新单测重跑、全量 pytest 与 compare 由主代理
+  亲自执行。成员报告与实测一致。
+- 波 2 成员 F 反馈全量 pytest 首次因两个 pytest 实例并行争抢而被腰斩，清理后
+  重跑；主代理的全量门禁为单实例干净运行。
+
+### 7.4 偏离计划与校准理由
+
+1. **场景数 12 → 14**：计划 §五 波 1/波 2 合计 12 个场景，实际 14 个。原因是
+   屏保成员在交付时把「`enable=False`」与「角色表全非法」两种配置拆成两个 app
+   断言（`screensaver_disabled_message`），比原计划的单场景多覆盖一条产品分支，
+   属净增，无额外风险。
+2. **场景名 `screensaver_idle_message` → `screensaver_disabled_message`**：成员按
+   实际断言内容命名（该场景覆盖的是"配置导致不开屏"，不是 idle 轮询），已同步
+   基线文件名。
+3. **`pane_resize_chords` 的轴向与计划相反（计划有误）**：计划写「`:vs` 造两窗格
+   再 `ctrl+w +` 放大」，但 `resize_pane` 的 `+` / `-` 作用于 **horizontal** 轴
+   （即 `:sp` 上下分屏），`:vs` 树上 `+` 不动并直接落进 `pane already at its
+   minimum size` 告警。场景按产品真实语义同时断言两条分支，反而把这条反直觉
+   行为钉死了。
+4. **`>` / `<` 缩进归属 NORMAL 而非 VISUAL**：计划把这两个键列在 visual 一节，
+   实际 `keymaps/vim.py` 走 NORMAL 的 `_shift_row`（整行 select → 缩进 → 清选区），
+   场景按真实分派实现并额外断言缩进后 `has_selection() is False`。
+5. **tab 补全「值枚举循环」不成立（计划有误）**：`set theme=` 第一次 tab 补成
+   唯一前缀后，候选过滤把该值排除、列表清空，值原地不动；真正能循环的是**路径
+   候选**。场景按实测行为断言，docstring 写明成因，避免后来者照字面预期再踩。
+6. **`message_text()` 只能子串匹配**：`PromptBar` 往 `Static` 写的是 Rich markup
+   串，`plain_text()` 取不到 `.plain`，全等断言必红。既有场景本来就用 `in`
+   子串法，本轮沿用。
+7. **私有属性一律 `getattr` + `cast`**：pyright strict 下跨模块直读 `screen._regions`
+   等报 `reportPrivateUsage`。按规则禁用 `# type: ignore`，改用 `getattr` 兜底
+   并注释字段名来源。
+8. **屏保 idle 自动触发路径未覆盖（主动放弃）**：`screen_saver.interval` 默认 120s
+   且每次输入 `poke()` 复位，短场景内不可能自然到期；要稳定触发必须替换
+   `IdleTracker` 的时钟（改产品侧或扩 `harness.new_app` 签名）。计划 §三方案 F 已
+   否决扩工厂签名，故本轮不覆盖，登记为待办。
+9. **屏保 `disabled` 场景用了两个 app**：`harness._run_one` 只对**最后一个**
+   app 跑不变量扫描，故不变量实际校验的是第二个（角色表全非法）app；两者都从未
+   开屏，无残留风险。已在场景 docstring 与基线说明中标注。
+
+### 7.5 本轮发现的工具侧问题（已记录，未在本轮修）
+
+**`invariant:no_leftover_modal` 对真实场景空转。** `run_test()` 退出时 Textual 会
+清空 `screen_stack`（实测：pilot 内部为 2，退出后为 0），而 `run_scenarios` 的
+不变量扫描发生在 `asyncio.run` 之后，因此该检查在真实场景里恒为真。要让它真正
+生效，需要把栈深快照移到场景的 `async with` 块内（例如 `harness` 提供一个
+`stack_depth(app)` 助手，由场景在收尾处自行断言），或改 `invariant_checks` 的调用
+时机。影响面覆盖全部 103 个场景，属于 harness 行为变更，不在本轮范围内。
+
+**缓解措施**：本轮 14 个新场景中涉及弹层的 6 个（diff 三条、屏保两条）都在场景内
+**自行断言**了 `len(app.screen_stack)`，因此不依赖该不变量。回归测试
+`tests/test_smoke_harness.py` 里用私有 `_screen_stacks` 复现了"留弹层"并断言钩子
+能判 FAIL，证明钩子本身有效、只是时机不对。
+
+### 7.6 待办（下一轮候选）
+
+1. 修 `invariant:no_leftover_modal` 的扫描时机（上条）。
+2. 补 B 档缺口：`vim_registers_text_objects` 的算子细分、terminal 死 shell 复活、
+   manual 内 `/` 搜索、`trust` 无 extensions 目录分支、breadcrumbs 断言。
+3. `--readonly` 启动路径（需先决定是否扩 `harness.new_app` 签名）。
+4. `report.py` 的 `note` / `json_written` / `compare` 着色分支仍无单测，可并入
+   本轮 §一.1 第 3 条的后续。
