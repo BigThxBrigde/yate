@@ -1,5 +1,11 @@
 # pack wiki 进度实时刷新修复方案（issue IKJPEK 评论）
 
+> **来源记录**（`doc-conventions.md` §二.2 要求记录 ↔ 方案互链）：
+> [2026-10-06-pack-wiki-progress-skill-review.md](../reviews/2026-10-06-pack-wiki-progress-skill-review.md)
+> —— 本方案 §6.9/§6.10 的三轮审查发现、实测证据与逐条状态均登记在该记录中；
+> [2026-10-05-pr56-pack-wiki-parallel-ai-review.md](../reviews/2026-10-05-pr56-pack-wiki-parallel-ai-review.md)
+> —— 前序 PR !56 的 AI 队友评审（其 P1–P4 由本方案 §6.7 R-03…R-06 落地）。
+>
 > 分支：`fix/pack-wiki-progress-refresh`（worktree：仓库同级目录 `../yate-pack-wiki-progress`）
 > Issue：<https://gitee.com/jermaine/yate/issues/IKJPEK> 评论
 > [`note_51450440`](https://gitee.com/jermaine/yate/issues/IKJPEK#note_51450440)（2026-10-05 22:42:11 +08:00）
@@ -146,19 +152,14 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 
 ### 6.2 门禁实测（worktree 沙箱，退出码均 0）
 
-审核轮最终态（详见 §6.7）：
+> 下表为**历史快照**，非当前值；最新门禁数字见 §6.10。
 
 | 命令 | 结果 |
 |---|---|
 | `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
-| `pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py` | **67 passed, 1 skipped** |
-| `pytest tests/test_pack_wiki*.py --cov=tools.pack.wiki` | 覆盖率 **95%**（491 stmts / 23 miss） |
-| `pytest tests/test_architecture.py` | **22 passed** |
-| `pytest tests/` | 全绿 |
-| `pytest tests/ --cov=yate --cov-fail-under=75` | 覆盖率 **91.27%**（阈值 75%） |
-
-首轮（提交 `20ff035`…`95ab4fa`）实测：`65 passed`、架构 `22 passed`、
-`1845 passed, 8 skipped`、覆盖率 `91.27%`。
+| `pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py` | **65 passed** in 11.44s |
+| `pytest tests/test_architecture.py` | **22 passed** in 3.45s |
+| `pytest tests/ --cov=yate --cov-fail-under=75` | **1845 passed, 8 skipped** in 450.90s；覆盖率 **91.27%**（阈值 75%） |
 
 ### 6.3 偏离计划（含实测依据）
 
@@ -173,9 +174,11 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 2. **删除 `_translate_pending` 的 `progress` 注入参数**：因偏离 1，该参数在生产
    与测试两侧都无调用方，成为死参数，已移除（避免签名腐化），docstring 同步
    删去对应说明。
-3. **README 措辞两轮收紧**：初版加"交互式终端"限定；审核轮进一步按实测改为
-   "stderr 是终端时才实时刷新；重定向时只有逐批行"，并去掉"全部实时刷新"
-   这类无条件表述。
+3. **README 措辞两轮收紧**：初版加"交互式终端"限定；审核轮按实测去掉
+   "全部实时刷新"这类无条件表述。第 3 轮再修正一次：非 TTY 下 rich **仍会在
+   `Live.stop()` 渲染一次最终帧**（主代理复核探针：`translating 25/25 … 100%`
+   + 3 个批行，排在逐批行之后），故措辞为"不实时刷新，结束时打印一次最终
+   进度条"（评审 R-18）。
 
 ### 6.4 负向演练（判别力实证）
 
@@ -306,8 +309,46 @@ final: completed=3 description='translating 3/3 page(s) · 0 batch(es) queued ·
 ```
 
 根因：`_description()` 作为**实参**在 `update(overall, advance=1, ...)` 之前
-求值（`wiki.py:837`），读到推进前的计数；只有批末 `batch_finished()` 才把文案
-追平。R-03…R-07 为 PR !56 登记但未处置的原有缺陷，本轮一并落地修复。
+求值（`_ProgressBoard.page_done`），读到推进前的计数；只有批末
+`batch_finished()` 才把文案追平。R-03…R-07 为 PR !56 登记但未处置的原有缺陷，
+本轮一并落地修复。
+
+> 登记落点：本轮发现按 `doc-conventions.md` §二登记在独立评审记录
+> [2026-10-06-pack-wiki-progress-skill-review.md](../../reviews/2026-10-06-pack-wiki-progress-skill-review.md)，
+> `legacy-issues.md` 只保留指针与流程风险（R-11）。
+
+### 6.10 第 3 轮（只读评审子代理）与最终门禁（2026-10-06）
+
+**第 2 轮**（主代理审查自己的重构）：发现 `_PageState.COPIED` 与
+`has_en_source` 参数无调用方（死成员，R-12，已删）；登记 R-13（退出码 130 的
+语义约定，接受并文档化）。
+
+**第 3 轮**（只读评审子代理，0 CRITICAL / 5 WARNING / 2 SUGGESTION）：
+
+| # | 问题 | 处置 |
+|---|---|---|
+| R-14 | `needs_translation` 生产零调用方，而重构为其新增哨兵常量 | ✅ docstring 如实标注调用面 + 登记 |
+| R-15 | `finally` 注释"绝不阻塞中断路径"被实测证伪（CPython 在 teardown join 池线程，实测 0.6s→3.1s） | ✅ 注释改为实测事实；真要立即退出（daemon worker / `os._exit`）超出本轮范围，登记为遗留 |
+| R-16 | R-05 只修了一半：`_emit_mode` 恢复在 drain **之后**，晚到消息进队列无人再取（探针 `residue after run: 1`） | ✅ 改为**先恢复串行策略再 drain**，晚到消息自行写 stderr（变异验证变红） |
+| R-17 | `test_a_late_worker_failure_is_not_dropped` 恒真（只断言队列 API，与"能否到终端"无关） | ✅ 改为在真实 drain 之后注入上报，断言 stderr 可见 + 队列为空（变异验证变红） |
+| R-18 | README"重定向时只有逐批行"与实测不符（非 TTY 结束时仍打印一次最终进度条） | ✅ 中英 README 与 §6.3 第 3 条按实测改写 |
+| R-19 / R-20 | 方案门禁计数过期、`wiki.py:837` 行号引用失效 | ✅ §6.2 标注为历史快照 + 指向本节；行号改为按函数引用 |
+
+第 3 轮同时复核了两项关键结论：`_translation_state()` 重构与重构前**逐分支等价**
+（全组合核对）；`page_done` 两步更新在 2 线程 × 6000 次压测下 `lag samples: 0`。
+
+**最终门禁（主代理亲自跑，退出码 0）**：
+
+| 命令 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| `pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py tests/test_tools_translate.py` | **93 passed, 1 skipped**（`skipif win32`） |
+| `pytest tests/ --cov=yate --cov-fail-under=75` | 全绿；覆盖率 **91.26%** |
+| `pytest tests/test_architecture.py` | **22 passed** |
+
+**遗留限制**（非缺陷，已登记）：真实 TTY 目验缺位（无人值守会话无法投递
+SIGINT / 目验）；自定义 hook 吞掉中断时的退出延迟（R-15）；分支落后 master
+（R-11，待用户决策）。
 
 ## 七、风险与回滚
 

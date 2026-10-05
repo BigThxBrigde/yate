@@ -24,102 +24,17 @@
 
 ## pack wiki 进度刷新与 Ctrl+C 治理：审查轮问题（2026-10-06 登记）
 
-来源：`python-code-review` skill 对 `fix/pack-wiki-progress-refresh` 累计改动的审查
-（issue IKJPEK 评论 `note_51450440` 驱动的修复 + 两轮审核处置 + 中断治理）。
-方案与逐条处置见
-[pack-wiki-progress-refresh-plan.md](../documents/pack-wiki-progress-refresh-plan.md) §6.7–§6.9。
-编号 `R-*` 为本轮编号（与 PR !56 评审的 P1–P4 区分）。
+> **已迁出**：本轮 skill 审查的发现与逐条证据按 `doc-conventions.md` §二登记在独立
+> 评审记录 [2026-10-06-pack-wiki-progress-skill-review.md](2026-10-06-pack-wiki-progress-skill-review.md)，
+> 修复方案与执行记录见
+> [pack-wiki-progress-refresh-plan.md](../documents/pack-wiki-progress-refresh-plan.md)
+> §6.8–§6.11。本节只保留跟踪指针与仍未处置的流程风险。
 
-### 待修（本轮已定位）
+- **本轮跟踪指针**：R-01…R-20 的状态以
+  [评审记录](2026-10-06-pack-wiki-progress-skill-review.md) §二/§三/§四 与
+  方案的处置表为准（R-09/R-10/R-13 为"接受并附理由"，R-15 的退出延迟为遗留限制）。
 
-- [ ] **R-01 · `[WARNING]` 总体行文案落后进度条一页** —
-  `tools/pack/wiki.py` `_ProgressBoard.page_done`：`_description()` 作为**参数**
-  在 `update(overall, advance=1, ...)` 之前求值，读到的是推进前的计数。
-  影响范围：wiki 翻译全程，总体行显示的页数恒比进度条少 1（探针实测
-  `delta=1`，仅批末 `batch_finished()` 才纠正）；与 README「进度条与文案同源」的
-  承诺不符，也与本轮修复目标（消灭"条与文案不一致"）自相矛盾。
-- [ ] **R-02 · `[WARNING]` 中断链路的端到端无用例** —
-  `tests/test_pack_wiki_parallel.py::test_console_interrupt_reaches_the_cli_as_exit_130`
-  走的是 `translate_via_cmd` 直接抛 `KeyboardInterrupt`，未覆盖
-  `_INTERRUPT_EXIT_CODES` → `_run_translate` → worker → 主线程 → CLI 130 这条
-  **真实**链路（用户报告的正是这条）。影响范围：`wiki.py` 的中断码识别与
-  `tools/translate` 返回 130 的接线无测试背书，接线被改坏不会有用例变红。
-- [ ] **R-03 · `[WARNING]` manifest 写失败用错错误码**（原有缺陷，PR !56 P1） —
-  `store_manifest()` 经 `_write_page_text()` 固定用 `WIKI_PAGE_WRITE`（WIKI-0106），
-  `WIKI_MANIFEST_WRITE`（WIKI-0105）为死码。影响范围：manifest 写失败与普通页面
-  写失败在输出中不可区分；排查 `.translation-manifest.json` 损坏时缺少定向码。
-- [ ] **R-04 · `[WARNING]` 通用 `OSError` 被误报为"源文件消失"**（原有缺陷，
-  PR !56 P2） — `_read_source_bytes()` 的通用 `OSError` 分支复用传入 `code`，
-  默认 `WIKI_ZH_SOURCE_MISSING`（WIKI-0102）；权限不足、磁盘故障被误报，
-  `WIKI_SOURCE_UNREADABLE`（WIKI-0103）为死码。影响范围：所有源文档读取失败场景
-  的错误码语义。
-- [ ] **R-05 · `[WARNING]` 中断时在途 worker 的失败行可能丢失**（原有缺陷，
-  PR !56 P3） — `_translate_pending` 的 `finally` 先 `pool.shutdown(wait=False)`
-  再清空 `_COLLECTED_FAILURES`；仍存活的 worker 可能①追加到已清空的列表导致丢失，
-  ②在 `_emit_mode` 恢复后直接写 stderr，造成两次运行输出交错。影响范围：中断与
-  并发收尾路径的可追溯性。
-- [ ] **R-06 · `[WARNING]` `needs_translation` 成为死代码且判定重复**（原有缺陷，
-  PR !56 P4） — `run()` 已不再调用它（仅测试引用），而 fresh/stale/missing/adopted
-  的判定在它与 `_prepare_pages` 各写一遍，规则可能漂移。影响范围：维护面，
-  `--translate-all` 的预告数与主循环判定的一致性。
-- [ ] **R-07 · `[WARNING]` 空 `plans` 会抛 `ValueError`** — `_translate_pending([])`：
-  `workers = min(resolve_jobs(jobs), 0)` → `ThreadPoolExecutor(max_workers=0)` 抛错。
-  生产路径被 `run()` 的 `if plans:` 挡住，但函数自身无卫语句。影响范围：直接调用
-  该函数（测试 / 未来复用）时崩溃。
-- [ ] **R-08 · `[SUGGESTION]` 同一对象两个名字** — `_ProgressBoard` 字段叫 `progress`，
-  `_translate_pending` 局部变量叫 `display`。影响范围：可读性（前者已随参数删除
-  统一过一次）。
-
-### 第 1 轮已修（2026-10-06，提交 `00124d8` / `cf94290`）
-
-- [x] **R-01 · 总体行文案落后进度条一页** — 探针实测 `delta=1`；成因是
-  `_description()` 作为**实参**在 `update(advance=1)` 之前求值。已改为推进后
-  再刷新文案（两次 `update`），并补断言：每页开始时文案页数 == `completed`
-  （变异验证：退回单次 `update` 即失败）。
-- [x] **R-02 · 中断链路端到端无用例** — 新用例让子进程以
-  `0xC000013A` 退出，走 `_INTERRUPT_EXIT_CODES` → worker → 主线程 → CLI
-  130 的**真实**路径，断言退出码 130、无 `Traceback`、无 `error[WIKI-0201]`。
-- [x] **R-03 · manifest 写失败用错错误码** — `_write_page_text` 增加 `code`
-  形参，`store_manifest` 传 `WIKI_MANIFEST_WRITE`（WIKI-0105 不再是死码）。
-  用例让真实写失败（manifest 路径为目录）。
-- [x] **R-04 · 通用 `OSError` 被误报为"源消失"** — 改报 `WIKI_SOURCE_UNREADABLE`
-  并附权限提示，WIKI-0103 不再是死码。
-- [x] **R-05 · 在途 worker 的失败行可能丢失** — 收集器改为
-  `queue.SimpleQueue`（无界、不会因主线程清空而丢消息），新增
-  `_drain_collected_failures()`；注释与 `_run_batch` docstring 记录"中断时
-  在途消息推迟到下一次 drain 打印"。
-- [x] **R-06 · `needs_translation` 与 `_prepare_pages` 判定重复** — 抽出
-  `_translation_state()` + `_PageState` 枚举，两处共用同一判定；预览保留原有
-  短路顺序（不读已判定页面的源，避免行为差异）。
-- [x] **R-07 · 空 `plans` 抛 `ValueError`** — `_translate_pending` 增加卫语句，
-  空输入返回空报告（变异验证：移除后用例以 `ValueError` 失败）。
-- [x] **R-08 · 同一对象两个名字** — 局部 `display` 统一为 `progress`。
-
-### 第 2 轮发现（2026-10-06）
-
-- [x] **R-12 · `_PageState.COPIED` 与 `has_en_source` 是死路径** — 判定枚举
-  新增的 "copied" 成员与参数没有任何调用方传 `True`（预览先短路、rebuild 已
-  在 `en_bytes` 分支处理）。已删除该成员与参数，docstring 说明"能走到判定器
-  的页面都已越过复制分支"。
-- [ ] **R-13 · 中断退出码 130 的语义约定（文档化权衡）** —
-  `_INTERRUPT_EXIT_CODES` 把 `130` 也当作"被中断"。若用户的自定义
-  `--translate-cmd` 用 `130` 表示普通失败，会被误判为中断（整轮中止而非
-  单页失败）。POSIX 惯例与 `tools.translate` 的返回值一致，判定为可接受；
-  **状态：接受并文档化**，如将来出现此类 hook 需在 `_run_translate` 改回
-  按 stderr 内容细分。
-
-### 已接受为风险（附理由，不再复议）
-
-- [ ] **R-09 · 进度回调异常复用翻译失败通道** — `_ProgressBoard` 的回调与翻译同处
-  一个 `try`，若 rich 自身抛错会被记作 `outcome.error` 并中止整轮。键来源已单一
-  （submit 遍历 `batch_tasks`），该路径只在 rich 缺陷时可达；为它新增独立告警通道
-  属过度防御。**接受**，理由：复杂度收益为负。
-- [ ] **R-10 · `_emit_mode` 全局使 `run()` 理论不可重入** — 修法需改
-  `translate_via_cmd` 公开签名（测试与文档均依赖）。CLI 每次进程只跑一个 run，
-  并发两个 run 不可达。**接受**：R-05 已消除消息丢失，剩余仅为模式串扰这一
-  理论路径。
-
-### 流程风险
+### 流程风险（仍未处置）
 
 - [ ] **R-11 · 修复分支落后 master** — `fix/pack-wiki-progress-refresh` 基于
   `d691bfb`，master 之后合入了 PR !57（smoke 测试，5000+ 行）。本分支改动集中在
