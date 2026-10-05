@@ -2,10 +2,10 @@
 """Shared PyInstaller build logic for ``pack/yate.spec`` and ``pack/yate-onefile.spec``.
 
 The two spec files keep only their ``Analysis`` / ``EXE`` / ``COLLECT``
-differences; every other build step (icon resolution, hidden imports,
-tree-sitter binaries, dist-info metadata, data files and the bundled
-extensions ``Tree``) is gathered once by :func:`collect` and handed to the
-spec as a :class:`SpecInputs`.
+differences; every other build step (icon resolution, hidden imports, the
+excluded-modules inventory, tree-sitter binaries, dist-info metadata, data
+files and the bundled extensions ``Tree``) is gathered once by :func:`collect`
+and handed to the spec as a :class:`SpecInputs`.
 
 PyInstaller exec's spec files as plain scripts (not imports), so each spec
 puts its own directory (``SPECPATH``) on ``sys.path`` before doing
@@ -61,6 +61,22 @@ _TS_PACKAGES: tuple[str, ...] = (
     "tree_sitter_zig",
 )
 
+#: Third-party packages dropped from the frozen graph (issue IKJPVB).  They are
+#: pulled in transitively but never touched at runtime, so shipping them is
+#: pure payload: ``PIL`` arrives through ``pygments.formatters.img``, whose
+#: ``try: from PIL import Image, ImageDraw, ImageFont`` only needs an image
+#: formatter yate never uses -- and yate itself imports Pillow solely to
+#: regenerate the committed ``pack/yate.ico`` (``tools/pack/icon.py`` imports
+#: it dynamically, outside the frozen entry point).  Measured on the one-folder
+#: bundle: PIL cost 13.1 MiB of 60.6 MiB.  ``numpy`` is Pillow's optional array
+#: backend (``PIL._typing`` imports it conditionally), excluded with it.
+#: Re-derive the inventory from ``build/<name>/xref-<name>.html`` and
+#: ``warn-<name>.txt`` after a build before adding anything here.
+EXCLUDES: tuple[str, ...] = (
+    "PIL",
+    "numpy",
+)
+
 
 @dataclass(frozen=True)
 class SpecInputs:
@@ -72,6 +88,8 @@ class SpecInputs:
     icon: str | None
     #: yate's own submodules plus the tree-sitter packages, when installed.
     hiddenimports: list[str]
+    #: Modules PyInstaller must not pull in -- see :data:`EXCLUDES`.
+    excludes: list[str]
     # PyInstaller returns untyped values (no stubs shipped); they are passed
     # through to Analysis/EXE verbatim, so Any is the honest annotation.
     ts_binaries: list[Any]  # noqa: Any - PyInstaller has no type stubs
@@ -161,6 +179,7 @@ def collect(specpath: str) -> SpecInputs:
         project_root=project_root,
         icon=icon,
         hiddenimports=hiddenimports,
+        excludes=list(EXCLUDES),
         ts_binaries=ts_binaries,
         ts_datas=ts_datas,
         yate_datas=yate_datas,

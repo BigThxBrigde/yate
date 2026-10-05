@@ -5,15 +5,21 @@ Build with (after ``pip install -e ".[build,ts]"``), from the repository root::
 
     pyinstaller pack/yate.spec
 
-The output is dist/yate/yate.exe (a one-folder build). Resources are located
-at runtime through yate.paths, which checks sys._MEIPASS, so the data layout
+The output is dist/yate/yate.exe (a one-folder build) with the runtime files
+placed right next to the executable -- no ``_internal/`` subdirectory
+(issue IKJPVB). Resources are located at
+runtime through yate.paths, which checks sys._MEIPASS, so the data layout
 shared with pack/_common.py must mirror the source tree (everything lands
 inside a top-level ``yate`` package folder in the bundle).
 
+Modules that are dragged in transitively but never used at runtime (Pillow
+and numpy) are dropped from the frozen graph via
+``pack/_common.py``'s ``EXCLUDES``.
+
 For a single self-extracting exe instead, use ``pack/yate-onefile.spec``.
-Every build step the two specs share (icon, hidden imports, tree-sitter
-binaries, dist-info metadata, data files, extensions Tree) lives in
-``pack/_common.py``; this file keeps only the one-folder Analysis/EXE/COLLECT
+Every build step the two specs share (icon, hidden imports, excludes,
+tree-sitter binaries, dist-info metadata, data files, extensions Tree) lives
+in ``pack/_common.py``; this file keeps only the one-folder Analysis/EXE/COLLECT
 differences.
 
 This spec lives in pack/, one level below the repository root. PyInstaller
@@ -52,7 +58,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=inputs.excludes,
     noarchive=False,
 )
 a.datas += inputs.extensions_tree
@@ -69,6 +75,10 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
+    # Flat one-folder layout (issue IKJPVB): PyInstaller >=6 defaults to a
+    # ``_internal/`` subdirectory, "." restores the pre-6 layout where the
+    # runtime files sit next to yate.exe.  COLLECT inherits this from EXE.
+    contents_directory=".",
     console=True,
     disable_windowed_traceback=False,
 )
