@@ -1,10 +1,16 @@
 # Gitee PR #57 AI 队友评审 — 冒烟扩充 — 2026-10-05
 
 > 来源：[PR !57 `docs(smoke): backfill the expansion results and the scenario traps`](https://gitee.com/jermaine/yate/pulls/57#note_51450178_conversation_191412657)
-> note 51450178 / conversation 191412657（评审者：`pull_review_bot_2f642dd39f557e6f`
-> 「PR观察者」，2026-10-05 21:46:56）。原始评论另经
+>
+> - **第一轮**：note 51450178 / conversation 191412657，2026-10-05 21:46:56
+>   —— ⛔ 1 阻断 + 2 改进（见 §二、§三），**已全部销账**。
+> - **第二轮**：note 51450575 / conversation 191414938，2026-10-05 23:14:55
+>   —— ⚠️ 0 阻断 + 1 改进（见 §六），**登记待处置**。
+>
+> 评审者：`pull_review_bot_2f642dd39f557e6f`「PR观察者」。原始评论另经
 > `https://gitee.com/api/v5/repos/jermaine/yate/pulls/57/comments` 取回核对
-> （页面本身不展开评论正文，只有 API 能拿到全文）。
+> （页面本身不展开评论正文，只有 API 能拿到全文）。两轮均由用户以
+> `@pull_review_bot_… /review` 触发。
 >
 > 整改方案：[smoke-review-fixes-plan.md](../documents/smoke-review-fixes-plan.md)。
 >
@@ -133,3 +139,78 @@
 > 检查数是可靠口径，耗时只作参考**，本条不据此判断性能回归。
 
 整改方案与逐处落点：[smoke-review-fixes-plan.md](../documents/smoke-review-fixes-plan.md)。
+
+## 六、第二轮评审（note 51450575，2026-10-05 23:14:55）
+
+触发：用户在 23:10:35 以 `@pull_review_bot_… /review` 再次唤起。评审时点为本轮
+整改合入之后（`99ee498` 合并 master、场景数 104）。
+
+### 6.1 四维度评审结论（原表照录）
+
+| 评审规则 | 评审内容 | 评审结论 | 完成时间 |
+|---|---|---|---|
+| 功能性与逻辑 | 代码是否按预期执行？有无逻辑错误或未处理的边缘情况？ | ✅ 通过 | 2026-10-05 23:14:55 |
+| 安全性 | 是否存在 SQL 注入、XSS、命令注入、敏感信息泄露等风险？ | ✅ 通过 | 2026-10-05 23:14:55 |
+| 性能 | 是否有明显的性能瓶颈？ | ✅ 通过 | 2026-10-05 23:14:55 |
+| 可维护性 | 代码是否清晰易读？注释是否充分？命名是否合理？ | ⚠️ 待优化 | 2026-10-05 23:14:55 |
+
+总评：⚠️ **无阻断项，1 个改进建议，可优化后合并**；风险等级 **low**。评审者对
+改动面的归纳：新增 5 个场景模块（场景 89 → 104）、命令与动作覆盖补到
+`45/45` 与 `66/66`、新增 3 个 harness 单测文件、上一轮三项已修、基线与文档同步。
+
+### 6.2 改进项 M3：CLI 测试的全局状态隔离与 harness 单测不对称
+
+- 分类：可维护性
+- 位置：`tests/test_smoke_cli.py`（关联 `tests/test_smoke_harness.py`）
+- 评审者判断：`test_smoke_harness.py` 用 autouse fixture 保护全局状态，而
+  `test_smoke_cli.py` 调用 `main()` 真跑场景时没有同等保护；若场景改动全局随机
+  种子或主题，会污染后续测试，造成顺序相关或偶发失败。建议补上同样的恢复
+  fixture，或确认被调场景绝无全局副作用。
+
+**核对结论：不对称属实，但性质是"潜在"而非"现症"，且评审对 fixture 的描述有误。**
+
+逐条核实（只读取证）：
+
+1. **不对称确实存在**：`tests/test_smoke_cli.py` 全文**没有任何 fixture**（连
+   非 autouse 的也没有），而它有三处调用 `main()`。其中两处（`:167` 的 tag 与
+   场景名不匹配、`:177` 的基线目录不存在）都在 `cmd_run` / `cmd_compare` 的
+   `return 2` 早退分支里，**根本不会执行场景**；真正跑场景的只有 `:184` 一处
+   （`main(["run", "--scenario", "keymap_toggle", "--quiet", "--no-color"])`）。
+2. **评审对 fixture 的描述不准确**：`test_smoke_harness.py` 只有**一个** autouse
+   fixture——`restore_fuzz_seed`（`:52`）；`restore_theme`（`:61`）**不是**
+   autouse，而是被两个用例按需显式请求的参数化 fixture
+   （`test_note_registries_*`，`:136` / `:148`）。评审把两者都称作 autouse。
+3. **当前没有被污染的证据**：唯一真跑的场景是 `keymap_toggle`（core.py），它
+   两次切换键位后回到 `vsc`（自复原）；CLI 未传 `--seed`，而 `cmd_run` 仅在
+   `args.seed is not None` 时才调 `set_seed`，全局种子不变；主题则由 harness 的
+   `invariant:theme_restored` 校验、并由 `_run_one` 收尾强制复原
+   （`harness.py:445-453`）。三条路径都不依赖测试侧的 fixture 兜底。
+4. **风险是潜在的**：若日后该模块新增一个会切主题或调 `set_seed` 的场景，隔离
+   缺失就会变成真实的顺序依赖；本轮不修等于把这条约束只留在口头。
+
+**处置：登记待处置，本轮按用户指令只登记不改。** 若后续修，评审自己给出的两条
+路径里，**从另一个测试模块 import fixture**（`from tests.test_smoke_harness
+import restore_fuzz_seed, restore_theme`）有测试模块耦合与重复收集风险
+（评审也已自行标注）；更稳妥的是把两个恢复 fixture 提到 `tests/conftest.py`
+或专用测试辅助模块，由两者共用。
+
+### 6.3 评审自身的三处数字／描述偏差（照实记录）
+
+| 评审表述 | 实测 |
+|---|---|
+| "使用了 autouse 的 `restore_fuzz_seed` 和 `restore_theme` Fixture" | 只有 `restore_fuzz_seed` 是 autouse；`restore_theme` 是按需 fixture（见 6.2 第 2 点） |
+| "14 个新场景的 JSON 基线文件" | 相对 master 实测 **15 个**基线文件，且**全部为新增（`A`）、无修改**（`git diff --name-status master...HEAD` 计数） |
+| 场景总数 89 → 104 | ✅ 与实测一致（+15：扩充 14 + 拆屏保场景净增 1） |
+
+### 6.4 状态
+
+| 编号 | 摘要 | 分类 | 状态 |
+|---|---|---|---|
+| M3 | `tests/test_smoke_cli.py` 缺全局状态隔离，与 `test_smoke_harness.py` 不对称 | 改进 | 👀 登记待处置（2026-10-05；潜在风险非现症，0 阻断，可合并） |
+
+### 6.5 轮次小结
+
+| 轮次 | 结论 | 阻断 / 改进 | 处置 |
+|---|---|---|---|
+| 第一轮（21:46:56） | ⛔ 未通过 | 1 阻断 / 2 改进 | ✅ 已全修（`c7099d0` / `77475d8` / `6a95fd8`） |
+| 第二轮（23:14:55） | ⚠️ 无阻断，可优化后合并 | 0 阻断 / 1 改进 | 👀 登记待处置（M3，见 §6.2 的稳妥修法建议） |
