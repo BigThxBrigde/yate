@@ -283,6 +283,32 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 `CTRL_C` → `SIGINT` → 默认 handler，与其日志一致。复现 `CTRL_C_EVENT` 需把它
 发给前台进程组，会波及本机会话，故不做。）
 
+### 6.9 `python-code-review` skill 审查轮（2026-10-06 起，循环迭代）
+
+**skill 缺口补齐**：`code-review-expert` 剧本要求先加载 `python-code-review` skill，
+但仓库与用户目录均无此 skill（前一轮评审实测加载失败）。本轮按 `skill-creator`
+规范创建了项目级 skill（`.codebuddy/skills/python-code-review/`，机器本地、
+`.gitignore` 覆盖，不入库）：`SKILL.md` 固化"权威规则源 + 六维度 + 三级严重度 +
+探针/变异 + 门禁 + 循环"的工作流，`references/yate-checklist.md` 记录
+`yate/` / `tools/` / `tests/` / 文档四层的项目专用陷阱（含"改动在 `tools/` 时
+`--cov=yate` 零信号，必须显式测模块"）。
+
+**第 1 轮结论**：0 CRITICAL / 7 WARNING / 3 SUGGESTION，全部登记到
+[legacy-issues.md](../../reviews/legacy-issues.md)（编号 R-01…R-11，含描述、
+影响范围、状态）。其中 R-01 为**本轮修复自身引入**的缺陷，经探针实证：
+
+```text
+(completed, description shows) per page start:
+  completed=0 description=-1 delta=1
+  completed=1 description=0  delta=1
+  completed=2 description=1  delta=1
+final: completed=3 description='translating 3/3 page(s) · 0 batch(es) queued · 1 worker(s)'
+```
+
+根因：`_description()` 作为**实参**在 `update(overall, advance=1, ...)` 之前
+求值（`wiki.py:837`），读到推进前的计数；只有批末 `batch_finished()` 才把文案
+追平。R-03…R-07 为 PR !56 登记但未处置的原有缺陷，本轮一并落地修复。
+
 ## 七、风险与回滚
 
 | 风险 | 缓解 | 回滚 |
