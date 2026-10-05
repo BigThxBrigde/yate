@@ -16,6 +16,7 @@ bound is asserted, so the tests do not jitter.
 
 from __future__ import annotations
 
+import re
 import sys
 import threading
 import time
@@ -25,6 +26,7 @@ from io import StringIO
 from pathlib import Path
 
 import pytest
+import subprocess
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -455,6 +457,16 @@ def _install_display(monkeypatch: pytest.MonkeyPatch, display: Progress) -> None
     monkeypatch.setattr(wiki, "Progress", factory)
 
 
+def _shown_pages(description: str) -> int:
+    """Return the page count the overall row text currently shows.
+
+    Returns ``-1`` when the text is still the initial ``translating`` label,
+    so a mismatch reports itself instead of silently comparing to zero.
+    """
+    match = re.search(r"translating (\d+)/(\d+)", description)
+    return int(match.group(1)) if match else -1
+
+
 def test_console_interrupt_stops_the_run_instead_of_failing_every_page(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -490,12 +502,24 @@ def test_console_interrupt_stops_the_run_instead_of_failing_every_page(
     assert "Traceback" not in err
 
 
-def test_console_interrupt_reaches_the_cli_as_exit_130(
+def test_console_interrupt_exit_code_reaches_the_cli_as_130(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The same interrupt through the CLI is a clean 130, not exit 1."""
-    monkeypatch.setattr(wiki, "translate_via_cmd", _raise_keyboard_interrupt)
+    """The child's control-C exit code reaches the CLI as a clean 130.
+
+    This is the path the user's report actually took: the console
+    interrupt killed the translator, and the parent has to recognise that
+    exit code -- not merely an exception raised inside the pool.  Wiring it
+    end to end here means a change that breaks the recognition (or the
+    130 mapping) fails a test instead of printing tracebacks again.
+    """
+    traceback = "Traceback (most recent call last):\nKeyboardInterrupt\n^C\n"
+
+    def interrupted_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([str(cmd)], 0xC000013A, "", traceback)
+
+    monkeypatch.setattr(wiki.subprocess, "run", interrupted_run)
     monkeypatch.setattr("tools._util.repo_root", lambda: repo)
     argv = [
         "wiki",
@@ -508,12 +532,7 @@ def test_console_interrupt_reaches_the_cli_as_exit_130(
     err = capsys.readouterr().err
     assert "interrupted" in err
     assert "Traceback" not in err
-
-
-def _raise_keyboard_interrupt(text: str, translate_cmd: str) -> str | None:
-    """Fake translator that always reports an interrupt."""
-    del text, translate_cmd
-    raise KeyboardInterrupt
+    assert f"error[{wiki.Code.WIKI_TRANSLATE_FAILED}]" not in err
 
 
 def test_batch_progress_advances_page_by_page_while_a_batch_runs(
@@ -537,6 +556,7 @@ def test_batch_progress_advances_page_by_page_while_a_batch_runs(
     _install_display(monkeypatch, progress)
 
     observed: dict[str, tuple[int, int]] = {}
+    texts: dict[str, tuple[int, int]] = {}
     lock = threading.Lock()
 
     def fake_translate(text: str, translate_cmd: str) -> str | None:
@@ -544,9 +564,14 @@ def test_batch_progress_advances_page_by_page_while_a_batch_runs(
         # Row 0 is the overall task, row 1 the first batch (the generator
         # adds the overall task before the per-batch ones).
         with lock:
+            overall_row = progress.tasks[progress.task_ids[0]]
             observed[stem] = (
-                int(progress.tasks[progress.task_ids[0]].completed),
+                int(overall_row.completed),
                 int(progress.tasks[progress.task_ids[1]].completed),
+            )
+            texts[stem] = (
+                int(overall_row.completed),
+                _shown_pages(str(overall_row.description)),
             )
         return _english_for(text)
 
@@ -566,6 +591,11 @@ def test_batch_progress_advances_page_by_page_while_a_batch_runs(
     assert all(
         row.total is not None and row.completed <= row.total for row in batch_rows
     )
+    # R-01: the row text must not lag its own bar by a page.  Sampling the
+    # text at every page start makes the old argument-evaluation order fail:
+    # the description was rendered before the advance it belonged to.
+    assert texts["page02"][1] == texts["page02"][0]
+    assert texts["page10"][1] == 9
 
 
 def test_concurrent_workers_keep_the_progress_rows_consistent(

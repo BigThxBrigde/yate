@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Callable
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -362,3 +363,87 @@ def test_cli_wiki_debug_adds_traceback_without_changing_error_line(
     assert "error[WIKI-0102]: Chinese source vanished: alpha-plan.md" in err
     assert "hint: re-run once the source tree is complete" in err
     assert _TRACEBACK_HEAD in err
+
+
+def test_store_manifest_failure_reports_wiki_0105(tmp_path: Path) -> None:
+    """A manifest that cannot be written says so with its own code.
+
+    Review R-03: the store is read back on the next run, so a failed write
+    there must be distinguishable from an ordinary page write -- both used
+    to report ``WIKI-0106`` and ``WIKI_MANIFEST_WRITE`` was dead code.
+
+    The manifest path is turned into a directory so the *real*
+    ``_write_page_text`` fails: stubbing that helper instead would make the
+    test pass whether or not the caller passes the code along.
+    """
+    (tmp_path / wiki.MANIFEST_NAME).mkdir()
+    with pytest.raises(wiki.WikiError) as excinfo:
+        wiki.store_manifest(tmp_path, {"page.zh.md": "abc"})
+    assert excinfo.value.code == wiki.Code.WIKI_MANIFEST_WRITE
+
+
+def test_source_read_oserror_reports_wiki_0103(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable source is not reported as a vanished one.
+
+    Review R-04: a permission error or a failing disk used to surface as
+    ``WIKI-0102`` ("Chinese source vanished"), sending the reader after a
+    rename that never happened, and leaving ``WIKI-0103`` unreferenced.
+    """
+    source = tmp_path / "alpha-plan.md"
+    source.write_text("# alpha\n", encoding="utf-8")
+
+    def denied(path: Path) -> bytes:
+        del path
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr(Path, "read_bytes", denied)
+    with pytest.raises(wiki.WikiError) as excinfo:
+        getattr(wiki, "_read_source_bytes")(source)
+    assert excinfo.value.code == wiki.Code.WIKI_SOURCE_UNREADABLE
+    assert "check file permissions" in (excinfo.value.hint or "")
+
+
+def test_empty_translation_stage_reports_nothing(
+    tmp_path: Path,
+) -> None:
+    """An empty plan list is a no-op, not ``max_workers=0``.
+
+    Review R-07: ``min(resolve_jobs(...), 0)`` used to reach the pool as
+    ``max_workers=0``, which raises.  ``run()`` filters empty plans out,
+    so the guard is only reachable from a direct call -- which is why it is
+    driven through ``getattr`` here (pyright forbids private access).
+    """
+    report = getattr(wiki, "_translate_pending")(
+        [],
+        "fake-cmd",
+        target=tmp_path / "wiki",
+        jobs=None,
+        console=wiki.Console(file=StringIO()),
+    )
+    assert report.translated == 0
+    assert report.missing == []
+    assert report.stale == []
+
+
+def test_a_late_worker_failure_is_not_dropped(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A failure arriving after the drain still reaches the terminal.
+
+    Review R-05: the collector was a list the main thread cleared while
+    workers were still running, so a message that landed afterwards was
+    silently lost.  The queue cannot lose it -- the next drain finds it.
+    """
+    monkeypatch.setattr(wiki, "_emit_mode", "collect")
+    getattr(wiki, "_emit_translate_failure")("late failure line")
+    # Nothing drains until a translation stage runs, so the message waits in
+    # the queue instead of being cleared away; ``monkeypatch`` restores the
+    # serial default afterwards, exactly like the stage's ``finally``.
+    queue = getattr(wiki, "_COLLECTED_FAILURES")
+    assert queue.qsize() == 1
+    drained = getattr(wiki, "_drain_collected_failures")()
+    assert drained == ["late failure line"]
+    assert queue.qsize() == 0
+    assert "late failure line" not in capsys.readouterr().err
