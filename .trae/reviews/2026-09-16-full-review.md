@@ -274,6 +274,14 @@
 - [ ] **ctrl+digit 绑定使用 kitty 协议，大多数终端不支持** — `keymaps/base.py:105`
   *复核：仍存在 — [base.py:118-121](../../yate/keymaps/base.py) 仍编码为 CSI-u。*
   *⏸ 暂缓（2026-09-25，P2 决策门 G1）：保留 kitty 现状，备注「待 KeyBinding 在 WT 重构后彻底修复」；届时与 N19 落地的 `FOCUS_EDITOR_KEY` 单点常量一并处理。*
+  *✅ 已闭环（2026-10-05 补注，销账依据见
+  [`.trae/documents/keybinding-fix-wt-plans/overview.md`](../documents/keybinding-fix-wt-plans/overview.md)）：
+  keybinding-fix-wt Phase B 启用 win32-input-mode（CSI ?9001h）后，Windows Terminal 下
+  `ctrl+1` 物理可达（PB6 真机 harness 实证帧 `[49;2;0;1;40;1_`，12/12 PASS），
+  应用层断言在位 `tests/test_dispatch_guards.py`；conhost / VS Code 的残留限制
+  已由 PB4 在中英双语 manual 标注，并入
+  [`.trae/reviews/README.md`](README.md) 速览 #10 的三终端人工矩阵（PB5）。
+  legacy 路径仍保留 kitty 编码，故本条按"主路径已修、legacy 限制已标注"结案。*
 
 - [x] **`cycle_tab` 允许空操作循环** — `app.py:453`
   *复核：仍存在 — [editor.py:476-484](../../yate/editor.py) 单 tab 时仅提示。*

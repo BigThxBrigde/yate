@@ -1,7 +1,7 @@
 # yate 代码评审报告：tcss 拆分实现（2026-09-27）
 
 > 生成时间：2026-09-27 09:30 +08:00
-> 评审对象：commit `3105f66`（feat(app): move app-level CSS to bundled app.tcss resource）+ 修复 `7e51d6b`，worktree `D:/Programming/yate-tcss-enh-wt`，分支 `enh/tcss-enh`（基线 master@479f192）
+> 评审对象：commit `3105f66`（feat(app): move app-level CSS to bundled app.tcss resource）+ 修复 `7e51d6b`，worktree `<worktree>`，分支 `enh/tcss-enh`（基线 master@479f192）
 > 关联 issue：[IKINFT](https://gitee.com/jermaine/yate/issues/IKINFT)（ENH - 从 app 里面拆分 css 到 tcss 文件，集成打包）
 > 评审范围：[yate/app.py](../../yate/app.py)、[yate/resources/app.tcss](../../yate/resources/app.tcss)、[tests/test_app_css.py](../../tests/test_app_css.py)、pyproject.toml（仅注释行）
 > 评审方式：主代理多维评审 + 2 个子代理交叉验证（见 §六 诚实性说明）→ 主代理自审兜底；全部结论基于第一手 diff 与实测命令
@@ -84,5 +84,5 @@
 
 ## 六、诚实性说明
 
-- 按交叉验证流程派出的 2 个验证子代理**均误读主仓目录**（`d:\Programming\yate`，master 无此变更），得出 "app.tcss 不存在" 的错误结论；修正路径重试时子代理已结束（SendMessage 返回 finished），按子代理规则的兜底路径转**主代理自审**：3 个问题均为确定性事实（语言语义、文件内容、字符数算术），无推测成分；子代理零产出已如实计入，不冒充交叉验证结论。
+- 按交叉验证流程派出的 2 个验证子代理**均误读主仓目录**（`<worktree>`，master 无此变更），得出 "app.tcss 不存在" 的错误结论；修正路径重试时子代理已结束（SendMessage 返回 finished），按子代理规则的兜底路径转**主代理自审**：3 个问题均为确定性事实（语言语义、文件内容、字符数算术），无推测成分；子代理零产出已如实计入，不冒充交叉验证结论。
 - 所有打包/门禁数字均为 worktree 独立 venv 实测（`.venv`：textual 8.2.8 / pytest 9.1.1 / pyright 1.1.414 / PyInstaller build extra），未引用任何子代理自述数字。

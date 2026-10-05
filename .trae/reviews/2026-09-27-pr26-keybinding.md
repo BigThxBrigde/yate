@@ -36,7 +36,7 @@
   [driver_windows.py:254](../../yate/keyproto/driver_windows.py#L254)，后者已标注唯一
   "insertion point" 即 chord 分支）。AI 追加建议（升级时建立 diff 检查流程、标注插入点）
   属流程改进，现文档已承载：插入点与 9001h 启停读写均写入 docstring 与
-  [keybinding-fix-wt-steps-plan-g.md PB6 节](../documents/keybinding-fix-wt/keybinding-fix-wt-steps-plan-g.md)，无需改码。*
+  [keybinding-fix-wt-steps-plan-g.md PB6 节](../documents/keybinding-fix-wt-plans/keybinding-fix-wt-steps-plan-g.md)，无需改码。*
 
 - [x] **热路径 `log.debug` 开销（性能）** —
   [`editor.py`](../../yate/editor.py) `Editor.handle_key` 高频路径日志在 `YATE_TRACE=1`

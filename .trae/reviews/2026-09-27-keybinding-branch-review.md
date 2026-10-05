@@ -1,7 +1,7 @@
 # yate 分支代码评审报告 — issues/keybinding-fix-wt（2026-09-27）
 
 > 评审对象：分支 `issues/keybinding-fix-wt` 相对 `master`（merge-base `108f763`），
-> worktree `d:/Programming/yate-keybinding-fix-wt`，评审时 HEAD = `b21ff37`（39 commits，34 代码文件，+1308/-25）
+> worktree `<worktree>`，评审时 HEAD = `b21ff37`（39 commits，34 代码文件，+1308/-25）
 > 评审范围：键位修复主线（L0 新包 `yate/keyproto`：键弦模型 + Windows chord 驱动 + win32-input-mode 帧解码；
 > `key_protocol` 配置；双键位守卫测试）+ 分层 trace 日志（L0-L4 接入 + AST 架构守卫）
 > 评审方式：主代理通读全量 diff + 对照 Textual 8.2.8 stock 源码逐行核实 + 2 个独立验证子代理交叉复核 + 全门禁复跑
