@@ -68,11 +68,12 @@ _TS_PACKAGES: tuple[str, ...] = (
 #: formatter yate never uses -- and yate itself imports Pillow solely to
 #: regenerate the committed ``pack/yate.ico`` (``tools/pack/icon.py`` imports
 #: it dynamically, outside the frozen entry point).  Measured on the one-folder
-#: bundle: PIL cost 13.1 MiB of the 68.4 MiB dist/yate folder.  ``numpy`` is
-#: Pillow's optional array backend (``PIL._typing`` imports it conditionally),
-#: excluded with it.  Re-derive the inventory from
-#: ``build/<name>/xref-<name>.html`` and ``warn-<name>.txt`` after a build
-#: before adding anything here.
+#: bundle: PIL cost 13.1 MiB of the 68.4 MiB ``dist/yate`` folder (the whole
+#: one-folder bundle, exe included).  ``numpy`` is Pillow's optional array
+#: backend (``PIL._typing`` imports it conditionally) and is listed defensively:
+#: it saves nothing unless the build environment happens to have numpy
+#: installed.  Re-derive the inventory from ``build/<name>/xref-<name>.html``
+#: and ``warn-<name>.txt`` after a build before adding anything here.
 EXCLUDES: tuple[str, ...] = (
     "PIL",
     "numpy",
