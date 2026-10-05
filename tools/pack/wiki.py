@@ -490,9 +490,9 @@ def prune_orphan_pages(target: Path, keep: set[str]) -> int:
 #:
 #: A queue rather than a list on purpose (review R-05): a worker that
 #: finishes after ``pool.shutdown(wait=False)`` used to append to a list the
-#: main thread had already cleared, so the message was silently lost.  An
-#: unbounded queue cannot lose it -- a late message simply surfaces on the
-#: next drain.
+#: main thread had already cleared, so the message vanished.  The queue is
+#: drained once, with the serial policy restored first, so anything that
+#: arrives later writes its own line instead of piling up unread.
 _emit_mode: str = "print"
 
 _COLLECTED_FAILURES: queue.SimpleQueue[str] = queue.SimpleQueue()
@@ -645,6 +645,14 @@ def needs_translation(
     empty English page is pending; an adopted (no manifest record) or
     fresh page is pending only under *translate_all*; a stale page is
     always pending.
+
+    **No production caller** (review R-14): ``run()`` prepares pages with
+    :func:`_prepare_pages`, which asks the same verdict internally, so this
+    function is exercised by the test suite and by any external preview.
+    It stays because the matrix test is the readable statement of the
+    rule -- deleting it would move those assertions onto a private helper
+    without making the rule any clearer.  If a caller ever needs it, the
+    sentinel below is the seam to revisit.
 
     *translate_cmd* is assumed to be present -- this is only ever asked
     when a hook is wired up.
@@ -1190,18 +1198,21 @@ def _translate_pending(
                 markup=False,
             )
     finally:
-        # Never block the interrupt path: queued tasks are cancelled and the
-        # in-flight translators are left to the console event that already
-        # reached them, instead of waiting out every remaining page.  A
-        # failure message from a translator that is still running therefore
-        # arrives after this drain -- with the queue it surfaces on the next
-        # one instead of being dropped (review R-05).
+        # The main thread stops waiting -- queued batches are cancelled and
+        # the in-flight translators are left to the console event that
+        # already reached them.  They are *not* forgotten: CPython joins
+        # pool threads at interpreter teardown, so a hook that swallows the
+        # interrupt can still delay the exit by up to one page per running
+        # worker (measured: 0.6 s to 3.1 s with a 3 s page).
         stop.set()
         pool.shutdown(wait=False, cancel_futures=True)
         progress.stop()
+        # Restore the serial policy *before* draining: a worker that fails
+        # after this point then writes its own line instead of queueing it
+        # into a queue nobody will read again (review R-05, second half).
+        _emit_mode = "print"
         for message in _drain_collected_failures():
             console.print(message, markup=False)
-        _emit_mode = "print"
     return _TranslationReport(translated, digests, missing, stale)
 
 
