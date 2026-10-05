@@ -1,6 +1,6 @@
 # Plan F — 门禁与文档
 
-> 状态：✅ **已完成**（2026-09-23 收口）· 前置：[Plan E](app-layering-refactoring-tests-tools-plan-e.md) ✅ · 后置：无
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 门禁（2026-09-23 实测）：`pyright yate/ tests/ tools/` 0 诊断 · `pytest tests/ -q` 全绿 ·
 > `--diag` / `--version` 正常 · 冒烟 62/62 场景、651/651 checks。结果见 §F.6。
 > **2026-09-28 核对复核**：四项门禁仍全绿，冒烟实测为 **89/89 场景、932/932 checks**，

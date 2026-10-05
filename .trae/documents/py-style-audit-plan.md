@@ -1,6 +1,6 @@
 # py-style-audit-plan
 
-全仓 Python 代码风格检查与规范化（`yate/` + `tools/` + `tests/`）。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 规范来源：`../../rules/python-coding-style.md`（PEP 8 + PEP 20 双轨）+ 项目架构边界规则。
 执行分支：`ref/py-style-audit`（worktree `../yate-py-style-audit`，沙箱已重建并自证）。
 
@@ -215,7 +215,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(r"D:\Programming\yate-py-style-audit")
+ROOT = Path(r"<worktree>")
 TARGET_DIRS = [ROOT / "yate", ROOT / "tools", ROOT / "tests"]
 
 STDLIB = set(sys.stdlib_module_names)

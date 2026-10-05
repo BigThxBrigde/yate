@@ -1,6 +1,7 @@
 # 全语法高亮输入抖动一次性修复 实施计划
 
-> **实施状态（2026-09-22 核对）：❌ 未实施。**
+> **实施状态**：❌ 未实施 —— 2026-10-05 全量核对：无专属产物；前置 `typing-flicker-debounce-plan.md` 已实施但本篇未做。
+> ⚠️ 本计划**尚未实施**，引用其中产物前请先确认其存在。
 >
 > - `yate/editor_syntax/regex_backend.py` 只有私有 `_tokenize_code_line()`
 >   （第 451 行），**没有**公开的 `tokenize_line()` / pattern LRU 缓存；
@@ -21,7 +22,7 @@
 
 ### 抖动根因：陈旧 token 边界不匹配（架构层面，所有语言所有 token 通用）
 
-[yate/editor_view/editor.py#L276-L304](yate/editor_view/editor.py#L276-L304) `_tokens_for` 在 `content_version` 落后时返回**上一版** token 列表。token 的 `start`/`end` 字符偏移是基于**旧内容**计算的。当在行尾输入字符：
+](../../yate/editor_view/editor.py#L276-L304) `_tokens_for` 在 `content_version` 落后时返回**上一版** token 列表。token 的 `start`/`end` 字符偏移是基于**旧内容**计算的。当在行尾输入字符：
 
 ```
 版本 N:   def foo(x): return 42    (keyword "def": 0-3, number "42": 25-27)
@@ -51,7 +52,7 @@
 
 ### 所有语言都受影响
 
-**Backend 选择**（[engine.py](yate/editor_syntax/engine.py)）：tree-sitter 优先，否则 regex。
+**Backend 选择**（](../../yate/editor_syntax/engine.py)）：tree-sitter 优先，否则 regex。
 
 | 语言 | Backend | 全量分词耗时 | 抖动严重度 |
 |------|---------|-------------|-----------|
@@ -89,8 +90,8 @@ regex backend 对**所有 15 种语言**都有完整 LangSpec 注册（含 line_
 
 - 核心渲染路径：`EditorView.render_line` → `_syntax_kinds` → `_tokens_for`
 - 高亮调度：`_schedule_highlight` / `_launch_highlight` / `_highlight_later`
-- tree-sitter 全量 parse：[ts_backend/backend.py#L55-L74](yate/editor_syntax/ts_backend/backend.py#L55-L74) 每次 new Parser + `parser.parse(text)`
-- regex 单行 tokenize：[regex_backend.py#L451-L499](yate/editor_syntax/regex_backend.py#L451-L499) `_tokenize_code_line`（含 multiline 状态机）
+- tree-sitter 全量 parse：](../../yate/editor_syntax/ts_backend/backend.py#L55-L74) 每次 new Parser + `parser.parse(text)`
+- regex 单行 tokenize：](../../yate/editor_syntax/regex_backend.py#L451-L499) `_tokenize_code_line`（含 multiline 状态机）
 
 ## Files and Modules
 

@@ -1,6 +1,6 @@
 # Plan G — 窗格模型下沉：`pane_types.py` 并入 `session.py`（L1）
 
-> 状态：✅ **已完成**（2026-09-23 落地）· 前置：[Plan A](app-layering-refactoring-leaf-models-plan-a.md)–[Plan F](app-layering-refactoring-gate-docs-plan-f.md) 全部完成
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 归属：**总纲** [overview.md](overview.md) 的后续子计划（§5 索引已登记），同时直接受
 > [architecture-boundaries.md](../../rules/architecture-boundaries.md) §三.1 / §三.6 / §五 约束。
 > 类型：**代码搬运 + 删除**（不重写任何算法、不改任何行为）

@@ -1,6 +1,6 @@
 # yate：yaterc 配置系统 + 严格 pyright 类型检查 + VSCode 风格改版 + keymap 更名 vsc
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - **yaterc**：`yate/config.py` 已落地用户级 + 项目级叠加、`-u/--rc`（含
 >   `NONE`）、`yate.map/unmap/alias_command`、未知选项 warning。

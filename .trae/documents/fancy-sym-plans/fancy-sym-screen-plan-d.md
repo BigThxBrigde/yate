@@ -1,6 +1,6 @@
 # plan_D：L2 ScreensaverScreen + L3 动作/键位 + L4 空闲接线
 
-- **状态：已完成（2026-09-27，提交 `6766bed`；偏离：alt+shift+s 走
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
   editor.handle_key 全局 chord、toggle 逻辑移入 `Editor.toggle_screensaver`、
   `_check_idle` 加屏保激活守卫，见主方案 §八）**
 - 上级：[README](overview.md) / 主方案 §0 §2.1 §2.2 §4.1 §4.2 §4.5

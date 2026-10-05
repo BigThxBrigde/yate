@@ -1,6 +1,7 @@
 # 日志系统实现方案：Python logging 落盘（YATE_TRACE）
 
-> **实施状态（2026-09-22 核对）：✅ 功能已实现，但模块归属已被取代。**
+> **实施状态**：↩️ 已被取代 —— 2026-10-05 全量核对：功能已落地但不在本文设想的 `yate/tracing.py`，实际在 `yate/logs.py`。
+> ℹ️ 本计划**已被取代**，仅作历史记录；请以上文指明的现行来源为准。
 >
 > 运行日志（`YATE_TRACE` / `YATE_TRACE_LEVEL` / `yate_trace` /
 > `yate_trace_level`）功能已落地，但**不在** `yate/tracing.py`：它与崩溃诊断

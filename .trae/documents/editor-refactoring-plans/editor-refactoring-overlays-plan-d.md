@@ -1,6 +1,6 @@
 # plan_D — overlays 流程外移（Wave 4）
 
-## 目标
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 全屏覆盖层（help / manual / changelog / 双 palette / screensaver）外移到
 `yate/overlays.py`，`push_overlay` 一并归属（shell_flow 已注入等价回调，不回头依赖）。
 

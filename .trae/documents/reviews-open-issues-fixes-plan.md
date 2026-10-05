@@ -1,6 +1,6 @@
 # reviews-open-issues-fixes-plan（reviews 未闭环问题核实与修复）
 
-> 来源：Gitee Issue [IKJFMO](https://gitee.com/jermaine/yate/issues/IKJFMO)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 「修复 .trae/reviews/ 下所有 review 文档列出的各个问题：1. 先核实是否存在，或者已经修复，
 > 或者无效（代码的变更和重构后造成的）；2. 修复存在的 issues」。
 > 核实基准：2026-10-01 当前代码。索引基线：`.trae/reviews/README.md` §一（15 条未闭环项）+

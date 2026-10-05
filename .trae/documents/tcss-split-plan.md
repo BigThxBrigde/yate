@@ -1,6 +1,6 @@
 # Plan: 从 app.py 拆分 CSS 到 tcss 文件并集成打包
 
-- Issue: <https://gitee.com/jermaine/yate/issues/IKINFT>（ENH - 从app里面拆分css到tcss文件，集成打包）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 - 分支: `enh/tcss-enh`（基于 master@479f192，worktree 位于仓库同级目录）
 - 状态: ✅ **已执行**（代码侧已全部落地；**2026-09-28 核对修正**：原记"待执行"与代码不符，
   落地证据见文末 §9「实施现状」）

@@ -1,6 +1,6 @@
 # diag-package-sync 子计划总纲（issue IKJJFI）
 
-> 来源：<https://gitee.com/jermaine/yate/issues/IKJJFI>
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 「yate --diag 出来的包信息不全（缺 pyperclip）……pyproject.toml 和
 > _section_packages 能否自动同步，不需要人为改两个地方」
 > worktree / 分支：`../yate-diag-package-sync` @ `fix/diag-package-sync`
@@ -26,7 +26,7 @@
 
 ## 二、根因与选型（概要，细节见子计划）
 
-- 根因：[yate/diagnostics.py](../../yate/diagnostics.py#L415-L428)
+- 根因：](../../../yate/diagnostics.py#L415-L428)
   `_section_packages()` 硬编码 4 个包名，与 pyproject.toml 双处维护；
 - 选型：运行时读 yate 自身 dist 元数据 `requires("yate")`（hatchling 在
   build/install 期把 pyproject 的 dependencies + extras 烙进 dist-info

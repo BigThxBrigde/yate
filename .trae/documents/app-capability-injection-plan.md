@@ -1,6 +1,6 @@
 # app-capability-injection-plan（消除 App[Any]/App[object] 与流程模块 self.app）
 
-来源：gitee issue `IKJB0Q`（ENH - 消除App[object], App[Any] 及 模块见self.app的乱象，考虑重构）。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 issue 两轮评论已收敛出最终设计——**语义能力注入（Semantic Capability Injection）**：
 `App[None]` 精确化 + 动词用绑定方法注入 + 查询用 `Callable` 上浮 + AST 守卫。
 本方案按 plan-before-execute 落盘，执行分支 `ref/app-capability-injection`。

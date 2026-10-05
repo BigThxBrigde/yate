@@ -1,6 +1,6 @@
 # Release 自动化工具实施计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > `tools/release/`（`__init__.py` / `__main__.py` / `cli.py`）已落地，
 > 含 `release(version, *, dry_run=False, no_push=False, branch=None)`、各 helper、
@@ -34,13 +34,13 @@
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
-| [tools/release/\_\_init\_\_.py](tools/release/__init__.py) | 已存在但为空，填入 docstring | 包说明 |
-| [tools/release/\_\_main\_\_.py](tools/release/__main__.py) | 新建 | `python -m tools.release` 入口 |
-| [tools/release/cli.py](tools/release/cli.py) | 新建 | 核心逻辑 |
+| ](../../tools/release/__init__.py) | 已存在但为空，填入 docstring | 包说明 |
+| ](../../tools/release/__main__.py) | 新建 | `python -m tools.release` 入口 |
+| ](../../tools/release/cli.py) | 新建 | 核心逻辑 |
 
 复用（不修改）：
-- [tools/changelog/gitdata.py](tools/changelog/gitdata.py) — `run_git()`、`GitError`
-- [tools/changelog/cli.py](tools/changelog/cli.py) — `generate()`、`check()`
+- ](../../tools/changelog/gitdata.py) — `run_git()`、`GitError`
+- ](../../tools/changelog/cli.py) — `generate()`、`check()`
 
 ## CLI 接口
 
@@ -58,7 +58,7 @@ python -m tools.release <version> --branch <name>  # 指定推送分支（2026-0
 
 ## 版本文件（2026-09-28 核对：bump 一处）
 
-1. [yate/\_\_init\_\_.py:13](yate/__init__.py#L13) — `__version__ = "X.Y.Z"`
+1. ](../../yate/__init__.py#L13) — `__version__ = "X.Y.Z"`
 
 > 原第 2 处 `tests/test_theme_palettes.py` 的静态版本断言已在上游删除
 > （现为 semver 形状断言 + pyproject 单一来源断言，见文首核对说明），

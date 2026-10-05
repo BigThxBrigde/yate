@@ -1,10 +1,10 @@
 # syntax-langs-review-fixes-plan（修复 `2026-10-04-syntax-langs.md` 所列 issues）
 
-来源评审：[`../reviews/2026-10-04-syntax-langs.md`](../reviews/2026-10-04-syntax-langs.md)（issue
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 IKJLTB 分支 `enh/syntax-langs` 评审，结论 MINOR ISSUES：0 CRITICAL / 5 WARNING / 若干 SUGGESTION）。
 worktree：`../yate-syntax-langs`，分支 `enh/syntax-langs`（**续作任务，复用既有 worktree 与其
 `.venv`**；沙箱自证 `.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` →
-`D:\Programming\yate-syntax-langs\yate\__init__.py`）。评审 §一 记载 **W3 验收未执行**，
+`<worktree>\yate\__init__.py`）。评审 §一 记载 **W3 验收未执行**，
 本方案一并补上。
 
 ## 一、目标与非目标
@@ -30,7 +30,7 @@ worktree：`../yate-syntax-langs`，分支 `enh/syntax-langs`（**续作任务�
 
 | 事实 | 证据 |
 |---|---|
-| 评审文件在 worktree 内，不在主仓 | `../yate-syntax-langs/.trae/reviews/2026-10-04-syntax-langs.md`；主仓 `git worktree list` → `D:/Programming/yate-syntax-langs [enh/syntax-langs]` |
+| 评审文件在 worktree 内，不在主仓 | `../yate-syntax-langs/.trae/reviews/2026-10-04-syntax-langs.md`；主仓 `git worktree list` → `<worktree> [enh/syntax-langs]` |
 | 沙箱已装 **24 个语法包**（xml 兼 xaml），`tree_sitter` 0.25.2 未被 `_BLOCKED_TS` 拦截 | `.venv\Scripts\python.exe -m pip list`；`languages.py:37-67` |
 | 唯一**没有**语法包的是 perl（按设计走 regex），以及 5 个 example 涉及的 `tree_sitter_fsharp` | `pyproject.toml` extras、`pack/_common.py:36-62` |
 | `fsharp` 验收客观不可执行（`tree-sitter-fsharp` 未装） | 评审 §一 W3；`load_language_from_grammar` 缺包时 `raise ValueError`（`languages.py:285-288`） |

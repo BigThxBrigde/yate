@@ -1,6 +1,6 @@
 # vim motion 边界偏差修复方案（w/b/$/G，review-vim-keymap 续作）
 
-> 来源评审：[`vim-keymap-review-plan.md`](vim-keymap-review-plan.md)（§三「e motion
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 边界修复」之后的复查发现）。本文件为该评审修复批次的独立方案。
 
 ## 一、目标与非目标

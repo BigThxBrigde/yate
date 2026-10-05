@@ -1,6 +1,6 @@
 # UI 美观优化设计方案（issue IKINF3）
 
-- 分支：`enh/ui-refine`（worktree：`../yate-ui-refine-wt/`，基于 `master@479f192`）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 - Issue：gitee `jermaine/yate#IKINF3`「ENH - 美观优化」
 - 日期：2026-09-27
 - 状态：✅ 已实施（2026-09-27 分支 `enh/ui-refine` 交付，评审与修复记录见

@@ -1,6 +1,6 @@
 # remove-inline-default-css 总纲（issue IKJHPH）
 
-> 来源 issue：[IKJHPH — ENH 移除内联 DEFAULT_CSS, 改用加载资源 tcss](https://gitee.com/jermaine/jermaine/yate/issues/IKJHPH)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 分支：`enh/remove-inline-default-css`（worktree `../yate-remove-inline-default-css`，独立 `.venv` 已自证指向本 worktree）
 
 ## 一、目标与非目标

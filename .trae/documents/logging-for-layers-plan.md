@@ -1,12 +1,12 @@
 # 计划：分层日志增强（issue IKIN1Z）
 
-## 一、背景
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 
 Gitee issue [IKIN1Z](https://gitee.com/jermaine/yate/issues/IKIN1Z) 要求：按照架构图，为不同层级自上而下、**尤其是层级间的交互**，适当添加日志，方便以后调试。
 
 基础设施已就绪：`yate/logs.py` 的 `tracing` 服务（L0 叶子，stdlib `logging` 封装），默认关闭；开启后写 `~/.yate/data/logs/yate-YYYYMMDD-HHMMSS-<pid>.log`，格式 `%(asctime)s %(levelname)-7s %(name)s: %(message)s`。开关来源：`YATE_TRACE` / `YATE_TRACE_LEVEL` 环境变量优先，yaterc 的 `yate_trace` / `yate_trace_level` 兜底，默认级别 DEBUG。
 
-分支：`enh/logging-for-layers`（worktree `D:\Programming\yate-logging-layers`）。该分支同时承载 keybinding 修复工作（Phase A/B，见 `.trae` 下 keybinding 状态文档），**本计划只处理日志增强，不改动 keybinding 相关代码路径**。
+分支：`enh/logging-for-layers`（worktree `<worktree>`）。该分支同时承载 keybinding 修复工作（Phase A/B，见 `.trae` 下 keybinding 状态文档），**本计划只处理日志增强，不改动 keybinding 相关代码路径**。
 
 ### 现状盘点（merge master 后实测）
 
@@ -148,8 +148,8 @@ sequenceDiagram
 
 ### Phase 0 — worktree 准备（本计划起草时已完成 2/3）
 
-1. [x] `git worktree add --track -b enh/logging-for-layers D:\Programming\yate-logging-layers origin/enh/logging-for-layers`
-2. [x] `git -C D:\Programming\yate-logging-layers merge master --no-edit` → 已合并 `108f763`（readonly-option 等），零冲突。
+1. [x] `git worktree add --track -b enh/logging-for-layers <worktree> origin/enh/logging-for-layers`
+2. [x] `git -C <worktree> merge master --no-edit` → 已合并 `108f763`（readonly-option 等），零冲突。
 3. [x] 在 worktree 内准备解释器：`.venv` 已创建并 `pip install -e .`。
 4. [x] 提交本计划文档（`docs(plans): draft layered logging plan for issue IKIN1Z`）。
 

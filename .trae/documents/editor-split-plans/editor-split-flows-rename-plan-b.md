@@ -1,6 +1,6 @@
 # plan-b：流程模块统一 *Flows（flows-rename）
 
-> 所属总纲：[overview.md](overview.md) · wave-1（与 plan-a 并行，文件零重叠）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 用户裁定：流程模块命名统一 `*Flows`（Controller 不好）；lsp_sync 语义准确保留。
 > 纯重命名，行为零变更，不新增测试用例。
 
@@ -42,9 +42,9 @@
 ## 三、验收命令（全部退出码 0；探针退出码 1 = 通过）
 
 ```powershell
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 git grep -n -I "ShellFlow\b\|OverlayController\|CompletionController" -- yate tests tools
 Get-ChildItem yate -Filter shell_flow.py   # 应不存在
 ```

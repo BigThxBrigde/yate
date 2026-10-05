@@ -1,6 +1,6 @@
 # plan-e：抽取 WindowFlows（window_flows.py）
 
-> 前置：plan-b（命名统一）、plan-c（删薄委托）、plan-d（DocumentFlows）已合入；
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 行号锚点：wave-2 后 editor.py 1196 行，2026-09-29 实测 grep 复核并更新
 > （成员集与依赖取证不变，仅行号偏移）。
 

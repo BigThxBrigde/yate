@@ -1,6 +1,6 @@
 # remove-inline-default-css plan-b：12 个组件 CSS 外置为打包 tcss（wave-1）
 
-> 总纲见 [overview.md](overview.md)。独占文件清单：12 个新建 `yate/resources/*.tcss`、
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 10 个 `yate/editor_view/*.py`、`.trae/rules/architecture-boundaries.md`。
 > 与 plan-a 文件不重叠，可并行。
 

@@ -1,9 +1,9 @@
 # path-space-handling-plan（路径空格检测与修复，issue IKJK0B）
 
-> 来源：[Gitee issue IKJK0B](https://gitee.com/jermaine/yate/issues/IKJK0B)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > （BUG - 路径空格检测和修复），即 [diff-tool-plan.md](diff-tool-plan.md) 遗留待办
 > S5。执行分支：`feat/diff-tool`（PR49 未合并，`:diff` 代码仅存在于此分支，
-> 续作任务复用既有 worktree `D:/Programming/yate-diff-tool` 及其 `.venv`，不新建）。
+> 续作任务复用既有 worktree `<worktree>` 及其 `.venv`，不新建）。
 
 ## 一、目标与非目标
 
@@ -35,7 +35,7 @@
 | F5 | `run_command` 用 `text.split()` + `" ".join(parts[1:])`，路径内连续空格被压扁 | `yate/editor.py:853-854` |
 | F6 | CLI `--diff` 走 argparse（`nargs="+"`），shell 负责引号，空格路径天然可用 | `yate/cli.py:188-195` |
 | F7 | 全仓其余 `.split()` 调用点与路径无关（textobjects 语法名 / logs 版本串）；`shlex` 仅两处且都是 shell 语义（终端 shell / LSP 启动命令行），不是路径口径 | `textobjects.py:426`、`logs.py:140`、`shells.py:35`、`extensions/python_lsp.py:71` |
-| F8 | worktree 干净、`.venv` 自证指向本 worktree（沙箱可用） | `D:/Programming/yate-diff-tool` |
+| F8 | worktree 干净、`.venv` 自证指向本 worktree（沙箱可用） | `<worktree>` |
 
 ## 三、备选方案与否决理由
 

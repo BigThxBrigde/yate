@@ -1,6 +1,6 @@
 # Completion Staleness Check Fix Plan
 
-> **实施状态（2026-09-22 核对）：✅ 已实现（包含 Change 1–4）。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - `yate/app_features/completion.py` 已有 `_current_prefix()` 辅助；两条路径
 >   （buffer-based 与 LSP）的陈旧守卫同时比较 `buf.row`、当前列与前缀文本

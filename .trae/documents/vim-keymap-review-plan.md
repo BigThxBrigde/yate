@@ -1,6 +1,6 @@
 # vim keymap 通篇评审报告与修复方案（review-vim-keymap）
 
-- 分支 / worktree：`review-vim-keymap` @ `D:\Programming\yate-vim-review`（基于 `d2622ea`）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 - 评审方式：3 个并行只读评审 agent（buffer 原语 / vim.py 全量键位 / 派发链路与测试覆盖）+ 1 个架构师 agent 出方案；关键结论由架构师抽查核实。
 - 用户报告的问题键：`r`（替换字符）、`cw`、`cit`、`f`（找字符）。全部确认**未实现或被吞键**。
 

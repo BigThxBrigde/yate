@@ -1,6 +1,6 @@
 # yate 键盘输入重构 · 主计划（Windows Terminal 快捷键失效的根治）
 
-> 命名前缀：`win_keybinding_*`
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 姊妹文档：**`win-keybinding-protocol-plan.md`**（方案 B 的逐步实施计划，含严格顺序）
 > 状态：**决策已定 —— 采用方案 B（自建 Windows 输入通道 + 键盘协议协商）**
 > 性质：这不是一次补丁，而是一次**输入层重构 + 新特性（可配置键盘协议层）**。
@@ -11,7 +11,7 @@
 >
 > 1. **路径迁移**：全文引用的 `yate/editor_view/keys.py` **已不存在**——其 C0 编解码整体迁入
 >    `yate/keyproto/legacy.py`（`event_to_raw` L52 / `textual_key_to_raw` L87，`_CTRL_PUNCT` L23），
->    变更见 `keybinding-fix-wt/keybinding-fix-wt-steps-plan-g.md` 执行状态表 PB1 行；`yate/interfaces.py` 亦已删除（R2）。
+>    变更见 `keybinding-fix-wt-plans/keybinding-fix-wt-steps-plan-g.md` 执行状态表 PB1 行；`yate/interfaces.py` 亦已删除（R2）。
 > 2. **`keyproto/` 实际模块构成（6 个，非 §3 设想的 8 个）**：`chords.py`（`KeyChord` + VK/修饰位常量）、
 >    `aliases.py`（`chord_to_key_name`）、`frames.py`（`Win32InputFrame` / `Win32FrameStream` /
 >    `frame_to_key_name` / `frame_to_char` / `NAV_VK_NAMES`）、`legacy.py`、`driver_windows.py`、`__init__.py`。

@@ -1,6 +1,6 @@
 # review-vscode-keymap-plan
 
-来源：gitee issue IKJ2V1「Review vscode keymap」——
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 ① review vscode keymap 是否全部正常；② 检测与 vim keymap 不冲突、不互相覆盖；有问题则 fix。
 
 分支/worktree：`enh/review-vscode-keymap` @ `../../yate-review-vscode-keymap`（基于 master 24fed04）。
@@ -114,7 +114,7 @@ vim 侧 `<alt-shift-s>` 行（vim.py:158-161）为 help-only 行，实际派发�
   ctrl+w=close_tab）。定向键表测试全绿：`pytest tests/test_vsc_keymap.py tests/test_keymap_set.py
   tests/test_vim_keymap.py -q` → 127 passed。
 - [x] 步骤 3 全量门禁（最终以项目 venv 解释器复跑，junitxml 实测）：
-  - `pytest tests/`（`D:\Programming\yate\.venv`，Python 3.13.2 + textual 8.2.8）：
+  - `pytest tests/`（`.venv`，Python 3.13.2 + textual 8.2.8）：
     **1458 项 = 1451 passed + 7 skipped + 0 failed + 0 errors**，退出码 0，无需 deselect。
   - `pyright yate/ tests/ tools/`（strict）：**0 errors / 0 warnings / 0 informations**。
   - 架构测试 `tests/test_architecture.py` 随全量通过。
@@ -128,5 +128,5 @@ vim 侧 `<alt-shift-s>` 行（vim.py:158-161）为 help-only 行，实际派发�
     独立复跑稳定通过（多轮实测含 master 与本分支、venv 与系统解释器各组合），与本次改动无关；
     修复该 flake 属独立任务，未纳入本计划。
   - worktree 不共享未跟踪目录（无 `.venv`，pyright 报 "venv .venv subdirectory not found"）：
-    以**目录联接** `.venv → D:\Programming\yate\.venv` 补齐（`.gitignore:101` 已覆盖，无 git 污染；
+    以**目录联接** `.venv → .venv` 补齐（`.gitignore:101` 已覆盖，无 git 污染；
     实测 `import yate` 仍解析到 worktree 源码），pyright 的 `venvPath/venv` 配置由此直接生效。

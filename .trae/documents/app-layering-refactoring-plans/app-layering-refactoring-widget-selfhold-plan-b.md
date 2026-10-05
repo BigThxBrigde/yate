@@ -1,6 +1,6 @@
 # Plan B — 组件自持：`editor_view/*` 拥有自己的行为
 
-> 状态：✅ **已完成**（工作区）· 前置：[Plan A](app-layering-refactoring-leaf-models-plan-a.md) · 后置：[Plan C](app-layering-refactoring-functional-tables-plan-c.md)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 门禁：`python -m pyright yate/` 0 诊断；`grep -rn "yate.editor\|yate.app" yate/editor_view/` 为空（R3）
 
 ---

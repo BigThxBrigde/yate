@@ -1,6 +1,6 @@
 # Overlay Theme Consistency — Implementation Plan
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - `yate/editor_view/theme.py` 已有 `TEXTUAL_THEME_PREFIX` /
 >   `textual_theme_name()` / `validate_theme()` / `to_textual_theme()`；

@@ -1,6 +1,7 @@
 # theme-ownership 重构方案（已拆分，本文件为指针）
 
-> **本方案已于 2026-09-27 按 app-layering-plans 规格拆分为目录，唯一计划来源迁移至：**
+> **实施状态**：📌 已被取代 —— 2026-10-05 全量核对：明示「本文件不再维护」；唯一来源为 `theme-ownership-refactoring-plans/overview.md`。
+> ℹ️ 本计划**已被取代**，仅作历史记录；请以上文指明的现行来源为准。
 >
 > **[theme-ownership-refactoring-plans/overview.md](theme-ownership-refactoring-plans/overview.md)**
 > （总纲：事实基线 / 问题陈述 / 方案比选 / Plan 索引 / 依赖面 / 风险 / 审计记录）

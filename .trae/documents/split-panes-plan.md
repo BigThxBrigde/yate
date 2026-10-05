@@ -1,6 +1,6 @@
 # 编辑器窗格分割（vim :split / :vsplit）实现方案
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - 纯数据模型位于 `yate/session.py`（`Leaf` / `Split` / `Node` /
 >   `ViewState` 与树工具；2026-09-23 Plan G 已将其从 `yate/editor_view/pane_types.py`
@@ -33,11 +33,11 @@
 
 ## 仓库调研结论
 
-- 布局：[app.py](yate/app.py#L1874-L1889) `compose()` 为 `Horizontal#body > [Vertical#sidebar(explorer) + Vertical#editor-col(tabbar/breadcrumbs/EditorView#editor)]`；终端面板与状态栏在下方 dock，不受影响。
+- 布局：](../../yate/app.py#L1874-L1889) `compose()` 为 `Horizontal#body > [Vertical#sidebar(explorer) + Vertical#editor-col(tabbar/breadcrumbs/EditorView#editor)]`；终端面板与状态栏在下方 dock，不受影响。
 - 全应用只有**一个** `EditorView`，`app.editor_view` 被约 30 处直接引用；`EditorView.buffer` 取 `yate.buffer`（全局活动文档），渲染（gutter/选区/光标/搜索高亮/LSP 标记）全部基于它。
-- 文档模型：`app.docs: list[Document]` + `app.doc_index`；`Document` 持 `TextBuffer`；**光标 `buf.cursor` 与选区 `buf.anchor` 在 buffer 内**；滚动状态 `scroll_col`/`scroll_offset` 在 EditorView（天然按视图独立）。打开同路径文件复用已有 Document（[app.py L267-305](yate/app.py#L267-L305)）。
-- 已有 vim 窗格和弦体系：`try_window_prefix()`/`_window_navigate()`（[app.py L631-671](yate/app.py#L631-L671)），现仅支持 `h/l`（explorer↔editor）与 `Ctrl+W Ctrl+W` 循环，`j/k` 为 no-op；仅 vim NORMAL 生效。vsc 键位中 `Ctrl+W` 是关闭标签，**不占用**。
-- 命令注册：`_register_commands()` 单参数 lambda（[app.py L1475-1508](yate/app.py#L1475-L1508)）；`:q` 当前直接 `quit()`，`quit()` 对**所有** docs 做 dirty 统一拦截（L1747-1752）。
+- 文档模型：`app.docs: list[Document]` + `app.doc_index`；`Document` 持 `TextBuffer`；**光标 `buf.cursor` 与选区 `buf.anchor` 在 buffer 内**；滚动状态 `scroll_col`/`scroll_offset` 在 EditorView（天然按视图独立）。打开同路径文件复用已有 Document（](../../yate/app.py#L267-L305)）。
+- 已有 vim 窗格和弦体系：`try_window_prefix()`/`_window_navigate()`（](../../yate/app.py#L631-L671)），现仅支持 `h/l`（explorer↔editor）与 `Ctrl+W Ctrl+W` 循环，`j/k` 为 no-op；仅 vim NORMAL 生效。vsc 键位中 `Ctrl+W` 是关闭标签，**不占用**。
+- 命令注册：`_register_commands()` 单参数 lambda（](../../yate/app.py#L1475-L1508)）；`:q` 当前直接 `quit()`，`quit()` 对**所有** docs 做 dirty 统一拦截（L1747-1752）。
 - 补全弹窗 `CompletionPopup` 挂在 `#editor-col`，offset 由调用方按活动视图几何计算（`app.editor_view` 改为活动视图 property 后自动跟随）。
 - Textual 不能给已挂载 widget 换父容器 → 结构变更采用"卸载旧叶子视图、原位挂载 SplitBox 装两个新视图"的增量方式；EditorView 是轻量可重建部件，所有跨重建状态（文档绑定、光标/选区快照）外置到模型。
 

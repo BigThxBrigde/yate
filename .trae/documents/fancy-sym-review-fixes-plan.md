@@ -1,7 +1,7 @@
 # fancy-sym 评审问题修复计划（review-fixes）
 
-来源：feat/fancy-sym 分支代码评审（2026-09-28，worktree
-`E:\Jermaine\yate-fancy-sym-review`）。三个问题均经双验证员交叉确认、
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
+`<worktree>`）。三个问题均经双验证员交叉确认、
 并核实为**本分支引入**（master 对照证据见评审报告）。
 
 ## 一、目标与非目标

@@ -1,6 +1,6 @@
 # plan-a：旧方案文档改名迁移（docs）
 
-> 所属总纲：[overview.md](overview.md) · wave-1（与 plan-b 并行，文件零重叠）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 依据：doc-naming.md 新版（连字符强制）：主计划 `<task>-plan.md`、子计划目录
 > `<task>-plans/`、子计划 `<task>-<subtask>-plan-<a|b|c...>.md`、总纲 overview.md。
 

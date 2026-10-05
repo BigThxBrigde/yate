@@ -1,6 +1,6 @@
 # Plan F — 遗留主题缺口治理：TerminalPanel 订阅 + PromptBar 动态色重渲染
 
-> 来源：2026-09-27 二轮 review 的两项**存量**缺口。二者均为 plan_A–E 范围之外、
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 重构前就存在的旧账（见 F1/F7），非本轮重构引入；本 plan 把它们收编进统一治理。
 
 ## F.1 事实基线（2026-09-27 实测）
@@ -118,7 +118,7 @@ sequenceDiagram
 ## F.7 提交规划
 
 - 单 commit：`fix(ui): close legacy theme gaps in TerminalPanel and PromptBar`
-- 落在 `ref/theme-ownership`（worktree `D:/Programming/yate-theme-own-wt`）；**提交不推送**（既定约束）。
+- 落在 `ref/theme-ownership`（worktree `<worktree>`）；**提交不推送**（既定约束）。
 
 ## F.8 执行结果（2026-09-27 回填）
 

@@ -1,8 +1,8 @@
 # python-code-review 修复方案（83 项评审登记处置）
 
-- **来源评审记录**：[`../reviews/2026-10-03-python-code-review.md`](../reviews/2026-10-03-python-code-review.md)（master `2c124a7`，编号 R-01…R-83；0 CRITICAL / 15 WARNING / 68 SUGGESTION）。
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 - **用户指令（2026-10-03）**：全部登记项均尝试修复，即使来源标注"不修"；仅核实后确实无法修复的保留记录不处理；修复完成后回填全部已修 issue。
-- **分支 / worktree**：`fix/python-code-review` @ `D:\Programming\yate-python-code-review`（沙箱已自证指向本 worktree）。
+- **分支 / worktree**：`fix/python-code-review` @ `<worktree>`（沙箱已自证指向本 worktree）。
 - **基线门禁实测**（`2c124a7`）：pyright `yate/ tests/ tools/` → 0 errors；`pytest tests/ -q` → 全绿。
 
 ## 一、目标与非目标

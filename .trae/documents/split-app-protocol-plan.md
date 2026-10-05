@@ -1,6 +1,7 @@
 # 拆分并移除 `AppProtocol` 重构方案
 
-> **状态：已完成，但中间产物已被后续重构取代（2026-09-22）** — 本方案的直接目标已达成：
+> **实施状态**：↩️ 已被取代 —— 2026-10-05 全量核对：计划已完成，中间产物 `yate/interfaces.py` 已随 R2 删除并由 R8 取代。
+> ℹ️ 本计划**已被取代**，仅作历史记录；请以上文指明的现行来源为准。
 > `AppProtocol` 与 `yate/interfaces.py` 已删除、`TYPE_CHECKING` 全仓库清零、架构守护测试
 > `tests/test_architecture.py` 已加入。
 > **但它引入的窄接口（Host / Ops Protocol）与 `app_features/*` Feature 层已在紧随其后的

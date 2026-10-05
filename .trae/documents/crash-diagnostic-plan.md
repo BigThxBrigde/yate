@@ -1,6 +1,6 @@
 # 崩溃诊断集成方案：faulthandler + excepthook 落盘
 
-> **实施状态（2026-09-22 复核）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > 崩溃诊断现位于统一日志模块 `yate/logs.py::CrashService`（单例 `crash`），
 > `yate/crash.py` 薄壳已删除。本模块（§2 起的"现行"描述）与代码基本一致；
@@ -109,7 +109,7 @@ if args.include_data:
 ```
 yate 0.2.4 crash report
 time: 2026-09-21T19:20:03
-cwd: D:\Programming\yate
+cwd: <worktree>
 argv: ['-c']
 python: 3.13.2 on win32
 ------------------------------------------------------------

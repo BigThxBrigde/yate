@@ -1,6 +1,6 @@
 # input-assist 评审修复方案（python-code-review skill，2026-10-04）
 
-- **来源**：`.trae/skills/python-code-review` skill 对 issue IKJMQ2 产物的审核（0 CRITICAL / 2 WARNING / 6 SUGGESTION）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 - **分支 / worktree**：`enh/input-assist` @ `../yate-input-assist`
 - **状态**：用户已批准修复（"fix 这些 issues"）
 

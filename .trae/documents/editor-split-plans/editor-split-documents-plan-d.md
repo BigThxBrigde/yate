@@ -1,6 +1,6 @@
 # plan-d：抽取 DocumentFlows（document_flows.py）
 
-> 所属总纲：[overview.md](overview.md) · wave-3（串行，改 editor.py）
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 模式：既有 L3 流程模块形态——构造注入具体协作者、不向上依赖。
 > 行号锚点：wave-2（删薄委托）后 editor.py 1425→1196 行，2026-09-29 实测 grep
 > 复核并更新；成员集、调用点、装配点与原方案一致，仅行号偏移。
@@ -57,9 +57,9 @@ DocumentFlows(
 ## 四、验收命令（退出码 0；探针退出码 1 = 通过）
 
 ```powershell
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
-d:\Programming\yate-editor-refactoring\.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 git grep -n -I "editor\.\(open_path\|open_document\|new_buffer\|show_welcome\|close_tab\|cycle_tab\|save_document\|save_as\|prompt_open\|activate_doc\|open_target\)" -- yate tests
 ```
 

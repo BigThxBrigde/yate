@@ -1,6 +1,6 @@
 # 双语 Changelog 自动维护与运行时展示实施计划
 
-> **实施状态（2026-09-22 核对）：✅ 已实现。**
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 >
 > - 生成器 `tools/changelog/`（model / gitdata / classify / segments /
 >   translations / gitee / render / cli + `zh_overrides.json`）已落地；四个产物
@@ -52,15 +52,15 @@
 | 远程仓库在 Gitee | `git remote -v` → `https://gitee.com/jermaine/yate.git` |
 | 目前**没有任何 tag、没有 CHANGELOG** | `git tag` 为空；根目录无 `CHANGELOG*` |
 | 提交信息已是 Conventional Commits 风格 | `feat:` / `fix(scope):` / `refactor:` / `chore:` |
-| 版本号**双写、有漂移风险** | [pyproject.toml](pyproject.toml#L7) 与 [yate/__init__.py](yate/__init__.py#L11) 均为 `0.1.0` |
+| 版本号**双写、有漂移风险** | ](../../pyproject.toml#L7) 与 ](../../yate/__init__.py#L11) 均为 `0.1.0` |
 | 双语文档成对约定 | `README.md`/`README.zh.md`；`yate/docs/*.en.md`/`*.zh.md`；`resources/manual.en.md`/`manual.zh.md` |
-| 已有成熟的 Markdown 文档屏 | [manual.py](yate/editor_view/manual.py)：worker 线程加载、Markdown 渲染、屏内搜索（约 300 行，**不可复制第二份**） |
+| 已有成熟的 Markdown 文档屏 | ](../../yate/editor_view/manual.py)：worker 线程加载、Markdown 渲染、屏内搜索（约 300 行，**不可复制第二份**） |
 | `:manual zh|en` 命令范式 | [commands.py:186](yate/app_features/commands.py#L186) `reg("manual", lambda args: app.show_manual(args or "en"), ...)` |
-| 手册打开方式 | [app.py:1408](yate/app.py#L1408) `show_manual(lang)`：推入 ManualScreen 前临时切换 catppuccin-mocha 主题，关闭后恢复 |
+| 手册打开方式 | ](../../yate/app.py#L1408) `show_manual(lang)`：推入 ManualScreen 前临时切换 catppuccin-mocha 主题，关闭后恢复 |
 | 资源读取方式 | `importlib.resources.files("yate.resources")`，缺失时目前回退 `manual.en.md` |
-| PyInstaller 已整目录打包 resources | [yate.spec:59-63](pack/yate.spec#L59-L63) 与 yate-onefile.spec 均有 `(pkg_path("resources"), "yate/resources")`——**新增 md 无需改 spec** |
+| PyInstaller 已整目录打包 resources | ](../../pack/yate.spec#L59-L63) 与 yate-onefile.spec 均有 `(pkg_path("resources"), "yate/resources")`——**新增 md 无需改 spec** |
 | wheel 同样自动包含 resources | pyproject.toml 注释明确：resources 下非代码文件由 hatchling 自动入包 |
-| 打包脚本 | [pack.ps1](pack/pack.ps1) / [pack.sh](pack/pack.sh) 负责选解释器、装 build extra、调 PyInstaller；pack.bat 仅透传 ps1 |
+| 打包脚本 | ](../../pack/pack.ps1) / ](../../pack/pack.sh) 负责选解释器、装 build extra、调 PyInstaller；pack.bat 仅透传 ps1 |
 | 质量门禁 | pyright strict 零诊断；pytest；CI 在 `.github/workflows/test.yml`、`.workflow/test.yml` |
 | 手册附录已有发布章节占位 | `manual.zh.md:1196`「附录：发布与双语 Changelog 维护」（需在实现后同步刷新） |
 
@@ -296,7 +296,7 @@ generate 刷新并提交），因此：
 
 ### 7.1 资源访问层：泛化 manual.py 的加载函数
 
-[manual.py](yate/editor_view/manual.py) 中新增
+](../../yate/editor_view/manual.py) 中新增
 通用函数（保留 `load_manual_markdown` 为薄封装，调用面不破坏）：
 
 ```python
@@ -334,7 +334,7 @@ OSError 冒泡给 worker 的现有 try/except；changelog 走占位路径）。
 
 ### 7.2 文档屏泛化（避免复制 300 行搜索逻辑）
 
-view 层组件放在 [manual.py](yate/editor_view/manual.py)
+view 层组件放在 ](../../yate/editor_view/manual.py)
 （模块名保留，减少 import 面改动），将 `ManualScreen` 参数化为通用
 Markdown 文档屏，**类名保留 `ManualScreen` 会误导**，因此：
 
@@ -372,7 +372,7 @@ Markdown 文档屏，**类名保留 `ManualScreen` 会误导**，因此：
 `_SearchInput` 类名、`_FOOTER_SEARCH/_FOOTER_BROWSE` 常量、
 `.hint` class、`load_manual_markdown` 函数名（薄封装保留）。
 
-**测试同步**：[test_app_textual.py](tests/test_app_textual.py)
+**测试同步**：](../../tests/test_app_textual.py)
 中 998–1246 行的文档屏用例约 20 处引用旧名（import、
 `assertIsInstance(..., ManualScreen)`、所有 `query_one("#manual-*")`、
 `query(".manual-hit*")`），全部替换；1760 行参数化表
@@ -455,7 +455,7 @@ reg("changelog", lambda args: app.show_changelog(args or "en"),
 
 ### 7.5 CLI `--changelog` 选项
 
-[cli.py](yate/cli.py) 新增参数：
+](../../yate/cli.py) 新增参数：
 
 ```python
 parser.add_argument(

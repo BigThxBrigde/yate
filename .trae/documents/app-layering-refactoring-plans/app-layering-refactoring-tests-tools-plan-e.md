@@ -1,6 +1,6 @@
 # Plan E — 测试与冒烟脚本迁移
 
-> 状态：✅ **已完成**（2026-09-23 收口）· 前置：[Plan D](app-layering-refactoring-shell-wiring-plan-d.md) · 后置：[Plan F](app-layering-refactoring-gate-docs-plan-f.md)
+> **实施状态**：✅ 已实施 —— 2026-10-05 全量核对：文档自述与代码产物一致。
 > 门禁（实测）：`python -m pytest tests/ -q` 全绿 · `python -m pyright yate/ tests/ tools/` 0 诊断 ·
 > 冒烟 `run --fail-only` → 62/62 场景、651/651 checks
 > 子任务划分见 §E.2，落地记录见 §E.5，逐文件迁移清单与实测见 §E.6。
