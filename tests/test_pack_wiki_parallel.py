@@ -20,9 +20,19 @@ import threading
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
+from io import StringIO
 from pathlib import Path
 
 import pytest
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from tools.pack import cli, wiki
 
@@ -408,3 +418,116 @@ def test_translate_failure_lines_are_printed_once_by_the_main_thread(
     assert err.count("rc=3 for") == PAGE_COUNT
     # The serial default must be restored for the next (non-parallel) call.
     assert getattr(wiki, "_emit_mode") == "print"
+
+
+def _live_display(stream: StringIO) -> Progress:
+    """Build a forced-terminal display with the production column set.
+
+    ``force_terminal`` makes rich render (and therefore parse markup) even
+    though the output is an in-memory stream, and the description column --
+    absent from rich's defaults -- is what carries the batch row text.
+    """
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=Console(file=stream, force_terminal=True, width=120),
+    )
+
+
+def _install_display(monkeypatch: pytest.MonkeyPatch, display: Progress) -> None:
+    """Make the generator build *display* instead of a fresh one.
+
+    :mod:`tools.pack.wiki` resolves ``Progress`` as a module global, so
+    patching that name is enough to observe the live rows -- and it keeps
+    the tests on the public :func:`tools.pack.wiki.run` entry point instead
+    of the module-private helpers (pyright forbids private access).
+    """
+
+    def factory(*args: object, **kwargs: object) -> Progress:
+        """Return the injected display, ignoring rich's own arguments."""
+        del args, kwargs
+        return display
+
+    monkeypatch.setattr(wiki, "Progress", factory)
+
+
+def test_batch_progress_advances_page_by_page_while_a_batch_runs(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every finished page moves the bar, not every finished batch.
+
+    Regression guard for the IKJPEK comment (issue note_51450440): a batch
+    row used to sit at 0% until its whole batch reported back and then
+    jump to 100%, which reads as "no live progress at all" on a 162-page
+    run (ten pages per batch, ~20 s per page).
+
+    ``jobs=1`` makes the observation deterministic -- page *n+1* of a batch
+    starts only after page *n* returned -- so the overall count observed
+    when a page starts must already include its finished predecessors.  The
+    batch-granular advance reported 0 for every page but the last.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+
+    observed: dict[str, int] = {}
+    lock = threading.Lock()
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        stem = text.splitlines()[0].removeprefix("# ")
+        # The overall row is the display's first task.
+        with lock:
+            observed[stem] = int(progress.tasks[progress.task_ids[0]].completed)
+        return _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=1) == 0
+    # Second page of the first batch: one page must already be counted.
+    assert observed["page02"] == 1
+    assert observed["page10"] == 9
+    assert observed["page11"] == 10
+    assert progress.tasks[progress.task_ids[0]].completed == PAGE_COUNT
+
+
+def test_batch_row_names_the_page_in_flight_and_escapes_markup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The batch row names the page in flight, brackets included.
+
+    ``README.md`` promises "current page name + overall progress", and a
+    Windows file name may legally contain brackets.  Handing those to rich
+    unescaped raises :class:`rich.errors.MarkupError` inside a worker,
+    which would abort the whole run -- the same hazard review #2 fixed for
+    the permanent lines.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+    root = tmp_path / "repo-brackets"
+    _touch(root, ".trae/documents/plain.md", "# plain\n\n中文正文\n")
+    _touch(root, ".trae/documents/bracket[name].md", "# bracket\n\n中文正文\n")
+
+    described: list[str] = []
+    rendered: list[str] = []
+    lock = threading.Lock()
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        del text, translate_cmd
+        with lock:
+            # Sorted collection puts bracket[name].md first, so the row
+            # opens on it; refresh forces the markup parser to run.
+            described.append(str(progress.tasks[progress.task_ids[1]].description))
+            progress.refresh()
+            rendered.append(stream.getvalue())
+        return "# en\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=root, jobs=1) == 0
+    assert len(described) == 2
+    assert described[0] == "batch 1/1 · bracket\\[name].en.md"
+    # Rendering unescapes back to the literal page name (and never raises).
+    assert "bracket[name].en.md" in rendered[0]
+    assert progress.tasks[progress.task_ids[1]].description == "batch 1/1 · plain.en.md"
