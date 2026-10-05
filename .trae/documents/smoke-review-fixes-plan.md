@@ -1,8 +1,8 @@
 # 冒烟扩充评审整改方案（smoke-review-fixes）
 
-> **实施状态**：🔄 方案已落盘，执行中。
+> **实施状态**：✅ 已完成 —— 2026-10-05，1 阻断 + 2 改进全部销账。
 > 评审记录：[2026-10-05-pr57-smoke-expansion-ai-review.md](../reviews/2026-10-05-pr57-smoke-expansion-ai-review.md)（Gitee PR !57，note 51450178）。
-> 实测数字见 §六。
+> 实测数字见 §七。
 
 ## 一、目标与非目标
 
@@ -186,5 +186,51 @@ flowchart LR
 
 ## 七、执行记录
 
-（待回填：真实场景数 / 检查数 / 覆盖数字、pytest / pyright / 架构门禁实测、
-基线 diff 情况、子代理存活与零产出情况、偏离计划的校准理由。）
+### 7.1 销账结论
+
+| 项 | 处置 | 提交 |
+|---|---|---|
+| B1（阻断） | 屏保拒绝路径拆成两个单 app 场景（`screensaver_disabled_message` + `screensaver_bad_roster_message`），死存储消失，app 1 重回不变量覆盖 | `c7099d0` |
+| M1（改进） | 三处期望值改由 `theme.available()` 派生（评审建议的 `theme.names()` 不存在） | `77475d8` |
+| M2（改进） | 循环上限改为 `ceil((0.5 - MIN_FRACTION) / RESIZE_STEP) + 2`，实测 **7** | `6a95fd8` |
+| 基线 | 屏保两份按预期变化 | `f9da8d1` |
+| 文档 | 评审状态表 + `reviews/README.md` 速览 #29 与轮次总表 | 本轮最后一笔 |
+
+### 7.2 实测数字（HEAD `f9da8d1`）
+
+| 门禁 | 结果 |
+|---|---|
+| 受影响 5 场景 | 77/77 checks、5/5 场景 PASS、exit 0 |
+| 全量冒烟 | **104/104 场景、1252/1252 checks**，exit 0 |
+| 覆盖率 | `commands 45/45`、`actions 66/66`（拆分未影响，仍 100%） |
+| 基线对账 | 新增 `screensaver_bad_roster_message.json`；`screensaver_disabled_message.json` 减 3 条检查；**`prompt_tab_completion.json` 与 `pane_resize_chords.json` 零 diff**（步骤 4 的对账要求达成） |
+| `compare` | 全 MATCH、exit 0 |
+| pyright strict | `yate/ tests/ tools/` **0 errors** |
+| pytest | **1875 passed / 8 skipped**，exit 0；覆盖率 **91.27%**（门禁 75%） |
+| 架构测试 | **22 passed**，exit 0 |
+
+### 7.3 子代理执行情况
+
+步骤 1/2/3 三名成员（每人一文件、显式 `bypassPermissions`）**全部存活并落盘，
+零产出 0 人**。主代理逐行复核了三份 `git diff`（确认无范围蔓延：`_screensaver_toggle_key`
+与三个场景的其它检查项均未动），并独立重跑了受影响场景、pyright、全量冒烟、
+`compare`、`pytest` 与架构测试——**成员自述数字一律未直接采信**。
+
+### 7.4 偏离计划与校准理由
+
+1. **未新建 worktree（偏离 §四）**：沿用 `../yate-smoke-scenarios` 及其 `.venv`。
+   理由见 §四——整改对象就是该分支上尚未合并的 PR，另开 worktree 只会多出一条
+   无意义分支与一份虚拟环境。
+2. **B1 的实际修复面比评审多一项**：除消除死存储外，拆分同时让第一个 app 重新进入
+   不变量扫描范围（`harness.py:445` 只扫最后一个 app）。这是评审未提及、但与阻断项
+   同源的缺陷，一并修掉。
+3. **M1 的修复面比评审多两处**：评审只点名候选条数 `8`，同场景内
+   `"set theme=frappe"` 与 `"frappe"` 是同一缺陷类，一并派生（方案 §三 B1 已预判）。
+4. **M2 的余量取 `+2` 而非刚好 5**：实测第 5 次按键被最小比例钳制（0.10 < 0.12），
+   第 6 次才触发告警，故 `5 + 2 = 7` 留 1 次余量。已在常量注释中写明依据。
+
+### 7.5 未解决项
+
+无。§五 注里提到的 `invariant:no_leftover_modal` 时机问题仍属既有议题
+（见 [smoke-test-expansion-plan.md](smoke-test-expansion-plan.md) §7.5），本轮
+未在范围内。

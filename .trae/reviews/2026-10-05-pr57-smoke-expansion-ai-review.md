@@ -111,9 +111,25 @@
 
 | 编号 | 摘要 | 分类 | 状态 |
 |---|---|---|---|
-| B1 | `screensaver.py` 两 app 共用 `rows`，第一个 app 快照死存储且逃过不变量扫描 | 阻断 | 🔧 已修（拆为两个场景） |
-| M1 | `guards.py` 主题候选数量（及两处派生主题名）硬编码 | 改进 | 🔧 已修（改为注册表派生） |
-| M2 | `workspace_nav.py` 循环上限 `12` 为魔法数字 | 改进 | 🔧 已修（由产品常量推导） |
+| B1 | `screensaver.py` 两 app 共用 `rows`，第一个 app 快照死存储且逃过不变量扫描 | 阻断 | ✅ 已修（`c7099d0`：拆为 `screensaver_disabled_message` + `screensaver_bad_roster_message`，各一个 app、各一次 `snapshot_svg`） |
+| M1 | `guards.py` 主题候选数量（及两处派生主题名）硬编码 | 改进 | ✅ 已修（`77475d8`：三处期望值改由 `theme.available()` 派生；`theme.names()` 不存在，评审建议的 API 已替换） |
+| M2 | `workspace_nav.py` 循环上限 `12` 为魔法数字 | 改进 | ✅ 已修（`6a95fd8`：改为 `ceil((0.5 - MIN_FRACTION) / RESIZE_STEP) + 2`，实测 7；第 6 次按键才触发告警，余量 2 次是刻意的） |
 
-处置实测与门禁数字见
-[smoke-review-fixes-plan.md](../documents/smoke-review-fixes-plan.md) §六。
+### 销账实测（2026-10-05，HEAD `f9da8d1`）
+
+| 门禁 | 结果 |
+|---|---|
+| 受影响 5 场景 | 77/77 checks，5/5 场景 PASS，exit 0（成员各自三轮一致，主代理再复核一轮） |
+| 全量冒烟 | **104/104 场景、1252/1252 checks**，exit 0 |
+| 覆盖率 | `commands 45/45`、`actions 66/66`（均为 100%，拆分未影响） |
+| 基线 | 新增 `screensaver_bad_roster_message.json`；`screensaver_disabled_message.json` 减 3 条检查；`prompt_tab_completion.json` 与 `pane_resize_chords.json` **零 diff**（方案 §五 步骤 4 的对账要求达成） |
+| `compare` | 全 MATCH，exit 0 |
+| pyright strict | `yate/ tests/ tools/` 0 errors |
+| pytest | 1875 passed / 8 skipped，exit 0；覆盖率 **91.27%**（门禁 75%） |
+| 架构测试 | 22 passed，exit 0 |
+
+> 耗时口径说明：同一份代码在两次全量运行中分别耗时 153s 与 94s、`pytest` 分别为
+> 497s 与 264s，波动来自本机负载（整改期间三个子代理并行占用 CPU）。**场景数与
+> 检查数是可靠口径，耗时只作参考**，本条不据此判断性能回归。
+
+整改方案与逐处落点：[smoke-review-fixes-plan.md](../documents/smoke-review-fixes-plan.md)。
