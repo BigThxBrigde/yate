@@ -1,6 +1,6 @@
 # pack wiki 工具增强方案（issue IKJPEK）
 
-> 分支：`enh/pack-wiki`（worktree：`../yate-pack-wiki`）
+> 分支：`enh/pack-wiki-parallel`（worktree：仓库同级目录 `../yate-pack-wiki`）
 > Issue：<https://gitee.com/jermaine/yate/issues/IKJPEK>（ENHANCE - PACK WIKI TOOL 增强）
 > 状态：**已执行完毕**（波次 1-8 全部完成，审核无 blocker / major 遗留）
 
@@ -220,7 +220,7 @@ def report(exc: BaseException, *, debug: bool = False) -> None:
 ## 六、收尾门禁（主代理亲自跑，退出码必须 0）
 
 ```powershell
-cd d:\Programming\yate-pack-wiki
+# 在 worktree 根目录（本分支的独立沙箱）执行：
 .venv\Scripts\python.exe -m pyright yate\ tests\ tools\
 .venv\Scripts\python.exe -m pytest tests\ -q
 .venv\Scripts\python.exe -m pytest tests\test_architecture.py -q
@@ -244,7 +244,7 @@ cd d:\Programming\yate-pack-wiki
 | 既有测试对 `ValueError` / 失败行格式的断言 | 明确列入波次 5 与 §4.4，`WikiError` 保留原名 | — |
 | 错误码破坏下游脚本对 `tools.pack:` 前缀的依赖 | 前缀升级为 `error[CODE]:`，仓库内无依赖该前缀的脚本（已搜索确认） | — |
 
-回滚路径：单分支 `enh/pack-wiki`，`git reset --hard eb64cf4` 或整分支删除。
+回滚路径：单分支 `enh/pack-wiki-parallel`，`git reset --hard eb64cf4` 或整分支删除。
 
 ## 八、流程图
 

@@ -14,12 +14,13 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 28 条：
-**未闭环 12 条**、已闭环 15 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
+📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 29 条：
+**未闭环 13 条**、已闭环 15 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
 #20 / #22 / #24 / #25 / #27 / #28）、部分闭环 1 条（#18：三轮评审中前两轮已修，
 第三轮按用户决策登记不修）。已闭环条目保留行并标注处置；
 #26 / #27 为 2026-10-05 全量清查轮补登记（此前索引漏记），
-#28 为同轮的全量文档 review（文档治理，非代码缺陷）。
+#28 为同轮的全量文档 review（文档治理，非代码缺陷），
+#29 为 PR !56 的 AI 队友评审（0 阻断 / 4 改进，仅登记未处置）。
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
 
@@ -53,6 +54,7 @@
 | 26 | 2026-10-03 | Gitee PR #51 AI 队友评审（[note 51435445](https://gitee.com/jermaine/yate/pulls/51#note_51435445_conversation_191349311) conversation 191349311；`fix/path-space-handling`，issue IKJK0B，含空格路径解析 `_split_paths` / `_strip_quotes`）：1 改进 —— `_saveas` / `_split` / `_vsplit` 的 `_strip_quotes` 调用缺前置 `.strip()` | ⏸ 本次登记不另修（2026-10-03 用户决策；核对结论为场景当前不可达：`run_command` 入口已 `text.strip()` + `split(maxsplit=1)`，属防御性一致性问题） | [2026-10-03-pr51-path-space-ai-review.md](2026-10-03-pr51-path-space-ai-review.md) |
 | 27 | 2026-10-03 | wiki 翻译进度改动评审（PR !50，`feat/wiki-translate-progress`，`tools/pack/wiki.py` 预扫描 + rich Progress）：2 major + 3 minor 已修（`19f44f0`），1 NTH 未采纳 | ✅ 已修（2026-10-03，`19f44f0`；本条为 2026-10-05 全量清查轮补登记，此前索引漏记） | [2026-10-03-wiki-translate-progress.md](2026-10-03-wiki-translate-progress.md) |
 | 28 | 2026-10-05 | **全量文档 review**（207 篇受控 Markdown，排除 rules/agents；机械体检 + 12 篇用户可见文档语义深审 + 147 篇计划状态取证）：命名违规 26→0、真实机器路径 51→0、失效链接 22→6 篇（仅剩真正失效目标）、`yate/docs` 双语始终成对；发现并修正 README 9 类、`yate/docs` 8 类、wikis 12 类语义偏离 | ✅ 已处置（2026-10-05，分支 `ref/doc-review-sweep`；未实施 2 篇 / 部分实施 4 篇 / 已被取代 7 篇已统一标注状态块并汇总至 [`.trae/documents/overview.md`](../documents/overview.md)；门禁 pyright 0 + 1818 tests 0 failures + 22 架构 + 覆盖率 91.27%。本条为文档治理轮，非代码缺陷） | [2026-10-05-doc-review-sweep.md](2026-10-05-doc-review-sweep.md) |
+| 29 | 2026-10-05 | Gitee PR !56 AI 队友评审（[note 51450173](https://gitee.com/jermaine/yate/pulls/56#note_51450173_conversation_191412615) conversation 191412615；`enh/pack-wiki-parallel`，issue IKJPEK，风险自评 low）：4 改进 —— ① `store_manifest` 经 `_write_page_text` 固定用 `WIKI_PAGE_WRITE`，已定义的 `WIKI_MANIFEST_WRITE`（`WIKI-0105`）无任何引用；② `_read_source_bytes` 把通用 `OSError` 也报成 `WIKI_ZH_SOURCE_MISSING`，`WIKI_SOURCE_UNREADABLE`（`WIKI-0103`）未使用；③ `_emit_mode` / `_COLLECTED_FAILURES` 模块级全局在 `finally` 早清空，`run()` 不可重入；④ `needs_translation` 与 `_prepare_pages` 判定逻辑重复 | 👀 登记未处置（2026-10-05 登记，0 阻断 / 4 改进，功能性 2 + 可维护性 2） | [2026-10-05-pr56-pack-wiki-parallel-ai-review.md](2026-10-05-pr56-pack-wiki-parallel-ai-review.md) |
 
 ---
 
@@ -104,6 +106,7 @@
 | 2026-10-05 | **Gitee PR !54 AI 队友评审**（两轮：[note 51443873](https://gitee.com/jermaine/yate/pulls/54#note_51443873_conversation_191386654) conversation 191386654 + [note 51445224](https://gitee.com/jermaine/yate/pulls/54#note_51445224_conversation_191392268) conversation 191392268；`enh/input-assist` 输入辅助，issue IKJMQ2，风险自评均 low） | ⛔ 第二轮未通过（1 阻断 + 2 改进）→ ⚠️ 第三轮无阻断（2 改进，阻断项未再出现） | 第二轮 1 阻断 / 2 改进；第三轮 0 阻断 / 2 改进 | ✅ 第二轮阻断与改进 1 已修（2026-10-05，对齐 vim 多行语义 + `delete_backward` 走 `set_cursor`；连带 3 条用例与中英手册 3 处措辞）；第三轮改进 1 已由用户手动处置（`6937900`）；⏸ 第二轮改进 2（G9 均值基准）登记不修；👀 第三轮改进 2 登记 G9-3；VISUAL count 差异登记不修（见速览 #25） | [2026-10-05-pr54-input-assist-ai-review.md](2026-10-05-pr54-input-assist-ai-review.md) |
 
 | 2026-10-05 | **全量文档 review（doc-review-sweep）**（207 篇受控 Markdown，排除 `.trae/rules` 与 `.trae/agents`；3 名只读子代理分文件并行 + 主代理逐条复核 + 机械体检脚本） | ✅ 通过（无阻断） | 命名 26 / 真实路径 51 / 断链 22 文件；语义偏离 29 类（README 9 + `yate/docs` 8 + wikis 12）；计划状态 147 篇逐篇取证 | ✅ 已处置（命名违规→0、真实路径→0、断链→6 篇仅剩真正失效目标；147 篇统一状态块 + `.trae/documents/overview.md` 汇总；门禁 pyright 0 + 1818 tests + 22 架构 + 覆盖率 91.27%） | [2026-10-05-doc-review-sweep.md](2026-10-05-doc-review-sweep.md) |
+| 2026-10-05 | **Gitee PR !56 AI 队友评审**（[note 51450173](https://gitee.com/jermaine/yate/pulls/56#note_51450173_conversation_191412615) conversation 191412615；`enh/pack-wiki-parallel`，issue IKJPEK 的 pack wiki 增强：每批 ≤10 篇 + 并发上限 CPU×2 的线程池、`error[CODE]: message` 错误码体系、`--jobs`/`--debug`） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 4 改进（功能性 2 + 可维护性 2） | 👀 登记未处置（2026-10-05；P1 manifest 错误码 / P2 `_read_source_bytes` OSError 码 / P3 emitter 全局收尾竞态 / P4 `needs_translation` 与 `_prepare_pages` 判定重复） | [2026-10-05-pr56-pack-wiki-parallel-ai-review.md](2026-10-05-pr56-pack-wiki-parallel-ai-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
