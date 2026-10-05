@@ -24,6 +24,8 @@ from .screensaver import SCENARIOS as _SCREENSAVER
 from .search import SCENARIOS as _SEARCH
 from .stress import SCENARIOS as _STRESS
 from .view import SCENARIOS as _VIEW
+from .vim_advanced import SCENARIOS as _VIM_ADVANCED
+from .workspace_nav import SCENARIOS as _WORKSPACE_NAV
 
 __all__ = [
     "SCENARIOS",
@@ -41,11 +43,13 @@ __all__ = [
 SCENARIOS: list[Scenario] = [
     *_CORE,
     *_EDIT,
+    *_VIM_ADVANCED,
     *_SEARCH,
     *_FILES,
     *_GUARDS,
     *_PANES,
     *_EXPLORER,
+    *_WORKSPACE_NAV,
     *_VIEW,
     *_DIFFVIEW,
     *_INTEGRATION,
