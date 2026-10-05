@@ -5,12 +5,18 @@ Build with (after ``pip install -e ".[build,ts]"``), from the repository root::
 
     pyinstaller pack/yate.spec
 
-The output is dist/yate/yate.exe (a one-folder build) with the runtime files
-placed right next to the executable -- no ``_internal/`` subdirectory
-(issue IKJPVB).  Resources are located at runtime through yate.paths, which
+On Windows the output is dist/yate/yate.exe with the runtime files placed
+right next to the executable -- no ``_internal/`` subdirectory (issue
+IKJPVB).  Resources are located at runtime through yate.paths, which
 checks sys._MEIPASS, so the data layout shared with pack/_common.py must
 mirror the source tree (everything lands inside a top-level ``yate`` package
 folder in the bundle).
+
+The flat layout is Windows-only: a POSIX build has no ``.exe`` suffix, so
+the executable itself would be ``dist/yate/yate`` -- the very path the
+bundled ``yate/`` package data needs as a *directory*, and COLLECT aborts
+when it finds a file there.  Linux/macOS therefore keep PyInstaller's
+default ``_internal/`` contents directory.
 
 Modules that are dragged in transitively but never used at runtime (Pillow
 and numpy) are dropped from the frozen graph via
@@ -75,10 +81,15 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    # Flat one-folder layout (issue IKJPVB): PyInstaller >=6 defaults to a
-    # ``_internal/`` subdirectory, "." restores the pre-6 layout where the
+    # Flat one-folder layout on Windows (issue IKJPVB): PyInstaller >=6 defaults
+    # to a ``_internal/`` subdirectory, "." restores the pre-6 layout where the
     # runtime files sit next to yate.exe.  COLLECT inherits this from EXE.
-    contents_directory=".",
+    # Windows-only because only there does the executable keep an ``.exe``
+    # suffix -- on POSIX it would be ``dist/yate/yate``, colliding with the
+    # bundled ``yate/`` package directory COLLECT has to create (its makedirs
+    # turns that collision into a hard SystemExit), so those platforms keep
+    # the default contents directory.
+    contents_directory="." if sys.platform == "win32" else "_internal",
     console=True,
     disable_windowed_traceback=False,
 )

@@ -111,16 +111,36 @@ def _keyword_value(call: ast.Call, name: str) -> ast.expr | None:
     return next((keyword.value for keyword in call.keywords if keyword.arg == name), None)
 
 
-def _string_value(expr: ast.expr) -> str | None:
-    """The text of *expr* when it is a string literal, else ``None``."""
-    if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
-        return expr.value
-    return None
-
-
 def _is_empty_list_literal(expr: ast.expr) -> bool:
     """True when *expr* is a literal ``[]`` -- the shape this guard forbids."""
     return isinstance(expr, ast.List) and not expr.elts
+
+
+def _functions(tree: ast.Module, name: str) -> list[ast.FunctionDef]:
+    """Every top-level ``def name(...)`` in *tree*; empty when it is gone."""
+    return [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    ]
+
+
+def _returned_call(function: ast.FunctionDef) -> ast.Call:
+    """The single ``return <call>(...)`` of *function*, asserted not guessed.
+
+    A bare ``next()`` here would turn a renamed or restructured function into
+    an opaque ``StopIteration`` -- exactly the failure a guard exists to
+    report clearly (python-coding-style.md §4.5).
+    """
+    calls = [
+        node.value
+        for node in ast.walk(function)
+        if isinstance(node, ast.Return) and isinstance(node.value, ast.Call)
+    ]
+    assert len(calls) == 1, (
+        f"{function.name}() must return exactly one call, found {len(calls)}"
+    )
+    return calls[0]
 
 
 # --- the shared exclude inventory (pack/_common.py) ---------------------------
@@ -159,17 +179,9 @@ def test_collect_return_when_common_parsed_passes_shared_excludes_inventory() ->
     The specs read ``inputs.excludes``; a literal list here would leave the two
     build modes free to drift apart again.
     """
-    collect_fn = next(
-        node
-        for node in _parse(_COMMON_PATH).body
-        if isinstance(node, ast.FunctionDef) and node.name == "collect"
-    )
-    returned = next(
-        node.value
-        for node in ast.walk(collect_fn)
-        if isinstance(node, ast.Return) and isinstance(node.value, ast.Call)
-    )
-    excludes_value = _keyword_value(returned, "excludes")
+    collect_fns = _functions(_parse(_COMMON_PATH), "collect")
+    assert len(collect_fns) == 1, f"{_COMMON_PATH.name} must define exactly one collect()"
+    excludes_value = _keyword_value(_returned_call(collect_fns[0]), "excludes")
     assert isinstance(excludes_value, ast.Call), "collect() must pass excludes=list(EXCLUDES)"
     assert isinstance(excludes_value.func, ast.Name)
     assert excludes_value.func.id == "list"
@@ -200,12 +212,32 @@ def test_analysis_excludes_when_spec_parsed_is_not_an_empty_literal(spec_path: P
 # --- bundle layout ------------------------------------------------------------
 
 
-def test_exe_call_when_onefolder_spec_parsed_sets_contents_directory_to_dot() -> None:
-    """PyInstaller >=6 defaults to ``_internal/``; ``"."`` restores the flat one."""
+def test_exe_call_when_onefolder_spec_parsed_scopes_flat_layout_to_windows() -> None:
+    """The flat layout must be platform-scoped, and explicit about it.
+
+    ``"."`` is only valid where the executable keeps an ``.exe`` suffix: on
+    POSIX the exe becomes ``dist/yate/yate``, which is the very path COLLECT
+    needs for the bundled ``yate/`` package directory (issue IKJPVB).  So the
+    spec must spell out ``IfExp(sys.platform == "win32", ".", "_internal")``.
+
+    Limitation: this asserts the *shape* of that conditional, not that the
+    branches are semantically right -- ``sys.platform`` cannot be evaluated
+    statically, and whether the POSIX build actually succeeds needs a real
+    Linux build, which CI cannot do.  What it does pin down is that the
+    platform condition is present at all, that Windows still gets the flat
+    layout, and that other platforms get an explicit non-flat directory
+    instead of silently inheriting whatever the default changes to.
+    """
     exe = _one_call(_parse(_ONEFOLDER_SPEC), "EXE", _ONEFOLDER_SPEC)
     contents_directory = _keyword_value(exe, "contents_directory")
-    assert contents_directory is not None, "the one-folder build would nest _internal/ again"
-    assert _string_value(contents_directory) == "."
+    assert contents_directory is not None, "the one-folder build lost its layout choice"
+    assert isinstance(contents_directory, ast.IfExp), (
+        "contents_directory must be a sys.platform conditional, got "
+        f"{type(contents_directory).__name__}"
+    )
+    assert ast.unparse(contents_directory.test) == "sys.platform == 'win32'"
+    assert ast.unparse(contents_directory.body) == "'.'"
+    assert ast.unparse(contents_directory.orelse) == "'_internal'"
 
 
 def test_exe_call_when_onefile_spec_parsed_omits_contents_directory() -> None:
