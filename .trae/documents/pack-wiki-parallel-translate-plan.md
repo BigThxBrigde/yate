@@ -2,7 +2,7 @@
 
 > 分支：`enh/pack-wiki`（worktree：`../yate-pack-wiki`）
 > Issue：<https://gitee.com/jermaine/yate/issues/IKJPEK>（ENHANCE - PACK WIKI TOOL 增强）
-> 状态：待执行（无人值守时段，已按 `task-orchestration.md` §二.3 直接批准进入执行）
+> 状态：**已执行完毕**（波次 1-8 全部完成，审核无 blocker / major 遗留）
 
 ## 一、目标与非目标
 
@@ -275,3 +275,71 @@ flowchart TD
     style L fill:#c8e6c9,color:#1a5e20
     style Z fill:#fff3e0,color:#e65100
 ```
+
+## 九、执行记录（2026-10-05，收尾回填）
+
+### 9.1 波次 → 提交
+
+| 波次 | 内容 | 提交 |
+|---|---|---|
+| 1 | 方案落盘 | `72a247f` |
+| 2 | 错误码体系 `tools/pack/errors.py` | `7e8432f` |
+| 3 | wiki 层：并行执行器 + 全量PackError 化 | `625d443` |
+| 4 | CLI 边界：`--jobs` / `--debug` / 兜底 | `b16952c` |
+| — | 常量位置风格修正 | `e9aefbc` |
+| 5 | 既有测试适配（`ValueError` → `WikiError`） | `033f530` |
+| 6 | 新增测试 `tests/test_pack_wiki_errors.py`（15）+ `tests/test_pack_wiki_parallel.py`（16，子代理并行产出） | `f2fbd81` |
+| 7 | 审核 → 迭代：取消语义（M1/B1）+ 错误输出收口 | `042a3ac`、`4c7ed16` |
+
+### 9.2 收尾门禁实测（主代理亲自跑，退出码均为 0）
+
+| 命令 | 结果 |
+|---|---|
+| `pyright yate\ tests\ tools\` | 0 errors, 0 warnings |
+| `pytest tests\ -o addopts= -q` | **1843 passed, 8 skipped**（246.53s） |
+| `pytest tests\test_architecture.py -o addopts= -q` | **22 passed** |
+| `pytest tests\ -q --cov=yate --cov-fail-under=75` | **91.25%**（门槛 75%） |
+
+真机冒烟（worktree 内，产物已清理）：
+
+| 场景 | 实测 |
+|---|---|
+| `wiki --jobs 999 --check`（无翻译器） | 198 页 / 193 缺页 / `--check` 退出码 **1** |
+| `wiki --translate-cmd <桩> --jobs 8` | 193 页 → **20 批**（每批 10 页）→ 8 worker，**6.8s**，退出码 0，stderr 实时输出 `batch n/20 done (10/10 ok, 0 failed)` |
+| `rosters --output <目录>` | `error[ROSTERS-0302]: [Errno 13] Permission denied`，退出码 1，**无堆栈** |
+| `wiki --target <已存在文件>` | `error[WIKI-0106]` + `hint:`，退出码 1，堆栈行数 **0** |
+| 同上 + `--debug` | 错误行不变，额外出现 `Traceback`（2 处） |
+
+### 9.3 审核结论与迭代（code-review-expert，基线 `eb64cf4..f2fbd81`）
+
+首轮判定 **需迭代**（1 blocker / 2 major / 5 minor），逐条处理如下：
+
+| 编号 | 问题 | 处理 |
+|---|---|---|
+| **B1** | `Ctrl+C` 后 `shutdown(wait=True)` 等待全部已提交批次（实测 25 页跑满 42.37s） | 已修：worker 持 `stop` 事件且每页前检查、`shutdown(wait=False, cancel_futures=True)`、排队 future `cancel()`；实测负向演练（还原 `wait=True` + 去掉 stop 检查）下新用例报`assert 18 <= 8` 失败，证明守护有效 |
+| **M1** | worker 直接 `print` 到 stderr，与 rich live 区竞争 | 已修：新增 `_run_translate` + `_emit_translate_failure` 收集模式，并行阶段由主线程统一 `console.print`，串行路径行为不变 |
+| **M2** | `--jobs` 语义可能被误读（任务并发 × 10 页） | 已修：`--jobs` help、模块 docstring 明确"每任务 ≤ 10 篇，最多 jobs×10 个翻译进程" |
+| **M3** | `--jobs 0/负数` 被静默抬到 1 | 已修：与超上限同样提示 |
+| m1 | 库层 `print` 绕过 `errors.report` | 已修：manifest 损坏 / 非对象两处与 `push_wiki` 三处 git 失败统一走 `report()`（新增 `WIKI_GIT_FAILED = "WIKI-0108"`） |
+| m2 | `missing` / `stale` 按完成顺序输出 | 已修：按名称排序打印 |
+| m5 | `_rosters` 只捕 `OSError`，异常退化 `PKG-0001` | 已修：扩为 `(OSError, ValueError, KeyError, IndexError)` → `ROSTERS-0302` |
+| m4 | 覆盖率只统计 `yate/`，`tools/` 无覆盖背书 | **未改**（登记为遗留项，见 §9.5） |
+
+补充自查（首轮审核未列，主代理冒烟时发现）：`target.mkdir` 未包装会退化成 `PKG-0001` → 已包装为 `WIKI_PAGE_WRITE` + `hint:`。
+
+### 9.4 与方案的偏离（均有实测依据）
+
+1. `resolve_jobs` / `job_ceiling` 的关键字参数命名为 `cores`（方案写 `cpu_count`）：与同名函数冲突，改名后语义更准，clamp 行为不变（`cores=4` → 上限 8，已被用例锁定）。
+2. `tests/test_pack_wiki.py::test_collect_rejects_duplicate_targets` 由 `pytest.raises(ValueError)` 改为 `pytest.raises(wiki.WikiError)` 并追加 `code == WIKI_TARGET_COLLISION` 断言——**收紧**，非放宽。
+3. `_translate_pending` 增加 `target` 参数（方案未列）：写盘需目标根，worker 不碰文件系统。
+4. 审核后新增 `PAGE_DELAY_S`（0.2s）测试常量与负向演练：初版用例无法捕获 B1（实测还原 `wait=True` 仍 18 passed），改"仅 page03 抛中断、其余正常翻译"后才具备判别力。
+5. 子代理实测发现本机会话 shell 落到 `cmd.exe`（`Select-String` / `wait` 不可用），验收命令改用 cmd 兼容写法，结论不受影响。
+
+### 9.5 遗留项（本轮不做，登记待办）
+
+| 项 | 原因 |
+|---|---|
+| 覆盖率未纳入 `tools/`（`pyproject.toml:124` `source = ["yate"]`） | 改CI 度量范围超出本 issue 边界；本次 33 条新用例实际有效 |
+| 真实 `Ctrl+C` 端到端冒烟 | 需向控制台进程组投递中断事件，不可自动化；worker 侧路径已由用例锁定（退出码 130、无堆栈、队列被取消） |
+| 在途翻译子进程的终止依赖控制台事件广播 | Windows 行为，超出工具可控范围；最坏退化为单页 `TRANSLATE_TIMEOUT_S` |
+| `OSError` 消息里的中文在 Windows 控制台显示为乱码 | 既有问题（`translate` 侧已有 `_force_utf8_pipes` 专责），与本 issue 无关 |
