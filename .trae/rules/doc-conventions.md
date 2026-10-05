@@ -1,3 +1,8 @@
+---
+alwaysApply: true
+scene: document
+---
+
 # doc-conventions（文档命名与引用约定）
 
 本规则固化仓库内各类文档的命名与路径引用约定。新建文档必须遵守；存量文档已于

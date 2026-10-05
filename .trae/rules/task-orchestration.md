@@ -1,3 +1,8 @@
+---
+alwaysApply: true
+scene: task
+---
+
 # task-orchestration（任务闭环编排）
 
 本规则规定非平凡任务在**主代理会话**内的执行方式：主代理按角色剧本推进闭环，
