@@ -66,8 +66,9 @@ def test_collect_covers_sources_and_excludes_rest(repo: Path) -> None:
 
 def test_collect_rejects_duplicate_targets(repo: Path) -> None:
     _touch(repo, ".trae/documents/architecture.md")
-    with pytest.raises(ValueError, match="architecture.zh.md"):
+    with pytest.raises(wiki.WikiError, match="architecture.zh.md") as excinfo:
         wiki.collect_sources(repo)
+    assert excinfo.value.code == wiki.Code.WIKI_TARGET_COLLISION
 
 
 def test_run_writes_zh_pages_paired_en_and_nav(repo: Path, tmp_path: Path) -> None:
@@ -529,11 +530,13 @@ def test_cli_wiki_subcommand_wiring(
         check: bool = False,
         push: bool = False,
         repo_root: Path | None = None,
+        jobs: int | None = None,
     ) -> int:
         seen["target"] = target
         seen["translate_cmd"] = translate_cmd
         seen["flags"] = (force, translate_all, check, push)
         seen["repo_root"] = repo_root
+        seen["jobs"] = jobs
         return 0
 
     monkeypatch.setattr(wiki, "run", fake_run)
@@ -547,12 +550,15 @@ def test_cli_wiki_subcommand_wiring(
         "--translate-all",
         "--check",
         "--push",
+        "--jobs",
+        "3",
     ]
     assert cli.main(argv) == 0
     assert seen["target"] == tmp_path / "w"
     assert seen["translate_cmd"] == "tr"
     assert seen["flags"] == (True, True, True, True)
     assert seen["repo_root"] == Path(cli.__file__).resolve().parents[2]
+    assert seen["jobs"] == 3
 
 
 def test_needs_translation_decision_matrix(
