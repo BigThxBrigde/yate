@@ -226,8 +226,62 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 | 10 | tests | SUGGESTION | `refresh()` 依赖 live 已 start（失败因果难读） | ✅ 已修：加 `assert progress.live.is_started` |
 | 11 | impl | SUGGESTION | `_translate_pending([])` → `max_workers=0` → `ValueError`（存量，生产已挡） | ⏸ 登记遗留（改动超本轮范围） |
 
-**遗留项登记**：#2(ii) 进度异常独立通道；#11 空 `plans` 卫语句；PR !56 评审的
-P1–P4；真实 TTY 目验（自动化会话无法发 SIGINT / 无法目验）。
+### 6.8 第二轮修复：`Ctrl+C` 堆栈治理（2026-10-06）
+
+**用户报告**：`wiki --translate-cmd` 运行中按 `Ctrl+C` 后，终端被 `KeyboardInterrupt`
+堆栈刷屏（同一页重复 4 次），最后才出现 `tools.pack: interrupted`。
+
+**根因（两层，均实测取证）**：
+
+1. 控制台的 `Ctrl+C` 广播到**整个进程组**，`tools.translate` 子进程与它启动的
+   `codebuddy-code` 一起收到，于是子进程打印
+   `KeyboardInterrupt` traceback，退出码 `3221225786`
+   （`0xC000013A` = `STATUS_CONTROL_C_EXIT`）；
+2. 父进程 `_run_translate` 只把"非零退出"当**单页翻译失败**，于是把整段
+   traceback 当作 detail 打进 `error[WIKI-0201]`，并且**继续翻页** —— 用户已经
+   中断，却还要为余下每一页各打印一条错误。
+
+**方案（备选与否决）**：
+
+| 备选 | 结论 | 理由 |
+|---|---|---|
+| **A. 子进程干净退出 + 父进程识别中断码**（选定） | ✅ | 两处各改一处，语义正确：`tools.translate` 捕获 `KeyboardInterrupt` → 一行提示 + 退出码 130；`wiki._run_translate` 把中断码（130 / `0xC000013A` / 有符号形式 / `-SIGINT`）**转为 `KeyboardInterrupt`**，复用既有的 `outcome.error` → `stop.set()` → 取消队列 → CLI 130 通道，不新增状态字段 |
+| B. 父进程过滤 detail 文本（截断 traceback） | ❌ 否决 | 只治表象：仍然逐页失败、仍然跑完全部页面，用户仍等几分钟 |
+| C. 父进程改用 `CREATE_NEW_PROCESS_GROUP` 隔离子进程 | ❌ 否决 | 只屏蔽单页子进程的 Ctrl+C，`tools.translate` 与 `codebuddy-code` 之间的中断仍在；且跨平台分支复杂 |
+
+**实施**：
+
+1. `tools/translate/cli.py`：`main` 捕获 `KeyboardInterrupt` → stderr 一行
+   `wiki-translate: interrupted` + 返回 **130**（无堆栈）；`SystemExit`（argparse
+   用法错误）不受影响。
+2. `tools/pack/wiki.py`：新增 `_INTERRUPT_EXIT_CODES`，`_run_translate` 命中即
+   `raise KeyboardInterrupt`（`from None` 语义：不是翻译失败）；`translate_via_cmd`
+   与 `_run_translate` docstring 同步。
+3. README 的 `Ctrl+C` 说明不变（中英早已承诺"干净退出 130、无调用堆栈"，本轮兑现）。
+
+**验收**：新增 3 组用例（中断码 → `KeyboardInterrupt` 且不打印 `error[WIKI-0201]`；
+中断后不再翻页且 CLI 返回 130；`tools.translate` 侧 130 且无 `Traceback`）
++ 全量门禁。
+
+**实施结果（2026-10-06）**：
+
+- `tools/translate/cli.py`：`main` 整体包进 `try`，`except KeyboardInterrupt` →
+  stderr 一行 `wiki-translate: interrupted` + 返回 **130**；
+- `tools/pack/wiki.py`：新增 `_INTERRUPT_EXIT_CODES = {130, 0xC000013A,
+  0xC000013A - 2**32, -2}`（常量注释说明 Windows / POSIX / 自守护 translators
+  三种来源），`_run_translate` 命中即 `raise KeyboardInterrupt`；
+- 测试：`test_pack_wiki_errors.py` 参数化 4 个中断码；`test_pack_wiki_parallel.py`
+  加"整轮中止且不刷错误"与"CLI 130"两条；`test_tools_translate.py` 加"130 且无
+  `Traceback`、不写 `OUT`"一条。实测 **89 passed, 1 skipped**（`[/x]` 用例在
+  Windows 跳过）。
+
+**端到端取证**（一次性探针，已删除）：真实子进程 + 独立控制台组 + 真
+`CTRL_BREAK_EVENT`，实测 **returncode = 3221225786（= `0xC000013A`，
+`STATUS_CONTROL_C_EXIT`）** —— 与用户日志中的 rc 完全一致，确认该码即控制台
+中断的退出码，纳入识别集合。（该探针未复现 traceback：`CTRL_BREAK` 走
+`SIGBREAK`，Python 默认直接终止；用户的 traceback 来自 `tools.translate` 收到
+`CTRL_C` → `SIGINT` → 默认 handler，与其日志一致。复现 `CTRL_C_EVENT` 需把它
+发给前台进程组，会波及本机会话，故不做。）
 
 ## 七、风险与回滚
 
