@@ -12,6 +12,7 @@ from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import goto, run_command, type_text, wait_until
 from .aliases import SCENARIOS as _ALIASES
 from .core import SCENARIOS as _CORE
+from .diffview import SCENARIOS as _DIFFVIEW
 from .edit import SCENARIOS as _EDIT
 from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
@@ -43,6 +44,7 @@ SCENARIOS: list[Scenario] = [
     *_PANES,
     *_EXPLORER,
     *_VIEW,
+    *_DIFFVIEW,
     *_INTEGRATION,
     *_REGRESSION,
     *_STRESS,
