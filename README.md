@@ -314,6 +314,27 @@ The onefile build unpacks into a temporary `sys._MEIPASS` directory on every
 launch and cleans it up on exit, so the resources live *inside* the exe rather
 than next to it; pick one-folder when faster startup matters.
 
+The one-folder bundle is **flat**. PyInstaller 6 and newer put the runtime
+files into an `_internal/` subdirectory by default, but `pack/yate.spec` sets
+`contents_directory="."`, so `dist/yate/yate.exe` sits *next to*
+`python313.dll`, `base_library.zip`, the `yate/` package directory and the rest
+of the runtime files — there is no `_internal` level.
+
+Both specs also drop modules that are dragged into the frozen graph
+transitively but never touched at runtime: `pygments.formatters.img` pulls in
+Pillow (plus its optional numpy backend) for an image formatter yate never
+uses, and yate's only use of Pillow is regenerating the committed
+`pack/yate.ico` via `python -m tools.pack icon` — a dynamic import outside the
+frozen entry point. Both specs therefore exclude them through the shared
+`EXCLUDES` inventory in [pack/_common.py](pack/_common.py), which takes the
+one-folder bundle from 68.4 MiB to 54.8 MiB (-19.8%) and the onefile bundle
+from 26.6 MiB to 19.5 MiB (-26.7%).
+
+Before adding anything to `EXCLUDES`, read the build evidence instead of
+guessing: `build/<name>/xref-<name>.html` shows which import chain drags a
+module in, and `build/<name>/warn-<name>.txt` lists what PyInstaller could not
+resolve.
+
 ### Executable icon
 
 The Windows executable carries the yate logo (`yate/yate.jpg`) as its icon.

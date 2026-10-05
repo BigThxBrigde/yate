@@ -326,6 +326,23 @@ wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版
 目录 `sys._MEIPASS`、退出时清理——资源在 exe **内部**而非 exe 旁边；更在意启动
 速度时请选单目录版。
 
+单目录产物是**平铺**的。PyInstaller 6 及以上默认把运行时文件放进 `_internal/`
+子目录，而 `pack/yate.spec` 设了 `contents_directory="."`，因此 `dist/yate/yate.exe`
+与 `python313.dll`、`base_library.zip`、`yate/` 包目录等运行时文件**同级平铺**，
+没有 `_internal` 这一层。
+
+两个 spec 还会剔除被顺带拖进打包图、但运行时从不使用的模块：
+`pygments.formatters.img` 为 yate 从不调用的图片格式化器把 Pillow（及其可选
+numpy 后端）拖了进来，而 yate 唯一用到 Pillow 的地方，是用
+`python -m tools.pack icon` 重新生成已入库的 `pack/yate.ico`——那是冻结入口
+之外的动态 import。因此两个 spec 都通过 [pack/_common.py](pack/_common.py) 中
+共享的 `EXCLUDES` 清单排除它们：单目录产物 68.4 MiB → 54.8 MiB（-19.8%），
+单文件产物 26.6 MiB → 19.5 MiB（-26.7%）。
+
+新增 `EXCLUDES` 条目前先取证，不要凭猜测添加：构建产物
+`build/<name>/xref-<name>.html` 能看出模块是被哪条 import 链拖进来的，
+`build/<name>/warn-<name>.txt` 则列出 PyInstaller 未能解析的部分。
+
 ### 可执行程序图标
 
 Windows 可执行程序使用 yate 的 logo（`yate/yate.jpg`）作为图标。PyInstaller
