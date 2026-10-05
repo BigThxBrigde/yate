@@ -135,6 +135,15 @@ class WikiError(PackError):
         super().__init__(code, message, hint=hint)
 
 
+_EN_SECTION_LABELS: Final[dict[str, str]] = {
+    SECTION_GUIDES: "Guides",
+    SECTION_NOTES: "Architecture notes",
+    SECTION_PLANS: "Refactoring plans",
+    SECTION_SETS: "Plan sets",
+    SECTION_REVIEWS: "Review records",
+}
+
+
 def _read_source_bytes(path: Path, *, code: Code = Code.WIKI_ZH_SOURCE_MISSING) -> bytes:
     """Read a collected source file, reporting absence as a coded error.
 
@@ -170,14 +179,6 @@ def _write_page_text(path: Path, text: str) -> None:
         path.write_text(text, encoding="utf-8")
     except OSError as exc:
         raise WikiError(f"cannot write page {path.name}: {exc}", code=Code.WIKI_PAGE_WRITE) from exc
-
-_EN_SECTION_LABELS: Final[dict[str, str]] = {
-    SECTION_GUIDES: "Guides",
-    SECTION_NOTES: "Architecture notes",
-    SECTION_PLANS: "Refactoring plans",
-    SECTION_SETS: "Plan sets",
-    SECTION_REVIEWS: "Review records",
-}
 
 
 @dataclass(frozen=True)
