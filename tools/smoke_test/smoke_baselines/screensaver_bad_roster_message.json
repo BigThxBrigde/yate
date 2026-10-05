@@ -1,19 +1,19 @@
 {
   "checks": [
     {
-      "label": "no_idle_tracker",
-      "expected": null,
-      "actual": null,
+      "label": "unknown_name_reported",
+      "expected": true,
+      "actual": true,
       "ok": true
     },
     {
-      "label": "stays_closed",
+      "label": "bad_roster_stays_closed",
       "expected": 1,
       "actual": 1,
       "ok": true
     },
     {
-      "label": "disabled_message",
+      "label": "bad_roster_message",
       "expected": true,
       "actual": true,
       "ok": true
