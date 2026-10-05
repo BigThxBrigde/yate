@@ -16,6 +16,7 @@ from .diffview import SCENARIOS as _DIFFVIEW
 from .edit import SCENARIOS as _EDIT
 from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
+from .guards import SCENARIOS as _GUARDS
 from .integration import SCENARIOS as _INTEGRATION
 from .panes import SCENARIOS as _PANES
 from .regression import SCENARIOS as _REGRESSION
@@ -41,6 +42,7 @@ SCENARIOS: list[Scenario] = [
     *_EDIT,
     *_SEARCH,
     *_FILES,
+    *_GUARDS,
     *_PANES,
     *_EXPLORER,
     *_VIEW,
