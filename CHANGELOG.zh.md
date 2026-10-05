@@ -3,6 +3,90 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
+## [0.2.9] - 2026-10-05 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.8...v0.2.9)
+
+### 新功能
+
+- route typing through type_char and add vim indent keys [缺中文] ([`25c401c`](https://gitee.com/jermaine/yate/commit/25c401c717f1d750641ca45950a87c28532f3e27))
+- add paired-symbol completion and python auto-indent [缺中文] ([`4291b28`](https://gitee.com/jermaine/yate/commit/4291b28758ed9bfce3dbb229022e158b6b1af36c))
+- add syntax example extensions for batch/ini/fsharp/git/diff [缺中文] ([`0497d39`](https://gitee.com/jermaine/yate/commit/0497d393d24060e8f08849bba28196fc87c4f8af))
+- add 22 tree-sitter grammar packs for 23 languages [缺中文] ([`8aea808`](https://gitee.com/jermaine/yate/commit/8aea808481deaee8ee5cf0c8c67b22318c8c9c35))
+
+### 问题修复
+
+- make a counted vim shift span count lines [缺中文] ([`5c41d69`](https://gitee.com/jermaine/yate/commit/5c41d69d7c91fac6ff4c40e39519ad3326916bc7))
+- use a shift-key set for the vim indent bindings [缺中文] ([`07b674c`](https://gitee.com/jermaine/yate/commit/07b674cc989ff0a9792b8fa322194bebeb34d247))
+- keep the indent slice left-only and drop unused helpers [缺中文] ([`17b617c`](https://gitee.com/jermaine/yate/commit/17b617cdf5e67674efab5a3e664efc28b3efe162))
+- drop the last false regex-fallback promise from the code [缺中文] ([`3d1ed13`](https://gitee.com/jermaine/yate/commit/3d1ed13dec24bf712b0b5db4a083ba8edd6b0883))
+- keep class selectors out of the dashed-name fallback [缺中文] ([`c3bcc07`](https://gitee.com/jermaine/yate/commit/c3bcc071a55672d0960151f8287262297c38aafe))
+- restore the coloring the dashed-identifier change cost [缺中文] ([`0d0e0c1`](https://gitee.com/jermaine/yate/commit/0d0e0c19a888e7bc5f4cf605cca63046b9253bf5))
+- correct what the bundled example templates claim [缺中文] ([`43fe08f`](https://gitee.com/jermaine/yate/commit/43fe08fc9e55642c118b86b492503114ae71c3d9))
+- truncate the filetype candidate list in one shared helper [缺中文] ([`8884e6f`](https://gitee.com/jermaine/yate/commit/8884e6fc0f54e3c38f7b3f9ff3ae84659703e193))
+- register the missing capture and make same-span ties deterministic [缺中文] ([`9dbb5d6`](https://gitee.com/jermaine/yate/commit/9dbb5d6d43af4d38f8633cdfed6a156e8fc2fe35))
+- harden smoke/changelog/wiki tools and dedupe repo-root and spec logic (R-47..R-56, R-66) [缺中文] ([`ad7619a`](https://gitee.com/jermaine/yate/commit/ad7619a81c5afdd4beffa59afff0d65bf0fbaaef))
+- vim count/register semantics, extension categories and workspace caching (R-57..R-65) [缺中文] ([`5c51180`](https://gitee.com/jermaine/yate/commit/5c511804126584a0f5a0a27df3df87c0c8bae71b))
+- incremental utf-8 decode, escape aborts and shared modifier tables (R-39..R-46) [缺中文] ([`c8293d9`](https://gitee.com/jermaine/yate/commit/c8293d92857704651c0d0d9224848334a55c97e0))
+- defensive diagnostics, UTF-16 positions, paste-below and parser caps (R-32..R-38) [缺中文] ([`22ca26e`](https://gitee.com/jermaine/yate/commit/22ca26e7e0f049aef79fbe6a1f25a111c25c0266))
+- palette cursor keys, render-path buckets and theme helpers (R-20..R-31) [缺中文] ([`11b4a9d`](https://gitee.com/jermaine/yate/commit/11b4a9d39dac75ea95f9da265ac0e753b03be827))
+- unify path resolution, completion prefix and split rollback (R-09..R-18) [缺中文] ([`5a25613`](https://gitee.com/jermaine/yate/commit/5a25613c0ad2fcd87883a906c28d31fd916793c3))
+- guard dist metadata, rc extraction, session paths and tree ops (R-01..R-08) [缺中文] ([`90ad524`](https://gitee.com/jermaine/yate/commit/90ad524401eed08468090bc16323fba9cb1fc09b))
+
+### 文档
+
+- correct 29 classes of drift in the 12 visible documents [缺中文] ([`195c20a`](https://gitee.com/jermaine/yate/commit/195c20a11053e29657624985e9e1ca23e6cf0793))
+- backfill the review index and record the 2026-10-05 doc sweep [缺中文] ([`93d8c45`](https://gitee.com/jermaine/yate/commit/93d8c456cce12847114cbb320dea35f98574cb39))
+- conform plan tree to doc-conventions and stamp status [缺中文] ([`7f37512`](https://gitee.com/jermaine/yate/commit/7f375127f1e9e8ce91fc5890e65fc31831963d20))
+- add the second PR #54 AI review note [缺中文] ([`5383a82`](https://gitee.com/jermaine/yate/commit/5383a827e9fd19f9aeb8faeca40aa82aa7606afb))
+- remove irrelevant docs [缺中文] ([`6937900`](https://gitee.com/jermaine/yate/commit/693790046044177f48af09c620d6bcefb2b78bd6))
+- backfill the PR #54 review fix results [缺中文] ([`620429b`](https://gitee.com/jermaine/yate/commit/620429b5203c1433f6383185954fb53c1659fc2b))
+- plan the PR #54 review fixes [缺中文] ([`d1d1a41`](https://gitee.com/jermaine/yate/commit/d1d1a4129eb823103593329326b7dd347ffd9a70))
+- register the PR #54 AI review against enh/input-assist [缺中文] ([`4b81e54`](https://gitee.com/jermaine/yate/commit/4b81e541190075c5203d8ca09fcb7d54ff9727ea))
+- add the unattended-hours bypass rule for 22:00-06:00 [缺中文] ([`ebf78e9`](https://gitee.com/jermaine/yate/commit/ebf78e9709f32c43c644997735bb1c38843576ae))
+- record the review fixes execution [缺中文] ([`37584d6`](https://gitee.com/jermaine/yate/commit/37584d63d14e1610f9303d1f0f2c072225a5c259))
+- align the blank-line indent wording with the code [缺中文] ([`52a566c`](https://gitee.com/jermaine/yate/commit/52a566c77f686b40cf5a2d9f735b9efb2ca86bdd))
+- backfill execution record and deviations [缺中文] ([`0e3f874`](https://gitee.com/jermaine/yate/commit/0e3f874c14e79f7416ab1cfcc8475247109847e7))
+- document input assist and indent keys [缺中文] ([`7c15ab1`](https://gitee.com/jermaine/yate/commit/7c15ab181730d0e4d14ea0a70e815a33d0ef3c23))
+- add input assist implementation plan [缺中文] ([`0809419`](https://gitee.com/jermaine/yate/commit/0809419552cb33ec0effb627f372be0e72e9d1f0))
+- record the agent tech choice and tool-call guards [缺中文] ([`0187074`](https://gitee.com/jermaine/yate/commit/0187074ad602408cd6604e1bac117da037ea177a))
+- register the syntax-langs review against Gitee PR #53 [缺中文] ([`69b7f6f`](https://gitee.com/jermaine/yate/commit/69b7f6fe8ac573e676dc8691f6f0cd7c8e63eb9d))
+- record review round 3 and the last known limits [缺中文] ([`4474d35`](https://gitee.com/jermaine/yate/commit/4474d3570f870067b5825537265d33097a2343f4))
+- record review round 2 and the remaining known limits [缺中文] ([`ef83c81`](https://gitee.com/jermaine/yate/commit/ef83c817f2c504e3ee867094b22e5ca8b45a4f17))
+- drop the last regex-fallback promise and fix the language count [缺中文] ([`26fc624`](https://gitee.com/jermaine/yate/commit/26fc624ef812a4bd2659ee0cb3a0ee9b5cc93b4a))
+- record the syntax-langs review fixes and backfill the plan [缺中文] ([`0867015`](https://gitee.com/jermaine/yate/commit/0867015ce853e43b4c8bee7f0c47bce811ecca4d))
+- align the docs with what the engines actually do [缺中文] ([`be243e9`](https://gitee.com/jermaine/yate/commit/be243e95fe4b5b2324588a6921b23f9ef793ce89))
+- record syntax-langs branch review and plan audit [缺中文] ([`c67c382`](https://gitee.com/jermaine/yate/commit/c67c38281ef8a56c29cfb352e5e53cb59194b29c))
+- backfill execution record with real gate numbers [缺中文] ([`2ec7e6f`](https://gitee.com/jermaine/yate/commit/2ec7e6fc89153df036d8979e5fec66175df51a09))
+- document the built-in language set and new example templates [缺中文] ([`ea28852`](https://gitee.com/jermaine/yate/commit/ea28852d05bb487f3f5d9074f9404c4d8852e7dd))
+- add implementation plan for issue IKJLTB [缺中文] ([`b8c3767`](https://gitee.com/jermaine/yate/commit/b8c376767102b0873ac898b620283809249a8b3d))
+- add ai chat agent integration spec [缺中文] ([`8eb1093`](https://gitee.com/jermaine/yate/commit/8eb109351b27ea84e0641c47a0e6cb8aa1e885d8))
+- register PR #52 AI review findings (note 51438554) [缺中文] ([`810d421`](https://gitee.com/jermaine/yate/commit/810d421005d95e1a7878e3d81164845be7372ad1))
+- backfill python-code-review disposition and index (82/83 fixed) [缺中文] ([`7ad493a`](https://gitee.com/jermaine/yate/commit/7ad493af1f2d4e31d99708b482961169dab6ad45))
+- add hard rule for continuing after 100-request limit [缺中文] ([`3fe93c6`](https://gitee.com/jermaine/yate/commit/3fe93c60afac4c6ca315e5ec11fad4629646c373))
+- add python-code-review fixes plan (83 findings disposition) [缺中文] ([`6361b3d`](https://gitee.com/jermaine/yate/commit/6361b3d2130660134296b237b471923e5236caef))
+- add 2026-10-03 full python-code-review report (83 findings) [缺中文] ([`fb3242b`](https://gitee.com/jermaine/yate/commit/fb3242bff2c99b283329ba755cb51495199539ae))
+
+### 测试
+
+- pin the counted shift as a line count [缺中文] ([`ca6d204`](https://gitee.com/jermaine/yate/commit/ca6d20412ee46d073d7b66552f7d2242bd176a6f))
+- cover auto indent after a line with trailing blanks [缺中文] ([`9fbd03d`](https://gitee.com/jermaine/yate/commit/9fbd03d0e749e4db0426c678f3eafe4b0c59720a))
+- cover pairing, skipping and indentation behaviour [缺中文] ([`240bb25`](https://gitee.com/jermaine/yate/commit/240bb258efd205022a5ba57aeeab337ab9c03d99))
+- widen the class-selector guard to substring semantics [缺中文] ([`0a5f2b1`](https://gitee.com/jermaine/yate/commit/0a5f2b14d788fdb7850ffc37b19880d1448e2d28))
+- pin the class-selector regression and the language counts [缺中文] ([`83df505`](https://gitee.com/jermaine/yate/commit/83df50542267e36f2d1eecc410d7b7e1bd4038da))
+- scan a string instead of rewriting a bundled query [缺中文] ([`4c5c3e9`](https://gitee.com/jermaine/yate/commit/4c5c3e9a2c3693b21880ced0c53e662a69187a1f))
+- cover the round-2 fixes and harden the capture scan [缺中文] ([`0ec0920`](https://gitee.com/jermaine/yate/commit/0ec0920ba2cc0d1571084779948b946950b0d963))
+- guard capture names, packaging manifests and the templates [缺中文] ([`5fb9003`](https://gitee.com/jermaine/yate/commit/5fb9003e2b3ecba428022ac5ed24b76a3d37b6bf))
+- cover the new built-in language packs and regex fallbacks [缺中文] ([`08a6396`](https://gitee.com/jermaine/yate/commit/08a63966bb285fa3fb64e9cd3890b4166fa8d905))
+- poll debounced recompute instead of fixed sleeps (R-72, misattributed file) [缺中文] ([`486401e`](https://gitee.com/jermaine/yate/commit/486401eb8ab5420c243d2e1c3e8358cbfb2cfff5))
+- lock lsp utf-16/defensive parsing, paste-below and palette cursor fixes [缺中文] ([`867acea`](https://gitee.com/jermaine/yate/commit/867acea25a36cf9c28b5d488311c2897a1b5dd14))
+- fix assertion placement, flaky sleeps and tautologies (R-74..R-76, R-78..R-83) [缺中文] ([`036073b`](https://gitee.com/jermaine/yate/commit/036073b10ab7a9fbdfb98e556d8a403cbdc5cbd3))
+- fix theme leaks, quit-pump blindness and dedupe test helpers via conftest (R-67..R-73, R-77) [缺中文] ([`bea5e6a`](https://gitee.com/jermaine/yate/commit/bea5e6a218a92ccba6d477e9c197f5e367b7601b))
+- lock split-utf8, escape-abort, shared modifier, windows shlex, sniff and vim count fixes [缺中文] ([`c07b9b5`](https://gitee.com/jermaine/yate/commit/c07b9b5a2c956a28a16b0c4762d177b74bb1ca0b))
+
+### 构建与工程
+
+- drop a real machine path from a test comment [缺中文] ([`2aa4e5f`](https://gitee.com/jermaine/yate/commit/2aa4e5fda2fe852a81f098d3742efb994e501b0c))
+- drop stray pytest output artifact [缺中文] ([`857a11a`](https://gitee.com/jermaine/yate/commit/857a11a85893c9f0e7bd1f54ae0dc3be2a7a728e))
+
 ## [0.2.8] - 2026-10-03 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.7...v0.2.8)
 
 ### 新功能
