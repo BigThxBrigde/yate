@@ -20,6 +20,7 @@ from .guards import SCENARIOS as _GUARDS
 from .integration import SCENARIOS as _INTEGRATION
 from .panes import SCENARIOS as _PANES
 from .regression import SCENARIOS as _REGRESSION
+from .screensaver import SCENARIOS as _SCREENSAVER
 from .search import SCENARIOS as _SEARCH
 from .stress import SCENARIOS as _STRESS
 from .view import SCENARIOS as _VIEW
@@ -49,6 +50,7 @@ SCENARIOS: list[Scenario] = [
     *_DIFFVIEW,
     *_INTEGRATION,
     *_REGRESSION,
+    *_SCREENSAVER,
     *_STRESS,
     *_ALIASES,
 ]
