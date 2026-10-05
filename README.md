@@ -466,9 +466,10 @@ cd <checkout>   # any checkout works
 - progress: when stderr is a terminal, translations run behind a rich
   progress bar -- one row per batch plus an overall row, both advancing
   **page by page** (naming the page in flight) with the page count and the
-  queue depth in the text; redirected output shows no live bar, just the
-  per-batch lines. `Ctrl+C` exits cleanly with code 130 and no traceback --
-  already translated pages are adopted on the next run.
+  queue depth in the text. Redirected output is not refreshed live, but
+  rich still prints one final frame when the run ends, after the per-batch
+  lines. `Ctrl+C` exits cleanly with code 130 and no traceback -- already
+  translated pages are adopted on the next run.
 
 ```powershell
 .venv\Scripts\python -m tools.pack wiki --check   # gate: exit 1 while missing/stale
