@@ -30,6 +30,10 @@ from tools.pack import cli, wiki
 #: by ``test_batch_size_is_ten_documents``, this is the fixture default.
 PAGE_COUNT: int = 25
 
+#: Per-page fake latency for the timing-sensitive interrupt test; long enough
+#: that a drained pool is measurable, short enough to keep the suite quick.
+PAGE_DELAY_S: float = 0.2
+
 
 @pytest.fixture()
 def repo(tmp_path: Path) -> Path:
@@ -334,3 +338,73 @@ def test_keyboard_interrupt_inside_a_worker_maps_to_exit_130(
     err = capsys.readouterr().err
     assert "interrupted" in err
     assert "Traceback" not in err
+
+
+def test_interrupt_leaves_the_queued_batches_untranslated(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``Ctrl+C`` must not pay for the pages that never started.
+
+    Regression guard for the first review round: the pool used to be closed
+    with ``wait=True`` while every batch was already submitted, so an
+    interrupt paid for all :data:`PAGE_COUNT` translations.  Now the running
+    batches see the stop signal and the queued ones are cancelled, which
+    keeps the started count at a small constant instead of the page count.
+    """
+    started: list[str] = []
+    lock = threading.Lock()
+
+    def interrupting(text: str, translate_cmd: str) -> str | None:
+        with lock:
+            started.append(text)
+        time.sleep(PAGE_DELAY_S)
+        # Only one page aborts: every other page translates normally, so a
+        # pool that is drained on interrupt shows up as a started count of
+        # PAGE_COUNT and a run that takes seconds instead of milliseconds.
+        if "page03" in text:
+            raise KeyboardInterrupt
+        return "# en\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", interrupting)
+    target = tmp_path / "wiki"
+    # Called straight through the library, the interrupt propagates (the CLI
+    # boundary is what maps it to exit code 130).
+    began = time.monotonic()
+    with pytest.raises(KeyboardInterrupt):
+        wiki.run(target, "fake-cmd", repo_root=repo, jobs=2)
+    elapsed = time.monotonic() - began
+    assert len(started) < PAGE_COUNT
+    # Two workers, one page each, plus the page that raised: the signal stops
+    # the sibling before it can pick up a third batch.  The bound leaves room
+    # for scheduling jitter while still failing if the pool is drained.
+    assert len(started) <= 8
+    # The real regression: closing the pool with wait=True made the run pay
+    # for every submitted page (PAGE_COUNT * PAGE_DELAY_S / jobs = 2.5s),
+    # so the interrupt appeared to hang.  Only the pages already in flight
+    # may still be waited for -- at most two more here, i.e. ~0.4s.
+    assert elapsed < 8 * PAGE_DELAY_S
+
+
+def test_translate_failure_lines_are_printed_once_by_the_main_thread(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every translator failure reaches the terminal exactly once.
+
+    Workers must not write into the live region rich is repainting, so
+    :func:`tools.pack.wiki.translate_via_cmd` hands the message back through
+    the collect mode and the main thread prints it after stopping the
+    progress display.
+    """
+    def failing(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
+        head = text.splitlines()[0]
+        return None, f"error[{wiki.Code.WIKI_TRANSLATE_FAILED}]: rc=3 for {head}"
+
+    monkeypatch.setattr(wiki, "_run_translate", failing)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo, jobs=4) == 0
+    err = capsys.readouterr().err
+    assert err.count(f"error[{wiki.Code.WIKI_TRANSLATE_FAILED}]") == PAGE_COUNT
+    assert err.count("rc=3 for") == PAGE_COUNT
+    # The serial default must be restored for the next (non-parallel) call.
+    assert getattr(wiki, "_emit_mode") == "print"
