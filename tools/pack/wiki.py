@@ -30,8 +30,10 @@ gate); ``--push`` commits the wiki repo and pushes it to ``origin``
 
 Translation runs through a thread pool: pending pages are split into
 tasks of at most :data:`BATCH_SIZE` documents and at most
-``cpu_count() * 2`` run concurrently (issue IKJPEK), with one progress
-line per batch and per failed page.  Every failure carries a stable
+``cpu_count() * 2`` tasks run concurrently (issue IKJPEK), with one
+progress line per batch and per failed page.  ``--jobs`` lowers that
+ceiling (it can never raise it), and up to ``jobs * 10`` translators may
+therefore run at the same time.  Every failure carries a stable
 ``WIKI-*`` code from :mod:`tools.pack.errors` -- a vanished Chinese source
 aborts the run with ``error[WIKI-0102]`` instead of a traceback.
 """
@@ -43,6 +45,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
@@ -62,6 +65,7 @@ from rich.progress import (
 )
 
 from .. import _util
+from . import errors
 from .errors import Code, PackError
 
 GITHUB_WIKI_URL: Final[str] = "https://github.com/BigThxBrigde/yate.wiki.git"
@@ -385,9 +389,10 @@ def load_manifest(target: Path) -> dict[str, str]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        print(
-            f"error[{Code.WIKI_MANIFEST_READ}]: manifest corrupt, starting fresh",
-            file=sys.stderr,
+        errors.report(
+            PackError(
+                Code.WIKI_MANIFEST_READ, "manifest corrupt, starting fresh"
+            )
         )
         return {}
     except OSError as exc:
@@ -397,9 +402,10 @@ def load_manifest(target: Path) -> dict[str, str]:
         # the CLI layer reports it and exits 1 (library code never sys.exit).
         raise WikiError(f"manifest read error: {exc}", code=Code.WIKI_MANIFEST_READ) from exc
     if not isinstance(raw, dict):
-        print(
-            f"error[{Code.WIKI_MANIFEST_READ}]: manifest is not an object, starting fresh",
-            file=sys.stderr,
+        errors.report(
+            PackError(
+                Code.WIKI_MANIFEST_READ, "manifest is not an object, starting fresh"
+            )
         )
         return {}
     data = cast("dict[str, object]", raw)
@@ -438,20 +444,31 @@ def prune_orphan_pages(target: Path, keep: set[str]) -> int:
     return removed
 
 
-def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
-    """Pipe Chinese markdown through the external translator command.
+#: Terminal write policy for :func:`translate_via_cmd` failures.  ``"print"``
+#: is the serial default; the parallel stage flips it to ``"collect"`` so a
+#: worker never writes into the live region rich is repainting -- the main
+#: thread drains :data:`_COLLECTED_FAILURES` and prints them instead.  Only
+#: the main thread mutates either global, and the list is only ever appended
+#: to (atomic under the GIL) or fully cleared.
+_emit_mode: str = "print"
 
-    Returns the translated text, or ``None`` when the command fails,
-    times out, or produces empty output (the failure is reported on
-    stderr).
+_COLLECTED_FAILURES: list[str] = []
 
-    *translate_cmd* is executed through the shell so pipelines and
-    redirections work; it must therefore come from a trusted source
-    (the local CLI invocation / yaterc), never from untrusted input.
 
-    A per-page failure is reported as ``error[WIKI-0201]`` /
-    ``error[WIKI-0202]`` on stderr and degraded to ``None`` -- one bad page
-    never aborts the whole run, and ``--check`` still gates on it.
+def _emit_translate_failure(message: str) -> None:
+    """Report one translation failure honouring :data:`_emit_mode`."""
+    if _emit_mode == "collect":
+        _COLLECTED_FAILURES.append(message)
+        return
+    print(message, file=sys.stderr)
+
+
+def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
+    """Run the external translator; returns ``(english, failure_message)``.
+
+    The shell, the stdin/stdout protocol and :data:`TRANSLATE_TIMEOUT_S` are
+    unchanged -- only the reporting is factored out so the caller decides
+    where the message goes.
     """
     try:
         proc = subprocess.run(
@@ -465,21 +482,38 @@ def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
             timeout=TRANSLATE_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired:
-        print(
+        return None, (
             f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out"
-            f" after {TRANSLATE_TIMEOUT_S:g}s",
-            file=sys.stderr,
+            f" after {TRANSLATE_TIMEOUT_S:g}s"
         )
-        return None
     if proc.returncode != 0 or not proc.stdout.strip():
         detail = (proc.stderr or proc.stdout).strip()
-        print(
+        return None, (
             f"error[{Code.WIKI_TRANSLATE_FAILED}]: translate-cmd failed"
-            f" (rc={proc.returncode}): {detail}",
-            file=sys.stderr,
+            f" (rc={proc.returncode}): {detail}"
         )
-        return None
-    return proc.stdout
+    return proc.stdout, None
+
+
+def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
+    """Pipe Chinese markdown through the external translator command.
+
+    Returns the translated text, or ``None`` when the command fails,
+    times out, or produces empty output (the failure is reported on
+    stderr).
+
+    *translate_cmd* is executed through the shell so pipelines and
+    redirections work; it must therefore come from a trusted source
+    (the local CLI invocation / yaterc), never from untrusted input.
+
+    A per-page failure is reported as ``error[WIKI-0201]`` /
+    ``error[WIKI-0202]`` and degraded to ``None`` -- one bad page never
+    aborts the whole run, and ``--check`` still gates on it.
+    """
+    english, failure = _run_translate(text, translate_cmd)
+    if failure is not None:
+        _emit_translate_failure(failure)
+    return english
 
 
 def needs_translation(
@@ -523,13 +557,13 @@ def push_wiki(target: Path) -> int:
     added = run_git(target, "add", "-A")
     if added.returncode != 0:
         detail = (added.stderr or added.stdout).strip()
-        print(f"wiki: git add failed: {detail}", file=sys.stderr)
+        errors.report(PackError(Code.WIKI_GIT_FAILED, f"git add failed: {detail}"))
         return 1
     commit = run_git(target, "commit", "-m", COMMIT_MESSAGE)
     if commit.returncode != 0:
         out = f"{commit.stdout}{commit.stderr}".strip()
         if "nothing to commit" not in out and "nothing added to commit" not in out:
-            print(f"wiki: commit failed: {out}", file=sys.stderr)
+            errors.report(PackError(Code.WIKI_GIT_FAILED, f"commit failed: {out}"))
             return 1
         print(f"wiki: commit: {out}")
     if run_git(target, "remote", "get-url", "github").returncode != 0:
@@ -540,7 +574,9 @@ def push_wiki(target: Path) -> int:
         if pushed.returncode != 0:
             failures += 1
             detail = (pushed.stderr or pushed.stdout).strip()
-            print(f"wiki: push {remote} failed: {detail}", file=sys.stderr)
+            errors.report(
+                PackError(Code.WIKI_GIT_FAILED, f"push {remote} failed: {detail}")
+            )
     return 1 if failures else 0
 
 
@@ -717,7 +753,11 @@ def chunk_pages[T](items: Sequence[T], size: int = BATCH_SIZE) -> list[list[T]]:
     return [list(items[start : start + size]) for start in range(0, len(items), size)]
 
 
-def _run_batch(plans: Sequence[_PagePlan], translate_cmd: str) -> list[_PageOutcome]:
+def _run_batch(
+    plans: Sequence[_PagePlan],
+    translate_cmd: str,
+    stop: threading.Event,
+) -> list[_PageOutcome]:
     """Translate one batch, capturing every failure as an outcome value.
 
     Nothing may propagate out of a pool worker: an exception escaping here
@@ -727,9 +767,16 @@ def _run_batch(plans: Sequence[_PagePlan], translate_cmd: str) -> list[_PageOutc
     main thread anyway.  Threads are the right primitive because the work
     is a blocking external subprocess (:func:`translate_via_cmd`), which
     holds no shared interpreter state.
+
+    *stop* is checked before every page: once the main thread cancels the
+    run (an interrupt in any worker), a batch stops instead of starting the
+    next translation -- otherwise ``Ctrl+C`` would still pay for every
+    page of every queued batch.
     """
     outcomes: list[_PageOutcome] = []
     for plan in plans:
+        if stop.is_set():
+            break
         started = time.monotonic()
         try:
             english: str | None = translate_via_cmd(plan.text, translate_cmd)
@@ -737,7 +784,9 @@ def _run_batch(plans: Sequence[_PagePlan], translate_cmd: str) -> list[_PageOutc
                 _PageOutcome(plan, english, None, time.monotonic() - started)
             )
         except BaseException as exc:  # noqa: BLE001 - a worker must never escape
+            stop.set()
             outcomes.append(_PageOutcome(plan, None, exc, time.monotonic() - started))
+            break
     return outcomes
 
 
@@ -827,22 +876,29 @@ def _translate_pending(
     :func:`resolve_jobs` of them run at once and every state transition is
     reported live: one overall task (pages done / batches queued / worker
     count), one task per batch, a permanent line per finished batch and one
-    per failed page.  Only the main thread touches ``progress`` or the
-    filesystem -- workers purely run the external command -- so no lock is
-    needed and page completion order is irrelevant (every page owns its
-    target path and manifest key).
+    per failed page.  Only the main thread touches ``progress``, the
+    terminal or the filesystem -- a worker merely runs the external command
+    and hands failure messages back through
+    :func:`_emit_translate_failure` -- so no lock is needed and page
+    completion order is irrelevant (every page owns its target path and
+    manifest key).
     """
     batches = chunk_pages(plans)
     ceiling = job_ceiling()
     workers = min(resolve_jobs(jobs), len(batches))
     if jobs is not None and jobs > ceiling:
         console.print(
-            f"wiki: --jobs {jobs} clamped to the CPU ceiling {ceiling} (cores x 2)",
+            f"wiki: --jobs {jobs} clamped to the CPU ceiling {ceiling}"
+            f" (cores x 2, {BATCH_SIZE} documents per task)",
             markup=False,
+        )
+    elif jobs is not None and jobs < 1:
+        console.print(
+            f"wiki: --jobs {jobs} raised to the minimum of 1 task", markup=False
         )
     console.print(
         f"wiki: {len(plans)} page(s) in {len(batches)} batch(es),"
-        f" {workers} worker(s) at most",
+        f" {workers} worker(s) at most ({BATCH_SIZE} documents per task)",
         markup=False,
     )
     translated = 0
@@ -863,63 +919,77 @@ def _translate_pending(
         for index, batch in enumerate(batches, start=1)
     }
     done = 0
+    stop = threading.Event()
+    global _emit_mode, _COLLECTED_FAILURES
+    _emit_mode = "collect"
+    _COLLECTED_FAILURES.clear()
     progress.start()
+    pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="wiki-translate")
     try:
-        with ThreadPoolExecutor(
-            max_workers=workers, thread_name_prefix="wiki-translate"
-        ) as pool:
-            futures: dict[Future[list[_PageOutcome]], int] = {
-                pool.submit(_run_batch, batch, translate_cmd): index
-                for index, batch in enumerate(batches, start=1)
-            }
-            queued = len(futures)
-            for future in as_completed(futures):
-                index = futures[future]
-                queued -= 1
-                batch = batches[index - 1]
-                outcomes = future.result()
-                failed_here = 0
-                for outcome in outcomes:
-                    if outcome.error is not None:
-                        # Ctrl+C (or a genuine bug) in a worker: leave the
-                        # pool before anything else is written.
-                        raise outcome.error
-                    done += 1
-                    progress.advance(overall)
-                    progress.advance(batch_tasks[index])
-                    page = outcome.plan.page
-                    if outcome.english is None:
-                        failed_here += 1
-                        # An existing page whose re-translation failed is
-                        # still stale, not missing -- report under that heading.
-                        console.print(
-                            f"wiki: [{done}/{len(plans)}] {page.en_target} failed"
-                            f" ({outcome.elapsed:.1f}s)",
-                            markup=False,
-                        )
-                        if outcome.plan.has_en:
-                            stale.append(page.en_target)
-                        else:
-                            missing.append(page.en_target)
-                        continue
-                    _write_page_text(target / page.en_target, outcome.english)
-                    digests[page.zh_target] = outcome.plan.digest
-                    translated += 1
-                progress.update(
-                    overall,
-                    description=(
-                        f"translating {done}/{len(plans)} page(s)"
-                        f" · {queued} batch(es) queued · {workers} worker(s)"
-                    ),
-                )
-                console.print(
-                    f"wiki: batch {index}/{len(batches)} done"
-                    f" ({len(batch) - failed_here}/{len(batch)} ok,"
-                    f" {failed_here} failed)",
-                    markup=False,
-                )
+        futures: dict[Future[list[_PageOutcome]], int] = {
+            pool.submit(_run_batch, batch, translate_cmd, stop): index
+            for index, batch in enumerate(batches, start=1)
+        }
+        queued = len(futures)
+        for future in as_completed(futures):
+            index = futures[future]
+            queued -= 1
+            batch = batches[index - 1]
+            failed_here = 0
+            for outcome in future.result():
+                if outcome.error is not None:
+                    # Ctrl+C (or a genuine bug) in a worker: signal every
+                    # batch to stop, drop the queued work and leave without
+                    # waiting for translations the user just cancelled.
+                    stop.set()
+                    for queued_future in futures:
+                        queued_future.cancel()
+                    raise outcome.error
+                done += 1
+                progress.advance(overall)
+                progress.advance(batch_tasks[index])
+                page = outcome.plan.page
+                if outcome.english is None:
+                    failed_here += 1
+                    # An existing page whose re-translation failed is
+                    # still stale, not missing -- report under that heading.
+                    console.print(
+                        f"wiki: [{done}/{len(plans)}] {page.en_target} failed"
+                        f" ({outcome.elapsed:.1f}s)",
+                        markup=False,
+                    )
+                    if outcome.plan.has_en:
+                        stale.append(page.en_target)
+                    else:
+                        missing.append(page.en_target)
+                    continue
+                _write_page_text(target / page.en_target, outcome.english)
+                digests[page.zh_target] = outcome.plan.digest
+                translated += 1
+            progress.update(
+                overall,
+                description=(
+                    f"translating {done}/{len(plans)} page(s)"
+                    f" · {queued} batch(es) queued · {workers} worker(s)"
+                ),
+            )
+            console.print(
+                f"wiki: batch {index}/{len(batches)} done"
+                f" ({len(batch) - failed_here}/{len(batch)} ok,"
+                f" {failed_here} failed)",
+                markup=False,
+            )
     finally:
+        # Never block the interrupt path: queued tasks are cancelled and the
+        # in-flight translators are left to the console event that already
+        # reached them, instead of waiting out every remaining page.
+        stop.set()
+        pool.shutdown(wait=False, cancel_futures=True)
         progress.stop()
+        for message in _COLLECTED_FAILURES:
+            console.print(message, markup=False)
+        _COLLECTED_FAILURES.clear()
+        _emit_mode = "print"
     return _TranslationReport(translated, digests, missing, stale)
 
 
@@ -1009,9 +1079,9 @@ def run(
         f"(en kept {kept} / translated {translated} / "
         f"missing {len(missing)} / stale {len(stale)}) in {time.monotonic() - run_started:.1f}s"
     )
-    for name in missing:
+    for name in sorted(missing):
         print(f"  missing en: {name}")
-    for name in stale:
+    for name in sorted(stale):
         print(f"  stale en: {name}")
     exit_code = 0
     if missing or stale:

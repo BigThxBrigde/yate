@@ -147,9 +147,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="N",
-        help="maximum number of concurrent translation tasks; the pages are "
-             "split into tasks of at most 10 documents and the value is "
-             "clamped to the machine ceiling (CPU cores x 2, the default)",
+        help="maximum number of concurrent translation tasks, each covering at "
+             "most 10 documents; the value is clamped to the machine "
+             "ceiling (CPU cores x 2, the default), so at most "
+             "ceiling x 10 translators run at the same time",
     )
     wiki_cmd.add_argument(
         "--debug",
@@ -183,7 +184,9 @@ def _rosters(output: Path) -> int:
     except errors.PackError as exc:
         errors.report(exc)
         return 1
-    except OSError as exc:
+    except (OSError, ValueError, KeyError, IndexError) as exc:
+        # The roster builder indexes sprite frames directly, so a malformed
+        # pack must still surface as ROSTERS-0302 rather than PKG-0001.
         errors.report(errors.PackError(Code.ROSTERS_RENDER, f"{exc}"))
         return 1
     print(f"wrote {written} ({written.stat().st_size // 1024} KB)")
