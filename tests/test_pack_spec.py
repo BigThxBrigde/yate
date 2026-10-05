@@ -3,11 +3,11 @@
 Two packaging promises are pure build-time wiring that no runtime test can
 observe, so both are pinned statically here:
 
-* the shared inventory ``pack/_common.EXCLUDES`` still drops Pillow (13.1 MiB
-  of the 68.4 MiB one-folder bundle, dragged into the graph by
-  ``pygments.formatters.img``) and numpy, that the specs feed that inventory
-  to ``Analysis`` instead of a literal ``excludes=[]``, and -- the assumption
-  the inventory rests on -- that nothing in ``yate/`` imports those packages;
+* the shared inventory ``pack/_common.EXCLUDES`` still drops Pillow and numpy,
+  that the specs feed that inventory to ``Analysis`` instead of a literal
+  ``excludes=[]``, and -- the assumption the inventory rests on -- that no code
+  shipped inside the frozen app imports those packages (core modules *and* the
+  bundled extension examples, both of which execute at runtime);
 * the one-folder spec scopes the flat layout to Windows --
   ``EXE(contents_directory="." if sys.platform == "win32" else "_internal")``
   -- so the runtime files sit next to ``yate.exe`` there and stay under
@@ -18,7 +18,9 @@ Nothing here imports PyInstaller: it lives in the ``build`` extra, which is not
 a CI dependency.  ``pack/_common.py`` is therefore loaded straight from its path
 (its module level touches the stdlib only), and the two ``.spec`` scripts -- which
 PyInstaller *execs* as plain scripts with an injected ``SPECPATH``, so they are
-not importable -- are read with :mod:`ast` instead of run.
+not importable -- are read with :mod:`ast` instead of run.  Note that pyright
+itself cannot check them either (it only analyses ``.py``), so for the specs
+these AST guards plus a real build are the coverage that exists.
 """
 
 from __future__ import annotations
@@ -96,9 +98,37 @@ def _parse(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
+def _dynamic_import_name(node: ast.Call) -> str | None:
+    """The dynamic-import callee of *node*, or ``None`` if it is not one.
+
+    Covers every spelling that shows up in practice: ``__import__("x")``,
+    ``importlib.import_module("x")`` (an ``Attribute``) and the
+    ``from importlib import import_module`` form (a bare ``Name``).  The last
+    one is matched by name alone, so a local function that happens to be called
+    ``import_module`` would also be inspected -- harmless, since the check only
+    fires on a banned module name passed as a string literal.
+    """
+    func = node.func
+    if isinstance(func, ast.Name) and func.id in {"__import__", "import_module"}:
+        return func.id
+    if isinstance(func, ast.Attribute) and func.attr == "import_module":
+        return "import_module"
+    return None
+
+
 def _yate_sources() -> list[Path]:
-    """Every ``.py`` file of the shipped package -- the exclusion's premise scope."""
-    return sorted((_REPO_ROOT / "yate").rglob("*.py"))
+    """Every Python source file the frozen app can execute.
+
+    ``yate/extensions/*.py.example`` counts: the bundled extensions ship as data
+    files and are imported at runtime through
+    ``importlib.util.spec_from_file_location`` (``yate/services/extensions.py``),
+    so an extension that reached for an excluded package would break the same way
+    a core module would.
+    """
+    package = _REPO_ROOT / "yate"
+    sources = set(package.rglob("*.py"))
+    sources.update(package.glob("extensions/*.py.example"))
+    return sorted(sources)
 
 
 def _calls(tree: ast.Module, callee: str) -> list[ast.Call]:
@@ -229,6 +259,14 @@ def test_yate_sources_when_scanned_never_import_excluded_modules() -> None:
     yate's sole legitimate use of Pillow is regenerating the committed
     ``pack/yate.ico`` from the build machine (``tools/pack/icon.py``, dynamic
     import), which is not part of the frozen entry point.
+
+    Scope: every ``.py`` under ``yate/`` plus the bundled extension examples
+    (``*.py.example``), which are data files but execute at runtime.  Dynamic
+    imports are covered too -- only ``import``/``from`` statements would leave
+    ``importlib.import_module("PIL")`` unnoticed.
+
+    Residual limitation: an import computed at runtime (name built from
+    variables) still escapes this scan.
     """
     banned = set(_excludes())
     offenders: list[tuple[str, str]] = []
@@ -243,6 +281,14 @@ def test_yate_sources_when_scanned_never_import_excluded_modules() -> None:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 if node.module.split(".")[0] in banned:
                     offenders.append((path.name, node.module))
+            elif isinstance(node, ast.Call) and _dynamic_import_name(node):
+                offenders += [
+                    (path.name, arg.value)
+                    for arg in node.args
+                    if isinstance(arg, ast.Constant)
+                    and isinstance(arg.value, str)
+                    and arg.value.split(".")[0] in banned
+                ]
     assert offenders == []
 
 
