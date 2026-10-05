@@ -234,3 +234,26 @@ flowchart LR
 无。§五 注里提到的 `invariant:no_leftover_modal` 时机问题仍属既有议题
 （见 [smoke-test-expansion-plan.md](smoke-test-expansion-plan.md) §7.5），本轮
 未在范围内。
+
+### 7.6 合并 master 后的复验（2026-10-05，提交 `99ee498`）
+
+master 前进 13 个提交（`d691bfb`，issue IKJPEK 的 pack wiki 加固）后并入本分支。
+双方改动几乎不重叠，**唯一冲突文件是 `.trae/reviews/README.md`**：两轮都往同一
+两张表末尾追加行且都自称 #29。解法见提交正文，要点为保留 master 的 #29
+（PR !56）、本分支的 PR !57 顺延为 #30，并重算总计
+（30 条 = 未闭环 13 + 已闭环 16 + 部分闭环 1，**顺带修正了 7.1 之前遗留的
+off-by-one**：上一版写"已闭环 17 条"却只列了 16 项）。
+
+| 门禁（合并后） | 结果 |
+|---|---|
+| pyright strict | `yate/ tests/ tools/` **0 errors** |
+| 架构测试 | **22 passed**，exit 0 |
+| 冒烟 `compare` | **104/104 场景、1252/1252 checks**，全 MATCH，exit 0 |
+| pytest + 覆盖率 | **1908 passed / 8 skipped**，exit 0；覆盖率 **91.25%**（门禁 75%） |
+| master 侧文件完整性 | `git diff master HEAD` 对 `tools/pack/*`、3 个 `tests/test_pack_wiki*`、PR !56 评审与方案文档 = **空**（零改动） |
+| 全仓冲突标记 | 0 处 |
+
+> 用例数由 1875 增至 1908（+33），全部来自 master 新增的
+> `tests/test_pack_wiki_errors.py` / `tests/test_pack_wiki_parallel.py` 与
+> `tests/test_pack_wiki.py` 的补充；覆盖率 91.27% → 91.25% 的微降同样来自这批
+> 新代码，非本轮改动。
