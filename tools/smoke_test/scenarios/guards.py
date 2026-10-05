@@ -200,11 +200,18 @@ async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
 
     Measured behaviour worth pinning (it is not what the code reads like):
     the *value enum* does not cycle.  ``prompt_completions`` returns
-    ``"set theme=<name>"`` for every theme, so after the first tab the value
-    is ``"set theme=frappe"``; a second tab recomputes the candidates from
-    that completed value, the value filter ``v != value`` now excludes the
-    only prefix match, and the round restarts.  The *path* candidates do
+    ``"set theme=<name>"`` for every registered theme, so after the first tab
+    the value is that same ``"set theme="`` prefix plus the first sorted theme
+    name (``theme.available()[0]``); a second tab recomputes the candidates
+    from that completed value, the value filter ``v != value`` now excludes
+    the only prefix match, and the round restarts.  The *path* candidates do
     cycle, because the completed value is still a directory prefix there.
+
+    The theme expectations are derived from :func:`theme.available` rather
+    than spelled out, so adding or removing a theme does not turn this
+    scenario into a registry snapshot: what is asserted is that the
+    completer offers exactly the registered themes and that the round starts
+    at the first of them, not *which* theme happens to sort first today.
     """
     (tmp / "sub").mkdir()
     (tmp / "sub" / "inner.txt").write_text("inner", encoding="utf-8")
@@ -237,17 +244,20 @@ async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
         await pilot.press("f5")
         await pilot.pause()
         await type_text(pilot, "set theme=")
-        checks.append(Check("theme_candidates", 8,
+        checks.append(Check("theme_candidates", len(theme.available()),
                             len(bar.completer("set theme=", "command"))))
         await pilot.press("tab")
         await pilot.pause()
         # Several themes match and their common prefix is not longer than
         # what was typed, so the first tab starts the round at matches[0].
-        checks.append(Check("first_value", "set theme=frappe", bar.input.value))
+        checks.append(Check("first_value",
+                            f"set theme={theme.available()[0]}",
+                            bar.input.value))
         await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
-        checks.append(Check("theme_applied", "frappe", theme.active().name))
+        checks.append(Check("theme_applied", theme.available()[0],
+                            theme.active().name))
         await run_command(pilot, "set theme=mocha")
         checks.append(Check("theme_restored", "mocha", theme.active().name))
 
