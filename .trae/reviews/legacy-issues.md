@@ -70,6 +70,44 @@
   `_translate_pending` 局部变量叫 `display`。影响范围：可读性（前者已随参数删除
   统一过一次）。
 
+### 第 1 轮已修（2026-10-06，提交 `00124d8` / `cf94290`）
+
+- [x] **R-01 · 总体行文案落后进度条一页** — 探针实测 `delta=1`；成因是
+  `_description()` 作为**实参**在 `update(advance=1)` 之前求值。已改为推进后
+  再刷新文案（两次 `update`），并补断言：每页开始时文案页数 == `completed`
+  （变异验证：退回单次 `update` 即失败）。
+- [x] **R-02 · 中断链路端到端无用例** — 新用例让子进程以
+  `0xC000013A` 退出，走 `_INTERRUPT_EXIT_CODES` → worker → 主线程 → CLI
+  130 的**真实**路径，断言退出码 130、无 `Traceback`、无 `error[WIKI-0201]`。
+- [x] **R-03 · manifest 写失败用错错误码** — `_write_page_text` 增加 `code`
+  形参，`store_manifest` 传 `WIKI_MANIFEST_WRITE`（WIKI-0105 不再是死码）。
+  用例让真实写失败（manifest 路径为目录）。
+- [x] **R-04 · 通用 `OSError` 被误报为"源消失"** — 改报 `WIKI_SOURCE_UNREADABLE`
+  并附权限提示，WIKI-0103 不再是死码。
+- [x] **R-05 · 在途 worker 的失败行可能丢失** — 收集器改为
+  `queue.SimpleQueue`（无界、不会因主线程清空而丢消息），新增
+  `_drain_collected_failures()`；注释与 `_run_batch` docstring 记录"中断时
+  在途消息推迟到下一次 drain 打印"。
+- [x] **R-06 · `needs_translation` 与 `_prepare_pages` 判定重复** — 抽出
+  `_translation_state()` + `_PageState` 枚举，两处共用同一判定；预览保留原有
+  短路顺序（不读已判定页面的源，避免行为差异）。
+- [x] **R-07 · 空 `plans` 抛 `ValueError`** — `_translate_pending` 增加卫语句，
+  空输入返回空报告（变异验证：移除后用例以 `ValueError` 失败）。
+- [x] **R-08 · 同一对象两个名字** — 局部 `display` 统一为 `progress`。
+
+### 第 2 轮发现（2026-10-06）
+
+- [x] **R-12 · `_PageState.COPIED` 与 `has_en_source` 是死路径** — 判定枚举
+  新增的 "copied" 成员与参数没有任何调用方传 `True`（预览先短路、rebuild 已
+  在 `en_bytes` 分支处理）。已删除该成员与参数，docstring 说明"能走到判定器
+  的页面都已越过复制分支"。
+- [ ] **R-13 · 中断退出码 130 的语义约定（文档化权衡）** —
+  `_INTERRUPT_EXIT_CODES` 把 `130` 也当作"被中断"。若用户的自定义
+  `--translate-cmd` 用 `130` 表示普通失败，会被误判为中断（整轮中止而非
+  单页失败）。POSIX 惯例与 `tools.translate` 的返回值一致，判定为可接受；
+  **状态：接受并文档化**，如将来出现此类 hook 需在 `_run_translate` 改回
+  按 stderr 内容细分。
+
 ### 已接受为风险（附理由，不再复议）
 
 - [ ] **R-09 · 进度回调异常复用翻译失败通道** — `_ProgressBoard` 的回调与翻译同处
@@ -78,8 +116,8 @@
   属过度防御。**接受**，理由：复杂度收益为负。
 - [ ] **R-10 · `_emit_mode` 全局使 `run()` 理论不可重入** — 修法需改
   `translate_via_cmd` 公开签名（测试与文档均依赖）。CLI 每次进程只跑一个 run，
-  并发两个 run 不可达。**接受**，与 R-05 的丢失问题分开处理：R-05 修数据丢失，
-  本条保留为文档化限制。
+  并发两个 run 不可达。**接受**：R-05 已消除消息丢失，剩余仅为模式串扰这一
+  理论路径。
 
 ### 流程风险
 
