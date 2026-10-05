@@ -301,7 +301,7 @@ python -m build --wheel          # 产物在 dist/
 # 2) PyInstaller 独立可执行程序（目标机无需安装 Python）
 #    Windows（PowerShell）：
 .\pack\pack.ps1                  # 单目录：dist\yate\yate.exe + 运行时文件
-.\pack\pack.ps1 -OneFile         # 单一自解压文件：dist\yate.exe（约 16 MB）
+.\pack\pack.ps1 -OneFile         # 单一自解压文件：dist\yate.exe（约 20 MB）
 #    Windows（cmd.exe，参数同上，全部转发给 pack.ps1）：
 pack\pack.bat --onefile
 #    Linux（必须在 Linux 上运行；产物 dist/yate/yate，加 --onefile 则为 dist/yate）：
@@ -331,7 +331,7 @@ wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版
 与 `python313.dll`、`base_library.zip`、`yate/` 包目录等运行时文件**同级平铺**，
 没有 `_internal` 这一层。
 
-两个 spec 还会剔除被顺带拖进打包图、但运行时从不使用的模块：
+两个 spec 还会剔除被顺带拖进打包依赖图、但运行时从不使用的模块：
 `pygments.formatters.img` 为 yate 从不调用的图片格式化器把 Pillow（及其可选
 numpy 后端）拖了进来，而 yate 唯一用到 Pillow 的地方，是用
 `python -m tools.pack icon` 重新生成已入库的 `pack/yate.ico`——那是冻结入口

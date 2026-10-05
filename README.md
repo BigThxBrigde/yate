@@ -284,7 +284,7 @@ python -m build --wheel          # output in dist/
 # 2) Standalone executable with PyInstaller (no Python needed on the target machine)
 #    Windows (PowerShell):
 .\pack\pack.ps1                  # one-folder: dist\yate\yate.exe + runtime files
-.\pack\pack.ps1 -OneFile         # single self-extracting file: dist\yate.exe (~16 MB)
+.\pack\pack.ps1 -OneFile         # single self-extracting file: dist\yate.exe (~20 MB)
 #    Windows (cmd.exe, same options; forwards everything to pack.ps1):
 pack\pack.bat --onefile
 #    Linux (run ON Linux; produces dist/yate/yate or, with --onefile, dist/yate):
