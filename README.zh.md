@@ -456,9 +456,10 @@ cd <checkout>   # 任意检出均可
 - `--translate-all`：全量重译——额外把 fresh 页也送翻并覆盖现有英文页（慎用）；
 - `--push`：翻译全部成功后自动 commit 并推送 `origin`（gitee）与 `github`；
   只要有失败页就跳过推送，不带脏状态上远端；
-- 进度反馈：翻译在 stderr 的 rich 进度条中进行，显示当前页名与整体进度；
-  `Ctrl+C` 干净退出（退出码 130，无调用堆栈）——已翻译完成的页会在下次
-  运行时被直接采纳。
+- 进度反馈：在交互式终端上，翻译在 stderr 的 rich 进度条中进行，每个批次
+  一行、**按页实时推进**（显示正在翻译的页名），并附整体进度，全部实时刷新；
+  `Ctrl+C` 干净退出（退出码 130，无调用堆栈）——已翻译完成的页会在下次运行时
+  被直接采纳。
 
 ```powershell
 .venv\Scripts\python -m tools.pack wiki --check   # 门禁：仍有 missing/stale 时退出码 1

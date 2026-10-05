@@ -924,7 +924,6 @@ def _translate_pending(
     target: Path,
     jobs: int | None,
     console: Console,
-    progress: Progress | None = None,
 ) -> _TranslationReport:
     """Translate *plans* through a bounded thread pool, writing into *target*.
 
@@ -938,9 +937,6 @@ def _translate_pending(
     :func:`_emit_translate_failure` and nudges the progress rows (which rich
     serialises internally) -- so no lock is needed and page completion order
     is irrelevant (every page owns its target path and manifest key).
-
-    *progress* is injectable for tests: ``None`` (the production path)
-    builds the live display on *console*.
     """
     batches = chunk_pages(plans)
     ceiling = job_ceiling()
@@ -964,16 +960,14 @@ def _translate_pending(
     digests: dict[str, str] = {}
     missing: list[str] = []
     stale: list[str] = []
-    display = progress
-    if display is None:
-        display = Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            console=console,
-        )
+    display = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    )
     overall = display.add_task("translating", total=len(plans))
     batch_tasks = {
         index: display.add_task(f"batch {index}/{len(batches)}", total=len(batch))
