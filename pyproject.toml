@@ -103,7 +103,9 @@ pythonVersion = "3.12"
 reportImplicitOverride = "error"
 venvPath = "."
 venv = ".venv"
-include = ["yate", "tools", "tests"]
+# pack/ holds the PyInstaller specs, which are exec'd as Python scripts, plus the
+# shared _common.py they import -- build-time code with the same strict gate.
+include = ["yate", "tools", "tests", "pack"]
 exclude = ["**/__pycache__"]
 
 [tool.pytest.ini_options]

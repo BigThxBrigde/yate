@@ -1,0 +1,22 @@
+fix(pack): close the review findings on the bundle guards and metadata
+
+Address the python-code-review round on this branch:
+
+- the guard module docstring still advertised an unconditional flat layout,
+  contradicting the platform-scoped guard beside it;
+- EXCLUDES rested on "yate never imports these packages" with nothing pinning
+  that: a new feature importing Pillow would still build fine and only fail
+  when a user starts the exe, so add a scan of yate/** as the premise guard;
+- _load_common() re-executed the module per call, handing out a different
+  class object each time (an isinstance against it would silently answer
+  False), so memoise it;
+- fail with a message instead of ValueError/StopIteration when collect()'s
+  list(...) call or its single argument shape changes;
+- require each EXCLUDES entry to be a dotted identifier path and reject
+  case-variant duplicates;
+- pin the host of Analysis(excludes=...) to inputs, so other.excludes can no
+  longer satisfy the guard;
+- bring pack/ under the pyright strict gate (it is Python: the specs are
+  exec'd as scripts), verified zero diagnostics;
+- trim the EXCLUDES comment to the premise and point at the guard and the
+  build reports instead of carrying per-build numbers.

@@ -5,12 +5,14 @@ observe, so both are pinned statically here:
 
 * the shared inventory ``pack/_common.EXCLUDES`` still drops Pillow (13.1 MiB
   of the 68.4 MiB one-folder bundle, dragged into the graph by
-  ``pygments.formatters.img``) and numpy, and neither spec may fall back to a
-  literal ``excludes=[]``;
-* the one-folder spec keeps the flat layout through
-  ``EXE(contents_directory=".")`` -- the runtime files sit next to ``yate.exe``
-  instead of under ``_internal/`` -- while the onefile spec, which ships nothing
-  beside the exe, must not grow that knob.
+  ``pygments.formatters.img``) and numpy, that the specs feed that inventory
+  to ``Analysis`` instead of a literal ``excludes=[]``, and -- the assumption
+  the inventory rests on -- that nothing in ``yate/`` imports those packages;
+* the one-folder spec scopes the flat layout to Windows --
+  ``EXE(contents_directory="." if sys.platform == "win32" else "_internal")``
+  -- so the runtime files sit next to ``yate.exe`` there and stay under
+  ``_internal/`` elsewhere, while the onefile spec, which ships nothing beside
+  the exe, must not grow that knob at all.
 
 Nothing here imports PyInstaller: it lives in the ``build`` extra, which is not
 a CI dependency.  ``pack/_common.py`` is therefore loaded straight from its path
@@ -22,6 +24,7 @@ not importable -- are read with :mod:`ast` instead of run.
 from __future__ import annotations
 
 import ast
+import functools
 import importlib.util
 import sys
 from pathlib import Path
@@ -47,6 +50,7 @@ _ONEFILE_SPEC: Path = _REPO_ROOT / "pack" / "yate-onefile.spec"
 _SPECS: tuple[Path, ...] = (_ONEFOLDER_SPEC, _ONEFILE_SPEC)
 
 
+@functools.lru_cache(maxsize=1)
 def _load_common() -> ModuleType:
     """Import ``pack/_common.py`` by path, with PyInstaller absent.
 
@@ -54,6 +58,10 @@ def _load_common() -> ModuleType:
     imported at all (see the module docstring); ``_common.py`` is an ordinary
     module and is registered in :data:`sys.modules` while it executes so that
     its :func:`dataclasses.dataclass` can resolve the postponed annotations.
+
+    Cached: without it every call would build a *fresh* module object, so the
+    resulting classes would differ per call and any ``isinstance`` against them
+    would silently answer ``False``.
     """
     spec = importlib.util.spec_from_file_location("pack_common", _COMMON_PATH)
     if spec is None or spec.loader is None:
@@ -84,8 +92,13 @@ def _excludes() -> list[str]:
 
 
 def _parse(path: Path) -> ast.Module:
-    """The AST of a build-time script (``pack/_common.py`` or one ``.spec``)."""
+    """The AST of a Python source file (``pack/_common.py``, a ``.spec``, ``yate/**``)."""
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+
+def _yate_sources() -> list[Path]:
+    """Every ``.py`` file of the shipped package -- the exclusion's premise scope."""
+    return sorted((_REPO_ROOT / "yate").rglob("*.py"))
 
 
 def _calls(tree: ast.Module, callee: str) -> list[ast.Call]:
@@ -154,11 +167,24 @@ def test_excludes_inventory_when_common_loaded_lists_pillow_and_numpy() -> None:
 
 
 def test_excludes_entries_when_common_loaded_are_non_empty_module_names() -> None:
-    """Every entry has to be a usable module name, not padding or whitespace."""
+    """Every entry has to be a usable module name, not padding or whitespace.
+
+    PyInstaller matches ``excludes`` against module names, so a stray dot or an
+    inner space would silently exclude nothing at all; ``excludes`` is also
+    case-sensitive, hence the case-variant check.
+
+    Residual limitation (registered as R-07 in the review record): a single
+    entry whose *only* defect is wrong case cannot be told apart from a real
+    package here -- the inventory cannot be probed for importability because the
+    ``build`` extra (and therefore Pillow) is absent from the CI environment.
+    """
     entries = _excludes()
     assert entries
-    assert all(entry for entry in entries)
     assert all(entry == entry.strip() for entry in entries)
+    segments = [part for entry in entries for part in entry.split(".")]
+    assert all(segment.isidentifier() for segment in segments), entries
+    lowered = [entry.lower() for entry in entries]
+    assert len(set(lowered)) == len(entries), f"case-variant duplicates: {entries}"
 
 
 def test_excludes_entries_when_common_loaded_exclude_no_yate_module() -> None:
@@ -185,9 +211,39 @@ def test_collect_return_when_common_parsed_passes_shared_excludes_inventory() ->
     assert isinstance(excludes_value, ast.Call), "collect() must pass excludes=list(EXCLUDES)"
     assert isinstance(excludes_value.func, ast.Name)
     assert excludes_value.func.id == "list"
+    assert len(excludes_value.args) == 1, (
+        f"list(EXCLUDES) must take exactly one argument, got {len(excludes_value.args)}"
+    )
     [source] = excludes_value.args
     assert isinstance(source, ast.Name)
     assert source.id == "EXCLUDES"
+
+
+def test_yate_sources_when_scanned_never_import_excluded_modules() -> None:
+    """Nothing in ``yate/`` may import a package the build drops.
+
+    ``EXCLUDES`` is only safe while the shipped package is independent of those
+    packages: PyInstaller removes them from the frozen graph, so a new feature
+    that reached for one would still *build* fine and fail only when a user
+    starts the exe -- with nothing in the build report pointing at the list.
+    yate's sole legitimate use of Pillow is regenerating the committed
+    ``pack/yate.ico`` from the build machine (``tools/pack/icon.py``, dynamic
+    import), which is not part of the frozen entry point.
+    """
+    banned = set(_excludes())
+    offenders: list[tuple[str, str]] = []
+    for path in _yate_sources():
+        for node in ast.walk(_parse(path)):
+            if isinstance(node, ast.Import):
+                offenders += [
+                    (path.name, alias.name)
+                    for alias in node.names
+                    if alias.name.split(".")[0] in banned
+                ]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                if node.module.split(".")[0] in banned:
+                    offenders.append((path.name, node.module))
+    assert offenders == []
 
 
 # --- both specs forward the inventory to Analysis -----------------------------
@@ -195,10 +251,16 @@ def test_collect_return_when_common_parsed_passes_shared_excludes_inventory() ->
 
 @pytest.mark.parametrize("spec_path", _SPECS, ids=["onefolder", "onefile"])
 def test_analysis_call_when_spec_parsed_forwards_shared_excludes(spec_path: Path) -> None:
-    """Every build mode drops the same modules, via the shared ``inputs``."""
+    """Every build mode drops the same modules, via ``inputs.excludes``.
+
+    The host object is pinned too: ``other.excludes`` would satisfy an
+    attribute-name-only check while silently forwarding a different inventory.
+    """
     excludes_value = _keyword_value(_one_call(_parse(spec_path), "Analysis", spec_path), "excludes")
     assert isinstance(excludes_value, ast.Attribute), f"{spec_path.name} dropped excludes="
     assert excludes_value.attr == "excludes"
+    assert isinstance(excludes_value.value, ast.Name), f"{spec_path.name} must read inputs.excludes"
+    assert excludes_value.value.id == "inputs"
 
 
 @pytest.mark.parametrize("spec_path", _SPECS, ids=["onefolder", "onefile"])
