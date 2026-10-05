@@ -23,14 +23,21 @@ private, and the public :attr:`WindowFlows.window_pending` property covers it.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import cursor_path, message_text, run_command, type_text, wait_until
 from yate.app import YateApp
-from yate.session import MIN_FRACTION, Split
+from yate.session import MIN_FRACTION, RESIZE_STEP, Split
 
 __all__ = ["SCENARIOS"]
+
+
+#: ``ctrl+w`` ``-`` presses needed to drive the active pane from an even
+#: share down to :data:`yate.session.MIN_FRACTION`, plus two presses of
+#: slack for the step that is clamped by the guard.
+_MAX_SHRINK_PRESSES: int = math.ceil((0.5 - MIN_FRACTION) / RESIZE_STEP) + 2
 
 
 # --------------------------------------------------------------- read helpers
@@ -242,7 +249,7 @@ async def _pane_resize_chords(tmp: Path) -> ScenarioResult:
         checks.append(Check("equalized", [0.5, 0.5], _pane_sizes(app)))
         # shrink the active pane until the minimum-share guard fires
         warned = False
-        for _ in range(12):
+        for _ in range(_MAX_SHRINK_PRESSES):
             await pilot.press("ctrl+w")
             await pilot.press("-")
             await pilot.pause()
