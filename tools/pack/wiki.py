@@ -27,22 +27,31 @@ translation) are adopted on the next run.
 ``--check`` turns missing/stale English pages into exit code 1 (merge
 gate); ``--push`` commits the wiki repo and pushes it to ``origin``
 (gitee) and ``github`` (the remote is added when missing).
+
+Translation runs through a thread pool: pending pages are split into
+tasks of at most :data:`BATCH_SIZE` documents and at most
+``cpu_count() * 2`` run concurrently (issue IKJPEK), with one progress
+line per batch and per failed page.  Every failure carries a stable
+``WIKI-*`` code from :mod:`tools.pack.errors` -- a vanished Chinese source
+aborts the run with ``error[WIKI-0102]`` instead of a traceback.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 from typing import Final, cast
 
 from rich.console import Console
-from rich.markup import escape
 from rich.progress import (
     BarColumn,
     Progress,
@@ -53,6 +62,7 @@ from rich.progress import (
 )
 
 from .. import _util
+from .errors import Code, PackError
 
 GITHUB_WIKI_URL: Final[str] = "https://github.com/BigThxBrigde/yate.wiki.git"
 
@@ -97,15 +107,69 @@ _ZH_SECTION_LABELS: Final[dict[str, str]] = {
 #: wiki repo included): a hung git must not block the run forever.
 GIT_TIMEOUT_S: Final[float] = 120.0
 
+#: Wall clock budget for one page translation.
+TRANSLATE_TIMEOUT_S: Final[float] = 900.0
 
-class WikiError(RuntimeError):
+#: Documents per translation task.  A task is the unit handed to a pool
+#: worker, so a pool failure costs at most this many translations.
+BATCH_SIZE: Final[int] = 10
+
+
+class WikiError(PackError):
     """A wiki operation failed and the run must abort.
 
-    Raised by library code (never ``sys.exit``); the CLI layer
-    (:mod:`tools.pack.cli`) catches it, prints the message on stderr and
-    maps it to exit code 1 -- mirroring
+    A :class:`tools.pack.errors.PackError` carrying a ``WIKI-*`` code: raised
+    by library code (never ``sys.exit``); the CLI layer
+    (:mod:`tools.pack.cli`) catches it, renders ``error[<code>]: <message>``
+    on stderr and maps it to exit code 1 -- mirroring
     :class:`tools.translate.runner.TranslateError`.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: Code = Code.WIKI_SOURCE_UNREADABLE,
+        hint: str | None = None,
+    ) -> None:
+        super().__init__(code, message, hint=hint)
+
+
+def _read_source_bytes(path: Path, *, code: Code = Code.WIKI_ZH_SOURCE_MISSING) -> bytes:
+    """Read a collected source file, reporting absence as a coded error.
+
+    Sources can disappear between collection and use (issue IKJPEK: a plan
+    renamed mid-run); a bare ``FileNotFoundError`` used to escape as a full
+    traceback, so the run now aborts with ``error[WIKI-0102]`` instead.
+    """
+    try:
+        return path.read_bytes()
+    except FileNotFoundError as exc:
+        raise WikiError(
+            f"Chinese source vanished: {path.name}",
+            code=code,
+            hint="re-run once the source tree is complete",
+        ) from exc
+    except OSError as exc:
+        raise WikiError(f"cannot read source {path.name}: {exc}", code=code) from exc
+
+
+def _write_page_bytes(path: Path, data: bytes) -> None:
+    """Write a generated page, reporting failures as ``error[WIKI-0106]``."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    except OSError as exc:
+        raise WikiError(f"cannot write page {path.name}: {exc}", code=Code.WIKI_PAGE_WRITE) from exc
+
+
+def _write_page_text(path: Path, text: str) -> None:
+    """Write a generated page as UTF-8 text (``error[WIKI-0106]`` on failure)."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise WikiError(f"cannot write page {path.name}: {exc}", code=Code.WIKI_PAGE_WRITE) from exc
 
 _EN_SECTION_LABELS: Final[dict[str, str]] = {
     SECTION_GUIDES: "Guides",
@@ -204,14 +268,16 @@ def _collect_bilingual(base: Path) -> list[WikiPage]:
 
 
 def _assert_unique(pages: list[WikiPage]) -> None:
-    """Raise :class:`ValueError` when two sources map to the same page."""
+    """Raise :class:`WikiError` when two sources map to the same page."""
     seen: dict[str, str] = {}
     for page in pages:
         for target in (page.zh_target, page.en_target):
             if target in seen:
-                raise ValueError(
+                raise WikiError(
                     f"wiki target collision on {target!r}: "
-                    f"{seen[target]!r} vs {page.zh_source.name!r}"
+                    f"{seen[target]!r} vs {page.zh_source.name!r}",
+                    code=Code.WIKI_TARGET_COLLISION,
+                    hint="rename one of the colliding source documents",
                 )
             seen[target] = page.zh_source.name
 
@@ -275,6 +341,12 @@ def run_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
             errors="replace",
             timeout=GIT_TIMEOUT_S,
         )
+    except FileNotFoundError as exc:
+        raise WikiError(
+            "git executable not found on PATH",
+            code=Code.GIT_MISSING,
+            hint="install git or run without --push",
+        ) from exc
     except subprocess.TimeoutExpired:
         detail = f"git timed out after {GIT_TIMEOUT_S:g}s: git {' '.join(args)}"
         return subprocess.CompletedProcess(args, 124, "", detail)
@@ -312,16 +384,22 @@ def load_manifest(target: Path) -> dict[str, str]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        print("wiki: manifest corrupt, starting fresh", file=sys.stderr)
+        print(
+            f"error[{Code.WIKI_MANIFEST_READ}]: manifest corrupt, starting fresh",
+            file=sys.stderr,
+        )
         return {}
     except OSError as exc:
         # A read error (permissions, disk trouble) must not silently reset
         # the sha256 records: the next store_manifest() would overwrite the
         # file and every stale marker would be lost.  Abort via WikiError so
         # the CLI layer reports it and exits 1 (library code never sys.exit).
-        raise WikiError(f"manifest read error: {exc}") from exc
+        raise WikiError(f"manifest read error: {exc}", code=Code.WIKI_MANIFEST_READ) from exc
     if not isinstance(raw, dict):
-        print("wiki: manifest is not an object, starting fresh", file=sys.stderr)
+        print(
+            f"error[{Code.WIKI_MANIFEST_READ}]: manifest is not an object, starting fresh",
+            file=sys.stderr,
+        )
         return {}
     data = cast("dict[str, object]", raw)
     return {str(k): str(v) for k, v in data.items()}
@@ -330,7 +408,7 @@ def load_manifest(target: Path) -> dict[str, str]:
 def store_manifest(target: Path, manifest: dict[str, str]) -> None:
     """Write the sha256 manifest to *target* (sorted, stable diffs)."""
     text = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True)
-    (target / MANIFEST_NAME).write_text(f"{text}\n", encoding="utf-8")
+    _write_page_text(target / MANIFEST_NAME, f"{text}\n")
 
 
 def prune_orphan_pages(target: Path, keep: set[str]) -> int:
@@ -348,7 +426,13 @@ def prune_orphan_pages(target: Path, keep: set[str]) -> int:
         rel = existing.relative_to(target)
         if ".git" in rel.parts or rel.as_posix() in keep or existing.name in protected:
             continue
-        existing.unlink()
+        try:
+            existing.unlink()
+        except OSError as exc:
+            raise WikiError(
+                f"cannot remove orphan page {rel.as_posix()}: {exc}",
+                code=Code.WIKI_PRUNE_FAILED,
+            ) from exc
         removed += 1
     return removed
 
@@ -363,6 +447,10 @@ def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
     *translate_cmd* is executed through the shell so pipelines and
     redirections work; it must therefore come from a trusted source
     (the local CLI invocation / yaterc), never from untrusted input.
+
+    A per-page failure is reported as ``error[WIKI-0201]`` /
+    ``error[WIKI-0202]`` on stderr and degraded to ``None`` -- one bad page
+    never aborts the whole run, and ``--check`` still gates on it.
     """
     try:
         proc = subprocess.run(
@@ -373,14 +461,22 @@ def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=900,
+            timeout=TRANSLATE_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired:
-        print("wiki: translate-cmd timed out after 900s", file=sys.stderr)
+        print(
+            f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out"
+            f" after {TRANSLATE_TIMEOUT_S:g}s",
+            file=sys.stderr,
+        )
         return None
     if proc.returncode != 0 or not proc.stdout.strip():
         detail = (proc.stderr or proc.stdout).strip()
-        print(f"wiki: translate-cmd failed (rc={proc.returncode}): {detail}", file=sys.stderr)
+        print(
+            f"error[{Code.WIKI_TRANSLATE_FAILED}]: translate-cmd failed"
+            f" (rc={proc.returncode}): {detail}",
+            file=sys.stderr,
+        )
         return None
     return proc.stdout
 
@@ -408,7 +504,7 @@ def needs_translation(
     en_path = target / page.en_target
     if not en_path.exists() or en_path.stat().st_size == 0:
         return True
-    digest = hashlib.sha256(page.zh_source.read_bytes()).hexdigest()
+    digest = hashlib.sha256(_read_source_bytes(page.zh_source)).hexdigest()
     recorded = manifest.get(page.zh_target)
     if recorded is None or recorded == digest:
         # Adopted (externally maintained) or fresh: pending only when
@@ -545,6 +641,287 @@ def _nav_documents(pages: list[WikiPage]) -> tuple[str, str, str, str]:
     return home_zh_doc, sidebar_zh_doc, home_en_doc, sidebar_en_doc
 
 
+@dataclass(frozen=True)
+class _PagePlan:
+    """One page queued for translation, with everything a worker needs.
+
+    The Chinese text is decoded once during preparation so workers never
+    touch the filesystem: sources can vanish mid-run and that must fail
+    before any translation starts (issue IKJPEK).
+    """
+
+    page: WikiPage
+    digest: str
+    text: str
+    has_en: bool
+
+
+@dataclass(frozen=True)
+class _PageOutcome:
+    """A worker's report for one planned page.
+
+    *error* holds anything the worker caught (``BaseException`` included,
+    see :func:`_run_batch`); the main thread re-raises it so ``Ctrl+C``
+    still reaches :func:`tools.pack.cli.main` and maps to exit code 130.
+    """
+
+    plan: _PagePlan
+    english: str | None
+    error: BaseException | None
+    elapsed: float
+
+
+@dataclass(frozen=True)
+class _TranslationReport:
+    """Aggregated result of the parallel translation stage."""
+
+    translated: int
+    digests: dict[str, str]
+    missing: list[str]
+    stale: list[str]
+
+
+def cpu_count() -> int:
+    """Return the usable core count (never 0)."""
+    return os.cpu_count() or 1
+
+
+def job_ceiling(*, cores: int | None = None) -> int:
+    """Return the hard concurrency ceiling: CPU cores times two (issue IKJPEK)."""
+    return max(1, (cpu_count() if cores is None else cores) * 2)
+
+
+def resolve_jobs(jobs: int | None, *, cores: int | None = None) -> int:
+    """Clamp *jobs* into ``[1, cores * 2]``; ``None`` means the ceiling itself.
+
+    This is the single place the concurrency cap is enforced, so neither a
+    generous ``--jobs`` nor a machine with many cores can start more than
+    twice the core count of translators.
+    """
+    limit = job_ceiling(cores=cores)
+    if jobs is None:
+        return limit
+    return max(1, min(jobs, limit))
+
+
+def chunk_pages[T](items: Sequence[T], size: int = BATCH_SIZE) -> list[list[T]]:
+    """Split *items* into consecutive chunks of at most *size* entries.
+
+    The task-pool unit: one chunk is one unit of work handed to a pool
+    worker, so a worker failure or an interrupt costs at most *size*
+    translations.
+    """
+    if size < 1:
+        raise ValueError(f"chunk size must be >= 1, got {size}")
+    return [list(items[start : start + size]) for start in range(0, len(items), size)]
+
+
+def _run_batch(plans: Sequence[_PagePlan], translate_cmd: str) -> list[_PageOutcome]:
+    """Translate one batch, capturing every failure as an outcome value.
+
+    Nothing may propagate out of a pool worker: an exception escaping here
+    leaves its ``Future`` permanently pending, which would hang
+    :func:`concurrent.futures.as_completed` forever, and a
+    ``KeyboardInterrupt`` raised in a worker thread must be re-raised by the
+    main thread anyway.  Threads are the right primitive because the work
+    is a blocking external subprocess (:func:`translate_via_cmd`), which
+    holds no shared interpreter state.
+    """
+    outcomes: list[_PageOutcome] = []
+    for plan in plans:
+        started = time.monotonic()
+        try:
+            english: str | None = translate_via_cmd(plan.text, translate_cmd)
+            outcomes.append(
+                _PageOutcome(plan, english, None, time.monotonic() - started)
+            )
+        except BaseException as exc:  # noqa: BLE001 - a worker must never escape
+            outcomes.append(_PageOutcome(plan, None, exc, time.monotonic() - started))
+    return outcomes
+
+
+def _prepare_pages(
+    pages: Sequence[WikiPage],
+    target: Path,
+    manifest: dict[str, str],
+    *,
+    translate_cmd: str | None,
+    translate_all: bool,
+) -> tuple[int, list[_PagePlan], list[str], list[str]]:
+    """Rebuild Chinese pages and decide what still needs translating.
+
+    Returns ``(kept, plans, missing, stale)``.  Mirrors
+    :func:`needs_translation` for the preview count, but performs the work:
+    every Chinese page is rewritten from its source, bilingual twins are
+    copied verbatim, and only the pages that really need a translator are
+    planned.  *manifest* is updated in place for kept pages; translations
+    are recorded by the caller once they actually succeed.
+    """
+    kept = 0
+    plans: list[_PagePlan] = []
+    missing: list[str] = []
+    stale: list[str] = []
+    for page in pages:
+        zh_bytes = _read_source_bytes(page.zh_source)
+        digest = hashlib.sha256(zh_bytes).hexdigest()
+        _write_page_bytes(target / page.zh_target, zh_bytes)
+        en_path = target / page.en_target
+        en_bytes: bytes | None = None
+        if page.en_source is not None:
+            # TOCTOU: _collect_bilingual verified en_source with exists()
+            # at collection time, but the file may be deleted before this
+            # read; treat the failure as a missing page (translation path
+            # below) instead of crashing the whole run.
+            try:
+                en_bytes = page.en_source.read_bytes()
+            except OSError:
+                en_bytes = None
+        if en_bytes is not None:
+            _write_page_bytes(en_path, en_bytes)
+            manifest.pop(page.zh_target, None)
+            kept += 1
+            continue
+        recorded = manifest.get(page.zh_target)
+        has_en = en_path.exists() and en_path.stat().st_size > 0
+        is_stale = has_en and recorded is not None and recorded != digest
+        if has_en and not is_stale:
+            # Fresh or externally maintained (e.g. agent-translated).
+            if translate_cmd is None or not translate_all:
+                manifest[page.zh_target] = digest
+                kept += 1
+                continue
+            # --translate-all re-translates even fresh pages through the
+            # hook, overwriting their English pages.  The digest is only
+            # recorded after a successful re-translation, so a failed one
+            # does not silently bless an outdated English page.
+        elif translate_cmd is None:
+            # No translator available: report the gap so --check gates on it.
+            if not has_en:
+                missing.append(page.en_target)
+            else:
+                stale.append(page.en_target)
+            continue
+        plans.append(
+            _PagePlan(
+                page=page,
+                digest=digest,
+                text=zh_bytes.decode("utf-8", errors="replace"),
+                has_en=has_en,
+            )
+        )
+    return kept, plans, missing, stale
+
+
+def _translate_pending(
+    plans: Sequence[_PagePlan],
+    translate_cmd: str,
+    *,
+    target: Path,
+    jobs: int | None,
+    console: Console,
+) -> _TranslationReport:
+    """Translate *plans* through a bounded thread pool, writing into *target*.
+
+    The plans are split into :data:`BATCH_SIZE`-sized tasks; at most
+    :func:`resolve_jobs` of them run at once and every state transition is
+    reported live: one overall task (pages done / batches queued / worker
+    count), one task per batch, a permanent line per finished batch and one
+    per failed page.  Only the main thread touches ``progress`` or the
+    filesystem -- workers purely run the external command -- so no lock is
+    needed and page completion order is irrelevant (every page owns its
+    target path and manifest key).
+    """
+    batches = chunk_pages(plans)
+    ceiling = job_ceiling()
+    workers = min(resolve_jobs(jobs), len(batches))
+    if jobs is not None and jobs > ceiling:
+        console.print(
+            f"wiki: --jobs {jobs} clamped to the CPU ceiling {ceiling} (cores x 2)",
+            markup=False,
+        )
+    console.print(
+        f"wiki: {len(plans)} page(s) in {len(batches)} batch(es),"
+        f" {workers} worker(s) at most",
+        markup=False,
+    )
+    translated = 0
+    digests: dict[str, str] = {}
+    missing: list[str] = []
+    stale: list[str] = []
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    )
+    overall = progress.add_task("translating", total=len(plans))
+    batch_tasks = {
+        index: progress.add_task(f"batch {index}/{len(batches)}", total=len(batch))
+        for index, batch in enumerate(batches, start=1)
+    }
+    done = 0
+    progress.start()
+    try:
+        with ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="wiki-translate"
+        ) as pool:
+            futures: dict[Future[list[_PageOutcome]], int] = {
+                pool.submit(_run_batch, batch, translate_cmd): index
+                for index, batch in enumerate(batches, start=1)
+            }
+            queued = len(futures)
+            for future in as_completed(futures):
+                index = futures[future]
+                queued -= 1
+                batch = batches[index - 1]
+                outcomes = future.result()
+                failed_here = 0
+                for outcome in outcomes:
+                    if outcome.error is not None:
+                        # Ctrl+C (or a genuine bug) in a worker: leave the
+                        # pool before anything else is written.
+                        raise outcome.error
+                    done += 1
+                    progress.advance(overall)
+                    progress.advance(batch_tasks[index])
+                    page = outcome.plan.page
+                    if outcome.english is None:
+                        failed_here += 1
+                        # An existing page whose re-translation failed is
+                        # still stale, not missing -- report under that heading.
+                        console.print(
+                            f"wiki: [{done}/{len(plans)}] {page.en_target} failed"
+                            f" ({outcome.elapsed:.1f}s)",
+                            markup=False,
+                        )
+                        if outcome.plan.has_en:
+                            stale.append(page.en_target)
+                        else:
+                            missing.append(page.en_target)
+                        continue
+                    _write_page_text(target / page.en_target, outcome.english)
+                    digests[page.zh_target] = outcome.plan.digest
+                    translated += 1
+                progress.update(
+                    overall,
+                    description=(
+                        f"translating {done}/{len(plans)} page(s)"
+                        f" · {queued} batch(es) queued · {workers} worker(s)"
+                    ),
+                )
+                console.print(
+                    f"wiki: batch {index}/{len(batches)} done"
+                    f" ({len(batch) - failed_here}/{len(batch)} ok,"
+                    f" {failed_here} failed)",
+                    markup=False,
+                )
+    finally:
+        progress.stop()
+    return _TranslationReport(translated, digests, missing, stale)
+
+
 def run(
     target: Path,
     translate_cmd: str | None,
@@ -554,6 +931,7 @@ def run(
     check: bool = False,
     push: bool = False,
     repo_root: Path | None = None,
+    jobs: int | None = None,
 ) -> int:
     """Generate the wiki into *target* and return the process exit code.
 
@@ -567,6 +945,9 @@ def run(
     outcome.  With *check* the exit code is 1 while any English page is
     missing or stale; with *push* the wiki repo is committed and pushed
     (skipped when the check fails).
+
+    *jobs* caps concurrent translations; ``None`` means the machine's
+    ceiling (see :func:`resolve_jobs`) and any value is clamped into it.
     """
     root = repo_root if repo_root is not None else _util.repo_root()
     pages = collect_sources(root)
@@ -582,111 +963,31 @@ def run(
         )
     console = Console(file=sys.stderr)
     run_started = time.monotonic()
-    pending = 0
+    kept, plans, missing, stale = _prepare_pages(
+        pages,
+        target,
+        manifest,
+        translate_cmd=translate_cmd,
+        translate_all=translate_all,
+    )
+    translated = 0
     if translate_cmd is not None:
-        pending = sum(
-            1
-            for page in pages
-            if needs_translation(page, target, manifest, translate_all)
-        )
-        if pending:
-            console.print(f"wiki: {pending} page(s) to translate", markup=False)
+        if plans:
+            console.print(f"wiki: {len(plans)} page(s) to translate", markup=False)
         else:
             console.print(
                 f"wiki: nothing to translate ({len(pages)} pages up to date)",
                 markup=False,
             )
-    kept = 0
-    translated = 0
-    missing: list[str] = []
-    stale: list[str] = []
-    progress = Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        console=console,
-    )
-    overall = progress.add_task("translating", total=pending)
-    active = pending > 0
-    if active:
-        progress.start()
-    try:
-        attempted = 0
-        for page in pages:
-            zh_bytes = page.zh_source.read_bytes()
-            zh_path = target / page.zh_target
-            zh_path.parent.mkdir(parents=True, exist_ok=True)
-            zh_path.write_bytes(zh_bytes)
-            digest = hashlib.sha256(zh_bytes).hexdigest()
-            en_path = target / page.en_target
-            en_path.parent.mkdir(parents=True, exist_ok=True)
-            en_bytes: bytes | None = None
-            if page.en_source is not None:
-                # TOCTOU: _collect_bilingual verified en_source with exists()
-                # at collection time, but the file may be deleted before this
-                # read; treat the failure as a missing page (translation path
-                # below) instead of crashing the whole run.
-                try:
-                    en_bytes = page.en_source.read_bytes()
-                except OSError:
-                    en_bytes = None
-            if en_bytes is not None:
-                en_path.write_bytes(en_bytes)
-                manifest.pop(page.zh_target, None)
-                kept += 1
-                continue
-            recorded = manifest.get(page.zh_target)
-            has_en = en_path.exists() and en_path.stat().st_size > 0
-            is_stale = has_en and recorded is not None and recorded != digest
-            if has_en and not is_stale:
-                # Fresh or externally maintained (e.g. agent-translated).
-                if translate_cmd is None or not translate_all:
-                    manifest[page.zh_target] = digest
-                    kept += 1
-                    continue
-                # --translate-all re-translates even fresh pages through the
-                # hook, overwriting their English pages.  The digest is only
-                # recorded after a successful re-translation below, so a failed
-                # one does not silently bless an outdated English page.
-            elif translate_cmd is None:
-                # No translator available: report the gap so --check gates on it.
-                if not has_en:
-                    missing.append(page.en_target)
-                else:
-                    stale.append(page.en_target)
-                continue
-            progress.update(
-                overall, description=f"translating {escape(page.en_target)}"
+        if plans:
+            outcome = _translate_pending(
+                plans, translate_cmd, target=target, jobs=jobs, console=console
             )
-            started = time.monotonic()
-            attempted += 1
-            english = translate_via_cmd(
-                zh_bytes.decode("utf-8", errors="replace"), translate_cmd
-            )
-            if english is None:
-                # An existing page whose re-translation failed is still stale,
-                # not missing -- report it under the right heading.
-                elapsed = time.monotonic() - started
-                console.print(
-                    f"wiki: [{attempted}/{pending}] {page.en_target} failed"
-                    f" ({elapsed:.1f}s)",
-                    markup=False,
-                )
-                if has_en:
-                    stale.append(page.en_target)
-                else:
-                    missing.append(page.en_target)
-                progress.advance(overall)
-                continue
-            en_path.write_text(english, encoding="utf-8")
-            manifest[page.zh_target] = digest
-            translated += 1
-            progress.advance(overall)
-    finally:
-        if active:
-            progress.stop()
+            # Only a translation that really landed is blessed in the manifest.
+            manifest.update(outcome.digests)
+            translated = outcome.translated
+            missing.extend(outcome.missing)
+            stale.extend(outcome.stale)
     collected = {page.zh_target for page in pages}
     manifest = {key: value for key, value in manifest.items() if key in collected}
     # Sources that vanished must not leave dead links behind in the wiki.
@@ -696,10 +997,10 @@ def run(
         print(f"wiki: removed {orphans} orphan page(s) with no source document")
 
     home_zh, sidebar_zh, home_en, sidebar_en = _nav_documents(pages)
-    (target / "Home.md").write_text(home_zh, encoding="utf-8")
-    (target / "_Sidebar.md").write_text(sidebar_zh, encoding="utf-8")
-    (target / "Home.en.md").write_text(home_en, encoding="utf-8")
-    (target / "_Sidebar.en.md").write_text(sidebar_en, encoding="utf-8")
+    _write_page_text(target / "Home.md", home_zh)
+    _write_page_text(target / "_Sidebar.md", sidebar_zh)
+    _write_page_text(target / "Home.en.md", home_en)
+    _write_page_text(target / "_Sidebar.en.md", sidebar_en)
     store_manifest(target, manifest)
 
     print(
