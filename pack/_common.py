@@ -65,9 +65,9 @@ _TS_PACKAGES: tuple[str, ...] = (
 #: transitively, never touched at runtime.  Pillow arrives via
 #: ``pygments.formatters.img``; yate's only use of it is regenerating the
 #: committed ``pack/yate.ico`` from the build machine (``tools/pack/icon.py``,
-#: dynamic import), which is outside the frozen entry point -- hence 13.1 MiB
-#: of pure payload.  ``numpy`` is Pillow's optional backend, listed
-#: defensively.  Keep this premise honest with
+#: dynamic import), which is outside the frozen entry point, so it is pure
+#: payload.  ``numpy`` is Pillow's optional backend, listed defensively.
+#: Keep this premise honest with
 #: ``tests/test_pack_spec.py::test_yate_sources_when_scanned_never_import_excluded_modules``;
 #: re-derive the inventory from ``build/<name>/xref-<name>.html`` and
 #: ``warn-<name>.txt`` after a build before adding entries.

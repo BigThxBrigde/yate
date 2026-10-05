@@ -103,8 +103,9 @@ pythonVersion = "3.12"
 reportImplicitOverride = "error"
 venvPath = "."
 venv = ".venv"
-# pack/ holds the PyInstaller specs, which are exec'd as Python scripts, plus the
-# shared _common.py they import -- build-time code with the same strict gate.
+# pack/_common.py is ordinary Python and belongs under the same strict gate as
+# the rest.  The two .spec files are exec'd as scripts but pyright only analyses
+# .py, so they are covered by tests/test_pack_spec.py's AST guards instead.
 include = ["yate", "tools", "tests", "pack"]
 exclude = ["**/__pycache__"]
 

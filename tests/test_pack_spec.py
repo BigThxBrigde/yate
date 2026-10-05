@@ -124,16 +124,19 @@ def _dynamic_import_name(node: ast.Call) -> str | None:
 def _yate_sources() -> list[Path]:
     """Every Python source file the frozen app can execute.
 
-    ``yate/extensions/*.py.example`` counts: the bundled extensions ship as data
-    files and are imported at runtime through
-    ``importlib.util.spec_from_file_location`` (``yate/services/extensions.py``),
-    so an extension that reached for an excluded package would break the same way
-    a core module would.
+    ``*.py`` covers ordinary modules.  ``*.example`` covers the templates that
+    ship as data yet run at runtime through ``compile()``/``exec()``:
+
+    * ``yate/extensions/*.py.example`` -- bundled extensions, imported via
+      ``importlib.util.spec_from_file_location`` (``yate/services/extensions.py``);
+    * ``yate/yaterc.example`` -- an rc file (``yate/config.py``);
+    * ``yate/resources/theme_examples/*.example`` -- themes (``yate/editor_view/theme.py``).
+
+    Matching the suffix rather than enumerating paths keeps this honest when a
+    fourth kind of template appears.
     """
     package = _REPO_ROOT / "yate"
-    sources = set(package.rglob("*.py"))
-    sources.update(package.glob("extensions/*.py.example"))
-    return sorted(sources)
+    return sorted({*package.rglob("*.py"), *package.rglob("*.example")})
 
 
 def _calls(tree: ast.Module, callee: str) -> list[ast.Call]:
@@ -157,11 +160,6 @@ def _one_call(tree: ast.Module, callee: str, path: Path) -> ast.Call:
 def _keyword_value(call: ast.Call, name: str) -> ast.expr | None:
     """The expression bound to keyword *name*, or ``None`` when it is absent."""
     return next((keyword.value for keyword in call.keywords if keyword.arg == name), None)
-
-
-def _is_empty_list_literal(expr: ast.expr) -> bool:
-    """True when *expr* is a literal ``[]`` -- the shape this guard forbids."""
-    return isinstance(expr, ast.List) and not expr.elts
 
 
 def _functions(tree: ast.Module, name: str) -> list[ast.FunctionDef]:
@@ -265,10 +263,10 @@ def test_yate_sources_when_scanned_never_import_excluded_modules() -> None:
     ``pack/yate.ico`` from the build machine (``tools/pack/icon.py``, dynamic
     import), which is not part of the frozen entry point.
 
-    Scope: every ``.py`` under ``yate/`` plus the bundled extension examples
-    (``*.py.example``), which are data files but execute at runtime.  Dynamic
-    imports are covered too -- only ``import``/``from`` statements would leave
-    ``importlib.import_module("PIL")`` unnoticed.
+    Scope: every ``.py`` under ``yate/`` plus every ``*.example`` template --
+    the extensions, ``yaterc.example`` and the theme examples ship as data but
+    execute at runtime.  Dynamic imports are covered too -- only ``import``/
+    ``from`` statements would leave ``importlib.import_module("PIL")`` unnoticed.
 
     Residual limitation: an import computed at runtime (name built from
     variables) still escapes this scan.
@@ -304,22 +302,18 @@ def test_yate_sources_when_scanned_never_import_excluded_modules() -> None:
 def test_analysis_call_when_spec_parsed_forwards_shared_excludes(spec_path: Path) -> None:
     """Every build mode drops the same modules, via ``inputs.excludes``.
 
-    The host object is pinned too: ``other.excludes`` would satisfy an
-    attribute-name-only check while silently forwarding a different inventory.
+    Asserting the attribute *and* its host also rules out the pre-issue shape
+    ``excludes=[]`` -- a list literal is not an ``ast.Attribute``, so that
+    fallback can no longer reach the build.
     """
     excludes_value = _keyword_value(_one_call(_parse(spec_path), "Analysis", spec_path), "excludes")
-    assert isinstance(excludes_value, ast.Attribute), f"{spec_path.name} dropped excludes="
+    assert isinstance(excludes_value, ast.Attribute), (
+        f"{spec_path.name} must read inputs.excludes (a literal list would ship "
+        "the excluded packages)"
+    )
     assert excludes_value.attr == "excludes"
     assert isinstance(excludes_value.value, ast.Name), f"{spec_path.name} must read inputs.excludes"
     assert excludes_value.value.id == "inputs"
-
-
-@pytest.mark.parametrize("spec_path", _SPECS, ids=["onefolder", "onefile"])
-def test_analysis_excludes_when_spec_parsed_is_not_an_empty_literal(spec_path: Path) -> None:
-    """``excludes=[]`` is the exact pre-issue shape and must not come back."""
-    excludes_value = _keyword_value(_one_call(_parse(spec_path), "Analysis", spec_path), "excludes")
-    assert excludes_value is not None, f"{spec_path.name} dropped excludes="
-    assert not _is_empty_list_literal(excludes_value)
 
 
 # --- bundle layout ------------------------------------------------------------
