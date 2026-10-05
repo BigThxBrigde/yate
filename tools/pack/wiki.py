@@ -588,9 +588,12 @@ class _PageState(StrEnum):
     :func:`needs_translation` (the preview) and :func:`_prepare_pages` (the
     rebuild) used to spell this rule out twice, so the preview count and
     the real loop could drift apart.  Both now ask this enum.
+
+    Only pages that reach the translator have a verdict here: a bilingual
+    twin is copied verbatim before either caller gets that far, which is
+    why there is no "copied" member (review R-12 -- it had no caller).
     """
 
-    COPIED = "copied"
     FRESH = "fresh"
     MISSING = "missing"
     STALE = "stale"
@@ -604,7 +607,6 @@ def _has_english_page(en_path: Path) -> bool:
 
 def _translation_state(
     *,
-    has_en_source: bool,
     has_en: bool,
     recorded: str | None,
     digest: str,
@@ -613,13 +615,11 @@ def _translation_state(
 ) -> _PageState:
     """Classify one page from the facts both callers already know.
 
-    The single source of truth for "copied / fresh / missing / stale /
-    translate".  *translate_cmd* is ``None`` when no translator is wired
-    up: a page that would need one is then reported (missing or stale)
-    rather than queued.
+    The single source of truth for "fresh / missing / stale / translate".
+    *translate_cmd* is ``None`` when no translator is wired up: a page
+    that would need one is then reported (missing or stale) rather than
+    queued.
     """
-    if has_en_source:
-        return _PageState.COPIED
     if not has_en:
         return _PageState.MISSING
     if recorded is not None and recorded != digest:
@@ -661,14 +661,13 @@ def needs_translation(
     if not _has_english_page(target / page.en_target):
         return True
     state = _translation_state(
-        has_en_source=False,
         has_en=True,
         recorded=manifest.get(page.zh_target),
         digest=hashlib.sha256(_read_source_bytes(page.zh_source)).hexdigest(),
         translate_cmd=_PREVIEW_TRANSLATE_HOOK,
         translate_all=translate_all,
     )
-    return state in (_PageState.MISSING, _PageState.STALE, _PageState.TRANSLATE)
+    return state is _PageState.TRANSLATE or state is _PageState.STALE
 
 
 def push_wiki(target: Path) -> int:
@@ -1035,7 +1034,6 @@ def _prepare_pages(
         recorded = manifest.get(page.zh_target)
         has_en = _has_english_page(en_path)
         state = _translation_state(
-            has_en_source=False,
             has_en=has_en,
             recorded=recorded,
             digest=digest,
