@@ -9,10 +9,19 @@ universe), so this module drives it through both of its entry points:
   raw byte form) and calls the registered ``toggle_screensaver`` action, so the
   real key covers the action *and* the keymap-free interception.  Two
   open/close rounds prove the toggle is idempotent.
-* :func:`_screensaver_disabled_message` -- ``screen_saver.enable = False`` and
-  a ``characters`` whitelist that matches no roster entry both refuse to start
-  and only report on the message line
+* :func:`_screensaver_disabled_message` -- ``screen_saver.enable = False`` refuses
+  to start and only reports on the message line
   (:meth:`yate.overlays.OverlayFlows.toggle_screensaver`).
+* :func:`_screensaver_bad_roster_message` -- a ``characters`` whitelist naming
+  only unknown sprites is refused too, and is *not* silently widened to the
+  whole roster: falling back would betray an explicit whitelist.
+
+The two refusals are two scenarios rather than one scenario driving two apps:
+``snapshot_svg`` writes the same ``shot.svg`` for every app, so a second app
+would overwrite the first app's rows with dead storage, and the harness'
+invariant scan runs against the most recently created app only -- which would
+leave the first app's screen stack unscanned.  One app per scenario gives each
+app its own invariant coverage and its own snapshot.
 
 Every scenario leaves the screen stack at one entry, which is what the
 harness' ``invariant:no_leftover_modal`` demands; the configurations are built
@@ -124,14 +133,11 @@ async def _screensaver_toggle_key(tmp: Path) -> ScenarioResult:
 
 
 async def _screensaver_disabled_message(tmp: Path) -> ScenarioResult:
-    """A refused screensaver reports on the message line and opens nothing.
+    """A screensaver disabled in config reports and opens nothing.
 
-    Two configs, two apps: ``screen_saver.enable = False`` (which also leaves
-    the shell without an idle tracker) and a ``characters`` whitelist naming
-    only unknown sprites.  The second one is *not* silently widened to the
-    whole roster -- falling back would betray an explicit whitelist -- and
-    every unknown name was already reported into ``config.errors`` at
-    startup, which the first check pins.
+    ``screen_saver.enable = False`` also leaves the shell without an idle
+    tracker, so the refusal is not merely a message -- there is no timer to
+    fall back on either.
     """
     app = new_app(
         target=tmp / "a.txt",
@@ -147,31 +153,44 @@ async def _screensaver_disabled_message(tmp: Path) -> ScenarioResult:
         checks.append(Check("disabled_message", True,
                             _DISABLED_MSG in message_text(app)))
         rows = snapshot_svg(app, tmp)
+    return ScenarioResult("screensaver_disabled_message", checks, rows)
 
-    bad = new_app(
+
+async def _screensaver_bad_roster_message(tmp: Path) -> ScenarioResult:
+    """A ``characters`` whitelist matching no roster entry is refused.
+
+    The whitelist is *not* silently widened to the whole roster -- falling
+    back would betray an explicit whitelist -- and every unknown name was
+    already reported into ``config.errors`` at startup, which the first
+    check pins.
+    """
+    app = new_app(
         target=tmp / "b.txt",
         config=YateConfig(
             screen_saver=ScreenSaverConfig(characters=("no-such-sprite",))
         ),
     )
-    async with bad.run_test(size=(100, 30)) as pilot:
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         checks.append(Check("unknown_name_reported", True, any(
             "unknown screensaver character" in err
-            for err in bad.config.errors
+            for err in app.config.errors
         )))
         await pilot.press("alt+shift+s")
         await pilot.pause()
         checks.append(Check("bad_roster_stays_closed", 1,
-                            len(bad.screen_stack)))
+                            len(app.screen_stack)))
         checks.append(Check("bad_roster_message", True,
-                            _BAD_ROSTER_MSG in message_text(bad)))
-        rows = snapshot_svg(bad, tmp)
-    return ScenarioResult("screensaver_disabled_message", checks, rows)
+                            _BAD_ROSTER_MSG in message_text(app)))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("screensaver_bad_roster_message", checks, rows)
 
 
 SCENARIOS: list[Scenario] = [
     Scenario("screensaver_toggle_key", _screensaver_toggle_key, ("view",)),
     Scenario("screensaver_disabled_message", _screensaver_disabled_message,
+             ("view", "regression")),
+    Scenario("screensaver_bad_roster_message", _screensaver_bad_roster_message,
              ("view", "regression")),
 ]
