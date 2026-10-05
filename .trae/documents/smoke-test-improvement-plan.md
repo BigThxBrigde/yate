@@ -5,7 +5,10 @@
 > - 骨架已按任务 3 拆分：`tools/smoke_test/` 下
 >   `cli.py` / `report.py` / `baselines.py` / `harness.py` / `testsuite.py`
 >   + `scenarios/`（`core` / `edit` / `search` / `files` / `panes` / `explorer` /
->   `view` / `integration` / `regression` / `stress` / `aliases` / `_base`），
+>   `view` / `integration` / `regression` / `stress` / `aliases` / `_base`，
+>   **2026-10-05 扩充后新增 `diffview` / `guards` / `screensaver` /
+>   `workspace_nav` / `vim_advanced`**，见
+>   [`smoke-test-expansion-plan.md`](smoke-test-expansion-plan.md)），
 >   `scenarios/__init__.py` 聚合各模块的 `SCENARIOS` 并重导出。
 > - `smoke_baselines/` 已入库（`*.json`）；CLI 已支持 `--tag` / `--scenario` /
 >   `--coverage` / `--json` / `--no-invariant` / `--repeat` / `--seed` /
@@ -13,7 +16,8 @@
 >   `--fail-only` / `--report` 等选项。
 > - 任务 1 的产品缺陷已修复：vim 键位支持 `ctrl+/` 切回 vsc；场景入口改用
 >   F5（vsc 模式 `:` 非绑定键）。
-> - 场景总数约 59（含 R 组回归与 S 组压力），全局不变量钩子已接入。
+> - 场景总数 **103**（原 59 + 2026-10-05 扩充 14），全局不变量钩子已接入；
+>   覆盖率已达 `commands 45/45`、`actions 66/66`（均为 100%）。
 
 ## 与当前实现的差异（回写，2026-09-22）
 

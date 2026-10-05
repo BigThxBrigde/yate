@@ -12,15 +12,20 @@ from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import goto, run_command, type_text, wait_until
 from .aliases import SCENARIOS as _ALIASES
 from .core import SCENARIOS as _CORE
+from .diffview import SCENARIOS as _DIFFVIEW
 from .edit import SCENARIOS as _EDIT
 from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
+from .guards import SCENARIOS as _GUARDS
 from .integration import SCENARIOS as _INTEGRATION
 from .panes import SCENARIOS as _PANES
 from .regression import SCENARIOS as _REGRESSION
+from .screensaver import SCENARIOS as _SCREENSAVER
 from .search import SCENARIOS as _SEARCH
 from .stress import SCENARIOS as _STRESS
 from .view import SCENARIOS as _VIEW
+from .vim_advanced import SCENARIOS as _VIM_ADVANCED
+from .workspace_nav import SCENARIOS as _WORKSPACE_NAV
 
 __all__ = [
     "SCENARIOS",
@@ -38,13 +43,18 @@ __all__ = [
 SCENARIOS: list[Scenario] = [
     *_CORE,
     *_EDIT,
+    *_VIM_ADVANCED,
     *_SEARCH,
     *_FILES,
+    *_GUARDS,
     *_PANES,
     *_EXPLORER,
+    *_WORKSPACE_NAV,
     *_VIEW,
+    *_DIFFVIEW,
     *_INTEGRATION,
     *_REGRESSION,
+    *_SCREENSAVER,
     *_STRESS,
     *_ALIASES,
 ]

@@ -1,0 +1,181 @@
+{
+  "checks": [
+    {
+      "label": "root_is_tmp",
+      "expected": "explorer_navigate_and_esc",
+      "actual": "explorer_navigate_and_esc",
+      "ok": true
+    },
+    {
+      "label": "tree_focused",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "cursor_on_root",
+      "expected": "explorer_navigate_and_esc",
+      "actual": "explorer_navigate_and_esc",
+      "ok": true
+    },
+    {
+      "label": "j_to_root_dir",
+      "expected": "root",
+      "actual": "root",
+      "ok": true
+    },
+    {
+      "label": "l_expanded",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "loaded_sub",
+      "expected": [
+        "sub"
+      ],
+      "actual": [
+        "sub"
+      ],
+      "ok": true
+    },
+    {
+      "label": "j_to_sub",
+      "expected": "sub",
+      "actual": "sub",
+      "ok": true
+    },
+    {
+      "label": "sub_expanded",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "loaded_inner",
+      "expected": [
+        "inner.txt"
+      ],
+      "actual": [
+        "inner.txt"
+      ],
+      "ok": true
+    },
+    {
+      "label": "j_to_file",
+      "expected": "inner.txt",
+      "actual": "inner.txt",
+      "ok": true
+    },
+    {
+      "label": "opened_file",
+      "expected": "inner.txt",
+      "actual": "inner.txt",
+      "ok": true
+    },
+    {
+      "label": "one_pane",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "tree_refocused",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "typing_swallowed",
+      "expected": "inner line\n",
+      "actual": "inner line\n",
+      "ok": true
+    },
+    {
+      "label": "doc_clean",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "h_to_parent",
+      "expected": "sub",
+      "actual": "sub",
+      "ok": true
+    },
+    {
+      "label": "h_collapsed_sub",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "h_to_root_dir",
+      "expected": "root",
+      "actual": "root",
+      "ok": true
+    },
+    {
+      "label": "h_collapsed_root_dir",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "h_to_root_node",
+      "expected": "explorer_navigate_and_esc",
+      "actual": "explorer_navigate_and_esc",
+      "ok": true
+    },
+    {
+      "label": "esc_focuses_editor",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "buffer_intact",
+      "expected": "inner line\n",
+      "actual": "inner line\n",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "inner line\n",
+      "actual": "inner line\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

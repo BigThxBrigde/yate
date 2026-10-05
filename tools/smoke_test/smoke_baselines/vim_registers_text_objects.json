@@ -1,0 +1,273 @@
+{
+  "checks": [
+    {
+      "label": "keymap",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "named_register",
+      "expected": {
+        "a": "alpha beta\n"
+      },
+      "actual": {
+        "a": "alpha beta\n"
+      },
+      "ok": true
+    },
+    {
+      "label": "unnamed_untouched",
+      "expected": "",
+      "actual": "",
+      "ok": true
+    },
+    {
+      "label": "yank_keeps_lines",
+      "expected": 5,
+      "actual": 5,
+      "ok": true
+    },
+    {
+      "label": "yank_cursor",
+      "expected": [
+        0,
+        0
+      ],
+      "actual": [
+        0,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "register_consumed",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "moved_down",
+      "expected": [
+        1,
+        0
+      ],
+      "actual": [
+        1,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "paste_grew",
+      "expected": 6,
+      "actual": 6,
+      "ok": true
+    },
+    {
+      "label": "pasted_line",
+      "expected": "alpha beta",
+      "actual": "alpha beta",
+      "ok": true
+    },
+    {
+      "label": "paste_kept_register",
+      "expected": {
+        "a": "alpha beta\n"
+      },
+      "actual": {
+        "a": "alpha beta\n"
+      },
+      "ok": true
+    },
+    {
+      "label": "paste_cursor_row",
+      "expected": 3,
+      "actual": 3,
+      "ok": true
+    },
+    {
+      "label": "line_start",
+      "expected": [
+        3,
+        0
+      ],
+      "actual": [
+        3,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "daw_line",
+      "expected": "zeta",
+      "actual": "zeta",
+      "ok": true
+    },
+    {
+      "label": "daw_lines_kept",
+      "expected": 6,
+      "actual": 6,
+      "ok": true
+    },
+    {
+      "label": "daw_register",
+      "expected": "epsilon ",
+      "actual": "epsilon ",
+      "ok": true
+    },
+    {
+      "label": "modified",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "dd_dropped",
+      "expected": 3,
+      "actual": 3,
+      "ok": true
+    },
+    {
+      "label": "dd_lines",
+      "expected": [
+        "alpha beta",
+        "gamma delta",
+        "alpha beta"
+      ],
+      "actual": [
+        "alpha beta",
+        "gamma delta",
+        "alpha beta"
+      ],
+      "ok": true
+    },
+    {
+      "label": "dd_register",
+      "expected": "zeta\neta theta\niota kappa\n",
+      "actual": "zeta\neta theta\niota kappa\n",
+      "ok": true
+    },
+    {
+      "label": "on_second_word",
+      "expected": [
+        0,
+        6
+      ],
+      "actual": [
+        0,
+        6
+      ],
+      "ok": true
+    },
+    {
+      "label": "ciw_insert_mode",
+      "expected": "INSERT",
+      "actual": "INSERT",
+      "ok": true
+    },
+    {
+      "label": "ciw_mode_obj",
+      "expected": "insert",
+      "actual": "insert",
+      "ok": true
+    },
+    {
+      "label": "ciw_cleared_word",
+      "expected": "alpha ",
+      "actual": "alpha ",
+      "ok": true
+    },
+    {
+      "label": "ciw_typed",
+      "expected": "alpha delta",
+      "actual": "alpha delta",
+      "ok": true
+    },
+    {
+      "label": "ciw_back_to_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "ciw_register",
+      "expected": "beta",
+      "actual": "beta",
+      "ok": true
+    },
+    {
+      "label": "op_reset",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "op_count_reset",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "obj_scope_reset",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "count_str_reset",
+      "expected": "",
+      "actual": "",
+      "ok": true
+    },
+    {
+      "label": "register_pending_reset",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "label_restored",
+      "expected": "VSC",
+      "actual": "VSC",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

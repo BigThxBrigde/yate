@@ -1,0 +1,107 @@
+{
+  "checks": [
+    {
+      "label": "usage_no_screen",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "usage_message",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "usage_message_full",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "missing_no_screen",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "missing_message",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "missing_message_names_file",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "binary_no_screen",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "binary_message",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "threeway_arity_no_screen",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "threeway_arity_message",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "no_diff_screen_left",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "alpha\nbravo\n",
+      "actual": "alpha\nbravo\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
