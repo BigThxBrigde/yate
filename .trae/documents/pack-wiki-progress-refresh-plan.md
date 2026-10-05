@@ -25,9 +25,10 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 
 ### 1.3 附带兑现的文档承诺
 
-`README.md` / `README.zh.md` 的 wiki 段落均写明进度条"显示当前页名与整体进度"
-（`README.zh.md:459`），但批行描述恒为 `batch i/n`，**当前页名从未显示**——
-本轮一并兑现（issue 原始要求亦含"正在执行的任务"）。
+`README.md` / `README.zh.md` 的 wiki 段落均写明进度条"显示当前页名与整体进度"，
+但批行描述恒为 `batch i/n`，**当前页名从未显示**——本轮一并兑现（issue 原始要求
+亦含"正在执行的任务"）。该承诺的更早出处见
+[wiki-translate-progress-plan.md](wiki-translate-progress-plan.md) 的进度条段落。
 
 ## 二、目标与非目标
 
@@ -67,18 +68,23 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 
 ### S1 · `tools/pack/wiki.py`（核心）
 
-1. 新增 `_progress_reporter(progress, overall, batch_tasks)` 工厂，返回
-   `(page_started, page_done)` 两个 `Callable`：
-   - `page_started(index, page)`：`progress.update(batch_tasks[index], description=f"batch {i}/{n} · {escape(page.en_target)}")`；
-   - `page_done(index)`：`progress.advance(batch_tasks[index])` + `progress.advance(overall)`；
-2. `_run_batch(...)` 增参 `page_started` / `page_done`：每页**开始前**回调
-   `page_started`、**完成后**回调 `page_done`（失败页同样推进，总数闭合）；
-3. `_translate_pending(...)` 增可选参 `progress: Progress | None = None`（默认
-   `None` 时内部构造，供测试注入断言中间状态）；主循环**移除**两处
-   `progress.advance`（避免与回调重复计数），`done` 计数与失败行文案不变；
-4. 更新 `_run_batch` / `_translate_pending` docstring 与模块内注释：把"只有主
-   线程触碰 progress"修订为"只有主线程触碰终端与文件系统；页级进度由 worker
-   经 rich 内部锁推进"。
+1. 新增 `_ProgressBoard`（dataclass：`progress` / `overall` / `batch_tasks` /
+   `batch_count` / `total_pages` / `workers` / `queued`），三个方法：
+   - `page_started(index, page)`：批行描述改为
+     `batch {i}/{n} · {escape(page.en_target)}`（页名转义）；
+   - `page_done(index)`：批行 `advance(1)` + 总体行
+     `update(advance=1, description=...)`，两行同时移动；
+   - `batch_finished()`：主线程扣减 `queued` 并刷新总体行文案；
+2. `_run_batch(...)` 增参 `index` 与 `board`：每页**开始前**调 `page_started`、
+   **完成后**调 `page_done`（失败页同样推进，总数闭合）；两个回调与翻译同处一个
+   `try`，异常一律作为 outcome 值回主线程；
+3. `_translate_pending(...)`：主循环**移除**页级 `progress.advance`（改由 board
+   负责），`queued` 计数改为 `board.batch_finished()`；submit 循环改为遍历
+   `batch_tasks` 的键，使"批号 → 任务行"映射只有一处来源（消除索引错位）；
+4. 更新 `_ProgressBoard` / `_run_batch` / `_translate_pending` 与模块 docstring：
+   如实描述"只有主线程触碰终端与文件系统；页级进度由 worker 经 rich 锁推进"，
+   并更正存量 docstring 中"异常逃出会让 future 永久 pending"的错误前提
+   （实测 `_WorkItem.run` 必 `set_exception`）。
 
 验收：
 
@@ -89,13 +95,18 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 
 ### S2 · `tests/test_pack_wiki_parallel.py`（回归钉）
 
-1. `test_batch_progress_advances_per_page_while_the_batch_runs`：注入真实
-   `Progress`（`Console(file=StringIO(), force_terminal=True)`），fake 翻译在
-   **每次调用开始时**快照 `progress.tasks[overall].completed`；断言第 2 页开始
-   时该值已 ≥ 1（旧实现恒为 0，具备判别力），运行结束等于 `PAGE_COUNT`；
-2. `test_batch_row_shows_the_page_currently_translated`：断言批行 `description`
-   含当前页名；夹具加一页名含方括号 `bracket[name]` 的文档，断言渲染不抛
-   `MarkupError` 且描述含转义后文本（覆盖评审 #2 同类风险）。
+1. `test_batch_progress_advances_page_by_page_while_a_batch_runs`：注入真实
+   `Progress`，fake 翻译在每次调用开始时快照总体行与批 1 行的 `completed`；
+   断言第 2 页开始时两者已 ≥ 1，收尾断言各行 completed 之和 == `PAGE_COUNT`
+   且不超 total；
+2. `test_concurrent_workers_keep_the_progress_rows_consistent`：`jobs=2` + Barrier
+   证明真并发，断言无丢页 / 无重复计数；
+3. `test_failed_page_still_advances_the_progress_rows`：一页失败仍推进（总数
+   闭合），钉住 docstring 承诺；
+4. `test_batch_row_names_the_page_in_flight_and_escapes_markup`：断言批行描述含
+   转义后的页名、渲染结果还原为字面量（静默吞名风险）；
+5. `test_batch_row_survives_a_closing_markup_tag_in_the_page_name`：`bracket[/x]`
+   夹具（`skipif win32`），覆盖唯一会真抛 `MarkupError` 的形态。
 
 验收：
 
@@ -118,6 +129,7 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 | `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | 22 passed |
 | `.venv\Scripts\python.exe -m pytest tests/ -q` | 全绿 |
 | `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-fail-under=75` | ≥ 75% |
+| `.venv\Scripts\python.exe -m pytest tests/test_pack_wiki*.py --cov=tools.pack.wiki --cov-report=term` | 本轮改动在 `tools/`，`--cov=yate` 对其零信号，故补 tools 侧数字（实测 **95%**） |
 
 ## 六、执行记录（2026-10-05，主代理亲自执行与复核）
 
@@ -125,74 +137,104 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 
 | 提交 | 内容 |
 |---|---|
-| `20ff035` | `fix(pack)`：`_progress_reporter()` + `_run_batch` 新回调 + 主循环移除批末 advance |
+| `20ff035` | `fix(pack)`：页级回调 `_progress_reporter()` + `_run_batch` 新回调 + 主循环移除批末 advance |
 | `73c8cb2` | `tests(pack)`：两条回归用例（页级推进判别力 / 页名与 markup 转义） |
-| （本次收尾） | `docs(readme)`：中英进度条描述与实现对齐 + 本文回填 |
+| `95ab4fa` | `docs(pack)`：中英 README 对齐 + 删除死参数 + 本文回填 |
+| （审核轮） | `fix(pack)`：`_progress_reporter` → `_ProgressBoard`（键来源单一、回调入 try、总体行文案同步实时） |
+| （审核轮） | `tests(pack)`：批次行断言、并发一致性、失败页计数、`[/x]` markup 用例 |
+| （审核轮） | `docs(pack)`：README 措辞再收紧 + §四/§五/§六/§七 与实现对齐 |
 
 ### 6.2 门禁实测（worktree 沙箱，退出码均 0）
+
+审核轮最终态（详见 §6.7）：
 
 | 命令 | 结果 |
 |---|---|
 | `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
-| `pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py` | **65 passed** in 11.44s |
-| `pytest tests/test_architecture.py` | **22 passed** in 3.45s |
-| `pytest tests/ --cov=yate --cov-fail-under=75` | **1845 passed, 8 skipped** in 450.90s；覆盖率 **91.27%**（阈值 75%） |
+| `pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py` | **67 passed, 1 skipped** |
+| `pytest tests/test_pack_wiki*.py --cov=tools.pack.wiki` | 覆盖率 **95%**（491 stmts / 23 miss） |
+| `pytest tests/test_architecture.py` | **22 passed** |
+| `pytest tests/` | 全绿 |
+| `pytest tests/ --cov=yate --cov-fail-under=75` | 覆盖率 **91.27%**（阈值 75%） |
+
+首轮（提交 `20ff035`…`95ab4fa`）实测：`65 passed`、架构 `22 passed`、
+`1845 passed, 8 skipped`、覆盖率 `91.27%`。
 
 ### 6.3 偏离计划（含实测依据）
 
 1. **S2 的驱动方式改为公开入口**：计划写"测试直接驱动 `_prepare_pages` +
    `_translate_pending`"，实测 pyright strict **启用 `reportPrivateUsage`**
-   （6 errors：`“_prepare_pages”是专用的…`、`list[object]` 不可赋给
+   （6 errors：`"_prepare_pages" 是专用的…`、`list[object]` 不可赋给
    `Sequence[_PagePlan]`）。改为经公开 `wiki.run()` 驱动、注入显示对象靠
    `monkeypatch.setattr(wiki, "Progress", factory)`（模块级符号，既有测试同款
    规避手法），用例语义与判别力不变。
+   （评审成员曾报告"直调私有函数 pyright 0 errors"，与主代理实测相反；其
+   结论基于改造后的代码版本，未复现旧版本，**以主代理实测为准**。）
 2. **删除 `_translate_pending` 的 `progress` 注入参数**：因偏离 1，该参数在生产
    与测试两侧都无调用方，成为死参数，已移除（避免签名腐化），docstring 同步
    删去对应说明。
-3. **README 增补"交互式终端"限定**：非 TTY（重定向 / CI）下 rich 不渲染，
-   原措辞"all refreshed live"构成过度承诺，已在中英两份同步限定。
+3. **README 措辞两轮收紧**：初版加"交互式终端"限定；审核轮进一步按实测改为
+   "stderr 是终端时才实时刷新；重定向时只有逐批行"，并去掉"全部实时刷新"
+   这类无条件表述。
 
 ### 6.4 负向演练（判别力实证）
 
 | 轮次 | 演练 | 结果 |
 |---|---|---|
-| 改造前 | 抽掉 `page_done` 的 `progress.advance` | `test_batch_progress_advances_page_by_page…` 失败：`assert 0 == 1` |
-| 改造后（偏离 1 之后再做一次） | 同上 | 同样失败（`FAILED …test_batch_progress_advances_page_by_page_while_a_batch_runs`） |
+| 首轮·改造前 | 抽掉 `page_done` 的 `progress.advance` | `test_batch_progress_advances_page_by_page…` 失败：`assert 0 == 1` |
+| 首轮·改造后 | 同上 | 同样失败（驱动方式改为公开入口后再验一次） |
+| 审核轮 | 只推进总体行、抽掉批行 `advance` | 用例 1 **与**并发用例同时失败（原实现漏判，已闭合） |
+| 审核轮 | `page_done` 置 no-op | 首轮用例失败（与上表同类） |
 
-`page_started`（页名 / markup）用例在抽掉 advance 时仍通过 —— 两者分别锁定
-"推进"与"页名转义"两条独立行为，符合设计。
-
-### 6.5 审核结论
+### 6.5 审核结论（首轮，主代理自查）
 
 - 主代理逐条核对 `architecture-boundaries.md` §五 与 `python-coding-style.md`
   §五：无新 `Protocol` / `TYPE_CHECKING` / `Any`，`tools/` 沿用既有 `print`
-  约定（非 `yate/` 的 R12 tracing 范围），docstring 为散文式且引用路径正确；
-- 计数三路径复核：翻译失败页**推进**（`translate_via_cmd` 正常返回 `None`，
-  `page_done` 已调用）、worker 抛异常页**不推进**（异常值回主线程 raise，
-  `finally` 停表）、`stop` 提前 break 后未开始的页**不推进**；
-- `Ctrl+C` 路径未变：`test_keyboard_interrupt_inside_a_worker_maps_to_exit_130`
-  与 `test_interrupt_leaves_the_queued_batches_untranslated` 均在全量中通过；
-- rich 侧并发：`Progress.update/advance` 与 `Live.refresh/stop` 均在 rich 内部
-  `RLock` 保护下（探针实测 + 源码核对），worker 并发推进与主线程
-  `display.stop()` 不会撕裂；
-- 子代理评审：见 §6.6。
+  约定（非 `yate/` 的 R12 tracing 范围），docstring 散文式且引用路径正确；
+- 计数三路径复核：翻译失败页**推进**、worker 抛异常页**不推进**、`stop` 提前
+  break 后未开始的页**不推进**；
+- `Ctrl+C` 路径未变：两条中断用例在全量中通过。
 
-### 6.6 子代理产出（如实登记）
+### 6.6 子代理评审（两轮只读评审，**非零产出**）
 
-- `reviewer-impl`（只读评审：`tools/pack/wiki.py`）：**零产出** —— 探活与催办
-  消息均已投递，未回信，按 `subagent-workflow.md` §五.3 判死；其覆盖范围由主
-  代理 §6.5 逐条补齐。
-- `reviewer-tests`（只读评审：测试与文档）：**零产出** —— 同上判死；测试判别力
-  由 §6.4 的两轮负向演练替代覆盖。
-- 未按 §五.4 重试或重建团队：审核已由主代理亲自完成且门禁全绿，重试的期望
-  收益低于并发干扰代价。
+> 更正：本节首版曾记为"两名成员零产出"，系主代理在下述报告送达前误判判死；
+> 两份报告实际均已产出并被采纳（见 §6.7 处置表）。
+
+- `reviewer-impl`（`tools/pack/wiki.py`）：0 CRITICAL / 2 WARNING / 6 SUGGESTION。
+  关键取证：rich **15.0.0** 的 `Progress.advance`/`update` 只在 `Progress._lock`
+  内改内存字段、不触发渲染，终端写入只发生在 rich 自己的刷新线程；
+  `_RefreshThread.run` 无 `try/except`（渲染异常会冻结显示）；`_WorkItem.run`
+  必 `set_exception`（"future 永久 pending"前提错误）。
+- `reviewer-tests`（测试 / README / 方案）：0 CRITICAL / 3 WARNING + README 承诺
+  过度 / 6 SUGGESTION。关键实测：变异"只推进总体行"时两条新用例仍全绿（漏判）；
+  `bracket[name]` 在 rich 下是**静默吞名**而非 `MarkupError`，抛错需 `[/`
+  （Windows 文件名不可达）；非 TTY 运行中 rich 零渲染。
+
+### 6.7 审核轮处置表
+
+| # | 来源 | 级别 | 问题 | 处置 |
+|---|---|---|---|---|
+| 1 | impl | WARNING | `page_started` 在 `try` 外，异常逃出会绕过 `stop.set()` 与取消逻辑 | ✅ 已修：回调入 `try`，异常统一走 outcome 通道；键来源单一（submit 遍历 `batch_tasks`） |
+| 2 | impl | WARNING | 两次 `advance` 非原子 / 进度异常被误报为翻译失败 | ◑ 部分修：键来源单一后该路径仅在 rich 缺陷时可达；(ii) 独立失败语义**登记为遗留**（新增告警通道属过度防御） |
+| 3 | impl | SUGGESTION | 总体行文案仍按批刷新，与实时条自相矛盾 | ✅ 已修：`_ProgressBoard._description()` 由 `page_done` 实时刷新 |
+| 4 | impl | SUGGESTION | 失败页 / 异常页计数无测试覆盖 | ✅ 已修：`test_failed_page_still_advances_the_progress_rows` |
+| 5 | impl | SUGGESTION | "future 永久 pending"前提错误；markup 故障模式描述不准 | ✅ 已修：两处 docstring 改写为实测事实 |
+| 6 | tests | WARNING | 批次行 `completed` 无任何断言（变异实证漏判） | ✅ 已修：用例 1 增断言批行 + 收尾 completed 之和/total 上界；变异复验失败 |
+| 7 | tests | WARNING | 方括号夹具故障模式描述错误 | ✅ 已修：docstring 改为"静默吞名 / `[/` 抛错"，并新增 `[/x]` 用例（`skipif win32`） |
+| 8 | tests | WARNING | 方案文档与实现脱节 6 处 | ✅ 已修：§四 用例名与参数、§五 补 tools 覆盖率、§1.3 行号引用、§六 本节 |
+| 9 | tests | WARNING | README 过度承诺（非 TTY 无实时条、总体行文字批粒度） | ✅ 已修：文案按实测改写（中英同步）；总体行文字问题同 #3 |
+| 10 | tests | SUGGESTION | `refresh()` 依赖 live 已 start（失败因果难读） | ✅ 已修：加 `assert progress.live.is_started` |
+| 11 | impl | SUGGESTION | `_translate_pending([])` → `max_workers=0` → `ValueError`（存量，生产已挡） | ⏸ 登记遗留（改动超本轮范围） |
+
+**遗留项登记**：#2(ii) 进度异常独立通道；#11 空 `plans` 卫语句；PR !56 评审的
+P1–P4；真实 TTY 目验（自动化会话无法发 SIGINT / 无法目验）。
 
 ## 七、风险与回滚
 
 | 风险 | 缓解 | 回滚 |
 |---|---|---|
-| worker 触碰 rich 进度对象 → 多线程刷新撕裂 | 探针实测 `RLock` 串行化 + S2 两条回归钉；注释与风险条目同步修订 | `git reset --hard master` |
-| 回调重复推进导致进度超 100% | S1 第 3 步移除主循环 advance；S2 断言终值恰为 `PAGE_COUNT` | 同上 |
+| worker 触碰 rich 进度对象 → 观感撕裂（**非崩溃**：写侧持 `Progress._lock`、渲染侧持 `Live._lock`，是**两把不同的锁**，一帧可能取到某行已进、另一行未进的快照） | rich 15.0.0 源码取证 + 探针实测；并发用例 `test_concurrent_workers_keep_the_progress_rows_consistent` 钉住"无丢页/无重复计数" | `git reset --hard master` |
+| 回调重复推进导致进度超 100% | S1 第 3 步移除主循环 advance；用例断言各行 completed 之和 == 总页数且不超 total | 同上 |
 | 页名含 `[` 触发 `MarkupError` | `rich.markup.escape` + S2 方括号夹具 | 同上 |
 | 无人值守时段真实 TTY 目验缺位 | 非 TTY 下 rich 不渲染，属既有行为；页级推进由注入断言覆盖 | 同上 |
 

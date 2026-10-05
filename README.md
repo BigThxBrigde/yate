@@ -463,11 +463,12 @@ cd <checkout>   # any checkout works
 - `--push`: once every translation succeeds, commits and pushes to
   `origin` (gitee) and `github`; any failed page skips the push so dirty
   state never reaches the remotes;
-- progress: on an interactive terminal, translations run behind a rich
-  progress bar on stderr -- one row per batch that advances **page by
-  page** (naming the page in flight) plus the overall count, all refreshed
-  live; `Ctrl+C` exits cleanly with code 130 and no traceback -- already
-  translated pages are adopted on the next run.
+- progress: when stderr is a terminal, translations run behind a rich
+  progress bar -- one row per batch plus an overall row, both advancing
+  **page by page** (naming the page in flight) with the page count and the
+  queue depth in the text; redirected output shows no live bar, just the
+  per-batch lines. `Ctrl+C` exits cleanly with code 130 and no traceback --
+  already translated pages are adopted on the next run.
 
 ```powershell
 .venv\Scripts\python -m tools.pack wiki --check   # gate: exit 1 while missing/stale
