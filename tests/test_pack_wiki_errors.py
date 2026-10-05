@@ -427,23 +427,37 @@ def test_empty_translation_stage_reports_nothing(
     assert report.stale == []
 
 
-def test_a_late_worker_failure_is_not_dropped(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_a_failure_reported_after_the_drain_still_reaches_the_terminal(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A failure arriving after the drain still reaches the terminal.
+    """A worker failing after the drain still shows its line.
 
-    Review R-05: the collector was a list the main thread cleared while
-    workers were still running, so a message that landed afterwards was
-    silently lost.  The queue cannot lose it -- the next drain finds it.
+    Review R-05 (second half, found by the third review round).  The main
+    thread drains the collector while workers may still be running, then
+    restores the serial policy.  Anything arriving afterwards used to be
+    queued into a queue nobody would read again, i.e. lost silently.  The
+    policy is now restored *before* the drain, so such a message writes
+    itself.
+
+    The late report is simulated at the exact seam -- right after the real
+    drain call -- so the assertion is about terminal visibility rather than
+    about the container's API.
     """
-    monkeypatch.setattr(wiki, "_emit_mode", "collect")
-    getattr(wiki, "_emit_translate_failure")("late failure line")
-    # Nothing drains until a translation stage runs, so the message waits in
-    # the queue instead of being cleared away; ``monkeypatch`` restores the
-    # serial default afterwards, exactly like the stage's ``finally``.
-    queue = getattr(wiki, "_COLLECTED_FAILURES")
-    assert queue.qsize() == 1
-    drained = getattr(wiki, "_drain_collected_failures")()
-    assert drained == ["late failure line"]
-    assert queue.qsize() == 0
-    assert "late failure line" not in capsys.readouterr().err
+    real_drain = getattr(wiki, "_drain_collected_failures")
+
+    def drain_then_report() -> list[str]:
+        messages = real_drain()
+        getattr(wiki, "_emit_translate_failure")("late failure line")
+        return messages
+
+    def failing(text: str, translate_cmd: str) -> str | None:
+        return None if "page03" in text else "# en\n"
+
+    monkeypatch.setattr(wiki, "_drain_collected_failures", drain_then_report)
+    monkeypatch.setattr(wiki, "translate_via_cmd", failing)
+    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=1) == 0
+    assert "late failure line" in capsys.readouterr().err
+    # Nothing is left behind for a reader that will never come.
+    assert getattr(wiki, "_COLLECTED_FAILURES").qsize() == 0
+    assert getattr(wiki, "_emit_mode") == "print"
