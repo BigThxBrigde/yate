@@ -480,15 +480,19 @@ cd <checkout>   # 任意检出均可
   --push
 ```
 
-- `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文（必须来自可信来源）；
+- `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文，两者均为 UTF-8
+  （必须来自可信来源）；
 - 缺省（增量）：**只翻译 missing（无英文页）与 stale（中文源已变更）** 的条目，
   fresh 页保持不动；
 - `--translate-all`：全量重译——额外把 fresh 页也送翻并覆盖现有英文页（慎用）；
+  未给 `--translate-cmd` 时本开关无效（会打印提示）；
 - `--push`：翻译全部成功后自动 commit 并推送 `origin`（gitee）与 `github`；
   只要有失败页就跳过推送，不带脏状态上远端；
-- 进度反馈：翻译在 stderr 的 rich 进度条中进行，显示当前页名与整体进度；
-  `Ctrl+C` 干净退出（退出码 130，无调用堆栈）——已翻译完成的页会在下次
-  运行时被直接采纳。
+- 进度反馈：当 stderr 是终端时，翻译在 rich 进度条中进行——每批次一行 +
+  一行整体进度，两者都**按页实时推进**（显示正在翻译的页名），文案里带已完成
+  页数与排队批数；输出被重定向时不做实时刷新，但 rich 会在结束时（逐批行
+  之后）打印一次最终进度条。`Ctrl+C` 干净退出（退出码 130，无调用堆栈）
+  ——已翻译完成的页会在下次运行时被直接采纳。
 
 ```powershell
 .venv\Scripts\python -m tools.pack wiki --check   # 门禁：仍有 missing/stale 时退出码 1

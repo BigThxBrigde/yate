@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -322,14 +323,20 @@ def test_load_manifest_tolerates_corruption(repo: Path, tmp_path: Path) -> None:
     assert wiki.load_manifest(tmp_path) == {"a.zh.md": "deadbeef"}
 
 
-def test_translate_helper_survives_timeout(
+def test_translate_helper_gives_up_on_a_slow_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def timed_out_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(cmd=[str(cmd)], timeout=900)
+    """A command that overruns the budget is killed and reported, not waited for.
 
-    monkeypatch.setattr(wiki.subprocess, "run", timed_out_run)
-    assert wiki.translate_via_cmd("# zh in\n", "slow-cmd") is None
+    Uses a real sleeping child rather than a ``subprocess.run`` stub: the
+    translator is launched through ``Popen`` + a polling ``communicate``
+    (review R-15), so only a real process exercises the timeout branch.
+    """
+    monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 0.2)
+    sleeper = subprocess.list2cmdline(
+        [sys.executable, "-c", "import time; time.sleep(30)"]
+    )
+    assert wiki.translate_via_cmd("# zh in\n", sleeper) is None
 
 
 def test_nav_links_resolve_to_pages(
@@ -479,39 +486,18 @@ def test_default_target_uses_origin_url(
     assert wiki.default_target(repo) == repo.parent / f"{repo.name}.wiki"
 
 
-def test_translate_helper_runs_shell_command(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    recorded: dict[str, object] = {}
+def test_translate_helper_runs_shell_command() -> None:
+    """The helper really pipes the page into a shell command and reads it back.
 
-    def fake_run(
-        cmd: object, **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        recorded["cmd"] = cmd
-        recorded.update(kwargs)
-        return subprocess.CompletedProcess([str(cmd)], 0, "# en out\n", "")
-
-    monkeypatch.setattr(wiki.subprocess, "run", fake_run)
-    assert wiki.translate_via_cmd("# zh in\n", "cat") == "# en out\n"
-    assert recorded["cmd"] == "cat"
-    assert recorded["shell"] is True
-    assert recorded["input"] == "# zh in\n"
-
-    def failing_run(
-        cmd: object, **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess([str(cmd)], 3, "", "kaput")
-
-    monkeypatch.setattr(wiki.subprocess, "run", failing_run)
-    assert wiki.translate_via_cmd("# zh in\n", "cat") is None
-
-    def empty_run(
-        cmd: object, **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess([str(cmd)], 0, "   \n", "")
-
-    monkeypatch.setattr(wiki.subprocess, "run", empty_run)
-    assert wiki.translate_via_cmd("# zh in\n", "cat") is None
+    Runs a real child instead of a stub: the translator protocol *is* the
+    stdin/stdout contract with an external command, and the tool now
+    launches it through ``Popen`` + a polling ``communicate`` (review
+    R-15), which a ``subprocess.run`` stub could no longer observe.  The
+    interpreter is used as the command so the case is platform-agnostic.
+    """
+    script = "import sys; sys.stdout.write(sys.stdin.read().replace('zh', 'en out'))"
+    command = subprocess.list2cmdline([sys.executable, "-c", script])
+    assert wiki.translate_via_cmd("# zh in\n", command) == "# en out in\n"
 
 
 def test_cli_wiki_subcommand_wiring(

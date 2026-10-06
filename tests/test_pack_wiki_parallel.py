@@ -16,13 +16,28 @@ bound is asserted, so the tests do not jitter.
 
 from __future__ import annotations
 
+import io
+import re
+import sys
 import threading
 import time
-from collections.abc import Generator
+import types
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from io import StringIO
 from pathlib import Path
 
 import pytest
+import subprocess
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from tools.pack import cli, wiki
 
@@ -385,6 +400,117 @@ def test_interrupt_leaves_the_queued_batches_untranslated(
     assert elapsed < 8 * PAGE_DELAY_S
 
 
+class _HangingProc:
+    """Stand-in for a translator that ignores the console event.
+
+    ``communicate`` keeps timing out, exactly like a child that neither
+    answers nor dies, and the process records that it was killed.  Review
+    R-28 is about who does the killing: the worker that is waiting, not the
+    main thread that has already walked away.
+    """
+
+    def __init__(self, polling: threading.Event) -> None:
+        """Publish *polling* as soon as the first wait begins."""
+        self.returncode = 0
+        self.killed = False
+        self.wait_timeout: float | None = None
+        self.stdin = io.StringIO()
+        self._polling = polling
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        """Never answer, and announce that this process is now waiting."""
+        del timeout
+        self._polling.set()
+        raise subprocess.TimeoutExpired(cmd="fake-cmd", timeout=0)
+
+    def kill(self) -> None:
+        """Record the termination the worker was supposed to ask for."""
+        self.killed = True
+        self.returncode = -9
+
+    def wait(self, timeout: float | None = None) -> int:
+        """Return the exit code, as a reaped child would.
+
+        The reap is bounded (review I1), so the budget is accepted -- and
+        recorded, which lets the test below pin that the worker really asks
+        for one instead of blocking.
+        """
+        self.wait_timeout = timeout
+        return self.returncode
+
+
+def _wait_for(predicate: Callable[[], bool], timeout: float) -> bool:
+    """Return whether *predicate* holds within *timeout* seconds."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.02)
+    return predicate()
+
+
+def test_a_torn_down_stage_kills_the_child_its_worker_is_waiting_for(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stage's stop signal reaches a translator that waits on a child.
+
+    Review R-28 (second pass): the main thread can only stop *waiting* -- the
+    pool is closed with ``wait=False`` -- so a worker blocked on a child that
+    ignores the console event used to keep the process alive until CPython
+    joined it at interpreter teardown (measured 0.6 s to 3.1 s for a 3 s
+    page).  The stage therefore publishes its signal to the worker, which
+    kills its own child.  The publication is what this pins: with the signal
+    missing, or ANDed against the emit policy the stage restores on its way
+    out, the child is never killed and the last assertion fails.
+    """
+    real_translate = wiki.translate_via_cmd
+    polling = threading.Event()
+    proc = _HangingProc(polling)
+
+    def dispatch(text: str, translate_cmd: str) -> str | None:
+        if "page01" in text:
+            # The real entry point, so the polling loop and the stop check
+            # are the production ones.
+            return real_translate(text, translate_cmd)
+        # The interrupt comes from a sibling batch, but only once the first
+        # worker is really waiting on its child.
+        assert polling.wait(10.0), "the first worker never reached its wait loop"
+        raise KeyboardInterrupt
+
+    def fake_popen(cmd: object, **kwargs: object) -> _HangingProc:
+        del cmd, kwargs
+        return proc
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", dispatch)
+    monkeypatch.setattr(
+        wiki,
+        "subprocess",
+        types.SimpleNamespace(
+            Popen=fake_popen,
+            run=subprocess.run,
+            TimeoutExpired=subprocess.TimeoutExpired,
+            CompletedProcess=subprocess.CompletedProcess,
+            DEVNULL=subprocess.DEVNULL,
+            PIPE=subprocess.PIPE,
+        ),
+    )
+    # Long enough that only the stop signal can end the wait, and a poll
+    # interval long enough that the worker cannot happen to poll *inside* the
+    # teardown window: what has to survive the stage's exit is the signal
+    # itself, not a race with the moment the emit policy was restored.
+    monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 900.0)
+    monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.2)
+    with pytest.raises(KeyboardInterrupt):
+        wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=2)
+    # The reap that follows the kill is bounded (review I1).  Waiting for the
+    # budget pins the worker's own teardown, which nothing else observes: the
+    # main thread has already left the pool by then, so an exception raised
+    # after the kill would be swallowed instead of failing a test.
+    assert _wait_for(lambda: proc.wait_timeout is not None, 5.0)
+    assert proc.killed
+    assert proc.wait_timeout == getattr(wiki, "_TERMINATE_WAIT_S")
+
+
 def test_translate_failure_lines_are_printed_once_by_the_main_thread(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -408,3 +534,368 @@ def test_translate_failure_lines_are_printed_once_by_the_main_thread(
     assert err.count("rc=3 for") == PAGE_COUNT
     # The serial default must be restored for the next (non-parallel) call.
     assert getattr(wiki, "_emit_mode") == "print"
+
+
+def _live_display(stream: StringIO) -> Progress:
+    """Build a forced-terminal display with the production column set.
+
+    ``force_terminal`` makes rich render (and therefore parse markup) even
+    though the output is an in-memory stream, and the description column --
+    absent from rich's defaults -- is what carries the batch row text.
+    """
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=Console(file=stream, force_terminal=True, width=120),
+    )
+
+
+def _install_display(monkeypatch: pytest.MonkeyPatch, display: Progress) -> None:
+    """Make the generator build *display* instead of a fresh one.
+
+    :mod:`tools.pack.wiki` resolves ``Progress`` as a module global, so
+    patching that name is enough to observe the live rows -- and it keeps
+    the tests on the public :func:`tools.pack.wiki.run` entry point instead
+    of the module-private helpers (pyright forbids private access).
+    """
+
+    def factory(*args: object, **kwargs: object) -> Progress:
+        """Return the injected display, ignoring rich's own arguments."""
+        del args, kwargs
+        return display
+
+    monkeypatch.setattr(wiki, "Progress", factory)
+
+
+def _shown_pages(description: str) -> int:
+    """Return the page count the overall row text currently shows.
+
+    Returns ``-1`` when the text is still the initial ``translating`` label,
+    so a mismatch reports itself instead of silently comparing to zero.
+    """
+    match = re.search(r"translating (\d+)/(\d+)", description)
+    return int(match.group(1)) if match else -1
+
+
+def test_console_interrupt_stops_the_run_instead_of_failing_every_page(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One interrupted child ends the whole run, quietly.
+
+    The ``Ctrl+C`` that kills a translator reaches every sibling as well,
+    so the failure channel is the wrong place for it: the run would print
+    one ``error[WIKI-0201]`` per remaining page (traceback included) and
+    keep translating after the user asked to stop.  The pool must stop,
+    and the CLI boundary must turn the interrupt into exit code 130.
+    """
+    started: list[str] = []
+    lock = threading.Lock()
+
+    def interrupted(text: str, translate_cmd: str) -> str | None:
+        del translate_cmd
+        with lock:
+            started.append(text)
+            first = len(started) == 1
+        if first:
+            raise KeyboardInterrupt
+        return _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", interrupted)
+    target = tmp_path / "wiki"
+    with pytest.raises(KeyboardInterrupt):
+        wiki.run(target, "fake-cmd", repo_root=repo, jobs=2)
+    # Not one page per remaining document: the stop signal cut the queue.
+    assert len(started) <= 4
+    err = capsys.readouterr().err
+    assert f"error[{wiki.Code.WIKI_TRANSLATE_FAILED}]" not in err
+    assert "Traceback" not in err
+
+
+class _FakeProc:
+    """Stand-in for :class:`subprocess.Popen` as used by ``_run_translate``.
+
+    The translator runs through ``Popen`` + a polling ``communicate`` so a
+    tearing-down stage can kill its child (review R-15), so the interrupt
+    cases stub the process rather than ``subprocess.run``.
+    """
+
+    def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.killed = False
+        self._result = (stdout, stderr)
+        self.stdin = io.StringIO()
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        """Return the captured output."""
+        del timeout
+        return self._result
+
+    def kill(self) -> None:
+        """Record that the child was terminated."""
+        self.killed = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        """Return the exit code, as a reaped child would."""
+        del timeout
+        return self.returncode
+
+
+def test_console_interrupt_exit_code_reaches_the_cli_as_130(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The child's control-C exit code reaches the CLI as a clean 130.
+
+    This is the path the user's report actually took: the console
+    interrupt killed the translator, and the parent has to recognise that
+    exit code -- not merely an exception raised inside the pool.  Wiring it
+    end to end here means a change that breaks the recognition (or the
+    130 mapping) fails a test instead of printing tracebacks again.
+    """
+    traceback = "Traceback (most recent call last):\nKeyboardInterrupt\n^C\n"
+
+    def interrupted_popen(cmd: object, **kwargs: object) -> _FakeProc:
+        del cmd, kwargs
+        return _FakeProc(0xC000013A, "", traceback)
+
+    # Replace the module reference rather than patching the real
+    # ``subprocess``: swapping ``Popen`` process-wide would hand the fake to
+    # pytest and coverage as well.
+    monkeypatch.setattr(
+        wiki,
+        "subprocess",
+        types.SimpleNamespace(
+            Popen=interrupted_popen,
+            run=subprocess.run,
+            TimeoutExpired=subprocess.TimeoutExpired,
+            CompletedProcess=subprocess.CompletedProcess,
+            DEVNULL=subprocess.DEVNULL,
+            PIPE=subprocess.PIPE,
+        ),
+    )
+    monkeypatch.setattr("tools._util.repo_root", lambda: repo)
+    argv = [
+        "wiki",
+        "--target",
+        str(tmp_path / "wiki"),
+        "--translate-cmd",
+        "fake-cmd",
+    ]
+    assert cli.main(argv) == 130
+    err = capsys.readouterr().err
+    assert "interrupted" in err
+    assert "Traceback" not in err
+    assert f"error[{wiki.Code.WIKI_TRANSLATE_FAILED}]" not in err
+
+
+def test_batch_progress_advances_page_by_page_while_a_batch_runs(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every finished page moves the bar, not every finished batch.
+
+    Regression guard for the IKJPEK comment (issue note_51450440): a batch
+    row used to sit at 0% until its whole batch reported back and then
+    jump to 100%, which reads as "no live progress at all" on a 162-page
+    run (ten pages per batch, ~20 s per page).
+
+    ``jobs=1`` makes the observation deterministic -- page *n+1* of a batch
+    starts only after page *n* returned -- so what a page sees when it
+    starts must already include its finished predecessors, on the overall
+    row *and* on its own batch row.  The batch-granular advance reported 0
+    on both rows for every page but the last of a batch.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+
+    observed: dict[str, tuple[int, int]] = {}
+    texts: dict[str, tuple[int, int]] = {}
+    lock = threading.Lock()
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        stem = text.splitlines()[0].removeprefix("# ")
+        # Row 0 is the overall task, row 1 the first batch (the generator
+        # adds the overall task before the per-batch ones).
+        with lock:
+            overall_row = progress.tasks[progress.task_ids[0]]
+            observed[stem] = (
+                int(overall_row.completed),
+                int(progress.tasks[progress.task_ids[1]].completed),
+            )
+            texts[stem] = (
+                int(overall_row.completed),
+                _shown_pages(str(overall_row.description)),
+            )
+        return _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=1) == 0
+    assert len(observed) == PAGE_COUNT
+    # Second page of the first batch: one page must already be counted.
+    assert observed["page02"] == (1, 1)
+    assert observed["page10"] == (9, 9)
+    # First page of the second batch: batch one is full (the snapshot always
+    # reads row 1, whichever batch the page belongs to).
+    assert observed["page11"] == (10, 10)
+    overall_row, *batch_rows = (progress.tasks[tid] for tid in progress.task_ids)
+    assert overall_row.completed == PAGE_COUNT
+    assert [row.completed for row in batch_rows] == [10, 10, 5]
+    # No row may run past its total (a double advance would show here).
+    assert all(
+        row.total is not None and row.completed <= row.total for row in batch_rows
+    )
+    # R-01: the row text must not lag its own bar by a page.  Sampling the
+    # text at every page start makes the old argument-evaluation order fail:
+    # the description was rendered before the advance it belonged to.
+    assert texts["page02"][1] == texts["page02"][0]
+    assert texts["page10"][1] == 9
+
+
+def test_concurrent_workers_keep_the_progress_rows_consistent(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Concurrent page reports neither lose nor double-count a page.
+
+    This is the scenario the per-page callbacks exist for: several workers
+    advance the same rows at once.  The first two arrivals park on a
+    :class:`threading.Barrier`, so parallelism is proved rather than raced
+    for; the per-page samples then show a batch row moving mid-run.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+    gate = threading.Barrier(2)
+    arrivals: list[int] = []
+    mid_run: list[bool] = []
+    arrivals_lock = threading.Lock()
+    lock = threading.Lock()
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        del translate_cmd
+        with arrivals_lock:
+            arrivals.append(1)
+            waits = len(arrivals) <= 2
+        if waits:
+            gate.wait(timeout=30)
+        with lock:
+            # Some batch row must already have moved while the run is going.
+            mid_run.append(
+                any(
+                    int(progress.tasks[tid].completed) > 0
+                    for tid in progress.task_ids[1:]
+                )
+            )
+        time.sleep(0.01)
+        return _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=2) == 0
+    overall_row, *batch_rows = (progress.tasks[tid] for tid in progress.task_ids)
+    assert overall_row.completed == PAGE_COUNT
+    assert sum(int(row.completed) for row in batch_rows) == PAGE_COUNT
+    assert [row.completed for row in batch_rows] == [10, 10, 5]
+    assert any(mid_run)
+
+
+def test_failed_page_still_advances_the_progress_rows(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A page whose translation failed still counts as finished.
+
+    Pinned because the failure branch returns normally (``None`` instead of
+    raising): if it skipped the page report, the bar would stop short of
+    its total and a run with failures would look like it hung.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return None if "page07" in text else _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo, jobs=1) == 0
+    assert not (target / "page07.en.md").exists()
+    overall_row, *batch_rows = (progress.tasks[tid] for tid in progress.task_ids)
+    assert overall_row.completed == PAGE_COUNT
+    assert sum(int(row.completed) for row in batch_rows) == PAGE_COUNT
+
+
+def test_batch_row_names_the_page_in_flight_and_escapes_markup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The batch row names the page in flight, brackets included.
+
+    ``README.md`` promises "current page name + overall progress", and a
+    Windows file name may legally contain brackets.  rich renders a
+    description as markup, so an unescaped ``[name]`` is swallowed as a
+    style tag (the row would read ``bracket.en.md``) and a closing-only
+    ``[/x]`` even raises :class:`rich.errors.MarkupError` inside the render
+    thread, freezing the display.  Escaping the page name avoids both.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+    root = tmp_path / "repo-brackets"
+    _touch(root, ".trae/documents/plain.md", "# plain\n\n中文正文\n")
+    _touch(root, ".trae/documents/bracket[name].md", "# bracket\n\n中文正文\n")
+
+    described: list[str] = []
+    rendered: list[str] = []
+    lock = threading.Lock()
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        del text, translate_cmd
+        with lock:
+            # Sorted collection puts bracket[name].md first, so the row
+            # opens on it; refresh forces the markup parser to run.
+            assert progress.live.is_started
+            described.append(str(progress.tasks[progress.task_ids[1]].description))
+            progress.refresh()
+            rendered.append(stream.getvalue())
+        return "# en\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=root, jobs=1) == 0
+    assert len(described) == 2
+    assert described[0] == "batch 1/1 · bracket\\[name].en.md"
+    # Rendering unescapes back to the literal page name (and never raises).
+    assert "bracket[name].en.md" in rendered[0]
+    assert progress.tasks[progress.task_ids[1]].description == "batch 1/1 · plain.en.md"
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows file names cannot contain a slash"
+)
+def test_batch_row_survives_a_closing_markup_tag_in_the_page_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A page name that looks like a closing markup tag cannot kill the run.
+
+    ``[/x]`` is the only shape rich actually rejects (:class:`rich.errors.
+    MarkupError`), and it needs a slash -- so this is reachable on POSIX
+    only.  The error would surface inside rich's render thread, which has no
+    guard at all, leaving a frozen display rather than a clean failure.
+    """
+    stream = StringIO()
+    progress = _live_display(stream)
+    _install_display(monkeypatch, progress)
+    root = tmp_path / "repo-closing-tag"
+    _touch(root, ".trae/documents/bracket[/x].md", "# bracket\n\n中文正文\n")
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        del text, translate_cmd
+        assert progress.live.is_started
+        progress.refresh()
+        return "# en\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=root, jobs=1) == 0
+    assert (target / "bracket[/x].en.md").exists()
+    assert "bracket[/x].en.md" in stream.getvalue()

@@ -491,17 +491,22 @@ cd <checkout>   # any checkout works
 ```
 
 - `--translate-cmd`: a shell command, Chinese Markdown on stdin, English on
-  stdout (must come from a trusted source);
+  stdout, both UTF-8 (must come from a trusted source);
 - default (incremental): **only translate pages that are missing (no English
   page) or stale (Chinese source changed)**; fresh pages are kept as-is;
 - `--translate-all`: full re-translation — fresh pages are also sent through
-  the hook, overwriting their existing English pages (use with care);
+  the hook, overwriting their existing English pages (use with care); without
+  `--translate-cmd` it has no effect and says so;
 - `--push`: once every translation succeeds, commits and pushes to
   `origin` (gitee) and `github`; any failed page skips the push so dirty
   state never reaches the remotes;
-- progress: translations run behind a rich progress bar on stderr (current
-  page name + overall progress); `Ctrl+C` exits cleanly with code 130 and
-  no traceback -- already translated pages are adopted on the next run.
+- progress: when stderr is a terminal, translations run behind a rich
+  progress bar -- one row per batch plus an overall row, both advancing
+  **page by page** (naming the page in flight) with the page count and the
+  queue depth in the text. Redirected output is not refreshed live, but
+  rich still prints one final frame when the run ends, after the per-batch
+  lines. `Ctrl+C` exits cleanly with code 130 and no traceback -- already
+  translated pages are adopted on the next run.
 
 ```powershell
 .venv\Scripts\python -m tools.pack wiki --check   # gate: exit 1 while missing/stale
