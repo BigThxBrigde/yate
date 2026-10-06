@@ -1,0 +1,289 @@
+"""Runtime tests for the ctrl+p file preview pane (PaletteScreen).
+
+Pilot-driven (headless Textual): a minimal host app pushes the palette
+screen, then the tests drive the cursor and assert on the preview pane's
+DOM order, worker cache, degradation notes and legacy-DOM preservation.
+"""
+
+# tests legitimately poke at screen internals:
+# pyright: reportPrivateUsage=false
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+
+import pytest
+from textual.app import App
+from textual.containers import Horizontal
+from textual.widgets import Static
+
+from yate.config import FilePreviewConfig
+from yate.editor_syntax.tokens import SYNTAX_KINDS
+from yate.editor_view.palette import PaletteScreen, PreviewLog, _PreviewData
+from yate.registries import ActionRegistry, CommandRegistry
+from yate.services.workspace import Workspace
+
+from conftest import wait_until
+
+
+class _Host(App[None]):
+    """Minimal host app that pushes the PaletteScreen under test."""
+
+    def __init__(self, screen: PaletteScreen) -> None:
+        super().__init__()
+        self._screen = screen
+
+    def on_mount(self) -> None:
+        self.push_screen(self._screen)
+
+
+def _palette(
+    root: Path,
+    mode: str = "files",
+    preview: FilePreviewConfig | None = None,
+) -> PaletteScreen:
+    """A PaletteScreen over *root* wired with inert collaborators."""
+    return PaletteScreen(
+        mode,
+        workspace=Workspace(root),
+        commands=CommandRegistry(),
+        actions=ActionRegistry(),
+        open_path=lambda _p: None,
+        focus_editor=lambda: None,
+        execute_action=lambda _name: True,
+        run_command=lambda _name: None,
+        refresh=lambda: None,
+        preview=FilePreviewConfig() if preview is None else preview,
+    )
+
+
+def _preview_plain(screen: PaletteScreen) -> str:
+    """Rendered plain text of the preview pane (strip text joined)."""
+    pane = screen.query_one("#palette-preview", PreviewLog)
+    return "\n".join(strip.text for strip in pane.lines)
+
+
+ALPHA_SOURCE = "def hello():\n    return 'world'\n"
+
+
+def test_files_mode_composes_preview_pane(tmp_path: Path) -> None:
+    """Enabled files mode mounts the pane inside #palette-body, tagged."""
+    (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert screen.query("#palette-preview")
+            assert screen.has_class("with-preview")
+            body = screen.query_one("#palette-body", Horizontal)
+            assert body.query("#palette-results")
+            assert body.query(PreviewLog)
+
+    asyncio.run(scenario())
+
+
+def test_disabled_preview_keeps_legacy_dom(tmp_path: Path) -> None:
+    """enable=False: no pane widget, no class, results list untouched."""
+    (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path, preview=FilePreviewConfig(enable=False)))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert not screen.query("#palette-preview")
+            assert not screen.has_class("with-preview")
+            # the index still fills the same filtered list as before
+            assert await wait_until(pilot, lambda: screen.filtered_count == 1)
+
+    asyncio.run(scenario())
+
+
+def test_commands_mode_has_no_preview(tmp_path: Path) -> None:
+    """Commands mode ignores the preview config entirely."""
+    (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path, mode="commands"))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert not screen.query("#palette-preview")
+            assert not screen.has_class("with-preview")
+
+    asyncio.run(scenario())
+
+
+def test_preview_follows_cursor(tmp_path: Path) -> None:
+    """Moving the cursor re-previews the newly highlighted file."""
+    alpha = tmp_path / "alpha.py"
+    beta = tmp_path / "beta.md"
+    alpha.write_text(ALPHA_SOURCE, encoding="utf-8")
+    beta.write_text("second file\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot, lambda: screen._preview_cache.get(alpha) is not None
+            )
+            await pilot.press("down")
+            assert await wait_until(
+                pilot, lambda: screen._preview_cache.get(beta) is not None
+            )
+            data = screen._preview_cache[beta]
+            assert data.path == beta
+            assert data.lines == ["second file"]
+            assert screen._selected_path() == beta
+
+    asyncio.run(scenario())
+
+
+def test_preview_shows_syntax_tokens(tmp_path: Path) -> None:
+    """A python file tokenizes into SYNTAX_KINDS spans (def/return keywords)."""
+    alpha = tmp_path / "alpha.py"
+    alpha.write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot, lambda: screen._preview_cache.get(alpha) is not None
+            )
+            data = screen._preview_cache[alpha]
+            assert data.tokens
+            kinds = {tok.kind for row in data.tokens for tok in row}
+            assert "keyword" in kinds
+            assert kinds <= set(SYNTAX_KINDS)
+
+    asyncio.run(scenario())
+
+
+def test_preview_truncates_large_file(tmp_path: Path) -> None:
+    """A 3000-line file is cut at max_lines and flagged in the pane."""
+    alpha = tmp_path / "alpha.py"
+    alpha.write_text(
+        "\n".join(f"x{i} = {i}" for i in range(3000)), encoding="utf-8"
+    )
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot, lambda: screen._preview_cache.get(alpha) is not None
+            )
+            data = screen._preview_cache[alpha]
+            assert data.truncated
+            assert len(data.lines) == screen.preview.max_lines
+            assert "truncated" in screen._preview_text(data).plain
+
+    asyncio.run(scenario())
+
+
+def test_preview_reports_binary(tmp_path: Path) -> None:
+    """A binary file degrades to the (binary file) note in the pane."""
+    alpha = tmp_path / "blob.bin"
+    alpha.write_bytes(b"\x00\x01\x02binary stuff\x00")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot, lambda: "(binary file)" in _preview_plain(screen)
+            )
+
+    asyncio.run(scenario())
+
+
+def test_preview_reports_oversize(tmp_path: Path) -> None:
+    """A file over max_size degrades to the 'file too large' note."""
+    alpha = tmp_path / "alpha.py"
+    alpha.write_text("payload = " + "x" * 200, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path, preview=FilePreviewConfig(max_size=64)))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot, lambda: "file too large" in _preview_plain(screen)
+            )
+
+    asyncio.run(scenario())
+
+
+def test_preview_cache_hits_without_reread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Revisiting a file serves from cache: no second _load_preview call."""
+    alpha = tmp_path / "alpha.py"
+    beta = tmp_path / "beta.md"
+    alpha.write_text(ALPHA_SOURCE, encoding="utf-8")
+    beta.write_text("second file\n", encoding="utf-8")
+
+    calls: list[Path] = []
+    original = PaletteScreen._load_preview
+
+    def _counting(screen: PaletteScreen, path: Path) -> _PreviewData:
+        calls.append(path)
+        return original(screen, path)
+
+    monkeypatch.setattr(PaletteScreen, "_load_preview", _counting)
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            # mount previews alpha; down selects beta; wrap + up revisit both
+            assert await wait_until(
+                pilot, lambda: screen._preview_cache.get(alpha) is not None
+            )
+            await pilot.press("down")
+            assert await wait_until(
+                pilot, lambda: screen._preview_cache.get(beta) is not None
+            )
+            await pilot.press("ctrl+n")  # wraps back to alpha: cache hit
+            await pilot.press("ctrl+p")  # back to beta: cache hit
+            await pilot.pause()
+            assert calls == [alpha, beta]
+
+    asyncio.run(scenario())
+
+
+def test_preview_position_left_reorders_dom(tmp_path: Path) -> None:
+    """position=left composes the pane before the results list."""
+    (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path, preview=FilePreviewConfig(position="left")))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            body = screen.query_one("#palette-body", Horizontal)
+            children = list(body.children)
+            assert isinstance(children[0], PreviewLog)
+            assert isinstance(children[1], Static)
+
+    asyncio.run(scenario())

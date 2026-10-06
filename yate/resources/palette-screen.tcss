@@ -20,6 +20,21 @@ PaletteScreen #palette-input {
 }
 PaletteScreen #palette-results {
     height: 1fr;
+    width: 1fr;
     padding: 0;
     background: $surface;
+}
+PaletteScreen.with-preview #palette {
+    height: 70%;
+    max-height: 30;
+    width: 90%;
+    max-width: 140;
+}
+PaletteScreen #palette-body {
+    height: 1fr;
+}
+PaletteScreen #palette-preview {
+    border-left: tall $panel;
+    background: $surface;
+    padding: 0 1;
 }

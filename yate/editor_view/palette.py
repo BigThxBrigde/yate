@@ -15,25 +15,48 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
 from typing import Any, override
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.events import Key
 from textual.screen import ModalScreen
-from textual.widgets import Input, Static
+from textual.widgets import Input, RichLog, Static
 
+from yate.config import FilePreviewConfig
+from yate.editor_syntax.engine import tokenize_document
+from yate.editor_syntax.tokens import Token
 from yate.paths import load_tcss
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
 from . import theme
 from .icons import GEAR, KEYBOARD, icon_for_path
+from .scrollbars import apply_slim_scrollbars
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12
+
+
+@dataclass(frozen=True)
+class _PreviewData:
+    """Worker-produced preview payload (raw lines + tokens, no widgets)."""
+
+    path: Path
+    lines: list[str]
+    tokens: list[list[Token]]
+    mtime_ns: int
+    size: int
+    truncated: bool
+    note: str | None  # binary / oversize / unreadable explanation
+
+
+#: preview cache entry cap (FIFO eviction)
+PREVIEW_CACHE_SIZE: int = 16
 
 
 def fuzzy_match(query: str, target: str) -> tuple[int, list[int]] | None:
@@ -71,6 +94,16 @@ def fuzzy_match(query: str, target: str) -> tuple[int, list[int]] | None:
     return (score, matched)
 
 
+class PreviewLog(RichLog):
+    """Read-only preview pane (source lines, syntax highlighted).
+
+    ``can_focus = False`` keeps a mouse click on the pane from stealing
+    focus away from the query input (one dispatch per keypress).
+    """
+
+    can_focus = False
+
+
 class PaletteScreen(ModalScreen[None]):
     """Fuzzy palette overlay for files (quick open) or commands."""
 
@@ -93,8 +126,17 @@ class PaletteScreen(ModalScreen[None]):
         execute_action: Callable[[str], bool],
         run_command: Callable[[str], None],
         refresh: Callable[[], None],
+        preview: FilePreviewConfig = FilePreviewConfig(),
         **kwargs: Any,
     ) -> None:
+        """Store collaborators; *preview* configures the ctrl+p preview pane.
+
+        ``enable`` / ``position`` / ``size`` gate the pane's existence, side
+        and width (files mode only); ``max_lines`` / ``max_size`` cap the
+        worker's read.  Commands mode and ``enable = False`` keep the legacy
+        DOM exactly.  The default suits direct constructions (tests) that
+        predate the pane.
+        """
         super().__init__(**kwargs)
         self.workspace = workspace
         self.commands = commands
@@ -105,12 +147,16 @@ class PaletteScreen(ModalScreen[None]):
         self.run_command = run_command
         #: Editor repaint hook (named apart from ``Widget.refresh``).
         self.refresh_ui = refresh
+        self.preview = preview
         self.mode = mode  # "files" | "commands"
         self._entries: list[tuple[str, str, Any]] = []  # (display, hint, payload)
         self._filtered: list[tuple[int, list[int], int]] = []  # (score, hits, idx)
         self._cursor = 0
         # shown in the results pane while the file index builds in a thread
         self._status_message: str | None = None
+        # preview payloads keyed by path; validity is judged per record via
+        # its mtime_ns/size pair (see _cache_current)
+        self._preview_cache: dict[Path, _PreviewData] = {}
 
     @property
     def filtered_count(self) -> int:
@@ -206,6 +252,7 @@ class PaletteScreen(ModalScreen[None]):
         self._filtered = scored[:MAX_VISIBLE]
         self._cursor = 0
         self._render_results()
+        self._update_preview()
 
     # -------------------------------------------------------------- render
 
@@ -251,18 +298,196 @@ class PaletteScreen(ModalScreen[None]):
             text.append("\n")
         results.update(text)
 
+    # ------------------------------------------------------------- preview
+
+    def _preview_pane(self) -> PreviewLog:
+        """Build the preview pane widget with its configured percent width."""
+        pane = PreviewLog(id="palette-preview")
+        # geometry is component-owned (theme rule): the width comes from the
+        # config; colors stay in palette-screen.tcss / theme.active()
+        pane.styles.width = f"{self.preview.size}%"
+        return pane
+
+    def _selected_path(self) -> Path | None:
+        """Path payload of the highlighted entry, or ``None`` without one."""
+        if (
+            self.mode != "files"
+            or self._status_message is not None
+            or not self._filtered
+        ):
+            return None
+        _score, _hits, idx = self._filtered[self._cursor]
+        path: Path = self._entries[idx][2]
+        return path
+
+    def _cache_current(self, data: _PreviewData) -> bool:
+        """Whether *data* still matches the file on disk (mtime/size probe)."""
+        try:
+            st = data.path.stat()
+        except OSError:
+            return False
+        return st.st_mtime_ns == data.mtime_ns and st.st_size == data.size
+
+    def _update_preview(self) -> None:
+        """Refresh the preview pane for the highlighted file (files mode).
+
+        Cache hits (validated by mtime/size) re-render at once; misses show
+        a loading note and spawn the exclusive read+tokenize worker, whose
+        completion re-checks the cursor and only repaints when still current.
+        """
+        if self.mode != "files" or not self.preview.enable:
+            return
+        path = self._selected_path()
+        if path is None:
+            self._clear_preview()
+            return
+        cached = self._preview_cache.get(path)
+        if cached is not None and self._cache_current(cached):
+            self._render_preview(cached)
+            return
+        self._show_loading()
+        self.run_worker(
+            self._load_preview_worker(path), group="palette-preview",
+            exclusive=True, exit_on_error=False,
+        )
+
+    def _clear_preview(self) -> None:
+        """Empty the preview pane (no highlighted entry to preview)."""
+        self.query_one("#palette-preview", PreviewLog).clear()
+
+    def _show_loading(self) -> None:
+        """Dim loading note while the worker reads+tokenizes the file."""
+        pane = self.query_one("#palette-preview", PreviewLog)
+        pane.clear()
+        pane.write(Text("loading…", style=theme.active().fg_dim))
+
+    def _load_preview(self, path: Path) -> _PreviewData:
+        """Read and tokenize *path* (worker thread; never touches widgets).
+
+        Oversize and binary files degrade to a note payload with empty
+        lines; successful reads keep the real ``stat`` fields so the cache
+        can serve repeat cursor visits without re-reading.  Decoding is
+        declared ``errors="replace"`` so odd bytes never raise.
+        """
+        try:
+            st = path.stat()
+        except OSError as exc:
+            return _PreviewData(
+                path=path, lines=[], tokens=[], mtime_ns=0, size=0,
+                truncated=False, note=f"cannot read: {exc}",
+            )
+        if st.st_size > self.preview.max_size:
+            return _PreviewData(
+                path=path, lines=[], tokens=[],
+                mtime_ns=st.st_mtime_ns, size=st.st_size, truncated=False,
+                note=f"file too large (> {self.preview.max_size} bytes)",
+            )
+        if not Workspace.is_text_file(path):
+            return _PreviewData(
+                path=path, lines=[], tokens=[],
+                mtime_ns=st.st_mtime_ns, size=st.st_size, truncated=False,
+                note="(binary file)",
+            )
+        lines: list[str] = []
+        truncated = False
+        try:
+            with path.open(encoding="utf-8", errors="replace") as fh:
+                lines = [
+                    line.rstrip("\n") for line in islice(fh, self.preview.max_lines)
+                ]
+                truncated = next(fh, None) is not None
+        except OSError as exc:
+            return _PreviewData(
+                path=path, lines=[], tokens=[],
+                mtime_ns=st.st_mtime_ns, size=st.st_size, truncated=False,
+                note=f"cannot read: {exc}",
+            )
+        # suffix-derived filetype, same rule as Document.filetype
+        filetype = path.suffix.lower().lstrip(".") or "plaintext"
+        tokens = tokenize_document(lines, filetype) if lines else []
+        return _PreviewData(
+            path=path, lines=lines, tokens=tokens,
+            mtime_ns=st.st_mtime_ns, size=st.st_size,
+            truncated=truncated, note=None,
+        )
+
+    async def _load_preview_worker(self, path: Path) -> None:
+        """Read+tokenize *path* in a thread, then paint when still selected.
+
+        The thread part does IO + tokenize only; the Rich Text assembly and
+        the widget write stay on the UI thread (same split as the editor's
+        highlight worker).  When the cursor moved on while the worker ran,
+        the payload is cached but not painted.
+        """
+        data = await asyncio.to_thread(self._load_preview, path)
+        if not self.is_mounted:
+            return
+        self._preview_cache[path] = data
+        while len(self._preview_cache) > PREVIEW_CACHE_SIZE:
+            self._preview_cache.pop(next(iter(self._preview_cache)))
+        if self._selected_path() != path:
+            return
+        self._render_preview(data)
+
+    def _render_preview(self, data: _PreviewData) -> None:
+        """Paint *data* into the preview pane (UI thread)."""
+        t = theme.active()
+        pane = self.query_one("#palette-preview", PreviewLog)
+        pane.clear()
+        if data.note is not None:
+            pane.write(Text(data.note, style=t.fg_dim))
+            return
+        pane.write(self._preview_text(data))
+
+    def _preview_text(self, data: _PreviewData) -> Text:
+        """Assemble the syntax-highlighted preview text (UI thread).
+
+        Token columns are clamped to the line length (backends may lag the
+        source after the truncation cut); token-free spans render with the
+        plain foreground.
+        """
+        t = theme.active()
+        text = Text()
+        for line, row_tokens in zip(data.lines, data.tokens):
+            pos = 0
+            for tok in row_tokens:
+                start, end = min(tok.start, len(line)), min(tok.end, len(line))
+                if start > pos:
+                    text.append(line[pos:start], style=t.fg)
+                text.append(line[start:end], style=t.syntax_style(tok.kind))
+                pos = max(pos, end)
+            if pos < len(line):
+                text.append(line[pos:], style=t.fg)
+            text.append("\n")
+        if data.truncated:
+            text.append(
+                f"… truncated at {self.preview.max_lines} lines", style=t.fg_dim
+            )
+        return text
+
     # ------------------------------------------------------------- textual
 
     @override
     def compose(self) -> ComposeResult:
-        """Compose the query input and the results line."""
+        """Compose the query input, results list and optional preview pane."""
         with Vertical(id="palette"):
             placeholder = (
                 "search files by name…" if self.mode == "files"
                 else "search commands and actions by name…"
             )
             yield Input(placeholder=placeholder, id="palette-input")
-            yield Static(id="palette-results")
+            if self.mode == "files" and self.preview.enable:
+                # scopes the wider #palette layout in palette-screen.tcss
+                self.add_class("with-preview")
+                with Horizontal(id="palette-body"):
+                    if self.preview.position == "left":
+                        yield self._preview_pane()
+                    yield Static(id="palette-results")
+                    if self.preview.position != "left":
+                        yield self._preview_pane()
+            else:
+                # legacy DOM: the results list sits directly under #palette
+                yield Static(id="palette-results")
 
     def on_mount(self) -> None:
         """Index files (worker) or build command entries, then focus the input."""
@@ -274,6 +499,9 @@ class PaletteScreen(ModalScreen[None]):
             # the file index in a worker thread with a status line
             self._status_message = " indexing workspace…"
             self._render_results()
+            if self.preview.enable:
+                apply_slim_scrollbars(self.query_one("#palette-preview", PreviewLog))
+                self._update_preview()
             self.run_worker(
                 # coroutine *function*: an eager coroutine would leak if
                 # the worker never starts (closing pump)
@@ -304,12 +532,14 @@ class PaletteScreen(ModalScreen[None]):
             if self._filtered:
                 self._cursor = (self._cursor - 1) % len(self._filtered)
                 self._render_results()
+                self._update_preview()
         elif event.key in ("down", "ctrl+n", "tab"):
             event.stop()
             event.prevent_default()
             if self._filtered:
                 self._cursor = (self._cursor + 1) % len(self._filtered)
                 self._render_results()
+                self._update_preview()
                 # A single match is unambiguous: let Tab choose it immediately
                 # (bash-style: unique completion is applied at once).  Plain
                 # cursor movement (down / ctrl+n) must never execute anything.

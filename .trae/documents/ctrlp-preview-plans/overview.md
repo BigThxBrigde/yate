@@ -134,8 +134,14 @@ plan-b 为唯一改动面较大提交，但 CSS 与方法均为纯增量。
 - [x] plan-a：`pytest tests/test_config.py -q` → 98 passed（含新增 10 个
   `test_file_preview_*` 用例），退出码 0；`pyright yate/config.py
   tests/test_config.py` → 0 errors, 0 warnings, 0 informations，退出码 0
-- [ ] plan-b：结果
-- [ ] plan-c：结果
+- [x] plan-b：`pytest tests/test_palette_preview.py tests/test_config.py -q`
+  → 108 passed（含新增 10 个 palette 预览用例），退出码 0；
+  `pyright yate/editor_view/palette.py yate/overlays.py
+  tests/test_palette_preview.py` → 0 errors, 0 warnings, 0 informations，
+  退出码 0
+- [x] plan-c：`pytest tests/test_architecture.py tests/test_dispatch_guards.py
+  -q` → 24 passed（22 架构 + 2 dispatch guards），退出码 0；
+  `pytest tests/test_architecture.py -q` 单跑 → 22 passed，退出码 0
 - [ ] plan-e：结果（smoke 场景 3 条 pass）
 - [ ] plan-d：门禁数字（pyright / pytest / 架构 / 覆盖率 / smoke 全量）
 - [ ] 偏离记录
