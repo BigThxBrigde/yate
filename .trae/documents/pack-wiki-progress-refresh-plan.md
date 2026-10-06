@@ -288,13 +288,12 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 
 ### 6.9 `python-code-review` skill 审查轮（2026-10-06 起，循环迭代）
 
-**skill 缺口补齐**：`code-review-expert` 剧本要求先加载 `python-code-review` skill，
-但仓库与用户目录均无此 skill（前一轮评审实测加载失败）。本轮按 `skill-creator`
-规范创建了项目级 skill（`.codebuddy/skills/python-code-review/`，机器本地、
-`.gitignore` 覆盖，不入库）：`SKILL.md` 固化"权威规则源 + 六维度 + 三级严重度 +
-探针/变异 + 门禁 + 循环"的工作流，`references/yate-checklist.md` 记录
-`yate/` / `tools/` / `tests/` / 文档四层的项目专用陷阱（含"改动在 `tools/` 时
-`--cov=yate` 零信号，必须显式测模块"）。
+**审查框架来源**：`code-review-expert` 剧本要求先加载 `python-code-review` skill。
+master 已提供跟踪版（`.trae/skills/python-code-review/`），本轮直接使用；此前本会话
+曾按 `skill-creator` 在 `.codebuddy/skills/` 建过一份副本，该副本已删除，
+**`.trae/skills/` 下的 skill 未作任何改动**（用户明确要求不改动 skills）。
+本轮沉淀的项目特定审查经验（权威规则源、四层陷阱、门禁命令、迭代纪律、变异
+纪律）记录在本方案与评审记录中，供后续审查直接引用。
 
 **第 1 轮结论**：0 CRITICAL / 7 WARNING / 3 SUGGESTION，全部登记到
 [legacy-issues.md](../../reviews/legacy-issues.md)（编号 R-01…R-11，含描述、
