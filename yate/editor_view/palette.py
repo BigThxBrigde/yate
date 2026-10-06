@@ -30,6 +30,7 @@ from textual.widgets import Input, RichLog, Static
 from yate.config import FilePreviewConfig
 from yate.editor_syntax.engine import tokenize_document
 from yate.editor_syntax.tokens import Token
+from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
@@ -40,6 +41,8 @@ from .scrollbars import apply_slim_scrollbars
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12
+
+log = tracing.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -404,7 +407,13 @@ class PaletteScreen(ModalScreen[None]):
             )
         # suffix-derived filetype, same rule as Document.filetype
         filetype = path.suffix.lower().lstrip(".") or "plaintext"
-        tokens = tokenize_document(lines, filetype) if lines else []
+        tokens: list[list[Token]] = []
+        try:
+            tokens = tokenize_document(lines, filetype) if lines else []
+        except Exception as exc:  # noqa: BLE001 - degrade to unhighlighted text
+            # A tokenizer crash must never leave the pane stuck on
+            # "loading…"; empty tokens render the plain lines via t.fg.
+            log.warning("palette preview tokenize failed for %s: %s", path, exc)
         return _PreviewData(
             path=path, lines=lines, tokens=tokens,
             mtime_ns=st.st_mtime_ns, size=st.st_size,
