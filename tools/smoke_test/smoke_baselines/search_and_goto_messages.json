@@ -1,0 +1,107 @@
+{
+  "checks": [
+    {
+      "label": "no_active_search",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "no_query",
+      "expected": "",
+      "actual": "",
+      "ok": true
+    },
+    {
+      "label": "no_matches",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "zero_match_spans",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "not_a_line_number",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "cursor_kept",
+      "expected": [
+        0,
+        0
+      ],
+      "actual": [
+        0,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "anchor_set",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "clamped_to_last_row",
+      "expected": 4,
+      "actual": 4,
+      "ok": true
+    },
+    {
+      "label": "anchor_cleared",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "search_cleared",
+      "expected": "",
+      "actual": "",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "l1\nl2\nl3\nl4\nl5",
+      "actual": "l1\nl2\nl3\nl4\nl5",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

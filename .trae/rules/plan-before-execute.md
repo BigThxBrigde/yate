@@ -1,3 +1,8 @@
+---
+alwaysApply: true
+scene: task_execution
+---
+
 # plan-before-execute（先方案后执行）
 
 本规则约束本仓库内**非平凡编码任务**的执行方式：方案先行，批准后动代码。

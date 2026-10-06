@@ -40,6 +40,14 @@ scene: yate_master_rules_loader
 - 对应领域的既有计划文档（如 LSP / pytest 隔离 / editor 重构）在实现同类
   功能前先读，作为"唯一规范来源"下发给子代理。
 
+### 1.3 Skill 来源（强制）
+
+Skill 的**唯一权威来源是 `../../.trae/skills/`**：
+
+1. 使用 skill 前一律到 `../../.trae/skills/<skill-name>/SKILL.md` 加载。
+2. 新建或修改 skill 时，**只允许写入 `../../.trae/skills/`**（随 git 跟踪，
+   worktree 中始终可用），skill 清单以该目录内容为准；
+
 ## 二、硬性要求
 
 1. **禁止绕过**：不得以"任务简单"为由跳过本加载；只有用户给了完整逐步指令的
@@ -59,3 +67,6 @@ scene: yate_master_rules_loader
    审批"，**不豁免** §一 的规则加载与收尾门禁（pyright / pytest / 架构测试）。
    不可逆破坏动作（强制推送、硬重置、删除未跟踪产物等）仍受 git 安全协议约束：
    先落盘记录，并在收尾汇报中显式列出。
+6. **skill 只认 `.trae/skills/`**：加载、创建、修改 skill 一律以
+   `../../.trae/skills/` 为唯一来源；`.codebuddy/skills/` 及其任何子目录是机器
+   本地非法产物。

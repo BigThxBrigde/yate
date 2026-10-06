@@ -1,0 +1,205 @@
+{
+  "checks": [
+    {
+      "label": "screen_pushed",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "is_diff_screen",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "mode",
+      "expected": "3way",
+      "actual": "3way",
+      "ok": true
+    },
+    {
+      "label": "labels",
+      "expected": [
+        "base",
+        "local",
+        "remote"
+      ],
+      "actual": [
+        "base",
+        "local",
+        "remote"
+      ],
+      "ok": true
+    },
+    {
+      "label": "pane_count",
+      "expected": 3,
+      "actual": 3,
+      "ok": true
+    },
+    {
+      "label": "doc_names",
+      "expected": [
+        "base.txt",
+        "local.txt",
+        "remote.txt"
+      ],
+      "actual": [
+        "base.txt",
+        "local.txt",
+        "remote.txt"
+      ],
+      "ok": true
+    },
+    {
+      "label": "line_counts",
+      "expected": [
+        4,
+        4,
+        4
+      ],
+      "actual": [
+        4,
+        4,
+        4
+      ],
+      "ok": true
+    },
+    {
+      "label": "all_region_kinds",
+      "expected": [
+        "same",
+        "conflict",
+        "same"
+      ],
+      "actual": [
+        "same",
+        "conflict",
+        "same"
+      ],
+      "ok": true
+    },
+    {
+      "label": "merge_region_count",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "merge_region_kind",
+      "expected": "conflict",
+      "actual": "conflict",
+      "ok": true
+    },
+    {
+      "label": "nothing_selected_initially",
+      "expected": -1,
+      "actual": -1,
+      "ok": true
+    },
+    {
+      "label": "region_selected",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "tab_focuses_pane_2",
+      "expected": "DiffPane(id='diff-pane-1')",
+      "actual": "DiffPane(id='diff-pane-1')",
+      "ok": true
+    },
+    {
+      "label": "ctrl3_focuses_pane_3",
+      "expected": "DiffPane(id='diff-pane-2')",
+      "actual": "DiffPane(id='diff-pane-2')",
+      "ok": true
+    },
+    {
+      "label": "remote_before",
+      "expected": "REMOTE",
+      "actual": "REMOTE",
+      "ok": true
+    },
+    {
+      "label": "remote_line_copied",
+      "expected": "LOCAL",
+      "actual": "LOCAL",
+      "ok": true
+    },
+    {
+      "label": "remote_side_modified",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "base_never_a_target",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "conflict_resolved_to_both",
+      "expected": "both",
+      "actual": "both",
+      "ok": true
+    },
+    {
+      "label": "first_esc_keeps_screen",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "first_esc_hint",
+      "expected": "unsaved changes — press esc again to close",
+      "actual": "unsaved changes — press esc again to close",
+      "ok": true
+    },
+    {
+      "label": "second_esc_closes",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "a\nb\nc\n",
+      "actual": "a\nb\nc\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

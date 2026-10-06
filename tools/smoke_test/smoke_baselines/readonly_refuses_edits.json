@@ -1,0 +1,95 @@
+{
+  "checks": [
+    {
+      "label": "readonly_on",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "text_unchanged",
+      "expected": "seed",
+      "actual": "seed",
+      "ok": true
+    },
+    {
+      "label": "not_modified",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "typing_warned",
+      "expected": "buffer is read-only (:set readonly=false to unlock)",
+      "actual": "buffer is read-only (:set readonly=false to unlock)",
+      "ok": true
+    },
+    {
+      "label": "ctrl_s_refused",
+      "expected": "cannot save a read-only buffer; use :saveas to write elsewhere",
+      "actual": "cannot save a read-only buffer; use :saveas to write elsewhere",
+      "ok": true
+    },
+    {
+      "label": "colon_w_refused",
+      "expected": "cannot save a read-only buffer; use :saveas to write elsewhere",
+      "actual": "cannot save a read-only buffer; use :saveas to write elsewhere",
+      "ok": true
+    },
+    {
+      "label": "disk_untouched",
+      "expected": "seed",
+      "actual": "seed",
+      "ok": true
+    },
+    {
+      "label": "readonly_off",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "editable_again",
+      "expected": "Yseed",
+      "actual": "Yseed",
+      "ok": true
+    },
+    {
+      "label": "modified_after_edit",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

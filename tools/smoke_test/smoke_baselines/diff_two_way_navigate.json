@@ -1,0 +1,209 @@
+{
+  "checks": [
+    {
+      "label": "screen_pushed",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "is_diff_screen",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "mode",
+      "expected": "2way",
+      "actual": "2way",
+      "ok": true
+    },
+    {
+      "label": "labels",
+      "expected": [
+        "left",
+        "right"
+      ],
+      "actual": [
+        "left",
+        "right"
+      ],
+      "ok": true
+    },
+    {
+      "label": "doc_names",
+      "expected": [
+        "a.txt",
+        "b.txt"
+      ],
+      "actual": [
+        "a.txt",
+        "b.txt"
+      ],
+      "ok": true
+    },
+    {
+      "label": "line_counts",
+      "expected": [
+        5,
+        5
+      ],
+      "actual": [
+        5,
+        5
+      ],
+      "ok": true
+    },
+    {
+      "label": "pane_count",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "hunk_count",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "hunk_kinds",
+      "expected": [
+        "replace",
+        "replace"
+      ],
+      "actual": [
+        "replace",
+        "replace"
+      ],
+      "ok": true
+    },
+    {
+      "label": "nothing_selected_initially",
+      "expected": -1,
+      "actual": -1,
+      "ok": true
+    },
+    {
+      "label": "guard_clear_initially",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "first_change_selected",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "still_open_after_nav",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "right_before",
+      "expected": "BRAVO",
+      "actual": "BRAVO",
+      "ok": true
+    },
+    {
+      "label": "right_line_copied",
+      "expected": "bravo",
+      "actual": "bravo",
+      "ok": true
+    },
+    {
+      "label": "right_buffer_changed",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "right_side_modified",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "left_side_untouched",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "hunk_count_after_copy",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "first_esc_keeps_screen",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "first_esc_arms_guard",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "first_esc_hint",
+      "expected": "unsaved changes — press esc again to close",
+      "actual": "unsaved changes — press esc again to close",
+      "ok": true
+    },
+    {
+      "label": "second_esc_closes",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "back_to_editor",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "alpha\nbravo\ncharlie\ndelta\n",
+      "actual": "alpha\nbravo\ncharlie\ndelta\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

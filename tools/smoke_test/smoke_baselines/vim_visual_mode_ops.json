@@ -1,0 +1,285 @@
+{
+  "checks": [
+    {
+      "label": "keymap",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "mode_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "visual_label",
+      "expected": "VISUAL",
+      "actual": "VISUAL",
+      "ok": true
+    },
+    {
+      "label": "visual_mode",
+      "expected": "visual",
+      "actual": "visual",
+      "ok": true
+    },
+    {
+      "label": "visual_anchor",
+      "expected": [
+        0,
+        0
+      ],
+      "actual": [
+        0,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "visual_empty",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "extended",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "extended_text",
+      "expected": "alpha ",
+      "actual": "alpha ",
+      "ok": true
+    },
+    {
+      "label": "still_visual",
+      "expected": "visual",
+      "actual": "visual",
+      "ok": true
+    },
+    {
+      "label": "yanked",
+      "expected": "alpha ",
+      "actual": "alpha ",
+      "ok": true
+    },
+    {
+      "label": "yank_cursor",
+      "expected": [
+        0,
+        0
+      ],
+      "actual": [
+        0,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "yank_cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "after_yank_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "lines_intact",
+      "expected": 3,
+      "actual": 3,
+      "ok": true
+    },
+    {
+      "label": "vline_label",
+      "expected": "V-LINE",
+      "actual": "V-LINE",
+      "ok": true
+    },
+    {
+      "label": "vline_mode",
+      "expected": "visual_line",
+      "actual": "visual_line",
+      "ok": true
+    },
+    {
+      "label": "vline_span",
+      "expected": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          10
+        ]
+      ],
+      "actual": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          10
+        ]
+      ],
+      "ok": true
+    },
+    {
+      "label": "vline_rows",
+      "expected": [
+        0,
+        1
+      ],
+      "actual": [
+        0,
+        1
+      ],
+      "ok": true
+    },
+    {
+      "label": "vline_text",
+      "expected": "alpha beta\ngamma delta",
+      "actual": "alpha beta\ngamma delta",
+      "ok": true
+    },
+    {
+      "label": "line_count",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "lines_left",
+      "expected": [
+        "epsilon zeta"
+      ],
+      "actual": [
+        "epsilon zeta"
+      ],
+      "ok": true
+    },
+    {
+      "label": "deleted_register",
+      "expected": "alpha beta\ngamma delta\n",
+      "actual": "alpha beta\ngamma delta\n",
+      "ok": true
+    },
+    {
+      "label": "after_delete_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "delete_cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "indented",
+      "expected": "    epsilon zeta",
+      "actual": "    epsilon zeta",
+      "ok": true
+    },
+    {
+      "label": "indent_width",
+      "expected": 4,
+      "actual": 4,
+      "ok": true
+    },
+    {
+      "label": "indent_cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "outdented",
+      "expected": "epsilon zeta",
+      "actual": "epsilon zeta",
+      "ok": true
+    },
+    {
+      "label": "outdent_width",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "re_entered_visual",
+      "expected": "visual",
+      "actual": "visual",
+      "ok": true
+    },
+    {
+      "label": "esc_back_to_normal",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "esc_mode_obj",
+      "expected": "normal",
+      "actual": "normal",
+      "ok": true
+    },
+    {
+      "label": "esc_cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "label_restored",
+      "expected": "VSC",
+      "actual": "VSC",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
