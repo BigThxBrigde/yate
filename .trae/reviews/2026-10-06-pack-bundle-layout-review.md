@@ -14,6 +14,8 @@
   （83 项全量评审）。其中 R-66 指出两个 spec 约 90 行构建逻辑重复——已由本分支
   之前的 `pack/_common.py` 抽取解决，本次沿用该共享结构，未引入新的重复。
 - **首轮结论**：`MINOR ISSUES` — 0 CRITICAL / 4 WARNING / 5 SUGGESTION（R-01…R-09）。
+- **第二轮（issue note_51452120：统一布局 + 内容目录改名）**：见 §九（R-20…R-24），
+  结论 `MINOR ISSUES` — 0 CRITICAL / 0 WARNING / 5 SUGGESTION，并由主代理补跑真实构建。
 
 ---
 
@@ -240,3 +242,49 @@ python -m PyInstaller --noconfirm --clean --distpath dist --workpath build pack/
 
 **循环终止**：第6 轮零发现，"修复 → 复审 → 登记"闭环结束。R-04（issue 回执）与
 R-12 / R-13 / R-15（覆盖边界与既存事实）为登记类事项，不在代码内闭环。
+
+## 九、第二轮评审（issue note_51452120：统一布局与内容目录改名）
+
+评审对象：`master...enh/pack-bundle-layout` 第二轮 diff（`0e30a38`、`106e47c`、
+`3914673`、`dcf1f72`）——`pack/yate.spec` 的 `CONTENTS_DIRNAME`、`pack/pack.ps1` /
+`pack/pack.sh` 的内容目录校验、`tests/test_pack_spec.py` 的布局守卫重写、
+`README.md` / `README.zh.md` 的布局说明。
+
+评审方法：同一 `python-code-review` 六维度框架 + 负向演练 + **真实构建复测**
+（本轮主代理亲跑，弥补第一轮"评审成员为只读评审、无构建证据"的边界）。
+
+### 9.1 问题跟踪
+
+| # | 严重度 | 问题描述 | 影响范围 | 状态 |
+|---|---|---|---|---|
+| R-20 | SUGGESTION | `tests/test_pack_spec.py` 的绑定扫描把 `and` / `or` 混写在一个推导条件里，语义正确（`and` 优先）但读者需自行推导优先级 | 可读性（守卫是他人维护的契约面） | ✅ 已修（主代理补显式括号） |
+| R-21 | SUGGESTION | 两个脚本用正则从 spec 里"解析"常量（`^(CONTENTS_DIRNAME: str = "...")$`）：若常量定义换形式（去注解、换引号、拆行），提取会失败 | 构建脚本与 spec 的耦合方式 | 📌 仅登记：失败是 **fail-fast**（脚本明确报错退出），不会静默校验错目录；提取式集中在一行，失败信息直指 spec |
+| R-22 | SUGGESTION | `pack/pack.sh` 的新校验在本机**未经 shell 实测**（无 bash） | Linux 构建路径的验证覆盖 | 📌 仅登记（计划 §9.2 L2）：已人工核对 `sed` 提取式；建议与遗留项 L1 的 Linux 构建一并验证 |
+| R-23 | SUGGESTION | README 目录树同时列出 `yate.exe` 与 `yate` 两行，字面上像"同一产物两者并存" | 读者第一印象 | 📌 仅观察：两行各自带平台注释（Windows 入口 / POSIX 入口），语义无误；改成"二选一"写法反而更啰嗦 |
+| R-24 | SUGGESTION | `_internal` 在历史文档中残留（`.trae/documents/dist-copy-plan.md:61`、本计划 §7 的历史章节） | 全仓检索时的噪音 | ⏸ 不修：历史计划与决策记录按"只追加不改写"原则保留（第一轮即已登记） |
+
+### 9.2 独立验证（非引用成员自述，主代理亲跑）
+
+| 环节 | 实测 |
+|---|---|
+| 真实构建 | `python -m PyInstaller --noconfirm --clean --distpath dist --workpath build pack/yate.spec` → `Build complete!`，退出码 0 |
+| 布局 | 顶层仅 `runtime/` + `yate.exe`；`dist\yate\_internal` 不存在；`dist\yate\runtime\yate\resources\app.tcss` 存在；`dist\yate\runtime\PIL` 不存在 |
+| 体积 | 327 文件 / 54.8 MiB（与第一轮平铺产物一致——`contents_directory` 只改落盘位置） |
+| 冒烟 | `--version` 退出码 0；`--diag` 退出码 0 且 `prefix = …\dist\yate\runtime`，**实证 `sys._MEIPASS` 指向内容目录**（计划 F13 成立，`yate/paths.py` 确实无需改动） |
+| 守卫负向演练 | 7 组退化形态（平铺字面量 / 平台三元 / `_internal` / 撞 exe 基名 / 空串 / 多级路径 / 删掉关键字）**全部 REJECTED**；演练后 spec 字节级还原（`spec restored: True`，`git diff` 为空） |
+| 全量门禁 | `pyright` 0 errors；`pytest tests/` **1922 passed, 8 skipped**；架构 + 打包守卫 **36 passed**；覆盖率 **91.26%**（阈值 75%） |
+
+### 9.3 子代理产出（只认落盘）
+
+| 成员 | 名下文件 | 复核结论 |
+|---|---|---|
+| `pack-spec-guards` | `tests/test_pack_spec.py` | 有产出；主代理重跑 14 passed + pyright 0 errors，另做 R-20 修正 |
+| `pack-readme` | `README.md`、`README.zh.md` | 有产出；双语语义一致，无残留旧布局的当前时态表述，未越界改其它文件 |
+
+### 9.4 结论
+
+`MINOR ISSUES` — 0 CRITICAL / 0 WARNING / 5 SUGGESTION（R-20 已修，R-21…R-24 登记）。
+六维度：正确性（单一常量 + COLLECT 继承 + 守卫双段断言）／安全（只读正则、无写入）／
+性能（仅构建期）／Pythonic（无 `Any`、无 `type: ignore`）／可维护性（docstring 写明
+"守什么 + 局限"，POSIX 未验证如实标注）／错误处理（无裸 `except`，脚本失败均 fail-fast）。
+**遗留人工动作**：Linux 上跑一次 `pack/pack.sh`（计划 L1/L2）、在 issue 回执本轮取舍（L3）。

@@ -298,7 +298,7 @@ A 方案不改变 Windows 产物行为，故 §7.2 的体积/文件数/冒烟数
 > > 由于在 Linux 下无法实现，保持 Windows 和 Linux 一致，只需要改 `_internal`
 > > 名字，设计一个较好统一的 layout。
 >
-> 状态：待批准（本文档仍为唯一事实来源，实施与实测结果回填 §9）
+> 状态：已完成（2026-10-06；本文档为唯一事实来源，实测与偏离记录见 §9.2）
 
 ## 八、需求解读与目标
 
@@ -440,7 +440,84 @@ flowchart LR
 | RK4 | bootloader 不识别 `pyi-contents-directory` | exe 与 bootloader 同批产出；`build` extra 已锁 `pyinstaller>=6.0`（F8），该选项自 6.0 引入 | — |
 | RK5 | 脚本新增校验在旧产物目录上误报（复用 `dist/` 且未 clean） | 脚本本身以 `--clean` 构建，校验紧跟构建之后；误报只会提前暴露布局漂移 | — |
 
-## 9.2 第二轮执行记录（待回填）
+### 9.2 第二轮执行记录
 
-S7-S11 完成后在此回填：真实构建的体积/文件数/布局三点实测、冒烟退出码、
-守卫负向演练结果、全量门禁数字、以及与计划的任何偏离及实测依据。
+#### 步骤状态
+
+| 步 | 内容 | 状态 | 提交 |
+|---|---|---|---|
+| S7 | `pack/yate.spec`：`CONTENTS_DIRNAME = "runtime"` + `EXE(contents_directory=CONTENTS_DIRNAME)`，docstring 与行内注释改为跨平台统一布局 | 完成 | `0e30a38` |
+| S8 | `tests/test_pack_spec.py`：删除平台三元守卫，改为「引用常量」+「常量取值合法」两个用例（14 passed） | 完成 | `3914673` |
+| S9a | `pack/pack.ps1` / `pack/pack.sh`：从 spec 读 `CONTENTS_DIRNAME`，单目录构建缺内容目录即失败 | 完成 | `106e47c` |
+| S9b | `README.md` / `README.zh.md`：双语改写为统一布局，并说明为何不平铺 | 完成 | `dcf1f72` |
+| S10 | Windows 真实构建复测 | 完成（数字见下） | — |
+| S11 | 全量门禁 | 完成（数字见下） | — |
+
+#### 真实构建实测（提交态，win32）
+
+`python -m PyInstaller --noconfirm --clean --distpath dist --workpath build pack/yate.spec`
+→ `Build complete!`，退出码 0：
+
+| 指标 | 第一轮（Windows 平铺） | 第二轮（统一 `runtime/`） |
+|---|---|---|
+| 顶层结构 | `yate.exe` + 54 目录 + 65 文件（平铺） | **`yate.exe` + `runtime/`（仅两项）** |
+| `dist/yate/runtime` | — | **存在**（`Test-Path` → `True`） |
+| `dist/yate/_internal` | 不存在 | **不存在**（`Test-Path` → `False`） |
+| 文件数 | 327 | **327** |
+| 整包体积 | 54.8 MiB | **54.8 MiB** |
+| `dist/yate/runtime/PIL` | 不存在 | **不存在** |
+| `runtime/yate/resources/app.tcss` | — | **存在**（资源定位链完好） |
+| `--version` 冒烟 | 退出码 0 | 退出码 0（`yate 0.2.9 …`） |
+| `--diag` 冒烟 | 未跑 | 退出码 0，`prefix = …\dist\yate\runtime`（**实证 `sys._MEIPASS` 指向内容目录**，F13 成立） |
+
+体积与文件数不变符合预期：`contents_directory` 只决定落盘位置，不改变收集内容。
+
+#### 守卫负向演练（主代理亲跑，7 组，全部 REJECTED）
+
+用真实守卫 + 临时改写 `pack/yate.spec` 的方式演练（演练脚本置于仓库外，结束后
+`spec restored: True`，字节级还原；`git diff --stat pack/yate.spec` 为空）：
+
+| 输入形态 | 结果 |
+|---|---|
+| `contents_directory="."`（平铺字面量） | REJECTED（引用守卫） |
+| `contents_directory="." if sys.platform == "win32" else "_internal"`（旧三元） | REJECTED（引用守卫） |
+| `CONTENTS_DIRNAME = "_internal"` | REJECTED（取值守卫） |
+| `CONTENTS_DIRNAME = "yate"`（撞 exe 基名） | REJECTED（取值守卫） |
+| `CONTENTS_DIRNAME = ""` | REJECTED（取值守卫） |
+| `CONTENTS_DIRNAME = "lib/x"`（多级路径） | REJECTED（取值守卫） |
+| 删掉 `contents_directory` 关键字 | REJECTED（引用守卫） |
+
+#### 全量门禁（主代理亲跑，退出码全 0）
+
+| 门禁 | 结果 |
+|---|---|
+| `python -m pyright`（include 含 `pack`） | **0 errors, 0 warnings, 0 informations** |
+| `python -m pytest tests/ -p no:cacheprovider` | **1922 passed, 8 skipped**（4:11） |
+| `python -m pytest tests/test_architecture.py tests/test_pack_spec.py -p no:cacheprovider` | **36 passed**（22 架构 + 14 打包守卫） |
+| `python -m pytest tests --cov=yate --cov-branch --cov-fail-under=75` | **91.26%**（13126 语句 / 928 missing / 4368 分支 / 427 missing），阈值 75% 达标 |
+| `python -m py_compile pack/yate.spec` | 退出码 0 |
+
+#### 子代理执行情况（如实记录）
+
+| 成员 | 名下文件 | 落盘结果 | 主代理独立复核 |
+|---|---|---|---|
+| `pack-spec-guards` | `tests/test_pack_spec.py` | 有产出（-34/+241） | 重跑 `pytest tests/test_pack_spec.py` → **14 passed**；`pyright tests/test_pack_spec.py` → **0 errors**；7 组负向演练（主代理亲跑）全部 REJECTED。主代理另做一处可读性修正：列表推导中 `and`/`or` 混合的推导条件补显式括号（原写法语义正确，但易误读优先级） |
+| `pack-readme` | `README.md`、`README.zh.md` | 有产出（双语各 1 段布局改写 + quick-ref 行同步） | diff 逐句复核：两语种语义一致，无残留"Windows 平铺 / `_internal`"的当前时态表述，未引入体积数字，未声称已验证 Linux 构建；成员未越界改其它文件 |
+
+两名成员均未修改 `yate/` 产品源码（分工明确排除）。
+
+#### 遗留与人工动作（如实登记）
+
+| # | 事项 | 原因 |
+|---|---|---|
+| L1 | **POSIX 真实构建仍未执行**：需在 Linux 上跑一次 `pack/pack.sh`，确认 `dist/yate/{yate, runtime/}` 布局与启动 | 本机 win32、CI 不打 POSIX 包；已有 F10/F12/F13 源码级证据 + 静态守卫，但源码推理不等于真实构建（RK1） |
+| L2 | `pack/pack.sh` 的新校验**未做 shell 语法实测**：本机无 bash（`Get-Command bash` 无结果），已人工核对 `sed` 提取式 | 环境限制；建议在 L1 的 Linux 构建时顺带验证 |
+| L3 | 在 issue IKJPVB 回执本轮取舍：放弃平铺、统一为 `runtime/`，并说明 POSIX 撞名根因 | 人工动作（issue 侧） |
+| L4 | `.trae/documents/dist-copy-plan.md:61` 的 `_internal/` 布局示意已陈旧 | 历史计划文档，按"只追加不改写"原则不回改（§9.1） |
+
+#### 与计划的偏离
+
+- **S9 实现细节校准**：计划原文写"两脚本加内容目录存在性校验"，实现改为**从 spec 正则读取**
+  `CONTENTS_DIRNAME` 而非在脚本里硬编码 `runtime`——避免"spec 改名、脚本校验旧名"的漂移
+  （与 `_common.EXCLUDES` 单一事实源同构）。范围未变，仅实现更严。
+- **S8 演练组数**：计划写 5 组，实际演练 7 组（多覆盖"多级路径"与"删掉关键字"两种）。
