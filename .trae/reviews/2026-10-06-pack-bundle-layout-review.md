@@ -288,3 +288,44 @@ R-12 / R-13 / R-15（覆盖边界与既存事实）为登记类事项，不在�
 性能（仅构建期）／Pythonic（无 `Any`、无 `type: ignore`）／可维护性（docstring 写明
 "守什么 + 局限"，POSIX 未验证如实标注）／错误处理（无裸 `except`，脚本失败均 fail-fast）。
 **遗留人工动作**：Linux 上跑一次 `pack/pack.sh`（计划 L1/L2）、在 issue 回执本轮取舍（L3）。
+
+### 9.5 成员待裁决项的处理（延迟送达的报告）
+
+两名成员在团队回收后才送达完整报告，其中三项待裁决/待核实事项，主代理逐条处理如下。
+
+**（1）提交归属偏离（成员提出，主代理已核实并登记）**
+
+`pack-spec-guards` 报告"我改 96 行，但 `git diff --numstat` 显示 239/34"，怀疑工作区带着
+第一轮未提交内容。主代理实测核实：
+
+| 事实 | 取证 |
+|---|---|
+| 本轮起点 HEAD（`fadd935`）的 `tests/test_pack_spec.py` 为 **281 行**，与 `842f830` 完全一致（`git diff 842f830 fadd935 -- tests/test_pack_spec.py` 为空） | 提交态历史本身干净，**不是**"某次提交被回退" |
+| 该 281 行版本**不含** `_SPEC_HELPER_FIELDS`、`_REVIEWED_DYNAMIC_IMPORTS`、`test_collect_when_common_parsed_fills_every_spec_input_field`、`test_spec_when_parsed_reads_every_spec_input_field`、`test_dynamic_imports_when_scanned_are_reviewed_not_invisible` | 这 5 项正是第一轮评审 R-07/R-08/R-12/R-13 的产物，第一轮**在工作区改完并跑过门禁，但从未提交** |
+| 该 281 行版本**已含** `@functools.lru_cache(maxsize=1)` / `(maxsize=None)` | R-05（`_load_common` memo）、R-14（`_parse` memo）当时已提交 |
+| 本轮 `3914673` 一次引入 9 个函数/用例 | 其中 2 个是本轮布局守卫，另 5 项函数 + 2 个用例属第一轮遗留补交 |
+
+结论：**属实的是"第一轮遗留未提交产出被本轮提交顺带带入"**，而非成员所推测的历史回退。
+处置：
+
+- **不改代码**——被顺带提交的内容正是评审记录里已登记的项目，且已由本轮门禁独立验证
+  （`pytest tests/` 1922 passed、`pyright` 0 errors、守卫 14 passed）；
+- **不改写历史**——分支未推送，但拆分提交需重写 `3914673` 与其后的 docs 提交，
+  收益仅为提交粒度，风险高于收益；`git-commit-message.md` 的"每步单独提交"要求
+  在此记为**事后登记的偏离**；
+- 若日后有人追问"这些用例是哪来的"，本节与 §9.2 的门禁数字即为答案。
+
+**（2）README 目录树里运行时文件写成「Python 运行时 / the Python runtime」**
+
+成员自问是否要改成计划 §8.1 的 `python3xx.dll` 占位。裁决：**保留成员的写法**。
+理由：该树现在同时代表 Windows 与 POSIX，`python313.dll` 只在 Windows 成立，写死
+具体文件名会让 Linux/macOS 的读者读到假信息；抽象表述与计划的占位意图一致。
+
+**（3）README 新增的「整目录一起拷贝」部署句**
+
+成员自问是否越界。裁决：**保留**。这不是新增约定而是本次布局变更的直接后果——
+内容目录必须与入口同级随目录整体分发，不写会让用户只拷 `yate.exe` 而拿到无法启动的
+产物。原 README 缺的正是这句，补写属于"只改与本布局相关的句子"。
+
+另：成员报告的"README 里 `_internal` 只剩历史语气"与"无 >100 字符的新增行"，主代理
+diff 复核一致（`README.md` 另有 26 处 >100 字符的既有行，非本次引入，不擅自重排）。
