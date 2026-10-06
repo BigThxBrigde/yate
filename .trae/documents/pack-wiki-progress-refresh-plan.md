@@ -381,6 +381,24 @@ worker 抛异常）终态自洽：失败行"恰好一次"、队列残留 0、`_e
 R-21 为四轮皆遗漏的结构性缺陷，非回归）。过程性风险与已接受项见评审记录
 §七 与 [legacy-issues.md](../../reviews/legacy-issues.md)。
 
+### 6.12 第 5 轮（剩余项处置：退出延迟、分支同步、skill 归位）
+
+| # | 问题 | 处置 |
+|---|---|---|
+| R-15 | 中断后退出延迟：`finally` 只放弃**主线程**等待，CPython 在 teardown join 池线程 → 吞掉控制台事件的 hook 让退出延迟一整页（实测 0.6s→3.1s，无上界至 `TRANSLATE_TIMEOUT_S`） | ✅ `_run_translate` 改用 `Popen` + 轮询 `communicate(0.2s)`；收尾信号 `_STOP_TRANSLATIONS` 让在途 worker 主动 `kill()` 自己的子进程。**端到端实测**：hook 睡 20s 且不响应控制台事件时，`run()` 在停止信号后 **0.21s** 返回。停止信号只对并行阶段生效（`_emit_mode == "collect"`），直调不受残留影响 |
+| R-28 | 测试 monkeypatch `wiki.subprocess.Popen` 污染标准库模块 → pytest/coverage 全进程拿到假构造器，`KeyboardInterrupt` 从无关位置逃逸并中断整个测试会话 | ✅ 改为整体替换 wiki 模块的 `subprocess` 引用（`Popen` 用假，`run`/异常/结果类型保持真实） |
+| R-29 | 两个既有用例依赖 `subprocess.run` 契约（其一还 stub 了 Windows 没有的 POSIX `cat`） | ✅ 改为真实子进程验证管道与超时（`sys.executable` 构造跨平台命令），强于原 stub |
+| R-11 | 分支落后 master 22 笔 | ✅ `merge master`；唯一冲突（reviews 索引双 #29/#30）已解 |
+| R-30 | master 规则判定 `.codebuddy/skills/` 为非法副本，skill 唯一权威改为 `.trae/skills/` | ✅ 项目特定审查知识并入 `.trae/skills/python-code-review/references/yate-project.md`，`SKILL.md` 加指向；`.codebuddy/` 副本删除 |
+
+**第 5 轮门禁（主代理亲自跑，退出码 0）**：`pyright yate/ tests/ tools/` → 0 errors；
+`pytest tests/ --cov=yate --cov-fail-under=75` → **1862 passed, 9 skipped**，
+覆盖率 **91.31%**；`pytest tests/test_architecture.py` → **22 passed**。
+
+**遗留限制**（非缺陷，已登记）：真实 TTY 目验缺位；`_emit_mode` /
+`_STOP_TRANSLATIONS` 模块级导致 `run()` 理论不可重入（CLI 单 run 不可达）；
+分支已与 master 同步，合并冲突风险解除。
+
 ## 七、风险与回滚
 
 | 风险 | 缓解 | 回滚 |
