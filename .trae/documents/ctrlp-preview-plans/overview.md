@@ -177,3 +177,20 @@ Textual 内置 ctrl+p 键位，致 cache 用例按键空转、上移分支零覆
 为存量环境问题（master 主仓同样失败，与本分支零改动面无关，另行登记） | 1（存量） |
 | `pytest tests/ -q --cov=yate --cov-fail-under=75` | 覆盖率 91.30%（palette.py 93%、config.py 99%） | 达标 |
 | `tools.smoke_test run --no-color --quiet` | **107/107 场景、1286/1286 checks 全过**，97.35s | 0 |
+
+## 十、遗留 issue 处置记录（2026-10-07 修复扫描）
+
+用户指令：修复评审登记的全部 issue，`test_pack_wiki_parallel` 除外。
+
+| 登记项 | 处置 | 证据 |
+|---|---|---|
+| tokenize 异常致 worker 静默死亡（WARNING） | **已修**（上轮 `a9311bb`）：tokenize 包 try，降级纯文本 + `log.warning` | palette.py `_load_preview` 尾段 |
+| `preview` 构造默认值偏离（R8 更严格形态） | **已修**：删除默认值；`test_app_textual.py` 唯一旧签名调用补传 `FilePreviewConfig()` | palette.py:132、test_app_textual.py:4821,4838 |
+| 过期缓存条目滞留至 FIFO 驱逐 | **已修**：`_update_preview` miss 分支即时 `pop` 过期条目；缓存写入抽 `_cache_store` 便于直测 | palette.py:351-353,425-434 |
+| 错误/竞态路径无直测 | **已修**：新增 4 条——`test_load_preview_reports_unreadable`（stat 失败降级）、`test_cache_store_evicts_oldest`（FIFO 容量/重存不驱逐）、`test_cache_current_detects_stale`（mtime/size 失效 + 文件缺失）、`test_file_preview_bad_enable_rejected`（enable 非 bool 拒收回退） | test_palette_preview.py:303-349、test_config.py:1038-1043 |
+| `test_pack_wiki_parallel` 存量失败 | **排除（按用户指令）**：与本分支零改动面，master 主仓同样失败；建议后续独立任务登记处理 | pytest 全量 1969 passed / 1 failed（唯一失败即此） |
+
+**验证**：`pytest tests/test_palette_preview.py tests/test_config.py
+tests/test_app_textual.py tests/test_architecture.py -q` → 156 passed（退出码 0）；
+`pyright yate/editor_view/palette.py tests/test_palette_preview.py
+tests/test_app_textual.py` → 0 errors（退出码 0）。
