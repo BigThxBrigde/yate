@@ -208,6 +208,25 @@ PIL"。今天安全（`yate/**` 大小写敏感检索 0 命中），但一旦新
 | 可维护性 | 每条守卫 docstring 写明"守什么 + 局限"；`_EXCLUDES` 注释与守卫互相指名；pyproject 注释不再 overclaim |
 | 错误处理 | 无裸 `except`；全部失败路径为带说明的 assert（`StopIteration` / `ValueError` 已清除） |
 
+### 真实构建复测（补缪独立评审声明的证据边界）
+
+独立评审为只读评审、未跑构建，本轮由主代理补跑：
+
+```
+python -m PyInstaller --noconfirm --clean --distpath dist --workpath build pack/yate.spec
+```
+
+| 环节 | 实测结果 |
+|---|---|
+| 构建 | `Build complete!`（退出码 0） |
+| 产物路径 | `dist\yate\yate.exe` 存在（`Test-Path` → `True`） |
+| 平铺布局 | `dist\yate\_internal` 不存在（`Test-Path` → `False`） |
+| 体积 | **54.8 MiB / 327 文件**（与迭代 1 记录的 54.8 MiB 一致） |
+| PIL | `dist/yate/PIL` 不存在（`False`） |
+| 冒烟 | `dist\yate\yate.exe --version` → `yate 0.2.9 … yet another terminal editor (Textual based)`，退出码 0 |
+
+构建产物与临时脚本已清理；修复本身不影响 Windows 产物行为。
+
 最终门禁（主代理亲跑，退出码全 0）：
 
 | 命令 | 结果 |
