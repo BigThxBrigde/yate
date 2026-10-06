@@ -20,9 +20,15 @@ Trade-offs vs. the one-folder build (``pack/yate.spec``): a single portable
 file, but slower startup (extraction on every run) and some antivirus software
 is stricter with onefile exes.
 
-Every build step the two specs share (icon, hidden imports, tree-sitter
-binaries, dist-info metadata, data files, extensions Tree) lives in
-``pack/_common.py``; this file keeps only the onefile Analysis/EXE
+Modules that are dragged in transitively but never used at runtime (Pillow
+and numpy) are dropped from the frozen graph via
+``pack/_common.py``'s ``EXCLUDES`` -- the same inventory the one-folder build
+uses, so a dependency never slips into one build mode but not the other
+(issue IKJPVB).
+
+Every build step the two specs share (icon, hidden imports, excludes,
+tree-sitter binaries, dist-info metadata, data files, extensions Tree) lives
+in ``pack/_common.py``; this file keeps only the onefile Analysis/EXE
 differences.
 
 This spec lives in pack/, one level below the repository root. PyInstaller
@@ -61,7 +67,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=inputs.excludes,
     noarchive=False,
 )
 a.datas += inputs.extensions_tree

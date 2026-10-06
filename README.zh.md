@@ -300,8 +300,8 @@ python -m build --wheel          # 产物在 dist/
 
 # 2) PyInstaller 独立可执行程序（目标机无需安装 Python）
 #    Windows（PowerShell）：
-.\pack\pack.ps1                  # 单目录：dist\yate\yate.exe + 运行时文件
-.\pack\pack.ps1 -OneFile         # 单一自解压文件：dist\yate.exe（约 16 MB）
+.\pack\pack.ps1                  # 单目录：dist\yate\yate.exe + runtime\ 运行时文件
+.\pack\pack.ps1 -OneFile         # 单一自解压文件：dist\yate.exe（约 20 MB）
 #    Windows（cmd.exe，参数同上，全部转发给 pack.ps1）：
 pack\pack.bat --onefile
 #    Linux（必须在 Linux 上运行；产物 dist/yate/yate，加 --onefile 则为 dist/yate）：
@@ -325,6 +325,36 @@ Linux 二进制必须在 Linux 上构建——在对应平台运行对应脚本�
 wheel 安装与 frozen 可执行程序三种布局下行为一致。单文件版每次启动时解压到临时
 目录 `sys._MEIPASS`、退出时清理——资源在 exe **内部**而非 exe 旁边；更在意启动
 速度时请选单目录版。
+
+Windows 与 POSIX 的单目录产物是**同一套布局**：入口可执行程序 + 同级的一个运行时
+目录。
+
+```
+dist/yate/
+├── yate.exe        # Windows 入口
+├── yate            # Linux/macOS 入口（POSIX 无 .exe 后缀）
+└── runtime/        # 运行时目录，两平台同名
+    ├── yate/       # yate 包数据（resources / docs / extensions / yaterc.example）
+    └── base_library.zip、Python 运行时、扩展模块、tree-sitter 二进制…
+```
+
+`pack/yate.spec` 把 PyInstaller 默认的 `_internal` 内容目录换名为 `runtime`，
+因此产物形状在所有平台上完全一致。这里刻意**不做平铺**（入口与运行时文件同级）：
+POSIX 上入口就是 `dist/yate/yate`，恰好与内置 `yate/` 包数据需要占用的目录撞名，
+会让构建中断；跨平台一致比“仅 Windows 可平铺”更值得。分发时把整个 `dist/yate`
+目录一起拷贝——入口与 `runtime/` 必须保持同级。
+
+两个 spec 还会剔除被顺带拖进打包依赖图、但运行时从不使用的模块：
+`pygments.formatters.img` 为 yate 从不调用的图片格式化器把 Pillow（及其可选
+numpy 后端）拖了进来，而 yate 唯一用到 Pillow 的地方，是用
+`python -m tools.pack icon` 重新生成已入库的 `pack/yate.ico`——那是冻结入口
+之外的动态 import。因此两个 spec 都通过 [pack/_common.py](pack/_common.py) 中
+共享的 `EXCLUDES` 清单排除它们：单目录产物 68.4 MiB → 54.8 MiB（-19.8%），
+单文件产物 26.6 MiB → 19.5 MiB（-26.7%）。
+
+新增 `EXCLUDES` 条目前先取证，不要凭猜测添加：构建产物
+`build/<name>/xref-<name>.html` 能看出模块是被哪条 import 链拖进来的，
+`build/<name>/warn-<name>.txt` 则列出 PyInstaller 未能解析的部分。
 
 ### 可执行程序图标
 
