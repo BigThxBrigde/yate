@@ -103,7 +103,10 @@ pythonVersion = "3.12"
 reportImplicitOverride = "error"
 venvPath = "."
 venv = ".venv"
-include = ["yate", "tools", "tests"]
+# pack/_common.py is ordinary Python and belongs under the same strict gate as
+# the rest.  The two .spec files are exec'd as scripts but pyright only analyses
+# .py, so they are covered by tests/test_pack_spec.py's AST guards instead.
+include = ["yate", "tools", "tests", "pack"]
 exclude = ["**/__pycache__"]
 
 [tool.pytest.ini_options]
