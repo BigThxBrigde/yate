@@ -1035,6 +1035,14 @@ def test_file_preview_bad_position_rejected(tmp_path: Path) -> None:
     assert config.file_preview.position == "right"
 
 
+def test_file_preview_bad_enable_rejected(tmp_path: Path) -> None:
+    for body in ('"enable": 1', '"enable": "yes"'):
+        config = _load(f"file_preview = {{{body}}}\n", tmp_path)
+        assert config.errors, body
+        assert any("file_preview enable" in e for e in config.errors)
+        assert config.file_preview.enable is True
+
+
 def test_file_preview_bad_size_rejected(tmp_path: Path) -> None:
     for body in ('"size": True', '"size": 5', '"size": 90'):
         config = _load(f"file_preview = {{{body}}}\n", tmp_path)

@@ -11,6 +11,7 @@ DOM order, worker cache, degradation notes and legacy-DOM preservation.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,12 @@ from textual.widgets import Static
 
 from yate.config import FilePreviewConfig
 from yate.editor_syntax.tokens import SYNTAX_KINDS
-from yate.editor_view.palette import PaletteScreen, PreviewLog, _PreviewData
+from yate.editor_view.palette import (
+    PREVIEW_CACHE_SIZE,
+    PaletteScreen,
+    PreviewLog,
+    _PreviewData,
+)
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
@@ -295,3 +301,55 @@ def test_preview_position_left_reorders_dom(tmp_path: Path) -> None:
             assert isinstance(children[1], Static)
 
     asyncio.run(scenario())
+
+
+# ------------------------------------------------- error / cache edge paths
+
+
+def test_load_preview_reports_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stat failure degrades to a note payload instead of raising."""
+
+    def denied(self: Path, **_kw: object) -> int:
+        raise OSError(13, "permission denied")
+
+    monkeypatch.setattr(Path, "stat", denied)
+    screen = _palette(tmp_path)
+    data = screen._load_preview(tmp_path / "secret.txt")
+    assert data.note is not None and "cannot read" in data.note
+    assert data.lines == [] and data.tokens == []
+
+
+def test_cache_store_evicts_oldest(tmp_path: Path) -> None:
+    """Insertion order is the eviction order; capacity stays at the cap."""
+    screen = _palette(tmp_path)
+    paths = [tmp_path / f"p{i}.txt" for i in range(PREVIEW_CACHE_SIZE + 1)]
+
+    def payload(i: int) -> _PreviewData:
+        return _PreviewData(
+            path=paths[i], lines=[], tokens=[], mtime_ns=i, size=0,
+            truncated=False, note=None,
+        )
+
+    for i in range(len(paths)):
+        screen._cache_store(payload(i))
+    assert len(screen._preview_cache) == PREVIEW_CACHE_SIZE
+    assert paths[0] not in screen._preview_cache
+    assert paths[-1] in screen._preview_cache
+    # re-storing an existing key must not evict anything
+    screen._cache_store(payload(PREVIEW_CACHE_SIZE))
+    assert len(screen._preview_cache) == PREVIEW_CACHE_SIZE
+
+
+def test_cache_current_detects_stale(tmp_path: Path) -> None:
+    """mtime/size probe validates entries; missing files read as stale."""
+    target = tmp_path / "alpha.py"
+    target.write_text(ALPHA_SOURCE, encoding="utf-8")
+    screen = _palette(tmp_path)
+    data = screen._load_preview(target)
+    assert data.note is None
+    assert screen._cache_current(data)
+    target.write_text(ALPHA_SOURCE + "# touched\n", encoding="utf-8")
+    assert not screen._cache_current(data)
+    assert not screen._cache_current(replace(data, path=tmp_path / "gone.py"))

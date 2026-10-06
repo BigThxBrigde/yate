@@ -129,7 +129,7 @@ class PaletteScreen(ModalScreen[None]):
         execute_action: Callable[[str], bool],
         run_command: Callable[[str], None],
         refresh: Callable[[], None],
-        preview: FilePreviewConfig = FilePreviewConfig(),
+        preview: FilePreviewConfig,
         **kwargs: Any,
     ) -> None:
         """Store collaborators; *preview* configures the ctrl+p preview pane.
@@ -137,8 +137,7 @@ class PaletteScreen(ModalScreen[None]):
         ``enable`` / ``position`` / ``size`` gate the pane's existence, side
         and width (files mode only); ``max_lines`` / ``max_size`` cap the
         worker's read.  Commands mode and ``enable = False`` keep the legacy
-        DOM exactly.  The default suits direct constructions (tests) that
-        predate the pane.
+        DOM exactly.
         """
         super().__init__(**kwargs)
         self.workspace = workspace
@@ -348,6 +347,9 @@ class PaletteScreen(ModalScreen[None]):
         if cached is not None and self._cache_current(cached):
             self._render_preview(cached)
             return
+        # A stale entry would linger until FIFO eviction; drop it now so the
+        # cache only ever holds payloads valid at their last probe.
+        self._preview_cache.pop(path, None)
         self._show_loading()
         self.run_worker(
             self._load_preview_worker(path), group="palette-preview",
@@ -420,6 +422,17 @@ class PaletteScreen(ModalScreen[None]):
             truncated=truncated, note=None,
         )
 
+    def _cache_store(self, data: _PreviewData) -> None:
+        """Add *data* to the preview cache, evicting the oldest over capacity.
+
+        Insertion order is the eviction order (dicts keep it), so the entry
+        furthest in the past is dropped first; the just-stored payload is
+        never the eviction candidate.
+        """
+        self._preview_cache[data.path] = data
+        while len(self._preview_cache) > PREVIEW_CACHE_SIZE:
+            self._preview_cache.pop(next(iter(self._preview_cache)))
+
     async def _load_preview_worker(self, path: Path) -> None:
         """Read+tokenize *path* in a thread, then paint when still selected.
 
@@ -431,9 +444,7 @@ class PaletteScreen(ModalScreen[None]):
         data = await asyncio.to_thread(self._load_preview, path)
         if not self.is_mounted:
             return
-        self._preview_cache[path] = data
-        while len(self._preview_cache) > PREVIEW_CACHE_SIZE:
-            self._preview_cache.pop(next(iter(self._preview_cache)))
+        self._cache_store(data)
         if self._selected_path() != path:
             return
         self._render_preview(data)
