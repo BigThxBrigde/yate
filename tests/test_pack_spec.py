@@ -8,11 +8,15 @@ observe, so both are pinned statically here:
   ``excludes=[]``, and -- the assumption the inventory rests on -- that no code
   shipped inside the frozen app imports those packages (core modules *and* the
   bundled extension examples, both of which execute at runtime);
-* the one-folder spec scopes the flat layout to Windows --
-  ``EXE(contents_directory="." if sys.platform == "win32" else "_internal")``
-  -- so the runtime files sit next to ``yate.exe`` there and stay under
-  ``_internal/`` elsewhere, while the onefile spec, which ships nothing beside
-  the exe, must not grow that knob at all.
+* the one-folder spec commits to a single cross-platform layout: the runtime
+  files live in one named contents directory on Windows *and* POSIX alike --
+  ``EXE(contents_directory=CONTENTS_DIRNAME)`` with
+  ``CONTENTS_DIRNAME = "runtime"`` at spec top level -- while the onefile spec,
+  which embeds everything in the exe and ships nothing beside it, must not grow
+  that knob at all.  The name is pinned by shape *and* by value because the
+  content directory is the one place where a legal-but-wrong choice (PyInstaller's
+  ``_internal`` default, the flat ``"."``, or the exe's own base name) produces a
+  build that breaks rather than one that merely looks different.
 
 Nothing here imports PyInstaller: it lives in the ``build`` extra, which is not
 a CI dependency.  ``pack/_common.py`` is therefore loaded straight from its path
@@ -42,7 +46,7 @@ _REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 #: PyInstaller being installed.
 _COMMON_PATH: Path = _REPO_ROOT / "pack" / "_common.py"
 
-#: One-folder spec: flat layout (``contents_directory``) plus the shared excludes.
+#: One-folder spec: the named contents directory plus the shared excludes.
 _ONEFOLDER_SPEC: Path = _REPO_ROOT / "pack" / "yate.spec"
 
 #: Onefile spec: everything is embedded in the exe, so no layout knob applies.
@@ -50,6 +54,25 @@ _ONEFILE_SPEC: Path = _REPO_ROOT / "pack" / "yate-onefile.spec"
 
 #: Both specs, for the checks that must hold for either build mode.
 _SPECS: tuple[Path, ...] = (_ONEFOLDER_SPEC, _ONEFILE_SPEC)
+
+
+#: ``SpecInputs`` fields a spec never reads as ``inputs.<field>`` because it is
+#: consumed through a helper instead -- ``project_root`` only reaches the specs
+#: via :meth:`SpecInputs.pkg_path`.  Listed so that adding a field without wiring
+#: it into the specs fails loudly instead of silently doing nothing.
+_SPEC_HELPER_FIELDS: frozenset[str] = frozenset({"project_root"})
+
+#: The only dynamic imports the shipped code may perform, as
+#: ``"<path>:<callee>(<argument source>)"``.  Both load tree-sitter grammar
+#: modules, which :data:`pack._common._TS_PACKAGES` collects explicitly; they
+#: are listed here so that a *new* dynamic import has to be reviewed and
+#: justified rather than slipping past the premise guard.
+_REVIEWED_DYNAMIC_IMPORTS: frozenset[str] = frozenset(
+    {
+        "editor_syntax/ts_backend/languages.py:importlib.import_module(module_name)",
+        "editor_syntax/ts_backend/languages.py:importlib.import_module(grammar)",
+    }
+)
 
 
 @functools.lru_cache(maxsize=1)
@@ -104,20 +127,21 @@ def _parse(path: Path) -> ast.Module:
 
 
 def _dynamic_import_name(node: ast.Call) -> str | None:
-    """The dynamic-import callee of *node*, or ``None`` if it is not one.
+    """The dynamic-import callee of *node* as source text, or ``None``.
 
-    Covers every spelling that shows up in practice: ``__import__("x")``,
-    ``importlib.import_module("x")`` (an ``Attribute``) and the
-    ``from importlib import import_module`` form (a bare ``Name``).  The last
-    one is matched by name alone, so a local function that happens to be called
-    ``import_module`` would also be inspected -- harmless, since the check only
-    fires on a banned module name passed as a string literal.
+    Returning ``ast.unparse(node.func)`` rather than a normalised label keeps
+    the three spellings distinguishable -- ``__import__("x")``,
+    ``importlib.import_module("x")`` and ``from importlib import
+    import_module`` -- which is what lets the reviewed-import allowlist name an
+    exact call shape.  The bare-name form is matched by name alone, so a local
+    function called ``import_module`` would also be inspected; harmless, since
+    the checks only fire on a banned module name or an unreviewed call shape.
     """
     func = node.func
     if isinstance(func, ast.Name) and func.id in {"__import__", "import_module"}:
         return func.id
     if isinstance(func, ast.Attribute) and func.attr == "import_module":
-        return "import_module"
+        return ast.unparse(func)
     return None
 
 
@@ -316,35 +340,218 @@ def test_analysis_call_when_spec_parsed_forwards_shared_excludes(spec_path: Path
     assert excludes_value.value.id == "inputs"
 
 
+def _spec_input_fields() -> list[str]:
+    """Field names declared on the ``SpecInputs`` dataclass."""
+    dataclass = next(
+        node
+        for node in _parse(_COMMON_PATH).body
+        if isinstance(node, ast.ClassDef) and node.name == "SpecInputs"
+    )
+    return [
+        node.target.id
+        for node in dataclass.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    ]
+
+
+def _collected_field_names() -> set[str]:
+    """Field names ``collect()`` passes to the ``SpecInputs(...)`` constructor."""
+    [collect_fn] = _functions(_parse(_COMMON_PATH), "collect")
+    return {
+        keyword.arg
+        for keyword in _returned_call(collect_fn).keywords
+        if keyword.arg is not None
+    }
+
+
+def _inputs_attributes(path: Path) -> set[str]:
+    """Every ``inputs.<field>`` a spec reads."""
+    return {
+        node.attr
+        for node in ast.walk(_parse(path))
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "inputs"
+    }
+
+
+def test_collect_when_common_parsed_fills_every_spec_input_field() -> None:
+    """A dataclass field and its constructor argument must not drift apart.
+
+    pyright cannot check the specs (they are exec'd with PyInstaller-injected
+    globals, so every ``Analysis`` / ``EXE`` / ``SPECPATH`` reference would be an
+    undefined-variable error), which makes this the guard that actually keeps the
+    shared contract honest: a field added to ``SpecInputs`` cannot start
+    defaulting to nothing without this failing.
+    """
+    assert _collected_field_names() == set(_spec_input_fields())
+
+
+@pytest.mark.parametrize("spec_path", _SPECS, ids=["onefolder", "onefile"])
+def test_spec_when_parsed_reads_every_spec_input_field(spec_path: Path) -> None:
+    """Both build modes must consume every collected input.
+
+    Without this a field could be collected, handed to one spec and quietly
+    ignored by the other -- the exact drift the shared ``_common.py`` exists to
+    prevent.  Fields reached through a helper are named in
+    :data:`_SPEC_HELPER_FIELDS` instead.
+    """
+    unread = set(_spec_input_fields()) - _inputs_attributes(spec_path)
+    assert unread - _SPEC_HELPER_FIELDS == set(), f"{spec_path.name} ignores {sorted(unread)}"
+
+
+# --- dynamic imports inside the shipped code ----------------------------------
+
+
+def _dynamic_imports() -> list[tuple[str, str]]:
+    """``(call shape, callee)`` for every dynamic import in the shipped sources."""
+    found: list[tuple[str, str]] = []
+    package = _REPO_ROOT / "yate"
+    for path in _yate_sources():
+        # Stated as an assertion rather than left to relative_to(): a scope that
+        # escaped the package would raise ValueError, which is exactly the
+        # unreadable failure mode these guards exist to avoid.
+        assert path.is_relative_to(package), f"guard scope escaped the package: {path}"
+        relative = path.relative_to(package).as_posix()
+        for node in ast.walk(_parse(path)):
+            if not isinstance(node, ast.Call):
+                continue
+            callee = _dynamic_import_name(node)
+            if callee is None:
+                continue
+            arguments = ", ".join(ast.unparse(argument) for argument in node.args)
+            found.append((f"{relative}:{callee}({arguments})", callee))
+    return found
+
+
+def test_dynamic_imports_when_sources_scanned_are_reviewed_not_invisible() -> None:
+    """A non-literal dynamic import must be justified in writing.
+
+    The premise guard catches literal module names; a computed one
+    (``importlib.import_module(some_name)``) is invisible to it.  Rather than
+    accepting that hole, every dynamic import in the shipped code must appear in
+    :data:`_REVIEWED_DYNAMIC_IMPORTS` with its exact call shape -- adding one is
+    then a deliberate, reviewable act.  ``__import__`` is banned outright: it has
+    no legitimate use in application code.
+    """
+    found = _dynamic_imports()
+    banned = sorted(key for key, callee in found if callee.split(".")[-1] == "__import__")
+    assert banned == [], f"__import__ is banned in shipped code: {banned}"
+    unreviewed = sorted(key for key, _ in found if key not in _REVIEWED_DYNAMIC_IMPORTS)
+    assert unreviewed == [], f"unreviewed dynamic imports: {unreviewed}"
+
+
 # --- bundle layout ------------------------------------------------------------
 
 
-def test_exe_call_when_onefolder_spec_parsed_scopes_flat_layout_to_windows() -> None:
-    """The flat layout must be platform-scoped, and explicit about it.
+def test_exe_call_when_onefolder_spec_parsed_uses_the_named_contents_directory() -> None:
+    """The one-folder layout must resolve to one named constant, not a choice.
 
-    ``"."`` is only valid where the executable keeps an ``.exe`` suffix: on
-    POSIX the exe becomes ``dist/yate/yate``, which is the very path COLLECT
-    needs for the bundled ``yate/`` package directory (issue IKJPVB).  So the
-    spec must spell out ``IfExp(sys.platform == "win32", ".", "_internal")``.
+    What is guarded: the layout decision collapses to a single name that every
+    platform shares, instead of being re-derived per platform.  Pinning the
+    shape explicitly -- ``ast.Name`` with ``id == "CONTENTS_DIRNAME"`` -- is what
+    makes both regressions fail loudly.  Bringing back
+    ``IfExp(sys.platform == "win32", ".", "_internal")`` would fork the two
+    platforms again (the exact shape issue note_51452120 rejects), and inlining a
+    bare ``"runtime"`` literal would work today but let the name drift between
+    the spec and the packaging scripts that check for ``dist/yate/runtime``,
+    since only the constant gives them one thing to agree on.
 
-    Limitation: this asserts the *shape* of that conditional, not that the
-    branches are semantically right -- ``sys.platform`` cannot be evaluated
-    statically, and whether the POSIX build actually succeeds needs a real
-    Linux build, which CI cannot do.  What it does pin down is that the
-    platform condition is present at all, that Windows still gets the flat
-    layout, and that other platforms get an explicit non-flat directory
-    instead of silently inheriting whatever the default changes to.
+    Limitation: this asserts the *reference*, not the value it resolves to --
+    that is the next guard's job.
     """
     exe = _one_call(_parse(_ONEFOLDER_SPEC), "EXE", _ONEFOLDER_SPEC)
     contents_directory = _keyword_value(exe, "contents_directory")
     assert contents_directory is not None, "the one-folder build lost its layout choice"
-    assert isinstance(contents_directory, ast.IfExp), (
-        "contents_directory must be a sys.platform conditional, got "
-        f"{type(contents_directory).__name__}"
+    assert isinstance(contents_directory, ast.Name), (
+        "contents_directory must read the CONTENTS_DIRNAME constant, got "
+        f"{ast.unparse(contents_directory)}"
     )
-    assert ast.unparse(contents_directory.test) == "sys.platform == 'win32'"
-    assert ast.unparse(contents_directory.body) == "'.'"
-    assert ast.unparse(contents_directory.orelse) == "'_internal'"
+    assert contents_directory.id == "CONTENTS_DIRNAME", (
+        f"contents_directory must read CONTENTS_DIRNAME, got {contents_directory.id!r}"
+    )
+
+
+def test_contents_dirname_when_onefolder_spec_parsed_is_a_cross_platform_runtime_dir() -> None:
+    """The contents directory name must stay a usable single directory name.
+
+    ``contents_directory`` accepts a single path segment and nothing more
+    (``PyInstaller/building/api.py:501-508``): ``""`` and ``"."`` mean the flat
+    layout, while ``".."`` or any name containing a separator makes PyInstaller
+    ``SystemExit`` before it writes anything.  ``"_internal"`` is legal but is
+    precisely the default issue note_51452120 asks to replace.  The one real
+    collision left is the exe's own base name: ``EXECUTABLE`` always lands in
+    ``join(name, dest)`` while everything else lands in
+    ``join(name, contents_directory, dest)``, so equal names make COLLECT's
+    ``os.makedirs`` raise ``SystemExit`` (``api.py:1183-1189``) -- hence reading
+    the exe name out of the spec rather than hardcoding ``"yate"``, which keeps
+    the guard honest if the exe is ever renamed.
+
+    Both binding shapes are accepted -- the annotated ``CONTENTS_DIRNAME: str =
+    "runtime"`` the spec actually uses (module-level names must carry an
+    annotation, python-coding-style.md §3.1) and the bare ``Assign`` form -- since
+    the annotation is a style matter this guard has no reason to police; what it
+    insists on is one unambiguous binding whose value is a literal.
+
+    Limitation (registered as RK1 in the plan): these are static shape and value
+    assertions.  A conditional value cannot be evaluated statically at all, which
+    is why the first guard insists on a plain literal here; and whether a POSIX
+    build of this layout really succeeds can only be shown by a real Linux
+    build, which CI cannot do -- the name being a legal single segment and
+    distinct from the exe name is the strongest claim available from source.
+    """
+    tree = _parse(_ONEFOLDER_SPEC)
+    assignments = [
+        node
+        for node in tree.body
+        if (
+            (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == "CONTENTS_DIRNAME"
+            )
+            or (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == "CONTENTS_DIRNAME"
+            )
+        )
+    ]
+    assert len(assignments) == 1, (
+        f"{_ONEFOLDER_SPEC.name} must bind CONTENTS_DIRNAME once at module level, "
+        f"found {len(assignments)}"
+    )
+    dirname_node = assignments[0].value
+    assert isinstance(dirname_node, ast.Constant), (
+        "CONTENTS_DIRNAME must be a plain literal, got "
+        f"{ast.unparse(dirname_node) if dirname_node is not None else None}"
+    )
+    assert isinstance(dirname_node.value, str), "CONTENTS_DIRNAME must be a string"
+    dirname = dirname_node.value
+
+    exe_name_node = _keyword_value(_one_call(tree, "EXE", _ONEFOLDER_SPEC), "name")
+    assert isinstance(exe_name_node, ast.Constant), (
+        f"{_ONEFOLDER_SPEC.name} must keep a literal name= for EXE()"
+    )
+    assert isinstance(exe_name_node.value, str), "the EXE() name must be a string"
+
+    assert dirname not in {"", ".", ".."}, (
+        f"{dirname!r} is not a directory PyInstaller can create: '' and '.' are the "
+        "flat layouts and '..' makes it exit immediately"
+    )
+    assert dirname != "_internal", (
+        f"{dirname!r} is PyInstaller's own default -- the name note_51452120 asks to "
+        "replace, not to keep"
+    )
+    assert dirname != exe_name_node.value, (
+        f"contents_directory {dirname!r} collides with the exe base name; COLLECT would "
+        "have to create a directory where the executable already sits"
+    )
+    assert "/" not in dirname and "\\" not in dirname, (
+        f"{dirname!r} must be a single path segment"
+    )
+    assert dirname.isidentifier(), f"{dirname!r} is not a plain directory name"
 
 
 def test_exe_call_when_onefile_spec_parsed_omits_contents_directory() -> None:
