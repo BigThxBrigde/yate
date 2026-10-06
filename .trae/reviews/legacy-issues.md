@@ -30,9 +30,14 @@
 > [pack-wiki-progress-refresh-plan.md](../documents/pack-wiki-progress-refresh-plan.md)
 > §6.8–§6.11。本节只保留跟踪指针与仍未处置的流程风险。
 
-- **本轮跟踪指针**：R-01…R-30 的状态以
-  [评审记录](2026-10-06-pack-wiki-progress-skill-review.md) §二/§三/§四/§六点五 与
-  方案的处置表为准（R-09/R-10/R-13/R-27 为"接受并附理由"，R-15 的退出延迟已于
-  第 5 轮修复）。
-- **R-11 · 分支落后 master** → ✅ 已处置（2026-10-06 第 5 轮：`merge master`，
-  唯一冲突为 reviews 索引双 #29/#30，已解：smoke 评审保留 30、本轮顺延 31）。
+- **本轮跟踪指针**：R-01…R-20 的状态以
+  [评审记录](2026-10-06-pack-wiki-progress-skill-review.md) §二/§三/§四 与
+  方案的处置表为准（R-09/R-10/R-13 为"接受并附理由"，R-15 的退出延迟为遗留限制）。
+
+### 流程风险（仍未处置）
+
+- [ ] **R-11 · 修复分支落后 master** — `fix/pack-wiki-progress-refresh` 基于
+  `d691bfb`，master 之后合入了 PR !57（smoke 测试，5000+ 行）。本分支改动集中在
+  `tools/pack/wiki.py`、`tools/translate/cli.py`、三个测试文件与两份 README，与
+  smoke 改动基本不重叠，但 **`.trae/reviews/README.md` 与 `README.md` 两边都改过**，
+  合并顺序不当会产生冲突。状态：待用户决策（建议先合 PR !57，再 rebase 本分支）。

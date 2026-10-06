@@ -109,44 +109,30 @@ R-17 容器语义、R-21 AST 守护（把 `_emit_mode = "collect"` 移回保护�
 第 3 轮评审另做 8 组 in-process 变异（含复原 R-01、复原批粒度、清空
 `_INTERRUPT_EXIT_CODES`），均按预期变红。
 
-### 六点五、第 5 轮（剩余项处置：R-15 / R-11）
-
-| # | 级别 | 问题 | 处置 |
-|---|---|---|---|
-| R-15 | `[WARNING]` | 中断后退出延迟：`finally` 只放弃**主线程**等待，CPython 在 teardown join 池线程，吞掉控制台事件的 hook 会让退出延迟一整页（实测 0.6s→3.1s，无上界至 `TRANSLATE_TIMEOUT_S`） | ✅ **已修**：`_run_translate` 改用 `Popen` + 轮询 `communicate(_STOP_POLL_S=0.2s)`，收尾信号 `_STOP_TRANSLATIONS` 让在途 worker 主动 `kill()` 自己的子进程。端到端实测：hook 睡 20s 且不响应控制台事件时，`run()` 在停止信号后 **0.21s** 返回（一个轮询间隔；修复前为整页 20s）。停止信号**只对并行阶段生效**（`_emit_mode == "collect"`），直调不会��上一次 run 的残留信号误杀 |
-| R-28 | `[WARNING]` | 实现改为 `Popen` 后，测试对 `wiki.subprocess.Popen` 的 monkeypatch **污染标准库模块** → pytest/coverage 全进程拿到假构造器，一次 `KeyboardInterrupt` 从无关位置逃逸并中断整个测试会话 | ✅ 已修：测试改为整体替换 wiki 模块的 `subprocess` 引用（`types.SimpleNamespace(Popen=..., run=真实 run, TimeoutExpired/CompletedProcess 保持真实）） |
-| R-29 | `[WARNING]` | 两个既有用例依赖 `subprocess.run` 的调用契约（`test_translate_helper_runs_shell_command` 还 stub 了 Windows 没有的 POSIX `cat`） | ✅ 已修：改为**真实子进程**验证管道与超时（用 `sys.executable` 构造跨平台命令），比原 stub 更强 |
-| R-11 | 流程 | 分支落后 master 22 笔（含 PR !57 与 skills 规则更新） | ✅ 已修：`merge master`，唯一冲突（reviews 索引双 #29/#30）已解：smoke 评审保留 30，本轮记录顺延 31 |
-| R-30 | 流程 | master 的规则提交（`c34bbd0`）判定 `.codebuddy/skills/` 为非法副本，skill 唯一权威改为 `.trae/skills/` | ✅ 已修：把本轮沉淀的项目特定审查知识并入 `.trae/skills/python-code-review/references/yate-project.md`（权威规则源、四层陷阱、门禁命令、迭代纪律），`SKILL.md` 加指向，`.codebuddy/` 副本删除 |
-
-第 5 轮门禁：`pyright yate/ tests/ tools/` → 0 errors；`pytest tests/ --cov=yate
---cov-fail-under=75` → 1862 passed / 9 skipped，覆盖率 91.31%；
-`pytest tests/test_architecture.py` → 22 passed。
-
 ## 七、遗留与限制
 
 - **真实 TTY 目验缺位**：无人值守会话无法向控制台投递 SIGINT / 无法目验，
   页级推进与最终帧形态靠注入断言与探针背书。
+- **中断后退出延迟**：见 R-15（仅在自定义 hook 吞掉中断时可达）。
 - **`_emit_mode` 全局**：R-09/R-10/R-27 —— 进度回调异常复用翻译失败通道
   （仅 rich 缺陷可达）、`run()` 理论不可重入、跨 run 串味（R-24 已修入口排空，
   但串味本身依赖"两次 run 共享同一全局"，CLI 单 run 不可达）。
-- **停止信号同为模块级**（`_STOP_TRANSLATIONS`）：与 R-10 同源的取舍，
-  入口 clear + 只在并行阶段生效，串行直调不受影响。
+- **分支落后 master**：修复分支基于 `d691bfb`，master 之后合入 PR !57（smoke 测试），
+  `.trae/reviews/README.md` 与 `README.md` 两边都改过，合并顺序需注意
+  （见 [legacy-issues.md](legacy-issues.md) 的流程风险条目）。
 
 ## 八、核对结论
 
 - 无 CRITICAL；第 1 轮唯一的"自己引入的缺陷"（R-01）已由探针定位并修复，
   修复后的行为由变异测试锁定；第 4 轮补上的 R-21 是**四轮皆遗漏**的结构性缺陷，
-  现由 AST 结构性守护锁定；第 5 轮把 R-15（退出延迟）与 R-28/R-29（测试污染
-  标准库、依赖 `subprocess.run` 契约）一并处置。
+  现由 AST 结构性守护锁定。
 - 第 3 轮确认：`_translation_state` 重构前后**行为等价**（全组合核对）；
   `page_done` 两步更新在 2 线程 × 6000 次压测下未观测到文案落后
   （`lag samples: 0`，终值与文案一致）。
 - 第 4 轮确认：中断链路六个位置（主线程 / worker 子进程 / 批次提交前后 /
   写 en 页 / 写 manifest / `push_wiki` 的 git 子进程）**均无 traceback 泄漏**，
-  且均能以 130 退出；第 5 轮消除了"退出延迟"这一剩余限制（R-15）。
-  `tools/translate/cli.py` 的中断边界（stdin 读取期间、临时目录清理期间）
-  亦干净返回 130 且不留临时目录。
+  且均能以 130 退出；唯一例外是 R-15 记录的退出延迟。`tools/translate/cli.py`
+  的中断边界（stdin 读取期间、临时目录清理期间）亦干净返回 130 且不留临时目录。
 - 架构与风格：无 R1–R13 违规、无新增 `Protocol`/`TYPE_CHECKING`/`Any`/
   `# type: ignore`/裸 `except:`；命名守卫不命中；`tools/` 的 `print`
   属既有约定（R12 只约束 `yate/`）。

@@ -10,13 +10,6 @@ version: 1.0.0
 
 # Python Code Review
 
-> **Reviewing inside the yate repository?** Read
-> `references/yate-project.md` first (loaded automatically when this skill
-> runs in that workspace). It names the authoritative rule files, the
-> per-layer traps for `yate/` / `tools/` / `tests/` / documents, the gate
-> commands, and the review-loop discipline for a change that is still being
-> iterated on. Where it disagrees with the generic advice below, it wins.
-
 You are performing a structured Python code review. Follow this framework every time.
 
 ## Step 1: Get the Code
