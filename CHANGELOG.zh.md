@@ -3,6 +3,86 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.9...HEAD)
+
+### 新功能
+
+- route every pack failure through the coded error boundary [缺中文] ([`b16952c`](https://gitee.com/jermaine/yate/commit/b16952ca25a41e1ea6e74d534d9e3a9645cb3aba))
+- translate the wiki through a bounded thread pool with error codes [缺中文] ([`625d443`](https://gitee.com/jermaine/yate/commit/625d443527fc1a0171b83f02956033e5940a6f81))
+- add stable error codes and traceback-free error reporting [缺中文] ([`7e8432f`](https://gitee.com/jermaine/yate/commit/7e8432f1bd795748a06a068343feb5d0fd2370a8))
+
+### 问题修复
+
+- fail the one-folder build when the contents directory is gone [缺中文] ([`106e47c`](https://gitee.com/jermaine/yate/commit/106e47c402e6aa06eb8286768a51a932c82aa763))
+- ship one cross-platform contents directory named runtime [缺中文] ([`0e30a38`](https://gitee.com/jermaine/yate/commit/0e30a38c491a906ac5660bf8d86d8074df502087))
+- scan every exec target for the excluded packages [缺中文] ([`842f830`](https://gitee.com/jermaine/yate/commit/842f830c8d5b0f52e3acaf6edd347b6f6ae96f54))
+- memoise the guard AST parses like the module loader [缺中文] ([`6618a15`](https://gitee.com/jermaine/yate/commit/6618a15a313aae11f4efc586295b4a25e90fffbb))
+- close the holes the round-2 review found in the premise guard [缺中文] ([`cb082c2`](https://gitee.com/jermaine/yate/commit/cb082c22f5953aa8408bc6064fe20ef4c7edb784))
+- close the review findings on the bundle guards and metadata [缺中文] ([`a0d1813`](https://gitee.com/jermaine/yate/commit/a0d1813e40ef7ab653d4c5ad0af8391b857b3809))
+- scope the flat one-folder layout to Windows [缺中文] ([`b5520be`](https://gitee.com/jermaine/yate/commit/b5520bed097974a58c2e5ea935370d2129ef490d))
+- drop Pillow from the bundle and flatten the one-folder layout [缺中文] ([`527a65c`](https://gitee.com/jermaine/yate/commit/527a65c8e8d27d72bd791a818d48503086573133))
+- report an unusable wiki target as a coded page-write failure [缺中文] ([`86adde9`](https://gitee.com/jermaine/yate/commit/86adde97ca9e0cc6fb62afa92ac49c9bbca6571e))
+- cancel queued translations on Ctrl+C and keep workers off the terminal [缺中文] ([`042a3ac`](https://gitee.com/jermaine/yate/commit/042a3ac94390ce2ea62a4574914ef843c027982a))
+- split the refused-screensaver scenario to kill a dead store [缺中文] ([`c7099d0`](https://gitee.com/jermaine/yate/commit/c7099d0e56a1e5fb8a1332427892de1ec64ae676))
+
+### 文档
+
+- log the PR 58 bot review and its single improvement [缺中文] ([`419977a`](https://gitee.com/jermaine/yate/commit/419977a5e164324218517573c068a703dc9133e6))
+- record the commit-attribution deviation and the rulings [缺中文] ([`0518f4a`](https://gitee.com/jermaine/yate/commit/0518f4a7778b38e13a54a1585ce3063eaab1b483))
+- close the round-2 review loop on the unified bundle layout [缺中文] ([`60bd63e`](https://gitee.com/jermaine/yate/commit/60bd63e60006c76f63665c1c055a61a587bb9b87))
+- document the one cross-platform bundle layout [缺中文] ([`dcf1f72`](https://gitee.com/jermaine/yate/commit/dcf1f723ce3da5a2d39c2cc38b1ed759b2c74f3a))
+- add the round-2 unified-layout plan for IKJPVB note_51452120 [缺中文] ([`3b577fc`](https://gitee.com/jermaine/yate/commit/3b577fc6692d8ca16902cec0820cedc7374fb89d))
+- add the real-build verification to the final review section [缺中文] ([`fadd935`](https://gitee.com/jermaine/yate/commit/fadd935c10dfd84905afbbc19ec0823e7dd92d74))
+- close the IKJPVB review loop with the round-4 findings [缺中文] ([`f16180a`](https://gitee.com/jermaine/yate/commit/f16180afb4082d138116419988878771cbd86994))
+- register the round-2 findings in the IKJPVB tracker [缺中文] ([`4f68219`](https://gitee.com/jermaine/yate/commit/4f6821988115da6871645c1bf9b6f4f2e4ee6ac9))
+- track the IKJPVB review findings and their dispositions [缺中文] ([`217d2a7`](https://gitee.com/jermaine/yate/commit/217d2a72dd3d0168b2f44d4b7c03ecbd844a57aa))
+- record the python-code-review round for the pack bundle layout [缺中文] ([`216a2c3`](https://gitee.com/jermaine/yate/commit/216a2c3cdde131ff3e55440c1725b5e759548626))
+- clarify the EXCLUDES inventory notes [缺中文] ([`f0face8`](https://gitee.com/jermaine/yate/commit/f0face81e3eaee85d9bddb47f161b80a757afb1e))
+- record the POSIX layout fix in both READMEs and the plan [缺中文] ([`a30550c`](https://gitee.com/jermaine/yate/commit/a30550c7c4997256ca032627eb1f51048e51b600))
+- backfill the IKJPVB gate numbers and the review round [缺中文] ([`94ed6e5`](https://gitee.com/jermaine/yate/commit/94ed6e54c2c0e1582adede7a691207a316f194f8))
+- correct the stale onefile size and the zh wording [缺中文] ([`d25b111`](https://gitee.com/jermaine/yate/commit/d25b111a6fb8a95f88385d16ffd20d4d0e3b97c4))
+- document the flat bundle layout and the dropped dependencies [缺中文] ([`d7f6a22`](https://gitee.com/jermaine/yate/commit/d7f6a22535d79f2b1f50fb3f131e17f32f04c387))
+- record the IKJPVB bundle layout plan [缺中文] ([`deb758b`](https://gitee.com/jermaine/yate/commit/deb758be9395564c9cf824da770193926227a165))
+- add frontmatter to three rule files [缺中文] ([`62ae99b`](https://gitee.com/jermaine/yate/commit/62ae99b43ca363c23affd171086da79b164de08c))
+- exempt pure-doc changes from test gates [缺中文] ([`dbe2d81`](https://gitee.com/jermaine/yate/commit/dbe2d811c4643589d40f4932c6a873530a53b793))
+- pin skills to .trae/skills and drop the .codebuddy copy [缺中文] ([`c34bbd0`](https://gitee.com/jermaine/yate/commit/c34bbd048cc7a82859b0af6e6239ca2670aadeb7))
+- register the second AI review round on PR 57 [缺中文] ([`8e13842`](https://gitee.com/jermaine/yate/commit/8e1384221a7fb71d6324d28e203451968fc80d67))
+- record the post-merge gate numbers [缺中文] ([`8f9f270`](https://gitee.com/jermaine/yate/commit/8f9f270891c6c046f38765e34581bc8076be18ad))
+- record the PR 56 AI review round and refresh the plan branch name [缺中文] ([`db9f403`](https://gitee.com/jermaine/yate/commit/db9f4036f99b859b43598d6c3312358aaed0a051))
+- record the IKJPEK execution, gate numbers and review round [缺中文] ([`ccaca30`](https://gitee.com/jermaine/yate/commit/ccaca300014449bbf379f345c08d683fe7e5aa49))
+- add IKJPEK pack wiki hardening and parallel translate plan [缺中文] ([`72a247f`](https://gitee.com/jermaine/yate/commit/72a247f299837e4b591c70651b63793fe9b5f1e6))
+- close out the PR 57 review items and index the round [缺中文] ([`be5a9ef`](https://gitee.com/jermaine/yate/commit/be5a9ef3ca94535c4768690b707140b6268469bb))
+- register the PR 57 AI review and plan the fixes [缺中文] ([`312a96a`](https://gitee.com/jermaine/yate/commit/312a96a81ef1a1175245bec63d6f88a7e89b9362))
+- backfill the expansion results and the scenario traps [缺中文] ([`5b93a4c`](https://gitee.com/jermaine/yate/commit/5b93a4cd6ecef211a2b73876630b636ac4893981))
+- add the smoke test expansion plan [缺中文] ([`2ba17c5`](https://gitee.com/jermaine/yate/commit/2ba17c5ab5597da1aafe799816dbadf742bda9b7))
+
+### 测试
+
+- derive the shrink press count from the pane constants [缺中文] ([`6a95fd8`](https://gitee.com/jermaine/yate/commit/6a95fd83a0a988e4bf7de2281b5f3045b97ddc94))
+- derive the theme completion expectations from the registry [缺中文] ([`77475d8`](https://gitee.com/jermaine/yate/commit/77475d8c709074bf758314eaa2b1d11c9954ec11))
+- cover the harness itself (baselines, cli, invariants) [缺中文] ([`e8786aa`](https://gitee.com/jermaine/yate/commit/e8786aad7a6f7268cfef2684a5eb9251cfd1125d))
+- cover the vim visual mode and register paths [缺中文] ([`09c4aa3`](https://gitee.com/jermaine/yate/commit/09c4aa39d714a1a60b54f8e33333caa97d987896))
+- cover explorer navigation and the pane resize chords [缺中文] ([`d186c26`](https://gitee.com/jermaine/yate/commit/d186c260290e235ddbaa342381ae44d61b283f73))
+- cover the screensaver, closing the last action gap [缺中文] ([`4a1c636`](https://gitee.com/jermaine/yate/commit/4a1c6361d2aac7b41e8d18d2f50df4be06cde4bb))
+- pin the read-only guard and the silent-failure messages [缺中文] ([`c37c55b`](https://gitee.com/jermaine/yate/commit/c37c55bea22295f8d3460b59717afb69f0a4024e))
+- cover the diff view, closing the last command gap [缺中文] ([`bf9b197`](https://gitee.com/jermaine/yate/commit/bf9b197ef8021c475d279bf3e9574bbc8cad000f))
+
+### 构建与工程
+
+- drop the stray commit message file from the tree [缺中文] ([`2b78fd7`](https://gitee.com/jermaine/yate/commit/2b78fd724f8e1ec699f8992ed7fb69838f9ad022))
+- drop the stray commit message file from the tree [缺中文] ([`47b639f`](https://gitee.com/jermaine/yate/commit/47b639f8724c5660c0c6297f0630c9aa2f5a25ba))
+- resnapshot the two screensaver baselines [缺中文] ([`f9da8d1`](https://gitee.com/jermaine/yate/commit/f9da8d16279faf053e32c7492d3939a61a0ef63c))
+- add baselines for the fourteen new scenarios [缺中文] ([`fdfa2a1`](https://gitee.com/jermaine/yate/commit/fdfa2a1112baac3c9dde7390f095d7c51eb3fc74))
+
+### 其他变更
+
+- pin the one-folder layout to a named contents directory [缺中文] ([`3914673`](https://gitee.com/jermaine/yate/commit/391467335e3f71a0686242490a0caa464268ac93))
+- pin the shared excludes inventory and the flat one-folder layout [缺中文] ([`9730874`](https://gitee.com/jermaine/yate/commit/9730874c36206ce85016ca56fd7f2b689bc64f38))
+- prove an interrupt does not drain the translation pool [缺中文] ([`4c7ed16`](https://gitee.com/jermaine/yate/commit/4c7ed16ac30e853b665cd85b1df1b5413c066425))
+- cover the coded error boundary and the translation pool [缺中文] ([`f2fbd81`](https://gitee.com/jermaine/yate/commit/f2fbd81c38bbaba88a92b791e820a8947580d5f9))
+- assert the collision code and the new jobs flag [缺中文] ([`033f530`](https://gitee.com/jermaine/yate/commit/033f5302105cef9bb45e1840eb199a7225c97748))
+- keep the English section labels with the other constants [缺中文] ([`e9aefbc`](https://gitee.com/jermaine/yate/commit/e9aefbc56916ccdf206365bd37aee06c1204d19b))
+
 ## [0.2.9] - 2026-10-05 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.8...v0.2.9)
 
 ### 新功能
