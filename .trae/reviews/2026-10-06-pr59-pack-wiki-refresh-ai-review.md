@@ -83,11 +83,46 @@ verdict: OK, output intact
 
 ## 四、改动与门禁实测
 
+### 4.1 改动
+
 | 项 | 内容 |
 |---|---|
-| 代码 | `tools/pack/wiki.py`：`_terminate` 有界等待 + 超时告警；入口排空补 `highlight=False`；`feeder.join` 注释改为如实描述 |
-| 测试 | `tests/test_pack_wiki_errors.py`：慢速大输出真实子进程用例（B1 钉桩）、子进程抗 kill 超时用例（I1）、两处 drain 渲染参数一致性 AST 守护（I2） |
-| 门禁 | 见方案文档 §五（收尾回填真实数字与退出码） |
+| 代码 | `tools/pack/wiki.py`：`_terminate` 改为**返回**"kill 未生效"的注记（不再由 worker 直接写终端），等待带预算 `_TERMINATE_WAIT_S`；超时失败消息内联该注记；入口排空补 `highlight=False`；`feeder.join` 注释改为如实描述 |
+| 测试 | `tests/test_pack_wiki_errors.py`：慢速大输出真实子进程用例（B1 钉桩）、抗 kill 用例（I1）、两处 drain 渲染参数一致性 AST 守护（I2）；`tests/test_pack_wiki_parallel.py`：两个进程桩接受并记录 `wait` 预算，torn-down-stage 用例断言预算被使用 |
+| 提交 | `6f036cd`（首版修复）→ `23f536a`（评审后修正，见 §4.3） |
+
+### 4.2 门禁（worktree 内实测，解释器 `.venv\Scripts\python.exe`）
+
+| 命令 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | **0 errors, 0 warnings, 0 informations** |
+| `pytest tests/ -o addopts= -q --cov=yate --cov-fail-under=75` | **1950 passed, 9 skipped** in 456 s；覆盖率 **91.25%**（阈值 75%） |
+| `pytest tests/test_architecture.py -o addopts= -q` | **22 passed** |
+| `pytest`（wiki 四文件） | **106 passed, 1 skipped**（`skipif win32` 的 `[/x]` 用例） |
+
+变异测试（回退修复 → 目标守护变红 → 还原）：
+
+| 变异 | 目标用例 | 结果 |
+|---|---|---|
+| M1：`proc.wait()` 去掉 timeout 预算 | `test_a_child_that_ignores_the_kill_is_announced_not_waited_on` + `test_a_torn_down_stage_kills_the_child_its_worker_is_waiting_for` | ✅ 两条同时变红 |
+| M2：入口排空去掉 `highlight=False` | `test_every_drained_failure_is_rendered_the_same_way` | ✅ 变红（报出缺失的关键字参数） |
+
+### 4.3 首版修复被自查打回（记录留痕）
+
+首版（`6f036cd`）把"kill 未生效"直接 `print` 到 stderr，并由独立评审轮发现三处问题，
+已在 `23f536a` 修掉：
+
+1. **静默回归（最严重）**：`tests/test_pack_wiki_parallel.py` 的两个进程桩仍是
+   `wait(self)`，worker 收尾因此抛 `TypeError` 而非 `KeyboardInterrupt`；主线程此时
+   已离开线程池，异常被吞，**全量套件照样全绿**——即首版门禁的"绿"是假的。已给桩补
+   预算形参并在 torn-down-stage 用例中断言预算被使用（该路径此前无任何观察者）。
+2. **契约违反**：worker 直写 stderr 会插进 rich 的活动重绘区（既有不变式：并行阶段
+   只有主线程打印）。改为 `_terminate` 返回注记，由调用方并入该页失败消息。
+3. **注释仍不 truthfully**：I3 的注释改写里"detached 后不再触达子进程"是错的——
+   那条流就是子进程的 stdin。已改为如实描述（daemon 线程仍持有自己的句柄）。
+
+> 教训留档：**"桩未同步 + 异常被池吞"能骗过全量套件**，因此跨文件改签名时必须同步
+> 搜索全部桩，并给"主线程已离开"的路径补显式断言。
 
 ## 五、遗留与限制
 
@@ -95,3 +130,16 @@ verdict: OK, output intact
 - **真实 TTY 目验缺位**：沿用前序记录的限制，无人值守会话无法投递 SIGINT 目验。
 - B1 按"误报 + 补测试"记账，**不作为已修缺陷**；若 PR 机器人复议，引用 §3.1/§3.2
   的实测数据回复。
+- **O-1（本轮评审轮新发现，存量问题，超出本轮范围）**：`--translate-cmd` 走
+  `shell=True`，`kill()` 杀的是 shell 本身，POSIX 下真正的翻译器是孙进程，会成为
+  孤儿继续持有 stdin（父进程退出后写入即 BrokenPipe 而已，但子进程确实活过
+  `_terminate` 的回收窗口）。要真正解决需要进程组（`start_new_session=True` /
+  `os.killpg`）或 Windows Job Object，属选型变更，另案登记。
+- **O-2（存量）**：抗 kill 场景下 `_feed_stdin` 的 daemon 线程可能仍阻塞在
+  `stream.write`，最多每页泄漏一个线程与一个句柄，随进程退出而消亡；同理超时未被
+  回收的子进程会让 `Popen.__del__` 报 `ResourceWarning`（`pyproject.toml` 只把
+  `RuntimeWarning` 设为 error，故不炸）。
+- **O-3（存量，非本轮引入）**：`_emit_translate_failure` 的 docstring 声称
+  "两条路径输出同样的纯文本"，但 rich 路线会按 `Console.width` 折行，长失败消息
+  （会内嵌子进程 stderr 全文）在两条路线上的终端形态并不完全一致；本轮的 AST 守护
+  只保证 rich-vs-rich 一致。

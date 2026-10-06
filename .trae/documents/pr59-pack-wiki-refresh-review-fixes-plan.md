@@ -9,7 +9,7 @@
 > PR：[!59](https://gitee.com/jermaine/yate/pulls/59)，评论
 > [`note_51456136`](https://gitee.com/jermaine/yate/pulls/59#note_51456136_conversation_191435254)
 > Issue：<https://gitee.com/jermaine/yate/issues/IKJPEK>
-> 状态：**已实施并门禁通过（待回填真实数字）**
+> 状态：**已实施并门禁通过（2026-10-06；B1 判为误报，3 项改进已修）**
 >
 > 批准方式：用户于 2026-10-06 明确要求「无人值守、bypass 所有权限」，按
 > `.trae/rules/yate-rules.md` §二 第 5 条，方案批准与步骤确认一律按通过处理。
@@ -55,10 +55,33 @@
 | 2 | 同上（无新增改动，仅复核） | — | `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/` |
 | 3 | 全量门禁 + 架构测试 + 覆盖率 | 真实数字回填 §五 | `.venv\Scripts\python.exe -m pytest tests/ -o addopts= -q --cov=yate --cov-fail-under=75`；`.venv\Scripts\python.exe -m pytest tests/test_architecture.py -o addopts= -q` |
 
-## 五、执行与门禁记录（收尾回填）
+## 五、执行与门禁记录（2026-10-06 回填）
 
-- 待回填：提交号、pytest 通过数、pyright 退出码、覆盖率、架构用例数。
-- 偏离记录：待回填。
+- **提交**：`f4fa387`（本方案 + 评审登记）→ `6f036cd`（三项改进首版）→
+  `23f536a`（评审后修正：桩签名 + 契约 + 注释）。
+- **门禁实测**（worktree `.venv`，解释器 `.venv\Scripts\python.exe`）：
+
+| 命令 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations |
+| `pytest tests/ -o addopts= -q --cov=yate --cov-fail-under=75` | 1950 passed, 9 skipped（456 s），覆盖率 91.25% |
+| `pytest tests/test_architecture.py -o addopts= -q` | 22 passed |
+| `pytest`（wiki 四文件） | 106 passed, 1 skipped |
+
+- **偏离记录**：
+  1. **B1 未按评审建议改实现**（已在 §二 裁决）：否决理由附实测——评审描述的
+     `communicate` 短路机制在 CPython 3.13.2 中不存在，慢速真实子进程探针输出完整；
+     仅采纳其测试建议。这是本方案对评审建议的**显式偏离**。
+  2. **I1 的告警通道由"直接 stderr"改为"并入失败消息"**：独立评审轮指出 worker 直写
+     stderr 会插进 rich 活动重绘区，违反"并行阶段只有主线程打印"的既有不变式，
+     因此 `_terminate` 改为返回注记。这比评审建议（记录日志）更贴合本模块的通道契约。
+  3. **首版修复的静默回归已修**：`tests/test_pack_wiki_parallel.py` 的两个进程桩未
+     同步 `wait(timeout=...)` 签名，worker 收尾抛 `TypeError`；因主线程已离开线程池，
+     异常被吞、首版全量套件仍全绿。已给桩补预算形参并在 torn-down-stage 用例中断言
+     预算被使用（该路径此前无观察者）。这是本次"门禁绿 ≠ 正确"的唯一实例。
+  4. **超出评审范围的存量问题按登记处理**（`shell=True` 杀不到孙进程、daemon 写线程
+     与 `ResourceWarning`、rich 折行导致两条渲染通道并非完全一致），见评审记录 §五
+     O-1…O-3，本轮不修。
 
 ## 六、风险与回滚
 
