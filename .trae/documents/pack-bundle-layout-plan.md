@@ -514,6 +514,7 @@ flowchart LR
 | L2 | `pack/pack.sh` 的新校验**未做 shell 语法实测**：本机无 bash（`Get-Command bash` 无结果），已人工核对 `sed` 提取式 | 环境限制；建议在 L1 的 Linux 构建时顺带验证 |
 | L3 | 在 issue IKJPVB 回执本轮取舍：放弃平铺、统一为 `runtime/`，并说明 POSIX 撞名根因 | 人工动作（issue 侧） |
 | L4 | `.trae/documents/dist-copy-plan.md:61` 的 `_internal/` 布局示意已陈旧 | 历史计划文档，按"只追加不改写"原则不回改（§9.1） |
+| L5 | **PR 58 的 AI 队友评审建议**（<https://gitee.com/jermaine/yate/pulls/58#note_51452441_conversation_191423547>，2026-10-06 09:31）：结论"无阻断项，1 个改进建议，可优化后合并"，建议在 `CONTENTS_DIRNAME` 定义处补注释，声明该单行声明形式被 `pack.ps1` / `pack.sh` 的正则依赖 | 与 §9.2 评审记录 R-21 同根因；本轮按用户指示**只登记不实施**。下次动 `pack/yate.spec` 时补上一行注释即可闭环（评审记录 §9.6 已登记） |
 
 #### 与计划的偏离
 
