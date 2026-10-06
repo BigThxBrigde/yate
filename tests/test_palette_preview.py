@@ -30,6 +30,11 @@ from conftest import wait_until
 class _Host(App[None]):
     """Minimal host app that pushes the PaletteScreen under test."""
 
+    # The real YateApp disables Textual's built-in command palette; without
+    # this a ctrl+p press would open that stock palette instead of reaching
+    # PaletteScreen.on_key (the cursor-up path would never be exercised).
+    ENABLE_COMMAND_PALETTE = False
+
     def __init__(self, screen: PaletteScreen) -> None:
         super().__init__()
         self._screen = screen
@@ -263,9 +268,12 @@ def test_preview_cache_hits_without_reread(
             assert await wait_until(
                 pilot, lambda: screen._preview_cache.get(beta) is not None
             )
+            assert screen.cursor_index == 1
             await pilot.press("ctrl+n")  # wraps back to alpha: cache hit
-            await pilot.press("ctrl+p")  # back to beta: cache hit
+            assert screen.cursor_index == 0
+            await pilot.press("ctrl+p")  # cursor-up path, back to beta
             await pilot.pause()
+            assert screen.cursor_index == 1
             assert calls == [alpha, beta]
 
     asyncio.run(scenario())
