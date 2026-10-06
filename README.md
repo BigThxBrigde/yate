@@ -283,7 +283,7 @@ python -m build --wheel          # output in dist/
 
 # 2) Standalone executable with PyInstaller (no Python needed on the target machine)
 #    Windows (PowerShell):
-.\pack\pack.ps1                  # one-folder: dist\yate\yate.exe + runtime files
+.\pack\pack.ps1                  # one-folder: dist\yate\yate.exe + runtime\ files
 .\pack\pack.ps1 -OneFile         # single self-extracting file: dist\yate.exe (~20 MB)
 #    Windows (cmd.exe, same options; forwards everything to pack.ps1):
 pack\pack.bat --onefile
@@ -314,15 +314,26 @@ The onefile build unpacks into a temporary `sys._MEIPASS` directory on every
 launch and cleans it up on exit, so the resources live *inside* the exe rather
 than next to it; pick one-folder when faster startup matters.
 
-On Windows the one-folder bundle is **flat**. PyInstaller 6 and newer put the
-runtime files into an `_internal/` subdirectory by default, but
-`pack/yate.spec` sets `contents_directory="."`, so `dist/yate/yate.exe` sits
-*next to* `python313.dll`, `base_library.zip`, the `yate/` package directory
-and the rest of the runtime files — there is no `_internal` level. The flat
-layout is Windows-only: a POSIX build has no `.exe` suffix, so the
-executable itself would be `dist/yate/yate` — exactly the path the bundled
-`yate/` package data needs as a directory, which aborts the build. Linux and
-macOS therefore keep PyInstaller's default `_internal/` directory.
+Windows and POSIX share **one** one-folder layout: the entry point plus a
+single runtime directory next to it.
+
+```
+dist/yate/
+├── yate.exe        # Windows entry point
+├── yate            # Linux/macOS entry point (POSIX has no .exe suffix)
+└── runtime/        # the runtime directory — same name on both platforms
+    ├── yate/       # yate package data (resources, docs, extensions, yaterc.example)
+    └── base_library.zip, the Python runtime, extension modules, tree-sitter binaries…
+```
+
+`pack/yate.spec` renames PyInstaller's default `_internal` contents directory
+to `runtime`, so the bundle has the same shape everywhere. A **flat** layout —
+entry point and runtime files in the same directory — is deliberately not used:
+on POSIX the entry point is `dist/yate/yate`, which is exactly the directory
+path the bundled `yate/` package data needs, so the two names collide and the
+build aborts. One layout that works everywhere is worth more than a flat
+Windows-only one. Deploy by copying the whole `dist/yate` directory: the entry
+point and `runtime/` must stay side by side.
 
 Both specs also drop modules that are dragged into the frozen graph
 transitively but never touched at runtime: `pygments.formatters.img` pulls in
