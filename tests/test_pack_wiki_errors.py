@@ -15,7 +15,11 @@ so the suite stays hermetic.
 from __future__ import annotations
 
 import ast
+import io
 import subprocess
+import threading
+import time
+import types
 from collections.abc import Callable
 from io import StringIO
 from pathlib import Path
@@ -235,15 +239,77 @@ def test_cli_wiki_push_without_git_reports_pkg_0002(
     assert _TRACEBACK_HEAD not in err
 
 
+def _fake_subprocess(popen: Callable[..., object]) -> object:
+    """Return a stand-in for the :mod:`subprocess` module with *popen*.
+
+    ``wiki`` reaches ``subprocess`` through its module global, so the tests
+    replace that name instead of patching attributes on the real module:
+    patching ``subprocess.Popen`` would swap the constructor for the whole
+    process -- pytest's own helpers, coverage and every other library in
+    the run would then get the fake, which is how an earlier draft of these
+    tests made a ``KeyboardInterrupt`` escape from an unrelated place.
+
+    ``run`` and the exception/result types stay the real ones so git calls
+    and the timeout branch keep working unchanged.
+    """
+    return types.SimpleNamespace(
+        Popen=popen,
+        run=subprocess.run,
+        TimeoutExpired=subprocess.TimeoutExpired,
+        CompletedProcess=subprocess.CompletedProcess,
+        DEVNULL=subprocess.DEVNULL,
+        PIPE=subprocess.PIPE,
+    )
+
+
+class _FakeProc:
+    """Stand-in for :class:`subprocess.Popen` as used by ``_run_translate``.
+
+    The translator is launched through ``Popen`` + a polling ``communicate``
+    so that a run being torn down can kill its child (review R-15); these
+    tests therefore stub the process, not ``subprocess.run``.
+    """
+
+    def __init__(
+        self,
+        returncode: int = 0,
+        stdout: str = "",
+        stderr: str = "",
+        *,
+        hang: bool = False,
+    ) -> None:
+        self.returncode = returncode
+        self.killed = False
+        self._result = (stdout, stderr)
+        self._hang = hang
+        self.stdin = io.StringIO()
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        """Return the captured output, or keep hanging like a stuck child."""
+        del timeout
+        if self._hang:
+            raise subprocess.TimeoutExpired(cmd="fake-cmd", timeout=0)
+        return self._result
+
+    def kill(self) -> None:
+        """Record that the child was terminated."""
+        self.killed = True
+
+    def wait(self) -> int:
+        """Return the exit code, as a reaped child would."""
+        return self.returncode
+
+
 def test_translate_via_cmd_failure_reports_wiki_0201_on_stderr(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A non-zero translator exit is reported as ``error[WIKI-0201]``."""
 
-    def failing_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess([str(cmd)], 3, "", "kaput")
+    def failing_popen(cmd: object, **kwargs: object) -> _FakeProc:
+        del cmd, kwargs
+        return _FakeProc(3, "", "kaput")
 
-    monkeypatch.setattr(wiki.subprocess, "run", failing_run)
+    monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(failing_popen))
     assert wiki.translate_via_cmd("# zh in\n", "fake-cmd") is None
     err = capsys.readouterr().err
     assert "error[WIKI-0201]: translate-cmd failed (rc=3): kaput" in err
@@ -254,15 +320,50 @@ def test_translate_via_cmd_timeout_reports_wiki_0202_on_stderr(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A translator that exceeds its budget is reported as ``WIKI-0202``."""
+    monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 0.0)
 
-    def timed_out_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(cmd=[str(cmd)], timeout=wiki.TRANSLATE_TIMEOUT_S)
+    def hanging_popen(cmd: object, **kwargs: object) -> _FakeProc:
+        del cmd, kwargs
+        return _FakeProc(hang=True)
 
-    monkeypatch.setattr(wiki.subprocess, "run", timed_out_run)
+    monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(hanging_popen))
     assert wiki.translate_via_cmd("# zh in\n", "fake-cmd") is None
     err = capsys.readouterr().err
-    assert "error[WIKI-0202]: translate-cmd timed out after 900s" in err
+    assert "error[WIKI-0202]: translate-cmd timed out after 0s" in err
     assert _TRACEBACK_HEAD not in err
+
+
+def test_a_torn_down_run_kills_the_child_it_is_waiting_for(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A translator still running when the stage tears down is terminated.
+
+    Review R-15: the delay between "interrupted" and the process actually
+    exiting used to be one full page per running worker, because the main
+    thread could only stop waiting -- CPython joins the pool at teardown and
+    the child kept going.  The stage now raises the stop signal, and a
+    translator blocked in its polling loop kills its own child.
+    """
+    monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 900.0)
+    monkeypatch.setattr(wiki, "_STOP_TRANSLATIONS", threading.Event())
+    monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.01)
+    # The stop signal is honoured by the parallel stage only, so the test
+    # has to be in that mode -- exactly like a worker mid-translation.
+    monkeypatch.setattr(wiki, "_emit_mode", "collect")
+    proc = _FakeProc(hang=True)
+    monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(lambda *a, **k: proc))
+
+    def tear_down() -> None:
+        # Stand in for the stage's finally: the stop signal arrives while
+        # the fake child is still "running".
+        time.sleep(0.05)
+        getattr(wiki, "_STOP_TRANSLATIONS").set()
+
+    threading.Thread(target=tear_down, daemon=True).start()
+    with pytest.raises(KeyboardInterrupt):
+        wiki.translate_via_cmd("# zh in\n", "fake-cmd")
+    assert proc.killed
+    assert "error[" not in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("returncode", [130, 0xC000013A, 0xC000013A - 0x100000000, -2])
@@ -283,10 +384,11 @@ def test_translate_via_cmd_maps_a_console_interrupt_to_keyboard_interrupt(
     """
     traceback = "Traceback (most recent call last):\nKeyboardInterrupt\n^C\n"
 
-    def interrupted_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess([str(cmd)], returncode, "", traceback)
+    def interrupted_popen(cmd: object, **kwargs: object) -> _FakeProc:
+        del cmd, kwargs
+        return _FakeProc(returncode, "", traceback)
 
-    monkeypatch.setattr(wiki.subprocess, "run", interrupted_run)
+    monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(interrupted_popen))
     with pytest.raises(KeyboardInterrupt):
         wiki.translate_via_cmd("# zh in\n", "fake-cmd")
     err = capsys.readouterr().err

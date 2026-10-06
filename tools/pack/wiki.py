@@ -522,6 +522,20 @@ def _drain_collected_failures() -> list[str]:
             return messages
 
 
+#: Set while a translation stage tears down, so the translators still in
+#: flight terminate their child instead of running a full page (review
+#: R-15).  Without it the main thread could stop waiting but the pool
+#: threads kept blocking in :func:`subprocess.run`, and CPython joins them
+#: at interpreter teardown -- the process lingered for up to one page per
+#: running worker (measured 0.6 s to 3.1 s with a 3 s page).  Cleared by the
+#: next run before it installs the collect policy.
+_STOP_TRANSLATIONS: threading.Event = threading.Event()
+
+#: How often a running translator checks for the stop signal.  Small enough
+#: that an interrupt is honoured promptly, large enough to stay cheap.
+_STOP_POLL_S: Final[float] = 0.2
+
+
 def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
     """Run the external translator; returns ``(english, failure_message)``.
 
@@ -530,38 +544,66 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
     where the message goes.
 
     Raises :exc:`KeyboardInterrupt` when the child died *because* the
-    console was interrupted (see :data:`_INTERRUPT_EXIT_CODES`).  That is
-    not a translation failure: the interrupt reaches every translator of
-    the run, so mapping it onto the failure channel would print one error
-    per remaining page and keep translating after the user asked to stop.
-    Handing the interrupt back instead lets the pool stop, cancel the
-    queued batches and the CLI exit with code 130.
+    console was interrupted (see :data:`_INTERRUPT_EXIT_CODES`), and also
+    when the run is being torn down while this child is still alive -- a
+    translator that ignores the console event would otherwise keep the
+    process alive for the rest of its page.
     """
+    started = time.monotonic()
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             translate_cmd,
             shell=True,
-            input=text,
-            capture_output=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=TRANSLATE_TIMEOUT_S,
         )
+    except OSError as exc:
+        return None, (
+            f"error[{Code.WIKI_TRANSLATE_FAILED}]: cannot start translate-cmd"
+            f" ({exc})"
+        )
+    try:
+        if proc.stdin is not None:
+            proc.stdin.write(text)
+            proc.stdin.close()
+        while True:
+            try:
+                stdout, stderr = proc.communicate(timeout=_STOP_POLL_S)
+                break
+            except subprocess.TimeoutExpired:
+                # Only the parallel stage listens: a direct library call
+                # runs with the serial policy, where a stop left behind by
+                # an earlier run must not cancel anything.
+                if _STOP_TRANSLATIONS.is_set() and _emit_mode == "collect":
+                    raise KeyboardInterrupt from None
+                if time.monotonic() - started >= TRANSLATE_TIMEOUT_S:
+                    raise subprocess.TimeoutExpired(
+                        cmd=translate_cmd, timeout=TRANSLATE_TIMEOUT_S
+                    ) from None
     except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
         return None, (
             f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out"
             f" after {TRANSLATE_TIMEOUT_S:g}s"
         )
+    except BaseException:
+        proc.kill()
+        proc.wait()
+        raise
     if proc.returncode in _INTERRUPT_EXIT_CODES:
         raise KeyboardInterrupt
-    if proc.returncode != 0 or not proc.stdout.strip():
-        detail = (proc.stderr or proc.stdout).strip()
+    if proc.returncode != 0 or not (stdout or "").strip():
+        detail = (stderr or stdout or "").strip()
         return None, (
             f"error[{Code.WIKI_TRANSLATE_FAILED}]: translate-cmd failed"
             f" (rc={proc.returncode}): {detail}"
         )
-    return proc.stdout, None
+    return stdout, None
 
 
 def translate_via_cmd(text: str, translate_cmd: str) -> str | None:
@@ -1162,6 +1204,7 @@ def _translate_pending(
         # every later translation failure in the process was then queued for
         # a reader that never came -- silent error reporting.
         _emit_mode = "collect"
+        _STOP_TRANSLATIONS.clear()
         # Drain anything a previous run left behind before collecting into
         # the same queue: ownership belongs to the run that produced it.
         for message in _drain_collected_failures():
@@ -1217,12 +1260,12 @@ def _translate_pending(
             )
     finally:
         # The main thread stops waiting -- queued batches are cancelled and
-        # the in-flight translators are left to the console event that
-        # already reached them.  They are *not* forgotten: CPython joins
-        # pool threads at interpreter teardown, so a hook that swallows the
-        # interrupt can still delay the exit by up to one page per running
-        # worker (measured: 0.6 s to 3.1 s with a 3 s page).
+        # the in-flight translators are told to stop: a child that ignores
+        # the console event is killed by its own worker within one poll
+        # interval, so the process no longer lingers until interpreter
+        # teardown joins the pool (review R-15).
         stop.set()
+        _STOP_TRANSLATIONS.set()
         if pool is not None:
             pool.shutdown(wait=False, cancel_futures=True)
         progress.stop()

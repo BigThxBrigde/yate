@@ -16,10 +16,12 @@ bound is asserted, so the tests do not jitter.
 
 from __future__ import annotations
 
+import io
 import re
 import sys
 import threading
 import time
+import types
 from collections.abc import Generator
 from contextlib import contextmanager
 from io import StringIO
@@ -502,6 +504,34 @@ def test_console_interrupt_stops_the_run_instead_of_failing_every_page(
     assert "Traceback" not in err
 
 
+class _FakeProc:
+    """Stand-in for :class:`subprocess.Popen` as used by ``_run_translate``.
+
+    The translator runs through ``Popen`` + a polling ``communicate`` so a
+    tearing-down stage can kill its child (review R-15), so the interrupt
+    cases stub the process rather than ``subprocess.run``.
+    """
+
+    def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.killed = False
+        self._result = (stdout, stderr)
+        self.stdin = io.StringIO()
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        """Return the captured output."""
+        del timeout
+        return self._result
+
+    def kill(self) -> None:
+        """Record that the child was terminated."""
+        self.killed = True
+
+    def wait(self) -> int:
+        """Return the exit code, as a reaped child would."""
+        return self.returncode
+
+
 def test_console_interrupt_exit_code_reaches_the_cli_as_130(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -516,10 +546,25 @@ def test_console_interrupt_exit_code_reaches_the_cli_as_130(
     """
     traceback = "Traceback (most recent call last):\nKeyboardInterrupt\n^C\n"
 
-    def interrupted_run(cmd: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess([str(cmd)], 0xC000013A, "", traceback)
+    def interrupted_popen(cmd: object, **kwargs: object) -> _FakeProc:
+        del cmd, kwargs
+        return _FakeProc(0xC000013A, "", traceback)
 
-    monkeypatch.setattr(wiki.subprocess, "run", interrupted_run)
+    # Replace the module reference rather than patching the real
+    # ``subprocess``: swapping ``Popen`` process-wide would hand the fake to
+    # pytest and coverage as well.
+    monkeypatch.setattr(
+        wiki,
+        "subprocess",
+        types.SimpleNamespace(
+            Popen=interrupted_popen,
+            run=subprocess.run,
+            TimeoutExpired=subprocess.TimeoutExpired,
+            CompletedProcess=subprocess.CompletedProcess,
+            DEVNULL=subprocess.DEVNULL,
+            PIPE=subprocess.PIPE,
+        ),
+    )
     monkeypatch.setattr("tools._util.repo_root", lambda: repo)
     argv = [
         "wiki",
