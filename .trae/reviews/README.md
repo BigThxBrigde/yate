@@ -14,14 +14,17 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 30 条：
-**未闭环 13 条**、已闭环 16 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
-#20 / #22 / #24 / #25 / #27 / #28 / #30）、部分闭环 1 条（#18：三轮评审中前两轮已修，
+📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 33 条：
+**未闭环 13 条**、已闭环 19 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
+#20 / #22 / #24 / #25 / #27 / #28 / #30 / #31 / #32 / #33）、部分闭环 1 条（#18：三轮评审中前两轮已修，
 第三轮按用户决策登记不修）。已闭环条目保留行并标注处置；
 #26 / #27 为 2026-10-05 全量清查轮补登记（此前索引漏记），
 #28 为同轮的全量文档 review（文档治理，非代码缺陷），
 #29 为 PR !56 的 AI 队友评审（0 阻断 / 4 改进，仅登记未处置），
 #30 为 PR !57 的 AI 队友评审（1 阻断 + 2 改进，已全部销账）。
+> **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
+> （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
+> #32；本分支新增条目自 #33 起顺延。合并回 master 时需按日期重排一次编号。
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
 
@@ -59,6 +62,7 @@
 | 30 | 2026-10-05 | Gitee PR !57 AI 队友评审（**两轮**：[note 51450178](https://gitee.com/jermaine/yate/pulls/57#note_51450178_conversation_191412657) conversation 191412657 + [note 51450575](https://gitee.com/jermaine/yate/pulls/57#note_51450575_conversation_191414938) conversation 191414938；`enh/smoke-test-scenarios` 冒烟扩充，场景 89 → 104）：第一轮 ⛔ 1 阻断（`screensaver.py` 两 app 共用 `rows`，第一个 app 的 SVG 快照成死存储，且因不变量只扫最后一个 app 而从未被覆盖）+ 2 改进（`guards.py` 主题候选数 `8` 与两处派生主题名硬编码；`workspace_nav.py` 循环上限 `12` 为魔法数字）；第二轮 ⚠️ 0 阻断 + 1 改进（`tests/test_smoke_cli.py` 无任何 fixture，与 `test_smoke_harness.py` 的全局状态隔离不对称） | ✅ 第一轮阻断与 2 改进已全修（2026-10-05，`c7099d0` 拆为两个单 app 场景 / `77475d8` 三处期望值改由 `theme.available()` 派生 / `6a95fd8` 上限改由 `MIN_FRACTION`+`RESIZE_STEP` 推导；评审建议的 `theme.names()` 不存在已替换；门禁 pyright 0 + 1875 passed / 8 skipped + 22 架构 + 冒烟 104/104（1252 checks，覆盖 45/45 与 66/66）+ `compare` 全 MATCH + 覆盖率 91.27%）；👀 第二轮 M3 登记待处置（2026-10-05 用户指令只登记不修；核实为**潜在**风险非现症——唯一真跑场景 `keymap_toggle` 自复原键位、未传 `--seed` 故不改全局种子、主题由 harness 收尾复原；评审称两个 fixture 均 autouse 有误，`restore_theme` 是按需 fixture）。处置见 [smoke-review-fixes-plan.md](../documents/smoke-review-fixes-plan.md) | [2026-10-05-pr57-smoke-expansion-ai-review.md](2026-10-05-pr57-smoke-expansion-ai-review.md) |
 | 31 | 2026-10-06 | **pack wiki 进度刷新 + Ctrl+C 治理的 skill 审查轮**（`fix/pack-wiki-progress-refresh`，issue IKJPEK 评论 `note_51450440` + 用户 Ctrl+C 堆栈报告；`python-code-review` skill 六维度 × 6 轮：主代理 4 轮 + 只读评审子代理 2 轮，变异测试与一次性探针取证）：累计 0 CRITICAL / 15 WARNING / 16 SUGGESTION；其中 R-01（总体行文案落后进度条一页，探针 `delta=1`）为本轮修复自身引入，第 3 轮查出 R-16（R-05 只修一半：晚到消息滞留丢失）与 R-17（用例恒真），第 4 轮补上**四轮皆遗漏**的结构性缺陷 R-21（collect 策略在 `try` 外安装 → setup 异常后静默报错，已加 AST 结构性守护）；第 5 轮复审上一会话**未提交**的 R-15 草稿，查出其本身站不住（4 red + 恒真断言 + 引用不存在的符号）并定位 R-28（取消信号是进程级全局且 AND 了 emit 策略 → 收尾窗口外的 worker 永远看不到信号，这才是退出延迟的成因）；`needs_translation` 判定重构经全组合核对**行为等价** | ✅ 代码收敛（第 4 轮 0 条新增 WARNING；第 5/6 轮修完 R-28/R-29/R-30/R-32，并新增端到端守护"stage 收尾 → worker 亲手 kill 自己的子进程"，变异 M1 变红；4 项接受为风险并附理由：R-09/R-10/R-13/R-31；M2/M3 预期不变红已如实记账）；⚠️ 遗留：真实 TTY 目验缺位、管道交接只算加固 | [2026-10-06-pack-wiki-progress-skill-review.md](2026-10-06-pack-wiki-progress-skill-review.md) |
 | 32 | 2026-10-06 | PR !58 `enh/pack-bundle-layout` python-code-review（issue IKJPVB 打包瘦身 + 单目录扁平布局；`pack/_common.py` / 两个 spec / 新增 `tests/test_pack_spec.py`）：首轮 4 WARNING + 5 SUGGESTION，另在评审阶段发现并修掉 1 项构建期阻断（POSIX 上 `contents_directory="."` 使 exe 与 `yate/` 包数据目录同名、COLLECT 必失败） | 🔧 已闭环（共 6 轮：4 + 2 + 2 + 4 + 1 + 0 项发现，全部代码级已修；轮次记录与跟踪表见该文档；人工余留：R-04 在 issue 回执平台限定、R-12/R-13/R-15 为覆盖边界登记） | [2026-10-06-pack-bundle-layout-review.md](2026-10-06-pack-bundle-layout-review.md) |
+| 33 | 2026-10-06 | Gitee PR !59 AI 队友评审（[note 51456136](https://gitee.com/jermaine/yate/pulls/59#note_51456136_conversation_191435254) conversation 191435254；`fix/pack-wiki-progress-refresh` 合并 master 后的评审，issue IKJPEK）：⛔ 1 阻断（`_run_translate` 轮询复用 `communicate()` 致输出丢失）+ 3 改进（`_terminate` 的 `wait()` 无超时兜底 / 入口排空漏 `highlight=False` / `feeder.join` 注释与行为不符） | ✅ 3 改进已修（2026-10-06：`_terminate` 改为有界等待 + 超时告警、入口排空补 `highlight=False` 并加 AST 守护、`feeder.join` 注释改为如实描述）；⛔ 阻断经实测判为**误报**（CPython 3.13.2 `communicate` 无短路分支；1 s 慢速子进程 × 200 KB 输出 × 4 次超时探针：输出完整），按"采纳其测试建议"新增慢速真实子进程钉桩用例 | [2026-10-06-pr59-pack-wiki-refresh-ai-review.md](2026-10-06-pr59-pack-wiki-refresh-ai-review.md) |
 
 ---
 
@@ -112,6 +116,8 @@
 | 2026-10-05 | **Gitee PR !57 AI 队友评审**（两轮：[note 51450178](https://gitee.com/jermaine/yate/pulls/57#note_51450178_conversation_191412657) conversation 191412657 + [note 51450575](https://gitee.com/jermaine/yate/pulls/57#note_51450575_conversation_191414938) conversation 191414938；`enh/smoke-test-scenarios` 冒烟扩充，场景 89 → 104；正文经 Gitee API 取回，页面不展开评论） | ⛔ 第一轮未通过（1 阻断 + 2 改进）→ ⚠️ 第二轮无阻断（1 改进） | 第一轮 1 阻断 / 2 改进；第二轮 0 阻断 / 1 改进 | ✅ 第一轮阻断与 2 改进已全修（`c7099d0` 拆场景消除死存储并让第一个 app 重回不变量覆盖 / `77475d8` 主题期望值改由注册表派生 / `6a95fd8` 循环上限改由产品常量推导）；👀 第二轮 M3（CLI 测试全局状态隔离不对称）登记待处置，核实为潜在风险非现症；见速览 #30 与 [smoke-review-fixes-plan.md](../documents/smoke-review-fixes-plan.md) | [2026-10-05-pr57-smoke-expansion-ai-review.md](2026-10-05-pr57-smoke-expansion-ai-review.md) |
 | 2026-10-05 | **全量文档 review（doc-review-sweep）**（207 篇受控 Markdown，排除 `.trae/rules` 与 `.trae/agents`；3 名只读子代理分文件并行 + 主代理逐条复核 + 机械体检脚本） | ✅ 通过（无阻断） | 命名 26 / 真实路径 51 / 断链 22 文件；语义偏离 29 类（README 9 + `yate/docs` 8 + wikis 12）；计划状态 147 篇逐篇取证 | ✅ 已处置（命名违规→0、真实路径→0、断链→6 篇仅剩真正失效目标；147 篇统一状态块 + `.trae/documents/overview.md` 汇总；门禁 pyright 0 + 1818 tests + 22 架构 + 覆盖率 91.27%） | [2026-10-05-doc-review-sweep.md](2026-10-05-doc-review-sweep.md) |
 | 2026-10-05 | **Gitee PR !56 AI 队友评审**（[note 51450173](https://gitee.com/jermaine/yate/pulls/56#note_51450173_conversation_191412615) conversation 191412615；`enh/pack-wiki-parallel`，issue IKJPEK 的 pack wiki 增强：每批 ≤10 篇 + 并发上限 CPU×2 的线程池、`error[CODE]: message` 错误码体系、`--jobs`/`--debug`） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 4 改进（功能性 2 + 可维护性 2） | 👀 登记未处置（2026-10-05；P1 manifest 错误码 / P2 `_read_source_bytes` OSError 码 / P3 emitter 全局收尾竞态 / P4 `needs_translation` 与 `_prepare_pages` 判定重复） | [2026-10-05-pr56-pack-wiki-parallel-ai-review.md](2026-10-05-pr56-pack-wiki-parallel-ai-review.md) |
+
+| 2026-10-06 | **Gitee PR !59 AI 队友评审**（[note 51456136](https://gitee.com/jermaine/yate/pulls/59#note_51456136_conversation_191435254) conversation 191435254；`fix/pack-wiki-progress-refresh` 合并 master 后的评审，issue IKJPEK；正文经 Gitee API 取回，页面不展开评论） | ❌ 机器人自评未通过（功能性 1 阻断 + 可维护性 3 改进）→ ✅ 主代理复核：0 阻断（误报）+ 3 改进已修 | 1 阻断 / 3 改进 | ✅ 3 改进已修（`_terminate` 有界等待 + 超时告警 / 入口排空补 `highlight=False` 并加 AST 守护 / `feeder.join` 注释如实化）；⛔ 阻断经 stdlib 源码 + 慢速真实子进程探针判为误报，改以新增钉桩用例锁定行为；见速览 #33 与 [pr59-pack-wiki-refresh-review-fixes-plan.md](../documents/pr59-pack-wiki-refresh-review-fixes-plan.md) | [2026-10-06-pr59-pack-wiki-refresh-ai-review.md](2026-10-06-pr59-pack-wiki-refresh-ai-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
