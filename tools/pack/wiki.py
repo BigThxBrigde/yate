@@ -499,7 +499,13 @@ _COLLECTED_FAILURES: queue.SimpleQueue[str] = queue.SimpleQueue()
 
 
 def _emit_translate_failure(message: str) -> None:
-    """Report one translation failure honouring :data:`_emit_mode`."""
+    """Report one translation failure honouring :data:`_emit_mode`.
+
+    Both routes emit the same plain text: the collected one goes through a
+    rich console, so it asks for no highlighting -- otherwise a failure
+    printed after the run would carry ANSI styling on a terminal while the
+    same line during the run does not (review R-22).
+    """
     if _emit_mode == "collect":
         _COLLECTED_FAILURES.put(message)
         return
@@ -1148,10 +1154,22 @@ def _translate_pending(
     done = 0
     stop = threading.Event()
     global _emit_mode
-    _emit_mode = "collect"
-    progress.start()
-    pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="wiki-translate")
+    pool: ThreadPoolExecutor | None = None
     try:
+        # Every fallible step lives inside the protected region (review
+        # R-21).  The collect policy is process-global: an exception between
+        # installing it and entering the try left it installed forever, and
+        # every later translation failure in the process was then queued for
+        # a reader that never came -- silent error reporting.
+        _emit_mode = "collect"
+        # Drain anything a previous run left behind before collecting into
+        # the same queue: ownership belongs to the run that produced it.
+        for message in _drain_collected_failures():
+            console.print(message, markup=False)
+        progress.start()
+        pool = ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="wiki-translate"
+        )
         futures: dict[Future[list[_PageOutcome]], int] = {
             pool.submit(
                 _run_batch, batches[index - 1], translate_cmd, stop, index, board
@@ -1205,14 +1223,15 @@ def _translate_pending(
         # interrupt can still delay the exit by up to one page per running
         # worker (measured: 0.6 s to 3.1 s with a 3 s page).
         stop.set()
-        pool.shutdown(wait=False, cancel_futures=True)
+        if pool is not None:
+            pool.shutdown(wait=False, cancel_futures=True)
         progress.stop()
         # Restore the serial policy *before* draining: a worker that fails
         # after this point then writes its own line instead of queueing it
         # into a queue nobody will read again (review R-05, second half).
         _emit_mode = "print"
         for message in _drain_collected_failures():
-            console.print(message, markup=False)
+            console.print(message, markup=False, highlight=False)
     return _TranslationReport(translated, digests, missing, stale)
 
 
