@@ -459,7 +459,8 @@ cd <checkout>   # any checkout works
 - default (incremental): **only translate pages that are missing (no English
   page) or stale (Chinese source changed)**; fresh pages are kept as-is;
 - `--translate-all`: full re-translation — fresh pages are also sent through
-  the hook, overwriting their existing English pages (use with care);
+  the hook, overwriting their existing English pages (use with care); without
+  `--translate-cmd` it has no effect and says so;
 - `--push`: once every translation succeeds, commits and pushes to
   `origin` (gitee) and `github`; any failed page skips the push so dirty
   state never reaches the remotes;

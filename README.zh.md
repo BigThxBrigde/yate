@@ -454,6 +454,7 @@ cd <checkout>   # 任意检出均可
 - 缺省（增量）：**只翻译 missing（无英文页）与 stale（中文源已变更）** 的条目，
   fresh 页保持不动；
 - `--translate-all`：全量重译——额外把 fresh 页也送翻并覆盖现有英文页（慎用）；
+  未给 `--translate-cmd` 时本开关无效（会打印提示）；
 - `--push`：翻译全部成功后自动 commit 并推送 `origin`（gitee）与 `github`；
   只要有失败页就跳过推送，不带脏状态上远端；
 - 进度反馈：当 stderr 是终端时，翻译在 rich 进度条中进行——每批次一行 +
