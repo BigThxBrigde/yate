@@ -279,11 +279,15 @@ class _FakeProc:
         stderr: str = "",
         *,
         hang: bool = False,
+        survive_kill: bool = False,
     ) -> None:
         self.returncode = returncode
         self.killed = False
+        self.pid = 4242
+        self.wait_timeout: float | None = None
         self._result = (stdout, stderr)
         self._hang = hang
+        self._survive_kill = survive_kill
         self.stdin = io.StringIO()
 
     def communicate(self, timeout: float | None = None) -> tuple[str, str]:
@@ -297,8 +301,17 @@ class _FakeProc:
         """Record that the child was terminated."""
         self.killed = True
 
-    def wait(self) -> int:
-        """Return the exit code, as a reaped child would."""
+    def wait(self, timeout: float | None = None) -> int:
+        """Return the exit code, as a reaped child would.
+
+        The budget it was given is recorded in :attr:`wait_timeout`, so a test
+        can pin that the reap is bounded.  *survive_kill* stands for a child
+        that ignores the kill: the bounded wait of review I1 then runs into its
+        timeout instead of returning.
+        """
+        self.wait_timeout = timeout
+        if self._survive_kill:
+            raise subprocess.TimeoutExpired(cmd="fake-cmd", timeout=timeout or 0)
         return self.returncode
 
 
@@ -393,6 +406,55 @@ def test_a_streaming_hook_that_answers_before_reading_everything() -> None:
     command = subprocess.list2cmdline([sys.executable, "-c", script])
     result = wiki.translate_via_cmd(page, command)
     assert result == "y" * 65536
+
+
+def test_a_slow_hook_that_outlives_several_polls_keeps_its_whole_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child slower than the poll interval still returns its full output.
+
+    Review B1 (PR !59): the review claimed that re-entering
+    ``Popen.communicate(timeout=...)`` after a timeout stops reading the pipes
+    and hands back ``(None, None)``, which would turn every real translation
+    -- real ones take seconds, not milliseconds -- into a reported failure.
+    That mechanism does not exist in CPython, and this pins the behaviour: the
+    child outlives a dozen poll intervals, answers 200 KB, and the answer has
+    to arrive whole.  A CPython that ever short-circuits would fail here.
+    """
+    monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.05)
+    # The child composes the answer itself: a 200 KB literal would blow the
+    # Windows command line limit (WinError 206) before the pipe even matters.
+    script = (
+        "import sys, time; sys.stdin.read(); time.sleep(0.6);"
+        " sys.stdout.write('# en\\n' + 'x' * 200000 + '\\n')"
+    )
+    command = subprocess.list2cmdline([sys.executable, "-c", script])
+    result = wiki.translate_via_cmd("# zh in\n", command)
+    assert result == "# en\n" + "x" * 200_000 + "\n"
+
+
+def test_a_child_that_ignores_the_kill_is_announced_not_waited_on(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A translator that outlives its kill must not pin the worker forever.
+
+    Review I1: ``_terminate`` used to wait without a bound, so a child stuck
+    in an uninterruptible state would hang the pool worker -- exactly what the
+    cancel-signal work set out to avoid.  The wait is bounded now and the
+    outcome is announced; the page failure itself still travels through the
+    normal channel.
+    """
+    monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.01)
+    monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 0.05)
+    proc = _FakeProc(hang=True, survive_kill=True)
+    monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(lambda *a, **k: proc))
+    assert wiki.translate_via_cmd("# zh in\n", "fake-cmd") is None
+    err = capsys.readouterr().err
+    assert proc.killed
+    budget = getattr(wiki, "_TERMINATE_WAIT_S")
+    assert proc.wait_timeout == budget, "the reap must be bounded by a budget"
+    assert f"pid {proc.pid} ignored the kill after {budget:g}s" in err
+    assert f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out" in err
 
 
 def test_a_hook_that_exits_early_is_reported_not_raised(
@@ -759,6 +821,45 @@ def test_the_collect_policy_is_installed_inside_the_protected_region() -> None:
         "the collect policy and the display start must live inside the try "
         "that restores the policy"
     )
+
+
+def test_every_drained_failure_is_rendered_the_same_way() -> None:
+    """Both drains must render a collected failure identically.
+
+    Review I2 (PR !59): rendering one collected message through rich is only
+    indistinguishable from the serial ``print`` route when highlighting is
+    off, and the drain at the *entry* of the stage had dropped
+    ``highlight=False`` while the one in ``finally`` had it.  The two sites
+    live in different blocks of the same function, so nothing but a structural
+    check keeps them equal -- and the difference is one invisible kwarg.
+    """
+    source = Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    drains = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.For)
+        and isinstance(node.iter, ast.Call)
+        and isinstance(node.iter.func, ast.Name)
+        and node.iter.func.id == "_drain_collected_failures"
+    ]
+    assert len(drains) == 2, "the entry drain and the finally drain must both be there"
+    for drain in drains:
+        renders = [
+            node
+            for statement in drain.body
+            for node in ast.walk(statement)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "print"
+        ]
+        assert renders, "a drain loop must print what it drained"
+        for render in renders:
+            keywords = {keyword.arg for keyword in render.keywords}
+            assert {"markup", "highlight"} <= keywords, (
+                "a drained failure is rendered as markup=False, highlight=False"
+                " in both drains (review R-22 / I2)"
+            )
 
 
 def test_a_failure_reported_after_the_drain_still_reaches_the_terminal(

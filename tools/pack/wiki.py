@@ -574,13 +574,33 @@ def _feed_stdin(stream: IO[str] | None, text: str) -> None:
         pass
 
 
+#: Wall clock budget for reaping a killed translator.  ``kill`` is not a
+#: promise on every platform -- a child stuck in an uninterruptible wait may
+#: never report back -- and the caller is a pool worker that has to be able to
+#: return, so the reap is bounded (review I1).
+_TERMINATE_WAIT_S: Final[float] = 5.0
+
+
 def _terminate(proc: subprocess.Popen[str]) -> None:
-    """Kill and reap *proc*, tolerating a child that already exited."""
+    """Kill and reap *proc*, tolerating a child that already exited.
+
+    The wait is bounded by :data:`_TERMINATE_WAIT_S`: a child that somehow
+    outlives the kill is announced on stderr rather than pinning the worker.
+    The failure that brought us here travels separately (through
+    :func:`_emit_translate_failure`), so this line never has to render it.
+    """
     try:
         proc.kill()
     except OSError:  # pragma: no cover - the child died in the meantime
         pass
-    proc.wait()
+    try:
+        proc.wait(timeout=_TERMINATE_WAIT_S)
+    except subprocess.TimeoutExpired:
+        print(
+            f"wiki: translate-cmd pid {proc.pid} ignored the kill"
+            f" after {_TERMINATE_WAIT_S:g}s",
+            file=sys.stderr,
+        )
 
 
 def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
@@ -651,8 +671,13 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
         _terminate(proc)
         raise
     finally:
-        # Never let the writer outlive the call: on the kill paths the pipe
-        # is broken and the thread returns on its own.
+        # Wait up to one poll interval for the writer, then leave it be: on
+        # the kill paths the pipe is broken and it returns on its own, and a
+        # healthy child has drained stdin long before this.  A writer still
+        # alive here stays a daemon thread over its own handle -- the pipe was
+        # detached from the process object above, so it can no longer reach the
+        # child or this module's state (review I3: the old comment promised
+        # more than the join delivered).
         feeder.join(timeout=_STOP_POLL_S)
     stdout, stderr = output
     if proc.returncode in _INTERRUPT_EXIT_CODES:
@@ -1279,8 +1304,10 @@ def _translate_pending(
         _emit_mode = "collect"
         # Drain anything a previous run left behind before collecting into
         # the same queue: ownership belongs to the run that produced it.
+        # Both drains render identically (review R-22, second half found by
+        # the PR !59 review: the entry drain had dropped ``highlight=False``).
         for message in _drain_collected_failures():
-            console.print(message, markup=False)
+            console.print(message, markup=False, highlight=False)
         progress.start()
         pool = ThreadPoolExecutor(
             max_workers=workers, thread_name_prefix="wiki-translate"
