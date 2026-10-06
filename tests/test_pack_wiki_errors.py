@@ -440,9 +440,10 @@ def test_a_child_that_ignores_the_kill_is_announced_not_waited_on(
 
     Review I1: ``_terminate`` used to wait without a bound, so a child stuck
     in an uninterruptible state would hang the pool worker -- exactly what the
-    cancel-signal work set out to avoid.  The wait is bounded now and the
-    outcome is announced; the page failure itself still travels through the
-    normal channel.
+    cancel-signal work set out to avoid.  The wait is bounded now, and the
+    fact that the kill did not take travels inside the page failure the user
+    already sees: a worker never writes to the terminal itself (only the main
+    thread does), so the note must not arrive as a separate line either.
     """
     monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.01)
     monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 0.05)
@@ -452,9 +453,12 @@ def test_a_child_that_ignores_the_kill_is_announced_not_waited_on(
     err = capsys.readouterr().err
     assert proc.killed
     budget = getattr(wiki, "_TERMINATE_WAIT_S")
-    assert proc.wait_timeout == budget, "the reap must be bounded by a budget"
-    assert f"pid {proc.pid} ignored the kill after {budget:g}s" in err
-    assert f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out" in err
+    assert 0 < budget <= 30, "the budget is a wall clock bound, not a formality"
+    assert proc.wait_timeout == budget, "the reap must be bounded by that budget"
+    assert (
+        f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out"
+        f" after 0.05s (pid {proc.pid} ignored the kill after {budget:g}s)" in err
+    )
 
 
 def test_a_hook_that_exits_early_is_reported_not_raised(

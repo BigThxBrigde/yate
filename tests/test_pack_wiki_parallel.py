@@ -413,6 +413,7 @@ class _HangingProc:
         """Publish *polling* as soon as the first wait begins."""
         self.returncode = 0
         self.killed = False
+        self.wait_timeout: float | None = None
         self.stdin = io.StringIO()
         self._polling = polling
 
@@ -427,8 +428,14 @@ class _HangingProc:
         self.killed = True
         self.returncode = -9
 
-    def wait(self) -> int:
-        """Return the exit code, as a reaped child would."""
+    def wait(self, timeout: float | None = None) -> int:
+        """Return the exit code, as a reaped child would.
+
+        The reap is bounded (review I1), so the budget is accepted -- and
+        recorded, which lets the test below pin that the worker really asks
+        for one instead of blocking.
+        """
+        self.wait_timeout = timeout
         return self.returncode
 
 
@@ -495,7 +502,13 @@ def test_a_torn_down_stage_kills_the_child_its_worker_is_waiting_for(
     monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.2)
     with pytest.raises(KeyboardInterrupt):
         wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=2)
-    assert _wait_for(lambda: proc.killed, 5.0)
+    # The reap that follows the kill is bounded (review I1).  Waiting for the
+    # budget pins the worker's own teardown, which nothing else observes: the
+    # main thread has already left the pool by then, so an exception raised
+    # after the kill would be swallowed instead of failing a test.
+    assert _wait_for(lambda: proc.wait_timeout is not None, 5.0)
+    assert proc.killed
+    assert proc.wait_timeout == getattr(wiki, "_TERMINATE_WAIT_S")
 
 
 def test_translate_failure_lines_are_printed_once_by_the_main_thread(
@@ -625,8 +638,9 @@ class _FakeProc:
         """Record that the child was terminated."""
         self.killed = True
 
-    def wait(self) -> int:
+    def wait(self, timeout: float | None = None) -> int:
         """Return the exit code, as a reaped child would."""
+        del timeout
         return self.returncode
 
 

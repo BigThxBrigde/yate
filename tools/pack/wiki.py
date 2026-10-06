@@ -581,13 +581,15 @@ def _feed_stdin(stream: IO[str] | None, text: str) -> None:
 _TERMINATE_WAIT_S: Final[float] = 5.0
 
 
-def _terminate(proc: subprocess.Popen[str]) -> None:
-    """Kill and reap *proc*, tolerating a child that already exited.
+def _terminate(proc: subprocess.Popen[str]) -> str | None:
+    """Kill and reap *proc*; return a note when the child outlived the kill.
 
-    The wait is bounded by :data:`_TERMINATE_WAIT_S`: a child that somehow
-    outlives the kill is announced on stderr rather than pinning the worker.
-    The failure that brought us here travels separately (through
-    :func:`_emit_translate_failure`), so this line never has to render it.
+    The wait is bounded by :data:`_TERMINATE_WAIT_S`: a child stuck in an
+    uninterruptible state must not pin the pool worker, which is exactly what
+    the cancel-signal work set out to achieve.  The note is returned rather
+    than printed -- a worker never writes to the terminal (only the main
+    thread does, see :func:`_emit_translate_failure`), so the caller folds it
+    into the failure message it is already reporting.
     """
     try:
         proc.kill()
@@ -596,11 +598,10 @@ def _terminate(proc: subprocess.Popen[str]) -> None:
     try:
         proc.wait(timeout=_TERMINATE_WAIT_S)
     except subprocess.TimeoutExpired:
-        print(
-            f"wiki: translate-cmd pid {proc.pid} ignored the kill"
-            f" after {_TERMINATE_WAIT_S:g}s",
-            file=sys.stderr,
+        return (
+            f"pid {proc.pid} ignored the kill after {_TERMINATE_WAIT_S:g}s"
         )
+    return None
 
 
 def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
@@ -662,10 +663,11 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
                         cmd=translate_cmd, timeout=TRANSLATE_TIMEOUT_S
                     ) from None
     except subprocess.TimeoutExpired:
-        _terminate(proc)
+        leftover = _terminate(proc)
+        detail = f" ({leftover})" if leftover is not None else ""
         return None, (
             f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out"
-            f" after {TRANSLATE_TIMEOUT_S:g}s"
+            f" after {TRANSLATE_TIMEOUT_S:g}s{detail}"
         )
     except BaseException:
         _terminate(proc)
@@ -674,10 +676,11 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
         # Wait up to one poll interval for the writer, then leave it be: on
         # the kill paths the pipe is broken and it returns on its own, and a
         # healthy child has drained stdin long before this.  A writer still
-        # alive here stays a daemon thread over its own handle -- the pipe was
-        # detached from the process object above, so it can no longer reach the
-        # child or this module's state (review I3: the old comment promised
-        # more than the join delivered).
+        # alive here keeps its own pipe handle -- it is the child's stdin, so
+        # it can still reach the child -- but it is a daemon thread over a
+        # stream this module no longer touches (the pipe was detached from
+        # the process object above), and it dies with the process.  The old
+        # comment promised more than the join delivered (review I3).
         feeder.join(timeout=_STOP_POLL_S)
     stdout, stderr = output
     if proc.returncode in _INTERRUPT_EXIT_CODES:
