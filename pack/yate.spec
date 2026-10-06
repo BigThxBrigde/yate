@@ -5,18 +5,25 @@ Build with (after ``pip install -e ".[build,ts]"``), from the repository root::
 
     pyinstaller pack/yate.spec
 
-On Windows the output is dist/yate/yate.exe with the runtime files placed
-right next to the executable -- no ``_internal/`` subdirectory (issue
-IKJPVB).  Resources are located at runtime through yate.paths, which
-checks sys._MEIPASS, so the data layout shared with pack/_common.py must
-mirror the source tree (everything lands inside a top-level ``yate`` package
-folder in the bundle).
+On Windows and on POSIX alike the output is dist/yate/ with the executable
+next to a single contents directory::
 
-The flat layout is Windows-only: a POSIX build has no ``.exe`` suffix, so
-the executable itself would be ``dist/yate/yate`` -- the very path the
-bundled ``yate/`` package data needs as a *directory*, and COLLECT aborts
-when it finds a file there.  Linux/macOS therefore keep PyInstaller's
-default ``_internal/`` contents directory.
+    dist/yate/yate.exe          dist/yate/yate on Linux/macOS
+    dist/yate/runtime/...       interpreter runtime, extension modules,
+                                and the bundled ``yate`` package data
+
+PyInstaller >=6 calls that directory ``_internal``; yate ships it as
+``runtime`` instead, so both platforms end up with one identical layout and
+the bundle does not read like a build-internal detail (issue IKJPVB, note
+_51452120).  A *flat* layout -- runtime files right next to the executable --
+is deliberately not used: a POSIX executable has no ``.exe`` suffix, so it
+would be ``dist/yate/yate``, exactly the path the bundled ``yate/`` package
+data has to occupy as a directory, and COLLECT aborts on that collision.
+
+Resources are located at runtime through yate.paths, which checks
+sys._MEIPASS; the bootloader points that at the contents directory, so the
+data layout shared with pack/_common.py must mirror the source tree
+(everything lands inside a top-level ``yate`` package folder in the bundle).
 
 Modules that are dragged in transitively but never used at runtime (Pillow
 and numpy) are dropped from the frozen graph via
@@ -55,6 +62,13 @@ import _common  # noqa: E402
 
 inputs = _common.collect(SPECPATH)
 
+#: Name of the one contents directory this bundle keeps beside the executable.
+#: PyInstaller >=6 defaults to ``_internal``; ``runtime`` is the cross-platform
+#: name yate ships so that Windows and POSIX bundles have the same layout.  The
+#: value is part of the product's layout contract (the docs quote the tree), and
+#: tests/test_pack_spec.py pins both the name and the rules it has to obey.
+CONTENTS_DIRNAME: str = "runtime"
+
 a = Analysis(
     [inputs.pkg_path("__main__.py")],
     pathex=[PROJECT_ROOT],
@@ -81,15 +95,17 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    # Flat one-folder layout on Windows (issue IKJPVB): PyInstaller >=6 defaults
-    # to a ``_internal/`` subdirectory, "." restores the pre-6 layout where the
-    # runtime files sit next to yate.exe.  COLLECT inherits this from EXE.
-    # Windows-only because only there does the executable keep an ``.exe``
-    # suffix -- on POSIX it would be ``dist/yate/yate``, colliding with the
-    # bundled ``yate/`` package directory COLLECT has to create (its makedirs
-    # turns that collision into a hard SystemExit), so those platforms keep
-    # the default contents directory.
-    contents_directory="." if sys.platform == "win32" else "_internal",
+    # One contents directory on every platform (issue IKJPVB): PyInstaller >=6
+    # defaults to a ``_internal/`` subdirectory, which reads like a build
+    # detail, so the bundle ships it as ``runtime/`` instead -- identical on
+    # Windows and POSIX.  COLLECT inherits this from EXE.
+    #
+    # The flat layout ("." -- files right next to the exe) stays off the table:
+    # it is unreachable on POSIX, where the suffix-less executable would be
+    # ``dist/yate/yate``, colliding with the bundled ``yate/`` package
+    # directory COLLECT has to create (its makedirs turns that collision into a
+    # hard SystemExit).  Renaming keeps both platforms alike instead.
+    contents_directory=CONTENTS_DIRNAME,
     console=True,
     disable_windowed_traceback=False,
 )
