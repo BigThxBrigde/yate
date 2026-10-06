@@ -14,6 +14,7 @@ so the suite stays hermetic.
 
 from __future__ import annotations
 
+import ast
 import subprocess
 from collections.abc import Callable
 from io import StringIO
@@ -427,6 +428,102 @@ def test_empty_translation_stage_reports_nothing(
     assert report.stale == []
 
 
+def test_translate_all_without_a_hook_says_it_has_no_effect(
+    repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--translate-all`` on its own is a no-op with a note (review R-23).
+
+    The code has always printed the warning and carried on with the
+    incremental path, but neither README said so and no test pinned it.
+    """
+    assert wiki.run(
+        tmp_path / "wiki", None, translate_all=True, repo_root=repo
+    ) == 0
+    captured = capsys.readouterr()
+    assert "--translate-all has no effect without --translate-cmd" in captured.err
+
+
+def test_a_failing_pool_setup_does_not_strand_the_collect_policy(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A setup failure must not leave later failures queued into the void.
+
+    Review R-21: the collect policy is process-global and used to be
+    installed *before* the protected region, so a failure while starting
+    the display or building the pool stranded it -- every translation
+    failure after that was collected with nobody left to read the queue,
+    which is silent error reporting.
+    """
+
+    def no_threads(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise RuntimeError("cannot start new thread")
+
+    monkeypatch.setattr(wiki, "ThreadPoolExecutor", no_threads)
+    with pytest.raises(RuntimeError):
+        wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=1)
+    # The policy is back to serial and the queue is empty, so a later
+    # failure writes itself instead of disappearing into the collector.
+    assert getattr(wiki, "_emit_mode") == "print"
+    queue = getattr(wiki, "_COLLECTED_FAILURES")
+    assert queue.qsize() == 0
+    getattr(wiki, "_emit_translate_failure")("error[TEST]: still visible")
+    captured = capsys.readouterr()
+    assert "error[TEST]: still visible" in captured.err
+    assert queue.qsize() == 0
+
+
+def test_the_collect_policy_is_installed_inside_the_protected_region() -> None:
+    """The collect switch and the fallible setup must sit inside the ``try``.
+
+    Review R-21 is a structural defect, so it needs a structural guard: the
+    process-global policy is restored by that ``finally``, therefore both the
+    assignment that installs it and the steps that can fail before the pool
+    exists (starting the display, creating the executor) must be inside the
+    protected region.  An exception raised outside it would strand the
+    policy, and every later failure would be queued with nobody to read it --
+    which no behavioural test can provoke once the structure is correct.
+    """
+    source = Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_translate_pending"
+    )
+    protected_ids = {
+        id(child)
+        for block in ast.walk(function)
+        if isinstance(block, ast.Try)
+        for statement in block.body
+        for child in ast.walk(statement)
+    }
+    installs = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "_emit_mode" for t in node.targets)
+        # The install is the one that switches the policy on; the restore in
+        # the finally block assigns "print" and must stay outside.
+        and isinstance(node.value, ast.Constant)
+        and node.value.value == "collect"
+    ]
+    starts = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "start"
+    ]
+    assert installs, "_emit_mode must still be installed in _translate_pending"
+    assert starts, "the display must still be started there"
+    assert all(id(node) in protected_ids for node in installs + starts), (
+        "the collect policy and the display start must live inside the try "
+        "that restores the policy"
+    )
+
+
 def test_a_failure_reported_after_the_drain_still_reaches_the_terminal(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -451,11 +548,12 @@ def test_a_failure_reported_after_the_drain_still_reaches_the_terminal(
         getattr(wiki, "_emit_translate_failure")("late failure line")
         return messages
 
-    def failing(text: str, translate_cmd: str) -> str | None:
-        return None if "page03" in text else "# en\n"
+    def succeeding(text: str, translate_cmd: str) -> str | None:
+        del text, translate_cmd
+        return "# en\n"
 
     monkeypatch.setattr(wiki, "_drain_collected_failures", drain_then_report)
-    monkeypatch.setattr(wiki, "translate_via_cmd", failing)
+    monkeypatch.setattr(wiki, "translate_via_cmd", succeeding)
     assert wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=1) == 0
     assert "late failure line" in capsys.readouterr().err
     # Nothing is left behind for a reader that will never come.
