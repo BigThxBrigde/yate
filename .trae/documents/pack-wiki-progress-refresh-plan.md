@@ -350,6 +350,37 @@ final: completed=3 description='translating 3/3 page(s) · 0 batch(es) queued ·
 SIGINT / 目验）；自定义 hook 吞掉中断时的退出延迟（R-15）；分支落后 master
 （R-11，待用户决策）。
 
+### 6.11 第 4 轮（确认性审查）：代码收敛（2026-10-06）
+
+第 3 轮的 5 WARNING + 2 SUGGESTION 修复经独立复核**全部属实且被变异锁定**
+（回退即变红），未引入新缺陷。四场景探针（正常 / 全失败 / 中途 interrupt /
+worker 抛异常）终态自洽：失败行"恰好一次"、队列残留 0、`_emit_mode` 末值 `print`。
+
+第 4 轮唯一 WARNING 是**四轮皆遗漏的结构性缺陷**：
+
+| # | 问题 | 处置 |
+|---|---|---|
+| R-21 | `global _emit_mode; _emit_mode = "collect"` 与 `progress.start()`、`ThreadPoolExecutor(...)` 都在 `try:` **之前**；任一抛异常则 `finally` 不执行 → 策略永久停在 `"collect"`，此后进程内任何翻译失败都被塞进无人读取的队列（静默报错） | ✅ 全部 fallible setup 移入 `try`，`pool` 判空；因该缺陷无法从外部激活性测试，补 **AST 结构性守护**（断言安装语句与 `start()` 位于 `try` 体内） |
+| R-22 | 同一条失败消息两种渲染（collect 走 rich 有 ANSI 高亮、串行走裸 print） | ✅ 排空时 `highlight=False` |
+| R-23 | 新用例的失败桩含永不触发的分支（fixture 只有 1 页） | ✅ 换成诚实的成功桩 |
+| R-24 | 队列是模块级且从不在入口清空，drain 后残留会被下一次 `run()` 打印 | ✅ 进入时先排空一次 |
+| R-25 | `--translate-all` 无 `--translate-cmd` 时为空操作，README 未说明、无用例 | ✅ 中英各补半句 + 提示行用例 |
+| R-26 | `§6.11` 引用悬空、索引计数与逐轮汇总不符、R-11 在编号表缺号 | ✅ 补本节、计数校正为 13 WARNING / 13 SUGGESTION、概览表补 R-11 说明 |
+| R-27 | R-10「接受」理由缺实测依据（不可重入与跨 run 串味仍未解决） | ✅ 登记补注 |
+
+**最终门禁（主代理亲自跑，退出码 0）**：
+
+| 命令 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| `pytest tests/ --cov=yate --cov-fail-under=75` | **1861 passed, 9 skipped**；覆盖率 **91.27%** |
+| `pytest tests/test_architecture.py` | **22 passed** |
+| `pytest`（wiki 四文件）`--cov=tools.pack.wiki --cov=tools.translate` | **96 passed, 1 skipped**；tools 侧 **94%** |
+
+**收敛结论**：代码修复层面收敛（第 1 轮 7 条 WARNING → 第 4 轮 0 条新增；
+R-21 为四轮皆遗漏的结构性缺陷，非回归）。过程性风险与已接受项见评审记录
+§七 与 [legacy-issues.md](../../reviews/legacy-issues.md)。
+
 ## 七、风险与回滚
 
 | 风险 | 缓解 | 回滚 |
