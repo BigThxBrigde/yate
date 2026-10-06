@@ -157,3 +157,23 @@ plan-b 为唯一改动面较大提交，但 CSS 与方法均为纯增量。
     `_update_preview()` 挂在 `on_key` 的 `if self._filtered:` 块内（空结果光标不变）；
   - plan-d：`yaterc.example` 实际路径为 `yate/yaterc.example`（仅路径修正）；
   - plan-e：无偏离。
+
+## 九、审核结论与收尾门禁（2026-10-07 实测）
+
+**评审**（code-review-expert）：无 blocker；1 个 major（测试宿主未禁用
+Textual 内置 ctrl+p 键位，致 cache 用例按键空转、上移分支零覆盖）——已修复
+（`_Host.ENABLE_COMMAND_PALETTE = False` + 双向光标断言，commit `9c08ffc`，
+修复后上移分支进入覆盖）。minor/suggestion 登记：`preview` 默认值可接受
+（后续解锁 test_app_textual.py 时补参去默认更优）；错误/竞态路径可补 2-3 条
+直测；`tokenize_document` 异常兜底与 editor.py 先例同暴露面，非本分支引入。
+
+**收尾门禁**（主代理亲测，worktree `.venv`）：
+
+| 门禁 | 结果 | 退出码 |
+|---|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations | 0 |
+| `pytest tests/ -q` | 1969 passed, 1 failed, 9 skipped；唯一失败
+`test_pack_wiki_parallel.py::test_batch_row_names_the_page_in_flight_and_escapes_markup`
+为存量环境问题（master 主仓同样失败，与本分支零改动面无关，另行登记） | 1（存量） |
+| `pytest tests/ -q --cov=yate --cov-fail-under=75` | 覆盖率 91.30%（palette.py 93%、config.py 99%） | 达标 |
+| `tools.smoke_test run --no-color --quiet` | **107/107 场景、1286/1286 checks 全过**，97.35s | 0 |
