@@ -285,3 +285,162 @@ import 且不在冻结入口内），最终产物 `--version` 冒烟通过 → �
 
 A 方案不改变 Windows 产物行为，故 §7.2 的体积/文件数/冒烟数字**无需复测**；
 `README.md:290` / `README.zh.md:307` 承诺的 `dist/yate/yate` 在 A 下重新成立。
+
+---
+
+# 第二轮：统一布局与内容目录改名（issue note_51452120）
+
+> 需求来源：issue IKJPVB 评论 note_51452120（Jermaine007，2026-10-06 08:19:31，
+> 经 Gitee API 读取；网页版需登录才可见）。
+> 原文：
+>
+> > 入口 `yate.exe` 和 `_internal` 其他文件平级
+> > 由于在 Linux 下无法实现，保持 Windows 和 Linux 一致，只需要改 `_internal`
+> > 名字，设计一个较好统一的 layout。
+>
+> 状态：待批准（本文档仍为唯一事实来源，实施与实测结果回填 §9）
+
+## 八、需求解读与目标
+
+### 8.1 解读（这决定了实现形态，务必先对齐）
+
+第一轮把 Windows 单目录产物做成**平铺**（`contents_directory="."`），POSIX 只能保留
+PyInstaller 默认的 `_internal/`——两平台布局分叉。评论明确放弃平铺、改为
+**两平台同一套布局**，手段是给内容目录换一个体面的名字：
+
+```
+dist/yate/                     <- 两平台顶层目录（不变）
+├── yate.exe  /  yate          <- 入口（POSIX 无后缀，故 exe 独占顶层）
+└── runtime/                   <- 统一命名的内容目录（原 _internal/）
+    ├── yate/…                 <- yate 包数据（resources/docs/extensions…）
+    ├── base_library.zip、python3xx.dll、*.pyd、tree-sitter 二进制…
+```
+
+要点：
+
+1. **Windows 也回到内容目录结构**——平铺（`contents_directory="."`）在两平台上不再使用；
+2. 目录名不得与 exe 基名 `yate` 相同，否则 `COLLECT` 撞名中断（F3 同款缺陷）；
+3. 内容目录名变化**不影响运行时**：`yate/paths.py` 只认 `sys._MEIPASS`，
+   而 PyInstaller 自己把 `_MEIPASS` 指向该内容目录（`api.py:577-578` 写
+   `pyi-contents-directory <name>` TOC 选项）——已取证。
+
+### 8.2 目标 / 非目标
+
+目标：
+
+- G1 单目录构建在 **Windows 与 POSIX 布局完全一致**（同一 exe 位置 + 同一内容目录名）；
+- G2 内容目录名脱离 PyInstaller 默认的 `_internal`，取一个跨平台中性、体面、不与
+  exe 基名冲突的名字；
+- G3 布局契约有静态守卫钉住（目录名被改回 `_internal` / `"."` / `yate` 时守卫变红）；
+- G4 三个打包脚本与 README 双语同步新布局，脚本对内容目录做存在性校验（布局漂移
+  在脚本层就报错，而不是等用户拿到手）。
+
+非目标：
+
+- 不改 `yate/` 产品源码、不改运行时行为（`paths.py` 天然无关，见 F13）；
+- 不改 onefile 产物（无内容目录概念，`test_exe_call_when_onefile_spec_parsed_omits_contents_directory`
+  继续守着）；
+- 不动 `pack.sh` / `pack.ps1` / `pack.bat` 的产物顶层路径（`dist/yate/…` 不变，只增加一层校验）；
+- 不追砍 `libcrypto/libssl`（沿用 §一 非目标与 §五 R3）。
+
+## 九、第二轮事实取证
+
+| # | 事实 | 证据 |
+|---|---|---|
+| F10 | `contents_directory` 只允许**单层目录名**：`""`/`"."` = 平铺，`".."` 或含 `/`、`\` 直接 `SystemExit`，**其它任意名称合法** | `.venv/Lib/site-packages/PyInstaller/building/api.py:501-508` |
+| F11 | 默认值 `"_internal"`，`COLLECT` 从 `EXE` 继承 | `api.py:448`、`api.py:1114` |
+| F12 | 撞名条件只有一种：内容目录名 == exe 基名。`EXECUTABLE` 恒落在 `join(name, dest)`，其余落 `join(name, contents_directory, dest)` | `api.py:1183-1189` |
+| F13 | 运行时资源定位与目录名解耦：bootloader 收到 `pyi-contents-directory <name>`，`sys._MEIPASS` 指向它；`yate/paths.py` 只读 `sys._MEIPASS` | `api.py:577-578`；`yate/paths.py:38-49` |
+| F14 | 全仓唯一内容目录取值点是 `pack/yate.spec:92`；AST 守卫 4 处（docstring 2 处 + 断言 2 处）；README 双语各 1 段承诺"没有 `_internal`" | `search_content` 全仓检索（`_internal` / `contents_directory` / `dist/yate` 三轮，见 §9.1 影响面清单） |
+| F15 | 三个打包脚本只校验 **exe 本身**（`pack.ps1:133`、`pack.sh:123`），无任何布局/内容目录断言 | `pack/pack.ps1:100-135`、`pack/pack.sh:94-126` |
+| F16 | `tests/` 中除 `test_pack_spec.py` 外无打包布局断言（`test_paths.py` 只 monkeypatch `_MEIPASS`） | 全仓检索确认 |
+
+### 9.1 影响面清单（改名必改 / 复核 / 不改）
+
+| 类别 | 位置 |
+|---|---|
+| 必改 | `pack/yate.spec`（docstring `:8-19`、行内注释 `:84-91`、取值 `:92`）；`tests/test_pack_spec.py`（模块 docstring `:11-15`、守卫 `:443-468`）；`README.md:317-325`；`README.zh.md:329-335` |
+| 复核措辞 | `pack/pack.ps1:8,107,153,185`、`pack/pack.sh:6,101,141,174`（路径不变，提示语可补内容目录） |
+| 不改 | `pack/yate-onefile.spec`、`pack/_common.py`（`_MEIPASS` 语义与目录名解耦）；`CHANGELOG*` 与 `yate/resources/changelog.*`（历史条目）；`.trae/documents/dist-copy-plan.md:61`（陈旧示意，登记不回改） |
+| 本轮新增 | `pack/pack.ps1`、`pack/pack.sh` 各加一处内容目录存在性校验（F15） |
+
+## 十、第二轮方案选型
+
+### 10.1 布局形态
+
+| 方案 | 结论 | 理由 |
+|---|---|---|
+| **A. 两平台统一 `runtime/` 内容目录** | **采纳** | 评论直接要求"保持 Windows 和 Linux 一致，只需要改 `_internal` 名字"；F10/F12 证明除撞名外无其它约束 |
+| B. Windows 平铺 / POSIX `runtime/` | 否决 | 正是评论否决的形态（布局继续分叉）；且第一轮已证明平铺在 POSIX 不可行 |
+| C. 只在 POSIX 上改名，Windows 保持平铺 | 否决 | 同 B，且要维护两份分支语义 |
+| D. 构建后把内容目录搬到顶层再改名 | 否决 | 第一轮已否决（文件后处理与 PyInstaller 增量检查打架，见 §3.2 B） |
+| E. 改 exe 基名（如 `yate-bin`）换平铺空间 | 否决 | 波及 `pack.sh:101` / `README` 产物承诺与用户习惯；用户已明确放弃平铺 |
+
+### 10.2 目录命名
+
+| 候选 | 结论 | 理由 |
+|---|---|---|
+| **`runtime`** | **采纳** | 与仓库既有措辞（README "runtime files"）一致；跨平台中性；F10 合法；≠ `yate`（F12 无撞名）；短、无 `_` 私有暗示，比 `_internal` 体面 |
+| `lib` | 否决 | 语义偏窄（内含 `.pyd`/`.zip`/`.dll`），且与 Unix 系统目录名撞概念 |
+| `yate-runtime` | 否决 | 父目录已是 `yate/`，语义重复、冗长 |
+| `_yate` | 否决 | 沿用下划线私有暗示，观感仍贴近默认 `_internal`，未解决"体面"诉求 |
+| `_internal`（保持默认） | 否决 | 评论点名要换掉的名字 |
+
+### 10.3 契约落点
+
+`contents_directory` 只属单目录构建（onefile 用不到），因此常量落在
+`pack/yate.spec` 顶层而非 `pack/_common.py`——放 `_common.py` 会给 `SpecInputs`
+加一个 onefile 不消费的字段，与守卫
+`test_spec_when_parsed_reads_every_spec_input_field`（两 spec 必须读全部字段）
+直接冲突。命名沿用 `CONTENTS_DIRNAME`，`EXE(contents_directory=CONTENTS_DIRNAME)`。
+
+```mermaid
+flowchart LR
+    A["pack/yate.spec<br/>CONTENTS_DIRNAME = 'runtime'<br/>EXE(contents_directory=CONTENTS_DIRNAME)"] --> B["COLLECT 继承<br/>(api.py:1114)"]
+    B --> C["dist/yate/yate.exe (Win)<br/>dist/yate/yate (POSIX)"]
+    B --> D["dist/yate/runtime/<br/>yate/ + dll + pyd + zip"]
+    D -.->|"bootloader: pyi-contents-directory<br/>(api.py:577-578)"| E["sys._MEIPASS<br/>→ yate/paths.py 无需改动"]
+    style A fill:#bbdefb,color:#0d47a1
+    style D fill:#c8e6c9,color:#1a5e20
+```
+
+## 十一、第二轮分步实施计划
+
+验收命令（同 §四，在 worktree 根、PowerShell、`.venv\Scripts\python.exe` 下执行）：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/test_pack_spec.py -q
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pytest tests/ -q
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
+.venv\Scripts\python.exe -m pytest tests --cov=yate --cov-branch --cov-fail-under=75
+.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --distpath dist --workpath build pack/yate.spec
+```
+
+| 步 | 输入 | 改动文件 | 输出 | 验收命令 |
+|---|---|---|---|---|
+| S7 | F10-F12、§10 | `pack/yate.spec` | `CONTENTS_DIRNAME = "runtime"` + `EXE(contents_directory=CONTENTS_DIRNAME)`；docstring/行内注释改为"跨平台统一布局"并写明选名理由与回滚方式；删除 `sys.platform` 三元（`sys` 因 SPECPATH 段仍需 import） | `pytest tests/test_pack_spec.py -q` |
+| S8 | G3 | `tests/test_pack_spec.py` | 替换 `test_exe_call_when_onefolder_spec_parsed_scopes_flat_layout_to_windows` 为：`test_exe_call_when_onefolder_spec_parsed_uses_the_named_contents_directory`（断言 `contents_directory` 是 `ast.Name(id="CONTENTS_DIRNAME")`，即不再是平台条件式）+ `test_contents_dirname_when_onefolder_spec_parsed_is_a_cross_platform_runtime_dir`（断言：单个字符串字面量赋值 / 非 `""` `"."` `".."` / 非 `_internal` / ≠ exe 基名 `yate` / 无路径分隔符 / `isidentifier()`）；同步模块 docstring；保留 onefile 无该开关的守卫 | 同上 + 负向演练（5 组形态） |
+| S9 | G4、F15 | `pack/pack.ps1`、`pack/pack.sh`、`README.md`、`README.zh.md` | 两脚本在 one-folder 分支加内容目录存在性校验（`dist\yate\runtime` / `dist/yate/runtime`，缺失即报错退出）；README 双语把"Windows 平铺 / POSIX `_internal`"改写为统一布局并说明原因 | `python -m py_compile pack/yate.spec` exit 0；人工核对双语同义 |
+| S10 | 全部 | 无（仅验证） | Windows 真实构建：exe 存在、`dist/yate/runtime/yate/resources/app.tcss` 存在、`dist/yate/_internal` 不存在、体积/文件数、`--version`（必要时 `--diag`）冒烟 | 退出码 0（数字回填 §9.2） |
+| S11 | 全部 | 门禁 | pyright + 全量 pytest + 架构测试 + 覆盖率 → 0 诊断 | 见上 |
+
+**子代理分工**：S8（`tests/test_pack_spec.py`）与 S9 的 README 双语部分
+（`README.md` / `README.zh.md`）文件互不重叠，按 `subagent-workflow.md` 并行下发；
+`pack/*.spec` 与 `pack/pack.*` 属构建期核心契约，由主代理直接改（成员不得改 `yate/`，
+且这几处的正确性靠真实构建背书）。
+
+## 十二、第二轮风险与回滚
+
+| # | 风险 | 缓解 | 回滚 |
+|---|---|---|---|
+| RK1 | **POSIX 无本机验证**（本机 win32，CI 也不打 POSIX 包） | F10/F12/F13 已从 PyInstaller 源码证明：单层名合法、除撞名外无约束、且 `≠ yate` 无撞名；守卫钉住形状与取值；真实 Linux 构建的人工动作登记为遗留项 | — |
+| RK2 | Windows 布局变化（平铺 → 多一层 `runtime/`），与第一轮 issue 原文"平铺"诉求相反 | 依据是评论的显式取舍；README 双语写明原因；改回只需把 `CONTENTS_DIRNAME` 设为 `"."`（仅 Windows 可用，POSIX 会撞名失败） | 还原 S7 的常量一行 |
+| RK3 | 用户已分发的旧布局（平铺）无法原地升级 | 属预期：布局是打包产物契约，非运行期兼容面；README 说明"整目录一起拷贝" | — |
+| RK4 | bootloader 不识别 `pyi-contents-directory` | exe 与 bootloader 同批产出；`build` extra 已锁 `pyinstaller>=6.0`（F8），该选项自 6.0 引入 | — |
+| RK5 | 脚本新增校验在旧产物目录上误报（复用 `dist/` 且未 clean） | 脚本本身以 `--clean` 构建，校验紧跟构建之后；误报只会提前暴露布局漂移 | — |
+
+## 9.2 第二轮执行记录（待回填）
+
+S7-S11 完成后在此回填：真实构建的体积/文件数/布局三点实测、冒烟退出码、
+守卫负向演练结果、全量门禁数字、以及与计划的任何偏离及实测依据。
