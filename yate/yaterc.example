@@ -182,6 +182,21 @@ use_spaces = True
 #     "characters": [],           # name whitelist; [] = the whole roster
 # }
 
+# -------------------------------------------------------- ctrl+p preview
+#
+# The Ctrl+P quick-open panel can show a read-only preview of the file under
+# the cursor next to the results, syntax-highlighted by file type (colored
+# with the theme's syn_* palette). Binary and oversized files degrade to a
+# short notice. With enable = False the palette behaves exactly as before.
+#
+# file_preview = {
+#     "enable": True,        # master switch for the preview pane
+#     "position": "right",   # pane side of the results list ("left" too)
+#     "size": 40,            # pane width as percent of palette width (10-80)
+#     "max_lines": 2000,     # lines read/tokenized for one preview
+#     "max_size": 1048576,   # byte cap; bigger files are not previewed
+# }
+
 # ------------------------------------------------------- custom theme demo
 #
 # A theme is a yate.editor_view.theme.Theme instance. The easiest way to

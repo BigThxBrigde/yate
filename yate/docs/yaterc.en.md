@@ -79,6 +79,7 @@ perform the work and exit:
 | `show_hidden` | `bool` | `False` | `True` / `False` | Whether the file explorer shows dotfiles by default; `False` keeps them hidden until you toggle them. Non-boolean values are rejected. |
 | `language_servers` | `list[dict]` | none | see [below](#declarative-language-servers-language_servers) | Declaratively register LSP language servers; they activate automatically when matching files open -- no extension needed. |
 | `screen_saver` | `dict` | see [below](#idle-screensaver-screen_saver) | dict with `enable` / `interval` / `switch` / `dist_*_bound` / `characters` keys | Idle screensaver settings; see [below](#idle-screensaver-screen_saver). |
+| `file_preview` | `dict` | see [below](#file-preview-file_preview) | dict with `enable` / `position` / `size` / `max_lines` / `max_size` keys | Ctrl+P quick-open preview pane settings; see [below](#file-preview-file_preview). |
 | `yate_trace` | `bool` | `False` | `True` / `False` | Runtime trace log switch (off by default); writes to `~/.yate/data/logs/`, see [below](#runtime-trace-log-yate_trace). |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` (case-insensitive) | Trace verbosity; Python `logging`'s built-in levels. |
 
@@ -409,6 +410,38 @@ previous one whole. To browse the roster (27 original, homage-style
 approximations of classic arcade / FC-era characters, plus the Digital
 Circus crew) and the exact name list, run `python -m tools.pack rosters`,
 which writes a labeled `roster.svg`.
+
+## File preview (`file_preview`)
+
+`Ctrl+P` quick open (section 3.8 of the manual) can show a read-only preview
+of the file under the cursor next to the search results: the preview follows
+the highlighted entry and is syntax-highlighted automatically by file type
+(tree-sitter with a regex fallback), colored by the theme's `syn_*` syntax
+palette -- see [Custom themes](#custom-themes). Binary files and files over
+the size cap degrade to a short notice instead of content. With
+`enable = False` the palette behaves exactly as before.
+
+```python
+file_preview = {
+    "enable": True,        # master switch for the preview pane
+    "position": "right",   # pane side of the results list ("left" too)
+    "size": 40,            # pane width as percent of palette width (10-80)
+    "max_lines": 2000,     # lines read/tokenized for one preview
+    "max_size": 1048576,   # byte cap; bigger files are not previewed
+}
+```
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `enable` | `bool` | `True` | Master switch; `False` turns the preview pane off and `Ctrl+P` stays exactly as before. |
+| `position` | `str` | `"right"` | Which side of the results list the preview pane sits on: `"right"` or `"left"`. |
+| `size` | `int` `10`–`80` | `40` | Preview pane width as a percentage of the palette width. |
+| `max_lines` | `int` `1`–`100000` | `2000` | Lines read and highlighted per preview; beyond this the content is truncated with a notice. |
+| `max_size` | `int` `1024`–`16777216` | `1048576` | File size cap in bytes (1 MiB); larger files are not read at all -- the pane shows a notice instead. |
+
+Missing keys keep their defaults; a wrong-typed key is reported and that key
+alone falls back to its default; a later valid declaration replaces the
+previous one whole.
 
 ## Command-line interaction
 

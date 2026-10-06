@@ -142,6 +142,18 @@ plan-b 为唯一改动面较大提交，但 CSS 与方法均为纯增量。
 - [x] plan-c：`pytest tests/test_architecture.py tests/test_dispatch_guards.py
   -q` → 24 passed（22 架构 + 2 dispatch guards），退出码 0；
   `pytest tests/test_architecture.py -q` 单跑 → 22 passed，退出码 0
-- [ ] plan-e：结果（smoke 场景 3 条 pass）
-- [ ] plan-d：门禁数字（pyright / pytest / 架构 / 覆盖率 / smoke 全量）
-- [ ] 偏离记录
+- [x] plan-e：`pytest tests/test_smoke_harness.py -q` → 25 passed（注册表
+  守卫），退出码 0；`tools.smoke_test run`（--scenario 三条新场景）→
+  renders 13/13、truncates 9/9、disabled 12/12，共 3/3 场景、34/34 checks，
+  退出码 0（全量 107 场景冒烟由收尾门禁统一执行）
+- [x] plan-d：5 个独占文件同步更新（yaterc 双语手册各 +1 表行 +1
+  `file_preview` 小节、`yaterc.example` +15 行样例、manual 双语 §3.8 各 +1 句），
+  diff +84/-2，无越界文件；纯文档变更按 misc-rules §三豁免测试，
+  门禁由收尾环节统一执行
+- [x] 偏离记录：
+  - plan-b：`preview` 构造参数带默认值 `FilePreviewConfig()`（test_app_textual.py:4827
+    以旧签名构造，且该文件不在本波独占清单）；计划笔误 `_preview_cache = ()`
+    按上下文实现为 `dict`；note 载荷保留真实 mtime/size 使缓存可命中；
+    `_update_preview()` 挂在 `on_key` 的 `if self._filtered:` 块内（空结果光标不变）；
+  - plan-d：`yaterc.example` 实际路径为 `yate/yaterc.example`（仅路径修正）；
+  - plan-e：无偏离。
