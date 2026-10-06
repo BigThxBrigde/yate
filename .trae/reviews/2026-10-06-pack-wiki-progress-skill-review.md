@@ -14,10 +14,12 @@
      需要实时刷新进度」；
   2. 用户报告（2026-10-06）：按 `Ctrl+C` 后 `KeyboardInterrupt` 堆栈刷屏。
 - **审查方式**：`python-code-review` skill 六维度 + 三级严重度，配合变异测试与
-  一次性探针；共 3 轮（第 1、2 轮主代理，第 3 轮只读评审子代理）。
-- **skill 缺口**：本轮创建了项目级 skill（机器本地，不入库）——此前
+  一次性探针；共 6 轮（第 1、2 轮主代理，第 3、4 轮只读评审子代理，第 5 轮主代理
+  复审未提交改动，第 6 轮确认性复核）。
+- **skill 缺口**：本轮创建过项目级 skill 的机器本地副本——此前
   `code-review-expert` 剧本要求的 `python-code-review` skill 在仓库与用户目录均不存在
-  （第 1 轮评审实测加载失败）。
+  （第 1 轮评审实测加载失败）。该副本已删除，`.trae/skills/` 下的 skill
+  **未作任何改动**（用户明确要求），现由 master 提供的跟踪版承担。
 
 ## 一、结论概览
 
@@ -27,10 +29,15 @@
 | 第 2 轮（主代理） | 1 SUGGESTION + 1 权衡 | R-12 已修（死成员）；R-13 接受并文档化 |
 | 第 3 轮（只读评审子代理） | 0 CRITICAL / 5 WARNING / 2 SUGGESTION | R-14…R-18 已修；R-19/R-20 文档修正 |
 | 第 4 轮（只读评审子代理，确认性） | 0 CRITICAL / 1 WARNING / 6 SUGGESTION | R-21（四轮皆遗漏的结构性缺陷）已修并加 AST 守护；R-22…R-27 已修；**代码收敛** |
+| 第 5 轮（主代理，复审未提交改动） | 0 CRITICAL / 2 WARNING / 2 SUGGESTION | R-28（取消信号归属）已修；R-29（stdin 竞态 + 未验证的 WIP）已修；R-30 已修；R-31 接受并补文档 |
+| 第 6 轮（主代理，确认性复核） | 0 CRITICAL / 0 WARNING / 1 SUGGESTION | R-32 已修（README 契约补编码）；无新增 |
 
 > R-11（分支落后 master）不是代码缺陷，是流程风险，只登记在
 > [legacy-issues.md](legacy-issues.md)，故不出现在上方编号表中。
-> 累计：0 CRITICAL / **13 WARNING** / **13 SUGGESTION**（R-09/R-10/R-13 为接受项）。
+> 累计：0 CRITICAL / **15 WARNING** / **16 SUGGESTION**（R-09/R-10/R-13/R-31 为接受项）。
+>
+> **编号口径**：第 1–4 轮沿用 R-01…R-27；第 5 轮起接续为 R-28…R-31
+> （未提交草稿里曾把页写入竞态标成 "R-31"，本记录统一为 R-29，见 §五之二）。
 
 无 CRITICAL。第 3 轮对前两轮修复做了等价性复核：`_translation_state()` 重构与重构前
 **逐分支等价**（无 en 页 / stale / fresh / adopted × `--translate-all` 开关 × 有无
@@ -90,6 +97,49 @@
 **收敛判断**：代码修复层面收敛（第 1 轮 7 → 第 4 轮 0 条新增 WARNING；第 4 轮
 唯一的 R-21 是四轮皆遗漏的**结构性**缺陷，非回归）。
 
+## 五之二、第 5 轮（主代理复审未提交改动）：草稿本身站不住
+
+> 触发：上一会话在 R-15 的"退出延迟"上做了改动并**留在工作区未提交**，
+> 本轮开工时 `git status` 只有 `tools/pack/wiki.py` 与
+> `tests/test_pack_wiki_errors.py` 两处修改。本节是对**这份草稿**的复审。
+
+| # | 级别 | 位置 | 问题 | 证据 | 状态 |
+|---|---|---|---|---|---|
+| R-28 | `[WARNING]` | `_run_translate` 的轮询判定 / `_translate_pending.finally` | 取消信号是**进程级全局**，且判定 AND 了 emit 策略：`_STOP_TRANSLATIONS.is_set() and _emit_mode == "collect"`。而阶段收尾顺序是 `stop.set()` → 全局置位 → `pool.shutdown` → `progress.stop()` → `_emit_mode = "print"` → drain；worker 只在轮询里看这个条件，**落在窗口外的轮询永远看不到信号**，子进程照跑整页（即 R-15 实测 0.6 s → 3.1 s 的成因）。同一全局对进程内任何直接调用可见：库代码或扩展在 run 期间调 `translate_via_cmd`，会被别人家的 stage 取消 | 读码（HEAD `f531fd0`）+ 收尾顺序逐行核对 | ✅ 已修：阶段经 `threading.local` 把信号**发布给拥有该翻译的 worker**（`_run_batch` 发布、收尾清除），判定不再看 emit 策略；无 stage 的直接调用天然不可取消 |
+| R-29 | `[WARNING]` | 草稿整体 | 草稿从未被跑过，三处硬伤：①`_ProgressBoard(stop=stop)` 写在 `stop = threading.Event()` **之前** → `UnboundLocalError`；②两条新用例 monkeypatch 了**不存在**的 `wiki._active_stage_stop`（生产符号是 `_stage_local` / `_stage_stop_requested()`）；③大页用例断言 `result.startswith("# en ")`，子进程回显 `# en 0`（空页）同样通过 → 恒真 | 实测 `pytest tests/test_pack_wiki_errors.py` → **4 failed, 28 passed**；`pyright tools/pack/wiki.py` → 2 errors（`reportUnboundVariable` / `reportUnknownArgumentType`） | ✅ 已修：创建顺序倒过来；用例改用 `getattr` 发布 thread-local；大页用例改为回显**解码后内容的 sha256 + 长度** |
+| R-30 | `[SUGGESTION]` | `_ProgressBoard` | 草稿给 board 加了 `stop` 字段，而 `_run_batch` 本来就收到同一个 Event——同一对象两处来源（R-08 同类） | 读码 | ✅ 已修（删字段，worker 直接发布自己收到的 `stop`） |
+| R-31 | `[SUGGESTION]` | `translate_via_cmd` 协议 | stdin/stdout 的**编码契约**从未写明：父进程以 UTF-8 写出，hook 若按本地编码解码就得到乱码（探针：子进程 `sys.stdin.read()` 后 `.encode('utf-8')` → `UnicodeEncodeError: surrogates not allowed`）；中英 README 只写"stdin 进中文、stdout 出英文" | 探针实测 | ⏸ 接受并文档化（第 6 轮补 README） |
+
+**stdin 管道归属（A/B 实测，纠正草稿的错误结论）**：`communicate()` 会在首次
+无 input 调用时关掉 `Popen.stdin`（Windows `_stdin_write(None)`、POSIX
+`_communicate`）——探针实测 `after first communicate -> closed: True`，即写侧线程
+与主线程会共用一条管道。已修：writer 拿到管道后立刻 `proc.stdin = None`，所有权
+唯一。**但这是加固而不是修复可观测的截断**：A/B 实测 3/3 次整页送达
+（224 KB 页 → 233484 字节，含文本模式 CRLF 展开），因为
+`io.BufferedWriter` 的锁把那次 `close()` 挡在整次写入之后。草稿注释里
+"实测 224 KB 被截断、出现 surrogate" 是错的（surrogate 来自子进程按本地编码解码
+UTF-8 的探针假象），已在代码注释与用例 docstring 中改正。
+
+**判别力实测（变异测试）**：
+
+| 变异 | 目标用例 | 结果 |
+|---|---|---|
+| M1：撤掉 `_run_batch` 的信号发布 | `test_a_torn_down_stage_kills_the_child_its_worker_is_waiting_for` | ✅ 变红（译者活过整轮，`_wait_for` 5 s 失败；该用例是这条链路上首次出现的端到端守护） |
+| M2：判定换回"全局 + AND `collect`" | 同上 | ❌ **不变红**：本机收尾窗口约 100 ms 宽，worker 的 0.2 s 轮询仍可能落进窗口内。旧设计的暴露面只能靠现场测量（R-15）证明，无法在进程内确定性复现——这一点如实登记，不假装已锁定 |
+| M3：撤掉 `proc.stdin = None` | 大页完整性用例 | ❌ 不变红（见上：A/B 3/3 送达）——该行按"加固"记账 |
+
+## 五之三、第 6 轮（确认性复核）
+
+| # | 级别 | 位置 | 问题 | 状态 |
+|---|---|---|---|---|
+| R-32 | `[SUGGESTION]` | `README.md` / `README.zh.md` | R-31 的文档落点：两份 README 的 `--translate-cmd` 说明补上编码（UTF-8），中英同步 | ✅ 已修 |
+
+复核结论：0 CRITICAL / 0 WARNING。逐条确认 `_run_batch` 的 `finally` 会清掉
+thread-local（池线程复用不串味）、`_feed_stdin` 只吞 `OSError`
+（含 `BrokenPipeError`，子进程的真实退出码仍由 `communicate` 报出）、大页 /
+流式 / 早退 / 不可启动 shell 四条真实子进程路径的 stderr 契约无 traceback 泄漏。
+本轮未引入新缺陷。
+
 ## 六、门禁实测（各轮结束时的真实数字）
 
 | 轮次 | 命令 | 结果 |
@@ -102,24 +152,30 @@
 | 第 4 轮 | `pytest tests/test_architecture.py` | **22 passed** |
 | 第 4 轮 | `pytest`（wiki 四文件）`--cov=tools.pack.wiki --cov=tools.translate` | **96 passed, 1 skipped**；tools 侧 **94%** |
 | 第 4 轮 | `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| 第 5/6 轮 | `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| 第 5/6 轮 | `pytest tests/ --cov=yate --cov-fail-under=75` | **1933 passed, 9 skipped** in 417.25s；覆盖率 **91.26%**（阈值 75%） |
+| 第 5/6 轮 | `pytest tests/test_architecture.py` | **22 passed**（与 wiki 四文件同跑：**125 passed, 1 skipped**） |
+| 第 5/6 轮 | `pytest`（wiki 四文件）`--cov=tools.pack.wiki --cov=tools.translate` | **103 passed, 1 skipped**；tools 侧 **94%**（`wiki.py` 96%） |
 
 变异测试记录（每次回退修复 → 目标用例变红 → 还原）：R-01 单次 `update`、
 R-03 不传 `code`、R-04 复用传入 `code`、R-07 去卫语句、R-16 恢复旧顺序、
 R-17 容器语义、R-21 AST 守护（把 `_emit_mode = "collect"` 移回保护区外即变红）。
 第 3 轮评审另做 8 组 in-process 变异（含复原 R-01、复原批粒度、清空
-`_INTERRUPT_EXIT_CODES`），均按预期变红。
+`_INTERRUPT_EXIT_CODES`），均按预期变红。第 5 轮的 M1–M3 见 §五之二，其中
+**M2、M3 预期不变红**（收尾窗口太宽、管道锁挡住截断），已按"未锁定"如实记账。
 
 ## 七、遗留与限制
 
 - **真实 TTY 目验缺位**：无人值守会话无法向控制台投递 SIGINT / 无法目验，
   页级推进与最终帧形态靠注入断言与探针背书。
-- **中断后退出延迟**：见 R-15（仅在自定义 hook 吞掉中断时可达）。
+- **中断后退出延迟**：R-15 已由第 5 轮定位并修完（信号归属改为 stage 拥有）。
+  旧设计为何在本机难以确定性复现、管道交接为何只能记作"加固"，见 §五之二
+  变异 M2 / M3 与 §七。
 - **`_emit_mode` 全局**：R-09/R-10/R-27 —— 进度回调异常复用翻译失败通道
   （仅 rich 缺陷可达）、`run()` 理论不可重入、跨 run 串味（R-24 已修入口排空，
   但串味本身依赖"两次 run 共享同一全局"，CLI 单 run 不可达）。
-- **分支落后 master**：修复分支基于 `d691bfb`，master 之后合入 PR !57（smoke 测试），
-  `.trae/reviews/README.md` 与 `README.md` 两边都改过，合并顺序需注意
-  （见 [legacy-issues.md](legacy-issues.md) 的流程风险条目）。
+- **分支落后 master**：已于第 5 轮 `merge master` 处置（见
+  [legacy-issues.md](legacy-issues.md) 的 R-11 条目）。
 
 ## 八、核对结论
 
@@ -133,6 +189,14 @@ R-17 容器语义、R-21 AST 守护（把 `_emit_mode = "collect"` 移回保护�
   写 en 页 / 写 manifest / `push_wiki` 的 git 子进程）**均无 traceback 泄漏**，
   且均能以 130 退出；唯一例外是 R-15 记录的退出延迟。`tools/translate/cli.py`
   的中断边界（stdin 读取期间、临时目录清理期间）亦干净返回 130 且不留临时目录。
+- 第 5 轮确认：R-15 的退出延迟不是"注释写错"而是**判定接错了状态**——信号归属
+  从进程级全局改为 stage 拥有，判定不再与 emit 策略耦合；这条链路上第一次有了
+  端到端守护（stage 收尾 → worker 亲手 kill 自己的子进程，M1 变异变红）。
+  同时纠正了草稿的两处错误结论：`_ProgressBoard` 并不需要 `stop` 字段（R-30），
+  "大页被截断 / 出现 surrogate" 不成立（探针假象 + `io.BufferedWriter` 的锁）。
+- 第 6 轮确认：真实子进程四条路径（大页 / 流式早答 / 早退 / shell 起不来）的
+  stderr 契约均无 traceback 泄漏；`_run_batch` 收尾清掉 thread-local，池线程复用
+  不串味；编码契约已写进中英 README（R-31 / R-32）。
 - 架构与风格：无 R1–R13 违规、无新增 `Protocol`/`TYPE_CHECKING`/`Any`/
   `# type: ignore`/裸 `except:`；命名守卫不命中；`tools/` 的 `print`
   属既有约定（R12 只约束 `yate/`）。

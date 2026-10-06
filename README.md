@@ -455,7 +455,7 @@ cd <checkout>   # any checkout works
 ```
 
 - `--translate-cmd`: a shell command, Chinese Markdown on stdin, English on
-  stdout (must come from a trusted source);
+  stdout, both UTF-8 (must come from a trusted source);
 - default (incremental): **only translate pages that are missing (no English
   page) or stale (Chinese source changed)**; fresh pages are kept as-is;
 - `--translate-all`: full re-translation — fresh pages are also sent through

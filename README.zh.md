@@ -450,7 +450,8 @@ cd <checkout>   # 任意检出均可
   --push
 ```
 
-- `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文（必须来自可信来源）；
+- `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文，两者均为 UTF-8
+  （必须来自可信来源）；
 - 缺省（增量）：**只翻译 missing（无英文页）与 stale（中文源已变更）** 的条目，
   fresh 页保持不动；
 - `--translate-all`：全量重译——额外把 fresh 页也送翻并覆盖现有英文页（慎用）；

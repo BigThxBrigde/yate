@@ -9,7 +9,7 @@
 > 分支：`fix/pack-wiki-progress-refresh`（worktree：仓库同级目录 `../yate-pack-wiki-progress`）
 > Issue：<https://gitee.com/jermaine/yate/issues/IKJPEK> 评论
 > [`note_51450440`](https://gitee.com/jermaine/yate/issues/IKJPEK#note_51450440)（2026-10-05 22:42:11 +08:00）
-> 状态：**方案已批准，执行中**（无人值守时段，`task-orchestration.md` §二 第 5 条）
+> 状态：**方案已批准，代码收敛（第 6 轮收尾完成），待合并**
 
 ## 一、问题（用户评论原文与根因）
 
@@ -137,7 +137,7 @@ outcomes 时逐页调用 —— 即推进时机被批边界锁死。worker 只�
 | `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-fail-under=75` | ≥ 75% |
 | `.venv\Scripts\python.exe -m pytest tests/test_pack_wiki*.py --cov=tools.pack.wiki --cov-report=term` | 本轮改动在 `tools/`，`--cov=yate` 对其零信号，故补 tools 侧数字（实测 **95%**） |
 
-## 六、执行记录（2026-10-05，主代理亲自执行与复核）
+## 六、执行记录（2026-10-05 ~ 2026-10-06，主代理亲自执行与复核）
 
 ### 6.1 交付
 
@@ -346,8 +346,8 @@ final: completed=3 description='translating 3/3 page(s) · 0 batch(es) queued ·
 | `pytest tests/test_architecture.py` | **22 passed** |
 
 **遗留限制**（非缺陷，已登记）：真实 TTY 目验缺位（无人值守会话无法投递
-SIGINT / 目验）；自定义 hook 吞掉中断时的退出延迟（R-15）；分支落后 master
-（R-11，待用户决策）。
+SIGINT / 目验）。本节记录的另两项已处置：退出延迟见 §6.12（R-15 定位并修完），
+分支落后 master 见 R-11（第 5 轮 `merge master`）。
 
 ### 6.11 第 4 轮（确认性审查）：代码收敛（2026-10-06）
 
@@ -379,6 +379,48 @@ worker 抛异常）终态自洽：失败行"恰好一次"、队列残留 0、`_e
 **收敛结论**：代码修复层面收敛（第 1 轮 7 条 WARNING → 第 4 轮 0 条新增；
 R-21 为四轮皆遗漏的结构性缺陷，非回归）。过程性风险与已接受项见评审记录
 §七 与 [legacy-issues.md](../../reviews/legacy-issues.md)。
+
+### 6.12 第 5–6 轮：复审未提交草稿并把 R-15 真正修完（2026-10-06）
+
+**起点**：上一会话在 R-15（中断后的退出延迟）上改了 `tools/pack/wiki.py` 与
+`tests/test_pack_wiki_errors.py`，**留在工作区未提交**；本轮开工时
+`git status` 只有这两处修改，而 [legacy-issues.md](../../reviews/legacy-issues.md)
+的指针已按"已修"记账。
+
+**第 5 轮（复审草稿，主代理）**：0 CRITICAL / 2 WARNING / 2 SUGGESTION，
+逐条证据与实测见
+[评审记录 §五之二](../../reviews/2026-10-06-pack-wiki-progress-skill-review.md)：
+
+| # | 问题 | 处置 |
+|---|---|---|
+| R-28 | 取消信号是进程级全局且 AND 了 emit 策略，而阶段收尾会把策略改回 `print`——落在窗口外的 worker 轮询永远看不到信号（R-15 的真正成因），且该全局对进程内任何直接调用可见 | ✅ 阶段经 `threading.local` 把信号发布给拥有该翻译的 worker（`_run_batch` 发布、收尾清除），判定不再看 emit 策略 |
+| R-29 | 草稿从未被跑过：`stop` 在创建前被使用（`UnboundLocalError`）、两条用例 monkeypatch 了不存在的 `wiki._active_stage_stop`、大页用例断言 `startswith("# en ")` 对空页同样成立（恒真） | ✅ 全部修正；大页用例改为回显解码后内容的 sha256 + 长度 |
+| R-30 | 草稿给 `_ProgressBoard` 加的 `stop` 字段与 `_run_batch` 的参数是同一对象（R-08 同类） | ✅ 删字段 |
+| R-31 | stdin/stdout 的编码契约从未写明（父进程 UTF-8 写出，hook 按本地编码解码即乱码） | ⏸ 接受，第 6 轮补文档 |
+
+附带修正：管道所有权（`communicate()` 首次无 input 调用即关闭 `Popen.stdin`，
+写侧线程与主线程会共用一条管道）改为 writer 拿到管道后立刻 `proc.stdin = None`。
+**记账口径**：A/B 实测 3/3 次整页送达（224 KB → 233484 字节，含 CRLF 展开），
+这一行是**加固**而非修复可观测截断；草稿注释里"实测被截断 / 出现 surrogate"
+是错的（surrogate 来自子进程按本地编码解码的探针假象），已在代码与用例注释改正。
+
+**第 6 轮（确认性复核，主代理）**：0 CRITICAL / 0 WARNING / 1 SUGGESTION——
+R-32（中英 README 的 `--translate-cmd` 补 UTF-8 编码契约）已修。
+
+**新增守护**：`test_a_torn_down_stage_kills_the_child_its_worker_is_waiting_for`
+是这条链路上第一次出现的端到端守护（假子进程永不回答，只有 worker 自己
+kill 它）。变异 M1（撤掉信号发布）实测变红；变异 M2（换回"全局 + AND
+`collect`"）**不变红**——本机收尾窗口约 100 ms 宽，worker 的 0.2 s 轮询仍可能
+落进窗口，旧设计的暴露面只能靠现场测量证明，如实登记为遗留。
+
+**门禁（主代理亲自跑，退出码 0）**：
+
+| 命令 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| `pytest tests/ --cov=yate --cov-fail-under=75` | **1933 passed, 9 skipped** in 417.25s；覆盖率 **91.26%** |
+| `pytest tests/test_architecture.py`（与 wiki 四文件同跑） | **125 passed, 1 skipped** |
+| `pytest`（wiki 四文件）`--cov=tools.pack.wiki --cov=tools.translate` | **103 passed, 1 skipped**；tools 侧 **94%**（`wiki.py` 96%） |
 
 ## 七、风险与回滚
 
