@@ -134,6 +134,22 @@ try {
         Stop-WithMessage "Build reported success but expected artifact is missing: $artifact"
     }
 
+    # One-folder bundles keep every runtime file in a single contents directory
+    # next to the exe.  The name is read from the spec so this script cannot
+    # drift from pack/yate.spec, and a missing directory fails the build here
+    # instead of shipping a bundle the user has to inspect by hand.
+    if (-not $OneFile) {
+        $specText = Get-Content (Join-Path $root "pack\yate.spec") -Raw
+        $contentsName = [regex]::Match($specText, '(?m)^CONTENTS_DIRNAME: str = "([^"]+)"')
+        if (-not $contentsName.Success) {
+            Stop-WithMessage "Could not read CONTENTS_DIRNAME from pack\yate.spec"
+        }
+        $contentsDir = Join-Path (Split-Path -Parent $artifact) $contentsName.Groups[1].Value
+        if (-not (Test-Path $contentsDir)) {
+            Stop-WithMessage "Build reported success but the expected contents directory is missing: $contentsDir"
+        }
+    }
+
     # The refresh may have updated the shipped resources copies. Whether to
     # commit them is a release decision — surface it, never auto-checkout.
     if (-not $SkipChangelog -and (Test-Path (Join-Path $root ".git"))) {

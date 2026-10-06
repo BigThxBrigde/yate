@@ -125,6 +125,22 @@ if [ ! -f "$artifact" ]; then
     exit 1
 fi
 
+# One-folder bundles keep every runtime file in a single contents directory
+# next to the exe.  The name is read from the spec so this script cannot drift
+# from pack/yate.spec, and a missing directory fails the build here instead of
+# shipping a bundle the user has to inspect by hand.
+if [ "$onefile" -eq 0 ]; then
+    contents_dir="$(sed -n 's/^CONTENTS_DIRNAME: str = "\([^"]*\)"$/\1/p' pack/yate.spec)"
+    if [ -z "$contents_dir" ]; then
+        echo "error: could not read CONTENTS_DIRNAME from pack/yate.spec" >&2
+        exit 1
+    fi
+    if [ ! -d "dist/yate/$contents_dir" ]; then
+        echo "Build reported success but the expected contents directory is missing: dist/yate/$contents_dir" >&2
+        exit 1
+    fi
+fi
+
 # The refresh may have updated the shipped resources copies. Whether to
 # commit them is a release decision — surface it, never auto-checkout.
 if [ "$skip_changelog" -eq 0 ] && [ -d .git ] && command -v git >/dev/null 2>&1; then
