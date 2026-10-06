@@ -57,7 +57,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from itertools import islice
 from pathlib import Path
-from typing import Final, cast
+from typing import IO, Final, cast
 
 from rich.console import Console
 from rich.markup import escape
@@ -522,18 +522,65 @@ def _drain_collected_failures() -> list[str]:
             return messages
 
 
-#: Set while a translation stage tears down, so the translators still in
-#: flight terminate their child instead of running a full page (review
-#: R-15).  Without it the main thread could stop waiting but the pool
-#: threads kept blocking in :func:`subprocess.run`, and CPython joins them
-#: at interpreter teardown -- the process lingered for up to one page per
-#: running worker (measured 0.6 s to 3.1 s with a 3 s page).  Cleared by the
-#: next run before it installs the collect policy.
-_STOP_TRANSLATIONS: threading.Event = threading.Event()
+#: Per-thread handle on the translation stage that owns the current call.
+#: Set by :func:`_run_batch` for the duration of a batch, so a translator
+#: reads *its own* stage's stop signal (review R-15, second pass): a
+#: process-global signal was either read too late (the stage restores its
+#: routing policy on the way out) or read by an unrelated direct call, which
+#: must not be cancellable at all.
+_stage_local = threading.local()
 
 #: How often a running translator checks for the stop signal.  Small enough
 #: that an interrupt is honoured promptly, large enough to stay cheap.
 _STOP_POLL_S: Final[float] = 0.2
+
+
+def _stage_stop_requested() -> bool:
+    """Return whether the owning stage asked its translators to stop."""
+    stage: threading.Event | None = getattr(_stage_local, "stop", None)
+    return stage is not None and stage.is_set()
+
+
+def _feed_stdin(stream: IO[str] | None, text: str) -> None:
+    """Write *text* into the child's stdin, then close it, from a helper thread.
+
+    A dedicated writer is what keeps this deadlock-free: the main thread
+    stays in :meth:`~subprocess.Popen.communicate`, which drains stdout and
+    stderr while the page goes in.  Writing first and reading afterwards
+    blocks as soon as the child answers before it has read everything --
+    reproduced at 64 KB in and 64 KB out, and the repository's largest page
+    is 72 KB.
+
+    The stream is handed over rather than read back from the process object:
+    :meth:`~subprocess.Popen.communicate` closes ``stdin`` on its first call
+    when it is given no input (Windows ``_stdin_write(None)``, POSIX
+    ``_communicate``), and a pipe must have exactly one owner.  Today the
+    buffered writer's lock happens to serialise that close behind the write
+    (measured: a 224 KB page arrives whole), which is an implementation
+    detail of :mod:`io` rather than a promise.
+
+    :class:`BrokenPipeError` means the child exited early (a mistyped
+    command, a failed login).  That is not an error of ours: the real exit
+    code arrives through ``communicate`` and is reported from there.
+    """
+    if stream is None:
+        return
+    try:
+        stream.write(text)
+        stream.close()
+    except OSError:
+        # Includes BrokenPipeError: the child is gone, its exit code tells
+        # the story.
+        pass
+
+
+def _terminate(proc: subprocess.Popen[str]) -> None:
+    """Kill and reap *proc*, tolerating a child that already exited."""
+    try:
+        proc.kill()
+    except OSError:  # pragma: no cover - the child died in the meantime
+        pass
+    proc.wait()
 
 
 def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
@@ -541,13 +588,15 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
 
     The shell, the stdin/stdout protocol and :data:`TRANSLATE_TIMEOUT_S` are
     unchanged -- only the reporting is factored out so the caller decides
-    where the message goes.
+    where the message goes.  The page goes in from a helper thread
+    (:func:`_feed_stdin`) while this thread polls ``communicate``, which is
+    what keeps a page larger than the pipe buffer moving.
 
     Raises :exc:`KeyboardInterrupt` when the child died *because* the
-    console was interrupted (see :data:`_INTERRUPT_EXIT_CODES`), and also
-    when the run is being torn down while this child is still alive -- a
-    translator that ignores the console event would otherwise keep the
-    process alive for the rest of its page.
+    console was interrupted (see :data:`_INTERRUPT_EXIT_CODES`), and when
+    the stage tore down while this child was still alive -- a translator
+    that ignores the console event would otherwise keep the process alive
+    for the rest of its page.
     """
     started = time.monotonic()
     try:
@@ -562,39 +611,50 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
             errors="replace",
         )
     except OSError as exc:
+        # Only reachable when the shell itself cannot start; a missing
+        # command still comes back as a non-zero exit code.
         return None, (
-            f"error[{Code.WIKI_TRANSLATE_FAILED}]: cannot start translate-cmd"
-            f" ({exc})"
+            f"error[{Code.WIKI_TRANSLATE_FAILED}]: cannot start translate-cmd ({exc})"
         )
+    # Hand the pipe to the writer and detach it from the process object: the
+    # polling ``communicate`` below closes ``stdin`` on its first call, and
+    # the writer owns that stream (review R-29).
+    stdin = proc.stdin
+    proc.stdin = None
+    feeder = threading.Thread(
+        target=_feed_stdin,
+        args=(stdin, text),
+        name="wiki-translate-stdin",
+        daemon=True,
+    )
+    feeder.start()
     try:
-        if proc.stdin is not None:
-            proc.stdin.write(text)
-            proc.stdin.close()
+        output: tuple[str | None, str | None] = ("", "")
         while True:
             try:
-                stdout, stderr = proc.communicate(timeout=_STOP_POLL_S)
+                output = proc.communicate(timeout=_STOP_POLL_S)
                 break
             except subprocess.TimeoutExpired:
-                # Only the parallel stage listens: a direct library call
-                # runs with the serial policy, where a stop left behind by
-                # an earlier run must not cancel anything.
-                if _STOP_TRANSLATIONS.is_set() and _emit_mode == "collect":
+                if _stage_stop_requested():
                     raise KeyboardInterrupt from None
                 if time.monotonic() - started >= TRANSLATE_TIMEOUT_S:
                     raise subprocess.TimeoutExpired(
                         cmd=translate_cmd, timeout=TRANSLATE_TIMEOUT_S
                     ) from None
     except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
+        _terminate(proc)
         return None, (
             f"error[{Code.WIKI_TRANSLATE_TIMEOUT}]: translate-cmd timed out"
             f" after {TRANSLATE_TIMEOUT_S:g}s"
         )
     except BaseException:
-        proc.kill()
-        proc.wait()
+        _terminate(proc)
         raise
+    finally:
+        # Never let the writer outlive the call: on the kill paths the pipe
+        # is broken and the thread returns on its own.
+        feeder.join(timeout=_STOP_POLL_S)
+    stdout, stderr = output
     if proc.returncode in _INTERRUPT_EXIT_CODES:
         raise KeyboardInterrupt
     if proc.returncode != 0 or not (stdout or "").strip():
@@ -1015,7 +1075,11 @@ def _run_batch(
     *stop* is checked before every page: once the main thread cancels the
     run (an interrupt in any worker), a batch stops instead of starting the
     next translation -- otherwise ``Ctrl+C`` would still pay for every
-    page of every queued batch.
+    page of every queued batch.  The same signal is published to this
+    thread for the duration of the batch (:data:`_stage_local`), which is
+    what lets a translator abandon its child while it waits: the main thread
+    restores the serial emit policy on its way out, so a policy test could
+    not tell a worker that the stage is gone (review R-28).
 
     *board* moves the progress rows for batch *index* as each page starts
     and lands, so the bar tracks single pages; a page whose translation
@@ -1028,21 +1092,30 @@ def _run_batch(
     in rich rather than a mismatch of batch indices.
     """
     outcomes: list[_PageOutcome] = []
-    for plan in plans:
-        if stop.is_set():
-            break
-        started = time.monotonic()
-        try:
-            board.page_started(index, plan.page)
-            english: str | None = translate_via_cmd(plan.text, translate_cmd)
-            board.page_done(index)
-            outcomes.append(
-                _PageOutcome(plan, english, None, time.monotonic() - started)
-            )
-        except BaseException as exc:  # noqa: BLE001 - a worker must never escape
-            stop.set()
-            outcomes.append(_PageOutcome(plan, None, exc, time.monotonic() - started))
-            break
+    # Publish the owning stage's stop signal to this worker thread: the
+    # translator polls it while waiting for its child, and only the stage
+    # that owns this batch may cancel it (review R-15, second pass).
+    _stage_local.stop = stop
+    try:
+        for plan in plans:
+            if stop.is_set():
+                break
+            started = time.monotonic()
+            try:
+                board.page_started(index, plan.page)
+                english: str | None = translate_via_cmd(plan.text, translate_cmd)
+                board.page_done(index)
+                outcomes.append(
+                    _PageOutcome(plan, english, None, time.monotonic() - started)
+                )
+            except BaseException as exc:  # noqa: BLE001 - must never escape
+                stop.set()
+                outcomes.append(
+                    _PageOutcome(plan, None, exc, time.monotonic() - started)
+                )
+                break
+    finally:
+        _stage_local.stop = None
     return outcomes
 
 
@@ -1184,6 +1257,7 @@ def _translate_pending(
         index: progress.add_task(f"batch {index}/{len(batches)}", total=len(batch))
         for index, batch in enumerate(batches, start=1)
     }
+    stop = threading.Event()
     board = _ProgressBoard(
         progress=progress,
         overall=overall,
@@ -1194,7 +1268,6 @@ def _translate_pending(
         queued=len(batches),
     )
     done = 0
-    stop = threading.Event()
     global _emit_mode
     pool: ThreadPoolExecutor | None = None
     try:
@@ -1204,7 +1277,6 @@ def _translate_pending(
         # every later translation failure in the process was then queued for
         # a reader that never came -- silent error reporting.
         _emit_mode = "collect"
-        _STOP_TRANSLATIONS.clear()
         # Drain anything a previous run left behind before collecting into
         # the same queue: ownership belongs to the run that produced it.
         for message in _drain_collected_failures():
@@ -1265,7 +1337,6 @@ def _translate_pending(
         # interval, so the process no longer lingers until interpreter
         # teardown joins the pool (review R-15).
         stop.set()
-        _STOP_TRANSLATIONS.set()
         if pool is not None:
             pool.shutdown(wait=False, cancel_futures=True)
         progress.stop()

@@ -15,8 +15,10 @@ so the suite stays hermetic.
 from __future__ import annotations
 
 import ast
+import hashlib
 import io
 import subprocess
+import sys
 import threading
 import time
 import types
@@ -333,6 +335,108 @@ def test_translate_via_cmd_timeout_reports_wiki_0202_on_stderr(
     assert _TRACEBACK_HEAD not in err
 
 
+def _own_stop_signal(stop: threading.Event | None) -> None:
+    """Attach *stop* to this thread as the translation stage that owns it.
+
+    A stage publishes its cancel signal on the thread that runs its batch
+    (see ``wiki._run_batch``), so a test standing in for a worker has to
+    publish one too; ``None`` detaches it again.  ``getattr`` keeps the
+    private name out of pyright's private-usage check, the same way the
+    string-keyed patching above does.
+    """
+    getattr(wiki, "_stage_local").stop = stop
+
+
+def test_a_page_larger_than_the_pipe_buffer_reaches_the_child_intact() -> None:
+    """A page bigger than the pipe buffer round-trips through a real child.
+
+    Review R-29: the page used to be written in full before the answer was
+    read, so a hook that answers before draining stdin deadlocked at 64 KB in
+    and 64 KB out -- and the repository's largest page is 72 KB.  The writer
+    now runs alongside the reads, and the child echoes the *hash* of what it
+    decoded: a prefix assertion would also accept an empty page, which is how
+    an unverified writer thread survived the last round.
+    """
+    chunk = "中文正文 line that makes the page comfortably large\n"
+    page = "# 大页\n\n" + chunk * 4096
+    assert len(page.encode("utf-8")) > 128 * 1024
+    digest = hashlib.sha256(page.encode("utf-8")).hexdigest()
+    # The hook is a stand-in for a translator: it decodes stdin as UTF-8 and
+    # lets universal newlines undo the CRLF the text-mode pipe writes.
+    script = (
+        "import hashlib, sys;"
+        " sys.stdin.reconfigure(encoding='utf-8');"
+        " data = sys.stdin.read();"
+        " sys.stdout.write(str(len(data)) + ' ' +"
+        " hashlib.sha256(data.encode('utf-8')).hexdigest())"
+    )
+    command = subprocess.list2cmdline([sys.executable, "-c", script])
+    result = wiki.translate_via_cmd(page, command)
+    assert result == f"{len(page)} {digest}"
+
+
+def test_a_streaming_hook_that_answers_before_reading_everything() -> None:
+    """A hook that writes while it is being fed must not deadlock either.
+
+    The shape that used to break: the child emits a big answer before it
+    consumes the rest of stdin, so both pipes fill at once.  64 KB in and
+    64 KB out reproduce it.
+    """
+    chunk = "x" * 1024
+    page = chunk * 64
+    script = (
+        "import sys;"
+        " sys.stdout.write('y' * 65536);"
+        " sys.stdout.flush();"
+        " sys.stdin.read()"
+    )
+    command = subprocess.list2cmdline([sys.executable, "-c", script])
+    result = wiki.translate_via_cmd(page, command)
+    assert result == "y" * 65536
+
+
+def test_a_hook_that_exits_early_is_reported_not_raised(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A child dying mid-write degrades to a page failure, not a traceback.
+
+    Review R-29: a page larger than the pipe buffer runs into a hook that has
+    already exited, and the resulting :class:`BrokenPipeError` must not escape
+    ``run()`` -- that would break the "one bad page never aborts the run"
+    contract.  The page is 192 KB, so the writer really is mid-stream when
+    the child goes away.
+    """
+    page = "中文" * 32768
+    script = "import sys; sys.exit(3)"
+    command = subprocess.list2cmdline([sys.executable, "-c", script])
+    assert wiki.translate_via_cmd(page, command) is None
+    err = capsys.readouterr().err
+    assert f"error[{Code.WIKI_TRANSLATE_FAILED}]" in err
+    assert "BrokenPipe" not in err
+    assert _TRACEBACK_HEAD not in err
+
+
+def test_an_unstartable_shell_is_reported_as_wiki_0201(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A shell that cannot start at all is a page failure, not a traceback.
+
+    Reachable when the shell itself is missing (``shell=True``), which no
+    other case covers -- a missing *command* comes back as a non-zero exit
+    code instead.
+    """
+
+    def no_shell(cmd: object, **kwargs: object) -> object:
+        del cmd, kwargs
+        raise OSError(2, "The system cannot find the file specified")
+
+    monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(no_shell))
+    assert wiki.translate_via_cmd("# zh in\n", "fake-cmd") is None
+    err = capsys.readouterr().err
+    assert "error[WIKI-0201]: cannot start translate-cmd" in err
+    assert _TRACEBACK_HEAD not in err
+
+
 def test_a_torn_down_run_kills_the_child_it_is_waiting_for(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -345,11 +449,11 @@ def test_a_torn_down_run_kills_the_child_it_is_waiting_for(
     translator blocked in its polling loop kills its own child.
     """
     monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 900.0)
-    monkeypatch.setattr(wiki, "_STOP_TRANSLATIONS", threading.Event())
     monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.01)
-    # The stop signal is honoured by the parallel stage only, so the test
-    # has to be in that mode -- exactly like a worker mid-translation.
-    monkeypatch.setattr(wiki, "_emit_mode", "collect")
+    # Stand in for the stage: it owns this translation, so it publishes the
+    # signal to the thread that runs it.
+    stage_stop = threading.Event()
+    _own_stop_signal(stage_stop)
     proc = _FakeProc(hang=True)
     monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(lambda *a, **k: proc))
 
@@ -357,13 +461,44 @@ def test_a_torn_down_run_kills_the_child_it_is_waiting_for(
         # Stand in for the stage's finally: the stop signal arrives while
         # the fake child is still "running".
         time.sleep(0.05)
-        getattr(wiki, "_STOP_TRANSLATIONS").set()
+        stage_stop.set()
 
     threading.Thread(target=tear_down, daemon=True).start()
-    with pytest.raises(KeyboardInterrupt):
-        wiki.translate_via_cmd("# zh in\n", "fake-cmd")
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            wiki.translate_via_cmd("# zh in\n", "fake-cmd")
+    finally:
+        _own_stop_signal(None)
     assert proc.killed
     assert "error[" not in capsys.readouterr().err
+
+
+def test_a_direct_call_ignores_another_stage_stop_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A signal published by another thread cannot cancel this call.
+
+    Review R-28: the stop check used to be ANDed with the collect policy,
+    which the stage restores on its way out -- a worker that polled after
+    that point never saw the signal and its child ran to completion.  The
+    signal now belongs to the stage that owns *this* thread, so the leftover
+    of a foreign stage has to stay invisible and the call must end on its
+    own timeout.
+    """
+    monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.01)
+    # The collect policy is what a running stage installs; it must not be
+    # what makes a call cancellable.
+    monkeypatch.setattr(wiki, "_emit_mode", "collect")
+    stale = threading.Event()
+    stale.set()
+    other_stage = threading.Thread(target=_own_stop_signal, args=(stale,), daemon=True)
+    other_stage.start()
+    other_stage.join()
+    proc = _FakeProc(hang=True)
+    monkeypatch.setattr(wiki, "subprocess", _fake_subprocess(lambda *a, **k: proc))
+    monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 0.1)
+    assert wiki.translate_via_cmd("# zh in\n", "fake-cmd") is None
+    assert proc.killed
 
 
 @pytest.mark.parametrize("returncode", [130, 0xC000013A, 0xC000013A - 0x100000000, -2])

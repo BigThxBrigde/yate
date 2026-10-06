@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 import types
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
@@ -398,6 +398,104 @@ def test_interrupt_leaves_the_queued_batches_untranslated(
     # so the interrupt appeared to hang.  Only the pages already in flight
     # may still be waited for -- at most two more here, i.e. ~0.4s.
     assert elapsed < 8 * PAGE_DELAY_S
+
+
+class _HangingProc:
+    """Stand-in for a translator that ignores the console event.
+
+    ``communicate`` keeps timing out, exactly like a child that neither
+    answers nor dies, and the process records that it was killed.  Review
+    R-28 is about who does the killing: the worker that is waiting, not the
+    main thread that has already walked away.
+    """
+
+    def __init__(self, polling: threading.Event) -> None:
+        """Publish *polling* as soon as the first wait begins."""
+        self.returncode = 0
+        self.killed = False
+        self.stdin = io.StringIO()
+        self._polling = polling
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        """Never answer, and announce that this process is now waiting."""
+        del timeout
+        self._polling.set()
+        raise subprocess.TimeoutExpired(cmd="fake-cmd", timeout=0)
+
+    def kill(self) -> None:
+        """Record the termination the worker was supposed to ask for."""
+        self.killed = True
+        self.returncode = -9
+
+    def wait(self) -> int:
+        """Return the exit code, as a reaped child would."""
+        return self.returncode
+
+
+def _wait_for(predicate: Callable[[], bool], timeout: float) -> bool:
+    """Return whether *predicate* holds within *timeout* seconds."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.02)
+    return predicate()
+
+
+def test_a_torn_down_stage_kills_the_child_its_worker_is_waiting_for(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stage's stop signal reaches a translator that waits on a child.
+
+    Review R-28 (second pass): the main thread can only stop *waiting* -- the
+    pool is closed with ``wait=False`` -- so a worker blocked on a child that
+    ignores the console event used to keep the process alive until CPython
+    joined it at interpreter teardown (measured 0.6 s to 3.1 s for a 3 s
+    page).  The stage therefore publishes its signal to the worker, which
+    kills its own child.  The publication is what this pins: with the signal
+    missing, or ANDed against the emit policy the stage restores on its way
+    out, the child is never killed and the last assertion fails.
+    """
+    real_translate = wiki.translate_via_cmd
+    polling = threading.Event()
+    proc = _HangingProc(polling)
+
+    def dispatch(text: str, translate_cmd: str) -> str | None:
+        if "page01" in text:
+            # The real entry point, so the polling loop and the stop check
+            # are the production ones.
+            return real_translate(text, translate_cmd)
+        # The interrupt comes from a sibling batch, but only once the first
+        # worker is really waiting on its child.
+        assert polling.wait(10.0), "the first worker never reached its wait loop"
+        raise KeyboardInterrupt
+
+    def fake_popen(cmd: object, **kwargs: object) -> _HangingProc:
+        del cmd, kwargs
+        return proc
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", dispatch)
+    monkeypatch.setattr(
+        wiki,
+        "subprocess",
+        types.SimpleNamespace(
+            Popen=fake_popen,
+            run=subprocess.run,
+            TimeoutExpired=subprocess.TimeoutExpired,
+            CompletedProcess=subprocess.CompletedProcess,
+            DEVNULL=subprocess.DEVNULL,
+            PIPE=subprocess.PIPE,
+        ),
+    )
+    # Long enough that only the stop signal can end the wait, and a poll
+    # interval long enough that the worker cannot happen to poll *inside* the
+    # teardown window: what has to survive the stage's exit is the signal
+    # itself, not a race with the moment the emit policy was restored.
+    monkeypatch.setattr(wiki, "TRANSLATE_TIMEOUT_S", 900.0)
+    monkeypatch.setattr(wiki, "_STOP_POLL_S", 0.2)
+    with pytest.raises(KeyboardInterrupt):
+        wiki.run(tmp_path / "wiki", "fake-cmd", repo_root=repo, jobs=2)
+    assert _wait_for(lambda: proc.killed, 5.0)
 
 
 def test_translate_failure_lines_are_printed_once_by_the_main_thread(
