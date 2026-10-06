@@ -967,6 +967,103 @@ def test_screen_saver_dist_bounds_bad_values_reported(tmp_path: Path) -> None:
         assert config.screen_saver.dist_bounds is None, body
 
 
+# --- file_preview option ----------------------------------------------------
+
+
+def test_file_preview_defaults() -> None:
+    config = cfg.YateConfig()
+    assert config.file_preview == cfg.FilePreviewConfig()
+    assert config.file_preview.enable is True
+    assert config.file_preview.position == "right"
+    assert config.file_preview.size == 40
+    assert config.file_preview.max_lines == 2000
+    assert config.file_preview.max_size == 1048576
+
+
+def test_file_preview_absent_keeps_defaults(tmp_path: Path) -> None:
+    config = _load('tab_width = 2\n', tmp_path)
+    assert config.errors == []
+    assert config.file_preview == cfg.FilePreviewConfig()
+
+
+def test_file_preview_full_valid_dict(tmp_path: Path) -> None:
+    config = _load(
+        'file_preview = {\n'
+        '    "enable": False,\n'
+        '    "position": "left",\n'
+        '    "size": 60,\n'
+        '    "max_lines": 500,\n'
+        '    "max_size": 4096,\n'
+        "}\n",
+        tmp_path,
+    )
+    assert config.errors == []
+    assert config.file_preview.enable is False
+    assert config.file_preview.position == "left"
+    assert config.file_preview.size == 60
+    assert config.file_preview.max_lines == 500
+    assert config.file_preview.max_size == 4096
+
+
+def test_file_preview_partial_dict_keeps_defaults(tmp_path: Path) -> None:
+    config = _load('file_preview = {"size": 60}\n', tmp_path)
+    assert config.errors == []
+    assert config.file_preview.size == 60
+    assert config.file_preview.enable is True
+    assert config.file_preview.position == "right"
+    assert config.file_preview.max_lines == 2000
+    assert config.file_preview.max_size == 1048576
+
+
+def test_file_preview_unknown_key_reported(tmp_path: Path) -> None:
+    config = _load('file_preview = {"width": 50}\n', tmp_path)
+    assert any("unknown keys" in e for e in config.errors)
+    assert any("width" in e for e in config.errors)
+    assert config.file_preview == cfg.FilePreviewConfig()
+
+
+def test_file_preview_not_a_dict_reported(tmp_path: Path) -> None:
+    config = _load("file_preview = True\n", tmp_path)
+    assert config.file_preview == cfg.FilePreviewConfig()
+    assert any("file_preview must be a dict" in e for e in config.errors)
+
+
+def test_file_preview_bad_position_rejected(tmp_path: Path) -> None:
+    config = _load('file_preview = {"position": "up"}\n', tmp_path)
+    assert config.errors
+    assert any("file_preview position" in e for e in config.errors)
+    assert config.file_preview.position == "right"
+
+
+def test_file_preview_bad_size_rejected(tmp_path: Path) -> None:
+    for body in ('"size": True', '"size": 5', '"size": 90'):
+        config = _load(f"file_preview = {{{body}}}\n", tmp_path)
+        assert config.errors, body
+        assert any("file_preview size" in e for e in config.errors), (body, config.errors)
+        # the failing key keeps its default (bool masquerading as int is caught)
+        assert config.file_preview.size == 40, body
+
+
+def test_file_preview_bad_limits_rejected(tmp_path: Path) -> None:
+    config = _load('file_preview = {"max_lines": 0}\n', tmp_path)
+    assert any("file_preview max_lines" in e for e in config.errors)
+    assert config.file_preview.max_lines == 2000
+    config = _load('file_preview = {"max_size": 1}\n', tmp_path)
+    assert any("file_preview max_size" in e for e in config.errors)
+    assert config.file_preview.max_size == 1048576
+
+
+def test_file_preview_later_declaration_replaces(tmp_path: Path) -> None:
+    user_rc = _write(tmp_path / "user", 'file_preview = {"size": 60}\n')
+    project_rc = _write(
+        tmp_path / "project",
+        'file_preview = {"enable": False, "position": "left"}\n',
+    )
+    config = cfg.load_config([user_rc, project_rc])
+    assert config.errors == []
+    assert config.file_preview == cfg.FilePreviewConfig(enable=False, position="left")
+
+
 # --- shipped example --------------------------------------------------------
 
 
