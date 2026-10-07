@@ -127,15 +127,15 @@ sequenceDiagram
 
 **回滚**：分支未推送，worktree 内 `git reset --hard 2e138a8` 可整体回退到评审基准。
 
-## 六、状态表（执行中回填）
+## 六、状态表（已回填，2026-10-07）
 
 | 步骤 | 状态 | 结果/偏离 |
 |---|---|---|
-| 1 B1 修复 | ⏳ 待执行 | — |
-| 2 I1 修复 | ⏳ 待执行 | — |
-| 3 回归测试 | ⏳ 待执行 | — |
-| 4 全量门禁 | ⏳ 待执行 | — |
-| 5 回填收尾 | ⏳ 待执行 | — |
+| 1 B1 修复 | ✅ 完成 | `palette.py` except 块补 `tokens = [[] for _ in lines]`，注释改为如实描述（"对齐空 token 行，zip 仍遍历每行走 t.fg 纯文本"） |
+| 2 I1 修复 | ✅ 完成 | stdlib 组补 `from functools import partial`；`_update_preview` 的 `run_worker` 实参改 `partial(self._load_preview_worker, path)` + 同款泄漏注释 |
+| 3 回归测试 | ✅ 完成 | `tests/test_palette_preview.py` 13 → 15，目标文件 **15 passed** |
+| 4 全量门禁 | ✅ 完成 | 数字见 §八 |
+| 5 回填收尾 | ✅ 完成 | 本文 §六/§八 即回填产物 |
 
 ## 七、提交计划（只提交不推送）
 
@@ -145,3 +145,36 @@ sequenceDiagram
 | 2 | 本方案 | `docs(plans): add pr 60 review fixes plan` |
 | 3 | 两处修复 + 2 条回归测试 | `fix(palette): keep plain-line preview when tokenizing fails` |
 | 4 | 门禁结果回填 | `docs(plans): record pr 60 review fix gate results` |
+
+## 八、实测结果（收尾回填，2026-10-07）
+
+执行场自证：worktree `.venv` `import yate` →
+`D:\Programming\yate-ctrlp-preview\yate\__init__.py`（沙箱指向本 worktree）。
+
+| 门禁 | 命令 | 实测结果 | 判定 |
+|---|---|---|---|
+| 目标测试 | `python -m pytest tests/test_palette_preview.py -q` | **15 passed** | ✅ |
+| 类型 | `python -m pyright yate tests tools` | **0 errors, 0 warnings, 0 informations** | ✅ |
+| 单测+架构 | `python -m pytest tests/ --tb=no` | **1 failed, 1975 passed, 9 skipped**（301.63s） | ✅（唯一失败见下） |
+| 覆盖率 | `python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75` | TOTAL **91.41%**（13313 stmts / 4432 branches，branch mode），gate 75% reached | ✅ |
+| 冒烟 | `python -m tools.smoke_test run --scenario palette_preview_renders --scenario palette_preview_truncates --scenario palette_preview_disabled` | renders 13/13 · truncates 9/9 · disabled 12/12 → **3/3 场景，34/34 checks，exit 0**（1.49s） | ✅ |
+
+**唯一失败**：`tests/test_pack_wiki_parallel.py::test_batch_row_names_the_page_in_flight_and_escapes_markup`
+——已按方案 §五 在 master 检出（`D:/Programming/yate`，`7ab124a`）实测同败
+（同一用例、同一断言 `'bracket[name].en.md' in ''`），属存量环境问题，
+与本分支零改动面（本分支未触碰 `tools/pack/wiki.py`），不拦截。架构守卫
+`tests/test_architecture.py` 22 例含于 1975 passed 内。
+
+**审核结论**（task-orchestration §二.5）：改动面小（2 文件，+67/-2），按
+code-review-expert 剧本由主代理亲自评审并如实标注：依赖方向（仅 L2 + stdlib import）、
+日志惰性 `%` 占位（R12）、`except Exception` 附 `noqa: BLE001` 且记日志降级、
+pyright strict 零诊断、测试走既有 Pilot 基建——无 blocker / major。
+
+**偏离记录**（均为执行细节，非设计变更）：
+
+1. 冒烟命令按计划预注"以 `tools/smoke_test/cli.py` 实际为准"核实出两处差异：
+   需要 `run` 子命令；场景名为三个具名场景（`palette_preview_renders/_truncates/_disabled`），
+   不存在聚合名 `palette_preview`。
+2. 门禁数字采集发现：`pyproject.toml` `addopts = "-q"` 与命令行显式 `-q` 叠加成
+   `-qq`，会吞掉 pytest 末尾的 `N failed, M passed` 统计行——采集数字时应省略显式 `-q`。
+3. 计划 §四 步骤 4 的命令模板省略了显式 `-q` 后即为实测命令，无其他偏离。
