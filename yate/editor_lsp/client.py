@@ -32,9 +32,13 @@ from . import protocol
 #: Trace logger ("yate.editor_lsp.client"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
-#: Type of the async transport factory: returns (reader, writer, process).
-ConnectFn = Callable[[], Awaitable[tuple[Any, Any, Any]]]
-NotificationFn = Callable[[str, dict[str, Any]], None]
+#: Type of the async transport factory: ``connect()`` opens the transport and
+#: hands back ``(reader, writer, process)``; injectable so tests can drive a
+#: client without a real server.
+type ConnectFn = Callable[[], Awaitable[tuple[Any, Any, Any]]]
+
+#: ``on_notification(method, params)`` -- one server-initiated notification.
+type NotificationFn = Callable[[str, dict[str, Any]], None]
 
 #: LSP error codes we care about.
 ERR_METHOD_NOT_FOUND: int = -32601

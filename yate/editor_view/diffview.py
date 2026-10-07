@@ -248,7 +248,7 @@ class DiffPane(ScrollView):
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
-    _theme_unsubscribe: Callable[[], None] | None = None
+    _theme_unsubscribe: theme.Unsubscribe | None = None
 
     def __init__(
         self,

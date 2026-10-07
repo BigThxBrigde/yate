@@ -199,6 +199,11 @@ def _parse_int_in_range(value: str, low: int, high: int) -> int | None:
     return parsed if low <= parsed <= high else None
 
 
+#: ``parse(raw)`` -- turn the raw option string into the value the apply
+#: mapping receives, or ``None`` when the value is invalid.
+type OptionParser = Callable[[str], object | None]
+
+
 @dataclass(frozen=True)
 class SetOption:
     """One ``:set`` option: aliases, value parser and help text (A8).
@@ -212,7 +217,7 @@ class SetOption:
 
     name: str                      # canonical name, e.g. "terminal_height"
     aliases: tuple[str, ...]       # e.g. ("ft", "language", "lang")
-    parse: Callable[[str], object | None]   # None = invalid value
+    parse: OptionParser             # None = invalid value
     invalid_message: str           # warn text reused by commands._set
     summary: str                   # one-line hint for the usage message
 

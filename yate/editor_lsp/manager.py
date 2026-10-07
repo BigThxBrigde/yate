@@ -95,15 +95,30 @@ class OpenDocState:
     doc: Document
 
 
+#: ``workspace_root()`` -- the directory language servers are rooted at
+#: (``None`` until the editor knows one).
+type RootQuery = Callable[[], Path | None]
+
+#: ``on_event(event)`` -- the manager's outbound notification: ``"state"``
+#: whenever a server starts, stops or changes state, ``"diagnostics"`` when a
+#: publish arrives.  The consumer repaints from it and echoes the diagnostic
+#: count (see :meth:`yate.flows.lsp_sync.LspSync.on_event`).
+type EventHook = Callable[[str], None]
+
+#: ``client_factory(config, root)`` -- build the client for one server config;
+#: replaceable after construction through :meth:`LspManager.set_client_factory`.
+type ClientFactory = Callable[[ServerConfig, Path], LspClient]
+
+
 class LspManager:
     """Registry of server configs plus per-document LSP session state."""
 
     def __init__(
         self,
         *,
-        workspace_root: Callable[[], Path | None] | None = None,
-        on_event: Callable[[str], None] | None = None,
-        client_factory: Callable[[ServerConfig, Path], LspClient] | None = None,
+        workspace_root: RootQuery | None = None,
+        on_event: EventHook | None = None,
+        client_factory: ClientFactory | None = None,
     ) -> None:
         self._configs: list[ServerConfig] = []
         self._by_filetype: dict[str, ServerConfig] = {}
@@ -119,7 +134,7 @@ class LspManager:
         self._client_factory = client_factory
 
     def set_client_factory(
-        self, factory: Callable[[ServerConfig, Path], LspClient] | None
+        self, factory: ClientFactory | None
     ) -> None:
         """Replace the client constructor (used by tests and embedders)."""
         self._client_factory = factory

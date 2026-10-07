@@ -31,6 +31,7 @@ from textual.widgets import Input, RichLog, Static
 from yate.config import FilePreviewConfig
 from yate.editor_syntax.engine import tokenize_document
 from yate.editor_syntax.tokens import Token
+from yate.keymaps.base import ActionRunner
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.registries import ActionRegistry, CommandRegistry
@@ -127,7 +128,7 @@ class PaletteScreen(ModalScreen[None]):
         actions: ActionRegistry,
         open_path: Callable[[Path], None],
         focus_editor: Callable[[], None],
-        execute_action: Callable[[str], bool],
+        execute_action: ActionRunner,
         run_command: Callable[[str], None],
         refresh: Callable[[], None],
         preview: FilePreviewConfig,

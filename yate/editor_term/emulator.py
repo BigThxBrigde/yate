@@ -177,6 +177,11 @@ _OSC: int = 3
 _ESC_INTERMEDIATE: int = 4
 
 
+#: ``on_response(data)`` -- bytes the terminal must answer with (device
+#: reports, cursor queries); the dock writes them back to the PTY.
+type ResponseFn = Callable[[bytes], None]
+
+
 class TerminalEmulator:
     """A grid-based VT emulator fed by :meth:`feed`."""
 
@@ -185,7 +190,7 @@ class TerminalEmulator:
         cols: int = 80,
         rows: int = 24,
         *,
-        on_response: Callable[[bytes], None] | None = None,
+        on_response: ResponseFn | None = None,
     ) -> None:
         self.cols = max(1, cols)
         self.rows = max(1, rows)

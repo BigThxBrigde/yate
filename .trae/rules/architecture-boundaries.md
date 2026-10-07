@@ -239,8 +239,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **24 个用例**（2026-10-07 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `24 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **25 个用例**（2026-10-07 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `25 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -287,8 +287,17 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `*Controller` / `AppProtocol`
   （白名单：`PaneHost`；`*Manager` 允许。流程模块按职责命名：UI 流程编排一律
   `*Flows`，同步适配器按动词命名如 `LspSync`，禁新增 `*Controller`）。
+- **回调别名**（issue IKJUWP，2026-10-07 新增一条）：
+  `test_callable_aliases_use_type_statements` AST 扫 `yate/**` 的**模块级与类级**
+  赋值——`X = Callable[...]`、`X: Callable[...] = ...`、`typing.Callable[...]`、
+  字符串前引号写法，以及藏在模块级 `if` / `while` / `try` 里的同类绑定——一律判违规，
+  必须写成 PEP 695 `type X = ...`（`ast.TypeAlias` 节点）；同时禁
+  `typing.TypeAlias` / `TypeAliasType` 导入（3.12 上二者都多余）。
+  **不在拦截范围**：函数体内的实例属性（`self._hook: Callable[...] = None`）与
+  "元素是回调的数据表"（`dict[str, Callable[...]]`）——它们不是别名定义，
+  按 §三.6 与 R-C 保持内联。负向演练过：6 类违规全部拦截，3 类放行形态零误伤。
 
-**24 个用例逐条对照**（2026-10-07 实测 `24 passed`）：
+**25 个用例逐条对照**（2026-10-07 实测 `25 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -316,6 +325,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 22 | `test_flow_modules_hold_no_app_handle` | 能力注入（流程模块禁 `self.app`） |
 | 23 | `test_editor_lsp_package_root_is_light` | §三.5（A1：包根不连带加载 `editor_lsp.manager`） |
 | 24 | `test_leaf_package_reexports_carry_exception_note` | §三.5（A1：叶包 re-export 须带例外注明） |
+| 25 | `test_callable_aliases_use_type_statements` | 回调别名（IKJUWP：PEP 695 `type` 语句） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

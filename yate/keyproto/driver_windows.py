@@ -55,6 +55,10 @@ from yate.logs import tracing
 
 log = tracing.get_logger(__name__)
 
+#: ``process_event(message)`` -- push one Textual message into the driver; the
+#: stock parser events and the synthesized chord events share this one sink.
+type EventDeliverer = Callable[[Message], None]
+
 #: VK codes whose chords yate can name: digits, letters, space and the
 #: US-layout punctuation OEM keys the keymaps actually reference.
 #: Everything else keeps the legacy char path (arrows, F-keys, navigation --
@@ -123,7 +127,7 @@ class ChordEventMonitor(win32.EventMonitor):
         frame_stream = Win32FrameStream()
         # The stock parser events are Messages at the type level; the runtime
         # input path is the same callable for both (see the Key cast below).
-        deliver = cast("Callable[[Message], None]", self.process_event)
+        deliver = cast("EventDeliverer", self.process_event)
 
         try:
             read_count = wintypes.DWORD(0)

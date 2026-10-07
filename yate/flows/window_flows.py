@@ -16,8 +16,8 @@ from functools import partial
 from pathlib import Path
 
 from textual.events import Key
-from textual.worker import Worker
 
+from yate.flows import MessageFn, SpawnFn, StateQuery
 from yate.flows.document_flows import DocumentFlows
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.panes import PaneManager
@@ -42,18 +42,18 @@ class WindowFlows:
 
     def __init__(
         self,
-        spawn: Callable[..., Worker[object]],
+        spawn: SpawnFn,
         session: EditorSession,
         panes: PaneManager,
         keymaps: KeymapSet,
         document_flows: DocumentFlows,
         prompt_bar: PromptBar,
-        message: Callable[[str, str], None],
-        has_modal_screen: Callable[[], bool],
+        message: MessageFn,
+        has_modal_screen: StateQuery,
         focus_editor: Callable[[], None],
         focus_explorer: Callable[[], None],
         after_pane_focus: Callable[[], None],
-        explorer_focused: Callable[[], bool],
+        explorer_focused: StateQuery,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).

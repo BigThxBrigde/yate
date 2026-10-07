@@ -6,10 +6,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast, override
 from yate.app import YateApp
+from yate.editor_term.pty_proc import ExitFn, OutputFn
 from conftest import message_text, wait_until
 
 def test_set_terminal_height_reports_and_validates() -> None:
@@ -81,13 +81,13 @@ class _FakePty:
         self.sent: list[bytes] = []
         self.started = False
         self.exited = False
-        self._on_output: Callable[[bytes], None] | None = None
-        self._on_exit: Callable[[int | None], None] | None = None
+        self._on_output: OutputFn | None = None
+        self._on_exit: ExitFn | None = None
         _FakePty.instances.append(self)
 
     async def start(
-        self, on_output: Callable[[bytes], None],
-        on_exit: Callable[[int | None], None],
+        self, on_output: OutputFn,
+        on_exit: ExitFn,
     ) -> None:
         """Fake counterpart of :meth:`PtyProcess.start` recording the callbacks."""
         self.started = True
@@ -155,8 +155,8 @@ def test_early_pty_output_survives_first_layout() -> None:
     class _ImmediatePty(_FakePty):
         @override
         async def start(
-            self, on_output: Callable[[bytes], None],
-            on_exit: Callable[[int | None], None],
+            self, on_output: OutputFn,
+            on_exit: ExitFn,
         ) -> None:
             """Fake start that emits a banner before the first layout."""
             await super().start(on_output, on_exit)

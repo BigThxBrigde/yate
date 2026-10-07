@@ -66,6 +66,11 @@ _SKIPPED_EXTRAS: frozenset[str] = frozenset({"dev", "build"})
 _SECTION_TITLE_RE: re.Pattern[str] = re.compile(r"^\[[a-z]+\]$")
 
 
+#: One diagnostics section: collect its lines on demand (at report time, not
+#: import time -- several sections need the live editor).
+type SectionFn = Callable[[], list[str]]
+
+
 # ------------------------------------------------------------------ report
 
 def format_report(editor: Editor, *, color: bool = False) -> str:
@@ -75,7 +80,7 @@ def format_report(editor: Editor, *, color: bool = False) -> str:
     errors); callers pass ``sys.stdout.isatty()`` so redirected output
     stays clean plain text.
     """
-    sections: list[tuple[str, Callable[[], list[str]]]] = [
+    sections: list[tuple[str, SectionFn]] = [
         ("system", _section_system),
         ("terminal", _section_terminal),
         ("shell", _section_shell),

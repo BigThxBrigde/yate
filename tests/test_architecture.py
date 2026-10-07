@@ -31,6 +31,15 @@ These tests enforce the boundaries documented in
   whitelisted.  UI flow modules are named by duty: ``*Flows`` for
   multi-step orchestration, verb names like ``LspSync`` for sync adapters;
   new ``*Controller`` names are banned.
+* **Callback aliases** callback type aliases are PEP 695 ``type`` statements
+  (``type OutputFn = Callable[[bytes], None]``), never ``X = Callable[...]``
+  assignments and never ``typing.TypeAlias`` / ``TypeAliasType`` (issue
+  IKJUWP): the statement form is lazily evaluated (it may name a class defined
+  further down the module), reads as a declaration at the definition site, and
+  the ``typing`` aliases add nothing on 3.12.  The guard covers module- and
+  class-level bindings -- where aliases live; a one-off callback *attribute*
+  inside a function body, and a data table whose *elements* are callbacks
+  (``dict[str, Callable[...]]``), are not alias definitions and stay inline.
 * **Panes** the pane tree model is L1 state, not a widget-package type layer:
   ``session.py`` owns ``Leaf`` / ``Split`` / ``ViewState`` and the tree
   operations, ``editor_view`` imports them and never re-exports them, and
@@ -278,6 +287,104 @@ def test_no_type_checking() -> None:
     """Type-only import blocks are banned; local protocols replace them (R6)."""
     for path in _python_files():
         assert "TYPE_CHECKING" not in path.read_text(encoding="utf-8"), path
+
+
+def _is_callable_spelling(node: ast.expr) -> bool:
+    """Whether *node* is spelled ``Callable``, bare or module-qualified."""
+    if isinstance(node, ast.Name):
+        return node.id == "Callable"
+    if isinstance(node, ast.Attribute):
+        return node.attr == "Callable"
+    return False
+
+
+def _is_callable_annotation(node: ast.expr) -> bool:
+    """Whether *node* *is* a ``Callable[...]``, optionally unioned with ``None``.
+
+    Only the top level counts, on purpose: ``dict[str, Callable[...]]`` is a
+    data table whose *elements* are callbacks, not an alias definition, and it
+    reads fine inline (plan rule R-C).  Tuples and lists *are* unpacked, so the
+    ``X, Y = Callable[...], Callable[...]`` unpacking form cannot slip through.
+    A quoted forward reference counts as a mention -- the fix is the same
+    either way (give it a name); :func:`_assigns_callable_alias` keeps that
+    heuristic out of plain values, where a string is only a string.
+    """
+    if isinstance(node, ast.Subscript):
+        return _is_callable_spelling(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return _is_callable_annotation(node.left) or _is_callable_annotation(node.right)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return any(_is_callable_annotation(element) for element in node.elts)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return "Callable[" in node.value
+    return False
+
+
+def _assigns_callable_alias(node: ast.Assign | ast.AnnAssign) -> bool:
+    """Whether *node* defines a callback alias the pre-PEP-695 way.
+
+    Both spellings count: ``X = Callable[...]`` and ``X: Callable[...] = ...``.
+    A bare declaration without a value -- a dataclass field such as
+    ``message: Callable[[str], None]`` -- is not an alias definition and stays
+    allowed; give it a named alias or keep the inline shape.
+
+    A plain string *value* is never an alias: with postponed annotations only
+    the annotation may be a quoted reference, so a module-level
+    ``DOC = "call it Callable[[int], None]"`` stays prose (PR !62 review M1).
+    """
+    if isinstance(node, ast.AnnAssign):
+        if node.value is None:
+            return False
+        return _is_callable_annotation(node.annotation)
+    value = node.value
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return False
+    return _is_callable_annotation(value)
+
+
+def _alias_binding_statements(body: list[ast.stmt]) -> list[ast.Assign | ast.AnnAssign]:
+    """Module-level and class-level assignments, descending into ``if`` / ``try``.
+
+    Function and method bodies are instance state (``self._hook:
+    Callable[...] = None``), not alias definitions, so the walk stops at their
+    boundary: a one-off callback attribute whose name already says what it is
+    has nothing to gain from an alias.
+    """
+    out: list[ast.Assign | ast.AnnAssign] = []
+    for node in body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            out.append(node)
+        elif isinstance(node, ast.ClassDef):
+            out.extend(_alias_binding_statements(node.body))
+        elif isinstance(node, (ast.If, ast.While)):
+            out.extend(_alias_binding_statements(node.body))
+            out.extend(_alias_binding_statements(node.orelse))
+        elif isinstance(node, ast.Try):
+            out.extend(_alias_binding_statements(node.body))
+            for handler in node.handlers:
+                out.extend(_alias_binding_statements(handler.body))
+            out.extend(_alias_binding_statements(node.orelse))
+            out.extend(_alias_binding_statements(node.finalbody))
+    return out
+
+
+def test_callable_aliases_use_type_statements() -> None:
+    """Callback aliases are ``type`` statements, not assignments (IKJUWP)."""
+    offenders: list[tuple[str, int]] = []
+    for path in _yate_files():
+        rel = path.relative_to(YATE).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in _alias_binding_statements(tree.body):
+            if _assigns_callable_alias(node):
+                offenders.append((rel, node.lineno))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "typing"
+                and any(a.name in ("TypeAlias", "TypeAliasType") for a in node.names)
+            ):
+                offenders.append((rel, node.lineno))
+    assert not offenders, offenders
 
 
 def test_only_cli_imports_app() -> None:

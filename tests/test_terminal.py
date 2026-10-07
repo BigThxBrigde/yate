@@ -427,8 +427,8 @@ class _FailingProc:
 
     async def start(
         self,
-        on_output: Callable[[bytes], None],
-        on_exit: Callable[[int | None], None],
+        on_output: pty_proc.OutputFn,
+        on_exit: pty_proc.ExitFn,
     ) -> None:
         """Always fail: the fake ConPTY backend is dead."""
         raise PtyProcessError("no ConPTY here")
@@ -442,8 +442,8 @@ class _WorkingProc:
 
     async def start(
         self,
-        on_output: Callable[[bytes], None],
-        on_exit: Callable[[int | None], None],
+        on_output: pty_proc.OutputFn,
+        on_exit: pty_proc.ExitFn,
     ) -> None:
         """Start successfully, then stay silent (no output, no exit)."""
         return None

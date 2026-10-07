@@ -23,13 +23,18 @@ from yate.logs import tracing
 #: Trace logger ("yate.editor_term.pty_proc"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
-OutputFn = Callable[[bytes], None]
-ExitFn = Callable[[int | None], None]
+#: ``on_output(data)`` -- PTY bytes, always delivered on the loop that called
+#: :meth:`PtyProcess.start`.
+type OutputFn = Callable[[bytes], None]
+
+#: ``on_exit(code)`` -- the child terminated; *code* is ``None`` when the exit
+#: status could not be determined (see :data:`ExitState`).
+type ExitFn = Callable[[int | None], None]
 
 #: Result of the ConPTY exit-code query: the child's exit code, or why there
 #: is none yet -- "running" (child still alive) or "failed" (query itself
 #: could not be made).
-ExitState = int | Literal["running", "failed"]
+type ExitState = int | Literal["running", "failed"]
 
 
 class PtyProcessError(RuntimeError):

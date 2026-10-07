@@ -15,10 +15,10 @@ warnings are *returned* (not pushed) so the caller decides where they go.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from yate.config import YateConfig
+from yate.flows import MessageFn
 from yate.services.extensions import (
     ExtensionAPI,
     ExtensionLoader,
@@ -37,7 +37,7 @@ class ExtensionFlows:
         config: YateConfig,
         ext_dirs: list[Path],
         ext_files: list[Path],
-        message: Callable[[str, str], None],
+        message: MessageFn,
     ) -> None:
         self.extension_loader = extension_loader
         self.extension_api = extension_api

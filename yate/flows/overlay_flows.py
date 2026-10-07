@@ -25,6 +25,8 @@ from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen
 from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.screensaver import ScreensaverScreen
+from yate.flows import MessageFn, StateQuery
+from yate.keymaps.base import ActionRunner
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
@@ -44,11 +46,11 @@ class OverlayFlows:
         actions: ActionRegistry,
         workspace: Workspace,
         prompt: PromptBar,
-        message: Callable[[str, str], None],
-        mounted: Callable[[], bool],
+        message: MessageFn,
+        mounted: StateQuery,
         open_path: Callable[[Path], None],
         focus_editor: Callable[[], None],
-        execute_action: Callable[[str], bool],
+        execute_action: ActionRunner,
         run_command: Callable[[str], None],
         refresh: Callable[[], None],
     ) -> None:
