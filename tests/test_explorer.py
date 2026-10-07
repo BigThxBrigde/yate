@@ -28,7 +28,7 @@ from yate.editor_view.icons import (
     ICON_COLOR_FALLBACK,
     SETI_COLORS,
 )
-from yate.lsp_sync import LspSync
+from yate.flows.lsp_sync import LspSync
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 

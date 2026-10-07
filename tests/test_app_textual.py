@@ -25,7 +25,7 @@ from yate.editor_view.manual import MarkdownDocScreen
 from yate.keymaps.base import ActionContext
 from yate.keymaps.vim import VimKeymap
 from yate.keyproto.legacy import event_to_raw
-from yate.prompt_completion import prompt_completions
+from yate.flows.prompt_completion import prompt_completions
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 
@@ -2310,7 +2310,7 @@ def test_shell_command_runs_without_freezing_ui() -> None:
             await pilot.pause()
             prompt_bar = app.editor.prompt_bar
             assert prompt_bar is not None
-            with patch("yate.shell_flows.run_shell", side_effect=slow_shell):
+            with patch("yate.flows.shell_flows.run_shell", side_effect=slow_shell):
                 # F2 opens the shell prompt in vsc mode (":" is vim-only)
                 await pilot.press("f2")
                 assert prompt_bar.active_mode == "shell"

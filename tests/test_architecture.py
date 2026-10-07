@@ -21,9 +21,10 @@ These tests enforce the boundaries documented in
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
 * **R11** the L3 collaborator modules that drive widgets
-  (``completion.py`` / ``prompt_completion.py`` / ``lsp_sync.py`` /
-  ``shell_flows.py`` / ``overlays.py`` / ``prompt_flows.py``) keep that
-  coupling frozen and never look upward.
+  (``flows/completion_flows.py`` / ``flows/prompt_completion.py`` /
+  ``flows/lsp_sync.py`` / ``flows/shell_flows.py`` / ``flows/overlay_flows.py``
+  / ``flows/prompt_flows.py``) keep that coupling frozen and never look
+  upward.
 * **Naming** (unnumbered guard, rules section 6): no ``*Feature`` / ``*Host``
   / ``*Ops`` / ``*Delegate`` identifiers and no ``AppProtocol``.  ``PaneHost``
   is a real Textual container widget (not a protocol / thin delegate) and is
@@ -112,23 +113,23 @@ UI_FREE_FILES: tuple[str, ...] = ("session.py", "registries.py", "config.py")
 #: still may not depend upward, and their ``editor_view`` coupling is frozen
 #: here, so a new widget import fails until it is justified (R4).
 UI_FROZEN_FILES: dict[str, set[str]] = {
-    "prompt_completion.py": {
+    "flows/prompt_completion.py": {
         "yate.editor_view",
         "yate.editor_view.theme",
     },
-    "document_flows.py": {
+    "flows/document_flows.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",
         "yate.editor_view.explorer",
         "yate.editor_view.panes",
     },
-    "window_flows.py": {
+    "flows/window_flows.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",
         "yate.editor_view.explorer",
         "yate.editor_view.panes",
     },
-    "completion.py": {
+    "flows/completion_flows.py": {
         "yate.editor_view",
         "yate.editor_view.theme",
         "yate.editor_view.commandline",
@@ -136,19 +137,19 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_view.editor",
         "yate.editor_view.panes",
     },
-    "lsp_sync.py": {
+    "flows/lsp_sync.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",
         "yate.editor_view.modals",
         "yate.editor_view.panes",
         "yate.editor_view.statusbar",
     },
-    "shell_flows.py": {
+    "flows/shell_flows.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",
         "yate.editor_view.modals",
     },
-    "overlays.py": {
+    "flows/overlay_flows.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",
         "yate.editor_view.diffview",
@@ -157,7 +158,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_view.palette",
         "yate.editor_view.screensaver",
     },
-    "prompt_flows.py": {
+    "flows/prompt_flows.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",
         "yate.editor_view.panes",
@@ -325,9 +326,10 @@ def test_keymaps_services_and_models_stay_ui_free() -> None:
 
 
 def test_collaborators_keep_widget_coupling_frozen() -> None:
-    """``completion.py`` / ``prompt_completion.py`` are editor-level
-    collaborators: they may drive their known widgets but never depend
-    upward, and a new ``editor_view`` import must be added here first (R11)."""
+    """``flows/completion_flows.py`` / ``flows/prompt_completion.py`` are
+    editor-level collaborators: they may drive their known widgets but never
+    depend upward, and a new ``editor_view`` import must be added here first
+    (R11)."""
     for name, allowed in UI_FROZEN_FILES.items():
         path = YATE / name
         for module in _yate_imports(path):
@@ -692,10 +694,11 @@ def test_flow_modules_hold_no_app_handle() -> None:
     Verbs are injected as bound methods and state queries as editor-owned
     semantic callables (semantic capability injection, issue IKJB0Q);
     ``editor.py`` is the one L3 ``App[None]`` holder and capability
-    distributor.  The scan covers top-level ``yate/*.py`` (non-recursive),
-    matching the plan's Stage 3 declaration.
+    distributor.  The scan covers top-level ``yate/*.py`` plus the
+    ``yate/flows/`` subpackage, matching the plan's Stage 3 declaration.
     """
-    for path in YATE.glob("*.py"):
+    scan_roots = [YATE.glob("*.py"), (YATE / "flows").glob("*.py")]
+    for path in (p for root in scan_roots for p in root):
         if path.name == "editor.py":
             continue
         lines = _self_app_accesses(path)

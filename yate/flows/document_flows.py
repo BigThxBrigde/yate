@@ -4,14 +4,14 @@ Extracted from :mod:`yate.editor`.  Everything that turns a path into an
 active document (startup target, ``:e``, splits, the explorer, the
 extension API), keeps it on disk (``:w`` / ``:saveas``) and moves between
 tab documents (``:bn`` / ``:bp`` / ``:bd``) lives here.  Like
-:class:`~yate.prompt_flows.PromptFlows` the module is constructed by the
+:class:`~yate.flows.prompt_flows.PromptFlows` the module is constructed by the
 editor and never imports upward: collaborators are concrete objects, and
 editor-owned state (mount flag, sidebar visibility, message buffering) is
 reached through injected callables.
 
 The pane stack is assembled *after* the startup document opens (the first
 pane leaf seeds from it), so :class:`PaneManager` and
-:class:`~yate.completion.CompletionFlows` arrive in a second phase via
+:class:`~yate.flows.completion_flows.CompletionFlows` arrive in a second phase via
 :meth:`attach_pane_stack` -- mirroring ``PaneManager.attach``.
 """
 
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from textual.worker import Worker
 
-from yate.completion import CompletionFlows
+from yate.flows.completion_flows import CompletionFlows
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
 from yate.editor_view.commandline import PromptBar
@@ -217,7 +217,7 @@ class DocumentFlows:
         Directory opens stay sync (the tree only lists the bounded root
         level) and report success.  The boolean result lets the split flow
         roll a failed open back (see
-        :meth:`~yate.window_flows.WindowFlows._split_pane_worker`).
+        :meth:`~yate.flows.window_flows.WindowFlows._split_pane_worker`).
         """
         path = self.resolve_input_path(path)
         try:

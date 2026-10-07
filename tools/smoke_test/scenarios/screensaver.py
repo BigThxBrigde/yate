@@ -11,7 +11,7 @@ universe), so this module drives it through both of its entry points:
   open/close rounds prove the toggle is idempotent.
 * :func:`_screensaver_disabled_message` -- ``screen_saver.enable = False`` refuses
   to start and only reports on the message line
-  (:meth:`yate.overlays.OverlayFlows.toggle_screensaver`).
+  (:meth:`yate.flows.overlay_flows.OverlayFlows.toggle_screensaver`).
 * :func:`_screensaver_bad_roster_message` -- a ``characters`` whitelist naming
   only unknown sprites is refused too, and is *not* silently widened to the
   whole roster: falling back would betray an explicit whitelist.

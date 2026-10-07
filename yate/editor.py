@@ -28,9 +28,7 @@ from textual.events import Key
 from textual.screen import Screen
 
 from yate import __version__
-from yate.completion import CompletionFlows
 from yate.config import YateConfig
-from yate.document_flows import DocumentFlows
 from yate.editor_core import BufferReadOnlyError
 from yate.editor_lsp.manager import LspManager
 from yate.editor_syntax import (
@@ -47,23 +45,25 @@ from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.panes import PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
-from yate.extension_flows import ExtensionFlows
+from yate.flows.completion_flows import CompletionFlows
+from yate.flows.document_flows import DocumentFlows
+from yate.flows.extension_flows import ExtensionFlows
+from yate.flows.lsp_sync import LspSync
+from yate.flows.overlay_flows import OverlayFlows
+from yate.flows.prompt_completion import prompt_completions
+from yate.flows.prompt_flows import PromptFlows
+from yate.flows.shell_flows import ShellFlows
+from yate.flows.window_flows import WindowFlows
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap
 from yate.keymaps.vsc import VscKeymap
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
-from yate.lsp_sync import LspSync
-from yate.overlays import OverlayFlows
-from yate.prompt_completion import prompt_completions
-from yate.prompt_flows import PromptFlows
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
-from yate.shell_flows import ShellFlows
-from yate.window_flows import WindowFlows
 
 #: Trace logger ("yate.editor"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -487,7 +487,7 @@ class Editor:
     def report(self, text: str, kind: str = "info") -> None:
         """Report *text* on the message line (buffered before the first mount).
 
-        The buffered variant handed to :class:`~yate.document_flows.DocumentFlows`
+        The buffered variant handed to :class:`~yate.flows.document_flows.DocumentFlows`
         so pre-mount warnings (binary files, ...) surface on first mount.
         """
         if self.mounted:

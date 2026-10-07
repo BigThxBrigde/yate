@@ -14,10 +14,10 @@ scene: architecture
 
 ```
 L4 外壳：app.py（YateApp） / cli.py（唯一入口）
-L3 调度：editor.py（Editor）/ actions.py / commands.py / 流程模块
-         （completion.py / prompt_flows.py / document_flows.py / window_flows.py /
-         extension_flows.py / shell_flows.py / overlays.py / lsp_sync.py /
-         prompt_completion.py / diagnostics.py）/ services/extensions.py
+L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
+         （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
+         extension_flows.py / shell_flows.py / overlay_flows.py / lsp_sync.py /
+         prompt_completion.py）/ diagnostics.py / services/extensions.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
@@ -51,9 +51,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **R5 — 内置表单向**：`actions.py` / `commands.py` 可以 import `yate.editor`；反向禁止
   （`editor.py` 不得 import 它们，否则成环）。
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
-- **R11 — 冻结 UI 耦合**：L3 流程模块（`completion.py` / `prompt_flows.py` /
-  `document_flows.py` / `window_flows.py` / `shell_flows.py` / `overlays.py` /
-  `lsp_sync.py` / `prompt_completion.py`）**允许** import `editor_view`（存量耦合，冻结）；
+- **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
+  `document_flows.py` / `window_flows.py` / `shell_flows.py` / `overlay_flows.py` /
+  `lsp_sync.py` / `prompt_completion.py`；2026-10-08 自根目录迁入，`completion.py`、
+  `overlays.py` 同步更名为 `*_flows.py`）**允许** import `editor_view`（存量耦合，冻结）；
   禁止向上 import `yate.editor` / `yate.app`，且**新增** `editor_view` 导入必须先在
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记
   （`document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
@@ -250,7 +251,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
-- **R11** `completion.py` / `prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
+- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
 - **R5** `editor.py` 不 import `yate.actions` / `yate.commands`；
 - **R7** 只有 `app.py` 导入内置表，且 `YateApp.__init__` 调用
   `populate(self.editor.actions, self.editor)` / `register_commands(self.editor.commands, self.editor)`；

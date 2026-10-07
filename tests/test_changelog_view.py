@@ -20,7 +20,7 @@ from yate.editor_view.manual import (
     load_doc_markdown,
     load_manual_markdown,
 )
-from yate.overlays import OverlayFlows
+from yate.flows.overlay_flows import OverlayFlows
 from yate.registries import CommandRegistry
 
 
