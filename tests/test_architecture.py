@@ -303,14 +303,18 @@ def _is_callable_annotation(node: ast.expr) -> bool:
 
     Only the top level counts, on purpose: ``dict[str, Callable[...]]`` is a
     data table whose *elements* are callbacks, not an alias definition, and it
-    reads fine inline (plan rule R-C).  A quoted forward reference is judged
-    conservatively -- any mention of ``Callable[`` counts, because the fix is
-    the same either way (give it a name).
+    reads fine inline (plan rule R-C).  Tuples and lists *are* unpacked, so the
+    ``X, Y = Callable[...], Callable[...]`` unpacking form cannot slip through.
+    A quoted forward reference counts as a mention -- the fix is the same
+    either way (give it a name); :func:`_assigns_callable_alias` keeps that
+    heuristic out of plain values, where a string is only a string.
     """
     if isinstance(node, ast.Subscript):
         return _is_callable_spelling(node.value)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
         return _is_callable_annotation(node.left) or _is_callable_annotation(node.right)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return any(_is_callable_annotation(element) for element in node.elts)
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return "Callable[" in node.value
     return False
@@ -323,12 +327,19 @@ def _assigns_callable_alias(node: ast.Assign | ast.AnnAssign) -> bool:
     A bare declaration without a value -- a dataclass field such as
     ``message: Callable[[str], None]`` -- is not an alias definition and stays
     allowed; give it a named alias or keep the inline shape.
+
+    A plain string *value* is never an alias: with postponed annotations only
+    the annotation may be a quoted reference, so a module-level
+    ``DOC = "call it Callable[[int], None]"`` stays prose (PR !62 review M1).
     """
     if isinstance(node, ast.AnnAssign):
         if node.value is None:
             return False
         return _is_callable_annotation(node.annotation)
-    return _is_callable_annotation(node.value)
+    value = node.value
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return False
+    return _is_callable_annotation(value)
 
 
 def _alias_binding_statements(body: list[ast.stmt]) -> list[ast.Assign | ast.AnnAssign]:
