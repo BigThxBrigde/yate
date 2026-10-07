@@ -928,6 +928,10 @@ yaterc 中按文件名主干设置 `disabled_extensions = ["python_lsp"]`。
 
 切换只影响当前会话；要永久生效请写入 yaterc。未知主题名会报错并列出可用主题。
 
+> **来源声明**：本文件是 yate 应用内手册（`:help` 渲染）；本主题模板章节以本文件为
+> **应用内权威**。站外阅读版见仓库 [yate/docs/themes.zh.md](../docs/themes.zh.md)
+> （[English](../docs/themes.en.md)）；两处如有出入，以各自声明的权威范围为准。
+
 随包还附带 Dracula 与 Ayu（dark/mirage/light）**官方主题模板**，位于
 `yate/resources/theme_examples/` 下的 `*.example` 文件。模板不会自动
 加载；拷贝为 `*.py` 放进 `~/.yate/themes/`（或 `./themes/`）后，下次启动

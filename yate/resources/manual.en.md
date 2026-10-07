@@ -1019,6 +1019,12 @@ Ways to switch:
 Switching affects only the current session; write it into yaterc to persist.
 Unknown theme names raise an error listing the available themes.
 
+> **Provenance note**: this file is yate's in-app manual (rendered by ``:help``);
+> for the theme-template section this file is the **in-app authority**. The
+> out-of-tree reading copy lives at [yate/docs/themes.en.md](../docs/themes.en.md)
+> ([中文](../docs/themes.zh.md)); where the two differ, each side's declared
+> scope of authority wins.
+
 The package also ships official **theme templates** for Dracula and Ayu
 (dark/mirage/light) as `*.example` files under
 `yate/resources/theme_examples/`. Templates are never loaded automatically;

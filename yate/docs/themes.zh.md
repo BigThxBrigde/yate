@@ -89,6 +89,10 @@ yate --theme-dir ~/my-themes --theme-dir ./extras/solarized.py
 
 `--theme-dir` 既接受目录，也接受单个 `*.py` 文件。
 
+> **来源声明**：本文件是 yate 的站外主题指南（GitHub / Gitee 渲染）；本章节以本文件为
+> **站外权威**。应用内离线版见 `:help` 手册（`yate/resources/manual.zh.md`）同名章节；
+> 两处如有出入，以各自声明的权威范围为准。
+
 ### 方式 E：从随包主题模板安装（Dracula / Ayu）
 
 yate 随包附带两个官方主题模板：
