@@ -92,6 +92,23 @@ def word_end(line: str, col: int) -> int:
     return i
 
 
+def word_span(line: str, col: int) -> tuple[int, int]:
+    """The (start, end) char span of the word at *col*.
+
+    A non-word character or an out-of-range column yields an empty span
+    ``(col, col)`` -- double-clicking whitespace moves the cursor without
+    inventing a selection.  Word membership follows :func:`_is_word`.
+    """
+    if not 0 <= col < len(line) or not _is_word(line[col]):
+        return (col, col)
+    # walk back over the word itself; prev_word_start would jump the gap
+    # into the previous word when *col* is the word's first character
+    start = col
+    while start > 0 and _is_word(line[start - 1]):
+        start -= 1
+    return (start, word_end(line, col))
+
+
 @dataclass
 class _Snapshot:
     lines: tuple[str, ...]

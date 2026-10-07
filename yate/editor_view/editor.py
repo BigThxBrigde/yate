@@ -9,7 +9,16 @@ from typing import Any, override, Protocol
 
 from rich.segment import Segment
 from rich.style import Style
-from textual.events import Focus, Key, Resize
+from textual.events import (
+    Click,
+    Focus,
+    Key,
+    MouseDown,
+    MouseMove,
+    MouseEvent,
+    MouseUp,
+    Resize,
+)
 from textual.geometry import Size
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
@@ -152,6 +161,7 @@ class EditorView(ScrollView):
         lsp: LspManager,
         keymaps: KeymapSet,
         handle_key: Callable[[Key], bool],
+        handle_mouse: Callable[[MouseEvent], bool] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -164,6 +174,11 @@ class EditorView(ScrollView):
         #: returns True when the key was consumed.  Named apart from
         #: ``Widget.handle_key`` (Textual's own async hook).
         self.dispatch_key = handle_key
+        #: Mouse analogue of ``dispatch_key``: runs the editor's mouse
+        #: dispatch (cursor moves, drag & click-chain selection); returns
+        #: True when the event was consumed.  ``None`` = no mouse handling
+        #: (headless / legacy tests construct the view without it).
+        self.handle_mouse = handle_mouse
         self.scroll_col = 0
         # Syntax token cache. Tokens belong to (doc, content_version,
         # filetype); pure cursor/scroll movement leaves the version alone,
@@ -296,6 +311,56 @@ class EditorView(ScrollView):
         self.dispatch_key(event)
         event.stop()
         event.prevent_default()
+
+    def buffer_pos_from_mouse(self, event: MouseEvent) -> Pos | None:
+        """Map a mouse event over this view to a clamped buffer position.
+
+        Same geometry the renderer uses in reverse: the widget-relative y is
+        translated by the scroll offset, the x by the gutter width and the
+        manual horizontal scroll, then ``cell_to_char`` resolves the character
+        column (tab / wide-glyph aware).  Gutter clicks clamp to column 0.
+        ``None`` for an empty buffer.
+        """
+        buf = self.buffer
+        if buf.line_count == 0:
+            return None
+        row = max(0, min(event.y + self.scroll_offset.y, buf.line_count - 1))
+        cell = event.x - self._gutter_w() + self.scroll_col
+        col = theme.cell_to_char(buf.lines[row], max(0, cell), buf.tab_width)
+        return (row, col)
+
+    def _is_pane_border(self, event: MouseEvent) -> bool:
+        """True when the press lands on this view's pane-separator border
+        (plan-b contract: the border cell belongs to PaneHost's drag)."""
+        return (
+            ("pane-sep-v" in self.classes and event.x >= self.size.width - 1)
+            or ("pane-sep-h" in self.classes and event.y >= self.size.height - 1)
+        )
+
+    def _forward_mouse(self, event: MouseEvent) -> None:
+        """R10 analogue: stop only the events the dispatcher consumed."""
+        if self.handle_mouse is not None and self.handle_mouse(event):
+            event.stop()
+            event.prevent_default()
+
+    def on_mouse_down(self, event: MouseDown) -> None:
+        if self._is_pane_border(event):
+            return  # bubbles to PaneHost: separator drag owns this cell
+        if event.button == 1:
+            self.focus()  # on_focus -> notify_focus activates the pane
+            self.capture_mouse()  # drags continue outside the widget bounds
+        self._forward_mouse(event)
+
+    def on_mouse_move(self, event: MouseMove) -> None:
+        self._forward_mouse(event)
+
+    def on_mouse_up(self, event: MouseUp) -> None:
+        self.release_mouse()
+        self._forward_mouse(event)
+
+    def on_click(self, event: Click) -> None:
+        """Double/triple click arrive as Click events with chain >= 2."""
+        self._forward_mouse(event)
 
     def reveal_cursor(self) -> None:
         """Scroll the view so the cursor stays inside the visible area."""

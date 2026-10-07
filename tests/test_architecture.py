@@ -153,6 +153,10 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_view.panes",
         "yate.editor_view.statusbar",
     },
+    "flows/mouse_flows.py": {
+        "yate.editor_view",
+        "yate.editor_view.editor",
+    },
     "flows/shell_flows.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",

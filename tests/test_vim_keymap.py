@@ -1112,6 +1112,48 @@ def test_find_char_accepts_digit_characters() -> None:
     assert editor.buffer.cursor == (0, 5)
 
 
+# --- visual-mode drop (mouse-click exit, IKJRFK wave-2) ----------------------
+
+
+def test_drop_visual_from_visual_returns_to_normal() -> None:
+    """drop_visual leaves characterwise visual mode back to NORMAL."""
+    _, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "v")
+    assert keymap.mode is VimMode.VISUAL
+
+    keymap.drop_visual()
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_drop_visual_from_visual_line_returns_to_normal() -> None:
+    """drop_visual leaves linewise visual mode back to NORMAL."""
+    _, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "V")
+    assert keymap.mode is VimMode.VISUAL_LINE
+
+    keymap.drop_visual()
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_drop_visual_from_normal_is_noop() -> None:
+    """drop_visual in NORMAL mode keeps the mode unchanged."""
+    _, keymap, _ = _setup("abc")
+    assert keymap.mode is VimMode.NORMAL
+
+    keymap.drop_visual()
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_drop_visual_from_insert_is_noop() -> None:
+    """A mouse click must not kick the editor out of insert mode."""
+    _, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, "i")
+    assert keymap.mode is VimMode.INSERT
+
+    keymap.drop_visual()
+    assert keymap.mode is VimMode.INSERT
+
+
 def test_failed_find_leaves_the_buffer_untouched_and_reports() -> None:
     """A miss moves nothing, says so, and the keymap keeps working."""
     editor, keymap, ctx = _setup("abc")

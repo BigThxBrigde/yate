@@ -27,6 +27,7 @@ from yate.editor_core.buffer import (
     next_word_start,
     prev_word_start,
     word_end,
+    word_span,
 )
 from yate.editor_core.search import Match
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
@@ -780,6 +781,25 @@ def test_word_end_from_blanks_and_from_punctuation() -> None:
     """word_end skips leading blanks, then ends the word / punctuation run."""
     assert word_end("   ab", 0) == 5
     assert word_end("ab!!", 2) == 4
+
+
+def test_word_span_returns_word_bounds() -> None:
+    """The span of the word under the column (double-click selection)."""
+    assert word_span("hello world", 0) == (0, 5)
+    assert word_span("hello world", 8) == (6, 11)
+    # the word's first character: the walk-back must not jump the gap
+    # into the previous word (regression pin for the prev_word_start draft)
+    assert word_span("hello world", 6) == (6, 11)
+
+
+def test_word_span_non_word_char_returns_empty() -> None:
+    """Double-clicking whitespace moves the cursor without a selection."""
+    assert word_span("a b", 1) == (1, 1)
+
+
+def test_word_span_out_of_range_returns_empty() -> None:
+    """An out-of-range column yields an empty span at the column itself."""
+    assert word_span("abc", 10) == (10, 10)
 
 
 # --- TextBuffer: state bookkeeping -----------------------------------------
