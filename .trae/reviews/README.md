@@ -14,8 +14,8 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 34 条：
-**未闭环 14 条**、已闭环 19 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
+📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 35 条：
+**未闭环 15 条**、已闭环 19 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
 #20 / #22 / #24 / #25 / #27 / #28 / #30 / #31 / #32 / #33）、部分闭环 1 条（#18：三轮评审中前两轮已修，
 第三轮按用户决策登记不修）。已闭环条目保留行并标注处置；
 #26 / #27 为 2026-10-05 全量清查轮补登记（此前索引漏记），
@@ -65,6 +65,7 @@
 | 32 | 2026-10-06 | PR !58 `enh/pack-bundle-layout` python-code-review（issue IKJPVB 打包瘦身 + 单目录扁平布局；`pack/_common.py` / 两个 spec / 新增 `tests/test_pack_spec.py`）：首轮 4 WARNING + 5 SUGGESTION，另在评审阶段发现并修掉 1 项构建期阻断（POSIX 上 `contents_directory="."` 使 exe 与 `yate/` 包数据目录同名、COLLECT 必失败） | 🔧 已闭环（共 6 轮：4 + 2 + 2 + 4 + 1 + 0 项发现，全部代码级已修；轮次记录与跟踪表见该文档；人工余留：R-04 在 issue 回执平台限定、R-12/R-13/R-15 为覆盖边界登记） | [2026-10-06-pack-bundle-layout-review.md](2026-10-06-pack-bundle-layout-review.md) |
 | 33 | 2026-10-06 | Gitee PR !59 AI 队友评审（[note 51456136](https://gitee.com/jermaine/yate/pulls/59#note_51456136_conversation_191435254) conversation 191435254；`fix/pack-wiki-progress-refresh` 合并 master 后的评审，issue IKJPEK）：⛔ 1 阻断（`_run_translate` 轮询复用 `communicate()` 致输出丢失）+ 3 改进（`_terminate` 的 `wait()` 无超时兜底 / 入口排空漏 `highlight=False` / `feeder.join` 注释与行为不符） | ✅ 3 改进已修（2026-10-06，`6f036cd` + `23f536a`：`_terminate` 改为有界等待并把"kill 未生效"并入该页失败消息（worker 不直写终端）、入口排空补 `highlight=False` 并加 AST 守护、`feeder.join` 注释如实化；变异 M1/M2 均变红）；⛔ 阻断经实测判为**误报**（CPython 3.13.2 `communicate` 无短路分支；1 s 慢速子进程 × 200 KB 输出 × 4 次超时探针：输出完整），按"采纳其测试建议"新增慢速真实子进程钉桩用例；⚠️ 另登记 3 项存量限制（`shell=True` 杀不到孙进程等，见该文档 §五 O-1…O-3）；门禁 pyright 0 + 1950 passed / 9 skipped + 22 架构 + 覆盖率 91.25% | [2026-10-06-pr59-pack-wiki-refresh-ai-review.md](2026-10-06-pr59-pack-wiki-refresh-ai-review.md) |
 | 34 | 2026-10-06 | Gitee PR !59 AI 队友评审**第二轮**（[note 51457690](https://gitee.com/jermaine/yate/pulls/59#note_51457690_conversation_191441088) conversation 191441088；同一分支 `fix/pack-wiki-progress-refresh`，issue IKJPEK，正文经 Gitee API 取回）：⚠️ 0 阻断 + 3 改进（`KeyboardInterrupt` 路径丢弃 `_terminate` 抗杀注记 / 两条 AST 结构性守护对重构敏感 / 两个测试文件 `import io` 与 `from io import StringIO` 并存），风险 low；评审未再提出第一轮的阻断，也未对第一轮三项修复提出异议 | 👀 登记未处置（2026-10-06；按用户指令只登记不修。三项均属改进级：M1 现象属实但两条建议修法分别与 `raise` 语义、R-05 队列语义冲突，安全落点为 docstring 声明；M2 "加注释" 部分已被现有 docstring 部分覆盖，"改行为测试" 与用例自身论证相左；M3 经全仓扫描确认**仅此两处并存**，Nit 级零行为影响） | [2026-10-06-pr59-round2-ai-review.md](2026-10-06-pr59-round2-ai-review.md) |
+| 35 | 2026-10-07 | **仓库架构与结构全量评审**（master，用户指定五维：整体架构 / 结构清晰性 / 扩展性 / 合理性 / 规范性；3 只读探索子代理并行分区深审 + 主代理对全部 major 逐条独立复核）：总评 8.5/10 通过（0 Critical / 8 Major / 9 Minor / 3 Suggestion，编号 A1–A20）。Major：A1 五个子包 `__init__` re-export 与惰性规则两套做法并存；A2 keyproto 层级声明失真（import `yate.logs` + textual 私有 API）；A3 registries/session 层级 docstring 失真（L1 实依赖 keymaps.base）；A4 pyright strict 门禁无 CI 步骤；A5 `CHANGELOG.zh.md` 40+ 条 `[缺中文]`；A6 dev/ts 依赖组 26 行手工重复；A7 `test_app_textual.py` 5222 行巨型文件；A8 `:set` 选项双份硬编码。另含该文档 §六 flows/ 子包迁移建议（8 个流程模块收进 `yate/flows/`，改动面 16 处 import 已全量核查） | 👀 登记待处置（2026-10-07；评审记录为只读事实文档，不含修复排期。与 #5 / #22 为互补关系，A13 与 #5 部分重叠需先核对修复范围，见该文档 §五） | [2026-10-07-repo-architecture-audit.md](2026-10-07-repo-architecture-audit.md) |
 
 ---
 
@@ -121,6 +122,7 @@
 
 | 2026-10-06 | **Gitee PR !59 AI 队友评审**（[note 51456136](https://gitee.com/jermaine/yate/pulls/59#note_51456136_conversation_191435254) conversation 191435254；`fix/pack-wiki-progress-refresh` 合并 master 后的评审，issue IKJPEK；正文经 Gitee API 取回，页面不展开评论） | ❌ 机器人自评未通过（功能性 1 阻断 + 可维护性 3 改进）→ ✅ 主代理复核：0 阻断（误报）+ 3 改进已修 | 1 阻断 / 3 改进 | ✅ 3 改进已修（`6f036cd` + `23f536a`：`_terminate` 有界等待、注记并入失败消息 / 入口排空补 `highlight=False` 并加 AST 守护 / `feeder.join` 注释如实化；首版因并行套件的桩未同步签名而静默抛 `TypeError`，全量套件仍绿，已由 `23f536a` 补断言）；⛔ 阻断经 stdlib 源码 + 慢速真实子进程探针判为误报，改以新增钉桩用例锁定行为；见速览 #33 与 [pr59-pack-wiki-refresh-review-fixes-plan.md](../documents/pr59-pack-wiki-refresh-review-fixes-plan.md) | [2026-10-06-pr59-pack-wiki-refresh-ai-review.md](2026-10-06-pr59-pack-wiki-refresh-ai-review.md) |
 | 2026-10-06 | **Gitee PR !59 AI 队友评审（第二轮）**（[note 51457690](https://gitee.com/jermaine/yate/pulls/59#note_51457690_conversation_191441088) conversation 191441088；同分支，issue IKJPEK；触发评论 note 51457689，正文经 Gitee API 取回） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 3 改进（功能性 1 + 可维护性 2） | 👀 登记未处置（2026-10-06；按用户指令只登记不修。M1 现象属实（`wiki.py:672-674` 丢弃 `_terminate` 返回值，而超时路径 `:665-667` 有），但"附加到异常信息"与"走队列"两条建议分别与 `raise` 传播中断的语义、R-05 的"排空后必须直写"不变式冲突；M2 属实（守护钉死函数名/变量名/字面量/方法名/出现次数），"改行为测试"与该用例自身论证相左，且配套行为用例同样按名字取属性；M3 属实且经全仓扫描为孤例，Nit 级） | [2026-10-06-pr59-round2-ai-review.md](2026-10-06-pr59-round2-ai-review.md) |
+| 2026-10-07 | **仓库架构与结构全量评审**（master；用户指定五维：整体架构 / 结构清晰性 / 扩展性 / 合理性 / 规范性；3 只读探索子代理并行分区深审 + 主代理对全部 major 逐条独立复核） | ✅ 通过（总评 8.5/10） | 0 Critical / 8 Major / 9 Minor / 3 Suggestion（A1–A20） | 👀 登记待处置（2026-10-07；评审记录为只读事实文档不含修复排期，flows/ 子包迁移建议见该文档 §六；与 #5 / #22 互补，A13 与 #5 部分重叠需先核对修复范围） | [2026-10-07-repo-architecture-audit.md](2026-10-07-repo-architecture-audit.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
