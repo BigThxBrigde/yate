@@ -14,9 +14,9 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 37 条：
-**未闭环 15 条**、已闭环 21 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
-#20 / #22 / #24 / #25 / #27 / #28 / #30 / #31 / #32 / #33 / #37）、部分闭环 1 条（#18：三轮评审中前两轮已修，
+📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 38 条：
+**未闭环 15 条**、已闭环 22 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
+#20 / #22 / #24 / #25 / #27 / #28 / #30 / #31 / #32 / #33 / #37 / #38）、部分闭环 1 条（#18：三轮评审中前两轮已修，
 第三轮按用户决策登记不修）。已闭环条目保留行并标注处置；
 #26 / #27 为 2026-10-05 全量清查轮补登记（此前索引漏记），
 #28 为同轮的全量文档 review（文档治理，非代码缺陷），
@@ -25,7 +25,7 @@
 #34 为 PR !59 的第二轮评审（0 阻断 + 3 改进，按用户指令只登记不修）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
-> #32；本分支新增条目自 #33 起顺延（已登记至 #37）。合并回 master 时需按日期重排一次编号。
+> #32；本分支新增条目自 #33 起顺延（已登记至 #38）。合并回 master 时需按日期重排一次编号。
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
 
@@ -69,6 +69,7 @@
 | 36 | 2026-10-07 | Gitee PR !61 AI 队友评审（[note 51464779](https://gitee.com/jermaine/yate/pulls/61#note_51464779_conversation_191468771) conversation 191468771；`ref/repo-audit-fixes` 审计修复分支全量 94 文件，正文经 Gitee API 取回）：⚠️ 0 阻断 + 1 改进（low）—— `SET_APPLY[spec.name]` 直接索引缺运行时兜底，新增 option 忘补 apply 时 `:set` 抛裸 `KeyError`（不变量仅靠测试守护）；正面认定表驱动 / 私有 API 网关 / 模块拆分 / 测试覆盖使可维护性整体提升 | ✅ 已修（2026-10-07，采纳方案二：分发改 `SET_APPLY.get()` + `log.error` + `internal error` warn 消息，新增 `test_set_dispatch_survives_a_missing_apply` 回归；未采纳 import 期断言——`assert` 被 `-O` 剥离（速览 #23 同类先例）且显式 fail-fast 会把测试可拦截的表不一致升级为启动失败；门禁 pyright 0 + 相关测试全绿） | [2026-10-07-pr61-audit-fixes-ai-review.md](2026-10-07-pr61-audit-fixes-ai-review.md) |
 
 | 37 | 2026-10-07 | **冒烟存量失败**（issue IKJUWP 回调别名化分支审核的副产物；`set_options_matrix / keymap_warned`，自 `8b529d4` 表驱动 `:set` 起恒定失败）：断言钉死字符串 `"unknown keymap"`，而该提示语已改为选项表 `invalid_message`（`"keymap must be vsc or vim"`）；基线仍记 `ok: true`，纯对照不参与判定，长期掩盖了该失败 | ✅ 已修（2026-10-07，分支 `ref/callable-aliases`：断言改为从 `SET_OPTION_INDEX["keymap"].invalid_message` 取文案、跟随选项表，产品行为不动；门禁 pyright 0 + 冒烟全量 **102/102 scenarios、1236/1236 checks**（修复前 101/102）+ 全量 pytest 绿；见 [callable-aliases-plan.md](../documents/callable-aliases-plan.md) §十） | [2026-10-07-smoke-set-options-matrix.md](2026-10-07-smoke-set-options-matrix.md) |
+| 38 | 2026-10-07 | Gitee PR !62 AI 队友评审（[note 51465923](https://gitee.com/jermaine/yate/pulls/62#note_51465923_conversation_191474743) conversation 191474743；`ref/callable-aliases` 回调别名化全量 6 提交，issue IKJUWP，风险自评 low，正文经 Gitee API 取回）：⚠️ 0 阻断 + 2 改进（均可维护性，**均经核实成立**）——M1 守护用例对 `ast.Assign` 值的字符串子串匹配会误报模块级字符串常量；M2 未覆盖元组解包别名 `X, Y = Callable[...], Callable[...]`（`ast.Tuple` 直接落 `return False`）；正面认定纯注解重构不改运行时行为、PEP 695 统一了回调类型写法、AST 扫描增强防回归 | ✅ 2 改进已修（2026-10-07：M1 把字符串启发式限定在注解分支（延迟注解下只有注解可能是带引号前向引用），`Assign` 分支排除字符串常量；M2 在 `_is_callable_annotation` 增加 `ast.Tuple` / `ast.List` 元素递归而非登记豁免；负向演练 7 类违规全拦 + 4 类放行零误伤；门禁 pyright 0 + 1996 passed / 9 skipped + 25 架构 + 覆盖率 91.44% + 冒烟 102/102） | [2026-10-07-pr62-alias-types-ai-review.md](2026-10-07-pr62-alias-types-ai-review.md) |
 
 ---
 
@@ -128,6 +129,7 @@
 | 2026-10-07 | **仓库架构与结构全量评审**（master；用户指定五维：整体架构 / 结构清晰性 / 扩展性 / 合理性 / 规范性；3 只读探索子代理并行分区深审 + 主代理对全部 major 逐条独立复核） | ✅ 通过（总评 8.5/10） | 0 Critical / 8 Major / 9 Minor / 3 Suggestion（A1–A20） | ✅ 已处置（2026-10-07，分支 `ref/repo-audit-fixes`：方案 + 12 子计划 + 16 提交，A1–A11、A13–A18、A20 落地 / A12、A19 登记；门禁 pyright 0 + 全量 0 failures + 覆盖率 91.42%；执行记录与偏离见 [repo-audit-fixes-plan.md](../documents/repo-audit-fixes-plan.md) §十一） | [2026-10-07-repo-architecture-audit.md](2026-10-07-repo-architecture-audit.md) |
 | 2026-10-07 | **Gitee PR !61 AI 队友评审**（[note 51464779](https://gitee.com/jermaine/yate/pulls/61#note_51464779_conversation_191468771) conversation 191468771；`ref/repo-audit-fixes` 审计修复分支全量 94 文件，正文经 Gitee API 取回） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 1 改进（可维护性） | ✅ 已修（采纳方案二：`SET_APPLY.get()` 运行时兜底 + `internal error` warn + 回归用例；未采纳 import 期断言，`assert` 被 `-O` 剥离且 fail-fast 过度，见速览 #36） | [2026-10-07-pr61-audit-fixes-ai-review.md](2026-10-07-pr61-audit-fixes-ai-review.md) |
 | 2026-10-07 | **冒烟存量失败修复**（issue IKJUWP 回调别名化分支 `ref/callable-aliases` 审核副产物；`set_options_matrix / keymap_warned`，`8b529d4` 起恒定失败） | ✅ 已修（产品行为正确，测试断言过期） | 1 项过期断言 | ✅ 已修（断言跟随 `SET_OPTION_INDEX["keymap"].invalid_message`，不再钉字面量；门禁 pyright 0 + 冒烟 102/102 scenarios、1236/1236 checks + 全量 pytest 绿；根因与举一反三见记录） | [2026-10-07-smoke-set-options-matrix.md](2026-10-07-smoke-set-options-matrix.md) |
+| 2026-10-07 | **Gitee PR !62 AI 队友评审**（[note 51465923](https://gitee.com/jermaine/yate/pulls/62#note_51465923_conversation_191474743) conversation 191474743；`ref/callable-aliases` 回调别名化 6 提交，issue IKJUWP，正文经 Gitee API 取回） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 2 改进（均可维护性） | ✅ 2 改进已修（M1 字符串启发式限定在注解分支，M2 增加 `ast.Tuple` / `ast.List` 递归；负向演练 7 类违规全拦 + 4 类放行零误伤；门禁 pyright 0 + 1996 passed / 9 skipped + 25 架构 + 覆盖率 91.44% + 冒烟 102/102；见速览 #38） | [2026-10-07-pr62-alias-types-ai-review.md](2026-10-07-pr62-alias-types-ai-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

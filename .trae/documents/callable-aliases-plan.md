@@ -305,3 +305,29 @@ Wave 3 的只读独立评审（`code-review-expert`，1 名成员，全程 139 �
   全量冒烟 `--skip-slow` **102/102 scenarios、1236/1236 checks**、exit 0（修复前 101/102）；
   `pyright yate/ tests/ tools/` 0 errors；全量 pytest + 覆盖率门禁见 §十一。
 - **登记**：评审记录已入 `.trae/reviews/README.md` 速览 #37 与轮次总表。
+
+## 十一、门禁汇总与 PR !62 评审处置（2026-10-07 追加）
+
+### 11.1 最终门禁（主代理亲自跑，全部退出码 0）
+
+| 命令 | 结果 |
+|---|---|
+| `python -m pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| `python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75` | **1996 passed / 9 skipped**，覆盖率 **91.44%** |
+| `python -m pytest tests/test_architecture.py -q` | **25 passed** |
+| `python -m tools.smoke_test run --skip-slow --no-color` | **102/102 scenarios、1236/1236 checks** |
+
+### 11.2 Gitee PR !62 AI 队友评审（note 51465923）
+
+⚠️ **0 阻断 + 2 改进**（均可维护性），风险自评 low，正面认定"纯类型注解重构不改运行时行为"。
+两条经主代理逐条核实**均成立**，已全部修复；完整记录见
+[reviews/2026-10-07-pr62-alias-types-ai-review.md](../reviews/2026-10-07-pr62-alias-types-ai-review.md)。
+
+| # | 问题 | 处置 |
+|---|---|---|
+| M1 | `_assigns_callable_alias` 对 `ast.Assign` 的值做字符串子串匹配，会误报模块级字符串常量（含 `Callable[` 的文档 / 消息模板） | 字符串启发式**限定在注解分支**：延迟注解下只有注解可能是带引号的前向引用，赋值位置的字符串恒为普通文本，pyright 也不会把它当别名 |
+| M2 | 元组解包别名 `X, Y = Callable[...], Callable[...]` 漏报（`ast.Tuple` 直接落 `return False`） | `_is_callable_annotation` 增加 `ast.Tuple` / `ast.List` 元素递归；**未选登记豁免**——豁免会把洞长期留在唯一的防回归用例里，且递归只认"元素本身是顶层 `Callable[...]`"，与"只判顶层"原则一致，不会误判 `dict[str, Callable[...]]` 数据表 |
+
+负向演练（探针文件随命令创建并删除，不入库）：**7 类违规全部拦截**（普通赋值、带注解赋值、
+`typing.Callable` 限定名、字符串前引号注解、模块级 `if` 内、**元组解包**、类体），
+**4 类应放行形态零误伤**（数据表、裸声明、含 `Callable[` 的字符串常量、常量元组、函数体内实例属性）。
