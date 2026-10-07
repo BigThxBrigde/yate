@@ -10,6 +10,7 @@ import contextlib
 from pathlib import Path
 from typing import Any, cast
 import pytest
+from textual.events import MouseMove, MouseUp
 from yate.app import YateApp
 from yate.editor_view.editor import EditorView
 from yate.session import Split as PaneSplit
@@ -380,6 +381,94 @@ def test_q_quits_immediately_with_clean_panes(pane_root: Path) -> None:
             app.editor.run_command("q")
             await _wait_quit(app, pilot)
             assert not app.is_running
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------- separator drag-resize
+
+
+def test_separator_drag_updates_split_sizes(pane_root: Path) -> None:
+    """Dragging the vsplit separator border live-transfers fraction between
+    the two panes (IKJRFK wave-1): press on the divider column, move right,
+    release -- the left slot grows and its widget gets wider."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+
+            await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            await pilot.pause()
+            root = panes.root
+            assert isinstance(root, PaneSplit)
+            assert root.axis == "vertical"
+
+            host = panes.host
+            assert host is not None
+            box, split = host._split_boxes[0]
+            assert split is root
+            left_view, right_view = box.children
+            # the separator cell is the left pane's right border column
+            sx = left_view.region.x + left_view.region.width - 1
+            sy = left_view.region.y + left_view.region.height // 2
+
+            await pilot.mouse_down(None, offset=(sx, sy))
+            await pilot._post_mouse_events(
+                [MouseMove, MouseUp], offset=(sx + 4, sy)
+            )
+            await pilot.pause()
+
+            assert root.sizes[0] > 0.5
+            assert left_view.region.width > right_view.region.width
+
+    asyncio.run(scenario())
+
+
+def test_separator_click_does_not_move_cursor(pane_root: Path) -> None:
+    """Clicking the divider cell must not land in a text area: the active
+    pane and the buffer cursor stay put (wave-2's border guard on
+    EditorView keeps this contract once it consumes text-area presses)."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+
+            await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            await pilot.pause()
+            root = panes.root
+            assert isinstance(root, PaneSplit)
+
+            host = panes.host
+            assert host is not None
+            box, _split = host._split_boxes[0]
+            left_view, _right_view = box.children
+            sx = left_view.region.x + left_view.region.width - 1
+            sy = left_view.region.y + left_view.region.height // 2
+
+            # Focus the pane owning the divider border first: Textual's
+            # screen-level click-to-focus focuses whatever pane was pressed
+            # on (a framework behavior outside this change), so aiming the
+            # click at the already-focused pane is what pins "no focus
+            # switch, no cursor move" as the guarded contract.
+            await pilot.press("ctrl+w", "h")
+            await pilot.pause()
+            assert app.focused is left_view
+            active_before = panes.active
+            cursor_before = app.editor.session.buffer.cursor
+
+            await pilot.click(None, offset=(sx, sy))
+            await pilot.pause()
+
+            assert panes.active is active_before
+            assert app.editor.session.buffer.cursor == cursor_before
 
     asyncio.run(scenario())
 

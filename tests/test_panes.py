@@ -359,6 +359,51 @@ def test_close_renormalizes_sizes() -> None:
     asyncio.run(_scenario())
 
 
+# --- resize_fractions: drag primitive (host-less; pure model op) -------------
+
+
+def test_resize_fractions_grows_first_slot() -> None:
+    """Positive delta transfers fraction from the neighbor to child 0."""
+    _session, mgr, doc1, doc2 = _env()
+    split = Split("vertical", [Leaf(1, doc1), Leaf(2, doc2)], [0.5, 0.5])
+
+    assert mgr.resize_fractions(split, 0, 0.1)
+    assert split.sizes == pytest.approx([0.6, 0.4])
+
+
+def test_resize_fractions_clamps_at_min_fraction() -> None:
+    """A delta far beyond the available room pins the neighbor at
+    MIN_FRACTION instead of refusing (a long drag parks at the limit)."""
+    _session, mgr, doc1, doc2 = _env()
+    split = Split("vertical", [Leaf(1, doc1), Leaf(2, doc2)], [0.5, 0.5])
+
+    assert mgr.resize_fractions(split, 0, 0.9)
+    assert split.sizes[1] >= MIN_FRACTION
+    assert split.sizes == pytest.approx([1 - MIN_FRACTION, MIN_FRACTION])
+
+
+def test_resize_fractions_negative_delta_shrinks_first_slot() -> None:
+    """Negative delta transfers fraction from child 0 to the neighbor."""
+    _session, mgr, doc1, doc2 = _env()
+    split = Split("vertical", [Leaf(1, doc1), Leaf(2, doc2)], [0.5, 0.5])
+
+    assert mgr.resize_fractions(split, 0, -0.2)
+    assert split.sizes == pytest.approx([0.3, 0.7])
+
+
+def test_resize_fractions_zero_delta_returns_false() -> None:
+    """Already pinned at MIN_FRACTION, shrinking further is a no-op."""
+    _session, mgr, doc1, doc2 = _env()
+    split = Split(
+        "vertical",
+        [Leaf(1, doc1), Leaf(2, doc2)],
+        [MIN_FRACTION, 1 - MIN_FRACTION],
+    )
+
+    assert not mgr.resize_fractions(split, 0, -0.1)
+    assert split.sizes == pytest.approx([MIN_FRACTION, 1 - MIN_FRACTION])
+
+
 # --- tree ops: remove_node (M2 regression) ----------------------------------
 
 
