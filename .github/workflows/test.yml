@@ -86,13 +86,8 @@ jobs:
   # gate stays in its original place inside the test job.
   lint:
     name: pyright (strict)
-    # A Windows runner makes the pyright session platform (which follows the
-    # host OS) match the platform the package targets -- see the note on the
-    # pyright step below.
-    runs-on: windows-latest
-    # Windows runners are slower (cold pip + node download); parity with the
-    # test job's timeout.
-    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -112,13 +107,13 @@ jobs:
         # node package; keep it out of the diagnostics timeout)
         run: pyright --version
       - name: pyright (strict, zero diagnostics)
-        # typeshed gates the Windows-only stubs (ctypes.WinDLL / wintypes /
-        # winreg) by the pyright SESSION platform, which follows the runner
-        # OS: on a Linux runner the Windows-only modules (pty_proc ConPTY,
-        # keyproto driver, fonts registry) fail the zero-diagnostics gate
-        # (pipeline #145), so this job runs on a Windows runner and no flag
-        # is needed.  The POSIX branches inside shared modules stay covered
-        # at runtime by the Linux pytest legs.
+        # --pythonplatform pins the analysis platform: typeshed gates the
+        # Windows-only stubs (ctypes.WinDLL / wintypes / winreg) by the
+        # SESSION platform, which otherwise follows the runner OS.  This job
+        # runs on Linux, so without the flag the Windows-only modules
+        # (pty_proc ConPTY, keyproto driver, fonts registry) fail the
+        # zero-diagnostics gate (pipeline #145).  The POSIX branches inside
+        # shared modules stay covered at runtime by the Linux pytest legs.
         # TODO(future work): Linux-platform lint -- needs the Windows-only
         # modules to type-check cleanly under a POSIX analysis session first.
-        run: pyright
+        run: pyright --pythonplatform Windows
