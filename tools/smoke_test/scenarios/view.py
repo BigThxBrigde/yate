@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import goto, message_text, run_command, type_text, wait_until
+from yate.commands import SET_OPTION_INDEX
 from yate.editor_view import theme
 from yate.services import fonts
 
@@ -110,8 +111,11 @@ async def _set_options_matrix(tmp: Path) -> ScenarioResult:
         checks.append(Check("keymap", "vim", app.editor.keymaps.name))
         await run_command(pilot, "set keymap=nope")
         checks.append(Check("keymap_kept", "vim", app.editor.keymaps.name))
+        # The reject wording lives in the option table (A8), so read it from
+        # there instead of pinning a literal that a table edit would outdate.
+        keymap_reject = SET_OPTION_INDEX["keymap"].invalid_message
         checks.append(Check("keymap_warned", True,
-                            "unknown keymap" in message_text(app)))
+                            keymap_reject in message_text(app)))
         height_before = app.editor.config.terminal_height
         await run_command(pilot, "set terminal_height=99")
         checks.append(Check("height_kept", height_before,
