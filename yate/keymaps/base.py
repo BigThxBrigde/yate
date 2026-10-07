@@ -283,7 +283,7 @@ class Keymap:
         The key is normalized exactly like :meth:`add_binding`, so a
         ``<named>`` or single-character spec removes the same entry the
         addition created.  Used by the extension loader to roll back a
-        failed ``setup`` (architecture-boundaries §四, audit A13).
+        failed ``setup`` (architecture-boundaries rule 4, audit A13).
         """
         raw = self.normalize_key(key_spec)
         if raw not in self._index:

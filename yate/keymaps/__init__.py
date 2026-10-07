@@ -6,7 +6,7 @@
 * :class:`yate.keymaps.vim.VimKeymap` -- modal vim bindings
 
 The re-exports below are the documented public API exception
-(architecture-boundaries §三.5): pure-leaf packages may re-export their
+(architecture-boundaries rule 3.5): pure-leaf packages may re-export their
 public surface; UI/service packages may not.
 """
 

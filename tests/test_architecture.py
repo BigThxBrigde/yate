@@ -710,7 +710,7 @@ def test_editor_lsp_package_root_is_light() -> None:
 
     The root re-exports the lightweight client data types only; the
     heavyweight ``LspManager`` lives in :mod:`yate.editor_lsp.manager` so
-    ``import yate.editor_lsp`` stays cheap (architecture-boundaries §三.5,
+    ``import yate.editor_lsp`` stays cheap (architecture-boundaries rule 3.5,
     layer 3: heavyweight implementation modules stay out of package roots).
     """
     imports = _module_imports(YATE / "editor_lsp" / "__init__.py")
@@ -719,11 +719,11 @@ def test_editor_lsp_package_root_is_light() -> None:
 
 
 def test_leaf_package_reexports_carry_exception_note() -> None:
-    """Every re-exporting leaf package documents the §三.5 exception (A1).
+    """Every re-exporting leaf package documents the rule 3.5 exception (A1).
 
     Guards against the rule text and the code drifting apart again: a leaf
     package may keep re-exports only while its ``__init__.py`` notes the
-    documented exception (architecture-boundaries §三.5 layer 3).
+    documented exception (architecture-boundaries rule 3.5 layer 3).
     """
     leaf_packages = ("editor_core", "editor_lsp", "editor_syntax", "editor_term", "keymaps")
     for name in leaf_packages:

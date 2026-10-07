@@ -3,7 +3,7 @@
 Each module here is constructed by :class:`yate.editor.Editor` with explicit
 collaborators and callbacks; none of them imports upward (no ``yate.editor``
 / ``yate.app``) and none holds the App handle (architecture-boundaries
-§一 L3, R11).  The package ``__init__`` stays lazy (architecture-boundaries
-§三.5): no re-exports, import every module by its full path, e.g.
+section 1 L3, R11).  The package ``__init__`` stays lazy (architecture-boundaries
+rule 3.5): no re-exports, import every module by its full path, e.g.
 ``from yate.flows.completion_flows import CompletionFlows``.
 """

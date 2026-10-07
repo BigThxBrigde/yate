@@ -58,7 +58,7 @@ class ActionRegistry:
         """Remove the action *name*; ``False`` when it was not registered.
 
         Used by the extension loader to roll back a failed ``setup``
-        (architecture-boundaries §四, audit A13).
+        (architecture-boundaries rule 4, audit A13).
         """
         return self._actions.pop(name, None) is not None
 
@@ -99,7 +99,7 @@ class CommandRegistry:
         """Remove the ``:`` command *name*; ``False`` when it was not registered.
 
         Used by the extension loader to roll back a failed ``setup``
-        (architecture-boundaries §四, audit A13).
+        (architecture-boundaries rule 4, audit A13).
         """
         return self._commands.pop(name, None) is not None
 

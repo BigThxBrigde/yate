@@ -13,7 +13,7 @@ Language servers are registered by extensions through
 ``api.lsp.register_server(...)``; the core editor ships no servers itself.
 
 The re-exports below are the documented public API exception
-(architecture-boundaries §三.5): pure-leaf packages may re-export their
+(architecture-boundaries rule 3.5): pure-leaf packages may re-export their
 public surface; UI/service packages may not.  The heavyweight
 :class:`~yate.editor_lsp.manager.LspManager` deliberately lives only in
 :mod:`yate.editor_lsp.manager` so importing the package root stays cheap.

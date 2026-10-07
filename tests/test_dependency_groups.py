@@ -10,7 +10,7 @@ backend.  These tests fail on any such divergence.
 
 PEP 735 ``dependency-groups`` would remove the duplication, but the tooling
 baseline needs ``pip >= 25.1`` while the repo venv still runs pip 24.3.1, so
-the migration is deferred (see the main plan, §四.3).  When it lands, delete
+the migration is deferred (see the main plan, section 4.3).  When it lands, delete
 this file and remove this guard from the wave registration.
 """
 

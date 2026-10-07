@@ -1,13 +1,15 @@
 # GitHub Actions CI — run the full pytest suite on Linux and Windows.
-# GitHub 自动识别 .github/workflows/ 下的文件，推送即生效，无需手动开通。
+# GitHub picks up .github/workflows/ automatically: push to take effect,
+# no manual enablement needed.
 #
-# 触发 / Triggers: push to master, and PRs targeting master.
-# 本地复现 / Reproduce locally:
+# Triggers: push to master, and PRs targeting master.
+# Reproduce locally:
 #   pip install -e ".[dev]"
 #   python -m pytest tests
-#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # 覆盖率门禁
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # coverage gate
 #
-# Gitee 自带的流水线在 .workflow/test.yml（仅 Linux），两套配置互不影响。
+# The Gitee-side pipeline lives in .workflow/test.yml (Linux only);
+# the two configs are independent.
 
 name: yate-tests
 
@@ -23,13 +25,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
-      # 一个平台失败时不要取消另一个平台的结果
+      # one failing platform must not cancel the other's results
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         python-version: ['3.12']
-        # A14: 3.13 只跑 Linux 腿（控制成本）；requires-python >=3.12
-        # 从未在 3.13 验证过，tree-sitter <0.26 上界已 pin 3.13 堆损坏
+        # A14: 3.13 runs on the Linux leg only (cost control);
+        # requires-python >=3.12 was never verified on 3.13 before, and the
+        # tree-sitter <0.26 pin already guards the 3.13 heap corruption
         include:
           - os: ubuntu-latest
             python-version: '3.13'
@@ -70,15 +73,17 @@ jobs:
         run: python -m pip install -e ".[dev]"
 
       - name: Run pytest suite
-        # TERM 供 Linux 上的 Textual pilot headless 测试使用；Windows 忽略此项
-        # --cov 走 pyproject 的 [tool.coverage.*] 配置；fail-under 与本地/另一套 CI 保持一致
+        # TERM is for the Textual pilot headless tests on Linux; Windows ignores it.
+        # --cov uses the [tool.coverage.*] config in pyproject; fail-under stays
+        # identical to local runs and the other CI.
         env:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
         run: python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
 
-  # A4: pyproject.toml 宣称 strict 零诊断是合并门禁，CI 必须实际执行。
-  # 独立 job 与 test 并行；changelog gate 保留在 test job 原位，此处不跑。
+  # A4: pyproject.toml declares strict zero-diagnostics as the merge gate, so
+  # CI must actually run it.  Separate job, parallel to test; the changelog
+  # gate stays in its original place inside the test job.
   lint:
     name: pyright (strict)
     runs-on: ubuntu-latest
@@ -98,7 +103,8 @@ jobs:
       - name: Install package and dependencies
         run: python -m pip install -e ".[dev]"
       - name: pyright --version
-        # 预热 npm 侧二进制下载（pyright 首跑会拉 node 包，避免算进诊断超时）
+        # warm up the npm-side binary download (the first pyright run pulls a
+        # node package; keep it out of the diagnostics timeout)
         run: pyright --version
       - name: pyright (strict, zero diagnostics)
         run: pyright

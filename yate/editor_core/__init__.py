@@ -7,7 +7,7 @@ framework, so the core can be used (and tested) headlessly and reused by
 extensions.
 
 The re-exports below are the documented public API exception
-(architecture-boundaries §三.5): pure-leaf packages may re-export their
+(architecture-boundaries rule 3.5): pure-leaf packages may re-export their
 public surface; UI/service packages may not.
 """
 
