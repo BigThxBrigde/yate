@@ -8,7 +8,7 @@ This is the PB5/PB6 verification loop a human would otherwise do by hand.
 Usage (from the worktree root, any shell):
 
     .venv/Scripts/python.exe ^
-        .trae/documents/keybinding-fix-wt-plans/pb6_real_input_harness.py
+        tools/probes/pb6_real_input_harness.py
 
 Exit code 0 = all hard assertions passed; 1 = delivery failures; 2 = could
 not set up (window/focus).  Requires: Windows Terminal (``wt``), a desktop

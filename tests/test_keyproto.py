@@ -113,8 +113,8 @@ def test_record_key_override_builds_phase_b_chords() -> None:
 
 
 # Frames captured by the 2026-09-26 win32-input-mode probe in Windows
-# Terminal (<worktree>/.trae/documents/
-# keybinding-fix-wt-plans/win32im_probe.py) -- real terminal output, not invented.
+# Terminal (<worktree>/tools/probes/win32im_probe.py) -- real terminal
+# output, not invented.
 _PROBE_FRAMES: dict[str, str] = {
     "down": "\x1b[40;80;0;1;288;1_",
     "a": "\x1b[65;30;97;1;32;1_",

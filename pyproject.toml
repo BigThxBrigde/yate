@@ -107,7 +107,9 @@ venv = ".venv"
 # the rest.  The two .spec files are exec'd as scripts but pyright only analyses
 # .py, so they are covered by tests/test_pack_spec.py's AST guards instead.
 include = ["yate", "tools", "tests", "pack"]
-exclude = ["**/__pycache__"]
+exclude = ["**/__pycache__", "tools/probes/**"]
+# tools/probes/**: one-shot probe/harness scripts migrated out of
+# .trae/documents/ (audit A15); legacy code kept as-is, not under the gate.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
