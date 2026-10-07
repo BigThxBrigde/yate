@@ -1,6 +1,6 @@
 ---
 alwaysApply: true
-scene: task
+scene: task_orchestration
 ---
 
 # task-orchestration（任务闭环编排）
