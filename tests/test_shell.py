@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -125,6 +126,56 @@ def test_run_shell_timeout_kills_the_grandchild_process(
     while _pid_alive(pid) and time.monotonic() < gone_by:
         time.sleep(0.05)
     assert not _pid_alive(pid), f"grandchild {pid} survived the timeout kill"
+
+
+def test_run_shell_bounds_the_drain_when_the_tree_survives_the_kill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The post-timeout drain cannot block forever even if the kill fails.
+
+    PR !64 review blocker: the second ``communicate()`` after
+    ``_kill_tree`` took no timeout, so a tree that survived the kill
+    (a Windows taskkill race, a POSIX grandchild that left its process
+    group) kept the output pipes open and the call hung forever.  The fix
+    bounds the drain, degrades to killing the shell root, and still
+    returns the synthetic 124 result.
+    """
+
+    class StubProc:
+        """Popen double: the pipes stay open until ``kill()`` lands."""
+
+        def __init__(self) -> None:
+            self.pid = 4242
+            self.killed = False
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            if timeout is None:
+                # the regression this test pins: an unbounded drain would
+                # wait on the surviving pipe holder forever
+                raise AssertionError("unbounded communicate() drain")
+            if self.killed:
+                return ("", "")
+            raise subprocess.TimeoutExpired(cmd="x", timeout=timeout)
+
+        def kill(self) -> None:
+            self.killed = True
+
+    stub = StubProc()
+
+    def fake_popen(*_args: object, **_kwargs: object) -> StubProc:
+        return stub
+
+    def noop_kill_tree(_proc: subprocess.Popen[str]) -> None:
+        return None
+
+    monkeypatch.setattr("yate.services.shell.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("yate.services.shell._kill_tree", noop_kill_tree)
+
+    result = run_shell("echo hung", timeout=0.2)
+
+    assert stub.killed
+    assert result.returncode == 124
+    assert "timed out after 0.2s" in result.output
 
 
 def test_run_shell_defaults_to_the_process_cwd() -> None:

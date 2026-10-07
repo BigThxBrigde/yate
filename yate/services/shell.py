@@ -9,6 +9,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from yate.logs import tracing
+
+#: Module logger (R12: all runtime logs go through tracing).
+log = tracing.get_logger(__name__)
+
 
 @dataclass
 class ShellResult:
@@ -81,8 +86,25 @@ def run_shell(
         stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         _kill_tree(proc)
-        # The tree is dead, so this drains the remaining buffer immediately.
-        stdout, stderr = proc.communicate()
+        # The tree is normally dead now, so this drains the remaining buffer
+        # immediately.  Bounded: a tree that survived _kill_tree (a Windows
+        # taskkill race, a POSIX grandchild that left its process group)
+        # keeps the output pipes open, and an unbounded communicate() here
+        # would block forever.  The drained output is discarded either way --
+        # the result below carries a fixed message.
+        try:
+            proc.communicate(timeout=5.0)
+        except subprocess.TimeoutExpired:
+            # Degrade to killing the shell root itself, then reap
+            # best-effort: a grandchild still holding the pipes can keep
+            # even this final drain from finishing, so it is bounded too.
+            proc.kill()
+            try:
+                proc.communicate(timeout=5.0)
+            except subprocess.TimeoutExpired as exc:
+                log.error(
+                    "could not reap shell pid %d after timeout: %s", proc.pid, exc
+                )
         return ShellResult(
             command, 124, f"[yate] command timed out after {timeout}s", workdir
         )
