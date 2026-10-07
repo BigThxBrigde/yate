@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
+import importlib
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -215,3 +218,43 @@ def test_frame_stream_skips_modifier_and_lock_keys() -> None:
     assert frame_to_char(frames[0]) == ""
     assert frame_to_char(frames[1]) == ""
     assert frame_to_char(frames[2]) == chr(233)
+
+
+def test_textual_internals_is_the_only_private_api_consumer() -> None:
+    """Textual underscore modules are imported only by textual_internals (A2).
+
+    The private APIs carry no stability promise, so the exposure is pinned
+    to the single gateway module (``yate/keyproto/textual_internals.py``);
+    any other consumer must go through it.
+    """
+    package = Path(__file__).resolve().parent.parent / "yate" / "keyproto"
+    for path in sorted(package.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            modules: list[str] = []
+            if isinstance(node, ast.ImportFrom) and node.module is not None:
+                modules.append(node.module)
+            elif isinstance(node, ast.Import):
+                modules.extend(alias.name for alias in node.names)
+            private = [
+                module
+                for module in modules
+                if module.split(".")[:1] == ["textual"]
+                and any(part.startswith("_") for part in module.split(".")[1:])
+            ]
+            if path.name == "textual_internals.py":
+                continue
+            assert private == [], (path, private)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-only driver")
+def test_driver_windows_import_smoke() -> None:
+    """Importing the driver proves the Textual private APIs still bind (A2).
+
+    A Textual upgrade that breaks ``_xterm_parser`` or ``_writer_thread``
+    fails right here instead of at first keystroke -- the local equivalent
+    of the CI pin-version import smoke.
+    """
+    driver = importlib.import_module("yate.keyproto.driver_windows")
+    assert driver is not None
+    assert "yate.keyproto.textual_internals" in sys.modules
