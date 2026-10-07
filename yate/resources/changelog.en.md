@@ -1,17 +1,32 @@
 # Changelog
 
-> Generated from the git history on 2026-10-06 · yate 0.2.9
+> Generated from the git history on 2026-10-07 · yate 0.2.9
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.9...HEAD)
 
 ### Features
 
+- widen the default preview pane to 60 percent ([`41b05ec`](https://gitee.com/jermaine/yate/commit/41b05ecd73fa1e6015c101502b4520d01f040d15))
+- widen the default preview pane to half the palette ([`31ed715`](https://gitee.com/jermaine/yate/commit/31ed715a4962c3621e25dad4d5b2997ed41d85ff))
+- syntax-highlighted file preview pane for ctrl+p ([`d10010a`](https://gitee.com/jermaine/yate/commit/d10010a5575269758735a539d9b11eb6445d2d6a))
+- add file_preview dict option ([`125ddda`](https://gitee.com/jermaine/yate/commit/125ddda863a4433c6c2cf48019506d29ad30fa96))
 - route every pack failure through the coded error boundary ([`b16952c`](https://gitee.com/jermaine/yate/commit/b16952ca25a41e1ea6e74d534d9e3a9645cb3aba))
 - translate the wiki through a bounded thread pool with error codes ([`625d443`](https://gitee.com/jermaine/yate/commit/625d443527fc1a0171b83f02956033e5940a6f81))
 - add stable error codes and traceback-free error reporting ([`7e8432f`](https://gitee.com/jermaine/yate/commit/7e8432f1bd795748a06a068343feb5d0fd2370a8))
 
 ### Bug Fixes
 
+- keep plain-line preview when tokenizing fails ([`e7c2f25`](https://gitee.com/jermaine/yate/commit/e7c2f25c8b65801681b05f86737f2b09c583a51a))
+- degrade gracefully when preview tokenizing fails ([`a9311bb`](https://gitee.com/jermaine/yate/commit/a9311bb62cc57bdd02faac1db7d6ea14dac99bb8))
+- keep the bounded reap off the worker's terminal ([`23f536a`](https://gitee.com/jermaine/yate/commit/23f536a448abe1f716a4da599f3566adee6fabd2))
+- bound the translator reap and align the drained output ([`6f036cd`](https://gitee.com/jermaine/yate/commit/6f036cdbd4090db3c3c7517aed1185eba769289a))
+- scope the cancel signal and hand the page pipe to its writer ([`f63f773`](https://gitee.com/jermaine/yate/commit/f63f773c46f509a295e5082567db2816025734d5))
+- let a torn-down run kill the translations it is waiting for ([`beaed68`](https://gitee.com/jermaine/yate/commit/beaed68a8ef33e7299048053f114a15feb402542))
+- install the collect policy inside the protected region ([`406a6cc`](https://gitee.com/jermaine/yate/commit/406a6ccc3e67c5c5010a2bb7934109bfff4267be))
+- restore the serial policy before draining worker failures ([`3e43179`](https://gitee.com/jermaine/yate/commit/3e4317983f15859d644f63caa1b287dbfa2ba74c))
+- correct the review findings in the wiki progress work ([`00124d8`](https://gitee.com/jermaine/yate/commit/00124d8e68b1c72516456a68efbc67ae0fe91800))
+- treat a console interrupt as an interrupt, not a failed page ([`23b0d54`](https://gitee.com/jermaine/yate/commit/23b0d546cf52663ad1bbaf9085b6e63e7b122f94))
+- advance the wiki translation progress page by page ([`20ff035`](https://gitee.com/jermaine/yate/commit/20ff0359a03b604592792fd81c1c2249271875af))
 - fail the one-folder build when the contents directory is gone ([`106e47c`](https://gitee.com/jermaine/yate/commit/106e47c402e6aa06eb8286768a51a932c82aa763))
 - ship one cross-platform contents directory named runtime ([`0e30a38`](https://gitee.com/jermaine/yate/commit/0e30a38c491a906ac5660bf8d86d8074df502087))
 - scan every exec target for the excluded packages ([`842f830`](https://gitee.com/jermaine/yate/commit/842f830c8d5b0f52e3acaf6edd347b6f6ae96f54))
@@ -24,8 +39,41 @@
 - cancel queued translations on Ctrl+C and keep workers off the terminal ([`042a3ac`](https://gitee.com/jermaine/yate/commit/042a3ac94390ce2ea62a4574914ef843c027982a))
 - split the refused-screensaver scenario to kill a dead store ([`c7099d0`](https://gitee.com/jermaine/yate/commit/c7099d0e56a1e5fb8a1332427892de1ec64ae676))
 
+### Refactors
+
+- tighten preview injection and cache hygiene ([`0671f50`](https://gitee.com/jermaine/yate/commit/0671f50a9d92bc9a46690f7ca68845b2fd06b3ce))
+- drop the unreachable copied verdict from the page state ([`ebbd8d9`](https://gitee.com/jermaine/yate/commit/ebbd8d9583d4aeb7b769c8319c6184193e890f89))
+- give the wiki progress rows a single owner ([`a3541cf`](https://gitee.com/jermaine/yate/commit/a3541cfa620db1f2df2536c2664368d39c7ca328))
+
 ### Documentation
 
+- add 2026-10-07 repo architecture audit ([`a4a7708`](https://gitee.com/jermaine/yate/commit/a4a7708cdc313931ef4312cbc7ac7ebed7ed6a7d))
+- mention the ctrl+p preview pane and its width default ([`1d5b2de`](https://gitee.com/jermaine/yate/commit/1d5b2dec90370857bbdb476fb2449301c28587db))
+- register the pr 60 second review round ([`21ea681`](https://gitee.com/jermaine/yate/commit/21ea6810ff8e4edd62c81ddd4c89607e81c828bd))
+- record the dumb-term root cause and green rerun ([`271ba88`](https://gitee.com/jermaine/yate/commit/271ba888b6a46c58a8d9e3e8df06c2e2d4a8618c))
+- record pr 60 review fix gate results ([`14ec104`](https://gitee.com/jermaine/yate/commit/14ec10434ef116e9eff0d9080c609d99cf45ad7e))
+- add pr 60 review fixes plan ([`bd0c1fc`](https://gitee.com/jermaine/yate/commit/bd0c1fcf7fe7f0639f8850a74a2b5e875d584a00))
+- register the pr 60 first ai review round ([`1b36369`](https://gitee.com/jermaine/yate/commit/1b3636992765933d24d02149324a2eeccf0a9ecc))
+- record the issue fix sweep for ctrlp-preview ([`2e138a8`](https://gitee.com/jermaine/yate/commit/2e138a8780066177641aea6ca6937566e7f1d144))
+- record review outcome and final gate numbers ([`9ffc35b`](https://gitee.com/jermaine/yate/commit/9ffc35b74964e4a50c2f5dbcfd3bec0852dbf466))
+- document the file_preview option ([`f7b3ac1`](https://gitee.com/jermaine/yate/commit/f7b3ac1ceebf218c3dca1c6ff474ffe8f51f3590))
+- add ctrlp-preview subplans for issue IKJRGP ([`73ea9b6`](https://gitee.com/jermaine/yate/commit/73ea9b6ac1ef90bbe277a06851021456f1ab3e71))
+- register the PR 59 second review round ([`d3ae09e`](https://gitee.com/jermaine/yate/commit/d3ae09e044dd97b094c7a5cde7947a9da970826d))
+- backfill the PR 59 gate numbers and the rolled-back first fix ([`a1ac803`](https://gitee.com/jermaine/yate/commit/a1ac803dceac76d5e39ec4c708ca9deffed6879a))
+- register the PR 59 bot review and its rulings ([`f4fa387`](https://gitee.com/jermaine/yate/commit/f4fa38726e4effbde2ed76268185545ae40eef4d))
+- register rounds five and six of the pack wiki review ([`cf5453d`](https://gitee.com/jermaine/yate/commit/cf5453d1bac12e90f980ccd9f813365063b4918c))
+- leave the skills untouched and say so in the record ([`f531fd0`](https://gitee.com/jermaine/yate/commit/f531fd011e952ff215314a248eda5badd82542f3))
+- file the yate review knowledge under .trae/skills ([`90bd399`](https://gitee.com/jermaine/yate/commit/90bd3998859bbe7823042626a76886272256d573))
+- record the fourth review round and close the loop ([`131adb9`](https://gitee.com/jermaine/yate/commit/131adb99299a7c3bd1e4414e232cf99cd5894b92))
+- say that --translate-all needs the hook ([`fe09ba9`](https://gitee.com/jermaine/yate/commit/fe09ba907caf50b9483dc32318f01229c5410293))
+- file the skill review round as its own review record ([`2035243`](https://gitee.com/jermaine/yate/commit/2035243fccf5e338aab525e1b959977eea31959e))
+- state what a redirected run actually prints ([`377c004`](https://gitee.com/jermaine/yate/commit/377c00458440c9085ec1c689f6ba9bccc386ed56))
+- close the first review round and register the second ([`28db1a6`](https://gitee.com/jermaine/yate/commit/28db1a696e8792e1197f03204599247d7fb8a631))
+- register the skill review round findings as tracked issues ([`9981077`](https://gitee.com/jermaine/yate/commit/9981077791cdb6c96536817a30cdc8c88f715d9d))
+- record the console-interrupt fix and its measurements ([`29df9f1`](https://gitee.com/jermaine/yate/commit/29df9f1ad11337d20376fb2413e4685601cbe79e))
+- correct the wiki progress promises and the plan record ([`c50b0f9`](https://gitee.com/jermaine/yate/commit/c50b0f9bc2c7fea6f72048182fcd70e0336ef348))
+- align the README progress wording and drop the dead injection ([`95ab4fa`](https://gitee.com/jermaine/yate/commit/95ab4fa8de3fe9176e39dfafdcd34796d313704e))
+- update bilingual changelog ([`60c9545`](https://gitee.com/jermaine/yate/commit/60c95455e86f0b84e37eb6ecf4333449b7cd417d))
 - log the PR 58 bot review and its single improvement ([`419977a`](https://gitee.com/jermaine/yate/commit/419977a5e164324218517573c068a703dc9133e6))
 - record the commit-attribution deviation and the rulings ([`0518f4a`](https://gitee.com/jermaine/yate/commit/0518f4a7778b38e13a54a1585ce3063eaab1b483))
 - close the round-2 review loop on the unified bundle layout ([`60bd63e`](https://gitee.com/jermaine/yate/commit/60bd63e60006c76f63665c1c055a61a587bb9b87))
@@ -57,6 +105,9 @@
 
 ### Tests
 
+- isolate the wiki live display from a dumb TERM ([`cc4ebd6`](https://gitee.com/jermaine/yate/commit/cc4ebd60b605928e2a3ed887d545856f34c55ec7))
+- disable Textual built-in palette in the preview host ([`9c08ffc`](https://gitee.com/jermaine/yate/commit/9c08ffcc0ec85522f8dddd2276e37269cc5dfc47))
+- add ctrl+p file preview scenarios ([`ccb9fce`](https://gitee.com/jermaine/yate/commit/ccb9fce0262bdaba88b801345a8ad1853cd2ca8d))
 - derive the shrink press count from the pane constants ([`6a95fd8`](https://gitee.com/jermaine/yate/commit/6a95fd83a0a988e4bf7de2281b5f3045b97ddc94))
 - derive the theme completion expectations from the registry ([`77475d8`](https://gitee.com/jermaine/yate/commit/77475d8c709074bf758314eaa2b1d11c9954ec11))
 - cover the harness itself (baselines, cli, invariants) ([`e8786aa`](https://gitee.com/jermaine/yate/commit/e8786aad7a6f7268cfef2684a5eb9251cfd1125d))
@@ -75,6 +126,13 @@
 
 ### Other Changes
 
+- Revert "docs(skills): file the yate review knowledge under .trae/skills" ([`2016919`](https://gitee.com/jermaine/yate/commit/2016919a3d70162c4e4669b101535fa28354cae4))
+- guard the collect-policy structure and the no-op switch ([`d867588`](https://gitee.com/jermaine/yate/commit/d867588239239a96347a12a3e3a907a1d76f3aae))
+- assert the late failure is visible, not just queued ([`3b00d88`](https://gitee.com/jermaine/yate/commit/3b00d88c53e0993488a31e7f0cdb91a5441b5eb3))
+- guard the review fixes, and fix a guard that guarded nothing ([`cf94290`](https://gitee.com/jermaine/yate/commit/cf942907c5c4120e8a34bacabc4118b32d4bcda8))
+- pin the console-interrupt contract of the wiki run ([`c4baa3e`](https://gitee.com/jermaine/yate/commit/c4baa3e6b4342b3d9bf0afa2f9d69d209fb8e3f5))
+- close the review gaps in the wiki progress guards ([`256173d`](https://gitee.com/jermaine/yate/commit/256173d40b107922d703ddf06d6e5fc2090868c3))
+- pin the per-page progress refresh of the wiki generator ([`73c8cb2`](https://gitee.com/jermaine/yate/commit/73c8cb2c13a5150fa2a4d02a0720d22d41974529))
 - pin the one-folder layout to a named contents directory ([`3914673`](https://gitee.com/jermaine/yate/commit/391467335e3f71a0686242490a0caa464268ac93))
 - pin the shared excludes inventory and the flat one-folder layout ([`9730874`](https://gitee.com/jermaine/yate/commit/9730874c36206ce85016ca56fd7f2b689bc64f38))
 - prove an interrupt does not drain the translation pool ([`4c7ed16`](https://gitee.com/jermaine/yate/commit/4c7ed16ac30e853b665cd85b1df1b5413c066425))
