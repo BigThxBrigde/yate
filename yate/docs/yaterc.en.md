@@ -77,6 +77,7 @@ perform the work and exit:
 | `shell` | `str` | platform default | non-empty string | Shell launched in the integrated terminal (open with `` Ctrl+` ``); arguments allowed (e.g. `"pwsh -NoLogo"`). Windows default: `pwsh`→Windows PowerShell→`cmd.exe`; POSIX: `$SHELL`→`bash`→`/bin/sh`. |
 | `terminal_height` | `int` | `12` | integer `3`–`40` (bools/floats/strings rejected) | Integrated terminal panel height in rows. |
 | `show_hidden` | `bool` | `False` | `True` / `False` | Whether the file explorer shows dotfiles by default; `False` keeps them hidden until you toggle them. Non-boolean values are rejected. |
+| `support_mouse` | `bool` | `True` | `True` / `False` | Master switch for mouse interaction. `False` ignores every mouse event (text area, tab bar, explorer, terminal, scrollbars, separator drag); keyboard input is unaffected. Non-boolean values are rejected. |
 | `language_servers` | `list[dict]` | none | see [below](#declarative-language-servers-language_servers) | Declaratively register LSP language servers; they activate automatically when matching files open -- no extension needed. |
 | `screen_saver` | `dict` | see [below](#idle-screensaver-screen_saver) | dict with `enable` / `interval` / `switch` / `dist_*_bound` / `characters` keys | Idle screensaver settings; see [below](#idle-screensaver-screen_saver). |
 | `file_preview` | `dict` | see [below](#file-preview-file_preview) | dict with `enable` / `position` / `size` / `max_lines` / `max_size` keys | Ctrl+P quick-open preview pane settings; see [below](#file-preview-file_preview). |

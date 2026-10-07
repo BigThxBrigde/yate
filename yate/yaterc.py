@@ -625,6 +625,15 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
                 f"show_hidden must be True or False, got {show_hidden!r}"
             )
 
+    support_mouse = options.get("support_mouse")
+    if support_mouse is not None:
+        if isinstance(support_mouse, bool):
+            config.support_mouse = support_mouse
+        else:
+            config.errors.append(
+                f"support_mouse must be True or False, got {support_mouse!r}"
+            )
+
     trace = options.get("yate_trace")
     if trace is not None:
         if isinstance(trace, bool):

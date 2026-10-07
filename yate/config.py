@@ -35,6 +35,7 @@ KNOWN_OPTIONS: tuple[str, ...] = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
     "yate_trace", "yate_trace_level", "key_protocol",
+    "support_mouse",
 )
 
 VALID_KEYMAPS: tuple[str, ...] = ("vsc", "vim")
@@ -144,6 +145,12 @@ class YateConfig:
     #: Show dotfiles in the explorer by default (``show_hidden = True``
     #: in yaterc).  Off by default — dotfiles are hidden until toggled.
     show_hidden: bool = False
+    #: Master switch for all mouse interaction (``support_mouse = False``
+    #: in yaterc).  ``False`` makes the app drop every mouse event before
+    #: it reaches any widget (gate lives in ``YateApp.on_event``).  On by
+    #: default: mouse support is additive, the switch is an explicit
+    #: opt-out (issue IKJRFK).
+    support_mouse: bool = True
     #: Runtime trace log switch (``yate_trace = True`` in yaterc). Off by
     #: default: nothing is written until it is turned on. ``YATE_TRACE``
     #: overrides it per session.
@@ -305,6 +312,13 @@ SET_OPTION_SPECS: tuple[SetOption, ...] = (
         parse=_parse_bool_option,
         invalid_message="readonly must be true|false (on/off/1/0/yes/no accepted)",
         summary="readonly=true|false",
+    ),
+    SetOption(
+        name="support_mouse",
+        aliases=(),
+        parse=_parse_bool_option,
+        invalid_message="support_mouse must be on|off (true/false/1/0/yes/no accepted)",
+        summary="support_mouse=on|off",
     ),
 )
 

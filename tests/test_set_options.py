@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any, cast
 
 from yate.commands import SET_APPLY, SET_OPTION_INDEX, register_commands
-from yate.config import SET_OPTION_SPECS, OptionParser, set_option_names
+from yate.config import SET_OPTION_SPECS, OptionParser, YateConfig, set_option_names
 from yate.flows.prompt_completion import SET_OPTIONS
 from yate.registries import CommandRegistry
 
@@ -74,3 +74,51 @@ def test_set_dispatch_survives_a_missing_apply(
     entry[0]("keymap=vsc")
 
     assert ("internal error: no handler for keymap", "warn") in notes
+
+
+# --- support_mouse dispatch -------------------------------------------------
+
+
+class _ConfigEditor:
+    """Editor stand-in with a real config plus message recording."""
+
+    def __init__(self) -> None:
+        self.config = YateConfig()
+        self.notes: list[tuple[str, str]] = []
+
+    def message(self, text: str, kind: str = "") -> None:
+        """Record one message-line output."""
+        self.notes.append((text, kind))
+
+
+def _set_driver() -> tuple[CommandRegistry, _ConfigEditor]:
+    """Register the built-in commands against a :class:`_ConfigEditor`."""
+    editor = _ConfigEditor()
+    registry = CommandRegistry()
+    register_commands(registry, cast(Any, editor))
+    return registry, editor
+
+
+def test_set_support_mouse_on_off_roundtrip() -> None:
+    """``:set support_mouse=off/on`` flips the config master switch."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry[0]("support_mouse=off")
+    assert editor.config.support_mouse is False
+    entry[0]("support_mouse=on")
+    assert editor.config.support_mouse is True
+
+
+def test_set_support_mouse_invalid_value_reports() -> None:
+    """An unrecognised value warns on the message line, value unchanged."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry[0]("support_mouse=maybe")
+    assert any(
+        "support_mouse must be on|off" in text for text, _ in editor.notes
+    )
+    assert editor.config.support_mouse is True

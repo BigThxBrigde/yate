@@ -85,6 +85,13 @@ def _apply_readonly(editor: Editor, value: object) -> None:
     editor.set_readonly(cast(bool, value))
 
 
+def _apply_support_mouse(editor: Editor, value: object) -> None:
+    """Apply ``:set support_mouse`` (the event gate reads it per dispatch)."""
+    enabled = cast(bool, value)
+    editor.config.support_mouse = enabled
+    editor.message(f"mouse support {'on' if enabled else 'off'}", kind="ok")
+
+
 SET_APPLY.update(
     filetype=_apply_filetype,
     keymap=_apply_keymap,
@@ -93,6 +100,7 @@ SET_APPLY.update(
     terminal_height=_apply_terminal_height,
     show_hidden=_apply_show_hidden,
     readonly=_apply_readonly,
+    support_mouse=_apply_support_mouse,
 )
 
 
