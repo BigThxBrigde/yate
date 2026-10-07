@@ -33,12 +33,14 @@ CI 的 `lint` job（`.github/workflows/test.yml`，`runs-on: ubuntu-latest`）�
 
 ## 三、方案决策（含两轮往返的实证）
 
-- **最终采用：方案 D——CI lint 步骤显式 `pyright --pythonplatform Windows`**。
-  一行管道改动；旗标对存根门控的裁决力已被实证——在 Windows 宿主上加
-  `--pythonplatform Linux` 即完整复现 CI 的 315 错（旗标 > 宿主），对称地
-  在 Linux 宿主上加 `--pythonplatform Windows` 即得到与本地一致的全绿语义。
-  workflow 注释中备注：**Linux 平台 lint 为将来工作**，前提是 Windows 专属
-  模块先能在 POSIX 分析会话下干净过检。
+- **最终采用：lint job 迁 `windows-latest`（方案 C 的 runner 形态）**。
+  pyright 的会话平台跟随宿主 OS，runner 换成 Windows 即与包的目标平台对齐，
+  无需旗标（`pyright --pythonplatform Windows` 与之语义等价，二者只能取其
+  一；`timeout-minutes` 10→15 对齐 test job，Windows runner 冷启动更慢）。
+  首版曾落地旗标方案 D（ubuntu + `--pythonplatform Windows`），语义相同、
+  runner 成本更低（私有仓库 Windows 分钟价 2x），按用户决定改用 runner
+  形态。workflow 注释中备注：**Linux 平台 lint 为将来工作**，前提是
+  Windows 专属模块先能在 POSIX 分析会话下干净过检。
 - **方案 A（代码级双平台收口）——已实施后整体撤回**：`_ConPty` 迁入 nt 块
   （311 行机械重缩进）、fonts.py 三处 `import winreg` 改
   `importlib.import_module`（并登记 `tests/test_pack_spec.py` 的
@@ -49,18 +51,21 @@ CI 的 `lint` job（`.github/workflows/test.yml`，`runs-on: ubuntu-latest`）�
   注意 `cast(ModuleType, win32.KERNEL32)` 无法抑制 cast 实参内部的
   Unknown 诊断，须用 `getattr`）。**按用户决定撤回**，留作 Linux lint
   后续项的成熟路线图（可直接按上述手法重做）。
-- **方案 B/C/E/F（否决，实证见第一轮记录）**：`[tool.pyright]` 顶层 /
+- **方案 B/E/F（否决，实证见第一轮记录）**：`[tool.pyright]` 顶层 /
   `executionEnvironments` 的 `pythonPlatform` 只影响 `sys.platform` /
-  `os.name` 分支裁剪，**钉不住 typeshed 存根可见性**；lint job 迁
-  `windows-latest` 徒增成本且同样收缩检查面。
+  `os.name` 分支裁剪，**钉不住 typeshed 存根可见性**（方案 B 为全局钉
+  Windows 的 pyproject 变体，被方案 E 实证覆盖）。
 
 ## 四、实施内容（最终 diff）
 
-仅改 `.github/workflows/test.yml` 的 lint 步骤一行（附机制注释与
-Linux 后续项备注）：
+仅改 `.github/workflows/test.yml` 的 `lint` job（附机制注释与 Linux 后续项
+备注）：
 
 ```yaml
-run: pyright --pythonplatform Windows
+runs-on: windows-latest
+timeout-minutes: 15
+...
+run: pyright
 ```
 
 `pyproject.toml` 与 `yate/`、`tests/` 无净变更（方案 A 已整体还原）。
@@ -70,7 +75,7 @@ run: pyright --pythonplatform Windows
 | 门禁 | 命令 | 结果 |
 |---|---|---|
 | 复现基线 | `pyright --pythonplatform Linux` | 315 errors（与 CI 一致） |
-| 修复后（CI 同义命令） | `pyright --pythonplatform Windows`（全仓 include 集） | **0 errors** |
+| 修复后（CI 同义命令） | `pyright`（Windows 宿主 = runner 语义，全仓 include 集） | **0 errors** |
 | 本地门禁（方案 A 验证期实测后撤回） | `pyright --pythonplatform Linux` + `pyright` | 均 0 errors |
 | 测试套件 | 未重跑：最终净变更为纯管道+文档（方案 A 期间的代码改动已全部还原，代码与 master 零差异） | 不适用 |
 
@@ -79,6 +84,5 @@ run: pyright --pythonplatform Windows
 - 风险：POSIX 分支从此无静态检查（CI 与本地均按 Windows 语义分析）。缓解：
   这些分支本来只在 Linux 运行时执行，Linux pytest leg（ubuntu 矩阵，
   3.12/3.13）继续运行时覆盖；Linux 静态检查作为后续项单独立项。
-- 风险：pyright 旗标大小写敏感（`linux` 小写被拒），值必须用首字母大写
-  `Windows`（与 CLI 报错文案一致）。
+- 风险：私有仓库 Windows runner 分钟计费为 Linux 的 2 倍（公开仓库不计）。
 - 回滚：单 commit，`git revert` 即恢复原管道。
