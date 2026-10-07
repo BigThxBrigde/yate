@@ -20,7 +20,8 @@ L3 调度：editor.py（Editor）/ actions.py / commands.py / 流程模块
          prompt_completion.py / diagnostics.py）/ services/extensions.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
-         registries.py / keymaps/registry.py（KeymapSet）
+         registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
+         actions/commands/editor 之下）/ keymaps/registry.py（KeymapSet）
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         editor_sprites / logs / paths / config / services/* / keymaps/base|vim|vsc
         （2026-09-28 核对补入：`keyproto/` 键弦模型与 Windows 驱动、`editor_sprites/`
@@ -150,6 +151,29 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 6. **能用函数实现的就不造类**：内置表（`populate` / `register_commands` / `load_startup_extensions`）、
    纯计算（`prompt_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
    （`session.py` 的 `find_leaf` / `replace_node` …）一律用函数。
+7. **文件体量阈值处置（2026-10-08，评审 A11）**：单文件超过 **800 行**触发处置评审。
+   - 拆分判定：多职责混合型**必拆**（判据：模块 docstring 无法用一句话概括，或文件含
+     ≥2 个互不引用的职责块）；单一职责长文件可登记豁免。
+   - 豁免名单（登记即合规；修改文件时须同步更新行数）：
+     `editor_syntax/regex_backend.py`（1225 行，LangSpec 数据表与 tokenizer 一体，拆分另行立项）、
+     `keymaps/vim.py`（1107 行，motion/operator/text-object 单一键映射域）、
+     `editor_view/diffview.py`（1035 行，diff 渲染管线单一职责）、
+     `config.py`（924 行，拆出 `yaterc.py` 后复核）、
+     `editor.py`（907 行，构造工厂约 300 行 + `:set` setter，plan-i 落地后复核）、
+     `editor_core/buffer.py`（871 行，文档缓冲单一职责）、
+     `editor_term/emulator.py`（856 行，VT 状态机单一职责）、
+     `editor_lsp/manager.py`（818 行，LSP 客户端单职责）。
+   - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
+     模块 docstring 已论证共存理由。
+8. **新增 L3 流程模块接入清单（评审 A18）**：保持构造显式注入，**不建共享 context 类型**
+   （§三.1 红线）：
+   1. 模块命名 `*_flows.py`、类名 `*Flows`（同步适配器按动词命名如 `LspSync`，见 §五命名守卫）；
+   2. 在 `editor.py` 声明类属性（类型注解 + `None` 初值）；
+   3. 在对应 `_build_*` 工厂内构造，注入具体协作者与回调（不得持有 App 句柄，
+      守卫 `test_flow_modules_hold_no_app_handle`）；
+   4. 更新 `Editor.__init__` 组装顺序注释；
+   5. 如需 `editor_view` 导入，先登记 `tests/test_architecture.py` 的 `UI_FROZEN_FILES`（R11）；
+   6. 同步 §一 L3 清单与本清单。
 
 ## 四、跨模块交互
 

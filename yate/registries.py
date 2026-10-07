@@ -2,9 +2,11 @@
 
 Both registries are plain, UI-free containers: ``ActionRegistry`` maps action
 names to callables, ``CommandRegistry`` maps ``:`` command names to handlers.
-They live in their own leaf module (below ``keymaps`` and below
-:mod:`yate.editor`) so every layer can hold the same concrete objects without
-import cycles.
+Layer-wise this module sits *above* :mod:`yate.keymaps.base` (it imports
+:class:`~yate.keymaps.base.ActionContext`, and ``keymaps.base`` itself imports
+:mod:`yate.session`) and *below* its consumers (:mod:`yate.actions`,
+:mod:`yate.commands`, :mod:`yate.editor`), so every layer can hold the same
+concrete objects without import cycles.
 
 The *contents* -- the built-in action and command tables -- live in
 :mod:`yate.actions` / :mod:`yate.commands`, which wire the tables against a
