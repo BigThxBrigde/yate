@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from itertools import islice
 from pathlib import Path
 from typing import Any, override
@@ -352,7 +353,9 @@ class PaletteScreen(ModalScreen[None]):
         self._preview_cache.pop(path, None)
         self._show_loading()
         self.run_worker(
-            self._load_preview_worker(path), group="palette-preview",
+            # coroutine *function*: an eager coroutine would leak if
+            # the worker never starts (closing pump)
+            partial(self._load_preview_worker, path), group="palette-preview",
             exclusive=True, exit_on_error=False,
         )
 
@@ -414,8 +417,10 @@ class PaletteScreen(ModalScreen[None]):
             tokens = tokenize_document(lines, filetype) if lines else []
         except Exception as exc:  # noqa: BLE001 - degrade to unhighlighted text
             # A tokenizer crash must never leave the pane stuck on
-            # "loading…"; empty tokens render the plain lines via t.fg.
+            # "loading…"; align one empty token row per line so _preview_text's
+            # zip still walks every line and renders it plain via t.fg.
             log.warning("palette preview tokenize failed for %s: %s", path, exc)
+            tokens = [[] for _ in lines]
         return _PreviewData(
             path=path, lines=lines, tokens=tokens,
             mtime_ns=st.st_mtime_ns, size=st.st_size,

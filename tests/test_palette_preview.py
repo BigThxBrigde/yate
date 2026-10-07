@@ -353,3 +353,63 @@ def test_cache_current_detects_stale(tmp_path: Path) -> None:
     target.write_text(ALPHA_SOURCE + "# touched\n", encoding="utf-8")
     assert not screen._cache_current(data)
     assert not screen._cache_current(replace(data, path=tmp_path / "gone.py"))
+
+
+def test_preview_renders_plain_lines_when_tokenize_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tokenizer crash degrades to the plain lines, not a blank pane."""
+
+    def boom(lines: list[str], filetype: str) -> object:
+        raise RuntimeError("tokenizer exploded")
+
+    # patch the consumer-side name: palette.py from-imports tokenize_document
+    monkeypatch.setattr("yate.editor_view.palette.tokenize_document", boom)
+    alpha = tmp_path / "alpha.py"
+    alpha.write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            assert await wait_until(
+                pilot, lambda: screen._preview_cache.get(alpha) is not None
+            )
+            plain = _preview_plain(screen)
+            assert "def hello():" in plain
+            assert "return 'world'" in plain
+
+    asyncio.run(scenario())
+
+
+def test_update_preview_passes_worker_callable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """_update_preview hands run_worker a callable, never an eager coroutine."""
+    (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+    (tmp_path / "beta.md").write_text("second file\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            captured: list[object] = []
+
+            def _recorder(_screen: object, job: object, **_kw: object) -> None:
+                captured.append(job)
+
+            # on_mount already ran its index worker; the patch only watches
+            # the preview spawns triggered from here on.
+            monkeypatch.setattr(PaletteScreen, "run_worker", _recorder)
+            await pilot.press("down")  # beta: cache miss -> _update_preview
+            await pilot.pause()
+            assert captured, "cursor move must spawn a preview worker"
+            job = captured[0]
+            assert callable(job)
+            assert not asyncio.iscoroutine(job)
+
+    asyncio.run(scenario())
