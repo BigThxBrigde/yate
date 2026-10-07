@@ -99,12 +99,14 @@ class OpenDocState:
 #: (``None`` until the editor knows one).
 type RootQuery = Callable[[], Path | None]
 
-#: ``on_event(kind)`` -- one-line channel for server lifecycle events (started,
-#: stopped, failed) that the editor renders on the message line.
+#: ``on_event(event)`` -- the manager's outbound notification: ``"state"``
+#: whenever a server starts, stops or changes state, ``"diagnostics"`` when a
+#: publish arrives.  The consumer repaints from it and echoes the diagnostic
+#: count (see :meth:`yate.flows.lsp_sync.LspSync.on_event`).
 type EventHook = Callable[[str], None]
 
 #: ``client_factory(config, root)`` -- build the client for one server config;
-#: injectable so tests and embedders can supply their own.
+#: replaceable after construction through :meth:`LspManager.set_client_factory`.
 type ClientFactory = Callable[[ServerConfig, Path], LspClient]
 
 

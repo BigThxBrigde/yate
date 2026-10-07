@@ -13,10 +13,6 @@ import time
 from collections.abc import Callable
 
 
-#: ``clock()`` -- seconds as a float; injectable so tests never sleep.
-type Clock = Callable[[], float]
-
-
 class IdleTracker:
     """Monotonic-clock idle tracker, reset by every :meth:`poke` call.
 
@@ -24,7 +20,7 @@ class IdleTracker:
     instead of sleeping.
     """
 
-    def __init__(self, clock: Clock = time.monotonic) -> None:
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
         self._clock = clock
         self._last = clock()
 

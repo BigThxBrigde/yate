@@ -27,9 +27,9 @@ from .icons import SEARCH, TERMINAL
 
 log = tracing.get_logger(__name__)
 
-#: ``(text, mode) -> candidates`` -- bash-style tab completion.
-#: ``completer(text, prefix) -> candidates`` -- the prompt's completion source
-#: (LSP, history, buffers, ...); ``prefix`` is the fragment already typed.
+#: ``completer(text, mode) -> candidates`` -- the prompt's completion source
+#: (LSP, history, buffers, ...); *mode* is the active prompt mode, whose
+#: accepted prefixes live in :data:`PREFIXES`.
 type PromptCompleter = Callable[[str, str], list[str]]
 
 # prompt prefixes per mode: (prefix, Theme attribute name for the color)

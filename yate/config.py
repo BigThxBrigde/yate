@@ -200,7 +200,7 @@ def _parse_int_in_range(value: str, low: int, high: int) -> int | None:
 
 
 #: ``parse(raw)`` -- turn the raw option string into the value the apply
-#: mapping receives, or ``None`` when the spelling is invalid.
+#: mapping receives, or ``None`` when the value is invalid.
 type OptionParser = Callable[[str], object | None]
 
 
