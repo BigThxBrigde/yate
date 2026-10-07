@@ -93,6 +93,28 @@ def test_reregistering_replaces_the_action() -> None:
     assert second and not first
 
 
+def test_unregister_removes_and_reports_unknown() -> None:
+    """Unregister removes a known action and reports unknown names (A13)."""
+    registry = ActionRegistry()
+    registry.register("a", lambda _ctx: None, "x")
+
+    assert registry.unregister("a") is True
+    assert registry.unregister("a") is False
+    assert registry.get("a") is None
+    assert registry.names() == []
+
+
+def test_command_unregister_removes_and_reports_unknown() -> None:
+    """The ``:`` command registry mirrors the action unregister (A13)."""
+    registry = CommandRegistry()
+    registry.register("a", lambda _args: None, "x")
+
+    assert registry.unregister("a") is True
+    assert registry.unregister("a") is False
+    assert registry.get("a") is None
+    assert registry.names() == []
+
+
 # --- CommandRegistry --------------------------------------------------------
 
 

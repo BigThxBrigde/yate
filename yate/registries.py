@@ -54,6 +54,14 @@ class ActionRegistry:
         """Return the :class:`Action` for *name*, or ``None``."""
         return self._actions.get(name)
 
+    def unregister(self, name: str) -> bool:
+        """Remove the action *name*; ``False`` when it was not registered.
+
+        Used by the extension loader to roll back a failed ``setup``
+        (architecture-boundaries §四, audit A13).
+        """
+        return self._actions.pop(name, None) is not None
+
     def execute(self, name: str, ctx: ActionContext) -> bool:
         """Run *name* with *ctx*; returns ``False`` for unknown names."""
         action = self._actions.get(name)
@@ -86,6 +94,14 @@ class CommandRegistry:
     def get(self, name: str) -> tuple[CommandFunc, str] | None:
         """Return the ``(handler, description)`` pair for *name*, or ``None``."""
         return self._commands.get(name)
+
+    def unregister(self, name: str) -> bool:
+        """Remove the ``:`` command *name*; ``False`` when it was not registered.
+
+        Used by the extension loader to roll back a failed ``setup``
+        (architecture-boundaries §四, audit A13).
+        """
+        return self._commands.pop(name, None) is not None
 
     def names(self) -> list[str]:
         """Sorted list of registered command names."""
