@@ -1513,7 +1513,7 @@ def test_breadcrumb_blank_for_untitled_doc() -> None:
 
 
 def test_rc_declared_file_and_directory_extensions_load(tmp_path: Path) -> None:
-    from yate.config import load_config
+    from yate.yaterc import load_config
 
     async def scenario() -> None:
         root = tmp_path

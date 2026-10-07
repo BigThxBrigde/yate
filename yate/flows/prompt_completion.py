@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from yate.config import set_option_names
 from yate.editor_syntax import available_filetypes
 from yate.editor_view import theme
 from yate.registries import CommandRegistry
@@ -18,10 +19,10 @@ from yate.session import EditorSession
 
 #: Commands whose single argument is a filesystem path.
 _PATH_COMMANDS: frozenset[str] = frozenset({"e", "edit", "sp", "split", "vs", "vsplit"})
-_SET_OPTIONS: tuple[str, ...] = (
-    "filetype", "ft", "keymap", "lang", "language", "shell",
-    "terminal_height", "theme", "show_hidden", "readonly",
-)
+#: Derived from the single :set option table (audit A8) -- never
+#: hand-maintained.  Public so the guards in ``tests/test_set_options.py``
+#: can pin the table <-> completion contract without private access.
+SET_OPTIONS: tuple[str, ...] = set_option_names()
 _FILETYPE_KEYS: frozenset[str] = frozenset({"filetype", "ft", "language", "lang"})
 _FILETYPE_COMMANDS: frozenset[str] = frozenset({"filetype", "ft", "language"})
 _MANUAL_LANGS: tuple[str, ...] = ("en", "zh")
@@ -84,7 +85,7 @@ def _command_completions(
                 if v.startswith(value) and v != value
             ]
         return [
-            f"{name} {opt}" for opt in _SET_OPTIONS
+            f"{name} {opt}" for opt in SET_OPTIONS
             if opt.startswith(rest) and opt != rest
         ]
     if name in _FILETYPE_COMMANDS:

@@ -8,7 +8,7 @@ from typing import cast, override
 
 import pytest
 
-from yate import config as cfg
+from yate import yaterc as yrc
 from yate.app import YateApp
 from yate.editor_sprites.render import walk_x
 from yate.editor_view.screensaver import TICKS_PER_SECOND, ScreensaverScreen
@@ -93,7 +93,7 @@ def test_disabled_config_only_reports(tmp_path: Path) -> None:
     async def scenario() -> None:
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"enable": False}\n', encoding="utf-8")
-        config = cfg.load_config([rc])
+        config = yrc.load_config([rc])
         app = YateApp(target=_doc(tmp_path), config=config)
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
@@ -113,7 +113,7 @@ def test_unknown_whitelist_name_is_reported(tmp_path: Path) -> None:
             'screen_saver = {"characters": ["mario", "nope"]}\n',
             encoding="utf-8",
         )
-        config = cfg.load_config([rc])
+        config = yrc.load_config([rc])
         app = YateApp(target=_doc(tmp_path), config=config)
         assert "unknown screensaver character: 'nope'" in app.config.errors
 
@@ -352,7 +352,7 @@ def test_idle_poll_auto_starts_screensaver(
         monkeypatch.setattr("yate.app.IdleTracker", _ControllableTracker)
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"interval": 1}\n', encoding="utf-8")
-        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        app = YateApp(target=_doc(tmp_path), config=yrc.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             tracker = cast(_ControllableTracker, app.idle_tracker)
@@ -379,7 +379,7 @@ def test_idle_poll_never_retriggers_while_active(
         monkeypatch.setattr("yate.app.IdleTracker", _ControllableTracker)
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"interval": 1}\n', encoding="utf-8")
-        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        app = YateApp(target=_doc(tmp_path), config=yrc.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             tracker = cast(_ControllableTracker, app.idle_tracker)
@@ -408,7 +408,7 @@ def test_idle_poll_skips_when_interval_zero(
         monkeypatch.setattr("yate.app.IdleTracker", _ControllableTracker)
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"interval": 0}\n', encoding="utf-8")
-        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        app = YateApp(target=_doc(tmp_path), config=yrc.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             tracker = cast(_ControllableTracker, app.idle_tracker)
@@ -427,7 +427,7 @@ def test_idle_poll_skips_when_disabled(tmp_path: Path) -> None:
     async def scenario() -> None:
         rc = tmp_path / "yaterc"
         rc.write_text('screen_saver = {"enable": False}\n', encoding="utf-8")
-        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        app = YateApp(target=_doc(tmp_path), config=yrc.load_config([rc]))
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             assert app.idle_tracker is None
@@ -475,7 +475,7 @@ def test_all_invalid_whitelist_is_reported_and_refused(tmp_path: Path) -> None:
             'screen_saver = {"characters": ["nope1", "nope2"]}\n',
             encoding="utf-8",
         )
-        app = YateApp(target=_doc(tmp_path), config=cfg.load_config([rc]))
+        app = YateApp(target=_doc(tmp_path), config=yrc.load_config([rc]))
         assert "unknown screensaver character: 'nope1'" in app.config.errors
         assert "unknown screensaver character: 'nope2'" in app.config.errors
         async with app.run_test(size=(80, 24)) as pilot:

@@ -107,7 +107,7 @@ UI_FREE_PACKAGES: tuple[str, ...] = (
     "editor_sprites",
     "editor_core",
 )
-UI_FREE_FILES: tuple[str, ...] = ("session.py", "registries.py", "config.py")
+UI_FREE_FILES: tuple[str, ...] = ("session.py", "registries.py", "config.py", "yaterc.py")
 
 #: L3 collaborator modules that do drive a few widget types by design: they
 #: still may not depend upward, and their ``editor_view`` coupling is frozen

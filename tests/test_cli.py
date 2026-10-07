@@ -200,7 +200,7 @@ def _run_changelog(
 ) -> tuple[int, str]:
     with (
         patch("yate.app.YateApp") as fake_app,
-        patch("yate.config.load_config") as load_config,
+        patch("yate.yaterc.load_config") as load_config,
         patch("yate.logs.crash.install"),
     ):
         rc = main(argv)
@@ -245,7 +245,7 @@ def test_version_prints_basic_info_and_exits_zero(
 ) -> None:
     with (
         patch("yate.app.YateApp") as fake_app,
-        patch("yate.config.load_config") as load_config,
+        patch("yate.yaterc.load_config") as load_config,
         patch("yate.logs.crash.install"),
     ):
         rc = main(["--version"])
@@ -437,7 +437,7 @@ def _run_setup(
         cleanup = MagicMock()
     with (
         patch("yate.app.YateApp") as fake_app,
-        patch("yate.config.load_config") as load_config,
+        patch("yate.yaterc.load_config") as load_config,
         patch("yate.logs.crash.install"),
         patch.object(user_setup, "setup_defaults", setup) as s,
         patch.object(user_setup, "cleanup_defaults", cleanup) as c,

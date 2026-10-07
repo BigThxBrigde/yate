@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from yate import config as cfg
+from yate import yaterc as yrc
 from yate.editor_view import theme as themes
 
 
@@ -20,11 +21,11 @@ def _load(
     body: str,
     tmp_path: Path,
     *,
-    register_theme: cfg.ThemeRegistrar | None = None,
-    load_theme_paths: cfg.ThemeDirLoader | None = None,
+    register_theme: yrc.ThemeRegistrar | None = None,
+    load_theme_paths: yrc.ThemeDirLoader | None = None,
 ) -> cfg.YateConfig:
     rc = _write(tmp_path / "yaterc", body)
-    return cfg.load_config(
+    return yrc.load_config(
         [rc],
         register_theme=register_theme,
         load_theme_paths=load_theme_paths,
@@ -45,7 +46,7 @@ def test_builtin_defaults() -> None:
 
 
 def test_load_no_files_returns_defaults() -> None:
-    config = cfg.load_config([])
+    config = yrc.load_config([])
     assert config.keymap == "vsc"
     assert config.tab_width == 4
     assert config.sources == []
@@ -62,7 +63,7 @@ def test_loads_all_options(tmp_path: Path) -> None:
         "tab_width = 2\n"
         "use_spaces = False\n",
     )
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.keymap == "vim"
     assert config.theme == "latte"
     assert config.tab_width == 2
@@ -73,7 +74,7 @@ def test_loads_all_options(tmp_path: Path) -> None:
 
 def test_partial_options_keep_other_defaults(tmp_path: Path) -> None:
     rc = _write(tmp_path / "yaterc", "tab_width = 8\n")
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.tab_width == 8
     assert config.keymap == "vsc"
     assert config.use_spaces
@@ -85,7 +86,7 @@ def test_unknown_options_are_ignored(tmp_path: Path) -> None:
         "some_future_option = 99\n"
         "def helper():\n    return 1\n",
     )
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.errors == []
     assert config.tab_width == 4
 
@@ -93,7 +94,7 @@ def test_unknown_options_are_ignored(tmp_path: Path) -> None:
 def test_project_rc_overrides_user_rc(tmp_path: Path) -> None:
     user = _write(tmp_path / "user_yaterc", 'keymap = "vsc"\ntab_width = 2\n')
     project = _write(tmp_path / "project_yaterc", "tab_width = 8\n")
-    config = cfg.load_config([user, project])
+    config = yrc.load_config([user, project])
     # later file wins; earlier values survive where not overridden
     assert config.tab_width == 8
     assert config.keymap == "vsc"
@@ -101,7 +102,7 @@ def test_project_rc_overrides_user_rc(tmp_path: Path) -> None:
 
 
 def test_missing_file_is_an_error() -> None:
-    config = cfg.load_config([Path("/nonexistent/yaterc")])
+    config = yrc.load_config([Path("/nonexistent/yaterc")])
     assert len(config.errors) == 1
     assert config.sources == []
     assert config.tab_width == 4
@@ -110,7 +111,7 @@ def test_missing_file_is_an_error() -> None:
 def test_runtime_error_in_rc_is_caught(tmp_path: Path) -> None:
     bad = _write(tmp_path / "bad", 'raise RuntimeError("boom")\n')
     good = _write(tmp_path / "good", "tab_width = 3\n")
-    config = cfg.load_config([bad, good])
+    config = yrc.load_config([bad, good])
     assert any("boom" in e for e in config.errors)
     # later files still load
     assert config.tab_width == 3
@@ -119,7 +120,7 @@ def test_runtime_error_in_rc_is_caught(tmp_path: Path) -> None:
 
 def test_syntax_error_in_rc_is_caught(tmp_path: Path) -> None:
     bad = _write(tmp_path / "bad", "keymap = \n")
-    config = cfg.load_config([bad])
+    config = yrc.load_config([bad])
     assert len(config.errors) == 1
     assert config.keymap == "vsc"
 
@@ -385,7 +386,7 @@ def test_later_rc_replaces_entire_list(tmp_path: Path) -> None:
         'language_servers = [{"name": "b", "command": "b",'
         ' "filetypes": ["b"]}]\n',
     )
-    config = cfg.load_config([user_rc, project_rc])
+    config = yrc.load_config([user_rc, project_rc])
     assert config.errors == []
     assert [s.name for s in config.language_servers] == ["b"]
 
@@ -495,14 +496,14 @@ def test_find_project_config_walks_up(tmp_path: Path) -> None:
     rc = _write(tmp_path / "yaterc", "tab_width = 2\n")
     deep = tmp_path / "a" / "b" / "c"
     deep.mkdir(parents=True)
-    found = cfg.find_project_config(deep)
+    found = yrc.find_project_config(deep)
     # the walk resolves, so compare against the canonical path (on
     # Windows TEMP may be an 8.3 short name such as RUNNER~1)
     assert found == rc.resolve()
 
 
 def test_find_project_config_none(tmp_path: Path) -> None:
-    assert cfg.find_project_config(tmp_path) is None
+    assert yrc.find_project_config(tmp_path) is None
 
 
 def test_find_project_config_from_file_path(tmp_path: Path) -> None:
@@ -510,7 +511,7 @@ def test_find_project_config_from_file_path(tmp_path: Path) -> None:
     file_in_subdir = tmp_path / "src" / "main.py"
     (tmp_path / "src").mkdir()
     file_in_subdir.write_text("", encoding="utf-8")
-    found = cfg.find_project_config(file_in_subdir)
+    found = yrc.find_project_config(file_in_subdir)
     assert found == (tmp_path / "yaterc").resolve()
 
 
@@ -520,8 +521,8 @@ def test_default_rc_paths_user_then_project(
     user_rc = tmp_path / "user_yaterc"
     _write(user_rc, "")
     project_rc = _write(tmp_path / "yaterc", "")
-    monkeypatch.setattr(cfg, "user_config_path", lambda: user_rc)
-    paths = cfg.default_rc_paths(tmp_path)
+    monkeypatch.setattr(yrc, "user_config_path", lambda: user_rc)
+    paths = yrc.default_rc_paths(tmp_path)
     # returned paths are resolved (canonical) -- see Windows 8.3 note
     assert paths == [user_rc.resolve(), project_rc.resolve()]
 
@@ -530,14 +531,14 @@ def test_default_rc_paths_dedupes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rc = _write(tmp_path / "yaterc", "")
-    monkeypatch.setattr(cfg, "user_config_path", lambda: rc)
-    paths = cfg.default_rc_paths(tmp_path)
+    monkeypatch.setattr(yrc, "user_config_path", lambda: rc)
+    paths = yrc.default_rc_paths(tmp_path)
     assert paths == [rc.resolve()]
 
 
 def test_user_config_path_layout(isolated_home: Path) -> None:
-    assert cfg.user_config_path() == (
-        isolated_home / ".yate" / cfg.RC_FILENAME
+    assert yrc.user_config_path() == (
+        isolated_home / ".yate" / yrc.RC_FILENAME
     )
 
 
@@ -548,8 +549,8 @@ def test_default_rc_paths_without_any_rc(
     missing_user = tmp_path / "no-yaterc-here"
     deep = tmp_path / "a" / "b"
     deep.mkdir(parents=True)
-    monkeypatch.setattr(cfg, "user_config_path", lambda: missing_user)
-    paths = cfg.default_rc_paths(deep)
+    monkeypatch.setattr(yrc, "user_config_path", lambda: missing_user)
+    paths = yrc.default_rc_paths(deep)
     assert paths == []
 
 
@@ -561,7 +562,7 @@ def test_relative_paths_resolve_against_rc_dir(tmp_path: Path) -> None:
     ext_dir = tmp_path / "exts"
     ext_dir.mkdir()
     rc = _write(tmp_path / "yaterc", 'extensions = ["tool.py", "exts"]\n')
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.errors == []
     assert config.extension_paths == [ext_file.resolve(), ext_dir.resolve()]
 
@@ -569,7 +570,7 @@ def test_relative_paths_resolve_against_rc_dir(tmp_path: Path) -> None:
 def test_extension_accepts_single_string(tmp_path: Path) -> None:
     ext_file = _write(tmp_path / "tool.py", "def setup(api):\n    pass\n")
     rc = _write(tmp_path / "yaterc", 'extensions = "tool.py"\n')
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.extension_paths == [ext_file.resolve()]
 
 
@@ -577,26 +578,26 @@ def test_tilde_expanded(tmp_path: Path, isolated_home: Path) -> None:
     ext_file = _write(isolated_home / "tool.py", "def setup(api):\n    pass\n")
     rc = _write(tmp_path / "yaterc", 'extensions = "~/tool.py"\n')
     # expanduser() reads HOME/USERPROFILE, redirected by the isolated home
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.errors == []
     assert config.extension_paths == [ext_file.resolve()]
 
 
 def test_nonexistent_path_reported(tmp_path: Path) -> None:
     rc = _write(tmp_path / "yaterc", 'extensions = ["missing.py"]\n')
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.extension_paths == []
     assert any("does not exist" in err for err in config.errors)
 
 
 def test_bad_types_reported(tmp_path: Path) -> None:
     rc = _write(tmp_path / "yaterc", "extensions = 42\n")
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.extension_paths == []
     assert any("extensions" in err for err in config.errors)
 
     rc2 = _write(tmp_path / "yaterc2", 'extensions = ["ok_missing", 7]\n')
-    config2 = cfg.load_config([rc2])
+    config2 = yrc.load_config([rc2])
     assert any("non-empty strings" in err for err in config2.errors)
 
 
@@ -605,7 +606,7 @@ def test_accumulates_across_rc_files_and_dedupes(tmp_path: Path) -> None:
     b = _write(tmp_path / "b.py", "def setup(api):\n    pass\n")
     user_rc = _write(tmp_path / "user_rc", 'extensions = ["./a.py"]\n')
     project_rc = _write(tmp_path / "project_rc", 'extensions = ["a.py", "b.py"]\n')
-    config = cfg.load_config([user_rc, project_rc])
+    config = yrc.load_config([user_rc, project_rc])
     assert config.errors == []
     # a.py appears in both rc files but is loaded only once
     assert config.extension_paths == [a.resolve(), b.resolve()]
@@ -624,7 +625,7 @@ def test_disabled_extensions_accumulate_and_dedupe(tmp_path: Path) -> None:
         tmp_path / "project",
         'disabled_extensions = ("python_lsp", "csharp_highlight")\n',
     )
-    config = cfg.load_config([user_rc, project_rc])
+    config = yrc.load_config([user_rc, project_rc])
     assert config.errors == []
     assert config.disabled_extensions == ["python_lsp", "csharp_highlight"]
 
@@ -684,7 +685,7 @@ def test_theme_dir_single_string_loads_theme(
         'theme = "yate_test_dir_theme"\n',
     )
     registered_themes.append("yate_test_dir_theme")
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -706,7 +707,7 @@ def test_theme_dir_list_relative_and_single_file(
     single = _theme_file(tmp_path, "solo.py", "yate_test_dir_solo")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = ["more", "solo.py"]\n')
     registered_themes.extend(["yate_test_dir_a", "yate_test_dir_solo"])
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -722,7 +723,7 @@ def test_underscore_files_skipped(tmp_path: Path) -> None:
     tdir.mkdir()
     _theme_file(tdir, "_hidden.py", "yate_test_hidden")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -740,7 +741,7 @@ def test_broken_theme_file_is_reported_others_still_load(
     _theme_file(tdir, "good.py", "yate_test_good")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
     registered_themes.append("yate_test_good")
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -751,7 +752,7 @@ def test_broken_theme_file_is_reported_others_still_load(
 
 def test_nonexistent_theme_dir_reported(tmp_path: Path) -> None:
     rc = _write(tmp_path / "yaterc", 'theme_dirs = ["missing"]\n')
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -765,7 +766,7 @@ def test_nonexistent_theme_dir_reported(tmp_path: Path) -> None:
 def test_absolute_nonexistent_theme_dir_reported(tmp_path: Path) -> None:
     missing = (tmp_path / "nope" / "themes").as_posix()
     rc = _write(tmp_path / "yaterc", f'theme_dirs = [{missing!r}]\n')
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -776,10 +777,10 @@ def test_absolute_nonexistent_theme_dir_reported(tmp_path: Path) -> None:
 
 def test_bad_theme_dirs_types(tmp_path: Path) -> None:
     rc = _write(tmp_path / "yaterc", "theme_dirs = 42\n")
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert any("theme_dirs" in e for e in config.errors)
     rc2 = _write(tmp_path / "yaterc2", 'theme_dirs = ["ok", 7]\n')
-    config2 = cfg.load_config([rc2])
+    config2 = yrc.load_config([rc2])
     assert any("non-empty strings" in e for e in config2.errors)
 
 
@@ -788,7 +789,7 @@ def test_theme_dirs_accumulate_and_dedupe(tmp_path: Path) -> None:
     tdir.mkdir()
     user_rc = _write(tmp_path / "user_rc", 'theme_dirs = ["themes"]\n')
     project_rc = _write(tmp_path / "project_rc", 'theme_dirs = ["themes", "."]\n')
-    config = cfg.load_config([user_rc, project_rc])
+    config = yrc.load_config([user_rc, project_rc])
     assert config.errors == []
     assert config.theme_dirs == [tdir.resolve(), tmp_path.resolve()]
 
@@ -812,7 +813,7 @@ def test_theme_files_use_injected_register_helper(
     _write(tdir / "inj.py", f"register_theme(Theme({fields}))\n")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
     registered_themes.append("inj_theme")
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -905,7 +906,7 @@ def test_screen_saver_later_rc_replaces_whole(tmp_path: Path) -> None:
         tmp_path / "project",
         'screen_saver = {"enable": False, "switch": 7}\n',
     )
-    config = cfg.load_config([user_rc, project_rc])
+    config = yrc.load_config([user_rc, project_rc])
     assert config.errors == []
     assert config.screen_saver.enable is False
     assert config.screen_saver.interval == 120  # back to the default
@@ -1067,7 +1068,7 @@ def test_file_preview_later_declaration_replaces(tmp_path: Path) -> None:
         tmp_path / "project",
         'file_preview = {"enable": False, "position": "left"}\n',
     )
-    config = cfg.load_config([user_rc, project_rc])
+    config = yrc.load_config([user_rc, project_rc])
     assert config.errors == []
     assert config.file_preview == cfg.FilePreviewConfig(enable=False, position="left")
 
@@ -1078,7 +1079,7 @@ def test_file_preview_later_declaration_replaces(tmp_path: Path) -> None:
 def test_shipped_example_loads_cleanly() -> None:
     example = Path(__file__).parent.parent / "yate" / "yaterc.example"
     assert example.is_file(), "yaterc.example must ship in yate/"
-    config = cfg.load_config([example])
+    config = yrc.load_config([example])
     assert config.errors == []
     assert config.sources == [example]
     # the example's active options are the documented defaults
@@ -1102,7 +1103,7 @@ def test_register_theme_from_rc(
     )
     registered_themes.append("yate_test_theme")
     rc = _write(tmp_path / "yaterc", body)
-    config = cfg.load_config(
+    config = yrc.load_config(
         [rc],
         register_theme=themes.register_theme,
         load_theme_paths=themes.load_theme_paths,
@@ -1125,7 +1126,7 @@ def test_load_config_without_theme_hooks_records_register_theme_error(
     # the NameError is recorded per file and the remaining files still run.
     rc1 = _write(tmp_path / "user_rc", "register_theme(None)\n")
     rc2 = _write(tmp_path / "project_rc", "tab_width = 2\n")
-    config = cfg.load_config([rc1, rc2])
+    config = yrc.load_config([rc1, rc2])
     assert len(config.errors) == 1, config.errors
     assert "NameError" in config.errors[0]
     assert "register_theme" in config.errors[0]
@@ -1142,7 +1143,7 @@ def test_load_config_without_theme_hooks_keeps_theme_dirs_unloaded(
     tdir.mkdir()
     _theme_file(tdir, "mytheme.py", "yate_test_unloaded")
     rc = _write(tmp_path / "yaterc", 'theme_dirs = "themes"\n')
-    config = cfg.load_config([rc])
+    config = yrc.load_config([rc])
     assert config.theme_dirs == [tdir.resolve()]
     assert config.errors == []
     assert "yate_test_unloaded" not in themes.available()

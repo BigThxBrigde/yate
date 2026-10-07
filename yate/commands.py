@@ -8,8 +8,11 @@ own command surface.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
+from yate.config import SET_OPTION_SPECS, SetOption
 from yate.editor import Editor
 from yate.editor_syntax import format_filetype_candidates, language_name
 from yate.logs import tracing
@@ -19,19 +22,78 @@ __all__ = ["CommandRegistry", "register_commands"]
 
 log = tracing.get_logger(__name__)
 
-#: Values accepted by boolean ``:set`` options (``show_hidden``, ``readonly``).
-_TRUTHY: frozenset[str] = frozenset({"true", "on", "1", "yes"})
-_FALSY: frozenset[str] = frozenset({"false", "off", "0", "no"})
+#: ``:set`` lookup index: every accepted spelling -> its spec (A8 -- the
+#: option knowledge lives in :data:`yate.config.SET_OPTION_SPECS` only).
+#: Public so the guards in ``tests/test_set_options.py`` can pin the
+#: table <-> apply contract without private access.
+SET_OPTION_INDEX: dict[str, SetOption] = {
+    spelling: spec
+    for spec in SET_OPTION_SPECS
+    for spelling in (spec.name, *spec.aliases)
+}
+
+#: The apply mapping: canonical option name -> how the editor applies the
+#: parsed value (public for the same guard reason as
+#: :data:`SET_OPTION_INDEX`).  Parsing and validation live in the option
+#: table; this side effect layer (plus its success messages) is the L3
+#: command duty.
+SET_APPLY: dict[str, Callable[[Editor, object], None]] = {}
 
 
-def _parse_bool(value: str) -> bool | None:
-    """Parse a boolean ``:set`` value; ``None`` when it is not recognised."""
-    lowered = value.lower()
-    if lowered in _TRUTHY:
-        return True
-    if lowered in _FALSY:
-        return False
-    return None
+def _apply_filetype(editor: Editor, value: object) -> None:
+    """Apply ``:set filetype`` (any spelling; empty/``auto`` re-detects)."""
+    editor.set_filetype(cast(str, value))
+
+
+def _apply_keymap(editor: Editor, value: object) -> None:
+    """Apply ``:set keymap``."""
+    editor.select_keymap(cast(str, value))
+
+
+def _apply_theme(editor: Editor, value: object) -> None:
+    """Apply ``:set theme``."""
+    editor.set_theme(cast(str, value))
+
+
+def _apply_shell(editor: Editor, value: object) -> None:
+    """Apply ``:set shell`` (takes effect on the next terminal)."""
+    editor.config.shell = cast(str, value)
+    editor.message(
+        "shell set; the new value applies to the next terminal "
+        "(restart it with any key after exit)",
+        kind="ok",
+    )
+
+
+def _apply_terminal_height(editor: Editor, value: object) -> None:
+    """Apply ``:set terminal_height`` (rows, 3..40)."""
+    height = cast(int, value)
+    editor.config.terminal_height = height
+    editor.terminal_panel.apply_height(height)
+    editor.message(f"terminal height: {height} rows", kind="ok")
+
+
+def _apply_show_hidden(editor: Editor, value: object) -> None:
+    """Apply ``:set show_hidden``."""
+    shown = cast(bool, value)
+    editor.set_show_hidden(shown)
+    editor.message(f"hidden files {'shown' if shown else 'hidden'}", kind="ok")
+
+
+def _apply_readonly(editor: Editor, value: object) -> None:
+    """Apply ``:set readonly`` (the view reports the state itself)."""
+    editor.set_readonly(cast(bool, value))
+
+
+SET_APPLY.update(
+    filetype=_apply_filetype,
+    keymap=_apply_keymap,
+    theme=_apply_theme,
+    shell=_apply_shell,
+    terminal_height=_apply_terminal_height,
+    show_hidden=_apply_show_hidden,
+    readonly=_apply_readonly,
+)
 
 
 def _strip_quotes(text: str) -> str:
@@ -191,66 +253,23 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         args = args.strip()
         if "=" not in args:
             editor.message(
-                "usage: :set keymap=vsc|vim  theme=mocha  shell=powershell  "
-                "terminal_height=12  filetype=py (auto = detect)  "
-                "show_hidden=on|off  readonly=true|false",
+                "usage: :set " + "  ".join(spec.summary for spec in SET_OPTION_SPECS),
                 kind="warn",
             )
             return
         key, _, value = args.partition("=")
         key = key.strip()
         value = value.strip()
-        if key in ("filetype", "ft", "language", "lang"):
-            editor.set_filetype(value)
-        elif key == "keymap":
-            editor.select_keymap(value)
-        elif key == "theme":
-            editor.set_theme(value)
-        elif key == "shell":
-            editor.config.shell = value
-            editor.message(
-                "shell set; the new value applies to the next terminal "
-                "(restart it with any key after exit)",
-                kind="ok",
-            )
-        elif key == "terminal_height":
-            try:
-                height = int(value)
-            except ValueError:
-                editor.message("terminal_height must be an integer 3..40",
-                               kind="warn")
-                return
-            if not 3 <= height <= 40:
-                editor.message("terminal_height must be between 3 and 40",
-                               kind="warn")
-                return
-            editor.config.terminal_height = height
-            editor.terminal_panel.apply_height(height)
-            editor.message(f"terminal height: {height} rows", kind="ok")
-        elif key == "show_hidden":
-            val = _parse_bool(value)
-            if val is None:
-                editor.message(
-                    "show_hidden must be on|off (true/false/1/0/yes/no accepted)",
-                    kind="warn",
-                )
-            else:
-                editor.set_show_hidden(val)
-                editor.message(
-                    f"hidden files {'shown' if val else 'hidden'}", kind="ok"
-                )
-        elif key == "readonly":
-            val = _parse_bool(value)
-            if val is None:
-                editor.message(
-                    "readonly must be true|false (on/off/1/0/yes/no accepted)",
-                    kind="warn",
-                )
-            else:
-                editor.set_readonly(val)
-        else:
+        spec = SET_OPTION_INDEX.get(key)
+        if spec is None:
             log.warning("set rejected: unknown option %r", key)
             editor.message(f"unknown option: {key}", kind="warn")
+            return
+        parsed = spec.parse(value)
+        if parsed is None:
+            editor.message(spec.invalid_message, kind="warn")
+            return
+        SET_APPLY[spec.name](editor, parsed)
 
     def _theme(args: str) -> None:
         args = args.strip()
