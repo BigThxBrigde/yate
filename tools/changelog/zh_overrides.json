@@ -11,6 +11,9 @@
   "0096123": {
     "summary": "无头测试覆盖 vim 键位"
   },
+  "00f6b03": {
+    "summary": "成文站外文档与应用内手册的权威分工（A16）"
+  },
   "01553b4": {
     "summary": "将翻译范围开关文档更新为 --translate-all"
   },
@@ -172,6 +175,9 @@
   },
   "0f0252f": {
     "summary": "编辑器寄存器与系统剪贴板同步"
+  },
+  "0fb54d0": {
+    "summary": "为评审发现 A1–A20 落盘 repo-audit-fixes 方案集"
   },
   "104a617": {
     "summary": "新增 Python 3.12 升级方案",
@@ -421,6 +427,9 @@
     "summary": "修复主题背景色；资源管理器支持键盘操作",
     "detail": "ctrl+b/ctrl+e 开关与聚焦，a/A 新建、r 重命名、d/Del 带确认删除"
   },
+  "27e5b2a": {
+    "summary": "保持 editor_lsp 包根轻量（A1）"
+  },
   "2862a3d": {
     "summary": "将 PR #13 条目指向评审目录"
   },
@@ -487,6 +496,9 @@
   },
   "2f7a7ad": {
     "summary": "S40 防抖测试脱离真实时间依赖"
+  },
+  "304215a": {
+    "summary": "收口 Textual 私有 API（A2）"
   },
   "3054769": {
     "summary": "滚动条滑块变细并以状态常量定树参考线颜色"
@@ -654,6 +666,9 @@
   },
   "3f4c4db": {
     "summary": "修复 Windows CI 竞态：停止期间的 LSP 子进程与 8.3 短路径"
+  },
+  "3f7b3f7": {
+    "summary": "将散落资产迁出文档目录树"
   },
   "3f9e499": {
     "summary": "登记 PR38 机器人评审发现"
@@ -980,6 +995,9 @@
   "60ea88e": {
     "summary": "登记 Esc 关闭弹窗后被在途 worker 重开的竞态（仅登记未修）"
   },
+  "6100df0": {
+    "summary": "新增 pyright lint job、3.13 腿与 released-only 中文门禁（A4/A14/A5-2）"
+  },
   "61bc850": {
     "summary": "更新问题跟踪并新增 LSP 修复方案"
   },
@@ -1285,6 +1303,9 @@
   "7e8432f": {
     "summary": "新增稳定错误码与无堆栈回溯的错误报告"
   },
+  "7e928de": {
+    "summary": "将 9 个流程模块迁入 yate/flows 子包（A10）"
+  },
   "7f0d9c5": {
     "summary": "行重同步感知 shift 并单遍穿线状态"
   },
@@ -1403,6 +1424,9 @@
   "8b17bf1": {
     "summary": "双语手册同步最新功能"
   },
+  "8b529d4": {
+    "summary": "拆分加载器为 yaterc.py 并将 :set 改为表驱动（A8/A9）"
+  },
   "8b66b89": {
     "summary": "新增可选的运行时 trace 日志",
     "detail": "默认关闭，经 YATE_TRACE/YATE_TRACE_LEVEL 或 yaterc 选项开启，写入 ~/.yate/data/logs"
@@ -1484,6 +1508,9 @@
   },
   "925ea06": {
     "summary": "文档记录重构后的冒烟测试框架并提交基线"
+  },
+  "9334a23": {
+    "summary": "修正 registries 层级 docstring 并新增文件体量阈值处置政策"
   },
   "93845b3": {
     "summary": "覆盖层命令清除旧状态消息，静默命令补回执",
@@ -1661,6 +1688,9 @@
   "a6f336f": {
     "summary": "为问题 IKINF3 新增 UI 打磨设计计划"
   },
+  "a78d300": {
+    "summary": "自动回滚失败的扩展 setup（A13）"
+  },
   "a819973": {
     "summary": "双语用户手册（英/中），打开时套用主题，修复表格布局"
   },
@@ -1685,6 +1715,9 @@
   },
   "aba991e": {
     "summary": "登记 2026-09-24 分支审查报告"
+  },
+  "abae30c": {
+    "summary": "补录缺失中文翻译至清零"
   },
   "ac41c84": {
     "summary": "文档同步 --help 输出与 CLI 选项说明"
@@ -2241,6 +2274,9 @@
   "e91d433": {
     "summary": "登记 Gitee PR 37 机器人评审"
   },
+  "e97bec9": {
+    "summary": "新增 dev/ts 依赖组守护测试并成文测试组织约定"
+  },
   "e9aefbc": {
     "summary": "将英文小节标签移入常量区统一存放"
   },
@@ -2432,6 +2468,9 @@
   },
   "fadd935": {
     "summary": "在最终评审小节补充真实构建验证"
+  },
+  "fb030fd": {
+    "summary": "将 5222 行应用 pilot 测试拆为九个功能域文件（A7）"
   },
   "fb04d5f": {
     "summary": "将积压项 S2、S3 标记为已修复"
