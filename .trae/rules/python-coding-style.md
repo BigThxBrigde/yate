@@ -245,6 +245,17 @@ type Node = Leaf | Split
 存量代码无 `TypeVar` / `Generic` / `TypeAlias` 实体用法（见升级计划 F4），
 如遇遗留写法仅限兼容场景保留，新代码不得再写。
 
+**回调别名同规**（issue IKJUWP，2026-10-07）：`Callable` 别名一律用 `type` 语句，
+如 `type OutputFn = Callable[[bytes], None]`。别名**落在拥有该概念的模块**，
+消费者沿合法依赖方向import（flows 域内共享的注入式能力词汇表放在
+`yate/flows/__init__.py`，它不 import 任何子模块）；**不建**全局回调别名模块
+（那是§三.1 废止的"公共类型层"）。是否值得起名按三条判据：跨模块复用、
+位置不可自解释（多参数、参数含义靠文档）、模块内成组重复；一次性且参数名
+已自解释的形态保持内联。守护用例
+`tests/test_architecture.py::test_callable_aliases_use_type_statements` 拦截
+`yate/` **模块级 / 类级**的 `X = Callable[...]` 赋值写法与
+`typing.TypeAlias` / `TypeAliasType` 导入。
+
 ---
 
 ## 四、项目特定硬规则

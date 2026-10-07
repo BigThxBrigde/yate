@@ -59,6 +59,9 @@
 
 ## 四、别名总表（唯一规范来源）
 
+> 本表已按 §9.3 的偏离记录修订为**最终落地状态**：`SetApplyHook`、`DiffKeyHandler`、
+> `Clock` 三个别名按 R-C 回退为内联，`editor_view/terminal.py` 一行不成立已移除。
+
 ### 4.1 flows 域：`yate/flows/__init__.py`（域内共享词汇表，不新建 types 模块）
 
 | 别名 | 定义 | 消费点 |
@@ -89,14 +92,14 @@
 | `RootQuery` | `Callable[[], Path \| None]` | `editor_lsp/manager.py` | 新增（工作区根查询） |
 | `EventHook` | `Callable[[str], None]` | `editor_lsp/manager.py` | 新增（`on_event`） |
 | `OptionParser` | `Callable[[str], object \| None]` | `config.py` | 新增（`:215` `SetOptionSpec.parse`） |
-| `Clock` | `Callable[[], float]` | `services/idle_tracker.py` | 新增（可注入时钟） |
+| `Clock` | `Callable[[], float]` | `services/idle_tracker.py` | 新增（可注入时钟）→ **已回退内联**（R-C，见 §9.3） |
 | `RollbackHook` | `Callable[[], None]` | `services/extensions.py` | 新增（`ExtensionLoader._scope`） |
 | `CommandDecorator` | `Callable[[CommandFunc], CommandFunc]` | `services/extensions.py` | 新增（`ExtensionAPI.command` 返回） |
 | `AnyCallback` | `Callable[..., Any]` | `services/extensions.py` | 新增（`register_action` / `bind_key`） |
 | `TeardownHook` | `Callable[[ExtensionAPI], None]` | `services/extensions.py` | 新增（2 处） |
 | `ExcepthookFn` | `Callable[..., Any]` | `logs.py` | 新增（3 处） |
 | `EventDeliverer` | `Callable[[Message], None]` | `keyproto/driver_windows.py` | 新增（`cast` 目标） |
-| `SetApplyHook` | `Callable[[Editor, object], None]` | `commands.py` | 新增（`SET_APPLY` 表项） |
+| ~~`SetApplyHook`~~ | ~~`Callable[[Editor, object], None]`~~ | ~~`commands.py`~~ | **已回退内联**（表项元素类型，R-C，见 §9.3） |
 | `SectionFn` | `Callable[[], list[str]]` | `diagnostics.py` | 新增（`sections` 表项） |
 
 ### 4.3 L2 `editor_view`
@@ -106,8 +109,8 @@
 | `ThemeListener` | `Callable[[], None]` | `editor_view/theme.py` | `_listeners` / `subscribe` / `attach` |
 | `Unsubscribe` | `Callable[[], None]` | `editor_view/theme.py` | 7 个组件的 `_theme_unsubscribe`（F4，R-D：与 `ThemeListener` 同形异义） |
 | `PromptCompleter` | `Callable[[str, str], list[str]]` | `editor_view/commandline.py` | 普通赋值改 `type`（F2） |
-| `DiffKeyHandler` | `Callable[[DiffPane], None]` | `editor_view/diffview.py` | 3 张键表（`diffview.py:157,174,192`） |
-| `OutputFn` / `ExitFn` |复用 `editor_term.pty_proc`（F10 方向合法） | — | `editor_view/terminal.py` 的 `on_output` / `on_exit` |
+| ~~`DiffKeyHandler`~~ | ~~`Callable[[DiffPane], None]`~~ | ~~`editor_view/diffview.py`~~ | **已回退内联**（键表元素类型，R-C，见 §9.3） |
+| `OutputFn` / `ExitFn` | 复用 `editor_term.pty_proc`（F10 方向合法） | — | 消费侧：`tests/test_terminal.py`、`tests/test_app_terminal.py`、`tools/smoke_test/scenarios/integration.py`（`editor_view/terminal.py` 无可别名化注解，见 §9.3 偏离 4） |
 
 ### 4.4 测试 / 工具（只复用，不新增别名定义）
 
@@ -212,3 +215,73 @@
   无需变更（F9）；
 - `Editor` / flows 均不持有新的 App 句柄，能力注入形态不变（`spawn=app.run_worker` 等原样）；
 - R9/R10/R12/R13 不涉及；R2 不新增协议。
+
+## 九、执行结果与偏离记录（2026-10-07 回填）
+
+### 9.1 门禁实测（主代理亲自跑，worktree 内`.venv`）
+
+| 命令 | 退出码 | 结果 |
+|---|---|---|
+| `python -m pyright yate/ tests/ tools/` | 0 | `0 errors, 0 warnings, 0 informations` |
+| `python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75` | 0 | 覆盖率 **91.44%**（13441 stmts / 929 miss，4438 branch / 429 miss），门禁 75 通过 |
+| `python -m pytest tests/test_architecture.py -q` | 0 | **25 passed** |
+| `python -m tools.smoke_test run --tag integration --no-color` | 0 | **6/6 scenarios，57/57 checks**，3.14s |
+
+改动文件覆盖率：`yate/flows/__init__.py` 100%、`yate/config.py` 97%、`yate/logs.py` 94%、
+`yate/services/extensions.py` 91%、`yate/editor_lsp/manager.py` 85%、`yate/editor_view/theme.py` 84%。
+
+### 9.2 审核与修复（`code-review-expert` 子代理，只读评审 + 实测）
+
+评审结论"不可按现状合并"，6 MAJOR / 6 MINOR / 2 NIT，逐条处理如下：
+
+| 编号 | 问题 | 处理 |
+|---|---|---|
+| MAJOR-1 | `MessageFn` 注释把参数写反（实为 `message(text, kind)`，kind 取 `info/error/warn/ok`） | 已按 `yate/editor.py:498` 与 `commandline.py:53` `MESSAGE_COLORS` 订正 |
+| MAJOR-2 | `PromptCompleter` 新旧注释叠加且第二参数写成 `prefix` | 删除旧行，按 `self.bar.completer(current, mode)` 改回 `mode` |
+| MAJOR-3 | `ConnectFn` 注释把进程写成 `protocol`（`protocol` 是同文件无关兄弟模块） | 订正为 `(reader, writer, process)` |
+| MAJOR-4 | `EventHook` 编造 `started/stopped/failed` 事件 | 按 `_fire()` 实测改为 `state` / `diagnostics` |
+| MAJOR-5 | 守护判定范围超出自身文档（误报数据表），并逼出两个不该存在的别名 | 判定收窄为"顶层就是 `Callable[...]`"；回退 `SetApplyHook`、`DiffKeyHandler`（见 9.3 偏离 2） |
+| MAJOR-6 | `architecture-boundaries.md` §六仍写 24 个用例 | 已改 25 + 对照表补第 25 行 + §六新增「回调别名」条目 |
+| MINOR-1 | 方案未回填实测与偏离 | 本节 |
+| MINOR-2 | 规则改动未随代码提交 | 已并入本次提交 |
+| MINOR-3 | 删除 `# noqa: Any` 后未在 `Screen[Any]` 新家补理由 | `OverlayPusher` 行补 `# noqa: Any - any Textual Screen` |
+| MINOR-4 | `OptionParser` 注释写"拼写无效"（拼写早在 `SET_OPTION_INDEX` 解析完） | 改为"值无效" |
+| MINOR-5 | 守护漏报：`if`/`try` 内绑定、字符串前引号、`typing.Callable` | 递归进 `if`/`while`/`try`，新增限定名与字符串注解判定 |
+| MINOR-6 | `flows/__init__.py` 包根新增两个 textual 导入 | docstring 显式声明该事实与理由 |
+| NIT-1 | `Clock` 仅 1 处消费、参数名已自解释 | 按 R-C 回退内联 |
+| NIT-2 | `ClientFactory` 注释"可注入"话术 | 改为指向 `set_client_factory` 的事实描述 |
+
+守护用例负向演练（临时探针文件，已删除）：**6 类违规全部拦截**（普通赋值、带注解赋值、
+`typing.Callable`、字符串前引号、模块级 `if` 内、类体），**3 类放行形态零误伤**
+（数据表 `dict[str, Callable[...]]`、裸声明 `Field: Callable[...]`、函数体内实例属性）。
+
+### 9.3 偏离记录
+
+1. **波次合并执行**：Wave 0/1 按文件合并（同一文件的"别名定义 + 消费点"一次改完），
+   波次门禁（每波 pyright）不变；理由：跨波次拆同一文件会让文件在两波之间处于
+   "已定义未使用"的中间态，且把编辑轮次翻倍。
+2. **三个别名按 R-C 回退为内联**：`commands.SetApplyHook`（全仓 1 处消费）、
+   `editor_view.diffview.DiffKeyHandler`（键表元素类型，表名已自解释）、
+   `services.idle_tracker.Clock`（参数名即 `clock`）。最终新增 **19** 个别名、
+   迁移 **9** 个存量普通赋值别名（`ClosedHook` / `CommandFunc` / `ActionFunc` /
+   `PromptCompleter` / `OutputFn` / `ExitFn` / `ConnectFn` / `NotificationFn` /
+   `ExitState`），`yate/` 内 `type X =` 共 **33** 处（改动前 5 处）。
+3. **计划外的消费点**：`yate/editor_view/palette.py` 新增
+   `from yate.keymaps.base import ActionRunner`（§四 清单未列），与
+   `flows/overlay_flows.py` 同为 `execute_action` 复用点。
+4. **§4.3 一行不成立**：原计划"`editor_view/terminal.py` 复用 `OutputFn`/`ExitFn`"
+   不存在可别名化的注解——该处 `on_output` / `on_exit` 是具体方法
+   （`terminal.py:166,177`），已从表中移除；改为由 `tests/test_terminal.py`、
+   `tests/test_app_terminal.py`、`tools/smoke_test/scenarios/integration.py`
+   三个消费侧复用。
+5. **theme 别名采用限定形式**：7 个组件已 `from . import theme`，故写作
+   `theme.Unsubscribe` 而非再插一行 `from .theme import Unsubscribe`，
+   避免同一模块出现两条指向 `theme` 的导入。
+
+### 9.4 执行方式说明（对齐 `subagent-workflow.md`）
+
+本任务 38 个改动文件全部落在 `yate/`（产品源码），而 `subagent-workflow.md` §一.3
+规定子代理不得修改产品源码，故**代码实施由主代理亲自执行**；子代理仅用于
+Wave 3 的只读独立评审（`code-review-expert`，1 名成员，全程 139 次工具调用，
+产出实测门禁数据并给出 14 条问题，全部处置见 9.2）。这是规则冲突时的显式取舍，
+未跳过审核环节。
