@@ -9,11 +9,13 @@ import asyncio
 import threading
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 import pytest
 from textual.widget import Widget
 from yate.app import YateApp
 from yate.editor_view.manual import MarkdownDocScreen
 from conftest import wait_until
+from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
 # ------------------------------------------------------ manual / markdown doc
 
@@ -21,38 +23,40 @@ from conftest import wait_until
 def test_f8_opens_manual_and_esc_closes() -> None:
     from textual.widgets import Markdown, Static
 
-    from yate.editor_view.manual import load_manual_markdown
-
     async def scenario() -> None:
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            await pilot.press("f8")
-            await pilot.pause()
-            assert isinstance(app.screen, MarkdownDocScreen)
-            md = app.screen.query_one("#doc-md", Markdown)
-            loading = app.screen.query_one("#doc-loading", Static)
-            # the markdown worker reads/parses off the loop; poll until the
-            # load completes before asserting content -- a loaded CI box can
-            # still be mid-read after the first pause (asserting the source
-            # immediately once raced as '' != manual there)
-            assert await wait_until(
-                pilot, lambda: not loading.display, timeout=15.0
-            )
-            # F8 opens the default (english) manual
-            assert md.source == load_manual_markdown("en")
-            # the viewer follows the active yate theme via the bridge -- no
-            # per-screen theme switch happens
-            assert app.theme == "yate-mocha"
-            # f8 again must not stack a second viewer
-            await pilot.press("f8")
-            await pilot.pause()
-            assert len(app.screen_stack) == 2
-            await pilot.press("escape")
-            await pilot.pause()
-            assert not isinstance(app.screen, MarkdownDocScreen)
-            # ... and the theme is still yate-mocha afterwards (no restore)
-            assert app.theme == "yate-mocha"
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                assert isinstance(app.screen, MarkdownDocScreen)
+                md = app.screen.query_one("#doc-md", Markdown)
+                loading = app.screen.query_one("#doc-loading", Static)
+                # the markdown worker reads/parses off the loop; poll until the
+                # load completes before asserting content -- a loaded CI box can
+                # still be mid-read after the first pause (asserting the source
+                # immediately once raced as '' != manual there)
+                assert await wait_until(
+                    pilot, lambda: not loading.display, timeout=15.0
+                )
+                # F8 loads the injected fixture document
+                assert md.source == MANUAL_DOC_FIXTURE
+                # the viewer follows the active yate theme via the bridge -- no
+                # per-screen theme switch happens
+                assert app.theme == "yate-mocha"
+                # f8 again must not stack a second viewer
+                await pilot.press("f8")
+                await pilot.pause()
+                assert len(app.screen_stack) == 2
+                await pilot.press("escape")
+                await pilot.pause()
+                assert not isinstance(app.screen, MarkdownDocScreen)
+                # ... and the theme is still yate-mocha afterwards (no restore)
+                assert app.theme == "yate-mocha"
 
     asyncio.run(scenario())
 
@@ -182,31 +186,47 @@ def test_valid_custom_yate_theme_gets_working_bridge() -> None:
 
 
 @pytest.mark.parametrize(
-    "cmd_arg,lang",
-    [("zh", "zh"), ("en", "en"), ("bogus", "en")],
-    ids=["zh", "en", "bogus"],
+    "cmd_arg,expected_lang",
+    [("zh", "zh"), ("en", "en"), ("bogus", "bogus")],
+    ids=["zh", "en", "bogus-passed-through"],
 )
-def test_manual_command_selects_language(cmd_arg: str, lang: str) -> None:
+def test_manual_command_selects_language(cmd_arg: str, expected_lang: str) -> None:
+    """``:manual <arg>`` routes the requested language to the loader.
+
+    The loader stub records ``(kind, lang)`` -- a fixed ``return_value``
+    used to hide exactly this routing (PR !64 review improvement): the
+    command must forward its argument (or the ``en`` default) as the
+    language.  The bogus-to-en normalization lives inside the real
+    ``load_doc_markdown``, which is stubbed here for render speed.
+    """
     async def scenario() -> None:
         from textual.widgets import Markdown, Static
 
-        from yate.editor_view.manual import load_manual_markdown
+        calls: list[tuple[str, str]] = []
+
+        def fake_load(kind: str, lang: str = "en") -> str:
+            calls.append((kind, lang))
+            return MANUAL_DOC_FIXTURE
 
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            app.editor.run_command(f"manual {cmd_arg}".strip())
-            await pilot.pause()
-            assert isinstance(app.screen, MarkdownDocScreen)
-            loading = app.screen.query_one("#doc-loading", Static)
-            # the document loads in a background worker; a loaded CI box can
-            # still be mid-read after the first pause (pipeline #82 raced
-            # '' != manual there) -- poll until the load lands first
-            assert await wait_until(
-                pilot, lambda: not loading.display, timeout=15.0
-            )
-            md = app.screen.query_one("#doc-md", Markdown)
-            assert md.source == load_manual_markdown(lang)
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown", side_effect=fake_load
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                app.editor.run_command(f"manual {cmd_arg}".strip())
+                await pilot.pause()
+                assert isinstance(app.screen, MarkdownDocScreen)
+                loading = app.screen.query_one("#doc-loading", Static)
+                # the document loads in a background worker; a loaded CI box can
+                # still be mid-read after the first pause (pipeline #82 raced
+                # '' != manual there) -- poll until the load lands first
+                assert await wait_until(
+                    pilot, lambda: not loading.display, timeout=15.0
+                )
+                md = app.screen.query_one("#doc-md", Markdown)
+                assert md.source == MANUAL_DOC_FIXTURE
+                assert calls == [("manual", expected_lang)]
 
     asyncio.run(scenario())
 
@@ -227,78 +247,85 @@ def test_manual_search_filters_and_cycles_matches() -> None:
 
     async def scenario() -> None:
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            await pilot.press("f8")
-            await pilot.pause()
-            screen = app.screen
-            assert isinstance(screen, MarkdownDocScreen)
-            bar = screen.query_one("#doc-search-bar", Horizontal)
-            field = screen.query_one("#doc-search-input", Input)
-            status = screen.query_one("#doc-search-status", Static)
-            md = screen.query_one("#doc-md", Markdown)
-            # same worker-race guard as test_manual_command_selects_language:
-            # searching an unloaded document would race 0 hits
-            loading = screen.query_one("#doc-loading", Static)
-            assert await wait_until(
-                pilot, lambda: not loading.display, timeout=15.0
-            )
-
-            def footer_text() -> str:
-                return _widget_plain_text(
-                    screen.query_one("#doc-footer", Static)
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                bar = screen.query_one("#doc-search-bar", Horizontal)
+                field = screen.query_one("#doc-search-input", Input)
+                status = screen.query_one("#doc-search-status", Static)
+                md = screen.query_one("#doc-md", Markdown)
+                # same worker-race guard as test_manual_command_selects_language:
+                # searching an unloaded document would race 0 hits
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot, lambda: not loading.display, timeout=15.0
                 )
 
-            assert not bar.display
-            # bar hidden: footer advertises n/N to repeat a search
-            assert "n/N" in footer_text()
-            # ctrl+f reveals the search bar and focuses it
-            await pilot.press("ctrl+f")
-            await pilot.pause()
-            assert bar.display
-            assert screen.focused is field
-            # bar open: footer must advertise Enter / Shift+Enter (typing
-            # n/N there are search characters, not navigation)
-            search_footer = footer_text()
-            assert "enter" in search_footer.lower()
-            assert "shift+enter" in search_footer.lower()
-            assert "repeat last match" not in search_footer
-            # typing live-marks every block containing the query
-            await pilot.press("y", "a", "t", "e")
-            await pilot.pause()
-            private = cast(Any, screen)
-            assert len(private._hits) >= 2
-            assert private._hit_index == 0
-            assert len(list(md.query(".doc-hit-current"))) == 1
-            assert len(list(md.query(".doc-hit"))) >= 1
-            assert "1/" in str(status.content)
-            # enter advances to the next match, shift+enter goes back
-            await pilot.press("enter")
-            await pilot.pause()
-            assert private._hit_index == 1
-            assert "2/" in str(status.content)
-            await pilot.press("shift+enter")
-            await pilot.pause()
-            assert private._hit_index == 0
-            # escape while typing closes only the bar (manual stays open)…
-            await pilot.press("escape")
-            await pilot.pause()
-            assert not bar.display
-            assert isinstance(app.screen, MarkdownDocScreen)
-            # footer switches back to the browse hints (n/N repeat)
-            assert "n/N" in footer_text()
-            assert "repeat last match" in footer_text()
-            # …and n/N repeat the last search with highlights still present
-            await pilot.press("n")
-            await pilot.pause()
-            assert private._hit_index == 1
-            await pilot.press("N")
-            await pilot.pause()
-            assert private._hit_index == 0
-            # escape with the bar closed dismisses the manual itself
-            await pilot.press("escape")
-            await pilot.pause()
-            assert not isinstance(app.screen, MarkdownDocScreen)
+                def footer_text() -> str:
+                    return _widget_plain_text(
+                        screen.query_one("#doc-footer", Static)
+                    )
+
+                assert not bar.display
+                # bar hidden: footer advertises n/N to repeat a search
+                assert "n/N" in footer_text()
+                # ctrl+f reveals the search bar and focuses it
+                await pilot.press("ctrl+f")
+                await pilot.pause()
+                assert bar.display
+                assert screen.focused is field
+                # bar open: footer must advertise Enter / Shift+Enter (typing
+                # n/N there are search characters, not navigation)
+                search_footer = footer_text()
+                assert "enter" in search_footer.lower()
+                assert "shift+enter" in search_footer.lower()
+                assert "repeat last match" not in search_footer
+                # typing live-marks every block containing the query; the
+                # trailing pause spans the 0.12s debounce window, which the
+                # tiny fixture no longer covers as a side effect of slow
+                # big-document processing
+                await pilot.press("y", "a", "t", "e")
+                await pilot.pause(0.15)
+                private = cast(Any, screen)
+                assert len(private._hits) >= 2
+                assert private._hit_index == 0
+                assert len(list(md.query(".doc-hit-current"))) == 1
+                assert len(list(md.query(".doc-hit"))) >= 1
+                assert "1/" in str(status.content)
+                # enter advances to the next match, shift+enter goes back
+                await pilot.press("enter")
+                await pilot.pause()
+                assert private._hit_index == 1
+                assert "2/" in str(status.content)
+                await pilot.press("shift+enter")
+                await pilot.pause()
+                assert private._hit_index == 0
+                # escape while typing closes only the bar (manual stays open)…
+                await pilot.press("escape")
+                await pilot.pause()
+                assert not bar.display
+                assert isinstance(app.screen, MarkdownDocScreen)
+                # footer switches back to the browse hints (n/N repeat)
+                assert "n/N" in footer_text()
+                assert "repeat last match" in footer_text()
+                # …and n/N repeat the last search with highlights still present
+                await pilot.press("n")
+                await pilot.pause()
+                assert private._hit_index == 1
+                await pilot.press("N")
+                await pilot.pause()
+                assert private._hit_index == 0
+                # escape with the bar closed dismisses the manual itself
+                await pilot.press("escape")
+                await pilot.pause()
+                assert not isinstance(app.screen, MarkdownDocScreen)
 
     asyncio.run(scenario())
 
@@ -311,57 +338,61 @@ def test_manual_search_step_lands_on_exact_rendered_row() -> None:
 
     async def scenario() -> None:
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            await pilot.press("f8")
-            await pilot.pause()
-            screen = app.screen
-            assert isinstance(screen, MarkdownDocScreen)
-            md = screen.query_one("Markdown")
-            # layout readiness, not just child count: _run_search scans
-            # widget.region.height, which is 0 for every widget until the
-            # refresh cycle lays the screen out (flaky under full-suite
-            # load, where that cycle lands after the search below)
-            await wait_until(
-                pilot,
-                lambda: len(list(md.walk_children())) > 20
-                and any(w.region.height > 0 for w in md.walk_children(Widget)),
-            )
-            private = cast(Any, screen)
-            scroll = screen.query_one("#doc-scroll", VerticalScroll)
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                md = screen.query_one("Markdown")
+                # layout readiness, not just child count: _run_search scans
+                # widget.region.height, which is 0 for every widget until the
+                # refresh cycle lays the screen out (flaky under full-suite
+                # load, where that cycle lands after the search below)
+                await wait_until(
+                    pilot,
+                    lambda: len(list(md.walk_children())) > 20
+                    and any(w.region.height > 0 for w in md.walk_children(Widget)),
+                )
+                private = cast(Any, screen)
+                scroll = screen.query_one("#doc-scroll", VerticalScroll)
 
-            # table cell content is now searched too
-            private._run_search("item")
-            assert private._hits
-            widget_types = {type(w).__name__ for w, _r, _c, _l in private._hits}
-            assert "MarkdownTableCellContents" in widget_types
+                # table cell content is now searched too
+                private._run_search("item")
+                assert private._hits
+                widget_types = {type(w).__name__ for w, _r, _c, _l in private._hits}
+                assert "MarkdownTableCellContents" in widget_types
 
-            # matches inside one wrapped widget must land on distinct rows:
-            # measure each target from the same baseline (top), so the row
-            # offset is the only thing that differs
-            private._run_search("ctrl")
-            assert len(private._hits) > 10
-            moved = 0
-            for i in range(1, len(private._hits)):
-                w0, r0, _c0, _l0 = private._hits[i - 1]
-                w1, r1, _c1, _l1 = private._hits[i]
-                if w0 is w1 and r0 != r1:
-                    scroll.scroll_to(y=0, animate=False, immediate=True)
-                    private._hit_index = i - 1
-                    private._goto_current_hit()
-                    y0 = float(scroll.scroll_target_y)
-                    scroll.scroll_to(y=0, animate=False, immediate=True)
-                    private._hit_index = i
-                    private._goto_current_hit()
-                    y1 = float(scroll.scroll_target_y)
-                    if y0 == y1 == float(scroll.max_scroll_y):
-                        continue  # bottom clamp: both rows already visible
-                    assert y0 != y1, (
-                        f"same-widget rows {r0}/{r1} share a scroll target"
-                    )
-                    assert abs((y1 - y0) - (r1 - r0)) <= 1
-                    moved += 1
-            assert moved > 0
+                # matches inside one wrapped widget must land on distinct rows:
+                # measure each target from the same baseline (top), so the row
+                # offset is the only thing that differs
+                private._run_search("ctrl")
+                assert len(private._hits) > 10
+                moved = 0
+                for i in range(1, len(private._hits)):
+                    w0, r0, _c0, _l0 = private._hits[i - 1]
+                    w1, r1, _c1, _l1 = private._hits[i]
+                    if w0 is w1 and r0 != r1:
+                        scroll.scroll_to(y=0, animate=False, immediate=True)
+                        private._hit_index = i - 1
+                        private._goto_current_hit()
+                        y0 = float(scroll.scroll_target_y)
+                        scroll.scroll_to(y=0, animate=False, immediate=True)
+                        private._hit_index = i
+                        private._goto_current_hit()
+                        y1 = float(scroll.scroll_target_y)
+                        if y0 == y1 == float(scroll.max_scroll_y):
+                            continue  # bottom clamp: both rows already visible
+                        assert y0 != y1, (
+                            f"same-widget rows {r0}/{r1} share a scroll target"
+                        )
+                        assert abs((y1 - y0) - (r1 - r0)) <= 1
+                        moved += 1
+                assert moved > 0
 
     asyncio.run(scenario())
 
@@ -372,36 +403,43 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
 
     async def scenario() -> None:
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            await pilot.press("f8")
-            await pilot.pause()
-            screen = app.screen
-            assert isinstance(screen, MarkdownDocScreen)
-            # "/" (textual key name "slash") also opens the search bar
-            await pilot.press("slash")
-            await pilot.pause()
-            bar = screen.query_one("#doc-search-bar", Horizontal)
-            field = screen.query_one("#doc-search-input", Input)
-            status = screen.query_one("#doc-search-status", Static)
-            md = screen.query_one("#doc-md", Markdown)
-            assert bar.display
-            assert screen.focused is field
-            # a query present nowhere reports "no matches" and tints nothing
-            await pilot.press("z", "q", "z", "q", "w", "x")
-            await pilot.pause()
-            private = cast(Any, screen)
-            assert private._hits == []
-            assert private._hit_index == -1
-            assert len(list(md.query(".doc-hit"))) == 0
-            assert "no matches" in str(status.content)
-            # clearing the query removes the error state
-            await pilot.press(*(("backspace",) * 10))
-            await pilot.pause()
-            assert field.value == ""
-            assert private._hits == []
-            assert "type to search" in str(status.content)
-            assert isinstance(app.screen, MarkdownDocScreen)
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                # "/" (textual key name "slash") also opens the search bar
+                await pilot.press("slash")
+                await pilot.pause()
+                bar = screen.query_one("#doc-search-bar", Horizontal)
+                field = screen.query_one("#doc-search-input", Input)
+                status = screen.query_one("#doc-search-status", Static)
+                md = screen.query_one("#doc-md", Markdown)
+                assert bar.display
+                assert screen.focused is field
+                # a query present nowhere reports "no matches" and tints
+                # nothing (the pause spans the debounce window -- see the
+                # filters test)
+                await pilot.press("z", "q", "z", "q", "w", "x")
+                await pilot.pause(0.15)
+                private = cast(Any, screen)
+                assert private._hits == []
+                assert private._hit_index == -1
+                assert len(list(md.query(".doc-hit"))) == 0
+                assert "no matches" in str(status.content)
+                # clearing the query removes the error state (debounced
+                # flush needs the same window as above)
+                await pilot.press(*(("backspace",) * 10))
+                await pilot.pause(0.15)
+                assert field.value == ""
+                assert private._hits == []
+                assert "type to search" in str(status.content)
+                assert isinstance(app.screen, MarkdownDocScreen)
 
     asyncio.run(scenario())
 
@@ -410,18 +448,13 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
 
 
 def test_manual_paints_before_content_loads() -> None:
-    from unittest.mock import patch
-
     from textual.widgets import Markdown, Static
 
-    from yate.editor_view import manual as manual_mod
-
-    original = manual_mod.load_doc_markdown
     gate = threading.Event()
 
     def slow_load(kind: str, lang: str = "en") -> str:
         gate.wait(timeout=10.0)
-        return original(kind, lang)
+        return MANUAL_DOC_FIXTURE
 
     async def scenario() -> None:
         app = YateApp()
@@ -449,7 +482,7 @@ def test_manual_paints_before_content_loads() -> None:
                     timeout=30.0,
                 )
                 assert loaded
-                assert md.source == original("manual", "en")
+                assert md.source == MANUAL_DOC_FIXTURE
                 assert not loading.display
                 assert isinstance(app.screen, MarkdownDocScreen)
 

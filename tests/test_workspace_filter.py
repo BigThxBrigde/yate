@@ -9,12 +9,18 @@ per-directory, negation, directory-only rules).
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from yate.services.workspace import IGNORED_NAMES, Entry, Workspace
+from yate.services.workspace import (
+    IGNORED_NAMES,
+    Entry,
+    Workspace,
+    _IgnorePattern,
+)
 
 
 def _raise_permission(*_args: Any, **_kwargs: Any) -> Any:
@@ -487,6 +493,27 @@ def test_is_text_file_rejects_unknown_suffixes(tmp_path: Path) -> None:
 # --- traversal robustness (S11: iteration instead of recursion) --------------
 
 
+def chain_depths(root: Path, depth: int) -> dict[Path, int]:
+    """Map each node of a synthetic *depth*-level ``child`` chain to its level.
+
+    The 1500-level stubs consult this table instead of re-running
+    ``path.relative_to(root)`` per call -- each of those costs O(depth)
+    (3.13 pathlib rebuilds and compares parent paths level by level),
+    which made the whole chain quadratic.  Nodes are built one per level
+    from a precomputed string (``Path(raw)``), never by chaining
+    ``parent / "child"``: 3.13's ``/`` accumulates the parent's raw path
+    fragments, so a 1500-level node would join and re-split ~1500
+    fragments on every use, keeping the whole test quadratic.  The table
+    doubles as the ``expanded`` set for :meth:`Workspace.visible_tree`.
+    """
+    raw = str(root)
+    depths: dict[Path, int] = {}
+    for level in range(1, depth + 1):
+        raw = f"{raw}/child"
+        depths[Path(raw)] = level
+    return depths
+
+
 def test_walk_files_keeps_depth_first_order_across_directories(
     tmp_path: Path,
 ) -> None:
@@ -514,23 +541,47 @@ def test_walk_files_survives_a_1500_level_chain(
     the chain is fed through the same ``Path.iterdir`` seam the unreadable-
     directory tests use; only ``child``/``leaf.txt`` names answer "yes" to
     ``is_dir`` and everything else -- including ``is_symlink`` -- stays a
-    plain in-memory Path.
+    plain in-memory Path.  Chain depth comes from the O(1) ``chain_depths``
+    lookup table, and ``_dir_ignores`` is stubbed out wholesale so the fake
+    deep paths never hit real syscalls (PR !64 review improvement: the
+    former global ``Path.stat`` / ``Path.read_text`` stubs reached far
+    beyond this test).  The fake root is a short relative path, and the
+    stubs hand out the prebuilt ``chain_depths`` node objects instead of
+    constructing fresh ones per call, so each 1500-segment path is parsed
+    and formatted exactly once.
     """
-    root = root_of(ws)
+    root = Path("chain-root")
+    monkeypatch.setattr(ws, "root", root)
     depth = 1500
+    depths = chain_depths(root, depth)
+    nodes = list(depths)
 
-    def chain_iterdir(path: Path) -> Any:
-        if path == root:
-            return iter([root / "child"])
-        if len(path.relative_to(root).parts) >= depth:
+    def chain_iterdir(path: Path) -> Iterator[Path]:
+        level = depths.get(path, 0)
+        if level == 0:
+            return iter([nodes[0]])
+        if level >= depth:
             return iter([path / "leaf.txt"])
-        return iter([path / "child"])
+        return iter([nodes[level]])
 
     def chain_is_dir(path: Path) -> bool:
-        return path == root or path.name == "child"
+        return path.name == "child" or path == root
 
     def chain_is_symlink(path: Path) -> bool:
         return False
+
+    def chain_dir_ignores(
+        _self: Workspace, _directory: Path
+    ) -> list[_IgnorePattern]:
+        """No ignore files anywhere on the chain.
+
+        ``_dir_ignores`` is where the fake deep paths would hit real
+        stat/read syscalls; returning no patterns matches the walk
+        semantics the former global ``Path.stat`` / ``Path.read_text``
+        stubs produced via their ``OSError`` branches, but stays on the
+        workspace seam instead of patching ``pathlib`` globally.
+        """
+        return []
 
     monkeypatch.setattr("pathlib.Path.iterdir", chain_iterdir)
     monkeypatch.setattr("pathlib.Path.is_dir", chain_is_dir)
@@ -540,6 +591,7 @@ def test_walk_files_survives_a_1500_level_chain(
     # Windows-masked, but Linux PATH_MAX (4k) raises Errno 36 partway down
     # the chain (pathlib only ignores ENOENT-class lstat errors).
     monkeypatch.setattr("pathlib.Path.is_symlink", chain_is_symlink)
+    monkeypatch.setattr(Workspace, "_dir_ignores", chain_dir_ignores)
 
     files = ws.walk_files()
 
@@ -549,22 +601,29 @@ def test_walk_files_survives_a_1500_level_chain(
 def test_visible_tree_survives_a_1500_level_chain(
     ws: Workspace, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Flattening a 1500-level expanded chain must not recurse (S11)."""
-    root = root_of(ws)
-    depth = 1500
+    """Flattening a 1500-level expanded chain must not recurse (S11).
 
-    expanded: set[Path] = set()
-    node = root
-    for _ in range(depth):
-        node = node / "child"
-        expanded.add(node)
+    The stubbed ``list_dir`` reads depth from the O(1) ``chain_depths``
+    lookup table; the table's keys double as the expanded set.  As in the
+    walk test above, the fake root is a short relative path and the stub
+    hands out the prebuilt node objects, so the product's per-row
+    ``expanded`` membership checks stay constant cost instead of
+    re-hashing a ~9k-character path 1500 times.
+    """
+    root = Path("chain-root")
+    monkeypatch.setattr(ws, "root", root)
+    depth = 1500
+    depths = chain_depths(root, depth)
+    nodes = list(depths)
+    expanded: set[Path] = set(depths)
 
     def chain_list_dir(path: Path) -> list[Entry]:
-        if path == root:
-            return [Entry(root / "child", "child", True)]
-        if len(path.relative_to(root).parts) >= depth:
+        level = depths.get(path, 0)
+        if level == 0:
+            return [Entry(nodes[0], "child", True)]
+        if level >= depth:
             return []
-        return [Entry(path / "child", "child", True)]
+        return [Entry(nodes[level], "child", True)]
 
     def chain_is_symlink(path: Path) -> bool:
         return False

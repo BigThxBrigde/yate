@@ -8,11 +8,13 @@ from __future__ import annotations
 import asyncio
 import threading
 from pathlib import Path
+from unittest.mock import patch
 import pytest
 from yate.app import YateApp
 from yate.editor_syntax.tokens import Token
 from yate.editor_view.manual import MarkdownDocScreen
 from conftest import wait_until
+from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
 # ------------------------------------------- SP3 render-path regression guards
 
@@ -231,48 +233,52 @@ def test_doc_search_debounce_merges_rapid_typing(
 
     async def scenario() -> None:
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            await pilot.press("f8")
-            await pilot.pause()
-            screen = app.screen
-            assert isinstance(screen, MarkdownDocScreen)
-            from textual.widgets import Static
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                from textual.widgets import Static
 
-            loading = screen.query_one("#doc-loading", Static)
-            assert await wait_until(
-                pilot, lambda: not loading.display, timeout=15.0
-            )
-            # freeze the trailing window before touching the input: with a
-            # 30s debounce the timer cannot fire mid-test no matter how the
-            # runner schedules the presses (a loaded CI box once let the
-            # real 0.12s window elapse between keystrokes and recorded an
-            # intermediate rebuild, ['ke', 'key'])
-            monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
-            await pilot.press("slash")
-            await pilot.pause()
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot, lambda: not loading.display, timeout=15.0
+                )
+                # freeze the trailing window before touching the input: with a
+                # 30s debounce the timer cannot fire mid-test no matter how the
+                # runner schedules the presses (a loaded CI box once let the
+                # real 0.12s window elapse between keystrokes and recorded an
+                # intermediate rebuild, ['ke', 'key'])
+                monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
+                await pilot.press("slash")
+                await pilot.pause()
 
-            calls: list[str] = []
-            real_search = screen._run_search
+                calls: list[str] = []
+                real_search = screen._run_search
 
-            def counting(query: str) -> None:
-                calls.append(query)
-                real_search(query)
+                def counting(query: str) -> None:
+                    calls.append(query)
+                    real_search(query)
 
-            monkeypatch.setattr(screen, "_run_search", counting)
+                monkeypatch.setattr(screen, "_run_search", counting)
 
-            # four keystrokes: zero rebuilds while typing (the merge), then
-            # one rebuild carrying the final query when the window callback
-            # runs
-            keys = ("t", "h", "e", "m")
-            await pilot.press(*keys)
-            await pilot.pause()
-            assert calls == []
-            # the trailing window really is armed and pending (the manual
-            # flush below only covers the callback body, not the arming)
-            assert screen._search_timer is not None
-            screen._flush_search()
-            assert calls == ["".join(keys)]
+                # four keystrokes: zero rebuilds while typing (the merge), then
+                # one rebuild carrying the final query when the window callback
+                # runs
+                keys = ("t", "h", "e", "m")
+                await pilot.press(*keys)
+                await pilot.pause()
+                assert calls == []
+                # the trailing window really is armed and pending (the manual
+                # flush below only covers the callback body, not the arming)
+                assert screen._search_timer is not None
+                screen._flush_search()
+                assert calls == ["".join(keys)]
 
     asyncio.run(scenario())
 
@@ -284,39 +290,43 @@ def test_doc_search_enter_flushes_pending_query_immediately(
 
     async def scenario() -> None:
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            await pilot.press("f8")
-            await pilot.pause()
-            screen = app.screen
-            assert isinstance(screen, MarkdownDocScreen)
-            from textual.widgets import Static
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                from textual.widgets import Static
 
-            loading = screen.query_one("#doc-loading", Static)
-            assert await wait_until(
-                pilot, lambda: not loading.display, timeout=15.0
-            )
-            # freeze the trailing window before touching the input: with a
-            # 30s debounce no timer can fire, so the only way a search can
-            # run is the enter flush itself
-            monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
-            await pilot.press("slash")
-            await pilot.pause()
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot, lambda: not loading.display, timeout=15.0
+                )
+                # freeze the trailing window before touching the input: with a
+                # 30s debounce no timer can fire, so the only way a search can
+                # run is the enter flush itself
+                monkeypatch.setattr(screen, "_SEARCH_DEBOUNCE_S", 30.0)
+                await pilot.press("slash")
+                await pilot.pause()
 
-            calls: list[str] = []
-            real_search = screen._run_search
+                calls: list[str] = []
+                real_search = screen._run_search
 
-            def counting(query: str) -> None:
-                calls.append(query)
-                real_search(query)
+                def counting(query: str) -> None:
+                    calls.append(query)
+                    real_search(query)
 
-            monkeypatch.setattr(screen, "_run_search", counting)
+                monkeypatch.setattr(screen, "_run_search", counting)
 
-            # type, then submit: enter must flush the pending query right
-            # away instead of waiting the (frozen) window
-            await pilot.press("k", "e", "y")
-            await pilot.press("enter")
-            await pilot.pause()
-            assert calls == ["key"]
+                # type, then submit: enter must flush the pending query right
+                # away instead of waiting the (frozen) window
+                await pilot.press("k", "e", "y")
+                await pilot.press("enter")
+                await pilot.pause()
+                assert calls == ["key"]
 
     asyncio.run(scenario())
