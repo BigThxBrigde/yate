@@ -40,7 +40,8 @@
 - **Nerd Font 图标**：文件树与文件类型图标（`yate --install-font` 安装随包字体，
   并在可能时自动配置 Windows Terminal）
 - **模糊查找**：`Ctrl+P` 快速打开文件（fzf 式子序列匹配、命中字符高亮），
-  `Alt+Shift+P` 命令面板（全部 `:` 命令与命名动作）
+  结果列表旁附带实时文件预览窗格（默认占 palette 宽度 60%，经 yaterc 的
+  `file_preview` 字典配置），`Alt+Shift+P` 命令面板（全部 `:` 命令与命名动作）
 - **多 buffer 标签页**：按路径打开（`Ctrl+O` / `:e`）、新建空 buffer（`Ctrl+N` / `:enew`）、
   关闭标签（`Ctrl+W` / `:bd`）、切换标签（`Ctrl+PageUp/Down`、`:bn` / `:bp`）
 - **窗格分割（vim 风格）**：`:split` / `:vsplit`（别名 `:sp` / `:vs`，可带路径）、
