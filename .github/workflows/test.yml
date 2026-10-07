@@ -60,10 +60,11 @@ jobs:
         run: git remote set-url origin https://gitee.com/jermaine/yate.git
 
       - name: Changelog gate
-        # stdlib-only tool: fails when CHANGELOG*.md are stale vs git history;
-        # --require-zh enforces zh translations in RELEASED sections only
-        # ([Unreleased] lags freely and only warns — enforced at release)
-        run: python -m tools.changelog check --require-zh
+        # stdlib-only tool: fails when CHANGELOG*.md are stale vs git history.
+        # zh translation coverage is deliberately NOT gated here (2026-10-07
+        # user decision): `--require-zh` remains an opt-in local check
+        # (released sections only; unreleased gaps warn).
+        run: python -m tools.changelog check
 
       - name: Install package and dependencies
         run: python -m pip install -e ".[dev]"
