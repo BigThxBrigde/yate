@@ -1,8 +1,8 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-10-07 · yate 0.2.9
+> 由 git 历史自动生成于 2026-10-07 · yate 0.2.10
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.9...HEAD)
+## [0.2.10] - 2026-10-07 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.9...v0.2.10)
 
 ### 新功能
 
@@ -17,6 +17,13 @@
 
 ### 问题修复
 
+- close two holes in the callable-alias guard [缺中文] ([`39c11b0`](https://gitee.com/jermaine/yate/commit/39c11b080cfa2b9a22e001a1ab73ad3cbd312596))
+- revert the lint job to the linux runner [缺中文] ([`4f0ca47`](https://gitee.com/jermaine/yate/commit/4f0ca4794a3c623a43f6336bb671139f2b35dfda))
+- run the pyright lint job on a Windows runner [缺中文] ([`f0654cd`](https://gitee.com/jermaine/yate/commit/f0654cd988f3791a05c44f0048158c041585c16f))
+- pin pyright analysis platform to Windows [缺中文] ([`7a7604b`](https://gitee.com/jermaine/yate/commit/7a7604b45d8f2aa248d8690c77d612df3cfe5a1d))
+- follow the option table for the keymap rejection message [缺中文] ([`83f2dab`](https://gitee.com/jermaine/yate/commit/83f2dab31744ac4ccd94f3a494df7b768e5fb127))
+- correct the alias contracts and narrow the callable-alias guard [缺中文] ([`6a36195`](https://gitee.com/jermaine/yate/commit/6a361952406b28d71200de01a19d15c6b49e36f6))
+- degrade a missing :set apply handler to a warning (PR !61 M1) [缺中文] ([`3eee5f8`](https://gitee.com/jermaine/yate/commit/3eee5f80508729b5148818cd80d70da4994a4865))
 - 分词失败时退回纯文本行预览 ([`e7c2f25`](https://gitee.com/jermaine/yate/commit/e7c2f25c8b65801681b05f86737f2b09c583a51a))
 - 预览分词失败时优雅降级 ([`a9311bb`](https://gitee.com/jermaine/yate/commit/a9311bb62cc57bdd02faac1db7d6ea14dac99bb8))
 - 有界回收不干扰 worker 终端 ([`23f536a`](https://gitee.com/jermaine/yate/commit/23f536a448abe1f716a4da599f3566adee6fabd2))
@@ -42,6 +49,7 @@
 
 ### 重构
 
+- name the callback aliases with PEP 695 type statements [缺中文] ([`e49099a`](https://gitee.com/jermaine/yate/commit/e49099a4025c1321b12ecf4a2f447d699b8f5478))
 - 拆分加载器为 yaterc.py 并将 :set 改为表驱动（A8/A9） ([`8b529d4`](https://gitee.com/jermaine/yate/commit/8b529d418a9b57cc5eb60683a5349df5d3ff09b6))
 - 将 9 个流程模块迁入 yate/flows 子包（A10） ([`7e928de`](https://gitee.com/jermaine/yate/commit/7e928de28ae96c8ec4f4804f342eaeb0b6636fa9))
 - 收口 Textual 私有 API（A2） ([`304215a`](https://gitee.com/jermaine/yate/commit/304215a80317b0686ec53811e863d382eb27894c))
@@ -52,6 +60,15 @@
 
 ### 文档
 
+- register the PR !62 AI teammate review [缺中文] ([`25bc0c0`](https://gitee.com/jermaine/yate/commit/25bc0c00e6a5d48146ccf5567585842d908bf2a3))
+- record the stale smoke assertion and its repair [缺中文] ([`cdb7dc3`](https://gitee.com/jermaine/yate/commit/cdb7dc3897be9e10cf560ce8ed38cceeb0647a26))
+- register the callback-alias guard as case 25 [缺中文] ([`30c3a6b`](https://gitee.com/jermaine/yate/commit/30c3a6bc6300dca309aa19255bd8bcf7331d96fa))
+- record the Callable alias plan for IKJUWP [缺中文] ([`cc2c159`](https://gitee.com/jermaine/yate/commit/cc2c1596723eafbb6885c44dbfab6377ecb251a0))
+- register the PR !61 AI teammate review (index #36) [缺中文] ([`bb7c7d1`](https://gitee.com/jermaine/yate/commit/bb7c7d1e7dc761bb3a2e87342e99d4882662dd62))
+- sync the boundary rules with the audit-fixes reality [缺中文] ([`edee837`](https://gitee.com/jermaine/yate/commit/edee837de931f87090aea95c9fca39cf75f1ecd6))
+- backfill the repo-audit-fixes execution record [缺中文] ([`710903d`](https://gitee.com/jermaine/yate/commit/710903dfac7104a4f095415b8bab3ff647d04a00))
+- add the 13 zh translations for the audit-fixes commits [缺中文] ([`94b6c7f`](https://gitee.com/jermaine/yate/commit/94b6c7f4a07ae98812724eb088dd158be6ca6050))
+- absorb the repo-audit-fixes commits [缺中文] ([`e305421`](https://gitee.com/jermaine/yate/commit/e3054213679725fc1e00f08c6ccdab95da798a75))
 - 成文站外文档与应用内手册的权威分工（A16） ([`00f6b03`](https://gitee.com/jermaine/yate/commit/00f6b033d51c0b3d888ebcf601550ec2c8675bbb))
 - 补录缺失中文翻译至清零 ([`abae30c`](https://gitee.com/jermaine/yate/commit/abae30ccb08ab64e7c855a174a2bd8b92f1a451b))
 - 修正 registries 层级 docstring 并新增文件体量阈值处置政策 ([`9334a23`](https://gitee.com/jermaine/yate/commit/9334a23a7b97f114cebfdd038338605e1546ebb6))
@@ -128,6 +145,8 @@
 
 ### 构建与工程
 
+- replace CJK comments and docstring references with ASCII [缺中文] ([`65c152f`](https://gitee.com/jermaine/yate/commit/65c152fff3f0b66d94806ee0fa60106e834f044f))
+- drop the --require-zh gate flag [缺中文] ([`36728aa`](https://gitee.com/jermaine/yate/commit/36728aa2cd7712e978f3fd9a1da50f0d57629753))
 - 新增 pyright lint job、3.13 腿与 released-only 中文门禁（A4/A14/A5-2） ([`6100df0`](https://gitee.com/jermaine/yate/commit/6100df0de4b8b5c084d9ddf6cb74997447e593e1))
 - 将散落资产迁出文档目录树 ([`3f7b3f7`](https://gitee.com/jermaine/yate/commit/3f7b3f77ddcbff1e2adb975f5865913b56f1614c))
 - 从版本树移除误提交的提交说明文件 ([`2b78fd7`](https://gitee.com/jermaine/yate/commit/2b78fd724f8e1ec699f8992ed7fb69838f9ad022))
