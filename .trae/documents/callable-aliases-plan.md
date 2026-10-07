@@ -1,0 +1,214 @@
+# Callable 别名化方案（issue IKJUWP）
+
+> 来源 issue：<https://gitee.com/jermaine/yate/issues/IKJUWP> —
+> "ENHANCE - 使用 TYPE 定义适当的 CALLABLE 别名"，诉求三条：可读性更好、语义更容易理解、符合 PEP 规范。
+>
+> 分支 `ref/callable-aliases`，worktree `../yate-callable-aliases`（独立 `.venv` 已重建并自证指向本worktree）。
+
+## 一、目标与非目标
+
+### 目标
+
+1. 把`yate/` 中语义明确的回调形态收敛为**具名 `type` 别名**（PEP 695），消灭裸写
+   `Callable[...]` 的噪声，重点是**跨模块复用**与**位置不可自解释**两类；
+2. 存量 8 个普通赋值别名（`ClosedHook` / `CommandFunc` / `ActionFunc` / `PromptCompleter` /
+   `OutputFn` / `ExitFn` / `ConnectFn` / `NotificationFn`）统一改为 `type` 语句
+   （`python-coding-style.md` §3.5 已规定"类型别名用 `type` 语句"）；
+3. 新增架构守护用例：模块级 / 类级的 `Callable[...]` 赋值别名一律禁止（必须 `type`），
+   并禁`typing.TypeAlias` / `TypeAliasType`，防回归；
+4. pyright strict 零诊断 + 全量 pytest 全绿，覆盖率不低于现有水平。
+
+### 非目标
+
+- **不**引入 `Protocol`、**不**建中央接口 / 公共类型层（`architecture-boundaries.md` R2、§三.1）；
+- **不**改动任何运行时行为（本方案是纯类型注解重构，字节码语义不变）；
+- **不**统一"所有"回调形态：一次性、参数名已自解释的形态（`open_path: Callable[[Path], None]`）
+  保持内联，理由见§三；
+- **不**改测试里的通用局部可调用标注（`_wait_for(predicate: Callable[[], bool])`、桩对象
+  `Callable[..., None]`），仅在能直接复用产品别名时替换。
+
+## 二、调研事实（每条带 `文件:行号`）
+
+| # | 事实 | 取证 |
+|---|---|---|
+| F1 | 全仓 `Callable[...]` 共 **166 行 / 47 个文件**（`yate/` 33、`tests/` 12、`tools/` 2），清单见 `_callable_inventory.txt`（临时产物，收尾删除） | 探针 `rglob("*.py")` 扫描 `yate/ tests/ tools/` |
+| F2 | 已有 11 处别名，其中 8 处是**普通赋值**（违反 §3.5），3 处已用 `type`（`yaterc.py` 的 `ThemeRegistrar` / `ThemeDirLoader`、`editor_term/emulator.py` 的 `RGB`、`editor_sprites/render.py` 的 `Frame` / `Palette`） | `yate/session.py:37`、`yate/registries.py:25`、`yate/keymaps/base.py:182`、`yate/editor_view/commandline.py:31`、`yate/editor_term/pty_proc.py:26-27`、`yate/editor_lsp/client.py:36-37`、`yate/yaterc.py:119,124` |
+| F3 | `ActionFunc = Callable[["ActionContext"], None]` 用字符串前引号（因定义在 `ActionContext` 之前）；`type` 语句惰性求值后可去掉引号 | `yate/keymaps/base.py:182` vs `:217` |
+| F4 | 形态 `Callable[[], None] | None`（主题退订钩子）横跨 **7 个** `editor_view` 模块 | `chrome.py:102,219,240`、`commandline.py:234`、`diffview.py:251`、`editor.py:137`、`explorer.py:42`、`statusbar.py:79`、`terminal.py:417` |
+| F5 | 这 7 个模块**已经** `from . import theme`，因此从 `theme` 取别名不新增任何依赖边 | grep `^(from\|import).*theme`：`terminal/statusbar/scrollbars/explorer/palette/modals/editor/diffview/commandline/chrome/completion` |
+| F6 | 形态 `Callable[[str, str], None]`（`message(severity, text)`）横跨 **7 个** flows 模块 | `flows/window_flows.py:51`、`shell_flows.py:38`、`prompt_flows.py:27`、`overlay_flows.py:47`、`lsp_sync.py:40`、`document_flows.py:56`、`extension_flows.py:40` |
+| F7 | 形态 `Callable[..., Worker[object]]`（注入的 `App.run_worker`）横跨 5 个 flows 模块；`Callable[[Screen[Any]], None]`（`push_overlay`）横跨 3 个 | `flows/*.py:45/34/50/34/45`、`flows/shell_flows.py:42`、`lsp_sync.py:42`、`overlay_flows.py:38-40` |
+| F8 | `yate/flows/__init__.py` 目前只有 docstring、无导入、无再导出，并显式声明"保持惰性" | `yate/flows/__init__.py:1-9` |
+| F9 | `flows/*` 的 `editor_view` 导入已冻结在 `UI_FROZEN_FILES`（键为 `flows/<name>.py`），**新增** `editor_view` 导入需先登记 | `tests/test_architecture.py:115-166` |
+| F10 | `yate/editor_view/terminal.py` 已依赖 `yate.editor_term` 包根（可再向下import `pty_proc`），方向合法 | `yate/editor_view/terminal.py:24-31` |
+| F11 | 命名守卫禁用的后缀为 `Feature/Host/Ops/Delegate/Controller`，白名单 `PaneHost`；`*Manager` 允许 | `tests/test_architecture.py:178-179` |
+| F12 | `flows/*` 与 `services/*` 可向下import `keymaps.base`（`overlay_flows.py` 已import `yate.keymaps.registry.KeymapSet`；`keymaps/base.py` 不import `editor_view`） | `flows/window_flows.py:24`、`architecture-boundaries.md` R4 守卫面 |
+| F13 | `editor_term/pty_proc.py` 另有普通赋值别名 `ExitState = int \| Literal[...]`（同属 §3.5 违规，一并迁移） | `yate/editor_term/pty_proc.py:32` |
+| F14 | 覆盖率门禁在 CI 命令行（`--cov-fail-under=75`），`addopts` 不含 `--cov`，本地须显式复现 | `pyproject.toml:114-153` |
+
+## 三、决策规则：何时引入别名
+
+| 规则 | 内容 |
+|---|---|
+| **R-A** | **跨模块复用**（同一形态出现在 ≥2 个模块）→ 必须具名，别名落在**拥有该概念的模块**，消费者沿合法依赖方向import |
+| **R-B** | **位置不可自解释**（多参数、参数含义靠文档而非名字，如 `Callable[[str, str], None]` 的 severity/text、`Callable[..., Worker[object]]`）→ 必须具名 |
+| **R-C** | 一次性且参数名已自解释（`open_path: Callable[[Path], None]`、`make_view: Callable[[int], EditorView]`、`save: Callable[[], None]`）→ 保持内联。**理由**：跨层共享这些形态需要一个 L0 "公共类型层"，而那正是 `architecture-boundaries.md` §三.1 明令废止的 `interfaces.py` / `app_features/*` 模式 |
+| **R-D** | 形态相同但**语义不同**（如主题 listener 与退订钩子都是 `Callable[[], None]`）→ 各命名、各定义，不强行合并 |
+| **R-E** | 别名一律 PEP 695 `type` 语句 + `#:` 注释说明契约（`python-coding-style.md` §2.5、§3.5） |
+| **R-F** | 命名不得触命名守卫（F11）：禁 `*Feature/*Host/*Ops/*Delegate/*Controller/AppProtocol`；回调别名统一 `*Fn`（动词性能力）或 `*Query`（状态查询） |
+
+## 四、别名总表（唯一规范来源）
+
+### 4.1 flows 域：`yate/flows/__init__.py`（域内共享词汇表，不新建 types 模块）
+
+| 别名 | 定义 | 消费点 |
+|---|---|---|
+| `MessageFn` | `Callable[[str, str], None]` | 7 个 flows 模块的 `message` / `report` |
+| `SpawnFn` | `Callable[..., Worker[object]]` | 5 个 flows 模块的 `spawn` |
+| `OverlayPusher` | `Callable[[Screen[Any]], None]` | `shell_flows` / `lsp_sync` / `overlay_flows` 的 `push_overlay` |
+| `StateQuery` | `Callable[[], bool]` | `mounted` / `has_modal_screen` / `explorer_focused`（13 处） |
+
+同步改`yate/flows/__init__.py` docstring：别名是本包注入式能力的词汇表，仍不做子模块再导出
+（§三.5①保持成立，因为本模块不 import 任何子模块）。
+
+`execute_action: Callable[[str], bool]` 复用 `keymaps.base` 的 `ActionRunner`（F12），不在 flows 里另立同名。
+
+### 4.2 L1 / L0 拥有者
+
+| 别名 | 定义（`type` 语句） | 拥有者模块 | 现状 |
+|---|---|---|---|
+| `ActionFunc` | `Callable[[ActionContext], None]` | `keymaps/base.py` | 普通赋值 + 字符串前引号（F3） |
+| `ActionRunner` | `Callable[[str], bool]` | `keymaps/base.py` | 新增（`KeyUi.execute_action`） |
+| `CommandFunc` | `Callable[[str], object]` | `registries.py` | 普通赋值（F2） |
+| `ClosedHook` | `Callable[[list[Document]], None]` | `session.py` | 普通赋值（F2） |
+| `OutputFn` / `ExitFn` | `Callable[[bytes], None]` / `Callable[[int \| None], None]` | `editor_term/pty_proc.py` | 普通赋值（F2） |
+| `ExitState` | `int \| Literal["running", "failed"]` | `editor_term/pty_proc.py` | 普通赋值（F13） |
+| `ResponseFn` | `Callable[[bytes], None]` | `editor_term/emulator.py` | 新增（`on_response`，PTY 响应字节） |
+| `ConnectFn` / `NotificationFn` | 见 `editor_lsp/client.py:36-37` | `editor_lsp/client.py` | 普通赋值（F2） |
+| `ClientFactory` | `Callable[[ServerConfig, Path], LspClient]` | `editor_lsp/manager.py` | 新增（2 处，R-B） |
+| `RootQuery` | `Callable[[], Path \| None]` | `editor_lsp/manager.py` | 新增（工作区根查询） |
+| `EventHook` | `Callable[[str], None]` | `editor_lsp/manager.py` | 新增（`on_event`） |
+| `OptionParser` | `Callable[[str], object \| None]` | `config.py` | 新增（`:215` `SetOptionSpec.parse`） |
+| `Clock` | `Callable[[], float]` | `services/idle_tracker.py` | 新增（可注入时钟） |
+| `RollbackHook` | `Callable[[], None]` | `services/extensions.py` | 新增（`ExtensionLoader._scope`） |
+| `CommandDecorator` | `Callable[[CommandFunc], CommandFunc]` | `services/extensions.py` | 新增（`ExtensionAPI.command` 返回） |
+| `AnyCallback` | `Callable[..., Any]` | `services/extensions.py` | 新增（`register_action` / `bind_key`） |
+| `TeardownHook` | `Callable[[ExtensionAPI], None]` | `services/extensions.py` | 新增（2 处） |
+| `ExcepthookFn` | `Callable[..., Any]` | `logs.py` | 新增（3 处） |
+| `EventDeliverer` | `Callable[[Message], None]` | `keyproto/driver_windows.py` | 新增（`cast` 目标） |
+| `SetApplyHook` | `Callable[[Editor, object], None]` | `commands.py` | 新增（`SET_APPLY` 表项） |
+| `SectionFn` | `Callable[[], list[str]]` | `diagnostics.py` | 新增（`sections` 表项） |
+
+### 4.3 L2 `editor_view`
+
+| 别名 | 定义 | 拥有者 | 消费点 |
+|---|---|---|---|
+| `ThemeListener` | `Callable[[], None]` | `editor_view/theme.py` | `_listeners` / `subscribe` / `attach` |
+| `Unsubscribe` | `Callable[[], None]` | `editor_view/theme.py` | 7 个组件的 `_theme_unsubscribe`（F4，R-D：与 `ThemeListener` 同形异义） |
+| `PromptCompleter` | `Callable[[str, str], list[str]]` | `editor_view/commandline.py` | 普通赋值改 `type`（F2） |
+| `DiffKeyHandler` | `Callable[[DiffPane], None]` | `editor_view/diffview.py` | 3 张键表（`diffview.py:157,174,192`） |
+| `OutputFn` / `ExitFn` |复用 `editor_term.pty_proc`（F10 方向合法） | — | `editor_view/terminal.py` 的 `on_output` / `on_exit` |
+
+### 4.4 测试 / 工具（只复用，不新增别名定义）
+
+- `tests/test_set_options.py:40` → 复用 `config.OptionParser`（假 spec 与真 spec 同形）；
+- `tests/test_key_notation.py:433` → 复用 `keymaps.base.ActionFunc`；
+- `tests/test_terminal.py:430-446`、`tests/test_app_terminal.py:84-90,158-159`、
+  `tools/smoke_test/scenarios/integration.py:40-47` → 复用 `pty_proc.OutputFn` / `ExitFn`。
+
+### 4.5 新增架构守护用例
+
+`tests/test_architecture.py::test_callable_aliases_use_type_statements`（AST）：
+
+1. 扫描 `yate/**/*.py`，模块级与类级 `Assign` / `AnnAssign` 的**值**里出现 `Callable[...]`
+   下标 → 违规（必须写成 `type X = ...`，即 `ast.TypeAlias`节点）；
+2. 扫描 `yate/` 内 `from typing import ... TypeAlias / TypeAliasType` → 违规；
+3. 负向演练：临时回填一处普通赋值别名确认拦截，再还原。
+
+同步更新：`tests/test_architecture.py` 模块 docstring + `architecture-boundaries.md` §六
+（24 → **25** 个用例，含对照表新增一行）、`python-coding-style.md` §3.5（补"Callable 别名用 `type`"）。
+
+## 五、备选方案与否决理由
+
+| 方案 | 结论 | 理由 |
+|---|---|---|
+| **A. 新建 `yate/callbacks.py` 之类全局别名模块** | **否决** | 直接复刻 `architecture-boundaries.md` §三.1 废止的"公共类型层 / `interfaces.py`"；把跨层的 `Callable[[], None]` 提到 L0 会让 L0 反向承载 UI 语义（`focus_editor` / `refresh` / `readonly_notice`）。违反 R-C |
+| **B. 全部 166 处内联 `Callable` 一律具名（含测试）** | **否决** | 一次性、参数名自解释的形态别名化后信息量不增反减（`save: Save`），且把测试 diff 放大到与行为无关的噪声 |
+| **C. 每个 flows 模块各自定义 `MessageFn`** | **否决** | 7 份同名同义定义，读者无法判断是否同一契约，改一处漏六处 |
+| **D. 新建 `yate/flows/callbacks.py`** | **否决** | 等价于在域内重建 types 模块；域内词汇表放包根`__init__.py` 已足够（且它不 import 任何子模块，惰性不受影响，F8） |
+| **E. 只迁移存量 8 个别名，不加新别名、不加守护** | **否决** | 存量迁移只完成 issue 的1/3；跨模块高频形态（F4-F7）才是可读性收益主体，且无守护则必然回归 |
+| **F. 用 `Callable` 的 `Protocol` 化替代** | **否决** | R2 冻结 `Protocol` 白名单，且回调本就是结构化类型，`Callable` 足够 |
+
+## 六、实施波次（文件互不重叠；每波结束跑一次 pyright）
+
+> **执行方式说明**：`subagent-workflow.md` §一.3 明令"子代理不得修改产品源码（`yate/`）"，
+> 本方案 95% 改动落在 `yate/`，因此**代码实施由主代理亲自执行**；子代理只用于只读探索与
+> §六.4 的独立审核（`code-review-expert`）。此为规则冲突时的显式取舍，非跳过并行纪律。
+
+### Wave 0 — 定义（纯新增别名，无调用点改动；12 个文件）
+
+`yate/flows/__init__.py`（4别名 + docstring）、`yate/editor_view/theme.py`（2）、
+`yate/keymaps/base.py`（2）、`yate/registries.py`、`yate/session.py`、
+`yate/editor_term/pty_proc.py`（3）、`yate/editor_lsp/client.py`（2）、
+`yate/editor_lsp/manager.py`（3）、`yate/config.py`、`yate/commands.py`、`yate/diagnostics.py`、
+`yate/logs.py`、`yate/services/idle_tracker.py`、`yate/services/extensions.py`（4）、
+`yate/keyproto/driver_windows.py`、`yate/editor_term/emulator.py`
+
+- 输入：§四 别名总表；输出：全部别名可被 import。
+- 验收：`.venv\Scripts\python.exe -m pyright yate/` 零诊断；
+  `.venv\Scripts\python.exe -m pytest tests/test_architecture.py tests/test_keymaps.py -q` 通过。
+
+### Wave 1 — `yate/` 调用点改写（20 个文件）
+
+- flows 7 子模块：`Callable[[str, str], None]`→`MessageFn`、`Callable[..., Worker[object]]`→`SpawnFn`、
+  `Callable[[Screen[Any]], None]`→`OverlayPusher`、`Callable[[], bool]`→`StateQuery`、
+  `Callable[[str], bool]`→`ActionRunner`（自 `keymaps.base` 导入）；
+- `editor_view` 7 组件：`_theme_unsubscribe: Unsubscribe | None`（自 `theme` 导入）；
+- `editor_view/terminal.py`：`on_output: OutputFn` / `on_exit: ExitFn`；
+- `editor_view/diffview.py`：3 张键表→`DiffKeyHandler`；
+- `editor_view/commandline.py`：`PromptCompleter`消费点保持（定义已改）；
+- `pty_proc.py` / `emulator.py` / `manager.py` / `extensions.py` / `commands.py` /
+  `diagnostics.py` / `logs.py` / `idle_tracker.py` / `driver_windows.py` 内部消费点。
+
+- 验收：`.venv\Scripts\python.exe -m pyright yate/ tests/ tools/` 零诊断；
+  `.venv\Scripts\python.exe -m pytest tests/ -q` 全绿。
+
+### Wave 2 — 测试 / 工具复用 + 新守护（6 个文件）
+
+`tests/test_architecture.py`（新用例 + docstring）、`tests/test_set_options.py`、
+`tests/test_key_notation.py`、`tests/test_terminal.py`、`tests/test_app_terminal.py`、
+`tools/smoke_test/scenarios/integration.py`
+
+- 验收：`.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` →
+  **25 passed**；全量 `pytest tests/ -q` 全绿。
+
+### Wave 3 — 审核 / 门禁 / 文档回填
+
+- `code-review-expert` 子代理独立评审（结论只认实测）；
+- 主代理亲自跑：pyright 零诊断、`pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75`、
+  `tests/test_architecture.py` 25 passed、冒烟 `tools/smoke_test`；
+- 回填本文档第六节实测数字与偏离记录，删除临时产物 `_probe_callable.py` / `_callable_inventory.txt`；
+- 同步 `.trae/rules/architecture-boundaries.md`（§六 25 用例 + 对照表）与
+  `.trae/rules/python-coding-style.md`（§3.5 补Callable 别名条款）。
+
+## 七、风险与回滚
+
+| 风险 | 概率 | 缓解 | 回滚 |
+|---|---|---|---|
+| `type` 别名在 `cast("X", ...)` 字符串位置不被解析 | 低 | `keyproto/driver_windows.py` 保持字符串形式并由 pyright 实测 | 单文件 `git checkout` |
+| 包根新增别名破坏 §三.5①"包根惰性" | 中（人工评审点） | `flows/__init__.py` 不 import 任何子模块；docstring 显式声明该边界 | 撤回 Wave 0 该文件 |
+| 改动面过大漏改某处 | 中 | 新守护用例 + 全量 pytest + pyright 三重兜底 | 整分支 `git reset --hard 8724bd5` |
+| flows 新增 `keymaps.base` 导入成环 | 低 | `keymaps/base.py` 只依赖 `session`，无反向边；pyright/pytest 立即暴露 | 撤回该 import |
+| 覆盖率因重构掉行（不可能，纯注解） | 无 | — | — |
+
+回滚路径：分支未推送，`git reset --hard 8724bd5` 或按波次 `git checkout -- <files>`。
+
+## 八、架构影响自检（`architecture-boundaries.md` §五）
+
+- 无新增 `Protocol` / `TYPE_CHECKING` / `Any`（`AnyCallback` / `ExcepthookFn` 沿用既有
+  `Callable[..., Any]` 处的 `Any`，语义未变，且原代码已有 `noqa` 语义注释处保持）；
+- 依赖方向全部向下或同级：flows→keymaps（L3→L1）、editor_view→editor_term（L2→L0）、
+  editor_view→editor_view 同级；**未新增** `editor_view` 导入到 flows，故 `UI_FROZEN_FILES`
+  无需变更（F9）；
+- `Editor` / flows 均不持有新的 App 句柄，能力注入形态不变（`spawn=app.run_worker` 等原样）；
+- R9/R10/R12/R13 不涉及；R2 不新增协议。
