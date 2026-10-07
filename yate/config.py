@@ -27,6 +27,13 @@ theme-directory loading) allow custom themes::
         "dist_upper_bound": "1/3",  # when BOTH are set, `switch` is ignored
         "characters": [],      # name whitelist; [] = the whole roster
     }
+    file_preview = {                                 # ctrl+p preview pane
+        "enable": True,        # master switch for the preview pane
+        "position": "right",   # pane side of the results list ("left" too)
+        "size": 60,            # pane width as percent of palette width (10-80)
+        "max_lines": 2000,     # lines read/tokenized for one preview
+        "max_size": 1048576,   # byte cap; bigger files are not previewed
+    }
 
 Load order (later wins, like ``~/.vimrc`` followed by ``./.vimrc``):
 
@@ -134,6 +141,17 @@ class ScreenSaverConfig:
         return (self.dist_lower_bound, self.dist_upper_bound)
 
 
+@dataclass(frozen=True)
+class FilePreviewConfig:
+    """Resolved ``file_preview`` dict option (ctrl+p preview pane)."""
+
+    enable: bool = True
+    position: str = "right"     # "right" | "left"
+    size: int = 60              # percent of palette width, 10-80
+    max_lines: int = 2000       # read/tokenize line cap
+    max_size: int = 1048576     # byte cap before refusing to read
+
+
 @dataclass
 class YateConfig:
     """Resolved editor options plus observability metadata.
@@ -182,6 +200,8 @@ class YateConfig:
     )
     #: Idle screensaver settings (the ``screen_saver`` dict option).
     screen_saver: ScreenSaverConfig = field(default_factory=ScreenSaverConfig)
+    #: Ctrl+p preview pane settings (the ``file_preview`` dict option).
+    file_preview: FilePreviewConfig = field(default_factory=FilePreviewConfig)
     sources: list[Path] = field(default_factory=list[Path])
     errors: list[str] = field(default_factory=list[str])
 
@@ -561,6 +581,104 @@ def _extract_screen_saver(  # noqa: Any - raw yaterc exec-namespace values, narr
     )
 
 
+def _extract_file_preview(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
+    namespace: dict[str, Any], config: YateConfig
+) -> None:
+    """Pull the ``file_preview`` dict option out of one rc file.
+
+    Recognized keys: ``enable`` (bool), ``position`` (``"right"`` or
+    ``"left"``, the pane side of the results list), ``size`` (integer
+    10-80, the preview pane width as a percent of the palette width),
+    ``max_lines`` (integer 1-100000, the read/tokenize line cap) and
+    ``max_size`` (integer 1024-16777216 bytes, above which the file is
+    not read at all).  Missing keys keep their defaults; an unknown key
+    or a wrong-typed value is reported individually and that key keeps
+    its default while the rest still apply.  A later valid declaration
+    replaces the previous one whole (same semantics as ``screen_saver``).
+    """
+    raw = namespace.get("file_preview")
+    if raw is None:
+        return
+    if not isinstance(raw, dict):
+        config.errors.append(f"file_preview must be a dict, got {raw!r}")
+        return
+    values = cast(dict[str, Any], raw)
+    known = ("enable", "position", "size", "max_lines", "max_size")
+    unknown = sorted(key for key in values if key not in known)
+    if unknown:
+        config.errors.append(f"file_preview has unknown keys: {unknown}")
+
+    enable: bool = True
+    if "enable" in values:
+        value = values["enable"]
+        if isinstance(value, bool):
+            enable = value
+        else:
+            config.errors.append(
+                f"file_preview enable must be True or False, got {value!r}"
+            )
+
+    position: str = "right"
+    if "position" in values:
+        value = values["position"]
+        if isinstance(value, str) and value in ("right", "left"):
+            position = value
+        else:
+            config.errors.append(
+                f"file_preview position must be 'right' or 'left', got {value!r}"
+            )
+
+    size: int = 60
+    if "size" in values:
+        value = values["size"]
+        # bool is a subclass of int -- reject it explicitly for this option.
+        if isinstance(value, int) and not isinstance(value, bool) and 10 <= value <= 80:
+            size = value
+        else:
+            config.errors.append(
+                f"file_preview size must be an integer between 10 and 80, "
+                f"got {value!r}"
+            )
+
+    max_lines: int = 2000
+    if "max_lines" in values:
+        value = values["max_lines"]
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and 1 <= value <= 100_000
+        ):
+            max_lines = value
+        else:
+            config.errors.append(
+                f"file_preview max_lines must be an integer between 1 and "
+                f"100000, got {value!r}"
+            )
+
+    max_size: int = 1_048_576
+    if "max_size" in values:
+        value = values["max_size"]
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and 1024 <= value <= 16_777_216
+        ):
+            max_size = value
+        else:
+            config.errors.append(
+                f"file_preview max_size must be an integer between 1024 and "
+                f"16777216 bytes, got {value!r}"
+            )
+
+    config.file_preview = FilePreviewConfig(
+        enable=enable,
+        position=position,
+        size=size,
+        max_lines=max_lines,
+        max_size=max_size,
+    )
+
+
 def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
     """Pull recognized option variables out of the exec'd namespace."""
     options = {name: namespace[name] for name in _KNOWN_OPTIONS if name in namespace}
@@ -665,6 +783,7 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
 
     _extract_language_servers(namespace, config)
     _extract_screen_saver(namespace, config)
+    _extract_file_preview(namespace, config)
 
 
 def _extract_language_servers(namespace: dict[str, Any], config: YateConfig) -> None:

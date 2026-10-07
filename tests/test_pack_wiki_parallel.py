@@ -542,6 +542,9 @@ def _live_display(stream: StringIO) -> Progress:
     ``force_terminal`` makes rich render (and therefore parse markup) even
     though the output is an in-memory stream, and the description column --
     absent from rich's defaults -- is what carries the batch row text.
+    ``_environ`` pins ``TERM`` so the display stays writable when the host
+    shell exports ``TERM=dumb``: rich's ``Live.refresh`` turns into a silent
+    no-op for dumb terminals, which would empty every rendered-row assertion.
     """
     return Progress(
         SpinnerColumn(),
@@ -549,7 +552,12 @@ def _live_display(stream: StringIO) -> Progress:
         BarColumn(),
         TaskProgressColumn(),
         TimeElapsedColumn(),
-        console=Console(file=stream, force_terminal=True, width=120),
+        console=Console(
+            file=stream,
+            force_terminal=True,
+            width=120,
+            _environ={"TERM": "xterm-256color"},
+        ),
     )
 
 

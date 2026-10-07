@@ -71,6 +71,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `show_hidden` | `bool` | `False` | `True` / `False` | 文件树是否默认显示点文件（隐藏文件）；`False` 表示默认隐藏，需手动切换。非布尔值被拒绝 |
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
 | `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `dist_*_bound` / `characters` 键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
+| `file_preview` | `dict` | 见[下文](#文件预览file_preview) | 含 `enable` / `position` / `size` / `max_lines` / `max_size` 键的 dict | Ctrl+P 快速打开的文件预览设置，见[下文](#文件预览file_preview) |
 | `yate_trace` | `bool` | `False` | `True` / `False` | 运行日志开关（默认关闭）；开启后写入 `~/.yate/data/logs/`，见[下文](#运行日志yate_trace) |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`（大小写不敏感） | 运行日志等级，与 Python `logging` 内置等级一致 |
 
@@ -364,6 +365,35 @@ screen_saver = {
 红白机形象近似绘制，外加《神奇数字马戏团》五人组），运行
 `python -m tools.pack rosters` 可生成带名字标签的 `roster.svg` 供查阅
 完整名单。
+
+## 文件预览（`file_preview`）
+
+`Ctrl+P` 快速打开（见手册 3.8 节「命令面板」）可在搜索结果旁显示光标所指
+文件的只读预览：预览跟随高亮项，按文件类型自动语法高亮（tree-sitter 优先、
+regex 兜底），着色来自主题的 `syn_*` 语法色板——见[自定义主题](#自定义主题)。
+二进制文件与超限文件降级为提示文案。`enable = False` 时 Ctrl+P 与旧行为
+完全一致。
+
+```python
+file_preview = {
+    "enable": True,        # 预览窗格总开关
+    "position": "right",   # 预览窗格在结果列表的哪一侧（也可 "left"）
+    "size": 60,            # 预览占 palette 宽度的百分比（10-80）
+    "max_lines": 2000,     # 单次预览读取/高亮的行数上限
+    "max_size": 1048576,   # 字节上限；超过则不读取文件
+}
+```
+
+| 键 | 类型 | 默认 | 含义 |
+|---|---|---|---|
+| `enable` | `bool` | `True` | 总开关；`False` 关闭预览窗格，`Ctrl+P` 与旧行为完全一致。 |
+| `position` | `str` | `"right"` | 预览窗格位于结果列表哪一侧：`"right"` 或 `"left"`。 |
+| `size` | `int` `10`–`80` | `60` | 预览窗格宽度占 palette 宽度的百分比。 |
+| `max_lines` | `int` `1`–`100000` | `2000` | 单次预览读取与高亮的行数上限；超出截断并提示。 |
+| `max_size` | `int` `1024`–`16777216` | `1048576` | 文件字节上限（1 MiB）；超限文件不读取，窗格只显示提示。 |
+
+缺键保默认；类型错误的键单独报错并保默认，其余键仍然生效；后加载的
+合法声明整体替换前值。
 
 ## 命令行交互
 

@@ -179,6 +179,7 @@ class OverlayFlows:
             execute_action=self._execute_action,
             run_command=self._run_command,
             refresh=self._refresh,
+            preview=self.config.file_preview,
         )
 
     def toggle_screensaver(self) -> None:

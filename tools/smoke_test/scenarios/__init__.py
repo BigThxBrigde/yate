@@ -18,6 +18,7 @@ from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
 from .guards import SCENARIOS as _GUARDS
 from .integration import SCENARIOS as _INTEGRATION
+from .palette_preview import SCENARIOS as _PALETTE_PREVIEW
 from .panes import SCENARIOS as _PANES
 from .regression import SCENARIOS as _REGRESSION
 from .screensaver import SCENARIOS as _SCREENSAVER
@@ -46,6 +47,7 @@ SCENARIOS: list[Scenario] = [
     *_VIM_ADVANCED,
     *_SEARCH,
     *_FILES,
+    *_PALETTE_PREVIEW,
     *_GUARDS,
     *_PANES,
     *_EXPLORER,

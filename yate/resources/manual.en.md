@@ -307,7 +307,9 @@ when the overlay closes.
   (gear icon) and named action (keyboard icon), fuzzy-searchable by full
   name (command descriptions match too); `Enter` runs the selected entry.
 - `Ctrl+P` opens **quick open** (the file panel): fuzzy-search workspace files
-  and open the selected one.
+  and open the selected one; a read-only preview pane beside the results
+  follows the highlighted file, showing its content with syntax highlighting
+  (configurable via the `file_preview` option).
 - Both share one component; see section 9.
 
 ### 3.9 Integrated terminal

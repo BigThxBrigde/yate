@@ -4818,6 +4818,7 @@ def test_explorer_toggle_focuses_tree(tmp_path: Path) -> None:
 def test_palette_entries_exclude_palette_command() -> None:
     """Regression: the palette must not list the palette command itself
     (opening it from inside would be a no-op recursion)."""
+    from yate.config import FilePreviewConfig
     from yate.editor_view.palette import PaletteScreen
 
     async def scenario() -> None:
@@ -4834,6 +4835,7 @@ def test_palette_entries_exclude_palette_command() -> None:
                 execute_action=app.editor.execute_action,
                 run_command=app.editor.run_command,
                 refresh=app.editor.refresh_ui,
+                preview=FilePreviewConfig(),
             )
             screen._build_command_entries()
             kinds = {name for name, _d, (_k, _n) in screen._entries}
