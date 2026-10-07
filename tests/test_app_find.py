@@ -8,11 +8,13 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 from typing import cast
+from unittest.mock import patch
 import pytest
 from yate.app import YateApp
 from yate.flows.prompt_completion import prompt_completions
 from yate.keymaps.vim import VimKeymap
 from conftest import message_text, wait_until
+from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
 # ------------------------------------------------------------------ prompt bar
 
@@ -631,7 +633,7 @@ def test_goto_prompt_rejects_non_numeric() -> None:
     ids=["manual", "changelog", "help", "files", "palette"],
 )
 def test_overlay_commands_clear_stale_message(
-    command: str, cls_name: str
+    command: str, cls_name: str, tmp_path: Path
 ) -> None:
     # The previous command's message used to outlive an overlay command
     # (:manual/:help/:files/:palette): the overlay hides the line while
@@ -639,16 +641,29 @@ def test_overlay_commands_clear_stale_message(
     # silent. Pushing an overlay resets the line to its idle hint.
     async def scenario() -> None:
         app = YateApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            app.editor.message("stale note from before")
-            app.editor.run_command(command)
-            await pilot.pause()
-            assert type(app.screen).__name__ == cls_name
-            assert "stale note" not in message_text(app)
-            await pilot.press("escape")
-            await pilot.pause()
-            assert "stale note" not in message_text(app)
+        # :manual / :changelog render a bundled markdown doc; the small
+        # fixture keeps the screen-push semantics identical without paying
+        # the real document's parse/render cost (help/files/palette never
+        # load a doc, so the patch is inert for them).
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                # PaletteScreen builds its file index lazily from the workspace
+                # root; without a target it walks Path.cwd() (the whole worktree
+                # including .venv).  Redirect to an empty dir so :files/:palette
+                # index instantly and only the message behaviour is under test.
+                app.editor.workspace.set_root(tmp_path)
+                app.editor.message("stale note from before")
+                app.editor.run_command(command)
+                await pilot.pause()
+                assert type(app.screen).__name__ == cls_name
+                assert "stale note" not in message_text(app)
+                await pilot.press("escape")
+                await pilot.pause()
+                assert "stale note" not in message_text(app)
 
     asyncio.run(scenario())
 

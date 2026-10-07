@@ -9,6 +9,8 @@ per-directory, negation, directory-only rules).
 
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -487,6 +489,40 @@ def test_is_text_file_rejects_unknown_suffixes(tmp_path: Path) -> None:
 # --- traversal robustness (S11: iteration instead of recursion) --------------
 
 
+def chain_depths(root: Path, depth: int) -> dict[Path, int]:
+    """Map each node of a synthetic *depth*-level ``child`` chain to its level.
+
+    The 1500-level stubs consult this table instead of re-running
+    ``path.relative_to(root)`` per call -- each of those costs O(depth)
+    (3.13 pathlib rebuilds and compares parent paths level by level),
+    which made the whole chain quadratic.  Nodes are built one per level
+    from a precomputed string (``Path(raw)``), never by chaining
+    ``parent / "child"``: 3.13's ``/`` accumulates the parent's raw path
+    fragments, so a 1500-level node would join and re-split ~1500
+    fragments on every use, keeping the whole test quadratic.  The table
+    doubles as the ``expanded`` set for :meth:`Workspace.visible_tree`.
+    """
+    raw = str(root)
+    depths: dict[Path, int] = {}
+    for level in range(1, depth + 1):
+        raw = f"{raw}/child"
+        depths[Path(raw)] = level
+    return depths
+
+
+def raise_long_path_error(*_args: object, **_kwargs: object) -> os.stat_result:
+    """``Path.stat`` / ``Path.read_text`` stand-in that always fails.
+
+    ``_dir_ignores`` stats both ignore-file candidates per directory and
+    ``read_text``s them on a cache miss; on the fake chain both mean real
+    syscalls against ~9k-character paths.  Raising ``OSError`` lands in
+    the same ``except`` branches the genuine "no such file" case does
+    (stamp ``-1.0``, read skipped), so walk semantics are unchanged: every
+    chain directory simply has no ignore files.
+    """
+    raise OSError("refused: path too long")
+
+
 def test_walk_files_keeps_depth_first_order_across_directories(
     tmp_path: Path,
 ) -> None:
@@ -514,20 +550,29 @@ def test_walk_files_survives_a_1500_level_chain(
     the chain is fed through the same ``Path.iterdir`` seam the unreadable-
     directory tests use; only ``child``/``leaf.txt`` names answer "yes" to
     ``is_dir`` and everything else -- including ``is_symlink`` -- stays a
-    plain in-memory Path.
+    plain in-memory Path.  Chain depth comes from the O(1) ``chain_depths``
+    lookup table, and ``Path.stat`` is stubbed to raise ``OSError`` so
+    ``_dir_ignores`` never really stats the fake deep paths.  The fake
+    root is a short relative path, and the stubs hand out the prebuilt
+    ``chain_depths`` node objects instead of constructing fresh ones per
+    call, so each 1500-segment path is parsed and formatted exactly once.
     """
-    root = root_of(ws)
+    root = Path("chain-root")
+    monkeypatch.setattr(ws, "root", root)
     depth = 1500
+    depths = chain_depths(root, depth)
+    nodes = list(depths)
 
-    def chain_iterdir(path: Path) -> Any:
-        if path == root:
-            return iter([root / "child"])
-        if len(path.relative_to(root).parts) >= depth:
+    def chain_iterdir(path: Path) -> Iterator[Path]:
+        level = depths.get(path, 0)
+        if level == 0:
+            return iter([nodes[0]])
+        if level >= depth:
             return iter([path / "leaf.txt"])
-        return iter([path / "child"])
+        return iter([nodes[level]])
 
     def chain_is_dir(path: Path) -> bool:
-        return path == root or path.name == "child"
+        return path.name == "child" or path == root
 
     def chain_is_symlink(path: Path) -> bool:
         return False
@@ -540,6 +585,14 @@ def test_walk_files_survives_a_1500_level_chain(
     # Windows-masked, but Linux PATH_MAX (4k) raises Errno 36 partway down
     # the chain (pathlib only ignores ENOENT-class lstat errors).
     monkeypatch.setattr("pathlib.Path.is_symlink", chain_is_symlink)
+    # _dir_ignores stats both ignore-file candidates per directory and
+    # read_texts them on a cache miss -- two real syscalls plus two real
+    # opens on a ~9k-character path per chain level.  The OSError stubs
+    # land in the same branches as a missing file (stamp -1.0, read
+    # skipped), which matches the test's intent: no directory carries
+    # ignore files.
+    monkeypatch.setattr("pathlib.Path.stat", raise_long_path_error)
+    monkeypatch.setattr("pathlib.Path.read_text", raise_long_path_error)
 
     files = ws.walk_files()
 
@@ -549,22 +602,29 @@ def test_walk_files_survives_a_1500_level_chain(
 def test_visible_tree_survives_a_1500_level_chain(
     ws: Workspace, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Flattening a 1500-level expanded chain must not recurse (S11)."""
-    root = root_of(ws)
-    depth = 1500
+    """Flattening a 1500-level expanded chain must not recurse (S11).
 
-    expanded: set[Path] = set()
-    node = root
-    for _ in range(depth):
-        node = node / "child"
-        expanded.add(node)
+    The stubbed ``list_dir`` reads depth from the O(1) ``chain_depths``
+    lookup table; the table's keys double as the expanded set.  As in the
+    walk test above, the fake root is a short relative path and the stub
+    hands out the prebuilt node objects, so the product's per-row
+    ``expanded`` membership checks stay constant cost instead of
+    re-hashing a ~9k-character path 1500 times.
+    """
+    root = Path("chain-root")
+    monkeypatch.setattr(ws, "root", root)
+    depth = 1500
+    depths = chain_depths(root, depth)
+    nodes = list(depths)
+    expanded: set[Path] = set(depths)
 
     def chain_list_dir(path: Path) -> list[Entry]:
-        if path == root:
-            return [Entry(root / "child", "child", True)]
-        if len(path.relative_to(root).parts) >= depth:
+        level = depths.get(path, 0)
+        if level == 0:
+            return [Entry(nodes[0], "child", True)]
+        if level >= depth:
             return []
-        return [Entry(path / "child", "child", True)]
+        return [Entry(nodes[level], "child", True)]
 
     def chain_is_symlink(path: Path) -> bool:
         return False
