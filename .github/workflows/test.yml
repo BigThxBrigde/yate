@@ -19,7 +19,7 @@ on:
 
 jobs:
   test:
-    name: pytest (${{ matrix.os }})
+    name: pytest (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -27,6 +27,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python-version: ['3.12']
+        # A14: 3.13 只跑 Linux 腿（控制成本）；requires-python >=3.12
+        # 从未在 3.13 验证过，tree-sitter <0.26 上界已 pin 3.13 堆损坏
+        include:
+          - os: ubuntu-latest
+            python-version: '3.13'
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +44,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
 
@@ -54,8 +60,10 @@ jobs:
         run: git remote set-url origin https://gitee.com/jermaine/yate.git
 
       - name: Changelog gate
-        # stdlib-only tool: fails when CHANGELOG*.md are stale vs git history
-        run: python -m tools.changelog check
+        # stdlib-only tool: fails when CHANGELOG*.md are stale vs git history;
+        # --require-zh enforces zh translations in RELEASED sections only
+        # ([Unreleased] lags freely and only warns — enforced at release)
+        run: python -m tools.changelog check --require-zh
 
       - name: Install package and dependencies
         run: python -m pip install -e ".[dev]"
@@ -67,3 +75,29 @@ jobs:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
         run: python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
+
+  # A4: pyproject.toml 宣称 strict 零诊断是合并门禁，CI 必须实际执行。
+  # 独立 job 与 test 并行；changelog gate 保留在 test job 原位，此处不跑。
+  lint:
+    name: pyright (strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install package and dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: pyright --version
+        # 预热 npm 侧二进制下载（pyright 首跑会拉 node 包，避免算进诊断超时）
+        run: pyright --version
+      - name: pyright (strict, zero diagnostics)
+        run: pyright

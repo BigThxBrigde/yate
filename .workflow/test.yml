@@ -18,6 +18,13 @@
 #   python -m pip install -e ".[dev]"
 #   python -m pytest tests
 #   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # 覆盖率门禁
+#
+# 与 GitHub 侧（.github/workflows/test.yml）的门禁分工 / Gate split:
+#   - pyright strict 门禁与 Python 3.13 腿只在 GitHub 侧执行：pyright 运行
+#     需要拉取 npm 侧二进制，Gitee Go 公共构建机网络受限（评审 A4 定案）；
+#   - changelog 门禁未启用 --require-zh：Gitee 侧 origin 指向本身，但
+#     zh_overrides 在两侧镜像间可能领先/滞后，启用会产生与翻译进度无关的
+#     误报，故 --require-zh 只在 GitHub 侧启用（released-only 语义）。
 
 version: '1.0'
 

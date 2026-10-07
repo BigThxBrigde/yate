@@ -13,8 +13,9 @@ Subcommands:
 * ``check [--online] [--require-zh] [--overrides PATH]`` — CI gate: exit 1
   when a released section is missing or drifted on disk; prints ``SKIP``
   (exit 0) when no git history is available; ``--require-zh`` additionally
-  fails when any entry lacks a Chinese translation (gradual translation is
-  the default);
+  fails when an entry in a RELEASED section lacks a Chinese translation —
+  missing translations in ``[Unreleased]`` only produce a warning
+  (enforced at release);
 * ``zh-commit <hash> <summary> [<detail>] [--overrides PATH]`` — upsert one
   Chinese translation into ``tools/changelog/zh_overrides.json`` (or the
   file named by ``--overrides``).
@@ -87,10 +88,25 @@ def _build_segments(
     return release_segments, entries, current_version
 
 
-def _missing_zh(
-    entries: Sequence[Commit], overrides: dict[str, OverrideEntry]
-) -> list[str]:
-    return [c.short_sha for c in entries if c.short_sha not in overrides]
+def missing_zh(
+    entries: Sequence[Commit],
+    overrides: dict[str, OverrideEntry],
+    released_shas: frozenset[str],
+) -> tuple[list[str], list[str]]:
+    """Split the untranslated entries into released / unreleased buckets.
+
+    *released_shas* holds the full shas of every commit inside a segment
+    with a version (i.e. not ``[Unreleased]``); entries outside it are
+    unreleased and only warn under ``--require-zh``.
+    """
+    released: list[str] = []
+    unreleased: list[str] = []
+    for commit in entries:
+        if commit.short_sha in overrides:
+            continue
+        bucket = released if commit.sha in released_shas else unreleased
+        bucket.append(commit.short_sha)
+    return released, unreleased
 
 
 def _generated_notes(version: str, date: str | None) -> dict[str, str]:
@@ -194,18 +210,35 @@ def generate(
                 written.append(name)
         print(f"wrote {', '.join(written)}")
 
-    missing = _missing_zh(entries, overrides)
+    missing_released, missing_unreleased = missing_zh(
+        entries,
+        overrides,
+        released_shas=frozenset(
+            commit.sha
+            for segment in release_segments
+            if segment.version is not None
+            for commit in segment.commits
+        ),
+    )
     versions = [s.version for s in release_segments if s.version is not None]
     print(
         f"stats: {len(release_segments)} segment(s), "
         f"{len(versions)} version(s), {len(entries)} entry/entries, "
-        f"{len(missing)} missing zh translation(s)"
+        f"{len(missing_released)} missing zh (released), "
+        f"{len(missing_unreleased)} missing zh (unreleased)"
     )
+    missing = missing_released + missing_unreleased
     if missing:
         print("missing zh: " + ", ".join(missing))
-    if require_zh and missing:
-        print("check failed: missing zh translations (--require-zh)")
-        return 1
+    if require_zh:
+        if missing_released:
+            print("check failed: missing zh translations in released sections")
+            return 1
+        if missing_unreleased:
+            print(
+                f"warning: {len(missing_unreleased)} missing zh in unreleased "
+                "(enforced at release)"
+            )
     return 0
 
 
@@ -274,7 +307,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--check", action="store_true", help="compare against disk, do not write"
     )
     gen.add_argument(
-        "--require-zh", action="store_true", help="fail when zh translations miss"
+        "--require-zh", action="store_true",
+        help="fail when released entries lack zh translations",
     )
     group = gen.add_mutually_exclusive_group()
     group.add_argument(
@@ -293,7 +327,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     chk = subparsers.add_parser("check", help="CI gate: fail on stale files")
     chk.add_argument("--online", action="store_true", help="verify commits on Gitee")
     chk.add_argument(
-        "--require-zh", action="store_true", help="fail when zh translations miss"
+        "--require-zh", action="store_true",
+        help="fail when released entries lack zh translations",
     )
     chk.add_argument(
         "--overrides", type=Path, default=None,
