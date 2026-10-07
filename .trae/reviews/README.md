@@ -14,9 +14,9 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 36 条：
-**未闭环 15 条**、已闭环 20 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
-#20 / #22 / #24 / #25 / #27 / #28 / #30 / #31 / #32 / #33）、部分闭环 1 条（#18：三轮评审中前两轮已修，
+📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 37 条：
+**未闭环 15 条**、已闭环 21 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
+#20 / #22 / #24 / #25 / #27 / #28 / #30 / #31 / #32 / #33 / #37）、部分闭环 1 条（#18：三轮评审中前两轮已修，
 第三轮按用户决策登记不修）。已闭环条目保留行并标注处置；
 #26 / #27 为 2026-10-05 全量清查轮补登记（此前索引漏记），
 #28 为同轮的全量文档 review（文档治理，非代码缺陷），
@@ -25,7 +25,7 @@
 #34 为 PR !59 的第二轮评审（0 阻断 + 3 改进，按用户指令只登记不修）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
-> #32；本分支新增条目自 #33 起顺延（已登记至 #34）。合并回 master 时需按日期重排一次编号。
+> #32；本分支新增条目自 #33 起顺延（已登记至 #37）。合并回 master 时需按日期重排一次编号。
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
 
@@ -67,6 +67,8 @@
 | 34 | 2026-10-06 | Gitee PR !59 AI 队友评审**第二轮**（[note 51457690](https://gitee.com/jermaine/yate/pulls/59#note_51457690_conversation_191441088) conversation 191441088；同一分支 `fix/pack-wiki-progress-refresh`，issue IKJPEK，正文经 Gitee API 取回）：⚠️ 0 阻断 + 3 改进（`KeyboardInterrupt` 路径丢弃 `_terminate` 抗杀注记 / 两条 AST 结构性守护对重构敏感 / 两个测试文件 `import io` 与 `from io import StringIO` 并存），风险 low；评审未再提出第一轮的阻断，也未对第一轮三项修复提出异议 | 👀 登记未处置（2026-10-06；按用户指令只登记不修。三项均属改进级：M1 现象属实但两条建议修法分别与 `raise` 语义、R-05 队列语义冲突，安全落点为 docstring 声明；M2 "加注释" 部分已被现有 docstring 部分覆盖，"改行为测试" 与用例自身论证相左；M3 经全仓扫描确认**仅此两处并存**，Nit 级零行为影响） | [2026-10-06-pr59-round2-ai-review.md](2026-10-06-pr59-round2-ai-review.md) |
 | 35 | 2026-10-07 | **仓库架构与结构全量评审**（master，用户指定五维：整体架构 / 结构清晰性 / 扩展性 / 合理性 / 规范性；3 只读探索子代理并行分区深审 + 主代理对全部 major 逐条独立复核）：总评 8.5/10 通过（0 Critical / 8 Major / 9 Minor / 3 Suggestion，编号 A1–A20）。Major：A1 五个子包 `__init__` re-export 与惰性规则两套做法并存；A2 keyproto 层级声明失真（import `yate.logs` + textual 私有 API）；A3 registries/session 层级 docstring 失真（L1 实依赖 keymaps.base）；A4 pyright strict 门禁无 CI 步骤；A5 `CHANGELOG.zh.md` 40+ 条 `[缺中文]`；A6 dev/ts 依赖组 26 行手工重复；A7 `test_app_textual.py` 5222 行巨型文件；A8 `:set` 选项双份硬编码。另含该文档 §六 flows/ 子包迁移建议（8 个流程模块收进 `yate/flows/`，改动面 16 处 import 已全量核查） | ✅ 已处置（2026-10-07，worktree 分支 `ref/repo-audit-fixes` 16 提交：A1–A11、A13–A18、A20 全部落地，A12/A19 登记不修；门禁 pyright 0 + 全量 0 failures + 覆盖率 91.42% + 冒烟正常；`--require-zh` 依用户决策不入 CI 门禁（`36728aa`）；方案与偏离记录见 [repo-audit-fixes-plan.md](../documents/repo-audit-fixes-plan.md) §十一。A3 的 session.py 半条经核实为评审误报、A13 原指向的 `55e1055` 实为 ConPTY 修复——两处校准见该文档补注） | [2026-10-07-repo-architecture-audit.md](2026-10-07-repo-architecture-audit.md) |
 | 36 | 2026-10-07 | Gitee PR !61 AI 队友评审（[note 51464779](https://gitee.com/jermaine/yate/pulls/61#note_51464779_conversation_191468771) conversation 191468771；`ref/repo-audit-fixes` 审计修复分支全量 94 文件，正文经 Gitee API 取回）：⚠️ 0 阻断 + 1 改进（low）—— `SET_APPLY[spec.name]` 直接索引缺运行时兜底，新增 option 忘补 apply 时 `:set` 抛裸 `KeyError`（不变量仅靠测试守护）；正面认定表驱动 / 私有 API 网关 / 模块拆分 / 测试覆盖使可维护性整体提升 | ✅ 已修（2026-10-07，采纳方案二：分发改 `SET_APPLY.get()` + `log.error` + `internal error` warn 消息，新增 `test_set_dispatch_survives_a_missing_apply` 回归；未采纳 import 期断言——`assert` 被 `-O` 剥离（速览 #23 同类先例）且显式 fail-fast 会把测试可拦截的表不一致升级为启动失败；门禁 pyright 0 + 相关测试全绿） | [2026-10-07-pr61-audit-fixes-ai-review.md](2026-10-07-pr61-audit-fixes-ai-review.md) |
+
+| 37 | 2026-10-07 | **冒烟存量失败**（issue IKJUWP 回调别名化分支审核的副产物；`set_options_matrix / keymap_warned`，自 `8b529d4` 表驱动 `:set` 起恒定失败）：断言钉死字符串 `"unknown keymap"`，而该提示语已改为选项表 `invalid_message`（`"keymap must be vsc or vim"`）；基线仍记 `ok: true`，纯对照不参与判定，长期掩盖了该失败 | ✅ 已修（2026-10-07，分支 `ref/callable-aliases`：断言改为从 `SET_OPTION_INDEX["keymap"].invalid_message` 取文案、跟随选项表，产品行为不动；门禁 pyright 0 + 冒烟全量 **102/102 scenarios、1236/1236 checks**（修复前 101/102）+ 全量 pytest 绿；见 [callable-aliases-plan.md](../documents/callable-aliases-plan.md) §十） | [2026-10-07-smoke-set-options-matrix.md](2026-10-07-smoke-set-options-matrix.md) |
 
 ---
 
@@ -125,6 +127,7 @@
 | 2026-10-06 | **Gitee PR !59 AI 队友评审（第二轮）**（[note 51457690](https://gitee.com/jermaine/yate/pulls/59#note_51457690_conversation_191441088) conversation 191441088；同分支，issue IKJPEK；触发评论 note 51457689，正文经 Gitee API 取回） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 3 改进（功能性 1 + 可维护性 2） | 👀 登记未处置（2026-10-06；按用户指令只登记不修。M1 现象属实（`wiki.py:672-674` 丢弃 `_terminate` 返回值，而超时路径 `:665-667` 有），但"附加到异常信息"与"走队列"两条建议分别与 `raise` 传播中断的语义、R-05 的"排空后必须直写"不变式冲突；M2 属实（守护钉死函数名/变量名/字面量/方法名/出现次数），"改行为测试"与该用例自身论证相左，且配套行为用例同样按名字取属性；M3 属实且经全仓扫描为孤例，Nit 级） | [2026-10-06-pr59-round2-ai-review.md](2026-10-06-pr59-round2-ai-review.md) |
 | 2026-10-07 | **仓库架构与结构全量评审**（master；用户指定五维：整体架构 / 结构清晰性 / 扩展性 / 合理性 / 规范性；3 只读探索子代理并行分区深审 + 主代理对全部 major 逐条独立复核） | ✅ 通过（总评 8.5/10） | 0 Critical / 8 Major / 9 Minor / 3 Suggestion（A1–A20） | ✅ 已处置（2026-10-07，分支 `ref/repo-audit-fixes`：方案 + 12 子计划 + 16 提交，A1–A11、A13–A18、A20 落地 / A12、A19 登记；门禁 pyright 0 + 全量 0 failures + 覆盖率 91.42%；执行记录与偏离见 [repo-audit-fixes-plan.md](../documents/repo-audit-fixes-plan.md) §十一） | [2026-10-07-repo-architecture-audit.md](2026-10-07-repo-architecture-audit.md) |
 | 2026-10-07 | **Gitee PR !61 AI 队友评审**（[note 51464779](https://gitee.com/jermaine/yate/pulls/61#note_51464779_conversation_191468771) conversation 191468771；`ref/repo-audit-fixes` 审计修复分支全量 94 文件，正文经 Gitee API 取回） | ⚠️ 无阻断项，可优化后合并（风险 low） | 0 阻断 / 1 改进（可维护性） | ✅ 已修（采纳方案二：`SET_APPLY.get()` 运行时兜底 + `internal error` warn + 回归用例；未采纳 import 期断言，`assert` 被 `-O` 剥离且 fail-fast 过度，见速览 #36） | [2026-10-07-pr61-audit-fixes-ai-review.md](2026-10-07-pr61-audit-fixes-ai-review.md) |
+| 2026-10-07 | **冒烟存量失败修复**（issue IKJUWP 回调别名化分支 `ref/callable-aliases` 审核副产物；`set_options_matrix / keymap_warned`，`8b529d4` 起恒定失败） | ✅ 已修（产品行为正确，测试断言过期） | 1 项过期断言 | ✅ 已修（断言跟随 `SET_OPTION_INDEX["keymap"].invalid_message`，不再钉字面量；门禁 pyright 0 + 冒烟 102/102 scenarios、1236/1236 checks + 全量 pytest 绿；根因与举一反三见记录） | [2026-10-07-smoke-set-options-matrix.md](2026-10-07-smoke-set-options-matrix.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

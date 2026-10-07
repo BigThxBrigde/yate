@@ -285,3 +285,23 @@
 Wave 3 的只读独立评审（`code-review-expert`，1 名成员，全程 139 次工具调用，
 产出实测门禁数据并给出 14 条问题，全部处置见 9.2）。这是规则冲突时的显式取舍，
 未跳过审核环节。
+
+## 十、存量冒烟失败修复（2026-10-07 追加）
+
+审核阶段暴露的全量冒烟唯一失败项已定位并修复。完整根因、证据链与举一反三见评审记录
+[reviews/2026-10-07-smoke-set-options-matrix.md](../reviews/2026-10-07-smoke-set-options-matrix.md)。
+
+- **现象**：`set_options_matrix / keymap_warned` 恒失败——全量冒烟 101/102 scenarios、
+  1235/1236 checks；单场景复跑同样失败（排除 timing 类偶发）。
+- **根因**：断言钉死字面量 `"unknown keymap"`，而 `8b529d4`（表驱动 `:set`，A8/A9）已把该提示语
+  收进选项表 `SET_OPTION_SPECS["keymap"].invalid_message`（`"keymap must be vsc or vim"`）。
+  `yate/editor.py:750` 的 `unknown keymap: <name> (vsc|vim)` 属于 `:keymap <名字>` 命令路径，
+  与 `:set` 本就是两条路径、两种文案。基线 JSON（`smoke_baselines/set_options_matrix.json`）
+  只作对照、不参与判定，其中 `ok: true` 的历史记录长期掩盖了该失败。
+- **修复**：`tools/smoke_test/scenarios/view.py` 的断言改为从
+  `SET_OPTION_INDEX["keymap"].invalid_message` 取文案，即**跟随选项表**而非钉死字符串；
+  **产品源码零改动**（`yate/` 未触碰一个字节）。基线文件无需改动：label 与 expected 未变。
+- **实测（主代理亲自跑）**：单场景 `--scenario set_options_matrix` **16/16 checks**；
+  全量冒烟 `--skip-slow` **102/102 scenarios、1236/1236 checks**、exit 0（修复前 101/102）；
+  `pyright yate/ tests/ tools/` 0 errors；全量 pytest + 覆盖率门禁见 §十一。
+- **登记**：评审记录已入 `.trae/reviews/README.md` 速览 #37 与轮次总表。
