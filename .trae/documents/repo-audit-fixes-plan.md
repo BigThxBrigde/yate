@@ -271,3 +271,38 @@ flowchart TD
   [`repo-audit-fixes-test-split-plan-e.md`](repo-audit-fixes-plans/repo-audit-fixes-test-split-plan-e.md)（子代理）
 
 缓做/不做登记：A12（插件事件订阅——独立功能任务，按 architecture-boundaries §四回调列表机制另行方案先行）；A19（维持现状，`editor_sprites/chars/` 角色数 >40 再评估合并）；A6-PEP735（待 pip 基线 ≥25.1）；A11 代码拆分（regex_backend / vim.py / diffview 等待独立立项）。
+
+---
+
+## 十一、执行记录（wave-6 回填，2026-10-07）
+
+门禁实测（worktree venv，Python 3.13）：pyright **0 errors** ／ pytest 全量 **0 failures** ／
+覆盖率 **91.42%**（branch 模式，`--cov-fail-under=75` 通过）／ 架构守护全绿 ／
+`python -m yate --help` 冒烟正常。
+
+| 波次 | 结果 | 提交 |
+|---|---|---|
+| 方案 | 主计划 + 12 子计划落盘（含 §一 F1–F5 事实修正） | `0fb54d0` |
+| wave-1 | plan-a 规则/docstring（`9334a23`）；plan-b 依赖组守护 + tests README（`e97bec9`）；plan-c 翻译清偿——实测 **489 条**（计划预估 40+，grep 截断低估，按"清零"验收线全额清偿）（`abae30c`）；plan-d 资产迁移 + pyright exclude（`3f7b3f7`） | 4 笔 |
+| wave-2 | plan-e re-export 成文例外 + editor_lsp 收敛（`27e5b2a`）；plan-f keyproto 收口（`304215a`）；负向演练 3/3 拦截 | 2 笔 |
+| wave-3 | plan-g flows/ 迁移——根目录 23 → 14 个 `.py`（`7e928de`）；plan-h 文档分工成文（`00f6b03`） | 2 笔 |
+| wave-4 | plan-i config 拆分（310 行）+ yaterc.py（794 行）+ `:set` 表驱动（`8b529d4`，偏离 D1/D2）；plan-j 扩展 setup 快照-恢复式回滚（`a78d300`） | 2 笔 |
+| wave-5 | plan-k CI lint job + 3.13 腿 + released-only `--require-zh` 语义（`6100df0`；**`--require-zh` 依用户决策从 CI 门禁移除**（`36728aa`），保留为本地 opt-in）；plan-l 5222 行测试拆 9 文件（`fb030fd`，166 用例多重集守恒） | 3 笔 |
+| wave-6 | 全量门禁 + CHANGELOG 吸收 13 笔提交并补翻（`e305421`/`94b6c7f`）+ 本节回填 | — |
+
+**偏离记录**（均有实测依据，已在对应提交信息中声明）：
+
+- **D1**（plan-i 消费面）：子计划列 6 处生产 import；实测 tests 侧另有 **49 处**
+  `cfg.load_config` 等 `cfg.` 属性形态 + `test_cli` 3 处 patch 目标，全部迁移。
+- **D2**（plan-i/pyright strict）：`_KNOWN_OPTIONS` 等 4 个校验常量与
+  `SET_OPTION_INDEX` / `SET_APPLY` / `SET_OPTIONS` 转公开名——strict 的
+  `reportPrivateUsage` 禁止跨模块私有访问，与"零 ignore 注释"硬门槛冲突。
+- **D3**（plan-k）：`_missing_zh` → 公开 `missing_zh`（同 D2 理由）；
+  **`--require-zh` 经用户决策不入 CI 门禁**（`36728aa`），released-only 语义保留为本地 opt-in。
+- **D4**（plan-l）：未建 `test_app_screensaver.py`（原文件无 screensaver 用例）；
+  新增计划未列名的 `test_app_manual.py` / `test_app_lsp.py` / `test_app_render.py`
+  （功能域实际分区，硬塞计划列名 5 文件将达 ~2700 行违反 ≤1200 行目标）；
+  term 3 用例随 `_FakePty` 归 terminal 域。
+- **D5**（plan-d）：`pb6_real_input_harness.py` docstring 用法路径随迁移同步更新；
+  `tools/probes/**` 加入 pyright `exclude`（存量一次性探针不入 strict 门禁）。
+- **A20 复核**：`editor.py` 仍 907 行（plan-i 未迁出 setter），按 plan-a 登记保留豁免名单。

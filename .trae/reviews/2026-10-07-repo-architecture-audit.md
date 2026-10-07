@@ -7,6 +7,16 @@
 > （代码级建议 6 条）及 [2026-10-03-python-code-review.md](2026-10-03-python-code-review.md)
 > （83 项风格/缺陷）互补——本轮专注**架构与结构**维度，不重复其代码级发现；重叠条目已在
 > §五 逐条核对标注。本记录为只读事实文档（doc-conventions §2.1），不含修复排期。
+>
+> **修复轮校准补注（2026-10-07，方案调研阶段实测；详见
+> [repo-audit-fixes-plan.md](../documents/repo-audit-fixes-plan.md) §一）**：
+> ① A5-② 半条过时——`tools.changelog check --require-zh` 当时已存在，只是 CI 未启用；
+> ② A3 的 session.py 半条为**误报**（`editor_core` / `services.*` 均在规则 §一 L0 清单内，
+> docstring "L0-only" 成立，仅 registries.py 半条属实）；③ A13 引用的速览 #5 提交
+> `55e1055` 实为 ConPTY 句柄修复，与本条无关（半注册确认未机制化，已按方案落地）；
+> ④ 行数继续漂移：regex_backend 1225 / vim.py 1107 / diffview 1035；⑤ A2 "三个下划线
+> 私有模块"实为两个（`windows_driver` 不带下划线，笔误）。处置结果：A1–A11、A13–A18、
+> A20 已修（分支 `ref/repo-audit-fixes`，门禁实测见方案 §十一），A12 / A19 登记不修。
 
 ---
 
