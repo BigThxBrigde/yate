@@ -17,7 +17,9 @@ Backends, resolved per filetype by :mod:`yate.editor_syntax.engine`:
 The re-exports below are the public API shared by the core and the
 extension bridge (``services/extensions.py``): :func:`tokenize_document`
 is the dispatching engine entry point, the rest is the declarative
-language registry.
+language registry.  This is the documented public API exception
+(architecture-boundaries §三.5): pure-leaf packages may re-export their
+public surface; UI/service packages may not.
 """
 
 from __future__ import annotations

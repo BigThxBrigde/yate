@@ -2,6 +2,10 @@
 
 The package is UI independent: :mod:`yate.editor_view.terminal` renders the
 emulator state in Textual and feeds key bytes back in.
+
+The re-exports below are the documented public API exception
+(architecture-boundaries §三.5): pure-leaf packages may re-export their
+public surface; UI/service packages may not.
 """
 
 from __future__ import annotations

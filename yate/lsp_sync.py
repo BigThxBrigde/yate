@@ -18,7 +18,7 @@ from textual.screen import Screen
 from textual.worker import Worker
 
 from yate.editor_core import Document
-from yate.editor_lsp import LspManager
+from yate.editor_lsp.manager import LspManager
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.modals import OutputScreen
 from yate.editor_view.panes import PaneManager

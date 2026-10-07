@@ -700,3 +700,31 @@ def test_flow_modules_hold_no_app_handle() -> None:
             continue
         lines = _self_app_accesses(path)
         assert lines == [], (path, lines)
+
+
+def test_editor_lsp_package_root_is_light() -> None:
+    """The ``editor_lsp`` package root never pulls in the manager (A1).
+
+    The root re-exports the lightweight client data types only; the
+    heavyweight ``LspManager`` lives in :mod:`yate.editor_lsp.manager` so
+    ``import yate.editor_lsp`` stays cheap (architecture-boundaries §三.5,
+    layer 3: heavyweight implementation modules stay out of package roots).
+    """
+    imports = _module_imports(YATE / "editor_lsp" / "__init__.py")
+    offenders = [name for name in imports if name.startswith("yate.editor_lsp.manager")]
+    assert offenders == [], sorted(imports)
+
+
+def test_leaf_package_reexports_carry_exception_note() -> None:
+    """Every re-exporting leaf package documents the §三.5 exception (A1).
+
+    Guards against the rule text and the code drifting apart again: a leaf
+    package may keep re-exports only while its ``__init__.py`` notes the
+    documented exception (architecture-boundaries §三.5 layer 3).
+    """
+    leaf_packages = ("editor_core", "editor_lsp", "editor_syntax", "editor_term", "keymaps")
+    for name in leaf_packages:
+        text = (YATE / name / "__init__.py").read_text(encoding="utf-8")
+        if "__all__" not in text:
+            continue
+        assert "architecture-boundaries" in text, name

@@ -25,7 +25,10 @@ L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         editor_sprites / logs / paths / config / services/* / keymaps/base|vim|vsc
         （2026-09-28 核对补入：`keyproto/` 键弦模型与 Windows 驱动、`editor_sprites/`
-        屏保精灵数据/渲染，二者皆为纯 L0 叶包）
+        屏保精灵数据/渲染，二者皆为纯 L0 叶包。
+        2026-10-08 A2 定案：`keyproto/driver_windows.py` 经
+        `keyproto/textual_internals.py` 收口 Textual 私有 API（升级 Textual 先查该文件）；
+        `yate.logs` 为 R12 统一 tracing 的豁免依赖）
 插件：extensions/*（由 L4 外壳经 L3 services/extensions.py 装载；只依赖
          services/extensions 暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
          禁止 import editor / editor_view / app）
@@ -147,7 +150,17 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
    （如 `KeyUi`、`PromptCompleter`），不引入协议类。
 3. 禁止用 `Any` / `# type: ignore` 掩盖类型不匹配（pyright strict 必须真正成立）。
 4. 读写分离：读状态用只读属性 / 查询方法；只有真正的命令才用操作方法。
-5. 包 `__init__.py` 保持惰性：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层。
+5. 包 `__init__.py` 分层约定（2026-10 评审 A1 定案，三层表述）：
+   ① 包根**默认惰性**：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层；
+   ② UI / 服务包（`editor_view` / `services`）**禁止** re-export（现状惯例成文化，
+   `editor_view/__init__.py` 与 `services/__init__.py` 的"deliberately not re-exported"
+   声明为范本）；
+   ③ 纯 L0 叶包（`editor_core` / `editor_lsp` / `editor_syntax` / `editor_term` /
+   `keymaps`）允许**有限** re-export 作为插件公共 API 面（插件手册明文示例
+   `from yate.editor_syntax import LangSpec`），且**重量级实现模块**（如
+   `editor_lsp.manager`）不得进包根；例外须在各包 `__init__.py` docstring 注明
+   （守卫：`test_leaf_package_reexports_carry_exception_note`、
+   `test_editor_lsp_package_root_is_light`）。
 6. **能用函数实现的就不造类**：内置表（`populate` / `register_commands` / `load_startup_extensions`）、
    纯计算（`prompt_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
    （`session.py` 的 `find_leaf` / `replace_node` …）一律用函数。

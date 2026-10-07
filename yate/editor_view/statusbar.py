@@ -17,7 +17,8 @@ from rich.text import Text
 from textual.widgets import Static
 
 from yate.editor_core import Document
-from yate.editor_lsp import LspManager, ServerState
+from yate.editor_lsp import ServerState
+from yate.editor_lsp.manager import LspManager
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.paths import load_tcss

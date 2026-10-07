@@ -32,7 +32,7 @@ from yate.completion import CompletionFlows
 from yate.config import YateConfig
 from yate.document_flows import DocumentFlows
 from yate.editor_core import BufferReadOnlyError
-from yate.editor_lsp import LspManager
+from yate.editor_lsp.manager import LspManager
 from yate.editor_syntax import (
     format_filetype_candidates,
     language_name,

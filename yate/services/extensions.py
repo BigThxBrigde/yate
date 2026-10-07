@@ -38,7 +38,7 @@ from types import ModuleType
 from typing import Any, cast
 
 from yate.config import YateConfig
-from yate.editor_lsp import LspManager
+from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_sprites.characters import (
     character_names,
