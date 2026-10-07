@@ -192,7 +192,7 @@ use_spaces = True
 # file_preview = {
 #     "enable": True,        # master switch for the preview pane
 #     "position": "right",   # pane side of the results list ("left" too)
-#     "size": 40,            # pane width as percent of palette width (10-80)
+#     "size": 50,            # pane width as percent of palette width (10-80)
 #     "max_lines": 2000,     # lines read/tokenized for one preview
 #     "max_size": 1048576,   # byte cap; bigger files are not previewed
 # }

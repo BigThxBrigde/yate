@@ -425,7 +425,7 @@ the size cap degrade to a short notice instead of content. With
 file_preview = {
     "enable": True,        # master switch for the preview pane
     "position": "right",   # pane side of the results list ("left" too)
-    "size": 40,            # pane width as percent of palette width (10-80)
+    "size": 50,            # pane width as percent of palette width (10-80)
     "max_lines": 2000,     # lines read/tokenized for one preview
     "max_size": 1048576,   # byte cap; bigger files are not previewed
 }
@@ -435,7 +435,7 @@ file_preview = {
 |---|---|---|---|
 | `enable` | `bool` | `True` | Master switch; `False` turns the preview pane off and `Ctrl+P` stays exactly as before. |
 | `position` | `str` | `"right"` | Which side of the results list the preview pane sits on: `"right"` or `"left"`. |
-| `size` | `int` `10`–`80` | `40` | Preview pane width as a percentage of the palette width. |
+| `size` | `int` `10`–`80` | `50` | Preview pane width as a percentage of the palette width. |
 | `max_lines` | `int` `1`–`100000` | `2000` | Lines read and highlighted per preview; beyond this the content is truncated with a notice. |
 | `max_size` | `int` `1024`–`16777216` | `1048576` | File size cap in bytes (1 MiB); larger files are not read at all -- the pane shows a notice instead. |
 

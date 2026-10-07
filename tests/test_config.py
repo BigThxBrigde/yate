@@ -975,7 +975,7 @@ def test_file_preview_defaults() -> None:
     assert config.file_preview == cfg.FilePreviewConfig()
     assert config.file_preview.enable is True
     assert config.file_preview.position == "right"
-    assert config.file_preview.size == 40
+    assert config.file_preview.size == 50
     assert config.file_preview.max_lines == 2000
     assert config.file_preview.max_size == 1048576
 
@@ -1049,7 +1049,7 @@ def test_file_preview_bad_size_rejected(tmp_path: Path) -> None:
         assert config.errors, body
         assert any("file_preview size" in e for e in config.errors), (body, config.errors)
         # the failing key keeps its default (bool masquerading as int is caught)
-        assert config.file_preview.size == 40, body
+        assert config.file_preview.size == 50, body
 
 
 def test_file_preview_bad_limits_rejected(tmp_path: Path) -> None:

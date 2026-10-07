@@ -30,7 +30,7 @@ theme-directory loading) allow custom themes::
     file_preview = {                                 # ctrl+p preview pane
         "enable": True,        # master switch for the preview pane
         "position": "right",   # pane side of the results list ("left" too)
-        "size": 40,            # pane width as percent of palette width (10-80)
+        "size": 50,            # pane width as percent of palette width (10-80)
         "max_lines": 2000,     # lines read/tokenized for one preview
         "max_size": 1048576,   # byte cap; bigger files are not previewed
     }
@@ -147,7 +147,7 @@ class FilePreviewConfig:
 
     enable: bool = True
     position: str = "right"     # "right" | "left"
-    size: int = 40              # percent of palette width, 10-80
+    size: int = 50              # percent of palette width, 10-80
     max_lines: int = 2000       # read/tokenize line cap
     max_size: int = 1048576     # byte cap before refusing to read
 
@@ -628,7 +628,7 @@ def _extract_file_preview(  # noqa: Any - raw yaterc exec-namespace values, narr
                 f"file_preview position must be 'right' or 'left', got {value!r}"
             )
 
-    size: int = 40
+    size: int = 50
     if "size" in values:
         value = values["size"]
         # bool is a subclass of int -- reject it explicitly for this option.
