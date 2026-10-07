@@ -269,7 +269,18 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         if parsed is None:
             editor.message(spec.invalid_message, kind="warn")
             return
-        SET_APPLY[spec.name](editor, parsed)
+        apply = SET_APPLY.get(spec.name)
+        if apply is None:
+            # The specs/apply invariant is pinned by
+            # test_set_option_specs_cover_all_dispatched_options; this
+            # runtime guard keeps a forgotten apply entry from crashing
+            # the command line with a bare KeyError (PR !61 review M1).
+            log.error("set missing apply handler for %r", spec.name)
+            editor.message(
+                f"internal error: no handler for {spec.name}", kind="warn"
+            )
+            return
+        apply(editor, parsed)
 
     def _theme(args: str) -> None:
         args = args.strip()
