@@ -9,6 +9,7 @@ import asyncio
 from pathlib import Path
 from textual.widgets.tree import TreeNode
 from yate.app import YateApp
+from conftest import wait_until
 
 def test_explorer_open_file(tmp_path: Path) -> None:
     async def scenario() -> None:
@@ -31,6 +32,37 @@ def test_explorer_open_file(tmp_path: Path) -> None:
             # esc returns focus to the editor
             await pilot.press("escape")
             assert app.focused is app.editor.panes.active_view
+
+    asyncio.run(scenario())
+
+
+def test_explorer_click_opens_file(tmp_path: Path) -> None:
+    # plan-d (issue IKJRFK): Textual's built-in tree click-select must keep
+    # opening files from the explorer (NodeSelected -> open_path sentinel
+    # against upstream drift).
+    from yate.editor_view.explorer import ExplorerTree
+
+    async def scenario() -> None:
+        # the workspace stores the resolved root; on Windows TEMP may be an
+        # 8.3 short name, so resolve before every node-path comparison
+        root = tmp_path.resolve()
+        (root / "a.txt").write_text("alpha\n", encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            tree = app.editor.explorer_tree
+            assert tree is not None
+            assert tree.display  # a directory target starts with it shown
+            line = tree._line_of(root / "a.txt")
+            assert line is not None
+
+            clicked = await pilot.click(ExplorerTree, offset=(2, line))
+            assert clicked
+            assert await wait_until(
+                pilot,
+                lambda: app.editor.session.doc.path is not None
+                and app.editor.session.doc.path.name == "a.txt",
+            )
 
     asyncio.run(scenario())
 
