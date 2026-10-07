@@ -136,6 +136,7 @@ sequenceDiagram
 | 3 回归测试 | ✅ 完成 | `tests/test_palette_preview.py` 13 → 15，目标文件 **15 passed** |
 | 4 全量门禁 | ✅ 完成 | 数字见 §八 |
 | 5 回填收尾 | ✅ 完成 | 本文 §六/§八 即回填产物 |
+| 6 TERM=dumb 加固复跑（用户追加） | ✅ 完成 | 根因 rich dumb-terminal 门控；`cc4ebd6` 测试加固；全量 1976 passed, 0 failed，见 §八 |
 
 ## 七、提交计划（只提交不推送）
 
@@ -154,16 +155,34 @@ sequenceDiagram
 | 门禁 | 命令 | 实测结果 | 判定 |
 |---|---|---|---|
 | 目标测试 | `python -m pytest tests/test_palette_preview.py -q` | **15 passed** | ✅ |
-| 类型 | `python -m pyright yate tests tools` | **0 errors, 0 warnings, 0 informations** | ✅ |
-| 单测+架构 | `python -m pytest tests/ --tb=no` | **1 failed, 1975 passed, 9 skipped**（301.63s） | ✅（唯一失败见下） |
-| 覆盖率 | `python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75` | TOTAL **91.41%**（13313 stmts / 4432 branches，branch mode），gate 75% reached | ✅ |
+| 类型 | `python -m pyright yate tests tools` | **0 errors, 0 warnings, 0 informations**（两轮均测） | ✅ |
+| 单测+架构 | `python -m pytest tests/ --tb=no` | 首轮 **1 failed, 1975 passed, 9 skipped**（301.63s）；加固复跑（合并覆盖率，见下）**1976 passed, 9 skipped，0 failed**（461.62s） | ✅ |
+| 覆盖率 | `python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75` | 加固复跑 TOTAL **91.40%**（13313 stmts / 4432 branches，branch mode），gate 75% reached（首轮 91.41% 的 0.01pp 差异源于原失败用例修复后多执行了一个分支） | ✅ |
 | 冒烟 | `python -m tools.smoke_test run --scenario palette_preview_renders --scenario palette_preview_truncates --scenario palette_preview_disabled` | renders 13/13 · truncates 9/9 · disabled 12/12 → **3/3 场景，34/34 checks，exit 0**（1.49s） | ✅ |
 
-**唯一失败**：`tests/test_pack_wiki_parallel.py::test_batch_row_names_the_page_in_flight_and_escapes_markup`
-——已按方案 §五 在 master 检出（`D:/Programming/yate`，`7ab124a`）实测同败
-（同一用例、同一断言 `'bracket[name].en.md' in ''`），属存量环境问题，
-与本分支零改动面（本分支未触碰 `tools/pack/wiki.py`），不拦截。架构守卫
-`tests/test_architecture.py` 22 例含于 1975 passed 内。
+**"唯一失败"的根因与加固（2026-10-07 用户追加闭环）**：
+`tests/test_pack_wiki_parallel.py::test_batch_row_names_the_page_in_flight_and_escapes_markup`
+首轮在本仓 agent 环境与 master 检出（`D:/Programming/yate`，`7ab124a`）同样失败，
+当时登记为"存量环境问题"；经根因定位，**两处失败同源且与代码无关**——
+
+1. Trae agent shell 导出 **`TERM=dumb`**（另有 `CI=true`）；
+2. 测试的 `Console(file=stream, force_terminal=True, width=120)` 只压住 `is_terminal`，
+   rich 的 `Live.refresh()` 还有一道独立门：`is_terminal and not is_dumb_terminal`
+   （rich `live.py:269`），而 `is_dumb_terminal` 直接读宿主环境
+   `TERM ∈ {"dumb", "unknown"}`（rich `console.py:986-988`）；
+3. 于是 `TERM=dumb` 下 `progress.refresh()` 是**确定性静默 no-op**，
+   `stream.getvalue()` 恒为 `''`，`assert "bracket[name].en.md" in ''` 必败；
+   用户手动在正常终端跑则通过。
+
+**对照实证**（同一 worktree、同一 venv、同一用例）：`TERM=dumb` → FAILED；
+移除 `TERM` → passed。
+
+**加固**（`cc4ebd6`，测试专用、零行为面）：`_live_display` 的 Console 注入
+`_environ={"TERM": "xterm-256color"}`（rich 为测试提供的注入口），使 Live 渲染
+与宿主环境解耦。加固后 `TERM=dumb` 下该用例、整个
+`test_pack_wiki_parallel.py`（25 passed, 1 skipped）、全量 pytest 均绿——
+上表"加固复跑"数字即产自 agent 环境。架构守卫 `tests/test_architecture.py`
+22 例含于 1976 passed 内。
 
 **审核结论**（task-orchestration §二.5）：改动面小（2 文件，+67/-2），按
 code-review-expert 剧本由主代理亲自评审并如实标注：依赖方向（仅 L2 + stdlib import）、
@@ -178,3 +197,6 @@ pyright strict 零诊断、测试走既有 Pilot 基建——无 blocker / major
 2. 门禁数字采集发现：`pyproject.toml` `addopts = "-q"` 与命令行显式 `-q` 叠加成
    `-qq`，会吞掉 pytest 末尾的 `N failed, M passed` 统计行——采集数字时应省略显式 `-q`。
 3. 计划 §四 步骤 4 的命令模板省略了显式 `-q` 后即为实测命令，无其他偏离。
+4. （用户追加闭环）首轮登记的"存量环境问题"经根因定位为宿主 `TERM=dumb`
+   触发 rich dumb-terminal 门控，已以测试加固根治（`cc4ebd6`）；登记口径由
+   "存量不拦截"升级为"已根治并全绿复跑"，见 §八"根因与加固"。
