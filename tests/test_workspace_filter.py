@@ -9,14 +9,18 @@ per-directory, negation, directory-only rules).
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from yate.services.workspace import IGNORED_NAMES, Entry, Workspace
+from yate.services.workspace import (
+    IGNORED_NAMES,
+    Entry,
+    Workspace,
+    _IgnorePattern,
+)
 
 
 def _raise_permission(*_args: Any, **_kwargs: Any) -> Any:
@@ -510,19 +514,6 @@ def chain_depths(root: Path, depth: int) -> dict[Path, int]:
     return depths
 
 
-def raise_long_path_error(*_args: object, **_kwargs: object) -> os.stat_result:
-    """``Path.stat`` / ``Path.read_text`` stand-in that always fails.
-
-    ``_dir_ignores`` stats both ignore-file candidates per directory and
-    ``read_text``s them on a cache miss; on the fake chain both mean real
-    syscalls against ~9k-character paths.  Raising ``OSError`` lands in
-    the same ``except`` branches the genuine "no such file" case does
-    (stamp ``-1.0``, read skipped), so walk semantics are unchanged: every
-    chain directory simply has no ignore files.
-    """
-    raise OSError("refused: path too long")
-
-
 def test_walk_files_keeps_depth_first_order_across_directories(
     tmp_path: Path,
 ) -> None:
@@ -551,11 +542,13 @@ def test_walk_files_survives_a_1500_level_chain(
     directory tests use; only ``child``/``leaf.txt`` names answer "yes" to
     ``is_dir`` and everything else -- including ``is_symlink`` -- stays a
     plain in-memory Path.  Chain depth comes from the O(1) ``chain_depths``
-    lookup table, and ``Path.stat`` is stubbed to raise ``OSError`` so
-    ``_dir_ignores`` never really stats the fake deep paths.  The fake
-    root is a short relative path, and the stubs hand out the prebuilt
-    ``chain_depths`` node objects instead of constructing fresh ones per
-    call, so each 1500-segment path is parsed and formatted exactly once.
+    lookup table, and ``_dir_ignores`` is stubbed out wholesale so the fake
+    deep paths never hit real syscalls (PR !64 review improvement: the
+    former global ``Path.stat`` / ``Path.read_text`` stubs reached far
+    beyond this test).  The fake root is a short relative path, and the
+    stubs hand out the prebuilt ``chain_depths`` node objects instead of
+    constructing fresh ones per call, so each 1500-segment path is parsed
+    and formatted exactly once.
     """
     root = Path("chain-root")
     monkeypatch.setattr(ws, "root", root)
@@ -577,6 +570,19 @@ def test_walk_files_survives_a_1500_level_chain(
     def chain_is_symlink(path: Path) -> bool:
         return False
 
+    def chain_dir_ignores(
+        _self: Workspace, _directory: Path
+    ) -> list[_IgnorePattern]:
+        """No ignore files anywhere on the chain.
+
+        ``_dir_ignores`` is where the fake deep paths would hit real
+        stat/read syscalls; returning no patterns matches the walk
+        semantics the former global ``Path.stat`` / ``Path.read_text``
+        stubs produced via their ``OSError`` branches, but stays on the
+        workspace seam instead of patching ``pathlib`` globally.
+        """
+        return []
+
     monkeypatch.setattr("pathlib.Path.iterdir", chain_iterdir)
     monkeypatch.setattr("pathlib.Path.is_dir", chain_is_dir)
     # Production consults is_symlink for every directory child (symlink-loop
@@ -585,14 +591,7 @@ def test_walk_files_survives_a_1500_level_chain(
     # Windows-masked, but Linux PATH_MAX (4k) raises Errno 36 partway down
     # the chain (pathlib only ignores ENOENT-class lstat errors).
     monkeypatch.setattr("pathlib.Path.is_symlink", chain_is_symlink)
-    # _dir_ignores stats both ignore-file candidates per directory and
-    # read_texts them on a cache miss -- two real syscalls plus two real
-    # opens on a ~9k-character path per chain level.  The OSError stubs
-    # land in the same branches as a missing file (stamp -1.0, read
-    # skipped), which matches the test's intent: no directory carries
-    # ignore files.
-    monkeypatch.setattr("pathlib.Path.stat", raise_long_path_error)
-    monkeypatch.setattr("pathlib.Path.read_text", raise_long_path_error)
+    monkeypatch.setattr(Workspace, "_dir_ignores", chain_dir_ignores)
 
     files = ws.walk_files()
 

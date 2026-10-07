@@ -186,18 +186,31 @@ def test_valid_custom_yate_theme_gets_working_bridge() -> None:
 
 
 @pytest.mark.parametrize(
-    "cmd_arg,lang",
-    [("zh", "zh"), ("en", "en"), ("bogus", "en")],
-    ids=["zh", "en", "bogus"],
+    "cmd_arg,expected_lang",
+    [("zh", "zh"), ("en", "en"), ("bogus", "bogus")],
+    ids=["zh", "en", "bogus-passed-through"],
 )
-def test_manual_command_selects_language(cmd_arg: str, lang: str) -> None:
+def test_manual_command_selects_language(cmd_arg: str, expected_lang: str) -> None:
+    """``:manual <arg>`` routes the requested language to the loader.
+
+    The loader stub records ``(kind, lang)`` -- a fixed ``return_value``
+    used to hide exactly this routing (PR !64 review improvement): the
+    command must forward its argument (or the ``en`` default) as the
+    language.  The bogus-to-en normalization lives inside the real
+    ``load_doc_markdown``, which is stubbed here for render speed.
+    """
     async def scenario() -> None:
         from textual.widgets import Markdown, Static
 
+        calls: list[tuple[str, str]] = []
+
+        def fake_load(kind: str, lang: str = "en") -> str:
+            calls.append((kind, lang))
+            return MANUAL_DOC_FIXTURE
+
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
-            return_value=MANUAL_DOC_FIXTURE,
+            "yate.editor_view.manual.load_doc_markdown", side_effect=fake_load
         ):
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
@@ -213,6 +226,7 @@ def test_manual_command_selects_language(cmd_arg: str, lang: str) -> None:
                 )
                 md = app.screen.query_one("#doc-md", Markdown)
                 assert md.source == MANUAL_DOC_FIXTURE
+                assert calls == [("manual", expected_lang)]
 
     asyncio.run(scenario())
 
