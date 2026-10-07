@@ -39,7 +39,7 @@ class ExplorerTree(Tree[NodeData]):
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
-    _theme_unsubscribe: Callable[[], None] | None = None
+    _theme_unsubscribe: theme.Unsubscribe | None = None
 
     #: icon-only expand/collapse affordance (issue IKINF3): Textual's default
     #: "▶ "/"▼ " arrows are dropped entirely -- the folder's open/closed glyph

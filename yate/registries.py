@@ -22,7 +22,7 @@ from yate.keymaps.base import ActionContext
 from yate.logs import tracing
 
 #: A ``:`` command handler: receives the raw argument string.
-CommandFunc = Callable[[str], object]
+type CommandFunc = Callable[[str], object]
 
 log = tracing.get_logger(__name__)
 

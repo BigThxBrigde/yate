@@ -10,12 +10,7 @@ this module is constructed by the editor and never imports upward.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from functools import partial
-from typing import Any
-
-from textual.screen import Screen
-from textual.worker import Worker
 
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
@@ -23,23 +18,24 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.modals import OutputScreen
 from yate.editor_view.panes import PaneManager
 from yate.editor_view.statusbar import StatusBar
+from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
 from yate.session import EditorSession
 
 
 class LspSync:
     """Drives the LSP manager from editor events and reports diagnostics."""
 
-    def __init__(  # noqa: Any - push_overlay accepts any Textual Screen type
+    def __init__(
         self,
-        spawn: Callable[..., Worker[object]],
+        spawn: SpawnFn,
         lsp: LspManager,
         session: EditorSession,
         panes: PaneManager,
         status_bar: StatusBar,
         prompt: PromptBar,
-        message: Callable[[str, str], None],
-        mounted: Callable[[], bool],
-        push_overlay: Callable[[Screen[Any]], None],
+        message: MessageFn,
+        mounted: StateQuery,
+        push_overlay: OverlayPusher,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).

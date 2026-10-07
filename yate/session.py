@@ -34,7 +34,7 @@ from yate.logs import tracing
 from yate.services.workspace import Workspace
 
 #: Called with the documents a close operation removed (LSP didClose hook).
-ClosedHook = Callable[[list[Document]], None]
+type ClosedHook = Callable[[list[Document]], None]
 
 log = tracing.get_logger(__name__)
 

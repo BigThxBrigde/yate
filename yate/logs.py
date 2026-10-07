@@ -55,6 +55,10 @@ from typing import Any, IO, override, TextIO
 
 from yate import __version__
 
+#: ``sys.excepthook`` -- the crash service chains to the hook it replaced and
+#: restores it on uninstall, so it is kept as a callable of unknown shape.
+type ExcepthookFn = Callable[..., Any]
+
 # ==============================================================
 # Constants -- consumed directly by config.py, cli.py, tests, ...
 # ==============================================================
@@ -298,14 +302,14 @@ class CrashService:
         #: time) -- so a hook the host installed between import and install
         #: is the one chained to and later restored, not clobbered.
         #: ``None`` until that first install.
-        self._original_excepthook: Callable[..., Any] | None = None
+        self._original_excepthook: ExcepthookFn | None = None
         #: The bound ``_excepthook`` object currently stored in
         #: ``sys.excepthook``, or ``None`` when we are not installed. Held
         #: as a reference on purpose: ``self._excepthook`` is a *fresh*
         #: bound method on every access, so ``sys.excepthook is
         #: self._excepthook`` is never true and could not tell "still ours"
         #: from "wrapped by someone else since".
-        self._installed_excepthook: Callable[..., Any] | None = None
+        self._installed_excepthook: ExcepthookFn | None = None
 
     # --- public read-only state -------------------------------------------
 
@@ -325,7 +329,7 @@ class CrashService:
         return self._crashed
 
     @property
-    def original_excepthook(self) -> Callable[..., Any] | None:
+    def original_excepthook(self) -> ExcepthookFn | None:
         """The ``sys.excepthook`` captured at install time (chained after us).
 
         ``None`` while the service has never been installed: the constructor

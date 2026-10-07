@@ -407,13 +407,22 @@ def set_theme(name: str) -> Theme:
     return _active
 
 
+#: A theme-change subscriber: widgets hand their repaint callable to
+#: :func:`attach` and keep the returned :data:`Unsubscribe` for ``on_unmount``.
+type ThemeListener = Callable[[], None]
+
+#: What :func:`subscribe` gives back -- call it once to detach that listener
+#: again.  Same shape as :data:`ThemeListener` but the opposite intent: it
+#: *removes* a subscription instead of receiving a broadcast.
+type Unsubscribe = Callable[[], None]
+
 #: Subscribers notified (synchronously) after a successful :func:`set_theme`.
 #: Widgets own their theme painting: they subscribe on mount and unsubscribe
 #: on unmount (rule "1:N low-frequency broadcast -> callback list").
-_listeners: list[Callable[[], None]] = []
+_listeners: list[ThemeListener] = []
 
 
-def subscribe(listener: Callable[[], None]) -> Callable[[], None]:
+def subscribe(listener: ThemeListener) -> Unsubscribe:
     """Register *listener* for theme changes; return its unsubscribe function.
 
     An equal listener (e.g. the same widget's bound method, should its
@@ -450,7 +459,7 @@ def _notify() -> None:
             )
 
 
-def attach(widget: Widget, repaint: Callable[[], None]) -> None:
+def attach(widget: Widget, repaint: ThemeListener) -> None:
     """Subscribe *widget* to theme broadcasts (call from ``on_mount``).
 
     Stores the unsubscribe hook on *widget* as ``_theme_unsubscribe`` --

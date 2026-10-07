@@ -179,7 +179,14 @@ def key_name(key: str) -> str:
     return repr(key)
 
 
-ActionFunc = Callable[["ActionContext"], None]
+#: What a direct (name-less) binding calls: the action body itself, handed the
+#: :class:`ActionContext`.  A PEP 695 alias is lazily evaluated, so it may
+#: precede the class it names.
+type ActionFunc = Callable[[ActionContext], None]
+
+#: ``execute_action(name)`` -- run an action by name; the result says whether
+#: the editor knew it, so a key handler can fall through when it did not.
+type ActionRunner = Callable[[str], bool]
 
 
 @dataclass
@@ -206,7 +213,7 @@ class KeyUi:
     record.
     """
 
-    execute_action: Callable[[str], bool]
+    execute_action: ActionRunner
     message: Callable[[str], None]
     command_prompt: Callable[[], None]
     find_prompt: Callable[[bool], None]

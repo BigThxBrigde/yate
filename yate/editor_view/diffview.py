@@ -151,10 +151,16 @@ def _vim_inert(pane: DiffPane) -> None:
     return None
 
 
+#: One entry of a diff pane edit table: a key handler that steers *pane*.
+#: Inert handlers are listed as well (:func:`_vim_inert`), so a table value
+#: always consumes its key.
+type DiffKeyHandler = Callable[[DiffPane], None]
+
+
 #: VS Code-style edit table: cursor keys, deletion, newline, undo.
 #: Printable characters are handled by the pane itself (``is_printable``),
 #: so the table only lists named keys.
-_VSC_EDIT_KEYS: dict[str, Callable[[DiffPane], None]] = {
+_VSC_EDIT_KEYS: dict[str, DiffKeyHandler] = {
     "up": lambda pane: pane.buffer.move_up(),
     "down": lambda pane: pane.buffer.move_down(),
     "left": lambda pane: pane.buffer.move_left(),
@@ -171,7 +177,7 @@ _VSC_EDIT_KEYS: dict[str, Callable[[DiffPane], None]] = {
 #: the ``dd`` line-delete chord (second ``d`` deletes, any other key
 #: cancels); ``i``/``a``/``o`` switch to the insert sub-table; ``e`` moves
 #: to the current line's word end; ``q`` is consumed inert (backlog S3).
-_VIM_EDIT_KEYS: dict[str, Callable[[DiffPane], None]] = {
+_VIM_EDIT_KEYS: dict[str, DiffKeyHandler] = {
     "h": lambda pane: pane.buffer.move_left(),
     "j": lambda pane: pane.buffer.move_down(),
     "k": lambda pane: pane.buffer.move_up(),
@@ -189,7 +195,7 @@ _VIM_EDIT_KEYS: dict[str, Callable[[DiffPane], None]] = {
 }
 
 #: Vim insert sub-table: printable characters fall through to typing.
-_VIM_INSERT_KEYS: dict[str, Callable[[DiffPane], None]] = {
+_VIM_INSERT_KEYS: dict[str, DiffKeyHandler] = {
     "enter": lambda pane: pane.buffer.insert_newline(),
     "backspace": lambda pane: pane.buffer.delete_backward(),
 }
@@ -248,7 +254,7 @@ class DiffPane(ScrollView):
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
-    _theme_unsubscribe: Callable[[], None] | None = None
+    _theme_unsubscribe: theme.Unsubscribe | None = None
 
     def __init__(
         self,

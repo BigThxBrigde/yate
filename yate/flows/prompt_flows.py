@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.panes import PaneManager
+from yate.flows import MessageFn
 from yate.session import EditorSession
 
 
@@ -24,7 +25,7 @@ class PromptFlows:
         session: EditorSession,
         panes: PaneManager,
         prompt: PromptBar,
-        message: Callable[[str, str], None],
+        message: MessageFn,
         readonly_notice: Callable[[], None],
         refresh: Callable[[], None],
     ) -> None:

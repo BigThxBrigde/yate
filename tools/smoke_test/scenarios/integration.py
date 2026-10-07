@@ -6,9 +6,10 @@ marked ``slow`` so ``--skip-slow`` keeps the suite hermetic and fast.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from yate.editor_term.pty_proc import ExitFn, OutputFn
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from ._base import message_text, run_command, type_text, wait_until
@@ -37,14 +38,14 @@ class _FakePty:
         self.sent: list[bytes] = []
         self.started = False
         self.exited = False
-        self._on_output: Callable[[bytes], None] | None = None
-        self._on_exit: Callable[[int | None], None] | None = None
+        self._on_output: OutputFn | None = None
+        self._on_exit: ExitFn | None = None
         _FakePty.instances.append(self)
 
     async def start(
         self,
-        on_output: Callable[[bytes], None],
-        on_exit: Callable[[int | None], None],
+        on_output: OutputFn,
+        on_exit: ExitFn,
     ) -> None:
         """Record the callbacks; nothing real is spawned."""
         self.started = True

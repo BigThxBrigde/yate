@@ -14,8 +14,6 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from textual.worker import Worker
-
 from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.manager import LspManager
@@ -25,6 +23,7 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup, buffer_completions
 from yate.editor_view.editor import EditorView
 from yate.editor_view.panes import PaneManager
+from yate.flows import SpawnFn, StateQuery
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.logs import tracing
@@ -56,7 +55,7 @@ class CompletionFlows:
 
     def __init__(
         self,
-        spawn: Callable[..., Worker[object]],
+        spawn: SpawnFn,
         *,
         session: EditorSession,
         lsp: LspManager,
@@ -67,7 +66,7 @@ class CompletionFlows:
         prompt: PromptBar,
         refresh: Callable[[], None],
         readonly_notice: Callable[[], None],
-        has_modal_screen: Callable[[], bool],
+        has_modal_screen: StateQuery,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).

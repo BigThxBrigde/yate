@@ -66,6 +66,22 @@ from yate.session import EditorSession
 #: Trace logger ("yate.services.extensions"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
+#: One undo step of a loading scope: drop whatever a single ``api.register_*``
+#: / ``api.bind_key`` call just added (A13 snapshot-restore rollback).
+type RollbackHook = Callable[[], None]
+
+#: ``api.command`` decorator: takes the handler, returns it unchanged.
+type CommandDecorator = Callable[[CommandFunc], CommandFunc]
+
+#: An extension-supplied callback of unknown shape.  Extension code is a
+#: user-code boundary: the loader registers and forwards it without
+#: inspecting it, so the shape stays deliberately open (the ``Any`` here is
+#: the same one ``bind_key`` already carries in its ``noqa`` note).
+type AnyCallback = Callable[..., Any]
+
+#: ``teardown(api)`` -- the optional counterpart of ``setup(api)``.
+type TeardownHook = Callable[[ExtensionAPI], None]
+
 
 @dataclass
 class ExtensionContext:
@@ -293,7 +309,7 @@ class ExtensionAPI:
         #: Registration rollback scope (audit A13): undo thunks recorded
         #: while one ``setup`` runs; ``None`` when no scope is active (the
         #: normal state outside :meth:`ExtensionLoader.load_file`).
-        self._scope: list[Callable[[], None]] | None = None
+        self._scope: list[RollbackHook] | None = None
 
     # ------------------------------------------------------- rollback scope
 
@@ -410,7 +426,7 @@ class ExtensionAPI:
 
     # ------------------------------------------------------------ registrars
 
-    def register_action(self, name: str, func: Callable[..., Any], description: str = "") -> None:
+    def register_action(self, name: str, func: AnyCallback, description: str = "") -> None:
         """Register a named action (usable from key maps / commands)."""
         self._record_action_snapshot(name)
         self._ctx.actions.register(name, func, description=description or "extension action")
@@ -418,12 +434,12 @@ class ExtensionAPI:
     def bind_key(  # noqa: Any - extension-supplied callbacks, untyped boundary
         self,
         key_spec: str,
-        callback: Callable[..., Any] | None = None,
+        callback: AnyCallback | None = None,
         *,
         keymap: str = "vsc",
         description: str = "extension binding",
         category: str = "extension",
-    ) -> Callable[..., Any]:
+    ) -> AnyCallback:
         """Bind *key_spec* in the named keymap (``vsc``/``vim``/``both``).
 
         Can be used as a decorator when *callback* is omitted.  The legacy
@@ -432,7 +448,7 @@ class ExtensionAPI:
         registered names.
         """
 
-        def _do(func: Callable[..., Any]) -> Callable[..., Any]:
+        def _do(func: AnyCallback) -> AnyCallback:
             if keymap == "both":
                 targets = ["vsc", "vim"]
             else:
@@ -473,7 +489,7 @@ class ExtensionAPI:
 
     def command(
         self, name: str, description: str = "extension command"
-    ) -> Callable[[CommandFunc], CommandFunc]:
+    ) -> CommandDecorator:
         """Decorator registering a ``:`` command.
 
         The function receives the raw argument string after the command name.
@@ -522,7 +538,7 @@ class LoadedExtension:
     path: Path
     module: ModuleType | None = None
     error: str | None = None
-    teardown: Callable[[ExtensionAPI], None] | None = None
+    teardown: TeardownHook | None = None
 
 
 @dataclass
@@ -609,7 +625,7 @@ class ExtensionLoader:
                 # (...)->object, so cast explicitly to the documented
                 # teardown(api) signature.
                 record.teardown = cast(
-                    Callable[[ExtensionAPI], None], hook
+                    TeardownHook, hook
                 )
         except Exception as exc:  # noqa: BLE001 - extensions are user code, never crash the app
             # Roll back every registration this setup made (audit A13),

@@ -33,8 +33,12 @@ from . import protocol
 log = tracing.get_logger(__name__)
 
 #: Type of the async transport factory: returns (reader, writer, process).
-ConnectFn = Callable[[], Awaitable[tuple[Any, Any, Any]]]
-NotificationFn = Callable[[str, dict[str, Any]], None]
+#: ``connect()`` -- open the transport and hand back ``(reader, writer,
+#: protocol)``; injectable so tests can drive a client without a real server.
+type ConnectFn = Callable[[], Awaitable[tuple[Any, Any, Any]]]
+
+#: ``on_notification(method, params)`` -- one server-initiated notification.
+type NotificationFn = Callable[[str, dict[str, Any]], None]
 
 #: LSP error codes we care about.
 ERR_METHOD_NOT_FOUND: int = -32601

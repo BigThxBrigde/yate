@@ -9,11 +9,10 @@ contracts so a new option cannot drift apart between the three sides.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, cast
 
 from yate.commands import SET_APPLY, SET_OPTION_INDEX, register_commands
-from yate.config import SET_OPTION_SPECS, set_option_names
+from yate.config import SET_OPTION_SPECS, OptionParser, set_option_names
 from yate.flows.prompt_completion import SET_OPTIONS
 from yate.registries import CommandRegistry
 
@@ -37,7 +36,7 @@ def test_set_option_aliases_are_unique_across_specs() -> None:
 def test_terminal_height_parser_rejects_out_of_range() -> None:
     """``terminal_height`` shares the config loader's 3..40 range."""
     spec = next(spec for spec in SET_OPTION_SPECS if spec.name == "terminal_height")
-    parse: Callable[[str], object | None] = spec.parse
+    parse: OptionParser = spec.parse
     assert parse("41") is None
     assert parse("2") is None
     assert parse("abc") is None

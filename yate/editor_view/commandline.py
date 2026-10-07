@@ -28,7 +28,9 @@ from .icons import SEARCH, TERMINAL
 log = tracing.get_logger(__name__)
 
 #: ``(text, mode) -> candidates`` -- bash-style tab completion.
-PromptCompleter = Callable[[str, str], list[str]]
+#: ``completer(text, prefix) -> candidates`` -- the prompt's completion source
+#: (LSP, history, buffers, ...); ``prefix`` is the fragment already typed.
+type PromptCompleter = Callable[[str, str], list[str]]
 
 # prompt prefixes per mode: (prefix, Theme attribute name for the color)
 PREFIXES: dict[str, tuple[str, str]] = {
@@ -231,7 +233,7 @@ class PromptBar(Horizontal):
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
-    _theme_unsubscribe: Callable[[], None] | None = None
+    _theme_unsubscribe: theme.Unsubscribe | None = None
 
     def on_mount(self) -> None:
         """Own the theme painting and register for theme-change updates."""

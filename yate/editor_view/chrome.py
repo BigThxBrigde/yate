@@ -99,7 +99,7 @@ class TabBar(Static):
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
-    _theme_unsubscribe: Callable[[], None] | None = None
+    _theme_unsubscribe: theme.Unsubscribe | None = None
 
     def on_mount(self) -> None:
         """Initial render, then follow theme changes (self-painted)."""
@@ -216,7 +216,7 @@ class Breadcrumbs(Static):
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
-    _theme_unsubscribe: Callable[[], None] | None = None
+    _theme_unsubscribe: theme.Unsubscribe | None = None
 
     def on_mount(self) -> None:
         """Initial render, then follow theme changes (self-painted)."""
@@ -237,7 +237,7 @@ class SidebarHead(Static):
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
-    _theme_unsubscribe: Callable[[], None] | None = None
+    _theme_unsubscribe: theme.Unsubscribe | None = None
 
     def on_mount(self) -> None:
         """Paint initial background and title, then follow theme changes."""

@@ -32,12 +32,16 @@ SET_OPTION_INDEX: dict[str, SetOption] = {
     for spelling in (spec.name, *spec.aliases)
 }
 
+#: ``apply(editor, parsed_value)`` -- hand one parsed ``:set`` value to the
+#: editor; the parsing half lives in the option table above.
+type SetApplyHook = Callable[[Editor, object], None]
+
 #: The apply mapping: canonical option name -> how the editor applies the
 #: parsed value (public for the same guard reason as
 #: :data:`SET_OPTION_INDEX`).  Parsing and validation live in the option
 #: table; this side effect layer (plus its success messages) is the L3
 #: command duty.
-SET_APPLY: dict[str, Callable[[Editor, object], None]] = {}
+SET_APPLY: dict[str, SetApplyHook] = {}
 
 
 def _apply_filetype(editor: Editor, value: object) -> None:

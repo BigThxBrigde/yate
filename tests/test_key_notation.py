@@ -9,13 +9,13 @@ fallback -- is what every keymap subclass rests on.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import override
 
 import pytest
 
 from yate.keymaps.base import (
     ActionContext,
+    ActionFunc,
     KeyBinding,
     Keymap,
     key_name,
@@ -430,7 +430,7 @@ def test_sample_keymap_keeps_its_own_identity() -> None:
 
 def test_binding_action_accepts_both_names_and_callables() -> None:
     """A binding action is either an action name or a direct callable."""
-    actions: list[str | Callable[[ActionContext], None]] = ["save", lambda _ctx: None]
+    actions: list[str | ActionFunc] = ["save", lambda _ctx: None]
 
     assert KeyBinding("\x13", actions[0]).action == "save"
     assert callable(KeyBinding("\x13", actions[1]).action)

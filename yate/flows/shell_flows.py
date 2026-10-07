@@ -13,13 +13,10 @@ import asyncio
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Any
-
-from textual.screen import Screen
-from textual.worker import Worker
 
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.modals import OutputScreen
+from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
 from yate.services import fonts
 from yate.services.shell import ShellResult, run_shell, shell_name
 from yate.services.workspace import Workspace
@@ -29,17 +26,17 @@ from yate.session import EditorSession
 class ShellFlows:
     """Runs shell commands and the font installer, reporting on the UI."""
 
-    def __init__(  # noqa: Any - push_overlay accepts any Textual Screen type
+    def __init__(
         self,
-        spawn: Callable[..., Worker[object]],
+        spawn: SpawnFn,
         session: EditorSession,
         workspace: Workspace,
         prompt: PromptBar,
-        message: Callable[[str, str], None],
-        mounted: Callable[[], bool],
+        message: MessageFn,
+        mounted: StateQuery,
         focus_editor: Callable[[], None],
         refresh: Callable[[], None],
-        push_overlay: Callable[[Screen[Any]], None],
+        push_overlay: OverlayPusher,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).

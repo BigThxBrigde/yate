@@ -21,8 +21,7 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from textual.worker import Worker
-
+from yate.flows import MessageFn, SpawnFn, StateQuery
 from yate.flows.completion_flows import CompletionFlows
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
@@ -47,16 +46,16 @@ class DocumentFlows:
 
     def __init__(
         self,
-        spawn: Callable[..., Worker[object]],
+        spawn: SpawnFn,
         session: EditorSession,
         workspace: Workspace,
         lsp: LspManager,
         explorer_tree: ExplorerTree,
         prompt_bar: PromptBar,
-        message: Callable[[str, str], None],
-        report: Callable[[str, str], None],
+        message: MessageFn,
+        report: MessageFn,
         refresh_ui: Callable[[], None],
-        mounted: Callable[[], bool],
+        mounted: StateQuery,
         reveal_explorer: Callable[[], None],
         startup_readonly: bool,
     ) -> None:
