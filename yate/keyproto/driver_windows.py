@@ -30,9 +30,7 @@ from ctypes import byref, wintypes
 from typing import IO, cast, override
 
 from textual import constants
-from textual._xterm_parser import XTermParser
 from textual.drivers import win32
-from textual.drivers._writer_thread import WriterThread
 from textual.drivers.windows_driver import WindowsDriver
 from textual.events import Key
 from textual.message import Message
@@ -52,6 +50,7 @@ from yate.keyproto.chords import (
     KeyChord,
 )
 from yate.keyproto.frames import Win32FrameStream, frame_to_char, frame_to_key_name
+from yate.keyproto.textual_internals import WriterThread, XTermParser
 from yate.logs import tracing
 
 log = tracing.get_logger(__name__)

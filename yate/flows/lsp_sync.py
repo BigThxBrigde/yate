@@ -4,7 +4,7 @@ Extracted from :mod:`yate.editor` (review 20260926 #5).  The worker
 dispatch (didClose / didOpen), the repaint-on-manager-event callback, the
 diagnostic echo on the message line and the ``:diagnostics`` overlay are
 one flow that only needs the collaborators given to :class:`LspSync` --
-no editor state beyond them.  Like :class:`~yate.completion.CompletionFlows`
+no editor state beyond them.  Like :class:`~yate.flows.completion_flows.CompletionFlows`
 this module is constructed by the editor and never imports upward.
 """
 
@@ -18,7 +18,7 @@ from textual.screen import Screen
 from textual.worker import Worker
 
 from yate.editor_core import Document
-from yate.editor_lsp import LspManager
+from yate.editor_lsp.manager import LspManager
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.modals import OutputScreen
 from yate.editor_view.panes import PaneManager

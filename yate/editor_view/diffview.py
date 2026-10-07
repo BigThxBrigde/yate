@@ -65,7 +65,7 @@ log = tracing.get_logger(__name__)
 #: Maximum lines accepted per file side.  ``diff_lines`` / ``diff3_regions``
 #: run on the UI loop and ``difflib`` degrades badly beyond this size, so
 #: callers must reject larger files up front instead of opening the screen;
-#: the overlay entry point (:meth:`~yate.overlays.OverlayFlows.open_diff`)
+#: the overlay entry point (:meth:`~yate.flows.overlay_flows.OverlayFlows.open_diff`)
 #: compares against this constant directly so its message can name the file.
 MAX_DIFF_LINES: int = 20000
 

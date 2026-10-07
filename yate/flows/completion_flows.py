@@ -18,7 +18,7 @@ from textual.worker import Worker
 
 from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_core.buffer import TextBuffer
-from yate.editor_lsp import LspManager
+from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp.client import Completion
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar

@@ -21,7 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from yate.config import load_config
+from yate.yaterc import load_config
 from yate.editor_view.palette import PaletteScreen, PreviewLog
 
 from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg

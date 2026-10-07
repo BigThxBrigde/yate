@@ -18,7 +18,7 @@ import pytest
 
 from yate import diagnostics
 from yate.app import YateApp
-from yate.config import load_config
+from yate.yaterc import load_config
 from yate.editor_lsp.client import ServerConfig
 
 _ALL_SECTIONS: tuple[str, ...] = (

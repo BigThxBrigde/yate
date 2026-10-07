@@ -2,9 +2,11 @@
 
 Both registries are plain, UI-free containers: ``ActionRegistry`` maps action
 names to callables, ``CommandRegistry`` maps ``:`` command names to handlers.
-They live in their own leaf module (below ``keymaps`` and below
-:mod:`yate.editor`) so every layer can hold the same concrete objects without
-import cycles.
+Layer-wise this module sits *above* :mod:`yate.keymaps.base` (it imports
+:class:`~yate.keymaps.base.ActionContext`, and ``keymaps.base`` itself imports
+:mod:`yate.session`) and *below* its consumers (:mod:`yate.actions`,
+:mod:`yate.commands`, :mod:`yate.editor`), so every layer can hold the same
+concrete objects without import cycles.
 
 The *contents* -- the built-in action and command tables -- live in
 :mod:`yate.actions` / :mod:`yate.commands`, which wire the tables against a
@@ -52,6 +54,14 @@ class ActionRegistry:
         """Return the :class:`Action` for *name*, or ``None``."""
         return self._actions.get(name)
 
+    def unregister(self, name: str) -> bool:
+        """Remove the action *name*; ``False`` when it was not registered.
+
+        Used by the extension loader to roll back a failed ``setup``
+        (architecture-boundaries rule 4, audit A13).
+        """
+        return self._actions.pop(name, None) is not None
+
     def execute(self, name: str, ctx: ActionContext) -> bool:
         """Run *name* with *ctx*; returns ``False`` for unknown names."""
         action = self._actions.get(name)
@@ -84,6 +94,14 @@ class CommandRegistry:
     def get(self, name: str) -> tuple[CommandFunc, str] | None:
         """Return the ``(handler, description)`` pair for *name*, or ``None``."""
         return self._commands.get(name)
+
+    def unregister(self, name: str) -> bool:
+        """Remove the ``:`` command *name*; ``False`` when it was not registered.
+
+        Used by the extension loader to roll back a failed ``setup``
+        (architecture-boundaries rule 4, audit A13).
+        """
+        return self._commands.pop(name, None) is not None
 
     def names(self) -> list[str]:
         """Sorted list of registered command names."""

@@ -19,7 +19,8 @@ from yate import __version__
 from yate.editor_core.buffer import Pos, TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_core.search import Match, SearchEngine
-from yate.editor_lsp import Diagnostic, LspManager
+from yate.editor_lsp import Diagnostic
+from yate.editor_lsp.manager import LspManager
 from yate.editor_syntax.engine import tokenize_document_with_states
 from yate.editor_syntax.engine import tokenize_line_sync
 from yate.editor_syntax.tokens import Token

@@ -95,6 +95,12 @@ yate --theme-dir ~/my-themes --theme-dir ./extras/solarized.py
 
 `--theme-dir` accepts both directories and single `*.py` files.
 
+> **Provenance note**: this file is yate's out-of-tree theme guide (rendered on
+> GitHub / Gitee); for this section this file is the **out-of-tree authority**.
+> The in-app offline copy lives in the ``:help`` manual
+> (`yate/resources/manual.en.md`), same section; where the two differ, each
+> side's declared scope of authority wins.
+
 ### Option E: install a shipped theme template (Dracula / Ayu)
 
 Two official theme templates ship inside the package:

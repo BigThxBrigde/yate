@@ -13,8 +13,14 @@ model, plus the byte-level codecs the rest of yate already speaks:
 - :mod:`yate.keyproto.legacy` -- Textual key name -> raw byte (the codec
   formerly living in ``yate.editor_view.keys``).
 
-L0 leaf package: it must not import any other yate module except
-:mod:`yate.keymaps.base` (also an L0 leaf, for the ``SPECIAL_KEYS`` table).
+L0 leaf package: apart from the Windows driver, the package modules depend
+on the standard library only.  ``driver_windows.py`` carries two documented
+exemptions: :mod:`yate.logs` (R12 -- every runtime log goes through
+tracing; the logger itself is side-effect free) and
+:mod:`yate.keyproto.textual_internals` (the sole gateway to Textual's
+private internal APIs, with the minimum-version commitment).  The package
+does not import :mod:`yate.keymaps.base` -- the earlier ``SPECIAL_KEYS``
+mention was historical.
 """
 
 from __future__ import annotations

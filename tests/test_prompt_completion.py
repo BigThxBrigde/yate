@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from yate.config import YateConfig
-from yate.prompt_completion import _path_matches, prompt_completions
+from yate.flows.prompt_completion import _path_matches, prompt_completions
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace
 from yate.session import EditorSession

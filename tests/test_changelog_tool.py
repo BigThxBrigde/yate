@@ -825,6 +825,52 @@ def test_require_zh_fails_when_translations_missing(
     ) == 0
 
 
+def test_require_zh_fails_only_on_released_missing(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # stub segments: released [0.1.0] holds entry d; [Unreleased] holds a, b
+    overrides = translations.load_overrides(overrides_path)
+    translations.upsert_override(overrides, "a" * 7, "闪亮的新功能")
+    translations.upsert_override(overrides, "b" * 7, "崩溃修复")
+    translations.save_overrides(overrides, overrides_path)
+    assert cli.generate(cli_repo, overrides_path=overrides_path) == 0
+    # released entry d is untranslated → --require-zh fails on released only
+    code = cli.generate(
+        cli_repo, check=True, require_zh=True, overrides_path=overrides_path,
+    )
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "missing zh translations in released sections" in out
+    # swap: cover ONLY the released entry d; unreleased a/b stay missing
+    # → the gate passes with an unreleased warning (enforced at release)
+    overrides = {"d" * 7: translations.OverrideEntry(summary="最早的新功能")}
+    translations.save_overrides(overrides, overrides_path)
+    assert cli.generate(cli_repo, overrides_path=overrides_path) == 0
+    code = cli.generate(
+        cli_repo, check=True, require_zh=True, overrides_path=overrides_path,
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "warning:" in out
+    assert "missing zh in unreleased" in out
+
+
+def test_missing_zh_splits_released_and_unreleased_counts() -> None:
+    entries = _entries(
+        _raw("a" * 40, "feat: released thing"),
+        _raw("b" * 40, "fix: unreleased thing"),
+    )
+    overrides: dict[str, translations.OverrideEntry] = {
+        "b" * 7: translations.OverrideEntry(summary="崩溃修复"),
+    }
+    released, unreleased = cli.missing_zh(
+        entries, overrides, released_shas=frozenset({"a" * 40})
+    )
+    assert released == ["a" * 7]
+    assert unreleased == []  # the unreleased sha must not leak into released
+
+
 # --- cli --overrides flag binding (all three subcommands) --------------------
 
 

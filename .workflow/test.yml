@@ -1,23 +1,34 @@
 # Gitee Go pipeline — run the full pytest suite automatically.
 #
-# 触发时机 / Triggers:
-#   - push to master（本地推送、分支合并、PR 合并）
-#   - 目标分支为 master 的 Pull Request（创建 / 更新）
+# Triggers:
+#   - push to master (local pushes, branch merges, PR merges)
+#   - a Pull Request targeting master (created / updated)
 #
-# 前置条件 / Prerequisite:
-#   在仓库页面「流水线 / Gitee Go」中点一次「开通 Gitee Go」（有免费额度），
-#   开通后本文件即生效，无需其它配置。开通前此文件不会做任何事。
+# Prerequisite:
+#   click "Enable Gitee Go" once on the repo page (free tier is enough);
+#   after that this file takes effect on its own and does nothing before.
 #
-# 兼容性 / Compatibility:
-#   Gitee Go 的公共构建机只有 Linux；测试套件本身跨平台——Windows 专有断言
-#   自动 skip（见 tests/test_terminal.py 的 sys.platform 守卫），winreg 均为
-#   函数内延迟导入，Textual pilot 端到端测试在 headless 下运行；真实 LSP 子
-#   进程用例用 sys.executable 起一个 sleep 桩，不依赖 pylsp 可执行文件。
+# Compatibility:
+#   Gitee Go's shared runners are Linux-only; the suite itself is
+#   cross-platform -- Windows-specific assertions skip automatically (see the
+#   sys.platform guards in tests/test_terminal.py), winreg imports are
+#   deferred inside functions, Textual pilot end-to-end tests run headless,
+#   and the real-LSP subprocess cases spawn a sleep stub via sys.executable
+#   instead of requiring a pylsp executable.
 #
-# 本地复现 CI 的等价命令 / Reproduce locally:
+# Reproduce locally:
 #   python -m pip install -e ".[dev]"
 #   python -m pytest tests
-#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # 覆盖率门禁
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # coverage gate
+#
+# Gate split vs the GitHub side (.github/workflows/test.yml):
+#   - the pyright strict gate and the Python 3.13 leg run on GitHub only:
+#     pyright pulls an npm-side binary and Gitee Go's shared runners are
+#     network-restricted (audit A4 ruling);
+#   - neither side enables --require-zh on the changelog gate: zh translation
+#     coverage is not a CI blocker (2026-10-07 user decision); the option
+#     stays an opt-in local check (released-only semantics: released sections
+#     enforced, unreleased sections warn only).
 
 version: '1.0'
 
@@ -38,22 +49,22 @@ stages:
   - stage:
       name: test
       displayName: 全量单元测试
-      # naturally: 不启用快速失败中断（单阶段单任务，保持默认语义）
+      # naturally: no fast-fail override (single stage, single task; default semantics)
       strategy: naturally
       trigger: auto
       steps:
         - step: build@python
           name: pytest
           displayName: 安装依赖并运行 pytest
-          # requires-python >= 3.12；Gitee Go 公共构建机使用 3.12 镜像
+          # requires-python >= 3.12; Gitee Go shared runners use the 3.12 image
           pythonVersion: '3.12'
           commands:
             - python --version
             - python -m pip install --upgrade pip
-            # Changelog 门禁：CHANGELOG*.md 与 git 历史不一致时失败（纯标准库工具）
+            # Changelog gate: fails when CHANGELOG*.md go stale vs git history (stdlib-only tool)
             - python -m tools.changelog check
-            # 安装包本身与测试依赖（textual、pytest）；测试从仓库根目录运行
+            # install the package itself plus the test deps (textual, pytest); run from the repo root
             - pip install -e ".[dev]"
-            # Textual pilot 测试在无真实 TTY 的容器里需要一个非 dumb 的 TERM
-            # --cov 走 pyproject 的 [tool.coverage.*] 配置；fail-under 与本地/另一套 CI 保持一致
+            # Textual pilot tests need a non-dumb TERM inside the TTY-less container
+            # --cov uses the [tool.coverage.*] config in pyproject; fail-under stays identical
             - TERM=xterm-256color python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75

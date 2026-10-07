@@ -14,17 +14,21 @@ scene: architecture
 
 ```
 L4 外壳：app.py（YateApp） / cli.py（唯一入口）
-L3 调度：editor.py（Editor）/ actions.py / commands.py / 流程模块
-         （completion.py / prompt_flows.py / document_flows.py / window_flows.py /
-         extension_flows.py / shell_flows.py / overlays.py / lsp_sync.py /
-         prompt_completion.py / diagnostics.py）/ services/extensions.py
+L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
+         （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
+         extension_flows.py / shell_flows.py / overlay_flows.py / lsp_sync.py /
+         prompt_completion.py）/ diagnostics.py / services/extensions.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
-         registries.py / keymaps/registry.py（KeymapSet）
+         registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
+         actions/commands/editor 之下）/ keymaps/registry.py（KeymapSet）
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         editor_sprites / logs / paths / config / services/* / keymaps/base|vim|vsc
         （2026-09-28 核对补入：`keyproto/` 键弦模型与 Windows 驱动、`editor_sprites/`
-        屏保精灵数据/渲染，二者皆为纯 L0 叶包）
+        屏保精灵数据/渲染，二者皆为纯 L0 叶包。
+        2026-10-07 A2 定案：`keyproto/driver_windows.py` 经
+        `keyproto/textual_internals.py` 收口 Textual 私有 API（升级 Textual 先查该文件）；
+        `yate.logs` 为 R12 统一 tracing 的豁免依赖）
 插件：extensions/*（由 L4 外壳经 L3 services/extensions.py 装载；只依赖
          services/extensions 暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
          禁止 import editor / editor_view / app）
@@ -39,20 +43,24 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **R3 — `editor_view/*` 不得 import `yate.editor` / `yate.app`**：组件只接受具体协作者
   （`EditorSession` / `Workspace` / `PromptBar` / `LspManager` / `KeymapSet` / `Textual App`）
   或 `Callable` 回调。
-- **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、`registries.py`、`config.py` 不得 import `editor_view`**。
+- **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、`registries.py`、`config.py`、`yaterc.py` 不得 import `editor_view`**。
   （2026-09-28 核对补入 `keyproto/*`、`editor_sprites/*`：二者已是
-  `tests/test_architecture.py:88` `UI_FREE_PACKAGES` 的守卫面，规则文本此前漏列。）
+  `tests/test_architecture.py` `UI_FREE_PACKAGES` 的守卫面，规则文本此前漏列。）
   （`config.py` 于 N30 加入：yaterc 主题能力由 L4 `cli.py` 以回调注入
-  `load_config(register_theme=..., load_theme_paths=...)`，L0 不再反向拉起 L2 组件包。）
+  `load_config(register_theme=..., load_theme_paths=...)`，L0 不再反向拉起 L2 组件包。
+  `yaterc.py` 于 2026-10-07 加入：自 `config.py` 拆出的加载器，同为 L0 单文件守卫面
+  `UI_FREE_FILES`。）
 - **R5 — 内置表单向**：`actions.py` / `commands.py` 可以 import `yate.editor`；反向禁止
   （`editor.py` 不得 import 它们，否则成环）。
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
-- **R11 — 冻结 UI 耦合**：L3 流程模块（`completion.py` / `prompt_flows.py` /
-  `document_flows.py` / `window_flows.py` / `shell_flows.py` / `overlays.py` /
-  `lsp_sync.py` / `prompt_completion.py`）**允许** import `editor_view`（存量耦合，冻结）；
+- **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
+  `document_flows.py` / `window_flows.py` / `shell_flows.py` / `overlay_flows.py` /
+  `lsp_sync.py` / `prompt_completion.py`；2026-10-07 自根目录迁入，`completion.py`、
+  `overlays.py` 同步更名为 `*_flows.py`）**允许** import `editor_view`（存量耦合，冻结）；
   禁止向上 import `yate.editor` / `yate.app`，且**新增** `editor_view` 导入必须先在
-  `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记
-  （`document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
+  `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记（键为 `yate/` 下
+  相对路径，flows/ 迁移后带 `flows/` 前缀；
+  `document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
   `window_flows.py` 于 wave-4 以同组面登记）。
 - **R7 — 外壳装载内置表**：`YateApp.__init__` 调 `populate(editor.actions, editor)` 与
   `register_commands(editor.commands, editor)`。
@@ -134,7 +142,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 |---|---|---|
 | `YateApp`（L4） | Textual 生命周期、`CSS`（装载 `yate/resources/app.tcss`）、主题桥（`get_theme_variable_defaults` / `theme.*` 注册）、驱动选择（`get_driver_class`）、事件转发与空闲探测（`on_event`）、装载内置表 | 不持有业务状态、不实现业务操作（屏保只由外壳"轮询 + 触发 action"，画面与精灵渲染分别归 `editor_view/screensaver.py` 与 `editor_sprites/*`） |
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
-| 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`completion.py`、`prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
+| 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`flows/completion_flows.py`、`flows/prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
 | `editor_view/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
 | `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
 | 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、屏保精灵数据与纯渲染 `editor_sprites/*`、配置、日志、路径、shell、workspace、字体、空闲跟踪 `services/idle_tracker.py`） | 不 import 上层 |
@@ -146,10 +154,44 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
    （如 `KeyUi`、`PromptCompleter`），不引入协议类。
 3. 禁止用 `Any` / `# type: ignore` 掩盖类型不匹配（pyright strict 必须真正成立）。
 4. 读写分离：读状态用只读属性 / 查询方法；只有真正的命令才用操作方法。
-5. 包 `__init__.py` 保持惰性：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层。
+5. 包 `__init__.py` 分层约定（2026-10 评审 A1 定案，三层表述）：
+   ① 包根**默认惰性**：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层；
+   ② UI / 服务包（`editor_view` / `services`）**禁止** re-export（现状惯例成文化，
+   `editor_view/__init__.py` 与 `services/__init__.py` 的"deliberately not re-exported"
+   声明为范本）；
+   ③ 纯 L0 叶包（`editor_core` / `editor_lsp` / `editor_syntax` / `editor_term` /
+   `keymaps`）允许**有限** re-export 作为插件公共 API 面（插件手册明文示例
+   `from yate.editor_syntax import LangSpec`），且**重量级实现模块**（如
+   `editor_lsp.manager`）不得进包根；例外须在各包 `__init__.py` docstring 注明
+   （守卫：`test_leaf_package_reexports_carry_exception_note`、
+   `test_editor_lsp_package_root_is_light`）。
 6. **能用函数实现的就不造类**：内置表（`populate` / `register_commands` / `load_startup_extensions`）、
    纯计算（`prompt_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
    （`session.py` 的 `find_leaf` / `replace_node` …）一律用函数。
+7. **文件体量阈值处置（2026-10-07，评审 A11）**：单文件超过 **800 行**触发处置评审。
+   - 拆分判定：多职责混合型**必拆**（判据：模块 docstring 无法用一句话概括，或文件含
+     ≥2 个互不引用的职责块）；单一职责长文件可登记豁免。
+   - 豁免名单（登记即合规；修改文件时须同步更新行数）：
+     `editor_syntax/regex_backend.py`（1225 行，LangSpec 数据表与 tokenizer 一体，拆分另行立项）、
+     `keymaps/vim.py`（1107 行，motion/operator/text-object 单一键映射域）、
+     `editor_view/diffview.py`（1035 行，diff 渲染管线单一职责）、
+     `editor.py`（907 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，保留豁免）、
+     `editor_core/buffer.py`（871 行，文档缓冲单一职责）、
+     `editor_term/emulator.py`（856 行，VT 状态机单一职责）、
+     `editor_lsp/manager.py`（818 行，LSP 客户端单职责）。
+   - 已出名单：`config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
+     不再需要豁免；`yaterc.py` 794 行未超阈值，暂不登记，改动时注意勿越线。
+   - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
+     模块 docstring 已论证共存理由。
+8. **新增 L3 流程模块接入清单（评审 A18）**：保持构造显式注入，**不建共享 context 类型**
+   （§三.1 红线）：
+   1. 模块命名 `*_flows.py`、类名 `*Flows`（同步适配器按动词命名如 `LspSync`，见 §五命名守卫）；
+   2. 在 `editor.py` 声明类属性（类型注解 + `None` 初值）；
+   3. 在对应 `_build_*` 工厂内构造，注入具体协作者与回调（不得持有 App 句柄，
+      守卫 `test_flow_modules_hold_no_app_handle`）；
+   4. 更新 `Editor.__init__` 组装顺序注释；
+   5. 如需 `editor_view` 导入，先登记 `tests/test_architecture.py` 的 `UI_FROZEN_FILES`（R11）；
+   6. 同步 §一 L3 清单与本清单。
 
 ## 四、跨模块交互
 
@@ -162,7 +204,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | UI 事件 | Textual messages（`on_key` / `Input.Submitted` / `MouseDown` 等） |
 | 异步任务 | Textual `App.run_worker(...)`；调度层提供 `*_later` 便捷入口（如 `open_path_later`）；防抖定时用 `asyncio.get_running_loop().call_later` |
 | 日志（含无 App 上下文的线程/worker/回调） | 模块级 `log = tracing.get_logger(__name__)`（R12）；devtools 可见性由 L4 `TextualHandler` 桥提供，业务代码不直连 `app.log` / `self.log` |
-| 插件注册 | `ActionRegistry` / `CommandRegistry` / `Keymap.add_binding`（经 `ExtensionContext` 暴露） |
+| 插件注册 | `ActionRegistry` / `CommandRegistry` / `Keymap.add_binding`（经 `ExtensionContext` 暴露）；`setup` 失败由 loader 统一快照-恢复回滚（A13 定案：registries 的 `unregister` / Keymap 的 `remove_binding` + `ExtensionAPI` 作用域记录） |
 
 - **禁止**：全局 EventBus、字符串事件名、下层直接读写高层私有状态（`app._xxx`）。
 - 新增信号的门槛：出现 ≥3 处"通知方不知道谁在监听且订阅者动态增删"的场景后再评估，
@@ -177,7 +219,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
       动作与 `:` 命令 → `ActionRegistry` / `CommandRegistry`；窗格树模型（`Leaf` / `Split` /
       `ViewState` + 树纯操作）→ `session.py`（L1，不得挪回 `editor_view`，也不得新建类型层）？
 - [ ] 组件行为写在组件内部（自持），而不是加回 `Editor` 或外壳？
-- [ ] `Editor` 只新增"横跨多个协作者的操作"；单一流程已拆成独立模块（参照 `completion.py`）？
+- [ ] `Editor` 只新增"横跨多个协作者的操作"；单一流程已拆成独立模块（参照 `flows/completion_flows.py`，接入清单见 §三.8）？
 - [ ] 没有新增 `Protocol`（除 `PaneRegistry`）、`TYPE_CHECKING`、`Any`、`# type: ignore`？
 - [ ] 没有使用 `*Feature` / `*Host` / `*Ops` / `*Delegate` / `*Controller` 命名？
       （白名单：`PaneHost`、`PaneManager`、`LspManager`；流程模块按职责命名：
@@ -197,8 +239,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **22 个用例**（2026-09-30 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `22 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **24 个用例**（2026-10-07 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `24 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -207,13 +249,14 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
   不够：残留目录会被当作空命名空间包导入，掩盖删除）；
 - **R4** `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、
-  `registries.py`、`config.py` 不 import `editor_view`（严格 0 违规；`config.py` 为 N30 新增
-  守卫面，`keyproto/*`、`editor_sprites/*` 于 2026-09-28 核对补入，均见
-  `tests/test_architecture.py:88` `UI_FREE_PACKAGES`；负向验证过拦截有效）；
+  `registries.py`、`config.py`、`yaterc.py` 不 import `editor_view`（严格 0 违规；`config.py` 为 N30 新增
+  守卫面，`yaterc.py` 为 2026-10-07 A9 拆分加入，`keyproto/*`、`editor_sprites/*` 于
+  2026-09-28 核对补入，守卫面见 `tests/test_architecture.py` 的
+  `UI_FREE_PACKAGES` / `UI_FREE_FILES`；负向验证过拦截有效）；
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
-- **R11** `completion.py` / `prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
+- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
 - **R5** `editor.py` 不 import `yate.actions` / `yate.commands`；
 - **R7** 只有 `app.py` 导入内置表，且 `YateApp.__init__` 调用
   `populate(self.editor.actions, self.editor)` / `register_commands(self.editor.commands, self.editor)`；
@@ -222,8 +265,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   消息（AST 拦截，python-coding-style 4.6）；
 - **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
   提及不误报）；UI-free L0（`keymaps/*` `services/*` `keyproto/*` `editor_sprites/*`
-  `session.py` `registries.py` `config.py` `logs.py`，见
-  `tests/test_architecture.py:88` `UI_FREE_PACKAGES`）不 import `textual.app`；
+  `session.py` `registries.py` `config.py` `yaterc.py` `logs.py`，见
+  `tests/test_architecture.py` 的 `UI_FREE_PACKAGES` / `UI_FREE_FILES`）不 import `textual.app`；
   另有两条运行时用例：`test_devtools_bridge_follows_app_lifecycle`（挂载期恰好 1 个
   handler、`on_unmount` 按身份摘除）与
   `test_devtools_bridge_forwards_only_while_tracing_enabled`（tracing 关闭时闸门阻断、
@@ -236,7 +279,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   Editor 自有的布局职责如 terminal dock 高度不误伤）；
 - **能力注入**（issue IKJB0Q，2026-09-30 新增两条）：`test_app_annotations_are_precise`
   AST 扫 `yate/**` 禁 `App[Any]` / `App[object]` 下标（`App[None]` 是唯一精确形态）；
-  `test_flow_modules_hold_no_app_handle` AST 扫 `yate/*.py` 顶层（排除 `editor.py`）
+  `test_flow_modules_hold_no_app_handle` AST 扫 `yate/*.py` 顶层与 `yate/flows/*.py`
+  （排除 `editor.py`）
   禁 `self.app` 属性链——动词与查询都是注入能力，Editor 是 L3 唯一 App 句柄持有者。
   两条均经负向演练（临时回填违规确认拦截后还原）；
 - **命名守卫** yate 下标识符不得为 `*Feature` / `*Host` / `*Ops` / `*Delegate` /
@@ -244,7 +288,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   （白名单：`PaneHost`；`*Manager` 允许。流程模块按职责命名：UI 流程编排一律
   `*Flows`，同步适配器按动词命名如 `LspSync`，禁新增 `*Controller`）。
 
-**22 个用例逐条对照**（2026-09-30 实测 `22 passed`）：
+**24 个用例逐条对照**（2026-10-07 实测 `24 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -270,6 +314,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 20 | `test_editor_does_not_paint_widget_styles` | T2 |
 | 21 | `test_app_annotations_are_precise` | 能力注入（禁 `App[Any]` / `App[object]`） |
 | 22 | `test_flow_modules_hold_no_app_handle` | 能力注入（流程模块禁 `self.app`） |
+| 23 | `test_editor_lsp_package_root_is_light` | §三.5（A1：包根不连带加载 `editor_lsp.manager`） |
+| 24 | `test_leaf_package_reexports_carry_exception_note` | §三.5（A1：叶包 re-export 须带例外注明） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

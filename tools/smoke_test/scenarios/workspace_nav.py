@@ -9,7 +9,7 @@ in passing get their own end-to-end walk here:
 * ``open_directory_switches_workspace`` -- ``:e <dir>`` re-roots the workspace,
   reveals the sidebar and focuses the tree.  A relative argument resolves
   against the *workspace root*
-  (:meth:`yate.document_flows.DocumentFlows.resolve_input_path`), not the
+  (:meth:`yate.flows.document_flows.DocumentFlows.resolve_input_path`), not the
   process cwd, which is what the scenario pins down;
 * ``pane_resize_chords`` -- the vim ``ctrl+w`` chord with ``+`` / ``-`` / ``=``
   and the "pane at its minimum size" / "only one pane open" warnings.

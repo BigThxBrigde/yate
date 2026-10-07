@@ -4,9 +4,10 @@ An extension is any ``.py`` file exposing a ``setup(api)`` function (and an
 optional ``teardown(api)``).  ``setup`` receives an :class:`ExtensionAPI`
 through which it can register actions, key bindings, ``:`` commands, run
 shell commands and manipulate the active document.  If ``setup`` raises
-partway through, anything registered before the failure is not guaranteed
-to be reclaimed -- perform every validation that can fail ahead of the
-first registration call.
+partway through, every registration made through the API is rolled back
+automatically -- previous values restored -- so callers no longer need to
+front-load validation (audit A13; the loader drives the scope, see
+:meth:`ExtensionAPI.start_scope`).
 
 Example bundled extension ``yate/extensions/uppercase.py``::
 
@@ -38,7 +39,7 @@ from types import ModuleType
 from typing import Any, cast
 
 from yate.config import YateConfig
-from yate.editor_lsp import LspManager
+from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_sprites.characters import (
     character_names,
@@ -52,10 +53,11 @@ from yate.editor_syntax import (
     register_language,
 )
 from yate.editor_syntax.ts_backend import load_language_from_grammar
+from yate.keymaps.base import KeyBinding, Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
-from yate.registries import ActionRegistry, CommandFunc, CommandRegistry
+from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
 from yate.services.shell import ShellResult
 from yate.services.trust import is_trusted
 from yate.services.workspace import Workspace
@@ -288,6 +290,76 @@ class ExtensionAPI:
         self._highlight = HighlightExtensionBridge()
         self._syntax = SyntaxExtensionBridge()
         self._sprites = SpriteExtensionBridge()
+        #: Registration rollback scope (audit A13): undo thunks recorded
+        #: while one ``setup`` runs; ``None`` when no scope is active (the
+        #: normal state outside :meth:`ExtensionLoader.load_file`).
+        self._scope: list[Callable[[], None]] | None = None
+
+    # ------------------------------------------------------- rollback scope
+
+    def start_scope(self) -> None:
+        """Begin recording registrations for rollback (loader use, A13).
+
+        A stale active scope (defensive: ``load_file`` does not re-enter)
+        is dropped with a warning.
+        """
+        if self._scope is not None:
+            log.warning(
+                "extension scope restarted: %d pending undo entries dropped",
+                len(self._scope),
+            )
+        self._scope = []
+
+    def end_scope(self) -> None:
+        """Accept the recorded registrations (successful ``setup``)."""
+        self._scope = None
+
+    def rollback_scope(self) -> None:
+        """Undo the recorded registrations in reverse order (audit A13).
+
+        Snapshot-restore semantics: a registration that replaced an
+        earlier entry restores that entry; a brand-new registration is
+        removed.  A no-op when no scope is active.  Public because the
+        loader (:class:`ExtensionLoader`, a sibling class in this module)
+        drives the scope.
+        """
+        if self._scope is None:
+            return
+        for undo in reversed(self._scope):
+            undo()
+        self._scope = None
+
+    def _record_action_snapshot(self, name: str) -> None:
+        """Record the undo thunk for an action registration (audit A13)."""
+        if self._scope is None:
+            return
+        previous = self._ctx.actions.get(name)
+
+        def undo(
+            name: str = name, previous: Action | None = previous
+        ) -> None:
+            if previous is None:
+                self._ctx.actions.unregister(name)
+            else:
+                self._ctx.actions.register(name, previous.func, previous.description)
+
+        self._scope.append(undo)
+
+    def _record_command_snapshot(self, name: str) -> None:
+        """Record the undo thunk for a ``:`` command registration (A13)."""
+        if self._scope is None:
+            return
+        previous = self._ctx.commands.get(name)
+
+        def undo(
+            name: str = name, previous: tuple[CommandFunc, str] | None = previous
+        ) -> None:
+            if previous is None:
+                self._ctx.commands.unregister(name)
+            else:
+                self._ctx.commands.register(name, previous[0], previous[1])
+
+        self._scope.append(undo)
 
     # ------------------------------------------------------------- accessors
 
@@ -340,6 +412,7 @@ class ExtensionAPI:
 
     def register_action(self, name: str, func: Callable[..., Any], description: str = "") -> None:
         """Register a named action (usable from key maps / commands)."""
+        self._record_action_snapshot(name)
         self._ctx.actions.register(name, func, description=description or "extension action")
 
     def bind_key(  # noqa: Any - extension-supplied callbacks, untyped boundary
@@ -376,6 +449,23 @@ class ExtensionAPI:
                         ", ".join(self._ctx.keymaps.names()),
                     )
                     continue
+                raw = km.normalize_key(key_spec)
+                previous = km.lookup(raw)
+                if self._scope is not None:
+                    def undo(
+                        km: Keymap = km,
+                        raw: str = raw,
+                        previous: KeyBinding | None = previous,
+                    ) -> None:
+                        if previous is None:
+                            km.remove_binding(raw)
+                        else:
+                            km.add_binding(
+                                raw, previous.action, previous.description,
+                                previous.category,
+                            )
+
+                    self._scope.append(undo)
                 km.add_binding(key_spec, func, description, category)
             return func
 
@@ -390,6 +480,7 @@ class ExtensionAPI:
         """
 
         def _decorator(func: CommandFunc) -> CommandFunc:
+            self._record_command_snapshot(name)
             self._ctx.commands.register(name, func, description)
             return func
 
@@ -397,6 +488,7 @@ class ExtensionAPI:
 
     def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
         """Register a ``:`` command (the non-decorator form)."""
+        self._record_command_snapshot(name)
         self._ctx.commands.register(name, func, description or "extension command")
 
     # -------------------------------------------------------------- services
@@ -502,6 +594,9 @@ class ExtensionLoader:
             setup: Any = getattr(module, "setup", None)
             if not callable(setup):
                 raise AttributeError(f"{path.name} has no setup(api) function")
+            # Registration rollback scope (audit A13): everything this setup
+            # registers is undone on failure; a success accepts the scope.
+            self.api.start_scope()
             setup(self.api)  # dynamic user module (narrowed via callable() above)
             record.module = module
             # Dynamic boundary: the user extension's teardown hook comes from
@@ -517,13 +612,16 @@ class ExtensionLoader:
                     Callable[[ExtensionAPI], None], hook
                 )
         except Exception as exc:  # noqa: BLE001 - extensions are user code, never crash the app
-            # Drop the half-initialized module again: a leftover under
+            # Roll back every registration this setup made (audit A13),
+            # then drop the half-initialized module: a leftover under
             # sys.modules would make a later import of the same name hit the
             # broken remains instead of a clean retry (S33).
+            self.api.rollback_scope()
             sys.modules.pop(mod_name, None)
             record.error = f"{type(exc).__name__}: {exc}"
             log.exception("extension failed to load: %s", path)
         else:
+            self.api.end_scope()
             log.debug("extension loaded: %s", path)
         self.loaded.append(record)
         return record

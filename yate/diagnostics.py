@@ -248,7 +248,7 @@ def _section_paths() -> list[str]:
 # ------------------------------------------------------------------ yaterc
 
 def _section_yaterc(editor: Editor) -> list[str]:
-    from yate.config import find_project_config, user_config_path
+    from yate.yaterc import find_project_config, user_config_path
 
     config = editor.config
     user_rc = user_config_path()

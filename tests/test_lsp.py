@@ -18,7 +18,8 @@ from typing import Any, cast, override
 import pytest
 
 from yate.editor_core.document import Document
-from yate.editor_lsp import LspManager, ServerState
+from yate.editor_lsp import ServerState
+from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp import protocol
 from yate.editor_lsp.client import (
     LspClient,

@@ -252,6 +252,11 @@ class Keymap:
 
     # ------------------------------------------------------------ extension
 
+    @staticmethod
+    def normalize_key(key_spec: str) -> str:
+        """The raw key for *key_spec* (shared by add/remove/rollback paths)."""
+        return parse_key(key_spec) if key_spec.startswith("<") or len(key_spec) == 1 else key_spec
+
     def add_binding(
         self,
         key_spec: str,
@@ -265,12 +270,27 @@ class Keymap:
         stale entry is dropped from :attr:`bindings`, so consumers walking
         the list (the help overlay) show only the newest one.
         """
-        raw = parse_key(key_spec) if key_spec.startswith("<") or len(key_spec) == 1 else key_spec
+        raw = self.normalize_key(key_spec)
         binding = KeyBinding(raw, action, description, category)
         if raw in self._index:
             self.bindings = [b for b in self.bindings if b.key != raw]
         self.bindings.append(binding)
         self._index[raw] = binding
+
+    def remove_binding(self, key_spec: str) -> bool:
+        """Drop the binding for *key_spec*; ``False`` when it was unbound.
+
+        The key is normalized exactly like :meth:`add_binding`, so a
+        ``<named>`` or single-character spec removes the same entry the
+        addition created.  Used by the extension loader to roll back a
+        failed ``setup`` (architecture-boundaries rule 4, audit A13).
+        """
+        raw = self.normalize_key(key_spec)
+        if raw not in self._index:
+            return False
+        del self._index[raw]
+        self.bindings = [b for b in self.bindings if b.key != raw]
+        return True
 
     def lookup(self, key: str) -> KeyBinding | None:
         """The binding for a raw key, or ``None`` when unbound."""

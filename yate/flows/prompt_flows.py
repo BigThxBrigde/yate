@@ -2,7 +2,7 @@
 
 Extracted from :mod:`yate.editor` (review 20260926 #5).  Every flow here is
 synchronous session/view interaction -- no app or screen involvement.  Like
-:class:`~yate.completion.CompletionFlows` this module is constructed by
+:class:`~yate.flows.completion_flows.CompletionFlows` this module is constructed by
 the editor and never imports upward.
 """
 

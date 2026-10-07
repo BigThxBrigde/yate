@@ -296,7 +296,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1 if report.errors else 0
 
     # Resolve configuration (yaterc) before importing the TUI app.
-    from yate.config import default_rc_paths, load_config
+    from yate.yaterc import default_rc_paths, load_config
     from yate.editor_view import theme as theme_mod
 
     target = Path(args.path) if args.path else None

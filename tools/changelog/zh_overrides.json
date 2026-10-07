@@ -1,18 +1,57 @@
 {
+  "00124d8": {
+    "summary": "修正 wiki 进度工作中的评审发现"
+  },
+  "003263e": {
+    "summary": "经 tracing 记录监控崩溃，移除 App 导入"
+  },
   "00763fb": {
     "summary": "shuffle_order 对不可救多重集保证终止"
   },
   "0096123": {
     "summary": "无头测试覆盖 vim 键位"
   },
+  "00f6b03": {
+    "summary": "成文站外文档与应用内手册的权威分工（A16）"
+  },
+  "01553b4": {
+    "summary": "将翻译范围开关文档更新为 --translate-all"
+  },
+  "0187074": {
+    "summary": "记录智能体技术选型与工具调用守护"
+  },
+  "0221ffa": {
+    "summary": "缩进参考线调暗到低于侧栏标题的弱化灰"
+  },
+  "02e90fe": {
+    "summary": "转义消息标记并去重主题订阅者"
+  },
   "033c7e9": {
     "summary": "修复追踪测试在 pyright 严格模式下的告警"
+  },
+  "033f530": {
+    "summary": "断言冲突错误码与新增 jobs 参数"
   },
   "0348af2": {
     "summary": "方案文档嵌入阵容预览并移除过时 venv 行"
   },
+  "036073b": {
+    "summary": "修复断言位置、不稳定 sleep 与同义反复断言（R-74..R-76、R-78..R-83）"
+  },
+  "036bd2a": {
+    "summary": "将 devtools 桥挂载到应用生命周期"
+  },
   "03c9dee": {
     "summary": "更新变更日志"
+  },
+  "042a3ac": {
+    "summary": "Ctrl+C 取消排队翻译并让 worker 远离终端"
+  },
+  "046fcff": {
+    "summary": "组件自有主题绘制与滚动条注入"
+  },
+  "0497d39": {
+    "summary": "新增 batch/ini/fsharp/git/diff 语法示例扩展"
   },
   "04ec16e": {
     "summary": "新增 --setup-defaults/--cleanup-defaults 一键初始化与清理用户配置目录",
@@ -22,6 +61,9 @@
     "summary": "保存改为原子写并限制撤销栈内存",
     "detail": "临时文件加 os.replace 落盘，撤销栈上限 1000 步，并跳过符号链接目录防止死循环"
   },
+  "0518f4a": {
+    "summary": "记录提交归因偏差及相关裁定"
+  },
   "0597289": {
     "summary": "更新 .github/sync-to-gitee.sh 同步脚本"
   },
@@ -29,15 +71,48 @@
     "summary": "Gitee SSH 横幅检测免疫不可见字符",
     "detail": "横幅含 NBSP/零宽字符导致子串匹配误判失败；改为仅保留字母数字后匹配 successfullyauthenticated，并始终打印横幅"
   },
+  "066ae12": {
+    "summary": "强制配置层无 UI 并记录 N30 决策"
+  },
+  "0671f50": {
+    "summary": "收紧预览注入与缓存清理"
+  },
   "06b1f37": {
     "summary": "修复冒烟测试在文档路径为空时的崩溃"
+  },
+  "06d99a9": {
+    "summary": "为 L0 叶子添加 trace 日志"
+  },
+  "0709e2d": {
+    "summary": "以明确标准强制大任务拆分子计划"
+  },
+  "0737bae": {
+    "summary": "弥合 TerminalPanel 与 PromptBar 的遗留主题缺口"
+  },
+  "07984cd": {
+    "summary": "回填 diag-package-sync 执行记录"
+  },
+  "07b674c": {
+    "summary": "vim 缩进绑定改用 shift 键集合"
   },
   "07fe1a6": {
     "summary": "每个新任务要求独立 worktree"
   },
+  "0809419": {
+    "summary": "新增输入辅助实现计划"
+  },
   "082bc7d": {
     "summary": "语法高亮防抖并复用未失效的 token",
     "detail": "编辑时沿用上一帧 token 缓存着色，文档或文件类型切换仍立即失效"
+  },
+  "0867015": {
+    "summary": "记录 syntax-langs 评审修复并回填计划"
+  },
+  "0875261": {
+    "summary": "新增 wiki 生成器子模块"
+  },
+  "08a6396": {
+    "summary": "覆盖新内置语言包与 regex 回退"
   },
   "0971a72": {
     "summary": "更新 yaterc_pywright 方案文档"
@@ -46,11 +121,38 @@
     "summary": "冒烟测试覆盖全部已注册命令与动作",
     "detail": "新增 19 个场景（65→86），命令与动作覆盖达到 43/43、65/65，未改动产品代码"
   },
+  "09c4aa3": {
+    "summary": "覆盖 vim 可视模式与寄存器路径"
+  },
+  "09c4d24": {
+    "summary": "回填编辑器重构结果与偏差"
+  },
   "0a4435d": {
     "summary": "变更日志与方案记录游行队重构"
   },
+  "0a5f2b1": {
+    "summary": "将类选择器守护放宽为子串语义"
+  },
+  "0a8463e": {
+    "summary": "将 code-review-expert 切换到 python-code-review 技能"
+  },
+  "0a9a4f9": {
+    "summary": "翻转 wiki 翻译范围默认值并新增 --translate-all"
+  },
+  "0ab9e6d": {
+    "summary": "记录 TRAE-code-review 第二遍"
+  },
+  "0ad1fdb": {
+    "summary": "未知按键取消操作符并接受数字参数"
+  },
+  "0cff320": {
+    "summary": "提取文档生命周期 flow"
+  },
   "0d06e94": {
     "summary": "打包脚本改用 .NET SHA256 接口计算文件哈希"
+  },
+  "0d0e0c1": {
+    "summary": "恢复连字符标识符改动损失的着色"
   },
   "0d4a2fe": {
     "summary": "冒烟脚本新增搜索与文件/标签场景（C/D 组）"
@@ -59,8 +161,23 @@
     "summary": "发布工具只更新单一动态版本源",
     "detail": "test_theme_palettes 的静态版本断言已在 P2 清理中移除，删除失效的第二 bump 目标"
   },
+  "0e30a38": {
+    "summary": "交付统一命名为 runtime 的跨平台 contents 目录"
+  },
+  "0e3f874": {
+    "summary": "回填执行记录与偏差"
+  },
   "0ea3711": {
     "summary": "只读会话测试轮询 :e worker 完成"
+  },
+  "0ec0920": {
+    "summary": "覆盖第二轮修复并加固捕获扫描"
+  },
+  "0f0252f": {
+    "summary": "编辑器寄存器与系统剪贴板同步"
+  },
+  "0fb54d0": {
+    "summary": "为评审发现 A1–A20 落盘 repo-audit-fixes 方案集"
   },
   "104a617": {
     "summary": "新增 Python 3.12 升级方案",
@@ -69,20 +186,53 @@
   "1060811": {
     "summary": "补充变更日志门禁、运行时文档屏与 CLI 参数测试"
   },
+  "106e47c": {
+    "summary": "contents 目录缺失时令单文件夹构建失败"
+  },
   "107b17c": {
     "summary": "刷新随包变更日志资源"
+  },
+  "1102f96": {
+    "summary": "全量重译失败时保持清单干净"
   },
   "11245f4": {
     "summary": "产生窗口的变更日志条目与方案回填"
   },
+  "11b4a9d": {
+    "summary": "命令面板光标键、渲染路径分桶与主题辅助（R-20..R-31）"
+  },
   "11bab59": {
     "summary": "修正 yaterc 方案文档文件名笔误（pywright→pyright）"
+  },
+  "125ddda": {
+    "summary": "新增 file_preview 字典选项"
+  },
+  "12640b7": {
+    "summary": "树参考线更淡、滚动条轨道透明、文件图标着色"
+  },
+  "131adb9": {
+    "summary": "记录第四轮评审并闭环"
   },
   "1325f71": {
     "summary": "重构窗格分割模块以解除类型循环依赖"
   },
+  "1394ff2": {
+    "summary": "ConPTY 派生期间持有句柄锁"
+  },
+  "144931b": {
+    "summary": "回填五个已关闭项的整改结果"
+  },
   "14e6dd3": {
     "summary": "测试套件从 unittest 迁移到 pytest 并隔离 HOME"
+  },
+  "14ec104": {
+    "summary": "记录 PR 60 评审修复门禁结果"
+  },
+  "1573bac": {
+    "summary": "新增 editor-split 计划文档"
+  },
+  "158c67a": {
+    "summary": "经 codebuddy-code 新增翻译模块"
   },
   "1758fff": {
     "summary": "修复发布工具被忽略的问题"
@@ -90,11 +240,41 @@
   "17a0259": {
     "summary": "删除旧的未更名 manual.md"
   },
+  "17b617c": {
+    "summary": "缩进切片保持仅向左并移除无用辅助函数"
+  },
+  "17e2804": {
+    "summary": "任何另存失败都恢复只读锁"
+  },
+  "17ec133": {
+    "summary": "在整改计划中记录第二轮评审"
+  },
   "1862386": {
     "summary": "命令行输入不再误触 alt+shift+s"
   },
+  "18b8098": {
+    "summary": "使管道往返测试桩符合 POSIX 可执行要求"
+  },
+  "18e141b": {
+    "summary": "回填系统剪贴板计划的评审与定稿结果"
+  },
+  "18f266d": {
+    "summary": "回填 diff 工具条目并新增未发布区段"
+  },
+  "195c20a": {
+    "summary": "修正 12 份可见文档中的 29 类漂移"
+  },
+  "196d9e0": {
+    "summary": "恢复树横向滚动条、新增末子节点终止符、固化参考线颜色"
+  },
   "1998c82": {
     "summary": "为两条 CI 流水线添加变更日志新鲜度门禁"
+  },
+  "19a08ef": {
+    "summary": "在编码风格中加入 PEP 20 之禅与 pythonic 模式"
+  },
+  "19f44f0": {
+    "summary": "处理预览与进度相关的评审发现"
   },
   "1a02177": {
     "summary": "滚动恢复进行中时拦截滚动捕获",
@@ -102,6 +282,15 @@
   },
   "1a4e493": {
     "summary": "修复 :q 始终退出；按文件启动时隐藏资源管理器"
+  },
+  "1a7a52b": {
+    "summary": "记录 vim 键位评审执行结果"
+  },
+  "1b36369": {
+    "summary": "登记 PR 60 首轮 AI 评审"
+  },
+  "1b49208": {
+    "summary": "守护逐组件滚动条注入与主题归属"
   },
   "1ba5c53": {
     "summary": "新增 fancy-sym 屏保方案与子计划"
@@ -115,24 +304,96 @@
   "1c0a7e0": {
     "summary": "新增代码覆盖率与测试扩充计划"
   },
+  "1d1f3d8": {
+    "summary": "接受 ctrl+/ 作为 0x1f 切换字节的别名"
+  },
+  "1d5b2de": {
+    "summary": "提及 ctrl+p 预览窗格及其宽度默认值"
+  },
+  "1db6175": {
+    "summary": "未知 ctrl 组合键名回退到 C0 字符"
+  },
   "1e15a16": {
     "summary": "新增行/分支覆盖率门禁并扩充核心测试",
     "detail": "CI 以 --cov-branch --cov-fail-under=75 运行；buffer/search/document 覆盖率大幅提升"
   },
+  "1f53486": {
+    "summary": "计划命名迁移后修复内部链接"
+  },
+  "1f82fae": {
+    "summary": "处理 PR 24 对只读功能的评审"
+  },
+  "1ff34d3": {
+    "summary": "wave-2 后复核编辑器拆分计划行锚点"
+  },
+  "2016919": {
+    "summary": "回退「将 yate 评审知识归档到 .trae/skills」"
+  },
   "20227ad": {
     "summary": "文档新增冒烟测试框架修复、扩展与改造方案"
+  },
+  "2035243": {
+    "summary": "将技能评审轮次单独归档为评审记录"
+  },
+  "20ff035": {
+    "summary": "wiki 翻译进度按页推进"
+  },
+  "216a2c3": {
+    "summary": "记录打包布局的 python-code-review 轮次"
   },
   "217a93f": {
     "summary": "补齐维护类提交的中文翻译并刷新变更日志"
   },
+  "217d2a7": {
+    "summary": "跟踪 IKJPVB 评审发现及其处置"
+  },
+  "218765f": {
+    "summary": "部分实测结果后重规划为 Phase A 可达性修复"
+  },
+  "21d4dff": {
+    "summary": "仅登记 PR 49 机器人评审发现而不修复"
+  },
   "21db510": {
     "summary": "新增架构边界规则并对齐 TYPE_CHECKING 指南"
+  },
+  "21ea681": {
+    "summary": "登记 PR 60 第二轮评审"
+  },
+  "22ca26e": {
+    "summary": "防御性诊断、UTF-16 位置、下方粘贴与解析器上限（R-32..R-38）"
+  },
+  "23b0d54": {
+    "summary": "将控制台中断视为中断而非失败页面"
+  },
+  "23f536a": {
+    "summary": "有界回收不干扰 worker 终端"
+  },
+  "240bb25": {
+    "summary": "覆盖配对、跳过与缩进行为"
+  },
+  "24266a6": {
+    "summary": "在计划状态中记录 PB6 真实输入验证"
+  },
+  "2443da8": {
+    "summary": "将计划文档更名为 doc-naming 约定"
   },
   "2490bb3": {
     "summary": "README 与手册补充变更日志入口"
   },
+  "24cf85a": {
+    "summary": "默认 hy3，回退 glm-5.3-flash"
+  },
+  "256173d": {
+    "summary": "弥合 wiki 进度守护中的评审缺口"
+  },
   "256d45e": {
     "summary": "更新 .github/sync-to-gitee.sh"
+  },
+  "25c401c": {
+    "summary": "键入统一走 type_char 并新增 vim 缩进键"
+  },
+  "25e111c": {
+    "summary": "新增 tcss 实现评审报告"
   },
   "25fdbd8": {
     "summary": "冒烟脚本新增历史缺陷回归守卫（R 组）"
@@ -141,8 +402,23 @@
     "summary": "把 YateApp 的协作方拆到 yate.app_parts",
     "detail": "内置 ex 命令表、补全控制器、资源管理器增删改与终端生命周期独立成模块，YateApp 保留同名薄委托"
   },
+  "2632a19": {
+    "summary": "从 WindowFlows 移除无用的 explorer_tree 参数"
+  },
+  "2686635": {
+    "summary": "将 devtools 桥迁至 logs 并外置屏保 CSS"
+  },
+  "2696aa1": {
+    "summary": "将 Requires-Dist 解析提取到 yate.dist_meta"
+  },
   "26ba949": {
     "summary": "文档同步八套内置主题与模板安装方式（README、手册、主题指南）"
+  },
+  "26fc624": {
+    "summary": "删除最后一条 regex 回退承诺并修正语言计数"
+  },
+  "271ba88": {
+    "summary": "记录 dumb TERM 根因与复测通过结果"
   },
   "277abf9": {
     "summary": "新增窗格模型下沉至 L1 session 的计划"
@@ -151,14 +427,53 @@
     "summary": "修复主题背景色；资源管理器支持键盘操作",
     "detail": "ctrl+b/ctrl+e 开关与聚焦，a/A 新建、r 重命名、d/Del 带确认删除"
   },
+  "27e5b2a": {
+    "summary": "保持 editor_lsp 包根轻量（A1）"
+  },
+  "2862a3d": {
+    "summary": "将 PR #13 条目指向评审目录"
+  },
   "28a2a41": {
     "summary": "在 pack/ 下新增跨平台 PyInstaller 构建脚本"
   },
   "28d74c5": {
     "summary": "随包附带 Dracula 与 Ayu 主题模板，复制为 *.py 后即可启用"
   },
+  "28db1a6": {
+    "summary": "关闭首轮评审并登记第二轮"
+  },
+  "28f4588": {
+    "summary": "记录 PR47 评审修复计划"
+  },
+  "29df9f1": {
+    "summary": "记录控制台中断修复及其测量数据"
+  },
+  "29eeb52": {
+    "summary": "EditorView 与 ExplorerTree 调用 super().on_mount()"
+  },
+  "2a6e712": {
+    "summary": "为 L2 editor_view 组件添加 trace 日志"
+  },
+  "2aa4e5f": {
+    "summary": "移除测试注释中的真实机器路径"
+  },
+  "2ac19ed": {
+    "summary": "暴露 api.sprites 支持自定义屏保字符"
+  },
+  "2ac8453": {
+    "summary": "新增 wiki 翻译进度计划"
+  },
+  "2b78fd7": {
+    "summary": "从版本树移除误提交的提交说明文件"
+  },
   "2b8b737": {
     "summary": "移动光标时保持语法配色"
+  },
+  "2ba17c5": {
+    "summary": "新增冒烟测试扩充计划"
+  },
+  "2ba8f69": {
+    "summary": "回填加固结果与验证清单"
   },
   "2cf85a1": {
     "summary": "欢迎页横幅改用 ANSI Shadow figlet 风格"
@@ -166,8 +481,14 @@
   "2dad4fc": {
     "summary": "落地 P2 第一波清理与守卫（core/syntax/term/tools）"
   },
+  "2e138a8": {
+    "summary": "记录 ctrlp-preview 问题修复扫尾"
+  },
   "2ebcdf4": {
     "summary": "窗格流程注入 spawn 动词与 explorer_focused 查询"
+  },
+  "2ec7e6f": {
+    "summary": "回填真实门禁数字到执行记录"
   },
   "2ee2586": {
     "summary": "窗格树模型下沉至 session.py（Plan G）",
@@ -176,17 +497,35 @@
   "2f7a7ad": {
     "summary": "S40 防抖测试脱离真实时间依赖"
   },
+  "304215a": {
+    "summary": "收口 Textual 私有 API（A2）"
+  },
+  "3054769": {
+    "summary": "滚动条滑块变细并以状态常量定树参考线颜色"
+  },
   "30d7909": {
     "summary": "移除 task-coordinator 子代理剧本"
   },
   "30e4d4a": {
     "summary": "后继产生窗口可配置"
   },
+  "3105f66": {
+    "summary": "将应用级 CSS 移入随包 app.tcss 资源"
+  },
+  "312a96a": {
+    "summary": "登记 PR 57 AI 评审并规划修复"
+  },
   "3182414": {
     "summary": "键位测试独立成模块：actions、notation 与 KeymapSet"
   },
+  "31ed715": {
+    "summary": "预览窗格默认宽度放宽到命令面板的一半"
+  },
   "322881c": {
     "summary": "发布工具自动探测默认发布分支并透传 --overrides"
+  },
+  "32d2f99": {
+    "summary": "将组件 DEFAULT_CSS 外置到随包 tcss 资源"
   },
   "32e5649": {
     "summary": "补齐全部缺失的中文翻译并刷新双语变更日志",
@@ -198,9 +537,24 @@
   "331e281": {
     "summary": "手册测试改为加载完成后才断言内容"
   },
+  "333c95d": {
+    "summary": "标记 SP5 门禁完成、矩阵待验证"
+  },
+  "3350009": {
+    "summary": "将评审计划文档更名为连字符命名"
+  },
   "33584e6": {
     "summary": "修复 PR #13 审查问题：原子保存保留权限、信任路径统一 resolve、未知 action 不再吞键等",
     "detail": "含 2 个阻断项 + 4 个改进项与配套测试守卫；详见 .trae/reviews/2026-09-24-pr13-review.md 的 PR #13 章节"
+  },
+  "338520b": {
+    "summary": "回填 translate-cmd 计划记录"
+  },
+  "33f91e5": {
+    "summary": "新增带自动探测的 key_protocol 选项"
+  },
+  "34ab059": {
+    "summary": "固化全局组合键在 vim 模式下的可达性"
   },
   "35830eb": {
     "summary": "更新日志重构计划"
@@ -208,26 +562,86 @@
   "35fa904": {
     "summary": "新增日志重构计划"
   },
+  "36ca034": {
+    "summary": "登记 PR #43 机器人评审记录"
+  },
+  "37515bd": {
+    "summary": "登记 PR #44 机器人评审记录"
+  },
+  "37584d6": {
+    "summary": "记录评审修复执行"
+  },
+  "3761d6c": {
+    "summary": "恢复 translate-cmd 钩子计划"
+  },
+  "377c004": {
+    "summary": "写明重定向运行的实际输出"
+  },
+  "3799aa3": {
+    "summary": "新增 --readonly 启动开关与 :set readonly 选项"
+  },
+  "37ed3b6": {
+    "summary": "统一计划与子计划命名约定"
+  },
+  "380fccc": {
+    "summary": "为问题 IKJHPH 新增 remove-inline-default-css 计划"
+  },
+  "38266f2": {
+    "summary": "将积压项 W2 标记为已修复"
+  },
   "3835554": {
     "summary": "英文设为默认 README，中文改名 README.zh.md"
+  },
+  "3914673": {
+    "summary": "将单文件夹布局固定为命名的 contents 目录"
+  },
+  "392d038": {
+    "summary": "修正 PR #28 登记中的修复提交哈希"
   },
   "397ef2f": {
     "summary": "冒烟工具扁平化单名字 typing 导入",
     "detail": "清理 SP3 孤立导入脚本留下的括号多行残留"
   },
+  "3a4d7da": {
+    "summary": "为模块级常量添加类型注解"
+  },
+  "3a672ae": {
+    "summary": "新增仓库级文档命名约定"
+  },
   "3a6f9f9": {
     "summary": "修复 trace 日志级别解析并改为惰性创建日志文件",
     "detail": "falsy 级别不再被改写为 DEBUG；YATE_TRACE=1 遇提前退出命令时不再残留空日志"
+  },
+  "3a8a29b": {
+    "summary": "新增 SP5 手动矩阵验证脚本"
   },
   "3ad2a7e": {
     "summary": "加固 rc 语言服务器解析并覆盖声明式 LSP 路径",
     "detail": "拒绝仅由点号组成的文件类型并裁剪空白，11 条新测试补齐 yate/config.py 分支覆盖"
   },
+  "3b00d88": {
+    "summary": "断言迟到的失败可见而非仅入队"
+  },
   "3b4319a": {
     "summary": "改进退出处理并补充错误覆盖"
   },
+  "3b4b889": {
+    "summary": "回退「登记第三轮评审发现（双语 TOCTOU）」"
+  },
+  "3b577fc": {
+    "summary": "为 IKJPVB note_51452120 新增第二轮统一布局计划"
+  },
+  "3c1cee2": {
+    "summary": "在 vsc 断言中指名重复的原始键"
+  },
   "3c53fa4": {
     "summary": "呈现 :trust 拒绝原因并补文档化 spawn 清理"
+  },
+  "3c5a84c": {
+    "summary": "固化引号上光标判定并记录冒烟结果"
+  },
+  "3c873b9": {
+    "summary": "记录 translate-cmd 评审轮次"
   },
   "3ca822c": {
     "summary": "修复终端面板布局晚于启动时丢失 PTY 早期输出"
@@ -235,11 +649,38 @@
   "3ca89c4": {
     "summary": "新增 Gitee 同步脚本（trap 清理）"
   },
+  "3d1ed13": {
+    "summary": "从代码中删除最后一条失实的 regex 回退承诺"
+  },
+  "3e052dc": {
+    "summary": "为问题 IKJHBO 新增系统剪贴板集成计划"
+  },
+  "3e43179": {
+    "summary": "在排空 worker 失败前恢复串行策略"
+  },
+  "3e8329a": {
+    "summary": "将校准结果回填进日志计划"
+  },
   "3ea5911": {
     "summary": "批次大小上限规则对齐 6 代理并发上限"
   },
   "3f4c4db": {
     "summary": "修复 Windows CI 竞态：停止期间的 LSP 子进程与 8.3 短路径"
+  },
+  "3f7b3f7": {
+    "summary": "将散落资产迁出文档目录树"
+  },
+  "3f9e499": {
+    "summary": "登记 PR38 机器人评审发现"
+  },
+  "3fe93c6": {
+    "summary": "新增超过 100 次请求上限后继续的硬性规则"
+  },
+  "4050121": {
+    "summary": "回填编辑器拆分结果"
+  },
+  "406a6cc": {
+    "summary": "在受保护区域内安装收集策略"
   },
   "406fcd8": {
     "summary": "全量核对测试 mock 目标，确认重构后无静默失效"
@@ -247,17 +688,47 @@
   "4144a72": {
     "summary": "基于 git 历史的双语变更日志生成器"
   },
+  "4153dfd": {
+    "summary": "以 TRAE-code-review 技能作为评审入口"
+  },
+  "419977a": {
+    "summary": "记录 PR 58 机器人评审及其唯一改进项"
+  },
+  "41b05ec": {
+    "summary": "预览窗格默认宽度放宽到 60％"
+  },
+  "4291b28": {
+    "summary": "新增成对符号补全与 python 自动缩进"
+  },
   "42d9b12": {
     "summary": "logs/services/document 健壮性修复与 S39 最小加固"
   },
   "43a5c88": {
     "summary": "编写空闲屏保文档并致谢 that_editor"
   },
+  "43ee62d": {
+    "summary": "使 w、b、$ 与 G motion 落点符合 vim 语义"
+  },
+  "43fe08f": {
+    "summary": "修正随包示例模板的表述"
+  },
+  "4474d35": {
+    "summary": "记录第 3 轮评审与最后的已知限制"
+  },
+  "44972c9": {
+    "summary": "修复守护 docstring 中过期的桥挂载点"
+  },
   "449eb30": {
     "summary": "在未发布段记录 pytest 迁移"
   },
   "44b67ea": {
     "summary": "version_lines 下沉 cli.py，统一 vim F 键无效动作处理"
+  },
+  "44f2f53": {
+    "summary": "新增 2026-09-26 全量项目评审报告"
+  },
+  "450fdf6": {
+    "summary": "登记 pack-wiki 评审修复计划"
   },
   "46e42c3": {
     "summary": "翻译 v0.2.5 发布条目",
@@ -267,8 +738,17 @@
     "summary": "崩溃诊断持久化：经 faulthandler 写入 ~/.yate/data",
     "detail": "native crash 与未捕获异常都会落盘为带时间戳的 .err 文件，正常退出时自动清理"
   },
+  "47567db": {
+    "summary": "回填 theme-ownership 治理结果"
+  },
   "475a650": {
     "summary": "帮助、欢迎页与文档补充集成终端说明"
+  },
+  "479f192": {
+    "summary": "新增 agents 链接"
+  },
+  "47b639f": {
+    "summary": "从版本树移除误提交的提交说明文件"
   },
   "47dac93": {
     "summary": "新增 yate UI 冒烟测试工具（run/snapshot/compare）"
@@ -277,12 +757,39 @@
     "summary": "打包新增 --dist 产物暂存并强制使用 .venv 解释器",
     "detail": "同名版本子目录被替换，写出 SHA256SUMS.txt，并以 --version 冒烟测试把关；缺少 .venv 直接报错退出"
   },
+  "486401e": {
+    "summary": "以轮询防抖重算替代固定 sleep（R-72，文件归属有误）"
+  },
+  "49240eb": {
+    "summary": "对照代码校验计划文档并修复过期引用"
+  },
+  "4954819": {
+    "summary": "从 wiki 示例中移除已删除的 --translate-needed"
+  },
   "498fc9b": {
     "summary": "review.md 登记 logs.py 两项审查发现"
+  },
+  "4999ac9": {
+    "summary": "加固 open_diff 文件校验并新增评审测试"
+  },
+  "4a1c636": {
+    "summary": "覆盖屏保，补上最后的动作缺口"
+  },
+  "4ac4ace": {
+    "summary": "在编排规则与 architect 代理中采用统一计划命名约定"
   },
   "4b0695a": {
     "summary": "文档记录场景覆盖率轮次与前后对比",
     "detail": "命令/动作覆盖由 63%/78% 提升至 100%/100%，场景 65→86、断言 688→889"
+  },
+  "4b81e54": {
+    "summary": "登记 PR #54 对 enh/input-assist 的 AI 评审"
+  },
+  "4c5c3e9": {
+    "summary": "扫描字符串而非重写随包查询"
+  },
+  "4c7ed16": {
+    "summary": "证明中断不会排空翻译线程池"
   },
   "4cb06a3": {
     "summary": "审计计划文档与当前代码的一致性"
@@ -297,9 +804,21 @@
   "4cdf4da": {
     "summary": "将崩溃诊断与追踪日志统一到 yate/logs.py"
   },
+  "4cea35c": {
+    "summary": "为各代理添加链接"
+  },
   "4d357cc": {
     "summary": "冒烟脚本新增压力场景与别名覆盖（S 组）",
     "detail": "含按键模糊、多标签、大文件等场景，命令覆盖率升至 60%"
+  },
+  "4d4735c": {
+    "summary": "pack.ps1 不再重定向原生 stderr"
+  },
+  "4d668ef": {
+    "summary": "用内置免费 API 翻译器替换翻译钩子"
+  },
+  "4db462f": {
+    "summary": "更新中英双语变更日志，同步新增功能、修复、重构与文档内容"
   },
   "4ded5ac": {
     "summary": "修复懒加载日志流的 None 判断依赖类型存根问题"
@@ -308,12 +827,24 @@
     "summary": "修复冒烟测试发现的三个编辑器状态缺陷",
     "detail": "涉及缩进后光标越界、保存失败清空文件、无输出命令卡死命令行"
   },
+  "4e6566b": {
+    "summary": "为发布工具新增预检守护与回滚"
+  },
+  "4f68219": {
+    "summary": "在 IKJPVB 跟踪器登记第二轮发现"
+  },
+  "4fd005f": {
+    "summary": "为 L1 会话与注册表添加 trace 日志"
+  },
   "4fe388c": {
     "summary": "编码规范 3.12 化：PEP 604 翻转与 PEP 695 指引",
     "detail": "可空标注改用 X | None，泛型首选 PEP 695 语法，新增 typing.Self 与 @override 检查项"
   },
   "4fec66d": {
     "summary": "新增发布工具并简化发布流程"
+  },
+  "50c5e7c": {
+    "summary": "采用 VS Code Seti 图标色板，缩进参考线淡化到 5％"
   },
   "5190225": {
     "summary": "修复撤销/重做后脏标记不准确",
@@ -322,8 +853,29 @@
   "51a5af2": {
     "summary": "LSP 同步注入 spawn 动词并复用 overlays.push"
   },
+  "51e14ee": {
+    "summary": "新增编辑器重构波次计划"
+  },
+  "527a65c": {
+    "summary": "从打包中移除 Pillow 并扁平化单文件夹布局"
+  },
+  "528648b": {
+    "summary": "覆盖带引号与含空格路径解析"
+  },
+  "52a566c": {
+    "summary": "使空行缩进措辞与代码一致"
+  },
+  "52b22e3": {
+    "summary": "为 yate 与 tools 补充 docstring 与理由注释"
+  },
   "5353c9b": {
     "summary": "游行队：多个互异精灵按全宽行走"
+  },
+  "5383a82": {
+    "summary": "新增 PR #54 第二次 AI 评审记录"
+  },
+  "539269c": {
+    "summary": "为闭环编排新增关键词触发"
   },
   "53a6e93": {
     "summary": "S40 合并测试改为断言防抖窗口已布防"
@@ -338,6 +890,9 @@
   "544e56d": {
     "summary": "冒烟脚本新增编辑与选择场景（A/B 组）"
   },
+  "54ab508": {
+    "summary": "将 ctrl+2 组合键名路由到终端切换"
+  },
   "54cf062": {
     "summary": "为可执行文件生成基于 logo 的图标",
     "detail": "新增 tools.pack icon 子命令生成 pack/yate.ico，Windows 构建启用图标，Linux 保持无图标"
@@ -345,14 +900,32 @@
   "54de33c": {
     "summary": "更新技能文档"
   },
+  "55e1055": {
+    "summary": "用单锁串行化 ConPTY 句柄访问"
+  },
+  "56815e0": {
+    "summary": "恢复 tools docstring 中不配对的 RST 字面量"
+  },
   "57bcdd6": {
     "summary": "按单模块设计重写崩溃与追踪计划"
+  },
+  "58339d6": {
+    "summary": "在评审 README 中索引 PR35 评审轮次"
+  },
+  "58a1da9": {
+    "summary": "新增支持行、词与三方合并的 L0 diff 引擎"
   },
   "5937ce4": {
     "summary": "新增 screen_saver 字典配置（enable/interval/switch/characters）"
   },
   "5a1afbd": {
     "summary": "变更日志记录补全弹窗按键放行修复"
+  },
+  "5a25613": {
+    "summary": "统一路径解析、补全前缀与拆分回滚（R-09..R-18）"
+  },
+  "5a73fc7": {
+    "summary": "入口处记录按键事件以便终端诊断"
   },
   "5ac2bb4": {
     "summary": "更新开发方案文档"
@@ -364,8 +937,29 @@
     "summary": "版本 bump 正则加 re.MULTILINE 锚定",
     "detail": "包 __init__ 以模块 docstring 开头，无 MULTILINE 的 ^ 锚点永远匹配不到 __version__ 行"
   },
+  "5b93a4c": {
+    "summary": "回填扩充结果与场景陷阱"
+  },
+  "5be93a8": {
+    "summary": "用实测门禁数字回填执行记录"
+  },
+  "5bf4778": {
+    "summary": "登记 PR40 机器人评审发现"
+  },
   "5c22c8d": {
     "summary": "冒烟脚本新增窗格、资源管理器与视图场景（E/F/G 组）"
+  },
+  "5c41d69": {
+    "summary": "使 vim 计数位移按行跨度生效"
+  },
+  "5c51180": {
+    "summary": "vim 计数与寄存器语义、扩展类别及工作区缓存（R-57..R-65）"
+  },
+  "5cd97d1": {
+    "summary": "新增按键组合模型与遗留编解码包"
+  },
+  "5d3399d": {
+    "summary": "devtools 桥由 tracing 开关门控"
   },
   "5d9cb59": {
     "summary": "3.12 升级方案拆分为按波任务文件",
@@ -380,11 +974,29 @@
   "5f4cc48": {
     "summary": "随主题变色的滚动条与可点击标签栏"
   },
+  "5fb9003": {
+    "summary": "守护捕获名、打包清单与模板"
+  },
+  "5fc7a28": {
+    "summary": "记录 PR35 评审发现与修复"
+  },
   "5ff9d8b": {
     "summary": "修复发布工具并补全源码版本号"
   },
+  "6073ef6": {
+    "summary": "回填路径空格处理结果与 S5 闭环"
+  },
+  "60bd63e": {
+    "summary": "闭环统一打包布局第二轮评审"
+  },
+  "60c9545": {
+    "summary": "更新双语变更日志"
+  },
   "60ea88e": {
     "summary": "登记 Esc 关闭弹窗后被在途 worker 重开的竞态（仅登记未修）"
+  },
+  "6100df0": {
+    "summary": "新增 pyright lint job、3.13 腿与 released-only 中文门禁（A4/A14/A5-2）"
   },
   "61bc850": {
     "summary": "更新问题跟踪并新增 LSP 修复方案"
@@ -392,8 +1004,32 @@
   "61f988d": {
     "summary": "测试与冒烟场景迁移至编辑器层"
   },
+  "620429b": {
+    "summary": "回填 PR #54 评审修复结果"
+  },
+  "625d443": {
+    "summary": "通过有界线程池翻译 wiki 并带错误码"
+  },
+  "62ae99b": {
+    "summary": "为三个规则文件添加 frontmatter"
+  },
+  "62c6494": {
+    "summary": "强制 UTF-8 管道并按评审加固翻译模块"
+  },
+  "635f50e": {
+    "summary": "在评审列表记录只读评审轮次"
+  },
+  "6361b3d": {
+    "summary": "新增 python-code-review 修复计划（83 项发现处置）"
+  },
+  "63717cf": {
+    "summary": "提取窗口窗格 flow"
+  },
   "6380ae6": {
     "summary": "新增 P1-P7 评审修复方案"
+  },
+  "63e87d3": {
+    "summary": "登记第三轮评审发现（双语 TOCTOU）"
   },
   "641412c": {
     "summary": "更新 CHANGELOG"
@@ -411,11 +1047,20 @@
   "64e2dd4": {
     "summary": "PTY 测试覆盖各平台后端与门面失败路径"
   },
+  "64f5eeb": {
+    "summary": "只读缓冲区跳过寄存器预置"
+  },
+  "6618a15": {
+    "summary": "仿照模块加载器缓存守护 AST 解析"
+  },
   "669f017": {
     "summary": "vscode 键位下 F5 打开 ex 命令行"
   },
   "66fb5ba": {
     "summary": "修复终端、补全与 vim 路径的多处正确性问题"
+  },
+  "6709d22": {
+    "summary": "处理第二轮 wiki 评审发现"
   },
   "673da84": {
     "summary": "shuffle_order 拒绝采样加上限（PR #33 评审）"
@@ -426,9 +1071,33 @@
   "677f867": {
     "summary": "变更日志排除发布文档提交以稳定门禁"
   },
+  "678c02c": {
+    "summary": "用试点守护固化全局组合键分发分支"
+  },
+  "6832024": {
+    "summary": "移除遮蔽 ctrl+e 的重复 ctrl+shift+e 绑定"
+  },
+  "68ad332": {
+    "summary": "收紧 HighlightProbe 文档类型"
+  },
   "68c797d": {
     "summary": "修复保存失败时 :wq 仍强制退出",
     "detail": "保存失败或未命名缓冲区现保留编辑并提示，避免丢失未保存内容"
+  },
+  "6937900": {
+    "summary": "移除无关文档"
+  },
+  "69b7f6f": {
+    "summary": "登记 Gitee PR #53 的 syntax-langs 评审"
+  },
+  "6a03d6b": {
+    "summary": "Rich 翻译进度展示与干净的 Ctrl+C 退出"
+  },
+  "6a0f429": {
+    "summary": "在评审修复计划中记录第二轮提交哈希"
+  },
+  "6a95fd8": {
+    "summary": "从窗格常量推导收缩按键次数"
   },
   "6b03fca": {
     "summary": "补全流程注入 spawn 动词与 has_modal_screen 查询"
@@ -442,12 +1111,21 @@
   "6bbe908": {
     "summary": "测试覆盖会话、注册表、外壳与补全模块"
   },
+  "6c30674": {
+    "summary": "守护组件默认 CSS 从随包 tcss 加载"
+  },
   "6c394d9": {
     "summary": "登记 Python 3.12 迁移审查记录",
     "detail": "双校验代理复核加 6 处高危覆写抽查，两项 minor（导入残留已修、Gitee 3.12 镜像待观察）"
   },
+  "6cd71ce": {
+    "summary": "覆盖评审记录与评审修复计划的命名"
+  },
   "6cf4fea": {
     "summary": "LSP didChange 同步重试、扩展卸载钩子与打包规格跟踪"
+  },
+  "6e33bc7": {
+    "summary": "回填 motion 修复执行记录"
   },
   "6e77ebe": {
     "summary": "补充用户配置初始化/清理服务层、CLI 参数透传与崩溃句柄释放测试"
@@ -458,23 +1136,56 @@
   "6f02578": {
     "summary": "断言内容前先等待手动文档加载"
   },
+  "6f036cd": {
+    "summary": "限定翻译线程回收并对齐排空输出"
+  },
+  "6f564a6": {
+    "summary": "提取 lsp_sync flow"
+  },
   "6f6baee": {
     "summary": "覆盖层注入屏幕栈动词与 current_screen 查询"
   },
   "6fa7663": {
     "summary": "为发布提交补充中文翻译"
   },
+  "6ffb0fb": {
+    "summary": "回填 py-style-audit 执行记录"
+  },
+  "704a773": {
+    "summary": "将 PR 51 机器人评审登记为评审记录"
+  },
+  "714183b": {
+    "summary": "在收集与写入之间英文源被删时保持存活"
+  },
+  "717fe08": {
+    "summary": "新增 plan-before-execute 工作流规则"
+  },
   "7180d5f": {
     "summary": "变更日志保持修复条目已翻译"
   },
+  "7184ba2": {
+    "summary": "限制单个计划大小并净化真实路径"
+  },
   "719e73a": {
     "summary": "测试显式引用主题清理 fixture 以消除告警"
+  },
+  "72020bb": {
+    "summary": "补齐剪贴板覆盖缺口并修复 import 分组"
+  },
+  "72a247f": {
+    "summary": "新增 IKJPEK wiki 打包加固与并行翻译计划"
   },
   "73110ab": {
     "summary": "挂载期滚动恢复失败重试并加固捕获守卫"
   },
   "733c01b": {
     "summary": "2026-09-24 审查状态并入 review.md"
+  },
+  "736c637": {
+    "summary": "从 dist 元数据推导核心依赖名"
+  },
+  "7370918": {
+    "summary": "新增主题层重构计划集（N30）"
   },
   "738204e": {
     "summary": "以窄接口模块协议替换 AppProtocol",
@@ -483,6 +1194,12 @@
   "738c2f1": {
     "summary": "文档同步一键初始化/清理命令（手册、主题与 yaterc 指南、README）"
   },
+  "73c8cb2": {
+    "summary": "固化 wiki 生成器逐页进度刷新"
+  },
+  "73ea9b6": {
+    "summary": "为问题 IKJRGP 新增 ctrlp-preview 子计划"
+  },
   "74202ac": {
     "summary": "冻结构建随包捆绑 tree-sitter 后端与 python/bash 语法",
     "detail": "spec 显式收集子模块、原生绑定与 *.scm 高亮查询"
@@ -490,12 +1207,24 @@
   "74c8938": {
     "summary": "泛化 Markdown 文档屏，新增 :changelog 命令与 --changelog 参数"
   },
+  "75d45c7": {
+    "summary": "结构化 operator-pending 状态与 c 操作符"
+  },
   "76518e0": {
     "summary": "CI 固定 Gitee 为 origin，让变更日志门禁在 GitHub 通过",
     "detail": "checkout 会把 origin 指向 GitHub 镜像，导致已发布段被误判过期"
   },
+  "766b266": {
+    "summary": "将 theme-ownership 拆分为子计划并补齐冒烟缺口"
+  },
+  "77475d8": {
+    "summary": "从注册表推导主题补全期望"
+  },
   "78253f0": {
     "summary": "发布 v0.1.1 双语变更日志"
+  },
+  "783f187": {
+    "summary": "按职责而非 LspSync 异常命名 flow 模块"
   },
   "783f491": {
     "summary": "文档与扩展随包捆绑进 yate，并接入 PyInstaller 打包",
@@ -510,15 +1239,45 @@
   "798df3a": {
     "summary": "更新变更日志"
   },
+  "79d41ac": {
+    "summary": "冻结构建随包捆绑 yate dist-info"
+  },
   "7a2cf79": {
     "summary": "以 typing.override 标注基类覆写",
     "detail": "32 处覆写方法加 @override，reportImplicitOverride=error 写入 pyright 配置防回归"
+  },
+  "7a433e7": {
+    "summary": "新增 shell 多行文本与 python 探针的杂项规则"
+  },
+  "7a6cbe8": {
+    "summary": "登记键位分支评审报告"
+  },
+  "7a91c80": {
+    "summary": "拆分 ex 参数时保留内部空白"
+  },
+  "7ad493a": {
+    "summary": "回填 python-code-review 处置与索引（82/83 已修复）"
+  },
+  "7b08070": {
+    "summary": "将 win32-input-mode 标志 0 视为按键抬起"
+  },
+  "7b1b269": {
+    "summary": "将计划命名从下划线迁移到连字符"
   },
   "7b5dd93": {
     "summary": "项目版本改为从 yate/__init__.py 动态读取"
   },
   "7b62b6c": {
     "summary": "wheel 附带 docs/，安装后手册链接可解析"
+  },
+  "7c15ab1": {
+    "summary": "文档说明输入辅助与缩进按键"
+  },
+  "7c2ea3e": {
+    "summary": "登记含架构张力的 ui-refine 评审"
+  },
+  "7c4b154": {
+    "summary": "新增 editor-split plan-e 与 plan-f 子计划"
   },
   "7c69c6b": {
     "summary": "stop() 等待进行中的连接，确保已启动的 LSP 进程退出"
@@ -538,20 +1297,62 @@
   "7e1372f": {
     "summary": "P1 建议计划拆分为 7 份文件独占子计划"
   },
+  "7e51d6b": {
+    "summary": "评审后打磨 tcss 加载器"
+  },
+  "7e8432f": {
+    "summary": "新增稳定错误码与无堆栈回溯的错误报告"
+  },
+  "7e928de": {
+    "summary": "将 9 个流程模块迁入 yate/flows 子包（A10）"
+  },
+  "7f0d9c5": {
+    "summary": "行重同步感知 shift 并单遍穿线状态"
+  },
+  "7f37512": {
+    "summary": "使计划树符合 doc-conventions 并标注状态"
+  },
+  "7f7ccf9": {
+    "summary": "跟踪 CodeBuddy 主规则加载器"
+  },
+  "80215c5": {
+    "summary": "提取组装工厂"
+  },
   "802467d": {
     "summary": "开启第二轮覆盖率计划（PTY、字体、弹窗）"
   },
   "807c199": {
     "summary": "更新问题跟踪文档，整理全量代码审查问题"
   },
+  "810d421": {
+    "summary": "登记 PR #52 AI 评审发现（note 51438554）"
+  },
   "8133417": {
     "summary": "审查发现与修复计划同步至代码现状"
+  },
+  "816f60d": {
+    "summary": "开启 Phase B 执行"
+  },
+  "81b9525": {
+    "summary": "登记 logging 分支评审轮次"
+  },
+  "82c8cae": {
+    "summary": "登记 PR39 第三轮评审发现"
   },
   "834f25b": {
     "summary": "新条目改用完整提交哈希"
   },
+  "83df505": {
+    "summary": "固化类选择器回归与语言计数"
+  },
+  "842f830": {
+    "summary": "扫描全部 exec 目标以核对排除包"
+  },
   "844cd0a": {
     "summary": "注释与 docstring 全部改为英文"
+  },
+  "844e1f2": {
+    "summary": "重新生成变更日志以落定状态"
   },
   "8477ec0": {
     "summary": "修复 :enew 后欢迎页重复出现，改为一次性显示",
@@ -560,15 +1361,33 @@
   "8566fac": {
     "summary": "更新 README.zh.md"
   },
+  "857a11a": {
+    "summary": "移除误留的 pytest 输出产物"
+  },
   "85cb9ad": {
     "summary": "防护 tree-sitter 0.26 在 Windows 上的堆内存损坏"
+  },
+  "85d5e77": {
+    "summary": "在 keybinding-fix 子计划记录门禁结果"
   },
   "866bb45": {
     "summary": "全仓采用 PEP 604 联合类型",
     "detail": "pyupgrade 迁移 313 处 Optional/Union（53 文件），X | None 全面替代并归零旧写法"
   },
+  "867acea": {
+    "summary": "锁定 lsp UTF-16 与防御性解析、下方粘贴及命令面板光标修复"
+  },
   "86a7764": {
     "summary": "回填评审修复结果与偏离记录"
+  },
+  "86adde9": {
+    "summary": "将不可用的 wiki 目标报告为带错误码的页面写入失败"
+  },
+  "8770b9f": {
+    "summary": "将第二轮评审修复应用到 diff 屏幕"
+  },
+  "8884e6f": {
+    "summary": "用单一共享辅助函数截断文件类型候选列表"
   },
   "88d6b52": {
     "summary": "内置只读用户手册查看器（F8 / :manual）"
@@ -576,8 +1395,17 @@
   "8937dc3": {
     "summary": "忽略冒烟测试生成的临时 JSON 报告"
   },
+  "89956da": {
+    "summary": "将 Gitee PR #26 AI 评审登记进 review.md"
+  },
+  "89c1319": {
+    "summary": "守护惰性日志格式化"
+  },
   "8a5d1bf": {
     "summary": "修复 workspace 与 manual 两腿 CI 的失败用例"
+  },
+  "8a8202b": {
+    "summary": "将 vim 键位计划更名标记为完成"
   },
   "8abec69": {
     "summary": "补齐缺失的中文翻译并刷新变更日志",
@@ -586,6 +1414,9 @@
   "8ae5da6": {
     "summary": "为所有配色方案补齐提示符配色"
   },
+  "8aea808": {
+    "summary": "为 23 种语言新增 22 个 tree-sitter 语法包"
+  },
   "8af7457": {
     "summary": "vim 键位绑定 ctrl+/ 切换，冒烟脚本改用 F5 进命令行",
     "detail": "此前 ctrl+/ 被普通模式吞掉，vsc 与 vim 只能单向切换"
@@ -593,9 +1424,15 @@
   "8b17bf1": {
     "summary": "双语手册同步最新功能"
   },
+  "8b529d4": {
+    "summary": "拆分加载器为 yaterc.py 并将 :set 改为表驱动（A8/A9）"
+  },
   "8b66b89": {
     "summary": "新增可选的运行时 trace 日志",
     "detail": "默认关闭，经 YATE_TRACE/YATE_TRACE_LEVEL 或 yaterc 选项开启，写入 ~/.yate/data/logs"
+  },
+  "8b6b1b4": {
+    "summary": "弥合只读功能的评审缺口"
   },
   "8c30871": {
     "summary": "回填 wave-1 子计划校准记录"
@@ -603,11 +1440,56 @@
   "8cd80b2": {
     "summary": "键位：资源管理器与编辑器间的窗口切换"
   },
+  "8d07460": {
+    "summary": "覆盖 diff 查看器剩余 W2 行为路径"
+  },
+  "8d1fb42": {
+    "summary": "将代码评审后续事项应用到 flow 模块"
+  },
+  "8d5ba7a": {
+    "summary": "从 yate dist 元数据推导 [packages] 清单"
+  },
+  "8e13842": {
+    "summary": "登记 PR 57 第二轮 AI 评审"
+  },
   "8e9337a": {
     "summary": "新增 :set filetype 手动切换语法与文件类型"
   },
+  "8eb1093": {
+    "summary": "新增 AI 聊天智能体集成规格"
+  },
+  "8eb49f3": {
+    "summary": "在 Phase B 范围记录 ctrl+` 与 NUL 冲突"
+  },
+  "8ec8e92": {
+    "summary": "渲染 [packages] 前剔除空分组"
+  },
+  "8f9f270": {
+    "summary": "记录合并后门禁数字"
+  },
+  "905385f": {
+    "summary": "从桥生命周期守护中移除多余的 win32 跳过"
+  },
+  "9060c2c": {
+    "summary": "要求新任务工作区重建沙箱 venv"
+  },
+  "90ad524": {
+    "summary": "守护 dist 元数据、rc 提取、会话路径与树操作（R-01..R-08）"
+  },
   "90b71cc": {
     "summary": "修正变更日志的主仓库地址"
+  },
+  "90bd399": {
+    "summary": "将 yate 评审知识归档到 .trae/skills"
+  },
+  "9103f27": {
+    "summary": "将 diff 视图接入命令、覆盖层与 cli"
+  },
+  "919ec4d": {
+    "summary": "重命名 editor-refactoring-plan 子目录"
+  },
+  "91abd8d": {
+    "summary": "覆盖 saveas 命令，补上命令覆盖缺口"
   },
   "91d1345": {
     "summary": "文档新增运行时 trace 日志实现方案"
@@ -615,21 +1497,54 @@
   "91d40d8": {
     "summary": "vim 键位支持 F1 到 F12"
   },
+  "91daf6c": {
+    "summary": "以实测 trace 结论关闭 Phase A"
+  },
+  "9216480": {
+    "summary": "将 R13 组件自有主题与扩展分层落为条文"
+  },
+  "922e6f4": {
+    "summary": "进程内缓存随包 tcss 读取"
+  },
   "925ea06": {
     "summary": "文档记录重构后的冒烟测试框架并提交基线"
+  },
+  "9334a23": {
+    "summary": "修正 registries 层级 docstring 并新增文件体量阈值处置政策"
   },
   "93845b3": {
     "summary": "覆盖层命令清除旧状态消息，静默命令补回执",
     "detail": "成功命令统一用绿色；:term 显隐、:set terminal_height 与单标签 :bn/:bp 会给出提示"
   },
+  "93d8c45": {
+    "summary": "回填评审索引并记录 2026-10-05 文档扫查"
+  },
   "942821a": {
     "summary": "规则要求子代理并行执行且上限五个"
+  },
+  "944c0a5": {
+    "summary": "覆盖只读缓冲区、命令与启动 flow"
   },
   "949ed01": {
     "summary": "新增 GitHub Actions CI（Linux/Windows 矩阵）"
   },
   "94d78c0": {
     "summary": "重命名 controllers 为 app_features、explorer_files 为 explorer"
+  },
+  "94ed6e5": {
+    "summary": "回填 IKJPVB 门禁数字与评审轮次"
+  },
+  "95ab4fa": {
+    "summary": "统一 README 进度措辞并移除失效注入"
+  },
+  "962666c": {
+    "summary": "写明半注册契约"
+  },
+  "970de77": {
+    "summary": "为问题 IKIN1Z 起草分层日志计划"
+  },
+  "9730874": {
+    "summary": "固化共享排除清单与扁平单文件夹布局"
   },
   "97b6205": {
     "summary": "测试覆盖工作区列举、变更与嗅探路径"
@@ -644,20 +1559,44 @@
   "98a1128": {
     "summary": "explorer 测试适配 LspSync 的 spawn 动词"
   },
+  "98eebb7": {
+    "summary": "登记 Gitee PR 24 评审结论元数据"
+  },
   "993c9c3": {
     "summary": "编辑器注入点注解精确为 App[None]"
   },
   "994702a": {
     "summary": "子代理并发上限由 5 提到 6"
   },
+  "9981077": {
+    "summary": "将技能评审发现登记为跟踪问题"
+  },
+  "9a0f7a8": {
+    "summary": "按命名约定重命名编辑器重构计划"
+  },
+  "9b173ef": {
+    "summary": "登记 wiki 翻译进度评审"
+  },
   "9b76ae4": {
     "summary": "仅 vim 键位下用 : 打开 ex 命令行"
+  },
+  "9c08ffc": {
+    "summary": "在预览宿主中禁用 Textual 内置命令面板"
+  },
+  "9c8bd3a": {
+    "summary": "遏制补全解析失败"
+  },
+  "9dbb5d6": {
+    "summary": "登记缺失捕获并使同跨度并列可判定"
   },
   "9e6b487": {
     "summary": "README 补充冒烟测试用法"
   },
   "9ea2ac5": {
     "summary": "修复终端面板无法用键盘关闭：识别真实的 Ctrl+grave 键名"
+  },
+  "9f11c0b": {
+    "summary": "为 wiki 生成器新增 --translate-needed 开关"
   },
   "9f94d8e": {
     "summary": "冒烟测试批量注入按键并降低轮询间隔以提速",
@@ -666,6 +1605,24 @@
   "9fa5ac8": {
     "summary": "架构分层重构：外壳瘦身并移除 app_features 与窄接口，新增 Editor 调度层与 EditorSession 会话层",
     "detail": "用户可见变化：扩展里的 api.app 由 YateApp 变为 ExtensionContext（可用字段见扩展文档）；api.keymaps 由 dict 变为 KeymapSet。"
+  },
+  "9fbd03d": {
+    "summary": "覆盖含尾随空格行后的自动缩进"
+  },
+  "9ffc35b": {
+    "summary": "记录评审结论与最终门禁数字"
+  },
+  "a0cef14": {
+    "summary": "回填 pack-wiki 计划执行记录"
+  },
+  "a0d1813": {
+    "summary": "关闭打包守护与元数据的评审发现"
+  },
+  "a10d6ed": {
+    "summary": "回填 wiki 翻译进度执行记录"
+  },
+  "a1ac803": {
+    "summary": "回填 PR 59 门禁数字与回滚的首个修复"
   },
   "a1c35b2": {
     "summary": "规则新增子代理静默丢失的防护条款"
@@ -676,8 +1633,38 @@
   "a270bd3": {
     "summary": "新增代码审查修复计划记录"
   },
+  "a28c051": {
+    "summary": "新增 pack-wiki 生成器计划"
+  },
   "a2e3195": {
     "summary": "新增 Gitee Go 流水线运行全量单元测试"
+  },
+  "a30550c": {
+    "summary": "在两份 README 与计划中记录 POSIX 布局修正"
+  },
+  "a32f99a": {
+    "summary": "将 doc-naming 更名为 doc-conventions 并强制相对路径"
+  },
+  "a3541cf": {
+    "summary": "为 wiki 进度行指定唯一属主"
+  },
+  "a35a133": {
+    "summary": "将 tracing 桥接进 devtools，新增 R12 日志规则"
+  },
+  "a3a2a28": {
+    "summary": "将 coder 限定为子任务执行并遵守全部仓库规则"
+  },
+  "a429251": {
+    "summary": "修正 venv 诊断并记录不稳定主题测试"
+  },
+  "a490d6f": {
+    "summary": "按评审加固 wiki 生成器"
+  },
+  "a4990c2": {
+    "summary": "声明两阶段 flow 属性"
+  },
+  "a4a7708": {
+    "summary": "登记 2026-10-07 仓库架构审计"
   },
   "a4aaa68": {
     "summary": "补充内置色板与主题模板加载测试，修复旧测试注册表泄漏与版本号硬编码"
@@ -689,11 +1676,20 @@
   "a538883": {
     "summary": "暴露测试安全的空闲轮询并修复空测试"
   },
+  "a61f855": {
+    "summary": "采用 requires「yate」路线并过滤工具类 extras"
+  },
   "a6dcbef": {
     "summary": "字体测试覆盖注册表扫描、检测、安装与设置改写"
   },
   "a6e6f4e": {
     "summary": "落地 P2 第二波清理与守卫（editor/keymaps/services）"
+  },
+  "a6f336f": {
+    "summary": "为问题 IKINF3 新增 UI 打磨设计计划"
+  },
+  "a78d300": {
+    "summary": "自动回滚失败的扩展 setup（A13）"
   },
   "a819973": {
     "summary": "双语用户手册（英/中），打开时套用主题，修复表格布局"
@@ -702,8 +1698,17 @@
     "summary": "扩展加载增加工作区信任门禁",
     "detail": "新增 :trust 命令与 ~/.yate/trusted_workspaces 信任库；未受信工作区的 ./extensions 不再自动加载"
   },
+  "a8c2e69": {
+    "summary": "登记能力注入评审的已知取舍"
+  },
+  "a9174fc": {
+    "summary": "恢复并校准 Windows Terminal 键位计划"
+  },
   "a92d420": {
     "summary": "回填 fancy_sym 实施结果与偏离记录"
+  },
+  "a9311bb": {
+    "summary": "预览分词失败时优雅降级"
   },
   "ab75198": {
     "summary": "更新开发方案文档"
@@ -711,11 +1716,17 @@
   "aba991e": {
     "summary": "登记 2026-09-24 分支审查报告"
   },
+  "abae30c": {
+    "summary": "补录缺失中文翻译至清零"
+  },
   "ac41c84": {
     "summary": "文档同步 --help 输出与 CLI 选项说明"
   },
   "ad28ef5": {
     "summary": "LSP 支持：自动补全与诊断"
+  },
+  "ad7619a": {
+    "summary": "加固 smoke/changelog/wiki 工具并去重仓库根与规格逻辑（R-47..R-56、R-66）"
   },
   "ada345b": {
     "summary": "项目 Python 下限提升至 3.12",
@@ -733,11 +1744,29 @@
   "ae2c6ec": {
     "summary": "文档流程注入 run_worker 派生动词"
   },
+  "ae3d0ed": {
+    "summary": "记录合并后分支评审修复"
+  },
+  "aece343": {
+    "summary": "tree-sitter 降级到 regex 时仅告警一次"
+  },
+  "aecf3e3": {
+    "summary": "新增发布工具加固计划"
+  },
   "af566a2": {
     "summary": "新增 plan-execute-review 代理团队定义"
   },
   "af6dbf4": {
     "summary": "同带间隙超过距离下限即可复用行带"
+  },
+  "afaf000": {
+    "summary": "在组合键驱动中解码 win32-input-mode 帧"
+  },
+  "b03e40f": {
+    "summary": "将 ctrl+_ 映射到 0x1f 使 ctrl+/ 在旧终端可用"
+  },
+  "b084c17": {
+    "summary": "深冻结运行时注册的帧与命令面板"
   },
   "b0c022d": {
     "summary": "回填 3.12 升级执行记录",
@@ -753,6 +1782,21 @@
   "b0f95a1": {
     "summary": "tree-sitter 语法后端，支持扩展注册语法"
   },
+  "b1024f5": {
+    "summary": "关闭附录 B 待定决策"
+  },
+  "b16952c": {
+    "summary": "所有打包失败统一走带错误码的错误边界"
+  },
+  "b21afe7": {
+    "summary": "打磨资源管理器图标、滚动条与分隔线"
+  },
+  "b21ff37": {
+    "summary": "容忍 win32-input-mode 帧中的空字段"
+  },
+  "b246fa5": {
+    "summary": "在 Phase B 状态中记录 NUL 组合键命名轮次"
+  },
   "b2658a6": {
     "summary": "忽略本地 CodeBuddy 工作区数据"
   },
@@ -762,14 +1806,38 @@
   "b3b4e81": {
     "summary": "README 顶部醒目展示双语手册链接"
   },
+  "b3df11a": {
+    "summary": "安抚树光标、扁平化缩进轨、弱化滚动条"
+  },
+  "b5520be": {
+    "summary": "将扁平单文件夹布局限定在 Windows"
+  },
+  "b599685": {
+    "summary": "翻译 3.12 迁移与发布条目"
+  },
+  "b63ebb8": {
+    "summary": "新增 vim 文本对象 iw/aw、配对、引号与标签"
+  },
   "b6d1071": {
     "summary": "新增 yate --diag 诊断命令并扩展 --version 输出"
+  },
+  "b7a30f9": {
+    "summary": "以 devtools 桥设计扩充 R12"
   },
   "b7b71f8": {
     "summary": "子代理文件对齐 Trae 规范"
   },
   "b7ed339": {
     "summary": "yaterc、变更日志与方案同步同带距离规则"
+  },
+  "b8c3767": {
+    "summary": "为问题 IKJLTB 新增实现计划"
+  },
+  "b8d9e59": {
+    "summary": "为问题 IKINFT 新增 tcss 拆分计划"
+  },
+  "b9ad621": {
+    "summary": "非 Windows 跳过仅限 Windows 的 keyproto 驱动测试"
   },
   "b9e73be": {
     "summary": "ctrl+q 改走注册的退出动作"
@@ -781,15 +1849,48 @@
   "ba6d7a6": {
     "summary": "命令面板改绑 alt+shift+p"
   },
+  "baae1d8": {
+    "summary": "登记 PR #45 机器人评审记录"
+  },
   "bbeb5f6": {
     "summary": "修复补全弹窗吞掉按键：其余键正常分发，可继续输入过滤候选",
     "detail": "弹窗打开时仅消费 tab/enter/up/down/esc，字符照常写入缓冲区并按新前缀重新查询；Ctrl+S / Ctrl+Z 等全局快捷键恢复；新增测试与冒烟守卫（原场景此前恒真）"
   },
+  "bc97f7e": {
+    "summary": "回填评审与计划文档中的已执行状态"
+  },
   "bcd0426": {
     "summary": "基于 buffer 的自动补全与 bash 式 Tab 补全"
   },
+  "bd0c1fc": {
+    "summary": "新增 PR 60 评审修复计划"
+  },
+  "bd1c2cf": {
+    "summary": "将 yaterc 加载器与 editor_view.theme 解耦"
+  },
+  "bd3147a": {
+    "summary": "DiffScreen 新增带窗格与编辑模式的 diff 视图"
+  },
+  "be243e9": {
+    "summary": "使文档与引擎实际行为对齐"
+  },
+  "be5a9ef": {
+    "summary": "收尾 PR 57 评审事项并索引轮次"
+  },
+  "bea5e6a": {
+    "summary": "修复主题泄漏与退出泵盲区，用 conftest 去重测试辅助（R-67..R-73、R-77）"
+  },
+  "beaed68": {
+    "summary": "运行被拆除时终止其等待中的翻译任务"
+  },
+  "beea5e0": {
+    "summary": "记录探针发现与 v3 计划"
+  },
   "beecf6c": {
     "summary": "sync-to-gitee 同步脚本补充可执行权限"
+  },
+  "bf1b362": {
+    "summary": "记录 review-vscode-keymap 执行结果"
   },
   "bf2b06a": {
     "summary": "修复 Nerd Font 图标、提示符回显与重复标签栏，新增欢迎横幅",
@@ -798,17 +1899,38 @@
   "bf46092": {
     "summary": "新增扩展、主题与 LSP 配置指南"
   },
+  "bf9b197": {
+    "summary": "覆盖 diff 视图，补上最后的命令缺口"
+  },
   "c019f22": {
     "summary": "新增 pack rosters 子命令渲染阵容预览"
   },
   "c020bc6": {
     "summary": "LSP 通知改为向 worker 传递协程函数而非已构建协程"
   },
+  "c06e789": {
+    "summary": "登记 diff 第二轮评审发现"
+  },
+  "c0787e5": {
+    "summary": "记录编辑器拆分评审"
+  },
+  "c07b9b5": {
+    "summary": "锁定 split-utf8、escape 中止、共享修饰键、Windows shlex、探测与 vim 计数修复"
+  },
+  "c13f407": {
+    "summary": "采纳 PR #28 评审建议"
+  },
   "c1db3a2": {
     "summary": "新增符合仓库约定的 .editorconfig"
   },
   "c1f83fe": {
     "summary": "文档更正退出动作结论并登记冒烟调查问题"
+  },
+  "c2405a2": {
+    "summary": "按 key 界定 Phase A/B，并给出 vim 吞键根因"
+  },
+  "c27be65": {
+    "summary": "将实现结果回填到 reviews-open-issues-fixes 计划"
   },
   "c2be8dd": {
     "summary": "记录第二轮覆盖率结果与冒烟覆盖修复"
@@ -819,28 +1941,118 @@
   "c33258b": {
     "summary": "新增 vscode 工作区配置并更新 gitignore"
   },
+  "c34bbd0": {
+    "summary": "将 skills 固定到 .trae/skills 并移除 .codebuddy 副本"
+  },
+  "c37c55b": {
+    "summary": "固化只读守护与静默失败提示"
+  },
+  "c3bcc07": {
+    "summary": "类选择器不落入连字符名回退"
+  },
+  "c4baa3e": {
+    "summary": "固化 wiki 运行的控制台中断契约"
+  },
+  "c50b0f9": {
+    "summary": "修正 wiki 进度承诺与计划记录"
+  },
+  "c52ebe0": {
+    "summary": "新增 reviews-open-issues-fixes 计划"
+  },
+  "c5476f8": {
+    "summary": "新增 python 风格审计计划及探针发现"
+  },
   "c55f71e": {
     "summary": "修复键入路径分隔符后目录补全为空",
     "detail": "此前键入 / 会清空补全弹窗，需再输入子项首字母才恢复"
+  },
+  "c5f8f02": {
+    "summary": "回填 diff 评审修复执行记录"
+  },
+  "c639876": {
+    "summary": "要求计划包含详细测试用例与验证方案"
+  },
+  "c67c382": {
+    "summary": "记录 syntax-langs 分支评审与计划审计"
+  },
+  "c6f2677": {
+    "summary": "实现 find-char motion f/F/t/T 及 ;、, 重复"
+  },
+  "c7099d0": {
+    "summary": "拆分拒绝屏保场景以消除死存储"
+  },
+  "c7877f5": {
+    "summary": "为 translate-cmd 设计 --translate-needed 开关"
+  },
+  "c798cd9": {
+    "summary": "为问题 IKJJFI 新增 diag-package-sync 子计划"
+  },
+  "c7c7f69": {
+    "summary": "收敛操作符区间端点并去重操作符复位"
   },
   "c7fa15a": {
     "summary": "补齐缺失的中文翻译并刷新变更日志",
     "detail": "为 42 条缺译条目补齐中文摘要，翻译覆盖率达 254/254"
   },
+  "c8293d9": {
+    "summary": "增量 UTF-8 解码、escape 中止与共享修饰键表（R-39..R-46）"
+  },
+  "c9713df": {
+    "summary": "文档说明 key_protocol 与 windows 组合键可用性"
+  },
+  "c9c8348": {
+    "summary": "按渲染名计算 packages 列宽"
+  },
+  "c9f7cdf": {
+    "summary": "实现 r 替换并修复行尾 a 与 V-y 光标"
+  },
+  "ca6d204": {
+    "summary": "将计数位移固化为按行计数"
+  },
   "ca9b802": {
     "summary": "审查问题巨型文件拆分为带时间戳的 review 目录"
+  },
+  "cb082c2": {
+    "summary": "堵上第二轮评审发现的前提守护漏洞"
+  },
+  "cb67984": {
+    "summary": "记录 pack.ps1 stderr 脆弱性修复"
+  },
+  "cb6a43d": {
+    "summary": "记录语义能力注入及其守护"
+  },
+  "cb6a7ba": {
+    "summary": "回填第二轮评审修复记录"
   },
   "cb94b48": {
     "summary": "新增像素精灵包与洗牌注册表"
   },
+  "cc24677": {
+    "summary": "为 L4 应用外壳添加 trace 日志"
+  },
   "cc4b1f6": {
     "summary": "修复补全触发与校验逻辑的若干边界情况"
+  },
+  "cc4ebd6": {
+    "summary": "使 wiki 实时显示免受 dumb TERM 影响"
+  },
+  "ccaca30": {
+    "summary": "记录 IKJPEK 执行、门禁数字与评审轮次"
+  },
+  "ccb9fce": {
+    "summary": "新增 ctrl+p 文件预览场景"
   },
   "cd46611": {
     "summary": "把 shuffle 重试预算提取为常量"
   },
+  "ce93090": {
+    "summary": "经 Windows 控制台记录投递完整组合键"
+  },
   "ceba77f": {
     "summary": "修复 test_vsplit_with_file_and_only 并升级版本"
+  },
+  "cf5453d": {
+    "summary": "登记 wiki 打包评审第五、六轮"
   },
   "cf67891": {
     "summary": "移除变更日志中的多余换行"
@@ -848,11 +2060,41 @@
   "cf889b5": {
     "summary": "处置 2026-09-24 代码审查发现"
   },
+  "cf94290": {
+    "summary": "为评审修复加守护，并修复一个形同虚设的守护"
+  },
+  "cfd9d12": {
+    "summary": "缓冲区变更由只读开关守护"
+  },
   "d0b7a9e": {
     "summary": "为 SP3 渲染路径修复补齐专用守卫测试"
   },
+  "d0d1638": {
+    "summary": "记录该评审轮次及其三项修复"
+  },
+  "d10010a": {
+    "summary": "ctrl+p 新增语法高亮文件预览窗格"
+  },
+  "d13e454": {
+    "summary": "回填 PR47 评审修复结果与执行记录"
+  },
+  "d186c26": {
+    "summary": "覆盖资源管理器导航与窗格缩放组合键"
+  },
   "d1bfdbf": {
     "summary": "对照代码审计分层计划并收紧守护测试"
+  },
+  "d1c1a2c": {
+    "summary": "提取扩展启动 flow"
+  },
+  "d1d1a41": {
+    "summary": "规划 PR #54 评审修复"
+  },
+  "d1dbb79": {
+    "summary": "收紧提示符状态机并解耦卸载测试"
+  },
+  "d25b111": {
+    "summary": "修正过期的 onefile 体积与中文措辞"
   },
   "d2c49df": {
     "summary": "同步 README 与当前实现"
@@ -860,11 +2102,20 @@
   "d2ce815": {
     "summary": "随包捆绑 JetBrains Mono Nerd Font；修复 Windows Terminal 配置覆盖"
   },
+  "d3ae09e": {
+    "summary": "登记 PR 59 第二轮评审"
+  },
   "d4919c7": {
     "summary": "重写崩溃与追踪计划以匹配实现"
   },
   "d50ecf7": {
     "summary": "yaterc.example 补屏保配置说明"
+  },
+  "d56e43a": {
+    "summary": "在 v3 状态记录 trace 结论与 PA2b 回退"
+  },
+  "d634079": {
+    "summary": "去掉薄委托与空壳，直接调用属主"
   },
   "d66ace9": {
     "summary": "重新生成双语变更日志并回填中文"
@@ -872,8 +2123,35 @@
   "d6765c4": {
     "summary": "修复冒烟命令总集快照时机"
   },
+  "d6868bf": {
+    "summary": "回填主题重构执行记录"
+  },
+  "d7b84be": {
+    "summary": "ex 命令行解析带空格的引号路径"
+  },
   "d7e422c": {
     "summary": "削减逐帧渲染开销并加固工具链"
+  },
+  "d7f474f": {
+    "summary": "跟随 LspSync.documents_closed 拆分"
+  },
+  "d7f6a22": {
+    "summary": "文档说明扁平打包布局与移除的依赖"
+  },
+  "d867588": {
+    "summary": "守护收集策略结构与空操作开关"
+  },
+  "d910bf9": {
+    "summary": "登记 PR #46 AI 评审发现"
+  },
+  "d960a08": {
+    "summary": "统一手册与扩展说明中的只读措辞"
+  },
+  "da0896d": {
+    "summary": "task-orchestration 要求每步提交但不推送"
+  },
+  "da6ba8a": {
+    "summary": "修复附录代码围栏标记"
   },
   "db82bce": {
     "summary": "扩展可注册自定义语法高亮，随包附带 C# 示例"
@@ -881,11 +2159,38 @@
   "db93b52": {
     "summary": "随包扩展遮蔽时告警；包内剔除字节码；修复 Windows 8.3 配置路径"
   },
+  "db9f403": {
+    "summary": "记录 PR 56 AI 评审轮次并刷新计划分支名"
+  },
+  "dbe2d81": {
+    "summary": "纯文档变更豁免测试门禁"
+  },
   "dc1f3ac": {
     "summary": "LSP 启动槽仅在自身任务持有时弹出"
   },
+  "dcf1f72": {
+    "summary": "文档说明统一的跨平台打包布局"
+  },
+  "dd47be0": {
+    "summary": "覆盖会话级只读、saveas 与保存守护"
+  },
+  "dd8a33d": {
+    "summary": "提取提示符 flow"
+  },
+  "ddfb18e": {
+    "summary": "tree-sitter 构建受阻时仅告警一次"
+  },
   "de33c2b": {
     "summary": "架构守卫：App 注解精确化与流程模块禁持句柄"
+  },
+  "deb758b": {
+    "summary": "记录 IKJPVB 打包布局计划"
+  },
+  "df5a179": {
+    "summary": "e motion 落在词末字符"
+  },
+  "df631e6": {
+    "summary": "去重 icons 中的扩展名解析"
   },
   "dfce21e": {
     "summary": "登记 2026-09-25 审查分诊结果",
@@ -894,17 +2199,32 @@
   "e065440": {
     "summary": "AI 文档改为英文并同步更新"
   },
+  "e0db927": {
+    "summary": "修正 --translate-cmd 帮助并清理孤立 wiki 页面"
+  },
   "e1615f0": {
     "summary": "新增 yaterc language_servers 声明式选项并自动激活"
   },
   "e28de3c": {
     "summary": "修复编辑器视口跟随光标并支持滚动"
   },
+  "e3b7bef": {
+    "summary": "新增 diff 工具实现计划"
+  },
+  "e3c7105": {
+    "summary": "使句柄锁注释与实际守护范围一致"
+  },
   "e3e5a37": {
     "summary": "更新遮罩层主题一致性方案"
   },
+  "e42170e": {
+    "summary": "将路径引用从 .trae/review 改指 .trae/reviews"
+  },
   "e449dd1": {
     "summary": "测试覆盖诊断报告边界情况"
+  },
+  "e582034": {
+    "summary": "将 plan-before-execute 触发路由到 task-orchestration"
   },
   "e5a3001": {
     "summary": "读循环崩溃时让 LSP 客户端失败而非挂起请求"
@@ -912,8 +2232,38 @@
   "e5f847b": {
     "summary": "重命名 app_parts 为 controllers，去掉 *_ops 模块名"
   },
+  "e6c9740": {
+    "summary": "覆盖 wiki 生成器"
+  },
+  "e6ca963": {
+    "summary": "移除无用的 links md"
+  },
+  "e6d32ac": {
+    "summary": "统一 flow 模块命名为 *Flows"
+  },
   "e70dd15": {
     "summary": "修复关闭窗格命令、按键冲突、手册搜索与中文字形"
+  },
+  "e754b27": {
+    "summary": "按身份解除 devtools 桥挂接"
+  },
+  "e7c2f25": {
+    "summary": "分词失败时退回纯文本行预览"
+  },
+  "e7c9691": {
+    "summary": "提取 shell flow"
+  },
+  "e7da154": {
+    "summary": "为问题 IKJK0B 新增路径空格处理计划"
+  },
+  "e7e6fed": {
+    "summary": "在计划文档记录只读评审轮次"
+  },
+  "e7ea7d8": {
+    "summary": "文档说明 wiki 生成器与 translate-cmd 用法"
+  },
+  "e8786aa": {
+    "summary": "覆盖测试框架自身（基线、cli、不变量）"
   },
   "e8d4dd4": {
     "summary": "刷新双语变更日志以记录归因修正"
@@ -921,8 +2271,20 @@
   "e8f8d05": {
     "summary": "新增拆分并移除 AppProtocol 的草案计划"
   },
+  "e91d433": {
+    "summary": "登记 Gitee PR 37 机器人评审"
+  },
+  "e97bec9": {
+    "summary": "新增 dev/ts 依赖组守护测试并成文测试组织约定"
+  },
+  "e9aefbc": {
+    "summary": "将英文小节标签移入常量区统一存放"
+  },
   "ea13961": {
     "summary": "P2 改进计划拆分为按波并行的子计划"
+  },
+  "ea28852": {
+    "summary": "文档说明内置语言集与新示例模板"
   },
   "ea3a323": {
     "summary": "修复 replace_all 后光标越界并在冒烟中覆盖"
@@ -930,14 +2292,44 @@
   "eb4016e": {
     "summary": "命令面板列出全部命令与动作，可按全名搜索"
   },
+  "eb8d8af": {
+    "summary": "随包附带核心依赖 dist-info 以支持冻结版本探测"
+  },
+  "ebbd8d9": {
+    "summary": "移除页面状态中不可达的复制结论"
+  },
+  "ebc0657": {
+    "summary": "提取覆盖层 flow"
+  },
+  "ebc6d98": {
+    "summary": "为 github wiki 远程地址补 .git 后缀"
+  },
+  "ebee085": {
+    "summary": "将 IKH1RA 处置回填到评审与 P2 计划"
+  },
+  "ebf78e9": {
+    "summary": "新增 22:00-06:00 无人值守时段旁路规则"
+  },
+  "ec2606e": {
+    "summary": "移除过期寄存器前缀并守护空剪贴板写入"
+  },
   "ecadd41": {
     "summary": "新增 vim 风格窗格分割与资源管理器过滤"
   },
   "eccf33f": {
     "summary": "收紧空闲计时器时钟与产生簿记"
   },
+  "ed4f924": {
+    "summary": "在手册与扩展说明中文档化 readonly 选项"
+  },
+  "ed5369e": {
+    "summary": "将 .trae/review 更名为 reviews、.trae/wiki 更名为 wikis"
+  },
   "ee7cd53": {
     "summary": "集成终端面板（PTY 驱动），快捷键开关"
+  },
+  "eec9572": {
+    "summary": "统一 import、文件末尾换行及小项风格修复"
   },
   "ef1d964": {
     "summary": "初始提交：yate 终端编辑器"
@@ -945,6 +2337,9 @@
   "ef63f07": {
     "summary": "冒烟新增补全弹窗键位分工回归场景",
     "detail": "字符与全局键（ctrl+z）fall-through，tab/down/esc 仍归弹窗；等待防抖落地避免竞态"
+  },
+  "ef83c81": {
+    "summary": "记录第 2 轮评审与剩余已知限制"
   },
   "f002de4": {
     "summary": "手册支持内置搜索（/ 或 Ctrl+F）"
@@ -958,11 +2353,23 @@
   "f056703": {
     "summary": "新增 AI 协作文档"
   },
+  "f080c0d": {
+    "summary": "新增 coder → translator 智能体"
+  },
   "f085a07": {
     "summary": "新增任务闭环编排规则 task-orchestration"
   },
   "f0da8b2": {
     "summary": "退出时干净拆解后台服务，避免打印 traceback"
+  },
+  "f0face8": {
+    "summary": "澄清 EXCLUDES 清单说明"
+  },
+  "f10002e": {
+    "summary": "移除失效原始字节表并守护叶子包"
+  },
+  "f16180a": {
+    "summary": "以第四轮发现闭环 IKJPVB 评审"
   },
   "f1787bc": {
     "summary": "重构冒烟测试框架：标记化场景与 Rich 报告"
@@ -970,14 +2377,26 @@
   "f25aaba": {
     "summary": "冒烟脚本新增集成场景（H 组）"
   },
+  "f264058": {
+    "summary": "加固 App 下标守护并修正 docstring"
+  },
+  "f26e65d": {
+    "summary": "注明 ctrl+数字键位的终端兼容性"
+  },
   "f2dad15": {
     "summary": "新增架构总览与 Textual 框架挂点笔记（wiki）"
+  },
+  "f2fbd81": {
+    "summary": "覆盖带错误码的错误边界与翻译线程池"
   },
   "f33c54a": {
     "summary": "重构审查记录结构并拆分修复计划"
   },
   "f355a44": {
     "summary": "把 PyInstaller spec 移入 pack/ 并用 SPECPATH 锚定路径"
+  },
+  "f35dc88": {
+    "summary": "记录 PR #45 第二轮机器人评审"
   },
   "f3df035": {
     "summary": "拆分 refresh_ui 为多个子方法并更新过期文档"
@@ -986,8 +2405,26 @@
     "summary": "README 补充可执行文件图标章节并同步中文版",
     "detail": "中文版删除重复拼接内容并镜像英文更新，测试数修正为 612"
   },
+  "f490e28": {
+    "summary": "为 conpty 假件添加注解以通过 pyright 严格模式"
+  },
+  "f4fa387": {
+    "summary": "登记 PR 59 机器人评审及其裁定"
+  },
+  "f531fd0": {
+    "summary": "保持 skills 目录不动并在记录中说明"
+  },
+  "f575211": {
+    "summary": "为 L3 表格与补全 flow 添加 trace 日志"
+  },
+  "f57db3c": {
+    "summary": "将 tree-sitter 依赖纳入 dev extra"
+  },
   "f5b2769": {
     "summary": "上报未知角色错误并守护白名单"
+  },
+  "f63f773": {
+    "summary": "界定取消信号作用域并把页面管道交给其写入方"
   },
   "f677c73": {
     "summary": "整理并修正 git 提交规范文档"
@@ -995,15 +2432,57 @@
   "f690bf7": {
     "summary": "初始提交"
   },
+  "f78ba0f": {
+    "summary": "将 PR 49 机器人评审登记为评审记录"
+  },
   "f78bc6e": {
     "summary": "双目标渲染与已发布段新鲜度门禁"
+  },
+  "f78f65b": {
+    "summary": "在编辑键表中解决积压项 S2、S3"
+  },
+  "f7b3ac1": {
+    "summary": "文档补充 file_preview 选项"
+  },
+  "f88f05e": {
+    "summary": "补充缺失的类 docstring 与零星行级修复"
   },
   "f9b4d0b": {
     "summary": "四份 remove_type_checking 文档合并为单篇 ADR"
   },
+  "f9da8d1": {
+    "summary": "重新截取两个屏保基线"
+  },
   "fa1ae55": {
     "summary": "补全前冲刷待发的 didChange，优先用解释器旁的 pyright",
     "detail": "补全弹窗上限由 50 提到 250，避免标准库模块被截断"
+  },
+  "fa43c35": {
+    "summary": "记录 e motion 边界修复"
+  },
+  "fa71064": {
+    "summary": "以行级 regex 重新分词消除行尾 token 闪烁"
+  },
+  "faa6d75": {
+    "summary": "以正确区段重新生成双语变更日志"
+  },
+  "fadd935": {
+    "summary": "在最终评审小节补充真实构建验证"
+  },
+  "fb030fd": {
+    "summary": "将 5222 行应用 pilot 测试拆为九个功能域文件（A7）"
+  },
+  "fb04d5f": {
+    "summary": "将积压项 S2、S3 标记为已修复"
+  },
+  "fb3242b": {
+    "summary": "新增 2026-10-03 全量 python-code-review 报告（83 项发现）"
+  },
+  "fbcab99": {
+    "summary": "缩进轨对齐父图标下方，移除树横向滚动条"
+  },
+  "fc5dd06": {
+    "summary": "记录 PR #47 AI 评审发现"
   },
   "fc74d5f": {
     "summary": "生成 v0.1.0 双语变更日志并接入发布工作流"
@@ -1020,5 +2499,32 @@
   },
   "fdbfa10": {
     "summary": "无头测试覆盖终端模拟器"
+  },
+  "fdfa2a1": {
+    "summary": "为 14 个新场景添加基线"
+  },
+  "fe09ba9": {
+    "summary": "说明 --translate-all 需要该钩子"
+  },
+  "fe4d92c": {
+    "summary": "为组合键驱动新增无人值守真实输入测试架"
+  },
+  "fe73f3a": {
+    "summary": "登记 PR #45 第三轮机器人评审"
+  },
+  "feaae60": {
+    "summary": "统一测试风格：docstring、续行与注解"
+  },
+  "fec98ed": {
+    "summary": "将 theme-ownership 计划重组为 README 与 A-E 分册"
+  },
+  "ff244b3": {
+    "summary": "从 translate-cmd 计划中删除本地安装路径"
+  },
+  "ff3cfc0": {
+    "summary": "未映射按键事件以 debug 级记录以便诊断"
+  },
+  "ffdde7c": {
+    "summary": "进入插入模式与退出可视模式时清除待发寄存器"
   }
 }

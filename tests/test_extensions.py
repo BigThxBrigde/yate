@@ -11,6 +11,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from yate.config import YateConfig
+from yate.keymaps.base import Keymap, parse_key
+from yate.keymaps.registry import KeymapSet
+from yate.registries import ActionRegistry, CommandRegistry
+from yate.session import EditorSession
 from yate.services import trust
 from yate.services.extensions import (
     ExtensionAPI,
@@ -354,3 +358,111 @@ def test_teardown_skipped_when_setup_failed(
     assert record.error is not None
     assert record.teardown is None
     loader.teardown_all()  # must not invoke the skipped hook
+
+
+# --- setup rollback scope (audit A13) ----------------------------------------
+
+
+def _real_extension_api() -> tuple[ExtensionAPI, ActionRegistry, CommandRegistry, KeymapSet]:
+    """An ExtensionAPI over *real* registries and keymaps (rollback tests)."""
+    session = EditorSession(YateConfig())
+    session.new_buffer()
+    keymaps = KeymapSet({"vsc": Keymap(), "vim": Keymap()}, "vsc")
+    actions = ActionRegistry()
+    commands = CommandRegistry()
+    ctx = ExtensionContext(
+        session=session,
+        workspace=cast(Any, MagicMock()),
+        lsp=cast(Any, MagicMock()),
+        keymaps=keymaps,
+        actions=actions,
+        commands=commands,
+        message=lambda _text: None,
+        run_shell=lambda _command, _show: None,
+        open_path=lambda _path: None,
+        save=lambda: None,
+    )
+    return ExtensionAPI(ctx), actions, commands, keymaps
+
+
+_ROLLBACK_SCRIPT: str = (
+    "def setup(api):\n"
+    "    api.register_action('x', lambda ctx: None)\n"
+    "    @api.command('y')\n"
+    "    def _y(args):\n"
+    "        pass\n"
+    "    api.bind_key('<ctrl-u>', lambda ctx: None, keymap='both')\n"
+    "    raise RuntimeError('boom')\n"
+)
+
+
+def test_failed_setup_rolls_back_new_registrations(tmp_path: Path) -> None:
+    """A setup that raises leaves no registration behind (A13)."""
+    api, actions, commands, keymaps = _real_extension_api()
+    script = tmp_path / "boom.py"
+    script.write_text(_ROLLBACK_SCRIPT, encoding="utf-8")
+
+    record = ExtensionLoader(api).load_file(script)
+
+    assert record.error is not None
+    assert record.teardown is None
+    assert actions.get("x") is None
+    assert commands.get("y") is None
+    for name in ("vsc", "vim"):
+        keymap = keymaps.get(name)
+        assert keymap is not None
+        assert keymap.lookup(parse_key("<ctrl-u>")) is None
+
+
+def test_failed_setup_restores_overridden_builtin_registration(tmp_path: Path) -> None:
+    """Overwriting an earlier registration rolls back to it (A13).
+
+    Snapshot-restore semantics: the first registration acts as the
+    "builtin" here; the failed second registration must not leave the
+    overwrite in place nor delete the entry.
+    """
+    api, actions, _commands, _keymaps = _real_extension_api()
+
+    def original(_ctx: object) -> None:
+        pass
+
+    actions.register("dup", original, "builtin")
+    script = tmp_path / "over.py"
+    script.write_text(
+        "def setup(api):\n"
+        "    api.register_action('dup', lambda ctx: None)\n"
+        "    raise RuntimeError('boom')\n",
+        encoding="utf-8",
+    )
+
+    record = ExtensionLoader(api).load_file(script)
+
+    assert record.error is not None
+    action = actions.get("dup")
+    assert action is not None
+    assert action.func is original
+    assert action.description == "builtin"
+
+
+def test_successful_setup_keeps_registrations(tmp_path: Path) -> None:
+    """A successful setup keeps every registration (rollback must not fire)."""
+    api, actions, commands, keymaps = _real_extension_api()
+    script = tmp_path / "ok.py"
+    script.write_text(
+        "def setup(api):\n"
+        "    api.register_action('x', lambda ctx: None)\n"
+        "    @api.command('y')\n"
+        "    def _y(args):\n"
+        "        pass\n"
+        "    api.bind_key('<ctrl-u>', lambda ctx: None)\n",
+        encoding="utf-8",
+    )
+
+    record = ExtensionLoader(api).load_file(script)
+
+    assert record.error is None
+    assert actions.get("x") is not None
+    assert commands.get("y") is not None
+    vsc = keymaps.get("vsc")
+    assert vsc is not None
+    assert vsc.lookup(parse_key("<ctrl-u>")) is not None

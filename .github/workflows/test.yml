@@ -1,13 +1,15 @@
 # GitHub Actions CI — run the full pytest suite on Linux and Windows.
-# GitHub 自动识别 .github/workflows/ 下的文件，推送即生效，无需手动开通。
+# GitHub picks up .github/workflows/ automatically: push to take effect,
+# no manual enablement needed.
 #
-# 触发 / Triggers: push to master, and PRs targeting master.
-# 本地复现 / Reproduce locally:
+# Triggers: push to master, and PRs targeting master.
+# Reproduce locally:
 #   pip install -e ".[dev]"
 #   python -m pytest tests
-#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # 覆盖率门禁
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # coverage gate
 #
-# Gitee 自带的流水线在 .workflow/test.yml（仅 Linux），两套配置互不影响。
+# The Gitee-side pipeline lives in .workflow/test.yml (Linux only);
+# the two configs are independent.
 
 name: yate-tests
 
@@ -19,14 +21,21 @@ on:
 
 jobs:
   test:
-    name: pytest (${{ matrix.os }})
+    name: pytest (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
-      # 一个平台失败时不要取消另一个平台的结果
+      # one failing platform must not cancel the other's results
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python-version: ['3.12']
+        # A14: 3.13 runs on the Linux leg only (cost control);
+        # requires-python >=3.12 was never verified on 3.13 before, and the
+        # tree-sitter <0.26 pin already guards the 3.13 heap corruption
+        include:
+          - os: ubuntu-latest
+            python-version: '3.13'
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +47,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
 
@@ -54,16 +63,48 @@ jobs:
         run: git remote set-url origin https://gitee.com/jermaine/yate.git
 
       - name: Changelog gate
-        # stdlib-only tool: fails when CHANGELOG*.md are stale vs git history
+        # stdlib-only tool: fails when CHANGELOG*.md are stale vs git history.
+        # zh translation coverage is deliberately NOT gated here (2026-10-07
+        # user decision): `--require-zh` remains an opt-in local check
+        # (released sections only; unreleased gaps warn).
         run: python -m tools.changelog check
 
       - name: Install package and dependencies
         run: python -m pip install -e ".[dev]"
 
       - name: Run pytest suite
-        # TERM 供 Linux 上的 Textual pilot headless 测试使用；Windows 忽略此项
-        # --cov 走 pyproject 的 [tool.coverage.*] 配置；fail-under 与本地/另一套 CI 保持一致
+        # TERM is for the Textual pilot headless tests on Linux; Windows ignores it.
+        # --cov uses the [tool.coverage.*] config in pyproject; fail-under stays
+        # identical to local runs and the other CI.
         env:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
         run: python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
+
+  # A4: pyproject.toml declares strict zero-diagnostics as the merge gate, so
+  # CI must actually run it.  Separate job, parallel to test; the changelog
+  # gate stays in its original place inside the test job.
+  lint:
+    name: pyright (strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install package and dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: pyright --version
+        # warm up the npm-side binary download (the first pyright run pulls a
+        # node package; keep it out of the diagnostics timeout)
+        run: pyright --version
+      - name: pyright (strict, zero diagnostics)
+        run: pyright

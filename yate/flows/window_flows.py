@@ -5,7 +5,7 @@ Extracted from :mod:`yate.editor`.  Every multi-pane operation (``:sp`` /
 ``ctrl+w`` two-key state machine lives here.  Like the other ``*Flows``
 modules it is constructed by the editor and never imports upward:
 collaborators are concrete objects (:class:`PaneManager`,
-:class:`~yate.document_flows.DocumentFlows`, ...), and editor-owned state
+:class:`~yate.flows.document_flows.DocumentFlows`, ...), and editor-owned state
 (modal screens, focus) is reached through injected callables.
 """
 
@@ -18,7 +18,7 @@ from pathlib import Path
 from textual.events import Key
 from textual.worker import Worker
 
-from yate.document_flows import DocumentFlows
+from yate.flows.document_flows import DocumentFlows
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.panes import PaneManager
 from yate.keymaps.registry import KeymapSet

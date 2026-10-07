@@ -162,3 +162,21 @@ def test_init_copies_the_given_mapping() -> None:
     assert keymaps.get("nano") is None
     assert keymaps.active is vim
     assert keymaps["vim"] is vim
+
+
+def test_keymap_remove_binding_roundtrip_and_missing_key() -> None:
+    """remove_binding drops an added binding and reports unknown keys (A13).
+
+    The spec is normalized exactly like ``add_binding``, so the
+    ``<named>`` spelling removes the same entry the addition created.
+    """
+    keymap = _FakeKeymap("vsc")
+    keymap.add_binding("<ctrl-j>", "some.action")
+    raw = parse_key("<ctrl-j>")
+
+    assert keymap.lookup(raw) is not None
+    assert keymap.remove_binding("<ctrl-j>") is True
+    assert keymap.lookup(raw) is None
+    assert keymap.remove_binding("<ctrl-j>") is False
+    # the pre-existing binding is untouched
+    assert keymap.lookup(parse_key("<ctrl-s>")) is not None

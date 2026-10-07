@@ -4,7 +4,7 @@ Extracted from :mod:`yate.editor` (review 20260926 #5).  Every overlay is
 pushed through :meth:`OverlayFlows.push`, which also clears the stale
 bottom message (the prompt line is hidden behind the overlay; a leftover
 "saved ..." note would reappear on close and read like missing feedback).
-Like :class:`~yate.completion.CompletionFlows` this module is
+Like :class:`~yate.flows.completion_flows.CompletionFlows` this module is
 constructed by the editor and never imports upward.
 """
 
