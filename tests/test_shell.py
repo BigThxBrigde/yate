@@ -8,7 +8,10 @@ only reach its own platform's half, which is why both halves are written out.
 
 from __future__ import annotations
 
+import ctypes
+import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +65,66 @@ def test_run_shell_times_out_with_a_message() -> None:
     result = run_shell(command, timeout=0.2)
     assert result.returncode == 124
     assert "timed out after 0.2s" in result.output
+
+
+def _pid_alive(pid: int) -> bool:
+    """Best-effort liveness probe for one process by PID (both platforms)."""
+    if sys.platform == "win32":
+        # PROCESS_QUERY_LIMITED_INFORMATION; the pyright-visible branch is
+        # win32-only and the POSIX half below is pruned away on Windows.
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return False
+        kernel32.CloseHandle(handle)
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def test_run_shell_timeout_kills_the_grandchild_process(
+    tmp_path: Path,
+) -> None:
+    """On timeout the whole process tree dies, not just the shell root.
+
+    Two observable consequences of the historical bug (only the shell root
+    was killed, the parked grandchild kept the output pipes open): the call
+    waited for the grandchild to exit before returning, and the grandchild
+    survived as an orphan.  The grandchild parks for 20s after writing its
+    PID, so if it survives the kill the liveness probe below sees it still
+    running well past the kill; if the tree kill works, the call returns
+    promptly and the PID disappears.
+    """
+    marker = tmp_path / "grandchild.pid"
+    command = (
+        f'"{sys.executable}" -c "import os, time; '
+        f"open(r'{marker}', 'w').write(str(os.getpid())); "
+        f'time.sleep(20)"'
+    )
+    start = time.monotonic()
+    result = run_shell(command, cwd=tmp_path, timeout=0.2)
+    elapsed = time.monotonic() - start
+    assert result.returncode == 124
+    assert "timed out after 0.2s" in result.output
+    # no waiting on the parked grandchild (the old code blocked ~20s here)
+    assert elapsed < 3.0
+    # the grandchild may legitimately not have started yet when the tree
+    # was killed on a slow box: no marker then means nothing to probe
+    deadline = time.monotonic() + 2.0
+    while not marker.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if not marker.exists():
+        return
+    pid = int(marker.read_text(encoding="utf-8"))
+    gone_by = time.monotonic() + 2.0
+    while _pid_alive(pid) and time.monotonic() < gone_by:
+        time.sleep(0.05)
+    assert not _pid_alive(pid), f"grandchild {pid} survived the timeout kill"
 
 
 def test_run_shell_defaults_to_the_process_cwd() -> None:
