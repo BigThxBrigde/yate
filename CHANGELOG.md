@@ -7,6 +7,7 @@
 
 ### Features
 
+- roll back a failed setup automatically (A13) ([`a78d300`](https://gitee.com/jermaine/yate/commit/a78d3005f027009816c6d94e4645546cef13ce8d))
 - widen the default preview pane to 60 percent ([`41b05ec`](https://gitee.com/jermaine/yate/commit/41b05ecd73fa1e6015c101502b4520d01f040d15))
 - widen the default preview pane to half the palette ([`31ed715`](https://gitee.com/jermaine/yate/commit/31ed715a4962c3621e25dad4d5b2997ed41d85ff))
 - syntax-highlighted file preview pane for ctrl+p ([`d10010a`](https://gitee.com/jermaine/yate/commit/d10010a5575269758735a539d9b11eb6445d2d6a))
@@ -42,12 +43,20 @@
 
 ### Refactors
 
+- split the loader into yaterc.py and table-drive :set (A8/A9) ([`8b529d4`](https://gitee.com/jermaine/yate/commit/8b529d418a9b57cc5eb60683a5349df5d3ff09b6))
+- move the 9 flow modules into a yate/flows subpackage (A10) ([`7e928de`](https://gitee.com/jermaine/yate/commit/7e928de28ae96c8ec4f4804f342eaeb0b6636fa9))
+- gateway the textual private APIs (A2) ([`304215a`](https://gitee.com/jermaine/yate/commit/304215a80317b0686ec53811e863d382eb27894c))
+- keep the editor_lsp package root light (A1) ([`27e5b2a`](https://gitee.com/jermaine/yate/commit/27e5b2a9d2c41c93fedd209852199de1f2378590))
 - tighten preview injection and cache hygiene ([`0671f50`](https://gitee.com/jermaine/yate/commit/0671f50a9d92bc9a46690f7ca68845b2fd06b3ce))
 - drop the unreachable copied verdict from the page state ([`ebbd8d9`](https://gitee.com/jermaine/yate/commit/ebbd8d9583d4aeb7b769c8319c6184193e890f89))
 - give the wiki progress rows a single owner ([`a3541cf`](https://gitee.com/jermaine/yate/commit/a3541cfa620db1f2df2536c2664368d39c7ca328))
 
 ### Documentation
 
+- declare the docs vs in-app manual authority split (A16) ([`00f6b03`](https://gitee.com/jermaine/yate/commit/00f6b033d51c0b3d888ebcf601550ec2c8675bbb))
+- backfill missing zh translations to zero ([`abae30c`](https://gitee.com/jermaine/yate/commit/abae30ccb08ab64e7c855a174a2bd8b92f1a451b))
+- fix registries layering docstring and add size-threshold policy ([`9334a23`](https://gitee.com/jermaine/yate/commit/9334a23a7b97f114cebfdd038338605e1546ebb6))
+- add repo-audit-fixes plan set for findings A1-A20 ([`0fb54d0`](https://gitee.com/jermaine/yate/commit/0fb54d0fc9729da1af8dba4d4458de7566de166a))
 - add 2026-10-07 repo architecture audit ([`a4a7708`](https://gitee.com/jermaine/yate/commit/a4a7708cdc313931ef4312cbc7ac7ebed7ed6a7d))
 - mention the ctrl+p preview pane and its width default ([`1d5b2de`](https://gitee.com/jermaine/yate/commit/1d5b2dec90370857bbdb476fb2449301c28587db))
 - register the pr 60 second review round ([`21ea681`](https://gitee.com/jermaine/yate/commit/21ea6810ff8e4edd62c81ddd4c89607e81c828bd))
@@ -120,6 +129,8 @@
 
 ### Tooling
 
+- add the pyright lint job, a 3.13 leg and the released-only zh gate (A4/A14/A5-2) ([`6100df0`](https://gitee.com/jermaine/yate/commit/6100df0de4b8b5c084d9ddf6cb74997447e593e1))
+- migrate stray assets out of the documents tree ([`3f7b3f7`](https://gitee.com/jermaine/yate/commit/3f7b3f77ddcbff1e2adb975f5865913b56f1614c))
 - drop the stray commit message file from the tree ([`2b78fd7`](https://gitee.com/jermaine/yate/commit/2b78fd724f8e1ec699f8992ed7fb69838f9ad022))
 - drop the stray commit message file from the tree ([`47b639f`](https://gitee.com/jermaine/yate/commit/47b639f8724c5660c0c6297f0630c9aa2f5a25ba))
 - resnapshot the two screensaver baselines ([`f9da8d1`](https://gitee.com/jermaine/yate/commit/f9da8d16279faf053e32c7492d3939a61a0ef63c))
@@ -127,6 +138,8 @@
 
 ### Other Changes
 
+- split the 5222-line app pilot file into nine domain files (A7) ([`fb030fd`](https://gitee.com/jermaine/yate/commit/fb030fdacb8ea0993021774757295825553a3306))
+- guard dev/ts dependency groups and document test organization ([`e97bec9`](https://gitee.com/jermaine/yate/commit/e97bec9de66f61bc39180106c163ddfdbbd6cc12))
 - Revert "docs(skills): file the yate review knowledge under .trae/skills" ([`2016919`](https://gitee.com/jermaine/yate/commit/2016919a3d70162c4e4669b101535fa28354cae4))
 - guard the collect-policy structure and the no-op switch ([`d867588`](https://gitee.com/jermaine/yate/commit/d867588239239a96347a12a3e3a907a1d76f3aae))
 - assert the late failure is visible, not just queued ([`3b00d88`](https://gitee.com/jermaine/yate/commit/3b00d88c53e0993488a31e7f0cdb91a5441b5eb3))
