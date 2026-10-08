@@ -179,7 +179,6 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      `editor_core/buffer.py`（888 行，文档缓冲单一职责，e 波拆词运动前临时登记）、
      `editor_term/emulator.py`（861 行，VT 状态机单一职责，e 波拆分前临时登记）、
      `editor_lsp/manager.py`（833 行，LSP 客户端单职责，f 波拆解析前临时登记）、
-     `editor_view/theme.py`（805 行，d 波拆 themes/cells/theme_files 前临时登记）、
      `yaterc.py`（803 行，f 波拆 yaterc_options 前临时登记）。
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
      a 波：语言定义迁入 `regex_langdefs.py`，拆分后两文件均低于阈值）；
@@ -187,6 +186,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      迁入 `diff_pane.py`，screen 侧留在原文件，两文件均低于阈值）；
      `editor_view/editor.py`（2026-10-08 big-module-split c 波：高亮与
      欢迎页迁入 `highlighting.py` / `welcome.py`，拆分后三文件均低于阈值）；
+     `editor_view/theme.py`（2026-10-08 big-module-split d 波：主题数据/校验/
+     Textual 桥迁入 `themes.py`、字符几何迁入 `cells.py`、自定义主题文件
+     加载迁入 `theme_files.py`，原文件保留广播枢纽并作门面再导出，
+     拆分后四文件均低于阈值）；
      `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
      不再需要豁免。`yaterc.py` 拆分登记前 803 行已越线（2026-10-08 a 波登记）。
    - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
