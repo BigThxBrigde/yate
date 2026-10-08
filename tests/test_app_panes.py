@@ -430,6 +430,83 @@ def test_separator_drag_updates_split_sizes(pane_root: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_separator_drag_record_keeps_hit_box(pane_root: Path) -> None:
+    """The drag record stores the hit-tested box: on_mouse_move resizes
+    through the stored box instead of re-walking _split_boxes (PR#66
+    review round 3, item 2)."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+            await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            await pilot.pause()
+            host = panes.host
+            assert host is not None
+            box, split = host._split_boxes[0]
+            left_view, _right_view = box.children
+            assert isinstance(left_view, EditorView)
+            sx = left_view.region.x + left_view.region.width - 1
+            sy = left_view.region.y + left_view.region.height // 2
+
+            await pilot.mouse_down(None, offset=(sx, sy))
+            await pilot.pause()
+            drag = host._drag
+            assert drag is not None
+            assert drag.box is box
+            assert drag.split is split
+            assert drag.child_index == 0
+            assert app.mouse_captured is host
+
+            await pilot._post_mouse_events(
+                [MouseUp], offset=(sx + 4, sy), button=1
+            )
+            await pilot.pause()
+            assert host._drag is None
+            assert app.mouse_captured is None
+
+    asyncio.run(scenario())
+
+
+def test_toggle_off_mid_drag_cancels_separator_drag(pane_root: Path) -> None:
+    """``:set support_mouse off`` while a separator drag is in flight must
+    not lock the capture or the drag record: the gate drops the MouseUp
+    that would end the drag, so the setter sweeps the state (PR#66 review
+    round 3, item 1)."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+            await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            await pilot.pause()
+            host = panes.host
+            assert host is not None
+            box, _split = host._split_boxes[0]
+            left_view, _right_view = box.children
+            assert isinstance(left_view, EditorView)
+            sx = left_view.region.x + left_view.region.width - 1
+            sy = left_view.region.y + left_view.region.height // 2
+
+            await pilot.mouse_down(None, offset=(sx, sy))
+            await pilot.pause()
+            assert host._drag is not None
+            assert app.mouse_captured is host
+
+            app.editor.run_command("set support_mouse=off")
+            assert app.editor.config.support_mouse is False
+            assert host._drag is None
+            assert app.mouse_captured is None
+
+    asyncio.run(scenario())
+
+
 def test_separator_click_does_not_move_cursor(pane_root: Path) -> None:
     """Clicking the divider cell must not land in a text area: the active
     pane and the buffer cursor stay put (wave-2's border guard on

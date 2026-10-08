@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from itertools import count
-from typing import override
+from typing import NamedTuple, override
 
 from textual.containers import Horizontal, Vertical
 from textual.events import MouseDown, MouseMove, MouseUp
@@ -442,6 +442,23 @@ class PaneManager:
 # ============================================================== Textual host
 
 
+class _SepDrag(NamedTuple):
+    """Active separator drag: everything one move event needs.
+
+    The ``box`` from the ``_separator_hit`` four-tuple is kept here so
+    ``on_mouse_move`` never re-walks ``_split_boxes`` (plan-b: one
+    hit-test return, reused for the whole drag).
+    """
+
+    box: Widget
+    split: Split
+    #: Child position inside the split (``tuple.index`` would clash with
+    #: a bare ``index`` field on a NamedTuple).
+    child_index: int
+    axis: str
+    last: int
+
+
 class PaneHost(Widget):
     """Renders the :class:`PaneManager` tree and reconciles on changes."""
 
@@ -456,8 +473,8 @@ class PaneHost(Widget):
         #: (box widget, model Split) pairs recorded by _build; the separator
         #: hit-test walks this mapping (reconcile clears it on rebuild).
         self._split_boxes: list[tuple[Widget, Split]] = []
-        #: Active separator drag: (split, child index, axis, last screen coord).
-        self._drag: tuple[Split, int, str, int] | None = None
+        #: Active separator drag record, ``None`` while idle.
+        self._drag: _SepDrag | None = None
         manager.attach(self)
 
     #: Refresh cycles a scroll restore may take to land before giving up
@@ -626,9 +643,9 @@ class PaneHost(Widget):
         hit = self._separator_hit(event.screen_x, event.screen_y)
         if hit is None:
             return
-        _box, split, index, axis = hit
-        self._drag = (
-            split, index, axis,
+        box, split, index, axis = hit
+        self._drag = _SepDrag(
+            box, split, index, axis,
             event.screen_x if axis == "vertical" else event.screen_y,
         )
         self.capture_mouse()
@@ -639,21 +656,21 @@ class PaneHost(Widget):
         """Convert pointer travel to a fraction transfer (live resize)."""
         if self._drag is None or event.button != LEFT_BUTTON:
             return
-        split, index, axis, last = self._drag
-        pos = event.screen_x if axis == "vertical" else event.screen_y
-        delta_cells = pos - last
-        self._drag = (split, index, axis, pos)
+        drag = self._drag
+        pos = event.screen_x if drag.axis == "vertical" else event.screen_y
+        delta_cells = pos - drag.last
+        self._drag = drag._replace(last=pos)
         if delta_cells == 0:
             return
-        box = next(
-            (box for box, s in self._split_boxes if s is split), None
+        span = (
+            drag.box.region.width if drag.axis == "vertical"
+            else drag.box.region.height
         )
-        if box is None:
-            return
-        span = box.region.width if axis == "vertical" else box.region.height
         if span <= 0:
             return
-        if self.manager.resize_fractions(split, index, delta_cells / span):
+        if self.manager.resize_fractions(
+            drag.split, drag.child_index, delta_cells / span
+        ):
             event.stop()
 
     def on_mouse_up(self, event: MouseUp) -> None:
@@ -665,3 +682,13 @@ class PaneHost(Widget):
         self._drag = None
         self.release_mouse()
         event.stop()
+
+    def cancel_drag(self) -> None:
+        """Forget an in-flight separator drag.
+
+        ``:set support_mouse off`` mid-drag closes the app gate, so the
+        MouseUp that would normally end the drag never arrives; the editor
+        calls this from its ``cancel_mouse_state`` sweep instead.
+        """
+        self._drag = None
+        self.release_mouse()  # guarded no-op unless this host holds it

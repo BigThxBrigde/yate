@@ -675,6 +675,16 @@ class Editor:
             return False
         return self.mouse_flows.handle_view_mouse(view, event)
 
+    def cancel_mouse_state(self) -> None:
+        """Drop every in-flight mouse interaction (``:set support_mouse
+        off`` mid-drag): the app gate now drops all mouse events, so no
+        MouseUp path can release captures or clear drag flags."""
+        self.app.capture_mouse(None)  # view or PaneHost capture, whoever holds it
+        self.mouse_flows.cancel_drag()
+        host = self.panes.host
+        if host is not None:
+            host.cancel_drag()
+
     def execute_action(self, name: str) -> bool:
         """Run a registered action by name; ``False`` when it is unknown.
 

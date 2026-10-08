@@ -85,10 +85,15 @@ class _ConfigEditor:
     def __init__(self) -> None:
         self.config = YateConfig()
         self.notes: list[tuple[str, str]] = []
+        self.mouse_state_canceled = 0
 
     def message(self, text: str, kind: str = "") -> None:
         """Record one message-line output."""
         self.notes.append((text, kind))
+
+    def cancel_mouse_state(self) -> None:
+        """Record a mid-drag state sweep (fired on support_mouse off)."""
+        self.mouse_state_canceled += 1
 
 
 def _set_driver() -> tuple[CommandRegistry, _ConfigEditor]:
@@ -107,8 +112,11 @@ def test_set_support_mouse_on_off_roundtrip() -> None:
 
     entry[0]("support_mouse=off")
     assert editor.config.support_mouse is False
+    assert editor.mouse_state_canceled == 1
     entry[0]("support_mouse=on")
     assert editor.config.support_mouse is True
+    # the sweep only fires on disable: enabling drops no in-flight state
+    assert editor.mouse_state_canceled == 1
 
 
 def test_set_support_mouse_invalid_value_reports() -> None:

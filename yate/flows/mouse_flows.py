@@ -53,6 +53,15 @@ class MouseFlows:
             return self._on_click(view, event)
         return False
 
+    def cancel_drag(self) -> None:
+        """Drop an in-flight text drag (``:set support_mouse off`` mid-drag).
+
+        With the app gate closed no MouseUp path can clear the flag, and a
+        later re-enable would resume the stale drag on the next left-button
+        MouseMove.  The selection itself is left untouched.
+        """
+        self._dragging = False
+
     def _on_down(self, view: EditorView, event: MouseDown) -> bool:
         if event.button != LEFT_BUTTON:
             return False

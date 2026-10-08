@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from textual.events import MouseDown, MouseScrollUp, MouseEvent, MouseUp
+from textual.events import MouseDown, MouseMove, MouseScrollUp, MouseEvent, MouseUp
 from textual.pilot import _get_mouse_message_arguments
 from textual.widget import Widget
 from yate.app import YateApp
@@ -153,6 +153,40 @@ def test_support_mouse_enabled_click_moves_cursor(tmp_path: Path) -> None:
             await pilot.click(EditorView, offset=(_GUTTER + 5, 0))
             await pilot.pause()
             assert app.editor.session.buffer.cursor == (0, 5)
+
+    asyncio.run(scenario())
+
+
+def test_toggle_off_mid_drag_cancels_text_drag(tmp_path: Path) -> None:
+    """``:set support_mouse off`` while a text drag is in flight must not
+    leave the capture or the flow drag flag stuck (the gate drops the
+    MouseUp that would end the drag), and re-enabling must not resume the
+    stale drag on the next left-button move (PR#66 review round 3)."""
+
+    async def scenario() -> None:
+        target = tmp_path / "mouse.txt"
+        target.write_text("hello world\nsecond line\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            flow = app.editor.mouse_flows
+            await pilot.mouse_down(EditorView, offset=(_GUTTER, 0))
+            await pilot.pause()
+            assert flow._dragging is True
+            assert app.mouse_captured is view
+
+            app.editor.run_command("set support_mouse=off")
+            assert app.editor.config.support_mouse is False
+            assert flow._dragging is False
+            assert app.mouse_captured is None
+
+            # re-enable: the stale drag must not resume on the next move
+            app.editor.run_command("set support_mouse=on")
+            _driver_mouse(app, view, (_GUTTER + 3, 0), MouseMove, button=1)
+            await pilot.pause()
+            assert app.editor.session.buffer.selected_text() is None
 
     asyncio.run(scenario())
 

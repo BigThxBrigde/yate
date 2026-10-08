@@ -89,6 +89,11 @@ def _apply_support_mouse(editor: Editor, value: object) -> None:
     """Apply ``:set support_mouse`` (the event gate reads it per dispatch)."""
     enabled = cast(bool, value)
     editor.config.support_mouse = enabled
+    if not enabled:
+        # The app gate now drops every MouseEvent: no MouseUp path can
+        # release captures or clear drag flags, so cancel them explicitly
+        # (a mid-drag toggle must not leave the state locked).
+        editor.cancel_mouse_state()
     editor.message(f"mouse support {'on' if enabled else 'off'}", kind="ok")
 
 
