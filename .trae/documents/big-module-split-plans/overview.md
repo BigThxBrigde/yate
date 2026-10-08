@@ -53,7 +53,7 @@ flowchart LR
 
 | 波次 | 子计划 | 状态 | 验收命令退出码 | 提交（hash/说明） | 偏离记录 |
 |---|---|---|---|---|---|
-| a | regex-langdefs-plan-a | 待执行 | — | — | — |
+| a | regex-langdefs-plan-a | 已完成 | 4/4 退出码 0（pyright 零诊断；pytest 5 文件通过，1 既有 skip；filetypes 探针 72 = HEAD 基线；行数实测 794/500） | （待主代理提交） | 行数 794/500 略超预估 ~780/~490；私有注册表再导出另需声明模块 `regex_langdefs.__all__` 登记以消 `reportPrivateUsage` |
 | b | diff-pane-plan-b | 待执行 | — | — | — |
 | c | view-highlight-plan-c | 待执行 | — | — | — |
 | d | theme-registry-plan-d | 待执行 | — | — | — |

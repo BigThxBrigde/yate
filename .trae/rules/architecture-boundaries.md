@@ -171,16 +171,22 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 7. **文件体量阈值处置（2026-10-07，评审 A11）**：单文件超过 **800 行**触发处置评审。
    - 拆分判定：多职责混合型**必拆**（判据：模块 docstring 无法用一句话概括，或文件含
      ≥2 个互不引用的职责块）；单一职责长文件可登记豁免。
-   - 豁免名单（登记即合规；修改文件时须同步更新行数）：
-     `editor_syntax/regex_backend.py`（1225 行，LangSpec 数据表与 tokenizer 一体，拆分另行立项）、
-     `keymaps/vim.py`（1107 行，motion/operator/text-object 单一键映射域）、
-     `editor_view/diffview.py`（1035 行，diff 渲染管线单一职责）、
-     `editor.py`（907 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，保留豁免）、
-     `editor_core/buffer.py`（871 行，文档缓冲单一职责）、
-     `editor_term/emulator.py`（856 行，VT 状态机单一职责）、
-     `editor_lsp/manager.py`（818 行，LSP 客户端单职责）。
-   - 已出名单：`config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
-     不再需要豁免；`yaterc.py` 794 行未超阈值，暂不登记，改动时注意勿越线。
+   - 豁免名单（登记即合规；修改文件时须同步更新行数。名单与
+     `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 守卫集合**两处同步维护**，
+     big-module-split 各波拆分完成后同步收缩）：
+     `keymaps/vim.py`（1117 行，motion/operator/text-object 单一键映射域，维持豁免）、
+     `editor.py`（933 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，维持豁免）、
+     `editor_view/diffview.py`（1035 行，diff 渲染管线单一职责，big-module-split b 波拆分前临时登记）、
+     `editor_view/editor.py`（1007 行，big-module-split c 波拆分前临时登记）、
+     `editor_core/buffer.py`（888 行，文档缓冲单一职责，e 波拆词运动前临时登记）、
+     `editor_term/emulator.py`（861 行，VT 状态机单一职责，e 波拆分前临时登记）、
+     `editor_lsp/manager.py`（833 行，LSP 客户端单职责，f 波拆解析前临时登记）、
+     `editor_view/theme.py`（805 行，d 波拆 themes/cells/theme_files 前临时登记）、
+     `yaterc.py`（803 行，f 波拆 yaterc_options 前临时登记）。
+   - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
+     a 波：语言定义迁入 `regex_langdefs.py`，拆分后两文件均低于阈值）；
+     `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
+     不再需要豁免。`yaterc.py` 拆分登记前 803 行已越线（2026-10-08 a 波登记）。
    - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
      模块 docstring 已论证共存理由。
 8. **新增 L3 流程模块接入清单（评审 A18）**：保持构造显式注入，**不建共享 context 类型**
@@ -239,8 +245,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **26 个用例**（2026-10-08 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `26 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **27 个用例**（2026-10-08 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `27 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -302,7 +308,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   "元素是回调的数据表"（`dict[str, Callable[...]]`）——它们不是别名定义，
   按 §三.6 与 R-C 保持内联。负向演练过：6 类违规全部拦截，3 类放行形态零误伤。
 
-**26 个用例逐条对照**（2026-10-08 实测 `26 passed`）：
+**27 个用例逐条对照**（2026-10-08 实测 `27 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -332,6 +338,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 24 | `test_leaf_package_reexports_carry_exception_note` | §三.5（A1：叶包 re-export 须带例外注明） |
 | 25 | `test_callable_aliases_use_type_statements` | 回调别名（IKJUWP：PEP 695 `type` 语句） |
 | 26 | `test_support_mouse_gate_lives_in_app_on_event` | support_mouse 闸门（IKJRFK：App 层单点禁用鼠标） |
+| 27 | `test_source_files_within_size_threshold` | 文件体量阈值（A11：>800 行须登记豁免，`SIZE_EXEMPT_FILES` 镜像 §三.7 名单） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

@@ -55,6 +55,10 @@ These tests enforce the boundaries documented in
   styles or forwards theme updates, and scrollbar renderers are injected
   per widget (``apply_slim_scrollbars``), never class-level patched.
 
+* **File size** (A11, rules section 3.7): a ``yate/`` file beyond 800
+  lines must be split or registered in the size-exemption list
+  (``SIZE_EXEMPT_FILES``), which mirrors the rule text.
+
 * **Capability injection** (semantic capability injection, issue IKJB0Q):
   the L3 flow modules never hold the App handle -- verbs are injected as
   bound methods (``spawn=app.run_worker``, ``push_screen=app.push_screen``)
@@ -193,6 +197,30 @@ BANNED_SUFFIX_WHITELIST: set[str] = {"PaneHost"}
 
 #: Banned identifier names (R2 / R7).
 BANNED_NAMES: set[str] = {"AppProtocol"}
+
+#: Single-file size threshold (A11, rules section 3.7): a ``yate/`` file
+#: beyond *MAX_SOURCE_LINES* lines must be split or registered in the
+#: exemption list below.  The list mirrors
+#: ``.trae/rules/architecture-boundaries.md`` section 3.7 -- the two are
+#: maintained in sync (each big-module-split wave shrinks both).
+MAX_SOURCE_LINES: int = 800
+
+#: Files exempt from the size threshold (A11), keyed by ``yate/``-relative
+#: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
+#: (big-module-split plan section 2); the rest are temporary registrations
+#: ahead of their split wave (b: diffview, c: editor_view/editor,
+#: d: theme, e: buffer + emulator, f: manager + yaterc).
+SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
+    "keymaps/vim.py",
+    "editor.py",
+    "editor_view/editor.py",
+    "editor_view/diffview.py",
+    "editor_core/buffer.py",
+    "editor_term/emulator.py",
+    "editor_lsp/manager.py",
+    "editor_view/theme.py",
+    "yaterc.py",
+})
 
 
 def _python_files() -> list[Path]:
@@ -488,6 +516,27 @@ def test_no_banned_identifier_names() -> None:
             assert name not in BANNED_NAMES, (path, name)
             if name.endswith(BANNED_SUFFIXES):
                 assert name in BANNED_SUFFIX_WHITELIST, (path, name)
+
+
+def test_source_files_within_size_threshold() -> None:
+    """``yate/`` files stay within the A11 size threshold unless registered.
+
+    A file beyond :data:`MAX_SOURCE_LINES` lines is a split candidate
+    (rules section 3.7): multi-duty files must be split, single-duty long
+    files may be registered in :data:`SIZE_EXEMPT_FILES` -- which mirrors
+    the rule text, so a wave of big-module-split shrinks both in the same
+    change.  The count is the with-blank-lines figure the plan documents
+    use (``Get-Content | Measure-Object -Line`` equivalent).
+    """
+    offenders: list[tuple[str, int]] = []
+    for path in _yate_files():
+        key = path.relative_to(YATE).as_posix()
+        if key in SIZE_EXEMPT_FILES:
+            continue
+        lines = len(path.read_text(encoding="utf-8").splitlines())
+        if lines > MAX_SOURCE_LINES:
+            offenders.append((key, lines))
+    assert not offenders, offenders
 
 
 def test_pane_model_lives_in_l1_session() -> None:
