@@ -842,3 +842,14 @@ def test_leaf_package_reexports_carry_exception_note() -> None:
         if "__all__" not in text:
             continue
         assert "architecture-boundaries" in text, name
+
+
+def test_support_mouse_gate_lives_in_app_on_event() -> None:
+    """``support_mouse = false`` drops mouse events in ``YateApp.on_event``
+    before ``super().on_event`` forwards them (issue IKJRFK): the gate
+    must appear before the forward call in the source."""
+    source = (YATE / "app.py").read_text(encoding="utf-8")
+    assert "support_mouse" in source
+    gate = source.index("support_mouse")
+    forward = source.index("await super().on_event(event)")
+    assert gate < forward
