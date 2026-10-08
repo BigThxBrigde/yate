@@ -1,8 +1,10 @@
 """Text-area mouse interaction headless tests (IKJRFK wave-2, run via pilot).
 
 Covers the EditorView -> MouseFlows dispatch: click moves the cursor,
-drag selects, double/triple click select word/line, vim mode cooperation
-and the plan-b separator-border contract.
+drag selects, double/triple click select word/line, vim mode cooperation,
+the plan-b separator-border contract, the unconsumed-press bubbling
+contract (PR#66 review disposition) and the scroll-consistent click
+mapping.
 """
 
 # tests legitimately poke at internals:
@@ -14,7 +16,7 @@ import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
-from textual.events import MouseDown, MouseMove, MouseUp
+from textual.events import MouseDown, MouseEvent, MouseMove, MouseUp
 from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_view.editor import EditorView
@@ -254,7 +256,52 @@ def test_unconsumed_press_bubbles_to_pane_host(tmp_path: Path) -> None:
             host = app.editor.panes.host
             assert host is not None
             # Textual dispatches handlers via cls.__dict__ (MRO walk), so
-            # the spy must patch the class, not the instance.
+            # the PaneHost spy must patch the class, not the instance.  The
+            # flows spy counts MouseDown deliveries to MouseFlows: a
+            # re-dispatch variant (e.g. re-calling _forward_mouse on the
+            # unconsumed path) would show up as 2 even with the gate
+            # closed, since the second call has no observable side effect.
+            calls: list[MouseDown] = []
+            original = PaneHost.on_mouse_down
+
+            def spy(self: PaneHost, event: MouseDown) -> None:
+                calls.append(event)
+                original(self, event)
+
+            flow = app.editor.mouse_flows
+            dispatches: list[MouseDown] = []
+            original_handle = flow.handle_view_mouse
+
+            def handle_spy(view: EditorView, event: MouseEvent) -> bool:
+                if isinstance(event, MouseDown):
+                    dispatches.append(event)
+                return original_handle(view, event)
+
+            with (
+                patch.object(PaneHost, "on_mouse_down", spy),
+                patch.object(flow, "handle_view_mouse", handle_spy),
+            ):
+                await pilot.click(EditorView, offset=(_GUTTER + 5, 0))
+                await pilot.pause()
+            assert len(calls) == 1  # bubbled exactly once to PaneHost
+            assert len(dispatches) == 1  # dispatched exactly once
+            assert app.editor.session.buffer.cursor == (0, 0)
+
+    asyncio.run(scenario())
+
+
+def test_consumed_press_does_not_reach_pane_host(tmp_path: Path) -> None:
+    """The consumed half of the dispatch contract (_forward_mouse
+    docstring: stop only the events the dispatcher consumed): a press
+    MouseFlows consumes is captured and stopped, so PaneHost never sees
+    the MouseDown."""
+
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            host = app.editor.panes.host
+            assert host is not None
             calls: list[MouseDown] = []
             original = PaneHost.on_mouse_down
 
@@ -265,8 +312,8 @@ def test_unconsumed_press_bubbles_to_pane_host(tmp_path: Path) -> None:
             with patch.object(PaneHost, "on_mouse_down", spy):
                 await pilot.click(EditorView, offset=(_GUTTER + 5, 0))
                 await pilot.pause()
-            assert len(calls) == 1  # bubbled exactly once, no re-dispatch
-            assert app.editor.session.buffer.cursor == (0, 0)
+            assert calls == []  # consumed at the view: no bubbling
+            assert app.editor.session.buffer.cursor == (0, 5)
 
     asyncio.run(scenario())
 
