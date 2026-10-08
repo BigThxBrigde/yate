@@ -343,9 +343,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     log.info(
         "resolved: keymap=%s theme=%s tab_width=%s use_spaces=%s "
-        "yate_trace=%s yate_trace_level=%s",
+        "yate_trace=%s yate_trace_level=%s support_mouse=%s",
         config.keymap, config.theme, config.tab_width, config.use_spaces,
-        config.yate_trace, config.yate_trace_level,
+        config.yate_trace, config.yate_trace_level, config.support_mouse,
     )
     if config.errors:
         log.warning("config errors: %s", "; ".join(config.errors))

@@ -202,6 +202,30 @@ def test_show_hidden_accepts_booleans_only(tmp_path: Path) -> None:
     assert any("show_hidden" in error for error in config.errors)
 
 
+# --- support_mouse option ---------------------------------------------------
+
+
+def test_support_mouse_defaults_true() -> None:
+    """Mouse support is on by default (issue IKJRFK opt-out switch)."""
+    assert cfg.YateConfig().support_mouse is True
+
+
+def test_support_mouse_rc_value_applied(tmp_path: Path) -> None:
+    """A boolean rc value flips the master switch without errors."""
+    config = _load("support_mouse = False\n", tmp_path)
+    assert config.support_mouse is False
+    assert config.errors == []
+
+
+def test_support_mouse_rejects_non_bool_keeps_default(tmp_path: Path) -> None:
+    """A non-boolean value reports an error and keeps the default."""
+    config = _load('support_mouse = "yes"\n', tmp_path)
+    assert config.support_mouse is True
+    assert any(
+        "support_mouse must be True or False" in e for e in config.errors
+    )
+
+
 # --- trace options -----------------------------------------------------------
 
 

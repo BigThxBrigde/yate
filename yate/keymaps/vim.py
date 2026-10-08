@@ -393,6 +393,16 @@ class VimKeymap(Keymap):
             self._fix_linewise(buf)
         return True
 
+    def drop_visual(self) -> None:
+        """Leave visual mode back to NORMAL (a mouse click ends the selection).
+
+        The anchor itself is cleared by the caller's following cursor move
+        (:meth:`~yate.editor_core.buffer.TextBuffer.set_cursor` with
+        ``select=False``), keeping this method free of buffer knowledge.
+        """
+        if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE):
+            self.mode = VimMode.NORMAL
+
     def _fix_linewise(self, buf: TextBuffer) -> None:
         sel = buf.selection()
         if sel is None:

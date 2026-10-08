@@ -15,7 +15,14 @@ from typing import Any, override
 from rich.segment import Segment
 from rich.style import Style
 from textual.containers import Vertical
-from textual.events import Key, MouseScrollDown, MouseScrollUp, Paste, Resize
+from textual.events import (
+    Key,
+    MouseDown,
+    MouseScrollDown,
+    MouseScrollUp,
+    Paste,
+    Resize,
+)
 from textual.strip import Strip
 from textual.widget import Widget
 from textual.widgets import Static
@@ -29,6 +36,7 @@ from yate.editor_term import (
     resolve_shell,
     shell_label,
 )
+from yate.editor_view.editor import LEFT_BUTTON
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.services.workspace import Workspace
@@ -211,6 +219,17 @@ class TerminalView(Widget):
         self.refresh()
 
     # --------------------------------------------------------------- input
+
+    def on_mouse_down(self, event: MouseDown) -> None:
+        """Focus the terminal so typed keys reach the shell (click-to-focus).
+
+        The panel accepts the click (R10 analogue: the event is stopped) but
+        does not write to the shell -- a stray click must never send input.
+        """
+        if event.button == LEFT_BUTTON:
+            self.focus()
+            event.stop()
+            event.prevent_default()
 
     def on_key(self, event: Key) -> None:
         """Forward keys to the shell; toggle/focus keys stay local."""

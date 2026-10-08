@@ -69,6 +69,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `shell` | `str` | 平台默认 | 非空字符串 | 集成终端（`` Ctrl+` `` 打开）启动的 Shell，可带参数（如 `"pwsh -NoLogo"`）；默认 Windows 为 `pwsh`→Windows PowerShell→`cmd.exe`，POSIX 为 `$SHELL`→`bash`→`/bin/sh` |
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 | `show_hidden` | `bool` | `False` | `True` / `False` | 文件树是否默认显示点文件（隐藏文件）；`False` 表示默认隐藏，需手动切换。非布尔值被拒绝 |
+| `support_mouse` | `bool` | `True` | `True` / `False` | 鼠标交互总开关。`False` 忽略所有鼠标事件（文本区、标签栏、文件树、终端、滚动条、分隔条拖拽）；键盘输入不受影响。非布尔值被拒绝 |
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
 | `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `dist_*_bound` / `characters` 键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
 | `file_preview` | `dict` | 见[下文](#文件预览file_preview) | 含 `enable` / `position` / `size` / `max_lines` / `max_size` 键的 dict | Ctrl+P 快速打开的文件预览设置，见[下文](#文件预览file_preview) |

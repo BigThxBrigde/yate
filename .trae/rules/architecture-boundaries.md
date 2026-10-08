@@ -17,7 +17,7 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / lsp_sync.py /
-         prompt_completion.py）/ diagnostics.py / services/extensions.py
+         prompt_completion.py / mouse_flows.py）/ diagnostics.py / services/extensions.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
@@ -239,8 +239,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **25 个用例**（2026-10-07 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `25 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **26 个用例**（2026-10-08 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `26 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -256,7 +256,12 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
-- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` 不向上依赖，`editor_view` 导入必须落在冻结集合内；
+- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` / `flows/mouse_flows.py`
+  不向上依赖，`editor_view` 导入必须落在冻结集合内；
+- **support_mouse 闸门**（issue IKJRFK，2026-10-08 新增）：
+  `test_support_mouse_gate_lives_in_app_on_event` 文本断言闸门（`support_mouse` 判定）
+  必须位于 `YateApp.on_event` 中 `await super().on_event(event)` 之前——禁用态在
+  Textual 转发（含内建 widget 与 Click 合成）前丢弃一切 MouseEvent；
 - **R5** `editor.py` 不 import `yate.actions` / `yate.commands`；
 - **R7** 只有 `app.py` 导入内置表，且 `YateApp.__init__` 调用
   `populate(self.editor.actions, self.editor)` / `register_commands(self.editor.commands, self.editor)`；
@@ -297,7 +302,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   "元素是回调的数据表"（`dict[str, Callable[...]]`）——它们不是别名定义，
   按 §三.6 与 R-C 保持内联。负向演练过：6 类违规全部拦截，3 类放行形态零误伤。
 
-**25 个用例逐条对照**（2026-10-07 实测 `25 passed`）：
+**26 个用例逐条对照**（2026-10-08 实测 `26 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -326,6 +331,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 23 | `test_editor_lsp_package_root_is_light` | §三.5（A1：包根不连带加载 `editor_lsp.manager`） |
 | 24 | `test_leaf_package_reexports_carry_exception_note` | §三.5（A1：叶包 re-export 须带例外注明） |
 | 25 | `test_callable_aliases_use_type_statements` | 回调别名（IKJUWP：PEP 695 `type` 语句） |
+| 26 | `test_support_mouse_gate_lives_in_app_on_event` | support_mouse 闸门（IKJRFK：App 层单点禁用鼠标） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

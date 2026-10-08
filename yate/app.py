@@ -229,9 +229,19 @@ class YateApp(App[None]):
         makes it the only reliable "user is active" probe.  Only
         ``InputEvent`` subclasses count as activity; every event continues
         through the normal dispatch either way.
+
+        ``support_mouse = False`` drops every mouse record right here,
+        before Textual forwards it to the screen: this is the single gate
+        for the whole app (built-in widgets included), and it also
+        suppresses Textual's Click synthesis, which runs inside
+        ``App.on_event`` (issue IKJRFK).
         """
         if self._idle is not None and isinstance(event, events.InputEvent):
             self._idle.poke()
+        if not self.config.support_mouse and isinstance(event, events.MouseEvent):
+            event.stop()
+            event.prevent_default()
+            return
         await super().on_event(event)
 
     def poll_idle(self) -> None:

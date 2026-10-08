@@ -271,6 +271,82 @@ def test_terminal_focused_ctrl1_returns_focus_to_editor() -> None:
     asyncio.run(scenario())
 
 
+def test_terminal_click_focuses_view() -> None:
+    # plan-d (issue IKJRFK): clicking the terminal view must focus it so
+    # typed keys reach the shell (click-to-focus), VS Code style.
+    from yate.editor_view.terminal import TerminalView
+
+    async def scenario() -> None:
+        app = YateApp()
+        app.editor.terminal_panel.view_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.editor.terminal_panel
+            assert panel is not None
+            await _press_toggle(pilot)
+            shown = await wait_until(pilot, lambda: panel.view.proc is not None)
+            assert shown
+
+            # start from the editor so the click itself must move focus
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+            assert app.focused is app.editor.panes.active_view
+
+            clicked = await pilot.click(TerminalView, offset=(5, 0))
+            await pilot.pause()
+            assert clicked
+            assert app.focused is panel.view
+
+    asyncio.run(scenario())
+
+
+def test_terminal_click_does_not_write_shell() -> None:
+    # plan-d (issue IKJRFK): a click focuses the terminal but must never
+    # send input to the shell -- no bytes written, screen untouched.
+    from yate.editor_view.terminal import TerminalView
+
+    async def scenario() -> None:
+        app = YateApp()
+        app.editor.terminal_panel.view_factory = _FakePty
+        _FakePty.instances = []
+        async with app.run_test(size=(100, 30)) as pilot:
+            panel = app.editor.terminal_panel
+            assert panel is not None
+            await _press_toggle(pilot)
+            shown = await wait_until(pilot, lambda: panel.view.proc is not None)
+            assert shown
+            proc = _FakePty.instances[0]
+
+            # make the emulator grid non-trivial before the click
+            proc.emit_output(b"YATE_FAKE_OUTPUT\r\n")
+            assert await wait_until(
+                pilot,
+                lambda: "YATE_FAKE_OUTPUT" in "".join(
+                    cell.char
+                    for row in panel.view.emulator.view_lines(0)
+                    for cell in row
+                ),
+            )
+
+            def rows() -> list[str]:
+                return [
+                    "".join(cell.char for cell in row)
+                    for row in panel.view.emulator.view_lines(0)
+                ]
+
+            lines_before = rows()
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+
+            clicked = await pilot.click(TerminalView, offset=(5, 0))
+            await pilot.pause()
+            assert clicked
+            assert b"".join(proc.sent) == b""
+            assert rows() == lines_before
+
+    asyncio.run(scenario())
+
+
 def test_real_terminal_grave_key_names_toggle_panel() -> None:
     # Ctrl+grave is the NUL byte on Windows conhost / legacy xterm
     # (ToUnicodeEx yields no character), so Textual names it

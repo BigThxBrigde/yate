@@ -29,13 +29,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from itertools import count
-from typing import override
+from typing import NamedTuple, override
 
 from textual.containers import Horizontal, Vertical
+from textual.events import MouseDown, MouseMove, MouseUp
 from textual.widget import Widget
 
 from yate.editor_core.document import Document
-from yate.editor_view.editor import EditorView
+from yate.editor_view.editor import LEFT_BUTTON, EditorView
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.session import (
@@ -403,6 +404,28 @@ class PaneManager:
             self.host.apply_sizes()
         return True
 
+    def resize_fractions(self, split: Split, index: int, delta: float) -> bool:
+        """Transfer *delta* fraction between child *index* and its neighbor.
+
+        Drag-resize primitive behind the separator gesture: *delta* is the
+        pointer travel converted to fraction units.  The transfer is clamped
+        so both slots keep at least MIN_FRACTION (pinned at the boundary
+        instead of refusing, so a long drag parks at the limit); ``False``
+        when nothing moved.
+        """
+        neighbor = index + 1 if index + 1 < len(split.children) else index - 1
+        if delta > 0:
+            delta = min(delta, split.sizes[neighbor] - MIN_FRACTION)
+        else:
+            delta = max(delta, -(split.sizes[index] - MIN_FRACTION))
+        if delta == 0.0:
+            return False
+        split.sizes[index] += delta
+        split.sizes[neighbor] -= delta
+        if self.host is not None:
+            self.host.apply_sizes()
+        return True
+
     def equalize(self) -> None:
         """Reset every split to equal fractions (``ctrl+w =``)."""
         def _even(node: Node) -> None:
@@ -419,6 +442,23 @@ class PaneManager:
 # ============================================================== Textual host
 
 
+class _SepDrag(NamedTuple):
+    """Active separator drag: everything one move event needs.
+
+    The ``box`` from the ``_separator_hit`` four-tuple is kept here so
+    ``on_mouse_move`` never re-walks ``_split_boxes`` (plan-b: one
+    hit-test return, reused for the whole drag).
+    """
+
+    box: Widget
+    split: Split
+    #: Child position inside the split (``tuple.index`` would clash with
+    #: a bare ``index`` field on a NamedTuple).
+    child_index: int
+    axis: str
+    last: int
+
+
 class PaneHost(Widget):
     """Renders the :class:`PaneManager` tree and reconciles on changes."""
 
@@ -430,6 +470,11 @@ class PaneHost(Widget):
         #: Builds the widget of one leaf (wired by the editor: it owns the
         #: view's collaborators).
         self.make_view = make_view
+        #: (box widget, model Split) pairs recorded by _build; the separator
+        #: hit-test walks this mapping (reconcile clears it on rebuild).
+        self._split_boxes: list[tuple[Widget, Split]] = []
+        #: Active separator drag record, ``None`` while idle.
+        self._drag: _SepDrag | None = None
         manager.attach(self)
 
     #: Refresh cycles a scroll restore may take to land before giving up
@@ -497,6 +542,7 @@ class PaneHost(Widget):
         for child in children[:-1]:
             child.add_class(sep)
         box = box_cls(*children, classes="pane-box")
+        self._split_boxes.append((box, node))
         self._style_split(box, node)
         return box
 
@@ -522,6 +568,7 @@ class PaneHost(Widget):
         # cheap -- revisit once pane counts exceed ~8.
         """
         self.manager.views.clear()
+        self._split_boxes.clear()
         for child in list(self.children):
             await child.remove()
         await self.mount(self._build(self.manager.root))
@@ -567,3 +614,81 @@ class PaneHost(Widget):
             else:
                 child_widget.styles.width = pct
             self._apply_sizes(child, child_widget)
+
+    # ------------------------------------------------- separator drag-resize
+
+    def _separator_hit(self, x: int, y: int) -> tuple[Widget, Split, int, str] | None:
+        """Hit-test separator border cells; (box, split, child index, axis)."""
+        for box, split in self._split_boxes:
+            children = list(box.children)
+            for i in range(len(children) - 1):
+                region = children[i].region
+                if split.axis == "vertical":
+                    if (
+                        region.x + region.width - 1 == x
+                        and region.y <= y < region.y + region.height
+                    ):
+                        return (box, split, i, "vertical")
+                elif (
+                    region.y + region.height - 1 == y
+                    and region.x <= x < region.x + region.width
+                ):
+                    return (box, split, i, "horizontal")
+        return None
+
+    def on_mouse_down(self, event: MouseDown) -> None:
+        """Start a separator drag when the press lands on a divider border."""
+        if event.button != LEFT_BUTTON:
+            return
+        hit = self._separator_hit(event.screen_x, event.screen_y)
+        if hit is None:
+            return
+        box, split, index, axis = hit
+        self._drag = _SepDrag(
+            box, split, index, axis,
+            event.screen_x if axis == "vertical" else event.screen_y,
+        )
+        self.capture_mouse()
+        event.stop()
+        event.prevent_default()
+
+    def on_mouse_move(self, event: MouseMove) -> None:
+        """Convert pointer travel to a fraction transfer (live resize)."""
+        if self._drag is None or event.button != LEFT_BUTTON:
+            return
+        drag = self._drag
+        pos = event.screen_x if drag.axis == "vertical" else event.screen_y
+        delta_cells = pos - drag.last
+        self._drag = drag._replace(last=pos)
+        if delta_cells == 0:
+            return
+        span = (
+            drag.box.region.width if drag.axis == "vertical"
+            else drag.box.region.height
+        )
+        if span <= 0:
+            return
+        if self.manager.resize_fractions(
+            drag.split, drag.child_index, delta_cells / span
+        ):
+            event.stop()
+
+    def on_mouse_up(self, event: MouseUp) -> None:
+        """End the separator drag."""
+        # Same button gate as on_mouse_move: releasing a different button
+        # must not terminate an in-flight left-button separator drag.
+        if self._drag is None or event.button != LEFT_BUTTON:
+            return
+        self._drag = None
+        self.release_mouse()
+        event.stop()
+
+    def cancel_drag(self) -> None:
+        """Forget an in-flight separator drag.
+
+        ``:set support_mouse off`` mid-drag closes the app gate, so the
+        MouseUp that would normally end the drag never arrives; the editor
+        calls this from its ``cancel_mouse_state`` sweep instead.
+        """
+        self._drag = None
+        self.release_mouse()  # guarded no-op unless this host holds it

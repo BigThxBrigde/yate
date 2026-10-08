@@ -24,7 +24,7 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.events import Key
+from textual.events import Key, MouseEvent
 from textual.screen import Screen
 
 from yate import __version__
@@ -49,6 +49,7 @@ from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.lsp_sync import LspSync
+from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_completion import prompt_completions
 from yate.flows.prompt_flows import PromptFlows
@@ -192,10 +193,11 @@ def _build_pane_stack(ed: Editor) -> None:
     """Build the pane tree, its host widget and the flow controllers.
 
     The controllers (:class:`LspSync` / :class:`OverlayFlows` /
-    :class:`ShellFlows` / :class:`CompletionFlows`) own the multi-step
-    flows; callers invoke them directly.  DocumentFlows (built earlier,
-    without the pane stack) receives its pane-stack collaborators here,
-    and WindowFlows is constructed once the stack exists.
+    :class:`ShellFlows` / :class:`CompletionFlows` / :class:`MouseFlows`)
+    own the multi-step flows; callers invoke them directly.  DocumentFlows
+    (built earlier, without the pane stack) receives its pane-stack
+    collaborators here, and WindowFlows is constructed once the stack
+    exists.
     """
     # The pane tree owns editor windows; it starts with one leaf on the
     # startup document and grows with :split / :vsplit.
@@ -207,6 +209,11 @@ def _build_pane_stack(ed: Editor) -> None:
         focus_explorer=ed.focus_explorer,
     )
     ed.pane_host = PaneHost(ed.panes, ed.make_view)
+    ed.mouse_flows = MouseFlows(
+        keymaps=ed.keymaps,
+        config=ed.config,
+        refresh=ed.refresh_ui,
+    )
     ed.prompt_flows = PromptFlows(
         ed.session,
         ed.panes,
@@ -344,6 +351,7 @@ class Editor:
     document_flows: DocumentFlows
     window_flows: WindowFlows
     extension_flows: ExtensionFlows
+    mouse_flows: MouseFlows
 
     def __init__(
         self,
@@ -403,6 +411,7 @@ class Editor:
             lsp=self.lsp,
             keymaps=self.keymaps,
             handle_key=self.handle_key,
+            handle_mouse=partial(self._on_view_mouse, leaf_id),
         )
 
     def compose(self) -> ComposeResult:
@@ -658,6 +667,23 @@ class Editor:
         self.refresh_ui()
         self.completion.after_editor_key(raw)
         return handled
+
+    def _on_view_mouse(self, leaf_id: int, event: MouseEvent) -> bool:
+        """Dispatch one mouse event for the view of *leaf_id*."""
+        view = self.panes.views.get(leaf_id)
+        if view is None:
+            return False
+        return self.mouse_flows.handle_view_mouse(view, event)
+
+    def cancel_mouse_state(self) -> None:
+        """Drop every in-flight mouse interaction (``:set support_mouse
+        off`` mid-drag): the app gate now drops all mouse events, so no
+        MouseUp path can release captures or clear drag flags."""
+        self.app.capture_mouse(None)  # view or PaneHost capture, whoever holds it
+        self.mouse_flows.cancel_drag()
+        host = self.panes.host
+        if host is not None:
+            host.cancel_drag()
 
     def execute_action(self, name: str) -> bool:
         """Run a registered action by name; ``False`` when it is unknown.
