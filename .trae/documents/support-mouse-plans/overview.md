@@ -286,3 +286,40 @@ flaky**（reconcile 与渲染回调竞争窗口，master 同样可复现，本�
    `release_mouse()` 会让后续左键 MouseMove 丢失捕获）。
 
 门禁复跑：pytest 全绿、pyright 0 诊断、架构测试 26 passed。
+
+### Gitee PR#66 评审处置（2026-10-08，第四轮 · Gitee AI review bot，note 51471140）
+
+1 阻断项 + 3 改进项；阻断项经 R10 条款文本与 Textual 8.2.8 源码双重实证
+为误报，按用户指令「证伪 + 回归测试」处置：
+
+1. **阻断项证伪（on_mouse_down 未消费不转发 → 称 R10 违规）**：R10 条款
+   本义是"一次按键只派发一次"——防同一事件二次派发，条款文本针对
+   `on_key`（键事件无条件 stop，EditorView docstring："stopped whether or
+   not the key was consumed"）；鼠标通路的 R10 同类项在 `_forward_mouse`
+   docstring 明文定义为"stop only the events the dispatcher consumed"——
+   未消费不 stop 即放行。裸 `return` 不吞事件：Textual 8.2.8 `MouseDown`
+   为 `bubble=True`（textual/events.py:581），派发后未 stop 自动冒泡到
+   父级（textual/message_pump.py:833-839），事件到达 PaneHost（plan-b
+   分隔条拖拽测试走同一条裸 return 冒泡路径，端到端实证）。评审建议的
+   `else: _forward_mouse(event)` 会把同一 MouseDown 二次派发给 MouseFlows
+   （对同一事件+状态确定性再返回 False），才是违反"一次事件只派发一次"
+   的写法。处置：逻辑不动；未消费分支补冒泡语义注释（editor.py）；
+   新增回归测试 `test_unconsumed_press_bubbles_to_pane_host` 钉死"未消费
+   恰好冒泡一次到 PaneHost、光标不动、无二次派发"（support_mouse=False
+   门 + pilot.click 屏级注入制造未消费路径；spy 用类级 patch——Textual
+   派发按 cls.__dict__ MRO 查 handler，实例级 patch 不生效）。
+2. **改进项 1 采纳（坐标映射一致性测试）**：新增
+   `test_mouse_click_maps_columns_after_horizontal_scroll`（scroll_col=3：
+   cell = x − gutter + scroll_col，含滚动后 gutter 点击钳 0）与
+   `test_mouse_click_maps_rows_after_vertical_scroll`（scroll_offset.y=5：
+   row = y + scroll_offset.y）——渲染/反算同源几何（gutter 两档宽度、
+   行列滚动偏移）端到端钉死；`_gutter_w` 无 border 额外偏移的疑问由
+   既有 _GUTTER=6 口径用例（scroll 0）与新用例（滚动后）共同覆盖。
+3. **改进项 2 不改（_on_move 全量刷新）**：评审自认"当前实现成本与键盘
+   移动同阶，属于可接受的设计权衡"；总纲 §五 风险表已登记降级备选
+   （仅 status_bar 刷新），无实测卡顿数据不触发。
+4. **改进项 3 引用既有 S2**（双击/三击选区后 vim operator 按 mode 分派，
+   `d` 不删选词）：上轮「遗留待办」S2 已登记"另行小计划"，处置不变。
+
+门禁复跑：pyright 0 诊断；pytest 全绿（2046 passed / 1 skip，2047
+collected）；架构测试 26 passed。
