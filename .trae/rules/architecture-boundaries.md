@@ -43,13 +43,14 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **R3 — `editor_view/*` 不得 import `yate.editor` / `yate.app`**：组件只接受具体协作者
   （`EditorSession` / `Workspace` / `PromptBar` / `LspManager` / `KeymapSet` / `Textual App`）
   或 `Callable` 回调。
-- **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、`registries.py`、`config.py`、`yaterc.py` 不得 import `editor_view`**。
+- **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、`registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py` 不得 import `editor_view`**。
   （2026-09-28 核对补入 `keyproto/*`、`editor_sprites/*`：二者已是
   `tests/test_architecture.py` `UI_FREE_PACKAGES` 的守卫面，规则文本此前漏列。）
   （`config.py` 于 N30 加入：yaterc 主题能力由 L4 `cli.py` 以回调注入
   `load_config(register_theme=..., load_theme_paths=...)`，L0 不再反向拉起 L2 组件包。
   `yaterc.py` 于 2026-10-07 加入：自 `config.py` 拆出的加载器，同为 L0 单文件守卫面
-  `UI_FREE_FILES`。）
+  `UI_FREE_FILES`。`yaterc_options.py` 于 2026-10-08 加入：自 `yaterc.py` 拆出的
+  选项解析器（big-module-split f 波），同为 L0 单文件守卫面 `UI_FREE_FILES`。）
 - **R5 — 内置表单向**：`actions.py` / `commands.py` 可以 import `yate.editor`；反向禁止
   （`editor.py` 不得 import 它们，否则成环）。
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
@@ -284,8 +285,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **日志惰性格式**（`test_log_calls_use_lazy_percent_formatting`）：`log.*` 调用禁止 f-string
   消息（AST 拦截，python-coding-style 4.6）；
 - **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
-  提及不误报）；UI-free L0（`keymaps/*` `services/*` `keyproto/*` `editor_sprites/*`
-  `session.py` `registries.py` `config.py` `yaterc.py` `logs.py`，见
+  提及不误报）；  UI-free L0（`keymaps/*` `services/*` `keyproto/*` `editor_sprites/*`
+  `session.py` `registries.py` `config.py` `yaterc.py` `yaterc_options.py` `logs.py`，见
   `tests/test_architecture.py` 的 `UI_FREE_PACKAGES` / `UI_FREE_FILES`）不 import `textual.app`；
   另有两条运行时用例：`test_devtools_bridge_follows_app_lifecycle`（挂载期恰好 1 个
   handler、`on_unmount` 按身份摘除）与
