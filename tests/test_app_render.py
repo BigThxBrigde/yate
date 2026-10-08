@@ -138,9 +138,9 @@ def test_discarded_highlight_pass_reschedules_immediately(
                 timeout=5.0,
             )
 
-            import yate.editor_view.editor as editor_module
+            import yate.editor_view.highlighting as highlighting_module
 
-            real_tokenize = editor_module._tokenize_with_states
+            real_tokenize = highlighting_module._tokenize_with_states
             started = threading.Event()
             gate = threading.Event()
 
@@ -154,7 +154,7 @@ def test_discarded_highlight_pass_reschedules_immediately(
                 return real_tokenize(lines, filetype)
 
             monkeypatch.setattr(
-                editor_module, "_tokenize_with_states", slow_tokenize
+                highlighting_module, "_tokenize_with_states", slow_tokenize
             )
             delays: list[float] = []
             real_schedule = editor._schedule_highlight

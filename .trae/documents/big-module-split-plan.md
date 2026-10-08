@@ -99,7 +99,7 @@
 |---|---|---|---|---|
 | a（regex_langdefs + 行数守卫） | 已完成 | 4/4 退出码 0（pyright `yate/editor_syntax/` 零诊断；pytest 5 文件 `-q` 通过，1 个 py-tree-sitter 可选依赖既有 skip；`available_filetypes()` 探针 = 72，与 HEAD 基线一致；行数实测 regex_langdefs 794 / regex_backend 500） | （待主代理提交） | 实测行数 794/500，略高于预估 ~780/~490（含模块 docstring 与 `__all__` 开销），均在阈值内。私有注册表再导出为满足 pyright 零诊断，除 `regex_backend.__all__` 外还需在声明模块 `regex_langdefs.__all__` 登记 `_LANGUAGES` / `_NAME_TO_KEY`（否则 `reportPrivateUsage` 报错），导入方向仍单向、无行为改动 |
 | b（diffview → diff_pane） | 已完成 | 3/3 退出码 0（pyright `yate/editor_view/` 零诊断；pytest 4 文件 `-q` 96 passed；行数实测 diff_pane 475 / diffview 581）。波次收尾前置项 `pyright yate/ tests/ tools/` 另测零诊断 | （待主代理提交） | 实测行数 475/581，与预估 ~490/~600 相符（迁移时 diff_pane 无日志调用，未引入 `yate.logs` 依赖，导入面与 plan-b 依赖清单一致） |
-| c（editor_view/editor 拆分） | 待执行 | — | — | — |
+| c（editor_view/editor 拆分） | 已完成 | 3/3 退出码 0（pyright `yate/editor_view/` 零诊断；pytest 4 文件 `-q` 41 passed；行数实测 highlighting 416 / welcome 128 / editor 599）。波次收尾前置项 `pyright yate/ tests/ tools/` 另测零诊断 | （待主代理提交） | highlighting.py 实测 416 行高于预估 ~300：`HighlightMixin` 落成纯 mixin（不继承 Widget）——双基类 `EditorView(ScrollView, HighlightMixin)` 会把 Textual 内部 `scroll_to` 签名分裂（`ScrollView.scroll_to` 缺 `release_anchor`）暴露为 pyright 基类冲突，故 mixin 以纯声明桩镜像其用到的 4 个 Widget 成员（doc/is_mounted/refresh/set_timer/run_worker，~55 行，运行时 MRO 中 Widget 真实成员在前、桩永不生效）；`EditorView.doc` 相应补 `@override`。welcome 侧 `_WelcomeRow` 经 `__all__` 登记后供 editor.py 缓存注解导入（沿 a 波私有再导出先例）。editor.py 实测 599 低于预估 ~680 |
 | d（theme 拆分） | 待执行 | — | — | — |
 | e（words + palette/keys） | 待执行 | — | — | — |
 | f（parsing + yaterc_options） | 待执行 | — | — | — |

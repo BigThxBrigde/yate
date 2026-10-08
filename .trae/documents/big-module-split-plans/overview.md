@@ -55,7 +55,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | a | regex-langdefs-plan-a | 已完成 | 4/4 退出码 0（pyright 零诊断；pytest 5 文件通过，1 既有 skip；filetypes 探针 72 = HEAD 基线；行数实测 794/500） | （待主代理提交） | 行数 794/500 略超预估 ~780/~490；私有注册表再导出另需声明模块 `regex_langdefs.__all__` 登记以消 `reportPrivateUsage` |
 | b | diff-pane-plan-b | 已完成 | 3/3 退出码 0（pyright `yate/editor_view/` 零诊断；pytest 4 文件 96 passed；行数实测 475/581；另测全仓 `pyright yate/ tests/ tools/` 零诊断） | （待主代理提交） | 行数 475/581 与预估相符；diff_pane 无日志调用故未引入 `yate.logs`，依赖面与子计划清单一致 |
-| c | view-highlight-plan-c | 待执行 | — | — | — |
+| c | view-highlight-plan-c | 已完成 | 3/3 退出码 0（pyright `yate/editor_view/` 零诊断；pytest 4 文件 41 passed；行数实测 416/128/599；另测全仓 `pyright yate/ tests/ tools/` 零诊断） | （待主代理提交） | HighlightMixin 落成纯 mixin + 宿主面声明桩（双基类会触发 Textual `scroll_to` 签名分裂的 pyright 冲突），highlighting.py 416 行高于预估 ~300；editor.py 599 低于预估 |
 | d | theme-registry-plan-d | 待执行 | — | — | — |
 | e | leaf-extracts-plan-e | 待执行 | — | — | — |
 | f | lsp-yaterc-plan-f | 待执行 | — | — | — |
