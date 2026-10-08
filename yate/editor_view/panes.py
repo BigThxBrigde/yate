@@ -637,7 +637,7 @@ class PaneHost(Widget):
 
     def on_mouse_move(self, event: MouseMove) -> None:
         """Convert pointer travel to a fraction transfer (live resize)."""
-        if self._drag is None or len(self._drag) != 4:
+        if self._drag is None or event.button != 1:
             return
         split, index, axis, last = self._drag
         pos = event.screen_x if axis == "vertical" else event.screen_y

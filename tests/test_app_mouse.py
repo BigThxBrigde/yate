@@ -70,6 +70,8 @@ def test_mouse_drag_selects_range(tmp_path: Path) -> None:
             await pilot.pause()
             await pilot.mouse_down(EditorView, offset=(_GUTTER, 0))
             await pilot.pause()
+            # Textual private API (verified on 8.2.8; revisit on upgrades,
+            # same containment discipline as keyproto/textual_internals.py):
             # the installed pilot defaults _post_mouse_events to button=0;
             # the drag move must carry the pressed button (button=1)
             await pilot._post_mouse_events(

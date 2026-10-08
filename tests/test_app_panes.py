@@ -417,8 +417,10 @@ def test_separator_drag_updates_split_sizes(pane_root: Path) -> None:
             sy = left_view.region.y + left_view.region.height // 2
 
             await pilot.mouse_down(None, offset=(sx, sy))
+            # Textual private API (verified on 8.2.8; revisit on upgrades,
+            # same containment discipline as keyproto/textual_internals.py)
             await pilot._post_mouse_events(
-                [MouseMove, MouseUp], offset=(sx + 4, sy)
+                [MouseMove, MouseUp], offset=(sx + 4, sy), button=1
             )
             await pilot.pause()
 

@@ -20,10 +20,7 @@ from yate.editor_view.editor import EditorView
 from yate.flows import MessageFn
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap
-from yate.logs import tracing
 from yate.session import EditorSession
-
-log = tracing.get_logger(__name__)
 
 
 class MouseFlows:

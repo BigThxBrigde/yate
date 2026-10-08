@@ -47,7 +47,10 @@ def _driver_mouse(
     """Post one mouse record through the app queue (the driver's path).
 
     The record must pass through ``YateApp.on_event`` for the gate to see
-    it, which is where every real driver input arrives first.
+    it, which is where every real driver input arrives first.  Uses the
+    Textual private helper ``_get_mouse_message_arguments`` (verified on
+    8.2.8; revisit on upgrades, same containment discipline as
+    keyproto/textual_internals.py).
     """
     kwargs = _get_mouse_message_arguments(target, offset, button=button)
     app.post_message(event_cls(**kwargs))
