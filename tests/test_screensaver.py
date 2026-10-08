@@ -156,10 +156,15 @@ def test_parade_keeps_names_distinct_and_sprites_never_overlap(
             screen = app.screen
             assert isinstance(screen, ScreensaverScreen)
             saw_two = False
-            tick = 0
             for _ in range(600):
                 screen.advance_tick()
-                tick += 1
+                # the on_mount interval keeps firing under the pilot, so the
+                # screen's own counter can race ahead of this loop; sample
+                # positions from it -- retirement uses the same counter, so
+                # an active walker's elapsed is always below its travel and
+                # walk_x never wraps (a local counter lagging a spawn would
+                # go negative and wrap to the right edge)
+                tick = screen.tick
                 walkers = screen.walkers
                 if len(walkers) >= 2:
                     saw_two = True
