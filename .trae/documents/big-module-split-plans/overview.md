@@ -54,7 +54,7 @@ flowchart LR
 | 波次 | 子计划 | 状态 | 验收命令退出码 | 提交（hash/说明） | 偏离记录 |
 |---|---|---|---|---|---|
 | a | regex-langdefs-plan-a | 已完成 | 4/4 退出码 0（pyright 零诊断；pytest 5 文件通过，1 既有 skip；filetypes 探针 72 = HEAD 基线；行数实测 794/500） | （待主代理提交） | 行数 794/500 略超预估 ~780/~490；私有注册表再导出另需声明模块 `regex_langdefs.__all__` 登记以消 `reportPrivateUsage` |
-| b | diff-pane-plan-b | 待执行 | — | — | — |
+| b | diff-pane-plan-b | 已完成 | 3/3 退出码 0（pyright `yate/editor_view/` 零诊断；pytest 4 文件 96 passed；行数实测 475/581；另测全仓 `pyright yate/ tests/ tools/` 零诊断） | （待主代理提交） | 行数 475/581 与预估相符；diff_pane 无日志调用故未引入 `yate.logs`，依赖面与子计划清单一致 |
 | c | view-highlight-plan-c | 待执行 | — | — | — |
 | d | theme-registry-plan-d | 待执行 | — | — | — |
 | e | leaf-extracts-plan-e | 待执行 | — | — | — |

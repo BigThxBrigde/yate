@@ -18,7 +18,8 @@ from pathlib import Path
 
 from yate.app import YateApp
 from yate.commands import _split_paths, _strip_quotes
-from yate.editor_view.diffview import DiffPane, DiffScreen
+from yate.editor_view.diff_pane import DiffPane
+from yate.editor_view.diffview import DiffScreen
 
 from conftest import wait_until
 

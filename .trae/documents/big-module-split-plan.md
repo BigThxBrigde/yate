@@ -98,7 +98,7 @@
 | 波次 | 状态 | 验收命令退出码 | 提交（hash/说明） | 偏离记录 |
 |---|---|---|---|---|
 | a（regex_langdefs + 行数守卫） | 已完成 | 4/4 退出码 0（pyright `yate/editor_syntax/` 零诊断；pytest 5 文件 `-q` 通过，1 个 py-tree-sitter 可选依赖既有 skip；`available_filetypes()` 探针 = 72，与 HEAD 基线一致；行数实测 regex_langdefs 794 / regex_backend 500） | （待主代理提交） | 实测行数 794/500，略高于预估 ~780/~490（含模块 docstring 与 `__all__` 开销），均在阈值内。私有注册表再导出为满足 pyright 零诊断，除 `regex_backend.__all__` 外还需在声明模块 `regex_langdefs.__all__` 登记 `_LANGUAGES` / `_NAME_TO_KEY`（否则 `reportPrivateUsage` 报错），导入方向仍单向、无行为改动 |
-| b（diffview → diff_pane） | 待执行 | — | — | — |
+| b（diffview → diff_pane） | 已完成 | 3/3 退出码 0（pyright `yate/editor_view/` 零诊断；pytest 4 文件 `-q` 96 passed；行数实测 diff_pane 475 / diffview 581）。波次收尾前置项 `pyright yate/ tests/ tools/` 另测零诊断 | （待主代理提交） | 实测行数 475/581，与预估 ~490/~600 相符（迁移时 diff_pane 无日志调用，未引入 `yate.logs` 依赖，导入面与 plan-b 依赖清单一致） |
 | c（editor_view/editor 拆分） | 待执行 | — | — | — |
 | d（theme 拆分） | 待执行 | — | — | — |
 | e（words + palette/keys） | 待执行 | — | — | — |
