@@ -185,3 +185,61 @@ flowchart TD
 - pytest 全绿；架构测试无违规（合并阻塞项）。
 - 纯文档步骤（手册表格）按 `misc-rules.md` §三豁免测试，但随所在子计划
   的代码步骤一并走全量门禁（混合变更不可豁免）。
+
+## 七、执行与评审回填（2026-10-08）
+
+### 提交清单（enh/support-mouse）
+
+| commit | 内容 |
+|---|---|
+| `0b8a919` | docs(plans)：本目录 6 份方案文档 |
+| `b87ab80` | feat(config)：support_mouse 配置管线（plan-a） |
+| `0aa1e3a` | feat(panes)：分隔条拖拽 resize（plan-b） |
+| `0e4b217` | feat(editor)：文本区鼠标与选区 + MouseFlows + vim drop_visual（plan-c） |
+| `248fe81` | feat(terminal)：终端点击聚焦 + explorer 哨兵（plan-d） |
+| `b711b36` | feat(app)：support_mouse 全局闸门 + 架构守卫（plan-e） |
+
+### 执行偏离（汇总，均已在子计划记录）
+
+- plan-a：`yate/commands.py` 增 `_apply_support_mouse`（计划外文件）——既有守卫
+  `test_set_option_specs_cover_all_dispatched_options` 钉死 `SET_OPTION_SPECS` 与
+  `commands.SET_APPLY` 键集合 1:1，不加 apply 条目既有测试必失败。
+- plan-b：pilot 多字符 press 需逐字符；用例 6 前置补 `ctrl+w h` 聚焦被点窗格
+  （Textual click-to-focus 框架行为）。
+- plan-c：`word_span` 改 `_is_word` 直推回退（`prev_word_start` 会跳过词间空格，
+  违背自身测试语义）；拖拽测试 move 显式 `button=1`；双击 offset 修正。
+- plan-e：禁用态用例经 `app.post_message` 注入（pilot 鼠标助手实证绕过
+  `App.on_event`，textual/pilot.py:463）；点击 offset 对齐 plan-c 口径。
+
+### 评审结论（code-review-expert，2026-10-08）
+
+**可合并，无 blocker / major。** 门禁实测：pyright 0 诊断；pytest 全绿
+（1 skip）；架构测试 26 passed；覆盖率 branch 模式 91.45%（≥75）；冒烟
+`tools.smoke_test run` 107/107 场景 1286/1286 checks。重点疑点全部给出
+实证结论（分隔条坐标/fraction 换算正确、坐标映射与渲染同源、vim 联动、
+闸门顺序必要、capture 互斥、reconcile 失效路径无害、R10 合规）。
+已知疑点定案：`test_close_command_closes_active_pane` 偶发失败为**既有
+flaky**（reconcile 与渲染回调竞争窗口，master 同样可复现，本次改动未触碰
+该调用链且新代码用非严格 `views.get` 刻意避开）。
+
+### 评审修复（随本次提交落地）
+
+- W1：架构规则文档同步——§一 L3 清单补 `mouse_flows.py`；§六 计数 25→26、
+  表补第 26 行守卫、R11 条目补 `flows/mouse_flows.py`、新增 support_mouse
+  闸门条目。
+- S1：`PaneHost.on_mouse_move` 增 `event.button != 1` 校验（与其它 handler
+  风格一致），拖拽测试注入同步 `button=1`。
+- S3/S4：删除 `mouse_flows.py` 未使用的模块级 `log`；去掉 `len(self._drag) != 4`
+  恒 False 的冗余防御。
+- S5：测试侧 Textual 私有 API（`_post_mouse_events` /
+  `_get_mouse_message_arguments`）登记收口注释（8.2.8 实证，升级需同步）。
+
+### 遗留待办（评审 minor / suggestion，不阻塞合并）
+
+- S2：双击/三击选区后 vim 处于 NORMAL + 有选区，operator 按 mode 分派
+  而非 selection（`d` 不会删除选词）——与 gvim"双击进 visual"直觉相悖，
+  属语义打磨；如要做需给 VimKeymap 加 `enter_visual` 公开方法，另行小计划。
+- S6：panes.py 拒绝分支测试缺口——horizontal 轴分隔拖拽、非左键 down、
+  hit 未命中、零位移 move，及 mouse_flows 双击空白的 `end <= start` 分支；
+  主链路已覆盖（mouse_flows 86% / panes 87% / editor_view editor 85%），
+  后续补测即可。
