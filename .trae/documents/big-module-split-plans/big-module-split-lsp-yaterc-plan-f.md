@@ -28,14 +28,27 @@
   两个通用校验器）。只依赖 stdlib + `yate.config`（不需要 `yate.logs`，
   该区间无 log 调用）。
 - `yaterc.py`（~200 行）：保留 docstring（精简为加载器职责）、
-  `RC_FILENAME`、`log`、`user_config_path`、`find_project_config`、
-  `default_rc_paths`、`ThemeRegistrar`、`ThemeDirLoader`、**`load_config`
-  （公开 API 原位——`yate/cli.py:299` 与 `tests/test_cli.py` 的
-  `patch("yate.yaterc.load_config")` 零改动）**。
+  `RC_FILENAME`（74）、`log`（76）、`user_config_path`（79）、
+  `find_project_config`（84）、`default_rc_paths`（100）、两个 PEP 695
+  回调**类型别名** `ThemeRegistrar` / `ThemeDirLoader`（119–124，N30 注入
+  回调的词汇表，非类）、**`load_config`（127，公开 API 原位——
+  `yate/cli.py:299` 与 `tests/test_cli.py:203/248/440` 的
+  `patch("yate.yaterc.load_config")` 零改动）**；其对
+  `_extract_*` 的调用改为经 `yaterc_options` 导入
+  （已核实 193–803 区间无 `log.*` 调用，`yaterc_options.py` 不需要
+  `yate.logs`）。
 - import 方向：`yaterc.py → yaterc_options.py → (yate.config, stdlib)`，单向。
 - 架构守卫：`tests/test_architecture.py` 的 `UI_FREE_FILES` 元组追加
-  `"yaterc_options.py"`（保持 UI-free：不 import editor_view/textual.app）；
-  行数守卫豁免集合移除 `yaterc.py`。
+  `"yaterc_options.py"`（保持 UI-free：不 import editor_view/textual.app）。
+
+## 规则侧同步
+
+- 行数守卫豁免集合（`tests/test_architecture.py`）移除 `yaterc.py` 与
+  `editor_lsp/manager.py`；
+- `.trae/rules/architecture-boundaries.md` §三.7 豁免名单同步移除
+  `manager.py`、`yaterc.py` 条目；
+- 同规则文档 §六「R4」条目文本：守卫面 `UI_FREE_FILES` 补提
+  `yaterc_options.py`（与测试侧追加保持一致）。
 
 ## 验收命令
 

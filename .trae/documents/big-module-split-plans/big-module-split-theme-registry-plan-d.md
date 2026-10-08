@@ -33,8 +33,17 @@
 
 ## 架构守卫
 
-- 不新增对外 `editor_view` 导入面，`UI_FROZEN_FILES` 不动；
+- 不新增对外 `editor_view` 导入面，`UI_FROZEN_FILES` 不动
+  （`flows/prompt_completion.py` / `flows/completion_flows.py` 对
+  `yate.editor_view.theme` 的既有冻结条目经门面照常满足）；
 - 行数守卫豁免集合移除 `editor_view/theme.py`。
+
+## 规则侧同步
+
+- 行数守卫豁免集合（`tests/test_architecture.py`）移除
+  `editor_view/theme.py`；
+- `.trae/rules/architecture-boundaries.md` §三.7 豁免名单同步移除
+  `editor_view/theme.py` 条目（a 波临时登记的拆除）。
 
 ## 验收命令
 

@@ -15,7 +15,7 @@
 - `diffview.py` 瘦身（~600 行）：docstring 改 screen 视角；保留
   `MAX_DIFF_LINES`（65–70，overlay_flows 依赖）、`RECOMPUTE_DEBOUNCE_SECONDS`
   （72–76）、`_2WAY_ROLES`/`_3WAY_ROLES`（516–517）、`DiffScreen` 全类
-  （520–1036）。
+  （520–1035，文件共 1035 行）。
 
 ## import 方向（无环）
 
@@ -36,7 +36,16 @@ textobjects}` + 同包 `.theme` / `.scrollbars`；不 import `yate.editor` /
 ## 架构守卫
 
 无新增 `editor_view` 导入面（同包内部切分），`UI_FROZEN_FILES` 不动；
-行数守卫豁免集合移除 `editor_view/diffview.py`。
+`flows/overlay_flows.py` 的既有冻结条目 `yate.editor_view.diffview`
+（`tests/test_architecture.py:165–173`，overlay_flows 只取 `DiffScreen` /
+`MAX_DIFF_LINES`，二者留在 diffview.py）已核实无需改动。
+
+## 规则侧同步
+
+- 行数守卫豁免集合（`tests/test_architecture.py`）移除
+  `editor_view/diffview.py`；
+- `.trae/rules/architecture-boundaries.md` §三.7 豁免名单同步移除
+  `editor_view/diffview.py` 条目。
 
 ## 验收命令
 

@@ -8,8 +8,11 @@
   独立消费面：`textobjects.py`（5 处）、`keymaps/vim.py`、
   `flows/mouse_flows.py`、`tests/test_editor_core.py` 直接引用这些自由函数。
 - `buffer.py`（~822 行，仍 >800 → 维持 A11 单一职责豁免并更新行数）：
-  新增 `from yate.editor_core.words import next_word_start, prev_word_start,
-  word_end`；**`MAX_UNDO_STEPS`（40–43）属 undo 职责，留在 buffer.py**。
+  **无需新增对 `words` 的 import**——已核实 `buffer.py` 内部（`TextBuffer`
+  及全部方法）对 `next_word_start` / `prev_word_start` / `word_end` /
+  `word_span` 零调用点（这正是"互不引用职责块"判据的一部分）；
+  留 import 反成死代码。**`MAX_UNDO_STEPS`（40–43）属 undo 职责，留在
+  buffer.py**。
 - import 更新（干净做法，不留 re-export）：`editor_core/textobjects.py`、
   `yate/keymaps/vim.py`、`yate/flows/mouse_flows.py`、
   `tests/test_editor_core.py` 改从 `yate.editor_core.words` 导入。
@@ -39,15 +42,26 @@
 
 ## 架构守卫
 
-全部为 L0 叶包内部切分，不新增 UI 依赖；行数守卫豁免集合移除
-`editor_term/emulator.py`（`buffer.py` 保留豁免，行数更新为实测值）。
+全部为 L0 叶包内部切分，不新增 UI 依赖。
+
+## 规则侧同步
+
+- 行数守卫豁免集合（`tests/test_architecture.py`）移除
+  `editor_term/emulator.py`；`editor_core/buffer.py` 保留豁免，
+  行数更新为拆分后实测值；
+- `.trae/rules/architecture-boundaries.md` §三.7 豁免名单同步：移除
+  `editor_term/emulator.py` 条目、更新 `editor_core/buffer.py` 登记行数。
 
 ## 验收命令
 
 ```powershell
 .venv\Scripts\python.exe -m pyright yate/editor_core/ yate/editor_term/
-.venv\Scripts\python.exe -m pytest tests/test_editor_core.py tests/test_terminal_emulator.py tests/test_terminal.py tests/test_vim_keymap.py -q
+.venv\Scripts\python.exe -m pytest tests/test_editor_core.py tests/test_terminal_emulator.py tests/test_terminal.py tests/test_vim_keymap.py tests/test_app_mouse.py -q
 ```
+
+`tests/test_app_mouse.py` 覆盖 `flows/mouse_flows.py` 的 import 更新
+（双击选区走 `word_span`，`mouse_flows.py:18` 的导入源改为
+`yate.editor_core.words`）。
 
 ## 预估
 

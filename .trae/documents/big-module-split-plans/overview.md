@@ -2,9 +2,10 @@
 
 主计划：[`../big-module-split-plan.md`](../big-module-split-plan.md)（issue IKK5F7）。
 
-每波次一份子计划；波次间触碰文件互不重叠。每波收尾验收 =
-该波验收命令 + `python -m pyright yate/ tests/ tools/` 零诊断；
-全部波次结束后统一跑全量门禁（pytest + 覆盖率 --cov-fail-under=75）。
+行数口径：含空行（PowerShell `Get-Content ... .Count`，2026-10-08，worktree
+HEAD ab820d4）；issue 原文为不含空行口径，两套数字不可混用。
+
+## 一、波次总表
 
 | 波次 | 子计划 | 新增模块 | 移出对象 |
 |---|---|---|---|
@@ -16,3 +17,50 @@
 | f | [big-module-split-lsp-yaterc-plan-f.md](big-module-split-lsp-yaterc-plan-f.md) | `editor_lsp/parsing.py`、`yaterc_options.py` | manager 线格式解析；yaterc 选项校验 |
 
 维持豁免（不拆，理由见主计划 §二）：`keymaps/vim.py`、`yate/editor.py`。
+
+## 二、波次依赖与串行要求（硬性）
+
+1. **a 波先行**：a 波落地 `test_source_files_within_size_threshold` 行数守卫与
+   全量豁免名单，并校准 `.trae/rules/architecture-boundaries.md` §三.7——
+   b–f 依赖该守卫存在才能"移除豁免"，故 a 未验收通过前 b–f 不得启动。
+2. **b–f 必须串行，不得并行**：产品源码文件波次间确实互不重叠，但每波都要改
+   两个**共享文件**：
+   - `tests/test_architecture.py`——行数守卫豁免集合逐波收缩
+     （b 移除 diffview、c 移除 editor_view/editor.py、d 移除 theme.py、
+     e 移除 emulator.py 并更新 buffer.py 行数、f 移除 manager.py/yaterc.py
+     并追加 yaterc_options.py）；
+   - `.trae/rules/architecture-boundaries.md` §三.7——豁免名单同步收缩。
+   同一文件被多波修改即构成文件重叠，按 subagent-workflow 的文件独占纪律，
+   只能串行执行；上一波验收命令全部退出码 0 后才允许进入下一波。
+3. **每波收尾验收** = 该波子计划所列验收命令 + 全量门禁前置项
+   `python -m pyright yate/ tests/ tools/` 零诊断；全部波次结束后统一跑
+   全量门禁（`python -m pytest tests/ -q --cov=yate --cov-fail-under=75`，
+   命令见 plan f 末节）。
+
+```mermaid
+flowchart LR
+    A["wave a<br/>regex_langdefs + 行数守卫落地"] --> B["wave b<br/>diffview → diff_pane"]
+    B --> C["wave c<br/>editor_view/editor → highlighting + welcome"]
+    C --> D["wave d<br/>theme → themes/cells/theme_files"]
+    D --> E["wave e<br/>buffer→words；emulator→palette/keys"]
+    E --> F["wave f<br/>manager→parsing；yaterc→yaterc_options"]
+    F --> G["全量门禁<br/>pyright + pytest --cov-fail-under=75"]
+    style A fill:#bbdefb,color:#0d47a1
+    style G fill:#c8e6c9,color:#1a5e20
+```
+
+## 三、执行状态追踪表（与主计划 §五 执行记录区同构，逐波回填）
+
+| 波次 | 子计划 | 状态 | 验收命令退出码 | 提交（hash/说明） | 偏离记录 |
+|---|---|---|---|---|---|
+| a | regex-langdefs-plan-a | 待执行 | — | — | — |
+| b | diff-pane-plan-b | 待执行 | — | — | — |
+| c | view-highlight-plan-c | 待执行 | — | — | — |
+| d | theme-registry-plan-d | 待执行 | — | — | — |
+| e | leaf-extracts-plan-e | 待执行 | — | — | — |
+| f | lsp-yaterc-plan-f | 待执行 | — | — | — |
+| 全量门禁 | （主代理收尾） | 待执行 | — | — | — |
+
+回填纪律：状态只允许 `待执行 → 执行中 → 已完成`；"已完成"必须附验收命令
+实际退出码与提交 hash；偏离计划（行数预估、豁免名单、拆分范围）须在
+"偏离记录"列写明实测依据。
