@@ -243,3 +243,29 @@ flaky**（reconcile 与渲染回调竞争窗口，master 同样可复现，本�
   hit 未命中、零位移 move，及 mouse_flows 双击空白的 `end <= start` 分支；
   主链路已覆盖（mouse_flows 86% / panes 87% / editor_view editor 85%），
   后续补测即可。
+
+### python-code-review 修复（2026-10-08，第二轮框架评审）
+
+6 维度结构化评审结论 LOOKS GOOD（0 CRITICAL / 0 WARNING / 4 SUGGESTION），
+按用户指令逐条处置：
+
+1. **已修（capture-on-consume）**：`EditorView.on_mouse_down` 改为派发
+   消费后才 `capture_mouse()` + stop；未消费（空缓冲 pos=None）不再捕获，
+   事件按 R10 放行。此前"先捕获后派发"靠 MouseUp 兜底释放，现语义同步。
+2. **已修（LEFT_BUTTON 常量）**：左键魔数 `1` 散布 5 处，收敛为
+   `yate/editor_view/editor.py` 的模块级 `LEFT_BUTTON`（L2 包内定义；
+   mouse_flows 经既有 `yate.editor_view.editor` 冻结导入面引用，
+   panes.py / terminal.py 为同包引用，零新增 UI_FROZEN_FILES 登记、
+   零环——editor.py 不 import panes/terminal）。
+3. **已修（MouseFlows 签名收缩）**：删除注入后未使用的 `session` /
+   `_message` 参数与属性（计划原定"pyright 报则收缩"未触发，本轮评审
+   升级为主动收缩），构造降为 3 参；`_build_pane_stack` 接线同步。
+4. **事实纠偏后撤回（classes 子串匹配）**：原建议把
+   `"pane-sep-v" in self.classes` 改为 `split()` token 集合——实施后
+   3 个测试立即失败，实证 Textual 8.2.8 的 `Widget.classes` 本就是
+   **frozenset**（成员即精确 token，无子串误伤），原实现正确。
+   已回退，仅在 `_is_pane_border` 留一行实证注释防未来误改。
+
+门禁复跑：pytest 全绿（2042 passed / 1 skip）、pyright 0 诊断、
+架构测试 26 passed。教训登记：评审建议中关于第三方 API 形态的假设
+（此处 `classes` 类型）必须先实证再改码。
