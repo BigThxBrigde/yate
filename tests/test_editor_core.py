@@ -802,6 +802,11 @@ def test_word_span_out_of_range_returns_empty() -> None:
     assert word_span("abc", 10) == (10, 10)
 
 
+def test_word_span_at_eol_boundary() -> None:
+    """The exact end-of-line column yields an empty span at the column."""
+    assert word_span("hello", 5) == (5, 5)
+
+
 # --- TextBuffer: state bookkeeping -----------------------------------------
 
 

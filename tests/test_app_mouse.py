@@ -318,6 +318,39 @@ def test_consumed_press_does_not_reach_pane_host(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_right_button_up_during_drag_keeps_drag_alive(tmp_path: Path) -> None:
+    """Chording: a non-left MouseUp during a left-button drag must not
+    terminate the drag -- neither the MouseFlows drag state (the _on_up
+    button gate) nor the mouse capture (the on_mouse_up release gate),
+    parity with the PaneHost.on_mouse_up fix."""
+
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.mouse_down(EditorView, offset=(_GUTTER, 0))
+            await pilot.pause()
+            # releasing the right button mid-drag ends neither the drag
+            # nor the capture
+            await pilot._post_mouse_events(
+                [MouseUp], widget=EditorView, offset=(_GUTTER + 1, 0), button=2,
+            )
+            await pilot.pause()
+            # the left-button drag continues and extends the selection
+            await pilot._post_mouse_events(
+                [MouseMove], widget=EditorView,
+                offset=(_GUTTER + 3, 0), button=1,
+            )
+            await pilot._post_mouse_events(
+                [MouseUp], widget=EditorView,
+                offset=(_GUTTER + 3, 0), button=1,
+            )
+            await pilot.pause()
+            assert app.editor.session.buffer.selected_text() == "hel"
+
+    asyncio.run(scenario())
+
+
 def test_mouse_click_maps_columns_after_horizontal_scroll(
     tmp_path: Path,
 ) -> None:

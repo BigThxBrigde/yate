@@ -79,7 +79,10 @@ class MouseFlows:
         return True
 
     def _on_up(self, view: EditorView, event: MouseUp) -> bool:
-        if not self._dragging:
+        # Same button gate as _on_move / PaneHost.on_mouse_up: releasing a
+        # different button (chording) must not terminate an in-flight
+        # left-button drag selection.
+        if not self._dragging or event.button != LEFT_BUTTON:
             return False
         self._dragging = False
         self._refresh()

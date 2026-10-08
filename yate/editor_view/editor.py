@@ -368,7 +368,8 @@ class EditorView(ScrollView):
         self._forward_mouse(event)
 
     def on_mouse_up(self, event: MouseUp) -> None:
-        self.release_mouse()
+        if event.button == LEFT_BUTTON:
+            self.release_mouse()  # chording: other buttons keep the capture
         self._forward_mouse(event)
 
     def on_click(self, event: Click) -> None:
