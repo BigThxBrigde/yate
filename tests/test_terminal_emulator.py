@@ -7,13 +7,8 @@ surface (``grid`` / ``cursor`` / ``view_lines`` / ``max_scroll`` /
 
 from __future__ import annotations
 
-from yate.editor_term.emulator import (
-    ANSI_16_RGB,
-    Cell,
-    TerminalEmulator,
-    key_to_terminal,
-    palette_color,
-)
+from yate.editor_term.emulator import Cell, TerminalEmulator, key_to_terminal
+from yate.editor_term.palette import ANSI_16_RGB, palette_color
 
 
 def _rows(emu: TerminalEmulator, index: int = 0) -> str:

@@ -10,7 +10,8 @@ public surface; UI/service packages may not.
 
 from __future__ import annotations
 
-from .emulator import Cell, TerminalEmulator, key_to_terminal
+from .emulator import Cell, TerminalEmulator
+from .keys import key_to_terminal
 from .pty_proc import PtyProcess, PtyProcessError
 from .shells import resolve_shell, shell_label
 

@@ -22,14 +22,9 @@ from yate.editor_core import (
     SearchEngine,
     TextBuffer,
 )
-from yate.editor_core.buffer import (
-    MAX_UNDO_STEPS,
-    next_word_start,
-    prev_word_start,
-    word_end,
-    word_span,
-)
+from yate.editor_core.buffer import MAX_UNDO_STEPS
 from yate.editor_core.search import Match
+from yate.editor_core.words import next_word_start, prev_word_start, word_end, word_span
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.keymaps.vsc import VscKeymap

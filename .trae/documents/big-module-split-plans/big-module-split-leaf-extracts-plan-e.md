@@ -8,17 +8,20 @@
   独立消费面：`textobjects.py`（5 处）、`keymaps/vim.py`、
   `flows/mouse_flows.py`、`tests/test_editor_core.py` 直接引用这些自由函数。
 - `buffer.py`（~822 行，仍 >800 → 维持 A11 单一职责豁免并更新行数）：
-  **无需新增对 `words` 的 import**——已核实 `buffer.py` 内部（`TextBuffer`
-  及全部方法）对 `next_word_start` / `prev_word_start` / `word_end` /
-  `word_span` 零调用点（这正是"互不引用职责块"判据的一部分）；
-  留 import 反成死代码。**`MAX_UNDO_STEPS`（40–43）属 undo 职责，留在
-  buffer.py**。
+  头部新增
+  `from yate.editor_core.words import next_word_start, prev_word_start, word_end`
+  ——`buffer.py` 内实测有 4 个词函数调用点（`delete_back`→`prev_word_start`
+  （:578）、`delete_forward`→`word_end`（:598）、`move_left`→
+  `prev_word_start`（:609）、`move_right`→`next_word_start`（:625）），
+  非死代码；`word_span` 仅外部消费、缓冲主体不调用。
+  **`MAX_UNDO_STEPS`（40–43）属 undo 职责，留在 buffer.py**。
 - import 更新（干净做法，不留 re-export）：`editor_core/textobjects.py`、
   `yate/keymaps/vim.py`、`yate/flows/mouse_flows.py`、
   `tests/test_editor_core.py` 改从 `yate.editor_core.words` 导入。
 
-判定依据：词运动块与缓冲主体互不引用（不触碰 `_Snapshot`/`_Edit`/
-`TextBuffer`），构成 A11 "互不引用职责块"，必须拆。
+判定依据：`word_span` 与缓冲主体零耦合（不触碰 `_Snapshot`/`_Edit`/
+`TextBuffer`），词函数为无状态纯函数、消费面在 textobjects/vim/
+mouse_flows（buffer 内仅 4 个运动/删除方法调用），构成 A11 职责块，必须拆。
 
 ## 目标 2：`editor_term/emulator.py`（861）→ `palette.py` + `keys.py`
 

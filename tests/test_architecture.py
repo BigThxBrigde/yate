@@ -208,17 +208,19 @@ MAX_SOURCE_LINES: int = 800
 #: Files exempt from the size threshold (A11), keyed by ``yate/``-relative
 #: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
 #: (big-module-split plan section 2); the rest are temporary registrations
-#: ahead of their split wave (e: buffer + emulator, f: manager + yaterc).
+#: ahead of their split wave (f: manager + yaterc).
 #: Wave b is done: ``editor_view/diffview.py`` was split into
 #: ``diff_pane.py`` and dropped.  Wave c is done: ``editor_view/editor.py``
 #: was split into ``highlighting.py`` + ``welcome.py`` and dropped.  Wave d
 #: is done: ``editor_view/theme.py`` was split into ``themes.py`` +
-#: ``cells.py`` + ``theme_files.py`` and dropped.
+#: ``cells.py`` + ``theme_files.py`` and dropped.  Wave e is done:
+#: ``editor_term/emulator.py`` was split into ``palette.py`` + ``keys.py``
+#: and dropped; ``editor_core/buffer.py`` keeps its exemption at its
+#: post-split line count (word motions moved to ``words.py``).
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
     "editor_core/buffer.py",
-    "editor_term/emulator.py",
     "editor_lsp/manager.py",
     "yaterc.py",
 })

@@ -176,8 +176,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      big-module-split 各波拆分完成后同步收缩）：
      `keymaps/vim.py`（1117 行，motion/operator/text-object 单一键映射域，维持豁免）、
      `editor.py`（933 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，维持豁免）、
-     `editor_core/buffer.py`（888 行，文档缓冲单一职责，e 波拆词运动前临时登记）、
-     `editor_term/emulator.py`（861 行，VT 状态机单一职责，e 波拆分前临时登记）、
+     `editor_core/buffer.py`（820 行，文档缓冲单一职责，e 波拆词运动后仍超阈值维持豁免）、
      `editor_lsp/manager.py`（833 行，LSP 客户端单职责，f 波拆解析前临时登记）、
      `yaterc.py`（803 行，f 波拆 yaterc_options 前临时登记）。
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
@@ -190,6 +189,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      Textual 桥迁入 `themes.py`、字符几何迁入 `cells.py`、自定义主题文件
      加载迁入 `theme_files.py`，原文件保留广播枢纽并作门面再导出，
      拆分后四文件均低于阈值）；
+     `editor_term/emulator.py`（2026-10-08 big-module-split e 波：调色板与
+     按键映射迁入 `palette.py` / `keys.py`，拆分后三文件均低于阈值）；
      `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
      不再需要豁免。`yaterc.py` 拆分登记前 803 行已越线（2026-10-08 a 波登记）。
    - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
