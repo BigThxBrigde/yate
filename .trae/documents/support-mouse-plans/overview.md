@@ -376,3 +376,24 @@ pyright 0 诊断；pytest 2047 collected 全点 + 1 skip；架构测试 26 passe
 门禁复跑：pyright 0 诊断；pytest 全绿（test_shell 超时击杀用例首跑
 遇调度时序 flaky，单文件与全量复跑均绿，与本次改动无关）；架构测试
 26 passed。
+
+### Gitee PR#66 评审登记（2026-10-08，第七轮 · review bot 第三轮，note 51476655）
+
+评审结论：**无阻断项**，风险 low，2 改进建议。按用户指令本轮仅登记、
+暂不处置（两项均为待优化级别，不阻塞合并）：
+
+1. **改进项 1（待处置）：`:set support_mouse off` 拖拽进行中遗留
+   widget 层捕获状态**（`yate/app.py` 闸门）：闸门丢弃后续所有
+   `MouseEvent` 后，`EditorView.on_mouse_up` 与 `PaneHost.on_mouse_up`
+   不会执行，`capture_mouse()` 捕获与 `PaneHost._drag` 分隔条拖拽状态
+   可能被锁住。注：`MouseFlows._dragging` 的对称清理已存在（第四轮前
+   落地的闸门关闭即清态，见 `mouse_flows.handle_view_mouse`），此条指
+   的是 flow 之下的 widget 层捕获。评审建议在 `_apply_support_mouse`
+   或闸门处显式释放视图捕获并重置 `PaneHost._drag`，补一条"拖拽中切
+   换开关"回归测试。处置前需核实：Textual 8.2.8 捕获 widget 收到屏级
+   事件丢弃后的实际状态（capture 是否随拖拽中断自愈）。
+2. **改进项 2（待处置）：`_separator_hit` 返回的 `box` 在
+   `on_mouse_down` 中被丢弃，`on_mouse_move` 二次线性查找**
+   （`yate/editor_view/panes.py`）：评审建议将 `box` 存入 `_drag` 状态
+   元组复用（如 `_SepDrag(NamedTuple)`），减少重复查找并贴合 plan-b
+   "保持一处返回"的设计意图。属可维护性优化，无行为影响。
