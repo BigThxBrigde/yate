@@ -345,3 +345,34 @@ pyright 0 诊断；pytest 2047 collected 全点 + 1 skip；架构测试 26 passe
    用例的自描述。
 
 复跑门禁：pytest 全绿（本文件 14 用例）、pyright 0 诊断。
+
+### Gitee PR#66 评审处置（2026-10-08，第六轮 · review bot 第二轮，note 51475815）
+
+1 阻断项 + 3 改进项：
+
+1. **已修（_on_up 按键门，阻断项成立）**：`MouseFlows._on_up` 补
+   `event.button != LEFT_BUTTON` 早退，与 `_on_move` / 第三轮
+   `PaneHost.on_mouse_up` 修复对齐——左键拖拽选区期间松开其它键
+   （chording）不得清掉 `_dragging` 提前终止拖拽。同提交覆盖评审未
+   点名的同型遗漏：`EditorView.on_mouse_up` 的 `release_mouse()` 原为
+   无条件调用，非左键 MouseUp 会提前丢失 capture（第三轮登记的同一
+   失败机理"后续左键 MouseMove 丢失捕获"），现按左键门放行。回归测试
+   `test_right_button_up_during_drag_keeps_drag_alive`：左键按下进入
+   拖拽 → 右键 MouseUp → 左键 MouseMove 继续扩选 → 左键 MouseUp 收尾，
+   断言选区完整（旧实现此测试失败）。
+2. **改进项 1 采纳（word_span EOL 边界测试）**：`tests/test_editor_core.py`
+   增 `test_word_span_at_eol_boundary`（`word_span("hello", 5) == (5, 5)`），
+   显式钉死 col == len(line) 精确边界（守卫 `0 <= col < len(line)` 的
+   半开区间语义）。
+3. **改进项 2 不改（_get_mouse_message_arguments 私有 API）**：既有收口
+   注释已登记"verified on 8.2.8; revisit on upgrades"，与
+   `keyproto/textual_internals.py` 同一 containment 纪律；try/except
+   回退需手工复制 kwargs 构造——升级破坏时同样报错（TypeError），无净
+   安全收益还掩盖契约漂移；pyproject 已固定 textual 版本，升级 PR 必然
+   触及该测试文件。
+4. **改进项 3 不改（_on_move 全量刷新）**：与第四轮同题，§五风险表已
+   登记"与键盘移动同阶"结论与降级备选，无实测卡顿数据不触发。
+
+门禁复跑：pyright 0 诊断；pytest 全绿（test_shell 超时击杀用例首跑
+遇调度时序 flaky，单文件与全量复跑均绿，与本次改动无关）；架构测试
+26 passed。
