@@ -269,3 +269,20 @@ flaky**（reconcile 与渲染回调竞争窗口，master 同样可复现，本�
 门禁复跑：pytest 全绿（2042 passed / 1 skip）、pyright 0 诊断、
 架构测试 26 passed。教训登记：评审建议中关于第三方 API 形态的假设
 （此处 `classes` 类型）必须先实证再改码。
+
+### TRAE-code-review 处置（2026-10-08，第三轮框架评审）
+
+双验证代理交叉验证（3 候选证伪 1、保留 2 minor，含 mermaid 概览图），
+按用户指令「Fix All Issues」全部修复：
+
+1. **已修（拖拽标志滞留）**：`MouseFlows.handle_view_mouse` 的
+   `support_mouse` 闸门早退分支补 `self._dragging = False`——拖拽进行中
+   `:set support_mouse off` 后闸门关闭，MouseUp 不再进入 `_on_up`，
+   原实现会把 `_dragging` 永久置 True；重开开关后首条 MouseMove 会凭空
+   延续选区。现在闸门关闭即清态。
+2. **已修（MouseUp 按键门）**：`PaneHost.on_mouse_up` 补
+   `event.button != LEFT_BUTTON` 早退，与 `on_mouse_move` 的按键门对齐——
+   左键拖拽分隔条时松开其它键（chording）不得提前终止拖拽（提前
+   `release_mouse()` 会让后续左键 MouseMove 丢失捕获）。
+
+门禁复跑：pytest 全绿、pyright 0 诊断、架构测试 26 passed。
