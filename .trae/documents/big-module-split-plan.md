@@ -108,3 +108,27 @@
 回填纪律：状态只允许 `待执行 → 执行中 → 已完成`；"已完成"必须附验收命令
 实际退出码与提交 hash；偏离计划须在"偏离记录"列写明实测依据。本表与
 [overview.md §三](big-module-split-plans/overview.md) 逐行对应，两处同步回填。
+
+## 六、审核记录与遗留待办
+
+审核执行了两轮，均按 `../agents/code-review-expert.md` 剧本 + `../skills/python-code-review/SKILL.md`
+框架（6 维度 + `[CRITICAL]`/`[WARNING]`/`[SUGGESTION]` 三级等级）：
+
+- **第一轮**（波次 a–f 全部提交后）：无 blocker/major；2 个 minor（规则 R4 正文与
+  §六 R12 枚举漏列 `yaterc_options.py`、追踪表未回填）随提交 `73ba503` 修正。
+- **第二轮**（按剧本全量复评，含 skill 6 维度扫描新增文件 + 迁移保真逐行比对 +
+  branch 覆盖率明细 + 冒烟）：`Overall: LOOKS GOOD`，无 CRITICAL/WARNING；
+  新增模块覆盖率全部 ≥82%（words/palette/keys/diff_pane/theme/yaterc 100%，
+  最低 `editor_view/cells.py` 82%），无覆盖率倒退。结论：可合并。
+  主代理独立复核：全量 pytest 退出码 0、冒烟 107/107 场景 / 1286 checks 全过。
+
+遗留待办（均 `[SUGGESTION]` 级，不阻塞合并，建议合并后另开小任务）：
+
+1. `tests/test_screensaver.py:180` 存量时序敏感用例（`test_parade_keeps_names_distinct_and_sprites_never_overlap`）
+   在覆盖率插桩负载下偶发失败（断言下限 31.3 实得 27），与本分支无关
+   （diff 未触碰 editor_sprites/screensaver）。建议固定随机种子或放宽下限断言去偶发化。
+   同类存量 flaky：`tests/test_app_manual.py` 单点偶发（第一轮实测记录）。
+2. `yate/editor_view/highlighting.py` 的 mixin 声明桩签名是手工镜像 Textual 成员
+   （doc/is_mounted/refresh/set_timer/run_worker），Textual 升级改签名时桩漂移不会自动报警
+   （组合处基类冲突反而会报）。建议在 `keyproto/textual_internals.py` 同款
+   "升级 Textual 先查该文件"清单中补记 `highlighting.py`（R12/A2 先例表述）。
