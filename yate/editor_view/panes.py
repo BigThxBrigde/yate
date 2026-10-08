@@ -658,7 +658,9 @@ class PaneHost(Widget):
 
     def on_mouse_up(self, event: MouseUp) -> None:
         """End the separator drag."""
-        if self._drag is None:
+        # Same button gate as on_mouse_move: releasing a different button
+        # must not terminate an in-flight left-button separator drag.
+        if self._drag is None or event.button != LEFT_BUTTON:
             return
         self._drag = None
         self.release_mouse()

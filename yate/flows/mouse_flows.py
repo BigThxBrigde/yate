@@ -39,6 +39,9 @@ class MouseFlows:
     def handle_view_mouse(self, view: EditorView, event: MouseEvent) -> bool:
         """Dispatch one mouse event over *view*; ``True`` when consumed."""
         if not self.config.support_mouse:
+            # A mid-drag ``:set support_mouse off`` must not leave the drag
+            # flag stuck: with the gate closed no MouseUp path can clear it.
+            self._dragging = False
             return False
         if isinstance(event, MouseDown):
             return self._on_down(view, event)
