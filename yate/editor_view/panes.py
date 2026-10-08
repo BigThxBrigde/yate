@@ -36,7 +36,7 @@ from textual.events import MouseDown, MouseMove, MouseUp
 from textual.widget import Widget
 
 from yate.editor_core.document import Document
-from yate.editor_view.editor import EditorView
+from yate.editor_view.editor import LEFT_BUTTON, EditorView
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.session import (
@@ -621,7 +621,7 @@ class PaneHost(Widget):
 
     def on_mouse_down(self, event: MouseDown) -> None:
         """Start a separator drag when the press lands on a divider border."""
-        if event.button != 1:
+        if event.button != LEFT_BUTTON:
             return
         hit = self._separator_hit(event.screen_x, event.screen_y)
         if hit is None:
@@ -637,7 +637,7 @@ class PaneHost(Widget):
 
     def on_mouse_move(self, event: MouseMove) -> None:
         """Convert pointer travel to a fraction transfer (live resize)."""
-        if self._drag is None or event.button != 1:
+        if self._drag is None or event.button != LEFT_BUTTON:
             return
         split, index, axis, last = self._drag
         pos = event.screen_x if axis == "vertical" else event.screen_y

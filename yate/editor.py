@@ -210,11 +210,9 @@ def _build_pane_stack(ed: Editor) -> None:
     )
     ed.pane_host = PaneHost(ed.panes, ed.make_view)
     ed.mouse_flows = MouseFlows(
-        session=ed.session,
         keymaps=ed.keymaps,
         config=ed.config,
         refresh=ed.refresh_ui,
-        message=ed.message,
     )
     ed.prompt_flows = PromptFlows(
         ed.session,

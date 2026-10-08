@@ -43,6 +43,10 @@ from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 log = tracing.get_logger(__name__)
 
+#: Textual mouse button index for the primary (left) button, shared by the
+#: mouse-aware views in this package and the L3 mouse dispatch.
+LEFT_BUTTON: int = 1
+
 # per-cell overlay ids (stacked on top of syntax foreground colors)
 S_NORMAL: int = 0
 S_MATCH: int = 1
@@ -332,6 +336,8 @@ class EditorView(ScrollView):
     def _is_pane_border(self, event: MouseEvent) -> bool:
         """True when the press lands on this view's pane-separator border
         (plan-b contract: the border cell belongs to PaneHost's drag)."""
+        # Widget.classes is a frozenset: membership is exact-token, no
+        # substring collisions (verified on Textual 8.2.8).
         return (
             ("pane-sep-v" in self.classes and event.x >= self.size.width - 1)
             or ("pane-sep-h" in self.classes and event.y >= self.size.height - 1)
@@ -346,9 +352,13 @@ class EditorView(ScrollView):
     def on_mouse_down(self, event: MouseDown) -> None:
         if self._is_pane_border(event):
             return  # bubbles to PaneHost: separator drag owns this cell
-        if event.button == 1:
+        if event.button == LEFT_BUTTON:
             self.focus()  # on_focus -> notify_focus activates the pane
-            self.capture_mouse()  # drags continue outside the widget bounds
+            if self.handle_mouse is not None and self.handle_mouse(event):
+                self.capture_mouse()  # drags continue outside the bounds
+                event.stop()
+                event.prevent_default()
+            return
         self._forward_mouse(event)
 
     def on_mouse_move(self, event: MouseMove) -> None:

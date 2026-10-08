@@ -16,11 +16,9 @@ from textual.events import Click, MouseDown, MouseMove, MouseUp, MouseEvent
 
 from yate.config import YateConfig
 from yate.editor_core.buffer import word_span
-from yate.editor_view.editor import EditorView
-from yate.flows import MessageFn
+from yate.editor_view.editor import LEFT_BUTTON, EditorView
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap
-from yate.session import EditorSession
 
 
 class MouseFlows:
@@ -29,17 +27,13 @@ class MouseFlows:
 
     def __init__(
         self,
-        session: EditorSession,
         keymaps: KeymapSet,
         config: YateConfig,
         refresh: Callable[[], None],
-        message: MessageFn,
     ) -> None:
-        self.session = session
         self.keymaps = keymaps
         self.config = config
         self._refresh = refresh
-        self._message = message
         self._dragging: bool = False
 
     def handle_view_mouse(self, view: EditorView, event: MouseEvent) -> bool:
@@ -57,7 +51,7 @@ class MouseFlows:
         return False
 
     def _on_down(self, view: EditorView, event: MouseDown) -> bool:
-        if event.button != 1:
+        if event.button != LEFT_BUTTON:
             return False
         keymap = self.keymaps.active
         if isinstance(keymap, VimKeymap):
@@ -72,7 +66,7 @@ class MouseFlows:
         return True
 
     def _on_move(self, view: EditorView, event: MouseMove) -> bool:
-        if not self._dragging or event.button != 1:
+        if not self._dragging or event.button != LEFT_BUTTON:
             return False
         pos = view.buffer_pos_from_mouse(event)
         if pos is not None:  # outside the text area: keep the drag alive

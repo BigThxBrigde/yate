@@ -36,6 +36,7 @@ from yate.editor_term import (
     resolve_shell,
     shell_label,
 )
+from yate.editor_view.editor import LEFT_BUTTON
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.services.workspace import Workspace
@@ -225,7 +226,7 @@ class TerminalView(Widget):
         The panel accepts the click (R10 analogue: the event is stopped) but
         does not write to the shell -- a stray click must never send input.
         """
-        if event.button == 1:
+        if event.button == LEFT_BUTTON:
             self.focus()
             event.stop()
             event.prevent_default()
