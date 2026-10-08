@@ -176,9 +176,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      big-module-split 各波拆分完成后同步收缩）：
      `keymaps/vim.py`（1117 行，motion/operator/text-object 单一键映射域，维持豁免）、
      `editor.py`（933 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，维持豁免）、
-     `editor_core/buffer.py`（820 行，文档缓冲单一职责，e 波拆词运动后仍超阈值维持豁免）、
-     `editor_lsp/manager.py`（833 行，LSP 客户端单职责，f 波拆解析前临时登记）、
-     `yaterc.py`（803 行，f 波拆 yaterc_options 前临时登记）。
+     `editor_core/buffer.py`（820 行，文档缓冲单一职责，e 波拆词运动后仍超阈值维持豁免）。
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
      a 波：语言定义迁入 `regex_langdefs.py`，拆分后两文件均低于阈值）；
      `editor_view/diffview.py`（2026-10-08 big-module-split b 波：Pane 侧
@@ -191,8 +189,12 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      拆分后四文件均低于阈值）；
      `editor_term/emulator.py`（2026-10-08 big-module-split e 波：调色板与
      按键映射迁入 `palette.py` / `keys.py`，拆分后三文件均低于阈值）；
+     `editor_lsp/manager.py`（2026-10-08 big-module-split f 波：线格式解析
+     迁入 `parsing.py`，状态编排留在原文件，两文件均低于阈值）；
+     `yaterc.py`（2026-10-08 big-module-split f 波：选项提取/校验迁入
+     `yaterc_options.py`，rc 发现与 exec 循环留在原文件，两文件均低于阈值）；
      `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
-     不再需要豁免。`yaterc.py` 拆分登记前 803 行已越线（2026-10-08 a 波登记）。
+     不再需要豁免。
    - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
      模块 docstring 已论证共存理由。
 8. **新增 L3 流程模块接入清单（评审 A18）**：保持构造显式注入，**不建共享 context 类型**
@@ -261,8 +263,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
   不够：残留目录会被当作空命名空间包导入，掩盖删除）；
 - **R4** `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、
-  `registries.py`、`config.py`、`yaterc.py` 不 import `editor_view`（严格 0 违规；`config.py` 为 N30 新增
-  守卫面，`yaterc.py` 为 2026-10-07 A9 拆分加入，`keyproto/*`、`editor_sprites/*` 于
+  `registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py` 不 import `editor_view`
+  （严格 0 违规；`config.py` 为 N30 新增守卫面，`yaterc.py` 为 2026-10-07 A9 拆分加入，
+  `yaterc_options.py` 于 2026-10-08 big-module-split f 波加入，`keyproto/*`、`editor_sprites/*` 于
   2026-09-28 核对补入，守卫面见 `tests/test_architecture.py` 的
   `UI_FREE_PACKAGES` / `UI_FREE_FILES`；负向验证过拦截有效）；
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与

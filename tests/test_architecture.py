@@ -13,7 +13,8 @@ These tests enforce the boundaries documented in
   (they receive concrete collaborators or callbacks); the ``app_features``
   package deleted in Plan D stays deleted.
 * **R4** the UI-free layers (``keymaps/*``, ``services/*``, ``session.py``,
-  ``registries.py``) never import ``editor_view``.  ``editor_core`` joined
+  ``registries.py``, ``config.py``, ``yaterc.py``, ``yaterc_options.py``)
+  never import ``editor_view``.  ``editor_core`` joined
   with the diff tool (wave-3): the L0 engine package (buffer / document /
   diff / ...) is scanned by the same UI-free guards.
 * **R5** ``editor.py`` never imports the built-in tables ``actions.py`` /
@@ -120,7 +121,13 @@ UI_FREE_PACKAGES: tuple[str, ...] = (
     "editor_sprites",
     "editor_core",
 )
-UI_FREE_FILES: tuple[str, ...] = ("session.py", "registries.py", "config.py", "yaterc.py")
+UI_FREE_FILES: tuple[str, ...] = (
+    "session.py",
+    "registries.py",
+    "config.py",
+    "yaterc.py",
+    "yaterc_options.py",
+)
 
 #: L3 collaborator modules that do drive a few widget types by design: they
 #: still may not depend upward, and their ``editor_view`` coupling is frozen
@@ -207,22 +214,19 @@ MAX_SOURCE_LINES: int = 800
 
 #: Files exempt from the size threshold (A11), keyed by ``yate/``-relative
 #: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
-#: (big-module-split plan section 2); the rest are temporary registrations
-#: ahead of their split wave (f: manager + yaterc).
-#: Wave b is done: ``editor_view/diffview.py`` was split into
-#: ``diff_pane.py`` and dropped.  Wave c is done: ``editor_view/editor.py``
-#: was split into ``highlighting.py`` + ``welcome.py`` and dropped.  Wave d
-#: is done: ``editor_view/theme.py`` was split into ``themes.py`` +
-#: ``cells.py`` + ``theme_files.py`` and dropped.  Wave e is done:
-#: ``editor_term/emulator.py`` was split into ``palette.py`` + ``keys.py``
-#: and dropped; ``editor_core/buffer.py`` keeps its exemption at its
-#: post-split line count (word motions moved to ``words.py``).
+#: (big-module-split plan section 2).
+#: Waves b-f are done: ``editor_view/diffview.py`` was split into
+#: ``diff_pane.py``, ``editor_view/editor.py`` into ``highlighting.py`` +
+#: ``welcome.py``, ``editor_view/theme.py`` into ``themes.py`` + ``cells.py``
+#: + ``theme_files.py``, ``editor_term/emulator.py`` into ``palette.py`` +
+#: ``keys.py``, ``editor_lsp/manager.py`` into ``parsing.py`` and
+#: ``yaterc.py`` into ``yaterc_options.py`` -- all dropped from this list.
+#: ``editor_core/buffer.py`` keeps its exemption at its post-split line
+#: count (word motions moved to ``words.py``).
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
     "editor_core/buffer.py",
-    "editor_lsp/manager.py",
-    "yaterc.py",
 })
 
 
