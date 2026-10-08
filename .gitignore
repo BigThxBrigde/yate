@@ -143,6 +143,9 @@ cython_debug/
 !.codebuddy/rules/
 .codebuddy/rules/*
 !.codebuddy/rules/yate-rules.md
+!.codebuddy/memory/
+.codebuddy/memory/*
+!.codebuddy/memory/MEMORY.md
 
 # OS files
 .DS_Store
