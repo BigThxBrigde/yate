@@ -132,3 +132,49 @@
    （doc/is_mounted/refresh/set_timer/run_worker），Textual 升级改签名时桩漂移不会自动报警
    （组合处基类冲突反而会报）。建议在 `keyproto/textual_internals.py` 同款
    "升级 Textual 先查该文件"清单中补记 `highlighting.py`（R12/A2 先例表述）。
+
+两项均已立项修复，方案与执行记录见 §七（2026-10-09）。
+
+## 七、遗留待办修复（2026-10-09）
+
+### 修复 1：两处 pilot 测试偶发去稳定化
+
+- **根因 1（screensaver）**：`ScreensaverScreen.on_mount` 的真实
+  `set_interval(1 / TICKS_PER_SECOND, advance_tick)` 在测试手驱 tick 期间仍被
+  事件循环调度（coverage 插桩拖慢循环时更频繁），`_tick_count` 领先测试局部
+  `tick`；当 interval 在测试读取 walkers 前 spawn 了新 walker（其 `spawn_tick`
+  大于测试局部 tick），测试以负 tick 调 `walk_x`
+  （`editor_sprites/render.py:58` 的 `% travel` 对负数回绕到右缘），位置失真
+  → `tests/test_screensaver.py:180` gap 断言误报（实测 27 < 31.33）。
+- **修复**：`ScreensaverScreen` 新增只读 `tick` 属性（与 `walkers` 同为
+  测试/遥测视图）；测试改以 `screen.tick`（retire 判定的同一时钟）采样位置——
+  active walker 的 elapsed 恒小于其 travel（retire 用同一计数器），
+  `walk_x` 永不回绕，间距不变量严格成立。断言本身不变（遵守
+  "先重跑确认、不许直接改断言"纪律，subagent-workflow §三.3）。
+- **根因 2（manual 搜索）**：`MarkdownDocScreen._SEARCH_DEBOUNCE_S = 0.12`，
+  测试用固定 `pilot.pause(0.15)` 只留 0.03 s 余量，coverage 插桩下 debounce
+  flush 未及完成 → 状态断言误报。
+- **修复**：改用本文件既有 `wait_until` 轮询助手（同文件
+  `test_f8_opens_manual_and_esc_closes` 等处理同类问题的既定模式）等待
+  `"no matches"` / `"type to search"` 状态翻转，替换两处固定 pause。
+
+### 修复 2：Textual 升级镜像面注记
+
+`yate/keyproto/textual_internals.py` docstring 补记
+`yate/editor_view/highlighting.py` 的 HighlightMixin 声明桩（手工镜像 5 个
+公共 widget 签名）为 Textual 升级时需同步核对的第二处镜像面
+（沿用 R12/A2 "升级先查"先例表述）。
+
+### 验收命令
+
+- `pytest tests/test_screensaver.py tests/test_app_manual.py -q` 连续 10 次全绿；
+- 全量门禁：pyright 零诊断 + `pytest tests/ -q --cov=yate --cov-fail-under=75`
+  + 架构测试 + 冒烟（主代理亲跑）。
+
+### 执行记录（2026-10-09 回填）
+
+| 项 | 状态 | 实测 |
+|---|---|---|
+| 稳定性重跑 | 已完成 | `pytest tests/test_screensaver.py tests/test_app_manual.py -q` 连续 **10/10 次全绿**（退出码 0） |
+| 全量门禁 | 已完成 | 主代理亲测：pyright `yate/ tests/ tools/` 零诊断（退出码 0）；架构测试 27 passed；`pytest tests/ -q --cov=yate --cov-fail-under=75` 退出码 0（覆盖率 91.43% ≥ 75）；冒烟 107/107 场景 / 1286 checks（退出码 0） |
+| 提交 | 已完成 | `fix(tests): drive pilot tests off the screensaver clock and poll search debounces` + `docs(keyproto): note highlighting mixin stubs in the upgrade checklist` + 本提交 |
