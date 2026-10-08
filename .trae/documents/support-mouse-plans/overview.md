@@ -323,3 +323,25 @@ flaky**（reconcile 与渲染回调竞争窗口，master 同样可复现，本�
 
 门禁复跑：pyright 0 诊断；pytest 全绿（2046 passed / 1 skip，2047
 collected）；架构测试 26 passed。
+
+### code-review-expert 复核（2026-10-08，第五轮 · 评审第四轮处置提交）
+
+结论 LOOKS GOOD（0 CRITICAL / 0 WARNING / 2 SUGGESTION）。门禁实测全绿：
+pyright 0 诊断；pytest 2047 collected 全点 + 1 skip；架构测试 26 passed；
+覆盖率 branch 模式 91.39%（≥75）；冒烟 107/107 场景 1286/1286 checks。
+重点核对（类级 patch 机理、未消费路径制造、注释与滚动状态确定性、
+登记数字一致性）全部经源码实证成立。两条 SUGGESTION 均采纳落地：
+
+1. **派发计数 spy 补强**：`test_unconsumed_press_bubbles_to_pane_host`
+   增 `MouseFlows.handle_view_mouse` spy（仅计 MouseDown；MouseUp 亦经
+   `_forward_mouse` 通路，须过滤）断言"恰好派发一次"——原
+   `len(calls)==1` 只能证伪"事件被吞"，钉不住 re-dispatch 变体（门关闭
+   下二次派发无副作用仍绿）；接线依据 `Editor._on_view_mouse` 经
+   `self.mouse_flows.handle_view_mouse(...)` 运行时属性查找（editor.py），
+   实例级 patch 生效。补反向用例
+   `test_consumed_press_does_not_reach_pane_host`：消费即 stop 半边，
+   PaneHost spy 计数为 0（`_forward_mouse` docstring 契约双向钉死）。
+2. **模块 docstring 补新测试面**：追加未消费冒泡契约与滚动坐标映射两类
+   用例的自描述。
+
+复跑门禁：pytest 全绿（本文件 14 用例）、pyright 0 诊断。
