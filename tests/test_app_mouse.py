@@ -12,10 +12,13 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from unittest.mock import patch
 
-from textual.events import MouseMove, MouseUp
+from textual.events import MouseDown, MouseMove, MouseUp
 from yate.app import YateApp
+from yate.config import YateConfig
 from yate.editor_view.editor import EditorView
+from yate.editor_view.panes import PaneHost
 from yate.keymaps.vim import VimKeymap, VimMode
 from conftest import wait_until
 
@@ -225,5 +228,99 @@ def test_separator_border_press_bubbles_to_pane_host(tmp_path: Path) -> None:
             await pilot.pause()
 
             assert app.editor.session.buffer.cursor == cursor_before
+
+    asyncio.run(scenario())
+
+
+def test_unconsumed_press_bubbles_to_pane_host(tmp_path: Path) -> None:
+    """An unconsumed left press must still reach PaneHost (R10 mouse
+    analogue, PR#66 review blocker disposition).
+
+    The bare ``return`` in ``EditorView.on_mouse_down`` relies on Textual
+    bubbling (``MouseDown`` is ``bubble=True``); it must not swallow the
+    event, and must not re-dispatch it to MouseFlows a second time.  The
+    unconsumed path is manufactured through the MouseFlows gate
+    (``support_mouse=False``): pilot.click forwards at screen level
+    (bypassing the shell gate in App.on_event), so the press arrives at
+    the view and the gate-closed dispatch returns False.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "mouse.txt"
+        target.write_text("hello world\nsecond line\n", encoding="utf-8")
+        app = YateApp(target=target, config=YateConfig(support_mouse=False))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            host = app.editor.panes.host
+            assert host is not None
+            # Textual dispatches handlers via cls.__dict__ (MRO walk), so
+            # the spy must patch the class, not the instance.
+            calls: list[MouseDown] = []
+            original = PaneHost.on_mouse_down
+
+            def spy(self: PaneHost, event: MouseDown) -> None:
+                calls.append(event)
+                original(self, event)
+
+            with patch.object(PaneHost, "on_mouse_down", spy):
+                await pilot.click(EditorView, offset=(_GUTTER + 5, 0))
+                await pilot.pause()
+            assert len(calls) == 1  # bubbled exactly once, no re-dispatch
+            assert app.editor.session.buffer.cursor == (0, 0)
+
+    asyncio.run(scenario())
+
+
+def test_mouse_click_maps_columns_after_horizontal_scroll(
+    tmp_path: Path,
+) -> None:
+    """Column mapping stays render-consistent under horizontal scroll:
+    cell = x - gutter + scroll_col (PR#66 review improvement 1)."""
+
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            # scroll_col=3: the text window starts at char cell 3, so
+            # x = gutter + 5 maps to cell 5 + 3 == 8 ('r' of "world")
+            view.scroll_col = 3
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(_GUTTER + 5, 0))
+            await pilot.pause()
+            assert app.editor.session.buffer.cursor == (0, 8)
+            # a scrolled gutter click still clamps to column 0
+            view.scroll_col = 3
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(2, 0))
+            await pilot.pause()
+            assert app.editor.session.buffer.cursor == (0, 0)
+
+    asyncio.run(scenario())
+
+
+def test_mouse_click_maps_rows_after_vertical_scroll(tmp_path: Path) -> None:
+    """Row mapping stays render-consistent under vertical scroll:
+    row = y + scroll_offset.y (PR#66 review improvement 1)."""
+
+    async def scenario() -> None:
+        target = tmp_path / "tall.txt"
+        target.write_text(
+            "".join(f"line{i:02d}\n" for i in range(60)), encoding="utf-8"
+        )
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            view.scroll_to(y=5, animate=False)
+            await pilot.pause()
+            # y=3 with scroll offset 5 lands on row 8 ("line08"); the
+            # 60-line gutter is max(3, len("60")) + 3 == 6 cells, so
+            # x = gutter + 2 maps to column 2
+            await pilot.click(EditorView, offset=(_GUTTER + 2, 3))
+            await pilot.pause()
+            assert app.editor.session.buffer.cursor == (8, 2)
 
     asyncio.run(scenario())

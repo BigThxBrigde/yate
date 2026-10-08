@@ -358,6 +358,9 @@ class EditorView(ScrollView):
                 self.capture_mouse()  # drags continue outside the bounds
                 event.stop()
                 event.prevent_default()
+            # unconsumed: a bare return lets the MouseDown bubble to PaneHost
+            # (MouseDown bubble=True, Textual 8.2.8) -- _forward_mouse here
+            # would re-dispatch the same event to MouseFlows a second time
             return
         self._forward_mouse(event)
 
