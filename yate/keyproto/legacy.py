@@ -40,6 +40,7 @@ _MOD_ARROWS: dict[tuple[str, ...], dict[str, str]] = {
     ("shift",): {"up": "\x1b[1;2A", "down": "\x1b[1;2B", "right": "\x1b[1;2C", "left": "\x1b[1;2D"},
     ("ctrl", "shift"): {"right": "\x1b[1;6C", "left": "\x1b[1;6D"},
     ("alt",): {"up": "\x1b[1;3A", "down": "\x1b[1;3B", "right": "\x1b[1;3C", "left": "\x1b[1;3D"},
+    ("alt", "shift"): {"up": "\x1b[1;4A", "down": "\x1b[1;4B", "right": "\x1b[1;4C", "left": "\x1b[1;4D"},
 }
 
 _MOD_SPECIAL: dict[tuple[str, ...], dict[str, str]] = {

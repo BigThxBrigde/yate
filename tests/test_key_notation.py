@@ -21,6 +21,7 @@ from yate.keymaps.base import (
     key_name,
     parse_key,
 )
+from yate.keyproto.legacy import event_to_raw, modified_key_sequence
 
 from conftest import make_action_context, make_key_ui
 
@@ -434,3 +435,61 @@ def test_binding_action_accepts_both_names_and_callables() -> None:
 
     assert KeyBinding("\x13", actions[0]).action == "save"
     assert callable(KeyBinding("\x13", actions[1]).action)
+
+
+# --- alt+shift arrows --------------------------------------------------------
+
+
+def test_parse_key_alt_shift_arrow_yields_csi_modifier_four() -> None:
+    """alt+shift combos encode as one CSI sequence (modifier param 4)."""
+    assert parse_key("<alt-shift-up>") == "\x1b[1;4A"
+    assert parse_key("<alt-shift-down>") == "\x1b[1;4B"
+    assert parse_key("<alt-shift-right>") == "\x1b[1;4C"
+    assert parse_key("<alt-shift-left>") == "\x1b[1;4D"
+
+
+def test_parse_key_alt_shift_unknown_name_raises() -> None:
+    """An alt-shift combo outside the alias table is rejected explicitly."""
+    with pytest.raises(ValueError, match="unsupported alt-shift"):
+        parse_key("<alt-shift-home>")
+
+
+def test_key_name_alt_shift_arrow_roundtrip() -> None:
+    """The alias table renders alt-shift sequences back for the help overlay."""
+    assert key_name("\x1b[1;4A") == "<alt-shift-up>"
+    assert key_name("\x1b[1;4B") == "<alt-shift-down>"
+    assert key_name("\x1b[1;4C") == "<alt-shift-right>"
+    assert key_name("\x1b[1;4D") == "<alt-shift-left>"
+
+
+def test_event_to_raw_alt_shift_arrow_maps_csi() -> None:
+    """Textual alt+shift+arrow names map through the shared _MOD_ARROWS table."""
+    assert event_to_raw("alt+shift+up") == "\x1b[1;4A"
+    assert event_to_raw("alt+shift+down") == "\x1b[1;4B"
+    assert event_to_raw("alt+shift+right") == "\x1b[1;4C"
+    assert event_to_raw("alt+shift+left") == "\x1b[1;4D"
+    assert event_to_raw("alt+shift+home") is None
+
+
+def test_modified_key_sequence_alt_shift_arrow_shared_table() -> None:
+    """The terminal panel's shared writer table covers alt+shift arrows."""
+    assert modified_key_sequence(frozenset({"alt", "shift"}), "up") == "\x1b[1;4A"
+
+
+# --- regression: untouched modifier paths ------------------------------------
+
+
+def test_parse_key_shift_up_sequence_unchanged() -> None:
+    """The shift-only path still yields the shift CSI sequence."""
+    assert parse_key("<shift-up>") == "\x1b[1;2A"
+
+
+def test_parse_key_alt_up_sequence_unchanged() -> None:
+    """The alt-only path still ESC-prefixes the base sequence."""
+    assert parse_key("<alt-up>") == "\x1b\x1b[A"
+
+
+def test_parse_key_ctrl_shift_left_sequence_unchanged() -> None:
+    """ctrl-shift-left has no spec of its own; the original error path holds."""
+    with pytest.raises(ValueError, match="ctrl requires a single character"):
+        parse_key("<ctrl-shift-left>")

@@ -80,6 +80,10 @@ KEY_ALIASES: dict[str, str] = {
     "\x1b[1;3B": "alt-down",
     "\x1b[1;3C": "alt-right",
     "\x1b[1;3D": "alt-left",
+    "\x1b[1;4A": "alt-shift-up",
+    "\x1b[1;4B": "alt-shift-down",
+    "\x1b[1;4C": "alt-shift-right",
+    "\x1b[1;4D": "alt-shift-left",
     "\x1b[Z": "shift-tab",
     "\x1f": "ctrl-/",
 }
@@ -109,6 +113,16 @@ def parse_key(spec: str) -> str:
         raise ValueError(f"unknown key name in spec: {spec!r}")
 
     if "shift" in modifiers:
+        if "alt" in modifiers and len(base) > 1:
+            # alt+shift combos on special keys encode as one CSI sequence
+            # (modifier param 4), not "ESC + shift-sequence" -- the naive
+            # alt-prefix would alias <alt-shift-up> onto a double-ESC'd
+            # shift-up.  Single-character keys (<alt-shift-p>) keep the
+            # legacy "ESC + uppercase" encoding bound in existing tables.
+            combined = _KEY_ALIASES_INV.get(f"alt-shift-{name}")
+            if combined is None:
+                raise ValueError(f"unsupported alt-shift key: {spec!r}")
+            return combined
         if name == "tab":
             # shift-tab is a real sequence (``\x1b[Z``), not "T" -- uppercasing
             # the single-character base would silently alias plain tab.
