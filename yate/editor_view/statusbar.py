@@ -47,6 +47,7 @@ def mode_chip(prompt: PromptBar, keymaps: KeymapSet) -> tuple[str, str]:
                 VimMode.INSERT: ("INSERT", t.mode_insert_bg),
                 VimMode.VISUAL: ("VISUAL", t.mode_visual_bg),
                 VimMode.VISUAL_LINE: ("V-LINE", t.mode_visual_bg),
+                VimMode.VISUAL_BLOCK: ("V-COLUMN", t.mode_visual_bg),
             }
             return mapping.get(vim.mode, ("NORMAL", t.mode_normal_bg))
     return "VSC", t.mode_normal_bg

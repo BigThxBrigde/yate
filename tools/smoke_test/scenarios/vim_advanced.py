@@ -1,12 +1,13 @@
 """Advanced vim key map scenarios (tags: ``edit``, ``select``).
 
-Two scenarios cover the parts of :mod:`yate.keymaps.vim` the basic
+Three scenarios cover the parts of :mod:`yate.keymaps.vim` the basic
 ``edit.py`` vim scenarios do not reach: the visual / visual-line selection
-operators (``v`` / ``V`` / ``y`` / ``d`` / ``>`` / ``<``) and the
-register + text-object side of NORMAL mode (``"ayy`` / ``"ap`` / ``daw``
-/ ``3dd`` / ``ciw``).
+operators (``v`` / ``V`` / ``y`` / ``d`` / ``>`` / ``<``), the register +
+text-object side of NORMAL mode (``"ayy`` / ``"ap`` / ``daw`` / ``3dd`` /
+``ciw``) and the blockwise (column) visual mode (``ctrl+v`` rectangle
+yank + paste, plan IKJSRW).
 
-Both enter and leave the key map the way a user does -- ``:vim`` to
+All enter and leave the key map the way a user does -- ``:vim`` to
 switch, ``:vsc`` to restore -- so the app is back on the vsc key map with
 a clean buffer state when the harness invariant sweep runs.
 """
@@ -238,7 +239,77 @@ async def _vim_registers_text_objects(tmp: Path) -> ScenarioResult:
     return ScenarioResult("vim_registers_text_objects", checks, rows)
 
 
+async def _vim_column_mode_ops(tmp: Path) -> ScenarioResult:
+    """Blockwise visual mode (``ctrl+v``): rectangle yank and paste.
+
+    Enters vim, draws a two-row single-column rectangle with ``l`` / ``j``,
+    yanks it (chip back to NORMAL, ``register_block`` set), moves down and
+    pastes it as a rectangle, then restores the vsc key map.
+    """
+    target = tmp / "column.txt"
+    target.write_text("alpha beta\ngamma delta\nepsilon zeta", encoding="utf-8")
+    app = new_app(target=target)
+    checks: list[Check] = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await run_command(pilot, "vim")
+        checks.append(Check("keymap", "vim", app.editor.keymaps.name))
+        checks.append(Check("mode_normal", "NORMAL", app.editor.mode_label()[0]))
+        buffer = app.editor.session.buffer
+
+        # ctrl+v enters blockwise visual anchored at the cursor, so the
+        # rectangle is zero-width and nothing is selected yet.
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        checks.append(Check("column_label", "V-COLUMN",
+                            app.editor.mode_label()[0]))
+        checks.append(Check("column_mode", VimMode.VISUAL_BLOCK,
+                            _vim_state(app, "mode")))
+        checks.append(Check("anchor_at_cursor", buffer.cursor, buffer.anchor))
+
+        # l j extend the rectangle to rows 0..1, column 0 (half-open right).
+        await pilot.press("l", "j")
+        await pilot.pause()
+        checks.append(Check("block_region", (0, 0, 1, 1),
+                            buffer.block_region()))
+        checks.append(Check("still_block", VimMode.VISUAL_BLOCK,
+                            _vim_state(app, "mode")))
+
+        # y yanks the rectangle ("a" / "g"), lands on its top-left corner
+        # and drops the selection -- the chip is back to NORMAL.
+        await pilot.press("y")
+        await pilot.pause()
+        checks.append(Check("after_yank_normal", "NORMAL",
+                            app.editor.mode_label()[0]))
+        checks.append(Check("block_register", "a\ng", buffer.register))
+        checks.append(Check("register_is_block", True, buffer.register_block))
+        checks.append(Check("yank_cleared", False, buffer.has_selection()))
+
+        # j p pastes the rectangle back.  The block yank lands via
+        # set_cursor, which drops the vertical goal column set by the
+        # earlier l, so j returns to column 0 (vim semantics).
+        await pilot.press("j")
+        await pilot.pause()
+        checks.append(Check("paste_cursor", (1, 0), buffer.cursor))
+        await pilot.press("p")
+        await pilot.pause()
+        checks.append(Check("pasted_rect",
+                            ["alpha beta", "agamma delta", "gepsilon zeta"],
+                            list(buffer.lines)))
+        checks.append(Check("paste_kept_block_flag", True,
+                            buffer.register_block))
+
+        await run_command(pilot, "vsc")
+        checks.append(Check("keymap_restored", "vsc", app.editor.keymaps.name))
+        checks.append(Check("label_restored", "VSC",
+                            app.editor.mode_label()[0]))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("vim_column_mode_ops", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("vim_visual_mode_ops", _vim_visual_mode_ops, ("edit", "select")),
-    Scenario("vim_registers_text_objects", _vim_registers_text_objects, ("edit",)),
+    Scenario("vim_registers_text_objects", _vim_registers_text_objects,
+             ("edit",)),
+    Scenario("vim_column_mode_ops", _vim_column_mode_ops, ("edit",)),
 ]
