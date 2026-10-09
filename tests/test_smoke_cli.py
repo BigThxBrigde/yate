@@ -20,15 +20,35 @@ actually executed, to prove the ``exit 0`` path end to end.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from tools.smoke_test.cli import _worse, _write_json, build_parser, main
 from tools.smoke_test.harness import Check, Coverage, ScenarioResult
+from yate.editor_view import theme
 
 #: A shipped scenario that builds no file palette and no screenshot, so the
 #: one real ``main(["run", ...])`` call in this module stays well under a second.
 _LIGHT_SCENARIO: str = "keymap_toggle"
+
+
+@pytest.fixture(autouse=True)
+def restore_theme() -> Iterator[None]:
+    """Undo the process-global theme change the scenario's ``YateApp`` makes.
+
+    Only the end-to-end ``main`` run touches this global: it goes through
+    ``run_scenarios`` -> ``keymap_toggle`` -> ``new_app()``, and a mounted
+    ``YateApp`` applies its configured palette via ``theme.set_theme``
+    (process-global, ``yate/app.py``).  The parser / ``_worse`` / ``_write_json``
+    cases and the two early-exit ``main`` paths (no scenario matches, absent
+    baseline dir) never mount an app and touch no other process global -- the
+    fuzz seed stays read-only (no ``--seed`` is passed, so ``set_seed`` never
+    runs) and the keymap is per-``Editor`` state.
+    """
+    before = theme.active().name
+    yield
+    theme.set_theme(before)
 
 
 # --- build_parser ------------------------------------------------------------
