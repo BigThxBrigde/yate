@@ -271,7 +271,7 @@ def test_resolve_blocked_build_warns_once_per_language(
         # First resolution of a language under a blocked build warns once ...
         assert languages.resolve("py") is None
         assert capture.messages == [
-            "tree-sitter python is a blocked build (falls back to regex)"
+            "tree-sitter 'python' is a blocked build (falls back to regex)"
         ]
 
         # ... a repeat is short-circuited by _FAILED and stays silent ...

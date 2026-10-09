@@ -364,7 +364,7 @@ def resolve(filetype: str) -> LoadedLanguage | None:
         # Installed tree-sitter is a known heap-corrupting release; never
         # load any grammar so the regex backend stays in charge.
         _warn_degraded_once(
-            name, "tree-sitter %s is a blocked build (falls back to regex)"
+            name, "tree-sitter %r is a blocked build (falls back to regex)"
         )
         _FAILED.add(name)
         return None
