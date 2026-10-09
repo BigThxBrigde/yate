@@ -504,7 +504,10 @@ def _emit_translate_failure(message: str) -> None:
     Both routes emit the same plain text: the collected one goes through a
     rich console, so it asks for no highlighting -- otherwise a failure
     printed after the run would carry ANSI styling on a terminal while the
-    same line during the run does not (review R-22).
+    same line during the run does not (review R-22).  Only the text is
+    identical: the rich route wraps at ``Console.width``, so a long failure
+    message (one embedding a child's stderr) can render with different
+    line breaks on the two routes (review 2026-10-06 #59 O-3, accepted).
     """
     if _emit_mode == "collect":
         _COLLECTED_FAILURES.put(message)
@@ -670,6 +673,11 @@ def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | Non
             f" after {TRANSLATE_TIMEOUT_S:g}s{detail}"
         )
     except BaseException:
+        # Interrupt path (review 2026-10-06 #59-r2 M1): the _terminate
+        # anti-kill note is deliberately dropped here -- a KeyboardInterrupt
+        # must propagate unchanged, and queueing the note would violate the
+        # R-05 "post-drain messages print directly" invariant.  The process
+        # is still reaped below; only the diagnostic note is lost.
         _terminate(proc)
         raise
     finally:

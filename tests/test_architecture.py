@@ -223,10 +223,16 @@ MAX_SOURCE_LINES: int = 800
 #: ``yaterc.py`` into ``yaterc_options.py`` -- all dropped from this list.
 #: ``editor_core/buffer.py`` keeps its exemption at its post-split line
 #: count (word motions moved to ``words.py``).
+#: 2026-10-09 closure sweep: the guard was extended to ``tools/`` --
+#: ``tools/pack/wiki.py`` is registered at 1487 lines (single-duty wiki
+#: site generator/translator whose review rounds #29/#31/#33 all converged
+#: in that one file; splitting it is a standalone structural task, not a
+#: review fix).
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
     "editor_core/buffer.py",
+    "tools/pack/wiki.py",
 })
 
 
@@ -556,19 +562,38 @@ def test_no_banned_identifier_names() -> None:
                 assert name in BANNED_SUFFIX_WHITELIST, (path, name)
 
 
+def _source_files() -> list[Path]:
+    """Product sources (``yate/`` + ``tools/``), excluding this file.
+
+    ``tests/`` are deliberately not size-guarded (readability over
+    uniformity, and the A11 threshold was always a product-source rule).
+    """
+    out: list[Path] = []
+    for base in (YATE, PROJECT / "tools"):
+        out.extend(
+            p for p in base.rglob("*.py")
+            if "__pycache__" not in p.parts and p != _SELF
+        )
+    return out
+
+
 def test_source_files_within_size_threshold() -> None:
-    """``yate/`` files stay within the A11 size threshold unless registered.
+    """``yate/`` + ``tools/`` sources stay within the A11 size threshold.
 
     A file beyond :data:`MAX_SOURCE_LINES` lines is a split candidate
     (rules section 3.7): multi-duty files must be split, single-duty long
     files may be registered in :data:`SIZE_EXEMPT_FILES` -- which mirrors
     the rule text, so a wave of big-module-split shrinks both in the same
     change.  The count is the with-blank-lines figure the plan documents
-    use (``Get-Content | Measure-Object -Line`` equivalent).
+    use (``Get-Content | Measure-Object -Line`` equivalent).  Keys are
+    relative to ``yate/`` for product files and to the repository root
+    for ``tools/`` files (2026-10-09 closure sweep: the guard used to
+    cover ``yate/`` only, leaving ``tools/pack/wiki.py`` unguarded).
     """
     offenders: list[tuple[str, int]] = []
-    for path in _yate_files():
-        key = path.relative_to(YATE).as_posix()
+    for path in _source_files():
+        base = YATE if YATE in path.parents else PROJECT
+        key = path.relative_to(base).as_posix()
         if key in SIZE_EXEMPT_FILES:
             continue
         lines = len(path.read_text(encoding="utf-8").splitlines())
@@ -807,15 +832,18 @@ def test_editor_does_not_paint_widget_styles() -> None:
 
 
 def _stringified_imprecise(annotation: ast.expr) -> bool:
-    """Whether *annotation* is a stringified ``App[Any]`` / ``App[object]``.
+    """Whether *annotation* is (or embeds) a stringified ``App[Any]``.
 
     Quoted forward references parse as plain ``Constant`` strings, so they
-    hide the subscript from the ``Subscript`` branch of the guard.
+    hide the subscript from the ``Subscript`` branch of the guard.  The
+    check is a substring match (2026-10-09 closure sweep, legacy-issues
+    2026-10-01 trade-off #2) so nested stringified forms such as
+    ``"list[App[Any]]"`` are caught too, not just the bare top-level ones.
     """
     return (
         isinstance(annotation, ast.Constant)
         and isinstance(annotation.value, str)
-        and annotation.value.strip() in ("App[Any]", "App[object]")
+        and ("App[Any]" in annotation.value or "App[object]" in annotation.value)
     )
 
 

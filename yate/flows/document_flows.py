@@ -368,10 +368,13 @@ class DocumentFlows:
         saved = False
         try:
             self.session.doc.save(path)
+            # ``saved`` flips right after the write (review 2026-10-02 #43.1):
+            # once the file is on disk the lift survives, even if the
+            # workspace/explorer bookkeeping below were to raise.
+            saved = True
             self.workspace.set_root(path.parent)
             self.explorer_tree.refresh_tree()
             self._message(f"saved {path}", "ok")
-            saved = True
         except (OSError, UnicodeError) as exc:
             self._message(f"save failed: {exc}", "error")
         finally:

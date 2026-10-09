@@ -23,6 +23,9 @@ from yate.services.shell import ShellResult, run_shell, shell_name
 
 _WINDOWS: bool = sys.platform.startswith("win")
 
+#: Win32 ``OpenProcess`` right: query basic information without full access.
+PROCESS_QUERY_LIMITED_INFORMATION: int = 0x1000
+
 
 def _which(mapping: dict[str, str | None]) -> Any:
     """A ``shutil.which`` replacement driven by *mapping*."""
@@ -71,10 +74,10 @@ def test_run_shell_times_out_with_a_message() -> None:
 def _pid_alive(pid: int) -> bool:
     """Best-effort liveness probe for one process by PID (both platforms)."""
     if sys.platform == "win32":
-        # PROCESS_QUERY_LIMITED_INFORMATION; the pyright-visible branch is
-        # win32-only and the POSIX half below is pruned away on Windows.
+        # The pyright-visible branch is win32-only and the POSIX half below
+        # is pruned away on Windows.
         kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(0x1000, False, pid)
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
         if not handle:
             return False
         kernel32.CloseHandle(handle)

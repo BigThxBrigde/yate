@@ -238,3 +238,24 @@ def test_paste_action_on_read_only_buffer_does_not_prime_register(
         registry.execute("paste", ctx)
     assert ctx.buffer.register == "OLD"
     assert recording_clip.pastes == []
+
+
+def test_cut_action_on_read_only_buffer_does_not_prime_register(
+    recording_clip: _RecordingClip,
+) -> None:
+    """A read-only buffer fails the cut with the register left intact.
+
+    The write order matters (review 2026-10-02 #45 round 3): the register
+    is only primed after the deletion succeeded, so a failed cut cannot
+    leave text in the register that was never removed from the buffer.
+    """
+    registry = _action_table()
+    ctx = make_action_context("KEEP")
+    ctx.buffer.select_all()
+    ctx.buffer.read_only = True
+    ctx.buffer.register = "OLD"
+
+    with pytest.raises(BufferReadOnlyError):
+        registry.execute("cut", ctx)
+    assert ctx.buffer.register == "OLD"
+    assert recording_clip.copies == []

@@ -99,9 +99,11 @@ def read_commits(
 
 
 #: One ``for-each-ref`` record: name and the peeled commit sha (annotated
-#: tags resolve through ``%(*objectname)``, lightweight through ``%(objectname)``).
+#: tags resolve through ``%(*objectname)``, lightweight through
+#: ``%(objectname)``).  Fields are joined with NUL (``%00``) so a ref name
+#: can never be confused with the sha field the way a space separator would.
 _TAG_REF_FORMAT: str = (
-    "%(refname:short) %(if)%(*objectname)%(then)%(*objectname)"
+    "%(refname:short)%00%(if)%(*objectname)%(then)%(*objectname)"
     "%(else)%(objectname)%(end)"
 )
 
@@ -123,9 +125,9 @@ def read_tags(repo: Path) -> list[TagRef]:
     )
     tags: list[TagRef] = []
     for line in out.splitlines():
-        name, _, sha = line.strip().partition(" ")
-        if name and sha:
-            tags.append(TagRef(name=name, sha=sha))
+        name, _, sha = line.partition("\0")
+        if name and sha.strip():
+            tags.append(TagRef(name=name, sha=sha.strip()))
     return tags
 
 

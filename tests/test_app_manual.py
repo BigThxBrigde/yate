@@ -288,11 +288,11 @@ def test_manual_search_filters_and_cycles_matches() -> None:
                 assert "shift+enter" in search_footer.lower()
                 assert "repeat last match" not in search_footer
                 # typing live-marks every block containing the query; the
-                # trailing pause spans the 0.12s debounce window, which the
-                # tiny fixture no longer covers as a side effect of slow
-                # big-document processing
+                # trailing pause spans the debounce window (plus scheduling
+                # slack), which the tiny fixture no longer covers as a side
+                # effect of slow big-document processing
                 await pilot.press("y", "a", "t", "e")
-                await pilot.pause(0.15)
+                await pilot.pause(MarkdownDocScreen._SEARCH_DEBOUNCE_S + 0.05)
                 private = cast(Any, screen)
                 assert len(private._hits) >= 2
                 assert private._hit_index == 0

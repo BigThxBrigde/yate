@@ -16,7 +16,6 @@ bound is asserted, so the tests do not jitter.
 
 from __future__ import annotations
 
-import io
 import re
 import sys
 import threading
@@ -414,7 +413,7 @@ class _HangingProc:
         self.returncode = 0
         self.killed = False
         self.wait_timeout: float | None = None
-        self.stdin = io.StringIO()
+        self.stdin = StringIO()
         self._polling = polling
 
     def communicate(self, timeout: float | None = None) -> tuple[str, str]:
@@ -635,7 +634,7 @@ class _FakeProc:
         self.returncode = returncode
         self.killed = False
         self._result = (stdout, stderr)
-        self.stdin = io.StringIO()
+        self.stdin = StringIO()
 
     def communicate(self, timeout: float | None = None) -> tuple[str, str]:
         """Return the captured output."""

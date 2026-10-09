@@ -109,13 +109,18 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         The internal register is kept in sync too, so a clipboard-unavailable
         fallback still behaves like before.  An empty text never reaches the
         system clipboard, so a doomed cut cannot wipe the user's copy.
+
+        The register is written only after the deletion succeeded
+        (review 2026-10-02 #45 round 3): a failed cut on a read-only buffer
+        must not prime the register with text that was never removed.
         """
         buf = ctx.buffer
         if buf.has_selection():
-            buf.register = buf.selected_text() or ""
+            text = buf.selected_text() or ""
             buf.delete_selection()
-            if buf.register:
-                clipboard.copy_text(buf.register)
+            buf.register = text
+            if text:
+                clipboard.copy_text(text)
         else:
             text = buf.delete_lines()
             if text:

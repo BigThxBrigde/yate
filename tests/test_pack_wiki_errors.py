@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import io
 import subprocess
 import sys
 import threading
@@ -288,7 +287,7 @@ class _FakeProc:
         self._result = (stdout, stderr)
         self._hang = hang
         self._survive_kill = survive_kill
-        self.stdin = io.StringIO()
+        self.stdin = StringIO()
 
     def communicate(self, timeout: float | None = None) -> tuple[str, str]:
         """Return the captured output, or keep hanging like a stuck child."""
@@ -787,6 +786,12 @@ def test_the_collect_policy_is_installed_inside_the_protected_region() -> None:
     protected region.  An exception raised outside it would strand the
     policy, and every later failure would be queued with nobody to read it --
     which no behavioural test can provoke once the structure is correct.
+
+    .. warning::
+        This guard pins the exact identifiers and literals of
+        ``wiki._translate_pending`` (``_translate_pending``, ``_emit_mode``,
+        ``"collect"``, ``.start``).  An equivalent refactor (renaming a
+        symbol or changing a literal) must update this guard in lockstep.
     """
     source = Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
@@ -836,6 +841,13 @@ def test_every_drained_failure_is_rendered_the_same_way() -> None:
     ``highlight=False`` while the one in ``finally`` had it.  The two sites
     live in different blocks of the same function, so nothing but a structural
     check keeps them equal -- and the difference is one invisible kwarg.
+
+    .. warning::
+        This guard pins the exact identifiers and literals of the drain
+        loops in ``wiki.py`` (``_drain_collected_failures``, ``.print``,
+        the ``markup`` / ``highlight`` keyword set).  An equivalent refactor
+        (renaming a symbol or changing a literal) must update this guard
+        in lockstep.
     """
     source = Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
