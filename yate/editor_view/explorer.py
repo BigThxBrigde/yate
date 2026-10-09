@@ -253,16 +253,47 @@ class ExplorerTree(Tree[NodeData]):
         theme.detach(self)
 
     def _apply_theme(self) -> None:
-        """Paint the scrollbar palette with the active theme colors.
+        """Paint the scrollbar palette and relabel the tree in place.
 
         Slim-scrollbar palette (issue IKINF3), shared with the editor view
         and the diff panes: the track is fully transparent (ScrollBar
         composites alpha<1 over the parent background), so only the thin
         partial-block thumb is visible; a faint tint appears on hover, the
         thumb brightens on drag.
+
+        Theme switching relabels the existing nodes in place
+        (:meth:`_retheme`, review 2026-09-27 #3) instead of the full
+        :meth:`refresh_tree` rebuild: labels embed theme colors, but the
+        rebuild also re-lists every directory, which is wasted work on a
+        pure color change.
+        """
+        self._retheme()
+
+    def _retheme(self) -> None:
+        """Repaint the scrollbar palette, background and node labels.
+
+        Labels embed theme colors (``_label``), so a theme switch must
+        re-render them; unlike :meth:`refresh_tree` this keeps the node
+        structure, the cursor and the lazy-loading placeholders untouched.
         """
         apply_scrollbar_theme(self)
-        self.refresh_tree()
+        t = theme.active()
+        self.styles.background = t.panel
+
+        def walk(node: TreeNode[NodeData]) -> None:
+            if isinstance(node.data, Path):
+                node.label = self._label(
+                    node.data, node.data.is_dir(), node.is_expanded
+                )
+            elif node is self.root:
+                node.label = Text(" no folder open", style=t.fg_dim)
+            else:
+                node.label = Text("", style=t.fg_dim)
+            for child in node.children:
+                walk(child)
+
+        walk(self.root)
+        self.refresh()
 
     # ------------------------------------------------------------- events
 
