@@ -74,6 +74,9 @@ class TextBuffer:
         self.lines: list[str] = text.split("\n") if text else [""]
         self.cursor: Pos = (0, 0)
         self.anchor: Pos | None = None
+        #: Block (column) selection flag: when True the anchor and cursor are the
+        #: two corners of a rectangular selection instead of a charwise span.
+        self.block = False
         self.tab_width = tab_width
         self.use_spaces = use_spaces
         # When True every public mutation raises ``BufferReadOnlyError``;
@@ -81,6 +84,9 @@ class TextBuffer:
         # buffer must keep working).
         self.read_only = read_only
         self.register: str = ""  # internal yank/clipboard register
+        #: True when :attr:`register` holds a newline-joined block (column) yank;
+        #: :meth:`paste` uses it to pick the block paste path.
+        self.register_block = False
         #: Explicit ``"a``-``"z`` registers (vim named registers).  Purely
         #: internal storage -- they never mirror the system clipboard.
         self.named_registers: dict[str, str] = {}
@@ -138,6 +144,8 @@ class TextBuffer:
         self.lines = text.split("\n") if text else [""]
         self.cursor = (0, 0)
         self.anchor = None
+        self.block = False
+        self.register_block = False
         self._undo.clear()
         self._redo.clear()
         self._goal_col = None
@@ -272,6 +280,7 @@ class TextBuffer:
     def clear_selection(self) -> None:
         """Drop the selection anchor, keeping the cursor where it is."""
         self.anchor = None
+        self.block = False
 
     def set_cursor(self, pos: Pos, select: bool = False) -> None:
         """Move the cursor to *pos*, clamped to the text, handling selection.
@@ -285,8 +294,10 @@ class TextBuffer:
         c = max(0, min(c, len(self.lines[r])))
         if select and self.anchor is None:
             self.anchor = self.cursor
+            self.block = False
         elif not select:
             self.anchor = None
+            self.block = False
         self.cursor = (r, c)
         self._goal_col = None
 
@@ -294,7 +305,142 @@ class TextBuffer:
         """Select the whole document from (0, 0) to the end of the last line."""
         self.anchor = (0, 0)
         self.cursor = (len(self.lines) - 1, len(self.lines[-1]))
+        self.block = False
         self._goal_col = None
+
+    # ------------------------------------------------------- block selection
+
+    def has_block_selection(self) -> bool:
+        """Return whether a rectangular (column) selection is active."""
+        return self.block and self.has_selection()
+
+    def block_region(self) -> tuple[int, int, int, int] | None:
+        """Return normalized block bounds ``(top, left, bottom, right)`` or ``None``.
+
+        Columns are half-open character offsets; the right bound may exceed a
+        short row's length -- callers clamp per row (rendering, deletion).
+        """
+        if not self.has_block_selection():
+            return None
+        assert self.anchor is not None
+        r1, r2 = sorted((self.anchor[0], self.cursor[0]))
+        c1, c2 = sorted((self.anchor[1], self.cursor[1]))
+        return (r1, c1, r2, c2)
+
+    def begin_block_selection(self) -> None:
+        """Anchor a rectangular selection at the current cursor position."""
+        self.anchor = self.cursor
+        self.block = True
+
+    def selected_block_text(self) -> str | None:
+        """Return the block selection as newline-joined per-row fragments.
+
+        Rows shorter than the left bound contribute an empty fragment; ``None``
+        when no block selection is active.
+        """
+        region = self.block_region()
+        if region is None:
+            return None
+        r1, c1, r2, c2 = region
+        return "\n".join(self.lines[r][c1:c2] for r in range(r1, r2 + 1))
+
+    def yank_block(self, *, named: str | None = None) -> str | None:
+        """Yank the block selection into a register (mirrors :meth:`delete_lines`).
+
+        The unnamed write records ``register_block = True`` so a later
+        :meth:`paste` re-lands the rectangle; named registers are pure internal
+        storage.  ``None`` when no block selection is active.
+        """
+        text = self.selected_block_text()
+        if text is None:
+            return None
+        if named is None:
+            self.register = text
+            self.register_block = True
+        else:
+            self.named_registers[named] = text
+        return text
+
+    def delete_block(self, *, named: str | None = None) -> str | None:
+        """Remove each covered row's block span; one ``"step"`` undo entry.
+
+        Rows shorter than the span keep their text untouched.  The cursor lands
+        at the clamped top-left corner and the selection is dropped.  The
+        removed text is stored like :meth:`delete_lines` (unnamed writes set
+        ``register_block = True``).
+        """
+        self._ensure_writable()
+        region = self.block_region()
+        if region is None:
+            return None
+        before = self._snapshot()
+        text = self.selected_block_text() or ""
+        r1, c1, r2, c2 = region
+        for r in range(r1, r2 + 1):
+            line = self.lines[r]
+            start = min(c1, len(line))
+            end = min(c2, len(line))
+            if start < end:
+                self.lines[r] = line[:start] + line[end:]
+        self.anchor = None
+        self.block = False
+        self.cursor = (r1, min(c1, len(self.lines[r1])))
+        if named is None:
+            self.register = text
+            self.register_block = True
+        else:
+            self.named_registers[named] = text
+        self._commit(before, "step")
+        return text
+
+    def insert_block(self, text: str) -> None:
+        """Insert *text*'s newline-joined fragments at the cursor column.
+
+        Fragment *i* lands on row ``cursor.row + i`` at the cursor column
+        (clamped to that row's length), so a yanked block re-lands as a
+        rectangle; missing rows are appended as empty lines.  One ``"step"``
+        undo entry; the cursor lands after the first row's inserted fragment.
+        """
+        self._ensure_writable()
+        fragments = text.split("\n")
+        before = self._snapshot()
+        r, c = self.cursor
+        while len(self.lines) < r + len(fragments):
+            self.lines.append("")
+        for i, fragment in enumerate(fragments):
+            row = self.lines[r + i]
+            col = min(c, len(row))
+            self.lines[r + i] = row[:col] + fragment + row[col:]
+        self.anchor = None
+        self.block = False
+        self.cursor = (r, c + len(fragments[0]))
+        self._commit(before, "step")
+
+    def replace_block(self, text: str) -> None:
+        """Replace each covered row's block span with the matching fragment.
+
+        Fragment *i* replaces row ``top + i``'s span; rows past the last
+        fragment only lose their span (VS Code column-paste semantics).  One
+        ``"step"`` undo entry; the cursor lands after the first fragment.
+        """
+        self._ensure_writable()
+        region = self.block_region()
+        if region is None:
+            return
+        before = self._snapshot()
+        r1, c1, r2, c2 = region
+        fragments = text.split("\n")
+        for i, r in enumerate(range(r1, r2 + 1)):
+            line = self.lines[r]
+            start = min(c1, len(line))
+            end = min(c2, len(line))
+            fragment = fragments[i] if i < len(fragments) else ""
+            self.lines[r] = line[:start] + fragment + line[end:]
+        self.anchor = None
+        self.block = False
+        first = fragments[0] if fragments else ""
+        self.cursor = (r1, min(c1 + len(first), len(self.lines[r1])))
+        self._commit(before, "step")
 
     # ------------------------------------------------------------ mutations
 
@@ -320,6 +466,7 @@ class TextBuffer:
             self._delete_range(*sel)
         self._apply_text(text)
         self.anchor = None
+        self.block = False
         self._commit(before, kind)
 
     def _apply_text(self, text: str) -> None:
@@ -351,6 +498,7 @@ class TextBuffer:
         self._delete_range(start, end)
         self._apply_text(text)
         self.anchor = None
+        self.block = False
         self._commit(before, "step")
 
     def type_char(self, ch: str, *, language: str = "plaintext") -> None:
@@ -384,6 +532,14 @@ class TextBuffer:
         self._ensure_writable()
         if len(ch) != 1 or not ch.isprintable():
             self.insert_text(ch)
+            return
+        if self.has_block_selection():
+            # Column typing replaces every covered row's span (VS Code semantics);
+            # bracket auto-completion is a charwise affordance and stays off.
+            region = self.block_region()
+            assert region is not None
+            top, _, bottom, _ = region
+            self.replace_block("\n".join([ch] * (bottom - top + 1)))
             return
         right = pair_for(ch)
         sel = self.selection()
@@ -472,6 +628,7 @@ class TextBuffer:
         text = self.selected_text()
         self._delete_range(*sel)
         self.anchor = None
+        self.block = False
         self._commit(before, "step")
         return text
 
@@ -678,6 +835,7 @@ class TextBuffer:
         text = "\n".join(self.lines[r1 : r2 + 1]) + "\n"
         if named is None:
             self.register = text
+            self.register_block = False
         else:
             self.named_registers[named] = text
         return text
@@ -694,6 +852,7 @@ class TextBuffer:
             text = self.lines[self.cursor[0]]
         if named is None:
             self.register = text
+            self.register_block = False
         else:
             self.named_registers[named] = text
         return text
@@ -714,6 +873,7 @@ class TextBuffer:
         text = "\n".join(self.lines[r1 : r2 + 1]) + "\n"
         if named is None:
             self.register = text
+            self.register_block = False
         else:
             self.named_registers[named] = text
         del self.lines[r1 : r2 + 1]
@@ -722,6 +882,7 @@ class TextBuffer:
         r = min(r1, len(self.lines) - 1)
         self.cursor = (r, 0)
         self.anchor = None
+        self.block = False
         self._commit(before, "step")
         return text
 
@@ -735,6 +896,7 @@ class TextBuffer:
         self.lines[r2 + 1 : r2 + 1] = block
         self.cursor = (r2 + len(block), min(self.col, len(self.lines[r2 + len(block)])))
         self.anchor = None
+        self.block = False
         self._commit(before, "step")
 
     def move_line(self, delta: int) -> None:
@@ -749,6 +911,7 @@ class TextBuffer:
         self.lines.insert(target, line)
         self.cursor = (target, min(self.col, len(line)))
         self.anchor = None
+        self.block = False
         self._commit(before, "step")
 
     def join_lines(self) -> None:
@@ -770,6 +933,7 @@ class TextBuffer:
         del self.lines[r + 1]
         self.cursor = (r, min(c, len(joined)))
         self.anchor = None
+        self.block = False
         self._commit(before, "step")
 
     def delete_to_line_start(self) -> None:
@@ -783,6 +947,7 @@ class TextBuffer:
         self.cursor = (r, c)
         self._delete_range((r, 0), (r, c))
         self.anchor = None
+        self.block = False
         self._commit(before, "step")
 
     def paste(self, below: bool = True, *, named: str | None = None) -> None:
@@ -796,6 +961,9 @@ class TextBuffer:
             self.named_registers.get(named, "") if named is not None else self.register
         )
         if not text:
+            return
+        if self.register_block:
+            self.insert_block(text)
             return
         if text.endswith("\n"):
             # line-wise paste

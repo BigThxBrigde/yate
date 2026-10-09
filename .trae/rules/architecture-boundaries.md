@@ -181,7 +181,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，pack wiki 站点生成/翻译/进度
      单一职责，#29/#31/#33 三轮评审均在该文件收敛，拆分另行立项）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
-     实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 仍 820 行维持豁免。
+     实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 988 行维持豁免
+     （vim-column-mode plan-a 块（列）选择模型并入后实测回填）。
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
      a 波：语言定义迁入 `regex_langdefs.py`——2026-10-09 上提为包顶层
      `langdefs.py`，见 §六 #28；拆分后两文件均低于阈值）；

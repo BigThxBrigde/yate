@@ -1323,3 +1323,145 @@ def test_replace_current_is_a_single_undo_step() -> None:
     assert engine.replace_current(buffer, "bar") is True
     buffer.undo()
     assert buffer.get_text() == "foo foo"
+
+
+# --- TextBuffer: block (column) selection ------------------------------------
+
+
+def test_block_region_normalizes_opposite_corners() -> None:
+    buf = TextBuffer("abcd\nxy\nwxyz")
+    buf.anchor = (0, 2)
+    buf.cursor = (2, 1)
+    buf.block = True
+    assert buf.block_region() == (0, 1, 2, 2)
+    assert buf.selected_block_text() == "b\ny\nx"
+
+
+def test_begin_block_selection_then_extend_keeps_block_flag() -> None:
+    buf = TextBuffer("abcd\nefgh\nijkl")
+    buf.set_cursor((1, 1))
+    buf.begin_block_selection()
+    assert buf.has_block_selection() is False  # anchor == cursor is no block yet
+    buf.set_cursor((2, 3), select=True)
+    assert buf.has_block_selection() is True
+    assert buf.block_region() == (1, 1, 2, 3)
+
+
+def test_charwise_selection_start_resets_block_flag() -> None:
+    buf = TextBuffer("hello\nworld")
+    buf.begin_block_selection()
+    buf.set_cursor((0, 0))
+    buf.set_cursor((0, 2), select=True)
+    assert buf.has_block_selection() is False
+
+
+def test_clear_selection_resets_block_flag() -> None:
+    buf = TextBuffer("abcd\nefgh")
+    buf.set_cursor((0, 1))
+    buf.begin_block_selection()
+    buf.set_cursor((1, 3), select=True)
+    buf.clear_selection()
+    assert buf.block is False
+    assert buf.anchor is None
+
+
+def test_delete_block_removes_span_per_row_and_yanks() -> None:
+    buf = TextBuffer("abcd\nxy\nwxyz")
+    buf.set_cursor((0, 1))
+    buf.begin_block_selection()
+    buf.set_cursor((2, 3), select=True)
+    assert buf.delete_block() == "bc\ny\nxy"
+    assert buf.lines == ["ad", "x", "wz"]
+    assert buf.cursor == (0, 1)
+    assert buf.register == "bc\ny\nxy"
+    assert buf.register_block is True
+
+
+def test_delete_block_skips_rows_shorter_than_left_bound() -> None:
+    buf = TextBuffer("ab\nabcdef")
+    buf.set_cursor((0, 2))
+    buf.begin_block_selection()
+    buf.set_cursor((1, 4), select=True)
+    # row0 is shorter than the right bound: start == end, its text survives
+    # and its fragment in the removed text is the empty string.
+    assert buf.delete_block() == "\ncd"
+    assert buf.lines == ["ab", "abef"]
+
+
+def test_delete_block_without_selection_is_noop() -> None:
+    buf = TextBuffer("abcd\nefgh")
+    assert buf.delete_block() is None
+    assert buf.undo() is False
+    assert buf.lines == ["abcd", "efgh"]
+
+
+def test_insert_block_lands_fragments_at_same_column() -> None:
+    buf = TextBuffer("ab\ncd")
+    buf.set_cursor((0, 1))
+    buf.insert_block("X\nYY")
+    assert buf.lines == ["aXb", "cYYd"]
+    assert buf.cursor == (0, 2)
+
+
+def test_insert_block_appends_missing_rows() -> None:
+    buf = TextBuffer("ab")
+    buf.set_cursor((0, 1))
+    buf.insert_block("x\ny\nz")
+    assert buf.lines == ["axb", "y", "z"]
+
+
+def test_replace_block_substitutes_each_row_span() -> None:
+    buf = TextBuffer("abcd\nefgh")
+    buf.set_cursor((0, 1))
+    buf.begin_block_selection()
+    buf.set_cursor((1, 3), select=True)
+    buf.replace_block("Z\nWW")
+    assert buf.lines == ["aZd", "eWWh"]
+    assert buf.cursor == (0, 2)
+
+
+def test_type_char_over_block_replaces_every_row() -> None:
+    buf = TextBuffer("abcd\nefgh")
+    buf.set_cursor((0, 1))
+    buf.begin_block_selection()
+    buf.set_cursor((1, 3), select=True)
+    buf.type_char("#")
+    assert buf.lines == ["a#d", "e#h"]
+    assert buf.undo() is True
+    assert buf.lines == ["abcd", "efgh"]
+
+
+def test_paste_after_block_yank_reinserts_rectangle() -> None:
+    buf = TextBuffer("abcd\nefgh\nijkl\nmnop\nqrst")
+    buf.set_cursor((0, 1))
+    buf.begin_block_selection()
+    buf.set_cursor((1, 3), select=True)
+    assert buf.yank_block() == "bc\nfg"
+    buf.set_cursor((3, 2))
+    buf.paste(below=True)
+    assert buf.lines == ["abcd", "efgh", "ijkl", "mnbcop", "qrfgst"]
+    assert buf.cursor == (3, 4)
+
+
+def test_yank_lines_resets_register_block_flag() -> None:
+    buf = TextBuffer("abcd\nefgh")
+    buf.set_cursor((0, 1))
+    buf.begin_block_selection()
+    buf.set_cursor((1, 3), select=True)
+    buf.yank_block()
+    assert buf.register_block is True
+    buf.yank_lines()
+    assert buf.register_block is False
+
+
+def test_delete_block_is_single_undo_step() -> None:
+    buf = TextBuffer("abcd\nefgh")
+    buf.set_cursor((0, 1))
+    buf.begin_block_selection()
+    buf.set_cursor((1, 3), select=True)
+    before_edits = buf.content_edits
+    buf.delete_block()
+    assert buf.content_edits == before_edits + 1
+    assert buf.undo() is True
+    assert buf.lines == ["abcd", "efgh"]
+    assert buf.content_edits == before_edits
