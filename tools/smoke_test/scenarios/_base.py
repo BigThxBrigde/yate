@@ -32,6 +32,10 @@ __all__ = [
 # unbound there and types literally), and it works in vim mode too.
 _COMMAND_KEY: str = "f5"
 
+#: Default ceiling for :func:`wait_until` -- the longest a scenario may wait
+#: on background work (file open, LSP, shell) before reporting a timeout.
+_DRAIN_TIMEOUT_S: float = 5.0
+
 
 async def type_text(pilot: Any, text: str, *, pause: bool = True) -> None:
     """Type *text*, then let the app settle.
@@ -107,7 +111,7 @@ def cursor_path(app: Any) -> Any | None:
 async def wait_until(  # noqa: Any - naming Pilot would import textual into this helper
     pilot: Any,
     predicate: Callable[[], bool],
-    timeout: float = 5.0,
+    timeout: float = _DRAIN_TIMEOUT_S,
     step: float = 0.05,
 ) -> bool:
     """Pause until *predicate* holds; ``False`` on timeout.
