@@ -7,12 +7,15 @@ theme.
 
 Backends, resolved per filetype by :mod:`yate.editor_syntax.engine`:
 
-* :mod:`yate.editor_syntax.regex_backend` -- the zero-dependency default:
-  a declarative ``LangSpec`` registry covering the built-in languages, and
-  the extension point behind ``api.highlight.register``.
+* :mod:`yate.editor_syntax.regex_backend` -- the zero-dependency default
+  tokenizer, and the extension point behind ``api.highlight.register``;
 * :mod:`yate.editor_syntax.ts_backend` -- optional tree-sitter based
   highlighting (used when the ``tree_sitter`` package and a grammar for
   the language are available).
+
+The declarative language registry (``LangSpec`` and friends) lives in
+:mod:`yate.editor_syntax.langdefs`; both backends depend on it in
+parallel.
 
 The re-exports below are the public API shared by the core and the
 extension bridge (``services/extensions.py``): :func:`tokenize_document`
@@ -25,7 +28,7 @@ public surface; UI/service packages may not.
 from __future__ import annotations
 
 from yate.editor_syntax.engine import prefer_regex, tokenize_document
-from yate.editor_syntax.regex_backend import (
+from yate.editor_syntax.langdefs import (
     LangSpec,
     available_filetypes,
     format_filetype_candidates,

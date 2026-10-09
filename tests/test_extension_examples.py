@@ -26,7 +26,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from yate.editor_syntax import engine, regex_backend, resolve_filetype, tokenize_document
+from yate.editor_syntax import engine, langdefs, resolve_filetype, tokenize_document
 from yate.editor_syntax.ts_backend import languages as ts_langs
 from yate.paths import bundled_extensions_dir
 from yate.services.extensions import ExtensionAPI, ExtensionContext
@@ -76,17 +76,17 @@ def _extension_api() -> ExtensionAPI:
 @pytest.fixture
 def clean_registries() -> Iterator[None]:
     """Restore every global registry a template's ``setup()`` writes to."""
-    languages = dict(regex_backend._LANGUAGES)
-    names = dict(regex_backend._NAME_TO_KEY)
+    languages = dict(langdefs._LANGUAGES)
+    names = dict(langdefs._NAME_TO_KEY)
     pinned = set(engine._REGEX_PINNED)
     ts_langs_map = dict(ts_langs._EXT_TO_LANG)
     ts_loaded = dict(ts_langs._LANGS)
     ts_failed = set(ts_langs._FAILED)
     yield
-    regex_backend._LANGUAGES.clear()
-    regex_backend._LANGUAGES.update(languages)
-    regex_backend._NAME_TO_KEY.clear()
-    regex_backend._NAME_TO_KEY.update(names)
+    langdefs._LANGUAGES.clear()
+    langdefs._LANGUAGES.update(languages)
+    langdefs._NAME_TO_KEY.clear()
+    langdefs._NAME_TO_KEY.update(names)
     engine._REGEX_PINNED.clear()
     engine._REGEX_PINNED.update(pinned)
     ts_langs._EXT_TO_LANG.clear()
@@ -156,10 +156,10 @@ def test_batch_example_registers_and_paints(
 def test_ini_example_overrides_the_builtin_spec(
     clean_registries: None,
 ) -> None:
-    before = regex_backend.lang_for("ini")
+    before = langdefs.lang_for("ini")
     path = bundled_extensions_dir() / "ini_syntax.py.example"
     _run_setup(path, _extension_api())
-    after = regex_backend.lang_for("ini")
+    after = langdefs.lang_for("ini")
     assert after is not None
     # Re-registering an existing key replaces the spec -- the point of the
     # example (";" comments instead of the built-in "#").
@@ -188,7 +188,7 @@ def test_git_example_registers_both_dialects(
     # template), so the key is reachable by name only -- the honest assertion
     # is that plain text stays plain, not that the file highlights itself.
     assert tokenize_document(["*.log"], "plaintext") == [[]]
-    assert regex_backend.lang_for("gitignore") is not None
+    assert langdefs.lang_for("gitignore") is not None
 
 
 def test_diff_example_registers_and_paints(

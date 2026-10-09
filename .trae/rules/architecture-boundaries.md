@@ -179,7 +179,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      `editor.py`（933 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，维持豁免）、
      `editor_core/buffer.py`（820 行，文档缓冲单一职责，e 波拆词运动后仍超阈值维持豁免）。
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
-     a 波：语言定义迁入 `regex_langdefs.py`，拆分后两文件均低于阈值）；
+     a 波：语言定义迁入 `regex_langdefs.py`——2026-10-09 上提为包顶层
+     `langdefs.py`，见 §六 #28；拆分后两文件均低于阈值）；
      `editor_view/diffview.py`（2026-10-08 big-module-split b 波：Pane 侧
      迁入 `diff_pane.py`，screen 侧留在原文件，两文件均低于阈值）；
      `editor_view/editor.py`（2026-10-08 big-module-split c 波：高亮与
@@ -254,8 +255,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **27 个用例**（2026-10-08 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `27 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **28 个用例**（2026-10-09 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `28 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -298,6 +299,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **T2**（`test_editor_does_not_paint_widget_styles`）`editor.py` 无 `def apply_theme` /
   `def update_sidebar_head` / `.styles.background =` / `.styles.scrollbar_`（文本断言；
   Editor 自有的布局职责如 terminal dock 高度不误伤）；
+- **注册表归属**（langdefs 上提，2026-10-09 新增）：`editor_syntax` 的语言注册表归包顶层
+  `langdefs.py` 所有，`regex_backend` 与 `ts_backend` 平行依赖它；
+  `ts_backend/*` 禁止 import `regex_backend`（守卫：§六 #28）；
 - **能力注入**（issue IKJB0Q，2026-09-30 新增两条）：`test_app_annotations_are_precise`
   AST 扫 `yate/**` 禁 `App[Any]` / `App[object]` 下标（`App[None]` 是唯一精确形态）；
   `test_flow_modules_hold_no_app_handle` AST 扫 `yate/*.py` 顶层与 `yate/flows/*.py`
@@ -318,7 +322,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   "元素是回调的数据表"（`dict[str, Callable[...]]`）——它们不是别名定义，
   按 §三.6 与 R-C 保持内联。负向演练过：6 类违规全部拦截，3 类放行形态零误伤。
 
-**27 个用例逐条对照**（2026-10-08 实测 `27 passed`）：
+**28 个用例逐条对照**（2026-10-09 实测 `28 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -349,6 +353,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 25 | `test_callable_aliases_use_type_statements` | 回调别名（IKJUWP：PEP 695 `type` 语句） |
 | 26 | `test_support_mouse_gate_lives_in_app_on_event` | support_mouse 闸门（IKJRFK：App 层单点禁用鼠标） |
 | 27 | `test_source_files_within_size_threshold` | 文件体量阈值（A11：>800 行须登记豁免，`SIZE_EXEMPT_FILES` 镜像 §三.7 名单） |
+| 28 | `test_ts_backend_never_imports_regex_backend` | 注册表归属（langdefs 平行依赖：ts_backend 禁借 regex_backend） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

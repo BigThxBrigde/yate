@@ -7,9 +7,10 @@ the package safely (``resolve`` simply reports "not available").
 Discovery order for a filetype:
 
 1. extension keys explicitly registered via :func:`load_language`;
-2. the canonical language name from the regex registry
-   (``LangSpec.name``), mapped onto a built-in grammar pack
-   (:data:`BUILTIN_PACKS`) plus a bundled ``queries/<name>.scm`` file.
+2. the canonical language name from the shared language registry
+   (:mod:`yate.editor_syntax.langdefs`, ``LangSpec.name``), mapped onto a
+   built-in grammar pack (:data:`BUILTIN_PACKS`) plus a bundled
+   ``queries/<name>.scm`` file.
 
 Load failures (dependency missing, broken pack, bad query) are remembered
 in ``_FAILED`` and never retried: the backend degrades to regex instead of
@@ -28,7 +29,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
-from yate.editor_syntax.regex_backend import LangSpec, lang_for, register_language
+from yate.editor_syntax.langdefs import LangSpec, lang_for, register_language
 from yate.logs import tracing
 
 log = tracing.get_logger(__name__)
@@ -73,7 +74,7 @@ def tree_sitter_blocked() -> bool:
 
 
 # canonical language name -> importable grammar pack (optional dependency).
-# Names follow the regex registry's canonical LangSpec.name (``shell``, not
+# Names follow the shared registry's canonical LangSpec.name (``shell``, not
 # the grammar's own ``bash``).  Only languages with a bundled
 # queries/<name>.scm are listed; a grammar without a query cannot highlight
 # anything.
