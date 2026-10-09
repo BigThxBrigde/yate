@@ -12,7 +12,10 @@ call the editor's operations.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from yate.editor import Editor
+from yate.editor_core.buffer import TextBuffer
 from yate.keymaps.base import ActionContext
 from yate.logs import tracing
 from yate.registries import Action, ActionRegistry
@@ -96,6 +99,31 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     )
     reg("select_line_end", lambda ctx: ctx.buffer.move_line_end(select=True), "Select to line end")
     reg("select_all", lambda ctx: ctx.buffer.select_all(), "Select all")
+
+    def _block_extend(move: Callable[[TextBuffer], None]) -> Callable[[ActionContext], None]:
+        """Build a column-selection action: anchor on first use, extend after."""
+
+        def run(ctx: ActionContext) -> None:
+            buf = ctx.buffer
+            if not buf.has_block_selection():
+                buf.begin_block_selection()
+            move(buf)
+
+        return run
+
+    reg("select_block_left",
+        _block_extend(lambda buf: buf.move_left(select=True)),
+        "Extend column selection left")
+    reg("select_block_right",
+        _block_extend(lambda buf: buf.move_right(select=True)),
+        "Extend column selection right")
+    reg("select_block_up",
+        _block_extend(lambda buf: buf.move_up(select=True)),
+        "Extend column selection up")
+    reg("select_block_down",
+        _block_extend(lambda buf: buf.move_down(select=True)),
+        "Extend column selection down")
+
     reg("clear_selection", lambda ctx: ctx.buffer.clear_selection(), "Clear selection")
 
     # ------------------------------------------------------- history/clip
@@ -115,6 +143,11 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         must not prime the register with text that was never removed.
         """
         buf = ctx.buffer
+        if buf.has_block_selection():
+            text = buf.delete_block() or ""
+            if text:
+                clipboard.copy_text(text)
+            return
         if buf.has_selection():
             text = buf.selected_text() or ""
             buf.delete_selection()
@@ -132,6 +165,13 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         An empty yank updates the register but skips the system clipboard.
         """
         buf = ctx.buffer
+        if buf.has_block_selection():
+            text = buf.selected_block_text() or ""
+            if text:
+                buf.register = text
+                buf.register_block = True
+                clipboard.copy_text(text)
+            return
         if buf.has_selection():
             text = buf.yank_selection()
         else:
@@ -152,6 +192,12 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
             text = clipboard.paste_text()
             if text:
                 buf.register = text
+        if buf.has_block_selection():
+            text = clipboard.paste_text()
+            if text is None or text == "":
+                text = buf.register
+            buf.replace_block(text)
+            return
         buf.paste()
 
     reg("cut", cut, "Cut")

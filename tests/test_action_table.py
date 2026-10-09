@@ -11,9 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Callable, cast
 
+import pytest
+
 from yate.actions import populate
 from yate.keymaps.base import ActionContext
 from yate.registries import ActionRegistry
+from yate.services import clipboard as clipboard_service
 
 from conftest import make_action_context
 
@@ -128,6 +131,40 @@ def _table() -> tuple[ActionRegistry, _StubEditor]:
 def _select(ctx: ActionContext, row: int, col: int) -> None:
     """Select from the buffer start to ``(row, col)``."""
     ctx.buffer.set_cursor((row, col), select=True)
+
+
+class _RecordingClip:
+    """Recording stand-in replacing the clipboard service entry points."""
+
+    def __init__(self) -> None:
+        self.copies: list[str] = []
+        self.paste_result: str | None = None
+
+    def copy_text(self, text: str) -> bool:
+        self.copies.append(text)
+        return True
+
+    def paste_text(self) -> str | None:
+        return self.paste_result
+
+
+@pytest.fixture()
+def recording_clip(monkeypatch: pytest.MonkeyPatch) -> _RecordingClip:
+    """Patch the clipboard service module the action table calls into."""
+    fake = _RecordingClip()
+    monkeypatch.setattr(clipboard_service, "copy_text", fake.copy_text)
+    monkeypatch.setattr(clipboard_service, "paste_text", fake.paste_text)
+    return fake
+
+
+def _make_block(
+    ctx: ActionContext, top: int, left: int, bottom: int, right: int,
+) -> None:
+    """Anchor a block selection at ``(top, left)`` and extend to (bottom, right)."""
+    buf = ctx.buffer
+    buf.set_cursor((top, left))
+    buf.begin_block_selection()
+    buf.set_cursor((bottom, right), select=True)
 
 
 # --- registration ------------------------------------------------------------
@@ -387,3 +424,108 @@ def test_executing_an_unknown_action_is_reported_as_unhandled() -> None:
     registry, editor = _table()
     assert registry.execute("nope", make_action_context()) is False
     assert editor.calls == []
+
+
+# --- block (column) selection ------------------------------------------------
+
+
+def test_select_block_down_begins_at_cursor_and_extends() -> None:
+    """The first press anchors at the cursor; further presses extend the block."""
+    registry, _editor = _table()
+    ctx = make_action_context("one\ntwo\nthree")
+    ctx.buffer.set_cursor((0, 1))
+
+    assert registry.execute("select_block_down", ctx) is True
+    assert ctx.buffer.has_block_selection() is True
+    assert ctx.buffer.block_region() == (0, 1, 1, 1)
+
+    assert registry.execute("select_block_down", ctx) is True
+    assert ctx.buffer.has_block_selection() is True
+    assert ctx.buffer.block_region() == (0, 1, 2, 1)
+
+
+def test_select_block_right_then_up_normalizes_region() -> None:
+    """block_region() is normalized regardless of the anchor/cursor order."""
+    registry, _editor = _table()
+    ctx = make_action_context("one\ntwo\nthree")
+    ctx.buffer.set_cursor((2, 2))
+
+    assert registry.execute("select_block_right", ctx) is True
+    assert registry.execute("select_block_up", ctx) is True
+
+    assert ctx.buffer.block_region() == (1, 2, 2, 3)
+
+
+def test_plain_select_down_extends_block_selection() -> None:
+    """Plain shift+arrow extends the ongoing block selection, matching VS Code.
+
+    A charwise ``select_down`` over an active block keeps the block flag and
+    stretches the rectangle downward -- the anchor is not reset.
+    """
+    registry, _editor = _table()
+    ctx = make_action_context("one\ntwo\nthree")
+    ctx.buffer.set_cursor((0, 1))
+    assert registry.execute("select_block_down", ctx) is True
+    assert ctx.buffer.block_region() == (0, 1, 1, 1)
+
+    assert registry.execute("select_down", ctx) is True
+
+    assert ctx.buffer.has_block_selection() is True
+    assert ctx.buffer.block_region() == (0, 1, 2, 1)
+
+
+def test_copy_action_yanks_block_text(recording_clip: _RecordingClip) -> None:
+    """copy on a block selection yanks the rectangle and mirrors the clipboard."""
+    registry, _editor = _table()
+    ctx = make_action_context("abcd\nefgh")
+    _make_block(ctx, 0, 1, 1, 3)
+
+    assert registry.execute("copy", ctx) is True
+    assert ctx.buffer.register == "bc\nfg"
+    assert ctx.buffer.register_block is True
+    assert recording_clip.copies == ["bc\nfg"]
+
+
+def test_cut_action_deletes_block_and_copies(
+    recording_clip: _RecordingClip,
+) -> None:
+    """cut on a block selection removes the rectangle; one undo restores it."""
+    registry, _editor = _table()
+    ctx = make_action_context("abcd\nefgh")
+    _make_block(ctx, 0, 1, 1, 3)
+
+    assert registry.execute("cut", ctx) is True
+    assert ctx.buffer.get_text() == "ad\neh"
+    assert ctx.buffer.register == "bc\nfg"
+    assert ctx.buffer.register_block is True
+    assert recording_clip.copies == ["bc\nfg"]
+
+    assert ctx.buffer.undo() is True
+    assert ctx.buffer.get_text() == "abcd\nefgh"
+
+
+def test_paste_action_replaces_block_selection_per_row(
+    recording_clip: _RecordingClip,
+) -> None:
+    """paste on a block selection replaces each row's span (VS Code semantics)."""
+    registry, _editor = _table()
+    ctx = make_action_context("abcd\nefgh")
+    _make_block(ctx, 0, 1, 1, 3)
+    recording_clip.paste_result = "X\nYY"
+
+    assert registry.execute("paste", ctx) is True
+    assert ctx.buffer.get_text() == "aXd\neYYh"
+
+
+def test_paste_action_block_falls_back_to_register(
+    recording_clip: _RecordingClip,
+) -> None:
+    """A clipboard miss (None) pastes the register per block row."""
+    registry, _editor = _table()
+    ctx = make_action_context("abcd\nefgh")
+    _make_block(ctx, 0, 1, 1, 3)
+    ctx.buffer.register = "Z\nW"
+    recording_clip.paste_result = None
+
+    assert registry.execute("paste", ctx) is True
+    assert ctx.buffer.get_text() == "aZd\neWh"
