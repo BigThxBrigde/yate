@@ -77,6 +77,16 @@ EXCLUDES: tuple[str, ...] = (
 )
 
 
+def _pkg_path(project_root: str, *parts: str) -> str:
+    """Absolute path to a file or directory inside the yate source tree.
+
+    The single implementation of the ``<project_root>/yate/<parts>`` layout
+    rule; :meth:`SpecInputs.pkg_path` delegates here and ``collect`` uses it
+    directly for inputs built before the :class:`SpecInputs` instance exists.
+    """
+    return os.path.join(project_root, "yate", *parts)
+
+
 @dataclass(frozen=True)
 class SpecInputs:
     """Everything a spec needs besides its own Analysis/EXE/COLLECT block."""
@@ -100,12 +110,7 @@ class SpecInputs:
 
     def pkg_path(self, *parts: str) -> str:
         """Absolute path to a file or directory inside the yate source tree."""
-        return os.path.join(self.project_root, "yate", *parts)
-
-
-def _pkg_path(project_root: str, *parts: str) -> str:
-    """Absolute path to a file or directory inside the yate source tree."""
-    return os.path.join(project_root, "yate", *parts)
+        return _pkg_path(self.project_root, *parts)
 
 
 def collect(specpath: str) -> SpecInputs:
