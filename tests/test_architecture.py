@@ -471,6 +471,37 @@ def test_keymaps_services_and_models_stay_ui_free() -> None:
             assert not module.startswith("yate.editor_view"), (path, module)
 
 
+def test_ts_backend_never_imports_regex_backend() -> None:
+    """The language registry lives in the package-top ``langdefs`` module:
+    ``regex_backend`` and ``ts_backend`` depend on it in parallel, so
+    ``ts_backend/*`` must never reach the registry through the regex
+    tokenizer (langdefs lift, 2026-10-09).  Relative imports are resolved
+    against the scanned package so ``from ..regex_backend import x`` cannot
+    slip past the absolute-prefix check."""
+    target = "yate.editor_syntax.regex_backend"
+    package = "yate.editor_syntax.ts_backend"
+    violations: list[tuple[Path, int]] = []
+    for path in (YATE / "editor_syntax" / "ts_backend").rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                base = node.module or ""
+                if node.level > 0:
+                    parts = package.split(".")
+                    base = ".".join(parts[: len(parts) - (node.level - 1)])
+                    if node.module:
+                        base = f"{base}.{node.module}"
+                if base == target or base.startswith(target + "."):
+                    violations.append((path, node.lineno))
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == target or alias.name.startswith(target + "."):
+                        violations.append((path, node.lineno))
+    assert not violations, violations
+
+
 def test_collaborators_keep_widget_coupling_frozen() -> None:
     """``flows/completion_flows.py`` / ``flows/prompt_completion.py`` are
     editor-level collaborators: they may drive their known widgets but never

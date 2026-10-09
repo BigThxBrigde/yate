@@ -8,11 +8,12 @@ document lines into per-line token ranges, :class:`Token`
 :data:`~yate.editor_syntax.tokens.SYNTAX_KINDS`.  The view layer maps kinds
 to colors through the active theme.
 
-The declarative language registry -- :class:`LangSpec`, the word lists,
-``_LANGUAGES`` / ``_NAME_TO_KEY`` and :func:`register_language` -- lives in
-:mod:`yate.editor_syntax.regex_langdefs` and is re-exported here for API
-compatibility; this module keeps the regex construction and the tokenizer
-engine (import direction: ``regex_backend -> regex_langdefs``, one-way).
+The language registry -- :class:`LangSpec`, the word lists,
+``_LANGUAGES`` / ``_NAME_TO_KEY`` and :func:`register_language` -- lives
+in the package-top :mod:`yate.editor_syntax.langdefs`, shared with the
+tree-sitter backend in parallel; this module keeps only the regex
+construction and the tokenizer engine, consuming :func:`lang_for` from
+the registry (import direction: ``regex_backend -> langdefs``, one-way).
 
 Design notes (see editor tokenizer lessons):
 
@@ -32,29 +33,10 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-from yate.editor_syntax.regex_langdefs import (
-    LangSpec,
-    _LANGUAGES,
-    _NAME_TO_KEY,
-    available_filetypes,
-    format_filetype_candidates,
-    lang_for,
-    language_name,
-    register_language,
-    resolve_filetype,
-)
+from yate.editor_syntax.langdefs import LangSpec, lang_for
 from yate.editor_syntax.tokens import Token
 
 __all__ = [
-    "LangSpec",
-    "_LANGUAGES",
-    "_NAME_TO_KEY",
-    "available_filetypes",
-    "format_filetype_candidates",
-    "lang_for",
-    "language_name",
-    "register_language",
-    "resolve_filetype",
     "tokenize_document",
     "tokenize_document_with_states",
     "tokenize_line",

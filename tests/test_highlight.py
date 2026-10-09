@@ -7,11 +7,22 @@ from typing import Any, cast
 
 import pytest
 
-from yate.editor_syntax import regex_backend as hl
+from yate.editor_syntax import (
+    LangSpec,
+    available_filetypes,
+    format_filetype_candidates,
+    lang_for,
+    langdefs as reg,
+    language_name,
+    register_language,
+    regex_backend as hl,
+    resolve_filetype,
+)
+from yate.editor_syntax.tokens import Token
 from yate.editor_view import theme
 
 
-def _kinds(tokens: list[hl.Token], line: str) -> list[tuple[str, str]]:
+def _kinds(tokens: list[Token], line: str) -> list[tuple[str, str]]:
     """Flatten tokens to ``(kind, text)`` pairs for readable assertions."""
     return [(t.kind, line[t.start:t.end]) for t in tokens]
 
@@ -122,48 +133,48 @@ def test_toml_sections_and_keys() -> None:
 def test_unknown_language_returns_empty() -> None:
     toks = hl.tokenize_document(["anything here ?? 123"], "plaintext")
     assert toks == [[]]
-    assert hl.lang_for("xyz") is None
+    assert reg.lang_for("xyz") is None
 
 
 # --- filetype resolution ----------------------------------------------------
 
 
 def test_extension_keys_pass_through() -> None:
-    assert hl.resolve_filetype("py") == "py"
-    assert hl.resolve_filetype(".PY") == "py"
-    assert hl.resolve_filetype("c++") == "c++"
+    assert reg.resolve_filetype("py") == "py"
+    assert reg.resolve_filetype(".PY") == "py"
+    assert reg.resolve_filetype("c++") == "c++"
 
 
 def test_language_names_map_to_extension_keys() -> None:
-    assert hl.resolve_filetype("python") == "py"
-    assert hl.resolve_filetype("Python") == "py"
-    assert hl.resolve_filetype("typescript") == "ts"
-    assert hl.resolve_filetype("javascript") == "js"
-    assert hl.resolve_filetype("shell") == "sh"
+    assert reg.resolve_filetype("python") == "py"
+    assert reg.resolve_filetype("Python") == "py"
+    assert reg.resolve_filetype("typescript") == "ts"
+    assert reg.resolve_filetype("javascript") == "js"
+    assert reg.resolve_filetype("shell") == "sh"
     # "markdown" is both a language name and a registered extension key
     # (md/markdown/mdx share one spec); either resolution is valid.
-    resolved_md = hl.resolve_filetype("markdown")
+    resolved_md = reg.resolve_filetype("markdown")
     assert resolved_md in ("md", "markdown")
     assert resolved_md is not None
-    md_spec = hl.lang_for(resolved_md)
+    md_spec = reg.lang_for(resolved_md)
     assert md_spec is not None
     assert md_spec.name == "markdown"
 
 
 def test_unknown_and_empty() -> None:
-    assert hl.resolve_filetype("nope") is None
-    assert hl.resolve_filetype("") is None
-    assert hl.resolve_filetype(".") is None
+    assert reg.resolve_filetype("nope") is None
+    assert reg.resolve_filetype("") is None
+    assert reg.resolve_filetype(".") is None
 
 
 def test_language_name() -> None:
-    assert hl.language_name("py") == "python"
-    assert hl.language_name("rs") == "rust"
-    assert hl.language_name("nope") is None
+    assert reg.language_name("py") == "python"
+    assert reg.language_name("rs") == "rust"
+    assert reg.language_name("nope") is None
 
 
 def test_available_includes_keys_and_names() -> None:
-    available = hl.available_filetypes()
+    available = reg.available_filetypes()
     assert "py" in available
     assert "python" in available
     assert available == sorted(available)
@@ -176,7 +187,7 @@ def test_available_includes_keys_and_names() -> None:
 def clean_custom_language() -> Iterator[None]:
     """Remove runtime-registered test languages after the test."""
     yield
-    registry = cast(Any, hl)
+    registry = cast(Any, reg)
     registry._LANGUAGES.pop("zzxtoy", None)
     registry._NAME_TO_KEY.pop("xtoy", None)
 
@@ -186,16 +197,16 @@ def test_register_language_tokenizes_and_resolves_by_name(
 ) -> None:
     # "thing" is only in type_def_words (not keywords): the identifier
     # after it must still be painted as a type.
-    spec = hl.LangSpec(
+    spec = reg.LangSpec(
         name="xtoy", line_comment="#",
         keywords=frozenset({"xto"}),
         type_def_words=frozenset({"thing"}),
     )
     key = "zzxtoy"  # unique key so the test never clashes with real languages
-    hl.register_language(spec, key)
-    assert hl.lang_for(key) is spec
-    assert hl.resolve_filetype("xtoy") == key
-    assert "xtoy" in hl.available_filetypes()
+    reg.register_language(spec, key)
+    assert reg.lang_for(key) is spec
+    assert reg.resolve_filetype("xtoy") == key
+    assert "xtoy" in reg.available_filetypes()
 
     line = "xto thing Bar 1  # hi"
     pairs = _kinds(hl.tokenize_document([line], key)[0], line)
@@ -206,17 +217,17 @@ def test_register_language_tokenizes_and_resolves_by_name(
 
 
 def test_register_overrides_existing_key() -> None:
-    registry = cast(Any, hl)
-    original = hl.lang_for("py")
+    registry = cast(Any, reg)
+    original = reg.lang_for("py")
     assert original is not None
-    replacement = hl.LangSpec(name="pythonish", line_comment=";")
+    replacement = reg.LangSpec(name="pythonish", line_comment=";")
     try:
-        hl.register_language(replacement, "py")
-        assert hl.lang_for("py") is replacement
+        reg.register_language(replacement, "py")
+        assert reg.lang_for("py") is replacement
     finally:
-        hl.register_language(original, "py")
+        reg.register_language(original, "py")
         registry._NAME_TO_KEY.pop("pythonish", None)
-    assert hl.lang_for("py") is original
+    assert reg.lang_for("py") is original
 
 
 # --- built-in C# (regex fallback of the tree-sitter pack) -------------------
@@ -225,9 +236,9 @@ def test_register_overrides_existing_key() -> None:
 def test_csharp_is_a_builtin_language() -> None:
     # csharp_highlight.py was removed: the language is registered by the
     # built-in regex table (and served by tree-sitter when installed).
-    assert hl.resolve_filetype("csharp") == "cs"
-    assert hl.resolve_filetype(".csx") == "csx"
-    assert "csharp" in hl.available_filetypes()
+    assert reg.resolve_filetype("csharp") == "cs"
+    assert reg.resolve_filetype(".csx") == "csx"
+    assert "csharp" in reg.available_filetypes()
 
 
 def test_csharp_regex_highlighting() -> None:
@@ -360,7 +371,7 @@ def test_make_expands_parenthesised_variables() -> None:
     line = "all: $(OS)"
     assert ("property", "$(OS)") in _kinds(hl.tokenize_document([line], "mak")[0], line)
     # '-include' was unreachable: _IDENT_RE has no '-', so it could never match.
-    spec = hl.lang_for("mak")
+    spec = reg.lang_for("mak")
     assert spec is not None
     assert "include" in spec.keywords
     assert "-include" not in spec.keywords
@@ -428,10 +439,10 @@ def test_css_dashed_lookup_falls_back_to_its_base_word() -> None:
 def test_paren_vars_works_without_the_sigils_switch() -> None:
     # The two switches are independent: paren_vars alone must not silently
     # drop every $(...) it matched.
-    spec = hl.LangSpec(name="parenonly", mode="code", paren_vars=True)
-    registry = cast(Any, hl)
+    spec = reg.LangSpec(name="parenonly", mode="code", paren_vars=True)
+    registry = cast(Any, reg)
     try:
-        hl.register_language(spec, "zzparenonly")
+        reg.register_language(spec, "zzparenonly")
         line = "x = $(VAR) y"
         assert ("property", "$(VAR)") in _kinds(
             hl.tokenize_document([line], "zzparenonly")[0], line
@@ -464,8 +475,8 @@ def test_langspec_word_tables_have_no_unreachable_entries() -> None:
     # keywords win over types, and types over builtins, so a word in both
     # tables makes the weaker entry dead weight.
     for spec in (
-        hl.lang_for("lua"), hl.lang_for("ps1"), hl.lang_for("php"),
-        hl.lang_for("pl"), hl.lang_for("rb"),
+        reg.lang_for("lua"), reg.lang_for("ps1"), reg.lang_for("php"),
+        reg.lang_for("pl"), reg.lang_for("rb"),
     ):
         assert spec is not None
         assert not spec.types & spec.keywords
@@ -475,7 +486,7 @@ def test_langspec_word_tables_have_no_unreachable_entries() -> None:
 
 def test_scss_and_less_reuse_the_css_word_lists() -> None:
     for filetype in ("scss", "less"):
-        spec = hl.lang_for(filetype)
+        spec = reg.lang_for(filetype)
         assert spec is not None
         assert spec.name == filetype          # own name -> no ts grammar lookup
         assert spec.hyphenated_idents
@@ -488,17 +499,17 @@ def test_scss_and_less_reuse_the_css_word_lists() -> None:
 def test_filetype_candidate_list_is_truncated_with_a_total() -> None:
     # The registry outgrew the message width; an untruncated join silently lost
     # everything past the wrap column.
-    shown = hl.format_filetype_candidates()
-    total = len(hl.available_filetypes())
+    shown = reg.format_filetype_candidates()
+    total = len(reg.available_filetypes())
     head = shown.split(", ...")[0]
     assert shown.endswith(f"... ({total} total)")
-    assert head == ", ".join(hl.available_filetypes()[:12])
-    assert hl.format_filetype_candidates(limit=4).startswith(
-        ", ".join(hl.available_filetypes()[:4])
+    assert head == ", ".join(reg.available_filetypes()[:12])
+    assert reg.format_filetype_candidates(limit=4).startswith(
+        ", ".join(reg.available_filetypes()[:4])
     )
     # A zero limit would render ", ... (72 total)" with an empty head.
-    assert hl.format_filetype_candidates(limit=0).startswith(
-        hl.available_filetypes()[0]
+    assert reg.format_filetype_candidates(limit=0).startswith(
+        reg.available_filetypes()[0]
     )
 
 
@@ -564,7 +575,7 @@ def test_zig_keywords_and_types() -> None:
 
 
 def test_code_line_pattern_is_cached_per_spec() -> None:
-    spec = hl.lang_for("py")
+    spec = reg.lang_for("py")
     assert spec is not None
     registry = cast(Any, hl)
     assert registry._code_line_pattern(spec) is registry._code_line_pattern(spec)
@@ -641,3 +652,19 @@ def test_syntax_color_known_and_unknown() -> None:
 def test_comment_style_is_italic() -> None:
     style = theme.active().syntax_style("comment")
     assert style.italic
+
+
+# --- package-root re-export identity -----------------------------------------
+
+
+def test_package_root_reexports_bind_langdefs_objects() -> None:
+    # The leaf-package exception re-exports the registry at the package root;
+    # each symbol must stay bound to the very object langdefs owns, not a
+    # copy or a symbol re-pointed at some intermediate layer.
+    assert LangSpec is reg.LangSpec
+    assert lang_for is reg.lang_for
+    assert register_language is reg.register_language
+    assert resolve_filetype is reg.resolve_filetype
+    assert language_name is reg.language_name
+    assert available_filetypes is reg.available_filetypes
+    assert format_filetype_candidates is reg.format_filetype_candidates

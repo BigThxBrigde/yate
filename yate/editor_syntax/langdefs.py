@@ -1,16 +1,18 @@
-"""Declarative language definitions for the regex syntax backend.
+"""Shared language registry of the syntax layer.
 
-This module owns the language registry of the regex backend: the
-:class:`LangSpec` dataclass, the built-in word lists, the extension-key
-registry (:data:`_LANGUAGES` / :data:`_NAME_TO_KEY`) and
+This module owns the declarative language registry shared by both syntax
+backends: the :class:`LangSpec` dataclass, the built-in word lists, the
+extension-key registry (:data:`_LANGUAGES` / :data:`_NAME_TO_KEY`) and
 :func:`register_language` -- the public extension point behind
 ``api.highlight.register``.
 
-The tokenizer engine (regex construction and per-line tokenization) lives in
-:mod:`yate.editor_syntax.regex_backend`, which imports this module.  The
-import direction is one-way: this module depends on the standard library
-only, so the language table can be consumed (and extended) without paying
-for the tokenizer.
+Both backends depend on it in parallel: the regex tokenizer
+(:mod:`yate.editor_syntax.regex_backend`) resolves token specs via
+:func:`lang_for`, and the tree-sitter backend
+(:mod:`yate.editor_syntax.ts_backend`) maps canonical language names onto
+grammar packs.  The import direction stays one-way downward: this module
+depends on the standard library only, so the language table can be
+consumed (and extended) without paying for either tokenizer.
 """
 
 from __future__ import annotations
@@ -19,10 +21,10 @@ from dataclasses import dataclass
 
 __all__ = [
     "LangSpec",
-    # The registry dicts are private by naming convention but re-exported by
-    # ``regex_backend`` for the existing test surface (``mock.patch.dict`` and
-    # in-place clear/update bind to this very object); listing them here
-    # marks them as exported so the re-export stays pyright-clean.
+    # The registry dicts are private by naming convention but bound by name
+    # in tests (``mock.patch.dict`` / in-place clear-update target these very
+    # objects on this module); listing them here marks them as exported so
+    # the module's export surface stays pyright-clean.
     "_LANGUAGES",
     "_NAME_TO_KEY",
     "available_filetypes",

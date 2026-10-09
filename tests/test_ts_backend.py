@@ -21,7 +21,7 @@ from unittest import mock
 
 import pytest
 
-from yate.editor_syntax import available_filetypes, engine, regex_backend, ts_backend
+from yate.editor_syntax import available_filetypes, engine, langdefs, regex_backend, ts_backend
 from yate.editor_syntax.tokens import SYNTAX_KINDS, Token
 from yate.editor_syntax.ts_backend import backend as ts_runtime
 from yate.editor_syntax.ts_backend import languages as ts_langs
@@ -447,8 +447,8 @@ def test_pack_registration_and_query_file(tmp_path: Path) -> None:
         mock.patch.dict(ts_langs._LANGS),
         mock.patch.dict(ts_langs._EXT_TO_LANG),
         mock.patch.object(ts_langs, "_FAILED", set[str]()),
-        mock.patch.dict(regex_backend._LANGUAGES),
-        mock.patch.dict(regex_backend._NAME_TO_KEY),
+        mock.patch.dict(langdefs._LANGUAGES),
+        mock.patch.dict(langdefs._NAME_TO_KEY),
     ):
         bridge.register_tree_sitter(
             "pytestlang",
@@ -769,7 +769,7 @@ def test_builtin_grammar_coverage_matches_the_documented_counts() -> None:
     # except JSONC, INI, Perl, SCSS and LESS".  Pin the relationship rather
     # than the prose: adding a language without a grammar fails here, and the
     # fix is to update the docs and this set together.
-    names = set(regex_backend._NAME_TO_KEY)
+    names = set(langdefs._NAME_TO_KEY)
     without_grammar = names - set(ts_langs.BUILTIN_PACKS)
     assert without_grammar == {"ini", "jsonc", "less", "perl", "scss"}
     assert len(names) == 30
@@ -781,7 +781,7 @@ def test_scss_and_less_do_not_borrow_the_css_grammar() -> None:
     # tree-sitter resolver looks a grammar up by LangSpec.name, and a shared
     # "css" name would parse $var / @mixin / // with the CSS grammar.
     for name in ("css", "scss", "less"):
-        spec = regex_backend.lang_for(name)
+        spec = langdefs.lang_for(name)
         assert spec is not None
         assert spec.name == name
     if has_tree_sitter:
@@ -892,8 +892,8 @@ def test_extensions_capture_map_and_failure_clearing() -> None:
         mock.patch.dict(ts_langs._LANGS, {}, clear=True),
         mock.patch.dict(ts_langs._EXT_TO_LANG, {}, clear=True),
         mock.patch.object(ts_langs, "_FAILED", {"pytest"}),
-        mock.patch.dict(regex_backend._LANGUAGES, {}, clear=True),
-        mock.patch.dict(regex_backend._NAME_TO_KEY, {}, clear=True),
+        mock.patch.dict(langdefs._LANGUAGES, {}, clear=True),
+        mock.patch.dict(langdefs._NAME_TO_KEY, {}, clear=True),
     ):
         ts_langs.load_language(
             "PyTest",
@@ -917,7 +917,7 @@ def test_extensions_capture_map_and_failure_clearing() -> None:
         # tree-sitter serves the extension, while :set filetype sees it
         assert ts_backend.available_for("ptl")
         assert "ptl" in available_filetypes()
-        fallback = regex_backend.lang_for("ptl")
+        fallback = langdefs.lang_for("ptl")
         assert fallback is not None
         assert fallback.name == "pytest"
 
