@@ -818,6 +818,13 @@ def test_zero_width_block_yank_drops_to_normal_without_crash() -> None:
     assert not editor.buffer.has_block_selection()
 
 
+def test_block_yank_resets_goal_column() -> None:
+    """After a block yank, j lands at column 0 (set_cursor drops the goal)."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    _press(keymap, ctx, CTRL_V, "l", "y", "j")
+    assert editor.buffer.cursor == (1, 0)
+
+
 # --- normal-mode entry points ----------------------------------------------
 
 

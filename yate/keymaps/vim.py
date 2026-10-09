@@ -365,7 +365,10 @@ class VimKeymap(Keymap):
                     sel = buf.block_region()
                     buf.clear_selection()
                     if sel is not None:
-                        buf.cursor = (sel[0], sel[1])
+                        # set_cursor (not a bare cursor write) so the vertical
+                        # goal column from earlier motions is dropped -- vim
+                        # lands `j` at column 0 after a block yank
+                        buf.set_cursor((sel[0], sel[1]))
                     ui.message("yanked block")
                 else:
                     # delete_block already recorded register_block for the
