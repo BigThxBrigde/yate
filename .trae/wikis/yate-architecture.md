@@ -9,39 +9,129 @@
 （editor_core、editor_lsp、editor_syntax、editor_term、keyproto、
 editor_sprites、session、registries、services）位于依赖链末端。
 
-```
-__main__.py ──► cli.py::main() ──► YateApp (app.py) ──► Editor (editor.py)
-                                                        │
-   ┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬─────────┐
-editor_core/ editor_view/ keymaps/  editor_lsp/ editor_term/ editor_syntax/ services/
-(编辑内核,   (Textual    (可插拔键位,(LSP,     (PTY+      (语法高亮,  (平台服务:
- 无UI)       widgets)    含 registry) 无UI)    模拟器)    无UI)      workspace/
-                                                                    fonts/trust/
-                                                                    shell/
-                                                                    idle_tracker/
-                                                                    extensions)
-   └─ L1: session.py(文档会话 + 窗格树 Leaf/Split/ViewState) / registries.py
-   └─ L0 叶包: keyproto/(键弦模型 + Windows 驱动) · editor_sprites/(屏保精灵)
-   └─ L4 资源: yate/resources/app.tcss (外壳 CSS，R9 冻结 id)
+### 1.1 分层依赖图
+
+```mermaid
+flowchart LR
+    subgraph L4["L4 · 外壳"]
+        CLI["cli.py<br/>(唯一入口)"]
+        APP["app.py::YateApp"]
+    end
+    subgraph L3["L3 · 调度"]
+        ED["editor.py::Editor"]
+        ACT["actions.py / commands.py<br/>内置表"]
+        FLOWS["flows/*<br/>(completion/document/window/<br/>prompt/shell/overlay/mouse<br/>+ lsp_sync/prompt_completion)"]
+    end
+    subgraph L2["L2 · 组件 (editor_view/)"]
+        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diffview / manual / terminal<br/>completion / screensaver<br/>scrollbars / theme / icons"]
+    end
+    subgraph L1["L1 · 会话与模型"]
+        SES["session.py<br/>(EditorSession + 窗格树<br/>Leaf/Split/ViewState)"]
+        REG["registries.py<br/>(ActionRegistry/<br/>CommandRegistry)"]
+        KMREG["keymaps/registry.py<br/>(KeymapSet)"]
+    end
+    subgraph L0["L0 · 叶子 (无 UI)"]
+        CORE["editor_core/"]
+        LSP["editor_lsp/"]
+        SYN["editor_syntax/"]
+        TERM["editor_term/"]
+        KP["keyproto/"]
+        SPR["editor_sprites/"]
+        SRV["services/*"]
+        MISC["logs / paths / config<br/>yaterc / yaterc_options<br/>keymaps/base|vim|vsc"]
+    end
+    CLI --> APP
+    APP --> ED
+    APP --> ACT
+    ED --> FLOWS
+    ED --> L2
+    ED --> SES
+    ED --> REG
+    ED --> KMREG
+    FLOWS --> L2
+    SES --> CORE
+    ED --> LSP
+    ED --> SYN
+    ED --> TERM
+    ED --> KP
+    ED --> SPR
+    ED --> SRV
+    ED --> MISC
+    classDef l4 fill:#ffe0b2,color:#e65100
+    classDef l3 fill:#bbdefb,color:#0d47a1
+    classDef l2 fill:#c8e6c9,color:#1a5e20
+    classDef l1 fill:#fff9c4,color:#f57f17
+    classDef l0 fill:#f5f5f5,color:#424242
+    class CLI,APP l4
+    class ED,ACT,FLOWS l3
+    class EV l2
+    class SES,REG,KMREG l1
+    class CORE,LSP,SYN,TERM,KP,SPR,SRV,MISC l0
 ```
 
-- **入口** `yate/__main__.py` → `yate/cli.py::main()`：解析参数、安装
-  crash/trace 日志、加载 `yaterc` 与主题目录，惰性导入 TUI 后构造
-  `YateApp.run()`；`--diag` 走无头诊断路径（`yate/diagnostics.py`）。
-- **外壳** `yate/app.py::YateApp`（Textual `App` 子类）：刻意单薄，只负责
-  主题桥、CSS（不再是内联字符串，改为打包资源 `yate/resources/app.tcss`，
-  由 `yate/paths.py::load_tcss` 读入，见 `app.py:82-83`）、生命周期
-  （compose/on_mount/on_unmount）、
-  驱动选择（`get_driver_class`：Windows 上换用 `keyproto` 的键弦驱动）、
-  空闲探测（`on_event` 打点 `IdleTracker`，`poll_idle` 触发屏保）与按键兜底转发。
+### 1.2 资源与入口
+
+- **入口** `yate/__main__.py` → `yate/cli.py::main()`：解析参数、安装 crash/trace
+  日志、加载 `yaterc` 与主题目录，惰性导入 TUI 后构造 `YateApp.run()`；
+  `--diag` 走无头诊断路径（`yate/diagnostics.py`）。
+- **外壳 CSS**：不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`
+  （`YateApp.CSS = paths.load_tcss("app.tcss")`，见 `app.py:82-83`；文件头注释声明
+  "selector ids are frozen by R9"），改 id 必须同步该 `.tcss`。
+- **L4 资源**：`yate/resources/`（`app.tcss` 外壳 CSS、字体、manual/changelog 文档、
+  主题示例）。
+
+### 1.3 Editor 持有关系
+
+`yate/editor.py::Editor` 是 L3 枢纽，持有以下对象（`editor.py:318-382` 构造装配）：
+
+```mermaid
+flowchart TB
+    ED["Editor"]
+    subgraph MODELS["模型 / 服务 (L1/L0)"]
+        SES["session: EditorSession"]
+        WS["workspace: Workspace"]
+        LSP["lsp: LspManager"]
+        KM["keymaps: KeymapSet"]
+        AR["actions: ActionRegistry"]
+        CR["commands: CommandRegistry"]
+    end
+    subgraph FLOWS["流程编排 (L3 flows/)"]
+        COM["completion: CompletionFlows"]
+        DOC["document_flows: DocumentFlows"]
+        WIN["window_flows: WindowFlows"]
+        PRM["prompt_flows: PromptFlows"]
+        SHL["shell: ShellFlows"]
+        OVL["overlays: OverlayFlows"]
+        EXT["extension_flows: ExtensionFlows"]
+        MS["mouse_flows: MouseFlows"]
+        LS["lsp_sync: LspSync"]
+    end
+    subgraph WIDGETS["UI 组件 (L2 editor_view/)"]
+        PB["prompt_bar: PromptBar"]
+        TB["tabbar: TabBar"]
+        CRB["breadcrumbs: Breadcrumbs"]
+        CP["completion_popup: CompletionPopup"]
+        TP["terminal_panel: TerminalPanel"]
+        ET["explorer_tree: ExplorerTree"]
+        SB["status_bar: StatusBar"]
+        PM["panes: PaneManager"]
+    end
+    ED --> MODELS
+    ED --> FLOWS
+    ED --> WIDGETS
+    classDef ed fill:#bbdefb,color:#0d47a1
+    class ED ed
+```
+
+- **外壳** `yate/app.py::YateApp`（Textual `App` 子类）：刻意单薄，只负责主题桥、
+  CSS（装载 `app.tcss`）、生命周期（compose/on_mount/on_unmount）、驱动选择
+  （`get_driver_class`：Windows 上换用 `keyproto` 的键弦驱动）、空闲探测
+  （`on_event` 打点 `IdleTracker`，`poll_idle` 触发屏保）与按键兜底转发。
   构造时创建 `Editor` 并执行 `populate(self.editor.actions, self.editor)` /
   `register_commands(self.editor.commands, self.editor)` 灌入内置表
   （R7 规则：表模块导入 editor，editor 不得反向导入它们）。
-- **核心枢纽** `yate/editor.py::Editor`：持有 `EditorSession`、
-  `Workspace`、`LspManager`、`KeymapSet`、`PaneManager`、
-  `CompletionFlows`（`yate/completion.py:51`）及两个注册表；反向引用 `self.app`。
 - **架构守护**：`tests/test_architecture.py` 在测试层强制约束上述分层
-  （2026-10-05 实测 **22 个用例全部通过**，R1–R13 + 命名/T1/T2 守卫）。
+  （2026-10-09 实测 **27 个用例全部通过**，R1–R13 + 命名/T1/T2 + 文件体量等守卫）。
 
 ## 2. 顶层模块职责
 
@@ -53,7 +143,7 @@ editor_core/ editor_view/ keymaps/  editor_lsp/ editor_term/ editor_syntax/ serv
 | `actions.py` | 内置动作表 | `populate()`（闭包绑定具体 Editor 实例） |
 | `commands.py` | 内置 ex 命令表 | `register_commands()` |
 | `config.py` | yaterc（Python 脚本式配置）加载 | `YateConfig`，支持 `register_theme` 注入、`language_servers` 声明 |
-| `completion.py` / `prompt_completion.py` | 补全控制器与 prompt 补全 | `completion.py::CompletionFlows`（即 `editor.py:342` 的 `Editor.completion` 类型） |
+| `flows/completion_flows.py` / `flows/prompt_completion.py` | 补全控制器与 prompt 补全 | `completion_flows.py::CompletionFlows`（即 `editor.py:349` 的 `Editor.completion` 类型） |
 | `keymaps/` | 可插拔键位方案 | `base.py::Keymap/ActionContext`、`registry.py::KeymapSet`、`vsc.py`、`vim.py` |
 | `editor_term/` | 内置终端：VT100/xterm 模拟器 + 跨平台 PTY | `emulator.py`、`pty_proc.py`、`shells.py` |
 | `editor_lsp/` | UI 无关 LSP 客户端与管理器 | `client.py::LspClient`、`manager.py::LspManager`（didOpen/didChange/didSave/didClose、补全、诊断） |
@@ -61,7 +151,7 @@ editor_core/ editor_view/ keymaps/  editor_lsp/ editor_term/ editor_syntax/ serv
 | `keyproto/` | 键弦模型与 Windows 键输入驱动（L0 叶包，2026-09-28 新增核对） | `chords.py::KeyChord` + VK/修饰位常量、`aliases.py`（弦→Textual 键名 / →C0 字节）、`legacy.py::event_to_raw` / `textual_key_to_raw`、`frames.py`（Windows Terminal `win32-input-mode` 键帧解码）、`driver_windows.py::YateWindowsDriver` |
 | `editor_sprites/` | 屏保精灵子系统（L0 叶包：纯数据 + 纯渲染，无 Textual/rich/IO，2026-09-28 新增核对） | `characters.py`（27 个角色的帧/调色板注册表，`character_names` / `get_character` / `shuffle_order`）、`render.py::render_rows` / `walk_x`、`chars/`（24 个角色位图模块 + 共享 `_shared.py`） |
 | `services/` | 平台服务 | `extensions.py::ExtensionAPI`（扩展脚本 `setup(api)`）、`workspace.py`、`fonts.py`、`user_setup.py`、`trust.py`（工作区信任门控）、`shell.py`、`clipboard.py`（pyperclip 降级安全包装）、`idle_tracker.py::IdleTracker`（屏保空闲打点，无定时器/线程） |
-| `*_flows.py` + `overlays.py` / `lsp_sync.py` | 从 `editor.py` 抽出的流程模块（由 `Editor` 构造，一律不反向导入 UI 层） | `document_flows.py`、`window_flows.py`、`prompt_flows.py`、`shell_flows.py`、`extension_flows.py::ExtensionFlows`（扩展加载 + yaterc `language_servers` 注册）、`overlays.py::OverlayFlows`（palette / help / manual / diff 推屏）、`lsp_sync.py` |
+| `flows/*`（`*_flows.py` + `lsp_sync.py`） | 从 `editor.py` 抽出的流程模块（`yate/flows/` 子包；由 `Editor` 构造，一律不反向导入 UI 层） | `document_flows.py::DocumentFlows`、`window_flows.py::WindowFlows`、`prompt_flows.py::PromptFlows`、`shell_flows.py::ShellFlows`、`extension_flows.py::ExtensionFlows`（扩展加载 + yaterc `language_servers` 注册）、`overlay_flows.py::OverlayFlows`（palette / help / manual / diff 推屏）、`mouse_flows.py::MouseFlows`、`completion_flows.py::CompletionFlows`、`prompt_completion.py::prompt_completions`、`lsp_sync.py::LspSync` |
 | `extensions/` | 内置扩展示例 | `python_lsp.py`（内置 Python LSP 扩展）+ 6 个 `*.py.example` 示例（batch / diff / fsharp / git / ini / yatesh 语法）；C# 等语言高亮属**内置**语法层（`editor_syntax/ts_backend/queries/csharp.scm` 等），不在本目录 |
 | 其他 | `logs.py`（crash/tracing）、`paths.py::load_tcss`（打包资源读取）、`diagnostics.py`、`dist_meta.py`（解析自身 Requires-Dist，供 `--diag` 与 PyInstaller spec 共用）、`resources/`（**`app.tcss` 外壳 CSS**、字体、manual/changelog 文档、主题示例） | |
 
@@ -91,33 +181,50 @@ editor_core/ editor_view/ keymaps/  editor_lsp/ editor_term/ editor_syntax/ serv
 
 ## 4. 事件流：按键 → 动作 → 命令
 
-```
-焦点 widget ──未消费──► YateApp.on_key ──► Editor.handle_key(event)
-                                              │ 按序检查：模态框 / 手动补全 / terminal 切换 /
-                                              │ 补全弹窗 / vim ctrl+w 前缀 / alt+shift+p 命令面板 /
-                                              │ prompt_bar 激活即 return False（其余键才继续下行）
-                                              ▼
-                     keyproto/legacy.py::event_to_raw()  (Textual 键 → raw 字节)
-                                              ▼
-                     keymaps.active.handle_key(ActionContext(...))
-                                              ▼
-              键位绑定动作名 → Editor.execute_action() 查 ActionRegistry
-              ":命令"        → Editor.run_command()    查 CommandRegistry
+```mermaid
+sequenceDiagram
+    participant W as 焦点 widget
+    participant A as YateApp.on_key
+    participant E as Editor.handle_key
+    participant KP as keyproto/legacy<br/>event_to_raw
+    participant KM as keymaps.active<br/>handle_key
+    participant AR as ActionRegistry
+    participant CR as CommandRegistry
+
+    W->>A: 未消费的键
+    A->>E: event (Key)
+    Note over E: 按序短路检查：<br/>1. 模态框<br/>2. 手动补全 ctrl+space<br/>3. terminal 切换<br/>4. 补全弹窗按键<br/>5. vim ctrl+w 前缀<br/>6. alt+shift+p 命令面板<br/>7. prompt_bar 激活 → return False<br/>8. 全局 chord (alt+shift+s / ctrl+shift+e / ctrl+1 / ctrl+p)<br/>9. explorer_focused → return False
+    alt 被分支消费
+        E-->>A: True (R10: 不再冒泡)
+    else 落到键位方案
+        E->>KP: event_to_raw(key, char)
+        KP-->>E: raw 字节
+        E->>KM: handle_key(ActionContext, raw)
+        alt 键位绑定到动作名
+            KM->>AR: Editor.execute_action(name)
+            AR-->>E: True/False
+        else 未绑定 / 退格等
+            KM-->>E: False
+        end
+        E-->>A: handled
+    end
+    Note over CR: ":命令" 路径不走按键分派：<br/>prompt_bar 提交 → Editor.run_command(text) → CommandRegistry
 ```
 
-`Editor.handle_key`（`editor.py:541-645`）的实际分派顺序与短路点：
+`Editor.handle_key`（`editor.py:549-653`）的实际分派顺序与短路点：
 
 | # | 行号 | 分支 | 命中时 |
 | --- | --- | --- | --- |
-| 1 | `editor.py:553-554` | 模态框（`has_modal_screen()`） | `return False`，输入归模态屏所有 |
-| 2 | `editor.py:575-579` | 手动补全（`ctrl+space` / `ctrl+@`） | `completion.request(manual=True)` |
-| 3 | `editor.py:580-582` | terminal 切换（`TOGGLE_KEYS`） | `terminal_panel.toggle()` |
-| 4 | `editor.py:589-602` | 补全弹窗（`tab`/`enter`/`up`/`down`/`escape`） | 接受候选 / 上下选择 / 关闭 |
-| 5 | `editor.py:605-606` | vim `ctrl+w` 窗口前缀 | `window_flows.try_window_prefix` |
-| 6 | `editor.py:611-613` | `alt+shift+p` | `overlays.open_command_palette()` |
-| 7 | `editor.py:614-617` | `prompt_bar.active_mode` | **提前 `return False`**：`:command` 输入中不劫键 |
-| 8 | `editor.py:622-637` | 其余全局 chord（`alt+shift+s` 屏保、`ctrl+shift+e` 侧栏、`ctrl+1`、`ctrl+p`）与 `explorer_focused` | 各自执行 action；侧栏聚焦时 `return False` |
-| 9 | `editor.py:638-645` | `event_to_raw()` → `handle_raw_key()` | 进入活动键位方案（见上方流程图） |
+| 1 | `editor.py:561-562` | 模态框（`has_modal_screen()`） | `return False`，输入归模态屏所有 |
+| 2 | `editor.py:583-587` | 手动补全（`ctrl+space` / `ctrl+@`） | `completion.request(manual=True)` |
+| 3 | `editor.py:588-590` | terminal 切换（`TOGGLE_KEYS`） | `terminal_panel.toggle()` |
+| 4 | `editor.py:597-610` | 补全弹窗（`tab`/`enter`/`up`/`down`/`escape`） | 接受候选 / 上下选择 / 关闭 |
+| 5 | `editor.py:613-614` | vim `ctrl+w` 窗口前缀 | `window_flows.try_window_prefix` |
+| 6 | `editor.py:619-621` | `alt+shift+p` | `overlays.open_command_palette()` |
+| 7 | `editor.py:622-625` | `prompt_bar.active_mode` | **提前 `return False`**：`:command` 输入中不劫键 |
+| 8 | `editor.py:630-643` | 全局 chord（`alt+shift+s` 屏保、`ctrl+shift+e` 侧栏、`ctrl+1`、`ctrl+p`） | 各自执行 action |
+| 9 | `editor.py:644-645` | `explorer_focused()` | `return False`：侧栏自己消费按键 |
+| 10 | `editor.py:646-653` | `event_to_raw()` → `handle_raw_key()` | 进入活动键位方案（见上方序列图） |
 
 - 两个注册表在 `YateApp.__init__` 中由 `populate` / `register_commands`
   一次性灌入；扩展可通过 `ExtensionAPI` 追加。
@@ -141,7 +248,7 @@ editor_core/ editor_view/ keymaps/  editor_lsp/ editor_term/ editor_syntax/ serv
 
 - **LSP**：`LspManager` UI 无关；server 来自 yaterc `language_servers` 声明
   与扩展 `api.lsp.register`；editor 在四个文档生命周期点挂钩
-  （启动挂钩见 `editor.py:433-434` → `extension_flows.py:49` `load_extensions()`
+  （启动挂钩见 `editor.py:442-443` → `extension_flows.py:49` `load_extensions()`
   与 `:104` `register_configured_servers()`；headless `--diag` 走
   `cli.py:379-380`），诊断经 `on_event` 回调驱动
   UI 重绘。
@@ -160,8 +267,8 @@ editor_core/ editor_view/ keymaps/  editor_lsp/ editor_term/ editor_syntax/ serv
 
 ## 7. 测试与工具链
 
-- **`tests/`**：pytest，58 个 `test_*.py`（2026-10-05 实测）按模块一一对应，
-  含 `test_architecture.py`（22 个用例，守护 R1–R13 分层约束）；
+- **`tests/`**：pytest，78 个 `test_*.py`（2026-10-09 实测）按模块一一对应，
+  含 `test_architecture.py`（27 个用例，守护 R1–R13 + 命名/T1/T2 + 文件体量等约束）；
   另有主题断言（如 `test_theme_palettes.py`）。
 - **`tools/`**：独立 CLI 工具集——`changelog/`（git + Gitee 生成双语
   changelog）、`pack/`（图标打包）、`release/`、`smoke_test/`（分场景
