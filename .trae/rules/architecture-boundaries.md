@@ -176,7 +176,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
    - 豁免名单（登记即合规；修改文件时须同步更新行数。名单与
      `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 守卫集合**两处同步维护**，
      big-module-split 各波拆分完成后同步收缩）：
-     `keymaps/vim.py`（1117 行，motion/operator/text-object 单一键映射域，维持豁免）、
+     `keymaps/vim.py`（1172 行，motion/operator/text-object/块选单一键映射域，维持豁免）、
      `editor.py`（933 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，pack wiki 站点生成/翻译/进度
      单一职责，#29/#31/#33 三轮评审均在该文件收敛，拆分另行立项）。

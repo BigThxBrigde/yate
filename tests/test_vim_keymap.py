@@ -31,6 +31,7 @@ CTRL_F: str = "\x06"
 CTRL_B: str = "\x02"
 CTRL_W: str = "\x17"
 CTRL_SLASH: str = "\x1f"
+CTRL_V: str = "\x16"
 DEL: str = "\x1b[3~"
 
 
@@ -675,6 +676,146 @@ def test_escape_and_prompts_leave_visual_mode() -> None:
 
     _press(keymap, ctx, "v", "?")
     assert editor.prompts[-1] == ("find", False)
+
+
+# --- visual block mode (ctrl+v, column selection) ----------------------------
+
+
+def test_ctrl_v_enters_visual_block_mode() -> None:
+    """ctrl+v enters blockwise visual mode anchored at the cursor."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, CTRL_V)
+    assert keymap.mode is VimMode.VISUAL_BLOCK
+    assert editor.messages[-1] == "-- VISUAL BLOCK --"
+    assert editor.buffer.anchor == (0, 0)
+
+
+def test_ctrl_v_in_block_mode_exits_and_clears() -> None:
+    """A second ctrl+v leaves block mode and drops the block selection."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, CTRL_V, CTRL_V)
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.buffer.has_selection() is False
+    assert editor.buffer.block is False
+
+
+def test_block_motions_extend_rectangle() -> None:
+    """Motions in block mode extend the rectangle via the block flag."""
+    editor, keymap, ctx = _setup("abcd\nefgh\nijkl")
+    _press(keymap, ctx, CTRL_V, "l", "j")
+    assert editor.buffer.block_region() == (0, 0, 1, 1)
+    assert keymap.mode is VimMode.VISUAL_BLOCK
+
+
+def test_block_yank_copies_rectangle_and_lands_at_corner() -> None:
+    """y in block mode yanks the rectangle and lands on its top-left corner.
+
+    The block API's right column is half-open (plan-a), so the second ``l``
+    is what makes the rectangle cover both ``ab`` / ``ef`` columns.
+    """
+    editor, keymap, ctx = _setup("abcd\nefgh\nijkl")
+    _press(keymap, ctx, CTRL_V, "l", "l", "j", "y")
+    assert editor.buffer.register == "ab\nef"
+    assert editor.buffer.register_block is True
+    assert editor.buffer.cursor == (0, 0)
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_block_delete_removes_rectangle_one_undo() -> None:
+    """d in block mode removes each covered span in one undo step."""
+    editor, keymap, ctx = _setup("abcd\nefgh\nijkl")
+    _press(keymap, ctx, CTRL_V, "l", "l", "j", "d")
+    assert editor.buffer.lines == ["cd", "gh", "ijkl"]
+    assert keymap.mode is VimMode.NORMAL
+
+    editor.buffer.undo()
+    assert editor.buffer.lines == ["abcd", "efgh", "ijkl"]
+
+
+def test_block_delete_feeds_block_paste() -> None:
+    """A deleted block pastes back as a rectangle at the cursor column."""
+    editor, keymap, ctx = _setup("abcd\nefgh\nijkl")
+    # the second l widens the rectangle past the half-open right column:
+    # \x16 + j alone is zero-width, one l is one column wide
+    _press(keymap, ctx, CTRL_V, "l", "l", "j", "d")
+    assert editor.buffer.lines == ["cd", "gh", "ijkl"]
+    assert editor.buffer.register_block is True
+
+    _press(keymap, ctx, "j", "p")
+    # the rectangle re-lands at the cursor's column on rows 1..2
+    assert editor.buffer.lines == ["cd", "abgh", "efijkl"]
+
+
+def test_v_from_block_mode_converts_to_charwise() -> None:
+    """v in block mode keeps both corners but drops the block flag."""
+    editor, keymap, ctx = _setup("abcd")
+    _press(keymap, ctx, CTRL_V, "j", "v")
+    assert keymap.mode is VimMode.VISUAL
+    assert editor.buffer.block is False
+    assert editor.buffer.anchor == (0, 0)
+
+
+def test_v_from_block_mode_converts_to_linewise() -> None:
+    """V in block mode converts the corners into whole selected rows."""
+    editor, keymap, ctx = _setup("abcd")
+    _press(keymap, ctx, CTRL_V, "j", "V")
+    assert keymap.mode is VimMode.VISUAL_LINE
+    assert editor.buffer.anchor == (0, 0)
+    assert editor.buffer.cursor == (0, 4)  # _fix_linewise reached the row end
+
+
+def test_escape_leaves_block_mode() -> None:
+    """ESC clears the selection and leaves no stale block flag."""
+    editor, keymap, ctx = _setup("abcd\nefgh")
+    _press(keymap, ctx, CTRL_V, "j", ESC)
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.buffer.has_selection() is False
+    assert editor.buffer.block is False
+
+
+def test_prompt_keys_leave_block_mode() -> None:
+    """: / ? return to normal mode before opening their prompts."""
+    editor, keymap, ctx = _setup("abcd")
+    _press(keymap, ctx, CTRL_V, ":")
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.prompts[-1] == ("command", True)
+
+    _press(keymap, ctx, CTRL_V, "/")
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.prompts[-1] == ("find", True)
+
+    _press(keymap, ctx, CTRL_V, "?")
+    assert editor.prompts[-1] == ("find", False)
+
+
+def test_drop_visual_from_block_returns_to_normal() -> None:
+    """drop_visual (a mouse click) ends blockwise visual mode too."""
+    _, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, CTRL_V)
+    assert keymap.mode is VimMode.VISUAL_BLOCK
+
+    keymap.drop_visual()
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_block_shift_indents_covered_rows() -> None:
+    """> in block mode indents the covered rows; the selection survives."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    _press(keymap, ctx, CTRL_V, "j", ">")
+    assert editor.buffer.lines == ["    ab", "    cd"]
+    assert keymap.mode is VimMode.VISUAL_BLOCK
+
+    _press(keymap, ctx, ">")
+    assert editor.buffer.lines == ["        ab", "        cd"]
+
+
+def test_zero_width_block_yank_drops_to_normal_without_crash() -> None:
+    """y right after Ctrl+V (no motion) yanks nothing, exits block mode."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, CTRL_V, "y")
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.buffer.lines == ["abc"]
+    assert not editor.buffer.has_block_selection()
 
 
 # --- normal-mode entry points ----------------------------------------------

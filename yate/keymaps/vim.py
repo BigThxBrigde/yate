@@ -47,6 +47,7 @@ class VimMode(str, Enum):
     INSERT = "insert"
     VISUAL = "visual"
     VISUAL_LINE = "visual_line"
+    VISUAL_BLOCK = "visual_block"
 
 
 # Motion keys accepted after an operator or in visual mode.
@@ -147,6 +148,9 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<esc>"), "back to normal", "Return to normal mode", INS),
             KeyBinding("v", "visual mode", "Characterwise visual mode", EDT),
             KeyBinding("V", "visual line mode", "Linewise visual mode", EDT),
+            KeyBinding(parse_key("<ctrl-v>"), "visual block mode",
+                "Blockwise visual mode (column selection)", EDT,
+            ),
             KeyBinding("x", "delete char", "Delete character", EDT),
             KeyBinding(">", "indent", "Indent [count] lines", EDT),
             KeyBinding("<", "outdent", "Outdent [count] lines", EDT),
@@ -217,7 +221,7 @@ class VimKeymap(Keymap):
             return True
         if self.mode == VimMode.INSERT:
             return self._handle_insert(ctx, key)
-        if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE):
+        if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE, VimMode.VISUAL_BLOCK):
             return self._handle_visual(ctx, key)
         return self._handle_normal(ctx, key)
 
@@ -291,7 +295,9 @@ class VimKeymap(Keymap):
     def _handle_visual(self, ctx: ActionContext, key: str) -> bool:
         buf = ctx.buffer
         ui = ctx.ui
-        linewise = self.mode == VimMode.VISUAL_LINE
+        kind = self.mode  # VISUAL | VISUAL_LINE | VISUAL_BLOCK
+        linewise = kind == VimMode.VISUAL_LINE
+        blockwise = kind == VimMode.VISUAL_BLOCK
 
         if key == "\x1b":
             buf.clear_selection()
@@ -320,14 +326,59 @@ class VimKeymap(Keymap):
                 self.mode = VimMode.NORMAL
                 self.pending_register = None  # same cleanup as the ESC branch
             else:
+                # a block's two corners become the charwise span's ends
+                # (vim converts the selection kind, keeping both endpoints)
+                buf.block = False
                 self.mode = VimMode.VISUAL
             return True
         if key == "V":
+            # the block flag must not survive a kind switch: _fix_linewise
+            # turns the corners into whole rows (vim converts a block into a
+            # line selection the same way)
+            buf.block = False
             self.mode = VimMode.VISUAL_LINE if not linewise else VimMode.VISUAL
             self._fix_linewise(buf)
             return True
+        if key == "\x16":
+            if blockwise:
+                buf.clear_selection()
+                self.mode = VimMode.NORMAL
+                self.pending_register = None  # same cleanup as the ESC branch
+            else:
+                self.mode = VimMode.VISUAL_BLOCK
+                # keep the anchor as one block corner; the flag must follow
+                # the mode or block_region() would report no rectangle
+                buf.block = True
+            return True
         if key in ("y", "d", "x"):
             reg = self._take_named_register()
+            if blockwise:
+                if key == "y":
+                    text = buf.yank_block(named=reg)
+                    if text is None:
+                        # zero-width block (no motion yet): vim yanks nothing
+                        # and drops back to normal mode instead of crashing
+                        buf.clear_selection()
+                        self.mode = VimMode.NORMAL
+                        return True
+                    self._mirror(text, reg)
+                    sel = buf.block_region()
+                    buf.clear_selection()
+                    if sel is not None:
+                        buf.cursor = (sel[0], sel[1])
+                    ui.message("yanked block")
+                else:
+                    # delete_block already recorded register_block for the
+                    # unnamed register (and wrote the same text there);
+                    # _store_deleted rewrites the register without touching
+                    # register_block, so the block paste type survives -- this
+                    # comment pins that contract.  A named register does not
+                    # record the type (its p runs charwise): known limitation,
+                    # matching vim's "named registers are charwise" reading.
+                    self._store_deleted(buf, buf.delete_block(named=reg), reg)
+                    ui.message("deleted block")
+                self.mode = VimMode.NORMAL
+                return True
             if linewise:
                 if key == "y":
                     self._mirror(buf.yank_lines(named=reg), reg)
@@ -400,7 +451,7 @@ class VimKeymap(Keymap):
         (:meth:`~yate.editor_core.buffer.TextBuffer.set_cursor` with
         ``select=False``), keeping this method free of buffer knowledge.
         """
-        if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE):
+        if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE, VimMode.VISUAL_BLOCK):
             self.mode = VimMode.NORMAL
 
     def _fix_linewise(self, buf: TextBuffer) -> None:
@@ -603,6 +654,15 @@ class VimKeymap(Keymap):
             buf.anchor = (r, 0)
             buf.cursor = (r, len(buf.lines[r]))
             ui.message("-- VISUAL LINE --")
+            return True
+
+        if key == "\x16":
+            # begin_block_selection pins anchor = cursor and raises the block
+            # flag (plan-a): a plain anchor write would leave block False and
+            # block_region() / yank_block() would see no rectangle.
+            self.mode = VimMode.VISUAL_BLOCK
+            buf.begin_block_selection()
+            ui.message("-- VISUAL BLOCK --")
             return True
 
         if key == "/":
