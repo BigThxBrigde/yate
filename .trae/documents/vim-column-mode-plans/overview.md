@@ -188,3 +188,57 @@ flowchart LR
 Windows Terminal 内 `python -m yate`：① vim 键位 `Ctrl+V j l d` 删除矩形块、
 `u` 恢复；② `Ctrl+V j l y` 后移动光标 `p` 回贴矩形；③ vsc 键位 `Alt+Shift+↓→`
 画块、鼠标 `Alt`+拖拽画块、块上打字整列替换；④ 状态栏显示 `V-COLUMN`。
+
+## 九、执行记录（2026-10-10，闭环收尾回填）
+
+### 波次执行与提交
+
+| 波次 | 子计划 | 提交 | 结果 |
+|---|---|---|---|
+| wave-1 | plan-a（buffer 块选模型） | `fbf7ad0` `feat(editor-core)` | 14 新用例全绿 |
+| wave-1 | plan-b（alt+shift 箭头管道） | `55e7823` `feat(keyproto)` | 8 新用例全绿 |
+| wave-2 | plan-c（vim VISUAL_BLOCK） | `b222f22` `feat(vim)` | 12 新用例全绿 |
+| wave-2 | plan-d（vsc 块选动作） | `2dc3015` `feat(actions)` | 10 新用例全绿 |
+| wave-2 | plan-e（块渲染） | `54ccc66` `feat(editor-view)` | 5 新用例全绿 |
+| wave-2 | plan-f（鼠标 Alt 拖拽） | `aec6da9` `feat(flows)` | 5 新用例全绿 |
+| wave-3 | plan-g（V-COLUMN chip + 冒烟） | `e3d076e` `feat(statusbar)` | 4 新用例 + 冒烟场景全过 |
+| 迭代 | plan-c 零宽 yank 崩溃修复 | `9358be1` `fix(vim)` | 钉住回归 |
+| 迭代 | 评审 W1/W2/W3 修复 | `cf5f2ef` `fix(editor-core)` | 6 新用例全绿 |
+
+### 执行中的裁决与偏离（均已实测取证）
+
+1. **plan-b**：计划 §四.3 片段拦截所有 alt+shift 组合，破坏既有 `<alt-shift-p>` /
+   `<alt-shift-s>` 单字符绑定（`vsc.py:102-103`、`vim.py:185`）——主代理裁决
+   "放行单字符路径"：合成 CSI 检查仅对多字符特 殊键生效，单字符键保留
+   `ESC+大写` 旧编码；ValueError 钉子改用 `<alt-shift-home>`。
+2. **plan-c**：块列边界取 plan-a 半开口径（计划自身测试表与 vim 闭区间语义互斥，
+   按"不擅自改已合入 API"处理）；Normal 入口改用 `begin_block_selection()`；
+   零宽 `y` 的 `assert` 崩溃改为静默回 NORMAL（`9358be1`）。
+3. **plan-d**：`test_plain_select_down_after_block_clears_block_flag` 与 plan-a
+   已合入"扩展分支保持 block"冲突——裁决改正向钉子（与 VS Code 一致：
+   plain Shift+方向续接块扩展）。
+4. **plan-f**：Textual 8.2.8 `MouseEvent` 无 `alt` 属性（实测
+   `textual/_xterm_parser.py:129-141`：SGR 修饰位 8（Alt）映射为 `meta`）——
+   裁决改 `event.meta` 通道，终端语义不变；pilot 以 `meta=True` 合成测试事件。
+5. **评审修复（`cf5f2ef`）**：W1 `register` 收敛为 property（写即清块类型，
+   块写入点重置位，`_prime_paste` 同内容镜像不清位）；W2 零宽/越界块
+   y/d 不写寄存器、不进 undo；W3 补模式互切/命名寄存器回归；
+   S1 paste 单次读剪贴板；S4 行数回填（`vim.py` 1192、`buffer.py` 1014，
+   守卫口径 `splitlines()`）。
+6. **chip 文案**：issue 原文小写 `v-column`，按既有 chip 全大写约定
+   （`NORMAL`/`V-LINE`）采用 `V-COLUMN`。
+
+### 收尾门禁实测（主代理执行，2026-10-10）
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations | 0 |
+| `pytest tests/ -q` | **2114 passed, 9 skipped**（3:38） | 0 |
+| `pytest tests/test_architecture.py -q` | 28 passed | 0 |
+| `pytest tests/ --cov=yate --cov-branch --cov-fail-under=75` | TOTAL **91.55%** | 0 |
+| `python -m tools.smoke_test run --no-color` | **108/108 scenarios, 1307/1307 checks** | 0 |
+
+评审（code-review-expert 剧本）结论：无 blocker；3 项 major（W1/W2/W3）已全部
+修复并复核，6 项 minor 中 S1/S3/S4/S5 已修，S2（undo 不恢复选区形态，V1 已知
+限制已注释登记）与 S6（alt+shift 非 箭头组合键 fail-loud，行为变更已接受）按
+minor 登记不阻塞。手工验证项（Windows Terminal 交互冒烟）待用户执行。
