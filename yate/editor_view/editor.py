@@ -165,6 +165,17 @@ class EditorView(ScrollView, HighlightMixin):
             return None
         return (min(anchor, cursor), max(anchor, cursor))
 
+    def _block_region(self) -> tuple[int, int, int, int] | None:
+        """Block bounds for the active view's live buffer, ``None`` otherwise.
+
+        Inactive panes render a block selection as the normalized charwise
+        span: ``ViewState`` carries no block flag (V1 limitation, see the
+        pane-state model in :mod:`yate.session`).
+        """
+        if self.is_active_view and self.buffer.has_block_selection():
+            return self.buffer.block_region()
+        return None
+
     def on_focus(self, _event: Focus) -> None:
         """Report pane activation to the pane manager."""
         self.panes.notify_focus(self.leaf_id)
@@ -512,14 +523,18 @@ class EditorView(ScrollView, HighlightMixin):
 
         *cursor* / *anchor* are the pane's cursor and anchor as looked up
         once by the caller (:meth:`render_line` shares one pane-tree walk
-        between this pass and the cursor painting).
+        between this pass and the cursor painting).  While a block (column)
+        selection is active the charwise selection painting is suppressed
+        (both share the anchor/cursor pair) and each covered row paints
+        only the rectangle span clamped to the row's length.
         """
         buf = self.buffer
         tw = buf.tab_width
         cursor_row, cursor_col = cursor
         ranges: list[tuple[int, int, int]] = []
 
-        sel = self._selection(cursor, anchor)
+        region = self._block_region()
+        sel = None if region is not None else self._selection(cursor, anchor)
         if sel is not None:
             (r1, c1), (r2, c2) = sel
             cs: int | None = None
@@ -536,6 +551,14 @@ class EditorView(ScrollView, HighlightMixin):
                 start = theme.char_to_cell(line, cs, tw)
                 end = theme.char_to_cell(line, ce, tw)
                 ranges.append((start, end, S_SELECTION))
+        if region is not None:
+            r1, c1, r2, c2 = region
+            if r1 <= row <= r2:
+                line_len = len(line)
+                start = theme.char_to_cell(line, min(c1, line_len), tw)
+                end = theme.char_to_cell(line, min(c2, line_len), tw)
+                if end > start:
+                    ranges.append((start, end, S_SELECTION))
 
         # Search state belongs to the active document; other panes showing
         # the same file would otherwise paint matches on wrong rows anyway.

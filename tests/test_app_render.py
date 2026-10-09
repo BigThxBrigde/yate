@@ -330,3 +330,165 @@ def test_doc_search_enter_flushes_pending_query_immediately(
                 assert calls == ["key"]
 
     asyncio.run(scenario())
+
+
+# -------------------------------------- vim-column-mode block render (plan-e)
+
+
+def test_block_selection_paints_only_rectangle_cells(tmp_path: Path) -> None:
+    """A block selection paints only the rectangle cells on covered rows."""
+
+    async def scenario() -> None:
+        target = tmp_path / "block.txt"
+        target.write_text("abcd\nefgh\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+
+            from yate.editor_view.editor import S_CURSOR, S_SELECTION
+
+            buf = app.editor.session.buffer
+            buf.anchor = (0, 1)
+            buf.cursor = (1, 3)
+            buf.block = True
+            cursor, anchor = editor._cursor_anchor()
+            row0 = editor._row_style_ranges(0, buf.lines[0], cursor, anchor)
+            row1 = editor._row_style_ranges(1, buf.lines[1], cursor, anchor)
+            row2 = editor._row_style_ranges(2, "", cursor, anchor)
+            # rectangle cols 1..3 (half-open): cells 1..2 on both covered
+            # rows; the cursor cell keeps its own range on row 1
+            assert row0 == [(1, 3, S_SELECTION)]
+            assert row1 == [(1, 3, S_SELECTION), (3, 4, S_CURSOR)]
+            assert row2 == []
+
+    asyncio.run(scenario())
+
+
+def test_block_selection_clamps_short_rows_to_line_length(
+    tmp_path: Path,
+) -> None:
+    """A block's right bound clamps to each covered row's line length."""
+
+    async def scenario() -> None:
+        target = tmp_path / "short.txt"
+        target.write_text("ef\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+
+            from yate.editor_view.editor import S_SELECTION
+
+            buf = app.editor.session.buffer
+            buf.anchor = (0, 1)
+            buf.cursor = (1, 4)
+            buf.block = True
+            cursor, anchor = editor._cursor_anchor()
+            row0 = editor._row_style_ranges(0, buf.lines[0], cursor, anchor)
+            # the block spans chars 1..4 but the row has only 2: the range
+            # clamps to cell 1..2 (char_to_cell("ef", 2)), never past it
+            assert row0 == [(1, 2, S_SELECTION)]
+
+    asyncio.run(scenario())
+
+
+def test_charwise_highlight_suppressed_while_block_active(
+    tmp_path: Path,
+) -> None:
+    """Charwise painting is suppressed while a block selection is active.
+
+    Block and charwise selections share the anchor/cursor pair: without the
+    suppression both would paint on the same rows and misshape the overlay.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "suppressed.txt"
+        target.write_text("abcd\nefgh\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+
+            from yate.editor_view.editor import S_CURSOR, S_SELECTION
+
+            buf = app.editor.session.buffer
+            buf.anchor = (0, 0)
+            buf.cursor = (1, 1)
+            buf.block = True
+            cursor, anchor = editor._cursor_anchor()
+            row0 = editor._row_style_ranges(0, buf.lines[0], cursor, anchor)
+            row1 = editor._row_style_ranges(1, buf.lines[1], cursor, anchor)
+            # exactly the rectangle cells: row 0 is one 0..1 span, row 1 the
+            # same span plus its cursor cell -- no extra charwise range
+            assert row0 == [(0, 1, S_SELECTION)]
+            assert row1 == [(0, 1, S_SELECTION), (1, 2, S_CURSOR)]
+
+    asyncio.run(scenario())
+
+
+def test_block_selection_zero_width_paints_nothing(tmp_path: Path) -> None:
+    """A zero-width block (c1 == c2) paints no selection range."""
+
+    async def scenario() -> None:
+        target = tmp_path / "zero.txt"
+        target.write_text("abcd\nefgh\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+
+            from yate.editor_view.editor import S_CURSOR, S_SELECTION
+
+            buf = app.editor.session.buffer
+            buf.anchor = (0, 2)
+            buf.cursor = (1, 2)
+            buf.block = True
+            cursor, anchor = editor._cursor_anchor()
+            assert editor._block_region() == (0, 2, 1, 2)
+            row0 = editor._row_style_ranges(0, buf.lines[0], cursor, anchor)
+            row1 = editor._row_style_ranges(1, buf.lines[1], cursor, anchor)
+            # the end > start guard drops the empty span; the cursor cell
+            # on row 1 is the only overlay left
+            assert all(sid != S_SELECTION for _, _, sid in row0)
+            assert row1 == [(2, 3, S_CURSOR)]
+
+    asyncio.run(scenario())
+
+
+def test_inactive_pane_block_selection_renders_charwise(
+    tmp_path: Path,
+) -> None:
+    """Inactive panes fall back to the charwise span (V1 limitation).
+
+    ``ViewState`` carries no block flag, so only the active view's live
+    buffer reports a block region.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "alpha.txt"
+        target.write_text("abcd\nefgh\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            app.editor.run_command("sp")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            active = panes.active_view
+            assert active is not None
+            inactive = next(
+                v for v in panes.all_views() if v is not active
+            )
+
+            buf = active.buffer
+            buf.anchor = (0, 0)
+            buf.cursor = (1, 1)
+            buf.block = True
+            assert active._block_region() == (0, 0, 1, 1)
+            assert inactive._block_region() is None
+
+    asyncio.run(scenario())
