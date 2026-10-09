@@ -191,10 +191,12 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     # ---- panes -------------------------------------------------------------
 
     def _split(args: str) -> None:
-        editor.window_flows.split_with_path("horizontal", _strip_quotes(args))
+        # ``.strip()`` before quote detection (review 2026-10-03 #51.1):
+        # trailing whitespace would defeat the surrounding-pair match.
+        editor.window_flows.split_with_path("horizontal", _strip_quotes(args.strip()))
 
     def _vsplit(args: str) -> None:
-        editor.window_flows.split_with_path("vertical", _strip_quotes(args))
+        editor.window_flows.split_with_path("vertical", _strip_quotes(args.strip()))
 
     def _only(args: str) -> None:
         editor.window_flows.only_pane()
