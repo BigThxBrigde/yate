@@ -317,8 +317,16 @@ class DiffPane(ScrollView):
             color = getattr(t, _BADGES[line_state][1])
             inline_bg = Color.parse(color).blend(Color.parse(t.bg), 0.55).hex
 
+        # text window: no horizontal scrolling (long lines clip), so
+        # expanding the whole line is wasted work on very long input
+        # (review 2026-10-03 #49.2) -- cap the expansion at the largest
+        # prefix that can still paint the visible window.  Wide glyphs
+        # take 2 cells and a tab up to ``tab_width``, so the review's
+        # ``text_w * 2 + tab_width`` bound always over-covers.
+        text_w = max(1, view_w - gutter_w)
+        cap = min(len(line), text_w * 2 + buf.tab_width)
         cells: list[str] = []
-        for ch in line:
+        for ch in line[:cap]:
             theme.expand_char(ch, cells, buf.tab_width)
         cursor_row = buf.row if self.editing else -1
         cursor_cell = (
@@ -349,7 +357,6 @@ class DiffPane(ScrollView):
         ]
 
         # text window (no horizontal scrolling: long lines clip)
-        text_w = max(1, view_w - gutter_w)
         used = 0
         span = 0  # character index of the cell being painted
         for cell_idx in range(text_w):
