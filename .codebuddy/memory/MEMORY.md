@@ -2,6 +2,14 @@
 
 ## 用户偏好与项目规则（yate 项目）
 
+- **行数统计口径（2026-10-09 教训）**：PowerShell `Measure-Object -Line` 不计空行，
+  与项目体量守卫口径（`splitlines()`，含空行）不一致——判文件行数/豁免名单一律用
+  `python -c "len(p.read_text().splitlines())"`，勿用 Measure-Object -Line。
+- **@override 纪律（2026-10-09 实证）**：Textual 的 `on_mount` / `on_unmount` 并非
+  在所有基类都存在同名方法（`Screen` / `Tree` 没有，`ScrollView` 有）——加 `@override`
+  前先确认基类确有该 hook，否则 pyright strict 报 reportGeneralTypeIssues；评审提出
+  "hook 风格不一致缺 @override"时先查基类再动手。
+
 - **工作日志新约定（2026-10-09，用户指示）**：yate 项目的每日工作记忆不再写工作区
   `.codebuddy/memory/YYYY-MM-DD.md` 每日文件，改为**追加到用户主目录**
   `~/.codebuddy/memory/yate-work-logs.md`，
