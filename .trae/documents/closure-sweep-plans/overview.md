@@ -22,6 +22,10 @@ worktree `../yate-closure-sweep`，分支 `fix/closure-sweep`（自 master `25e1
 
 ## 状态
 
-- [ ] Wave A/B/C 执行
-- [ ] 门禁
-- [ ] reviews/README 索引回填 + 本目录回填
+- [x] Wave A：合规结论 ✅（14 处 ignore 均已带理由，初扫误报，零改动）
+- [x] Wave B：S1 反转（原行数正确）；S2 落地（tools 守卫 + wiki.py 1487 豁免）；
+      S3 维持登记
+- [x] Wave C：R1–R16 落地 15 笔提交；R7 反转（评审误判）；维持登记 11 组
+- [x] 门禁：pyright 0（含 pack/）+ pytest 全绿 + 覆盖率 91.41% + 冒烟 107/107
+- [x] reviews/README 索引回填 + 本目录回填
+- 分支 `fix/closure-sweep`，只提交未推送；合并/推送由用户决定

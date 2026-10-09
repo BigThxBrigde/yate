@@ -67,6 +67,55 @@ worktree `.venv\Scripts\python.exe -m pytest <相关文件> -q`；回报改动�
    `overview.md` 勾选状态。
 3. 提交：分主题 `fix(...) / test(...) / refactor(...) / docs(...)` 多笔，英文 conventional。
 
-## 五、执行结果回填（收尾时填写）
+## 五、执行结果回填（2026-10-09 收尾）
 
-（待回填）
+### 5.1 提交清单（分支 fix/closure-sweep，worktree ../yate-closure-sweep）
+
+| 提交 | 内容 | 对应项 |
+|---|---|---|
+| ac70997 | fix(flows): saveas lift 紧随写盘 | R1（#16.1） |
+| 0882770 | fix(commands): ex args 先 strip 再剥引号 | R2（#26） |
+| 03613ff | fix(view): explorer 主题切换就地重标签 | R3（#8） |
+| b368f1c | fix(syntax): blocked-build 警告统一 %r | R4（#16.3） |
+| c88074f | refactor(session): split 不变量 ValueError | R5（#23.1） |
+| 9f8cb42 | fix(actions): cut 先删除后写寄存器 + 只读回归 | R6（#18 三轮 #1） |
+| bb278fd | perf(view): diff 行展开按可视窗预截断 | R8（#21.2） |
+| c7503b7 | refactor(pack): pkg_path 单一事实来源 | R10（#23.2） |
+| 577a26a | fix(changelog): tag ref NUL 分隔解析 | R11（#23.3） |
+| a2b4f16 | refactor(smoke): _DRAIN_TIMEOUT_S 常量 | R15（#40 M1） |
+| cef2fdb | test(wiki): io 导入统一 + 守护重构告警 | R13/R14（#34） |
+| daf7183 | test(smoke): CLI 测试主题隔离 fixture | R12（#30 M3） |
+| d9d8422 | test: win32 常量命名 + 防抖暂停推导 | R16（#40 M2/M3） |
+| 7781cf7 | test(arch): 嵌套 App[Any] 守卫 + tools 体量守卫 + 规则同步 | R9 + plan-b S2 |
+| d0e6cc6 | docs(wiki): 中断路径注记声明 + emit 折行精确化 | F-O + O-3 |
+
+### 5.2 门禁实测（主代理亲自执行，退出码均为 0）
+
+| 门禁 | 结果 |
+|---|---|
+| pyright yate/ tests/ tools/ pack/ | 0 errors / 0 warnings / 0 informations |
+| pytest tests/ -q | 全绿（0 failures） |
+| pytest tests/ --cov=yate --cov-branch --cov-fail-under=75 | 覆盖率 **91.41%** |
+| tools.smoke_test run | **107/107** 场景、1286/1286 checks、exit 0 |
+| 负向演练 1（R9） | 嵌套 `"list[App[Any]]"` 被守卫捕获（临时文件 :3） |
+| 负向演练 2（S2） | 移除豁免后体量守卫捕获 `tools/pack/wiki.py`（1487） |
+
+### 5.3 偏离计划记录
+
+1. **模型指定不可用**：DeepSeek-V40-Pro / GLM-5.3-Flash 指定无法满足——运行时无
+   模型选择能力；计划与执行由当前会话承担，已向用户声明。
+2. **R7（#21.3 @override）反转**：pyright strict 实证 `Screen` / `Tree` 基类无同名
+   `on_mount` / `on_unmount` hook，`@override` 非法（4 处 reportGeneralTypeIssues）；
+   复核结论改为"评审误判，维持现状"，已回填 reviews/README #21 行。
+3. **plan-b S1 反转**：豁免名单行数复测（splitlines 口径）证明原名单正确，
+   "行数过期"系 `Measure-Object -Line` 不计空行的初扫误报；buffer.py 维持豁免。
+4. **R11 子步骤无对象**：test_changelog_tool.py 经 grep 核实 monkeypatch 在函数
+   边界注入 TagRef、无伪造原始行可改，子代理如实上报零改动，采纳。
+5. **R16-M3 收窄**：4 处 `pause(0.15)` 中仅 1 处为搜索防抖（test_app_manual:295），
+   其余 3 处等待语义不同，按"逐处核实"指示保持原样。
+6. **子代理重试**：首轮 2 个 coder spawn 被运行时中止（code=10003）；按
+   subagent-workflow §五.4 换 plan-executor 角色重试一次，两批均成功回收
+   （104 passed / pyright 0；timing 抖动 1 例重跑排除）；主代理重跑其名下
+   全量 pytest 复核通过。
+7. **维持登记项**：§三所列 11 组按登记理由维持（"无法修复除外"的适用集合），
+   已在 reviews/README.md §一尾部署注节公开。
