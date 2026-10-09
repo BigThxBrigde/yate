@@ -327,8 +327,13 @@ def remove_node(node: Node, target: Leaf) -> Node | None:
     # ``children`` and ``sizes`` are parallel lists: keep the pairs together so
     # the survivors retain *their own* fractions (slicing the first N sizes
     # would shift every fraction after the removed slot).  A mismatch would
-    # silently truncate the tree, so it is refused outright.
-    assert len(node.children) == len(node.sizes), "Split invariant broken"
+    # silently truncate the tree, so it is refused outright -- an explicit
+    # raise (review 2026-10-03 #52.1): a bare ``assert`` vanishes under ``-O``.
+    if len(node.children) != len(node.sizes):
+        raise ValueError(
+            "Split invariant broken: "
+            f"{len(node.children)} children vs {len(node.sizes)} sizes"
+        )
     kept: list[tuple[Node, float]] = []
     removed_here = False
     for child, size in zip(node.children, node.sizes):
