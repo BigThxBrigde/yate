@@ -95,3 +95,10 @@ pilot 鼠标合成风格）
   并发 Textual pilot timing 偶发（`subagent-workflow.md` §三.3）：失败先重跑确认。
 - 回滚：独立 commit（`feat(flows): alt+drag column selection`），单提交 revert；
   与 plan-d/e 无文件交集。
+- **偏离记录（2026-10-10）**：Textual 8.2.8 `MouseEvent` 无 `alt` 属性
+  （pyright 实测暴露），§四.1 的 `if event.alt:` 改为 `if event.meta:`；
+  依据：Textual 的 SGR 鼠标解码把 modifier 位 8（Alt）映射为 `meta`
+  （`textual/_xterm_parser.py:129-141` 实测）——真实终端里 Alt+拖拽到达
+  yate 时即 `meta=True`，终端语义等价，非语义变更。§四.3 测试用例改用
+  pilot/合成路径的 `meta=True` 构造（pilot `_get_mouse_message_arguments`
+  支持 `meta` 参数，实测确认）。主代理裁决采纳。

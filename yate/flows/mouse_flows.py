@@ -2,7 +2,8 @@
 
 Dispatches the mouse events forwarded by :class:`~yate.editor_view.editor.EditorView`
 (mouse analogue of the key dispatch): single click positions the cursor,
-left-button drag makes a characterwise selection, double/triple click
+left-button drag makes a characterwise selection, ``Alt`` + left-button
+drag/press makes a rectangular (column) selection, double/triple click
 selects the word/line under the pointer, and a click ends vim visual
 mode.  Selection state stays in the buffer (``set_cursor``), exactly like
 the keyboard paths.  Constructed by the editor; never imports upward.
@@ -71,7 +72,15 @@ class MouseFlows:
         pos = view.buffer_pos_from_mouse(event)
         if pos is None:
             return False
-        view.buffer.set_cursor(pos, select=event.shift)
+        if event.meta:
+            # Column selection: anchor at the press point; the block flag
+            # survives the select=True extends below (TextBuffer.set_cursor
+            # keeps it while an anchor exists).  Textual represents the Alt
+            # modifier of mouse events as ``meta`` (SGR bit 8).
+            view.buffer.set_cursor(pos)
+            view.buffer.begin_block_selection()
+        else:
+            view.buffer.set_cursor(pos, select=event.shift)
         view.content_changed()
         self._refresh()
         self._dragging = True
@@ -82,6 +91,8 @@ class MouseFlows:
             return False
         pos = view.buffer_pos_from_mouse(event)
         if pos is not None:  # outside the text area: keep the drag alive
+            # The block-vs-charwise track is decided once at mouse-down;
+            # toggling Alt mid-drag does not re-route (VS Code parity).
             view.buffer.set_cursor(pos, select=True)
             view.content_changed()
             self._refresh()

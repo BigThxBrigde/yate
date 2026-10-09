@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from textual.events import MouseDown, MouseEvent, MouseMove, MouseUp
+from textual.pilot import _get_mouse_message_arguments
 from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_view.editor import EditorView
@@ -402,5 +403,145 @@ def test_mouse_click_maps_rows_after_vertical_scroll(tmp_path: Path) -> None:
             await pilot.click(EditorView, offset=(_GUTTER + 2, 3))
             await pilot.pause()
             assert app.editor.session.buffer.cursor == (8, 2)
+
+    asyncio.run(scenario())
+
+
+def test_alt_drag_makes_block_selection(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # Alt+press anchors a column selection at (0, 1)...
+            await pilot.mouse_down(
+                EditorView, offset=(_GUTTER + 1, 0), meta=True,
+            )
+            await pilot.pause()
+            # ...an Alt drag extends the rectangle to (1, 3)...
+            await pilot._post_mouse_events(
+                [MouseMove], widget=EditorView,
+                offset=(_GUTTER + 3, 1), button=1, meta=True,
+            )
+            await pilot.pause()
+            # ...and MouseUp keeps the block selection (VS Code parity)
+            await pilot.mouse_up(
+                EditorView, offset=(_GUTTER + 3, 1), meta=True,
+            )
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            assert buf.has_block_selection() is True
+            assert buf.block_region() == (0, 1, 1, 3)
+            assert app.editor.mouse_flows._dragging is False
+
+    asyncio.run(scenario())
+
+
+def test_plain_drag_makes_charwise_selection(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.mouse_down(EditorView, offset=(_GUTTER + 1, 0))
+            await pilot.pause()
+            await pilot._post_mouse_events(
+                [MouseMove], widget=EditorView,
+                offset=(_GUTTER + 3, 1), button=1,
+            )
+            await pilot.mouse_up(EditorView, offset=(_GUTTER + 3, 1))
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            # regression pin: the no-Alt path stays charwise
+            assert buf.has_block_selection() is False
+            assert buf.selection() == ((0, 1), (1, 3))
+
+    asyncio.run(scenario())
+
+
+def test_alt_drag_under_vim_keymap_drops_visual_then_blocks(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("v")
+            await pilot.pause()
+            keymap = app.editor.keymaps.active
+            assert isinstance(keymap, VimKeymap)
+            assert keymap.mode is VimMode.VISUAL
+
+            await pilot.mouse_down(
+                EditorView, offset=(_GUTTER + 1, 0), meta=True,
+            )
+            await pilot.pause()
+            await pilot._post_mouse_events(
+                [MouseMove], widget=EditorView,
+                offset=(_GUTTER + 3, 1), button=1, meta=True,
+            )
+            await pilot.mouse_up(
+                EditorView, offset=(_GUTTER + 3, 1), meta=True,
+            )
+            await pilot.pause()
+            # the Alt+press exits visual mode before anchoring the block
+            assert keymap.mode is VimMode.NORMAL
+            buf = app.editor.session.buffer
+            assert buf.has_block_selection() is True
+            assert buf.block_region() == (0, 1, 1, 3)
+
+    asyncio.run(scenario())
+
+
+def test_alt_click_without_drag_keeps_zero_width_anchor(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.mouse_down(
+                EditorView, offset=(_GUTTER + 1, 0), meta=True,
+            )
+            await pilot.pause()
+            await pilot.mouse_up(
+                EditorView, offset=(_GUTTER + 1, 0), meta=True,
+            )
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            # a zero-width block anchor survives the click (VS Code
+            # parity); the plan-d select_block_* actions extend from it
+            assert buf.block is True
+            assert buf.anchor == buf.cursor == (0, 1)
+            app.editor.execute_action("select_block_down")
+            assert buf.block_region() == (0, 1, 1, 1)
+
+    asyncio.run(scenario())
+
+
+def test_support_mouse_off_blocks_alt_drag(tmp_path: Path) -> None:
+    """With the gate closed, Alt+drag records never reach MouseFlows.
+
+    The pilot mouse helpers bypass ``App.on_event`` (screen-level
+    forwarding), so the Alt+drag is delivered through the app queue --
+    the driver's path -- the same caliber as the test_support_mouse
+    gate cases.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "mouse.txt"
+        target.write_text("hello world\nsecond line\n", encoding="utf-8")
+        app = YateApp(target=target, config=YateConfig(support_mouse=False))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            for event_cls in (MouseDown, MouseMove):
+                kwargs = _get_mouse_message_arguments(
+                    view, (_GUTTER + 3, 1), button=1, meta=True,
+                )
+                app.post_message(event_cls(**kwargs))
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            assert buf.cursor == (0, 0)
+            assert buf.block is False
+            assert buf.has_selection() is False
+            assert buf.has_block_selection() is False
 
     asyncio.run(scenario())
