@@ -148,7 +148,8 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<esc>"), "back to normal", "Return to normal mode", INS),
             KeyBinding("v", "visual mode", "Characterwise visual mode", EDT),
             KeyBinding("V", "visual line mode", "Linewise visual mode", EDT),
-            KeyBinding(parse_key("<ctrl-v>"), "visual block mode",
+            KeyBinding(
+                parse_key("<ctrl-v>"), "visual block mode",
                 "Blockwise visual mode (column selection)", EDT,
             ),
             KeyBinding("x", "delete char", "Delete character", EDT),
@@ -371,14 +372,21 @@ class VimKeymap(Keymap):
                         buf.set_cursor((sel[0], sel[1]))
                     ui.message("yanked block")
                 else:
-                    # delete_block already recorded register_block for the
-                    # unnamed register (and wrote the same text there);
-                    # _store_deleted rewrites the register without touching
-                    # register_block, so the block paste type survives -- this
-                    # comment pins that contract.  A named register does not
-                    # record the type (its p runs charwise): known limitation,
-                    # matching vim's "named registers are charwise" reading.
-                    self._store_deleted(buf, buf.delete_block(named=reg), reg)
+                    text = buf.delete_block(named=reg)
+                    self._store_deleted(buf, text, reg)
+                    if text is None:
+                        # empty block (zero-width or out of range): vim
+                        # deletes nothing and just drops to normal mode
+                        self.mode = VimMode.NORMAL
+                        return True
+                    if reg is None:
+                        # _store_deleted's register write resets the block
+                        # paste type (see the TextBuffer.register setter);
+                        # a block delete re-raises it so `p` replays the
+                        # rectangle.  A named register does not record the
+                        # type (its p runs charwise): known limitation,
+                        # matching vim's "named registers are charwise" reading.
+                        buf.register_block = True
                     ui.message("deleted block")
                 self.mode = VimMode.NORMAL
                 return True
@@ -1003,7 +1011,11 @@ class VimKeymap(Keymap):
         if named is not None or buf.read_only:
             return
         text = paste_text()
-        if text:
+        if text and text != buf.register:
+            # a genuinely new clipboard text re-seeds the register (the
+            # register write resets the block paste type); a mirror of the
+            # register's own content leaves the register -- and its type
+            # flag -- alone, so a block delete/yank still pastes as a block
             buf.register = text
 
     # -------------------------------------------------------------- motions

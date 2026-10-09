@@ -17,6 +17,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from textual.events import MouseDown, MouseEvent, MouseMove, MouseUp
+# Textual private API: pilot's mouse synthesis exposes no public modifier
+# constructor.  Re-check this import when upgrading Textual (mirrors the
+# keyproto/textual_internals.py policy).
 from textual.pilot import _get_mouse_message_arguments
 from yate.app import YateApp
 from yate.config import YateConfig

@@ -83,9 +83,12 @@ class TextBuffer:
         # cursor/selection movement stays allowed (browsing a read-only
         # buffer must keep working).
         self.read_only = read_only
-        self.register: str = ""  # internal yank/clipboard register
+        self._register: str = ""  # internal yank/clipboard register
         #: True when :attr:`register` holds a newline-joined block (column) yank;
-        #: :meth:`paste` uses it to pick the block paste path.
+        #: :meth:`paste` uses it to pick the block paste path.  Every
+        #: :attr:`register` write resets it -- block writers re-raise it
+        #: right after the assignment, so a charwise overwrite can never
+        #: leave a stale block type behind.
         self.register_block = False
         #: Explicit ``"a``-``"z`` registers (vim named registers).  Purely
         #: internal storage -- they never mirror the system clipboard.
@@ -129,6 +132,19 @@ class TextBuffer:
     def line_count(self) -> int:
         """Return the number of lines in the buffer."""
         return len(self.lines)
+
+    @property
+    def register(self) -> str:
+        """Return the unnamed yank/clipboard register's text."""
+        return self._register
+
+    @register.setter
+    def register(self, text: str) -> None:
+        # every unnamed write is charwise by default; the block paste type
+        # survives only where a block writer re-raises ``register_block``
+        # right after the assignment (:meth:`yank_block` / :meth:`delete_block`)
+        self._register = text
+        self.register_block = False
 
     def line(self, row: int) -> str:
         """Return the text of *row*, clamped to the valid row range."""
@@ -335,13 +351,16 @@ class TextBuffer:
     def selected_block_text(self) -> str | None:
         """Return the block selection as newline-joined per-row fragments.
 
-        Rows shorter than the left bound contribute an empty fragment; ``None``
-        when no block selection is active.
+        Rows shorter than the left bound contribute an empty fragment; a
+        zero-width block (both corners on the same column) yields ``""`` --
+        vim yanks nothing there.  ``None`` when no block selection is active.
         """
         region = self.block_region()
         if region is None:
             return None
         r1, c1, r2, c2 = region
+        if c1 == c2:
+            return ""
         return "\n".join(self.lines[r][c1:c2] for r in range(r1, r2 + 1))
 
     def yank_block(self, *, named: str | None = None) -> str | None:
@@ -349,10 +368,12 @@ class TextBuffer:
 
         The unnamed write records ``register_block = True`` so a later
         :meth:`paste` re-lands the rectangle; named registers are pure internal
-        storage.  ``None`` when no block selection is active.
+        storage.  ``None`` when no block selection is active or the block
+        covers no text (zero-width or fully out of range) -- nothing is
+        stored in that case, matching vim's empty block yank.
         """
         text = self.selected_block_text()
-        if text is None:
+        if not text:
             return None
         if named is None:
             self.register = text
@@ -367,14 +388,22 @@ class TextBuffer:
         Rows shorter than the span keep their text untouched.  The cursor lands
         at the clamped top-left corner and the selection is dropped.  The
         removed text is stored like :meth:`delete_lines` (unnamed writes set
-        ``register_block = True``).
+        ``register_block = True``).  ``None`` -- with no register write and no
+        undo entry -- when the block covers no text (zero-width or fully out
+        of range), matching vim's empty block delete.
         """
         self._ensure_writable()
         region = self.block_region()
         if region is None:
             return None
+        text = self.selected_block_text()
+        if not text:
+            r1, c1, _, _ = region
+            self.anchor = None
+            self.block = False
+            self.cursor = (r1, min(c1, len(self.lines[r1])))
+            return None
         before = self._snapshot()
-        text = self.selected_block_text() or ""
         r1, c1, r2, c2 = region
         for r in range(r1, r2 + 1):
             line = self.lines[r]
@@ -835,7 +864,6 @@ class TextBuffer:
         text = "\n".join(self.lines[r1 : r2 + 1]) + "\n"
         if named is None:
             self.register = text
-            self.register_block = False
         else:
             self.named_registers[named] = text
         return text
@@ -852,7 +880,6 @@ class TextBuffer:
             text = self.lines[self.cursor[0]]
         if named is None:
             self.register = text
-            self.register_block = False
         else:
             self.named_registers[named] = text
         return text
@@ -873,7 +900,6 @@ class TextBuffer:
         text = "\n".join(self.lines[r1 : r2 + 1]) + "\n"
         if named is None:
             self.register = text
-            self.register_block = False
         else:
             self.named_registers[named] = text
         del self.lines[r1 : r2 + 1]

@@ -825,6 +825,66 @@ def test_block_yank_resets_goal_column() -> None:
     assert editor.buffer.cursor == (1, 0)
 
 
+def test_v_from_line_mode_ctrl_v_converts_to_block() -> None:
+    """V then Ctrl+V converts the linewise visual to a block selection."""
+    editor, keymap, ctx = _setup("ab\ncd\nef")
+    _press(keymap, ctx, "V", CTRL_V)
+    assert keymap.mode is VimMode.VISUAL_BLOCK
+    assert editor.buffer.block is True
+
+
+def test_visual_mode_ctrl_v_converts_to_block() -> None:
+    """v then Ctrl+V converts the charwise visual to a block selection."""
+    editor, keymap, ctx = _setup("ab\ncd\nef")
+    _press(keymap, ctx, "v", "l", CTRL_V)
+    assert keymap.mode is VimMode.VISUAL_BLOCK
+    assert editor.buffer.block is True
+
+
+def test_named_register_block_yank_stays_internal() -> None:
+    """"a-prefixed block yank stores the rectangle but records no type."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    _press(keymap, ctx, '"', "a", CTRL_V, "l", "j", "y")
+    # half-open right bound: the block covers column 0 only
+    assert editor.buffer.named_registers["a"] == "a\nc"
+    assert editor.buffer.register == ""
+    assert editor.buffer.register_block is False
+
+
+def test_zero_width_multiline_block_yank_is_noop() -> None:
+    """Ctrl+V j y (zero-width block) stores nothing, like vim."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    _press(keymap, ctx, CTRL_V, "j", "y")
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.buffer.register == ""
+    assert editor.buffer.register_block is False
+    assert editor.buffer.lines == ["ab", "cd"]
+
+
+def test_zero_width_multiline_block_delete_is_noop() -> None:
+    """Ctrl+V j d (zero-width block) changes no text, like vim."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    _press(keymap, ctx, CTRL_V, "j", "d")
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.buffer.lines == ["ab", "cd"]
+    assert editor.buffer.register == ""
+    assert editor.buffer.register_block is False
+
+
+def test_register_rewrite_after_block_yank_drops_block_type() -> None:
+    """A register rewrite after a block yank drops the block paste type."""
+    editor, keymap, ctx = _setup("ab\ncd")
+    _press(keymap, ctx, CTRL_V, "l", "j", "y")
+    assert editor.buffer.register_block is True
+    # dd rewrites the register linewise (delete_lines)
+    _press(keymap, ctx, "d", "d")
+    assert editor.buffer.register_block is False
+    _press(keymap, ctx, "p")
+    # linewise paste below row 0; a stale block type would replay the
+    # rectangle into row 0 instead (["abcd", ""])
+    assert editor.buffer.lines == ["cd", "ab"]
+
+
 # --- normal-mode entry points ----------------------------------------------
 
 

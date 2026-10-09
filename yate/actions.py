@@ -183,21 +183,21 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         """Paste from the system clipboard, falling back to the register.
 
         When the system clipboard is unavailable (or empty), the internal
-        unnamed register is pasted as before.  A read-only buffer skips the
+        unnamed register is pasted as before.  A block selection replaces
+        the covered spans row by row instead.  A read-only buffer skips the
         clipboard read and the register priming entirely -- a doomed paste
         mirrors the vim-side ``_prime_paste`` guard and pays no system call.
         """
         buf = ctx.buffer
-        if not buf.read_only:
-            text = clipboard.paste_text()
-            if text:
-                buf.register = text
+        if buf.read_only:
+            text = ""
+        else:
+            text = clipboard.paste_text() or ""
         if buf.has_block_selection():
-            text = clipboard.paste_text()
-            if text is None or text == "":
-                text = buf.register
-            buf.replace_block(text)
+            buf.replace_block(text or buf.register)
             return
+        if text:
+            buf.register = text
         buf.paste()
 
     reg("cut", cut, "Cut")
