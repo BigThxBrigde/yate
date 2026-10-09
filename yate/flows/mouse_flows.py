@@ -15,7 +15,7 @@ from collections.abc import Callable
 from textual.events import Click, MouseDown, MouseMove, MouseUp, MouseEvent
 
 from yate.config import YateConfig
-from yate.editor_core.buffer import word_span
+from yate.editor_core.words import word_span
 from yate.editor_view.editor import LEFT_BUTTON, EditorView
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap

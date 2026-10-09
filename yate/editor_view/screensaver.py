@@ -137,6 +137,11 @@ class ScreensaverScreen(ModalScreen[None]):
         """Snapshot of the sprites currently walking (test/telemetry view)."""
         return tuple(self._walkers)
 
+    @property
+    def tick(self) -> int:
+        """Current animation tick (the clock hand-driven tests sample)."""
+        return self._tick_count
+
     def on_mount(self) -> None:
         """Start the parade and the animation clock."""
         self.set_interval(1 / TICKS_PER_SECOND, self.advance_tick)

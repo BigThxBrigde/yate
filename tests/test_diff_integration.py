@@ -16,7 +16,8 @@ import asyncio
 from pathlib import Path
 
 from yate.app import YateApp
-from yate.editor_view.diffview import MAX_DIFF_LINES, DiffPane, DiffScreen
+from yate.editor_view.diff_pane import DiffPane
+from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
 
 from conftest import message_text
 

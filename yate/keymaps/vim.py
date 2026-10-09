@@ -19,7 +19,6 @@ from yate.editor_core.buffer import (
     BufferReadOnlyError,
     Pos,
     TextBuffer,
-    next_word_start,
 )
 from yate.editor_core.textobjects import (
     at_word_end,
@@ -30,6 +29,7 @@ from yate.editor_core.textobjects import (
     resolve_text_object,
     word_end_column,
 )
+from yate.editor_core.words import next_word_start
 from yate.keymaps.base import (
     ActionContext,
     KeyBinding,

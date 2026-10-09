@@ -423,22 +423,30 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
                 assert bar.display
                 assert screen.focused is field
                 # a query present nowhere reports "no matches" and tints
-                # nothing (the pause spans the debounce window -- see the
-                # filters test)
+                # nothing; the debounce window is 0.12 s and a fixed pause
+                # can race it under coverage instrumentation, so poll for
+                # the status instead of sleeping a fixed span (the filters
+                # test documents the same debounce contract)
                 await pilot.press("z", "q", "z", "q", "w", "x")
-                await pilot.pause(0.15)
+                assert await wait_until(
+                    pilot,
+                    lambda: "no matches" in str(status.content),
+                    timeout=5.0,
+                )
                 private = cast(Any, screen)
                 assert private._hits == []
                 assert private._hit_index == -1
                 assert len(list(md.query(".doc-hit"))) == 0
-                assert "no matches" in str(status.content)
-                # clearing the query removes the error state (debounced
-                # flush needs the same window as above)
+                # clearing the query removes the error state; the debounced
+                # flush needs the same window as above -- poll, don't race
                 await pilot.press(*(("backspace",) * 10))
-                await pilot.pause(0.15)
                 assert field.value == ""
+                assert await wait_until(
+                    pilot,
+                    lambda: "type to search" in str(status.content),
+                    timeout=5.0,
+                )
                 assert private._hits == []
-                assert "type to search" in str(status.content)
                 assert isinstance(app.screen, MarkdownDocScreen)
 
     asyncio.run(scenario())

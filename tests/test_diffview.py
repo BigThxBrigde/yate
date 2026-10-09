@@ -20,10 +20,8 @@ from textual.events import Key
 
 from yate.editor_core.diff import DiffHunk, MergeRegion, diff_lines
 from yate.editor_core.document import Document
-from yate.editor_view.diffview import (
-    DiffPane,
-    DiffScreen,
-)
+from yate.editor_view.diff_pane import DiffPane
+from yate.editor_view.diffview import DiffScreen
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap
 from yate.keymaps.vsc import VscKeymap
