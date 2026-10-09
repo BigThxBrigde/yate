@@ -46,6 +46,8 @@ class _Snapshot:
     lines: tuple[str, ...]
     cursor: Pos
     anchor: Pos | None
+    #: Multi-cursor points captured with the lines (empty = single cursor).
+    extra_cursors: tuple[Pos, ...] = ()
 
 
 @dataclass
@@ -74,6 +76,12 @@ class TextBuffer:
         self.lines: list[str] = text.split("\n") if text else [""]
         self.cursor: Pos = (0, 0)
         self.anchor: Pos | None = None
+        #: Additional multi-cursor points (issue IKKJHH).  Empty list = the
+        #: regular single-cursor behaviour everywhere.  Points are bare
+        #: ``(row, col)`` cursors without anchors -- multi-cursor selections
+        #: are a non-goal -- and the primary cursor stays :attr:`cursor`, so
+        #: every existing consumer keeps working unchanged.
+        self.extra_cursors: list[Pos] = []
         self.tab_width = tab_width
         self.use_spaces = use_spaces
         # When True every public mutation raises ``BufferReadOnlyError``;
@@ -138,6 +146,7 @@ class TextBuffer:
         self.lines = text.split("\n") if text else [""]
         self.cursor = (0, 0)
         self.anchor = None
+        self.extra_cursors = []
         self._undo.clear()
         self._redo.clear()
         self._goal_col = None
@@ -162,13 +171,22 @@ class TextBuffer:
     # ------------------------------------------------------------- snapshots
 
     def _snapshot(self) -> _Snapshot:
-        return _Snapshot(tuple(self.lines), self.cursor, self.anchor)
+        return _Snapshot(
+            tuple(self.lines), self.cursor, self.anchor, tuple(self.extra_cursors)
+        )
 
     def _restore(self, snap: _Snapshot) -> None:
         changed = tuple(self.lines) != snap.lines
         self.lines = list(snap.lines)
         self.cursor = snap.cursor
         self.anchor = snap.anchor
+        # Out-of-range points are clamped, not dropped: undo may have
+        # rewound the document below a point's row, and keeping the point
+        # at the nearest legal position matches the VS Code behaviour.
+        self.extra_cursors = []
+        for pos in snap.extra_cursors:
+            r = max(0, min(pos[0], len(self.lines) - 1))
+            self.extra_cursors.append((r, max(0, min(pos[1], len(self.lines[r])))))
         self._goal_col = None
         if changed:
             self.content_version += 1
@@ -273,6 +291,49 @@ class TextBuffer:
         """Drop the selection anchor, keeping the cursor where it is."""
         self.anchor = None
 
+    # ------------------------------------------------------- multi-cursor
+
+    def add_cursor_at(self, pos: Pos) -> bool:
+        """Add a multi-cursor point at *pos*; ``False`` when it already exists.
+
+        Entering multi-cursor mode clears the primary selection (the anchor),
+        keeping the two state axes (selection vs extra cursors) exclusive.
+        *pos* is clamped exactly like :meth:`set_cursor`.
+        """
+        r = max(0, min(pos[0], len(self.lines) - 1))
+        c = max(0, min(pos[1], len(self.lines[r])))
+        point = (r, c)
+        self.anchor = None
+        if point in self.extra_cursors:
+            return False
+        self.extra_cursors.append(point)
+        return True
+
+    def add_cursor_below(self) -> bool:
+        """Add a cursor on the next row at the last point's column.
+
+        The "last point" is the bottom-most of the primary cursor and the
+        extra cursors, so repeated ``ALT+C`` walks downward one point per
+        press.  ``False`` (no-op) when there is no next row.  Like
+        :meth:`add_cursor_at`, entering multi-cursor mode clears the
+        primary selection.
+        """
+        bottom = max(self._multi_points())
+        row, col = bottom
+        if row >= len(self.lines) - 1:
+            return False
+        self.anchor = None
+        self.extra_cursors.append((row + 1, min(col, len(self.lines[row + 1]))))
+        return True
+
+    def clear_extra_cursors(self) -> None:
+        """Drop every extra multi-cursor point (back to single cursor)."""
+        self.extra_cursors = []
+
+    def has_extra_cursors(self) -> bool:
+        """Whether multi-cursor mode is active (any extra point exists)."""
+        return bool(self.extra_cursors)
+
     def set_cursor(self, pos: Pos, select: bool = False) -> None:
         """Move the cursor to *pos*, clamped to the text, handling selection.
 
@@ -299,14 +360,20 @@ class TextBuffer:
     # ------------------------------------------------------------ mutations
 
     def _delete_range(self, start: Pos, end: Pos) -> None:
-        """Delete the half-open range [start, end)."""
+        """Delete the half-open range [start, end).
+
+        Purely a line-structure primitive: it does *not* move the cursor.
+        Callers that used to rely on the old cursor side effect position
+        the cursor (or a multi-cursor point) themselves -- the multi-point
+        primitives drive this method once per point with the primary
+        cursor's new position written back explicitly.
+        """
         (r1, c1), (r2, c2) = start, end
         if r1 == r2:
             self.lines[r1] = self.lines[r1][:c1] + self.lines[r1][c2:]
         else:
             self.lines[r1] = self.lines[r1][:c1] + self.lines[r2][c2:]
             del self.lines[r1 + 1 : r2 + 1]
-        self.cursor = (r1, c1)
 
     def insert_text(self, text: str, kind: str = "char") -> None:
         """Insert ``text`` (may contain newlines) at the cursor."""
@@ -318,25 +385,29 @@ class TextBuffer:
             sel = self.selection()
             assert sel is not None
             self._delete_range(*sel)
-        self._apply_text(text)
+            self.cursor = sel[0]
+        self.cursor = self._apply_text(text, self.cursor)
         self.anchor = None
         self._commit(before, kind)
 
-    def _apply_text(self, text: str) -> None:
-        """Insert ``text`` at the cursor without snapshot bookkeeping."""
-        r, c = self.cursor
+    def _apply_text(self, text: str, pos: Pos) -> Pos:
+        """Insert ``text`` at *pos* without snapshot bookkeeping.
+
+        Returns the position following the inserted text; the caller owns
+        every cursor bookkeeping (single cursor or multi-cursor points).
+        """
+        r, c = pos
         parts = text.split("\n")
         line = self.lines[r]
         if len(parts) == 1:
             self.lines[r] = line[:c] + parts[0] + line[c:]
-            self.cursor = (r, c + len(parts[0]))
-        else:
-            self.lines[r] = line[:c] + parts[0]
-            tail = line[c:]
-            new_lines = list(parts[1:-1])
-            new_lines.append(parts[-1] + tail)
-            self.lines[r + 1 : r + 1] = new_lines
-            self.cursor = (r + len(parts) - 1, len(parts[-1]))
+            return (r, c + len(parts[0]))
+        self.lines[r] = line[:c] + parts[0]
+        tail = line[c:]
+        new_lines = list(parts[1:-1])
+        new_lines.append(parts[-1] + tail)
+        self.lines[r + 1 : r + 1] = new_lines
+        return (r + len(parts) - 1, len(parts[-1]))
 
     def replace_range(self, start: Pos, end: Pos, text: str) -> None:
         """Replace the half-open range [start, end) with ``text``.
@@ -349,7 +420,7 @@ class TextBuffer:
         self.cursor = start
         self.anchor = None
         self._delete_range(start, end)
-        self._apply_text(text)
+        self.cursor = self._apply_text(text, self.cursor)
         self.anchor = None
         self._commit(before, "step")
 
@@ -402,7 +473,7 @@ class TextBuffer:
             # an orphan bracket behind (issue G8).
             self.set_cursor((r1, c1))
             self._delete_range((r1, c1), (r2, c2))
-            self._apply_text(f"{ch}{inner}{right}")
+            self.cursor = self._apply_text(f"{ch}{inner}{right}", self.cursor)
             self.move_left()  # park before the closing symbol, not after it
             self._commit(before, "char")
             return
@@ -416,7 +487,7 @@ class TextBuffer:
             return
         if right is not None:
             before = self._snapshot()
-            self._apply_text(ch + right)
+            self.cursor = self._apply_text(ch + right, self.cursor)
             self.move_left()
             self._commit(before, "char")
             return
@@ -471,6 +542,7 @@ class TextBuffer:
         before = self._snapshot()
         text = self.selected_text()
         self._delete_range(*sel)
+        self.cursor = sel[0]
         self.anchor = None
         self._commit(before, "step")
         return text
@@ -531,6 +603,107 @@ class TextBuffer:
             self.lines[r] = line[:c] + line[nc:]
         self.cursor = (r, c)
         self._commit(before, "step" if word else "char")
+
+    # ------------------------------------------------- multi-point primitives
+
+    def _multi_points(self) -> list[Pos]:
+        """Return all active points, primary first, deduplicated and clamped.
+
+        The primary cursor always comes first; extras equal to the primary
+        (or to each other) are dropped so one physical location never edits
+        twice.  Every point is clamped exactly like :meth:`set_cursor`, so
+        stale points surviving an undo or an external rewrite stay legal.
+        """
+        points: list[Pos] = [self.cursor]
+        last = len(self.lines) - 1
+        for pos in self.extra_cursors:
+            r = max(0, min(pos[0], last))
+            c = max(0, min(pos[1], len(self.lines[r])))
+            if (r, c) not in points:
+                points.append((r, c))
+        return points
+
+    def insert_at_points(self, text: str, kind: str = "char") -> None:
+        """Insert *text* at every active point as ONE undo step.
+
+        Points are processed in descending (row, col) order so an insertion
+        containing newlines never invalidates a not-yet-processed point's
+        position; the primary cursor ends at its own post-insert position
+        and every extra point follows its own insertion.  No bracket
+        auto-completion (a single-cursor :meth:`type_char` affordance) and
+        no per-point auto-indent: a ``"\\n"`` inserts a bare newline at
+        each point (known limitation).  Read-only buffers raise
+        :class:`BufferReadOnlyError`.
+        """
+        self._ensure_writable()
+        if text == "":
+            return
+        points = self._multi_points()
+        before = self._snapshot()
+        log.debug("multi-cursor insert: points=%d", len(points))
+        new_pos: dict[Pos, Pos] = {}
+        for pos in sorted(points, reverse=True):
+            new_pos[pos] = self._apply_text(text, pos)
+        self.cursor = new_pos[points[0]]
+        self.extra_cursors = [new_pos[pos] for pos in points[1:]]
+        self._goal_col = None
+        self._commit(before, kind)
+
+    def delete_at_points(self) -> None:
+        """Delete one character before every active point as ONE undo step.
+
+        At column 0 the point joins the previous row (newline deletion);
+        (0, 0) is a no-op for that point.  Descending order, deduplicated.
+        Read-only buffers raise :class:`BufferReadOnlyError`.
+        """
+        self._ensure_writable()
+        points = self._multi_points()
+        before = self._snapshot()
+        log.debug("multi-cursor delete: points=%d", len(points))
+        new_pos: dict[Pos, Pos] = {}
+        for pos in sorted(points, reverse=True):
+            r, c = pos
+            if r == 0 and c == 0:
+                new_pos[pos] = pos
+            elif c == 0:
+                start = (r - 1, len(self.lines[r - 1]))
+                self._delete_range(start, pos)
+                new_pos[pos] = start
+            else:
+                self._delete_range((r, c - 1), (r, c))
+                new_pos[pos] = (r, c - 1)
+        self.cursor = new_pos[points[0]]
+        self.extra_cursors = [new_pos[pos] for pos in points[1:]]
+        self._goal_col = None
+        self._commit(before, "char")
+
+    def delete_forward_at_points(self) -> None:
+        """Delete one character after every active point as ONE undo step.
+
+        At end-of-row the point joins the next row; end of document is a
+        no-op for that point.  Read-only buffers raise
+        :class:`BufferReadOnlyError`.
+        """
+        self._ensure_writable()
+        points = self._multi_points()
+        before = self._snapshot()
+        log.debug("multi-cursor delete forward: points=%d", len(points))
+        new_pos: dict[Pos, Pos] = {}
+        for pos in sorted(points, reverse=True):
+            r, c = pos
+            line = self.lines[r]
+            if c >= len(line) and r >= len(self.lines) - 1:
+                new_pos[pos] = pos
+            elif c >= len(line):
+                self._delete_range(pos, (r + 1, 0))
+                new_pos[pos] = pos
+            else:
+                self._delete_range(pos, (r, c + 1))
+                new_pos[pos] = pos
+        self.cursor = new_pos[points[0]]
+        self.extra_cursors = [new_pos[pos] for pos in points[1:]]
+        self._goal_col = None
+        self._commit(before, "char")
 
     # ------------------------------------------------------------- movements
 
@@ -782,6 +955,7 @@ class TextBuffer:
         self.anchor = (r, 0)
         self.cursor = (r, c)
         self._delete_range((r, 0), (r, c))
+        self.cursor = (r, 0)
         self.anchor = None
         self._commit(before, "step")
 
