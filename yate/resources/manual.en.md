@@ -404,6 +404,22 @@ keymap, grouped by category, plus all `:` commands.
 | `Ctrl+A` | Select all |
 | `Esc` | Clear selection |
 
+**Multi-cursor**
+
+| Key | Action |
+|---|---|
+| `Alt+C` | Add a cursor on the next row, same column (repeatable) |
+| `Alt+click` | Add a cursor at the clicked position (repeatable) |
+| Printable keys / `Backspace` / `Enter` | Edit at every point at once (`Enter` inserts a bare newline, no auto-indent) |
+| `Esc` | Collapse back to a single cursor |
+| Plain click | Collapse the extra cursors and move the primary cursor |
+
+While extra cursors exist the status bar chip reads `V-COLUMN`; the whole
+multi-point edit is one `Ctrl+Z` undo step. Arrow keys and every other
+motion keep their single-cursor semantics (only the primary cursor moves).
+Known limitations: no auto-indent on `Enter`, no per-point selections and
+no bracket auto-completion while multi-cursor is active.
+
 **History / Clipboard**
 
 | Key | Action |
@@ -537,6 +553,21 @@ e.g. `3j`, `2dd`, `5w`.
 | `>` / `<` | VISUAL: increase / decrease indent (the selection expands to full lines; a count prefix is ignored, as in vim) |
 | `v` | Character visual mode (`-- VISUAL --`) |
 | `V` | Line visual mode (`-- VISUAL LINE --`) |
+
+**Multi-cursor**
+
+| Key | Action |
+|---|---|
+| `Alt+C` (NORMAL) | Add a cursor on the next row, same column as the bottom-most point (repeatable) |
+| `i` `a` `I` `A` | Enter INSERT; printable keys, `Backspace` and `Enter` edit at every point (`Enter` inserts a bare newline, no auto-indent) |
+| `Esc` | Back to NORMAL, collapsing the extra cursors |
+| Motions (`h` `j` `k` `l` …) | Single-cursor semantics: only the primary cursor moves |
+
+While extra cursors exist the mode chip reads `V-COLUMN`; the whole
+multi-point edit is one `u` undo step. NORMAL-mode commands (`x` `dd` `yy`
+`p` `o` …) collapse the extra cursors first, then run on the primary
+cursor. Known limitations: no auto-indent on `Enter`, no per-point
+selections and no bracket auto-completion while multi-cursor is active.
 
 **Commands**
 
