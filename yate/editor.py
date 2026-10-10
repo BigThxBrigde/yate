@@ -788,7 +788,7 @@ class Editor:
         Delegated to the status bar's pure helper so the widget and the
         smoke scripts share a single implementation.
         """
-        return mode_chip(self.prompt_bar, self.keymaps)
+        return mode_chip(self.prompt_bar, self.keymaps, self.session.buffer)
 
     # ================================================================= theme
 

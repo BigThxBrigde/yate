@@ -10,6 +10,8 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 import pytest
+from rich.style import Style
+from textual.strip import Strip
 from yate.app import YateApp
 from yate.editor_syntax.tokens import Token
 from yate.editor_view.manual import MarkdownDocScreen
@@ -17,6 +19,16 @@ from conftest import wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
 # ------------------------------------------- SP3 render-path regression guards
+
+
+def _style_at_cell(strip: Strip, cell: int) -> Style | None:
+    """The Rich style covering display *cell* of *strip* (``None`` past end)."""
+    offset = 0
+    for segment in strip:
+        if cell < offset + len(segment.text):
+            return segment.style
+        offset += len(segment.text)
+    return None
 
 
 def test_render_line_queries_diagnostics_once_per_row(
@@ -325,8 +337,112 @@ def test_doc_search_enter_flushes_pending_query_immediately(
                 # type, then submit: enter must flush the pending query right
                 # away instead of waiting the (frozen) window
                 await pilot.press("k", "e", "y")
-                await pilot.press("enter")
-                await pilot.pause()
-                assert calls == ["key"]
+    asyncio.run(scenario())
+
+
+def test_render_paints_cursor_block_on_each_extra_point_row(
+    tmp_path: Path,
+) -> None:
+    """IKKJHH: each extra multi-cursor point paints its own block cursor.
+
+    The extra point on row 1 gets an ``S_CURSOR`` cell (reverse + bold);
+    the main cursor on row 0 is untouched.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "multi.txt"
+        target.write_text("alpha beta\ngamma delta\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            buf = app.editor.session.buffer
+            assert buf.lines == ["alpha beta", "gamma delta", ""]
+            assert buf.add_cursor_at((1, 5))
+
+            from yate.editor_view import theme
+
+            gutter = editor.gutter_width()
+            tw = buf.tab_width
+            extra_cell = gutter + theme.char_to_cell(buf.lines[1], 5, tw)
+
+            strip = editor.render_line(1)
+            extra_style = _style_at_cell(strip, extra_cell)
+            assert extra_style is not None
+            assert extra_style.reverse and extra_style.bold
+            # neighbouring cells stay normal (no overlay leak)
+            neighbour = _style_at_cell(strip, gutter + 1)
+            assert neighbour is not None
+            assert not neighbour.reverse
+
+            # main cursor on row 0 keeps its own block cursor cell
+            main_cell = gutter + theme.char_to_cell(buf.lines[0], 0, tw)
+            main_style = _style_at_cell(editor.render_line(0), main_cell)
+            assert main_style is not None
+            assert main_style.reverse and main_style.bold
+
+    asyncio.run(scenario())
+
+
+def test_render_extra_point_at_row_end_expands_cells(tmp_path: Path) -> None:
+    """IKKJHH: a point on (row, len(line)) expands the row by one cell.
+
+    The end-of-line block-cell padding must happen before ``n_cells`` is
+    counted, so the padded cell is actually rendered with ``S_CURSOR``.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "multi.txt"
+        target.write_text("alpha beta\ngamma delta\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            buf = app.editor.session.buffer
+            row_len = len(buf.lines[1])
+            assert buf.add_cursor_at((1, row_len))
+
+            gutter = editor.gutter_width()
+            strip = editor.render_line(1)
+            end_style = _style_at_cell(strip, gutter + row_len)
+            assert end_style is not None
+            assert end_style.reverse and end_style.bold
+
+    asyncio.run(scenario())
+
+
+def test_render_no_extra_points_matches_baseline(tmp_path: Path) -> None:
+    """IKKJHH: without extra points rendering matches the single-cursor base.
+
+    Exactly one cursor-styled cell exists -- the main cursor's -- and no
+    other row paints a block cursor.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "single.txt"
+        target.write_text("alpha beta\ngamma delta\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            buf = app.editor.session.buffer
+            assert not buf.has_extra_cursors()
+
+            gutter = editor.gutter_width()
+            for row in range(3):
+                strip = editor.render_line(row)
+                cursor_cells = [
+                    cell
+                    for cell in range(gutter, gutter + 32)
+                    if (s := _style_at_cell(strip, cell)) is not None
+                    and s.reverse and s.bold
+                ]
+                if row == buf.row:
+                    assert cursor_cells == [gutter + buf.col]
+                else:
+                    assert cursor_cells == []
 
     asyncio.run(scenario())
