@@ -100,8 +100,8 @@ def test_files_mode_composes_preview_pane(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_preview_pane_scrollbars_match_explorer(tmp_path: Path) -> None:
-    """Pane scrollbars carry the slim renderer and the explorer palette (IKJUU2)."""
+def test_preview_pane_scrollbar_palette(tmp_path: Path) -> None:
+    """Pane scrollbars mount slim-rendered with the explorer palette (IKJUU2)."""
     (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
 
     async def scenario() -> None:
@@ -114,14 +114,47 @@ def test_preview_pane_scrollbars_match_explorer(tmp_path: Path) -> None:
             # slim partial-block renderer on both bars, injected per widget
             assert pane.vertical_scrollbar.renderer is SlimScrollBarRender
             assert pane.horizontal_scrollbar.renderer is SlimScrollBarRender
-            # explorer palette (IKINF3): a fully transparent track so only
-            # the sliver shows -- the default opaque track is what the issue
-            # reports as a "thick" horizontal scrollbar
+            # the full explorer palette (IKINF3): transparent track and corner
+            # so only the sliver shows -- the default opaque track is what the
+            # issue reports as a "thick" horizontal scrollbar
             t = theme.active()
-            assert pane.styles.scrollbar_background == Color(0, 0, 0, 0)
-            assert pane.styles.scrollbar_color == Color.parse(t.border)
+            s = pane.styles
+            assert s.scrollbar_background == Color(0, 0, 0, 0)
+            assert s.scrollbar_background_hover == Color.parse(t.surface).with_alpha(0.35)
+            assert s.scrollbar_color == Color.parse(t.border)
+            assert s.scrollbar_color_hover == Color.parse(t.fg_dim)
+            assert s.scrollbar_color_active == Color.parse(t.accent)
+            assert s.scrollbar_corner_color == Color(0, 0, 0, 0)
 
     asyncio.run(scenario())
+
+
+def test_preview_pane_scrollbar_follows_theme_change(tmp_path: Path) -> None:
+    """A theme switch repaints the pane while mounted, not after unmount."""
+    (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            pane = screen.query_one("#palette-preview", PreviewLog)
+            other = "latte" if theme.active().name != "latte" else "mocha"
+            theme.set_theme(other)
+            assert pane.styles.scrollbar_color == Color.parse(theme.active().border)
+            # popping the screen unmounts the pane and detaches the listener
+            app.pop_screen()
+            await pilot.pause()
+        unmounted_color = pane.styles.scrollbar_color
+        theme.set_theme("mocha")
+        # unmounted: the broadcast must no longer touch the pane
+        assert pane.styles.scrollbar_color == unmounted_color
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        theme.set_theme("mocha")
 
 
 def test_disabled_preview_keeps_legacy_dom(tmp_path: Path) -> None:
