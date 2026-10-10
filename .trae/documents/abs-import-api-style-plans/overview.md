@@ -9,7 +9,7 @@
 |---|---|---|---|
 | [yate-abs-import-plan-a](abs-import-api-style-yate-abs-import-plan-a.md) | wave-1 | `yate/**`（47 文件：46 个含相对导入 + extensions.py 排序对齐） | 72 处改写 |
 | [tools-abs-import-plan-b](abs-import-api-style-tools-abs-import-plan-b.md) | wave-1 | `tools/**`（37 文件） | 94 处改写 |
-| [rules-and-guards-plan-c](abs-import-api-style-rules-and-guards-plan-c.md) | wave-2 | `../rules/python-coding-style.md` + `tests/test_architecture.py` | 规则落盘 + 新守卫 + 审查记录 |
+| [rules-and-guards-plan-c](abs-import-api-style-rules-and-guards-plan-c.md) | wave-2 | `../../rules/python-coding-style.md` + `tests/test_architecture.py` | 规则落盘 + 新守卫 + 审查记录 |
 
 ## 执行波次表（调度唯一依据）
 

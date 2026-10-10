@@ -45,7 +45,7 @@ scene: python_coding
 | 异常 | `PascalCase` + `Error`/`Exception` 后缀 | `LspConnectionError`（`editor_lsp/client.py:76`） |
 
 **开放 API 命名（issue IKKS4C）**：开放 API 的公共成员禁止下划线前缀，私有实现
-必须带下划线。开放 API 指以下三个面的交集：
+必须带下划线。开放 API 指以下三个面的并集（任一命中即视为开放 API）：
 1. 纯 L0 叶包 `__init__.py` 的有限 re-export（`__all__` 声明，见
    architecture-boundaries.md §三.5）；
 2. `yate/services/extensions.py` 的 `ExtensionAPI` / `ExtensionContext` 及其

@@ -5,7 +5,7 @@
 ## 一、输入
 
 - 主计划 §二 议题 1 的事实清单：`yate/` 72 处相对导入、46 个文件（全量扫描 `^\s*from\s+\.+`）。
-- 现行规则 [../../rules/python-coding-style.md](../../../rules/python-coding-style.md) §1.3（wave-2 才改文本，本步先改代码）。
+- 现行规则 [../../rules/python-coding-style.md](../../rules/python-coding-style.md) §1.3（wave-2 才改文本，本步先改代码）。
 
 ## 二、改写规则（统一映射）
 
