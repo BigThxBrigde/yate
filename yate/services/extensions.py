@@ -26,6 +26,11 @@ Example bundled extension ``yate/extensions/uppercase.py``::
             api.message("uppercased!")
 
         api.bind_key("<alt-u>", lambda ctx: upper(""), keymap="vsc")
+
+Lua extensions (``*.lua``) share this pipeline: the chunk's top-level code
+*is* the setup, an optional global ``teardown(api)`` mirrors the hook, and
+the API library ships as ``require("yate")`` (``yate/extensions/_yate.lua``;
+bridge: :mod:`yate.services.lua_extensions`, needs ``pip install yate[lua]``).
 """
 
 from __future__ import annotations
@@ -58,6 +63,12 @@ from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
 from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
+from yate.services.lua_extensions import (
+    create_runtime,
+    is_lua_available,
+    lua_api_library_source,
+    run_extension,
+)
 from yate.services.shell import ShellResult
 from yate.services.trust import is_trusted
 from yate.services.workspace import Workspace
@@ -435,7 +446,6 @@ class ExtensionAPI:
         self,
         key_spec: str,
         callback: AnyCallback | None = None,
-        *,
         keymap: str = "vsc",
         description: str = "extension binding",
         category: str = "extension",
@@ -445,7 +455,11 @@ class ExtensionAPI:
         Can be used as a decorator when *callback* is omitted.  The legacy
         name ``normal`` is accepted as an alias for ``vsc``.  An unknown
         keymap name binds nothing and is reported as a warning listing the
-        registered names.
+        registered names.  The parameters after *callback* also accept
+        positional arguments: Lua extension scripts cannot pass keyword
+        arguments through the lupa bridge, so the Lua API library calls
+        this as ``bind_key(spec, fn, keymap, description, category)``;
+        Python callers keep using keywords.
         """
 
         def _do(func: AnyCallback) -> AnyCallback:
@@ -554,7 +568,7 @@ class ExtensionLoader:
         *,
         exclude: Sequence[str] | None = None,
     ) -> list[LoadedExtension]:
-        """Load every ``*.py`` script in *directory* (sorted by name).
+        """Load every ``*.py`` and ``*.lua`` script in *directory* (sorted by path).
 
         Files whose stem is in *exclude* are skipped (used for bundled
         extensions turned off with ``disabled_extensions``); underscore-
@@ -565,7 +579,7 @@ class ExtensionLoader:
             return []
         skipped: set[str] = set(exclude) if exclude is not None else set()
         results: list[LoadedExtension] = []
-        for path in sorted(directory.glob("*.py")):
+        for path in sorted([*directory.glob("*.py"), *directory.glob("*.lua")]):
             if path.name.startswith("_") or path.stem in skipped:
                 continue
             results.append(self.load_file(path))
@@ -592,6 +606,8 @@ class ExtensionLoader:
                     return existing
             except OSError:
                 continue
+        if path.suffix == ".lua":
+            return self._load_lua(path)
         # The resolved-path hash keeps same-stem extensions from different
         # directories under distinct sys.modules entries, so a failed
         # second load cannot pop the first one's module on cleanup (S33).
@@ -639,6 +655,35 @@ class ExtensionLoader:
         else:
             self.api.end_scope()
             log.debug("extension loaded: %s", path)
+        self.loaded.append(record)
+        return record
+
+    def _load_lua(self, path: Path) -> LoadedExtension:
+        """Load a ``.lua`` extension; its chunk's top-level code is the setup.
+
+        Mirrors the Python branch (rollback scope A13; errors recorded,
+        never raised); without ``lupa`` the record gets an install hint.
+        """
+        record = LoadedExtension(name=path.stem, path=path)
+        if not is_lua_available():
+            record.error = (
+                "lua extensions require the lupa package; "
+                "install with: pip install yate[lua]"
+            )
+        else:
+            try:
+                self.api.start_scope()
+                runtime = create_runtime(self.api, lua_api_library_source())
+                record.teardown = run_extension(
+                    runtime, path.read_text(encoding="utf-8")
+                )
+            except Exception as exc:  # noqa: BLE001 - user code, never crash the app
+                self.api.rollback_scope()
+                record.error = f"{type(exc).__name__}: {exc}"
+                log.exception("extension failed to load: %s", path)
+            else:
+                self.api.end_scope()
+                log.debug("extension loaded: %s", path)
         self.loaded.append(record)
         return record
 
