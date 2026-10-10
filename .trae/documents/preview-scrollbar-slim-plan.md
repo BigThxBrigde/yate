@@ -116,9 +116,19 @@
 
 ## 六、执行记录（收尾回填）
 
-- 步骤 1：palette.py 改动完成；pyright yate/ 0 诊断。
-- 步骤 2：新增 `test_preview_pane_scrollbars_match_explorer`；单文件 pytest 6 passed。
-- 步骤 3：pyright yate/ tests/ tools/ = 0 diagnostics；pytest tests/ 全绿
-  （N passed）；架构测试 28 passed；覆盖率 ≥75% 达标。实际数字见提交信息与
-  评审记录。
-- 偏离记录：无（与计划一致）。
+- 步骤 1：palette.py 改动完成（PreviewLog 自持 + 删除 screen 级调用）；
+  pyright yate/ tests/ tools/ 全量 0 诊断（exit 0）。
+- 步骤 2：新增 2 条用例 `test_preview_pane_scrollbar_palette` /
+  `test_preview_pane_scrollbar_follows_theme_change`（评审补强后）；
+  `pytest tests/test_palette_preview.py -q` → 17 passed。
+- 步骤 3：全量 `pytest tests/ -q --cov=yate --cov-fail-under=75` → 全绿
+  （9 skipped，其余全 passed），TOTAL 覆盖率 91.44%（≥75 达标，exit 0）；
+  架构测试 28 passed；冒烟 `python -m tools.smoke_test run` →
+  107/107 场景、1286/1286 checks 通过（含 `palette_preview_renders` 等直接
+  相关场景）。
+- 评审（code-review-expert）：结论可合并，无 blocker / major；2 条 SUGGESTION
+  （主题广播路径未钉、五字段只钉两个）与 1 条 nit（测试名）已随手补强
+  （commit `dd6ae92`），1 条 nit（本记录占位）随本次回填消除。
+- 偏离记录：`PreviewLog.on_mount` 在计划清单之外补了 `super().on_mount()`——
+  Textual `ScrollView.on_mount` 会 `_refresh_scrollbars()`，不能静默丢弃；
+  属对 §五风险表第 4 行的正确回应，评审确认为完善而非偏离。
