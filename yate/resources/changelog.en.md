@@ -1,6 +1,132 @@
 # Changelog
 
-> Generated from the git history on 2026-10-07 · yate 0.2.10
+> Generated from the git history on 2026-10-10 · yate 0.2.11
+
+## [0.2.11] - 2026-10-10 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.10...v0.2.11)
+
+### Features
+
+- multi-point cursor rendering and V-COLUMN chip ([`4ebbe8f`](https://gitee.com/jermaine/yate/commit/4ebbe8faf0772c296aed6f4d93a8e7011d84b5a1))
+- multi-point editing actions and alt-click cursors ([`a0a9a98`](https://gitee.com/jermaine/yate/commit/a0a9a98f88efe9d4eac5d513e34887b2ab8c997f))
+- wire multi-cursor keys for vim and vsc ([`30bd333`](https://gitee.com/jermaine/yate/commit/30bd333315a642ab2e0814b153e7f811fe60d669))
+- add multi-cursor point model on TextBuffer ([`5607a13`](https://gitee.com/jermaine/yate/commit/5607a13a2be139bdfcbb3f9b6cd7cdfbfc6acf91))
+- support_mouse gate drops every mouse event ([`b711b36`](https://gitee.com/jermaine/yate/commit/b711b369343889195f115426256f8798dda7c71e))
+- click to focus terminal view ([`248fe81`](https://gitee.com/jermaine/yate/commit/248fe81be97c5f929484d77b83e59a4fbbde6d4e))
+- mouse cursor and selection in the text area ([`0e4b217`](https://gitee.com/jermaine/yate/commit/0e4b217de14e9bb4052c9ec3f8988ad2463350fd))
+- drag-resize via separator borders ([`0aa1e3a`](https://gitee.com/jermaine/yate/commit/0aa1e3a6675fd1079b3269450840da5e53d07a22))
+- add support_mouse option ([`b87ab80`](https://gitee.com/jermaine/yate/commit/b87ab8031e39b8bceedcd8d147c495bb82b8dfb0))
+
+### Bug Fixes
+
+- derive theme restore from captured original in unmount assertions ([`7452735`](https://gitee.com/jermaine/yate/commit/74527359dd21cd9ce8ae09dafe068a97ba900a91))
+- self-own doc body scrollbar wiring and theming ([`4d1622e`](https://gitee.com/jermaine/yate/commit/4d1622e8040977a9821e9d939bfaaa82f97b9a65))
+- self-own preview pane scrollbar wiring and theming ([`8c23a58`](https://gitee.com/jermaine/yate/commit/8c23a58ee6333ff4f1283cf74254ea166240547c))
+- clear stale selection anchor at multi-point entry ([`370bbd5`](https://gitee.com/jermaine/yate/commit/370bbd5da71070103d183cec50a3d6cd28801281))
+- remap recorded multi-point positions after shifts ([`30f82e4`](https://gitee.com/jermaine/yate/commit/30f82e410ec9911d2dd8be3ecb3cac49bf412615))
+- restore truncated doc-search test and pin edge branches ([`e1e8a72`](https://gitee.com/jermaine/yate/commit/e1e8a7280473d69829bc675013bef0dba2b24959))
+- parse tag refs with NUL separators (review #23.3) ([`577a26a`](https://gitee.com/jermaine/yate/commit/577a26ad89c855f92f072c37a1d9b02c375a47a3))
+- prime the register only after a successful cut (review #18 r3) ([`9f8cb42`](https://gitee.com/jermaine/yate/commit/9f8cb428859fd27f057c7dead4fcfa7726a45471))
+- use %r for blocked-build degraded warnings (review #16.3) ([`b368f1c`](https://gitee.com/jermaine/yate/commit/b368f1c9511b0a894cbaaa2d115763612e5c560e))
+- relabel the explorer tree in place on theme switch (review #8) ([`03613ff`](https://gitee.com/jermaine/yate/commit/03613ff9039b1c3e347c134d5fab574ef40d93d4))
+- strip ex args before quote detection (review #26) ([`0882770`](https://gitee.com/jermaine/yate/commit/08827707abbc8865255f8c50a4305caed2c425c6))
+- flip the saveas lift right after the write (review #16.1) ([`ac70997`](https://gitee.com/jermaine/yate/commit/ac70997282778e12c291310370004743feee7207))
+- drive pilot tests off the screensaver clock and poll debounces ([`72bbc71`](https://gitee.com/jermaine/yate/commit/72bbc711d2e1aa5f39c28b5a980d8b2a03b07f34))
+- sweep in-flight drag state when support_mouse turns off ([`f78005a`](https://gitee.com/jermaine/yate/commit/f78005afca8d972d0f6e18a628b77a448cb286e2))
+- gate drag teardown by the left button ([`f6a4bc5`](https://gitee.com/jermaine/yate/commit/f6a4bc546c2f5f48bc2085095a458a767943c7e6))
+- bound the post-timeout drain against a surviving tree ([`6578714`](https://gitee.com/jermaine/yate/commit/6578714427d650720aff39c377c333072948c092))
+- kill the whole process tree on command timeout ([`39ee4ac`](https://gitee.com/jermaine/yate/commit/39ee4ace00ed5fed93f0ba4aeaa4336a376d459b))
+- clear drag state on gate and gate PaneHost mouse-up by button ([`d2591e0`](https://gitee.com/jermaine/yate/commit/d2591e08b44bab5382b316993e903b468101b1ad))
+
+### Performance
+
+- cap diff line expansion to the visible window (review #21.2) ([`bb278fd`](https://gitee.com/jermaine/yate/commit/bb278fd7145583baab85bb5f57b7b53441827290))
+- cut the slowest unit tests from ~144s to ~4s ([`6cda423`](https://gitee.com/jermaine/yate/commit/6cda42317f602c7309bdaea3b51d7b293d282a7f))
+
+### Refactors
+
+- name the multi-cursor dispatch handlers ([`ffd4c9a`](https://gitee.com/jermaine/yate/commit/ffd4c9a2baa571d4338ed36078a5e0c97f4e0916))
+- use recorded row in insert remap and pin join chains ([`dfbadbf`](https://gitee.com/jermaine/yate/commit/dfbadbfcfee0cfc02e34081cecb550ff7e0f8fb5))
+- extract adds_point local in mouse down ([`5d3c83a`](https://gitee.com/jermaine/yate/commit/5d3c83a037b50ef3a5c2e75e8ced213b8ca4d835))
+- name the drain timeout constant (review #40 M1) ([`a2b4f16`](https://gitee.com/jermaine/yate/commit/a2b4f16a9babeda5b8abfaa54684edbe0f178e53))
+- single source for the spec package path (review #23.2) ([`c7503b7`](https://gitee.com/jermaine/yate/commit/c7503b7bad60bb014703603d5421b5b3d8c56f3d))
+- raise ValueError on split invariant mismatch (review #23.1) ([`c88074f`](https://gitee.com/jermaine/yate/commit/c88074f4d70af56d633b511606d02e5032b35f3d))
+- lift the language registry to package-top langdefs ([`bd64755`](https://gitee.com/jermaine/yate/commit/bd64755ce0a559b5bbec83549437beb0f36a19da))
+- extract parsing and yaterc_options ([`c9d2b6f`](https://gitee.com/jermaine/yate/commit/c9d2b6ff3da1bc426ce75d7a3a70b87d9dc9d809))
+- extract words, palette and keys ([`67e9d9a`](https://gitee.com/jermaine/yate/commit/67e9d9a1c2891624dcf63101d12eaf49a080d024))
+- split theme into themes, cells and theme_files ([`ece4f89`](https://gitee.com/jermaine/yate/commit/ece4f89f29b5c5bce80d7b2f873946635c214bdd))
+- extract highlighting and welcome from editor_view ([`7e32bcc`](https://gitee.com/jermaine/yate/commit/7e32bcc04e6e9686219ca14663b3478e8f981a21))
+- extract diff_pane from diffview ([`966a686`](https://gitee.com/jermaine/yate/commit/966a6862e293f45dcbe8301b66804ae71bac9101))
+- extract regex_langdefs from regex_backend ([`074ed7d`](https://gitee.com/jermaine/yate/commit/074ed7d203ca20cfc4159d1f817c5fd02ddbcbe6))
+- tighten the mock seams flagged by the pr64 review ([`c733fcb`](https://gitee.com/jermaine/yate/commit/c733fcb3c955825fb27308a6e4415ddfcf726269))
+- apply python-code-review suggestions ([`2d1cdb4`](https://gitee.com/jermaine/yate/commit/2d1cdb4803802db44a037143b27ad6633b9b0056))
+- apply review fixes ([`d4b2f33`](https://gitee.com/jermaine/yate/commit/d4b2f337c35ac049808a467eb400993f8d777260))
+
+### Documentation
+
+- apply the round-4 ai review polish items ([`b4639cf`](https://gitee.com/jermaine/yate/commit/b4639cf5a271514842abd921fa6784f4297e8e81))
+- cite IKJUU2 alongside IKINF3 in theme docstrings ([`6c3ad1d`](https://gitee.com/jermaine/yate/commit/6c3ad1d269c446d986c2220123b9f9a9b70362c1))
+- log TRAE-code-review round on scrollbar-theme branch ([`3428ded`](https://gitee.com/jermaine/yate/commit/3428ded69f71487a5fd29dba44616e44d1887ae3))
+- restore reviews index and log scrollbar-theme round ([`7783c14`](https://gitee.com/jermaine/yate/commit/7783c14891cdbbe97e540328a9c03cc55ddd5ce3))
+- record scrollbar-theme merged-branch review ([`5ffd95e`](https://gitee.com/jermaine/yate/commit/5ffd95e7aaa5e2a73791cba7880f90ca86e3c5bf))
+- explain DocScroll on_mount asymmetry ([`2345100`](https://gitee.com/jermaine/yate/commit/23451007c5dd9033d06a18bfc2fb3469993b8ff2))
+- backfill preview-scrollbar-slim execution record ([`933c9f0`](https://gitee.com/jermaine/yate/commit/933c9f0d793357e4bb31796b206269f519331125))
+- add preview-scrollbar-slim plan ([`74c878e`](https://gitee.com/jermaine/yate/commit/74c878ea966999b7b6270804dc25664e94817687))
+- backfill the multi-cursor round-3 review results ([`cd083bc`](https://gitee.com/jermaine/yate/commit/cd083bc3138f3b7fdccc9be81bb699c18bbcaee6))
+- mark alt-c help entry as help-only ([`77e823a`](https://gitee.com/jermaine/yate/commit/77e823a8094efbe7cccecc286410199e83c5cb4a))
+- clarify insert remap docstring wording ([`5ca3b34`](https://gitee.com/jermaine/yate/commit/5ca3b34b598d74dfa8599079400a5515444ad924))
+- backfill the expert review round dispositions ([`a49cce6`](https://gitee.com/jermaine/yate/commit/a49cce6557584465a3d47d242be6c73a2d6e0988))
+- register buffer.py in the formal size exemption list ([`e739987`](https://gitee.com/jermaine/yate/commit/e73998700992567b367c463e2e5d9b44c9664b47))
+- review code with python-code-review and TRAE-code-review jointly ([`1316c5b`](https://gitee.com/jermaine/yate/commit/1316c5b56925f6ad750b4213f3cd1afe099da50b))
+- backfill the multi-cursor review fix results ([`98fc88e`](https://gitee.com/jermaine/yate/commit/98fc88ef769e385ec3a11c2d6046831360f155bf))
+- register the gitee ai teammate review round for pr 70 ([`eb8c64b`](https://gitee.com/jermaine/yate/commit/eb8c64b27b29cd0fbb0e06eb7fe38263f658fa36))
+- backfill the multi-cursor execution record ([`b2d4630`](https://gitee.com/jermaine/yate/commit/b2d4630d437471f7ed886f02176c9ef679588117))
+- register the multi-cursor review record ([`ccdfb56`](https://gitee.com/jermaine/yate/commit/ccdfb56aafc741e2f15977002b1992a74f9780d5))
+- multi-cursor smoke scenarios and handbook sections ([`7ca2c87`](https://gitee.com/jermaine/yate/commit/7ca2c8741bda54465e107e0e29e26fe6f38629d8))
+- add multi-cursor implementation plan ([`85b5079`](https://gitee.com/jermaine/yate/commit/85b50791c72d2f51c8e2f479b2c1f23932a1804c))
+- update memory ([`7ee7008`](https://gitee.com/jermaine/yate/commit/7ee7008d035eba958457308e1ab6382dd42d67ba))
+- backfill closure-sweep dispositions and plan results ([`e8e87d0`](https://gitee.com/jermaine/yate/commit/e8e87d0f5904ccaadc9e54050d4190147cd34bd4))
+- document the interrupt-path note drop and emit wrapping (reviews #34 M1, #33 O-3) ([`d0e6cc6`](https://gitee.com/jermaine/yate/commit/d0e6cc617a143138266ab8241a730165cb8c45d9))
+- add closure-sweep sub-plans (style, structure, review closure) ([`0baff7d`](https://gitee.com/jermaine/yate/commit/0baff7de8b0c7f68aee2a9de5e675f90ede8b52c))
+- add simple-task fast lane, design quality floor and wiki mermaid diagrams ([`97ddf94`](https://gitee.com/jermaine/yate/commit/97ddf9454107070c3c97f9c44e3ed0b28c13a11b))
+- update codebuddy/MEMORY.md ([`8c7c2b3`](https://gitee.com/jermaine/yate/commit/8c7c2b37f71639fd4274b627f304ec06cd2a8201))
+- register PR !67 big-module-split AI teammate review ([`ff78729`](https://gitee.com/jermaine/yate/commit/ff7872984f434abbfcf2eec657ae6e9f31f73644))
+- register and record the follow-up fixes for issue IKK5F7 ([`e8c0146`](https://gitee.com/jermaine/yate/commit/e8c014627ae3234011d8a49569eb67fd9ae0e439))
+- note highlighting mixin stubs in the upgrade checklist ([`b251107`](https://gitee.com/jermaine/yate/commit/b25110714f98458ee7901a91066a40105a6c8b19))
+- record second review pass for big-module-split ([`2e3b2ea`](https://gitee.com/jermaine/yate/commit/2e3b2ea54796eae7ecc68578403f67611297ab86))
+- record review pass and backfill big-module-split tracker ([`73ba503`](https://gitee.com/jermaine/yate/commit/73ba5036846739199e0ce6a04ab279ac183a5661))
+- calibrate big-module-split plan against issue IKK5F7 ([`5b77a7b`](https://gitee.com/jermaine/yate/commit/5b77a7b130c3c94f437d793f22da1452c8b7e081))
+- add big-module-split plan for issue IKK5F7 ([`ab820d4`](https://gitee.com/jermaine/yate/commit/ab820d4f6d8b5b4bf15a09cc724e13170e9b1f8a))
+- record the third review-bot disposition ([`67f14e8`](https://gitee.com/jermaine/yate/commit/67f14e83ceb232d7e7988ee5c5b3d3eb8e2cd384))
+- register the third Gitee review-bot round ([`05b7972`](https://gitee.com/jermaine/yate/commit/05b7972b7183024bd311475c1bfe0543b50c0376))
+- record the second Gitee review-bot round ([`f17eca9`](https://gitee.com/jermaine/yate/commit/f17eca968bbbecc0c3e45cda5b68133d9d31de6f))
+- record the code-review-expert verification round ([`6f9129a`](https://gitee.com/jermaine/yate/commit/6f9129a4902fd64185dbf8825cb7affc491df075))
+- record the Gitee PR#66 review disposition ([`aeae7c7`](https://gitee.com/jermaine/yate/commit/aeae7c751c735395f0079db81ec9c30353f14913))
+- fold PR !64 round2 record into the round1 document ([`489fb1c`](https://gitee.com/jermaine/yate/commit/489fb1ce998a956084d2daa1d252db70c9fa4d0c))
+- record PR !64 round2 review as item #40 ([`204733f`](https://gitee.com/jermaine/yate/commit/204733f213d7adfac3ee49627171f155243df836))
+- add pr64 review fixes plan and backfill results ([`49cbfde`](https://gitee.com/jermaine/yate/commit/49cbfdebced7d0d2fb25aa26f3fb2d679deb7c70))
+- record PR !64 test-perf AI review as item #39 ([`f78e35b`](https://gitee.com/jermaine/yate/commit/f78e35bd033907744ae7b7bb1ebf5b1533d706cc))
+- record test-perf plan and measured results for IKJVL6 ([`a9db376`](https://gitee.com/jermaine/yate/commit/a9db37663dd009d8ce0e177ae7219caa020f7bd0))
+- record the TRAE-code-review fix round ([`eb5caae`](https://gitee.com/jermaine/yate/commit/eb5caaedfbbc07d259ef589927ecaef582692529))
+- record the python-code-review fix round ([`539ea48`](https://gitee.com/jermaine/yate/commit/539ea48f06758f805c8cecc3351c4a92e325ab27))
+- register mouse_flows and the support_mouse gate guard ([`18de85f`](https://gitee.com/jermaine/yate/commit/18de85f8d88f491901af09f58e708cac2218a5c2))
+- backfill execution and review results ([`ffadcd8`](https://gitee.com/jermaine/yate/commit/ffadcd8da23df02b9d58fe7f4697b7629c3643f0))
+- add support-mouse implementation plans ([`0b8a919`](https://gitee.com/jermaine/yate/commit/0b8a91911d401eac3342f33dc2e945cc6e994093))
+- update the scene identifiers in the task scheduling rules ([`f8d0aa9`](https://gitee.com/jermaine/yate/commit/f8d0aa971b2f66cd7560a45137bf0bc6e69e7990))
+
+### Tests
+
+- pin theme broadcast and full scrollbar palette ([`dd6ae92`](https://gitee.com/jermaine/yate/commit/dd6ae92e2cb865c861bb16f31f74f9ec7288e923))
+- cover preview pane scrollbar explorer parity ([`f4ec992`](https://gitee.com/jermaine/yate/commit/f4ec992629af1455f54bff6b33d7766009e98afc))
+- catch nested App[Any] strings, extend the size guard to tools ([`7781cf7`](https://gitee.com/jermaine/yate/commit/7781cf73aba6c67e6c5f078b26a0b4446be1e40b))
+- name the win32 access constant, derive debounce pauses (review #40) ([`d9d8422`](https://gitee.com/jermaine/yate/commit/d9d842285c052b7a05222a42da956a0ab114d5bb))
+- isolate the process-global theme in CLI tests (review #30 M3) ([`daf7183`](https://gitee.com/jermaine/yate/commit/daf71839d4efe42f4d6bbe22d6561752c115d557))
+- unify io imports and flag refactor-sensitive guards (review #34) ([`cef2fdb`](https://gitee.com/jermaine/yate/commit/cef2fdbd731d49ef458d78698ba5743c4a3afb85))
+- pin dispatch-once with a flows spy and reverse case ([`4be92dd`](https://gitee.com/jermaine/yate/commit/4be92dd2b71d6ead2105ea36de379d0032cb164f))
+- pin unconsumed-press bubbling and scrolled-click mapping ([`5021f2b`](https://gitee.com/jermaine/yate/commit/5021f2b2504ed33e86d7f9d437fb371e04e21e35))
+
+### Tooling
+
+- track CodeBuddy working memory MEMORY.md on master ([`52ef9db`](https://gitee.com/jermaine/yate/commit/52ef9db5c80d3cc60f00e8a573e3a74343e35dd3))
 
 ## [0.2.10] - 2026-10-07 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.9...v0.2.10)
 
