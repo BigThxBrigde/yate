@@ -71,8 +71,8 @@ def _remap_after_insert(new_pos: dict[Pos, Pos], pos: Pos, parts: list[str]) -> 
     rows below *pos* down by *k*.  With row-splitting text every recorded
     position is strictly below the edited row (a split never records on
     the row it splits), so the same-row column shift only applies to
-    single-line inserts.  Call this *before* recording the current point's
-    own position.
+    single-line inserts.  Remaps entries recorded by *earlier* loop
+    iterations; the caller writes *pos*'s own entry right after.
     """
     r = pos[0]
     k = len(parts) - 1
