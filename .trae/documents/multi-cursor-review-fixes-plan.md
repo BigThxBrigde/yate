@@ -180,6 +180,37 @@
   4. 计划 §四第 4/5 例由三点扩为四点组合：一并覆盖「并行操作自身记录的位置
      被后续同行操作接管」路径（该路径经手工推演确认存在，原三点场景不经过）。
 
+### 第二轮：专家复审处置（2026-10-10）
+
+代码复审（逐分支推演 + 归纳证明 + 门禁实测）结论为 MINOR ISSUES：M1 重映射算术
+正确、重映射与记录次序正确、四项偏离登记获认可；另报 1 WARNING + 2 建议，
+经用户确认后全部处置：
+
+1. WARNING（体量豁免登记失真）→ 修复。§三.7 正式豁免枚举原缺
+   `editor_core/buffer.py`，且行数停在 994（复审实际 1051）。已将 buffer.py
+   列入规则文本正式名单（1051 行，文本模型/撤销/多点原语单一职责）并同步口径
+   注记；`SIZE_EXEMPT_FILES` 已含该键，无需改。核对更正：复审报告称"规则文本
+   两处均未更新"部分过时——994 复测注记已在（合并后核验），真实缺口是正式
+   枚举缺失与修复后行数过期。
+2. 建议（`_remap_after_insert` else 分支写死 `r`）→ 修复。改用 `(pr, pc +
+   len(parts[0]))`：降序不变量下 `pr == r` 恒成立，行为零变化，消除对
+   "不变量永不被侵蚀"的隐性耦合。
+3. 建议（连续 join 重映射链路无测试）→ 修复。补 2 例：
+   `test_delete_at_points_consecutive_joins_fold_join_records` 与
+   `test_delete_forward_at_points_consecutive_joins_fold_join_records`——
+   第一个 join 的接缝记录被第二个 join 再次折叠/接管（backspace `pr == r`
+   折叠、forward `pr == r+1` 折叠），期望值经手工推演验证。
+
+复审后全量门禁复跑（worktree，含 master 合并 `dfaebca` 后状态）：
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| pyright yate/ tests/ tools/ | 0 errors, 0 warnings, 0 informations | 0 |
+| pytest tests/ --cov=yate --cov-branch --cov-fail-under=75 | 全绿，TOTAL 92%（91.56%），buffer.py 保持 99% | 0 |
+
+复审报告曾建议的拆分路线（多点原语拆 `editor_core/multi_cursor.py`）未采纳：
+本轮按"登记豁免"处置，拆分属结构性立项，与首轮对该建议的否决理由一致。
+
 ## 六、风险与回滚
 
 | 风险 | 缓解 |
