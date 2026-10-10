@@ -156,6 +156,9 @@ class DocScroll(VerticalScroll):
 
     def on_mount(self) -> None:
         """Own the slim-scrollbar wiring and the theme painting."""
+        # no super()/@override here: VerticalScroll's MRO (ScrollableContainer
+        # -> Widget) has no on_mount to chain -- unlike RichLog's ScrollView
+        # base. Revisit if a Textual upgrade adds one.
         apply_slim_scrollbars(self)
         self._apply_theme()
         theme.attach(self, self._apply_theme)
