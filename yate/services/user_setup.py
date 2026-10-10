@@ -37,8 +37,9 @@ DATA_DIRNAME: str = "data"
 MANAGED_DIRS: tuple[str, ...] = ("themes", "extensions")
 
 #: Theme templates shipped as package resources (extension templates are
-#: discovered dynamically via the bundled extensions dir's ``*.py.example``
-#: glob, so real built-in ``*.py`` extensions can never be selected).
+#: discovered dynamically via the bundled extensions dir's ``*.example``
+#: glob, so real built-in ``*.py``/``*.lua`` extensions can never be
+#: selected).
 _THEME_EXAMPLES_DIR: tuple[str, ...] = ("resources", "theme_examples")
 _THEME_TEMPLATES: tuple[str, ...] = (
     "dracula_theme.example",
@@ -101,7 +102,7 @@ def _template_sources() -> list[tuple[Path, str]]:
     ]
     ext_dir = bundled_extensions_dir()
     if ext_dir.is_dir():
-        for source in sorted(ext_dir.glob("*.py.example")):
+        for source in sorted(ext_dir.glob("*.example")):
             pairs.append((source, f"{MANAGED_DIRS[1]}/{source.name}"))
     return pairs
 
@@ -399,8 +400,8 @@ def format_setup_report(report: SetupReport) -> str:
     if not report.errors:
         lines.append("")
         lines.append(
-            "edit yaterc to customize; rename a *.example to *.py to "
-            "activate it (themes/ or extensions/)."
+            "edit yaterc to customize; rename a *.example to *.py (or "
+            "*.lua) to activate it (themes/ or extensions/)."
         )
     return "\n".join(lines)
 
