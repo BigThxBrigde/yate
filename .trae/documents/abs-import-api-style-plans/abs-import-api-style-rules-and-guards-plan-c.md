@@ -135,3 +135,26 @@ def test_no_relative_imports() -> None:
 - 风险：守卫范围含 `tests/`——pytest 插件或 conftest 未来若需相对导入（无已知场景，`tests/` 非 `__init__.py` 包）会被拦；届时须先改规则文本再调守卫（两处同步，主计划 §六 #3）。
 - 规则文本改动为纯文档 + 测试，遵循 doc-conventions（相对路径引用）；架构规则 §六 对照表补行登记为待办（§四.4c）。
 - 回滚：本计划单独 commit；`git revert` 即同时还原规则文本与守卫用例（同 commit 保证两处不漂移）。
+
+## 八、执行结果回填（wave-2 收尾，2026-10-10）
+
+- **改动**：仅两个独占文件（python-coding-style.md +34/-2、test_architecture.py +19），
+  与 §二/§三/§四 的目标文本逐字一致；`_python_files()` / `_parsed_tree` / `PROJECT`
+  实际名称、签名、行号与计划标注完全一致，用例代码照草图落位，零适配。
+- **守卫**：`pytest tests/test_architecture.py -q` → **29 passed**（28 既有零回归 + 新用例），
+  exit 0（执行代理与主代理各跑一次）。
+- **负向演练**：
+  - 执行代理：向 `yate/paths.py` 注入 `from . import os`。直跑用例时 conftest 导入链
+    先在该行炸出运行时 ImportError（exit 4，collection 失败，非断言红）→ 改用
+    `--noconftest`（用例仅依赖 ast/pathlib，无 fixture 依赖）取得断言级红
+    `AssertionError: [('yate/paths.py', 29)]` → `git checkout -- yate/paths.py` 还原
+    （porcelain 无输出）→ 复绿 exit 0；
+  - 评审代理独立二次演练（临时文件注入 `from .paths import load_tcss`）：
+    红 `[('yate/_tmp_guard_drill.py', 1)]` → 删除后复绿 exit 0。守卫拦截能力双重实证。
+- **类型门禁**：`pyright yate/ tests/ tools/` → 0 errors / 0 warnings / 0 informations，exit 0。
+- **全量回归**：见主计划 §八 最终门禁实测（数字单一来源，不在本文件重复记录）。
+- **提交**：`6abd1db chore(rules): ban relative imports and codify open-api naming`。
+- **偏离登记**：负向演练执行方式适配为 `--noconftest`（执行方式偏离，非设计偏离，
+  理由见上）；§五 检查项置于「无 `import *`」之后（计划未规定位置，语义成组）；
+  pytest 终端汇总行在本工作区环境不回显，计数经 `--junitxml` 权威取证。
+  §四.4c 登记的待办（architecture-boundaries.md §六 对照表补行 28→29）维持待办状态。

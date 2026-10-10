@@ -146,3 +146,51 @@ flowchart LR
 ```
 
 通过标准：pyright 零诊断；pytest 全绿（含新增 `test_no_relative_imports` 与既有 28 个架构守卫）。
+
+## 八、执行结果回填（2026-10-11 收尾）
+
+### 8.1 执行记录
+
+| 环节 | 执行方 | 结果 |
+|---|---|---|
+| wave-1 plan-a（`yate/**`） | plan-executor | 47 文件 72 处 ✅ → `dd68645` |
+| wave-1 plan-b（`tools/**`） | plan-executor（与 plan-a 并行） | 37 文件 94 处 ✅ → `b44dd86` |
+| wave-2 plan-c（规则 + 守卫） | plan-executor（串行） | 规则落盘 + `test_no_relative_imports` ✅ → `6abd1db` |
+| 评审 | code-review-expert | 有条件通过：无 blocker/major，放行条件 SUGGESTION-1（计划回填，本节即兑现） |
+
+### 8.2 全量门禁实测（主代理亲跑，含退出码）
+
+| 门禁 | 结果 | 退出码 |
+|---|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations | 0 |
+| `pytest tests/ -q`（junitxml 权威计数） | **2124 tests / 0 errors / 0 failures / 9 skipped** | 0 |
+| `pytest tests/test_architecture.py -q` | **29 passed**（28 既有 + 新守卫） | 0 |
+| 覆盖率 `--cov=yate --cov=tools --cov-fail-under=75` | **Total 81.00%**（门槛 75% 通过） | 0 |
+| 覆盖率分支口径（评审代理实测） | Total 91.55% | 0 |
+| 冒烟 `python -m tools.changelog check` | exit 0（unreleased lag 为 release 前常态） | 0 |
+| 冒烟 `python -m tools.pack icon --help` | 正常输出用法 | 0 |
+| 负向演练 | 执行代理：注入 `from . import os`（paths.py）→ `--noconftest` 断言红 `[('yate/paths.py', 29)]` → 还原绿；评审代理独立二次演练（临时文件）红 `[('yate/_tmp_guard_drill.py', 1)]` → 绿 | 拦截有效 |
+
+残留扫描：`yate/`、`tools/`、`tests/` 三目录相对导入正则 **0 命中**（改前 72 + 94 + 0）。
+
+### 8.3 三项议题最终结论
+
+1. **包一律绝对导入**：166 处存量整改完成；规则 §1.3 重写落盘；`test_no_relative_imports` 守卫（29 用例）拦截回归；
+2. **开放 API 公共成员无下划线**：三源交叉核对**零整改**（叶包 `__all__`、ExtensionAPI 面、插件手册均无违规）；6 个下划线成员甄别为内部私有并登记例外于规则 §1.2；
+3. **审查其他规范**：修正 3 项（§1.3 条款本体、§1.2 包名行、extensions.py 导入序）；4 条观察项登记不动手（主计划 §二）。
+
+### 8.4 偏离记录
+
+- **批准环节**：用户显式声明无人值守 bypass，plan-before-execute §二.3 的用户批准以预授权放行（流程偏离，非内容偏离）；
+- **wave-1 全量 pytest 集中跑**：双执行代理并行，为避免 pytest 并发互相干扰（subagent-workflow §三.3），全量由主代理汇合后统一跑一次；
+- **负向演练 `--noconftest` 适配**：conftest 导入链先于断言炸出 ImportError（exit 4），改用 `--noconftest` 取得断言级红（执行方式偏离，非设计偏离）；
+- **plan-a 分组处数笔误修正**：editor_view 实为 35 处（计划误写 40）、editor_lsp 实为 6 处（误写 5），总数 72 不变；
+- **pytest 汇总行不回显**：本工作区终端环境特性，计数经 `--junitxml` 权威取证。
+
+### 8.5 提交清单（本分支，仅提交不推送）
+
+`199e3d0` docs(plan) → `dd68645` refactor(yate) → `b44dd86` refactor(tools) → `6abd1db` chore(rules) → `docs(plan)` 本回填。
+
+### 8.6 待办登记（非静默遗漏）
+
+- architecture-boundaries.md §六 用例对照表补行（28 → 29）与「28 个用例」计数同步：按 plan-c §四.4c 留待下次触碰该文件时一并处理。

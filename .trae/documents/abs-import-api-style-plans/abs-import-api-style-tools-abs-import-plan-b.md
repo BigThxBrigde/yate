@@ -97,3 +97,19 @@ rg -n "^\s*from\s+\.+" tools/ ; if ($LASTEXITCODE -eq 1) { "CLEAN" } else { "FAI
 
 - 风险：仅当 tools 被以 `python tools/<pkg>/cli.py` 直跑时绝对导入会失败——全仓文档与 CI 无此形态（§一 证据）；`tools/smoke_test/harness.py:32-37` 的 env 注入先于导入 + `# noqa: E402` 是既有惯例，本计划不触碰其行序。
 - 回滚：本计划单独 commit；异常时 `git revert` 该 commit，不影响 plan-a。
+
+## 七、执行结果回填（wave-1 收尾，2026-10-10）
+
+- **改动**：37 文件 94 处，与 §三 逐文件行号清单完全一致，零行为变化。
+  分域：release 4 处 / pack 9 处 / changelog 12 处 / smoke_test 13 处 /
+  scenarios 56 处（`__init__.py` 20 处含 18 条别名导入 + 18 个场景文件各 2 处）。
+- **执行**：plan-executor（wave-1 与 plan-a 并行）；执行后独立复核（主代理重跑）：
+  - Grep `^\s*from\s+\.+` 于 `tools/`：**0 命中**；
+  - `pyright tools/`：0 errors / 0 warnings / 0 informations，exit 0；
+  - `-m` 冒烟：`python -m tools.changelog check`、`python -m tools.pack icon --help`
+    均 exit 0（unreleased lag 为 release 前既有业务提示，与导入无关）；
+  - tools 相关 11 个测试文件（changelog/pack/release/smoke 域）全绿（含 1 个既有 skip）；
+  - 全量 `pytest tests/ -q`：由主代理统一跑一次（同 plan-a 调度偏离），全绿。
+- **提交**：`b44dd86 refactor(tools): rewrite relative imports as absolute imports`。
+- **偏离登记**：任务书仅列 3 个测试文件，实际按 plan-b §五口径补齐至 11 个
+  （smoke_test 域占 24/37 改动文件，不跑无法覆盖）；无范围/设计偏离。

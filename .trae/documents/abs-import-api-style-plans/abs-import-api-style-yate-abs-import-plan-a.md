@@ -104,3 +104,18 @@ rg -n "^\s*from\s+\.+" yate/ ; if ($LASTEXITCODE -eq 1) { "CLEAN" } else { "FAIL
 - 风险：无循环导入风险（导入图不变）；`from yate.editor_view import theme` 是子模块导入，与 `from . import theme` 等价，`editor_view/__init__.py` 惰性（不 re-export）不受影响。
 - `editor_view/editor.py` / `editor_core/buffer.py` / `keymaps/vim.py` 在豁免名单——本计划不改其行数（每处替换同行数），无需更新 `SIZE_EXEMPT_FILES`。
 - 回滚：本计划单独 commit；异常时 `git revert` 该 commit 即可，不影响 plan-b。
+
+## 七、执行结果回填（wave-1 收尾，2026-10-10）
+
+- **改动**：47 文件 72 处，与 §三 逐文件行号清单全部吻合，零行为变化。
+  分组处数修正（§三 分组标题的汇总数字为笔误，逐文件清单准确）：
+  editor_view 16 文件 **35** 处（计划标题误写 40）、editor_lsp 3 文件 **6** 处（误写 5）、
+  editor_term 6 处、editor_sprites 25 处、extensions.py 2 行排序对齐——总计 72 与总事实清单一致。
+- **执行**：plan-executor（wave-1 并行）；执行后独立复核（主代理重跑）：
+  - Grep `^\s*from\s+\.+` 于 `yate/`：**0 命中**（改前 72）；
+  - `pyright yate/`：0 errors / 0 warnings / 0 informations，exit 0；
+  - `pytest tests/test_architecture.py -q`：28 passed，exit 0；
+  - 全量 `pytest tests/ -q`：由主代理在 wave-1 汇合后统一跑一次
+    （wave-1 双代理并行，避免 pytest 并发互相干扰的调度偏离），全绿。
+- **提交**：`dd68645 refactor(yate): rewrite relative imports as absolute imports`。
+- **偏离登记**：仅上述分组处数笔误修正与全量 pytest 集中跑两项，无范围/设计偏离。
