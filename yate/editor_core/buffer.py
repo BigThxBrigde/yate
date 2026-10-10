@@ -62,6 +62,27 @@ class _Edit:
     weight: int = 1
 
 
+def _remap_after_insert(new_pos: dict[Pos, Pos], pos: Pos, parts: list[str]) -> None:
+    """Retarget positions already recorded for earlier points through one insert.
+
+    Multi-point primitives edit in descending order, so every recorded
+    position sits at or after the edit point.  Inserting
+    ``"\\n".join(parts)`` at *pos* (``k = len(parts) - 1`` new rows) shifts
+    rows below *pos* down by *k*.  With row-splitting text every recorded
+    position is strictly below the edited row (a split never records on
+    the row it splits), so the same-row column shift only applies to
+    single-line inserts.  Call this *before* recording the current point's
+    own position.
+    """
+    r = pos[0]
+    k = len(parts) - 1
+    for p, (pr, pc) in new_pos.items():
+        if pr > r:
+            new_pos[p] = (pr + k, pc)
+        else:
+            new_pos[p] = (r, pc + len(parts[0]))
+
+
 class TextBuffer:
     """A mutable, undoable multi-line text buffer."""
 
@@ -316,7 +337,9 @@ class TextBuffer:
         extra cursors, so repeated ``ALT+C`` walks downward one point per
         press.  ``False`` (no-op) when there is no next row.  Like
         :meth:`add_cursor_at`, entering multi-cursor mode clears the
-        primary selection.
+        primary selection.  No duplicate check is needed: the target row
+        (bottom-most row + 1) is strictly below every existing point, so
+        it can never collide with one.
         """
         bottom = max(self._multi_points())
         row, col = bottom
@@ -629,10 +652,13 @@ class TextBuffer:
         Points are processed in descending (row, col) order so an insertion
         containing newlines never invalidates a not-yet-processed point's
         position; the primary cursor ends at its own post-insert position
-        and every extra point follows its own insertion.  No bracket
-        auto-completion (a single-cursor :meth:`type_char` affordance) and
-        no per-point auto-indent: a ``"\\n"`` inserts a bare newline at
-        each point (known limitation).  Read-only buffers raise
+        and every extra point follows its own insertion.  Positions already
+        recorded for earlier points are remapped through each later edit
+        (rows below shift down, same-row columns shift with the text), so
+        no point drifts off its own insertion.  No bracket auto-completion
+        (a single-cursor :meth:`type_char` affordance) and no per-point
+        auto-indent: a ``"\\n"`` inserts a bare newline at each point
+        (known limitation).  Read-only buffers raise
         :class:`BufferReadOnlyError`.
         """
         self._ensure_writable()
@@ -641,9 +667,12 @@ class TextBuffer:
         points = self._multi_points()
         before = self._snapshot()
         log.debug("multi-cursor insert: points=%d", len(points))
+        parts = text.split("\n")
         new_pos: dict[Pos, Pos] = {}
         for pos in sorted(points, reverse=True):
-            new_pos[pos] = self._apply_text(text, pos)
+            recorded = self._apply_text(text, pos)
+            _remap_after_insert(new_pos, pos, parts)
+            new_pos[pos] = recorded
         self.cursor = new_pos[points[0]]
         self.extra_cursors = [new_pos[pos] for pos in points[1:]]
         self._goal_col = None
@@ -654,7 +683,10 @@ class TextBuffer:
 
         At column 0 the point joins the previous row (newline deletion);
         (0, 0) is a no-op for that point.  Descending order, deduplicated.
-        Read-only buffers raise :class:`BufferReadOnlyError`.
+        Positions already recorded for earlier points are remapped through
+        each later deletion (same-row columns shift left; a joined row
+        folds onto the seam with the rows below shifting up).  Read-only
+        buffers raise :class:`BufferReadOnlyError`.
         """
         self._ensure_writable()
         points = self._multi_points()
@@ -668,9 +700,20 @@ class TextBuffer:
             elif c == 0:
                 start = (r - 1, len(self.lines[r - 1]))
                 self._delete_range(start, pos)
+                # Descending order leaves every recorded point on row r or
+                # below: its row folds into row r - 1 at the seam, rows
+                # further down shift up one.
+                for p, (pr, pc) in new_pos.items():
+                    if pr == r:
+                        new_pos[p] = (r - 1, start[1] + pc)
+                    else:
+                        new_pos[p] = (pr - 1, pc)
                 new_pos[pos] = start
             else:
                 self._delete_range((r, c - 1), (r, c))
+                for p, (pr, pc) in new_pos.items():
+                    if pr == r and pc >= c:
+                        new_pos[p] = (r, pc - 1)
                 new_pos[pos] = (r, c - 1)
         self.cursor = new_pos[points[0]]
         self.extra_cursors = [new_pos[pos] for pos in points[1:]]
@@ -681,7 +724,10 @@ class TextBuffer:
         """Delete one character after every active point as ONE undo step.
 
         At end-of-row the point joins the next row; end of document is a
-        no-op for that point.  Read-only buffers raise
+        no-op for that point.  Descending order, deduplicated.  Positions
+        already recorded for earlier points are remapped through each later
+        deletion (same-row columns shift left; a joined next row folds onto
+        the seam with the rows below shifting up).  Read-only buffers raise
         :class:`BufferReadOnlyError`.
         """
         self._ensure_writable()
@@ -696,9 +742,20 @@ class TextBuffer:
                 new_pos[pos] = pos
             elif c >= len(line):
                 self._delete_range(pos, (r + 1, 0))
+                # Descending order leaves every recorded point on row r + 1
+                # or below: the joined row folds into row r at the seam,
+                # rows further down shift up one.
+                for p, (pr, pc) in new_pos.items():
+                    if pr == r + 1:
+                        new_pos[p] = (r, c + pc)
+                    else:
+                        new_pos[p] = (pr - 1, pc)
                 new_pos[pos] = pos
             else:
                 self._delete_range(pos, (r, c + 1))
+                for p, (pr, pc) in new_pos.items():
+                    if pr == r and pc > c:
+                        new_pos[p] = (r, pc - 1)
                 new_pos[pos] = pos
         self.cursor = new_pos[points[0]]
         self.extra_cursors = [new_pos[pos] for pos in points[1:]]

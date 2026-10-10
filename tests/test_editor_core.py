@@ -1533,3 +1533,95 @@ class TestMultiCursor:
         with pytest.raises(BufferReadOnlyError):
             buf.delete_at_points()
         assert buf.lines == [""]
+
+    def test_insert_at_points_empty_text_is_noop(self) -> None:
+        """An empty insertion touches nothing and records no undo step."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.insert_at_points("")
+        assert buf.lines == ["alpha beta", "gamma delta", "epsilon zeta"]
+        assert buf.cursor == (0, 0)
+        assert buf.extra_cursors == [(1, 0)]
+        assert buf.content_edits == 0
+
+    def test_insert_at_points_newline_remaps_recorded_positions(self) -> None:
+        """A newline insertion at three points remaps the already-recorded
+        positions of the lower points: one row per later upper insertion
+        (gitee PR !70 review M1)."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.add_cursor_below()
+        buf.insert_at_points("\n")
+        assert buf.lines == [
+            "",
+            "alpha beta",
+            "",
+            "gamma delta",
+            "",
+            "epsilon zeta",
+        ]
+        assert buf.cursor == (1, 0)
+        assert buf.extra_cursors == [(3, 0), (5, 0)]
+
+    def test_insert_at_points_remaps_recorded_row_on_same_row_split(self) -> None:
+        """A later same-row row-splitting insertion moves an earlier point's
+        recorded position onto the folded tail row."""
+        buf = TextBuffer("ABCDE")
+        buf.set_cursor((0, 5))
+        buf.add_cursor_at((0, 1))
+        buf.insert_at_points("X\nY")
+        assert buf.lines == ["AX", "YBCDEX", "Y"]
+        assert buf.cursor == (2, 1)
+        assert buf.extra_cursors == [(1, 1)]
+
+    def test_delete_at_points_remaps_same_row_recorded_column(self) -> None:
+        """A later same-row backspace shifts an earlier point's recorded
+        column left instead of leaving it past the new row length."""
+        buf = TextBuffer("ABCDE")
+        buf.set_cursor((0, 3))
+        buf.add_cursor_at((0, 5))
+        buf.delete_at_points()
+        assert buf.lines == ["ABD"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 3)]
+
+    def test_delete_at_points_join_remaps_recorded_points(self) -> None:
+        """A column-0 join folds the recorded points on the joined row onto
+        the seam and shifts the points below up one row; a later same-row
+        backspace retargets the join points again."""
+        buf = self._buffer()
+        buf.set_cursor((1, 0))
+        buf.add_cursor_at((1, 2))
+        buf.add_cursor_at((2, 1))
+        buf.add_cursor_at((0, 5))
+        buf.delete_at_points()
+        assert buf.lines == ["alph betagmma delta", "psilon zeta"]
+        assert buf.cursor == (0, 9)
+        assert buf.extra_cursors == [(0, 10), (1, 0), (0, 4)]
+
+    def test_delete_forward_at_points_join_remaps_recorded_points(self) -> None:
+        """An end-of-row forward join folds the recorded point on the next
+        row onto the seam and shifts the points below up one row; a later
+        same-row forward delete retargets the join points again."""
+        buf = self._buffer()
+        buf.set_cursor((0, 10))
+        buf.add_cursor_at((0, 5))
+        buf.add_cursor_at((1, 5))
+        buf.add_cursor_at((2, 0))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["alphabetagammadelta", "psilon zeta"]
+        assert buf.cursor == (0, 9)
+        assert buf.extra_cursors == [(0, 5), (0, 14), (1, 0)]
+
+    def test_delete_forward_at_points_remaps_same_row_recorded_column(self) -> None:
+        """A later same-row forward delete shifts an earlier point's
+        recorded column left with its content."""
+        buf = TextBuffer("ABCDE")
+        buf.set_cursor((0, 2))
+        buf.add_cursor_at((0, 4))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["ABD"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 3)]
