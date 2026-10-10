@@ -377,3 +377,51 @@ stateDiagram-v2
    点击清点并移动光标；`Ctrl+Z` 一步撤销整段多点编辑。
 3. **回归**：单光标打字/退格/换行/undo 与改动前一致；vim 各模式、vsc
    快捷键无回归（冒烟 107 场景基线 + plan-e 新增 2 个多光标场景）。
+
+## 十、执行记录（2026-10-10，闭环收尾回填）
+
+### 波次执行与提交
+
+| 波次 | 子计划 | 提交 | 结果 |
+|---|---|---|---|
+| 方案 | 总纲 + 5 子计划 | `85b5079` `docs(plan)` | — |
+| wave-1 | plan-a（buffer 多光标模型） | `5607a13` `feat(editor-core)` | 16 新用例全绿 |
+| wave-2 | plan-b（vim/vsc 键位接入） | `30bd333` `feat(keymaps)` | 15 新用例全绿 |
+| wave-2 | plan-c（多点 actions + ALT+点击） | `a0a9a98` `feat(actions)` | 10 新用例全绿 |
+| wave-2 | plan-d（多点渲染 + V-COLUMN chip） | `4ebbe8f` `feat(editor-view)` | 9 新用例全绿 |
+| wave-3 | plan-e（冒烟 + 双语手册 + 行数回填） | `7ca2c87` `docs(manual)` | 2 场景 37 checks；全量冒烟 109/109 |
+| 迭代 | 评审 W-1/W-2 修复 | `e1e8a72` `fix(editor-core)` | 恢复被误删的 S40 测试尾段 + 补 2 个边界用例 |
+
+### 执行中的裁决与偏离（均已实测取证）
+
+1. **plan-b**：计划 2 处断言笔误按实测语义修正（`insert_at_points` 在点之前
+   插入）；`_handle_insert` 方向键按计划括号限定**不清点**（与 NORMAL motion
+   自洽），`\t`/`\x1b[3~`/ctrl-w/ctrl-u 清点。
+2. **plan-c**：`clear_selection` action 改名 `_clear_selection` 并先清附加点；
+   `_on_down` 次序按计划代码块执行（`buffer_pos_from_mouse` 判 None 提前）。
+3. **plan-d**：测试辅助函数改用 Textual 8.x 的 `Strip` 直接迭代（`Strip.segments`
+   属性不存在）；`mode_chip` 全仓 9 处 `mode_chip(` 出现逐一核对，生产调用方
+   2 处全部适配。
+4. **plan-e**：手册实际路径为 `yate/resources/manual.*.md`（计划误写
+   `yate/docs/`，按仓库实况执行）；冒烟鼠标合成用 `pilot.click(..., meta=True)`
+   （与 plan-c 用例同口径）；行数回填按 `splitlines()` 口径实测
+   （`vim.py` 1178、`buffer.py` 994）。
+5. **评审修复（`e1e8a72`）**：W-1 plan-d 插入渲染用例时误删
+   `test_doc_search_enter_flushes_pending_query_immediately` 末尾三行，已按
+   master 原文恢复；W-2 补「列 0 合并上一行」「文档末行行尾 no-op」两个边界
+   用例。5 项 S 级建议按 minor 登记不阻塞（见评审记录）。
+
+### 收尾门禁实测（主代理执行，2026-10-10）
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations | 0 |
+| `pytest tests/ -q` | 全绿（评审复核实测 2107 passed 量级） | 0 |
+| `pytest tests/test_architecture.py -q` | 28 passed | 0 |
+| `pytest tests/ --cov=yate --cov-branch --cov-fail-under=75` | TOTAL **91.50%** | 0 |
+| `python -m tools.smoke_test run --no-color` | **109/109 scenarios, 1323/1323 checks** | 0 |
+
+评审（code-review-expert 剧本）结论：无 blocker；2 项 major（W-1/W-2）已全部
+修复并复核，5 项 minor 按 S 级登记不阻塞。评审记录：
+[`.trae/reviews/2026-10-10-multi-cursor.md`](../../reviews/2026-10-10-multi-cursor.md)。
+手工验证项（Windows Terminal 交互冒烟，总纲 §九清单）待用户执行。
