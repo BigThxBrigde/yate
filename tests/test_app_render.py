@@ -9,8 +9,10 @@ import asyncio
 import threading
 from pathlib import Path
 from unittest.mock import patch
+
 import pytest
 from textual.color import Color
+
 from yate.app import YateApp
 from yate.editor_syntax.tokens import Token
 from yate.editor_view import theme
@@ -337,6 +339,9 @@ def test_doc_search_enter_flushes_pending_query_immediately(
 
 def test_doc_scroll_scrollbar_paints_theme_palette() -> None:
     """The doc body mounts slim-rendered, theme-painted scrollbars (IKJUU2 follow-up)."""
+    # captured before any switch: restored in the finally block and used to
+    # derive the switch target, so the restore broadcast differs from *other*
+    original = theme.active().name
 
     async def scenario() -> None:
         app = YateApp()
@@ -365,17 +370,19 @@ def test_doc_scroll_scrollbar_paints_theme_palette() -> None:
                 assert s.scrollbar_color_active == Color.parse(t.accent)
                 assert s.scrollbar_corner_color == Color(0, 0, 0, 0)
                 # a theme switch repaints the mounted body...
-                other = "latte" if theme.active().name != "latte" else "mocha"
+                other = "latte" if original != "latte" else "mocha"
                 theme.set_theme(other)
                 assert pane.styles.scrollbar_color == Color.parse(theme.active().border)
                 # ...and the broadcast no longer reaches it once unmounted
                 app.pop_screen()
                 await pilot.pause()
             unmounted_color = pane.styles.scrollbar_color
-            theme.set_theme("mocha")
+            # the captured original differs from *other* by construction: a
+            # live pane would repaint, keeping this negative assertion honest
+            theme.set_theme(original)
             assert pane.styles.scrollbar_color == unmounted_color
 
     try:
         asyncio.run(scenario())
     finally:
-        theme.set_theme("mocha")
+        theme.set_theme(original)

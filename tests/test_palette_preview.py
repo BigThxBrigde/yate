@@ -132,6 +132,9 @@ def test_preview_pane_scrollbar_palette(tmp_path: Path) -> None:
 def test_preview_pane_scrollbar_follows_theme_change(tmp_path: Path) -> None:
     """A theme switch repaints the pane while mounted, not after unmount."""
     (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+    # captured before any switch: restored in the finally block and used to
+    # derive the switch target, so the restore broadcast differs from *other*
+    original = theme.active().name
 
     async def scenario() -> None:
         app = _Host(_palette(tmp_path))
@@ -140,21 +143,23 @@ def test_preview_pane_scrollbar_follows_theme_change(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
             pane = screen.query_one("#palette-preview", PreviewLog)
-            other = "latte" if theme.active().name != "latte" else "mocha"
+            other = "latte" if original != "latte" else "mocha"
             theme.set_theme(other)
             assert pane.styles.scrollbar_color == Color.parse(theme.active().border)
             # popping the screen unmounts the pane and detaches the listener
             app.pop_screen()
             await pilot.pause()
         unmounted_color = pane.styles.scrollbar_color
-        theme.set_theme("mocha")
+        # the captured original differs from *other* by construction: a live
+        # pane would repaint, keeping the negative assertion below meaningful
+        theme.set_theme(original)
         # unmounted: the broadcast must no longer touch the pane
         assert pane.styles.scrollbar_color == unmounted_color
 
     try:
         asyncio.run(scenario())
     finally:
-        theme.set_theme("mocha")
+        theme.set_theme(original)
 
 
 def test_disabled_preview_keeps_legacy_dom(tmp_path: Path) -> None:
