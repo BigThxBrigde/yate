@@ -16,17 +16,20 @@ from pathlib import Path
 
 import pytest
 from textual.app import App
+from textual.color import Color
 from textual.containers import Horizontal
 from textual.widgets import Static
 
 from yate.config import FilePreviewConfig
 from yate.editor_syntax.tokens import SYNTAX_KINDS
+from yate.editor_view import theme
 from yate.editor_view.palette import (
     PREVIEW_CACHE_SIZE,
     PaletteScreen,
     PreviewLog,
     _PreviewData,
 )
+from yate.editor_view.scrollbars import SlimScrollBarRender
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
@@ -93,6 +96,30 @@ def test_files_mode_composes_preview_pane(tmp_path: Path) -> None:
             body = screen.query_one("#palette-body", Horizontal)
             assert body.query("#palette-results")
             assert body.query(PreviewLog)
+
+    asyncio.run(scenario())
+
+
+def test_preview_pane_scrollbars_match_explorer(tmp_path: Path) -> None:
+    """Pane scrollbars carry the slim renderer and the explorer palette (IKJUU2)."""
+    (tmp_path / "alpha.py").write_text(ALPHA_SOURCE, encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_palette(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            pane = screen.query_one("#palette-preview", PreviewLog)
+            # slim partial-block renderer on both bars, injected per widget
+            assert pane.vertical_scrollbar.renderer is SlimScrollBarRender
+            assert pane.horizontal_scrollbar.renderer is SlimScrollBarRender
+            # explorer palette (IKINF3): a fully transparent track so only
+            # the sliver shows -- the default opaque track is what the issue
+            # reports as a "thick" horizontal scrollbar
+            t = theme.active()
+            assert pane.styles.scrollbar_background == Color(0, 0, 0, 0)
+            assert pane.styles.scrollbar_color == Color.parse(t.border)
 
     asyncio.run(scenario())
 
