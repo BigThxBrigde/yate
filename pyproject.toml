@@ -50,7 +50,13 @@ dev = [
     "tree-sitter-ruby>=0.23",
     "tree-sitter-markdown>=0.5",
     "tree-sitter-zig>=1.1",
+    "lupa>=2.0",
 ]
+# Lua extension support (optional): the Python-Lua bridge for `*.lua`
+# extension scripts. Without it yate still runs and every `*.py` extension
+# keeps working; loading a `.lua` extension reports an actionable error
+# pointing at this extra.
+lua = ["lupa>=2.0"]
 # Tree-sitter syntax backend (optional): incremental-quality highlighting for
 # languages with an installed grammar pack. Without it yate falls back to the
 # built-in regex highlighter.
