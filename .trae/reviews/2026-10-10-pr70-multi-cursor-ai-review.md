@@ -26,9 +26,9 @@
 
 | # | 级别 | 问题 | 机器人建议 | 处置 |
 |---|---|---|---|---|
-| M1 | 🚫 阻断 | 多点原语在行数变化后未重映射已记录位置，附加光标漂移（`yate/editor_core/buffer.py`）：`insert_at_points` / `delete_at_points` / `delete_forward_at_points` 降序处理保护了未处理的源位置，但已记录的 `new_pos` 不随后续上方行的插行/并做行号平移。三点 `(0,0)(1,0)(2,0)` 执行 `insert_at_points("\n")` 后内容正确变为 `["",A,"",B,"",C]`，主光标 `(1,0)`，附加光标被回写为 `(2,0)(3,0)`，正确应为 `(3,0)(5,0)` | 每次行数变化的操作后对已记录位置统一重映射（插入下移、删除上移），并补钉住坐标的测试 | 🔧 **修复**（2026-10-10，方案 [multi-cursor-review-fixes-plan.md](../documents/multi-cursor-review-fixes-plan.md)）。核实属实，且实测漂移不止跨行：同行的后续退格/前删同样使已记录列号失效（机器人给的 `_shift_recorded` 只平行号不够），方案扩展为行、列联合重映射 |
-| O1 | ⚠️ 改进 | `add_cursor_below` 未做去重检查，与 `add_cursor_at` 语义不一致（`yate/editor_core/buffer.py`）：下一行较短、列号夹取后可能撞上已存在的附加点，产生重复点 | 追加前检查 `point in self.extra_cursors or point == self.cursor`，保持语义一致 | 🔍 **核实不成立，不改行为**（2026-10-10）。结构性证明：`add_cursor_below` 以 `_multi_points()` 的最大点（最低行）为基准，目标行 = 最低行 + 1，严格大于全部现存点（含主光标）的行号，重复在结构上不可达；加了也属永不触发的死分支（还会成为分支覆盖永久空洞）。处置：docstring 注明该不变量 |
-| O2 | ⚠️ 改进 | `mouse_flows._on_down` 中条件表达式重复计算（`yate/flows/mouse_flows.py`）：`event.meta and not isinstance(keymap, VimKeymap)` 在分支条件与 `_dragging` 赋值处各出现一次 | 提取局部变量 `adds_point` | 🔧 **修复**（2026-10-10，同上方案）：提取局部变量，行为零变化 |
+| M1 | 🚫 阻断 | 多点原语在行数变化后未重映射已记录位置，附加光标漂移（`yate/editor_core/buffer.py`）：`insert_at_points` / `delete_at_points` / `delete_forward_at_points` 降序处理保护了未处理的源位置，但已记录的 `new_pos` 不随后续上方行的插行/并做行号平移。三点 `(0,0)(1,0)(2,0)` 执行 `insert_at_points("\n")` 后内容正确变为 `["",A,"",B,"",C]`，主光标 `(1,0)`，附加光标被回写为 `(2,0)(3,0)`，正确应为 `(3,0)(5,0)` | 每次行数变化的操作后对已记录位置统一重映射（插入下移、删除上移），并补钉住坐标的测试 | ✅ **已修复**（2026-10-10，commit `30f82e4`，方案 [multi-cursor-review-fixes-plan.md](../documents/multi-cursor-review-fixes-plan.md)）。核实属实，且实测漂移不止跨行：同行的后续退格/前删同样使已记录列号失效（机器人给的 `_shift_recorded` 只平行号不够），落地为行、列联合重映射 + 7 例钉坐标测试 |
+| O1 | ⚠️ 改进 | `add_cursor_below` 未做去重检查，与 `add_cursor_at` 语义不一致（`yate/editor_core/buffer.py`）：下一行较短、列号夹取后可能撞上已存在的附加点，产生重复点 | 追加前检查 `point in self.extra_cursors or point == self.cursor`，保持语义一致 | 🔍 **核实不成立，不改行为**（2026-10-10）。结构性证明：`add_cursor_below` 以 `_multi_points()` 的最大点（最低行）为基准，目标行 = 最低行 + 1，严格大于全部现存点（含主光标）的行号，重复在结构上不可达；加了也属永不触发的死分支（还会成为分支覆盖永久空洞）。处置：docstring 已注明该不变量（commit `30f82e4`） |
+| O2 | ⚠️ 改进 | `mouse_flows._on_down` 中条件表达式重复计算（`yate/flows/mouse_flows.py`）：`event.meta and not isinstance(keymap, VimKeymap)` 在分支条件与 `_dragging` 赋值处各出现一次 | 提取局部变量 `adds_point` | ✅ **已修复**（2026-10-10，commit `5d3c83a`）：提取局部变量，行为零变化 |
 
 ## 三、关联
 
