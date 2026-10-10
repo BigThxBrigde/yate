@@ -258,7 +258,15 @@ def test_vsplit_with_file_and_only(pane_root: Path) -> None:
             assert await wait_until(pilot, lambda: panes.leaf_count == 3)
             # :only collapses back to the active (bravo) pane
             app.editor.run_command("only")
-            assert await wait_until(pilot, lambda: panes.leaf_count == 1)
+            # leaf_count flips to 1 before the host reconciles the widget
+            # subtree (old views removed, new view not yet mounted), so the
+            # EditorView count must join the wait or the assertion races
+            # the reconcile (flaky on slower schedulers, e.g. Linux CI).
+            assert await wait_until(
+                pilot,
+                lambda: panes.leaf_count == 1
+                and len(app.query(EditorView)) == 1,
+            )
             assert len(app.query(EditorView)) == 1
             current = app.editor.session.doc
             assert current.path is not None
