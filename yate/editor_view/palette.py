@@ -39,7 +39,7 @@ from yate.services.workspace import Workspace
 
 from . import theme
 from .icons import GEAR, KEYBOARD, icon_for_path
-from .scrollbars import apply_slim_scrollbars
+from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12
@@ -107,6 +107,25 @@ class PreviewLog(RichLog):
     """
 
     can_focus = False
+
+    @override
+    def on_mount(self) -> None:
+        """Own the slim-scrollbar wiring and the theme painting."""
+        # RichLog inherits ScrollView.on_mount (scrollbar visibility refresh).
+        super().on_mount()
+        # Same self-painting pattern as the explorer (issue IKJUU2): the
+        # renderer sliver alone still shows Textual's opaque default track.
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        theme.attach(self, self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        theme.detach(self)
+
+    def _apply_theme(self) -> None:
+        """Paint the scrollbar palette from the active theme (IKJUU2, IKINF3 pattern)."""
+        apply_scrollbar_theme(self)
 
 
 class PaletteScreen(ModalScreen[None]):
@@ -526,7 +545,6 @@ class PaletteScreen(ModalScreen[None]):
             self._status_message = " indexing workspace…"
             self._render_results()
             if self.preview.enable:
-                apply_slim_scrollbars(self.query_one("#palette-preview", PreviewLog))
                 self._update_preview()
             self.run_worker(
                 # coroutine *function*: an eager coroutine would leak if
