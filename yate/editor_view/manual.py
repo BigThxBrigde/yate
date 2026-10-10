@@ -40,7 +40,8 @@ from textual.widgets import Input, Markdown, Static
 
 from yate.paths import load_tcss
 
-from .scrollbars import apply_slim_scrollbars
+from . import theme
+from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 _DOC_LANGS: tuple[str, ...] = ("en", "zh")
 
@@ -150,6 +151,24 @@ class _SearchInput(Input):
         await super()._on_key(event)
 
 
+class DocScroll(VerticalScroll):
+    """Scrollable markdown body owning its slim scrollbar painting."""
+
+    def on_mount(self) -> None:
+        """Own the slim-scrollbar wiring and the theme painting."""
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        theme.attach(self, self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        theme.detach(self)
+
+    def _apply_theme(self) -> None:
+        """Paint the scrollbar palette from the active theme (IKINF3 style)."""
+        apply_scrollbar_theme(self)
+
+
 class MarkdownDocScreen(ModalScreen[None]):
     """A bundled markdown document (manual/changelog), read-only."""
 
@@ -207,7 +226,7 @@ class MarkdownDocScreen(ModalScreen[None]):
                     id="doc-search-input",
                 )
                 yield Static("", id="doc-search-status")
-            with VerticalScroll(id="doc-scroll"):
+            with DocScroll(id="doc-scroll"):
                 # empty initially: the content loads in a background worker
                 # so the screen itself can paint without a hitch
                 yield Static(f" loading {self._title}…", id="doc-loading")
@@ -219,8 +238,7 @@ class MarkdownDocScreen(ModalScreen[None]):
             )
 
     def on_mount(self) -> None:
-        """Style the scrollbar and start the background document loader."""
-        apply_slim_scrollbars(self.query_one("#doc-scroll", VerticalScroll))
+        """Start the background document loader (scrollbar wiring is DocScroll's)."""
         # coroutine *function*: an eager coroutine would leak if the
         # worker never starts (closing pump)
         self.run_worker(
@@ -406,7 +424,7 @@ class MarkdownDocScreen(ModalScreen[None]):
         # align the widget's top first, then offset to the exact rendered
         # row, so several matches inside one wrapped paragraph land on
         # distinct lines (widget.scroll_visible alone would not move)
-        scroll = self.query_one("#doc-scroll", VerticalScroll)
+        scroll = self.query_one("#doc-scroll", DocScroll)
         # immediate=True applies before the second scroll_to, which refines
         # the position to the exact rendered row (several matches can share
         # one wrapped widget, widget-level scrolling would not move)
