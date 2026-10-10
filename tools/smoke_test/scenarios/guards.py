@@ -29,8 +29,8 @@ from pathlib import Path
 from rich.text import Text
 from textual.events import Key
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import goto, message_text, run_command, type_text
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import goto, message_text, run_command, type_text
 from yate.app import YateApp
 from yate.editor_view import theme
 from yate.keymaps.base import Keymap

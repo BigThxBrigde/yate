@@ -21,8 +21,8 @@ from typing import cast
 
 from textual.widgets import Static
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import message_text, plain_text, run_command
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import message_text, plain_text, run_command
 from yate.editor_core.diff import DiffHunk, MergeRegion
 from yate.editor_view.diff_pane import DiffPane
 from yate.editor_view.diffview import DiffScreen

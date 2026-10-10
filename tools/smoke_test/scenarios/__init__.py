@@ -8,26 +8,26 @@ authors need.
 
 from __future__ import annotations
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import goto, run_command, type_text, wait_until
-from .aliases import SCENARIOS as _ALIASES
-from .core import SCENARIOS as _CORE
-from .diffview import SCENARIOS as _DIFFVIEW
-from .edit import SCENARIOS as _EDIT
-from .explorer import SCENARIOS as _EXPLORER
-from .files import SCENARIOS as _FILES
-from .guards import SCENARIOS as _GUARDS
-from .integration import SCENARIOS as _INTEGRATION
-from .multi_cursor import SCENARIOS as _MULTI_CURSOR
-from .palette_preview import SCENARIOS as _PALETTE_PREVIEW
-from .panes import SCENARIOS as _PANES
-from .regression import SCENARIOS as _REGRESSION
-from .screensaver import SCENARIOS as _SCREENSAVER
-from .search import SCENARIOS as _SEARCH
-from .stress import SCENARIOS as _STRESS
-from .view import SCENARIOS as _VIEW
-from .vim_advanced import SCENARIOS as _VIM_ADVANCED
-from .workspace_nav import SCENARIOS as _WORKSPACE_NAV
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import goto, run_command, type_text, wait_until
+from tools.smoke_test.scenarios.aliases import SCENARIOS as _ALIASES
+from tools.smoke_test.scenarios.core import SCENARIOS as _CORE
+from tools.smoke_test.scenarios.diffview import SCENARIOS as _DIFFVIEW
+from tools.smoke_test.scenarios.edit import SCENARIOS as _EDIT
+from tools.smoke_test.scenarios.explorer import SCENARIOS as _EXPLORER
+from tools.smoke_test.scenarios.files import SCENARIOS as _FILES
+from tools.smoke_test.scenarios.guards import SCENARIOS as _GUARDS
+from tools.smoke_test.scenarios.integration import SCENARIOS as _INTEGRATION
+from tools.smoke_test.scenarios.multi_cursor import SCENARIOS as _MULTI_CURSOR
+from tools.smoke_test.scenarios.palette_preview import SCENARIOS as _PALETTE_PREVIEW
+from tools.smoke_test.scenarios.panes import SCENARIOS as _PANES
+from tools.smoke_test.scenarios.regression import SCENARIOS as _REGRESSION
+from tools.smoke_test.scenarios.screensaver import SCENARIOS as _SCREENSAVER
+from tools.smoke_test.scenarios.search import SCENARIOS as _SEARCH
+from tools.smoke_test.scenarios.stress import SCENARIOS as _STRESS
+from tools.smoke_test.scenarios.view import SCENARIOS as _VIEW
+from tools.smoke_test.scenarios.vim_advanced import SCENARIOS as _VIM_ADVANCED
+from tools.smoke_test.scenarios.workspace_nav import SCENARIOS as _WORKSPACE_NAV
 
 __all__ = [
     "SCENARIOS",

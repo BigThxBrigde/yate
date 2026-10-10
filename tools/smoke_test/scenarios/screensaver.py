@@ -32,8 +32,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import message_text, run_command, wait_until
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import message_text, run_command, wait_until
 from yate.app import YateApp
 from yate.config import ScreenSaverConfig, YateConfig
 from yate.editor_view.screensaver import ScreensaverScreen

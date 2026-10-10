@@ -24,7 +24,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .harness import Coverage, Scenario, ScenarioResult
+from tools.smoke_test.harness import Coverage, Scenario, ScenarioResult
 
 __all__ = ["Reporter", "run_header_lines"]
 

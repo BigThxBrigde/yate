@@ -20,7 +20,7 @@ import importlib
 from pathlib import Path
 from typing import Any
 
-from .._util import repo_root
+from tools._util import repo_root
 
 #: Module providing the image conversion (Pillow).
 _IMAGE_MODULE: str = "PIL.Image"

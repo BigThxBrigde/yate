@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .model import Category, Commit, RawCommit
+from tools.changelog.model import Category, Commit, RawCommit
 
 #: ``type(scope)!:: subject`` — bang marks a breaking change.
 _CONVENTIONAL_RE: re.Pattern[str] = re.compile(

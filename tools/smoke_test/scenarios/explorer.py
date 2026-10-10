@@ -12,8 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import run_command, type_text, wait_until
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
 
 __all__ = ["SCENARIOS"]
 

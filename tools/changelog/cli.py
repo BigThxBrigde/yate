@@ -28,11 +28,11 @@ import datetime
 from collections.abc import Sequence
 from pathlib import Path
 
-from .._util import repo_root
-from . import gitee, gitdata, render, segments, translations
-from .classify import classify_commit, is_changelog_entry
-from .model import Commit, ReleaseSegment
-from .translations import OverrideEntry
+from tools._util import repo_root
+from tools.changelog import gitee, gitdata, render, segments, translations
+from tools.changelog.classify import classify_commit, is_changelog_entry
+from tools.changelog.model import Commit, ReleaseSegment
+from tools.changelog.translations import OverrideEntry
 
 _ROOT_FILES: dict[str, str] = {"en": "CHANGELOG.md", "zh": "CHANGELOG.zh.md"}
 _BUNDLE_FILES: dict[str, str] = {

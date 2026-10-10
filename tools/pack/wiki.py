@@ -71,9 +71,9 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from .. import _util
-from . import errors
-from .errors import Code, PackError
+from tools import _util
+from tools.pack import errors
+from tools.pack.errors import Code, PackError
 
 GITHUB_WIKI_URL: Final[str] = "https://github.com/BigThxBrigde/yate.wiki.git"
 

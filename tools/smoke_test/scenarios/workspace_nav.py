@@ -26,8 +26,8 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import cursor_path, message_text, run_command, type_text, wait_until
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import cursor_path, message_text, run_command, type_text, wait_until
 from yate.app import YateApp
 from yate.session import MIN_FRACTION, RESIZE_STEP, Split
 

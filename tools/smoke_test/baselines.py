@@ -13,8 +13,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence, cast
 
-from .._util import repo_root
-from .harness import ScenarioResult
+from tools._util import repo_root
+from tools.smoke_test.harness import ScenarioResult
 
 __all__ = [
     "default_baseline_dir",

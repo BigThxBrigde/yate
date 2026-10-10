@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import run_command
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import run_command
 from yate.editor_view import theme
 
 __all__ = ["SCENARIOS"]

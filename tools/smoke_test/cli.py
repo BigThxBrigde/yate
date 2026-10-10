@@ -14,8 +14,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from . import baselines
-from .harness import (
+from tools.smoke_test import baselines
+from tools.smoke_test.harness import (
     Coverage,
     DEFAULT_SCENARIO_TIMEOUT_S,
     RunOptions,
@@ -26,8 +26,8 @@ from .harness import (
     set_seed,
     track_coverage,
 )
-from .report import Reporter
-from .scenarios import SCENARIOS
+from tools.smoke_test.report import Reporter
+from tools.smoke_test.scenarios import SCENARIOS
 
 __all__ = ["build_parser", "main"]
 

@@ -30,9 +30,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .._util import repo_root
-from ..changelog import gitdata
-from ..changelog.cli import check, generate
+from tools._util import repo_root
+from tools.changelog import gitdata
+from tools.changelog.cli import check, generate
 
 #: File carrying the version; bumped and committed first.  The package
 #: ``__version__`` is the single dynamic source (pyproject reads it; the

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .testsuite import main
+from tools.smoke_test.testsuite import main
 
 if __name__ == "__main__":
     raise SystemExit(main())
