@@ -10,9 +10,12 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 import pytest
+from textual.color import Color
 from yate.app import YateApp
 from yate.editor_syntax.tokens import Token
-from yate.editor_view.manual import MarkdownDocScreen
+from yate.editor_view import theme
+from yate.editor_view.manual import DocScroll, MarkdownDocScreen
+from yate.editor_view.scrollbars import SlimScrollBarRender
 from conftest import wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
@@ -330,3 +333,49 @@ def test_doc_search_enter_flushes_pending_query_immediately(
                 assert calls == ["key"]
 
     asyncio.run(scenario())
+
+
+def test_doc_scroll_scrollbar_paints_theme_palette() -> None:
+    """The doc body mounts slim-rendered, theme-painted scrollbars (IKJUU2 follow-up)."""
+
+    async def scenario() -> None:
+        app = YateApp()
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                pane = screen.query_one("#doc-scroll", DocScroll)
+                # slim partial-block renderer on both bars, per-widget injected
+                assert pane.vertical_scrollbar.renderer is SlimScrollBarRender
+                assert pane.horizontal_scrollbar.renderer is SlimScrollBarRender
+                # explorer palette (IKINF3): transparent track so only the
+                # sliver shows, themed thumb / hover / active colors
+                t = theme.active()
+                s = pane.styles
+                assert s.scrollbar_background == Color(0, 0, 0, 0)
+                assert s.scrollbar_background_hover == Color.parse(t.surface).with_alpha(0.35)
+                assert s.scrollbar_color == Color.parse(t.border)
+                assert s.scrollbar_color_hover == Color.parse(t.fg_dim)
+                assert s.scrollbar_color_active == Color.parse(t.accent)
+                assert s.scrollbar_corner_color == Color(0, 0, 0, 0)
+                # a theme switch repaints the mounted body...
+                other = "latte" if theme.active().name != "latte" else "mocha"
+                theme.set_theme(other)
+                assert pane.styles.scrollbar_color == Color.parse(theme.active().border)
+                # ...and the broadcast no longer reaches it once unmounted
+                app.pop_screen()
+                await pilot.pause()
+            unmounted_color = pane.styles.scrollbar_color
+            theme.set_theme("mocha")
+            assert pane.styles.scrollbar_color == unmounted_color
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        theme.set_theme("mocha")
