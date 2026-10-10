@@ -80,7 +80,7 @@ def _remap_after_insert(new_pos: dict[Pos, Pos], pos: Pos, parts: list[str]) -> 
         if pr > r:
             new_pos[p] = (pr + k, pc)
         else:
-            new_pos[p] = (r, pc + len(parts[0]))
+            new_pos[p] = (pr, pc + len(parts[0]))
 
 
 class TextBuffer:

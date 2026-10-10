@@ -1625,3 +1625,27 @@ class TestMultiCursor:
         assert buf.lines == ["ABD"]
         assert buf.cursor == (0, 2)
         assert buf.extra_cursors == [(0, 3)]
+
+    def test_delete_at_points_consecutive_joins_fold_join_records(self) -> None:
+        """A second column-0 join folds the first join's own recorded seam
+        position again: the record made by the ``(2, 0)`` join is consumed
+        by the ``(1, 0)`` join instead of surviving untouched."""
+        buf = TextBuffer("ab\ncd\nef")
+        buf.set_cursor((1, 0))
+        buf.add_cursor_at((2, 0))
+        buf.delete_at_points()
+        assert buf.lines == ["abcdef"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 4)]
+
+    def test_delete_forward_at_points_consecutive_joins_fold_join_records(self) -> None:
+        """A second end-of-row join folds the first join's own recorded seam
+        position again: the record made by the ``(1, 2)`` join is consumed
+        by the ``(0, 2)`` join instead of surviving untouched."""
+        buf = TextBuffer("ab\ncd\nef")
+        buf.set_cursor((0, 2))
+        buf.add_cursor_at((1, 2))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["abcdef"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 4)]
