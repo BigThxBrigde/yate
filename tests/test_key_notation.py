@@ -85,6 +85,16 @@ def test_parse_key_prefixes_alt_keys_with_escape() -> None:
     assert parse_key("<alt-a>") == "\x1ba"
 
 
+def test_parse_alt_c_produces_esc_prefixed_byte() -> None:
+    """<alt-c> parses to ESC+c, the same byte event_to_raw("alt+c") emits.
+
+    The ALT+C multi-cursor entry key reaches the keymaps as the raw two-byte
+    sequence \\x1bc on both Windows driver paths, so the binding tables and
+    the event pipeline must agree on it (multi-cursor plan-b pin).
+    """
+    assert parse_key("<alt-c>") == "\x1bc"
+
+
 def test_parse_key_ignores_case() -> None:
     """Specs are case-insensitive."""
     assert parse_key("<CTRL-S>") == "\x13"

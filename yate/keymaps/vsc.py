@@ -76,6 +76,7 @@ class VscKeymap(Keymap):
             _raw("\x1b[1;2H", "select_line_start", "Select to line start", SEL),
             _raw("\x1b[1;2F", "select_line_end", "Select to line end", SEL),
             _k("<ctrl-a>", "select_all", "Select all", SEL),
+            _k("<alt-c>", "add_cursor_below", "Add a cursor on the next row (multi-cursor)", SEL),
             _k("<esc>", "clear_selection", "Clear selection", SEL),
             # ---- history / clipboard
             _k("<ctrl-z>", "undo", "Undo", HIST),
