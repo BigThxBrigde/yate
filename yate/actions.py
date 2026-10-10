@@ -33,34 +33,28 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
 
     # ------------------------------------------------------------- editing
 
-    reg(
-        "newline",
-        lambda ctx: (
+    def _newline(ctx: ActionContext) -> None:
+        if ctx.buffer.has_extra_cursors():
             ctx.buffer.insert_at_points("\n")
-            if ctx.buffer.has_extra_cursors()
-            else ctx.buffer.insert_newline(language=ctx.doc.filetype)
-        ),
-        "Insert newline (auto-indent)",
-    )
-    reg("insert_tab", lambda ctx: ctx.buffer.insert_tab(), "Indent / insert tab")
-    reg(
-        "delete_backward",
-        lambda ctx: (
+        else:
+            ctx.buffer.insert_newline(language=ctx.doc.filetype)
+
+    def _delete_backward(ctx: ActionContext) -> None:
+        if ctx.buffer.has_extra_cursors():
             ctx.buffer.delete_at_points()
-            if ctx.buffer.has_extra_cursors()
-            else ctx.buffer.delete_backward()
-        ),
-        "Delete char before cursor",
-    )
-    reg(
-        "delete_forward",
-        lambda ctx: (
+        else:
+            ctx.buffer.delete_backward()
+
+    def _delete_forward(ctx: ActionContext) -> None:
+        if ctx.buffer.has_extra_cursors():
             ctx.buffer.delete_forward_at_points()
-            if ctx.buffer.has_extra_cursors()
-            else ctx.buffer.delete_forward()
-        ),
-        "Delete char after cursor",
-    )
+        else:
+            ctx.buffer.delete_forward()
+
+    reg("newline", _newline, "Insert newline (auto-indent)")
+    reg("insert_tab", lambda ctx: ctx.buffer.insert_tab(), "Indent / insert tab")
+    reg("delete_backward", _delete_backward, "Delete char before cursor")
+    reg("delete_forward", _delete_forward, "Delete char after cursor")
     reg("delete_word_back", lambda ctx: ctx.buffer.delete_backward(word=True), "Delete word back")
     reg("delete_word_fwd", lambda ctx: ctx.buffer.delete_forward(word=True), "Delete word forward")
     reg(
@@ -116,11 +110,11 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     )
     reg("select_line_end", lambda ctx: ctx.buffer.move_line_end(select=True), "Select to line end")
     reg("select_all", lambda ctx: ctx.buffer.select_all(), "Select all")
-    reg(
-        "add_cursor_below",
-        lambda ctx: ctx.buffer.add_cursor_below(),
-        "Add a cursor on the next row (multi-cursor)",
-    )
+
+    def _add_cursor_below(ctx: ActionContext) -> None:
+        ctx.buffer.add_cursor_below()
+
+    reg("add_cursor_below", _add_cursor_below, "Add a cursor on the next row (multi-cursor)")
 
     def _clear_selection(ctx: ActionContext) -> None:
         ctx.buffer.clear_extra_cursors()
