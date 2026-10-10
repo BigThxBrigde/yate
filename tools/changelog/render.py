@@ -11,9 +11,9 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 
-from . import gitee
-from .model import Category, Commit, ReleaseSegment
-from .translations import OverrideEntry
+from tools.changelog import gitee
+from tools.changelog.model import Category, Commit, ReleaseSegment
+from tools.changelog.translations import OverrideEntry
 
 #: Rendering order after the breaking-changes group.
 _CATEGORY_ORDER: tuple[Category, ...] = (

@@ -27,7 +27,7 @@ from typing import Any, cast
 
 from yate.logs import tracing
 
-from . import protocol
+from yate.editor_lsp import protocol
 
 #: Trace logger ("yate.editor_lsp.client"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)

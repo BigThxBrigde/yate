@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from .model import Boundary, Commit, RawCommit, ReleaseSegment, TagRef, VersionBump
+from tools.changelog.model import Boundary, Commit, RawCommit, ReleaseSegment, TagRef, VersionBump
 
 #: Position used for boundaries whose sha is not in the collected history
 #: (unreachable/shallow) — treated as older than everything collected.

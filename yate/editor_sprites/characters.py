@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 from yate.editor_sprites.render import Frame, Palette
 
-from .chars import (
+from yate.editor_sprites.chars import (
     bomberman,
     caine,
     coin,

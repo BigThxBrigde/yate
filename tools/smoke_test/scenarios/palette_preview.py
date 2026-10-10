@@ -24,8 +24,8 @@ from typing import cast
 from yate.yaterc import load_config
 from yate.editor_view.palette import PaletteScreen, PreviewLog
 
-from ..harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from ._base import type_text, wait_until
+from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
+from tools.smoke_test.scenarios._base import type_text, wait_until
 
 __all__ = ["SCENARIOS"]
 

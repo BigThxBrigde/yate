@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from yate.editor_sprites.render import Frame, Palette
 
-from ._shared import SHARED
+from yate.editor_sprites.chars._shared import SHARED
 
 FRAMES: tuple[Frame, ...] = (
     (

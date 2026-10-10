@@ -15,8 +15,8 @@ from yate.keymaps.registry import KeymapSet
 from yate.paths import load_tcss
 from yate.registries import CommandRegistry
 
-from . import theme
-from .icons import CHECK, KEYBOARD, TERMINAL, TIMES
+from yate.editor_view import theme
+from yate.editor_view.icons import CHECK, KEYBOARD, TERMINAL, TIMES
 
 
 class _OverlayScreen(ModalScreen[None]):

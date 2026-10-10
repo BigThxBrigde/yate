@@ -18,7 +18,7 @@ from pathlib import Path
 from yate.editor_sprites import characters
 from yate.editor_sprites.render import Frame, Palette
 
-from .icon import repo_root
+from tools.pack.icon import repo_root
 
 #: Default output path (repository root, untracked).
 DEFAULT_OUTPUT: Path = repo_root() / "roster.svg"

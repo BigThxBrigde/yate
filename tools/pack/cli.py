@@ -33,9 +33,9 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from .. import _util
-from . import errors, icon, rosters, wiki
-from .errors import Code
+from tools import _util
+from tools.pack import errors, icon, rosters, wiki
+from tools.pack.errors import Code
 
 
 def build_parser() -> argparse.ArgumentParser:

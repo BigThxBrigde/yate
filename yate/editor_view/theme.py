@@ -29,7 +29,7 @@ from textual.widget import Widget
 
 from yate.logs import tracing
 
-from .cells import (
+from yate.editor_view.cells import (
     cell_len,
     cell_to_char,
     cell_width,
@@ -37,12 +37,12 @@ from .cells import (
     expand_char,
     truncate_to_cells,
 )
-from .theme_files import (
+from yate.editor_view.theme_files import (
     _theme_namespace,
     load_theme_file,
     load_theme_paths,
 )
-from .themes import (
+from yate.editor_view.themes import (
     DEFAULT_THEME,
     TEXTUAL_THEME_PREFIX,
     THEMES,

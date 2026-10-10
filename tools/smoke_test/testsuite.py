@@ -73,9 +73,9 @@ re-exported here so existing imports keep working.
 
 from __future__ import annotations
 
-from .baselines import default_baseline_dir
-from .cli import build_parser, cmd_compare, cmd_run, cmd_snapshot, main
-from .harness import (
+from tools.smoke_test.baselines import default_baseline_dir
+from tools.smoke_test.cli import build_parser, cmd_compare, cmd_run, cmd_snapshot, main
+from tools.smoke_test.harness import (
     Check,
     Coverage,
     RunOptions,
@@ -89,8 +89,8 @@ from .harness import (
     snapshot_svg,
     track_coverage,
 )
-from .report import Reporter
-from .scenarios import SCENARIOS
+from tools.smoke_test.report import Reporter
+from tools.smoke_test.scenarios import SCENARIOS
 
 __all__ = [
     "Check",

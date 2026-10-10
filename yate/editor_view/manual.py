@@ -40,8 +40,8 @@ from textual.widgets import Input, Markdown, Static
 
 from yate.paths import load_tcss
 
-from . import theme
-from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.editor_view import theme
+from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 _DOC_LANGS: tuple[str, ...] = ("en", "zh")
 

@@ -12,7 +12,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from .model import RawCommit, TagRef, VersionBump
+from tools.changelog.model import RawCommit, TagRef, VersionBump
 
 #: Field separator inside one log record.
 _FIELD_SEP: str = "\x1f"

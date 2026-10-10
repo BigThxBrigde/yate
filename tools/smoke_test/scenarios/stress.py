@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from ..harness import (
+from tools.smoke_test.harness import (
     Check,
     Scenario,
     ScenarioResult,
@@ -17,7 +17,7 @@ from ..harness import (
     rng_for,
     snapshot_svg,
 )
-from ._base import run_command, type_text, wait_until
+from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
 from yate.editor_view import theme
 
 __all__ = ["SCENARIOS"]
