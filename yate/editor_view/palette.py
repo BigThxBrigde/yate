@@ -37,9 +37,9 @@ from yate.paths import load_tcss
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
-from . import theme
-from .icons import GEAR, KEYBOARD, icon_for_path
-from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.editor_view import theme
+from yate.editor_view.icons import GEAR, KEYBOARD, icon_for_path
+from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12

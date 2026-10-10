@@ -23,8 +23,8 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from .keys import key_to_terminal as key_to_terminal
-from .palette import ANSI_16_RGB, RGB, palette_color
+from yate.editor_term.keys import key_to_terminal as key_to_terminal
+from yate.editor_term.palette import ANSI_16_RGB, RGB, palette_color
 
 #: Maximum scrollback lines kept (older lines are dropped).
 MAX_SCROLLBACK: int = 5000

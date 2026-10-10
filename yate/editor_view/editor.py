@@ -30,10 +30,10 @@ from yate.keymaps.registry import KeymapSet
 from yate.paths import load_tcss
 from yate.session import EditorSession, Leaf
 
-from . import theme
-from .highlighting import HighlightMixin
-from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
-from .welcome import _WelcomeRow, render_welcome_row, welcome_rows
+from yate.editor_view import theme
+from yate.editor_view.highlighting import HighlightMixin
+from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.editor_view.welcome import _WelcomeRow, render_welcome_row, welcome_rows
 
 #: Textual mouse button index for the primary (left) button, shared by the
 #: mouse-aware views in this package and the L3 mouse dispatch.

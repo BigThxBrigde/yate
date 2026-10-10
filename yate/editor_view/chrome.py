@@ -20,8 +20,8 @@ from yate.logs import tracing
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
-from . import theme
-from .icons import CHEVRON_RIGHT, FOLDER, icon_for_path
+from yate.editor_view import theme
+from yate.editor_view.icons import CHEVRON_RIGHT, FOLDER, icon_for_path
 
 log = tracing.get_logger(__name__)
 

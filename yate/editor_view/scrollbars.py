@@ -23,7 +23,7 @@ from textual.color import Color as TextualColor
 from textual.scrollbar import ScrollBarRender
 from textual.widget import Widget
 
-from . import theme
+from yate.editor_view import theme
 
 
 class SlimScrollBarRender(ScrollBarRender):

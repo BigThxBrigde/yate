@@ -22,8 +22,8 @@ from textual.widgets import Input, Static
 from yate.logs import tracing
 from yate.paths import load_tcss
 
-from . import theme
-from .icons import SEARCH, TERMINAL
+from yate.editor_view import theme
+from yate.editor_view.icons import SEARCH, TERMINAL
 
 log = tracing.get_logger(__name__)
 

@@ -21,7 +21,7 @@ from typing import Any, cast
 
 from yate.editor_core.document import Document
 
-from .client import Completion, Diagnostic, DiagnosticSeverity
+from yate.editor_lsp.client import Completion, Diagnostic, DiagnosticSeverity
 
 __all__ = [
     "_from_utf16",

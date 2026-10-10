@@ -14,7 +14,7 @@ from textual.strip import Strip
 
 from yate import __version__
 
-from . import theme
+from yate.editor_view import theme
 
 # ``editor.py`` imports the private ``_WelcomeRow`` alias for its cache
 # annotation; listing it in ``__all__`` keeps pyright's reportPrivateUsage

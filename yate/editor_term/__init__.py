@@ -10,10 +10,10 @@ public surface; UI/service packages may not.
 
 from __future__ import annotations
 
-from .emulator import Cell, TerminalEmulator
-from .keys import key_to_terminal
-from .pty_proc import PtyProcess, PtyProcessError
-from .shells import resolve_shell, shell_label
+from yate.editor_term.emulator import Cell, TerminalEmulator
+from yate.editor_term.keys import key_to_terminal
+from yate.editor_term.pty_proc import PtyProcess, PtyProcessError
+from yate.editor_term.shells import resolve_shell, shell_label
 
 __all__ = [
     "Cell",

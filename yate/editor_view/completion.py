@@ -27,7 +27,7 @@ from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.client import Completion
 from yate.paths import load_tcss
 
-from . import theme
+from yate.editor_view import theme
 
 #: Maximum number of completion rows visible at once.
 MAX_VISIBLE: int = 8

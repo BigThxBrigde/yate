@@ -41,8 +41,8 @@ from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.paths import load_tcss
 
-from . import theme
-from .diff_pane import DiffPane, PaneDiffState
+from yate.editor_view import theme
+from yate.editor_view.diff_pane import DiffPane, PaneDiffState
 
 log = tracing.get_logger(__name__)
 

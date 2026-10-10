@@ -33,8 +33,8 @@ from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_core.textobjects import word_end_column
 
-from . import theme
-from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.editor_view import theme
+from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 
 @dataclass(frozen=True)

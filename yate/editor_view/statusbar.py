@@ -25,9 +25,9 @@ from yate.paths import load_tcss
 from yate.services.extensions import ExtensionLoader
 from yate.session import EditorSession
 
-from . import theme
-from .commandline import PromptBar
-from .icons import DOT, KEYBOARD, LOCK, PENCIL, PLUG, TERMINAL
+from yate.editor_view import theme
+from yate.editor_view.commandline import PromptBar
+from yate.editor_view.icons import DOT, KEYBOARD, LOCK, PENCIL, PLUG, TERMINAL
 
 
 def mode_chip(prompt: PromptBar, keymaps: KeymapSet, buf: TextBuffer) -> tuple[str, str]:

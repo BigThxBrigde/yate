@@ -23,10 +23,10 @@ from yate.paths import load_tcss
 from yate.services.workspace import IGNORED_NAMES, Workspace
 from yate.session import EditorSession
 
-from . import theme
-from .commandline import PromptBar
-from .icons import icon_color, icon_for_path
-from .scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.editor_view import theme
+from yate.editor_view.commandline import PromptBar
+from yate.editor_view.icons import icon_color, icon_for_path
+from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 
 #: data attached to a tree node: the path it represents (None = placeholder)
 NodeData = Path | None

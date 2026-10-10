@@ -29,8 +29,8 @@ from typing import Any
 from yate.editor_core.document import Document
 from yate.logs import tracing
 
-from . import parsing, protocol
-from .client import (
+from yate.editor_lsp import parsing, protocol
+from yate.editor_lsp.client import (
     Completion,
     Diagnostic,
     LspClient,
@@ -38,8 +38,8 @@ from .client import (
     ServerConfig,
     ServerState,
 )
-from .parsing import _from_utf16 as _from_utf16
-from .parsing import _to_utf16 as _to_utf16
+from yate.editor_lsp.parsing import _from_utf16 as _from_utf16
+from yate.editor_lsp.parsing import _to_utf16 as _to_utf16
 
 #: TextDocumentSyncKind.Full -- resending the whole buffer on every change is
 #: supported by every server and avoids fragile incremental position math.

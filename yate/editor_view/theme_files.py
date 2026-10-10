@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from .themes import Theme, register_theme
+from yate.editor_view.themes import Theme, register_theme
 
 __all__ = [
     # ``_theme_namespace`` is private by naming convention but re-exported by
