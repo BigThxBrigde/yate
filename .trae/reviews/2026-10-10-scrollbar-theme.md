@@ -38,3 +38,15 @@
 
 - 无 blocker / major；1 条 suggestion 已修复复验，2 条 nit 核实为无需行动。
 - 迭代第 1 轮收敛：无未决 issue，评审闭环。
+
+## 四、第二轮：TRAE-code-review（2026-10-10，同日）
+
+- 评审执行：TRAE-code-review skill（意图推断 + 主代理扫描 + 2 个并行验证
+  子代理交叉确认，2 条发现均为 2/2 高置信；范围同上，分支头 `7783c14`）。
+
+| # | 严重度 | 位置 | 发现 | 处置 |
+|---|---|---|---|---|
+| 1 | nit | `../../tests/test_palette_preview.py`（132-162）/ `../../tests/test_app_render.py`（340-388）（卸载负向断言） | §二#3 的同源问题精确化：`theme.set_theme` 无同名短路、每次都广播——latte 起始分支切到 `"mocha"` 后再以 `"mocha"` 还原，广播携带与窗格已绘一致的调色板，负向断言即使监听未解除也恒真；且 finally 硬编码 `"mocha"` 在 latte 起始时并未还原全局主题 | 已修复（用户选定「修复全部问题」，上轮「不改」登记就此翻转）：测试起始捕获 `original = theme.active().name`，切换目标与还原值均由其推导（`original` 与 `other` 构造上必异，负向断言在任意分支恢复判别力，finally 恢复真实原值）；复验 pyright 全仓 0 诊断 + 两文件 24 passed |
+| 2 | nit | `../../tests/test_app_render.py`（8-23）（导入块） | 导入无分组空行（stdlib / 第三方 / yate / 本地连排），与 `test_palette_preview.py` 的分组风格不一致 | 已修复（同上）：加三处空行对齐既有分组风格 |
+
+- 迭代第 2 轮收敛：2 条 nit 全部修复并复验，无未决 issue。
