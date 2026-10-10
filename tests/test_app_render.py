@@ -337,6 +337,10 @@ def test_doc_search_enter_flushes_pending_query_immediately(
                 # type, then submit: enter must flush the pending query right
                 # away instead of waiting the (frozen) window
                 await pilot.press("k", "e", "y")
+                await pilot.press("enter")
+                await pilot.pause()
+                assert calls == ["key"]
+
     asyncio.run(scenario())
 
 

@@ -1504,6 +1504,25 @@ class TestMultiCursor:
         assert buf.extra_cursors == []
         assert buf.cursor == (0, 0)
 
+    def test_delete_at_points_at_column_zero_joins_previous_row(self) -> None:
+        """Backspace at column 0 joins the row into the previous one: the
+        newline deletion branch places the point at the join seam."""
+        buf = self._buffer()
+        buf.set_cursor((1, 0))
+        buf.delete_at_points()
+        assert buf.lines == ["alpha betagamma delta", "epsilon zeta"]
+        assert buf.cursor == (0, 10)
+
+    def test_delete_forward_at_points_at_document_end_is_noop(self) -> None:
+        """Forward delete at the end of the last row is a no-op for that
+        point while the other points still delete normally."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_at((2, 12))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["lpha beta", "gamma delta", "epsilon zeta"]
+        assert buf.extra_cursors == [(2, 12)]
+
     def test_insert_at_points_on_read_only_raises(self) -> None:
         """Both multi-point primitives refuse a read-only buffer without
         touching the content."""
