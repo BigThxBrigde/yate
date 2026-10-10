@@ -178,14 +178,15 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      big-module-split 各波拆分完成后同步收缩）：
      `keymaps/vim.py`（1178 行，motion/operator/text-object 单一键映射域，维持豁免）、
      `editor.py`（933 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，维持豁免）、
-     `editor_core/buffer.py`（1051 行，文本模型/撤销/多点原语单一职责，2026-10-10
+     `editor_core/buffer.py`（1062 行，文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单，维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，pack wiki 站点生成/翻译/进度
      单一职责，#29/#31/#33 三轮评审均在该文件收敛，拆分另行立项）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
-     1051 行，同日上提至上方正式名单）。
+     1051 行，同日上提至上方正式名单；同日第四轮 AI 评审复测 1061 行，
+     O7 docstring 折行增一行后定稿 1062 行）。
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
      a 波：语言定义迁入 `regex_langdefs.py`——2026-10-09 上提为包顶层
      `langdefs.py`，见 §六 #28；拆分后两文件均低于阈值）；

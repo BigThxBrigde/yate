@@ -732,8 +732,9 @@ class TextBuffer:
 
         At end-of-row the point joins the next row; end of document is a
         no-op for that point.  Descending order, deduplicated.  Positions
-        already recorded for earlier points are remapped through each later deletion (same-row columns shift left; a joined next row folds onto
-        the seam with the rows below shifting up).  Read-only
+        already recorded for earlier points are remapped
+        through each later deletion (same-row columns shift left; a joined
+        next row folds onto the seam with the rows below shifting up).  Read-only
         buffers raise :class:`BufferReadOnlyError`.  Any multi-point edit
         drops the primary selection anchor first: the selection and
         multi-cursor axes stay exclusive for the whole edit, not just at

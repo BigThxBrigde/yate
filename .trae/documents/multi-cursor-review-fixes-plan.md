@@ -441,3 +441,65 @@ flowchart LR
 
 回滚：四个修复提交各自独立可 `git revert`；步骤 1-4 文件交集仅 buffer.py
 （步骤 1/2，纯注释可合并回滚）。
+
+## 八、第四轮：PR !70 AI 队友评审（note 51515577）
+
+> 评审记录：[2026-10-10-pr70-multi-cursor-doc-hygiene-ai-review.md](../reviews/2026-10-10-pr70-multi-cursor-doc-hygiene-ai-review.md)
+> （3 个可维护性改进项 O6/O7/O8，无阻断，low 风险；用户指令明确"按建议逐项
+> 修正 → 回填 → 单笔提交"，指令链即为批准，简化闭环不设 NotifyUser 环节。）
+
+### 8.1 目标与非目标
+
+目标：
+1. O6：规则文本两处 `buffer.py` 豁免登记行数按实测回填；
+2. O7：`delete_forward_at_points` docstring 超长单行折行（≤88 列）；
+3. O8：`mouse_flows.py` else 分支补 vim meta-click 意图注释。
+
+非目标：任何行为变更（三项均为纯文档/注释）；§五 的 994/1051 历史执行
+记录保留不改。
+
+### 8.2 事实清单（第四轮调研取证）
+
+- `buffer.py` 实测 `splitlines()` = 1061（评审时点；master 合并 `eaa5dbc`
+  + 第三轮 docstring 修正后）——机器人报的 948 基于 master 合并前快照，
+  同样失真；规则文本 `:181` 登记的 1051 亦为过时值。
+- `buffer.py:735`「remapped through each later deletion …」一段挤成
+  ~150 列超长单行，核实属实（第三轮编辑继承的既有长行）。
+- `mouse_flows.py:81-84` else 分支：vim 模式 meta-click 因 `meta=True`
+  落入不加也不清点路径（与首轮 S-3 已知非目标一致），无注释说明，核实属实。
+- O7 折行使 `buffer.py` 增一行 → 修正后复测定稿 1062（splitlines 口径）。
+
+### 8.3 分步实施（机械修正，单笔提交）
+
+1. O6：`architecture-boundaries.md` 正式名单（1051→终态 1062）与口径
+   注记（追加第四轮复测链 1061→O7 折行 +1→1062）；
+2. O7：docstring 该句折为三行，最长 81 列；
+3. O8：else 分支头部补两行注释（采纳机器人措辞）；
+4. 覆盖改动面验证 + 回填本节 + 单笔提交。
+
+### 8.4 执行记录（收尾回填）
+
+- O6：**完成**。正式名单与口径注记两处按终态 1062 回填（评审时点 1061、
+  O7 折行增一行）；评审记录 O6 处置列同步终态表述。
+- O7：**完成**。折为三行，最长 81 列；`buffer.py` 由 1061 → 1062 行。
+- O8：**完成**。两行注释落地（vim 多光标仅来自 ALT+C、meta-click 有意
+  保持单光标）。
+- 验证（覆盖改动面）：
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| pyright yate/editor_core/buffer.py yate/flows/mouse_flows.py | 0 errors, 0 warnings, 0 informations | 0 |
+| pytest tests/test_editor_core.py tests/test_app_mouse.py tests/test_support_mouse.py tests/test_architecture.py | 193 passed, 1 skipped | 0 |
+
+- 偏离记录：O6 登记数字未按评审时点 1061 定稿，而是按 O7 折行后的终态
+  1062——规则 §三.7 要求"修改文件时须同步更新行数"，O7 增行后 1061 立即
+  失真；口径注记保留 1061 复测链以留痕。
+
+### 8.5 风险与回滚
+
+| 风险 | 缓解 |
+|---|---|
+| 行数登记与后续演进再失真 | 口径注记保留复测链（994→1051→1061→1062），后续复核有据 |
+| 纯注释改动影响行为 | 零：pyright + 相关测试回归全绿 |
+
+回滚：单笔提交可整体 `git revert`。

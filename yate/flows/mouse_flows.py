@@ -79,6 +79,8 @@ class MouseFlows:
             view.buffer.clear_selection()
             view.buffer.add_cursor_at(pos)
         else:
+            # vim-mode meta-click stays single-cursor by design (multi-cursor
+            # in vim comes from ALT+C only); a plain click collapses the set.
             if not event.shift and not event.meta:
                 view.buffer.clear_extra_cursors()  # a plain click collapses
             view.buffer.set_cursor(pos, select=event.shift)
