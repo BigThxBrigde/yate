@@ -124,7 +124,7 @@ class PreviewLog(RichLog):
         theme.detach(self)
 
     def _apply_theme(self) -> None:
-        """Paint the scrollbar palette from the active theme (IKINF3 style)."""
+        """Paint the scrollbar palette from the active theme (IKJUU2, IKINF3 pattern)."""
         apply_scrollbar_theme(self)
 
 
