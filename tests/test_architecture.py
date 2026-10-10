@@ -52,6 +52,10 @@ These tests enforce the boundaries documented in
   import in the UI-free L0 modules (devtools visibility is the L4
   ``TextualHandler`` bridge's job, not a per-module import).
 
+* **Absolute imports** (issue IKKS4C): packages import absolutely -- no
+  ``from .X`` / ``from ..X`` anywhere in ``yate/`` / ``tools/`` / ``tests/``
+  (python-coding-style 1.3); intra-package references spell the full path.
+
 * **R13** widgets own their theme: L3 ``editor.py`` never paints widget
   styles or forwards theme updates, and scrollbar renderers are injected
   per widget (``apply_slim_scrollbars``), never class-level patched.
@@ -332,6 +336,21 @@ def test_no_type_checking() -> None:
     """Type-only import blocks are banned; local protocols replace them (R6)."""
     for path in _python_files():
         assert "TYPE_CHECKING" not in path.read_text(encoding="utf-8"), path
+
+
+def test_no_relative_imports() -> None:
+    """Packages import absolutely: ``from .X`` / ``from ..X`` is banned
+    everywhere (issue IKKS4C, python-coding-style 1.3) -- intra-package
+    references spell the full path, so import intent is greppable and the
+    rule text cannot drift from the code."""
+    offenders: list[tuple[str, int]] = []
+    for path in _python_files():
+        tree = _parsed_tree(path)
+        rel = path.relative_to(PROJECT).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level > 0:
+                offenders.append((rel, node.lineno))
+    assert not offenders, offenders
 
 
 def _is_callable_spelling(node: ast.expr) -> bool:

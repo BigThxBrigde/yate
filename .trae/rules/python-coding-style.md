@@ -34,7 +34,7 @@ scene: python_coding
 | 类型 | 风格 | 示例 |
 |------|------|------|
 | 模块 | `snake_case` | `logs.py`、`editor_core/` |
-| 包 | `snake_case`（单下划线或无前缀） | `yate.editor_lsp` |
+| 包 | `snake_case`，单词用下划线分隔、不用 CamelCase | `yate.editor_lsp`、`yate.editor_view` |
 | 函数/方法 | `snake_case` | `install()`、`get_logger()` |
 | 类 | `PascalCase` | `YateConfig`、`_SessionFileHandler` |
 | 常量 | `UPPER_CASE` | `LOGGER_NAME`、`LEVEL_NAMES` |
@@ -44,6 +44,20 @@ scene: python_coding
 | 类型变量 | `CamelCase` | `T = TypeVar("T")`（遗留；3.12 起由 PEP 695 语法隐式声明，见 §3.5） |
 | 异常 | `PascalCase` + `Error`/`Exception` 后缀 | `LspConnectionError`（`editor_lsp/client.py:76`） |
 
+**开放 API 命名（issue IKKS4C）**：开放 API 的公共成员禁止下划线前缀，私有实现
+必须带下划线。开放 API 指以下三个面的交集：
+1. 纯 L0 叶包 `__init__.py` 的有限 re-export（`__all__` 声明，见
+   architecture-boundaries.md §三.5）；
+2. `yate/services/extensions.py` 的 `ExtensionAPI` / `ExtensionContext` 及其
+   bridge 类的公共成员；
+3. 插件手册 `yate/docs/extensions.en.md` / `extensions.zh.md` 引用的成员名。
+
+登记例外（内部私有，不属开放 API，保留下划线）：
+`_TsPoint` / `_TsNode`（`editor_syntax/ts_backend/backend.py`，R2 冻结白名单
+私有结构化类型）、`_from_utf16` / `_to_utf16`（`editor_lsp/parsing.py` 包内
+解析辅助）、`_shared`（`editor_sprites/chars/` 包内私有数据模块）、
+`_WelcomeRow`（`editor_view/welcome.py`，L2 组件内部）。
+
 ### 1.3 导入
 
 - 每个模块头部使用 `from __future__ import annotations`（**强制**，见 §四）
@@ -52,7 +66,22 @@ scene: python_coding
   2. 第三方库
   3. 项目内部（`from yate import ...`）
 - 每组内部按字母序排列
-- 绝对导入优先（`from yate.logs import tracing`），相对导入仅在子包内部使用
+- **包内一律使用绝对导入**（issue IKKS4C）：同一包内的模块互引也写全限定路径
+  （`from yate.editor_view.icons import CHECK`，而非 `from .icons import CHECK`）；
+  `from .X` / `from ..X` 形态禁止出现在 `yate/`、`tools/`、`tests/` 任何位置。
+  例外登记：无。
+
+```python
+# 好：包内互引同样写全限定绝对路径
+from yate.editor_view import theme
+from yate.editor_view.icons import CHECK
+
+# 坏：相对导入（同包内也不允许）
+from . import theme
+from .icons import CHECK
+from .._util import repo_root
+```
+
 - 禁止 `import *`（通配符导入）
 - **不得新增 `TYPE_CHECKING` 导入块**（架构约定，见 `architecture-boundaries.md` R6）：
   类型注解跨模块引用时传**具体对象**（`EditorSession` / `KeymapSet` / 注册表 / widget）或叶子类型；
@@ -336,6 +365,7 @@ entries = list(raw)  # type: ignore[arg-type]
 - [ ] 可空/联合标注用 `X | None` / `X | Y`（不写 `Optional[X]` / `Union[X, Y]`）；覆写基类方法加 `@override`
 - [ ] 4 空格缩进，行宽 ≤ 100
 - [ ] 无 `import *`
+- [ ] 无相对导入（from . / from ..），包内一律绝对导入
 - [ ] 无裸 `except:`
 - [ ] `Any` 使用有理由注释
 - [ ] 嵌套 ≤ 3 层，卫语句早返回（Flat is better than nested）
