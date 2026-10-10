@@ -1649,3 +1649,42 @@ class TestMultiCursor:
         assert buf.lines == ["abcdef"]
         assert buf.cursor == (0, 2)
         assert buf.extra_cursors == [(0, 4)]
+
+    def test_delete_at_points_clears_stale_anchor_before_join(self) -> None:
+        """A stale selection anchor does not survive a multi-point join.
+
+        Shift-click can leave anchor and extra cursors coexisting; the
+        column-0 join deletes rows without remapping the anchor, so the
+        primitive must drop it at entry -- cut/copy would otherwise index
+        a deleted row and raise IndexError (gitee PR !70 review M2).
+        """
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_at((1, 0))
+        buf.add_cursor_at((2, 0))
+        buf.anchor = (2, 5)  # simulates a shift-click selection left behind
+        buf.delete_at_points()
+        assert buf.anchor is None
+        assert buf.selected_text() is None
+        assert buf.yank_selection() == "alpha betagamma deltaepsilon zeta"
+
+    def test_multi_point_primitives_clear_selection_anchor(self) -> None:
+        """Every multi-point primitive drops the anchor at entry: the
+        selection and multi-cursor axes stay exclusive for the whole
+        edit, not just when entering multi-cursor mode."""
+        buf = self._buffer()
+        buf.set_cursor((0, 4), select=True)
+        buf.add_cursor_at((1, 5))
+        buf.anchor = (0, 0)  # coexisting axes, as after a later shift-click
+        buf.insert_at_points("X")
+        assert buf.anchor is None
+        assert buf.selected_text() is None
+
+        buf2 = self._buffer()
+        buf2.set_cursor((1, 11))  # end of row 1: forward join deletes it
+        buf2.add_cursor_at((0, 0))
+        buf2.anchor = (2, 5)
+        buf2.delete_forward_at_points()
+        assert buf2.anchor is None
+        assert buf2.selected_text() is None
+        assert buf2.yank_selection() == "gamma deltaepsilon zeta"

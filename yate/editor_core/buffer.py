@@ -659,11 +659,14 @@ class TextBuffer:
         (a single-cursor :meth:`type_char` affordance) and no per-point
         auto-indent: a ``"\\n"`` inserts a bare newline at each point
         (known limitation).  Read-only buffers raise
-        :class:`BufferReadOnlyError`.
+        :class:`BufferReadOnlyError`.  Any multi-point edit drops the
+        primary selection anchor first: the selection and multi-cursor
+        axes stay exclusive for the whole edit, not just at entry.
         """
         self._ensure_writable()
         if text == "":
             return
+        self.anchor = None
         points = self._multi_points()
         before = self._snapshot()
         log.debug("multi-cursor insert: points=%d", len(points))
@@ -686,9 +689,13 @@ class TextBuffer:
         Positions already recorded for earlier points are remapped through
         each later deletion (same-row columns shift left; a joined row
         folds onto the seam with the rows below shifting up).  Read-only
-        buffers raise :class:`BufferReadOnlyError`.
+        buffers raise :class:`BufferReadOnlyError`.  Any multi-point edit
+        drops the primary selection anchor first: the selection and
+        multi-cursor axes stay exclusive for the whole edit, not just at
+        entry.
         """
         self._ensure_writable()
+        self.anchor = None
         points = self._multi_points()
         before = self._snapshot()
         log.debug("multi-cursor delete: points=%d", len(points))
@@ -725,12 +732,15 @@ class TextBuffer:
 
         At end-of-row the point joins the next row; end of document is a
         no-op for that point.  Descending order, deduplicated.  Positions
-        already recorded for earlier points are remapped through each later
-        deletion (same-row columns shift left; a joined next row folds onto
-        the seam with the rows below shifting up).  Read-only buffers raise
-        :class:`BufferReadOnlyError`.
+        already recorded for earlier points are remapped through each later deletion (same-row columns shift left; a joined next row folds onto
+        the seam with the rows below shifting up).  Read-only
+        buffers raise :class:`BufferReadOnlyError`.  Any multi-point edit
+        drops the primary selection anchor first: the selection and
+        multi-cursor axes stay exclusive for the whole edit, not just at
+        entry.
         """
         self._ensure_writable()
+        self.anchor = None
         points = self._multi_points()
         before = self._snapshot()
         log.debug("multi-cursor delete forward: points=%d", len(points))
