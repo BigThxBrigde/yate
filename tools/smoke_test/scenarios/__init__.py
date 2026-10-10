@@ -18,6 +18,7 @@ from .explorer import SCENARIOS as _EXPLORER
 from .files import SCENARIOS as _FILES
 from .guards import SCENARIOS as _GUARDS
 from .integration import SCENARIOS as _INTEGRATION
+from .multi_cursor import SCENARIOS as _MULTI_CURSOR
 from .palette_preview import SCENARIOS as _PALETTE_PREVIEW
 from .panes import SCENARIOS as _PANES
 from .regression import SCENARIOS as _REGRESSION
@@ -45,6 +46,7 @@ SCENARIOS: list[Scenario] = [
     *_CORE,
     *_EDIT,
     *_VIM_ADVANCED,
+    *_MULTI_CURSOR,
     *_SEARCH,
     *_FILES,
     *_PALETTE_PREVIEW,

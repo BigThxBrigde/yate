@@ -404,3 +404,96 @@ def test_mouse_click_maps_rows_after_vertical_scroll(tmp_path: Path) -> None:
             assert app.editor.session.buffer.cursor == (8, 2)
 
     asyncio.run(scenario())
+
+
+# --- ALT+click multi-cursor (plan-c) -------------------------------------------
+
+
+def test_meta_mouse_down_adds_cursor_point_vsc(tmp_path: Path) -> None:
+    """ALT+click in vsc mode adds an extra cursor point and starts no drag."""
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(_GUTTER + 5, 0), meta=True)
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            assert buf.extra_cursors == [(0, 5)]
+            assert app.editor.mouse_flows._dragging is False
+
+    asyncio.run(scenario())
+
+
+def test_meta_mouse_down_in_vim_mode_stays_single_cursor(tmp_path: Path) -> None:
+    """ALT+click in vim mode keeps the original single-cursor behavior."""
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path, keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(_GUTTER + 5, 0), meta=True)
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            assert buf.extra_cursors == []
+            assert buf.cursor == (0, 5)
+
+    asyncio.run(scenario())
+
+
+def test_plain_mouse_down_clears_extra_cursors_vsc(tmp_path: Path) -> None:
+    """A plain left click collapses the extra points and moves the cursor."""
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(_GUTTER + 5, 0), meta=True)
+            await pilot.pause()
+            assert app.editor.session.buffer.extra_cursors == [(0, 5)]
+
+            await pilot.click(EditorView, offset=(_GUTTER + 2, 0))
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            assert buf.extra_cursors == []
+            assert buf.cursor == (0, 2)
+
+    asyncio.run(scenario())
+
+
+def test_shift_mouse_down_keeps_selection_semantics(tmp_path: Path) -> None:
+    """Shift+click keeps extending a selection (original semantics pinned)."""
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(_GUTTER + 5, 0), shift=True)
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            assert buf.anchor is not None
+            assert buf.selection() == ((0, 0), (0, 5))
+
+    asyncio.run(scenario())
+
+
+def test_meta_click_then_type_via_pilot_inserts_at_all_points(
+    tmp_path: Path,
+) -> None:
+    """End to end: ALT+click two points, typing inserts at every point, one
+    undo restores (requires the plan-b keymap multi-point typing path)."""
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(_GUTTER + 2, 0), meta=True)
+            await pilot.click(EditorView, offset=(_GUTTER + 8, 0), meta=True)
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            assert buf.extra_cursors == [(0, 2), (0, 8)]
+
+            await pilot.press("x")
+            await pilot.pause()
+            # the primary cursor (0,0) is a point too: three insertions
+            assert buf.get_text() == "xhexllo woxrld\nsecond line\n"
+
+            buf.undo()
+            assert buf.get_text() == "hello world\nsecond line\n"
+
+    asyncio.run(scenario())

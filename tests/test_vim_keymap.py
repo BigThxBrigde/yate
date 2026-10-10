@@ -1703,3 +1703,141 @@ def test_change_gg_into_named_register_stays_internal(
     assert editor.buffer.get_text() == "NEW\nbeta"
     assert editor.buffer.named_registers["a"] == "alpha"
     assert fake_clip.copies == []
+
+
+# --- multi-cursor: ALT+C entry and multi-point editing (plan-b) ---------------
+
+
+ALT_C: str = "\x1bc"
+_MULTI_TEXT: str = "alpha beta\ngamma delta\nepsilon zeta"
+
+
+def _multi_setup(
+    text: str = _MULTI_TEXT,
+) -> tuple[_Editor, VimKeymap, ActionContext]:
+    """A keymap on *text* with the cursor at (0, 2) in NORMAL mode."""
+    editor, keymap, ctx = _setup(text)
+    editor.buffer.set_cursor((0, 2))
+    return editor, keymap, ctx
+
+
+def test_alt_c_adds_cursor_below_in_normal_mode() -> None:
+    """ALT+C adds a cursor on the next row at the same column."""
+    editor, keymap, ctx = _multi_setup()
+    assert keymap.handle_key(ctx, ALT_C) is True
+    assert editor.buffer.extra_cursors == [(1, 2)]
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_alt_c_twice_adds_second_cursor_below_last() -> None:
+    """A second ALT+C walks one row further down from the bottom-most point."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C)
+    _press(keymap, ctx, ALT_C)
+    assert editor.buffer.extra_cursors == [(1, 2), (2, 2)]
+
+
+def test_esc_clears_extra_cursors_in_normal_mode() -> None:
+    """ESC drops every extra point together with any pending state."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C, ALT_C)
+    _press(keymap, ctx, ESC)
+    assert editor.buffer.extra_cursors == []
+    assert keymap.pending_register is None
+    assert keymap.op is None
+
+
+def test_motion_keeps_extra_cursors_and_moves_primary_only() -> None:
+    """h/j/k/l/w/b stay single-cursor: the primary moves, the points stay."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C)
+    _press(keymap, ctx, "l")
+    assert editor.buffer.cursor == (0, 3)
+    assert editor.buffer.extra_cursors == [(1, 2)]
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_insert_entry_keeps_multi_cursor_active() -> None:
+    """i/I/a/A enter INSERT without dropping the extra points."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C)
+    _press(keymap, ctx, "i")
+    assert keymap.mode is VimMode.INSERT
+    assert editor.buffer.extra_cursors == [(1, 2)]
+
+
+def test_insert_printable_inserts_at_all_points() -> None:
+    """Typing in INSERT inserts at every point as one undo step."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C, "i", "X")
+    assert editor.buffer.lines[0][:3] == "alX"  # "alXpha beta"
+    assert editor.buffer.lines[1][:3] == "gaX"  # "gaXmma delta"
+    editor.buffer.undo()
+    assert editor.buffer.get_text() == _MULTI_TEXT
+
+
+def test_insert_backspace_deletes_at_all_points() -> None:
+    """Backspace in INSERT deletes the char before every point as one step.
+
+    The point at (0, 2) eats the "l" of "alpha", the one at (1, 2) the "a"
+    of "gamma" (the char before column 2 on each row).
+    """
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C, "i", "\x7f")
+    assert editor.buffer.lines[0] == "apha beta"
+    assert editor.buffer.lines[1] == "gmma delta"
+    editor.buffer.undo()
+    assert editor.buffer.get_text() == _MULTI_TEXT
+
+
+def test_insert_enter_inserts_newline_at_all_points() -> None:
+    """Enter in INSERT puts a bare newline at every point (no auto-indent).
+
+    Three points split three lines, so the two-line file grows to six rows;
+    the whole multi-point edit is one undo step (known limitation: no
+    per-row indent calculation).
+    """
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C, ALT_C, "i", "\r")
+    assert editor.buffer.line_count == 6
+    editor.buffer.undo()
+    assert editor.buffer.get_text() == _MULTI_TEXT
+
+
+def test_insert_esc_clears_cursors_and_returns_normal() -> None:
+    """ESC from multi-cursor INSERT clears the points and steps back."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C, "i")
+    _press(keymap, ctx, ESC)
+    assert keymap.mode is VimMode.NORMAL
+    assert editor.buffer.extra_cursors == []
+    assert editor.buffer.cursor == (0, 1)  # the original move_left on ESC
+
+
+def test_operator_exits_multi_cursor_before_running() -> None:
+    """dd clears the extra points first, then deletes the line once."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C)
+    _press(keymap, ctx, "d", "d")
+    assert editor.buffer.extra_cursors == []
+    assert editor.buffer.get_text() == "gamma delta\nepsilon zeta"
+
+
+def test_visual_entry_exits_multi_cursor() -> None:
+    """v leaves multi-cursor mode and starts the selection at the cursor."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C)
+    _press(keymap, ctx, "v")
+    assert keymap.mode is VimMode.VISUAL
+    assert editor.buffer.extra_cursors == []
+    assert editor.buffer.anchor == editor.buffer.cursor
+
+
+def test_alt_c_in_insert_mode_is_swallowed() -> None:
+    """ALT+C inside INSERT changes nothing: no point, no text, still INSERT."""
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, "i")
+    assert keymap.handle_key(ctx, ALT_C) is True
+    assert editor.buffer.extra_cursors == []
+    assert editor.buffer.get_text() == _MULTI_TEXT
+    assert keymap.mode is VimMode.INSERT

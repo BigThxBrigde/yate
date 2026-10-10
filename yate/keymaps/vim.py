@@ -168,6 +168,13 @@ class VimKeymap(Keymap):
             KeyBinding("u", "undo", "Undo", EDT),
             KeyBinding(parse_key("<ctrl-r>"), "redo", "Redo", EDT),
             KeyBinding("J", "join lines", "Join lines", EDT),
+            # Help-only entry: the real dispatch is the hardcoded ``\x1bc``
+            # branch in _handle_normal below (NORMAL stays quiet -- no
+            # message, matching plan-b).
+            KeyBinding(
+                parse_key("<alt-c>"), "add cursor below",
+                "Add a cursor on the next row (multi-cursor)", EDT,
+            ),
             KeyBinding("/", "search forward", "Search forward", CMD),
             KeyBinding("?", "search backward", "Search backward", CMD),
             KeyBinding("n", "next match", "Next match", CMD),
@@ -254,35 +261,54 @@ class VimKeymap(Keymap):
 
     def _handle_insert(self, ctx: ActionContext, key: str) -> bool:
         ui = ctx.ui
+        buf = ctx.buffer
         if key in ("\x1b",):  # esc / ctrl-[
+            buf.clear_extra_cursors()
             self.mode = VimMode.NORMAL
-            ctx.buffer.move_left()
+            buf.move_left()
             ui.message("-- NORMAL --")
+            return True
+        if buf.has_extra_cursors() and key == "\r":
+            # multi-cursor: a bare newline at every point, no per-row
+            # auto-indent (known limitation of the multi-point primitive)
+            buf.insert_at_points("\n")
             return True
         if key == "\r":
             ui.execute_action("newline")
             return True
         if key == "\t":
+            self._exit_multi(buf)
             ui.execute_action("insert_tab")
+            return True
+        if buf.has_extra_cursors() and key == "\x7f":
+            buf.delete_at_points()
             return True
         if key == "\x7f":
             ui.execute_action("delete_backward")
             return True
         if key == "\x1b[3~":
+            self._exit_multi(buf)
             ui.execute_action("delete_forward")
             return True
         if key == "\x17":  # ctrl-w: delete word backwards
+            self._exit_multi(buf)
             ui.execute_action("delete_word_back")
             return True
         if key == "\x15":  # ctrl-u: delete to line start
+            self._exit_multi(buf)
             ui.execute_action("delete_to_line_start")
             return True
         if key in _ARROW:
+            # an "original operation": only the primary cursor moves and the
+            # extra points survive, like a NORMAL-mode motion
             self._motion(ctx, _ARROW[key], 1, select=False)
+            return True
+        if buf.has_extra_cursors() and len(key) == 1 and key.isprintable():
+            buf.insert_at_points(key)
             return True
         if len(key) == 1 and key.isprintable():
             # same auto-complete / skip / wrap path as the modeless fallback
-            ctx.buffer.type_char(key, language=ctx.doc.filetype)
+            buf.type_char(key, language=ctx.doc.filetype)
             return True
         return True
 
@@ -399,6 +425,13 @@ class VimKeymap(Keymap):
         The anchor itself is cleared by the caller's following cursor move
         (:meth:`~yate.editor_core.buffer.TextBuffer.set_cursor` with
         ``select=False``), keeping this method free of buffer knowledge.
+
+        Extra multi-cursor points are NOT cleared here: multi-cursor and
+        visual mode are mutually exclusive (the ``v``/``V`` branches clear
+        the points before entering visual), so the only multi-cursor exits
+        are the ESC branches here in the keymap and the mouse click path in
+        ``yate.flows.mouse_flows`` (vsc mode only -- vim does not hook
+        multi-cursor into the mouse).
         """
         if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE):
             self.mode = VimMode.NORMAL
@@ -422,6 +455,12 @@ class VimKeymap(Keymap):
 
         if key == "\x1b":
             self._clear_pending()
+            buf.clear_extra_cursors()
+            return True
+
+        if key == "\x1bc":  # ALT+C: add a cursor below the bottom-most point
+            buf.clear_selection()
+            buf.add_cursor_below()
             return True
 
         if key == "\x07":  # ctrl-g: go to line (same as typing :42)
@@ -487,6 +526,7 @@ class VimKeymap(Keymap):
 
         # arm an operator
         if key in ("d", "y", "c"):
+            self._exit_multi(buf)
             self.op = key
             self.op_count = self._typed_count()
             self.op_register = self._take_named_register()
@@ -507,6 +547,7 @@ class VimKeymap(Keymap):
             # _clear_pending() empties count_str as well.
             count = self._take_count()
             self._clear_pending()
+            self._exit_multi(buf)
             self._shift_row(buf, key, count)
             return True
 
@@ -518,16 +559,19 @@ class VimKeymap(Keymap):
             # a register prefix only arms operators/pastes: any other command
             # drops it first, so "ax cannot swallow the next yy into register a
             self.pending_register = None
+            self._exit_multi(buf)
             for _ in range(self._take_count()):
                 buf.delete_forward()
             return True
         if key == "p":
+            self._exit_multi(buf)
             reg = self._take_named_register()
             self._prime_paste(buf, reg)
             for _ in range(self._take_count()):
                 buf.paste(below=True, named=reg)
             return True
         if key == "P":
+            self._exit_multi(buf)
             reg = self._take_named_register()
             self._prime_paste(buf, reg)
             for _ in range(self._take_count()):
@@ -535,30 +579,37 @@ class VimKeymap(Keymap):
             return True
         if key == "u":
             self.pending_register = None
+            self._exit_multi(buf)
             buf.undo()
             return True
         if key == "\x12":  # ctrl-r
             self.pending_register = None
+            self._exit_multi(buf)
             buf.redo()
             return True
         if key == "J":
             self.pending_register = None
+            self._exit_multi(buf)
             ui.execute_action("join_lines")
             return True
         if key == "\x04":  # ctrl-d
             self.pending_register = None
+            self._exit_multi(buf)
             ui.execute_action("page_half_down")
             return True
         if key == "\x15":  # ctrl-u
             self.pending_register = None
+            self._exit_multi(buf)
             ui.execute_action("page_half_up")
             return True
         if key == "\x06":  # ctrl-f
             self.pending_register = None
+            self._exit_multi(buf)
             ui.execute_action("page_down")
             return True
         if key == "\x02":  # ctrl-b
             self.pending_register = None
+            self._exit_multi(buf)
             ui.execute_action("page_up")
             return True
 
@@ -581,11 +632,13 @@ class VimKeymap(Keymap):
             self._enter_insert(ui)
             return True
         if key == "o":
+            self._exit_multi(buf)
             buf.move_line_end()
             buf.insert_newline()
             self._enter_insert(ui)
             return True
         if key == "O":
+            self._exit_multi(buf)
             buf.move_line_start()
             buf.insert_newline()
             buf.move_up()
@@ -593,11 +646,13 @@ class VimKeymap(Keymap):
             return True
 
         if key == "v":
+            self._exit_multi(buf)
             self.mode = VimMode.VISUAL
             buf.anchor = buf.cursor
             ui.message("-- VISUAL --")
             return True
         if key == "V":
+            self._exit_multi(buf)
             self.mode = VimMode.VISUAL_LINE
             r = buf.row
             buf.anchor = (r, 0)
@@ -607,22 +662,27 @@ class VimKeymap(Keymap):
 
         if key == "/":
             self.pending_register = None
+            self._exit_multi(buf)
             ui.find_prompt(True)
             return True
         if key == "?":
             self.pending_register = None
+            self._exit_multi(buf)
             ui.find_prompt(False)
             return True
         if key == ":":
             self.pending_register = None
+            self._exit_multi(buf)
             ui.command_prompt()
             return True
         if key == "n":
             self.pending_register = None
+            self._exit_multi(buf)
             ui.execute_action("find_next")
             return True
         if key == "N":
             self.pending_register = None
+            self._exit_multi(buf)
             ui.execute_action("find_prev")
             return True
 
@@ -638,6 +698,10 @@ class VimKeymap(Keymap):
         # command, e.g. turning a later ``x`` into ``5x``).
         self.count_str = ""
         return True
+
+    def _exit_multi(self, buf: TextBuffer) -> None:
+        """Leave multi-cursor mode before a single-cursor NORMAL command."""
+        buf.clear_extra_cursors()
 
     def _handle_operator_pending(self, ctx: ActionContext, key: str) -> bool:
         """Resolve *key* against the armed operator; ``False`` drops it."""

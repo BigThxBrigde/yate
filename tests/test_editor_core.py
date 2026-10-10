@@ -1323,3 +1323,368 @@ def test_replace_current_is_a_single_undo_step() -> None:
     assert engine.replace_current(buffer, "bar") is True
     buffer.undo()
     assert buffer.get_text() == "foo foo"
+
+
+# --- TextBuffer: multi-cursor model (issue IKKJHH) --------------------------
+
+
+class TestMultiCursor:
+    """Multi-cursor points, multi-point primitives and undo integration."""
+
+    def _buffer(self) -> TextBuffer:
+        """The shared three-row sample document used across the tests."""
+        return TextBuffer("alpha beta\ngamma delta\nepsilon zeta")
+
+    def test_add_cursor_at_clamps_and_clears_selection(self) -> None:
+        """An out-of-range column clamps to the row length and entering
+        multi-cursor mode drops the primary selection anchor."""
+        buf = self._buffer()
+        buf.set_cursor((0, 1), select=True)
+        assert buf.add_cursor_at((0, 99)) is True
+        assert buf.extra_cursors == [(0, 10)]
+        assert buf.anchor is None
+        assert buf.has_extra_cursors() is True
+
+    def test_add_cursor_at_rejects_duplicate_point(self) -> None:
+        """Adding the same point twice keeps a single extra cursor."""
+        buf = self._buffer()
+        assert buf.add_cursor_at((0, 5)) is True
+        assert buf.add_cursor_at((0, 5)) is False
+        assert buf.extra_cursors == [(0, 5)]
+
+    def test_add_cursor_below_walks_down_from_bottom_most_point(self) -> None:
+        """Repeated adds walk down from the bottom-most point; the primary
+        cursor never moves."""
+        buf = self._buffer()
+        buf.set_cursor((0, 2))
+        assert buf.add_cursor_below() is True
+        assert buf.extra_cursors == [(1, 2)]
+        assert buf.add_cursor_below() is True
+        assert buf.extra_cursors == [(1, 2), (2, 2)]
+        assert buf.cursor == (0, 2)
+
+    def test_add_cursor_below_at_last_row_is_noop(self) -> None:
+        """No next row: the add reports False and changes nothing."""
+        buf = self._buffer()
+        buf.set_cursor((2, 0))
+        assert buf.add_cursor_below() is False
+        assert buf.extra_cursors == []
+
+    def test_clear_extra_cursors_restores_single_cursor(self) -> None:
+        """Clearing drops every extra point and keeps cursor and anchor."""
+        buf = self._buffer()
+        buf.set_cursor((0, 1))
+        buf.add_cursor_at((1, 0))
+        buf.add_cursor_at((2, 0))
+        buf.clear_extra_cursors()
+        assert buf.extra_cursors == []
+        assert buf.cursor == (0, 1)
+        assert buf.anchor is None
+
+    def test_insert_at_points_single_char_edits_all_rows(self) -> None:
+        """One character lands at every point; each point follows its own
+        insertion and the primary cursor moves to its own new position."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.add_cursor_below()
+        buf.insert_at_points("X")
+        assert buf.lines == ["Xalpha beta", "Xgamma delta", "Xepsilon zeta"]
+        assert buf.cursor == (0, 1)
+        assert buf.extra_cursors == [(1, 1), (2, 1)]
+
+    def test_insert_at_points_descending_order_with_newline(self) -> None:
+        """A newline insertion at three points never misaligns the
+        not-yet-processed points: every original row gains an empty row
+        above it."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.add_cursor_below()
+        buf.insert_at_points("\n")
+        assert buf.line_count == 6
+        assert buf.lines == [
+            "",
+            "alpha beta",
+            "",
+            "gamma delta",
+            "",
+            "epsilon zeta",
+        ]
+
+    def test_insert_at_points_same_row_two_points_no_double_edit(self) -> None:
+        """Two points on one row both take effect without shifting each
+        other: the larger column is processed first (a naive ascending
+        pass would corrupt the later point's text)."""
+        buf = self._buffer()
+        buf.set_cursor((0, 5))
+        buf.add_cursor_at((0, 10))
+        buf.insert_at_points("-")
+        assert buf.lines[0] == "alpha- beta-"
+
+    def test_insert_at_points_is_one_undo_step(self) -> None:
+        """A multi-point insertion records one undo step carrying the point
+        set, with the same content-edit weight as single-cursor typing."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.add_cursor_below()
+        buf.insert_at_points("X")
+        assert buf.content_edits == 1
+        assert buf.undo() is True
+        assert buf.lines == ["alpha beta", "gamma delta", "epsilon zeta"]
+        assert buf.extra_cursors == [(1, 0), (2, 0)]
+
+    def test_insert_at_points_coalesces_with_adjacent_typing(self) -> None:
+        """Adjacent multi-point keystrokes merge into one undo step like
+        ordinary typing."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.add_cursor_below()
+        buf.insert_at_points("a")
+        buf.insert_at_points("b")
+        assert buf.undo() is True
+        assert buf.lines == ["alpha beta", "gamma delta", "epsilon zeta"]
+        assert buf.redo() is True
+        assert buf.lines == ["abalpha beta", "abgamma delta", "abepsilon zeta"]
+
+    def test_delete_at_points_backspace_joins_rows_at_column_zero(self) -> None:
+        """Backspace removes one character before every active point."""
+        buf = self._buffer()
+        buf.set_cursor((0, 1))
+        buf.add_cursor_at((1, 1))
+        buf.add_cursor_at((2, 1))
+        buf.delete_at_points()
+        assert buf.lines == ["lpha beta", "amma delta", "psilon zeta"]
+        assert buf.cursor == (0, 0)
+
+    def test_delete_at_points_at_document_origin_is_noop_for_that_point(
+        self,
+    ) -> None:
+        """(0, 0) is a no-op for that point while the other points still
+        delete, and one undo restores everything."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_at((1, 3))
+        buf.delete_at_points()
+        assert buf.lines == ["alpha beta", "gama delta", "epsilon zeta"]
+        assert buf.undo() is True
+        assert buf.lines == ["alpha beta", "gamma delta", "epsilon zeta"]
+
+    def test_delete_forward_at_points_at_row_end_joins_next_row(self) -> None:
+        """Forward delete at end-of-row joins the next row; the other point
+        deletes its character normally."""
+        buf = self._buffer()
+        buf.set_cursor((0, 10))
+        buf.add_cursor_at((2, 0))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["alpha betagamma delta", "psilon zeta"]
+
+    def test_undo_restores_extra_cursors_clamped_after_shrink(self) -> None:
+        """Undo rewinds a multi-line insertion; every restored point stays
+        inside the shrunken document (clamped, never out of range)."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.add_cursor_below()
+        buf.insert_at_points("\n" * 3)
+        assert buf.undo() is True
+        for pos in buf.extra_cursors:
+            assert 0 <= pos[0] < buf.line_count
+            assert 0 <= pos[1] <= len(buf.lines[pos[0]])
+
+    def test_set_text_clears_extra_cursors(self) -> None:
+        """Replacing the whole content invalidates the point set."""
+        buf = self._buffer()
+        buf.set_cursor((0, 1))
+        buf.add_cursor_at((1, 0))
+        buf.add_cursor_at((2, 0))
+        buf.set_text("new")
+        assert buf.extra_cursors == []
+        assert buf.cursor == (0, 0)
+
+    def test_delete_at_points_at_column_zero_joins_previous_row(self) -> None:
+        """Backspace at column 0 joins the row into the previous one: the
+        newline deletion branch places the point at the join seam."""
+        buf = self._buffer()
+        buf.set_cursor((1, 0))
+        buf.delete_at_points()
+        assert buf.lines == ["alpha betagamma delta", "epsilon zeta"]
+        assert buf.cursor == (0, 10)
+
+    def test_delete_forward_at_points_at_document_end_is_noop(self) -> None:
+        """Forward delete at the end of the last row is a no-op for that
+        point while the other points still delete normally."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_at((2, 12))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["lpha beta", "gamma delta", "epsilon zeta"]
+        assert buf.extra_cursors == [(2, 12)]
+
+    def test_insert_at_points_on_read_only_raises(self) -> None:
+        """Both multi-point primitives refuse a read-only buffer without
+        touching the content."""
+        buf = TextBuffer(read_only=True)
+        buf.add_cursor_at((0, 0))
+        with pytest.raises(BufferReadOnlyError):
+            buf.insert_at_points("X")
+        with pytest.raises(BufferReadOnlyError):
+            buf.delete_at_points()
+        assert buf.lines == [""]
+
+    def test_insert_at_points_empty_text_is_noop(self) -> None:
+        """An empty insertion touches nothing and records no undo step."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.insert_at_points("")
+        assert buf.lines == ["alpha beta", "gamma delta", "epsilon zeta"]
+        assert buf.cursor == (0, 0)
+        assert buf.extra_cursors == [(1, 0)]
+        assert buf.content_edits == 0
+
+    def test_insert_at_points_newline_remaps_recorded_positions(self) -> None:
+        """A newline insertion at three points remaps the already-recorded
+        positions of the lower points: one row per later upper insertion
+        (gitee PR !70 review M1)."""
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_below()
+        buf.add_cursor_below()
+        buf.insert_at_points("\n")
+        assert buf.lines == [
+            "",
+            "alpha beta",
+            "",
+            "gamma delta",
+            "",
+            "epsilon zeta",
+        ]
+        assert buf.cursor == (1, 0)
+        assert buf.extra_cursors == [(3, 0), (5, 0)]
+
+    def test_insert_at_points_remaps_recorded_row_on_same_row_split(self) -> None:
+        """A later same-row row-splitting insertion moves an earlier point's
+        recorded position onto the folded tail row."""
+        buf = TextBuffer("ABCDE")
+        buf.set_cursor((0, 5))
+        buf.add_cursor_at((0, 1))
+        buf.insert_at_points("X\nY")
+        assert buf.lines == ["AX", "YBCDEX", "Y"]
+        assert buf.cursor == (2, 1)
+        assert buf.extra_cursors == [(1, 1)]
+
+    def test_delete_at_points_remaps_same_row_recorded_column(self) -> None:
+        """A later same-row backspace shifts an earlier point's recorded
+        column left instead of leaving it past the new row length."""
+        buf = TextBuffer("ABCDE")
+        buf.set_cursor((0, 3))
+        buf.add_cursor_at((0, 5))
+        buf.delete_at_points()
+        assert buf.lines == ["ABD"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 3)]
+
+    def test_delete_at_points_join_remaps_recorded_points(self) -> None:
+        """A column-0 join folds the recorded points on the joined row onto
+        the seam and shifts the points below up one row; a later same-row
+        backspace retargets the join points again."""
+        buf = self._buffer()
+        buf.set_cursor((1, 0))
+        buf.add_cursor_at((1, 2))
+        buf.add_cursor_at((2, 1))
+        buf.add_cursor_at((0, 5))
+        buf.delete_at_points()
+        assert buf.lines == ["alph betagmma delta", "psilon zeta"]
+        assert buf.cursor == (0, 9)
+        assert buf.extra_cursors == [(0, 10), (1, 0), (0, 4)]
+
+    def test_delete_forward_at_points_join_remaps_recorded_points(self) -> None:
+        """An end-of-row forward join folds the recorded point on the next
+        row onto the seam and shifts the points below up one row; a later
+        same-row forward delete retargets the join points again."""
+        buf = self._buffer()
+        buf.set_cursor((0, 10))
+        buf.add_cursor_at((0, 5))
+        buf.add_cursor_at((1, 5))
+        buf.add_cursor_at((2, 0))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["alphabetagammadelta", "psilon zeta"]
+        assert buf.cursor == (0, 9)
+        assert buf.extra_cursors == [(0, 5), (0, 14), (1, 0)]
+
+    def test_delete_forward_at_points_remaps_same_row_recorded_column(self) -> None:
+        """A later same-row forward delete shifts an earlier point's
+        recorded column left with its content."""
+        buf = TextBuffer("ABCDE")
+        buf.set_cursor((0, 2))
+        buf.add_cursor_at((0, 4))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["ABD"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 3)]
+
+    def test_delete_at_points_consecutive_joins_fold_join_records(self) -> None:
+        """A second column-0 join folds the first join's own recorded seam
+        position again: the record made by the ``(2, 0)`` join is consumed
+        by the ``(1, 0)`` join instead of surviving untouched."""
+        buf = TextBuffer("ab\ncd\nef")
+        buf.set_cursor((1, 0))
+        buf.add_cursor_at((2, 0))
+        buf.delete_at_points()
+        assert buf.lines == ["abcdef"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 4)]
+
+    def test_delete_forward_at_points_consecutive_joins_fold_join_records(self) -> None:
+        """A second end-of-row join folds the first join's own recorded seam
+        position again: the record made by the ``(1, 2)`` join is consumed
+        by the ``(0, 2)`` join instead of surviving untouched."""
+        buf = TextBuffer("ab\ncd\nef")
+        buf.set_cursor((0, 2))
+        buf.add_cursor_at((1, 2))
+        buf.delete_forward_at_points()
+        assert buf.lines == ["abcdef"]
+        assert buf.cursor == (0, 2)
+        assert buf.extra_cursors == [(0, 4)]
+
+    def test_delete_at_points_clears_stale_anchor_before_join(self) -> None:
+        """A stale selection anchor does not survive a multi-point join.
+
+        Shift-click can leave anchor and extra cursors coexisting; the
+        column-0 join deletes rows without remapping the anchor, so the
+        primitive must drop it at entry -- cut/copy would otherwise index
+        a deleted row and raise IndexError (gitee PR !70 review M2).
+        """
+        buf = self._buffer()
+        buf.set_cursor((0, 0))
+        buf.add_cursor_at((1, 0))
+        buf.add_cursor_at((2, 0))
+        buf.anchor = (2, 5)  # simulates a shift-click selection left behind
+        buf.delete_at_points()
+        assert buf.anchor is None
+        assert buf.selected_text() is None
+        assert buf.yank_selection() == "alpha betagamma deltaepsilon zeta"
+
+    def test_multi_point_primitives_clear_selection_anchor(self) -> None:
+        """Every multi-point primitive drops the anchor at entry: the
+        selection and multi-cursor axes stay exclusive for the whole
+        edit, not just when entering multi-cursor mode."""
+        buf = self._buffer()
+        buf.set_cursor((0, 4), select=True)
+        buf.add_cursor_at((1, 5))
+        buf.anchor = (0, 0)  # coexisting axes, as after a later shift-click
+        buf.insert_at_points("X")
+        assert buf.anchor is None
+        assert buf.selected_text() is None
+
+        buf2 = self._buffer()
+        buf2.set_cursor((1, 11))  # end of row 1: forward join deletes it
+        buf2.add_cursor_at((0, 0))
+        buf2.anchor = (2, 5)
+        buf2.delete_forward_at_points()
+        assert buf2.anchor is None
+        assert buf2.selected_text() is None
+        assert buf2.yank_selection() == "gamma deltaepsilon zeta"

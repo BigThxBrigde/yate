@@ -340,7 +340,17 @@ class Keymap:
         modeless keymap inherits bracket auto-completion, closing-symbol
         skipping and selection wrapping; the active document's *filetype*
         travels with the call so the language rules stay in one place.
+
+        While multi-cursor mode is active (the buffer has extra cursor
+        points) printable characters insert at *every* point through
+        :meth:`~yate.editor_core.buffer.TextBuffer.insert_at_points`
+        instead: bracket auto-completion is a single-cursor
+        :meth:`~yate.editor_core.buffer.TextBuffer.type_char` affordance
+        and does not apply per point.
         """
+        if ctx.buffer.has_extra_cursors() and len(key) == 1 and key.isprintable():
+            ctx.buffer.insert_at_points(key)
+            return True
         if len(key) == 1 and key.isprintable():
             ctx.buffer.type_char(key, language=ctx.doc.filetype)
             return True

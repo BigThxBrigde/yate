@@ -16,6 +16,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from yate.editor_core import Document
+from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp import ServerState
 from yate.editor_lsp.manager import LspManager
 from yate.keymaps.registry import KeymapSet
@@ -29,8 +30,14 @@ from .commandline import PromptBar
 from .icons import DOT, KEYBOARD, LOCK, PENCIL, PLUG, TERMINAL
 
 
-def mode_chip(prompt: PromptBar, keymaps: KeymapSet) -> tuple[str, str]:
-    """``(label, background color)`` for the status bar mode chip."""
+def mode_chip(prompt: PromptBar, keymaps: KeymapSet, buf: TextBuffer) -> tuple[str, str]:
+    """``(label, background color)`` for the status bar mode chip.
+
+    Priority: an active prompt wins first; a buffer with extra multi-cursor
+    points shows ``V-COLUMN`` next (issue IKKJHH -- regardless of keymap or
+    vim mode, color follows the visual family); the vim mode mapping and the
+    ``VSC`` fallback come last.
+    """
     t = theme.active()
     if prompt.active_mode:
         mode = prompt.active_mode
@@ -39,6 +46,8 @@ def mode_chip(prompt: PromptBar, keymaps: KeymapSet) -> tuple[str, str]:
         if mode in ("find", "find_back", "replace_find", "replace_with"):
             return "SEARCH", t.match_active_bg
         return "COMMAND", t.mode_command_bg
+    if buf.has_extra_cursors():
+        return "V-COLUMN", t.mode_visual_bg
     if keymaps.name == "vim":
         vim = keymaps.get("vim")
         if isinstance(vim, VimKeymap):
@@ -96,7 +105,7 @@ class StatusBar(Static):
         self.styles.background = t.accent
         bar = f"on {t.accent}"
 
-        mode, chip_bg = mode_chip(self.prompt, self.keymaps)
+        mode, chip_bg = mode_chip(self.prompt, self.keymaps, buf)
         chip = f" {mode} "
         chip_len = theme.cell_len(chip)
 

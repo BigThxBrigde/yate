@@ -382,6 +382,12 @@ class EditorView(ScrollView, HighlightMixin):
             theme.expand_char(ch, cells, buf.tab_width)
         if y == cursor_row and cursor_col == len(line):
             cells.append(" ")  # block cursor at end of line
+        # extra multi-cursor points need the same padding: a point resting
+        # on (y, len(line)) must own one visible block cell (issue IKKJHH)
+        for point in buf.extra_cursors:
+            if point[0] == y and point[1] == len(line):
+                cells.append(" ")
+                break
 
         n_cells = len(cells)
         styles = [S_NORMAL] * (n_cells + 1)
@@ -552,6 +558,14 @@ class EditorView(ScrollView, HighlightMixin):
         if row == cursor_row:
             cell = theme.char_to_cell(line, cursor_col, tw)
             ranges.append((cell, cell + 1, S_CURSOR))
+
+        # extra multi-cursor points paint their own block cursor on this
+        # row; S_CURSOR is the highest overlay id, so the existing max
+        # merge above wins over selection/match overlaps (issue IKKJHH)
+        for point in buf.extra_cursors:
+            if point[0] == row:
+                cell = theme.char_to_cell(line, point[1], tw)
+                ranges.append((cell, cell + 1, S_CURSOR))
 
         ranges.sort()
         return ranges
