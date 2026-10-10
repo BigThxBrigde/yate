@@ -264,6 +264,84 @@ def test_select_all_and_clear_selection_manage_the_anchor() -> None:
     assert ctx.buffer.has_selection() is False
 
 
+# --- multi-cursor actions (plan-c) --------------------------------------------
+
+
+def test_add_cursor_below_action_registers_and_adds_point() -> None:
+    """add_cursor_below adds a point on the next row at the same column."""
+    registry, _editor = _table()
+    ctx = make_action_context("one\ntwo")
+    ctx.buffer.set_cursor((0, 1))
+
+    assert registry.execute("add_cursor_below", ctx) is True
+    assert ctx.buffer.extra_cursors == [(1, 1)]
+
+
+def test_newline_action_multi_cursor_inserts_at_all_points() -> None:
+    """With extra points, newline inserts at every point as one undo step."""
+    registry, _editor = _table()
+    ctx = make_action_context("one\ntwo")
+    ctx.buffer.set_cursor((0, 1))
+    ctx.buffer.add_cursor_at((1, 1))
+    lines_before = ctx.buffer.line_count
+
+    assert registry.execute("newline", ctx) is True
+    assert ctx.buffer.line_count == lines_before + 2  # one newline per point
+    assert ctx.buffer.get_text() == "o\nne\nt\nwo"
+
+    registry.execute("undo", ctx)
+    assert ctx.buffer.get_text() == "one\ntwo"
+    assert ctx.buffer.line_count == lines_before
+
+
+def test_delete_backward_action_multi_cursor_deletes_at_all_points() -> None:
+    """With extra points, delete_backward removes the char before each point."""
+    registry, _editor = _table()
+    ctx = make_action_context("one\ntwo")
+    ctx.buffer.set_cursor((0, 1))
+    ctx.buffer.add_cursor_at((1, 1))
+
+    assert registry.execute("delete_backward", ctx) is True
+    assert ctx.buffer.get_text() == "ne\nwo"
+
+    registry.execute("undo", ctx)
+    assert ctx.buffer.get_text() == "one\ntwo"
+
+
+def test_clear_selection_action_drops_extra_cursors_too() -> None:
+    """clear_selection collapses both the anchor and the extra points."""
+    registry, _editor = _table()
+    ctx = make_action_context("one\ntwo")
+    buf = ctx.buffer
+    buf.add_cursor_at((1, 1))
+    buf.add_cursor_at((0, 1))
+    buf.set_cursor((0, 3), select=True)
+    assert buf.has_extra_cursors()
+    assert buf.anchor is not None
+
+    assert registry.execute("clear_selection", ctx) is True
+    assert buf.extra_cursors == []
+    assert buf.anchor is None
+
+
+def test_single_cursor_actions_unchanged_when_no_extras() -> None:
+    """Without extra points the editing actions keep their original paths."""
+    registry, _editor = _table()
+
+    ctx = make_action_context("if x:")
+    ctx.doc.filetype_override = "py"
+    ctx.buffer.set_cursor((0, 5))
+    registry.execute("newline", ctx)
+    assert ctx.buffer.get_text() == "if x:\n    "  # auto-indented block opener
+    assert ctx.buffer.cursor == (1, 4)
+
+    ctx = make_action_context("abc")
+    ctx.buffer.set_cursor((0, 3))
+    registry.execute("delete_backward", ctx)
+    assert ctx.buffer.get_text() == "ab"
+    assert ctx.buffer.cursor == (0, 2)
+
+
 # --- forwarding actions ------------------------------------------------------
 
 

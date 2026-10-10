@@ -35,12 +35,32 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
 
     reg(
         "newline",
-        lambda ctx: ctx.buffer.insert_newline(language=ctx.doc.filetype),
+        lambda ctx: (
+            ctx.buffer.insert_at_points("\n")
+            if ctx.buffer.has_extra_cursors()
+            else ctx.buffer.insert_newline(language=ctx.doc.filetype)
+        ),
         "Insert newline (auto-indent)",
     )
     reg("insert_tab", lambda ctx: ctx.buffer.insert_tab(), "Indent / insert tab")
-    reg("delete_backward", lambda ctx: ctx.buffer.delete_backward(), "Delete char before cursor")
-    reg("delete_forward", lambda ctx: ctx.buffer.delete_forward(), "Delete char after cursor")
+    reg(
+        "delete_backward",
+        lambda ctx: (
+            ctx.buffer.delete_at_points()
+            if ctx.buffer.has_extra_cursors()
+            else ctx.buffer.delete_backward()
+        ),
+        "Delete char before cursor",
+    )
+    reg(
+        "delete_forward",
+        lambda ctx: (
+            ctx.buffer.delete_forward_at_points()
+            if ctx.buffer.has_extra_cursors()
+            else ctx.buffer.delete_forward()
+        ),
+        "Delete char after cursor",
+    )
     reg("delete_word_back", lambda ctx: ctx.buffer.delete_backward(word=True), "Delete word back")
     reg("delete_word_fwd", lambda ctx: ctx.buffer.delete_forward(word=True), "Delete word forward")
     reg(
@@ -96,7 +116,17 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     )
     reg("select_line_end", lambda ctx: ctx.buffer.move_line_end(select=True), "Select to line end")
     reg("select_all", lambda ctx: ctx.buffer.select_all(), "Select all")
-    reg("clear_selection", lambda ctx: ctx.buffer.clear_selection(), "Clear selection")
+    reg(
+        "add_cursor_below",
+        lambda ctx: ctx.buffer.add_cursor_below(),
+        "Add a cursor on the next row (multi-cursor)",
+    )
+
+    def _clear_selection(ctx: ActionContext) -> None:
+        ctx.buffer.clear_extra_cursors()
+        ctx.buffer.clear_selection()
+
+    reg("clear_selection", _clear_selection, "Clear selection")
 
     # ------------------------------------------------------- history/clip
 

@@ -65,16 +65,25 @@ class MouseFlows:
     def _on_down(self, view: EditorView, event: MouseDown) -> bool:
         if event.button != LEFT_BUTTON:
             return False
-        keymap = self.keymaps.active
-        if isinstance(keymap, VimKeymap):
-            keymap.drop_visual()
         pos = view.buffer_pos_from_mouse(event)
         if pos is None:
             return False
-        view.buffer.set_cursor(pos, select=event.shift)
+        keymap = self.keymaps.active
+        if isinstance(keymap, VimKeymap):
+            keymap.drop_visual()  # existing behavior: a click exits visual
+        if event.meta and not isinstance(keymap, VimKeymap):
+            # ALT+click adds a multi-cursor point (vsc mode).  Textual maps
+            # the SGR Alt bit (8) to ``meta``; MouseEvent has no ``alt``.
+            # Click semantics: no drag starts, so the point survives MouseUp.
+            view.buffer.clear_selection()
+            view.buffer.add_cursor_at(pos)
+        else:
+            if not event.shift and not event.meta:
+                view.buffer.clear_extra_cursors()  # a plain click collapses
+            view.buffer.set_cursor(pos, select=event.shift)
         view.content_changed()
         self._refresh()
-        self._dragging = True
+        self._dragging = not (event.meta and not isinstance(keymap, VimKeymap))
         return True
 
     def _on_move(self, view: EditorView, event: MouseMove) -> bool:
