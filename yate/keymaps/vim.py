@@ -168,6 +168,9 @@ class VimKeymap(Keymap):
             KeyBinding("u", "undo", "Undo", EDT),
             KeyBinding(parse_key("<ctrl-r>"), "redo", "Redo", EDT),
             KeyBinding("J", "join lines", "Join lines", EDT),
+            # Help-only entry: the real dispatch is the hardcoded ``\x1bc``
+            # branch in _handle_normal below (NORMAL stays quiet -- no
+            # message, matching plan-b).
             KeyBinding(
                 parse_key("<alt-c>"), "add cursor below",
                 "Add a cursor on the next row (multi-cursor)", EDT,
