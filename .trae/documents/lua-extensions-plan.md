@@ -375,3 +375,7 @@
 
 **遗留登记**：评审 minor 之外无遗留；`ref/extensions-split` 轮已提前消化
 "extensions.py 临阈值" nit（见 extensions-split-plan.md）。
+
+**复评（code-review-expert，同日）**：PASS（0 blocker / 0 major / 0 minor）——
+major-1/2 与 minor 均确认消除，无新问题；复测门禁全绿（覆盖率 91.62%）。
+本轮新增 4 提交：`eeb6134` / `3966fed` / `9c10332` / `43d8b15`，未推送。
