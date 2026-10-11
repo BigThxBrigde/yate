@@ -31,6 +31,7 @@ from yate.logs import tracing
 
 from yate.editor_view.cells import (
     cell_len,
+    cell_offsets,
     cell_to_char,
     cell_width,
     char_to_cell,
@@ -67,6 +68,7 @@ __all__ = [
     "attach",
     "available",
     "cell_len",
+    "cell_offsets",
     "cell_to_char",
     "cell_width",
     "char_to_cell",

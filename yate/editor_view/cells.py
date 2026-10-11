@@ -18,6 +18,7 @@ import unicodedata
 
 __all__ = [
     "cell_len",
+    "cell_offsets",
     "cell_to_char",
     "cell_width",
     "char_to_cell",
@@ -25,16 +26,29 @@ __all__ = [
     "truncate_to_cells",
 ]
 
+#: Memoized :func:`cell_width` results.  ``unicodedata`` classifications are
+#: fixed for the interpreter's Unicode tables, so the mapping is a pure
+#: function of the character; the render path asks for it once per visible
+#: character per frame, and a dict hit replaces three C calls with one
+#: lookup.  Bounded in practice by the set of distinct characters seen in a
+#: session (a few thousand entries at most).
+_WIDTH_CACHE: dict[str, int] = {"\t": 1}
+
 
 def cell_width(ch: str) -> int:
     """Terminal cell width of *ch* (0 combining, 2 wide CJK/emoji, 1 else)."""
-    if ch == "\t":
-        return 1
+    try:
+        return _WIDTH_CACHE[ch]
+    except KeyError:
+        pass
     if unicodedata.combining(ch) or unicodedata.category(ch) in ("Mn", "Me", "Cf"):
-        return 0
-    if unicodedata.east_asian_width(ch) in ("W", "F"):
-        return 2
-    return 1
+        width = 0
+    elif unicodedata.east_asian_width(ch) in ("W", "F"):
+        width = 2
+    else:
+        width = 1
+    _WIDTH_CACHE[ch] = width
+    return width
 
 
 def cell_len(text: str) -> int:
@@ -81,6 +95,30 @@ def cell_to_char(line: str, cell: int, tab_width: int = 4) -> int:
         else:
             cells += max(1, cell_width(ch))
     return len(line)
+
+
+def cell_offsets(line: str, tab_width: int = 4) -> list[int]:
+    """Prefix table mapping character indexes to display cell columns.
+
+    ``offsets[i]`` equals ``char_to_cell(line, i, tab_width)`` for every
+    ``0 <= i <= len(line)`` (the arithmetic replicates :func:`char_to_cell`
+    exactly: tabs advance to the next tab stop, any other character -- zero
+    width included -- occupies ``max(1, cell_width)`` cells in this mapping).
+    Callers walking many positions of the same line (per-token render
+    mapping) build the table once and then index it in O(1) instead of
+    rescanning the line prefix per lookup.
+    """
+    offsets = [0] * (len(line) + 1)
+    cells = 0
+    i = 0
+    for ch in line:
+        if ch == "\t":
+            cells += tab_width - (cells % tab_width)
+        else:
+            cells += max(1, cell_width(ch))
+        i += 1
+        offsets[i] = cells
+    return offsets
 
 
 def expand_char(ch: str, cells: list[str], tab_width: int) -> None:
