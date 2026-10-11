@@ -25,7 +25,7 @@ from yate.editor_syntax import available_filetypes, engine, langdefs, regex_back
 from yate.editor_syntax.tokens import SYNTAX_KINDS, Token
 from yate.editor_syntax.ts_backend import backend as ts_runtime
 from yate.editor_syntax.ts_backend import languages as ts_langs
-from yate.services import extensions as ext_services
+from yate.services import extension_bridges as ext_bridges
 
 has_bash = importlib.util.find_spec("tree_sitter_bash") is not None
 has_python = importlib.util.find_spec("tree_sitter_python") is not None
@@ -424,7 +424,7 @@ def test_blocked_build_disables_ts_and_routes_to_regex(
 
 @_python_skip
 def test_unknown_pack_raises_value_error() -> None:
-    from yate.services.extensions import SyntaxExtensionBridge
+    from yate.services.extension_bridges import SyntaxExtensionBridge
 
     bridge = SyntaxExtensionBridge()
     with pytest.raises(ValueError):
@@ -442,7 +442,7 @@ def test_pack_registration_and_query_file(tmp_path: Path) -> None:
     query_path.write_text(
         "(comment) @comment\n(string) @string\n", encoding="utf-8"
     )
-    bridge = ext_services.SyntaxExtensionBridge()
+    bridge = ext_bridges.SyntaxExtensionBridge()
     with (
         mock.patch.dict(ts_langs._LANGS),
         mock.patch.dict(ts_langs._EXT_TO_LANG),
@@ -958,16 +958,16 @@ def test_missing_query_file_returns_none(
 
 
 @pytest.fixture
-def bridge() -> ext_services.SyntaxExtensionBridge:
+def bridge() -> ext_bridges.SyntaxExtensionBridge:
     """Provide a fresh syntax extension bridge."""
-    return ext_services.SyntaxExtensionBridge()
+    return ext_bridges.SyntaxExtensionBridge()
 
 
 def test_query_source_string_is_passed_through(
-    bridge: ext_services.SyntaxExtensionBridge,
+    bridge: ext_bridges.SyntaxExtensionBridge,
 ) -> None:
     with mock.patch.object(
-        ext_services, "load_language_from_grammar"
+        ext_bridges, "load_language_from_grammar"
     ) as loader:
         bridge.register_tree_sitter(
             "lg",
@@ -986,11 +986,11 @@ def test_query_source_string_is_passed_through(
 
 
 def test_nonexistent_query_path_is_treated_as_source(
-    bridge: ext_services.SyntaxExtensionBridge,
+    bridge: ext_bridges.SyntaxExtensionBridge,
 ) -> None:
     query = "no/such/dir_xyz/highlights.scm"
     with mock.patch.object(
-        ext_services, "load_language_from_grammar"
+        ext_bridges, "load_language_from_grammar"
     ) as loader:
         bridge.register_tree_sitter(
             "lg", grammar="tree_sitter_lg", extensions=["lg"], query=query
@@ -999,12 +999,12 @@ def test_nonexistent_query_path_is_treated_as_source(
 
 
 def test_query_file_path_is_read_before_registration(
-    bridge: ext_services.SyntaxExtensionBridge, tmp_path: Path
+    bridge: ext_bridges.SyntaxExtensionBridge, tmp_path: Path
 ) -> None:
     query_path = tmp_path / "highlights.scm"
     query_path.write_text("(comment) @comment\n", encoding="utf-8")
     with mock.patch.object(
-        ext_services, "load_language_from_grammar"
+        ext_bridges, "load_language_from_grammar"
     ) as loader:
         bridge.register_tree_sitter(
             "lg",
@@ -1016,7 +1016,7 @@ def test_query_file_path_is_read_before_registration(
 
 
 def test_runtime_error_propagates_without_tree_sitter(
-    bridge: ext_services.SyntaxExtensionBridge,
+    bridge: ext_bridges.SyntaxExtensionBridge,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(ts_langs, "tree_sitter", lambda: None)
