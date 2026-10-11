@@ -63,14 +63,17 @@ _SPECS: tuple[Path, ...] = (_ONEFOLDER_SPEC, _ONEFILE_SPEC)
 _SPEC_HELPER_FIELDS: frozenset[str] = frozenset({"project_root"})
 
 #: The only dynamic imports the shipped code may perform, as
-#: ``"<path>:<callee>(<argument source>)"``.  Both load tree-sitter grammar
-#: modules, which :data:`pack._common._TS_PACKAGES` collects explicitly; they
-#: are listed here so that a *new* dynamic import has to be reviewed and
-#: justified rather than slipping past the premise guard.
+#: ``"<path>:<callee>(<argument source>)"``.  The tree-sitter ones load
+#: grammar modules, which :data:`pack._common._TS_PACKAGES` collects
+#: explicitly; they are listed here so that a *new* dynamic import has to be
+#: reviewed and justified rather than slipping past the premise guard.
 _REVIEWED_DYNAMIC_IMPORTS: frozenset[str] = frozenset(
     {
         "editor_syntax/ts_backend/languages.py:importlib.import_module(module_name)",
         "editor_syntax/ts_backend/languages.py:importlib.import_module(grammar)",
+        # lupa is imported dynamically so a lupa-less install pays no import
+        # cost and pyright stays stub-free (Any only at the bridge boundary).
+        "services/lua_extensions.py:importlib.import_module('lupa')",
     }
 )
 
@@ -148,19 +151,26 @@ def _dynamic_import_name(node: ast.Call) -> str | None:
 def _yate_sources() -> list[Path]:
     """Every Python source file the frozen app can execute.
 
-    ``*.py`` covers ordinary modules.  ``*.example`` covers the templates that
-    ship as data yet run at runtime through ``compile()``/``exec()``:
+    ``*.py`` covers ordinary modules.  The remaining suffixes cover the
+    templates that ship as data yet run at runtime through Python
+    ``compile()``/``exec()``:
 
     * ``yate/extensions/*.py.example`` -- bundled extensions, imported via
       ``importlib.util.spec_from_file_location`` (``yate/services/extensions.py``);
     * ``yate/yaterc.example`` -- an rc file (``yate/config.py``);
     * ``yate/resources/theme_examples/*.example`` -- themes (``yate/editor_view/theme.py``).
 
-    Matching the suffix rather than enumerating paths keeps this honest when a
-    fourth kind of template appears.
+    ``yate/extensions/lua.example`` is deliberately absent: it is a Lua chunk
+    compiled by the lupa runtime, never by Python, so a Python import scan
+    does not apply to it.
     """
     package = _REPO_ROOT / "yate"
-    return sorted({*package.rglob("*.py"), *package.rglob("*.example")})
+    return sorted({
+        *package.rglob("*.py"),
+        *package.rglob("*.py.example"),
+        *package.rglob("yaterc.example"),
+        *(package / "resources" / "theme_examples").glob("*.example"),
+    })
 
 
 def _calls(tree: ast.Module, callee: str) -> list[ast.Call]:
