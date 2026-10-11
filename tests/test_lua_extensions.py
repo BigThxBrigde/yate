@@ -20,7 +20,7 @@ from yate.keymaps.registry import KeymapSet
 from yate.paths import bundled_extensions_dir
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
-from yate.services import extensions as ext_service
+from yate.services import extension_loader as ext_loader
 from yate.services import lua_extensions
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
 
@@ -211,7 +211,7 @@ def test_lua_extension_without_lupa_records_install_hint(
     """Without lupa the record carries the install hint, nothing raises."""
     script = tmp_path / "lazy.lua"
     script.write_text(_OK_LUA, encoding="utf-8")
-    monkeypatch.setattr(ext_service, "is_lua_available", lambda: False)
+    monkeypatch.setattr(ext_loader, "is_lua_available", lambda: False)
 
     record = loader.load_file(script)  # must not raise
 
