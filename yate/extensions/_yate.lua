@@ -68,8 +68,10 @@ end
 -- 绑定一个按键。spec 使用 yate 的键记法，如 "<alt-h>"、"<ctrl-shift-u>"。
 -- keymap 可省略（默认 "vsc"）；可选 "vsc" / "vim" / "both"（"both" 同时
 -- 绑定两套键位）。Lua 无法传 kwargs，因此 keymap 以第 3 个位置参数传入。
+-- 注意：Lua 缺省实参到 Python 是 nil（None）而非"省略"，必须显式回落
+-- 默认值——直接转发会让 keymap=None 静默不绑定任何键位。
 function yate.bind_key(spec, fn, keymap)
-  api.bind_key(spec, fn, keymap)
+  api.bind_key(spec, fn, keymap or "vsc")
 end
 
 -- 同步执行一条 shell 命令（静默，不弹输出浮层）。

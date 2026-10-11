@@ -252,3 +252,22 @@ def test_bind_key_positional_args_match_keyword_form(bundle: _ApiBundle) -> None
     assert bound_keyword is not None
     assert bound_positional.description == bound_keyword.description == "desc"
     assert bound_positional.category == bound_keyword.category == "cat"
+
+
+_BIND_LUA: str = "yate.bind_key('<f7>', function() end)\n"
+
+
+@requires_lupa
+def test_lua_bind_key_two_args_defaults_to_vsc(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A two-arg Lua bind_key binds in vsc (Lua nil keymap falls back)."""
+    script = tmp_path / "bind.lua"
+    script.write_text(_BIND_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    km = bundle.keymaps.get("vsc")
+    assert km is not None
+    assert km.lookup(parse_key("<f7>")) is not None
