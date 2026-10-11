@@ -74,12 +74,12 @@ yate [路径] [选项]
 | `--keymap {vsc,vim,normal}` | 指定启动键位；`normal` 是 `vsc` 的兼容别名。**优先级高于 yaterc** |
 | `--readonly` | 以只读模式启动：文件参数及会话内后续打开的文档（`:e`、分屏、资源管理器等）都拒绝编辑与保存，直到 `:set readonly=false` 解锁；参数为目录时忽略 |
 | `-u FILE` / `--yaterc FILE` | 只加载指定配置文件（vim 风格 `-u`）；`-u NONE` 完全跳过配置加载 |
-| `--ext FILE` | 加载一个 Python 扩展脚本（可重复） |
-| `--ext-dir DIR` | 加载目录下所有 `*.py` 扩展（可重复） |
+| `--ext FILE` | 加载一个 Python/Lua 扩展脚本（可重复） |
+| `--ext-dir DIR` | 加载目录下所有 `*.py`/`*.lua` 扩展（可重复） |
 | `--theme-dir DIR` | 从目录加载客制化 `*.py` 配色主题（可重复，也接受单个 `*.py` 文件；默认扫描 `./themes` 与 `~/.yate/themes`），见 10.3 节 |
 | `--theme NAME` | 启动时选用的主题名（内置或已注册的客制化主题），覆盖 yaterc 中的 `theme` |
 | `--install-font` | 为当前用户安装随包 Nerd Font（必要时配置 Windows Terminal），完成后退出，不进入界面 |
-| `--setup-defaults` | 创建 `~/.yate/`：安装默认 `yaterc`，并把随包主题/扩展示例以 `.example` 后缀放进 `themes/`、`extensions/`（改名 `.py` 才激活），完成后退出，见 10 节 |
+| `--setup-defaults` | 创建 `~/.yate/`：安装默认 `yaterc`，并把随包主题/扩展示例以 `.example` 后缀放进 `themes/`、`extensions/`（改名 `.py`/`.lua` 才激活），完成后退出，见 10 节 |
 | `--cleanup-defaults` | 删除上述配置（终端下需确认，非交互环境加 `--force`；`data/` 崩溃日志默认保留），完成后退出 |
 | `--force` | 配合 `--setup-defaults` 覆盖已有 `yaterc`（旧文件备份为 `yaterc.yate-bak`）；配合 `--cleanup-defaults` 跳过确认 |
 | `--include-data` | 配合 `--cleanup-defaults` 一并删除 `~/.yate/data/` 崩溃日志 |
@@ -774,11 +774,12 @@ yate --setup-defaults
   加 `--force` 才会覆盖，覆盖前旧文件备份为 `yaterc.yate-bak`（已存在备份时
   保留最早的一份）；
 - 把官方主题/扩展模板以 `.example` 原后缀放到 `~/.yate/themes/` 与
-  `~/.yate/extensions/`（Dracula、Ayu 主题及七个扩展示例：batch、diff、
-  fsharp、git、ini，以及 `example_ext` / `yatesh` 两个走查模板）。启动扫描只加载
-  `*.py`，所以把想用的模板**改名成 `.py` 即激活**，删掉即停用；
+  `~/.yate/extensions/`（Dracula、Ayu 主题及八个扩展示例：batch、diff、
+  fsharp、git、ini、Lua 入门模板 `lua`，以及 `example_ext` / `yatesh` 两个
+  走查模板）。启动扫描加载 `*.py`/`*.lua`，把想用的模板**改名成 `.py` 或
+  `.lua` 即激活**，删掉即停用；
 - `.example` 模板由 yate 托管，**每次运行 setup 都会刷新覆盖**，请在改名后的
-  `.py` 副本里定制，不要直接改 `.example`；
+  `.py`/`.lua` 副本里定制，不要直接改 `.example`；
 - 不创建 `data/`（崩溃日志在下次启动时按需生成）。
 
 反向操作 `yate --cleanup-defaults` 删除 `yaterc`、`themes/`、`extensions/`：
@@ -902,13 +903,13 @@ register_theme(replace(
 
 `extensions` 接受一个路径字符串或路径列表，每项可以是：
 
-- **目录**：加载其中所有 `*.py`（下划线开头的文件跳过）；
-- **`.py` 文件**：只加载该文件。
+- **目录**：加载其中所有 `*.py`/`*.lua`（下划线开头的文件跳过）；
+- **`.py`/`.lua` 文件**：只加载该文件。
 
 ```python
 extensions = "~/.yate/myext.py"          # 单个文件
 extensions = [
-    "~/.yate/extensions",                # 目录：加载其中所有 .py
+    "~/.yate/extensions",                # 目录：加载其中所有 .py/.lua
     "./tools/yate_exts",                 # 相对路径：相对本 yaterc 所在目录
     "/opt/yate/extra.py",                # 绝对路径
 ]
@@ -1144,6 +1145,12 @@ def setup(api):
 `git_syntax.py.example` / `diff_syntax.py.example` 演示了如何用
 `api.highlight.register` 为其它语言添加声明式高亮（如 Windows batch），
 `fsharp_syntax.py.example` 则演示 `api.syntax.register_tree_sitter`。
+
+Lua 同样受支持：安装可选桥接包（`pip install yate[lua]`）后，`.lua` 脚本
+走同一条加载管线——chunk 顶层代码就是 setup，可选的全局 `teardown(api)`
+对应 Python 钩子，`require("yate")` 暴露内置 API 库
+（`yate/extensions/_yate.lua`）。`yate --setup-defaults` 会把带完整注释的
+`lua.example` 模板放入 `~/.yate/extensions/`。
 
 > 扩展 API 完整参考（命令、动作、按键绑定、buffer/doc/workspace 访问、
 > LSP 注册、自定义语法高亮与 `LangSpec` 字段）见

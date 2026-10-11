@@ -17,7 +17,8 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / lsp_sync.py /
-         prompt_completion.py / mouse_flows.py）/ diagnostics.py / services/extensions.py
+         prompt_completion.py / mouse_flows.py）/ diagnostics.py /
+         services/extensions.py（门面）+ services/extension_{api,bridges,loader}.py
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
@@ -29,8 +30,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         2026-10-07 A2 定案：`keyproto/driver_windows.py` 经
         `keyproto/textual_internals.py` 收口 Textual 私有 API（升级 Textual 先查该文件）；
         `yate.logs` 为 R12 统一 tracing 的豁免依赖）
-插件：extensions/*（由 L4 外壳经 L3 services/extensions.py 装载；只依赖
-         services/extensions 暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
+插件：extensions/*（由 L4 外壳经 L3 services/extension_loader.py 装载；只依赖
+         services/extensions 门面暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
          禁止 import editor / editor_view / app）
 ```
 
@@ -204,6 +205,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      迁入 `parsing.py`，状态编排留在原文件，两文件均低于阈值）；
      `yaterc.py`（2026-10-08 big-module-split f 波：选项提取/校验迁入
      `yaterc_options.py`，rc 发现与 exec 循环留在原文件，两文件均低于阈值）；
+     `services/extensions.py`（2026-10-11 extensions-split：798 行临阈值
+     预防性拆分，原文件保留门面再导出冻结插件导入路径，四文件均低于阈值）；
      `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
      不再需要豁免。
    - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，

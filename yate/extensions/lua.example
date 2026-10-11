@@ -1,0 +1,67 @@
+--[[
+yate Lua extension example (lua.example)
+
+Usage: copy this file into an extension directory (recommended:
+~/.yate/extensions/), rename it to ``<name>.lua`` (for example
+``hello.lua``) and restart yate; it is loaded automatically.
+Requires the optional dependency: pip install yate[lua]
+
+Lua extensions have no setup(api) function: **the file's top-level code
+is the setup** and runs at load time; an optional global ``teardown``
+function is called when yate exits.  Errors never crash the editor:
+load-time failures are reported on the message line as
+``extension <name>: ...`` with everything already registered rolled
+back, and runtime errors inside command/key/action callbacks are caught
+and reported the same way.
+]]
+
+-- Grab yate's built-in API library (require("yate") and the global yate
+-- are the same table; pick either).  The library source lives in the
+-- package as _yate.lua: message / register_command / register_action /
+-- bind_key / shell / open_path / save / buffer / doc / workspace, plus
+-- the raw bridge passthroughs api / highlight / sprites / lsp / syntax.
+local yate = require("yate")
+
+-- Register the :lua-hello command: reports the current document's line
+-- count, first line and the command arguments.  Three things to note:
+-- Python lists are 0-based (buf.lines[0] is the first line); Lua's
+-- length operator # does not work on Python objects -- take lengths with
+-- python.builtins.len instead; and indexing an empty Python list raises
+-- IndexError (it does not yield nil), so guard before reading lines[0].
+yate.register_command("lua-hello", function(args)
+  local buf = yate.buffer()
+  local total = python.builtins.len(buf.lines)
+  local first = ""
+  if total > 0 then
+    first = buf.lines[0] or ""
+  end
+  yate.message(string.format("lua-hello! %d lines in total, first: %s; args: %s",
+                             total, first, args or ""))
+end, "greet from a lua extension")
+
+-- Bind Alt+H (the 3rd positional argument "both" binds the vsc and vim
+-- keymaps at once; omit it to default to "vsc").  The callback receives
+-- an ActionContext and may ignore it.
+yate.bind_key("<alt-h>", function(ctx)
+  -- Command callbacks are plain Lua closures: reuse them directly instead
+  -- of reaching back through the Python-side registry.
+  yate.message("Alt+H fired the lua extension! Try :lua-hello")
+end, "both")
+
+-- Load-time hint (this line demonstrates "top-level is setup": it runs
+-- while the script loads).
+yate.message("lua example extension loaded (trigger with :lua-hello or Alt+H)")
+
+-- Optional: define a global teardown(api) to release resources when yate
+-- exits (mirrors a Python extension's teardown(api)).  Uncomment when
+-- needed:
+-- teardown = function(api)
+--   -- release the resources held by this extension (subprocesses, timers, ...)
+-- end
+
+-- More things to try (advanced):
+--   yate.api.shell("git status")            -- use the raw bridge directly
+--   yate.lsp.register_server(...)           -- register a language server (keyword
+--                                           --   arguments cannot come from Lua;
+--                                           --   use yaterc's language_servers)
+--   yate.buffer().insert_text("hi")         -- insert text at the cursor

@@ -5,7 +5,8 @@
 yate 的扩展是任意一个暴露 `setup(api)` 函数的 `.py` 文件（可选提供
 `teardown(api)`）。`setup` 在应用启动时被调用，通过传入的 `api` 对象
 可以注册命令、动作、按键绑定、语言服务器，以及访问当前缓冲区、文档、
-工作区等运行时对象。
+工作区等运行时对象。Lua 同样受支持：`.lua` 脚本的顶层代码就是 setup
+（见第 6 节），前提是安装了可选的 `lupa` 桥（`pip install yate[lua]`）。
 
 本文件是扩展编写的完整参考；手册第 10.4 / 15 节是简介。
 
@@ -45,13 +46,15 @@ def setup(api):
    自动加载）：`example_ext.py.example`、tree-sitter grammar 模板
    `yatesh_syntax.py.example`，以及语法高亮模板 `batch_syntax.py.example`、
    `ini_syntax.py.example`、`fsharp_syntax.py.example`、
-   `git_syntax.py.example`、`diff_syntax.py.example`；
+   `git_syntax.py.example`、`diff_syntax.py.example`，以及 Lua 模板
+   `lua.example`；
 3. 默认目录：工作目录下的 `./extensions/` 与 `~/.yate/extensions/`
-   （启动时自动加载其中所有 `*.py`，下划线开头的文件跳过）。项目目录
+   （启动时自动加载其中所有 `*.py` 与 `*.lua`，下划线开头的文件跳过）。
+   项目目录
    只在**受信任工作区**中自动加载——见下文「工作区信任（:trust）」；
    用户目录始终加载；
 4. 命令行：`--ext <文件>` 加载单个文件，`--ext-dir <目录>` 加载目录下
-   所有 `*.py`（均可重复指定）。
+   所有 `*.py`/`*.lua`（均可重复指定）。
 
 加载顺序基本即上面的编号顺序，只有 `--ext-dir` 例外：这些目录**先于**两个
 默认目录加载，因此实际顺序是第 1 步 → 第 2 步 → `--ext-dir` → 第 3 步
@@ -81,7 +84,7 @@ cwd 无法按原样信任；yate 会提示
 
 ### 禁用随包默认扩展（disabled_extensions）
 
-在 yaterc 中按**文件名主干**（不含 `.py`）列出要跳过的随包扩展：
+在 yaterc 中按**文件名主干**（不含脚本后缀）列出要跳过的随包扩展：
 
 ```python
 disabled_extensions = ["python_lsp"]
@@ -500,3 +503,81 @@ def setup(api):
     api.bind_key("<alt-u>", lambda ctx: upper(""), keymap="both",
                  description="uppercase selection/line (extension)")
 ```
+
+---
+
+## 6. Lua 扩展
+
+`.lua` 扩展脚本与 Python 脚本走同一条加载管线（发现、排序、
+`disabled_extensions`、去重、工作区信任、回滚 scope 与 teardown），
+前提是安装了可选的桥接包：
+
+```
+pip install yate[lua]
+```
+
+未安装时，加载 `.lua` 扩展只会记录一条可操作的错误提示
+`lua extensions require the lupa package; install with: pip install yate[lua]`，
+其余一切照常工作。
+
+### Lua 扩展的形态
+
+Lua 惯例：chunk 的**顶层代码就是 setup**——没有 `setup(api)` 函数。
+可选的**全局** `teardown(api)` 函数对应 Python 的同名钩子：
+
+```lua
+-- ~/.yate/extensions/hello.lua
+local yate = require("yate")   -- 或直接使用全局 `yate`
+
+yate.register_command("lua-hello", function(args)
+  yate.message("hello from lua! args: " .. (args or ""))
+end, "greet from a lua extension")
+
+yate.bind_key("<alt-h>", function(ctx)
+  yate.message("Alt+H pressed")
+end, "both")                   -- 位置参数（Lua 没有 kwargs）
+
+-- 退出时的可选清理：
+-- teardown = function(api) ... end
+```
+
+错误不会导致编辑器崩溃：失败的 chunk 以
+`extension <名字>: LuaError: ...` 的形式上报，且它已经做出的全部注册
+会被自动回滚。命令/按键/动作回调在运行期抛出的错误同样会被捕获并按
+相同形式上报到消息栏，回调失败绝不会拖垮编辑器。
+
+### `yate` API 库
+
+内置库 `yate/extensions/_yate.lua` 被注入每个扩展的运行时：
+`require("yate")` 与全局 `yate` 是同一张模块表（下划线前缀使库本身
+不会被自动加载扫描命中）。
+
+| 函数 | 用途 |
+|---|---|
+| `yate.message(text)` | 在消息栏显示提示 |
+| `yate.register_command(name, fn, desc?)` | 注册 `:` 命令；`fn` 接收原始参数字符串 |
+| `yate.register_action(name, fn, desc?)` | 注册命名动作 |
+| `yate.bind_key(spec, fn, keymap?)` | 绑定按键（`"vsc"` / `"vim"` / `"both"`；默认 `"vsc"`） |
+| `yate.shell(cmd)` | 静默执行 shell 命令；返回 `ShellResult` 对象（读 `.output` / `.returncode`） |
+| `yate.open_path(path)` | 在编辑器中打开文件/目录 |
+| `yate.save()` | 保存当前文档 |
+| `yate.buffer()` / `yate.doc()` / `yate.workspace()` | 运行时对象（成员见 4.4 节） |
+| `yate.api` / `yate.highlight` / `yate.sprites` / `yate.lsp` / `yate.syntax` | 原始 Python 桥（高级用法） |
+
+### lupa 语义注意
+
+- 每个 `.lua` 扩展都有**独立的 Lua 运行时**；脚本之间看不到彼此的全局变量。
+- Python 对象从 Lua 侧用点号调用（`yate.api.buffer.get_text()`），
+  其**索引从 0 开始**：第一行缓冲区文本是 `yate.buffer().lines[0]`。
+- Lua 的长度操作符 `#` 不能用于 Python 对象；取 Python 列表长度请用桥
+  提供的 `python.builtins.len(list)`。
+- Lua 无法向 Python 传关键字参数——库函数全部按位置传参，省略的可选
+  参数回落到 Python 默认值。这也是 `bind_key` 额外接受位置形式的
+  `keymap` / `description` / `category` 的原因（Python 调用方不受影响）。
+- Python 字符串与 Lua 字符串双向无损转换。
+
+### 安装示例
+
+`yate --setup-defaults` 会把 `lua.example` 放入 `~/.yate/extensions/`；
+重命名它（如改为 `hello.lua`）即可激活，或直接阅读——它是一份带完整
+注释的入门教程。

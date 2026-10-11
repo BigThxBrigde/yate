@@ -28,6 +28,7 @@ TEMPLATE_RELS: list[str] = [
     "extensions/fsharp_syntax.py.example",
     "extensions/git_syntax.py.example",
     "extensions/ini_syntax.py.example",
+    "extensions/lua.example",
 ]
 
 

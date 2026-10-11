@@ -76,12 +76,12 @@ yate [path] [options]
 | `--keymap {vsc,vim,normal}` | Keymap for this session; `normal` is a compatibility alias for `vsc`. **Takes priority over yaterc** |
 | `--readonly` | Start in read-only mode: the file argument and every document opened during the session (`:e`, splits, the explorer, ...) refuses edits and saves until `:set readonly=false`; ignored when the argument is a directory |
 | `-u FILE` / `--yaterc FILE` | Load only this config file (vim-style `-u`); `-u NONE` skips config loading entirely |
-| `--ext FILE` | Load one Python extension script (repeatable) |
-| `--ext-dir DIR` | Load every `*.py` extension in a directory (repeatable) |
+| `--ext FILE` | Load one Python/Lua extension script (repeatable) |
+| `--ext-dir DIR` | Load every `*.py`/`*.lua` extension in a directory (repeatable) |
 | `--theme-dir DIR` | Load custom `*.py` color themes from a directory (repeatable; also accepts a single `*.py` file; defaults to `./themes` and `~/.yate/themes`); see section 10.3 |
 | `--theme NAME` | Color theme to start with (built-in or a registered custom theme); overrides the `theme` set in yaterc |
 | `--install-font` | Install the bundled Nerd Font for the current user (configures Windows Terminal when needed), then exit without entering the UI |
-| `--setup-defaults` | Create `~/.yate/`: install a default `yaterc` and drop the bundled theme/extension examples (`.example` suffix — rename to `.py` to activate) into `themes/` and `extensions/`, then exit; see section 10 |
+| `--setup-defaults` | Create `~/.yate/`: install a default `yaterc` and drop the bundled theme/extension examples (`.example` suffix — rename to `.py`/`.lua` to activate) into `themes/` and `extensions/`, then exit; see section 10 |
 | `--cleanup-defaults` | Remove that configuration (asks for confirmation on a terminal, `--force` when non-interactive; `data/` crash logs are kept by default), then exit |
 | `--force` | With `--setup-defaults`: replace an existing `yaterc` (backed up as `yaterc.yate-bak`); with `--cleanup-defaults`: skip the confirmation |
 | `--include-data` | With `--cleanup-defaults`: also delete the `~/.yate/data/` crash logs |
@@ -842,11 +842,12 @@ This creates `~/.yate/` and:
   as `yaterc.yate-bak`; if a backup already exists the earliest one is kept);
 - places the official theme/extension templates under `~/.yate/themes/` and
   `~/.yate/extensions/` **keeping the `.example` suffix** (Dracula/Ayu themes
-  and seven extension examples: batch, diff, fsharp, git, ini plus the
-  `example_ext` / `yatesh` walkthroughs). Startup scans load `*.py` only, so
-  **rename a template to `.py` to activate it** and delete it to deactivate;
+  and eight extension examples: batch, diff, fsharp, git, ini, the Lua
+  starter `lua` plus the `example_ext` / `yatesh` walkthroughs). Startup
+  scans load `*.py`/`*.lua`, so **rename a template to `.py` or `.lua` to
+  activate it** and delete it to deactivate;
 - the `*.example` templates are yate-managed and **refreshed on every setup
-  run** (e.g. on upgrade) -- customize the renamed `.py` copy, not the
+  run** (e.g. on upgrade) -- customize the renamed `.py`/`.lua` copy, not the
   `.example`;
 - does not create `data/` (crash diagnostics are generated on demand at the
   next launch).
@@ -986,14 +987,14 @@ syntax palette (`syn_keyword`/`syn_string`/`syn_number`/`syn_comment`/
 
 `extensions` accepts one path string or a list of paths; each entry may be:
 
-- **A directory**: every `*.py` inside is loaded (files starting with an
-  underscore are skipped);
-- **A `.py` file**: just that file.
+- **A directory**: every `*.py`/`*.lua` inside is loaded (files starting
+  with an underscore are skipped);
+- **A `.py`/`.lua` file**: just that file.
 
 ```python
 extensions = "~/.yate/myext.py"          # single file
 extensions = [
-    "~/.yate/extensions",                # directory: every .py inside
+    "~/.yate/extensions",                # directory: every .py/.lua inside
     "./tools/yate_exts",                 # relative: relative to this yaterc's directory
     "/opt/yate/extra.py",                # absolute
 ]
@@ -1272,6 +1273,14 @@ syntax-highlighting templates `batch_syntax.py.example` /
 `diff_syntax.py.example` show how `api.highlight.register` adds declarative
 highlighting for another language (e.g. Windows batch files), and
 `fsharp_syntax.py.example` demonstrates `api.syntax.register_tree_sitter`.
+
+Lua is supported as well: with the optional bridge installed
+(`pip install yate[lua]`), `.lua` scripts run through the same loader
+pipeline — the chunk's top-level code is the setup, an optional global
+`teardown(api)` mirrors the Python hook, and `require("yate")` exposes the
+bundled API library (`yate/extensions/_yate.lua`). `yate --setup-defaults`
+drops the fully commented `lua.example` template into
+`~/.yate/extensions/`.
 
 > For the full extension API reference (commands, actions, key bindings,
 > buffer/doc/workspace access, LSP registration, custom syntax highlighting
