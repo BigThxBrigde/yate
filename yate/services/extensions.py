@@ -543,9 +543,9 @@ class ExtensionAPI:
 @dataclass
 class LoadedExtension:
     """Record of one extension discovered on disk.
-
     A healthy load fills ``module`` and ``teardown`` and leaves ``error``
-    ``None``; any failure stores the exception summary there.
+    ``None``; any failure stores the exception summary there.  ``lua``
+    records keep ``module`` ``None`` (Lua extensions carry no Python module).
     """
 
     name: str
