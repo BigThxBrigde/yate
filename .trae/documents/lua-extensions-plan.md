@@ -102,9 +102,13 @@
 
 - **输入**：步骤 0 探针结论。
 - **改动**（新文件，预计 <200 行，遵守 python-coding-style 全部硬规则）：
-  - 模块级惰性 lupa 导入探测：`is_lua_available() -> bool`（import 失败返回 False，
-    不抛出；模块顶层不 import lupa——保证未装 lupa 的安装 `import yate.services.extensions`
-    仍零负担）。
+  - 模块级惰性 lupa 导入探测：`is_lua_available() -> bool`（`importlib.util.find_spec`
+    判存在；import 失败返回 False，不抛出）。lupa 符号获取走
+    `importlib.import_module("lupa")`（探针结论 1 的落地：**动态导入天然绕开
+    reportMissingTypeStubs**，配合边界处显式 `Any` 注解 + `# noqa: Any - lupa
+    ships no stubs` 理由注释——`pack/_common.py` 同款先例——**全文件零
+    pyright ignore**）。模块顶层不静态 import lupa——保证未装 lupa 的安装
+    `import yate.services.extensions` 仍零负担。
   - `create_runtime(api: object, library_source: str) -> LuaRuntime`：每扩展一个
     `LuaRuntime`（脚本间隔离），`unpack_returned_tuples=True`；设全局 `api`
     （具体 `ExtensionAPI` 对象，lupa 包装）、以 Lua 原生 `assert(load(src, chunkname))`
@@ -265,10 +269,72 @@
 10. Python 函数默认参数支持 Lua 位置子集调用（`reg('n', fn)` → 第 3 参取默认值）。
 11. cp313 Windows wheel 安装顺畅（lupa 2.8），风险表中"wheel 不可用"解除。
 
-### 实测门禁结果
+### 实测门禁结果（2026-10-11，worktree `D:\Programming\yate-lua-extensions` venv）
 
-（待收尾回填）
+- `python -m pyright yate/ tests/ tools/` → `0 errors, 0 warnings, 0 informations`，
+  退出码 0；
+- `python -m pytest tests/ -q` → 全绿，退出码 0（skip 均为既有平台/可选依赖标记）；
+- `python -m pytest tests/test_architecture.py -q` → **29 passed**，退出码 0
+  （规则文档 "28 passed" 为 2026-10-09 快照；本分支未改动
+  `tests/test_architecture.py`，第 29 个用例来自基线演进）。
+
+各步骤独立验收（pyright 对应文件零诊断 + 对应测试文件全绿）均通过后才提交，
+提交链：`43c5578` → `7e19678` → `50244e1` → `929e743` → `8ebe7ee` →
+`92dd3e1` → `ef38198`（docs）→ `bd59115`（test 守卫对齐）。
 
 ### 偏离记录
 
-（待收尾回填）
+1. **执行期 Lua 5.5 / lupa 2.8 语义**（步骤 4 实测，实现按实测调整）：
+   - `package.preload` 条目必须是**可调用 loader**（直接放模块表
+     require 报 "attempt to call a table value"）→ `create_runtime` 把编译后的
+     库 chunk 本身注册为 preload，再 `require("yate")` 一次；
+   - Lua 5.5 `require` 返回两个值（module + stop），经
+     `unpack_returned_tuples=True` 到 Python 是 tuple → 以 Lua 括号截断赋值
+     `yate = (require("yate"))`；
+   - 同 runtime 上 stale `teardown` 全局会泄漏 → `run_extension` 执行 chunk 前
+     先 `teardown = nil`；
+   - Lua 长度操作符 `#` 不支持 Python 对象（"attempt to get length of a
+     POBJECT value"）→ 示例与文档改用 `python.builtins.len(list)`。
+   - 探针结论 1 的旧措辞为 `# pyright: ignore[...]`；任务书定案为
+     `# noqa: Any - lupa ships no stubs` + importlib 动态导入
+     （动态导入天然绕开 reportMissingTypeStubs，全文件零 pyright ignore），
+     实现以任务书为准。
+2. **`tests/test_user_setup.py`**（步骤 5 计划外，随 `8ebe7ee` 提交）：
+   `TEMPLATE_RELS` 追加 `"extensions/lua.example"`（真实资源版测试
+   `test_creates_layout_from_scratch_with_real_resources` 否则失败）；
+   `format_setup_report` 激活提示补 "(or *.lua)"。
+3. **`tests/test_pack_spec.py`**（步骤 8 全量门禁暴露，计划外，`bd59115`）：
+   - `_yate_sources()` 原以 `*.example` 通配收集并 Python `ast.parse`，其前提
+     "所有 `.example` 模板都是 Python 源"被 `lua.example` 打破（SyntaxError）
+     → 收集改为 Python 语义白名单（`*.py.example` + `yaterc.example` +
+     `theme_examples/*.example`），docstring 说明 `lua.example` 是 Lua chunk、
+     永不经 Python compile/exec，Python import 扫描不适用；
+   - `_REVIEWED_DYNAMIC_IMPORTS` 登记
+     `services/lua_extensions.py:importlib.import_module('lupa')`（该守卫的
+     正规评审流程；理由：lupa-less 安装零导入负担 + pyright 零 stub 依赖）。
+4. **文档最小一致性修正**（步骤 7，`ef38198`，超出计划字面清单）：
+   manual.en/zh 的 `--ext` / `--ext-dir` 命令行表格行与 10.4 示例注释原写
+   Python-only / `*.py`，与 loader 实际行为（单文件与目录均接受 `.lua`）不符，
+   同步改为 `*.py`/`*.lua`，避免文档自相矛盾。
+
+### 评审与迭代（闭环步骤 5-6，2026-10-11）
+
+- code-review-expert 评审（范围 `135747a..bd59115` + 未提交回填）：**1 blocker +
+  2 minor + 2 nit**；门禁五项实测通过（pyright 0 诊断 / pytest 全绿 /
+  覆盖率 91.58% ≥ 75 / 定向 85 passed / 冒烟）。
+- **blocker F1**（`090eaea` 修复）：`_yate.lua` 的 `bind_key` 包装把缺省 keymap
+  以 Lua `nil` → Python `None` 原样转发，`keymaps.get(None)` 静默不绑定（与
+  S34 同类）。修复为 `keymap or "vsc"` + 回归用例
+  `test_lua_bind_key_two_args_defaults_to_vsc`；`register_command` /
+  `register_action` 因 Python 侧 `description or ...` 兜底经实证安全。
+- **minor**：test_pack_spec 白名单补完备性断言（`b0f4791`，新 `.example` 模板
+  未入扫描即失败）；`LoadedExtension` docstring 净零行补 `.lua` 形态
+  （`85cb918`，extensions.py 最终 **798 行** < 800）。
+- **nit 登记（未改）**：lua_extensions.py 两条防御性错误路径未覆盖
+  （覆盖率 91%：`find_spec` 异常分支 / `_yate.lua` 不可读 fail-fast 分支）；
+  extensions.py 距 A11 阈值仅 2 行余量，下次特性改动前宜先做低成本拆分
+  （如 `load_startup_extensions` 迁出姊妹模块）。
+- **复测（主代理亲跑，2026-10-11）**：pyright `0 errors, 0 warnings,
+  0 informations`（退出码 0）；`pytest tests/ -q` 全绿（退出码 0）；
+  `pytest tests/test_architecture.py -q` 全绿（29 用例）。评审迭代后
+  无 blocker / major，达到收尾标准。
