@@ -8,10 +8,11 @@ Requires the optional dependency: pip install yate[lua]
 
 Lua extensions have no setup(api) function: **the file's top-level code
 is the setup** and runs at load time; an optional global ``teardown``
-function is called when yate exits.  Any error in the script never
-crashes the editor -- it is reported on the message line as
-``extension <name>: ...`` and everything the script registered is rolled
-back automatically.
+function is called when yate exits.  Errors never crash the editor:
+load-time failures are reported on the message line as
+``extension <name>: ...`` with everything already registered rolled
+back, and runtime errors inside command/key/action callbacks are caught
+and reported the same way.
 ]]
 
 -- Grab yate's built-in API library (require("yate") and the global yate
@@ -22,14 +23,18 @@ back automatically.
 local yate = require("yate")
 
 -- Register the :lua-hello command: reports the current document's line
--- count, first line and the command arguments.  Two things to note:
--- Python lists are 0-based (buf.lines[0] is the first line), and Lua's
+-- count, first line and the command arguments.  Three things to note:
+-- Python lists are 0-based (buf.lines[0] is the first line); Lua's
 -- length operator # does not work on Python objects -- take lengths with
--- python.builtins.len instead.
+-- python.builtins.len instead; and indexing an empty Python list raises
+-- IndexError (it does not yield nil), so guard before reading lines[0].
 yate.register_command("lua-hello", function(args)
   local buf = yate.buffer()
   local total = python.builtins.len(buf.lines)
-  local first = buf.lines[0] or ""
+  local first = ""
+  if total > 0 then
+    first = buf.lines[0] or ""
+  end
   yate.message(string.format("lua-hello! %d lines in total, first: %s; args: %s",
                              total, first, args or ""))
 end, "greet from a lua extension")

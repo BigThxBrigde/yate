@@ -585,7 +585,9 @@ end, "both")                   -- positional args (Lua has no kwargs)
 
 Errors never crash the editor: a failing chunk is reported as
 `extension <name>: LuaError: ...` and every registration it already made is
-rolled back automatically.
+rolled back automatically. Runtime errors raised inside a command, key or
+action callback are caught too and reported on the message line the same
+way, so a failing callback never takes the editor down.
 
 ### The `yate` API library
 

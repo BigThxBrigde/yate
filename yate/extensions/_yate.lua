@@ -33,7 +33,10 @@ Bridging notes (lupa semantics):
   attributes from Lua;
 * Registration calls happen at load time; the commands/keys/actions
   registered by a script that later fails are rolled back automatically,
-  never leaving half-registered state behind.
+  never leaving half-registered state behind;
+* Runtime errors raised inside a command/key/action callback are caught
+  and reported on the message line the same way -- a failing callback
+  never takes the editor down.
 
 Exported functions (see each function's comment for details):
 
