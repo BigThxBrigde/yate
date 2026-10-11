@@ -1,52 +1,62 @@
 --[[
-yate Lua 扩展示例（lua.example）
+yate Lua extension example (lua.example)
 
-用法：把本文件复制到一个扩展目录（推荐 ~/.yate/extensions/），改名为
-``<名字>.lua``（例如 ``hello.lua``），重启 yate 即自动加载。
-需要可选依赖：pip install yate[lua]
+Usage: copy this file into an extension directory (recommended:
+~/.yate/extensions/), rename it to ``<name>.lua`` (for example
+``hello.lua``) and restart yate; it is loaded automatically.
+Requires the optional dependency: pip install yate[lua]
 
-Lua 扩展没有 setup(api) 函数：**文件的顶层代码就是 setup**，加载时直接
-执行；可选的全局 ``teardown`` 函数在 yate 退出时调用。脚本里的任何错误
-都不会让编辑器崩溃，只会以 ``extension <名字>: ...`` 显示在消息栏，且
-已注册的命令/按键会被自动回滚。
+Lua extensions have no setup(api) function: **the file's top-level code
+is the setup** and runs at load time; an optional global ``teardown``
+function is called when yate exits.  Any error in the script never
+crashes the editor -- it is reported on the message line as
+``extension <name>: ...`` and everything the script registered is rolled
+back automatically.
 ]]
 
--- 拿到 yate 内置 API 库（require("yate") 与全局 yate 是同一张表，二选一）。
--- 库源码见包内 _yate.lua：message / register_command / register_action /
--- bind_key / shell / open_path / save / buffer / doc / workspace，以及
--- api / highlight / sprites / lsp / syntax 原始桥直通。
+-- Grab yate's built-in API library (require("yate") and the global yate
+-- are the same table; pick either).  The library source lives in the
+-- package as _yate.lua: message / register_command / register_action /
+-- bind_key / shell / open_path / save / buffer / doc / workspace, plus
+-- the raw bridge passthroughs api / highlight / sprites / lsp / syntax.
 local yate = require("yate")
 
--- 注册 :lua-hello 命令：汇报当前文档行数、第一行内容与命令参数。
--- 注意两点：Python 列表 0 基索引（buf.lines[0] 是第一行）；
--- Lua 的长度操作符 # 不能用于 Python 对象，长度要用 python.builtins.len。
+-- Register the :lua-hello command: reports the current document's line
+-- count, first line and the command arguments.  Two things to note:
+-- Python lists are 0-based (buf.lines[0] is the first line), and Lua's
+-- length operator # does not work on Python objects -- take lengths with
+-- python.builtins.len instead.
 yate.register_command("lua-hello", function(args)
   local buf = yate.buffer()
   local total = python.builtins.len(buf.lines)
   local first = buf.lines[0] or ""
-  yate.message(string.format("lua-hello! 共 %d 行，第一行：%s；参数：%s",
+  yate.message(string.format("lua-hello! %d lines in total, first: %s; args: %s",
                              total, first, args or ""))
 end, "greet from a lua extension")
 
--- 绑定 Alt+H（第 3 个位置参数 "both" = vsc 与 vim 两套键位同时绑定；
--- 省略则默认 "vsc"）。回调接收一个 ActionContext，可以忽略。
+-- Bind Alt+H (the 3rd positional argument "both" binds the vsc and vim
+-- keymaps at once; omit it to default to "vsc").  The callback receives
+-- an ActionContext and may ignore it.
 yate.bind_key("<alt-h>", function(ctx)
-  -- 命令回调可以直接复用：Python 侧注册表里拿不到，就在 Lua 闭包里存一份。
-  yate.message("Alt+H 触发了 lua 扩展！试试 :lua-hello")
+  -- Command callbacks are plain Lua closures: reuse them directly instead
+  -- of reaching back through the Python-side registry.
+  yate.message("Alt+H fired the lua extension! Try :lua-hello")
 end, "both")
 
--- 加载期提示（这一行就是"顶层即 setup"的体现：脚本加载时立即执行）。
-yate.message("lua 扩展示例已加载（:lua-hello 或 Alt+H 触发）")
+-- Load-time hint (this line demonstrates "top-level is setup": it runs
+-- while the script loads).
+yate.message("lua example extension loaded (trigger with :lua-hello or Alt+H)")
 
--- 可选：定义全局 teardown(api) 在 yate 退出时清理资源（等价于 Python
--- 扩展的 teardown(api)）。需要时去掉注释：
+-- Optional: define a global teardown(api) to release resources when yate
+-- exits (mirrors a Python extension's teardown(api)).  Uncomment when
+-- needed:
 -- teardown = function(api)
---   -- 释放本扩展持有的资源（子进程、定时器等）
+--   -- release the resources held by this extension (subprocesses, timers, ...)
 -- end
 
--- 更多玩法提示（高级用法）：
---   yate.api.shell("git status")            -- 直接用原始桥
---   yate.lsp.register_server(...)           -- 注册语言服务器（keyword 参数
---                                           --   无法从 Lua 传入，改用
---                                           --   yaterc 的 language_servers）
---   yate.buffer().insert_text("hi")         -- 在光标处插入文本
+-- More things to try (advanced):
+--   yate.api.shell("git status")            -- use the raw bridge directly
+--   yate.lsp.register_server(...)           -- register a language server (keyword
+--                                           --   arguments cannot come from Lua;
+--                                           --   use yaterc's language_servers)
+--   yate.buffer().insert_text("hi")         -- insert text at the cursor
