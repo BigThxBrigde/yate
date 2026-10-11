@@ -203,6 +203,35 @@
 
 ## 九、执行记录（回填区）
 
-- Wave A：待执行。
-- Wave B：待评审。
-- Wave C：待收尾。
+- **Wave A**（plan-executor 执行，2026-10-11）：8 个独占文件全部按 §四完成；
+  四文件最终行数 82 / 303 / 221 / 293（`splitlines()` 口径，均 <800）。
+  逐字性独立复核：主代理以 `git show HEAD:yate/services/extensions.py` 对
+  9 个迁移块做 difflib 比对——7 块 IDENTICAL，ExtAPI 块唯一差异即 §4.2 批准的
+  rollback_scope docstring 自引改名，Loader 块差异仅为比对取行界时的首尾空行
+  （块内容逐字）。**偏离记录 1 处**：extension_api.py 的 registries 导入补入
+  `ActionRegistry` / `CommandRegistry`——§4.2 import 清单漏列，但逐字迁入的
+  `ExtensionContext` 字段注解（原 L110-111）必需，pyright strict 强制；
+  纯导入补全、零语义影响。
+- **Wave B**（code-review-expert 评审，2026-10-11）：**0 blocker / 0 major /
+  1 SUGGESTION**。SUGGESTION：extension_api.py 原 L84 的
+  `` :meth:`ExtensionLoader.load_file` `` 短式 docstring 交叉引用在拆分后
+  于本模块命名空间不可解析（与 §4.2 同类，方案遗漏枚举）——当场修复为
+  Sphinx 全限定写法 `` :meth:`ExtensionLoader.load_file
+  <yate.services.extension_loader.ExtensionLoader.load_file>` ``（零运行时影响，
+  仅 +2 行 docstring，303 行仍 <800）；修复后评审复测门禁全过。
+- **Wave C**（主代理亲跑全量门禁，2026-10-11，均为实测退出码）：
+
+  | 门禁 | 结果 | 退出码 |
+  |---|---|---|
+  | `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations | 0 |
+  | `pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75` | 2126 passed, 9 skipped，覆盖率 **91.59%**（基线 91.58%，+0.01） | 0 |
+  | `pytest tests/test_architecture.py -q` | 29 用例全过（进度 29 点 + `[100%]`） | 0 |
+  | 门面 13 名导入冒烟 | `facade surface OK` | 0 |
+  | 行数复查 | 82 / 303 / 221 / 293，均 <800 | — |
+
+  注记：`pytest tests/test_architecture.py -q` 因 pyproject `addopts = "-q"`
+  叠加为双 `-q`，仅输出进度点与退出码、无 `29 passed` 摘要行——非异常。
+- **提交序列**：780d537 `docs(plan): add extensions-split plan` →
+  1c1644f `refactor(extensions): split service into api, bridges and loader modules`
+  → 本回填 `docs(plan): backfill extensions-split execution results`。
+  分支 `ref/extensions-split` 共 3 提交，未推送（推送须用户显式要求）。
