@@ -165,12 +165,26 @@ def _yate_sources() -> list[Path]:
     does not apply to it.
     """
     package = _REPO_ROOT / "yate"
-    return sorted({
+    sources = sorted({
         *package.rglob("*.py"),
         *package.rglob("*.py.example"),
         *package.rglob("yaterc.example"),
         *(package / "resources" / "theme_examples").glob("*.example"),
     })
+    # Completeness guard: every shipped ``*.example`` template must be in
+    # this scan except the Lua one -- a new Python-semantics template whose
+    # suffix this list does not name would otherwise silently escape the
+    # Python import scan.
+    scanned = set(sources)
+    exempt = {Path("extensions") / "lua.example"}
+    for template in package.rglob("*.example"):
+        if template.relative_to(package) in exempt:
+            continue  # Lua chunk, compiled by lupa -- never by Python
+        assert template in scanned, (
+            f"{template} ships as an .example template but is not collected "
+            "by _yate_sources(); add it to the scan or justify the exemption"
+        )
+    return sources
 
 
 def _calls(tree: ast.Module, callee: str) -> list[ast.Call]:
