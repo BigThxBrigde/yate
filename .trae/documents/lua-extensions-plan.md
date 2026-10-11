@@ -338,3 +338,40 @@
   0 informations`（退出码 0）；`pytest tests/ -q` 全绿（退出码 0）；
   `pytest tests/test_architecture.py -q` 全绿（29 用例）。评审迭代后
   无 blocker / major，达到收尾标准。
+
+---
+
+## 十、2026-10-11 追加轮：Lua 注释英文化 + 评审修复（issue 后续，用户指令）
+
+**任务**：① `_yate.lua` / `lua.example` 注释与示例文案英文化；② 新增规则
+「代码注释与代码内注解文档一律英文」（misc-rules.md §四）；③ code-review-expert
+审核结构 / 潜在 bug / 文档完整性。
+
+**提交**：`eeb6134` docs(rules) → `3966fed` docs(extensions) 翻译 →
+本轮修复提交（见下）。
+
+**评审结论（首轮）**：0 blocker / 2 major / 1 minor，门禁全绿。
+
+- **major-1**：lua.example 声明"任何错误不会崩溃编辑器"仅在加载期成立——
+  运行期命令/按键/动作回调异常经 `editor.py:891` / `commandline.py:369` /
+  `keymaps/base.py:316` 裸派发，LuaError 直透 Textual 会崩溃整个 app。
+  **修复**（取评审给出的方案 a，收口在 ExtensionAPI 注册面而非改派发层）：
+  `extension_api.py` 新增 `_guarded_callback(what, func)`，四个注册点
+  （`register_action` / `command` 装饰器 / `register_command` / `bind_key`）
+  统一包装——运行期异常按 loader 同款格式 `extension <what>: <Exc>: <msg>`
+  上消息栏并 `log.exception` 留全栈；内置命令不走 ExtensionAPI，零影响。
+  新增 3 个护栏用例（action / command / binding 各一）。
+- **major-2**：`buf.lines[0] or ""` 空值守卫无效——lupa 2.8 实测空 Python
+  list 索引抛 `IndexError` 而非返回 nil。**修复**：示例加 `if total > 0 then`
+  守卫并把该语义写进注释。
+- **minor**：`extension_api.py` bind_key docstring 称 Lua 库五参调用，实际
+  `_yate.lua` 三参——改为 `bind_key(spec, fn, keymap)`。
+- **文档同步**：`extensions.en.md` / `extensions.zh.md` 错误契约段补运行期
+  回调护栏一句（双语镜像）；`_yate.lua` 头注补同款声明。
+
+**复测（主代理亲跑，2026-10-11）**：pyright `0 errors`（退出码 0）；
+`pytest tests -q` 全绿 **2129 passed, 9 skipped**（退出码 0）；
+覆盖率 **91.59%** ≥ 75（退出码 0）。
+
+**遗留登记**：评审 minor 之外无遗留；`ref/extensions-split` 轮已提前消化
+"extensions.py 临阈值" nit（见 extensions-split-plan.md）。

@@ -363,8 +363,14 @@ def test_teardown_skipped_when_setup_failed(
 # --- setup rollback scope (audit A13) ----------------------------------------
 
 
-def _real_extension_api() -> tuple[ExtensionAPI, ActionRegistry, CommandRegistry, KeymapSet]:
-    """An ExtensionAPI over *real* registries and keymaps (rollback tests)."""
+def _real_extension_api(
+    messages: list[str] | None = None,
+) -> tuple[ExtensionAPI, ActionRegistry, CommandRegistry, KeymapSet]:
+    """An ExtensionAPI over *real* registries and keymaps (rollback tests).
+
+    *messages*, when given, collects everything the API reports on the
+    message line.
+    """
     session = EditorSession(YateConfig())
     session.new_buffer()
     keymaps = KeymapSet({"vsc": Keymap(), "vim": Keymap()}, "vsc")
@@ -377,7 +383,8 @@ def _real_extension_api() -> tuple[ExtensionAPI, ActionRegistry, CommandRegistry
         keymaps=keymaps,
         actions=actions,
         commands=commands,
-        message=lambda _text: None,
+        message=(lambda text: messages.append(text)) if messages is not None
+        else (lambda _text: None),
         run_shell=lambda _command, _show: None,
         open_path=lambda _path: None,
         save=lambda: None,
@@ -466,3 +473,58 @@ def test_successful_setup_keeps_registrations(tmp_path: Path) -> None:
     vsc = keymaps.get("vsc")
     assert vsc is not None
     assert vsc.lookup(parse_key("<ctrl-u>")) is not None
+
+
+# --- callback error guard (runtime failures report, never crash) --------------
+
+
+def test_failing_action_callback_reports_and_does_not_raise() -> None:
+    """A runtime error in a registered action reports, never propagates."""
+    messages: list[str] = []
+    api, actions, _commands, _keymaps = _real_extension_api(messages)
+
+    def boom(_ctx: object) -> None:
+        raise ValueError("kaboom")
+
+    api.register_action("boom", boom)
+    registered = actions.get("boom")
+    assert registered is not None
+    registered.func(cast(Any, MagicMock()))  # must not raise
+
+    assert messages == ["extension action boom: ValueError: kaboom"]
+
+
+def test_failing_command_callback_reports_and_does_not_raise() -> None:
+    """A runtime error in a ``:`` command reports, never propagates."""
+    messages: list[str] = []
+    api, _actions, commands, _keymaps = _real_extension_api(messages)
+
+    @api.command("boom")
+    def boom(_args: str) -> None:
+        raise ValueError("kaboom")
+
+    registered = commands.get("boom")
+    assert registered is not None
+    registered[0]("")  # must not raise
+
+    assert messages == ["extension command boom: ValueError: kaboom"]
+
+
+def test_failing_key_binding_callback_reports_and_does_not_raise() -> None:
+    """A runtime error in a key binding reports, never propagates."""
+    messages: list[str] = []
+    api, _actions, _commands, keymaps = _real_extension_api(messages)
+
+    def boom(_ctx: object) -> None:
+        raise ValueError("kaboom")
+
+    api.bind_key("<ctrl-u>", boom)
+    vsc = keymaps.get("vsc")
+    assert vsc is not None
+    binding = vsc.lookup(parse_key("<ctrl-u>"))
+    assert binding is not None
+    action = binding.action  # str | ActionFunc: narrow before calling
+    assert callable(action)
+    action(cast(Any, MagicMock()))  # must not raise
+
+    assert messages == ["extension binding <ctrl-u>: ValueError: kaboom"]

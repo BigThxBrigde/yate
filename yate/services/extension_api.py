@@ -200,10 +200,34 @@ class ExtensionAPI:
 
     # ------------------------------------------------------------ registrars
 
+    def _guarded_callback(self, what: str, func: AnyCallback) -> AnyCallback:
+        """Wrap a user callback so a runtime failure reports, never crashes.
+
+        Load-time failures are already contained by the loader's rollback
+        scope; callbacks keep running long after ``setup`` returned, so a
+        raise inside one would otherwise propagate into dispatch code and
+        take the whole app down.  The wrapper mirrors the loader's error
+        shape (``extension <what>: <Exc>: <msg>``) on the message line and
+        logs the full traceback.
+        """
+
+        def guarded(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except Exception as exc:  # noqa: BLE001 - user code, never crash the app
+                log.exception("extension %s callback failed", what)
+                self._ctx.message(f"extension {what}: {type(exc).__name__}: {exc}")
+
+        return guarded
+
     def register_action(self, name: str, func: AnyCallback, description: str = "") -> None:
         """Register a named action (usable from key maps / commands)."""
         self._record_action_snapshot(name)
-        self._ctx.actions.register(name, func, description=description or "extension action")
+        self._ctx.actions.register(
+            name,
+            self._guarded_callback(f"action {name}", func),
+            description=description or "extension action",
+        )
 
     def bind_key(  # noqa: Any - extension-supplied callbacks, untyped boundary
         self,
@@ -221,8 +245,8 @@ class ExtensionAPI:
         registered names.  The parameters after *callback* also accept
         positional arguments: Lua extension scripts cannot pass keyword
         arguments through the lupa bridge, so the Lua API library calls
-        this as ``bind_key(spec, fn, keymap, description, category)``;
-        Python callers keep using keywords.
+        this as ``bind_key(spec, fn, keymap)``; Python callers keep using
+        keywords.
         """
 
         def _do(func: AnyCallback) -> AnyCallback:
@@ -259,7 +283,10 @@ class ExtensionAPI:
                             )
 
                     self._scope.append(undo)
-                km.add_binding(key_spec, func, description, category)
+                km.add_binding(
+                    key_spec, self._guarded_callback(f"binding {key_spec}", func),
+                    description, category,
+                )
             return func
 
         return _do(callback) if callback is not None else _do
@@ -274,7 +301,9 @@ class ExtensionAPI:
 
         def _decorator(func: CommandFunc) -> CommandFunc:
             self._record_command_snapshot(name)
-            self._ctx.commands.register(name, func, description)
+            self._ctx.commands.register(
+                name, self._guarded_callback(f"command {name}", func), description
+            )
             return func
 
         return _decorator
@@ -282,7 +311,11 @@ class ExtensionAPI:
     def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
         """Register a ``:`` command (the non-decorator form)."""
         self._record_command_snapshot(name)
-        self._ctx.commands.register(name, func, description or "extension command")
+        self._ctx.commands.register(
+            name,
+            self._guarded_callback(f"command {name}", func),
+            description or "extension command",
+        )
 
     # -------------------------------------------------------------- services
 
