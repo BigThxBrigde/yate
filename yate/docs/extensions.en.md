@@ -6,7 +6,9 @@ A yate extension is any `.py` file that exposes a `setup(api)` function (and
 optionally a `teardown(api)`). `setup` is called at application startup;
 through the `api` object it receives, an extension can register commands,
 actions, key bindings and language servers, and access runtime objects such as
-the active buffer, document and workspace.
+the active buffer, document and workspace. Lua is supported too: a `.lua`
+script's top-level code is the setup (see section 6), provided the optional
+`lupa` bridge is installed (`pip install yate[lua]`).
 
 This file is the complete extension-writing reference; sections 10.4 / 15 of
 the manual are a short introduction.
@@ -51,14 +53,15 @@ absolute path** (a script hit by several sources still runs exactly once):
    tree-sitter grammar template `yatesh_syntax.py.example`, and
    syntax-highlighting templates `batch_syntax.py.example`,
    `ini_syntax.py.example`, `fsharp_syntax.py.example`,
-   `git_syntax.py.example` and `diff_syntax.py.example`;
+   `diff_syntax.py.example`, `git_syntax.py.example`, and the Lua template
+   `lua.example`;
 3. Default directories: `./extensions/` in the working directory and
-   `~/.yate/extensions/` (every `*.py` inside is auto-loaded at startup,
-   files starting with an underscore are skipped). The project directory
-   only auto-loads in a **trusted workspace** -- see "Workspace trust"
+   `~/.yate/extensions/` (every `*.py` and `*.lua` inside is auto-loaded at
+   startup, files starting with an underscore are skipped). The project
+   directory only auto-loads in a **trusted workspace** -- see "Workspace trust"
    below; the user directory always loads;
 4. Command line: `--ext <file>` loads a single file, `--ext-dir <dir>` loads
-   every `*.py` in a directory (both repeatable).
+   every `*.py`/`*.lua` in a directory (both repeatable).
 
 Load order is the numbering above **except** for `--ext-dir`: those directories
 load *before* the two default directories, so the real sequence is step 1 →
@@ -92,8 +95,8 @@ deliberate user actions and always load.
 
 ### Disabling bundled defaults (disabled_extensions)
 
-List the stems (file names without `.py`) of bundled extensions to skip in
-yaterc:
+List the stems (file names without the script suffix) of bundled extensions
+to skip in yaterc:
 
 ```python
 disabled_extensions = ["python_lsp"]
@@ -541,3 +544,84 @@ def setup(api):
     api.bind_key("<alt-u>", lambda ctx: upper(""), keymap="both",
                  description="uppercase selection/line (extension)")
 ```
+
+---
+
+## 6. Lua extensions
+
+`.lua` extension scripts run on the same loader pipeline as Python ones
+(discovery, sorting, `disabled_extensions`, dedup, workspace trust, rollback
+scope and teardown) once the optional bridge package is installed:
+
+```
+pip install yate[lua]
+```
+
+Without it, loading a `.lua` extension records the actionable error
+`lua extensions require the lupa package; install with: pip install yate[lua]`
+and everything else keeps working.
+
+### Shape of a Lua extension
+
+Lua idiom: the chunk's **top-level code is the setup** -- there is no
+`setup(api)` function. An optional **global** `teardown(api)` function
+mirrors the Python hook:
+
+```lua
+-- ~/.yate/extensions/hello.lua
+local yate = require("yate")   -- or just use the global `yate`
+
+yate.register_command("lua-hello", function(args)
+  yate.message("hello from lua! args: " .. (args or ""))
+end, "greet from a lua extension")
+
+yate.bind_key("<alt-h>", function(ctx)
+  yate.message("Alt+H pressed")
+end, "both")                   -- positional args (Lua has no kwargs)
+
+-- optional cleanup on exit:
+-- teardown = function(api) ... end
+```
+
+Errors never crash the editor: a failing chunk is reported as
+`extension <name>: LuaError: ...` and every registration it already made is
+rolled back automatically.
+
+### The `yate` API library
+
+The bundled library `yate/extensions/_yate.lua` ships into every extension's
+runtime: `require("yate")` and the global `yate` are the same module table
+(the underscore prefix keeps the library out of the auto-load scan).
+
+| Function | Purpose |
+|---|---|
+| `yate.message(text)` | show a hint on the message line |
+| `yate.register_command(name, fn, desc?)` | register a `:` command; `fn` receives the raw argument string |
+| `yate.register_action(name, fn, desc?)` | register a named action |
+| `yate.bind_key(spec, fn, keymap?)` | bind a key (`"vsc"` / `"vim"` / `"both"`; default `"vsc"`) |
+| `yate.shell(cmd)` | run a shell command silently; returns the `ShellResult` object (read `.output` / `.returncode`) |
+| `yate.open_path(path)` | open a file/folder in the editor |
+| `yate.save()` | save the active document |
+| `yate.buffer()` / `yate.doc()` / `yate.workspace()` | runtime objects (members see section 4.4) |
+| `yate.api` / `yate.highlight` / `yate.sprites` / `yate.lsp` / `yate.syntax` | raw Python bridges (advanced use) |
+
+### lupa semantics to keep in mind
+
+- Every `.lua` extension gets its **own Lua runtime**; scripts cannot see
+  each other's globals.
+- Python objects are called with a dot from Lua
+  (`yate.api.buffer.get_text()`), and their **indices are 0-based**: the
+  first buffer line is `yate.buffer().lines[0]`.
+- Lua's length operator `#` does not work on Python objects; take a Python
+  list's length with the bridge-provided `python.builtins.len(list)`.
+- Lua cannot pass keyword arguments to Python -- every library function is
+  positional and omitted optional arguments fall back to the Python
+  defaults. This is why `bind_key` also accepts `keymap` / `description` /
+  `category` positionally (Python callers are unaffected).
+- Python strings arrive as Lua strings and vice versa, losslessly.
+
+### Installing the example
+
+`yate --setup-defaults` places `lua.example` into `~/.yate/extensions/`;
+rename it (e.g. to `hello.lua`) to activate it, or just read it -- it is a
+fully commented walkthrough.

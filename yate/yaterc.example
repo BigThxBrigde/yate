@@ -95,12 +95,15 @@ use_spaces = True
 # disabled_extensions = ["python_lsp"]
 #
 # Extra extension scripts to load at startup. A path string or a list of
-# paths; each entry is either a directory (all *.py inside are loaded) or a
-# single .py file exposing setup(api). "~" is expanded; relative paths
-# resolve against this yaterc file's own directory. Entries from the user
-# rc and project rc accumulate; duplicates are loaded only once.
-# yate/extensions/example_ext.py.example is a copy-and-rename template
-# (drop the .example suffix); ./extensions and ~/.yate/extensions are also
+# paths; each entry is either a directory (all *.py and *.lua inside are
+# loaded) or a single .py/.lua file exposing setup(api). "~" is expanded;
+# relative paths resolve against this yaterc file's own directory. Entries
+# from the user rc and project rc accumulate; duplicates are loaded only
+# once.
+# yate/extensions/example_ext.py.example and the Lua starter
+# yate/extensions/lua.example are copy-and-rename templates (drop the
+# .example suffix; .lua scripts additionally need the optional bridge,
+# pip install yate[lua]); ./extensions and ~/.yate/extensions are also
 # scanned automatically.
 #
 # extensions = "~/.yate/myext.py"
