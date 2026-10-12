@@ -7,7 +7,15 @@ surface (``grid`` / ``cursor`` / ``view_lines`` / ``max_scroll`` /
 
 from __future__ import annotations
 
-from yate.editor_term.emulator import Cell, TerminalEmulator, key_to_terminal
+from typing import Any, cast
+
+from yate.editor_term import emulator
+from yate.editor_term.emulator import (
+    Cell,
+    MAX_SCROLLBACK,
+    TerminalEmulator,
+    key_to_terminal,
+)
 from yate.editor_term.palette import ANSI_16_RGB, palette_color
 
 
@@ -639,6 +647,24 @@ def test_line_feed_scrolls_and_records_scrollback() -> None:
     assert emu.max_scroll() == 1
     assert "".join(c.char for c in emu.scrollback[-1]).rstrip() == "one"
     assert [_rows(emu, r) for r in range(2)] == ["two", "three"]
+
+
+def test_scrollback_is_trimmed_in_bulk_once_slack_is_exceeded() -> None:
+    """Scrollback is cut back to MAX in one lazy bulk trim, not per line.
+
+    Feeding MAX_SCROLLBACK + _SCROLLBACK_SLACK + 1 scrolling lines leaves
+    exactly MAX_SCROLLBACK rows (the bulk cut fired once); the next 100
+    lines accumulate inside the slack window without further trimming.
+    """
+    emu = _emu(cols=6, rows=2)
+    over = MAX_SCROLLBACK + cast(Any, emulator)._SCROLLBACK_SLACK + 1
+    # CR keeps the column at 0, so every LF after the first scrolls exactly
+    # one row into the scrollback (no autowrap interference).
+    emu.feed(b"x\r\n" * (over + emu.rows - 1))
+    assert len(emu.scrollback) == MAX_SCROLLBACK
+    emu.feed(b"y\r\n" * 100)
+    # Still bounded: the next bulk cut fires only past MAX + SLACK.
+    assert len(emu.scrollback) == MAX_SCROLLBACK + 100
 
 
 def test_view_lines_walks_back_into_the_scrollback() -> None:

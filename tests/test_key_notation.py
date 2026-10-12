@@ -69,6 +69,12 @@ def test_parse_key_maps_the_at_to_underscore_range() -> None:
     assert parse_key("<ctrl-_>") == "\x1f"
 
 
+def test_parse_key_maps_ctrl_slash_to_ascii_us() -> None:
+    """``/`` has no C0 letter mapping; terminals send ASCII US (0x1f)."""
+    assert parse_key("<ctrl-/>") == "\x1f"
+    assert key_name(parse_key("<ctrl-/>")) == "<ctrl-/>"
+
+
 def test_parse_key_encodes_control_digits_as_csi_u() -> None:
     """ctrl+digits have no C0 code, so they use the kitty CSI-u encoding."""
     assert parse_key("<ctrl-1>") == "\x1b[49;5u"

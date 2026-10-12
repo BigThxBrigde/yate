@@ -133,6 +133,10 @@ def parse_key(spec: str) -> str:
         ch = base.upper()
         if ch == " ":
             base = "\x00"
+        elif ch == "/":
+            # ``/`` (0x2f) has no C0 letter mapping; terminals send ASCII US
+            # (0x1f) for ctrl-/, matching KEY_ALIASES["\x1f"] = "ctrl-/".
+            base = "\x1f"
         elif "@" <= ch <= "_":
             # ctrl-@ .. ctrl-_ map to codes 0x00 .. 0x1f (covers letters,
             # brackets etc. the same way a real terminal encodes them).

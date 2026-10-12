@@ -187,9 +187,8 @@ def test_available_includes_keys_and_names() -> None:
 def clean_custom_language() -> Iterator[None]:
     """Remove runtime-registered test languages after the test."""
     yield
-    registry = cast(Any, reg)
-    registry._LANGUAGES.pop("zzxtoy", None)
-    registry._NAME_TO_KEY.pop("xtoy", None)
+    reg.languages().pop("zzxtoy", None)
+    reg.name_to_key().pop("xtoy", None)
 
 
 def test_register_language_tokenizes_and_resolves_by_name(
@@ -217,7 +216,6 @@ def test_register_language_tokenizes_and_resolves_by_name(
 
 
 def test_register_overrides_existing_key() -> None:
-    registry = cast(Any, reg)
     original = reg.lang_for("py")
     assert original is not None
     replacement = reg.LangSpec(name="pythonish", line_comment=";")
@@ -226,7 +224,7 @@ def test_register_overrides_existing_key() -> None:
         assert reg.lang_for("py") is replacement
     finally:
         reg.register_language(original, "py")
-        registry._NAME_TO_KEY.pop("pythonish", None)
+        reg.name_to_key().pop("pythonish", None)
     assert reg.lang_for("py") is original
 
 
@@ -440,7 +438,6 @@ def test_paren_vars_works_without_the_sigils_switch() -> None:
     # The two switches are independent: paren_vars alone must not silently
     # drop every $(...) it matched.
     spec = reg.LangSpec(name="parenonly", mode="code", paren_vars=True)
-    registry = cast(Any, reg)
     try:
         reg.register_language(spec, "zzparenonly")
         line = "x = $(VAR) y"
@@ -448,8 +445,8 @@ def test_paren_vars_works_without_the_sigils_switch() -> None:
             hl.tokenize_document([line], "zzparenonly")[0], line
         )
     finally:
-        registry._LANGUAGES.pop("zzparenonly", None)
-        registry._NAME_TO_KEY.pop("parenonly", None)
+        reg.languages().pop("zzparenonly", None)
+        reg.name_to_key().pop("parenonly", None)
 
 
 def test_paren_vars_tolerates_one_level_of_nesting() -> None:
