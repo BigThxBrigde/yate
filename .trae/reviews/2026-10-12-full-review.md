@@ -8,6 +8,7 @@ status: pass
 # yate 全仓库代码评审报告（2026-10-12）
 
 > 生成时间：2026-10-12
+> 修复方案：[../documents/full-review-fixes-plan.md](../documents/full-review-fixes-plan.md)
 > 评审对象：commit `59eb7fc`（master）
 > 评审范围：全仓库 `yate/`（10 包）、`tests/`、`tools/`、`pack/`
 > 评审方式：3 只读子代理并行（架构文档 / 核心源码 / 测试工具）+ 主代理汇总复核
