@@ -20,12 +20,8 @@ from yate.config import YateConfig
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
 from yate.services.extension_api import ExtensionAPI
-from yate.services.lua_extensions import (
-    create_runtime,
-    is_lua_available,
-    lua_api_library_source,
-    run_extension,
-)
+from yate.services.lua.library import is_lua_available, lua_api_library_source
+from yate.services.lua.runtime import create_runtime, run_extension
 from yate.services.trust import is_trusted
 
 #: Trace logger ("yate.services.extension_loader"); silent unless yate_trace is on.
@@ -154,7 +150,7 @@ class ExtensionLoader:
         return record
 
     def _load_lua(self, path: Path) -> LoadedExtension:
-        """Load a ``.lua`` extension; its chunk's top-level code is the setup.
+        """Load a ``.lua`` extension (top-level setup, or explicit ``setup(api)``).
 
         Mirrors the Python branch (rollback scope A13; errors recorded,
         never raised); without ``lupa`` the record gets an install hint.

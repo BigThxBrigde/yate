@@ -12,6 +12,16 @@ runtime it compiles this file and does two things:
 
 Both forms hand you the same table; pick whichever you prefer.
 
+Setup styles (mirroring the Python extension hook model):
+
+* top-level style (backward compatible): the chunk's top-level code *is*
+  the setup and runs once at load time;
+* explicit style: define a global ``function setup(api)`` -- yate calls it
+  once with the same ``api`` object after the top level has run, which is
+  handy for helper functions declared above the registrations;
+* an optional global ``function teardown(api)`` runs at shutdown in both
+  styles.
+
 Bridging notes (lupa semantics):
 
 * The file name starts with ``_``, so this library is **never** auto-loaded
@@ -31,12 +41,18 @@ Bridging notes (lupa semantics):
 * Python strings are Lua strings, lossless in both directions; returned
   Python objects (like ``shell()``'s result) keep exposing their
   attributes from Lua;
-* Registration calls happen at load time; the commands/keys/actions
-  registered by a script that later fails are rolled back automatically,
-  never leaving half-registered state behind;
+* Registration calls happen at load time (top level and explicit setup
+  alike); the commands/keys/actions registered by a script that later
+  fails are rolled back automatically, never leaving half-registered
+  state behind;
 * Runtime errors raised inside a command/key/action callback are caught
   and reported on the message line the same way -- a failing callback
   never takes the editor down.
+
+The ``---@param`` / ``---@return`` EmmyLua annotations on every function
+below are the "open pyi" equivalent: they feed lua-language-server
+completion without forking a separate ``.d.lua`` (this file stays the
+single source of truth).
 
 Exported functions (see each function's comment for details):
 
@@ -58,6 +74,8 @@ manual lives in ``yate/docs/extensions.en.md`` (Chinese mirror
 local yate = {}
 
 -- Show a hint text on the message line.
+---@param text string
+---@return nil
 function yate.message(text)
   api.message(text)
 end
@@ -66,6 +84,10 @@ end
 -- the command name (may be empty).  Commands appear in the command
 -- palette (Alt+Shift+P) and the :help list, with Tab completion.
 -- description is optional (default "extension command").
+---@param name string
+---@param fn fun(args: string)
+---@param description string|nil
+---@return nil
 function yate.register_command(name, fn, description)
   api.register_command(name, fn, description)
 end
@@ -74,6 +96,10 @@ end
 -- up by name in the command palette.  fn has the same signature as key
 -- callbacks (receives an ActionContext, safe to ignore).
 -- description is optional.
+---@param name string
+---@param fn fun(ctx: any)
+---@param description string|nil
+---@return nil
 function yate.register_action(name, fn, description)
   api.register_action(name, fn, description)
 end
@@ -85,6 +111,10 @@ end
 -- Note: a Lua default argument reaches Python as nil (None), not as
 -- "omitted", so the default must be applied explicitly here -- forwarding
 -- the nil directly would silently bind nothing.
+---@param spec string
+---@param fn fun(ctx: any)
+---@param keymap string|nil
+---@return nil
 function yate.bind_key(spec, fn, keymap)
   api.bind_key(spec, fn, keymap or "vsc")
 end
@@ -92,33 +122,41 @@ end
 -- Run a shell command synchronously (silently, no output overlay).
 -- Returns the Python ShellResult object (read .output / .returncode),
 -- or nil on failure.
+---@param cmd string
+---@return any result
 function yate.shell(cmd)
   return api.shell(cmd)
 end
 
 -- Open a file or directory in the editor (new tab).
+---@param path string
+---@return nil
 function yate.open_path(path)
   api.open_path(path)
 end
 
 -- Save the active document.
+---@return nil
 function yate.save()
   api.save()
 end
 
 -- Return the active buffer (Python TextBuffer object).  Note that
 -- lines[0] is the first line.
+---@return any buffer
 function yate.buffer()
   return api.buffer
 end
 
 -- Return the active document (Python Document object:
 -- path / filetype / modified / save).
+---@return any doc
 function yate.doc()
   return api.doc
 end
 
 -- Return the file-tree workspace object.
+---@return any workspace
 function yate.workspace()
   return api.workspace
 end

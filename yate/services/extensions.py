@@ -30,7 +30,7 @@ Example bundled extension ``yate/extensions/uppercase.py``::
 Lua extensions (``*.lua``) share this pipeline: the chunk's top-level code
 *is* the setup, an optional global ``teardown(api)`` mirrors the hook, and
 the API library ships as ``require("yate")`` (``yate/extensions/_yate.lua``;
-bridge: :mod:`yate.services.lua_extensions`, needs ``pip install yate[lua]``).
+bridge: :mod:`yate.services.lua.runtime`, needs ``pip install yate[lua]``).
 
 Layout map (2026-10-11 split): the implementation lives in three sibling
 modules -- :mod:`yate.services.extension_bridges` owns the four ``api.*``

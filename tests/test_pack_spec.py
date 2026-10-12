@@ -73,7 +73,7 @@ _REVIEWED_DYNAMIC_IMPORTS: frozenset[str] = frozenset(
         "editor_syntax/ts_backend/languages.py:importlib.import_module(grammar)",
         # lupa is imported dynamically so a lupa-less install pays no import
         # cost and pyright stays stub-free (Any only at the bridge boundary).
-        "services/lua_extensions.py:importlib.import_module('lupa')",
+        "services/lua/runtime.py:importlib.import_module('lupa')",
     }
 )
 

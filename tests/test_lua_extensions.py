@@ -21,7 +21,8 @@ from yate.paths import bundled_extensions_dir
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
 from yate.services import extension_loader as ext_loader
-from yate.services import lua_extensions
+from yate.services.lua.library import lua_api_library_source
+from yate.services.lua.runtime import create_runtime
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
 
 #: Live-lua marker: skip when the optional lupa package is not installed.
@@ -46,6 +47,29 @@ _TEARDOWN_LUA: str = (
 )
 _OK_LUA: str = "local _ = 1\n"
 _SETUP_OK: str = "def setup(api):\n    pass\n"
+# Explicit setup(a) runs after the whole top level: the chunk flips
+# top_ran to true *after* defining setup, so the message proves the order.
+_SETUP_AFTER_TOP_LUA: str = (
+    "top_ran = false\n"
+    "function setup(a)\n"
+    "  a.message('setup:' .. tostring(top_ran))\n"
+    "end\n"
+    "top_ran = true\n"
+)
+_SETUP_TEARDOWN_LUA: str = (
+    "function setup(api)\n"
+    "  api.message('setup ran')\n"
+    "end\n"
+    "function teardown(api)\n"
+    "  api.message('bye from hooks')\n"
+    "end\n"
+)
+_SETUP_BOOM_LUA: str = (
+    "function setup(api)\n"
+    "  api.register_command('setup-boom', function() end)\n"
+    "  error('setup boom')\n"
+    "end\n"
+)
 
 
 class _ApiBundle:
@@ -190,14 +214,104 @@ def test_bundled_lua_library_compiles_into_runtime(
     bundle: _ApiBundle,
 ) -> None:
     """The shipped _yate.lua compiles and exposes the yate module table."""
-    runtime = lua_extensions.create_runtime(
-        bundle.api, lua_extensions.lua_api_library_source()
-    )
+    runtime = create_runtime(bundle.api, lua_api_library_source())
 
     assert runtime.eval("type(yate)") == "table"
     assert runtime.eval("type(yate.register_command)") == "function"
     assert runtime.eval("type(yate.bind_key)") == "function"
     assert runtime.eval("yate.api ~= nil")
+
+
+# --- setup/teardown mirror hooks (plan-b) -------------------------------------
+
+
+@requires_lupa
+def test_explicit_setup_hook_called_after_chunk(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """An explicit setup(api) runs once, after the chunk's top level."""
+    script = tmp_path / "hooked.lua"
+    script.write_text(_SETUP_AFTER_TOP_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    # top_ran is flipped to true by the top level *after* setup is defined,
+    # so "setup:true" proves setup ran after the whole chunk.
+    assert "setup:true" in bundle.messages
+    assert record.teardown is None
+
+
+@requires_lupa
+def test_toplevel_only_script_still_loads(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A chunk without a setup global keeps the top-level-is-setup behavior."""
+    script = tmp_path / "classic.lua"
+    script.write_text(_ECHO_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert bundle.commands.get("lua-echo") is not None
+    assert record.teardown is None
+
+
+@requires_lupa
+def test_setup_failure_rolls_back_registrations(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A failing explicit setup records the error and undoes its registrations."""
+    script = tmp_path / "setupboom.lua"
+    script.write_text(_SETUP_BOOM_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "LuaError" in record.error
+    assert bundle.commands.get("setup-boom") is None
+
+
+@requires_lupa
+def test_teardown_global_extracted(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A global teardown(api) is extracted alongside an explicit setup."""
+    script = tmp_path / "hooks.lua"
+    script.write_text(_SETUP_TEARDOWN_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+    assert record.error is None
+    assert record.teardown is not None
+
+    loader.teardown_all()
+    assert "setup ran" in bundle.messages
+    assert "bye from hooks" in bundle.messages
+
+
+# --- package layout (no lupa needed) ------------------------------------------
+
+
+def test_lua_package_import_paths() -> None:
+    """The Lua bridge lives in yate.services.lua; the old module is gone."""
+    from yate.services import lua as lua_package
+    from yate.services.lua import library as lua_library
+    from yate.services.lua import runtime as lua_runtime
+
+    assert callable(lua_library.is_lua_available)
+    assert callable(lua_library.lua_api_library_source)
+    assert callable(lua_runtime.create_runtime)
+    assert callable(lua_runtime.run_extension)
+    # Services packages must not re-export (architecture §三.5): the
+    # package root exposes only its submodules.
+    for symbol in (
+        "is_lua_available",
+        "lua_api_library_source",
+        "create_runtime",
+        "run_extension",
+    ):
+        assert not hasattr(lua_package, symbol)
+    assert importlib.util.find_spec("yate.services.lua_extensions") is None
 
 
 # --- degradation without lupa ------------------------------------------------
@@ -228,7 +342,7 @@ def test_bundled_lua_library_resources_ship_bundled() -> None:
     ext_dir = bundled_extensions_dir()
     assert (ext_dir / "_yate.lua").is_file()
     assert (ext_dir / "lua.example").is_file()
-    assert lua_extensions.lua_api_library_source() != ""
+    assert lua_api_library_source() != ""
 
 
 # --- bind_key positional form (Python-side regression) ------------------------
