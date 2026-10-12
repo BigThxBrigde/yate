@@ -1,4 +1,4 @@
-"""The ``api.*`` sub-namespace bridges (events / lsp / highlight / syntax / sprites).
+"""The ``api.*`` sub-namespace bridges (events / lsp / highlight / syntax / sprites / ui).
 
 Each bridge wraps one capability domain for extension scripts; the
 :class:`ExtensionAPI <yate.services.extension_api.ExtensionAPI>` facade
@@ -9,6 +9,7 @@ matching properties.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -251,3 +252,88 @@ class SpriteExtensionBridge:
     def names(self) -> list[str]:
         """Every registered character name (built-in roster + extensions)."""
         return list(character_names())
+
+
+@dataclass(frozen=True)
+class StatusSegment:
+    """One extension-contributed status bar segment (pull model).
+
+    The status bar calls *provider* once per refresh pass and renders the
+    returned string as the segment text; ``None`` or an empty string hides
+    the segment for that pass.  *align* selects the bar half (``"left"``
+    or ``"right"``); a higher *priority* sorts first within its half,
+    ties keeping registration order.
+    """
+
+    id: str
+    provider: Callable[[], str | None]
+    align: str = "right"  # "left" | "right"
+    priority: int = 0
+
+
+class UiExtensionBridge:
+    """``api.ui`` -- UI elements contributed by extensions.
+
+    Currently status bar segments only.  The bridge is a pull-model
+    registry: :meth:`add_status_segment` / :meth:`remove_status_segment`
+    mutate it, and the status bar widget (L2) pulls an alignment-filtered,
+    priority-sorted snapshot on every refresh (:meth:`segments`).  The
+    bridge never touches widgets itself.  Registrations made while a
+    rollback scope is active are recorded through *record_undo*, so a
+    failing ``setup`` also drops them (A13).
+    """
+
+    def __init__(
+        self,
+        record_undo: Callable[[Callable[[], None]], None],
+    ) -> None:
+        self._segments: dict[str, tuple[int, StatusSegment]] = {}
+        self._counter = 0
+        self._record_undo = record_undo
+
+    def add_status_segment(self, segment: StatusSegment) -> None:
+        """Register *segment* in the status bar registry.
+
+        A duplicate id raises ``ValueError``.  Inside a rollback scope the
+        registration is recorded (A13): rollback drops the segment again.
+        """
+        if segment.id in self._segments:
+            raise ValueError(f"duplicate status segment id: {segment.id!r}")
+        self._segments[segment.id] = (self._counter, segment)
+        self._counter += 1
+
+        def undo(segment: StatusSegment = segment) -> None:
+            self._segments.pop(segment.id, None)
+
+        self._record_undo(undo)
+
+    def remove_status_segment(self, segment_id: str) -> None:
+        """Drop the segment *segment_id* (``KeyError`` when unknown).
+
+        Inside a rollback scope the removal is recorded (A13): rollback
+        restores the removed entry with its original ordering.
+        """
+        entry = self._segments.pop(segment_id)
+
+        def undo(
+            segment_id: str = segment_id,
+            entry: tuple[int, StatusSegment] = entry,
+        ) -> None:
+            self._segments[segment_id] = entry
+
+        self._record_undo(undo)
+
+    def segments(self, align: str) -> list[StatusSegment]:
+        """Snapshot for bar half *align* (``"left"`` / ``"right"``).
+
+        Sorted by descending priority, ties keeping registration order.
+        The returned list is fresh (safe for the caller to hold); the
+        segments themselves are frozen dataclasses.
+        """
+        entries = [
+            (seq, segment)
+            for seq, segment in self._segments.values()
+            if segment.align == align
+        ]
+        entries.sort(key=lambda entry: (-entry[1].priority, entry[0]))
+        return [segment for _seq, segment in entries]

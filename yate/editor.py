@@ -156,7 +156,7 @@ def _build_widgets(ed: Editor) -> None:
     )
     ed.status_bar = StatusBar(
         ed.session, ed.lsp, ed.keymaps, ed.prompt_bar,
-        ed.extension_loader, id="statusbar",
+        ed.extension_loader, ui=ed.extension_api.ui, id="statusbar",
     )
     ed.sidebar = Vertical(id="sidebar")
     ed.sidebar_head = SidebarHead(id="sidebar-head")

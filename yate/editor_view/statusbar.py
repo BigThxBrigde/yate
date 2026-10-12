@@ -1,7 +1,10 @@
 """The bottom status bar: mode, file, position, hints (Rich Text).
 
 Flat VS Code style: one solid accent-colored line with a mode chip on the
-left and position/meta information right-aligned.
+left and position/meta information right-aligned.  Extensions contribute
+extra text segments (``api.ui.add_status_segment``): the bar pulls them
+from the injected :class:`~yate.services.extension_bridges.UiExtensionBridge`
+on every refresh and paints them with its own segment styles.
 
 The bar is self-contained: it reads the document session, the language
 servers, the keymap set and the prompt bar (whose active mode owns the chip)
@@ -21,13 +24,18 @@ from yate.editor_lsp import ServerState
 from yate.editor_lsp.manager import LspManager
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
+from yate.logs import tracing
 from yate.paths import load_tcss
+from yate.services.extension_bridges import UiExtensionBridge
 from yate.services.extensions import ExtensionLoader
 from yate.session import EditorSession
 
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.icons import DOT, KEYBOARD, LOCK, PENCIL, PLUG, TERMINAL
+
+#: Trace logger ("yate.editor_view.statusbar"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
 
 
 def mode_chip(prompt: PromptBar, keymaps: KeymapSet, buf: TextBuffer) -> tuple[str, str]:
@@ -73,6 +81,7 @@ class StatusBar(Static):
         keymaps: KeymapSet,
         prompt: PromptBar,
         extension_loader: ExtensionLoader,
+        ui: UiExtensionBridge | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__("", **kwargs)
@@ -81,6 +90,9 @@ class StatusBar(Static):
         self.keymaps = keymaps
         self.prompt = prompt
         self.extension_loader = extension_loader
+        #: Extension segment registry (``None`` = no contributed segments,
+        #: keeps standalone constructions working).
+        self.ui = ui
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
@@ -109,6 +121,16 @@ class StatusBar(Static):
         chip = f" {mode} "
         chip_len = theme.cell_len(chip)
 
+        # Extension segments (pull model): left ones trail the existing left
+        # content, right ones lead the existing right content.  They share
+        # the surrounding segment styles (R13: the bar paints them itself;
+        # extensions contribute text only).
+        left_ext = "   ".join(self._extension_texts("left"))
+        left_ext_len = theme.cell_len(left_ext) + (3 if left_ext else 0)
+        right_ext = "".join(
+            f"{part}   " for part in self._extension_texts("right")
+        )
+
         pos_plain = f"Ln {buf.row + 1}, Col {buf.col + 1}"
         meta_plain = f"{buf.line_count} lines · {doc.filetype} · {doc.encoding}"
         lsp_plain, lsp_style = self._lsp_segment(doc)
@@ -117,14 +139,17 @@ class StatusBar(Static):
             f"{KEYBOARD} F1"
         )
         lsp_part = f"{lsp_plain}   " if lsp_plain else ""
-        right_plain = f"{pos_plain}   {meta_plain}   {lsp_part}{hints_plain}"
+        right_plain = (
+            f"{right_ext}{pos_plain}   {meta_plain}   {lsp_part}{hints_plain}"
+        )
         right_len = theme.cell_len(right_plain)
 
         lock_cells = 2 if buf.read_only else 0
         dot_cells = 2 if doc.modified else 0
-        # minimum: chip + gap + a 4-cell name + gap + right block
+        # minimum: chip + gap + a 4-cell name + gap + extension + right block
         include_right = (
-            chip_len + 1 + 4 + dot_cells + lock_cells + 1 + right_len <= width
+            chip_len + 1 + 4 + dot_cells + lock_cells + left_ext_len
+            + 1 + right_len <= width
         )
         budget = width - (1 + right_len if include_right else 0)
 
@@ -132,8 +157,9 @@ class StatusBar(Static):
         # Flat mode chip (hard color edge, no powerline triangle).
         text.append(chip, style=f"bold {t.on_accent} on {chip_bg}")
 
+        # gap, pencil+space, then the left extension segments' width
         name_budget = (
-            budget - chip_len - 3 - dot_cells - lock_cells  # gap, pencil+space
+            budget - chip_len - 3 - dot_cells - lock_cells - left_ext_len
         )
         name = doc.name
         if name_budget < 4:
@@ -147,16 +173,20 @@ class StatusBar(Static):
             text.append(f" {DOT}", style=f"bold {t.yellow} {bar}")
         if buf.read_only:
             text.append(f" {LOCK}", style=f"bold {t.red} {bar}")
+        if left_ext:
+            text.append(f"   {left_ext}", style=f"bold {t.on_accent} {bar}")
         used = (
             chip_len + 1
             + (theme.cell_len(name) + 2 if name else 0)
-            + dot_cells + lock_cells
+            + dot_cells + lock_cells + left_ext_len
         )
 
         text.append(" " * max(0, width - used - (1 + right_len if include_right else 0)),
                     style=bar)
         if include_right:
             text.append(" ", style=bar)
+            if right_ext:
+                text.append(right_ext, style=f"{t.on_accent} {bar}")
             text.append(pos_plain, style=f"bold {t.on_accent} {bar}")
             text.append(f"   {meta_plain}   ", style=f"{t.on_accent} {bar}")
             if lsp_plain:
@@ -164,6 +194,29 @@ class StatusBar(Static):
                 text.append("   ", style=bar)
             text.append(hints_plain, style=f"{t.panel} {bar}")
         self.update(text)
+
+    def _extension_texts(self, align: str) -> list[str]:
+        """Pull extension segment texts for bar half *align*.
+
+        Pull model: every :meth:`refresh_status` pass calls each registered
+        provider once.  A provider returning ``None`` or an empty string
+        hides its segment for the pass; a raising provider degrades to a
+        ``!`` placeholder (logged, never fatal) so one broken extension
+        cannot take the rest of the bar down.
+        """
+        if self.ui is None:
+            return []
+        texts: list[str] = []
+        for segment in self.ui.segments(align):
+            try:
+                value = segment.provider()
+            except Exception:  # noqa: BLE001 - user code, never crash the bar
+                log.exception("status segment %s provider failed", segment.id)
+                texts.append("!")
+                continue
+            if value:
+                texts.append(value)
+        return texts
 
     def _lsp_segment(self, doc: Document) -> tuple[str, str]:
         """Status-bar text for the active document's LSP server/diagnostics."""

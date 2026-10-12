@@ -24,6 +24,7 @@ from yate.services.extension_bridges import (
     LspExtensionBridge,
     SpriteExtensionBridge,
     SyntaxExtensionBridge,
+    UiExtensionBridge,
 )
 from yate.services.events import EventHub
 from yate.services.shell import ShellResult
@@ -88,6 +89,7 @@ class ExtensionAPI:
         self._highlight = HighlightExtensionBridge()
         self._syntax = SyntaxExtensionBridge()
         self._sprites = SpriteExtensionBridge()
+        self._ui = UiExtensionBridge(self._record_undo)
         # ``None`` (standalone construction in tests) gets a private hub:
         # nothing emits into it, so subscriptions simply never fire.
         self._events = EventExtensionBridge(
@@ -214,6 +216,11 @@ class ExtensionAPI:
     def sprites(self) -> SpriteExtensionBridge:
         """Register custom screensaver characters (``api.sprites.register``)."""
         return self._sprites
+
+    @property
+    def ui(self) -> UiExtensionBridge:
+        """Contribute status bar segments (``api.ui.add_status_segment``)."""
+        return self._ui
 
     @property
     def events(self) -> EventExtensionBridge:
