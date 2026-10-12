@@ -152,3 +152,39 @@ python -m tools.smoke_test compare
 用户已指示无人值守执行（2026-10-12），本方案批准权已预授权；批准后直接进入
 执行，无需等待确认。执行中的偏离须按 plan-before-execute §二.4 显式记录于
 各子计划"执行记录"节。
+
+## 七、评审登记（闭环【审核】+ pr-review 两轮）
+
+### 第 1 轮：code-review-expert（内审，commit `a019d86` 前）
+
+- 门禁实测：pytest 全量绿（exit 0）、pyright yate/tests/tools 0 诊断
+  （exit 0）、架构测试全绿、覆盖率 **91.84%**（exit 0）、smoke compare
+  111/111 MATCH（exit 0）。
+- 结论：**可合并**，无 blocker / major。1 WARNING + 4 SUGGESTION 全部当场
+  修复并单独提交（commit `a019d86`）：
+  - W1 modules.py 主题清理加 try/finally（失败路径防 rt_custom-* 泄漏）；
+  - S1 scenario 增 `teardown_ran` check（经 record.module.MARK 锁定 teardown
+    端到端，基线随之重拍）；
+  - S2 `restore_langdefs` fixture 补 yield 前恢复（与 restore_sprites 对称）；
+  - S3 pin 行为直接断言 `engine._REGEX_PINNED`；
+  - S4 test_welcome.py pyright 指令移到 docstring 后（对齐存量惯例）。
+- 遗留待办（非阻塞，登记不修）：git-commit-message.md 的 type 枚举未含
+  `test` / `perf`，规则文档滞后于既有实践（master 已有 3 例 test、2 例
+  perf 前缀），建议另行修订规则。
+
+### 第 2 轮：pr-review 技能（用户指定，commit `a019d86` 终态）
+
+- 范围：`git diff master...HEAD`，19 新增 + 1 修改（scenarios/__init__.py
+  注册接线），`yate/` 零改动核实成立。
+- 六维评审：正确性（3 个高风险文件精读 + 第 1 轮逐实现核对背书）、安全
+  （无注入面，`~` 用例落在 conftest isolated_home）、性能（scenario 1.17s /
+  compare 98.6s，无 O(n²)）、可维护性（docstring/类型标注/100 列/英文注释
+  全合规）、架构边界（无产品代码、无 Protocol/TYPE_CHECKING/Any 掩盖、
+  命名合规）、硬门禁（见下）。
+- 门禁实测（终态）：pyright 0 诊断（exit 0）；pytest 全量绿（exit 0）；
+  架构测试 29 passed（exit 0）；覆盖率 **91.85%**（exit 0）；smoke compare
+  111/111 MATCH（exit 0）。
+- 违规模式扫描：可变默认参数 / `# type: ignore` / TYPE_CHECKING / Protocol /
+  裸 except / shell=True / eval / pickle / yaml.load 全部零命中。
+- **结论：APPROVE**（无 blocker / major / minor，无需要修复项）。闭环迭代
+  终止；两轮评审发现均已闭环，无新增待办。
