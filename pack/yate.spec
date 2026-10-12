@@ -31,8 +31,9 @@ and numpy) are dropped from the frozen graph via
 
 For a single self-extracting exe instead, use ``pack/yate-onefile.spec``.
 Every build step the two specs share (icon, hidden imports, excludes,
-tree-sitter binaries, dist-info metadata, data files, extensions Tree) lives
-in ``pack/_common.py``; this file keeps only the one-folder Analysis/EXE/COLLECT
+dynamically imported optional packages (tree-sitter, lupa), dist-info
+metadata, data files, extensions Tree) lives in
+``pack/_common.py``; this file keeps only the one-folder Analysis/EXE/COLLECT
 differences.
 
 This spec lives in pack/, one level below the repository root. PyInstaller
@@ -72,8 +73,8 @@ CONTENTS_DIRNAME: str = "runtime"
 a = Analysis(
     [inputs.pkg_path("__main__.py")],
     pathex=[PROJECT_ROOT],
-    binaries=inputs.ts_binaries,
-    datas=inputs.datas + inputs.ts_datas + inputs.yate_datas,
+    binaries=inputs.optional_binaries,
+    datas=inputs.datas + inputs.optional_datas + inputs.yate_datas,
     hiddenimports=inputs.hiddenimports,
     hookspath=[],
     hooksconfig={},

@@ -3,8 +3,9 @@
 
 The two spec files keep only their ``Analysis`` / ``EXE`` / ``COLLECT``
 differences; every other build step (icon resolution, hidden imports, the
-excluded-modules inventory, tree-sitter binaries, dist-info metadata, data
-files and the bundled extensions ``Tree``) is gathered once by :func:`collect`
+excluded-modules inventory, dynamically imported optional packages
+(tree-sitter, lupa), dist-info metadata, data files and the bundled
+extensions ``Tree``) is gathered once by :func:`collect`
 and handed to the spec as a :class:`SpecInputs`.
 
 PyInstaller exec's spec files as plain scripts (not imports), so each spec
@@ -61,6 +62,16 @@ _TS_PACKAGES: tuple[str, ...] = (
     "tree_sitter_zig",
 )
 
+#: The Lua extension bridge is imported dynamically as well
+#: (yate.services.lua_extensions, importlib.import_module("lupa")), so static
+#: analysis cannot see it either -- same explicit-collection premise as
+#: :data:`_TS_PACKAGES`.  The package comes from the [lua] extra; when it is
+#: absent in the build environment the executable simply ships without the
+#: Lua bridge (the loop skips it).
+_LUA_PACKAGES: tuple[str, ...] = (
+    "lupa",
+)
+
 #: Third-party packages dropped from the frozen graph (issue IKJPVB): pulled in
 #: transitively, never touched at runtime.  Pillow arrives via
 #: ``pygments.formatters.img``; yate's only use of it is regenerating the
@@ -95,14 +106,15 @@ class SpecInputs:
     project_root: str
     #: Absolute icon path on Windows, ``None`` elsewhere.
     icon: str | None
-    #: yate's own submodules plus the tree-sitter packages, when installed.
+    #: yate's own submodules plus the optionally-installed dynamic-import
+    #: packages (tree-sitter from [ts], lupa from [lua]).
     hiddenimports: list[str]
     #: Modules PyInstaller must not pull in -- see :data:`EXCLUDES`.
     excludes: list[str]
     # PyInstaller returns untyped values (no stubs shipped); they are passed
     # through to Analysis/EXE verbatim, so Any is the honest annotation.
-    ts_binaries: list[Any]  # noqa: Any - PyInstaller has no type stubs
-    ts_datas: list[Any]  # noqa: Any - PyInstaller has no type stubs
+    optional_binaries: list[Any]  # noqa: Any - PyInstaller has no type stubs
+    optional_datas: list[Any]  # noqa: Any - PyInstaller has no type stubs
     yate_datas: list[Any]  # noqa: Any - PyInstaller has no type stubs
     datas: list[Any]  # noqa: Any - PyInstaller has no type stubs
     #: The bundled-extensions Tree, appended to ``a.datas`` by the spec.
@@ -133,16 +145,20 @@ def collect(specpath: str) -> SpecInputs:
     # so a newly added screen/service never silently drops out of a frozen
     # build (collect_submodules resolves "yate" via sys.path).
     hiddenimports: list[str] = list(hooks.collect_submodules("yate"))
-    ts_binaries: list[Any] = []  # noqa: Any - PyInstaller has no type stubs
-    ts_datas: list[Any] = []  # noqa: Any - PyInstaller has no type stubs
-    for ts_pkg in _TS_PACKAGES:
-        if importlib.util.find_spec(ts_pkg) is None:
+    optional_binaries: list[Any] = []  # noqa: Any - PyInstaller has no type stubs
+    optional_datas: list[Any] = []  # noqa: Any - PyInstaller has no type stubs
+    # The dynamically imported optional packages ([ts] tree-sitter backend,
+    # [lua] bridge) must be collected explicitly: static analysis cannot
+    # follow importlib.import_module, and the --diag version probes read the
+    # dist-info shipped here.
+    for dyn_pkg in (*_TS_PACKAGES, *_LUA_PACKAGES):
+        if importlib.util.find_spec(dyn_pkg) is None:
             continue
-        hiddenimports += hooks.collect_submodules(ts_pkg)
-        ts_binaries += hooks.collect_dynamic_libs(ts_pkg)
+        hiddenimports += hooks.collect_submodules(dyn_pkg)
+        optional_binaries += hooks.collect_dynamic_libs(dyn_pkg)
         # dist-info metadata: importlib.metadata.version() probes (yate --diag
         # and the Windows blocked-version guard) rely on it.
-        ts_datas += hooks.copy_metadata(ts_pkg)
+        optional_datas += hooks.copy_metadata(dyn_pkg)
     # yate's own + core dependencies' dist-info: diagnostics._section_packages
     # derives the [packages] inventory from importlib.metadata.requires("yate")
     # and probes the versions with importlib.metadata.version() -- both read
@@ -184,8 +200,8 @@ def collect(specpath: str) -> SpecInputs:
         icon=icon,
         hiddenimports=hiddenimports,
         excludes=list(EXCLUDES),
-        ts_binaries=ts_binaries,
-        ts_datas=ts_datas,
+        optional_binaries=optional_binaries,
+        optional_datas=optional_datas,
         yate_datas=yate_datas,
         datas=datas,
         extensions_tree=extensions_tree,

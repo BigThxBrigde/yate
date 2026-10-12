@@ -14,7 +14,7 @@
     pass -SkipChangelog to skip the refresh).
 
     The preferred interpreter is .venv\Scripts\python.exe; if PyInstaller is
-    missing it is installed automatically via  pip install -e ".[build,ts]".
+    missing it is installed automatically via  pip install -e ".[build,ts,lua]".
 
     PyInstaller cannot cross-compile: run this script on Windows to produce a
     Windows executable (use pack/pack.sh on Linux for a Linux binary).
@@ -69,7 +69,7 @@ try {
     if (-not (Test-Path $pythonExe)) {
         Stop-WithMessage (
             ".venv not found at '$pythonExe'. " +
-            "Run 'python -m venv .venv' then '.\.venv\Scripts\Activate.ps1; pip install -e `"[build,ts]`"' first. " +
+            "Run 'python -m venv .venv' then '.\.venv\Scripts\Activate.ps1; pip install -e `"[build,ts,lua]`"' first. " +
             "Falling back to system python is disabled to avoid installing the yate " +
             "entry script into the global Scripts/ directory."
         )
@@ -82,7 +82,9 @@ try {
 
     # Make sure the build extra (PyInstaller) is available. The [ts] extra
     # (tree-sitter + python/bash grammar packs) is installed too so the
-    # standalone executable ships the tree-sitter highlighting backend.
+    # standalone executable ships the tree-sitter highlighting backend, and
+    # the [lua] extra so it ships the Lua extension bridge (issue IKL2G6);
+    # pack/_common.py collects both only when installed (find_spec-gated).
     # The probe must not print a traceback to stderr: redirected native
     # stderr is a terminating NativeCommandError trap in Windows PowerShell
     # 5.1 while $ErrorActionPreference is "Stop" (fixed in PowerShell 7.2).
@@ -90,8 +92,8 @@ try {
     # $LASTEXITCODE -- find_spec is silent whether the package is present.
     & $pythonExe -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('PyInstaller') is not None else 1)"
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "PyInstaller not found; installing build+ts extras (pip install -e `".[build,ts]`") ..." -ForegroundColor Yellow
-        & $pythonExe -m pip install -e ".[build,ts]"
+        Write-Host "PyInstaller not found; installing build+ts+lua extras (pip install -e `".[build,ts,lua]`") ..." -ForegroundColor Yellow
+        & $pythonExe -m pip install -e ".[build,ts,lua]"
         if ($LASTEXITCODE -ne 0) {
             Stop-WithMessage "Failed to install build dependencies."
         }

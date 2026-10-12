@@ -65,8 +65,10 @@ _SPEC_HELPER_FIELDS: frozenset[str] = frozenset({"project_root"})
 #: The only dynamic imports the shipped code may perform, as
 #: ``"<path>:<callee>(<argument source>)"``.  The tree-sitter ones load
 #: grammar modules, which :data:`pack._common._TS_PACKAGES` collects
-#: explicitly; they are listed here so that a *new* dynamic import has to be
-#: reviewed and justified rather than slipping past the premise guard.
+#: explicitly; the lupa one is collected via
+#: :data:`pack._common._LUA_PACKAGES` (issue IKL2G6).  They are listed here so
+#: that a *new* dynamic import has to be reviewed and justified rather than
+#: slipping past the premise guard.
 _REVIEWED_DYNAMIC_IMPORTS: frozenset[str] = frozenset(
     {
         "editor_syntax/ts_backend/languages.py:importlib.import_module(module_name)",
@@ -341,6 +343,27 @@ def test_yate_sources_when_scanned_never_import_excluded_modules() -> None:
                     and arg.value.split(".")[0] in banned
                 ]
     assert offenders == []
+
+
+# --- the optional dynamic-import package inventories (pack/_common.py) --------
+
+
+def test_lua_packages_when_common_loaded_pin_the_lupa_bridge_inventory() -> None:
+    """``pack/_common._LUA_PACKAGES`` must keep collecting exactly ``lupa``.
+
+    lupa is imported dynamically (``yate/services/lua_extensions.py``), so
+    PyInstaller's static analysis never sees it: without the explicit
+    inventory the frozen exe ships without the Lua bridge and ``yate --diag``
+    reports it as ``not installed`` (issue IKL2G6).  Pinning the exact tuple
+    makes adding another package a deliberate, reviewable act.
+    """
+    raw: object = _load_common().__dict__["_LUA_PACKAGES"]
+    assert isinstance(raw, tuple), (
+        f"_LUA_PACKAGES must stay a tuple, got {type(raw).__name__}"
+    )
+    items = cast("tuple[object, ...]", raw)
+    assert all(isinstance(entry, str) for entry in items), items
+    assert items == ("lupa",)
 
 
 # --- both specs forward the inventory to Analysis -----------------------------
