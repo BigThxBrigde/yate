@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "label": "theme_registered",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "switched",
+      "expected": "rt_custom-dark",
+      "actual": "rt_custom-dark",
+      "ok": true
+    },
+    {
+      "label": "restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
