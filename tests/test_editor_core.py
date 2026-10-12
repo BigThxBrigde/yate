@@ -58,6 +58,25 @@ def test_backspace_joins_lines() -> None:
     assert buf.get_text() == "abcd"
 
 
+def test_delete_range_rejects_reversed_range() -> None:
+    """An inverted range raises instead of silently corrupting the lines."""
+    buf = TextBuffer("abc\ndef")
+    with pytest.raises(ValueError, match="invalid delete range"):
+        cast(Any, buf)._delete_range((1, 0), (0, 2))
+    assert buf.get_text() == "abc\ndef"
+
+
+def test_delete_range_accepts_ordered_ranges() -> None:
+    """Ordered half-open ranges (same-row and cross-row) keep working."""
+    buf = TextBuffer("abc\ndef")
+    cast(Any, buf)._delete_range((0, 1), (0, 3))
+    assert buf.lines == ["a", "def"]
+    # Cross-row: row 0 keeps its first char, row 1 keeps everything from
+    # the end column on ("a" + "ef").
+    cast(Any, buf)._delete_range((0, 1), (1, 1))
+    assert buf.lines == ["aef"]
+
+
 def test_undo_redo() -> None:
     buf = TextBuffer("hello")
     buf.move_doc_end()

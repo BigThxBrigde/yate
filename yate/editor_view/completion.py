@@ -14,6 +14,7 @@ current document -- see :func:`buffer_completions`.
 from __future__ import annotations
 
 import re
+import weakref
 from pathlib import Path
 from typing import Any, override
 
@@ -284,29 +285,25 @@ def _words_from_buffer(buf: TextBuffer, exclude_row: int) -> set[str]:
     return words
 
 
-#: Per-row word sets cached per ``(buffer, content version)``.  Scanning
-#: every open buffer per keystroke dominated completion latency on large
-#: files; the cache is invalidated by the version counter and bounded in
-#: size.  The key holds the buffer itself (not its id) so a closed buffer
-#: cannot be recycled into a stale entry; entries drop when the cap is hit.
-_row_word_cache: dict[tuple[TextBuffer, int], list[set[str]]] = {}
-_ROW_WORD_CACHE_MAX: int = 16
+#: Per-row word sets cached per buffer (one slot each, weakly keyed).
+#: Scanning every open buffer per keystroke dominated completion latency on
+#: large files; each buffer holds its last computed ``(content_version,
+#: rows)`` pair and a version mismatch triggers a recompute that overwrites
+#: the slot.  The weak key tracks the buffer itself, so a closed buffer's
+#: entry disappears with it and the cache size is naturally bounded by the
+#: number of live buffers.
+_row_word_cache: weakref.WeakKeyDictionary[
+    TextBuffer, tuple[int, list[set[str]]]
+] = weakref.WeakKeyDictionary()
 
 
 def _buffer_row_words(buf: TextBuffer) -> list[set[str]]:
     """Per-row identifier words of *buf*, cached per content version."""
-    key = (buf, buf.content_version)
-    cached = _row_word_cache.get(key)
-    if cached is not None:
-        return cached
+    cached = _row_word_cache.get(buf)
+    if cached is not None and cached[0] == buf.content_version:
+        return cached[1]
     rows = [set(_WORD_RE.findall(line)) for line in buf.lines]
-    if len(_row_word_cache) >= _ROW_WORD_CACHE_MAX:
-        # Bounded: drop the stalest (insertion-order first) entries.
-        for stale in list(_row_word_cache)[
-            : len(_row_word_cache) - _ROW_WORD_CACHE_MAX + 1
-        ]:
-            del _row_word_cache[stale]
-    _row_word_cache[key] = rows
+    _row_word_cache[buf] = (buf.content_version, rows)
     return rows
 
 

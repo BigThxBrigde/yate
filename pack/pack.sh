@@ -192,7 +192,9 @@ if [ -n "$dist_arg" ]; then
 
     ( cd "$stage" && sha256sum yate > SHA256SUMS.txt )
 
-    if ! "$stage/yate" --version 2>&1 | grep -q "$version"; then
+    # timeout 30: a hung build artifact must fail the build instead of
+    # stalling it forever (timeout exits 124, which hits the failure branch).
+    if ! timeout 30 "$stage/yate" --version 2>&1 | grep -q "$version"; then
         echo "error: smoke test failed ('$stage/yate --version' did not report $version). Stage kept at: $stage" >&2
         exit 1
     fi

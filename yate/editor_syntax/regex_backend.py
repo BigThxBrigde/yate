@@ -9,7 +9,9 @@ document lines into per-line token ranges, :class:`Token`
 to colors through the active theme.
 
 The language registry -- :class:`LangSpec`, the word lists,
-``_LANGUAGES`` / ``_NAME_TO_KEY`` and :func:`register_language` -- lives
+:func:`~yate.editor_syntax.langdefs.languages` /
+:func:`~yate.editor_syntax.langdefs.name_to_key` and
+:func:`register_language` -- lives
 in the package-top :mod:`yate.editor_syntax.langdefs`, shared with the
 tree-sitter backend in parallel; this module keeps only the regex
 construction and the tokenizer engine, consuming :func:`lang_for` from

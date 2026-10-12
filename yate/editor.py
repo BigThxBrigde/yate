@@ -465,8 +465,13 @@ class Editor:
         # leave the other background service (and its threads) untouched.
         # Extension hooks run first (sync, while editor state is still
         # intact); they release resources the extension owns, e.g. spawned
-        # subprocesses or timers. teardown_all isolates per extension.
-        self.extension_loader.teardown_all()
+        # subprocesses or timers. teardown_all isolates per extension, but
+        # even if the loader state itself is broken the call must not block
+        # the terminal/LSP cleanup below.
+        try:
+            self.extension_loader.teardown_all()
+        except Exception:  # noqa: BLE001 - teardown must reach terminal/LSP
+            log.exception("extension teardown failed")
         try:
             await self.terminal_panel.view.shutdown()
         except Exception:  # noqa: BLE001 - teardown must reach the LSP manager

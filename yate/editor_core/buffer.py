@@ -390,8 +390,15 @@ class TextBuffer:
         the cursor (or a multi-cursor point) themselves -- the multi-point
         primitives drive this method once per point with the primary
         cursor's new position written back explicitly.
+
+        Raises :class:`ValueError` when *start* sorts after *end*: callers
+        pass ordered half-open ranges (tuple comparison is row-major, then
+        column), and silently swapping an inverted range would corrupt the
+        line structure.
         """
         (r1, c1), (r2, c2) = start, end
+        if (r1, c1) > (r2, c2):
+            raise ValueError(f"invalid delete range: start={start!r} > end={end!r}")
         if r1 == r2:
             self.lines[r1] = self.lines[r1][:c1] + self.lines[r1][c2:]
         else:

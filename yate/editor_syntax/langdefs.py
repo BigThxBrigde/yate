@@ -2,7 +2,7 @@
 
 This module owns the declarative language registry shared by both syntax
 backends: the :class:`LangSpec` dataclass, the built-in word lists, the
-extension-key registry (:data:`_LANGUAGES` / :data:`_NAME_TO_KEY`) and
+extension-key registry (:func:`languages` / :func:`name_to_key`) and
 :func:`register_language` -- the public extension point behind
 ``api.highlight.register``.
 
@@ -21,16 +21,12 @@ from dataclasses import dataclass
 
 __all__ = [
     "LangSpec",
-    # The registry dicts are private by naming convention but bound by name
-    # in tests (``mock.patch.dict`` / in-place clear-update target these very
-    # objects on this module); listing them here marks them as exported so
-    # the module's export surface stays pyright-clean.
-    "_LANGUAGES",
-    "_NAME_TO_KEY",
     "available_filetypes",
     "format_filetype_candidates",
     "lang_for",
     "language_name",
+    "languages",
+    "name_to_key",
     "register_language",
     "resolve_filetype",
 ]
@@ -244,6 +240,27 @@ _LANGUAGES: dict[str, LangSpec] = {}
 #: registered that spec. Kept in sync inside register_language(), so custom
 #: languages registered by extensions are resolvable by name immediately.
 _NAME_TO_KEY: dict[str, str] = {}
+
+
+def languages() -> dict[str, LangSpec]:
+    """The live extension-key -> :class:`LangSpec` registry.
+
+    Returns the registry itself, **not** a copy: tests patch it in place
+    with ``mock.patch.dict`` and embedders introspect it, and the
+    big-module-split plan-a contract pins the in-place clear/update
+    semantics of this very object.  Mutate it through
+    :func:`register_language` only.
+    """
+    return _LANGUAGES
+
+
+def name_to_key() -> dict[str, str]:
+    """The live canonical-language-name -> first-extension-key registry.
+
+    Returns the registry itself (never a copy) for the same reasons as
+    :func:`languages`; :func:`register_language` keeps it in sync.
+    """
+    return _NAME_TO_KEY
 
 
 def register_language(spec: LangSpec, *extensions: str) -> None:

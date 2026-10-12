@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import io
+import logging
 import re
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ from yate import diagnostics
 from yate.app import YateApp
 from yate.yaterc import load_config
 from yate.editor_lsp.client import ServerConfig
+from yate.editor_lsp.parsing import _parse_diagnostics
 
 _ALL_SECTIONS: tuple[str, ...] = (
     "system", "terminal", "shell", "paths", "yaterc", "config",
@@ -496,3 +498,72 @@ def test_packages_section_without_core_requirements_renders_extras_only() -> Non
     groups = _group_slices(lines)
     assert list(groups) == ["ts"]
     assert all("not installed" in row for row in groups["ts"])
+
+
+# --- LSP diagnostics wire parsing (non-integer coordinate seam) -------------
+
+
+class _LogCapture(logging.Handler):
+    """Collect messages from one logger.
+
+    The ``yate`` root logger never propagates (``propagate = False``), so
+    pytest's caplog cannot see child-logger records; attach this instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    @override
+    def emit(self, record: logging.LogRecord) -> None:
+        """Collect the record's rendered message."""
+        self.messages.append(record.getMessage())
+
+
+def test_diagnostics_non_integer_coordinate_degrades_and_warns_once() -> None:
+    """String coordinates parse as 0 and warn exactly once per batch."""
+    raw: list[dict[str, Any]] = [
+        {
+            "range": {
+                "start": {"line": "5", "character": "x"},
+                "end": {"line": 0, "character": 0},
+            },
+            "message": "first",
+        },
+        {
+            "range": {
+                "start": {"line": None, "character": None},
+                "end": {"line": 0, "character": 0},
+            },
+            "message": "second",
+        },
+    ]
+    capture = _LogCapture()
+    logger = logging.getLogger("yate.editor_lsp.parsing")
+    logger.addHandler(capture)
+    try:
+        diags = _parse_diagnostics(raw, ["hello"])
+    finally:
+        logger.removeHandler(capture)
+    assert [(d.start_row, d.start_col) for d in diags] == [(0, 0), (0, 0)]
+    assert len(capture.messages) == 1
+
+
+def test_diagnostics_warn_resets_for_each_batch() -> None:
+    """The once-per-batch guard resets: a second parse batch warns again."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": "5", "character": 0},
+            "end": {"line": 0, "character": 0},
+        },
+        "message": "m",
+    }]
+    capture = _LogCapture()
+    logger = logging.getLogger("yate.editor_lsp.parsing")
+    logger.addHandler(capture)
+    try:
+        _parse_diagnostics(raw, ["hello"])
+        _parse_diagnostics(raw, ["hello"])
+    finally:
+        logger.removeHandler(capture)
+    assert len(capture.messages) == 2

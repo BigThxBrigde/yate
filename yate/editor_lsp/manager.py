@@ -148,6 +148,13 @@ class LspManager:
         for cfg in self._configs:
             for ft in cfg.filetypes:
                 self._by_filetype[ft] = cfg
+        if existing is not None:
+            # The replacement can add, remove or swap a server the UI is
+            # already showing.  Fire only after the filetype index above is
+            # rebuilt so synchronous repaints cannot observe the stale
+            # mapping; first registration fires nothing (nothing was on
+            # screen yet).
+            self._fire("state")
         log.info(
             "registered server %s (command=%r filetypes=%s)%s",
             config.name, config.command, list(config.filetypes),

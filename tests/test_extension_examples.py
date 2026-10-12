@@ -76,17 +76,17 @@ def _extension_api() -> ExtensionAPI:
 @pytest.fixture
 def clean_registries() -> Iterator[None]:
     """Restore every global registry a template's ``setup()`` writes to."""
-    languages = dict(langdefs._LANGUAGES)
-    names = dict(langdefs._NAME_TO_KEY)
+    languages = dict(langdefs.languages())
+    names = dict(langdefs.name_to_key())
     pinned = set(engine._REGEX_PINNED)
     ts_langs_map = dict(ts_langs._EXT_TO_LANG)
     ts_loaded = dict(ts_langs._LANGS)
     ts_failed = set(ts_langs._FAILED)
     yield
-    langdefs._LANGUAGES.clear()
-    langdefs._LANGUAGES.update(languages)
-    langdefs._NAME_TO_KEY.clear()
-    langdefs._NAME_TO_KEY.update(names)
+    langdefs.languages().clear()
+    langdefs.languages().update(languages)
+    langdefs.name_to_key().clear()
+    langdefs.name_to_key().update(names)
     engine._REGEX_PINNED.clear()
     engine._REGEX_PINNED.update(pinned)
     ts_langs._EXT_TO_LANG.clear()

@@ -22,6 +22,12 @@ from typing import Any, cast
 from yate.editor_core.document import Document
 
 from yate.editor_lsp.client import Completion, Diagnostic, DiagnosticSeverity
+from yate.logs import tracing
+
+#: Trace logger ("yate.editor_lsp.parsing"); WARNING surfaces on stderr via
+#: lastResort when tracing is off, and is level-filtered by the trace file
+#: handler when on.
+log = tracing.get_logger(__name__)
 
 __all__ = [
     "_from_utf16",
@@ -185,15 +191,24 @@ def _parse_diagnostics(
     Numeric coercion is defensive -- a single malformed notification
     must not kill the connection (the caller runs inside the read
     loop), so a non-integer coordinate degrades to 0 instead of
-    crashing the session.  Server columns are UTF-16 code units;
-    *lines* (the document's current lines) converts them to buffer
-    columns.
+    crashing the session, warning once per batch (a broken server
+    pushes diagnostics continuously; per-hit logs would flood the
+    trace).  Server columns are UTF-16 code units; *lines* (the
+    document's current lines) converts them to buffer columns.
     """
 
+    warned = False
+
     def _coord(pos: dict[str, Any], key: str) -> int:
+        nonlocal warned
         value = pos.get(key, 0)
         if isinstance(value, int) and not isinstance(value, bool):
             return value
+        if not warned:
+            warned = True
+            log.warning(
+                "non-integer %r for %r from server; treating as 0", value, key
+            )
         return 0
 
     result: list[Diagnostic] = []

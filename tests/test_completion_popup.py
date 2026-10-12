@@ -9,6 +9,8 @@ buffer/path candidate builders are plain functions over a ``TextBuffer``.
 from __future__ import annotations
 
 import asyncio
+import gc
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -243,6 +245,36 @@ def test_words_from_buffer_skips_the_cursor_row_and_single_letters() -> None:
     buf = TextBuffer("alpha beta\nx gamma\ndelta alpha")
     assert words(buf, 2) == {"alpha", "beta", "gamma"}
     assert words(buf, 0) == {"alpha", "gamma", "delta"}
+
+
+def test_row_word_cache_releases_closed_buffers_with_gc() -> None:
+    """Weak keys: dropping the last buffer reference drops its entry."""
+    cache = _private("_row_word_cache")
+    row_words = _private("_buffer_row_words")
+    buf = TextBuffer("alpha beta\ngamma\n")
+    row_words(buf)  # populate the cache slot for this buffer
+    watch = weakref.ref(buf)
+    del buf
+    gc.collect()
+    assert watch() is None
+    assert len(cache) == 0
+
+
+def test_row_word_cache_recomputes_when_content_version_changes() -> None:
+    """An edit bumps the version: the single slot is recomputed in place."""
+    cache = _private("_row_word_cache")
+    gc.collect()  # drop cache entries left over from earlier tests' buffers
+    row_words = _private("_buffer_row_words")
+    buf = TextBuffer("alpha beta\n")
+    first = row_words(buf)
+    assert "alpha" in first[0]
+    assert first[1] == set()
+    buf.set_text("alpha\ngamma\n")
+    rows = row_words(buf)
+    assert rows[0] == {"alpha"}
+    assert rows[1] == {"gamma"}
+    # one slot per buffer: the recompute overwrote, it did not grow
+    assert len(cache) == 1
 
 
 # --- path completion --------------------------------------------------------

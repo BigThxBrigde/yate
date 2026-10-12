@@ -221,12 +221,24 @@ try {
         }
         "$hash  yate.exe" | Set-Content -Encoding ascii (Join-Path $stage 'SHA256SUMS.txt')
 
+        # Run the smoke test via Start-Process with a hard timeout: a hung
+        # build artifact must fail the build instead of stalling it forever.
         # No stderr redirect here either (same Windows PowerShell 5.1 trap):
-        # a failing exe prints to the console while $LASTEXITCODE decides.
-        $smoke = & $exe --version
-        if ($LASTEXITCODE -ne 0 -or ($smoke -join ' ') -notlike "*$version*") {
+        # a failing exe prints to the console; only stdout is captured, and
+        # Start-Process redirecting stdout to a file avoids the trap.
+        $smokeOut = Join-Path $stage 'smoke-out.txt'
+        $proc = Start-Process -FilePath $exe -ArgumentList '--version' -NoNewWindow -PassThru -RedirectStandardOutput $smokeOut
+        if (-not $proc.WaitForExit(30000)) {
+            # Best-effort kill: a race with an exiting process or a denied
+            # permission must not mask the timeout failure itself.
+            try { $proc.Kill() } catch { Write-Host "kill after timeout failed: $_" -ForegroundColor DarkGray }
+            Stop-WithMessage "Smoke test timed out after 30s ('$exe --version'). Stage kept at: $stage"
+        }
+        $smoke = Get-Content $smokeOut
+        if ($proc.ExitCode -ne 0 -or ($smoke -join ' ') -notlike "*$version*") {
             Stop-WithMessage "Smoke test failed ('$exe --version' did not report $version). Stage kept at: $stage"
         }
+        Remove-Item $smokeOut
 
         $stageSizeMb = [math]::Round((Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 1)
         Write-Host ""

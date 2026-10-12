@@ -447,8 +447,8 @@ def test_pack_registration_and_query_file(tmp_path: Path) -> None:
         mock.patch.dict(ts_langs._LANGS),
         mock.patch.dict(ts_langs._EXT_TO_LANG),
         mock.patch.object(ts_langs, "_FAILED", set[str]()),
-        mock.patch.dict(langdefs._LANGUAGES),
-        mock.patch.dict(langdefs._NAME_TO_KEY),
+        mock.patch.dict(langdefs.languages()),
+        mock.patch.dict(langdefs.name_to_key()),
     ):
         bridge.register_tree_sitter(
             "pytestlang",
@@ -769,7 +769,7 @@ def test_builtin_grammar_coverage_matches_the_documented_counts() -> None:
     # except JSONC, INI, Perl, SCSS and LESS".  Pin the relationship rather
     # than the prose: adding a language without a grammar fails here, and the
     # fix is to update the docs and this set together.
-    names = set(langdefs._NAME_TO_KEY)
+    names = set(langdefs.name_to_key())
     without_grammar = names - set(ts_langs.BUILTIN_PACKS)
     assert without_grammar == {"ini", "jsonc", "less", "perl", "scss"}
     assert len(names) == 30
@@ -892,8 +892,8 @@ def test_extensions_capture_map_and_failure_clearing() -> None:
         mock.patch.dict(ts_langs._LANGS, {}, clear=True),
         mock.patch.dict(ts_langs._EXT_TO_LANG, {}, clear=True),
         mock.patch.object(ts_langs, "_FAILED", {"pytest"}),
-        mock.patch.dict(langdefs._LANGUAGES, {}, clear=True),
-        mock.patch.dict(langdefs._NAME_TO_KEY, {}, clear=True),
+        mock.patch.dict(langdefs.languages(), {}, clear=True),
+        mock.patch.dict(langdefs.name_to_key(), {}, clear=True),
     ):
         ts_langs.load_language(
             "PyTest",

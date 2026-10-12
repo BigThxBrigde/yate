@@ -81,6 +81,8 @@ KEY_ALIASES: dict[str, str] = {
     "\x1b[1;3C": "alt-right",
     "\x1b[1;3D": "alt-left",
     "\x1b[Z": "shift-tab",
+    # Both ctrl-/ and ctrl-_ physically send US (0x1f) on most terminals;
+    # key_name() therefore displays <ctrl-_> bindings as <ctrl-/>.
     "\x1f": "ctrl-/",
 }
 
@@ -133,6 +135,10 @@ def parse_key(spec: str) -> str:
         ch = base.upper()
         if ch == " ":
             base = "\x00"
+        elif ch == "/":
+            # ``/`` (0x2f) has no C0 letter mapping; terminals send ASCII US
+            # (0x1f) for ctrl-/, matching KEY_ALIASES["\x1f"] = "ctrl-/".
+            base = "\x1f"
         elif "@" <= ch <= "_":
             # ctrl-@ .. ctrl-_ map to codes 0x00 .. 0x1f (covers letters,
             # brackets etc. the same way a real terminal encodes them).

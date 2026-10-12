@@ -29,6 +29,13 @@ from yate.editor_term.palette import ANSI_16_RGB, RGB, palette_color
 #: Maximum scrollback lines kept (older lines are dropped).
 MAX_SCROLLBACK: int = 5000
 
+#: Scrollback is trimmed lazily: lines accumulate up to MAX_SCROLLBACK +
+#: _SCROLLBACK_SLACK before one bulk ``del`` cuts back to exactly
+#: MAX_SCROLLBACK.  Trimming on every overflow line would move the whole
+#: list each time (O(n) per scroll); the bulk cut amortizes to O(1) per
+#: line at the cost of a transient memory peak of SLACK extra rows.
+_SCROLLBACK_SLACK: int = 500
+
 #: Maximum bytes buffered for a partial CSI sequence; a malformed stream
 #: that never terminates the sequence cannot grow the parser state.
 _CSI_MAX: int = 64
@@ -172,9 +179,7 @@ class TerminalEmulator:
             dropped = old_rows - rows
             for i in range(dropped):
                 self.scrollback.append(list(old[i]))
-            overflow = len(self.scrollback) - MAX_SCROLLBACK
-            if overflow > 0:
-                del self.scrollback[:overflow]
+            self._trim_scrollback()
         for i in range(copy_rows):
             for j in range(copy_cols):
                 new_grid[row_offset + i][col_offset + j] = old[
@@ -409,6 +414,17 @@ class TerminalEmulator:
         elif cur[0] > 0:
             cur[0] -= 1
 
+    def _trim_scrollback(self) -> None:
+        """Cut scrollback back to :data:`MAX_SCROLLBACK` once slack is exceeded.
+
+        Lazy amortized trimming: growing to
+        ``MAX_SCROLLBACK + _SCROLLBACK_SLACK`` and then dropping the excess
+        in one ``del`` avoids moving the whole list on every overflow line.
+        Memory peaks at SLACK extra rows.
+        """
+        if len(self.scrollback) > MAX_SCROLLBACK + _SCROLLBACK_SLACK:
+            del self.scrollback[: len(self.scrollback) - MAX_SCROLLBACK]
+
     def _scroll_up(self, count: int) -> None:
         screen = self._screen
         top, bottom = self.scroll_top, self.scroll_bottom
@@ -416,8 +432,7 @@ class TerminalEmulator:
             leaving = screen[top]
             if top == 0 and not self.in_alt:
                 self.scrollback.append(leaving)
-                if len(self.scrollback) > MAX_SCROLLBACK:
-                    del self.scrollback[: len(self.scrollback) - MAX_SCROLLBACK]
+                self._trim_scrollback()
             for r in range(top, bottom):
                 screen[r] = screen[r + 1]
             screen[bottom] = self._blank_line()
