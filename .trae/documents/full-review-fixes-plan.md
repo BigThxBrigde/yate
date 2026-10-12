@@ -176,3 +176,59 @@ flowchart LR
 ```
 
 执行波内先行定向：`pytest tests/test_editor_core.py tests/test_key_notation.py tests/test_terminal_emulator.py tests/test_diagnostics.py tests/test_ts_backend.py tests/test_highlight.py tests/test_extension_examples.py tests/test_completion_popup.py tests/test_chrome.py tests/test_lsp.py tests/test_app_lsp.py -q` + 对涉改文件跑 pyright。
+
+## 八、执行回填（2026-10-12，闭环完成）
+
+### 流程记录
+
+| 步骤 | 结果 |
+|---|---|
+| 1【领会】 | worktree `../yate-full-review-fixes` + 分支 `fix/full-review-fixes`（基线 `38c29ce`）；独立 `.venv` 重建并自证（`import yate` 指向 worktree） |
+| 2【方案】 | 本文档落盘，commit `62c1a83`；评审记录互链 commit `c964b95` |
+| 3【批准】 | **无人值守模式**：用户指令"进入无人值守"即预授权，未停等（偏离 plan-before-execute §二.3 停等要求，依据：用户显式指令） |
+| 4【执行】 | 3 个 plan-executor 并行（Wave 1/2/3，文件独占，零越界）；主代理追修 H3 `_fire` 时序（移到 filetype 索引重建后，防同步重绘读陈旧映射） |
+| 5【审核】 | code-review-expert 双 skill（python-code-review + TRAE-code-review）合并评审：**0 blocker / 1 major / 4 minor / 8 info**；门禁实测 pyright 0 诊断、pytest 全绿、架构 29 用例绿、覆盖率 81.16%、smoke 109/109 场景 1323/1323 checks（评审员亲跑） |
+| 6【迭代】 | 1 轮收敛：M-1（TabBar 重拟合分支零覆盖）补用例 `test_indicator_that_does_not_fit_refits_once`（变异可红）；m-2/m-3/m-4/i-1 一并采纳修复；m-1（重拟合数字进位理论边界，现实不可达）登记待办不实施。commit `0cc63a7` |
+| 7【收尾】 | 主代理全量门禁（数字见下），本文档回填，分步提交，**未推送** |
+
+### 门禁实测（收尾，主代理复跑）
+
+| 门禁 | 结果 | 退出码 |
+|---|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations | 0 |
+| `pytest tests/ -q` | 全绿（2124+ 项；`test_shell` 进程击杀用例在高负载下出现过 1 次与本改动无关的偶发，隔离复跑通过） | 0 |
+| `pytest tests/test_architecture.py -q` | 29 passed（含新登记 langdefs 豁免守卫） | 0 |
+| `pytest tests/ --cov=yate --cov=tools --cov-fail-under=75 -q` | **81.16%** ≥ 75 | 0 |
+| `tools.smoke_test run` | 109/109 scenarios, 1323/1323 checks（评审员实测） | 0 |
+| pack.ps1 解析探针 | `Parser::ParseFile` 0 errors（bash 本机不可用，`bash -n pack/pack.sh` 未执行——机械性 `timeout 30` 前缀，如实登记） | 0 |
+
+### 偏离计划记录（均有实测依据）
+
+1. **langdefs.py 813 行越线**：方案 W1.5 在 796 行基线（距阈值 4 行）上加存取器必然越线。处置：按 §三.7 机制登记豁免（`SIZE_EXEMPT_FILES` + 规则文档两处同步，登记行数 813 = `splitlines()` 实测）；拆分触碰 plan-a 原地 patch 契约，零行为收益。
+2. **H3 `_fire` 时序**：执行者按方案字面落在 `append(config)` 后、索引重建前；主代理复核发现同步消费方（`LspSync.on_event` 全视图重绘）可读陈旧 `_by_filetype`，移至重建后。
+3. **L2 测试落点**：`_parse_diagnostics` 的既有同类用例在 test_lsp.py（经 LspManager seam）；`tests/test_diagnostics.py` 实测的是 `yate.diagnostics` 报告模块。按方案落点执行但改为直接导入 `_parse_diagnostics`；告警捕获用仓库既成惯例 `_LogCapture` handler（`yate` 根 logger `propagate=False` 使 caplog 不可见，方案引用 test_tracing.py 的 caplog 惯例与现状不符）。
+4. **M5 测试输入**：纯 `\n` 不带 `\r` 时不满足"每 LF 恰滚一行"（实测 rows=2 灌 50 对产出 57 行），改用 `\r\n` 与既有用例一致。
+5. **pyright 私有访问**：strict 门禁对 tests 生效，新增用例按仓库既有惯例以 `cast(Any, ...)` / `__all__` 豁免机制处理，未用 `# type: ignore`（遵守 R 系红线）。
+
+### 新增回归测试清单（全部变异可红）
+
+H5×2（test_editor_core）、H2×1（test_key_notation）、M5×1（test_terminal_emulator）、L2×2（test_diagnostics）、M2×5（test_chrome 新文件：溢出指示/宽屏无指示/点击区/极窄省略/重拟合）、H4×2（test_completion_popup）、H1×1（test_app_lsp）、H3×1（test_lsp）。
+
+### 待办登记
+
+- **m-1**（TabBar 重拟合后指示器数字进位的理论边界）：现实不可达（需 ≥1000 隐藏文档），后续如有真实场景再按评审建议加回退分支。
+- **M1**（硬编码常量可配置化）：需新配置面设计，另行立项。
+- pack.sh 的 `bash -n` 语法验证：待具备 bash 的环境补跑一次。
+
+### 提交清单（分支 `fix/full-review-fixes`，未推送）
+
+| commit | 内容 |
+|---|---|
+| `c964b95` | docs(review): 评审记录互链修复方案 |
+| `62c1a83` | docs(plan): 本方案落盘 |
+| `315e278` | fix(core): Wave 1（H5/H2/M5/L2/L3 + 测试改绑） |
+| `1f4469c` | chore(arch): langdefs.py 813 行豁免登记（两处同步） |
+| `a01ef20` | fix(editor): Wave 2（H1/H3/H4/M2/L7 + 测试） |
+| `d7fd949` | fix(pack): Wave 3（M4 两脚本超时） |
+| `0cc63a7` | fix(review): 迭代轮（M-1 补测 + m-2/m-3/m-4/i-1） |
+| （待提交） | docs(plan): 本回填 |
