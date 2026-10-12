@@ -174,6 +174,16 @@ flowchart LR
   - 架构测试：`python -m pytest tests/test_architecture.py -q` → 全绿；
   - 覆盖率：`pytest tests --cov=yate --cov-branch --cov-fail-under=75 -q` →
     `Total coverage: 91.86%`（gate 75 通过）。
+- 评审轮次（`.trae/skills/pr-review`，`review` 模式，diff 范围
+  `master...enh/pack-lupa`）：**Overall: APPROVE**（0 BLOCKER / 0 MAJOR /
+  2 MINOR）。MINOR 已当场修复并提交 `be2f199`
+  （`_LUA_PACKAGES` 单元素元组收为一行；方案文档 Mermaid 标签 Lua DLL
+  版本表述修正为 lua51-55/luajit）。修复后复跑：
+  `pytest tests/test_pack_spec.py -q` 全绿（exit 0）、
+  `pyright pack/ tests/` 零诊断；收尾终验 pyright 全仓 0 诊断（exit 0）、
+  pytest 全量全绿（exit 0）。六维结论：功能正确性由真实构建 +
+  `--diag` 实测背书；安全/性能无发现；架构边界与硬门禁全过（`pack/`
+  不在 yate 运行时分层内，无 R1-R13 触碰面）。
 - 偏离记录：
   1. 计划步骤 1 提到"循环改为遍历 `(*_TS_PACKAGES, *_LUA_PACKAGES)`"——按计划执行，
      无偏离；
