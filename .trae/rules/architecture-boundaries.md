@@ -182,7 +182,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      `editor_core/buffer.py`（1062 行，文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单，维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，pack wiki 站点生成/翻译/进度
-     单一职责，#29/#31/#33 三轮评审均在该文件收敛，拆分另行立项）。
+     单一职责，#29/#31/#33 三轮评审均在该文件收敛，拆分另行立项）、
+     `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，语言注册表声明式数据
+     单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
+     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后

@@ -232,10 +232,16 @@ MAX_SOURCE_LINES: int = 800
 #: site generator/translator whose review rounds #29/#31/#33 all converged
 #: in that one file; splitting it is a standalone structural task, not a
 #: review fix).
+#: 2026-10-12 full-review fixes: ``editor_syntax/langdefs.py`` is
+#: registered at 813 lines -- a single-duty declarative language registry
+#: (spec table + word-list constants) whose two public test-seam accessors
+#: pushed it past the threshold; splitting it would touch the in-place
+#: patch semantics pinned by big-module-split plan-a for zero behavior gain.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
     "editor_core/buffer.py",
+    "editor_syntax/langdefs.py",
     "tools/pack/wiki.py",
 })
 
