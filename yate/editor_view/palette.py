@@ -290,17 +290,15 @@ class PaletteScreen(ModalScreen[None]):
             hits: list[int] = []
             if match is not None:
                 score, hits = match
-            else:
-                if not commands_mode or not hint:
-                    continue
+            elif commands_mode and hint:
                 # description-only matches (e.g. "save" finds :w) rank
                 # below every name match
-                desc_match = _match_lowered(
-                    q, self._hints_lower[i], query, hint
-                )
+                desc_match = _match_lowered(q, self._hints_lower[i], query, hint)
                 if desc_match is None:
                     continue
                 score = desc_match[0] + 1000
+            else:
+                continue
             scored.append((score, hits, i))
         scored.sort(key=lambda item: (item[0], self._entries_lower[item[2]]))
         self._filtered = scored[:MAX_VISIBLE]
