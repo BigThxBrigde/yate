@@ -68,9 +68,7 @@ _TS_PACKAGES: tuple[str, ...] = (
 #: :data:`_TS_PACKAGES`.  The package comes from the [lua] extra; when it is
 #: absent in the build environment the executable simply ships without the
 #: Lua bridge (the loop skips it).
-_LUA_PACKAGES: tuple[str, ...] = (
-    "lupa",
-)
+_LUA_PACKAGES: tuple[str, ...] = ("lupa",)
 
 #: Third-party packages dropped from the frozen graph (issue IKJPVB): pulled in
 #: transitively, never touched at runtime.  Pillow arrives via

@@ -106,7 +106,7 @@
 flowchart LR
     A["pack/pack.ps1 / pack.sh<br/>(安装 extras [build,ts,lua])"] --> B["PyInstaller + pack/yate.spec"]
     B --> C["_common.collect()<br/>hiddenimports + binaries<br/>+ dist-info datas"]
-    C -->|"lupa in _LUA_PACKAGES<br/>(find_spec 条件)"| D["dist/yate/runtime/<br/>lupa 代码 + lua51/54 动态库<br/>+ lupa dist-info"]
+    C -->|"lupa in _LUA_PACKAGES<br/>(find_spec 条件)"| D["dist/yate/runtime/<br/>lupa 代码 + lua51-55/luajit 动态库<br/>+ lupa dist-info"]
     D --> E["yate.exe --diag"]
     E --> F["diagnostics._section_packages<br/>requires('yate') → lua: 组<br/>version() 探测 lupa dist-info"]
     F --> G["[packages] 段显示 lupa 版本"]
