@@ -1,14 +1,14 @@
-"""The four ``api.*`` sub-namespace bridges (lsp / highlight / syntax / sprites).
+"""The ``api.*`` sub-namespace bridges (events / lsp / highlight / syntax / sprites).
 
 Each bridge wraps one capability domain for extension scripts; the
 :class:`ExtensionAPI <yate.services.extension_api.ExtensionAPI>` facade
-instantiates all four in its ``__init__`` and hands them out through the
+instantiates them in its ``__init__`` and hands them out through the
 matching properties.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +27,41 @@ from yate.editor_syntax import (
 )
 from yate.editor_syntax.ts_backend import load_language_from_grammar
 from yate.logs import tracing
+from yate.services.events import EditorEvent, EventHub, EventCallback
 
 #: Trace logger ("yate.services.extension_bridges"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
+
+
+class EventExtensionBridge:
+    """``api.events`` -- subscribe to editor events from an extension.
+
+    Wraps the editor-owned :class:`~yate.services.events.EventHub`; every
+    subscription made while a rollback scope is active is recorded, so a
+    failing ``setup`` also drops its listeners (A13).
+    """
+
+    def __init__(
+        self,
+        hub: EventHub,
+        record_undo: Callable[[Callable[[], None]], None],
+    ) -> None:
+        self._hub = hub
+        self._record_undo = record_undo
+
+    def subscribe(
+        self, event: EditorEvent, callback: EventCallback
+    ) -> Callable[[], None]:
+        """Subscribe to *event*; returns the unsubscribe thunk.
+
+        *callback* is guarded by the hub itself (a raising listener is
+        reported and skipped, never crashing the editor operation that
+        emitted).  Payloads are the frozen dataclasses defined in
+        :mod:`yate.services.events`.
+        """
+        unsubscribe = self._hub.subscribe(event, callback)
+        self._record_undo(unsubscribe)
+        return unsubscribe
 
 
 class LspExtensionBridge:

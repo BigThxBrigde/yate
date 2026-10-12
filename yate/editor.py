@@ -29,7 +29,7 @@ from textual.screen import Screen
 
 from yate import __version__
 from yate.config import YateConfig
-from yate.editor_core import BufferReadOnlyError
+from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_lsp.manager import LspManager
 from yate.editor_syntax import (
     format_filetype_candidates,
@@ -62,6 +62,13 @@ from yate.keymaps.vsc import VscKeymap
 from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.registries import ActionRegistry, CommandRegistry
+from yate.services.events import (
+    DocumentClosed,
+    EditorEvent,
+    EventHub,
+    KeymapChanged,
+    ThemeChanged,
+)
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
@@ -81,12 +88,16 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     the half-built state is never observed.
     """
     ed.session = EditorSession(
-        ed.config, on_closed=lambda docs: ed.lsp_sync.documents_closed(docs)
+        ed.config, on_closed=lambda docs: ed.documents_closed(docs)
     )
     ed.workspace = Workspace()
     # propagate the yaterc show_hidden default to the workspace
     ed.workspace.show_hidden = ed.config.show_hidden
     ed.explorer_visible = True
+    # Extension event hub: one instance shared by the extension API
+    # (``api.events``) and every emitter below; failures report through the
+    # message line.  Created before the extension API, which wraps it.
+    ed.events = EventHub(report_failure=lambda text: ed.message(text))
     # Language Server Protocol: registered servers come from extensions
     # and the yaterc ``language_servers`` option; the manager is UI
     # independent and safe to keep even with no server.  It is created
@@ -105,7 +116,7 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     # editor, so only the shell may load them (R5/R7 -- see YateApp).
     ed.actions = ActionRegistry()
     ed.commands = CommandRegistry()
-    ed.extension_api = ExtensionAPI(ed.extension_context())
+    ed.extension_api = ExtensionAPI(ed.extension_context(), ed.events)
     ed.extension_loader = ExtensionLoader(ed.extension_api)
     ed.extension_flows = ExtensionFlows(
         ed.extension_loader,
@@ -162,6 +173,7 @@ def _build_widgets(ed: Editor) -> None:
         lsp=ed.lsp,
         explorer_tree=ed.explorer_tree,
         prompt_bar=ed.prompt_bar,
+        events=ed.events,
         message=ed.message,
         report=ed.report,
         refresh_ui=ed.refresh_ui,
@@ -249,6 +261,7 @@ def _build_pane_stack(ed: Editor) -> None:
         panes=ed.panes,
         status_bar=ed.status_bar,
         prompt=ed.prompt_bar,
+        events=ed.events,
         message=ed.message,
         mounted=lambda: ed.mounted,
         push_overlay=ed.overlays.push,
@@ -327,6 +340,7 @@ class Editor:
     keymaps: KeymapSet
     actions: ActionRegistry
     commands: CommandRegistry
+    events: EventHub
     extension_api: ExtensionAPI
     extension_loader: ExtensionLoader
     key_ui: KeyUi
@@ -401,6 +415,16 @@ class Editor:
             open_path=lambda path: self.document_flows.open_path_later(path),
             save=lambda: self.document_flows.save_document(),
         )
+
+    def documents_closed(self, docs: list[Document]) -> None:
+        """Session hook for closed documents: emit, then notify the servers.
+
+        The DOCUMENT_CLOSED event fires before the LSP didClose dispatch --
+        listeners observe a consistent "just left the session" state either
+        way, and the LSP call is only deferred to a worker.
+        """
+        self.events.emit(EditorEvent.DOCUMENT_CLOSED, DocumentClosed(list(docs)))
+        self.lsp_sync.documents_closed(docs)
 
     def make_view(self, leaf_id: int) -> EditorView:
         """Build the :class:`EditorView` widget for one pane leaf."""
@@ -781,6 +805,7 @@ class Editor:
             self.message(f"unknown keymap: {name} (vsc|vim)", kind="error")
             return
         self.message(f"keymap: {self.keymaps.active.label}", kind="ok")
+        self.events.emit(EditorEvent.KEYMAP_CHANGED, KeymapChanged(name))
         self.refresh_ui()
 
     def toggle_keymap(self) -> None:
@@ -831,6 +856,7 @@ class Editor:
                 return
         # The reactive watcher regenerates tokens and repaints every overlay.
         self.app.theme = textual_name
+        self.events.emit(EditorEvent.THEME_CHANGED, ThemeChanged(name))
         self.message(f"theme: {selected.label}", kind="ok")
 
     def set_readonly(self, value: bool) -> None:

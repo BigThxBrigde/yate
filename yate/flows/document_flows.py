@@ -29,6 +29,13 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.panes import PaneManager
 from yate.logs import tracing
+from yate.services.events import (
+    DocumentActivated,
+    DocumentOpened,
+    DocumentSaved,
+    EditorEvent,
+    EventHub,
+)
 from yate.services.workspace import Workspace
 from yate.session import EditorSession, Leaf
 
@@ -52,6 +59,7 @@ class DocumentFlows:
         lsp: LspManager,
         explorer_tree: ExplorerTree,
         prompt_bar: PromptBar,
+        events: EventHub,
         message: MessageFn,
         report: MessageFn,
         refresh_ui: Callable[[], None],
@@ -67,6 +75,7 @@ class DocumentFlows:
         self.lsp = lsp
         self.explorer_tree = explorer_tree
         self.prompt_bar = prompt_bar
+        self._events = events
         self._message = message
         self._report = report
         self._refresh_ui = refresh_ui
@@ -136,9 +145,13 @@ class DocumentFlows:
         """Show *doc* in a pane leaf (default: the active one)."""
         if not self._mounted():
             self.session.activate(doc)
+            self._events.emit(
+                EditorEvent.DOCUMENT_ACTIVATED, DocumentActivated(doc)
+            )
             return
         leaf = target_leaf if target_leaf is not None else self.panes.active
         self.panes.show_doc(leaf, doc)
+        self._events.emit(EditorEvent.DOCUMENT_ACTIVATED, DocumentActivated(doc))
 
     def _open_document(
         self, path: Path, *, target_leaf: Leaf | None = None
@@ -153,6 +166,8 @@ class DocumentFlows:
         if not reused:
             self._apply_session_readonly(doc)
         self.activate_doc(doc, target_leaf)
+        if not reused:
+            self._events.emit(EditorEvent.DOCUMENT_OPENED, DocumentOpened(doc))
         log.info("opened: %s", path)
         return doc
 
@@ -168,6 +183,8 @@ class DocumentFlows:
         if not reused:
             self._apply_session_readonly(doc)
         self.activate_doc(doc, target_leaf)
+        if not reused:
+            self._events.emit(EditorEvent.DOCUMENT_OPENED, DocumentOpened(doc))
         log.info("opened (async): %s", path)
         return doc
 
@@ -320,6 +337,7 @@ class DocumentFlows:
                 group="lsp-sync", exclusive=False, exit_on_error=False,
             )
             self._message(f"saved {doc.path}", "ok")
+            self._events.emit(EditorEvent.DOCUMENT_SAVED, DocumentSaved(doc))
             log.info("saved: %s", doc.path)
         except (OSError, UnicodeError) as exc:
             self._message(f"save failed: {exc}", "error")
@@ -375,6 +393,9 @@ class DocumentFlows:
             self.workspace.set_root(path.parent)
             self.explorer_tree.refresh_tree()
             self._message(f"saved {path}", "ok")
+            self._events.emit(
+                EditorEvent.DOCUMENT_SAVED, DocumentSaved(self.session.doc)
+            )
         except (OSError, UnicodeError) as exc:
             self._message(f"save failed: {exc}", "error")
         finally:

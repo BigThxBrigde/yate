@@ -19,11 +19,13 @@ from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
 from yate.services.extension_bridges import (
+    EventExtensionBridge,
     HighlightExtensionBridge,
     LspExtensionBridge,
     SpriteExtensionBridge,
     SyntaxExtensionBridge,
 )
+from yate.services.events import EventHub
 from yate.services.shell import ShellResult
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
@@ -73,18 +75,24 @@ class ExtensionContext:
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
-    def __init__(self, ctx: ExtensionContext) -> None:
+    def __init__(self, ctx: ExtensionContext, events: EventHub | None = None) -> None:
         self._ctx = ctx
-        self._lsp = LspExtensionBridge(ctx.lsp)
-        self._highlight = HighlightExtensionBridge()
-        self._syntax = SyntaxExtensionBridge()
-        self._sprites = SpriteExtensionBridge()
         #: Registration rollback scope (audit A13): undo thunks recorded
         #: while one ``setup`` runs; ``None`` when no scope is active (the
         #: normal state outside
         #: :meth:`ExtensionLoader.load_file
         #: <yate.services.extension_loader.ExtensionLoader.load_file>`).
+        #: Initialized first: the bridges below record into it.
         self._scope: list[RollbackHook] | None = None
+        self._lsp = LspExtensionBridge(ctx.lsp)
+        self._highlight = HighlightExtensionBridge()
+        self._syntax = SyntaxExtensionBridge()
+        self._sprites = SpriteExtensionBridge()
+        # ``None`` (standalone construction in tests) gets a private hub:
+        # nothing emits into it, so subscriptions simply never fire.
+        self._events = EventExtensionBridge(
+            events if events is not None else EventHub(), self._record_undo
+        )
 
     # ------------------------------------------------------- rollback scope
 
@@ -118,6 +126,15 @@ class ExtensionAPI:
         for undo in reversed(self._scope):
             undo()
         self._scope = None
+
+    def _record_undo(self, undo: RollbackHook) -> None:
+        """Record one pre-built undo thunk into the active scope (A13).
+
+        No-op outside a scope, so registrations made by already-loaded
+        extensions (``:trust`` reload path) stay permanent.
+        """
+        if self._scope is not None:
+            self._scope.append(undo)
 
     def _record_action_snapshot(self, name: str) -> None:
         """Record the undo thunk for an action registration (audit A13)."""
@@ -197,6 +214,11 @@ class ExtensionAPI:
     def sprites(self) -> SpriteExtensionBridge:
         """Register custom screensaver characters (``api.sprites.register``)."""
         return self._sprites
+
+    @property
+    def events(self) -> EventExtensionBridge:
+        """Subscribe to editor events (``api.events.subscribe``)."""
+        return self._events
 
     # ------------------------------------------------------------ registrars
 
