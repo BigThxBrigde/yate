@@ -18,6 +18,7 @@ from tools.smoke_test.scenarios.explorer import SCENARIOS as _EXPLORER
 from tools.smoke_test.scenarios.files import SCENARIOS as _FILES
 from tools.smoke_test.scenarios.guards import SCENARIOS as _GUARDS
 from tools.smoke_test.scenarios.integration import SCENARIOS as _INTEGRATION
+from tools.smoke_test.scenarios.modules import SCENARIOS as _MODULES
 from tools.smoke_test.scenarios.multi_cursor import SCENARIOS as _MULTI_CURSOR
 from tools.smoke_test.scenarios.palette_preview import SCENARIOS as _PALETTE_PREVIEW
 from tools.smoke_test.scenarios.panes import SCENARIOS as _PANES
@@ -57,6 +58,7 @@ SCENARIOS: list[Scenario] = [
     *_VIEW,
     *_DIFFVIEW,
     *_INTEGRATION,
+    *_MODULES,
     *_REGRESSION,
     *_SCREENSAVER,
     *_STRESS,
