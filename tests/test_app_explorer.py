@@ -136,6 +136,32 @@ def test_returns_matched_indices() -> None:
     assert match[1] == [0, 1, 2, 3, 4]
 
 
+def test_match_lowered_parity_with_fuzzy_match() -> None:
+    """IKKSHY: the pre-lowered core agrees with ``fuzzy_match`` exactly.
+
+    ``refilter`` scores pre-lowered entry mirrors; this locks the parity
+    (same score, same matched indices, same None) so the fast path cannot
+    drift from the public helper.
+    """
+    from yate.editor_view.palette import _match_lowered, fuzzy_match
+
+    cases = [
+        ("", "anything"),
+        ("wt", "write"),
+        ("tw", "write"),
+        ("Set", "SETup"),
+        ("set", "reset"),
+        ("ctrlp", "ctrl p"),
+        ("bp", "Bprev"),
+        ("xyz", "bprev"),
+        ("ich", "日本語 icH"),
+    ]
+    for query, target in cases:
+        expected = fuzzy_match(query, target)
+        actual = _match_lowered(query.lower(), target.lower(), query, target)
+        assert expected == actual, (query, target)
+
+
 # ----------------------------------------------------------- explorer operations
 
 
@@ -212,7 +238,18 @@ def test_new_file_and_folder_from_explorer(tmp_path: Path) -> None:
             assert prompt_bar.active_mode == "new_file"
             await pilot.press(*"made.txt")
             await pilot.press("enter")
-            await pilot.pause()
+            # creation opens the doc via open_path_later (a spawned worker):
+            # a single pilot.pause() loses that race under load, so poll
+            # until the file exists AND the async open landed in the session
+            opened_ok = await wait_until(
+                pilot,
+                lambda: (root / "made.txt").exists()
+                and any(
+                    d.path is not None and d.path.name == "made.txt"
+                    for d in app.editor.session.docs
+                ),
+            )
+            assert opened_ok
             assert (root / "made.txt").exists()
             # new files open right away (VS Code behavior)
             opened = {d.name for d in app.editor.session.docs if d.path is not None}

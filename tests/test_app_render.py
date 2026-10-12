@@ -506,3 +506,50 @@ def test_doc_scroll_scrollbar_paints_theme_palette() -> None:
         asyncio.run(scenario())
     finally:
         theme.set_theme(original)
+
+
+# ---------------------------------------------------- IKKSHY geometry guards
+
+
+def test_cell_offsets_matches_char_to_cell_pointwise() -> None:
+    """``cell_offsets`` replicates ``char_to_cell`` arithmetic exactly.
+
+    Mixed content on purpose: tabs (tab-stop advance), wide CJK glyphs (2
+    cells), combining marks (0-width in ``cell_width`` but ``max(1, w)`` in
+    this mapping) and a trailing tab -- the render path replaces per-token
+    ``char_to_cell`` rescans with this table, so any drift shifts painted
+    columns.
+    """
+    from yate.editor_view.theme import cell_offsets
+
+    lines = [
+        "",
+        "plain ascii line",
+        "def f(x) -> tuple[list[Token], int]:",
+        "\tindented\twith\tstops",
+        "cjk 日本語 and emoji 😀 tail",
+        "combining é́ marks",
+        "wide\t\ttab\t",
+        "日本\t字 mix",
+    ]
+    for line in lines:
+        offsets = cell_offsets(line, 4)
+        assert len(offsets) == len(line) + 1
+        for i in range(len(line) + 1):
+            assert offsets[i] == theme.char_to_cell(line, i, 4), (line, i)
+        # alternate tab width too (the render path passes the buffer's)
+        offsets2 = cell_offsets(line, 8)
+        for i in range(len(line) + 1):
+            assert offsets2[i] == theme.char_to_cell(line, i, 8), (line, i)
+
+
+def test_cell_offsets_line_end_and_total() -> None:
+    """The table covers index ``len(line)``: total width, matching the old
+    ``char_to_cell`` behavior for end-of-line lookups (cursor at EOL)."""
+    from yate.editor_view.theme import cell_offsets
+
+    line = "ab\tcd"
+    offsets = cell_offsets(line, 4)
+    # a(1) b(2) -> tab advances to the next stop at col 4 -> c(5) d(6)
+    assert offsets == [0, 1, 2, 4, 5, 6]
+    assert offsets[len(line)] == theme.char_to_cell(line, len(line), 4)

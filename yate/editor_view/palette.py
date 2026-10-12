@@ -70,10 +70,20 @@ def fuzzy_match(query: str, target: str) -> tuple[int, list[int]] | None:
     Returns ``(score, matched_indices)`` (lower score = better) or ``None``
     when the query is not a subsequence of the target.
     """
-    if not query:
-        return (0, [])
-    q = query.lower()
-    t = target.lower()
+    return _match_lowered(query.lower(), target.lower(), query, target)
+
+
+def _match_lowered(
+    q: str, t: str, query: str, target: str
+) -> tuple[int, list[int]] | None:
+    """Core of :func:`fuzzy_match` with the case-folding already done.
+
+    *q* is the lowered query and *t* the lowered *target* (matched indices
+    point into the original *target*, whose and *query*'s raw case only
+    feed the exact-case bonus).  Palette refiltering calls this directly
+    with pre-lowered entries so a keystroke does not re-``lower()`` every
+    candidate string.
+    """
     matched: list[int] = []
     score = 0
     ti = 0
@@ -173,6 +183,11 @@ class PaletteScreen(ModalScreen[None]):
         self.preview = preview
         self.mode = mode  # "files" | "commands"
         self._entries: list[tuple[str, str, Any]] = []  # (display, hint, payload)
+        #: lower-cased mirrors of ``_entries`` columns, rebuilt together with
+        #: them: refilter runs per keystroke and must not re-``lower()`` every
+        #: candidate string each time (issue IKKSHY profiling)
+        self._entries_lower: list[str] = []
+        self._hints_lower: list[str] = []
         self._filtered: list[tuple[int, list[int], int]] = []  # (score, hits, idx)
         self._cursor = 0
         # shown in the results pane while the file index builds in a thread
@@ -237,7 +252,13 @@ class PaletteScreen(ModalScreen[None]):
                 continue
             entries.append((name, description, ("action", name)))
         entries.sort(key=lambda entry: entry[0])
+        self._set_entries(entries)
+
+    def _set_entries(self, entries: list[tuple[str, str, Any]]) -> None:
+        """Store *entries* and the lower-cased mirrors :meth:`refilter` scores against."""
         self._entries = entries
+        self._entries_lower = [display.lower() for display, _hint, _payload in entries]
+        self._hints_lower = [hint.lower() for _display, hint, _payload in entries]
 
     async def _index_files(self) -> None:
         """Build the file list in a thread so large workspaces do not
@@ -248,30 +269,38 @@ class PaletteScreen(ModalScreen[None]):
             entries = []
         if not self.is_mounted:
             return
-        self._entries = entries
+        self._set_entries(entries)
         self._status_message = None
         query = self.query_one("#palette-input", Input).value
         self.refilter(query)
 
     def refilter(self, query: str) -> None:
-        """Rescore entries against *query* and re-render the result list."""
+        """Rescore entries against *query* and re-render the result list.
+
+        Scores against the pre-lowered entry mirrors (``_entries_lower`` /
+        ``_hints_lower``) with the query lowered once per keystroke; the
+        per-candidate ``str.lower()`` allocations used to dominate large
+        workspaces (issue IKKSHY profiling).
+        """
+        q = query.lower()
+        commands_mode = self.mode == "commands"
         scored: list[tuple[int, list[int], int]] = []
         for i, (display, hint, _payload) in enumerate(self._entries):
-            match = fuzzy_match(query, display)
+            match = _match_lowered(q, self._entries_lower[i], query, display)
             hits: list[int] = []
             if match is not None:
                 score, hits = match
-            elif self.mode == "commands" and hint:
+            elif commands_mode and hint:
                 # description-only matches (e.g. "save" finds :w) rank
                 # below every name match
-                desc_match = fuzzy_match(query, hint)
+                desc_match = _match_lowered(q, self._hints_lower[i], query, hint)
                 if desc_match is None:
                     continue
                 score = desc_match[0] + 1000
             else:
                 continue
             scored.append((score, hits, i))
-        scored.sort(key=lambda item: (item[0], self._entries[item[2]][0].lower()))
+        scored.sort(key=lambda item: (item[0], self._entries_lower[item[2]]))
         self._filtered = scored[:MAX_VISIBLE]
         self._cursor = 0
         self._render_results()

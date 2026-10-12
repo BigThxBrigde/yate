@@ -320,13 +320,20 @@ class EditorView(ScrollView, HighlightMixin):
     def _gutter_w(self) -> int:
         return self.gutter_width()
 
-    def _syntax_kinds(self, row: int, line: str, cell_count: int) -> list[str | None]:
-        """Per-cell syntax token kind (char ranges mapped to display cells)."""
-        tw = self.buffer.tab_width
+    def _syntax_kinds(self, row: int, cell_count: int, offsets: list[int]) -> list[str | None]:
+        """Per-cell syntax token kind (char ranges mapped to display cells).
+
+        *offsets* is the char->cell prefix table built once by the caller
+        (:meth:`render_line`), so each token boundary is an O(1) lookup.
+        Indices are clamped to the line because the degraded stale-token
+        reuse path (``_tokens_for``) can hand back boundaries past the end
+        of the current text; ``char_to_cell`` clamped the same way.
+        """
+        last = len(offsets) - 1
         kinds: list[str | None] = [None] * cell_count
         for tok in self._tokens_for(row):
-            cs = theme.char_to_cell(line, tok.start, tw)
-            ce = theme.char_to_cell(line, tok.end, tw)
+            cs = offsets[min(tok.start, last)]
+            ce = offsets[min(tok.end, last)]
             for c in range(max(0, cs), min(ce, cell_count)):
                 kinds[c] = tok.kind
         return kinds
@@ -374,7 +381,11 @@ class EditorView(ScrollView, HighlightMixin):
         # one cursor/anchor lookup and one diagnostics lookup per rendered
         # row: both used to be repeated per consumer (3x pane-tree walks and
         # 2x full diagnostic scans per row) and are now computed once here
-        # and passed down to the gutter, underline and style passes
+        # and passed down to the gutter, underline and style passes.  The
+        # char->cell prefix table is built once for the same reason: the
+        # token/selection/diagnostic passes used to rescan the line prefix
+        # per token via char_to_cell (O(tokens x len) per row per frame).
+        offsets = theme.cell_offsets(line, buf.tab_width)
         cursor, anchor = self._cursor_anchor()
         cursor_row, cursor_col = cursor
         cells: list[str] = []
@@ -391,11 +402,11 @@ class EditorView(ScrollView, HighlightMixin):
 
         n_cells = len(cells)
         styles = [S_NORMAL] * (n_cells + 1)
-        kinds = self._syntax_kinds(y, line, n_cells + 1)
+        kinds = self._syntax_kinds(y, n_cells + 1, offsets)
         line_diags = self.lsp.diagnostics_on_line(self.doc, y)
-        underlines = self._diagnostic_underlines(y, line, n_cells + 1, line_diags)
+        underlines = self._diagnostic_underlines(y, line, n_cells + 1, line_diags, offsets)
 
-        for start, end, sid in self._row_style_ranges(y, line, cursor, anchor):
+        for start, end, sid in self._row_style_ranges(y, line, cursor, anchor, offsets):
             for c in range(max(0, start), min(end, n_cells + 1)):
                 if sid > styles[c]:
                     styles[c] = sid
@@ -486,16 +497,20 @@ class EditorView(ScrollView, HighlightMixin):
         return welcome_rows(t, vim_keys=vim_keys, cache=self._welcome_cache)
 
     def _diagnostic_underlines(
-        self, row: int, line: str, cell_count: int, diags: list[Diagnostic]
+        self,
+        row: int,
+        line: str,
+        cell_count: int,
+        diags: list[Diagnostic],
+        offsets: list[int],
     ) -> list[bool]:
         """Per-cell underline flags contributed by *diags* on *row*.
 
         *diags* is the row's diagnostics as looked up once by the caller
         (:meth:`render_line` shares one lookup between this pass and the
-        gutter marks).
+        gutter marks); *offsets* is the shared char->cell prefix table.
         """
         flags = [False] * cell_count
-        tw = self.buffer.tab_width
         for d in diags:
             if d.start_row == d.end_row:
                 cs, ce = d.start_col, d.end_col
@@ -505,25 +520,31 @@ class EditorView(ScrollView, HighlightMixin):
                 cs, ce = 0, d.end_col
             else:
                 cs, ce = 0, len(line)
-            start = theme.char_to_cell(line, max(0, min(cs, len(line))), tw)
-            finish = theme.char_to_cell(line, max(0, min(ce, len(line))), tw)
+            start = offsets[max(0, min(cs, len(line)))]
+            finish = offsets[max(0, min(ce, len(line)))]
             for c in range(max(0, start), min(finish, cell_count)):
                 flags[c] = True
         return flags
 
     def _row_style_ranges(
-        self, row: int, line: str, cursor: Pos, anchor: Pos | None
+        self,
+        row: int,
+        line: str,
+        cursor: Pos,
+        anchor: Pos | None,
+        offsets: list[int],
     ) -> list[tuple[int, int, int]]:
         """Overlay style ranges (selection / matches / cursor) for *row*.
 
         *cursor* / *anchor* are the pane's cursor and anchor as looked up
         once by the caller (:meth:`render_line` shares one pane-tree walk
-        between this pass and the cursor painting).
+        between this pass and the cursor painting); *offsets* is the shared
+        char->cell prefix table.
         """
         buf = self.buffer
-        tw = buf.tab_width
         cursor_row, cursor_col = cursor
         ranges: list[tuple[int, int, int]] = []
+        line_len = len(line)
 
         sel = self._selection(cursor, anchor)
         if sel is not None:
@@ -531,16 +552,16 @@ class EditorView(ScrollView, HighlightMixin):
             cs: int | None = None
             ce: int | None = None
             if r1 < row < r2:
-                cs, ce = 0, len(line)
+                cs, ce = 0, line_len
             elif r1 == row == r2:
                 cs, ce = c1, c2
             elif row == r1:
-                cs, ce = c1, len(line)
+                cs, ce = c1, line_len
             elif row == r2:
                 cs, ce = 0, c2
             if cs is not None and ce is not None and ce > cs:
-                start = theme.char_to_cell(line, cs, tw)
-                end = theme.char_to_cell(line, ce, tw)
+                start = offsets[min(cs, line_len)]
+                end = offsets[min(ce, line_len)]
                 ranges.append((start, end, S_SELECTION))
 
         # Search state belongs to the active document; other panes showing
@@ -550,13 +571,13 @@ class EditorView(ScrollView, HighlightMixin):
             for i, match in self._matches_for_row(row, search):
                 sid = S_MATCH_ACTIVE if i == search.index else S_MATCH
                 ranges.append((
-                    theme.char_to_cell(line, match.start, tw),
-                    theme.char_to_cell(line, match.end, tw),
+                    offsets[min(match.start, line_len)],
+                    offsets[min(match.end, line_len)],
                     sid,
                 ))
 
         if row == cursor_row:
-            cell = theme.char_to_cell(line, cursor_col, tw)
+            cell = offsets[min(cursor_col, line_len)]
             ranges.append((cell, cell + 1, S_CURSOR))
 
         # extra multi-cursor points paint their own block cursor on this
@@ -564,7 +585,7 @@ class EditorView(ScrollView, HighlightMixin):
         # merge above wins over selection/match overlaps (issue IKKJHH)
         for point in buf.extra_cursors:
             if point[0] == row:
-                cell = theme.char_to_cell(line, point[1], tw)
+                cell = offsets[min(point[1], line_len)]
                 ranges.append((cell, cell + 1, S_CURSOR))
 
         ranges.sort()
