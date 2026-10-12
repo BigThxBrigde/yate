@@ -171,4 +171,34 @@ async def _custom_theme_file(tmp: Path) -> ScenarioResult:
 
 ## 执行记录
 
-（执行后回填：snapshot 产物文件名、run/compare 退出码、模板落定形态。）
+2026-10-12 wave-2 执行完毕（执行者：plan-executor 子代理；复验：主代理）。
+
+- 实际产物：`scenarios/modules.py`（138 行，2 scenario / 18 checks）+
+  `__init__.py` 2 行接线 + 2 个基线
+  （`integration_extension_roundtrip.json` 1248 B /
+  `integration_custom_theme_file.json` 1027 B）。
+- 验收：两新 scenario `run` 18/18 checks（exit 0）；全量 `compare`
+  111/111 scenarios、1341/1341 checks 全 MATCH（exit 0）；
+  `run --tag integration` 8/8（exit 0）；`test_smoke_harness.py`
+  25 passed（注册表守卫自动受检）；`pyright` 2 文件 0 诊断。主代理复跑
+  run/compare/harness 同结果。
+- 偏离（均附实测依据，详见执行汇报）：
+  1. 扩展 action 回调签名带 `ctx`（`registries.py` 的
+     `ActionRegistry.execute` 以 `action.func(ctx)` 调用，零参 lambda 被
+     guarded 回调吞成错误）；
+  2. `no_load_errors` 收窄到本扩展前缀（loader 重跑启动装载会重报 app
+     启动时其他用户扩展的历史错误，全量断言环境脆弱）；新增
+     `loaded_record_clean` check 落实"loader.loaded 记录 error is None"；
+  3. 注 3 的假设被实测证伪：`rt_custom` 残留导致全量 `compare` 首跑
+     `regress_theme_expansion: DRIFT`（该 scenario 枚举
+     `theme.available()` 逐名产生 check，modules 组先于 regression 组）；
+     修复 = scenario 返回前 `THEMES.pop` 清理 `rt_custom-*`（沿用
+     `test_theme_palettes.py:387` 先例），修复后零漂移；
+  4. 主题注册名落定为 `rt_custom-dark/-mirage/-light`（模板 `Theme(name=)`
+     实参全字替换，`_ayu`→`_rt_custom` 连带更名）；
+  5. 模板路径用 `yate.paths.package_root()`（仓库规定的资源目录唯一入口，
+     反对散落 `Path(yate.__file__)` 运算）。
+- 基线在偏离 1/3 修复前 snapshot，修复后全量 compare MATCH 证明现行代码
+  可复现基线，无需重拍。
+- 提交：commit `0bc0434`（test(smoke): add extension and custom theme
+  scenarios）。

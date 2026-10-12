@@ -143,4 +143,24 @@ class _HostWidget(HighlightMixin, Static):
 
 ## 执行记录
 
-（执行后回填：实际用例数、pytest/pyright 退出码、偏离与依据。）
+2026-10-12 wave-1 执行完毕（执行者：plan-executor 子代理；复验：主代理）。
+
+- 实际产物：4 个新测试文件共 **31 用例**（test_cells 13 / test_welcome 6 /
+  test_theme_files 6 / test_highlighting 6）。
+- 验收：`pytest` 4 文件 31 passed（exit 0）；`pyright` 0 errors 0 warnings
+  （exit 0）；`test_architecture.py` 全绿（exit 0）。主代理复跑同结果。
+- 偏离（均以 `python -c` 只读探针实测后落笔，行为点保留）：
+  1. `cell_to_char("ab中cd", 4)` 断言写 3 而非计划的 2——cells 映射 a=0,
+     b=1, 中=2..3, c=4，第 4 列即字符 3；
+  2. `expand_char` tab 用例的 arrange 改为预拆分 `["a", "b"]`——计划的
+     `["ab"]` 与期望 `["a","b"," "," "]` 互相矛盾：`expand_char` 不拆分
+     既有 cell、只按 `len(cells) % tab_width` 补空格；
+  3. 组合标记用例断言 `["a\u0301"]` 而非计划的 `["á"]`——计划中的 "á" 是
+     预组合字符 U+00E1，实现存的是分解序列，行为点（组合后单格）不变；
+  4. highlighting host 方案未触发降级：`class _HostWidget(Widget,
+     HighlightMixin)`（Widget 在前，真实 `refresh`/`set_timer`/`run_worker`
+     按 mixin docstring 声明胜出 MRO），挂载于 `App[None].run_test()` 内；
+  5. 实现修正两处（非计划偏离）：conftest `wait_until` 为 async 须 `await`；
+     `@override` 须置于 property getter 上。
+- 提交：commit `6de3954`（test(split-modules): add unit tests for
+  extracted submodules）。

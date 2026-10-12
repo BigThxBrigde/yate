@@ -127,4 +127,31 @@ yaterc_options.py:120-669 的各函数签名与错误消息格式（docstring �
 
 ## 执行记录
 
-（执行后回填。）
+2026-10-12 wave-1 执行完毕（执行者：plan-executor 子代理；复验：主代理）。
+
+- 实际产物：4 个新测试文件共 **42 用例**（test_term_palette 5 /
+  test_term_keys 11 / test_lsp_parsing 14 / test_yaterc_options 12）。
+- 验收：`pytest` 4 文件 42 passed（exit 0）；`pyright` 0 诊断（exit 0）；
+  `test_architecture.py` 全绿（exit 0）；回归范围
+  `test_terminal_emulator + test_diagnostics + test_config` 209 passed。
+  主代理复跑新文件同结果。
+- 偏离（执行前 `python -c` 探针逐项实测计划断言值，发现 6 处数值/行为
+  笔误，断言按实测落笔、行为点全部保留）：
+  1. palette 色立方体：`palette_color(16+36*5+6*3+4)` 实测
+     `(255, 175, 215)`（计划正文数值笔误，其括号注释与实现自洽）；
+  2. `_to_utf16("a😀b", 2)` 实测 `== 3`（1+2，计划写 4）；
+  3. `_from_utf16` 互逆对为 `("a😀b", 3) == 2`（计划写 4→2）；
+  4. 越界钳制只发生在非 ASCII 行：ASCII 快路径透传返回原值
+     （`_from_utf16("ab", 99) == 99`），改用 `_from_utf16("a😀b", 99) == 3`
+     断言钳制；
+  5. `_range_to_buffer_cols(0,2,0,4)` 实测 `→ (0,2,0,3)`（units 落在
+     surrogate 中间，语义为"越过该 unit 的字符边界"）；改用边界对齐输入
+     `(1,1,1,3) → (1,1,1,2)` 保留计划期望语义；
+  6. `alt+up` 实测 `"\x1b[1;3A"`——实现先查 `keyproto.legacy.
+     modified_key_sequence` 共享表（keys.py:47），alt+arrow 走 CSI 1;3A
+     而非双 ESC 前缀。
+- 行为点替换一处：`_extract_options` 实测不报未知键（只遍历
+  `KNOWN_OPTIONS` 取交集，yaterc_options.py:420），"未知键 → errors" 用例
+  改为"越界值 → errors"（`test_extract_options_assigns_known_scalar_and_
+  rejects_bad_value`），未知键报告在 dict 形态两条用例中按原计划覆盖。
+- 提交：commit `6de3954`。

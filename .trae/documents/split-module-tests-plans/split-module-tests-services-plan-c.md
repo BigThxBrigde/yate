@@ -97,4 +97,38 @@ fixture：
 
 ## 执行记录
 
-（执行后回填。）
+（2026-10-12 plan-executor 回填。）
+
+- 新建文件与用例数：`tests/test_extension_api.py`（10 用例）、
+  `tests/test_extension_bridges.py`（9 用例），合计 19；`yate/` 与 `tools/`
+  零改动（git status 无已修改文件，仅新增测试文件）。
+- 实测命令与退出码：
+  - `pytest tests/test_extension_api.py tests/test_extension_bridges.py -q`
+    → 19 passed，exit 0；
+  - `pytest tests/test_extensions.py -q` → 22 passed，exit 0（步骤一回归）；
+  - `pytest tests/test_extensions.py tests/test_ts_backend.py
+    tests/test_highlight.py -q` → 157 passed，exit 0（步骤二回归）；
+  - `pyright tests/test_extension_api.py tests/test_extension_bridges.py`
+    → 0 errors, 0 warnings, 0 informations，exit 0；
+  - `pytest tests/test_architecture.py -q` → 29 passed，exit 0
+    （架构用例数实测 29，规则文档 §六 记载的 28 为 2026-10-09 口径）。
+- 实现细节与偏离（均经实测取证）：
+  1. **警告捕获用 `_LogCapture` 而非 `caplog`**：`yate` 根 logger
+     `propagate = False`（`yate/logs.py:516`），caplog 看不到子 logger 记录
+     （`tests/test_extensions.py:30-35` 既有先例同款）；断言实质不变
+     （消息含 "extension scope restarted"、levelno == WARNING、
+     logger 名 `yate.services.extension_api`，且恰好 1 条）。
+  2. **`LspManager.configs` 是方法而非属性**（`manager.py:167`）：
+     断言经 `api.app.lsp.configs()` 调用取配置表。
+  3. **`type_def_words` 语义**：其词本身着色为 keyword，并使其后的标识符
+     着色为 type（`test_highlight.py:194` 先例语义）；示例行与断言按此调整
+     （`zzk`→keyword、`zzt`→keyword、`ZzType`→type）。
+  4. **LSP 桥无需 App**：`LspManager()` 可独立构造（`test_lsp.py:627`
+     先例），风险条款中"经 `new_app()` 取 `app.editor.lsp`"的降级路径未触发。
+  5. **`restore_langdefs` 同时恢复 `engine._REGEX_PINNED`**：bridge 的
+     `register` 会写 regex 钉住集合（进程全局），一并在 fixture 快照/恢复；
+     该私有名访问沿用 `test_ts_backend.py` 的文件级
+     `# pyright: reportPrivateUsage=false` 惯例。
+  6. `root_markers` 断言写作 `list(DEFAULT_ROOT_MARKERS)`：
+     `ServerConfig.root_markers` 是 `list[str]`，与元组常量直接 `==` 恒假，
+     逐元素相等即计划意图。
