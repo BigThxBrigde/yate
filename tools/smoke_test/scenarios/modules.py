@@ -84,6 +84,12 @@ async def _extension_roundtrip(tmp: Path) -> ScenarioResult:
                             record is not None and record.error is None))
         app.editor.extension_loader.teardown_all()
         await pilot.pause()
+        # the teardown MARK flip is visible through the record's module
+        # instance (the loader owns the import), locking the teardown leg
+        # end-to-end (same shape as tests/test_extensions.py teardown cases)
+        checks.append(Check("teardown_ran", True,
+                            record is not None and record.module is not None
+                            and record.module.MARK["torn_down"] is True))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("integration_extension_roundtrip", checks, rows)
 
@@ -109,24 +115,29 @@ async def _custom_theme_file(tmp: Path) -> ScenarioResult:
     (tmp / "themes" / "rt_custom_theme.py").write_text(body, encoding="utf-8")
     app = new_app(target=tmp / "a.txt")
     checks: list[Check] = []
-    async with app.run_test(size=(100, 30)) as pilot:
-        await pilot.pause()
-        errors: list[str] = []
-        load_theme_paths([tmp / "themes"], errors)
-        checks.append(Check("theme_registered", True,
-                            not errors
-                            and "rt_custom-dark" in theme.available()))
-        await run_command(pilot, "theme rt_custom-dark")
-        checks.append(Check("switched", "rt_custom-dark",
-                            theme.active().name))
-        await run_command(pilot, "theme mocha")
-        checks.append(Check("restored", "mocha", theme.active().name))
-        rows = snapshot_svg(app, tmp)
-    # Undo the process-global registrations (THEMES.pop -- the same cleanup
-    # the test suite uses) so later scenarios in the same process see the
-    # pre-scenario theme name space.
-    for leftover in [n for n in list(THEMES) if n.startswith("rt_custom-")]:
-        THEMES.pop(leftover)
+    try:
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            errors: list[str] = []
+            load_theme_paths([tmp / "themes"], errors)
+            checks.append(Check("theme_registered", True,
+                                not errors
+                                and "rt_custom-dark" in theme.available()))
+            await run_command(pilot, "theme rt_custom-dark")
+            checks.append(Check("switched", "rt_custom-dark",
+                                theme.active().name))
+            await run_command(pilot, "theme mocha")
+            checks.append(Check("restored", "mocha", theme.active().name))
+            rows = snapshot_svg(app, tmp)
+    finally:
+        # Undo the process-global registrations (THEMES.pop -- the same
+        # cleanup the test suite uses) so later scenarios in the same
+        # process see the pre-scenario theme name space.  The finally guard
+        # matters because regress_theme_expansion enumerates
+        # theme.available() in this same process: a mid-scenario failure
+        # must not leak rt_custom-* into its baseline drift.
+        for leftover in [n for n in list(THEMES) if n.startswith("rt_custom-")]:
+            THEMES.pop(leftover)
     return ScenarioResult("integration_custom_theme_file", checks, rows)
 
 

@@ -1,4 +1,3 @@
-# pyright: reportPrivateUsage=false
 """Unit tests for ``yate.editor_view.welcome`` (welcome-page rows).
 
 Covers the caller-owned (theme, vim_keys) cache contract, the vim-only
@@ -6,6 +5,8 @@ ex-command hint, the banner centering flags / padding and the Strip padding
 of the row renderer.  The active theme is read only -- nothing here mutates
 the process-global theme state.
 """
+
+# pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 

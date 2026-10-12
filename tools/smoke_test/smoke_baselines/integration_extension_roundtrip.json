@@ -31,6 +31,12 @@
       "ok": true
     },
     {
+      "label": "teardown_ran",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
       "label": "invariant:cursor_row",
       "expected": true,
       "actual": true,

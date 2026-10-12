@@ -77,18 +77,24 @@ def restore_langdefs() -> Iterator[None]:
 
     Three process globals move when ``api.highlight.register`` runs: the
     extension-key registry, the language-name registry and the regex-pin
-    set in the engine.  All three are restored after every test.
+    set in the engine.  All three are restored before *and* after every
+    test so a leak from an earlier failing test cannot ride into this file.
     """
     languages: dict[str, LangSpec] = dict(langdefs.languages())
     names: dict[str, str] = dict(langdefs.name_to_key())
     pinned: set[str] = set(engine._REGEX_PINNED)
+
+    def _restore() -> None:
+        langdefs.languages().clear()
+        langdefs.languages().update(languages)
+        langdefs.name_to_key().clear()
+        langdefs.name_to_key().update(names)
+        engine._REGEX_PINNED.clear()
+        engine._REGEX_PINNED.update(pinned)
+
+    _restore()
     yield
-    langdefs.languages().clear()
-    langdefs.languages().update(languages)
-    langdefs.name_to_key().clear()
-    langdefs.name_to_key().update(names)
-    engine._REGEX_PINNED.clear()
-    engine._REGEX_PINNED.update(pinned)
+    _restore()
 
 
 # --- LspExtensionBridge --------------------------------------------------------
@@ -146,6 +152,9 @@ def test_highlight_bridge_register_resolves_and_pins_regex(api: ExtensionAPI) ->
     api.highlight.register(spec, "zzz")
     assert langdefs.lang_for("zzz") is spec
     assert "zzz" in available_filetypes()
+    # the regex backend is pinned for this key -- asserted directly so a pin
+    # regression is distinguishable from a word-list resolution regression
+    assert "zzz" in engine._REGEX_PINNED
     # the spec's language name resolves back to the registering key
     assert langdefs.resolve_filetype("zzlang") == "zzz"
     # the tokens come from the registered regex word lists (a type-def word
