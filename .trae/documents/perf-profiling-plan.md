@@ -199,6 +199,8 @@ Overall: **APPROVE**（按 .trae/skills/pr-review/SKILL.md 六维自审，人工
 - 架构边界：editor_view 内部改动，不触 R1-R13 任何守卫面（架构测试 28 用例全绿）。
 - MINOR（不阻塞，登记不处理）：`refilter` 的 hint 分支嵌套由 elif 平铺改为
   early-continue，读感略变——行为等价，倾向保持现状。
+  （2026-10-12 更新：经用户指令转入闭环修复，同轮另有 `_WIDTH_CACHE` 有界化，
+  处置见 [perf-review-fixes-plan.md](perf-review-fixes-plan.md)。）
 
 ### Strengths
 

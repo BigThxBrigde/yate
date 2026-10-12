@@ -60,4 +60,35 @@
 
 ## 五、执行结果回填（2026-10-12）
 
-（执行后回填）
+### M1 选型探针（三候选命中路径，ns/char，worktree venv）
+
+| 候选 | ascii 行 | 宽字符行 |
+|---|---|---|
+| A dict try/except（现状） | 75.9 | 106.7 |
+| **B lru_cache(4096)** | **72.4** | **106.7** |
+| C capped-dict 8192 | 76.7 | 110.0 |
+
+C 实现 lru_cache 比手写 try/except 字典更快（命中路径无异常开销）且有界——
+按预定规则（A 优先）落选 B 无需触发 15% 回退条款。C 否决（慢 + 多代码）。
+
+### 实施与门禁
+
+| 步 | 提交 | 内容 | 验收 |
+|---|---|---|---|
+| 1 | `d123e06` | 评审记录 + 方案 + 索引 #41 | docs |
+| 3 | `534b53d` | M1：`_WIDTH_CACHE` 手写字典删除，`cell_width` 改 `@lru_cache(maxsize=4096)`，docstring 记探针依据 | 见下 |
+| 4 | `899407e` | M2：`refilter` 恢复 `elif commands_mode and hint` 平铺链 | 见下 |
+| 6 | 本提交 | 回填 + 索引状态翻 ✅ | docs |
+
+- pyright `yate/ tests/ tools/` → 0 errors（退出码 0）
+- 定向：test_app_render + test_app_explorer + test_app_palette +
+  test_palette_preview → 63 passed
+- 全量 `pytest tests/ -q` → 退出码 0
+- 真实模块性能探针（换算单行口径）：`cell_width` 0.0085 ms/行（改前 0.009）、
+  `expand_char` 40 行 0.817 ms（改前 0.81）——零回退
+- 临时探针脚本已删（%TEMP%）
+
+### 偏离记录
+
+- 无方案偏离。M2 提交定性为 `refactor`（纯读感、行为零变化），M1 为 `fix`
+  （消除无界全局），各自独立提交可单独回退。
