@@ -24,7 +24,9 @@ from yate.editor_core.document import Document
 from yate.editor_lsp.client import Completion, Diagnostic, DiagnosticSeverity
 from yate.logs import tracing
 
-#: Trace logger ("yate.editor_lsp.parsing"); silent unless yate_trace is on.
+#: Trace logger ("yate.editor_lsp.parsing"); WARNING surfaces on stderr via
+#: lastResort when tracing is off, and is level-filtered by the trace file
+#: handler when on.
 log = tracing.get_logger(__name__)
 
 __all__ = [

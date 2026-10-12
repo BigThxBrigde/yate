@@ -70,6 +70,16 @@ def test_indicator_carries_no_click_region_but_tabs_still_hit(
     assert not any(s <= indicator_x < e for s, e, _ in regions)
 
 
+def test_indicator_that_does_not_fit_refits_once(tmp_path: Path) -> None:
+    """Two tabs fit the width but leave no room for `` +1``: the bar re-fits
+    one tab tighter so the (wider) `` +2`` indicator still shows."""
+    session = _session_with_tabs(tmp_path, ["a.py", "b.py", "c.py"])
+    bar = TabBar(session, lambda _doc: None)
+    text, regions = bar.build(18)  # 2 tabs (16 cells) + 3 > 18 -> refit to 15
+    assert " +2" in text.plain
+    assert [doc_idx for _s, _e, doc_idx in regions] == [0]
+
+
 def test_extremely_narrow_bar_omits_the_indicator(tmp_path: Path) -> None:
     """A bar too narrow for even `` +N`` degrades to an empty background."""
     session = _session_with_tabs(tmp_path, ["a.py", "b.py"])

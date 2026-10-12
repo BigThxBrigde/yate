@@ -229,7 +229,9 @@ try {
         $smokeOut = Join-Path $stage 'smoke-out.txt'
         $proc = Start-Process -FilePath $exe -ArgumentList '--version' -NoNewWindow -PassThru -RedirectStandardOutput $smokeOut
         if (-not $proc.WaitForExit(30000)) {
-            try { $proc.Kill() } catch { }
+            # Best-effort kill: a race with an exiting process or a denied
+            # permission must not mask the timeout failure itself.
+            try { $proc.Kill() } catch { Write-Host "kill after timeout failed: $_" -ForegroundColor DarkGray }
             Stop-WithMessage "Smoke test timed out after 30s ('$exe --version'). Stage kept at: $stage"
         }
         $smoke = Get-Content $smokeOut
