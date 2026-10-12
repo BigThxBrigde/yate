@@ -987,6 +987,17 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_register_server_fires_state_only_on_replacement() -> None:
+    """First registration stays silent; a same-name replacement fires one
+    "state" event so consumers can repaint the server list."""
+    events: list[str] = []
+    mgr = LspManager(on_event=events.append)
+    mgr.register_server(PY_CONFIG)
+    assert events == []
+    mgr.register_server(PY_CONFIG)
+    assert events == ["state"]
+
+
 def test_register_replace_race_keeps_new_starting_task_tracked(
     tmp_path: Path,
 ) -> None:

@@ -235,7 +235,7 @@ class EditorView(ScrollView, HighlightMixin):
         if buf.line_count == 0:
             return None
         row = max(0, min(event.y + self.scroll_offset.y, buf.line_count - 1))
-        cell = event.x - self._gutter_w() + self.scroll_col
+        cell = event.x - self.gutter_width() + self.scroll_col
         col = theme.cell_to_char(buf.lines[row], max(0, cell), buf.tab_width)
         return (row, col)
 
@@ -292,7 +292,7 @@ class EditorView(ScrollView, HighlightMixin):
             row = min(row, buf.line_count - 1)
             col = min(col, len(buf.lines[row]))
         line = buf.lines[row]
-        text_w = max(1, (self.size.width or 80) - self._gutter_w())
+        text_w = max(1, (self.size.width or 80) - self.gutter_width())
         cell = theme.char_to_cell(line, col, buf.tab_width)
         if cell < self.scroll_col:
             self.scroll_col = cell
@@ -316,9 +316,6 @@ class EditorView(ScrollView, HighlightMixin):
     def gutter_width(self) -> int:
         """Total gutter width: line number column + LSP diagnostic mark."""
         return max(3, len(str(self.buffer.line_count))) + 3
-
-    def _gutter_w(self) -> int:
-        return self.gutter_width()
 
     def _syntax_kinds(self, row: int, cell_count: int, offsets: list[int]) -> list[str | None]:
         """Per-cell syntax token kind (char ranges mapped to display cells).
@@ -354,7 +351,7 @@ class EditorView(ScrollView, HighlightMixin):
         if self.panes.leaf_for(self.leaf_id) is None:
             return Strip([Segment(" " * view_w, Style(bgcolor=t.bg))])
         buf = self.buffer
-        gutter_w = self._gutter_w()
+        gutter_w = self.gutter_width()
         text_w = max(1, view_w - gutter_w)
 
         digits = gutter_w - 3

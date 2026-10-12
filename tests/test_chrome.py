@@ -1,0 +1,79 @@
+"""Tests for the static chrome widgets: TabBar overflow and hit regions.
+
+``TabBar.build`` is a pure function over the shared ``EditorSession`` plus
+the active theme, so the `` +N`` overflow indicator and the click-test
+regions are asserted headlessly without spinning a Textual app.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from yate.config import YateConfig
+from yate.editor_core import Document
+from yate.editor_view.chrome import TabBar
+from yate.session import EditorSession
+
+
+def _session_with_tabs(tmp_path: Path, names: list[str]) -> EditorSession:
+    """A session with one open file tab per *names* entry (short names)."""
+    session = EditorSession(YateConfig())
+    for name in names:
+        path = tmp_path / name
+        path.write_text("", encoding="utf-8")
+        opened = session.open(path)
+        assert opened is not None
+    return session
+
+
+# --- overflow indicator ------------------------------------------------------
+
+
+def test_narrow_tab_bar_collapses_hidden_docs_into_an_indicator(
+    tmp_path: Path,
+) -> None:
+    """Tabs that do not fit collapse into a trailing `` +N`` marker."""
+    session = _session_with_tabs(tmp_path, ["a.py", "b.py", "c.py"])
+    bar = TabBar(session, lambda _doc: None)
+    text, regions = bar.build(14)  # 8 cells per tab: only the first fits
+    assert " +2" in text.plain
+    assert len(regions) < len(session.docs)
+
+
+def test_wide_tab_bar_shows_every_doc_without_an_indicator(
+    tmp_path: Path,
+) -> None:
+    """A bar wide enough for all tabs renders no overflow marker."""
+    session = _session_with_tabs(tmp_path, ["a.py", "b.py", "c.py"])
+    bar = TabBar(session, lambda _doc: None)
+    text, regions = bar.build(80)
+    assert "+" not in text.plain
+    assert [doc_idx for _s, _e, doc_idx in regions] == [0, 1, 2]
+
+
+def test_indicator_carries_no_click_region_but_tabs_still_hit(
+    tmp_path: Path,
+) -> None:
+    """Only visible tabs register spans; the `` +N`` cells stay inert."""
+    session = _session_with_tabs(tmp_path, ["a.py", "b.py", "c.py"])
+    activated: list[Document] = []
+    bar = TabBar(session, activated.append)
+    text, regions = bar.build(14)
+    assert [doc_idx for _s, _e, doc_idx in regions] == [0]
+    start, end, _ = regions[0]
+    # the first tab's own span is a live hit target
+    assert start < end
+    # the indicator occupies the cells right after the last region and no
+    # region claims them (a click there falls through like the background)
+    assert " +2" in text.plain
+    indicator_x = end
+    assert not any(s <= indicator_x < e for s, e, _ in regions)
+
+
+def test_extremely_narrow_bar_omits_the_indicator(tmp_path: Path) -> None:
+    """A bar too narrow for even `` +N`` degrades to an empty background."""
+    session = _session_with_tabs(tmp_path, ["a.py", "b.py"])
+    bar = TabBar(session, lambda _doc: None)
+    text, regions = bar.build(2)  # the 3-cell indicator cannot fit
+    assert "+" not in text.plain
+    assert regions == []

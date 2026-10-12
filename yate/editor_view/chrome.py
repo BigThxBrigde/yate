@@ -53,7 +53,10 @@ class TabBar(Static):
         """Build the flat tab line and its hit-test regions.
 
         Inactive tabs sit on the panel background; the active tab uses the
-        editor background so it visually merges with the editor below.
+        editor background so it visually merges with the editor below.  Tabs
+        that no longer fit collapse into a trailing `` +N`` overflow
+        indicator (dim on panel, no click region: reach them via the
+        explorer or :commands).
 
         Returns the rendered text and a list of ``(start, end, doc_index)``
         cell spans (end exclusive) so :meth:`on_mouse_down` can map mouse
@@ -61,27 +64,52 @@ class TabBar(Static):
         """
         session = self.session
         t = theme.active()
-        text = Text()
-        regions: list[tuple[int, int, int]] = []
-        used = 0
-        for i, doc in enumerate(session.docs):
-            name = theme.truncate_to_cells(doc.name, 24)
-            active = i == session.index
-            # " <icon> <name>" + optional " ●" + trailing space
-            seg_cells = 1 + 1 + 1 + theme.cell_len(name) + (2 if doc.modified else 0) + 1
-            if used + seg_cells > width:
-                break
-            bg = t.bg if active else t.panel
-            name_style = f"bold {t.fg_bright}" if active else t.fg_dim
-            icon = icon_for_path(doc.name, False)
-            text.append(" ", style=f"on {bg}")
-            text.append(icon, style=f"{t.accent if active else t.fg_dim} on {bg}")
-            text.append(f" {name}", style=f"{name_style} on {bg}")
-            if doc.modified:
-                text.append(" ●", style=f"bold {t.orange} on {bg}")
-            text.append(" ", style=f"on {bg}")
-            regions.append((used, used + seg_cells, i))
-            used += seg_cells
+
+        def _fit(budget: int) -> tuple[Text, list[tuple[int, int, int]], int]:
+            """Render as many tabs as *budget* cells allow; report the use."""
+            text = Text()
+            regions: list[tuple[int, int, int]] = []
+            used = 0
+            for i, doc in enumerate(session.docs):
+                name = theme.truncate_to_cells(doc.name, 24)
+                active = i == session.index
+                # " <icon> <name>" + optional " ●" + trailing space
+                seg_cells = (
+                    1 + 1 + 1 + theme.cell_len(name)
+                    + (2 if doc.modified else 0) + 1
+                )
+                if used + seg_cells > budget:
+                    break
+                bg = t.bg if active else t.panel
+                name_style = f"bold {t.fg_bright}" if active else t.fg_dim
+                icon = icon_for_path(doc.name, False)
+                text.append(" ", style=f"on {bg}")
+                text.append(
+                    icon, style=f"{t.accent if active else t.fg_dim} on {bg}"
+                )
+                text.append(f" {name}", style=f"{name_style} on {bg}")
+                if doc.modified:
+                    text.append(" ●", style=f"bold {t.orange} on {bg}")
+                text.append(" ", style=f"on {bg}")
+                regions.append((used, used + seg_cells, i))
+                used += seg_cells
+            return text, regions, used
+
+        text, regions, used = _fit(width)
+        hidden = len(session.docs) - len(regions)
+        if hidden > 0:
+            ind_cells = theme.cell_len(f" +{hidden}")
+            if used + ind_cells > width and regions:
+                # Reserve the indicator's cells and re-fit once; hidden grows
+                # when tabs fall out of the tighter budget.
+                text, regions, used = _fit(width - ind_cells)
+                hidden = len(session.docs) - len(regions)
+            indicator = f" +{hidden}"
+            ind_cells = theme.cell_len(indicator)
+            if used + ind_cells <= width:
+                # Extremely narrow widths cannot host the indicator at all.
+                text.append(indicator, style=f"{t.fg_dim} on {t.panel}")
+                used += ind_cells
         if used < width:
             text.append(" " * (width - used), style=f"on {t.panel}")
         return text, regions

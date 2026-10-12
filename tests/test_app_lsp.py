@@ -567,3 +567,39 @@ class _RcClientShim:
     async def send_cancel(self, request_id: int) -> None:
         """Fake cancel: discards the request id."""
         return None
+
+
+# ------------------------------------------------------------- teardown guard
+
+
+def test_teardown_all_failure_does_not_block_lsp_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A broken extension loader must not stop the terminal/LSP teardown.
+
+    ``on_unmount`` guards ``teardown_all`` so a loader-state exception
+    cannot leave the LSP manager's background services untouched.
+    """
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+
+            def boom() -> None:
+                raise RuntimeError("loader state broken")
+
+            monkeypatch.setattr(
+                app.editor.extension_loader, "teardown_all", boom
+            )
+            shutdowns: list[bool] = []
+
+            async def spy_shutdown() -> None:
+                shutdowns.append(True)
+
+            monkeypatch.setattr(app.editor.lsp, "shutdown_all", spy_shutdown)
+        # leaving run_test tears the app down: the guarded extension
+        # teardown must still have reached the LSP shutdown step
+        assert shutdowns == [True]
+
+    asyncio.run(scenario())
