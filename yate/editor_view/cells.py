@@ -15,6 +15,7 @@ next tab stop in :func:`char_to_cell` / :func:`cell_to_char` /
 from __future__ import annotations
 
 import unicodedata
+from functools import lru_cache
 
 __all__ = [
     "cell_len",
@@ -26,29 +27,25 @@ __all__ = [
     "truncate_to_cells",
 ]
 
-#: Memoized :func:`cell_width` results.  ``unicodedata`` classifications are
-#: fixed for the interpreter's Unicode tables, so the mapping is a pure
-#: function of the character; the render path asks for it once per visible
-#: character per frame, and a dict hit replaces three C calls with one
-#: lookup.  Bounded in practice by the set of distinct characters seen in a
-#: session (a few thousand entries at most).
-_WIDTH_CACHE: dict[str, int] = {"\t": 1}
 
-
+@lru_cache(maxsize=4096)
 def cell_width(ch: str) -> int:
-    """Terminal cell width of *ch* (0 combining, 2 wide CJK/emoji, 1 else)."""
-    try:
-        return _WIDTH_CACHE[ch]
-    except KeyError:
-        pass
+    """Terminal cell width of *ch* (0 combining, 2 wide CJK/emoji, 1 else).
+
+    Memoized: ``unicodedata`` classifications are fixed for the interpreter's
+    Unicode tables, so the mapping is a pure function of the character, and
+    the render path asks for it once per visible character per frame.  The
+    LRU bound keeps the cache finite for pathological inputs while hitting
+    faster than the hand-rolled dict it replaced (probe: 72 vs 76 ns/char,
+    issue-IKKSHY review M1).
+    """
+    if ch == "\t":
+        return 1
     if unicodedata.combining(ch) or unicodedata.category(ch) in ("Mn", "Me", "Cf"):
-        width = 0
-    elif unicodedata.east_asian_width(ch) in ("W", "F"):
-        width = 2
-    else:
-        width = 1
-    _WIDTH_CACHE[ch] = width
-    return width
+        return 0
+    if unicodedata.east_asian_width(ch) in ("W", "F"):
+        return 2
+    return 1
 
 
 def cell_len(text: str) -> int:
