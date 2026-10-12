@@ -138,7 +138,49 @@ flowchart LR
 
 ## 八、执行记录（回填）
 
-- 步骤 1-3（代码 + 测试）：待回填。
-- 步骤 4（真实构建验收）：待回填（附 `--diag` packages 段实测输出）。
-- 门禁结果：待回填（pyright / pytest / 架构测试 / 覆盖率实测数字与退出码）。
-- 偏离记录：待回填。
+- 步骤 1-3（代码 + 测试）：已完成，提交 `7767f7b`
+  （`feat(pack): bundle the lupa Lua bridge in frozen builds (issue IKL2G6)`，
+  6 文件 +80/-35）。实现与计划一致：`_LUA_PACKAGES = ("lupa",)` 并入
+  find_spec 门控收集循环；`SpecInputs.ts_binaries/ts_datas` →
+  `optional_binaries/optional_datas`；两个 spec、`pack.ps1` / `pack.sh`
+  extras 同步为 `[build,ts,lua]`；`tests/test_pack_spec.py` 新增
+  `test_lua_packages_when_common_loaded_pin_the_lupa_bridge_inventory`。
+- 步骤 4（真实构建验收）：已完成。`.venv\Scripts\python.exe -m pip install
+  pyinstaller` 后 `powershell -File pack\pack.ps1 -SkipChangelog` 退出码 0
+  （PyInstaller 6.22.3 / Python 3.13.2，one-folder）；构建日志确认
+  `Analyzing hidden import 'lupa.lua51'…'lupa.luajit21'`。
+  `dist\yate\yate.exe --diag` 退出码 0，`[packages]` 段实测：
+
+  ```
+  [packages]
+    core:
+      pyperclip             : 1.11.0
+      textual               : 8.2.8
+    lua:
+      lupa                  : 2.8
+    ts:
+      tree-sitter           : 0.25.2
+      ...
+  ```
+
+  产物取证：`dist/yate/runtime/` 下含
+  `lua51/52/53/54/55/luajit20/luajit21.cp313-win_amd64.pyd` 七个 lupa C 扩展
+  与 `lupa-2.8.dist-info`。**issue 验收标准达成**。
+- 门禁结果（主代理亲跑，均为退出码 0）：
+  - pyright：`python -m pyright yate/ tests/ tools/ pack/` →
+    0 errors, 0 warnings, 0 informations；
+  - pytest 全量：`python -m pytest tests/ -q` → 全绿（10 skipped 均为平台
+    条件跳过，与改动无关）；
+  - 架构测试：`python -m pytest tests/test_architecture.py -q` → 全绿；
+  - 覆盖率：`pytest tests --cov=yate --cov-branch --cov-fail-under=75 -q` →
+    `Total coverage: 91.86%`（gate 75 通过）。
+- 偏离记录：
+  1. 计划步骤 1 提到"循环改为遍历 `(*_TS_PACKAGES, *_LUA_PACKAGES)`"——按计划执行，
+     无偏离；
+  2. `pack/pack.ps1` / `pack.sh` 的帮助文本与错误提示里的 extras 清单一并
+     同步为 `[build,ts,lua]`（计划步骤 2 已列，实际还覆盖了 `pack.ps1:72`
+     的 .venv 缺失错误提示与 `pack.sh:75` 同类提示，属同一改动面）；
+  3. lua 桥的端到端运行冒烟（真实 `.lua` 扩展加载）未执行：issue 验收标准
+     仅要求 `--diag` packages 清单，产物内 7 个 lupa C 扩展 + dist-info 已
+     取证齐全；端到端冒烟属既有 `tests/test_lua_extensions.py` 运行时用例
+     覆盖范围（源模式），未劣化。
