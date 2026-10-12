@@ -142,3 +142,66 @@ tests 已 grep 确认无直接引用）：
   【批准】的预授权；本方案不再等待确认，直接进入执行。其余步骤（调研取证 → 方案落盘 →
   执行 → 审核 → 收尾）严格按 task-orchestration 闭环执行。
 - 开工时 master 已前进（59eb7fc），按要求先合并进 `enh/perf-profiling` 再继续。
+
+## 八、执行结果回填（2026-10-12）
+
+### 实施记录
+
+| 步 | 提交 | 内容 | 结果 |
+|---|---|---|---|
+| 1 | `36535a1` | 方案落盘 | docs(plan) |
+| 2 | `e1181f8` | P1+P2 渲染几何（cells/theme/editor_view/editor + 等价守卫测试） | 见下表 |
+| 3 | `dbdf8cf` | P3 palette 预降级（palette + 等价守卫测试） | 见下表 |
+| 4 | 未提交 | 修复预存测试竞态（见「偏离」） | 全量门禁通过 |
+
+### 基准前后（同机同 venv，bench 脚本临时件已删）
+
+| 指标 | 前 | 后 | 加速 |
+|---|---|---|---|
+| `_syntax_kinds` 形态 40 行 × 88 字符 × 13 token | 24.07 ms/帧 | **0.70 ms/帧**（offsets 路径） | **34×** |
+| 同形状仅 cell_width 缓存（rescan 路径残值） | 24.07 | 8.93 | 2.7× |
+| `expand_char` 40 行 | 1.97 ms | 0.81 ms | 2.4× |
+| `cell_width` 单行 88 字符 | 0.037 ms | 0.009 ms | 4.1× |
+| palette refilter 5000 条/键击 | 15.2 ms | **7.6 ms** | 2× |
+| cProfile（渲染几何 ×40）：`cell_width` 调用数 | 235 万次 | 119 万次 | — |
+
+### 门禁实测（worktree venv，Python 3.13.2）
+
+- `python -m pyright yate/ tests/ tools/` → `0 errors, 0 warnings, 0 informations`（退出码 0）
+- `python -m pytest tests/ -q` → 退出码 0（含架构测试 28 用例；多轮验证见下）
+- 覆盖率 `--cov=yate` → TOTAL 92%（≥75% 闸门）
+- 冒烟：pilot 驱动的应用级测试（test_app_render / test_app_palette / test_app_explorer /
+  test_app_mouse 等）全绿，即真实 App 启动-渲染-交互冒烟
+
+### 偏离与追加修复：预存测试竞态（tests/test_app_explorer.py:224）
+
+全量门禁多轮跑批中 `test_new_file_and_folder_from_explorer` 间歇失败
+（`assert 'made.txt' in set()`，tests/test_app_explorer.py:245）。取证：
+
+- 失败均为「文件已创建、异步打开未落地」：创建走 `open_path_later`
+  （[document_flows.py:234](../../yate/flows/document_flows.py)，`_spawn` worker），
+  测试仅单次 `pilot.pause()`，高负载下 worker 未及完成。
+- 与本分支改动无因果：本次改动不触创建/打开链路；单测两分支均稳定通过
+  （master detached 6/6、分支 2/2）；master detached 全量 1 轮 clean。
+- 修复：断言前用 `conftest.wait_until` 轮询「文件存在 AND 已入 session.docs」，
+  消除竞态；修复后全量 3 轮验证（结果见门禁行）。
+
+### 审核（pr-review 框架，review 模式）
+
+Overall: **APPROVE**（按 .trae/skills/pr-review/SKILL.md 六维自审，人工终审仍归用户）
+
+- 功能正确性：三处等价性均有守卫测试锁定（offsets≡char_to_cell 逐点、
+  _match_lowered≡fuzzy_match 逐例、refilter 行为不变由既有 palette 测试回归）；
+  降级路径 stale token 越界的钳制语义与旧实现一致。
+- 安全：无新增输入面/IO/子进程。性能：即本任务目标，实测见上表。
+- 可维护性：无魔法数；`cell_offsets` 手动索引计数为热路径有意为之（避免
+  enumerate 元组解包），docstring 已说明算术契约。
+- 架构边界：editor_view 内部改动，不触 R1-R13 任何守卫面（架构测试 28 用例全绿）。
+- MINOR（不阻塞，登记不处理）：`refilter` 的 hint 分支嵌套由 elif 平铺改为
+  early-continue，读感略变——行为等价，倾向保持现状。
+
+### Strengths
+
+- 优化全部基于 cProfile/timeit 实测定位，前后数字可复现；
+- 等价性守卫测试先行锁死算术契约，渲染零漂移；
+- 三处优化相互独立、各自成提交，可单独回退。
