@@ -69,6 +69,9 @@ def _extension_api() -> ExtensionAPI:
         run_shell=lambda _command, _show: None,
         open_path=lambda _path: None,
         save=lambda: None,
+        run_action=lambda _name: False,
+        set_theme=lambda _name: None,
+        active_theme_name=lambda: "mocha",
     )
     return ExtensionAPI(ctx)
 

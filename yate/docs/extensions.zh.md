@@ -481,17 +481,16 @@ def teardown(api):
 ### 4.10 编辑器事件（`api.events`）
 
 `api.events.subscribe` 订阅编辑器生命周期事件。事件标识是
-`yate.services.events` 里的 `EditorEvent` 枚举成员——绝不接受字符串——
-每个载荷都是冻结的 dataclass：
+`EditorEvent` 枚举成员，已再导出为 `api.events.EditorEvent`，扩展无需
+导入 yate 内部模块——绝不接受字符串——每个载荷都是冻结的 dataclass：
 
 ```python
-from yate.services.events import EditorEvent, ThemeChanged
-
 def setup(api):
-    def on_theme(payload: ThemeChanged) -> None:
+    def on_theme(payload):
         api.message(f"theme switched to {payload.name}")
 
-    unsubscribe = api.events.subscribe(EditorEvent.THEME_CHANGED, on_theme)
+    unsubscribe = api.events.subscribe(
+        api.events.EditorEvent.THEME_CHANGED, on_theme)
     # 调用 unsubscribe() 即可退订
 ```
 
@@ -523,7 +522,7 @@ def setup(api):
 
 ### 4.11 状态栏段（`api.ui`）
 
-`api.ui.add_status_segment` 向状态栏贡献一个文本段。状态栏是**拉取式**
+`api.ui.add_segment` 向状态栏贡献一个文本段。状态栏是**拉取式**
 注册表：每次刷新时逐个调用已注册的 provider 一次，并用状态栏自己的
 样式绘制返回的字符串——扩展只贡献文本，不贡献 widget 或颜色。
 
@@ -533,15 +532,17 @@ def setup(api):
 `DOCUMENT_SAVED`）里算好，刷新时只取现成结果。
 
 ```python
-from yate.services.extension_bridges import StatusSegment
-
 def setup(api):
-    api.ui.add_status_segment(StatusSegment(
+    api.ui.add_segment(
         "wordcount",
         lambda: f"{len(api.buffer.get_text().split())}w",
         align="right",   # "left" 或 "right"（默认 "right"）
         priority=0,      # 越大在同侧越靠前
-    ))
+    )
+    # 等价的显式写法——自己构造冻结的 StatusSegment：
+    #   from yate.services.extensions.bridges import StatusSegment
+    #   api.ui.add_status_segment(StatusSegment(
+    #       "wordcount", provider, align="right", priority=0))
 ```
 
 规则：
@@ -552,6 +553,132 @@ def setup(api):
 - 重复 id 抛 `ValueError`；`api.ui.remove_status_segment(id)` 移除
   一个段（未知名抛 `KeyError`）。
 - 注册参与回滚 scope：失败的 setup 会把段一并撤销。
+
+### 4.12 运行动作与重绑按键（`api.actions` / `bind_action` / `unbind_key`）
+
+`api.actions` 按名字运行动作、查询动作注册表。`run` 走编辑器的统一
+按键派发路径，扩展触发的动作与按键触发完全一致：
+
+| 方法 | 作用 |
+|---|---|
+| `api.actions.run(name)` | 运行动作 *name*；名字未知时返回 `False` |
+| `api.actions.names()` | 全部已注册动作名 |
+| `api.actions.has(name)` | *name* 已注册时为 `True` |
+
+```python
+if api.actions.has("delete_line"):
+    api.actions.run("delete_line")   # 与按键触发同一条派发路径
+```
+
+`api.bind_action(key_spec, action_name, keymap="vsc")` 把按键绑定到
+**具名动作**——内置的或自己注册的都可以，扩展借此重排内置键位：
+
+```python
+def setup(api):
+    # 把 <ctrl-shift-d> 重绑到内置的 delete_line 动作，两张键位表同时生效
+    # （"both" = "vsc" + "vim"；"normal" 是 "vsc" 的别名）。
+    api.bind_action("<ctrl-shift-d>", "delete_line", keymap="both")
+
+    # 自己的动作：先注册后绑定——bind_action 按名字引用动作。
+    api.register_action("ext.duplicate",
+                        lambda ctx: ctx.buffer.duplicate_line(),
+                        "duplicate the current line")
+    api.bind_action("<ctrl-shift-alt-d>", "ext.duplicate")
+```
+
+- 可选的 `description` / `category` 与 `api.bind_key` 一致；没有装饰器
+  形式——动作按名字引用，不作为参数传入。
+- **先注册后绑定**：未知的 *action_name* 不会绑定任何东西，只记录一条
+  警告（列出已注册动作名）；未知的 *keymap* 名同样处理。写错名字不会
+  静默占用按键。
+- 回滚（第 3 节）：setup 失败时，`bind_action` 触碰过的每个键都会恢复
+  原绑定。
+
+`api.unbind_key(key_spec, keymap="vsc")` 解除绑定（`keymap="both"` 两张
+键位表一起解）。只要有键位表实际移除了绑定就返回 `True`；键本来就未
+绑定或键位表名未知时返回 `False`：
+
+```python
+removed = api.unbind_key("<ctrl-shift-alt-d>")
+api.unbind_key("<ctrl-shift-d>", keymap="both")
+```
+
+### 4.13 主题、剪贴板与打开的文档（`api.theme` / `api.clipboard` / `api.docs`）
+
+**`api.theme`** 切换与读取配色主题：
+
+```python
+api.theme.set("gruvbox-dark")   # 名字未知时抛 KeyError
+current = api.theme.active()    # 当前主题名（只读）
+```
+
+**`api.clipboard`** 读写系统剪贴板；没有可用后端时两个调用都优雅降级
+（`False` / `None`），扩展代码不会见到平台异常：
+
+```python
+api.clipboard.set("copied!")    # 不可用时返回 False
+text = api.clipboard.get()      # str（空剪贴板为 ""），不可用时为 None
+```
+
+**`api.docs`** 是会话中已打开文档的只读视图：
+
+| 方法 | 作用 |
+|---|---|
+| `api.docs.all()` | 全部打开的文档——返回新列表，元素为 `Document`（成员见 4.4 节） |
+| `api.docs.is_open(path)` | 显示 *path* 的文档已在会话中打开时为 `True` |
+
+```python
+for doc in api.docs.all():
+    api.message(f"{doc.name}: {'modified' if doc.modified else 'saved'}")
+if not api.docs.is_open("notes.md"):
+    api.open_path("notes.md")   # 变更类操作走常规流程
+```
+
+刻意收窄：这里没有打开/激活/关闭——文档生命周期走编辑器的 UI 流程
+（`api.open_path`、`api.save`、`:` 命令），不开旁门。
+
+### 4.14 让 Lua 脚本通过 IDE 静态检查（`_yate.d.lua` + `.luarc.json`）
+
+Lua 扩展脚本就是普通的 Lua 文件，编辑器既不认识全局 `yate` 表，也不
+认识 `setup(api)` 的 `api` 参数——开箱即用时两者都会被标成未知名。
+为此 yate 随包提供两份 lint 基建：
+
+- `yate/extensions/_yate.d.lua` —— `---@meta` 声明文件：逐个声明
+  `_yate.lua` 的全部导出函数，签名与注解（`---@param` / `---@return`）
+  完全一致（不含逻辑；`_` 前缀使它不被自动加载扫描命中）；
+- `.luarc.json`（仓库根）——yate 自有 Lua 文件所用的
+  lua-language-server 配置；其中 `workspace.library` 的写法就是下文
+  配方 (a) 的那个开关。
+
+推荐的编辑器环境是 VS Code 加 **"Lua"** 插件（lua-language-server）。
+两种配方让你的脚本获得干净的检查结果：
+
+**(a) 把 workspace library 指向 yate 安装目录**——继续使用随包的那份
+声明文件，按路径引用其所在目录：
+
+```json
+{
+  "workspace.library": ["<yate>/yate/extensions"]
+}
+```
+
+`<yate>` 是安装好的 `yate` 包目录——wheel 安装即
+`.../site-packages/yate/extensions`；frozen 二进制或可编辑安装的同一
+目录在别的位置（指到含 `_yate.lua` / `_yate.d.lua` 的那个目录即可）。
+
+**(b) 把声明文件复制进项目**——自包含，重装与升级 yate 都不受影响：
+
+把 `yate/extensions/_yate.d.lua` 复制进项目（惯例放在 `.vscode/`），
+并配置声明文件覆盖不到的那一个全局名：
+
+```json
+{
+  "diagnostics.globals": ["api"]
+}
+```
+
+任选其一，`yate.*` 即获得签名补全，针对它的 unknown-global 诊断消失；
+`api` 条目覆盖 `setup(api)` 的形参——它只在运行期存在。
 
 ---
 
@@ -642,23 +769,36 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 | `yate.register_command(name, fn, desc?)` | 注册 `:` 命令；`fn` 接收原始参数字符串 |
 | `yate.register_action(name, fn, desc?)` | 注册命名动作 |
 | `yate.bind_key(spec, fn, keymap?)` | 绑定按键（`"vsc"` / `"vim"` / `"both"`；默认 `"vsc"`） |
+| `yate.bind_action(spec, action, keymap?)` | 把按键绑定到**已注册**动作（内置或自己的均可；先注册后绑定，见 4.12 节） |
+| `yate.unbind_key(spec, keymap?)` | 解除按键绑定；有移除时返回 `true` |
+| `yate.events.subscribe(name, fn)` | 订阅编辑器事件；`name` 为小写事件名（`"document_saved"` … `"theme_changed"`，见 4.10 节） |
+| `yate.ui.add_segment(id, provider, align?, priority?)` | 贡献一个状态栏段（见 4.11 节） |
+| `yate.theme.set(name)` / `yate.theme.active()` | 切换/读取配色主题（见 4.13 节） |
+| `yate.clipboard.set(text)` / `yate.clipboard.get()` | 系统剪贴板（见 4.13 节） |
+| `yate.docs.all()` / `yate.docs.is_open(path)` | 打开文档的只读视图（见 4.13 节） |
+| `yate.actions.run(name)` / `.names()` / `.has(name)` | 运行/列出/探测已注册动作（见 4.12 节） |
+| `yate.keymaps` | 已加载键位集合（`api.keymaps` 原样透传） |
 | `yate.shell(cmd)` | 静默执行 shell 命令；返回 `ShellResult` 对象（读 `.output` / `.returncode`） |
 | `yate.open_path(path)` | 在编辑器中打开文件/目录 |
 | `yate.save()` | 保存当前文档 |
 | `yate.buffer()` / `yate.doc()` / `yate.workspace()` | 运行时对象（成员见 4.4 节） |
 | `yate.api` / `yate.highlight` / `yate.sprites` / `yate.lsp` / `yate.syntax` | 原始 Python 桥（高级用法） |
 
-事件订阅与状态栏段可经原始桥触达：`yate.api.events.subscribe(EditorEvent.THEME_CHANGED, fn)`
-与 `yate.api.ui.add_status_segment(segment)`（见 4.10 / 4.11 节；载荷与
-段的类按同样方式从 `yate.services.events` /
-`yate.services.extension_bridges` 导入）。
+上表每个包装都与 Python API 的成员一一对应——同名、同语义、按位置
+传参（Lua 没有关键字参数），省略的可选参数回落到 Python 默认值；
+共同行为见 4.10 / 4.11 / 4.12 / 4.13 节。
+
+与 Python 枚举不同，`yate.events.subscribe` 接收上表列出的小写事件名；
+载荷仍是同一个冻结 dataclass（用点号读字段）。超出本表的能力仍可经
+`yate.api` 触达原始 Python 桥。
 
 ### Lua 的编辑器补全（`---@` 注解）
 
 `_yate.lua` 中每个导出函数都带有 EmmyLua 注解（`---@param` /
 `---@return`）：运行 lua-language-server 的编辑器开箱即可获得
-`require("yate")` 的签名补全。注解就是「开放 pyi」的 Lua 等价物，与
-实现同文件（单一事实源）——不随包分发单独的 `.d.lua`。
+`require("yate")` 的签名补全。注解就是「开放 pyi」的 Lua 等价物；随包
+同时分发镜像的 `---@meta` 声明文件 `_yate.d.lua`，供你自己的项目对
+同一 API 面做静态检查（见 4.14 节）。
 
 ### lupa 语义注意
 

@@ -20,8 +20,10 @@ caught and reported the same way.
 -- Grab yate's built-in API library (require("yate") and the global yate
 -- are the same table; pick either).  The library source lives in the
 -- package as _yate.lua: message / register_command / register_action /
--- bind_key / shell / open_path / save / buffer / doc / workspace, plus
--- the raw bridge passthroughs api / highlight / sprites / lsp / syntax.
+-- bind_key / bind_action / unbind_key / shell / open_path / save / buffer /
+-- doc / workspace / events.subscribe / ui.add_segment / theme / clipboard /
+-- docs / actions, plus the raw bridge passthroughs api / keymaps /
+-- highlight / sprites / lsp / syntax.
 local yate = require("yate")
 
 -- Register the :lua-hello command: reports the current document's line
@@ -71,6 +73,33 @@ yate.message("lua example extension loaded (trigger with :lua-hello or Alt+H)")
 --   yate.register_command("lua-explicit", function(args)
 --     yate.message("explicit setup style, args: " .. (args or ""))
 --   end, "greet from the explicit setup style")
+-- end
+
+-- Events, status bar segments and action bindings, in the explicit
+-- setup(api) style (merge into the setup block above, or uncomment as a
+-- whole).  Three ordering notes: subscribe returns the unsubscribe
+-- function -- keep it and call it from teardown, so a reloaded extension
+-- does not stack duplicate listeners; bind_action references an action BY
+-- NAME, so the action must be registered first (register_action, then
+-- bind_action); and the status segment's align / priority may be left nil
+-- to get the defaults ("right" / 0).
+-- local unsub = nil
+-- function setup(api)
+--   unsub = yate.events.subscribe("document_saved", function(payload)
+--     yate.message("saved: " .. tostring(payload.doc.path))
+--   end)
+--   yate.ui.add_segment("lua-segment", function()
+--     return "lua"
+--   end)
+--   yate.register_action("my_action", function(ctx)
+--     yate.message("my_action fired!")
+--   end, "demo action bound below")
+--   yate.bind_action("gq", "my_action")
+-- end
+-- function teardown(api)
+--   if unsub ~= nil then
+--     unsub()  -- drop the event listener again
+--   end
 -- end
 
 -- More things to try (advanced):

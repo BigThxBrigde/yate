@@ -31,7 +31,7 @@ log = tracing.get_logger(__name__)
 
 #: Extension-supplied listener of open shape (user-code boundary: the hub
 #: forwards payloads without inspecting the callable, mirroring the
-#: ``AnyCallback`` precedent in :mod:`yate.services.extension_api`).
+#: ``AnyCallback`` precedent in :mod:`yate.services.extensions.api`).
 type EventCallback = Callable[..., object]
 
 #: Report a listener failure on the message line (single-argument form;

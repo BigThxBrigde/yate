@@ -1,7 +1,8 @@
-"""The ``api.*`` sub-namespace bridges (events / lsp / highlight / syntax / sprites / ui).
+"""The ``api.*`` sub-namespace bridges (events / lsp / highlight / syntax /
+sprites / ui / theme / clipboard / docs / actions).
 
 Each bridge wraps one capability domain for extension scripts; the
-:class:`ExtensionAPI <yate.services.extension_api.ExtensionAPI>` facade
+:class:`ExtensionAPI <yate.services.extensions.api.ExtensionAPI>` facade
 instantiates them in its ``__init__`` and hands them out through the
 matching properties.
 """
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from yate.editor_core import Document
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_lsp.manager import LspManager
 from yate.editor_sprites.characters import (
@@ -28,9 +30,12 @@ from yate.editor_syntax import (
 )
 from yate.editor_syntax.ts_backend import load_language_from_grammar
 from yate.logs import tracing
+from yate.registries import ActionRegistry
+from yate.session import EditorSession
+from yate.services import clipboard
 from yate.services.events import EditorEvent, EventHub, EventCallback
 
-#: Trace logger ("yate.services.extension_bridges"); silent unless yate_trace is on.
+#: Trace logger ("yate.services.extensions.bridges"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 #: The two status bar halves a segment can attach to.
@@ -44,6 +49,9 @@ class EventExtensionBridge:
     subscription made while a rollback scope is active is recorded, so a
     failing ``setup`` also drops its listeners (A13).
     """
+
+    #: Re-exported so extensions subscribe without importing yate internals.
+    EditorEvent = EditorEvent
 
     def __init__(
         self,
@@ -257,6 +265,101 @@ class SpriteExtensionBridge:
         return list(character_names())
 
 
+class ThemeExtensionBridge:
+    """``api.theme`` -- switch/read the color theme from an extension.
+
+    The bridge holds injected callbacks only (R4: ``services`` never imports
+    ``yate.editor_view``); the editor wires ``set`` to the theme module's
+    ``set_theme`` and ``active`` to its name.  An unknown theme name raises
+    ``KeyError`` straight through -- the loader records and rolls back a
+    raising ``setup``, and the API's callback guard contains it later on.
+    """
+
+    def __init__(
+        self,
+        set_theme: Callable[[str], None],
+        active_name: Callable[[], str],
+    ) -> None:
+        self._set_theme = set_theme
+        self._active_name = active_name
+
+    def set(self, name: str) -> None:
+        """Switch the color theme to *name* (``KeyError`` when unknown)."""
+        self._set_theme(name)
+
+    def active(self) -> str:
+        """The active theme's name."""
+        return self._active_name()
+
+
+class ClipboardExtensionBridge:
+    """``api.clipboard`` -- read/write the system clipboard from an extension.
+
+    Thin wrapper over :mod:`yate.services.clipboard` (resolved through the
+    module so tests can monkeypatch it): both calls degrade gracefully
+    (``False`` / ``None``) when no system clipboard backend is available,
+    so extension code never sees a platform exception.
+    """
+
+    def set(self, text: str) -> bool:
+        """Copy *text* to the system clipboard; ``False`` when unavailable."""
+        return clipboard.copy_text(text)
+
+    def get(self) -> str | None:
+        """The clipboard text (``None`` when unavailable, ``""`` when empty)."""
+        return clipboard.paste_text()
+
+
+class DocsExtensionBridge:
+    """``api.docs`` -- a read-only view of the session's open documents.
+
+    Deliberately narrow: no open / activate / close -- the document
+    lifecycle goes through the editor's UI flows (``api.open_path`` /
+    ``api.save``), never through a back door around them.
+    """
+
+    def __init__(self, session: EditorSession) -> None:
+        self._session = session
+
+    def all(self) -> list[Document]:
+        """Every open document (a fresh list; safe for the caller to hold)."""
+        return list(self._session.docs)
+
+    def is_open(self, path: str | Path) -> bool:
+        """True when a document showing *path* is already open."""
+        return self._session.is_open(Path(path)) is not None
+
+
+class ActionExtensionBridge:
+    """``api.actions`` -- run registered editor actions by name.
+
+    ``run`` goes through the editor's key UI dispatch (the same path the
+    keymaps use), so an extension-invoked action behaves exactly like a
+    key-triggered one; ``names`` / ``has`` read the shared
+    :class:`~yate.registries.ActionRegistry`.
+    """
+
+    def __init__(
+        self,
+        registry: ActionRegistry,
+        run_action: Callable[[str], bool],
+    ) -> None:
+        self._registry = registry
+        self._run_action = run_action
+
+    def run(self, name: str) -> bool:
+        """Run action *name*; ``False`` when it is unknown."""
+        return self._run_action(name)
+
+    def names(self) -> list[str]:
+        """Every registered action name."""
+        return self._registry.names()
+
+    def has(self, name: str) -> bool:
+        """True when action *name* is registered."""
+        return self._registry.get(name) is not None
+
+
 @dataclass(frozen=True)
 class StatusSegment:
     """One extension-contributed status bar segment (pull model).
@@ -311,6 +414,25 @@ class UiExtensionBridge:
             self._segments.pop(segment.id, None)
 
         self._record_undo(undo)
+
+    def add_segment(
+        self,
+        id: str,
+        provider: Callable[[], str | None],
+        align: SegmentAlign = "right",
+        priority: int = 0,
+    ) -> None:
+        """Build a :class:`StatusSegment` from plain arguments and register it.
+
+        Convenience factory for the scripting bridges (Lua cannot construct
+        a frozen dataclass): ``add_segment(id, provider, align, priority)``
+        is equivalent to building the segment and calling
+        :meth:`add_status_segment` -- duplicate ids raise ``ValueError`` and
+        rollback-scope recording (A13) behaves the same.
+        """
+        self.add_status_segment(
+            StatusSegment(id=id, provider=provider, align=align, priority=priority)
+        )
 
     def remove_status_segment(self, segment_id: str) -> None:
         """Drop the segment *segment_id* (``KeyError`` when unknown).

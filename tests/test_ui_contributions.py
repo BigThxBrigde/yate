@@ -21,8 +21,8 @@ from yate.keymaps.base import Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
-from yate.services.extension_bridges import StatusSegment
 from yate.services.extensions import ExtensionAPI, ExtensionContext
+from yate.services.extensions.bridges import StatusSegment
 from yate.services.workspace import Workspace
 
 # the no-bridge rendering test reads a private helper
@@ -45,6 +45,9 @@ def api() -> ExtensionAPI:
         run_shell=lambda _command, _show: None,
         open_path=lambda _path: None,
         save=lambda: None,
+        run_action=lambda _name: False,
+        set_theme=lambda _name: None,
+        active_theme_name=lambda: "mocha",
     )
     return ExtensionAPI(ctx)
 

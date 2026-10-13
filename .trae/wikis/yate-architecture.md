@@ -150,9 +150,9 @@ flowchart TB
 | `editor_syntax/` | 语法高亮，按文件类型路由 | `engine.py` → tree-sitter 后端（`ts_backend/`）或正则后端（`regex_backend.py`），`.scm` 查询文件 |
 | `keyproto/` | 键弦模型与 Windows 键输入驱动（L0 叶包，2026-09-28 新增核对） | `chords.py::KeyChord` + VK/修饰位常量、`aliases.py`（弦→Textual 键名 / →C0 字节）、`legacy.py::event_to_raw` / `textual_key_to_raw`、`frames.py`（Windows Terminal `win32-input-mode` 键帧解码）、`driver_windows.py::YateWindowsDriver` |
 | `editor_sprites/` | 屏保精灵子系统（L0 叶包：纯数据 + 纯渲染，无 Textual/rich/IO，2026-09-28 新增核对） | `characters.py`（27 个角色的帧/调色板注册表，`character_names` / `get_character` / `shuffle_order`）、`render.py::render_rows` / `walk_x`、`chars/`（24 个角色位图模块 + 共享 `_shared.py`） |
-| `services/` | 平台服务 | `extensions.py::ExtensionAPI`（扩展脚本 `setup(api)`）、`workspace.py`、`fonts.py`、`user_setup.py`、`trust.py`（工作区信任门控）、`shell.py`、`clipboard.py`（pyperclip 降级安全包装）、`idle_tracker.py::IdleTracker`（屏保空闲打点，无定时器/线程） |
+| `services/` | 平台服务 | `extensions/` 子包（扩展系统机件：门面 `__init__` + `api`/`bridges`/`loader`/`lua`，外部只进门面——R14；`::ExtensionAPI` 扩展脚本 `setup(api)`）、`events.py`（通用事件枢纽）、`workspace.py`、`fonts.py`、`user_setup.py`、`trust.py`（工作区信任门控）、`shell.py`、`clipboard.py`（pyperclip 降级安全包装）、`idle_tracker.py::IdleTracker`（屏保空闲打点，无定时器/线程） |
 | `flows/*`（`*_flows.py` + `lsp_sync.py`） | 从 `editor.py` 抽出的流程模块（`yate/flows/` 子包；由 `Editor` 构造，一律不反向导入 UI 层） | `document_flows.py::DocumentFlows`、`window_flows.py::WindowFlows`、`prompt_flows.py::PromptFlows`、`shell_flows.py::ShellFlows`、`extension_flows.py::ExtensionFlows`（扩展加载 + yaterc `language_servers` 注册）、`overlay_flows.py::OverlayFlows`（palette / help / manual / diff 推屏）、`mouse_flows.py::MouseFlows`、`completion_flows.py::CompletionFlows`、`prompt_completion.py::prompt_completions`、`lsp_sync.py::LspSync` |
-| `extensions/` | 内置扩展示例 | `python_lsp.py`（内置 Python LSP 扩展）+ 6 个 `*.py.example` 示例（batch / diff / fsharp / git / ini / yatesh 语法）；C# 等语言高亮属**内置**语法层（`editor_syntax/ts_backend/queries/csharp.scm` 等），不在本目录 |
+| `extensions/`（顶层，区别于 `services/extensions/` 机件子包） | 内置扩展示例 | `python_lsp.py`（内置 Python LSP 扩展）+ 6 个 `*.py.example` 示例（batch / diff / fsharp / git / ini / yatesh 语法）；C# 等语言高亮属**内置**语法层（`editor_syntax/ts_backend/queries/csharp.scm` 等），不在本目录 |
 | 其他 | `logs.py`（crash/tracing）、`paths.py::load_tcss`（打包资源读取）、`diagnostics.py`、`dist_meta.py`（解析自身 Requires-Dist，供 `--diag` 与 PyInstaller spec 共用）、`resources/`（**`app.tcss` 外壳 CSS**、字体、manual/changelog 文档、主题示例） | |
 
 ## 3. editor_view/ 组成（Textual UI 层)
@@ -254,7 +254,8 @@ sequenceDiagram
   UI 重绘。
 - **内置终端**：`pty_proc.py` 起 PTY → `emulator.py` 把字节流驱动成单元格
   网格 → `TerminalPanel` 渲染。
-- **扩展系统**：`services/extensions.py::ExtensionLoader` 加载 `setup(api)`
+- **扩展系统**：`services/extensions/loader.py::ExtensionLoader`（经门面
+  `services/extensions/__init__.py`，R14）加载 `setup(api)`
   脚本，受 `trust.py` 工作区信任门控。
 - **Windows 键输入**：`YateApp.get_driver_class()` 在 `win32` 且
   yaterc `key_protocol != "legacy"` 时返回 `keyproto/driver_windows.py::YateWindowsDriver`

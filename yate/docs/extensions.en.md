@@ -521,17 +521,17 @@ unset (empty = the whole roster, extensions included).
 ### 4.10 Editor events (`api.events`)
 
 `api.events.subscribe` listens to editor lifecycle events. Event
-identities are `EditorEvent` enum members from `yate.services.events` --
-never strings -- and every payload is a frozen dataclass:
+identities are `EditorEvent` enum members, re-exported as
+`api.events.EditorEvent` so extensions need no yate imports -- never
+strings -- and every payload is a frozen dataclass:
 
 ```python
-from yate.services.events import EditorEvent, ThemeChanged
-
 def setup(api):
-    def on_theme(payload: ThemeChanged) -> None:
+    def on_theme(payload):
         api.message(f"theme switched to {payload.name}")
 
-    unsubscribe = api.events.subscribe(EditorEvent.THEME_CHANGED, on_theme)
+    unsubscribe = api.events.subscribe(
+        api.events.EditorEvent.THEME_CHANGED, on_theme)
     # call unsubscribe() to stop listening again
 ```
 
@@ -568,7 +568,7 @@ per-keystroke event.
 
 ### 4.11 Status bar segments (`api.ui`)
 
-`api.ui.add_status_segment` contributes a text segment to the status
+`api.ui.add_segment` contributes a text segment to the status
 bar. The bar is a **pull-model** registry: on every refresh it calls each
 registered provider once and paints the returned string with the bar's
 own styles -- extensions contribute text only, never widgets or colors.
@@ -580,15 +580,17 @@ better computed in event listeners (e.g. on `DOCUMENT_OPENED` /
 `DOCUMENT_SAVED`) and returned from a precomputed value.
 
 ```python
-from yate.services.extension_bridges import StatusSegment
-
 def setup(api):
-    api.ui.add_status_segment(StatusSegment(
+    api.ui.add_segment(
         "wordcount",
         lambda: f"{len(api.buffer.get_text().split())}w",
         align="right",   # "left" or "right" (default "right")
         priority=0,      # higher sorts first within its half
-    ))
+    )
+    # Equivalent explicit form -- build the frozen StatusSegment yourself:
+    #   from yate.services.extensions.bridges import StatusSegment
+    #   api.ui.add_status_segment(StatusSegment(
+    #       "wordcount", provider, align="right", priority=0))
 ```
 
 Rules:
@@ -601,6 +603,144 @@ Rules:
   drops a segment (`KeyError` when unknown).
 - Registrations participate in the rollback scope: a failing setup
   removes them again.
+
+### 4.12 Running actions and rebinding keys (`api.actions` / `bind_action` / `unbind_key`)
+
+`api.actions` runs registered editor actions by name and inspects the
+registry. `run` goes through the editor's normal key dispatch, so an
+extension-triggered action behaves exactly like a keypress:
+
+| Method | Purpose |
+|---|---|
+| `api.actions.run(name)` | run action *name*; returns `False` when the name is unknown |
+| `api.actions.names()` | every registered action name |
+| `api.actions.has(name)` | `True` when *name* is registered |
+
+```python
+if api.actions.has("delete_line"):
+    api.actions.run("delete_line")   # same dispatch path the keymaps use
+```
+
+`api.bind_action(key_spec, action_name, keymap="vsc")` rebinds a key to a
+**named action** -- built-in or your own. This is how an extension moves
+built-in keys around:
+
+```python
+def setup(api):
+    # Re-point <ctrl-shift-d> at the built-in delete_line action, in both
+    # keymaps ("both" = "vsc" + "vim"; "normal" is an alias for "vsc").
+    api.bind_action("<ctrl-shift-d>", "delete_line", keymap="both")
+
+    # Your own action: register first, then bind -- bind_action references
+    # the action by name.
+    api.register_action("ext.duplicate",
+                        lambda ctx: ctx.buffer.duplicate_line(),
+                        "duplicate the current line")
+    api.bind_action("<ctrl-shift-alt-d>", "ext.duplicate")
+```
+
+- Optional `description` / `category` mirror `api.bind_key`; there is no
+  decorator form -- the action is referenced by name, not passed in.
+- **Register, then bind**: an unknown *action_name* binds nothing and only
+  reports a warning (naming the registered actions); an unknown *keymap*
+  name behaves the same. A typo never silently occupies a key.
+- Rollback (section 3): a failing setup restores the previous binding of
+  every key `bind_action` touched.
+
+`api.unbind_key(key_spec, keymap="vsc")` removes a binding again
+(`keymap="both"` removes it from both keymaps). It returns `True` when any
+target keymap actually dropped a binding, `False` when the key was already
+unbound or the keymap name is unknown:
+
+```python
+removed = api.unbind_key("<ctrl-shift-alt-d>")
+api.unbind_key("<ctrl-shift-d>", keymap="both")
+```
+
+### 4.13 Theme, clipboard and open documents (`api.theme` / `api.clipboard` / `api.docs`)
+
+**`api.theme`** switches and reads the color theme:
+
+```python
+api.theme.set("gruvbox-dark")   # KeyError when the name is unknown
+current = api.theme.active()    # the active theme's name (read-only)
+```
+
+**`api.clipboard`** reads and writes the system clipboard; when no
+clipboard backend is available both calls degrade gracefully (`False` /
+`None`), so extension code never sees a platform exception:
+
+```python
+api.clipboard.set("copied!")    # False when unavailable
+text = api.clipboard.get()      # str ("" when empty), None when unavailable
+```
+
+**`api.docs`** is a read-only view of the session's open documents:
+
+| Method | Purpose |
+|---|---|
+| `api.docs.all()` | every open document -- a fresh list of `Document` (members: section 4.4) |
+| `api.docs.is_open(path)` | `True` when a document showing *path* is already open |
+
+```python
+for doc in api.docs.all():
+    api.message(f"{doc.name}: {'modified' if doc.modified else 'saved'}")
+if not api.docs.is_open("notes.md"):
+    api.open_path("notes.md")   # changes go through the normal flows
+```
+
+Deliberately narrow: there is no open/activate/close here -- the document
+lifecycle goes through the editor's UI flows (`api.open_path`, `api.save`,
+the `:` commands), never around them.
+
+### 4.14 Passing IDE lint for Lua scripts (`_yate.d.lua` + `.luarc.json`)
+
+Lua extension scripts are ordinary Lua files, so an editor knows neither
+the global `yate` table nor the `api` parameter of `setup(api)` -- out of
+the box both are flagged as unknown globals. yate ships two pieces of
+lint infrastructure:
+
+- `yate/extensions/_yate.d.lua` -- a `---@meta` declaration file that
+  declares every exported function of `_yate.lua` with the same
+  `---@param` / `---@return` annotations (no logic; the `_` prefix keeps
+  it out of the auto-load scan);
+- `.luarc.json` (repo root) -- the lua-language-server configuration
+  yate's own Lua files lint under; its `workspace.library` entry is the
+  same knob recipe (a) below uses.
+
+The recommended editor setup is VS Code with the **"Lua"** plugin
+(lua-language-server). Two recipes make your own scripts lint clean:
+
+**(a) Point the workspace library at your yate installation** -- keep the
+single shipped definition file and reference its directory:
+
+```json
+{
+  "workspace.library": ["<yate>/yate/extensions"]
+}
+```
+
+`<yate>` is the installed `yate` package directory -- for a wheel install
+that is `.../site-packages/yate/extensions`; a frozen binary or an
+editable install keeps the same folder elsewhere (the directory holding
+`_yate.lua` / `_yate.d.lua` is the one to point at).
+
+**(b) Copy the meta file into your project** -- self-contained, survives
+reinstalls and upgrades:
+
+copy `yate/extensions/_yate.d.lua` into your project (`.vscode/` is a
+conventional spot) and configure the one global the definitions cannot
+provide:
+
+```json
+{
+  "diagnostics.globals": ["api"]
+}
+```
+
+With either recipe, `yate.*` gains signature completion and the
+unknown-global diagnostics for it disappear; the `api` entry covers the
+`setup(api)` parameter, which only exists at runtime.
 
 ---
 
@@ -692,25 +832,39 @@ runtime: `require("yate")` and the global `yate` are the same module table
 | `yate.register_command(name, fn, desc?)` | register a `:` command; `fn` receives the raw argument string |
 | `yate.register_action(name, fn, desc?)` | register a named action |
 | `yate.bind_key(spec, fn, keymap?)` | bind a key (`"vsc"` / `"vim"` / `"both"`; default `"vsc"`) |
+| `yate.bind_action(spec, action, keymap?)` | bind a key to a **registered** action (built-in or your own; register first, section 4.12) |
+| `yate.unbind_key(spec, keymap?)` | remove a key binding; returns `true` when something was removed |
+| `yate.events.subscribe(name, fn)` | subscribe to editor events; `name` is the lowercase event name (`"document_saved"` ... `"theme_changed"`, section 4.10) |
+| `yate.ui.add_segment(id, provider, align?, priority?)` | contribute a status bar segment (section 4.11) |
+| `yate.theme.set(name)` / `yate.theme.active()` | switch / read the color theme (section 4.13) |
+| `yate.clipboard.set(text)` / `yate.clipboard.get()` | system clipboard (section 4.13) |
+| `yate.docs.all()` / `yate.docs.is_open(path)` | read-only view of the open documents (section 4.13) |
+| `yate.actions.run(name)` / `.names()` / `.has(name)` | run / list / probe registered actions (section 4.12) |
+| `yate.keymaps` | the loaded keymap set (pass-through of `api.keymaps`) |
 | `yate.shell(cmd)` | run a shell command silently; returns the `ShellResult` object (read `.output` / `.returncode`) |
 | `yate.open_path(path)` | open a file/folder in the editor |
 | `yate.save()` | save the active document |
 | `yate.buffer()` / `yate.doc()` / `yate.workspace()` | runtime objects (members see section 4.4) |
 | `yate.api` / `yate.highlight` / `yate.sprites` / `yate.lsp` / `yate.syntax` | raw Python bridges (advanced use) |
 
-Event subscription and status segments are reachable through the raw
-bridge: `yate.api.events.subscribe(EditorEvent.THEME_CHANGED, fn)` and
-`yate.api.ui.add_status_segment(segment)` (sections 4.10 / 4.11; import
-the payload/segment classes from `yate.services.events` /
-`yate.services.extension_bridges` the same way).
+Every wrapper above mirrors a member of the Python API one-to-one -- same
+names, same semantics, positional arguments (Lua has no keyword arguments)
+with omitted optionals falling back to the Python defaults; sections
+4.10 / 4.11 / 4.12 / 4.13 document the shared behaviour.
+
+Unlike the Python enum, `yate.events.subscribe` takes the lowercase event
+names shown above; the payload arrives as the same frozen dataclass (read
+its fields with a dot). The raw Python bridges stay reachable for anything
+beyond this table via `yate.api`.
 
 ### Editor completion for Lua (`---@` annotations)
 
 Every exported function in `_yate.lua` carries EmmyLua annotations
 (`---@param` / `---@return`): an editor running lua-language-server shows
 signature completion for `require("yate")` out of the box. The
-annotations are the "open pyi" equivalent and live in the same file
-(single source of truth) -- no separate `.d.lua` ships.
+annotations are the "open pyi" equivalent; a mirrored `---@meta` file,
+`_yate.d.lua`, ships so your own project can lint against the same
+surface (see section 4.14).
 
 ### lupa semantics to keep in mind
 

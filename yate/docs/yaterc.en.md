@@ -254,7 +254,7 @@ Once registered, switch with `:theme <name>` or select at startup with
 
 The `extensions` option declares custom extension scripts to load (the
 extension API is documented in
-[yate/services/extensions.py](../services/extensions.py)). An extension is a
+[yate/services/extensions/\_\_init\_\_.py](../services/extensions/__init__.py)). An extension is a
 `.py` file exposing a `setup(api)` function that registers actions, key
 bindings and `:` commands through `api`:
 

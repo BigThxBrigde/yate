@@ -57,6 +57,9 @@ def _extension_api() -> ExtensionAPI:
         run_shell=lambda _command, _show: None,
         open_path=lambda _path: None,
         save=lambda: None,
+        run_action=lambda _name: False,
+        set_theme=lambda _name: None,
+        active_theme_name=lambda: "mocha",
     )
     return ExtensionAPI(ctx)
 
@@ -282,7 +285,7 @@ def test_bind_key_with_unknown_keymap_warns_and_does_not_raise() -> None:
     ctx.keymaps.names.return_value = ["vsc", "vim"]
     api = ExtensionAPI(cast(ExtensionContext, ctx))
     capture = _LogCapture()
-    logger = logging.getLogger("yate.services.extension_api")
+    logger = logging.getLogger("yate.services.extensions.api")
     logger.addHandler(capture)
     try:
         bound = api.bind_key("<f5>", _noop, keymap="typo")
@@ -388,6 +391,9 @@ def _real_extension_api(
         run_shell=lambda _command, _show: None,
         open_path=lambda _path: None,
         save=lambda: None,
+        run_action=lambda _name: False,
+        set_theme=lambda _name: None,
+        active_theme_name=lambda: "mocha",
     )
     return ExtensionAPI(ctx), actions, commands, keymaps
 
