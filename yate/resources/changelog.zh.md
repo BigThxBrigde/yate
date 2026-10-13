@@ -6,6 +6,9 @@
 
 ### 新功能
 
+- mirror the python api surface and ship ide lint defs [缺中文] ([`1b721d8`](https://gitee.com/jermaine/yate/commit/1b721d851204c3bd299703e2d98a4a65c9859e7f))
+- bundle the lupa Lua bridge in frozen builds (issue IKL2G6) [缺中文] ([`7767f7b`](https://gitee.com/jermaine/yate/commit/7767f7b1de68fdac29f31de6111d60777b1e7ffd))
+- widen the python api surface [缺中文] ([`7be8064`](https://gitee.com/jermaine/yate/commit/7be806440de2cb030a0d10454211fe57130a98a0))
 - 新增状态栏段贡献点（api.ui） ([`943cc49`](https://gitee.com/jermaine/yate/commit/943cc49c60e008f5cbde4a6eaf6411eff6c95971))
   - 拉取式注册表：左右两半按 (-priority, 顺序) 排序；None/空串隐藏、异常 provider 降级为 ! 占位；StatusBar 自持绘制（R13）；ui=None 保持独立构造可用
 - 新增扩展事件订阅系统（EventHub 与 api.events 桥） ([`70cf103`](https://gitee.com/jermaine/yate/commit/70cf10354552b3fabd4607d7827f3c3e5e5aed04))
@@ -16,6 +19,8 @@
 
 ### 问题修复
 
+- sync every build-extras hint to [build,ts,lua] (review round 2) [缺中文] ([`a35e52e`](https://gitee.com/jermaine/yate/commit/a35e52e4fb5ae842e5ffe1998d9c40f68dfb77c2))
+- apply second-round review fixes [缺中文] ([`8e852b3`](https://gitee.com/jermaine/yate/commit/8e852b31395fb60435e9c829f9359d1812fed717))
 - 落地扩展波次代码评审修复 ([`bd702a8`](https://gitee.com/jermaine/yate/commit/bd702a8cc4bb10008942701f7ad2d7ee1e7c63fc))
   - 诊断载荷归属其文档（LSP 钩子带 doc）；OPENED 先于 ACTIVATED；DocumentClosed.docs 冻结为 tuple；StatusSegment.align 收敛为 Literal；左段去掉 bold 保持两侧一致；补 Lua 探测/资源不可读/无桥渲染测试
 - cover tab-bar refit branch and align review round-1 notes [缺中文] ([`0cc63a7`](https://gitee.com/jermaine/yate/commit/0cc63a70eaa8fdce0c53b8599cf4bd28f2080c5c))
@@ -36,6 +41,7 @@
 
 ### 重构
 
+- collapse single-entry lua inventory tuple [缺中文] ([`be2f199`](https://gitee.com/jermaine/yate/commit/be2f1999b1ec17aeb88107260706ba818bcdcb06))
 - Lua 桥拆分为包并镜像 setup/teardown 钩子 ([`dd0ca92`](https://gitee.com/jermaine/yate/commit/dd0ca9263eb06d0ba13937aaefef68463a848740))
   - lua_extensions 拆为 library（轻：探测与库源）+ runtime（重：运行时与钩子）；显式 setup(api) 在顶层之后调用，顶层即 setup 兼容保留；全局 teardown(api) 提取
 - restore elif chain in refilter scoring [缺中文] ([`899407e`](https://gitee.com/jermaine/yate/commit/899407e943a91ac39462cb34a2903fb9ba06d182))
@@ -45,6 +51,13 @@
 
 ### 文档
 
+- document the widened api surface and lua lint setup [缺中文] ([`d1bc7c7`](https://gitee.com/jermaine/yate/commit/d1bc7c7c8143898823b56ba231d4e9b7b27f61f5))
+- register review round 2 and final gate results [缺中文] ([`a908761`](https://gitee.com/jermaine/yate/commit/a90876143f5704e86714ea404013fdfb09e3b7ab))
+- register pr-review round and final gate results [缺中文] ([`6c5158c`](https://gitee.com/jermaine/yate/commit/6c5158c3a5a216a08c0335a2967c77f5ce231b45))
+- register pack-lupa build acceptance and gate results [缺中文] ([`5a485bb`](https://gitee.com/jermaine/yate/commit/5a485bb09225a11af1d668340f155f6deb647ad0))
+- add pack-lupa bundling plan for issue IKL2G6 [缺中文] ([`5184a21`](https://gitee.com/jermaine/yate/commit/5184a21cb02ec9b9436049d78d16f277ffa7c37c))
+- add ext-api-parity plan for gitee issue IKK4K6 [缺中文] ([`e35220f`](https://gitee.com/jermaine/yate/commit/e35220f3220bf4d956138500006c1e70edee2c25))
+- regenerate for the extension wave and backfill plan [缺中文] ([`79a1f50`](https://gitee.com/jermaine/yate/commit/79a1f50b1c0a15f1e7cb070737c82515b8df75a4))
 - 同步诊断事件措辞与 provider 成本提示（中英手册） ([`bbfe1b6`](https://gitee.com/jermaine/yate/commit/bbfe1b6a24befb7228496bcdfb4f6738f7bd250e))
   - DIAGNOSTICS_UPDATED 枚举 docstring 对齐载荷语义；手册提醒状态栏 provider 随刷新反复执行，重活放进事件监听器
 - 扩展手册补事件订阅与状态栏段章节（中英双语） ([`0cfbb2b`](https://gitee.com/jermaine/yate/commit/0cfbb2b4f2254738dea0fb58e38f88c12f5ccdb0))
@@ -80,6 +93,7 @@
 
 ### 测试
 
+- type the clipboard monkeypatch stubs [缺中文] ([`291048b`](https://gitee.com/jermaine/yate/commit/291048b8255aea37b3f49e153610ba6a9d09d77c))
 - 冒烟覆盖状态栏段贡献点 ([`b688a34`](https://gitee.com/jermaine/yate/commit/b688a34952a50a7559ffc75356cc42447a41971d))
   - ext_seg.py 场景：setup 内注册左右段、:seg-off 移除；快照基线 extension_status_segment
 - harden scenario cleanup and registry fixtures [缺中文] ([`a019d86`](https://gitee.com/jermaine/yate/commit/a019d867891e735d1898593c0b240ab0da04db21))
