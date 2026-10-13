@@ -10,6 +10,7 @@
 | [plan-b](extension-system-enhance-plan-b.md) | Lua 桥分包 + setup/teardown 镜像 + 注解 | wave-2 | services/lua/(新)、lua_extensions.py(删)、extension_loader.py、_yate.lua |
 | [plan-c](extension-system-enhance-plan-c.md) | UI 贡献点：状态栏段 | wave-2 | statusbar.py、extension_bridges.py |
 | [plan-d](extension-system-enhance-plan-d.md) | 文档/示例/冒烟/CHANGELOG | wave-3 | docs/extensions.*.md、示例模板、tools/smoke_test.py、CHANGELOG* |
+| [plan-e](extension-system-enhance-plan-e.md) | Lua 模块表入口形态（追加波） | wave-4 | services/extensions/lua/runtime.py、tests/test_lua_extensions.py、_yate.lua、lua.example、docs/extensions.*.md |
 
 注：plan-a 与 plan-c 都需要 `extension_api.py` / `editor.py`，靠波次串行保证独占；
 plan-b 的文件与两者零交集，故可与 plan-c 同波并行。
