@@ -50,3 +50,34 @@ python 统一用 `d:\Programming\yate\.venv\Scripts\python.exe`，在 worktree `
 ## 回滚
 
 纯移动 + 导入路径更新，`git revert` 单提交即可还原；无行为、无数据迁移。
+
+## 执行记录与评审回填（2026-10-13）
+
+| 提交 | 内容 |
+| --- | --- |
+| `2931a9b` | 拆包主体：7 处 git mv（相似度 57%-100%）+ 16 文件导入更新 + R14 规则与双用例 + 双语手册/规则文档路径同步 |
+| `4aedb60` | 架构 wiki（`.trae/wikis/yate-architecture.md`）同步子包形态与 R14、events.py:34 docstring 存量路径、changelog 再生成 |
+| `ed16f4e` | pr-review 修复：门面 layout map 补全十桥清单（原"four bridges"为搬迁前存量过时文本） |
+
+### 门禁实测（2931a9b 树）
+
+- `python -m pyright`：0 errors（2 warnings 为 pyperclip 存量）
+- `python -m pytest tests -q`：2322 collected 全绿（架构 31 passed，含 2 条新 R14 用例：`test_extension_machinery_hides_behind_facade` / `test_extension_facade_exports_the_frozen_thirteen_names`）
+- `python -m tools.smoke_test compare`：112/112 scenarios、1352/1352 checks、exit 0（纯移动零行为变更的实证）
+- 执行者负向演练：清空白名单扫描全 yate/** 恰好命中 `editor_view/statusbar.py` 一处存量直引（`UiExtensionBridge` 类型注解，13 名门面不含该名），登记 `EXTENSION_SUBMODULE_FROZEN` 后零违规
+
+### 评审记录（pr-review 框架，review 模式，round 1）
+
+| 级别 | 位置 | 发现 | 处置 |
+| --- | --- | --- | --- |
+| MINOR | `services/extensions/__init__.py` layout map | "the four api.* bridges" 为搬迁前存量过时表述（现十桥），随迁移逐字带入 | **已修** `ed16f4e` |
+| INFO | R14 `EXTENSION_SUBMODULE_FROZEN` | statusbar 直引 bridges 系门面 13 名不含 `UiExtensionBridge` 所致，仿 R11 白名单机制冻结并写入规则正文 | 合理设计，登记 |
+| INFO | architecture-boundaries.md §六 | 执行者校正用例计数 28→29（补登漏记的 `test_no_relative_imports`）并注明事实 | 合理，登记 |
+
+**结论：APPROVE**（AI pre-review；合并决策归人工）。纯移动实证：smoke 0 漂移 + 门面 13 名冻结测试 + R14 直引拦截；无新 sink、无热点改动、架构边界收紧（外部只能进门面成为机器可查规则）。
+
+### 偏离登记（执行者已披露）
+
+1. R14 引入存量直引冻结白名单（statusbar 的 `UiExtensionBridge` 类型注解）——"13 名逐字不变"硬约束的连带。
+2. §六 计数校正（28→29→31 含 2 条新增）。
+3. 范围外未动：`.trae/wikis/`、`.trae/documents/**`、`.trae/reviews/**` 旧路径提及——其中 wiki 已由主控在 `4aedb60` 补齐，其余为历史任务文档，保持原样。
