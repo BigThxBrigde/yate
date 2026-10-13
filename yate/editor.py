@@ -836,6 +836,11 @@ class Editor:
     def set_theme(self, name: str) -> None:
         """Switch the active color theme (``mocha``, ``latte``, ...)."""
         name = name.strip().lower()
+        # Re-selecting the active theme is a no-op: the Textual reactive
+        # skips the same-value repaint, so emitting THEME_CHANGED would
+        # leave listeners out of sync with what actually re-rendered.
+        if name == theme.active().name:
+            return
         try:
             selected = theme.set_theme(name)
         except KeyError:

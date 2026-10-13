@@ -27,9 +27,11 @@ Example bundled extension ``yate/extensions/uppercase.py``::
 
         api.bind_key("<alt-u>", lambda ctx: upper(""), keymap="vsc")
 
-Lua extensions (``*.lua``) share this pipeline: the chunk's top-level code
-*is* the setup, an optional global ``teardown(api)`` mirrors the hook, and
-the API library ships as ``require("yate")`` (``yate/extensions/_yate.lua``;
+Lua extensions (``*.lua``) share this pipeline: a global ``setup(api)`` is
+called once the chunk's top level has run (chunks without one keep the
+legacy "top-level code *is* the setup" behavior), an optional global
+``teardown(api)`` mirrors the hook, and the API library ships as
+``require("yate")`` (``yate/extensions/_yate.lua``;
 bridge: :mod:`yate.services.lua.runtime`, needs ``pip install yate[lua]``).
 
 Layout map (2026-10-11 split): the implementation lives in three sibling

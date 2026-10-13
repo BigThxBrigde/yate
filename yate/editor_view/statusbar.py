@@ -200,9 +200,10 @@ class StatusBar(Static):
 
         Pull model: every :meth:`refresh_status` pass calls each registered
         provider once.  A provider returning ``None`` or an empty string
-        hides its segment for the pass; a raising provider degrades to a
+        hides its segment for that pass; a raising provider degrades to a
         ``!`` placeholder (logged, never fatal) so one broken extension
-        cannot take the rest of the bar down.
+        cannot take the rest of the bar down.  Provider output is flattened
+        to single spaces -- the bar is a single line.
         """
         if self.ui is None:
             return []
@@ -215,7 +216,7 @@ class StatusBar(Static):
                 texts.append("!")
                 continue
             if value:
-                texts.append(value)
+                texts.append(value.replace("\r", " ").replace("\n", " "))
         return texts
 
     def _lsp_segment(self, doc: Document) -> tuple[str, str]:

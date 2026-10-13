@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
+from unittest.mock import MagicMock
 
 from conftest import message_text
 
@@ -19,11 +21,13 @@ from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
+from yate.flows.lsp_sync import LspSync
 from yate.keymaps.base import Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
 from yate.services.events import (
+    DiagnosticsUpdated,
     DocumentSaved,
     EditorEvent,
     EventCallback,
@@ -249,3 +253,60 @@ def test_unsubscribe_thunk_removes_editor_listener() -> None:
             assert len(seen) == 1
 
     asyncio.run(scenario())
+
+
+# --- lsp_sync emission contract: diagnostics carry their own document --------
+
+
+def _lsp_sync(events: EventHub) -> LspSync:
+    """A LspSync wired to mocks except the real event hub."""
+    lsp = MagicMock()
+    lsp.diagnostic_at.return_value = None
+    panes = MagicMock()
+    panes.all_views.return_value = []
+    prompt = MagicMock()
+    prompt.active_mode = None
+    return LspSync(
+        spawn=MagicMock(),
+        lsp=cast(Any, lsp),
+        session=cast(Any, MagicMock()),
+        panes=cast(Any, panes),
+        status_bar=cast(Any, MagicMock()),
+        prompt=cast(Any, prompt),
+        events=events,
+        message=MagicMock(),
+        mounted=lambda: True,
+        push_overlay=MagicMock(),
+    )
+
+
+def test_lsp_sync_emits_diagnostics_for_the_attributed_document(
+    tmp_path: Path,
+) -> None:
+    """A publish about any open document reaches listeners with its own doc."""
+    events = EventHub()
+    seen: list[object] = []
+    events.subscribe(EditorEvent.DIAGNOSTICS_UPDATED, _collector(seen))
+    sync = _lsp_sync(events)
+    doc = Document(tmp_path / "bg.py")
+
+    sync.on_event("diagnostics", doc)
+
+    assert len(seen) == 1
+    assert isinstance(seen[0], DiagnosticsUpdated)
+    assert seen[0].doc is doc
+
+
+def test_lsp_sync_unknown_uri_and_state_events_emit_nothing(
+    tmp_path: Path,
+) -> None:
+    """A publish about an unknown uri (doc None) and state events stay silent."""
+    events = EventHub()
+    seen: list[object] = []
+    events.subscribe(EditorEvent.DIAGNOSTICS_UPDATED, _collector(seen))
+    sync = _lsp_sync(events)
+
+    sync.on_event("diagnostics", None)
+    sync.on_event("state")
+
+    assert seen == []

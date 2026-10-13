@@ -134,6 +134,7 @@ def setup(api: ExtensionAPI) -> None:
 
     # --- status bar segment: live word count on the right bar half; a
     # provider returning None/"" would hide the segment for that refresh.
+    # The bar refreshes on every cursor move -- keep providers cheap.
     api.ui.add_status_segment(
         StatusSegment(
             "ext-wordcount",

@@ -265,7 +265,9 @@ class StatusSegment:
     returned string as the segment text; ``None`` or an empty string hides
     the segment for that pass.  *align* selects the bar half (``"left"``
     or ``"right"``); a higher *priority* sorts first within its half,
-    ties keeping registration order.
+    ties keeping registration order.  The bar refreshes on every cursor
+    move and mode change -- keep *provider* cheap (precompute heavier
+    aggregations in event listeners instead).
     """
 
     id: str
