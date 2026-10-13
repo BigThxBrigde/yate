@@ -1,4 +1,4 @@
-"""Unit tests for ``yate.services.extension_bridges`` (the four api.* bridges).
+"""Unit tests for ``yate.services.extensions.bridges`` (the four api.* bridges).
 
 Covers the Lsp / Highlight / Sprite bridges directly (the Syntax bridge's
 happy path lives in ``tests/test_ts_backend.py``; only its
@@ -27,7 +27,7 @@ from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
 from yate.services import clipboard
-from yate.services.extension_bridges import HighlightExtensionBridge
+from yate.services.extensions.bridges import HighlightExtensionBridge
 from yate.services.extensions import ExtensionAPI, ExtensionContext
 from yate.services.workspace import Workspace
 

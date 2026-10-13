@@ -4,8 +4,8 @@ Two end-to-end paths that span the newly split submodules and that no other
 scenario group covers:
 
 * extension round-trip: ``load_startup_extensions``
-  (:mod:`yate.services.extension_loader`) -> ``ExtensionAPI`` rollback scope
-  (:mod:`yate.services.extension_api`) -> registries -> ``:`` command and
+  (:mod:`yate.services.extensions.loader`) -> ``ExtensionAPI`` rollback scope
+  (:mod:`yate.services.extensions.api`) -> registries -> ``:`` command and
   action dispatch -> ``teardown_all``;
 * custom theme file: ``load_theme_paths`` (:mod:`yate.editor_view.theme_files`)
   -> ``themes.register_theme`` -> ``:theme <name>`` -> ``theme.active()``.
@@ -152,7 +152,7 @@ async def _extension_status_segment(tmp: Path) -> ScenarioResult:
     """
     ext = tmp / "ext_seg.py"
     ext.write_text(
-        "from yate.services.extension_bridges import StatusSegment\n"
+        "from yate.services.extensions.bridges import StatusSegment\n"
         "def setup(api):\n"
         "    api.message('SEG-SETUP')\n"
         "    api.ui.add_status_segment(StatusSegment(\n"

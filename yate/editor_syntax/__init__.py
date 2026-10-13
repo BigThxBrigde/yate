@@ -18,7 +18,7 @@ The declarative language registry (``LangSpec`` and friends) lives in
 parallel.
 
 The re-exports below are the public API shared by the core and the
-extension bridge (``services/extensions.py``): :func:`tokenize_document`
+extension bridge (``services/extensions/bridges.py``): :func:`tokenize_document`
 is the dispatching engine entry point, the rest is the declarative
 language registry.  This is the documented public API exception
 (architecture-boundaries rule 3.5): pure-leaf packages may re-export their

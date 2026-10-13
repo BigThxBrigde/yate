@@ -1,4 +1,4 @@
-"""Unit tests for ``yate.services.extension_api`` (the ExtensionAPI surface).
+"""Unit tests for ``yate.services.extensions.api`` (the ExtensionAPI surface).
 
 Covers the gap ``tests/test_extensions.py`` does not: the ``bind_key``
 decorator form and its ``both`` / ``normal`` / positional-keymap variants,
@@ -22,7 +22,8 @@ from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
 from yate.services.events import EditorEvent
-from yate.services.extension_bridges import (
+from yate.services.extensions import ExtensionAPI, ExtensionContext
+from yate.services.extensions.bridges import (
     ActionExtensionBridge,
     ClipboardExtensionBridge,
     DocsExtensionBridge,
@@ -32,7 +33,6 @@ from yate.services.extension_bridges import (
     SyntaxExtensionBridge,
     ThemeExtensionBridge,
 )
-from yate.services.extensions import ExtensionAPI, ExtensionContext
 from yate.services.workspace import Workspace
 
 
@@ -260,7 +260,7 @@ def test_start_scope_second_call_drops_stale_pending_with_warning() -> None:
     """A second start_scope warns and drops the stale pending undo entries."""
     api, actions, _commands, _keymaps = _extension_api()
     capture = _LogCapture()
-    logger = logging.getLogger("yate.services.extension_api")
+    logger = logging.getLogger("yate.services.extensions.api")
     logger.addHandler(capture)
     try:
         api.start_scope()
@@ -272,7 +272,7 @@ def test_start_scope_second_call_drops_stale_pending_with_warning() -> None:
 
     warns = [record for record in capture.records if record.levelno == logging.WARNING]
     assert len(warns) == 1
-    assert warns[0].name == "yate.services.extension_api"
+    assert warns[0].name == "yate.services.extensions.api"
     assert "extension scope restarted" in warns[0].getMessage()
     # the stale undo entries were dropped: the rollback above left x alone
     assert actions.get("x") is not None
@@ -357,7 +357,7 @@ def test_bind_action_unknown_action_binds_nothing_and_warns() -> None:
     """An unregistered action name binds nothing and logs a warning."""
     api, actions, _commands, keymaps = _extension_api()
     capture = _LogCapture()
-    logger = logging.getLogger("yate.services.extension_api")
+    logger = logging.getLogger("yate.services.extensions.api")
     logger.addHandler(capture)
     try:
         api.bind_action("ctrl+shift+4", "never_registered")
@@ -379,7 +379,7 @@ def test_bind_action_unknown_keymap_binds_nothing_and_warns() -> None:
     api, _actions, _commands, keymaps = _extension_api()
     api.register_action("probe_act", _noop)
     capture = _LogCapture()
-    logger = logging.getLogger("yate.services.extension_api")
+    logger = logging.getLogger("yate.services.extensions.api")
     logger.addHandler(capture)
     try:
         api.bind_action("ctrl+shift+5", "probe_act", keymap="bogus")

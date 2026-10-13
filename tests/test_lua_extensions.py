@@ -21,11 +21,11 @@ from yate.paths import bundled_extensions_dir
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
 from yate.services import clipboard as clipboard_module
-from yate.services import extension_loader as ext_loader
 from yate.services.events import EditorEvent, EventHub
-from yate.services.lua.library import lua_api_library_source
-from yate.services.lua.runtime import create_runtime
+from yate.services.extensions import loader as ext_loader
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
+from yate.services.extensions.lua.library import lua_api_library_source
+from yate.services.extensions.lua.runtime import create_runtime
 
 #: Live-lua marker: skip when the optional lupa package is not installed.
 _lua_missing = importlib.util.find_spec("lupa") is None
@@ -307,10 +307,10 @@ def test_teardown_global_extracted(
 
 
 def test_lua_package_import_paths() -> None:
-    """The Lua bridge lives in yate.services.lua; the old module is gone."""
-    from yate.services import lua as lua_package
-    from yate.services.lua import library as lua_library
-    from yate.services.lua import runtime as lua_runtime
+    """The Lua bridge lives in yate.services.extensions.lua; the old module is gone."""
+    from yate.services.extensions import lua as lua_package
+    from yate.services.extensions.lua import library as lua_library
+    from yate.services.extensions.lua import runtime as lua_runtime
 
     assert callable(lua_library.is_lua_available)
     assert callable(lua_library.lua_api_library_source)
@@ -332,7 +332,7 @@ def test_lua_availability_probe_swallows_probe_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A broken half-install makes is_lua_available() False, not a crash."""
-    from yate.services.lua import library
+    from yate.services.extensions.lua import library
 
     def boom(name: str) -> None:
         raise ValueError("broken spec")
@@ -345,7 +345,7 @@ def test_library_source_fails_fast_on_unreadable_resource(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """An unreadable bundled library is an installation error, raised here."""
-    from yate.services.lua import library
+    from yate.services.extensions.lua import library
 
     monkeypatch.setattr(library, "bundled_extensions_dir", lambda: tmp_path)
     with pytest.raises(RuntimeError):

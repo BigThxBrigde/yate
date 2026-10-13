@@ -2,7 +2,7 @@
 sprites / ui / theme / clipboard / docs / actions).
 
 Each bridge wraps one capability domain for extension scripts; the
-:class:`ExtensionAPI <yate.services.extension_api.ExtensionAPI>` facade
+:class:`ExtensionAPI <yate.services.extensions.api.ExtensionAPI>` facade
 instantiates them in its ``__init__`` and hands them out through the
 matching properties.
 """
@@ -35,7 +35,7 @@ from yate.session import EditorSession
 from yate.services import clipboard
 from yate.services.events import EditorEvent, EventHub, EventCallback
 
-#: Trace logger ("yate.services.extension_bridges"); silent unless yate_trace is on.
+#: Trace logger ("yate.services.extensions.bridges"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 #: The two status bar halves a segment can attach to.

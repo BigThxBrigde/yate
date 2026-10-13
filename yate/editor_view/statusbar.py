@@ -3,7 +3,7 @@
 Flat VS Code style: one solid accent-colored line with a mode chip on the
 left and position/meta information right-aligned.  Extensions contribute
 extra text segments (``api.ui.add_status_segment``): the bar pulls them
-from the injected :class:`~yate.services.extension_bridges.UiExtensionBridge`
+from the injected :class:`~yate.services.extensions.bridges.UiExtensionBridge`
 on every refresh and paints them with its own segment styles.
 
 The bar is self-contained: it reads the document session, the language
@@ -26,8 +26,8 @@ from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.logs import tracing
 from yate.paths import load_tcss
-from yate.services.extension_bridges import UiExtensionBridge
 from yate.services.extensions import ExtensionLoader
+from yate.services.extensions.bridges import UiExtensionBridge
 from yate.session import EditorSession
 
 from yate.editor_view import theme

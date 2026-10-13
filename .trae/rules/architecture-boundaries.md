@@ -18,7 +18,8 @@ L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / lsp_sync.py /
          prompt_completion.py / mouse_flows.py）/ diagnostics.py /
-         services/extensions.py（门面）+ services/extension_{api,bridges,loader}.py
+         services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
+         见 R14）
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
@@ -30,7 +31,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         2026-10-07 A2 定案：`keyproto/driver_windows.py` 经
         `keyproto/textual_internals.py` 收口 Textual 私有 API（升级 Textual 先查该文件）；
         `yate.logs` 为 R12 统一 tracing 的豁免依赖）
-插件：extensions/*（由 L4 外壳经 L3 services/extension_loader.py 装载；只依赖
+插件：extensions/*（由 L4 外壳经 L3 services/extensions/loader.py 装载；只依赖
          services/extensions 门面暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
          禁止 import editor / editor_view / app）
 ```
@@ -137,6 +138,17 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `ScrollBar.renderer = ...` 进程级 monkey-patch（ClassVar 赋值会泄漏到同进程
   全部 Textual App，含测试嵌套）。
   **守卫**：§六「T1 / T2」条目（theme-ownership Plan D 新增两条用例）。
+- **R14 — 扩展系统机件子包化（2026-10-13，Gitee IKK4K6 note_51571449）**：
+  扩展系统机件仅居于 `yate/services/extensions/` 子包（门面 `__init__.py` + `api.py` /
+  `bridges.py` / `loader.py` / `lua/`）；门面导入路径 `yate.services.extensions` 不变
+  （13 个公共名再导出**冻结**，插件与手册按名导入零破坏），内部子模块为非公共 API——
+  yate 内代码（extensions 包自身除外）只可 `from yate.services.extensions import <公共名>`，
+  直引 `api` / `bridges` / `loader` / `lua` 子模块视为违规；存量直引冻结在架构测试的
+  `EXTENSION_SUBMODULE_FROZEN` 白名单（`editor_view/statusbar.py` 的 `UiExtensionBridge`
+  类型注解——13 名门面不含该名），新增直引必须先登记；`tests/**` 直测内部机件，不在
+  拦截面。`yate/services/events.py`（editor 直用的通用事件枢纽）与 `user_setup.py`
+  非扩展机件，不随迁。
+  **守卫**：§六「R14」条目（两条用例：直引拦截 + 门面 13 名冻结）。
 
 ## 二、分层职责
 
@@ -270,8 +282,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **28 个用例**（2026-10-09 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `28 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **31 个用例**（2026-10-13 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `31 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -336,8 +348,16 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   **不在拦截范围**：函数体内的实例属性（`self._hook: Callable[...] = None`）与
   "元素是回调的数据表"（`dict[str, Callable[...]]`）——它们不是别名定义，
   按 §三.6 与 R-C 保持内联。负向演练过：6 类违规全部拦截，3 类放行形态零误伤。
+- **R14**（扩展机件子包化，2026-10-13 新增两条）：`test_extension_machinery_hides_behind_facade`
+  AST 扫 `yate/**`（排除 `services/extensions/` 包自身；`tests/` 不在扫描面）禁直引
+  `yate.services.extensions.{api,bridges,loader,lua}`，存量直引冻结在
+  `EXTENSION_SUBMODULE_FROZEN` 白名单（`editor_view/statusbar.py` 的
+  `UiExtensionBridge` 类型注解），并断言三个旧机件模块与 `services/lua/` 目录不复存在
+  （负向演练：空白名单扫描恰好命中 statusbar 一处）；
+  `test_extension_facade_exports_the_frozen_thirteen_names` 运行时断言门面 `__all__`
+  恒为 13 名白名单（`EXTENSION_FACADE_NAMES`）且逐名可解析。
 
-**28 个用例逐条对照**（2026-10-09 实测 `28 passed`）：
+**31 个用例逐条对照**（2026-10-13 实测 `31 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -369,6 +389,9 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 26 | `test_support_mouse_gate_lives_in_app_on_event` | support_mouse 闸门（IKJRFK：App 层单点禁用鼠标） |
 | 27 | `test_source_files_within_size_threshold` | 文件体量阈值（A11：>800 行须登记豁免，`SIZE_EXEMPT_FILES` 镜像 §三.7 名单） |
 | 28 | `test_ts_backend_never_imports_regex_backend` | 注册表归属（langdefs 平行依赖：ts_backend 禁借 regex_backend） |
+| 29 | `test_no_relative_imports` | 绝对导入（IKKS4C：全仓禁 `from .X`，包内引用写全路径；§六清单此前漏登，2026-10-13 补齐） |
+| 30 | `test_extension_machinery_hides_behind_facade` | R14（扩展机件仅居 `services/extensions/`：禁直引子模块 + 旧路径不复存在） |
+| 31 | `test_extension_facade_exports_the_frozen_thirteen_names` | R14（门面 13 名白名单冻结，逐名可解析） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

@@ -285,7 +285,7 @@ def test_bind_key_with_unknown_keymap_warns_and_does_not_raise() -> None:
     ctx.keymaps.names.return_value = ["vsc", "vim"]
     api = ExtensionAPI(cast(ExtensionContext, ctx))
     capture = _LogCapture()
-    logger = logging.getLogger("yate.services.extension_api")
+    logger = logging.getLogger("yate.services.extensions.api")
     logger.addHandler(capture)
     try:
         bound = api.bind_key("<f5>", _noop, keymap="typo")

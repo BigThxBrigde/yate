@@ -21,7 +21,7 @@ from yate.keymaps.base import KeyBinding, Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
-from yate.services.extension_bridges import (
+from yate.services.extensions.bridges import (
     ActionExtensionBridge,
     ClipboardExtensionBridge,
     DocsExtensionBridge,
@@ -38,7 +38,7 @@ from yate.services.shell import ShellResult
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
-#: Trace logger ("yate.services.extension_api"); silent unless yate_trace is on.
+#: Trace logger ("yate.services.extensions.api"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 #: One undo step of a loading scope: drop whatever a single ``api.register_*``
@@ -98,7 +98,7 @@ class ExtensionAPI:
         #: while one ``setup`` runs; ``None`` when no scope is active (the
         #: normal state outside
         #: :meth:`ExtensionLoader.load_file
-        #: <yate.services.extension_loader.ExtensionLoader.load_file>`).
+        #: <yate.services.extensions.loader.ExtensionLoader.load_file>`).
         #: Initialized first: the bridges below record into it.
         self._scope: list[RollbackHook] | None = None
         self._lsp = LspExtensionBridge(ctx.lsp)
@@ -141,7 +141,7 @@ class ExtensionAPI:
         Snapshot-restore semantics: a registration that replaced an
         earlier entry restores that entry; a brand-new registration is
         removed.  A no-op when no scope is active.  Public because the
-        loader (:mod:`yate.services.extension_loader`) drives the scope.
+        loader (:mod:`yate.services.extensions.loader`) drives the scope.
         """
         if self._scope is None:
             return

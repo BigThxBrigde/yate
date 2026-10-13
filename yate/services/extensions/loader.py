@@ -19,12 +19,12 @@ from typing import Any, cast
 from yate.config import YateConfig
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
-from yate.services.extension_api import ExtensionAPI
-from yate.services.lua.library import is_lua_available, lua_api_library_source
-from yate.services.lua.runtime import create_runtime, run_extension
+from yate.services.extensions.api import ExtensionAPI
+from yate.services.extensions.lua.library import is_lua_available, lua_api_library_source
+from yate.services.extensions.lua.runtime import create_runtime, run_extension
 from yate.services.trust import is_trusted
 
-#: Trace logger ("yate.services.extension_loader"); silent unless yate_trace is on.
+#: Trace logger ("yate.services.extensions.loader"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 #: ``teardown(api)`` -- the optional counterpart of ``setup(api)``.

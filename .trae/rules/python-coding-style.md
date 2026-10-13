@@ -48,8 +48,8 @@ scene: python_coding
 必须带下划线。开放 API 指以下三个面的并集（任一命中即视为开放 API）：
 1. 纯 L0 叶包 `__init__.py` 的有限 re-export（`__all__` 声明，见
    architecture-boundaries.md §三.5）；
-2. `yate/services/extensions.py` 的 `ExtensionAPI` / `ExtensionContext` 及其
-   bridge 类的公共成员；
+2. `yate/services/extensions/__init__.py`（门面）的 `ExtensionAPI` /
+   `ExtensionContext` 及其 bridge 类的公共成员；
 3. 插件手册 `yate/docs/extensions.en.md` / `extensions.zh.md` 引用的成员名。
 
 登记例外（内部私有，不属开放 API，保留下划线）：

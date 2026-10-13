@@ -4,7 +4,7 @@ This module never imports ``lupa``: it only probes for the package with
 :func:`importlib.util.find_spec` (so merely asking never pays the
 C-extension import cost) and reads the bundled Lua API library from the
 package resources.  The runtime half lives in
-:mod:`yate.services.lua.runtime` -- the single place in yate that touches
+:mod:`yate.services.extensions.lua.runtime` -- the single place in yate that touches
 the ``lupa`` package itself.
 """
 

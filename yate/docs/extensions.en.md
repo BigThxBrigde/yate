@@ -588,7 +588,7 @@ def setup(api):
         priority=0,      # higher sorts first within its half
     )
     # Equivalent explicit form -- build the frozen StatusSegment yourself:
-    #   from yate.services.extension_bridges import StatusSegment
+    #   from yate.services.extensions.bridges import StatusSegment
     #   api.ui.add_status_segment(StatusSegment(
     #       "wordcount", provider, align="right", priority=0))
 ```
