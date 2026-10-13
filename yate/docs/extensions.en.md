@@ -573,6 +573,12 @@ bar. The bar is a **pull-model** registry: on every refresh it calls each
 registered provider once and paints the returned string with the bar's
 own styles -- extensions contribute text only, never widgets or colors.
 
+Keep providers **cheap**: the bar refreshes on every cursor move and
+mode change, so a provider that scans the whole buffer runs on each of
+those. Prefer short strings and cheap lookups; heavier aggregations are
+better computed in event listeners (e.g. on `DOCUMENT_OPENED` /
+`DOCUMENT_SAVED`) and returned from a precomputed value.
+
 ```python
 from yate.services.extension_bridges import StatusSegment
 

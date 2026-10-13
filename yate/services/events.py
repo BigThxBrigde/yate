@@ -50,7 +50,8 @@ class EditorEvent(Enum):
     DOCUMENT_CLOSED = auto()
     #: A document became the active one (open, ``:bn``/``:bp``, tab click).
     DOCUMENT_ACTIVATED = auto()
-    #: The language server published diagnostics for the active document.
+    #: The language server published diagnostics; the payload carries the
+    #: document they belong to (any open document, not just the active one).
     DIAGNOSTICS_UPDATED = auto()
     #: The active keymap changed (``vsc`` / ``vim``).
     KEYMAP_CHANGED = auto()

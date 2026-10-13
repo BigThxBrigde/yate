@@ -527,6 +527,11 @@ def setup(api):
 注册表：每次刷新时逐个调用已注册的 provider 一次，并用状态栏自己的
 样式绘制返回的字符串——扩展只贡献文本，不贡献 widget 或颜色。
 
+保持 provider **轻量**：状态栏在每次光标移动与模式切换后都会刷新，
+若 provider 扫描整个缓冲区就会随之反复执行。优先返回短字符串与廉价
+查询；较重的聚合统计更适合放进事件监听器（如 `DOCUMENT_OPENED` /
+`DOCUMENT_SAVED`）里算好，刷新时只取现成结果。
+
 ```python
 from yate.services.extension_bridges import StatusSegment
 
