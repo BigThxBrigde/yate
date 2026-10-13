@@ -20,7 +20,9 @@ from yate.keymaps.registry import KeymapSet
 from yate.paths import bundled_extensions_dir
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
+from yate.services import clipboard as clipboard_module
 from yate.services import extension_loader as ext_loader
+from yate.services.events import EditorEvent, EventHub
 from yate.services.lua.library import lua_api_library_source
 from yate.services.lua.runtime import create_runtime
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
@@ -81,11 +83,15 @@ class _ApiBundle:
 
     def __init__(self) -> None:
         self.messages: list[str] = []
+        self.theme_calls: list[str] = []
+        self.run_action_calls: list[str] = []
         session = EditorSession(YateConfig())
         session.new_buffer()
         self.keymaps = KeymapSet({"vsc": Keymap(), "vim": Keymap()}, "vsc")
         self.actions = ActionRegistry()
         self.commands = CommandRegistry()
+        # A real hub shared with the API so tests can count listeners.
+        self.hub = EventHub()
         ctx = ExtensionContext(
             session=session,
             workspace=cast(Any, MagicMock()),
@@ -97,11 +103,16 @@ class _ApiBundle:
             run_shell=lambda _command, _show: None,
             open_path=lambda _path: None,
             save=lambda: None,
-            run_action=lambda _name: False,
-            set_theme=lambda _name: None,
+            run_action=self._run_action,
+            set_theme=self.theme_calls.append,
             active_theme_name=lambda: "mocha",
         )
-        self.api = ExtensionAPI(ctx)
+        self.api = ExtensionAPI(ctx, self.hub)
+
+    def _run_action(self, name: str) -> bool:
+        """Record the dispatch; the bool mirrors a registered action hit."""
+        self.run_action_calls.append(name)
+        return self.actions.get(name) is not None
 
 
 @pytest.fixture
@@ -412,3 +423,189 @@ def test_lua_bind_key_two_args_defaults_to_vsc(
     km = bundle.keymaps.get("vsc")
     assert km is not None
     assert km.lookup(parse_key("<f7>")) is not None
+
+
+# --- api parity wrappers (plan_b / ext-api-parity wave 2) ---------------------
+
+
+_EVENTS_LUA: str = (
+    "_unsub = yate.events.subscribe('document_saved', function(payload)\n"
+    "  api.message('saved event fired')\n"
+    "end)\n"
+    "function teardown()\n"
+    "  _unsub()\n"
+    "end\n"
+)
+_UNKNOWN_EVENT_LUA: str = "yate.events.subscribe('no_such_event', function() end)\n"
+_SEGMENT_LUA: str = "yate.ui.add_segment('lua-seg', function() return 'seg' end)\n"
+_THEME_LUA: str = (
+    "yate.theme.set('solarized-dark')\n"
+    "yate.message('theme:' .. yate.theme.active())\n"
+)
+_CLIPBOARD_LUA: str = (
+    "local ok = yate.clipboard.set('hello')\n"
+    "yate.message('cbset:' .. tostring(ok))\n"
+    "yate.message('cbget:' .. tostring(yate.clipboard.get()))\n"
+)
+_DOCS_LUA: str = (
+    "local docs = yate.docs.all()\n"
+    "yate.message('docs:' .. tostring(python.builtins.len(docs)))\n"
+    "yate.message('isopen:' .. tostring(yate.docs.is_open('no/such/file.py')))\n"
+)
+_ACTIONS_LUA: str = (
+    "yate.register_action('my-lua-action', function() end)\n"
+    "yate.message('ran:' .. tostring(yate.actions.run('my-lua-action')))\n"
+    "yate.message('has:' .. tostring(yate.actions.has('my-lua-action')))\n"
+    "yate.actions.names()\n"
+)
+_BIND_ACTION_LUA: str = (
+    "yate.register_action('bindme', function() end)\n"
+    "yate.bind_action('gq', 'bindme')\n"
+)
+_UNBIND_LUA: str = "yate.message('removed:' .. tostring(yate.unbind_key('gq')))\n"
+
+
+@requires_lupa
+def test_lua_events_subscribe_maps_name_and_round_trips(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """The lowercase name maps to DOCUMENT_SAVED; teardown unsubscribes."""
+    script = tmp_path / "events.lua"
+    script.write_text(_EVENTS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert bundle.hub.listener_count(EditorEvent.DOCUMENT_SAVED) == 1
+    bundle.hub.emit(EditorEvent.DOCUMENT_SAVED, object())
+    assert "saved event fired" in bundle.messages
+
+    loader.teardown_all()
+    assert bundle.hub.listener_count(EditorEvent.DOCUMENT_SAVED) == 0
+
+
+@requires_lupa
+def test_lua_events_unknown_name_raises_loudly(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """An unknown event name surfaces a Lua error mentioning unknown event."""
+    script = tmp_path / "badevent.lua"
+    script.write_text(_UNKNOWN_EVENT_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "unknown event" in record.error
+
+
+@requires_lupa
+def test_lua_ui_add_segment_nil_args_fall_back_to_defaults(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """nil align/priority land on the Python defaults (right half / 0)."""
+    script = tmp_path / "segment.lua"
+    script.write_text(_SEGMENT_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    right = bundle.api.ui.segments("right")
+    assert [segment.id for segment in right] == ["lua-seg"]
+    assert right[0].align == "right"
+    assert right[0].priority == 0
+    assert bundle.api.ui.segments("left") == []
+
+
+@requires_lupa
+def test_lua_theme_set_and_active(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """theme.set forwards the name; theme.active returns the active name."""
+    script = tmp_path / "theme.lua"
+    script.write_text(_THEME_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert bundle.theme_calls == ["solarized-dark"]
+    assert "theme:mocha" in bundle.messages
+
+
+@requires_lupa
+def test_lua_clipboard_set_and_get(
+    bundle: _ApiBundle,
+    loader: ExtensionLoader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """clipboard.set/get round-trip through the clipboard service module."""
+    script = tmp_path / "clipboard.lua"
+    script.write_text(_CLIPBOARD_LUA, encoding="utf-8")
+
+    def fake_copy(_text: str) -> bool:
+        return True
+
+    monkeypatch.setattr(clipboard_module, "copy_text", fake_copy)
+    monkeypatch.setattr(clipboard_module, "paste_text", lambda: "cb-text")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "cbset:true" in bundle.messages
+    assert "cbget:cb-text" in bundle.messages
+
+
+@requires_lupa
+def test_lua_docs_all_and_is_open(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """docs.all() sees the session documents; is_open answers for a path."""
+    script = tmp_path / "docs.lua"
+    script.write_text(_DOCS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    # The bundle's session opened exactly one (unnamed) buffer document.
+    assert "docs:1" in bundle.messages
+    assert "isopen:false" in bundle.messages
+
+
+@requires_lupa
+def test_lua_actions_run_names_and_has(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """run dispatches via the editor callback; names/has read the registry."""
+    script = tmp_path / "actions.lua"
+    script.write_text(_ACTIONS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "ran:true" in bundle.messages
+    assert "has:true" in bundle.messages
+    assert "my-lua-action" in bundle.actions.names()
+
+
+@requires_lupa
+def test_lua_bind_action_and_unbind_key_round_trip(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """bind_action binds the action BY NAME; unbind_key removes it (True)."""
+    script = tmp_path / "bindaction.lua"
+    script.write_text(_BIND_ACTION_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+    assert record.error is None
+    km = bundle.keymaps.get("vsc")
+    assert km is not None
+    binding = km.lookup(parse_key("gq"))
+    assert binding is not None
+    assert binding.action == "bindme"
+
+    unbind = tmp_path / "unbind.lua"
+    unbind.write_text(_UNBIND_LUA, encoding="utf-8")
+    record = loader.load_file(unbind)
+    assert record.error is None
+    assert km.lookup(parse_key("gq")) is None
+    assert "removed:true" in bundle.messages
