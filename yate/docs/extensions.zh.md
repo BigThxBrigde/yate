@@ -6,7 +6,8 @@ yate 的扩展是任意一个暴露 `setup(api)` 函数的 `.py` 文件（可选
 `teardown(api)`）。`setup` 在应用启动时被调用，通过传入的 `api` 对象
 可以注册命令、动作、按键绑定、语言服务器，以及访问当前缓冲区、文档、
 工作区等运行时对象。Lua 同样受支持：`.lua` 脚本的顶层代码就是 setup
-（见第 6 节），前提是安装了可选的 `lupa` 桥（`pip install yate[lua]`）。
+（或显式定义 `setup(api)`，见第 6 节），前提是安装了可选的 `lupa` 桥
+（`pip install yate[lua]`）。
 
 本文件是扩展编写的完整参考；手册第 10.4 / 15 节是简介。
 
@@ -122,10 +123,10 @@ extensions = [
 两个函数都接收同一个 `ExtensionAPI` 实例。扩展中的任何异常都不会导致
 编辑器崩溃：错误以 `extension <名字>: <异常>` 的形式显示在消息栏。
 
-需要注意：如果 `setup` 执行到一半抛出异常，抛出前已经注册的动作与命令
-**不会**被回滚——它们在本次会话内保持注册状态。请把所有可能失败的
-前置校验（如查找可执行文件、读取配置文件等）放在第一次注册调用之前，
-让失败的 setup 不留下半注册的能力。
+如果 `setup` 执行到一半抛出异常，抛出前注册的一切——动作、命令、按键
+绑定、语言服务器、事件订阅、状态栏段、屏保精灵——都会被**自动回滚**
+（回滚 scope）：失败的 setup 不会留下半注册的能力，其 `teardown` 也
+不会被执行。
 
 ---
 
@@ -477,6 +478,73 @@ def teardown(api):
 生效。可以接受这条已知噪音，也可以不设白名单（空 = 全部角色，
 含扩展角色）。
 
+### 4.10 编辑器事件（`api.events`）
+
+`api.events.subscribe` 订阅编辑器生命周期事件。事件标识是
+`yate.services.events` 里的 `EditorEvent` 枚举成员——绝不接受字符串——
+每个载荷都是冻结的 dataclass：
+
+```python
+from yate.services.events import EditorEvent, ThemeChanged
+
+def setup(api):
+    def on_theme(payload: ThemeChanged) -> None:
+        api.message(f"theme switched to {payload.name}")
+
+    unsubscribe = api.events.subscribe(EditorEvent.THEME_CHANGED, on_theme)
+    # 调用 unsubscribe() 即可退订
+```
+
+| 事件 | 载荷 | 触发时机 |
+|---|---|---|
+| `EditorEvent.DOCUMENT_SAVED` | `DocumentSaved(doc)` | 文档写入磁盘（`:w`、`:saveas`、`api.save()`） |
+| `EditorEvent.DOCUMENT_OPENED` | `DocumentOpened(doc)` | 打开了会话中尚未打开的文件 |
+| `EditorEvent.DOCUMENT_CLOSED` | `DocumentClosed(docs)` | 一个或多个文档离开会话（`:bd`、关闭最后一个标签） |
+| `EditorEvent.DOCUMENT_ACTIVATED` | `DocumentActivated(doc)` | 某文档成为活动文档（打开、`:bn`/`:bp`、点击标签） |
+| `EditorEvent.DIAGNOSTICS_UPDATED` | `DiagnosticsUpdated(doc)` | 语言服务器发布了活动文档的诊断 |
+| `EditorEvent.KEYMAP_CHANGED` | `KeymapChanged(name)` | 活动键位表切换（`vsc` / `vim`） |
+| `EditorEvent.THEME_CHANGED` | `ThemeChanged(name)` | 配色主题切换（`:theme`） |
+
+派发契约：
+
+- **同步、同线程、按订阅顺序**——监听器看到的是派发时刻的状态；
+  不要在监听器里阻塞。
+- **监听器彼此隔离**——抛异常的监听器会被记录（trace 日志）并上报
+  消息栏；其余监听器照常运行，触发派发的编辑器操作也继续。
+- `subscribe` 返回**退订函数**；重复订阅各自独立登记（VS Code
+  disposables 语义），退订两次是安全的空操作。
+- `setup` 期间的订阅受回滚 scope 保护：失败的 setup 会把订阅一并撤销。
+
+事件只挂在低频点上（保存 / 打开 / 关闭 / 激活 / 诊断 / 键位 / 主题）
+——刻意不提供逐按键事件。
+
+### 4.11 状态栏段（`api.ui`）
+
+`api.ui.add_status_segment` 向状态栏贡献一个文本段。状态栏是**拉取式**
+注册表：每次刷新时逐个调用已注册的 provider 一次，并用状态栏自己的
+样式绘制返回的字符串——扩展只贡献文本，不贡献 widget 或颜色。
+
+```python
+from yate.services.extension_bridges import StatusSegment
+
+def setup(api):
+    api.ui.add_status_segment(StatusSegment(
+        "wordcount",
+        lambda: f"{len(api.buffer.get_text().split())}w",
+        align="right",   # "left" 或 "right"（默认 "right"）
+        priority=0,      # 越大在同侧越靠前
+    ))
+```
+
+规则：
+
+- provider 返回 `None` 或空串时，该段本轮隐藏——可用它做条件显示。
+- provider 抛异常时降级为 `!` 占位符（记录日志，绝不致命）；一个坏掉
+  的扩展拖不垮其余状态栏。
+- 重复 id 抛 `ValueError`；`api.ui.remove_status_segment(id)` 移除
+  一个段（未知名抛 `KeyError`）。
+- 注册参与回滚 scope：失败的 setup 会把段一并撤销。
+
 ---
 
 ## 5. 完整示例：单词计数 + 选区大写
@@ -522,8 +590,16 @@ pip install yate[lua]
 
 ### Lua 扩展的形态
 
-Lua 惯例：chunk 的**顶层代码就是 setup**——没有 `setup(api)` 函数。
-可选的**全局** `teardown(api)` 函数对应 Python 的同名钩子：
+两种写法，与 Python 的钩子模型一一对应：
+
+- **顶层风格**（Lua 惯例，向后兼容）：chunk 的**顶层代码就是
+  setup**——没有 `setup(api)` 函数；
+- **显式风格**：定义全局 `function setup(api)`——yate 会在顶层代码运行
+  之后，用同一个 `api` 对象调用它一次，适合把辅助函数定义在注册调用
+  之前的写法。
+
+两种风格下，可选的**全局** `teardown(api)` 函数都对应 Python 的同名
+钩子：
 
 ```lua
 -- ~/.yate/extensions/hello.lua
@@ -563,6 +639,18 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 | `yate.save()` | 保存当前文档 |
 | `yate.buffer()` / `yate.doc()` / `yate.workspace()` | 运行时对象（成员见 4.4 节） |
 | `yate.api` / `yate.highlight` / `yate.sprites` / `yate.lsp` / `yate.syntax` | 原始 Python 桥（高级用法） |
+
+事件订阅与状态栏段可经原始桥触达：`yate.api.events.subscribe(EditorEvent.THEME_CHANGED, fn)`
+与 `yate.api.ui.add_status_segment(segment)`（见 4.10 / 4.11 节；载荷与
+段的类按同样方式从 `yate.services.events` /
+`yate.services.extension_bridges` 导入）。
+
+### Lua 的编辑器补全（`---@` 注解）
+
+`_yate.lua` 中每个导出函数都带有 EmmyLua 注解（`---@param` /
+`---@return`）：运行 lua-language-server 的编辑器开箱即可获得
+`require("yate")` 的签名补全。注解就是「开放 pyi」的 Lua 等价物，与
+实现同文件（单一事实源）——不随包分发单独的 `.d.lua`。
 
 ### lupa 语义注意
 

@@ -7,8 +7,9 @@ optionally a `teardown(api)`). `setup` is called at application startup;
 through the `api` object it receives, an extension can register commands,
 actions, key bindings and language servers, and access runtime objects such as
 the active buffer, document and workspace. Lua is supported too: a `.lua`
-script's top-level code is the setup (see section 6), provided the optional
-`lupa` bridge is installed (`pip install yate[lua]`).
+script's top-level code is the setup (or an explicit `setup(api)`, see
+section 6), provided the optional `lupa` bridge is installed
+(`pip install yate[lua]`).
 
 This file is the complete extension-writing reference; sections 10.4 / 15 of
 the manual are a short introduction.
@@ -139,12 +140,11 @@ Both receive the same `ExtensionAPI` instance. Any exception inside an
 extension never crashes the editor: errors appear in the message bar as
 `extension <name>: <exception>`.
 
-One caveat: if `setup` raises partway through, the actions and commands
-registered before the failure are **not** rolled back -- they stay
-registered for the rest of the session. Perform every validation that can
-fail (checking for an executable, reading a config file, ...) before the
-first registration call, so a failed setup leaves nothing half-registered
-behind.
+If `setup` raises partway through, everything it registered before the
+failure -- actions, commands, key bindings, language servers, event
+subscriptions, status segments, sprites -- is **rolled back
+automatically** (the rollback scope): a failed setup never leaves
+half-registered state behind, and its `teardown` never runs.
 
 ---
 
@@ -518,6 +518,80 @@ it is toggled on, so the extension character works as soon as its
 extension has loaded. Either accept the known noise or leave the whitelist
 unset (empty = the whole roster, extensions included).
 
+### 4.10 Editor events (`api.events`)
+
+`api.events.subscribe` listens to editor lifecycle events. Event
+identities are `EditorEvent` enum members from `yate.services.events` --
+never strings -- and every payload is a frozen dataclass:
+
+```python
+from yate.services.events import EditorEvent, ThemeChanged
+
+def setup(api):
+    def on_theme(payload: ThemeChanged) -> None:
+        api.message(f"theme switched to {payload.name}")
+
+    unsubscribe = api.events.subscribe(EditorEvent.THEME_CHANGED, on_theme)
+    # call unsubscribe() to stop listening again
+```
+
+| Event | Payload | Emitted when |
+|---|---|---|
+| `EditorEvent.DOCUMENT_SAVED` | `DocumentSaved(doc)` | a document was written to disk (`:w`, `:saveas`, `api.save()`) |
+| `EditorEvent.DOCUMENT_OPENED` | `DocumentOpened(doc)` | a file opened that was not already open in the session |
+| `EditorEvent.DOCUMENT_CLOSED` | `DocumentClosed(docs)` | one or more documents left the session (`:bd`, last-tab close) |
+| `EditorEvent.DOCUMENT_ACTIVATED` | `DocumentActivated(doc)` | a document became the active one (open, `:bn`/`:bp`, tab click) |
+| `EditorEvent.DIAGNOSTICS_UPDATED` | `DiagnosticsUpdated(doc)` | the language server published diagnostics for the active document |
+| `EditorEvent.KEYMAP_CHANGED` | `KeymapChanged(name)` | the active keymap changed (`vsc` / `vim`) |
+| `EditorEvent.THEME_CHANGED` | `ThemeChanged(name)` | the color theme changed (`:theme`) |
+
+Dispatch contract:
+
+- **Synchronous, same-thread, subscription order** -- a listener sees the
+  state at emit time; never block inside a listener.
+- **Per-listener isolation** -- a raising listener is logged (trace log)
+  and reported on the message line; the remaining listeners still run and
+  the editor operation that emitted continues.
+- `subscribe` returns an **unsubscribe thunk**; duplicates register
+  separately (VS Code disposables semantics), unsubscribing twice is a
+  safe no-op.
+- Subscriptions made while `setup` runs are covered by the rollback
+  scope: a failing setup drops them again.
+
+Emissions live at low-frequency points only (save / open / close /
+activate / diagnostics / keymap / theme) -- there is intentionally no
+per-keystroke event.
+
+### 4.11 Status bar segments (`api.ui`)
+
+`api.ui.add_status_segment` contributes a text segment to the status
+bar. The bar is a **pull-model** registry: on every refresh it calls each
+registered provider once and paints the returned string with the bar's
+own styles -- extensions contribute text only, never widgets or colors.
+
+```python
+from yate.services.extension_bridges import StatusSegment
+
+def setup(api):
+    api.ui.add_status_segment(StatusSegment(
+        "wordcount",
+        lambda: f"{len(api.buffer.get_text().split())}w",
+        align="right",   # "left" or "right" (default "right")
+        priority=0,      # higher sorts first within its half
+    ))
+```
+
+Rules:
+
+- Returning `None` or `""` hides the segment for that pass -- use it to
+  make a segment conditional.
+- A raising provider degrades to a `!` placeholder (logged, never
+  fatal); one broken extension cannot take the rest of the bar down.
+- Duplicate ids raise `ValueError`; `api.ui.remove_status_segment(id)`
+  drops a segment (`KeyError` when unknown).
+- Registrations participate in the rollback scope: a failing setup
+  removes them again.
+
 ---
 
 ## 5. Full example: word count + uppercase selection
@@ -563,9 +637,16 @@ and everything else keeps working.
 
 ### Shape of a Lua extension
 
-Lua idiom: the chunk's **top-level code is the setup** -- there is no
-`setup(api)` function. An optional **global** `teardown(api)` function
-mirrors the Python hook:
+Two styles, mirroring the Python hook model:
+
+- **Top-level style** (the Lua idiom, backward compatible): the chunk's
+  **top-level code is the setup** -- there is no `setup(api)` function;
+- **Explicit style**: define a global `function setup(api)` -- yate calls
+  it once with the same `api` object after the top level has run, handy
+  for helper functions declared above the registrations.
+
+An optional **global** `teardown(api)` function mirrors the Python hook
+in both styles:
 
 ```lua
 -- ~/.yate/extensions/hello.lua
@@ -606,6 +687,20 @@ runtime: `require("yate")` and the global `yate` are the same module table
 | `yate.save()` | save the active document |
 | `yate.buffer()` / `yate.doc()` / `yate.workspace()` | runtime objects (members see section 4.4) |
 | `yate.api` / `yate.highlight` / `yate.sprites` / `yate.lsp` / `yate.syntax` | raw Python bridges (advanced use) |
+
+Event subscription and status segments are reachable through the raw
+bridge: `yate.api.events.subscribe(EditorEvent.THEME_CHANGED, fn)` and
+`yate.api.ui.add_status_segment(segment)` (sections 4.10 / 4.11; import
+the payload/segment classes from `yate.services.events` /
+`yate.services.extension_bridges` the same way).
+
+### Editor completion for Lua (`---@` annotations)
+
+Every exported function in `_yate.lua` carries EmmyLua annotations
+(`---@param` / `---@return`): an editor running lua-language-server shows
+signature completion for `require("yate")` out of the box. The
+annotations are the "open pyi" equivalent and live in the same file
+(single source of truth) -- no separate `.d.lua` ships.
 
 ### lupa semantics to keep in mind
 

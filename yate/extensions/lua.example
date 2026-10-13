@@ -6,13 +6,15 @@ Usage: copy this file into an extension directory (recommended:
 ``hello.lua``) and restart yate; it is loaded automatically.
 Requires the optional dependency: pip install yate[lua]
 
-Lua extensions have no setup(api) function: **the file's top-level code
-is the setup** and runs at load time; an optional global ``teardown``
-function is called when yate exits.  Errors never crash the editor:
-load-time failures are reported on the message line as
-``extension <name>: ...`` with everything already registered rolled
-back, and runtime errors inside command/key/action callbacks are caught
-and reported the same way.
+Lua extensions come in two styles mirroring the Python hook model:
+**the file's top-level code is the setup** (the idiom used below), or a
+global ``function setup(api)`` called once after the top level has run
+(see the commented block at the bottom).  An optional global
+``teardown(api)`` works in both styles and runs when yate exits.  Errors
+never crash the editor: load-time failures are reported on the message
+line as ``extension <name>: ...`` with everything already registered
+rolled back, and runtime errors inside command/key/action callbacks are
+caught and reported the same way.
 ]]
 
 -- Grab yate's built-in API library (require("yate") and the global yate
@@ -59,9 +61,25 @@ yate.message("lua example extension loaded (trigger with :lua-hello or Alt+H)")
 --   -- release the resources held by this extension (subprocesses, timers, ...)
 -- end
 
+-- Alternative: the explicit setup(api) style (mirrors a Python extension's
+-- setup hook).  yate calls it once with the same api object after the top
+-- level has run -- handy when helper functions are declared above the
+-- registrations.  Pick ONE style per script: with both present the top
+-- level runs first and setup(api) is then called on top of it.
+-- Uncomment to switch (and remove the top-level registrations above):
+-- function setup(api)
+--   yate.register_command("lua-explicit", function(args)
+--     yate.message("explicit setup style, args: " .. (args or ""))
+--   end, "greet from the explicit setup style")
+-- end
+
 -- More things to try (advanced):
 --   yate.api.shell("git status")            -- use the raw bridge directly
 --   yate.lsp.register_server(...)           -- register a language server (keyword
 --                                           --   arguments cannot come from Lua;
 --                                           --   use yaterc's language_servers)
 --   yate.buffer().insert_text("hi")         -- insert text at the cursor
+--   yate.api.events.subscribe(...)          -- editor event subscription
+--                                           --   (see the extensions manual 4.10)
+--   yate.api.ui.add_status_segment(...)     -- status bar segments
+--                                           --   (see the extensions manual 4.11)
