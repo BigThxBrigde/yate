@@ -64,9 +64,9 @@ These tests enforce the boundaries documented in
   yate code enters it only through the re-export facade: direct imports
   of the ``api`` / ``bridges`` / ``loader`` / ``lua`` submodules are
   banned outside the package, the old sibling modules stay gone, and the
-  facade re-export surface stays the frozen 13-name list.  ``tests/``
+  facade re-export surface stays the frozen 14-name list.  ``tests/``
   unit-test the internals directly and are exempt; the frozen whitelist
-  holds ``statusbar.py``'s injected bridge type, which the 13-name
+  holds ``statusbar.py``'s injected bridge type, which the 14-name
   facade does not re-export.
 
 * **File size** (A11, rules section 3.7): a ``yate/`` file beyond 800
@@ -215,7 +215,7 @@ EXTENSION_SUBMODULES: tuple[str, ...] = (
 )
 
 #: Frozen direct submodule imports (R14): ``statusbar.py`` annotates its
-#: injected UI bridge with ``UiExtensionBridge``, which the 13-name facade
+#: injected UI bridge with ``UiExtensionBridge``, which the 14-name facade
 #: does not re-export.  A new direct import must be registered here first
 #: (same mechanism as ``UI_FROZEN_FILES``).
 EXTENSION_SUBMODULE_FROZEN: dict[str, set[str]] = {
@@ -232,7 +232,7 @@ EXTENSION_FORMER_MODULES: tuple[str, ...] = (
 )
 
 #: The frozen facade re-export surface (R14): the plugin manual and every
-#: ``*.py.example`` import exactly these 13 names from
+#: ``*.py.example`` import exactly these 14 names from
 #: ``yate.services.extensions``.
 EXTENSION_FACADE_NAMES: tuple[str, ...] = (
     "AnyCallback",
@@ -245,6 +245,7 @@ EXTENSION_FACADE_NAMES: tuple[str, ...] = (
     "LspExtensionBridge",
     "RollbackHook",
     "SpriteExtensionBridge",
+    "StatusSegment",
     "SyntaxExtensionBridge",
     "TeardownHook",
     "load_startup_extensions",
@@ -1076,8 +1077,8 @@ def test_extension_machinery_hides_behind_facade() -> None:
             assert module in EXTENSION_SUBMODULE_FROZEN.get(key, set()), (key, module)
 
 
-def test_extension_facade_exports_the_frozen_thirteen_names() -> None:
-    """The plugin-facing facade surface stays the frozen 13-name list (R14):
+def test_extension_facade_exports_the_frozen_plugin_names() -> None:
+    """The plugin-facing facade surface stays the frozen 14-name list (R14):
     the manual and every ``*.py.example`` import exactly these names from
     ``yate.services.extensions``."""
     from yate.services import extensions as facade

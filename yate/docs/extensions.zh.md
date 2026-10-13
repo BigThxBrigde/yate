@@ -540,7 +540,7 @@ def setup(api):
         priority=0,      # 越大在同侧越靠前
     )
     # 等价的显式写法——自己构造冻结的 StatusSegment：
-    #   from yate.services.extensions.bridges import StatusSegment
+    #   from yate.services.extensions import StatusSegment
     #   api.ui.add_status_segment(StatusSegment(
     #       "wordcount", provider, align="right", priority=0))
 ```

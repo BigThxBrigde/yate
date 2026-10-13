@@ -62,6 +62,7 @@ from yate.services.extensions.bridges import (
     HighlightExtensionBridge,
     LspExtensionBridge,
     SpriteExtensionBridge,
+    StatusSegment,
     SyntaxExtensionBridge,
 )
 from yate.services.extensions.loader import (
@@ -82,6 +83,7 @@ __all__ = [
     "LspExtensionBridge",
     "RollbackHook",
     "SpriteExtensionBridge",
+    "StatusSegment",
     "SyntaxExtensionBridge",
     "TeardownHook",
     "load_startup_extensions",

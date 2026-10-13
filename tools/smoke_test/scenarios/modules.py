@@ -152,7 +152,7 @@ async def _extension_status_segment(tmp: Path) -> ScenarioResult:
     """
     ext = tmp / "ext_seg.py"
     ext.write_text(
-        "from yate.services.extensions.bridges import StatusSegment\n"
+        "from yate.services.extensions import StatusSegment\n"
         "def setup(api):\n"
         "    api.message('SEG-SETUP')\n"
         "    api.ui.add_status_segment(StatusSegment(\n"

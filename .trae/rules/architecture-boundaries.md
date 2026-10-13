@@ -141,14 +141,14 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 - **R14 — 扩展系统机件子包化（2026-10-13，Gitee IKK4K6 note_51571449）**：
   扩展系统机件仅居于 `yate/services/extensions/` 子包（门面 `__init__.py` + `api.py` /
   `bridges.py` / `loader.py` / `lua/`）；门面导入路径 `yate.services.extensions` 不变
-  （13 个公共名再导出**冻结**，插件与手册按名导入零破坏），内部子模块为非公共 API——
+  （14 个公共名再导出**冻结**，插件与手册按名导入零破坏），内部子模块为非公共 API——
   yate 内代码（extensions 包自身除外）只可 `from yate.services.extensions import <公共名>`，
   直引 `api` / `bridges` / `loader` / `lua` 子模块视为违规；存量直引冻结在架构测试的
   `EXTENSION_SUBMODULE_FROZEN` 白名单（`editor_view/statusbar.py` 的 `UiExtensionBridge`
-  类型注解——13 名门面不含该名），新增直引必须先登记；`tests/**` 直测内部机件，不在
+  类型注解——14 名门面不含该名），新增直引必须先登记；`tests/**` 直测内部机件，不在
   拦截面。`yate/services/events.py`（editor 直用的通用事件枢纽）与 `user_setup.py`
   非扩展机件，不随迁。
-  **守卫**：§六「R14」条目（两条用例：直引拦截 + 门面 13 名冻结）。
+  **守卫**：§六「R14」条目（两条用例：直引拦截 + 门面 14 名冻结）。
 
 ## 二、分层职责
 
@@ -190,7 +190,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 守卫集合**两处同步维护**，
      big-module-split 各波拆分完成后同步收缩）：
      `keymaps/vim.py`（1178 行，motion/operator/text-object 单一键映射域，维持豁免）、
-     `editor.py`（933 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超，维持豁免）、
+     `editor.py`（983 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超；extension-system-enhance 波 2026-10-13 实测 983 行，维持豁免）、
      `editor_core/buffer.py`（1062 行，文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单，维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，pack wiki 站点生成/翻译/进度
@@ -354,8 +354,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   `EXTENSION_SUBMODULE_FROZEN` 白名单（`editor_view/statusbar.py` 的
   `UiExtensionBridge` 类型注解），并断言三个旧机件模块与 `services/lua/` 目录不复存在
   （负向演练：空白名单扫描恰好命中 statusbar 一处）；
-  `test_extension_facade_exports_the_frozen_thirteen_names` 运行时断言门面 `__all__`
-  恒为 13 名白名单（`EXTENSION_FACADE_NAMES`）且逐名可解析。
+  `test_extension_facade_exports_the_frozen_plugin_names` 运行时断言门面 `__all__`
+  恒为 14 名白名单（`EXTENSION_FACADE_NAMES`）且逐名可解析。
 
 **31 个用例逐条对照**（2026-10-13 实测 `31 passed`）：
 
@@ -391,7 +391,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 | 28 | `test_ts_backend_never_imports_regex_backend` | 注册表归属（langdefs 平行依赖：ts_backend 禁借 regex_backend） |
 | 29 | `test_no_relative_imports` | 绝对导入（IKKS4C：全仓禁 `from .X`，包内引用写全路径；§六清单此前漏登，2026-10-13 补齐） |
 | 30 | `test_extension_machinery_hides_behind_facade` | R14（扩展机件仅居 `services/extensions/`：禁直引子模块 + 旧路径不复存在） |
-| 31 | `test_extension_facade_exports_the_frozen_thirteen_names` | R14（门面 13 名白名单冻结，逐名可解析） |
+| 31 | `test_extension_facade_exports_the_frozen_plugin_names` | R14（门面 14 名白名单冻结，逐名可解析） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 
