@@ -184,6 +184,21 @@ flowchart LR
   pytest 全量全绿（exit 0）。六维结论：功能正确性由真实构建 +
   `--diag` 实测背书；安全/性能无发现；架构边界与硬门禁全过（`pack/`
   不在 yate 运行时分层内，无 R1-R13 触碰面）。
+- 第二轮评审（`code-review-expert` 子代理全量评审 + `pr-review` skill 复审增量）：
+  code-review-expert 实测门禁（pyright 0 诊断 / pytest 全量 / 架构 29 passed /
+  覆盖率 91.86%，均退出码 0），结论"需修复后合并"：1 MAJOR（两个 spec docstring
+  与 README / 双语手册的直接 PyInstaller 构建指引仍指向 `[build,ts]`，照做即复现
+  issue 要消除的静默缺 lupa）+ 2 MINOR（`pack.ps1:59` 注释遗漏；README 与
+  manual 双语构建说明未同步）+ 1 SUGGESTION（lua 清单与 `[lua]` extra 缺交叉守卫）。
+  全部修复于提交 `a35e52e`：extras 提示同步为 `[build,ts,lua]`（spec×2、
+  README×2、manual×2、pack.ps1 注释），新增
+  `test_lua_packages_when_pinned_match_the_pyproject_lua_extra`（仿 ts 侧三方一致）
+  与 `test_build_extra_hints_when_scanned_always_name_the_lua_extra`
+  （8 文件负向前瞻扫描 `build,ts(?!,lua)`，parametrize）。修复后
+  `pytest tests/test_pack_spec.py tests/test_architecture.py -q` 全绿（53 passed、
+  exit 0）、`pyright tests/ pack/` 零诊断；全仓 Python 扫描确认产品面无
+  `build,ts`（不带 lua）残留（命中仅守卫测试自身文本与 `.trae/documents/`
+  历史方案记录，后者按 doc-conventions 存量政策保留）。
 - 偏离记录：
   1. 计划步骤 1 提到"循环改为遍历 `(*_TS_PACKAGES, *_LUA_PACKAGES)`"——按计划执行，
      无偏离；
