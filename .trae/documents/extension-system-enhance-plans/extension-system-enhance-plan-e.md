@@ -102,3 +102,46 @@ chunk 返回值（`runtime.py:120`），该形态会"成功加载、零注册、
 
 pr-review 修复与 CHANGELOG 另行提交；收尾推送 `enh/extension-system-enhance`
 至 origin，**不推送 wiki 仓库**。
+
+## 八、pr-review 记录（2026-10-14）
+
+范围：`be6e4a0..HEAD`（plan-e 三笔提交，7 文件 +329/-58；实现前 lupa
+语义探针两轮，验证后已删除）。
+
+**Overall: APPROVE**
+
+硬门禁实测（主代理亲跑，真实退出码）：
+
+| 门禁 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, exit 0 |
+| `pytest tests/ -q` | exit 0（全绿，新增 6 用例） |
+| `pytest tests/test_architecture.py -q` | exit 0 |
+| `pytest --cov --cov-fail-under=75` | 91.95%，exit 0 |
+| `tools.smoke_test run` | 112/112 scenarios passed, exit 0 |
+
+六维度结论：
+
+1. **功能与正确性**：优先级链与两轮 lupa 探针实证一致（Lua 表 / nil /
+   数字 / 字符串 / Python 对象 / 多返回值 tuple / 缺字段返回 None）；
+   模块 setup 全链路、失败回滚、对全局 setup 与 teardown 的优先级覆盖
+   均有用例锁定；非表返回回落语义有用例锁定。
+2. **安全**：无新攻击面；错误消息为固定串，`eval` 仅注入固定 helper。
+3. **性能**：每扩展加载一次 helper eval，可忽略。
+4. **可维护性**：三形态 docstring 齐全；`Any` 边界沿既有
+   `# noqa: Any - lupa ships no stubs` 先例。
+5. **架构边界**：`services/extensions/lua/` 无向上依赖；无新增
+   Protocol / TYPE_CHECKING / 全局总线；`test_lua_defs.py` lockstep 不受
+   影响（仅改 `_yate.lua` 头注释）。
+6. **硬门禁**：全绿（见上表）。
+
+MINOR（2 项，登记不阻塞）：
+
+1. **行为边界**：plan-e 前"顶层注册 + `return` 一张表（无 setup）"的
+   脚本可静默加载成功；现按本文 §三/§五 的响亮失败决策改为报错并回滚
+   顶层注册。缓解依据：返回值此前无任何语义、作者无理由返回表，误伤面
+   趋近于零；契约已在双语手册与 `_yate.lua` 头注释写明。
+   → 处置：CHANGELOG 记录该边界（收尾执行）。
+2. **多值返回**：`return mod, x` 经 `unpack_returned_tuples` 成 Python
+   tuple，非表 → 回落全局/顶层语义。契约即"返回表"，不做特判。
+   → 处置：维持现状，留档即可。
