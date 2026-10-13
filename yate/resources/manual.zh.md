@@ -1422,7 +1422,7 @@ vim 键位：
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[build,ts]"
+pip install -e ".[build,ts,lua]"
 ```
 
 **归集产物到版本目录**：构建成功后加 `--dist <目录>`，会把产物按
