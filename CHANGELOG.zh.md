@@ -42,6 +42,7 @@
 
 ### 重构
 
+- move extension machinery into a services subpackage [缺中文] ([`2931a9b`](https://gitee.com/jermaine/yate/commit/2931a9b3fa185738881d0c54068cf2674ca86460))
 - collapse single-entry lua inventory tuple [缺中文] ([`be2f199`](https://gitee.com/jermaine/yate/commit/be2f1999b1ec17aeb88107260706ba818bcdcb06))
 - Lua 桥拆分为包并镜像 setup/teardown 钩子 ([`dd0ca92`](https://gitee.com/jermaine/yate/commit/dd0ca9263eb06d0ba13937aaefef68463a848740))
   - lua_extensions 拆为 library（轻：探测与库源）+ runtime（重：运行时与钩子）；显式 setup(api) 在顶层之后调用，顶层即 setup 兼容保留；全局 teardown(api) 提取
@@ -52,6 +53,8 @@
 
 ### 文档
 
+- register ext-api-parity execution and pr-review round [缺中文] ([`e120fa6`](https://gitee.com/jermaine/yate/commit/e120fa6d7bfca3f54ca11eccb09508d958cd4e45))
+- regenerate for the ext-api-parity wave [缺中文] ([`559af88`](https://gitee.com/jermaine/yate/commit/559af888b8084009a80328fba938faf20d155cf5))
 - document the widened api surface and lua lint setup [缺中文] ([`d1bc7c7`](https://gitee.com/jermaine/yate/commit/d1bc7c7c8143898823b56ba231d4e9b7b27f61f5))
 - register review round 2 and final gate results [缺中文] ([`a908761`](https://gitee.com/jermaine/yate/commit/a90876143f5704e86714ea404013fdfb09e3b7ab))
 - register pr-review round and final gate results [缺中文] ([`6c5158c`](https://gitee.com/jermaine/yate/commit/6c5158c3a5a216a08c0335a2967c77f5ce231b45))
@@ -94,6 +97,7 @@
 
 ### 测试
 
+- pin the theme bridge error contract [缺中文] ([`56284d8`](https://gitee.com/jermaine/yate/commit/56284d834617669c4285aa62e2bebc749104d01f))
 - type the clipboard monkeypatch stubs [缺中文] ([`291048b`](https://gitee.com/jermaine/yate/commit/291048b8255aea37b3f49e153610ba6a9d09d77c))
 - 冒烟覆盖状态栏段贡献点 ([`b688a34`](https://gitee.com/jermaine/yate/commit/b688a34952a50a7559ffc75356cc42447a41971d))
   - ext_seg.py 场景：setup 内注册左右段、:seg-off 移除；快照基线 extension_status_segment

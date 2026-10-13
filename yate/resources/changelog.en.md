@@ -38,6 +38,7 @@
 
 ### Refactors
 
+- move extension machinery into a services subpackage ([`2931a9b`](https://gitee.com/jermaine/yate/commit/2931a9b3fa185738881d0c54068cf2674ca86460))
 - collapse single-entry lua inventory tuple ([`be2f199`](https://gitee.com/jermaine/yate/commit/be2f1999b1ec17aeb88107260706ba818bcdcb06))
 - split lua bridge into package and mirror setup hooks ([`dd0ca92`](https://gitee.com/jermaine/yate/commit/dd0ca9263eb06d0ba13937aaefef68463a848740))
 - restore elif chain in refilter scoring ([`899407e`](https://gitee.com/jermaine/yate/commit/899407e943a91ac39462cb34a2903fb9ba06d182))
@@ -47,6 +48,8 @@
 
 ### Documentation
 
+- register ext-api-parity execution and pr-review round ([`e120fa6`](https://gitee.com/jermaine/yate/commit/e120fa6d7bfca3f54ca11eccb09508d958cd4e45))
+- regenerate for the ext-api-parity wave ([`559af88`](https://gitee.com/jermaine/yate/commit/559af888b8084009a80328fba938faf20d155cf5))
 - document the widened api surface and lua lint setup ([`d1bc7c7`](https://gitee.com/jermaine/yate/commit/d1bc7c7c8143898823b56ba231d4e9b7b27f61f5))
 - register review round 2 and final gate results ([`a908761`](https://gitee.com/jermaine/yate/commit/a90876143f5704e86714ea404013fdfb09e3b7ab))
 - register pr-review round and final gate results ([`6c5158c`](https://gitee.com/jermaine/yate/commit/6c5158c3a5a216a08c0335a2967c77f5ce231b45))
@@ -86,6 +89,7 @@
 
 ### Tests
 
+- pin the theme bridge error contract ([`56284d8`](https://gitee.com/jermaine/yate/commit/56284d834617669c4285aa62e2bebc749104d01f))
 - type the clipboard monkeypatch stubs ([`291048b`](https://gitee.com/jermaine/yate/commit/291048b8255aea37b3f49e153610ba6a9d09d77c))
 - cover the status segment contribution point ([`b688a34`](https://gitee.com/jermaine/yate/commit/b688a34952a50a7559ffc75356cc42447a41971d))
 - harden scenario cleanup and registry fixtures ([`a019d86`](https://gitee.com/jermaine/yate/commit/a019d867891e735d1898593c0b240ab0da04db21))
