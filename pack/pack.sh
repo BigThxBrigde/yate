@@ -16,7 +16,7 @@
 #
 # The interpreter MUST be .venv/bin/python (no system-python fallback, which
 # would pollute the global bin/ via pip install -e). If PyInstaller is missing
-# it is installed automatically via  pip install -e '.[build,ts]'.
+# it is installed automatically via  pip install -e '.[build,ts,lua]'.
 #
 # PyInstaller cannot cross-compile: run this script ON Linux to produce a
 # Linux binary (use pack/pack.bat or pack/pack.ps1 on Windows for an exe).
@@ -67,12 +67,12 @@ root="$(cd "$script_dir/.." && pwd)"
 cd "$root"
 
 # Interpreter MUST come from the project virtual environment. Falling back
-# to a system python3 would let `pip install -e '.[build,ts]'` write the yate
+# to a system python3 would let `pip install -e '.[build,ts,lua]'` write the yate
 # entry script into the global bin/ directory, polluting the global install.
 py="$root/.venv/bin/python"
 if [ ! -x "$py" ]; then
     echo "error: .venv not found at '$py'." >&2
-    echo "       Run 'python3 -m venv .venv && . .venv/bin/activate && pip install -e '.[build,ts]' first." >&2
+    echo "       Run 'python3 -m venv .venv && . .venv/bin/activate && pip install -e '.[build,ts,lua]' first." >&2
     echo "       Falling back to system python is disabled to avoid installing the yate" >&2
     echo "       entry script into the global bin/ directory." >&2
     exit 1
@@ -85,10 +85,12 @@ fi
 
 # Make sure the build extra (PyInstaller) is available. The [ts] extra
 # (tree-sitter + python/bash grammar packs) is installed too so the
-# standalone executable ships the tree-sitter highlighting backend.
+# standalone executable ships the tree-sitter highlighting backend, and
+# the [lua] extra so it ships the Lua extension bridge (issue IKL2G6);
+# pack/_common.py collects both only when installed (find_spec-gated).
 if ! "$py" -c "import PyInstaller" >/dev/null 2>&1; then
-    echo "PyInstaller not found; installing build+ts extras (pip install -e '.[build,ts]') ..." >&2
-    "$py" -m pip install -e '.[build,ts]'
+    echo "PyInstaller not found; installing build+ts+lua extras (pip install -e '.[build,ts,lua]') ..." >&2
+    "$py" -m pip install -e '.[build,ts,lua]'
 fi
 
 # The mode flag picks the spec; the spec alone defines the bundle layout.
