@@ -141,9 +141,76 @@ async def _custom_theme_file(tmp: Path) -> ScenarioResult:
     return ScenarioResult("integration_custom_theme_file", checks, rows)
 
 
+async def _extension_status_segment(tmp: Path) -> ScenarioResult:
+    """A temp extension contributes status bar segments via ``api.ui``.
+
+    End-to-end over the UI contribution point: the extension registers a
+    left and a right segment inside ``setup`` (so the A13 rollback scope
+    covers them), the bar pulls the provider texts on the next refresh,
+    and the extension's own ``:seg-off`` command removes them again --
+    the pull model means the next refresh simply drops them.
+    """
+    ext = tmp / "ext_seg.py"
+    ext.write_text(
+        "from yate.services.extension_bridges import StatusSegment\n"
+        "def setup(api):\n"
+        "    api.message('SEG-SETUP')\n"
+        "    api.ui.add_status_segment(StatusSegment(\n"
+        "        'seg-l', lambda: 'SEG-L', align='left'))\n"
+        "    api.ui.add_status_segment(StatusSegment(\n"
+        "        'seg-r', lambda: 'SEG-R', align='right'))\n"
+        "    def off(args):\n"
+        "        api.ui.remove_status_segment('seg-l')\n"
+        "        api.ui.remove_status_segment('seg-r')\n"
+        "    api.command('seg-off')(off)\n",
+        encoding="utf-8",
+    )
+    app = new_app(target=tmp / "a.txt")
+    checks: list[Check] = []
+
+    def strip() -> str:
+        """The status bar's rendered first row as plain text."""
+        return "".join(seg.text
+                       for seg in app.editor.status_bar.render_line(0))
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        messages = load_startup_extensions(
+            app.editor.extension_loader,
+            app.editor.config,
+            ext_files=[ext],
+        )
+        checks.append(Check("setup_message", True,
+                            "SEG-SETUP" in message_text(app)))
+        checks.append(Check("no_load_errors", True,
+                            not any("extension ext_seg:" in m
+                                    for m in messages)))
+        app.editor.status_bar.refresh_status()
+        await pilot.pause()
+        checks.append(Check("segments_rendered", True,
+                            "SEG-L" in strip() and "SEG-R" in strip()))
+        await run_command(pilot, "seg-off")
+        app.editor.status_bar.refresh_status()
+        await pilot.pause()
+        checks.append(Check("segments_removed", True,
+                            "SEG-L" not in strip()
+                            and "SEG-R" not in strip()))
+        record = next(
+            (r for r in app.editor.extension_loader.loaded
+             if r.name == "ext_seg"),
+            None,
+        )
+        checks.append(Check("loaded_record_clean", True,
+                            record is not None and record.error is None))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("extension_status_segment", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("integration_extension_roundtrip", _extension_roundtrip,
              ("integration",)),
     Scenario("integration_custom_theme_file", _custom_theme_file,
+             ("integration",)),
+    Scenario("extension_status_segment", _extension_status_segment,
              ("integration",)),
 ]

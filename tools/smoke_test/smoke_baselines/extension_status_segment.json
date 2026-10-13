@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "setup_message",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "no_load_errors",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "segments_rendered",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "segments_removed",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "loaded_record_clean",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
