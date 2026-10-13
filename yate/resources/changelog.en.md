@@ -1,14 +1,16 @@
 # Changelog
 
-> Generated from the git history on 2026-10-13 · yate 0.2.11
+> Generated from the git history on 2026-10-14 · yate 0.2.11
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.11...HEAD)
 
 ### Features
 
+- support the module-table entry form for extensions ([`cbe9e1f`](https://gitee.com/jermaine/yate/commit/cbe9e1f6a2b432938840263729ef99615dbb3561))
+- re-export StatusSegment through the facade ([`023c9fc`](https://gitee.com/jermaine/yate/commit/023c9fceb31d5c9fabccc984ba24fcc87a4ef794))
 - mirror the python api surface and ship ide lint defs ([`1b721d8`](https://gitee.com/jermaine/yate/commit/1b721d851204c3bd299703e2d98a4a65c9859e7f))
-- bundle the lupa Lua bridge in frozen builds (issue IKL2G6) ([`7767f7b`](https://gitee.com/jermaine/yate/commit/7767f7b1de68fdac29f31de6111d60777b1e7ffd))
 - widen the python api surface ([`7be8064`](https://gitee.com/jermaine/yate/commit/7be806440de2cb030a0d10454211fe57130a98a0))
+- bundle the lupa Lua bridge in frozen builds (issue IKL2G6) ([`7767f7b`](https://gitee.com/jermaine/yate/commit/7767f7b1de68fdac29f31de6111d60777b1e7ffd))
 - add status segment contribution point ([`943cc49`](https://gitee.com/jermaine/yate/commit/943cc49c60e008f5cbde4a6eaf6411eff6c95971))
 - add extension event subscription system ([`70cf103`](https://gitee.com/jermaine/yate/commit/70cf10354552b3fabd4607d7827f3c3e5e5aed04))
 - ship lua api library and lua.example template ([`929e743`](https://gitee.com/jermaine/yate/commit/929e7436021ffd04ff1cc8c39163b68077633e4c))
@@ -17,6 +19,7 @@
 
 ### Bug Fixes
 
+- apply two-round review fixes ([`02736a2`](https://gitee.com/jermaine/yate/commit/02736a20d649653fb4ecabe1949d4e3c8248c274))
 - sync every build-extras hint to [build,ts,lua] (review round 2) ([`a35e52e`](https://gitee.com/jermaine/yate/commit/a35e52e4fb5ae842e5ffe1998d9c40f68dfb77c2))
 - apply second-round review fixes ([`8e852b3`](https://gitee.com/jermaine/yate/commit/8e852b31395fb60435e9c829f9359d1812fed717))
 - apply code-review fixes to the extension wave ([`bd702a8`](https://gitee.com/jermaine/yate/commit/bd702a8cc4bb10008942701f7ad2d7ee1e7c63fc))
@@ -48,14 +51,20 @@
 
 ### Documentation
 
+- document the module-table entry style ([`9f2c4be`](https://gitee.com/jermaine/yate/commit/9f2c4be1c137e52da92fbba6e3fa6f58e48c500e))
+- add plan-e for the lua module-table entry form ([`be6e4a0`](https://gitee.com/jermaine/yate/commit/be6e4a0c830a5c52b6a4975ceba16cca16199a0c))
+- record two-round extension review and fix evidence ([`3a62844`](https://gitee.com/jermaine/yate/commit/3a628442f46c56eee1768c6f9370cd7b4569de5c))
+- register plan_d execution and pr-review round ([`524209a`](https://gitee.com/jermaine/yate/commit/524209ad208f2511478f864643e77a8dbf724743))
+- list all ten bridges in the facade layout map ([`ed16f4e`](https://gitee.com/jermaine/yate/commit/ed16f4eb5cf24cdacd231069444410cfbc10fe31))
+- sync the wiki and stale paths to the extensions subpackage ([`4aedb60`](https://gitee.com/jermaine/yate/commit/4aedb60a2b6db7883671509d643d5afcaafe9c3e))
 - register ext-api-parity execution and pr-review round ([`e120fa6`](https://gitee.com/jermaine/yate/commit/e120fa6d7bfca3f54ca11eccb09508d958cd4e45))
 - regenerate for the ext-api-parity wave ([`559af88`](https://gitee.com/jermaine/yate/commit/559af888b8084009a80328fba938faf20d155cf5))
 - document the widened api surface and lua lint setup ([`d1bc7c7`](https://gitee.com/jermaine/yate/commit/d1bc7c7c8143898823b56ba231d4e9b7b27f61f5))
+- add ext-api-parity plan for gitee issue IKK4K6 ([`e35220f`](https://gitee.com/jermaine/yate/commit/e35220f3220bf4d956138500006c1e70edee2c25))
 - register review round 2 and final gate results ([`a908761`](https://gitee.com/jermaine/yate/commit/a90876143f5704e86714ea404013fdfb09e3b7ab))
 - register pr-review round and final gate results ([`6c5158c`](https://gitee.com/jermaine/yate/commit/6c5158c3a5a216a08c0335a2967c77f5ce231b45))
 - register pack-lupa build acceptance and gate results ([`5a485bb`](https://gitee.com/jermaine/yate/commit/5a485bb09225a11af1d668340f155f6deb647ad0))
 - add pack-lupa bundling plan for issue IKL2G6 ([`5184a21`](https://gitee.com/jermaine/yate/commit/5184a21cb02ec9b9436049d78d16f277ffa7c37c))
-- add ext-api-parity plan for gitee issue IKK4K6 ([`e35220f`](https://gitee.com/jermaine/yate/commit/e35220f3220bf4d956138500006c1e70edee2c25))
 - regenerate for the extension wave and backfill plan ([`79a1f50`](https://gitee.com/jermaine/yate/commit/79a1f50b1c0a15f1e7cb070737c82515b8df75a4))
 - sync diagnostics wording and provider cost guidance ([`bbfe1b6`](https://gitee.com/jermaine/yate/commit/bbfe1b6a24befb7228496bcdfb4f6738f7bd250e))
 - document events, status segments and lua hooks ([`0cfbb2b`](https://gitee.com/jermaine/yate/commit/0cfbb2b4f2254738dea0fb58e38f88c12f5ccdb0))

@@ -1,14 +1,17 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-10-13 · yate 0.2.11
+> 由 git 历史自动生成于 2026-10-14 · yate 0.2.11
 
 ## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.11...HEAD)
 
 ### 新功能
 
+- feat(lua): support the module-table entry form for extensions ([`cbe9e1f`](https://gitee.com/jermaine/yate/commit/cbe9e1f6a2b432938840263729ef99615dbb3561))
+  - chunk 返回表时按 Lua 库惯例外理：可调用的 `setup(api)` 在回滚 scope 内执行，`mod.teardown(api)` 作为卸载钩子；入口形态按固定优先级解析（模块表 > 全局 setup > 顶层），返回表缺 setup 直接报错而非静默零注册
+- re-export StatusSegment through the facade [缺中文] ([`023c9fc`](https://gitee.com/jermaine/yate/commit/023c9fceb31d5c9fabccc984ba24fcc87a4ef794))
 - mirror the python api surface and ship ide lint defs [缺中文] ([`1b721d8`](https://gitee.com/jermaine/yate/commit/1b721d851204c3bd299703e2d98a4a65c9859e7f))
-- bundle the lupa Lua bridge in frozen builds (issue IKL2G6) [缺中文] ([`7767f7b`](https://gitee.com/jermaine/yate/commit/7767f7b1de68fdac29f31de6111d60777b1e7ffd))
 - widen the python api surface [缺中文] ([`7be8064`](https://gitee.com/jermaine/yate/commit/7be806440de2cb030a0d10454211fe57130a98a0))
+- bundle the lupa Lua bridge in frozen builds (issue IKL2G6) [缺中文] ([`7767f7b`](https://gitee.com/jermaine/yate/commit/7767f7b1de68fdac29f31de6111d60777b1e7ffd))
 - 新增状态栏段贡献点（api.ui） ([`943cc49`](https://gitee.com/jermaine/yate/commit/943cc49c60e008f5cbde4a6eaf6411eff6c95971))
   - 拉取式注册表：左右两半按 (-priority, 顺序) 排序；None/空串隐藏、异常 provider 降级为 ! 占位；StatusBar 自持绘制（R13）；ui=None 保持独立构造可用
 - 新增扩展事件订阅系统（EventHub 与 api.events 桥） ([`70cf103`](https://gitee.com/jermaine/yate/commit/70cf10354552b3fabd4607d7827f3c3e5e5aed04))
@@ -19,6 +22,7 @@
 
 ### 问题修复
 
+- apply two-round review fixes [缺中文] ([`02736a2`](https://gitee.com/jermaine/yate/commit/02736a20d649653fb4ecabe1949d4e3c8248c274))
 - sync every build-extras hint to [build,ts,lua] (review round 2) [缺中文] ([`a35e52e`](https://gitee.com/jermaine/yate/commit/a35e52e4fb5ae842e5ffe1998d9c40f68dfb77c2))
 - apply second-round review fixes [缺中文] ([`8e852b3`](https://gitee.com/jermaine/yate/commit/8e852b31395fb60435e9c829f9359d1812fed717))
 - 落地扩展波次代码评审修复 ([`bd702a8`](https://gitee.com/jermaine/yate/commit/bd702a8cc4bb10008942701f7ad2d7ee1e7c63fc))
@@ -52,14 +56,22 @@
 
 ### 文档
 
+- docs(extensions): document the module-table entry style ([`9f2c4be`](https://gitee.com/jermaine/yate/commit/9f2c4be1c137e52da92fbba6e3fa6f58e48c500e))
+  - Lua 入口风格章节重排为三形态：模块表为正式扩展推荐形态、全局 setup 为 Python 逐行对照形态、顶层为快速脚本形态；覆盖 _yate.lua 头注释、lua.example 模板与双语手册
+- docs(plans): add plan-e for the lua module-table entry form ([`be6e4a0`](https://gitee.com/jermaine/yate/commit/be6e4a0c830a5c52b6a4975ceba16cca16199a0c))
+  - 登记追加波计划：支持 `local mod = {} ... return mod` 入口形态，优先级链为模块表 > 全局 setup > 顶层，返回表缺 setup 响亮报错
+- record two-round extension review and fix evidence [缺中文] ([`3a62844`](https://gitee.com/jermaine/yate/commit/3a628442f46c56eee1768c6f9370cd7b4569de5c))
+- register plan_d execution and pr-review round [缺中文] ([`524209a`](https://gitee.com/jermaine/yate/commit/524209ad208f2511478f864643e77a8dbf724743))
+- list all ten bridges in the facade layout map [缺中文] ([`ed16f4e`](https://gitee.com/jermaine/yate/commit/ed16f4eb5cf24cdacd231069444410cfbc10fe31))
+- sync the wiki and stale paths to the extensions subpackage [缺中文] ([`4aedb60`](https://gitee.com/jermaine/yate/commit/4aedb60a2b6db7883671509d643d5afcaafe9c3e))
 - register ext-api-parity execution and pr-review round [缺中文] ([`e120fa6`](https://gitee.com/jermaine/yate/commit/e120fa6d7bfca3f54ca11eccb09508d958cd4e45))
 - regenerate for the ext-api-parity wave [缺中文] ([`559af88`](https://gitee.com/jermaine/yate/commit/559af888b8084009a80328fba938faf20d155cf5))
 - document the widened api surface and lua lint setup [缺中文] ([`d1bc7c7`](https://gitee.com/jermaine/yate/commit/d1bc7c7c8143898823b56ba231d4e9b7b27f61f5))
+- add ext-api-parity plan for gitee issue IKK4K6 [缺中文] ([`e35220f`](https://gitee.com/jermaine/yate/commit/e35220f3220bf4d956138500006c1e70edee2c25))
 - register review round 2 and final gate results [缺中文] ([`a908761`](https://gitee.com/jermaine/yate/commit/a90876143f5704e86714ea404013fdfb09e3b7ab))
 - register pr-review round and final gate results [缺中文] ([`6c5158c`](https://gitee.com/jermaine/yate/commit/6c5158c3a5a216a08c0335a2967c77f5ce231b45))
 - register pack-lupa build acceptance and gate results [缺中文] ([`5a485bb`](https://gitee.com/jermaine/yate/commit/5a485bb09225a11af1d668340f155f6deb647ad0))
 - add pack-lupa bundling plan for issue IKL2G6 [缺中文] ([`5184a21`](https://gitee.com/jermaine/yate/commit/5184a21cb02ec9b9436049d78d16f277ffa7c37c))
-- add ext-api-parity plan for gitee issue IKK4K6 [缺中文] ([`e35220f`](https://gitee.com/jermaine/yate/commit/e35220f3220bf4d956138500006c1e70edee2c25))
 - regenerate for the extension wave and backfill plan [缺中文] ([`79a1f50`](https://gitee.com/jermaine/yate/commit/79a1f50b1c0a15f1e7cb070737c82515b8df75a4))
 - 同步诊断事件措辞与 provider 成本提示（中英手册） ([`bbfe1b6`](https://gitee.com/jermaine/yate/commit/bbfe1b6a24befb7228496bcdfb4f6738f7bd250e))
   - DIAGNOSTICS_UPDATED 枚举 docstring 对齐载荷语义；手册提醒状态栏 provider 随刷新反复执行，重活放进事件监听器

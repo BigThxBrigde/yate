@@ -1610,6 +1610,10 @@
   "9f11c0b": {
     "summary": "为 wiki 生成器新增 --translate-needed 开关"
   },
+  "9f2c4be": {
+    "summary": "docs(extensions): document the module-table entry style",
+    "detail": "Lua 入口风格章节重排为三形态：模块表为正式扩展推荐形态、全局 setup 为 Python 逐行对照形态、顶层为快速脚本形态；覆盖 _yate.lua 头注释、lua.example 模板与双语手册"
+  },
   "9f94d8e": {
     "summary": "冒烟测试批量注入按键并降低轮询间隔以提速",
     "detail": "移除每键约 20ms 的空转睡眠，多个输入场景提速数倍"
@@ -1905,6 +1909,10 @@
   "be5a9ef": {
     "summary": "收尾 PR 57 评审事项并索引轮次"
   },
+  "be6e4a0": {
+    "summary": "docs(plans): add plan-e for the lua module-table entry form",
+    "detail": "登记追加波计划：支持 `local mod = {} ... return mod` 入口形态，优先级链为模块表 > 全局 setup > 顶层，返回表缺 setup 响亮报错"
+  },
   "bea5e6a": {
     "summary": "修复主题泄漏与退出泵盲区，用 conftest 去重测试辅助（R-67..R-73、R-77）"
   },
@@ -2054,6 +2062,10 @@
   },
   "cb94b48": {
     "summary": "新增像素精灵包与洗牌注册表"
+  },
+  "cbe9e1f": {
+    "summary": "feat(lua): support the module-table entry form for extensions",
+    "detail": "chunk 返回表时按 Lua 库惯例外理：可调用的 `setup(api)` 在回滚 scope 内执行，`mod.teardown(api)` 作为卸载钩子；入口形态按固定优先级解析（模块表 > 全局 setup > 顶层），返回表缺 setup 直接报错而非静默零注册"
   },
   "cc24677": {
     "summary": "为 L4 应用外壳添加 trace 日志"
