@@ -56,7 +56,7 @@ try {
     Push-Location $root
 
     # Interpreter MUST come from the project virtual environment. Falling
-    # back to a system python would let `pip install -e '.[build,ts]'` write
+    # back to a system python would let `pip install -e '.[build,ts,lua]'` write
     # the yate entry script into the global Scripts/ directory, polluting
     # the user's global Python install.
     $pythonExe = Join-Path $root ".venv\Scripts\python.exe"

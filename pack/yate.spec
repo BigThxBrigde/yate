@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller build spec for the standalone yate executable (one-folder).
 
-Build with (after ``pip install -e ".[build,ts]"``), from the repository root::
+Build with (after ``pip install -e ".[build,ts,lua]"``), from the repository root::
 
     pyinstaller pack/yate.spec
 
