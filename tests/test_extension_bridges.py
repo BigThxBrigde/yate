@@ -11,7 +11,8 @@ every test.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import pytest
 
@@ -25,6 +26,7 @@ from yate.keymaps.base import Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
+from yate.services import clipboard
 from yate.services.extension_bridges import HighlightExtensionBridge
 from yate.services.extensions import ExtensionAPI, ExtensionContext
 from yate.services.workspace import Workspace
@@ -48,6 +50,39 @@ def api() -> ExtensionAPI:
         run_shell=lambda _command, _show: None,
         open_path=lambda _path: None,
         save=lambda: None,
+        run_action=lambda _name: False,
+        set_theme=lambda _name: None,
+        active_theme_name=lambda: "mocha",
+    )
+    return ExtensionAPI(ctx)
+
+
+def _api_with_callbacks(
+    run_action: Callable[[str], bool],
+    set_theme: Callable[[str], None],
+) -> ExtensionAPI:
+    """An ExtensionAPI whose context callbacks are fixed at construction.
+
+    The bridges snapshot the injected callables when the API is built, so a
+    test that records calls must inject the callback up front (reassigning
+    ``api.app.set_theme`` afterwards never reaches the bridge).
+    """
+    session = EditorSession(YateConfig())
+    session.new_buffer()
+    ctx = ExtensionContext(
+        session=session,
+        workspace=Workspace(),
+        lsp=LspManager(),
+        keymaps=KeymapSet({"vsc": Keymap(), "vim": Keymap()}, "vsc"),
+        actions=ActionRegistry(),
+        commands=CommandRegistry(),
+        message=lambda _text: None,
+        run_shell=lambda _command, _show: None,
+        open_path=lambda _path: None,
+        save=lambda: None,
+        run_action=run_action,
+        set_theme=set_theme,
+        active_theme_name=lambda: "mocha",
     )
     return ExtensionAPI(ctx)
 
@@ -234,3 +269,144 @@ def test_syntax_bridge_register_rejects_unresolvable_grammar(api: ExtensionAPI) 
             )
         # all-or-nothing: the extension key was never published
         assert "npx" not in available_filetypes()
+
+
+# --- ThemeExtensionBridge -------------------------------------------------------
+
+
+def test_theme_bridge_set_forwards_and_active_reads_back() -> None:
+    """``set`` forwards the name to the injected callback; ``active`` reads it."""
+    seen: list[str] = []
+    api = _api_with_callbacks(
+        run_action=lambda _name: False, set_theme=seen.append
+    )
+
+    api.theme.set("latte")
+
+    assert seen == ["latte"]
+    # the active-name callback injected above answers ``active``
+    assert api.theme.active() == "mocha"
+
+
+# --- ClipboardExtensionBridge ---------------------------------------------------
+
+
+def test_clipboard_bridge_set_and_get_forward_to_service(
+    api: ExtensionAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``set`` / ``get`` forward to the clipboard service's module functions."""
+    copied: list[str] = []
+    monkeypatch.setattr(
+        clipboard, "copy_text", lambda text: copied.append(text) or True
+    )
+    monkeypatch.setattr(clipboard, "paste_text", lambda: "from-clipboard")
+
+    assert api.clipboard.set("hello") is True
+    assert copied == ["hello"]
+    assert api.clipboard.get() == "from-clipboard"
+
+
+def test_clipboard_bridge_degraded_results_pass_through(
+    api: ExtensionAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The service's degraded ``False`` / ``None`` results pass through."""
+    monkeypatch.setattr(clipboard, "copy_text", lambda _text: False)
+    monkeypatch.setattr(clipboard, "paste_text", lambda: None)
+
+    assert api.clipboard.set("x") is False
+    assert api.clipboard.get() is None
+
+
+# --- DocsExtensionBridge --------------------------------------------------------
+
+
+def test_docs_bridge_all_returns_a_fresh_list(api: ExtensionAPI, tmp_path: Path) -> None:
+    """``all`` copies the session list: mutating it cannot touch the session."""
+    file = tmp_path / "doc.txt"
+    file.write_text("x", encoding="utf-8")
+    opened = api.app.session.open(file)
+    assert opened is not None
+
+    docs = api.docs.all()
+    assert opened in docs
+    docs.clear()
+    # the session still holds both documents (buffer + opened file)
+    assert len(api.docs.all()) == 2
+
+
+def test_docs_bridge_is_open_hits_and_misses(api: ExtensionAPI, tmp_path: Path) -> None:
+    """``is_open`` accepts str and Path and misses on unknown files."""
+    file = tmp_path / "doc.txt"
+    file.write_text("x", encoding="utf-8")
+    api.app.session.open(file)
+
+    assert api.docs.is_open(file) is True
+    assert api.docs.is_open(str(file)) is True
+    assert api.docs.is_open(tmp_path / "other.txt") is False
+
+
+# --- ActionExtensionBridge ------------------------------------------------------
+
+
+def test_actions_bridge_run_dispatches_through_injected_callback() -> None:
+    """``run`` forwards to the injected ``run_action`` (editor dispatch)."""
+    seen: list[str] = []
+
+    def run_action(name: str) -> bool:
+        seen.append(name)
+        return name != "ghost"
+
+    api = _api_with_callbacks(run_action=run_action, set_theme=lambda _name: None)
+
+    assert api.actions.run("probe_act") is True
+    assert api.actions.run("ghost") is False
+    assert seen == ["probe_act", "ghost"]
+
+
+def test_actions_bridge_names_and_has_read_the_registry(api: ExtensionAPI) -> None:
+    """``names`` / ``has`` read the shared ActionRegistry."""
+    api.app.actions.register("probe_action", lambda _ctx: None)
+    try:
+        assert api.actions.has("probe_action") is True
+        assert api.actions.has("no_such_action") is False
+        assert "probe_action" in api.actions.names()
+    finally:
+        api.app.actions.unregister("probe_action")
+
+
+# --- UiExtensionBridge.add_segment ---------------------------------------------
+
+
+def test_ui_bridge_add_segment_registers_and_sorts_by_priority(
+    api: ExtensionAPI,
+) -> None:
+    """``add_segment`` registers; priority sorts, ties keep registration order."""
+    api.ui.add_segment("low", lambda: "low", "right", priority=1)
+    api.ui.add_segment("high", lambda: "high", priority=5)
+    api.ui.add_segment("tie", lambda: "t", "right", priority=1)
+    api.ui.add_segment("left", lambda: "l", align="left")
+
+    assert [segment.id for segment in api.ui.segments("right")] == [
+        "high", "low", "tie",
+    ]
+    assert [segment.id for segment in api.ui.segments("left")] == ["left"]
+
+
+def test_ui_bridge_add_segment_duplicate_id_raises_value_error(
+    api: ExtensionAPI,
+) -> None:
+    """A duplicate id raises ValueError exactly like add_status_segment."""
+    api.ui.add_segment("dup", lambda: "x")
+    with pytest.raises(ValueError):
+        api.ui.add_segment("dup", lambda: "y")
+
+
+def test_ui_bridge_add_segment_rolls_back_inside_scope(api: ExtensionAPI) -> None:
+    """Inside a rollback scope the factory-built segment is dropped again."""
+    api.start_scope()
+    api.ui.add_segment("scoped", lambda: "s")
+    assert [segment.id for segment in api.ui.segments("right")] == ["scoped"]
+
+    api.rollback_scope()
+
+    assert api.ui.segments("right") == []

@@ -399,6 +399,12 @@ class Editor:
 
     def extension_context(self) -> ExtensionContext:
         """Build the :class:`ExtensionContext` handed to extensions."""
+        # ``theme.set_theme`` returns the new Theme, but the context wants a
+        # plain switch (Callable[[str], None]): adapt here, since pyright
+        # strict rejects a value-returning lambda in a None slot.
+        def _set_theme(name: str) -> None:
+            theme.set_theme(name)
+
         return ExtensionContext(
             session=self.session,
             workspace=self.workspace,
@@ -414,6 +420,9 @@ class Editor:
             ),
             open_path=lambda path: self.document_flows.open_path_later(path),
             save=lambda: self.document_flows.save_document(),
+            run_action=lambda name: self.key_ui.execute_action(name),
+            set_theme=_set_theme,
+            active_theme_name=lambda: theme.active().name,
         )
 
     def documents_closed(self, docs: list[Document]) -> None:
