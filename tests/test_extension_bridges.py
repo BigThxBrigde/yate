@@ -296,9 +296,12 @@ def test_clipboard_bridge_set_and_get_forward_to_service(
 ) -> None:
     """``set`` / ``get`` forward to the clipboard service's module functions."""
     copied: list[str] = []
-    monkeypatch.setattr(
-        clipboard, "copy_text", lambda text: copied.append(text) or True
-    )
+
+    def fake_copy(text: str) -> bool:
+        copied.append(text)
+        return True
+
+    monkeypatch.setattr(clipboard, "copy_text", fake_copy)
     monkeypatch.setattr(clipboard, "paste_text", lambda: "from-clipboard")
 
     assert api.clipboard.set("hello") is True
@@ -310,7 +313,11 @@ def test_clipboard_bridge_degraded_results_pass_through(
     api: ExtensionAPI, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The service's degraded ``False`` / ``None`` results pass through."""
-    monkeypatch.setattr(clipboard, "copy_text", lambda _text: False)
+
+    def fake_copy(_text: str) -> bool:
+        return False
+
+    monkeypatch.setattr(clipboard, "copy_text", fake_copy)
     monkeypatch.setattr(clipboard, "paste_text", lambda: None)
 
     assert api.clipboard.set("x") is False
