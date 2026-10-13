@@ -32,7 +32,9 @@ from __future__ import annotations
 import ast
 import functools
 import importlib.util
+import re
 import sys
+import tomllib
 from pathlib import Path
 from types import ModuleType
 from typing import cast
@@ -65,8 +67,10 @@ _SPEC_HELPER_FIELDS: frozenset[str] = frozenset({"project_root"})
 #: The only dynamic imports the shipped code may perform, as
 #: ``"<path>:<callee>(<argument source>)"``.  The tree-sitter ones load
 #: grammar modules, which :data:`pack._common._TS_PACKAGES` collects
-#: explicitly; they are listed here so that a *new* dynamic import has to be
-#: reviewed and justified rather than slipping past the premise guard.
+#: explicitly; the lupa one is collected via
+#: :data:`pack._common._LUA_PACKAGES` (issue IKL2G6).  They are listed here so
+#: that a *new* dynamic import has to be reviewed and justified rather than
+#: slipping past the premise guard.
 _REVIEWED_DYNAMIC_IMPORTS: frozenset[str] = frozenset(
     {
         "editor_syntax/ts_backend/languages.py:importlib.import_module(module_name)",
@@ -341,6 +345,97 @@ def test_yate_sources_when_scanned_never_import_excluded_modules() -> None:
                     and arg.value.split(".")[0] in banned
                 ]
     assert offenders == []
+
+
+# --- the optional dynamic-import package inventories (pack/_common.py) --------
+
+
+def _lua_packages() -> list[str]:
+    """The shared lupa inventory as ``pack/_common.py`` declares it.
+
+    Read out of the module namespace with the same narrowing discipline as
+    :func:`_excludes`: the dynamically loaded module defeats pyright's
+    inference, so the :func:`cast` carries the narrowing and the asserts keep
+    a non-string entry from slipping past silently.
+    """
+    raw: object = _load_common().__dict__["_LUA_PACKAGES"]
+    assert isinstance(raw, tuple), (
+        f"_LUA_PACKAGES must stay a tuple, got {type(raw).__name__}"
+    )
+    items = cast("tuple[object, ...]", raw)
+    entries = [entry for entry in items if isinstance(entry, str)]
+    assert len(entries) == len(items), (
+        f"_LUA_PACKAGES must hold strings only, got {items!r}"
+    )
+    return entries
+
+
+def test_lua_packages_when_common_loaded_pin_the_lupa_bridge_inventory() -> None:
+    """``pack/_common._LUA_PACKAGES`` must keep collecting exactly ``lupa``.
+
+    lupa is imported dynamically (``yate/services/lua_extensions.py``), so
+    PyInstaller's static analysis never sees it: without the explicit
+    inventory the frozen exe ships without the Lua bridge and ``yate --diag``
+    reports it as ``not installed`` (issue IKL2G6).  Pinning the exact tuple
+    makes adding another package a deliberate, reviewable act.
+    """
+    assert _lua_packages() == ["lupa"]
+
+
+def test_lua_packages_when_pinned_match_the_pyproject_lua_extra() -> None:
+    """The lupa inventory and the pyproject ``[lua]`` extra must not drift.
+
+    ``[lua]`` is the only installable source of lupa: a package present on
+    one side only is either uninstallable or invisible to a frozen build --
+    the same three-way agreement the ts side enforces in
+    ``tests/test_ts_backend.py::test_builtin_packs_match_packaging_manifests``.
+    """
+    pyproject = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    extras = cast("dict[str, list[str]]", pyproject["project"]["optional-dependencies"])
+
+    def modules(requirements: list[str]) -> set[str]:
+        return {
+            re.split(r"[<>=!~\[; ]", requirement.strip(), maxsplit=1)[0].replace("-", "_")
+            for requirement in requirements
+        }
+
+    lua = set(_lua_packages())
+    assert modules(extras["lua"]) == lua
+    # ``dev`` is a superset: it adds the test/type tooling on top of [lua].
+    assert lua <= modules(extras["dev"])
+
+
+#: Every file that carries a ``pip install -e ".[build,...]"``-style extras
+#: hint: the two specs' build instructions, the pack scripts' auto-install
+#: messages, and the README / shipped manuals (bilingual).
+_EXTRA_HINT_FILES: tuple[Path, ...] = (
+    _ONEFOLDER_SPEC,
+    _ONEFILE_SPEC,
+    _REPO_ROOT / "pack" / "pack.ps1",
+    _REPO_ROOT / "pack" / "pack.sh",
+    _REPO_ROOT / "README.md",
+    _REPO_ROOT / "README.zh.md",
+    _REPO_ROOT / "yate" / "resources" / "manual.en.md",
+    _REPO_ROOT / "yate" / "resources" / "manual.zh.md",
+)
+
+
+@pytest.mark.parametrize("path", _EXTRA_HINT_FILES, ids=lambda path: path.name)
+def test_build_extra_hints_when_scanned_always_name_the_lua_extra(path: Path) -> None:
+    """Every build-extras hint must include the ``[lua]`` extra (issue IKL2G6).
+
+    The direct-PyInstaller path documented in the specs and the README has
+    the user install extras by hand; a hint that predates the lua extra
+    reproduces the issue's silent lupa-less bundle -- ``pack/_common.py``'s
+    ``find_spec`` gate simply skips the missing package, so nothing in the
+    build output points at the stale hint.  The negative lookahead keeps the
+    matching ``build,ts,lua`` spellings out of the findings.  Scope: every
+    file currently carrying such a hint (verified by repo-wide scan) -- a
+    new hint-carrying file must be added to :data:`_EXTRA_HINT_FILES`.
+    """
+    text = path.read_text(encoding="utf-8")
+    stale = re.findall(r"build,ts(?!,lua)", text)
+    assert stale == [], f"{path.name} still hints `build,ts` without lua"
 
 
 # --- both specs forward the inventory to Analysis -----------------------------

@@ -1585,7 +1585,7 @@ the global `Scripts/` (or `bin/`) directory. Before the first build:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[build,ts]"
+pip install -e ".[build,ts,lua]"
 ```
 
 **Collect artifacts into a versioned directory**: after a successful build,

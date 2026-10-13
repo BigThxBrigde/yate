@@ -311,11 +311,12 @@ pack\pack.bat --onefile
 ```
 
 [pack/](pack/) 下的打包脚本会优先使用 `.venv` 中的解释器、缺少 PyInstaller
-时自动安装 `build,ts` 可选依赖（PyInstaller 及 tree-sitter 与 24 个
-语法包），并仅根据 onefile 开关选择 spec。也可以直接调用
+时自动安装 `build,ts,lua` 可选依赖（PyInstaller、tree-sitter 与 24 个
+语法包、以及 lupa Lua 桥），并仅根据 onefile 开关选择 spec。也可以直接调用
 PyInstaller：`pyinstaller pack/yate.spec`（单目录）/
 `pyinstaller pack/yate-onefile.spec`（单文件）。独立可执行程序内置 tree-sitter
-后端；若想构建仅含正则高亮的版本，在构建环境中卸载 `[ts]` 各包即可（spec 会
+后端与 lupa Lua 桥；若想构建仅含正则高亮或不含 Lua 桥的版本，在构建环境中卸载
+`[ts]` / `[lua]` 各包即可（spec 会
 自动跳过）。
 
 **PyInstaller 不支持交叉编译**：Windows 的 `.exe` 必须在 Windows 上构建，
