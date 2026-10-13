@@ -739,7 +739,7 @@ def session(tmp_path: Path) -> ManagerSession:
 
     mgr = LspManager(
         workspace_root=lambda: tmp_path,
-        on_event=lambda event: events.append(event),
+        on_event=lambda event, _doc=None: events.append(event),
         client_factory=cast(Any, factory),
     )
     managers.append(mgr)
@@ -991,7 +991,7 @@ def test_register_server_fires_state_only_on_replacement() -> None:
     """First registration stays silent; a same-name replacement fires one
     "state" event so consumers can repaint the server list."""
     events: list[str] = []
-    mgr = LspManager(on_event=events.append)
+    mgr = LspManager(on_event=lambda event, _doc=None: events.append(event))
     mgr.register_server(PY_CONFIG)
     assert events == []
     mgr.register_server(PY_CONFIG)

@@ -43,6 +43,8 @@ _LIBRARY_MODULE: str = "yate"
 _CHUNK_SOURCE_GLOBAL: str = "_YATE_CHUNK_SOURCE"
 
 #: Lua chunknames (the ``=`` prefix marks a custom name shown in traces).
+#: Both must stay quote-free: they are interpolated into Lua string
+#: literals by :func:`_compile_chunk`.
 _LIBRARY_CHUNK_NAME: str = "=yate.api"
 _EXTENSION_CHUNK_NAME: str = "=extension"
 

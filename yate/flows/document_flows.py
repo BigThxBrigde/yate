@@ -165,9 +165,10 @@ class DocumentFlows:
             return None
         if not reused:
             self._apply_session_readonly(doc)
-        self.activate_doc(doc, target_leaf)
-        if not reused:
+            # lifecycle order: the document is *opened* first, then it
+            # becomes the *active* one (see _open_document_async sibling).
             self._events.emit(EditorEvent.DOCUMENT_OPENED, DocumentOpened(doc))
+        self.activate_doc(doc, target_leaf)
         log.info("opened: %s", path)
         return doc
 
@@ -182,9 +183,10 @@ class DocumentFlows:
             return None
         if not reused:
             self._apply_session_readonly(doc)
-        self.activate_doc(doc, target_leaf)
-        if not reused:
+            # lifecycle order: opened first, then active (mirrors the
+            # _open_document sibling above).
             self._events.emit(EditorEvent.DOCUMENT_OPENED, DocumentOpened(doc))
+        self.activate_doc(doc, target_leaf)
         log.info("opened (async): %s", path)
         return doc
 

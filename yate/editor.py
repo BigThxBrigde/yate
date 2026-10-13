@@ -106,7 +106,7 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     # pane stack (it needs the widgets); both callbacks only fire later.
     ed.lsp = LspManager(
         workspace_root=lambda: ed.workspace.root,
-        on_event=lambda event: ed.lsp_sync.on_event(event),
+        on_event=lambda event, doc=None: ed.lsp_sync.on_event(event, doc),
     )
     ed.keymaps = KeymapSet(
         {"vsc": VscKeymap(), "vim": VimKeymap()},
@@ -423,7 +423,9 @@ class Editor:
         listeners observe a consistent "just left the session" state either
         way, and the LSP call is only deferred to a worker.
         """
-        self.events.emit(EditorEvent.DOCUMENT_CLOSED, DocumentClosed(list(docs)))
+        self.events.emit(
+            EditorEvent.DOCUMENT_CLOSED, DocumentClosed(tuple(docs))
+        )
         self.lsp_sync.documents_closed(docs)
 
     def make_view(self, leaf_id: int) -> EditorView:

@@ -314,6 +314,30 @@ def test_lua_package_import_paths() -> None:
     assert importlib.util.find_spec("yate.services.lua_extensions") is None
 
 
+def test_lua_availability_probe_swallows_probe_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A broken half-install makes is_lua_available() False, not a crash."""
+    from yate.services.lua import library
+
+    def boom(name: str) -> None:
+        raise ValueError("broken spec")
+
+    monkeypatch.setattr(library.importlib.util, "find_spec", boom)
+    assert library.is_lua_available() is False
+
+
+def test_library_source_fails_fast_on_unreadable_resource(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An unreadable bundled library is an installation error, raised here."""
+    from yate.services.lua import library
+
+    monkeypatch.setattr(library, "bundled_extensions_dir", lambda: tmp_path)
+    with pytest.raises(RuntimeError):
+        library.lua_api_library_source()
+
+
 # --- degradation without lupa ------------------------------------------------
 
 

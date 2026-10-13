@@ -76,7 +76,7 @@ class DocumentOpened:
 class DocumentClosed:
     """Payload of :attr:`EditorEvent.DOCUMENT_CLOSED`."""
 
-    docs: list[Document]
+    docs: tuple[Document, ...]
 
 
 @dataclass(frozen=True)

@@ -501,7 +501,7 @@ def setup(api):
 | `EditorEvent.DOCUMENT_OPENED` | `DocumentOpened(doc)` | 打开了会话中尚未打开的文件 |
 | `EditorEvent.DOCUMENT_CLOSED` | `DocumentClosed(docs)` | 一个或多个文档离开会话（`:bd`、关闭最后一个标签） |
 | `EditorEvent.DOCUMENT_ACTIVATED` | `DocumentActivated(doc)` | 某文档成为活动文档（打开、`:bn`/`:bp`、点击标签） |
-| `EditorEvent.DIAGNOSTICS_UPDATED` | `DiagnosticsUpdated(doc)` | 语言服务器发布了活动文档的诊断 |
+| `EditorEvent.DIAGNOSTICS_UPDATED` | `DiagnosticsUpdated(doc)` | 语言服务器发布了诊断；载荷即诊断实际归属的文档 |
 | `EditorEvent.KEYMAP_CHANGED` | `KeymapChanged(name)` | 活动键位表切换（`vsc` / `vim`） |
 | `EditorEvent.THEME_CHANGED` | `ThemeChanged(name)` | 配色主题切换（`:theme`） |
 
@@ -514,6 +514,9 @@ def setup(api):
 - `subscribe` 返回**退订函数**；重复订阅各自独立登记（VS Code
   disposables 语义），退订两次是安全的空操作。
 - `setup` 期间的订阅受回滚 scope 保护：失败的 setup 会把订阅一并撤销。
+- **`DOCUMENT_OPENED` 先于 `DOCUMENT_ACTIVATED`**——新打开的文档先发
+  `DOCUMENT_OPENED`，成为活动文档后再发 `DOCUMENT_ACTIVATED`；复用
+  会话中已打开的文档只发激活事件。
 
 事件只挂在低频点上（保存 / 打开 / 关闭 / 激活 / 诊断 / 键位 / 主题）
 ——刻意不提供逐按键事件。

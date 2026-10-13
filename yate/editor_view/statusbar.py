@@ -13,7 +13,7 @@ directly, so no host protocol is involved.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Literal, Any
 
 from rich.text import Text
 from textual.widgets import Static
@@ -174,7 +174,7 @@ class StatusBar(Static):
         if buf.read_only:
             text.append(f" {LOCK}", style=f"bold {t.red} {bar}")
         if left_ext:
-            text.append(f"   {left_ext}", style=f"bold {t.on_accent} {bar}")
+            text.append(f"   {left_ext}", style=f"{t.on_accent} {bar}")
         used = (
             chip_len + 1
             + (theme.cell_len(name) + 2 if name else 0)
@@ -195,7 +195,7 @@ class StatusBar(Static):
             text.append(hints_plain, style=f"{t.panel} {bar}")
         self.update(text)
 
-    def _extension_texts(self, align: str) -> list[str]:
+    def _extension_texts(self, align: Literal["left", "right"]) -> list[str]:
         """Pull extension segment texts for bar half *align*.
 
         Pull model: every :meth:`refresh_status` pass calls each registered

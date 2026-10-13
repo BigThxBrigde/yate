@@ -81,11 +81,13 @@ class OpenDocState:
 #: (``None`` until the editor knows one).
 type RootQuery = Callable[[], Path | None]
 
-#: ``on_event(event)`` -- the manager's outbound notification: ``"state"``
-#: whenever a server starts, stops or changes state, ``"diagnostics"`` when a
-#: publish arrives.  The consumer repaints from it and echoes the diagnostic
-#: count (see :meth:`yate.flows.lsp_sync.LspSync.on_event`).
-type EventHook = Callable[[str], None]
+#: ``on_event(event, doc)`` -- the manager's outbound notification:
+#: ``"state"`` whenever a server starts, stops or changes state (``doc``
+#: always ``None``), ``"diagnostics"`` when a publish arrives (``doc`` is
+#: the document the published diagnostics belong to, ``None`` only when the
+#: uri is not an open document).  The consumer repaints from it and echoes
+#: the diagnostic count (see :meth:`yate.flows.lsp_sync.LspSync.on_event`).
+type EventHook = Callable[[str, Document | None], None]
 
 #: ``client_factory(config, root)`` -- build the client for one server config;
 #: replaceable after construction through :meth:`LspManager.set_client_factory`.
@@ -547,7 +549,10 @@ class LspManager:
                     "diagnostics published: %s (%d item(s))",
                     uri.rsplit("/", 1)[-1], len(self._diagnostics[uri]),
                 )
-                self._fire("diagnostics")
+                # The diagnostics belong to the document the server published
+                # for -- any open document, not necessarily the active one
+                # (a background pane's file gets publishes too).
+                self._fire("diagnostics", state.doc if state is not None else None)
         elif method in (
             "window/logMessage",
             "telemetry/event",
@@ -654,6 +659,6 @@ class LspManager:
         assert doc.path is not None
         return protocol.path_to_uri(doc.path)
 
-    def _fire(self, event: str) -> None:
+    def _fire(self, event: str, doc: Document | None = None) -> None:
         if self._on_event is not None:
-            self._on_event(event)
+            self._on_event(event, doc)

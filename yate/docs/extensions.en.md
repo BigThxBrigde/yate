@@ -541,7 +541,7 @@ def setup(api):
 | `EditorEvent.DOCUMENT_OPENED` | `DocumentOpened(doc)` | a file opened that was not already open in the session |
 | `EditorEvent.DOCUMENT_CLOSED` | `DocumentClosed(docs)` | one or more documents left the session (`:bd`, last-tab close) |
 | `EditorEvent.DOCUMENT_ACTIVATED` | `DocumentActivated(doc)` | a document became the active one (open, `:bn`/`:bp`, tab click) |
-| `EditorEvent.DIAGNOSTICS_UPDATED` | `DiagnosticsUpdated(doc)` | the language server published diagnostics for the active document |
+| `EditorEvent.DIAGNOSTICS_UPDATED` | `DiagnosticsUpdated(doc)` | the language server published diagnostics; the payload carries the document they belong to |
 | `EditorEvent.KEYMAP_CHANGED` | `KeymapChanged(name)` | the active keymap changed (`vsc` / `vim`) |
 | `EditorEvent.THEME_CHANGED` | `ThemeChanged(name)` | the color theme changed (`:theme`) |
 
@@ -557,6 +557,10 @@ Dispatch contract:
   safe no-op.
 - Subscriptions made while `setup` runs are covered by the rollback
   scope: a failing setup drops them again.
+- **`DOCUMENT_OPENED` precedes `DOCUMENT_ACTIVATED`** -- a freshly
+  opened document emits `DOCUMENT_OPENED` first, then
+  `DOCUMENT_ACTIVATED` once it becomes active; reusing an already open
+  document emits only the activation.
 
 Emissions live at low-frequency points only (save / open / close /
 activate / diagnostics / keymap / theme) -- there is intentionally no

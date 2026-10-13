@@ -16,6 +16,7 @@ import pytest
 from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_lsp.manager import LspManager
+from yate.editor_view.statusbar import StatusBar
 from yate.keymaps.base import Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
@@ -23,6 +24,9 @@ from yate.session import EditorSession
 from yate.services.extension_bridges import StatusSegment
 from yate.services.extensions import ExtensionAPI, ExtensionContext
 from yate.services.workspace import Workspace
+
+# the no-bridge rendering test reads a private helper
+# pyright: reportPrivateUsage=false
 
 
 @pytest.fixture
@@ -193,5 +197,35 @@ def test_none_provider_hides_segment(tmp_path: Path) -> None:
             status_bar.refresh_status()
             await pilot.pause()
             assert "EXT-M" not in _status_strip(app)
+
+    asyncio.run(scenario())
+
+
+def test_statusbar_without_ui_bridge_pulls_nothing(tmp_path: Path) -> None:
+    """A StatusBar built without the ui bridge contributes no segments.
+
+    Covers the ``ui is None`` early return in ``_extension_texts``:
+    standalone constructions (no extension system attached) must render
+    without touching any segment registry.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "noui.txt"
+        target.write_text("x\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            status_bar = app.editor.status_bar
+            assert status_bar.ui is not None
+            bare = StatusBar(
+                status_bar.session,
+                status_bar.lsp,
+                status_bar.keymaps,
+                status_bar.prompt,
+                status_bar.extension_loader,
+            )
+            assert bare.ui is None
+            assert bare._extension_texts("left") == []
+            assert bare._extension_texts("right") == []
 
     asyncio.run(scenario())

@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from yate.editor_lsp.client import DEFAULT_ROOT_MARKERS, ServerConfig
 from yate.editor_lsp.manager import LspManager
@@ -32,6 +32,9 @@ from yate.services.events import EditorEvent, EventHub, EventCallback
 
 #: Trace logger ("yate.services.extension_bridges"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
+
+#: The two status bar halves a segment can attach to.
+type SegmentAlign = Literal["left", "right"]
 
 
 class EventExtensionBridge:
@@ -267,7 +270,7 @@ class StatusSegment:
 
     id: str
     provider: Callable[[], str | None]
-    align: str = "right"  # "left" | "right"
+    align: SegmentAlign = "right"
     priority: int = 0
 
 
@@ -323,7 +326,7 @@ class UiExtensionBridge:
 
         self._record_undo(undo)
 
-    def segments(self, align: str) -> list[StatusSegment]:
+    def segments(self, align: SegmentAlign) -> list[StatusSegment]:
         """Snapshot for bar half *align* (``"left"`` / ``"right"``).
 
         Sorted by descending priority, ties keeping registration order.

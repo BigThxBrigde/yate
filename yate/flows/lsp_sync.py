@@ -76,19 +76,21 @@ class LspSync:
             group="lsp-sync", exclusive=False, exit_on_error=False,
         )
 
-    def on_event(self, event: str) -> None:
-        """Manager callback (event loop thread): repaint after LSP updates."""
+    def on_event(self, event: str, doc: Document | None = None) -> None:
+        """Manager callback (event loop thread): repaint after LSP updates.
+
+        *doc* is the document the published diagnostics belong to (any open
+        document -- a background pane's file gets publishes too); ``None``
+        for the ``"state"`` event and for a publish about an unknown uri.
+        """
         if not self._mounted():
             return
         for view in self.panes.all_views():
             view.refresh()
         self.status_bar.refresh_status()
-        if event == "diagnostics":
+        if event == "diagnostics" and doc is not None:
             self.update_echo()
-            self._events.emit(
-                EditorEvent.DIAGNOSTICS_UPDATED,
-                DiagnosticsUpdated(self.session.doc),
-            )
+            self._events.emit(EditorEvent.DIAGNOSTICS_UPDATED, DiagnosticsUpdated(doc))
 
     def update_echo(self) -> None:
         """Show the diagnostic under the cursor on the message line."""
