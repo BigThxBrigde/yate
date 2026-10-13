@@ -37,7 +37,8 @@ bridge: :mod:`yate.services.extensions.lua.runtime`, needs
 
 Layout map (2026-10-11 split into sibling modules, 2026-10-13 collapsed
 into this subpackage): :mod:`yate.services.extensions.bridges` owns the
-four ``api.*`` bridges (lsp / highlight / syntax / sprites),
+``api.*`` bridges (events / ui / lsp / highlight / syntax / sprites /
+theme / clipboard / docs / actions),
 :mod:`yate.services.extensions.api` owns ``ExtensionContext`` and the
 ``ExtensionAPI`` surface plus the A13 rollback-scope aliases, and
 :mod:`yate.services.extensions.loader` owns discovery, loading, rollback
