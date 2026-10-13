@@ -5,8 +5,8 @@
 yate 的扩展是任意一个暴露 `setup(api)` 函数的 `.py` 文件（可选提供
 `teardown(api)`）。`setup` 在应用启动时被调用，通过传入的 `api` 对象
 可以注册命令、动作、按键绑定、语言服务器，以及访问当前缓冲区、文档、
-工作区等运行时对象。Lua 同样受支持：`.lua` 脚本的顶层代码就是 setup
-（或显式定义 `setup(api)`，见第 6 节），前提是安装了可选的 `lupa` 桥
+工作区等运行时对象。Lua 同样受支持：`.lua` 脚本可以是模块表、显式
+`setup(api)` 或顶层脚本（见第 6 节），前提是安装了可选的 `lupa` 桥
 （`pip install yate[lua]`）。
 
 本文件是扩展编写的完整参考；手册第 10.4 / 15 节是简介。
@@ -725,16 +725,47 @@ pip install yate[lua]
 
 ### Lua 扩展的形态
 
-两种写法，与 Python 的钩子模型一一对应：
+三种写法，加载时按优先级取第一个命中的：**模块表 > 全局 `setup` >
+顶层**：
 
-- **顶层风格**（Lua 惯例，向后兼容）：chunk 的**顶层代码就是
-  setup**——没有 `setup(api)` 函数；
+- **模块表风格（推荐）**：Lua 生态的标准库形态——构建一张模块表并
+  `return` 返回，yate 调用其 `setup(api)` / `teardown(api)` 字段。契约
+  显式、不占全局名，适合正式维护的扩展。注意：**返回了表却没有可调用
+  的 `setup` 字段会直接报错**——返回表即表达了模块意图，缺入口多半是
+  拼写错误，静默放行只会留下"加载成功却什么都没注册"的困惑；
 - **显式风格**：定义全局 `function setup(api)`——yate 会在顶层代码运行
-  之后，用同一个 `api` 对象调用它一次，适合把辅助函数定义在注册调用
-  之前的写法。
+  之后，用同一个 `api` 对象调用它一次，与 Python 的 `setup(api)` 逐行
+  对应，适合从 Python 扩展迁移或对照手册学习；
+- **顶层风格**（Lua 脚本惯例，向后兼容）：chunk 的**顶层代码就是
+  setup**——没有 `setup(api)` 函数，适合十几行的快速脚本。
 
-两种风格下，可选的**全局** `teardown(api)` 函数都对应 Python 的同名
-钩子：
+三种风格下，卸载钩子同理按优先级取 `mod.teardown(api)`（模块表风格）
+或全局 `teardown(api)`（其余两种风格）。
+
+模块表风格示例（推荐）：
+
+```lua
+-- ~/.yate/extensions/hello.lua
+local mod = {}
+
+function mod.setup(api)
+  api.register_command("lua-hello", function(args)
+    api.message("hello from lua! args: " .. (args or ""))
+  end, "greet from a lua extension")
+
+  api.bind_key("<alt-h>", function(ctx)
+    api.message("Alt+H pressed")
+  end, "both")                   -- 位置参数（Lua 没有 kwargs）
+end
+
+function mod.teardown(api)
+  -- 退出时的可选清理（释放本扩展持有的资源）
+end
+
+return mod
+```
+
+顶层风格示例（快速脚本）：
 
 ```lua
 -- ~/.yate/extensions/hello.lua
@@ -754,7 +785,9 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 
 错误不会导致编辑器崩溃：失败的 chunk 以
 `extension <名字>: LuaError: ...` 的形式上报，且它已经做出的全部注册
-会被自动回滚。命令/按键/动作回调在运行期抛出的错误同样会被捕获并按
+会被自动回滚。模块表风格下返回了缺 `setup` 字段的表，则以
+`extension <名字>: RuntimeError: extension module table has no setup(api) function ...`
+上报。命令/按键/动作回调在运行期抛出的错误同样会被捕获并按
 相同形式上报到消息栏，回调失败绝不会拖垮编辑器。
 
 ### `yate` API 库

@@ -6,15 +6,18 @@ Usage: copy this file into an extension directory (recommended:
 ``hello.lua``) and restart yate; it is loaded automatically.
 Requires the optional dependency: pip install yate[lua]
 
-Lua extensions come in two styles mirroring the Python hook model:
-**the file's top-level code is the setup** (the idiom used below), or a
-global ``function setup(api)`` called once after the top level has run
-(see the commented block at the bottom).  An optional global
-``teardown(api)`` works in both styles and runs when yate exits.  Errors
-never crash the editor: load-time failures are reported on the message
-line as ``extension <name>: ...`` with everything already registered
-rolled back, and runtime errors inside command/key/action callbacks are
-caught and reported the same way.
+Lua extensions come in three styles; the loader takes the first match
+(module table > global setup > top level).  The recommended style for
+maintained extensions is the Lua library idiom -- build a module table and
+``return`` it (see the commented block at the bottom); yate then calls its
+``mod.setup(api)`` and ``mod.teardown(api)`` fields.  A returned table
+without a callable ``setup`` is a loud error.  The style used below is the
+quick top-level idiom (the file's top-level code IS the setup), and a
+global ``function setup(api)`` is the third form, mirroring Python
+line by line.  Errors never crash the editor: load-time failures are
+reported on the message line as ``extension <name>: ...`` with everything
+already registered rolled back, and runtime errors inside
+command/key/action callbacks are caught and reported the same way.
 ]]
 
 -- Grab yate's built-in API library (require("yate") and the global yate
@@ -112,3 +115,20 @@ yate.message("lua example extension loaded (trigger with :lua-hello or Alt+H)")
 --                                           --   (see the extensions manual 4.10)
 --   yate.api.ui.add_status_segment(...)     -- status bar segments
 --                                           --   (see the extensions manual 4.11)
+
+-- Recommended for maintained extensions: the module-table style (the Lua
+-- library idiom).  Return the table and yate calls mod.setup(api) once,
+-- with mod.teardown(api) running when yate exits.  Note: a returned table
+-- WITHOUT a callable setup field is a loud load error, so either give the
+-- table a setup or drop the return.  Pick ONE style per script.
+-- Uncomment to switch (and remove the top-level registrations above):
+-- local mod = {}
+-- function mod.setup(api)
+--   api.register_command("lua-module", function(args)
+--     api.message("module-table style, args: " .. (args or ""))
+--   end, "greet from the module-table style")
+-- end
+-- function mod.teardown(api)
+--   -- release the resources held by this extension
+-- end
+-- return mod

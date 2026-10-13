@@ -12,15 +12,21 @@ runtime it compiles this file and does two things:
 
 Both forms hand you the same table; pick whichever you prefer.
 
-Setup styles (mirroring the Python extension hook model):
+Entry styles (the loader takes the first match; mirroring the Python
+extension hook model):
 
+* module-table style (recommended): build a module table and ``return``
+  it -- yate calls its ``mod.setup(api)`` / ``mod.teardown(api)`` fields.
+  The contract is explicit and touches no globals.  A returned table
+  without a callable ``setup`` is a loud error (a table return signals
+  module intent; a missing setup is a typo, not a fallback);
+* explicit style: define a global ``function setup(api)`` -- yate calls it
+  once with the same ``api`` object after the top level has run, a
+  line-by-line mirror of the Python hook;
 * top-level style (backward compatible): the chunk's top-level code *is*
   the setup and runs once at load time;
-* explicit style: define a global ``function setup(api)`` -- yate calls it
-  once with the same ``api`` object after the top level has run, which is
-  handy for helper functions declared above the registrations;
-* an optional global ``function teardown(api)`` runs at shutdown in both
-  styles.
+* the unload hook follows the same precedence: ``mod.teardown(api)`` in
+  the module-table style, a global ``function teardown(api)`` otherwise.
 
 Bridging notes (lupa semantics):
 

@@ -7,8 +7,8 @@ optionally a `teardown(api)`). `setup` is called at application startup;
 through the `api` object it receives, an extension can register commands,
 actions, key bindings and language servers, and access runtime objects such as
 the active buffer, document and workspace. Lua is supported too: a `.lua`
-script's top-level code is the setup (or an explicit `setup(api)`, see
-section 6), provided the optional `lupa` bridge is installed
+script can be a module table, an explicit `setup(api)` or a top-level
+script (see section 6), provided the optional `lupa` bridge is installed
 (`pip install yate[lua]`).
 
 This file is the complete extension-writing reference; sections 10.4 / 15 of
@@ -787,16 +787,52 @@ and everything else keeps working.
 
 ### Shape of a Lua extension
 
-Two styles, mirroring the Python hook model:
+Three styles; the loader takes the first match by precedence:
+**module table > global `setup` > top level**:
 
-- **Top-level style** (the Lua idiom, backward compatible): the chunk's
-  **top-level code is the setup** -- there is no `setup(api)` function;
+- **Module-table style (recommended)**: the standard Lua library idiom --
+  build a module table and `return` it; yate calls its `setup(api)` /
+  `teardown(api)` fields. The contract is explicit and touches no globals,
+  which suits maintained extensions. Note: **returning a table without a
+  callable `setup` field is a loud error** -- returning a table signals
+  module intent, so a missing entry point is most likely a typo, and
+  silently accepting it would leave a "loaded but registered nothing"
+  mystery behind;
 - **Explicit style**: define a global `function setup(api)` -- yate calls
-  it once with the same `api` object after the top level has run, handy
-  for helper functions declared above the registrations.
+  it once with the same `api` object after the top level has run, a
+  line-by-line mirror of the Python `setup(api)`, handy for migrating
+  from a Python extension or for side-by-side reading of this manual;
+- **Top-level style** (the Lua scripting idiom, backward compatible): the
+  chunk's **top-level code is the setup** -- there is no `setup(api)`
+  function, ideal for a ten-line quick script.
 
-An optional **global** `teardown(api)` function mirrors the Python hook
-in both styles:
+The unload hook follows the same precedence: `mod.teardown(api)` in the
+module-table style, the global `teardown(api)` in the other two.
+
+Module-table example (recommended):
+
+```lua
+-- ~/.yate/extensions/hello.lua
+local mod = {}
+
+function mod.setup(api)
+  api.register_command("lua-hello", function(args)
+    api.message("hello from lua! args: " .. (args or ""))
+  end, "greet from a lua extension")
+
+  api.bind_key("<alt-h>", function(ctx)
+    api.message("Alt+H pressed")
+  end, "both")                   -- positional args (Lua has no kwargs)
+end
+
+function mod.teardown(api)
+  -- optional cleanup on exit (release the resources this extension holds)
+end
+
+return mod
+```
+
+Top-level example (quick script):
 
 ```lua
 -- ~/.yate/extensions/hello.lua
@@ -816,9 +852,12 @@ end, "both")                   -- positional args (Lua has no kwargs)
 
 Errors never crash the editor: a failing chunk is reported as
 `extension <name>: LuaError: ...` and every registration it already made is
-rolled back automatically. Runtime errors raised inside a command, key or
-action callback are caught too and reported on the message line the same
-way, so a failing callback never takes the editor down.
+rolled back automatically. In the module-table style, a returned table
+missing the `setup` field is reported as
+`extension <name>: RuntimeError: extension module table has no setup(api) function ...`.
+Runtime errors raised inside a command, key or action callback are caught
+too and reported on the message line the same way, so a failing callback
+never takes the editor down.
 
 ### The `yate` API library
 
