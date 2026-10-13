@@ -216,7 +216,12 @@ class StatusBar(Static):
                 texts.append("!")
                 continue
             if value:
-                texts.append(value.replace("\r", " ").replace("\n", " "))
+                # Tabs too: rich's cell_len counts a tab as zero-wide while
+                # the renderer expands it to the next tab stop, so leaving
+                # one in would skew the width budget of both bar halves.
+                texts.append(
+                    value.replace("\t", " ").replace("\r", " ").replace("\n", " ")
+                )
         return texts
 
     def _lsp_segment(self, doc: Document) -> tuple[str, str]:

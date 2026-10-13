@@ -142,6 +142,17 @@ def _extension_api(hub: EventHub | None = None) -> ExtensionAPI:
     return ExtensionAPI(ctx, hub)
 
 
+def test_hub_unsubscribe_twice_is_safe_noop() -> None:
+    """Unsubscribing the same thunk twice does not raise (docstring promise)."""
+    hub = EventHub()
+    seen: list[object] = []
+    unsubscribe = hub.subscribe(EditorEvent.KEYMAP_CHANGED, _collector(seen))
+    unsubscribe()
+    unsubscribe()
+    assert seen == []
+    assert hub.listener_count(EditorEvent.KEYMAP_CHANGED) == 0
+
+
 def test_bridge_subscription_rolls_back_on_setup_failure() -> None:
     """A subscription made inside a failing setup scope is undone (A13)."""
     hub = EventHub()
@@ -187,6 +198,24 @@ def test_keymap_and_theme_events_fire() -> None:
             app.editor.set_theme("latte")
             assert [event.name for event in keymap_events] == ["vim"]
             assert len(theme_events) == 1
+
+    asyncio.run(scenario())
+
+
+def test_reselect_active_theme_no_event_but_message() -> None:
+    """Re-selecting the active theme emits no THEME_CHANGED (the Textual
+    reactive skips the same-value repaint, so listeners must not see a
+    change nothing re-rendered) but still confirms on the message line."""
+
+    async def scenario() -> None:
+        app = YateApp(keymap="vsc")
+        async with app.run_test(size=(100, 30)):
+            theme_events: list[object] = []
+            api = app.editor.extension_api
+            api.events.subscribe(EditorEvent.THEME_CHANGED, theme_events.append)
+            app.editor.set_theme("mocha")  # already active: guarded
+            assert theme_events == []
+            assert "theme: Catppuccin Mocha" in message_text(app)
 
     asyncio.run(scenario())
 

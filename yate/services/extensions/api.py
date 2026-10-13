@@ -192,6 +192,35 @@ class ExtensionAPI:
 
     # ------------------------------------------------------------- accessors
 
+    def _keymap_targets(self, keymap: str) -> list[str]:
+        """Resolve the *keymap* argument to the keymap names to touch.
+
+        ``both`` targets vsc and vim; the legacy ``normal`` alias means
+        ``vsc``.  Shared by :meth:`bind_key` / :meth:`bind_action` /
+        :meth:`unbind_key` (Lua callers pass the keymap positionally, so
+        all three need the identical resolution).
+        """
+        if keymap == "both":
+            return ["vsc", "vim"]
+        return ["vsc"] if keymap == "normal" else [keymap]
+
+    def _keymap_or_warn(self, target: str, caller: str) -> Keymap | None:
+        """The keymap *target*, or ``None`` after a warning naming it.
+
+        A misspelled keymap name used to bind nothing and stay silent
+        (S34); the warning lists the registered names so the typo is
+        visible in the trace log.
+        """
+        km = self._ctx.keymaps.get(target)
+        if km is None:
+            log.warning(
+                "%s: unknown keymap %r (available: %s)",
+                caller,
+                target,
+                ", ".join(self._ctx.keymaps.names()),
+            )
+        return km
+
     @property
     def app(self) -> ExtensionContext:
         """The host context (advanced use; prefer the narrow accessors)."""
@@ -319,21 +348,9 @@ class ExtensionAPI:
         """
 
         def _do(func: AnyCallback) -> AnyCallback:
-            if keymap == "both":
-                targets = ["vsc", "vim"]
-            else:
-                targets = ["vsc"] if keymap == "normal" else [keymap]
-            for target in targets:
-                km = self._ctx.keymaps.get(target)
+            for target in self._keymap_targets(keymap):
+                km = self._keymap_or_warn(target, "bind_key")
                 if km is None:
-                    # A misspelled keymap name used to bind nothing and stay
-                    # silent (S34); name the registered keymaps so the typo
-                    # is visible in the trace log.
-                    log.warning(
-                        "bind_key: unknown keymap %r (available: %s)",
-                        target,
-                        ", ".join(self._ctx.keymaps.names()),
-                    )
                     continue
                 raw = km.normalize_key(key_spec)
                 previous = km.lookup(raw)
@@ -391,18 +408,9 @@ class ExtensionAPI:
                 ", ".join(self._ctx.actions.names()),
             )
             return
-        if keymap == "both":
-            targets = ["vsc", "vim"]
-        else:
-            targets = ["vsc"] if keymap == "normal" else [keymap]
-        for target in targets:
-            km = self._ctx.keymaps.get(target)
+        for target in self._keymap_targets(keymap):
+            km = self._keymap_or_warn(target, "bind_action")
             if km is None:
-                log.warning(
-                    "bind_action: unknown keymap %r (available: %s)",
-                    target,
-                    ", ".join(self._ctx.keymaps.names()),
-                )
                 continue
             raw = km.normalize_key(key_spec)
             previous = km.lookup(raw)
@@ -436,19 +444,10 @@ class ExtensionAPI:
         reported as a warning).  A rollback scope records a restore thunk,
         so a failing ``setup`` brings the previous binding back (A13).
         """
-        if keymap == "both":
-            targets = ["vsc", "vim"]
-        else:
-            targets = ["vsc"] if keymap == "normal" else [keymap]
         removed = False
-        for target in targets:
-            km = self._ctx.keymaps.get(target)
+        for target in self._keymap_targets(keymap):
+            km = self._keymap_or_warn(target, "unbind_key")
             if km is None:
-                log.warning(
-                    "unbind_key: unknown keymap %r (available: %s)",
-                    target,
-                    ", ".join(self._ctx.keymaps.names()),
-                )
                 continue
             raw = km.normalize_key(key_spec)
             previous = km.lookup(raw)
@@ -501,7 +500,7 @@ class ExtensionAPI:
         """Show *text* on the message line."""
         self._ctx.message(text)
 
-    def shell(self, command: str) -> object:
+    def shell(self, command: str) -> ShellResult | None:
         """Run *command* synchronously without showing its output."""
         return self._ctx.run_shell(command, False)
 

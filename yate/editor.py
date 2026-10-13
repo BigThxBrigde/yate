@@ -845,11 +845,9 @@ class Editor:
     def set_theme(self, name: str) -> None:
         """Switch the active color theme (``mocha``, ``latte``, ...)."""
         name = name.strip().lower()
-        # Re-selecting the active theme is a no-op: the Textual reactive
-        # skips the same-value repaint, so emitting THEME_CHANGED would
-        # leave listeners out of sync with what actually re-rendered.
-        if name == theme.active().name:
-            return
+        # Capture before set_theme: afterwards active().name always equals
+        # *name*, so the re-select case is no longer distinguishable there.
+        reselected = name == theme.active().name
         try:
             selected = theme.set_theme(name)
         except KeyError:
@@ -872,7 +870,12 @@ class Editor:
                 return
         # The reactive watcher regenerates tokens and repaints every overlay.
         self.app.theme = textual_name
-        self.events.emit(EditorEvent.THEME_CHANGED, ThemeChanged(name))
+        # Re-selecting the active theme is a no-op at the Textual reactive
+        # (the same-value repaint is skipped), so the event is guarded to
+        # keep listeners in sync with what actually re-rendered; the
+        # confirmation message is emitted either way (pre-branch behavior).
+        if not reselected:
+            self.events.emit(EditorEvent.THEME_CHANGED, ThemeChanged(name))
         self.message(f"theme: {selected.label}", kind="ok")
 
     def set_readonly(self, value: bool) -> None:

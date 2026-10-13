@@ -31,6 +31,16 @@ log = tracing.get_logger(__name__)
 type TeardownHook = Callable[[ExtensionAPI], None]
 
 
+def _same_file(left: Path, right: Path) -> bool:
+    """Resolved-path equality; an unreadable path (``OSError``) counts as
+    distinct -- conservative for the shadowing report below, which then
+    still names the conflict instead of silently swallowing it."""
+    try:
+        return left.resolve() == right.resolve()
+    except OSError:
+        return False
+
+
 @dataclass
 class LoadedExtension:
     """Record of one extension discovered on disk.
@@ -252,7 +262,7 @@ def load_startup_extensions(
             if (
                 owner is not None
                 and record.error is None
-                and owner.path.resolve() != record.path.resolve()
+                and not _same_file(owner.path, record.path)
             ):
                 messages.append(
                     f"extension {record.name}: the rc-declared script "
