@@ -303,6 +303,157 @@ def test_teardown_global_extracted(
     assert "bye from hooks" in bundle.messages
 
 
+# --- module-table entry form (plan-e) ------------------------------------------
+
+
+_MODULE_OK_LUA: str = (
+    "local mod = {}\n"
+    "function mod.setup(a)\n"
+    "  a.register_command('mod-echo', function() end)\n"
+    "  a.message('mod setup ran')\n"
+    "end\n"
+    "function mod.teardown(a)\n"
+    "  a.message('mod bye')\n"
+    "end\n"
+    "return mod\n"
+)
+_MODULE_NO_SETUP_LUA: str = "local mod = { version = 1 }\nreturn mod\n"
+_MODULE_SETUP_BOOM_LUA: str = (
+    "local mod = {}\n"
+    "function mod.setup(a)\n"
+    "  a.register_command('mod-boom', function() end)\n"
+    "  error('mod setup boom')\n"
+    "end\n"
+    "return mod\n"
+)
+_MODULE_WINS_OVER_GLOBAL_LUA: str = (
+    "function setup(a)\n"
+    "  a.message('global setup ran')\n"
+    "end\n"
+    "local mod = {}\n"
+    "function mod.setup(a)\n"
+    "  a.message('mod setup ran')\n"
+    "end\n"
+    "function mod.teardown(a)\n"
+    "  a.message('mod bye')\n"
+    "end\n"
+    "return mod\n"
+)
+_MODULE_TEARDOWN_WINS_LUA: str = (
+    "teardown = function(a)\n"
+    "  a.message('global bye')\n"
+    "end\n"
+    "local mod = {}\n"
+    "function mod.setup(a) end\n"
+    "function mod.teardown(a)\n"
+    "  a.message('mod bye')\n"
+    "end\n"
+    "return mod\n"
+)
+# A non-table return (``return`` must close a Lua block, so the setup
+# global is defined first) falls back to the global/top-level semantics.
+_NON_TABLE_RETURN_LUA: str = (
+    "function setup(a)\n"
+    "  a.message('global setup ran')\n"
+    "end\n"
+    "return 42\n"
+)
+
+
+@requires_lupa
+def test_lua_module_table_setup_and_teardown_full_cycle(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A returned module table's setup(api) runs and teardown is extracted."""
+    script = tmp_path / "mod.lua"
+    script.write_text(_MODULE_OK_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "mod setup ran" in bundle.messages
+    assert bundle.commands.get("mod-echo") is not None
+    assert record.teardown is not None
+
+    loader.teardown_all()
+    assert "mod bye" in bundle.messages
+
+
+@requires_lupa
+def test_lua_module_table_without_setup_is_a_loud_error(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A returned table without a callable setup is a loud authoring error."""
+    script = tmp_path / "nosetup.lua"
+    script.write_text(_MODULE_NO_SETUP_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "no setup(api) function" in record.error
+    assert record.teardown is None
+
+
+@requires_lupa
+def test_lua_module_table_setup_failure_rolls_back(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A failing mod.setup records the error and undoes its registrations."""
+    script = tmp_path / "modboom.lua"
+    script.write_text(_MODULE_SETUP_BOOM_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "LuaError" in record.error
+    assert bundle.commands.get("mod-boom") is None
+
+
+@requires_lupa
+def test_lua_module_table_takes_precedence_over_global_setup(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """When both exist, the returned table's setup wins over the global."""
+    script = tmp_path / "both.lua"
+    script.write_text(_MODULE_WINS_OVER_GLOBAL_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "mod setup ran" in bundle.messages
+    assert "global setup ran" not in bundle.messages
+
+
+@requires_lupa
+def test_lua_module_teardown_takes_precedence_over_global(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """When both exist, mod.teardown wins over the global teardown."""
+    script = tmp_path / "bothteardown.lua"
+    script.write_text(_MODULE_TEARDOWN_WINS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    loader.teardown_all()
+    assert "mod bye" in bundle.messages
+    assert "global bye" not in bundle.messages
+
+
+@requires_lupa
+def test_lua_non_table_return_falls_back_to_global_setup(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A non-table return value ignores the module contract entirely."""
+    script = tmp_path / "numret.lua"
+    script.write_text(_NON_TABLE_RETURN_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "global setup ran" in bundle.messages
+
+
 # --- package layout (no lupa needed) ------------------------------------------
 
 

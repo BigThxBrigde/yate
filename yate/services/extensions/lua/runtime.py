@@ -18,10 +18,10 @@ Shape of the bridge (the library itself lives in
   ``assert(load(source, chunkname))`` and publishes the returned module
   table as ``package.preload["yate"]`` plus the global ``yate``;
 * :func:`run_extension` executes a user chunk and mirrors the Python hook
-  model: an explicit global ``setup(api)`` is called with the runtime's
-  ``api`` global after the chunk's top level has run, while a chunk
-  without one keeps the legacy "top-level code *is* the setup" behavior;
-  the chunk's global ``teardown`` function is returned when it defined one.
+  model across three entry forms, in precedence order: a returned module
+  table (``local mod = {} ... return mod`` with ``mod.setup(api)``), an
+  explicit global ``setup(api)``, or the legacy top-level-is-setup chunk;
+  the unload hook comes from ``mod.teardown`` or the global ``teardown``.
 
 The ``api`` parameter is typed ``object`` on purpose: this module never
 calls into it (only Lua code consumes it), so ``object`` is the precise
@@ -103,26 +103,48 @@ def run_extension(
 ) -> Callable[[object], None] | None:
     """Execute a user chunk, mirroring the Python setup/teardown hook model.
 
-    An explicit global ``setup(api)`` is called with the runtime's ``api``
-    global after the chunk's top level has run; the loader's rollback scope
-    covers the call, so a failing setup undoes its registrations.  A chunk
-    that defines no ``setup`` global keeps the legacy behavior where the
-    top-level code *is* the setup (byte-for-byte identical to the
-    pre-mirror semantics).  Returns the chunk's global ``teardown``
-    function when it defined a callable one, else ``None``.  Stale
-    ``setup`` / ``teardown`` globals are dropped before the chunk runs, so
-    the extraction only ever sees what *this* chunk defined.  A failing
-    chunk or setup raises the original :class:`lupa.LuaError`; the loader
-    records it on the extension record.
+    Entry forms, in precedence order (first match wins):
+
+    1. The chunk returns a table -- the module-table contract: its callable
+       ``setup`` is called with the runtime's ``api`` global and its
+       callable ``teardown`` becomes the unload hook.  A returned table
+       without a callable ``setup`` is a loud authoring error (returning a
+       table signals module intent, so a missing setup is a typo, not a
+       reason to fall back silently).
+    2. A callable global ``setup`` -- called with the ``api`` global after
+       the top level has run.
+    3. No setup anywhere -- the legacy behavior where the top-level code
+       *is* the setup.
+
+    The loader's rollback scope covers the setup call, so a failing setup
+    undoes its registrations.  Stale ``setup`` / ``teardown`` globals are
+    dropped before the chunk runs, so the extraction only ever sees what
+    *this* chunk defined.  A failing chunk or setup raises the original
+    :class:`lupa.LuaError`; the loader records it on the extension record.
     """
     runtime.execute("teardown = nil; setup = nil")  # a previous chunk must not leak its hooks
     chunk = _compile_chunk(runtime, source, _EXTENSION_CHUNK_NAME)
-    chunk()
-    setup: Any = runtime.eval("setup")  # noqa: Any - lupa ships no stubs
+    module: Any = chunk()  # noqa: Any - lupa ships no stubs
+    # Table detection via a Lua-side helper: nil, numbers, strings and
+    # wrapped Python objects all read as non-tables, so only a real Lua
+    # table enters the module contract.
+    is_table = runtime.eval("function(v) return type(v) == 'table' end")
+    setup: Any  # noqa: Any - lupa ships no stubs
+    teardown: Any  # noqa: Any - lupa ships no stubs
+    if is_table(module):
+        setup = module.setup
+        teardown = module.teardown
+        if not callable(setup):
+            raise RuntimeError(
+                "extension module table has no setup(api) function; "
+                "define mod.setup(api) or drop the return value"
+            )
+    else:
+        setup = runtime.eval("setup")
+        teardown = runtime.eval("teardown")
     if callable(setup):
         api: Any = runtime.eval("api")  # noqa: Any - lupa ships no stubs
         setup(api)
-    teardown: Any = runtime.eval("teardown")  # noqa: Any - lupa ships no stubs
     if callable(teardown):
         return cast(Callable[[object], None], teardown)
     return None

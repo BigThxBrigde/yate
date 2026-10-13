@@ -160,7 +160,7 @@ class ExtensionLoader:
         return record
 
     def _load_lua(self, path: Path) -> LoadedExtension:
-        """Load a ``.lua`` extension (top-level setup, or explicit ``setup(api)``).
+        """Load a ``.lua`` extension (module table, explicit or top-level setup).
 
         Mirrors the Python branch (rollback scope A13; errors recorded,
         never raised); without ``lupa`` the record gets an install hint.
