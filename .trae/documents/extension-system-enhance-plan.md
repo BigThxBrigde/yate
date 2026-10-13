@@ -116,11 +116,82 @@ flowchart TD
 
 ## 八、A18 复核结论（收尾回填）
 
-待填：L3 装配摩擦实测（OverlayFlows/DocumentFlows 参数计数）、接入文档
-（architecture-boundaries §三.8 六步清单）现状判定。
+**装配摩擦实测**（2026-10-13，本分支落地后）：
+
+- `DocumentFlows.__init__` 13 参、`LspSync.__init__` 10 参——本轮各新增
+  1 个 `events: EventHub` 协作者，接入成本实测为：editor.py 声明类属性
+  1 行 + `_build_models`/`_build_widgets` 构造实参 1 行 + 流程模块
+  `__init__` 形参与赋值 2 行，共约 4 行/协作者；构造点集中在
+  `_build_*` 工厂内，pyright 在接线处推导完整签名，无字符串查找、
+  无运行期装配失败面。摩擦可控，维持构造注入现状（共享 context
+  类型仍被架构规则 §三.1 红线禁止，不动）。
+- 本轮两个新能力（events/ui）走的是 `services/*` 桥路线而非新增
+  flows 模块，未触发架构规则 §三.8 清单第 5 步（`UI_FROZEN_FILES`
+  登记）；六步清单本身无需修订。
+- `test_flow_modules_hold_no_app_handle`（守卫 #22）对本轮改动的
+  `document_flows.py` / `lsp_sync.py` 持续通过，流程模块仍零 App 句柄。
+
+**结论**：A18 清单与现状匹配，无需改规则；后续 STEP 若新增 flows
+模块，照 §三.8 六步办理即可。
 
 ## 九、审核与迭代记录（收尾回填）
 
-- code-review-expert 各轮结论与修复：待填
-- pr-review（.trae/skills/pr-review）结论与修复：待填
-- 偏离记录：待填
+### 9.1 code-review-expert（第一轮，分支整体 diff）
+
+结论：**无 blocker；1 major + 3 minor + 4 nit**，全部修复于 bd702a8：
+
+| # | 级别 | 发现 | 处置 |
+|---|---|---|---|
+| 1 | major | `DiagnosticsUpdated` 载荷语义失实：publish 面向任意打开文档（后台窗格文件也有），原实现绑"活动文档" | `LspManager.EventHook` 签名加 `doc` 参数（state 事件恒 None、diagnostics 带归属文档）；`lsp_sync` 仅在 doc 已知时 emit；测试钩子同步 |
+| 2 | minor | `DOCUMENT_OPENED` 晚于 `DOCUMENT_ACTIVATED`（生命周期倒挂） | `_open_document` 与 `_open_document_async` 均改为 OPENED 先于 `activate_doc` |
+| 3 | minor | 手册对 Lua 可达 `api.*` 全导出面的表述失实 | 文档改为 Python-only 表述；不加 `_yate.lua` 导出面（避免 scope 蔓延） |
+| 4 | minor | 新增文件错误路径无测试 | `library.py` 两错误路径（find_spec 异常→False、资源不可读→RuntimeError）与 `statusbar.py` `ui is None` 早退分支各补测试 |
+| 5 | nit | 左扩展段 bold 与右侧不一致 | 移除（顺带重 snapshot 冒烟基线，见 9.4 偏离 5） |
+| 6 | nit | `StatusSegment.align` 裸 Literal | 收敛为 PEP 695 `type SegmentAlign = Literal["left", "right"]` |
+| 7 | nit | `DocumentClosed.docs` 用 list | 冻结 dataclass 内改 `tuple[Document, ...]` |
+| 8 | nit | runtime.py chunkname 常量的 quote-free 不变量无注释 | 补注释 |
+
+### 9.2 pr-review（第二轮，`.trae/skills/pr-review`）
+
+结论：**APPROVE**（六维度评审 + 硬门禁实测：pyright 0 诊断、pytest
+全绿、架构测试 29 passed、smoke compare 112/112）。2 个 MINOR 修复于
+bbfe1b6：
+
+- `events.py` 枚举 docstring 的 DIAGNOSTICS_UPDATED 措辞未随 9.1 #1
+  修复同步——对齐为"载荷携带诊断实际归属的文档"；
+- 手册 §4.11 缺 provider 成本提示（拉取模型每次刷新调用 provider）——
+  en/zh 双语补"保持 provider 轻量，重活放事件监听器"。
+
+评审记录在案不动：`lsp_sync` 对未知 uri 的 publish 跳过
+`update_echo`（有意为之，docstring 已注明）；状态栏左段超宽由
+Textual 裁剪、不崩溃（对抗性长文本场景，暂不加宽度上限，后续
+STEP 可评估截断）。
+
+### 9.3 门禁终值
+
+pyright 0 诊断；pytest 全绿（唯一失败
+`test_shell.py::test_run_shell_timeout_kills_the_grandchild_process`
+为 Windows 进程树时序 flake，与本分支无关，复跑通过）；架构测试
+29 passed；覆盖率 91.90%（门 75）；smoke run/compare 112 场景
+1352 检查全过。
+
+### 9.4 偏离记录（对照子计划）
+
+1. **smoke 工具路径**：plan-d 写 `tools/smoke_test.py` 单文件与
+   `tools/smoke_baselines/`，实际为 `tools/smoke_test/` 包（场景在
+   `scenarios/modules.py`）与 `tools/smoke_test/smoke_baselines/`——
+   按实际路径执行。
+2. **CHANGELOG**：plan-d 原定手改 `CHANGELOG.md`，但文件头声明
+   "do not edit by hand" 且生成器支持 `[Unreleased]` 自动段——改为
+   收尾时 `python -m tools.changelog generate` + `zh-commit` 补
+   本分支 8 个提交的中文翻译。
+3. **手册 §3 忠实性修正**：en/zh 手册既有"setup 失败不回滚"表述与
+   已实施的 A13 回滚相反，随 plan-d 顺带修正（超出 plan-d 文件
+   清单，属既有文档纠错）。
+4. **提交切分**：§七原列 6 项，实际 9 个提交（+评审修复 bd702a8、
+   pr-review 修复 bbfe1b6、收尾 CHANGELOG/文档回填），粒度更细、
+   语义不变。
+5. **状态栏基线重 snapshot**：评审修复移除左段 bold 后按预案重跑
+   `snapshot --scenario extension_status_segment`；实测 SVG 行不在
+   默认基线（`--svg` 显式开启才入基线），基线 JSON 零漂移，
+   compare 112/112 验证。

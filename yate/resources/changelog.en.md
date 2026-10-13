@@ -1,6 +1,91 @@
 # Changelog
 
-> Generated from the git history on 2026-10-10 · yate 0.2.11
+> Generated from the git history on 2026-10-13 · yate 0.2.11
+
+## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.11...HEAD)
+
+### Features
+
+- add status segment contribution point ([`943cc49`](https://gitee.com/jermaine/yate/commit/943cc49c60e008f5cbde4a6eaf6411eff6c95971))
+- add extension event subscription system ([`70cf103`](https://gitee.com/jermaine/yate/commit/70cf10354552b3fabd4607d7827f3c3e5e5aed04))
+- ship lua api library and lua.example template ([`929e743`](https://gitee.com/jermaine/yate/commit/929e7436021ffd04ff1cc8c39163b68077633e4c))
+- discover and load .lua extension scripts ([`50244e1`](https://gitee.com/jermaine/yate/commit/50244e11f889a61c2056ff460aaad40c2538fcd1))
+- add lupa-backed lua runtime bridge ([`7e19678`](https://gitee.com/jermaine/yate/commit/7e1967838e9b711603888419dc5c4ccb68e74aea))
+
+### Bug Fixes
+
+- apply code-review fixes to the extension wave ([`bd702a8`](https://gitee.com/jermaine/yate/commit/bd702a8cc4bb10008942701f7ad2d7ee1e7c63fc))
+- cover tab-bar refit branch and align review round-1 notes ([`0cc63a7`](https://gitee.com/jermaine/yate/commit/0cc63a70eaa8fdce0c53b8599cf4bd28f2080c5c))
+- add smoke test timeout to pack scripts ([`d7fd949`](https://gitee.com/jermaine/yate/commit/d7fd949cba464904cbf091befb88f81d6554f28b))
+- guard teardown, notify lsp state, weakref cache, tab overflow ([`a01ef20`](https://gitee.com/jermaine/yate/commit/a01ef200dabdf472cfd7bf4f28a5aa5e9776d6b3))
+- harden buffer, keymap, terminal, lsp parsing and langdefs seams ([`315e278`](https://gitee.com/jermaine/yate/commit/315e278643de6fb8bdebbc2eb1d70deb62efe0a7))
+- bound cell-width memo cache with lru_cache ([`534b53d`](https://gitee.com/jermaine/yate/commit/534b53d41749024aec4d4b32e624b042a5c18ba4))
+- poll for async open in explorer new-file test ([`c458165`](https://gitee.com/jermaine/yate/commit/c458165a3f1e4a54590a99300985cf6a994700db))
+- guard extension callbacks so runtime errors report ([`9c10332`](https://gitee.com/jermaine/yate/commit/9c103328470ca16ab5a601ed61e925f6e8fed2ed))
+- default the lua bind_key keymap to vsc ([`090eaea`](https://gitee.com/jermaine/yate/commit/090eaeaf0eece24a2ef12a21dc6c28ca878abf06))
+- install all bundled *.example templates ([`8ebe7ee`](https://gitee.com/jermaine/yate/commit/8ebe7ee52bc758ef5d35dff8f1fe51410d325b42))
+- wait for pane reconcile in vsplit/only test ([`9897183`](https://gitee.com/jermaine/yate/commit/98971831fbad4c3dce7c7d5d5285aa3e537b4b48))
+
+### Performance
+
+- pre-lower fuzzy entries, stop re-lowering per keystroke ([`dbdf8cf`](https://gitee.com/jermaine/yate/commit/dbdf8cf6e8ce2a54dc35057dea50b255e3eaac42))
+- cut per-frame char->cell remapping to one prefix pass ([`e1181f8`](https://gitee.com/jermaine/yate/commit/e1181f8a22a0b9321378b6387a607b6d0076a756))
+
+### Refactors
+
+- split lua bridge into package and mirror setup hooks ([`dd0ca92`](https://gitee.com/jermaine/yate/commit/dd0ca9263eb06d0ba13937aaefef68463a848740))
+- restore elif chain in refilter scoring ([`899407e`](https://gitee.com/jermaine/yate/commit/899407e943a91ac39462cb34a2903fb9ba06d182))
+- split service into api, bridges and loader modules ([`1c1644f`](https://gitee.com/jermaine/yate/commit/1c1644ffe45d7817deb9c563d7b2aec682797404))
+- rewrite relative imports as absolute imports ([`b44dd86`](https://gitee.com/jermaine/yate/commit/b44dd86506bbf507ad3f7f1276fd3ee1ea4ec748))
+- rewrite relative imports as absolute imports ([`dd68645`](https://gitee.com/jermaine/yate/commit/dd68645686072d7b950538818ea1d91ccf1ec19d))
+
+### Documentation
+
+- sync diagnostics wording and provider cost guidance ([`bbfe1b6`](https://gitee.com/jermaine/yate/commit/bbfe1b6a24befb7228496bcdfb4f6738f7bd250e))
+- document events, status segments and lua hooks ([`0cfbb2b`](https://gitee.com/jermaine/yate/commit/0cfbb2b4f2254738dea0fb58e38f88c12f5ccdb0))
+- add extension-system-enhance plan for gitee issue IKK4K6 ([`adedd85`](https://gitee.com/jermaine/yate/commit/adedd85a3d43e8f2ec6bc370b8f163e314a7a180))
+- register review rounds and final gate results ([`3b6f730`](https://gitee.com/jermaine/yate/commit/3b6f7309e2a9f4007ae781547aa68c9e706ea293))
+- backfill split-module-tests execution records ([`598e1de`](https://gitee.com/jermaine/yate/commit/598e1de88d4859fc4ae8c32b97a80d5f81a695ab))
+- add split-module-tests plan for gitee issue IKKS9X ([`b56c008`](https://gitee.com/jermaine/yate/commit/b56c008865ea87f7575ccb6132a8419324adfdae))
+- backfill full-review-fixes results ([`dc4d42f`](https://gitee.com/jermaine/yate/commit/dc4d42f37e630b8f56e12f2eae55190fd1ea53a0))
+- add full-review-fixes plan for gitee issue IKL6N5 ([`62c1a83`](https://gitee.com/jermaine/yate/commit/62c1a839b8a1606817e83302201256501c96d711))
+- link fix plan from 2026-10-12 full review record ([`c964b95`](https://gitee.com/jermaine/yate/commit/c964b95e0f46e0f9b2c874a018fe6569707bd1eb))
+- backfill perf review fix results, close index #41 ([`4b7442c`](https://gitee.com/jermaine/yate/commit/4b7442ca16b6ca2b1e623772cc8bae5e870fba89))
+- record perf branch pre-review with fix plan ([`d123e06`](https://gitee.com/jermaine/yate/commit/d123e06fcd0017365dfa760c2dbb6d839eb99ad5))
+- update review index .trae/reviews/README.md. ([`4342b2c`](https://gitee.com/jermaine/yate/commit/4342b2c85114974a37e87a8d989b761bffda0be1))
+- generate full review report ([`0332677`](https://gitee.com/jermaine/yate/commit/03326778d2eba8475877ee29eeab7ff1af3042c6))
+- backfill perf-profiling results and review verdict ([`090c5e9`](https://gitee.com/jermaine/yate/commit/090c5e9dc5c698ae235ee26d6586034a89ab997c))
+- add perf-profiling plan for issue IKKSHY ([`36535a1`](https://gitee.com/jermaine/yate/commit/36535a1f24c75343153040e589da298aa2816bf0))
+- add pr-review skill modeled on Gitee PR review bot ([`59eb7fc`](https://gitee.com/jermaine/yate/commit/59eb7fc148d8cfd979c6b3159cd3c409778e0d2a))
+- record lua english-comment round re-review ([`d05cfeb`](https://gitee.com/jermaine/yate/commit/d05cfeb3cd724d50e655f7dd6684d50741d7a6a5))
+- document the callback error guard in lua assets ([`43d8b15`](https://gitee.com/jermaine/yate/commit/43d8b155d024edb31fcbed3a071fb0f0e0818398))
+- translate lua library and example comments to english ([`3966fed`](https://gitee.com/jermaine/yate/commit/3966fed927c46a5d708f68541fbfbfb695b1b53b))
+- mandate english for code comments and in-code docs ([`eeb6134`](https://gitee.com/jermaine/yate/commit/eeb6134f3a7b6384237ebdb6fd9ca924728382e5))
+- backfill extensions-split execution results ([`7b6a331`](https://gitee.com/jermaine/yate/commit/7b6a331177bdf16616249616d3c0fdfd05d506d7))
+- add extensions-split plan ([`780d537`](https://gitee.com/jermaine/yate/commit/780d53799616e72b4115e7ee30c94cec4aacdc0a))
+- backfill lua-extensions execution results ([`4c71f07`](https://gitee.com/jermaine/yate/commit/4c71f07742b2c9391f40871069cbc58c87cdf0ad))
+- note lua records keep module unset ([`85cb918`](https://gitee.com/jermaine/yate/commit/85cb918412a6d90cba8b572a732158ef7bc80b45))
+- document lua extension support (bilingual) ([`ef38198`](https://gitee.com/jermaine/yate/commit/ef38198088f239ef61b0ca8f56579a27cc7393ee))
+- add lua-extensions plan for issue IKKS1D ([`135747a`](https://gitee.com/jermaine/yate/commit/135747a94a4fe9a798eb9decfe93cf83a0744ff4))
+- fix open-api union wording and plan doc link levels ([`ca68277`](https://gitee.com/jermaine/yate/commit/ca68277e3bde30dbecd8ee2ba78f171af0c08588))
+- backfill execution results for abs-import-api-style ([`efedbe9`](https://gitee.com/jermaine/yate/commit/efedbe9b6916a1c384bedf2fd5214a907f62c3d6))
+- add abs-import-api-style plan for issue IKKS4C ([`199e3d0`](https://gitee.com/jermaine/yate/commit/199e3d0077fa1baae0e4aa587978c99f2e746d9d))
+
+### Tests
+
+- cover the status segment contribution point ([`b688a34`](https://gitee.com/jermaine/yate/commit/b688a34952a50a7559ffc75356cc42447a41971d))
+- harden scenario cleanup and registry fixtures ([`a019d86`](https://gitee.com/jermaine/yate/commit/a019d867891e735d1898593c0b240ab0da04db21))
+- add extension and custom theme scenarios ([`0bc0434`](https://gitee.com/jermaine/yate/commit/0bc04347ec604fb19a0afcd1cd94ea207cd09633))
+- add unit tests for extracted submodules ([`6de3954`](https://gitee.com/jermaine/yate/commit/6de395472cbc4020b01b718f7b108461ac531149))
+- assert example template scan completeness ([`b0f4791`](https://gitee.com/jermaine/yate/commit/b0f47912f7271354112e7d3f563e20149db0790c))
+- keep source scan aligned with lua extension templates ([`bd59115`](https://gitee.com/jermaine/yate/commit/bd5911553518987abea7cdda4053afbcf2a2f6c9))
+- cover lua extension loading ([`92dd3e1`](https://gitee.com/jermaine/yate/commit/92dd3e19a65517644d72311c9ccecd6d05d24193))
+
+### Tooling
+
+- register langdefs.py size exemption at 813 lines ([`1f4469c`](https://gitee.com/jermaine/yate/commit/1f4469c92467331ccf3e0ca059ec4b706438bdfe))
+- add optional lua extra with lupa ([`43c5578`](https://gitee.com/jermaine/yate/commit/43c5578f0458548f5ea84d5bd5e74a207e492953))
+- ban relative imports and codify open-api naming ([`6abd1db`](https://gitee.com/jermaine/yate/commit/6abd1db20ee694f46c6ab56491cc952b22b74f50))
 
 ## [0.2.11] - 2026-10-10 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.10...v0.2.11)
 

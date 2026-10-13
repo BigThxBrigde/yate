@@ -145,6 +145,10 @@
   "0ad1fdb": {
     "summary": "未知按键取消操作符并接受数字参数"
   },
+  "0cfbb2b": {
+    "summary": "扩展手册补事件订阅与状态栏段章节（中英双语）",
+    "detail": "§4.10 事件表与派发契约、§4.11 StatusSegment 用法；§3 改为 A13 回滚保证表述；§6 Lua 两种 setup 风格与 EmmyLua 注解说明；示例模板同步"
+  },
   "0cff320": {
     "summary": "提取文档生命周期 flow"
   },
@@ -1154,6 +1158,10 @@
   "704a773": {
     "summary": "将 PR 51 机器人评审登记为评审记录"
   },
+  "70cf103": {
+    "summary": "新增扩展事件订阅系统（EventHub 与 api.events 桥）",
+    "detail": "EditorEvent 枚举 + 冻结载荷 + 同步同线程按序派发；监听器隔离；A13 回滚覆盖订阅；save/open/close/activate/keymap/theme 挂点"
+  },
   "714183b": {
     "summary": "在收集与写入之间英文源被删时保持存活"
   },
@@ -1522,6 +1530,10 @@
   "942821a": {
     "summary": "规则要求子代理并行执行且上限五个"
   },
+  "943cc49": {
+    "summary": "新增状态栏段贡献点（api.ui）",
+    "detail": "拉取式注册表：左右两半按 (-priority, 顺序) 排序；None/空串隐藏、异常 provider 降级为 ! 占位；StatusBar 自持绘制（R13）；ui=None 保持独立构造可用"
+  },
   "944c0a5": {
     "summary": "覆盖只读缓冲区、命令与启动 flow"
   },
@@ -1735,6 +1747,10 @@
   "adae5f7": {
     "summary": "忽略 pyenv 本地配置 .python-version"
   },
+  "adedd85": {
+    "summary": "扩展系统增强（Gitee IKK4K6 STEP 1）主计划与子计划落盘",
+    "detail": "事件订阅 / Lua 桥分包 / 状态栏段 / 文档与冒烟四波方案与总纲"
+  },
   "adfbc9c": {
     "summary": "冒烟测试基线目录迁入 smoke_test 包内"
   },
@@ -1818,6 +1834,10 @@
   "b63ebb8": {
     "summary": "新增 vim 文本对象 iw/aw、配对、引号与标签"
   },
+  "b688a34": {
+    "summary": "冒烟覆盖状态栏段贡献点",
+    "detail": "ext_seg.py 场景：setup 内注册左右段、:seg-off 移除；快照基线 extension_status_segment"
+  },
   "b6d1071": {
     "summary": "新增 yate --diag 诊断命令并扩展 --version 输出"
   },
@@ -1856,6 +1876,10 @@
     "summary": "修复补全弹窗吞掉按键：其余键正常分发，可继续输入过滤候选",
     "detail": "弹窗打开时仅消费 tab/enter/up/down/esc，字符照常写入缓冲区并按新前缀重新查询；Ctrl+S / Ctrl+Z 等全局快捷键恢复；新增测试与冒烟守卫（原场景此前恒真）"
   },
+  "bbfe1b6": {
+    "summary": "同步诊断事件措辞与 provider 成本提示（中英手册）",
+    "detail": "DIAGNOSTICS_UPDATED 枚举 docstring 对齐载荷语义；手册提醒状态栏 provider 随刷新反复执行，重活放进事件监听器"
+  },
   "bc97f7e": {
     "summary": "回填评审与计划文档中的已执行状态"
   },
@@ -1870,6 +1894,10 @@
   },
   "bd3147a": {
     "summary": "DiffScreen 新增带窗格与编辑模式的 diff 视图"
+  },
+  "bd702a8": {
+    "summary": "落地扩展波次代码评审修复",
+    "detail": "诊断载荷归属其文档（LSP 钩子带 doc）；OPENED 先于 ACTIVATED；DocumentClosed.docs 冻结为 tuple；StatusSegment.align 收敛为 Literal；左段去掉 bold 保持两侧一致；补 Lua 探测/资源不可读/无桥渲染测试"
   },
   "be243e9": {
     "summary": "使文档与引擎实际行为对齐"
@@ -2170,6 +2198,10 @@
   },
   "dcf1f72": {
     "summary": "文档说明统一的跨平台打包布局"
+  },
+  "dd0ca92": {
+    "summary": "Lua 桥拆分为包并镜像 setup/teardown 钩子",
+    "detail": "lua_extensions 拆为 library（轻：探测与库源）+ runtime（重：运行时与钩子）；显式 setup(api) 在顶层之后调用，顶层即 setup 兼容保留；全局 teardown(api) 提取"
   },
   "dd47be0": {
     "summary": "覆盖会话级只读、saveas 与保存守护"
