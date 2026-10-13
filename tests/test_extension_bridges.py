@@ -288,6 +288,19 @@ def test_theme_bridge_set_forwards_and_active_reads_back() -> None:
     assert api.theme.active() == "mocha"
 
 
+def test_theme_bridge_set_propagates_unknown_theme() -> None:
+    """``set`` raises straight through (unlike the clipboard's degrade path)."""
+    def unknown_theme(name: str) -> None:
+        raise KeyError(f"unknown theme: {name!r}")
+
+    api = _api_with_callbacks(
+        run_action=lambda _name: False, set_theme=unknown_theme
+    )
+
+    with pytest.raises(KeyError):
+        api.theme.set("nope")
+
+
 # --- ClipboardExtensionBridge ---------------------------------------------------
 
 
