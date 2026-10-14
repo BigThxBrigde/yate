@@ -74,11 +74,13 @@
 - 冲突策略：目标文件已存在且不属于同名包 → 拒绝安装（列出冲突文件）。
   同名重装即升级：覆盖自家文件，并删除「旧记录有、新 manifest 无」的
   过时文件。
-- 卸载严格按记录删文件（缺失容忍并上报），再删记录；未知名字报错。
+- 卸载严格按记录删文件（缺失容忍并上报），再删记录；名字先过
+  `NAME_RE` 校验（防穿越），未知名字报错。
 - 列表读全部记录，按名字排序；损坏记录以 `error` 字段呈现而非整体
   失败。
-- 失败回滚：提取中途失败时删除已写文件、不落记录，旧安装不受影响；
-  记录只在全部载荷落盘后写入。
+- 失败回滚：首个文件落盘后任何一步失败（提取中途或写记录时）都精确
+  还原旧安装——被覆盖的自家文件恢复旧内容、刚清理的过时文件回填、
+  新增文件删除，然后才报错；记录只在全部载荷落盘后写入。
 
 ### 4.3 分层
 
@@ -199,6 +201,22 @@ pr-review 两轮：第 1 轮 2 项发现（`.gitignore` 吞掉示例 manifest、
 示例文件名不一致）均已修复提交（391ed4e）；第 2 轮复扫无 BLOCKER/MAJOR，
 仅 2 条可延后 MINOR（记录写入失败的恢复路径、`--create` 提示行路径分隔
 符），不阻塞。
+
+pr-review 第三轮（2026-10-15，用户指示 MINOR 也不延后）逐项处置：
+
+| 级别 | 位置 | 发现 | 处置 |
+|---|---|---|---|
+| MAJOR | `yate/services/yxp.py` `_extract_payload` | 升级提取中途失败时，回滚会把已被覆写的自家旧版文件一并删除，违背「旧安装不受影响」承诺 | 覆写前缓存旧字节（`_rollback_files` / `_restore_stale_files`）；提取失败与写记录失败两条路径都精确还原旧安装（覆盖恢复 + 过时回填 + 新增删除），docstring 同步改写 |
+| MINOR | `yate/services/yxp.py` `uninstall_package` | 包名未校验，记录路径可被 `..` 穿越（实际删除仍受记录约束，无攻击边界） | 名字先过 `NAME_RE`；新增 4 参数化用例 |
+| MINOR | `tools/yxp/cli.py` `build_package` | 打包默认 ZIP_STORED 不压缩 | 改 `ZIP_DEFLATED`；新增用例断言压缩生效 |
+| MINOR | `tools/yxp/cli.py` `build_package` | 载荷读取 `OSError` 以裸 traceback 逃逸且残留半成品档案 | 转 `YxpError` 并删除半成品输出；新增用例 |
+| MINOR | `tools/yxp/cli.py` `_run_create` | `--create` 提示行在 Windows 打印反斜杠路径 | `as_posix()` 输出；新增用例 |
+| MINOR | `tools/yxp/cli.py` `create_scaffold`（本轮测试发现） | `--create . --force` 会 `rmtree` 父目录（`.` 可通过 `NAME_RE`） | 显式拒绝 `.` / `..`；新增 2 参数化用例（`--force` 下 precious 文件保全） |
+
+第 2 轮延后的 2 条 MINOR（记录写入失败恢复路径、提示行路径分隔符）已随
+本轮全部修复。修复后门禁复测：pyright 0 errors（exit 0）；
+`pytest tests/ -q` 全绿（exit 0；test_yxp.py 增至 55、test_tools_yxp.py
+增至 23 用例）。
 
 ## 9. 偏离记录
 
