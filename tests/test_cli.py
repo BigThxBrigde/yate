@@ -172,10 +172,11 @@ def test_main_installs_and_lists_extension_packages(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"print('hi')\n"})
-    assert main(["--install-extension", str(pkg)]) == 0
-    out = capsys.readouterr().out
-    assert "installed hello 1.0.0" in out
-    assert main(["--list-extensions"]) == 0
+    with patch("yate.logs.crash.install"):
+        assert main(["--install-extension", str(pkg)]) == 0
+        out = capsys.readouterr().out
+        assert "installed hello 1.0.0" in out
+        assert main(["--list-extensions"]) == 0
     assert "hello 1.0.0" in capsys.readouterr().out
     # The isolated-home fixture points ~/.yate at a temp dir.
     assert (Path.home() / ".yate" / "extensions" / "hello.py").exists()
@@ -185,9 +186,10 @@ def test_main_uninstall_extension_package(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
-    main(["--install-extension", str(pkg)])
-    capsys.readouterr()
-    assert main(["--uninstall-extension", "hello"]) == 0
+    with patch("yate.logs.crash.install"):
+        main(["--install-extension", str(pkg)])
+        capsys.readouterr()
+        assert main(["--uninstall-extension", "hello"]) == 0
     assert "removed hello" in capsys.readouterr().out
     assert not (Path.home() / ".yate" / "extensions" / "hello.py").exists()
 
@@ -196,7 +198,8 @@ def test_main_install_extension_failure_exit_code(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     missing = Path.home() / "missing.yxp"
-    assert main(["--install-extension", str(missing)]) == 1
+    with patch("yate.logs.crash.install"):
+        assert main(["--install-extension", str(missing)]) == 1
     assert "error:" in capsys.readouterr().err
 
 

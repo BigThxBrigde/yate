@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -220,7 +221,8 @@ def test_example_directory_packs_and_installs(
     out = tmp_path / "hello_yxp.yxp"
     assert yxp_tool.main(["--pack", str(EXAMPLE_DIR), "--output", str(out)]) == 0
     monkeypatch.setattr(yxp, "default_extensions_dir", lambda: tmp_path / "exts")
-    assert yate_main(["--install-extension", str(out)]) == 0
+    with patch("yate.logs.crash.install"):
+        assert yate_main(["--install-extension", str(out)]) == 0
     report = yxp.list_packages(tmp_path / "exts")[0]
     assert report.name == "hello_yxp"
     assert report.version == "1.0.0"
