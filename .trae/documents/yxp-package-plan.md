@@ -2,8 +2,8 @@
 
 来源：<https://gitee.com/jermaine/yate/issues/IKL74M>（Enhance — 扩展系统
 增强 STEP 2，承接已合入 master 的 IKK4K6 STEP 1）。分支 `feat/yxp-package`，
-worktree `../yate-yxp-package`（独立 venv，已验证 `import yate` 指向本
-worktree）。主 worktree（`d:\Programming\yate`）保持只读，仅用于参照。
+在独立 worktree 中开发（独立 venv，已验证 `import yate` 指向本 worktree）。
+主 worktree（master 检出）保持只读，仅用于参照。
 
 **无人值守说明**：用户已明确指示按「领会 → 方案 → 执行 → 审核（pr-review
 迭代至无 issue）→ 提交推送」闭环执行并全程无人值守；本方案文档即该指示下
@@ -203,9 +203,9 @@ pr-review 两轮：第 1 轮 2 项发现（`.gitignore` 吞掉示例 manifest、
 ## 9. 偏离记录
 
 - 无设计偏离。执行纪律事故两次：Wave b 与 Wave d 部分编辑误落主
-  worktree（`d:\Programming\yate`），均已即时把改动迁移回本 worktree 并
+  worktree（master 检出），均已即时把改动迁移回本 worktree 并
   还原主 worktree（`git checkout --`），主 worktree 复核干净；后续所有
-  编辑一律显式指定 worktree 绝对路径。
+  编辑一律显式指定任务 worktree 内的目标文件。
 - 用户补充设计（2026-10-14）：`tools.yxp` 由 `build` / `verify` 子命令
   改为旗标式 CLI `--create NAME`（新增脚手架能力，生成 manifest 元数据
   文件 + 起步扩展模块）/ `--pack DIR`（原 build）/ `--verify FILE`，
