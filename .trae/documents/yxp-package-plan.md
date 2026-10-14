@@ -185,11 +185,20 @@ sequenceDiagram
 - 回滚：功能纯增量（一个新服务模块、一个新工具包、追加式选项/命令），
   整分支 revert 即可。
 
-## 8. 收尾门禁
+## 8. 收尾门禁（2026-10-14 实测）
 
-`python -m pyright yate/ tests/ tools/` 零诊断；`pytest tests/ -q` 全绿；
-`pytest tests/test_architecture.py -q` 全绿；冒烟：构建示例包 → 装入
-临时 `~/.yate` → list → uninstall，全程走真实入口。
+`python -m pyright yate/ tests/ tools/` 零诊断（exit 0）；
+`pytest tests/ -q` 全绿（exit 0；新增 test_yxp.py 48 + test_tools_yxp.py 18
++ test_cli.py 43 用例）；
+`pytest tests/test_architecture.py -q` 全绿（exit 0）；
+冒烟（真实入口）：`--create smoke_ext` → `--pack` →
+`--install-extension` → `--list-extensions` → `--uninstall-extension`
+全链路 SMOKE OK（临时 home，exit 0）。
+
+pr-review 两轮：第 1 轮 2 项发现（`.gitignore` 吞掉示例 manifest、文档
+示例文件名不一致）均已修复提交（391ed4e）；第 2 轮复扫无 BLOCKER/MAJOR，
+仅 2 条可延后 MINOR（记录写入失败的恢复路径、`--create` 提示行路径分隔
+符），不阻塞。
 
 ## 9. 偏离记录
 
