@@ -229,8 +229,9 @@ function yate.ui.add_segment(id, provider, align, priority)
 end
 
 -- Remove a previously contributed status bar segment (the id given to
--- add_segment).  Call it from teardown so a reloaded extension can add
--- the same id again without a duplicate-id error.
+-- add_segment).  An unknown id raises an error.  Call it from teardown
+-- so a reloaded extension can add the same id again without a
+-- duplicate-id error.
 ---@param id string
 ---@return nil
 function yate.ui.remove_segment(id)
