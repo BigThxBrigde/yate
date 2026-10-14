@@ -184,14 +184,20 @@ def build_package(source: Path, output: Path) -> yxp.YxpManifest:
     pairs = collect_payload(source)
     files = [rel for rel, _ in pairs]
     packaged_manifest = {**metadata, "files": files}
-    with zipfile.ZipFile(output, "w") as zf:
-        zf.writestr(yxp.MANIFEST_NAME, json.dumps(packaged_manifest, indent=2))
-        zf.writestr(
-            yxp.CHECKSUM_NAME,
-            json.dumps({rel: _digest(path) for rel, path in pairs}, indent=2),
-        )
-        for rel, path in pairs:
-            zf.writestr(rel, path.read_bytes())
+    try:
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(yxp.MANIFEST_NAME, json.dumps(packaged_manifest, indent=2))
+            zf.writestr(
+                yxp.CHECKSUM_NAME,
+                json.dumps({rel: _digest(path) for rel, path in pairs}, indent=2),
+            )
+            for rel, path in pairs:
+                zf.writestr(rel, path.read_bytes())
+    except OSError as exc:
+        # a payload file became unreadable mid-pack: drop the partial
+        # archive so no broken .yxp is left behind
+        output.unlink(missing_ok=True)
+        raise yxp.YxpError(f"cannot pack {source} ({exc})") from exc
     return yxp.YxpManifest(
         name=name,
         version=str(metadata.get("version") or "0.1.0"),
@@ -207,10 +213,11 @@ def create_scaffold(name: str, parent: Path, force: bool = False) -> list[Path]:
     With *force* an existing scaffold directory of the same name is
     removed and recreated.
     """
-    if not _NAME_RE.match(name):
+    if name in (".", "..") or not _NAME_RE.match(name):
         raise yxp.YxpError(
             f"invalid package name {name!r}: must match {_NAME_RE.pattern!r} "
-            "(it doubles as the directory and record name)"
+            "without being '.' or '..' (it doubles as the directory and "
+            "record name)"
         )
     target = parent / name
     if target.exists():
@@ -262,7 +269,8 @@ def _run_create(args: argparse.Namespace) -> int:
         return 1
     for path in files:
         print(f"created {path}")
-    print(f"next: python -m tools.yxp --pack {args.dir / args.create if args.dir else args.create}")
+    target = args.dir / args.create if args.dir is not None else Path(args.create)
+    print(f"next: python -m tools.yxp --pack {target.as_posix()}")
     return 0
 
 

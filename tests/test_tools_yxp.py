@@ -67,6 +67,14 @@ def test_create_rejects_invalid_name(tmp_path: Path) -> None:
     assert not (tmp_path / "bad name").exists()
 
 
+@pytest.mark.parametrize("name", [".", ".."])
+def test_create_rejects_dot_names_even_with_force(tmp_path: Path, name: str) -> None:
+    # "." with --force would rmtree the parent directory
+    (tmp_path / "precious.txt").write_text("keep", encoding="utf-8")
+    assert yxp_tool.main(["--create", name, "--dir", str(tmp_path), "--force"]) == 1
+    assert (tmp_path / "precious.txt").read_text("utf-8") == "keep"
+
+
 def test_create_refuses_existing_dir_without_force(tmp_path: Path) -> None:
     (tmp_path / "my_ext").mkdir()
     (tmp_path / "my_ext" / "precious.txt").write_text("keep", encoding="utf-8")
@@ -181,6 +189,46 @@ def test_default_output_uses_package_name(tmp_path: Path) -> None:
     assert yxp_tool.main(["--pack", str(src)]) == 0
     assert (Path.cwd() / "demo.yxp").exists()
     (Path.cwd() / "demo.yxp").unlink()
+
+
+def test_pack_uses_deflate_compression(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "manifest").write_text(json.dumps({"name": "big"}), encoding="utf-8")
+    (src / "data.txt").write_bytes(b"A" * 10000)
+    out = tmp_path / "big.yxp"
+    assert yxp_tool.main(["--pack", str(src), "--output", str(out)]) == 0
+    with zipfile.ZipFile(out) as zf:
+        info = zf.getinfo("data.txt")
+    assert info.compress_type == zipfile.ZIP_DEFLATED
+    assert info.compress_size < info.file_size
+
+
+def test_pack_reports_unreadable_payload_and_cleans_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "manifest").write_text(json.dumps({"name": "x"}), encoding="utf-8")
+    (src / "mod.py").write_text("x", encoding="utf-8")
+    out = tmp_path / "x.yxp"
+
+    def boom(path: Path) -> str:
+        raise OSError("payload vanished")
+
+    monkeypatch.setattr(yxp_tool, "_digest", boom)
+    with pytest.raises(yxp.YxpError, match="payload vanished"):
+        yxp_tool.build_package(src, out)
+    assert not out.exists()  # partial archive dropped
+
+
+def test_create_hint_uses_posix_separators(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert yxp_tool.main(["--create", "my_ext", "--dir", str(tmp_path)]) == 0
+    hint = capsys.readouterr().out.rsplit("next:", 1)[1]
+    assert "\\" not in hint
+    assert "my_ext" in hint
 
 
 # ---------------------------------------------------------------- --verify
