@@ -1060,7 +1060,7 @@ def test_extension_machinery_hides_behind_facade() -> None:
     package itself, and the pre-subpackage sibling modules stay gone.
     ``tests/`` are not scanned (they unit-test the internals on purpose);
     a frozen whitelist holds pre-existing direct imports that need a name
-    the 13-name facade does not re-export."""
+    the 14-name facade does not re-export."""
     for name in EXTENSION_FORMER_MODULES:
         assert not (YATE / "services" / name).exists(), name
     assert not (YATE / "services" / "lua").exists()

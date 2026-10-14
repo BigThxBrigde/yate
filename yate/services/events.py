@@ -155,10 +155,15 @@ class EventHub:
             except Exception:  # noqa: BLE001 - listener isolation, never crash the emitter
                 log.exception("event listener failed: %s", event.name)
                 if self._report_failure is not None:
-                    self._report_failure(
-                        f"extension event {event.name}: listener failed "
-                        "(see trace log)"
-                    )
+                    try:
+                        self._report_failure(
+                            f"extension event {event.name}: listener failed "
+                            "(see trace log)"
+                        )
+                    except Exception:  # noqa: BLE001 - reporter isolation, same contract
+                        log.exception(
+                            "event failure reporter itself failed: %s", event.name
+                        )
 
     def listener_count(self, event: EditorEvent) -> int:
         """Number of live listeners on *event* (diagnostics and tests)."""

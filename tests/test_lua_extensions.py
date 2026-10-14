@@ -667,6 +667,46 @@ def test_lua_ui_add_segment_nil_args_fall_back_to_defaults(
     assert bundle.api.ui.segments("left") == []
 
 
+_MODULE_SEGMENT_LUA: str = (
+    "local mod = {}\n"
+    "function mod.setup(a)\n"
+    "  a.ui.add_segment('reload-seg', function() return 'seg' end)\n"
+    "end\n"
+    "function mod.teardown(a)\n"
+    "  yate.ui.remove_segment('reload-seg')\n"
+    "end\n"
+    "return mod\n"
+)
+
+
+@requires_lupa
+def test_lua_ui_remove_segment_in_teardown_allows_reload(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """teardown's yate.ui.remove_segment frees the id: a reload succeeds
+    instead of hitting the duplicate-id ValueError on add_segment."""
+    first = tmp_path / "seg.lua"
+    first.write_text(_MODULE_SEGMENT_LUA, encoding="utf-8")
+
+    record = loader.load_file(first)
+
+    assert record.error is None
+    right = bundle.api.ui.segments("right")
+    assert [segment.id for segment in right] == ["reload-seg"]
+
+    loader.teardown_all()
+    assert bundle.api.ui.segments("right") == []
+
+    # Same script content under a new name (the loader dedups by path):
+    # the id was freed by teardown, so the reload must not raise.
+    second = tmp_path / "seg-reload.lua"
+    second.write_text(_MODULE_SEGMENT_LUA, encoding="utf-8")
+    reloaded = loader.load_file(second)
+    assert reloaded.error is None
+    reloaded_right = bundle.api.ui.segments("right")
+    assert [segment.id for segment in reloaded_right] == ["reload-seg"]
+
+
 @requires_lupa
 def test_lua_theme_set_and_active(
     bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
