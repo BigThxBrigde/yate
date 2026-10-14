@@ -978,17 +978,20 @@ available inside the editor:
 The repository ships a packager (development tool, not part of the wheel):
 
 ```bash
-python -m tools.yxp build tools/yxp/example/hello_yxp   # -> hello_yxp.yxp
-python -m tools.yxp verify hello_yxp.yxp
+python -m tools.yxp --create my_ext                     # scaffold ./my_ext/
+python -m tools.yxp --pack tools/yxp/example/hello_yxp  # -> hello_yxp.yxp
+python -m tools.yxp --verify hello_yxp.yxp
 ```
 
-`build` takes a source directory containing a `manifest` metadata file
-(JSON with `name` / `version` / `description` / `author` -- no `files`
-field, the packager computes it). It writes the packaged manifest, the
-`checksum` member and every payload file, skipping `__pycache__`, `.git`
-and `*.pyc`. The bundled example (`tools/yxp/example/hello_yxp/`) registers
-a `:hello-yxp` greeting command -- build it, install it, restart yate and
-run `:hello-yxp`.
+`--create NAME` scaffolds a source directory: a `manifest` metadata file
+plus a starter `<name>.py` extension (one greeting command) -- fill in the
+metadata and grow the payload from there. `--pack DIR` takes a source
+directory containing a `manifest` metadata file (JSON with `name` /
+`version` / `description` / `author` -- no `files` field, the packager
+computes it). It writes the packaged manifest, the `checksum` member and
+every payload file, skipping `__pycache__`, `.git` and `*.pyc`. The bundled
+example (`tools/yxp/example/hello_yxp/`) registers a `:hello-yxp` greeting
+command -- build it, install it, restart yate and run `:hello-yxp`.
 
 ### Security notes
 

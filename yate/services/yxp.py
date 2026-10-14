@@ -50,7 +50,7 @@ RECORDS_DIRNAME: str = "_manifests"
 RECORD_SUFFIX: str = ".json"
 
 #: Package names double as record file names, so they stay conservative.
-_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9._-]+$")
 #: SHA-256 hex digest, lowercase.
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 #: ``C:``-style drive prefixes are invalid inside an archive member but
@@ -226,9 +226,9 @@ def _manifest_str(
 def _parse_manifest(data: dict[str, Any], source: str) -> YxpManifest:
     """Validate the manifest object into a :class:`YxpManifest`."""
     name = _manifest_str(data, "name", source, required=True)
-    if name is None or not _NAME_RE.match(name):
+    if name is None or not NAME_RE.match(name):
         raise YxpError(
-            f"{source}: manifest 'name' must match {_NAME_RE.pattern!r}"
+            f"{source}: manifest 'name' must match {NAME_RE.pattern!r}"
         )
     version = _manifest_str(data, "version", source, required=False) or "0.1.0"
     description = _manifest_str(data, "description", source, required=False) or ""

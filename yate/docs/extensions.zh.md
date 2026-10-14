@@ -900,11 +900,14 @@ yate --list-extensions                          # 显示已安装的包
 仓库自带打包工具（开发工具，不随 wheel 分发）：
 
 ```bash
-python -m tools.yxp build tools/yxp/example/hello_yxp   # -> hello_yxp.yxp
-python -m tools.yxp verify hello_yxp.yxp
+python -m tools.yxp --create my_ext                     # 脚手架 ./my_ext/
+python -m tools.yxp --pack tools/yxp/example/hello_yxp  # -> hello_yxp.yxp
+python -m tools.yxp --verify hello_yxp.yxp
 ```
 
-`build` 接收一个源目录，目录里须有 `manifest` 元数据文件（JSON，含
+`--create NAME` 生成源目录脚手架：一个 `manifest` 元数据文件加一个
+`<name>.py` 起步扩展（注册一个问候命令）——填好元数据后按需扩充载荷。
+`--pack DIR` 接收一个源目录，目录里须有 `manifest` 元数据文件（JSON，含
 `name` / `version` / `description` / `author` —— 不写 `files` 字段，由
 打包器计算）。它会写入打包后的 manifest、`checksum` 成员与全部载荷
 文件，并跳过 `__pycache__`、`.git` 与 `*.pyc`。内置示例

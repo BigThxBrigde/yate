@@ -1,27 +1,37 @@
 """Command line interface: ``python -m tools.yxp``.
 
-Commands::
+Modes (mutually exclusive)::
 
-    python -m tools.yxp build tools/yxp/example/hello_yxp
-    python -m tools.yxp build SRC --output out.yxp
-    python -m tools.yxp verify hello-1.0.0.yxp
+    python -m tools.yxp --create my_ext              # scaffold ./my_ext/
+    python -m tools.yxp --pack tools/yxp/example/hello_yxp
+    python -m tools.yxp --pack SRC --output out.yxp --force
+    python -m tools.yxp --verify hello_yxp.yxp
 
-``build`` packs a source directory into a ``.yxp`` archive.  The directory
-must contain a ``manifest`` file -- JSON with the package metadata (``name``
-required; ``version`` / ``description`` / ``author`` optional).  The
-``files`` list is computed from the directory contents and written into the
-packaged manifest, so it is never maintained by hand.  ``checksum`` files in
-the source directory are metadata too and never become payload.
+``--create NAME`` scaffolds a new extension package source directory: a
+``manifest`` metadata file (name / version / description / author) plus a
+starter ``<name>.py`` extension that registers one greeting command.  Pass
+``--dir`` to choose the parent directory and ``--force`` to replace an
+existing scaffold.
 
-``verify`` reads an existing ``.yxp`` with the same validator yate uses at
-install time and prints the package summary; a tampered or malformed
-archive fails with exit code 1.
+``--pack DIR`` packs a source directory into a ``.yxp`` archive.  The
+directory must contain a ``manifest`` file -- JSON with the package
+metadata (``name`` required; ``version`` / ``description`` / ``author``
+optional).  The ``files`` list is computed from the directory contents and
+written into the packaged manifest, so it is never maintained by hand.
+``checksum`` files in the source directory are metadata too and never
+become payload.  ``--output`` overrides the default ``<name>.yxp`` in the
+current directory, ``--force`` overwrites an existing archive.
+
+``--verify FILE`` reads an existing ``.yxp`` with the same validator yate
+uses at install time and prints the package summary; a tampered or
+malformed archive fails with exit code 1.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 import zipfile
 from collections.abc import Sequence
@@ -39,53 +49,78 @@ _SKIPPED_SOURCES: frozenset[str] = frozenset(
 _SKIP_DIRS: frozenset[str] = frozenset({"__pycache__", ".git"})
 #: File suffixes excluded from the payload walk.
 _SKIP_SUFFIXES: tuple[str, ...] = (".pyc", ".pyo")
+#: Scaffold names double as directory and record names -- stay conservative.
+_NAME_RE = yxp.NAME_RE
+#: Starter module template written by ``--create``.
+_STARTER_TEMPLATE: str = '''"""{name} -- yate extension package.
+
+Built with ``python -m tools.yxp --pack``; install with
+``yate --install-extension {name}.yxp`` and restart yate.
+"""
+
+from __future__ import annotations
+
+from yate.services.extensions import ExtensionAPI
+
+
+def setup(api: ExtensionAPI) -> None:
+    """Register the {name} commands."""
+
+    def hello(_args: str) -> None:
+        """Show a greeting from the {name} extension."""
+        api.message("hello from {name}!")
+
+    api.register_command("hello-{command}", hello,
+                         "greet from the {name} package")
+'''
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the parser for the ``build`` / ``verify`` subcommands."""
+    """Build the parser for the ``--create`` / ``--pack`` / ``--verify`` modes."""
     parser = argparse.ArgumentParser(
         prog="python -m tools.yxp",
         description="Build and verify yate extension packages (.yxp).",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    build_cmd = subparsers.add_parser(
-        "build",
-        help="pack a source directory into a .yxp archive",
-        description="Pack a source directory (with a manifest metadata file) "
-                    "into a .yxp archive with a regenerated file list and "
-                    "sha256 checksums.",
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
+        "--create",
+        metavar="NAME",
+        help="scaffold a new extension package source directory named NAME",
     )
-    build_cmd.add_argument(
-        "source",
+    mode.add_argument(
+        "--pack",
         type=Path,
         metavar="DIR",
-        help="source directory containing a 'manifest' metadata file",
+        help="pack a source directory (with a manifest metadata file) into "
+             "a .yxp archive",
     )
-    build_cmd.add_argument(
+    mode.add_argument(
+        "--verify",
+        type=Path,
+        metavar="FILE",
+        help="validate an existing .yxp archive with the install-time rules",
+    )
+    parser.add_argument(
+        "--dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="[--create] parent directory for the scaffold "
+             "(default: the current directory)",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
         metavar="FILE",
-        help="output .yxp path (default: <name>.yxp in the current directory)",
+        help="[--pack] output .yxp path (default: <name>.yxp in the current "
+             "directory)",
     )
-    build_cmd.add_argument(
+    parser.add_argument(
         "--force",
         action="store_true",
-        help="overwrite the output file if it exists",
-    )
-
-    verify_cmd = subparsers.add_parser(
-        "verify",
-        help="validate an existing .yxp archive",
-        description="Run the same manifest/checksum validation yate performs "
-                    "at install time and print the package summary.",
-    )
-    verify_cmd.add_argument(
-        "package",
-        type=Path,
-        metavar="FILE",
-        help="the .yxp archive to validate",
+        help="[--create] replace an existing scaffold; [--pack] overwrite "
+             "the output archive",
     )
     return parser
 
@@ -166,13 +201,50 @@ def build_package(source: Path, output: Path) -> yxp.YxpManifest:
     )
 
 
+def create_scaffold(name: str, parent: Path, force: bool = False) -> list[Path]:
+    """Create a package source scaffold under *parent*; returns the files.
+
+    With *force* an existing scaffold directory of the same name is
+    removed and recreated.
+    """
+    if not _NAME_RE.match(name):
+        raise yxp.YxpError(
+            f"invalid package name {name!r}: must match {_NAME_RE.pattern!r} "
+            "(it doubles as the directory and record name)"
+        )
+    target = parent / name
+    if target.exists():
+        if not force:
+            raise yxp.YxpError(
+                f"{target} already exists (use --force to replace)"
+            )
+        shutil.rmtree(target)
+    command = name.lower().replace("_", "-").replace(".", "-")
+    starter = _STARTER_TEMPLATE.format(name=name, command=command)
+    manifest = {
+        "name": name,
+        "version": "0.1.0",
+        "description": f"The {name} extension",
+        "author": "your name",
+    }
+    try:
+        target.mkdir(parents=True)
+        (target / yxp.MANIFEST_NAME).write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        )
+        (target / f"{name}.py").write_text(starter, encoding="utf-8")
+    except OSError as exc:
+        raise yxp.YxpError(f"cannot scaffold {target} ({exc})") from exc
+    return [target / yxp.MANIFEST_NAME, target / f"{name}.py"]
+
+
 def _digest(path: Path) -> str:
     """SHA-256 hex digest of a file's bytes."""
     return sha256(path.read_bytes()).hexdigest()
 
 
 def _summary(manifest: yxp.YxpManifest, archive: Path, verified: bool) -> str:
-    """One-line build/verify outcome."""
+    """One-line pack/verify outcome."""
     state = "checksums verified" if verified else "unverified"
     return (
         f"{archive} ({manifest.name} {manifest.version}): "
@@ -180,9 +252,23 @@ def _summary(manifest: yxp.YxpManifest, archive: Path, verified: bool) -> str:
     )
 
 
-def _run_build(args: argparse.Namespace) -> int:
-    """``build`` subcommand: pack a source directory."""
-    source: Path = args.source
+def _run_create(args: argparse.Namespace) -> int:
+    """``--create`` mode: scaffold a source directory."""
+    parent: Path = args.dir if args.dir is not None else Path.cwd()
+    try:
+        files = create_scaffold(args.create, parent, force=args.force)
+    except yxp.YxpError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    for path in files:
+        print(f"created {path}")
+    print(f"next: python -m tools.yxp --pack {args.dir / args.create if args.dir else args.create}")
+    return 0
+
+
+def _run_pack(args: argparse.Namespace) -> int:
+    """``--pack`` mode: pack a source directory."""
+    source: Path = args.pack
     if not source.is_dir():
         print(f"error: {source} is not a directory", file=sys.stderr)
         return 1
@@ -214,19 +300,21 @@ def _run_build(args: argparse.Namespace) -> int:
 
 
 def _run_verify(args: argparse.Namespace) -> int:
-    """``verify`` subcommand: validate an existing archive."""
+    """``--verify`` mode: validate an existing archive."""
     try:
-        package = yxp.read_package(args.package)
+        package = yxp.read_package(args.verify)
     except yxp.YxpError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(_summary(package.manifest, args.package, package.checksums is not None))
+    print(_summary(package.manifest, args.verify, package.checksums is not None))
     return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the requested subcommand; 0 on success, 1 on failure."""
+    """Run the requested mode; 0 on success, 1 on failure."""
     args = build_parser().parse_args(argv)
-    if args.command == "build":
-        return _run_build(args)
+    if args.create is not None:
+        return _run_create(args)
+    if args.pack is not None:
+        return _run_pack(args)
     return _run_verify(args)

@@ -94,9 +94,13 @@ worktree）。主 worktree（`d:\Programming\yate`）保持只读，仅用于参
   `OverlayFlows.show_output(title, text)`（推 `OutputScreen`），
   `commands.py` 保持不 import `editor_view`。
 - 新工具包 `tools/yxp/`（`__init__.py` / `__main__.py` / `cli.py`）：
-  `build` 枚举源目录（跳过 `manifest`、`checksum`、`__pycache__`、
-  `*.pyc`），要求源目录带 `manifest` 元数据文件，重算 `files` 与
-  `checksum` 成员；`verify` 复用 `yate.services.yxp.read_package`。
+  旗标式 CLI（互斥）`--create NAME` / `--pack DIR` / `--verify FILE`。
+  `--create` 生成源目录脚手架（`manifest` 元数据文件 + 起步扩展模块，
+  `--dir` 选父目录、`--force` 替换既有脚手架）；`--pack` 枚举源目录
+  （跳过 `manifest`、`checksum`、`__pycache__`、`.git`、`*.pyc`），要求
+  源目录带 `manifest` 元数据文件，重算 `files` 与 `checksum` 成员
+  （`--output` 自定输出、`--force` 覆盖）；`--verify` 复用
+  `yate.services.yxp.read_package`。
 - 示例包源码：`tools/yxp/example/hello_yxp/`。
 
 ### 4.4 流程图
@@ -157,13 +161,13 @@ sequenceDiagram
 - 验收：`pytest tests/test_cli.py tests/test_yxp.py -q` 全绿（91 用例）；
   pyright 零诊断（已实测通过）。
 
-### Wave c — 打包工具 + 示例
+### Wave c — 打包工具 + 示例（已完成，commit b6f4518 + 旗标式改版）
 - 新增：`tools/yxp/__init__.py`、`tools/yxp/__main__.py`、
   `tools/yxp/cli.py`、`tools/yxp/example/hello_yxp/manifest`、
   `tools/yxp/example/hello_yxp/hello_yxp.py`
-- 测试：`tests/test_tools_yxp.py`（build 布局、排除项、verify 往返、
-  build→install 集成）
-- 验收：`pytest tests/test_tools_yxp.py -q` 全绿。
+- 测试：`tests/test_tools_yxp.py`（脚手架、build 布局、排除项、verify
+  往返、build→install 集成、互斥旗标）
+- 验收：`pytest tests/test_tools_yxp.py -q` 全绿（19 用例）。
 
 ### Wave d — 双语文档 + 方案回填
 - 修改：`yate/docs/extensions.en.md`、`yate/docs/extensions.zh.md`
@@ -189,7 +193,12 @@ sequenceDiagram
 
 ## 9. 偏离记录
 
-- 无设计偏离。执行纪律事故一次：Wave b 部分编辑误落主 worktree
-  （`d:\Programming\yate`），已即时把改动迁移回本 worktree 并还原主
-  worktree（`git checkout --`），主 worktree 复核干净；后续所有编辑一律
-  显式指定 worktree 绝对路径。
+- 无设计偏离。执行纪律事故两次：Wave b 与 Wave d 部分编辑误落主
+  worktree（`d:\Programming\yate`），均已即时把改动迁移回本 worktree 并
+  还原主 worktree（`git checkout --`），主 worktree 复核干净；后续所有
+  编辑一律显式指定 worktree 绝对路径。
+- 用户补充设计（2026-10-14）：`tools.yxp` 由 `build` / `verify` 子命令
+  改为旗标式 CLI `--create NAME`（新增脚手架能力，生成 manifest 元数据
+  文件 + 起步扩展模块）/ `--pack DIR`（原 build）/ `--verify FILE`，
+  三者互斥；`yxp.NAME_RE` 随之提升为公共常量供工具复用。文档与测试
+  同步更新。
