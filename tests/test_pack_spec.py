@@ -77,7 +77,7 @@ _REVIEWED_DYNAMIC_IMPORTS: frozenset[str] = frozenset(
         "editor_syntax/ts_backend/languages.py:importlib.import_module(grammar)",
         # lupa is imported dynamically so a lupa-less install pays no import
         # cost and pyright stays stub-free (Any only at the bridge boundary).
-        "services/lua_extensions.py:importlib.import_module('lupa')",
+        "services/extensions/lua/runtime.py:importlib.import_module('lupa')",
     }
 )
 
@@ -160,7 +160,7 @@ def _yate_sources() -> list[Path]:
     ``compile()``/``exec()``:
 
     * ``yate/extensions/*.py.example`` -- bundled extensions, imported via
-      ``importlib.util.spec_from_file_location`` (``yate/services/extensions.py``);
+      ``importlib.util.spec_from_file_location`` (``yate/services/extensions/loader.py``);
     * ``yate/yaterc.example`` -- an rc file (``yate/config.py``);
     * ``yate/resources/theme_examples/*.example`` -- themes (``yate/editor_view/theme.py``).
 

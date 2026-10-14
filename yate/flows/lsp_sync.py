@@ -19,6 +19,7 @@ from yate.editor_view.modals import OutputScreen
 from yate.editor_view.panes import PaneManager
 from yate.editor_view.statusbar import StatusBar
 from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
+from yate.services.events import DiagnosticsUpdated, EditorEvent, EventHub
 from yate.session import EditorSession
 
 
@@ -33,6 +34,7 @@ class LspSync:
         panes: PaneManager,
         status_bar: StatusBar,
         prompt: PromptBar,
+        events: EventHub,
         message: MessageFn,
         mounted: StateQuery,
         push_overlay: OverlayPusher,
@@ -45,6 +47,7 @@ class LspSync:
         self.panes = panes
         self.status_bar = status_bar
         self.prompt = prompt
+        self._events = events
         self._message = message
         self._mounted = mounted
         self._push_overlay = push_overlay
@@ -73,15 +76,21 @@ class LspSync:
             group="lsp-sync", exclusive=False, exit_on_error=False,
         )
 
-    def on_event(self, event: str) -> None:
-        """Manager callback (event loop thread): repaint after LSP updates."""
+    def on_event(self, event: str, doc: Document | None = None) -> None:
+        """Manager callback (event loop thread): repaint after LSP updates.
+
+        *doc* is the document the published diagnostics belong to (any open
+        document -- a background pane's file gets publishes too); ``None``
+        for the ``"state"`` event and for a publish about an unknown uri.
+        """
         if not self._mounted():
             return
         for view in self.panes.all_views():
             view.refresh()
         self.status_bar.refresh_status()
-        if event == "diagnostics":
+        if event == "diagnostics" and doc is not None:
             self.update_echo()
+            self._events.emit(EditorEvent.DIAGNOSTICS_UPDATED, DiagnosticsUpdated(doc))
 
     def update_echo(self) -> None:
         """Show the diagnostic under the cursor on the message line."""

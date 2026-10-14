@@ -227,7 +227,7 @@ register_theme(replace(THEMES["mocha"], name="my-mocha", accent="#89b4fa"))
 ## 扩展路径（extensions）
 
 `extensions` 选项声明要加载的自定义扩展脚本（扩展 API 见
-[yate/services/extensions.py](../services/extensions.py)）。每个
+[yate/services/extensions/\_\_init\_\_.py](../services/extensions/__init__.py)）。每个
 扩展就是一个暴露 `setup(api)` 函数的 `.py` 文件，通过 `api` 注册动作、
 按键绑定和 `:` 命令：
 

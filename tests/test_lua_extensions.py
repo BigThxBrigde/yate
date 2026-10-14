@@ -20,9 +20,12 @@ from yate.keymaps.registry import KeymapSet
 from yate.paths import bundled_extensions_dir
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
-from yate.services import extension_loader as ext_loader
-from yate.services import lua_extensions
+from yate.services import clipboard as clipboard_module
+from yate.services.events import EditorEvent, EventHub
+from yate.services.extensions import loader as ext_loader
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
+from yate.services.extensions.lua.library import lua_api_library_source
+from yate.services.extensions.lua.runtime import create_runtime
 
 #: Live-lua marker: skip when the optional lupa package is not installed.
 _lua_missing = importlib.util.find_spec("lupa") is None
@@ -46,6 +49,29 @@ _TEARDOWN_LUA: str = (
 )
 _OK_LUA: str = "local _ = 1\n"
 _SETUP_OK: str = "def setup(api):\n    pass\n"
+# Explicit setup(a) runs after the whole top level: the chunk flips
+# top_ran to true *after* defining setup, so the message proves the order.
+_SETUP_AFTER_TOP_LUA: str = (
+    "top_ran = false\n"
+    "function setup(a)\n"
+    "  a.message('setup:' .. tostring(top_ran))\n"
+    "end\n"
+    "top_ran = true\n"
+)
+_SETUP_TEARDOWN_LUA: str = (
+    "function setup(api)\n"
+    "  api.message('setup ran')\n"
+    "end\n"
+    "function teardown(api)\n"
+    "  api.message('bye from hooks')\n"
+    "end\n"
+)
+_SETUP_BOOM_LUA: str = (
+    "function setup(api)\n"
+    "  api.register_command('setup-boom', function() end)\n"
+    "  error('setup boom')\n"
+    "end\n"
+)
 
 
 class _ApiBundle:
@@ -57,11 +83,15 @@ class _ApiBundle:
 
     def __init__(self) -> None:
         self.messages: list[str] = []
+        self.theme_calls: list[str] = []
+        self.run_action_calls: list[str] = []
         session = EditorSession(YateConfig())
         session.new_buffer()
         self.keymaps = KeymapSet({"vsc": Keymap(), "vim": Keymap()}, "vsc")
         self.actions = ActionRegistry()
         self.commands = CommandRegistry()
+        # A real hub shared with the API so tests can count listeners.
+        self.hub = EventHub()
         ctx = ExtensionContext(
             session=session,
             workspace=cast(Any, MagicMock()),
@@ -73,8 +103,16 @@ class _ApiBundle:
             run_shell=lambda _command, _show: None,
             open_path=lambda _path: None,
             save=lambda: None,
+            run_action=self._run_action,
+            set_theme=self.theme_calls.append,
+            active_theme_name=lambda: "mocha",
         )
-        self.api = ExtensionAPI(ctx)
+        self.api = ExtensionAPI(ctx, self.hub)
+
+    def _run_action(self, name: str) -> bool:
+        """Record the dispatch; the bool mirrors a registered action hit."""
+        self.run_action_calls.append(name)
+        return self.actions.get(name) is not None
 
 
 @pytest.fixture
@@ -190,14 +228,279 @@ def test_bundled_lua_library_compiles_into_runtime(
     bundle: _ApiBundle,
 ) -> None:
     """The shipped _yate.lua compiles and exposes the yate module table."""
-    runtime = lua_extensions.create_runtime(
-        bundle.api, lua_extensions.lua_api_library_source()
-    )
+    runtime = create_runtime(bundle.api, lua_api_library_source())
 
     assert runtime.eval("type(yate)") == "table"
     assert runtime.eval("type(yate.register_command)") == "function"
     assert runtime.eval("type(yate.bind_key)") == "function"
     assert runtime.eval("yate.api ~= nil")
+
+
+# --- setup/teardown mirror hooks (plan-b) -------------------------------------
+
+
+@requires_lupa
+def test_explicit_setup_hook_called_after_chunk(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """An explicit setup(api) runs once, after the chunk's top level."""
+    script = tmp_path / "hooked.lua"
+    script.write_text(_SETUP_AFTER_TOP_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    # top_ran is flipped to true by the top level *after* setup is defined,
+    # so "setup:true" proves setup ran after the whole chunk.
+    assert "setup:true" in bundle.messages
+    assert record.teardown is None
+
+
+@requires_lupa
+def test_toplevel_only_script_still_loads(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A chunk without a setup global keeps the top-level-is-setup behavior."""
+    script = tmp_path / "classic.lua"
+    script.write_text(_ECHO_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert bundle.commands.get("lua-echo") is not None
+    assert record.teardown is None
+
+
+@requires_lupa
+def test_setup_failure_rolls_back_registrations(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A failing explicit setup records the error and undoes its registrations."""
+    script = tmp_path / "setupboom.lua"
+    script.write_text(_SETUP_BOOM_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "LuaError" in record.error
+    assert bundle.commands.get("setup-boom") is None
+
+
+@requires_lupa
+def test_teardown_global_extracted(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A global teardown(api) is extracted alongside an explicit setup."""
+    script = tmp_path / "hooks.lua"
+    script.write_text(_SETUP_TEARDOWN_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+    assert record.error is None
+    assert record.teardown is not None
+
+    loader.teardown_all()
+    assert "setup ran" in bundle.messages
+    assert "bye from hooks" in bundle.messages
+
+
+# --- module-table entry form (plan-e) ------------------------------------------
+
+
+_MODULE_OK_LUA: str = (
+    "local mod = {}\n"
+    "function mod.setup(a)\n"
+    "  a.register_command('mod-echo', function() end)\n"
+    "  a.message('mod setup ran')\n"
+    "end\n"
+    "function mod.teardown(a)\n"
+    "  a.message('mod bye')\n"
+    "end\n"
+    "return mod\n"
+)
+_MODULE_NO_SETUP_LUA: str = "local mod = { version = 1 }\nreturn mod\n"
+_MODULE_SETUP_BOOM_LUA: str = (
+    "local mod = {}\n"
+    "function mod.setup(a)\n"
+    "  a.register_command('mod-boom', function() end)\n"
+    "  error('mod setup boom')\n"
+    "end\n"
+    "return mod\n"
+)
+_MODULE_WINS_OVER_GLOBAL_LUA: str = (
+    "function setup(a)\n"
+    "  a.message('global setup ran')\n"
+    "end\n"
+    "local mod = {}\n"
+    "function mod.setup(a)\n"
+    "  a.message('mod setup ran')\n"
+    "end\n"
+    "function mod.teardown(a)\n"
+    "  a.message('mod bye')\n"
+    "end\n"
+    "return mod\n"
+)
+_MODULE_TEARDOWN_WINS_LUA: str = (
+    "teardown = function(a)\n"
+    "  a.message('global bye')\n"
+    "end\n"
+    "local mod = {}\n"
+    "function mod.setup(a) end\n"
+    "function mod.teardown(a)\n"
+    "  a.message('mod bye')\n"
+    "end\n"
+    "return mod\n"
+)
+# A non-table return (``return`` must close a Lua block, so the setup
+# global is defined first) falls back to the global/top-level semantics.
+_NON_TABLE_RETURN_LUA: str = (
+    "function setup(a)\n"
+    "  a.message('global setup ran')\n"
+    "end\n"
+    "return 42\n"
+)
+
+
+@requires_lupa
+def test_lua_module_table_setup_and_teardown_full_cycle(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A returned module table's setup(api) runs and teardown is extracted."""
+    script = tmp_path / "mod.lua"
+    script.write_text(_MODULE_OK_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "mod setup ran" in bundle.messages
+    assert bundle.commands.get("mod-echo") is not None
+    assert record.teardown is not None
+
+    loader.teardown_all()
+    assert "mod bye" in bundle.messages
+
+
+@requires_lupa
+def test_lua_module_table_without_setup_is_a_loud_error(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A returned table without a callable setup is a loud authoring error."""
+    script = tmp_path / "nosetup.lua"
+    script.write_text(_MODULE_NO_SETUP_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "no setup(api) function" in record.error
+    assert record.teardown is None
+
+
+@requires_lupa
+def test_lua_module_table_setup_failure_rolls_back(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A failing mod.setup records the error and undoes its registrations."""
+    script = tmp_path / "modboom.lua"
+    script.write_text(_MODULE_SETUP_BOOM_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "LuaError" in record.error
+    assert bundle.commands.get("mod-boom") is None
+
+
+@requires_lupa
+def test_lua_module_table_takes_precedence_over_global_setup(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """When both exist, the returned table's setup wins over the global."""
+    script = tmp_path / "both.lua"
+    script.write_text(_MODULE_WINS_OVER_GLOBAL_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "mod setup ran" in bundle.messages
+    assert "global setup ran" not in bundle.messages
+
+
+@requires_lupa
+def test_lua_module_teardown_takes_precedence_over_global(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """When both exist, mod.teardown wins over the global teardown."""
+    script = tmp_path / "bothteardown.lua"
+    script.write_text(_MODULE_TEARDOWN_WINS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    loader.teardown_all()
+    assert "mod bye" in bundle.messages
+    assert "global bye" not in bundle.messages
+
+
+@requires_lupa
+def test_lua_non_table_return_falls_back_to_global_setup(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A non-table return value ignores the module contract entirely."""
+    script = tmp_path / "numret.lua"
+    script.write_text(_NON_TABLE_RETURN_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "global setup ran" in bundle.messages
+
+
+# --- package layout (no lupa needed) ------------------------------------------
+
+
+def test_lua_package_import_paths() -> None:
+    """The Lua bridge lives in yate.services.extensions.lua; the old module is gone."""
+    from yate.services.extensions import lua as lua_package
+    from yate.services.extensions.lua import library as lua_library
+    from yate.services.extensions.lua import runtime as lua_runtime
+
+    assert callable(lua_library.is_lua_available)
+    assert callable(lua_library.lua_api_library_source)
+    assert callable(lua_runtime.create_runtime)
+    assert callable(lua_runtime.run_extension)
+    # Services packages must not re-export (architecture §三.5): the
+    # package root exposes only its submodules.
+    for symbol in (
+        "is_lua_available",
+        "lua_api_library_source",
+        "create_runtime",
+        "run_extension",
+    ):
+        assert not hasattr(lua_package, symbol)
+    assert importlib.util.find_spec("yate.services.lua_extensions") is None
+
+
+def test_lua_availability_probe_swallows_probe_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A broken half-install makes is_lua_available() False, not a crash."""
+    from yate.services.extensions.lua import library
+
+    def boom(name: str) -> None:
+        raise ValueError("broken spec")
+
+    monkeypatch.setattr(library.importlib.util, "find_spec", boom)
+    assert library.is_lua_available() is False
+
+
+def test_library_source_fails_fast_on_unreadable_resource(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An unreadable bundled library is an installation error, raised here."""
+    from yate.services.extensions.lua import library
+
+    monkeypatch.setattr(library, "bundled_extensions_dir", lambda: tmp_path)
+    with pytest.raises(RuntimeError):
+        library.lua_api_library_source()
 
 
 # --- degradation without lupa ------------------------------------------------
@@ -228,7 +531,7 @@ def test_bundled_lua_library_resources_ship_bundled() -> None:
     ext_dir = bundled_extensions_dir()
     assert (ext_dir / "_yate.lua").is_file()
     assert (ext_dir / "lua.example").is_file()
-    assert lua_extensions.lua_api_library_source() != ""
+    assert lua_api_library_source() != ""
 
 
 # --- bind_key positional form (Python-side regression) ------------------------
@@ -271,3 +574,189 @@ def test_lua_bind_key_two_args_defaults_to_vsc(
     km = bundle.keymaps.get("vsc")
     assert km is not None
     assert km.lookup(parse_key("<f7>")) is not None
+
+
+# --- api parity wrappers (plan_b / ext-api-parity wave 2) ---------------------
+
+
+_EVENTS_LUA: str = (
+    "_unsub = yate.events.subscribe('document_saved', function(payload)\n"
+    "  api.message('saved event fired')\n"
+    "end)\n"
+    "function teardown()\n"
+    "  _unsub()\n"
+    "end\n"
+)
+_UNKNOWN_EVENT_LUA: str = "yate.events.subscribe('no_such_event', function() end)\n"
+_SEGMENT_LUA: str = "yate.ui.add_segment('lua-seg', function() return 'seg' end)\n"
+_THEME_LUA: str = (
+    "yate.theme.set('solarized-dark')\n"
+    "yate.message('theme:' .. yate.theme.active())\n"
+)
+_CLIPBOARD_LUA: str = (
+    "local ok = yate.clipboard.set('hello')\n"
+    "yate.message('cbset:' .. tostring(ok))\n"
+    "yate.message('cbget:' .. tostring(yate.clipboard.get()))\n"
+)
+_DOCS_LUA: str = (
+    "local docs = yate.docs.all()\n"
+    "yate.message('docs:' .. tostring(python.builtins.len(docs)))\n"
+    "yate.message('isopen:' .. tostring(yate.docs.is_open('no/such/file.py')))\n"
+)
+_ACTIONS_LUA: str = (
+    "yate.register_action('my-lua-action', function() end)\n"
+    "yate.message('ran:' .. tostring(yate.actions.run('my-lua-action')))\n"
+    "yate.message('has:' .. tostring(yate.actions.has('my-lua-action')))\n"
+    "yate.actions.names()\n"
+)
+_BIND_ACTION_LUA: str = (
+    "yate.register_action('bindme', function() end)\n"
+    "yate.bind_action('gq', 'bindme')\n"
+)
+_UNBIND_LUA: str = "yate.message('removed:' .. tostring(yate.unbind_key('gq')))\n"
+
+
+@requires_lupa
+def test_lua_events_subscribe_maps_name_and_round_trips(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """The lowercase name maps to DOCUMENT_SAVED; teardown unsubscribes."""
+    script = tmp_path / "events.lua"
+    script.write_text(_EVENTS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert bundle.hub.listener_count(EditorEvent.DOCUMENT_SAVED) == 1
+    bundle.hub.emit(EditorEvent.DOCUMENT_SAVED, object())
+    assert "saved event fired" in bundle.messages
+
+    loader.teardown_all()
+    assert bundle.hub.listener_count(EditorEvent.DOCUMENT_SAVED) == 0
+
+
+@requires_lupa
+def test_lua_events_unknown_name_raises_loudly(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """An unknown event name surfaces a Lua error mentioning unknown event."""
+    script = tmp_path / "badevent.lua"
+    script.write_text(_UNKNOWN_EVENT_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is not None
+    assert "unknown event" in record.error
+
+
+@requires_lupa
+def test_lua_ui_add_segment_nil_args_fall_back_to_defaults(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """nil align/priority land on the Python defaults (right half / 0)."""
+    script = tmp_path / "segment.lua"
+    script.write_text(_SEGMENT_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    right = bundle.api.ui.segments("right")
+    assert [segment.id for segment in right] == ["lua-seg"]
+    assert right[0].align == "right"
+    assert right[0].priority == 0
+    assert bundle.api.ui.segments("left") == []
+
+
+@requires_lupa
+def test_lua_theme_set_and_active(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """theme.set forwards the name; theme.active returns the active name."""
+    script = tmp_path / "theme.lua"
+    script.write_text(_THEME_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert bundle.theme_calls == ["solarized-dark"]
+    assert "theme:mocha" in bundle.messages
+
+
+@requires_lupa
+def test_lua_clipboard_set_and_get(
+    bundle: _ApiBundle,
+    loader: ExtensionLoader,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """clipboard.set/get round-trip through the clipboard service module."""
+    script = tmp_path / "clipboard.lua"
+    script.write_text(_CLIPBOARD_LUA, encoding="utf-8")
+
+    def fake_copy(_text: str) -> bool:
+        return True
+
+    monkeypatch.setattr(clipboard_module, "copy_text", fake_copy)
+    monkeypatch.setattr(clipboard_module, "paste_text", lambda: "cb-text")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "cbset:true" in bundle.messages
+    assert "cbget:cb-text" in bundle.messages
+
+
+@requires_lupa
+def test_lua_docs_all_and_is_open(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """docs.all() sees the session documents; is_open answers for a path."""
+    script = tmp_path / "docs.lua"
+    script.write_text(_DOCS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    # The bundle's session opened exactly one (unnamed) buffer document.
+    assert "docs:1" in bundle.messages
+    assert "isopen:false" in bundle.messages
+
+
+@requires_lupa
+def test_lua_actions_run_names_and_has(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """run dispatches via the editor callback; names/has read the registry."""
+    script = tmp_path / "actions.lua"
+    script.write_text(_ACTIONS_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    assert "ran:true" in bundle.messages
+    assert "has:true" in bundle.messages
+    assert "my-lua-action" in bundle.actions.names()
+
+
+@requires_lupa
+def test_lua_bind_action_and_unbind_key_round_trip(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """bind_action binds the action BY NAME; unbind_key removes it (True)."""
+    script = tmp_path / "bindaction.lua"
+    script.write_text(_BIND_ACTION_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+    assert record.error is None
+    km = bundle.keymaps.get("vsc")
+    assert km is not None
+    binding = km.lookup(parse_key("gq"))
+    assert binding is not None
+    assert binding.action == "bindme"
+
+    unbind = tmp_path / "unbind.lua"
+    unbind.write_text(_UNBIND_LUA, encoding="utf-8")
+    record = loader.load_file(unbind)
+    assert record.error is None
+    assert km.lookup(parse_key("gq")) is None
+    assert "removed:true" in bundle.messages

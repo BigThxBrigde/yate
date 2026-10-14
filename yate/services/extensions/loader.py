@@ -19,20 +19,26 @@ from typing import Any, cast
 from yate.config import YateConfig
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
-from yate.services.extension_api import ExtensionAPI
-from yate.services.lua_extensions import (
-    create_runtime,
-    is_lua_available,
-    lua_api_library_source,
-    run_extension,
-)
+from yate.services.extensions.api import ExtensionAPI
+from yate.services.extensions.lua.library import is_lua_available, lua_api_library_source
+from yate.services.extensions.lua.runtime import create_runtime, run_extension
 from yate.services.trust import is_trusted
 
-#: Trace logger ("yate.services.extension_loader"); silent unless yate_trace is on.
+#: Trace logger ("yate.services.extensions.loader"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 #: ``teardown(api)`` -- the optional counterpart of ``setup(api)``.
 type TeardownHook = Callable[[ExtensionAPI], None]
+
+
+def _same_file(left: Path, right: Path) -> bool:
+    """Resolved-path equality; an unreadable path (``OSError``) counts as
+    distinct -- conservative for the shadowing report below, which then
+    still names the conflict instead of silently swallowing it."""
+    try:
+        return left.resolve() == right.resolve()
+    except OSError:
+        return False
 
 
 @dataclass
@@ -154,7 +160,7 @@ class ExtensionLoader:
         return record
 
     def _load_lua(self, path: Path) -> LoadedExtension:
-        """Load a ``.lua`` extension; its chunk's top-level code is the setup.
+        """Load a ``.lua`` extension (module table, explicit or top-level setup).
 
         Mirrors the Python branch (rollback scope A13; errors recorded,
         never raised); without ``lupa`` the record gets an install hint.
@@ -256,7 +262,7 @@ def load_startup_extensions(
             if (
                 owner is not None
                 and record.error is None
-                and owner.path.resolve() != record.path.resolve()
+                and not _same_file(owner.path, record.path)
             ):
                 messages.append(
                     f"extension {record.name}: the rc-declared script "

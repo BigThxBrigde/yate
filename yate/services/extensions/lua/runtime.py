@@ -17,9 +17,11 @@ Shape of the bridge (the library itself lives in
   global, compiles the bundled Lua API library with the Lua-native
   ``assert(load(source, chunkname))`` and publishes the returned module
   table as ``package.preload["yate"]`` plus the global ``yate``;
-* :func:`run_extension` executes a user chunk -- Lua idiom: the chunk's
-  top-level code *is* the setup -- and returns the chunk's global
-  ``teardown`` function when it defined one.
+* :func:`run_extension` executes a user chunk and mirrors the Python hook
+  model across three entry forms, in precedence order: a returned module
+  table (``local mod = {} ... return mod`` with ``mod.setup(api)``), an
+  explicit global ``setup(api)``, or the legacy top-level-is-setup chunk;
+  the unload hook comes from ``mod.teardown`` or the global ``teardown``.
 
 The ``api`` parameter is typed ``object`` on purpose: this module never
 calls into it (only Lua code consumes it), so ``object`` is the precise
@@ -29,11 +31,8 @@ calls into it (only Lua code consumes it), so ``object`` is the precise
 from __future__ import annotations
 
 import importlib
-import importlib.util
 from collections.abc import Callable
 from typing import Any, cast
-
-from yate.paths import bundled_extensions_dir
 
 #: Lua module name the bundled API library is registered under: every
 #: extension runtime can ``require("yate")`` and read the global ``yate``.
@@ -44,38 +43,10 @@ _LIBRARY_MODULE: str = "yate"
 _CHUNK_SOURCE_GLOBAL: str = "_YATE_CHUNK_SOURCE"
 
 #: Lua chunknames (the ``=`` prefix marks a custom name shown in traces).
+#: Both must stay quote-free: they are interpolated into Lua string
+#: literals by :func:`_compile_chunk`.
 _LIBRARY_CHUNK_NAME: str = "=yate.api"
 _EXTENSION_CHUNK_NAME: str = "=extension"
-
-
-def is_lua_available() -> bool:
-    """True when the ``lupa`` package is importable.
-
-    Probed with :func:`importlib.util.find_spec` instead of a real import so
-    merely asking never pays the C-extension import cost; a probe error
-    (e.g. a broken half-install) counts as "not available".
-    """
-    try:
-        return importlib.util.find_spec("lupa") is not None
-    except (ImportError, ValueError):
-        return False
-
-
-def lua_api_library_source() -> str:
-    """Read the bundled Lua API library ``_yate.lua`` (one read per call).
-
-    An unreadable resource means a broken installation: fail fast the same
-    way :func:`yate.paths.load_tcss` does instead of confusing the user
-    with an unrelated Lua error later.
-    """
-    path = bundled_extensions_dir() / "_yate.lua"
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise RuntimeError(
-            f"bundled resource {path} could not be read; "
-            "the yate installation is broken"
-        ) from exc
 
 
 def _compile_chunk(
@@ -130,18 +101,50 @@ def run_extension(
     runtime: Any,  # noqa: Any - lupa ships no stubs
     source: str,
 ) -> Callable[[object], None] | None:
-    """Execute a user chunk whose top-level code is the setup.
+    """Execute a user chunk, mirroring the Python setup/teardown hook model.
 
-    Returns the chunk's global ``teardown`` function when it defined a
-    callable one, else ``None``.  Any stale ``teardown`` global is dropped
-    before the chunk runs, so the extraction only ever sees what *this*
-    chunk defined.  A failing chunk raises the original
+    Entry forms, in precedence order (first match wins):
+
+    1. The chunk returns a table -- the module-table contract: its callable
+       ``setup`` is called with the runtime's ``api`` global and its
+       callable ``teardown`` becomes the unload hook.  A returned table
+       without a callable ``setup`` is a loud authoring error (returning a
+       table signals module intent, so a missing setup is a typo, not a
+       reason to fall back silently).
+    2. A callable global ``setup`` -- called with the ``api`` global after
+       the top level has run.
+    3. No setup anywhere -- the legacy behavior where the top-level code
+       *is* the setup.
+
+    The loader's rollback scope covers the setup call, so a failing setup
+    undoes its registrations.  Stale ``setup`` / ``teardown`` globals are
+    dropped before the chunk runs, so the extraction only ever sees what
+    *this* chunk defined.  A failing chunk or setup raises the original
     :class:`lupa.LuaError`; the loader records it on the extension record.
     """
-    runtime.execute("teardown = nil")  # a previous chunk must not leak its hook
+    runtime.execute("teardown = nil; setup = nil")  # a previous chunk must not leak its hooks
     chunk = _compile_chunk(runtime, source, _EXTENSION_CHUNK_NAME)
-    chunk()
-    teardown: Any = runtime.eval("teardown")  # noqa: Any - lupa ships no stubs
+    module: Any = chunk()  # noqa: Any - lupa ships no stubs
+    # Table detection via a Lua-side helper: nil, numbers, strings and
+    # wrapped Python objects all read as non-tables, so only a real Lua
+    # table enters the module contract.
+    is_table = runtime.eval("function(v) return type(v) == 'table' end")
+    setup: Any  # noqa: Any - lupa ships no stubs
+    teardown: Any  # noqa: Any - lupa ships no stubs
+    if is_table(module):
+        setup = module.setup
+        teardown = module.teardown
+        if not callable(setup):
+            raise RuntimeError(
+                "extension module table has no setup(api) function; "
+                "define mod.setup(api) or drop the return value"
+            )
+    else:
+        setup = runtime.eval("setup")
+        teardown = runtime.eval("teardown")
+    if callable(setup):
+        api: Any = runtime.eval("api")  # noqa: Any - lupa ships no stubs
+        setup(api)
     if callable(teardown):
         return cast(Callable[[object], None], teardown)
     return None

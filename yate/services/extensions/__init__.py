@@ -27,38 +27,45 @@ Example bundled extension ``yate/extensions/uppercase.py``::
 
         api.bind_key("<alt-u>", lambda ctx: upper(""), keymap="vsc")
 
-Lua extensions (``*.lua``) share this pipeline: the chunk's top-level code
-*is* the setup, an optional global ``teardown(api)`` mirrors the hook, and
-the API library ships as ``require("yate")`` (``yate/extensions/_yate.lua``;
-bridge: :mod:`yate.services.lua_extensions`, needs ``pip install yate[lua]``).
+Lua extensions (``*.lua``) share this pipeline: a global ``setup(api)`` is
+called once the chunk's top level has run (chunks without one keep the
+legacy "top-level code *is* the setup" behavior), an optional global
+``teardown(api)`` mirrors the hook, and the API library ships as
+``require("yate")`` (``yate/extensions/_yate.lua``;
+bridge: :mod:`yate.services.extensions.lua.runtime`, needs
+``pip install yate[lua]``).
 
-Layout map (2026-10-11 split): the implementation lives in three sibling
-modules -- :mod:`yate.services.extension_bridges` owns the four ``api.*``
-bridges (lsp / highlight / syntax / sprites),
-:mod:`yate.services.extension_api` owns ``ExtensionContext`` and the
+Layout map (2026-10-11 split into sibling modules, 2026-10-13 collapsed
+into this subpackage): :mod:`yate.services.extensions.bridges` owns the
+``api.*`` bridges (events / ui / lsp / highlight / syntax / sprites /
+theme / clipboard / docs / actions),
+:mod:`yate.services.extensions.api` owns ``ExtensionContext`` and the
 ``ExtensionAPI`` surface plus the A13 rollback-scope aliases, and
-:mod:`yate.services.extension_loader` owns discovery, loading, rollback
+:mod:`yate.services.extensions.loader` owns discovery, loading, rollback
 driving, teardown and the startup load order.  This module is a pure
-re-export facade; the plugin-facing import path is frozen.
+re-export facade; the plugin-facing import path is frozen and the
+submodules are internal, non-public API (R14): yate code and plugins
+import only from here.
 """
 
 from __future__ import annotations
 
 # Plugin import path frozen: the manual and every ``*.py.example`` import from here.
-from yate.services.extension_api import (
+from yate.services.extensions.api import (
     AnyCallback,
     CommandDecorator,
     ExtensionAPI,
     ExtensionContext,
     RollbackHook,
 )
-from yate.services.extension_bridges import (
+from yate.services.extensions.bridges import (
     HighlightExtensionBridge,
     LspExtensionBridge,
     SpriteExtensionBridge,
+    StatusSegment,
     SyntaxExtensionBridge,
 )
-from yate.services.extension_loader import (
+from yate.services.extensions.loader import (
     ExtensionLoader,
     LoadedExtension,
     TeardownHook,
@@ -76,6 +83,7 @@ __all__ = [
     "LspExtensionBridge",
     "RollbackHook",
     "SpriteExtensionBridge",
+    "StatusSegment",
     "SyntaxExtensionBridge",
     "TeardownHook",
     "load_startup_extensions",

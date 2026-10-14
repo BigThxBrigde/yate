@@ -25,7 +25,7 @@ from yate.editor_syntax import available_filetypes, engine, langdefs, regex_back
 from yate.editor_syntax.tokens import SYNTAX_KINDS, Token
 from yate.editor_syntax.ts_backend import backend as ts_runtime
 from yate.editor_syntax.ts_backend import languages as ts_langs
-from yate.services import extension_bridges as ext_bridges
+from yate.services.extensions import bridges as ext_bridges
 
 has_bash = importlib.util.find_spec("tree_sitter_bash") is not None
 has_python = importlib.util.find_spec("tree_sitter_python") is not None
@@ -424,7 +424,7 @@ def test_blocked_build_disables_ts_and_routes_to_regex(
 
 @_python_skip
 def test_unknown_pack_raises_value_error() -> None:
-    from yate.services.extension_bridges import SyntaxExtensionBridge
+    from yate.services.extensions.bridges import SyntaxExtensionBridge
 
     bridge = SyntaxExtensionBridge()
     with pytest.raises(ValueError):

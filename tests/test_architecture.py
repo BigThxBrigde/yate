@@ -60,6 +60,15 @@ These tests enforce the boundaries documented in
   styles or forwards theme updates, and scrollbar renderers are injected
   per widget (``apply_slim_scrollbars``), never class-level patched.
 
+* **R14** the extension machinery lives in ``services/extensions/`` and
+  yate code enters it only through the re-export facade: direct imports
+  of the ``api`` / ``bridges`` / ``loader`` / ``lua`` submodules are
+  banned outside the package, the old sibling modules stay gone, and the
+  facade re-export surface stays the frozen 14-name list.  ``tests/``
+  unit-test the internals directly and are exempt; the frozen whitelist
+  holds ``statusbar.py``'s injected bridge type, which the 14-name
+  facade does not re-export.
+
 * **File size** (A11, rules section 3.7): a ``yate/`` file beyond 800
   lines must be split or registered in the size-exemption list
   (``SIZE_EXEMPT_FILES``), which mirrors the rule text.
@@ -192,6 +201,55 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_view.panes",
     },
 }
+
+#: Extension-machinery submodules (R14): yate code enters the extension
+#: system only through the ``yate.services.extensions`` facade; importing
+#: one of these submodules directly is a violation outside the package
+#: itself.  ``tests/`` are not scanned (they unit-test the internals on
+#: purpose).
+EXTENSION_SUBMODULES: tuple[str, ...] = (
+    "yate.services.extensions.api",
+    "yate.services.extensions.bridges",
+    "yate.services.extensions.loader",
+    "yate.services.extensions.lua",
+)
+
+#: Frozen direct submodule imports (R14): ``statusbar.py`` annotates its
+#: injected UI bridge with ``UiExtensionBridge``, which the 14-name facade
+#: does not re-export.  A new direct import must be registered here first
+#: (same mechanism as ``UI_FROZEN_FILES``).
+EXTENSION_SUBMODULE_FROZEN: dict[str, set[str]] = {
+    "editor_view/statusbar.py": {"yate.services.extensions.bridges"},
+}
+
+#: The pre-subpackage module paths (R14): collapsed into
+#: ``services/extensions/`` -- a resurrected sibling module would fork the
+#: machinery behind the facade's back.
+EXTENSION_FORMER_MODULES: tuple[str, ...] = (
+    "extension_api.py",
+    "extension_bridges.py",
+    "extension_loader.py",
+)
+
+#: The frozen facade re-export surface (R14): the plugin manual and every
+#: ``*.py.example`` import exactly these 14 names from
+#: ``yate.services.extensions``.
+EXTENSION_FACADE_NAMES: tuple[str, ...] = (
+    "AnyCallback",
+    "CommandDecorator",
+    "ExtensionAPI",
+    "ExtensionContext",
+    "ExtensionLoader",
+    "HighlightExtensionBridge",
+    "LoadedExtension",
+    "LspExtensionBridge",
+    "RollbackHook",
+    "SpriteExtensionBridge",
+    "StatusSegment",
+    "SyntaxExtensionBridge",
+    "TeardownHook",
+    "load_startup_extensions",
+)
 
 #: The built-in tables import the editor; the editor must not import them (R5).
 EDITOR_FORBIDDEN_IMPORTS: tuple[str, ...] = ("yate.actions", "yate.commands")
@@ -993,3 +1051,38 @@ def test_support_mouse_gate_lives_in_app_on_event() -> None:
     gate = source.index("support_mouse")
     forward = source.index("await super().on_event(event)")
     assert gate < forward
+
+
+def test_extension_machinery_hides_behind_facade() -> None:
+    """Extension machinery lives in ``services/extensions/`` and yate code
+    enters it only through the facade (R14): direct imports of the ``api``
+    / ``bridges`` / ``loader`` / ``lua`` submodules are banned outside the
+    package itself, and the pre-subpackage sibling modules stay gone.
+    ``tests/`` are not scanned (they unit-test the internals on purpose);
+    a frozen whitelist holds pre-existing direct imports that need a name
+    the 13-name facade does not re-export."""
+    for name in EXTENSION_FORMER_MODULES:
+        assert not (YATE / "services" / name).exists(), name
+    assert not (YATE / "services" / "lua").exists()
+    for path in _yate_files():
+        key = path.relative_to(YATE).as_posix()
+        if key.startswith("services/extensions/"):
+            continue
+        for module in _yate_imports(path):
+            if not any(
+                module == target or module.startswith(target + ".")
+                for target in EXTENSION_SUBMODULES
+            ):
+                continue
+            assert module in EXTENSION_SUBMODULE_FROZEN.get(key, set()), (key, module)
+
+
+def test_extension_facade_exports_the_frozen_plugin_names() -> None:
+    """The plugin-facing facade surface stays the frozen 14-name list (R14):
+    the manual and every ``*.py.example`` import exactly these names from
+    ``yate.services.extensions``."""
+    from yate.services import extensions as facade
+
+    assert tuple(facade.__all__) == EXTENSION_FACADE_NAMES
+    for name in EXTENSION_FACADE_NAMES:
+        assert getattr(facade, name, None) is not None, name

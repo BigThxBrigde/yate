@@ -2,8 +2,11 @@
 
 :class:`ExtensionContext` is the concrete service bundle handed to a
 running extension, :class:`ExtensionAPI` is the surface scripts program
-against, and the rollback-scope aliases support the loader's A13
-snapshot-restore semantics.
+against -- the ``api.*`` bridges (events / lsp / highlight / syntax /
+sprites / ui / theme / clipboard / docs / actions) plus the
+``bind_action`` / ``unbind_key`` key rebinding primitives -- and the
+rollback-scope aliases support the loader's A13 snapshot-restore
+semantics.
 """
 
 from __future__ import annotations
@@ -18,21 +21,29 @@ from yate.keymaps.base import KeyBinding, Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
 from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
-from yate.services.extension_bridges import (
+from yate.services.extensions.bridges import (
+    ActionExtensionBridge,
+    ClipboardExtensionBridge,
+    DocsExtensionBridge,
+    EventExtensionBridge,
     HighlightExtensionBridge,
     LspExtensionBridge,
     SpriteExtensionBridge,
     SyntaxExtensionBridge,
+    ThemeExtensionBridge,
+    UiExtensionBridge,
 )
+from yate.services.events import EventHub
 from yate.services.shell import ShellResult
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
-#: Trace logger ("yate.services.extension_api"); silent unless yate_trace is on.
+#: Trace logger ("yate.services.extensions.api"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 #: One undo step of a loading scope: drop whatever a single ``api.register_*``
-#: / ``api.bind_key`` call just added (A13 snapshot-restore rollback).
+#: / ``api.bind_key`` / ``api.bind_action`` / ``api.unbind_key`` call just
+#: added (A13 snapshot-restore rollback).
 type RollbackHook = Callable[[], None]
 
 #: ``api.command`` decorator: takes the handler, returns it unchanged.
@@ -68,23 +79,42 @@ class ExtensionContext:
     open_path: Callable[[Path], None]
     #: ``save()`` -- save the active document.
     save: Callable[[], None]
+    #: ``run_action(name)`` -- run a named action through the editor's key
+    #: UI dispatch; the bool result says whether the action was known.
+    run_action: Callable[[str], bool]
+    #: ``set_theme(name)`` -- switch the color theme (R13: the editor only
+    #: triggers the switch, widget styles stay component-owned).
+    set_theme: Callable[[str], None]
+    #: ``active_theme_name()`` -- the active theme's name.
+    active_theme_name: Callable[[], str]
 
 
 class ExtensionAPI:
     """The surface exposed to extension scripts."""
 
-    def __init__(self, ctx: ExtensionContext) -> None:
+    def __init__(self, ctx: ExtensionContext, events: EventHub | None = None) -> None:
         self._ctx = ctx
-        self._lsp = LspExtensionBridge(ctx.lsp)
-        self._highlight = HighlightExtensionBridge()
-        self._syntax = SyntaxExtensionBridge()
-        self._sprites = SpriteExtensionBridge()
         #: Registration rollback scope (audit A13): undo thunks recorded
         #: while one ``setup`` runs; ``None`` when no scope is active (the
         #: normal state outside
         #: :meth:`ExtensionLoader.load_file
-        #: <yate.services.extension_loader.ExtensionLoader.load_file>`).
+        #: <yate.services.extensions.loader.ExtensionLoader.load_file>`).
+        #: Initialized first: the bridges below record into it.
         self._scope: list[RollbackHook] | None = None
+        self._lsp = LspExtensionBridge(ctx.lsp)
+        self._highlight = HighlightExtensionBridge()
+        self._syntax = SyntaxExtensionBridge()
+        self._sprites = SpriteExtensionBridge()
+        self._ui = UiExtensionBridge(self._record_undo)
+        # ``None`` (standalone construction in tests) gets a private hub:
+        # nothing emits into it, so subscriptions simply never fire.
+        self._events = EventExtensionBridge(
+            events if events is not None else EventHub(), self._record_undo
+        )
+        self._theme = ThemeExtensionBridge(ctx.set_theme, ctx.active_theme_name)
+        self._clipboard = ClipboardExtensionBridge()
+        self._docs = DocsExtensionBridge(ctx.session)
+        self._actions = ActionExtensionBridge(ctx.actions, ctx.run_action)
 
     # ------------------------------------------------------- rollback scope
 
@@ -111,13 +141,22 @@ class ExtensionAPI:
         Snapshot-restore semantics: a registration that replaced an
         earlier entry restores that entry; a brand-new registration is
         removed.  A no-op when no scope is active.  Public because the
-        loader (:mod:`yate.services.extension_loader`) drives the scope.
+        loader (:mod:`yate.services.extensions.loader`) drives the scope.
         """
         if self._scope is None:
             return
         for undo in reversed(self._scope):
             undo()
         self._scope = None
+
+    def _record_undo(self, undo: RollbackHook) -> None:
+        """Record one pre-built undo thunk into the active scope (A13).
+
+        No-op outside a scope, so registrations made by already-loaded
+        extensions (``:trust`` reload path) stay permanent.
+        """
+        if self._scope is not None:
+            self._scope.append(undo)
 
     def _record_action_snapshot(self, name: str) -> None:
         """Record the undo thunk for an action registration (audit A13)."""
@@ -152,6 +191,35 @@ class ExtensionAPI:
         self._scope.append(undo)
 
     # ------------------------------------------------------------- accessors
+
+    def _keymap_targets(self, keymap: str) -> list[str]:
+        """Resolve the *keymap* argument to the keymap names to touch.
+
+        ``both`` targets vsc and vim; the legacy ``normal`` alias means
+        ``vsc``.  Shared by :meth:`bind_key` / :meth:`bind_action` /
+        :meth:`unbind_key` (Lua callers pass the keymap positionally, so
+        all three need the identical resolution).
+        """
+        if keymap == "both":
+            return ["vsc", "vim"]
+        return ["vsc"] if keymap == "normal" else [keymap]
+
+    def _keymap_or_warn(self, target: str, caller: str) -> Keymap | None:
+        """The keymap *target*, or ``None`` after a warning naming it.
+
+        A misspelled keymap name used to bind nothing and stay silent
+        (S34); the warning lists the registered names so the typo is
+        visible in the trace log.
+        """
+        km = self._ctx.keymaps.get(target)
+        if km is None:
+            log.warning(
+                "%s: unknown keymap %r (available: %s)",
+                caller,
+                target,
+                ", ".join(self._ctx.keymaps.names()),
+            )
+        return km
 
     @property
     def app(self) -> ExtensionContext:
@@ -197,6 +265,36 @@ class ExtensionAPI:
     def sprites(self) -> SpriteExtensionBridge:
         """Register custom screensaver characters (``api.sprites.register``)."""
         return self._sprites
+
+    @property
+    def ui(self) -> UiExtensionBridge:
+        """Contribute status bar segments (``api.ui.add_status_segment``)."""
+        return self._ui
+
+    @property
+    def events(self) -> EventExtensionBridge:
+        """Subscribe to editor events (``api.events.subscribe``)."""
+        return self._events
+
+    @property
+    def theme(self) -> ThemeExtensionBridge:
+        """Switch/read the color theme (``api.theme.set`` / ``active``)."""
+        return self._theme
+
+    @property
+    def clipboard(self) -> ClipboardExtensionBridge:
+        """Read and write the system clipboard (``api.clipboard.set``/``get``)."""
+        return self._clipboard
+
+    @property
+    def docs(self) -> DocsExtensionBridge:
+        """Read-only view of the open documents (``api.docs.all``/``is_open``)."""
+        return self._docs
+
+    @property
+    def actions(self) -> ActionExtensionBridge:
+        """Run registered actions by name (``api.actions.run``)."""
+        return self._actions
 
     # ------------------------------------------------------------ registrars
 
@@ -250,21 +348,9 @@ class ExtensionAPI:
         """
 
         def _do(func: AnyCallback) -> AnyCallback:
-            if keymap == "both":
-                targets = ["vsc", "vim"]
-            else:
-                targets = ["vsc"] if keymap == "normal" else [keymap]
-            for target in targets:
-                km = self._ctx.keymaps.get(target)
+            for target in self._keymap_targets(keymap):
+                km = self._keymap_or_warn(target, "bind_key")
                 if km is None:
-                    # A misspelled keymap name used to bind nothing and stay
-                    # silent (S34); name the registered keymaps so the typo
-                    # is visible in the trace log.
-                    log.warning(
-                        "bind_key: unknown keymap %r (available: %s)",
-                        target,
-                        ", ".join(self._ctx.keymaps.names()),
-                    )
                     continue
                 raw = km.normalize_key(key_spec)
                 previous = km.lookup(raw)
@@ -290,6 +376,97 @@ class ExtensionAPI:
             return func
 
         return _do(callback) if callback is not None else _do
+
+    def bind_action(
+        self,
+        key_spec: str,
+        action_name: str,
+        keymap: str = "vsc",
+        description: str = "",
+        category: str = "extension",
+    ) -> None:
+        """Bind *key_spec* to the registered action *action_name*.
+
+        The keymap resolution mirrors :meth:`bind_key`: ``both`` targets the
+        vsc and vim keymaps, the legacy ``normal`` alias means ``vsc``, and
+        an unknown name binds nothing and is reported as a warning listing
+        the registered keymaps.  Actions bind by name, so the action must be
+        registered first (register, then bind): an unknown name binds
+        nothing and is reported as a warning listing the registered
+        actions.  A previous binding of the same key is restored on
+        rollback (A13).  Unlike :meth:`bind_key` there is no decorator
+        form -- the action is referenced by name, not passed in.
+        """
+        if self._ctx.actions.get(action_name) is None:
+            # Bind-by-name fails loudly on a typo (the binding would dispatch
+            # to nothing and the key would fall through): name the registered
+            # actions so the mistake is visible, same shape as the unknown
+            # keymap warning below.
+            log.warning(
+                "bind_action: unknown action %r (available: %s)",
+                action_name,
+                ", ".join(self._ctx.actions.names()),
+            )
+            return
+        for target in self._keymap_targets(keymap):
+            km = self._keymap_or_warn(target, "bind_action")
+            if km is None:
+                continue
+            raw = km.normalize_key(key_spec)
+            previous = km.lookup(raw)
+            if self._scope is not None:
+                def undo(
+                    km: Keymap = km,
+                    raw: str = raw,
+                    previous: KeyBinding | None = previous,
+                ) -> None:
+                    if previous is None:
+                        km.remove_binding(raw)
+                    else:
+                        km.add_binding(
+                            raw, previous.action, previous.description,
+                            previous.category,
+                        )
+
+                self._scope.append(undo)
+            km.add_binding(
+                key_spec, action_name, description or f"action {action_name}",
+                category,
+            )
+
+    def unbind_key(self, key_spec: str, keymap: str = "vsc") -> bool:
+        """Remove the binding for *key_spec* from the named keymap.
+
+        The keymap resolution mirrors :meth:`bind_key`; ``both`` removes the
+        key from the vsc and vim keymaps alike.  Returns ``True`` when any
+        target keymap actually dropped a binding, ``False`` when the key was
+        unbound everywhere or the keymap name is unknown (the latter also
+        reported as a warning).  A rollback scope records a restore thunk,
+        so a failing ``setup`` brings the previous binding back (A13).
+        """
+        removed = False
+        for target in self._keymap_targets(keymap):
+            km = self._keymap_or_warn(target, "unbind_key")
+            if km is None:
+                continue
+            raw = km.normalize_key(key_spec)
+            previous = km.lookup(raw)
+            if self._scope is not None:
+                def undo(
+                    km: Keymap = km,
+                    raw: str = raw,
+                    previous: KeyBinding | None = previous,
+                ) -> None:
+                    if previous is not None:
+                        km.add_binding(
+                            raw, previous.action, previous.description,
+                            previous.category,
+                        )
+
+                self._scope.append(undo)
+            if km.remove_binding(raw):
+                removed = True
+        return removed
 
     def command(
         self, name: str, description: str = "extension command"
@@ -323,7 +500,7 @@ class ExtensionAPI:
         """Show *text* on the message line."""
         self._ctx.message(text)
 
-    def shell(self, command: str) -> object:
+    def shell(self, command: str) -> ShellResult | None:
         """Run *command* synchronously without showing its output."""
         return self._ctx.run_shell(command, False)
 

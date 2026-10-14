@@ -34,6 +34,14 @@ An extension is any module with a ``setup(api)`` function. The api exposes:
 * ``api.syntax.register_tree_sitter(name, grammar=..., extensions=...,
   query=...)`` -- tree-sitter grammar based highlighting for custom
   languages (see ``yatesh_syntax.py.example``; requires ``yate[ts]``)
+* ``api.events.subscribe(api.events.EditorEvent.X, fn)`` -- editor event
+  subscription, returns the unsubscribe thunk (see section 4.10 of the
+  extensions manual)
+* ``api.ui.add_segment(id, provider, align=..., priority=...)`` -- status
+  bar text segments (see section 4.11 of the extensions manual)
+* ``api.actions.run(name)`` / ``api.bind_action(key, action, keymap=...)``
+  -- run actions by name / rebind keys to registered actions (see section
+  4.12 of the extensions manual)
 
 Note: this example registers commands with the imperative
 ``api.register_command`` (which carries a fully typed signature) and looks up
@@ -49,6 +57,11 @@ from typing import Callable
 from yate.keymaps.base import ActionContext
 from yate.services.extensions import ExtensionAPI
 from yate.services.shell import ShellResult
+
+#: Unsubscribe thunks of the event subscriptions made in :func:`setup`,
+#: dropped again in :func:`teardown` (module-level because the two hooks
+#: are separate functions).
+_UNSUBSCRIBE: list[Callable[[], None]] = []
 
 
 def setup(api: ExtensionAPI) -> None:
@@ -111,3 +124,39 @@ def setup(api: ExtensionAPI) -> None:
         description="uppercase selection/line (extension)",
         category="extension",
     )
+
+    # --- named actions: register first, then bind -- bind_action references
+    # the action by name, and a failing setup restores the previous binding.
+    api.register_action("ext.upper", lambda ctx: upper(""),
+                        "uppercase selection (or current line)")
+    api.bind_action("<ctrl-shift-alt-u>", "ext.upper", keymap="both")
+
+    # --- editor events: report theme switches. The event enum is
+    # re-exported as api.events.EditorEvent, so no yate.services import is
+    # needed; each payload is a frozen dataclass. The unsubscribe thunk is
+    # kept around so teardown can drop the listener again.
+    def _on_theme(payload) -> None:
+        api.message(f"theme switched to {payload.name}")
+
+    _UNSUBSCRIBE.append(
+        api.events.subscribe(api.events.EditorEvent.THEME_CHANGED, _on_theme)
+    )
+
+    # --- status bar segment: live word count on the right bar half; a
+    # provider returning None/"" would hide the segment for that refresh.
+    # The bar refreshes on every cursor move -- keep providers cheap.
+    api.ui.add_segment(
+        "ext-wordcount",
+        lambda: f"{len(api.buffer.get_text().split())}w",
+        align="right",
+    )
+
+
+def teardown(api: ExtensionAPI) -> None:
+    # Mirror of setup: drop the event subscription and the status segment
+    # (registrations made while setup runs would also roll back on their
+    # own if setup failed -- this hook covers the healthy shutdown path).
+    for unsub in _UNSUBSCRIBE:
+        unsub()
+    _UNSUBSCRIBE.clear()
+    api.ui.remove_status_segment("ext-wordcount")

@@ -6,20 +6,27 @@ Usage: copy this file into an extension directory (recommended:
 ``hello.lua``) and restart yate; it is loaded automatically.
 Requires the optional dependency: pip install yate[lua]
 
-Lua extensions have no setup(api) function: **the file's top-level code
-is the setup** and runs at load time; an optional global ``teardown``
-function is called when yate exits.  Errors never crash the editor:
-load-time failures are reported on the message line as
-``extension <name>: ...`` with everything already registered rolled
-back, and runtime errors inside command/key/action callbacks are caught
-and reported the same way.
+Lua extensions come in three styles; the loader takes the first match
+(module table > global setup > top level).  The recommended style for
+maintained extensions is the Lua library idiom -- build a module table and
+``return`` it (see the commented block at the bottom); yate then calls its
+``mod.setup(api)`` and ``mod.teardown(api)`` fields.  A returned table
+without a callable ``setup`` is a loud error.  The style used below is the
+quick top-level idiom (the file's top-level code IS the setup), and a
+global ``function setup(api)`` is the third form, mirroring Python
+line by line.  Errors never crash the editor: load-time failures are
+reported on the message line as ``extension <name>: ...`` with everything
+already registered rolled back, and runtime errors inside
+command/key/action callbacks are caught and reported the same way.
 ]]
 
 -- Grab yate's built-in API library (require("yate") and the global yate
 -- are the same table; pick either).  The library source lives in the
 -- package as _yate.lua: message / register_command / register_action /
--- bind_key / shell / open_path / save / buffer / doc / workspace, plus
--- the raw bridge passthroughs api / highlight / sprites / lsp / syntax.
+-- bind_key / bind_action / unbind_key / shell / open_path / save / buffer /
+-- doc / workspace / events.subscribe / ui.add_segment / theme / clipboard /
+-- docs / actions, plus the raw bridge passthroughs api / keymaps /
+-- highlight / sprites / lsp / syntax.
 local yate = require("yate")
 
 -- Register the :lua-hello command: reports the current document's line
@@ -59,9 +66,69 @@ yate.message("lua example extension loaded (trigger with :lua-hello or Alt+H)")
 --   -- release the resources held by this extension (subprocesses, timers, ...)
 -- end
 
+-- Alternative: the explicit setup(api) style (mirrors a Python extension's
+-- setup hook).  yate calls it once with the same api object after the top
+-- level has run -- handy when helper functions are declared above the
+-- registrations.  Pick ONE style per script: with both present the top
+-- level runs first and setup(api) is then called on top of it.
+-- Uncomment to switch (and remove the top-level registrations above):
+-- function setup(api)
+--   yate.register_command("lua-explicit", function(args)
+--     yate.message("explicit setup style, args: " .. (args or ""))
+--   end, "greet from the explicit setup style")
+-- end
+
+-- Events, status bar segments and action bindings, in the explicit
+-- setup(api) style (merge into the setup block above, or uncomment as a
+-- whole).  Three ordering notes: subscribe returns the unsubscribe
+-- function -- keep it and call it from teardown, so a reloaded extension
+-- does not stack duplicate listeners; bind_action references an action BY
+-- NAME, so the action must be registered first (register_action, then
+-- bind_action); and the status segment's align / priority may be left nil
+-- to get the defaults ("right" / 0).
+-- local unsub = nil
+-- function setup(api)
+--   unsub = yate.events.subscribe("document_saved", function(payload)
+--     yate.message("saved: " .. tostring(payload.doc.path))
+--   end)
+--   yate.ui.add_segment("lua-segment", function()
+--     return "lua"
+--   end)
+--   yate.register_action("my_action", function(ctx)
+--     yate.message("my_action fired!")
+--   end, "demo action bound below")
+--   yate.bind_action("gq", "my_action")
+-- end
+-- function teardown(api)
+--   if unsub ~= nil then
+--     unsub()  -- drop the event listener again
+--   end
+-- end
+
 -- More things to try (advanced):
 --   yate.api.shell("git status")            -- use the raw bridge directly
 --   yate.lsp.register_server(...)           -- register a language server (keyword
 --                                           --   arguments cannot come from Lua;
 --                                           --   use yaterc's language_servers)
 --   yate.buffer().insert_text("hi")         -- insert text at the cursor
+--   yate.api.events.subscribe(...)          -- editor event subscription
+--                                           --   (see the extensions manual 4.10)
+--   yate.api.ui.add_status_segment(...)     -- status bar segments
+--                                           --   (see the extensions manual 4.11)
+
+-- Recommended for maintained extensions: the module-table style (the Lua
+-- library idiom).  Return the table and yate calls mod.setup(api) once,
+-- with mod.teardown(api) running when yate exits.  Note: a returned table
+-- WITHOUT a callable setup field is a loud load error, so either give the
+-- table a setup or drop the return.  Pick ONE style per script.
+-- Uncomment to switch (and remove the top-level registrations above):
+-- local mod = {}
+-- function mod.setup(api)
+--   api.register_command("lua-module", function(args)
+--     api.message("module-table style, args: " .. (args or ""))
+--   end, "greet from the module-table style")
+-- end
+-- function mod.teardown(api)
+--   -- release the resources held by this extension
+-- end
+-- return mod
