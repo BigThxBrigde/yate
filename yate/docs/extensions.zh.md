@@ -851,3 +851,71 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 `yate --setup-defaults` 会把 `lua.example` 放入 `~/.yate/extensions/`；
 重命名它（如改为 `hello.lua`）即可激活，或直接阅读——它是一份带完整
 注释的入门教程。
+
+---
+
+## 7. 扩展包（`.yxp`）
+
+扩展包把多个文件打包成一个压缩档，便于分发与安装。`.yxp`
+（Yate eXtension Package）本质是 zip 包，内含载荷文件与两个保留成员：
+
+- `manifest` —— JSON 元数据：`name`（必填，须匹配 `^[A-Za-z0-9._-]+$`）、
+  `version` / `description` / `author`（可选），以及列出全部载荷成员的
+  `files` 清单。
+- `checksum` —— JSON，把每个载荷成员映射到其小写 SHA-256 十六进制
+  摘要。格式上允许缺省，但官方打包工具总是写入；存在时 yate 会在解压
+  前校验文件清单与每个摘要。
+
+### 安装、卸载、列表
+
+```text
+yate --install-extension hello_yxp-1.0.0.yxp   # 校验 + 解压 + 记录
+yate --uninstall-extension hello_yxp           # 移除已记录的文件
+yate --list-extensions                          # 显示已安装的包
+```
+
+这三个选项都是 side 命令（打印报告后退出；install/uninstall 可重复；
+失败退出码 1）。编辑器内也可用同样的操作：
+
+```text
+:install-extension hello_yxp-1.0.0.yxp
+:uninstall-extension hello_yxp
+:list-extensions            " 报告显示在输出浮层里
+```
+
+### 安装过程做了什么
+
+- 载荷**平铺**解压到 `~/.yate/extensions/` —— 正是启动加载器扫描的
+  目录，因此顶层 `*.py` / `*.lua` 成员在下次启动时生效（安装后需重启
+  yate）。
+- 归属记录写入 `~/.yate/extensions/_manifests/<name>.json`。
+- 目标文件已存在但不属于同名包时拒绝安装——你手工放置的文件绝不会被
+  覆盖。
+- 同名重装即原位升级：覆盖自家文件，并删除新版本中已不存在的过时
+  文件。
+- 卸载严格按记录删文件（缺失容忍并上报），随后删除记录。
+
+### 用 `tools/yxp` 打包
+
+仓库自带打包工具（开发工具，不随 wheel 分发）：
+
+```bash
+python -m tools.yxp build tools/yxp/example/hello_yxp   # -> hello_yxp.yxp
+python -m tools.yxp verify hello_yxp.yxp
+```
+
+`build` 接收一个源目录，目录里须有 `manifest` 元数据文件（JSON，含
+`name` / `version` / `description` / `author` —— 不写 `files` 字段，由
+打包器计算）。它会写入打包后的 manifest、`checksum` 成员与全部载荷
+文件，并跳过 `__pycache__`、`.git` 与 `*.pyc`。内置示例
+（`tools/yxp/example/hello_yxp/`）注册 `:hello-yxp` 问候命令——构建、
+安装、重启 yate 后运行 `:hello-yxp` 即可体验。
+
+### 安全须知
+
+- 校验仅保证完整性（SHA-256）：能发现损坏或被篡改的包，但不是签名——
+  只安装你信任的包。
+- 不安全的成员名（绝对路径、`..` 段、反斜杠、保留目录 `_manifests/`）
+  在写盘前一律拒绝。
+- 没有 `checksum` 成员的包按未校验安装；可先用
+  `python -m tools.yxp verify FILE.yxp` 检查。
