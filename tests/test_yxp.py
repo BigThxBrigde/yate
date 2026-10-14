@@ -280,6 +280,70 @@ def test_install_failure_rolls_back_partial_extraction(tmp_path: Path) -> None:
     assert not _record_path(base, "broken").exists()
 
 
+def test_failed_upgrade_extraction_restores_previous_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mid-extraction I/O failure on an upgrade puts v1 back untouched."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"hello.py": b"v1", "old.py": b"o1"})
+    yxp.install_package(v1, base)
+    v2 = make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2", "new.py": b"n2"})
+    real_write = Path.write_bytes
+
+    def flaky_write(self: Path, data: bytes) -> None:
+        if self.name == "new.py":  # first payload file lands, then boom
+            raise OSError("disk full")
+        real_write(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", flaky_write)
+    with pytest.raises(yxp.YxpError, match="extraction failed"):
+        yxp.install_package(v2, base)
+    monkeypatch.undo()
+    assert (base / "hello.py").read_bytes() == b"v1"  # old content restored
+    assert not (base / "new.py").exists()  # fresh file dropped
+    assert (base / "old.py").read_bytes() == b"o1"  # stale cleanup never ran
+    record = json.loads(_record_path(base, "hello").read_text(encoding="utf-8"))
+    assert record["files"] == ["hello.py", "old.py"]  # v1 record intact
+
+
+def test_failed_record_write_restores_previous_installation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A record-write failure on an upgrade restores the v1 installation."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"hello.py": b"v1", "old.py": b"o1"})
+    yxp.install_package(v1, base)
+    v2 = make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2", "fresh.py": b"f"})
+
+    def boom(records: Path, package: yxp.YxpPackage) -> None:
+        raise yxp.YxpError("cannot write install record")
+
+    monkeypatch.setattr(yxp, "_write_record", boom)
+    with pytest.raises(yxp.YxpError, match="cannot write install record"):
+        yxp.install_package(v2, base)
+    assert (base / "hello.py").read_bytes() == b"v1"  # overwrite undone
+    assert not (base / "fresh.py").exists()  # fresh file dropped
+    assert (base / "old.py").read_bytes() == b"o1"  # stale removal undone
+    record = json.loads(_record_path(base, "hello").read_text(encoding="utf-8"))
+    assert record["files"] == ["hello.py", "old.py"]
+
+
+def test_failed_record_write_on_fresh_install_leaves_no_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+
+    def boom(records: Path, package: yxp.YxpPackage) -> None:
+        raise yxp.YxpError("cannot write install record")
+
+    monkeypatch.setattr(yxp, "_write_record", boom)
+    with pytest.raises(yxp.YxpError, match="cannot write install record"):
+        yxp.install_package(pkg, base)
+    assert not (base / "hello.py").exists()
+    assert not _record_path(base, "hello").exists()
+
+
 # ---------------------------------------------------------- uninstall_package
 
 
@@ -297,6 +361,12 @@ def test_uninstall_removes_files_and_record(tmp_path: Path) -> None:
 def test_uninstall_missing_record(tmp_path: Path) -> None:
     with pytest.raises(yxp.YxpError, match="not installed"):
         yxp.uninstall_package("ghost", tmp_path / "base")
+
+
+@pytest.mark.parametrize("name", ["../evil", "a/b", "", "a:b"])
+def test_uninstall_rejects_invalid_names(tmp_path: Path, name: str) -> None:
+    with pytest.raises(yxp.YxpError, match="invalid package name"):
+        yxp.uninstall_package(name, tmp_path / "base")
 
 
 def test_uninstall_tolerates_missing_files(tmp_path: Path) -> None:

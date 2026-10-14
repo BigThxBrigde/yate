@@ -325,9 +325,12 @@ def install_package(
     package name upgrades in place: its recorded files are overwritten and
     files dropped from the new version are removed.  A target file that
     exists but is not owned by the same package refuses the install (the
-    user's own hand-placed files are never clobbered).  The record is
-    written only after every payload file is on disk; a failed extraction
-    removes the partial files and leaves any previous installation intact.
+    user's own hand-placed files are never clobbered).  Every payload file
+    is on disk before the record is written; a failure anywhere after the
+    first file lands -- mid-extraction or while writing the record --
+    restores the previous installation exactly (overwritten files get
+    their old content back, stale-removed files reappear, fresh files are
+    dropped) and raises :class:`YxpError`.
     """
     ext_dir = base_dir if base_dir is not None else default_extensions_dir()
     package = read_package(package_path)
@@ -349,65 +352,117 @@ def install_package(
             f"cannot install {manifest.name}: target files already exist and "
             f"belong to another package or to you: {', '.join(collisions)}"
         )
-    extracted = _extract_payload(package, ext_dir)
-    stale_removed = _remove_stale_files(old_files, manifest, ext_dir)
-    _write_record(records, package)
+    previous = _extract_payload(package, ext_dir)
+    stale_removed, stale_previous = _remove_stale_files(
+        old_files, manifest, ext_dir
+    )
+    try:
+        _write_record(records, package)
+    except YxpError:
+        _rollback_files(manifest.files, previous, ext_dir)
+        _restore_stale_files(stale_previous, ext_dir)
+        raise
     log.info(
         "installed extension package %s %s: %d file(s) -> %s",
-        manifest.name, manifest.version, len(extracted), ext_dir,
+        manifest.name, manifest.version, len(manifest.files), ext_dir,
     )
     return InstallReport(
         name=manifest.name,
         version=manifest.version,
-        files=tuple(extracted),
+        files=manifest.files,
         stale_removed=stale_removed,
         target_dir=ext_dir,
     )
 
 
-def _extract_payload(package: YxpPackage, ext_dir: Path) -> list[str]:
-    """Write every manifest file into *ext_dir*; roll back on failure."""
+def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
+    """Write every manifest file into *ext_dir*; roll back on failure.
+
+    Returns the previous content of the package's own files this
+    extraction overwrote (empty on a fresh install), so a later failure
+    (the install record) can restore the old installation.
+    """
     extracted: list[str] = []
+    previous: dict[str, bytes] = {}
     try:
         with zipfile.ZipFile(package.path) as zf:
             for rel in package.manifest.files:
                 target = ext_dir / rel
+                if target.is_file() or target.is_symlink():
+                    previous[rel] = target.read_bytes()
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(zf.read(rel))
                 extracted.append(rel)
     except OSError as exc:
-        for rel in extracted:
-            _unlink_quietly(ext_dir / rel)
+        _rollback_files(extracted, previous, ext_dir)
         raise YxpError(
             f"cannot install {package.manifest.name}: extraction failed ({exc})"
         ) from exc
     except zipfile.BadZipFile as exc:  # pragma: no cover - read_package validated
-        for rel in extracted:
-            _unlink_quietly(ext_dir / rel)
+        _rollback_files(extracted, previous, ext_dir)
         raise YxpError(
             f"cannot install {package.manifest.name}: archive broke mid-read ({exc})"
         ) from exc
-    return extracted
+    return previous
+
+
+def _rollback_files(
+    extracted: list[str] | tuple[str, ...],
+    previous: dict[str, bytes],
+    ext_dir: Path,
+) -> None:
+    """Undo a partial extraction: restore overwritten files, drop new ones."""
+    for rel in extracted:
+        target = ext_dir / rel
+        if rel not in previous:
+            _unlink_quietly(target)
+            _prune_empty_parents(target.parent, ext_dir)
+            continue
+        try:
+            target.write_bytes(previous[rel])
+        except OSError:
+            log.warning("could not restore previous content of %s", target)
+
+
+def _restore_stale_files(previous: dict[str, bytes], ext_dir: Path) -> None:
+    """Put back files deleted by a stale-file cleanup that must be undone."""
+    for rel, data in previous.items():
+        target = ext_dir / rel
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        except OSError:
+            log.warning("could not restore stale file %s", target)
 
 
 def _remove_stale_files(
     old_files: set[str] | None, manifest: YxpManifest, ext_dir: Path
-) -> tuple[str, ...]:
-    """Upgrade path: delete own files dropped from the new manifest."""
+) -> tuple[tuple[str, ...], dict[str, bytes]]:
+    """Upgrade path: delete own files dropped from the new manifest.
+
+    Returns the removed names plus their content, so a later failure
+    (the install record) can put the files back.
+    """
     if old_files is None:
-        return ()
+        return (), {}
     removed: list[str] = []
+    previous: dict[str, bytes] = {}
     for rel in sorted(old_files - set(manifest.files)):
         target = ext_dir / rel
         if target.is_file() or target.is_symlink():
             try:
+                previous[rel] = target.read_bytes()
+            except OSError:
+                log.warning("could not read stale file %s before removal", target)
+            try:
                 target.unlink()
             except OSError:
                 log.warning("could not remove stale file %s", target)
+                previous.pop(rel, None)
                 continue
             _prune_empty_parents(target.parent, ext_dir)
             removed.append(rel)
-    return tuple(removed)
+    return tuple(removed), previous
 
 
 def _write_record(records: Path, package: YxpPackage) -> None:
@@ -435,7 +490,16 @@ def _write_record(records: Path, package: YxpPackage) -> None:
 
 
 def uninstall_package(name: str, base_dir: Path | None = None) -> UninstallReport:
-    """Remove the recorded files of package *name* and its record."""
+    """Remove the recorded files of package *name* and its record.
+
+    *name* must match :data:`NAME_RE` -- it becomes a file name under the
+    records directory, so a loose name (``..``, separators) is rejected
+    before it can reach the filesystem.
+    """
+    if not NAME_RE.match(name):
+        raise YxpError(
+            f"invalid package name {name!r}: must match {NAME_RE.pattern!r}"
+        )
     ext_dir = base_dir if base_dir is not None else default_extensions_dir()
     record_path = ext_dir / RECORDS_DIRNAME / f"{name}{RECORD_SUFFIX}"
     if not record_path.is_file():
