@@ -29,6 +29,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+# The .yxp example package ships its manifest metadata file (source form,
+# unrelated to distutils MANIFEST files)
+!tools/yxp/example/hello_yxp/manifest
 
 # PyInstaller
 *.manifest

@@ -869,8 +869,8 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 ### 安装、卸载、列表
 
 ```text
-yate --install-extension hello_yxp-1.0.0.yxp   # 校验 + 解压 + 记录
-yate --uninstall-extension hello_yxp           # 移除已记录的文件
+yate --install-extension hello_yxp.yxp          # 校验 + 解压 + 记录
+yate --uninstall-extension hello_yxp            # 移除已记录的文件
 yate --list-extensions                          # 显示已安装的包
 ```
 
@@ -878,7 +878,7 @@ yate --list-extensions                          # 显示已安装的包
 失败退出码 1）。编辑器内也可用同样的操作：
 
 ```text
-:install-extension hello_yxp-1.0.0.yxp
+:install-extension hello_yxp.yxp
 :uninstall-extension hello_yxp
 :list-extensions            " 报告显示在输出浮层里
 ```

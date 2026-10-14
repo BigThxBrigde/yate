@@ -945,8 +945,8 @@ zip archive holding the payload files plus two reserved members:
 ### Installing, uninstalling, listing
 
 ```text
-yate --install-extension hello_yxp-1.0.0.yxp   # verify + extract + record
-yate --uninstall-extension hello_yxp           # remove the recorded files
+yate --install-extension hello_yxp.yxp          # verify + extract + record
+yate --uninstall-extension hello_yxp            # remove the recorded files
 yate --list-extensions                          # show installed packages
 ```
 
@@ -955,7 +955,7 @@ for install/uninstall; exit code 1 on failure). The same operations are
 available inside the editor:
 
 ```text
-:install-extension hello_yxp-1.0.0.yxp
+:install-extension hello_yxp.yxp
 :uninstall-extension hello_yxp
 :list-extensions            " report in an output overlay
 ```
