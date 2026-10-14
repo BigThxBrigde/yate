@@ -17,6 +17,7 @@ from yate.editor import Editor
 from yate.editor_syntax import format_filetype_candidates, language_name
 from yate.logs import tracing
 from yate.registries import CommandRegistry
+from yate.services import yxp
 
 __all__ = ["CommandRegistry", "register_commands"]
 
@@ -408,5 +409,47 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         ])
 
     reg("diff", _diff, "compare files in a diff view (:diff [--3way] F1 F2 [F3])")
+
+    # ---- extension packages ------------------------------------------------
+
+    def _install_extension(args: str) -> None:
+        args = _strip_quotes(args.strip())
+        if not args:
+            editor.message("usage: :install-extension PACKAGE.yxp", kind="warn")
+            return
+        try:
+            report = yxp.install_package(Path(args))
+        except yxp.YxpError as exc:
+            editor.message(str(exc), kind="warn")
+            return
+        editor.message(yxp.format_install_report(report), kind="ok")
+
+    def _uninstall_extension(args: str) -> None:
+        args = _strip_quotes(args.strip())
+        if not args:
+            editor.message("usage: :uninstall-extension NAME", kind="warn")
+            return
+        try:
+            report = yxp.uninstall_package(args)
+        except yxp.YxpError as exc:
+            editor.message(str(exc), kind="warn")
+            return
+        editor.message(yxp.format_uninstall_report(report), kind="ok")
+
+    def _list_extensions(args: str) -> None:
+        packages = yxp.list_packages()
+        if not packages:
+            editor.message("no extension packages installed")
+            return
+        editor.overlays.show_output(
+            "extension packages", yxp.format_package_list(packages)
+        )
+
+    reg("install-extension", _install_extension,
+        "install a .yxp extension package (:install-extension FILE)")
+    reg("uninstall-extension", _uninstall_extension,
+        "remove an installed .yxp package (:uninstall-extension NAME)")
+    reg("list-extensions", _list_extensions,
+        "show the installed extension packages")
 
     log.info("builtin commands registered: %d", len(registry.names()))

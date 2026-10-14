@@ -12,49 +12,17 @@ import json
 import zipfile
 from hashlib import sha256
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
+from conftest import make_yxp
+from yate.commands import register_commands
+from yate.registries import CommandRegistry
 from yate.services import yxp
 
 
 # ------------------------------------------------------------- zip builder
-
-
-def _make_yxp(
-    path: Path,
-    files: dict[str, bytes],
-    manifest: object | None = None,
-    checksum: str | dict[str, str] | None = "auto",
-    extra_members: dict[str, bytes | str] | None = None,
-) -> Path:
-    """Write a ``.yxp`` archive.
-
-    *manifest* replaces the generated manifest verbatim (for malformed
-    packages); *checksum* is ``"auto"`` (sha256 of *files*), ``None`` (omit
-    the member) or an explicit dict; *extra_members* adds raw members.
-    """
-    if manifest is None:
-        manifest = {
-            "name": "hello",
-            "version": "1.0.0",
-            "description": "greets",
-            "author": "tester",
-            "files": sorted(files),
-        }
-    with zipfile.ZipFile(path, "w") as zf:
-        zf.writestr("manifest", json.dumps(manifest))
-        if checksum == "auto":
-            checksum = {
-                name: sha256(data).hexdigest() for name, data in files.items()
-            }
-        if isinstance(checksum, dict):
-            zf.writestr("checksum", json.dumps(checksum))
-        for name, data in files.items():
-            zf.writestr(name, data)
-        for name, data in (extra_members or {}).items():
-            zf.writestr(name, data)
-    return path
 
 
 def _record_path(base: Path, name: str) -> Path:
@@ -65,7 +33,7 @@ def _record_path(base: Path, name: str) -> Path:
 
 
 def test_read_package_happy_path(tmp_path: Path) -> None:
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"print('hi')\n"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"print('hi')\n"})
     package = yxp.read_package(pkg)
     assert package.manifest.name == "hello"
     assert package.manifest.version == "1.0.0"
@@ -76,7 +44,7 @@ def test_read_package_happy_path(tmp_path: Path) -> None:
 
 
 def test_read_package_without_checksum_member(tmp_path: Path) -> None:
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
     assert yxp.read_package(pkg).checksums is None
 
 
@@ -90,7 +58,7 @@ def test_read_package_missing_manifest(tmp_path: Path) -> None:
 
 @pytest.mark.filterwarnings("ignore:Duplicate name")
 def test_read_package_duplicate_manifest(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x"},
         extra_members={"manifest": json.dumps({"name": "dup", "files": []})},
@@ -101,7 +69,7 @@ def test_read_package_duplicate_manifest(tmp_path: Path) -> None:
 
 @pytest.mark.filterwarnings("ignore:Duplicate name")
 def test_read_package_duplicate_checksum(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x"},
         extra_members={"checksum": "{}"},
@@ -111,7 +79,7 @@ def test_read_package_duplicate_checksum(tmp_path: Path) -> None:
 
 
 def test_read_package_bad_manifest_json(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp", {"hello.py": b"x"}, manifest={"name": "x"}
     )
     # Overwrite the manifest member with invalid JSON.
@@ -127,14 +95,14 @@ def test_read_package_bad_manifest_json(tmp_path: Path) -> None:
 
 
 def test_read_package_manifest_not_object(tmp_path: Path) -> None:
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, manifest=[1, 2])
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, manifest=[1, 2])
     with pytest.raises(yxp.YxpError, match="JSON object"):
         yxp.read_package(pkg)
 
 
 @pytest.mark.parametrize("name", ["", "bad name", "a/b", "x*y"])
 def test_read_package_invalid_name(tmp_path: Path, name: str) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x"},
         manifest={"name": name, "files": ["hello.py"]},
@@ -144,7 +112,7 @@ def test_read_package_invalid_name(tmp_path: Path, name: str) -> None:
 
 
 def test_read_package_version_defaults(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x"},
         manifest={"name": "hello", "files": ["hello.py"]},
@@ -153,7 +121,7 @@ def test_read_package_version_defaults(tmp_path: Path) -> None:
 
 
 def test_read_package_files_must_be_string_list(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x"},
         manifest={"name": "hello", "files": "hello.py"},
@@ -163,7 +131,7 @@ def test_read_package_files_must_be_string_list(tmp_path: Path) -> None:
 
 
 def test_read_package_files_mismatch_both_ways(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x", "extra.txt": b"y"},
         manifest={"name": "hello", "files": ["hello.py", "ghost.py"]},
@@ -176,7 +144,7 @@ def test_read_package_files_mismatch_both_ways(tmp_path: Path) -> None:
     "rel", ["../escape.py", "C:/evil.py", "/abs.py", "a\\b.py", "_manifests/x.json"]
 )
 def test_read_package_rejects_unsafe_names(tmp_path: Path, rel: str) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x"},
         manifest={"name": "hello", "files": ["hello.py", rel]},
@@ -186,7 +154,7 @@ def test_read_package_rejects_unsafe_names(tmp_path: Path, rel: str) -> None:
 
 
 def test_read_package_checksum_keys_mismatch(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp",
         {"hello.py": b"x"},
         checksum={"hello.py": "0" * 64, "ghost.py": "0" * 64},
@@ -196,7 +164,7 @@ def test_read_package_checksum_keys_mismatch(tmp_path: Path) -> None:
 
 
 def test_read_package_checksum_bad_digest_format(tmp_path: Path) -> None:
-    pkg = _make_yxp(
+    pkg = make_yxp(
         tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum={"hello.py": "zz"}
     )
     with pytest.raises(yxp.YxpError, match="hex digest"):
@@ -204,7 +172,7 @@ def test_read_package_checksum_bad_digest_format(tmp_path: Path) -> None:
 
 
 def test_read_package_tampered_payload(tmp_path: Path) -> None:
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"original"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"original"})
     # Rewrite the payload, keep the recorded digest.
     with zipfile.ZipFile(pkg) as zf:
         blobs = {n: zf.read(n) for n in zf.namelist()}
@@ -233,7 +201,7 @@ def test_read_package_unreadable_file(tmp_path: Path) -> None:
 
 def test_install_extracts_payload_and_writes_record(tmp_path: Path) -> None:
     base = tmp_path / "home" / ".yate" / "extensions"
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"print('hi')\n"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"print('hi')\n"})
     report = yxp.install_package(pkg, base)
     assert report.name == "hello"
     assert report.files == ("hello.py",)
@@ -249,7 +217,7 @@ def test_install_extracts_payload_and_writes_record(tmp_path: Path) -> None:
 
 def test_install_creates_nested_dirs(tmp_path: Path) -> None:
     base = tmp_path / "base"
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"sub/impl.py": b"x"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"sub/impl.py": b"x"})
     report = yxp.install_package(pkg, base)
     assert report.files == ("sub/impl.py",)
     assert (base / "sub" / "impl.py").read_bytes() == b"x"
@@ -257,7 +225,7 @@ def test_install_creates_nested_dirs(tmp_path: Path) -> None:
 
 def test_install_without_checksum_installs_unverified(tmp_path: Path) -> None:
     base = tmp_path / "base"
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
     assert yxp.install_package(pkg, base).files == ("hello.py",)
 
 
@@ -265,7 +233,7 @@ def test_install_refuses_unowned_collision(tmp_path: Path) -> None:
     base = tmp_path / "base"
     base.mkdir(parents=True)
     (base / "hello.py").write_bytes(b"user's own file")
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"packaged"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"packaged"})
     with pytest.raises(yxp.YxpError, match="already exist"):
         yxp.install_package(pkg, base)
     assert (base / "hello.py").read_bytes() == b"user's own file"
@@ -275,7 +243,7 @@ def test_install_refuses_tampered_package_without_side_effects(
     tmp_path: Path,
 ) -> None:
     base = tmp_path / "base"
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"original"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"original"})
     with zipfile.ZipFile(pkg) as zf:
         blobs = {n: zf.read(n) for n in zf.namelist()}
     blobs["hello.py"] = b"tampered"
@@ -290,9 +258,9 @@ def test_install_refuses_tampered_package_without_side_effects(
 
 def test_install_upgrade_overwrites_and_removes_stale(tmp_path: Path) -> None:
     base = tmp_path / "base"
-    _make_yxp(tmp_path / "v1.yxp", {"hello.py": b"v1", "old.py": b"old"})
+    make_yxp(tmp_path / "v1.yxp", {"hello.py": b"v1", "old.py": b"old"})
     yxp.install_package(tmp_path / "v1.yxp", base)
-    _make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2"})
+    make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2"})
     report = yxp.install_package(tmp_path / "v2.yxp", base)
     assert (base / "hello.py").read_bytes() == b"v2"
     assert report.stale_removed == ("old.py",)
@@ -305,7 +273,7 @@ def test_install_failure_rolls_back_partial_extraction(tmp_path: Path) -> None:
     base = tmp_path / "base"
     # "a.py/bad.txt" cannot be extracted: "a.py" is written as a file first,
     # so creating the parent directory fails mid-way.
-    pkg = _make_yxp(tmp_path / "broken.yxp", {"a.py": b"x", "a.py/bad.txt": b"y"})
+    pkg = make_yxp(tmp_path / "broken.yxp", {"a.py": b"x", "a.py/bad.txt": b"y"})
     with pytest.raises(yxp.YxpError, match="extraction failed"):
         yxp.install_package(pkg, base)
     assert not (base / "a.py").exists()
@@ -317,7 +285,7 @@ def test_install_failure_rolls_back_partial_extraction(tmp_path: Path) -> None:
 
 def test_uninstall_removes_files_and_record(tmp_path: Path) -> None:
     base = tmp_path / "base"
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
     yxp.install_package(pkg, base)
     report = yxp.uninstall_package("hello", base)
     assert report.removed == ("hello.py",)
@@ -333,7 +301,7 @@ def test_uninstall_missing_record(tmp_path: Path) -> None:
 
 def test_uninstall_tolerates_missing_files(tmp_path: Path) -> None:
     base = tmp_path / "base"
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
     yxp.install_package(pkg, base)
     (base / "hello.py").unlink()
     report = yxp.uninstall_package("hello", base)
@@ -344,7 +312,7 @@ def test_uninstall_tolerates_missing_files(tmp_path: Path) -> None:
 
 def test_uninstall_prunes_empty_parent_dirs(tmp_path: Path) -> None:
     base = tmp_path / "base"
-    pkg = _make_yxp(tmp_path / "hello.yxp", {"sub/impl.py": b"x"})
+    pkg = make_yxp(tmp_path / "hello.yxp", {"sub/impl.py": b"x"})
     yxp.install_package(pkg, base)
     yxp.uninstall_package("hello", base)
     assert not (base / "sub").exists()
@@ -360,7 +328,7 @@ def test_list_packages_empty(tmp_path: Path) -> None:
 def test_list_packages_sorted_by_name(tmp_path: Path) -> None:
     base = tmp_path / "base"
     for name, payload in (("zeta", "x.py"), ("alpha", "y.py")):
-        pkg = _make_yxp(
+        pkg = make_yxp(
             tmp_path / f"{name}.yxp",
             {payload: b"x"},
             manifest={"name": name, "files": [payload], "description": "d"},
@@ -428,3 +396,111 @@ def test_format_package_list() -> None:
     )
     assert "hello 1.0.0 -- greets (2 file(s))" in listing
     assert "bad: unreadable install record" in listing
+
+
+# --------------------------------------------------- builtin : commands -----
+
+
+class _RecordingEditor:
+    """Editor stand-in recording messages and output-overlay pushes."""
+
+    def __init__(self) -> None:
+        self.messages: list[tuple[str, str]] = []
+        self.outputs: list[tuple[str, str]] = []
+        self.overlays = self
+
+    def message(self, text: str, kind: str = "info") -> None:
+        """Record a message-line write."""
+        self.messages.append((text, kind))
+
+    def show_output(self, title: str, text: str) -> None:
+        """Record an output overlay push."""
+        self.outputs.append((title, text))
+
+
+def _editor_with_commands() -> tuple[CommandRegistry, _RecordingEditor]:
+    editor = _RecordingEditor()
+    registry = CommandRegistry()
+    register_commands(registry, cast(Any, editor))
+    return registry, editor
+
+
+def test_extension_package_commands_registered() -> None:
+    registry, _ = _editor_with_commands()
+    for name in ("install-extension", "uninstall-extension", "list-extensions"):
+        assert name in registry.names()
+
+
+def test_install_extension_command_installs_and_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "exts"
+    monkeypatch.setattr(yxp, "default_extensions_dir", lambda: base)
+    registry, editor = _editor_with_commands()
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    entry = registry.get("install-extension")
+    assert entry is not None
+    entry[0](str(pkg))
+    assert (base / "hello.py").exists()
+    assert any(
+        "installed hello 1.0.0" in text and kind == "ok"
+        for text, kind in editor.messages
+    )
+
+
+def test_install_extension_command_reports_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(yxp, "default_extensions_dir", lambda: tmp_path / "exts")
+    registry, editor = _editor_with_commands()
+    entry = registry.get("install-extension")
+    assert entry is not None
+    entry[0](str(tmp_path / "missing.yxp"))
+    assert editor.messages[-1][1] == "warn"
+    entry[0]("")
+    assert "usage:" in editor.messages[-1][0]
+
+
+def test_uninstall_extension_command_removes_and_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "exts"
+    monkeypatch.setattr(yxp, "default_extensions_dir", lambda: base)
+    registry, editor = _editor_with_commands()
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    yxp.install_package(pkg, base)
+    entry = registry.get("uninstall-extension")
+    assert entry is not None
+    entry[0]("hello")
+    assert not (base / "hello.py").exists()
+    assert any(
+        "removed hello" in text and kind == "ok" for text, kind in editor.messages
+    )
+    entry[0]("hello")
+    assert editor.messages[-1][1] == "warn"
+
+
+def test_list_extension_command_empty_message() -> None:
+    registry, editor = _editor_with_commands()
+    entry = registry.get("list-extensions")
+    assert entry is not None
+    entry[0]("")
+    assert editor.messages == [("no extension packages installed", "info")]
+    assert editor.outputs == []
+
+
+def test_list_extension_command_pushes_output_overlay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "exts"
+    monkeypatch.setattr(yxp, "default_extensions_dir", lambda: base)
+    registry, editor = _editor_with_commands()
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    yxp.install_package(pkg, base)
+    entry = registry.get("list-extensions")
+    assert entry is not None
+    entry[0]("")
+    assert len(editor.outputs) == 1
+    title, text = editor.outputs[0]
+    assert title == "extension packages"
+    assert "hello 1.0.0" in text

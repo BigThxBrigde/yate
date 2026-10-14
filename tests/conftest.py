@@ -20,9 +20,12 @@ across the pilot-driven test modules.
 
 from __future__ import annotations
 
+import json
 import os
 import time
+import zipfile
 from collections.abc import Awaitable, Callable
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -122,3 +125,39 @@ def make_action_context(text: str = "", ui: KeyUi | None = None) -> ActionContex
     session.new_buffer()
     session.docs[session.index] = Document(None, session.make_buffer(text))
     return ActionContext(session, ui if ui is not None else make_key_ui())
+
+
+def make_yxp(
+    path: Path,
+    files: dict[str, bytes],
+    manifest: object | None = None,
+    checksum: str | dict[str, str] | None = "auto",
+    extra_members: dict[str, bytes | str] | None = None,
+) -> Path:
+    """Write a ``.yxp`` archive for the extension-package tests.
+
+    *manifest* replaces the generated manifest verbatim (for malformed
+    packages); *checksum* is ``"auto"`` (sha256 of *files*), ``None`` (omit
+    the member) or an explicit dict; *extra_members* adds raw members.
+    """
+    if manifest is None:
+        manifest = {
+            "name": "hello",
+            "version": "1.0.0",
+            "description": "greets",
+            "author": "tester",
+            "files": sorted(files),
+        }
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("manifest", json.dumps(manifest))
+        if checksum == "auto":
+            checksum = {
+                name: sha256(data).hexdigest() for name, data in files.items()
+            }
+        if isinstance(checksum, dict):
+            zf.writestr("checksum", json.dumps(checksum))
+        for name, data in files.items():
+            zf.writestr(name, data)
+        for name, data in (extra_members or {}).items():
+            zf.writestr(name, data)
+    return path

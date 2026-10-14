@@ -61,6 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
             "  yate --changelog zh       print the changelog (en|zh) and exit\n"
             "  yate --install-font       install the bundled Nerd Font and exit\n"
             "  yate --diag               print the environment & config report and exit\n"
+            "  yate --install-extension FILE   install a .yxp extension package\n"
+            "                            (repeatable), then exit\n"
+            "  yate --uninstall-extension N\n"
+            "                            remove an installed package (repeatable)\n"
+            "  yate --list-extensions    show installed extension packages\n"
             "  yate --diff old.py new.py compare two files in the diff view\n"
             "  yate --setup-defaults     create ~/.yate with a default yaterc\n"
             "                            and bundled *.example templates, then exit\n"
@@ -130,6 +135,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="install the bundled Nerd Font for the current user, configure "
              "Windows Terminal if possible, then exit",
+    )
+    pkg_group = parser.add_mutually_exclusive_group()
+    pkg_group.add_argument(
+        "--install-extension",
+        dest="install_extensions",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help="install a .yxp extension package into ~/.yate/extensions "
+             "(repeatable), then exit",
+    )
+    pkg_group.add_argument(
+        "--uninstall-extension",
+        dest="uninstall_extensions",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="remove an installed extension package by name (repeatable), "
+             "then exit",
+    )
+    pkg_group.add_argument(
+        "--list-extensions",
+        action="store_true",
+        help="print the installed extension packages and exit",
     )
     setup_group = parser.add_mutually_exclusive_group()
     setup_group.add_argument(
@@ -263,6 +292,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = fonts.ensure_font()
         print(result.detail)
         return 0 if result.has_nerd_font else 1
+
+    # Extension-package management runs without launching the TUI (and
+    # without loading any configuration).  Reports go to stdout, failures
+    # to stderr; the exit code reflects whether any operation failed.
+    if (
+        args.install_extensions
+        or args.uninstall_extensions
+        or args.list_extensions
+    ):
+        from yate.services import yxp  # pylint: disable=import-outside-toplevel
+
+        failures = 0
+        for package_path in args.install_extensions:
+            try:
+                print(yxp.format_install_report(yxp.install_package(Path(package_path))))
+            except yxp.YxpError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                failures += 1
+        for name in args.uninstall_extensions:
+            try:
+                print(yxp.format_uninstall_report(yxp.uninstall_package(name)))
+            except yxp.YxpError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                failures += 1
+        if args.list_extensions:
+            print(yxp.format_package_list(yxp.list_packages()))
+        return 1 if failures else 0
 
     # User-directory initialization/cleanup runs without launching the TUI
     # and without loading any configuration.

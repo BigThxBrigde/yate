@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import yate
+from conftest import make_yxp
 from yate.cli import build_parser, main, version_lines
 
 _CUSTOM_THEME_SRC: str = """\
@@ -142,6 +143,61 @@ def test_changelog_flag_defaults_to_en() -> None:
     assert build_parser().parse_args(["--changelog", "zh"]).changelog == "zh"
     with pytest.raises(SystemExit):
         build_parser().parse_args(["--changelog", "fr"])
+
+
+# --- extension packages ------------------------------------------------------
+
+
+def test_extension_package_flags_parse() -> None:
+    args = build_parser().parse_args(
+        ["--install-extension", "a.yxp", "--install-extension", "b.yxp"]
+    )
+    assert args.install_extensions == ["a.yxp", "b.yxp"]
+    assert args.uninstall_extensions == []
+    assert args.list_extensions is False
+    args = build_parser().parse_args(["--uninstall-extension", "x"])
+    assert args.uninstall_extensions == ["x"]
+    args = build_parser().parse_args(["--list-extensions"])
+    assert args.list_extensions is True
+
+
+def test_extension_package_flags_are_mutually_exclusive() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(
+            ["--list-extensions", "--install-extension", "a.yxp"]
+        )
+
+
+def test_main_installs_and_lists_extension_packages(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"print('hi')\n"})
+    assert main(["--install-extension", str(pkg)]) == 0
+    out = capsys.readouterr().out
+    assert "installed hello 1.0.0" in out
+    assert main(["--list-extensions"]) == 0
+    assert "hello 1.0.0" in capsys.readouterr().out
+    # The isolated-home fixture points ~/.yate at a temp dir.
+    assert (Path.home() / ".yate" / "extensions" / "hello.py").exists()
+
+
+def test_main_uninstall_extension_package(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    main(["--install-extension", str(pkg)])
+    capsys.readouterr()
+    assert main(["--uninstall-extension", "hello"]) == 0
+    assert "removed hello" in capsys.readouterr().out
+    assert not (Path.home() / ".yate" / "extensions" / "hello.py").exists()
+
+
+def test_main_install_extension_failure_exit_code(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    missing = Path.home() / "missing.yxp"
+    assert main(["--install-extension", str(missing)]) == 1
+    assert "error:" in capsys.readouterr().err
 
 
 # --- --diff -----------------------------------------------------------------
