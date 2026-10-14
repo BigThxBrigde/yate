@@ -24,9 +24,9 @@ command/key/action callbacks are caught and reported the same way.
 -- are the same table; pick either).  The library source lives in the
 -- package as _yate.lua: message / register_command / register_action /
 -- bind_key / bind_action / unbind_key / shell / open_path / save / buffer /
--- doc / workspace / events.subscribe / ui.add_segment / theme / clipboard /
--- docs / actions, plus the raw bridge passthroughs api / keymaps /
--- highlight / sprites / lsp / syntax.
+-- doc / workspace / events.subscribe / ui.add_segment / ui.remove_segment /
+-- theme / clipboard / docs / actions, plus the raw bridge passthroughs
+-- api / keymaps / highlight / sprites / lsp / syntax.
 local yate = require("yate")
 
 -- Register the :lua-hello command: reports the current document's line

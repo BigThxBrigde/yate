@@ -75,6 +75,7 @@ Exported functions (see each function's comment for details):
   buffer() / doc() / workspace()         active buffer/document/workspace
   events.subscribe(name, fn)             subscribe to an editor event
   ui.add_segment(id, fn, align?, prio?)  contribute a status bar segment
+  ui.remove_segment(id)                  remove a status bar segment
   theme.set(name) / theme.active()       switch / read the color theme
   clipboard.set(text) / clipboard.get()  system clipboard
   docs.all() / docs.is_open(path)        open documents (read-only)
@@ -225,6 +226,16 @@ yate.ui = {}
 ---@return nil
 function yate.ui.add_segment(id, provider, align, priority)
   api.ui.add_segment(id, provider, align or "right", priority ~= nil and priority or 0)
+end
+
+-- Remove a previously contributed status bar segment (the id given to
+-- add_segment).  An unknown id raises an error.  Call it from teardown
+-- so a reloaded extension can add the same id again without a
+-- duplicate-id error.
+---@param id string
+---@return nil
+function yate.ui.remove_segment(id)
+  api.ui.remove_status_segment(id)
 end
 
 -- Color theme.  Nested under yate.theme.

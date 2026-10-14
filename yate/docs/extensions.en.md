@@ -875,6 +875,7 @@ runtime: `require("yate")` and the global `yate` are the same module table
 | `yate.unbind_key(spec, keymap?)` | remove a key binding; returns `true` when something was removed |
 | `yate.events.subscribe(name, fn)` | subscribe to editor events; `name` is the lowercase event name (`"document_saved"` ... `"theme_changed"`, section 4.10) |
 | `yate.ui.add_segment(id, provider, align?, priority?)` | contribute a status bar segment (section 4.11) |
+| `yate.ui.remove_segment(id)` | remove a previously contributed status bar segment (section 4.11) |
 | `yate.theme.set(name)` / `yate.theme.active()` | switch / read the color theme (section 4.13) |
 | `yate.clipboard.set(text)` / `yate.clipboard.get()` | system clipboard (section 4.13) |
 | `yate.docs.all()` / `yate.docs.is_open(path)` | read-only view of the open documents (section 4.13) |

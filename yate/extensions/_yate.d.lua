@@ -104,6 +104,12 @@ function yate.events.subscribe(name, fn) end
 ---@return nil
 function yate.ui.add_segment(id, provider, align, priority) end
 
+-- Remove a previously contributed status bar segment (the id given to
+-- add_segment).  An unknown id raises an error.
+---@param id string
+---@return nil
+function yate.ui.remove_segment(id) end
+
 -- Switch the color theme (raises when the name is unknown).
 ---@param name string
 ---@return nil

@@ -806,6 +806,7 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 | `yate.unbind_key(spec, keymap?)` | 解除按键绑定；有移除时返回 `true` |
 | `yate.events.subscribe(name, fn)` | 订阅编辑器事件；`name` 为小写事件名（`"document_saved"` … `"theme_changed"`，见 4.10 节） |
 | `yate.ui.add_segment(id, provider, align?, priority?)` | 贡献一个状态栏段（见 4.11 节） |
+| `yate.ui.remove_segment(id)` | 移除此前贡献的状态栏段（见 4.11 节） |
 | `yate.theme.set(name)` / `yate.theme.active()` | 切换/读取配色主题（见 4.13 节） |
 | `yate.clipboard.set(text)` / `yate.clipboard.get()` | 系统剪贴板（见 4.13 节） |
 | `yate.docs.all()` / `yate.docs.is_open(path)` | 打开文档的只读视图（见 4.13 节） |

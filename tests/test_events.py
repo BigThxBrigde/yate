@@ -97,6 +97,33 @@ def test_hub_guards_failing_listener() -> None:
     assert failures and "DOCUMENT_SAVED" in failures[0]
 
 
+def test_hub_report_failure_raising_keeps_listeners_running() -> None:
+    """The failure reporter raising cannot escape emit: healthy listeners
+    on both sides of a failing one still run (e.g. the message widget is
+    already unmounted during shutdown)."""
+
+    def _broken_report(_text: str) -> None:
+        raise RuntimeError("message widget unmounted")
+
+    hub = EventHub(report_failure=_broken_report)
+    order: list[str] = []
+
+    def _healthy(tag: str) -> EventCallback:
+        def listen(_payload: object) -> None:
+            order.append(tag)
+
+        return listen
+
+    def _boom(_payload: object) -> None:
+        raise RuntimeError("listener exploded")
+
+    hub.subscribe(EditorEvent.DOCUMENT_SAVED, _healthy("first"))
+    hub.subscribe(EditorEvent.DOCUMENT_SAVED, _boom)
+    hub.subscribe(EditorEvent.DOCUMENT_SAVED, _healthy("last"))
+    hub.emit(EditorEvent.DOCUMENT_SAVED, DocumentSaved(_doc()))
+    assert order == ["first", "last"]
+
+
 def test_hub_unsubscribe_is_idempotent() -> None:
     """Calling the unsubscribe thunk twice does not raise."""
     hub = EventHub()
