@@ -23,7 +23,7 @@ flowchart LR
         FLOWS["flows/*<br/>(completion/document/window/<br/>prompt/shell/overlay/mouse<br/>+ lsp_sync/prompt_completion)"]
     end
     subgraph L2["L2 · 组件 (editor_view/)"]
-        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diffview / manual / terminal<br/>completion / screensaver<br/>scrollbars / theme / icons"]
+        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diffview / diff_pane / manual<br/>terminal / completion / screensaver<br/>highlighting / welcome / scrollbars<br/>theme(hub) / themes / cells<br/>theme_files / icons"]
     end
     subgraph L1["L1 · 会话与模型"]
         SES["session.py<br/>(EditorSession + 窗格树<br/>Leaf/Split/ViewState)"]
@@ -82,7 +82,9 @@ flowchart LR
 
 ### 1.3 Editor 持有关系
 
-`yate/editor.py::Editor` 是 L3 枢纽，持有以下对象（`editor.py:318-382` 构造装配）：
+`yate/editor.py::Editor` 是 L3 枢纽，持有以下对象（`editor.py:82-328` 的
+`_build_models` / `_build_widgets` / `_build_pane_stack` / `_build_key_ui`
+四个工厂构造装配）：
 
 ```mermaid
 flowchart TB
@@ -94,6 +96,7 @@ flowchart TB
         KM["keymaps: KeymapSet"]
         AR["actions: ActionRegistry"]
         CR["commands: CommandRegistry"]
+        EVH["events: EventHub"]
     end
     subgraph FLOWS["流程编排 (L3 flows/)"]
         COM["completion: CompletionFlows"]
@@ -131,49 +134,51 @@ flowchart TB
   `register_commands(self.editor.commands, self.editor)` 灌入内置表
   （R7 规则：表模块导入 editor，editor 不得反向导入它们）。
 - **架构守护**：`tests/test_architecture.py` 在测试层强制约束上述分层
-  （2026-10-09 实测 **27 个用例全部通过**，R1–R13 + 命名/T1/T2 + 文件体量等守卫）。
+  （2026-10-14 实测 **31 个用例全部通过**，R1–R14 + 命名/T1/T2 +
+  回调别名/绝对导入/文件体量等守卫；R14 守护扩展机件只居
+  `services/extensions/` 子包、插件只从门面导入）。
 
 ## 2. 顶层模块职责
 
 | 模块 | 职责 | 关键类/函数 |
 | --- | --- | --- |
-| `editor_core/` | UI 无关编辑内核 | `buffer.py::TextBuffer`、`document.py::Document`、`search.py::SearchEngine`、`diff.py`（行/字符 diff 与三方合并，纯 `difflib`）、`indentation.py`（语言缩进与括号对规则）、`textobjects.py`（vim 动作与文本对象的无状态扫描） |
+| `editor_core/` | UI 无关编辑内核 | `buffer.py::TextBuffer`、`document.py::Document`、`search.py::SearchEngine`、`diff.py`（行/字符 diff 与三方合并，纯 `difflib`）、`indentation.py`（语言缩进与括号对规则）、`textobjects.py`（vim 动作与文本对象的无状态扫描）、`words.py`（词移动原语，vim `w`/`b`/`e` 的无状态列计算） |
 | `session.py` | 文档会话模型（tabs/活动文档/搜索）+ **窗格树模型** `Leaf` / `Split` / `ViewState` 与纯树操作，不依赖 UI | `EditorSession`、`find_leaf` / `replace_node` / `remove_node` / `leaves` / `find_axis_split` |
 | `registries.py` | 叶子模块，两个纯容器注册表 | `ActionRegistry`、`CommandRegistry` |
 | `actions.py` | 内置动作表 | `populate()`（闭包绑定具体 Editor 实例） |
 | `commands.py` | 内置 ex 命令表 | `register_commands()` |
 | `config.py` | yaterc（Python 脚本式配置）加载 | `YateConfig`，支持 `register_theme` 注入、`language_servers` 声明 |
-| `flows/completion_flows.py` / `flows/prompt_completion.py` | 补全控制器与 prompt 补全 | `completion_flows.py::CompletionFlows`（即 `editor.py:349` 的 `Editor.completion` 类型） |
+| `flows/completion_flows.py` / `flows/prompt_completion.py` | 补全控制器与 prompt 补全 | `completion_flows.py::CompletionFlows`（即 `Editor.completion` 类型） |
 | `keymaps/` | 可插拔键位方案 | `base.py::Keymap/ActionContext`、`registry.py::KeymapSet`、`vsc.py`、`vim.py` |
-| `editor_term/` | 内置终端：VT100/xterm 模拟器 + 跨平台 PTY | `emulator.py`、`pty_proc.py`、`shells.py` |
-| `editor_lsp/` | UI 无关 LSP 客户端与管理器 | `client.py::LspClient`、`manager.py::LspManager`（didOpen/didChange/didSave/didClose、补全、诊断） |
-| `editor_syntax/` | 语法高亮，按文件类型路由 | `engine.py` → tree-sitter 后端（`ts_backend/`）或正则后端（`regex_backend.py`），`.scm` 查询文件 |
+| `editor_term/` | 内置终端：VT100/xterm 模拟器 + 跨平台 PTY | `emulator.py`（2026-10-08 拆出 `palette.py` 调色板与 `keys.py` 按键映射）、`pty_proc.py`、`shells.py` |
+| `editor_lsp/` | UI 无关 LSP 客户端与管理器 | `client.py::LspClient`、`manager.py::LspManager`（didOpen/didChange/didSave/didClose、补全、诊断）、`parsing.py`（wire 格式解析）、`protocol.py` |
+| `editor_syntax/` | 语法高亮，按文件类型路由 | `engine.py` → tree-sitter 后端（`ts_backend/`）或正则后端（`regex_backend.py`），语言注册表归包顶层 `langdefs.py`，`.scm` 查询文件 |
 | `keyproto/` | 键弦模型与 Windows 键输入驱动（L0 叶包，2026-09-28 新增核对） | `chords.py::KeyChord` + VK/修饰位常量、`aliases.py`（弦→Textual 键名 / →C0 字节）、`legacy.py::event_to_raw` / `textual_key_to_raw`、`frames.py`（Windows Terminal `win32-input-mode` 键帧解码）、`driver_windows.py::YateWindowsDriver` |
 | `editor_sprites/` | 屏保精灵子系统（L0 叶包：纯数据 + 纯渲染，无 Textual/rich/IO，2026-09-28 新增核对） | `characters.py`（27 个角色的帧/调色板注册表，`character_names` / `get_character` / `shuffle_order`）、`render.py::render_rows` / `walk_x`、`chars/`（24 个角色位图模块 + 共享 `_shared.py`） |
-| `services/` | 平台服务 | `extensions/` 子包（扩展系统机件：门面 `__init__` + `api`/`bridges`/`loader`/`lua`，外部只进门面——R14；`::ExtensionAPI` 扩展脚本 `setup(api)`）、`events.py`（通用事件枢纽）、`workspace.py`、`fonts.py`、`user_setup.py`、`trust.py`（工作区信任门控）、`shell.py`、`clipboard.py`（pyperclip 降级安全包装）、`idle_tracker.py::IdleTracker`（屏保空闲打点，无定时器/线程） |
-| `flows/*`（`*_flows.py` + `lsp_sync.py`） | 从 `editor.py` 抽出的流程模块（`yate/flows/` 子包；由 `Editor` 构造，一律不反向导入 UI 层） | `document_flows.py::DocumentFlows`、`window_flows.py::WindowFlows`、`prompt_flows.py::PromptFlows`、`shell_flows.py::ShellFlows`、`extension_flows.py::ExtensionFlows`（扩展加载 + yaterc `language_servers` 注册）、`overlay_flows.py::OverlayFlows`（palette / help / manual / diff 推屏）、`mouse_flows.py::MouseFlows`、`completion_flows.py::CompletionFlows`、`prompt_completion.py::prompt_completions`、`lsp_sync.py::LspSync` |
-| `extensions/`（顶层，区别于 `services/extensions/` 机件子包） | 内置扩展示例 | `python_lsp.py`（内置 Python LSP 扩展）+ 6 个 `*.py.example` 示例（batch / diff / fsharp / git / ini / yatesh 语法）；C# 等语言高亮属**内置**语法层（`editor_syntax/ts_backend/queries/csharp.scm` 等），不在本目录 |
+| `services/` | 平台服务 | `extensions/` 子包（扩展系统机件：R14 门面 `__init__` 再导出冻结插件导入路径 + `api.py`（`ExtensionAPI`/`ExtensionContext` 与 A13 回滚作用域）+ `bridges.py`（十座 `api.*` 桥 + `StatusSegment`）+ `loader.py`（发现/装载/回滚驱动/teardown）+ `lua/` 子包（lupa Lua 桥））、`events.py`（`EditorEvent` / `EventHub` 扩展事件枢纽，由 Editor 构造注入）、`workspace.py`、`fonts.py`、`user_setup.py`、`trust.py`（工作区信任门控）、`shell.py`、`clipboard.py`（pyperclip 降级安全包装）、`idle_tracker.py::IdleTracker`（屏保空闲打点，无定时器/线程） |
+| `flows/*`（`*_flows.py` + `lsp_sync.py`） | 从 `editor.py` 抽出的流程模块（`yate/flows/` 子包；由 `Editor` 构造，一律不反向导入 UI 层） | `document_flows.py::DocumentFlows`、`window_flows.py::WindowFlows`、`prompt_flows.py::PromptFlows`、`shell_flows.py::ShellFlows`、`extension_flows.py::ExtensionFlows`（扩展加载 + `:trust` 信任确认 + yaterc `language_servers` 注册）、`overlay_flows.py::OverlayFlows`（palette / help / manual / diff 推屏）、`mouse_flows.py::MouseFlows`、`completion_flows.py::CompletionFlows`、`prompt_completion.py::prompt_completions`、`lsp_sync.py::LspSync` |
+| `extensions/`（顶层，区别于 `services/extensions/` 机件子包） | 内置扩展示例 | `python_lsp.py`（内置 Python LSP 扩展）+ 7 个 `*.py.example` 示例（batch / diff / example_ext / fsharp / git / ini / yatesh 语法）+ `lua.example` 与 Lua API 库 `_yate.lua`（`require("yate")`）及 IDE lint 定义 `_yate.d.lua`；C# 等语言高亮属**内置**语法层（`editor_syntax/ts_backend/queries/csharp.scm` 等），不在本目录 |
 | 其他 | `logs.py`（crash/tracing）、`paths.py::load_tcss`（打包资源读取）、`diagnostics.py`、`dist_meta.py`（解析自身 Requires-Dist，供 `--diag` 与 PyInstaller spec 共用）、`resources/`（**`app.tcss` 外壳 CSS**、字体、manual/changelog 文档、主题示例） | |
 
 ## 3. editor_view/ 组成（Textual UI 层)
 
 | 文件 | 职责 |
 | --- | --- |
-| `editor.py::EditorView` | 主编辑面：Rich 渲染、语法高亮、选择/搜索叠层 |
+| `editor.py::EditorView` | 主编辑面：Rich 渲染、语法高亮、选择/搜索叠层（高亮与欢迎页拆至 `highlighting.py` / `welcome.py`） |
 | `panes.py::PaneManager/PaneHost` | 编辑区窗格管理 |
 | `chrome.py` | TabBar / Breadcrumbs |
-| `statusbar.py::StatusBar` | 状态栏 |
+| `statusbar.py::StatusBar` | 状态栏（含扩展状态段拉取渲染，见 §6） |
 | `commandline.py::PromptBar` | 底部命令行 / 提示条 |
 | `explorer.py::ExplorerTree` | 侧边文件浏览器 |
 | `palette.py::PaletteScreen` | quick-open / 命令面板 |
 | `modals.py` | Help / Output 覆盖层 |
-| `diffview.py::DiffScreen` / `DiffPane` | 两路 / 三路 diff 视图（`DEFAULT_CSS = load_tcss("diff-view.tcss")`，由 `overlays.py::OverlayFlows.open_diff` 推入；每侧一个 `DiffPane`） |
+| `diffview.py::DiffScreen` / `diff_pane.py::DiffPane` | 两路 / 三路 diff 视图（screen 侧在 `diffview.py`、每侧窗格在 `diff_pane.py`；`DEFAULT_CSS = load_tcss("diff-view.tcss")`，由 `overlay_flows.py::OverlayFlows.open_diff` 推入） |
 | `manual.py::MarkdownDocScreen` | 帮助手册 / changelog 查看器（引用 `$doc-hit-*` CSS 变量） |
 | `terminal.py::TerminalPanel` | 内置终端面板 |
 | `completion.py::CompletionPopup` | 补全弹出层 |
 | `screensaver.py::ScreensaverScreen` | 全屏屏保（`ModalScreen`，精灵队列调度与自我消解；不含精灵数据本身） |
 | `scrollbars.py` | 细滚动条按 widget 实例注入（`apply_slim_scrollbars(widget)`） |
-| `theme.py` | yate 主题定义 + `to_textual_theme()` 桥接 |
+| `theme.py` | 主题广播枢纽 + 门面再导出（主题数据/校验/Textual 桥在 `themes.py`、字符几何在 `cells.py`、自定义主题文件加载在 `theme_files.py`；历史导入面不变） |
 
 > `keys.py` 已不存在：Textual 键名 → raw 字节翻译于 2026-09-28 核对确认已迁至
 > L0 叶包 `yate/keyproto/legacy.py`（`event_to_raw` / `textual_key_to_raw`）。
@@ -211,24 +216,25 @@ sequenceDiagram
     Note over CR: ":命令" 路径不走按键分派：<br/>prompt_bar 提交 → Editor.run_command(text) → CommandRegistry
 ```
 
-`Editor.handle_key`（`editor.py:549-653`）的实际分派顺序与短路点：
+`Editor.handle_key`（`editor.py:590-694`）的实际分派顺序与短路点：
 
 | # | 行号 | 分支 | 命中时 |
 | --- | --- | --- | --- |
-| 1 | `editor.py:561-562` | 模态框（`has_modal_screen()`） | `return False`，输入归模态屏所有 |
-| 2 | `editor.py:583-587` | 手动补全（`ctrl+space` / `ctrl+@`） | `completion.request(manual=True)` |
-| 3 | `editor.py:588-590` | terminal 切换（`TOGGLE_KEYS`） | `terminal_panel.toggle()` |
-| 4 | `editor.py:597-610` | 补全弹窗（`tab`/`enter`/`up`/`down`/`escape`） | 接受候选 / 上下选择 / 关闭 |
-| 5 | `editor.py:613-614` | vim `ctrl+w` 窗口前缀 | `window_flows.try_window_prefix` |
-| 6 | `editor.py:619-621` | `alt+shift+p` | `overlays.open_command_palette()` |
-| 7 | `editor.py:622-625` | `prompt_bar.active_mode` | **提前 `return False`**：`:command` 输入中不劫键 |
-| 8 | `editor.py:630-643` | 全局 chord（`alt+shift+s` 屏保、`ctrl+shift+e` 侧栏、`ctrl+1`、`ctrl+p`） | 各自执行 action |
-| 9 | `editor.py:644-645` | `explorer_focused()` | `return False`：侧栏自己消费按键 |
-| 10 | `editor.py:646-653` | `event_to_raw()` → `handle_raw_key()` | 进入活动键位方案（见上方序列图） |
+| 1 | `editor.py:602-603` | 模态框（`has_modal_screen()`） | `return False`，输入归模态屏所有 |
+| 2 | `editor.py:624-628` | 手动补全（`ctrl+space` / `ctrl+@`） | `completion.request(manual=True)` |
+| 3 | `editor.py:629-631` | terminal 切换（`TOGGLE_KEYS`） | `terminal_panel.toggle()` |
+| 4 | `editor.py:638-651` | 补全弹窗（`tab`/`enter`/`up`/`down`/`escape`） | 接受候选 / 上下选择 / 关闭 |
+| 5 | `editor.py:654-655` | vim `ctrl+w` 窗口前缀 | `window_flows.try_window_prefix` |
+| 6 | `editor.py:660-662` | `alt+shift+p` | `overlays.open_command_palette()` |
+| 7 | `editor.py:663-666` | `prompt_bar.active_mode` | **提前 `return False`**：`:command` 输入中不劫键 |
+| 8 | `editor.py:671-684` | 全局 chord（`alt+shift+s` 屏保、`ctrl+shift+e` 侧栏、`ctrl+1`、`ctrl+p`） | 各自执行 action |
+| 9 | `editor.py:685-686` | `explorer_focused()` | `return False`：侧栏自己消费按键 |
+| 10 | `editor.py:687-694` | `event_to_raw()` → `handle_raw_key()` | 进入活动键位方案（见上方序列图） |
 
 - 两个注册表在 `YateApp.__init__` 中由 `populate` / `register_commands`
   一次性灌入；扩展可通过 `ExtensionAPI` 追加。
-- 键位方案可插拔：`keymaps/` 下 `base`/`vsc`/`vim`，`KeymapSet` 管理激活态。
+- 键位方案可插拔：`keymaps/` 下 `base`/`vsc`/`vim`，`KeymapSet` 管理激活态；
+  切换时经 `EventHub` 发出 `KEYMAP_CHANGED`（扩展 `api.events` 可订阅）。
 
 ## 5. 主题桥接机制
 
@@ -242,21 +248,44 @@ sequenceDiagram
   （详见 `textual-framework-hooks.md`）；
 - 主题着色归组件自持（R13）：组件订阅 `theme.subscribe(listener)` 自行上色，
   `Editor` 只调 `theme.set_theme(name)`；屏保画面的颜色也走 CSS 变量，
-  外壳不直接给它上色。
+  外壳不直接给它上色；主题切换同样经 `EventHub` 发出 `THEME_CHANGED`。
 
 ## 6. 外部集成
 
 - **LSP**：`LspManager` UI 无关；server 来自 yaterc `language_servers` 声明
-  与扩展 `api.lsp.register`；editor 在四个文档生命周期点挂钩
-  （启动挂钩见 `editor.py:442-443` → `extension_flows.py:49` `load_extensions()`
+  与扩展 `api.lsp.register`；editor 在文档生命周期点挂钩
+  （启动挂钩见 `editor.py:477-478` → `extension_flows.py:49` `load_extensions()`
   与 `:104` `register_configured_servers()`；headless `--diag` 走
   `cli.py:379-380`），诊断经 `on_event` 回调驱动
-  UI 重绘。
+  UI 重绘，并经 `EventHub` 发出 `DIAGNOSTICS_UPDATED`。
 - **内置终端**：`pty_proc.py` 起 PTY → `emulator.py` 把字节流驱动成单元格
   网格 → `TerminalPanel` 渲染。
-- **扩展系统**：`services/extensions/loader.py::ExtensionLoader`（经门面
-  `services/extensions/__init__.py`，R14）加载 `setup(api)`
-  脚本，受 `trust.py` 工作区信任门控。
+- **扩展系统**：`services/extensions/` 子包（R14：插件只从门面
+  `services/extensions/__init__.py` 导入，子模块为非公共 API）——
+  `loader.py::ExtensionLoader` 发现/装载 `setup(api)` 脚本、驱动 A13 回滚
+  作用域与 `teardown_all()`；`api.py::ExtensionAPI` 暴露 `buffer` /
+  `message` / `save` / `bind_key` / `command` 与十座 `api.*` 桥
+  （events / ui / lsp / highlight / syntax / sprites / theme / clipboard /
+  docs / actions，`bridges.py`）；受 `trust.py` 工作区信任门控：启动跳过
+  未信任项目的 `./extensions`，`:trust` 确认后立即装载（路径去重，
+  symlink cwd 拒绝）。
+- **扩展事件**：`services/events.py::EventHub` 由 `Editor` 构造并注入
+  `api.events` 与各 emit 点（非全局总线）；事件身份是 `EditorEvent` 枚举
+  （`DOCUMENT_SAVED` / `DOCUMENT_OPENED` / `DOCUMENT_CLOSED` /
+  `DOCUMENT_ACTIVATED` / `DIAGNOSTICS_UPDATED` / `KEYMAP_CHANGED` /
+  `THEME_CHANGED`），同步同线程按订阅序派发；单监听器异常被隔离
+  （trace 日志 + 消息行上报），不影响其余监听器与触发操作；
+  `subscribe` 返回退订函数（VS Code disposable 语义）。
+- **状态段贡献点**：扩展经 `api.ui.add_status_segment` 注册 `StatusSegment`
+  （`bridges.py`，门面再导出）；`StatusBar` 拉取模型——每次刷新拉取段文本、
+  由状态栏自绘（R13），provider 异常降级为该段当次隐藏。
+- **Lua 扩展**：`*.lua` 经 `services/extensions/lua/` 子包（`runtime.py`
+  lupa 运行时、`library.py` 内置 API 库源）共享 Python 扩展同一管线，
+  API 面与 Python 侧镜像（`require("yate")`，`api` 全局）；入口三形态按
+  优先级：返回 module table（`mod.setup(api)` / `mod.teardown(api)`）→
+  全局 `setup(api)` → 顶层即 setup（遗留）；返回 table 而无 `setup` 是
+  显式报错。可选依赖 `pip install yate[lua]`；IDE lint 定义 `_yate.d.lua`
+  随包分发。
 - **Windows 键输入**：`YateApp.get_driver_class()` 在 `win32` 且
   yaterc `key_protocol != "legacy"` 时返回 `keyproto/driver_windows.py::YateWindowsDriver`
   ——原 Textual 驱动把按键记录退化成字符，ctrl+数字 / `ctrl+`` 会丢失；
@@ -268,9 +297,12 @@ sequenceDiagram
 
 ## 7. 测试与工具链
 
-- **`tests/`**：pytest，78 个 `test_*.py`（2026-10-09 实测）按模块一一对应，
-  含 `test_architecture.py`（27 个用例，守护 R1–R13 + 命名/T1/T2 + 文件体量等约束）；
-  另有主题断言（如 `test_theme_palettes.py`）。
+- **`tests/`**：pytest，93 个 `test_*.py`（2026-10-14 实测）按模块一一对应，
+  含 `test_architecture.py`（31 个用例，守护 R1–R14 + 命名/T1/T2 +
+  回调别名/绝对导入/文件体量等约束，2026-10-14 实测全绿）；
+  另有主题断言（如 `test_theme_palettes.py`）与扩展系统专项
+  （事件枢纽、状态段、Lua 运行时、回滚作用域等）。
 - **`tools/`**：独立 CLI 工具集——`changelog/`（git + Gitee 生成双语
   changelog）、`pack/`（图标打包）、`release/`、`smoke_test/`（分场景
-  端到端冒烟测试）、`translate/`（Markdown 文档翻译 CLI）。
+  端到端冒烟测试，含扩展与自定义主题场景）、`translate/`（Markdown
+  文档翻译 CLI）。
