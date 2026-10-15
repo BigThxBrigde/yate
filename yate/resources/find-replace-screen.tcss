@@ -1,0 +1,32 @@
+/* FindReplaceScreen stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/find_replace.py via yate.paths.load_tcss.
+   All ids are screen-local (never referenced by the shell app.tcss, R9). */
+FindReplaceScreen {
+    align: center top;
+}
+FindReplaceScreen #find-replace {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+    background: $surface;
+    padding: 1 2;
+}
+FindReplaceScreen #fr-inputs {
+    height: 3;
+}
+FindReplaceScreen #fr-find,
+FindReplaceScreen #fr-replace {
+    width: 1fr;
+    border: none;
+    background: $surface;
+    padding: 0;
+}
+FindReplaceScreen #fr-options {
+    width: auto;
+    padding: 0 0 0 1;
+    background: $surface;
+}
+FindReplaceScreen #fr-results {
+    height: 1fr;
+    background: $surface;
+}
