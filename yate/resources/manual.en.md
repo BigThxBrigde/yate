@@ -455,7 +455,8 @@ no bracket auto-completion while multi-cursor is active.
 |---|---|
 | `Ctrl+F` | Find in file (live highlight, `Enter` jumps) |
 | `F3` | Next match |
-| `F4` | Find and replace (two-step input, replace all) |
+| `F4` | Find and replace (two-step input, per-match confirm loop) |
+| `Ctrl+H` | Find & replace in project |
 
 **View / Tools**
 
@@ -576,6 +577,7 @@ selections and no bracket auto-completion while multi-cursor is active.
 | `/` | Find downward |
 | `?` | Find upward |
 | `n` / `N` | Next / previous match |
+| `Ctrl+H` | Find & replace in project |
 | `:` | ex command line (`:w` `:q` `:e` `:!` …) |
 
 **Panes and windows (`Ctrl+W` prefix in NORMAL mode; see 8.1)**
@@ -672,12 +674,34 @@ Behavior notes:
 - **Cancel**: `Esc` or `Ctrl+C` closes the find input line and clears the
   highlights.
 - **Replace**: `F4` runs in two steps — first the find text (`Replace:`),
-  then the replacement (`With:`). On confirm **all matches are replaced in one
-  pass**, recorded as a single undo entry (one `Ctrl+Z` / `u` reverts
-  everything). The result message shows the replacement count.
+  then the replacement (`With:`). Confirming enters a per-match loop: the
+  input line placeholder shows
+  `[i/N] replace 'x' with 'y'? (y)es (n)o (a)ll (q)uit` and one key decides
+  each step — `y` replaces the current match and advances, `n` skips it,
+  `a` replaces every match in the whole buffer at once (including matches
+  skipped earlier in the loop), and `q` / `Esc` quits the loop. When the
+  loop ends, focus returns to the editor and the message line reports the
+  outcome (replacement count, or `replace cancelled`).
 - Case-**insensitive** by default; plain-text matching (no regex).
 - With no matches the message bar shows `no matches for '…'`; pressing `F3`
   with no active search hints to start one with `/` or `Ctrl+F`.
+
+### 7.1 Project-wide find & replace
+
+Press `Ctrl+H` (available under the vsc keymap and in vim NORMAL mode; also
+reachable via the `:project-replace` command or the command palette) to open
+the project-wide find & replace view:
+
+- The find input searches the workspace live as you type (0.3 s debounce).
+- `Alt+C` / `Alt+W` / `Alt+R` toggle match case / whole word / regex.
+- Results are grouped by file; `Up` / `Down` move the cursor across them.
+- `Enter` opens the file under the cursor and jumps to the match.
+- `R` replaces the matches of the file under the cursor; `A` replaces the
+  matches of every listed file. Documents already open are replaced in
+  memory (undoable, left unsaved); files that are not open are written to
+  disk directly (files whose content does not change are not written).
+- Binary and large (> 2 MB) files are skipped.
+- `Escape` closes the view.
 
 ## 8. Command Line (ex commands)
 
