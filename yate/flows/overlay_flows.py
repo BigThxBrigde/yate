@@ -22,7 +22,7 @@ from yate.editor_sprites.characters import character_names
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
 from yate.editor_view.manual import MarkdownDocScreen
-from yate.editor_view.modals import HelpScreen
+from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
 from yate.editor_view.screensaver import ScreensaverScreen
 from yate.flows import MessageFn, StateQuery
@@ -96,6 +96,11 @@ class OverlayFlows:
     def show_manual(self, lang: str = "en") -> None:
         """Open the bundled user manual, rendered as read-only markdown."""
         self._open_doc(kind="manual", lang=lang, title="user manual")
+
+    def show_output(self, title: str, text: str) -> None:
+        """Push a plain-text report overlay (e.g. ``:list-extensions``)."""
+        if self._mounted():
+            self.push(OutputScreen(title, text))
 
     def show_changelog(self, lang: str = "en") -> None:
         """Open the bundled bilingual changelog viewer."""

@@ -926,3 +926,80 @@ surface (see section 4.14).
 `yate --setup-defaults` places `lua.example` into `~/.yate/extensions/`;
 rename it (e.g. to `hello.lua`) to activate it, or just read it -- it is a
 fully commented walkthrough.
+
+---
+
+## 7. Extension packages (`.yxp`)
+
+An extension package bundles several files into one archive for easy
+distribution and installation. A `.yxp` file (Yate eXtension Package) is a
+zip archive holding the payload files plus two reserved members:
+
+- `manifest` -- JSON metadata: `name` (required, `^[A-Za-z0-9._-]+$`),
+  `version` / `description` / `author` (optional), and the `files` list of
+  every payload member.
+- `checksum` -- JSON mapping each payload member to its lowercase SHA-256
+  hex digest. Optional by format, but always written by the packager; when
+  present, yate verifies the file list and every digest before extracting.
+
+### Installing, uninstalling, listing
+
+```text
+yate --install-extension hello_yxp.yxp          # verify + extract + record
+yate --uninstall-extension hello_yxp            # remove the recorded files
+yate --list-extensions                          # show installed packages
+```
+
+Each flag runs as a side command (prints a report, then exits; repeatable
+for install/uninstall; exit code 1 on failure). The same operations are
+available inside the editor:
+
+```text
+:install-extension hello_yxp.yxp
+:uninstall-extension hello_yxp
+:list-extensions            " report in an output overlay
+```
+
+### What install does
+
+- The payload extracts **flat** into `~/.yate/extensions/` -- the directory
+  the startup loader already scans, so top-level `*.py` / `*.lua` members
+  activate on the next start (restart after installing).
+- Ownership is recorded in `~/.yate/extensions/_manifests/<name>.json`.
+- A target file that already exists but is not owned by the same package
+  refuses the install -- your hand-placed files are never clobbered.
+- Reinstalling the same package name upgrades in place: its files are
+  overwritten and files dropped from the new version are removed.
+- Uninstalling removes exactly the recorded files (missing files are
+  tolerated), then the record.
+
+### Building packages with `tools/yxp`
+
+The repository ships a packager (development tool, not part of the wheel):
+
+```bash
+python -m tools.yxp --create my_ext                     # scaffold ./my_ext/
+python -m tools.yxp --pack tools/yxp/example/hello_yxp  # -> hello_yxp.yxp
+python -m tools.yxp --verify hello_yxp.yxp
+```
+
+`--create NAME` scaffolds a source directory: a `manifest` metadata file
+plus a starter `<name>.py` extension (one greeting command) -- fill in the
+metadata and grow the payload from there. `--pack DIR` takes a source
+directory containing a `manifest` metadata file (JSON with `name` /
+`version` / `description` / `author` -- no `files` field, the packager
+computes it). It writes the packaged manifest, the `checksum` member and
+every payload file, skipping `__pycache__`, `.git` and `*.pyc`. The bundled
+example (`tools/yxp/example/hello_yxp/`) registers a `:hello-yxp` greeting
+command -- build it, install it, restart yate and run `:hello-yxp`.
+
+### Security notes
+
+- Verification is integrity-only (SHA-256): it detects corrupted or
+  tampered archives but is not a signature -- only install packages you
+  trust.
+- Unsafe member names (absolute paths, `..` segments, backslashes, the
+  reserved `_manifests/` directory) are rejected before anything is
+  written.
+- Packages without a `checksum` member install unverified; check with
+  `python -m tools.yxp --verify FILE.yxp` first.

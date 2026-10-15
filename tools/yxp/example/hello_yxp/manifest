@@ -1,0 +1,6 @@
+{
+  "name": "hello_yxp",
+  "version": "1.0.0",
+  "description": "Adds the :hello-yxp greeting command",
+  "author": "yate authors"
+}
