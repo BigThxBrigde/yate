@@ -1,8 +1,10 @@
-# 2026-10-16 find-replace pr1（第一轮 PR 预审）
+# 2026-10-16 find-replace（PR 预审与修复闭环）
 
 - 范围：分支 `feat/find-replace-complete`，`c326922..HEAD`（6 个特性提交），
   对应 Gitee issue IKL7AT。模式：pr-review `review`。
 - 结论：**REQUEST_CHANGES**（2 MAJOR，无 BLOCKER）。
+- 修复方案：[`.trae/documents/find-replace-complete-review-fixes-plan.md`](../documents/find-replace-complete-review-fixes-plan.md)
+  （2 MAJOR 已修，终态见文末二轮复审）。
 
 ## 硬门禁实测（全绿）
 

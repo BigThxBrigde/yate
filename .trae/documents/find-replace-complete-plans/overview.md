@@ -190,8 +190,8 @@ flowchart LR
 
 ## 十、PR 预审与修复（闭环记录）
 
-- 记录：[`.trae/reviews/2026-10-16-find-replace-pr1.md`](../reviews/2026-10-16-find-replace-pr1.md)；
-  修复方案：[`find-replace-review-fixes-plan.md`](../documents/find-replace-review-fixes-plan.md)。
+- 记录：[`.trae/reviews/2026-10-16-find-replace.md`](../reviews/2026-10-16-find-replace.md)；
+  修复方案：[`find-replace-complete-review-fixes-plan.md`](../documents/find-replace-complete-review-fixes-plan.md)。
 - 第一轮：2 MAJOR（磁盘替换 `splitlines` 破坏 EOL/`\u2028` 保真；非原子 `write_text`）
   + 2 MINOR 缓办（命中文件二次读盘、空替换串被守卫拦截——后者为 plan-c 已批准决策）。
 - 修复：`split("\n")` 字节级往返 + `Document.save` 惯例原子写（临时文件 +
