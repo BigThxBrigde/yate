@@ -159,3 +159,42 @@ flowchart LR
 2. vim 模式 insert 状态按 ctrl+h：不打开 View（非目标栏已声明）。
 3. 集成终端聚焦时按 ctrl+h：归终端面板（TOGGLE_KEYS 语义不变）。
 4. `.gitignore` 深层文件不出现在项目搜索（`walk_files` 忽略规则）。
+
+## 九、执行结果回填（2026-10-16 闭环）
+
+### 波次与提交
+
+| 波次 | 提交 | 结果 |
+|---|---|---|
+| 方案 | `c326922` | 7 文件子计划落盘 |
+| wave-1 plan-a | `b875128` | project_search.py（182 行）+ `_compile` 下沉；14 engine 用例 + 2 委托锚定 |
+| wave-1 plan-b | `ad237e5` | 确认循环（key_hook 公共字段命名，计划骨架 `_on_key` 触 pyright `reportPrivateUsage`）；10 pilot 用例；主代理补焦点回归（`_end_confirm` 显式 `focus_editor`，否则隐藏 Input 吞 F5） |
+| wave-2 plan-c | `f80e54a` | FindReplaceScreen（463 行）+ tcss + 12 用例；实测发现 `open_path_later` 异步 open 与 reveal 竞态（移交 plan-d） |
+| wave-3 plan-d | `bc690ba` | 接线 + `reveal_match`（同步 open + leaf view-state 写回，用时序锚定用例实证）；UI_FROZEN 登记；连锁登记 `test_changelog_view` 构造点与 `test_action_table` FORWARDED_HOOKS |
+| 门禁修复 | `0030e80` | 存量 5 处 pyright 清零：漂移守卫改走公共 `update()` API、`Pilot[None]`、字面量 `split` 收窄用 `[*...]` 拓宽 |
+| wave-4 plan-e | `30a3f30` | 6 个跨波集成用例（readonly 用例与 plan-c 重复故跳过；enter 断言按产品行为定为匹配**起点**，与 Vim 惯例一致） |
+| wave-5 plan-f | `de5774d` | 双语手册成对更新（键位表 ×2 + §7.1）；F4 行描述同步修正 |
+| 评审修复 | `2f2c652` / `3d2f2f6` | 见 §十 |
+
+### 门禁终态（实测）
+
+- `python -m pyright yate/ tests/ tools/` → **0 errors**（退出码 0）；
+- `python -m pytest tests/ -q` → 全绿（退出码 0；`test_screensaver` 一次与本改动无关的
+  既有抖动，复跑全绿）；
+- `python -m pytest tests/test_architecture.py -q` → 31 passed；
+- 新增测试合计：engine 16 + confirm 10 + screen 27（含接线与集成）。
+
+### §八手工清单执行情况
+
+本沙箱为无头环境，4 项真实终端验证**未执行**，留给合并后人工验证（清单不变）。
+
+## 十、PR 预审与修复（闭环记录）
+
+- 记录：[`.trae/reviews/2026-10-16-find-replace-pr1.md`](../reviews/2026-10-16-find-replace-pr1.md)；
+  修复方案：[`find-replace-review-fixes-plan.md`](../documents/find-replace-review-fixes-plan.md)。
+- 第一轮：2 MAJOR（磁盘替换 `splitlines` 破坏 EOL/`\u2028` 保真；非原子 `write_text`）
+  + 2 MINOR 缓办（命中文件二次读盘、空替换串被守卫拦截——后者为 plan-c 已批准决策）。
+- 修复：`split("\n")` 字节级往返 + `Document.save` 惯例原子写（临时文件 +
+  `copystat` + `utime` + `os.replace`）+ 2 个回归用例（`2f2c652`）；
+  二轮复审再修 `mkstemp` 未入守卫的批量中断缺口（`3d2f2f6`）。
+- 第二轮结论：**无遗留 issue**（2 MINOR 登记为 follow-up，不阻塞合并）。

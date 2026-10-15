@@ -68,3 +68,15 @@ R13 主题经 `theme.attach` 自持。命名无 `*Feature/*Host/*Ops/*Delegate/*
   黄金对齐测试（D4b 风险收口干净）；
 - reveal 时序（异步 open worker 覆盖光标）有专项用例实证；
 - 门禁真实跑通，架构守卫对新文件零豁免全遮盖。
+
+## 二轮复审（修复 diff `2f2c652` + `3d2f2f6`）
+
+- 范围：`_replace_on_disk` 保真/原子化改造 + 2 个回归用例 + 评审文档。
+- 门禁：pyright 0 errors；`pytest tests/ -q` 退出码 0；架构 31 passed。
+- 新发现并当场修复：`mkstemp` 原在 try 块外，目标文件在搜索与替换之间
+  消失会以 `FileNotFoundError` 中断整批替换、违背 docstring 的跳过契约
+  （`3d2f2f6` 修正为守卫内 stage + 跳过该文件继续）。
+- 复核通过项：`split("\n")`/`join("\n")` 双射（CRLF/LF/CR 字节级往返，
+  用例锚定）；原子写对齐 `Document.save`（权限位继承、时间戳取新鲜值、
+  `os.replace` 同卷原子换入、失败路径清临时文件）；无架构违规。
+- 结论：**无遗留 issue**；2 MINOR 维持缓办（follow-up，不阻塞合并）。
