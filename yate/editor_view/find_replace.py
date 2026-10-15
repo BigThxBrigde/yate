@@ -465,9 +465,15 @@ class FindReplaceScreen(ModalScreen[None]):
         if new_lines is lines:
             return 0
         payload = "\n".join(new_lines).encode("utf-8")
-        fd, tmp_name = tempfile.mkstemp(
-            dir=path.parent, prefix=path.name + ".yate-tmp-"
-        )
+        try:
+            fd, tmp_name = tempfile.mkstemp(
+                dir=path.parent, prefix=path.name + ".yate-tmp-"
+            )
+        except OSError:
+            # the file vanished (or its directory did) between search and
+            # replace: skip it, the batch keeps going
+            log.warning("project replace could not stage %s", path)
+            return 0
         tmp = Path(tmp_name)
         try:
             with os.fdopen(fd, "wb") as fh:
