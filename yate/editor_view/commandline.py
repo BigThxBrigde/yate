@@ -40,6 +40,7 @@ PREFIXES: dict[str, tuple[str, str]] = {
     "find_back": ("?", "accent"),
     "replace_find": ("Replace:", "accent2"),
     "replace_with": ("With:", "accent2"),
+    "replace_confirm": ("Replace:", "accent2"),
     "shell": (TERMINAL, "green"),
     "open": ("Open: ", "fg_bright"),
     "save": ("Save as: ", "fg_bright"),
@@ -152,6 +153,15 @@ class CommandInput(Input):
 
     def on_key(self, event: Key) -> None:
         """Handle cancel/tab-completion/history keys; leave the rest to Input."""
+        # Confirm-style prompts (e.g. the per-match replace loop) intercept
+        # every key before escape/cancel handling, so their own escape means
+        # "leave the loop", not "cancel the prompt".  Only a consumed key is
+        # stopped (R10); with no hook installed nothing changes here.
+        hook = self.bar.key_hook
+        if hook is not None and hook(event.key):
+            event.stop()
+            event.prevent_default()
+            return
         if event.key in ("escape", "ctrl+c"):
             event.stop()
             event.prevent_default()
@@ -220,6 +230,11 @@ class PromptBar(Horizontal):
         self._on_submit: Callable[[str], None] | None = None
         self._on_changed: Callable[[str], None] | None = None
         self._refocus: Callable[[], None] | None = None
+        #: Single-key confirm hook (confirm-style prompts); receives the raw
+        #: ``event.key``, returns True when the key was consumed.  Public
+        #: (like ``cancel_hook``) because CommandInput reads it from its own
+        #: ``on_key`` before the Input sees any key.
+        self.key_hook: Callable[[str], bool] | None = None
         #: ``(text, Theme attr)`` of the current message line; re-rendered
         #: with the active palette on theme changes (``None`` = no message).
         self._message: tuple[str, str] | None = None
@@ -272,13 +287,16 @@ class PromptBar(Horizontal):
         placeholder: str = "",
         on_submit: Callable[[str], None] | None = None,
         on_changed: Callable[[str], None] | None = None,
+        on_key: Callable[[str], bool] | None = None,
         refocus: Callable[[], None] | None = None,
     ) -> bool:
         """Show the prompt in *mode*; ``False`` when the bar is not mounted.
 
         *on_submit* receives the submitted text; when the handler neither
         opens a follow-up prompt nor reports anything, the bar closes itself
-        and restores focus (``refocus``, default: the editor).
+        and restores focus (``refocus``, default: the editor).  *on_key*
+        (confirm prompts) intercepts every key before the Input sees it;
+        returning True consumes the key.
         """
         if not self.is_mounted:
             return False
@@ -287,6 +305,7 @@ class PromptBar(Horizontal):
         self.active_mode = mode
         self._on_submit = on_submit
         self._on_changed = on_changed
+        self.key_hook = on_key
         self._refocus = refocus
         # Either a prompt is active or a message is shown -- never both; the
         # stored (text, attr) of the previous message is dropped here.
@@ -319,6 +338,7 @@ class PromptBar(Horizontal):
         self.active_mode = None
         self._on_submit = None
         self._on_changed = None
+        self.key_hook = None
         self.input.display = False
         self.prompt.display = False
         self.message.display = True
@@ -344,6 +364,7 @@ class PromptBar(Horizontal):
     def cancel(self) -> None:
         """Esc / ctrl+c on the prompt line: run the cancel hook and close."""
         log.debug("prompt cancelled: mode=%s", self.active_mode)
+        self.key_hook = None  # a confirm hook never survives a cancel
         self.cancel_hook()
         self.idle()
         self._finish()

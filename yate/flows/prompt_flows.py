@@ -35,6 +35,11 @@ class PromptFlows:
         self._message = message
         self._readonly_notice = readonly_notice
         self._refresh = refresh
+        # Per-match confirm loop state (``_do_replace``); zeroed when the
+        # loop ends so a stale replacement never survives into the next one.
+        self._replacement: str = ""
+        self._confirm_total: int = 0
+        self._confirm_done: int = 0
 
     def find_prompt(self, forward: bool) -> None:
         """Open the search prompt (``/``, ``?``, ctrl+f)."""
@@ -92,6 +97,12 @@ class PromptFlows:
         )
 
     def _do_replace(self, find: str, replacement: str) -> None:
+        """Start the per-match confirm loop for *find* -> *replacement*.
+
+        Read-only buffers and zero matches keep the refusal semantics the
+        direct ``replace_all`` call used before the loop existed; everything
+        else opens a ``replace_confirm`` prompt and shows the first match.
+        """
         if self.session.buffer.read_only:
             self._readonly_notice()
             return
@@ -99,8 +110,102 @@ class PromptFlows:
         if not matches:
             self._message(f"no matches for {find!r}", "warn")
             return
-        count = self.session.search.replace_all(self.session.buffer, replacement)
-        self._message(f"replaced {count} occurrence(s) of {find!r}", "ok")
+        self._replacement = replacement
+        self._confirm_total = len(matches)
+        self._confirm_done = 0
+        self.prompt.activate(
+            "replace_confirm",
+            placeholder="",
+            on_key=self._confirm_step,
+        )
+        self._advance()
+
+    def _confirm_step(self, key: str) -> bool:
+        """Handle one keypress of the per-match confirm loop; True = consumed.
+
+        The loop always terminates (overview decision D2, risk R2): every
+        ``y``/``n`` increments ``_confirm_done`` while ``_confirm_total``
+        stays frozen once the loop has started, and
+        :meth:`_finish_or_advance` checks ``done >= total`` *before* walking
+        on, so the loop ends within ``total`` steps however the buffer
+        evolves.  A replacement that matches itself cannot trap the walk
+        either: ``SearchEngine.replace_current`` recomputes the match list
+        and leaves the cursor at the end of the inserted text, and every
+        self-match inside that text starts *before* the cursor, so
+        ``_nearest_index``'s forward branch (which only picks matches at or
+        after the cursor) never re-selects text inside the replacement; when
+        the matches run out, ``SearchEngine.next`` returns ``None`` and
+        :meth:`_end_confirm` exits the loop.
+        """
+        if key == "y":
+            if self.session.search.replace_current(
+                self.session.buffer, self._replacement
+            ):
+                self._confirm_done += 1
+            self._finish_or_advance()
+            return True
+        if key == "n":
+            self._confirm_done += 1  # skip the match _advance selected
+            self._finish_or_advance()
+            return True
+        if key == "a":
+            count = self.session.search.replace_all(
+                self.session.buffer, self._replacement
+            )
+            self._end_confirm(
+                f"replaced {count} occurrence(s) of "
+                f"{self.session.search.query!r}"
+            )
+            return True
+        if key in ("q", "escape", "ctrl+c"):
+            self._end_confirm("replace cancelled")
+            return True
+        if key in ("enter",) or (len(key) == 1 and key.isprintable()):
+            return True  # swallow stray keys; the Input stays empty
+        return False  # up/down/history etc. fall through
+
+    def _advance(self) -> None:
+        """Select the next unconfirmed match and show loop progress.
+
+        Progress goes through ``prompt.input.placeholder`` on purpose
+        (overview fact F7): ``write()`` hides the Input, which the still
+        running loop needs focused to receive the next key.
+        """
+        match = self.session.search.next(self.session.buffer, forward=True)
+        if match is None:
+            self._end_confirm("no further matches")
+            return
+        self.prompt.input.placeholder = (
+            f"[{self._confirm_done + 1}/{self._confirm_total}] replace "
+            f"{self.session.search.query!r} with {self._replacement!r}? "
+            "(y)es (n)o (a)ll (q)uit"
+        )
+
+    def _finish_or_advance(self) -> None:
+        """Stop after the fixed total, else move to the next match."""
+        if self._confirm_done >= self._confirm_total:
+            self._end_confirm(
+                f"replaced {self._confirm_done} occurrence(s) of "
+                f"{self.session.search.query!r}"
+            )
+            return
+        self._advance()
+
+    def _end_confirm(self, text: str) -> None:
+        """Leave the confirm loop and report *text* on the message line.
+
+        ``write()`` hides the prompt input and uninstalls the key hook; the
+        counters and the pending replacement are reset with it.  Unlike the
+        submit path (``on_input_submitted`` -> ``_finish``) the confirm loop
+        consumes its keys before the Input sees them, so nothing restores
+        focus: the bar's editor-focus callback is invoked here explicitly,
+        otherwise the hidden Input keeps focus and swallows F5.
+        """
+        self._confirm_total = 0
+        self._confirm_done = 0
+        self._replacement = ""
+        self._message(text, "ok" if "replaced" in text else "info")
+        self.prompt.focus_editor()
 
     def goto_prompt(self) -> None:
         """Open the command line in go-to-line mode (Ctrl+G)."""
