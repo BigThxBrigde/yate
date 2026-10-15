@@ -15,7 +15,7 @@ from yate.app import YateApp
 from yate.editor_core import project_search
 from yate.editor_view.find_replace import FindReplaceScreen, RevealFn
 
-from conftest import plain_text, wait_until
+from conftest import message_text, plain_text, wait_until
 
 
 def _push(
@@ -331,5 +331,100 @@ def test_replace_r_current_file_only(tmp_path: Path) -> None:
                 pilot, lambda: "dog" in alpha.read_text(encoding="utf-8")
             )
             assert "needle" in beta.read_text(encoding="utf-8")
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------- wiring (plan-d, ctrl+h)
+
+
+def test_ctrl_h_opens_project_replace_vsc(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            assert type(app.screen).__name__ == "FindReplaceScreen"
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_h_opens_project_replace_vim(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(str(tmp_path), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            assert type(app.screen).__name__ == "FindReplaceScreen"
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_h_without_workspace_warns(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            assert type(app.screen).__name__ != "FindReplaceScreen"
+            assert "no workspace" in message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_project_replace_action_registered() -> None:
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            assert app.editor.actions.get("project_replace") is not None
+
+    asyncio.run(scenario())
+
+
+def test_overlay_push_clears_stale_message(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.editor.message("stale saved note", "info")
+            assert "stale saved note" in message_text(app)
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            assert type(app.screen).__name__ == "FindReplaceScreen"
+            assert message_text(app) != "stale saved note"
+            assert "Ready. Press F1" in message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_enter_reveals_cursor_at_match(tmp_path: Path) -> None:
+    """Timing proof (plan-d): the async open worker the screen scheduled
+    must not clobber the reveal -- the cursor stays on the match start."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("filler\nfiller\nx needle y\n", encoding="utf-8")
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FindReplaceScreen)
+            screen.query_one("#fr-find", Input).value = "needle"
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.pause()
+            await pilot.press("enter")
+            assert await wait_until(
+                pilot, lambda: app.editor.session.is_open(note) is not None
+            )
+            await pilot.pause()
+            await pilot.pause()
+            # the cursor sits on the match start ("x needle y": row 2, col 2)
+            assert app.editor.session.buffer.cursor == (2, 2)
 
     asyncio.run(scenario())

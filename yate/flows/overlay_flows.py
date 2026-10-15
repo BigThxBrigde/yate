@@ -21,6 +21,7 @@ from yate.editor_core.document import Document
 from yate.editor_sprites.characters import character_names
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
+from yate.editor_view.find_replace import FindReplaceScreen, RevealFn
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
@@ -30,6 +31,7 @@ from yate.keymaps.base import ActionRunner
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
+from yate.session import EditorSession
 
 
 class OverlayFlows:
@@ -44,11 +46,14 @@ class OverlayFlows:
         keymaps: KeymapSet,
         commands: CommandRegistry,
         actions: ActionRegistry,
+        session: EditorSession,
         workspace: Workspace,
         prompt: PromptBar,
         message: MessageFn,
         mounted: StateQuery,
         open_path: Callable[[Path], None],
+        reveal_match: RevealFn,
+        readonly_notice: Callable[[], None],
         focus_editor: Callable[[], None],
         execute_action: ActionRunner,
         run_command: Callable[[str], None],
@@ -63,11 +68,14 @@ class OverlayFlows:
         self.keymaps = keymaps
         self.commands = commands
         self.actions = actions
+        self.session = session
         self.workspace = workspace
         self.prompt = prompt
         self._message = message
         self._mounted = mounted
         self._open_path = open_path
+        self._reveal_match = reveal_match
+        self._readonly_notice = readonly_notice
         self._focus_editor = focus_editor
         self._execute_action = execute_action
         self._run_command = run_command
@@ -173,6 +181,23 @@ class OverlayFlows:
                 labels=labels,
             )
         )
+
+    def open_project_replace(self) -> None:
+        """Open the project-wide find & replace overlay (ctrl+h)."""
+        if not self._mounted():
+            return
+        if self.workspace.root is None:
+            self._message("no workspace folder open", "warn")
+            return
+        self.push(FindReplaceScreen(
+            workspace=self.workspace,
+            session=self.session,
+            open_path=self._open_path,
+            reveal=self._reveal_match,
+            message=self._message,
+            readonly_notice=self._readonly_notice,
+            refresh=self._refresh,
+        ))
 
     def _palette(self, mode: str) -> PaletteScreen:
         """Build the palette screen for *mode* (``files`` / ``commands``)."""

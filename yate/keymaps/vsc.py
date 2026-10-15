@@ -98,6 +98,7 @@ class VscKeymap(Keymap):
             _k("<ctrl-f>", "find", "Find", SRCH),
             _k("<f3>", "find_next", "Next match", SRCH),
             _k("<f4>", "replace", "Find & replace", SRCH),
+            _k("<ctrl-h>", "project_replace", "Find & replace in project (ctrl+h)", SRCH),
             # ---- view / tools
             _k("<ctrl-p>", "quick_open", "Quick file open (ctrl+p)", VIEW),
             _k("<alt-shift-p>", "command_palette", "Command palette (alt+shift+p)", VIEW),

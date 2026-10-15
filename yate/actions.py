@@ -202,6 +202,9 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         "Previous match")
     reg("replace", lambda ctx: editor.prompt_flows.replace_prompt(),
         "Find & replace")
+    reg("project_replace",
+        lambda ctx: editor.overlays.open_project_replace(),
+        "Find & replace in project (ctrl+h)")
 
     # ---------------------------------------------------------------- view
 
