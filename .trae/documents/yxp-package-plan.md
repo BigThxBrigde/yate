@@ -218,6 +218,27 @@ pr-review 第三轮（2026-10-15，用户指示 MINOR 也不延后）逐项处�
 `pytest tests/ -q` 全绿（exit 0；test_yxp.py 增至 55、test_tools_yxp.py
 增至 23 用例）。
 
+pr-review 第四轮（2026-10-15，code-review-expert；门禁实测全绿：pyright
+零诊断、全量 pytest 无失败、架构测试 31 passed、新代码覆盖率 yxp.py 91% /
+tools cli 93%，`--cov-fail-under=75` 达标）逐项处置：
+
+| 级别 | 位置 | 发现 | 处置 |
+|---|---|---|---|
+| MAJOR | `tools/yxp/cli.py` `_run_pack` / `build_package` | `--pack` 不按 `NAME_RE` 校验包名（`../evil` 可把默认输出引到 cwd 之外），且复验失败路径遗留半成品 `.yxp`；元数据校验与 `_run_pack` 重复执行 | 新增 `_validate_metadata`（name 过 `NAME_RE`、version/description/author 须为字符串——与安装期 `_manifest_str` 同规），`build_package` 与 `_run_pack` 共用；`_run_pack` 复验失败分支补 `output.unlink(missing_ok=True)`；目录输出前置报错；新增 3 用例 |
+| MINOR | `yate/services/yxp.py` `_extract_payload` | 校验与提取间存在 TOCTOU：提取重新打开档案直接 `zf.read`，两次读取间载荷可被替换 | 新增 `_member_bytes`：提取时逐成员重算 SHA-256 比对 `package.checksums`，失配即回滚并报错；新增换包故障注入用例 |
+| MINOR | `yate/services/yxp.py` `_write_record` | 记录非原子写入，中途断电留截断记录会阻断同名升级 | 改临时文件 + `os.replace` 原子落盘，失败清理临时文件（`_unlink_quietly`）；新增 2 用例（成功无残留、replace 失败旧记录保全） |
+| MINOR | `tools/yxp/cli.py` `build_package` | `--output` 指向已存在目录且 `--force` 时，清理分支对目录 `unlink` 二次抛异常裸逃逸 | OSError 清理分支先判 `output.is_dir()`（此时 open 已失败、零写入），`_run_pack` 对目录输出前置报错；新增用例 |
+| MINOR | 双语文档 + 示例 docstring | 安全须知残留 `tools.yxp verify`（缺 `--`）；示例 docstring 残留旧 `build` 子命令与错误默认输出名 | `extensions.zh.md` / `extensions.en.md` 改 `--verify`；`hello_yxp.py` docstring 改 `--pack` + `hello_yxp.yxp` |
+| MINOR | `tools/yxp/cli.py` | 元数据解析与名字校验在 `_run_pack` 与 `build_package` 重复执行 | 随 MAJOR 一并消除（共用 `_validate_metadata`） |
+
+第四轮修复后门禁复测（全部主代理实测）：pyright 0 errors（exit 0）；
+`pytest tests/ -q --cov=... --cov-fail-under=75` 全绿（exit 0，覆盖率
+91.80%）；`pytest tests/test_architecture.py -q` 31 passed（exit 0）；
+冒烟（真实入口，临时 home）：`--create` → `--pack` → `--verify` →
+`--install-extension` → `--list-extensions` → `--uninstall-extension` →
+`--list-extensions` 全链路 SMOKE OK（exit 0）。用例数：test_yxp.py 58、
+test_tools_yxp.py 27。
+
 ## 9. 偏离记录
 
 - 无设计偏离。执行纪律事故两次：Wave b 与 Wave d 部分编辑误落主
