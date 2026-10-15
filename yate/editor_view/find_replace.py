@@ -12,7 +12,10 @@ no-change contract (same list object back means nothing was written).
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import shutil
+import tempfile
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
@@ -438,7 +441,14 @@ class FindReplaceScreen(ModalScreen[None]):
 
         Honours the ``replace_lines`` contract: the very same lines object
         coming back means nothing matched, so the file is left untouched.
-        Read and write errors skip the file with a count of zero.
+        Lines are split on ``"\\n"`` only -- like ``TextBuffer`` -- so CRLF
+        and CR line endings round-trip byte-exact and legal characters that
+        ``str.splitlines`` would treat as breaks (``\u2028`` & co) are never
+        rewritten outside the replaced spans.  The write itself follows the
+        ``Document.save`` durability standard: a sibling temp file swapped
+        in with ``os.replace``, so a crash mid-write cannot destroy the
+        previous contents.  Read and write errors skip the file with a
+        count of zero.
         """
         try:
             data = path.read_bytes()
@@ -450,14 +460,26 @@ class FindReplaceScreen(ModalScreen[None]):
         except UnicodeDecodeError:
             log.debug("project replace skipped non-utf8 file %s", path)
             return 0
-        lines = text.splitlines(keepends=False)
+        lines = text.split("\n")
         new_lines, count = project_search.replace_lines(lines, pattern, replacement)
         if new_lines is lines:
             return 0
+        payload = "\n".join(new_lines).encode("utf-8")
+        fd, tmp_name = tempfile.mkstemp(
+            dir=path.parent, prefix=path.name + ".yate-tmp-"
+        )
+        tmp = Path(tmp_name)
         try:
-            ending = "\n" if text.endswith("\n") else ""
-            path.write_text("\n".join(new_lines) + ending, encoding="utf-8")
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(payload)
+            # inherit permission bits (POSIX: also the xattrs carrying ACLs)
+            # like ``Document.save``, but not the timestamps: a replaced file
+            # must look freshly written to build tools and file watchers
+            shutil.copystat(path, tmp)
+            os.utime(tmp)
+            os.replace(tmp, path)
         except OSError:
+            tmp.unlink(missing_ok=True)
             log.warning("project replace failed to write %s", path)
             return 0
         return count

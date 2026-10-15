@@ -692,3 +692,58 @@ def test_project_replace_enter_jumps_to_match_row_col(tmp_path: Path) -> None:
             top = view.scroll_offset.y
             assert top <= 3 < top + max(1, view.size.height)
     asyncio.run(scenario())
+
+
+def test_replace_on_disk_preserves_crlf_and_unicode_separators(
+    tmp_path: Path,
+) -> None:
+    """Disk replace keeps CRLF endings and exotic line separators byte-exact:
+    only the replaced spans may change, nothing is EOL-normalised."""
+    async def scenario() -> None:
+        note = tmp_path / "crlf.txt"
+        note.write_bytes(b"keep\r\nneedle x\r\nsep\xe2\x80\xa8tail\r\n")
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FindReplaceScreen)
+            screen.query_one("#fr-find", Input).value = "needle"
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            screen.query_one("#fr-replace", Input).value = "swap"
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.pause()
+            await pilot.press("a")
+            assert await wait_until(pilot, lambda: "replaced 1" in message_text(app))
+            # CRLF endings and the U+2028 separator survive untouched
+            assert note.read_bytes() == b"keep\r\nswap x\r\nsep\xe2\x80\xa8tail\r\n"
+
+    asyncio.run(scenario())
+
+
+def test_replace_on_disk_leaves_no_temp_files(tmp_path: Path) -> None:
+    """The atomic write consumes its temp file via os.replace on success."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("needle here\n", encoding="utf-8")
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FindReplaceScreen)
+            screen.query_one("#fr-find", Input).value = "needle"
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            screen.query_one("#fr-replace", Input).value = "found"
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.pause()
+            await pilot.press("a")
+            assert await wait_until(
+                pilot, lambda: "replaced 1" in message_text(app)
+            )
+            assert note.read_text(encoding="utf-8") == "found here\n"
+            assert list(tmp_path.glob("*.yate-tmp-*")) == []
+
+    asyncio.run(scenario())
