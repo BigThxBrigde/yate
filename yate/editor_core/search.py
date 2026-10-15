@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from yate.editor_core import project_search
 from yate.editor_core.buffer import BufferReadOnlyError, Pos, TextBuffer
 from yate.logs import tracing
 
@@ -39,16 +40,12 @@ class SearchEngine:
     # ---------------------------------------------------------------- query
 
     def _compile(self, query: str) -> re.Pattern[str] | None:
-        if query == "":
-            return None
-        pattern = query if self.use_regex else re.escape(query)
-        if self.whole_word:
-            pattern = rf"(?:(?<=\W)|^){pattern}(?=\W|$)"
-        flags = 0 if self.case_sensitive else re.IGNORECASE
-        try:
-            return re.compile(pattern, flags)
-        except re.error:
-            return None
+        return project_search.compile_query(
+            query,
+            case_sensitive=self.case_sensitive,
+            use_regex=self.use_regex,
+            whole_word=self.whole_word,
+        )
 
     def update(self, query: str, buffer: TextBuffer) -> list[Match]:
         """Recompute all matches for *query* and reset the active index."""
