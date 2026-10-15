@@ -9,6 +9,7 @@ import asyncio
 import os
 from pathlib import Path
 
+from textual.pilot import Pilot
 from textual.widgets import Input, Static
 
 from yate.app import YateApp
@@ -427,4 +428,267 @@ def test_enter_reveals_cursor_at_match(tmp_path: Path) -> None:
             # the cursor sits on the match start ("x needle y": row 2, col 2)
             assert app.editor.session.buffer.cursor == (2, 2)
 
+    asyncio.run(scenario())
+
+
+# -------------------------------------- cross-wave integration (plan-e)
+
+
+async def _press_f4_replace(
+    pilot: Pilot[None], find: str, replacement: str
+) -> None:
+    """Drive F4 through the two-step replace prompt (vim keymap)."""
+    await pilot.press("f4")
+    await pilot.pause()
+    await pilot.press(*find)
+    await pilot.press("enter")
+    await pilot.pause()
+    await pilot.press(*replacement)
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
+    """One ``a`` replaces every hit: closed files on disk, the open file
+    in memory (dirty), with the replaced total on the message line."""
+    async def scenario() -> None:
+        one = tmp_path / "one.txt"
+        two = tmp_path / "two.txt"
+        three = tmp_path / "three.txt"
+        one.write_text("x needle y\n", encoding="utf-8")
+        two.write_text("needle two\n", encoding="utf-8")
+        three.write_text("three needle\n", encoding="utf-8")
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # file 1 is open before the replace runs: its hit goes through
+            # the in-memory buffer path, the other two through disk writes.
+            app.editor.document_flows.open_path(one)
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FindReplaceScreen)
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 3)
+            screen.query_one("#fr-replace", Input).value = "dog"
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.pause()
+            await pilot.press("a")
+            assert await wait_until(
+                pilot,
+                lambda: two.read_text(encoding="utf-8") == "dog two\n"
+                and three.read_text(encoding="utf-8") == "three dog\n",
+            )
+            # the replaced total surfaces while the overlay is still open
+            assert "replaced 3" in message_text(app)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.screen is not screen
+            # closed files landed on disk ...
+            assert two.read_text(encoding="utf-8") == "dog two\n"
+            assert three.read_text(encoding="utf-8") == "three dog\n"
+            # ... the open file was replaced in memory and stayed dirty
+            one_doc = app.editor.session.is_open(one)
+            assert one_doc is not None
+            assert one_doc.buffer.get_text() == "x dog y\n"
+            assert one_doc.modified is True
+            assert one.read_text(encoding="utf-8") == "x needle y\n"
+
+    asyncio.run(scenario())
+
+
+def test_ctrl_h_from_search_prompt_state_recovers(tmp_path: Path) -> None:
+    """ctrl+h works while a live-search prompt state exists, and the
+    prompt keeps working after the overlay closes (no dangling hooks)."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("needle one\n", encoding="utf-8")
+        app = YateApp(str(note), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            # enter the live-search state: "/" opens the find prompt
+            await pilot.press("/")
+            await pilot.pause()
+            assert prompt_bar.active_mode == "find"
+            for ch in "needle":
+                await pilot.press(ch)
+            await pilot.pause()
+            assert prompt_bar.input.value == "needle"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert prompt_bar.active_mode is None
+            # ctrl+h from that state opens the overlay normally
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert type(screen).__name__ == "FindReplaceScreen"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.screen is not screen
+            # the prompt recovers: activation, typing and cancel all still
+            # behave (nothing swallows the keys any more); the query was
+            # reset by the cancel, so the input starts empty
+            await pilot.press("/")
+            await pilot.pause()
+            assert prompt_bar.active_mode == "find"
+            assert prompt_bar.input.value == ""
+            await pilot.press("x")
+            await pilot.pause()
+            assert prompt_bar.input.value == "x"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert prompt_bar.active_mode is None
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_then_ctrl_h_coexist(tmp_path: Path) -> None:
+    """ctrl+h opens the overlay after a confirm loop was quit halfway;
+    the loop state is fully cleared by then (no stale replacement)."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("cat cat cat", encoding="utf-8")
+        app = YateApp(str(note), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("y")
+            await pilot.pause()
+            # quit the loop halfway: one match replaced, state cleared
+            await pilot.press("q")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "dog cat cat"
+            assert app.editor.prompt_flows._confirm_total == 0
+            # the overlay still opens on top of that state
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            assert type(app.screen).__name__ == "FindReplaceScreen"
+
+    asyncio.run(scenario())
+
+
+def test_project_replace_regex_option_end_to_end(tmp_path: Path) -> None:
+    """alt+r switches the overlay to regex mode and the replacement's
+    backreference expands per match through the disk-write path."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("a@x b@x", encoding="utf-8")
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FindReplaceScreen)
+            # regex mode first: the search itself must run as a regex
+            await pilot.press("alt+r")
+            await pilot.pause()
+            screen.query_one("#fr-find", Input).value = r"(\w+)@x"
+            assert await wait_until(pilot, lambda: len(screen._flat) == 2)
+            screen.query_one("#fr-replace", Input).value = r"\1"
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.pause()
+            await pilot.press("a")
+            assert await wait_until(
+                pilot, lambda: note.read_text(encoding="utf-8") == "a b"
+            )
+
+    asyncio.run(scenario())
+
+
+def test_unmatched_printable_keys_fall_through_in_screen(
+    tmp_path: Path,
+) -> None:
+    """A stray printable key on the results pane is not consumed: no
+    replacement happens and the cursor stays put (R10 fall-through)."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("needle here\n", encoding="utf-8")
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FindReplaceScreen)
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            screen.query_one("#fr-replace", Input).value = "dog"
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.pause()
+            cursor = screen._cursor
+            await pilot.press("z")
+            await pilot.pause()
+            # no crash, no replacement, the overlay stays open untouched
+            assert app.screen is screen
+            assert screen._cursor == cursor
+            assert screen._flat
+            assert note.read_text(encoding="utf-8") == "needle here\n"
+
+    asyncio.run(scenario())
+
+
+def test_f4_no_matches_then_replace_all_still_works(tmp_path: Path) -> None:
+    """After a no-match warning the next F4 run enters the loop normally:
+    the warn path leaves no state behind that blocks the second pass."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("cat cat", encoding="utf-8")
+        app = YateApp(str(note), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            # first pass: a query with zero hits warns and skips the loop
+            await _press_f4_replace(pilot, "zzz", "dog")
+            assert "no matches" in message_text(app)
+            assert prompt_bar.active_mode is None
+            # second pass: a real query still runs, "a" replaces everything
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("a")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "dog dog"
+            assert "replaced 2" in message_text(app)
+    asyncio.run(scenario())
+
+
+def test_project_replace_enter_jumps_to_match_row_col(tmp_path: Path) -> None:
+    """Enter after moving the result cursor lands the editor cursor on the
+    match start (Vim search convention) and scrolls the row into view."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text(
+            "needle one\nfiller\nfiller two\nneedle x\nneedle y\n",
+            encoding="utf-8",
+        )
+        app = YateApp(str(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+h")
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FindReplaceScreen)
+            screen.query_one("#fr-find", Input).value = "needle"
+            assert await wait_until(pilot, lambda: len(screen._flat) == 3)
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.press("down")
+            await pilot.pause()
+            await pilot.press("enter")
+            assert await wait_until(
+                pilot, lambda: app.editor.session.is_open(note) is not None
+            )
+            await pilot.pause()
+            await pilot.pause()
+            # the second hit is on row 3, starting at column 0
+            assert app.editor.session.buffer.cursor == (3, 0)
+            view = app.editor.panes.active_view
+            assert view is not None
+            # reveal_cursor scrolled the match row into the visible window
+            top = view.scroll_offset.y
+            assert top <= 3 < top + max(1, view.size.height)
     asyncio.run(scenario())
