@@ -2,8 +2,8 @@
 
 Build and install from the repository root::
 
-    python -m tools.yxp build tools/yxp/example/hello_yxp
-    yate --install-extension hello_yxp-1.0.0.yxp
+    python -m tools.yxp --pack tools/yxp/example/hello_yxp
+    yate --install-extension hello_yxp.yxp
 
 Restart yate afterwards (the startup loader picks up new top-level
 ``*.py`` files) and run ``:hello-yxp``.

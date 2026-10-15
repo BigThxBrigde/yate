@@ -140,6 +140,72 @@ def test_pack_rejects_missing_source_dir(
     assert "not a directory" in capsys.readouterr().err
 
 
+def test_pack_rejects_name_outside_the_regex(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A manifest name like ``../evil`` cannot steer the default output."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "manifest").write_text(
+        json.dumps({"name": "../evil"}), encoding="utf-8"
+    )
+    (src / "mod.py").write_text("x", encoding="utf-8")
+    assert yxp_tool.main(["--pack", str(src)]) == 1
+    assert "must match" in capsys.readouterr().err
+    assert not (Path.cwd() / ".." / "evil.yxp").exists()
+
+
+def test_pack_rejects_non_string_metadata_fields(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A numeric ``version`` would pack but never install -- reject it."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "manifest").write_text(
+        json.dumps({"name": "demo", "version": 1.0}), encoding="utf-8"
+    )
+    (src / "mod.py").write_text("x", encoding="utf-8")
+    out = tmp_path / "demo.yxp"
+    assert yxp_tool.main(["--pack", str(src), "--output", str(out)]) == 1
+    assert "'version' must be a string" in capsys.readouterr().err
+    assert not out.exists()  # rejected before any archive is written
+
+
+def test_pack_reverify_failure_leaves_no_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A post-write verification defect drops the freshly built archive."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "manifest").write_text(json.dumps({"name": "x"}), encoding="utf-8")
+    (src / "mod.py").write_text("x", encoding="utf-8")
+    out = tmp_path / "x.yxp"
+    real = yxp.read_package
+
+    def flaky(path: Path) -> yxp.YxpPackage:
+        real(path)  # the written archive is fine; simulate a later defect
+        raise yxp.YxpError("simulated verification failure")
+
+    monkeypatch.setattr(yxp, "read_package", flaky)
+    assert yxp_tool.main(["--pack", str(src), "--output", str(out)]) == 1
+    assert not out.exists()  # uninstallable archive dropped
+
+
+def test_pack_output_directory_is_rejected(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--output`` pointing at a directory fails cleanly, even with --force."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "manifest").write_text(json.dumps({"name": "x"}), encoding="utf-8")
+    (src / "mod.py").write_text("x", encoding="utf-8")
+    out = tmp_path / "out.yxp"
+    out.mkdir()
+    assert yxp_tool.main(["--pack", str(src), "--output", str(out), "--force"]) == 1
+    assert "is a directory" in capsys.readouterr().err
+    assert out.is_dir()  # the directory itself is untouched
+
+
 def test_pack_refuses_overwrite_without_force(tmp_path: Path) -> None:
     src = tmp_path / "src"
     src.mkdir()

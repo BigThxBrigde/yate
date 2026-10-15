@@ -344,6 +344,63 @@ def test_failed_record_write_on_fresh_install_leaves_no_files(
     assert not _record_path(base, "hello").exists()
 
 
+def test_extraction_reverifies_swapped_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Payload swapped in between validation and extraction cannot land."""
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"v1"})
+    good = yxp.read_package(pkg)
+    # rebuild the archive with different payload bytes but the original
+    # manifest/checksum members -- what a mid-install file swap looks like
+    with zipfile.ZipFile(pkg) as zf:
+        members = {name: zf.read(name) for name in zf.namelist()}
+    members["hello.py"] += b"\n# swapped in mid-install\n"
+    with zipfile.ZipFile(pkg, "w") as zf:
+        for name, data in members.items():
+            zf.writestr(name, data)
+    # read_package already passed on the good archive; the swap happened
+    # before extraction reopens the file
+    def passthrough(path: Path) -> yxp.YxpPackage:
+        return good
+
+    monkeypatch.setattr(yxp, "read_package", passthrough)
+    with pytest.raises(yxp.YxpError, match="checksum mismatch"):
+        yxp.install_package(pkg, base)
+    assert not (base / "hello.py").exists()  # nothing extracted
+    assert not _record_path(base, "hello").exists()
+
+
+def test_install_leaves_no_temporary_record_files(tmp_path: Path) -> None:
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    yxp.install_package(pkg, base)
+    records = base / yxp.RECORDS_DIRNAME
+    assert sorted(entry.name for entry in records.iterdir()) == ["hello.json"]
+
+
+def test_failed_record_replace_keeps_old_record_and_drops_temp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash between temp write and rename leaves the v1 record intact."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"hello.py": b"v1"})
+    yxp.install_package(v1, base)
+    v2 = make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2"})
+
+    def boom(src: Path, dst: Path) -> None:
+        raise OSError("disk went away")
+
+    monkeypatch.setattr(yxp.os, "replace", boom)
+    with pytest.raises(yxp.YxpError, match="cannot write install record"):
+        yxp.install_package(v2, base)
+    assert (base / "hello.py").read_bytes() == b"v1"  # upgrade rolled back
+    record = json.loads(_record_path(base, "hello").read_text(encoding="utf-8"))
+    assert record["files"] == ["hello.py"]  # v1 record intact
+    tmp_record = base / yxp.RECORDS_DIRNAME / "hello.json.tmp"
+    assert not tmp_record.exists()  # temp residue dropped
+
+
 # ---------------------------------------------------------- uninstall_package
 
 

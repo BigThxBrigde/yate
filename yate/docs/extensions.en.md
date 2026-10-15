@@ -1002,4 +1002,4 @@ command -- build it, install it, restart yate and run `:hello-yxp`.
   reserved `_manifests/` directory) are rejected before anything is
   written.
 - Packages without a `checksum` member install unverified; check with
-  `python -m tools.yxp verify FILE.yxp` first.
+  `python -m tools.yxp --verify FILE.yxp` first.

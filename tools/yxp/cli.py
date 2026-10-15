@@ -16,7 +16,9 @@ existing scaffold.
 ``--pack DIR`` packs a source directory into a ``.yxp`` archive.  The
 directory must contain a ``manifest`` file -- JSON with the package
 metadata (``name`` required; ``version`` / ``description`` / ``author``
-optional).  The ``files`` list is computed from the directory contents and
+optional).  The metadata is validated with the same rules the install-time
+parser applies, so a packed archive always passes its own re-verification.
+The ``files`` list is computed from the directory contents and
 written into the packaged manifest, so it is never maintained by hand.
 ``checksum`` files in the source directory are metadata too and never
 become payload.  ``--output`` overrides the default ``<name>.yxp`` in the
@@ -145,6 +147,45 @@ def read_source_metadata(source: Path) -> dict[str, Any]:
     return cast(dict[str, Any], data)
 
 
+def _validate_metadata(
+    source: Path, metadata: dict[str, Any]
+) -> tuple[str, str, str, str]:
+    """Validate the metadata fields; return ``(name, version, desc, author)``.
+
+    The packager enforces the same rules the install-time parser
+    (:func:`yate.services.yxp.read_package`) applies, so an archive it
+    writes can never fail re-verification over its metadata -- and a
+    hand-written ``name`` cannot escape the default ``<name>.yxp`` output
+    path.
+    """
+    manifest_path = source / yxp.MANIFEST_NAME
+    name = metadata.get("name")
+    if not isinstance(name, str) or not name:
+        raise yxp.YxpError(
+            f"{manifest_path}: field 'name' must be a non-empty string"
+        )
+    if not yxp.NAME_RE.match(name):
+        raise yxp.YxpError(
+            f"{manifest_path}: field 'name' {name!r} must match "
+            f"{yxp.NAME_RE.pattern!r}"
+        )
+    for key in ("version", "description", "author"):
+        value = metadata.get(key)
+        if value is not None and not isinstance(value, str):
+            raise yxp.YxpError(f"{manifest_path}: field {key!r} must be a string")
+    if "files" in metadata:
+        raise yxp.YxpError(
+            f"{manifest_path}: drop the 'files' field -- the packager "
+            "computes it from the directory contents"
+        )
+    return (
+        name,
+        cast(str, metadata.get("version")) or "0.1.0",
+        cast(str, metadata.get("description")) or "",
+        cast(str, metadata.get("author")) or "",
+    )
+
+
 def collect_payload(source: Path) -> list[tuple[str, Path]]:
     """Payload ``(archive_name, path)`` pairs under *source*.
 
@@ -168,19 +209,14 @@ def collect_payload(source: Path) -> list[tuple[str, Path]]:
 
 
 def build_package(source: Path, output: Path) -> yxp.YxpManifest:
-    """Pack *source* into *output*; returns the packaged manifest."""
+    """Pack *source* into *output*; returns the packaged manifest.
+
+    The source metadata is validated with the same rules the install-time
+    parser applies (see :func:`_validate_metadata`), so a package this
+    function writes always passes its own re-verification.
+    """
     metadata = read_source_metadata(source)
-    name = metadata.get("name")
-    if not isinstance(name, str) or not name:
-        raise yxp.YxpError(
-            f"{source / yxp.MANIFEST_NAME}: field 'name' must be a "
-            "non-empty string"
-        )
-    if "files" in metadata:
-        raise yxp.YxpError(
-            f"{source / yxp.MANIFEST_NAME}: drop the 'files' field -- the "
-            "packager computes it from the directory contents"
-        )
+    name, version, description, author = _validate_metadata(source, metadata)
     pairs = collect_payload(source)
     files = [rel for rel, _ in pairs]
     packaged_manifest = {**metadata, "files": files}
@@ -194,15 +230,17 @@ def build_package(source: Path, output: Path) -> yxp.YxpManifest:
             for rel, path in pairs:
                 zf.writestr(rel, path.read_bytes())
     except OSError as exc:
-        # a payload file became unreadable mid-pack: drop the partial
-        # archive so no broken .yxp is left behind
-        output.unlink(missing_ok=True)
+        if not output.is_dir():
+            # a payload file became unreadable mid-pack: drop the partial
+            # archive so no broken .yxp is left behind (when *output* is a
+            # directory the open itself failed and nothing was written)
+            output.unlink(missing_ok=True)
         raise yxp.YxpError(f"cannot pack {source} ({exc})") from exc
     return yxp.YxpManifest(
         name=name,
-        version=str(metadata.get("version") or "0.1.0"),
-        description=str(metadata.get("description") or ""),
-        author=str(metadata.get("author") or ""),
+        version=version,
+        description=description,
+        author=author,
         files=tuple(files),
     )
 
@@ -282,16 +320,14 @@ def _run_pack(args: argparse.Namespace) -> int:
         return 1
     try:
         metadata = read_source_metadata(source)
-        name = metadata.get("name")
-        if not isinstance(name, str) or not name:
-            raise yxp.YxpError(
-                f"{source / yxp.MANIFEST_NAME}: field 'name' must be a "
-                "non-empty string"
-            )
+        name, _, _, _ = _validate_metadata(source, metadata)
     except yxp.YxpError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     output: Path = args.output if args.output is not None else Path(f"{name}.yxp")
+    if output.is_dir():
+        print(f"error: {output} is a directory", file=sys.stderr)
+        return 1
     if output.exists() and not args.force:
         print(
             f"error: {output} exists (use --force to overwrite)", file=sys.stderr
@@ -299,8 +335,15 @@ def _run_pack(args: argparse.Namespace) -> int:
         return 1
     try:
         manifest = build_package(source, output)
+    except yxp.YxpError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    try:
         package = yxp.read_package(output)
     except yxp.YxpError as exc:
+        # the freshly written archive failed its own re-verification:
+        # drop it instead of leaving an uninstallable .yxp behind
+        output.unlink(missing_ok=True)
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(_summary(manifest, output, package.checksums is not None))

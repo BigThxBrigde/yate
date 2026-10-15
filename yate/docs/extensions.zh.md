@@ -921,4 +921,4 @@ python -m tools.yxp --verify hello_yxp.yxp
 - 不安全的成员名（绝对路径、`..` 段、反斜杠、保留目录 `_manifests/`）
   在写盘前一律拒绝。
 - 没有 `checksum` 成员的包按未校验安装；可先用
-  `python -m tools.yxp verify FILE.yxp` 检查。
+  `python -m tools.yxp --verify FILE.yxp` 检查。

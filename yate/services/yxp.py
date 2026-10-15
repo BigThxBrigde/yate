@@ -24,6 +24,7 @@ imports (R4 -- ``services/*`` stays UI-free).
 from __future__ import annotations
 
 import json
+import os
 import re
 import zipfile
 from dataclasses import dataclass
@@ -380,7 +381,10 @@ def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
 
     Returns the previous content of the package's own files this
     extraction overwrote (empty on a fresh install), so a later failure
-    (the install record) can restore the old installation.
+    (the install record) can restore the old installation.  Each member
+    is re-verified against the shipped digests before it reaches the
+    disk -- :func:`read_package` validated the archive through one
+    handle while extraction reopens the file.
     """
     extracted: list[str] = []
     previous: dict[str, bytes] = {}
@@ -391,8 +395,11 @@ def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
                 if target.is_file() or target.is_symlink():
                     previous[rel] = target.read_bytes()
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(zf.read(rel))
+                target.write_bytes(_member_bytes(package, zf, rel))
                 extracted.append(rel)
+    except YxpError:
+        _rollback_files(extracted, previous, ext_dir)
+        raise
     except OSError as exc:
         _rollback_files(extracted, previous, ext_dir)
         raise YxpError(
@@ -404,6 +411,25 @@ def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
             f"cannot install {package.manifest.name}: archive broke mid-read ({exc})"
         ) from exc
     return previous
+
+
+def _member_bytes(package: YxpPackage, zf: zipfile.ZipFile, rel: str) -> bytes:
+    """Read member *rel*, re-verifying its digest when checksums shipped.
+
+    The bytes are checked against :attr:`YxpPackage.checksums` so payload
+    swapped into the archive between :func:`read_package` and extraction
+    cannot reach the disk.
+    """
+    data = zf.read(rel)
+    if (
+        package.checksums is not None
+        and sha256(data).hexdigest() != package.checksums[rel]
+    ):
+        raise YxpError(
+            f"cannot install {package.manifest.name}: checksum mismatch for "
+            f"{rel!r} at extraction time"
+        )
+    return data
 
 
 def _rollback_files(
@@ -466,7 +492,13 @@ def _remove_stale_files(
 
 
 def _write_record(records: Path, package: YxpPackage) -> None:
-    """Persist the ownership record (manifest + checksums + timestamp)."""
+    """Persist the ownership record (manifest + checksums + timestamp).
+
+    Written through a temporary file and moved into place with
+    :func:`os.replace`, so an interrupted write can never leave a
+    truncated record behind (a truncated record would block same-name
+    upgrades until it is removed by hand).
+    """
     manifest = package.manifest
     record = {
         "name": manifest.name,
@@ -478,11 +510,14 @@ def _write_record(records: Path, package: YxpPackage) -> None:
         "installed_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     path = records / f"{manifest.name}{RECORD_SUFFIX}"
+    tmp = records / f"{manifest.name}{RECORD_SUFFIX}.tmp"
     try:
-        path.write_text(
+        tmp.write_text(
             json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
+        os.replace(tmp, path)
     except OSError as exc:
+        _unlink_quietly(tmp)
         raise YxpError(f"cannot write install record {path} ({exc})") from exc
 
 
