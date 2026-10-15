@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import re
 import stat
 import time
 from collections.abc import Callable
@@ -1714,35 +1713,39 @@ class TestMultiCursor:
 # --- SearchEngine: _compile delegation (find-replace-complete plan-a) --------
 
 
-def _pattern_shape(pattern: re.Pattern[str] | None) -> tuple[str, int] | None:
-    """Comparable shape of a compiled pattern (re.Pattern has no __eq__)."""
-    if pattern is None:
-        return None
-    return (pattern.pattern, pattern.flags)
-
-
 def test_engine_compile_delegates_with_same_options() -> None:
-    """_compile and project_search.compile_query compile identically."""
+    """update() matches equal compile_query + search_lines, per option combo.
+
+    Public-API drift guard: any divergence between SearchEngine's internal
+    compiling and project_search.compile_query shows up as match divergence.
+    """
     combos: list[tuple[bool, bool, bool]] = [
         (False, False, False),
         (True, False, False),
         (False, True, False),
         (False, False, True),
     ]
+    buffer = TextBuffer("foo Foo Bar f(o+) cat foo")
     for case_sensitive, use_regex, whole_word in combos:
         engine = SearchEngine()
         engine.case_sensitive = case_sensitive
         engine.use_regex = use_regex
         engine.whole_word = whole_word
         for query in ("foo", "Foo Bar", "f(o+)", "cat"):
-            mine = engine._compile(query)
-            shared = project_search.compile_query(
+            engine.update(query, buffer)
+            pattern = project_search.compile_query(
                 query,
                 case_sensitive=case_sensitive,
                 use_regex=use_regex,
                 whole_word=whole_word,
             )
-            assert _pattern_shape(mine) == _pattern_shape(shared)
+            assert pattern is not None
+            expected = [
+                (m.row, m.start, m.end)
+                for m in project_search.search_lines(buffer.lines, pattern)
+            ]
+            mine = [(m.row, m.start, m.end) for m in engine.matches]
+            assert mine == expected
 
 
 def test_engine_next_skips_text_inside_replaced_match() -> None:

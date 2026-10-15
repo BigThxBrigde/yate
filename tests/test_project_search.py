@@ -151,19 +151,21 @@ def test_replace_lines_no_change_returns_same_object() -> None:
 def test_replace_lines_matches_engine_replace_all() -> None:
     """replace_lines reproduces SearchEngine.replace_all line for line."""
     # Plain mode (case-insensitive default), including an untouched row.
-    source = "foo bar foo\nnope\nFOO foo"
+    source: str = "foo bar foo\nnope\nFOO foo"
     buffer = TextBuffer(source)
     engine = SearchEngine()
     engine.update("foo", buffer)
     assert engine.replace_all(buffer, "qux") == 4
     pattern = compile_query("foo")
     assert pattern is not None
-    new_lines, count = replace_lines(source.split("\n"), pattern, "qux")
+    # [*...] widens: this pyright build types literal.split as list[LiteralString].
+    lines: list[str] = [*source.split("\n")]
+    new_lines, count = replace_lines(lines, pattern, "qux")
     assert new_lines == buffer.lines
     assert count == 4
 
     # Regex mode with backreferences relative to each single match.
-    source = "a@x b@x\nc@x d@x"
+    source: str = "a@x b@x\nc@x d@x"
     buffer = TextBuffer(source)
     engine = SearchEngine()
     engine.use_regex = True
@@ -171,6 +173,7 @@ def test_replace_lines_matches_engine_replace_all() -> None:
     assert engine.replace_all(buffer, r"\1") == 4
     pattern = compile_query(r"(\w+)@x", use_regex=True)
     assert pattern is not None
-    new_lines, count = replace_lines(source.split("\n"), pattern, r"\1")
+    lines: list[str] = [*source.split("\n")]
+    new_lines, count = replace_lines(lines, pattern, r"\1")
     assert new_lines == buffer.lines
     assert count == 4

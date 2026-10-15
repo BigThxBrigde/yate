@@ -806,7 +806,7 @@ def test_setting_commands_confirm_success() -> None:
 
 
 async def _press_f4_replace(
-    pilot: Pilot, find: str, replacement: str
+    pilot: Pilot[None], find: str, replacement: str
 ) -> None:
     """Drive F4 through the two-step replace prompt (vim keymap)."""
     await pilot.press("f4")
