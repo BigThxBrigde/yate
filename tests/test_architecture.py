@@ -144,7 +144,7 @@ UI_FREE_FILES: tuple[str, ...] = (
 
 #: L3 collaborator modules that do drive a few widget types by design: they
 #: still may not depend upward, and their ``editor_view`` coupling is frozen
-#: here, so a new widget import fails until it is justified (R4).
+#: here, so a new widget import fails until it is justified (R11).
 UI_FROZEN_FILES: dict[str, set[str]] = {
     "flows/prompt_completion.py": {
         "yate.editor_view",
@@ -593,10 +593,10 @@ def test_ts_backend_never_imports_regex_backend() -> None:
 
 
 def test_collaborators_keep_widget_coupling_frozen() -> None:
-    """``flows/completion_flows.py`` / ``flows/prompt_completion.py`` are
-    editor-level collaborators: they may drive their known widgets but never
-    depend upward, and a new ``editor_view`` import must be added here first
-    (R11)."""
+    """The nine ``flows/`` keys registered in ``UI_FROZEN_FILES`` are
+    editor-level collaborators: each may drive its known widgets but never
+    depend upward, and a new ``editor_view`` import must be added there
+    first (R11)."""
     for name, allowed in UI_FROZEN_FILES.items():
         path = YATE / name
         for module in _yate_imports(path):
