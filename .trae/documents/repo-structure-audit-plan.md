@@ -114,3 +114,44 @@ flowchart LR
 | 注释改动误触架构测试文本断言 | Step 2 只动 docstring/注释，不动断言逻辑；架构测试单独跑 |
 | 纯文档提交遗漏分步 | 每步完成即单独 commit，git log 可逐笔回溯 |
 | 回滚 | 全部改动为文档与注释，`git revert` 对应单笔提交即可，无数据/行为风险 |
+
+## 六、执行记录回填（2026-10-16）
+
+### 门禁实测（终态，主代理亲跑）
+
+| 门禁 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations，exit 0 |
+| `pytest tests/ -q --cov --cov-fail-under=75` | 全绿，exit 0；覆盖率 **91.92%**（≥75 达标） |
+| `pytest tests/test_architecture.py -q` | 31 passed，exit 0 |
+
+### 步骤执行与提交对照
+
+| 步骤 | 提交 | 结果 |
+|---|---|---|
+| 计划落盘 | `06d224d` docs(plan) | 完成 |
+| Step 1 规则同步 | `2f28377` docs(rules) | 五处行数 + R11 枚举修正 |
+| Step 2 守卫注释 | `e7cb99c` docs(architecture) | R4→R11、docstring 9 键概括 |
+| Step 3 评审记录 | `1da8a2b` docs(reviews) | `../reviews/2026-10-16-repo-structure-audit.md` |
+| Step 4 门禁 | （首轮） | 通过（一次 timing 偶发重跑确认，见偏离 2） |
+| Step 5 pr-review | `ef04d96` docs(plan) | 两轮迭代，第二轮零发现 |
+| Step 6 回填 | 本提交 | 本节 |
+
+### 偏离记录（实测依据）
+
+1. **外来合并提交 `bd91dc3`**：`enh/repo-structure-audit` 分支上出现一笔非本会话创建的
+   `Merge branch 'master'`（作者 i77，2026-10-16 22:41），合入 master 的
+   `d34ee32`（`.codebuddy/rules/yate-rules.md` +21 行）。与本任务无关、不动本分支产物，
+   予以保留；`git diff master...HEAD` 经此合并后仍只含本任务 4 个文件。
+2. **`test_run_shell_timeout_kills_the_grandchild_process` 首轮全量失败**：单跑通过、
+   全量重跑全绿——timing 类偶发（本分支零行为代码改动，不可能由本任务引入），按
+   `../rules/subagent-workflow.md` §三.3 纪律重跑确认后下结论。
+3. **pr-review 第一轮发现 1 处 [MINOR]**：计划/评审文档内仓库文件引用用了仓库根路径，
+   违反 `../rules/doc-conventions.md` §五；已改为文档自身相对路径（提交 `ef04d96`）。
+   第二轮复审（功能/安全/性能/可维护性/架构/门禁六维 + 全文引用扫描）零新发现，
+   裁定 `APPROVE`，迭代闭环。
+
+### 待办登记（后续 issue / 另行立项）
+
+- `yate/editor.py`（1024 行、多职责块）为下一个 big-module-split 候选；
+- 观察项：`yate/services/yxp.py`（705 行）、`yate/editor_view/panes.py`（694 行）逼近 800 阈值。
