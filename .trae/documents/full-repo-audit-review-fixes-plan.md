@@ -126,3 +126,16 @@ flowchart LR
 | emulator 钳制改变合法转义序列行为 | EL 钳制仅在 pen 挂起态（col==cols）改变结果——原行为是崩溃，无合法语义损失；S/T 钳制与同文件四个原语风格一致；守卫用例锚定 |
 | 注释级改动误触架构文本断言 | Fix-D 后跑 pyright + 架构测试复核 |
 | 回滚 | 每 Fix 单独 commit，`git revert` 单笔回滚，无数据风险 |
+
+## 五、执行记录回填（2026-10-16 终态）
+
+- Fix-A/B：完成（与 Fix-C/D 并行执行；A/B 因同文件相邻区域合并为一笔提交
+  `5601a7b`，偏离已登记总计划 §七）；守卫用例落地 4 个，81 passed。
+- Fix-C：完成（`7bc9c4c`）；门控函数落地名 `gate_project_rc`（无下划线，
+  pyright reportPrivateUsage 实测依据，偏离已登记）；测试 8 个新增用例
+  （纯函数 3 + main() 集成 5），test_cli/test_config 153 passed。
+- Fix-D：完成（`243afef`），4 处注释/文档级合规。
+- 门禁终态：pyright 0/0/0；全量 pytest exit 0；架构测试 31 passed；
+  覆盖率 91.98%（≥75%）。pr-review：**Overall: APPROVE**（无 BLOCKER/MAJOR）。
+- 步骤-提交对照与全部偏离记录见总计划
+  [`full-repo-audit-plan.md`](full-repo-audit-plan.md) §七。

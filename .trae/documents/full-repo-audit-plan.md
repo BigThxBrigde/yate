@@ -239,6 +239,52 @@ flowchart LR
 | 文档漂移修复范围失控（顺手大扫除） | 文档修复仅限"规则文档与实现不符"的实测漂移项；存量绝对路径（32 处，§2.2）按 §五"随下次修改迁移"豁免，不做专项清扫 |
 | 推送偏离闭环纪律 | 仅在 Step 9 末统一一次，且以本任务指令为授权依据，登记偏离记录 |
 
-## 七、执行记录回填（执行期填写，本节当前为空）
+## 七、执行记录回填（2026-10-16 终态）
 
-<!-- 步骤-提交对照 / 门禁实测终态 / 偏离记录 / 待办登记 —— 由主代理在收尾时按真实结果回填 -->
+### 门禁实测（主代理亲跑，worktree 沙箱）
+
+| 门禁 | 基线（§2.1） | 终态 |
+|---|---|---|
+| `pyright yate/ tests/ tools/` | 0/0/0，exit 0 | **0/0/0，exit 0** |
+| `pytest tests/ -q` | 全绿（分支记录） | **全绿，exit 0** |
+| `pytest tests/test_architecture.py -q` | 31 passed | **31 passed，exit 0** |
+| `pytest tests/ -q --cov --cov-fail-under=75` | 91.92%（分支记录） | **91.98% ≥ 75%，exit 0** |
+
+### 步骤-提交对照
+
+| 步骤 | 提交 | 内容 |
+|---|---|---|
+| Step 0 | `852b08b` | 本计划落盘 |
+| Step 5 | `fa88bd6` | 评审记录落盘（12 维度：3 MAJOR / 11 MINOR 登记 / 1 误报驳回） |
+| Step 5 | `dff0644` | 修复方案立项（full-repo-audit-review-fixes-plan.md） |
+| Step 6 Fix-A+B | `5601a7b` | emulator EL 钳制 + S/T count 钳制 + 4 个守卫用例（81 passed） |
+| Step 6 Fix-C | `7bc9c4c` | 项目 rc 与 cwd/themes 信任门控 + 测试 + 双语文档（test_cli/config 153 passed） |
+| Step 6 Fix-D | `243afef` | 注释/文档级合规 4 处（F-5/F-6/F-8/F-9） |
+| Step 7 | — | 全量门禁四道全绿（见上表） |
+| Step 8 | — | pr-review（review 模式，六维 + 四道门禁真实退出码）：**Overall: APPROVE**，无 BLOCKER/MAJOR；MINOR 2 条仅登记（`is_trusted` 启动期两次读 store 开销可忽略；新增双语小节行数不对称、内容已对齐） |
+| Step 9 | 本提交 + 统一推送 | 回填与推送（推送为总任务指令显式授权，见偏离记录 4） |
+
+### 偏离记录（均附实测依据）
+
+1. **Fix-A 与 Fix-B 合并为一笔提交**（计划原定每 Fix 一笔）：两者改动落在同一对文件
+   （emulator.py + test_terminal_emulator.py）的相邻区域，无人值守下按 hunk 拆分提交
+   风险大于收益；提交体中分别点名 F-1/F-2，回滚粒度损失可接受。
+2. **Fix-C 门控函数命名 `gate_project_rc`（公开，无下划线）**：任务书建议名
+   `_gate_project_rc` 被 pyright strict 的 reportPrivateUsage（tests 导入私有名）判 1 error
+   （§4.2 禁 ignore 豁免）；更名后 0 诊断，语义与签名不变（执行器实测）。
+3. **wave-1 取证子代理无 shell 执行能力**：三条探针命令（全量 pytest / pyright / 复现脚本）
+   由主代理独立补测（A-1 IndexError 复现、A-2 挂死复现、基线门禁全绿），
+   符合"只认落盘结果、主代理复核"纪律。
+4. **闭环内推送**：task-orchestration §二 规定闭环内只提交不推送；本任务用户指令第 8 条
+   显式要求"所有任务完成后，推送"，按指令在 Step 9 末统一执行一次 `git push`。
+5. **子代理报告误报驳回 1 条**：F-8 中"architecture-boundaries.md:10 引用数量漂移"经主代理
+   复核为误报（该行引用 app-layering-refactoring-plans/ 实存 plan_a–g 且合规），
+   已记入评审记录 §三。
+
+### 登记待办（MINOR，不阻塞收尾）
+
+F-3（vim count 无上界）、F-7（4 处静默吞异常）、P-1~P-5（性能疑点，修复须先 profiler）、
+F-10（verify_matrix.ps1 中文注释 / 引述性中文规则空白）、F-11（`*-feature` 存量命名）、
+F-12（ext-api-parity-plans 下划线分词存量）、lua runtime lupa 收口观察项、
+pb6 探针 Popen 兜底——明细见
+[`../reviews/2026-10-16-full-repo-audit.md`](../reviews/2026-10-16-full-repo-audit.md) §二/§三。
