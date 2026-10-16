@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 import pytest
+from textual.pilot import Pilot
 from yate.app import YateApp
 from yate.flows.prompt_completion import prompt_completions
 from yate.keymaps.vim import VimKeymap
@@ -797,5 +798,249 @@ def test_setting_commands_confirm_success() -> None:
             app.editor.run_command("set filetype=python")
             await pilot.pause()
             assert "filetype set to" in message_text(app)
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------- replace confirm loop (F4)
+
+
+async def _press_f4_replace(
+    pilot: Pilot[None], find: str, replacement: str
+) -> None:
+    """Drive F4 through the two-step replace prompt (vim keymap)."""
+    await pilot.press("f4")
+    await pilot.pause()
+    await pilot.press(*find)
+    await pilot.press("enter")
+    await pilot.pause()
+    await pilot.press(*replacement)
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+def test_f4_confirm_loop_replace_yes_consumes_matches(tmp_path: Path) -> None:
+    """Every ``y`` replaces the shown match, left to right."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat cat cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("y")
+            await pilot.pause()
+            await pilot.press("y")
+            await pilot.pause()
+            await pilot.press("y")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "dog dog dog"
+            assert prompt_bar.active_mode is None
+            assert "replaced 3" in message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_skip_keeps_match(tmp_path: Path) -> None:
+    """``n`` skips the shown match; ``q`` leaves the buffer untouched."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("n")
+            await pilot.pause()
+            await pilot.press("q")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "cat cat"
+            assert "replaced" not in message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_all_replaces_everything(tmp_path: Path) -> None:
+    """``a`` replaces every occurrence left in the buffer in one step."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat cat cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("y")
+            await pilot.pause()
+            await pilot.press("a")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "dog dog dog"
+            assert "replaced" in message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_quits_early(tmp_path: Path) -> None:
+    """``q`` stops the loop; only the confirmed match stays replaced."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat cat cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("y")
+            await pilot.pause()
+            await pilot.press("q")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "dog cat cat"
+            assert prompt_bar.active_mode is None
+            # the hidden Input must not keep focus after the loop ends
+            # (a focused prompt swallows F5, see test_f5_opens_command_prompt)
+            assert app.focused is app.editor.panes.active_view
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_escape_cancels(tmp_path: Path) -> None:
+    """Escape is intercepted by the confirm hook and cancels like ``q``."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat cat cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("y")
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "dog cat cat"
+            assert prompt_bar.active_mode is None
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_read_only_refuses(tmp_path: Path) -> None:
+    """A read-only buffer refuses before the confirm loop ever starts."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            app.editor.run_command("set readonly=true")
+            await pilot.pause()
+            await _press_f4_replace(pilot, "cat", "dog")
+            assert app.editor.session.buffer.get_text() == "cat cat"
+            assert "read-only" in message_text(app)
+            assert prompt_bar.active_mode is None
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_regex_backreference_replaces(tmp_path: Path) -> None:
+    """Regex mode keeps ``replace_current``'s per-match ``pattern.sub``."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("a@x", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            # No production path toggles regex search yet (plan-c/d wires
+            # the options); flip the engine flag to exercise the regex
+            # branch of ``replace_current``.
+            app.editor.session.search.use_regex = True
+            await _press_f4_replace(pilot, r"(\w+)@x", r"\1")
+            await pilot.press("y")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "a"
+
+    asyncio.run(scenario())
+
+
+def test_confirm_mode_swallows_other_printable_keys(tmp_path: Path) -> None:
+    """Stray printable keys are consumed (R10); the Input stays empty."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("z")
+            await pilot.pause()
+            assert prompt_bar.input.value == ""
+            assert app.editor.session.buffer.get_text() == "cat"
+
+    asyncio.run(scenario())
+
+
+def test_f4_no_matches_reports_warn_and_skips_loop(tmp_path: Path) -> None:
+    """Zero matches report a warning and never enter the confirm loop."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("nothing here", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "cat", "dog")
+            assert "no matches" in message_text(app)
+            assert prompt_bar.active_mode is None
+            assert app.editor.session.buffer.get_text() == "nothing here"
+
+    asyncio.run(scenario())
+
+
+def test_f4_confirm_loop_replacement_self_match_terminates(
+    tmp_path: Path,
+) -> None:
+    """A replacement matching the query cannot trap the loop (D2 / R2)."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("xfoo", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            prompt_bar = app.editor.prompt_bar
+            assert prompt_bar is not None
+            await _press_f4_replace(pilot, "foo", "foofoo")
+            # total == 1: the first y confirms the only match and the fixed
+            # counter ends the loop (done >= total) before the self-matches
+            # inside "foofoo" can be revisited; the second y lands after the
+            # loop (hook uninstalled) -- a spiralling loop fails this test.
+            await pilot.press("y")
+            await pilot.pause()
+            await pilot.press("y")
+            await pilot.pause()
+            assert prompt_bar.active_mode is None
+            assert app.editor.session.buffer.get_text() == "xfoofoo"
 
     asyncio.run(scenario())

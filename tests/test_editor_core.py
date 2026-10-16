@@ -22,6 +22,7 @@ from yate.editor_core import (
     SearchEngine,
     TextBuffer,
 )
+from yate.editor_core import project_search
 from yate.editor_core.buffer import MAX_UNDO_STEPS
 from yate.editor_core.search import Match
 from yate.editor_core.words import next_word_start, prev_word_start, word_end, word_span
@@ -1707,3 +1708,60 @@ class TestMultiCursor:
         assert buf2.anchor is None
         assert buf2.selected_text() is None
         assert buf2.yank_selection() == "gamma deltaepsilon zeta"
+
+
+# --- SearchEngine: _compile delegation (find-replace-complete plan-a) --------
+
+
+def test_engine_compile_delegates_with_same_options() -> None:
+    """update() matches equal compile_query + search_lines, per option combo.
+
+    Public-API drift guard: any divergence between SearchEngine's internal
+    compiling and project_search.compile_query shows up as match divergence.
+    """
+    combos: list[tuple[bool, bool, bool]] = [
+        (False, False, False),
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+    ]
+    buffer = TextBuffer("foo Foo Bar f(o+) cat foo")
+    for case_sensitive, use_regex, whole_word in combos:
+        engine = SearchEngine()
+        engine.case_sensitive = case_sensitive
+        engine.use_regex = use_regex
+        engine.whole_word = whole_word
+        for query in ("foo", "Foo Bar", "f(o+)", "cat"):
+            engine.update(query, buffer)
+            pattern = project_search.compile_query(
+                query,
+                case_sensitive=case_sensitive,
+                use_regex=use_regex,
+                whole_word=whole_word,
+            )
+            assert pattern is not None
+            expected = [
+                (m.row, m.start, m.end)
+                for m in project_search.search_lines(buffer.lines, pattern)
+            ]
+            mine = [(m.row, m.start, m.end) for m in engine.matches]
+            assert mine == expected
+
+
+def test_engine_next_skips_text_inside_replaced_match() -> None:
+    """After replace_current, next() resumes past the replaced text.
+
+    The cursor rests at the end of the inserted replacement, so the
+    nearest-forward match starts at or beyond it -- a replacement that
+    itself matches the query can never be re-selected (overview risk R2
+    guard; loop termination is guaranteed by plan-b's fixed step count).
+    """
+    buffer = TextBuffer("foo foo foo")
+    engine = SearchEngine()
+    engine.update("foo", buffer)
+    engine.next(buffer)
+    assert engine.replace_current(buffer, "foofoo") is True
+    match = engine.next(buffer)
+    assert match is not None
+    assert match.row == 0
+    assert match.start >= 7

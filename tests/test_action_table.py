@@ -34,6 +34,7 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "focus_explorer",
         "overlays.open_command_palette",
         "overlays.open_file_palette",
+        "overlays.open_project_replace",
         "overlays.show_help",
         "overlays.show_manual",
         "overlays.toggle_screensaver",

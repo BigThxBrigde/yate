@@ -244,11 +244,14 @@ def _build_pane_stack(ed: Editor) -> None:
         keymaps=ed.keymaps,
         commands=ed.commands,
         actions=ed.actions,
+        session=ed.session,
         workspace=ed.workspace,
         prompt=ed.prompt_bar,
         message=ed.message,
         mounted=lambda: ed.mounted,
         open_path=ed.document_flows.open_path_later,
+        reveal_match=ed.reveal_match,
+        readonly_notice=ed.readonly_notice,
         focus_editor=ed.focus_editor,
         execute_action=ed.execute_action,
         run_command=ed.run_command,
@@ -752,6 +755,44 @@ class Editor:
         self.message(
             "buffer is read-only (:set readonly=false to unlock)", kind="warn"
         )
+
+    def reveal_match(self, path: Path, row: int, col: int) -> None:
+        """Open *path* if needed and put the cursor on a project-search hit.
+
+        The find & replace screen has already scheduled the async open
+        worker (``open_path_later``) for *path* before calling this, so a
+        deferred cursor write would race the worker and its ``apply_doc``
+        would restore the pane's saved view state over the reveal.  A
+        synchronous open here lands the document on screen first; the
+        reveal result (cursor + scroll) is then written back into the
+        leaf's view state, so that same worker ``apply_doc`` -- its
+        ``is_open`` short-circuits -- restores exactly the revealed
+        position instead of clobbering it.
+        """
+        doc = self.session.is_open(path)
+        if doc is None:
+            self.document_flows.open_path(path)
+            doc = self.session.is_open(path)
+        if doc is None:
+            return
+        if doc is not self.session.doc:
+            self.document_flows.activate_doc(doc)
+        buf = doc.buffer
+        buf.anchor = None
+        # the hit row comes from a disk scan; an open buffer with unsaved
+        # line deletions may have fewer lines by now -- clamp before the
+        # subscript, set_cursor's own clamp would come too late
+        row = min(row, len(buf.lines) - 1)
+        buf.set_cursor((row, min(col, len(buf.lines[row]))))
+        view = self.panes.active_view
+        if view is not None:
+            view.reveal_cursor()
+            state = self.panes.active.state_for(doc)
+            state.cursor = buf.cursor
+            state.anchor = None
+            state.scroll_col = view.scroll_col
+            state.scroll_row = view.scroll_offset.y
+        self.refresh_ui()
 
     def insert_char(self, ch: str) -> None:
         """Insert one character at the cursor (keymap ``insert_char``)."""

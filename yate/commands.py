@@ -245,6 +245,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _palette(args: str) -> None:
         editor.overlays.open_command_palette()
 
+    def _project_replace(args: str) -> None:
+        editor.overlays.open_project_replace()
+
     def _trust(args: str) -> None:
         editor.extension_flows.trust_cwd_extensions()
 
@@ -260,6 +263,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     reg("bd", _bd, "close current buffer/tab")
     reg("files", _files, "fuzzy quick file open (ctrl+p)")
     reg("palette", _palette, "command palette (alt+shift+p)")
+    reg("project-replace", _project_replace,
+        "find & replace in project (ctrl+h)")
     reg("trust", _trust,
         "trust the current workspace and load its ./extensions now")
 
