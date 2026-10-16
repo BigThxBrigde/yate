@@ -150,9 +150,16 @@ R1–R14 违规信号 grep 全 0（`import yate.app` 出界 / TYPE_CHECKING / `O
 |---|---|---|
 | MAJOR | F-1（EL1 pen 越界） | 确证真问题 → 修复（见修复方案文档 Fix-A） |
 | MAJOR | F-2（S/T count 无上界） | 确证真问题 → 修复（Fix-B） |
-| MAJOR | F-4（trust 不变量旁路） | 确证真问题 → 修复（Fix-C） |
+| MAJOR | F-4（trust 不变量旁路） | **⏸ 用户裁决不修（2026-10-17）**——见下方增记 |
 | MINOR | F-3 / F-5~F-12 / P-1~P-5 / lua runtime 观察项 / pb6 Popen | 登记待办，不阻塞收尾 |
 | 误报驳回 | 子代理报告 2 条（architecture-boundaries.md:10 引用漂移；F8 数量漂移） | 主代理复核后驳回，理由见 F-12 |
+
+> **2026-10-17 增记（F-4 终局裁决）**：仓库拥有者裁定 **trust 的职责域仅限 extensions**
+> （`yate/services/trust.py` 与 `:trust` 模型即为此而设），项目 yaterc 属 vimrc 式
+> deliberate design（`yate/docs/yaterc.*.md` 已登记该模型），不做工作区信任门控。
+> 据此 Fix-C 提交 `7bc9c4c` 已整体 revert（`2cb30cc`，含门控测试与双语文档），
+> `trust.py` 保持 extensions-only 职责不变；撤销后全量门禁复测全绿
+> （pyright 0/0/0、pytest 全量 exit 0、架构测试 31 passed，2026-10-17 主代理亲测）。
 
 修复方案：[`../documents/full-repo-audit-review-fixes-plan.md`](../documents/full-repo-audit-review-fixes-plan.md)
 （与本记录互链；仅限审核确证的 BLOCKER/MAJOR + 文档漂移，禁止顺手重构）。
