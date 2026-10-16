@@ -82,3 +82,35 @@ R13 主题经 `theme.attach` 自持。命名无 `*Feature/*Host/*Ops/*Delegate/*
   用例锚定）；原子写对齐 `Document.save`（权限位继承、时间戳取新鲜值、
   `os.replace` 同卷原子换入、失败路径清临时文件）；无架构违规。
 - 结论：**无遗留 issue**；2 MINOR 维持缓办（follow-up，不阻塞合并）。
+
+## 三轮复审（code-review-expert，全分支 diff，2026-10-16）
+
+- 范围：`4380528...HEAD`（30 文件，+3462/-20，12 提交）。技能：
+  python-code-review + TRAE-code-review 双清单合并。
+- 门禁实测全绿（pyright 0 / pytest 0 / 架构 31）。
+- 结论：**REQUEST_CHANGES** — 3 MAJOR + 4 MINOR：
+  - M1 `reveal_match` 行越界：`buf.lines[row]` 先于 `set_cursor` 钳制求值，
+    buffer 未保存删行后 enter 崩溃（[editor.py](../../yate/editor.py)）；
+  - M2 搜索/片段侧 `splitlines()` 与 TextBuffer/替换侧 `split("\n")`
+    行视图不一致：reveal 错行、CRLF `$` 锚搜索命中/替换不命中的矛盾；
+  - M3 结果面板无滚动跟随：1fr Static 不产生虚拟溢出，命中超一屏后
+    `>` 光标不可见（探针实证 virtual_size 恒等于容器高）；
+  - m1 跨匹配边界断言计数虚增（与 `replace_all` 既有取舍一致，仅补披露）；
+    m2 walk 5000 文件上限静默截断；m3 replace worker 重读实时输入与
+    磁盘路径快照漂移；m4 `_replace_scope_all` O(n²) 去重。
+- 修复：`d3c7c94`（F3-F9，见
+  [find-replace-complete-review-fixes-plan.md](../documents/find-replace-complete-review-fixes-plan.md)
+  §五）——行视图统一 `split("\n")` + 片段 `rstrip("\r")`、reveal 先钳行、
+  `VerticalScroll` 容器承载 auto 高度结果面板并滚动跟随光标、worker
+  改收引擎快照、`dict.fromkeys` 去重、截断提示、docstring 披露；
+  新增 6 个测试（engine 2 + pilot 4）。
+- 门禁复测：pyright 0 errors；`pytest tests/ -q` 退出码 0；架构 31 passed。
+
+## 四轮复审（pr-review 技能，全分支，2026-10-16）
+
+- 范围：`4380528...HEAD`（31 文件，13 提交，基线 master）。
+- 门禁实测全绿（pyright 0 / pytest 0 / 架构 31）。
+- 六维度（功能/安全/性能/可维护性/架构/门禁）逐条核对：**零发现**；
+  已修条目与两条 follow-up 按 false-positive 规则不复述。
+- 结论：**APPROVE** —— 无 BLOCKER/MAJOR/MINOR 遗留，
+  「登记→计划→修复→再审直至无 issue」闭环达成；合入由人工决定。
