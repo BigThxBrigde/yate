@@ -258,7 +258,7 @@ flowchart LR
 | Step 5 | `fa88bd6` | 评审记录落盘（12 维度：3 MAJOR / 11 MINOR 登记 / 1 误报驳回） |
 | Step 5 | `dff0644` | 修复方案立项（full-repo-audit-review-fixes-plan.md） |
 | Step 6 Fix-A+B | `5601a7b` | emulator EL 钳制 + S/T count 钳制 + 4 个守卫用例（81 passed） |
-| Step 6 Fix-C | `7bc9c4c` | 项目 rc 与 cwd/themes 信任门控 + 测试 + 双语文档（test_cli/config 153 passed） |
+| Step 6 Fix-C | `7bc9c4c` | 项目 rc 与 cwd/themes 信任门控 + 测试 + 双语文档（**已于 2026-10-17 整体撤销**，见偏离记录 6） |
 | Step 6 Fix-D | `243afef` | 注释/文档级合规 4 处（F-5/F-6/F-8/F-9） |
 | Step 7 | — | 全量门禁四道全绿（见上表） |
 | Step 8 | — | pr-review（review 模式，六维 + 四道门禁真实退出码）：**Overall: APPROVE**，无 BLOCKER/MAJOR；MINOR 2 条仅登记（`is_trusted` 启动期两次读 store 开销可忽略；新增双语小节行数不对称、内容已对齐） |
@@ -280,6 +280,13 @@ flowchart LR
 5. **子代理报告误报驳回 1 条**：F-8 中"architecture-boundaries.md:10 引用数量漂移"经主代理
    复核为误报（该行引用 app-layering-refactoring-plans/ 实存 plan_a–g 且合规），
    已记入评审记录 §三。
+6. **Fix-C 撤销（2026-10-17 用户裁决）**：拥有者裁定 trust 职责域仅限 extensions，
+   项目 yaterc 属 vimrc 式 deliberate design，不做工作区信任门控（cwd/themes 同）；
+   `7bc9c4c` 已 revert（`2cb30cc`，含测试与双语文档），F-4 在评审记录 §三改登
+   "用户裁决不修"。撤销后复测：pyright 0/0/0、全量 pytest exit 0、架构 31 passed。
+   另：Fix-C 落地期间曾按用户指示尝试将门控函数迁往 yaterc.py / 调整调用宿主，
+   均未提交即作废；同名函数 `gate_project_rc` / `gate_cwd_themes` 命名与调用宿主
+   讨论随撤销一并失效，trust.py 恢复原状（extensions-only）。
 
 ### 登记待办（MINOR，不阻塞收尾）
 

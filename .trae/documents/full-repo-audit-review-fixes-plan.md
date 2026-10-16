@@ -139,3 +139,14 @@ flowchart LR
   覆盖率 91.98%（≥75%）。pr-review：**Overall: APPROVE**（无 BLOCKER/MAJOR）。
 - 步骤-提交对照与全部偏离记录见总计划
   [`full-repo-audit-plan.md`](full-repo-audit-plan.md) §七。
+
+## 六、Fix-C 撤销登记（2026-10-17 用户裁决）
+
+仓库拥有者裁定：**trust 的职责域仅限 extensions**，项目 yaterc 属 vimrc 式
+deliberate design（`yate/docs/yaterc.*.md` 已登记该模型），不做工作区信任门控。
+本方案 Fix-C（方案 A 及其否决的方案 B/C 一并失效）对应提交 `7bc9c4c` 已整体
+revert（`2cb30cc`，含门控测试与双语文档），`trust.py` 保持 extensions-only
+职责不变。撤销后全量门禁复测全绿：pyright 0/0/0、全量 pytest exit 0、
+架构测试 31 passed（2026-10-17 主代理亲测）。评审记录
+[`../reviews/2026-10-16-full-repo-audit.md`](../reviews/2026-10-16-full-repo-audit.md)
+§三已将 F-4 改登"用户裁决不修"。Fix-A/B/D 维持有效。
