@@ -165,6 +165,32 @@ def test_replace_all_writes_unopened_files(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_empty_replacement_deletes_matches_on_disk(tmp_path: Path) -> None:
+    """An empty replace field deletes every match (a legitimate use)."""
+    async def scenario() -> None:
+        note = tmp_path / "note.txt"
+        note.write_text("needle x\nkeep y\nneedle z\n", encoding="utf-8")
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 2)
+            # the replace input stays empty: deletion semantics
+            screen.query_one("#fr-results", _Results).focus()
+            await pilot.pause()
+            await pilot.press("a")
+            assert await wait_until(
+                pilot,
+                lambda: note.read_text(encoding="utf-8") == " x\nkeep y\n z\n",
+            )
+            assert any(
+                "replaced 2" in text and kind == "ok" for text, kind in messages
+            )
+
+    asyncio.run(scenario())
+
+
 def test_replace_updates_open_buffer_and_keeps_dirty(tmp_path: Path) -> None:
     async def scenario() -> None:
         doc = tmp_path / "note.txt"

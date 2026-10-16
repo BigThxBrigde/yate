@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from yate.logs import tracing
@@ -32,10 +32,13 @@ class LineMatch:
 
 @dataclass(frozen=True)
 class FileMatch:
-    """All hits in one file, in document order."""
+    """All hits in one file, in document order, plus their line texts."""
 
     path: Path
     matches: list[LineMatch]
+    #: text of each hit row (newline-only view, ``\r`` tail kept) keyed by
+    #: row, so callers can render snippets without re-reading the file
+    hit_lines: dict[int, str] = field(default_factory=dict[int, str])
 
 
 def compile_query(
@@ -97,9 +100,11 @@ def search_files(
 
     Unreadable files (``OSError``), files larger than *max_file_bytes* and
     files that are not valid UTF-8 (binary and foreign-encoding files) are
-    skipped.  Collection stops once *max_matches* hits have been gathered;
-    *progress* is called with the number of files scanned so far after each
-    file, skipped ones included.
+    skipped.  Each hit file also carries ``hit_lines`` -- the raw text of
+    every hit row -- so snippet rendering needs no second read.  Collection
+    stops once *max_matches* hits have been gathered; *progress* is called
+    with the number of files scanned so far after each file, skipped ones
+    included.
     """
     pattern = compile_query(
         query,
@@ -112,12 +117,12 @@ def search_files(
     results: list[FileMatch] = []
     total = 0
     for done, path in enumerate(paths, start=1):
-        matches = _search_one_file(
+        matches, hit_lines = _search_one_file(
             path, pattern, max_file_bytes, max_matches - total
         )
         if matches:
             total += len(matches)
-            results.append(FileMatch(path, matches))
+            results.append(FileMatch(path, matches, hit_lines))
         if progress is not None:
             progress(done)
         if total >= max_matches:
@@ -128,27 +133,30 @@ def search_files(
 
 def _search_one_file(
     path: Path, pattern: re.Pattern[str], max_file_bytes: int, budget: int
-) -> list[LineMatch]:
-    """Search one file and return at most *budget* hits.
+) -> tuple[list[LineMatch], dict[int, str]]:
+    """Search one file and return at most *budget* hits plus their texts.
 
     Lines are split on ``"\\n"`` only -- the ``TextBuffer`` view -- so hit
     rows/columns line up with both buffer-side search and ``replace_lines``.
-    Returns an empty list when the file is unreadable, oversized, not
-    decodable as UTF-8 or simply has no matches.
+    The second element maps each hit row to its raw line text (same view,
+    ``\r`` tail kept).  Returns empty results when the file is unreadable,
+    oversized, not decodable as UTF-8 or simply has no matches.
     """
     try:
         data = path.read_bytes()
     except OSError:
         log.debug("project search skipped unreadable file %s", path)
-        return []
+        return [], {}
     if len(data) > max_file_bytes:
-        return []
+        return [], {}
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
         log.debug("project search skipped non-utf8 file %s", path)
-        return []
-    return search_lines(text.split("\n"), pattern)[:budget]
+        return [], {}
+    lines = text.split("\n")
+    matches = search_lines(lines, pattern)[:budget]
+    return matches, {m.row: lines[m.row] for m in matches}
 
 
 def replace_lines(

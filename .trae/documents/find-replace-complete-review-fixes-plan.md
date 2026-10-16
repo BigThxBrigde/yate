@@ -3,7 +3,7 @@
 > 来源记录：[`.trae/reviews/2026-10-16-find-replace.md`](../reviews/2026-10-16-find-replace.md)
 > （第一轮 PR 预审，2 MAJOR；第三轮 code-review-expert，3 MAJOR + 4 MINOR）。
 > 修复范围：磁盘替换路径与回归测试（§二-§四）；行视图一致性 / reveal 钳制 /
-> 滚动跟随等（§五）。
+> 滚动跟随等（§五）；两条遗留 follow-up（§六）。
 
 ## 一、目标与非目标
 
@@ -112,3 +112,81 @@ prefix=path.name + ".yate-tmp-")` → `os.fdopen(fd, "wb")` 写入 →
   回归锚定。
 - 回滚：单提交 revert（改动集中在 project_search.py / find_replace.py /
   editor.py / tcss + 测试）。
+
+## 六、遗留 follow-up 修复（2026-10-16 第二批）
+
+输入：评审记录第一轮末尾登记的两条 MINOR follow-up（命中文件二次读盘、
+空替换串被守卫拦截）。四项人工验证项不在本轮（无头环境无法执行）。
+
+### 目标
+
+1. 消除命中文件二次读盘：`search_files` 顺带携带命中行文本，
+   `_scan` 不再为构建片段重读文件。
+2. 空替换串可达："删除全部匹配"成为合法操作——移除
+   `replacement == ""` 守卫，仅保留 find 非空守卫（plan-c §4.2.12
+   的守卫决策按本节证据推翻）。
+
+### 非目标
+
+- 不改 `SearchEngine.replace_all` 语义与 F4 确认循环路径；
+- 双语手册无该守卫记载（已核实），无手册同步项。
+
+### 备选方案与否决理由
+
+| # | 议题 | 选定 | 否决 |
+|---|---|---|---|
+| F10 | 命中行文本携带方式 | `FileMatch` 新增 `hit_lines: dict[int, str]`（row → `split("\n")` 视图原始行文本，含 `\r` 尾；default 工厂，增量字段零破坏） | 独立函数返回 `(matches, lines)` 二元组：调用方需自行按 path 配对，API 面更碎；`LineMatch` 加 text 字段：同行多匹配重复携带整行，且污染纯坐标语义 |
+| F11 | L2 片段存储 | 删除 `self._snippets` 冗余字典，渲染时直取 `fm.hit_lines` | 保留 `_snippets` 并从 hit_lines 复制填充：双份状态无收益 |
+| F12 | 空替换决策 | 移除 `replacement == ""` 守卫（`replace_lines` / `replace_all` 均 `pattern.sub("")` 即删除，实测无障碍）；守卫消息改 "find field must be filled" | 维持禁用补文档：plan-c 定守卫时未给理由，标准查找替换（删除）是普遍语义，禁用牺牲合法用例；测试与手册均未锚定旧守卫（已核实） |
+
+### 分步实施
+
+步骤 1：`yate/editor_core/project_search.py`
+- `FileMatch` 加 `hit_lines: dict[int, str] = field(default_factory=dict)`；
+- `_search_one_file` 返回 `(matches, hit_lines)`（budget 截断后
+  `{m.row: lines[m.row] for m in matches}`，无命中为空 dict）；
+- `search_files` 以 `FileMatch(path, matches, hit_lines)` 落表；
+  两处 docstring 注明顺带携带。
+
+步骤 2：`yate/editor_view/find_replace.py`
+- `_scan`：删除第二次 `read_bytes`/decode/split 段，返回
+  `(results, truncated)`；
+- `_search_worker`：去 snippets 参数与 `self._snippets` 赋值；
+- `__init__` / `_clear_results`：删除 `_snippets` 属性；
+- `_render_results` / `_append_snippet`：改为传行文本
+  `fm.hit_lines.get(m.row, "")`，`_append_snippet` 内显示侧
+  `rstrip("\r")`；
+- `_replace_scope`：守卫仅 `find == ""`，消息 "find field must be
+  filled"；空替换流入既有 worker（磁盘 `replace_lines`、buffer
+  `replace_all` 均删除匹配）。
+
+步骤 3：测试
+- engine（tests/test_project_search.py）：
+  - `test_search_files_carries_hit_line_texts`：CRLF 文件断言
+    hit_lines 的 row 键与含 `\r` 尾原始行文本；
+  - `test_replace_lines_empty_replacement_deletes`：空替换删匹配、
+    保留非命中文本。
+- pilot（tests/test_app_find_replace.py）：
+  - `test_empty_replacement_deletes_matches_on_disk`：replace 输入
+    留空按 `a`，磁盘匹配被删除，消息 "replaced 2"。
+
+### 验收命令
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/test_project_search.py tests/test_app_find_replace.py -q
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pytest tests/ -q
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
+```
+
+全部退出码 0。
+
+### 风险与回滚
+
+- `hit_lines` 为增量字段（default 工厂），既有构造与测试零破坏；
+- 片段渲染换源：既有 snippet 渲染测试（"needle" in plain 等）回归锚定；
+- 内存量级不变：hit_lines 按 row 去重、总量受 `max_matches=2000` 约束，
+  与原 snippets 字典同 profile，且免去重复读盘；
+- 空替换为新行为面：无旧守卫锚定（已核实），plan-c 决策推翻随本方案登记；
+- 回滚：单提交 revert（改动集中在 project_search.py / find_replace.py +
+  3 个测试）。

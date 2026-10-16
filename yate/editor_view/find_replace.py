@@ -119,9 +119,6 @@ class FindReplaceScreen(ModalScreen[None]):
         #: flat (path, match) cursor table rebuilt with every search
         self._flat: list[tuple[Path, LineMatch]] = []
         self._cursor = 0
-        #: matched-line texts per result file, filled by the scan thread so
-        #: snippet rendering never touches the disk on the UI thread
-        self._snippets: dict[Path, dict[int, str]] = {}
         #: True when the workspace walk returned ``SCAN_FILE_CAP`` paths
         self._truncated = False
         #: 0-based results-pane line of the cursor row (scroll anchor)
@@ -200,7 +197,9 @@ class FindReplaceScreen(ModalScreen[None]):
                 fg = t.fg if cursor_here else t.fg_muted
                 marker = "> " if cursor_here else "  "
                 text.append(f"{marker}{m.row + 1}: ", style=fg)
-                self._append_snippet(text, fm.path, m, fg, cursor_here)
+                self._append_snippet(
+                    text, fm.hit_lines.get(m.row, ""), m, fg, cursor_here,
+                )
                 text.append("\n")
                 flat_index += 1
                 line_no += 1
@@ -215,10 +214,11 @@ class FindReplaceScreen(ModalScreen[None]):
         scroller.scroll_to(y=self._cursor_line, animate=False)
 
     def _append_snippet(
-        self, text: Text, path: Path, m: LineMatch, fg: str, cursor_here: bool,
+        self, text: Text, line: str, m: LineMatch, fg: str, cursor_here: bool,
     ) -> None:
         """Append one ``…context[match]context…`` snippet row body."""
-        line = self._snippets.get(path, {}).get(m.row, "")
+        # the raw hit line keeps its "\r" tail on CRLF files: display noise
+        line = line.rstrip("\r")
         start = max(0, m.start - SNIPPET_CONTEXT)
         end = min(len(line), m.end + SNIPPET_CONTEXT)
         t = theme.active()
@@ -268,34 +268,22 @@ class FindReplaceScreen(ModalScreen[None]):
     async def _search_worker(self, query: str) -> None:
         """Scan the workspace in a thread, then repaint when still mounted."""
 
-        def _scan() -> tuple[list[FileMatch], dict[Path, dict[int, str]], bool]:
+        def _scan() -> tuple[list[FileMatch], bool]:
             paths = self._workspace.walk_files(limit=SCAN_FILE_CAP)
             truncated = len(paths) >= SCAN_FILE_CAP
+            # hit lines ride along from the scan read (FileMatch.hit_lines):
+            # no per-hit re-read for snippet rendering
             results = project_search.search_files(
                 paths, query,
                 case_sensitive=self._case, use_regex=self._regex,
                 whole_word=self._word,
             )
-            snippets: dict[Path, dict[int, str]] = {}
-            for fm in results:
-                try:
-                    text = fm.path.read_bytes().decode("utf-8")
-                except (OSError, UnicodeDecodeError):
-                    continue
-                # newline-only view, matching the hit-row coordinates and
-                # TextBuffer; a trailing "\r" is display noise only
-                lines = text.split("\n")
-                snippets[fm.path] = {
-                    m.row: lines[m.row].rstrip("\r")
-                    for m in fm.matches if m.row < len(lines)
-                }
-            return results, snippets, truncated
+            return results, truncated
 
-        results, snippets, truncated = await asyncio.to_thread(_scan)
+        results, truncated = await asyncio.to_thread(_scan)
         if not self.is_mounted:
             return
         self._results = results
-        self._snippets = snippets
         self._truncated = truncated
         self._flat = [(fm.path, m) for fm in results for m in fm.matches]
         self._cursor = 0
@@ -304,7 +292,6 @@ class FindReplaceScreen(ModalScreen[None]):
     def _clear_results(self) -> None:
         """Drop every hit and repaint the empty results pane."""
         self._results = []
-        self._snippets = {}
         self._flat = []
         self._cursor = 0
         self._truncated = False
@@ -409,8 +396,9 @@ class FindReplaceScreen(ModalScreen[None]):
         """Guard the inputs, then run the replace worker (r / a shared)."""
         find = self._query()
         replacement = self._replace_text()
-        if find == "" or replacement == "":
-            self._message("find and replace fields must be filled", "warn")
+        # an empty replacement is legal: it deletes every match
+        if find == "":
+            self._message("find field must be filled", "warn")
             return
         pattern = project_search.compile_query(
             find,

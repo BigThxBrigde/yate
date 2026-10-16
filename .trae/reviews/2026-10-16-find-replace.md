@@ -114,3 +114,22 @@ R13 主题经 `theme.attach` 自持。命名无 `*Feature/*Host/*Ops/*Delegate/*
   已修条目与两条 follow-up 按 false-positive 规则不复述。
 - 结论：**APPROVE** —— 无 BLOCKER/MAJOR/MINOR 遗留，
   「登记→计划→修复→再审直至无 issue」闭环达成；合入由人工决定。
+
+## 遗留 follow-up 修复（2026-10-16 第二批）
+
+- 输入：第一轮登记的两条 MINOR follow-up；方案见
+  [find-replace-complete-review-fixes-plan.md](../documents/find-replace-complete-review-fixes-plan.md)
+  §六（含备选与否决、风险回滚）。
+- 命中文件二次读盘：`FileMatch` 增量携带 `hit_lines`（row →
+  `split("\n")` 视图原始行文本，default 工厂零破坏），`_scan` 删除
+  第二次 `read_bytes`；L2 冗余 `_snippets` 字典移除，片段渲染直取
+  `hit_lines`（显示侧 `rstrip("\r")`）。
+- 空替换守卫：移除 `replacement == ""` 拦截——plan-c §4.2.12 决策
+  推翻（`replace_lines` / `replace_all` 实测均原生支持空替换删除，
+  测试与手册未锚定旧守卫），"删除全部匹配"可达；守卫仅剩 find
+  非空，消息改 "find field must be filled"。
+- 新增 3 个测试（engine 2 + pilot 1）；四项人工验证项不在本轮
+  （无头环境无法执行）。
+- 门禁复测：pyright 0 errors；`pytest tests/ -q` 退出码 0；
+  架构 31 passed。
+- 结论：两条 follow-up 关闭，评审闭环无遗留。

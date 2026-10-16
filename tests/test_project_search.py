@@ -179,6 +179,15 @@ def test_replace_lines_matches_engine_replace_all() -> None:
     assert count == 4
 
 
+def test_replace_lines_empty_replacement_deletes() -> None:
+    """An empty replacement deletes the matches, keeping surrounding text."""
+    pattern = compile_query("foo")
+    assert pattern is not None
+    new_lines, count = replace_lines(["foo bar", "x foo"], pattern, "")
+    assert new_lines == [" bar", "x "]
+    assert count == 2
+
+
 # --- search_files line view --------------------------------------------------
 
 
@@ -200,3 +209,17 @@ def test_search_files_dollar_anchor_sees_crlf_like_the_buffer(
     assert search_files([doc], "foo$", use_regex=True) == []
     hits = search_files([doc], "foo")
     assert [(m.row, m.start, m.end) for m in hits[0].matches] == [(0, 0, 3)]
+
+
+def test_search_files_carries_hit_line_texts(tmp_path: Path) -> None:
+    """Each hit file carries the raw text of its hit rows (no second read)."""
+    doc = tmp_path / "crlf.txt"
+    doc.write_bytes(b"first\r\nneedle x\r\nneedle y\r\n")
+    hits = search_files([doc], "needle")
+    assert len(hits) == 1
+    fm = hits[0]
+    assert [(m.row, m.start, m.end) for m in fm.matches] == [
+        (1, 0, 6),
+        (2, 0, 6),
+    ]
+    assert fm.hit_lines == {1: "needle x\r", 2: "needle y\r"}

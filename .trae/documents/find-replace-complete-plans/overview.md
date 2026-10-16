@@ -198,3 +198,6 @@ flowchart LR
   `copystat` + `utime` + `os.replace`）+ 2 个回归用例（`2f2c652`）；
   二轮复审再修 `mkstemp` 未入守卫的批量中断缺口（`3d2f2f6`）。
 - 第二轮结论：**无遗留 issue**（2 MINOR 登记为 follow-up，不阻塞合并）。
+- follow-up 修复（2026-10-16 第二批）：`FileMatch.hit_lines` 随扫描
+  携带命中行文本，`_scan` 免二次读盘；空替换守卫移除（推翻 plan-c
+  §4.2.12），"删除全部匹配"可达（修复方案 §六，评审记录有登记）。
