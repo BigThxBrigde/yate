@@ -19,7 +19,7 @@
 - `yate/` + `tools/` 内 **>800 行文件全部登记在 `SIZE_EXEMPT_FILES`，无遗漏**。
 - 守卫口径（`splitlines()`）实测：`editor.py` 1024、`vim.py` 1184、`buffer.py` 1069、
   `wiki.py` 1495、`langdefs.py` 813、`logs.py` 690（负面清单）。五处与规则登记数漂移，
-  已随 [`.trae/rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) §三.7 同步。
+  已随 [`../rules/architecture-boundaries.md`](../rules/architecture-boundaries.md) §三.7 同步。
 - **拆分候选登记**：`yate/editor.py`（1024 行，docstring 自述约 9 类操作职责，构成
   工厂 + 命令分发 + explorer 分节）为下一个 big-module-split 候选——本轮不改代码，
   拆分另行立项；豁免维持，行数注记已更新。

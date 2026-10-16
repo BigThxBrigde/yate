@@ -40,7 +40,7 @@
 | `yate/editor_syntax/langdefs.py` 行数 | 813 | 813 | 一致 |
 | `yate/logs.py` 行数（负面清单） | 690 | 686 | **漂移 +4，需同步** |
 | `yate/flows/` 实际模块数 | 10 个（含 `mouse_flows.py`、`extension_flows.py`） | R11 枚举只列 8 个 | **枚举缺 2，需补** |
-| `UI_FROZEN_FILES` 键数（tests/test_architecture.py:148） | 9 键 | 守卫 docstring 只提 2 个 flows 文件；块注释 L147 引用 "(R4)" 应为 R11 | **注释失准，需修** |
+| `UI_FROZEN_FILES` 键数（../../tests/test_architecture.py:148） | 9 键 | 守卫 docstring 只提 2 个 flows 文件；块注释 L147 引用 "(R4)" 应为 R11 | **注释失准，需修** |
 | 架构测试用例数 | 31 | 31（§六） | 一致 |
 | 扩展门面 `__all__` | 14 名 | 14 名 | 一致 |
 | README 语言数 | 30（`_LANGUAGES` 按语言对象去重） | 30 | 一致 |
@@ -73,22 +73,22 @@ flowchart LR
 
 ### Step 1 — 规则文档同步（输入：§二实测表）
 
-- 改动文件：`.trae/rules/architecture-boundaries.md`
+- 改动文件：`../rules/architecture-boundaries.md`
 - 内容：§三.7 五处行数同步（editor.py / vim.py / buffer.py / wiki.py / logs.py 负面清单），editor.py 条目追加 2026-10-16 复核注记；§一 R11 flows 枚举补 `mouse_flows.py`、`extension_flows.py`（与 §一 L3 依赖图对齐）
 - 输出：文档与实测一致
 - 验收命令：`python -m pytest tests/ -q`（规则文档不影响测试，防手滑）+ 人工核对引用行号
 
 ### Step 2 — 守卫注释修正（输入：§二取证）
 
-- 改动文件：`tests/test_architecture.py`（仅注释/docstring，零行为）
+- 改动文件：`../../tests/test_architecture.py`（仅注释/docstring，零行为）
 - 内容：`UI_FROZEN_FILES` 块注释 L147 "(R4)" 改为 R11；`test_collaborators_keep_widget_coupling_frozen` docstring 概括 9 键扫描面
 - 验收命令：`python -m pytest tests/test_architecture.py -q`
 
 ### Step 3 — 评审记录落盘（输入：§二全部取证）
 
-- 新建文件：`.trae/reviews/2026-10-16-repo-structure-audit.md`（命名合规：日期前缀 + 连字符分词）
+- 新建文件：`../reviews/2026-10-16-repo-structure-audit.md`（命名合规：日期前缀 + 连字符分词）
 - 内容：四项审核的发现与核对结论（只读事实文档），与计划文档互相链接；登记拆分待办：editor.py 为下一个 big-module-split 候选（1024 行、多职责块、豁免登记持续过期）、`services/yxp.py` 705 行逼近阈值
-- 验收命令：纯文档，按 `misc-rules.md` §三核对（与 Step2 混合则跑全量门禁）
+- 验收命令：纯文档，按 `../rules/misc-rules.md` §三核对（与 Step2 混合则跑全量门禁）
 
 ### Step 4 — 全量门禁（混合变更，不豁免）
 
@@ -104,7 +104,7 @@ flowchart LR
 
 ### Step 6 — 回填与提交
 
-- 本文档回填真实结果与偏离记录；按 `git-commit-message.md` 分步提交（docs(plan) → docs(rules) → docs(architecture) → docs(reviews)），只提交不推送
+- 本文档回填真实结果与偏离记录；按 `../rules/git-commit-message.md` 分步提交（docs(plan) → docs(rules) → docs(architecture) → docs(reviews)），只提交不推送
 
 ## 五、风险清单与回滚路径
 
