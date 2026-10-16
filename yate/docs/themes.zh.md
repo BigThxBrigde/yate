@@ -77,7 +77,10 @@ theme_dirs = [
 - 工作目录下的 `./themes/`
 - `~/.yate/themes/`
 
-把 `*.py` 主题文件丢进去即可（下划线开头的文件会被跳过）。
+把 `*.py` 主题文件丢进去即可（下划线开头的文件会被跳过）。注意：
+`./themes/` 仅在已用 `:trust` 信任的工作区中加载（与项目 rc、
+`./extensions/` 是同一套工作区信任模型，见 [yaterc 配置指南](yaterc.zh.md)）；
+`~/.yate/themes/` 不受影响。
 
 ### 方式 D：命令行 `--theme-dir`
 

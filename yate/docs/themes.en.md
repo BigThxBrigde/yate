@@ -83,7 +83,9 @@ Without any configuration, yate automatically scans:
 - `~/.yate/themes/`
 
 Just drop `*.py` theme files in (files starting with an underscore are
-skipped).
+skipped). Note: `./themes/` loads only in workspaces trusted via `:trust`
+(the same workspace-trust model as the project rc and `./extensions/` --
+see the [yaterc guide](yaterc.en.md)); `~/.yate/themes/` is unaffected.
 
 ### Option D: `--theme-dir` on the command line
 

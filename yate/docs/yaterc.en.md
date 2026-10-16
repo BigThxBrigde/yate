@@ -62,6 +62,25 @@ perform the work and exit:
   yate did not create are left untouched; once empty, the `~/.yate` directory
   itself is removed.
 
+## Workspace trust gating (project rc and `./themes`)
+
+Opening a repository must never execute the repository's own code. The
+project-level rc and the project `./themes/` directory therefore auto-load
+**only in workspaces you have trusted** -- the same workspace-trust model
+that gates the project `./extensions/` directory (see
+[extensions.en.md](extensions.en.md)):
+
+- In an untrusted workspace, startup skips the project rc and the project
+  `./themes/` directory (when present) and shows a notice in the startup
+  message bar, e.g. `yaterc: skipped untrusted project rc <path>
+  (run :trust in the workspace to load it)`.
+- Run `:trust` inside that workspace to record it in
+  `~/.yate/trusted_workspaces`; from the next start on, its project rc and
+  `./themes/` load normally.
+- `yate -u <file>` and `yate -u NONE` are deliberate user actions and are
+  **never** gated; the user rc `~/.yate/yaterc` and `~/.yate/themes/`
+  always load.
+
 ## Option reference
 
 | Option | Type | Default | Valid values | Description |

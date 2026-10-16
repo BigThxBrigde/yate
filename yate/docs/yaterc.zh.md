@@ -54,6 +54,21 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
   加 `--include-data` 才删除；非 yate 创建的文件保持不动；目录清空后
   `~/.yate` 本身一并移除。
 
+## 工作区信任门控（项目 rc 与 `./themes`）
+
+打开一个仓库绝不意味着执行仓库自带的代码。项目级 rc 与项目 `./themes/`
+目录因此**只在已信任的工作区**中自动加载——与项目 `./extensions/` 目录
+是同一套工作区信任模型（见 [extensions.zh.md](extensions.zh.md)）：
+
+- 在未信任的工作区中，启动时会跳过项目 rc 与项目 `./themes/` 目录
+  （存在时），并在启动消息栏给出提示，如
+  `yaterc: skipped untrusted project rc <路径>
+  (run :trust in the workspace to load it)`。
+- 在该工作区内运行 `:trust`，把它记入 `~/.yate/trusted_workspaces`；
+  从下一次启动起，项目 rc 与 `./themes/` 即正常加载。
+- `yate -u <文件>` 与 `yate -u NONE` 是刻意的用户操作，**不受**门控影响；
+  用户级 `~/.yate/yaterc` 与 `~/.yate/themes/` 始终加载。
+
 ## 选项参考
 
 | 选项 | 类型 | 默认值 | 合法值 | 说明 |
