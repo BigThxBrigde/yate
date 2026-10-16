@@ -23,14 +23,22 @@ L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
 L2 组件：editor_view/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
-         actions/commands/editor 之下）/ keymaps/registry.py（KeymapSet）
+         actions/commands/editor 之下）/
+         keymaps/（2026-10-17 层秩切分：`keys.py` 属 **L0**（键位记法，零上层依赖）；
+         `base.py` / `vim.py` / `vsc.py` / `registry.py` / `__init__.py` 属 **L1** ——
+         `base.py` 持有 `ActionContext`（内含 `EditorSession`）与 `ActionFunc`，
+         `registry.py` 持有 `KeymapSet`）
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
-        editor_sprites / logs / paths / config / services/* / keymaps/base|vim|vsc
+        editor_sprites / logs / paths / config / services/* / keymaps/keys.py
         （2026-09-28 核对补入：`keyproto/` 键弦模型与 Windows 驱动、`editor_sprites/`
         屏保精灵数据/渲染，二者皆为纯 L0 叶包。
         2026-10-07 A2 定案：`keyproto/driver_windows.py` 经
         `keyproto/textual_internals.py` 收口 Textual 私有 API（升级 Textual 先查该文件）；
-        `yate.logs` 为 R12 统一 tracing 的豁免依赖）
+        `yate.logs` 为 R12 统一 tracing 的豁免依赖；
+        2026-10-17 层秩切分（S-1）：键位记法下沉为 L0 单文件 `keymaps/keys.py`，
+        `keymaps/` 其余收敛为 L1 —— 切分后 **L0 无任何向上连线**（`keyproto/legacy.py`
+        作为 L0 消费者改从 `keymaps/keys.py` 取记法），故本行不再登记 L0 例外；
+        补入 `dist_meta.py`（stdlib-only：运行期供 `diagnostics.py`、构建期供 `pack/_common.py`））
 插件：extensions/*（由 L4 外壳经 L3 services/extensions/loader.py 装载；只依赖
          services/extensions 门面暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
          禁止 import editor / editor_view / app）
@@ -38,7 +46,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 - **硬性依赖连线图**（2026-10-17 增补）：实线箭头是**允许**的依赖方向，全部严格向下；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
-  的禁线条款与 §六 31 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
+  的禁线条款与 §六 32 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
 
 ```mermaid
@@ -58,11 +66,13 @@ flowchart TD
         EV["editor_view/* —— 渲染 / 行为 / 主题自持"]
     end
     subgraph L1["L1 会话与模型"]
-        SES["session.py（EditorSession + 窗格树）/ registries.py / keymaps/registry.py"]
+        SES["session.py（EditorSession + 窗格树）/ registries.py /
+        keymaps/（base · vim · vsc · registry · __init__；keys.py 为 L0，见下）"]
     end
     subgraph L0["L0 叶子"]
         LEAVES["editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
-        editor_sprites / keymaps.base|vim|vsc / services/* / config / yaterc* / logs / paths"]
+        editor_sprites / keymaps.keys / services/* / config / yaterc* / logs / paths /
+        dist_meta"]
     end
 
     CLI -->|"R1：仅 cli 可 import app"| APP
@@ -197,6 +207,13 @@ flowchart TD
   类型注解——14 名门面不含该名），新增直引必须先登记；`tests/**` 直测内部机件，不在
   拦截面。`yate/services/events.py`（editor 直用的通用事件枢纽）与 `user_setup.py`
   非扩展机件，不随迁。
+  **L2→L3 已登记例外**（2026-10-17 审计）：`editor_view/statusbar.py` 取本门面公共名
+  （`ExtensionLoader`）与冻结的 `.bridges`（`UiExtensionBridge`，见 §六
+  `EXTENSION_SUBMODULE_FROZEN`）以渲染扩展状态段，`statusbar.py:83-84` 为构造参数注入；
+  这是 2026-10-17 层秩切分后全仓**唯一**的向上连线，由 §六 的层秩守卫冻结；
+  L2 新增到 L3 的连线必须先在本条登记。
+  `yate/services/yxp.py`（`.yxp` 包装卸逻辑）**不随迁**本子包：它不含扩展运行时耦合，
+  归属仍为 `services/`（与 `events.py` / `user_setup.py` 同理）。
   **守卫**：§六「R14」条目（两条用例：直引拦截 + 门面 14 名冻结）。
 
 ## 二、分层职责
@@ -207,8 +224,8 @@ flowchart TD
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
 | 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`flows/completion_flows.py`、`flows/prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
 | `editor_view/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
-| `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
-| 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、屏保精灵数据与纯渲染 `editor_sprites/*`、配置、日志、路径、shell、workspace、字体、空闲跟踪 `services/idle_tracker.py`） | 不 import 上层 |
+| `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合（`keymaps/` 除 L0 记法 `keys.py` 外整体在本层）、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
+| 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、屏保精灵数据与纯渲染 `editor_sprites/*`、配置、日志、路径、shell、workspace、字体、空闲跟踪 `services/idle_tracker.py`、dist 元数据 `dist_meta.py`、键位记法 `keymaps/keys.py`） | 不 import 上层（2026-10-17 切分后：零例外） |
 
 ## 三、接口与代码形态设计
 
@@ -221,13 +238,15 @@ flowchart TD
    ① 包根**默认惰性**：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层；
    ② UI / 服务包（`editor_view` / `services`）**禁止** re-export（现状惯例成文化，
    `editor_view/__init__.py` 与 `services/__init__.py` 的"deliberately not re-exported"
-   声明为范本）；
-   ③ 纯 L0 叶包（`editor_core` / `editor_lsp` / `editor_syntax` / `editor_term` /
-   `keymaps`）允许**有限** re-export 作为插件公共 API 面（插件手册明文示例
+   声明为范本）；**唯一例外**：`editor_view/theme.py` 作为主题广播枢纽与门面再导出
+  （big-module-split d 波产物，2026-10-17 审计登记，模块 docstring 已自述），不视为本款禁止项；
+   ③ 纯 L0 叶包（`editor_core` / `editor_lsp` / `editor_syntax` / `editor_term`）
+   允许**有限** re-export 作为插件公共 API 面（插件手册明文示例
    `from yate.editor_syntax import LangSpec`），且**重量级实现模块**（如
    `editor_lsp.manager`）不得进包根；例外须在各包 `__init__.py` docstring 注明
    （守卫：`test_leaf_package_reexports_carry_exception_note`、
-   `test_editor_lsp_package_root_is_light`）。
+   `test_editor_lsp_package_root_is_light`）。`keymaps` 自 2026-10-17 起整体属 **L1**
+   （`keys.py` 除外），其包根 re-export 仍按本款登记并受同一守卫检查。
 6. **能用函数实现的就不造类**：内置表（`populate` / `register_commands` / `load_startup_extensions`）、
    纯计算（`prompt_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
    （`session.py` 的 `find_leaf` / `replace_node` …）一律用函数。
@@ -336,8 +355,8 @@ flowchart TD
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **31 个用例**（2026-10-13 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `31 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **32 个用例**（2026-10-17 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `32 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -345,12 +364,14 @@ flowchart TD
 - **R3** `editor_view/*` 不 import `yate.editor` / `yate.app`（子模块前缀匹配，不误伤 `editor_core` /
   `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
   不够：残留目录会被当作空命名空间包导入，掩盖删除）；
-- **R4** `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、
+- **R4** `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`dist_meta.py`、`session.py`、
   `registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py` 不 import `editor_view`
   （严格 0 违规；`config.py` 为 N30 新增守卫面，`yaterc.py` 为 2026-10-07 A9 拆分加入，
   `yaterc_options.py` 于 2026-10-08 big-module-split f 波加入，`keyproto/*`、`editor_sprites/*` 于
   2026-09-28 核对补入，守卫面见 `tests/test_architecture.py` 的
   `UI_FREE_PACKAGES` / `UI_FREE_FILES`；负向验证过拦截有效）；
+  （R4 是 **UI 耦合**约束，与层秩无关：`keymaps/*` 同时是 UI-free 面与该包按文件切分的
+  L0/L1 混合面，见 §一。）
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
@@ -411,7 +432,7 @@ flowchart TD
   `test_extension_facade_exports_the_frozen_plugin_names` 运行时断言门面 `__all__`
   恒为 14 名白名单（`EXTENSION_FACADE_NAMES`）且逐名可解析。
 
-**31 个用例逐条对照**（2026-10-13 实测 `31 passed`）：
+**32 个用例逐条对照**（2026-10-17 实测 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -446,6 +467,7 @@ flowchart TD
 | 29 | `test_no_relative_imports` | 绝对导入（IKKS4C：全仓禁 `from .X`，包内引用写全路径；§六清单此前漏登，2026-10-13 补齐） |
 | 30 | `test_extension_machinery_hides_behind_facade` | R14（扩展机件仅居 `services/extensions/`：禁直引子模块 + 旧路径不复存在） |
 | 31 | `test_extension_facade_exports_the_frozen_plugin_names` | R14（门面 14 名白名单冻结，逐名可解析） |
+| 32 | `test_no_unregistered_upward_imports` | 层秩向上连线（2026-10-17：切分后白名单仅 statusbar 2 条，`extensions/` 跳过） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 
