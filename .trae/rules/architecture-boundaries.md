@@ -36,6 +36,53 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
          禁止 import editor / editor_view / app）
 ```
 
+- **硬性依赖连线图**（2026-10-17 增补）：实线箭头是**允许**的依赖方向，全部严格向下；
+  图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
+  的禁线条款与 §六 31 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
+  先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
+
+```mermaid
+flowchart TD
+    subgraph L4["L4 外壳"]
+        CLI["cli.py —— 唯一入口"]
+        APP["app.py —— YateApp"]
+    end
+    subgraph L3["L3 调度"]
+        ED["editor.py —— Editor（组合与跨协作者操作）"]
+        TABLES["actions.py / commands.py —— 内置表"]
+        FLOWS["flows/* —— 流程模块"]
+        DIAG["diagnostics.py"]
+        EXTF["services/extensions/ —— 门面 + api/bridges/loader/lua"]
+    end
+    subgraph L2["L2 组件"]
+        EV["editor_view/* —— 渲染 / 行为 / 主题自持"]
+    end
+    subgraph L1["L1 会话与模型"]
+        SES["session.py（EditorSession + 窗格树）/ registries.py / keymaps/registry.py"]
+    end
+    subgraph L0["L0 叶子"]
+        LEAVES["editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
+        editor_sprites / keymaps.base|vim|vsc / services/* / config / yaterc* / logs / paths"]
+    end
+
+    CLI -->|"R1：仅 cli 可 import app"| APP
+    CLI -->|"启动期 rc / 日志（L0）"| LEAVES
+    APP -->|"R7：装载内置表"| TABLES
+    APP --> ED
+    APP -->|"主题注册桥（N30 回调注入）"| EV
+    TABLES -->|"R5：表 → editor，反向禁止"| ED
+    ED -->|"组合组件（R9 传 id）"| EV
+    ED -->|"流程模块（§三.8 接入清单）"| FLOWS
+    ED --> DIAG
+    ED -->|"扩展门面（R14，14 名冻结）"| EXTF
+    ED --> SES
+    FLOWS -->|"R11：editor_view 耦合冻结登记"| EV
+    FLOWS -->|"具体协作者注入"| LEAVES
+    EV -->|"R3/R8：协作者或回调注入"| SES
+    EV --> LEAVES
+    SES -->|"R4：模型层 UI-free"| LEAVES
+```
+
 - **R1 — `YateApp` 是顶层，不被下层引用**：`yate/` 内只有 `cli.py` 允许 `import yate.app`。
 - **R2 — 禁止"全应用协议"**：不得新增 `Protocol`。例外（**存量冻结白名单，共 4 个类**）：
   `editor_view/editor.py::PaneRegistry`（本轮唯一新增：打断 `PaneHost ↔ EditorView` 的构造环，见 Plan B）、
