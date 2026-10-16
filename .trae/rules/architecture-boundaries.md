@@ -57,9 +57,11 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   （`editor.py` 不得 import 它们，否则成环）。
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
-  `document_flows.py` / `window_flows.py` / `shell_flows.py` / `overlay_flows.py` /
-  `lsp_sync.py` / `prompt_completion.py`；2026-10-07 自根目录迁入，`completion.py`、
-  `overlays.py` 同步更名为 `*_flows.py`）**允许** import `editor_view`（存量耦合，冻结）；
+  `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
+  `overlay_flows.py` / `lsp_sync.py` / `prompt_completion.py` / `mouse_flows.py`；
+  2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
+  **允许** import `editor_view`（存量耦合，冻结；其中 `extension_flows.py` 实测不
+  import `editor_view`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对）；
   禁止向上 import `yate.editor` / `yate.app`，且**新增** `editor_view` 导入必须先在
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记（键为 `yate/` 下
   相对路径，flows/ 迁移后带 `flows/` 前缀；
@@ -189,12 +191,17 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
    - 豁免名单（登记即合规；修改文件时须同步更新行数。名单与
      `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 守卫集合**两处同步维护**，
      big-module-split 各波拆分完成后同步收缩）：
-     `keymaps/vim.py`（1178 行，motion/operator/text-object 单一键映射域，维持豁免）、
-     `editor.py`（983 行，构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07 复核仍超；extension-system-enhance 波 2026-10-13 实测 983 行，维持豁免）、
-     `editor_core/buffer.py`（1062 行，文本模型/撤销/多点原语单一职责，2026-10-10
-     评审后由口径注记上提正式名单，维持豁免）、
-     `tools/pack/wiki.py`（2026-10-09 登记 1487 行，pack wiki 站点生成/翻译/进度
-     单一职责，#29/#31/#33 三轮评审均在该文件收敛，拆分另行立项）、
+     `keymaps/vim.py`（2026-10-16 审计复测 1184 行，motion/operator/text-object
+     单一键映射域，维持豁免）、
+     `editor.py`（构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07
+     复核仍超；extension-system-enhance 波 2026-10-13 实测 983 行；
+     2026-10-16 审计复测 1024 行，构成职责随调度层操作增长，维持豁免，
+     已登记为下一个 big-module-split 候选）、
+     `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
+     评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免）、
+     `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
+     pack wiki 站点生成/翻译/进度单一职责，#29/#31/#33 三轮评审均在该文件收敛，
+     拆分另行立项）、
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
      big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
@@ -224,7 +231,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
      预防性拆分，原文件保留门面再导出冻结插件导入路径，四文件均低于阈值）；
      `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
      不再需要豁免。
-   - 负面清单：`logs.py`（686 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
+   - 负面清单：`logs.py`（2026-10-16 审计复测 690 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
      模块 docstring 已论证共存理由。
 8. **新增 L3 流程模块接入清单（评审 A18）**：保持构造显式注入，**不建共享 context 类型**
    （§三.1 红线）：
