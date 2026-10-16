@@ -3,15 +3,18 @@
 Tests are organized **by behavior domain**, not one-to-one per module under
 test. Examples: `actions.py` + `commands.py` are both covered by
 `test_action_table.py`; the L3 flow modules (`document_flows.py`,
-`window_flows.py`, `overlays.py`, `prompt_flows.py`, `lsp_sync.py`,
+`window_flows.py`, `overlay_flows.py`, `prompt_flows.py`, `lsp_sync.py`,
 `extension_flows.py`) are exercised indirectly through the Textual pilot
 integration tests (`test_app_textual.py` and friends) rather than by
 same-named test files.
 
-## Indirect coverage map
+## Indirect coverage map (spot checks)
 
-Root modules without a same-named `test_<module>.py`, and the test files that
-cover them:
+This is a **spot-check map, not an exhaustive registry**: tests are organised
+by behaviour domain, so most modules have no same-named test file (2026-10-17
+measurement: 92 of the 139 `yate/` modules). Listed below are the root modules
+whose indirect coverage is worth documenting explicitly, and the test files
+that cover them:
 
 | Root module          | Covered by |
 |----------------------|------------|
@@ -19,12 +22,13 @@ cover them:
 | `document_flows.py`  | `test_action_table.py`, `test_app_textual.py`, `test_config.py` |
 | `window_flows.py`    | `test_app_textual.py` |
 | `extension_flows.py` | `test_app_textual.py`, `test_cli.py`, `test_diagnostics.py` |
-| `overlays.py`        | `test_action_table.py`, `test_app_textual.py`, `test_changelog_view.py`, `test_vim_keymap.py` |
+| `overlay_flows.py`   | `test_action_table.py`, `test_app_textual.py`, `test_changelog_view.py`, `test_vim_keymap.py` |
 | `prompt_flows.py`    | `test_action_table.py`, `test_app_textual.py`, `test_vim_keymap.py` |
 | `lsp_sync.py`        | `test_explorer.py` |
 
-(`test_extensions.py` covers `yate/services/extensions.py`, the extension
-loader — not `extension_flows.py`. `test_architecture.py` references several
+(`test_extensions.py` covers the extension machinery under
+`yate/services/extensions/` -- the facade plus the `loader` submodule, R14 --
+not `extension_flows.py`. `test_architecture.py` references several
 of these modules but enforces layer boundaries; it is a guard, not behavior
 coverage.)
 
