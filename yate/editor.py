@@ -779,6 +779,10 @@ class Editor:
             self.document_flows.activate_doc(doc)
         buf = doc.buffer
         buf.anchor = None
+        # the hit row comes from a disk scan; an open buffer with unsaved
+        # line deletions may have fewer lines by now -- clamp before the
+        # subscript, set_cursor's own clamp would come too late
+        row = min(row, len(buf.lines) - 1)
         buf.set_cursor((row, min(col, len(buf.lines[row]))))
         view = self.panes.active_view
         if view is not None:

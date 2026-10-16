@@ -26,7 +26,12 @@ FindReplaceScreen #fr-options {
     padding: 0 0 0 1;
     background: $surface;
 }
-FindReplaceScreen #fr-results {
+FindReplaceScreen #fr-results-scroll {
     height: 1fr;
+    background: $surface;
+}
+
+FindReplaceScreen #fr-results {
+    height: auto;
     background: $surface;
 }

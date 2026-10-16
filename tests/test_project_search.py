@@ -177,3 +177,26 @@ def test_replace_lines_matches_engine_replace_all() -> None:
     new_lines, count = replace_lines(lines, pattern, r"\1")
     assert new_lines == buffer.lines
     assert count == 4
+
+
+# --- search_files line view --------------------------------------------------
+
+
+def test_search_files_uses_newline_only_line_view(tmp_path: Path) -> None:
+    """Rows follow the newline-only view: U+2028 is an ordinary character."""
+    doc = tmp_path / "sep.txt"
+    doc.write_text("alpha\u2028beta needle\n", encoding="utf-8")
+    hits = search_files([doc], "needle")
+    assert len(hits) == 1
+    assert [(m.row, m.start, m.end) for m in hits[0].matches] == [(0, 11, 17)]
+
+
+def test_search_files_dollar_anchor_sees_crlf_like_the_buffer(
+    tmp_path: Path,
+) -> None:
+    """A ``$`` anchor matches the buffer view: the CRLF tail keeps it quiet."""
+    doc = tmp_path / "crlf.txt"
+    doc.write_bytes(b"foo\r\nbar\r\n")
+    assert search_files([doc], "foo$", use_regex=True) == []
+    hits = search_files([doc], "foo")
+    assert [(m.row, m.start, m.end) for m in hits[0].matches] == [(0, 0, 3)]

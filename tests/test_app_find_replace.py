@@ -7,14 +7,16 @@ from __future__ import annotations
 
 import asyncio
 import os
+import pytest
 from pathlib import Path
 
+from textual.containers import VerticalScroll
 from textual.pilot import Pilot
 from textual.widgets import Input, Static
 
 from yate.app import YateApp
 from yate.editor_core import project_search
-from yate.editor_view.find_replace import FindReplaceScreen, RevealFn
+from yate.editor_view.find_replace import FindReplaceScreen, RevealFn, _Results
 
 from conftest import message_text, plain_text, wait_until
 
@@ -745,5 +747,100 @@ def test_replace_on_disk_leaves_no_temp_files(tmp_path: Path) -> None:
             )
             assert note.read_text(encoding="utf-8") == "found here\n"
             assert list(tmp_path.glob("*.yate-tmp-*")) == []
+
+    asyncio.run(scenario())
+
+
+def test_search_rows_follow_the_newline_line_view(tmp_path: Path) -> None:
+    """Hit rows use the newline-only view, like the buffer side."""
+    async def scenario() -> None:
+        doc = tmp_path / "sep.txt"
+        doc.write_text("alpha\u2028beta needle\n", encoding="utf-8")
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            plain = _results_plain(screen)
+            assert "1: " in plain
+            assert "2: " not in plain
+
+    asyncio.run(scenario())
+
+
+def test_results_pane_scrolls_to_keep_cursor_visible(tmp_path: Path) -> None:
+    """Moving the cursor past the first screenful keeps it in view."""
+    async def scenario() -> None:
+        doc = tmp_path / "many.txt"
+        doc.write_text(
+            "".join(f"needle {i}\n" for i in range(45)), encoding="utf-8"
+        )
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 45)
+            screen.query_one("#fr-results", _Results).focus()
+            await pilot.pause()
+            await pilot.press(*["down"] * 24)
+            await pilot.pause()
+            scroller = screen.query_one("#fr-results-scroll", VerticalScroll)
+            assert scroller.scroll_offset.y > 0
+
+    asyncio.run(scenario())
+
+
+def test_scan_cap_shows_truncation_notice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reaching the walk file cap surfaces an incomplete-results notice."""
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("needle\n", encoding="utf-8")
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            ghosts = [tmp_path / "ghost" / f"g{i}.txt" for i in range(5000)]
+
+            def fake_walk(limit: int) -> list[Path]:
+                return [doc, *ghosts]
+
+            monkeypatch.setattr(
+                app.editor.workspace,
+                "walk_files",
+                fake_walk,
+            )
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            assert "file cap" in _results_plain(screen)
+
+    asyncio.run(scenario())
+
+
+def test_enter_reveals_clamped_row_when_buffer_shrunk(tmp_path: Path) -> None:
+    """A disk hit beyond the (unsaved-shrunk) buffer clamps, never crashes."""
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("keep\nneedle here", encoding="utf-8")
+        app = YateApp(str(doc))
+        async with app.run_test(size=(100, 30)) as pilot:
+            buf = app.editor.session.buffer
+            buf.set_cursor((1, 0))
+            buf.delete_lines()
+            assert buf.get_text() == "keep"
+            screen, _messages, _notices = _push(
+                app, tmp_path, reveal=app.editor.reveal_match,
+            )
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            screen.query_one("#fr-results", _Results).focus()
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.screen is not screen
+            assert app.editor.session.buffer.cursor == (0, 0)
 
     asyncio.run(scenario())

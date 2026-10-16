@@ -131,6 +131,8 @@ def _search_one_file(
 ) -> list[LineMatch]:
     """Search one file and return at most *budget* hits.
 
+    Lines are split on ``"\\n"`` only -- the ``TextBuffer`` view -- so hit
+    rows/columns line up with both buffer-side search and ``replace_lines``.
     Returns an empty list when the file is unreadable, oversized, not
     decodable as UTF-8 or simply has no matches.
     """
@@ -146,7 +148,7 @@ def _search_one_file(
     except UnicodeDecodeError:
         log.debug("project search skipped non-utf8 file %s", path)
         return []
-    return search_lines(text.splitlines(), pattern)[:budget]
+    return search_lines(text.split("\n"), pattern)[:budget]
 
 
 def replace_lines(
@@ -159,7 +161,10 @@ def replace_lines(
     pieces are concatenated into the new line.  Lines without matches are
     kept as-is.  When nothing matches at all, *lines* is returned unchanged
     -- the very same object -- so callers can use ``is`` to skip writing
-    files that have no changes.
+    files that have no changes.  Because the expansion sees only the matched
+    span, patterns whose assertions reach beyond it (``(?<=@)foo``) may keep
+    the text yet still bump the count -- the same trade-off
+    ``SearchEngine.replace_all`` makes.
     """
     count = 0
     out: list[str] = []

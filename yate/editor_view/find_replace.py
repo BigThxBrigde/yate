@@ -23,7 +23,7 @@ from typing import override
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
@@ -44,6 +44,10 @@ DEBOUNCE_SECONDS: float = 0.3
 
 #: Context columns kept on each side of a highlighted match snippet.
 SNIPPET_CONTEXT: int = 40
+
+#: File-scan ceiling handed to ``Workspace.walk_files``; reaching it means
+#: the result list may be incomplete and the pane says so.
+SCAN_FILE_CAP: int = 5_000
 
 #: Reveal callback: focus (path, row, col) after the document opens.
 type RevealFn = Callable[[Path, int, int], None]
@@ -118,6 +122,10 @@ class FindReplaceScreen(ModalScreen[None]):
         #: matched-line texts per result file, filled by the scan thread so
         #: snippet rendering never touches the disk on the UI thread
         self._snippets: dict[Path, dict[int, str]] = {}
+        #: True when the workspace walk returned ``SCAN_FILE_CAP`` paths
+        self._truncated = False
+        #: 0-based results-pane line of the cursor row (scroll anchor)
+        self._cursor_line = 0
         self._debounce: asyncio.TimerHandle | None = None
 
     # ------------------------------------------------------------ compositional
@@ -130,7 +138,11 @@ class FindReplaceScreen(ModalScreen[None]):
                 yield Input(placeholder="find", id="fr-find")
                 yield Input(placeholder="replace with", id="fr-replace")
                 yield Static(id="fr-options")
-            yield _Results(id="fr-results")
+            # the results pane scrolls as a container: a Static with a
+            # fractional height reports no virtual overflow, so its own
+            # scrolling never engages (probed 2026-10-16)
+            with VerticalScroll(id="fr-results-scroll"):
+                yield _Results(id="fr-results")
 
     def on_mount(self) -> None:
         """Attach to the theme broadcast, paint the options and focus find."""
@@ -165,26 +177,42 @@ class FindReplaceScreen(ModalScreen[None]):
         """Render hits grouped per file with the cursor row marked."""
         t = theme.active()
         text = Text()
+        pane = self.query_one("#fr-results", _Results)
+        scroller = self.query_one("#fr-results-scroll", VerticalScroll)
         if not self._results:
             text.append("  no matches", style=t.fg_dim)
-            self.query_one("#fr-results", Static).update(text)
+            pane.update(text)
+            scroller.scroll_to(y=0, animate=False)
             return
         root = self._workspace.root
         flat_index = 0
+        line_no = 0
         for fm in self._results:
             label = _relative(fm.path, root)
             text.append(
                 f"{label}  ({len(fm.matches)} match(es))\n", style=t.fg_muted,
             )
+            line_no += 1
             for m in fm.matches:
                 cursor_here = flat_index == self._cursor
+                if cursor_here:
+                    self._cursor_line = line_no
                 fg = t.fg if cursor_here else t.fg_muted
                 marker = "> " if cursor_here else "  "
                 text.append(f"{marker}{m.row + 1}: ", style=fg)
                 self._append_snippet(text, fm.path, m, fg, cursor_here)
                 text.append("\n")
                 flat_index += 1
-        self.query_one("#fr-results", Static).update(text)
+                line_no += 1
+        if self._truncated:
+            text.append(
+                f"  scan stopped at the {SCAN_FILE_CAP}-file cap; "
+                "results may be incomplete",
+                style=t.fg_dim,
+            )
+        pane.update(text)
+        # large hit sets overflow the pane: keep the cursor row in view
+        scroller.scroll_to(y=self._cursor_line, animate=False)
 
     def _append_snippet(
         self, text: Text, path: Path, m: LineMatch, fg: str, cursor_here: bool,
@@ -240,8 +268,9 @@ class FindReplaceScreen(ModalScreen[None]):
     async def _search_worker(self, query: str) -> None:
         """Scan the workspace in a thread, then repaint when still mounted."""
 
-        def _scan() -> tuple[list[FileMatch], dict[Path, dict[int, str]]]:
-            paths = self._workspace.walk_files()
+        def _scan() -> tuple[list[FileMatch], dict[Path, dict[int, str]], bool]:
+            paths = self._workspace.walk_files(limit=SCAN_FILE_CAP)
+            truncated = len(paths) >= SCAN_FILE_CAP
             results = project_search.search_files(
                 paths, query,
                 case_sensitive=self._case, use_regex=self._regex,
@@ -253,18 +282,21 @@ class FindReplaceScreen(ModalScreen[None]):
                     text = fm.path.read_bytes().decode("utf-8")
                 except (OSError, UnicodeDecodeError):
                     continue
-                lines = text.splitlines(keepends=False)
+                # newline-only view, matching the hit-row coordinates and
+                # TextBuffer; a trailing "\r" is display noise only
+                lines = text.split("\n")
                 snippets[fm.path] = {
-                    m.row: lines[m.row]
+                    m.row: lines[m.row].rstrip("\r")
                     for m in fm.matches if m.row < len(lines)
                 }
-            return results, snippets
+            return results, snippets, truncated
 
-        results, snippets = await asyncio.to_thread(_scan)
+        results, snippets, truncated = await asyncio.to_thread(_scan)
         if not self.is_mounted:
             return
         self._results = results
         self._snippets = snippets
+        self._truncated = truncated
         self._flat = [(fm.path, m) for fm in results for m in fm.matches]
         self._cursor = 0
         self._render_results()
@@ -275,6 +307,7 @@ class FindReplaceScreen(ModalScreen[None]):
         self._snippets = {}
         self._flat = []
         self._cursor = 0
+        self._truncated = False
         self._render_results()
 
     def _cancel_debounce(self) -> None:
@@ -369,10 +402,7 @@ class FindReplaceScreen(ModalScreen[None]):
 
     def _replace_scope_all(self) -> None:
         """Replace within every file that currently has a hit."""
-        paths: list[Path] = []
-        for path, _match in self._flat:
-            if path not in paths:
-                paths.append(path)
+        paths = list(dict.fromkeys(path for path, _match in self._flat))
         self._replace_scope(paths)
 
     def _replace_scope(self, paths: list[Path]) -> None:
@@ -390,13 +420,23 @@ class FindReplaceScreen(ModalScreen[None]):
         if pattern is None:
             self._message("invalid search pattern", "warn")
             return
+        # snapshot the option state here: the worker must not re-read live
+        # inputs or flags mid-flight, or open-buffer edits would follow a
+        # different query than the disk edits of the same batch
+        engine = SearchEngine()
+        engine.case_sensitive = self._case
+        engine.use_regex = self._regex
+        engine.whole_word = self._word
         self.run_worker(
-            partial(self._replace_worker, paths, pattern, replacement),
+            partial(
+                self._replace_worker, paths, pattern, engine, find, replacement,
+            ),
             group="fr-replace", exclusive=True, exit_on_error=False,
         )
 
     async def _replace_worker(
-        self, paths: list[Path], pattern: re.Pattern[str], replacement: str,
+        self, paths: list[Path], pattern: re.Pattern[str], engine: SearchEngine,
+        find: str, replacement: str,
     ) -> None:
         """Replace in every *path* (open buffers in memory, the rest on disk)."""
         total = 0
@@ -404,7 +444,7 @@ class FindReplaceScreen(ModalScreen[None]):
         for path in paths:
             doc = self._session.is_open(path)
             if doc is not None:
-                count = self._replace_open(doc, replacement)
+                count = self._replace_open(doc, engine, find, replacement)
             else:
                 count = await asyncio.to_thread(
                     self._replace_on_disk, path, pattern, replacement,
@@ -421,13 +461,11 @@ class FindReplaceScreen(ModalScreen[None]):
         self._refresh_ui()
         self._start_search()
 
-    def _replace_open(self, doc: Document, replacement: str) -> int:
-        """Replace inside an open buffer via a temporary engine; undoable."""
-        engine = SearchEngine()
-        engine.case_sensitive = self._case
-        engine.use_regex = self._regex
-        engine.whole_word = self._word
-        engine.update(self._query(), doc.buffer)
+    def _replace_open(
+        self, doc: Document, engine: SearchEngine, find: str, replacement: str,
+    ) -> int:
+        """Replace inside an open buffer via the snapshot engine; undoable."""
+        engine.update(find, doc.buffer)
         try:
             return engine.replace_all(doc.buffer, replacement)
         except BufferReadOnlyError:
