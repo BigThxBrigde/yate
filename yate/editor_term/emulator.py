@@ -591,6 +591,10 @@ class TerminalEmulator:
     def _erase_line(self, mode: int) -> None:
         cur = self._alt_cur if self.in_alt else self._cur
         row, col = cur[0], cur[1]
+        # A pending autowrap parks the column at ``cols``; clamp it so the
+        # erase ranges below stay inside the line (in that state the cursor
+        # visually sits on the last column).
+        col = min(col, self.cols - 1)
         line = self._screen[row]
         blank = self._blank()
         if mode == 0:
@@ -668,11 +672,11 @@ class TerminalEmulator:
             self._screen[bottom] = self._blank_line()
 
     def _scroll_region_up(self, count: int) -> None:
-        for _ in range(count):
+        for _ in range(min(count, self.rows)):
             self._scroll_up(1)
 
     def _scroll_region_down(self, count: int) -> None:
-        for _ in range(count):
+        for _ in range(min(count, self.rows)):
             self._scroll_down(1)
 
     # -------------------------------------------------------------------- SGR
