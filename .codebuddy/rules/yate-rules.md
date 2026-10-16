@@ -48,6 +48,24 @@ Skill 的**唯一权威来源是 `../../.trae/skills/`**：
 2. 新建或修改 skill 时，**只允许写入 `../../.trae/skills/`**（随 git 跟踪，
    worktree 中始终可用），skill 清单以该目录内容为准；
 
+### 1.4 子代理（Agent）来源（强制）
+
+闭环任务流程所用的所有子代理，**一律来自 `../../.trae/agents/`**：
+
+| 子代理 | 职责 |
+|---|---|
+| `plan-architect-designer` | 方案先行：调研代码并产出计划文档 |
+| `plan-executor` | 按已批准的计划逐步执行实现 |
+| `code-review-expert` | 收门禁：pyright / pytest / 架构审查 |
+
+规则：
+
+1. spawn 上述子代理时，定义文件以 `../../.trae/agents/<agent-name>.md` 为准；
+2. 新建或修改子代理定义时，**只允许写入 `../../.trae/agents/`**（随 git 跟踪，
+   worktree 中始终可用）；
+3. `.codebuddy/agents/` 及其任何子目录是机器本地非法产物，不得作为子代理
+   来源或修改目标（与 §二.6 的 skill 规则同理）。
+
 ## 二、硬性要求
 
 1. **禁止绕过**：不得以"任务简单"为由跳过本加载；只有用户给了完整逐步指令的
@@ -70,3 +88,6 @@ Skill 的**唯一权威来源是 `../../.trae/skills/`**：
 6. **skill 只认 `.trae/skills/`**：加载、创建、修改 skill 一律以
    `../../.trae/skills/` 为唯一来源；`.codebuddy/skills/` 及其任何子目录是机器
    本地非法产物。
+7. **子代理只认 `.trae/agents/`**：闭环任务流程子代理（`plan-architect-designer`、
+   `plan-executor`、`code-review-expert`）一律以 `../../.trae/agents/` 为唯一
+   来源；`.codebuddy/agents/` 及其任何子目录是机器本地非法产物。
