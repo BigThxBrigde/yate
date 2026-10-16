@@ -17,7 +17,6 @@ from pathlib import Path
 
 from yate import __description__, __version__
 from yate.logs import tracing
-from yate.services.trust import is_trusted
 
 #: Module logger (R12).  ``yate.logs`` is stdlib-only, so this import keeps
 #: ``--help`` / ``--version`` free of TUI-side imports.
@@ -231,38 +230,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# -------------------------------------------------------------- trust gating
-
-def gate_project_rc(
-    paths: list[Path], workspace: Path
-) -> tuple[list[Path], list[str]]:
-    """Split default rc paths into loadable ones and trust-gate messages.
-
-    Opening a repository must never execute that repository's own code, so
-    a project yaterc (any default path that is not the user rc) auto-loads
-    only in workspaces the user trusted via ``:trust`` -- the same model
-    that gates the project ``./extensions`` directory.  The user rc is a
-    deliberate user action and stays unconditional; a default path that
-    resolves to the user rc (the dedup case) is therefore never gated.
-    """
-    from yate.yaterc import user_config_path  # pylint: disable=import-outside-toplevel
-
-    if is_trusted(workspace):
-        return paths, []
-    user = user_config_path().resolve()
-    kept: list[Path] = []
-    messages: list[str] = []
-    for path in paths:
-        if path.resolve() == user:
-            kept.append(path)
-        else:
-            messages.append(
-                f"yaterc: skipped untrusted project rc {path} "
-                "(run :trust in the workspace to load it)"
-            )
-    return kept, messages
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     """Handle the side commands first, then build and run the TUI app.
 
@@ -389,41 +356,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     from yate.editor_view import theme as theme_mod
 
     target = Path(args.path) if args.path else None
-    # One resolved spelling for both the trust decisions and the loads: a
-    # symlinked or swapped-in cwd must not be judged as one path and loaded
-    # as another (the trust store holds resolved roots too).
-    workspace = Path.cwd().resolve()
-    default_errors: list[str] = []
     if args.yaterc == "NONE":
         rc_paths: list[Path] = []
     elif args.yaterc:
         rc_paths = [Path(args.yaterc)]
     else:
-        # Workspace trust: opening a repository must not execute that
-        # repository's own code, so the default rc set keeps its project
-        # entry only in a trusted workspace.  The user rc is a deliberate
-        # user action, and explicit -u / -u NONE bypass discovery entirely.
-        rc_paths, rc_gate_errors = gate_project_rc(
-            default_rc_paths(target), workspace
-        )
-        default_errors.extend(rc_gate_errors)
+        rc_paths = default_rc_paths(target)
 
     # Theme load priority (later wins on name collision, like rc files):
     # built-ins < default dirs < yaterc theme_dirs < explicit --theme-dir.
-    # The project ./themes directory is trust-gated exactly like the
-    # project ./extensions directory; ~/.yate/themes always loads.
-    default_theme_dirs: list[Path] = []
-    cwd_themes = workspace / "themes"
-    if cwd_themes.is_dir():
-        if is_trusted(workspace):
-            default_theme_dirs.append(cwd_themes)
-        else:
-            default_errors.append(
-                f"themes: skipped untrusted {cwd_themes} "
-                "(run :trust to load them)"
-            )
-    default_theme_dirs.append(Path.home() / ".yate" / "themes")
-    theme_mod.load_theme_paths(default_theme_dirs, default_errors)
+    default_errors: list[str] = []
+    theme_mod.load_theme_paths(
+        [Path.cwd() / "themes", Path.home() / ".yate" / "themes"],
+        default_errors,
+    )
     # Theme callbacks are injected (N30): the L0 config loader must not
     # import the L2 UI package itself.
     config = load_config(

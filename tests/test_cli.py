@@ -15,16 +15,14 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import yate
 from conftest import make_yxp
-from yate.cli import gate_project_rc, build_parser, main, version_lines
-from yate.config import YateConfig
-from yate.services.trust import trust_workspace
+from yate.cli import build_parser, main, version_lines
 
 _CUSTOM_THEME_SRC: str = """\
 from dataclasses import replace
@@ -33,16 +31,6 @@ from yate.editor_view.theme import THEMES, register_theme
 
 register_theme(replace(
     THEMES["mocha"], name="cli-custom", label="CLI Custom", accent="#ff0000"
-))
-"""
-
-_CUSTOM_GATED_THEME_SRC: str = """\
-from dataclasses import replace
-
-from yate.editor_view.theme import THEMES, register_theme
-
-register_theme(replace(
-    THEMES["mocha"], name="cli-gated", label="CLI Gated", accent="#00ff00"
 ))
 """
 
@@ -409,20 +397,10 @@ def _custom_theme_cleanup() -> Any:
     theme_mod.set_theme("mocha")
 
 
-@pytest.fixture
-def _gated_theme_cleanup() -> Any:
-    """Remove the trust-gated test theme (process-global registry)."""
-    yield
-    from yate.editor_view import theme as theme_mod
-
-    theme_mod.THEMES.pop("cli-gated", None)
-    theme_mod.set_theme("mocha")
-
-
 # pytest resolves fixtures by parameter name (see the two tests below), so
 # nothing ever refers to the definition itself. Keep one explicit reference
 # so static analysis does not report it as dead code.
-_THEME_FIXTURES: tuple[object, ...] = (_custom_theme_cleanup, _gated_theme_cleanup)
+_THEME_FIXTURES: tuple[object, ...] = (_custom_theme_cleanup,)
 
 
 def _run_main(
@@ -641,179 +619,3 @@ def test_cleanup_confirmation_required_exits_two(
     rc, out, _, _ = _run_setup(["--cleanup-defaults"], capsys, cleanup=cleanup)
     assert rc == 2
     assert "non-tty" in out
-
-
-# --- workspace trust gating ---------------------------------------------------
-
-
-def _use_tmp_trust_store(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> Path:
-    """Point the trust store at a temp file (read at call time) and return it."""
-    store = tmp_path / "trusted_workspaces"
-    monkeypatch.setattr("yate.services.trust.TRUST_FILE", store)
-    return store
-
-
-def testgate_project_rc_skips_project_rc_in_untrusted_workspace(
-    monkeypatch: pytest.MonkeyPatch, isolated_home: Path, tmp_path: Path
-) -> None:
-    _use_tmp_trust_store(monkeypatch, tmp_path)
-    user = isolated_home / ".yate" / "yaterc"
-    user.parent.mkdir(parents=True)
-    user.write_text("tab_width = 2\n", encoding="utf-8")
-    project = tmp_path / "yaterc"
-    project.write_text("tab_width = 7\n", encoding="utf-8")
-
-    kept, messages = gate_project_rc([user, project], tmp_path)
-
-    assert kept == [user]
-    assert messages == [
-        f"yaterc: skipped untrusted project rc {project} "
-        "(run :trust in the workspace to load it)"
-    ]
-
-
-def testgate_project_rc_keeps_project_rc_in_trusted_workspace(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    store = _use_tmp_trust_store(monkeypatch, tmp_path)
-    project = tmp_path / "yaterc"
-    project.write_text("tab_width = 7\n", encoding="utf-8")
-    trust_workspace(tmp_path, store)
-
-    kept, messages = gate_project_rc([project], tmp_path)
-
-    assert kept == [project]
-    assert messages == []
-
-
-def testgate_project_rc_treats_user_rc_spelling_as_user_level(
-    monkeypatch: pytest.MonkeyPatch, isolated_home: Path, tmp_path: Path
-) -> None:
-    """The dedup case: a default path resolving to the user rc is never gated."""
-    _use_tmp_trust_store(monkeypatch, tmp_path)
-    user = isolated_home / ".yate" / "yaterc"
-    user.parent.mkdir(parents=True)
-    user.write_text("tab_width = 2\n", encoding="utf-8")
-
-    kept, messages = gate_project_rc([user], tmp_path)
-
-    assert kept == [user]
-    assert messages == []
-
-
-def test_main_untrusted_workspace_skips_project_rc(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    isolated_home: Path,
-    tmp_path: Path,
-) -> None:
-    """Startup in an untrusted workspace skips the project yaterc and
-    reports it, while the user rc (a deliberate user action) still loads."""
-    _use_tmp_trust_store(monkeypatch, tmp_path)
-    monkeypatch.chdir(tmp_path)
-    user = isolated_home / ".yate" / "yaterc"
-    user.parent.mkdir(parents=True)
-    user.write_text("tab_width = 2\n", encoding="utf-8")
-    (tmp_path / "yaterc").write_text("tab_width = 7\n", encoding="utf-8")
-
-    kwargs = _run_main([], capsys)
-
-    config = cast(YateConfig, kwargs["config"])
-    assert [p.name for p in config.sources] == ["yaterc"]
-    assert config.tab_width == 2  # the user rc ran...
-    assert config.tab_width != 7  # ...the project rc did not
-    assert any(
-        "yaterc: skipped untrusted project rc" in err
-        and "(run :trust in the workspace to load it)" in err
-        for err in config.errors
-    )
-
-
-def test_main_trusted_workspace_loads_project_rc(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    isolated_home: Path,
-    tmp_path: Path,
-) -> None:
-    store = _use_tmp_trust_store(monkeypatch, tmp_path)
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "yaterc").write_text("tab_width = 7\n", encoding="utf-8")
-    assert trust_workspace(tmp_path, store)
-
-    kwargs = _run_main([], capsys)
-
-    config = cast(YateConfig, kwargs["config"])
-    assert [p.name for p in config.sources] == ["yaterc"]
-    assert config.tab_width == 7
-    assert not any("untrusted" in err for err in config.errors)
-
-
-def test_main_explicit_rc_bypasses_workspace_trust(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """``-u <file>`` is a deliberate user action: trust state never gates it."""
-    _use_tmp_trust_store(monkeypatch, tmp_path)
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "yaterc").write_text("tab_width = 7\n", encoding="utf-8")
-    explicit = tmp_path / "my-rc"
-    explicit.write_text("tab_width = 9\n", encoding="utf-8")
-
-    kwargs = _run_main(["-u", str(explicit)], capsys)
-
-    config = cast(YateConfig, kwargs["config"])
-    assert [p.name for p in config.sources] == ["my-rc"]
-    assert config.tab_width == 9
-    assert not any("untrusted" in err for err in config.errors)
-
-
-def test_main_untrusted_cwd_themes_are_skipped(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    isolated_home: Path,
-    tmp_path: Path,
-) -> None:
-    """An untrusted workspace's ./themes directory is skipped with a notice."""
-    _use_tmp_trust_store(monkeypatch, tmp_path)
-    monkeypatch.chdir(tmp_path)
-    themes_dir = tmp_path / "themes"
-    themes_dir.mkdir()
-    (themes_dir / "gated.py").write_text(_CUSTOM_GATED_THEME_SRC, encoding="utf-8")
-
-    kwargs = _run_main(["-u", "NONE"], capsys)
-
-    from yate.editor_view import theme as theme_mod
-
-    assert "cli-gated" not in theme_mod.available()
-    config = cast(YateConfig, kwargs["config"])
-    assert any(
-        "themes: skipped untrusted" in err and "(run :trust to load them)" in err
-        for err in config.errors
-    )
-
-
-def test_main_trusted_cwd_themes_load(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    isolated_home: Path,
-    tmp_path: Path,
-    _gated_theme_cleanup: None,
-) -> None:
-    """After ``:trust`` the ./themes directory loads at startup again."""
-    store = _use_tmp_trust_store(monkeypatch, tmp_path)
-    monkeypatch.chdir(tmp_path)
-    themes_dir = tmp_path / "themes"
-    themes_dir.mkdir()
-    (themes_dir / "gated.py").write_text(_CUSTOM_GATED_THEME_SRC, encoding="utf-8")
-    assert trust_workspace(tmp_path, store)
-
-    kwargs = _run_main(["-u", "NONE"], capsys)
-
-    from yate.editor_view import theme as theme_mod
-
-    assert "cli-gated" in theme_mod.available()
-    config = cast(YateConfig, kwargs["config"])
-    assert not any("untrusted" in err for err in config.errors)
