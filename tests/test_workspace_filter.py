@@ -53,7 +53,7 @@ def entry_names(entries: list[Entry]) -> list[str]:
 
 def list_names(ws: Workspace, path: Path | None = None) -> list[str]:
     """List entry names under the workspace root or an explicit directory."""
-    # ws.root is Optional[Path]; the fixture always constructs a rooted ws.
+    # ws.root is declared None-able; the fixture always constructs a rooted ws.
     return entry_names(ws.list_dir(path if path is not None else ws.root))  # type: ignore[arg-type]
 
 

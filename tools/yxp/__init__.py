@@ -14,3 +14,5 @@ existing archive with the install-time rules::
     python -m tools.yxp --pack tools/yxp/example/hello_yxp
     python -m tools.yxp --verify hello_yxp.yxp
 """
+
+from __future__ import annotations
