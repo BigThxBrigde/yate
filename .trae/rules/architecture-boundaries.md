@@ -13,7 +13,8 @@ scene: architecture
 ## 一、依赖方向（硬性规则）
 
 ```
-L4 外壳：app.py（YateApp） / cli.py（唯一入口）
+L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`python -m yate`
+         入口 shim，仅 import cli；守卫 `_LAYER_RANKS` 已按 L4 计）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / lsp_sync.py /
@@ -29,7 +30,8 @@ L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split
          `base.py` 持有 `ActionContext`（内含 `EditorSession`）与 `ActionFunc`，
          `registry.py` 持有 `KeymapSet`）
 L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
-        editor_sprites / logs / paths / config / services/* / keymaps/keys.py
+        editor_sprites / logs / paths / config / yaterc.py / yaterc_options.py /
+        services/* / keymaps/keys.py
         （2026-09-28 核对补入：`keyproto/` 键弦模型与 Windows 驱动、`editor_sprites/`
         屏保精灵数据/渲染，二者皆为纯 L0 叶包。
         2026-10-07 A2 定案：`keyproto/driver_windows.py` 经
@@ -38,13 +40,17 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         2026-10-17 层秩切分（S-1）：键位记法下沉为 L0 单文件 `keymaps/keys.py`，
         `keymaps/` 其余收敛为 L1 —— 切分后 **L0 无任何向上连线**（`keyproto/legacy.py`
         作为 L0 消费者改从 `keymaps/keys.py` 取记法），故本行不再登记 L0 例外；
-        补入 `dist_meta.py`（stdlib-only：运行期供 `diagnostics.py`、构建期供 `pack/_common.py`））
+        补入 `dist_meta.py`（stdlib-only：运行期供 `diagnostics.py`、构建期供 `pack/_common.py`）；
+        补入 `yaterc.py` / `yaterc_options.py`（同经 R4 的 `UI_FREE_FILES` 单文件守卫面
+        收口，守卫 `_LAYER_RANKS` 未单列故默认落 L0，本行与之一致））
 插件：extensions/*（由 L4 外壳经 L3 services/extensions/loader.py 装载；只依赖
          services/extensions 门面暴露的 ExtensionAPI / ExtensionContext 与 L0 叶子，
          禁止 import editor / editor_view / app）
 ```
 
-- **硬性依赖连线图**（2026-10-17 增补）：实线箭头是**允许**的依赖方向，全部严格向下；
+- **硬性依赖连线图**（2026-10-17 增补）：**实线**箭头是**允许**的依赖方向，除下图
+  **虚线**标出的**唯一已登记例外**（`EV -.-> EXTF`：R14 的 L2→L3 扩展门面读取，
+  条文登记见 R14 条目、守卫侧冻结于 §六 `UPWARD_EDGES_FROZEN`）外，其余全部严格向下；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
   的禁线条款与 §六 32 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
@@ -52,6 +58,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 ```mermaid
 flowchart TD
     subgraph L4["L4 外壳"]
+        MAIN["__main__.py —— python -m yate 入口 shim（仅 import cli）"]
         CLI["cli.py —— 唯一入口"]
         APP["app.py —— YateApp"]
     end
@@ -76,6 +83,7 @@ flowchart TD
     end
 
     CLI -->|"R1：仅 cli 可 import app"| APP
+    MAIN -->|"入口 shim：python -m yate"| CLI
     CLI -->|"启动期 rc / 日志（L0）"| LEAVES
     APP -->|"R7：装载内置表"| TABLES
     APP --> ED
@@ -90,6 +98,7 @@ flowchart TD
     FLOWS -->|"具体协作者注入"| LEAVES
     EV -->|"R3/R8：协作者或回调注入"| SES
     EV --> LEAVES
+    EV -.->|"R14 已登记例外：唯一向上连线（statusbar 取门面公共名 + 冻结 .bridges）"| EXTF
     SES -->|"R4：模型层 UI-free"| LEAVES
 ```
 
@@ -389,7 +398,8 @@ flowchart TD
   消息（AST 拦截，python-coding-style 4.6）；
 - **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
   提及不误报）；  UI-free L0（`keymaps/*` `services/*` `keyproto/*` `editor_sprites/*`
-  `session.py` `registries.py` `config.py` `yaterc.py` `yaterc_options.py` `logs.py`，见
+  `dist_meta.py` `session.py` `registries.py` `config.py` `yaterc.py` `yaterc_options.py`
+  `logs.py`，见
   `tests/test_architecture.py` 的 `UI_FREE_PACKAGES` / `UI_FREE_FILES`）不 import `textual.app`；
   另有两条运行时用例：`test_devtools_bridge_follows_app_lifecycle`（挂载期恰好 1 个
   handler、`on_unmount` 按身份摘除）与
