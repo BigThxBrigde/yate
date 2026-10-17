@@ -179,5 +179,3 @@ def key_name(key: str) -> str:
         mods.append(chr(code))
         return "<" + "-".join(mods) + ">"
     return repr(key)
-
-
