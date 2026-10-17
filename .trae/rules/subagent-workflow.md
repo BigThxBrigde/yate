@@ -60,7 +60,7 @@ scene: subagent_workflow
 
    | 子代理 | 空闲时段 | 非空闲时段 |
    |---|---|---|
-   | `plan-architect-designer` | GLM-5.3-Flash | GLM-5.3-Flash |
+   | `plan-architect-designer` | DeepSeek-V4.1-Flash | DeepSeek-V4.1-Flash |
    | `plan-executor` | DeepSeek-V4.1-Flash | GLM-5.3-Flash |
    | `code-review-expert` | DeepSeek-V4.1-Flash | GLM-5.3-Flash |
 
