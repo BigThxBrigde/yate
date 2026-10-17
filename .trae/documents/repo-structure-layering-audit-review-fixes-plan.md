@@ -224,7 +224,7 @@ flowchart LR
 | 守卫是否可执行且无误伤/漏判 | 通过 | 层秩表 14 项与规则 §一 逐项一致（`keymaps/keys.py` 条目先于 `keymaps/`）；白名单恰 2 条；负向演练 `1 failed`（精确报出 `keyproto/frames.py -> yate.keymaps.base` + 登记指引），还原后 32 passed、零 diff |
 | 规则文本自洽性 | 通过 | §一 文本/Mermaid、§二 表、§三.5②/③、R14、§六 R4 与用例计数三处（`:49` / `:358` / `:435`）全部为 32，`keymaps/base|vim|vsc` 旧表述 0 命中 |
 | 文档越界检查 | 通过 | `tests/README.md` 与 `yate/services/__init__.py` 的 diff 仅落在文档/docstring 区域；docstring 英文、行宽 ≤100 |
-| 新增文档路径合规 | **1 MINOR 已修** | 子计划 f §三 曾含本机绝对路径 `cd D:/Programming/yate-full-repo-audit`（doc-conventions §五禁止），已改为可移植写法 |
+| 新增文档路径合规 | **1 MINOR 已修** | 子计划 f §三 曾含带盘符的 `cd` 绝对路径（doc-conventions §五禁止，本记录不复述该路径），已改为可移植写法 |
 
 **偏离记录（均附实测依据）**：
 
