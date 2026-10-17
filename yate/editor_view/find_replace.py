@@ -24,7 +24,7 @@ from typing import override
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.events import Key
+from textual.events import Key, Resize
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
@@ -32,6 +32,8 @@ from yate.editor_core import BufferReadOnlyError, Document, SearchEngine
 from yate.editor_core import project_search
 from yate.editor_core.project_search import FileMatch, LineMatch
 from yate.editor_view import theme
+from yate.editor_view.icons import icon_color, icon_for_path
+from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.services.workspace import Workspace
@@ -55,11 +57,46 @@ type RevealFn = Callable[[Path, int, int], None]
 #: Message-line callback (text + severity kind, as ``Editor.message``).
 type MessageFn = Callable[[str, str], None]
 
+#: Footer hint row: every binding the overlay honours, wrapped over two
+#: muted lines so it keeps fitting a 80-column panel inner width.
+FOOTER_HINT: str = (
+    " enter: jump  ·  r: replace file  ·  a: replace all \n"
+    " alt+c: case  ·  alt+w: word  ·  alt+r: regex  ·  esc: close "
+)
+
 
 class _Results(Static):
     """Focusable results pane (owns the enter / ``r`` / ``a`` cursor)."""
 
     can_focus = True
+
+
+class _ResultsScroll(VerticalScroll):
+    """Scrollable results body owning its slim scrollbar painting.
+
+    Same self-painting contract as the explorer tree and the manual's doc
+    scroll: ``apply_slim_scrollbars`` gives the sliver thumb, and the
+    palette comes from the active yate theme (the renderer alone would still
+    show Textual's opaque default track).  Keeping it on a component -- not
+    on the screen -- follows R13: the widget that scrolls paints itself.
+    """
+
+    def on_mount(self) -> None:
+        """Own the slim-scrollbar wiring and the theme painting."""
+        # no super()/@override here: VerticalScroll's MRO (ScrollableContainer
+        # -> Widget) has no on_mount to chain -- unlike RichLog's ScrollView
+        # base (manual.DocScroll precedent).
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        theme.attach(self, self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        theme.detach(self)
+
+    def _apply_theme(self) -> None:
+        """Paint the scrollbar palette from the active theme."""
+        apply_scrollbar_theme(self)
 
 
 def _relative(path: Path, root: Path | None) -> str:
@@ -82,6 +119,11 @@ class FindReplaceScreen(ModalScreen[None]):
         ("alt+r", "toggle_regex", "regex"),
         ("escape", "dismiss_screen", "Close"),
     ]
+
+    #: Viewport height (rows) the overlay needs before the footer hint is
+    #: worth its two rows: below it the results pane is what matters, and
+    #: the hint is also reachable through the bindings / F1.
+    FOOTER_MIN_HEIGHT: int = 20
 
     DEFAULT_CSS = load_tcss("find-replace-screen.tcss")
 
@@ -138,14 +180,32 @@ class FindReplaceScreen(ModalScreen[None]):
             # the results pane scrolls as a container: a Static with a
             # fractional height reports no virtual overflow, so its own
             # scrolling never engages (probed 2026-10-16)
-            with VerticalScroll(id="fr-results-scroll"):
+            with _ResultsScroll(id="fr-results-scroll"):
                 yield _Results(id="fr-results")
+            yield Static(FOOTER_HINT, id="fr-footer")
 
     def on_mount(self) -> None:
         """Attach to the theme broadcast, paint the options and focus find."""
         theme.attach(self, self._apply_theme)
         self._render_options()
+        self._sync_footer()
         self.query_one("#fr-find", Input).focus()
+
+    def on_resize(self, event: Resize) -> None:
+        """Re-evaluate the footer hint when the viewport changes shape."""
+        self._sync_footer()
+
+    def _sync_footer(self) -> None:
+        """Show the key hint only while the viewport can spare its rows.
+
+        Textual 8.2.8 has no ``@media`` rule, so the short-viewport case
+        (measured: at 16 rows the results pane is down to a single line)
+        is handled here instead of in the stylesheet.
+        """
+        footer = self.query_one("#fr-footer", Static)
+        show = self.size.height >= self.FOOTER_MIN_HEIGHT
+        if footer.display is not show:
+            footer.display = show
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast and drop the pending debounce."""
@@ -184,11 +244,17 @@ class FindReplaceScreen(ModalScreen[None]):
         root = self._workspace.root
         flat_index = 0
         line_no = 0
-        for fm in self._results:
-            label = _relative(fm.path, root)
-            text.append(
-                f"{label}  ({len(fm.matches)} match(es))\n", style=t.fg_muted,
-            )
+        for group_index, fm in enumerate(self._results):
+            if group_index:
+                # a blank line between file groups keeps the list scannable
+                text.append("\n")
+                line_no += 1
+            # file icon reuses the explorer's Seti palette: the group header
+            # reads like a tree row, the count stays a quiet suffix
+            icon = icon_for_path(fm.path.name, False)
+            text.append(f"{icon} ", style=icon_color(fm.path.name, False, t.accent))
+            text.append(_relative(fm.path, root), style=t.fg_muted)
+            text.append(f"  · {len(fm.matches)}\n", style=t.fg_dim)
             line_no += 1
             for m in fm.matches:
                 cursor_here = flat_index == self._cursor
@@ -196,10 +262,9 @@ class FindReplaceScreen(ModalScreen[None]):
                     self._cursor_line = line_no
                 fg = t.fg if cursor_here else t.fg_muted
                 marker = "> " if cursor_here else "  "
-                text.append(f"{marker}{m.row + 1}: ", style=fg)
-                self._append_snippet(
-                    text, fm.hit_lines.get(m.row, ""), m, fg, cursor_here,
-                )
+                text.append(marker, style=t.accent if cursor_here else t.fg_dim)
+                text.append(f"{m.row + 1}: ", style=t.accent if cursor_here else t.fg_dim)
+                self._append_snippet(text, fm.hit_lines.get(m.row, ""), m, fg)
                 text.append("\n")
                 flat_index += 1
                 line_no += 1
@@ -210,22 +275,55 @@ class FindReplaceScreen(ModalScreen[None]):
                 style=t.fg_dim,
             )
         pane.update(text)
-        # large hit sets overflow the pane: keep the cursor row in view
-        scroller.scroll_to(y=self._cursor_line, animate=False)
+        self._ensure_cursor_visible(scroller)
+
+    def _ensure_cursor_visible(self, scroller: VerticalScroll) -> None:
+        """Scroll only when the cursor row left the visible window.
+
+        Scrolling to the cursor row unconditionally pins it to the top edge
+        on every repaint -- which also pushes its file header (and with it
+        the file name) out of view, even when the row was already visible.
+        """
+        top = scroller.scroll_offset.y
+        height = scroller.size.height
+        if height == 0:
+            # not laid out yet (first paint): scrolling against a zero-row
+            # window would pin the cursor row and hide the file header.
+            # Every caller repaints again once the pane has a size (the
+            # search worker, the key handlers, the theme broadcast), so the
+            # alignment converges on the next render.
+            return
+        if self._cursor_line < top:
+            scroller.scroll_to(y=max(0, self._cursor_line), animate=False)
+        elif self._cursor_line >= top + height:
+            scroller.scroll_to(y=self._cursor_line - height + 1, animate=False)
 
     def _append_snippet(
-        self, text: Text, line: str, m: LineMatch, fg: str, cursor_here: bool,
+        self, text: Text, line: str, m: LineMatch, fg: str,
     ) -> None:
         """Append one ``…context[match]context…`` snippet row body."""
         # the raw hit line keeps its "\r" tail on CRLF files: display noise
         line = line.rstrip("\r")
-        start = max(0, m.start - SNIPPET_CONTEXT)
+        # drop the file's common indent so snippet rows line up; a match that
+        # itself starts inside the whitespace keeps it (lead never passes it)
+        indent = len(line) - len(line.lstrip())
+        lead = min(indent, m.start)
+        start = max(lead, m.start - SNIPPET_CONTEXT)
         end = min(len(line), m.end + SNIPPET_CONTEXT)
         t = theme.active()
-        if start > 0:
+        if start > lead:
             text.append("…", style=t.fg_dim)
         text.append(line[start : m.start], style=fg)
-        style = f"{t.on_accent} on {t.match_bg}" if cursor_here else f"on {t.match_bg}"
+        # match_bg is a bright accent color on every shipped theme, so the hit
+        # needs an explicit foreground (leaving it unset drops it onto the
+        # terminal default and the hit reads as a blank block).  Measured WCAG
+        # contrast against match_bg: on_accent wins by a mile on the dark
+        # palettes (8.10-14.76) but loses on the light ones, where the plain
+        # fg reads better -- latte 2.62 -> 3.05, onelight 3.20 -> 3.55.
+        # gruvbox-light is the exception (on_accent 3.33 beats fg 3.07); no
+        # candidate reaches 4.5 there because its match_bg is a mid-tone
+        # amber -- re-tinting that palette is tracked as a theme-layer task.
+        style = f"{t.on_accent if t.dark else t.fg} on {t.match_bg}"
         text.append(line[m.start : m.end], style=style)
         text.append(line[m.end : end], style=fg)
         if end < len(line):

@@ -10,13 +10,16 @@ import os
 import pytest
 from pathlib import Path
 
+from textual.color import Color
 from textual.containers import VerticalScroll
 from textual.pilot import Pilot
 from textual.widgets import Input, Static
 
 from yate.app import YateApp
 from yate.editor_core import project_search
+from yate.editor_view import theme
 from yate.editor_view.find_replace import FindReplaceScreen, RevealFn, _Results
+from yate.editor_view.scrollbars import SlimScrollBarRender
 
 from conftest import message_text, plain_text, wait_until
 
@@ -66,6 +69,12 @@ def test_screen_compose_focuses_find_input(tmp_path: Path) -> None:
             assert app.focused.id == "fr-find"
             assert type(app.screen).__name__ == "FindReplaceScreen"
             assert screen is not None
+            # the footer advertises every binding the overlay honours
+            footer = screen.query_one("#fr-footer", Static)
+            plain = plain_text(footer.render())
+            for hint in ("enter: jump", "r: replace file", "a: replace all",
+                         "alt+r: regex", "esc: close"):
+                assert hint in plain
 
     asyncio.run(scenario())
 
@@ -814,6 +823,131 @@ def test_results_pane_scrolls_to_keep_cursor_visible(tmp_path: Path) -> None:
             await pilot.pause()
             scroller = screen.query_one("#fr-results-scroll", VerticalScroll)
             assert scroller.scroll_offset.y > 0
+
+    asyncio.run(scenario())
+
+
+def test_results_scroll_aligns_with_explorer_scrollbar(tmp_path: Path) -> None:
+    """The results scroller paints the explorer's sliver thumb and palette.
+
+    Regression guard: the overlay used to ship a plain ``VerticalScroll``,
+    so its scrollbar fell back to Textual's full-cell default thumb in the
+    app-theme ``$scrollbar`` color instead of the yate palette.
+    """
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            scroller = screen.query_one("#fr-results-scroll", VerticalScroll)
+            explorer = app.query_one("#explorer")
+            assert scroller.vertical_scrollbar.renderer is SlimScrollBarRender
+            assert (
+                scroller.vertical_scrollbar.renderer
+                is explorer.vertical_scrollbar.renderer
+            )
+            assert (
+                scroller.styles.scrollbar_color == explorer.styles.scrollbar_color
+            )
+            assert scroller.styles.scrollbar_color == Color.parse(
+                theme.active().border
+            )
+
+    asyncio.run(scenario())
+
+
+def test_fresh_results_start_at_the_top_of_the_pane(tmp_path: Path) -> None:
+    """A fresh search must not pin the cursor row to the first line.
+
+    Scrolling to the cursor row unconditionally pushed its file header
+    (the file name) out of view on every repaint.
+    """
+
+    async def scenario() -> None:
+        doc = tmp_path / "many.txt"
+        doc.write_text(
+            "".join(f"needle {i}\n" for i in range(45)), encoding="utf-8"
+        )
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 45)
+            await pilot.pause()
+            scroller = screen.query_one("#fr-results-scroll", VerticalScroll)
+            # the first group header (the file name) stays on screen
+            assert scroller.scroll_offset.y == 0
+            assert "many.txt" in _results_plain(screen)
+
+    asyncio.run(scenario())
+
+
+def test_results_scroll_back_to_the_first_group_header(tmp_path: Path) -> None:
+    """Walking the cursor back up returns the pane to the top.
+
+    Guards the ``_cursor_line < top`` branch across a file-group boundary:
+    the cursor row scrolled out of view below must be pulled back without
+    losing the file header above it.
+    """
+
+    async def scenario() -> None:
+        doc = tmp_path / "many.txt"
+        doc.write_text(
+            "".join(f"needle {i}\n" for i in range(45)), encoding="utf-8"
+        )
+        other = tmp_path / "other.txt"
+        other.write_text(
+            "".join(f"needle {i}\n" for i in range(30)), encoding="utf-8"
+        )
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 75)
+            screen.query_one("#fr-results", _Results).focus()
+            await pilot.pause()
+            scroller = screen.query_one("#fr-results-scroll", VerticalScroll)
+            # down into the second file group
+            await pilot.press(*["down"] * 50)
+            await pilot.pause()
+            assert scroller.scroll_offset.y > 0
+            assert screen._cursor == 50
+            # ...and all the way back: the first header is on screen again.
+            # Pressed in batches with pauses -- a single 50-key burst can
+            # outrun the refresh that applies the scroll offset.
+            for _ in range(5):
+                await pilot.press(*["up"] * 10)
+                await pilot.pause()
+            assert screen._cursor == 0
+            # the cursor's first hit is one row below its file header, so
+            # scrolling up to that row puts the pane back at the top
+            assert await wait_until(
+                pilot, lambda: scroller.scroll_offset.y <= 1
+            )
+            assert "many.txt" in _results_plain(screen)
+
+    asyncio.run(scenario())
+
+
+def test_footer_hint_drops_on_short_viewports(tmp_path: Path) -> None:
+    """The key hint yields its rows to the results pane on a short screen."""
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            footer = screen.query_one("#fr-footer", Static)
+            assert footer.display is True
+            await pilot.resize_terminal(100, 14)
+            # a single pause can outrun resize delivery under a loaded
+            # suite -- wait for each transition to settle instead
+            assert await wait_until(pilot, lambda: footer.display is False)
+            await pilot.resize_terminal(100, 30)
+            assert await wait_until(pilot, lambda: footer.display is True)
 
     asyncio.run(scenario())
 

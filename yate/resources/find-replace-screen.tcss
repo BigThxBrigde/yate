@@ -1,37 +1,68 @@
 /* FindReplaceScreen stylesheet (class-scoped DEFAULT_CSS) --
    loaded by editor_view/find_replace.py via yate.paths.load_tcss.
-   All ids are screen-local (never referenced by the shell app.tcss, R9). */
+   All ids are screen-local (never referenced by the shell app.tcss, R9).
+   The framed-dialog look (tall $primary border on $surface) matches the
+   palette / manual / overlay screens; the input row keeps the explorer's
+   faint-separator color so both surfaces read as the same product. */
 FindReplaceScreen {
     align: center top;
 }
 FindReplaceScreen #find-replace {
-    width: 100%;
+    width: 90%;
+    max-width: 120;
     height: auto;
-    max-height: 100%;
+    max-height: 90%;
+    margin-top: 2;
+    border: tall $primary;
     background: $surface;
-    padding: 1 2;
+    padding: 1 1;
 }
 FindReplaceScreen #fr-inputs {
-    height: 3;
+    height: 4;
+    border-bottom: solid $foreground 12%;
 }
 FindReplaceScreen #fr-find,
 FindReplaceScreen #fr-replace {
     width: 1fr;
-    border: none;
+    height: 3;
+    border: tall $foreground 15%;
     background: $surface;
-    padding: 0;
+    padding: 0 1;
+}
+FindReplaceScreen #fr-find:focus,
+FindReplaceScreen #fr-replace:focus {
+    border: tall $primary;
+}
+FindReplaceScreen #fr-replace {
+    margin-left: 1;
 }
 FindReplaceScreen #fr-options {
     width: auto;
+    height: 3;
+    content-align: center middle;
     padding: 0 0 0 1;
     background: $surface;
 }
 FindReplaceScreen #fr-results-scroll {
     height: 1fr;
+    /* two rows minimum: with a single row the cursor-line anchoring would
+       push the file header out of view on every repaint */
+    min-height: 2;
     background: $surface;
+    padding: 0 1;
 }
-
 FindReplaceScreen #fr-results {
     height: auto;
     background: $surface;
+}
+FindReplaceScreen #fr-footer {
+    /* auto + min-height: narrower terminals wrap the hint instead of
+       clipping it, while the usual case still takes exactly two rows.
+       Short viewports drop it entirely (see FOOTER_MIN_HEIGHT in
+       find_replace.py -- Textual 8.2.8 has no @media for this). */
+    height: auto;
+    min-height: 2;
+    margin-top: 1;
+    color: $text-muted;
+    text-align: center;
 }
