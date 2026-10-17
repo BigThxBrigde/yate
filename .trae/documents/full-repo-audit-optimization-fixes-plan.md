@@ -142,6 +142,46 @@ flowchart LR
 - 其余步骤（调研 → 登记 → 方案 → 实施 → 门禁 → 复审 → 回填 → 提交）
   一概不减省。
 
-## 八、实测结果（执行后回填）
+## 八、实测结果（回填 2026-10-17）
 
-（待回填：门禁数字、复审结论、提交号清单）
+**提交链**：`0cf9c1e` 登记 + 方案 → `7834da3` S1 类型精化 → `d8d0248` S2 CLI 拆分。
+
+**五道门禁（HEAD `d8d0248`，全绿）**：
+
+| # | 门禁 | 实测结果 |
+|---|---|---|
+| 1 | `pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations |
+| 2 | `pytest tests/ -q` | 全绿（9 skipped，0 failures） |
+| 3 | `pytest tests/test_architecture.py -q` | 32 passed |
+| 4 | `pytest tests/ -q --cov --cov-fail-under=75` | 覆盖率 91.95%，exit 0 |
+| 5 | `tools.smoke_test run --skip-slow` | 107/107 scenarios、1304/1304 checks，exit 0 |
+
+**门禁执行偏离记录**：首轮为省时把门禁 2 与门禁 4 并行执行，触发两例负载型
+flake（`test_shell.py::test_run_shell_timeout_kills_the_grandchild_process`
+孙进程存活探测 2s 窗口被重载挤爆；`test_diff_integration.py::
+test_diff_close_returns_keys_to_editor` App 卸载期 idle 定时器与 screen 栈
+清空的竞态，`yate/app.py:262 poll_idle`）。两例隔离复跑即绿，与本次改动无关
+（改动未触及 shell / app 卸载路径）；随后严格串行复跑门禁 2/3/4/5，上表为
+串行实测结果。教训：全量门禁一律串行执行。
+
+**S5 复审（pr-review，范围 `cd2ca00...HEAD`，含两笔代码提交）**：
+
+- 六维逐项核对：功能等价（逐行搬移、调用点替换语义不变）；安全无新面；
+  性能无变化（惰性 import 保留）；可维护性（docstring / 注解齐全、
+  段标与既有 `# --- version` 风格一致、cli.py 505 行 < 800）；架构边界
+  （净删一处 `Any`，无新 Protocol / TYPE_CHECKING；`Screen[object]` 不触
+  `test_app_annotations_are_precise`——该 AST 守卫只匹配 `App` 下标；
+  命名无 `*Host` / `*Ops` 等禁用后缀）；硬门禁全绿（上表实测）。
+- 观察 1 条（非阻断、非本次引入）：`_manage_extensions` 的 uninstall 失败
+  分支（cli.py:273-275 `except yxp.YxpError`）无专项用例——install 失败有
+  `test_main_install_extension_failure_exit_code`，uninstall 失败路径搬移
+  前后覆盖缺口等同，登记为既有覆盖边界，不构成本轮 issue。
+- **Overall: APPROVE —— 0 BLOCKER / 0 MAJOR / 0 MINOR。零 issue，迭代闭环，
+  无需下一轮。**
+
+**处置销账**：O-1 ✅（`7834da3`）；O-2 ⏸ 维持现状（评审自评现状更易读、
+注释充分）；O-3 ⏸ 维持现状（薄抽象 + 报告示意代码 await 同步调用不成立）；
+O-4 ✅（`d8d0248`）；O-5 ⏸ 维持现状（评审明示无需修改，既有注释已覆盖）。
+
+**报告勘误落地**：F10 行号漂移与 O-3 示意问题记于 §二；评审文档保持只读，
+未改动。
