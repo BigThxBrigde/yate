@@ -230,6 +230,54 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# ------------------------------------------------------- side commands
+
+def _validate_diff_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Validate the ``--diff`` combination rules up front.
+
+    ``parser.error`` exits with code 2, like every other argparse rejection.
+    """
+    if args.diff_files:
+        if args.path:
+            parser.error("--diff cannot be combined with a startup path argument")
+        if len(args.diff_files) not in (2, 3):
+            parser.error("--diff expects 2 or 3 files")
+        if len(args.diff_files) == 2 and args.three_way:
+            parser.error("--3way requires three files")
+        if len(args.diff_files) == 3 and args.two_way:
+            parser.error("--2way requires exactly two files")
+    elif args.two_way or args.three_way:
+        parser.error("--2way/--3way require --diff")
+
+
+def _manage_extensions(args: argparse.Namespace) -> int:
+    """Install / uninstall / list extension packages without launching the TUI.
+
+    Runs without loading any configuration.  Reports go to stdout, failures
+    to stderr; the exit code reflects whether any operation failed.
+    """
+    from yate.services import yxp  # pylint: disable=import-outside-toplevel
+
+    failures = 0
+    for package_path in args.install_extensions:
+        try:
+            print(yxp.format_install_report(yxp.install_package(Path(package_path))))
+        except yxp.YxpError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            failures += 1
+    for name in args.uninstall_extensions:
+        try:
+            print(yxp.format_uninstall_report(yxp.uninstall_package(name)))
+        except yxp.YxpError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            failures += 1
+    if args.list_extensions:
+        print(yxp.format_package_list(yxp.list_packages()))
+    return 1 if failures else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Handle the side commands first, then build and run the TUI app.
 
@@ -252,17 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # --diff validates its own combination rules up front (parser.error exits
     # with code 2, like every other argparse rejection).
-    if args.diff_files:
-        if args.path:
-            parser.error("--diff cannot be combined with a startup path argument")
-        if len(args.diff_files) not in (2, 3):
-            parser.error("--diff expects 2 or 3 files")
-        if len(args.diff_files) == 2 and args.three_way:
-            parser.error("--3way requires three files")
-        if len(args.diff_files) == 3 and args.two_way:
-            parser.error("--2way requires exactly two files")
-    elif args.two_way or args.three_way:
-        parser.error("--2way/--3way require --diff")
+    _validate_diff_args(parser, args)
 
     # --version prints basic information without loading any configuration
     # or touching the terminal. Handle it first so it stays instant.
@@ -301,24 +339,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         or args.uninstall_extensions
         or args.list_extensions
     ):
-        from yate.services import yxp  # pylint: disable=import-outside-toplevel
-
-        failures = 0
-        for package_path in args.install_extensions:
-            try:
-                print(yxp.format_install_report(yxp.install_package(Path(package_path))))
-            except yxp.YxpError as exc:
-                print(f"error: {exc}", file=sys.stderr)
-                failures += 1
-        for name in args.uninstall_extensions:
-            try:
-                print(yxp.format_uninstall_report(yxp.uninstall_package(name)))
-            except yxp.YxpError as exc:
-                print(f"error: {exc}", file=sys.stderr)
-                failures += 1
-        if args.list_extensions:
-            print(yxp.format_package_list(yxp.list_packages()))
-        return 1 if failures else 0
+        return _manage_extensions(args)
 
     # User-directory initialization/cleanup runs without launching the TUI
     # and without loading any configuration.
