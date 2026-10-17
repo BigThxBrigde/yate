@@ -12,9 +12,10 @@ same-named test files.
 
 This is a **spot-check map, not an exhaustive registry**: tests are organised
 by behaviour domain, so most modules have no same-named test file (2026-10-17
-measurement: 92 of the 139 `yate/` modules). Listed below are the root modules
-whose indirect coverage is worth documenting explicitly, and the test files
-that cover them:
+measurement: 94 of the 124 `yate/` modules, counting `*.py` excluding
+`__init__.py`; `yate/` holds 140 `.py` files in total). Listed below are the
+root modules whose indirect coverage is worth documenting explicitly, and the
+test files that cover them:
 
 | Root module          | Covered by |
 |----------------------|------------|
