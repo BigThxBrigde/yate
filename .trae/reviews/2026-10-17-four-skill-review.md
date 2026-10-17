@@ -89,13 +89,28 @@ L0 叶（仅 `import re`）；`base.py` 再导出形态与内部使用一致
 - FS-1 / FS-2 的修复排期见
   [`../documents/full-repo-audit-four-review-fixes-plan.md`](../documents/full-repo-audit-four-review-fixes-plan.md)
   （互链）；
-- 复审（第 6 步 pr-review）结论另起记录。
+- 复审（第 6 步 pr-review）结论见本记录 §六（同文件附录，非另起记录）。
 
 ## 五、复现口径（只读）
 
 ```powershell
-git -C ../yate-full-repo-audit --no-pager diff master...HEAD --stat   # 28 文件 / +2717-205
-.venv\Scripts\python.exe -c "from yate.keymaps.keys import parse_key, key_name; print(key_name(parse_key('<ctrl-1>')))"  # <shift-ctrl-1>（应为 <ctrl-1>）
+git -C ../yate-full-repo-audit --no-pager diff master...HEAD --stat   # 33 文件 / +3185-212
+.venv\Scripts\python.exe -c "from yate.keymaps.keys import parse_key, key_name; print(key_name(parse_key('<ctrl-1>')))"  # <ctrl-1>（FS-1 修复后正确）
 ```
 
 探针为一次性验证，不入库（misc-rules §二）。
+
+## 六、复审（任务第 6 步，pr-review 第二轮，2026-10-17）
+
+- 范围：累计 diff `master...HEAD`（含修复三提交 `0f54f17` / `4fcb8df` / `02879c9`）。
+- 增量六维逐项核对：功能正确（探针 + CSI-u 全 8 组合 + round-trip；
+  冒烟场景钉住 `replace_confirm` 契约锚点）；安全无新增面；性能无热路径变化；
+  可维护性（英文注释、docstring 更正）；架构零违规（keys.py 仍 L0 零新依赖、
+  无相对导入、无 TYPE_CHECKING/Protocol/Any）；门禁全绿（pyright 0/0/0、
+  全量 2485p/9s、架构 32、覆盖率 91.97%、冒烟 107/107·1304/1304，全部 exit 0）。
+- 复审期间核销一处计数疑点：修复前后 checks 总数均 1304——
+  `invariant:saved_matches_disk` 为条件不变量（harness.py:391-399），修复前
+  `modified=False` 触发（6 显式 + 6 不变量 = 12），修复后 `modified=True` 跳过
+  （7 + 5 = 12），总数守恒无异常。
+- **结论：APPROVE，零遗留 issue**——「登记→计划→实施→审核」迭代至无 issue 产出，
+  任务闭环。
