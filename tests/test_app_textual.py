@@ -17,6 +17,7 @@ import pytest
 from textual.strip import Strip
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_syntax.tokens import Token
+from yate.editor_view.chrome import TabBar
 from yate.editor_view.icons import LOCK
 from yate.keymaps.base import ActionContext
 from yate.keyproto.legacy import event_to_raw
@@ -1142,5 +1143,56 @@ def test_ctrl_q_routes_through_the_registered_quit_action(tmp_path: Path) -> Non
 
         assert hits == ["clean.txt"]
         assert app.return_code == 0
+
+    asyncio.run(scenario())
+
+
+def test_tab_click_switches_the_rendered_document(tmp_path: Path) -> None:
+    """Regression (tab click): a TabBar press must repaint the document.
+
+    The click switched the session model while the compositor frame kept the
+    previous document: ``activate_doc`` missed the ``cycle_tab`` tail (search
+    reset, completion close, UI refresh), so the real terminal showed a stale
+    document and the tab highlight did not move.
+    """
+
+    async def scenario() -> None:
+        root = tmp_path
+        for name, body in (("a.txt", "alpha"), ("b.txt", "bravo"), ("c.txt", "charlie")):
+            (root / name).write_text(body, encoding="utf-8")
+        app = YateApp(target=root)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            for name in ("a.txt", "b.txt", "c.txt"):
+                app.editor.document_flows.open_path(root / name)
+            assert await wait_until(
+                pilot, lambda: app.editor.session.doc.path == root / "c.txt",
+            )
+
+            def visible() -> set[str]:
+                rows = [
+                    strip.text for strip in app.screen._compositor.render_strips()
+                ]
+                return {
+                    name for name in ("alpha", "bravo", "charlie")
+                    if any(name in row for row in rows)
+                }
+
+            # the startup document is the only one painted
+            assert await wait_until(pilot, lambda: visible() == {"charlie"})
+
+            tabbar = app.editor.tabbar
+            assert tabbar is not None
+            second = next(r for r in tabbar._regions if r[2] == 1)
+            await pilot.click(TabBar, offset=((second[0] + second[1]) // 2, 0))
+            # the click switches the model *and* repaints (the regression
+            # left the frame on the old document here)
+            assert await wait_until(pilot, lambda: visible() == {"alpha"})
+            assert app.editor.session.doc.path == root / "a.txt"
+
+            # the keyboard path keeps working through the shared tail
+            app.editor.document_flows.cycle_tab(1)
+            assert await wait_until(pilot, lambda: visible() == {"bravo"})
+            assert app.editor.session.doc.path == root / "b.txt"
 
     asyncio.run(scenario())
