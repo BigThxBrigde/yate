@@ -672,11 +672,13 @@ class TerminalEmulator:
             self._screen[bottom] = self._blank_line()
 
     def _scroll_region_up(self, count: int) -> None:
-        for _ in range(min(count, self.rows)):
+        top, bottom = self.scroll_top, self.scroll_bottom
+        for _ in range(min(count, bottom - top + 1)):
             self._scroll_up(1)
 
     def _scroll_region_down(self, count: int) -> None:
-        for _ in range(min(count, self.rows)):
+        top, bottom = self.scroll_top, self.scroll_bottom
+        for _ in range(min(count, bottom - top + 1)):
             self._scroll_down(1)
 
     # -------------------------------------------------------------------- SGR

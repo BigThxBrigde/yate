@@ -487,6 +487,14 @@ def test_scroll_commands_with_huge_count_clamp_to_the_region_height() -> None:
     assert [_rows(emu, r) for r in range(4)] == ["", "", "", ""]
     assert emu.cursor == (1, 3)
 
+    # a narrow DECSTBM region bounds the work by its own height, not by the
+    # screen height: each region row that scrolls off a top-anchored region
+    # lands in the scrollback exactly once
+    emu = _emu(cols=6, rows=4)
+    emu.feed(b"aaa\r\nbbb\r\nccc\x1b[1;2r\x1b[999999999S")
+    assert emu.max_scroll() == 2
+    assert [_rows(emu, r) for r in range(4)] == ["", "", "ccc", ""]
+
 
 # --- SGR --------------------------------------------------------------------
 
