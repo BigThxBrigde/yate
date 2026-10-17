@@ -37,11 +37,11 @@ from yate.session import EditorSession
 class OverlayFlows:
     """Pushes the editor's full-screen overlays and keeps them consistent."""
 
-    def __init__(  # noqa: Any - current_screen query returns any Textual Screen
+    def __init__(
         self,
         push_screen: Callable[..., object],
         pop_screen: Callable[[], object],
-        current_screen: Callable[[], Screen[Any]],
+        current_screen: Callable[[], Screen[object]],
         config: YateConfig,
         keymaps: KeymapSet,
         commands: CommandRegistry,
