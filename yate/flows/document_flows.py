@@ -152,6 +152,21 @@ class DocumentFlows:
         leaf = target_leaf if target_leaf is not None else self.panes.active
         self.panes.show_doc(leaf, doc)
         self._events.emit(EditorEvent.DOCUMENT_ACTIVATED, DocumentActivated(doc))
+        self._after_activate()
+
+    def _after_activate(self) -> None:
+        """Shared tail of every document switch (tab click, ``:bn``, reveal).
+
+        The previous document's search matches are (row, start, end) spans of
+        *its* buffer: keeping them would paint stale highlights on the new
+        document and send ``n`` to out-of-range coordinates; the completion
+        popup belongs to the old prompt context; and without the UI refresh
+        the switch never repaints -- the tab-click regression showed the
+        model switching while the frame kept the old document.
+        """
+        self.session.reset_search()
+        self.completion.close()
+        self._refresh_ui()
 
     def _open_document(
         self, path: Path, *, target_leaf: Leaf | None = None
@@ -314,9 +329,7 @@ class DocumentFlows:
         # The previous tab's matches are (row, start, end) spans of *its*
         # buffer: keeping them would paint stale highlights on the new
         # document and send ``n`` to out-of-range coordinates.
-        self.session.reset_search()
-        self.completion.close()
-        self._refresh_ui()
+        self._after_activate()
 
     def save_document(self) -> None:
         """``:w``: write the active document to disk."""
