@@ -50,7 +50,8 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
 
 - **硬性依赖连线图**（2026-10-17 增补）：**实线**箭头是**允许**的依赖方向，除下图
   **虚线**标出的**唯一已登记例外**（`EV -.-> EXTF`：R14 的 L2→L3 扩展门面读取，
-  条文登记见 R14 条目、守卫侧冻结于 §六 `UPWARD_EDGES_FROZEN`）外，其余全部严格向下；
+  条文登记见 R14 条目、守卫侧冻结于 §六 `UPWARD_EDGES_FROZEN`）与 L4 内的入口同层边
+  （`__main__.py --> cli.py --> app.py`）外，其余一律**严格向下**；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
   的禁线条款与 §六 32 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
@@ -111,7 +112,7 @@ flowchart TD
 - **R3 — `editor_view/*` 不得 import `yate.editor` / `yate.app`**：组件只接受具体协作者
   （`EditorSession` / `Workspace` / `PromptBar` / `LspManager` / `KeymapSet` / `Textual App`）
   或 `Callable` 回调。
-- **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`session.py`、`registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py` 不得 import `editor_view`**。
+- **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`editor_core/*`、`session.py`、`registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py`、`dist_meta.py` 不得 import `editor_view`**。
   （2026-09-28 核对补入 `keyproto/*`、`editor_sprites/*`：二者已是
   `tests/test_architecture.py` `UI_FREE_PACKAGES` 的守卫面，规则文本此前漏列。）
   （`config.py` 于 N30 加入：yaterc 主题能力由 L4 `cli.py` 以回调注入
@@ -373,7 +374,7 @@ flowchart TD
 - **R3** `editor_view/*` 不 import `yate.editor` / `yate.app`（子模块前缀匹配，不误伤 `editor_core` /
   `editor_lsp` / `editor_syntax` / `editor_term`）；`yate/app_features/` **目录**不存在（只删 `__init__.py`
   不够：残留目录会被当作空命名空间包导入，掩盖删除）；
-- **R4** `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`dist_meta.py`、`session.py`、
+- **R4** `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`editor_core/*`、`dist_meta.py`、`session.py`、
   `registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py` 不 import `editor_view`
   （严格 0 违规；`config.py` 为 N30 新增守卫面，`yaterc.py` 为 2026-10-07 A9 拆分加入，
   `yaterc_options.py` 于 2026-10-08 big-module-split f 波加入，`keyproto/*`、`editor_sprites/*` 于
@@ -398,7 +399,7 @@ flowchart TD
   消息（AST 拦截，python-coding-style 4.6）；
 - **R12** yate 全仓无 `self.log` / `self.app.log` devtools 通道访问（AST 取证，docstring
   提及不误报）；  UI-free L0（`keymaps/*` `services/*` `keyproto/*` `editor_sprites/*`
-  `dist_meta.py` `session.py` `registries.py` `config.py` `yaterc.py` `yaterc_options.py`
+  `editor_core/*` `dist_meta.py` `session.py` `registries.py` `config.py` `yaterc.py` `yaterc_options.py`
   `logs.py`，见
   `tests/test_architecture.py` 的 `UI_FREE_PACKAGES` / `UI_FREE_FILES`）不 import `textual.app`；
   另有两条运行时用例：`test_devtools_bridge_follows_app_lifecycle`（挂载期恰好 1 个
