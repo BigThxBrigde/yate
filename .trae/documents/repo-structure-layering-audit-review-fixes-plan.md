@@ -183,14 +183,64 @@ flowchart LR
 `yate/extensions/` **12** 项、总条目 **215** —— `pyproject.toml` 的资源声明**成立**，S-11 关闭，
 无需改动打包配置。
 
-### 7.4 门禁实测（待填）
+### 7.4 门禁实测（主代理亲跑，worktree 沙箱 `.venv`）
 
 | 门禁 | 基线 | 终态 |
 |---|---|---|
-| `pyright yate/ tests/ tools/` | 0/0/0，exit 0 | 待填 |
-| `pytest tests/test_architecture.py -q` | 31 passed | 待填（期望 32） |
-| `pytest tests/ -q` | 分支记录全绿 | 待填 |
-| `pytest tests/ -q --cov --cov-fail-under=75` | 91.98%（分支记录） | 待填 |
-| 向上连线实测 | 3 条（v2 旧表） | 待填（期望 2 条：statusbar ×2） |
+| `pyright yate/ tests/ tools/` | 0/0/0，exit 0 | **0/0/0，exit 0**（曾出现 `yate/keymaps/base.py:21` 两处 `reportUnusedImport`，由提交 `a4e9bf0` 修正后归零） |
+| `pytest tests/test_architecture.py -q` | 31 passed | **32 passed，exit 0**（含新守卫 `test_no_unregistered_upward_imports`） |
+| `pytest tests/ -q --cov --cov-fail-under=75` | 91.98%（分支记录） | **91.92% ≥ 75%，exit 0**（覆盖率运行即全量运行，两命令合并为一次执行） |
+| 向上连线实测（切分后） | 3 条（v2 旧表，含 L0 例外） | **2 条**：`editor_view/statusbar.py -> yate.services.extensions`、`… -> yate.services.extensions.bridges` —— 与守卫白名单逐字一致 |
+| 负向演练 | — | 临时在 `yate/keyproto/frames.py` 加 `from yate.keymaps.base import SPECIAL_KEYS` → `pytest tests/test_architecture.py -q -k upward` **1 failed，exit 1**，失败体精确报出 `keyproto/frames.py -> yate.keymaps.base` 与"register them in architecture-boundaries.md section 1 / R14"指引；还原后 32 passed、`frames.py` 零 diff |
+| 记法导入面核查 | — | `yate.keymaps.base` 的导入方全部位于 L1 及以上（`actions.py`/`editor.py`/`registries.py`/`flows/overlay_flows.py`/`editor_view/{modals,palette}.py`/`services/extensions/api.py`/`keymaps/*`）；L0 侧仅 `keyproto/legacy.py → yate.keymaps.keys` |
 
-### 7.5 步骤-提交对照 / 负向演练输出 / 偏离记录（待填）
+### 7.5 步骤-提交对照 / 偏离记录
+
+| 步骤 | 提交 | 内容 |
+|---|---|---|
+| Step 0a | `0089483` | 主计划 + 子计划目录落盘（v2 拆子计划） |
+| Step 0b | `178115d` | 方案 v3：改为干净切分（keys 下沉 L0）+ 子计划 a/b 重写 |
+| Step 1（plan-a） | `e13cce3` | 规则层秩登记：`keys.py`=L0 / `keymaps/` 其余=L1、statusbar L2→L3 例外、`theme.py`、`dist_meta.py`、`yxp.py`、用例计数 32 |
+| Step 1（plan-c） | `846e5ed` | `tests/README.md` 失效路径与覆盖表口径 |
+| Step 1（plan-f） | `c525d70` | 新建 L0 `keymaps/keys.py`、`base.py` 收敛 L1、`keyproto/legacy.py` 改指向 |
+| Step 2（plan-d） | `f80727b` | `yate/services/__init__.py` 门户 docstring 成员清单 |
+| Step 2（plan-f 修正） | `a4e9bf0` | 显式再导出 `KEY_ALIASES` / `SPECIAL_KEYS`（修 pyright `reportUnusedImport` ×2） |
+| Step 2（plan-b） | `a812261` | 层秩守卫用例 + `UI_FREE_FILES` 补 `dist_meta.py`（32 用例） |
+| Step 3 | — | plan-e wheel 取证（只读，结论见 §7.3） |
+| Step 4 | — | 全量门禁四道全绿（见 §7.4） |
+| Step 5 | — | code-review-expert 评审（结论见下） |
+| Step 6 | 本提交 | 回填本计划 §7 + 审计记录 §四 |
+
+**评审结论（Step 5）**：**Overall: APPROVE**（0 BLOCKER / 0 MAJOR / 1 MINOR 已当场修复）。
+评审由主代理亲自完成——派出的 `code-review-expert` 成员 15 分钟无回报，按
+`subagent-workflow.md` §五.3 判死（未落盘任何评审产物），改由主代理执行并如实标注。
+
+| 评审面 | 结论 | 依据（实测） |
+|---|---|---|
+| 记法搬移是否逐字 | 通过 | 用脚本对 `base.py` 记法块与 `keys.py` 主体做 unified diff：差异仅为主代理取块边界带上的 3 行 `ActionFunc` 注释（`keys.py` 183 行，节 167 行逐字一致） |
+| `keys.py` 是否零上层依赖 | 通过 | 全文件导入仅 `from __future__ import annotations` + `import re`；docstring 声明 L0 与"L0 代码从这里导入" |
+| `base.py` 是否残留未使用导入/漏引用 | 通过 | `pyright yate/ tests/ tools/` → 0/0/0（曾报 2 处 `reportUnusedImport`，已由 `a4e9bf0` 以 PEP 484 显式再导出修正） |
+| L0 侧是否仍 import `keymaps.base` | 通过 | 导入面扫描：`yate.keymaps.base` 的导入方全部为 L1+（`actions.py`/`editor.py`/`registries.py`/`flows/overlay_flows.py`/`editor_view/{modals,palette}.py`/`services/extensions/api.py`/`keymaps/*`）；L0 侧唯一为 `keyproto/legacy.py → yate.keymaps.keys` |
+| 守卫是否可执行且无误伤/漏判 | 通过 | 层秩表 14 项与规则 §一 逐项一致（`keymaps/keys.py` 条目先于 `keymaps/`）；白名单恰 2 条；负向演练 `1 failed`（精确报出 `keyproto/frames.py -> yate.keymaps.base` + 登记指引），还原后 32 passed、零 diff |
+| 规则文本自洽性 | 通过 | §一 文本/Mermaid、§二 表、§三.5②/③、R14、§六 R4 与用例计数三处（`:49` / `:358` / `:435`）全部为 32，`keymaps/base|vim|vsc` 旧表述 0 命中 |
+| 文档越界检查 | 通过 | `tests/README.md` 与 `yate/services/__init__.py` 的 diff 仅落在文档/docstring 区域；docstring 英文、行宽 ≤100 |
+| 新增文档路径合规 | **1 MINOR 已修** | 子计划 f §三 曾含本机绝对路径 `cd D:/Programming/yate-full-repo-audit`（doc-conventions §五禁止），已改为可移植写法 |
+
+**偏离记录（均附实测依据）**：
+
+1. **wave 顺序局部调整**：plan-c / plan-d（`tests/README.md` 与 `yate/services/__init__.py` docstring）
+   与 wave-1 并行执行——两者文件与 wave-1 完全不重叠且无代码语义变更，仅缩短关键路径；
+   **plan-b 严格排在 plan-f 之后**（切分前 `legacy.py → keymaps.base` 仍是向上连线，守卫会红）。
+2. **plan-b 负向演练文件更换**：子计划 b §四 原定临时改 `yate/keyproto/legacy.py`，
+   为避免与 plan-f 成员并发编辑同一文件，改在 `yate/keyproto/frames.py` 临时插入
+   `from yate.keymaps.base import SPECIAL_KEYS`（同一 L0→L1 违规类，拦截效果等价，输出见 §7.4）。
+3. **plan-f 首轮未过 pyright**：`c525d70` 落地后 `yate/keymaps/base.py:21` 报 2 处
+   `reportUnusedImport`（`KEY_ALIASES` / `SPECIAL_KEYS` 在 base.py 内无引用、且无 `__all__`）。
+   由主代理按 PEP 484 显式再导出惯用法（`X as X`）修正并单独提交 `a4e9bf0`。
+   子计划 f 的缺口：未把"再导出名必须显式标记"写进验收（仅列了 pyright 0/0/0）。
+4. **子计划 a 漏项回填**：同文件另有 2 处 stale "31"（§一 连线图注记、文末对照表标题），
+   子计划 a 的 9 处清单未覆盖；主代理裁定并授权成员一并回填为 32 / 2026-10-17（保持文件内计数自洽）。
+5. **v2 方案产物作废**：wave-1 首轮两个成员（基于 v2"登记 L0 例外"）已落盘的规则与守卫改动被
+   `git checkout` 回退后按 v3 重跑；属用户方案变更（2026-10-17）的既定代价。
+6. **plan-e 提前执行**：wheel 取证在 wave-1 期间完成（只读、不占用任何文件）。
+7. **主代理接手项**：plan-b 的负向演练（成员 shutdown 后由主代理实施并还原）、plan-f 的 pyright 修正。

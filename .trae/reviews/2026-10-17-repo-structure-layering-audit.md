@@ -227,6 +227,30 @@
 属**口径治理**而非缺陷修复；S-3、S-5、S-9 涉及多文件联动（守卫面、tcss 资源名、CLI 引用），
 实施前须按 `plan-before-execute.md` 立项并列出独占文件清单。本次审计**未改动任何产品代码**。
 
+> **2026-10-17 处置更新（修复计划落地）**：本记录 §四 的发现已按
+> [`../documents/repo-structure-layering-audit-review-fixes-plan.md`](../documents/repo-structure-layering-audit-review-fixes-plan.md)
+> （总纲与子计划 a–f 见
+> [`../documents/repo-structure-layering-audit-review-fixes-plans/overview.md`](../documents/repo-structure-layering-audit-review-fixes-plans/overview.md)）
+> 执行完毕：
+>
+> - **S-1 已修（层秩干净切分）**：键位记法下沉为 L0 单文件 `yate/keymaps/keys.py`，`keymaps/` 其余
+>   （`base`/`vim`/`vsc`/`registry`/`__init__`）收敛为 L1，L0 消费者 `yate/keyproto/legacy.py` 改从
+>   `keys.py` 取记法 —— 切分后**全仓零 L0→L1 连线**，无需任何 L0 例外（提交 `c525d70` / `a4e9bf0`）；
+> - **S-2 已登记并冻结**：`editor_view/statusbar.py`（L2）→ `yate.services.extensions`（并含冻结的
+>   `.bridges`）为切分后全仓**唯一**向上连线，已写入规则 §一 / R14，并由新守卫
+>   `test_no_unregistered_upward_imports` 冻结（提交 `e13cce3` / `a812261`）；
+> - **S-6 / S-7 / S-8 / S-4 已修**：`tests/README.md` 失效路径与覆盖表口径（`846e5ed`）；
+>   `editor_view/theme.py` 门面例外、`dist_meta.py` 层级与守卫面、`services/yxp.py` 归属（`e13cce3`）；
+>   `services/` 门户 docstring 成员清单（`f80727b`）；
+> - **S-11 已关闭**：隔离构建 wheel 实测 —— `yate/resources/` 25 项、`yate/docs/` 9 项、
+>   `yate/extensions/` 12 项、总条目 215，退出码 0，`pyproject.toml` 声明成立；
+> - **仍为另案**：S-3（`editor_view/` 子域化）、S-5（`tools/pack` 改名）、S-9（`editor.py` 拆分）、
+>   S-10（`tests/` 平铺）。
+>
+> 门禁终态（主代理亲跑）：`pyright yate/ tests/ tools/` 0/0/0（exit 0）；架构守卫
+> **32 passed**（exit 0）；全量 `pytest tests/ -q --cov --cov-fail-under=75` **91.92%**（exit 0）；
+> 向上连线实测 **2 条**（statusbar ×2）。
+
 ## 五、修复建议（按成本分组；本记录不含排期）
 
 1. **零行为风险、可直接同步的规则/文档修正**：S-1(a)、S-2(a)、S-7、S-8（§一/§二/§三/守卫面文本）、

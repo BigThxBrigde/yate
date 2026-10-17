@@ -98,7 +98,7 @@ from yate.keymaps.keys import SPECIAL_KEYS
 ## 三、验收命令（必须实际执行并如实报告输出与退出码）
 
 ```powershell
-cd D:/Programming/yate-full-repo-audit
+# 在 worktree 根目录（本仓库的 `../yate-full-repo-audit`）下执行
 .venv\Scripts\python.exe -m pyright yate/ tests/ tools/          # 期望 0 errors, 0 warnings, 0 informations
 .venv\Scripts\python.exe -m pytest tests/ -q -k "key or keymap or keyproto or extensions or input_assist or editor_core or app_"
 .venv\Scripts\python.exe -c "import yate.keymaps.keys as k; print(k.parse_key('<ctrl-s>'), k.key_name('\x13'))"
