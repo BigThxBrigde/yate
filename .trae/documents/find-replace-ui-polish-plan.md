@@ -142,4 +142,66 @@
 
 ## 七、执行记录
 
-（执行后回填：实测前后数字、偏离项与理由）
+执行日期：2026-10-17。分支 `feat/find-replace-ui-polish`（worktree
+`../yate-find-replace-ui-polish`，沙箱自证 `import yate` 指向该 worktree）。
+实施最初在 master 工作树完成，用户随后要求整体迁入新分支 worktree，
+master 已复位回 origin/master（本地 docs 提交随本分支保留）。
+
+### 实测前后数字
+
+| 项 | 前（master 工作树） | 后 |
+|---|---|---|
+| 结果区滚动条渲染器 | `ScrollBarRender`（整格反白） | `SlimScrollBarRender`（`▐` 细滑块，与 explorer 同类） |
+| 滚动条滑块色 | `#594A74`（Textual 由应用主题推导） | `#45475A` = `theme.active().border`（同一 `apply_scrollbar_theme`） |
+| 弹窗 region（104x30） | `Region(0,0,104,30)` 占满整屏 | `Region(5,2,93,25)` 定宽居中 + 边框 |
+| 非光标行命中片段 | 前景落到终端默认色，亮黄底上不可读 | `on_accent if dark else fg`，可读 |
+| 结果区滚动锚定 | 每次重绘把光标行顶到第一行（组头被挤掉） | 仅光标行离开可视窗口才滚动 |
+
+门禁（worktree 沙箱内主代理亲测）：
+`pyright yate/ tests/ tools/` → 0 errors（退出码 0）；
+`pytest tests/ -q --cov=yate --cov-fail-under=75` → 2489 collected 全绿、
+覆盖率 91.94%（退出码 0）；`pytest tests/test_architecture.py -q` → 31 passed；
+`tools.smoke_test run` → 110/112 scenarios、1347/1354 checks。
+
+几何探针（13 个视口：104x30 … 50x16）：面板始终 `bottom <= 视口高`、
+结果区恒 `>= 2` 行、新搜索 `offset == 0`（组头可见）、页脚在 `< 20` 行视口
+隐藏（`FOOTER_MIN_HEIGHT`）、窄终端下自动增高不截断。
+
+### 偏离计划项（均附实测依据）
+
+1. 步骤 3 扩为"结果区可读性"：出预览图时发现非光标行命中不可读（前景落到
+   终端默认色）、片段保留原缩进行首参差、每次重绘把光标行顶到第一行挤掉组头，
+   一并修复（前景分支、`lead` 去公共缩进、`_ensure_cursor_visible` 条件滚动）。
+2. 命中前景取 `t.on_accent if t.dark else t.fg`：实测 WCAG vs `match_bg`
+   ——深色 8.10-14.76（on_accent），浅色 latte 3.05 / onelight 3.55 /
+   gruvbox-light 3.07（fg）。gruvbox-light 是例外（on_accent 3.33 更优），
+   该主题无候选达 4.5（match_bg 为中亮度琥珀色），重新调色登记为主题层待办。
+3. Textual 8.2.8 不支持 `@media`（tokenizer 报
+   `Expected selector or end of file`）：短视口隐藏页脚改为组件自持的
+   `FOOTER_MIN_HEIGHT = 20` + `on_resize -> _sync_footer`（R13 归位，
+   不触碰外壳 CSS）。
+4. `_ensure_cursor_visible` 上滚目标为光标行本身而非 `cursor_line - 1`：
+   后者在"组内第一条命中"上目标等于自身，后续渲染判定已可见而不再回滚，
+   组头永久差一行（实测 offset 停在 1）；改为标准列表行为（上滚时光标行
+   齐上缘），新增跨组上滚用例守护。
+
+### 评审迭代
+
+- 第一轮（code-review-expert）：REQUEST_CHANGES —— 3 个 `[WARNING]`
+  （页脚窄终端被换行截断 / 视口 ≤16 行结果区塌到 1 行且组头不可见 /
+  浅色主题命中对比度不足）+ 3 个 `[SUGGESTION]`（重复 `asyncio.run` /
+  上滚分支无覆盖 / 光标行行号无视觉差异），逐项修复。
+- 复评：可合并。N1（注释与实测不符：gruvbox-light 上 fg 反而更差）已修正
+  注释；N2（首帧不滚动的收敛前提）已写入注释；N3（上滚用例扩为跨组）与
+  N4（页脚可见性用例）已补。
+- 登记待办（不在本轮范围）：浅色主题 `match_bg` 亮度重调（使命中前景达
+  WCAG AA）；`editor.py:615` 与本模块的前景选型统一到 `Theme` 派生槽位。
+
+### 已知环境噪音（非本次引入）
+
+- 全量跑时 `test_shell.py::test_run_shell_timeout_kills_the_grandchild_process`
+  偶发失败（进程收割时序），单测与复跑均通过——按 subagent-workflow §三.3
+  先复跑确认，不改断言。
+- 冒烟失败集（`replace_single_all` / `replace_all_clamp`，共 7 checks）在
+  master 基线上以 `git stash` 对照复现完全相同，属存量失败：走 F4 缓冲区
+  替换循环（`prompt_flows`），不经过 `FindReplaceScreen`。
