@@ -120,6 +120,39 @@ ALLOWED_PROTOCOLS: dict[str, set[str]] = {
     "editor_syntax/ts_backend/backend.py": {"_TsPoint", "_TsNode"},
 }
 
+#: Layer rank of every ``yate/`` module, mirroring the inventory in
+#: architecture-boundaries.md section 1.  ``keymaps`` is split per file: the
+#: key notation leaf ``keys.py`` is L0 (no upward dependency), every other
+#: keymap module is L1.  Prefixes are matched in order, so the ``keys.py``
+#: entry must precede the ``keymaps/`` default; anything unlisted ranks as L0,
+#: which makes a new leaf module reaching upward fail the guard.
+_LAYER_RANKS: tuple[tuple[str, int], ...] = (
+    ("app.py", 4),
+    ("cli.py", 4),
+    ("__main__.py", 4),
+    ("editor.py", 3),
+    ("actions.py", 3),
+    ("commands.py", 3),
+    ("diagnostics.py", 3),
+    ("flows/", 3),
+    ("services/extensions/", 3),
+    ("editor_view/", 2),
+    ("session.py", 1),
+    ("registries.py", 1),
+    ("keymaps/keys.py", 0),
+    ("keymaps/", 1),
+)
+
+#: Upward import edges registered in the rule text (2026-10-17 structure
+#: audit, rules section 1 / R14).  After the keymaps split these are the only
+#: ones left: L2 ``statusbar.py`` reads the L3 extension facade plus the
+#: R14-frozen ``bridges`` type to paint extension segments (constructor
+#: injected, ``statusbar.py:83-84``).
+UPWARD_EDGES_FROZEN: frozenset[str] = frozenset({
+    "editor_view/statusbar.py -> yate.services.extensions",
+    "editor_view/statusbar.py -> yate.services.extensions.bridges",
+})
+
 #: Pure logic packages / modules that must run without any widget (R4).
 #: ``config.py`` joined in N30: it used to lazily import editor_view.theme
 #: inside ``load_config`` (the only L0->L2 edge; theme support is now
@@ -134,12 +167,15 @@ UI_FREE_PACKAGES: tuple[str, ...] = (
     "editor_sprites",
     "editor_core",
 )
+#: ``dist_meta.py`` joined in the 2026-10-17 structure audit: stdlib-only dist
+#: metadata parsing shared by ``diagnostics.py`` (runtime) and ``pack/`` (build).
 UI_FREE_FILES: tuple[str, ...] = (
     "session.py",
     "registries.py",
     "config.py",
     "yaterc.py",
     "yaterc_options.py",
+    "dist_meta.py",
 )
 
 #: L3 collaborator modules that do drive a few widget types by design: they
@@ -335,6 +371,27 @@ def _yate_imports(path: Path) -> list[str]:
         elif isinstance(node, ast.Import):
             out.extend(a.name for a in node.names if a.name.startswith("yate"))
     return out
+
+
+def _layer_rank(rel: str) -> int:
+    """Rank a ``yate/``-relative path; unlisted modules default to L0."""
+    for prefix, rank in _LAYER_RANKS:
+        if rel.startswith(prefix):
+            return rank
+    return 0
+
+
+def _ranked_target(module: str) -> str | None:
+    """Resolve a ``yate.x.y`` import to its ``yate/``-relative file path."""
+    parts = module.split(".")[1:]
+    while parts:
+        rel = "/".join(parts)
+        if (YATE / f"{rel}.py").is_file():
+            return f"{rel}.py"
+        if (YATE / rel / "__init__.py").is_file():
+            return f"{rel}/__init__.py"
+        parts.pop()
+    return None
 
 
 def _imports_upward(module: str) -> bool:
@@ -559,6 +616,37 @@ def test_keymaps_services_and_models_stay_ui_free() -> None:
     for path in targets:
         for module in _yate_imports(path):
             assert not module.startswith("yate.editor_view"), (path, module)
+
+
+def test_no_unregistered_upward_imports() -> None:
+    """Every upward import edge is registered in the rule text (2026-10-17).
+
+    ``architecture-boundaries.md`` section 1 declares a layer for every
+    ``yate/`` module; this guard makes that declaration executable: an import
+    pointing at a *higher* layer must be listed in ``UPWARD_EDGES_FROZEN``,
+    which mirrors the exceptions registered in the rule.  Unlisted modules
+    rank as L0.  ``yate/extensions/`` (the shipped plugin examples) sits
+    outside the L0-L4 stack and is skipped here -- its facade discipline is
+    guarded by R14 (``test_extension_machinery_hides_behind_facade``).
+    """
+    offenders: list[str] = []
+    for path in _yate_files():
+        source = path.relative_to(YATE).as_posix()
+        if source.startswith("extensions/"):
+            continue
+        source_rank = _layer_rank(source)
+        for module in _yate_imports(path):
+            target = _ranked_target(module)
+            if target is None or target == source:
+                continue
+            if _layer_rank(target) > source_rank:
+                offenders.append(f"{source} -> {module}")
+    unregistered = sorted(set(offenders) - UPWARD_EDGES_FROZEN)
+    assert not unregistered, (
+        "unregistered upward import(s): "
+        f"{unregistered}; register them in architecture-boundaries.md "
+        "section 1 / R14, then extend UPWARD_EDGES_FROZEN"
+    )
 
 
 def test_ts_backend_never_imports_regex_backend() -> None:
@@ -1029,12 +1117,14 @@ def test_editor_lsp_package_root_is_light() -> None:
 
 
 def test_leaf_package_reexports_carry_exception_note() -> None:
-    """Every re-exporting leaf package documents the rule 3.5 exception (A1).
+    """Every re-exporting package documents the rule 3.5 exception (A1).
 
-    Guards against the rule text and the code drifting apart again: a leaf
-    package may keep re-exports only while its ``__init__.py`` notes the
-    documented exception (architecture-boundaries rule 3.5 layer 3).
+    Guards against the rule text and the code drifting apart again: a
+    re-exporting package may keep re-exports only while its ``__init__.py``
+    notes the documented exception (architecture-boundaries rule 3.5 layer 3).
     """
+    # ``keymaps`` is L1 since the 2026-10-17 split (its ``keys.py`` is the L0
+    # leaf); its re-export exception note is still required.
     leaf_packages = ("editor_core", "editor_lsp", "editor_syntax", "editor_term", "keymaps")
     for name in leaf_packages:
         text = (YATE / name / "__init__.py").read_text(encoding="utf-8")
