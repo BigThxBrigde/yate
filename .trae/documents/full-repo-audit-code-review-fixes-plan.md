@@ -141,6 +141,10 @@ flowchart LR
   C-4 `emulator.py:674-682` 两处 `min(count, self.rows)` → `min(count, bottom - top + 1)`，
   用例补窄区域（DECSTBM）计数断言 `emu.max_scroll() == 2`（负向可区分旧实现，旧实现得 `4`）；
   C-5 `keys.py` 清除 2 个尾空行。
+  - **勘误（2026-10-17，四技能审核 FS-2）**：上句括注「旧实现得 `4`」失准——
+    实测推演窄区域（DECSTBM 1;2）下旧钳制 `min(count, rows)` 得 4 次迭代、新钳制得 2 次，
+    但两种实现下 `emu.max_scroll()` **均为 2**（区域第 3/4 次滚动幂等空转，不产生 scrollback）；
+    用例的区分度来自**工作量上界**而非该断言值，用例本身仍有效。原文保留备查，不以勘误回写历史。
 - **Step 3 门禁**（主代理亲跑，收尾全量复测，退出码全 0）：
   - `python -m pyright yate/ tests/ tools/` → **0 errors / 0 warnings / 0 informations**
   - `python -m pytest tests/ -q` → **2480 passed, 9 skipped**
