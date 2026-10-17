@@ -18,7 +18,12 @@ from dataclasses import dataclass
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
-from yate.keymaps.keys import KEY_ALIASES, SPECIAL_KEYS, key_name, parse_key
+from yate.keymaps.keys import (
+    KEY_ALIASES as KEY_ALIASES,
+    SPECIAL_KEYS as SPECIAL_KEYS,
+    key_name,
+    parse_key,
+)
 from yate.session import EditorSession
 
 #: What a direct (name-less) binding calls: the action body itself, handed the
