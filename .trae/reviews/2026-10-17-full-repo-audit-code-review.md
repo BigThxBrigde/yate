@@ -14,17 +14,19 @@
   下列每条发现均附 `文件:行号` 与可复现的只读命令/实测输出，未做任何代码改动。
   如与原始子代理报告条目有出入，以本记录的实测证据为准。
 
-## 一、门禁口径（子代理报告值，本轮未复跑）
+## 一、门禁口径（子代理报告值 + 主代理收尾复测）
 
-| 门禁 | 报告值 | 复核状态 |
+| 门禁 | 报告值 | 收尾复跑值（主代理，2026-10-17） |
 |---|---|---|
-| `pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations | 未复跑（收尾门禁将复测） |
-| `pytest tests/test_architecture.py -q` | 32 passed | 未复跑（收尾门禁将复测） |
-| `pytest tests/ -q` | 全绿 | 未复跑（收尾门禁将复测） |
-| `pytest tests/ -q --cov --cov-fail-under=75` | 91.92% | 未复跑（收尾门禁将复测） |
+| `pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations | 0 / 0 / 0，exit 0 |
+| `pytest tests/test_architecture.py -q` | 32 passed | 32 passed，exit 0 |
+| `pytest tests/ -q` | 全绿 | 2480 passed, 9 skipped，exit 0 |
+| `pytest tests/ -q --cov --cov-fail-under=75` | 91.92% | 91.94%，exit 0（≥75） |
 
-按 `subagent-workflow.md` §三.2，成员回报数字一律需主代理独立复核；本轮为**取证阶段**
-（只读重建发现），门禁复测落于修复收尾步骤。
+按 `subagent-workflow.md` §三.2，成员回报数字一律需主代理独立复核；**取证阶段**记录报告值，
+**修复收尾**由主代理全量复跑，四项与报告值一致（覆盖率 91.92% → 91.94%）。
+修复处置归方案 `../documents/full-repo-audit-code-review-fixes-plan.md`（本记录为只读事实
+文档，依 `doc-conventions.md` §二.1 不放修复排期）。
 
 ## 二、确认项（复核通过，不重报）
 

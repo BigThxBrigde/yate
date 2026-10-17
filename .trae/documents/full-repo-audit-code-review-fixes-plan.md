@@ -10,8 +10,8 @@
 
 ## 一、目标与非目标
 
-**目标**：修复分支合入前 code review 确证的 **1 个 MAJOR（C-1）+ 4 个 MINOR（C-2～C-6）
-中的 5 条**——即 C-1 / C-2 / C-3 / C-4 / C-5 / C-6 全部六条，逐条见评审记录 §三。
+**目标**：修复分支合入前 code review 确证的 **1 个 MAJOR（C-1）+ 5 条 MINOR/NIT
+（C-2 / C-3 / C-4 / C-6 为 MINOR、C-5 为 NIT）**——即 C-1～C-6 全部六条，逐条见评审记录 §三。
 全部为**规则文本一致性 / 文档可复现性 / 代码整洁度**级改动，零行为语义扩展。
 
 **非目标**：
@@ -105,11 +105,13 @@ flowchart LR
 
 - 派 `code-review-expert`（任务书内显式指定模型 **GLM-5.3-Flash**）评审
   `git diff master...HEAD` 全部改动；结论须附实测结果与退出码；
-- blocker / major → 回到 Wave A/B 迭代；仅 minor → 登记待办；结论回填本文件 §七。
+- blocker / major → 回到 Wave A/B 迭代；仅 minor → 登记待办；结论回填本文件 §六。
 
 ### Step 5 — 回填与分笔提交
 
-- 回填本文件 §七（真实前后数字、偏离记录）与评审记录 §四；
+- 回填本文件 §六（真实前后数字、偏离记录）；评审记录按 `doc-conventions.md` §二.1 作
+  **只读事实文档**处理——其 §一「复核状态」按收尾实测更新为复跑值，§三/§四 发现面不动
+  （修复处置归本方案，见 §六 / §七）；
 - 每 Wave / 每 Step 单独一笔提交，**只提交、不推送**（闭环内禁止 `git push`）。
 
 ## 五、风险清单与回滚
@@ -123,16 +125,43 @@ flowchart LR
 | 临时探针 `Temp/yate_audit/*` 指向的 tab 点击缺陷被误并进本轮 | 本轮**不触碰** `editor_view/`；该缺陷独立立项（见评审记录外的人工线索） |
 | 回滚 | 每 Wave 单独 commit，`git revert` 单笔回滚；无数据风险 |
 
-## 六、执行记录回填（待填）
+## 六、执行记录
 
-- Wave A：待填
-- Wave B：待填
-- Step 3 门禁：待填（pyright / pytest / 架构 / 覆盖率 前后数字）
-- Step 4 审核：待填（结论与退出码）
-- 偏离记录：待填
+- **Step 0**（`69e760f` 评审记录 / `78bd31f` 本方案）：只读取证与方案落盘。
+- **Wave A**（`b4df3d8`）：C-1 图内补**虚线**边 `EV -.-> EXTF` + 图注补"L4 内的入口同层边
+  （`__main__.py --> cli.py --> app.py`）"例外；C-6 §一 L4 行补 `__main__.py`、L0 行补
+  `yaterc.py` / `yaterc_options.py`（`dist_meta.py` 一并补入 L0 行）；C-2 §六 R12 清单补
+  `dist_meta.py`。架构测试 **32 passed**（exit 0）。
+- **Wave A 收尾补正**（`96a76d2`）：§一 R4 行补 `editor_core/*` / `dist_meta.py`；
+  §六 R4 bullet 与 §六 R12 bullet 同补 `editor_core/*` —— 使**四处** UI-free 清单
+  （§一 L0 行、§一 R4 行、§六 R4 bullet、§六 R12 bullet）与守卫
+  `UI_FREE_PACKAGES` / `UI_FREE_FILES` **逐名对齐**。
+- **Wave B**（`a9fbebf` / `cab9fa3` / `6c92695`，分三笔）：C-3 `tests/README.md` 计数改为
+  同源同口径（`yate/` **140** 个 `.py`，其中 **124** 个非 `__init__`、**94** 个无同名测试）；
+  C-4 `emulator.py:674-682` 两处 `min(count, self.rows)` → `min(count, bottom - top + 1)`，
+  用例补窄区域（DECSTBM）计数断言 `emu.max_scroll() == 2`（负向可区分旧实现，旧实现得 `4`）；
+  C-5 `keys.py` 清除 2 个尾空行。
+- **Step 3 门禁**（主代理亲跑，收尾全量复测，退出码全 0）：
+  - `python -m pyright yate/ tests/ tools/` → **0 errors / 0 warnings / 0 informations**
+  - `python -m pytest tests/ -q` → **2480 passed, 9 skipped**
+  - `python -m pytest tests/test_architecture.py -q` → **32 passed**
+  - `python -m pytest tests/ -q --cov --cov-fail-under=75` → **91.94%**（≥75）
+- **Step 4 审核**：`code-review-expert`（任务书内指定模型 **GLM-5.3-Flash**）结论 **1 MAJOR
+  （C-1）+ 5 MINOR/NIT（C-2…C-6）、0 BLOCKER**；审核方复核门禁值与上表一致（pyright 0/0/0、
+  2480 passed、32 passed、覆盖率 91.92% → 主代理复测 **91.94%**）。六条发现全部落 Wave A/收尾
+  补正 / Wave B，**无遗留 blocker / major**。
+- **偏离记录**：见 §七。
 
 ## 七、偏离登记
 
 - C-3 采用"口径改写"而非 `139→140 / 92→93` 的 ±1 修法，理由见 §三 第三条备选否决。
 - 本轮全部改动由**主代理亲办**，未拆子代理，理由见 §三 调度备选否决；
   【审核】环节按用户口径派 `code-review-expert` 且指定 GLM-5.3-Flash（规则表不动）。
+- **范围略超 §二 映射表**：收尾补正把 C-2/C-6 的"同一守卫面逐名一致"口径扩展到**全部四处**
+  UI-free 清单，补 `editor_core/*`（`UI_FREE_PACKAGES` 成员，改动前 §一 R4 行、§六 R4 bullet、
+  §六 R12 bullet 三处均漏列，§一 L0 行已含）；§二 原仅点名 §六 R12 与 §一 L4/L0 行。
+  理由：仅改 §一 R4 行会**新建**一处不一致（R4 有 `editor_core/*`、§六 两处无），故一并同步。
+- **评审记录按只读面处理**：`../reviews/2026-10-17-full-repo-audit-code-review.md` 依
+  `doc-conventions.md` §二.1（评审记录为**只读事实文档**，只记录发现与核对结论、不放修复排期）
+  保持 §三/§四 的发现面不变；其 §一「复核状态」按收尾实测由"未复跑"更新为**复跑值**
+  （事实性核对结论，非修复排期）。修复处置归本方案，不并回评审记录。
