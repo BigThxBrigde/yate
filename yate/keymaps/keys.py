@@ -168,7 +168,10 @@ def key_name(key: str) -> str:
         return f"<alt-{key[1]}>"
     m = re.fullmatch(r"\x1b\[(\d+);(\d+)u", key)
     if m:
-        code, mod = int(m.group(1)), int(m.group(2))
+        # kitty encodes the modifier field as 1 + bitmask (shift=1 alt=2 ctrl=4)
+        code, mod = int(m.group(1)), int(m.group(2)) - 1
+        if not mod:
+            return chr(code)
         mods: list[str] = []
         if mod & 1:
             mods.append("shift")

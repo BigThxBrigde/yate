@@ -196,12 +196,17 @@ def test_key_name_reports_a_two_byte_escape_sequence_as_alt() -> None:
 
 
 def test_key_name_decodes_csi_u_modifier_bits() -> None:
-    """The kitty CSI-u encoding carries shift(1), alt(2) and ctrl(4) bits."""
-    assert key_name("\x1b[97;1u") == "<shift-a>"
-    assert key_name("\x1b[97;3u") == "<shift-alt-a>"
-    assert key_name("\x1b[97;5u") == "<shift-ctrl-a>"
-    assert key_name("\x1b[97;7u") == "<shift-alt-ctrl-a>"
-    assert key_name("\x1b[49;5u") == "<shift-ctrl-1>"
+    """The kitty CSI-u modifier field is 1 + bitmask (shift=1, alt=2, ctrl=4)."""
+    assert key_name("\x1b[97;1u") == "a"
+    assert key_name("\x1b[97;2u") == "<shift-a>"
+    assert key_name("\x1b[97;3u") == "<alt-a>"
+    assert key_name("\x1b[97;4u") == "<shift-alt-a>"
+    assert key_name("\x1b[97;5u") == "<ctrl-a>"
+    assert key_name("\x1b[97;6u") == "<shift-ctrl-a>"
+    assert key_name("\x1b[97;7u") == "<alt-ctrl-a>"
+    assert key_name("\x1b[97;8u") == "<shift-alt-ctrl-a>"
+    assert key_name("\x1b[49;5u") == "<ctrl-1>"
+    assert key_name("\x1b[49;6u") == "<shift-ctrl-1>"
 
 
 def test_key_name_falls_back_to_repr() -> None:
@@ -219,6 +224,7 @@ def test_key_name_inverts_parse_key_for_reversible_specs() -> None:
         "a",
         "<ctrl-s>",
         "<ctrl-space>",
+        "<ctrl-1>",
         "<alt-a>",
         "<enter>",
         "<esc>",
@@ -245,7 +251,7 @@ def test_key_name_normalises_specs_that_share_a_code() -> None:
     """Lossy specs come back in canonical form: ctrl-[ is ESC, shift-a is A."""
     assert key_name(parse_key("<ctrl-[>")) == "<esc>"
     assert key_name(parse_key("<shift-a>")) == "A"
-    assert key_name(parse_key("<ctrl-1>")) == "<shift-ctrl-1>"
+    assert key_name(parse_key("<ctrl-1>")) == "<ctrl-1>"
 
 
 # --- KeyBinding -------------------------------------------------------------
