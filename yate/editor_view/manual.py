@@ -249,6 +249,19 @@ class MarkdownDocScreen(ModalScreen[None]):
             exit_on_error=False,
         )
 
+    def on_unmount(self) -> None:
+        """Drop the pending debounce so no callback outlives the screen.
+
+        A search typed within :attr:`_SEARCH_DEBOUNCE_S` and then dismissed with
+        ``escape`` would otherwise leave an armed :class:`asyncio.TimerHandle`
+        holding a reference to this unmounted screen until it fires.  Mirrors
+        :meth:`FindReplaceScreen.on_unmount` and the diff screen's teardown.
+        """
+        if self._search_timer is not None:
+            self._search_timer.cancel()
+            self._search_timer = None
+        self._pending_query = None
+
     async def _load_doc(self) -> None:
         """Read the document off the loop, then let Markdown mount in batches."""
         try:

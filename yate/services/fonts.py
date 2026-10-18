@@ -223,8 +223,11 @@ def _register_windows_user_font(fonts_dir: Path) -> tuple[list[str], list[str]]:
         for dup in fonts_dir.glob(f"{ttf.stem}_*.ttf"):
             try:
                 dup.unlink()
-            except OSError:
-                pass
+            except OSError as exc:
+                # A locked duplicate is a cosmetic Explorer/font-list
+                # artifact, not a reason to fail the whole install; logging
+                # keeps the leftover name traceable.
+                log.debug("could not remove duplicate font %s: %s", dup, exc)
 
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
         # Sweep stale entries belonging to this family.

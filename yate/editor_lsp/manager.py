@@ -364,8 +364,11 @@ class LspManager:
             try:
                 await client.notify("textDocument/didClose",
                                    {"textDocument": {"uri": uri}})
-            except (LspError, OSError):
-                pass
+            except (LspError, OSError) as exc:
+                # The document already left the session, so a lost didClose
+                # only leaves the server's view stale -- logged (never
+                # raised) to keep the close path total and traceable.
+                log.debug("didClose failed for %s: %s", uri, exc)
 
     def notify_edit(self, doc: Document) -> None:
         """Schedule a debounced full-text didChange (no-op when unchanged)."""
@@ -443,8 +446,10 @@ class LspManager:
             try:
                 await client.notify("textDocument/didSave",
                                    {"textDocument": {"uri": state.uri}})
-            except (LspError, OSError):
-                pass
+            except (LspError, OSError) as exc:
+                # Best-effort notification: the server's failure state is
+                # already surfaced by states(), so this stays at debug level.
+                log.debug("didSave failed for %s: %s", state.uri, exc)
 
     # ---------------------------------------------------------- completion
 

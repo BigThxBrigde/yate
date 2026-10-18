@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import json
+import logging
 import sys
 import warnings
 from dataclasses import dataclass
@@ -1259,3 +1260,159 @@ def test_explicit_opt_out_disables_even_with_server_on_path(
     command, args = python_lsp.discover_command()
     assert command == ""
     assert args == []
+
+
+# --------------------------------------- best-effort notifications are logged
+
+#: The trace logger of yate.editor_lsp.manager -- the one the two didClose /
+#: didSave guards log through.
+MANAGER_LOGGER = "yate.editor_lsp.manager"
+
+
+def _open_debug_log(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """Route *name* into caplog at DEBUG level.
+
+    The yate logger tree sets ``propagate = False`` so records never reach the
+    root logger (that would print into the TUI).  caplog hangs its handler off
+    the root logger, so without re-enabling propagation here every assertion on
+    ``caplog`` would pass vacuously.
+    """
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    caplog.set_level(logging.DEBUG, logger=name)
+
+
+def _unreachable_notify() -> Any:
+    """An ``LspClient.notify`` replacement for an unreachable server."""
+
+    async def _notify(method: str, params: Any) -> None:
+        raise LspError("boom")
+
+    return _notify
+
+
+def _debug_messages(caplog: pytest.LogCaptureFixture, name: str) -> list[str]:
+    """The formatted DEBUG messages *name* emitted during the test."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == name and record.levelno == logging.DEBUG
+    ]
+
+
+def test_document_closed_logs_instead_of_raising_when_notify_fails(
+    session: ManagerSession,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A lost didClose is traced and the close path stays total.
+
+    The guard used to be ``except (LspError, OSError): pass``, which made the
+    failure completely invisible: the server kept serving a syntax tree for a
+    document the editor had already closed, with nothing in the trace log.
+    """
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        uri = mgr._uri(doc)
+        # arm a pending change so the close has a timer to reap as well
+        doc.buffer.insert_text("x")
+        mgr.notify_edit(doc)
+        assert uri in mgr._change_timers
+        monkeypatch.setattr(client, "notify", _unreachable_notify())
+        _open_debug_log(caplog, monkeypatch, MANAGER_LOGGER)
+
+        await mgr.on_document_closed(doc)  # must not raise
+
+        assert not mgr.is_open(doc)
+        assert uri not in mgr._open
+        assert uri not in mgr._change_timers
+        messages = _debug_messages(caplog, MANAGER_LOGGER)
+        assert any(
+            "didClose failed" in message
+            and uri in message
+            and "boom" in message
+            for message in messages
+        ), messages
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_document_closed_emits_no_debug_when_notify_succeeds(
+    session: ManagerSession,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reverse path: a delivered didClose logs nothing (no noise per close)."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        _open_debug_log(caplog, monkeypatch, MANAGER_LOGGER)
+
+        await mgr.on_document_closed(doc)
+
+        assert not mgr.is_open(doc)
+        assert "textDocument/didClose" in [m for m, _ in client.sent]
+        assert "didClose failed" not in caplog.text
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_document_saved_logs_instead_of_raising_when_notify_fails(
+    session: ManagerSession,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A lost didSave is traced; the document stays open for the retry."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        uri = mgr._uri(doc)
+        monkeypatch.setattr(client, "notify", _unreachable_notify())
+        _open_debug_log(caplog, monkeypatch, MANAGER_LOGGER)
+
+        await mgr.notify_saved(doc)  # must not raise
+
+        assert mgr.is_open(doc)
+        messages = _debug_messages(caplog, MANAGER_LOGGER)
+        assert any(
+            "didSave failed" in message
+            and uri in message
+            and "boom" in message
+            for message in messages
+        ), messages
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_document_saved_emits_no_debug_when_notify_succeeds(
+    session: ManagerSession,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reverse path: a delivered didSave logs nothing."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        _open_debug_log(caplog, monkeypatch, MANAGER_LOGGER)
+
+        await mgr.notify_saved(doc)
+
+        assert mgr.is_open(doc)
+        assert "textDocument/didSave" in [m for m, _ in client.sent]
+        assert "didSave failed" not in caplog.text
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import logging
 import shutil
 import subprocess
 import sys
@@ -788,3 +789,113 @@ def test_ensure_font_leaves_other_terminals_alone(
     )
     assert fonts.ensure_font().has_nerd_font is True
     assert calls == []
+
+
+# --- duplicate sweep visibility ----------------------------------------------
+
+
+#: The trace logger of yate.services.fonts -- the one the duplicate-sweep guard
+#: logs through.
+FONTS_LOGGER = "yate.services.fonts"
+
+
+def _open_debug_log(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """Route *name* into caplog at DEBUG level.
+
+    The yate logger tree sets ``propagate = False`` so records never reach the
+    root logger (that would print into the TUI).  caplog hangs its handler off
+    the root logger, so without re-enabling propagation here every assertion on
+    ``caplog`` would pass vacuously.
+    """
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    caplog.set_level(logging.DEBUG, logger=name)
+
+
+def _prepare_windows_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Point :func:`fonts.ensure_font` at an empty temp font directory.
+
+    No Nerd Font is reported before the install and one afterwards, which is
+    the branch ``ensure_font`` takes; the terminal probe stays inert so no
+    settings.json is rewritten.
+    """
+    monkeypatch.setattr(fonts, "sys", _module(platform="win32"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(fonts, "detect_terminal", lambda: "conhost")
+    detected: list[list[str]] = [[], [f"{fonts.FAMILY} Regular"]]
+    monkeypatch.setattr(
+        fonts, "find_installed_nerd_fonts", lambda: detected.pop(0)
+    )
+    fonts_dir = tmp_path / "Microsoft" / "Windows" / "Fonts"
+    fonts_dir.mkdir(parents=True)
+    return fonts_dir
+
+
+def test_ensure_font_logs_a_locked_duplicate_instead_of_failing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_winreg: _FakeWinreg,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A duplicate copy that cannot be unlinked is named in the trace log.
+
+    ``except OSError: pass`` made ``ensure_font`` report success while the
+    leftover ``..._0.ttf`` kept showing up as a second font-list entry, with no
+    hint anywhere of which file had survived.
+    """
+    fonts_dir = _prepare_windows_install(tmp_path, monkeypatch)
+    duplicate = fonts_dir / "JetBrainsMonoNerdFontMono-Regular_0.ttf"
+    duplicate.write_bytes(b"explorer copy")
+
+    real_unlink = Path.unlink
+
+    def _locked_unlink(self: Path, missing_ok: bool = False) -> None:
+        """Fake unlink: only the Explorer duplicate copy is locked."""
+        if self.name == duplicate.name:
+            raise OSError("font file is in use")
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", _locked_unlink)
+    _open_debug_log(caplog, monkeypatch, FONTS_LOGGER)
+
+    status = fonts.ensure_font(configure_terminal=False)
+
+    assert status.has_nerd_font is True
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == FONTS_LOGGER and record.levelno == logging.DEBUG
+    ]
+    assert any(
+        "could not remove duplicate font" in message
+        and duplicate.name in message
+        and "font file is in use" in message
+        for message in messages
+    ), messages
+    # the locked duplicate survives, but the canonical files are installed
+    assert duplicate.is_file()
+    assert (fonts_dir / "JetBrainsMonoNerdFontMono-Regular.ttf").is_file()
+    assert (fonts_dir / "JetBrainsMonoNerdFontMono-Bold.ttf").is_file()
+
+
+def test_ensure_font_succeeds_without_logging_when_no_duplicate_is_locked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_winreg: _FakeWinreg,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reverse path: a clean install logs nothing about duplicate copies."""
+    fonts_dir = _prepare_windows_install(tmp_path, monkeypatch)
+    _open_debug_log(caplog, monkeypatch, FONTS_LOGGER)
+
+    status = fonts.ensure_font(configure_terminal=False)
+
+    assert status.has_nerd_font is True
+    assert "could not remove duplicate font" not in caplog.text
+    assert sorted(p.name for p in fonts_dir.glob("*.ttf")) == [
+        "JetBrainsMonoNerdFontMono-Bold.ttf",
+        "JetBrainsMonoNerdFontMono-Regular.ttf",
+    ]
