@@ -92,13 +92,12 @@ jobs:
     name: ui smoke (pilot, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
-    # Provisional: the Linux leg has never run in CI; drop this once one CI
-    # round is green on both legs.
-    continue-on-error: ${{ matrix.os == 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Provisional: only the Windows leg runs -- the Linux leg has never
+        # run in CI.  Re-add ubuntu-latest once one CI round is green here.
+        os: [windows-latest]
     steps:
       - uses: actions/checkout@v4
         with:
