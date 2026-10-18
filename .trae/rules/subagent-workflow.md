@@ -51,18 +51,25 @@ scene: subagent_workflow
 6. **只认落盘结果**：成员声称完成但文件无变化 = 零产出，半成品同样按零产出计；主代理重跑该成员名下测试与 pyright 后才算数。
 7. **如实报告**：汇报成员存活数、零产出成员及其名下文件状态；不得把主代理代做的产物记成子代理成果。
 
-## 六、子代理模型选择（按时段调度）
+## 六、子代理模型选择（按主代理来源）
 
-> **适用范围**：本节规则仅当**主代理为 trae** 时生效；若主代理是 codebuddy，本节整体忽略，spawn 时不做任何时段模型调度，直接按各代理默认模型下发。
+> **适用范围**：本节规则依据**主 agent 或 chat 的来源**决定模型分配；不再按本地时段调度。
 
-1. **时段定义**：非空闲时段（背景时间）为**周一至周五 9:00–12:00、14:00–18:00**（本地时区 Asia/Shanghai）；其余时段（工作日午休与夜间、周末）均为空闲时段。
-2. **模型分配**（spawn 时按下表指定模型）：
+1. **若主 agent 或 chat 来自 CodeBuddy 插件**（spawn 时按下表指定模型）：
 
-   | 子代理 | 空闲时段 | 非空闲时段 |
-   |---|---|---|
-   | `plan-architect-designer` | DeepSeek-V4.1-Flash | DeepSeek-V4.1-Flash |
-   | `plan-executor` | DeepSeek-V4.1-Flash | GLM-5.3-Flash |
-   | `code-review-expert` | DeepSeek-V4.1-Flash | GLM-5.3-Flash |
+   | 子代理 | 模型 |
+   |---|---|
+   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-executor` | GLM-5.3-Flash |
+   | `code-review-expert` | Hy4 preview |
 
-3. **判定时点**：以**下发任务时**的本地时间为准；整批任务按同一时段的模型下发，中途不因跨时段切换成员模型。
+2. **若主代理来自 Trae IDE**（spawn 时按下表指定模型）：
+
+   | 子代理 | 模型 |
+   |---|---|
+   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-executor` | MiMo-V2.6-Flash |
+   | `code-review-expert` | Qwen3.7-Plus |
+
+3. **判定时点**：以**当前会话的主代理来源**为准；整批任务按同一来源的模型下发，中途不切换。
 4. 本节未列出的子代理类型不受模型调度约束。
