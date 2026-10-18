@@ -65,8 +65,17 @@ output screen titled "key conflicts". Two conflict classes are reported:
   scanned for duplicates alone.
 
 A clean scan prints `keymap: <name> -- no conflicts`; otherwise the
-header `keymap: <name> -- N conflict(s)` is followed by one
-`<key>  <reason>  action1 -> action2` line per conflict.
+header `keymap: <name> -- N conflict(s) (D duplicate, R reserved)` is
+followed by one `<key>  <reason>  action1 -> action2` line per conflict,
+plus a closing note whenever the reserved class is non-empty.
+
+On a stock vim keymap the scan reports eight reserved rows (`<esc>`,
+`<ctrl-b>` / `<ctrl-d>` / `<ctrl-f>` / `<ctrl-u>`, `<ctrl-g>`,
+`<ctrl-r>`, `<alt-c>`). Those rows are deliberate help mirrors: the
+built-in vim branch runs the command, so the row itself never dispatches
+-- exactly what the closing note says. The scan's real target is a
+binding added later, by an extension for instance, on one of those keys:
+such a binding would silently never fire.
 
 ---
 
@@ -77,6 +86,10 @@ header `keymap: <name> -- N conflict(s)` is followed by one
   the pinned-sheet toggle cannot be triggered there. The conflict report
   stays reachable from the command line via `:check-keys`, but there is
   no command-line fallback for the panel toggle itself.
+* **Count plus operator shows a header only** -- the vim motion
+  vocabulary (`w`, `$`, ...) is hard-coded rather than part of the
+  binding table, so after `2d` or `"a2d` the panel lists the pending
+  chord with no candidate rows.
 * **No yaterc persistence yet** -- there is no yaterc option to configure
   the which-key panel, and the pinned state is not persisted: after a
   restart the sheet starts unpinned. Both are out of scope for now.

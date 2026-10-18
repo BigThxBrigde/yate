@@ -21,11 +21,6 @@ from yate.logs import tracing
 log = tracing.get_logger(__name__)
 
 
-#: Read-only probe of ``window_flows.window_pending``: True while the vim
-#: ``ctrl+w`` chord awaits its second key (injected by the editor).
-type PendingQuery = StateQuery
-
-
 #: Second-key rows of the vim ``ctrl+w`` chord (fourteen keys).  Every
 #: description is the keyword of the hint window_flows posts when the chord
 #: arms (``s/:split v/:vsplit q close o :only ... h j k l move, ctrl+w cycle
@@ -118,20 +113,20 @@ class WhichKeyFlows:
     def _candidates(self, pending: str) -> list[ChordEntry]:
         """Next-key rows for the chord typed so far (*pending*).
 
-        Matching rules, where *pending* is the human chord from
-        :meth:`~yate.keymaps.base.Keymap.pending_prefix`:
+        A pending chord is always printable (registers, counts, operators
+        and motion prefixes are typed characters), so a raw-byte spec --
+        function keys, control chords -- can never be its continuation and
+        never qualifies here; those humanized labels belong to the pinned
+        sheet.
 
-        - a raw-byte spec (non-printable first character) expands to its
-          single human step via :func:`~yate.keymaps.keys.key_name`;
-        - a printable spec keeps its typed form, its first character being
-          the first step of the chord;
         - a row qualifies iff *pending* is a literal prefix of the spec and
           the spec is strictly longer
           (``spec.startswith(pending) and len(spec) > len(pending)``) --
           placeholders ``{...}`` only appear after the first character, so
           the literal-prefix test is safe;
-        - rows dedupe on the display key (the first occurrence wins); an
-          empty result leaves the panel header-only.
+        - rows dedupe on the spec (the first occurrence wins); an empty
+          result leaves the panel header-only (a count plus an operator
+          arms with no table motion to complete it, e.g. ``2d``).
         """
         entries: list[ChordEntry] = []
         seen: set[str] = set()
@@ -139,12 +134,11 @@ class WhichKeyFlows:
             spec = binding.key
             if not (spec.startswith(pending) and len(spec) > len(pending)):
                 continue
-            label = _spec_label(spec)
-            if label in seen:
+            if spec in seen:
                 continue
-            seen.add(label)
+            seen.add(spec)
             entries.append(
-                ChordEntry(label, binding.description or str(binding.action))
+                ChordEntry(spec, binding.description or str(binding.action))
             )
         return entries
 

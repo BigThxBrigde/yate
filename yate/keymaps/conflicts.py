@@ -77,18 +77,33 @@ def find_key_conflicts(
 def format_conflicts(keymap_name: str, conflicts: list[KeyConflict]) -> str:
     """Render the ``:check-keys`` report body (human text, no UI imports).
 
-    With conflicts the text opens with ``keymap: <name> -- N conflict(s)``
-    and follows with one ``<key>  <reason>  action1 -> action2`` line per
+    With conflicts the text opens with the class counts
+    (``keymap: <name> -- N conflict(s) (D duplicate, R reserved)``) and
+    follows with one ``<key>  <reason>  action1 -> action2`` line per
     conflict (a direct callable action shows its description); an empty
-    scan renders the ``keymap: <name> -- no conflicts`` one-liner.
+    scan renders the ``keymap: <name> -- no conflicts`` one-liner.  The
+    reserved class gets a closing note: those keys are claimed by the
+    built-in dispatch branch first, so their table row never dispatches --
+    for the built-in rows that is deliberate (they are help mirrors of the
+    branch), while for an extension binding it is a silent dead binding.
     """
     if not conflicts:
         return f"keymap: {keymap_name} -- no conflicts"
-    lines = [f"keymap: {keymap_name} -- {len(conflicts)} conflict(s)"]
+    duplicates = sum(1 for c in conflicts if c.reason == "duplicate")
+    reserved = len(conflicts) - duplicates
+    lines = [
+        f"keymap: {keymap_name} -- {len(conflicts)} conflict(s) "
+        f"({duplicates} duplicate, {reserved} reserved)"
+    ]
     for conflict in conflicts:
         actions = " -> ".join(
             b.action if isinstance(b.action, str) else (b.description or "<callable>")
             for b in conflict.bindings
         )
         lines.append(f"{key_name(conflict.raw)}  {conflict.reason}  {actions}")
+    if reserved:
+        lines.append(
+            f"note: reserved rows sit on keys the built-in {keymap_name} "
+            "branch handles first, so the row itself never dispatches."
+        )
     return "\n".join(lines)

@@ -90,6 +90,16 @@ def test_format_conflicts_lists_actions() -> None:
     conflicts = find_key_conflicts(_TwinKeymap())
     text = format_conflicts("vim", conflicts)
     assert "keymap: vim" in text
+    assert "1 conflict(s) (1 duplicate, 0 reserved)" in text
     # <key>  <reason>  action1 -> action2, per the format spec.
     assert "x  duplicate  a1 -> a2" in text
+    assert "note:" not in text
     assert "no conflicts" in format_conflicts("vim", [])
+
+
+def test_format_conflicts_notes_the_reserved_class() -> None:
+    """A reserved hit splits the header counts and adds the closing note."""
+    conflicts = find_key_conflicts(_TwinKeymap(), reserved=frozenset({"1"}))
+    text = format_conflicts("vim", conflicts)
+    assert "2 conflict(s) (1 duplicate, 1 reserved)" in text
+    assert "note: reserved rows sit on keys the built-in vim branch" in text
