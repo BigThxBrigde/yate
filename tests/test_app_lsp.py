@@ -224,6 +224,7 @@ def _install_fake_server(  # noqa: Any - fake LSP server boundary; no stubs
             self.error = ""
             self.trigger_characters: tuple[str, ...] = (".",)
             self.opened: list[Any] = []
+            self.closed: list[Any] = []
             created.append(self)
 
         async def start(self) -> None:
@@ -236,9 +237,11 @@ def _install_fake_server(  # noqa: Any - fake LSP server boundary; no stubs
             self.state = ServerState.STOPPED
 
         async def notify(self, method: str, params: Any) -> None:
-            """Fake notify: records ``didOpen`` payloads."""
+            """Fake notify: records ``didOpen`` / ``didClose`` payloads."""
             if method == "textDocument/didOpen":
                 self.opened.append(params)
+            elif method == "textDocument/didClose":
+                self.closed.append(params)
 
         async def request(self, method: str, params: Any) -> Any:
             """Fake request: serves the canned completion list."""
@@ -601,5 +604,48 @@ def test_teardown_all_failure_does_not_block_lsp_shutdown(
         # leaving run_test tears the app down: the guarded extension
         # teardown must still have reached the LSP shutdown step
         assert shutdowns == [True]
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------------- :set filetype rebind
+
+
+def test_set_filetype_rebinds_lsp_document(tmp_path: Path) -> None:
+    """:set filetype must close on the old server AND open on the new one.
+
+    The re-open was previously lost: the synchronous refresh reached
+    ``doc_shown_later()`` while the close worker had not yet popped the
+    document's didOpen state, so the document stayed detached from LSP
+    until an unrelated refresh or a tab switch (manual section 16.2).
+    """
+
+    async def scenario() -> None:
+        from yate.editor_lsp import protocol
+        from yate.editor_lsp.client import ServerConfig
+
+        py = tmp_path / "m.py"
+        py.write_text("ba\n", encoding="utf-8")
+        app = YateApp(target=py)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            created = _install_fake_server(app)
+            # both spellings: resolve_filetype may keep "js" or map it to
+            # a registered language key; either way the config must match
+            app.editor.lsp.register_server(ServerConfig(
+                name="fakejs", command="fake", filetypes=["js", "javascript"],
+            ))
+            app.editor.refresh_ui()
+            await wait_until(pilot, lambda: bool(created and created[0].opened))
+            assert app.editor.lsp.is_open(app.editor.session.doc)
+
+            # switching the filetype rebinds the document: didClose on the
+            # python server, then a fresh didOpen on the fakejs server
+            app.editor.set_filetype("js")
+            await wait_until(pilot, lambda: len(created) == 2)
+            assert created[0].closed, "old server must receive didClose"
+            assert created[1].opened, "new server must receive didOpen"
+            uri = protocol.path_to_uri(py.resolve())
+            assert app.editor.lsp._open[uri].config_name == "fakejs"
 
     asyncio.run(scenario())
