@@ -234,3 +234,65 @@ A-1~A-3 三条守卫缺口，行宽不在其列，因为 §1.1 已有 `.editorco
 **回滚**：`git revert <commit>`（m-3 部分纯格式，回滚零风险）；
 m-4 的 `git mv` 回滚同样是 `git revert`，git 会还原文件名与索引条目，
 但**已改的引用点会随之回退**（同一 commit 内），无需额外动作。
+
+---
+
+## 八、执行记录（2026-10-18，plan-executor 实跑）
+
+### 8.1 改动清单
+
+| 项 | 位置 | 原内容 | 新内容 |
+|---|---|---|---|
+| m-3a | `tools/smoke_test/scenarios/files.py:12` | `from tools.smoke_test.scenarios._base import message_text, run_command, type_path, type_text, wait_until`（实测 104 字符） | 括号折行 7 行（含尾逗号），导入名 5 个不变 |
+| m-3b | `tools/smoke_test/scenarios/workspace_nav.py:30` | 同形态（实测 106 字符） | 括号折行 7 行（含尾逗号），导入名 5 个不变 |
+| m-3c | `tests/test_app_find.py:1` | 单行模块 docstring（实测 112 字符） | §2.2 多行形态：摘要 + 空行 + `Run via pilot, no real terminal.` |
+| m-4 | `ext-api-parity-plans/plan_a.md`…`plan_d.md` | 下划线分词 | `ext-api-parity-plan-a.md`…`ext-api-parity-plan-d.md`（`git mv`，历史经 `git log --follow` 验证保留；`overview.md` 按 §一 不改名） |
+| m-4 连带 | 本目录 `overview.md:87,106,114,136` | 4 处旧文件名 | 仅替换文件名，所在行其余文字不动（§三 处置规则） |
+
+### 8.2 验收命令实测（仓库根，`.venv\Scripts\python.exe`）
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| `python -m pytest tests/test_smoke_tool.py -q` | 15 passed（与改造前基线同） | 0 |
+| `python -m pytest tests/test_app_find.py -q` | 45 passed（与改造前基线 45 同，用例数未增删） | 0 |
+| `python -m pytest tests/ -q` | 全绿，收集 2501 项 | 0 |
+| `python -m pyright tools/smoke_test/ tests/test_app_find.py` | `0 errors, 0 warnings, 0 informations` | 0 |
+| §五 m-3 行宽探针（`yate`+`tools`+`tests`） | `[]` | 0 |
+| §六 命名合规探针（`.trae/documents/**.md` 含 `_`） | `[]` | 0 |
+| §五 m-4 断链探针 | 13 处命中，**全部在本文件自身**（见 8.3） | 0 |
+
+> `pyproject.toml:122` 的 `addopts = "-q"` 与命令行 `-q` 叠加为 `-qq`，故输出无
+> `N passed` 汇总行；用例数以 `--collect-only` 汇总（2501）为准。
+
+### 8.3 与计划的偏差（实测依据）
+
+1. **§五 m-4 断链探针无法输出 `[]`**：命中行**全部位于本计划文档自身**——
+   `:26-29`（独占清单的改名前源名）、`:128-131`（改前→改后映射表）、`:140`/`:206`
+   （验收命令本体内含检索字面量 `ext-api-parity-plans/plan_`）、`:148`（处置规则说明），
+   以及本执行记录自身新增的 2 行（`:249`、`:271`，如实登记改名前名）。
+   改写前四类会同时破坏「改前」记录与验收命令本身，故按「计划文档是唯一规范来源、
+   不得原地篡改」保留原样。**计划文档之外**的旧名引用已全部处置完毕（判定口径：
+   探针输出中不含 `repo-audit-r2-code-style-plan-b.md` 即视为归零）。
+2. **m-4 的 `git mv` 与 m-3 的落盘由主代理在 wave-1 期间提交**（提交
+   `1365845` 含 4 个改名 + plan_a 的 3 个文件；`3e3b284` 含 m-3 三处改造 +
+   `ext-api-parity-plan-d.md` 的解释器路径脱敏）。本执行者按任务书未做任何提交。
+3. **`.trae/reviews/2026-10-16-full-repo-audit.md:139-140`（F-12）未改**：该处把旧名
+   作为「下划线分词」这一**发现的证据**引用，且 `doc-conventions.md` §2.1 规定评审记录
+   是只读事实文档；改动会使历史记录自相矛盾。留待主代理裁决。
+4. `tests/test_lua_defs.py:1`、`tests/test_lua_extensions.py:594` 的 `(plan_b, ext-api-parity)`
+   是**波次标签**而非文件名引用，且两文件不在本计划独占清单内，未改。
+5. **工作区并发**：本执行期间同一 worktree 内出现了其它成员的未提交改动
+   （`tests/test_architecture.py`、`tests/test_lsp.py`、`tests/test_fonts.py`、
+   `tests/test_user_setup.py`、`yate/editor_view/manual.py`、`yate/editor_lsp/manager.py`、
+   `yate/services/fonts.py`、`yate/services/user_setup.py`、`pyproject.toml`、
+   `.github/workflows/test.yml`、`.trae/rules/architecture-boundaries.md`、
+   本目录 `overview.md` / `plan-d` / `plan-e`）。上表的全量 pytest 实测在这些改动
+   存在的同一工作区取得退出码 0；本执行者未复跑（超出本子计划验证范围，
+   全量门禁由主代理收尾统一执行）。
+6. **§五 m-3b 引用的回归锚用例名不存在**：实测 `tests/test_smoke_tool.py` 的 15 个用例为
+   `test_select_scenarios_*`（5）、`test_extract_svg_rows_*`（4）、
+   `test_reporter_*`（4）、`test_run_scenarios_timeout_*`、`test_summary_counts_*`，
+   **无** `test_smoke_scenarios_import_and_register`（该文件不覆盖模块导入面）。
+   按 §五 的 arrange/act/assert 意图改用一次性探针实测（未新增测试文件）：
+   两个模块的 5 个导入名全部绑定为 `True`，`SCENARIOS` 分别为 17 / 3 项且元素全为
+   `Scenario` 实例，退出码 0。

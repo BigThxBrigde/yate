@@ -84,7 +84,7 @@ flowchart TD
   `tests/test_lua_extensions.py`
 - `plan_b`：`tools/smoke_test/scenarios/files.py`、
   `tools/smoke_test/scenarios/workspace_nav.py`、`tests/test_app_find.py`、
-  `.trae/documents/ext-api-parity-plans/plan_a.md`…`plan_d.md`（改名）
+  `.trae/documents/ext-api-parity-plans/ext-api-parity-plan-a.md`…`ext-api-parity-plan-d.md`（改名）
 
 wave-2 的 `plan_c` 与 `plan_d` 独占文件无交集（见各子计划「独占文件清单」节）。
 
@@ -103,7 +103,7 @@ wave-2 的 `plan_c` 与 `plan_d` 独占文件无交集（见各子计划「独�
 | 1 | 功能正确性 | `editor_term/emulator.py:586-682`（erase/scroll/insert-delete 全钳制核对）、`editor_core/buffer.py:196-260`（undo 栈/越界钳制/MAX_UNDO_STEPS）、`editor_core/search.py:42-102`、`project_search.py:44-130`、`editor_lsp/manager.py:355-411`（定时器 pop + bg task 追踪 + shutdown 清理）、`editor_view/find_replace.py:342-402`、`diffview.py:157-181`、`manual.py:333-362` | **1 项 MAJOR 新发现**：3 处 `call_later` 防抖**缺卸载清理**（`plan_c`）。其余零发现：count/越界/空输入均有钳制；LSP `shutdown_all` 已 cancel 全部 `_change_timers`（`manager.py:621-623`） |
 | 2 | 安全性 | `services/yxp.py:1-120`（`_DRIVE_RE`/zip-slip/摘要双校验）、`editor_view/theme_files.py:52-102`（exec 边界 + `_loaded_theme_files` 去重）、`extensions/loader.py:34-235`（A13 rollback scope + shadow 报告 + trust 门控 `loader.py:287-293`）、`services/extensions/lua/runtime.py:39-97`（chunkname 常量，无用户插值）、`services/shell.py:41-80`（shell=True 但 cwd 不入命令串）、`cli.py:375-400`（rc 执行路径） | **零新增缺陷**。7 项按「输入源→传播→汇点」逐一确认为**已知取舍或已缓解**：项目 rc 无条件 exec（仓库拥有者裁决，§二 非目标）；rc 声明扩展路径无条件加载（`loader.py:282-286` 注释明写 deliberate user action）；lua runtime 未收口 lupa 沙箱（既有 MINOR 观察项，本轮复核无变化） |
 | 3 | 性能 | `editor_core/search.py:50-64`（每键全 buffer `finditer`）、`project_search.py:88-130`（`max_file_bytes=2MB` / `max_matches=2000` 封顶 + `progress` 回调）、`workspace.py:112-181`（`_dir_ignore_cache` mtime 键 + 上限清空）、`editor_term/emulator.py:630-682`（逐行平移）、`editor_core/buffer.py:234-240`（undo 上限 1000） | **零新增**。P-1~P-5 既有 MINOR 全部仍在位且**已有封顶/缓存**，无 profiler 实测不做优化（`python-coding-style.md` §6.3 第 1 条）。新增可核对点：`project_search.py:121` 的 `max_matches - total` 在 `total` 触顶后可能为负 —— 但 `:128` 的 `if total >= max_matches: break` 已先行跳出，**实测不可达**，记为「已核对无问题」 |
-| 4 | 可维护性 | `services/events.py:120-152`（`unsubscribe` 无去重，VS Code disposables 语义，docstring 明写）、`theme.py:128-158`（subscribe 去重 + 幂等退订）、`editor_core/search.py:42-48`（`_compile` 纯委托 `project_search.compile_query`，单一语义源） | **零新增结构性重复**。`plan_b` 处理 3 处行宽 + 1 处命名纪律残留（`ext-api-parity-plans/plan_a.md` 等 4 个下划线文件名，doc-conventions §一 硬性要求） |
+| 4 | 可维护性 | `services/events.py:120-152`（`unsubscribe` 无去重，VS Code disposables 语义，docstring 明写）、`theme.py:128-158`（subscribe 去重 + 幂等退订）、`editor_core/search.py:42-48`（`_compile` 纯委托 `project_search.compile_query`，单一语义源） | **零新增结构性重复**。`plan_b` 处理 3 处行宽 + 1 处命名纪律残留（`ext-api-parity-plans/ext-api-parity-plan-a.md` 等 4 个下划线文件名，doc-conventions §一 硬性要求） |
 | 5 | 健壮性 | 全仓 `except` handler AST 扫描（裸 `except` **0**）、44 处 `body=[Pass]` 静默块逐处读源、`editor_view/manual.py:175-230`（`MarkdownDocScreen`）、`diffview.py:157`、`find_replace.py:210` | **2 项 MAJOR 新发现**：(a) `MarkdownDocScreen` **无 `on_unmount`**，其 `_search_timer`（`manual.py:219`）在屏幕 dismiss 后仍会触发（`plan_c`）；(b) 既有 F-7 的 4 处静默吞异常**仍未修**（`manager.py:367`、`manager.py:446`、`user_setup.py:279`、`fonts.py:226`）—— 属**既有问题的残留**，本轮收口（`plan_c`） |
 | 6 | 可扩展性 | `architecture-boundaries.md` §三.8 接入清单 6 步逐项核对（`editor.py` 类属性声明 / `_build_*` 工厂构造 / 组装注释 / `UI_FROZEN_FILES` 登记）、`services/extensions/__init__.py` 门面 14 名、`flows/__init__.py` 回调别名表 | **零发现**。实测 `flows/` **零** `yate.editor`/`yate.app`/`yate.actions`/`yate.commands` 导入（探针 p4），接入清单成立 |
 | 7 | 项目结构合理性 | `yate/` 140 模块目录树、`tools/` 8 子包、`tests/` 平铺、`pack/` vs `tools/pack/` 同名 | **零新增**。S-3（`editor_view` 平铺）/S-5（`pack` 同名）为既有「另案立项」，本轮不重开（§一 非目标） |
@@ -111,7 +111,7 @@ wave-2 的 `plan_c` 与 `plan_d` 独占文件无交集（见各子计划「独�
 | 9 | 架构边界 R1–R14 | 实测向上连线（探针 p4）、`_LAYER_RANKS` / `UPWARD_EDGES_FROZEN` / `UI_FREE_PACKAGES` / `UI_FREE_FILES` / `UI_FROZEN_FILES` / `EXTENSION_SUBMODULE_FROZEN` 六张表全量比对、R1–R14 逐条 grep | **零违规**，但发现 **3 处守卫缺口**（`plan_d`）：见 §六 A-1~A-3 |
 | 10 | 门禁规则 | `.github/workflows/test.yml` 全 125 行、`pyproject.toml:120-159`、`tests/test_architecture.py` 32 用例清单 | **1 项 MAJOR 新发现**：覆盖率门禁 `--cov-fail-under=75` **只存在于 CI 命令行**，本地 `pytest tests/ -q` **完全不触发覆盖率**（`pyproject.toml:127-132` 注释明写这是刻意设计）；`--cov-fail-under` 缺席时无任何本地兜底（`plan_e`）。冒烟 `tools.smoke_test` **不在 CI 任何 job 内**（`plan_e`） |
 | 11 | 代码与文档规范 | `from __future__` 全覆盖（**0 缺失**）、行宽 >100 扫描、`# type/pyright: ignore` 20 处逐处读理由注记、裸 `except`/`import *`/`== None`/可变默认参数扫描、中文注释扫描（misc-rules §四） | **3 项新发现**：`tools/probes/win32im_probe.py:7` **本机真实路径**（doc-conventions §五 明文禁止，`plan_a`）；`tests/test_cells.py:68` + `tests/test_lua_extensions.py:470` **注释含非 ASCII 全角字符**（misc-rules §四，`plan_a`）；4 处行宽 >100（`plan_b`）。`editor_syntax/engine.py:83` 等 20 处类型忽略**理由注记全部完备**（逐处核对），核对通过 |
-| 12 | 其它规则纪律 | `git log` 最近 40 条全 conventional 英文、`.trae/agents` 与 `.trae/skills` 唯一来源、相对导入扫描（**0**）、PEP 695 `type` 语句守卫、无 `*Feature/*Host/*Ops/*Delegate/*Controller` | **1 项残留**：`.trae/documents/ext-api-parity-plans/plan_a.md`…`plan_d.md` 四个下划线分词文件名违反 doc-conventions §一（「不得新增下划线风格」；存量随下次修改迁移，`plan_b`）。2026-10-16 审计 F-11（`readonly-feature` 文件名）复核仍在位，登记不修（存量证据附件，同 F-10 口径） |
+| 12 | 其它规则纪律 | `git log` 最近 40 条全 conventional 英文、`.trae/agents` 与 `.trae/skills` 唯一来源、相对导入扫描（**0**）、PEP 695 `type` 语句守卫、无 `*Feature/*Host/*Ops/*Delegate/*Controller` | **1 项残留**：`.trae/documents/ext-api-parity-plans/ext-api-parity-plan-a.md`…`ext-api-parity-plan-d.md` 四个下划线分词文件名违反 doc-conventions §一（「不得新增下划线风格」；存量随下次修改迁移，`plan_b`）。2026-10-16 审计 F-11（`readonly-feature` 文件名）复核仍在位，登记不修（存量证据附件，同 F-10 口径） |
 
 ---
 
@@ -133,7 +133,7 @@ wave-2 的 `plan_c` 与 `plan_d` 独占文件无交集（见各子计划「独�
 | m-1 | 探针脚本含**本机真实路径** `d:\Programming\yate\.venv\...` | `tools/probes/win32im_probe.py:7` | **全新**（doc-conventions §五） |
 | m-2 | 注释含非 ASCII 全角字符（misc-rules §四 要求注释全英文） | `tests/test_cells.py:68`（含全角括号 `（）`）、`tests/test_lua_extensions.py:470`（含全角 `§` 的 `§三.5` 引用残留在 ASCII 形态 `??.5`） | **全新** |
 | m-3 | 4 处行宽 >100 字符 | `tools/smoke_test/scenarios/files.py:12`(104)、`workspace_nav.py:30`(106)、`tests/test_app_find.py:1`(112)、`tools/probes/win32im_probe.py:7`(107) | **全新**（`python-coding-style.md` §1.1 行宽 100） |
-| m-4 | `.trae/documents/ext-api-parity-plans/` 4 个下划线分词子计划文件名 | `plan_a.md`…`plan_d.md` | **既有残留**（F-12） |
+| m-4 | `.trae/documents/ext-api-parity-plans/` 4 个下划线分词子计划文件名 | `ext-api-parity-plan-a.md`…`ext-api-parity-plan-d.md` | **既有残留**（F-12） |
 
 ### 架构守卫缺口（MAJOR，归 `plan_d`）
 

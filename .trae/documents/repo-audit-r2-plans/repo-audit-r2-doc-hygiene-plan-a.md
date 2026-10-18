@@ -187,3 +187,72 @@ Run inside the terminal under test:
 
 **回滚**：`git revert <commit>`。本子计划无运行时行为改动，回滚后全部门禁维持原状
 （除 `plan_d` 的新守卫会重新捕获这三处 —— 这是期望行为，不是回滚失败）。
+
+---
+
+## 八、执行记录（plan-executor，2026-10-18）
+
+工作区 `../yate-repo-audit-r2`，分支 `ref/repo-audit-r2`。改动已由主代理并入提交
+`1365845`（`fix(docs): scrub machine-local paths and non-ASCII comments`）。
+
+### 8.1 实际改动（3 个独占文件，均为注释/docstring 层，零运行时行为变更）
+
+| 位置 | 原内容 | 新内容 |
+|---|---|---|
+| `tools/probes/win32im_probe.py:7` | `    d:\\Programming\\yate\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py`（107 字符） | `    .venv\\Scripts\\python.exe tools\\probes\\win32im_probe.py`（62 字符） |
+| `tests/test_cells.py:68` | `# cells: a=0, b=1, 中=2..3, c=4 -- display column 4 is 'c' at char 3` | `# cells: a=0, b=1, wide cjk=2..3, c=4 -- display column 4 is 'c' at char 3` |
+| `tests/test_lua_extensions.py:470` | `# Services packages must not re-export (architecture §三.5): the` | `# Services packages must not re-export (architecture rule section 3.5): the` |
+
+`win32im_probe.py` docstring 第 1–6、8–14 行未动；`test_cells.py:69` 的
+`assert cell_to_char("ab中cd", 4) == 3` 与 `test_lua_extensions.py:471-479` 未动。
+
+### 8.2 新增用例（2 个，均在独占文件内，未新建文件）
+
+- `tests/test_cells.py::test_cell_to_char_maps_back_from_wide_glyph_column`
+  —— `cell_to_char("ab中cd", 4) == 3`；
+- `tests/test_lua_extensions.py::test_services_package_root_does_not_reexport_submodule_symbols`
+  —— 对 `yate.services` 与 `yate.services.extensions` 两个包根逐个
+  `hasattr(..., sym) is False`（4 个 lua 符号）。
+
+### 8.3 验收命令实测（解释器 `.venv\Scripts\python.exe`，仓库根）
+
+| 命令 | 结果 | 退出码 |
+|---|---|---|
+| `pytest tests/test_cells.py tests/test_lua_extensions.py -q` | 48 passed | 0 |
+| `pytest tests/ -q` | 2487 passed, 9 skipped in 409.11s | 0 |
+| `pyright tests/test_cells.py tests/test_lua_extensions.py` | 0 errors, 0 warnings, 0 informations | 0 |
+| `pyright yate/ tests/ tools/`（门禁基线复核） | 0 errors, 0 warnings, 0 informations | 0 |
+| 非 ASCII 中文注释扫描 | `[]` | 0 |
+| `tools/` 绝对路径扫描 | 7 处命中，**全部为 URL scheme 误报**（见 8.4） | 0 |
+
+### 8.4 与本文档的偏差（均有实测依据）
+
+1. **§三 m-2a 的「现状（实测原文）」与真实代码不符**：真实非 ASCII 字符是
+   `U+4E2D`（`中`，CJK 表意文字），**不是**文档所写的 `U+FF08`/`U+FF09`（`（`）；
+   `test_cells.py:69` 的数据串真实为 `"ab中cd"`。故未采用文档给出的
+   `full-width paren=2..3`（照抄会把注释改成**事实错误**），改用与本文件既有术语
+   一致的 `wide cjk=2..3`（对齐 `test_cell_width_wide_cjk_is_two`、
+   `test_expand_char_doubles_wide_glyph_into_two_cells`）。
+2. **§三 m-2b 的「现状（实测原文）」与真实代码不符**：真实内容是完整可还原的
+   `§三.5`（码位 `0xA7` + `0x4E09`），**不是**文档所称的替换字符 `??.5`
+   「信息损坏」。改法本身不受影响，按文档执行。
+3. **m-1 目标文本的转义写法调整**：该 docstring 非 raw（`"""` 无 `r` 前缀）。
+   实测（Python 3.13.2，`py_compile` + `-W error::SyntaxWarning`）文档给出的
+   单反斜杠写法触发 `SyntaxError: invalid escape sequence '\S'`；故源码写
+   `\\`，渲染结果与文档意图完全一致（同文件第 13 行 `\\x05` 已是该风格）。
+4. **§五 用例 1 的「反向路径」锚点不存在**：文档称既有第 71 行用例名为
+   `test_cell_to_char_past_line_end_maps_to_length`；实际该断言位于既有函数
+   `test_cell_to_char_maps_back_from_cell_column` 内，仓内无此前缀名用例。
+   按「保留不动」处理：该函数未改名、未拆行。
+5. **§五 用例 2 的反向路径锚点不存在**：全仓 grep 无
+   `test_extension_facade_still_reexports_frozen_names`；另门面
+   `yate/services/extensions/__init__.py` 的 `__all__` 实测为 **13** 个名字
+   （文档写 14）。该锚点不在本子计划独占清单内，未创建，留给主代理裁决。
+6. **§六「绝对路径归零」判据不可达**：其正则 `[A-Za-z]:[\\/]{1,2}` 会命中
+   `https://` / `ssh://` / SVG 命名空间的 `http://`。实测 7 处命中全部落在
+   `tools/changelog/gitee.py:21,52,100,105`、`tools/pack/rosters.py:94`、
+   `tools/pack/wiki.py:78,400`，均为 URL scheme；而 `doc-conventions.md` §五
+   明文「外部 URL 不受本节约束」。实质目标（`tools/` 内无本机真实路径）**已达成**
+   —— `win32im_probe.py` 已从命中列表消失。若要该命令输出 `[]`，需修正正则
+   （排除 scheme），属清单外改动，未擅自执行。
+

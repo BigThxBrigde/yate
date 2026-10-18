@@ -284,3 +284,126 @@ find-replace / screensaver / terminal 等）。它**不在** `pytest` 的 `testp
 - **注意**：若只回滚 `pyproject.toml` 而留 `test.yml` 的改动（去掉了命令行 `--cov-fail-under`），
   覆盖率门禁会**完全消失** —— 这是最危险的中间态。因此 §三 的 (a) 与 `test.yml:82`
   的改动**必须同一 commit**，`tests/test_gate_config.py` 的用例 1 是它的保险丝。
+
+---
+
+## 九、执行记录（plan-executor 实测，2026-10-18）
+
+工作区：worktree `ref/repo-audit-r2`；解释器 `.venv/Scripts/python.exe`
+（实测 Python 3.13.2 / textual 8.2.8 / rich 15.0.0 / platform Windows）。
+
+### 9.1 Phase 1 实测：冒烟在本平台可跑（退出码 0）
+
+命令（§六「冒烟本地可跑」）：
+
+```text
+.venv\Scripts\python.exe -m tools.smoke_test run --json probe.json --report probe.txt
+```
+
+实测结果（Windows 本机）：`112/112 scenarios passed`、`1354/1354 checks (100%)`、
+`105.33s total`、**退出码 0**。
+
+### 9.2 Phase 1 决策：smoke job 接**双平台矩阵**（含 Windows 腿）
+
+依据（实测，非推断）：
+
+1. **`run` 子命令完全不读基线**：`tools/smoke_test/cli.py:336-341` 的 `run` 只调
+   `cmd_run`，全文（`:172-212`）无任何 `baselines.load_baseline` / `default_baseline_dir`
+   调用（仅 `:108-109` 的 `baselines.jsonable` 用于 `--json` 报告的取值清洗）；
+   只有 `compare`（`:257-322`）与 `snapshot`（`:215-254`）才碰基线。因此
+   §三「待核对事实 2」担心的「基线平台漂移」**对本 job 不成立** —— 计划担心的失效面
+   在 `run` 路径上不存在。
+2. **基线目录真实路径是 `tools/smoke_test/smoke_baselines/`**（不是 §三 写的
+   `tools/smoke_test/baselines/`），实测 81 个 per-scenario JSON；基线契约只含
+   checks（`tools/smoke_test/baselines.py:1-8` 说明「无绝对路径、无耗时」），
+   仅 `compare` 消费。
+3. **Windows 腿本机实测全绿**（9.1），故按 §四 的判据「基线与平台无关则上 matrix
+   （覆盖面更大）」选择双腿矩阵，**不**收敛为 Linux 单腿。
+
+### 9.3 与计划正文的偏差（实测依据）
+
+| 偏差 | 计划原文 | 实测 | 处置 |
+|---|---|---|---|
+| 基线目录名 | §三 待核对事实 2 写 `tools/smoke_test/baselines/` | 实为 `tools/smoke_test/smoke_baselines/`（81 个 JSON） | 文档勘误，不影响 yml（`run` 不用基线） |
+| 场景规模 | §五 用例 2 断言「场景模块数 ≥ 21」，依据写「findstr 实测 21 个模块」 | `scenarios/*.py` 共 21 个文件 = 19 个场景模块 + `__init__.py` + `_base.py`；运行期场景数 **112** | 下界按实测改为「场景模块（排除 `_base.py` / `__init__.py`）≥ 19」，并在用例注释里写明实测基数 |
+| `--report` 产物后缀 | §三 yml 写 `--report smoke-report.txt` | `cli.py:68-69` + `cli.py:83-92`：`--report PATH` 导出的是**独立 HTML 报告**；实测 `probe.txt` 首行 `<!DOCTYPE html>` | yml **按计划原文保留** `smoke-report.txt`（不擅自改设计），上报主代理裁决是否改名为 `.html` |
+
+### 9.4 已落地的改动（文件:行号）
+
+| 文件 | 位置 | 改动 |
+|---|---|---|
+| `pyproject.toml` | `:127-132` → 新 6 行 | `[tool.pytest.ini_options]` 注释段按 §三(b) 替换：口径改为「阈值在 `[tool.coverage.report] fail_under`」，并给出 `--cov-fail-under=0` 部分运行逃生口 |
+| `pyproject.toml` | `:150-159` → 新 8 行 | §三(a)：新增 `fail_under = 75` + 英文注释；原「阈值刻意放在 CI 命令行」注释段（与新口径矛盾）删除，保留 2026-09-23 的历史实测段 |
+| `.github/workflows/test.yml` | `:9` | 头部「Reproduce locally」行的 `--cov-fail-under=75` 删除（用例 2 断言全文件不出现该串） |
+| `.github/workflows/test.yml` | `:75-84` | pytest 步骤注释改为「阈值不在命令行，单点源在 pyproject」，`run:` 去掉 `--cov-fail-under=75` |
+| `.github/workflows/test.yml` | `:86-135` | 新增 `smoke` job（§三 M-4 原文，双平台矩阵），置于 `test` 与 `lint` job 之间 |
+| `tests/test_gate_config.py` | 新建 | §五 的 5 个用例 |
+
+### 9.5 已完成的验收命令（实测退出码）
+
+| 命令 | 退出码 | 结果 |
+|---|---|---|
+| `pytest tests/test_gate_config.py -q` | 0 | 5 passed（首轮 pyright 报 1 处 `reportUnnecessaryCast`，已修后复跑 0/0/0） |
+| `pyright tests/test_gate_config.py` | 1 → 0 | 修前 `1 error`（`:55` 多余 cast），修后 `0 errors, 0 warnings, 0 informations` |
+| `python -m tools.smoke_test --help` | 0 | 子命令 `{run,snapshot,compare}` |
+| `python -m tools.smoke_test run --help` | 0 | 逐字含 `--json PATH` / `--report PATH`；**无** `--report-format` / `--out` |
+| `python -c "... 'smoke:' in test.yml ..."` | 0 | 输出 `present` |
+
+> 退出码采集口径：cmd 的 `%ERRORLEVEL%` 会在整行解析时提前展开（早期几次记录不可信），
+> 改用 `cmd /v:on /c "... & echo !ERRORLEVEL!"` 或直接取工具返回的 `exitCode`。
+> 9.1 的冒烟退出码 0 由 harness 自报摘要行 `exit 0` 佐证，尚需用可靠口径复跑一次（见 9.6）。
+
+### 9.6 Phase 1 覆盖率基线（改动前，阈值仍成立）
+
+命令（主代理指定的前置核对口径）：
+
+```text
+.venv\Scripts\python.exe -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
+```
+
+实测：`2500 passed, 9 skipped in 604.64s`、
+`Required test coverage of 75% reached. Total coverage: 91.99%`、
+`TOTAL 15387 995 4940 465 92%`、**退出码 0**。
+→ 阈值 75 在本轮其它波次新增代码后**仍然成立**，余量约 17 个百分点；
+**不下调阈值**。
+
+### 9.7 部分运行逃生口的两条实证（子计划 §六 第 3、4 行）
+
+| 命令 | 退出码 | 关键输出 |
+|---|---|---|
+| `pytest tests/test_config.py --cov=yate --cov-fail-under=0 -q` | 0 | `TOTAL ... 24%`（逃生口生效，部分运行不被阈值误杀） |
+| `pytest tests/test_config.py --cov=yate -q` | **1** | `ERROR: Coverage failure: total of 24 is less than fail-under=75` / `FAIL Required test coverage of 75.0% not reached. Total coverage: 24.38%` |
+
+→ 第二条是「`[tool.coverage.report] fail_under` 真实生效、不是空配置」的**实证反证**：
+去掉 CI 命令行的 `--cov-fail-under` 之后门禁并未消失。
+
+### 9.8 冒烟复跑（可靠退出码口径）
+
+命令：`.venv\Scripts\python.exe -m tools.smoke_test run --json probe.json --report probe.txt --quiet`
+（与 yml 同一命令，仅加 `--quiet` 压缩日志；yml 不带该参数）
+实测：harness 摘要 `exit 0`、**进程退出码 0**。
+
+### 9.9 改动后全量门禁（§六 第 2 行「新门槛本地可复现」）
+
+命令（**不带** `--cov-fail-under`，阈值只来自 `[tool.coverage.report]`）：
+
+```text
+.venv\Scripts\python.exe -m pytest tests --cov=yate --cov-branch --cov-report=term-missing
+```
+
+实测：`2505 passed, 9 skipped in 546.40s`、
+`Required test coverage of 75.0% reached. Total coverage: 91.98%`、
+`TOTAL 15387 996 4940 466 92%`、**退出码 0**。
+用例数由 2500 增至 2505（= 新增的 5 个门禁配置用例）。
+
+> 该命令的测试选择与 §六 第 7 行 `pytest tests/ -q` 完全相同（`testpaths = ["tests"]`），
+> 且全部通过、退出码 0，故以此一次运行同时作为「全仓零回归」的证据，不重复再跑一遍
+> 无仪表化的全量（结论等价，省一次全量门禁时长）。
+
+### 9.10 收尾状态
+
+- 一次性探针产物 `probe.json` / `probe.txt` 已删除；中途因工具超时残留在
+  `.trae/probe_e_cov.txt` 的临时输出也已删除。
+- 工作区改动仅落在独占清单内：`pyproject.toml`、`.github/workflows/test.yml`、
+  `tests/test_gate_config.py`（新建）+ 本文档执行记录。
+- 未执行 `git add` / `commit` / `push`。
