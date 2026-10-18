@@ -255,9 +255,18 @@ class YateApp(App[None]):
         and immediately pop in a one-second loop, and a manually started
         screensaver would never survive continued idle.  (The registered
         ``toggle_screensaver`` re-checks the screen type too, which keeps
-        the palette / extension paths safe the same way.)
+        the palette / extension paths safe the same way.)  An empty screen
+        stack (teardown race: the one-second poll timer can fire after the
+        last screen is popped) is skipped silently too -- under coverage
+        instrumentation 3/3 full pytest runs hit ``ScreenStackError: No
+        screens on stack`` here (failures only in pilot cases of untouched
+        files).
         """
         if self._idle is None or self.config.screen_saver.interval <= 0:
+            return
+        if not self.screen_stack:
+            # Teardown race: the one-second poll timer can fire after the
+            # last screen has been popped; there is nothing to inspect then.
             return
         if isinstance(self.screen, ScreensaverScreen):
             return
