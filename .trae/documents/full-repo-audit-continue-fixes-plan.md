@@ -65,9 +65,9 @@ python-coding-style §4.5 第 3 条），并复测四道门禁，使续作轮门
 
 | 步骤 | 提交 | 内容 |
 |---|---|---|
-| Step 1 | （待执行后回填） | `fix(robustness): log swallowed notification/cleanup exceptions (F-7)` —— 3 文件 |
-| Step 2 | （待执行后回填） | `docs(reviews): add 2026-10-18 continuation audit record` |
-| Step 3 | （待执行后回填） | `docs(plan): add full-repo-audit continue fixes plan` |
+| Step 1 | `ffc15cf` | `fix(robustness): log swallowed notification/cleanup exceptions (F-7)` —— 3 文件 |
+| Step 2 | `42524b8` | `docs(reviews): add 2026-10-18 continuation audit record` |
+| Step 3 | `9e2b324` | `docs(plan): add full-repo-audit continue fixes plan` |
 
 ## 六、偏离记录
 
