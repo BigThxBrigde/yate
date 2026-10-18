@@ -1,7 +1,7 @@
 /* FindReplaceScreen stylesheet (class-scoped DEFAULT_CSS) --
    loaded by editor_view/find_replace.py via yate.paths.load_tcss.
    All ids are screen-local (never referenced by the shell app.tcss, R9).
-   The framed-dialog look (tall $primary border on $surface) matches the
+   The framed-dialog look (tall $foreground 15% border on $surface) matches the
    palette / manual / overlay screens; the input row keeps the explorer's
    faint-separator color so both surfaces read as the same product. */
 FindReplaceScreen {
@@ -13,7 +13,7 @@ FindReplaceScreen #find-replace {
     height: auto;
     max-height: 90%;
     margin-top: 2;
-    border: tall $primary;
+    border: tall $foreground 15%;
     background: $surface;
     padding: 1 1;
 }
