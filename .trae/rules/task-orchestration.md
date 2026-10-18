@@ -45,20 +45,48 @@ scene: task_orchestration
 唯一执行路径，其它规则的流程要求（如方案先行、子代理并行）并入本闭环的对应环节
 （【方案】/【执行】）执行，不各自独立成流程。
 
+### 1.3 子代理模型选择（按主代理来源）
+
+> **适用范围**：本节规则依据**主 agent 或 chat 的来源**决定子代理的模型分配；
+> 不再按本地时段调度。模型选择由任务编排总入口统一管辖，是 spawn 子代理前的
+> 强制判定项；其它文件（含 `subagent-workflow.md`）不再重复定义，以本节为唯一规范来源。
+
+1. **若主 agent 或 chat 来自 CodeBuddy 插件**（spawn 时按下表指定模型）：
+
+   | 子代理 | 模型 |
+   |---|---|
+   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-executor` | GLM-5.3-Flash |
+   | `code-review-expert` | Hy4 preview |
+
+2. **若主代理来自 Trae IDE**（spawn 时按下表指定模型）：
+
+   | 子代理 | 模型 |
+   |---|---|
+   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-executor` | MiMo-V2.6-Flash |
+   | `code-review-expert` | Qwen3.7-Plus |
+
+3. **判定时点**：以**当前会话的主代理来源**为准；整批任务按同一来源的模型下发，中途不切换。
+4. 本节未列出的子代理类型不受模型调度约束。
+
 ## 二、闭环流程（逐步登记，文档是唯一事实来源）
 
-1. 【领会】分析任务；**新任务**先建独立 worktree 与分支
-   （`git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`）；
-   **worktree 不与主仓共享虚拟环境**——新建 worktree 后必须在其目录内重建沙箱，
-   否则后续 pyright / pytest / 冒烟全部指向主仓 `.venv`，污染主环境：
-   ```powershell
-   python -m venv .venv
-   .venv\Scripts\python.exe -m pip install -e ".[dev]"
-   ```
-   安装完成须在 worktree 内自证沙箱生效
-   （`.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` 应指向该 worktree 路径）；
-   **续作任务**先 `git worktree list` 复用现有 worktree（含其已有 `.venv`，不得重复新建）。
-2. 【方案】按 [plan-architect-designer](../agents/plan-architect-designer.md) 剧本产出方案，落盘
+1. 【领会】只负责动手前的**环境与情报准备**，不做任务分析（任务分析属规划，见步骤 2）：
+   - **新任务**先建独立 worktree 与分支
+     （`git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`）；
+   - **worktree 不与主仓共享虚拟环境**——新建 worktree 后必须在其目录内重建沙箱，
+     否则后续 pyright / pytest / 冒烟全部指向主仓 `.venv`，污染主环境：
+     ```powershell
+     python -m venv .venv
+     .venv\Scripts\python.exe -m pip install -e ".[dev]"
+     ```
+     安装完成须在 worktree 内自证沙箱生效
+     （`.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` 应指向该 worktree 路径）；
+   - **续作任务**先 `git worktree list` 复用现有 worktree（含其已有 `.venv`，不得重复新建）；
+   - **issue 文本读取整理**：读取并梳理任务相关的 issue / 需求文本、约束与既有上下文，
+     作为步骤 2 规划者的输入素材——只整理、不分析，不产出方案。
+2. 【方案】按 [plan-architect-designer](../agents/plan-architect-designer.md) 剧本**先分析任务、再产出方案**（任务分析并入规划角色，承接步骤 1 整理的 issue 素材），落盘
    `.trae/documents/<task>-plan.md`（相对路径；复杂任务拆子计划到
    `.trae/documents/<task>-plans/` 并严格定制执行波次）。**命名规范**：
    主计划 `<task>-plan.md`；子计划 `<task>-<subtask>-plan-<a|b|c...>.md`
