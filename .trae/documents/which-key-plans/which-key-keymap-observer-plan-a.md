@@ -1,6 +1,7 @@
-# which-key 子计划 a：L1 键位数据面（挂起 chord 观测 + 冲突扫描 + toggle 绑定）
+# which-key 子计划 a：L1 键位观测（pending_prefix + RESERVED_KEYS + F9 绑定）
 
-wave-1（与 plan-b 并行）。自包含任务书：输入、独占文件、具体修改、测试、验收、风险。
+wave-1（与 plan-b、plan-c 并行，文件互不重叠）。自包含任务书：输入、独占文件、
+具体修改、测试、验收、风险。
 
 ## 输入（调研事实）
 
@@ -16,6 +17,7 @@ wave-1（与 plan-b 并行）。自包含任务书：输入、独占文件、具
   `\x04` / `\x15` / `\x06` / `\x02`（:598-617）、`\x12`（:588）；数字 `1`-`9`
   恒被 count 吞掉（:484-489），`0` 仅在 count 非空时被吞。`<f1>`-`<f12>`
   经 `_FUNCTION_KEYS` 分支仍走 `lookup`（:218-227），不算被抢占。
+  —— 本常量由 plan-b 的冲突扫描消费（`reserved` 参数），登记在本计划（同文件独占）。
 - [keymaps/vsc.py](../../../yate/keymaps/vsc.py) 绑定表为 `_k` / `_raw` 工厂
   （:21-27），`<f1>`-`<f5>`、`<f8>` 已占用，`<f6>`/`<f7>`/`<f9>`-`<f12>` 空闲。
 - [keymaps/registry.py](../../../yate/keymaps/registry.py) `KeymapSet.active`
@@ -24,17 +26,17 @@ wave-1（与 plan-b 并行）。自包含任务书：输入、独占文件、具
 ## 目标
 
 1. `Keymap` 增加只读观测钩子 `pending_prefix()`，vsc 继承基类恒空串，
-   vim 覆写返回当前挂起 chord 的人读序列 —— which-key 实时更新的数据源。
+   vim 覆写返回当前挂起 chord 的人读序列 —— which-key 实时更新的数据源
+   （wave-2 的 plan-d 流程模块消费）。
 2. vim 模块导出 `RESERVED_KEYS`（绑定表查找前被硬编码消费的 raw 键集合），
-   作为冲突扫描的抢占事实来源。
-3. 新增纯逻辑模块 `yate/keymaps/conflicts.py`：重复绑定、被抢占键两类冲突扫描
-   与报告格式化（L1，零 UI 导入）。
-4. 两种 keymap 各登记 `<f9>` → `toggle_whichkey` 动作名绑定（动作本体在
-   plan-c 注册，L1 只持名字串，无新依赖边）。
+   作为 plan-b 冲突扫描的抢占事实来源。
+3. 两种 keymap 各登记 `<f9>` → `toggle_whichkey` 动作名绑定（动作本体在
+   plan-e 注册，L1 只持名字串，无新依赖边）。
 
 ## 非目标
 
 - 不在 L1 做任何 UI / 回调通知（R4；面板经 L3 轮询读取，见主计划备选 D 否决）。
+- 不做冲突扫描模块 `conflicts.py`（归 plan-b，文件互斥）。
 - 不检测「绑定指向未注册 action」（vim 绑定表大量使用带空格的伪动作名，
   静态判定必然误报，见主计划非目标）。
 
@@ -45,8 +47,6 @@ wave-1（与 plan-b 并行）。自包含任务书：输入、独占文件、具
 | `yate/keymaps/base.py` | 修改 |
 | `yate/keymaps/vim.py` | 修改 |
 | `yate/keymaps/vsc.py` | 修改 |
-| `yate/keymaps/conflicts.py` | 新建 |
-| `tests/test_keymaps_conflicts.py` | 新建 |
 | `tests/test_vim_keymap.py` | 追加 |
 | `tests/test_vsc_keymap.py` | 追加 |
 
@@ -65,7 +65,7 @@ def pending_prefix(self) -> str:
     return ""
 ```
 
-### 2. [vim.py](../../../yate/keymaps/vim.py) — 两处
+### 2. [vim.py](../../../yate/keymaps/vim.py) — 三处
 
 2a. 模块级常量区（`_FUNCTION_KEYS` 定义 :71 附近）导出：
 
@@ -116,55 +116,7 @@ KeyBinding(parse_key("<f9>"), "toggle_whichkey",
 _k("<f9>", "toggle_whichkey", "Toggle the which-key panel", VIEW),
 ```
 
-### 4. [conflicts.py](../../../yate/keymaps/conflicts.py) — 新建（预计 ~110 行）
-
-单一职责：对一个 `Keymap` 的绑定表做纯扫描与报告格式化；只 import
-`yate.keymaps.base`（同包绝对导入）与 `yate.keymaps.keys.key_name`。
-形态（签名与语义为准，docstring 按 python-coding-style §二写全）：
-
-```python
-@dataclass(frozen=True)
-class KeyConflict:
-    """One detected keymap conflict and the bindings that collide."""
-    raw: str                     # the colliding raw key
-    reason: Literal["duplicate", "reserved"]
-    bindings: tuple[KeyBinding, ...]   # every table entry involved
-
-def find_key_conflicts(
-    keymap: Keymap, reserved: frozenset[str] = frozenset(),
-) -> list[KeyConflict]:
-    """Scan *keymap*'s binding table; sorted by ``key_name(raw)``.
-
-    ``duplicate``: the same raw key appears twice in ``bindings`` -- the
-    later entry shadows the earlier one in ``_index``.  ``reserved``: the
-    raw key is consumed before the table is consulted (vim RESERVED_KEYS),
-    so the binding can never dispatch.  Bindings registered through
-    ``add_binding`` replace in place and are reported only if the table
-    still holds a stale twin.
-    """
-
-def format_conflicts(
-    keymap_name: str, conflicts: list[KeyConflict],
-) -> str:
-    """The ``:check-keys`` report body (human text, no UI imports)."""
-```
-
-`duplicate` 判定用 `Counter(b.key for b in keymap.bindings)`；`reserved` 判定
-`b.key in reserved`。报告行格式：`<key>  <reason>  action1 -> action2`，
-附头部 `keymap: <name> -- N conflict(s)`，无冲突时输出
-`keymap: <name> -- no conflicts`。
-
 ## 新增测试
-
-### tests/test_keymaps_conflicts.py（新建，纯逻辑、无 Textual）
-
-| 用例 | 前置 | 操作 | 断言 |
-|---|---|---|---|
-| `test_duplicate_raw_key_is_reported` | 手工构造 `Keymap` 子类，`build_bindings` 返回两条同 raw `KeyBinding("x", "a1", ...)`、`KeyBinding("x", "a2", ...)` | `find_key_conflicts(km)` | 恰 1 条冲突，`reason == "duplicate"`，`bindings` 两条皆在且按表序 |
-| `test_reserved_key_binding_is_reported` | `VimKeymap()`，`reserved=RESERVED_KEYS` | `find_key_conflicts(vim, reserved=RESERVED_KEYS)` | 含 raw `"1"` 的 `reserved` 冲突（`<ctrl-u>` 表项不受影响；此处可给 vim 实例临时 `bindings` 追加 `KeyBinding("1", "x")`） |
-| `test_clean_table_reports_nothing` | `VscKeymap()`（表内无重复、vsc 无 reserved 传入） | `find_key_conflicts(vsc)` | 返回 `[]` |
-| `test_conflicts_sorted_by_key_label` | 构造 raw `"\x1b"` 与 `"zz"` 两条 reserved | `find_key_conflicts` | 首条 label `<esc>` 在 `z` 之前 |
-| `test_format_conflicts_lists_actions` | 上文 duplicate 冲突 | `format_conflicts("vim", conflicts)` | 文本含 `keymap: vim`、`x`、`a1`、`a2`；空表输入含 `no conflicts` |
 
 ### tests/test_vim_keymap.py 追加
 
@@ -175,6 +127,7 @@ def format_conflicts(
 | `test_pending_prefix_tracks_register_wait` | 同上 | `handle_key(ctx, '"')` 后 | 返回 `'"'`；再喂 `"a"` 后回到 `""` |
 | `test_pending_prefix_empty_in_insert_mode` | 进入 insert（`handle_key(ctx, "i")`） | `pending_prefix()` | `""` |
 | `test_f9_binding_toggles_whichkey_action` | 同上 | `handle_key(ctx, parse_key("<f9>"))` | 经 `KeyUi.execute_action` 记录收到 `"toggle_whichkey"`（用测试替身 runner 断言调用参数），返回 `True` |
+| `test_reserved_keys_match_hardcoded_consumers` | `VimKeymap()` 已 import `RESERVED_KEYS` | 断言常量集合内容 | 恰含 `\x1b` / `\x04` 与 `1`-`9`，不含 `"0"`、不含 `<f1>` |
 
 ### tests/test_vsc_keymap.py 追加
 
@@ -186,7 +139,7 @@ def format_conflicts(
 ## 验收命令（worktree venv）
 
 ```text
-.venv\Scripts\python.exe -m pytest tests/test_keymaps_conflicts.py tests/test_vim_keymap.py tests/test_vsc_keymap.py tests/test_keymap_set.py -q --cov-fail-under=0
+.venv\Scripts\python.exe -m pytest tests/test_vim_keymap.py tests/test_vsc_keymap.py tests/test_keymap_set.py -q --cov-fail-under=0
 .venv\Scripts\python.exe -m pyright yate/keymaps/
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q --cov-fail-under=0
 ```
@@ -199,6 +152,9 @@ def format_conflicts(
 - `pending_prefix()` 漏统计未来新增 chord 形态：测试逐形态钉住；新增 chord 时
   同步覆写（已写入方法 docstring 契约）。
 - `RESERVED_KEYS` 收录过宽误报（`0` 未收录、`<f*>` 未收录均有行号依据）：
-  用例 `test_clean_table_reports_nothing` 反向验证不误伤。
+  常量内容用例 `test_reserved_keys_match_hardcoded_consumers` 钉住，
+  plan-b 的 `test_clean_table_reports_nothing` 反向验证不误伤。
+- `<f9>` 与既有绑定冲突：vsc 表 `<f9>`-`<f12>` 空闲（输入事实），vim 走
+  `_FUNCTION_KEYS` lookup 分支，均实测有据。
 - 回滚：本子计划全部改动可按文件独立 `git checkout -- yate/keymaps/ tests/`
-  还原；`conflicts.py` 删除即整体下线，无迁移状态。
+  还原，无迁移状态。

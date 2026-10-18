@@ -73,7 +73,7 @@ flowchart TD
 |---|---|---|
 | R4 | `keymaps/*` 不得 import editor_view | 新增 `conflicts.py` 纯逻辑零 UI 导入；守卫 `test_keymaps_services_and_models_stay_ui_free` |
 | R5/R7 | action / command 走内置表 | `actions.py` / `commands.py` 各 +1 注册，外壳装载路径不变；守卫 `test_editor_does_not_import_action_tables` / `test_shell_loads_the_builtin_tables` |
-| R9 | 新 widget id `#which-key` | `Editor` 传 id；样式组件自持（`#statusbar` 先例）；规则文档 R9 清单回写（plan-d）；外壳 `app.tcss` 无需改动 |
+| R9 | 新 widget id `#which-key` | `Editor` 传 id；样式组件自持（`#statusbar` 先例）；规则文档 R9 清单回写（plan-f）；外壳 `app.tcss` 无需改动 |
 | R10 | 面板不得吞键 | `Static` 无焦点不消费键事件；测试 `test_panel_never_consumes_key_events` |
 | R11 | L3 flows 新增 editor_view 导入 | `UI_FROZEN_FILES` 登记 `flows/whichkey_flows.py`（`yate.editor_view` + `yate.editor_view.whichkey`）；守卫 `test_collaborators_keep_widget_coupling_frozen` |
 | R13 | 组件自持主题 | `theme.attach` 广播上色，L3 不碰 `.styles.*`；守卫 T1/T2 用例 |
@@ -114,9 +114,10 @@ flowchart TD
 
 | 波次 | 子计划 | 输入 | 改动文件（源码） | 输出 | 验收命令（worktree venv，节选，全量见子计划） |
 |---|---|---|---|---|---|
-| wave-1 | [plan-a](which-key-plans/which-key-keymap-data-plan-a.md) ∥ [plan-b](which-key-plans/which-key-panel-plan-b.md) | 本方案 §三/§四 + 子计划任务书 | a：`keymaps/base.py`、`keymaps/vim.py`、`keymaps/vsc.py`、`keymaps/conflicts.py`(新)；b：`editor_view/whichkey.py`(新)、`resources/which-key.tcss`(新) | `pending_prefix()` / `RESERVED_KEYS` / F9 绑定 / 冲突扫描；面板组件与样式 | `pytest tests/test_keymaps_conflicts.py tests/test_vim_keymap.py tests/test_vsc_keymap.py tests/test_whichkey_panel.py -q --cov-fail-under=0`；`pyright yate/keymaps/ yate/editor_view/whichkey.py`；`pytest tests/test_architecture.py -q --cov-fail-under=0` |
-| wave-2 | [plan-c](which-key-plans/which-key-wiring-plan-c.md) | wave-1 产物 | `flows/whichkey_flows.py`(新)、`editor.py`、`actions.py`、`commands.py`、`tests/test_architecture.py`(白名单) | WhichKeyFlows + 组装 + 内置表 + 守卫登记 | `pytest tests/ -q --cov-fail-under=0`；`pyright yate/ tests/`；手工冒烟（子计划 §验收） |
-| wave-3 | [plan-d](which-key-plans/which-key-docs-plan-d.md) | wave-2 实测事实 | `.trae/rules/architecture-boundaries.md`、`yate/docs/which-key.en.md`(新)、`which-key.zh.md`(新) | 规则回写 + 双语手册 | 纯文档，按 misc-rules §三豁免测试，人工核对清单见子计划 |
+| wave-1 | [plan-a](which-key-plans/which-key-keymap-observer-plan-a.md) ∥ [plan-b](which-key-plans/which-key-conflicts-plan-b.md) ∥ [plan-c](which-key-plans/which-key-panel-plan-c.md) | 本方案 §三/§四 + 各子计划任务书 | a：`keymaps/base.py`、`keymaps/vim.py`、`keymaps/vsc.py`；b：`keymaps/conflicts.py`(新)；c：`editor_view/whichkey.py`(新)、`resources/which-key.tcss`(新) | `pending_prefix()` / `RESERVED_KEYS` / F9 绑定；冲突扫描模块；面板组件与样式 | `pytest tests/test_vim_keymap.py tests/test_vsc_keymap.py tests/test_keymaps_conflicts.py tests/test_whichkey_panel.py -q --cov-fail-under=0`；`pyright yate/keymaps/ yate/editor_view/whichkey.py`；`pytest tests/test_architecture.py -q --cov-fail-under=0` |
+| wave-2 | [plan-d](which-key-plans/which-key-flows-plan-d.md) | wave-1 三产物（`pending_prefix` / `find_key_conflicts` / `WhichKeyPanel`） | `flows/whichkey_flows.py`(新) | WhichKeyFlows（候选计算 + 面板驱动 + 钉住态 + 冲突报告出口） | `pytest tests/test_whichkey_flows.py -q --cov-fail-under=0`；`pyright yate/flows/whichkey_flows.py`；架构测试按 `-k` 排除 R11 耦合用例（时序说明见子计划验收节） |
+| wave-3 | [plan-e](which-key-plans/which-key-wiring-plan-e.md) | wave-2 产物（`WhichKeyFlows`） | `editor.py`、`actions.py`、`commands.py`、`tests/test_architecture.py`(白名单) | Editor 组装 + 内置表 + R11 登记 + 全量门禁复绿 | `pytest tests/test_architecture.py -q --cov-fail-under=0`（无 `-k`）；`pyright yate/ tests/`；`pytest tests/ -q --cov-fail-under=0`；手工冒烟（子计划 §验收） |
+| wave-4 | [plan-f](which-key-plans/which-key-docs-plan-f.md) | wave-3 实测事实 | `.trae/rules/architecture-boundaries.md`、`yate/docs/which-key.en.md`(新)、`which-key.zh.md`(新) | 规则回写 + 双语手册 | 纯文档，按 misc-rules §三豁免测试，人工核对清单见子计划 |
 
 每步的「输入 / 改动文件 / 输出 / 验收命令」细则以上表子计划链接为准
 （每份子计划自包含三要素测试用例与命令）。
@@ -128,7 +129,7 @@ flowchart TD
 | `pending_prefix()` 漏统计新增 chord 形态 | 低 | 逐形态测试钉住；方法 docstring 写明契约（新增 chord 必须同步覆写） | 局部 revert vim.py 钩子，面板退化为钉住-only |
 | 面板挤压编辑区 / 宽度溢出 | 低 | CSS `max-height` + `display:none` 默认；`theme.cell_len` 计宽 | 关闭组合点一处即整体隐藏 |
 | `<f9>` 个别终端不可达 | 低 | action 与 `:check-keys` 双通道冗余；手册注明 | 无需回滚 |
-| R11 白名单漏登记 / 规则文档漂移 | 中 | 验收跑架构测试拦截；plan-d 在 wave-2 后按实测回写 | 还原白名单键 + 规则段 |
+| R11 白名单漏登记 / 规则文档漂移 | 中 | 验收跑架构测试拦截；plan-f 在 wave-3 后按实测回写 | 还原白名单键 + 规则段 |
 | 每键候选扫描性能 | 低 | 绑定表 ~60 条 O(n)，不做预优化；实测劣化再议缓存 | 无状态，无回滚面 |
 | 误伤既有按键路径（R10 二次派发） | 低 | 面板不消费键；ctrl+w 分支补刷新只加渲染 | 还原 handle_key 一处缩进改动 |
 
@@ -142,4 +143,4 @@ flowchart TD
 - 依赖既有：2026-10-17 层秩切分（`keymaps/keys.py` L0）、`WindowFlows`
   ctrl+w 状态机、R14 门面（本方案不触碰）。
 - 不依赖、不阻塞其它在途任务；波次内可按 subagent-workflow 并行下发
-  （wave-1 两子计划文件互不重叠）。
+  （wave-1 三子计划文件互不重叠）。

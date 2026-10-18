@@ -1,6 +1,6 @@
-# which-key 子计划 b：L2 面板组件（WhichKeyPanel + 资源 tcss）
+# which-key 子计划 c：L2 面板组件（WhichKeyPanel + 资源 tcss）
 
-wave-1（与 plan-a 并行，文件互不重叠）。自包含任务书。
+wave-1（与 plan-a、plan-b 并行，文件互不重叠）。自包含任务书。
 
 ## 输入（调研事实）
 
@@ -12,7 +12,7 @@ wave-1（与 plan-a 并行，文件互不重叠）。自包含任务书。
 - `Static` 无焦点、不处理按键（面板 R10 安全：不 stop 任何键事件）。
 - 主题 API：[theme.py](../../../yate/editor_view/theme.py) 的 `theme.active()`
   / `theme.subscribe`（R13 组件自持主题的唯一通道）。
-- 布局落点由 plan-c 决定：面板将组合进 L3 `Editor.compose` 的 `#bottom`
+- 布局落点由 plan-e 决定：面板将组合进 L3 `Editor.compose` 的 `#bottom`
   Vertical（[editor.py](../../../yate/editor.py) :466-470），位于 statusbar 之上；
   本子计划只保证组件在任何宽度 / 高度下渲染正确。
 
@@ -23,7 +23,7 @@ which-key 风格网格；显示 / 清除 / 截断三种状态；自持主题；�
 
 ## 非目标
 
-- 不持有 KeymapSet、不算候选集（数据流归 plan-c 的 WhichKeyFlows）；
+- 不持有 KeymapSet、不算候选集（数据流归 plan-d 的 WhichKeyFlows）；
 - 不处理鼠标 / 键盘事件；不做 yaterc 配置项。
 
 ## 独占文件清单
@@ -136,5 +136,5 @@ CSS 变量与广播双源）。
 - 面板高度挤压编辑区：CSS `max-height: 14` + 默认 `display: none`，最坏情况
   手工测试发现后调阈值，不影响其余布局。
 - Rich 截断 / 宽字符对齐：复用 `theme.cell_len`（statusbar 既有面），不重造。
-- 回滚：组件未被任何既有模块 import（plan-c 之前），删除两文件即完全回滚；
+- 回滚：组件未被任何既有模块 import（plan-e 接线之前），删除两文件即完全回滚；
   无状态迁移。

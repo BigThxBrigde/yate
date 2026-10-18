@@ -1,10 +1,10 @@
-# which-key 子计划 d：规则文档回写 + 双语手册
+# which-key 子计划 f：规则文档回写 + 双语手册
 
-wave-3（串行，在 plan-c 验收后执行——回写内容以 wave-2 实测事实为准）。纯文档。
+wave-4（串行，在 plan-e 验收后执行——回写内容以 wave-3 实测事实为准）。纯文档。
 
 ## 输入
 
-- plan-c 落地后的实测事实：面板 id、组合位置、`<f9>` / `:check-keys` 行为、
+- plan-e 落地后的实测事实：面板 id、组合位置、`<f9>` / `:check-keys` 行为、
   `UI_FROZEN_FILES` 新键、`flows/whichkey_flows.py` 的 R11 冻结耦合。
 - 规则文档现行条款：[architecture-boundaries.md](../../rules/architecture-boundaries.md)
   R9（id 冻结清单）、§一 L3 flows 清单、R11（冻结白名单说明）、§三.8
@@ -66,6 +66,6 @@ git diff --stat .trae/rules/architecture-boundaries.md
 
 ## 风险与回滚
 
-- 规则文本与实现漂移：本计划在 wave-2 之后执行，回写以实测为准；
-  守卫面（`UI_FROZEN_FILES`）本身在 plan-c 已落，规则文字仅描述事实。
+- 规则文本与实现漂移：本计划在 wave-3 之后执行，回写以实测为准；
+  守卫面（`UI_FROZEN_FILES`）本身在 plan-e 已落，规则文字仅描述事实。
 - 回滚：`git checkout -- .trae/rules/` + 删除两份手册，无连锁影响。
