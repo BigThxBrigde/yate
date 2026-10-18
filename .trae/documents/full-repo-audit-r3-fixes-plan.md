@@ -70,11 +70,11 @@
 
 | 步骤 | 提交 | 内容 |
 |---|---|---|
-| Step 1 | （待回填） | `fix(session): keep active tab when a preceding tab is closed`（session.py + test_session.py） |
-| Step 2 | （待回填） | `fix(security): gate auto-loaded project yaterc behind workspace trust`（yaterc.py + test_config.py） |
-| Step 3 | （待回填） | `refactor(lsp): drop unused ERR_REQUEST_CANCELLED constant`（client.py） |
-| Step 4 | （待回填） | `docs(reviews): add 2026-10-18 full-repo-audit-r3 record` |
-| Step 5 | （待回填） | `docs(plan): add full-repo-audit-r3 fixes plan` |
+| Step 1 | `176d40f` | `fix(session): keep active tab when a preceding tab is closed`（session.py + test_session.py） |
+| Step 2 | `fbb9945` | `fix(security): gate auto-loaded project yaterc behind workspace trust`（yaterc.py + test_config.py） |
+| Step 3 | `6bc750c` | `refactor(lsp): drop unused ERR_REQUEST_CANCELLED constant`（client.py） |
+| Step 4 | `30eee0d` | `docs(reviews): add 2026-10-18 full-repo-audit-r3 record` |
+| Step 5 | `12f458f` | `docs(plan): add full-repo-audit-r3 fixes plan` |
 
 ## 六、偏离记录
 
