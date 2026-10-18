@@ -6,7 +6,7 @@
 # Reproduce locally:
 #   pip install -e ".[dev]"
 #   python -m pytest tests
-#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # coverage gate
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing   # coverage gate
 #
 # The Gitee-side pipeline lives in .workflow/test.yml (Linux only);
 # the two configs are independent.
@@ -74,12 +74,71 @@ jobs:
 
       - name: Run pytest suite
         # TERM is for the Textual pilot headless tests on Linux; Windows ignores it.
-        # --cov uses the [tool.coverage.*] config in pyproject; fail-under stays
-        # identical to local runs and the other CI.
+        # --cov uses the [tool.coverage.*] config in pyproject; the fail-under
+        # threshold is NOT repeated here -- it has a single source of truth in
+        # [tool.coverage.report] (asserted by tests/test_gate_config.py), so a
+        # bare --cov is exactly the CI gate locally and remotely.
         env:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
+        run: python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing
+
+  # tools/smoke_test is outside pytest's testpaths (pyproject testpaths is
+  # ["tests"]), so no CI job exercised the Textual end-to-end scenarios before
+  # this one.  Separate job, parallel to test: smoke failures must not be
+  # reported as pytest failures, and the longer budget is kept out of the test
+  # job's 15-minute timeout.
+  smoke:
+    name: ui smoke (pilot, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install package and dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: UI smoke scenarios
+        # Not covered by pytest: tools/smoke_test is outside testpaths, so no
+        # CI job exercised the Textual end-to-end scenarios at all.  Pilot
+        # drives a headless app, so TERM is set for the Linux leg only.
+        # `run` asserts inside each scenario and reads no baseline snapshot
+        # (only `compare` / `snapshot` touch smoke_baselines/), which is why
+        # one command serves both platform legs.  `--report` writes a
+        # standalone HTML summary (measured 2026-10-18), `--json` the machine
+        # readable one that is uploaded.
+        env:
+          TERM: xterm-256color
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: >-
+          python -m tools.smoke_test run --json smoke-report.json
+          --report smoke-report.html
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report-${{ matrix.os }}
+          path: |
+            smoke-report.json
+            smoke-report.html
+          if-no-files-found: warn
 
   # A4: pyproject.toml declares strict zero-diagnostics as the merge gate, so
   # CI must actually run it.  Separate job, parallel to test; the changelog
