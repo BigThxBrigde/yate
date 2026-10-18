@@ -964,9 +964,16 @@ class Editor:
                 self.message(f"filetype set to {resolved} ({label})", kind="ok")
         # Rebind the LSP document (close on the old server, open on the new)
         # and force a repaint so highlighting and the status bar update.
+        # The re-open rides in the same worker AFTER the close: the
+        # synchronous refresh below reaches doc_shown_later() before this
+        # worker pops the didOpen state, so scheduling the open alongside
+        # the close would see is_open() still true and skip the rebind.
+        async def _rebind() -> None:
+            await self.lsp.on_document_closed(doc)
+            self.lsp_sync.doc_shown_later()
+
         self.app.run_worker(
-            partial(self.lsp.on_document_closed, doc),
-            group="lsp-sync", exclusive=False, exit_on_error=False,
+            _rebind, group="lsp-sync", exclusive=False, exit_on_error=False,
         )
         self.refresh_ui()
 

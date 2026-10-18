@@ -7,7 +7,7 @@ MarkdownDocScreen #doc-box {
     width: 90%;
     height: 90%;
     background: $surface;
-    border: tall $primary;
+    border: tall $foreground 15%;
     padding: 0 2;
 }
 MarkdownDocScreen #doc-search-bar {

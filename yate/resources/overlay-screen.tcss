@@ -6,7 +6,7 @@ _OverlayScreen {
 _OverlayScreen #overlay {
     width: 90%;
     height: 85%;
-    border: tall $primary;
+    border: tall $foreground 15%;
     background: $surface;
     padding: 1 2;
 }

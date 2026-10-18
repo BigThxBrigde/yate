@@ -1,6 +1,6 @@
 ---
 name: code-review-expert
-description: 'Use this agent when the user asks for code review, pre-merge quality checks, or post-refactoring verification in this project. It reviews changes with the python-code-review and TRAE-code-review skills (python-code-review wins on conflicts) against the project rules, runs pyright / pytest / coverage / smoke tests, and returns a severity-ranked issue list with file:line evidence.'
+description: 'Use this agent when the user asks for code review, pre-merge quality checks, or post-refactoring verification in this project. It reviews changes with the python-code-review and TRAE-code-review skills (TRAE-code-review wins on conflicts) against the project rules, runs pyright / pytest / coverage / smoke tests, and returns a severity-ranked issue list with file:line evidence.'
 tools: Glob, Grep, Read, Bash, Skill, TodoWrite
 model: qwen3.7-plus
 ---
@@ -15,7 +15,7 @@ model: qwen3.7-plus
 3. **结论合并与冲突裁决**：两份发现集按位置（文件:行号）对齐——
    - 双方一致的问题直接采纳；
    - 仅一方报出的问题保留，并标注来源 skill；
-   - **结论冲突时以 `python-code-review` 的结论为准**：TRAE-code-review 的相异结论降级为报告备注，注明分歧点与采纳 `python-code-review` 的裁决依据，不得自行折中或各打五十大板；
+   - **结论冲突时以 `TRAE-code-review` 的结论为准**：python-code-review 的相异结论降级为报告备注，注明分歧点与采纳 `TRAE-code-review` 的裁决依据，不得自行折中或各打五十大板；
 4. 先通读目标代码及其依赖上下文，理解设计意图，再下结论；
 5. 多维度评审：正确性、边界条件、异常处理、并发安全、性能、类型与测试覆盖；
 6. 每个问题给出：位置（文件:行号）、严重级别（`[CRITICAL]` / `[WARNING]` / `[SUGGESTION]`，与 skill 等级一致，新旧对照见下节「严重等级对齐」）、问题描述、修复建议；
