@@ -27,7 +27,7 @@ later override same-named options from earlier files** (matching vim's
 | Order | Source | Path | Notes |
 |---|---|---|---|
 | 1 | User level | `~/.yate/yaterc` | global personal config; skipped if missing |
-| 2 | Project level | a file named `yaterc` searched **upwards** from the current directory (or the directory of the file opened at startup) | the nearest one wins; suitable for committing with the project |
+| 2 | Project level | a file named `yaterc` searched **upwards** from the current directory (or the directory of the file opened at startup) | the nearest one wins; suitable for committing with the project; **loads only when the directory that owns it is trusted** (yate prints a `yaterc: skipped untrusted ...` note at startup otherwise -- run `:trust` in that workspace to load it) |
 | 3 | Command line | `yate -u <file>` | **replaces** the two sources above; only that file is loaded |
 
 Special case: `yate -u NONE` skips configuration loading entirely (vim

@@ -4,7 +4,7 @@ legacy-encodes (ctrl+shift+letter, ctrl+digit)?
 
 Run inside the terminal under test:
 
-    d:\\Programming\\yate\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py
+    .venv\\Scripts\\python.exe tools\\probes\\win32im_probe.py
 
 Press, in order:  down, a, ctrl+shift+e, ctrl+1, ctrl+space, ctrl+q (quits).
 Paste the printed lines back into the chat.

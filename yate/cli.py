@@ -377,12 +377,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     from yate.editor_view import theme as theme_mod
 
     target = Path(args.path) if args.path else None
+    # user-visible notes from the rc discovery (an untrusted project rc skip)
+    rc_notes: list[str] = []
     if args.yaterc == "NONE":
         rc_paths: list[Path] = []
     elif args.yaterc:
         rc_paths = [Path(args.yaterc)]
     else:
-        rc_paths = default_rc_paths(target)
+        rc_paths = default_rc_paths(target, rc_notes)
 
     # Theme load priority (later wins on name collision, like rc files):
     # built-ins < default dirs < yaterc theme_dirs < explicit --theme-dir.
@@ -398,7 +400,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         register_theme=theme_mod.register_theme,
         load_theme_paths=theme_mod.load_theme_paths,
     )
-    config.errors = default_errors + config.errors
+    config.errors = default_errors + rc_notes + config.errors
     # Expand "~" here: unlike POSIX shells, PowerShell/cmd pass it through
     # literally and Path("~")/is_dir() would silently skip the directory.
     theme_mod.load_theme_paths(

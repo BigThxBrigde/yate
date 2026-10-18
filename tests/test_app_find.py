@@ -1,4 +1,7 @@
-"""Prompt bar, command line, goto and completion headless Textual UI tests (run via pilot, no real terminal)."""
+"""Prompt bar, command line, goto and completion headless Textual UI tests.
+
+Run via pilot, no real terminal.
+"""
 
 # tests legitimately poke at internals:
 # pyright: reportPrivateUsage=false

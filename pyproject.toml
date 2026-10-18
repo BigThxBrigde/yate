@@ -124,12 +124,13 @@ addopts = "-q"
 # worker never starts) surface as RuntimeWarning; make every one of them a
 # hard failure so the leak cannot creep back in.
 filterwarnings = ["error::RuntimeWarning"]
-# NOTE: coverage is opt-in (`pytest --cov`) and the fail-under gate lives in the
-# CI workflows, not in addopts.  A ``--cov-fail-under`` in addopts would fail
-# every partial run (e.g. `pytest tests/test_config.py`, which covers a fraction
-# of the package) even when all selected tests pass.
+# Coverage is opt-in (``pytest --cov``) and stays OUT of addopts: a partial run
+# must not pay for instrumentation.  The gate threshold itself is
+# ``[tool.coverage.report] fail_under`` (single source of truth, asserted by
+# tests/test_gate_config.py), so a bare ``--cov`` reproduces the CI gate.
 # Reproduce the CI gate locally:
-#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing
+#   python -m pytest tests/test_config.py --cov=yate --cov-fail-under=0   # partial run
 
 [tool.coverage.run]
 source = ["yate"]
@@ -147,14 +148,16 @@ omit = ["yate/__main__.py"]
   # coverage" note hides real numbers and makes report lengths vary.
   # empty __init__.py files would otherwise show up as 0%
 skip_empty = true
-# The threshold deliberately lives on the CI command lines instead of here:
-# coverage.py applies report.fail_under to *every* `--cov` run, and a partial run
-# (`pytest tests/test_paths.py --cov=yate` reaches ~0% of the package) would then
-# fail even though its tests passed.  CI always runs the full suite, so the gate
-# is exact there.
+# The gate threshold lives HERE (not only on the CI command lines) so a local
+# ``pytest tests --cov`` reproduces CI exactly and the value itself is
+# regression-tested by tests/test_gate_config.py.  coverage.py applies
+# fail_under to *every* ``--cov`` run, so a partial run must opt out with
+# ``--cov-fail-under=0`` -- which is why ``--cov`` itself stays opt-in and is
+# NOT in addopts (adding it there would tax every keystroke-speed test loop).
+fail_under = 75
 # Measured after the second coverage round (2026-09-23, full suite, branch mode,
 # Windows): 90% total (9650 statements / 791 missing, 3310 branches / 381
-# missing).  The CI gate *stays* at 75: the two platform legs cover mutually
+# missing).  The gate *stays* at 75: the two platform legs cover mutually
 # exclusive blocks (POSIX vs Windows backends in pty_proc / shells), so the
 # Linux total is only observable in CI and the gate must hold on both legs.
 

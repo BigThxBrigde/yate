@@ -259,3 +259,57 @@ def test_only_unknown_entries_is_nothing_to_remove(tmp_path: Path) -> None:
     assert report.nothing_to_remove
     assert report.preserved == ["notes.txt"]
     assert (base / "notes.txt").is_file()
+
+
+# --- base directory removal --------------------------------------------------
+
+
+def test_cleanup_reports_the_reason_when_the_base_dir_cannot_be_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A base directory that survives the cleanup must say why.
+
+    ``except OSError: pass`` left ``base_removed`` False with no reason at all,
+    so the report the CLI prints on that path -- which never starts tracing, so
+    a log line would never be seen -- could not tell busy from read-only.
+    """
+    base = tmp_path / ".yate"
+    _populate(base)
+
+    def _locked(self: Path) -> None:
+        """Stand-in for a base directory Windows refuses to remove."""
+        raise OSError("directory not empty")
+
+    # stubbed rather than faked with a real file lock: lock semantics differ
+    # per platform and per filesystem driver
+    monkeypatch.setattr(Path, "rmdir", _locked)
+
+    report = us.cleanup_defaults(force=True, include_data=True, base_dir=base)
+
+    assert report.base_removed is False
+    assert base.is_dir()
+    # the isolated error does not swallow the rest of the report surface
+    assert report.removed_files == ["yaterc"]
+    assert sorted(report.removed_dirs) == ["data", "extensions", "themes"]
+    assert report.errors
+    assert any(
+        ".yate/" in error and "directory not empty" in error
+        for error in report.errors
+    ), report.errors
+
+
+def test_cleanup_reports_base_removed_when_rmdir_succeeds(tmp_path: Path) -> None:
+    """Reverse path: the untouched success path still removes the base dir.
+
+    "Empty" means empty *after* the managed entries are gone; a directory that
+    starts out empty returns early as ``nothing_to_remove`` and never reaches
+    the removal branch.
+    """
+    base = tmp_path / ".yate"
+    _populate(base)
+
+    report = us.cleanup_defaults(force=True, include_data=True, base_dir=base)
+
+    assert report.base_removed is True
+    assert report.errors == []
+    assert not base.exists()

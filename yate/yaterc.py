@@ -39,7 +39,9 @@ Load order (later wins, like ``~/.vimrc`` followed by ``./.vimrc``):
 
 1. the user rc:        ``~/.yate/yaterc``
 2. the project rc:     a ``yaterc`` file in the current directory or any
-                       ancestor directory (checked when yate starts)
+                       ancestor directory (checked when yate starts) --
+                       loaded only when the directory that owns it is
+                       trusted (see :mod:`yate.services.trust`)
 3. an explicit file:   ``yate -u <file>`` replaces steps 1 and 2;
                        ``yate -u NONE`` skips rc loading entirely
 
@@ -50,8 +52,9 @@ nor an invalid option ever crashes the editor: problems are collected on
 
 This module stays L0: it keeps the rc discovery and exec loop and imports
 only :mod:`yate.config` (dataclasses and validation constants),
-:mod:`yate.logs`, and the option validators in :mod:`yaterc_options`
-(big-module-split wave f).
+:mod:`yate.logs`, :mod:`yate.services.trust` (the project-rc trust gate)
+and the option validators in :mod:`yaterc_options` (big-module-split
+wave f).
 """
 
 from __future__ import annotations
@@ -62,6 +65,7 @@ from typing import Any
 
 from yate.config import YateConfig
 from yate.logs import tracing
+from yate.services.trust import is_trusted
 from yate.yaterc_options import (
     _extract_disabled_extensions,
     _extract_extensions,
@@ -96,11 +100,17 @@ def find_project_config(start: Path | None = None) -> Path | None:
     return None
 
 
-def default_rc_paths(target: Path | None = None) -> list[Path]:
+def default_rc_paths(
+    target: Path | None = None,
+    notes: list[str] | None = None,
+) -> list[Path]:
     """Ordered rc files to load: user rc then project rc (existing only).
 
     Both entries are resolved so the same file reached via different spellings
-    (Windows 8.3 short names, symlinks) is only loaded once.
+    (Windows 8.3 short names, symlinks) is only loaded once.  The project rc
+    loads only when the directory that owns it is trusted; a skipped rc is
+    logged and, when *notes* is given, reported there as a user-visible
+    message the caller can surface on the config's error list.
     """
     paths: list[Path] = []
     user = user_config_path()
@@ -108,7 +118,21 @@ def default_rc_paths(target: Path | None = None) -> list[Path]:
         paths.append(user.resolve())
     project = find_project_config(target)
     if project is not None and project not in paths:
-        paths.append(project)
+        # A project-level yaterc is code the project author wrote.  Auto-executing
+        # it at startup would run repository code automatically -- the same risk
+        # the workspace-trust gate already closes for project extensions/ -- so
+        # the gate anchors on the directory that *owns* the rc file: trusting
+        # only the working directory would let a trusted repo's parent (or miss
+        # a file opened in a subdirectory of a trusted repo) change the verdict.
+        if is_trusted(project.parent):
+            paths.append(project)
+        else:
+            log.debug("skipping untrusted project rc: %s", project)
+            if notes is not None:
+                notes.append(
+                    f"yaterc: skipped untrusted {project.parent} "
+                    "(run :trust there to load it)"
+                )
     return paths
 
 

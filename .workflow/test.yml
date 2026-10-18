@@ -19,7 +19,7 @@
 # Reproduce locally:
 #   python -m pip install -e ".[dev]"
 #   python -m pytest tests
-#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75   # coverage gate
+#   python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing   # coverage gate (threshold: [tool.coverage.report] fail_under)
 #
 # Gate split vs the GitHub side (.github/workflows/test.yml):
 #   - the pyright strict gate and the Python 3.13 leg run on GitHub only:
@@ -66,5 +66,5 @@ stages:
             # install the package itself plus the test deps (textual, pytest); run from the repo root
             - pip install -e ".[dev]"
             # Textual pilot tests need a non-dumb TERM inside the TTY-less container
-            # --cov uses the [tool.coverage.*] config in pyproject; fail-under stays identical
-            - TERM=xterm-256color python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
+            # --cov uses the [tool.coverage.*] config in pyproject; the threshold lives in [tool.coverage.report] fail_under
+            - TERM=xterm-256color python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing

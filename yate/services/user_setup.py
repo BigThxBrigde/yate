@@ -276,8 +276,10 @@ def cleanup_defaults(
         try:
             base.rmdir()
             base_removed = True
-        except OSError:
-            pass
+        except OSError as exc:
+            # Reported instead of swallowed: the CLI cleanup path prints the
+            # error list, so the user learns why the directory survived.
+            errors.append(f"{base.name}/: {exc}")
     return CleanupReport(
         base_dir=base,
         removed_files=removed_files,

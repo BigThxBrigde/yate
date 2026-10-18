@@ -41,7 +41,7 @@ python -m pytest tests -q            # 含新 R14 架构用例，全绿
 python -m tools.smoke_test compare   # 0 漂移（纯移动，无行为变更）
 ```
 
-python 统一用 `d:\Programming\yate\.venv\Scripts\python.exe`，在 worktree `d:\Programming\yate-ext-api-parity` 执行。
+python 统一用仓库内 worktree 沙箱的 `.venv\Scripts\python.exe`，在该任务 worktree 目录内执行。
 
 ## 提交
 

@@ -227,6 +227,27 @@ def test_close_under_removes_only_matching_tabs(tmp_path: Path) -> None:
     assert session.docs == [doc_keep]
 
 
+def test_close_under_keeps_the_active_tab_when_a_preceding_tab_is_closed(
+    tmp_path: Path,
+) -> None:
+    """Deleting a tab that precedes the active one must not move focus."""
+    session = EditorSession(YateConfig())
+    folder = tmp_path / "pkg"
+    folder.mkdir()
+    session.open(_write(tmp_path / "a.py", "a = 1\n"))
+    doc_b = session.open(_write(folder / "b.py", "b = 1\n"))  # lives under folder
+    doc_c = session.open(_write(tmp_path / "c.py", "c = 1\n"))  # active
+    session.open(_write(tmp_path / "d.py", "d = 1\n"))
+    session.index = 2  # doc_c is active
+    assert session.doc is doc_c
+
+    closed = session.close_under(folder)
+
+    assert doc_b in closed
+    # Focus must stay on C (now index 1), not jump to D.
+    assert session.doc is doc_c
+
+
 def test_close_under_a_path_without_tabs_changes_nothing(tmp_path: Path) -> None:
     """A folder with no open tabs reports an empty close list."""
     session = EditorSession(YateConfig())
