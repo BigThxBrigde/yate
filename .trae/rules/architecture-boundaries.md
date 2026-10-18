@@ -17,8 +17,8 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`pyth
          入口 shim，仅 import cli；守卫 `_LAYER_RANKS` 已按 L4 计）
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
-         extension_flows.py / shell_flows.py / overlay_flows.py / lsp_sync.py /
-         prompt_completion.py / mouse_flows.py）/ diagnostics.py /
+         extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
+         lsp_sync.py / prompt_completion.py / mouse_flows.py）/ diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
          见 R14）
 L2 组件：editor_view/*
@@ -125,7 +125,8 @@ flowchart TD
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
-  `overlay_flows.py` / `lsp_sync.py` / `prompt_completion.py` / `mouse_flows.py`；
+  `overlay_flows.py` / `lsp_sync.py` / `prompt_completion.py` / `mouse_flows.py` /
+  `whichkey_flows.py`；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_view`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_view`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对）；
@@ -134,16 +135,21 @@ flowchart TD
   相对路径，flows/ 迁移后带 `flows/` 前缀；
   `document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
   `window_flows.py` 于 wave-4 以同组面登记）。
+  `whichkey_flows.py` 于 which-key 任务
+  （[which-key-docs-plan-f](../documents/which-key-plans/which-key-docs-plan-f.md)）
+  登记 `editor_view` / `editor_view.whichkey`，键见 `UI_FROZEN_FILES`。
 - **R7 — 外壳装载内置表**：`YateApp.__init__` 调 `populate(editor.actions, editor)` 与
   `register_commands(editor.commands, editor)`。
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
   `CommandRegistry` 本身，不再为每个消费者定义窄协议。
 - **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上 id
-  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar`），
+  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar` `#which-key`），
   `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
-  其中 `#statusbar` 只是 widget id（其样式由组件自持：
-  `yate/resources/status-bar.tcss`——组件 `DEFAULT_CSS` 均为打包 tcss 资源、
-  经 `yate.paths.load_tcss` 装载，issue IKJHPH；类选择器 `StatusBar` 不变），
+  其中 `#statusbar` 与 `#which-key` 只是 widget id，样式由组件自持、
+  不被外壳 CSS 引用：`#statusbar` 对应 `yate/resources/status-bar.tcss`
+  （组件 `DEFAULT_CSS` 均为打包 tcss 资源、经 `yate.paths.load_tcss` 装载，
+  issue IKJHPH；类选择器 `StatusBar` 不变），`#which-key` 对应
+  `yate/resources/which-key.tcss`（同 `#statusbar` 先例）；
   其余 id 均被外壳 CSS 直接引用——该 CSS
   已不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`
   （`YateApp.CSS = paths.load_tcss("app.tcss")`；公共加载器 `yate/paths.py` 的
