@@ -467,7 +467,7 @@ def test_lua_package_import_paths() -> None:
     assert callable(lua_library.lua_api_library_source)
     assert callable(lua_runtime.create_runtime)
     assert callable(lua_runtime.run_extension)
-    # Services packages must not re-export (architecture §三.5): the
+    # Services packages must not re-export (architecture rule section 3.5): the
     # package root exposes only its submodules.
     for symbol in (
         "is_lua_available",
@@ -477,6 +477,21 @@ def test_lua_package_import_paths() -> None:
     ):
         assert not hasattr(lua_package, symbol)
     assert importlib.util.find_spec("yate.services.lua_extensions") is None
+
+
+def test_services_package_root_does_not_reexport_submodule_symbols() -> None:
+    """Neither service package root re-exports its submodule symbols."""
+    import yate.services as services_package
+    from yate.services import extensions as extensions_package
+
+    for package in (services_package, extensions_package):
+        for symbol in (
+            "is_lua_available",
+            "lua_api_library_source",
+            "create_runtime",
+            "run_extension",
+        ):
+            assert not hasattr(package, symbol)
 
 
 def test_lua_availability_probe_swallows_probe_errors(
