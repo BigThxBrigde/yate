@@ -71,7 +71,9 @@ scene: task_orchestration
    架构测试 / 覆盖率（`--cov-fail-under=75`）/ 冒烟，结论附实测结果与退出码。
 6. 【迭代】存在 blocker / major → 回到步骤 2 重新设计；仅 minor → 登记待办。
    迭代上不封顶，直至无 blocker / major。
-7. 【收尾】主代理亲自跑全量门禁（pyright + pytest + 架构测试，退出码 0），
+7. 【收尾】主代理亲自跑全量门禁（pyright + pytest + 架构测试，退出码 0）；
+   局部（单文件 / 目录）覆盖率运行须加 `--cov-fail-under=0`，否则会被
+   `[tool.coverage.report] fail_under` 判红；
    回填文档（真实前后数字、偏离记录），按 `git-commit-message.md` 提交。
 
 > **提交纪律**：以上每一步完成后，须按 `git-commit-message.md` 将本步骤产物
