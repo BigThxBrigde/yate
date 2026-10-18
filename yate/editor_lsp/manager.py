@@ -365,7 +365,7 @@ class LspManager:
                 await client.notify("textDocument/didClose",
                                    {"textDocument": {"uri": uri}})
             except (LspError, OSError):
-                pass
+                log.debug("didClose notify failed for %s", uri)
 
     def notify_edit(self, doc: Document) -> None:
         """Schedule a debounced full-text didChange (no-op when unchanged)."""
@@ -444,7 +444,7 @@ class LspManager:
                 await client.notify("textDocument/didSave",
                                    {"textDocument": {"uri": state.uri}})
             except (LspError, OSError):
-                pass
+                log.debug("didSave notify failed for %s", state.uri)
 
     # ---------------------------------------------------------- completion
 

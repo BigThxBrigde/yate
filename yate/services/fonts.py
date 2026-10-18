@@ -224,7 +224,7 @@ def _register_windows_user_font(fonts_dir: Path) -> tuple[list[str], list[str]]:
             try:
                 dup.unlink()
             except OSError:
-                pass
+                log.debug("could not remove duplicate font %s", dup)
 
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
         # Sweep stale entries belonging to this family.

@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import TextIO
 
 from yate.paths import bundled_extensions_dir, package_root
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 #: Name of the user configuration directory (relative to the home dir).
 USER_DIRNAME: str = ".yate"
@@ -277,7 +280,7 @@ def cleanup_defaults(
             base.rmdir()
             base_removed = True
         except OSError:
-            pass
+            log.debug("could not remove empty base dir %s", base)
     return CleanupReport(
         base_dir=base,
         removed_files=removed_files,
