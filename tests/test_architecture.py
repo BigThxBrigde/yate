@@ -73,6 +73,17 @@ These tests enforce the boundaries documented in
   lines must be split or registered in the size-exemption list
   (``SIZE_EXEMPT_FILES``), which mirrors the rule text.
 
+* **English comments** (misc-rules section 4): code comments and docstrings
+  in ``yate/`` / ``tools/`` / ``tests/`` carry no CJK ideographs, CJK or
+  fullwidth punctuation, or typographic symbols; non-ASCII *string
+  literals* are test data and stay allowed.
+
+* **No stray prints** (coding-style 4.6): ``yate/`` prints only from the
+  CLI front door and the two stdout-owning report helpers; every other
+  runtime log line goes through the tracing service (R12).  ``tools/`` is
+  outside the scan -- those subpackages are CLIs whose prints are the
+  product output.
+
 * **Capability injection** (semantic capability injection, issue IKJB0Q):
   the L3 flow modules never hold the App handle -- verbs are injected as
   bound methods (``spawn=app.run_worker``, ``push_screen=app.push_screen``)
@@ -95,6 +106,7 @@ import ast
 import asyncio
 import logging
 import re
+import tokenize
 from pathlib import Path
 
 import pytest
@@ -339,6 +351,95 @@ SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "editor_syntax/langdefs.py",
     "tools/pack/wiki.py",
 })
+
+#: Code points a code comment or docstring must not carry (misc-rules
+#: section 4: every comment and in-code doc is English).  The ranges are
+#: deliberately narrow -- CJK punctuation, CJK unified ideographs, the
+#: fullwidth forms, and the two typographic symbols this codebase used to
+#: leave behind.  ASCII and other Latin / Greek letters stay allowed, so a
+#: quoted third-party title or an accented word is not false-positived the
+#: way a blanket ``str.isascii()`` would.
+BANNED_COMMENT_RANGES: tuple[tuple[int, int], ...] = (
+    (0x00A7, 0x00A7),  # section sign
+    (0x00B0, 0x00B0),  # degree sign
+    (0x3000, 0x303F),  # CJK punctuation
+    (0x4E00, 0x9FFF),  # CJK unified ideographs
+    (0xFF00, 0xFFEF),  # fullwidth and halfwidth forms
+)
+
+#: Existing non-ASCII code comments kept as live negative samples
+#: (2026-10-18 measurement, 6 sites).  Each entry cites a docstring that
+#: *quotes* something rather than writing prose in Chinese: a rule section
+#: number, a generated marker string, or observed evidence.  Keyed by
+#: ``yate/``-relative or repository-relative path plus the owning symbol
+#: (``<module>`` for a module docstring or a module-level comment); a
+#: comment outside any def/class carries its line number instead, because
+#: there is no symbol to key on.  New sites must not be added here -- fix
+#: the text instead (``misc-rules.md`` section 4).
+NON_ASCII_COMMENT_EXEMPT: frozenset[tuple[str, str]] = frozenset({
+    # Quotes the rule number it enforces: "python-coding-style.md 4.5".
+    ("tests/test_pack_spec.py", "_returned_call"),
+    # Same shape: quotes a PyInstaller upstream reference plus a rule cite.
+    (
+        "tests/test_pack_spec.py",
+        "test_contents_dirname_when_onefolder_spec_parsed_"
+        "is_a_cross_platform_runtime_dir",
+    ),
+    # Documents the zh changelog marker it emits -- a product string, not prose.
+    ("tools/changelog/__init__.py", "<module>"),
+    # Cites the frozen changelog plan section it implements.
+    ("tools/changelog/segments.py", "<module>"),
+    # Quotes the observed IME evidence (x -> the composed hanzi key).
+    ("tools/probes/pb6_real_input_harness.py", "ensure_english_layout"),
+    # Module-level registry comment citing the plan section it follows.
+    ("yate/editor_sprites/characters.py", "<module>:62"),
+})
+
+#: Absolute paths that betray the *author's own machine* (doc-conventions
+#: section 5, "real path redaction"): a POSIX home directory, a macOS home
+#: directory, or a Windows user profile.  The pattern is deliberately narrow
+#: -- a generic ``C:\Windows`` system default or a ``C:\tools\...`` example in
+#: a docstring says nothing about who wrote the line, so those stay allowed;
+#: a home directory always does.  It is checked against raw source text, so a
+#: path cannot hide inside a comment, a docstring, or a string literal.
+HOME_PATH_PATTERN: re.Pattern[str] = re.compile(
+    r"(?:/home/[^/\s\"']+|/Users/[^/\s\"']+|[A-Za-z]:[\\/]+Users[\\/]+[^\\\s\"']+)"
+)
+
+#: ``(path, line)`` sites allowed to carry a home-directory path.  Empty by
+#: measurement (2026-10-18): the only Python-source hit was a comment naming
+#: the CI runner's short TEMP path, which was reworded instead.  Kept as a
+#: frozen set so a future test that must build such a path registers it
+#: visibly rather than widening :data:`HOME_PATH_PATTERN`.
+HOME_PATH_EXEMPT: frozenset[tuple[str, int]] = frozenset()
+
+
+def _banned_comment_chars(text: str) -> list[str]:
+    """Characters of *text* that misc-rules section 4 bans, as ``U+XXXX``."""
+    out: list[str] = []
+    for char in text:
+        code = ord(char)
+        if any(low <= code <= high for low, high in BANNED_COMMENT_RANGES):
+            out.append(f"U+{code:04X}")
+    return out
+
+
+#: The ``yate/`` functions allowed to call ``print()``
+#: (python-coding-style 4.6: ``print()`` is banned for debugging, every
+#: runtime log line goes through the tracing service so the
+#: ``YATE_TRACE`` switch and the devtools bridge both see it).  Keyed by
+#: ``yate/``-relative module path; values are the host function names.
+#: Registration is per module *and* per function on purpose: the CLI front
+#: door owns stdout, the two reporting helpers own their one output line,
+#: and a new ``print()`` anywhere else -- including inside these very
+#: files -- still fails.  A new CLI helper that prints must be registered
+#: here first, which keeps the maintenance cost visible instead of
+#: widening the exemption to a whole directory.
+PRINT_EXEMPT_SITES: dict[str, frozenset[str]] = {
+    "cli.py": frozenset({"main", "_manage_extensions"}),
+    "diagnostics.py": frozenset({"print_report"}),
+    "logs.py": frozenset({"warn"}),
+}
 
 
 def _python_files() -> list[Path]:
@@ -1177,3 +1278,156 @@ def test_extension_facade_exports_the_frozen_plugin_names() -> None:
     assert tuple(facade.__all__) == EXTENSION_FACADE_NAMES
     for name in EXTENSION_FACADE_NAMES:
         assert getattr(facade, name, None) is not None, name
+
+
+def _docstring_site(node: ast.AST) -> tuple[int, str] | None:
+    """``(lineno, owner name)`` of *node*'s docstring, or ``None``.
+
+    The owner is the class / function name; a module docstring reports
+    ``<module>``.  The line number comes from the docstring expression
+    itself, not from *node*: ``ast.Module`` carries no ``lineno``, and
+    pyright strict rejects the attribute access.
+    """
+    body = getattr(node, "body", None)
+    if not body:
+        return None
+    first = body[0]
+    if not (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)):
+        return None
+    name = getattr(node, "name", "<module>")
+    return first.value.lineno, str(name)
+
+
+def test_comments_and_docstrings_stay_ascii() -> None:
+    """Code comments and docstrings stay English (misc-rules section 4).
+
+    Code -- including the templates shipped in the package -- is distributed
+    to an international audience, so a stray CJK glyph or fullwidth bracket
+    in a ``#`` comment or a docstring is a defect no other gate catches.
+    The scan covers ``yate/``, ``tools/`` and ``tests/``.
+
+    Only comments and docstrings are read: a non-ASCII *string literal* is
+    test data (a cell width fixture, a key chord), not documentation, and
+    stays allowed.  Existing sites that deliberately quote a rule section
+    number, a generated marker, or observed evidence are registered in
+    :data:`NON_ASCII_COMMENT_EXEMPT`; new ones must be reworded instead.
+    """
+    offenders: list[str] = []
+    for path in _python_files():
+        rel = path.relative_to(PROJECT).as_posix()
+        with path.open("rb") as handle:
+            for token in tokenize.tokenize(handle.readline):
+                if token.type is not tokenize.COMMENT:
+                    continue
+                banned = _banned_comment_chars(token.string)
+                if not banned:
+                    continue
+                exempt_key = f"<module>:{token.start[0]}"
+                if (rel, exempt_key) in NON_ASCII_COMMENT_EXEMPT:
+                    continue
+                offenders.append(f"{rel}:{token.start[0]} comment {banned}")
+
+        tree = _parsed_tree(path)
+        for node in ast.walk(tree):
+            if not isinstance(
+                node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+            ):
+                continue
+            docstring = ast.get_docstring(node, clean=False)
+            if not docstring:
+                continue
+            banned = _banned_comment_chars(docstring)
+            if not banned:
+                continue
+            site = _docstring_site(node)
+            if site is None:
+                continue
+            lineno, name = site
+            if (rel, name) in NON_ASCII_COMMENT_EXEMPT:
+                continue
+            offenders.append(f"{rel}:{lineno} docstring {name} {banned}")
+
+    assert not offenders, offenders
+
+
+def _print_hosts(path: Path) -> list[tuple[int, str]]:
+    """``(lineno, host function name)`` of every ``print()`` call in *path*.
+
+    The host is the nearest enclosing ``def`` / ``async def``; a call at
+    module scope reports ``<module>``.  AST-based so a docstring or comment
+    that merely mentions ``print`` does not false-positive (same rationale
+    as the R12 devtools guard).
+    """
+    tree = _parsed_tree(path)
+    hosts: dict[int, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            for inner in ast.walk(node):
+                line = getattr(inner, "lineno", None)
+                if line is not None:
+                    hosts[line] = node.name
+    out: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "print"
+        ):
+            out.append((node.lineno, hosts.get(node.lineno, "<module>")))
+    return out
+
+
+def test_no_debug_prints_in_library_modules() -> None:
+    """``print()`` is banned outside the modules whose job is CLI output.
+
+    ``python-coding-style.md`` 4.6 requires every runtime log line to go
+    through :mod:`yate.logs`' tracing service, so a stray ``print()`` in a
+    library module would bypass both the ``YATE_TRACE`` switch and the
+    devtools bridge (R12) and corrupt the TUI.  Three modules legitimately
+    own stdout/stderr output -- the CLI front door and the two reporting
+    helpers -- and they are exempted by module path plus function name so a
+    new ``print()`` anywhere else, including inside those files, still
+    fails.  ``tools/`` is not scanned: every subpackage there is a
+    build/release CLI whose ``print`` calls *are* the product output.
+    """
+    offenders: list[str] = []
+    for path in _yate_files():
+        rel = path.relative_to(YATE).as_posix()
+        allowed = PRINT_EXEMPT_SITES.get(rel, frozenset())
+        for lineno, host in _print_hosts(path):
+            if host not in allowed:
+                offenders.append(f"{rel}:{lineno} print() in {host}()")
+    assert not offenders, (
+        "print() outside the stdout-owning modules bypasses the tracing "
+        "service (python-coding-style 4.6) and the YATE_TRACE switch; use "
+        f"log = tracing.get_logger(__name__), or register the host in "
+        f"PRINT_EXEMPT_SITES: {offenders}"
+    )
+
+
+def test_no_machine_local_home_paths_in_sources() -> None:
+    """Source files carry no absolute path into the author's home directory.
+
+    ``doc-conventions.md`` section 5 bans leaking real local paths, because a
+    hard-coded ``D:\\Programming\\...`` interpreter or worktree path stops
+    working for the next reader and can expose a private directory layout.
+    Markdowns are migrating gradually (the rule itself says existing documents
+    are *not* swept in a special campaign), so the guard covers the surface
+    that changes most often: ``yate/``, ``tools/`` and ``tests/``.
+
+    Only home-directory paths are rejected -- see :data:`HOME_PATH_PATTERN`
+    for why ``C:\\Windows`` or a ``/tmp`` example stay allowed.
+    """
+    offenders: list[str] = []
+    for path in _python_files():
+        rel = path.relative_to(PROJECT).as_posix()
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if HOME_PATH_PATTERN.search(line) and (rel, lineno) not in HOME_PATH_EXEMPT:
+                offenders.append(f"{rel}:{lineno} {HOME_PATH_PATTERN.search(line).group()}")
+    assert not offenders, (
+        "absolute home-directory paths leak the author's machine layout "
+        "(doc-conventions section 5); use a repo-relative path, an env var, "
+        f"or register the site in HOME_PATH_EXEMPT: {offenders}"
+    )

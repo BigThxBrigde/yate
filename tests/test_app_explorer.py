@@ -572,7 +572,7 @@ def test_palette_entries_exclude_palette_command() -> None:
 
 def test_tree_helper_line_of_and_find_node(tmp_path: Path) -> None:
     # Workspace resolves its root, which on Windows also expands 8.3
-    # short names (GitHub runners expose TEMP as C:\Users\RUNNER~1).
+    # short names (GitHub runners expose TEMP in its 8.3 short form).
     # Resolve here too or every node-path comparison below fails.
     async def scenario() -> None:
         root = tmp_path.resolve()

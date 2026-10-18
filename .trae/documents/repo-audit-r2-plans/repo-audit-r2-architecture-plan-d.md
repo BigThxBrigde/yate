@@ -298,3 +298,21 @@ MAJOR）的成因形态，不得重犯。
 **回滚**：`git revert <commit>`（守卫与规则文本同一 commit，回滚后回到 32 用例、
 计数与对照表同步复原，无残留）。若只回滚守卫而留规则文本，会重现 C-6 类漂移 ——
 **必须同 commit**。
+
+---
+
+## 执行记录（2026-10-18，plan-executor 实跑）
+
+- **落地**：A-1、A-2 两条守卫 + A-4 规则同步 → `tests/test_architecture.py` 由 32 → **34**
+  用例，全绿（退出码 0），`pyright tests/test_architecture.py` 零诊断，对照表行数 34。
+- **A-3 未落地**：落地前只读预演实测存量 **42 处 / 21 个文件**，与 §八「存量命中为 0」的
+  前提冲突；清理需改 21 个历史文档（全在独占清单外）→ 按纪律停下上报，未放宽扫描面、
+  未加豁免名单凑绿。命中分布与逐条清单见
+  [`.trae/reviews/2026-10-18-repo-audit-r2.md`](../../reviews/2026-10-18-repo-audit-r2.md) §四。
+- **实测回填（覆盖 §三 的预估）**：`yate/` 内 `print()` 实测 **14 处**，宿主为
+  `cli.py::main`(7) / `cli.py::_manage_extensions`(5) / `diagnostics.py::print_report`(1) /
+  `logs.py::warn`(1) —— 与 §三 A-1 表格逐条吻合；A-2 的非 ASCII 注释/docstring 实测 **6 处**
+  命中（方案未预估到数量），已逐条登记 `NON_ASCII_COMMENT_EXEMPT` 并在 §六 写明理由。
+- **负向演练**：A-2 做了两次（注释分支 + docstring 分支，后者为方案未列的补充，
+  用于覆盖 pyright 修正后新增的取行号路径）、A-1 一次，三次均观察到用例失败并已
+  `git checkout --` 还原、复跑退出码 0。四要素记录见评审记录 §三。

@@ -53,7 +53,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   条文登记见 R14 条目、守卫侧冻结于 §六 `UPWARD_EDGES_FROZEN`）与 L4 内的入口同层边
   （`__main__.py --> cli.py --> app.py`）外，其余一律**严格向下**；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
-  的禁线条款与 §六 32 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
+  的禁线条款与 §六 35 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
 
 ```mermaid
@@ -365,8 +365,10 @@ flowchart TD
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **32 个用例**（2026-10-17 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `32 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **35 个用例**（2026-10-18 新增三条：非 ASCII 注释 /
+`print()` 调试 / 本机家目录路径守卫；此前 2026-10-17 实测复核：
+`python -m pytest tests/test_architecture.py -q`
+→ `32 passed`；本次实测 → `35 passed`；用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -442,8 +444,45 @@ flowchart TD
   （负向演练：空白名单扫描恰好命中 statusbar 一处）；
   `test_extension_facade_exports_the_frozen_plugin_names` 运行时断言门面 `__all__`
   恒为 14 名白名单（`EXTENSION_FACADE_NAMES`）且逐名可解析。
+- **代码注释与 docstring 的 ASCII 纪律**（`misc-rules.md` §四，2026-10-18 新增）：
+  `test_comments_and_docstrings_stay_ascii` 扫描 `yate/` + `tools/` + `tests/`
+  的 `COMMENT` token 与模块/类/函数 docstring，拒绝 CJK 统一表意文字、CJK 与全角
+  标点及 `§`（U+00A7）/ `°`（U+00B0）排版符号；被测数据里的非ASCII 字符串字面量
+  不拦截（它们是断言输入，不是注释），ASCII 与其它拉丁/希腊字母放行。存量 6 处
+  引述型命中（引规则编号 / 引产物标记 / 引实测证据）逐条登记在
+  `NON_ASCII_COMMENT_EXEMPT`，**新增命中不得登记，须改写文本**；
+- **库模块禁 `print()`**（`python-coding-style.md` §4.6，2026-10-18 新增）：
+  `test_no_debug_prints_in_library_modules` 对 `yate/` 做 AST 扫描，每个
+  `print()` 调用的宿主函数名须落在 `PRINT_EXEMPT_SITES` 内——仅豁免
+  `cli.py::main` / `cli.py::_manage_extensions`（CLI 面向用户的 stdout 输出）与
+  `diagnostics.py::print_report` / `logs.py::warn` 两个自述职责的报告函数，
+  按「模块 + 宿主函数名」双重登记，同一文件内新增函数打 `print` 仍会失败；
+  `tools/` 全部 CLI 包不在扫描面（它们的 `print` 就是产品输出）。
+  **新增 CLI 助手若需输出，须先登记 `PRINT_EXEMPT_SITES`**——把维护成本显式化。
+- **源码禁本机家目录路径**（`doc-conventions.md` §五，2026-10-18 新增）：
+  `test_no_machine_local_home_paths_in_sources` 对 `yate/` + `tools/` + `tests/`
+  的 `.py` 逐行匹配 `HOME_PATH_PATTERN`，只拦 POSIX 家目录（`/home/<name>/`）、
+  macOS 家目录（`/Users/<name>/`）与 Windows 用户目录（`<Drive>:\Users\<name>\`）
+  三类**必然泄露作者机器布局**的绝对路径；`C:\Windows` 这类系统默认值、
+  `C:\tools\...` 这类示例、以及一切 URL 都不在拦截面（它们不指向任何人的家目录）。
+  匹配按**原始源码文本**做，因此注释、docstring、字符串字面量一视同仁；
+  豁免集合 `HOME_PATH_EXEMPT` 按「`(文件, 行号)`」登记且实测为空集
+  （唯一存量命中是 `tests/test_app_explorer.py` 里描述 CI runner 短路径 TEMP 的
+  注释，已改写）。**文档面（`.md`）刻意不设守卫**：`doc-conventions.md` §五 末条
+  规定存量文档不专项清扫，Markdown 中的历史真实路径按「随下次修改逐步迁移」处理
+  （2026-10-18 实测存量 42 处 / 21 个文件，登记为待办）。
 
-**32 个用例逐条对照**（2026-10-17 实测 `32 passed`）：
+> **未落地项（2026-10-18 实测上报）**：计划中的第三条守卫「文档真实路径脱敏」
+> （`doc-conventions.md` §五 第 2 段）**在文档面未落地**。落地前的只读预演实测存量命中
+> **42 处 / 21 个文件**（`.trae/documents/` 15 个计划文档、`.trae/reviews/` 4 条评审
+> 记录、`yate/docs/lsp.{en,zh}.md` 各 1 处），与计划「存量命中为 0」的前提冲突。
+> 这些存量是历史文档的真实 worktree 路径与占位符形态混排，而
+> `doc-conventions.md` §五 末条明文规定「存量文档随下次修改逐步迁移，**不做专项
+> 清扫**」，故主代理裁定：**文档面不设守卫、存量不批量改**，只在源码面落地
+> `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
+> 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
+
+**35 个用例逐条对照**（2026-10-18 实测 `35 passed`；2026-10-17 为 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -479,6 +518,9 @@ flowchart TD
 | 30 | `test_extension_machinery_hides_behind_facade` | R14（扩展机件仅居 `services/extensions/`：禁直引子模块 + 旧路径不复存在） |
 | 31 | `test_extension_facade_exports_the_frozen_plugin_names` | R14（门面 14 名白名单冻结，逐名可解析） |
 | 32 | `test_no_unregistered_upward_imports` | 层秩向上连线（2026-10-17：切分后白名单仅 statusbar 2 条，`extensions/` 跳过） |
+| 33 | `test_comments_and_docstrings_stay_ascii` | 代码注释 ASCII 纪律（misc-rules §四：拒 CJK / 全角 / 排版符号，字符串字面量放行；存量 6 处引述型命中登记 `NON_ASCII_COMMENT_EXEMPT`） |
+| 34 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
+| 35 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 
