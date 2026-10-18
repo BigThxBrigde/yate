@@ -1,9 +1,10 @@
 # which-key 实施方案（issue IKLY1Y：Keymap 的 visual 反馈）
 
-状态：**待评审（未批准，不进入实施）**。任务判据：跨层（L1+L2+L3+规则/手册）、
+状态：**已实施完成（四波落地 + pr-review 迭代），门禁全绿，待用户合并决策**。
+任务判据：跨层（L1+L2+L3+规则/手册）、
 预计改动 ≥ 3 个源码文件、需调研（chord 态观测面）——满足 plan-before-execute
 §一全部主要判据，走方案先行。拆分与波次见
-[which-key-plans/overview.md](which-key-plans/overview.md)。
+[which-key-plans/overview.md](which-key-plans/overview.md)；实况回填见 §九。
 
 ## 一、需求逐条回应（issue 五点）
 
@@ -144,3 +145,80 @@ flowchart TD
   ctrl+w 状态机、R14 门面（本方案不触碰）。
 - 不依赖、不阻塞其它在途任务；波次内可按 subagent-workflow 并行下发
   （wave-1 三子计划文件互不重叠）。
+
+## 九、执行记录（实况回填）
+
+分支 `feat/which-key`，基线 `1133a72`；四波按计划顺序落地，每波单独提交：
+
+| 步骤 | 提交 | 内容 |
+|---|---|---|
+| 方案 | `6d5ebe2` | 主计划 + 4 份子计划（后按用户要求细化） |
+| 子计划细化 | `e2d13f1` | 拆为 6 份（a~f）、4 波次；`overview.md` 与 §六 同步 |
+| wave-1 | `1f6434c` / `23f0ff1` / `8077e97` | plan-a 键位观测 / plan-b 冲突扫描 / plan-c 面板组件 |
+| wave-2 | `fb0ae85` | plan-d `WhichKeyFlows` |
+| wave-3 | `b1940fe` | plan-e 接线 + 内置表 + R11 登记 |
+| wave-4 | `b8534d3` | plan-f 规则回写 + 双语手册 |
+| pr-review 迭代 | `308e5b6` | 冲突报告分类计数与 reserved 说明 + 文档同步 |
+
+### 收尾门禁实测（worktree venv，全部真实退出码）
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| 类型 | `pyright yate/ tests/ tools/` | 退出码 0，`0 errors, 0 warnings, 0 informations` |
+| 测试 | `pytest tests/` | 退出码 0，`2539 passed, 9 skipped` |
+| 架构 | `pytest tests/test_architecture.py` | 退出码 0，35 passed |
+| 覆盖率 | `pytest tests/ --cov --cov-fail-under=75` | 退出码 0，`Total coverage: 92.05%` |
+| 冒烟 | `python -m tools.smoke_test compare --fail-only` | 1354/1354 checks、112/112 场景通过；退出码 1，唯一红色为 **本分支之外的存量漂移**（见下） |
+| 负向演练 | 临时移除 `UI_FROZEN_FILES["flows/whichkey_flows.py"]` 的 `yate.editor_view.whichkey` 成员 | R11 守卫按预期变红，拦截精确；已还原并复绿 |
+
+### 偏离与计划外处置（逐条附实测依据）
+
+1. **plan-a 计数回退（实现细节）**：`pending_prefix()` 在 operator 挺臂时
+   vim 已把 `count_str` 清空、计数转入 `op_count`，故按计划片段原样实现会
+   使计划自带的 `"2d"` / `"2df"` 断言失败（探针实测 `count_str='' op='d'
+   op_count=2`）。处置：`count_str` 为空且 operator 挂起时回退显示
+   `str(op_count)`；裸 `d` 无计数（`_typed_count()` 返回 `None`）不误显示
+   `1d`。断言未降级。
+2. **plan-b 测试数据（计划内部矛盾）**：排序细则按 `key_name(raw)` 升序，
+   而 `key_name("zz")` 为带引号形 `"'zz'"`，其首字符小于 `<`，与计划测试
+   表「`<esc>` 在前」互斥。处置：仅把该用例数据 `"zz"` 改为 `"z"`，两条
+   断言逐字未动。
+3. **plan-d 类型细节**：`reserved` 补 `frozenset[str]` 显式注解（pyright
+   strict 要求，纯注解）；钉住整表 header 取 `self.keymaps.name`（计划未
+   规定，由测试钉住）；候选描述回退 `str(binding.action)` 与帮助页同策略。
+4. **plan-e 前提偏差**：计划称「登记前架构全量会红」，实测基线为绿
+   （`35 passed`）——守卫只遍历 `UI_FROZEN_FILES` 已登记键，未登记文件不
+   在扫描面；登记后守卫保持绿且负向演练确认拦截有效。计划「手工冒烟」
+   以 `textual-pilot-smoke` 三场景替代（pending chord 显隐 / F9 钉住与关闭 /
+   `:check-keys` 浮层），全部通过后删除临时脚本。
+5. **plan-e 清单外阻塞（编排方处置）**：执行者按纪律上报 3 项清单外失败，
+   均为本任务新增面的配套修正、非断言降级——`tests/test_action_table.py`
+   登记 `whichkey.toggle` 与 `whichkey` 命名空间；`tests/test_whichkey_panel.py`
+   补 `@override`；`tests/test_whichkey_flows.py` 的候选用例改走公开
+   `refresh()` 路径（消除私有成员访问）。
+6. **plan-f 验收调整**：计划含 `git diff --stat` 命令，与「执行者禁跑 git」
+   纪律冲突，改用等效 grep / AST 核对（`UI_FROZEN_FILES` 10 键与 §一 清单
+   11 名相差既有 `extension_flows.py`，符合 R11 登记事实）。规则 R11 条目
+   内的 flows 枚举遗漏 `whichkey_flows.py`，由编排方补齐以消除规则与白名单
+   漂移。
+7. **pr-review 迭代（`308e5b6`）**：`:check-keys` 报告改为分类计数
+   （`-- N conflict(s) (D duplicate, R reserved)`）+ reserved 类末尾说明，
+   并在双语手册点明原生 vim 键位下 8 条 reserved 行是内建分支的帮助镜像、
+   扫描真正目标是**后加的**绑定（如扩展）——否则使用者会把既有帮助行误读为
+   缺陷；同时移除未使用的 `PendingQuery` 别名、补 `_candidates` 的
+   raw-byte 规格永不匹配说明；手册补「计数 + 操作符只显表头」限制。
+8. **存量冒烟漂移（本分支无关，登记为既有问题）**：唯一红色
+   `replace_single_all: DRIFT（confirm_loop_mode: new check）` 源于
+   `4fcb8df test(smoke): sync replace scenarios with per-match confirm
+   loop` 变更了场景检查项而未重制基线；本分支 `git diff --name-only` 不含
+   任何 `tools/` 文件，故与本任务无因果关系。基线重制属独立事项，本次不做。
+
+### issue 五点验收对照
+
+| # | 需求 | 落点与实测 |
+|---|---|---|
+| 1 | panel 显示组合与说明 | `WhichKeyPanel`（`#which-key`，底部 dock、statusbar 之上）；pilot 冒烟实见 `dd` / `d{motion}` 行 |
+| 2 | which-key.nvim 风格 UI | 挂起序列 header + 分组候选网格 + 超量截断提示（`MAX_ROWS` 12） |
+| 3 | 实时更新 / toggle | vim 每键自动显隐（`pending_prefix()`）+ `<f9>` 钉住；ctrl+w 分支补刷新 |
+| 4 | vim 简单 / vsc 更慎重 | vim 复用实例内 chord 态；vsc 无前缀态，语义为钉住式分组速查（不做伪前缀） |
+| 5 | 键位冲突检测 | `keymaps/conflicts.py` 纯扫描（duplicate + reserved）+ `:check-keys` → `OutputScreen`；原生 vim 实测 8 条 reserved 均为帮助镜像，vsc 零误报 |
