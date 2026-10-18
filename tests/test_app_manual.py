@@ -83,28 +83,31 @@ def test_set_theme_switches_textual_theme_and_overlay_border() -> None:
         try:
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
-                # switch to latte -> app.theme becomes yate-latte, the
-                # overlay border token ($primary) resolves to latte's
-                # accent2 (mauve)
+                # switch to latte -> app.theme becomes yate-latte; the
+                # overlay border no longer follows the accent color -- it is
+                # the theme foreground at 15% alpha, resolved through the
+                # textual theme bridge
                 app.editor.run_command("set theme=latte")
                 await pilot.pause()
                 await pilot.pause()
                 assert app.theme == "yate-latte"
                 # open the help overlay and inspect its border color -- it
-                # must follow the latte palette, not the textual-dark blue.
+                # must be the latte foreground tint, not the accent2 mauve.
                 # The border shorthand returns an Edges NamedTuple of
                 # (type, Color) per side.
                 await pilot.press("f1")
                 await pilot.pause()
                 overlay = app.screen.query_one("#overlay")
                 border_color = overlay.styles.border.top[1]
-                expected = Color.parse(yate_theme.THEMES["latte"].accent2)
+                latte = app.get_theme(app.theme)
+                assert latte is not None
+                expected = Color.parse(latte.foreground).with_alpha(0.15)
                 assert border_color.hex == expected.hex
                 await pilot.press("escape")
                 await pilot.pause()
 
-                # one non-Mocha dark theme proves the textual-dark blue is
-                # gone
+                # one non-Mocha dark theme proves the border follows each
+                # bridged theme's foreground
                 app.editor.run_command("set theme=onedark")
                 await pilot.pause()
                 await pilot.pause()
@@ -113,7 +116,9 @@ def test_set_theme_switches_textual_theme_and_overlay_border() -> None:
                 await pilot.pause()
                 overlay = app.screen.query_one("#overlay")
                 border_color = overlay.styles.border.top[1]
-                expected = Color.parse(yate_theme.THEMES["onedark"].accent2)
+                onedark = app.get_theme(app.theme)
+                assert onedark is not None
+                expected = Color.parse(onedark.foreground).with_alpha(0.15)
                 assert border_color.hex == expected.hex
         finally:
             # restore the default theme even on failure: a leaked latte /
@@ -162,7 +167,7 @@ def test_valid_custom_yate_theme_gets_working_bridge() -> None:
         base = THEMES["mocha"]
         d = {f.name: getattr(base, f.name) for f in dc_fields(base)}
         d["name"] = "custom-ok"
-        d["accent2"] = "#ff00ff"  # distinct so the bridge border is testable
+        d["accent2"] = "#ff00ff"  # distinct: must NOT leak into overlay border
         # d re-uses Theme's real field names; pyright only sees dict[str, object].
         custom = Theme(**d)  # type: ignore[arg-type]
         THEMES["custom-ok"] = custom
@@ -172,12 +177,18 @@ def test_valid_custom_yate_theme_gets_working_bridge() -> None:
                 await pilot.pause()
                 assert app.theme == "yate-custom-ok"
                 assert app.get_theme("yate-custom-ok") is not None
-                # the overlay border follows the custom theme's accent2
+                # the overlay border resolves through the custom theme's
+                # bridge (foreground at 15% alpha) and no longer follows
+                # accent2
                 await pilot.press("f1")
                 await pilot.pause()
                 overlay = app.screen.query_one("#overlay")
                 border_color = overlay.styles.border.top[1]
-                assert border_color.hex == Color.parse("#ff00ff").hex
+                bridged = app.get_theme(app.theme)
+                assert bridged is not None
+                expected = Color.parse(bridged.foreground).with_alpha(0.15)
+                assert border_color.hex == expected.hex
+                assert border_color.hex != Color.parse("#ff00ff").hex
         finally:
             THEMES.pop("custom-ok", None)
             set_theme("mocha")

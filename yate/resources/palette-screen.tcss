@@ -8,7 +8,7 @@ PaletteScreen #palette {
     max-width: 90;
     height: 14;
     margin-top: 3;
-    border: tall $primary;
+    border: tall $foreground 15%;
     background: $surface;
     padding: 0 1;
 }
