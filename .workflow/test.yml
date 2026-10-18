@@ -66,5 +66,5 @@ stages:
             # install the package itself plus the test deps (textual, pytest); run from the repo root
             - pip install -e ".[dev]"
             # Textual pilot tests need a non-dumb TERM inside the TTY-less container
-            # --cov uses the [tool.coverage.*] config in pyproject; fail-under stays identical
+            # --cov uses the [tool.coverage.*] config in pyproject; the threshold lives in [tool.coverage.report] fail_under
             - TERM=xterm-256color python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing
