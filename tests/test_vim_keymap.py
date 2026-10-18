@@ -19,6 +19,7 @@ from yate.editor_core import BufferReadOnlyError, Document, TextBuffer
 from yate.keymaps import vim as vim_module
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
 from yate.keymaps.vim import RESERVED_KEYS, VimKeymap, VimMode
+from yate.keymaps.vsc import VscKeymap
 from yate.registries import ActionRegistry
 from yate.session import EditorSession
 
@@ -1904,13 +1905,22 @@ def test_f9_binding_toggles_whichkey_action() -> None:
 def test_reserved_keys_match_hardcoded_consumers() -> None:
     """RESERVED_KEYS pins exactly the keys _handle_normal eats before lookup.
 
-    ESC / ctrl+d and digits 1-9 are consumed unconditionally, ``0`` only
-    mid-count (stays bindable at column 0), and F-keys still reach the
-    binding table through the _FUNCTION_KEYS branch.
+    Literal full-set equality: adding or removing a hardcoded consumer
+    branch must update this literal in the same change, or the conflict
+    scanner false-reports reserved keys (or misses a dead binding).
+    ESC / alt+c / ctrl-chords and digits 1-9 are consumed unconditionally,
+    ``0`` only mid-count (stays bindable at column 0), and F-keys still
+    reach the binding table through the _FUNCTION_KEYS branch.
     """
-    assert "\x1b" in RESERVED_KEYS
-    assert "\x04" in RESERVED_KEYS
-    for digit in "123456789":
-        assert digit in RESERVED_KEYS
+    assert RESERVED_KEYS == frozenset(
+        {"\x1b", "\x1bc", "\x07", "\x04", "\x15", "\x06", "\x02", "\x12",
+         "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+    )
     assert "0" not in RESERVED_KEYS
     assert parse_key("<f1>") not in RESERVED_KEYS
+
+
+def test_vim_keymap_carries_reserved_keys_hook() -> None:
+    """The base-class reserved_keys hook exposes the vim set to scanners."""
+    assert VimKeymap().reserved_keys is RESERVED_KEYS
+    assert VscKeymap().reserved_keys == frozenset()

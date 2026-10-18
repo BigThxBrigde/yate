@@ -18,8 +18,9 @@ from typing import cast
 from yate.editor_view.whichkey import ChordEntry, WhichKeyPanel
 from yate.flows import StateQuery
 from yate.flows.whichkey_flows import WINDOW_CHORDS, WhichKeyFlows
+from yate.flows.window_flows import WINDOW_CHORD_HINT
 from yate.keymaps.registry import KeymapSet
-from yate.keymaps.vim import VimKeymap
+from yate.keymaps.vim import RESERVED_KEYS, VimKeymap
 from yate.keymaps.vsc import VscKeymap
 
 from conftest import make_action_context
@@ -203,3 +204,28 @@ def test_flow_holds_no_app_handle() -> None:
         and node.value.id == "self"
     ]
     assert offenders == []
+
+
+def test_window_chord_hint_covers_whichkey_rows() -> None:
+    """Every WINDOW_CHORDS description keyword appears in the arm hint.
+
+    Drift guard: the ctrl+w panel rows and the message line posted by
+    ``WindowFlows.try_window_prefix`` must read the same words (the
+    whichkey_flows module note pins the pairing).  Rewording either side
+    without the other fails here.
+    """
+    descs = {entry.desc for entry in WINDOW_CHORDS}
+    assert all(desc in WINDOW_CHORD_HINT for desc in descs)
+
+
+def test_reserved_keys_come_from_the_active_keymap() -> None:
+    """The conflict report reads the active keymap's own reserved hook.
+
+    The flow module no longer compares keymap names: a VimKeymap carries
+    its RESERVED_KEYS through the base-class ``reserved_keys`` attribute,
+    and a table-driven keymap contributes an empty set.
+    """
+    vim_flows, _ = _make_flows(KeymapSet({"vim": VimKeymap()}, "vim"))
+    vsc_flows, _ = _make_flows(KeymapSet({"vsc": VscKeymap()}, "vsc"))
+    assert vim_flows.keymaps.active.reserved_keys == RESERVED_KEYS
+    assert vsc_flows.keymaps.active.reserved_keys == frozenset()

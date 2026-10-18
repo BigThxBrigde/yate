@@ -15,7 +15,6 @@ from yate.flows import MessageFn, StateQuery
 from yate.keymaps.conflicts import find_key_conflicts, format_conflicts
 from yate.keymaps.keys import key_name
 from yate.keymaps.registry import KeymapSet
-from yate.keymaps.vim import RESERVED_KEYS
 from yate.logs import tracing
 
 log = tracing.get_logger(__name__)
@@ -99,13 +98,14 @@ class WhichKeyFlows:
     def conflicts_report(self) -> str:
         """The :check-keys report body for the active keymap.
 
-        Vim's reserved keys only apply while the vim keymap is active;
-        every other keymap scans duplicates alone.
+        Each keymap carries its own reserved-key set
+        (:attr:`~yate.keymaps.base.Keymap.reserved_keys` -- the raw keys its
+        hardcoded dispatch branches consume); table-driven keymaps hold an
+        empty set and scan duplicates alone.
         """
-        reserved: frozenset[str] = (
-            RESERVED_KEYS if self.keymaps.name == "vim" else frozenset()
+        conflicts = find_key_conflicts(
+            self.keymaps.active, reserved=self.keymaps.active.reserved_keys
         )
-        conflicts = find_key_conflicts(self.keymaps.active, reserved=reserved)
         return format_conflicts(self.keymaps.name, conflicts)
 
     # -------------------------------------------------------------- internals

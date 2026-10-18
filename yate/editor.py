@@ -320,6 +320,10 @@ def _build_pane_stack(ed: Editor) -> None:
         panel=ed.which_key_panel,
         message=ed.message,
     )
+    # Late chord observer (same binding pattern as window_prefix above):
+    # WindowFlows notifies on every ctrl+w flip, covering the explorer path
+    # whose on_key never reaches Editor.handle_key.
+    ed.window_flows.on_chord_change = ed.whichkey.refresh
 
 
 def _build_key_ui(ed: Editor) -> None:
@@ -402,7 +406,9 @@ class Editor:
         self._ext_messages: list[str] = [
             f"yaterc: {err}" for err in self.config.errors
         ]
-        # Assembly order: whichkey needs keymaps / window_flows / which_key_panel ready.
+        # Assembly order: whichkey needs keymaps / window_flows /
+        # which_key_panel ready; the window chord observer is bound right
+        # after WhichKeyFlows exists (see _build_pane_stack).
         _build_models(self, keymap)
         _build_widgets(self)
         _open_startup_target(self, target)
@@ -666,9 +672,10 @@ class Editor:
                 popup.close()
                 return True
         # vim ctrl+w window chord (armed or pending); before the other
-        # chords so the prefix is consumed wherever focus currently is
+        # chords so the prefix is consumed wherever focus currently is.
+        # The panel follows via window_flows.on_chord_change -- no manual
+        # refresh here, the chord state owner notifies on every flip.
         if self.window_flows.try_window_prefix(event):
-            self.whichkey.refresh()
             return True
         # Global chords that raw byte dispatch cannot represent reliably.
         # alt+shift+p is the default: Windows Terminal reserves ctrl+shift+p

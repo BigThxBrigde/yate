@@ -96,7 +96,13 @@ class VimKeymap(Keymap):
     :attr:`obj_scope`, :attr:`count_str`) is instance-local, so every
     keypress extends or resolves exactly one in-flight chord and no
     half-typed combination ever leaks between keymap instances.
+
+    Hardcoded dispatch branches claim :data:`RESERVED_KEYS`; the base-class
+    :attr:`~yate.keymaps.base.Keymap.reserved_keys` hook carries the set so
+    the conflict scanner sees it without knowing this concrete keymap.
     """
+
+    reserved_keys = RESERVED_KEYS
 
     name = "vim"
     label = "Vim (modal)"
@@ -267,8 +273,11 @@ class VimKeymap(Keymap):
     def pending_prefix(self) -> str:
         """The vim chord typed so far, in binding-spec order (empty if none).
 
-        Follows the typing order the dispatch accepts: register, count,
-        operator, prefix (``"a2df``).  INSERT / VISUAL never hold chord state.
+        Follows the typing order the dispatch accepts: count, operator,
+        prefix (``2df``).  The register prefix ``"`` shows only while its
+        letter is awaited (``pending_register == ""``); once the letter
+        lands the register is folded into the armed operator and the
+        display drops it.  INSERT / VISUAL never hold chord state.
         """
         if self.mode is not VimMode.NORMAL:
             return ""

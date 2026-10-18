@@ -96,6 +96,13 @@ class Keymap:
     name: str = "base"
     label: str = "Base"
 
+    #: Raw keys this keymap consumes in hardcoded dispatch branches before
+    #: the binding table is consulted, so a table entry on any of them can
+    #: never dispatch.  Table-driven keymaps stay empty; stateful keymaps
+    #: with hardcoded branches override (vim).  Consumed by
+    #: :func:`yate.keymaps.conflicts.find_key_conflicts` via the caller.
+    reserved_keys: frozenset[str] = frozenset()
+
     def __init__(self) -> None:
         self.bindings: list[KeyBinding] = self.build_bindings()
         self._index: dict[str, KeyBinding] = {b.key: b for b in self.bindings}
