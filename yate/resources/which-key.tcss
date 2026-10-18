@@ -1,0 +1,11 @@
+/* WhichKeyPanel self-owned styles; the #which-key id is assigned by the
+   Editor at compose time (R9). Display defaults to off: the flow module
+   toggles visibility through show_entries/clear. */
+WhichKeyPanel {
+    display: none;
+    height: auto;
+    max-height: 14;
+    padding: 0 1;
+    background: $panel;
+    border-top: solid $accent;
+}
