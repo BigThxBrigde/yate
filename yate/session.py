@@ -188,10 +188,18 @@ class EditorSession:
         ]
         if not closed:
             return []
+        active = self.docs[self.index] if 0 <= self.index < len(self.docs) else None
         self.docs = [doc for doc in self.docs if doc not in closed]
         if not self.docs:
             self.docs.append(Document(None, self.make_buffer()))
-        self.index = max(0, min(self.index, len(self.docs) - 1))
+        if active is not None and active not in closed:
+            # The active tab survived: keep it active by identity, because
+            # removing preceding tabs shifts its index downward.
+            self.index = self.docs.index(active)
+        else:
+            # The active tab was among the closed ones (or absent): fall back
+            # to a surviving neighbour, matching close_active's behaviour.
+            self.index = min(max(self.index, 0), len(self.docs) - 1)
         log.debug("session close under %s: %d doc(s)", path, len(closed))
         self._notify_closed(closed)
         return closed

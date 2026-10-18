@@ -10,6 +10,7 @@ import pytest
 from yate import config as cfg
 from yate import yaterc as yrc
 from yate.editor_view import theme as themes
+from yate.services.trust import trust_workspace
 
 
 def _write(path: Path, content: str) -> Path:
@@ -540,24 +541,41 @@ def test_find_project_config_from_file_path(tmp_path: Path) -> None:
 
 
 def test_default_rc_paths_user_then_project(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_home: Path
 ) -> None:
     user_rc = tmp_path / "user_yaterc"
     _write(user_rc, "")
     project_rc = _write(tmp_path / "yaterc", "")
     monkeypatch.setattr(yrc, "user_config_path", lambda: user_rc)
+    trust_workspace(tmp_path)  # project rc only loads when trusted
     paths = yrc.default_rc_paths(tmp_path)
     # returned paths are resolved (canonical) -- see Windows 8.3 note
     assert paths == [user_rc.resolve(), project_rc.resolve()]
 
 
 def test_default_rc_paths_dedupes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_home: Path
 ) -> None:
     rc = _write(tmp_path / "yaterc", "")
     monkeypatch.setattr(yrc, "user_config_path", lambda: rc)
+    trust_workspace(tmp_path)  # project rc only loads when trusted
     paths = yrc.default_rc_paths(tmp_path)
     assert paths == [rc.resolve()]
+
+
+def test_default_rc_paths_skips_untrusted_project_rc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    """A project rc is not executed automatically unless its directory is
+    trusted, mirroring the extension auto-load gate."""
+    user_rc = tmp_path / "user_yaterc"
+    _write(user_rc, "")
+    project_rc = _write(tmp_path / "yaterc", "")
+    monkeypatch.setattr(yrc, "user_config_path", lambda: user_rc)
+    paths = yrc.default_rc_paths(tmp_path)
+    # project rc is untrusted -> must not be loaded without explicit -u
+    assert paths == [user_rc.resolve()]
+    assert project_rc.resolve() not in paths
 
 
 def test_user_config_path_layout(isolated_home: Path) -> None:

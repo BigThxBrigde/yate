@@ -42,7 +42,6 @@ type NotificationFn = Callable[[str, dict[str, Any]], None]
 
 #: LSP error codes we care about.
 ERR_METHOD_NOT_FOUND: int = -32601
-ERR_REQUEST_CANCELLED: int = -32800
 
 DEFAULT_ROOT_MARKERS: tuple[str, ...] = (
     ".git",

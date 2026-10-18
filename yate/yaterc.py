@@ -108,7 +108,20 @@ def default_rc_paths(target: Path | None = None) -> list[Path]:
         paths.append(user.resolve())
     project = find_project_config(target)
     if project is not None and project not in paths:
-        paths.append(project)
+        # A project-level yaterc is code the project author wrote.  Auto-executing
+        # it at startup would run repository code automatically -- the same risk
+        # the workspace-trust gate already closes for project extensions/ -- so it
+        # is only loaded when the working directory is trusted, exactly like the
+        # extension auto-load path.
+        from yate.services.trust import is_trusted
+
+        here = (target if target is not None else Path.cwd()).resolve()
+        if not here.is_dir():
+            here = here.parent
+        if is_trusted(here):
+            paths.append(project)
+        else:
+            log.debug("skipping untrusted project rc: %s", project)
     return paths
 
 
