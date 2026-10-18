@@ -99,3 +99,33 @@ pilot 互相干扰）。
 - §六 守卫条目列表末尾追加 2 条（非 ASCII 注释纪律 / 库模块禁 `print()`）+ 1 段「未落地项」说明；
 - `:470` 对照表标题 → `**34 个用例逐条对照**（2026-10-18 实测 34 passed；2026-10-17 为 32 passed）`；
 - 对照表追加 `| 33 |` / `| 34 |` 两行。
+## 终局收口（2026-10-18，主代理）
+
+### 合并
+- `enh/repo-audit-r3` → `ref/repo-audit-r2`：干净合并（yaterc trust 门控 /
+  active tab / LSP 常量清理 + r3 文档）。
+- `enh/full-repo-audit` → `ref/repo-audit-r2`：3 个文件冲突（该分支对同一批
+  静默吞异常的修复形态更弱——无异常详情、cleanup 路径 log 到不打印的通道），
+  全部按本分支已评审版本解决；其评审记录与修复方案文档随合并入库。
+
+### 评审处置（code-review-expert，两 skill 不可用按剧本单轨回退）
+- [CRITICAL]：无。
+- [WARNING] W1（测试污染真实信任库）/ W2（信任锚点应为 rc 所属目录）/
+  W3（跳过无用户可见提示 + 手册未同步）/ W4（新用例时序敏感）：全部已修
+  （commit `0c44e55`）。
+- [SUGGESTION] S1-S6：S1/S2/S4/S5/S6 已修；S3 以扩展 ASCII 守卫到
+  `*.py.example` 模板落地。
+
+### 终局门禁（主代理亲跑，全部退出码 0）
+| 门禁 | 结果 |
+|---|---|
+| pyright strict | 0 errors / 0 warnings / 0 informations |
+| pytest 全量 + 架构守卫 | 2508 passed / 9 skipped（含 test_architecture 35 passed） |
+| 覆盖率（fail_under=75，pyproject 单点源） | 91.99% |
+| 冒烟 tools.smoke_test | 112/112 场景、1354/1354 checks |
+
+### 遗留
+- 文档面真实路径存量（42 处 / 21 个文件）按 doc-conventions §五「随下次修改
+  迁移、不专项清扫」登记为待办（守卫只覆盖源码面）。
+- 评审期间发现开发者真实信任库已被既有测试污染（18 条 pytest 临时目录条目），
+  属本机环境数据，须手工清理（不在仓库范围内）。
