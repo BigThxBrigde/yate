@@ -81,11 +81,15 @@ def test_dismiss_within_debounce_window_leaves_no_pending_timer(
                 # with the bar unfocused, escape reaches the screen's own
                 # dismiss binding and closes the viewer itself
                 await pilot.press("escape")
+                # Textual retires the popped screen in a background task: poll
+                # for the full retirement instead of assuming one pause is
+                # enough, then let any in-flight messages settle while the
+                # screen is already popped -- a straggler Input.Changed that
+                # lands after the cancel must not re-arm the timer
+                assert await wait_until(
+                    pilot, lambda: screen not in app.screen_stack, timeout=5.0
+                )
                 await pilot.pause()
-
-                assert screen not in app.screen_stack
-                # Textual retires the popped screen in a background task, so
-                # poll for the teardown instead of assuming one pause is enough
                 assert await wait_until(
                     pilot, lambda: screen._search_timer is None, timeout=5.0
                 )
@@ -93,6 +97,7 @@ def test_dismiss_within_debounce_window_leaves_no_pending_timer(
                 # ... and the cancelled callback never runs
                 await pilot.pause(MarkdownDocScreen._SEARCH_DEBOUNCE_S * 5)
                 assert calls == []
+                assert screen._search_timer is None  # nothing re-armed it
 
     asyncio.run(scenario())
 

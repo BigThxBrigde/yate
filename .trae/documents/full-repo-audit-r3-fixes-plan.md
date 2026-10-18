@@ -31,7 +31,7 @@
 |---|---|---|---|
 | F1 | `yate/session.py:181` `close_under` | 活动标签存活则按身份重算 `self.index`，被删则回退邻居 | `yate/session.py` |
 | F1·测试 | `tests/test_session.py` | 新增 `test_close_under_keeps_the_active_tab_when_a_preceding_tab_is_closed` | `tests/test_session.py` |
-| F2 | `yate/yaterc.py:99` `default_rc_paths` | 项目级 `yaterc` 仅当 `is_trusted(here)` 加载（函数内 `from yate.services.trust import is_trusted`） | `yate/yaterc.py` |
+| F2 | `yate/yaterc.py:99` `default_rc_paths` | 项目级 `yaterc` 仅当 `is_trusted(project.parent)` 加载（**2026-10-18 评审修订**：锚点由 `here`（启动目录）改为 rc 文件所属目录——`here` 锚点存在两个边界缺陷：信任库记录 repo 本身时，repo 的**父**目录里的 rc 会被放行（安全残留）；`yate sub/dir/file.py` 启动时子目录不在信任库（假阴性）。`is_trusted` 从模块级导入并新增 `notes` 出参，跳过时附用户可见提示） | `yate/yaterc.py` |
 | F2·测试 | `tests/test_config.py` | 既有两测试加 `trust_workspace`；新增 `test_default_rc_paths_skips_untrusted_project_rc` | `tests/test_config.py` |
 | F3 | `yate/editor_lsp/client.py:45` | 删除死常量 `ERR_REQUEST_CANCELLED` | `yate/editor_lsp/client.py` |
 

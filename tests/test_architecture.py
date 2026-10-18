@@ -406,6 +406,10 @@ HOME_PATH_PATTERN: re.Pattern[str] = re.compile(
     r"(?:/home/[^/\s\"']+|/Users/[^/\s\"']+|[A-Za-z]:[\\/]+Users[\\/]+[^\\\s\"']+)"
 )
 
+#: URLs, stripped before the home-path scan so a link like
+#: ``https://host/home/user`` is not matched by its path segment.
+_URL_PATTERN: re.Pattern[str] = re.compile(r"https?://\S+")
+
 #: ``(path, line)`` sites allowed to carry a home-directory path.  Empty by
 #: measurement (2026-10-18): the only Python-source hit was a comment naming
 #: the CI runner's short TEMP path, which was reworded instead.  Kept as a
@@ -451,6 +455,16 @@ def _python_files() -> list[Path]:
             if "__pycache__" not in p.parts and p != _SELF
         )
     return out
+
+
+def _template_files() -> list[Path]:
+    """The Python templates shipped in the package (``*.py.example``).
+
+    ``misc-rules.md`` section 4 binds the shipped example templates to the
+    same English-comment rule as the code they teach, so the ASCII guard
+    scans them with the same machinery.
+    """
+    return [p for p in YATE.rglob("*.py.example") if "__pycache__" not in p.parts]
 
 
 def _yate_files() -> list[Path]:
@@ -1313,7 +1327,7 @@ def test_comments_and_docstrings_stay_ascii() -> None:
     :data:`NON_ASCII_COMMENT_EXEMPT`; new ones must be reworded instead.
     """
     offenders: list[str] = []
-    for path in _python_files():
+    for path in [*_python_files(), *_template_files()]:
         rel = path.relative_to(PROJECT).as_posix()
         with path.open("rb") as handle:
             for token in tokenize.tokenize(handle.readline):
@@ -1416,7 +1430,9 @@ def test_no_machine_local_home_paths_in_sources() -> None:
     that changes most often: ``yate/``, ``tools/`` and ``tests/``.
 
     Only home-directory paths are rejected -- see :data:`HOME_PATH_PATTERN`
-    for why ``C:\\Windows`` or a ``/tmp`` example stay allowed.
+    for why ``C:\\Windows`` or a ``/tmp`` example stay allowed.  URLs are
+    stripped first so a link like ``https://host/home/user`` is not
+    false-positived by its path segment.
     """
     offenders: list[str] = []
     for path in _python_files():
@@ -1424,7 +1440,7 @@ def test_no_machine_local_home_paths_in_sources() -> None:
         for lineno, line in enumerate(
             path.read_text(encoding="utf-8").splitlines(), start=1
         ):
-            hit = HOME_PATH_PATTERN.search(line)
+            hit = HOME_PATH_PATTERN.search(_URL_PATTERN.sub("", line))
             if hit is None or (rel, lineno) in HOME_PATH_EXEMPT:
                 continue
             offenders.append(f"{rel}:{lineno} {hit.group()}")

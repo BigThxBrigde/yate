@@ -10,7 +10,23 @@ import pytest
 from yate import config as cfg
 from yate import yaterc as yrc
 from yate.editor_view import theme as themes
+from yate.services import trust as trust_mod
 from yate.services.trust import trust_workspace
+
+
+def _point_trust_store_at_isolated_home(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    """Redirect the trust store into the isolated home.
+
+    ``TRUST_FILE`` is computed at import time from the real ``Path.home()``,
+    and the autouse ``isolated_home`` fixture patches ``Path.home`` only
+    afterwards, so trusting a workspace without this redirect would append
+    entries to the developer's real trust store on every test run.
+    """
+    monkeypatch.setattr(
+        trust_mod, "TRUST_FILE", isolated_home / ".yate" / "trusted_workspaces"
+    )
 
 
 def _write(path: Path, content: str) -> Path:
@@ -547,6 +563,7 @@ def test_default_rc_paths_user_then_project(
     _write(user_rc, "")
     project_rc = _write(tmp_path / "yaterc", "")
     monkeypatch.setattr(yrc, "user_config_path", lambda: user_rc)
+    _point_trust_store_at_isolated_home(monkeypatch, isolated_home)
     trust_workspace(tmp_path)  # project rc only loads when trusted
     paths = yrc.default_rc_paths(tmp_path)
     # returned paths are resolved (canonical) -- see Windows 8.3 note
@@ -558,6 +575,7 @@ def test_default_rc_paths_dedupes(
 ) -> None:
     rc = _write(tmp_path / "yaterc", "")
     monkeypatch.setattr(yrc, "user_config_path", lambda: rc)
+    _point_trust_store_at_isolated_home(monkeypatch, isolated_home)
     trust_workspace(tmp_path)  # project rc only loads when trusted
     paths = yrc.default_rc_paths(tmp_path)
     assert paths == [rc.resolve()]
@@ -572,10 +590,37 @@ def test_default_rc_paths_skips_untrusted_project_rc(
     _write(user_rc, "")
     project_rc = _write(tmp_path / "yaterc", "")
     monkeypatch.setattr(yrc, "user_config_path", lambda: user_rc)
-    paths = yrc.default_rc_paths(tmp_path)
+    _point_trust_store_at_isolated_home(monkeypatch, isolated_home)
+    notes: list[str] = []
+    paths = yrc.default_rc_paths(tmp_path, notes)
     # project rc is untrusted -> must not be loaded without explicit -u
     assert paths == [user_rc.resolve()]
     assert project_rc.resolve() not in paths
+    # the skip is reported so the user can tell why the rc stayed silent
+    assert len(notes) == 1 and "untrusted" in notes[0]
+
+
+def test_default_rc_paths_trusts_the_rc_owner_not_the_working_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    """The gate anchors on the rc's owning directory, not the start path.
+
+    Opening a file in a subdirectory of a trusted workspace must still load
+    the workspace-root rc; anchoring on the *start* directory would skip it
+    (the trust store matches resolved roots exactly).
+    """
+    user_rc = tmp_path / "user_yaterc"
+    _write(user_rc, "")
+    project_rc = _write(tmp_path / "yaterc", "")
+    subdir = tmp_path / "src"
+    subdir.mkdir()
+    target = subdir / "main.py"
+    target.write_text("", encoding="utf-8")
+    monkeypatch.setattr(yrc, "user_config_path", lambda: user_rc)
+    _point_trust_store_at_isolated_home(monkeypatch, isolated_home)
+    trust_workspace(tmp_path)
+    paths = yrc.default_rc_paths(target)
+    assert paths == [user_rc.resolve(), project_rc.resolve()]
 
 
 def test_user_config_path_layout(isolated_home: Path) -> None:

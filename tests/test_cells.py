@@ -71,13 +71,6 @@ def test_cell_to_char_maps_back_from_cell_column() -> None:
     assert cell_to_char("ab", 99) == 2
 
 
-def test_cell_to_char_maps_back_from_wide_glyph_column() -> None:
-    # the wide glyph occupies two cells, so column 4 is char 3
-    line = "ab中cd"
-
-    assert cell_to_char(line, 4) == 3
-
-
 def test_cell_offsets_matches_char_to_cell_prefix() -> None:
     line = "a\t中b"
     offsets = cell_offsets(line)

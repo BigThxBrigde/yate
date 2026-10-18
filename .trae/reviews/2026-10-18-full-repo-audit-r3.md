@@ -72,3 +72,12 @@ SD（项目结构 + 职责单一 + 架构边界）、SE（门禁 + 文档规范 
   其余为存量受控风格 / 需 profiler / 登记不修项。
 - 架构边界、健壮性异常纪律、文档命名、future-import 纪律等**整体合规**，未发现新违规。
 - 本轮为独立重跑，未触碰前两轮分支；改动仅落于新分支 `enh/repo-audit-r3`。
+
+## 七、增记（2026-10-18，repo-audit-r2 评审回改）
+
+- F2 的信任锚点由 `is_trusted(here)`（启动目录）修订为 `is_trusted(project.parent)`
+  （rc 文件所属目录）：`here` 锚点存在「父目录残留放行」与「子目录启动假阴性」
+  两个边界缺陷，且与扩展门控「锚定 cwd」的注释自述不符。同步修订见
+  `full-repo-audit-r3-fixes-plan.md` F2 行；跳过时的用户可见提示随
+  `default_rc_paths(notes=...)` 出参上浮到启动消息面（W3），双语手册
+  `yaterc.{en,zh}.md` 加载顺序表已同步。
