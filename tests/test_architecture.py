@@ -1424,8 +1424,10 @@ def test_no_machine_local_home_paths_in_sources() -> None:
         for lineno, line in enumerate(
             path.read_text(encoding="utf-8").splitlines(), start=1
         ):
-            if HOME_PATH_PATTERN.search(line) and (rel, lineno) not in HOME_PATH_EXEMPT:
-                offenders.append(f"{rel}:{lineno} {HOME_PATH_PATTERN.search(line).group()}")
+            hit = HOME_PATH_PATTERN.search(line)
+            if hit is None or (rel, lineno) in HOME_PATH_EXEMPT:
+                continue
+            offenders.append(f"{rel}:{lineno} {hit.group()}")
     assert not offenders, (
         "absolute home-directory paths leak the author's machine layout "
         "(doc-conventions section 5); use a repo-relative path, an env var, "
