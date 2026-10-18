@@ -18,9 +18,11 @@ from yate.config import YateConfig
 from yate.editor_core import BufferReadOnlyError, Document, TextBuffer
 from yate.keymaps import vim as vim_module
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
-from yate.keymaps.vim import VimKeymap, VimMode
+from yate.keymaps.vim import RESERVED_KEYS, VimKeymap, VimMode
 from yate.registries import ActionRegistry
 from yate.session import EditorSession
+
+from conftest import make_action_context, make_key_ui
 
 ESC: str = "\x1b"
 CTRL_R: str = "\x12"
@@ -1841,3 +1843,74 @@ def test_alt_c_in_insert_mode_is_swallowed() -> None:
     assert editor.buffer.extra_cursors == []
     assert editor.buffer.get_text() == _MULTI_TEXT
     assert keymap.mode is VimMode.INSERT
+
+
+# --- pending-chord observation (which-key) ----------------------------------
+
+
+def test_pending_prefix_empty_when_idle() -> None:
+    """A freshly built keymap holds no chord and answers empty."""
+    _editor, keymap, _ctx = _setup()
+    assert keymap.pending_prefix() == ""
+
+
+def test_pending_prefix_tracks_operator_then_prefix() -> None:
+    """The chord reads back in typing order: count, operator, prefix."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "2")
+    assert keymap.pending_prefix() == "2"
+    keymap.handle_key(ctx, "d")
+    assert keymap.pending_prefix() == "2d"
+    keymap.handle_key(ctx, "f")
+    assert keymap.pending_prefix() == "2df"
+
+
+def test_pending_prefix_tracks_register_wait() -> None:
+    """The register prefix shows while waiting, clears once the letter lands.
+
+    ``"`` pends as ``pending_register == ""``; naming the register ("a")
+    moves the state out of the wait phase, so nothing shows until an
+    operator consumes it.
+    """
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, '"')
+    assert keymap.pending_prefix() == '"'
+    keymap.handle_key(ctx, "a")
+    assert keymap.pending_prefix() == ""
+
+
+def test_pending_prefix_empty_in_insert_mode() -> None:
+    """INSERT never holds chord state, so the observation stays empty."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "i")
+    assert keymap.mode is VimMode.INSERT
+    assert keymap.pending_prefix() == ""
+
+
+def test_f9_binding_toggles_whichkey_action() -> None:
+    """<f9> routes to the named toggle_whichkey action through KeyUi."""
+    executed: list[str] = []
+
+    def run(name: str) -> bool:
+        executed.append(name)
+        return True
+
+    ctx = make_action_context("", make_key_ui(execute=run))
+    keymap = VimKeymap()
+    assert keymap.handle_key(ctx, parse_key("<f9>")) is True
+    assert executed == ["toggle_whichkey"]
+
+
+def test_reserved_keys_match_hardcoded_consumers() -> None:
+    """RESERVED_KEYS pins exactly the keys _handle_normal eats before lookup.
+
+    ESC / ctrl+d and digits 1-9 are consumed unconditionally, ``0`` only
+    mid-count (stays bindable at column 0), and F-keys still reach the
+    binding table through the _FUNCTION_KEYS branch.
+    """
+    assert "\x1b" in RESERVED_KEYS
+    assert "\x04" in RESERVED_KEYS
+    for digit in "123456789":
+        assert digit in RESERVED_KEYS
+    assert "0" not in RESERVED_KEYS
+    assert parse_key("<f1>") not in RESERVED_KEYS

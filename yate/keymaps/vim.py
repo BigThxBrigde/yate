@@ -70,6 +70,14 @@ _ARG_PREFIXES: tuple[str, ...] = ("f", "F", "t", "T", "r")
 
 _FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
+#: Raw keys consumed by _handle_normal before the binding table is
+#: consulted, so a table entry on any of them would never dispatch.
+#: ``0`` is only swallowed mid-count and stays bindable.
+RESERVED_KEYS: frozenset[str] = frozenset(
+    {"\x1b", "\x1bc", "\x07", "\x04", "\x15", "\x06", "\x02", "\x12",
+     "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+)
+
 #: The two shift keys that indent / outdent whole lines in vim mode.
 _SHIFT_KEYS: frozenset[str] = frozenset({">", "<"})
 
@@ -196,6 +204,8 @@ class VimKeymap(Keymap):
                 "Toggle the idle screensaver", CMD,
             ),
             KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
+            KeyBinding(parse_key("<f9>"), "toggle_whichkey",
+                       "Toggle the which-key panel", HLP),
         ]
 
     # --------------------------------------------------------------- dispatch
@@ -252,6 +262,30 @@ class VimKeymap(Keymap):
         self.prefix = None
         self.count_str = ""
         self.pending_register = None
+
+    @override
+    def pending_prefix(self) -> str:
+        """The vim chord typed so far, in binding-spec order (empty if none).
+
+        Follows the typing order the dispatch accepts: register, count,
+        operator, prefix (``"a2df``).  INSERT / VISUAL never hold chord state.
+        """
+        if self.mode is not VimMode.NORMAL:
+            return ""
+        parts: list[str] = []
+        if self.pending_register == "":
+            parts.append('"')
+        if self.count_str:
+            parts.append(self.count_str)
+        elif self.op is not None and self.op_count is not None:
+            # Arming an operator folds the typed count into op_count and
+            # clears count_str; show it back so "2df" reads as typed.
+            parts.append(str(self.op_count))
+        if self.op is not None:
+            parts.append(self.op)
+        if self.prefix is not None:
+            parts.append(self.prefix)
+        return "".join(parts)
 
     def _clear_operator(self) -> None:
         """Drop the armed operator with its scope and count companions."""

@@ -202,3 +202,12 @@ class Keymap:
             ctx.buffer.type_char(key, language=ctx.doc.filetype)
             return True
         return False
+
+    def pending_prefix(self) -> str:
+        """The chord typed so far in human form (empty when nothing pends).
+
+        Which-key surfaces read this after every dispatch to decide whether
+        the pending-chord panel is visible.  The modeless base keymap never
+        holds chord state, so it answers empty; stateful subclasses override.
+        """
+        return ""

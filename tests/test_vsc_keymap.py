@@ -18,7 +18,7 @@ from yate.keymaps.base import parse_key
 from yate.keymaps.vsc import SEL, VscKeymap
 from yate.registries import ActionRegistry
 
-from conftest import make_action_context
+from conftest import make_action_context, make_key_ui
 
 
 def test_vsc_has_no_duplicate_raw_keys() -> None:
@@ -86,3 +86,25 @@ def test_handle_unbound_printable_multi_cursor_inserts_at_points() -> None:
     ctx.buffer.set_cursor((0, 0))
     assert VscKeymap().handle_key(ctx, "(") is True
     assert "()" in ctx.buffer.lines[0]
+
+
+def test_f9_binding_dispatches_toggle_action() -> None:
+    """<f9> routes to the named toggle_whichkey action through KeyUi."""
+    executed: list[str] = []
+
+    def run(name: str) -> bool:
+        executed.append(name)
+        return True
+
+    ctx = make_action_context("", make_key_ui(execute=run))
+    assert VscKeymap().handle_key(ctx, parse_key("<f9>")) is True
+    assert executed == ["toggle_whichkey"]
+
+
+def test_pending_prefix_always_empty() -> None:
+    """The modeless keymap inherits the base hook: no chord can ever pend."""
+    vsc = VscKeymap()
+    assert vsc.pending_prefix() == ""
+    ctx = make_action_context("")
+    assert vsc.handle_key(ctx, "x") is True
+    assert vsc.pending_prefix() == ""
