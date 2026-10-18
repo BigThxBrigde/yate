@@ -371,7 +371,7 @@ tree-sitter backend installed
 (`pip install yate[ts]`), 25 of them are highlighted through a real parser
 instead -- every one except JSONC, INI, Perl, SCSS and LESS. SCSS and LESS
 share the CSS word lists and stay on the regex backend -- no grammar for
-them exists, and routing them through the CSS grammar would mis-parse
+them exists on PyPI, and routing them through the CSS grammar would mis-parse
 `$var` / `@mixin` / `//`.
 
 For a complete example see the template

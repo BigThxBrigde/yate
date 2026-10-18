@@ -8,7 +8,7 @@ the component package.
 
 from __future__ import annotations
 
-from yate.keymaps.base import SPECIAL_KEYS
+from yate.keymaps.keys import SPECIAL_KEYS
 
 # Textual canonical key names share their raw sequences with the keymap's
 # SPECIAL_KEYS table (minus the "esc" alias -- Textual always reports "escape").

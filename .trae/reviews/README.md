@@ -14,7 +14,7 @@
 ## 一、速览：仍未闭环 / 尚未通过的项
 
 下表为各轮评审的遗留条目总览（⏸＝暂缓/不修/挂起，🔧＝待修，👀＝待观察，
-📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 41 条：
+📌＝仅作记录，🟡＝部分闭环，✅ 已修＝已闭环销账）。共 44 条：
 **未闭环 16 条**、已闭环 23 条（#1 / #3 / #5 / #6 / #12 / #13 / #15 / #17 / #19 /
 #20 / #22 / #24 / #25 / #27 / #28 / #30 / #31 / #32 / #33 / #37 / #38 / #39）、部分闭环 1 条（#18：三轮评审中前两轮已修，
 第三轮按用户决策登记不修）。
@@ -31,6 +31,8 @@
 #40 为 PR !64 的第二轮评审（0 阻断 + 3 改进，按用户指令只登记不修）。
 **2026-10-12 perf 分支评审增量**：新增 #41（`enh/perf-profiling` pre-review，
 2 MINOR 当轮闭环，未闭环数不变）。
+**2026-10-17 full-repo-audit 增量**：新增 #42 / #43（四技能联合审核两轮，已闭环）
+与 #44（找茬优化报告，0 缺陷 / 5 条建议级）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -80,6 +82,9 @@
 | 39 | 2026-10-08 | Gitee PR !64 AI 队友评审（[note 51468217](https://gitee.com/jermaine/yate/pulls/64#note_51468217_conversation_191486229) conversation 191486229；`enh/test-perf` 测试性能优化三提交，issue IKJVL6，正文经 Gitee API 取回）：⛔ 1 阻断（`run_shell` 超时兜底的第二次 `communicate()` 无 timeout，`_kill_tree` 未杀净管道持有者时无限阻塞）+ 2 改进（`test_manual_command_selects_language` 固定 `return_value` 丢语言路由守卫；1500 级链 walk 用例全局 patch `Path.stat/read_text` 侵入面过大） | ✅ 已全修（2026-10-08，`6578714` 两段排水均有界 + 降级 `proc.kill()` + `log.error` 取证 + 钉桩用例（负向演练变红）；`c733fcb` 语言路由改 `side_effect` 捕获断言、seam 收窄到 `Workspace._dir_ignores`；门禁 pyright 0 + 1998 passed / 9 skipped + 25 架构 + 覆盖率 91.35%；fix 性能经 A/B 实测零回退） | [2026-10-08-pr64-test-perf-ai-review.md](2026-10-08-pr64-test-perf-ai-review.md) |
 | 40 | 2026-10-08 | Gitee PR !64 AI 队友评审**第二轮**（[note 51468439](https://gitee.com/jermaine/yate/pulls/64#note_51468439_conversation_191486965) conversation 191486965；同分支 `enh/test-perf`，issue IKJVL6，正文经 Gitee API 取回）：⚠️ 0 阻断 + 3 改进（均可维护性，风险 low）——M1 排水 timeout 魔法数字 `5.0` 抽常量；M2 `test_shell.py` 的 `0x1000` 命名；M3 `test_app_manual.py` 的 `pause(0.15)` 与 `_SEARCH_DEBOUNCE_S` 耦合。评审未再提第一轮阻断，也未对两项修复提出异议 | ✅ 已修（2026-10-09：M1 a2b4f16 _DRAIN_TIMEOUT_S 常量；M2 d9d8422 0x1000 常量命名；M3 d9d8422 防抖暂停由常量推导）；原登记（2026-10-08，按用户指令只登记不修）：M1 经全文件 grep 实测字面量 2 处（评审称三次，校准）；M2 属实孤例；M3 实际 5 处且 0.15 > 0.12 余量当前成立，属可选加固非现症） | [2026-10-08-pr64-test-perf-ai-review.md](2026-10-08-pr64-test-perf-ai-review.md) §五 |
 | 41 | 2026-10-12 | perf 分支 pre-review 2 项 MINOR：M1 `cells._WIDTH_CACHE` 无上界模块字典（信息级——纯函数记忆化、实际有界于会话字符集，已文档化）；M2 `palette.refilter` 命中分支 elif→early-continue 读感变化（行为等价，parity 测试锁定） | ✅ 已修（2026-10-12，`534b53d` M1 改 `lru_cache(4096)`——探针三候选实测 C 实现比手写字典更快（72 vs 76 ns/char）且有界；`899407e` M2 恢复 elif 平铺链；门禁 pyright 0 + 全量绿 + 真实模块探针零回退；见 [perf-review-fixes-plan.md](../documents/perf-review-fixes-plan.md) §五） | [2026-10-12-perf-profiling.md](2026-10-12-perf-profiling.md) |
+| 42 | 2026-10-17 | 分支 `enh/full-repo-audit` 四技能联合审核（TRAE-code-review / TRAE-security-review / python-code-review / pr-review 依次评审同一 diff 后去重）：净发现 1 MAJOR（`keys.py::key_name` 解码 kitty CSI-u 修饰位未减基偏移，round-trip 错标 `<ctrl-1>` 为 `<shift-ctrl-1>`，`vsc.py:113` 默认绑定可达）+ 1 MINOR（修复计划文档「旧实现得 4」表述失准）；安全审计 clean；四道门禁全绿（pyright 0/0/0 + 架构 32 + 全量 2485 passed/9 skipped + 覆盖率 91% exit 0）。实施期验收追加发现 FS-3 MAJOR（冒烟替换场景未同步 `ad237e5` per-match confirm loop 契约，master 既有，A/B + master 复跑实证） | ✅ 已修（2026-10-17，`0f54f17` FS-1 解码减基偏移 + 无修饰早退 + 8 组合用例；`4fcb8df` FS-3 场景补 `replace_confirm` 锚点 + `a` 兜底；FS-2 勘误段随 docs 提交；收尾门禁 pyright 0 + 全量 2485p/9s + 架构 32 + 覆盖率 91.97% + 冒烟 107/107、1304/1304 全 exit 0；见 [full-repo-audit-four-review-fixes-plan.md](../documents/full-repo-audit-four-review-fixes-plan.md) §六） | [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) |
+| 43 | 2026-10-17 | 任务第 6 步 pr-review **复审**（范围 = 累计 diff `master...HEAD` 含修复三提交）：增量六维逐项核对零新发现；核销 checks 计数守恒疑点（`saved_matches_disk` 条件不变量，harness.py:391-399）；五道门禁全绿（pyright 0/0/0 + 2485p/9s + 架构 32 + 覆盖率 91.97% + 冒烟 107/107，全 exit 0） | ✅ **APPROVE，零遗留 issue**——迭代闭环（结论见 [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) §六） | [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) |
+| 44 | 2026-10-17 | 找茬优化报告（分支 `enh/full-repo-audit` @ `cd2ca00` 全仓找茬；**0 缺陷，5 条建议级**）：① `current_screen` 查询链 `Screen[Any]` 可精化为 `Screen[object]`（上游 `App.screen` 即该类型）；② `handle_key` nul_keys 嵌套 if 可合并（评审自评现状更易读）；③ `on_unmount` 三段 teardown try/except 可提取辅助（评审自评现状可接受；且首段为同步调用，报告示意代码会把同步调用交给 await）；④ `cli.main` ~220 行可拆 `--diff` 校验与扩展管理辅助；⑤ `_set_theme` 适配闭包（评审自评无需修改） | ✅ 已处置（2026-10-17：① `7834da3` 查询链 `Screen[Any]`→`Screen[object]`（与上游 `App.screen` 同型，editor.py 的 `Any` 归零）+ ④ `d8d0248` cli.main 拆 `_validate_diff_args` / `_manage_extensions`；②③⑤ 评审自评维持现状（③ 报告示意代码会把同步调用交给 await，勘误见方案 §二）；门禁 pyright 0 + 全量 0 failures + 架构 32 + 覆盖率 91.95% + 冒烟 107/107·1304/1304 全 exit 0；pr-review 复审 **APPROVE 零 issue**（0 BLOCKER / 0 MAJOR / 0 MINOR），见 [full-repo-audit-optimization-fixes-plan.md](../documents/full-repo-audit-optimization-fixes-plan.md) §八） | [2026-10-17-full-repo-audit.md](2026-10-17-full-repo-audit.md) |
 
 ---
 
@@ -162,7 +167,9 @@
 | 2026-10-10 | **scrollbar-theme 合并分支评审**（`enh/preview-scrollbar-slim` 合并 `enh/manual-scrollbar-theme` 后的 `master..HEAD` 全量：PreviewLog（issue IKJUU2）与新增 DocScroll 两组件的自持滚动条修复 + 合并态；第一轮 code-review-expert + 主代理复核，第二轮 TRAE-code-review（2 并行验证代理交叉确认）） | ✅ 通过（0 阻断 / 0 major） | 0 阻断 / 3 项（1 suggestion + 2 nit）+ 第二轮 1 nit（导入分组） | ✅ 已全修（第一轮 suggestion `2345100` DocScroll 注释；第二轮：卸载断言 nit 经用户选定由「不改」转已修——`original` 推导切换目标与还原值，另修 test_app_render 导入分组 nit；super 双执行 nit 维持不改；门禁 pyright 0 + 两文件 24 passed） | [2026-10-10-scrollbar-theme.md](2026-10-10-scrollbar-theme.md) |
 | 2026-10-12 | **全仓库代码评审**（master `59eb7fc`；3 只读子代理并行：架构文档 / 核心源码 / 测试工具 + 主代理汇总复核；覆盖 yate/ 10 包、tests/、tools/、pack/） | ✅ 通过（总评 9/10，无致命/严重） | 0 阻断 / 3 高优 / 5 中优 / 7 低优 | 👀 登记待处置（H1 teardown_all 异常保护 / H2 ctrl-/ 绑定 / H3 register_server 状态通知 / H4 completion 缓存 weakref / H5 _delete_range 位置校验 / M1-M5 中优 / L1-L7 低优） | [2026-10-12-full-review.md](2026-10-12-full-review.md) |
 | 2026-10-12 | **enh/perf-profiling 分支 pre-review**（issue IKKSHY 性能修复分支，merge-base `4342b2c`，7 文件 +427−44；pr-review skill 六维框架，门禁全实测：pyright 0 + pytest 全绿 + 覆盖率 92% + pilot 应用级冒烟） | ✅ APPROVE（0 阻断 / 2 MINOR） | 0 阻断 / 2 MINOR | ✅ 2 MINOR 当轮已修（`534b53d` M1 缓存有界化 + `899407e` M2 refilter 读感，见速览 #41 与 [perf-review-fixes-plan.md](../documents/perf-review-fixes-plan.md)） | [2026-10-12-perf-profiling.md](2026-10-12-perf-profiling.md) |
+| 2026-10-17 | **仓库结构 / 分层 / 模块组织审计**（`enh/full-repo-audit` @ `bdb74eb`；AST 导入图 + Tarjan SCC + 体量/命名/文档引用核对，主代理亲跑只读探针） | ✅ 通过（0 BLOCKER；结构面合规，仅口径与登记缺口） | 2 MAJOR / 7 MINOR / 2 INFO | 👀 登记待处置（S-1 `keymaps` 分层登记不符 / S-2 L2→L3 门面未登记 / S-3 `editor_view` 平铺 / S-4 `services` 异构 / S-5 双 `pack` 名 / S-6 `tests/README` 失效路径 / S-7 `theme.py` 门面例外 / S-8 `dist_meta` 层级 / S-9 `editor.py` 拆分为既有候选）；本次零代码改动 | [2026-10-17-repo-structure-layering-audit.md](2026-10-17-repo-structure-layering-audit.md) |
 | 2026-10-17 | **tab 点击切换文档回归**（用户报告；`fix/tab-click-switch`，自 master `050f16f`；pilot 渲染级对照实验复现 + 路径差异定位，主代理亲测） | ✅ 已修（根因：`activate_doc` 缺 `cycle_tab` 的切换收尾，tab 点击是唯一缺收尾的切换路径） | 1 MAJOR / 0 MINOR | ✅ 当轮已修（收尾提炼 `document_flows._after_activate()` 双路径复用 + 渲染级回归用例（负向演练通过）；门禁 pyright 0/0/0 + 全量 91.95% exit 0） | [2026-10-17-tab-click-regression.md](2026-10-17-tab-click-regression.md) |
+| 2026-10-17 | **全仓找茬优化报告**（`enh/full-repo-audit` @ `cd2ca00`；0 缺陷 / 5 条建议级：`Screen[Any]` 查询链精化 / nul_keys 合并 / on_unmount 辅助提取 / `cli.main` 拆分 / `_set_theme` 闭包注解） | ✅ 通过（无缺陷，纯优化建议） | 0 阻断 / 5 建议 | ✅ 已处置（①④ 修复 `7834da3` / `d8d0248`，②③⑤ 评审自评维持现状；pr-review 复审 APPROVE 零 issue；见速览 #44） | [2026-10-17-full-repo-audit.md](2026-10-17-full-repo-audit.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

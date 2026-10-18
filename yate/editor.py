@@ -20,7 +20,6 @@ from __future__ import annotations
 import re
 from functools import partial
 from pathlib import Path
-from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -532,7 +531,7 @@ class Editor:
         """True while the explorer tree widget holds the focus."""
         return self.app.focused is self.explorer_tree
 
-    def current_screen(self) -> Screen[Any]:
+    def current_screen(self) -> Screen[object]:
         """The screen currently on top of the shell's screen stack."""
         return self.app.screen
 

@@ -349,6 +349,27 @@ def test_erase_line_modes() -> None:
     assert _rows(emu) == ""
 
 
+def test_erase_line_start_mode_with_pending_wrap_clears_the_whole_line() -> None:
+    """EL 1 in pen state clamps the column and clears the full row."""
+    emu = _emu(cols=10)
+    emu.feed(b"0123456789\x1b[1K")
+    assert _rows(emu, 0) == ""
+
+
+def test_erase_line_end_mode_with_pending_wrap_clears_the_last_cell() -> None:
+    """EL 0 in pen state treats the cursor as sitting on the last column."""
+    emu = _emu(cols=10)
+    emu.feed(b"0123456789\x1b[0K")
+    assert _rows(emu, 0) == "012345678"
+
+
+def test_erase_line_all_mode_with_pending_wrap_clears_the_whole_line() -> None:
+    """EL 2 in pen state clears the full row like in any other state."""
+    emu = _emu(cols=10)
+    emu.feed(b"0123456789\x1b[2K")
+    assert _rows(emu, 0) == ""
+
+
 def test_erase_display_modes() -> None:
     """ED 0/1/2 clear from, to and including the cursor row."""
     emu = _emu(cols=6, rows=3)
@@ -452,6 +473,27 @@ def test_scroll_up_and_down_commands() -> None:
     emu = _emu(cols=6, rows=4)
     emu.feed(b"aaa\r\nbbb\x1b[1;1H\x1b[T")
     assert [_rows(emu, r) for r in range(4)] == ["", "aaa", "bbb", ""]
+
+
+def test_scroll_commands_with_huge_count_clamp_to_the_region_height() -> None:
+    """CSI S/T with an oversized count returns at once with a legal grid."""
+    emu = _emu(cols=6, rows=4)
+    emu.feed(b"aaa\r\nbbb\r\nccc\x1b[999999999S")
+    assert [_rows(emu, r) for r in range(4)] == ["", "", "", ""]
+    assert emu.cursor == (2, 3)
+
+    emu = _emu(cols=6, rows=4)
+    emu.feed(b"aaa\r\nbbb\x1b[999999999T")
+    assert [_rows(emu, r) for r in range(4)] == ["", "", "", ""]
+    assert emu.cursor == (1, 3)
+
+    # a narrow DECSTBM region bounds the work by its own height, not by the
+    # screen height: each region row that scrolls off a top-anchored region
+    # lands in the scrollback exactly once
+    emu = _emu(cols=6, rows=4)
+    emu.feed(b"aaa\r\nbbb\r\nccc\x1b[1;2r\x1b[999999999S")
+    assert emu.max_scroll() == 2
+    assert [_rows(emu, r) for r in range(4)] == ["", "", "ccc", ""]
 
 
 # --- SGR --------------------------------------------------------------------

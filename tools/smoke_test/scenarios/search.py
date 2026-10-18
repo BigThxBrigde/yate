@@ -62,6 +62,12 @@ async def _replace_single_all(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
+        checks.append(Check("confirm_loop_mode", "replace_confirm",
+                            app.editor.prompt_bar.active_mode
+                            if app.editor.prompt_bar else None))
+        # per-match confirm loop (ad237e5): "a" falls back to replace-all
+        await pilot.press("a")
+        await pilot.pause()
         checks.append(Check("replaced", "dog dog dog",
                             app.editor.session.buffer.lines[0]))
         checks.append(Check("query_kept", "cat", app.editor.session.search.query))
@@ -136,6 +142,12 @@ async def _replace_all_clamp(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         await type_text(pilot, "a")
         await pilot.press("enter")
+        await pilot.pause()
+        checks.append(Check("confirm_loop_mode", "replace_confirm",
+                            app.editor.prompt_bar.active_mode
+                            if app.editor.prompt_bar else None))
+        # per-match confirm loop (ad237e5): "a" falls back to replace-all
+        await pilot.press("a")
         await pilot.pause()
         await pilot.pause()
 
