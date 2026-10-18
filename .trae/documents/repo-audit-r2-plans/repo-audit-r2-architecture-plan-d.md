@@ -123,7 +123,7 @@ def test_no_debug_prints_in_library_modules() -> None:
 **为什么是问题**：`doc-conventions.md` §五 第 2 段「真实路径脱敏（环境信息）」明文
 禁止盘符路径、用户目录、仓库根绝对路径，且「**对命令示例代码块同样适用**」。
 实测 `tools/probes/win32im_probe.py:7` 的
-`d:\\Programming\\yate\\.venv\\Scripts\\python.exe` 通过了全部门禁。
+`<原 worktree 绝对路径>\\.venv\\Scripts\\python.exe` 通过了全部门禁。
 
 **改法**：新增用例，扫 `.trae/**/*.md` + `yate/docs/**/*.md` + `README*.md`
 + `CHANGELOG*.md` + `tools/**/*.py` 的 docstring 与注释。
@@ -132,7 +132,7 @@ def test_no_debug_prints_in_library_modules() -> None:
 
 | 模式 | 命中示例 | 处置 |
 |---|---|---|
-| `[A-Za-z]:[\\/]{1,2}` 盘符绝对路径 | `d:\Programming\yate\...` | **禁**（除非写成 `C:\Users\<user>\` 这类占位符形态） |
+| `[A-Za-z]:[\\/]{1,2}` 盘符绝对路径 | `<worktree>\yate\...` | **禁**（除非写成 `C:\Users\<user>\` 这类占位符形态） |
 | `/home/<user>/` `/Users/<user>/` | — | **禁** |
 | `https://…` `http://…` | 全仓数百处 | **不匹配**（`doc-conventions.md` §五 第 3 段明文豁免外部 URL）——实现必须用负向断言确保 URL 不被命中 |
 | `C:\Users\xxx\` `C:\...` `D:\tmp\...` 占位符 | `diag-command-plan.md:99-156` 大量使用 | **豁免**（`2026-10-05-doc-review-sweep` 已确立的占位符口径：至少含 `xxx` / `...` / `<user>` 之一） |
@@ -142,7 +142,7 @@ def test_no_debug_prints_in_library_modules() -> None:
    占位符标记（`xxx` / `...` / `<user>` / `<checkout>`）；否则报 `文件:行号`；
 2. **负向断言**：`https://` 开头的行**不得**被判违规（否则守卫自身误报）；
 3. **反向演练**：在 `.trae/rules/misc-rules.md` 某行插入
-   `cd d:\Programming\fake` → 必须失败；随即还原。
+   `cd ../<sibling-worktree>-fake` → 必须失败；随即还原。
 
 ### A-4 · 规则文本同步（`.trae/rules/architecture-boundaries.md`）
 
@@ -235,7 +235,7 @@ MAJOR）的成因形态，不得重犯。
   2. **负向断言**：对 `https://` 与 `http://` 出现的行数 **必须 > 0**（证明过滤器
      没有把外部 URL 误判 —— `doc-conventions.md` §五 第 3 段）；若为 0 说明正则
      写宽了，需修正；
-  3. **反向演练**：在 `.trae/rules/misc-rules.md` 插入 `cd d:\Programming\fake`
+  3. **反向演练**：在 `.trae/rules/misc-rules.md` 插入 `cd ../<sibling-worktree>-fake`
      后本用例必须失败
 
 ### 用例 35
@@ -275,7 +275,7 @@ MAJOR）的成因形态，不得重犯。
    `pytest tests/test_architecture.py -q -k ascii` 必须失败且报错点名该行 →
    `git checkout -- yate/logs.py` 还原 → 复跑必须通过；
 2. **A-3 演练**：在 `.trae/rules/misc-rules.md` 末尾追加一行
-   ``  cd d:\Programming\fake`` →
+   ``  cd ../<sibling-worktree>-fake`` →
    `pytest tests/test_architecture.py -q -k real_machine` 必须失败 →
    还原 → 复跑通过；
 3. **A-1 演练**：在 `yate/editor_core/words.py` 末尾追加 `print("probe")` →

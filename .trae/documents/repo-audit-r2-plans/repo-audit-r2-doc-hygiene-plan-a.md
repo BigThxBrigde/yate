@@ -37,7 +37,7 @@
 ```
 Run inside the terminal under test:
 
-    d:\\Programming\\yate\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py
+    <原 worktree 绝对路径>\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py
 ```
 
 **为什么是问题**：违反 `doc-conventions.md` §五 第 2 段「真实路径脱敏（环境信息）」——
@@ -199,7 +199,7 @@ Run inside the terminal under test:
 
 | 位置 | 原内容 | 新内容 |
 |---|---|---|
-| `tools/probes/win32im_probe.py:7` | `    d:\\Programming\\yate\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py`（107 字符） | `    .venv\\Scripts\\python.exe tools\\probes\\win32im_probe.py`（62 字符） |
+| `tools/probes/win32im_probe.py:7` | `    <原 worktree 绝对路径>\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py`（107 字符） | `    .venv\\Scripts\\python.exe tools\\probes\\win32im_probe.py`（62 字符） |
 | `tests/test_cells.py:68` | `# cells: a=0, b=1, 中=2..3, c=4 -- display column 4 is 'c' at char 3` | `# cells: a=0, b=1, wide cjk=2..3, c=4 -- display column 4 is 'c' at char 3` |
 | `tests/test_lua_extensions.py:470` | `# Services packages must not re-export (architecture §三.5): the` | `# Services packages must not re-export (architecture rule section 3.5): the` |
 

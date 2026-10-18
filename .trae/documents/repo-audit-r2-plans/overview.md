@@ -130,7 +130,7 @@ wave-2 的 `plan_c` 与 `plan_d` 独占文件无交集（见各子计划「独�
 
 | 编号 | 发现 | 位置 | 关系 |
 |---|---|---|---|
-| m-1 | 探针脚本含**本机真实路径** `d:\Programming\yate\.venv\...` | `tools/probes/win32im_probe.py:7` | **全新**（doc-conventions §五） |
+| m-1 | 探针脚本含**本机真实路径**（本机解释器绝对路径，已脱敏） | `tools/probes/win32im_probe.py:7` | **全新**（doc-conventions §五） |
 | m-2 | 注释含非 ASCII 全角字符（misc-rules §四 要求注释全英文） | `tests/test_cells.py:68`（含全角括号 `（）`）、`tests/test_lua_extensions.py:470`（含全角 `§` 的 `§三.5` 引用残留在 ASCII 形态 `??.5`） | **全新** |
 | m-3 | 4 处行宽 >100 字符 | `tools/smoke_test/scenarios/files.py:12`(104)、`workspace_nav.py:30`(106)、`tests/test_app_find.py:1`(112)、`tools/probes/win32im_probe.py:7`(107) | **全新**（`python-coding-style.md` §1.1 行宽 100） |
 | m-4 | `.trae/documents/ext-api-parity-plans/` 4 个下划线分词子计划文件名 | `ext-api-parity-plan-a.md`…`ext-api-parity-plan-d.md` | **既有残留**（F-12） |
