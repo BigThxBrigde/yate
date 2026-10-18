@@ -98,9 +98,17 @@ def test_refresh_shows_window_chords_while_ctrlw_pending() -> None:
 
 
 def test_candidates_exclude_completed_and_unrelated_specs() -> None:
-    """Only specs strictly longer than the pending chord qualify."""
-    flows, _ = _make_flows(KeymapSet({"vim": VimKeymap()}, "vim"))
-    keys = {e.key for e in flows._candidates("d")}
+    """Only specs strictly longer than the pending chord qualify.
+
+    Driven through the public refresh() path (same pending "d" state as the
+    matcher itself would see), so no private helper is touched.
+    """
+    vim = VimKeymap()
+    flows, panel = _make_flows(KeymapSet({"vim": vim}, "vim"))
+    ctx = make_action_context()
+    assert vim.handle_key(ctx, "d") is True
+    flows.refresh()
+    keys = {e.key for e in panel.shown[-1][1]}
     assert "dd" in keys
     assert "d{motion}" in keys
     # Completed specs never share the pending prefix: the "doc start" spec

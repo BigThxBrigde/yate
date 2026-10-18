@@ -44,6 +44,7 @@ from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.panes import PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
+from yate.editor_view.whichkey import WhichKeyPanel
 from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
@@ -53,6 +54,7 @@ from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_completion import prompt_completions
 from yate.flows.prompt_flows import PromptFlows
 from yate.flows.shell_flows import ShellFlows
+from yate.flows.whichkey_flows import WhichKeyFlows
 from yate.flows.window_flows import WindowFlows
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.keymaps.registry import KeymapSet
@@ -157,6 +159,7 @@ def _build_widgets(ed: Editor) -> None:
         ed.session, ed.lsp, ed.keymaps, ed.prompt_bar,
         ed.extension_loader, ui=ed.extension_api.ui, id="statusbar",
     )
+    ed.which_key_panel = WhichKeyPanel(id="which-key")
     ed.sidebar = Vertical(id="sidebar")
     ed.sidebar_head = SidebarHead(id="sidebar-head")
     ed.editor_col = Vertical(id="editor-col")
@@ -311,6 +314,12 @@ def _build_pane_stack(ed: Editor) -> None:
         explorer_focused=ed.explorer_focused,
     )
     ed.explorer_tree.window_prefix = ed.window_flows.try_window_prefix
+    ed.whichkey = WhichKeyFlows(
+        keymaps=ed.keymaps,
+        window_pending=lambda: ed.window_flows.window_pending,
+        panel=ed.which_key_panel,
+        message=ed.message,
+    )
 
 
 def _build_key_ui(ed: Editor) -> None:
@@ -353,6 +362,8 @@ class Editor:
     terminal_panel: TerminalPanel
     explorer_tree: ExplorerTree
     status_bar: StatusBar
+    which_key_panel: WhichKeyPanel
+    whichkey: WhichKeyFlows
     sidebar: Vertical
     sidebar_head: SidebarHead
     editor_col: Vertical
@@ -391,6 +402,7 @@ class Editor:
         self._ext_messages: list[str] = [
             f"yaterc: {err}" for err in self.config.errors
         ]
+        # Assembly order: whichkey needs keymaps / window_flows / which_key_panel ready.
         _build_models(self, keymap)
         _build_widgets(self)
         _open_startup_target(self, target)
@@ -466,6 +478,7 @@ class Editor:
         with Vertical(id="bottom-dock"):
             yield self.terminal_panel
             with Vertical(id="bottom"):
+                yield self.which_key_panel
                 yield self.status_bar
                 yield self.prompt_bar
 
@@ -576,10 +589,11 @@ class Editor:
                 view.content_changed()
 
     def _refresh_chrome(self) -> None:
-        """Refresh the chrome widgets: status bar, tab bar and breadcrumbs."""
+        """Refresh the chrome widgets: status bar, tab bar, breadcrumbs, which-key."""
         self.status_bar.refresh_status()
         self.tabbar.refresh_tabs()
         self.breadcrumbs.refresh_crumbs()
+        self.whichkey.refresh()
 
     def _refresh_lsp(self) -> None:
         """Push debounced edits and update the LSP echo."""
@@ -654,6 +668,7 @@ class Editor:
         # vim ctrl+w window chord (armed or pending); before the other
         # chords so the prefix is consumed wherever focus currently is
         if self.window_flows.try_window_prefix(event):
+            self.whichkey.refresh()
             return True
         # Global chords that raw byte dispatch cannot represent reliably.
         # alt+shift+p is the default: Windows Terminal reserves ctrl+shift+p

@@ -20,8 +20,8 @@ from conftest import make_action_context
 #: Every editor hook the built-in table forwards to.  A typo in ``actions.py``
 #: (a hook the real editor does not have) shows up here as an unexpected name.
 #: Hooks on the flow collaborators (``document_flows`` / ``prompt_flows`` /
-#: ``overlays`` / ``shell``) are recorded with their dotted path
-#: (``overlays.show_help``).
+#: ``overlays`` / ``shell`` / ``whichkey``) are recorded with their dotted
+#: path (``overlays.show_help``).
 FORWARDED_HOOKS: frozenset[str] = frozenset(
     {
         "command_prompt",
@@ -47,12 +47,13 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "shell.open_prompt",
         "toggle_explorer",
         "toggle_keymap",
+        "whichkey.toggle",
     }
 )
 
 #: Editor members the table reaches through (each a flow collaborator).
 _FLOW_NAMESPACES: frozenset[str] = frozenset(
-    {"document_flows", "prompt_flows", "overlays", "shell", "lsp_sync"}
+    {"document_flows", "prompt_flows", "overlays", "shell", "lsp_sync", "whichkey"}
 )
 
 Call = tuple[str, tuple[Any, ...], dict[str, Any]]

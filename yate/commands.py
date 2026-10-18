@@ -457,4 +457,11 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     reg("list-extensions", _list_extensions,
         "show the installed extension packages")
 
+    # ---- key bindings ------------------------------------------------------
+
+    def _check_keys(args: str) -> None:
+        editor.overlays.show_output("key conflicts", editor.whichkey.conflicts_report())
+
+    reg("check-keys", _check_keys, "report key binding conflicts")
+
     log.info("builtin commands registered: %d", len(registry.names()))

@@ -9,7 +9,7 @@ R10 guarantee that the panel never consumes a key event.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, override
 
 from textual.app import App, ComposeResult
 from textual.events import Key
@@ -48,6 +48,7 @@ class _Host(App[None]):
         self.panel = WhichKeyPanel()
         self.probe = _KeyProbe()
 
+    @override
     def compose(self) -> ComposeResult:
         yield self.panel
         yield self.probe

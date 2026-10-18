@@ -224,6 +224,8 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         "Previous tab")
     reg("next_tab", lambda ctx: editor.document_flows.cycle_tab(1), "Next tab")
     reg("help", lambda ctx: editor.overlays.show_help(), "Keyboard shortcuts help")
+    reg("toggle_whichkey", lambda ctx: editor.whichkey.toggle(),
+        "Toggle the which-key panel")
     reg("toggle_keymap", lambda ctx: editor.toggle_keymap(), "Toggle vsc/vim keymap")
     reg(
         "toggle_screensaver",
