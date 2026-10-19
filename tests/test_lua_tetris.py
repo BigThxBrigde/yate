@@ -359,6 +359,36 @@ def test_rotation_kicks_off_the_right_wall(game: _Game) -> None:
     assert _board_cells(canvas.grid, "I") == {(2, 7), (2, 8), (2, 9), (2, 10)}
 
 
+@requires_lupa
+def test_enter_rushes_the_fall_and_locks_piece_controls(game: _Game) -> None:
+    """enter commits the piece: one row per tick, no move / rotate until it
+    locks; the spawned piece is controllable again."""
+    canvas = game.launch("T")
+    assert _board_cells(canvas.grid, "T") == {(1, 5), (2, 4), (2, 5), (2, 6)}
+
+    game.press("enter")
+    game.tick(1)
+    assert _board_cells(canvas.grid, "T") == {(2, 5), (3, 4), (3, 5), (3, 6)}
+
+    # a committed piece ignores left / right / rotate
+    game.press("left", "right", "up")
+    assert _board_cells(canvas.grid, "T") == {(2, 5), (3, 4), (3, 5), (3, 6)}
+
+    # 18 more ticks land it at the floor and lock it; a fresh piece spawns
+    game.tick(18)
+    assert _board_cells(canvas.grid, "T") == {
+        (1, 5), (2, 4), (2, 5), (2, 6),
+        (19, 5), (20, 4), (20, 5), (20, 6),
+    }
+
+    # the fresh piece is controllable again
+    game.press("left")
+    assert _board_cells(canvas.grid, "T") == {
+        (1, 4), (2, 3), (2, 4), (2, 5),
+        (19, 5), (20, 4), (20, 5), (20, 6),
+    }
+
+
 # --- clock, gravity, pause ----------------------------------------------------
 
 

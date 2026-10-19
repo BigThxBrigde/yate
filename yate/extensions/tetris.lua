@@ -15,6 +15,8 @@ Controls:
   down           soft drop (one row, resets the gravity counter)
   up / x         rotate clockwise (wall kicks: 0, -1, +1, -2, +2)
   space          hard drop (lands and locks immediately)
+  enter          commit the piece: it falls one row per tick (full speed)
+                 and can no longer move or rotate; the next piece is free
   p              pause / resume
   r              restart (also from game over and from pause)
   escape         exit the canvas (consumed by the canvas itself)
@@ -227,6 +229,7 @@ spawn_piece = function()
   state.rot = 1
   state.x = 3
   state.y = 0
+  state.committed = false  -- a fresh piece is always controllable again
   if collides(state.kind, state.rot, state.x, state.y) then
     state.game_over = true
   end
@@ -286,14 +289,19 @@ local function reset()
     lines = 0,
     level = 1,
     gravity_ticks = 0,
+    committed = false,
     paused = false,
     game_over = false,
   }
   spawn_piece()
 end
 
--- Ticks between two gravity steps for the current level.
+-- Ticks between two gravity steps for the current level; a committed piece
+-- always falls at full speed (one row per tick).
 local function gravity_every()
+  if state.committed then
+    return 1
+  end
   return math.max(GRAVITY_MIN, TICKS_PER_SECOND - state.level)
 end
 
@@ -360,6 +368,7 @@ local function right_lines()
     { "down", "↓", 1 },
     { "rotate", "↑/x", 3 },
     { "drop", "space", 5 },
+    { "enter", "fall", 4 },
     { "pause", "p", 1 },
     { "restart", "r", 1 },
     { "quit", "esc", 3 },
@@ -368,8 +377,9 @@ local function right_lines()
     local field = string.rep(" ", 7 - binding[3]) .. binding[2]
     lines[8 + index] = "│" .. string.format(" %-7s", binding[1]) .. field .. " │"
   end
-  lines[17] = box_bottom(NEXT_INNER)
-  for row = 18, CANVAS_ROWS do
+  local bottom = 8 + #keys + 1
+  lines[bottom] = box_bottom(NEXT_INNER)
+  for row = bottom + 1, CANVAS_ROWS do
     lines[row] = string.rep(" ", RIGHT_W)
   end
   return lines
@@ -487,6 +497,16 @@ local function on_key(name)
   end
   if state.paused then
     return
+  end
+  if name == "enter" then
+    -- commit: the piece rushes down at full speed and loses its controls
+    state.committed = true
+    paint()
+    return
+  end
+  if state.committed
+    and (name == "left" or name == "right" or name == "up" or name == "x") then
+    return  -- a committed piece can no longer move or rotate
   end
   if name == "left" then
     move(-1)
