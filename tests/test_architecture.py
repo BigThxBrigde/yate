@@ -155,15 +155,12 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("keymaps/", 1),
 )
 
-#: Upward import edges registered in the rule text (2026-10-17 structure
-#: audit, rules section 1 / R14).  After the keymaps split these are the only
-#: ones left: L2 ``statusbar.py`` reads the L3 extension facade plus the
-#: R14-frozen ``bridges`` type to paint extension segments (constructor
-#: injected, ``statusbar.py:83-84``).
-UPWARD_EDGES_FROZEN: frozenset[str] = frozenset({
-    "editor_view/statusbar.py -> yate.services.extensions",
-    "editor_view/statusbar.py -> yate.services.extensions.bridges",
-})
+#: Upward import edges registered in the rule text.  Empty since the
+#: statusbar decoupling (2026-10-20): the L2 status bar pulls extension
+#: segments and the loaded-extension count through injected callables, so no
+#: module imports a higher layer any more.  A new upward edge must be
+#: registered in ``architecture-boundaries.md`` section 1 first, then here.
+UPWARD_EDGES_FROZEN: frozenset[str] = frozenset()
 
 #: Pure logic packages / modules that must run without any widget (R4).
 #: ``config.py`` joined in N30: it used to lazily import editor_view.theme
@@ -266,14 +263,6 @@ EXTENSION_SUBMODULES: tuple[str, ...] = (
     "yate.services.extensions.loader",
     "yate.services.extensions.lua",
 )
-
-#: Frozen direct submodule imports (R14): ``statusbar.py`` annotates its
-#: injected UI bridge with ``UiExtensionBridge``, which the 14-name facade
-#: does not re-export.  A new direct import must be registered here first
-#: (same mechanism as ``UI_FROZEN_FILES``).
-EXTENSION_SUBMODULE_FROZEN: dict[str, set[str]] = {
-    "editor_view/statusbar.py": {"yate.services.extensions.bridges"},
-}
 
 #: The pre-subpackage module paths (R14): collapsed into
 #: ``services/extensions/`` -- a resurrected sibling module would fork the
@@ -1340,10 +1329,9 @@ def test_extension_machinery_hides_behind_facade() -> None:
     """Extension machinery lives in ``services/extensions/`` and yate code
     enters it only through the facade (R14): direct imports of the ``api``
     / ``bridges`` / ``loader`` / ``lua`` submodules are banned outside the
-    package itself, and the pre-subpackage sibling modules stay gone.
-    ``tests/`` are not scanned (they unit-test the internals on purpose);
-    a frozen whitelist holds pre-existing direct imports that need a name
-    the 14-name facade does not re-export."""
+    package itself -- zero exceptions since the statusbar decoupling
+    (2026-10-20) -- and the pre-subpackage sibling modules stay gone.
+    ``tests/`` are not scanned (they unit-test the internals on purpose)."""
     for name in EXTENSION_FORMER_MODULES:
         assert not (YATE / "services" / name).exists(), name
     assert not (YATE / "services" / "lua").exists()
@@ -1352,12 +1340,10 @@ def test_extension_machinery_hides_behind_facade() -> None:
         if key.startswith("services/extensions/"):
             continue
         for module in _yate_imports(path):
-            if not any(
+            assert not any(
                 module == target or module.startswith(target + ".")
                 for target in EXTENSION_SUBMODULES
-            ):
-                continue
-            assert module in EXTENSION_SUBMODULE_FROZEN.get(key, set()), (key, module)
+            ), (key, module)
 
 
 def test_extension_facade_exports_the_frozen_plugin_names() -> None:

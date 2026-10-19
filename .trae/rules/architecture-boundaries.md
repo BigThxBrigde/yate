@@ -48,10 +48,10 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
          禁止 import editor / editor_view / app）
 ```
 
-- **硬性依赖连线图**（2026-10-17 增补）：**实线**箭头是**允许**的依赖方向，除下图
-  **虚线**标出的**唯一已登记例外**（`EV -.-> EXTF`：R14 的 L2→L3 扩展门面读取，
-  条文登记见 R14 条目、守卫侧冻结于 §六 `UPWARD_EDGES_FROZEN`）与 L4 内的入口同层边
-  （`__main__.py --> cli.py --> app.py`）外，其余一律**严格向下**；
+- **硬性依赖连线图**（2026-10-17 增补，2026-10-20 例外清零）：**实线**箭头是**允许**的
+  依赖方向。除 L4 内的入口同层边（`__main__.py --> cli.py --> app.py`）外，其余一律
+  **严格向下**；L2→L3 的最后一条例外（statusbar 读取扩展门面）已于 2026-10-20 随
+  statusbar 解耦清除（见 R14 条目），`UPWARD_EDGES_FROZEN` 现为**空集**；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
   的禁线条款与 §六 35 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
@@ -99,7 +99,6 @@ flowchart TD
     FLOWS -->|"具体协作者注入"| LEAVES
     EV -->|"R3/R8：协作者或回调注入"| SES
     EV --> LEAVES
-    EV -.->|"R14 已登记例外：唯一向上连线（statusbar 取门面公共名 + 冻结 .bridges）"| EXTF
     SES -->|"R4：模型层 UI-free"| LEAVES
 ```
 
@@ -218,19 +217,18 @@ flowchart TD
   `bridges.py` / `loader.py` / `lua/`）；门面导入路径 `yate.services.extensions` 不变
   （14 个公共名再导出**冻结**，插件与手册按名导入零破坏），内部子模块为非公共 API——
   yate 内代码（extensions 包自身除外）只可 `from yate.services.extensions import <公共名>`，
-  直引 `api` / `bridges` / `loader` / `lua` 子模块视为违规；存量直引冻结在架构测试的
-  `EXTENSION_SUBMODULE_FROZEN` 白名单（`editor_view/statusbar.py` 的 `UiExtensionBridge`
-  类型注解——14 名门面不含该名），新增直引必须先登记；`tests/**` 直测内部机件，不在
-  拦截面。`yate/services/events.py`（editor 直用的通用事件枢纽）与 `user_setup.py`
+  直引 `api` / `bridges` / `loader` / `lua` 子模块视为违规（2026-10-20 statusbar 解耦后
+  **零例外**，原 `EXTENSION_SUBMODULE_FROZEN` 白名单已删除）；`tests/**` 直测内部机件，
+  不在拦截面。`yate/services/events.py`（editor 直用的通用事件枢纽）与 `user_setup.py`
   非扩展机件，不随迁。
-  **L2→L3 已登记例外**（2026-10-17 审计）：`editor_view/statusbar.py` 取本门面公共名
-  （`ExtensionLoader`）与冻结的 `.bridges`（`UiExtensionBridge`，见 §六
-  `EXTENSION_SUBMODULE_FROZEN`）以渲染扩展状态段，`statusbar.py:83-84` 为构造参数注入；
-  这是 2026-10-17 层秩切分后全仓**唯一**的向上连线，由 §六 的层秩守卫冻结；
-  L2 新增到 L3 的连线必须先在本条登记。
+  **L2→L3 例外清零**（2026-10-20）：原例外（`editor_view/statusbar.py` 取门面公共名
+  `ExtensionLoader` 与 `UiExtensionBridge` 渲染扩展状态段）已随 statusbar 解耦移除——
+  状态栏改注入两个回调（各 bar 半区的 `(id, provider)` 段快照 + 已装载扩展计数），
+  边界上只传纯数据与可调用，L2 不再 import 任何 L3 名字；§六 的层秩守卫
+  `UPWARD_EDGES_FROZEN` 同步置为**空集**，L2 新增到 L3 的连线必须先在本条登记。
   `yate/services/yxp.py`（`.yxp` 包装卸逻辑）**不随迁**本子包：它不含扩展运行时耦合，
   归属仍为 `services/`（与 `events.py` / `user_setup.py` 同理）。
-  **守卫**：§六「R14」条目（两条用例：直引拦截 + 门面 14 名冻结）。
+  **守卫**：§六「R14」条目（两条用例：直引拦截（零例外）+ 门面 14 名冻结）。
 
 ## 二、分层职责
 
@@ -446,10 +444,9 @@ flowchart TD
   按 §三.6 与 R-C 保持内联。负向演练过：6 类违规全部拦截，3 类放行形态零误伤。
 - **R14**（扩展机件子包化，2026-10-13 新增两条）：`test_extension_machinery_hides_behind_facade`
   AST 扫 `yate/**`（排除 `services/extensions/` 包自身；`tests/` 不在扫描面）禁直引
-  `yate.services.extensions.{api,bridges,loader,lua}`，存量直引冻结在
-  `EXTENSION_SUBMODULE_FROZEN` 白名单（`editor_view/statusbar.py` 的
-  `UiExtensionBridge` 类型注解），并断言三个旧机件模块与 `services/lua/` 目录不复存在
-  （负向演练：空白名单扫描恰好命中 statusbar 一处）；
+  `yate.services.extensions.{api,bridges,loader,lua}`——2026-10-20 statusbar 解耦后
+  **零例外**（原 `EXTENSION_SUBMODULE_FROZEN` 白名单已删除），并断言三个旧机件模块
+  与 `services/lua/` 目录不复存在；
   `test_extension_facade_exports_the_frozen_plugin_names` 运行时断言门面 `__all__`
   恒为 14 名白名单（`EXTENSION_FACADE_NAMES`）且逐名可解析。
 - **代码注释与 docstring 的 ASCII 纪律**（`misc-rules.md` §四，2026-10-18 新增）：
@@ -525,7 +522,7 @@ flowchart TD
 | 29 | `test_no_relative_imports` | 绝对导入（IKKS4C：全仓禁 `from .X`，包内引用写全路径；§六清单此前漏登，2026-10-13 补齐） |
 | 30 | `test_extension_machinery_hides_behind_facade` | R14（扩展机件仅居 `services/extensions/`：禁直引子模块 + 旧路径不复存在） |
 | 31 | `test_extension_facade_exports_the_frozen_plugin_names` | R14（门面 14 名白名单冻结，逐名可解析） |
-| 32 | `test_no_unregistered_upward_imports` | 层秩向上连线（2026-10-17：切分后白名单仅 statusbar 2 条，`extensions/` 跳过） |
+| 32 | `test_no_unregistered_upward_imports` | 层秩向上连线（2026-10-20 statusbar 解耦后 `UPWARD_EDGES_FROZEN` 为**空集**：全仓零向上连线，`extensions/` 跳过） |
 | 33 | `test_comments_and_docstrings_stay_ascii` | 代码注释 ASCII 纪律（misc-rules §四：拒 CJK / 全角 / 排版符号，字符串字面量放行；存量 6 处引述型命中登记 `NON_ASCII_COMMENT_EXEMPT`） |
 | 34 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
 | 35 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
