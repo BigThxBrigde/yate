@@ -205,11 +205,11 @@ def test_none_provider_hides_segment(tmp_path: Path) -> None:
 
 
 def test_statusbar_without_ui_bridge_pulls_nothing(tmp_path: Path) -> None:
-    """A StatusBar built without the ui bridge contributes no segments.
+    """A StatusBar built without the segments callback contributes nothing.
 
-    Covers the ``ui is None`` early return in ``_extension_texts``:
-    standalone constructions (no extension system attached) must render
-    without touching any segment registry.
+    Covers the ``extension_segments is None`` early return in
+    ``_extension_texts``: standalone constructions (no extension system
+    attached) must render without touching any segment registry.
     """
 
     async def scenario() -> None:
@@ -219,15 +219,15 @@ def test_statusbar_without_ui_bridge_pulls_nothing(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             status_bar = app.editor.status_bar
-            assert status_bar.ui is not None
+            assert status_bar.extension_segments is not None
             bare = StatusBar(
                 status_bar.session,
                 status_bar.lsp,
                 status_bar.keymaps,
                 status_bar.prompt,
-                status_bar.extension_loader,
             )
-            assert bare.ui is None
+            assert bare.extension_segments is None
+            assert bare.loaded_extensions is None
             assert bare._extension_texts("left") == []
             assert bare._extension_texts("right") == []
 
