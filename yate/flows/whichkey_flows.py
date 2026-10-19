@@ -119,14 +119,20 @@ class WhichKeyFlows:
         never qualifies here; those humanized labels belong to the pinned
         sheet.
 
-        - a row qualifies iff *pending* is a literal prefix of the spec and
-          the spec is strictly longer
+        Two sources merge into one grid, table rows first:
+
+        - a binding row qualifies iff *pending* is a literal prefix of the
+          spec and the spec is strictly longer
           (``spec.startswith(pending) and len(spec) > len(pending)``) --
           placeholders ``{...}`` only appear after the first character, so
           the literal-prefix test is safe;
-        - rows dedupe on the spec (the first occurrence wins); an empty
-          result leaves the panel header-only (a count plus an operator
-          arms with no table motion to complete it, e.g. ``2d``).
+        - the active keymap's :meth:`~yate.keymaps.base.Keymap.chord_hints`
+          rows describe what its hardcoded branches consume next (an armed
+          operator's motions, a find prefix's ``{char}`` follower, ...);
+          a table-driven keymap contributes none.
+
+        Rows dedupe on the label (the first occurrence wins), so a table
+        entry shadows a hint row with the same label.
         """
         entries: list[ChordEntry] = []
         seen: set[str] = set()
@@ -140,6 +146,10 @@ class WhichKeyFlows:
             entries.append(
                 ChordEntry(spec, binding.description or str(binding.action))
             )
+        for label, desc in self.keymaps.active.chord_hints():
+            if label not in seen:
+                seen.add(label)
+                entries.append(ChordEntry(label, desc))
         return entries
 
     def _sheet_entries(self) -> list[ChordEntry]:

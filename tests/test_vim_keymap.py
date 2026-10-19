@@ -1888,6 +1888,82 @@ def test_pending_prefix_empty_in_insert_mode() -> None:
     assert keymap.pending_prefix() == ""
 
 
+def test_pending_prefix_includes_text_object_scope() -> None:
+    """The chord header shows the scope too: ``di`` after d then i."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    keymap.handle_key(ctx, "i")
+    assert keymap.pending_prefix() == "di"
+
+
+def test_chord_hints_list_operator_pending_motions() -> None:
+    """An armed operator lists its hardcoded continuations key by key."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    hints = dict(keymap.chord_hints())
+    assert hints["d"] == "delete line (dd)"
+    assert hints["w"] == "next word"
+    assert hints["i"] == "inner object"
+    assert hints["g"] == "go-to prefix (line 1)"
+    assert hints["$"] == "line end"
+    assert "; ," not in hints  # no find has run, so nothing to repeat yet
+
+
+def test_chord_hints_offer_find_repeat_after_a_find() -> None:
+    """``;`` / ``,`` rows appear only once a find has been recorded."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    assert "; ," not in dict(keymap.chord_hints())
+    keymap.last_find = ("x", False, False)
+    hints = dict(keymap.chord_hints())
+    assert hints["; ,"] == "delete to next / previous find match"
+
+
+def test_chord_hints_list_text_object_targets() -> None:
+    """After ``di`` the rows are the object chars the resolver accepts."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    keymap.handle_key(ctx, "i")
+    hints = dict(keymap.chord_hints())
+    assert hints["w"] == "inner word"
+    assert hints["t"] == "inner HTML tag"
+    assert hints["( b"] == "inner parenthesized block"
+    assert hints["{ B"] == "inner braced block"
+
+
+def test_chord_hints_list_prefix_followers() -> None:
+    """An argument prefix shows its placeholder, ``g`` its gg completion."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "f")
+    assert keymap.chord_hints() == (("{char}", "find char forward"),)
+    keymap.handle_key(ctx, "\x1b")  # esc clears the prefix
+    keymap.handle_key(ctx, "g")
+    assert keymap.chord_hints() == (("g", "go to line N / first line (gg)"),)
+
+
+def test_chord_hints_show_register_wait_and_count_state() -> None:
+    """The register wait reads a-z; a bare count lists what may follow."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, '"')
+    assert keymap.chord_hints() == (("a-z", "named register"),)
+    keymap.handle_key(ctx, "a")
+    keymap.handle_key(ctx, "2")
+    hints = dict(keymap.chord_hints())
+    assert hints["d"] == "delete operator"
+    assert hints["w"] == "next word"
+    assert hints["r"] == "replace prefix"
+    assert hints["> <"] == "indent / outdent lines"
+
+
+def test_chord_hints_empty_without_chord_state() -> None:
+    """INSERT / VISUAL / idle NORMAL hold no hardcoded continuations."""
+    _editor, keymap, ctx = _setup()
+    assert keymap.chord_hints() == ()
+    keymap.handle_key(ctx, "i")
+    assert keymap.mode is VimMode.INSERT
+    assert keymap.chord_hints() == ()
+
+
 def test_f9_binding_toggles_whichkey_action() -> None:
     """<f9> routes to the named toggle_whichkey action through KeyUi."""
     executed: list[str] = []

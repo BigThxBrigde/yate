@@ -74,6 +74,23 @@ def test_refresh_shows_candidates_while_vim_chord_pending() -> None:
     keys = {e.key for e in entries}
     assert "dd" in keys
     assert "d{motion}" in keys
+    assert "w" in keys  # hardcoded motion hint from the keymap hook
+
+
+def test_refresh_shows_text_object_grid_under_scope_header() -> None:
+    """After ``di`` the header reads "di" and the grid lists the objects."""
+    vim = VimKeymap()
+    flows, panel = _make_flows(KeymapSet({"vim": vim}, "vim"))
+    ctx = make_action_context()
+    vim.handle_key(ctx, "d")
+    vim.handle_key(ctx, "i")
+    flows.refresh()
+    header, entries = panel.shown[-1]
+    assert header == "di"
+    keys = {e.key for e in entries}
+    assert "w" in keys
+    assert "( b" in keys
+    assert "{ B" in keys
 
 
 def test_refresh_clears_panel_when_idle() -> None:
@@ -113,10 +130,12 @@ def test_candidates_exclude_completed_and_unrelated_specs() -> None:
     assert "dd" in keys
     assert "d{motion}" in keys
     # Completed specs never share the pending prefix: the "doc start" spec
-    # ("gg") and the single-key "G" stay out, and so does y{motion}.
+    # ("gg") and the single-key "G" spec stay out, and so does y{motion}.
+    # A "G" row does appear -- as the keymap's hardcoded motion hint, not
+    # the binding-table spec, so its description is pinned to the hint's.
     assert "gg" not in keys
-    assert "G" not in keys
     assert "y{motion}" not in keys
+    assert [e.desc for e in panel.shown[-1][1] if e.key == "G"] == ["last line"]
 
 
 def test_refresh_prefers_pinned_sheet_over_pending() -> None:

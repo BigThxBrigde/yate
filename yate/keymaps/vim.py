@@ -68,6 +68,15 @@ _PREFIX_KEYS: tuple[str, ...] = (*_PREFIX_MOTIONS, "r")
 #: not a count.  The ``g`` prefix keeps taking digits for ``g{count}g``.
 _ARG_PREFIXES: tuple[str, ...] = ("f", "F", "t", "T", "r")
 
+#: Which-key row for each armed argument prefix: the follower is any
+#: printable char, shown as a placeholder instead of 100+ literal rows.
+_FIND_PREFIX_HINTS: dict[str, tuple[str, str]] = {
+    "f": ("{char}", "find char forward"),
+    "F": ("{char}", "find char backward"),
+    "t": ("{char}", "till char forward"),
+    "T": ("{char}", "till char backward"),
+}
+
 _FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
 #: Raw keys consumed by _handle_normal before the binding table is
@@ -274,10 +283,11 @@ class VimKeymap(Keymap):
         """The vim chord typed so far, in binding-spec order (empty if none).
 
         Follows the typing order the dispatch accepts: count, operator,
-        prefix (``2df``).  The register prefix ``"`` shows only while its
-        letter is awaited (``pending_register == ""``); once the letter
-        lands the register is folded into the armed operator and the
-        display drops it.  INSERT / VISUAL never hold chord state.
+        text-object scope, prefix (``2di`` / ``2df``).  The register prefix
+        ``"`` shows only while its letter is awaited
+        (``pending_register == ""``); once the letter lands the register is
+        folded into the armed operator and the display drops it.
+        INSERT / VISUAL never hold chord state.
         """
         if self.mode is not VimMode.NORMAL:
             return ""
@@ -292,9 +302,96 @@ class VimKeymap(Keymap):
             parts.append(str(self.op_count))
         if self.op is not None:
             parts.append(self.op)
+        if self.obj_scope is not None:
+            parts.append(self.obj_scope)
         if self.prefix is not None:
             parts.append(self.prefix)
         return "".join(parts)
+
+    @override
+    def chord_hints(self) -> tuple[tuple[str, str], ...]:
+        """Next-key rows for the hardcoded NORMAL-mode state in flight.
+
+        One branch per pending state, mirroring ``_handle_normal``'s
+        dispatch order: register wait, text-object scope, argument
+        prefixes, armed operator, bare count.  Every row is a key the
+        state machine actually consumes -- nothing aspirational.
+        """
+        if self.mode is not VimMode.NORMAL:
+            return ()
+        if self.pending_register == "":
+            return (("a-z", "named register"),)
+        if self.obj_scope is not None:
+            inner = "inner" if self.obj_scope == "i" else "around"
+            return (
+                ("w", f"{inner} word"),
+                ("'", f"{inner} single-quoted"),
+                ('"', f"{inner} double-quoted"),
+                ("t", f"{inner} HTML tag"),
+                ("( b", f"{inner} parenthesized block"),
+                ("[ ]", f"{inner} bracketed block"),
+                ("{ B", f"{inner} braced block"),
+                ("< >", f"{inner} angle block"),
+            )
+        if self.prefix == "g":
+            return (("g", "go to line N / first line (gg)"),)
+        if self.prefix in _FIND_PREFIX_HINTS:
+            return (_FIND_PREFIX_HINTS[self.prefix],)
+        if self.prefix == "r":
+            return (("{char}", "replace char"),)
+        if self.op is not None:
+            return self._operator_hints()
+        if self.count_str:
+            return (
+                ("d", "delete operator"),
+                ("y", "yank operator"),
+                ("c", "change operator"),
+                *self._motion_hints(),
+                ("g", "go-to prefix"),
+                *self._find_prefix_hints(),
+                ("r", "replace prefix"),
+                ("> <", "indent / outdent lines"),
+            )
+        return ()
+
+    def _operator_hints(self) -> tuple[tuple[str, str], ...]:
+        """Rows for an armed operator: the operator itself, objects, motions."""
+        op_verb = {"d": "delete", "y": "yank", "c": "change"}[self.op or "d"]
+        assert self.op is not None
+        rows: list[tuple[str, str]] = [
+            (self.op, f"{op_verb} line ({self.op * 2})"),
+            ("i", "inner object"),
+            ("a", "around object"),
+            *self._motion_hints(),
+            ("g", "go-to prefix (line 1)"),
+            *self._find_prefix_hints(),
+        ]
+        if self.last_find is not None:
+            rows.append(("; ,", f"{op_verb} to next / previous find match"))
+        return tuple(rows)
+
+    @staticmethod
+    def _motion_hints() -> tuple[tuple[str, str], ...]:
+        """The motion set both NORMAL and operator-pending dispatch accept."""
+        return (
+            ("w", "next word"),
+            ("b", "previous word"),
+            ("e", "end of word"),
+            ("h j k l", "left / down / up / right"),
+            ("0", "line start"),
+            ("$", "line end"),
+            ("G", "last line"),
+        )
+
+    @staticmethod
+    def _find_prefix_hints() -> tuple[tuple[str, str], ...]:
+        """The find-char prefixes that can complete an operator."""
+        return (
+            ("f", "find char forward"),
+            ("F", "find char backward"),
+            ("t", "till char forward"),
+            ("T", "till char backward"),
+        )
 
     def _clear_operator(self) -> None:
         """Drop the armed operator with its scope and count companions."""
