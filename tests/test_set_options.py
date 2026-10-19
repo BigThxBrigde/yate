@@ -79,6 +79,17 @@ def test_set_dispatch_survives_a_missing_apply(
 # --- support_mouse dispatch -------------------------------------------------
 
 
+class _WhichKeyStub:
+    """Stand-in which-key flow whose ``clear`` counts the hide calls."""
+
+    def __init__(self) -> None:
+        self.clears = 0
+
+    def clear(self) -> None:
+        """Record one panel hide (fired on which_key off)."""
+        self.clears += 1
+
+
 class _ConfigEditor:
     """Editor stand-in with a real config plus message recording."""
 
@@ -86,6 +97,8 @@ class _ConfigEditor:
         self.config = YateConfig()
         self.notes: list[tuple[str, str]] = []
         self.mouse_state_canceled = 0
+        self.whichkey = _WhichKeyStub()
+        self.refresh_calls = 0
 
     def message(self, text: str, kind: str = "") -> None:
         """Record one message-line output."""
@@ -94,6 +107,10 @@ class _ConfigEditor:
     def cancel_mouse_state(self) -> None:
         """Record a mid-drag state sweep (fired on support_mouse off)."""
         self.mouse_state_canceled += 1
+
+    def refresh_ui(self) -> None:
+        """Record one repaint (fired on every which_key apply)."""
+        self.refresh_calls += 1
 
 
 def _set_driver() -> tuple[CommandRegistry, _ConfigEditor]:
@@ -130,3 +147,38 @@ def test_set_support_mouse_invalid_value_reports() -> None:
         "support_mouse must be on|off" in text for text, _ in editor.notes
     )
     assert editor.config.support_mouse is True
+
+
+# --- which_key dispatch -----------------------------------------------------
+
+
+def test_set_which_key_on_off_roundtrip() -> None:
+    """``:set which_key=off/on`` flips the config master switch."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry[0]("which_key=off")
+    assert editor.config.which_key is False
+    assert editor.whichkey.clears == 1
+    assert editor.refresh_calls == 1
+
+    entry[0]("which_key=on")
+    assert editor.config.which_key is True
+    # only the disable path hides the panel; enabling repaints instead
+    assert editor.whichkey.clears == 1
+    assert editor.refresh_calls == 2
+
+
+def test_set_which_key_invalid_value_reports() -> None:
+    """An unrecognised value warns on the message line, value unchanged."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry[0]("which_key=maybe")
+    assert any(
+        "which_key must be on|off" in text for text, _ in editor.notes
+    )
+    assert editor.config.which_key is True
+    assert editor.whichkey.clears == 0

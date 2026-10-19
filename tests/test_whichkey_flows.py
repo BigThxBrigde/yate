@@ -11,7 +11,7 @@ report and the no-App-handle guarantee.
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -48,6 +48,7 @@ class _PanelRecorder:
 def _make_flows(
     keymaps: KeymapSet,
     window_pending: StateQuery = lambda: False,
+    which_key_enabled: Callable[[], bool] = lambda: True,
 ) -> tuple[WhichKeyFlows, _PanelRecorder]:
     """Build the flow over a recording panel (message line kept inert)."""
     panel = _PanelRecorder()
@@ -56,6 +57,7 @@ def _make_flows(
         window_pending=window_pending,
         panel=cast(WhichKeyPanel, panel),
         message=lambda _text, _kind: None,
+        which_key_enabled=which_key_enabled,
     )
     return flows, panel
 
@@ -248,3 +250,66 @@ def test_reserved_keys_come_from_the_active_keymap() -> None:
     vsc_flows, _ = _make_flows(KeymapSet({"vsc": VscKeymap()}, "vsc"))
     assert vim_flows.keymaps.active.reserved_keys == RESERVED_KEYS
     assert vsc_flows.keymaps.active.reserved_keys == frozenset()
+
+
+def test_refresh_hides_panel_when_which_key_disabled() -> None:
+    """Master switch off -> every refresh hides the panel.
+
+    The master-switch short-circuit runs before the four decision branches,
+    so idle, a pending chord, an armed ctrl+w chord and a (short-circuited)
+    toggle all leave the panel hidden.
+    """
+    vim = VimKeymap()
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        window_pending=lambda: True,
+        which_key_enabled=lambda: False,
+    )
+    # Idle: nothing pending, still hidden.
+    flows.refresh()
+    assert panel.last == "clear"
+    # Pending chord: an armed operator still hides.
+    ctx = make_action_context()
+    assert vim.handle_key(ctx, "d") is True
+    flows.refresh()
+    assert panel.last == "clear"
+    # Toggle would pin when enabled; the short-circuit keeps the panel off.
+    flows.toggle()
+    flows.refresh()
+    assert panel.last == "clear"
+    assert panel.shown == []
+
+
+def test_toggle_noop_when_which_key_disabled() -> None:
+    """Master switch off -> toggle never pins, so nothing survives.
+
+    ``toggle`` short-circuits before touching the pinned state, leaving it
+    unpinned; re-enabling afterwards therefore refreshes to the hidden
+    branch instead of a pinned sheet.
+    """
+    state = {"on": False}
+    vim = VimKeymap()
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        which_key_enabled=lambda: state["on"],
+    )
+    flows.toggle()   # short-circuited: no pin
+    flows.refresh()  # disabled: hidden
+    assert panel.last == "clear"
+    # Re-enable: no prior pin survived, so the hidden branch still wins.
+    state["on"] = True
+    flows.refresh()
+    assert panel.last == "clear"
+    assert panel.shown == []
+
+
+def test_clear_method_hides_panel_unconditionally() -> None:
+    """``WhichKeyFlows.clear`` delegates to the panel for :set which_key=off."""
+    vim = VimKeymap()
+    flows, panel = _make_flows(KeymapSet({"vim": vim}, "vim"))
+    flows.toggle()
+    flows.refresh()
+    assert panel.last == "show"
+    flows.clear()
+    assert panel.last == "clear"
+    assert panel.clears >= 1

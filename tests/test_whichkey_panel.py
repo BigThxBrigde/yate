@@ -19,13 +19,17 @@ import asyncio
 from typing import Any, override
 
 from textual.app import App, ComposeResult
-from textual.containers import Vertical
 from textual.events import Key
 from textual.widget import Widget
 from textual.widgets import Static
 
 from yate.editor_view import theme
-from yate.editor_view.whichkey import MAX_ROWS, ChordEntry, WhichKeyPanel
+from yate.editor_view.whichkey import (
+    MAX_ROWS,
+    ChordEntry,
+    EditorColumn,
+    WhichKeyPanel,
+)
 
 from conftest import plain_text
 
@@ -50,17 +54,17 @@ class _KeyProbe(Static):
 
 
 class _LayerHost(App[None]):
-    """Minimal host: a parent container declaring the whichkey layer.
+    """Minimal host: an EditorColumn declaring the whichkey layer.
 
-    The container is sized explicitly so ``on_resize`` has settled
-    before the tests assert on ``styles.offset``.  The panel is yielded
-    inside the container, exactly like ``Editor.compose`` does in
-    production.
+    The container tracks the terminal size (100% x 100%), exactly like
+    ``#editor-col`` in production, so ``pilot.resize_terminal`` drives the
+    real ``EditorColumn.on_resize`` forwarding path.  The panel is yielded
+    inside the container, exactly like ``Editor.compose`` does.
     """
 
     DEFAULT_CSS = """
     Screen { layout: vertical; }
-    #layer-box { width: 80; height: 24; layers: default whichkey; }
+    #layer-box { width: 100%; height: 100%; layers: default whichkey; }
     WhichKeyPanel { layer: whichkey; }
     """
 
@@ -71,7 +75,7 @@ class _LayerHost(App[None]):
 
     @override
     def compose(self) -> ComposeResult:
-        with Vertical(id="layer-box", classes="layer-box"):
+        with EditorColumn(id="layer-box"):
             yield self.panel
             yield self.probe
 
@@ -236,5 +240,32 @@ def test_clear_blanks_border_title() -> None:
             host.panel.clear()
             assert host.panel.border_title == ""
             assert host.panel.display is False
+
+    asyncio.run(scenario())
+
+
+def test_container_resize_reanchors_panel() -> None:
+    """EditorColumn.on_resize forwards to the panel (user-reported bug).
+
+    The panel is absolutely positioned with an auto size, so a terminal
+    resize never changes its own region and Textual's reflow never posts
+    it a Resize event; the container's resize is the reliable signal.
+    """
+
+    async def scenario() -> None:
+        host = _LayerHost()
+        async with host.run_test(size=(80, 24)) as pilot:
+            host.panel.show_entries("2d", [ChordEntry("dd", "Delete line")])
+            await pilot.pause()
+            await pilot.resize_terminal(100, 30)
+            await pilot.pause()
+            await pilot.pause()
+            parent = host.panel.parent
+            assert isinstance(parent, Widget)
+            parent_width = parent.region.width
+            own_width = host.panel.region.width
+            offset_x, offset_y = host.panel.styles.offset
+            assert offset_x.value == parent_width - own_width - 1
+            assert offset_y.value >= 2
 
     asyncio.run(scenario())

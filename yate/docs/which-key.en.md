@@ -5,8 +5,10 @@
 The which-key panel is yate's at-a-glance keymap reference. While a key
 chord is still being typed it lists every valid next key with its
 description; it can also be pinned as a full, category-grouped keymap
-sheet. The panel sits at the bottom of the window, directly above the
-status bar, never takes focus, and never swallows keystrokes.
+sheet. The panel floats on the right edge of the editor column as a
+rounded box; the border title carries the current chord or keymap name,
+both coloured by the active theme. It never takes focus and never swallows
+keystrokes. Set `which_key = False` in your yaterc to hide it entirely.
 
 ---
 
@@ -96,6 +98,5 @@ such a binding would silently never fire.
   the pinned-sheet toggle cannot be triggered there. The conflict report
   stays reachable from the command line via `:check-keys`, but there is
   no command-line fallback for the panel toggle itself.
-* **No yaterc persistence yet** -- there is no yaterc option to configure
-  the which-key panel, and the pinned state is not persisted: after a
-  restart the sheet starts unpinned. Both are out of scope for now.
+* **Pinned state is not persisted** -- the pinned state lives in
+  `WhichKeyFlows` only, so after a restart the sheet starts unpinned.

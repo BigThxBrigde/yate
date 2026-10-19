@@ -44,7 +44,7 @@ from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.panes import PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
-from yate.editor_view.whichkey import WhichKeyPanel
+from yate.editor_view.whichkey import EditorColumn, WhichKeyPanel
 from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
@@ -162,7 +162,9 @@ def _build_widgets(ed: Editor) -> None:
     ed.which_key_panel = WhichKeyPanel(id="which-key")
     ed.sidebar = Vertical(id="sidebar")
     ed.sidebar_head = SidebarHead(id="sidebar-head")
-    ed.editor_col = Vertical(id="editor-col")
+    # EditorColumn forwards its resizes to the floating which-key panel
+    # (the absolute-positioned panel never sees its own region change).
+    ed.editor_col = EditorColumn(id="editor-col")
     # Document flows need the widgets above; the tab bar needs the flows
     # (tab clicks activate documents), so it is built right after them.
     # The pane stack does not exist yet -- the first pane leaf seeds from
@@ -319,6 +321,7 @@ def _build_pane_stack(ed: Editor) -> None:
         window_pending=lambda: ed.window_flows.window_pending,
         panel=ed.which_key_panel,
         message=ed.message,
+        which_key_enabled=lambda: ed.config.which_key,
     )
     # Late chord observer (same binding pattern as window_prefix above):
     # WindowFlows notifies on every ctrl+w flip, covering the explorer path

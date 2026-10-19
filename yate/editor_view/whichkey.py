@@ -9,7 +9,7 @@ candidates: data flow belongs to the flow module.
 Visual contract:
 
 - absolute positioned, anchored to the right edge of its parent
-  (#editor-col) via :meth:`_place` (Textual 8.2.8 cannot reach the right
+  (#editor-col) via :meth:`reanchor` (Textual 8.2.8 cannot reach the right
   edge with CSS alone -- ``apply_absolute`` resets to the container
   origin and ``align-*`` does not apply to absolute children);
 - rounded border with a theme-tinted ``border_title`` carrying the
@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rich.text import Text
+from textual.containers import Vertical
 from textual.widget import Widget
 from textual.widgets import Static
 
@@ -64,6 +65,24 @@ _RIGHT_MARGIN_CELLS: int = 1
 #: breadcrumbs strip at the top of the editor column (1 row tabbar + 1
 #: row breadcrumbs).
 _TOP_GUARD_CELLS: int = 2
+
+
+class EditorColumn(Vertical):
+    """The ``#editor-col`` container: forwards resizes to the panel.
+
+    The which-key panel is absolutely positioned with an auto (content)
+    size, so a window resize or a sidebar toggle changes its container
+    without ever changing the panel's own region.  Textual's reflow only
+    posts :class:`~textual.events.Resize` to widgets whose region changed,
+    so the panel would keep a stale offset; the container's own resize is
+    the one reliable signal and is forwarded here.
+    """
+
+    def on_resize(self) -> None:
+        """Re-anchor the floating panel after this container changed size."""
+        for child in self.children:
+            if isinstance(child, WhichKeyPanel):
+                child.reanchor()
 
 
 class WhichKeyPanel(Static):
@@ -94,7 +113,7 @@ class WhichKeyPanel(Static):
         theme.attach(self, self._repaint)
         self.display = False
         # First place run -- measure regions once the widget has one.
-        self.call_after_refresh(self._place)
+        self.call_after_refresh(self.reanchor)
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
@@ -102,7 +121,7 @@ class WhichKeyPanel(Static):
 
     def on_resize(self) -> None:
         """Re-anchor when our size or the container size changes."""
-        self._place()
+        self.reanchor()
 
     def show_entries(
         self, header: str, entries: Sequence[ChordEntry]
@@ -114,7 +133,7 @@ class WhichKeyPanel(Static):
         self._repaint()
         self.display = True
         # The container may have just resized to fit the new content.
-        self.call_after_refresh(self._place)
+        self.call_after_refresh(self.reanchor)
 
     def clear(self) -> None:
         """Drop the pushed data, blank content + title and hide."""
@@ -124,7 +143,7 @@ class WhichKeyPanel(Static):
         self.update("")
         self.display = False
 
-    def _place(self) -> None:
+    def reanchor(self) -> None:
         """Anchor the panel to the right edge, vertically centered.
 
         Textual 8.2.8 places absolute children at the container origin
