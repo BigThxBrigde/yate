@@ -17,6 +17,33 @@ from yate.registries import CommandRegistry
 
 from yate.editor_view import theme
 from yate.editor_view.icons import CHECK, KEYBOARD, TERMINAL, TIMES
+from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+
+
+class _OverlayScroll(VerticalScroll):
+    """Scrollable overlay body owning its slim scrollbar painting.
+
+    Same self-painting contract as the explorer tree and the manual's
+    DocScroll: the renderer sliver plus the theme palette (issue IKINF3
+    pattern); a bare VerticalScroll would fall back to Textual's opaque
+    default track and full-cell thumb.
+    """
+
+    def on_mount(self) -> None:
+        """Own the slim-scrollbar wiring and the theme painting."""
+        # no super()/@override here: VerticalScroll's MRO has no on_mount
+        # to chain (manual.DocScroll precedent).
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        theme.attach(self, self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        theme.detach(self)
+
+    def _apply_theme(self) -> None:
+        """Paint the scrollbar palette from the active theme."""
+        apply_scrollbar_theme(self)
 
 
 class _OverlayScreen(ModalScreen[None]):
@@ -33,7 +60,7 @@ class _OverlayScreen(ModalScreen[None]):
     @override
     def compose(self) -> ComposeResult:
         """Scrollable overlay box with the body text and a close hint."""
-        with VerticalScroll(id="overlay"):
+        with _OverlayScroll(id="overlay"):
             yield Static(self._body(), id="overlay-body")
             yield Static(" press esc or q to close ", classes="hint")
 

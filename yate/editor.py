@@ -18,10 +18,10 @@ collaborator is a concrete object or a plain callable.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -38,6 +38,7 @@ from yate.editor_syntax import (
     resolve_filetype,
 )
 from yate.editor_view import theme
+from yate.editor_view.canvas_screen import CanvasScreen
 from yate.editor_view.chrome import Breadcrumbs, SidebarHead, TabBar
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.completion import CompletionPopup
@@ -439,7 +440,62 @@ class Editor:
             run_action=lambda name: self.key_ui.execute_action(name),
             set_theme=_set_theme,
             active_theme_name=lambda: theme.active().name,
+            open_canvas=self._open_canvas,
         )
+
+    def _open_canvas(
+        self,
+        cols: int,
+        rows: int,
+        on_key: Callable[[str], None],
+        on_tick: Callable[[], None],
+        on_close: Callable[[], None],
+    ) -> tuple[
+        Callable[[str, Mapping[str, str]], None],
+        Callable[[str], None],
+        Callable[[], None],
+    ]:
+        """Push the extension canvas screen and hand back its controls.
+
+        Returns the raw ``(draw, set_status, close)`` callback triple; the
+        UI bridge wraps it into the extension-facing handle, so this method
+        never names a type from the extension machinery (R14: the editor
+        imports the facade only).  The screen (L2) owns rendering, the tick
+        clock and key consumption.  The close callback rides the push
+        callback, so both a self ``dismiss()`` and an external pop reach
+        *on_close*.  The thunks flip a local ``closed`` flag first: a tick
+        that races the dismissal then finds a dead handle instead of a dead
+        widget.
+        """
+        closed = False
+
+        def mark_closed() -> None:
+            nonlocal closed
+            if closed:
+                return
+            closed = True
+            on_close()
+
+        screen = CanvasScreen(cols, rows, on_key, on_tick, mark_closed)
+        self.app.push_screen(screen, callback=lambda _result: mark_closed())
+
+        def draw(grid: str, palette: Mapping[str, str]) -> None:
+            if not closed:
+                screen.draw(grid, palette)
+
+        def set_status(text: str) -> None:
+            if not closed:
+                screen.set_status(text)
+
+        def close() -> None:
+            if not closed:
+                # mark_closed flips the flag synchronously and fires on_close
+                # once, so a script closing its own canvas cannot race a
+                # pending tick against an already-popped screen.
+                mark_closed()
+                screen.dismiss()
+
+        return draw, set_status, close
 
     def documents_closed(self, docs: list[Document]) -> None:
         """Session hook for closed documents: emit, then notify the servers.
@@ -545,9 +601,12 @@ class Editor:
         """True while the explorer tree widget holds the focus."""
         return self.app.focused is self.explorer_tree
 
-    def current_screen(self) -> Screen[object]:
+    def current_screen(self) -> Screen[None]:
         """The screen currently on top of the shell's screen stack."""
-        return self.app.screen
+        # Every screen yate pushes is a ModalScreen[None]; App.screen is
+        # declared Screen[object] upstream, so the narrower type is asserted
+        # here at that third-party boundary (cast over ignore).
+        return cast(Screen[None], self.app.screen)
 
     def report(self, text: str, kind: str = "info") -> None:
         """Report *text* on the message line (buffered before the first mount).

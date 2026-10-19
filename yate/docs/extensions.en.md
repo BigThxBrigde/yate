@@ -47,7 +47,8 @@ absolute path** (a script hit by several sources still runs exactly once):
 1. The `extensions` option in yaterc (user rc before project rc; entries
    **accumulate**, they do not overwrite);
 2. **Bundled extensions** in `yate/extensions/` (currently `python_lsp`,
-   the Python language server); they auto-load regardless of the working
+   the Python language server, and `tetris`, the game behind
+   `:game tetris`); they auto-load regardless of the working
    directory; disable individual defaults via yaterc's
    `disabled_extensions` (see below). The directory also ships templates
    (`*.py.example`, never auto-loaded): `example_ext.py.example`, the
@@ -566,7 +567,7 @@ Emissions live at low-frequency points only (save / open / close /
 activate / diagnostics / keymap / theme) -- there is intentionally no
 per-keystroke event.
 
-### 4.11 Status bar segments (`api.ui`)
+### 4.11 Status bar segments and canvases (`api.ui`)
 
 `api.ui.add_segment` contributes a text segment to the status
 bar. The bar is a **pull-model** registry: on every refresh it calls each
@@ -603,6 +604,49 @@ Rules:
   drops a segment (`KeyError` when unknown).
 - Registrations participate in the rollback scope: a failing setup
   removes them again.
+
+**`api.ui.open_canvas(cols, rows, on_key, on_tick, on_close)`** opens a
+full-screen modal canvas the script draws into -- the mechanism behind the
+bundled Tetris (`:game tetris`). It returns a **handle** with three methods:
+
+| Method | Purpose |
+|---|---|
+| `handle.draw(grid, palette)` | repaint the grid: *grid* is one newline-joined string (one string per row), *palette* maps a cell character to a `"#rrggbb"` color; blanks and unknown characters keep the default color; rows/columns beyond the grid are clipped |
+| `handle.set_status(text)` | replace the status line under the grid |
+| `handle.close()` | close the canvas (idempotent) |
+
+The callbacks: *on_key* receives Textual key names (`left`, `space`, ...) for
+every key the canvas consumes (modal: nothing reaches the editor underneath;
+`escape` is the canvas' own exit and never reaches *on_key*); *on_tick* fires
+on the canvas' own clock (15 ticks per second -- accumulate ticks to slow
+game gravity down); *on_close* runs once after the screen is gone.
+
+```python
+def setup(api):
+    handle = None
+
+    def on_key(key):            # "left" / "right" / "space" / ...
+        ...                     # update game state; draw on the next tick
+    def on_tick():
+        if handle:
+            handle.draw("##  \n    \n", {"#": "#e57373"})
+            handle.set_status("score 0")
+    def on_close():
+        pass
+
+    handle = api.ui.open_canvas(10, 20, on_key, on_tick, on_close)
+```
+
+Rules:
+
+- `cols` / `rows` are the grid dimensions; the screen centers the grid and
+  clips when the terminal is smaller.
+- The handle dies with the canvas: calls after the screen is gone are
+  ignored, so a tick racing the dismissal is harmless.
+- Opening when the host has no UI (headless construction) raises
+  `RuntimeError`.
+- A raising callback is reported and the canvas keeps running; `escape`
+  always works.
 
 ### 4.12 Running actions and rebinding keys (`api.actions` / `bind_action` / `unbind_key`)
 
@@ -876,6 +920,7 @@ runtime: `require("yate")` and the global `yate` are the same module table
 | `yate.events.subscribe(name, fn)` | subscribe to editor events; `name` is the lowercase event name (`"document_saved"` ... `"theme_changed"`, section 4.10) |
 | `yate.ui.add_segment(id, provider, align?, priority?)` | contribute a status bar segment (section 4.11) |
 | `yate.ui.remove_segment(id)` | remove a previously contributed status bar segment (section 4.11) |
+| `yate.ui.open_canvas(cols, rows, on_key, on_tick, on_close)` | open a full-screen modal canvas; returns the draw handle (section 4.11) |
 | `yate.theme.set(name)` / `yate.theme.active()` | switch / read the color theme (section 4.13) |
 | `yate.clipboard.set(text)` / `yate.clipboard.get()` | system clipboard (section 4.13) |
 | `yate.docs.all()` / `yate.docs.is_open(path)` | read-only view of the open documents (section 4.13) |

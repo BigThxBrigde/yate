@@ -11,7 +11,7 @@ every test.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -27,7 +27,11 @@ from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
 from yate.services import clipboard
-from yate.services.extensions.bridges import HighlightExtensionBridge
+from yate.services.extensions.bridges import (
+    CanvasControls,
+    HighlightExtensionBridge,
+    UiExtensionBridge,
+)
 from yate.services.extensions import ExtensionAPI, ExtensionContext
 from yate.services.workspace import Workspace
 
@@ -430,3 +434,66 @@ def test_ui_bridge_add_segment_rolls_back_inside_scope(api: ExtensionAPI) -> Non
     api.rollback_scope()
 
     assert api.ui.segments("right") == []
+
+
+# --- UiExtensionBridge.open_canvas ---------------------------------------------
+
+
+def test_ui_bridge_open_canvas_without_a_host_raises() -> None:
+    """No injected opener: the canvas verb refuses loudly (headless bridge)."""
+    bridge = UiExtensionBridge(record_undo=lambda _undo: None)
+
+    with pytest.raises(RuntimeError, match="open_canvas: no UI host attached"):
+        bridge.open_canvas(10, 20, lambda _key: None, lambda: None, lambda: None)
+
+
+def test_ui_bridge_open_canvas_headless_context_raises(api: ExtensionAPI) -> None:
+    """A hand-built context without a UI host keeps the refusing default."""
+    with pytest.raises(RuntimeError, match="no UI host"):
+        api.ui.open_canvas(10, 20, lambda _key: None, lambda: None, lambda: None)
+
+
+def test_ui_bridge_open_canvas_wraps_the_injected_opener() -> None:
+    """The opener's triple becomes a handle that forwards its args verbatim."""
+    opened: list[tuple[int, int, object, object, object]] = []
+    drawn: list[tuple[str, Mapping[str, str]]] = []
+    statuses: list[str] = []
+    closed: list[bool] = []
+
+    def key_sink(_key: str) -> None:
+        raise AssertionError("the bridge must not fire the canvas callbacks")
+
+    def tick_sink() -> None:
+        raise AssertionError("the bridge must not fire the canvas callbacks")
+
+    def close_sink() -> None:
+        raise AssertionError("the bridge must not fire the canvas callbacks")
+
+    def opener(
+        cols: int,
+        rows: int,
+        on_key: Callable[[str], None],
+        on_tick: Callable[[], None],
+        on_close: Callable[[], None],
+    ) -> CanvasControls:
+        opened.append((cols, rows, on_key, on_tick, on_close))
+        return (
+            lambda grid, palette: drawn.append((grid, palette)),
+            statuses.append,
+            lambda: closed.append(True),
+        )
+
+    bridge = UiExtensionBridge(lambda _undo: None, opener)
+    handle = bridge.open_canvas(10, 20, key_sink, tick_sink, close_sink)
+
+    # the opener received the exact arguments, callbacks included by identity
+    assert opened == [(10, 20, key_sink, tick_sink, close_sink)]
+
+    palette = {"I": "#00e5ff"}
+    handle.draw("I.......\n........", palette)
+    handle.set_status("score 0  lines 0  level 1")
+    handle.close()
+
+    assert drawn == [("I.......\n........", palette)]
+    assert statuses == ["score 0  lines 0  level 1"]
+    assert closed == [True]

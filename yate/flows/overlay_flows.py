@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from textual.screen import Screen
 
@@ -41,7 +40,7 @@ class OverlayFlows:
         self,
         push_screen: Callable[..., object],
         pop_screen: Callable[[], object],
-        current_screen: Callable[[], Screen[object]],
+        current_screen: Callable[[], Screen[None]],
         config: YateConfig,
         keymaps: KeymapSet,
         commands: CommandRegistry,
@@ -81,10 +80,10 @@ class OverlayFlows:
         self._run_command = run_command
         self._refresh = refresh
 
-    def push(  # noqa: Any - any Textual screen, callback payload untyped
+    def push(
         self,
-        screen: Screen[Any],
-        callback: Callable[[Any], None] | None = None,
+        screen: Screen[None],
+        callback: Callable[[None], object] | None = None,
     ) -> None:
         """Push a full-screen overlay, clearing the stale bottom message first.
 
