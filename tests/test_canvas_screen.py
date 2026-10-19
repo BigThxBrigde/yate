@@ -217,3 +217,40 @@ def test_interval_clock_drives_on_tick() -> None:
             assert await wait_until(pilot, lambda: app.ticks >= 2)
 
     asyncio.run(scenario())
+
+
+def test_raising_key_sink_is_reported_and_keeps_the_canvas_alive() -> None:
+    """A raising extension callback is reported on the status line.
+
+    The canvas survives (extension code must never crash the app, same
+    contract as the tick path), and later keys still reach the sink.
+    """
+
+    async def scenario() -> None:
+        app = _Host(cols=4, rows=3)
+        calls = 0
+
+        def sink(_key: str) -> None:
+            nonlocal calls
+            calls += 1
+            raise RuntimeError("boom")
+
+        async with app.run_test(size=(40, 12)) as pilot:
+            await pilot.pause()
+            canvas = app.canvas
+            assert canvas is not None
+            canvas._key_sink = sink
+
+            await pilot.press("left")
+            await pilot.pause()
+
+            assert "key callback failed" in _status_text(canvas)
+            assert app.screen is canvas
+
+            await pilot.press("right")
+            await pilot.pause()
+
+            assert calls == 2
+            assert app.screen is canvas
+
+    asyncio.run(scenario())

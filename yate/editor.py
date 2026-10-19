@@ -476,6 +476,10 @@ class Editor:
 
         def close() -> None:
             if not closed:
+                # mark_closed flips the flag synchronously and fires on_close
+                # once, so a script closing its own canvas cannot race a
+                # pending tick against an already-popped screen.
+                mark_closed()
                 screen.dismiss()
 
         return draw, set_status, close

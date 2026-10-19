@@ -166,7 +166,11 @@ class CanvasScreen(ModalScreen[None]):
         if event.key == EXIT_KEY:
             self.dismiss()
             return
-        self._key_sink(event.key)
+        try:
+            self._key_sink(event.key)
+        except Exception:  # noqa: BLE001 - extension code, never crash the app
+            log.exception("canvas key callback failed")
+            self._status.update(Text("key callback failed -- escape exits"))
 
     def _tick(self) -> None:
         """Run one extension clock tick, reporting a raising callback."""
