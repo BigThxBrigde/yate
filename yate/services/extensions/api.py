@@ -23,6 +23,8 @@ from yate.logs import tracing
 from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
 from yate.services.extensions.bridges import (
     ActionExtensionBridge,
+    CanvasControls,
+    CanvasOpener,
     ClipboardExtensionBridge,
     DocsExtensionBridge,
     EventExtensionBridge,
@@ -56,6 +58,23 @@ type CommandDecorator = Callable[[CommandFunc], CommandFunc]
 type AnyCallback = Callable[..., Any]
 
 
+def _no_ui_canvas(
+    cols: int,
+    rows: int,
+    on_key: Callable[[str], None],
+    on_tick: Callable[[], None],
+    on_close: Callable[[], None],
+) -> CanvasControls:
+    """Default :data:`CanvasOpener`: refuse, no UI host is attached.
+
+    Keeps :class:`ExtensionContext` tail-extensible: a context built by hand
+    (tests, headless call sites) keeps working, and a script that asks for a
+    canvas gets a loud error instead of a silently dead handle.
+    """
+    _ = cols, rows, on_key, on_tick, on_close
+    raise RuntimeError("no UI host")
+
+
 @dataclass
 class ExtensionContext:
     """The concrete services an extension script drives.
@@ -87,6 +106,10 @@ class ExtensionContext:
     set_theme: Callable[[str], None]
     #: ``active_theme_name()`` -- the active theme's name.
     active_theme_name: Callable[[], str]
+    #: ``open_canvas(cols, rows, on_key, on_tick, on_close)`` -- open a modal
+    #: canvas screen.  The default refuses: a context built without a UI host
+    #: (tests, headless paths) cannot push a screen.
+    open_canvas: CanvasOpener = _no_ui_canvas
 
 
 class ExtensionAPI:
@@ -105,7 +128,7 @@ class ExtensionAPI:
         self._highlight = HighlightExtensionBridge()
         self._syntax = SyntaxExtensionBridge()
         self._sprites = SpriteExtensionBridge()
-        self._ui = UiExtensionBridge(self._record_undo)
+        self._ui = UiExtensionBridge(self._record_undo, ctx.open_canvas)
         # ``None`` (standalone construction in tests) gets a private hub:
         # nothing emits into it, so subscriptions simply never fire.
         self._events = EventExtensionBridge(
@@ -268,7 +291,7 @@ class ExtensionAPI:
 
     @property
     def ui(self) -> UiExtensionBridge:
-        """Contribute status bar segments (``api.ui.add_status_segment``)."""
+        """Contribute status bar segments and canvases (``api.ui.*``)."""
         return self._ui
 
     @property
