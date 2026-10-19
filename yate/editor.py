@@ -479,12 +479,17 @@ class Editor:
                 yield self.tabbar
                 yield self.breadcrumbs
                 yield self.pane_host
+                # The which-key panel is absolutely positioned inside
+                # #editor-col (see resources/which-key.tcss): yielding it
+                # here keeps it on the layer above pane_host while #bottom
+                # (statusbar / prompt) no longer competes for vertical
+                # space -- the bug fix for "always shows VIM".
+                yield self.which_key_panel
         # Both live in one docked container so the terminal always sits
         # directly above the status/prompt strip (VS Code layout).
         with Vertical(id="bottom-dock"):
             yield self.terminal_panel
             with Vertical(id="bottom"):
-                yield self.which_key_panel
                 yield self.status_bar
                 yield self.prompt_bar
 
