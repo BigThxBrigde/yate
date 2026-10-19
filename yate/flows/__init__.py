@@ -18,7 +18,6 @@ anyway.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from textual.screen import Screen
 from textual.worker import Worker
@@ -32,8 +31,10 @@ type MessageFn = Callable[[str, str], None]
 #: Flows never hold the App handle themselves (R11 / capability injection).
 type SpawnFn = Callable[..., Worker[object]]
 
-#: ``push_overlay(screen)`` -- mount a modal overlay on the screen stack.
-type OverlayPusher = Callable[[Screen[Any]], None]  # noqa: Any - any Textual Screen
+#: ``push_overlay(screen)`` -- mount a modal overlay on the screen stack
+#: (every yate overlay is a ``ModalScreen[None]``, hence the precise result
+#: type rather than a vague ``object`` / ``Any``).
+type OverlayPusher = Callable[[Screen[None]], None]
 
 #: Query a state flag a flow must respect before acting -- ``mounted``,
 #: ``has_modal_screen``, ``explorer_focused``.  Evaluated at call time, so the

@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 from functools import partial
 from pathlib import Path
+from typing import cast
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -531,9 +532,12 @@ class Editor:
         """True while the explorer tree widget holds the focus."""
         return self.app.focused is self.explorer_tree
 
-    def current_screen(self) -> Screen[object]:
+    def current_screen(self) -> Screen[None]:
         """The screen currently on top of the shell's screen stack."""
-        return self.app.screen
+        # Every screen yate pushes is a ModalScreen[None]; App.screen is
+        # declared Screen[object] upstream, so the narrower type is asserted
+        # here at that third-party boundary (cast over ignore).
+        return cast(Screen[None], self.app.screen)
 
     def report(self, text: str, kind: str = "info") -> None:
         """Report *text* on the message line (buffered before the first mount).
