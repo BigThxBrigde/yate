@@ -39,7 +39,6 @@ local NEXT_INNER = 16              -- next / help box inner width
 local LEFT_W = STAT_INNER + 2      -- full stats box width
 local BOARD_W = 2 * W              -- doubled board width
 local RIGHT_W = NEXT_INNER + 2     -- full right box width
-local BOARD_X = LEFT_W + 2         -- 1-based column of the board's left border
 local CANVAS_COLS = LEFT_W + 1 + (BOARD_W + 2) + 1 + RIGHT_W
 local CANVAS_ROWS = H + 2          -- the board box carries its own borders
 
@@ -305,15 +304,17 @@ local function center(text, width)
 end
 
 -- Box-drawing helpers: a titled top border, a plain bottom border.  Borders
--- stay ASCII on purpose: Lua strings are byte strings, so every splice in
--- this file requires one byte == one display column.
+-- use the same Unicode line glyphs as the surrounding frame.  Lua strings are
+-- byte strings, so the borders are only ever concatenated, never sliced: all
+-- splicing in this file happens on the pure-ASCII board cell strings where
+-- one byte still equals one display column.
 local function box_top(title, inner)
-  local label = "- " .. title .. " "
-  return "+" .. label .. string.rep("-", inner - #label) .. "+"
+  local label_width = #title + 3  -- "─ " .. title .. " " in display columns
+  return "┌─ " .. title .. " " .. string.rep("─", inner - label_width) .. "┐"
 end
 
 local function box_bottom(inner)
-  return "+" .. string.rep("-", inner) .. "+"
+  return "└" .. string.rep("─", inner) .. "┘"
 end
 
 -- Left column: the stats box on the top rows, blank below it.  Labels are
@@ -322,8 +323,8 @@ end
 local function stats_lines()
   local lines = {}
   lines[1] = box_top("stats", STAT_INNER)
-  lines[2] = "|" .. string.format(" score%9d", state.score) .. "|"
-  lines[3] = "|" .. string.format(" level%9d", state.level) .. "|"
+  lines[2] = "│" .. string.format(" score%9d", state.score) .. "│"
+  lines[3] = "│" .. string.format(" level%9d", state.level) .. "│"
   lines[4] = box_bottom(STAT_INNER)
   for row = 5, CANVAS_ROWS do
     lines[row] = string.rep(" ", LEFT_W)
@@ -346,7 +347,7 @@ local function right_lines()
     end
   end
   for row = 1, 4 do
-    lines[1 + row] = "|" .. center(table.concat(preview[row]), NEXT_INNER) .. "|"
+    lines[1 + row] = "│" .. center(table.concat(preview[row]), NEXT_INNER) .. "│"
   end
   lines[6] = box_bottom(NEXT_INNER)
   lines[7] = string.rep(" ", RIGHT_W)
@@ -365,7 +366,7 @@ local function right_lines()
   }
   for index, binding in ipairs(keys) do
     local field = string.rep(" ", 7 - binding[3]) .. binding[2]
-    lines[8 + index] = "|" .. string.format(" %-7s", binding[1]) .. field .. " |"
+    lines[8 + index] = "│" .. string.format(" %-7s", binding[1]) .. field .. " │"
   end
   lines[17] = box_bottom(NEXT_INNER)
   for row = 18, CANVAS_ROWS do
@@ -374,63 +375,69 @@ local function right_lines()
   return lines
 end
 
--- One board row: a border, every cell doubled into a solid block pair, and a
--- border again.
-local function board_line(row)
-  local line = { "|" }
+-- One board row's inner cells: every cell doubled into a solid block pair.
+-- Pure ASCII on purpose: byte offsets equal display columns here, which is
+-- what the piece stamping and the overlay text rely on.
+local function cells_line(row)
+  local line = {}
   for col = 1, W do
     local cell = state.board[row][col] or " "
     line[#line + 1] = cell
     line[#line + 1] = cell
   end
-  line[#line + 1] = "|"
   return table.concat(line)
 end
 
--- Overwrite *text* centered on board row *board_row* of the already-assembled
--- row strings (plain text across the doubled board cells; lowercase keeps it
--- clear of the palette colors).
-local function overlay(rows, text, board_row)
-  local start = BOARD_X + 1 + math.floor((BOARD_W - #text) / 2)
-  local line = rows[board_row + 1]  -- row 1 is the board's top border
-  rows[board_row + 1] =
-    line:sub(1, start - 1) .. text .. line:sub(start + #text)
+-- Overwrite *text* centered on the cell string of board row *board_row*
+-- (1-based, pure ASCII, so plain Lua substring math is exact).  Lowercase
+-- keeps it clear of the palette colors.
+local function overlay(cells, text, board_row)
+  local start = 1 + math.floor((BOARD_W - #text) / 2)
+  local line = cells[board_row]
+  cells[board_row] = line:sub(1, start - 1) .. text .. line:sub(start + #text)
 end
 
 -- Render the whole canvas as one newline-joined string: stats box | board box
 -- | next + help boxes, one blank gap between the boxes.  The falling piece is
--- stamped onto the doubled cells afterwards; overlay texts are written last.
+-- stamped onto the pure-ASCII cell strings and overlay texts are written
+-- before the bordered rows are assembled.
 local function render()
   local stats = stats_lines()
   local right = right_lines()
-  local board = {}
-  board[1] = box_top("tetris", BOARD_W)
+  local cells = {}
   for row = 1, H do
-    board[row + 1] = board_line(row)
-  end
-  board[H + 2] = box_bottom(BOARD_W)
-  local rows = {}
-  for row = 1, CANVAS_ROWS do
-    rows[row] = stats[row] .. " " .. board[row] .. " " .. right[row]
+    cells[row] = cells_line(row)
   end
   if not state.game_over and state.kind ~= nil then
     for _, cell in ipairs(cells_of(state.kind, state.rot)) do
       local col = state.x + cell[1] + 1
       local row = state.y + cell[2] + 1
       if row >= 1 and row <= H and col >= 1 and col <= W then
-        local at = BOARD_X + 2 * (col - 1) + 1  -- first block column
-        local line = rows[row + 1]
-        rows[row + 1] = line:sub(1, at - 1)
+        local at = 2 * (col - 1) + 1  -- first block column (byte == column)
+        local line = cells[row]
+        cells[row] = line:sub(1, at - 1)
           .. state.kind .. state.kind
           .. line:sub(at + 2)
       end
     end
   end
   if state.game_over then
-    overlay(rows, "game over", 9)
-    overlay(rows, "press r", 11)
+    overlay(cells, "game over", 9)
+    overlay(cells, "press r", 11)
   elseif state.paused then
-    overlay(rows, "paused", 10)
+    overlay(cells, "paused", 10)
+  end
+  local rows = {}
+  for row = 1, CANVAS_ROWS do
+    local middle
+    if row == 1 then
+      middle = box_top("tetris", BOARD_W)
+    elseif row == H + 2 then
+      middle = box_bottom(BOARD_W)
+    else
+      middle = "│" .. cells[row - 1] .. "│"
+    end
+    rows[row] = stats[row] .. " " .. middle .. " " .. right[row]
   end
   return table.concat(rows, "\n")
 end

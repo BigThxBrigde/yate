@@ -275,12 +275,12 @@ def test_tetris_opens_the_three_box_layout(game: _Game) -> None:
     assert _board_cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
     # stats box shows score and level; empty board means zero points
     stats = _stats(canvas.grid)
-    assert "+- stats" in stats and " score        0" in stats
+    assert "┌─ stats" in stats and " score        0" in stats
     assert " level        1" in stats
     # right column previews the next piece and lists the key bindings
     right = _right_boxes(canvas.grid)
-    assert "+- next" in right and "OOOO" in right
-    assert "+- help" in right and " restart" in right and " quit" in right
+    assert "┌─ next" in right and "OOOO" in right
+    assert "┌─ help" in right and " restart" in right and " quit" in right
 
 
 @requires_lupa
