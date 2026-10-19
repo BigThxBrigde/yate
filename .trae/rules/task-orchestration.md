@@ -55,7 +55,7 @@ scene: task_orchestration
 
    | 子代理 | 模型 |
    |---|---|
-   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-architect-designer` | Hy4 preview |
    | `plan-executor` | DeepSeek-V4.1-Flash |
    | `code-review-expert` | GLM-5.3-Flash |
 
@@ -63,7 +63,7 @@ scene: task_orchestration
 
    | 子代理 | 模型 |
    |---|---|
-   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-architect-designer` | Qwen3.7-Plus |
    | `plan-executor` | DeepSeek-V4.1-Flash |
    | `code-review-expert` | GLM-5.3-Flash |
 
