@@ -1182,6 +1182,79 @@ def test_app_annotations_are_precise() -> None:
         assert lines == [], (path, lines)
 
 
+def _stringified_imprecise_screen(annotation: ast.expr) -> bool:
+    """Whether *annotation* is (or embeds) a stringified ``Screen[Any]``.
+
+    Same rationale as :func:`_stringified_imprecise`: quoted forward
+    references parse as plain ``Constant`` strings and would otherwise hide
+    the subscript from the ``Subscript`` branch of the guard.  The substring
+    match also catches nested forms such as ``"Callable[[], Screen[object]]"``.
+    """
+    return (
+        isinstance(annotation, ast.Constant)
+        and isinstance(annotation.value, str)
+        and (
+            "Screen[Any]" in annotation.value
+            or "Screen[object]" in annotation.value
+        )
+    )
+
+
+def _imprecise_screen_annotations(path: Path) -> list[int]:
+    """Line numbers of ``Screen[object]`` / ``Screen[Any]`` subscripts in *path*.
+
+    AST-based so docstrings mentioning the shapes do not false-positive.
+    ``Screen[None]`` (the result type of every yate overlay -- they are all
+    ``ModalScreen[None]``) is the only allowed ``Screen`` subscript.  Matches
+    the bare (``Screen[...]``) and qualified (``textual.screen.Screen[...]``)
+    spellings plus stringified forward references at the variable-annotation,
+    parameter and return positions.
+    """
+    tree = _parsed_tree(path)
+    out: list[int] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript):
+            value = node.value
+            named = (isinstance(value, ast.Name) and value.id == "Screen") or (
+                isinstance(value, ast.Attribute) and value.attr == "Screen"
+            )
+            if not named:
+                continue
+            subscript = node.slice
+            if isinstance(subscript, ast.Name) and subscript.id in ("Any", "object"):
+                out.append(node.lineno)
+            elif _stringified_imprecise_screen(subscript):
+                out.append(node.lineno)
+        elif isinstance(node, ast.AnnAssign):
+            if _stringified_imprecise_screen(node.annotation):
+                out.append(node.lineno)
+        elif isinstance(node, ast.arg):
+            if node.annotation is not None and _stringified_imprecise_screen(
+                node.annotation
+            ):
+                out.append(node.lineno)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.returns is not None and _stringified_imprecise_screen(
+                node.returns
+            ):
+                out.append(node.lineno)
+    return out
+
+
+def test_screen_annotations_are_precise() -> None:
+    """``Screen[object]`` / ``Screen[Any]`` are banned across ``yate/``.
+
+    Every overlay yate pushes is a ``ModalScreen[None]``, so ``Screen[None]``
+    is the only precise subscript; the one place the type has to be asserted
+    is the third-party boundary (``App.screen`` is ``Screen[object]``
+    upstream), which casts rather than widening yate's own annotations
+    (issue: screen result-type narrowing).
+    """
+    for path in _yate_files():
+        lines = _imprecise_screen_annotations(path)
+        assert lines == [], (path, lines)
+
+
 def _self_app_accesses(path: Path) -> list[int]:
     """Line numbers of ``self.app`` attribute chains in *path*.
 
