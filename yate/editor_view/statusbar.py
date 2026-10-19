@@ -3,16 +3,18 @@
 Flat VS Code style: one solid accent-colored line with a mode chip on the
 left and position/meta information right-aligned.  Extensions contribute
 extra text segments (``api.ui.add_status_segment``): the bar pulls them
-from the injected :class:`~yate.services.extensions.bridges.UiExtensionBridge`
-on every refresh and paints them with its own segment styles.
+through the injected segments snapshot callable on every refresh and paints
+them with its own segment styles.
 
 The bar is self-contained: it reads the document session, the language
 servers, the keymap set and the prompt bar (whose active mode owns the chip)
-directly, so no host protocol is involved.
+directly, so no host protocol is involved.  The extension capabilities
+arrive as injected callables, which keeps this widget free of any L3 import.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Literal, Any
 
 from rich.text import Text
@@ -26,8 +28,6 @@ from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.logs import tracing
 from yate.paths import load_tcss
-from yate.services.extensions import ExtensionLoader
-from yate.services.extensions.bridges import UiExtensionBridge
 from yate.session import EditorSession
 
 from yate.editor_view import theme
@@ -36,6 +36,11 @@ from yate.editor_view.icons import DOT, KEYBOARD, LOCK, PENCIL, PLUG, TERMINAL
 
 #: Trace logger ("yate.editor_view.statusbar"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
+
+#: One contributed extension segment as the bar sees it: the id (for failure
+#: reports) and the provider callable.  Plain data plus a callable, so the
+#: bar needs no import from the extension machinery at all.
+type SegmentRow = tuple[str, Callable[[], str | None]]
 
 
 def mode_chip(prompt: PromptBar, keymaps: KeymapSet, buf: TextBuffer) -> tuple[str, str]:
@@ -80,8 +85,10 @@ class StatusBar(Static):
         lsp: LspManager,
         keymaps: KeymapSet,
         prompt: PromptBar,
-        extension_loader: ExtensionLoader,
-        ui: UiExtensionBridge | None = None,
+        extension_segments: Callable[
+            [Literal["left", "right"]], list[SegmentRow]
+        ] | None = None,
+        loaded_extensions: Callable[[], int] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__("", **kwargs)
@@ -89,10 +96,11 @@ class StatusBar(Static):
         self.lsp = lsp
         self.keymaps = keymaps
         self.prompt = prompt
-        self.extension_loader = extension_loader
-        #: Extension segment registry (``None`` = no contributed segments,
-        #: keeps standalone constructions working).
-        self.ui = ui
+        #: Extension segments snapshot for one bar half (``None`` = no
+        #: contributed segments, keeps standalone constructions working).
+        self.extension_segments = extension_segments
+        #: Loaded-extension count for the hints segment (``None`` renders 0).
+        self.loaded_extensions = loaded_extensions
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
@@ -135,8 +143,8 @@ class StatusBar(Static):
         meta_plain = f"{buf.line_count} lines · {doc.filetype} · {doc.encoding}"
         lsp_plain, lsp_style = self._lsp_segment(doc)
         hints_plain = (
-            f"{PLUG} {len(self.extension_loader.loaded)}  {TERMINAL} :!  "
-            f"{KEYBOARD} F1"
+            f"{PLUG} {self.loaded_extensions() if self.loaded_extensions else 0}"
+            f"  {TERMINAL} :!  {KEYBOARD} F1"
         )
         lsp_part = f"{lsp_plain}   " if lsp_plain else ""
         right_plain = (
@@ -205,14 +213,14 @@ class StatusBar(Static):
         cannot take the rest of the bar down.  Provider output is flattened
         to single spaces -- the bar is a single line.
         """
-        if self.ui is None:
+        if self.extension_segments is None:
             return []
         texts: list[str] = []
-        for segment in self.ui.segments(align):
+        for segment_id, provider in self.extension_segments(align):
             try:
-                value = segment.provider()
+                value = provider()
             except Exception:  # noqa: BLE001 - user code, never crash the bar
-                log.exception("status segment %s provider failed", segment.id)
+                log.exception("status segment %s provider failed", segment_id)
                 texts.append("!")
                 continue
             if value:

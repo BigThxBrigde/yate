@@ -18,8 +18,10 @@ collaborator is a concrete object or a plain callable.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
+from typing import Literal
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -153,9 +155,21 @@ def _build_widgets(ed: Editor) -> None:
         focus_editor=ed.focus_editor,
         id="explorer",
     )
+    def _extension_segment_rows(
+        align: Literal["left", "right"],
+    ) -> list[tuple[str, Callable[[], str | None]]]:
+        # Adapt the L3 bridge objects into plain (id, provider) rows so the
+        # status bar needs no import from the extension machinery.
+        return [
+            (segment.id, segment.provider)
+            for segment in ed.extension_api.ui.segments(align)
+        ]
+
     ed.status_bar = StatusBar(
         ed.session, ed.lsp, ed.keymaps, ed.prompt_bar,
-        ed.extension_loader, ui=ed.extension_api.ui, id="statusbar",
+        extension_segments=_extension_segment_rows,
+        loaded_extensions=lambda: len(ed.extension_loader.loaded),
+        id="statusbar",
     )
     ed.sidebar = Vertical(id="sidebar")
     ed.sidebar_head = SidebarHead(id="sidebar-head")
