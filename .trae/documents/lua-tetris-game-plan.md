@@ -304,3 +304,11 @@ api / editor / 手册 ×2 / _yate ×2），`git revert` 分支级回滚即可，
 - [x] 随身包核对：`yate/extensions/tetris.lua` 经 `pack/_common.py` Tree 整目录
   进 bundle（零 spec 改动）；lupa 随 `[lua]` extra 进包；端到端测试走真实
   `bundled_extensions_dir()` 装载路径实证。
+- [x] 迭代轮次 2（用户界面反馈：字符方块 → 实体方块、界面加宽、画面内积分/level）：
+  画布 API 增加 `"*"` 字形约定（palette 键 `"*"` 提供所有着色单元格的替换字形，
+  网格数据仍是方块字母）；布局重排为三栏框线（左 stats：score/level、中 tetris
+  棋盘、右 next 预览 + help 按键表，59x22，空白格无点）。**实现内发现**：Lua
+  字符串是字节串，UTF-8 框线字符（3 字节/列）破坏 `#`/`sub` 列算术——边框改
+  ASCII（`+ - |`，字节=列），help 箭头以显式显示宽度手工补齐。实测：
+  pyright 全仓 0 errors；pytest 全绿，覆盖率 92.00%；架构 35 passed；
+  lupa 视觉冒烟一帧核对布局（探针脚本已删）。提交 `1186d73`。
