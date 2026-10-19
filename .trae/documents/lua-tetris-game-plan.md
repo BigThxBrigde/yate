@@ -249,10 +249,35 @@ api / editor / 手册 ×2 / _yate ×2），`git revert` 分支级回滚即可，
 
 ## 八、执行记录（回填区）
 
-- [ ] Step 1 结果（命令退出码、pyright/pytest 数字）
-- [ ] Step 2 结果
-- [ ] Step 3 结果
+### 偏离记录
+
+1. **`open_canvas` 契约改为"裸回调三元组 + 桥内包装"**（2026-10-19，执行波次 a）：
+   原 Step 1 设计 editor 直接构造并返回 `CanvasHandle`，但 `CanvasHandle` 不是
+   门面 14 名冻结成员，`editor.py` 直引 `yate.services.extensions.bridges` 子模块
+   会被 `test_extension_machinery_hides_behind_facade` 拦截（实测 exit 1）。
+   改为：`ExtensionContext.open_canvas` 返回 `(draw, set_status, close)` 裸回调
+   三元组（`type CanvasControls`），`UiExtensionBridge.open_canvas` 包装成
+   `CanvasHandle`。效果：零冻结名单改动，editor 只 import 门面公共名（R14 合规，
+   架构测试转绿 101 passed）。实测依据：`.venv\Scripts\python.exe -m pyright yate/`
+   → 0 errors；`pytest tests/test_architecture.py tests/test_extension_bridges.py
+   tests/test_extension_api.py tests/test_extensions.py -q` → 101 passed。
+2. **`draw` 网格契约改为单个换行拼接字符串**（2026-10-19，lupa 探针实证）：
+   `list(LuaTable)` 迭代出的是**键**（`[1, 2, 3]`），`t[:2]` 静默返回 `None`，
+   `isinstance(LuaTable, Mapping)` 为 `False` 但 `.items()` 可用 —— Lua 表不能
+   直接当 `Sequence[str]` 跨界。改为 `handle:draw(grid, palette)`，`grid` 是
+   整幅画布换行拼接的单个字符串（Lua 侧 `table.concat(rows, "\n")`）；
+   palette 在 `CanvasScreen.draw` 边界用 `dict(palette.items())` 规范化。
+   探针脚本已按 misc-rules §二 验证后删除。
+3. **Step 1/2 实现细节**：CanvasScreen 回调字段命名 `_key_sink` / `_tick_sink` /
+   `_close_sink`（`_on_*` 与 Textual 消息处理器命名约定冲突，pyright 实测报错）；
+   `on_mount` 不加 `@override`（与 `screensaver.py` 先例一致）。
+
+### 步骤结果
+
+- [x] Step 1+2（波次 a，plan-executor 执行 + 主代理契约微调）：
+  pyright 0 errors；架构/桥层 4 文件 101 passed exit 0；提交 `f007e84` / `7a67b79`。
+- [ ] Step 3 结果（命令退出码、pyright/pytest 数字）
 - [ ] Step 4 结果
+- [ ] Step 5 结果
 - [ ] 审核（code-review-expert）结论
 - [ ] 全量门禁数字（前后对比）
-- [ ] 偏离计划记录

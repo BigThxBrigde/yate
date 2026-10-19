@@ -47,7 +47,7 @@ type SegmentAlign = Literal["left", "right"]
 #: need to name the handle class (R14: the editor imports the facade, not
 #: this module).
 type CanvasControls = tuple[
-    Callable[[Sequence[str], Mapping[str, str]], None],
+    Callable[[str, Mapping[str, str]], None],
     Callable[[str], None],
     Callable[[], None],
 ]
@@ -410,7 +410,7 @@ class CanvasHandle:
 
     def __init__(
         self,
-        draw: Callable[[Sequence[str], Mapping[str, str]], None],
+        draw: Callable[[str, Mapping[str, str]], None],
         set_status: Callable[[str], None],
         close: Callable[[], None],
     ) -> None:
@@ -418,14 +418,14 @@ class CanvasHandle:
         self._set_status = set_status
         self._close = close
 
-    def draw(self, rows: Sequence[str], palette: Mapping[str, str]) -> None:
-        """Repaint the canvas grid: one string per row, colored by *palette*.
+    def draw(self, grid: str, palette: Mapping[str, str]) -> None:
+        """Repaint the canvas grid: *grid* is one newline-joined string.
 
-        *palette* maps a cell character to a color; a blank cell keeps the
+        Each character is colored through *palette*; a blank cell keeps the
         default color.  Rows and columns beyond the screen's dimensions are
         clipped by the UI host.
         """
-        self._draw(rows, palette)
+        self._draw(grid, palette)
 
     def set_status(self, text: str) -> None:
         """Replace the status line under the grid with *text*."""

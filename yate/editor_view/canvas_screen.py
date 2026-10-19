@@ -16,7 +16,7 @@ free of any dependency on the extension machinery.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from typing import override
 
 from rich.text import Text
@@ -114,19 +114,24 @@ class CanvasScreen(ModalScreen[None]):
 
     # -------------------------------------------------------------- rendering
 
-    def draw(self, rows: Sequence[str], palette: Mapping[str, str]) -> None:
-        """Render *rows* colored through *palette*.
+    def draw(self, grid: str, palette: Mapping[str, str]) -> None:
+        """Render *grid* colored through *palette*.
 
-        One string per grid row; each character is looked up in *palette*
+        *grid* is the whole canvas as one newline-joined string (one string
+        per row).  Each character is looked up in *palette*
         (``{"#": "#e57373"}``) and painted in that color.  A blank cell and
         any character missing from *palette* keep the default color.  Rows
         and columns beyond the configured grid are clipped, and every row is
-        padded to the grid width so the box stays aligned.
+        padded to the grid width so the box stays aligned.  The palette is
+        normalized to a plain dict at this boundary: extension runtimes hand
+        over mapping-like objects (a lupa LuaTable supports ``items()``
+        without being a ``collections.abc.Mapping`` instance).
         """
+        rows = grid.split("\n")
         self._drawn = tuple(
             row[: self._cols].ljust(self._cols) for row in rows[: self._rows]
         )
-        self._paint(palette)
+        self._paint(dict(palette.items()))
 
     def set_status(self, text: str) -> None:
         """Replace the status line under the grid."""

@@ -18,7 +18,7 @@ collaborator is a concrete object or a plain callable.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
 
@@ -438,7 +438,7 @@ class Editor:
         on_tick: Callable[[], None],
         on_close: Callable[[], None],
     ) -> tuple[
-        Callable[[Sequence[str], Mapping[str, str]], None],
+        Callable[[str, Mapping[str, str]], None],
         Callable[[str], None],
         Callable[[], None],
     ]:
@@ -466,9 +466,9 @@ class Editor:
         screen = CanvasScreen(cols, rows, on_key, on_tick, mark_closed)
         self.app.push_screen(screen, callback=lambda _result: mark_closed())
 
-        def draw(grid_rows: Sequence[str], palette: Mapping[str, str]) -> None:
+        def draw(grid: str, palette: Mapping[str, str]) -> None:
             if not closed:
-                screen.draw(grid_rows, palette)
+                screen.draw(grid, palette)
 
         def set_status(text: str) -> None:
             if not closed:
