@@ -35,7 +35,7 @@ KNOWN_OPTIONS: tuple[str, ...] = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
     "yate_trace", "yate_trace_level", "key_protocol",
-    "support_mouse",
+    "support_mouse", "which_key",
 )
 
 VALID_KEYMAPS: tuple[str, ...] = ("vsc", "vim")
@@ -151,6 +151,14 @@ class YateConfig:
     #: default: mouse support is additive, the switch is an explicit
     #: opt-out (issue IKJRFK).
     support_mouse: bool = True
+    #: Master switch for the which-key panel (``which_key = False`` in
+    #: yaterc).  ``False`` suppresses every panel push (the candidate grid,
+    #: the ``ctrl+w`` chord grid and the pinned sheet); the F9 toggle
+    #: becomes a no-op.  On by default -- the panel is part of the standard
+    #: UX, the switch is an explicit opt-out for users who prefer the bare
+    #: vsc layout.  Re-enabling mid-session restores the panel at whatever
+    #: pinned state the flows module holds.
+    which_key: bool = True
     #: Runtime trace log switch (``yate_trace = True`` in yaterc). Off by
     #: default: nothing is written until it is turned on. ``YATE_TRACE``
     #: overrides it per session.
@@ -319,6 +327,13 @@ SET_OPTION_SPECS: tuple[SetOption, ...] = (
         parse=_parse_bool_option,
         invalid_message="support_mouse must be on|off (true/false/1/0/yes/no accepted)",
         summary="support_mouse=on|off",
+    ),
+    SetOption(
+        name="which_key",
+        aliases=(),
+        parse=_parse_bool_option,
+        invalid_message="which_key must be on|off (true/false/1/0/yes/no accepted)",
+        summary="which_key=on|off",
     ),
 )
 
