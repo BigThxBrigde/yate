@@ -1,0 +1,23 @@
+CanvasScreen {
+    background: $background;
+    align: center middle;
+}
+CanvasScreen .grid {
+    width: auto;
+    height: auto;
+    border: round $primary;
+    padding: 0;
+    overflow: hidden;
+    background: $surface;
+}
+CanvasScreen .status {
+    width: auto;
+    height: auto;
+    color: $text;
+    padding: 0 1;
+}
+CanvasScreen .hint {
+    dock: bottom;
+    color: $text-muted;
+    padding: 0 1;
+}
