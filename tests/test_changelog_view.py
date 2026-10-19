@@ -13,6 +13,8 @@ from typing import Any, cast
 
 import pytest
 
+from textual.screen import Screen
+
 from yate.editor import Editor
 from yate.editor_view.manual import (
     MarkdownDocScreen,
@@ -65,7 +67,7 @@ def _make_editor(app: _FakeApp, *, mounted: bool = True) -> Editor:
     editor.overlays = OverlayFlows(
         push_screen=app.push_screen,
         pop_screen=lambda: None,
-        current_screen=lambda: app.screen,
+        current_screen=lambda: cast(Screen[None], app.screen),
         config=cast(Any, None),  # config: only the screensaver flow reads it
         keymaps=cast(Any, None),  # keymaps / commands / actions / workspace
         commands=cast(Any, None),
