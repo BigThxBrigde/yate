@@ -55,7 +55,7 @@ scene: task_orchestration
 
    | 子代理 | 模型 |
    |---|---|
-   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-architect-designer` | Hy4 preview |
    | `plan-executor` | DeepSeek-V4.1-Flash |
    | `code-review-expert` | GLM-5.3-Flash |
 
@@ -63,12 +63,20 @@ scene: task_orchestration
 
    | 子代理 | 模型 |
    |---|---|
-   | `plan-architect-designer` | MiniMax-M3 |
+   | `plan-architect-designer` | Qwen3.7-Plus |
    | `plan-executor` | DeepSeek-V4.1-Flash |
    | `code-review-expert` | GLM-5.3-Flash |
 
 3. **判定时点**：以**当前会话的主代理来源**为准；整批任务按同一来源的模型下发，中途不切换。
 4. 本节未列出的子代理类型不受模型调度约束。
+5. **模型失败回退**：spawn 时若 agent 定义文件（`.trae/agents/*.md`）frontmatter 的
+   `model:` 值在运行时报错（模型未注册 / 不可用等，如 `Model "X" not found`），
+   **不得修改定义文件**，直接改在 spawn 任务书中指定**本节表格中当前主代理来源
+   对应的模型**重试一次（最多一次；重试时模型参数已变更，符合
+   `subagent-workflow.md` §五.4）；重试仍失败则按 §三 兜底，主代理亲自按剧本
+   执行并如实标注"子代理零产出"。本表格是模型分配的唯一规范来源，定义文件的
+   静态 `model:` 字段与表格冲突时以本节为准（定义文件保持只读，运行时以 spawn
+   指定的模型为准）。
 
 ## 二、闭环流程（逐步登记，文档是唯一事实来源）
 
