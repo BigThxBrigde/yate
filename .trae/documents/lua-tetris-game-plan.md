@@ -276,8 +276,31 @@ api / editor / 手册 ×2 / _yate ×2），`git revert` 分支级回滚即可，
 
 - [x] Step 1+2（波次 a，plan-executor 执行 + 主代理契约微调）：
   pyright 0 errors；架构/桥层 4 文件 101 passed exit 0；提交 `f007e84` / `7a67b79`。
-- [ ] Step 3 结果（命令退出码、pyright/pytest 数字）
-- [ ] Step 4 结果
-- [ ] Step 5 结果
-- [ ] 审核（code-review-expert）结论
-- [ ] 全量门禁数字（前后对比）
+- [x] 契约修正（主代理）：`draw` 改单字符串网格 + palette 边界规范化，提交 `34ba94f`。
+- [x] Step 4（主代理亲自执行）：双语手册 §2 清单 / §4.11 画布 API / §6 Lua 表，
+  en+zh 各 +45 行；提交 `2923c11`。
+- [x] Step 3（波次 b，plan-executor「exec-lua」执行）：tetris.lua（451 行，
+  module-table 风格，含 `mod.set_piece_source` 确定性注入缝）、_yate 双文件
+  open_canvas、test_lua_defs.py `LUA_SURFACE` 登记；提交 `79c2552`。
+- [x] Step 5（波次 b，plan-executor「exec-tests」执行 + 主代理追加端到端）：
+  test_canvas_screen.py / test_extension_bridges.py 增量 / test_lua_tetris.py
+  （lupa 假 api 驱动 + 真实 YateApp pilot 端到端 `:game tetris`，提交 `69deae1` /
+  `419c024`）。主代理独立复核：pyright yate/ + tests/ 0 errors；
+  `pytest tests/test_lua_tetris.py tests/test_lua_defs.py tests/test_canvas_screen.py
+  tests/test_extension_bridges.py -q` → 49 passed。
+- [x] 审核（code-review-expert）：**approve**。1 WARNING（canvas `on_key` 回调
+  无异常守卫，与 `_tick` 路径不一致）+ 2 SUGGESTION（editor 闭包 `closed` 竞态、
+  open_canvas 不在 A13 回滚范围）。WARNING 与 close 竞态（保 `on_close` 语义：
+  `close()` 走 `mark_closed()`）已修复并补回归测试（`72a40c5`）；A13 建议登记
+  不修——现状无 setup 期开 canvas 的用例（tetris 仅从 `:game` 命令打开），
+  如未来出现再立项。评审注：两个 review skill 加载失败（not found），按角色
+  回退单视角完成；其全量 pytest 经后台进程验证 exit 0。
+- [x] 全量门禁（主代理亲自跑，均 exit 0）：
+  - `.venv\Scripts\python.exe -m pyright yate/ tests/` → 0 errors, 0 warnings
+  - `.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75`
+    → 全绿，**coverage 91.99%**（新增 `canvas_screen.py` 96%、`editor.py` 87%；
+    tetris 游戏逻辑为 Lua，经 lupa 驱动测试覆盖）
+  - `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` → 35 passed
+- [x] 随身包核对：`yate/extensions/tetris.lua` 经 `pack/_common.py` Tree 整目录
+  进 bundle（零 spec 改动）；lupa 随 `[lua]` extra 进包；端到端测试走真实
+  `bundled_extensions_dir()` 装载路径实证。
