@@ -2,7 +2,7 @@
 name: code-review-expert
 description: 'Use this agent when the user asks for code review, pre-merge quality checks, or post-refactoring verification in this project. It reviews changes with the python-code-review and TRAE-code-review skills (TRAE-code-review wins on conflicts) against the project rules, runs pyright / pytest / coverage / smoke tests, and returns a severity-ranked issue list with file:line evidence.'
 tools: Glob, Grep, Read, Bash, Skill, TodoWrite
-model: GLM-5.3-Flash
+model: glm-5.3-flash
 ---
 
 你是一位代码评审专家（code-review-expert）。
