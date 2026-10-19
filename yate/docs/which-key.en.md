@@ -45,7 +45,10 @@ hard-coded dispatch branches list their continuations key by key:
   object targets (`w`, `'`, `"`, `t`, `( b`, `[ ]`, `{ B`, `< >`);
 * an argument prefix shows its follower as a placeholder (`f`/`F`/`t`/`T`
   -> `{char}`, `r` -> `{char}`); the `g` prefix shows its `gg` completion;
-  the register wait shows a single `a-z` row;
+  the register wait shows a single `a-z` row, and once the register is
+  named the header reads `"a` while the grid lists the commands that
+  consume it (`d y c` operators, `p P` pastes) until the command key
+  lands;
 * a bare count (`2`) lists what may follow: operators, motions, prefixes
   and the `> <` indents. The header always reads back the full chord in
   typing order (count, operator, scope, prefix -- `2di`);
@@ -87,7 +90,11 @@ On a stock vim keymap the scan reports eight reserved rows (`<esc>`,
 built-in vim branch runs the command, so the row itself never dispatches
 -- exactly what the closing note says. The scan's real target is a
 binding added later, by an extension for instance, on one of those keys:
-such a binding would silently never fire.
+such a binding would silently never fire. The reserved class
+deliberately tracks the raw (non-printable) branches plus the count
+digits alone -- the printable hard-coded keys (motions, operators,
+insert entry points) are not enumerated, so their rows read as normal
+table entries and the report stays readable.
 
 ---
 

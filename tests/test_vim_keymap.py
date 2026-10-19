@@ -1867,17 +1867,20 @@ def test_pending_prefix_tracks_operator_then_prefix() -> None:
 
 
 def test_pending_prefix_tracks_register_wait() -> None:
-    """The register prefix shows while waiting, clears once the letter lands.
+    """The register prefix shows while waiting and keeps the named letter.
 
     ``"`` pends as ``pending_register == ""``; naming the register ("a")
-    moves the state out of the wait phase, so nothing shows until an
-    operator consumes it.
+    moves the state out of the wait phase but the chord is still in
+    flight, so the header reads ``"a`` until a command consumes the
+    register (``"ay`` folds it into the armed operator).
     """
     _editor, keymap, ctx = _setup()
     keymap.handle_key(ctx, '"')
     assert keymap.pending_prefix() == '"'
     keymap.handle_key(ctx, "a")
-    assert keymap.pending_prefix() == ""
+    assert keymap.pending_prefix() == '"a'
+    keymap.handle_key(ctx, "y")
+    assert keymap.pending_prefix() == "y"
 
 
 def test_pending_prefix_empty_in_insert_mode() -> None:
@@ -1906,7 +1909,13 @@ def test_chord_hints_list_operator_pending_motions() -> None:
     assert hints["i"] == "inner object"
     assert hints["g"] == "go-to prefix (line 1)"
     assert hints["$"] == "line end"
+    # No count in flight: 0 is a real line-start motion here (d0).
+    assert hints["0"] == "line start"
     assert "; ," not in hints  # no find has run, so nothing to repeat yet
+    keymap.handle_key(ctx, "2")
+    # Post-operator count (d2): a typed 0 extends the count, so the
+    # line-start row must disappear.
+    assert "0" not in dict(keymap.chord_hints())
 
 
 def test_chord_hints_offer_find_repeat_after_a_find() -> None:
@@ -1942,17 +1951,25 @@ def test_chord_hints_list_prefix_followers() -> None:
 
 
 def test_chord_hints_show_register_wait_and_count_state() -> None:
-    """The register wait reads a-z; a bare count lists what may follow."""
+    """Register states and a bare count each list what may follow."""
     _editor, keymap, ctx = _setup()
     keymap.handle_key(ctx, '"')
     assert keymap.chord_hints() == (("a-z", "named register"),)
     keymap.handle_key(ctx, "a")
+    # Register named, command key still awaited: only the commands that
+    # consume the register complete the chord.
+    assert keymap.chord_hints() == (
+        ("d y c", "operator into register"),
+        ("p P", "paste register"),
+    )
     keymap.handle_key(ctx, "2")
     hints = dict(keymap.chord_hints())
     assert hints["d"] == "delete operator"
     assert hints["w"] == "next word"
     assert hints["r"] == "replace prefix"
     assert hints["> <"] == "indent / outdent lines"
+    # A count in flight eats a typed 0 as a digit: no line-start row.
+    assert "0" not in hints
 
 
 def test_chord_hints_empty_without_chord_state() -> None:
@@ -1984,8 +2001,12 @@ def test_reserved_keys_match_hardcoded_consumers() -> None:
     Literal full-set equality: adding or removing a hardcoded consumer
     branch must update this literal in the same change, or the conflict
     scanner false-reports reserved keys (or misses a dead binding).
-    ESC / alt+c / ctrl-chords and digits 1-9 are consumed unconditionally,
-    ``0`` only mid-count (stays bindable at column 0), and F-keys still
+    The set deliberately tracks the raw (non-printable) branches plus the
+    count digits alone: ESC / alt+c / ctrl-chords and digits 1-9 are
+    consumed unconditionally, while the printable hard-coded keys
+    (motions, operators, entry points) stay out of the report on purpose.
+    ``0`` works as a motion when no count is in flight and extends the
+    count otherwise, so it is not part of the digit run, and F-keys still
     reach the binding table through the _FUNCTION_KEYS branch.
     """
     assert RESERVED_KEYS == frozenset(

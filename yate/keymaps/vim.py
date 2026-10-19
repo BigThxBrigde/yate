@@ -79,9 +79,15 @@ _FIND_PREFIX_HINTS: dict[str, tuple[str, str]] = {
 
 _FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
-#: Raw keys consumed by _handle_normal before the binding table is
-#: consulted, so a table entry on any of them would never dispatch.
-#: ``0`` is only swallowed mid-count and stays bindable.
+#: Raw keys the hard-coded ``_handle_normal`` branches consume before the
+#: binding table is consulted, so a table entry on any of them would
+#: never dispatch.  The set deliberately tracks the raw (non-printable)
+#: branches plus the count digits alone: the printable hard-coded keys
+#: (motions, operators, insert entry points, prompts) are not enumerated,
+#: which keeps the stock ``:check-keys`` report to the eight mirror rows
+#: the table carries on raw keys.  ``0`` belongs to that printable class
+#: -- it works as a motion when no count is in flight and extends the
+#: count otherwise, so it stays out of the digit run.
 RESERVED_KEYS: frozenset[str] = frozenset(
     {"\x1b", "\x1bc", "\x07", "\x04", "\x15", "\x06", "\x02", "\x12",
      "1", "2", "3", "4", "5", "6", "7", "8", "9"}
@@ -284,16 +290,22 @@ class VimKeymap(Keymap):
 
         Follows the typing order the dispatch accepts: count, operator,
         text-object scope, prefix (``2di`` / ``2df``).  The register prefix
-        ``"`` shows only while its letter is awaited
-        (``pending_register == ""``); once the letter lands the register is
-        folded into the armed operator and the display drops it.
-        INSERT / VISUAL never hold chord state.
+        shows while its letter is awaited (``pending_register == ""``) and
+        keeps showing with the named letter (``"a`` / ``"a2``) until a
+        command consumes it: arming an operator folds the register away
+        (``op_register``), as does every register-consuming command, and
+        the display drops it at that point.  INSERT / VISUAL never hold
+        chord state.
         """
         if self.mode is not VimMode.NORMAL:
             return ""
         parts: list[str] = []
         if self.pending_register == "":
             parts.append('"')
+        elif self.pending_register and self.op is None:
+            # Register named, command key still awaited: keep the chord
+            # visible until the operator (or paste) takes the register.
+            parts.append(f'"{self.pending_register}')
         if self.count_str:
             parts.append(self.count_str)
         elif self.op is not None and self.op_count is not None:
@@ -313,14 +325,30 @@ class VimKeymap(Keymap):
         """Next-key rows for the hardcoded NORMAL-mode state in flight.
 
         One branch per pending state, mirroring ``_handle_normal``'s
-        dispatch order: register wait, text-object scope, argument
-        prefixes, armed operator, bare count.  Every row is a key the
-        state machine actually consumes -- nothing aspirational.
+        dispatch order: register wait, named-register wait, text-object
+        scope, argument prefixes, armed operator, bare count.  Every row
+        is a key the state machine actually consumes -- nothing
+        aspirational.
         """
         if self.mode is not VimMode.NORMAL:
             return ()
         if self.pending_register == "":
             return (("a-z", "named register"),)
+        if (
+            self.pending_register
+            and self.op is None
+            and not self.count_str
+            and self.prefix is None
+            and self.obj_scope is None
+        ):
+            # Register named, command key still awaited ("a): only the
+            # register-consuming commands complete the chord meaningfully;
+            # with a count or prefix also pending the shared branches below
+            # take over and the header carries the register.
+            return (
+                ("d y c", "operator into register"),
+                ("p P", "paste register"),
+            )
         if self.obj_scope is not None:
             inner = "inner" if self.obj_scope == "i" else "around"
             return (
@@ -366,19 +394,28 @@ class VimKeymap(Keymap):
             ("g", "go-to prefix (line 1)"),
             *self._find_prefix_hints(),
         ]
+        if not self.count_str:
+            # No post-operator count in flight (``d2`` state): ``0`` is a
+            # real line-start motion here; with a count it would extend it.
+            rows.append(("0", "line start"))
         if self.last_find is not None:
             rows.append(("; ,", f"{op_verb} to next / previous find match"))
         return tuple(rows)
 
     @staticmethod
     def _motion_hints() -> tuple[tuple[str, str], ...]:
-        """The motion set both NORMAL and operator-pending dispatch accept."""
+        """The motion set both NORMAL and operator-pending dispatch accept.
+
+        ``0`` is deliberately absent: with any count in flight (bare count
+        or a post-operator count) it extends the count instead of moving,
+        so the row only belongs where ``count_str`` is known empty (the
+        operator branch adds it back in that case).
+        """
         return (
             ("w", "next word"),
             ("b", "previous word"),
             ("e", "end of word"),
             ("h j k l", "left / down / up / right"),
-            ("0", "line start"),
             ("$", "line end"),
             ("G", "last line"),
         )
