@@ -46,6 +46,7 @@ LUA_SURFACE: frozenset[str] = frozenset({
     "events.subscribe",
     "ui.add_segment",
     "ui.remove_segment",
+    "ui.open_canvas",
     "theme.set",
     "theme.active",
     "clipboard.set",

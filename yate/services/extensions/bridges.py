@@ -41,6 +41,26 @@ log = tracing.get_logger(__name__)
 #: The two status bar halves a segment can attach to.
 type SegmentAlign = Literal["left", "right"]
 
+#: Raw canvas control callbacks ``(draw, set_status, close)`` the UI host
+#: hands back for one open canvas.  The bridge wraps them into the
+#: extension-facing :class:`CanvasHandle`, so consumers of the opener never
+#: need to name the handle class (R14: the editor imports the facade, not
+#: this module).
+type CanvasControls = tuple[
+    Callable[[str, Mapping[str, str]], None],
+    Callable[[str], None],
+    Callable[[], None],
+]
+
+#: Injected canvas host: ``(cols, rows, on_key, on_tick, on_close)`` builds
+#: the modal canvas screen and returns the :data:`CanvasControls` triple.
+#: The editor (L3) supplies the implementation; ``None`` in the bridge means
+#: no UI host (headless construction in tests) and :meth:`open_canvas` raises.
+type CanvasOpener = Callable[
+    [int, int, Callable[[str], None], Callable[[], None], Callable[[], None]],
+    CanvasControls,
+]
+
 
 class EventExtensionBridge:
     """``api.events`` -- subscribe to editor events from an extension.
@@ -379,25 +399,68 @@ class StatusSegment:
     priority: int = 0
 
 
+class CanvasHandle:
+    """One open extension canvas, as handed back to the extension script.
+
+    A pure forwarder over the three callbacks the UI host injected: the
+    bridge holds no widget and knows no rendering detail.  The host owns
+    the closed-after-dismiss guard -- a call that arrives after the screen
+    is gone is silently ignored there, not here.
+    """
+
+    def __init__(
+        self,
+        draw: Callable[[str, Mapping[str, str]], None],
+        set_status: Callable[[str], None],
+        close: Callable[[], None],
+    ) -> None:
+        self._draw = draw
+        self._set_status = set_status
+        self._close = close
+
+    def draw(self, grid: str, palette: Mapping[str, str]) -> None:
+        """Repaint the canvas grid: *grid* is one newline-joined string.
+
+        Each character is colored through *palette*; a blank cell keeps the
+        default color.  A ``"*"`` palette entry supplies the glyph painted
+        for every colored cell (solid blocks: ``{"*": "█"}``).  Rows and
+        columns beyond the screen's dimensions are clipped by the UI host.
+        """
+        self._draw(grid, palette)
+
+    def set_status(self, text: str) -> None:
+        """Replace the status line under the grid with *text*."""
+        self._set_status(text)
+
+    def close(self) -> None:
+        """Close the canvas (idempotent: the host drops repeated calls)."""
+        self._close()
+
+
 class UiExtensionBridge:
     """``api.ui`` -- UI elements contributed by extensions.
 
-    Currently status bar segments only.  The bridge is a pull-model
-    registry: :meth:`add_status_segment` / :meth:`remove_status_segment`
-    mutate it, and the status bar widget (L2) pulls an alignment-filtered,
-    priority-sorted snapshot on every refresh (:meth:`segments`).  The
-    bridge never touches widgets itself.  Registrations made while a
-    rollback scope is active are recorded through *record_undo*, so a
-    failing ``setup`` also drops them (A13).
+    Status bar segments (a pull-model registry: :meth:`add_status_segment` /
+    :meth:`remove_status_segment` mutate it, and the status bar widget (L2)
+    pulls an alignment-filtered, priority-sorted snapshot on every refresh,
+    :meth:`segments`) plus the full-screen canvas (:meth:`open_canvas`).
+    The bridge never touches widgets itself: the canvas is built by the
+    injected :data:`CanvasOpener`, so the bridge stays UI-free.  Registrations
+    made while a rollback scope is active are recorded through
+    *record_undo*, so a failing ``setup`` also drops them (A13).
     """
 
     def __init__(
         self,
         record_undo: Callable[[Callable[[], None]], None],
+        open_canvas: CanvasOpener | None = None,
     ) -> None:
         self._segments: dict[str, tuple[int, StatusSegment]] = {}
         self._counter = 0
         self._record_undo = record_undo
+        # ``None`` = no UI host (headless construction in tests): the canvas
+        # verb raises a RuntimeError instead of silently doing nothing.
+        self._open_canvas = open_canvas
 
     def add_status_segment(self, segment: StatusSegment) -> None:
         """Register *segment* in the status bar registry.
@@ -464,3 +527,26 @@ class UiExtensionBridge:
         ]
         entries.sort(key=lambda entry: (-entry[1].priority, entry[0]))
         return [segment for _seq, segment in entries]
+
+    def open_canvas(
+        self,
+        cols: int,
+        rows: int,
+        on_key: Callable[[str], None],
+        on_tick: Callable[[], None],
+        on_close: Callable[[], None],
+    ) -> CanvasHandle:
+        """Open a modal *cols* x *rows* canvas driven by extension callbacks.
+
+        *on_key* receives Textual key names (``left`` / ``space`` / ...),
+        *on_tick* fires on the screen's own clock, and *on_close* runs once
+        the screen is gone.  Returns the :class:`CanvasHandle` the script
+        draws through.  ``RuntimeError`` when the host injected no opener
+        (headless construction: no screen can be pushed).
+        """
+        if self._open_canvas is None:
+            raise RuntimeError("open_canvas: no UI host attached")
+        draw, set_status, close = self._open_canvas(
+            cols, rows, on_key, on_tick, on_close
+        )
+        return CanvasHandle(draw, set_status, close)

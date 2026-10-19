@@ -41,8 +41,9 @@ def setup(api):
 来源命中也只会执行一次）：
 
 1. yaterc 中的 `extensions` 选项（用户级先于项目级，**累加**而非覆盖）；
-2. **随包扩展** `yate/extensions/`（目前为 `python_lsp`，Python 语言服务器，
-   无论当前工作目录在哪都会自动加载；可用 yaterc 的 `disabled_extensions`
+2. **随包扩展** `yate/extensions/`（目前为 `python_lsp`——Python 语言服务器，
+   以及 `tetris`——`:game tetris` 背后的游戏；无论当前工作目录在哪都会自动
+   加载；可用 yaterc 的 `disabled_extensions`
    按文件名主干禁用，见下文）。目录内还提供模板（`*.py.example`，不会被
    自动加载）：`example_ext.py.example`、tree-sitter grammar 模板
    `yatesh_syntax.py.example`，以及语法高亮模板 `batch_syntax.py.example`、
@@ -520,7 +521,7 @@ def setup(api):
 事件只挂在低频点上（保存 / 打开 / 关闭 / 激活 / 诊断 / 键位 / 主题）
 ——刻意不提供逐按键事件。
 
-### 4.11 状态栏段（`api.ui`）
+### 4.11 状态栏段与画布（`api.ui`）
 
 `api.ui.add_segment` 向状态栏贡献一个文本段。状态栏是**拉取式**
 注册表：每次刷新时逐个调用已注册的 provider 一次，并用状态栏自己的
@@ -553,6 +554,44 @@ def setup(api):
 - 重复 id 抛 `ValueError`；`api.ui.remove_status_segment(id)` 移除
   一个段（未知名抛 `KeyError`）。
 - 注册参与回滚 scope：失败的 setup 会把段一并撤销。
+
+**`api.ui.open_canvas(cols, rows, on_key, on_tick, on_close)`** 打开一个
+可由脚本绘制的全屏模态画布——随包俄罗斯方块（`:game tetris`）正是用它
+实现的。返回一个**句柄**，带三个方法：
+
+| 方法 | 作用 |
+|---|---|
+| `handle.draw(grid, palette)` | 重绘画布：*grid* 是换行拼接的单个字符串（每行一个字符串），*palette* 把单元格字符映射到 `"#rrggbb"` 颜色；空格与未登记字符用默认色；超出网格的行/列被裁剪 |
+| `handle.set_status(text)` | 替换网格下方的状态行 |
+| `handle.close()` | 关闭画布（幂等） |
+
+三个回调：*on_key* 收到 Textual 键名（`left`、`space`、……）——画布是模态
+屏，按键不会再到达下层编辑器；`escape` 是画布自带的退出键，不会进
+*on_key*；*on_tick* 按画布自有时钟触发（每秒 15 tick——靠累计 tick 放慢
+游戏重力）；*on_close* 在屏幕关闭后触发一次。
+
+```python
+def setup(api):
+    handle = None
+
+    def on_key(key):            # "left" / "right" / "space" / ...
+        ...                     # 更新游戏状态；下一个 tick 再绘制
+    def on_tick():
+        if handle:
+            handle.draw("##  \n    \n", {"#": "#e57373"})
+            handle.set_status("score 0")
+    def on_close():
+        pass
+
+    handle = api.ui.open_canvas(10, 20, on_key, on_tick, on_close)
+```
+
+规则：
+
+- `cols` / `rows` 是网格尺寸；屏幕居中显示网格，终端更小时裁剪。
+- 句柄随画布消亡：屏幕关闭后的调用一律忽略，tick 与关闭竞态无害。
+- 宿主没有 UI（headless 构造）时打开会抛 `RuntimeError`。
+- 回调抛异常会被上报且画布继续运行；`escape` 始终可用。
 
 ### 4.12 运行动作与重绑按键（`api.actions` / `bind_action` / `unbind_key`）
 
@@ -807,6 +846,7 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 | `yate.events.subscribe(name, fn)` | 订阅编辑器事件；`name` 为小写事件名（`"document_saved"` … `"theme_changed"`，见 4.10 节） |
 | `yate.ui.add_segment(id, provider, align?, priority?)` | 贡献一个状态栏段（见 4.11 节） |
 | `yate.ui.remove_segment(id)` | 移除此前贡献的状态栏段（见 4.11 节） |
+| `yate.ui.open_canvas(cols, rows, on_key, on_tick, on_close)` | 打开全屏模态画布；返回绘制句柄（见 4.11 节） |
 | `yate.theme.set(name)` / `yate.theme.active()` | 切换/读取配色主题（见 4.13 节） |
 | `yate.clipboard.set(text)` / `yate.clipboard.get()` | 系统剪贴板（见 4.13 节） |
 | `yate.docs.all()` / `yate.docs.is_open(path)` | 打开文档的只读视图（见 4.13 节） |
