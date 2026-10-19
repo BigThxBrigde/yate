@@ -152,6 +152,71 @@ flowchart LR
 | `editor.py` 仅动 `compose()` yield 顺序 | R3 / R7（不破） | `test_editor_view_does_not_import_upward`（不变） |
 | `app.tcss` 增 `whichkey` 名 | R9（id 冻结与壳 CSS 同步） | 视觉验证 |
 
-## 执行结果与偏离记录
+## 已知问题登记（用户实测反馈，2026-10-19）
 
-（待执行后回填）
+**ISSUE-1：面板不随窗口 resize 重锚定**（用户实测截图：面板停在旧位置，
+未贴新窗口右缘）。
+
+- **现象**：窗口缩放后，浮动面板保持原 `styles.offset`，脱离右缘贴合与
+  垂直居中。
+- **根因（已核实）**：`WhichKeyPanel.on_resize` 的触发面是面板自身
+  region/container_size 变化 + `show_entries` 后的 `call_after_refresh`。
+  窗口 resize（或侧栏开合）改变 `#editor-col` 尺寸，但面板是 absolute +
+  auto 尺寸、自身 region 不变——Textual 8.2.8 正常 reflow 路径
+  （`screen.py` `_on_size_update` else 分支）只向 `shown | resized` 集合
+  发 `Resize`，面板不在其中，永远收不到重锚信号（假设成立）。
+- **修复（已落地，ddfe1bb）**：`#editor-col` 改用 `EditorColumn(Vertical)`
+  （editor_view/whichkey.py），其 `on_resize` 把容器自身的 resize 事件
+  转发给 `WhichKeyPanel.reanchor()`；pilot 回归用例
+  `test_container_resize_reanchors_panel`（resize 前后断言 offset 重算）
+  与真实 App 探针（100→130 列，offset 26→56）双重验证。
+- **处置**：已关闭（随 ddfe1bb 落地，2f8a86f 的 clamp 收敛进一步覆盖
+  resize 后盒体越界的边界）。
+
+## 执行结果与偏离记录（2026-10-19 回填）
+
+### 提交清单（本任务边界）
+
+| 提交 | 内容 |
+|---|---|
+| `e5db046` | Step 0：hardcoded-hints 批次单独提交（前任务收尾） |
+| `7b8fda9` | 计划文档（本目录） |
+| `5844bdd` | wave-1 / plan-b：面板右侧浮动重设计 + 布局迁移（bug 根因修复） |
+| `6ad5673` | wave-1 / plan-a：`which_key` yaterc 选项（L0 数据面） |
+| `ddfe1bb` | wave-2 / plan-c：L3 开关注入 + commands 接线 + ISSUE-1 resize 转发修复 |
+| `2f8a86f` | 审核迭代：review 五条发现全量修复（F1 clamp + 预算收敛、F2 注释、F3 注解、F4/F5 测试） |
+
+### 实测门禁（最终态，主代理亲跑）
+
+- `pyright yate/ tests/ tools/` → **0 errors, 0 warnings, 0 informations**；
+- `pytest tests/ -q` → **2562+ passed, 9 skipped**（含架构 35 用例；
+  审核修复后再跑全绿）；
+- 覆盖率（评审员实测）→ **92.07%** ≥ 75 门，改动文件 whichkey.py 92% /
+  whichkey_flows.py 96% / config.py 99%；
+- 冒烟（textual-pilot，真实 YateApp）：`d` 弦候选面板右缘贴合
+  （offset=容器宽-自宽-1）+ border_title `d`；F9 pin 全表 border_title
+  `vim`、`▸ Vim: motion` 分组行；`set which_key=off` 后按键面板不再出现、
+  重新启用恢复；resize 重锚 26→56 实测；80x16 矮终端 pin 全表 clamp
+  （盒 36x12 @ (9,2)，`… 56 more — F1` 提示行在盒内可见）。
+
+### 偏离记录（相对已批准方案）
+
+1. **波次调整**：plan-a 从 wave-1 挪出 `commands.py` 接线与
+   `test_set_options.py`（依赖 plan-c 的 `WhichKeyFlows.clear()`），
+   与 plan-c 合并为 wave-2 提交（ddfe1bb），避免中间提交 pyright 红；
+   plan-a 提交（6ad5673）只含 L0 数据面。依据：`_apply_which_key` 调
+   `editor.whichkey.clear()` 在 plan-c 落地前无法通过 pyright strict。
+2. **tcss 属性名**：方案写的 `title-color` / `title-text-style` 在
+   Textual 8.2.8 引发 StylesheetParseError，实际为
+   `border-title-color` / `border-title-style`（执行员 mount 实测）。
+3. **ISSUE-1 修复超出原方案**：方案未含 resize 转发；用户实测反馈后
+   新增 `EditorColumn`（见上节），并连带评审 F1 的 clamp + 行预算收敛。
+4. **CHANGELOG 不手改**：方案计划手写条目，实际 CHANGELOG 由
+   `python -m tools.changelog generate` 生成（文件头明令禁手改），
+   收尾时统一再生成，条目自动携带提交 SHA。
+5. **评审语义修正**：`test_toggle_noop_when_which_key_disabled` 按
+   实现语义断言「禁用期 toggle 不 pin、重新启用后仍隐藏」；「启用时
+   pin → 禁用 → 恢复」由 F5 补测
+   `test_pinned_sheet_survives_disable_and_reenable` 钉住。
+6. 其余与方案一致；评审结论 **0 blocker / 1 major（F1，已修）**，
+   F2-F5 同步修复，无未决项。
