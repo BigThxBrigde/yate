@@ -537,7 +537,7 @@ class Editor:
         # Every screen yate pushes is a ModalScreen[None]; App.screen is
         # declared Screen[object] upstream, so the narrower type is asserted
         # here at that third-party boundary (cast over ignore).
-        return cast("Screen[None]", self.app.screen)
+        return cast(Screen[None], self.app.screen)
 
     def report(self, text: str, kind: str = "info") -> None:
         """Report *text* on the message line (buffered before the first mount).
