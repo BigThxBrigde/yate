@@ -120,12 +120,15 @@ class CanvasScreen(ModalScreen[None]):
         *grid* is the whole canvas as one newline-joined string (one string
         per row).  Each character is looked up in *palette*
         (``{"#": "#e57373"}``) and painted in that color.  A blank cell and
-        any character missing from *palette* keep the default color.  Rows
-        and columns beyond the configured grid are clipped, and every row is
-        padded to the grid width so the box stays aligned.  The palette is
-        normalized to a plain dict at this boundary: extension runtimes hand
-        over mapping-like objects (a lupa LuaTable supports ``items()``
-        without being a ``collections.abc.Mapping`` instance).
+        any character missing from *palette* keep the default color.  A
+        palette entry keyed ``"*"`` is special: its value is not a color but
+        the **glyph** painted for every colored cell, so a script can draw
+        solid blocks (``{"*": "█"}``) while keeping its own letters as the
+        grid data.  Rows and columns beyond the configured grid are clipped,
+        and every row is padded to the grid width so the box stays aligned.
+        The palette is normalized to a plain dict at this boundary: extension
+        runtimes hand over mapping-like objects (a lupa LuaTable supports
+        ``items()`` without being a ``collections.abc.Mapping`` instance).
         """
         rows = grid.split("\n")
         self._drawn = tuple(
@@ -141,16 +144,24 @@ class CanvasScreen(ModalScreen[None]):
         """Repaint the grid from the last drawn rows.
 
         *palette* is the one the caller passed to :meth:`draw`; the initial
-        mount paint passes ``None`` (everything in the default color).
+        mount paint passes ``None`` (everything in the default color).  A
+        ``"*"`` entry supplies the glyph for every colored cell (see
+        :meth:`draw`); the ``"*"`` character itself never gets styled, so a
+        literal ``*`` in the grid always renders plain.
         """
-        colors: Mapping[str, str] = palette if palette is not None else {}
+        colors: dict[str, str] = dict(palette) if palette is not None else {}
+        glyph = colors.pop("*", None)
         text = Text()
         for index in range(self._rows):
             row = self._drawn[index] if index < len(self._drawn) else ""
             if index:
                 text.append("\n")
             for char in row.ljust(self._cols):
-                text.append(char, style=colors.get(char) if char != " " else None)
+                color = colors.get(char) if char != " " else None
+                if color is None:
+                    text.append(char)
+                else:
+                    text.append(glyph if glyph is not None else char, style=color)
         self._grid.update(text)
 
     def on_key(self, event: events.Key) -> None:

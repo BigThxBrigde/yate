@@ -122,7 +122,8 @@ function yate.ui.remove_segment(id) end
 -- Textual key names ("left", "space", "r", ...; escape closes the canvas and
 -- never reaches the hook), on_tick fires on a fixed 15 Hz clock, and on_close
 -- runs once after the screen is gone.  draw() takes the whole canvas as one
--- newline-joined string plus a character -> color palette.
+-- newline-joined string plus a character -> color palette (the "*" entry
+-- gives the glyph painted for every colored cell, e.g. solid blocks).
 ---@param cols integer
 ---@param rows integer
 ---@param on_key fun(key: string)

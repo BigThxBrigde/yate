@@ -254,3 +254,34 @@ def test_raising_key_sink_is_reported_and_keeps_the_canvas_alive() -> None:
             assert app.screen is canvas
 
     asyncio.run(scenario())
+
+
+def test_star_palette_entry_paints_solid_block_glyphs() -> None:
+    """The ``"*"`` palette entry replaces the glyph of every colored cell.
+
+    The grid data keeps the script's own letters; the screen shows solid
+    blocks in the mapped colors.  Uncolored characters and blanks are
+    untouched, and a literal ``*`` in the grid renders plain.
+    """
+
+    async def scenario() -> None:
+        app = _Host(cols=6, rows=2)
+        async with app.run_test(size=(40, 12)) as pilot:
+            await pilot.pause()
+            canvas = app.canvas
+            assert canvas is not None
+
+            canvas.draw(
+                "a b*\nxy  ",
+                {"a": "#ff0000", "x": "#00ff00", "*": "█"},
+            )
+            await pilot.pause()
+
+            content = _grid_content(canvas)
+            assert content.plain == "█ b*  \n█y    "
+            spans = [(span.start, span.end, span.style) for span in content.spans]
+            assert (0, 1, Style.parse("#ff0000")) in spans
+            assert (7, 8, Style.parse("#00ff00")) in spans
+            assert len(spans) == 2
+
+    asyncio.run(scenario())

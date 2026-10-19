@@ -251,7 +251,10 @@ end
 --                                   newline-joined string, e.g.
 --                                   table.concat(rows, "\n"); palette maps a
 --                                   drawn character to a color
---                                   (["#"] = "#e57373");
+--                                   (["#"] = "#e57373"); the special entry
+--                                   ["*"] gives the glyph painted for every
+--                                   colored cell (["*"] = "█" draws solid
+--                                   blocks in the mapped colors);
 --   handle.set_status(text)      -- replace the status line under the grid;
 --   handle.close()               -- dismiss the canvas.
 -- Call those methods with a DOT (handle.draw(...)), never a colon: a colon

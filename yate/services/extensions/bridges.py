@@ -422,8 +422,9 @@ class CanvasHandle:
         """Repaint the canvas grid: *grid* is one newline-joined string.
 
         Each character is colored through *palette*; a blank cell keeps the
-        default color.  Rows and columns beyond the screen's dimensions are
-        clipped by the UI host.
+        default color.  A ``"*"`` palette entry supplies the glyph painted
+        for every colored cell (solid blocks: ``{"*": "█"}``).  Rows and
+        columns beyond the screen's dimensions are clipped by the UI host.
         """
         self._draw(grid, palette)
 

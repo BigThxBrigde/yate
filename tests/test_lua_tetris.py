@@ -186,14 +186,37 @@ class _Game:
             canvas.tick()
 
 
-def _cells(grid: str, char: str) -> set[tuple[int, int]]:
-    """1-based ``(row, col)`` coordinates of *char* in a newline-joined grid."""
-    return {
-        (row, col)
-        for row, line in enumerate(grid.split("\n"), start=1)
-        for col, cell in enumerate(line, start=1)
-        if cell == char
-    }
+_BOARD_COLS = 10
+_LEFT_W = 17  # stats box width; then one blank gap column
+_BOARD_AT = 18  # 0-based column of the board's left border
+_RIGHT_AT = _BOARD_AT + 1 + 2 * _BOARD_COLS + 1  # 0-based right column start
+
+
+def _board_cells(grid: str, char: str) -> set[tuple[int, int]]:
+    """1-based ``(row, cell)`` board coordinates of *char* in a rendered frame.
+
+    The board cells start after the stats box, the gap and the board's left
+    border, every cell spans two identical characters, and the board's top
+    border occupies canvas row 1 (board row *r* is canvas row *r + 1*).  The
+    side boxes are ignored.
+    """
+    cells: set[tuple[int, int]] = set()
+    for row, line in enumerate(grid.split("\n"), start=1):
+        board = line[_BOARD_AT + 1 : _BOARD_AT + 1 + 2 * _BOARD_COLS]
+        for index in range(0, len(board), 2):
+            if board[index] == char and board[index + 1] == char:
+                cells.add((row - 1, index // 2 + 1))
+    return cells
+
+
+def _stats(grid: str) -> str:
+    """The left stats box column of a rendered frame."""
+    return "\n".join(line[:_LEFT_W] for line in grid.split("\n"))
+
+
+def _right_boxes(grid: str) -> str:
+    """The right column (next + help boxes) of a rendered frame."""
+    return "\n".join(line[_RIGHT_AT:] for line in grid.split("\n"))
 
 
 def _move_to(game: _Game, x: int) -> None:
@@ -240,15 +263,24 @@ def test_unknown_game_reports_available_games(game: _Game) -> None:
 
 
 @requires_lupa
-def test_tetris_opens_a_10x20_canvas(game: _Game) -> None:
-    """``:game tetris`` opens a 10x20 canvas and paints the spawn frame."""
+def test_tetris_opens_the_three_box_layout(game: _Game) -> None:
+    """``:game tetris`` opens the composed canvas and paints the spawn frame."""
     canvas = game.launch("O")
 
-    assert (canvas.cols, canvas.rows) == (10, 20)
-    assert len(canvas.grid.split("\n")) == 20
-    assert canvas.status == "score 0  lines 0  level 1  next: O"
-    # O spawns at x offset 3: board columns 4-5 of the top two rows.
-    assert _cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
+    # 17 stats + 1 gap + 22 board box + 1 gap + 18 right column, 20 rows + 2.
+    assert (canvas.cols, canvas.rows) == (59, 22)
+    assert len(canvas.grid.split("\n")) == 22
+    assert canvas.status == "escape quits"
+    # O spawns at x offset 3: board cells 4-5 of the top two board rows.
+    assert _board_cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
+    # stats box shows score and level; empty board means zero points
+    stats = _stats(canvas.grid)
+    assert "+- stats" in stats and " score        0" in stats
+    assert " level        1" in stats
+    # right column previews the next piece and lists the key bindings
+    right = _right_boxes(canvas.grid)
+    assert "+- next" in right and "OOOO" in right
+    assert "+- help" in right and " restart" in right and " quit" in right
 
 
 @requires_lupa
@@ -272,13 +304,13 @@ def test_left_right_move_and_soft_drop_steps_one_row(game: _Game) -> None:
     canvas = game.launch("O")
 
     game.press("left")
-    assert _cells(canvas.grid, "O") == {(1, 3), (1, 4), (2, 3), (2, 4)}
+    assert _board_cells(canvas.grid, "O") == {(1, 3), (1, 4), (2, 3), (2, 4)}
 
     game.press("right", "right")
-    assert _cells(canvas.grid, "O") == {(1, 5), (1, 6), (2, 5), (2, 6)}
+    assert _board_cells(canvas.grid, "O") == {(1, 5), (1, 6), (2, 5), (2, 6)}
 
     game.press("down")
-    assert _cells(canvas.grid, "O") == {(2, 5), (2, 6), (3, 5), (3, 6)}
+    assert _board_cells(canvas.grid, "O") == {(2, 5), (2, 6), (3, 5), (3, 6)}
 
 
 @requires_lupa
@@ -288,7 +320,7 @@ def test_space_hard_drops_to_the_floor(game: _Game) -> None:
 
     game.press("space")
 
-    assert _cells(canvas.grid, "O") == {
+    assert _board_cells(canvas.grid, "O") == {
         (1, 4),
         (1, 5),
         (2, 4),
@@ -304,13 +336,13 @@ def test_space_hard_drops_to_the_floor(game: _Game) -> None:
 def test_up_and_x_rotate_clockwise(game: _Game) -> None:
     """up and x both advance the rotation state by one step."""
     canvas = game.launch("T")
-    assert _cells(canvas.grid, "T") == {(1, 5), (2, 4), (2, 5), (2, 6)}
+    assert _board_cells(canvas.grid, "T") == {(1, 5), (2, 4), (2, 5), (2, 6)}
 
     game.press("up")
-    assert _cells(canvas.grid, "T") == {(1, 4), (2, 4), (2, 5), (3, 4)}
+    assert _board_cells(canvas.grid, "T") == {(1, 4), (2, 4), (2, 5), (3, 4)}
 
     game.press("x")
-    assert _cells(canvas.grid, "T") == {(1, 4), (1, 5), (1, 6), (2, 5)}
+    assert _board_cells(canvas.grid, "T") == {(1, 4), (1, 5), (1, 6), (2, 5)}
 
 
 @requires_lupa
@@ -319,12 +351,12 @@ def test_rotation_kicks_off_the_right_wall(game: _Game) -> None:
     canvas = game.launch("I")
 
     game.press("up")  # vertical, columns 6
-    assert _cells(canvas.grid, "I") == {(1, 6), (2, 6), (3, 6), (4, 6)}
+    assert _board_cells(canvas.grid, "I") == {(1, 6), (2, 6), (3, 6), (4, 6)}
 
     game.press("right", "right", "right", "right")  # offset 3 -> 7, column 10
     game.press("up")  # would stick out one column: kicked back to offset 6
 
-    assert _cells(canvas.grid, "I") == {(2, 7), (2, 8), (2, 9), (2, 10)}
+    assert _board_cells(canvas.grid, "I") == {(2, 7), (2, 8), (2, 9), (2, 10)}
 
 
 # --- clock, gravity, pause ----------------------------------------------------
@@ -336,10 +368,10 @@ def test_gravity_steps_on_the_level_clock(game: _Game) -> None:
     canvas = game.launch("O")
 
     game.tick(13)
-    assert _cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
+    assert _board_cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
 
     game.tick(1)
-    assert _cells(canvas.grid, "O") == {(2, 4), (2, 5), (3, 4), (3, 5)}
+    assert _board_cells(canvas.grid, "O") == {(2, 4), (2, 5), (3, 4), (3, 5)}
 
 
 @requires_lupa
@@ -351,12 +383,12 @@ def test_pause_freezes_gravity_until_resumed(game: _Game) -> None:
     paused = canvas.grid
     game.tick(30)
     assert canvas.grid == paused
-    assert "PAUSED" in paused
+    assert "paused" in paused
 
     game.press("p")
     game.tick(14)
-    assert "PAUSED" not in canvas.grid
-    assert _cells(canvas.grid, "O") == {(2, 4), (2, 5), (3, 4), (3, 5)}
+    assert "paused" not in canvas.grid
+    assert _board_cells(canvas.grid, "O") == {(2, 4), (2, 5), (3, 4), (3, 5)}
 
 
 # --- clearing, scoring, levels ------------------------------------------------
@@ -373,9 +405,11 @@ def test_line_clears_score_lines_and_level(game: _Game) -> None:
             _move_to(game, target)
             game.press("space")
 
-    assert canvas.status == "score 1500  lines 10  level 2  next: O"
+    stats = _stats(canvas.grid)
+    assert " score     1500" in stats
+    assert " level        2" in stats
     # Every cleared row is gone: only the freshly spawned O is drawn.
-    assert _cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
+    assert _board_cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
 
 
 @requires_lupa
@@ -387,12 +421,12 @@ def test_gravity_speeds_up_with_the_level(game: _Game) -> None:
             _move_to(game, target)
             game.press("space")
     canvas = game.require_canvas()
-    assert "level 2" in canvas.status
+    assert " level        2" in _stats(canvas.grid)
 
     game.tick(12)
-    assert _cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
+    assert _board_cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
     game.tick(1)
-    assert _cells(canvas.grid, "O") == {(2, 4), (2, 5), (3, 4), (3, 5)}
+    assert _board_cells(canvas.grid, "O") == {(2, 4), (2, 5), (3, 4), (3, 5)}
 
 
 # --- game over and restart ----------------------------------------------------
@@ -406,16 +440,16 @@ def test_stack_to_the_top_ends_the_game_and_r_restarts(game: _Game) -> None:
     for _ in range(10):
         game.press("space")
 
-    assert "GAME OVER" in canvas.grid
+    assert "game over" in canvas.grid
     assert "press r" in canvas.grid
 
     game.tick(15)  # the clock no longer moves anything
-    assert "GAME OVER" in canvas.grid
+    assert "game over" in canvas.grid
 
     game.press("r")
-    assert "GAME OVER" not in canvas.grid
-    assert canvas.status == "score 0  lines 0  level 1  next: O"
-    assert _cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
+    assert "game over" not in canvas.grid
+    assert " score        0" in _stats(canvas.grid)
+    assert _board_cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
 
 
 @requires_lupa
@@ -424,11 +458,11 @@ def test_r_restarts_a_running_game(game: _Game) -> None:
     canvas = game.launch("O")
     game.press("space")
     game.press("space")
-    assert canvas.status.startswith("score 0  lines 0  level 1")
+    assert " score        0" in _stats(canvas.grid)
 
     game.press("r")
 
-    assert _cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
+    assert _board_cells(canvas.grid, "O") == {(1, 4), (1, 5), (2, 4), (2, 5)}
 
 
 # --- canvas lifecycle ---------------------------------------------------------
@@ -488,7 +522,7 @@ def test_game_tetris_opens_and_closes_in_the_real_app(tmp_path: Path) -> None:
             await pilot.pause()
             canvas = app.screen
             assert isinstance(canvas, CanvasScreen)
-            assert canvas.cols == 10 and canvas.rows == 20
+            assert canvas.cols == 59 and canvas.rows == 22
             # the canvas clock paints the spawned piece within a few ticks
             assert await wait_until(pilot, lambda: _board_has_a_piece(canvas))
 

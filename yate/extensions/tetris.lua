@@ -2,9 +2,11 @@
 yate bundled extension: tetris (tetris.lua)
 
 A complete Tetris that lives entirely in Lua, drawn on a yate extension
-canvas (10 x 20 board, one character per cell).  Nothing about the game is
-implemented on the Python side: the canvas only paints the grid it is
-handed, forwards keys and runs a fixed 15 Hz clock.
+canvas: a 10 x 20 board of solid two-column blocks in a titled box, flanked
+by a stats box (score / level) on the left and next-piece preview + help
+boxes on the right.  Nothing about the game is implemented on the Python
+side: the canvas only paints the grid it is handed, forwards keys and runs a
+fixed 15 Hz clock.
 
 Start it with ``:game tetris``.
 
@@ -26,8 +28,20 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 ``mod.setup(api)`` at load and ``mod.teardown(api)`` on unload.
 ]]
 
--- Board size in characters.  The canvas is opened at exactly this size.
+-- Board size in cells.  The canvas composes three bordered boxes around the
+-- board: a stats box (score / level) on the left, the board in the middle and
+-- a next-piece preview plus a help box on the right.  Every board cell renders
+-- as a solid two-column block.
 local W, H = 10, 20
+
+local STAT_INNER = 15              -- stats box inner width
+local NEXT_INNER = 16              -- next / help box inner width
+local LEFT_W = STAT_INNER + 2      -- full stats box width
+local BOARD_W = 2 * W              -- doubled board width
+local RIGHT_W = NEXT_INNER + 2     -- full right box width
+local BOARD_X = LEFT_W + 2         -- 1-based column of the board's left border
+local CANVAS_COLS = LEFT_W + 1 + (BOARD_W + 2) + 1 + RIGHT_W
+local CANVAS_ROWS = H + 2          -- the board box carries its own borders
 
 -- Tick rate of the canvas clock (kept in sync with CanvasScreen): gravity is
 -- expressed in ticks, never in seconds.
@@ -40,7 +54,9 @@ local GRAVITY_MIN = 2
 local LINE_SCORES = { 100, 300, 500, 800 }
 
 -- One palette entry per tetromino; the canvas maps a drawn character to a
--- color, so the board is stored as the piece letter itself.
+-- color, so the board is stored as the piece letter itself.  The "*" entry
+-- is the glyph painted for every colored cell: the letters stay grid data,
+-- the screen shows solid blocks.
 local COLORS = {
   I = "#00e5ff",
   O = "#ffd54f",
@@ -49,6 +65,7 @@ local COLORS = {
   Z = "#e57373",
   J = "#64b5f6",
   L = "#ffb74d",
+  ["*"] = "█",
 }
 
 -- Rotation states per tetromino: cells are {x, y} offsets inside the shape's
@@ -281,44 +298,139 @@ local function gravity_every()
   return math.max(GRAVITY_MIN, TICKS_PER_SECOND - state.level)
 end
 
--- Center *text* on board row *row* (characters outside the board are clipped).
-local function overlay(grid, text, row)
-  local start = math.floor((W - #text) / 2) + 1
-  for index = 1, #text do
-    local col = start + index - 1
-    if col >= 1 and col <= W then
-      grid[row][col] = text:sub(index, index)
-    end
-  end
+-- Center *text* in a *width*-wide field (right side gets the odd space).
+local function center(text, width)
+  local left = math.floor((width - #text) / 2)
+  return string.rep(" ", left) .. text .. string.rep(" ", width - #text - left)
 end
 
--- Render the whole canvas as one newline-joined string.
-local function render()
-  local grid = {}
-  for row = 1, H do
-    grid[row] = {}
-    for col = 1, W do
-      grid[row][col] = state.board[row][col] or " "
+-- Box-drawing helpers: a titled top border, a plain bottom border.  Borders
+-- stay ASCII on purpose: Lua strings are byte strings, so every splice in
+-- this file requires one byte == one display column.
+local function box_top(title, inner)
+  local label = "- " .. title .. " "
+  return "+" .. label .. string.rep("-", inner - #label) .. "+"
+end
+
+local function box_bottom(inner)
+  return "+" .. string.rep("-", inner) .. "+"
+end
+
+-- Left column: the stats box on the top rows, blank below it.  Labels are
+-- lowercase on purpose: piece letters (I O T S Z J L) are the only colored
+-- characters, and lowercase text never collides with them.
+local function stats_lines()
+  local lines = {}
+  lines[1] = box_top("stats", STAT_INNER)
+  lines[2] = "|" .. string.format(" score%9d", state.score) .. "|"
+  lines[3] = "|" .. string.format(" level%9d", state.level) .. "|"
+  lines[4] = box_bottom(STAT_INNER)
+  for row = 5, CANVAS_ROWS do
+    lines[row] = string.rep(" ", LEFT_W)
+  end
+  return lines
+end
+
+-- Right column: the next-piece preview box on top, the help box below it.
+-- Preview cells are doubled like board cells, so they render as solid blocks.
+local function right_lines()
+  local lines = {}
+  lines[1] = box_top("next", NEXT_INNER)
+  local preview = {}
+  for row = 1, 4 do
+    preview[row] = { "  ", "  ", "  ", "  " }
+  end
+  if state.next_kind ~= nil then
+    for _, cell in ipairs(cells_of(state.next_kind, 1)) do
+      preview[cell[2] + 1][cell[1] + 1] = state.next_kind .. state.next_kind
     end
+  end
+  for row = 1, 4 do
+    lines[1 + row] = "|" .. center(table.concat(preview[row]), NEXT_INNER) .. "|"
+  end
+  lines[6] = box_bottom(NEXT_INNER)
+  lines[7] = string.rep(" ", RIGHT_W)
+  lines[8] = box_top("help", NEXT_INNER)
+  -- Key glyphs are UTF-8 (multi-byte in Lua), so the right-align padding is
+  -- computed from the explicit display width instead of string.format.
+  local keys = {
+    { "left", "←", 1 },
+    { "right", "→", 1 },
+    { "down", "↓", 1 },
+    { "rotate", "↑/x", 3 },
+    { "drop", "space", 5 },
+    { "pause", "p", 1 },
+    { "restart", "r", 1 },
+    { "quit", "esc", 3 },
+  }
+  for index, binding in ipairs(keys) do
+    local field = string.rep(" ", 7 - binding[3]) .. binding[2]
+    lines[8 + index] = "|" .. string.format(" %-7s", binding[1]) .. field .. " |"
+  end
+  lines[17] = box_bottom(NEXT_INNER)
+  for row = 18, CANVAS_ROWS do
+    lines[row] = string.rep(" ", RIGHT_W)
+  end
+  return lines
+end
+
+-- One board row: a border, every cell doubled into a solid block pair, and a
+-- border again.
+local function board_line(row)
+  local line = { "|" }
+  for col = 1, W do
+    local cell = state.board[row][col] or " "
+    line[#line + 1] = cell
+    line[#line + 1] = cell
+  end
+  line[#line + 1] = "|"
+  return table.concat(line)
+end
+
+-- Overwrite *text* centered on board row *board_row* of the already-assembled
+-- row strings (plain text across the doubled board cells; lowercase keeps it
+-- clear of the palette colors).
+local function overlay(rows, text, board_row)
+  local start = BOARD_X + 1 + math.floor((BOARD_W - #text) / 2)
+  local line = rows[board_row + 1]  -- row 1 is the board's top border
+  rows[board_row + 1] =
+    line:sub(1, start - 1) .. text .. line:sub(start + #text)
+end
+
+-- Render the whole canvas as one newline-joined string: stats box | board box
+-- | next + help boxes, one blank gap between the boxes.  The falling piece is
+-- stamped onto the doubled cells afterwards; overlay texts are written last.
+local function render()
+  local stats = stats_lines()
+  local right = right_lines()
+  local board = {}
+  board[1] = box_top("tetris", BOARD_W)
+  for row = 1, H do
+    board[row + 1] = board_line(row)
+  end
+  board[H + 2] = box_bottom(BOARD_W)
+  local rows = {}
+  for row = 1, CANVAS_ROWS do
+    rows[row] = stats[row] .. " " .. board[row] .. " " .. right[row]
   end
   if not state.game_over and state.kind ~= nil then
     for _, cell in ipairs(cells_of(state.kind, state.rot)) do
       local col = state.x + cell[1] + 1
       local row = state.y + cell[2] + 1
       if row >= 1 and row <= H and col >= 1 and col <= W then
-        grid[row][col] = state.kind
+        local at = BOARD_X + 2 * (col - 1) + 1  -- first block column
+        local line = rows[row + 1]
+        rows[row + 1] = line:sub(1, at - 1)
+          .. state.kind .. state.kind
+          .. line:sub(at + 2)
       end
     end
   end
   if state.game_over then
-    overlay(grid, "GAME OVER", 9)
-    overlay(grid, "press r", 11)
+    overlay(rows, "game over", 9)
+    overlay(rows, "press r", 11)
   elseif state.paused then
-    overlay(grid, "PAUSED", 10)
-  end
-  local rows = {}
-  for row = 1, H do
-    rows[row] = table.concat(grid[row])
+    overlay(rows, "paused", 10)
   end
   return table.concat(rows, "\n")
 end
@@ -330,10 +442,7 @@ local function paint()
   end
   -- dot call: handle is a Python object, a colon would pass the handle itself
   handle.draw(render(), COLORS)
-  handle.set_status(string.format(
-    "score %d  lines %d  level %d  next: %s",
-    state.score, state.lines, state.level, tostring(state.next_kind)
-  ))
+  handle.set_status("escape quits")
 end
 
 -- ------------------------------------------------------------------- callbacks
@@ -401,7 +510,7 @@ end
 -- Start a fresh game on a new canvas.
 local function start_game()
   reset()
-  handle = yate.ui.open_canvas(W, H, on_key, on_tick, on_close)
+  handle = yate.ui.open_canvas(CANVAS_COLS, CANVAS_ROWS, on_key, on_tick, on_close)
   paint()
 end
 
