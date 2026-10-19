@@ -110,6 +110,27 @@ function yate.ui.add_segment(id, provider, align, priority) end
 ---@return nil
 function yate.ui.remove_segment(id) end
 
+-- One open modal canvas, as returned by yate.ui.open_canvas.  The methods
+-- are Python methods: call them with a dot (handle.draw(...)), never with a
+-- colon.
+---@class yate.CanvasHandle
+---@field draw fun(grid: string, palette: table<string, string>)
+---@field set_status fun(text: string)
+---@field close fun()
+
+-- Open a modal character canvas of cols x rows characters.  on_key receives
+-- Textual key names ("left", "space", "r", ...; escape closes the canvas and
+-- never reaches the hook), on_tick fires on a fixed 15 Hz clock, and on_close
+-- runs once after the screen is gone.  draw() takes the whole canvas as one
+-- newline-joined string plus a character -> color palette.
+---@param cols integer
+---@param rows integer
+---@param on_key fun(key: string)
+---@param on_tick fun()
+---@param on_close fun()
+---@return yate.CanvasHandle handle
+function yate.ui.open_canvas(cols, rows, on_key, on_tick, on_close) end
+
 -- Switch the color theme (raises when the name is unknown).
 ---@param name string
 ---@return nil

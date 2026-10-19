@@ -76,6 +76,7 @@ Exported functions (see each function's comment for details):
   events.subscribe(name, fn)             subscribe to an editor event
   ui.add_segment(id, fn, align?, prio?)  contribute a status bar segment
   ui.remove_segment(id)                  remove a status bar segment
+  ui.open_canvas(cols, rows, hooks)      open a modal character canvas
   theme.set(name) / theme.active()       switch / read the color theme
   clipboard.set(text) / clipboard.get()  system clipboard
   docs.all() / docs.is_open(path)        open documents (read-only)
@@ -236,6 +237,45 @@ end
 ---@return nil
 function yate.ui.remove_segment(id)
   api.ui.remove_status_segment(id)
+end
+
+-- Open a modal character canvas and drive it from Lua.  cols / rows are the
+-- grid size in characters (Lua integers, e.g. 10, 20).  The three hooks are:
+-- on_key, called with the Textual key name ("left", "right", "down", "up",
+-- "space", "r", "p", "x", ...); the canvas consumes escape itself and closes,
+-- so escape never reaches on_key.  on_tick, called on the screen's own fixed
+-- 15 Hz clock -- build game speed from a tick counter, the canvas knows no
+-- game rules.  on_close, called once after the screen is gone.
+-- Returns a canvas handle (a Python object) with three methods:
+--   handle.draw(grid, palette)   -- grid is the whole canvas as ONE
+--                                   newline-joined string, e.g.
+--                                   table.concat(rows, "\n"); palette maps a
+--                                   drawn character to a color
+--                                   (["#"] = "#e57373");
+--   handle.set_status(text)      -- replace the status line under the grid;
+--   handle.close()               -- dismiss the canvas.
+-- Call those methods with a DOT (handle.draw(...)), never a colon: a colon
+-- passes the handle itself as the first Python argument and raises a
+-- TypeError.  A call arriving after the canvas closed is silently ignored by
+-- the host, so a racing tick cannot crash the editor.
+-- Nested under yate.ui.
+---@param cols integer
+---@param rows integer
+---@param on_key fun(key: string)
+---@param on_tick fun()
+---@param on_close fun()
+---@return any handle
+function yate.ui.open_canvas(cols, rows, on_key, on_tick, on_close)
+  if type(cols) ~= "number" or type(rows) ~= "number"
+    or cols ~= math.floor(cols) or rows ~= math.floor(rows)
+    or cols < 1 or rows < 1 then
+    error("open_canvas: cols and rows must be positive integers")
+  end
+  if type(on_key) ~= "function" or type(on_tick) ~= "function"
+    or type(on_close) ~= "function" then
+    error("open_canvas: on_key, on_tick and on_close must be functions")
+  end
+  return api.ui.open_canvas(cols, rows, on_key, on_tick, on_close)
 end
 
 -- Color theme.  Nested under yate.theme.
