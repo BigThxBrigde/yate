@@ -77,7 +77,16 @@
 
 ## 六、执行记录（回填区）
 
-- [ ] Step 1 结果
-- [ ] Step 2 结果
-- [ ] Step 3 结果
-- [ ] 全量门禁数字
+- [x] Step 1（提交 `3ca1a21`）：statusbar 改注入 `extension_segments` /
+  `loaded_extensions` 两个回调；**偏离计划一处（更优）**：原设计注解用门面公共名
+  `StatusSegment`，实测该 import 本身仍是 L2→L3 向上连线（层秩守卫拦截）——改为
+  editor 侧把桥对象适配成 `(id, provider)` 纯数据行（PEP 695
+  `type SegmentRow`），statusbar 对 L3 **零 import**。
+- [x] Step 2（提交 `3f99d9b`）：`UPWARD_EDGES_FROZEN` 置空集、
+  `EXTENSION_SUBMODULE_FROZEN` 删除（直引断言改为零例外）；实测
+  pyright 0 errors，架构 + 贡献 + LSP 测试 56 passed。
+- [x] Step 3（提交 `27570f7`）：规则文本同步——§一连线图删除 R14 虚线例外边、
+  R14 条目与 §六 #30/#32 改为例外清零表述（边界收紧）。
+- [x] 全量门禁（主代理亲自跑，均 exit 0）：pyright yate/ + tests/ → 0 errors；
+  pytest 全量 --cov-fail-under=75 → 全绿，覆盖率 **92.00%**；
+  test_architecture → 35 passed。
