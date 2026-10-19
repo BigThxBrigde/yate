@@ -2,7 +2,7 @@
    assigned by the Editor at compose time (R9) -- the widget is mounted
    inside #editor-col which declares the matching layer name. The
    anchor is computed by Python (Textual 8.2.8 cannot right-anchor an
-   absolute child via CSS alone, see editor_view/whichkey.py::_place). */
+   absolute child via CSS alone, see editor_view/whichkey.py::reanchor). */
 WhichKeyPanel {
     display: none;
     position: absolute;

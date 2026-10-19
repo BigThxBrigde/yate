@@ -373,7 +373,7 @@ class Editor:
     whichkey: WhichKeyFlows
     sidebar: Vertical
     sidebar_head: SidebarHead
-    editor_col: Vertical
+    editor_col: EditorColumn
     explorer_visible: bool
     panes: PaneManager
     pane_host: PaneHost

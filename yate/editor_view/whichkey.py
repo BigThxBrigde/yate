@@ -107,6 +107,13 @@ class WhichKeyPanel(Static):
         # Last pushed data, retained so a theme broadcast can repaint it.
         self._header: str = ""
         self._entries: Sequence[ChordEntry] = ()
+        # Last (max_width, max_height) clamp written in reanchor, so the
+        # style write only happens when the container actually changed.
+        self._clamped_size: tuple[int, int] | None = None
+        # Entry-row budget (MAX_ROWS until reanchor finds the clamped box
+        # too short) and the last rendered content line count.
+        self._row_budget: int = MAX_ROWS
+        self._content_lines: int = 0
 
     def on_mount(self) -> None:
         """Join the theme broadcast, start hidden, and re-anchor."""
@@ -129,6 +136,9 @@ class WhichKeyPanel(Static):
         """Render *entries* under *header* (border title) and reveal."""
         self._header = header
         self._entries = tuple(entries)
+        # Fresh data starts from the full budget again; reanchor lowers
+        # it if the clamped box turns out to be too short.
+        self._row_budget = MAX_ROWS
         self.border_title = header
         self._repaint()
         self.display = True
@@ -150,7 +160,10 @@ class WhichKeyPanel(Static):
         and ignores parent ``align-*`` for them -- right anchoring
         therefore requires us to compute the offset from
         ``self.parent.region.size`` and write it back.  The top guard
-        keeps the panel out of the tabbar / breadcrumbs strip.
+        keeps the panel out of the tabbar / breadcrumbs strip, and the
+        box is clamped to the container minus those guards so the bottom
+        border and the overflow hint stay visible on short/narrow
+        terminals.
         """
         parent = self.parent
         if not isinstance(parent, Widget) or self.display is False:
@@ -161,6 +174,15 @@ class WhichKeyPanel(Static):
         own_size = self.region.size
         if own_size.width <= 0 or own_size.height <= 0:
             return
+        max_width = max(1, parent_size.width - _RIGHT_MARGIN_CELLS)
+        max_height = max(1, parent_size.height - _TOP_GUARD_CELLS)
+        if self._clamped_size != (max_width, max_height):
+            self._clamped_size = (max_width, max_height)
+            self.styles.max_width = max_width
+            self.styles.max_height = max_height
+            # If the clamp shrinks the box, the relayout fires a Resize
+            # whose reanchor pass re-measures; the offset written below
+            # is a transient value on that path.
         x = max(0, parent_size.width - own_size.width - _RIGHT_MARGIN_CELLS)
         y = max(
             _TOP_GUARD_CELLS,
@@ -168,18 +190,28 @@ class WhichKeyPanel(Static):
         )
         # Idempotent write -- on_resize can fire repeatedly.
         self.styles.offset = (x, y)
+        # Fit pass: when the clamped box cannot show every rendered line,
+        # lower the entry budget (never below one row) and re-render; the
+        # relayout fires a Resize whose reanchor pass converges.
+        inner_height = own_size.height - 2  # round border, one cell each
+        if self._content_lines > inner_height and self._row_budget > 1:
+            deficit = self._content_lines - inner_height
+            self._row_budget = max(1, self._row_budget - deficit)
+            self._repaint()
 
     def _repaint(self) -> None:
         """Rebuild the panel text from the last pushed data (theme-aware).
 
         Entries are grouped by ``category`` in first-seen order; an empty
         category renders its rows without a group header.  At most
-        :data:`MAX_ROWS` rows are drawn -- the rest collapse into one
-        muted hint pointing at the full reference (F1).  The chord
-        header is rendered as the ``border_title`` and is NOT drawn
-        inside the content area.
+        :attr:`_row_budget` rows are drawn (initially :data:`MAX_ROWS`,
+        lowered by :meth:`reanchor` when the clamped box is too short) --
+        the rest collapse into one muted hint pointing at the full
+        reference (F1).  The chord header is rendered as the
+        ``border_title`` and is NOT drawn inside the content area.
         """
         t = theme.active()
+        budget = self._row_budget
         text = Text()
         groups: dict[str, list[ChordEntry]] = {}
         for entry in self._entries:
@@ -191,7 +223,7 @@ class WhichKeyPanel(Static):
             max_key = max(len(entry.key) for entry in self._entries)
             key_width = max_key + 2
             for category, entries in groups.items():
-                room = MAX_ROWS - shown
+                room = budget - shown
                 if room <= 0:
                     break
                 visible = entries[:room]
@@ -212,4 +244,7 @@ class WhichKeyPanel(Static):
                 style=t.fg_muted,
             )
             text.append("\n")
+        # Remember the rendered line count so reanchor can tell whether
+        # the content fits the clamped box (and shrink the budget).
+        self._content_lines = len(text.plain.splitlines())
         self.update(text)

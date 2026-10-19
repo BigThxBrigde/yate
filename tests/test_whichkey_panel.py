@@ -220,7 +220,7 @@ def test_panel_offsets_reset_to_origin_when_hidden() -> None:
         async with host.run_test(size=(80, 24)):
             host.panel.clear()
             assert host.panel.display is False
-            # When hidden, _place early-returns: offset stays at the
+            # When hidden, reanchor early-returns: offset stays at the
             # CSS default (0, 0) -- nothing pinned against the right
             # edge while invisible.
             offset_x, offset_y = host.panel.styles.offset
@@ -267,5 +267,83 @@ def test_container_resize_reanchors_panel() -> None:
             offset_x, offset_y = host.panel.styles.offset
             assert offset_x.value == parent_width - own_width - 1
             assert offset_y.value >= 2
+
+    asyncio.run(scenario())
+
+
+def test_oversized_panel_clamps_inside_container() -> None:
+    """On a short container the box shrinks so its bottom stays visible.
+
+    Regression for the review finding: the old math only clamped the
+    offset's lower bound, so a panel as tall as (or taller than) the
+    container sat at the top guard with its bottom border and the
+    overflow hint clipped away.
+    """
+
+    async def scenario() -> None:
+        entries = [ChordEntry(f"k{i:02d}", f"desc {i}") for i in range(20)]
+        host = _LayerHost()
+        # 18-row container: top guard 2 + clamped box 16 < full height.
+        async with host.run_test(size=(80, 18)) as pilot:
+            host.panel.show_entries("", entries)
+            await pilot.pause()
+            await pilot.pause()
+            await pilot.pause()
+            parent = host.panel.parent
+            assert isinstance(parent, Widget)
+            parent_height = parent.region.height
+            own_height = host.panel.region.height
+            _, offset_y = host.panel.styles.offset
+            assert own_height <= parent_height - 2
+            assert offset_y.value + own_height <= parent_height
+            # The rendered content must fit inside the clamped box: the
+            # entry budget shrinks until every line (incl. the overflow
+            # hint) is inside the border.
+            content_rows = [
+                line
+                for line in plain_text(host.panel.render()).splitlines()
+                if line.strip()
+            ]
+            assert len(content_rows) <= own_height - 2
+            text = plain_text(host.panel.render())
+            assert "more" in text
+            assert "F1" in text
+
+    asyncio.run(scenario())
+
+
+def test_pinned_categories_render_and_truncate_across_groups() -> None:
+    """Category rows render as group headers and MAX_ROWS spans groups.
+
+    The pinned sheet's signature visual is the accent group row; the
+    truncation budget must count rows across categories and collapse
+    the remainder into the single F1 hint.
+    """
+
+    async def scenario() -> None:
+        entries = (
+            [ChordEntry(f"a{i}", f"alpha {i}", "Alpha") for i in range(10)]
+            + [ChordEntry(f"b{i}", f"beta {i}", "Beta") for i in range(10)]
+        )
+        host = _LayerHost()
+        async with host.run_test(size=(80, 24)):
+            host.panel.show_entries("vim", entries)
+            text = plain_text(host.panel.render())
+            lines = text.splitlines()
+            group_rows = [line for line in lines if line.startswith("\u25B8")]
+            entry_rows = [
+                line
+                for line in lines
+                if line.strip()
+                and not line.startswith("\u25B8")
+                and "more" not in line
+            ]
+            hint_rows = [line for line in lines if "more" in line]
+            # Both groups render their header, the shared MAX_ROWS budget
+            # caps entry rows across groups, one overflow hint remains.
+            assert len(group_rows) == 2
+            assert len(entry_rows) == MAX_ROWS
+            assert len(hint_rows) == 1
+            assert "F1" in hint_rows[0]
 
     asyncio.run(scenario())

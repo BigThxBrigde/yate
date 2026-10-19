@@ -313,3 +313,33 @@ def test_clear_method_hides_panel_unconditionally() -> None:
     flows.clear()
     assert panel.last == "clear"
     assert panel.clears >= 1
+
+
+def test_pinned_sheet_survives_disable_and_reenable() -> None:
+    """Pin while enabled, disable, then re-enable: the sheet comes back.
+
+    The config docstring and the toggle docstring both promise that the
+    pinned state is preserved across a ``which_key = False`` interval;
+    this pins the promise (pin -> disable -> re-enable -> pinned sheet
+    again under the keymap-name header).
+    """
+    state = {"on": True}
+    vim = VimKeymap()
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        which_key_enabled=lambda: state["on"],
+    )
+    flows.toggle()
+    flows.refresh()
+    assert panel.last == "show"
+    # Disabled: the master switch hides the sheet but forgets nothing.
+    state["on"] = False
+    flows.refresh()
+    assert panel.last == "clear"
+    # Re-enabled: the pin from before the disable window is restored.
+    state["on"] = True
+    flows.refresh()
+    assert panel.last == "show"
+    header, entries = panel.shown[-1]
+    assert header == "vim"
+    assert len(entries) == len(vim.bindings)
