@@ -57,7 +57,7 @@ scene: task_orchestration
    |---|---|
    | `plan-architect-designer` | MiniMax-M3 |
    | `plan-executor` | DeepSeek-V4.1-Flash |
-   | `code-review-expert` | Hy4 preview |
+   | `code-review-expert` | GLM-5.3-Flash |
 
 2. **若主代理来自 Trae IDE**（spawn 时按下表指定模型）：
 
@@ -65,7 +65,7 @@ scene: task_orchestration
    |---|---|
    | `plan-architect-designer` | MiniMax-M3 |
    | `plan-executor` | DeepSeek-V4.1-Flash |
-   | `code-review-expert` | Qwen3.7-Plus |
+   | `code-review-expert` | GLM-5.3-Flash |
 
 3. **判定时点**：以**当前会话的主代理来源**为准；整批任务按同一来源的模型下发，中途不切换。
 4. 本节未列出的子代理类型不受模型调度约束。
