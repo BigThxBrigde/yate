@@ -12,14 +12,12 @@ from __future__ import annotations
 
 import asyncio
 
-from textual.widget import Widget
-
 from yate.editor_view import theme
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.scrollbars import SlimScrollBarRender
 
 
-def _assert_slim_scrollbar_overlay(screen: Widget) -> None:
+def _assert_slim_scrollbar_overlay(screen: HelpScreen | OutputScreen) -> None:
     """Assert *screen*'s ``#overlay`` scrollbar carries the slim painting."""
     overlay = screen.query_one("#overlay")
     assert overlay.vertical_scrollbar.renderer is SlimScrollBarRender
