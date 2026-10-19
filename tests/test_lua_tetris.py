@@ -13,14 +13,20 @@ Marked ``@requires_lupa``: the whole module skips without the optional
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from yate.app import YateApp
+from yate.editor_view.canvas_screen import CanvasScreen
 from yate.paths import bundled_extensions_dir
 from yate.services.extensions.lua.library import lua_api_library_source
 from yate.services.extensions.lua.runtime import create_runtime
+
+from conftest import wait_until
 
 #: Live-lua marker: skip when the optional lupa package is not installed.
 _lua_missing = importlib.util.find_spec("lupa") is None
@@ -453,3 +459,47 @@ def test_teardown_closes_the_open_canvas(game: _Game) -> None:
     frames = len(canvas.grids)
     canvas.tick()
     assert len(canvas.grids) == frames
+
+
+# --- end-to-end: the real app over the real loader -----------------------------
+
+
+def _board_has_a_piece(canvas: CanvasScreen) -> bool:
+    """Whether any drawn cell carries a tetromino letter."""
+    return any(ch in "IOTSZJL" for row in canvas.drawn for ch in row)
+
+
+@requires_lupa
+def test_game_tetris_opens_and_closes_in_the_real_app(tmp_path: Path) -> None:
+    """``:game tetris`` in a running YateApp pushes the canvas, the bundled
+    load path registers the command, the clock paints a piece and the key
+    path works; escape pops the screen again."""
+
+    async def scenario() -> None:
+        target = tmp_path / "notes.txt"
+        target.write_text("x", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # the bundled extension registered the command at startup
+            assert app.editor.commands.get("game") is not None
+
+            app.editor.run_command("game tetris")
+            await pilot.pause()
+            canvas = app.screen
+            assert isinstance(canvas, CanvasScreen)
+            assert canvas.cols == 10 and canvas.rows == 20
+            # the canvas clock paints the spawned piece within a few ticks
+            assert await wait_until(pilot, lambda: _board_has_a_piece(canvas))
+
+            # a game key reaches the Lua state machine (nothing crashes)
+            await pilot.press("left")
+            await pilot.press("space")
+            await pilot.pause()
+            assert isinstance(app.screen, CanvasScreen)
+
+            # escape exits the canvas without killing the app
+            await pilot.press("escape")
+            assert await wait_until(pilot, lambda: app.screen is not canvas)
+
+    asyncio.run(scenario())
