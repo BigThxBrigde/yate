@@ -227,3 +227,22 @@ flowchart TD
 | 8 进程压力 | 同上 + `-n 8` | 134.52s，全绿 |
 | 架构 + 门禁守卫 | `pytest tests/test_architecture.py tests/test_gate_config.py -q` | 41 passed |
 | 冒烟（并行） | `tools.smoke_test run --jobs 4` | **25.09s**，112/112、1354/1354 |
+
+### 8.4 评审整改（code-review-expert，2026-10-21）
+
+第一轮评审判 BLOCKED，逐条处置后复测全绿：
+
+| 评审项 | severity | 处置 |
+|---|---|---|
+| B1 首次打开按错误宽度渲染，71% 行右侧被截断（`r_w=114` vs 体宽 101） | blocker | 根因是 `on_mount` 的加载 worker 早于布局，回退公式 `size.width - 6` 从未对齐真实可用宽度。修：`_body_width()` 以 `DocBody.size.width` 为准、回退用 `_FALLBACK_WIDTH`；`#doc-scroll` 加 `scrollbar-gutter: stable` 预留滚动条列（实测**首渲染即 101 == 101、超宽行 0**）；另加 `DocBody.on_resize → body_resized()` 与 `call_after_refresh(_correct_render_width)` 两条兜底重渲染 |
+| W1 `_FALLBACK_WIDTH` 死常量 | warning | 回退分支改用它 |
+| W2 `_strip_text` 引用不存在的 `segments`（静默降级为 0 命中） | warning | 改用公开 `Strip.text` |
+| W3 resize / 主题重渲染把当前命中重置为第 1 个并弹回顶部 | warning | `_rerender` 记下当前命中行，重渲染后由 `_restore_hit()` 选最近行恢复 |
+| W4 渲染异常永久停在 loading（`exit_on_error=False` 吞异常） | warning | 新增 `_render_or_failure()`：记录日志 + 单行错误行，loading 正常消失 |
+| W5 resize / 主题两条新路径零覆盖 | warning | 新增 4 条用例：宽度一致、resize 重排保持命中、主题切换重染色、渲染失败降级 |
+| 染色用例自证 / `current_row in hit_rows` 偏弱 / `_hits` 列与长度未被使用 | suggestion | 期望色改为从调色板独立推导；断言**恰好一行**带当前色；`col`/`len` 用于校验命中子串 |
+| 自查发现：`run_worker(self._rerender(width))` 的 eager 协程在 worker 未启动时泄漏 `RuntimeWarning` | — | 三处改传 `partial(self._rerender, width)`（与 `_load_doc` 传函数的既有写法一致） |
+
+整改后门禁（全部 exit 0）：pyright `0/0/0`；`pytest tests/ -q -n auto` **61.11s**、
+2676 passed；`--cov -n auto` **108.29s**、TOTAL 92%；架构 + 门禁守卫 41 passed；
+冒烟 `--jobs 4` **24.68s**、112/112、1354/1354。
