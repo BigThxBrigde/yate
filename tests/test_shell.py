@@ -116,8 +116,11 @@ def test_run_shell_timeout_kills_the_grandchild_process(
     elapsed = time.monotonic() - start
     assert result.returncode == 124
     assert "timed out after 0.2s" in result.output
-    # no waiting on the parked grandchild (the old code blocked ~20s here)
-    assert elapsed < 3.0
+    # No waiting on the parked grandchild (the old code blocked ~20s here).
+    # The budget only has to separate that block from a healthy return, so it
+    # stays well under the 20s park while leaving room for two interpreter
+    # starts on a box running the suite in parallel.
+    assert elapsed < 10.0
     # the grandchild may legitimately not have started yet when the tree
     # was killed on a slow box: no marker then means nothing to probe
     deadline = time.monotonic() + 2.0
@@ -126,7 +129,7 @@ def test_run_shell_timeout_kills_the_grandchild_process(
     if not marker.exists():
         return
     pid = int(marker.read_text(encoding="utf-8"))
-    gone_by = time.monotonic() + 2.0
+    gone_by = time.monotonic() + 5.0
     while _pid_alive(pid) and time.monotonic() < gone_by:
         time.sleep(0.05)
     assert not _pid_alive(pid), f"grandchild {pid} survived the timeout kill"
