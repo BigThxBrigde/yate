@@ -168,3 +168,62 @@ flowchart TD
 | 冒烟总时长 | `manual_changelog_modals` 30.05s → ≤ 4s；`view_manual_command` 21.44s → ≤ 3s；`--jobs 4` 全量 39–48s → ≤ 20s |
 | 覆盖面 | 检查条数与场景数不得减少（1354 / 112） |
 | 门禁 | pyright 0 诊断；`-n auto` 全绿；覆盖率 ≥ 75（预期 ~92%）；架构守卫 36 条全绿 |
+
+## 八、实施结果与偏离记录（2026-10-21 回填）
+
+### 8.1 实测前后（本机 8 核 / Windows / py3.13.2 / textual 8.2.8）
+
+覆盖层本身（探针实测，open = 按键到 `#doc-loading` 消失）：
+
+| 指标 | 改前 | 改后 |
+|---|---|---|
+| `manual` 打开 | 11.010s | **0.736–0.929s** |
+| `manual` 关闭 | 2.043s | **0.126–0.135s** |
+| `changelog` 打开 | 3.473s | **0.737–0.834s** |
+| `changelog` 关闭 | 8.440s | **0.115–0.118s** |
+| 屏内 widget 数 | 1788 / 3733 | **8** |
+| 搜索 174 命中 | 263ms（见 8.2-2 首版） | **3ms** |
+
+冒烟（`tools.smoke_test run --jobs 4`）：
+
+| 场景 / 口径 | 改前 | 改后 |
+|---|---|---|
+| `manual_changelog_modals` | 30.05s | **1.417s** |
+| `view_manual_command` | 21.44s | **1.637s** |
+| 112 场景耗时累加 | 148.06s | **85.61s** |
+| 并行墙钟（`--jobs 4`） | 39.30–47.55s | **25.09s** |
+| 最慢单场景（并行墙钟下限） | 31.50s | **5.77s**（`stress_key_fuzz`） |
+
+### 8.2 偏离记录（相对 §四 原计划）
+
+1. **W1 / W2 / W3 合并为一次提交**：三波改的是同一个模块 `manual.py`，中间态（只有纯函数、
+   或只有 body 而搜索仍走 widget 模型）无法独立跑通测试，按"每步可验收"原则合并为一次。
+2. **行渲染替代"预渲染 Text 一次性 update"**（计划 §四 W2.1 原设想是 `Static` + `Text`）：
+   首版实测搜索一次 263ms——每次命中变化都要重建 1707 行的 `Text`。改为
+   `DocBody(Widget)` + `render_line(y)` 按行出图、命中只 `refresh()` 后降到 **3ms**，
+   且打开耗时从 1.478s 再降到 0.736s（不再有整文档 `Text` 构建）。
+3. **`#doc-md` 补 `height: auto; width: 1fr`**（计划未预见）：`Widget` 默认 1fr 会把内容高度
+   钉在视口高度，文档无法滚动；由 `test_manual_search_step_lands_on_exact_rendered_row`
+   的"滚动目标随行号变化"断言抓到。
+4. **移除 theme bridge 的两个 `doc-hit-*` 变量**：命中染色改由
+   `manual.py:_hit_styles()` 从 `theme.active()` 现算（同一份 yate 调色板），
+   `to_textual_theme` 与 `test_theme_palettes.py` 同步删除该两处，避免留下无消费者的配置。
+5. **代码块 token 颜色仍是 Rich 的 monokai 主题**：改造前的 Textual `Markdown` 同样不对
+   fence 内容做主题映射，故无回归；若要跟随 yate 语法色需另立计划（见 §一 非目标）。
+6. **`_widget_plain_text` 从产品模块删除**（只剩测试在读 footer 文本），
+   `test_app_manual.py` 内改用本地 `plain_text()` helper。
+7. **一次负载 flake**：全量 `-n auto`（无覆盖率）首轮出现
+   `tests/test_app_panes.py::test_close_command_closes_active_pane` 单次失败；
+   隔离复跑通过、该模块 `-n auto` 连跑 3 次全绿、其后 4 次全量（含 `-n 8 --cov`）全绿，
+   判定为负载噪声，未改断言（与 §风险表"时序用例"条目一致）。
+
+### 8.3 门禁终态（全部 exit 0）
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| pyright strict | `python -m pyright` | `0 errors, 0 warnings, 0 informations` |
+| 全量 pytest（并行） | `pytest tests/ -q -n auto` | 2672 passed / 9 skipped |
+| 覆盖率（并行，连续三次） | `pytest tests/ --cov=yate --cov-branch -n auto` | 143.20s / 112.13s / 104.82s，TOTAL **92%** |
+| 8 进程压力 | 同上 + `-n 8` | 134.52s，全绿 |
+| 架构 + 门禁守卫 | `pytest tests/test_architecture.py tests/test_gate_config.py -q` | 41 passed |
+| 冒烟（并行） | `tools.smoke_test run --jobs 4` | **25.09s**，112/112、1354/1354 |
