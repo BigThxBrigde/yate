@@ -513,7 +513,12 @@ def run_scenarios(
 
 
 def _picklable_payload(value: object) -> object:
-    """Return *value* if a worker can hand it back, else its ``repr``."""
+    """Return *value* if a worker can hand it back, else its ``repr``.
+
+    ``pickle`` reports every unserializable payload as an ``Exception``
+    (``TypeError`` / ``AttributeError`` / ``PicklingError``) and never as a
+    ``BaseException``, so the broad catch cannot swallow an interrupt.
+    """
     try:
         pickle.dumps(value)
     except Exception:  # noqa: BLE001 - any payload may hold a weakref
@@ -590,6 +595,7 @@ def run_scenarios_parallel(
     losing a scenario.
     """
     names = tuple(scenario.name for scenario in selected)
+    tags_by_name = {scenario.name: scenario.tags for scenario in selected}
     by_name: dict[str, ScenarioResult] = {}
     merged = Coverage()
     total = len(names)
@@ -633,14 +639,29 @@ def run_scenarios_parallel(
     if fallback:
         # A fresh directory for the retries: several scenarios build their
         # fixtures with a bare ``mkdir()`` and would raise FileExistsError if a
-        # half-finished earlier attempt had already written them.
-        results, cov = run_shard(
-            tuple(fallback), str(tmp_root / "retry"),
-            svg=options.svg,
-            invariants=options.invariants,
-            timeout=options.timeout,
-        )
-        _absorb(results, cov)
+        # half-finished earlier attempt had already written them.  The retry is
+        # guarded in turn: a shard that fails twice must turn into failed
+        # scenarios, never into a traceback that discards the results already
+        # collected from the healthy workers.
+        try:
+            retried, retry_cov = run_shard(
+                tuple(fallback), str(tmp_root / "retry"),
+                svg=options.svg,
+                invariants=options.invariants,
+                timeout=options.timeout,
+            )
+        except Exception as exc:  # noqa: BLE001 - a dead retry is a failed scenario
+            for name in fallback:
+                by_name[name] = ScenarioResult(
+                    name,
+                    tags=tags_by_name[name],
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                finished += 1
+                if options.progress is not None:
+                    options.progress(finished, total, name)
+        else:
+            _absorb(retried, retry_cov)
 
     return [by_name[s.name] for s in selected if s.name in by_name], merged
 

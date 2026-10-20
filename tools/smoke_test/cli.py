@@ -185,15 +185,17 @@ def _execute(
 
 def cmd_run(args: argparse.Namespace) -> int:
     """``run``: execute the selected scenarios and report PASS/FAIL."""
+    if args.jobs < 1:
+        # Checked before the filters: a bad worker count is a usage error no
+        # matter whether the selection happens to be empty.
+        print("--jobs must be at least 1")
+        return 2
     selected = select_scenarios(
         SCENARIOS, names=args.scenario, tags=args.tag,
         skip_slow=args.skip_slow,
     )
     if not selected:
         print("no scenario matches the given filters")
-        return 2
-    if args.jobs < 1:
-        print("--jobs must be at least 1")
         return 2
     if args.seed is not None:
         set_seed(args.seed)
@@ -354,8 +356,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_filters(pr)
     _add_report_options(pr)
     pr.add_argument("--jobs", type=int, default=1, metavar="N",
-                    help="shard the selection over N worker processes "
-                         "(default: 1 = the serial runner)")
+                    help="run the selection across N worker processes "
+                         "(`run` only; snapshot/compare stay serial). "
+                         "Default: 1 = the serial runner")
     pr.add_argument("--coverage", action="store_true",
                     help="report :command / action coverage")
     pr.set_defaults(func=cmd_run)
