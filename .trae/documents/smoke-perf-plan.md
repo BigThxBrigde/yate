@@ -315,7 +315,7 @@ flowchart TD
 |---|---|---|
 | pyright strict | `.venv\Scripts\python.exe -m pyright` | `0 errors, 0 warnings, 0 informations`，exit 0 |
 | 全量 pytest（并行） | `pytest tests/ -q -n auto` | **86.76s**，`2665 passed, 9 skipped`，exit 0 |
-| 覆盖率（并行） | `pytest tests/ --cov=yate --cov-branch -n auto` | **155.46s**，TOTAL **92.09%**（门禁 75），exit 0 |
+| 覆盖率（并行） | `pytest tests/ --cov=yate --cov-branch -n auto` | **155.46s**（复测 113.82s / 103.96s，flakes 修完后连续两次全绿），TOTAL **92.09%**（门禁 75），exit 0 |
 | 架构守卫 | `pytest tests/test_architecture.py -q` | **36 passed**，exit 0 |
 | 冒烟（并行） | `tools.smoke_test run --jobs 4` | **39.30s**，112/112、1354/1354，exit 0 |
 | 冒烟（串行对照） | `tools.smoke_test run` | **121.06s**，112/112、1354/1354，exit 0 |
@@ -325,7 +325,7 @@ flowchart TD
 | 口径 | 改前 | 改后 | 倍数 |
 |---|---|---|---|
 | pytest 无覆盖率，串行 → `-n auto`（本机 8 核） | 308.04s | **86.76s** | 3.55x |
-| pytest 带覆盖率，串行 → `-n auto` | **401.99s** | **155.46s** | 2.59x |
+| pytest 带覆盖率，串行 → `-n auto` | **401.99s** | **155.46s**（复测 104–114s） | 2.59x（复测口径 3.5–3.9x） |
 | 冒烟 串行 → `--jobs 4` | 121.06s | **39.30s** | 3.08x |
 | 冒烟 `--jobs 4`（首测，修复回退路径前） | — | 47.74s | 2.54x |
 
@@ -352,11 +352,16 @@ flowchart TD
    在 `-n auto + --cov` 下失败一次（`assert (0, 0) == (1, 0)`）：`sp` 之后新窗格
    尚未取得焦点，`j` 落到旧窗格。按本条任务纪律（flake 必须修用例）补
    `wait_until(pilot, lambda: app.focused is panes.active_view)`。
-5. **规则与子代理命令同步**（用户追加要求）：`task-orchestration.md` §二.7 收尾门禁、
+5. **并行暴露第三个 flake**：`tests/test_shell.py::test_run_shell_timeout_kills_the_grandchild_process`
+   在 `-n auto + --cov` 下第二轮复跑失败一次。该用例断言整次 `run_shell`
+   在 3s 内返回；并行负载下两次解释器启动 + 进程树击杀会超过 3s。改为 10s 预算
+   （被 park 的孙进程睡 20s，凡 <20s 的预算仍能抓住历史回归），存活轮询窗口 2s→5s。
+   随后连续两次 `-n auto + --cov` 全绿（113.82s / 103.96s）。
+6. **规则与子代理命令同步**（用户追加要求）：`task-orchestration.md` §二.7 收尾门禁、
    `python-coding-style.md` §4.7/§五、`architecture-boundaries.md` §五、
    `misc-rules.md` §二、`code-review-expert.md` 验证命令全部改为并行口径
    （`pytest -n auto` / `smoke_test run --jobs 4`），并新增"禁止依赖真实睡眠时长
    做断言"的措辞。
-6. **CI 两front 同步**：`.github/workflows/test.yml` 的 pytest 步骤加 `-n auto`、
+7. **CI 两个前端同步**：`.github/workflows/test.yml` 的 pytest 步骤加 `-n auto`、
    smoke 步骤加 `--jobs 4`；`.workflow/test.yml`（Gitee）pytest 步骤加 `-n auto`。
    `-n auto` 在单核 runner 上自动退化为 1，不会把低配机器拖慢。
