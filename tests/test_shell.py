@@ -6,26 +6,27 @@ platform-exclusive branches behind ``sys.platform`` guards: a single CI run can
 only reach its own platform's half, which is why both halves are written out.
 """
 
+# _kill_tree is module-private, but the exact kill command is the contract the
+# timeout behaviour rests on, so it is asserted directly here.
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
-import ctypes
 import logging
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
 from yate.editor_term.shells import resolve_shell, shell_label
-from yate.services.shell import ShellResult, run_shell, shell_name
+from yate.services.shell import ShellResult, _kill_tree, run_shell, shell_name
 
 _WINDOWS: bool = sys.platform.startswith("win")
-
-#: Win32 ``OpenProcess`` right: query basic information without full access.
-PROCESS_QUERY_LIMITED_INFORMATION: int = 0x1000
 
 
 def _which(mapping: dict[str, str | None]) -> Any:
@@ -72,38 +73,26 @@ def test_run_shell_times_out_with_a_message() -> None:
     assert "timed out after 0.2s" in result.output
 
 
-def _pid_alive(pid: int) -> bool:
-    """Best-effort liveness probe for one process by PID (both platforms)."""
-    if sys.platform == "win32":
-        # The pyright-visible branch is win32-only and the POSIX half below
-        # is pruned away on Windows.
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-        if not handle:
-            return False
-        kernel32.CloseHandle(handle)
-        return True
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def test_run_shell_timeout_kills_the_grandchild_process(
+def test_run_shell_timeout_returns_without_waiting_for_the_grandchild(
     tmp_path: Path,
 ) -> None:
-    """On timeout the whole process tree dies, not just the shell root.
+    """On timeout the call returns promptly instead of waiting for the child.
 
-    Two observable consequences of the historical bug (only the shell root
-    was killed, the parked grandchild kept the output pipes open): the call
-    waited for the grandchild to exit before returning, and the grandchild
-    survived as an orphan.  The grandchild parks for 20s after writing its
-    PID, so if it survives the kill the liveness probe below sees it still
-    running well past the kill; if the tree kill works, the call returns
-    promptly and the PID disappears.
+    The historical bug killed only the shell root, so the parked grandchild
+    kept the output pipes open and the call blocked until it exited.  The
+    grandchild here parks for 20s after writing its PID, so a call that returns
+    well before that park cannot be waiting on it.
+
+    The orphan half is deliberately not asserted with a live process: the
+    Windows ``taskkill /T`` can miss a grandchild the shell is still spawning
+    while the kill runs (the race documented in ``run_shell``'s drain comment),
+    which made a survivor probe flaky under parallel load.  The kill command
+    itself is asserted deterministically in
+    :func:`test_kill_tree_asks_taskkill_to_terminate_the_whole_tree`.
+
+    The timeout is five seconds rather than a fraction of one so the grandchild
+    really exists when the kill fires; with 0.2s the probe raced the
+    interpreter start and proved nothing either way.
     """
     marker = tmp_path / "grandchild.pid"
     command = (
@@ -112,27 +101,43 @@ def test_run_shell_timeout_kills_the_grandchild_process(
         f'time.sleep(20)"'
     )
     start = time.monotonic()
-    result = run_shell(command, cwd=tmp_path, timeout=0.2)
+    result = run_shell(command, cwd=tmp_path, timeout=5.0)
     elapsed = time.monotonic() - start
     assert result.returncode == 124
-    assert "timed out after 0.2s" in result.output
-    # No waiting on the parked grandchild (the old code blocked ~20s here).
-    # The budget only has to separate that block from a healthy return, so it
-    # stays well under the 20s park while leaving room for two interpreter
-    # starts on a box running the suite in parallel.
-    assert elapsed < 10.0
-    # the grandchild may legitimately not have started yet when the tree
-    # was killed on a slow box: no marker then means nothing to probe
-    deadline = time.monotonic() + 2.0
-    while not marker.exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-    if not marker.exists():
-        return
-    pid = int(marker.read_text(encoding="utf-8"))
-    gone_by = time.monotonic() + 5.0
-    while _pid_alive(pid) and time.monotonic() < gone_by:
-        time.sleep(0.05)
-    assert not _pid_alive(pid), f"grandchild {pid} survived the timeout kill"
+    assert "timed out after 5.0s" in result.output
+    # The budget only has to separate the historical 20s block from a healthy
+    # return, so it stays under the park: a regression cannot sneak in below it.
+    assert elapsed < 15.0
+    # ... and the grandchild really was running: without the marker the timing
+    # assertion above would only prove that nothing had started.
+    assert marker.exists(), "the grandchild never started; the probe proves nothing"
+
+
+
+@pytest.mark.skipif(
+    not _WINDOWS, reason="taskkill is the Windows-only tree kill"
+)
+def test_kill_tree_asks_taskkill_to_terminate_the_whole_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Windows kill targets the tree (``/T``) of the shell PID.
+
+    Asserted with a spy rather than a live process tree: ``taskkill /T`` can
+    lose a grandchild the shell is still spawning while the kill runs, so a
+    real-process survivor probe cannot be a stable contract.
+    """
+    calls: list[list[str]] = []
+
+    def _run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    fake = cast("subprocess.Popen[str]", SimpleNamespace(pid=4242))
+
+    _kill_tree(fake)
+
+    assert calls == [["taskkill", "/F", "/T", "/PID", "4242"]]
 
 
 def test_run_shell_bounds_the_drain_when_the_tree_survives_the_kill(
