@@ -115,3 +115,20 @@ def test_load_theme_paths_collects_errors_with_path_prefix(
     assert len(errors) == 1
     assert errors[0].startswith(str(bad))
     assert ": SyntaxError" in errors[0]
+
+
+def test_a_broken_theme_file_reports_once(tmp_path: Path) -> None:
+    """A broken file is recorded as loaded even when exec fails (m-13).
+
+    Reloading the same path must not re-exec it: the second attempt
+    returns ``None`` and collects no further error.
+    """
+    bad = tmp_path / "broken.py"
+    bad.write_text("raise RuntimeError('boom')", encoding="utf-8")
+    problem = load_theme_file(bad)
+    assert problem is not None
+    assert "RuntimeError: boom" in problem
+    assert load_theme_file(bad) is None
+    errors: list[str] = []
+    load_theme_paths([bad], errors)
+    assert errors == []

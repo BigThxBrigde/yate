@@ -1086,3 +1086,42 @@ def test_edit_key_with_no_table_is_a_miss() -> None:
     pane.editing = True
     pane._edit_table = None
     assert pane._handle_edit_key(Key("f1", None)) is False
+
+
+def test_inline_highlight_lines_up_after_a_leading_tab() -> None:
+    """Inline spans (character-indexed) survive a leading tab (plan-b m-1).
+
+    The tab expands to four painted cells, so the cell column runs ahead
+    of the character index; the highlight must map back through
+    ``char_to_cell`` or it lands three cells to the right of the change.
+    """
+    from textual.color import Color
+
+    from yate.editor_view import theme
+    from yate.editor_view.diff_pane import PaneDiffState
+
+    line = "\tone changed"  # span (5, 9) == "chan"
+    pane = DiffPane(Document(), "solo")
+    pane.doc.buffer.lines = [line]
+    pane._state = PaneDiffState(
+        line_states=("changed",),
+        inline={0: ((5, 9),)},
+        current_rows=frozenset({0}),
+    )
+    t = theme.active()
+    strip = pane.render_line(0)
+    # replicate the inline background the pane blends for "changed" rows
+    from yate.editor_view.diff_pane import _BADGES  # noqa: PLC0415
+    tint = Color.parse(getattr(t, _BADGES["changed"][1]))
+    inline_bg = tint.blend(Color.parse(t.bg), 0.55)
+    highlighted = "".join(
+        seg.text
+        for seg in strip._segments
+        if seg.style is not None
+        and seg.style.bgcolor is not None
+        and seg.style.bgcolor.get_truecolor().hex == inline_bg.hex
+    )
+    # chars 5..9 are "chan"; through the tab they paint cells 4..8, i.e.
+    # the exact substring after the gutter (5 cells) + tab (4 cells)
+    assert highlighted == "chan"
+

@@ -5,14 +5,20 @@ the active theme, so the `` +N`` overflow indicator and the click-test
 regions are asserted headlessly without spinning a Textual app.
 """
 
+# tests legitimately poke at widget internals:
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from yate.config import YateConfig
 from yate.editor_core import Document
-from yate.editor_view.chrome import TabBar
+from yate.editor_view.chrome import Breadcrumbs, TabBar
 from yate.session import EditorSession
+from yate.services.workspace import Workspace
 
 
 def _session_with_tabs(tmp_path: Path, names: list[str]) -> EditorSession:
@@ -87,3 +93,39 @@ def test_extremely_narrow_bar_omits_the_indicator(tmp_path: Path) -> None:
     text, regions = bar.build(2)  # the 3-cell indicator cannot fit
     assert "+" not in text.plain
     assert regions == []
+
+
+# --- breadcrumbs (plan-b m-12) ------------------------------------------------
+
+
+def test_breadcrumbs_resolve_root_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """The workspace root resolves once per root, not per redraw (m-12)."""
+    workspace = Workspace()
+    workspace.set_root(tmp_path)
+    doc_path = tmp_path / "sub" / "note.txt"
+    doc_path.parent.mkdir()
+    doc_path.write_text("", encoding="utf-8")
+    session = EditorSession(YateConfig())
+    opened = session.open(doc_path)
+    assert opened is not None
+
+    real_resolve = Path.resolve
+    resolved: list[Path] = []
+
+    def counting_resolve(self: Path) -> Path:
+        resolved.append(self)
+        return real_resolve(self)
+
+    monkeypatch.setattr(Path, "resolve", counting_resolve)
+    crumbs = Breadcrumbs(session, workspace)
+    first = crumbs.crumb_parts()
+    second = crumbs.crumb_parts()
+    assert [label for _i, label, _f in second] == [
+        tmp_path.name, "sub", "note.txt",
+    ]
+    assert first == second
+    # two renders: the root resolves once (cached), the doc path per render
+    assert resolved.count(tmp_path) == 1  # root, first render only
+    assert resolved.count(doc_path) == 2

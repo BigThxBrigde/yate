@@ -31,6 +31,7 @@ from collections.abc import Callable
 from itertools import count
 from typing import NamedTuple, override
 
+from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import MouseDown, MouseMove, MouseUp
 from textual.widget import Widget
@@ -527,7 +528,7 @@ class PaneHost(Widget):
         self.apply_sizes()
 
     @override
-    def compose(self):
+    def compose(self) -> ComposeResult:
         """Build the widget tree mirroring the pane model root."""
         yield self._build(self.manager.root)
 

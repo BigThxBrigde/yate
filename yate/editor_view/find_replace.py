@@ -17,7 +17,7 @@ import re
 import shutil
 import tempfile
 from collections.abc import Callable
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import override
 
@@ -99,14 +99,30 @@ class _ResultsScroll(VerticalScroll):
         apply_scrollbar_theme(self)
 
 
-def _relative(path: Path, root: Path | None) -> str:
-    """Display label for *path*: workspace-relative, else the bare name."""
+@lru_cache(maxsize=1024)
+def _relative_cached(path: Path, root: Path | None) -> str:
+    """Cached backend of :func:`_relative`.
+
+    Label-purpose cache: a file renamed after being resolved may show its
+    old relative path until the result list is rebuilt (which re-runs the
+    search and repopulates the cache).
+    """
     if root is not None:
         try:
             return path.resolve().relative_to(root.resolve()).as_posix()
         except ValueError:
             pass
     return path.name
+
+
+def _relative(path: Path, root: Path | None) -> str:
+    """Display label for *path*: workspace-relative, else the bare name.
+
+    Cached per (path, root): the label is display-only, so the stale
+    worst case after a rename is an old relative path that the next
+    results rebuild corrects.
+    """
+    return _relative_cached(path, root)
 
 
 class FindReplaceScreen(ModalScreen[None]):
