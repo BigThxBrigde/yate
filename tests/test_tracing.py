@@ -307,6 +307,55 @@ def test_uninstall_releases_the_file(isolated_home: Path, monkeypatch: pytest.Mo
     tracing.uninstall()  # idempotent
 
 
+# --- logger level restoration (review m-28) -----------------------------------
+
+
+def test_uninstall_restores_the_previous_logger_level(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``install()`` sets DEBUG; ``uninstall()`` must hand the old level back."""
+    monkeypatch.setenv("YATE_TRACE", "1")
+    logger = logging.getLogger("yate")
+    logger.setLevel(logging.WARNING)
+    try:
+        assert tracing.install() is True
+        assert logger.level == logging.DEBUG
+        tracing.uninstall()
+        assert logger.level == logging.WARNING
+    finally:
+        logger.setLevel(logging.NOTSET)
+
+
+def test_install_twice_then_uninstall_restores_once(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second install() re-records nothing; one uninstall() restores once."""
+    monkeypatch.setenv("YATE_TRACE", "1")
+    logger = logging.getLogger("yate")
+    logger.setLevel(logging.WARNING)
+    try:
+        assert tracing.install() is True
+        assert tracing.install() is True
+        tracing.uninstall()
+        assert logger.level == logging.WARNING
+        assert logger.level != logging.NOTSET
+    finally:
+        logger.setLevel(logging.NOTSET)
+
+
+def test_tracing_install_does_not_leak_debug_to_the_next_test(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """After install()+uninstall() a debug record stays below WARNING."""
+    monkeypatch.setenv("YATE_TRACE", "1")
+    assert tracing.install() is True
+    tracing.uninstall()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yate.x").debug("must stay invisible")
+    assert caplog.records == []
+
+
 # --- crash service -------------------------------------------------------------
 
 

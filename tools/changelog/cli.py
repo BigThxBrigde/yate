@@ -134,8 +134,11 @@ def generate(
         remote = _resolve_remote(repo)
         release_segments, entries, version = _build_segments(repo, limit=limit)
     except gitdata.GitError as exc:
-        if check:
-            # sdist unpack / source archive: nothing to gate against
+        # Only a directory that is no git repository at all (sdist unpack /
+        # source archive) skips the gate; a real repository whose history
+        # cannot be read is a hard failure (review M-9: --check used to
+        # silently pass in that case too).
+        if check and not gitdata.is_git_repo(repo):
             print(f"SKIP: no git history ({exc})")
             return 0
         print(f"error: {exc}")
@@ -350,6 +353,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     repo = discover_repo_root()
     overrides: Path = args.overrides or translations.DEFAULT_OVERRIDES_PATH
     if args.command == "generate":
+        if args.limit is not None and args.limit <= 0:
+            parser.error("--limit must be a positive integer")
         targets: tuple[str, ...] = ("root", "bundle")
         if getattr(args, "root_only", False):
             targets = ("root",)

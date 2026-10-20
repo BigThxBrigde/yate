@@ -176,6 +176,21 @@ def remote_url(repo: Path) -> str:
     return run_git(["remote", "get-url", "origin"], repo=repo).strip()
 
 
+def is_git_repo(repo: Path) -> bool:
+    """Whether *repo* carries a git directory (a ``.git`` dir or file).
+
+    Review M-9: ``generate --check`` must distinguish "sdist unpack /
+    source archive -- nothing to gate against" (skip) from "a real
+    repository whose history cannot be read" (fail).  The test is a
+    filesystem fact on purpose: a *corrupt* repository also fails
+    ``git rev-parse``, and treating that as "no repository" would pass the
+    gate exactly when the history is unreadable (review M-1 of the wave-e
+    re-review).  A worktree's ``.git`` file counts, so the check also works
+    for linked checkouts.
+    """
+    return (repo / ".git").exists()
+
+
 def head_sha(repo: Path) -> str:
     """The full sha of the current ``HEAD``."""
     return run_git(["rev-parse", "HEAD"], repo=repo).strip()
