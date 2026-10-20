@@ -47,8 +47,11 @@ absolute path** (a script hit by several sources still runs exactly once):
 1. The `extensions` option in yaterc (user rc before project rc; entries
    **accumulate**, they do not overwrite);
 2. **Bundled extensions** in `yate/extensions/` (currently `python_lsp`,
-   the Python language server, and `tetris`, the game behind
-   `:game tetris`); they auto-load regardless of the working
+   the Python language server, plus the game pack: `games`, the `:game`
+   dispatcher, and `snake` / `pacman` / `sokoban` / `nethack` / `tetris`;
+   the shared `lib/game_engine.lua` module they all `require` lives in
+   `yate/extensions/lib/`, which the loader never treats as an extension);
+   they auto-load regardless of the working
    directory; disable individual defaults via yaterc's
    `disabled_extensions` (see below). The directory also ships templates
    (`*.py.example`, never auto-loaded): `example_ext.py.example`, the
@@ -786,6 +789,40 @@ With either recipe, `yate.*` gains signature completion and the
 unknown-global diagnostics for it disappear; the `api` entry covers the
 `setup(api)` parameter, which only exists at runtime.
 
+### 4.15 Persistent data (`api.data`)
+
+`api.data` reads and writes small UTF-8 text documents under
+`~/.yate/data`. It is the only file channel an extension gets: names are
+relative to that directory (an absolute path, a drive letter or a `..`
+component raises `ValueError`, which the bridge reports as `None` / `False`
+instead of crashing the editor), and every write is atomic -- a temporary
+sibling file is renamed onto the target, so a crash mid-write leaves the
+previous version intact.
+
+| Method | Returns |
+|---|---|
+| `api.data.read(name)` | the document text, or `None` when it does not exist |
+| `api.data.write(name, text)` | `True` on success, `False` on a bad name or I/O error |
+| `api.data.remove(name)` | `True` when a file was actually removed |
+| `api.data.list(prefix)` | the file names inside a sub-directory, sorted (`[]` when missing) |
+
+```python
+import json
+
+def setup(api):
+    raw = api.data.read("games/snake.json")
+    best = json.loads(raw)["high_scores"][0]["score"] if raw else 0
+    api.data.write(
+        "games/snake.json",
+        json.dumps({"version": 1, "high_scores": [{"score": best + 1}]}),
+    )
+```
+
+The bundled games keep one JSON document per game under `games/`; their
+schemas are documented in [games.en.md](games.en.md). The Lua wrapper is
+`yate.data.read` / `.write` / `.remove` / `.list` (see the table in
+section 6).
+
 ---
 
 ## 5. Full example: word count + uppercase selection
@@ -924,6 +961,7 @@ runtime: `require("yate")` and the global `yate` are the same module table
 | `yate.theme.set(name)` / `yate.theme.active()` | switch / read the color theme (section 4.13) |
 | `yate.clipboard.set(text)` / `yate.clipboard.get()` | system clipboard (section 4.13) |
 | `yate.docs.all()` / `yate.docs.is_open(path)` | read-only view of the open documents (section 4.13) |
+| `yate.data.read(name)` / `.write(name, text)` / `.remove(name)` / `.list(prefix)` | documents under `~/.yate/data` (section 4.15) |
 | `yate.actions.run(name)` / `.names()` / `.has(name)` | run / list / probe registered actions (section 4.12) |
 | `yate.keymaps` | the loaded keymap set (pass-through of `api.keymaps`) |
 | `yate.shell(cmd)` | run a shell command silently; returns the `ShellResult` object (read `.output` / `.returncode`) |
@@ -941,6 +979,37 @@ Unlike the Python enum, `yate.events.subscribe` takes the lowercase event
 names shown above; the payload arrives as the same frozen dataclass (read
 its fields with a dot). The raw Python bridges stay reachable for anything
 beyond this table via `yate.api`.
+
+### Shared Lua modules (`extensions/lib/`)
+
+Code that several Lua scripts need at once has one home: a `.lua` file in
+`yate/extensions/lib/`, reached with `require("<file stem>")`. The loader
+compiles every `lib/*.lua` into the runtime's `package.preload` table before
+the script runs, so:
+
+- nothing in `lib/` is ever auto-loaded as an extension (the loader only scans
+  the top level of a directory);
+- a shared module must **not** define `setup` / `teardown` -- it is a library,
+  not a script;
+- each runtime compiles its own copy, so two scripts requiring the same module
+  still cannot observe each other's state;
+- adding a module needs no Python change: the next start picks it up.
+
+```lua
+local engine = require("game_engine")   -- yate/extensions/lib/game_engine.lua
+
+local game = {}
+function game.setup(_api)
+  engine.register("mygame", start)       -- exposed by that shared module
+end
+return game
+```
+
+The bundled game pack is built exactly this way: `lib/game_engine.lua` holds
+the JSON codec, the document store, the high score board, the canvas session
+and the layout helpers, while `games.lua` plus one file per game only carry
+their own rules. See [games.en.md](games.en.md) for the engine API table and
+a complete minimal game.
 
 ### Editor completion for Lua (`---@` annotations)
 

@@ -42,7 +42,10 @@ def setup(api):
 
 1. yaterc 中的 `extensions` 选项（用户级先于项目级，**累加**而非覆盖）；
 2. **随包扩展** `yate/extensions/`（目前为 `python_lsp`——Python 语言服务器，
-   以及 `tetris`——`:game tetris` 背后的游戏；无论当前工作目录在哪都会自动
+   外加游戏包：`games`（`:game` 派发器）与 `snake` / `pacman` / `sokoban` /
+   `nethack` / `tetris`；它们共同 `require` 的共享模块
+   `lib/game_engine.lua` 放在 `yate/extensions/lib/`，装载器不会把它当扩展；
+   无论当前工作目录在哪都会自动
    加载；可用 yaterc 的 `disabled_extensions`
    按文件名主干禁用，见下文）。目录内还提供模板（`*.py.example`，不会被
    自动加载）：`example_ext.py.example`、tree-sitter grammar 模板
@@ -719,6 +722,36 @@ Lua 扩展脚本就是普通的 Lua 文件，编辑器既不认识全局 `yate` 
 任选其一，`yate.*` 即获得签名补全，针对它的 unknown-global 诊断消失；
 `api` 条目覆盖 `setup(api)` 的形参——它只在运行期存在。
 
+### 4.15 持久化数据（`api.data`）
+
+`api.data` 读写 `~/.yate/data` 下的 UTF-8 小文档，是扩展**唯一**的文件通道：
+名字相对该目录（绝对路径、盘符或含 `..` 会抛 `ValueError`，桥把失败统一报成
+`None` / `False`，不会把编辑器打崩），写入是原子的——先写同目录临时文件再改名，
+中途崩溃只会留下旧版本。
+
+| 方法 | 返回 |
+|---|---|
+| `api.data.read(name)` | 文档文本；不存在时 `None` |
+| `api.data.write(name, text)` | 成功 `True`；名字非法或 I/O 失败 `False` |
+| `api.data.remove(name)` | 确实删掉了文件为 `True` |
+| `api.data.list(prefix)` | 子目录下的文件名（升序，目录不存在为 `[]`） |
+
+```python
+import json
+
+def setup(api):
+    raw = api.data.read("games/snake.json")
+    best = json.loads(raw)["high_scores"][0]["score"] if raw else 0
+    api.data.write(
+        "games/snake.json",
+        json.dumps({"version": 1, "high_scores": [{"score": best + 1}]}),
+    )
+```
+
+随包游戏在 `games/` 下每游戏一个 JSON 文档，字段见
+[games.zh.md](games.zh.md)。Lua 侧包装为 `yate.data.read` / `.write` /
+`.remove` / `.list`（见第 6 节函数表）。
+
 ---
 
 ## 5. 完整示例：单词计数 + 选区大写
@@ -850,6 +883,7 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 | `yate.theme.set(name)` / `yate.theme.active()` | 切换/读取配色主题（见 4.13 节） |
 | `yate.clipboard.set(text)` / `yate.clipboard.get()` | 系统剪贴板（见 4.13 节） |
 | `yate.docs.all()` / `yate.docs.is_open(path)` | 打开文档的只读视图（见 4.13 节） |
+| `yate.data.read(name)` / `.write(name, text)` / `.remove(name)` / `.list(prefix)` | `~/.yate/data` 下的文档（见 4.15 节） |
 | `yate.actions.run(name)` / `.names()` / `.has(name)` | 运行/列出/探测已注册动作（见 4.12 节） |
 | `yate.keymaps` | 已加载键位集合（`api.keymaps` 原样透传） |
 | `yate.shell(cmd)` | 静默执行 shell 命令；返回 `ShellResult` 对象（读 `.output` / `.returncode`） |
@@ -865,6 +899,31 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 与 Python 枚举不同，`yate.events.subscribe` 接收上表列出的小写事件名；
 载荷仍是同一个冻结 dataclass（用点号读字段）。超出本表的能力仍可经
 `yate.api` 触达原始 Python 桥。
+
+### 共享 Lua 模块（`extensions/lib/`）
+
+多个 Lua 脚本都要用的代码只有一个落点：`yate/extensions/lib/` 下的 `.lua` 文件，
+用 `require("<文件名主干>")` 取用。装载器会在脚本运行前把每个 `lib/*.lua` 编译进
+运行时的 `package.preload`，因此：
+
+- `lib/` 里的文件**不会**被当成扩展自动加载（装载器只扫目录顶层）；
+- 共享模块**不得**定义 `setup` / `teardown`——它是库，不是脚本；
+- 每个运行时编译自己的一份副本，两个脚本 require 同一个模块也互相看不见状态；
+- 新增模块不需要改 Python：下次启动自动生效。
+
+```lua
+local engine = require("game_engine")   -- yate/extensions/lib/game_engine.lua
+
+local game = {}
+function game.setup(_api)
+  engine.register("mygame", start)       -- 由该共享模块提供
+end
+return game
+```
+
+随包游戏包正是一例：`lib/game_engine.lua` 承载 JSON 编解码、文档存储、高分榜、
+画布会话与排版助手，`games.lua` 与每个游戏文件只带自己的规则。引擎 API 表与
+一个完整的最小游戏见 [games.zh.md](games.zh.md)。
 
 ### Lua 的编辑器补全（`---@` 注解）
 
