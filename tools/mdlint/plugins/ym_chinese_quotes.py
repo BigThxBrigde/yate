@@ -9,10 +9,10 @@ from pymarkdown.plugin_manager.plugin_details import PluginDetails
 from pymarkdown.plugin_manager.plugin_scan_context import PluginScanContext
 from pymarkdown.plugin_manager.rule_plugin import RulePlugin
 
+from tools.mdlint.fences import FenceTracker
+
 _CJK = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf]")
 _ASCII_QUOTES = "\"'"
-_CODE_SPAN = re.compile(r"`[^`\n]*`")
-_FENCE_TOGGLE = re.compile(r"^\s{0,3}(?:```|~~~)")
 
 
 class YmChineseQuotes(RulePlugin):
@@ -21,7 +21,7 @@ class YmChineseQuotes(RulePlugin):
     def __init__(self) -> None:
         """Track fenced-code state across lines."""
         super().__init__()
-        self._in_fence = False
+        self._fence = FenceTracker()
 
     @override
     def get_details(self) -> PluginDetails:
@@ -39,18 +39,14 @@ class YmChineseQuotes(RulePlugin):
     @override
     def starting_new_file(self) -> None:
         """Reset the fenced-code state for a new document."""
-        self._in_fence = False
+        self._fence.reset()
 
     @override
     def next_line(self, context: PluginScanContext, line: str) -> None:
         """Scan one line for ASCII quotes adjacent to CJK text."""
-        if _FENCE_TOGGLE.match(line):
-            self._in_fence = not self._in_fence
+        masked = self._fence.mask(line)
+        if masked is None:
             return
-        if self._in_fence:
-            return
-        # Blank out inline code spans while preserving column numbers.
-        masked = _CODE_SPAN.sub(lambda match: " " * len(match.group()), line)
         if not _CJK.search(masked):
             return
         chars = list(masked)

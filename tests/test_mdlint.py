@@ -156,6 +156,23 @@ def test_cli_backend_failure_on_one_file_exits_2(
     assert "cannot lint" in capsys.readouterr().err
 
 
+def test_cli_fix_backend_failure_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A file the backend chokes on during ``--fix`` also maps to exit 2."""
+    from tools.mdlint.lint import LintEngine
+
+    def explode(self: LintEngine, path: Path) -> tuple[bool, list[LintViolation]]:
+        raise RuntimeError("rehydrate index mismatch")
+
+    monkeypatch.setattr(LintEngine, "fix_file", explode)
+    path = tmp_path / "odd.md"
+    path.write_text("# Title\n\nBody\n", encoding="utf-8")
+    assert main(["--fix", "--lang", "en", str(path)]) == 2
+    assert "cannot lint" in capsys.readouterr().err
+
+
 def test_cli_violations_win_over_a_failed_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

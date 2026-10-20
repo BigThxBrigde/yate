@@ -81,7 +81,8 @@ _ZH_PROFILE = RuleProfile(
     properties=_ZH_PROPERTIES,
 )
 
-_VALID_LANGS = ("zh", "en")
+#: The supported language profiles; the CLI feeds this to ``choices``.
+LANGS: tuple[str, ...] = ("zh", "en")
 
 
 def get_profile(lang: str) -> RuleProfile:
@@ -91,7 +92,7 @@ def get_profile(lang: str) -> RuleProfile:
     if lang == "en":
         return _EN_PROFILE
     raise ValueError(
-        f"unknown language profile: {lang!r} (expected one of {_VALID_LANGS})"
+        f"unknown language profile: {lang!r} (expected one of {LANGS})"
     )
 
 

@@ -328,4 +328,9 @@ published as-is` 警告并返回原文：
 | `functools.cache` 共享引擎的线程安全前提未固定 | `_get_lint_engine` docstring 明示"所有 lint 调用都在主线程" |
 | `plugin_dir` 在 `rules.py` / `lint.py` 双份定义 | `LintEngine` 改用 `rules.plugin_dir()`，删除私有副本；形参改名 `custom_plugin_dir` 以免与函数重名 |
 | `lang_for_path` 中 `README/CHANGELOG` 分支为死分支，且 `.trae` 判断先于 `.en.md` | 删除死分支，`.en.md` 提前判定；新增 `test_lang_for_path_en_suffix_wins_inside_trae` |
-| 已知限制（未修，登记备查）：YM001/YM002 插件用正则跟踪围栏，列表内围栏、缩进代码块与双反引号 code span 可能误报 | 后续如需可改用 `next_token` token 事件实现；当前不影响测试与 wiki 发布（只记 warning） |
+| 已知限制（评审第二轮已修复）：YM001/YM002 用正则跟踪围栏，列表内 4 空格缩进围栏、`~~~` 夹杂与双反引号 code span 会误报 | 抽出 `tools/mdlint/fences.py`（`FenceTracker` + `mask_code_spans`），按围栏字符与长度配对关闭、按反引号串长度匹配 code span；四个插件共用该实现，新增 4 条回归用例 |
+| YM004 只匹配列 0 的 ATX 标题，1–3 空格缩进的合法标题漏报 | 正则改为 `^ {0,3}#{1,6}\s+...`，新增 `test_ym004_detects_indented_atx_heading` |
+| `--auto-lang` 帮助文本与 `lang_for_path` 契约不符（`.trae/**/*.en.md` 实际走 en） | 帮助文本补齐三条路由规则 |
+| `_LANG_CHOICES` 与 `rules._VALID_LANGS` 两份语言清单 | `rules.LANGS` 单点定义，CLI 直接复用 |
+| `--fix` 的后端失败分支无测试 | 新增 `test_cli_fix_backend_failure_exits_2` |
+| hook 注释仍指向已删除的 grep 过滤器 | 注释改为 `case` 过滤 |

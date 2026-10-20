@@ -12,7 +12,7 @@ set -euo pipefail
 
 # Collect staged Markdown files (Added/Copied/Modified only).  -z keeps the
 # paths verbatim: the default output quotes and octal-escapes non-ASCII names,
-# which silently fell through the grep filter below.
+# which the plain `case` filter below would then miss.
 FILES=()
 while IFS= read -r -d '' path; do
     case $path in

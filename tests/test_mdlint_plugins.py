@@ -29,6 +29,28 @@ def test_ym001_skips_code_fence() -> None:
     assert _ym_ids("```\n你好world\n```\n") == set()
 
 
+def test_ym001_skips_fence_indented_inside_a_list() -> None:
+    """A fence nested in a list item (4+ spaces) still shields its code."""
+    text = "1. step\n\n    ```python\n    你好world = 1\n    ```\n"
+    assert _ym_ids(text) == set()
+
+
+def test_ym001_skips_tilde_line_inside_backtick_fence() -> None:
+    """A literal ``~~~`` line does not close a backtick fence."""
+    text = "```\n~~~\n你好world = 1\n```\n"
+    assert "YM001" not in _ym_ids(text)
+
+
+def test_ym001_skips_double_backtick_code_span() -> None:
+    """A double-backtick code span is masked like a single-backtick one."""
+    assert _ym_ids("# 标题\n\n用 ``你好world`` 做例子\n") == set()
+
+
+def test_ym004_detects_indented_atx_heading() -> None:
+    """An ATX heading indented by up to three spaces is still a heading."""
+    assert "YM004" in _ym_ids("  ## 标题。\n")
+
+
 def test_ym002_detects_halfwidth_comma_near_cjk() -> None:
     """A half-width comma next to CJK text triggers YM002."""
     assert "YM002" in _ym_ids("你好,世界\n")

@@ -12,9 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from tools.mdlint.lint import LintEngine, LintViolation
-from tools.mdlint.rules import lang_for_path
-
-_LANG_CHOICES = ("zh", "en")
+from tools.mdlint.rules import LANGS, lang_for_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--lang",
-        choices=_LANG_CHOICES,
+        choices=LANGS,
         default=None,
         help="Rule profile to apply to every file (default: en)",
     )
@@ -40,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--auto-lang",
         action="store_true",
         help="Pick the rule profile per file from its path "
-        "(*.zh.md and .trae/** -> zh, otherwise en)",
+        "(*.zh.md -> zh, *.en.md -> en, .trae/** -> zh, otherwise en)",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
