@@ -24,11 +24,12 @@ import json
 import os
 import time
 import zipfile
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+import pyperclip
 import pytest
 
 # The bundled yate/extensions/ directory is auto-loaded with every YateApp;
@@ -55,6 +56,11 @@ def _speed_up_pilot() -> None:
     polls faster -- the smoke harness has lowered the same constant since it
     was written (``tools/smoke_test/harness.py``), and the full suite measured
     308s -> 264s (2026-10-20) with no behavioural change.
+
+    Only the module constant is read here: ``wait_for_idle``'s ``min_sleep``
+    default argument was bound to 0.02 at import time and keeps that value --
+    the sleep inside the function body is what reads the constant, which is
+    exactly why the assignment below takes effect.
 
     Tests that must wait for a worker poll explicitly (``wait_until`` below)
     rather than relying on any sleep duration, so no wait contract depends on
@@ -91,6 +97,36 @@ def isolated_home(
     monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.setenv("HOME", str(home))
     return home
+
+
+@pytest.fixture(autouse=True)
+def isolated_os_clipboard(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """Keep the OS clipboard out of the suite when tests run in parallel.
+
+    ``pyperclip`` is the single clipboard backend (``yate/services/clipboard.py``)
+    and the OS clipboard is shared by every worker process, so one test's yank
+    becomes the next worker's paste: under ``-n auto``
+    ``test_vim_keymap::test_yf_yanks_through_the_found_char`` read another
+    worker's ``"hi"``.  Under xdist the backend is replaced by a per-process
+    store; a serial run keeps the real one, so the clipboard round-trip tests
+    still exercise the actual pyperclip calls.
+    """
+    if not hasattr(request.config, "workerinput"):
+        yield
+        return
+    store: dict[str, str] = {"text": ""}
+
+    def _copy(text: str) -> None:
+        store["text"] = text
+
+    def _paste() -> str:
+        return store["text"]
+
+    monkeypatch.setattr(pyperclip, "copy", _copy)
+    monkeypatch.setattr(pyperclip, "paste", _paste)
+    yield
 
 
 async def wait_until(  # noqa: Any - Textual pilot probe; no stubs
