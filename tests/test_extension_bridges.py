@@ -11,6 +11,7 @@ every test.
 
 from __future__ import annotations
 
+import importlib.util
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 
@@ -29,10 +30,13 @@ from yate.session import EditorSession
 from yate.services import clipboard
 from yate.services.extensions.bridges import (
     CanvasControls,
+    DataExtensionBridge,
     HighlightExtensionBridge,
     UiExtensionBridge,
 )
 from yate.services.extensions import ExtensionAPI, ExtensionContext
+from yate.services.extensions.lua.library import lua_api_library_source
+from yate.services.extensions.lua.runtime import create_runtime
 from yate.services.workspace import Workspace
 
 has_tree_sitter: bool = ts_langs.ts_available()
@@ -541,3 +545,62 @@ def test_failed_setup_rolls_back_a_tree_sitter_language(
 
     assert loaded == ["yatesh"]
     assert dropped == ["yatesh"]
+
+
+# --- DataExtensionBridge --------------------------------------------------------
+
+
+def test_api_exposes_a_data_bridge(api: ExtensionAPI) -> None:
+    """``api.data`` is the L0-backed document bridge."""
+    assert isinstance(api.data, DataExtensionBridge)
+
+
+def test_data_bridge_roundtrip_under_the_isolated_home(api: ExtensionAPI) -> None:
+    """write -> read -> list -> remove covers the documented happy path."""
+    assert api.data.read("games/snake.json") is None
+
+    assert api.data.write("games/snake.json", '{"version": 1}') is True
+    assert api.data.read("games/snake.json") == '{"version": 1}'
+    assert api.data.list("games") == ["snake.json"]
+    assert api.data.remove("games/snake.json") is True
+    assert api.data.read("games/snake.json") is None
+
+
+def test_data_bridge_reports_invalid_names_as_false(api: ExtensionAPI) -> None:
+    """An escaping name is a ``False`` report, never an exception."""
+    assert api.data.write("../evil.json", "x") is False
+    assert api.data.read("../evil.json") is None
+    assert api.data.remove("/absolute.json") is False
+    assert api.data.list("..") == []
+
+
+def test_runtime_preloads_shared_lua_modules() -> None:
+    """A module handed to :func:`create_runtime` is reachable via ``require``."""
+    if importlib.util.find_spec("lupa") is None:
+        pytest.skip("lupa is not installed (live-lua group)")
+    session = EditorSession(YateConfig())
+    session.new_buffer()
+    api = ExtensionAPI(
+        ExtensionContext(
+            session=session,
+            workspace=Workspace(),
+            lsp=LspManager(),
+            keymaps=KeymapSet({"vsc": Keymap(), "vim": Keymap()}, "vsc"),
+            actions=ActionRegistry(),
+            commands=CommandRegistry(),
+            message=lambda _text: None,
+            run_shell=lambda _command, _show: None,
+            open_path=lambda _path: None,
+            save=lambda: None,
+            run_action=lambda _name: False,
+            set_theme=lambda _name: None,
+            active_theme_name=lambda: "mocha",
+        )
+    )
+    runtime = create_runtime(
+        api,
+        lua_api_library_source(),
+        {"demo": "return { answer = 41 + 1 }"},
+    )
+
+    assert runtime.eval('require("demo").answer') == 42

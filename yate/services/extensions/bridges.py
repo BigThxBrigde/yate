@@ -1,5 +1,5 @@
 """The ``api.*`` sub-namespace bridges (events / lsp / highlight / syntax /
-sprites / ui / theme / clipboard / docs / actions).
+sprites / ui / theme / clipboard / docs / actions / data).
 
 Each bridge wraps one capability domain for extension scripts; the
 :class:`ExtensionAPI <yate.services.extensions.api.ExtensionAPI>` facade
@@ -37,7 +37,7 @@ from yate.editor_syntax.ts_backend import (
 from yate.logs import tracing
 from yate.registries import ActionRegistry
 from yate.session import EditorSession
-from yate.services import clipboard
+from yate.services import clipboard, data_store
 from yate.services.events import EditorEvent, EventHub, EventCallback
 
 #: Trace logger ("yate.services.extensions.bridges"); silent unless yate_trace is on.
@@ -456,6 +456,52 @@ class ActionExtensionBridge:
     def has(self, name: str) -> bool:
         """True when action *name* is registered."""
         return self._registry.get(name) is not None
+
+
+class DataExtensionBridge:
+    """``api.data`` -- small text documents under ``~/.yate/data``.
+
+    The only file channel an extension gets.  Names are relative to
+    ``~/.yate/data``; absolute paths and ``..`` are rejected by
+    :mod:`yate.services.data_store`, and every write is atomic (temporary
+    sibling file, then replace).  Failures are reported as ``None`` /
+    ``False`` / ``[]`` instead of exceptions: a script must never take the
+    editor down over a failed save, and a missing file is the normal
+    "nothing saved yet" case.
+    """
+
+    def read(self, name: str) -> str | None:
+        """Return the document *name*, or ``None`` when unreadable."""
+        try:
+            return data_store.read_text(name)
+        except (ValueError, OSError) as exc:
+            log.warning("api.data.read(%r) failed: %s", name, exc)
+            return None
+
+    def write(self, name: str, text: str) -> bool:
+        """Write *text* to document *name* (atomically); ``False`` on failure."""
+        try:
+            data_store.write_text(name, text)
+        except (ValueError, OSError, TypeError) as exc:
+            log.warning("api.data.write(%r) failed: %s", name, exc)
+            return False
+        return True
+
+    def remove(self, name: str) -> bool:
+        """Delete document *name*; ``False`` when it did not exist."""
+        try:
+            return data_store.remove(name)
+        except (ValueError, OSError) as exc:
+            log.warning("api.data.remove(%r) failed: %s", name, exc)
+            return False
+
+    def list(self, prefix: str) -> list[str]:
+        """Return the document names inside *prefix* (sorted, empty on miss)."""
+        try:
+            return data_store.names(prefix)
+        except (ValueError, OSError) as exc:
+            log.warning("api.data.list(%r) failed: %s", prefix, exc)
+            return []
 
 
 @dataclass(frozen=True)

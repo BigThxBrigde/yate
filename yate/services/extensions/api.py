@@ -3,7 +3,7 @@
 :class:`ExtensionContext` is the concrete service bundle handed to a
 running extension, :class:`ExtensionAPI` is the surface scripts program
 against -- the ``api.*`` bridges (events / lsp / highlight / syntax /
-sprites / ui / theme / clipboard / docs / actions) plus the
+sprites / ui / theme / clipboard / docs / actions / data) plus the
 ``bind_action`` / ``unbind_key`` key rebinding primitives -- and the
 rollback-scope aliases support the loader's A13 snapshot-restore
 semantics.
@@ -26,6 +26,7 @@ from yate.services.extensions.bridges import (
     CanvasControls,
     CanvasOpener,
     ClipboardExtensionBridge,
+    DataExtensionBridge,
     DocsExtensionBridge,
     EventExtensionBridge,
     HighlightExtensionBridge,
@@ -138,6 +139,7 @@ class ExtensionAPI:
         self._clipboard = ClipboardExtensionBridge()
         self._docs = DocsExtensionBridge(ctx.session)
         self._actions = ActionExtensionBridge(ctx.actions, ctx.run_action)
+        self._data = DataExtensionBridge()
 
     # ------------------------------------------------------- rollback scope
 
@@ -318,6 +320,11 @@ class ExtensionAPI:
     def actions(self) -> ActionExtensionBridge:
         """Run registered actions by name (``api.actions.run``)."""
         return self._actions
+
+    @property
+    def data(self) -> DataExtensionBridge:
+        """Read/write small documents under ``~/.yate/data`` (``api.data``)."""
+        return self._data
 
     # ------------------------------------------------------------ registrars
 
