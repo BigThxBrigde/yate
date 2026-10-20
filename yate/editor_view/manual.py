@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterable, Sequence
+from functools import partial
 from importlib.resources import files
 from io import StringIO
 from typing import cast, override
@@ -56,6 +57,9 @@ from yate.paths import load_tcss
 from yate.editor_view import theme
 from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 from yate.editor_view.themes import Theme
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 _DOC_LANGS: tuple[str, ...] = ("en", "zh")
 
@@ -162,13 +166,8 @@ def render_doc_lines(
 
 
 def _strip_text(strip: Strip) -> str:
-    """Plain text of one rendered row (Strip)."""
-    # ``Strip._segments`` is a Textual internal (pinned to 8.2.8); the
-    # public ``segments`` property is the documented fallback.
-    segments = getattr(strip, "_segments", None)
-    if segments is None:
-        segments = getattr(strip, "segments", ())
-    return "".join(seg.text or "" for seg in segments)
+    """Plain text of one rendered row (``Strip.text``, Textual 8.2.8)."""
+    return strip.text
 
 
 def _tint_strip(strip: Strip, tint: Style) -> Strip:
@@ -324,6 +323,18 @@ class DocBody(Widget):
         # layout, not just repaint: the content height follows the row count
         self.refresh(layout=True)
 
+    def on_resize(self, event: events.Resize) -> None:
+        """Ask the screen to re-render when the body's laid-out width changes.
+
+        The width settles *after* the first render: mounting a tall document
+        makes the scroll container reserve its scrollbar, which narrows the
+        body by a column.  Without this the rows stay one column too wide and
+        every one of them is cropped on the right.
+        """
+        screen = self.screen
+        if isinstance(screen, MarkdownDocScreen):
+            screen.body_resized(event.size.width)
+
     def set_hits(self, rows: Iterable[int], current: int | None) -> None:
         """Tint *rows* as matches and *current* as the focused one."""
         hit_rows = frozenset(rows)
@@ -446,16 +457,25 @@ class MarkdownDocScreen(ModalScreen[None]):
         return cast(DocBody, found.first())
 
     def _body_width(self) -> int:
-        """Columns available to the document body (fallback before layout)."""
+        """Columns available to the document body.
+
+        The body's own laid-out width is the only value that matches what
+        :meth:`DocBody.render_line` pads to, so it wins whenever it is known.
+        Before the first layout it is 0: fall back to the scroll viewport and
+        then to :data:`_FALLBACK_WIDTH`, and let
+        :meth:`_correct_render_width` re-render once the real width lands.
+        """
+        body = self._doc_body()
+        if body is not None and body.size.width > 0:
+            return body.size.width
         scroll = self.query_one("#doc-scroll", DocScroll)
         width = scroll.scrollable_content_region.width
         if width > 0:
             return width
-        return max(20, self.size.width - 6)
+        return _FALLBACK_WIDTH
 
     async def _load_doc(self) -> None:
         """Read the document, render its rows off the loop, then show them."""
-        width = self._body_width()
         try:
             source = await asyncio.to_thread(
                 load_doc_markdown, self._kind, self._lang
@@ -465,15 +485,56 @@ class MarkdownDocScreen(ModalScreen[None]):
         # the viewer may have been closed while the read was in flight
         if not self.is_mounted:
             return
-        rows = await asyncio.to_thread(
-            render_doc_lines, source, width, active=theme.active()
-        )
+        # the file read yields to the loop, so the first layout has usually
+        # landed by now -- still re-checked after mounting the rows below
+        width = self._body_width()
+        rows = await self._render_or_failure(source, width)
         if not self.is_mounted:
             return
         body = self.query_one("#doc-md", DocBody)
         body.set_document(source, rows, width)
         self.query_one("#doc-loading", Static).display = False
         self.query_one("#doc-scroll", DocScroll).scroll_home(animate=False)
+        self.call_after_refresh(self._correct_render_width)
+
+    async def _render_or_failure(self, source: str, width: int) -> list[Strip]:
+        """Render *source*, degrading to one error row instead of hanging.
+
+        The loader worker runs with ``exit_on_error=False``, so an exception
+        escaping here would leave the viewer on its loading line forever --
+        and :func:`render_doc_lines` runs user-controlled markdown through Rich.
+        """
+        try:
+            return await asyncio.to_thread(
+                render_doc_lines, source, width, active=theme.active()
+            )
+        except Exception as exc:  # noqa: BLE001 - a bad render must not hang the viewer
+            log.exception("failed to render the %s", self._title)
+            return [Strip([Segment(
+                f" failed to render the {self._title}: {exc}", Style(color="red")
+            )])]
+
+    def _correct_render_width(self) -> None:
+        """Re-render when the laid-out width differs from the rendered one.
+
+        The first render may race the layout (see :meth:`_body_width`); the
+        mismatch would otherwise silently crop every row wider than the body
+        until the user resizes the window.
+        """
+        body = self._doc_body()
+        if body is None or not body.source:
+            return
+        width = body.size.width
+        if width > 0 and width != body.render_width:
+            self.run_worker(
+                partial(self._rerender, width), group="doc-load", exclusive=True
+            )
+
+    def body_resized(self, width: int) -> None:
+        """The body's laid-out width changed: re-render if it now mismatches."""
+        if width <= 0:
+            return
+        self._schedule_rerender()
 
     def _on_theme_change(self) -> None:
         """Re-render the cached rows: their colors are baked in at render time."""
@@ -481,7 +542,8 @@ class MarkdownDocScreen(ModalScreen[None]):
         if body is None or not body.source:
             return
         self.run_worker(
-            self._rerender(body.render_width), group="doc-load", exclusive=True
+            partial(self._rerender, body.render_width),
+            group="doc-load", exclusive=True,
         )
 
     def _schedule_rerender(self) -> None:
@@ -496,10 +558,13 @@ class MarkdownDocScreen(ModalScreen[None]):
     def _rerender_now(self) -> None:
         """Timer callback: re-render at the current body width."""
         body = self._doc_body()
-        if body is None or not body.source or self._body_width() == body.render_width:
+        if body is None or not body.source:
+            return
+        width = self._body_width()
+        if width == body.render_width:
             return
         self.run_worker(
-            self._rerender(self._body_width()), group="doc-load", exclusive=True
+            partial(self._rerender, width), group="doc-load", exclusive=True
         )
 
     async def _rerender(self, width: int) -> None:
@@ -511,14 +576,31 @@ class MarkdownDocScreen(ModalScreen[None]):
         source = body.source
         if not source or not self.is_mounted:
             return
-        rows = await asyncio.to_thread(
-            render_doc_lines, source, width, active=theme.active()
+        # a re-render must not throw the reader's place away: remember the
+        # current hit row and restore the nearest one afterwards
+        previous_row = (
+            self._hits[self._hit_index][0]
+            if 0 <= self._hit_index < len(self._hits) else None
         )
+        rows = await self._render_or_failure(source, width)
         if not self.is_mounted:
             return
         body.set_document(source, rows, width)
         if self._query:
             self._run_search(self._query)
+            self._restore_hit(previous_row)
+
+    def _restore_hit(self, previous_row: int | None) -> None:
+        """Return to the hit nearest *previous_row* after a re-render."""
+        if not self._hits:
+            return
+        if previous_row is None:
+            return
+        self._hit_index = min(
+            range(len(self._hits)),
+            key=lambda index: abs(self._hits[index][0] - previous_row),
+        )
+        self._goto_current_hit()
 
     # ------------------------------------------------------------ search
 

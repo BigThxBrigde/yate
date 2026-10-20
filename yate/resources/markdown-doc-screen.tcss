@@ -33,6 +33,10 @@ MarkdownDocScreen #doc-search-status {
 }
 MarkdownDocScreen #doc-scroll {
     height: 1fr;
+    /* reserve the scrollbar column up front: the rows are wrapped to the body
+       width, so a scrollbar that appears only once the document mounts would
+       narrow the body by a column and crop every row's right edge */
+    scrollbar-gutter: stable;
 }
 /* the body is one widget whose height is its row count (DocBody.
    get_content_height), so it must size to content -- 1fr would pin it to the

@@ -474,6 +474,108 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
 
 def test_manual_hit_rows_paint_a_tinted_background() -> None:
     """The hit bookkeeping really reaches the painted rows (not just a set)."""
+    from textual.color import Color
+    from textual.widgets import Static
+
+    from yate.editor_view import theme as yate_theme
+
+    # The expected tint is derived here from the palette, not read back from
+    # the viewer, so a mapping change that silently drops the tint fails.
+    active = yate_theme.active()
+    expected = Color.parse(active.surface).blend(
+        Color.parse(active.yellow), 0.40
+    ).rich_color
+    hit_tint = Color.parse(active.surface).blend(
+        Color.parse(active.yellow), 0.12
+    ).rich_color
+
+    async def scenario() -> None:
+        app = YateApp()
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                body = screen.query_one("#doc-md", DocBody)
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot,
+                    lambda: not loading.display and body.row_count > 0,
+                    timeout=15.0,
+                )
+
+                screen._run_search("ctrl")
+                row = body.current_row
+                assert row is not None
+
+                def backgrounds(render_row: int) -> set[object]:
+                    return {
+                        segment.style.bgcolor
+                        for segment in body.render_line(render_row)
+                        if segment.style is not None
+                    }
+
+                assert expected in backgrounds(row)
+                # exactly one row carries the stronger "current" tint, and the
+                # other hits carry the lighter one
+                current_rows = [
+                    candidate for candidate in range(body.row_count)
+                    if expected in backgrounds(candidate)
+                ]
+                assert current_rows == [row]
+                others = [r for r in body.hit_rows if r != row]
+                assert others
+                assert all(hit_tint in backgrounds(r) for r in others[:5])
+                assert all(expected not in backgrounds(r) for r in others[:5])
+
+    asyncio.run(scenario())
+
+
+def test_manual_renders_at_the_laid_out_body_width() -> None:
+    """Every row fits the body: a wider row would be cropped by render_line.
+
+    Regression: the first render raced the layout and used the screen width
+    minus a guess, so 71% of the manual's rows were cut off on the right until
+    the user happened to resize the window.
+    """
+    from textual.widgets import Static
+
+    async def scenario() -> None:
+        app = YateApp()
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                body = screen.query_one("#doc-md", DocBody)
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot,
+                    lambda: not loading.display and body.row_count > 0,
+                    timeout=15.0,
+                )
+
+                assert body.render_width == body.size.width
+                widest = max(
+                    len(body.row_text(row)) for row in range(body.row_count)
+                )
+                assert widest <= body.size.width
+
+    asyncio.run(scenario())
+
+
+def test_manual_resize_rerenders_rows_and_keeps_the_current_hit() -> None:
+    """A narrower window re-wraps the rows without losing the search position."""
     from textual.widgets import Static
 
     async def scenario() -> None:
@@ -497,22 +599,110 @@ def test_manual_hit_rows_paint_a_tinted_background() -> None:
                 )
 
                 screen._run_search("ctrl")
-                assert body.current_row is not None
-                row = body.current_row
-                current_bg = body._current_style.bgcolor
-                plain = body.render_line(row)
-                body.set_hits((), None)
-                cleared = body.render_line(row)
-                assert any(
-                    segment.style is not None
-                    and segment.style.bgcolor == current_bg
-                    for segment in plain
+                assert len(screen._hits) > 3
+                for _ in range(2):
+                    screen.search_step(1)
+                await pilot.pause()
+                before_row = screen._hits[screen._hit_index][0]
+                before_width = body.render_width
+
+                await pilot.resize_terminal(78, 30)
+                assert await wait_until(
+                    pilot,
+                    lambda: not loading.display
+                    and body.render_width == body.size.width
+                    and body.render_width != before_width,
+                    timeout=20.0,
                 )
-                assert not any(
-                    segment.style is not None
-                    and segment.style.bgcolor == current_bg
-                    for segment in cleared
+                # the reader stays on the same place in the document
+                assert screen._hits
+                current = screen._hits[screen._hit_index][0]
+                assert abs(current - before_row) <= 6
+                assert body.current_row == current
+                widest = max(
+                    len(body.row_text(row)) for row in range(body.row_count)
                 )
+                assert widest <= body.size.width
+
+    asyncio.run(scenario())
+
+
+def test_manual_theme_switch_rerenders_the_row_colors() -> None:
+    """The rows bake their colors in, so a theme switch must re-render them."""
+    from textual.widgets import Static
+
+    from yate.editor_view import theme as yate_theme
+
+    before_theme = yate_theme.active().name
+
+    async def scenario() -> None:
+        app = YateApp()
+        try:
+            with patch(
+                "yate.editor_view.manual.load_doc_markdown",
+                return_value=MANUAL_DOC_FIXTURE,
+            ):
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.pause()
+                    await pilot.press("f8")
+                    await pilot.pause()
+                    screen = app.screen
+                    assert isinstance(screen, MarkdownDocScreen)
+                    body = screen.query_one("#doc-md", DocBody)
+                    loading = screen.query_one("#doc-loading", Static)
+                    assert await wait_until(
+                        pilot,
+                        lambda: not loading.display and body.row_count > 0,
+                        timeout=15.0,
+                    )
+                    screen._run_search("key")
+                    before = body._hit_style.bgcolor
+                    rows_before = body.row_count
+
+                    app.editor.run_command("set theme=latte")
+                    assert await wait_until(
+                        pilot,
+                        lambda: body._hit_style.bgcolor != before,
+                        timeout=20.0,
+                    )
+                    assert body.row_count == rows_before
+                    # the new tint follows the new palette, not a stale one
+                    from textual.color import Color
+
+                    active = yate_theme.active()
+                    expected = Color.parse(active.surface).blend(
+                        Color.parse(active.yellow), 0.12
+                    ).rich_color
+                    assert body._hit_style.bgcolor == expected
+        finally:
+            yate_theme.set_theme(before_theme)
+
+    asyncio.run(scenario())
+
+
+def test_manual_render_failure_degrades_to_an_error_row() -> None:
+    """A broken render shows an error row instead of hanging on the loader."""
+    from textual.widgets import Static
+
+    async def scenario() -> None:
+        app = YateApp()
+        with patch(
+            "yate.editor_view.manual.render_doc_lines",
+            side_effect=RuntimeError("boom"),
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                body = screen.query_one("#doc-md", DocBody)
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot, lambda: not loading.display, timeout=15.0
+                )
+                assert body.row_count == 1
+                assert "failed to render" in body.row_text(0)
 
     asyncio.run(scenario())
 
