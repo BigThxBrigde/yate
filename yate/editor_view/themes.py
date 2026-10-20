@@ -546,7 +546,6 @@ def to_textual_theme(t: Theme) -> TextualTheme:
             f"cannot bridge invalid theme {t.name!r}: {'; '.join(problems)}"
         )
 
-    yellow_hex = t.yellow
     return TextualTheme(
         name=textual_theme_name(t.name),
         primary=t.accent2,        # mauve/purple -- overlay borders, md h1-h3
@@ -565,11 +564,5 @@ def to_textual_theme(t: Theme) -> TextualTheme:
             "text": t.fg,
             "text-muted": t.fg_muted,
             "foreground-muted": t.fg_dim,
-            # Search-hit tints for the manual/changelog viewer, replacing the
-            # two hardcoded Mocha-yellow values in manual.py so they follow
-            # the active yate theme's yellow.  ``<hex> <percent>`` is
-            # Textual's CSS alpha syntax.
-            "doc-hit-background": f"{yellow_hex} 12%",
-            "doc-hit-current-background": f"{yellow_hex} 40%",
         },
     )

@@ -11,9 +11,8 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 import pytest
-from textual.widget import Widget
 from yate.app import YateApp
-from yate.editor_view.manual import MarkdownDocScreen
+from yate.editor_view.manual import DocBody, MarkdownDocScreen
 from conftest import wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
@@ -21,7 +20,7 @@ from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
 
 def test_f8_opens_manual_and_esc_closes() -> None:
-    from textual.widgets import Markdown, Static
+    from textual.widgets import Static
 
     async def scenario() -> None:
         app = YateApp()
@@ -34,7 +33,7 @@ def test_f8_opens_manual_and_esc_closes() -> None:
                 await pilot.press("f8")
                 await pilot.pause()
                 assert isinstance(app.screen, MarkdownDocScreen)
-                md = app.screen.query_one("#doc-md", Markdown)
+                md = app.screen.query_one("#doc-md", DocBody)
                 loading = app.screen.query_one("#doc-loading", Static)
                 # the markdown worker reads/parses off the loop; poll until the
                 # load completes before asserting content -- a loaded CI box can
@@ -211,7 +210,7 @@ def test_manual_command_selects_language(cmd_arg: str, expected_lang: str) -> No
     ``load_doc_markdown``, which is stubbed here for render speed.
     """
     async def scenario() -> None:
-        from textual.widgets import Markdown, Static
+        from textual.widgets import Static
 
         calls: list[tuple[str, str]] = []
 
@@ -235,7 +234,7 @@ def test_manual_command_selects_language(cmd_arg: str, expected_lang: str) -> No
                 assert await wait_until(
                     pilot, lambda: not loading.display, timeout=15.0
                 )
-                md = app.screen.query_one("#doc-md", Markdown)
+                md = app.screen.query_one("#doc-md", DocBody)
                 assert md.source == MANUAL_DOC_FIXTURE
                 assert calls == [("manual", expected_lang)]
 
@@ -253,8 +252,13 @@ def test_both_language_files_bundled(lang: str) -> None:
 
 def test_manual_search_filters_and_cycles_matches() -> None:
     from textual.containers import Horizontal
-    from textual.widgets import Input, Markdown, Static
-    from yate.editor_view.manual import _widget_plain_text
+    from textual.widgets import Input, Static
+
+    def plain_text(widget: Static) -> str:
+        """Visible text of a plain Static (the footer / status lines)."""
+        rendered = widget.render()
+        plain = getattr(rendered, "plain", rendered)
+        return plain if isinstance(plain, str) else str(plain)
 
     async def scenario() -> None:
         app = YateApp()
@@ -271,7 +275,7 @@ def test_manual_search_filters_and_cycles_matches() -> None:
                 bar = screen.query_one("#doc-search-bar", Horizontal)
                 field = screen.query_one("#doc-search-input", Input)
                 status = screen.query_one("#doc-search-status", Static)
-                md = screen.query_one("#doc-md", Markdown)
+                md = screen.query_one("#doc-md", DocBody)
                 # same worker-race guard as test_manual_command_selects_language:
                 # searching an unloaded document would race 0 hits
                 loading = screen.query_one("#doc-loading", Static)
@@ -280,9 +284,7 @@ def test_manual_search_filters_and_cycles_matches() -> None:
                 )
 
                 def footer_text() -> str:
-                    return _widget_plain_text(
-                        screen.query_one("#doc-footer", Static)
-                    )
+                    return plain_text(screen.query_one("#doc-footer", Static))
 
                 assert not bar.display
                 # bar hidden: footer advertises n/N to repeat a search
@@ -307,8 +309,10 @@ def test_manual_search_filters_and_cycles_matches() -> None:
                 private = cast(Any, screen)
                 assert len(private._hits) >= 2
                 assert private._hit_index == 0
-                assert len(list(md.query(".doc-hit-current"))) == 1
-                assert len(list(md.query(".doc-hit"))) >= 1
+                # one row carries the stronger tint, and it is one of the hits
+                assert md.current_row is not None
+                assert md.current_row in md.hit_rows
+                assert md.hit_rows
                 assert "1/" in str(status.content)
                 # enter advances to the next match, shift+enter goes back
                 await pilot.press("enter")
@@ -342,10 +346,16 @@ def test_manual_search_filters_and_cycles_matches() -> None:
 
 
 def test_manual_search_step_lands_on_exact_rendered_row() -> None:
-    """Regression: n/N stepped the counter but did not scroll when
-    several matches lived in one wrapped widget (scroll was widget
-    level); table cells were not searchable at all."""
+    """Regression: n/N stepped the counter but did not scroll.
+
+    The rows are pre-wrapped, so every hit knows the exact rendered row it
+    sits on and stepping between two hits must move the viewport by that row
+    delta -- the historical bug was a widget-level scroll that left several
+    matches inside one wrapped paragraph on the same line.  Table cells are
+    rows like any other, so they stay searchable.
+    """
     from textual.containers import VerticalScroll
+    from textual.widgets import Static
 
     async def scenario() -> None:
         app = YateApp()
@@ -359,50 +369,49 @@ def test_manual_search_step_lands_on_exact_rendered_row() -> None:
                 await pilot.pause()
                 screen = app.screen
                 assert isinstance(screen, MarkdownDocScreen)
-                md = screen.query_one("Markdown")
-                # layout readiness, not just child count: _run_search scans
-                # widget.region.height, which is 0 for every widget until the
-                # refresh cycle lays the screen out (flaky under full-suite
-                # load, where that cycle lands after the search below)
-                await wait_until(
+                md = screen.query_one("#doc-md", DocBody)
+                loading = screen.query_one("#doc-loading", Static)
+                # rows exist only once the loader finished; searching before
+                # that would race 0 hits
+                assert await wait_until(
                     pilot,
-                    lambda: len(list(md.walk_children())) > 20
-                    and any(w.region.height > 0 for w in md.walk_children(Widget)),
+                    lambda: not loading.display and md.row_count > 0,
+                    timeout=15.0,
                 )
                 private = cast(Any, screen)
                 scroll = screen.query_one("#doc-scroll", VerticalScroll)
 
-                # table cell content is now searched too
+                # table cell content is searched like every other row
                 private._run_search("item")
                 assert private._hits
-                widget_types = {type(w).__name__ for w, _r, _c, _l in private._hits}
-                assert "MarkdownTableCellContents" in widget_types
+                assert any(
+                    "item" in md.row_text(row).lower()
+                    for row, _col, _length in private._hits
+                )
 
-                # matches inside one wrapped widget must land on distinct rows:
-                # measure each target from the same baseline (top), so the row
-                # offset is the only thing that differs
+                # consecutive hits on different rows move the viewport by
+                # exactly the row delta
                 private._run_search("ctrl")
                 assert len(private._hits) > 10
                 moved = 0
                 for i in range(1, len(private._hits)):
-                    w0, r0, _c0, _l0 = private._hits[i - 1]
-                    w1, r1, _c1, _l1 = private._hits[i]
-                    if w0 is w1 and r0 != r1:
-                        scroll.scroll_to(y=0, animate=False, immediate=True)
-                        private._hit_index = i - 1
-                        private._goto_current_hit()
-                        y0 = float(scroll.scroll_target_y)
-                        scroll.scroll_to(y=0, animate=False, immediate=True)
-                        private._hit_index = i
-                        private._goto_current_hit()
-                        y1 = float(scroll.scroll_target_y)
-                        if y0 == y1 == float(scroll.max_scroll_y):
-                            continue  # bottom clamp: both rows already visible
-                        assert y0 != y1, (
-                            f"same-widget rows {r0}/{r1} share a scroll target"
-                        )
-                        assert abs((y1 - y0) - (r1 - r0)) <= 1
-                        moved += 1
+                    r0 = private._hits[i - 1][0]
+                    r1 = private._hits[i][0]
+                    if r0 == r1:
+                        continue
+                    scroll.scroll_to(y=0, animate=False, immediate=True)
+                    private._hit_index = i - 1
+                    private._goto_current_hit()
+                    y0 = float(scroll.scroll_target_y)
+                    scroll.scroll_to(y=0, animate=False, immediate=True)
+                    private._hit_index = i
+                    private._goto_current_hit()
+                    y1 = float(scroll.scroll_target_y)
+                    if y0 == y1 == float(scroll.max_scroll_y):
+                        continue  # bottom clamp: both rows already visible
+                    assert y0 != y1, f"rows {r0}/{r1} share a scroll target"
+                    assert abs((y1 - y0) - (r1 - r0)) <= 1
+                    moved += 1
                 assert moved > 0
 
     asyncio.run(scenario())
@@ -410,7 +419,7 @@ def test_manual_search_step_lands_on_exact_rendered_row() -> None:
 
 def test_manual_search_no_matches_then_slash_reopens() -> None:
     from textual.containers import Horizontal
-    from textual.widgets import Input, Markdown, Static
+    from textual.widgets import Input, Static
 
     async def scenario() -> None:
         app = YateApp()
@@ -430,7 +439,7 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
                 bar = screen.query_one("#doc-search-bar", Horizontal)
                 field = screen.query_one("#doc-search-input", Input)
                 status = screen.query_one("#doc-search-status", Static)
-                md = screen.query_one("#doc-md", Markdown)
+                md = screen.query_one("#doc-md", DocBody)
                 assert bar.display
                 assert screen.focused is field
                 # a query present nowhere reports "no matches" and tints
@@ -447,7 +456,7 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
                 private = cast(Any, screen)
                 assert private._hits == []
                 assert private._hit_index == -1
-                assert len(list(md.query(".doc-hit"))) == 0
+                assert md.hit_rows == frozenset()
                 # clearing the query removes the error state; the debounced
                 # flush needs the same window as above -- poll, don't race
                 await pilot.press(*(("backspace",) * 10))
@@ -463,11 +472,56 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
     asyncio.run(scenario())
 
 
+def test_manual_hit_rows_paint_a_tinted_background() -> None:
+    """The hit bookkeeping really reaches the painted rows (not just a set)."""
+    from textual.widgets import Static
+
+    async def scenario() -> None:
+        app = YateApp()
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            return_value=MANUAL_DOC_FIXTURE,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                body = screen.query_one("#doc-md", DocBody)
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot,
+                    lambda: not loading.display and body.row_count > 0,
+                    timeout=15.0,
+                )
+
+                screen._run_search("ctrl")
+                assert body.current_row is not None
+                row = body.current_row
+                current_bg = body._current_style.bgcolor
+                plain = body.render_line(row)
+                body.set_hits((), None)
+                cleared = body.render_line(row)
+                assert any(
+                    segment.style is not None
+                    and segment.style.bgcolor == current_bg
+                    for segment in plain
+                )
+                assert not any(
+                    segment.style is not None
+                    and segment.style.bgcolor == current_bg
+                    for segment in cleared
+                )
+
+    asyncio.run(scenario())
+
+
 # ----------------------------------------------------- async background workers
 
 
 def test_manual_paints_before_content_loads() -> None:
-    from textual.widgets import Markdown, Static
+    from textual.widgets import Static
 
     gate = threading.Event()
 
@@ -487,7 +541,7 @@ def test_manual_paints_before_content_loads() -> None:
                 # line are already on screen, the markdown itself is empty
                 await pilot.pause(0.15)
                 assert isinstance(app.screen, MarkdownDocScreen)
-                md = app.screen.query_one("#doc-md", Markdown)
+                md = app.screen.query_one("#doc-md", DocBody)
                 loading = app.screen.query_one("#doc-loading", Static)
                 assert md.source == ""
                 assert loading.display

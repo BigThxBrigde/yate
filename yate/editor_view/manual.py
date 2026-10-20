@@ -1,47 +1,61 @@
 """Read-only viewer for bundled markdown docs (user manual, changelog).
 
-Renders ``yate/resources/<kind>.<lang>.md`` with Textual's markdown
-widget.  The screen consumes the same Textual design tokens (``$surface``,
-``$primary``, ``$text-muted`` ...) as the rest of the app, so when yate
-bridges its palette into a Textual theme at startup the viewer's frame
-chrome, markdown headings, code fences and tables automatically follow the
-active yate theme -- no per-screen theme switch is needed.
+Renders ``yate/resources/<kind>.<lang>.md`` as markdown *once*, into cached
+render rows, and paints those rows from a single widget.  Textual's
+``Markdown`` widget mounts one child widget per markdown block (1788 for the
+manual, 3733 for the changelog), and the per-widget CSS matching and box-model
+resolution that comes with them -- not the markdown parsing -- is what made
+opening a document cost ~11s and closing it 2-8s.  Pre-rendering keeps the
+rendered text (headings, code fences, tables, emphasis) while paying the
+layout cost once per document instead of once per block.
 
-The screen paints immediately with a loading line; the file is read in a
-worker thread and the markdown is parsed/mounted afterwards (Textual's
-Markdown.update already parses in an executor and mounts in batches), so
-opening a document never blocks the UI.
+Rows are produced off the loop by :func:`render_doc_lines` in the loader
+worker.  Two inputs are baked into them -- the body width and the active
+theme -- so a resize or a theme switch re-renders (both are cheap: ~0.5s for
+the largest bundled document, off the loop).
 
-Tables are laid out by a CSS grid that squeezes cells when the table is
-container-bound; auto-width keeps cells on one line so the keylines of
-CJK tables stay aligned.
+Colors follow the active yate theme: :func:`doc_rich_theme` maps Rich's
+``markdown.*`` style names onto the yate palette, which is the same palette
+the Textual theme bridge (``themes.to_textual_theme``) feeds the rest of the
+app, so the viewer keeps matching the app theme.
 
 In-screen search (``/`` or ``ctrl+f``): the query is matched
-case-insensitively against the visible text of every rendered block
-(including table cells).  Every hit block is tinted, the current one
-stronger, and enter / shift+enter cycle matches and scroll them into
-view; after closing the search bar ``n`` / ``N`` repeat the last search.
+case-insensitively against the plain text of every rendered row (table cells
+included -- they are rows like any other).  Every hit row is tinted, the
+current one stronger, and enter / shift+enter cycle matches and scroll them
+into view; after closing the search bar ``n`` / ``N`` repeat the last search.
 Typing is debounced briefly so rapid input merges into a single rebuild
-instead of re-rendering every block widget per keystroke.
+instead of re-painting per keystroke.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable, Sequence
 from importlib.resources import files
-from typing import Any, cast, override
+from io import StringIO
+from typing import cast, override
 
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.segment import Segment
+from rich.style import Style
+from rich.theme import Theme as RichTheme
 from textual import events
 from textual.app import ComposeResult
+from textual.color import Color
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.geometry import Size
 from textual.screen import ModalScreen
+from textual.strip import Strip
 from textual.widget import Widget
-from textual.widgets import Input, Markdown, Static
+from textual.widgets import Input, Static
 
 from yate.paths import load_tcss
 
 from yate.editor_view import theme
 from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.editor_view.themes import Theme
 
 _DOC_LANGS: tuple[str, ...] = ("en", "zh")
 
@@ -58,6 +72,15 @@ _UNAVAILABLE: dict[str, dict[str, str]] = {
         "zh": "# 变更日志\n\n此构建未包含变更日志。",
     },
 }
+
+#: Width the rows are rendered for until the body has been laid out.
+_FALLBACK_WIDTH: int = 80
+
+#: Opacity of a search-hit tint and of the current-hit tint, applied over the
+#: surface color (the same 12% / 40% the Textual theme bridge used to expose as
+#: ``$doc-hit-background`` / ``$doc-hit-current-background``).
+_HIT_ALPHA: float = 0.12
+_CURRENT_HIT_ALPHA: float = 0.40
 
 
 def load_doc_markdown(kind: str, lang: str = "en") -> str:
@@ -85,37 +108,60 @@ def load_changelog_markdown(lang: str = "en") -> str:
     return load_doc_markdown("changelog", lang)
 
 
-def _widget_plain_text(widget: Widget) -> str:
-    """Best-effort visible text a widget owns itself.
+def doc_rich_theme(active: Theme) -> RichTheme:
+    """Build the Rich console theme the markdown renderer paints with.
 
-    MarkdownBlock stores a rich Content; table cells/static children may
-    carry a renderable (str / Text / Content). Table cell widgets expose
-    neither but render a Content with no children, so fall back to
-    ``render()`` for childless widgets. Layout containers (whose children
-    own the text) stay empty so matches are not double counted.
+    Rich resolves its ``markdown.*`` style names through the console theme, so
+    this mapping is the single place the viewer binds colors.  The slots mirror
+    the Textual theme bridge: headings take the accent the bridge maps to
+    ``$primary``, code and tables the panel surface, quotes and rules the muted
+    foreground.
     """
-    content = getattr(widget, "_content", None)  # Textual 8.2.8 internal
-    if content is not None and hasattr(content, "plain"):
-        plain = cast(str, content.plain)
-        if plain:
-            return plain
-    renderable = getattr(widget, "renderable", None)
-    if isinstance(renderable, str):
-        return renderable
-    if renderable is not None and hasattr(renderable, "plain"):
-        return cast(str, renderable.plain)
-    if not getattr(widget, "children", ()):
-        try:
-            rendered = widget.render()
-        except Exception:  # noqa: BLE001 - render is best-effort; empty text is the fallback
-            return ""
-        plain = getattr(rendered, "plain", None)
-        if isinstance(plain, str):
-            return plain
-    return ""
+    heading = f"bold {active.accent2}"
+    return RichTheme({
+        "markdown.h1": f"bold underline {active.accent2}",
+        "markdown.h2": heading,
+        "markdown.h3": heading,
+        "markdown.h4": f"bold {active.fg}",
+        "markdown.h5": f"bold {active.fg}",
+        "markdown.h6": f"bold {active.fg}",
+        "markdown.code": f"bold {active.green} on {active.panel}",
+        "markdown.code_block": f"{active.fg} on {active.panel}",
+        "markdown.block_quote": active.fg_muted,
+        "markdown.item.bullet": active.accent2,
+        "markdown.item.number": active.accent2,
+        "markdown.link": active.accent,
+        "markdown.link_url": f"underline {active.accent}",
+        "markdown.table.border": active.fg_muted,
+        "markdown.table.header": f"bold {active.fg}",
+        "markdown.hr": active.fg_dim,
+        "markdown.kbd": f"bold {active.fg} on {active.panel}",
+    })
 
 
-def _strip_text(strip: Any) -> str:
+def render_doc_lines(
+    source: str, width: int, *, active: Theme | None = None
+) -> list[Strip]:
+    """Render markdown *source* into rows *width* columns wide.
+
+    Pure: no widget, no app, no loop -- safe to call from a worker thread and
+    cheap to test.  *active* defaults to the current yate theme; callers that
+    already hold a palette pass it to keep one snapshot per render.
+    """
+    palette = active if active is not None else theme.active()
+    console = Console(
+        file=StringIO(),
+        width=max(20, width),
+        color_system="truecolor",
+        theme=doc_rich_theme(palette),
+        legacy_windows=False,
+    )
+    renderable = Markdown(source)
+    lines = console.render_lines(renderable, console.options, pad=False)
+    return [Strip(list(line)) for line in lines]
+
+
+def _strip_text(strip: Strip) -> str:
     """Plain text of one rendered row (Strip)."""
     # ``Strip._segments`` is a Textual internal (pinned to 8.2.8); the
     # public ``segments`` property is the documented fallback.
@@ -123,6 +169,31 @@ def _strip_text(strip: Any) -> str:
     if segments is None:
         segments = getattr(strip, "segments", ())
     return "".join(seg.text or "" for seg in segments)
+
+
+def _tint_strip(strip: Strip, tint: Style) -> Strip:
+    """Lay *tint* over every segment of *strip*.
+
+    The tint goes on the right of the merge: ``a + b`` in
+    :class:`rich.style.Style` lets *b* win its own attributes, so a code
+    fence's background would otherwise survive and hide the tint on exactly
+    the rows a user searches for.
+    """
+    return Strip([
+        Segment(segment.text, segment.style + tint if segment.style else tint)
+        for segment in strip
+    ])
+
+
+def _hit_styles(active: Theme) -> tuple[Style, Style]:
+    """The (hit, current-hit) tints for *active*, blended over the surface."""
+    base = Color.parse(active.surface)
+    yellow = Color.parse(active.yellow)
+    hit = Style(bgcolor=base.blend(yellow, _HIT_ALPHA).rich_color)
+    current = Style(
+        bgcolor=base.blend(yellow, _CURRENT_HIT_ALPHA).rich_color, bold=True
+    )
+    return hit, current
 
 
 class _SearchInput(Input):
@@ -172,6 +243,97 @@ class DocScroll(VerticalScroll):
         apply_scrollbar_theme(self)
 
 
+class DocBody(Widget):
+    """The whole document in one widget: cached rows plus search tints.
+
+    One widget instead of one per markdown block is the entire point of this
+    module: the rows are rendered once (see :func:`render_doc_lines`) and this
+    widget paints them straight from :meth:`render_line`, so a search hit only
+    costs a ``refresh()`` over the visible rows -- no document-sized rebuild.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(id="doc-md")
+        self.source = ""
+        self._rows: list[Strip] = []
+        self._texts: list[str] = []
+        self._hit_rows: frozenset[int] = frozenset()
+        self._current_row: int | None = None
+        self._render_width = 0
+        self._hit_style, self._current_style = _hit_styles(theme.active())
+
+    @override
+    def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
+        """Every rendered row is one content row (no re-wrapping)."""
+        return len(self._rows)
+
+    @override
+    def render_line(self, y: int) -> Strip:
+        """Paint row *y* with its search tint, padded to the widget width."""
+        if not 0 <= y < len(self._rows):
+            return Strip.blank(self.size.width)
+        strip = self._rows[y]
+        tint: Style | None = None
+        if y == self._current_row:
+            tint = self._current_style
+        elif y in self._hit_rows:
+            tint = self._hit_style
+        if tint is None:
+            return strip.adjust_cell_length(self.size.width)
+        return _tint_strip(strip, tint).adjust_cell_length(
+            self.size.width, tint
+        )
+
+    @property
+    def row_count(self) -> int:
+        """How many rendered rows the loaded document has (0 before load)."""
+        return len(self._rows)
+
+    @property
+    def render_width(self) -> int:
+        """Width (columns) the cached rows were rendered for (0 before load)."""
+        return self._render_width
+
+    @property
+    def hit_rows(self) -> frozenset[int]:
+        """Rows currently tinted as search hits."""
+        return self._hit_rows
+
+    @property
+    def current_row(self) -> int | None:
+        """The row tinted as the current hit (``None`` when there is none)."""
+        return self._current_row
+
+    def row_text(self, row: int) -> str:
+        """Plain text of rendered *row* (empty string when out of range)."""
+        if 0 <= row < len(self._texts):
+            return self._texts[row]
+        return ""
+
+    def set_document(
+        self, source: str, rows: Sequence[Strip], width: int
+    ) -> None:
+        """Adopt freshly rendered *rows*, dropping any previous search tint."""
+        self.source = source
+        self._rows = list(rows)
+        self._texts = [_strip_text(strip) for strip in self._rows]
+        self._render_width = width
+        self._hit_rows = frozenset()
+        self._current_row = None
+        self._hit_style, self._current_style = _hit_styles(theme.active())
+        # layout, not just repaint: the content height follows the row count
+        self.refresh(layout=True)
+
+    def set_hits(self, rows: Iterable[int], current: int | None) -> None:
+        """Tint *rows* as matches and *current* as the focused one."""
+        hit_rows = frozenset(rows)
+        if hit_rows == self._hit_rows and current == self._current_row:
+            return
+        self._hit_rows = hit_rows
+        self._current_row = current
+        self.refresh()
+
+
 class MarkdownDocScreen(ModalScreen[None]):
     """A bundled markdown document (manual/changelog), read-only."""
 
@@ -202,6 +364,9 @@ class MarkdownDocScreen(ModalScreen[None]):
     #: and completion debounces).
     _SEARCH_DEBOUNCE_S = 0.12
 
+    #: Delay before a resize re-renders, so a live drag re-renders once.
+    _RERENDER_DELAY_S = 0.15
+
     DEFAULT_CSS = load_tcss("markdown-doc-screen.tcss")
 
     def __init__(self, *, kind: str, lang: str, title: str) -> None:
@@ -209,11 +374,10 @@ class MarkdownDocScreen(ModalScreen[None]):
         self._kind = kind
         self._lang = lang
         self._title = title
-        # (widget, inner row, inner column, query length), document order
-        self._hits: list[tuple[Widget, int, int, int]] = []
+        # (row, column, query length) over the rendered rows, document order
+        self._hits: list[tuple[int, int, int]] = []
         self._hit_index = -1
-        self._hit_widgets: set[Widget] = set()
-        self._current_widget: Widget | None = None
+        self._query = ""
         # pending debounced search: the asyncio timer plus the last typed
         # query it will run (typing merges into one rebuild per window)
         self._search_timer: asyncio.TimerHandle | None = None
@@ -221,7 +385,7 @@ class MarkdownDocScreen(ModalScreen[None]):
 
     @override
     def compose(self) -> ComposeResult:
-        """Compose the doc box: search bar, scrollable markdown and footer."""
+        """Compose the doc box: search bar, scrollable body and footer."""
         with Vertical(id="doc-box"):
             with Horizontal(id="doc-search-bar"):
                 yield _SearchInput(
@@ -233,7 +397,7 @@ class MarkdownDocScreen(ModalScreen[None]):
                 # empty initially: the content loads in a background worker
                 # so the screen itself can paint without a hitch
                 yield Static(f" loading {self._title}…", id="doc-loading")
-                yield Markdown("", id="doc-md")
+                yield DocBody()
             yield Static(
                 self._FOOTER_BROWSE,
                 id="doc-footer",
@@ -241,16 +405,17 @@ class MarkdownDocScreen(ModalScreen[None]):
             )
 
     def on_mount(self) -> None:
-        """Start the background document loader (scrollbar wiring is DocScroll's)."""
+        """Start the background loader and follow theme switches."""
         # coroutine *function*: an eager coroutine would leak if the
         # worker never starts (closing pump)
         self.run_worker(
             self._load_doc, group="doc-load", exclusive=True,
             exit_on_error=False,
         )
+        theme.attach(self, self._on_theme_change)
 
     def on_unmount(self) -> None:
-        """Drop the pending debounce so no callback outlives the screen.
+        """Drop the pending debounce and the theme subscription.
 
         A search typed within :attr:`_SEARCH_DEBOUNCE_S` and then dismissed with
         ``escape`` would otherwise leave an armed :class:`asyncio.TimerHandle`
@@ -261,9 +426,36 @@ class MarkdownDocScreen(ModalScreen[None]):
             self._search_timer.cancel()
             self._search_timer = None
         self._pending_query = None
+        theme.detach(self)
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Re-render when the body width changes (rows are pre-wrapped)."""
+        self._schedule_rerender()
+
+    # ------------------------------------------------------------ loading
+
+    def _doc_body(self) -> DocBody | None:
+        """The body widget, or ``None`` before ``compose`` has mounted it.
+
+        A resize lands before the first compose on a freshly pushed screen, so
+        the resize / theme paths must tolerate a missing body.
+        """
+        found = self.query("#doc-md")
+        if not found:
+            return None
+        return cast(DocBody, found.first())
+
+    def _body_width(self) -> int:
+        """Columns available to the document body (fallback before layout)."""
+        scroll = self.query_one("#doc-scroll", DocScroll)
+        width = scroll.scrollable_content_region.width
+        if width > 0:
+            return width
+        return max(20, self.size.width - 6)
 
     async def _load_doc(self) -> None:
-        """Read the document off the loop, then let Markdown mount in batches."""
+        """Read the document, render its rows off the loop, then show them."""
+        width = self._body_width()
         try:
             source = await asyncio.to_thread(
                 load_doc_markdown, self._kind, self._lang
@@ -273,16 +465,60 @@ class MarkdownDocScreen(ModalScreen[None]):
         # the viewer may have been closed while the read was in flight
         if not self.is_mounted:
             return
-        try:
-            markdown = self.query_one("#doc-md", Markdown)
-            loading = self.query_one("#doc-loading", Static)
-            await markdown.update(source)
-            if self.is_mounted:
-                loading.display = False
-        except Exception:  # noqa: BLE001 - re-raises; only post-esc teardown drops
-            # widget torn down mid-update after a quick esc/q; nothing to do
-            if self.is_mounted:
-                raise
+        rows = await asyncio.to_thread(
+            render_doc_lines, source, width, active=theme.active()
+        )
+        if not self.is_mounted:
+            return
+        body = self.query_one("#doc-md", DocBody)
+        body.set_document(source, rows, width)
+        self.query_one("#doc-loading", Static).display = False
+        self.query_one("#doc-scroll", DocScroll).scroll_home(animate=False)
+
+    def _on_theme_change(self) -> None:
+        """Re-render the cached rows: their colors are baked in at render time."""
+        body = self._doc_body()
+        if body is None or not body.source:
+            return
+        self.run_worker(
+            self._rerender(body.render_width), group="doc-load", exclusive=True
+        )
+
+    def _schedule_rerender(self) -> None:
+        """Re-render once the resize settles (a live drag would re-render often)."""
+        body = self._doc_body()
+        if body is None or not body.source:
+            return
+        if self._body_width() == body.render_width:
+            return
+        self.set_timer(self._RERENDER_DELAY_S, self._rerender_now)
+
+    def _rerender_now(self) -> None:
+        """Timer callback: re-render at the current body width."""
+        body = self._doc_body()
+        if body is None or not body.source or self._body_width() == body.render_width:
+            return
+        self.run_worker(
+            self._rerender(self._body_width()), group="doc-load", exclusive=True
+        )
+
+    async def _rerender(self, width: int) -> None:
+        """Re-render the loaded document for *width* (resize / theme change)."""
+        current = self._doc_body()
+        if current is None:
+            return
+        body = current
+        source = body.source
+        if not source or not self.is_mounted:
+            return
+        rows = await asyncio.to_thread(
+            render_doc_lines, source, width, active=theme.active()
+        )
+        if not self.is_mounted:
+            return
+        body.set_document(source, rows, width)
+        if self._query:
+            self._run_search(self._query)
 
     # ------------------------------------------------------------ search
 
@@ -346,9 +582,9 @@ class MarkdownDocScreen(ModalScreen[None]):
     def _schedule_search(self, query: str) -> None:
         """Defer the search rebuild until typing pauses briefly.
 
-        Every keystroke used to rebuild every rendered block widget
-        synchronously, which stutters on large documents; the trailing
-        window merges rapid input into one pass carrying the final query.
+        Rebuilding per keystroke repainted the hit tints synchronously, which
+        stutters on large documents; the trailing window merges rapid input
+        into one pass carrying the final query.
         """
         if self._search_timer is not None:
             self._search_timer.cancel()
@@ -375,46 +611,23 @@ class MarkdownDocScreen(ModalScreen[None]):
         self._run_search(query)
 
     def _run_search(self, query: str) -> None:
+        """Scan every rendered row for *query* and tint the matches."""
         needle = query.strip().lower()
-        hits: list[tuple[Widget, int, int, int]] = []
+        self._query = needle
+        body = self.query_one("#doc-md", DocBody)
+        hits: list[tuple[int, int, int]] = []
         if needle:
-            markdown = self.query_one("#doc-md", Markdown)
-            for widget in markdown.walk_children(Widget):
-                if not _widget_plain_text(widget):
-                    continue
-                # ranges (in widget-local rows/cols) painted by direct
-                # children, e.g. the language label of a code fence --
-                # their strips are composited into ours but the children
-                # are searched separately
-                child_boxes = [
-                    (
-                        child.region.y - widget.region.y,
-                        child.region.y - widget.region.y + child.region.height,
-                        child.region.x - widget.region.x,
-                        child.region.x - widget.region.x + child.region.width,
-                    )
-                    for child in widget.children
-                ]
-                for row in range(widget.region.height):
-                    try:
-                        line = _strip_text(widget.render_line(row)).lower()
-                    except Exception:  # noqa: BLE001 - skip unrenderable rows
-                        continue
-                    start = 0
-                    while True:
-                        idx = line.find(needle, start)
-                        if idx < 0:
-                            break
-                        end = idx + len(needle)
-                        covered = any(
-                            y0 <= row < y1 and idx < x1 and end > x0
-                            for (y0, y1, x0, x1) in child_boxes
-                        )
-                        if not covered:
-                            hits.append((widget, row, idx, len(needle)))
-                        start = end
+            for row in range(body.row_count):
+                line = body.row_text(row).lower()
+                start = 0
+                while True:
+                    idx = line.find(needle, start)
+                    if idx < 0:
+                        break
+                    hits.append((row, idx, len(needle)))
+                    start = idx + len(needle)
         self._hits = hits
-        self._clear_hit_classes()
+        body.set_hits((row for row, _col, _length in hits), None)
         if not needle:
             self._hit_index = -1
             self._set_status("type to search")
@@ -423,43 +636,23 @@ class MarkdownDocScreen(ModalScreen[None]):
             self._hit_index = -1
             self._set_status("no matches")
             return
-        self._hit_widgets = {widget for widget, _r, _c, _l in hits}
-        for widget in self._hit_widgets:
-            widget.add_class("doc-hit")
         self._hit_index = 0
         self._goto_current_hit()
 
     def _goto_current_hit(self) -> None:
-        if self._hit_index < 0:
+        """Tint the current hit stronger and scroll its row into view."""
+        if self._hit_index < 0 or not self._hits:
             return
-        widget, row, _col, _length = self._hits[self._hit_index]
-        if self._current_widget is not None and self._current_widget is not widget:
-            self._current_widget.remove_class("doc-hit-current")
-        widget.add_class("doc-hit-current")
-        self._current_widget = widget
-        # align the widget's top first, then offset to the exact rendered
-        # row, so several matches inside one wrapped paragraph land on
-        # distinct lines (widget.scroll_visible alone would not move)
-        scroll = self.query_one("#doc-scroll", DocScroll)
-        # immediate=True applies before the second scroll_to, which refines
-        # the position to the exact rendered row (several matches can share
-        # one wrapped widget, widget-level scrolling would not move)
-        scroll.scroll_to_widget(
-            widget, top=True, animate=False, immediate=True
-        )
-        scroll.scroll_to(
-            y=scroll.scroll_target_y + row,
-            animate=False,
-            immediate=True,
+        body = self.query_one("#doc-md", DocBody)
+        row, _col, _length = self._hits[self._hit_index]
+        body.set_hits((r for r, _c, _l in self._hits), row)
+        # one row is one scroll offset: the rows are pre-wrapped, so the row
+        # index is the exact line the match sits on
+        self.query_one("#doc-scroll", DocScroll).scroll_to(
+            y=row, animate=False, immediate=True
         )
         self._set_status(
             f"{self._hit_index + 1}/{len(self._hits)} matches")
-
-    def _clear_hit_classes(self) -> None:
-        for widget in self._hit_widgets:
-            widget.remove_class("doc-hit", "doc-hit-current")
-        self._hit_widgets.clear()
-        self._current_widget = None
 
     def _set_status(self, text: str) -> None:
         status = self.query_one("#doc-search-status", Static)

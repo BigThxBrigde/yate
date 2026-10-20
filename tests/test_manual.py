@@ -26,7 +26,13 @@ from textual.widgets import Input, Static
 from conftest import wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
 from yate.app import YateApp
-from yate.editor_view.manual import MarkdownDocScreen
+from yate.editor_view import theme as yate_theme
+from yate.editor_view.manual import (
+    MarkdownDocScreen,
+    _strip_text,
+    doc_rich_theme,
+    render_doc_lines,
+)
 
 
 def _install_search_spy(
@@ -191,3 +197,49 @@ def test_fire_search_flushed_immediately_still_works(
                 assert calls == ["exit"]
 
     asyncio.run(scenario())
+
+
+# --- rendering (pure, no app) -------------------------------------------------
+
+
+def test_render_doc_lines_keeps_the_markdown_structure() -> None:
+    """Headings, emphasis and table borders survive the one-shot render."""
+    source = (
+        "# Title\n\n"
+        "plain **bold** text\n\n"
+        "| a | b |\n| - | - |\n| 1 | 2 |\n"
+    )
+    rows = render_doc_lines(source, 40, active=yate_theme.active())
+
+    text = "\n".join(_strip_text(row) for row in rows)
+    assert "Title" in text
+    assert "bold" in text
+    # box-drawing borders: any glyph past the ASCII range (the exact code point
+    # depends on Rich's table style, so pin the presence, not the glyph)
+    assert any(ord(char) > 0x2000 for char in text)
+    # every row fits the width it was rendered for: search hits are indexed
+    # per row, so a row wider than the body would re-wrap and move them
+    assert all(row.cell_length <= 40 for row in rows)
+
+
+def test_render_doc_lines_wraps_to_the_requested_width() -> None:
+    """A paragraph longer than the width occupies more than one row."""
+    source = "word " * 40
+    narrow = render_doc_lines(source, 20, active=yate_theme.active())
+    wide = render_doc_lines(source, 80, active=yate_theme.active())
+    assert len(narrow) > len(wide)
+    assert all(row.cell_length <= 20 for row in narrow)
+
+
+def test_doc_rich_theme_colors_headings_from_the_active_palette() -> None:
+    """The Rich theme binds Rich's markdown style names to yate colors."""
+    active = yate_theme.active()
+    rich_theme = doc_rich_theme(active)
+
+    heading = rich_theme.styles["markdown.h1"]
+    assert heading.color is not None
+    assert heading.color.get_truecolor().hex.lower() == active.accent2.lower()
+    assert heading.bold
+    code = rich_theme.styles["markdown.code_block"]
+    assert code.bgcolor is not None
+    assert code.bgcolor.get_truecolor().hex.lower() == active.panel.lower()

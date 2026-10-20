@@ -34,6 +34,13 @@ MarkdownDocScreen #doc-search-status {
 MarkdownDocScreen #doc-scroll {
     height: 1fr;
 }
+/* the body is one widget whose height is its row count (DocBody.
+   get_content_height), so it must size to content -- 1fr would pin it to the
+   viewport and nothing would scroll */
+MarkdownDocScreen #doc-md {
+    height: auto;
+    width: 1fr;
+}
 MarkdownDocScreen #doc-loading {
     height: 1;
     padding: 1 0;
@@ -44,19 +51,7 @@ MarkdownDocScreen .hint {
     color: $text-muted;
     text-align: center;
 }
-/* search hit tints: the two doc-hit variables follow the active yate
-   theme's yellow accent through the Textual theme bridge (see
-   YateApp.get_theme_variable_defaults and theme.to_textual_theme) */
-MarkdownDocScreen .doc-hit {
-    background: $doc-hit-background;
-}
-MarkdownDocScreen .doc-hit-current {
-    background: $doc-hit-current-background;
-    text-style: bold;
-}
-/* table cells default to a squeezed 1fr grid which wraps long CJK
-   labels and breaks the keyline alignment; auto-width renders each
-   cell on a single line with clean borders */
-MarkdownDocScreen MarkdownTable {
-    width: auto;
-}
+/* The document body is one widget holding pre-rendered rows (see
+   editor_view/manual.py:DocBody): search tints are painted into those rows
+   from the active yate theme's yellow accent, so no per-block rules (and no
+   MarkdownTable width rule) are needed here any more. */
