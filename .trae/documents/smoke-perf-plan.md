@@ -314,19 +314,20 @@ flowchart TD
 | 门禁 | 命令 | 结果 |
 |---|---|---|
 | pyright strict | `.venv\Scripts\python.exe -m pyright` | `0 errors, 0 warnings, 0 informations`，exit 0 |
-| 全量 pytest（并行） | `pytest tests/ -q -n auto` | **86.76s**，`2665 passed, 9 skipped`，exit 0 |
-| 覆盖率（并行） | `pytest tests/ --cov=yate --cov-branch -n auto` | **155.46s**（复测 113.82s / 103.96s，flakes 修完后连续两次全绿），TOTAL **92.09%**（门禁 75），exit 0 |
-| 架构守卫 | `pytest tests/test_architecture.py -q` | **36 passed**，exit 0 |
-| 冒烟（并行） | `tools.smoke_test run --jobs 4` | **39.30s**，112/112、1354/1354，exit 0 |
-| 冒烟（串行对照） | `tools.smoke_test run` | **121.06s**，112/112、1354/1354，exit 0 |
+| 全量 pytest（并行） | `pytest tests/ -q -n auto` | **69.64s**（另测 86.76s），`2666 passed, 9 skipped`，exit 0 |
+| 覆盖率（并行） | `pytest tests/ --cov=yate --cov-branch -n auto` | **142.21–155.86s**（连续三次全绿），TOTAL **92%**（门禁 75），exit 0 |
+| 覆盖率（串行对照） | `pytest tests/ --cov=yate --cov-branch` | **402.86s**，`2666 passed, 9 skipped`，与并行**逐项一致** |
+| 架构 + 门禁守卫 | `pytest tests/test_architecture.py tests/test_gate_config.py -q` | **41 passed**（36 + 5），exit 0 |
+| 冒烟（并行） | `tools.smoke_test run --jobs 4` | **39.30–47.55s**（三次复测 42.80s），112/112、1354/1354，exit 0 |
+| 冒烟（串行对照） | `tools.smoke_test run` | **121.06 / 123.86s**，112/112、1354/1354，exit 0 |
 
 ### 8.2 提速前后（真实秒数）
 
 | 口径 | 改前 | 改后 | 倍数 |
 |---|---|---|---|
-| pytest 无覆盖率，串行 → `-n auto`（本机 8 核） | 308.04s | **86.76s** | 3.55x |
-| pytest 带覆盖率，串行 → `-n auto` | **401.99s** | **155.46s**（复测 104–114s） | 2.59x（复测口径 3.5–3.9x） |
-| 冒烟 串行 → `--jobs 4` | 121.06s | **39.30s** | 3.08x |
+| pytest 无覆盖率，串行 → `-n auto`（本机 8 核） | 308.04s | **69.64–86.76s** | 3.5–4.4x |
+| pytest 带覆盖率，串行 → `-n auto` | **401.99 / 402.86s** | **142.21–155.86s** | 2.6–2.8x |
+| 冒烟 串行 → `--jobs 4` | 121.06 / 123.86s | **39.30–47.55s**（复测 42.80s） | 2.6–3.1x |
 | 冒烟 `--jobs 4`（首测，修复回退路径前） | — | 47.74s | 2.54x |
 
 冒烟并行后的墙钟下限由最长单场景决定：`manual_changelog_modals` 单跑 31.5s
@@ -365,3 +366,23 @@ flowchart TD
 7. **CI 两个前端同步**：`.github/workflows/test.yml` 的 pytest 步骤加 `-n auto`、
    smoke 步骤加 `--jobs 4`；`.workflow/test.yml`（Gitee）pytest 步骤加 `-n auto`。
    `-n auto` 在单核 runner 上自动退化为 1，不会把低配机器拖慢。
+
+### 8.4 评审整改（第一轮 code-review-expert）
+
+评审结论 BLOCKED：并行口径 6 次全量跑 3 次红。逐条处置：
+
+| 评审项 | severity | 处置 |
+|---|---|---|
+| `test_vim_keymap::test_yf_yanks_through_the_found_char` 读到别的 worker 写入的 `"hi"` | blocker | `tests/conftest.py` 新增 autouse `isolated_os_clipboard`：xdist 下把 `pyperclip.copy/paste` 换成进程内字典；串行仍走真实后端，`tests/test_clipboard.py` 自己 monkeypatch pyperclip 故不受影响 |
+| `test_shell::test_run_shell_timeout_kills_the_grandchild_process` 存活探活 | blocker | 拆两条：真实进程只断言「5s 超时后 15s 内返回」+「孙进程确实启动过」（历史 bug 会阻塞 20s，预算仍 <20s）；「`taskkill /F /T` 杀整棵树」改为 spy 断言的确定性用例（`_kill_tree`）。原 `_pid_alive` / ctypes 探针删除 |
+| `test_panes::test_split_close_restores_scroll_for_focus_and_inactive_leaves`（`:550`） | blocker | 两处 `scroll_row == saved` 改为先 `wait_until(pilot, ...)` 轮询、再保留原断言 |
+| 回退重跑无 `try` 保护，二次失败会丢全部结果 | warning | 回退分支包 `try/except`：再失败时为每个场景合成 `ScenarioResult(error=...)`（带 tags），已完成结果照常返回 |
+| 评审实测 `--jobs` 无收益（128s → 150s） | warning | 复核为测量重叠所致：空闲机顺序实测 `--jobs 1` **123.86s** vs `--jobs 4` **47.55s**（2.6×）。CI 侧以实跑为准 |
+| `progress` 文案在并行下语义不符 | minor | 保留现有文案（回调表示「该场景完成」，总进度仍单调递增）；登记待办 |
+| `--jobs` 校验顺序 / help 文案 / `except Exception` 依据 | minor | 校验收紧移到筛选之前；help 注明「仅 `run`」；`_picklable_payload` docstring 写明 pickle 只抛 `Exception` |
+| 规则记 35 条 vs 实测 36 条 | info | 既有陈旧，本次不动（改动会牵扯 §六 逐条对照表） |
+
+整改后门禁（全部 exit 0）：`-n auto + --cov` 连续三次全绿（155.86 / 143.89 / 142.21s，
+2666 passed）；串行 `--cov` **402.86s** 同为 `2666 passed`（串并行口径一致）；
+`pytest -n auto` 69.64s；架构 + 门禁守卫 41 passed；冒烟 `--jobs 4` 42.80s、
+112/112、1354/1354；pyright `0/0/0`。
