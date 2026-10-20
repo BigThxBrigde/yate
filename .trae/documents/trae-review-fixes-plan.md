@@ -67,5 +67,19 @@
 
 ## 五、批准与执行记录
 
-- 2026-10-20：用户在会话内选择"全修（39 条）"，本方案据此细化；**待批准后进入 W-A**。
-- 执行记录 / 偏离校准 / 实测数字：在本节逐波回填（波次完成即回填，不等全部结束）。
+- 2026-10-20：用户在会话内选择"全修（39 条）"；方案批准后按 W-A → W-B/C/D → W-E 串行执行。
+- W-A `148fa4a`（8 条）、W-B `29a79d2`（7 条）、W-C `b32bd5d`（6 条 + m-21 登记不修）、
+  W-D `41ae9fc`（10 条，含跨波补齐的 LSP / tree-sitter 回滚）、W-E（8 条，含执行期登记的 m-28）。
+- W-E 经 `code-review-expert` 两轮复核：首轮 2 BLOCKER（B-3 护栏可被 manifest 绕过、`<root>/.wiki`
+  被误拒）+ 6 MAJOR（`is_git_repo` 判据、用例打桩、worker 写终端、URL 裸子串、env 空串语义、
+  `is_git_repo` 被测对象被 mock）→ 全部修复后第二轮 **APPROVE**，无新增 BLOCKER/MAJOR。
+- 收尾门禁（主代理亲跑，2026-10-20）：
+
+  | 门禁 | 命令 | 结果 |
+  |---|---|---|
+  | pyright strict | `python -m pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations |
+  | 架构守卫 | `python -m pytest tests/test_architecture.py -q` | 36 passed |
+  | 全量回归 + 覆盖率 | `python -m pytest tests/ -q --cov=yate --cov-branch` | **exit 0**，覆盖率 **91.99% ≥ 75** |
+
+- 偏离与实测依据（逐条）见 [`trae-review-fixes-plans/overview.md`](trae-review-fixes-plans/overview.md) §5.2；
+  处置状态汇总见评审记录 §十。

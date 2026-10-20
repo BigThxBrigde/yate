@@ -102,9 +102,55 @@ M-4、m-2、m-12、m-17 属性能项。执行者须先给出**基线探针**（�
 | m-12 | `refresh_crumbs` 单次耗时（同路径重复 1000 次） | ≥ 30% 降幅 |
 | m-17 | `load_file` 去重循环在 50 个已加载项下的耗时 | ≥ 30% 降幅 |
 
-## 五、偏离与校准记录
+## 五、执行记录、偏离与校准
 
-（执行期回填。）
+### 5.1 波次执行结果
+
+| 波次 | 提交 | 条目 | 验收 |
+|---|---|---|---|
+| W-A | `148fa4a` | 8/8 | pyright 0/0/0；wave pytest exit 0；B-1/M-1/M-2 先红后绿 |
+| W-B | `29a79d2` | 7/7 | pyright 0/0/0；8 个测试文件 exit 0；11 条新用例 |
+| W-C | `b32bd5d` | 6/7（m-21 登记不修） | pyright 0/0/0；`-O` 下 vim 套件同样绿 |
+| W-D | `41ae9fc` | 10/10 | pyright 0/0/0；含跨波补齐的 LSP / tree-sitter 回滚 |
+| W-E | 见 §5.3 | 8/8 | 首轮评审 2 BLOCKER + 6 MAJOR 全部解决后 APPROVE |
+
+### 5.2 偏离与校准（按条，均有实测依据）
+
+- **m-21 登记不修**：pyright 证明 Textual 的 `watch_theme` / `on_key` 无静态基类成员
+  （watcher 与消息处理为动态派发），加 `@override` 反被报"不存在同名的基方法"，按 plan-c 条款回滚。
+- **m-7 四处裸 assert**：`:388` 改 `return ()`（该函数返回 hint 元组，plan 的 `False` 类型不符）；
+  `:674` 直接删除（上文元组成员测试已收窄类型，pyright 判定守卫恒假）；
+  `:1093` 改 `return`；`:1348` 改 `return True`（保持"键已被消费"契约）。
+- **m-8 跨波补齐**：W-D 因 `editor_lsp/manager.py`、`ts_backend/*` 不在其独占清单而只完成语言与 sprite 两项；
+  主代理在 W-D 提交内补齐 `LspManager.unregister_server`（含 `_drop_cached_state` /
+  `_rebuild_filetype_index` 抽取）、`ts_backend.drop_language`、两个 bridge 的 `record_undo` 注入，
+  并补 `test_failed_setup_rolls_back_a_registered_lsp_server` /
+  `test_failed_setup_rolls_back_a_tree_sitter_language`。
+- **M-4 性能（噪声级，保留实现）**：80×24 网格实测 `view_lines` 仅占 `render_line` ≈4%，
+  缓存后 40 帧 366 → 336–361 ms。按判据"每次 < 1ms"保留实现，收益如实登记为噪声级。
+- **m-17 性能（达标）**：50 个已加载项下 9219.4 → 196.9 µs/次（−97.9%）。
+- **m-12 / m-2 性能（达标）**：m-12 ≈65% 降幅；m-2 重复渲染 174 ms → 0.33 ms。
+- **B-3 判据重设计（首轮评审后）**：首版"非空且无 `.git` 即拒"被证明可被 manifest 绕过、
+  且误伤 `<root>/.wiki` 合法布局。现判据 = 仅拒绝"target 覆盖源树"（`root.is_relative_to(target)`），
+  删除面由 manifest 记录集收窄兜底；`<root>/.wiki` 与 `out/` 均放行。
+- **M-9 判据重设计（首轮评审后）**：`is_git_repo` 由 `git rev-parse` 成功与否改为文件系统
+  `(repo/".git").exists()`——损坏仓库同样"有仓库但历史读不出"，必须判红；新增真损坏仓库端到端用例。
+- **m-23 通道修正（首轮评审后）**：`_feed_stdin` 是 helper 线程、`_terminate` 是 pool worker，
+  两者都不得直写终端；改走 `_emit_translate_failure`（按 `_emit_mode` 入队）与返回值 note，
+  并补 `_feed_stdin` 失败分支的两条用例。
+- **m-24 解析修正（首轮评审后）**：三条锚定正则（https / `ssh://` / scp-like）+ 端口段剥离，
+  负例覆盖"其它主机路径里含 `github.com/`"；`YATE_WIKI_GITHUB_URL=""` 显式禁用镜像推送。
+- **m-26**：`return 2` 改为 `raise AssertionError("unreachable: ...")`（不可达分支的诚实表达）。
+- **m-28（执行期登记并已修）**：`tracing.install()` 把 `yate` logger 置 DEBUG、`uninstall()` 只摘 handler，
+  级别跨测试文件泄漏；已记录安装前级别并在 `uninstall()` 恢复，补 3 条用例。
+
+### 5.3 追加登记（执行期发现，非 40 条内）
+
+- `tests/` 侧的既有顺序敏感：`test_load_builtin_warns_once_per_language_until_success` 曾因
+  tracing 级别泄漏而在与 `tests/test_tracing.py` 同跑时失败——根因已由 m-28 修复，
+  `test_syntax_engine.py` 侧的 `_LogCapture` 加固作为二次防护保留。
+- 首轮评审提出的 `default_target()`（`tools/pack/wiki.py:398-414`）scp-like 切分问题**不在本批 diff 内**，
+  与 m-24 同源但因超出本轮范围未修，登记待办。
 
 ### W-B（plan-b）性能项实测（2026-10-20，Windows，探针脚本验证后已删除）
 

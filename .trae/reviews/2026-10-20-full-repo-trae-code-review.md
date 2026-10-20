@@ -209,3 +209,22 @@ flowchart TD
   另 19 条 MINOR 为主代理单验证）。
 - 三条 BLOCKER 均为"正常使用即可触发"：打开含单侧插入的三方合并、vim 下 `5G`、
   `tools.pack.wiki` 传错 `--target`。**不得原样合并至主干前不修**。
+
+## 十、处置状态（回填，2026-10-20）
+
+修复方案：[`../documents/trae-review-fixes-plan.md`](../documents/trae-review-fixes-plan.md)
+（子计划 `trae-review-fixes-plans/`，波次 W-A → W-E 串行）。
+
+| 范围 | 提交 | 条目 | 状态 |
+|---|---|---|---|
+| W-A 核心与 LSP | `148fa4a` | B-1、M-1、M-2、M-3、m-9、m-10、m-11、m-19 | 8/8 已修（先红后绿） |
+| W-B 组件与终端 | `29a79d2` | M-4、m-1、m-2、m-5、m-12、m-13、m-20 | 7/7 已修 |
+| W-C 顶层/flows/keymaps | `b32bd5d` | B-2、M-5、M-6、m-7、m-16、m-22 | 6/6 已修；**m-21 登记不修**（pyright 证明 Textual 无静态基成员，`@override` 非法） |
+| W-D services/syntax/extensions | `41ae9fc` | M-7、M-8、m-3、m-4、m-6、m-8、m-14、m-15、m-17、m-18 | 10/10 已修（含跨波补齐 LSP / tree-sitter 回滚） |
+| W-E tools + logs | 见 `trae-review-fixes-plans/overview.md` §5.1 | B-3、M-9、m-23、m-24、m-25、m-26、m-27、m-28 | 8/8 已修（首轮评审 2 BLOCKER + 6 MAJOR 全部解决后 APPROVE） |
+
+合计：**39 条已修 + 1 条登记不修（m-21）+ 1 条执行期追加（m-28，已修）**；
+`sanity` 项（性能类 M-4）实测收益为噪声级，按判据保留实现并如实登记。
+
+偏离与实测依据（含 B-3 / M-9 判据重设计、worker 线程不写终端、URL 锚定解析）逐条记录在
+`trae-review-fixes-plans/overview.md` §5.2，本记录不重复。
