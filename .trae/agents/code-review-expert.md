@@ -79,12 +79,15 @@ model: DeepSeek-V4.1-Flash
 
 ```powershell
 .venv\Scripts\python.exe -m pyright yate/ tests/ tools/
-.venv\Scripts\python.exe -m pytest tests/ -q
+.venv\Scripts\python.exe -m pytest tests/ -q -n auto
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
-.venv\Scripts\python.exe -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
-.venv\Scripts\python.exe -m tools.smoke_test run
+.venv\Scripts\python.exe -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75 -n auto
+.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
 ```
 
+- 并行口径与 CI 一致（`-n auto` / `--jobs 4`）；并行下报出的失败必须用 `-n 1` /
+  `--jobs 1` 复核，区分"真实缺陷"与"负载下的时序假设"——后者也要修用例，
+  不得记成偶发；
 - pyright 零诊断 + pytest 全绿是合并硬门槛；
 - **覆盖率**：分支模式全量覆盖率须 ≥ 75（CI 门禁阈值，见 pyproject.toml），
   报告须列出未覆盖行；本次新增 / 修改的代码应有对应测试覆盖，

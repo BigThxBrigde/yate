@@ -367,7 +367,7 @@ flowchart TD
 - [ ] 主题与滚动条归组件自持（R13）：没有在 L3 直改 widget `.styles.*` 着色、
       没有类级 `ScrollBar.renderer` patch、新主题感知组件已订阅
       `theme.subscribe` 自行上色？
-- [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q` 全绿？
+- [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q -n auto` 全绿？
 
 ## 六、防回归
 
