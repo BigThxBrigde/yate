@@ -20,6 +20,9 @@ eggs/
 .eggs/
 lib/
 lib64/
+# Bundled shared Lua modules (require()-able from extensions) live here; the
+# generic lib/ rule above is for C extension build output only.
+!yate/extensions/lib/
 parts/
 sdist/
 var/
