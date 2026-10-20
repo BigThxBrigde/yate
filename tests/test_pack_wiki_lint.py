@@ -1,0 +1,187 @@
+"""Lint integration in the wiki publisher (mdlint wave-2, plan B).
+
+Wiki output is linted right before it hits the disk: Chinese pages run
+the ``zh`` profile, English pages (bilingual twins and translations) the
+``en`` profile.  Fixable violations are repaired in the written copy,
+unfixable ones only log warnings, and the translation manifest digest
+keeps hashing the raw source bytes.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import logging
+import sys
+from pathlib import Path
+
+import pytest
+from tools.pack import wiki
+from tools.pack.errors import Code
+
+
+def _touch(root: Path, rel: str, text: str = "# title\n\nbody\n") -> Path:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+@pytest.fixture()
+def repo(tmp_path: Path) -> Path:
+    """A minimal fake checkout: one .trae document plus a bilingual pair."""
+    root = tmp_path / "repo"
+    _touch(root, ".trae/documents/alpha-plan.md")
+    _touch(root, "yate/docs/topic.zh.md", "# topic zh\n")
+    _touch(root, "yate/docs/topic.en.md", "# topic en\n")
+    return root
+
+
+def test_zh_page_written_with_lint_fix(repo: Path, tmp_path: Path) -> None:
+    """A fixable zh violation (MD012 blank run) is repaired on write."""
+    _touch(repo, ".trae/documents/messy-plan.md", "# heading\n\n\n\nbody\n")
+    target = tmp_path / "wiki"
+    assert wiki.run(target, None, repo_root=repo) == 0
+    written = (target / "messy-plan.zh.md").read_text(encoding="utf-8")
+    assert written == "# heading\n\nbody\n"
+
+
+def test_en_twin_page_written_with_lint_fix(repo: Path, tmp_path: Path) -> None:
+    """A fixable en twin violation (MD047 missing final newline) is repaired."""
+    _touch(repo, "yate/docs/broken.zh.md", "# broken zh\n")
+    _touch(repo, "yate/docs/broken.en.md", "# broken en")
+    target = tmp_path / "wiki"
+    assert wiki.run(target, None, repo_root=repo) == 0
+    written = (target / "broken.en.md").read_text(encoding="utf-8")
+    assert written == "# broken en\n"
+
+
+def test_translated_en_page_linted(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Translation output passes through the en fix pass before landing."""
+    # The fake translation lacks its final newline (MD047).
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return "# alpha en\n\ntranslated"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    written = (target / "alpha-plan.en.md").read_text(encoding="utf-8")
+    assert written == "# alpha en\n\ntranslated\n"
+
+
+def test_nav_pages_linted(repo: Path, tmp_path: Path) -> None:
+    """Nav documents are linted too; fixable residue is repaired."""
+    target = tmp_path / "wiki"
+    assert wiki.run(target, None, repo_root=repo) == 0
+    home = (target / "Home.md").read_text(encoding="utf-8")
+    sidebar = (target / "_Sidebar.md").read_text(encoding="utf-8")
+    # MD012 blank runs are auto-fixed; unfixable residue (MD022 etc. in
+    # the generated nav markup) only logs warnings and keeps links intact.
+    assert "\n\n\n" not in home
+    assert "\n\n\n" not in sidebar
+    assert "alpha-plan" in home and "alpha-plan" in sidebar
+    for nav in ("Home.en.md", "_Sidebar.en.md"):
+        assert (target / nav).is_file()
+
+
+def test_lint_does_not_affect_manifest_digest(repo: Path, tmp_path: Path) -> None:
+    """The manifest still hashes the raw source bytes, not the linted copy."""
+    source = _touch(repo, ".trae/documents/messy-plan.md", "# heading\n\n\n\nbody\n")
+    raw = source.read_bytes()
+    target = tmp_path / "wiki"
+    # An adopted en page keeps the page out of the translation pipeline.
+    _touch(target, "messy-plan.en.md", "# messy en\n")
+    assert wiki.run(target, None, repo_root=repo) == 0
+    first = wiki.load_manifest(target)
+    assert wiki.run(target, None, repo_root=repo) == 0
+    second = wiki.load_manifest(target)
+    expected = hashlib.sha256(raw).hexdigest()
+    assert first["messy-plan.zh.md"] == second["messy-plan.zh.md"] == expected
+    # The zh page on disk IS the linted copy (differs from the raw source).
+    assert (target / "messy-plan.zh.md").read_text(encoding="utf-8") == (
+        "# heading\n\nbody\n"
+    )
+
+
+def test_lint_engine_import_error_reported(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing/broken lint engine aborts with WIKI-0109, not a traceback."""
+    monkeypatch.setitem(sys.modules, "tools.mdlint.lint", None)
+    wiki.reset_lint_engine_cache()
+    target = tmp_path / "wiki"
+    with pytest.raises(wiki.WikiError) as excinfo:
+        wiki.run(target, None, repo_root=repo)
+    assert excinfo.value.code == Code.WIKI_LINT_FAILED
+    assert "markdown lint engine unavailable" in str(excinfo.value)
+
+
+def test_lint_violations_logged_not_aborting(
+    repo: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unfixable violations warn (with rule id) and never abort the run."""
+    _touch(repo, ".trae/documents/cjk-plan.md", "# heading\n\n你好world\n")
+    target = tmp_path / "wiki"
+    with caplog.at_level(logging.WARNING, logger="yate.pack"):
+        assert wiki.run(target, None, repo_root=repo) == 0
+    assert any("YM001" in record.getMessage() for record in caplog.records)
+    # The unfixable page is published unchanged (YM001 has no fix pass).
+    written = (target / "cjk-plan.zh.md").read_text(encoding="utf-8")
+    assert written == "# heading\n\n你好world\n"
+
+
+def test_lint_skips_non_utf8_bytes(
+    repo: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Undecodable source bytes pass through untouched with a warning."""
+    raw = b"# \xff\xfe invalid utf-8\n"
+    source = repo / ".trae" / "documents" / "binary-plan.md"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_bytes(raw)
+    target = tmp_path / "wiki"
+    with caplog.at_level(logging.WARNING, logger="yate.pack"):
+        assert wiki.run(target, None, repo_root=repo) == 0
+    assert (target / "binary-plan.zh.md").read_bytes() == raw
+    assert any("not UTF-8" in record.getMessage() for record in caplog.records)
+
+
+def test_lint_backend_crash_publishes_page_as_is(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A document pymarkdown chokes on is published unchanged, not fatal.
+
+    pymarkdown raises its own exceptions on a few pathological inputs; a
+    single odd page must never fail the whole publish.
+    """
+    from tools.mdlint.lint import LintEngine
+
+    def explode(self: LintEngine, text: str) -> tuple[str, list[object]]:
+        raise RuntimeError("rehydrate index mismatch")
+
+    monkeypatch.setattr(LintEngine, "fix", explode)
+    wiki.reset_lint_engine_cache()
+    target = tmp_path / "wiki"
+    with caplog.at_level(logging.WARNING, logger="yate.pack"):
+        assert wiki.run(target, None, repo_root=repo) == 0
+    assert (target / "alpha-plan.zh.md").read_text(encoding="utf-8") == (
+        "# title\n\nbody\n"
+    )
+    assert any("could not be linted" in record.getMessage() for record in caplog.records)
+
+
+def test_existing_wiki_tests_unaffected(repo: Path, tmp_path: Path) -> None:
+    """Clean Markdown passes through byte-identical (lint zero-intervention).
+
+    The plan's "original tests stay green" case: the existing suites run in
+    the same acceptance command; this spot-check pins the zero-intervention
+    contract on the clean fixture texts they rely on.
+    """
+    target = tmp_path / "wiki"
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert (target / "alpha-plan.zh.md").read_text(encoding="utf-8") == (
+        "# title\n\nbody\n"
+    )
+    assert (target / "topic.zh.md").read_text(encoding="utf-8") == "# topic zh\n"
+    assert (target / "topic.en.md").read_text(encoding="utf-8") == "# topic en\n"

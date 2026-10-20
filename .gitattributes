@@ -1,3 +1,6 @@
 # Shell scripts must keep LF even on Windows checkouts, or the shebang and
 # bash parsing break once the file lands on a Linux build machine.
 *.sh text eol=lf
+
+# Hook scripts run under bash on Linux CI; CRLF there breaks the shebang.
+.githooks/* text eol=lf

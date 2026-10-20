@@ -380,6 +380,13 @@ def test_interrupt_leaves_the_queued_batches_untranslated(
         return "# en\n"
 
     monkeypatch.setattr(wiki, "translate_via_cmd", interrupting)
+    # This guard is about interrupt latency, not lint throughput: the wiki
+    # lint pass costs a fixed ~50 ms of backend setup per page, which would
+    # otherwise dominate the wall-clock budget below.
+    def passthrough(text: str, lang: str, *, label: str) -> str:
+        return text
+
+    monkeypatch.setattr(wiki, "_lint_page_text", passthrough)
     target = tmp_path / "wiki"
     # Called straight through the library, the interrupt propagates (the CLI
     # boundary is what maps it to exit code 130).
