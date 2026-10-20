@@ -18,9 +18,12 @@ from yate.config import YateConfig
 from yate.editor_core import BufferReadOnlyError, Document, TextBuffer
 from yate.keymaps import vim as vim_module
 from yate.keymaps.base import ActionContext, KeyUi, parse_key
-from yate.keymaps.vim import VimKeymap, VimMode
+from yate.keymaps.vim import RESERVED_KEYS, VimKeymap, VimMode
+from yate.keymaps.vsc import VscKeymap
 from yate.registries import ActionRegistry
 from yate.session import EditorSession
+
+from conftest import make_action_context, make_key_ui
 
 ESC: str = "\x1b"
 CTRL_R: str = "\x12"
@@ -1841,3 +1844,180 @@ def test_alt_c_in_insert_mode_is_swallowed() -> None:
     assert editor.buffer.extra_cursors == []
     assert editor.buffer.get_text() == _MULTI_TEXT
     assert keymap.mode is VimMode.INSERT
+
+
+# --- pending-chord observation (which-key) ----------------------------------
+
+
+def test_pending_prefix_empty_when_idle() -> None:
+    """A freshly built keymap holds no chord and answers empty."""
+    _editor, keymap, _ctx = _setup()
+    assert keymap.pending_prefix() == ""
+
+
+def test_pending_prefix_tracks_operator_then_prefix() -> None:
+    """The chord reads back in typing order: count, operator, prefix."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "2")
+    assert keymap.pending_prefix() == "2"
+    keymap.handle_key(ctx, "d")
+    assert keymap.pending_prefix() == "2d"
+    keymap.handle_key(ctx, "f")
+    assert keymap.pending_prefix() == "2df"
+
+
+def test_pending_prefix_tracks_register_wait() -> None:
+    """The register prefix shows while waiting and keeps the named letter.
+
+    ``"`` pends as ``pending_register == ""``; naming the register ("a")
+    moves the state out of the wait phase but the chord is still in
+    flight, so the header reads ``"a`` until a command consumes the
+    register (``"ay`` folds it into the armed operator).
+    """
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, '"')
+    assert keymap.pending_prefix() == '"'
+    keymap.handle_key(ctx, "a")
+    assert keymap.pending_prefix() == '"a'
+    keymap.handle_key(ctx, "y")
+    assert keymap.pending_prefix() == "y"
+
+
+def test_pending_prefix_empty_in_insert_mode() -> None:
+    """INSERT never holds chord state, so the observation stays empty."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "i")
+    assert keymap.mode is VimMode.INSERT
+    assert keymap.pending_prefix() == ""
+
+
+def test_pending_prefix_includes_text_object_scope() -> None:
+    """The chord header shows the scope too: ``di`` after d then i."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    keymap.handle_key(ctx, "i")
+    assert keymap.pending_prefix() == "di"
+
+
+def test_chord_hints_list_operator_pending_motions() -> None:
+    """An armed operator lists its hardcoded continuations key by key."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    hints = dict(keymap.chord_hints())
+    assert hints["d"] == "delete line (dd)"
+    assert hints["w"] == "next word"
+    assert hints["i"] == "inner object"
+    assert hints["g"] == "go-to prefix (line 1)"
+    assert hints["$"] == "line end"
+    # No count in flight: 0 is a real line-start motion here (d0).
+    assert hints["0"] == "line start"
+    assert "; ," not in hints  # no find has run, so nothing to repeat yet
+    keymap.handle_key(ctx, "2")
+    # Post-operator count (d2): a typed 0 extends the count, so the
+    # line-start row must disappear.
+    assert "0" not in dict(keymap.chord_hints())
+
+
+def test_chord_hints_offer_find_repeat_after_a_find() -> None:
+    """``;`` / ``,`` rows appear only once a find has been recorded."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    assert "; ," not in dict(keymap.chord_hints())
+    keymap.last_find = ("x", False, False)
+    hints = dict(keymap.chord_hints())
+    assert hints["; ,"] == "delete to next / previous find match"
+
+
+def test_chord_hints_list_text_object_targets() -> None:
+    """After ``di`` the rows are the object chars the resolver accepts."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "d")
+    keymap.handle_key(ctx, "i")
+    hints = dict(keymap.chord_hints())
+    assert hints["w"] == "inner word"
+    assert hints["t"] == "inner HTML tag"
+    assert hints["( b"] == "inner parenthesized block"
+    assert hints["{ B"] == "inner braced block"
+
+
+def test_chord_hints_list_prefix_followers() -> None:
+    """An argument prefix shows its placeholder, ``g`` its gg completion."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, "f")
+    assert keymap.chord_hints() == (("{char}", "find char forward"),)
+    keymap.handle_key(ctx, "\x1b")  # esc clears the prefix
+    keymap.handle_key(ctx, "g")
+    assert keymap.chord_hints() == (("g", "go to line N / first line (gg)"),)
+
+
+def test_chord_hints_show_register_wait_and_count_state() -> None:
+    """Register states and a bare count each list what may follow."""
+    _editor, keymap, ctx = _setup()
+    keymap.handle_key(ctx, '"')
+    assert keymap.chord_hints() == (("a-z", "named register"),)
+    keymap.handle_key(ctx, "a")
+    # Register named, command key still awaited: only the commands that
+    # consume the register complete the chord.
+    assert keymap.chord_hints() == (
+        ("d y c", "operator into register"),
+        ("p P", "paste register"),
+    )
+    keymap.handle_key(ctx, "2")
+    hints = dict(keymap.chord_hints())
+    assert hints["d"] == "delete operator"
+    assert hints["w"] == "next word"
+    assert hints["r"] == "replace prefix"
+    assert hints["> <"] == "indent / outdent lines"
+    # A count in flight eats a typed 0 as a digit: no line-start row.
+    assert "0" not in hints
+
+
+def test_chord_hints_empty_without_chord_state() -> None:
+    """INSERT / VISUAL / idle NORMAL hold no hardcoded continuations."""
+    _editor, keymap, ctx = _setup()
+    assert keymap.chord_hints() == ()
+    keymap.handle_key(ctx, "i")
+    assert keymap.mode is VimMode.INSERT
+    assert keymap.chord_hints() == ()
+
+
+def test_f9_binding_toggles_whichkey_action() -> None:
+    """<f9> routes to the named toggle_whichkey action through KeyUi."""
+    executed: list[str] = []
+
+    def run(name: str) -> bool:
+        executed.append(name)
+        return True
+
+    ctx = make_action_context("", make_key_ui(execute=run))
+    keymap = VimKeymap()
+    assert keymap.handle_key(ctx, parse_key("<f9>")) is True
+    assert executed == ["toggle_whichkey"]
+
+
+def test_reserved_keys_match_hardcoded_consumers() -> None:
+    """RESERVED_KEYS pins exactly the keys _handle_normal eats before lookup.
+
+    Literal full-set equality: adding or removing a hardcoded consumer
+    branch must update this literal in the same change, or the conflict
+    scanner false-reports reserved keys (or misses a dead binding).
+    The set deliberately tracks the raw (non-printable) branches plus the
+    count digits alone: ESC / alt+c / ctrl-chords and digits 1-9 are
+    consumed unconditionally, while the printable hard-coded keys
+    (motions, operators, entry points) stay out of the report on purpose.
+    ``0`` works as a motion when no count is in flight and extends the
+    count otherwise, so it is not part of the digit run, and F-keys still
+    reach the binding table through the _FUNCTION_KEYS branch.
+    """
+    assert RESERVED_KEYS == frozenset(
+        {"\x1b", "\x1bc", "\x07", "\x04", "\x15", "\x06", "\x02", "\x12",
+         "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+    )
+    assert "0" not in RESERVED_KEYS
+    assert parse_key("<f1>") not in RESERVED_KEYS
+
+
+def test_vim_keymap_carries_reserved_keys_hook() -> None:
+    """The base-class reserved_keys hook exposes the vim set to scanners."""
+    assert VimKeymap().reserved_keys is RESERVED_KEYS
+    assert VscKeymap().reserved_keys == frozenset()

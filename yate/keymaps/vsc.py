@@ -117,4 +117,5 @@ class VscKeymap(Keymap):
             _raw("\x1b[6;5~", "next_tab", "Next tab", TAB),
             _k("<f1>", "help", "Keyboard shortcuts help", HELP),
             _k("<f8>", "manual", "Open user manual (read-only)", HELP),
+            _k("<f9>", "toggle_whichkey", "Toggle the which-key panel", VIEW),
         ]

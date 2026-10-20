@@ -243,6 +243,30 @@ def test_support_mouse_rejects_non_bool_keeps_default(tmp_path: Path) -> None:
     )
 
 
+# --- which_key option ------------------------------------------------------
+
+
+def test_which_key_defaults_true() -> None:
+    """The which-key panel switch defaults to True (panel on)."""
+    assert cfg.YateConfig().which_key is True
+
+
+def test_which_key_rc_value_applied(tmp_path: Path) -> None:
+    """A boolean rc value flips the which-key master switch without errors."""
+    config = _load("which_key = False\n", tmp_path)
+    assert config.which_key is False
+    assert config.errors == []
+
+
+def test_which_key_rejects_non_bool_keeps_default(tmp_path: Path) -> None:
+    """A non-boolean value reports an error and keeps the default."""
+    config = _load('which_key = "yes"\n', tmp_path)
+    assert config.which_key is True
+    assert any(
+        "which_key must be True or False" in e for e in config.errors
+    )
+
+
 # --- trace options -----------------------------------------------------------
 
 

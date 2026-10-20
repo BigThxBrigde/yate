@@ -36,6 +36,15 @@ _WINDOW_KEYS: frozenset[str] = frozenset(
      "=", "equals_sign", "ctrl+w"}
 )
 
+#: The hint posted when the ctrl+w chord arms.  Its keywords are pinned to
+#: :data:`yate.flows.whichkey_flows.WINDOW_CHORDS` descriptions by
+#: ``test_window_chord_hint_covers_whichkey_rows`` -- edit the two together
+#: so the panel rows and the message line keep reading the same words.
+WINDOW_CHORD_HINT: str = (
+    "ctrl+w-  (s/:split v/:vsplit q close o :only  "
+    "h j k l move, ctrl+w cycle  + - < > = resize)"
+)
+
 
 class WindowFlows:
     """Owns pane splits / closing / resizing and the ctrl+w chord state."""
@@ -70,6 +79,10 @@ class WindowFlows:
         self._after_pane_focus = after_pane_focus
         self._explorer_focused = explorer_focused
         self._window_pending = False
+        #: Which-key observer, wired late by the editor (the flow module is
+        #: built before WhichKeyFlows exists): called on every chord flip so
+        #: the panel follows both the editor and the explorer key paths.
+        self.on_chord_change: Callable[[], None] | None = None
 
     def split_with_path(self, axis: Axis, args: str) -> None:
         """``:sp`` / ``:vs``: split a pane, optionally opening *args*."""
@@ -170,7 +183,7 @@ class WindowFlows:
         if self.prompt_bar.active_mode:
             return False
         if self._window_pending:
-            self._window_pending = False
+            self._set_window_pending(False)
             if event.key in _WINDOW_KEYS:
                 self._window_command(event.key)
                 return True
@@ -178,14 +191,23 @@ class WindowFlows:
         if self.keymaps.name == "vim" and event.key == "ctrl+w":
             vim = self.keymaps.get("vim")
             if isinstance(vim, VimKeymap) and vim.mode is VimMode.NORMAL:
-                self._window_pending = True
-                self._message(
-                    "ctrl+w-  (s/:split v/:vsplit q close o :only  "
-                    "h j k l move, ctrl+w cycle  + - < > = resize)",
-                    "info",
-                )
+                self._set_window_pending(True)
+                self._message(WINDOW_CHORD_HINT, "info")
                 return True
         return False
+
+    def _set_window_pending(self, value: bool) -> None:
+        """Flip the chord state and notify the which-key observer.
+
+        Every flip goes through here (arm and consume/cancel alike), so the
+        panel refreshes no matter which focused widget routed the key --
+        including :class:`~yate.editor_view.explorer.ExplorerTree`, whose
+        ``on_key`` calls this module directly without touching the editor's
+        dispatch.
+        """
+        self._window_pending = value
+        if self.on_chord_change is not None:
+            self.on_chord_change()
 
     def _window_command(self, key: str) -> None:
         """Execute the second key of a vim ``ctrl+w`` window chord."""

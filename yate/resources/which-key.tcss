@@ -1,0 +1,20 @@
+/* WhichKeyPanel self-owned stylesheet. The widget id (#which-key) is
+   assigned by the Editor at compose time (R9) -- the widget is mounted
+   inside #editor-col which declares the matching layer name. The
+   anchor is computed by Python (Textual 8.2.8 cannot right-anchor an
+   absolute child via CSS alone, see editor_view/whichkey.py::reanchor). */
+WhichKeyPanel {
+    display: none;
+    position: absolute;
+    layer: whichkey;
+    width: auto;
+    max-width: 48;
+    height: auto;
+    max-height: 100%;
+    padding: 0 1;
+    background: $panel;
+    border: round $secondary;
+    border-title-color: $primary;
+    border-title-style: bold;
+    border-title-align: left;
+}

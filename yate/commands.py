@@ -98,6 +98,24 @@ def _apply_support_mouse(editor: Editor, value: object) -> None:
     editor.message(f"mouse support {'on' if enabled else 'off'}", kind="ok")
 
 
+def _apply_which_key(editor: Editor, value: object) -> None:
+    """Apply ``:set which_key`` (the flow reads it per refresh).
+
+    The flow module receives a ``Callable[[], bool]`` predicate over
+    ``editor.config.which_key``, so the next
+    :meth:`~yate.flows.whichkey_flows.WhichKeyFlows.refresh` already sees the
+    new value; we only have to clear the panel when it goes off (otherwise
+    it lingers with the stale pinned sheet visible) and re-render when it
+    comes back on (so the operator-armed chord state repaints immediately).
+    """
+    enabled = cast(bool, value)
+    editor.config.which_key = enabled
+    if not enabled:
+        editor.whichkey.clear()
+    editor.refresh_ui()
+    editor.message(f"which-key panel {'on' if enabled else 'off'}", kind="ok")
+
+
 SET_APPLY.update(
     filetype=_apply_filetype,
     keymap=_apply_keymap,
@@ -107,6 +125,7 @@ SET_APPLY.update(
     show_hidden=_apply_show_hidden,
     readonly=_apply_readonly,
     support_mouse=_apply_support_mouse,
+    which_key=_apply_which_key,
 )
 
 
@@ -456,5 +475,12 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         "remove an installed .yxp package (:uninstall-extension NAME)")
     reg("list-extensions", _list_extensions,
         "show the installed extension packages")
+
+    # ---- key bindings ------------------------------------------------------
+
+    def _check_keys(args: str) -> None:
+        editor.overlays.show_output("key conflicts", editor.whichkey.conflicts_report())
+
+    reg("check-keys", _check_keys, "report key binding conflicts")
 
     log.info("builtin commands registered: %d", len(registry.names()))

@@ -246,6 +246,10 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_view.commandline",
         "yate.editor_view.panes",
     },
+    "flows/whichkey_flows.py": {
+        "yate.editor_view",
+        "yate.editor_view.whichkey",
+    },
 }
 
 #: Extension-machinery submodules (R14): yate code enters the extension
@@ -785,7 +789,7 @@ def test_ts_backend_never_imports_regex_backend() -> None:
 
 
 def test_collaborators_keep_widget_coupling_frozen() -> None:
-    """The nine ``flows/`` keys registered in ``UI_FROZEN_FILES`` are
+    """The ten ``flows/`` keys registered in ``UI_FROZEN_FILES`` are
     editor-level collaborators: each may drive its known widgets but never
     depend upward, and a new ``editor_view`` import must be added there
     first (R11)."""

@@ -13,6 +13,12 @@
       "ok": true
     },
     {
+      "label": "confirm_loop_mode",
+      "expected": "replace_confirm",
+      "actual": "replace_confirm",
+      "ok": true
+    },
+    {
       "label": "replaced",
       "expected": "dog dog dog",
       "actual": "dog dog dog",

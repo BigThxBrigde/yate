@@ -500,6 +500,15 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
                 f"support_mouse must be True or False, got {support_mouse!r}"
             )
 
+    which_key = options.get("which_key")
+    if which_key is not None:
+        if isinstance(which_key, bool):
+            config.which_key = which_key
+        else:
+            config.errors.append(
+                f"which_key must be True or False, got {which_key!r}"
+            )
+
     trace = options.get("yate_trace")
     if trace is not None:
         if isinstance(trace, bool):

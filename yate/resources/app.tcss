@@ -30,7 +30,7 @@
 #editor-col {
     width: 1fr;
     height: 1fr;
-    layers: default lsp-popup;
+    layers: default lsp-popup whichkey;
 }
 #tabbar {
     height: 1;

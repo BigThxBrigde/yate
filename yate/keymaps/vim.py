@@ -68,7 +68,30 @@ _PREFIX_KEYS: tuple[str, ...] = (*_PREFIX_MOTIONS, "r")
 #: not a count.  The ``g`` prefix keeps taking digits for ``g{count}g``.
 _ARG_PREFIXES: tuple[str, ...] = ("f", "F", "t", "T", "r")
 
+#: Which-key row for each armed argument prefix: the follower is any
+#: printable char, shown as a placeholder instead of 100+ literal rows.
+_FIND_PREFIX_HINTS: dict[str, tuple[str, str]] = {
+    "f": ("{char}", "find char forward"),
+    "F": ("{char}", "find char backward"),
+    "t": ("{char}", "till char forward"),
+    "T": ("{char}", "till char backward"),
+}
+
 _FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
+
+#: Raw keys the hard-coded ``_handle_normal`` branches consume before the
+#: binding table is consulted, so a table entry on any of them would
+#: never dispatch.  The set deliberately tracks the raw (non-printable)
+#: branches plus the count digits alone: the printable hard-coded keys
+#: (motions, operators, insert entry points, prompts) are not enumerated,
+#: which keeps the stock ``:check-keys`` report to the eight mirror rows
+#: the table carries on raw keys.  ``0`` belongs to that printable class
+#: -- it works as a motion when no count is in flight and extends the
+#: count otherwise, so it stays out of the digit run.
+RESERVED_KEYS: frozenset[str] = frozenset(
+    {"\x1b", "\x1bc", "\x07", "\x04", "\x15", "\x06", "\x02", "\x12",
+     "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+)
 
 #: The two shift keys that indent / outdent whole lines in vim mode.
 _SHIFT_KEYS: frozenset[str] = frozenset({">", "<"})
@@ -88,7 +111,13 @@ class VimKeymap(Keymap):
     :attr:`obj_scope`, :attr:`count_str`) is instance-local, so every
     keypress extends or resolves exactly one in-flight chord and no
     half-typed combination ever leaks between keymap instances.
+
+    Hardcoded dispatch branches claim :data:`RESERVED_KEYS`; the base-class
+    :attr:`~yate.keymaps.base.Keymap.reserved_keys` hook carries the set so
+    the conflict scanner sees it without knowing this concrete keymap.
     """
+
+    reserved_keys = RESERVED_KEYS
 
     name = "vim"
     label = "Vim (modal)"
@@ -196,6 +225,8 @@ class VimKeymap(Keymap):
                 "Toggle the idle screensaver", CMD,
             ),
             KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
+            KeyBinding(parse_key("<f9>"), "toggle_whichkey",
+                       "Toggle the which-key panel", HLP),
         ]
 
     # --------------------------------------------------------------- dispatch
@@ -252,6 +283,152 @@ class VimKeymap(Keymap):
         self.prefix = None
         self.count_str = ""
         self.pending_register = None
+
+    @override
+    def pending_prefix(self) -> str:
+        """The vim chord typed so far, in binding-spec order (empty if none).
+
+        Follows the typing order the dispatch accepts: count, operator,
+        text-object scope, prefix (``2di`` / ``2df``).  The register prefix
+        shows while its letter is awaited (``pending_register == ""``) and
+        keeps showing with the named letter (``"a`` / ``"a2``) until a
+        command consumes it: arming an operator folds the register away
+        (``op_register``), as does every register-consuming command, and
+        the display drops it at that point.  INSERT / VISUAL never hold
+        chord state.
+        """
+        if self.mode is not VimMode.NORMAL:
+            return ""
+        parts: list[str] = []
+        if self.pending_register == "":
+            parts.append('"')
+        elif self.pending_register and self.op is None:
+            # Register named, command key still awaited: keep the chord
+            # visible until the operator (or paste) takes the register.
+            parts.append(f'"{self.pending_register}')
+        if self.count_str:
+            parts.append(self.count_str)
+        elif self.op is not None and self.op_count is not None:
+            # Arming an operator folds the typed count into op_count and
+            # clears count_str; show it back so "2df" reads as typed.
+            parts.append(str(self.op_count))
+        if self.op is not None:
+            parts.append(self.op)
+        if self.obj_scope is not None:
+            parts.append(self.obj_scope)
+        if self.prefix is not None:
+            parts.append(self.prefix)
+        return "".join(parts)
+
+    @override
+    def chord_hints(self) -> tuple[tuple[str, str], ...]:
+        """Next-key rows for the hardcoded NORMAL-mode state in flight.
+
+        One branch per pending state, mirroring ``_handle_normal``'s
+        dispatch order: register wait, named-register wait, text-object
+        scope, argument prefixes, armed operator, bare count.  Every row
+        is a key the state machine actually consumes -- nothing
+        aspirational.
+        """
+        if self.mode is not VimMode.NORMAL:
+            return ()
+        if self.pending_register == "":
+            return (("a-z", "named register"),)
+        if (
+            self.pending_register
+            and self.op is None
+            and not self.count_str
+            and self.prefix is None
+            and self.obj_scope is None
+        ):
+            # Register named, command key still awaited ("a): only the
+            # register-consuming commands complete the chord meaningfully;
+            # with a count or prefix also pending the shared branches below
+            # take over and the header carries the register.
+            return (
+                ("d y c", "operator into register"),
+                ("p P", "paste register"),
+            )
+        if self.obj_scope is not None:
+            inner = "inner" if self.obj_scope == "i" else "around"
+            return (
+                ("w", f"{inner} word"),
+                ("'", f"{inner} single-quoted"),
+                ('"', f"{inner} double-quoted"),
+                ("t", f"{inner} HTML tag"),
+                ("( b", f"{inner} parenthesized block"),
+                ("[ ]", f"{inner} bracketed block"),
+                ("{ B", f"{inner} braced block"),
+                ("< >", f"{inner} angle block"),
+            )
+        if self.prefix == "g":
+            return (("g", "go to line N / first line (gg)"),)
+        if self.prefix in _FIND_PREFIX_HINTS:
+            return (_FIND_PREFIX_HINTS[self.prefix],)
+        if self.prefix == "r":
+            return (("{char}", "replace char"),)
+        if self.op is not None:
+            return self._operator_hints()
+        if self.count_str:
+            return (
+                ("d", "delete operator"),
+                ("y", "yank operator"),
+                ("c", "change operator"),
+                *self._motion_hints(),
+                ("g", "go-to prefix"),
+                *self._find_prefix_hints(),
+                ("r", "replace prefix"),
+                ("> <", "indent / outdent lines"),
+            )
+        return ()
+
+    def _operator_hints(self) -> tuple[tuple[str, str], ...]:
+        """Rows for an armed operator: the operator itself, objects, motions."""
+        op_verb = {"d": "delete", "y": "yank", "c": "change"}[self.op or "d"]
+        assert self.op is not None
+        rows: list[tuple[str, str]] = [
+            (self.op, f"{op_verb} line ({self.op * 2})"),
+            ("i", "inner object"),
+            ("a", "around object"),
+            *self._motion_hints(),
+            ("g", "go-to prefix (line 1)"),
+            *self._find_prefix_hints(),
+        ]
+        if not self.count_str:
+            # No post-operator count in flight (``d2`` state): ``0`` is a
+            # real line-start motion here; with a count it would extend it.
+            rows.append(("0", "line start"))
+        if self.last_find is not None:
+            rows.append(("; ,", f"{op_verb} to next / previous find match"))
+        return tuple(rows)
+
+    @staticmethod
+    def _motion_hints() -> tuple[tuple[str, str], ...]:
+        """The motion set both NORMAL and operator-pending dispatch accept.
+
+        ``0`` is deliberately absent: with any count in flight (bare count
+        or a post-operator count) it extends the count instead of moving,
+        so the row only belongs where ``count_str`` is known empty (the
+        operator branch adds it back in that case).
+        """
+        return (
+            ("w", "next word"),
+            ("b", "previous word"),
+            ("e", "end of word"),
+            ("h j k l", "left / down / up / right"),
+            ("$", "line end"),
+            ("G", "last line"),
+        )
+
+    @staticmethod
+    def _find_prefix_hints() -> tuple[tuple[str, str], ...]:
+        """The find-char prefixes that can complete an operator."""
+        return (
+            ("f", "find char forward"),
+            ("F", "find char backward"),
+            ("t", "till char forward"),
+            ("T", "till char backward"),
+        )
 
     def _clear_operator(self) -> None:
         """Drop the armed operator with its scope and count companions."""

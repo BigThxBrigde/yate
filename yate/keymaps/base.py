@@ -96,6 +96,27 @@ class Keymap:
     name: str = "base"
     label: str = "Base"
 
+    #: Raw keys this keymap consumes in hardcoded dispatch branches before
+    #: the binding table is consulted, so a table entry on any of them can
+    #: never dispatch.  Table-driven keymaps stay empty; stateful keymaps
+    #: with hardcoded branches override (vim).  Consumed by
+    #: :func:`yate.keymaps.conflicts.find_key_conflicts` via the caller.
+    reserved_keys: frozenset[str] = frozenset()
+
+    def chord_hints(self) -> tuple[tuple[str, str], ...]:
+        """Next-key rows for the hardcoded chord in flight, if any.
+
+        Stateful keymaps with hardcoded dispatch branches (vim) override
+        this to describe what can follow the currently pending state --
+        an armed operator lists its motions, a find prefix its ``{char}``
+        follower, and so on -- so the which-key panel can list them
+        key by key.  Each row is ``(label, description)`` where *label*
+        is one next key, a ``{char}`` argument placeholder or a compact
+        range like ``a-z``.  Table-driven keymaps hold no hardcoded state
+        and return ``()``.
+        """
+        return ()
+
     def __init__(self) -> None:
         self.bindings: list[KeyBinding] = self.build_bindings()
         self._index: dict[str, KeyBinding] = {b.key: b for b in self.bindings}
@@ -202,3 +223,12 @@ class Keymap:
             ctx.buffer.type_char(key, language=ctx.doc.filetype)
             return True
         return False
+
+    def pending_prefix(self) -> str:
+        """The chord typed so far in human form (empty when nothing pends).
+
+        Which-key surfaces read this after every dispatch to decide whether
+        the pending-chord panel is visible.  The modeless base keymap never
+        holds chord state, so it answers empty; stateful subclasses override.
+        """
+        return ""

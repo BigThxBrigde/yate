@@ -70,6 +70,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `terminal_height` | `int` | `12` | `3`–`40` 的整数（布尔/浮点/字符串被拒绝） | 集成终端面板高度（行数） |
 | `show_hidden` | `bool` | `False` | `True` / `False` | 文件树是否默认显示点文件（隐藏文件）；`False` 表示默认隐藏，需手动切换。非布尔值被拒绝 |
 | `support_mouse` | `bool` | `True` | `True` / `False` | 鼠标交互总开关。`False` 忽略所有鼠标事件（文本区、标签栏、文件树、终端、滚动条、分隔条拖拽）；键盘输入不受影响。非布尔值被拒绝 |
+| `which_key` | `bool` | `True` | `True` / `False` | which-key 面板的总开关。`False` 时面板彻底不显示（挂起弦候选、`ctrl+w` 窗格组合、F9 钉住式速查页皆关闭），F9 toggle 变为空操作。非布尔值被拒绝 |
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
 | `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `dist_*_bound` / `characters` 键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
 | `file_preview` | `dict` | 见[下文](#文件预览file_preview) | 含 `enable` / `position` / `size` / `max_lines` / `max_size` 键的 dict | Ctrl+P 快速打开的文件预览设置，见[下文](#文件预览file_preview) |
@@ -89,6 +90,8 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
   `terminal_height` 同时支持会话内 `:set terminal_height=<n>` 立即调整。
 - `yate_trace` / `yate_trace_level` 在**启动时**读取（进程生命周期内不变），
   需要临时开关请用下节的环境变量。
+- `which_key` 由 `WhichKeyFlows` 在每次 `refresh()`（以及每次 `toggle()`）
+  时读取；`:set which_key=off|on` 会立即切换面板可见性。
 
 ## 运行日志（`yate_trace`）
 

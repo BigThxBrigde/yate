@@ -63,6 +63,11 @@ use_spaces = True
 #
 # support_mouse = True   # set False to ignore all mouse input
 
+# Show the which-key panel while a key chord is pending and when pinned
+# via F9 (on by default).
+#
+# which_key = True   # set False to suppress the panel entirely
+
 # ------------------------------------------------------------- trace log
 #
 # Runtime debug log, off by default: nothing is written until it is turned
