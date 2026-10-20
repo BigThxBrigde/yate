@@ -11,10 +11,24 @@ which re-exports this table as engine.glyph / engine.box_top / engine.frame /
 engine.center / engine.pad / engine.trim / engine.rep / engine.now /
 engine.utf8_char; a game may also require("engine_layout") directly.
 
+Width rules (the reason this module exists):
+
+- Every sizing helper works in **display columns**, measured with
+  layout.width() -- one per UTF-8 codepoint.  All glyphs the pack draws are
+  single width (blocks, box drawing, geometric shapes, Font Awesome 4
+  private-use icons); emoji are forbidden precisely because their width is
+  not knowable.
+- Byte arithmetic (`#text`, `text:sub`) must never be used on a string that
+  can contain multi-byte glyphs: `#` counts bytes, so a row of blocks would
+  look three times longer than it is.  Truncation goes through
+  layout.truncate(), which cuts on a codepoint boundary and never splits a
+  glyph.
+- layout.center() pads BOTH sides so the result is exactly *width* columns;
+  a bordered row built as glyph.v .. center(x, inner) .. glyph.v is then
+  guaranteed to line up with the box borders.
+
 Hard rules: no file I/O, no print(), no os.execute, and no game rules -- this
-module only knows about characters and widths.  Every helper sizes text by
-byte length, so callers keep frame content ASCII; games that draw multi-byte
-glyphs (sokoban, nethack) build their rows with table.concat instead.
+module only knows about characters and widths.
 ]]
 
 local layout = {}
@@ -47,6 +61,54 @@ layout.glyph = {
   ring = "◌",
   arrow_down = "▼",
 }
+
+-- Display width of *text* in codepoints (ASCII fast path included).
+function layout.width(text)
+  local value = tostring(text or "")
+  local count = 0
+  local index = 1
+  local length = #value
+  while index <= length do
+    local byte = value:byte(index)
+    if byte < 0x80 then
+      index = index + 1
+    elseif byte < 0xE0 then
+      index = index + 2
+    elseif byte < 0xF0 then
+      index = index + 3
+    else
+      index = index + 4
+    end
+    count = count + 1
+  end
+  return count
+end
+
+-- Cut *text* to *width* display columns without splitting a glyph.
+function layout.truncate(text, width)
+  local value = tostring(text or "")
+  if layout.width(value) <= width then
+    return value
+  end
+  local index = 1
+  local length = #value
+  for _ = 1, width do
+    local byte = value:byte(index)
+    if byte == nil then
+      return value
+    end
+    if byte < 0x80 then
+      index = index + 1
+    elseif byte < 0xE0 then
+      index = index + 2
+    elseif byte < 0xF0 then
+      index = index + 3
+    else
+      index = index + 4
+    end
+  end
+  return value:sub(1, index - 1)
+end
 
 -- Strip leading and trailing whitespace.
 function layout.trim(text)
@@ -82,7 +144,7 @@ end
 -- Rounded top border with a title, total display width inner + 2.
 function layout.box_top(title, inner)
   local label = tostring(title or "")
-  local fill = inner - #label - 3
+  local fill = inner - layout.width(label) - 3
   if fill < 0 then
     fill = 0
   end
@@ -102,23 +164,19 @@ function layout.box_bottom(inner)
     .. layout.glyph.br
 end
 
--- Center *text* in a *width*-wide field (the odd space goes right).
+-- Center *text* in a *width*-wide field, padding both sides to the exact
+-- width (the odd column goes to the right).
 function layout.center(text, width)
-  local value = tostring(text or "")
-  local left = math.floor((width - #value) / 2)
-  if left < 0 then
-    left = 0
-  end
-  return layout.rep(" ", left) .. value
+  local value = layout.truncate(text, width)
+  local slack = width - layout.width(value)
+  local left = math.floor(slack / 2)
+  return layout.rep(" ", left) .. value .. layout.rep(" ", slack - left)
 end
 
--- Left-align *text* in a *width*-wide field (truncates when too long).
+-- Left-align *text* in a *width*-wide field (truncates on a glyph boundary).
 function layout.pad(text, width)
-  local value = tostring(text or "")
-  if #value >= width then
-    return value:sub(1, width)
-  end
-  return value .. layout.rep(" ", width - #value)
+  local value = layout.truncate(text, width)
+  return value .. layout.rep(" ", width - layout.width(value))
 end
 
 -- Wrap *lines* in a titled box; every line is padded to the inner width.
