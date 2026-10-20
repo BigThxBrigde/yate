@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -91,6 +91,23 @@ def _reporter(args: argparse.Namespace) -> Reporter:
         svg_rows=args.svg_rows,
         html_path=args.report,
     )
+
+
+def _progress_for(
+    reporter: Reporter, *, jobs: int
+) -> Callable[[int, int, str], None]:
+    """The progress callback matching the runner that will be used.
+
+    Serial runs announce a scenario before starting it; the parallel runner
+    only hears about one when a worker returns it, so it reports completion.
+    """
+    if jobs <= 1:
+        return reporter.progress
+
+    def _report(done: int, total: int, name: str) -> None:
+        reporter.progress(done, total, name, completed=True)
+
+    return _report
 
 
 def _write_json(path: str, results: Sequence[ScenarioResult],
@@ -209,7 +226,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         svg=args.svg,
         invariants=not args.no_invariant,
         timeout=args.timeout,
-        progress=reporter.progress,
+        progress=_progress_for(reporter, jobs=args.jobs),
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
