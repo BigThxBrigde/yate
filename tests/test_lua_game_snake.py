@@ -50,12 +50,12 @@ def pin_food(game: GameRuntime, x: int, y: int) -> None:
 
 
 def pin_food_march(game: GameRuntime) -> None:
-    """Pin the food source to (4,9), (5,9), ... along the starting row."""
+    """Pin the food source to (4,10), (5,10), ... along the starting row."""
     fn: Any = game.runtime.execute(
         "local counter = 0\n"
         "return function()\n"
         "  counter = counter + 1\n"
-        "  return { x = 3 + counter, y = 9 }\n"
+        "  return { x = 3 + counter, y = 10 }\n"
         "end"
     )
     game.module.set_food_source(fn)
@@ -68,8 +68,8 @@ class TestSnakeBoard:
     def test_game_snake_opens_the_board_canvas(self) -> None:
         game = make_game()
         canvas = game.launch()
-        assert canvas.cols == 62
-        assert canvas.rows == 22
+        assert canvas.cols == 80
+        assert canvas.rows == 24
         assert "\u256d\u2500 snake" in canvas.grid  # rounded "╭─ snake"
         assert "score 0" in canvas.status
         assert canvas.status.endswith("escape quits")
@@ -80,9 +80,9 @@ class TestSnakeBoard:
         snap = game.snapshot()
         assert snap["length"] == 3
         assert snap["head_x"] == 3
-        assert snap["head_y"] == 9
-        assert 1 <= snap["food_x"] <= 30
-        assert 1 <= snap["food_y"] <= 18
+        assert snap["head_y"] == 10
+        assert 1 <= snap["food_x"] <= 39
+        assert 1 <= snap["food_y"] <= 20
 
 
 @requires_lupa
@@ -105,14 +105,14 @@ class TestSnakeMovement:
         game.tick(10)
         snap = game.snapshot()
         assert snap["head_x"] == 3
-        assert snap["head_y"] == 8
+        assert snap["head_y"] == 9
 
     def test_wall_collision_ends_the_game(self) -> None:
         game = make_game()
         game.launch()
         pin_food(game, 30, 18)
         game.press("up")
-        game.tick(90)  # nine steps: from row 9 out through the top wall
+        game.tick(110)  # eleven steps: from row 10 out through the top wall
         snap = game.snapshot()
         assert snap["alive"] is False
         assert "game over" in game.require_canvas().grid
@@ -138,7 +138,7 @@ class TestSnakeRules:
     def test_eating_food_scores_and_grows(self) -> None:
         game = make_game()
         game.launch()
-        pin_food(game, 4, 9)
+        pin_food(game, 4, 10)
         game.tick(10)  # one step onto the food cell
         snap = game.snapshot()
         assert snap["score"] == 10
@@ -193,7 +193,7 @@ class TestSnakePersistence:
     def test_high_score_is_saved_with_the_player_name(self) -> None:
         game = make_game()
         game.launch()
-        pin_food(game, 4, 9)
+        pin_food(game, 4, 10)
         game.tick(10)  # score 10
         pin_food(game, 30, 18)
         game.press("up")
@@ -207,7 +207,7 @@ class TestSnakePersistence:
         api = FakeApi()
         game = make_game(api)
         game.launch()
-        pin_food(game, 4, 9)
+        pin_food(game, 4, 10)
         game.tick(10)
         pin_food(game, 30, 18)
         game.press("up")

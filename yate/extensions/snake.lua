@@ -1,8 +1,8 @@
 --[[
 yate bundled extension: snake (snake.lua)
 
-A classic snake game drawn on a yate extension canvas: a 30 x 18 board of
-two-column cells inside a rounded 62 x 22 frame, with a HUD row (score /
+A classic snake game drawn on a yate extension canvas: a 39 x 20 board of
+two-column cells inside a rounded 80 x 24 frame, with a HUD row (score /
 best / length) under the title, a help separator above the bottom border
 and overlay text ("paused", "game over") in the middle of the board.
 
@@ -31,10 +31,10 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 
 local engine = require("game_engine")
 
--- Canvas geometry: 62 x 22, inner width 60, board 30 x 18 cells.
-local COLS, ROWS = 62, 22
-local INNER = 60
-local BOARD_W, BOARD_H = 30, 18
+-- Canvas geometry: 80 x 24, inner width 78, board 39 x 20 cells.
+local COLS, ROWS = 80, 24
+local INNER = 78
+local BOARD_W, BOARD_H = 39, 20
 
 -- Cell glyphs (single width, doubled on output): body, head, food.
 local BODY = engine.glyph.block .. engine.glyph.block
@@ -133,7 +133,7 @@ end
 local function reset_game()
   rng = engine.rng(seed)
   state = {
-    snake = { { x = 3, y = 9 }, { x = 2, y = 9 }, { x = 1, y = 9 } },
+    snake = { { x = 3, y = 10 }, { x = 2, y = 10 }, { x = 1, y = 10 } },
     dir = { x = 1, y = 0 },
     pending = nil,
     food = nil,
@@ -232,10 +232,12 @@ end
 -- ------------------------------------------------------------------ rendering
 
 -- Top border: rounded frame, title, then the star icon after " · ".
--- Built by hand (not box_top) so the icon fits without byte splicing.
+-- Built by hand (not box_top) so the icon fits without byte splicing; the
+-- fill is measured in display columns (the star is multi-byte).
 local function top_line()
   local label = " snake · " .. engine.glyph.star .. " "
-  local fill = COLS - 2 - #label
+  -- borders (2) + the leading ─ glyph (1) + the label
+  local fill = COLS - 3 - engine.width(label)
   return engine.glyph.tl
     .. engine.glyph.h
     .. label
@@ -272,7 +274,7 @@ end
 
 -- Help separator between the board and the bottom border.
 local function help_line()
-  local inner = INNER - #HELP_TEXT - 2
+  local inner = INNER - engine.width(HELP_TEXT) - 2
   return engine.glyph.h
     .. " "
     .. HELP_TEXT
