@@ -33,6 +33,8 @@
 2 MINOR 当轮闭环，未闭环数不变）。
 **2026-10-17 full-repo-audit 增量**：新增 #42 / #43（四技能联合审核两轮，已闭环）
 与 #44（找茬优化报告，0 缺陷 / 5 条建议级）。
+**2026-10-20 TRAE-code-review 增量**：新增 #45（全仓库 TRAE-code-review 审核，
+3 BLOCKER / 9 MAJOR / 27 MINOR，待用户决策修复范围）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -85,6 +87,7 @@
 | 42 | 2026-10-17 | 分支 `enh/full-repo-audit` 四技能联合审核（TRAE-code-review / TRAE-security-review / python-code-review / pr-review 依次评审同一 diff 后去重）：净发现 1 MAJOR（`keys.py::key_name` 解码 kitty CSI-u 修饰位未减基偏移，round-trip 错标 `<ctrl-1>` 为 `<shift-ctrl-1>`，`vsc.py:113` 默认绑定可达）+ 1 MINOR（修复计划文档「旧实现得 4」表述失准）；安全审计 clean；四道门禁全绿（pyright 0/0/0 + 架构 32 + 全量 2485 passed/9 skipped + 覆盖率 91% exit 0）。实施期验收追加发现 FS-3 MAJOR（冒烟替换场景未同步 `ad237e5` per-match confirm loop 契约，master 既有，A/B + master 复跑实证） | ✅ 已修（2026-10-17，`0f54f17` FS-1 解码减基偏移 + 无修饰早退 + 8 组合用例；`4fcb8df` FS-3 场景补 `replace_confirm` 锚点 + `a` 兜底；FS-2 勘误段随 docs 提交；收尾门禁 pyright 0 + 全量 2485p/9s + 架构 32 + 覆盖率 91.97% + 冒烟 107/107、1304/1304 全 exit 0；见 [full-repo-audit-four-review-fixes-plan.md](../documents/full-repo-audit-four-review-fixes-plan.md) §六） | [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) |
 | 43 | 2026-10-17 | 任务第 6 步 pr-review **复审**（范围 = 累计 diff `master...HEAD` 含修复三提交）：增量六维逐项核对零新发现；核销 checks 计数守恒疑点（`saved_matches_disk` 条件不变量，harness.py:391-399）；五道门禁全绿（pyright 0/0/0 + 2485p/9s + 架构 32 + 覆盖率 91.97% + 冒烟 107/107，全 exit 0） | ✅ **APPROVE，零遗留 issue**——迭代闭环（结论见 [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) §六） | [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) |
 | 44 | 2026-10-17 | 找茬优化报告（分支 `enh/full-repo-audit` @ `cd2ca00` 全仓找茬；**0 缺陷，5 条建议级**）：① `current_screen` 查询链 `Screen[Any]` 可精化为 `Screen[object]`（上游 `App.screen` 即该类型）；② `handle_key` nul_keys 嵌套 if 可合并（评审自评现状更易读）；③ `on_unmount` 三段 teardown try/except 可提取辅助（评审自评现状可接受；且首段为同步调用，报告示意代码会把同步调用交给 await）；④ `cli.main` ~220 行可拆 `--diff` 校验与扩展管理辅助；⑤ `_set_theme` 适配闭包（评审自评无需修改） | ✅ 已处置（2026-10-17：① `7834da3` 查询链 `Screen[Any]`→`Screen[object]`（与上游 `App.screen` 同型，editor.py 的 `Any` 归零）+ ④ `d8d0248` cli.main 拆 `_validate_diff_args` / `_manage_extensions`；②③⑤ 评审自评维持现状（③ 报告示意代码会把同步调用交给 await，勘误见方案 §二）；门禁 pyright 0 + 全量 0 failures + 架构 32 + 覆盖率 91.95% + 冒烟 107/107·1304/1304 全 exit 0；pr-review 复审 **APPROVE 零 issue**（0 BLOCKER / 0 MAJOR / 0 MINOR），见 [full-repo-audit-optimization-fixes-plan.md](../documents/full-repo-audit-optimization-fixes-plan.md) §八） | [2026-10-17-full-repo-audit.md](2026-10-17-full-repo-audit.md) |
+| 45 | 2026-10-20 | **全仓库 TRAE-code-review 审核**（`enh/full-repo-trae-review` @ master `d8c1dee`；5 只读分区子代理 + 2 交叉验证子代理，20 条候选 2/2 确认；覆盖 `yate/` 144 + `tools/` 60 个 `.py`） | ⚠️ 不通过（3 BLOCKER 正常使用即触发） | 3 BLOCKER / 9 MAJOR / 27 MINOR | 🔧 待决策（修复若获批准另立 `.trae/documents/` 方案） | [2026-10-20-full-repo-trae-code-review.md](2026-10-20-full-repo-trae-code-review.md) |
 
 ---
 
@@ -174,6 +177,7 @@
 | 2026-10-18 | **全仓库多维度审核（第三轮，新 worktree 重跑）**（`enh/repo-audit-r3`，12 维度全新只读审计 + 确证缺陷修复） | 见文档自身记载 | 见文档自身记载 | ✅ 已登记（修复动作归 [full-repo-audit-r3-fixes-plan.md](../documents/full-repo-audit-r3-fixes-plan.md)） | [2026-10-18-full-repo-audit-r3.md](2026-10-18-full-repo-audit-r3.md) |
 | 2026-10-18 | **repo-audit-r2 · plan_d 执行记录（架构守卫缺口收口）**（`ref/repo-audit-r2`；+3 条架构守卫用例（32→35）+ 规则同步；含终局收口与合并记录） | ✅ 通过（门禁全实测：pyright 0 + 2508 passed / 9 skipped + 35 架构 + 91.99% + 冒烟 112/112） | 0 阻断 / 0 major（A-3 文档面守卫按偏离登记未落地） | ✅ 已收口（遗留：文档面 42 处历史路径按「随下次修改迁移」登记待办） | [2026-10-18-repo-audit-r2.md](2026-10-18-repo-audit-r2.md) |
 | 2026-10-18 | **pr-review · `ref/repo-audit-r2` 分支审查**（pr-review 技能六维框架，base = master `9e84e97`，44 文件 +3621−51；主代理亲跑全部门禁） | ⚠️ REQUEST_CHANGES（1 MAJOR：`poll_idle` 空屏幕栈竞态在覆盖率负载下 3/3 次全量运行致未改动文件的 pilot 用例失败） | 1 MAJOR / 5 MINOR | ✅ 已修复（当轮：poll_idle 卫语句 + 回归用例 / CI 注释与 smoke ubuntu 腿临时降级 / 规则补局部 `--cov-fail-under=0` 口径 / 3 个计划文档路径脱敏 / 本索引补录；修复方案见 [repo-audit-r2-review-fixes-plan.md](../documents/repo-audit-r2-review-fixes-plan.md)） | [2026-10-18-pr-review-ref-repo-audit-r2.md](2026-10-18-pr-review-ref-repo-audit-r2.md) |
+| 2026-10-20 | **全仓库 TRAE-code-review 审核**（`enh/full-repo-trae-review` @ master `d8c1dee`；5 只读分区子代理 + 2 交叉验证子代理；主代理亲跑门禁 + 运行时探针） | ⚠️ 不通过（3 BLOCKER 正常使用即触发：三方合并单侧插入崩溃、vim `5G` 越界、wiki prune 误删源文档） | 3 BLOCKER / 9 MAJOR / 27 MINOR（20 条 2/2 确认，19 条 MINOR 单验证） | 🔧 待决策（本轮零代码改动，只读事实文档） | [2026-10-20-full-repo-trae-code-review.md](2026-10-20-full-repo-trae-code-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
