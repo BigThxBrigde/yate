@@ -22,6 +22,7 @@ from yate.editor_lsp.client import Completion
 from yate.editor_lsp.parsing import (
     _from_utf16,
     _parse_completion_item,
+    _parse_diagnostics,
     _range_from,
     _range_to_buffer_cols,
     _to_utf16,
@@ -196,3 +197,13 @@ def test_parse_completion_item_missing_label_returns_none(doc: Document) -> None
     assert _parse_completion_item({"label": ""}, {}, doc, 1, 3, 1) is None
     assert _parse_completion_item({"label": 42}, {}, doc, 1, 3, 1) is None
     assert _parse_completion_item({}, {}, doc, 1, 3, 1) is None
+
+
+def test_parse_diagnostics_ignores_a_null_payload() -> None:
+    """A ``null`` diagnostics payload yields no diagnostics (no raise)."""
+    assert _parse_diagnostics(None) == []
+
+
+def test_parse_diagnostics_ignores_a_dict_payload() -> None:
+    """A dict diagnostics payload yields no diagnostics (no raise)."""
+    assert _parse_diagnostics({"diagnostics": []}) == []

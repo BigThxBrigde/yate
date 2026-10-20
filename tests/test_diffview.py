@@ -584,6 +584,32 @@ def test_3way_local_only_region_keeps_remote_side_plain(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_diffview_opens_a_three_way_merge_with_a_one_sided_insertion(
+    tmp_path: Path,
+) -> None:
+    """A one-sided pure insertion is reported and tints the inserted line."""
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["a\nb\nc", "a\nL\nb\nc", "a\nb\nc"])
+        app = _Host(docs, "3way", _keymaps("vsc"), ["base", "local", "remote"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            panes = list(screen.query(DiffPane))
+            regions = [r for r in screen._regions if r.kind == "local"]
+            assert len(regions) == 1
+            region = regions[0]
+            assert isinstance(region, MergeRegion)
+            assert region.base_start == region.base_end == 1
+            assert (region.local_start, region.local_end) == (1, 2)
+            assert _line_states(panes[1]) == ("same", "changed", "same", "same")
+            assert _line_states(panes[0]) == ("same", "same", "same")
+            assert _line_states(panes[2]) == ("same", "same", "same")
+
+    asyncio.run(scenario())
+
+
 def test_3way_identical_both_region_copy_hints_nothing_to_copy(
     tmp_path: Path,
 ) -> None:

@@ -1027,8 +1027,6 @@ class TextBuffer:
         if c == 0:
             return
         before = self._snapshot()
-        self.anchor = (r, 0)
-        self.cursor = (r, c)
         self._delete_range((r, 0), (r, c))
         self.cursor = (r, 0)
         self.anchor = None
@@ -1063,7 +1061,8 @@ class TextBuffer:
             target = r + 1 if below else r
             self.set_cursor((target, 0))
             self.insert_text(text[:-1] + "\n", kind="step")
-            self.move_line_end()
-            self.move_left()
+            block = text[:-1].split("\n")
+            last_row = target + len(block) - 1
+            self.set_cursor((last_row, max(0, len(self.lines[last_row]) - 1)))
         else:
             self.insert_text(text, kind="step")

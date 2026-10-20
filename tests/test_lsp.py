@@ -1416,3 +1416,50 @@ def test_document_saved_emits_no_debug_when_notify_succeeds(
         await mgr.shutdown_all()
 
     asyncio.run(scenario())
+
+
+def test_reregistering_a_server_stops_the_old_client(tmp_path: Path) -> None:
+    """Replacing a server config stops the cached old client instead of
+    leaking it (2026 plan-a M-3: register_server pops without stop)."""
+    async def scenario() -> None:
+        class CountingClient(FakeClient):
+            """FakeClient that counts stop() calls."""
+
+            def __init__(self, *a: Any, **kw: Any) -> None:
+                super().__init__(*a, **kw)
+                self.stop_calls = 0
+
+            @override
+            async def stop(self) -> None:
+                """Record the call, then run the fake stop."""
+                self.stop_calls += 1
+                await super().stop()
+
+        created: list[CountingClient] = []
+
+        def factory(config: ServerConfig, root: Path) -> FakeClient:
+            client = CountingClient(config, root)
+            created.append(client)
+            return client
+
+        mgr = LspManager(
+            workspace_root=lambda: tmp_path,
+            client_factory=cast(Any, factory),
+        )
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path))
+        old = await mgr.ensure_client(doc)
+        assert isinstance(old, CountingClient)
+        assert old.stop_calls == 0
+
+        mgr.register_server(
+            ServerConfig(name=PY_CONFIG.name, command="v2", filetypes=["py"])
+        )
+        for _ in range(100):
+            if old.stop_calls:
+                break
+            await asyncio.sleep(0.01)
+        assert old.stop_calls == 1  # stopped exactly once, not leaked
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())

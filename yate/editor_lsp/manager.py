@@ -134,7 +134,9 @@ class LspManager:
             # executable probe followed by an extension re-registering a
             # working command) and any documents opened on the old config.
             for key in [k for k in self._clients if k[0] == config.name]:
-                self._clients.pop(key, None)
+                client = self._clients.pop(key, None)
+                if client is not None:
+                    self._spawn_bg(client.stop())
             for task in [t for k, t in self._starting.items() if k[0] == config.name]:
                 task.cancel()
             self._starting = {k: v for k, v in self._starting.items()
