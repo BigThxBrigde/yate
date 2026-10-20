@@ -57,10 +57,13 @@ class TestSokobanCanvas:
         game = make_game()
         canvas = game.launch()
         assert canvas.cols == 23
-        assert canvas.rows == 16
+        assert canvas.rows == 17
         lines = canvas.grid.split("\n")
         assert "sokoban" in lines[0]
         assert "level 1/6" in lines[13]
+        # two help rows carry the four key words in full
+        assert "r restart" in lines[14]
+        assert "n next" in lines[15]
         assert canvas.status.endswith("escape quits")
 
     def test_builtin_levels_are_well_formed(self) -> None:
@@ -95,10 +98,21 @@ class TestSokobanRules:
         game = make_game()
         game.launch()
         game.module.load_level(6)
-        game.press("right", "right")
+        game.press("right")
         snap = game.snapshot()
         assert snap["solved"] is True
-        assert snap["pushes"] == 2
+        assert snap["pushes"] == 1
+        assert snap["completed"] == [6]
+
+    def test_pushing_the_crate_off_the_goal_unsolves_the_level(self) -> None:
+        """A second push leaves the goal empty again; solved must follow."""
+        game = make_game()
+        game.launch()
+        game.module.load_level(6)
+        game.press("right", "right")
+        snap = game.snapshot()
+        assert snap["solved"] is False
+        assert snap["completed"] == {}
 
     def test_box_against_a_wall_does_not_move(self) -> None:
         game = make_game()
@@ -122,6 +136,22 @@ class TestSokobanRules:
         assert snap["moves"] == 0
         assert snap["pushes"] == 0
         assert snap["undo_depth"] == 0
+
+    def test_undo_after_solving_rolls_the_level_back(self) -> None:
+        """Undoing the solving push revives the level (no skipped progress)."""
+        game = make_game()
+        game.launch()
+        game.module.load_level(6)
+        game.press("right")
+        assert game.snapshot()["solved"] is True
+
+        game.press("u")
+
+        snap = game.snapshot()
+        assert snap["solved"] is False
+        assert snap["completed"] == {}
+        saved = json.loads(game.api.data.files["games/sokoban.json"])
+        assert saved["completed"] == []
 
     def test_undo_at_start_is_a_no_op(self) -> None:
         game = make_game()
@@ -157,7 +187,7 @@ class TestSokobanRules:
         game = make_game()
         game.launch()
         game.module.load_level(6)
-        game.press("right", "right")
+        game.press("right")
         game.press("n")
         assert "all levels cleared" in game.require_canvas().grid
         game.press("r")

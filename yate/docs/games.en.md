@@ -114,7 +114,8 @@ Saved: top-5 scores, games played, levels cleared.
 │     ██████          │
 │                     │
 │ level 1/6  m0 p0 d0 │
-│ u undo r rst n next p│
+│ u undo  r restart   │
+│ n next  p pause     │
 ╰─────────────────────╯
 ```
 
@@ -242,7 +243,11 @@ you bundle it with yate, or in `~/.yate/extensions/` (or a trusted
 `./extensions/`) for local use — the `:game` dispatcher picks it up
 automatically because it enumerates the registered `game-*` actions.
 
-`require("game_engine")` gives you the shared half:
+`require("game_engine")` gives you the shared half. The engine itself is split
+over three requirable modules — `lib/game_engine.lua` (store, scores, player,
+dispatch, canvas session), `lib/engine_json.lua` (the codec) and
+`lib/engine_layout.lua` (glyph vocabulary and box layout) — but a game only
+ever requires `game_engine`, which re-exports the other two:
 
 | Member | Purpose |
 |---|---|
@@ -297,6 +302,9 @@ local function on_key(key)
   end
   state.row = math.max(1, math.min(8, state.row + dy))
   state.score = state.score + 1
+  -- `best` is a value the game owns: refresh it so the HUD never shows a
+  -- stale record while the current run is ahead of it.
+  state.best = math.max(state.best, state.score)
   paint()
 end
 
@@ -338,6 +346,11 @@ Notes:
 - Keep game rules in your file; the engine deliberately knows no rules.
 - Expose a `snapshot()` returning plain scalars if you want deterministic
   tests, and a `set_seed(n)` when you use `engine.rng`.
+- `engine.json` encodes an empty Lua table as `[]`; JSON `{}` and `[]` both
+  decode to an empty Lua table, so an "empty object" does not round-trip.
+  Store a key (for example `"version"`) instead of an optional empty object.
+- `state.best` is game-owned: the engine's score board only answers "what was
+  the best saved score", so refresh your own copy when a run overtakes it.
 
 ## 8. Lua lint
 

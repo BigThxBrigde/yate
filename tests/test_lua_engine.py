@@ -166,6 +166,17 @@ def test_json_roundtrip_keeps_nesting_and_escapes() -> None:
 
 
 @requires_lupa
+def test_json_encodes_an_empty_table_as_an_array() -> None:
+    """Documents round-trip except for ``{}`` vs ``[]``, which is documented."""
+    runtime, _api = engine_runtime()
+
+    assert runtime.execute("return engine.json.encode({})") == "[]"
+    decoded = lua_to_python(runtime.execute('return engine.json.decode("[]")'))
+
+    assert decoded == {}
+
+
+@requires_lupa
 def test_json_decode_reports_errors() -> None:
     """A malformed document yields ``nil`` plus a ``json:`` message."""
     runtime, _api = engine_runtime()
@@ -320,7 +331,11 @@ def test_lib_dir_is_not_discovered_as_an_extension() -> None:
 
     assert "game_engine.lua" not in discovered
     assert (bundled_extensions_dir() / "lib" / "game_engine.lua").is_file()
-    assert "game_engine" in lua_module_sources()
+    # the engine is split over three requirable modules (each well below the
+    # 800-line guideline the Python guard applies to yate/)
+    assert {"game_engine", "engine_json", "engine_layout"} <= set(
+        lua_module_sources()
+    )
 
 
 @pytest.mark.parametrize("name", ["bad-name", "a.b", "1st"])

@@ -245,3 +245,16 @@ class TestNethackPersistence:
         snap = game.snapshot()
         assert snap["depth"] == 1
         assert snap["alive"] is True
+
+    def test_write_failure_is_reported_once_and_does_not_stop_the_game(self) -> None:
+        """A refusing data store costs one notice, never a turn or a crash."""
+        api = FakeApi()
+        game = make_game(api)
+        inject(game, make_state((5, 9)))
+        api.data.fail_writes = True
+
+        game.launch()
+        game.press("right", "right")
+
+        assert game.snapshot()["turn"] == 2
+        assert api.messages.count("save failed: nethack") == 1

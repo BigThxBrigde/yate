@@ -143,6 +143,9 @@ class TestSnakeRules:
         snap = game.snapshot()
         assert snap["score"] == 10
         assert snap["length"] == 4
+        # the HUD best tracks a run that overtakes the saved record
+        assert snap["best"] == 10
+        assert "best 10" in game.require_canvas().status
         food = (snap["food_x"], snap["food_y"])
         assert food != (4, 9)  # the food respawned somewhere else
 

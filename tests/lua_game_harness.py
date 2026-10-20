@@ -105,17 +105,25 @@ class FakeActions:
 
 
 class FakeData:
-    """``api.data``: documents kept in a dict, never on disk."""
+    """``api.data``: documents kept in a dict, never on disk.
+
+    ``fail_writes`` switches every write to the failure path, so a game's
+    "save failed" handling (one notice per document, never a crash) is
+    testable without touching a filesystem.
+    """
 
     def __init__(self) -> None:
         self.files: dict[str, str] = {}
+        self.fail_writes: bool = False
 
     def read(self, name: str) -> str | None:
         """Return the stored document, or ``None``."""
         return self.files.get(name)
 
     def write(self, name: str, text: str) -> bool:
-        """Store the document."""
+        """Store the document (a refusal when ``fail_writes`` is set)."""
+        if self.fail_writes:
+            return False
         self.files[name] = text
         return True
 

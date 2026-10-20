@@ -10,25 +10,21 @@ through package.preload, so a game script reaches it with
 
 Each script runtime compiles its own private copy, so games never share state.
 
-Contents (all of it lives here so a game only owns its rules):
+The module is deliberately split over three files (the presentation helpers
+and the codec are separate modules, re-exported here so a game only ever
+requires one name):
 
-  engine.json.encode / decode      minimal JSON codec (tables, arrays, escapes)
-  engine.store(name)               one JSON document per game under
-                                   ~/.yate/data/games/<name>.json
-  engine.scores(name)              top-5 high score board with player + time
-  engine.player / set_player       the player name kept in games/profile.json
-  engine.register / available / dispatch   the ":game" command plumbing
-  engine.open(spec)                one canvas session with the single-instance
-                                   guard, paint/status/close helpers
-  engine.box_top / box_bottom / center / pad / frame / panel   layout helpers
-  engine.direction(key)            arrows / hjkl / wasd -> dx, dy
-  engine.rng(seed)                 deterministic LCG (tests inject the seed)
-  engine.utf8_char(code)           codepoint -> UTF-8 string (nerd icon helper)
-  engine.trim / rep / now          small text/time helpers
+  engine_json.lua    engine.json.encode / decode        (JSON codec)
+  engine_layout.lua  engine.glyph / box_* / frame / pad (glyphs, layout)
+  game_engine.lua    store / scores / player / register / dispatch / open /
+                     direction / rng                    (this file)
 
 Hard rules: no file I/O (yate.data is the only channel), no print(), no
 os.execute, and never keep game rules in here.
 ]]
+
+local json = require("engine_json")
+local layout = require("engine_layout")
 
 local engine = {}
 
@@ -44,394 +40,19 @@ local ACTION_PREFIX = "game-"
 --: High score entries kept per game.
 local MAX_SCORES = 5
 
---: Glyph vocabulary shared by every game (single-width Unicode, no emoji).
-engine.glyph = {
-  tl = "╭",
-  tr = "╮",
-  bl = "╰",
-  br = "╯",
-  h = "─",
-  v = "│",
-  block = "█",
-  shade = "▓",
-  light = "░",
-  box = "▣",
-  box_on_goal = "▩",
-  goal = "◎",
-  dot = "·",
-  big_dot = "●",
-  player = "☻",
-  star = "★",
-  heart = "♥",
-  coin = "◉",
-  tri = "▲",
-  tri_hollow = "△",
-  tri_small = "▴",
-  tri_tiny = "▵",
-  diamond = "◆",
-  ring = "◌",
-  arrow_down = "▼",
-}
-
--- ---------------------------------------------------------------------- text
-
--- Strip leading and trailing whitespace.
-function engine.trim(text)
-  return (tostring(text or ""):gsub("^%s*(.-)%s*$", "%1"))
-end
-
--- Repeat *text* *count* times (a non-positive count yields "").
-function engine.rep(text, count)
-  local times = math.floor(tonumber(count) or 0)
-  if times <= 0 then
-    return ""
-  end
-  return string.rep(tostring(text or ""), times)
-end
-
--- Local timestamp, e.g. "2026-10-20T21:30:00".
-function engine.now()
-  return os.date("%Y-%m-%dT%H:%M:%S")
-end
-
--- Codepoint -> UTF-8 string, or nil when the runtime has no utf8 library.
-function engine.utf8_char(code)
-  if utf8 == nil or utf8.char == nil then
-    return nil
-  end
-  local ok, glyph = pcall(utf8.char, code)
-  if not ok or type(glyph) ~= "string" or glyph == "" then
-    return nil
-  end
-  return glyph
-end
-
--- ---------------------------------------------------------------------- json
-
-engine.json = {}
-
---: Sentinel a JSON null decodes to inside arrays (Lua arrays cannot hold nil).
-engine.json.null = {}
-
---: Encodings of the characters that need a short escape sequence.
-local JSON_ESCAPES = {
-  ['"'] = '\\"',
-  ["\\"] = "\\\\",
-  ["\b"] = "\\b",
-  ["\f"] = "\\f",
-  ["\n"] = "\\n",
-  ["\r"] = "\\r",
-  ["\t"] = "\\t",
-}
-
--- True when *value* is a non-empty Lua array (keys 1..n with no holes).
-local function is_array(value)
-  local count = 0
-  for key in pairs(value) do
-    if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then
-      return false
-    end
-    count = count + 1
-  end
-  if count == 0 then
-    return true
-  end
-  for index = 1, count do
-    if value[index] == nil then
-      return false
-    end
-  end
-  return true
-end
-
--- Encode one string with the JSON escape rules.
-local function encode_string(value)
-  return '"' .. value:gsub('[%z\1-\31\\"]', function(char)
-    local known = JSON_ESCAPES[char]
-    if known ~= nil then
-      return known
-    end
-    return string.format("\\u%04x", string.byte(char))
-  end) .. '"'
-end
-
-local encode_value
-
--- Encode a Lua table, sorting object keys so output is byte-stable.
-local function encode_table(value, out)
-  if next(value) == nil then
-    out[#out + 1] = "[]"
-    return
-  end
-  if is_array(value) then
-    out[#out + 1] = "["
-    for index = 1, #value do
-      if index > 1 then
-        out[#out + 1] = ","
-      end
-      encode_value(value[index], out)
-    end
-    out[#out + 1] = "]"
-    return
-  end
-  local keys = {}
-  for key in pairs(value) do
-    keys[#keys + 1] = key
-  end
-  table.sort(keys, function(left, right)
-    return tostring(left) < tostring(right)
-  end)
-  out[#out + 1] = "{"
-  for index, key in ipairs(keys) do
-    if index > 1 then
-      out[#out + 1] = ","
-    end
-    out[#out + 1] = encode_string(tostring(key))
-    out[#out + 1] = ":"
-    encode_value(value[key], out)
-  end
-  out[#out + 1] = "}"
-end
-
--- Encode any Lua value into the *out* accumulator.
-encode_value = function(value, out)
-  local kind = type(value)
-  if value == nil then
-    out[#out + 1] = "null"
-  elseif kind == "boolean" then
-    out[#out + 1] = value and "true" or "false"
-  elseif kind == "number" then
-    if value ~= value or value == math.huge or value == -math.huge then
-      out[#out + 1] = "null"
-    elseif value % 1 == 0 and math.abs(value) < 1e15 then
-      out[#out + 1] = string.format("%d", value)
-    else
-      out[#out + 1] = string.format("%.14g", value)
-    end
-  elseif kind == "string" then
-    out[#out + 1] = encode_string(value)
-  elseif kind == "table" then
-    encode_table(value, out)
-  else
-    out[#out + 1] = "null"
-  end
-end
-
--- Encode *value* as a compact JSON string.
-function engine.json.encode(value)
-  local out = {}
-  encode_value(value, out)
-  return table.concat(out)
-end
-
--- Decode a JSON document; returns value on success, nil + message on error.
-function engine.json.decode(text)
-  if type(text) ~= "string" then
-    return nil, "json: input is not a string"
-  end
-  local position = 1
-  local length = #text
-  local parse_value
-
-  local function fail(reason)
-    return nil, string.format("json: %s at %d", reason, position)
-  end
-
-  local function skip_space()
-    while position <= length do
-      local char = text:sub(position, position)
-      if char ~= " " and char ~= "\t" and char ~= "\n" and char ~= "\r" then
-        return
-      end
-      position = position + 1
-    end
-  end
-
-  local function unicode_char(code)
-    if utf8 ~= nil and utf8.char ~= nil then
-      local ok, glyph = pcall(utf8.char, code)
-      if ok then
-        return glyph
-      end
-    end
-    return "?"
-  end
-
-  local function parse_string()
-    position = position + 1
-    local out = {}
-    while position <= length do
-      local char = text:sub(position, position)
-      if char == '"' then
-        position = position + 1
-        return table.concat(out)
-      end
-      if char == "\\" then
-        local marker = text:sub(position + 1, position + 1)
-        local simple = {
-          ['"'] = '"',
-          ["\\"] = "\\",
-          ["/"] = "/",
-          b = "\b",
-          f = "\f",
-          n = "\n",
-          r = "\r",
-          t = "\t",
-        }
-        if simple[marker] ~= nil then
-          out[#out + 1] = simple[marker]
-          position = position + 2
-        elseif marker == "u" then
-          local hex = text:sub(position + 2, position + 5)
-          if #hex < 4 or hex:match("^%x%x%x%x$") == nil then
-            return fail("bad \\u escape")
-          end
-          local code = tonumber(hex, 16)
-          position = position + 6
-          if code >= 0xD800 and code <= 0xDBFF then
-            local low = text:sub(position, position + 5)
-            local low_hex, low_code = low:match("^\\u(%x%x%x%x)$")
-            if low_hex ~= nil then
-              local combined = 0x10000 + (code - 0xD800) * 0x400
-                + (tonumber(low_hex, 16) - 0xDC00)
-              out[#out + 1] = unicode_char(combined)
-              position = position + 6
-            else
-              out[#out + 1] = unicode_char(code)
-            end
-          else
-            out[#out + 1] = unicode_char(code)
-          end
-        else
-          return fail("bad escape")
-        end
-      else
-        out[#out + 1] = char
-        position = position + 1
-      end
-    end
-    return fail("unterminated string")
-  end
-
-  local function parse_number()
-    local number = text:match("^-?%d+%.?%d*[eE][-+]?%d+", position)
-      or text:match("^-?%d+%.?%d*", position)
-    if number == nil then
-      return fail("bad number")
-    end
-    position = position + #number
-    return tonumber(number)
-  end
-
-  local function parse_array()
-    position = position + 1
-    local out = {}
-    skip_space()
-    if text:sub(position, position) == "]" then
-      position = position + 1
-      return out
-    end
-    while true do
-      skip_space()
-      local value, err = parse_value()
-      if err ~= nil then
-        return nil, err
-      end
-      out[#out + 1] = value
-      skip_space()
-      local char = text:sub(position, position)
-      if char == "," then
-        position = position + 1
-      elseif char == "]" then
-        position = position + 1
-        return out
-      else
-        return fail("expected , or ]")
-      end
-    end
-  end
-
-  local function parse_object()
-    position = position + 1
-    local out = {}
-    skip_space()
-    if text:sub(position, position) == "}" then
-      position = position + 1
-      return out
-    end
-    while true do
-      skip_space()
-      if text:sub(position, position) ~= '"' then
-        return fail("expected a key")
-      end
-      local key, key_err = parse_string()
-      if key_err ~= nil then
-        return nil, key_err
-      end
-      skip_space()
-      if text:sub(position, position) ~= ":" then
-        return fail("expected :")
-      end
-      position = position + 1
-      skip_space()
-      local value, err = parse_value()
-      if err ~= nil then
-        return nil, err
-      end
-      out[key] = value
-      skip_space()
-      local char = text:sub(position, position)
-      if char == "," then
-        position = position + 1
-      elseif char == "}" then
-        position = position + 1
-        return out
-      else
-        return fail("expected , or }")
-      end
-    end
-  end
-
-  parse_value = function()
-    skip_space()
-    local char = text:sub(position, position)
-    if char == "" then
-      return fail("unexpected end")
-    end
-    if char == "{" then
-      return parse_object()
-    end
-    if char == "[" then
-      return parse_array()
-    end
-    if char == '"' then
-      return parse_string()
-    end
-    if text:sub(position, position + 3) == "true" then
-      position = position + 4
-      return true
-    end
-    if text:sub(position, position + 4) == "false" then
-      position = position + 5
-      return false
-    end
-    if text:sub(position, position + 3) == "null" then
-      position = position + 4
-      return engine.json.null
-    end
-    return parse_number()
-  end
-
-  local value, err = parse_value()
-  if err ~= nil then
-    return nil, err
-  end
-  skip_space()
-  if position <= length then
-    return nil, string.format("json: trailing data at %d", position)
-  end
-  return value
-end
+--: Presentation half, re-exported for the game scripts.
+engine.json = json
+engine.glyph = layout.glyph
+engine.trim = layout.trim
+engine.rep = layout.rep
+engine.now = layout.now
+engine.utf8_char = layout.utf8_char
+engine.box_top = layout.box_top
+engine.box_bottom = layout.box_bottom
+engine.center = layout.center
+engine.pad = layout.pad
+engine.frame = layout.frame
+engine.panel = layout.panel
 
 -- --------------------------------------------------------------------- store
 
@@ -458,7 +79,7 @@ function engine.store(name)
     if not ok or type(text) ~= "string" then
       return nil
     end
-    local value = engine.json.decode(text)
+    local value = json.decode(text)
     if type(value) ~= "table" then
       return nil
     end
@@ -470,7 +91,7 @@ function engine.store(name)
     if type(value) ~= "table" then
       return false
     end
-    local ok, written = pcall(yate.data.write, path, engine.json.encode(value))
+    local ok, written = pcall(yate.data.write, path, json.encode(value))
     if not ok or written ~= true then
       report_save_failure(name)
       return false
@@ -783,65 +404,6 @@ function engine.open(spec)
   end
 
   return session
-end
-
--- -------------------------------------------------------------------- layout
-
--- Rounded top border with a title, total display width inner + 2.
-function engine.box_top(title, inner)
-  local label = tostring(title or "")
-  local fill = inner - #label - 3
-  if fill < 0 then
-    fill = 0
-  end
-  return engine.glyph.tl
-    .. engine.glyph.h
-    .. " "
-    .. label
-    .. " "
-    .. engine.rep(engine.glyph.h, fill)
-    .. engine.glyph.tr
-end
-
--- Rounded bottom border, total display width inner + 2.
-function engine.box_bottom(inner)
-  return engine.glyph.bl
-    .. engine.rep(engine.glyph.h, inner)
-    .. engine.glyph.br
-end
-
--- Center *text* in a *width*-wide field (the odd space goes right).
-function engine.center(text, width)
-  local value = tostring(text or "")
-  local left = math.floor((width - #value) / 2)
-  if left < 0 then
-    left = 0
-  end
-  return engine.rep(" ", left) .. value
-end
-
--- Left-align *text* in a *width*-wide field (truncates when too long).
-function engine.pad(text, width)
-  local value = tostring(text or "")
-  if #value >= width then
-    return value:sub(1, width)
-  end
-  return value .. engine.rep(" ", width - #value)
-end
-
--- Wrap *lines* in a titled box; every line is padded to the inner width.
-function engine.frame(title, inner, lines)
-  local out = { engine.box_top(title, inner) }
-  for _, line in ipairs(lines or {}) do
-    out[#out + 1] = engine.glyph.v .. engine.pad(line, inner) .. engine.glyph.v
-  end
-  out[#out + 1] = engine.box_bottom(inner)
-  return out
-end
-
--- Semantic alias of engine.frame: a side panel is a titled box.
-function engine.panel(title, width, lines)
-  return engine.frame(title, width, lines)
 end
 
 -- --------------------------------------------------------------------- input

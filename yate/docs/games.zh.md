@@ -108,7 +108,8 @@ escape                退出正在运行的游戏
 │     ██████          │
 │                     │
 │ level 1/6  m0 p0 d0 │
-│ u undo r rst n next p│
+│ u undo  r restart   │
+│ n next  p pause     │
 ╰─────────────────────╯
 ```
 
@@ -226,7 +227,10 @@ Font Awesome 4 码位，经 `utf8.char` 渲染。想要预期观感请安装任�
 本地自用放 `~/.yate/extensions/`（或已信任的 `./extensions/`）——`:game` 派发器
 会枚举已注册的 `game-*` action，自动把它列进可用列表。
 
-`require("game_engine")` 提供公共的一半：
+`require("game_engine")` 提供公共的一半。引擎本身拆成三个可 require 的模块——
+`lib/game_engine.lua`（存档、高分榜、玩家名、派发、画布会话）、
+`lib/engine_json.lua`（编解码）、`lib/engine_layout.lua`（字形词表与边框排版）——
+但游戏只需 require `game_engine`，另两个由它再导出：
 
 | 成员 | 用途 |
 |---|---|
@@ -281,6 +285,8 @@ local function on_key(key)
   end
   state.row = math.max(1, math.min(8, state.row + dy))
   state.score = state.score + 1
+  -- best 由游戏自己维护：本局超过旧纪录时立刻刷新，HUD 才不会显示旧值
+  state.best = math.max(state.best, state.score)
   paint()
 end
 
@@ -320,6 +326,10 @@ return mod
 - 会话方法以点号调用：`session.paint()`、`session.status(text)`、`session.close()`。
 - 游戏规则留在自己的文件里，引擎刻意不含规则。
 - 想要确定性测试就暴露 `snapshot()`（纯标量表）；用 `engine.rng` 时再暴露 `set_seed(n)`。
+- `engine.json` 把空 Lua 表编码成 `[]`；JSON 的 `{}` 与 `[]` 解码后都是空表，
+  所以「空对象」不参与往返。需要空对象时用带键的形态（例如 `"version"`）。
+- `state.best` 归游戏自己维护：引擎的高分榜只回答「已存最高分是多少」，
+  本局超过旧纪录时要自己刷新。
 
 ## 8. Lua lint
 

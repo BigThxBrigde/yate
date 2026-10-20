@@ -31,8 +31,8 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 
 local engine = require("game_engine")
 
--- Canvas geometry: 23 x 16, inner width 21, level area 21 x 12.
-local COLS, ROWS = 23, 16
+-- Canvas geometry: 23 x 17, inner width 21, level area 21 x 12.
+local COLS, ROWS = 23, 17
 local INNER = 21
 local AREA_W, AREA_H = 21, 12
 
@@ -42,8 +42,9 @@ local MAX_UNDO = 200
 -- The level area row carrying overlay text (paused / cleared).
 local OVERLAY_ROW = 6
 
--- Help row between the HUD and the bottom border (fits 21 columns).
-local HELP_TEXT = "u undo r rst n next p"
+-- Two help rows between the HUD and the bottom border: four full words do
+-- not fit on one 21-column line.
+local HELP_LINES = { "u undo  r restart", "n next  p pause" }
 
 --: Built-in levels: 1-5 from the public Microban set, 6 a teaching level.
 local LEVELS = {
@@ -236,6 +237,16 @@ local function mark_completed(level)
   table.sort(state.completed)
 end
 
+-- Drop *level* from the completed list again (an undo left the solved state).
+local function unmark_completed(level)
+  for index, done in ipairs(state.completed) do
+    if done == level then
+      table.remove(state.completed, index)
+      return
+    end
+  end
+end
+
 -- -------------------------------------------------------------- persistence
 
 --: Saved fields: version, level, completed, moves, pushes (accumulated).
@@ -304,6 +315,34 @@ local function push_undo(record)
   end
 end
 
+-- True while every goal holds a crate (the current board state).
+local function board_solved()
+  for y, row in ipairs(state.cells) do
+    for x, cell in ipairs(row) do
+      if cell == "." and box_at(x, y) == nil then
+        return false
+      end
+    end
+  end
+  return true
+end
+
+-- Keep state.solved in sync with the board: a push can both solve the level
+-- and pull a crate off a goal again, and the completed list must follow.
+local function sync_solved()
+  local solved = board_solved()
+  if solved == state.solved then
+    return
+  end
+  state.solved = solved
+  if solved then
+    mark_completed(state.level)
+  else
+    unmark_completed(state.level)
+  end
+  save_progress()
+end
+
 -- Walk one step; pushing a crate costs a move and a push, blocking costs
 -- nothing at all (no move counter, no undo record).
 local function move(dx, dy)
@@ -326,23 +365,11 @@ local function move(dx, dy)
   end
   state.player.x, state.player.y = nx, ny
   state.moves = state.moves + 1
-  -- Solved when every goal holds a crate.
-  local solved = true
-  for y, row in ipairs(state.cells) do
-    for x, cell in ipairs(row) do
-      if cell == "." and box_at(x, y) == nil then
-        solved = false
-      end
-    end
-  end
-  if solved and not state.solved then
-    state.solved = true
-    mark_completed(state.level)
-    save_progress()
-  end
+  sync_solved()
 end
 
 -- Undo one step: the player and the pushed crate return to their cells.
+-- A solve undone this way is rolled back too, so `n` cannot skip a level.
 local function undo()
   local record = table.remove(state.undo)
   if record == nil then
@@ -355,6 +382,7 @@ local function undo()
     state.pushes = state.pushes - 1
   end
   state.moves = state.moves - 1
+  sync_solved()
 end
 
 -- Restart the current level (back to level 1 once everything is cleared).
@@ -430,7 +458,9 @@ local function render()
     end
   end
   rows[#rows + 1] = G.v .. engine.pad(hud_text(), INNER) .. G.v
-  rows[#rows + 1] = G.v .. engine.pad(HELP_TEXT, INNER) .. G.v
+  for _, line in ipairs(HELP_LINES) do
+    rows[#rows + 1] = G.v .. engine.pad(line, INNER) .. G.v
+  end
   rows[#rows + 1] = engine.box_bottom(INNER)
   return table.concat(rows, "\n")
 end

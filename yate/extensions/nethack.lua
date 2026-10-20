@@ -379,14 +379,31 @@ local function apply_save(saved, glyphs)
   if px < 1 or px > MAP_W or py < 1 or py > MAP_H then
     return false
   end
+  -- A saved tile is usable only when it is inside the map and walkable.
+  local function walkable(x, y)
+    if x < 1 or x > MAP_W or y < 1 or y > MAP_H then
+      return false
+    end
+    return saved.floor[y]:sub(x, x) ~= WALL
+  end
+
+  if not walkable(px, py) then
+    return false
+  end
   local max_hp = math.floor(tonumber(saved.max_hp) or 10)
   local hp = math.floor(tonumber(saved.hp) or 10)
+  local occupied = { [px .. ":" .. py] = true }
   local monsters = {}
   if type(saved.monsters) == "table" then
     for _, m in ipairs(saved.monsters) do
       if type(m) == "table" and type(m.x) == "number" and type(m.y) == "number"
         and (m.kind == "paw" or m.kind == "fire") and type(m.hp) == "number" then
-        monsters[#monsters + 1] = { x = m.x, y = m.y, kind = m.kind, hp = m.hp }
+        local mx, my = math.floor(m.x), math.floor(m.y)
+        local key = mx .. ":" .. my
+        if walkable(mx, my) and not occupied[key] and m.hp >= 1 then
+          occupied[key] = true
+          monsters[#monsters + 1] = { x = mx, y = my, kind = m.kind, hp = m.hp }
+        end
       end
     end
   end
@@ -395,8 +412,11 @@ local function apply_save(saved, glyphs)
     for _, it in ipairs(saved.items) do
       if type(it) == "table" and type(it.x) == "number" and type(it.y) == "number"
         and type(it.kind) == "string" then
-        items[#items + 1] =
-          { x = it.x, y = it.y, kind = it.kind, amount = it.amount }
+        local ix, iy = math.floor(it.x), math.floor(it.y)
+        if walkable(ix, iy) then
+          items[#items + 1] =
+            { x = ix, y = iy, kind = it.kind, amount = it.amount }
+        end
       end
     end
   end

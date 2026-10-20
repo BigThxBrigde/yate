@@ -217,6 +217,11 @@ local function step()
   table.insert(state.snake, 1, { x = nx, y = ny })
   if eating then
     state.score = state.score + 10
+    -- The HUD best is "the best seen so far": a run that overtakes the saved
+    -- record shows its own score immediately instead of a stale number.
+    if state.score > state.best then
+      state.best = state.score
+    end
     state.step_ticks = step_ticks()
     spawn_food()
   else

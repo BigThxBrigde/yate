@@ -921,9 +921,11 @@ end
 return game
 ```
 
-随包游戏包正是一例：`lib/game_engine.lua` 承载 JSON 编解码、文档存储、高分榜、
-画布会话与排版助手，`games.lua` 与每个游戏文件只带自己的规则。引擎 API 表与
-一个完整的最小游戏见 [games.zh.md](games.zh.md)。
+随包游戏包正是一例，也示范了按体量拆分：`lib/game_engine.lua`（文档存储、高分榜、
+派发、画布会话）、`lib/engine_json.lua`（编解码）、`lib/engine_layout.lua`
+（字形词表与边框排版）三个模块各司其职，`game_engine` 再导出另两个，
+所以游戏仍只需 require 一个名字；`games.lua` 与每个游戏文件只带自己的规则。
+引擎 API 表与一个完整的最小游戏见 [games.zh.md](games.zh.md)。
 
 ### Lua 的编辑器补全（`---@` 注解）
 

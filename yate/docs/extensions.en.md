@@ -1005,11 +1005,14 @@ end
 return game
 ```
 
-The bundled game pack is built exactly this way: `lib/game_engine.lua` holds
-the JSON codec, the document store, the high score board, the canvas session
-and the layout helpers, while `games.lua` plus one file per game only carry
-their own rules. See [games.en.md](games.en.md) for the engine API table and
-a complete minimal game.
+The bundled game pack is built exactly this way and also shows the intended
+sizing: the engine is split over `lib/game_engine.lua` (document store, high
+score board, dispatch, canvas session), `lib/engine_json.lua` (the codec) and
+`lib/engine_layout.lua` (glyph vocabulary and box layout) — `game_engine`
+re-exports the other two, so a game still requires one name — while
+`games.lua` plus one file per game only carry their own rules. See
+[games.en.md](games.en.md) for the engine API table and a complete minimal
+game.
 
 ### Editor completion for Lua (`---@` annotations)
 
