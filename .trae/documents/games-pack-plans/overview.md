@@ -162,6 +162,13 @@ engine.trim(s) / engine.rep(s, n) / engine.now()
 通过判据：pyright 零诊断、pytest 全绿、覆盖率 ≥ `[tool.coverage.report] fail_under`（75）、
 lint 退出码 0。
 
+## 五·补、实施状态（2026-10-20 回填）
+
+A-I 九波**全部完成**，门禁实测：pyright 0 诊断、`pytest tests/` 2757 passed / 9 skipped、
+覆盖率 91.98%（阈值 75）、`tools/lint_lua.py` 0 issue、架构守卫 36 passed。
+评审 5 条 major 中 4 条已改、1 条复核后驳回；6 条偏离登记见主计划 §十三
+（[../games-pack-plan.md](../games-pack-plan.md)）。
+
 ## 六、完成定义（DoD）
 
 1. 五款游戏都能 `:game <name>` 启动、`escape` 退出、`r` 重开；

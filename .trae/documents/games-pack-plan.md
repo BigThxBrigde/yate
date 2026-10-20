@@ -399,3 +399,65 @@ engine.utf8_char(code) -> string|nil          -- 字形原语；nerd/ascii 字�
    （文件头已声明 `do not edit by hand`，见 [I 波子计划 §五](games-pack-plans/games-pack-docs-plan-i.md)）。
 9. 子计划把测试脚手架从 `tests/test_lua_games_support.py` 更名为 `tests/lua_game_harness.py`
    （避免 `test_` 前缀被 pytest 当用例文件收集）。
+
+## 十三、实施结果与复盘（2026-10-20 收尾回填）
+
+### 13.1 状态
+
+A-I 九波全部完成：主代理完成 A/B/G/H/I 与全部复核，执行子代理完成 C/D/E/F
+（`plan-executor`，`bypassPermissions`，各自只改名下两个文件）。分支 `feat/games-pack`
+共 11 笔提交（方案与规则、A、B、C、D、E、F+G、H、I+changelog、复核修复、残留清理）。
+
+### 13.2 门禁实测（worktree `../yate-games`，退出码全 0）
+
+| 命令 | 结果 |
+|---|---|
+| `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/` | `0 errors, 0 warnings, 0 informations` |
+| `.venv\Scripts\python.exe -m pytest tests/` | `2757 passed, 9 skipped in 230.73s` |
+| `pytest tests/test_architecture.py` | `36 passed` |
+| `pytest tests/ --cov=yate --cov-branch` | `TOTAL 91.98%`，`Required test coverage of 75% reached` |
+| `python tools/lint_lua.py` | `0 issue(s)` |
+| `python -m yate --diag` | 正常输出诊断头（无扩展装载错误） |
+| `python -m tools.changelog generate` | 写回 4 个生成物（CHANGELOG 双语 + 内置资源副本） |
+
+新增/改写文件体量（行，`splitlines()` 口径）：`data_store.py` 117、`lint_lua.py` 274、
+`lib/game_engine.lua` 488、`lib/engine_json.lua` 347、`lib/engine_layout.lua` 139、
+`games.lua` 34、`snake.lua` 464、`pacman.lua` 766、`sokoban.lua` 611、`nethack.lua` 786、
+`tetris.lua` 633、`games.en.md` 370、`games.zh.md` 347、`tests/lua_game_harness.py` 313。
+Lua 侧按 §三.7 的 800 行自律线自查：全部在阈值内（nethack 786 最接近）。
+
+### 13.3 评审结论处置（`code-review-expert`）
+
+| # | 级别 | 结论 | 处置 |
+|---|---|---|---|
+| 1 | major | sokoban `solved` 单向置位：把箱子推离目标或撤销通关步仍算通关，`n` 可跳过 | **改**：新增 `sync_solved()`（move/undo 共用，双向同步 `solved` + `completed` + 存档）；补 3 条测试 |
+| 2 | major | snake HUD `best` 只在开局刷新，本局破纪录仍显示旧值 | **改**：吃食分支实时刷新 `state.best`；补断言 |
+| 3 | major | nethack `apply_save` 不校验落点/实体是否可行走 | **改**：玩家格必须可行走、怪物去越界/墙面/重位、物品去墙面；补测试 |
+| 4 | major | `lib/game_engine.lua` 926 行超过 800 行自律线，且 Lua 不在体量守卫扫描面 | **改**：拆为 `game_engine`（488）+ `engine_json`（347）+ `engine_layout`（139），`game_engine` 再导出；守卫扫描面维持 `.py`（Lua 自律） |
+| 5 | major | pacman 掉命后幽灵「停在注入格」 | **复核后驳回**：`reset_positions` 已整表重建 `state.ghosts`，`spawn_positions` 从当前迷宫推导；即设计意图，未改代码（证据 `pacman.lua:268-291`） |
+| 6 | minor | sokoban 帮助行把 `restart` 缩成 `rst`，与文档不一致 | **改**：改为两行完整键名（`u undo  r restart` / `n next  p pause`），画布 23x16 → 23x17，测试同步 |
+| 7 | minor | 缺「通关后撤销」用例；`encode({})` 与 `decode("[]")` 不对称无断言 | **改**：补通关撤销、推离目标、空表编码三条用例；文档写明该不对称 |
+| 8 | minor | 测试 fake 写盘恒成功，掩盖「每回合保存失败」路径 | **改**：`FakeData.fail_writes` + nethack 用例（一次提示、回合不中断） |
+| 9 | minor | 文档示例诱导读者照抄「不维护 best」的写法 | **改**：中英示例改为 `state.best = math.max(...)`，并加两条要点（空表编码、best 归游戏维护） |
+
+### 13.4 与计划的其它偏离（实施中发现，均有实测依据）
+
+1. **`plan-architect-designer` 子代理零产出**：spawn 报
+   `Model "qwen-3.7-plus" not found`（定义文件 frontmatter 的模型未注册，spawn 参数无法覆盖），
+   按 `task-orchestration.md` §一.3.5 兜底：**主代理亲自完成【方案】**（主计划 + 10 份子计划）。
+2. **计划样本迷宫不可用**：D 波落地时用脚本核对发现原 21x19 迷宫有 2 行宽度 20、1 颗豆不可达，
+   按「改迷宫不改测试」修正为 21x19 且 205/205 豆连通。
+3. **nethack `load_state` 额外接受 JSON 字符串**：lupa 把嵌套 Python list 传成 POBJECT，
+   `#table` 报错；JSON 与存档同构、走同一 `apply_save` 路径，纯 Lua 调用不受影响。
+4. **`.gitignore` 增 `!yate/extensions/lib/`**：仓库通用 `lib/`（C 扩展产物）规则会吞掉
+   新目录，不放开则共享模块进不了仓库；只对本路径开白，其它 `lib/` 规则不变。
+5. **清理子代理残留**：空文件 `100`（重定向产物）与 `old_tetris.lua`（旧 tetris 备份）
+   已删除，后者单独一笔 `chore` 提交。
+6. **sokoban 画布 23x16 → 23x17**：为放下两行完整帮助键名（21 列内放不下四个完整词）。
+
+### 13.5 遗留（非本任务范围）
+
+- Lua 文件的 800 行阈值目前只有自律、不进 `tests/test_architecture.py` 守卫面；
+  若要纳入，需要规则文本与守卫同步扩面（本轮仅登记，未改规则）。
+- `python -m tools.changelog check --require-zh` 在本分支仍是红（大量历史条目缺中文译文，
+  与本任务无关，未处理）。
