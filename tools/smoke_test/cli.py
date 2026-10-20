@@ -22,6 +22,7 @@ from tools.smoke_test.harness import (
     Scenario,
     ScenarioResult,
     run_scenarios,
+    run_scenarios_parallel,
     select_scenarios,
     set_seed,
     track_coverage,
@@ -147,15 +148,28 @@ def _worse(candidate: ScenarioResult, incumbent: ScenarioResult) -> bool:
 
 def _execute(
     selected: list[Scenario], tmp_root: Path, options: RunOptions,
-    *, repeat: int,
+    *, repeat: int, jobs: int = 1,
 ) -> tuple[list[ScenarioResult], Coverage]:
     """Run *selected* ``repeat`` times; keep the worst result per scenario.
 
     ``--repeat`` is a flake detector: a scenario counts as failed when *any*
     iteration failed, and the reported result is that (worst) run so the
-    failure detail is the interesting one.
+    failure detail is the interesting one.  ``jobs`` > 1 shards each iteration
+    over worker processes; the coverage counters come back merged.
     """
     best: dict[str, ScenarioResult] = {}
+    if jobs > 1 and len(selected) > 1:
+        parallel = Coverage()
+        for _ in range(max(1, repeat)):
+            results, cov = run_scenarios_parallel(
+                selected, tmp_root, options, jobs
+            )
+            parallel.merge(cov)
+            for result in results:
+                previous = best.get(result.name)
+                if previous is None or _worse(result, previous):
+                    best[result.name] = result
+        return [best[s.name] for s in selected], parallel
     with track_coverage() as cov:
         for _ in range(max(1, repeat)):
             for result in run_scenarios(selected, tmp_root, options):
@@ -178,6 +192,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not selected:
         print("no scenario matches the given filters")
         return 2
+    if args.jobs < 1:
+        print("--jobs must be at least 1")
+        return 2
     if args.seed is not None:
         set_seed(args.seed)
     reporter = _reporter(args)
@@ -194,7 +211,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
-            selected, Path(td), options, repeat=args.repeat
+            selected, Path(td), options, repeat=args.repeat, jobs=args.jobs
         )
     if not args.quiet:
         reporter.results(results)
@@ -336,6 +353,9 @@ def build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser("run", help="run scenarios and print PASS/FAIL")
     _add_common_filters(pr)
     _add_report_options(pr)
+    pr.add_argument("--jobs", type=int, default=1, metavar="N",
+                    help="shard the selection over N worker processes "
+                         "(default: 1 = the serial runner)")
     pr.add_argument("--coverage", action="store_true",
                     help="report :command / action coverage")
     pr.set_defaults(func=cmd_run)
