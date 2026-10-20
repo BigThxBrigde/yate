@@ -3,12 +3,14 @@ yate bundled extension: tetris (tetris.lua)
 
 A complete Tetris that lives entirely in Lua, drawn on a yate extension
 canvas: a 10 x 20 board of solid two-column blocks in a titled box, flanked
-by a stats box (score / level) on the left and next-piece preview + help
-boxes on the right.  Nothing about the game is implemented on the Python
+by a stats box (score / level / best) on the left and next-piece preview plus
+help boxes on the right.  Nothing about the game is implemented on the Python
 side: the canvas only paints the grid it is handed, forwards keys and runs a
 fixed 15 Hz clock.
 
-Start it with ``:game tetris``.
+The pack plumbing (canvas session, rounded boxes, JSON store, high score
+board) comes from the shared engine, so this file owns the rules only.
+Start it with ``:game tetris`` (the games.lua dispatcher resolves the game).
 
 Controls:
   left / right   move the falling piece
@@ -26,14 +28,20 @@ cleared line count, multiplied by the current level.  The level is
 ``1 + lines // 10``; gravity runs every ``max(2, 15 - level)`` ticks, so the
 piece falls faster as the level rises (the clock itself never changes).
 
-Entry form: module-table style -- this file returns ``mod`` and yate calls
-``mod.setup(api)`` at load and ``mod.teardown(api)`` on unload.
+Persistence: games/tetris.json keeps the top five scores with the player name
+and the local time, plus the games/lines counters.  Every finished game adds
+one high score entry; starting a game bumps the games counter.
+
+Entry form: module-table style -- this file returns mod and yate calls
+mod.setup(api) at load and mod.teardown(api) on unload.
 ]]
 
+local engine = require("game_engine")
+
 -- Board size in cells.  The canvas composes three bordered boxes around the
--- board: a stats box (score / level) on the left, the board in the middle and
--- a next-piece preview plus a help box on the right.  Every board cell renders
--- as a solid two-column block.
+-- board: a stats box (score / level / best) on the left, the board in the
+-- middle and a next-piece preview plus a help box on the right.  Every board
+-- cell renders as a solid two-column block.
 local W, H = 10, 20
 
 local STAT_INNER = 15              -- stats box inner width
@@ -117,8 +125,8 @@ local BAG_KINDS = { "I", "O", "T", "S", "Z", "J", "L" }
 -- Game state (rebuilt by reset()); nil until the first start.
 local state = nil
 
--- Canvas handle returned by yate.ui.open_canvas; nil while no canvas is open.
-local handle = nil
+-- Canvas session returned by engine.open; nil while no canvas is open.
+local session = nil
 
 -- Remaining pieces of the current Bag-7 batch and an optional injected piece
 -- source.  The source is the deterministic seam tests (and scripted demos)
@@ -269,6 +277,38 @@ end
 
 -- -------------------------------------------------------------- state and view
 
+-- ---------------------------------------------------------------- persistence
+
+-- Add one game (and *lines* cleared lines) to games/tetris.json.
+local function bump_stats(games_delta, lines_delta)
+  local store = engine.store("tetris")
+  local document = store.load()
+  if type(document) ~= "table" then
+    document = {}
+  end
+  document.version = engine.VERSION
+  local stats = document.stats
+  if type(stats) ~= "table" then
+    stats = {}
+  end
+  stats.games = (tonumber(stats.games) or 0) + games_delta
+  stats.lines = (tonumber(stats.lines) or 0) + lines_delta
+  document.stats = stats
+  store.save(document)
+end
+
+-- Record the finished game once: high score plus the cleared line count.
+local function record_game()
+  if state.recorded then
+    return
+  end
+  state.recorded = true
+  engine.scores("tetris").add(state.score)
+  bump_stats(0, state.lines)
+end
+
+-- -------------------------------------------------------------- state and view
+
 local function new_board()
   local board = {}
   for row = 1, H do
@@ -292,6 +332,8 @@ local function reset()
     committed = false,
     paused = false,
     game_over = false,
+    recorded = false,
+    best = engine.scores("tetris").best(),
   }
   spawn_piece()
 end
@@ -305,37 +347,18 @@ local function gravity_every()
   return math.max(GRAVITY_MIN, TICKS_PER_SECOND - state.level)
 end
 
--- Center *text* in a *width*-wide field (right side gets the odd space).
-local function center(text, width)
-  local left = math.floor((width - #text) / 2)
-  return string.rep(" ", left) .. text .. string.rep(" ", width - #text - left)
-end
-
--- Box-drawing helpers: a titled top border, a plain bottom border.  Borders
--- use the same Unicode line glyphs as the surrounding frame.  Lua strings are
--- byte strings, so the borders are only ever concatenated, never sliced: all
--- splicing in this file happens on the pure-ASCII board cell strings where
--- one byte still equals one display column.
-local function box_top(title, inner)
-  local label_width = #title + 3  -- "─ " .. title .. " " in display columns
-  return "┌─ " .. title .. " " .. string.rep("─", inner - label_width) .. "┐"
-end
-
-local function box_bottom(inner)
-  return "└" .. string.rep("─", inner) .. "┘"
-end
-
 -- Left column: the stats box on the top rows, blank below it.  Labels are
 -- lowercase on purpose: piece letters (I O T S Z J L) are the only colored
 -- characters, and lowercase text never collides with them.
 local function stats_lines()
   local lines = {}
-  lines[1] = box_top("stats", STAT_INNER)
+  lines[1] = engine.box_top("stats", STAT_INNER)
   lines[2] = "│" .. string.format(" score%9d", state.score) .. "│"
   lines[3] = "│" .. string.format(" level%9d", state.level) .. "│"
-  lines[4] = box_bottom(STAT_INNER)
-  for row = 5, CANVAS_ROWS do
-    lines[row] = string.rep(" ", LEFT_W)
+  lines[4] = "│" .. string.format(" best%10d", state.best) .. "│"
+  lines[5] = engine.box_bottom(STAT_INNER)
+  for row = 6, CANVAS_ROWS do
+    lines[row] = engine.rep(" ", LEFT_W)
   end
   return lines
 end
@@ -344,7 +367,7 @@ end
 -- Preview cells are doubled like board cells, so they render as solid blocks.
 local function right_lines()
   local lines = {}
-  lines[1] = box_top("next", NEXT_INNER)
+  lines[1] = engine.box_top("next", NEXT_INNER)
   local preview = {}
   for row = 1, 4 do
     preview[row] = { "  ", "  ", "  ", "  " }
@@ -355,11 +378,11 @@ local function right_lines()
     end
   end
   for row = 1, 4 do
-    lines[1 + row] = "│" .. center(table.concat(preview[row]), NEXT_INNER) .. "│"
+    lines[1 + row] = "│" .. engine.center(table.concat(preview[row]), NEXT_INNER) .. "│"
   end
-  lines[6] = box_bottom(NEXT_INNER)
-  lines[7] = string.rep(" ", RIGHT_W)
-  lines[8] = box_top("help", NEXT_INNER)
+  lines[6] = engine.box_bottom(NEXT_INNER)
+  lines[7] = engine.rep(" ", RIGHT_W)
+  lines[8] = engine.box_top("help", NEXT_INNER)
   -- Key glyphs are UTF-8 (multi-byte in Lua), so the right-align padding is
   -- computed from the explicit display width instead of string.format.
   local keys = {
@@ -374,13 +397,13 @@ local function right_lines()
     { "quit", "esc", 3 },
   }
   for index, binding in ipairs(keys) do
-    local field = string.rep(" ", 7 - binding[3]) .. binding[2]
+    local field = engine.rep(" ", 7 - binding[3]) .. binding[2]
     lines[8 + index] = "│" .. string.format(" %-7s", binding[1]) .. field .. " │"
   end
   local bottom = 8 + #keys + 1
-  lines[bottom] = box_bottom(NEXT_INNER)
+  lines[bottom] = engine.box_bottom(NEXT_INNER)
   for row = bottom + 1, CANVAS_ROWS do
-    lines[row] = string.rep(" ", RIGHT_W)
+    lines[row] = engine.rep(" ", RIGHT_W)
   end
   return lines
 end
@@ -441,9 +464,9 @@ local function render()
   for row = 1, CANVAS_ROWS do
     local middle
     if row == 1 then
-      middle = box_top("tetris", BOARD_W)
+      middle = engine.box_top("tetris", BOARD_W)
     elseif row == H + 2 then
-      middle = box_bottom(BOARD_W)
+      middle = engine.box_bottom(BOARD_W)
     else
       middle = "│" .. cells[row - 1] .. "│"
     end
@@ -452,20 +475,27 @@ local function render()
   return table.concat(rows, "\n")
 end
 
--- Push the current frame and status line to the canvas.
+-- The canvas draw callback: grid plus its palette.
+local function frame(_session)
+  return render(), COLORS
+end
+
+-- Push the status line: score, lines and level of the running game.
 local function paint()
-  if handle == nil then
+  if session == nil or session.closed then
     return
   end
-  -- dot call: handle is a Python object, a colon would pass the handle itself
-  handle.draw(render(), COLORS)
-  handle.set_status("escape quits")
+  session.paint()
+  session.status(
+    "score " .. state.score .. "  lines " .. state.lines
+      .. "  level " .. state.level
+  )
 end
 
 -- ------------------------------------------------------------------- callbacks
 
-local function on_tick()
-  if state == nil or handle == nil then
+local function on_tick(_session)
+  if state == nil or session == nil then
     return
   end
   if not state.game_over and not state.paused then
@@ -475,15 +505,19 @@ local function on_tick()
       step_down()
     end
   end
+  if state.game_over then
+    record_game()
+  end
   paint()
 end
 
-local function on_key(name)
-  if state == nil or handle == nil then
+local function on_key(name, _session)
+  if state == nil or session == nil then
     return
   end
   if name == "r" then
     reset()
+    bump_stats(1, 0)
     paint()
     return
   end
@@ -525,11 +559,10 @@ local function on_key(name)
   else
     return
   end
+  if state.game_over then
+    record_game()
+  end
   paint()
-end
-
-local function on_close()
-  handle = nil
 end
 
 -- ----------------------------------------------------------------- extension API
@@ -537,27 +570,23 @@ end
 -- Start a fresh game on a new canvas.
 local function start_game()
   reset()
-  handle = yate.ui.open_canvas(CANVAS_COLS, CANVAS_ROWS, on_key, on_tick, on_close)
+  bump_stats(1, 0)
+  local started = engine.open({
+    name = "tetris",
+    cols = CANVAS_COLS,
+    rows = CANVAS_ROWS,
+    draw = frame,
+    on_key = on_key,
+    on_tick = on_tick,
+    on_close = function(_session)
+      session = nil
+    end,
+  })
+  if started == nil then
+    return
+  end
+  session = started
   paint()
-end
-
--- ``:game`` handler: ``:game tetris`` launches, anything else is reported.
-local function launch(args)
-  local raw = args or ""
-  local name = raw:match("^%s*(.-)%s*$")
-  if name == "" then
-    yate.message("usage: :game tetris")
-    return
-  end
-  if name ~= "tetris" then
-    yate.message("unknown game: " .. name .. " (available: tetris)")
-    return
-  end
-  if handle ~= nil then
-    yate.message("tetris is already running")
-    return
-  end
-  start_game()
 end
 
 -- Replace the random piece source with fn (returning a piece letter), which
@@ -567,17 +596,35 @@ function mod.set_piece_source(fn)
   bag = {}
 end
 
+-- The running game as plain values (test / telemetry view).
+function mod.snapshot()
+  if state == nil then
+    return { score = 0, lines = 0, level = 1, over = false, paused = false, best = 0 }
+  end
+  return {
+    score = state.score,
+    lines = state.lines,
+    level = state.level,
+    over = state.game_over,
+    paused = state.paused,
+    best = state.best,
+  }
+end
+
 function mod.setup(_api)
   -- Reset leftovers from a previous load of this file in the same runtime.
-  handle = nil
+  session = nil
   state = nil
   bag = {}
-  yate.register_command("game", launch, "launch a game (tetris)")
+  engine.register("tetris", start_game)
 end
 
 function mod.teardown(_api)
-  local open = handle
-  handle = nil
+  local open = session
+  session = nil
+  if state ~= nil and state.game_over then
+    record_game()
+  end
   if open ~= nil then
     open.close()
   end
