@@ -47,8 +47,10 @@
 | m-25 | MINOR | `tools/changelog/cli.py:299` | e | W-E |
 | m-26 | MINOR | `tools/pack/cli.py:246-250` | e | W-E |
 | m-27 | MINOR | `tools/pack/rosters.py:21` | e | W-E |
+| m-28 | MINOR | `yate/logs.py:587,605-609` | e | W-E |
 
-**合计 39 条**（3 BLOCKER + 9 MAJOR + 27 MINOR），与评审记录 §四/§五/§六 一一对应。
+**合计 40 条**：评审记录 §四/§五/§六 的 39 条一一对应，外加执行期登记的 m-28
+（tracing `install()` 置 `DEBUG` 而 `uninstall()` 不复位，`yate/logs.py`）。
 
 ## 二、波次与依赖
 
@@ -57,7 +59,7 @@ flowchart LR
     A["W-A 核心与 LSP<br/>plan-a：8 条"] --> B["W-B 组件与终端<br/>plan-b：7 条"]
     A --> C["W-C 顶层/flows/keymaps<br/>plan-c：7 条"]
     A --> D["W-D services/syntax/extensions<br/>plan-d：10 条"]
-    B --> E["W-E tools<br/>plan-e：7 条"]
+    B --> E["W-E tools + logs 复位<br/>plan-e：8 条"]
     C --> E
     D --> E
     A --> G{"收尾门禁<br/>pyright + 架构 + 全量覆盖率"}
@@ -103,3 +105,12 @@ M-4、m-2、m-12、m-17 属性能项。执行者须先给出**基线探针**（�
 ## 五、偏离与校准记录
 
 （执行期回填。）
+
+### W-B（plan-b）性能项实测（2026-10-20，Windows，探针脚本验证后已删除）
+
+| 条目 | 改动前 | 改动后 | 判定 |
+|---|---|---|---|
+| M-4 | `render_line` 40 帧×24 行 = 366.07 ms（每次 ≈0.38 ms）；`view_lines` 1000× ≈ 15-19 ms（每次 ≈0.019 ms） | 40 帧 = 335.69-361.04 ms（提升在噪声内） | 判据满足"每次 < 1 ms"分支；**"≥5×"分支不成立**——实测 `view_lines` 网格复制仅占 render_line 总耗时约 4%（80×24 规模下 O(rows²·cols) 非热点），缓存收益噪声级。已按计划实现缓存（低风险），但收益以噪声计，非 5×。 |
+| m-2 | `_relative` 500 路径单遍 ≈ 151-184 ms（重复渲染每次都 resolve） | 首遍 ≈ 174 ms，重复渲染 ≈ 0.33-0.39 ms（≈500×） | 达标（远超 30%）。 |
+| m-12 | 每次渲染 2 次 resolve（1000 次双 resolve ≈ 507-692 ms） | `crumb_parts` 1000× ≈ 172-185 ms（root 仅首帧 resolve） | 达标（≈65% 降幅）。 |
+

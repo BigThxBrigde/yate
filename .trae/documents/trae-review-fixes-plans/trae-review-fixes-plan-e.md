@@ -1,4 +1,4 @@
-# plan-e（W-E）：`tools/` 支撑面 — 7 条
+# plan-e（W-E）：`tools/` 支撑面 — 8 条（含执行期登记 m-28）
 
 - 波次：W-E（排在 W-B/C/D 之后统一收尾；`tools/` 与 `yate/` 文件不重叠）
 - 独占文件（**只改这些**）：`tools/pack/wiki.py`、`tools/pack/cli.py`、`tools/pack/rosters.py`、
@@ -95,11 +95,32 @@ def _assert_prune_safe(target: Path, root: Path) -> None:
 **修法**：`from tools.pack.icon import repo_root` → `from tools._util import repo_root`。
 **回归测试**：`tests/test_pack_wiki.py` 既有用例全绿。
 
+## 8. m-28（MINOR，执行期登记）`yate/logs.py:587` tracing 复位缺失
+
+**背景**：W-D 执行期发现 `tracing.install()` 把 `yate` 根 logger 进程级置 `DEBUG`，
+`uninstall()`（:605-609）只摘 handler、**不复位级别**；`tests/test_tracing.py` 与
+`tests/test_syntax_engine.py` 同跑时后者断言被污染（W-D 只在测试侧就地加固，根因未修）。
+
+**修法**（`yate/logs.py`，只动 `TracingService`）：
+1. `__init__`（:515-521）增 `self._previous_level: int | None = None`；
+2. `install()` 在 :587 `setLevel(logging.DEBUG)` **之前**记录首次进入时的级别：
+   `if self._previous_level is None: self._previous_level = self._logger.level`；
+3. `uninstall()` 末尾恢复并清空：`if self._previous_level is not None:
+   self._logger.setLevel(self._previous_level); self._previous_level = None`。
+
+**回归测试**（`tests/test_tracing.py`）：
+- `test_uninstall_restores_the_previous_logger_level`（先把 `logging.getLogger("yate")`
+  置 `WARNING`，`install()` → `DEBUG`，`uninstall()` → 回到 `WARNING`）
+- `test_install_twice_then_uninstall_restores_once`（两次 `install()` 后 `uninstall()`，
+  级别只复位到安装前值，不残留 `NOTSET`）
+- `test_tracing_install_does_not_leak_debug_to_the_next_test`
+  （`install()` + `uninstall()` 后向 `yate.x` 发一条 `debug`，断言 caplog 在 `WARNING` 级别下收不到）
+
 ## 验收命令
 
 ```powershell
 .\.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
-.\.venv\Scripts\python.exe -m pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py tests/test_changelog_tool.py tests/test_smoke_cli.py -q --cov-fail-under=0
+.\.venv\Scripts\python.exe -m pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py tests/test_changelog_tool.py tests/test_smoke_cli.py tests/test_tracing.py tests/test_syntax_engine.py -q --cov-fail-under=0
 .\.venv\Scripts\python.exe -m tools.changelog check
 ```
 

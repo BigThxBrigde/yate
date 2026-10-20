@@ -31,7 +31,7 @@
 | W-B | [plan-b](trae-review-fixes-plans/trae-review-fixes-plan-b.md) | `yate/editor_view/*`、`yate/editor_term/*` | M-4、m-1、m-2、m-5、m-12、m-13、m-20（7） |
 | W-C | [plan-c](trae-review-fixes-plans/trae-review-fixes-plan-c.md) | `yate/*.py` 顶层、`yate/flows/*`、`yate/keymaps/*` | B-2、M-5、M-6、m-7、m-16、m-21、m-22（7） |
 | W-D | [plan-d](trae-review-fixes-plans/trae-review-fixes-plan-d.md) | `yate/services/*`、`yate/editor_syntax/*`、`yate/extensions/*` | M-7、M-8、m-3、m-4、m-6、m-8、m-14、m-15、m-17、m-18（10） |
-| W-E | [plan-e](trae-review-fixes-plans/trae-review-fixes-plan-e.md) | `tools/*` | B-3、M-9、m-23、m-24、m-25、m-26、m-27（7） |
+| W-E | [plan-e](trae-review-fixes-plans/trae-review-fixes-plan-e.md) | `tools/*`、`yate/logs.py` | B-3、M-9、m-23、m-24、m-25、m-26、m-27、m-28（8） |
 
 **波次纪律**：波内文件互不重叠 → 可并行（2~3 个一批）；波间串行，上一波验收命令全部 exit 0
 才进入下一波。测试文件按波次归属独占：`tests/test_editor_core_diff.py` / `test_editor_core.py`
