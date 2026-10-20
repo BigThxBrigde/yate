@@ -44,6 +44,33 @@ from yate.keymaps.base import ActionContext, KeyUi
 from yate.session import EditorSession
 
 
+def _speed_up_pilot() -> None:
+    """Cut Textual's fixed per-keystroke sleep from 20ms to 1ms.
+
+    ``textual._wait.wait_for_idle`` always performs one
+    ``asyncio.sleep(SLEEP_GRANULARITY)`` per call, and both
+    ``Pilot._press_keys`` and every ``pilot.pause()`` go through it, so the
+    default 0.02 turns into 15-31ms of pure sleeping per keystroke on
+    Windows.  The pilot still drains the message queue afterwards, it just
+    polls faster -- the smoke harness has lowered the same constant since it
+    was written (``tools/smoke_test/harness.py``), and the full suite measured
+    308s -> 264s (2026-10-20) with no behavioural change.
+
+    Tests that must wait for a worker poll explicitly (``wait_until`` below)
+    rather than relying on any sleep duration, so no wait contract depends on
+    this constant.
+    """
+    try:
+        # Private on purpose upstream: the constant has no public accessor.
+        from textual import _wait  # pyright: ignore[reportPrivateUsage]
+    except ImportError:  # pragma: no cover - every Textual ships this module
+        return
+    _wait.SLEEP_GRANULARITY = 0.001
+
+
+_speed_up_pilot()
+
+
 @pytest.fixture(autouse=True)
 def isolated_home(
     tmp_path: Path, tmp_path_factory: pytest.TempPathFactory,

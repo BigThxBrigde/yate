@@ -201,6 +201,12 @@ def test_split_independent_cursors_and_navigation(pane_root: Path) -> None:
             assert isinstance(root, PaneSplit)
             assert root.axis == "horizontal"
             assert len(app.query(EditorView)) == 2
+            # The new view only owns the keyboard once it is mounted: a key
+            # pressed before that lands on the previous pane, so wait for the
+            # focus instead of assuming the split moved it synchronously.
+            assert await wait_until(
+                pilot, lambda: app.focused is panes.active_view
+            )
 
             # the new (bottom) pane is active: move its cursor to row 1
             await pilot.press("j")
