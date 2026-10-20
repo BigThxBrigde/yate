@@ -497,3 +497,47 @@ def test_ui_bridge_open_canvas_wraps_the_injected_opener() -> None:
     assert drawn == [("I.......\n........", palette)]
     assert statuses == ["score 0  lines 0  level 1"]
     assert closed == [True]
+
+
+def test_failed_setup_rolls_back_a_registered_lsp_server(api: ExtensionAPI) -> None:
+    """A setup that registers a server and then fails leaves no ghost server."""
+    api.start_scope()
+    api.lsp.register_server("probe", command="tss", filetypes=["ts"])
+    assert "probe" in api.app.lsp.config_names()
+
+    api.rollback_scope()
+
+    assert "probe" not in api.app.lsp.config_names()
+
+
+def test_failed_setup_rolls_back_a_tree_sitter_language(
+    api: ExtensionAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed setup drops the tree-sitter grammar it had just loaded."""
+    loaded: list[str] = []
+    dropped: list[str] = []
+
+    def _fake_load(name: str, *_args: object, **_kwargs: object) -> None:
+        loaded.append(name)
+
+    def _fake_drop(name: str) -> None:
+        dropped.append(name)
+
+    monkeypatch.setattr(
+        "yate.services.extensions.bridges.load_language_from_grammar", _fake_load
+    )
+    monkeypatch.setattr(
+        "yate.services.extensions.bridges.drop_ts_language", _fake_drop
+    )
+
+    api.start_scope()
+    api.syntax.register_tree_sitter(
+        "yatesh",
+        grammar="tree_sitter_yatesh",
+        query="(identifier) @variable",
+        extensions=("ysh",),
+    )
+    api.rollback_scope()
+
+    assert loaded == ["yatesh"]
+    assert dropped == ["yatesh"]

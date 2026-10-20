@@ -21,7 +21,7 @@ same extension key.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, cast
 
 from yate.editor_syntax import regex_backend
 from yate.editor_syntax.tokens import Token
@@ -68,6 +68,18 @@ def prefer_regex(*filetypes: str) -> None:
             _REGEX_PINNED.add(key)
 
 
+def unprefer_regex(*filetypes: str) -> None:
+    """Undo :func:`prefer_regex` for *filetypes* (extension rollback).
+
+    Same normalization as :func:`prefer_regex`; unknown keys are ignored
+    (``set.discard`` semantics).
+    """
+    for ft in filetypes:
+        key = ft.lower().lstrip(".")
+        if key:
+            _REGEX_PINNED.discard(key)
+
+
 def _ts() -> SyntaxBackend | None:
     """Import the tree-sitter backend lazily; ``None`` when unavailable.
 
@@ -80,7 +92,7 @@ def _ts() -> SyntaxBackend | None:
     except ImportError:
         return None
     # The module object is duck-typed as SyntaxBackend (optional dependency).
-    return ts_backend  # type: ignore[no-any-return]
+    return cast(SyntaxBackend, ts_backend)
 
 
 def tokenize_document(lines: list[str], filetype: str) -> list[list[Token]]:

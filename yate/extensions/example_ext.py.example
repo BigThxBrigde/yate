@@ -74,6 +74,7 @@ def setup(api: ExtensionAPI) -> None:
         else:
             row = buf.row
             buf.lines[row] = buf.lines[row].upper()
+            buf.mark_content_changed()
         api.message("uppercased!")
 
     api.register_command("upper", upper, "uppercase selection (or current line)")
@@ -87,6 +88,7 @@ def setup(api: ExtensionAPI) -> None:
         else:
             row = buf.row
             buf.lines[row] = buf.lines[row].lower()
+            buf.mark_content_changed()
         api.message("lowercased!")
 
     api.register_command("lower", lower, "lowercase selection (or current line)")

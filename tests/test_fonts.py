@@ -603,6 +603,18 @@ def test_string_font_matching_the_family_needs_no_rewrite(
     assert data["profiles"]["defaults"]["font"] == fonts.FAMILY
 
 
+def test_legacy_profiles_list_is_reported_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A legacy list-shaped ``profiles`` is reported, not raised."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps({"profiles": [{"name": "x"}]}), encoding="utf-8")
+    ok, message = _run(settings, monkeypatch)
+    assert ok is False
+    assert "profiles is not an object" in message
+    assert json.loads(settings.read_text(encoding="utf-8"))["profiles"] == [{"name": "x"}]
+
+
 def test_missing_windows_terminal_is_reported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

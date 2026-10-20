@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from yate.logs import tracing
 from yate.services.user_setup import default_base_dir
@@ -58,6 +58,13 @@ _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 #: ``PurePosixPath`` does not flag them, and on Windows ``Path("C:x")``
 #: would escape the install directory.
 _DRIVE_RE = re.compile(r"^[A-Za-z]:")
+
+#: Hard caps for one .yxp payload (extensions are small scripts).
+MAX_MEMBER_BYTES: Final[int] = 32 * 1024 * 1024
+MAX_PAYLOAD_BYTES: Final[int] = 128 * 1024 * 1024
+
+#: Chunk size for the bounded streaming read of archive members.
+_READ_CHUNK: Final[int] = 1024 * 1024
 
 
 class YxpError(Exception):
@@ -161,6 +168,14 @@ def read_package(package_path: Path) -> YxpPackage:
                 n for n in file_names if n not in (MANIFEST_NAME, CHECKSUM_NAME)
             ]
             _check_file_list(manifest, payload, package_path.name)
+            total_size = sum(
+                zi.file_size for zi in zf.infolist() if zi.filename in payload
+            )
+            if total_size > MAX_PAYLOAD_BYTES:
+                raise YxpError(
+                    f"{package_path.name}: payload exceeds the size cap "
+                    f"({total_size} > {MAX_PAYLOAD_BYTES} bytes)"
+                )
             checksums: dict[str, str] | None = None
             if CHECKSUM_NAME in file_names:
                 checksums = _parse_checksums(
@@ -301,12 +316,37 @@ def _parse_checksums(
     return checksums
 
 
+def _read_member(zf: zipfile.ZipFile, rel: str, source: str) -> bytes:
+    """Read member *rel* with a bounded streaming read.
+
+    The bytes are pulled in chunks and counted as they arrive, so a
+    member that is larger than :data:`MAX_MEMBER_BYTES` -- or one whose
+    ``ZipInfo.file_size`` lies about its real size -- is rejected before
+    it can exhaust memory.  ``ZipInfo.file_size`` is deliberately not
+    trusted.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    with zf.open(rel) as stream:
+        while True:
+            chunk = stream.read(_READ_CHUNK)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_MEMBER_BYTES:
+                raise YxpError(
+                    f"{source}: member {rel!r} exceeds the size cap"
+                )
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _verify_digests(
     zf: zipfile.ZipFile, payload: list[str], checksums: dict[str, str], source: str
 ) -> None:
     """Every payload member must hash to its recorded digest."""
     for name in payload:
-        digest = sha256(zf.read(name)).hexdigest()
+        digest = sha256(_read_member(zf, name, source)).hexdigest()
         if digest != checksums[name]:
             raise YxpError(
                 f"{source}: checksum mismatch for {name!r} "
@@ -420,7 +460,7 @@ def _member_bytes(package: YxpPackage, zf: zipfile.ZipFile, rel: str) -> bytes:
     swapped into the archive between :func:`read_package` and extraction
     cannot reach the disk.
     """
-    data = zf.read(rel)
+    data = _read_member(zf, rel, f"cannot install {package.manifest.name}")
     if (
         package.checksums is not None
         and sha256(data).hexdigest() != package.checksums[rel]
@@ -479,7 +519,8 @@ def _remove_stale_files(
             try:
                 previous[rel] = target.read_bytes()
             except OSError:
-                log.warning("could not read stale file %s before removal", target)
+                log.warning("could not read stale file %s; keeping it", target)
+                continue
             try:
                 target.unlink()
             except OSError:

@@ -133,25 +133,9 @@ class LspManager:
             # A replacement invalidates cached clients (e.g. a failed
             # executable probe followed by an extension re-registering a
             # working command) and any documents opened on the old config.
-            for key in [k for k in self._clients if k[0] == config.name]:
-                client = self._clients.pop(key, None)
-                if client is not None:
-                    self._spawn_bg(client.stop())
-            for task in [t for k, t in self._starting.items() if k[0] == config.name]:
-                task.cancel()
-            self._starting = {k: v for k, v in self._starting.items()
-                              if k[0] != config.name}
-            stale_urls = [u for u, st in self._open.items()
-                          if st.config_name == config.name]
-            for uri in stale_urls:
-                self._open.pop(uri, None)
-                self._diagnostics.pop(uri, None)
+            self._drop_cached_state(config.name)
         self._configs.append(config)
-        # Rebuild the file type index; later registrations override earlier.
-        self._by_filetype.clear()
-        for cfg in self._configs:
-            for ft in cfg.filetypes:
-                self._by_filetype[ft] = cfg
+        self._rebuild_filetype_index()
         if existing is not None:
             # The replacement can add, remove or swap a server the UI is
             # already showing.  Fire only after the filetype index above is
@@ -164,6 +148,44 @@ class LspManager:
             config.name, config.command, list(config.filetypes),
             " (replaced an existing registration)" if existing is not None else "",
         )
+
+    def unregister_server(self, name: str) -> bool:
+        """Remove the configuration *name*; ``False`` when it was not there.
+
+        Used by the extension loader to roll back a failed ``setup`` (A13):
+        the cached clients are stopped and the documents opened on the old
+        config are forgotten, so no ghost server survives the rollback.
+        """
+        existing = next((c for c in self._configs if c.name == name), None)
+        if existing is None:
+            return False
+        self._configs.remove(existing)
+        self._drop_cached_state(name)
+        self._rebuild_filetype_index()
+        self._fire("state")
+        log.info("unregistered server %s", name)
+        return True
+
+    def _drop_cached_state(self, name: str) -> None:
+        """Stop and forget every cached client / document of server *name*."""
+        for key in [k for k in self._clients if k[0] == name]:
+            client = self._clients.pop(key, None)
+            if client is not None:
+                self._spawn_bg(client.stop())
+        for task in [t for k, t in self._starting.items() if k[0] == name]:
+            task.cancel()
+        self._starting = {k: v for k, v in self._starting.items() if k[0] != name}
+        stale_urls = [u for u, st in self._open.items() if st.config_name == name]
+        for uri in stale_urls:
+            self._open.pop(uri, None)
+            self._diagnostics.pop(uri, None)
+
+    def _rebuild_filetype_index(self) -> None:
+        """Rebuild the filetype index; later registrations override earlier."""
+        self._by_filetype.clear()
+        for cfg in self._configs:
+            for ft in cfg.filetypes:
+                self._by_filetype[ft] = cfg
 
     def config_names(self) -> list[str]:
         """Registered server config names (in registration order)."""

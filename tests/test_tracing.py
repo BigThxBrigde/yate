@@ -6,6 +6,7 @@ import logging
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TextIO, cast
 
 import pytest
 
@@ -304,3 +305,34 @@ def test_uninstall_releases_the_file(isolated_home: Path, monkeypatch: pytest.Mo
     path.unlink()
     assert not path.exists()
     tracing.uninstall()  # idempotent
+
+
+# --- crash service -------------------------------------------------------------
+
+
+def test_header_failure_closes_the_handle(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash-report header failure does not leak the opened handle."""
+    service = logs.CrashService()
+
+    def failing_header(_handle: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(service, "_write_header", failing_header)
+    opened: list[TextIO] = []
+    real_open = open
+
+    def tracking_open(*args: object, **kwargs: object) -> TextIO:
+        handle = cast(
+            "TextIO",
+            real_open(*args, **kwargs),  # pyright: ignore[reportCallIssue, reportArgumentType]
+        )
+        opened.append(handle)
+        return handle
+
+    monkeypatch.setattr("builtins.open", tracking_open)
+    service.install()  # must not raise; the report stays on stderr fallback
+    assert len(opened) == 1
+    assert opened[0].closed
+    assert service.err_file is None

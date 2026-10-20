@@ -9,6 +9,7 @@ only reach its own platform's half, which is why both halves are written out.
 from __future__ import annotations
 
 import ctypes
+import logging
 import os
 import subprocess
 import sys
@@ -306,3 +307,35 @@ def test_posix_default_falls_back_to_bash_then_sh(
 
     monkeypatch.setattr("yate.editor_term.shells.shutil.which", _which({}))
     assert resolve_shell("") == ["/bin/sh"]
+
+
+# --- timeout kill reporting ---------------------------------------------------
+
+
+def test_kill_failure_is_logged(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A shell that cannot be killed on timeout is reported, not swallowed."""
+    from yate.services import shell as shell_mod
+
+    class StubProc:
+        pid = 4711
+
+        def kill(self) -> None:
+            raise OSError("cannot kill")
+
+    def raise_os(_pgid: int, _sig: int) -> int:
+        raise OSError("gone")
+
+    def fake_getpgid(_pid: int) -> int:
+        return 4711
+
+    monkeypatch.setattr(os, "killpg", raise_os, raising=False)
+    monkeypatch.setattr(os, "getpgid", fake_getpgid, raising=False)
+    monkeypatch.setattr(shell_mod.signal, "SIGKILL", 9, raising=False)
+    monkeypatch.setattr(shell_mod.sys, "platform", "linux")
+    with caplog.at_level("WARNING", logger=shell_mod.log.name):
+        shell_mod._kill_tree(StubProc())  # type: ignore[arg-type]
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "4711" in warnings[0].getMessage()

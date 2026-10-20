@@ -344,6 +344,7 @@ class CrashService:
         """Enable on-disk crash diagnostics. Idempotent and best-effort."""
         if self._err_file is not None:
             return
+        handle: IO[str] | None = None
         try:
             path = self.build_err_path(crash_data_dir())
             handle = open(path, "w", encoding="utf-8", buffering=1)
@@ -352,6 +353,10 @@ class CrashService:
             # faulthandler writes to this fd directly on fatal signals.
             faulthandler.enable(file=handle, all_threads=True)
         except (OSError, ValueError):
+            # The handle leaks unless it is closed here: the crash log was
+            # opened but its header (or faulthandler setup) failed.
+            if handle is not None:
+                handle.close()
             # No usable data directory or handle: still enable faulthandler
             # on stderr so a native crash leaves *some* trace behind.
             try:

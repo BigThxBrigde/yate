@@ -53,8 +53,10 @@ def _kill_tree(proc: subprocess.Popen[str]) -> None:
     except OSError:
         try:
             proc.kill()
-        except OSError:
-            pass
+        except OSError as exc:
+            log.warning(
+                "could not kill the timed-out shell (pid %d)", proc.pid, exc_info=exc
+            )
 
 
 def run_shell(

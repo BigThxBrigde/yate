@@ -1463,3 +1463,15 @@ def test_reregistering_a_server_stops_the_old_client(tmp_path: Path) -> None:
         await mgr.shutdown_all()
 
     asyncio.run(scenario())
+
+
+def test_unregister_server_forgets_the_config() -> None:
+    """``unregister_server`` drops the config and reports unknown names."""
+    manager = LspManager()
+    manager.register_server(ServerConfig(name="probe", command="tss", filetypes=["ts"]))
+    assert manager.config_names() == ["probe"]
+
+    assert manager.unregister_server("probe") is True
+    assert manager.config_names() == []
+
+    assert manager.unregister_server("probe") is False
