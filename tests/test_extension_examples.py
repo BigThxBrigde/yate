@@ -28,8 +28,11 @@ import pytest
 
 from yate.editor_syntax import engine, langdefs, resolve_filetype, tokenize_document
 from yate.editor_syntax.ts_backend import languages as ts_langs
+from yate.config import YateConfig
+from yate.editor_core import Document
 from yate.paths import bundled_extensions_dir
 from yate.services.extensions import ExtensionAPI, ExtensionContext
+from yate.session import EditorSession
 
 #: Every bundled template, by file stem.  The manual promises "seven extension
 #: examples" -- this list is what keeps that sentence true.
@@ -254,6 +257,39 @@ def test_walkthrough_example_registers_commands(
     path = bundled_extensions_dir() / "example_ext.py.example"
     namespace = _run_setup(path, _extension_api())
     assert callable(namespace["setup"])
+
+
+def test_upper_command_marks_the_buffer_changed(clean_registries: None) -> None:
+    """``:upper`` on the current line bumps the content version."""
+    session = EditorSession(YateConfig())
+    session.new_buffer()
+    session.docs[session.index] = Document(None, session.make_buffer("hello\n"))
+    mock = cast(Any, MagicMock())
+    ctx = ExtensionContext(
+        session=session,
+        workspace=mock,
+        lsp=mock,
+        keymaps=mock,
+        actions=mock,
+        commands=mock,
+        message=lambda _text: None,
+        run_shell=lambda _command, _show: None,
+        open_path=lambda _path: None,
+        save=lambda: None,
+        run_action=lambda _name: False,
+        set_theme=lambda _name: None,
+        active_theme_name=lambda: "mocha",
+    )
+    path = bundled_extensions_dir() / "example_ext.py.example"
+    _run_setup(path, ExtensionAPI(ctx))
+    calls = mock.register.call_args_list
+    upper = next(c.args[1] for c in calls if c.args[0] == "upper")
+    buf = session.buffer
+    version_before = buf.content_version
+    upper("")
+    assert buf.lines[0] == "HELLO"
+    assert buf.content_version > version_before
+    assert session.docs[session.index].modified is True
 
 
 def test_yatesh_example_fails_loudly_without_its_grammar() -> None:

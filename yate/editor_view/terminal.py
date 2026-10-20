@@ -29,6 +29,7 @@ from textual.widgets import Static
 
 from yate.config import YateConfig
 from yate.editor_term import (
+    Cell,
     PtyProcess,
     PtyProcessError,
     TerminalEmulator,
@@ -95,6 +96,14 @@ class TerminalView(Widget):
         self.dead = False
         self._exit_code: int | None = None
         self._last_title = ""
+        # One-shot grid snapshot per frame: view_lines() copies the whole
+        # grid, so calling it once per rendered row is O(rows^2 * cols)
+        # per frame.  _grid_seq is bumped at every state-changing point
+        # (output, resize, scroll, exit) so a stale snapshot can never
+        # survive past the refresh that follows it.
+        self._snapshot: list[list[Cell]] | None = None
+        self._snapshot_key: tuple[int, int, int, int] = (-1, -1, -1, -1)
+        self._grid_seq = 0
 
     # ------------------------------------------------------------- lifecycle
 
@@ -124,6 +133,8 @@ class TerminalView(Widget):
                 cols, rows, on_response=self._respond
             )
             self._scroll = 0
+            # A fresh emulator invalidates the grid snapshot as well.
+            self._grid_seq += 1
             self.dead = False
             self._exit_code = None
             make: Any = factory or PtyProcess  # noqa: Any - fake PTY factory from tests; no stub.
@@ -165,6 +176,15 @@ class TerminalView(Widget):
         finally:
             proc.detach()
 
+    def _grid(self) -> list[list[Cell]]:
+        """Snapshot of the visible grid, rebuilt only when state changed."""
+        key = (self._scroll, int(self.size.width), int(self.size.height),
+               self._grid_seq)
+        if self._snapshot is None or key != self._snapshot_key:
+            self._snapshot = self.emulator.view_lines(self._scroll)
+            self._snapshot_key = key
+        return self._snapshot
+
     def _respond(self, data: bytes) -> None:
         if self.proc is not None:
             self.proc.write(data)
@@ -175,6 +195,7 @@ class TerminalView(Widget):
         self.emulator.feed(data)
         if self._scroll:
             self._scroll = min(self._scroll, self.emulator.max_scroll())
+        self._grid_seq += 1
         self.refresh()
         if self.emulator.title != self._last_title:
             self._last_title = self.emulator.title
@@ -186,6 +207,7 @@ class TerminalView(Widget):
         self.dead = True
         self._exit_code = code
         self._scroll = 0
+        self._grid_seq += 1
         self.refresh()
         panel = self.parent
         if isinstance(panel, TerminalPanel):
@@ -216,6 +238,7 @@ class TerminalView(Widget):
         if self.proc is not None:
             self.proc.resize(cols, rows)
         self._scroll = min(self._scroll, self.emulator.max_scroll())
+        self._grid_seq += 1
         self.refresh()
 
     # --------------------------------------------------------------- input
@@ -303,6 +326,7 @@ class TerminalView(Widget):
         """Scroll the viewport by *delta* rows, clamped to history."""
         maximum = self.emulator.max_scroll()
         self._scroll = max(0, min(self._scroll + delta, maximum))
+        self._grid_seq += 1
         self.refresh()
 
     # --------------------------------------------------------------- render
@@ -312,7 +336,7 @@ class TerminalView(Widget):
         """Render one terminal row from the emulator grid (cursor highlighted)."""
         t = theme.active()
         width = int(self.size.width) if self.size.width else self.emulator.cols
-        lines = self.emulator.view_lines(self._scroll)
+        lines = self._grid()
         if y >= len(lines):
             return Strip.blank(width, Style(bgcolor=t.bg))
         row_cells = lines[y]

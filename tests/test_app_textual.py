@@ -262,6 +262,56 @@ def test_readonly_saveas_writes_elsewhere_and_unlocks(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_saveas_expands_a_home_relative_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """:saveas ~/out.txt lands in the home directory, not the cwd."""
+    home = tmp_path / "home"
+    home.mkdir()
+    # ntpath.expanduser reads the env vars; Path.home() is patched as well so
+    # both resolution routes agree
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(Path, "home", lambda: home)
+
+    async def scenario() -> None:
+        source = tmp_path / "source.txt"
+        source.write_text("body", encoding="utf-8")
+        app = YateApp(target=source)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.editor.run_command("saveas ~/out.txt")
+            await pilot.pause()
+            assert (home / "out.txt").read_text(encoding="utf-8") == "body"
+
+    asyncio.run(scenario())
+
+
+def test_saveas_resolves_a_relative_path_against_the_workspace_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A relative :saveas target is anchored at the workspace root, not cwd."""
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    (tmp_path / "sub").mkdir()  # :saveas does not mkdir parents
+
+    async def scenario() -> None:
+        source = tmp_path / "source.txt"
+        source.write_text("body", encoding="utf-8")
+        monkeypatch.chdir(cwd)  # process cwd differs from the workspace root
+        app = YateApp(target=source)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            app.editor.run_command("saveas sub/out.txt")
+            await pilot.pause()
+            assert (tmp_path / "sub" / "out.txt").read_text(
+                encoding="utf-8"
+            ) == "body"
+            assert not (cwd / "sub").exists()
+
+    asyncio.run(scenario())
+
+
 def test_readonly_saveas_unexpected_error_restores_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

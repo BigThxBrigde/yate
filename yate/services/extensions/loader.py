@@ -47,10 +47,14 @@ class LoadedExtension:
     A healthy load fills ``module`` and ``teardown`` and leaves ``error``
     ``None``; any failure stores the exception summary there.  ``lua``
     records keep ``module`` ``None`` (Lua extensions carry no Python module).
+    ``resolved`` is the path resolved once at load time, so the
+    de-duplication lookup stays a set query instead of re-resolving every
+    already-loaded record on each ``load_file`` call.
     """
 
     name: str
     path: Path
+    resolved: Path = field(default_factory=Path)
     module: ModuleType | None = None
     error: str | None = None
     teardown: TeardownHook | None = None
@@ -62,6 +66,9 @@ class ExtensionLoader:
 
     api: ExtensionAPI
     loaded: list[LoadedExtension] = field(default_factory=list[LoadedExtension])
+    #: Resolved paths of :attr:`loaded`, kept in sync by ``load_file`` /
+    #: ``_load_lua``; the de-duplication query is a set membership test.
+    _resolved: set[Path] = field(default_factory=set[Path])
 
     def load_directory(
         self,
@@ -96,24 +103,25 @@ class ExtensionLoader:
         path = Path(path)
         # The same script can be reached via several sources (an rc-declared
         # path, the default ./extensions directory, a --ext flag); loading it
-        # twice would double-register commands and bindings.
+        # twice would double-register commands and bindings.  The resolved
+        # path is computed once and compared against the already-loaded
+        # records' cached resolved paths (a set query), so the lookup is
+        # O(1) instead of re-resolving every record per call.
         try:
             resolved = path.resolve()
         except OSError:
             resolved = path.absolute()
-        for existing in self.loaded:
-            try:
-                if existing.path.resolve() == resolved:
+        if resolved in self._resolved:
+            for existing in self.loaded:
+                if existing.resolved == resolved:
                     return existing
-            except OSError:
-                continue
         if path.suffix == ".lua":
-            return self._load_lua(path)
+            return self._load_lua(path, resolved)
         # The resolved-path hash keeps same-stem extensions from different
         # directories under distinct sys.modules entries, so a failed
         # second load cannot pop the first one's module on cleanup (S33).
         mod_name = f"yate_ext_{path.stem}_{hash(resolved) & 0xFFFFFFFF:08x}"
-        record = LoadedExtension(name=path.stem, path=path)
+        record = LoadedExtension(name=path.stem, path=path, resolved=resolved)
         log.debug("loading extension: %s", path)
         try:
             spec = importlib.util.spec_from_file_location(mod_name, path)
@@ -157,15 +165,16 @@ class ExtensionLoader:
             self.api.end_scope()
             log.debug("extension loaded: %s", path)
         self.loaded.append(record)
+        self._resolved.add(record.resolved)
         return record
 
-    def _load_lua(self, path: Path) -> LoadedExtension:
+    def _load_lua(self, path: Path, resolved: Path) -> LoadedExtension:
         """Load a ``.lua`` extension (module table, explicit or top-level setup).
 
         Mirrors the Python branch (rollback scope A13; errors recorded,
         never raised); without ``lupa`` the record gets an install hint.
         """
-        record = LoadedExtension(name=path.stem, path=path)
+        record = LoadedExtension(name=path.stem, path=path, resolved=resolved)
         if not is_lua_available():
             record.error = (
                 "lua extensions require the lupa package; "
@@ -186,6 +195,7 @@ class ExtensionLoader:
                 self.api.end_scope()
                 log.debug("extension loaded: %s", path)
         self.loaded.append(record)
+        self._resolved.add(record.resolved)
         return record
 
     def teardown_all(self) -> None:

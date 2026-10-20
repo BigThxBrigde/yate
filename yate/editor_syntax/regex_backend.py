@@ -378,11 +378,38 @@ def _tokenize_markdown_line(line: str, state: int) -> tuple[list[Token], int]:
     return tokens, _S_CODE
 
 
+def _comment_start(line: str, marker: str) -> int:
+    """The index of the first comment *marker* outside quotes, or ``-1``.
+
+    Quotes (single and double) are tracked character by character with
+    backslash escapes, so a ``#`` inside a string value such as
+    ``key = "a#b"`` is not mistaken for the start of a comment.
+    """
+    if not marker:
+        return -1
+    quote: str | None = None
+    i = 0
+    while i < len(line):
+        char = line[i]
+        if quote is not None:
+            if char == "\\":
+                i += 2  # skip the escaped character
+                continue
+            if char == quote:
+                quote = None
+        elif char in "'\"":
+            quote = char
+        elif line.startswith(marker, i):
+            return i
+        i += 1
+    return -1
+
+
 def _tokenize_config_line(line: str, spec: LangSpec) -> list[Token]:
     """Tokenize one TOML / INI / YAML style line."""
     tokens: list[Token] = []
     if spec.line_comment is not None:
-        idx = line.find(spec.line_comment)
+        idx = _comment_start(line, spec.line_comment)
         if idx != -1:
             _emit(tokens, idx, len(line), "comment")
             line = line[:idx]

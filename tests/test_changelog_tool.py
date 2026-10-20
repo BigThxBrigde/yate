@@ -1123,3 +1123,62 @@ def test_generate_online_github_host_reports_unpushed(
     assert "1 commit(s) not found on github.com" in out
     en = (cli_repo / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "(unpushed)" in en
+
+
+# --- --check vs. a missing / unreadable git history (review M-9) --------------
+
+
+def test_check_skips_when_the_directory_is_not_a_git_repository(
+    cli_repo: Path, overrides_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An sdist unpack (no ``.git`` at all) skips the gate with exit 0."""
+    assert cli.check(cli_repo, overrides_path=overrides_path) == 0
+    assert "SKIP: no git history" in capsys.readouterr().out
+
+
+def test_check_fails_when_git_history_is_unreadable(
+    cli_repo: Path, overrides_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A directory carrying ``.git`` whose ``git log`` fails fails the gate."""
+    (cli_repo / ".git").mkdir()
+    real_run_git = gitdata.run_git
+
+    def failing_log(args: list[str], *, repo: Path) -> str:
+        if args[:1] == ["log"]:
+            raise gitdata.GitError("git timed out: git log")
+        return real_run_git(args, repo=repo)
+
+    monkeypatch.setattr(gitdata, "run_git", failing_log)
+    assert cli.check(cli_repo, overrides_path=overrides_path) == 1
+
+
+def test_check_fails_when_a_real_repository_is_corrupt(
+    cli_repo: Path, overrides_path: Path,
+) -> None:
+    """A corrupt repository must fail the gate, not be read as "no repo".
+
+    ``git rev-parse`` fails on a corrupt ``.git``; treating that as "no
+    repository" (review M-1 of the wave-e re-review) would pass ``--check``
+    exactly when the history is unreadable.
+    """
+    (cli_repo / ".git").mkdir()
+    (cli_repo / ".git" / "HEAD").write_text("garbage-not-a-ref\n", encoding="utf-8")
+    assert gitdata.is_git_repo(cli_repo) is True
+    assert cli.check(cli_repo, overrides_path=overrides_path) == 1
+
+
+# --- --limit validation (review m-25) ----------------------------------------
+
+
+def test_cli_rejects_a_non_positive_limit(
+    cli_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--limit 0`` / ``--limit -1`` are usage errors, not silent no-ops."""
+    monkeypatch.setattr(cli, "discover_repo_root", lambda: cli_repo)
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["generate", "--limit", "0"])
+    assert excinfo.value.code == 2
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["generate", "--limit", "-1"])
+    assert excinfo.value.code == 2

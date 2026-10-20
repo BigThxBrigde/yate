@@ -223,3 +223,25 @@ def test_search_files_carries_hit_line_texts(tmp_path: Path) -> None:
         (2, 0, 6),
     ]
     assert fm.hit_lines == {1: "needle x\r", 2: "needle y\r"}
+
+
+# --- SearchEngine.next cursor positioning ------------------------------------
+
+
+def test_search_jump_clears_the_vertical_goal_column() -> None:
+    """Jumping to a match goes through set_cursor, so the stale vertical
+    goal column is cleared and the next move_down lands relative to the
+    match instead of the pre-jump target column."""
+    buffer = TextBuffer("top row data ok\nne here\nmid")
+    buffer.cursor = (0, 10)
+    buffer.move_down()  # establishes goal column 10
+    engine = SearchEngine()
+    engine.update("ne", buffer)
+    match = engine.next(buffer)
+    assert match is not None
+    assert (match.row, match.start, match.end) == (1, 0, 2)
+    assert buffer.cursor == (1, 2)
+    assert buffer.anchor == (1, 0)
+    buffer.move_down()
+    # goal col 10 would clamp onto (2, 3); the match's end column lands 2.
+    assert buffer.cursor == (2, 2)

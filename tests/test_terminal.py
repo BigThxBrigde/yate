@@ -1,5 +1,8 @@
 """Tests for the integrated terminal: emulator, shell resolution, PTY lifecycle."""
 
+# tests legitimately poke at view internals (snapshot cache invalidation):
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import asyncio
@@ -467,3 +470,102 @@ def test_spawn_failure_marks_the_view_dead_and_revivable() -> None:
         assert view.started
 
     asyncio.run(_scenario())
+
+
+# --- grid snapshot cache (plan-b M-4) ----------------------------------------
+
+
+def _snapshot_view() -> tuple[
+    TerminalView, list[int], Callable[[int], object],
+]:
+    """A headless view whose emulator counts every ``view_lines`` call."""
+    view = TerminalView(cast(Any, None))
+    view.emulator.feed(b"alpha\r\nbeta\r\ngamma")
+    calls: list[int] = []
+    original = view.emulator.view_lines
+
+    def counting(scroll: int) -> object:
+        calls.append(scroll)
+        return original(scroll)
+
+    return view, calls, counting
+
+
+def test_render_line_reuses_one_grid_snapshot_per_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One frame (all rows rendered) snapshots the grid exactly once."""
+    view, calls, counting = _snapshot_view()
+    monkeypatch.setattr(view.emulator, "view_lines", counting)
+    for y in range(view.emulator.rows):
+        view.render_line(y)
+    assert len(calls) == 1
+
+
+def test_grid_snapshot_invalidates_after_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """New shell output shows up in the render despite the snapshot."""
+    view, calls, counting = _snapshot_view()
+    monkeypatch.setattr(view.emulator, "view_lines", counting)
+    view.render_line(0)
+    assert len(calls) == 1
+    view._on_output(b"\r\nfresh line")
+    view.render_line(3)
+    assert len(calls) == 2
+    assert "fresh line" in view.render_line(3).text
+
+
+def test_grid_snapshot_invalidates_after_scroll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Scrolling repaints from a fresh snapshot of the scrolled window."""
+    view, calls, counting = _snapshot_view()
+    view.emulator.feed(b"".join(b"row%02d\r\n" % i for i in range(30)))
+    monkeypatch.setattr(view.emulator, "view_lines", counting)
+    view.render_line(0)
+    # 30 CRLF-terminated lines into a 24-row screen: row29 sits one row
+    # above the trailing (blank) cursor line
+    assert "row29" in view.render_line(22).text
+    assert len(calls) == 1
+    view.scroll_by(1)
+    view.render_line(22)
+    assert len(calls) == 2
+    assert "row28" in view.render_line(22).text
+
+
+def test_grid_snapshot_invalidates_after_resize(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A grid resize drops the cached snapshot (new geometry, new rows)."""
+    from textual.events import Resize
+    from textual.geometry import Size
+
+    view, calls, counting = _snapshot_view()
+    view.emulator = TerminalEmulator(40, 10)
+    view.emulator.feed(b"alpha\r\nbeta")
+    monkeypatch.setattr(view.emulator, "view_lines", counting)
+    view.render_line(0)
+    assert len(calls) == 1
+    # Unmounted widget: the 80x24 fallback size applies, differing from
+    # the 40x10 emulator, so on_resize actually resizes the grid.
+    view.on_resize(Resize(Size(80, 24), Size(80, 24)))
+    view.render_line(0)
+    assert len(calls) == 2
+    assert (view.emulator.cols, view.emulator.rows) == (80, 24)
+
+
+def test_grid_snapshot_invalidates_after_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shell exit refreshes the grid (dead message paints on fresh data)."""
+    view, calls, counting = _snapshot_view()
+    monkeypatch.setattr(view.emulator, "view_lines", counting)
+    view.render_line(0)
+    assert len(calls) == 1
+    view._on_exit(3)
+    view.render_line(0)
+    assert len(calls) == 2
+    # the dead message paints on the last row of the grid
+    assert "exit code 3" in view.render_line(23).text
+

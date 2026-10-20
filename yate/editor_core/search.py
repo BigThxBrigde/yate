@@ -97,8 +97,11 @@ class SearchEngine:
             step = 1 if forward else -1
             self.index = (self.index + step) % len(self.matches)
         match = self.matches[self.index]
+        # set_cursor clears the vertical goal column (a stale pre-jump goal
+        # would steer the next vertical motion); the selection anchor is
+        # re-applied afterwards because set_cursor(None-select) drops it.
+        buffer.set_cursor((match.row, match.end))
         buffer.anchor = (match.row, match.start)
-        buffer.cursor = (match.row, match.end)
         return match
 
     def current(self) -> Match | None:

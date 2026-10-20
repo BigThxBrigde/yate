@@ -226,9 +226,10 @@ class Document:
         # persistence goes through :saveas, which lifts the flag first.
         if self.buffer.read_only:
             raise BufferReadOnlyError("buffer is read-only")
-        if path is not None:
-            self.path = Path(path)
-        if self.path is None:
+        # The recorded path only advances after a successful write: a failed
+        # save-as must leave the document still bound to its previous path.
+        target = Path(path) if path is not None else self.path
+        if target is None:
             raise ValueError("cannot save a document without a path")
         text = self.buffer.get_text()
         # Write back with the EOL recorded at open time (new buffers default
@@ -237,7 +238,6 @@ class Document:
         if self.eol != "\n":
             text = text.replace("\n", self.eol)
         data = text.encode(self.encoding)
-        target = self.path
         # A unique sibling temp file avoids collisions between concurrent
         # saves; mkstemp creates it owner-only, which is fixed up below.
         fd, tmp_name = tempfile.mkstemp(
@@ -274,4 +274,5 @@ class Document:
         self._saved_edits = self.buffer.content_edits
         self._saved_lines = tuple(self.buffer.lines)
         self._modified_cache = None
+        self.path = target
         return self.path

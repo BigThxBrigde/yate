@@ -235,6 +235,33 @@ def test_same_file_loaded_once_across_sources(
     assert len(loader.loaded) == 1
 
 
+def test_duplicate_detection_does_not_resolve_repeatedly(
+    loader: ExtensionLoader, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The dedup lookup uses cached resolved paths, not one resolve per record."""
+    resolve_calls = 0
+    real_resolve = Path.resolve
+
+    def counting_resolve(self: Path, strict: bool = False) -> Path:
+        nonlocal resolve_calls
+        resolve_calls += 1
+        return real_resolve(self, strict)
+
+    monkeypatch.setattr(Path, "resolve", counting_resolve)
+    for i in range(5):
+        script = tmp_path / f"ext{i}.py"
+        script.write_text(_SETUP_OK, encoding="utf-8")
+        loader.load_file(script)
+    resolve_calls = 0  # only the duplicate lookup below is counted
+    script = tmp_path / "ext0.py"
+    first = loader.load_file(script)
+    second = loader.load_file(script)
+    assert first is second
+    # one resolve per duplicate load_file call (its own path only); the
+    # pre-fixed code resolved every already-loaded record on top of that
+    assert resolve_calls == 2
+
+
 # --- error handling ---------------------------------------------------------
 
 

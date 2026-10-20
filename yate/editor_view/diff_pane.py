@@ -326,8 +326,15 @@ class DiffPane(ScrollView):
         text_w = max(1, view_w - gutter_w)
         cap = min(len(line), text_w * 2 + buf.tab_width)
         cells: list[str] = []
-        for ch in line[:cap]:
+        # per-cell source character index: tabs expand to several cells
+        # and wide glyphs to two, so the painted cell column runs ahead
+        # of the character index -- inline spans are character-indexed
+        # and must be looked up through this mapping (plan-b m-1).
+        cell_char: list[int] = []
+        for char_idx, ch in enumerate(line[:cap]):
+            before = len(cells)
             theme.expand_char(ch, cells, buf.tab_width)
+            cell_char.extend([char_idx] * (len(cells) - before))
         cursor_row = buf.row if self.editing else -1
         cursor_cell = (
             theme.char_to_cell(line, buf.col, buf.tab_width)
@@ -336,6 +343,7 @@ class DiffPane(ScrollView):
         )
         if row == cursor_row and buf.col >= len(line):
             cells.append(" ")  # block cursor at end of line
+            cell_char.append(len(line))
 
         # gutter: " " + line number + badge (one cell each)
         badge, badge_attr = _BADGES.get(line_state, (" ", "fg_dim"))
@@ -358,12 +366,12 @@ class DiffPane(ScrollView):
 
         # text window (no horizontal scrolling: long lines clip)
         used = 0
-        span = 0  # character index of the cell being painted
         for cell_idx in range(text_w):
             if cell_idx >= len(cells):
                 break
             ch = cells[cell_idx]
-            cell_bg = inline_bg if _in_spans(inline, span) else line_bg
+            char_index = cell_char[cell_idx]
+            cell_bg = inline_bg if _in_spans(inline, char_index) else line_bg
             style = Style(bgcolor=cell_bg or t.bg, color=t.fg)
             if row == cursor_row and cell_idx == cursor_cell:
                 style += Style(reverse=True)
@@ -375,8 +383,6 @@ class DiffPane(ScrollView):
             else:
                 segments.append(Segment(" ", style))
             used += 1
-            if ch:
-                span += 1
         pad = view_w - gutter_w - used
         if pad > 0:
             segments.append(Segment(" " * pad, Style(bgcolor=line_bg or t.bg)))

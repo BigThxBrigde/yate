@@ -384,8 +384,14 @@ def configure_windows_terminal(family: str = FAMILY) -> tuple[bool, str]:
 
     # json.loads returns Any: narrow it step by step to dict[str, Any] so
     # Unknown does not spread.
-    profiles = cast(dict[str, Any], data.setdefault("profiles", {}))
-    defaults = cast(dict[str, Any], profiles.setdefault("defaults", {}))
+    profiles_raw = data.setdefault("profiles", {})
+    if not isinstance(profiles_raw, dict):
+        return False, "unsupported settings.json: profiles is not an object"
+    profiles = cast(dict[str, Any], profiles_raw)
+    defaults_raw = profiles.setdefault("defaults", {})
+    if not isinstance(defaults_raw, dict):
+        return False, "unsupported settings.json: profiles.defaults is not an object"
+    defaults = cast(dict[str, Any], defaults_raw)
     changed = _apply_face(defaults, family, force=True)
 
     overrides = 0

@@ -9,6 +9,7 @@ wires in; nothing here knows about the application class.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable
 
 from rich.text import Text
@@ -163,6 +164,11 @@ class Breadcrumbs(Static):
         super().__init__(**kwargs)
         self.session = session
         self.workspace = workspace
+        # resolve() is a filesystem round trip; the workspace root only
+        # changes on set_root, so its resolved form is cached per root
+        # object (plan-b m-12).
+        self._cached_root: Path | None = None
+        self._resolved_root: Path | None = None
 
     # --------------------------------------------------------------- data
 
@@ -175,10 +181,14 @@ class Breadcrumbs(Static):
             return []
         path = doc.path
         root = self.workspace.root
+        if root is not self._cached_root:
+            self._cached_root = root
+            self._resolved_root = root.resolve() if root is not None else None
+        resolved_root = self._resolved_root
         parts: list[str]
-        if root is not None:
+        if root is not None and resolved_root is not None:
             try:
-                parts = [root.name, *path.resolve().relative_to(root.resolve()).parts]
+                parts = [root.name, *path.resolve().relative_to(resolved_root).parts]
             except ValueError:
                 parts = list(path.parts)
         else:

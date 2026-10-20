@@ -935,3 +935,13 @@ def test_modified_special_keys_come_from_the_shared_table() -> None:
     assert key_to_terminal("ctrl+shift+right") == "\x1b[1;6C"
     assert key_to_terminal("ctrl+home") == "\x1b[1;5H"
     assert key_to_terminal("shift+end") == "\x1b[1;2F"
+
+
+def test_del_byte_does_not_advance_the_cursor() -> None:
+    """DEL (0x7f) is ignored in ground state, not printed (plan-b m-5)."""
+    emu = _emu()
+    emu.feed(b"a\x7fb")
+    assert _rows(emu) == "ab"  # "a" at column 0, "b" at column 1
+    assert emu.grid[0][0].char == "a"
+    assert emu.grid[0][1].char == "b"
+    assert emu.cursor == (0, 2)

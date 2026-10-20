@@ -175,6 +175,26 @@ def test_extract_screen_saver_maps_keys_and_reports_unknown(
     )
 
 
+def test_mixed_key_types_in_screen_saver_are_reported_not_raised(
+    tmp_path: Path,
+) -> None:
+    """A screen_saver dict mixing key types is an error, not a crash.
+
+    The per-file extraction is wrapped in load_config: the exception is
+    folded into ``config.errors`` and the loader returns normally.
+    """
+    from yate.yaterc import load_config
+
+    rc = tmp_path / "yaterc"
+    rc.write_text('screen_saver = {1: True, "x": 1}\n', encoding="utf-8")
+
+    config = load_config([rc])
+
+    assert config.sources == [rc]
+    assert config.errors
+    assert config.screen_saver == YateConfig().screen_saver  # default kept
+
+
 def test_extract_file_preview_maps_keys_and_reports_unknown(
     config: YateConfig,
 ) -> None:

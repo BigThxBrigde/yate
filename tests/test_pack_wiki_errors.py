@@ -12,6 +12,9 @@ monkeypatched, and the ``wiki`` subcommand is pointed at a throwaway checkout,
 so the suite stays hermetic.
 """
 
+# tests legitimately poke at the generator's private helpers:
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import ast
@@ -24,6 +27,7 @@ import types
 from collections.abc import Callable
 from io import StringIO
 from pathlib import Path
+from typing import override
 
 import pytest
 from tools.pack import cli, errors, wiki
@@ -913,3 +917,30 @@ def test_a_failure_reported_after_the_drain_still_reaches_the_terminal(
     # Nothing is left behind for a reader that will never come.
     assert getattr(wiki, "_COLLECTED_FAILURES").qsize() == 0
     assert getattr(wiki, "_emit_mode") == "print"
+
+
+class _BrokenStdin(StringIO):
+    """A stdin stand-in whose write fails like a child that already exited."""
+
+    @override
+    def write(self, text: str, /) -> int:
+        raise BrokenPipeError("child gone")
+
+
+def test_feed_stdin_failure_goes_through_the_failure_channel(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The helper thread reports a dead child instead of writing the terminal."""
+    wiki._feed_stdin(_BrokenStdin(), "page")
+    assert "cannot feed the translator" in capsys.readouterr().err
+
+
+def test_feed_stdin_failure_is_queued_while_collecting(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """In collect mode the message waits for the main thread to drain it."""
+    monkeypatch.setattr(wiki, "_emit_mode", "collect")
+    wiki._feed_stdin(_BrokenStdin(), "page")
+    assert capsys.readouterr().err == ""
+    drained = wiki._drain_collected_failures()
+    assert any("cannot feed the translator" in message for message in drained)

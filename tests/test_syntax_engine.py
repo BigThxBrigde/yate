@@ -17,6 +17,15 @@ from yate.editor_syntax.tokens import Token
 from yate.editor_syntax.ts_backend import languages
 
 
+def test_config_hash_inside_a_string_is_not_a_comment() -> None:
+    """A ``#`` inside a quoted config value is string text, not a comment."""
+    lines = ['key = "a#b" # real comment']
+    kinds = regex_backend.tokenize_document(lines, "toml")[0]
+    pairs = [(t.kind, lines[0][t.start:t.end]) for t in kinds]
+    assert ("string", '"a#b"') in pairs
+    assert ("comment", "# real comment") in pairs
+
+
 class _FakeTS:
     """Stands in for yate.editor_syntax.ts_backend without the dependency."""
 
@@ -168,6 +177,11 @@ class _LogCapture(logging.Handler):
 
     def __init__(self) -> None:
         super().__init__()
+        # Handler-level WARNING: the degradation tests assert on warnings
+        # only, and a tracing.install(DEBUG) run by an earlier test leaves
+        # the "yate" logger at DEBUG process-wide, which would otherwise
+        # leak ts_backend's debug records into these assertions.
+        self.setLevel(logging.WARNING)
         self.messages: list[str] = []
 
     @override
