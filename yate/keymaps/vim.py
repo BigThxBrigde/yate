@@ -385,7 +385,10 @@ class VimKeymap(Keymap):
     def _operator_hints(self) -> tuple[tuple[str, str], ...]:
         """Rows for an armed operator: the operator itself, objects, motions."""
         op_verb = {"d": "delete", "y": "yank", "c": "change"}[self.op or "d"]
-        assert self.op is not None
+        if self.op is None:
+            # unreachable via the only caller (it checks op first); display
+            # only, so an empty hint table is the safe fallback
+            return ()
         rows: list[tuple[str, str]] = [
             (self.op, f"{op_verb} line ({self.op * 2})"),
             ("i", "inner object"),
@@ -671,7 +674,8 @@ class VimKeymap(Keymap):
             self._resolve_gg(ctx)
             return True
         if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
-            assert self.prefix is not None
+            # no None guard needed here: the tuple test above already
+            # narrows self.prefix to the find prefixes (pyright-verified)
             self._resolve_find(
                 ctx,
                 key,
@@ -1090,7 +1094,8 @@ class VimKeymap(Keymap):
 
     def _repeat_find(self, ctx: ActionContext, key: str) -> None:
         """Re-run the last find: ``;`` keeps its direction, ``,`` flips it."""
-        assert self.last_find is not None
+        if self.last_find is None:
+            return
         ch, backward, till = self.last_find
         if key == ",":
             backward = not backward
@@ -1238,7 +1243,7 @@ class VimKeymap(Keymap):
                 # operator mode keep the line-edge column so half-open spans
                 # (d5G, dG) still reach the target char.
                 if count is not None:
-                    r = count - 1
+                    r = max(0, min(count - 1, len(buf.lines) - 1))
                 else:
                     r = len(buf.lines) - 1
                 if select:
@@ -1345,7 +1350,10 @@ class VimKeymap(Keymap):
         self.prefix = None
         self._clear_operator()
         self.count_str = ""
-        assert op is not None and scope is not None
+        if op is None or scope is None:
+            # unreachable: the operator-pending caller checked both before
+            # dispatching here; the key stays consumed either way
+            return True
         buf = ctx.buffer
         span = resolve_text_object(buf.lines, buf.cursor, scope, key, count)
         if span is None:

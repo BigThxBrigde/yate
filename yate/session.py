@@ -207,8 +207,9 @@ class EditorSession:
     def retarget(self, old: Path, new: Path) -> list[Document]:
         """Keep tabs pointing at a document that was renamed on disk."""
         moved: list[Document] = []
+        target = old.resolve()
         for doc in self.docs:
-            if doc.resolved_path == old.resolve():
+            if doc.resolved_path == target:
                 doc.path = new
                 moved.append(doc)
         if moved:

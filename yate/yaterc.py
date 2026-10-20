@@ -198,14 +198,21 @@ def load_config(
         config.sources.append(path)
         # Path-list options are extracted per file so relative entries resolve
         # against the directory of the rc file that declared them.
-        _extract_extensions(namespace, config, path.parent)
-        _extract_theme_dirs(namespace, config, path.parent)
-        _extract_disabled_extensions(namespace, config)
+        try:
+            _extract_extensions(namespace, config, path.parent)
+            _extract_theme_dirs(namespace, config, path.parent)
+            _extract_disabled_extensions(namespace, config)
+        except Exception as exc:  # noqa: BLE001 - rc values are user data
+            config.errors.append(f"{path}: {type(exc).__name__}: {exc}")
+            continue
     # Register themes from rc-declared directories before the app applies
     # ``theme = "<custom>"`` (the theme registry is process-global).
     if load_theme_paths is not None:
         load_theme_paths(config.theme_dirs, config.errors)
-    _extract_options(namespace, config)
+    try:
+        _extract_options(namespace, config)
+    except Exception as exc:  # noqa: BLE001 - rc values are user data
+        config.errors.append(f"{type(exc).__name__}: {exc}")
     log.debug(
         "yaterc loaded: sources=%s errors=%d",
         [str(p) for p in config.sources], len(config.errors),
