@@ -1,8 +1,8 @@
 --[[
 yate bundled extension: pacman (pacman.lua)
 
-A classic pacman maze drawn on a yate extension canvas: a 19 x 21 ASCII
-maze (walls / pellets / power pellets / ghost house) framed into a 21 x 23
+A classic pacman maze drawn on a yate extension canvas: a 39 x 27 ASCII
+maze (walls / pellets / power pellets / ghost house) framed into a 41 x 29
 canvas, four deterministic ghosts, power pellets that turn the ghosts
 frightened, and a bottom status line (score / lives / level / best).
 
@@ -34,9 +34,9 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 
 local engine = require("game_engine")
 
--- Canvas geometry: 21 x 23; the maze itself is 19 x 21 single-byte rows.
-local COLS, ROWS = 21, 23
-local MAZE_W, MAZE_H = 19, 21
+-- Canvas geometry: 41 x 29; the maze itself is 39 x 27 single-byte rows.
+local COLS, ROWS = 41, 29
+local MAZE_W, MAZE_H = 39, 27
 
 -- Speed / scoring constants (ticks are canvas clock ticks).
 local PAC_EVERY = 4
@@ -85,31 +85,37 @@ local GHOST_POINTS = { 200, 400, 800, 1600 }
 -- BFS distance treated as "unreachable" for the eyes mode.
 local UNREACHABLE = 9999
 
--- The built-in maze: 21 rows x 19 columns, pure ASCII.
+-- The built-in maze: 27 rows x 39 columns, pure ASCII, left-right symmetric.
 -- '#' wall, '.' pellet, 'o' power pellet, '-' ghost door, ' ' empty,
 -- 'P' pacman spawn, 'G' ghost-house interior (becomes empty at runtime).
 local BUILTIN_MAZE = {
-  "###################",
-  "#........#........#",
-  "#o##.###.#.###.##o#",
-  "#.................#",
-  "#.##.#.#####.#.##.#",
-  "#....#...#...#....#",
-  "####.###.#.###.####",
-  "#..#.....#.....#..#",
-  "#..#.##.....##..#.#",
-  "#....#..GGG..#....#",
-  "####.#.G-G.#.####.#",
-  "#....#..GGG..#....#",
-  "#..#.##.....##..#.#",
-  "#..#.....#.....#..#",
-  "####.###.#.###.####",
-  "#....#...#...#....#",
-  "#.##.#.#####.#.##.#",
-  "#o...............o#",
-  "#.##.###.#.###.##.#",
-  "#.........P.......#",
-  "###################",
+  "#######################################",
+  "#o...................................o#",
+  "#........#...................#........#",
+  "#........#...................#........#",
+  "#........#...................#........#",
+  "#.....................................#",
+  "#........#...................#........#",
+  "#..####.####...............####.####..#",
+  "#........#...................#........#",
+  "#.....................................#",
+  "#........#.....#.......#.....#........#",
+  "#..####.#####.###########.#####.####..#",
+  "#........#.....##GGGGG##.....#........#",
+  "#...............#GGGGG#...............#",
+  "#........#.....##GGGGG##.....#........#",
+  "#.......#####.#####-#####.#####.......#",
+  "#..............#.......#..............#",
+  "#.....................................#",
+  "#..............#.......#..............#",
+  "#.......#####.###.....###.#####.......#",
+  "#.....................................#",
+  "#.....................................#",
+  "#.....................................#",
+  "#.#####...###.###.....###.###...#####.#",
+  "#.....................................#",
+  "#o.................P.................o#",
+  "#######################################",
 }
 
 -- Game state (rebuilt by new_game()); nil until the first start.
@@ -177,8 +183,14 @@ local function parse_maze(rows)
     end
   end
   local pellet_count = 0
+  local width = 0
+  for _, row in ipairs(rows) do
+    if #row > width then
+      width = #row
+    end
+  end
   for y = 1, #rows do
-    for x = 1, MAZE_W do
+    for x = 1, width do
       local char = cells[y][x]
       if char == "." or char == "o" then
         pellet_count = pellet_count + 1
@@ -187,6 +199,8 @@ local function parse_maze(rows)
   end
   return {
     cells = cells,
+    w = width,
+    h = #rows,
     pac_start = pac_start,
     door = door,
     house = house,
@@ -224,7 +238,7 @@ local function spawn_positions(parsed)
   local spare = {}
   local any = {}
   for y = 1, #parsed.cells do
-    for x = 1, MAZE_W do
+    for x = 1, parsed.w do
       local char = parsed.cells[y][x]
       if char ~= "#" then
         local start = parsed.pac_start
@@ -488,10 +502,10 @@ local function cell_glyph(x, y)
   return " "
 end
 
--- One maze row as 19 single-width glyphs, ghosts then pacman on top.
+-- One maze row as `parsed.w` single-width glyphs, ghosts then pacman on top.
 local function maze_line(index)
   local cells = {}
-  for x = 1, MAZE_W do
+  for x = 1, state.parsed.w do
     cells[x] = cell_glyph(x, index)
   end
   for i, ghost in ipairs(state.ghosts) do
@@ -511,30 +525,35 @@ local function maze_line(index)
   return table.concat(cells)
 end
 
--- Centered overlay text replacing one maze row (byte width 19).
+-- Centered overlay text replacing one maze row (maze width in columns).
 local function overlay_line(_index, text)
-  return engine.center(text, MAZE_W)
+  return engine.center(text, state.parsed.w)
 end
 
--- Render the whole canvas as one newline-joined string.
+-- Render the whole canvas as one newline-joined string.  The maze box sizes
+-- itself from the active maze (built-in or injected), so tests can inject
+-- small mazes on the same canvas.
 local function render()
-  local lines = { "┌" .. engine.rep("─", MAZE_W) .. "┐" }
-  for y = 1, MAZE_H do
+  local w = state.parsed.w
+  local h = state.parsed.h
+  local mid = math.floor(h / 2)
+  local lines = { "┌" .. engine.rep("─", w) .. "┐" }
+  for y = 1, h do
     local content
-    if not state.alive and y == 10 then
+    if not state.alive and y == mid then
       content = overlay_line(y, "game over")
-    elseif not state.alive and y == 12 then
+    elseif not state.alive and y == mid + 2 then
       content = overlay_line(y, "press r")
-    elseif state.freeze > 0 and y == 11 then
+    elseif state.freeze > 0 and y == mid + 1 then
       content = overlay_line(y, "level cleared")
-    elseif state.paused and y == 11 then
+    elseif state.paused and y == mid + 1 then
       content = overlay_line(y, "paused")
     else
       content = maze_line(y)
     end
     lines[#lines + 1] = "│" .. content .. "│"
   end
-  lines[#lines + 1] = "└" .. engine.rep("─", MAZE_W) .. "┘"
+  lines[#lines + 1] = "└" .. engine.rep("─", w) .. "┘"
   return table.concat(lines, "\n")
 end
 

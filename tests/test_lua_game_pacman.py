@@ -87,10 +87,10 @@ def corridor_maze() -> list[str]:
     return rows
 
 
-def maze_rows_from_grid(grid: str) -> list[str]:
-    """Strip the canvas frame off the rendered grid (21 maze rows)."""
+def maze_rows_from_grid(grid: str, rows: int) -> list[str]:
+    """Strip the canvas frame off the rendered grid (*rows* maze rows)."""
     lines = grid.splitlines()
-    return [line[1:-1] for line in lines[1:22]]
+    return [line[1:-1] for line in lines[1 : rows + 1]]
 
 
 @requires_lupa
@@ -100,8 +100,8 @@ class TestPacmanCanvas:
     def test_game_pacman_opens_the_maze_canvas(self) -> None:
         game = make_game()
         canvas = game.launch()
-        assert canvas.cols == 21
-        assert canvas.rows == 23
+        assert canvas.cols == 41
+        assert canvas.rows == 29
         assert "\u250c" in canvas.grid  # rounded-off "┌" top border
         assert "\u2588" in canvas.grid  # "█" wall block
         assert "score 0" in canvas.status
@@ -110,19 +110,19 @@ class TestPacmanCanvas:
     def test_builtin_maze_meets_the_contract(self) -> None:
         game = make_game()
         canvas = game.launch()
-        rows = maze_rows_from_grid(canvas.grid)
-        assert len(rows) == 21
-        assert all(len(row) == 19 for row in rows)
+        rows = maze_rows_from_grid(canvas.grid, 27)
+        assert len(rows) == 27
+        assert all(len(row) == 39 for row in rows)
         # 1) the border is all walls
         assert set(rows[0]) == {"█"} and set(rows[-1]) == {"█"}
         assert all(row[0] == "█" and row[-1] == "█" for row in rows)
         flat = "".join(rows)
-        # 2) at least two power pellets, exactly one pacman
-        assert flat.count("●") >= 2
+        # 2) four power pellets, exactly one pacman
+        assert flat.count("●") == 4
         assert flat.count("◉") == 1
         # 3) every pellet is reachable from the spawn (BFS)
         start = flat.index("◉")
-        width = 19
+        width = 39
         passable = set(flat) - {"█", "▒"}
         seen = {start}
         frontier = [start]
@@ -131,7 +131,7 @@ class TestPacmanCanvas:
             x, y = here % width, here // width
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 nx, ny = x + dx, y + dy
-                if 0 <= nx < width and 0 <= ny < 21:
+                if 0 <= nx < width and 0 <= ny < 27:
                     there = ny * width + nx
                     if there not in seen and flat[there] in passable:
                         seen.add(there)
@@ -147,10 +147,10 @@ class TestPacmanMovement:
     def test_pacman_moves_one_tile_per_interval(self) -> None:
         game = make_game()
         game.launch()
-        assert game.snapshot()["pac_x"] == 11
+        assert game.snapshot()["pac_x"] == 20
         game.press("left")
         game.tick(4)
-        assert game.snapshot()["pac_x"] == 10
+        assert game.snapshot()["pac_x"] == 19
 
     def test_pellet_is_eaten_and_scored(self) -> None:
         game = make_game()
@@ -158,7 +158,7 @@ class TestPacmanMovement:
         game.press("left")
         game.tick(4)
         snap = game.snapshot()
-        assert snap["pellets"] == 204
+        assert snap["pellets"] == 772
         assert snap["score"] == 10
 
     def test_power_pellet_sets_fright_mode(self) -> None:
@@ -196,15 +196,15 @@ class TestPacmanGhosts:
         game.launch()
         inject_state(
             game,
-            "{ pac = { x = 10, y = 4, dir = { x = -1, y = 0 } },"
-            " ghosts = { { x = 9, y = 4, mode = 'chase' } } }",
+            "{ pac = { x = 10, y = 6, dir = { x = -1, y = 0 } },"
+            " ghosts = { { x = 9, y = 6, mode = 'chase' } } }",
         )
         game.press("left")
         game.tick(4)
         snap = game.snapshot()
         assert snap["lives"] == 2
-        assert snap["pac_x"] == 11  # back on the spawn tile
-        assert snap["pac_y"] == 20
+        assert snap["pac_x"] == 20  # back on the spawn tile
+        assert snap["pac_y"] == 26
 
     def test_last_life_ends_the_game_and_r_restarts(self) -> None:
         game = make_game()
