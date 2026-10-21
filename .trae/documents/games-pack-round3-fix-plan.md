@@ -48,3 +48,27 @@
 | 细线墙在 T 形/十字处字形选错 | 邻居位表驱动 + 视觉测试逐行宽度不变；截图人工复核 |
 | 旧 nethack 存档作废 | 登记为破坏性变更（floor_is_valid 按 19 行校验） |
 | 画布 39×23 在更小终端仍可能裁剪 | overflow hidden 已保证永不滚动；文档写明推荐终端高度 |
+
+## 〇、实施结果（2026-10-21 回填）
+
+**状态**：全部完成。R2/R3/R4（pacman / sokoban / nethack）由三个执行子代理并行完成
+（各自独占两个文件、套件全绿后主代理复核收编；sokoban 关卡行留白由主代理补齐），
+R1/R5 主代理完成。
+
+**过程中的重大发现（已修复）**：用户实测的「保存失败」根因不在文件层——
+**lupa 2.8 默认的 Lua 5.5 运行时其分代 GC 会在 Lua 回调仍持有 Python 包装对象时将其提前回收**，
+实测表现为 `api.data` 在 on_tick 回调链中偶发变成同一画布的 `draw` 绑定方法，
+导致每次按回合保存都报 `save failed`。修复：`create_runtime` 固定使用
+`lupa.lua54.LuaRuntime`（Lua 5.4 无此缺陷）；修复后同一测试连续 5 次全绿。
+另按原计划保留 `data_store` 的直接写回退（Windows 文件锁兜底）。
+
+**门禁实测（退出码全 0）**：pyright `0 errors`；pytest 全量 **2779 passed / 9 skipped**；
+`tools/lint_lua.py` **0 issue(s)**；覆盖率 ≥ 75。
+
+**逐条对照**：① 外框 = canvas.tcss 的 `border: round`，已删，Screen 加 `overflow: hidden` 永不滚动；
+② pacman 39×23 贴满画布 + 第 14 行隧道穿越（pacman/幽灵/eyes BFS 三处回绕）；
+③ snake `board_cells` 行过滤修复 + 食物改块字形 + 状态栏图例；
+④ sokoban 细线围栏（邻居感知框线字符）+ 玩家 `▲` 单宽字形 + 框内图例行；
+⑤ nethack 走廊提亮/地板压暗 + 72×19 地图 + 图例行（随 `v` 切换）；
+⑥ 保存失败 = Lua 5.5 GC 问题 + 直接写回退；
+⑦ 图例：pacman 状态栏、sokoban 框内行、nethack 图例行、snake 状态栏。
