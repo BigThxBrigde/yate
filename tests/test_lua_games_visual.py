@@ -15,12 +15,11 @@ _GEOMETRY: dict[str, tuple[int, int]] = {
     "snake": (80, 24),
     "tetris": (59, 22),
     "pacman": (39, 23),
-    "sokoban": (41, 22),
     "nethack": (74, 24),
 }
 
 #: Games whose whole frame must be free of ASCII placeholder glyphs.
-_NO_ASCII_PLACEHOLDERS = ("snake", "tetris", "pacman", "sokoban")
+_NO_ASCII_PLACEHOLDERS = ("snake", "tetris", "pacman")
 
 
 def make_game(name: str) -> GameRuntime:

@@ -2,7 +2,7 @@
 
 The per-game modules are covered by their own live-lua tests; this module
 proves the *shipped* wiring: the bundled loader registers ``:game`` and the
-five ``game-*`` actions, the dispatcher resolves them, every canvas opens with
+four ``game-*`` actions, the dispatcher resolves them, every canvas opens with
 its documented size and ``escape`` closes it again.
 """
 
@@ -29,7 +29,6 @@ requires_lupa = pytest.mark.skipif(
 _CANVAS_SIZES: tuple[tuple[str, int, int], ...] = (
     ("snake", 80, 24),
     ("pacman", 39, 23),
-    ("sokoban", 41, 22),
     ("nethack", 74, 24),
     ("tetris", 59, 22),
 )

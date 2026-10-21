@@ -27,8 +27,8 @@ from yate.services.extensions.lua.library import (
 )
 from yate.services.extensions.lua.runtime import create_runtime
 
-#: Five registered game actions, so the dispatcher lists a stable catalogue.
-_GAME_NAMES: tuple[str, ...] = ("nethack", "pacman", "snake", "sokoban", "tetris")
+#: Four registered game actions, so the dispatcher lists a stable catalogue.
+_GAME_NAMES: tuple[str, ...] = ("nethack", "pacman", "snake", "tetris")
 
 #: An ``engine.open`` spec whose draw callback paints a fixed two-line grid.
 _OPEN_PROBE = """
@@ -84,7 +84,7 @@ def test_dispatch_reports_usage_with_the_available_games() -> None:
     handler("")
     handler("   ")
 
-    expected = "usage: :game <name> (games: nethack pacman snake sokoban tetris)"
+    expected = "usage: :game <name> (games: nethack pacman snake tetris)"
     assert api.messages == [expected, expected]
 
 
@@ -98,7 +98,7 @@ def test_dispatch_reports_unknown_game_and_lists_available() -> None:
     handler("chess")
 
     assert api.messages == [
-        "unknown game: chess (available: nethack pacman snake sokoban tetris)"
+        "unknown game: chess (available: nethack pacman snake tetris)"
     ]
     assert api.actions.calls == []
 
