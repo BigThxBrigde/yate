@@ -537,7 +537,7 @@ local function render()
   local w = state.parsed.w
   local h = state.parsed.h
   local mid = math.floor(h / 2)
-  local lines = { "┌" .. engine.rep("─", w) .. "┐" }
+  local lines = { engine.glyph.tl .. engine.rep(engine.glyph.h, w) .. engine.glyph.tr }
   for y = 1, h do
     local content
     if not state.alive and y == mid then
@@ -553,7 +553,8 @@ local function render()
     end
     lines[#lines + 1] = "│" .. content .. "│"
   end
-  lines[#lines + 1] = "└" .. engine.rep("─", w) .. "┘"
+  lines[#lines + 1] =
+    engine.glyph.bl .. engine.rep(engine.glyph.h, w) .. engine.glyph.br
   return table.concat(lines, "\n")
 end
 

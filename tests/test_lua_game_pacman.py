@@ -102,7 +102,7 @@ class TestPacmanCanvas:
         canvas = game.launch()
         assert canvas.cols == 41
         assert canvas.rows == 29
-        assert "\u250c" in canvas.grid  # rounded-off "┌" top border
+        assert "\u256d" in canvas.grid  # rounded "╭" top border
         assert "\u2588" in canvas.grid  # "█" wall block
         assert "score 0" in canvas.status
         assert canvas.status.endswith("escape quits")

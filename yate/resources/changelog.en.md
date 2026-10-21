@@ -6,6 +6,10 @@
 
 ### Features
 
+- redraw nethack at 72x20 with a readable glyph layer ([`acf6061`](https://gitee.com/jermaine/yate/commit/acf6061574568d56dde3376f66dea2da0bb24d36))
+- grow sokoban to 120 levels on a 41x22 board ([`3285759`](https://gitee.com/jermaine/yate/commit/32857590ba7c38ce6d8230c7dafb164a1ac73d5b))
+- enlarge pacman to a 39x27 maze on a 41x29 canvas ([`52d3d95`](https://gitee.com/jermaine/yate/commit/52d3d952b0085697b392006ed034597f0d7d7034))
+- enlarge snake to an 80x24 board and measure borders by columns ([`2cf9ee4`](https://gitee.com/jermaine/yate/commit/2cf9ee41fdbc79f69feeb3b0b4bc24d46329ab04))
 - add a lua lint gate for the bundled games ([`97e3a48`](https://gitee.com/jermaine/yate/commit/97e3a48b33a22f6e816414d6019003c67cd6eff0))
 - add a nethack-style dungeon with nerd font icons ([`47dfccc`](https://gitee.com/jermaine/yate/commit/47dfccc1ec4748fd077b33031121bb1405043c62))
 - add sokoban to the bundled pack ([`51c626d`](https://gitee.com/jermaine/yate/commit/51c626d40402592a59dac59051babd00aa750418))
@@ -50,6 +54,8 @@
 
 ### Bug Fixes
 
+- size the layout helpers in display columns, not bytes ([`04687db`](https://gitee.com/jermaine/yate/commit/04687db9eedf4292d0e27a73faa7ffa57912d32b))
+- close the review findings on saves, glyphs and engine size ([`ceaaabb`](https://gitee.com/jermaine/yate/commit/ceaaabb003b50419d82798f75b038b5bd4274d32))
 - close the w-e review findings ([`001197c`](https://gitee.com/jermaine/yate/commit/001197c8e03c2d6c9c08bcf0c7e5bfcd6e771a4f))
 - close the w-d review findings ([`41ae9fc`](https://gitee.com/jermaine/yate/commit/41ae9fccda87159578e688c74b16d66cc019a4c5))
 - close the w-c review findings ([`b32bd5d`](https://gitee.com/jermaine/yate/commit/b32bd5d09e34e09e9b241c1f71908603ed068848))
@@ -129,6 +135,9 @@
 
 ### Documentation
 
+- plan the visual fix round for the game pack ([`84021b2`](https://gitee.com/jermaine/yate/commit/84021b2ecece43e539dd59d532bef46f4ce2f93c))
+- backfill the games-pack implementation results ([`e3da999`](https://gitee.com/jermaine/yate/commit/e3da9991a53e510be4cc03463857a7b76112dd87))
+- regenerate the changelog from the branch commits ([`69380c9`](https://gitee.com/jermaine/yate/commit/69380c947bf6687df8dacb42dab8d6f512dea456))
 - document the game pack, its saves and the shared engine ([`018c83e`](https://gitee.com/jermaine/yate/commit/018c83ee25c2fb502b65b48231fd59f627120a0d))
 - record the fix status of the 2026-10-20 review round ([`2a09c7c`](https://gitee.com/jermaine/yate/commit/2a09c7ccf04a038db7106d66803b23cb8a3d377c))
 - register the tracing reset gap as m-28 in wave e ([`1583ab6`](https://gitee.com/jermaine/yate/commit/1583ab69615c44b60a205b27c6b5b3b42098f568))
@@ -281,6 +290,7 @@
 
 ### Tests
 
+- smoke every bundled game through the real app ([`b70dbdb`](https://gitee.com/jermaine/yate/commit/b70dbdb70b56c559be23fe8c0da783fa76a15add))
 - empty the upward-edge and submodule whitelists ([`3f99d9b`](https://gitee.com/jermaine/yate/commit/3f99d9bbe9e5389f76b083399ba20138ea746abd))
 - guard precise Screen annotations across yate ([`4bf96f9`](https://gitee.com/jermaine/yate/commit/4bf96f9993815dae44eb87402b42a000c76d878c))
 - narrow overlay screen param to the concrete screen union ([`6713594`](https://gitee.com/jermaine/yate/commit/67135947bb0792e42142b69c94cb8e72022e6cb0))
@@ -304,6 +314,7 @@
 
 ### Tooling
 
+- drop a stray tetris backup left in the worktree ([`84e9505`](https://gitee.com/jermaine/yate/commit/84e95054fd97fad88be68fb4b07d5357b64f161c))
 - let TRAE-code-review win conflict arbitration ([`8572080`](https://gitee.com/jermaine/yate/commit/8572080db1c0136e87cfc5650b4aaff581c22dfe))
 - sync subagent model frontmatter with orchestration table ([`e392a50`](https://gitee.com/jermaine/yate/commit/e392a507488c0456dc3866c467b7957958682dfd))
 - run the smoke suite on windows only for now ([`4511606`](https://gitee.com/jermaine/yate/commit/45116066ddbf70daf0533159796a8628ce130716))

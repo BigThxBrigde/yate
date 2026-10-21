@@ -272,15 +272,16 @@ local function board_cells(by)
   return table.concat(cells)
 end
 
--- Help separator between the board and the bottom border.
+-- Help separator between the board and the bottom border.  The vertical
+-- borders stay in place; the dashes run between them.
 local function help_line()
-  local inner = INNER - engine.width(HELP_TEXT) - 2
-  return engine.glyph.h
-    .. " "
-    .. HELP_TEXT
-    .. " "
-    .. engine.rep(engine.glyph.h, inner)
+  local label = " " .. HELP_TEXT .. " "
+  local fill = INNER - engine.width(label) - 1
+  return engine.glyph.v
     .. engine.glyph.h
+    .. label
+    .. engine.rep(engine.glyph.h, fill)
+    .. engine.glyph.v
 end
 
 -- ASCII overlay text centered on one board row (replaces its cells).
