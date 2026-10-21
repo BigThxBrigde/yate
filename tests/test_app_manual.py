@@ -388,6 +388,13 @@ def test_manual_search_step_lands_on_exact_rendered_row() -> None:
                     "item" in md.row_text(row).lower()
                     for row, _col, _length in private._hits
                 )
+                # the (row, col, length) triple is exact: slicing the row at
+                # the recorded span must yield the query itself, not merely a
+                # row that contains it somewhere
+                assert all(
+                    md.row_text(row)[col:col + length].lower() == "item"
+                    for row, col, length in private._hits
+                )
 
                 # consecutive hits on different rows move the viewport by
                 # exactly the row delta
