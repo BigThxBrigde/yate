@@ -182,3 +182,14 @@ git config --get core.hooksPath
    只告警并跳过。
 4. **只在确实被改动时重新入暂存区**：fix 后 `git diff --quiet -- "$f"` 判定，
    避免对未变更文件做多余的 `git add`。
+
+## 十、作废：git hook 已移除（2026-10-21）
+
+按用户要求，**不再在提交时做 lint**：
+
+- 删除 `.githooks/pre-commit` 与 `.gitattributes` 中 `.githooks/*` 的 LF 规则；
+- 删除 `tests/test_githook.py`（hook 集成测试随之作废）；
+- 本机从未设置 `core.hooksPath`，无需回退配置；
+- `tools/mdlint` CLI（含 `--check` / `--fix` / `--parallel`）与 `tools/pack/wiki.py`
+  的发布前 lint 保持不变；
+- 本文件第一至九节仅作历史记录，行为描述已不再生效。

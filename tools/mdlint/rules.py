@@ -104,7 +104,7 @@ def plugin_dir() -> Path:
 def lang_for_path(path: str) -> str:
     """Infer the lint profile for *path*; one of ``'zh'`` or ``'en'``.
 
-    Contract (mirrored by ``.githooks/pre-commit`` and the tests):
+    Contract (mirrored by the CLI tests):
 
     - ``*.zh.md`` -> ``zh``
     - ``*.en.md`` -> ``en`` (checked before the ``.trae`` rule, so an

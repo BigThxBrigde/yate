@@ -120,3 +120,8 @@ flowchart TD
 - `tools/pack/wiki.py` 的 lint 集成点是独立函数调用，删除调用即回滚 plan_b；
 - `.githooks/` 目录删除 + `git config --unset core.hooksPath` 即回滚 plan_c；
 - `pyproject.toml` 的 `pymarkdownlnt` 依赖行删除即回滚依赖变更。
+
+## 八、变更记录
+
+- 2026-10-21：按用户要求移除 git pre-commit hook（提交时不做 lint），
+  plan_c 的 hook 部分作废；`tools/mdlint` 与 wiki 发布前 lint 保留。
