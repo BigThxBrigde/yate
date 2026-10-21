@@ -18,7 +18,13 @@ from textual.widgets import Input, Static
 from yate.app import YateApp
 from yate.editor_core import project_search
 from yate.editor_view import theme
-from yate.editor_view.find_replace import FindReplaceScreen, RevealFn, _Results
+from yate.editor_view.find_replace import (
+    FindReplaceScreen,
+    RevealFn,
+    _Results,
+    _relative,
+    _relative_cached,
+)
 from yate.editor_view.scrollbars import SlimScrollBarRender
 
 from conftest import message_text, plain_text, wait_until
@@ -507,7 +513,11 @@ def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, FindReplaceScreen)
             _type_query(screen, "needle")
-            assert await wait_until(pilot, lambda: len(screen._flat) == 3)
+            # generous budgets: the scan is debounced and the replace writes
+            # three files, both of which lag under a parallel runner's load
+            assert await wait_until(
+                pilot, lambda: len(screen._flat) == 3, timeout=15.0
+            )
             screen.query_one("#fr-replace", Input).value = "dog"
             screen.query_one("#fr-results", Static).focus()
             await pilot.pause()
@@ -516,6 +526,7 @@ def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
                 pilot,
                 lambda: two.read_text(encoding="utf-8") == "dog two\n"
                 and three.read_text(encoding="utf-8") == "three dog\n",
+                timeout=15.0,
             )
             # the replaced total surfaces while the overlay is still open
             assert "replaced 3" in message_text(app)
@@ -1004,3 +1015,30 @@ def test_enter_reveals_clamped_row_when_buffer_shrunk(tmp_path: Path) -> None:
             assert app.editor.session.buffer.cursor == (0, 0)
 
     asyncio.run(scenario())
+
+
+def test_result_labels_are_cached_per_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """Result labels resolve each (path, root) exactly once (plan-b m-2).
+
+    A repeated render (cursor move, redraw) must not re-hit the filesystem
+    for every visible file group.
+    """
+    _relative_cached.cache_clear()
+    real_resolve = Path.resolve
+    resolved: list[Path] = []
+
+    def counting_resolve(self: Path) -> Path:
+        resolved.append(self)
+        return real_resolve(self)
+
+    monkeypatch.setattr(Path, "resolve", counting_resolve)
+    path = tmp_path / "note.txt"
+    path.write_text("", encoding="utf-8")
+    label = _relative(path, tmp_path)
+    assert label == "note.txt"
+    assert _relative(path, tmp_path) == label
+    # one render pass: path.resolve + root.resolve; the repeat hits the cache
+    assert len(resolved) == 2
+    _relative_cached.cache_clear()

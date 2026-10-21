@@ -77,6 +77,16 @@ def test_build_parser_defaults_filters_to_empty_lists() -> None:
     assert args.skip_slow is False
 
 
+def test_build_parser_defaults_jobs_to_the_serial_runner() -> None:
+    args = build_parser().parse_args(["run"])
+    assert args.jobs == 1
+
+
+def test_build_parser_collects_the_jobs_option() -> None:
+    args = build_parser().parse_args(["run", "--jobs", "4"])
+    assert args.jobs == 4
+
+
 def test_build_parser_gives_snapshot_an_outdir_option() -> None:
     args = build_parser().parse_args(["snapshot", "--outdir", "somewhere"])
     assert args.outdir == "somewhere"
@@ -202,3 +212,13 @@ def test_main_returns_two_when_the_compare_baseline_dir_is_absent(
 
 def test_main_returns_zero_for_a_shipped_scenario_that_passes() -> None:
     assert main(["run", "--scenario", _LIGHT_SCENARIO, "--quiet", "--no-color"]) == 0
+
+
+def test_main_returns_two_when_jobs_is_below_one() -> None:
+    # A bad worker count is a usage error, not a scenario failure: exit 2 is
+    # the same code the "filters matched nothing" path uses.
+    code = main([
+        "run", "--scenario", _LIGHT_SCENARIO, "--jobs", "0",
+        "--quiet", "--no-color",
+    ])
+    assert code == 2

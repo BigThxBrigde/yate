@@ -64,7 +64,9 @@ def _from_utf16(line: str, units: int) -> int:
     return len(line)
 
 
-def _unwrap_completion(raw: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _unwrap_completion(  # noqa: Any - LSP wire payload, untyped server data
+    raw: Any,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if isinstance(raw, list):
         return (
             [cast(dict[str, Any], x) for x in cast(list[Any], raw)
@@ -88,7 +90,9 @@ def _unwrap_completion(raw: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return [], {}
 
 
-def _range_from(value: Any) -> tuple[int, int, int, int] | None:
+def _range_from(  # noqa: Any - LSP wire payload, untyped server data
+    value: Any,
+) -> tuple[int, int, int, int] | None:
     """Normalize Range | {insert,replace} into (r0,c0,r1,c1)."""
     if not isinstance(value, dict):
         return None
@@ -183,7 +187,7 @@ def _parse_completion_item(  # noqa: Any - completion items are untyped server w
     )
 
 
-def _parse_diagnostics(
+def _parse_diagnostics(  # noqa: Any - LSP wire payload, untyped server data
     raw: Any, lines: list[str] | None = None
 ) -> list[Diagnostic]:
     """Parse a publishDiagnostics payload, skipping malformed entries.
@@ -210,6 +214,10 @@ def _parse_diagnostics(
                 "non-integer %r for %r from server; treating as 0", value, key
             )
         return 0
+
+    if not isinstance(raw, list):
+        log.warning("malformed diagnostics payload (%s); ignored", type(raw).__name__)
+        return []
 
     result: list[Diagnostic] = []
     for entry_raw in cast(list[Any], raw):

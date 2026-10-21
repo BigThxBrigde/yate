@@ -151,8 +151,20 @@ def diff3_regions(
     def classify(base_start: int, base_end: int) -> MergeRegion:
         local_start, local_end = _side_span(local_ops, base_start, base_end)
         remote_start, remote_end = _side_span(remote_ops, base_start, base_end)
-        local_touched = any(s < base_end and e > base_start for s, e in local_changed)
-        remote_touched = any(s < base_end and e > base_start for s, e in remote_changed)
+        # Zero-length base spans (pure insertions) use point containment:
+        # an insertion point inside a changed span means the side touched
+        # the region, so a one-sided insertion classifies as local/remote
+        # instead of "same" (diffview needs the span to tint the line).
+        if base_start == base_end:
+            local_touched = any(
+                s <= base_start < e for s, e in local_changed
+            ) or any(s == base_start for s, _end in local_changed)
+            remote_touched = any(
+                s <= base_start < e for s, e in remote_changed
+            ) or any(s == base_start for s, _end in remote_changed)
+        else:
+            local_touched = any(s < base_end and e > base_start for s, e in local_changed)
+            remote_touched = any(s < base_end and e > base_start for s, e in remote_changed)
         if local_touched and remote_touched:
             identical = list(local[local_start:local_end]) == list(
                 remote[remote_start:remote_end]
@@ -255,7 +267,19 @@ def _side_span(
     contributes its whole target interval.  Hunks never straddle a merged
     region boundary (regions are built from the coalesced hunk spans), so
     partial overlaps cannot occur.
+
+    A zero-length base span (``start == end``, e.g. from an ``insert``
+    opcode) has no base-side lines to walk: it resolves through the first
+    opcode containing the insertion point instead.
     """
+    if start == end:
+        for tag, i1, i2, j1, j2 in ops:
+            if i1 <= start <= i2 and tag != "equal":
+                return j1, j2
+        for tag, i1, i2, j1, j2 in ops:
+            if i1 <= start <= i2:
+                return j1 + start - i1, j1 + start - i1
+        return 0, 0
     pieces: list[tuple[int, int]] = []
     for tag, i1, i2, j1, j2 in ops:
         if i2 <= start:

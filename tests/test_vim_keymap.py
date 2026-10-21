@@ -432,6 +432,25 @@ def test_gg_and_upper_g_jump_to_the_document_edges() -> None:
     assert editor.buffer.cursor == (2, 0)
 
 
+def test_gg_with_count_beyond_the_last_line_clamps_to_the_last_line() -> None:
+    """5G on a 3-line document clamps to the last line instead of raising."""
+    editor, keymap, ctx = _setup("l1\nl2\nl3")
+    _press(keymap, ctx, "5", "G")
+    assert editor.buffer.cursor == (2, 0)
+
+
+def test_visual_G_with_count_beyond_the_last_line_clamps() -> None:
+    """The select-branch G clamp: ``d5G`` on 3 lines stops at the last line.
+
+    Visual mode deliberately ignores counts (pinned elsewhere), so the
+    count-carrying select path is reached through the operator motion.
+    """
+    editor, keymap, ctx = _setup("l1\nl2\nl3")
+    _press(keymap, ctx, "d", "5", "G")
+    # clamped to the last line: the span covers lines 1-2 and one char of 3
+    assert editor.buffer.get_text() == "3"
+
+
 def test_arrow_keys_run_the_same_motions() -> None:
     """The arrow escapes map onto h/j/k/l."""
     editor, keymap, ctx = _setup("ab\ncd")

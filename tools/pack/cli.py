@@ -246,5 +246,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - CLI boundary, must not leak tracebacks
         errors.report(exc, debug=debug)
         return 1
-    build_parser().error(f"unknown command {args.command!r}")
-    return 2
+    # add_subparsers(required=True) already guarantees a known command, so
+    # this branch is unreachable at runtime; the raise only satisfies the
+    # static "returns int" contract (review m-26 dropped the parser.error
+    # call, review m-3 of the wave-e re-review asked for an honest failure
+    # instead of a "return 2" that can never happen).
+    raise AssertionError("unreachable: add_subparsers(required=True)")

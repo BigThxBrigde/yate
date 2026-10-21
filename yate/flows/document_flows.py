@@ -397,7 +397,7 @@ class DocumentFlows:
             # L0 ``Document.save`` guard lets the write through (vim ``:sav``
             # clears 'readonly' too).  Restored on any failure (finally).
             buf.read_only = False
-        path = Path(text)
+        path = self.resolve_input_path(Path(text))
         saved = False
         try:
             self.session.doc.save(path)

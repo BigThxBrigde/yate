@@ -124,6 +124,36 @@ def test_diff3_regions_identical_changes_are_both_kind() -> None:
     assert "conflict" not in kinds
 
 
+def test_diff3_regions_reports_a_local_insertion_at_start() -> None:
+    """A one-sided pure insertion at line 0 yields a zero-length base span."""
+    regions = diff3_regions(["1", "2", "3"], ["L", "1", "2", "3"], ["1", "2", "3"])
+    local = [region for region in regions if region.kind == "local"]
+    assert len(local) == 1
+    region = local[0]
+    assert region.base_start == region.base_end == 0
+    assert (region.local_start, region.local_end) == (0, 1)
+
+
+def test_diff3_regions_reports_a_remote_insertion_in_the_middle() -> None:
+    """A one-sided pure insertion mid-file yields a zero-length base span."""
+    regions = diff3_regions(["1", "2", "3"], ["1", "2", "3"], ["1", "R", "2", "3"])
+    remote = [region for region in regions if region.kind == "remote"]
+    assert len(remote) == 1
+    region = remote[0]
+    assert region.base_start == region.base_end == 1
+    assert (region.remote_start, region.remote_end) == (1, 2)
+
+
+def test_diff3_regions_reports_an_insertion_at_end_of_file() -> None:
+    """A one-sided pure insertion at EOF yields a zero-length base span."""
+    regions = diff3_regions(["1", "2", "3"], ["1", "2", "3", "L"], ["1", "2", "3"])
+    local = [region for region in regions if region.kind == "local"]
+    assert len(local) == 1
+    region = local[0]
+    assert region.base_start == region.base_end == 3
+    assert (region.local_start, region.local_end) == (3, 4)
+
+
 # --- hunk_replacement -------------------------------------------------------
 
 

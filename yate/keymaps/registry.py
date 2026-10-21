@@ -8,7 +8,6 @@ all share this object instead of passing a bare ``dict`` plus a name string.
 
 from __future__ import annotations
 
-
 from collections.abc import Iterator
 
 from yate.keymaps.base import Keymap

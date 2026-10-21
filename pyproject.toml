@@ -25,6 +25,10 @@ dev = [
     "pyright>=1.1.400",
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    # Parallel test runs (`-n auto`): the Textual pilot suite is wall-clock
+    # bound on per-test sleeps, so worker processes scale it near-linearly
+    # (measured 2026-10-20: 308s serial -> 95s on 4 workers).
+    "pytest-xdist>=3.6",
     "tree-sitter>=0.24,<0.26", # keep in sync with the ts group below
     "tree-sitter-python>=0.23",
     "tree-sitter-bash>=0.23",

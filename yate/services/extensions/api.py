@@ -124,10 +124,10 @@ class ExtensionAPI:
         #: <yate.services.extensions.loader.ExtensionLoader.load_file>`).
         #: Initialized first: the bridges below record into it.
         self._scope: list[RollbackHook] | None = None
-        self._lsp = LspExtensionBridge(ctx.lsp)
-        self._highlight = HighlightExtensionBridge()
-        self._syntax = SyntaxExtensionBridge()
-        self._sprites = SpriteExtensionBridge()
+        self._lsp = LspExtensionBridge(ctx.lsp, self._record_undo)
+        self._highlight = HighlightExtensionBridge(self._record_undo)
+        self._syntax = SyntaxExtensionBridge(self._record_undo)
+        self._sprites = SpriteExtensionBridge(self._record_undo)
         self._ui = UiExtensionBridge(self._record_undo, ctx.open_canvas)
         # ``None`` (standalone construction in tests) gets a private hub:
         # nothing emits into it, so subscriptions simply never fire.

@@ -1138,6 +1138,47 @@ def test_linewise_paste_below_on_the_last_line_appends_after_it() -> None:
     assert buf.cursor[0] == 2
 
 
+def test_linewise_paste_below_leaves_cursor_on_the_last_pasted_line() -> None:
+    """Linewise ``p`` lands the cursor on the pasted block's last line."""
+    buf = TextBuffer("one\ntwo\nthree")
+    buf.cursor = (1, 0)
+    buf.register = "aaa\n"
+    buf.paste(below=True)
+    assert buf.lines == ["one", "two", "aaa", "three"]
+    assert buf.cursor == (2, 2)
+
+
+def test_linewise_paste_above_leaves_cursor_on_the_last_pasted_line() -> None:
+    """Linewise ``P`` lands the cursor on the pasted block's last line."""
+    buf = TextBuffer("a\nb\nc")
+    buf.cursor = (2, 0)
+    buf.register = "x\ny\n"
+    buf.paste(below=False)
+    assert buf.lines == ["a", "b", "x", "y", "c"]
+    assert buf.cursor == (3, 0)
+
+
+def test_linewise_paste_with_count_appends_contiguous_blocks() -> None:
+    """Repeated linewise ``p`` (as ``3p`` does) keeps the blocks contiguous."""
+    buf = TextBuffer("one\ntwo")
+    buf.cursor = (0, 0)
+    buf.register = "X\n"
+    for _ in range(3):
+        buf.paste(below=True)
+    assert buf.lines == ["one", "X", "X", "X", "two"]
+
+
+def test_failed_save_as_keeps_the_previous_path(tmp_path: Path) -> None:
+    """A failed save-as raises without re-binding the document's path."""
+    doc_path = tmp_path / "keep.txt"
+    doc_path.write_text("content", encoding="utf-8")
+    doc = Document.open(doc_path)
+    doomed = tmp_path / "no-such-dir" / "out.txt"
+    with pytest.raises(OSError):
+        doc.save(path=doomed)
+    assert doc.path == doc_path
+
+
 # --- SearchEngine: options, navigation and replace -------------------------
 
 

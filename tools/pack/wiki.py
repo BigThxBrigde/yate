@@ -48,6 +48,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -536,26 +537,54 @@ def store_manifest(target: Path, manifest: dict[str, str]) -> None:
     _write_page_text(target / MANIFEST_NAME, f"{text}\n", code=Code.WIKI_MANIFEST_WRITE)
 
 
-def prune_orphan_pages(target: Path, keep: set[str]) -> int:
+def _assert_prune_safe(target: Path, root: Path) -> None:
+    """Refuse a target that contains the source tree.
+
+    Review B-3: ``prune_orphan_pages`` deletes generated pages, so a
+    mistyped ``--target`` must not be able to point at the checkout which
+    holds the sources.  Two facts bound the damage: deletion only ever
+    touches pages the previous manifest recorded, and a target at or above
+    the repository root (``--target .``) is refused here.  Generating into
+    any folder *below* the root -- ``out/``, ``<root>/.wiki`` -- or next to
+    it stays allowed (review B-2: an unconditional "inside the repo"
+    refusal blocked that legitimate layout).
+    """
+    if root.resolve().is_relative_to(target.resolve()):
+        raise WikiError(
+            f"refusing to use {target} as the wiki target: it contains the "
+            "source repository",
+            code=Code.WIKI_PRUNE_FAILED,
+            hint="pass --target pointing at the <repo>.wiki checkout or an "
+                "output directory",
+        )
+
+
+def prune_orphan_pages(target: Path, keep: set[str], recorded: set[str]) -> int:
     """Delete generated wiki pages whose source document no longer exists.
 
-    *keep* holds the ``zh``/``en`` target names produced by this run.  Every
-    other ``*.md`` file in *target* is a dead link left behind by a source
-    that was renamed or deleted, so it is removed -- except the generated
-    ``Home`` / ``_Sidebar`` navigation and anything inside ``.git``.  Returns
-    the number of removed files.
+    *keep* holds the ``zh``/``en`` target names produced by this run and
+    *recorded* the page names the previous manifest knew about (review
+    B-3).  A ``*.md`` file outside *keep* is only removed when it appears
+    in *recorded*: a file the generator has never written (a user's own
+    page, an older orphan from before the manifest existed) is kept, so a
+    mistyped target can at worst delete pages this tool created.  The
+    generated ``Home`` / ``_Sidebar`` navigation and anything inside
+    ``.git`` are always protected.  Returns the number of removed files.
     """
     protected = {"Home.md", "_Sidebar.md", "Home.en.md", "_Sidebar.en.md"}
     removed = 0
     for existing in target.rglob("*.md"):
         rel = existing.relative_to(target)
-        if ".git" in rel.parts or rel.as_posix() in keep or existing.name in protected:
+        posix = rel.as_posix()
+        if ".git" in rel.parts or posix in keep or existing.name in protected:
+            continue
+        if posix not in recorded:
             continue
         try:
             existing.unlink()
         except OSError as exc:
             raise WikiError(
-                f"cannot remove orphan page {rel.as_posix()}: {exc}",
+                f"cannot remove orphan page {posix}: {exc}",
                 code=Code.WIKI_PRUNE_FAILED,
             ) from exc
         removed += 1
@@ -652,10 +681,13 @@ def _feed_stdin(stream: IO[str] | None, text: str) -> None:
     try:
         stream.write(text)
         stream.close()
-    except OSError:
+    except OSError as exc:
         # Includes BrokenPipeError: the child is gone, its exit code tells
-        # the story.
-        pass
+        # the story -- but the write failure itself is never swallowed
+        # silently (review m-23).  This runs in a helper thread, so it goes
+        # through the failure channel the main thread drains: a worker never
+        # writes to the terminal (review M-4 of the wave-e re-review).
+        _emit_translate_failure(f"wiki: cannot feed the translator: {exc}")
 
 
 #: Wall clock budget for reaping a killed translator.  ``kill`` is not a
@@ -675,17 +707,17 @@ def _terminate(proc: subprocess.Popen[str]) -> str | None:
     thread does, see :func:`_emit_translate_failure`), so the caller folds it
     into the failure message it is already reporting.
     """
+    note: str | None = None
     try:
         proc.kill()
-    except OSError:  # pragma: no cover - the child died in the meantime
-        pass
+    except OSError as exc:  # pragma: no cover - the child died in the meantime
+        note = f"cannot terminate the translator: {exc}"
     try:
         proc.wait(timeout=_TERMINATE_WAIT_S)
     except subprocess.TimeoutExpired:
-        return (
-            f"pid {proc.pid} ignored the kill after {_TERMINATE_WAIT_S:g}s"
-        )
-    return None
+        stuck = f"pid {proc.pid} ignored the kill after {_TERMINATE_WAIT_S:g}s"
+        return f"{note}; {stuck}" if note is not None else stuck
+    return note
 
 
 def _run_translate(text: str, translate_cmd: str) -> tuple[str | None, str | None]:
@@ -903,11 +935,62 @@ def needs_translation(
     return state is _PageState.TRANSLATE or state is _PageState.STALE
 
 
-def push_wiki(target: Path) -> int:
+#: GitHub origin shapes: an ``https`` URL, an ``ssh://`` URL, or the
+#: scp-like SSH form (``git@github.com:owner/repo.git``).
+_GITHUB_HTTPS_RE: Final[re.Pattern[str]] = re.compile(
+    r"^https?://(?:[^@/]+@)?github\.com/(?P<path>.+)$"
+)
+_GITHUB_SSH_RE: Final[re.Pattern[str]] = re.compile(
+    r"^ssh://(?:[^@/]+@)?github\.com(?::\d+)?/(?P<path>.+)$"
+)
+_GITHUB_SCP_RE: Final[re.Pattern[str]] = re.compile(
+    r"^(?:[^@/]+@)?github\.com:(?P<path>[^/].*)$"
+)
+
+
+def _github_wiki_url(repo_root: Path) -> str:
+    """Resolve the GitHub wiki URL to push the mirror to (``""`` disables it).
+
+    ``YATE_WIKI_GITHUB_URL`` wins when set; an explicitly empty value
+    disables the mirror push instead of silently falling back.  Otherwise a
+    ``github.com`` origin derives its own ``<owner>/<repo>.wiki.git`` (a
+    fork pushes its own wiki); any other origin -- the Gitee main repo, no
+    remote at all -- falls back to :data:`GITHUB_WIKI_URL`, the published
+    mirror (review m-24: the constant used to be hard-wired regardless of
+    the origin).
+
+    The host is matched with anchored patterns, not a substring: a URL that
+    merely embeds ``github.com/`` in its path (a Gitee mirror, a GitLab
+    group) is not a GitHub origin (review M-5 of the wave-e re-review).
+    """
+    override = os.environ.get("YATE_WIKI_GITHUB_URL")
+    if override is not None:
+        return override.strip()
+    proc = run_git(repo_root, "remote", "get-url", "origin")
+    url = proc.stdout.strip() if proc.returncode == 0 else ""
+    match = (
+        _GITHUB_HTTPS_RE.match(url)
+        or _GITHUB_SSH_RE.match(url)
+        or _GITHUB_SCP_RE.match(url)
+    )
+    if match is None:
+        return GITHUB_WIKI_URL
+    path = match.group("path").rstrip("/").removesuffix(".git")
+    segments = [part for part in path.split("/") if part]
+    if len(segments) > 2 and segments[0].isdigit():
+        # ``ssh://git@github.com:22/owner/repo``: the first segment is a port.
+        segments = segments[1:]
+    if len(segments) != 2:
+        return GITHUB_WIKI_URL
+    return f"https://github.com/{segments[0]}/{segments[1]}.wiki.git"
+
+
+def push_wiki(target: Path, *, github_url: str = GITHUB_WIKI_URL) -> int:
     """Commit *target* and push it to both remotes; 0 on full success.
 
     An empty commit is tolerated (nothing to commit).  The ``github``
-    remote is added on first use.
+    remote is added on first use with *github_url*, the resolved mirror
+    URL (review m-24); an empty URL disables the mirror push entirely.
     """
     added = run_git(target, "add", "-A")
     if added.returncode != 0:
@@ -921,10 +1004,13 @@ def push_wiki(target: Path) -> int:
             errors.report(PackError(Code.WIKI_GIT_FAILED, f"commit failed: {out}"))
             return 1
         print(f"wiki: commit: {out}")
-    if run_git(target, "remote", "get-url", "github").returncode != 0:
-        run_git(target, "remote", "add", "github", GITHUB_WIKI_URL)
+    remotes = ["origin"]
+    if github_url:
+        if run_git(target, "remote", "get-url", "github").returncode != 0:
+            run_git(target, "remote", "add", "github", github_url)
+        remotes.append("github")
     failures = 0
-    for remote in ("origin", "github"):
+    for remote in remotes:
         pushed = run_git(target, "push", remote, WIKI_BRANCH)
         if pushed.returncode != 0:
             failures += 1
@@ -1502,6 +1588,10 @@ def run(
     """
     root = repo_root if repo_root is not None else _util.repo_root()
     pages = collect_sources(root)
+    # The prune stage deletes generated pages, so the one target that could
+    # eat the sources -- the repository root itself or a parent -- is
+    # refused before anything is written (review B-3).
+    _assert_prune_safe(target, root)
     try:
         target.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -1514,6 +1604,11 @@ def run(
     # recorded hash so a later --force run still sees them as stale instead
     # of adopting the outdated English page as externally maintained.
     manifest = dict(load_manifest(target))
+    # The prune stage must know which pages a previous run of this tool
+    # wrote (review B-3): only manifest-recorded orphans may ever be
+    # deleted, so the key set is captured before run() filters it down to
+    # the still-collected pages below.
+    recorded = set(manifest)
     if translate_all and translate_cmd is None:
         print(
             "wiki: --translate-all has no effect without --translate-cmd",
@@ -1550,7 +1645,7 @@ def run(
     manifest = {key: value for key, value in manifest.items() if key in collected}
     # Sources that vanished must not leave dead links behind in the wiki.
     expected = {page.zh_target for page in pages} | {page.en_target for page in pages}
-    orphans = prune_orphan_pages(target, expected)
+    orphans = prune_orphan_pages(target, expected, recorded)
     if orphans:
         print(f"wiki: removed {orphans} orphan page(s) with no source document")
 
@@ -1584,7 +1679,7 @@ def run(
         exit_code = 1 if check else 0
     if push:
         if exit_code == 0:
-            exit_code = push_wiki(target)
+            exit_code = push_wiki(target, github_url=_github_wiki_url(root))
         else:
             print("wiki: push skipped (--check found missing/stale pages)", file=sys.stderr)
     return exit_code

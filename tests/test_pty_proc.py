@@ -56,8 +56,16 @@ def _backend_name() -> str:
     return "_ConPty" if os.name == "nt" else "_UnixPty"
 
 
-async def _wait_for(predicate: Callable[[], bool], timeout: float = 5.0) -> bool:
-    """Poll *predicate* until it holds; ``False`` on timeout, never raising."""
+async def _wait_for(predicate: Callable[[], bool], timeout: float | None = None) -> bool:
+    """Poll *predicate* until it holds; ``False`` on timeout, never raising.
+
+    The default timeout is the real-PTY budget rather than a couple of
+    seconds: the polls guard *interpreter startup* under a parallel runner,
+    and a loaded box legitimately needs longer than a fast machine.  Success
+    paths return in milliseconds, so the generous default costs nothing.
+    """
+    if timeout is None:
+        timeout = REAL_PTY_TIMEOUT
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if predicate():

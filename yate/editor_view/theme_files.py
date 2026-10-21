@@ -63,6 +63,9 @@ def load_theme_file(path: Path | str) -> str | None:
         resolved = path.absolute()
     if resolved in _loaded_theme_files:
         return None
+    # Record the file as loaded before exec: a broken file must report its
+    # error once, not on every later reload attempt (plan-b m-13).
+    _loaded_theme_files.add(resolved)
     try:
         source = path.read_text(encoding="utf-8")
         code = compile(source, str(path), "exec")
@@ -70,7 +73,6 @@ def load_theme_file(path: Path | str) -> str | None:
         exec(code, _theme_namespace())  # noqa: S102 - intentional theme exec
     except Exception as exc:  # noqa: BLE001 - theme errors must not crash yate
         return f"{type(exc).__name__}: {exc}"
-    _loaded_theme_files.add(resolved)
     return None
 
 

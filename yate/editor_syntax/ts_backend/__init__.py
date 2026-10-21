@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from yate.editor_syntax.ts_backend.backend import available_for, tokenize_document
 from yate.editor_syntax.ts_backend.languages import (
+    drop_language,
     language_from_shared_library,
     load_language,
     load_language_from_grammar,
@@ -27,6 +28,7 @@ from yate.editor_syntax.ts_backend.languages import (
 
 __all__ = [
     "available_for",
+    "drop_language",
     "language_from_shared_library",
     "load_language",
     "load_language_from_grammar",

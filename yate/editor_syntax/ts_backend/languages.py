@@ -277,6 +277,24 @@ def load_language(  # noqa: Any - tree_sitter.Language is an untyped C binding
                 _EXT_TO_LANG[ext_key] = key
 
 
+def drop_language(name: str) -> None:
+    """Forget an extension-registered grammar (rollback of a failed setup).
+
+    Built-in packs are import-time data: dropping one would leave the shared
+    registry advertising a language this backend can no longer load, so a
+    :data:`BUILTIN_PACKS` name is ignored instead of removed.  Unknown names
+    are a no-op too, which keeps the rollback path idempotent.
+    """
+    key = name.lower()
+    if key in BUILTIN_PACKS:
+        return
+    _LANGS.pop(key, None)
+    _FAILED.discard(key)
+    _DEGRADED_WARNED.discard(key)
+    for ext in [e for e, lang in _EXT_TO_LANG.items() if lang == key]:
+        _EXT_TO_LANG.pop(ext, None)
+
+
 def load_language_from_grammar(
     name: str,
     grammar: str,

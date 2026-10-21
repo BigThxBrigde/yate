@@ -12,18 +12,23 @@ rendering (see :mod:`tools.smoke_test.report`) and *not* baseline storage
   can run the global invariant sweep on it afterwards;
 * :class:`Coverage` -- command / action hit counters (the "how much did we
   actually exercise" metric);
-* :func:`run_scenarios` -- the sequential runner.
+* :func:`run_scenarios` -- the sequential runner, plus
+  :func:`run_scenarios_parallel` which shards the selection over worker
+  processes (``--jobs N``) and merges their coverage tallies.
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+import pickle
 import random
 import re
+import sys
 import time
 from collections import Counter
 from collections.abc import Awaitable, Callable, Generator, Sequence
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,6 +80,8 @@ __all__ = [
     "new_app",
     "rng_for",
     "run_scenarios",
+    "run_scenarios_parallel",
+    "run_shard",
     "set_seed",
     "snapshot_svg",
     "track_coverage",
@@ -190,10 +197,17 @@ class Check:
     actual: object
     #: True for checks appended automatically by the invariant sweep.
     invariant: bool = False
+    #: Verdict frozen before a worker process hands the check back.  Payloads
+    #: that cannot be pickled (Textual widgets hold weakrefs) are replaced by
+    #: their repr, which could otherwise flip a failure into a pass; ``None``
+    #: means "compare expected with actual as usual".
+    ok_override: bool | None = None
 
     @property
     def ok(self) -> bool:
-        """Whether expected and actual match."""
+        """Whether expected and actual match (or the frozen verdict says so)."""
+        if self.ok_override is not None:
+            return self.ok_override
         return self.expected == self.actual
 
 
@@ -272,6 +286,18 @@ class Coverage:
         """Count a named action invocation."""
         if name:
             self.actions[name] += 1
+
+    def merge(self, other: Coverage) -> None:
+        """Fold another coverage tally into this one.
+
+        Parallel runs collect counters in each worker process; the parent
+        merges them here so ``--coverage`` reports the same numbers as a
+        single-process run.
+        """
+        self.commands.update(other.commands)
+        self.actions.update(other.actions)
+        self.command_universe.update(other.command_universe)
+        self.action_universe.update(other.action_universe)
 
     def report(self) -> tuple[tuple[int, int, list[str]], tuple[int, int, list[str]]]:
         """``((hit, total, missing), (hit, total, missing))`` for commands,
@@ -484,6 +510,160 @@ def run_scenarios(
             options.progress(i, total, scenario.name)
         results.append(_run_one(scenario, tmp_root, options))
     return results
+
+
+def _picklable_payload(value: object) -> object:
+    """Return *value* if a worker can hand it back, else its ``repr``.
+
+    ``pickle`` reports every unserializable payload as an ``Exception``
+    (``TypeError`` / ``AttributeError`` / ``PicklingError``) and never as a
+    ``BaseException``, so the broad catch cannot swallow an interrupt.
+    """
+    try:
+        pickle.dumps(value)
+    except Exception:  # noqa: BLE001 - any payload may hold a weakref
+        return repr(value)
+    return value
+
+
+def _make_picklable(result: ScenarioResult) -> ScenarioResult:
+    """Rewrite check payloads a spawned worker cannot pickle.
+
+    Textual widgets (``DiffPane`` in ``diff_three_way_merge``) carry weakrefs,
+    so a result holding one cannot cross the process boundary.  The report only
+    ever renders these values, so the repr keeps the failure detail readable --
+    but the verdict is frozen first, because two distinct widgets can share a
+    repr and a rewritten pair must not turn a failure into a pass.
+    """
+    try:
+        pickle.dumps(result)
+    except Exception:  # noqa: BLE001 - only a probe for the rewrite below
+        pass
+    else:
+        return result
+    for check in result.checks:
+        verdict = check.ok
+        check.expected = _picklable_payload(check.expected)
+        check.actual = _picklable_payload(check.actual)
+        check.ok_override = verdict
+    return result
+
+
+def run_shard(
+    names: Sequence[str],
+    tmp_root: str,
+    *,
+    svg: bool,
+    invariants: bool,
+    timeout: float,
+) -> tuple[list[ScenarioResult], Coverage]:
+    """Run the named scenarios here and return their results plus coverage.
+
+    Module level and name-only on purpose: workers are spawned processes
+    (Windows has no fork), so every argument has to be picklable and the
+    parent's progress callback -- which lives in :class:`RunOptions` -- cannot
+    travel with the call.  The scenario registry is imported inside the
+    function because ``tools.smoke_test.scenarios`` imports this module.
+    """
+    from tools.smoke_test.scenarios import SCENARIOS
+
+    selected = select_scenarios(SCENARIOS, names=list(names))
+    options = RunOptions(svg=svg, invariants=invariants, timeout=timeout)
+    with track_coverage() as cov:
+        results = [
+            _run_one(scenario, Path(tmp_root), options) for scenario in selected
+        ]
+    return [_make_picklable(result) for result in results], cov
+
+
+def run_scenarios_parallel(
+    selected: Sequence[Scenario], tmp_root: Path, options: RunOptions, jobs: int
+) -> tuple[list[ScenarioResult], Coverage]:
+    """Run *selected* across *jobs* processes; results in selection order.
+
+    One task per scenario, so the pool balances itself: scenario lengths range
+    from 0.1s to 30s here, and any static split either starves a worker or
+    makes the slowest shard the wall clock.  Each worker runs the scenario in
+    its own interpreter, which preserves the isolation the serial runner
+    relies on: the module-level ``_apps`` list, the :func:`track_coverage`
+    monkeypatch and the process-global theme all live inside the worker.
+    Coverage tallies come back from every worker and are merged here, so
+    ``--coverage`` reports the same numbers as the serial run.
+
+    A task that raises is reported on stderr and re-run in this process, so a
+    worker-startup or pickling problem degrades to the serial path instead of
+    losing a scenario.
+    """
+    names = tuple(scenario.name for scenario in selected)
+    tags_by_name = {scenario.name: scenario.tags for scenario in selected}
+    by_name: dict[str, ScenarioResult] = {}
+    merged = Coverage()
+    total = len(names)
+    finished = 0
+    fallback: list[str] = []
+
+    def _absorb(
+        results: Sequence[ScenarioResult], cov: Coverage
+    ) -> None:
+        nonlocal finished
+        merged.merge(cov)
+        for result in results:
+            by_name[result.name] = result
+            finished += 1
+            if options.progress is not None:
+                options.progress(finished, total, result.name)
+
+    with ProcessPoolExecutor(max_workers=min(jobs, len(names))) as pool:
+        futures = {
+            pool.submit(
+                run_shard, (name,), str(tmp_root),
+                svg=options.svg,
+                invariants=options.invariants,
+                timeout=options.timeout,
+            ): name
+            for name in names
+        }
+        for future in as_completed(futures):
+            try:
+                results, cov = future.result()
+            except Exception as exc:  # noqa: BLE001 - a dead worker is not a scenario failure
+                print(
+                    f"warning: smoke worker for {futures[future]!r} failed "
+                    f"({exc!r}); re-running it in this process",
+                    file=sys.stderr,
+                )
+                fallback.append(futures[future])
+                continue
+            _absorb(results, cov)
+
+    if fallback:
+        # A fresh directory for the retries: several scenarios build their
+        # fixtures with a bare ``mkdir()`` and would raise FileExistsError if a
+        # half-finished earlier attempt had already written them.  The retry is
+        # guarded in turn: a shard that fails twice must turn into failed
+        # scenarios, never into a traceback that discards the results already
+        # collected from the healthy workers.
+        try:
+            retried, retry_cov = run_shard(
+                tuple(fallback), str(tmp_root / "retry"),
+                svg=options.svg,
+                invariants=options.invariants,
+                timeout=options.timeout,
+            )
+        except Exception as exc:  # noqa: BLE001 - a dead retry is a failed scenario
+            for name in fallback:
+                by_name[name] = ScenarioResult(
+                    name,
+                    tags=tags_by_name[name],
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                finished += 1
+                if options.progress is not None:
+                    options.progress(finished, total, name)
+        else:
+            _absorb(retried, retry_cov)
+
+    return [by_name[s.name] for s in selected if s.name in by_name], merged
 
 
 def select_scenarios(

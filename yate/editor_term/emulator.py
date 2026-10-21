@@ -273,7 +273,9 @@ class TerminalEmulator:
             pass  # BEL
         elif ch == "\x1b":
             self._state = _ESCAPE
-        elif ord(ch) >= 0x20:
+        elif ord(ch) >= 0x20 and ch != "\x7f":
+            # DEL (0x7f) is a control byte, not a printable: printing it
+            # advanced the cursor and clobbered the cell under it.
             self._print(ch)
 
     def _escape(self, ch: str) -> None:

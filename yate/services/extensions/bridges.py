@@ -25,10 +25,15 @@ from yate.editor_sprites.characters import (
 from yate.editor_syntax import (
     LangSpec,
     available_filetypes,
+    langdefs,
     prefer_regex,
     register_language,
 )
-from yate.editor_syntax.ts_backend import load_language_from_grammar
+from yate.editor_syntax.engine import unprefer_regex
+from yate.editor_syntax.ts_backend import (
+    drop_language as drop_ts_language,
+    load_language_from_grammar,
+)
 from yate.logs import tracing
 from yate.registries import ActionRegistry
 from yate.session import EditorSession
@@ -99,8 +104,17 @@ class EventExtensionBridge:
 class LspExtensionBridge:
     """``api.lsp`` -- register language servers from an extension."""
 
-    def __init__(self, lsp: LspManager) -> None:
+    def __init__(
+        self,
+        lsp: LspManager,
+        record_undo: Callable[[Callable[[], None]], None] | None = None,
+    ) -> None:
+        # ``None`` (headless construction in tests) degrades to a no-op sink:
+        # registrations then stay permanent, like outside a rollback scope.
         self._lsp = lsp
+        self._record_undo: Callable[[Callable[[], None]], None] = (
+            record_undo if record_undo is not None else lambda _undo: None
+        )
 
     def register_server(  # noqa: Any - LSP JSON payload forwarded verbatim
         self,
@@ -133,6 +147,10 @@ class LspExtensionBridge:
             root_markers=list(root_markers) if root_markers is not None
             else list(DEFAULT_ROOT_MARKERS),
         ))
+        def undo() -> None:
+            self._lsp.unregister_server(name)
+
+        self._record_undo(undo)
 
     def statuses(self) -> dict[str, str]:
         """``{server name: state name}`` for every registered server."""
@@ -151,10 +169,15 @@ class HighlightExtensionBridge:
     markers, keyword/type/builtin word sets and a few lexical flags, and the
     engine handles strings, numbers, comments and multiline state for free.
     See ``yate/extensions/batch_syntax.py.example`` for a complete example.
+    Registrations made while a rollback scope is active are recorded through
+    *record_undo*, so a failing ``setup`` also drops them (A13).
     """
 
     #: Re-exported so extensions can build specs via ``api.highlight.LangSpec``.
     LangSpec = LangSpec
+
+    def __init__(self, record_undo: Callable[[Callable[[], None]], None]) -> None:
+        self._record_undo = record_undo
 
     def register(self, spec: LangSpec, *extensions: str) -> None:
         """Register *spec* under extension keys (``"cs"``, ``"csx"``, ...).
@@ -166,8 +189,23 @@ class HighlightExtensionBridge:
         backend, so a deliberately registered declarative highlighter wins
         over the built-in tree-sitter registration for the same key.
         """
+        previous = {
+            key: langdefs.lang_for(key)
+            for key in (ext.lower().lstrip(".") for ext in extensions)
+            if key
+        }
         register_language(spec, *extensions)
         prefer_regex(*extensions)
+
+        def undo() -> None:
+            for key, prev in previous.items():
+                if prev is not None:
+                    langdefs.register_language(prev, key)
+                else:
+                    langdefs.drop_language(key)
+            unprefer_regex(*extensions)
+
+        self._record_undo(undo)
 
     @staticmethod
     def spec(**kwargs: Any) -> LangSpec:
@@ -189,6 +227,14 @@ class SyntaxExtensionBridge:
     ``highlights.scm`` query for syntax-tree based highlighting.  Requires
     the optional ``tree_sitter`` dependency (``pip install yate[ts]``).
     """
+
+    def __init__(
+        self, record_undo: Callable[[Callable[[], None]], None] | None = None
+    ) -> None:
+        # ``None`` (headless construction in tests) degrades to a no-op sink.
+        self._record_undo: Callable[[Callable[[], None]], None] = (
+            record_undo if record_undo is not None else lambda _undo: None
+        )
 
     def register_tree_sitter(
         self,
@@ -238,6 +284,22 @@ class SyntaxExtensionBridge:
             capture_map=capture_map,
             extensions=tuple(extensions),
         )
+        self._record_undo(lambda: self._undo(name, tuple(extensions)))
+
+    @staticmethod
+    def _undo(name: str, extensions: tuple[str, ...]) -> None:
+        """Forget a grammar registered by a setup that then failed.
+
+        Built-in specs are import-time data: the keys stay registered (the
+        shared registry refuses to drop them), only the grammar this
+        extension loaded is released.
+        """
+        drop_ts_language(name)
+        try:
+            langdefs.drop_language(*extensions)
+        except ValueError:
+            # A built-in key cannot be dropped, and must not be.
+            log.debug("rollback kept the built-in language keys %s", extensions)
 
 
 class SpriteExtensionBridge:
@@ -256,6 +318,15 @@ class SpriteExtensionBridge:
     "Screensaver characters", for the full reference and an example.
     """
 
+    def __init__(
+        self, record_undo: Callable[[Callable[[], None]], None] | None = None
+    ) -> None:
+        # ``None`` (legacy headless construction, e.g. the sprite tests)
+        # degrades to a no-op sink: registrations then stay permanent.
+        self._record_undo: Callable[[Callable[[], None]], None] = (
+            record_undo if record_undo is not None else lambda _undo: None
+        )
+
     def register(
         self, name: str, frames: Sequence[Sequence[str]], palette: Mapping[str, str]
     ) -> None:
@@ -265,11 +336,18 @@ class SpriteExtensionBridge:
         rows; *palette* maps the row characters to hex colors.  Both are
         copied by the registry, so tuples and lists both work.  Call once
         from ``setup``; the character joins the parade, playlist shuffling
-        and the rc whitelist immediately.
+        and the rc whitelist immediately.  Inside a rollback scope the
+        registration is recorded, so a failing ``setup`` removes the
+        character again (A13).
         """
         register_character(
             name, tuple(tuple(rows) for rows in frames), dict(palette)
         )
+
+        def undo(name: str = name) -> None:
+            unregister_character(name)
+
+        self._record_undo(undo)
 
     def unregister(self, name: str) -> None:
         """Remove the character *name* this extension registered.

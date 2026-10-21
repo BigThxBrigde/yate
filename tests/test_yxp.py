@@ -6,8 +6,11 @@ The helpers build real ``.yxp`` zip archives, so verification, extraction
 and record keeping are exercised end to end.
 """
 
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
+import io
 import json
 import zipfile
 from hashlib import sha256
@@ -399,6 +402,67 @@ def test_failed_record_replace_keeps_old_record_and_drops_temp(
     assert record["files"] == ["hello.py"]  # v1 record intact
     tmp_record = base / yxp.RECORDS_DIRNAME / "hello.json.tmp"
     assert not tmp_record.exists()  # temp residue dropped
+
+
+# --------------------------------------------------------- member size caps
+
+
+def test_oversized_member_is_rejected_before_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A member past the cap raises and never touches the install dir."""
+    monkeypatch.setattr(yxp, "MAX_MEMBER_BYTES", 16)
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "big.yxp", {"hello.py": b"x" * 4096})
+    with pytest.raises(yxp.YxpError, match="exceeds the size cap"):
+        yxp.install_package(pkg, base)
+    assert not (base / "hello.py").exists()
+    assert not _record_path(base, "big").exists()
+
+
+def test_declared_small_but_actually_large_member_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lying ``ZipInfo.file_size`` cannot slip past the byte counter.
+
+    ``zipfile`` itself refuses to stream past the declared size (its CRC /
+    size checks reject tampered archives), so the lie is injected on the
+    stream: the member claims 16 bytes while the stream yields 4096.  The
+    bounded reader must count the actual bytes and reject.
+    """
+    monkeypatch.setattr(yxp, "MAX_MEMBER_BYTES", 16)
+    pkg = make_yxp(tmp_path / "liar.yxp", {"hello.py": b"x" * 16})
+    with zipfile.ZipFile(pkg) as zf:
+        assert zf.getinfo("hello.py").file_size == 16
+        def lying_open(name: object, mode: str = "r") -> io.BytesIO:
+            assert name == "hello.py"
+            return io.BytesIO(b"x" * 4096)
+
+        monkeypatch.setattr(zf, "open", lying_open)
+        with pytest.raises(yxp.YxpError, match="exceeds the size cap"):
+            yxp._read_member(zf, "hello.py", "liar.yxp")
+
+
+def test_stale_file_whose_backup_fails_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale file that cannot be backed up is kept, never deleted."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"hello.py": b"v1", "old.py": b"o1"})
+    yxp.install_package(v1, base)
+    v2 = make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2"})
+    real_read = Path.read_bytes
+
+    def flaky_read(self: Path) -> bytes:
+        if self.name == "old.py":
+            raise OSError("locked")
+        return real_read(self)
+
+    monkeypatch.setattr(Path, "read_bytes", flaky_read)
+    report = yxp.install_package(v2, base)
+    monkeypatch.undo()
+    assert (base / "old.py").read_bytes() == b"o1"  # kept, not deleted
+    assert "old.py" not in report.stale_removed
 
 
 # ---------------------------------------------------------- uninstall_package

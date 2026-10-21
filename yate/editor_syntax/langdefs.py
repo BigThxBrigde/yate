@@ -279,6 +279,29 @@ def register_language(spec: LangSpec, *extensions: str) -> None:
         _NAME_TO_KEY.setdefault(spec.name, key)
 
 
+def drop_language(*keys: str) -> None:
+    """Remove *keys* from the language registry again (extension rollback).
+
+    Mirrors :func:`register_language` on the undo side: a failing
+    extension ``setup`` that registered a language drops the keys again.
+    Leading dots are tolerated (same normalization as
+    :func:`register_language`).  Built-in keys recorded in
+    :data:`_BUILTIN_KEYS` cannot be dropped -- a ``ValueError`` is raised
+    (same semantics as ``unregister_character`` for built-in sprites);
+    dropping an unknown key is a no-op.
+    """
+    for ext in keys:
+        key = ext.lower().lstrip(".")
+        if not key:
+            continue
+        if key in _BUILTIN_KEYS:
+            raise ValueError(f"cannot drop built-in language key: {key!r}")
+        _LANGUAGES.pop(key, None)
+        for name, mapped in list(_NAME_TO_KEY.items()):
+            if mapped == key:
+                del _NAME_TO_KEY[name]
+
+
 register_language(
     _spec(
         "python", line_comment="#", triple_strings=True, string_prefixes="rRbBuUfF",
@@ -811,3 +834,8 @@ def format_filetype_candidates(limit: int = 12) -> str:
     if len(filetypes) > limit:
         shown += f", ... ({len(filetypes)} total)"
     return shown
+
+
+#: Snapshot of the built-in extension keys, taken once the built-in table
+#: above is fully registered.  ``drop_language`` refuses to remove these.
+_BUILTIN_KEYS: frozenset[str] = frozenset(_LANGUAGES) | frozenset(_NAME_TO_KEY)

@@ -584,6 +584,32 @@ def test_3way_local_only_region_keeps_remote_side_plain(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_diffview_opens_a_three_way_merge_with_a_one_sided_insertion(
+    tmp_path: Path,
+) -> None:
+    """A one-sided pure insertion is reported and tints the inserted line."""
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["a\nb\nc", "a\nL\nb\nc", "a\nb\nc"])
+        app = _Host(docs, "3way", _keymaps("vsc"), ["base", "local", "remote"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            panes = list(screen.query(DiffPane))
+            regions = [r for r in screen._regions if r.kind == "local"]
+            assert len(regions) == 1
+            region = regions[0]
+            assert isinstance(region, MergeRegion)
+            assert region.base_start == region.base_end == 1
+            assert (region.local_start, region.local_end) == (1, 2)
+            assert _line_states(panes[1]) == ("same", "changed", "same", "same")
+            assert _line_states(panes[0]) == ("same", "same", "same")
+            assert _line_states(panes[2]) == ("same", "same", "same")
+
+    asyncio.run(scenario())
+
+
 def test_3way_identical_both_region_copy_hints_nothing_to_copy(
     tmp_path: Path,
 ) -> None:
@@ -1060,3 +1086,42 @@ def test_edit_key_with_no_table_is_a_miss() -> None:
     pane.editing = True
     pane._edit_table = None
     assert pane._handle_edit_key(Key("f1", None)) is False
+
+
+def test_inline_highlight_lines_up_after_a_leading_tab() -> None:
+    """Inline spans (character-indexed) survive a leading tab (plan-b m-1).
+
+    The tab expands to four painted cells, so the cell column runs ahead
+    of the character index; the highlight must map back through
+    ``char_to_cell`` or it lands three cells to the right of the change.
+    """
+    from textual.color import Color
+
+    from yate.editor_view import theme
+    from yate.editor_view.diff_pane import PaneDiffState
+
+    line = "\tone changed"  # span (5, 9) == "chan"
+    pane = DiffPane(Document(), "solo")
+    pane.doc.buffer.lines = [line]
+    pane._state = PaneDiffState(
+        line_states=("changed",),
+        inline={0: ((5, 9),)},
+        current_rows=frozenset({0}),
+    )
+    t = theme.active()
+    strip = pane.render_line(0)
+    # replicate the inline background the pane blends for "changed" rows
+    from yate.editor_view.diff_pane import _BADGES  # noqa: PLC0415
+    tint = Color.parse(getattr(t, _BADGES["changed"][1]))
+    inline_bg = tint.blend(Color.parse(t.bg), 0.55)
+    highlighted = "".join(
+        seg.text
+        for seg in strip._segments
+        if seg.style is not None
+        and seg.style.bgcolor is not None
+        and seg.style.bgcolor.get_truecolor().hex == inline_bg.hex
+    )
+    # chars 5..9 are "chan"; through the tab they paint cells 4..8, i.e.
+    # the exact substring after the gutter (5 cells) + tab (4 cells)
+    assert highlighted == "chan"
+

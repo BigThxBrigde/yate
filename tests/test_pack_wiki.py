@@ -1,10 +1,14 @@
 """Tests for the bilingual wiki generator (:mod:`tools.pack.wiki`)."""
 
+# tests legitimately poke at the generator's private helpers:
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import hashlib
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -643,3 +647,146 @@ def test_keyboard_interrupt_maps_to_exit_130(
     err = capsys.readouterr().err
     assert "interrupted" in err
     assert "Traceback" not in err
+
+
+# --- prune guardrails (review B-3) -------------------------------------------
+
+
+def test_prune_refuses_the_repository_root_as_target(repo: Path) -> None:
+    """``--target <repo_root>`` must abort instead of pruning source docs."""
+    with pytest.raises(wiki.WikiError) as excinfo:
+        wiki.run(repo, None, repo_root=repo)
+    assert excinfo.value.code == wiki.Code.WIKI_PRUNE_FAILED
+    assert (repo / ".trae" / "documents" / "alpha-plan.md").exists()
+    assert (repo / "yate" / "docs" / "orphan.zh.md").exists()
+
+
+def test_prune_allows_a_target_below_the_repository_root(repo: Path) -> None:
+    """A wiki checkout inside the repo (``<root>/.wiki``) is legitimate."""
+    target = repo / ".wiki"
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert (target / "Home.md").exists()
+
+
+def test_prune_removes_only_pages_recorded_in_the_manifest(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unknown ``*.md`` files in the wiki survive; recorded orphans go."""
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return "# orphan en\n\ntranslated\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    assert "orphan.zh.md" in wiki.load_manifest(target)
+    (repo / "yate" / "docs" / "orphan.zh.md").unlink()
+    user_file = target / "some-user-note.md"
+    user_file.write_text("# hand written\n", encoding="utf-8")
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert not (target / "orphan.zh.md").exists()
+    assert user_file.exists()
+
+
+# --- GitHub wiki URL resolution (review m-24) ---------------------------------
+
+
+def _fake_origin(url: str) -> Callable[[Path, str], subprocess.CompletedProcess[str]]:
+    """A ``run_git`` stand-in that answers ``get-url origin`` with *url*."""
+
+    def fake_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 0, f"{url}\n", "")
+
+    return fake_git
+
+
+def test_github_wiki_url_follows_an_https_github_origin(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A github.com origin pushes the fork's own ``<repo>.wiki.git``."""
+    monkeypatch.delenv("YATE_WIKI_GITHUB_URL", raising=False)
+    monkeypatch.setattr(
+        wiki, "run_git", _fake_origin("https://github.com/me/yate.git")
+    )
+    assert wiki._github_wiki_url(repo) == "https://github.com/me/yate.wiki.git"
+
+
+def test_github_wiki_url_follows_an_scp_like_origin(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``git@github.com:owner/repo.git`` resolves the same way."""
+    monkeypatch.delenv("YATE_WIKI_GITHUB_URL", raising=False)
+    monkeypatch.setattr(
+        wiki, "run_git", _fake_origin("git@github.com:me/yate.git")
+    )
+    assert wiki._github_wiki_url(repo) == "https://github.com/me/yate.wiki.git"
+
+
+def test_github_wiki_url_ignores_an_ssh_port(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``ssh://git@github.com:22/me/yate`` drops the port segment."""
+    monkeypatch.delenv("YATE_WIKI_GITHUB_URL", raising=False)
+    monkeypatch.setattr(
+        wiki, "run_git", _fake_origin("ssh://git@github.com:22/me/yate.git")
+    )
+    assert wiki._github_wiki_url(repo) == "https://github.com/me/yate.wiki.git"
+
+
+def test_github_wiki_url_ignores_a_trailing_slash(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A trailing slash does not leak into the derived URL."""
+    monkeypatch.delenv("YATE_WIKI_GITHUB_URL", raising=False)
+    monkeypatch.setattr(
+        wiki, "run_git", _fake_origin("https://github.com/me/yate/")
+    )
+    assert wiki._github_wiki_url(repo) == "https://github.com/me/yate.wiki.git"
+
+
+def test_github_wiki_url_honours_the_environment_override(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-empty ``YATE_WIKI_GITHUB_URL`` wins before git is even asked."""
+    monkeypatch.setenv("YATE_WIKI_GITHUB_URL", "https://github.com/x/y.wiki.git")
+
+    def boom(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("git must not be called when the override is set")
+
+    monkeypatch.setattr(wiki, "run_git", boom)
+    assert wiki._github_wiki_url(repo) == "https://github.com/x/y.wiki.git"
+
+
+def test_github_wiki_url_empty_override_disables_the_mirror(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicitly empty override disables the mirror push."""
+    monkeypatch.setenv("YATE_WIKI_GITHUB_URL", "")
+
+    def boom(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("git must not be called when the override is set")
+
+    monkeypatch.setattr(wiki, "run_git", boom)
+    assert wiki._github_wiki_url(repo) == ""
+
+
+def test_github_wiki_url_ignores_a_github_substring_in_another_host(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-GitHub host that merely embeds ``github.com/`` is not GitHub."""
+    monkeypatch.delenv("YATE_WIKI_GITHUB_URL", raising=False)
+    monkeypatch.setattr(
+        wiki, "run_git", _fake_origin("https://gitee.com/mirrors/github.com/yate")
+    )
+    assert wiki._github_wiki_url(repo) == wiki.GITHUB_WIKI_URL
+
+
+def test_github_wiki_url_falls_back_to_the_published_mirror(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-github origin (Gitee main repo) keeps the published mirror."""
+    monkeypatch.delenv("YATE_WIKI_GITHUB_URL", raising=False)
+    monkeypatch.setattr(
+        wiki, "run_git", _fake_origin("https://gitee.com/jermaine/yate.git")
+    )
+    assert wiki._github_wiki_url(repo) == wiki.GITHUB_WIKI_URL

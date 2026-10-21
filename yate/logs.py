@@ -344,6 +344,7 @@ class CrashService:
         """Enable on-disk crash diagnostics. Idempotent and best-effort."""
         if self._err_file is not None:
             return
+        handle: IO[str] | None = None
         try:
             path = self.build_err_path(crash_data_dir())
             handle = open(path, "w", encoding="utf-8", buffering=1)
@@ -352,6 +353,10 @@ class CrashService:
             # faulthandler writes to this fd directly on fatal signals.
             faulthandler.enable(file=handle, all_threads=True)
         except (OSError, ValueError):
+            # The handle leaks unless it is closed here: the crash log was
+            # opened but its header (or faulthandler setup) failed.
+            if handle is not None:
+                handle.close()
             # No usable data directory or handle: still enable faulthandler
             # on stderr so a native crash leaves *some* trace behind.
             try:
@@ -514,6 +519,10 @@ class TracingService:
         # the TUI).
         self._logger.addHandler(logging.NullHandler())
         self._logger.propagate = False
+        # The logger level install() lowers to DEBUG, restored by
+        # uninstall() (review m-28): without it the process-wide DEBUG
+        # level outlived the trace session and polluted later code.
+        self._previous_level: int | None = None
 
     # --- public state -----------------------------------------------------
 
@@ -579,6 +588,8 @@ class TracingService:
             return False
         # Records are filtered at the handler, so a later level change (or a
         # second handler with its own level) needs no logger-level juggling.
+        if self._previous_level is None:
+            self._previous_level = self._logger.level
         self._logger.setLevel(logging.DEBUG)
         self._logger.addHandler(handler)
         return True
@@ -598,10 +609,19 @@ class TracingService:
         self.install(yate_trace=yate_trace, yate_trace_level=yate_trace_level)
 
     def uninstall(self) -> None:
-        """Detach and close file handlers (before deleting ``~/.yate/data``)."""
+        """Detach and close file handlers (before deleting ``~/.yate/data``).
+
+        Also restores the ``yate`` logger level captured on the first
+        :meth:`install` (review m-28): without it the process-wide DEBUG
+        level outlives the handler and leaks into whatever runs next -- in
+        the test suite that meant later files saw records they filter for.
+        """
         for handler in self.file_handlers():
             self._logger.removeHandler(handler)
             handler.close()
+        if self._previous_level is not None:
+            self._logger.setLevel(self._previous_level)
+            self._previous_level = None
 
     # --- state ------------------------------------------------------------
 
