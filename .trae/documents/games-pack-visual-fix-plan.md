@@ -4,6 +4,30 @@
 - 触发：用户实测截图 + 6 条问题清单（对齐 / 尺寸 / 关卡数 / 可读性 / 扩展结构）
 - 关联：[games-pack-plan.md](games-pack-plan.md)（首轮）｜[overview.md](games-pack-plans/overview.md)
 
+## 〇、实施结果（2026-10-21 收尾回填）
+
+**状态**：W1-W6 全部完成。W3（sokoban）与 W5（nethack）由 `plan-executor` 子代理完成
+（`bypassPermissions`，各自只改名下两个文件，套件独立全绿后由主代理复核收编；
+sokoban 关卡行的框内留白由主代理补齐），其余主代理亲自完成。
+
+**门禁实测（退出码全 0）**：pyright `0 errors`；`pytest tests/` **2779 passed, 9 skipped**（238s）；
+覆盖率 **91.97%**（阈值 75）；`tools/lint_lua.py` **0 issue(s)**。
+
+**逐条对照用户问题**：
+
+| # | 用户问题 | 结果 |
+|---|---|---|
+| 1 | tetris `next` 右边框不齐 | `engine.center` 改为两侧补齐后全部 59 列对齐（`tests/test_lua_games_visual.py` 逐行守卫） |
+| 2 | snake 乱、太小 | 根因是 `#label` 字节宽度；改 `engine.width` 后 80×24、棋盘 39×20，全帧等宽 |
+| 3 | pacman 太小 | 新迷宫 39×27（769 豆，对称、全连通）、画布 41×29；迷宫盒按活动迷宫自适应，测试注入的小迷宫仍可用 |
+| 4 | sokoban 错层 / 6 关太少 / 太小 | `pad` 按码位补齐后不再错层；关卡区 37×17、画布 41×22；**120 关**（6 手写 + 114 逆向拉生成，可解性由构造保证，`mod.solution` 回放测试覆盖 8 个抽样关） |
+| 5 | nethack 看不清 | 结构层固定 `█ · ▒ ▼` 高对比，实体 nerd 图标（`v` 切 ASCII）；地图 72×20、画布 74×24 |
+| 6 | extensions 重构 / 白名单 | **用户裁定保留 `lib/` 现状**；机制（preload、loader 不装载 `lib/`）已在文档写清，未新增任何豁免 |
+
+**新增守卫**：`tests/test_lua_games_visual.py`（五款游戏逐行宽度 + 边框列对齐 + 禁 ASCII 占位 +
+pacman/nethack 字形层断言）、`tests/test_lua_layout.py`（宽度语义单测）。
+
+
 ## 一、问题清单（用户）与实测复现
 
 | # | 用户描述 | 实测结论（可复现） |
