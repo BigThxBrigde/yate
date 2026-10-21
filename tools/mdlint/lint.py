@@ -118,11 +118,17 @@ class LintEngine:
 
     def scan(self, text: str) -> list[LintViolation]:
         """Return every violation found in *text*."""
+        # pymarkdown rejects blank documents as invalid arguments; a page
+        # with no content has nothing to lint, so it is clean, not a failure.
+        if not text.strip():
+            return []
         result = self._api.scan_string(text)
         return [_to_violation(failure) for failure in result.scan_failures]
 
     def fix(self, text: str) -> tuple[str, list[LintViolation]]:
         """Auto-fix what pymarkdown can; return (fixed_text, remaining)."""
+        if not text.strip():
+            return text, []
         result = self._api.fix_string(text)
         fixed = result.fixed_file
         return fixed, self.scan(fixed)

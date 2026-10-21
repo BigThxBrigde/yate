@@ -46,6 +46,11 @@ def test_ym001_skips_double_backtick_code_span() -> None:
     assert _ym_ids("# 标题\n\n用 ``你好world`` 做例子\n") == set()
 
 
+def test_ym001_scans_past_an_escaped_backtick() -> None:
+    """A backslash-escaped backtick is literal, so the prose is still scanned."""
+    assert "YM001" in _ym_ids("# 标题\n\n中文\\`abc 中文A` 结束\n")
+
+
 def test_ym004_detects_indented_atx_heading() -> None:
     """An ATX heading indented by up to three spaces is still a heading."""
     assert "YM004" in _ym_ids("  ## 标题。\n")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -304,3 +306,69 @@ def test_cli_auto_lang_picks_zh_profile(
     path.write_text("# 标题\n\n你好world\n", encoding="utf-8")
     assert main(["--check", "--auto-lang", str(path)]) == 1
     assert "YM001" in capsys.readouterr().out
+
+
+def test_scan_empty_document_is_clean() -> None:
+    """An empty or whitespace-only document has nothing to lint."""
+    engine = LintEngine("en")
+    assert engine.scan("") == []
+    assert engine.scan("  \n\t\n") == []
+
+
+def test_fix_empty_document_is_unchanged() -> None:
+    """fix() returns a blank document untouched instead of raising."""
+    engine = LintEngine("en")
+    assert engine.fix("") == ("", [])
+    assert engine.fix("  \n") == ("  \n", [])
+
+
+def test_cli_check_empty_file_exits_0(tmp_path: Path) -> None:
+    """An empty file is clean: exit 0, no backend error."""
+    path = tmp_path / "empty.md"
+    path.write_text("", encoding="utf-8")
+    assert main(["--check", "--lang", "en", str(path)]) == 0
+
+
+def test_cli_quiet_prints_only_the_summary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--quiet keeps the summary and drops the per-file report."""
+    path = tmp_path / "dirty.md"
+    path.write_text("# Title\n\nBody", encoding="utf-8")
+    assert main(["--check", "--quiet", "--lang", "en", str(path)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == "check: 1 violation(s) in 1 file\n"
+    assert captured.err == ""
+
+
+def test_cli_auto_lang_reports_in_input_order(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Sequential reports follow the collected path order, not the language."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.en.md").write_text("Body\n", encoding="utf-8")
+    (docs / "b.zh.md").write_text("你好world\n", encoding="utf-8")
+    (docs / "c.en.md").write_text("Body\n", encoding="utf-8")
+    assert main(["--check", "--auto-lang", str(docs)]) == 1
+    out = capsys.readouterr().out
+    assert out.index("a.en.md") < out.index("b.zh.md") < out.index("c.en.md")
+
+
+def test_module_entry_reports_a_missing_backend() -> None:
+    """A missing pymarkdownlnt is one line, not an import traceback."""
+    repo_root = Path(__file__).resolve().parents[1]
+    script = (
+        "import sys; sys.modules['pymarkdown'] = None; "
+        "import runpy; runpy.run_module('tools.mdlint', run_name='__main__')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "pymarkdownlnt" in result.stderr
+    assert "Traceback" not in result.stderr
