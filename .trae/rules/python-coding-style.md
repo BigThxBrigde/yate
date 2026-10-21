@@ -350,7 +350,11 @@ entries = list(raw)  # type: ignore[arg-type]
 - 测试函数命名：`def test_<behavior>_<condition>_<expected>():`
 - 测试使用 fixtures 共享 setup/teardown，避免重复代码
 - 断言使用 `pytest.raises()` / `pytest.warns()` 验证异常路径
-- 运行前确保 `pytest tests/ -q` 全部通过
+- 运行前确保 `pytest tests/ -q -n auto` 全部通过（并行跑法见 `misc-rules.md` §二；
+  时序敏感用例用 `-n 1` 复核）
+- 禁止依赖真实睡眠时长做断言：防抖/轮询类用例把窗口常量 `monkeypatch` 到远大于
+  测试生命期（先例 `tests/test_app_render.py`），或用 `wait_until` 轮询谓词——
+  并行负载下"睡够就行"的假设会 flake
 
 ---
 
@@ -371,7 +375,7 @@ entries = list(raw)  # type: ignore[arg-type]
 - [ ] 嵌套 ≤ 3 层，卫语句早返回（Flat is better than nested）
 - [ ] pythonic 写法按 §6.2 首选：真值测试 / 推导式 / 解包 / `enumerate` / `with`；但可读性优先，不做技巧堆砌
 - [ ] 无静默吞异常：每个 `except` 块记日志或向用户反馈（PEP 20: errors should never pass silently）
-- [ ] `pytest tests/` 全部通过
+- [ ] `pytest tests/ -n auto` 全部通过
 
 ---
 

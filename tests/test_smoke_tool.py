@@ -208,3 +208,19 @@ def test_reporter_quiet_suppresses_result_tables_and_progress() -> None:
     reporter.results([result])
     reporter.progress(1, 1, "demo")
     assert stream.getvalue() == ""
+
+
+def test_reporter_progress_announces_the_serial_runner_as_running() -> None:
+    reporter, stream = _make_reporter()
+    reporter.progress(3, 9, "demo")
+    assert "[3/9]" in stream.getvalue()
+    assert "running demo" in stream.getvalue()
+
+
+def test_reporter_progress_announces_the_parallel_runner_as_finished() -> None:
+    # --jobs only learns about a scenario when a worker returns it, so the
+    # line must not claim it is still running.
+    reporter, stream = _make_reporter()
+    reporter.progress(3, 9, "demo", completed=True)
+    assert "finished demo" in stream.getvalue()
+    assert "running demo" not in stream.getvalue()

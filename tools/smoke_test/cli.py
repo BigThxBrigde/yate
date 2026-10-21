@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -22,6 +22,7 @@ from tools.smoke_test.harness import (
     Scenario,
     ScenarioResult,
     run_scenarios,
+    run_scenarios_parallel,
     select_scenarios,
     set_seed,
     track_coverage,
@@ -92,6 +93,23 @@ def _reporter(args: argparse.Namespace) -> Reporter:
     )
 
 
+def _progress_for(
+    reporter: Reporter, *, jobs: int
+) -> Callable[[int, int, str], None]:
+    """The progress callback matching the runner that will be used.
+
+    Serial runs announce a scenario before starting it; the parallel runner
+    only hears about one when a worker returns it, so it reports completion.
+    """
+    if jobs <= 1:
+        return reporter.progress
+
+    def _report(done: int, total: int, name: str) -> None:
+        reporter.progress(done, total, name, completed=True)
+
+    return _report
+
+
 def _write_json(path: str, results: Sequence[ScenarioResult],
                 cov: Coverage | None) -> None:
     payload: dict[str, Any] = {
@@ -147,15 +165,28 @@ def _worse(candidate: ScenarioResult, incumbent: ScenarioResult) -> bool:
 
 def _execute(
     selected: list[Scenario], tmp_root: Path, options: RunOptions,
-    *, repeat: int,
+    *, repeat: int, jobs: int = 1,
 ) -> tuple[list[ScenarioResult], Coverage]:
     """Run *selected* ``repeat`` times; keep the worst result per scenario.
 
     ``--repeat`` is a flake detector: a scenario counts as failed when *any*
     iteration failed, and the reported result is that (worst) run so the
-    failure detail is the interesting one.
+    failure detail is the interesting one.  ``jobs`` > 1 shards each iteration
+    over worker processes; the coverage counters come back merged.
     """
     best: dict[str, ScenarioResult] = {}
+    if jobs > 1 and len(selected) > 1:
+        parallel = Coverage()
+        for _ in range(max(1, repeat)):
+            results, cov = run_scenarios_parallel(
+                selected, tmp_root, options, jobs
+            )
+            parallel.merge(cov)
+            for result in results:
+                previous = best.get(result.name)
+                if previous is None or _worse(result, previous):
+                    best[result.name] = result
+        return [best[s.name] for s in selected], parallel
     with track_coverage() as cov:
         for _ in range(max(1, repeat)):
             for result in run_scenarios(selected, tmp_root, options):
@@ -171,6 +202,11 @@ def _execute(
 
 def cmd_run(args: argparse.Namespace) -> int:
     """``run``: execute the selected scenarios and report PASS/FAIL."""
+    if args.jobs < 1:
+        # Checked before the filters: a bad worker count is a usage error no
+        # matter whether the selection happens to be empty.
+        print("--jobs must be at least 1")
+        return 2
     selected = select_scenarios(
         SCENARIOS, names=args.scenario, tags=args.tag,
         skip_slow=args.skip_slow,
@@ -190,11 +226,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         svg=args.svg,
         invariants=not args.no_invariant,
         timeout=args.timeout,
-        progress=reporter.progress,
+        progress=_progress_for(reporter, jobs=args.jobs),
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
-            selected, Path(td), options, repeat=args.repeat
+            selected, Path(td), options, repeat=args.repeat, jobs=args.jobs
         )
     if not args.quiet:
         reporter.results(results)
@@ -336,6 +372,10 @@ def build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser("run", help="run scenarios and print PASS/FAIL")
     _add_common_filters(pr)
     _add_report_options(pr)
+    pr.add_argument("--jobs", type=int, default=1, metavar="N",
+                    help="run the selection across N worker processes "
+                         "(`run` only; snapshot/compare stay serial). "
+                         "Default: 1 = the serial runner")
     pr.add_argument("--coverage", action="store_true",
                     help="report :command / action coverage")
     pr.set_defaults(func=cmd_run)

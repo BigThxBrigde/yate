@@ -53,7 +53,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   **严格向下**；L2→L3 的最后一条例外（statusbar 读取扩展门面）已于 2026-10-20 随
   statusbar 解耦清除（见 R14 条目），`UPWARD_EDGES_FROZEN` 现为**空集**；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
-  的禁线条款与 §六 35 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
+  的禁线条款与 §六 36 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
 
 ```mermaid
@@ -367,14 +367,14 @@ flowchart TD
 - [ ] 主题与滚动条归组件自持（R13）：没有在 L3 直改 widget `.styles.*` 着色、
       没有类级 `ScrollBar.renderer` patch、新主题感知组件已订阅
       `theme.subscribe` 自行上色？
-- [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q` 全绿？
+- [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q -n auto` 全绿？
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **35 个用例**（2026-10-18 新增三条：非 ASCII 注释 /
-`print()` 调试 / 本机家目录路径守卫；此前 2026-10-17 实测复核：
-`python -m pytest tests/test_architecture.py -q`
-→ `32 passed`；本次实测 → `35 passed`；用例清单见文末对照）：
+`tests/test_architecture.py` 已落地 **36 个用例**（2026-10-21 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `36 passed`；2026-10-18 为 35：
+新增非 ASCII 注释 / `print()` 调试 / 本机家目录路径守卫三条，此前 2026-10-17 为 32；
+用例清单见文末对照）：
 
 - **R1** 仅 `cli.py` 可 `import yate.app`（`app.py` 自身豁免）；
 - **R2** 全仓（yate + tests + tools）无 `AppProtocol`；`yate/interfaces.py` 不存在；
@@ -487,7 +487,8 @@ flowchart TD
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**35 个用例逐条对照**（2026-10-18 实测 `35 passed`；2026-10-17 为 `32 passed`）：
+**36 个用例逐条对照**（2026-10-21 实测 `36 passed`；2026-10-18 为 `35 passed`，
+2026-10-17 为 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -512,20 +513,21 @@ flowchart TD
 | 19 | `test_no_class_level_scrollbar_renderer_patch` | T1 |
 | 20 | `test_editor_does_not_paint_widget_styles` | T2 |
 | 21 | `test_app_annotations_are_precise` | 能力注入（禁 `App[Any]` / `App[object]`） |
-| 22 | `test_flow_modules_hold_no_app_handle` | 能力注入（流程模块禁 `self.app`） |
-| 23 | `test_editor_lsp_package_root_is_light` | §三.5（A1：包根不连带加载 `editor_lsp.manager`） |
-| 24 | `test_leaf_package_reexports_carry_exception_note` | §三.5（A1：叶包 re-export 须带例外注明） |
-| 25 | `test_callable_aliases_use_type_statements` | 回调别名（IKJUWP：PEP 695 `type` 语句） |
-| 26 | `test_support_mouse_gate_lives_in_app_on_event` | support_mouse 闸门（IKJRFK：App 层单点禁用鼠标） |
-| 27 | `test_source_files_within_size_threshold` | 文件体量阈值（A11：>800 行须登记豁免，`SIZE_EXEMPT_FILES` 镜像 §三.7 名单） |
-| 28 | `test_ts_backend_never_imports_regex_backend` | 注册表归属（langdefs 平行依赖：ts_backend 禁借 regex_backend） |
-| 29 | `test_no_relative_imports` | 绝对导入（IKKS4C：全仓禁 `from .X`，包内引用写全路径；§六清单此前漏登，2026-10-13 补齐） |
-| 30 | `test_extension_machinery_hides_behind_facade` | R14（扩展机件仅居 `services/extensions/`：禁直引子模块 + 旧路径不复存在） |
-| 31 | `test_extension_facade_exports_the_frozen_plugin_names` | R14（门面 14 名白名单冻结，逐名可解析） |
-| 32 | `test_no_unregistered_upward_imports` | 层秩向上连线（2026-10-20 statusbar 解耦后 `UPWARD_EDGES_FROZEN` 为**空集**：全仓零向上连线，`extensions/` 跳过） |
-| 33 | `test_comments_and_docstrings_stay_ascii` | 代码注释 ASCII 纪律（misc-rules §四：拒 CJK / 全角 / 排版符号，字符串字面量放行；存量 6 处引述型命中登记 `NON_ASCII_COMMENT_EXEMPT`） |
-| 34 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
-| 35 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
+| 22 | `test_screen_annotations_are_precise` | 能力注入（禁 `Screen[Any]` / `Screen[object]`，`Screen[None]` 是唯一精确形态；2026-10-21 补登，此前漏在本表） |
+| 23 | `test_flow_modules_hold_no_app_handle` | 能力注入（流程模块禁 `self.app`） |
+| 24 | `test_editor_lsp_package_root_is_light` | §三.5（A1：包根不连带加载 `editor_lsp.manager`） |
+| 25 | `test_leaf_package_reexports_carry_exception_note` | §三.5（A1：叶包 re-export 须带例外注明） |
+| 26 | `test_callable_aliases_use_type_statements` | 回调别名（IKJUWP：PEP 695 `type` 语句） |
+| 27 | `test_support_mouse_gate_lives_in_app_on_event` | support_mouse 闸门（IKJRFK：App 层单点禁用鼠标） |
+| 28 | `test_source_files_within_size_threshold` | 文件体量阈值（A11：>800 行须登记豁免，`SIZE_EXEMPT_FILES` 镜像 §三.7 名单） |
+| 29 | `test_ts_backend_never_imports_regex_backend` | 注册表归属（langdefs 平行依赖：ts_backend 禁借 regex_backend） |
+| 30 | `test_no_relative_imports` | 绝对导入（IKKS4C：全仓禁 `from .X`，包内引用写全路径；§六清单此前漏登，2026-10-13 补齐） |
+| 31 | `test_extension_machinery_hides_behind_facade` | R14（扩展机件仅居 `services/extensions/`：禁直引子模块 + 旧路径不复存在） |
+| 32 | `test_extension_facade_exports_the_frozen_plugin_names` | R14（门面 14 名白名单冻结，逐名可解析） |
+| 33 | `test_no_unregistered_upward_imports` | 层秩向上连线（2026-10-20 statusbar 解耦后 `UPWARD_EDGES_FROZEN` 为**空集**：全仓零向上连线，`extensions/` 跳过） |
+| 34 | `test_comments_and_docstrings_stay_ascii` | 代码注释 ASCII 纪律（misc-rules §四：拒 CJK / 全角 / 排版符号，字符串字面量放行；存量 6 处引述型命中登记 `NON_ASCII_COMMENT_EXEMPT`） |
+| 35 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
+| 36 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

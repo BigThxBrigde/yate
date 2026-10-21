@@ -144,12 +144,21 @@ class Reporter:
 
     # ------------------------------------------------------------ progress
 
-    def progress(self, done: int, total: int, name: str) -> None:
-        """Print the ``[done/total] running <name>`` line (unless quiet)."""
+    def progress(
+        self, done: int, total: int, name: str, *, completed: bool = False
+    ) -> None:
+        """Print the ``[done/total] <verb> <name>`` line (unless quiet).
+
+        The serial runner announces a scenario *before* running it, so
+        ``running`` is true there.  The parallel runner only hears about a
+        scenario when a worker hands it back, which makes ``completed`` the
+        honest word for that path (``--jobs``).
+        """
         if self.quiet:
             return
+        verb = "finished" if completed else "running"
         self.console.print(
-            f"  [{_DIM}][{done}/{total}][/] running {name}",
+            f"  [{_DIM}][{done}/{total}][/] {verb} {name}",
             markup=True, highlight=False,
         )
 

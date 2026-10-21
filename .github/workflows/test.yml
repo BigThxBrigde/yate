@@ -78,10 +78,16 @@ jobs:
         # threshold is NOT repeated here -- it has a single source of truth in
         # [tool.coverage.report] (asserted by tests/test_gate_config.py), so a
         # bare --cov is exactly the CI gate locally and remotely.
+        # -n auto: the pilot tests are wall-clock bound on Textual's per-key
+        # sleep, so worker processes scale the suite near-linearly (measured
+        # 2026-10-20: 308s serial -> 95s on 4 workers).  pytest-cov merges the
+        # workers' data, so the coverage gate still reports one total.
         env:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing
+        run: >-
+          python -m pytest tests --cov=yate --cov-branch
+          --cov-report=term-missing -n auto
 
   # tools/smoke_test is outside pytest's testpaths (pyproject testpaths is
   # ["tests"]), so no CI job exercised the Textual end-to-end scenarios before
@@ -125,12 +131,16 @@ jobs:
         # one command serves both platform legs.  `--report` writes a
         # standalone HTML summary (measured 2026-10-18), `--json` the machine
         # readable one that is uploaded.
+        # --jobs 4: one worker process per scenario, self-balancing pool
+        # (measured 2026-10-20: 121s serial -> 48s on 4 workers, same
+        # 1354/1354 checks).  The runner has 4 vCPUs; --jobs 1 stays the
+        # default for local runs.
         env:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
         run: >-
           python -m tools.smoke_test run --json smoke-report.json
-          --report smoke-report.html
+          --report smoke-report.html --jobs 4
 
       - name: Upload smoke report
         if: always()

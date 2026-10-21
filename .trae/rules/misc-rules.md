@@ -46,8 +46,9 @@ alwaysApply: true
 PowerShell 命令行拼接（§一 的 PowerShell 语法限制因此大多可以绕开）：
 
 - 解释器统一用项目虚拟环境的 `.venv\Scripts\python.exe`；
-- 正式回归跑 `pytest tests/ -q`；一次性探针/冒烟用临时脚本（验证完删除）或
-  `python -c "..."` 短表达式。
+- 正式回归跑 **`pytest tests/ -q -n auto`**（并行口径，`pytest-xdist` 已随 `[dev]` 安装）；
+  需要单进程排查时序问题时用 `-n 1`，两者结果必须一致；
+- 一次性探针/冒烟用临时脚本（验证完删除）或 `python -c "..."` 短表达式。
 
 ## 三、纯文档变更的验证豁免
 
