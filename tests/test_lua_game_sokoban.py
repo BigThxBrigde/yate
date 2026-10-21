@@ -157,6 +157,37 @@ class TestSokobanCanvas:
 
 
 @requires_lupa
+class TestSokobanRendering:
+    """Thin-line walls, the single-width player glyph and the legend."""
+
+    def test_first_frame_uses_thin_wall_lines(self) -> None:
+        """Level 1's walls render as box drawing, never as solid blocks."""
+        game = make_game()
+        canvas = game.launch()
+        lines = canvas.grid.split("\n")
+        # the top wall row: a corner plus a horizontal line segment
+        assert "╭" in lines[1]
+        assert "─" in lines[1]
+        # the wall columns left and right of the goal run vertically
+        assert "│" in lines[2]
+        assert "█" not in canvas.grid
+
+    def test_legend_is_drawn_on_the_blank_level_area_row(self) -> None:
+        game = make_game()
+        canvas = game.launch()
+        lines = canvas.grid.split("\n")
+        assert "▣ crate" in lines[13]
+        assert "▲ you" in lines[13]
+
+    def test_player_glyph_is_a_single_width_triangle(self) -> None:
+        """The player renders as ▲ (single width), never as the emoji ☻."""
+        game = make_game()
+        canvas = game.launch()
+        assert "▲" in canvas.grid
+        assert "☻" not in canvas.grid
+
+
+@requires_lupa
 class TestSokobanRules:
     """Walking, pushing, undo, restart and level advance."""
 

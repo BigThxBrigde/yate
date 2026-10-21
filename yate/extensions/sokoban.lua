@@ -3,8 +3,9 @@ yate bundled extension: sokoban (sokoban.lua)
 
 A classic sokoban drawn on a yate extension canvas: a 37 x 17 level area
 inside a rounded 41 x 22 frame, a HUD row (level / moves / pushes / done)
-and two help rows above the bottom border.  Walls are blue blocks, crates
-brown, crates on goals green, goals grey and the player yellow.
+and two help rows above the bottom border.  Walls are thin blue lines
+(neighbour-aware box drawing), crates brown, crates on goals green, goals
+grey and the player yellow.
 
 Start it with ``:game sokoban``.
 
@@ -56,6 +57,15 @@ local MAX_UNDO = 200
 
 -- The level area row carrying overlay text (paused / cleared).
 local OVERLAY_ROW = 6
+
+--: The level area row carrying the legend.  Handwritten levels use at most
+--: 8 rows, so row 13 is blank there; a generated level whose row 13 holds
+--: level content (its border walls) suppresses the legend defensively.
+local LEGEND_ROW = 13
+
+-- The legend line, centered on the blank row.  Two line-drawing glyphs act
+-- as the blue walls swatch; every piece must fit AREA_W (37) columns.
+local LEGEND_TEXT = "── walls ▣ crate ▩ done ◎ goal ▲ you"
 
 -- Two help rows between the HUD and the bottom border: four full words do
 -- not fit on one 39-column line.
@@ -119,13 +129,26 @@ local LEVELS = {
 -- Cell glyphs (single width, from the shared engine vocabulary).
 local G = engine.glyph
 
--- Palette handed to the canvas: glyph -> color.
+-- Palette handed to the canvas: glyph -> color.  Every thin-wall line
+-- glyph shares one blue; the frame border reuses the same line glyphs and
+-- therefore picks the same color.
 local PALETTE = {
-  [G.block] = "#4a90d9",
+  [G.h] = "#4a90d9",
+  [G.v] = "#4a90d9",
+  [G.tl] = "#4a90d9",
+  [G.tr] = "#4a90d9",
+  [G.bl] = "#4a90d9",
+  [G.br] = "#4a90d9",
+  ["├"] = "#4a90d9",
+  ["┤"] = "#4a90d9",
+  ["┬"] = "#4a90d9",
+  ["┴"] = "#4a90d9",
+  ["┼"] = "#4a90d9",
+  [G.dot] = "#4a90d9",
   [G.box] = "#8d5524",
   [G.box_on_goal] = "#7bd88f",
   [G.goal] = "#bdbdbd",
-  [G.player] = "#ffd54f",
+  [G.tri] = "#ffd54f",
 }
 
 -- Game state (built by load_level); nil until first use.
@@ -785,6 +808,55 @@ end
 
 -- ---------------------------------------------------------------- rendering
 
+-- True when (x, y) holds a wall cell in the parsed level data.  Unlike
+-- is_wall(), cells outside the stored rows count as floor here: the wall
+-- shaping must not extend a level's outline through the empty area.
+local function shaped_wall_at(x, y)
+  local row = state.cells[y]
+  return row ~= nil and row[x] == "#"
+end
+
+-- The box-drawing glyph for the wall at (x, y), chosen from its wall
+-- neighbours (out-of-bounds counts as floor).  Decision order: the
+-- four-way cross, then the up/down axis, then the left/right axis, then
+-- the corners, then a single axis, and finally an isolated pillar dot.
+local function wall_glyph(x, y)
+  local up = shaped_wall_at(x, y - 1)
+  local down = shaped_wall_at(x, y + 1)
+  local left = shaped_wall_at(x - 1, y)
+  local right = shaped_wall_at(x + 1, y)
+  if up and down and left and right then
+    return "┼"
+  elseif up and down then
+    if right then
+      return "├"
+    elseif left then
+      return "┤"
+    end
+    return "│"
+  elseif left and right then
+    if down then
+      return "┬"
+    elseif up then
+      return "┴"
+    end
+    return "─"
+  elseif up and right then
+    return "╰"
+  elseif up and left then
+    return "╯"
+  elseif down and right then
+    return "╭"
+  elseif down and left then
+    return "╮"
+  elseif up or down then
+    return "│"
+  elseif left or right then
+    return "─"
+  end
+  return "·"
+end
+
 -- One level-area row as AREA_W single-width glyph cells (never byte-spliced).
 local function area_row(ly)
   local cells = {}
@@ -793,7 +865,7 @@ local function area_row(ly)
     local glyph = " "
     if row ~= nil and lx <= #row then
       if row[lx] == "#" then
-        glyph = G.block
+        glyph = wall_glyph(lx, ly)
       elseif row[lx] == "." then
         glyph = G.goal
       end
@@ -806,9 +878,24 @@ local function area_row(ly)
     end
   end
   if state.player.y == ly then
-    cells[state.player.x] = G.player
+    cells[state.player.x] = G.tri
   end
   return table.concat(cells)
+end
+
+-- True when level-area row *ly* carries level content (walls or goals);
+-- the legend must never overwrite such a row.
+local function row_has_content(ly)
+  local row = state.cells[ly]
+  if row == nil then
+    return false
+  end
+  for _, cell in ipairs(row) do
+    if cell ~= " " then
+      return true
+    end
+  end
+  return false
 end
 
 -- HUD row: resumed level, per-level counters, completed count.
@@ -826,6 +913,9 @@ local function render()
     if ly == OVERLAY_ROW and (state.paused or state.cleared) then
       local text = state.cleared and "all levels cleared" or "paused"
       rows[#rows + 1] = G.v .. engine.center(text, INNER) .. G.v
+    elseif ly == LEGEND_ROW and not row_has_content(ly) then
+      -- legend centered into the area width, same gutter channel as levels
+      rows[#rows + 1] = G.v .. " " .. engine.center(LEGEND_TEXT, AREA_W) .. " " .. G.v
     else
       -- one blank gutter column between the frame and the 37-wide area
       rows[#rows + 1] = G.v .. " " .. engine.pad(area_row(ly), AREA_W) .. " " .. G.v
