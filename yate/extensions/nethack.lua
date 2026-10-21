@@ -1,9 +1,9 @@
 --[[
 yate bundled extension: nethack (nethack.lua)
 
-A turn-based roguelike drawn on a yate extension canvas: a 72 x 20 dungeon
+A turn-based roguelike drawn on a yate extension canvas: a 72 x 19 dungeon
 of rooms and corridors inside a rounded 74 x 24 frame, with a HUD row
-(depth / hp / gold / turn) and a help row under the map.
+(depth / hp / gold / turn), a legend row and a help row under the map.
 
 Start it with ``:game nethack``.
 
@@ -38,10 +38,11 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 
 local engine = require("game_engine")
 
--- Canvas geometry: 74 x 24, inner width 72, map 72 x 20 tiles.
+-- Canvas geometry: 74 x 24, inner width 72, map 72 x 19 tiles.  The rows
+-- are: top frame, 19 map rows, HUD, legend, help, bottom frame (24 total).
 local COLS, ROWS = 74, 24
 local INNER = 72
-local MAP_W, MAP_H = 72, 20
+local MAP_W, MAP_H = 72, 19
 
 -- Semantic map characters (the only characters that reach the save file).
 local WALL = "#"
@@ -53,9 +54,9 @@ local STAIRS = ">"
 -- are mode independent -- walls, floor, corridors and stairs always render
 -- as blocks and shades so the dungeon never turns into icon noise.
 local STRUCT = {
-  [WALL] = { glyph = "█", color = "#555555" },
-  [FLOOR] = { glyph = "·", color = "#9e9e9e" },
-  [CORRIDOR] = { glyph = "▒", color = "#6b6b6b" },
+  [WALL] = { glyph = "█", color = "#4a4a4a" },
+  [FLOOR] = { glyph = "·", color = "#6a6a6a" },
+  [CORRIDOR] = { glyph = "▒", color = "#a8a8a8" },
   [STAIRS] = { glyph = "▼", color = "#ffffff" },
 }
 
@@ -86,6 +87,23 @@ local ENTITY_COLORS = {
 -- Help row (exactly INNER wide after engine.pad).
 local HELP_TEXT =
   "move/attack  g grab  enter stairs  space wait  r new  v glyphs"
+
+-- Legend row: structural tiles in fixed order, then as many entity items
+-- as fit inside INNER columns (entity items truncate first, from the end).
+local LEGEND_STRUCT = {
+  { ch = WALL, label = "wall" },
+  { ch = FLOOR, label = "floor" },
+  { ch = CORRIDOR, label = "path" },
+  { ch = STAIRS, label = "stairs" },
+}
+local LEGEND_ENTITIES = {
+  { kind = "player", label = "you" },
+  { kind = "paw", label = "monster" },
+  { kind = "fire", label = "strong" },
+  { kind = "gold", label = "gold" },
+  { kind = "potion", label = "potion" },
+  { kind = "food", label = "food" },
+}
 
 --: Bounded random seed for runs started without an injected seed.
 local function random_seed()
@@ -146,6 +164,26 @@ local function build_palette(ent)
     palette[ent[name]] = color
   end
   return palette
+end
+
+-- One legend line in the current glyph mode, at most INNER columns wide.
+-- The four structural items always fit; entity items are appended while
+-- the line stays inside the inner width.
+local function build_legend(map, ent)
+  local parts = {}
+  for _, item in ipairs(LEGEND_STRUCT) do
+    parts[#parts + 1] = map[item.ch] .. " " .. item.label
+  end
+  local legend = table.concat(parts, "  ")
+  for _, item in ipairs(LEGEND_ENTITIES) do
+    local candidate =
+      legend .. "  " .. ent[item.kind] .. " " .. item.label
+    if engine.width(candidate) > INNER then
+      break
+    end
+    legend = candidate
+  end
+  return legend
 end
 
 -- ------------------------------------------------------------------- state
@@ -600,7 +638,7 @@ end
 
 -- ------------------------------------------------------------------- draw
 
--- Draw the whole canvas: rounded frame, glyph map, HUD and help rows.
+-- Draw the whole canvas: rounded frame, glyph map, HUD, legend and help.
 local function draw(s)
   local map, ent = build_glyphs(state.glyphs)
   local palette = build_palette(ent)
@@ -639,6 +677,8 @@ local function draw(s)
     .. "  gold " .. state.gold
     .. "  turn " .. state.turn
   lines[#lines + 1] = engine.glyph.v .. engine.pad(hud, INNER) .. engine.glyph.v
+  lines[#lines + 1] =
+    engine.glyph.v .. engine.pad(build_legend(map, ent), INNER) .. engine.glyph.v
   lines[#lines + 1] =
     engine.glyph.v .. engine.pad(HELP_TEXT, INNER) .. engine.glyph.v
   lines[#lines + 1] = engine.box_bottom(INNER)
@@ -755,6 +795,16 @@ end
 -- Test seam: the row array of the most recently drawn frame.
 function mod.debug_rows()
   return last_rows
+end
+
+-- Test seam: a copy of the structural tile table (glyph and color per
+-- semantic map character), for palette assertions.
+function mod.debug_struct()
+  local copy = {}
+  for ch, def in pairs(STRUCT) do
+    copy[ch] = { glyph = def.glyph, color = def.color }
+  end
+  return copy
 end
 
 -- Test seam: the full observable state (fields fixed by plan F section 7).

@@ -62,7 +62,7 @@ def make_state(
         "weapon": 0,
         "rng": 12345,
         "player_pos": list(player_pos),
-        "floor": rows if rows is not None else [map_row() for _ in range(20)],
+        "floor": rows if rows is not None else [map_row() for _ in range(19)],
         "monsters": monsters or [],
         "items": items or [],
     }
@@ -130,6 +130,46 @@ class TestNethackCanvas:
         assert "·" in canvas.grid  # floor
         assert "▼" in canvas.grid  # stairs
 
+    def test_first_frame_has_a_legend_row(self) -> None:
+        """The nerd legend sits between HUD and help, inside the inner width."""
+        game = make_game()
+        game.launch()
+        rows = frame_rows(game)
+        assert len(rows) == 24
+        legend = rows[21]  # top frame, 19 map rows, HUD, legend, help, bottom
+        assert "█ wall" in legend
+        assert "· floor" in legend
+        assert "▒ path" in legend
+        assert "▼ stairs" in legend
+        assert "you" in legend
+        assert "\uf007" in legend  # the nerd player icon
+        assert "@" not in legend  # no ascii fallback icon on the legend row
+        assert lua_frame_widths(game, [legend]) == [74]
+
+    def test_legend_row_follows_the_glyph_mode(self) -> None:
+        """Switching to ascii swaps the legend entity icons to ascii glyphs."""
+        game = make_game()
+        game.launch()
+        game.press("v")
+        legend = frame_rows(game)[21]
+        assert "@ you" in legend
+        assert "r monster" in legend
+        assert "$ gold" in legend
+        assert "\uf007" not in legend  # the nerd icon is gone
+        assert "█ wall" in legend  # structural glyphs are mode independent
+
+    def test_struct_palette_contrast(self) -> None:
+        """Corridors read brighter than floors; walls stay the darkest tile."""
+        game = make_game()
+        game.launch()
+        struct = lua_to_python(game.module.debug_struct())
+        assert isinstance(struct, dict), "debug_struct() must return a table"
+        tiles = cast("dict[str, dict[str, str]]", struct)
+        assert tiles["#"]["color"] == "#4a4a4a"  # wall
+        assert tiles["."]["color"] == "#6a6a6a"  # floor
+        assert tiles[","]["color"] == "#a8a8a8"  # corridor
+        assert tiles[">"]["color"] == "#ffffff"  # stairs
+
     def test_map_is_deterministic_for_a_seed(self) -> None:
         first = make_game()
         first.module.set_seed(4242)
@@ -160,7 +200,7 @@ class TestNethackTurns:
 
     def test_wall_blocks_movement_without_a_turn(self) -> None:
         game = make_game()
-        rows = [map_row() for _ in range(20)]
+        rows = [map_row() for _ in range(19)]
         rows[8] = map_row({5: "#"})
         inject(game,make_state((4, 9), rows=rows))
         game.launch()
@@ -211,7 +251,7 @@ class TestNethackItems:
 
     def test_enter_on_stairs_descends_and_heals(self) -> None:
         game = make_game()
-        rows = [map_row() for _ in range(20)]
+        rows = [map_row() for _ in range(19)]
         rows[8] = map_row({6: ">"})
         inject(game,make_state((6, 9), hp=5, rows=rows))
         game.launch()
