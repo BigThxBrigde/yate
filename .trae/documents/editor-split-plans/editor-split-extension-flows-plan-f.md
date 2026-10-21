@@ -22,7 +22,7 @@
 - 种子是 yaterc 错误而非扩展消息（:315-317 `[f"yaterc: {err}" for err in self.config.errors]`）；
 - `_report`（:423-428）为文档打开路径缓冲 pre-mount 告警，
   plan-d 后这些调用在 DocumentFlows 内、经注入的 `report` 回调落回此缓冲；
-- `on_mount` 统一冲刷（:387-388，`; `.join 后 kind="warn"）。
+- `on_mount` 统一冲刷（:387-388，`;`.join 后 kind="warn"）。
 
 因此 `load_startup_services` 改为**返回** `load_startup_extensions` 的告警列表，
 由调用方 extend 进缓冲——Editor 保留缓冲所有权，ExtensionFlows 不回写 Editor 私有状态。

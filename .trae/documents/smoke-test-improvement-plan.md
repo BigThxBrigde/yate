@@ -4,7 +4,7 @@
 >
 > - 骨架已按任务 3 拆分：`tools/smoke_test/` 下
 >   `cli.py` / `report.py` / `baselines.py` / `harness.py` / `testsuite.py`
->   + `scenarios/`（`core` / `edit` / `search` / `files` / `panes` / `explorer` /
+>   - `scenarios/`（`core` / `edit` / `search` / `files` / `panes` / `explorer` /
 >   `view` / `integration` / `regression` / `stress` / `aliases` / `_base`，
 >   **2026-10-05 扩充后新增 `diffview` / `guards` / `screensaver` /
 >   `workspace_nav` / `vim_advanced`**，见
@@ -344,7 +344,7 @@ runner 在每个场景结束后自动追加一组隐藏检查 `assert_invariants
 8. **分组小计**：场景数从 5 涨到约 42 后，单张表太长——按 `tag` 分组渲染多个 Table，每组带小计行（`edit 9/9`、`explorer 4/4`），失败组排在最前。
 9. **覆盖率区块**：`--coverage` 时把命令/动作覆盖率与未覆盖清单单独渲染成一节（见 2.8），缺口项高亮，方便对着补场景。
 10. **新增 CLI 选项**：`--tag`（按功能面过滤，可重复）/ `--no-color` / `--json PATH`（CI 机器消费）/ `--quiet` / `--fail-only` / `--svg-rows N` / `--width N` / `--skip-slow`（跳过 P2）/ `--repeat N`（重复跑 N 次查抖动）/ `--seed N`（fuzz 场景种子）。保持退出码语义（0 全通过、1 有失败、2 无基线）。
-10. **可选**：`--report out.html` 用 `console.save_html()` 导出可归档的彩色报告。
+11. **可选**：`--report out.html` 用 `console.save_html()` 导出可归档的彩色报告。
 
 ### 代码组织（建议，场景变多后近乎必需）
 

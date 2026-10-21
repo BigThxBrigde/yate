@@ -78,7 +78,7 @@ def on_mouse_down(self, event: MouseDown) -> None:
 
 ### `tests/test_app_explorer.py`
 
-3. `test_explorer_click_opens_file`（验证内建链路，防上游行为漂移）
+1. `test_explorer_click_opens_file`（验证内建链路，防上游行为漂移）
    - 前置：`app.run_test()` 以临时目录为目标（含 `a.txt`），explorer
      可见（目录目标启动即显示，参照本文件既有用例）。
    - 操作：由 `app.editor.explorer_tree` 定位 `a.txt` 节点的可见行

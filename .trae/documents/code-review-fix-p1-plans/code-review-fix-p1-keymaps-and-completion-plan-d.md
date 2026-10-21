@@ -34,10 +34,12 @@
 5. **S38**：`next(...)` 改为显式 `raise ValueError("no keymaps registered")`。
    验收：空注册表调用 `pytest.raises(ValueError)`。
 6. **子代理门禁**：
+  
    ```Shell
    .venv\Scripts\python.exe -m pyright yate/completion.py yate/keymaps tests/test_completion_popup.py tests/test_vim_keymap.py tests/test_registries.py
    .venv\Scripts\python.exe -m pytest tests/test_completion_popup.py tests/test_vim_keymap.py tests/test_registries.py -q
-   ```
+
+```
 
 ## 注意
 

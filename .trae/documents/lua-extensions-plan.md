@@ -180,7 +180,7 @@
   `lua.example` 随之安装）。
 - **输出**：`--setup-defaults` 把 `lua.example` 放进 `~/.yate/extensions/`。
 - **验收**：`pytest tests/test_user_setup.py -q`（若该文件存在；以实际测试文件为准）
-  + 手工 `--setup-defaults --base-dir <tmp>` 冒烟确认 lua.example 在列。
+  - 手工 `--setup-defaults --base-dir <tmp>` 冒烟确认 lua.example 在列。
 - **提交**：`fix(user_setup): install all bundled *.example templates`
 
 ### 步骤 6：测试 `tests/test_lua_extensions.py`

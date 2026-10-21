@@ -16,12 +16,15 @@
 ### 改动 1 —— 第 3-9 行（引言段）
 
 现状（含 `overlays.py`）：
+
 ```
 `test_action_table.py`; the L3 flow modules (`document_flows.py`,
 `window_flows.py`, `overlays.py`, `prompt_flows.py`, `lsp_sync.py`,
 `extension_flows.py`) are exercised indirectly through the Textual pilot
 ```
+
 目标：
+
 ```
 `test_action_table.py`; the L3 flow modules (`document_flows.py`,
 `window_flows.py`, `overlay_flows.py`, `prompt_flows.py`, `lsp_sync.py`,
@@ -31,13 +34,16 @@
 ### 改动 2 —— 第 11-14 行（覆盖表标题与前言）
 
 现状：
+
 ```
 ## Indirect coverage map
 
 Root modules without a same-named `test_<module>.py`, and the test files that
 cover them:
 ```
+
 目标：
+
 ```
 ## Indirect coverage map (spot checks)
 
@@ -51,10 +57,13 @@ that cover them:
 ### 改动 3 —— 第 22 行（表行）
 
 现状：
+
 ```
 | `overlays.py`        | `test_action_table.py`, `test_app_textual.py`, `test_changelog_view.py`, `test_vim_keymap.py` |
 ```
+
 目标：
+
 ```
 | `overlay_flows.py`   | `test_action_table.py`, `test_app_textual.py`, `test_changelog_view.py`, `test_vim_keymap.py` |
 ```
@@ -62,11 +71,14 @@ that cover them:
 ### 改动 4 —— 第 26-27 行（脚注）
 
 现状：
+
 ```
 (`test_extensions.py` covers `yate/services/extensions.py`, the extension
 loader — not `extension_flows.py`. `test_architecture.py` references several
 ```
+
 目标：
+
 ```
 (`test_extensions.py` covers the extension machinery under
 `yate/services/extensions/` -- the facade plus the `loader` submodule, R14 --

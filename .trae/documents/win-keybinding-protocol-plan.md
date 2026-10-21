@@ -126,7 +126,7 @@ class KeyChord:
 ```
 
 **canonical 化规则**（P1 唯一真理，写进 docstring 与测试）：
-1. `code` 一律用"原子名"：字母 `a-z` 小写、数字 `0-9`、标点用符号本身（`/ ; [ ] \ - = , . ' \` `）、功能键 `f1..f24`、特殊键 `enter/tab/escape/backspace/delete/insert/home/end/pageup/pagedown/space`、小键盘 `numpad_*`。
+1. `code` 一律用"原子名"：字母 `a-z` 小写、数字 `0-9`、标点用符号本身（`/ ; [ ] \ - = , . ' \` `）、功能键`f1..f24`、特殊键`enter/tab/escape/backspace/delete/insert/home/end/pageup/pagedown/space`、小键盘`numpad_*`。
 2. `mods` 只保留集合 `{alt, ctrl, shift, super}`，排序后拼接。
 3. **shift 只在"不产生不同字符"的键上保留**（`ctrl+shift+k` 保留；`shift+1` 归一为文本 `!` 而非 `shift+1`，与 Textual 的"带 text 时丢弃 shift"行为对齐）。
 4. 别名（`underscore`/`slash`/`left_square_bracket`/`right_square_bracket`/`reverse_solidus`/`circumflex_accent`/`grave_accent`）统一归到符号形式；`ctrl+_`/`ctrl+/`/`ctrl+underscore`/`ctrl+slash` → **同一个 chord `ctrl+/`**。
@@ -138,6 +138,7 @@ class KeyChord:
 ```
 CSI Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
 ```
+
 `Vk`=虚拟键码，`Sc`=扫描码，`Uc`=Unicode 字符码点（无则为 0），`Kd`=1 按下/0 抬起，`Cs`=控制键状态（HIGH WORD of dwControlKeyState），`Rc`=重复计数。
 
 ```python
@@ -180,6 +181,7 @@ VK_CODES = {
 flags：1=消歧 2=事件类型 4=备用键 8=全部按键上报 16=关联文本
 yate 选用：`1|8|16 = 25`（与 Textual Linux 一致）；保守模式 `1`
 ```
+
 - `mods-1` 位分解顺序 `shift(1) alt(2) ctrl(4) super(8) hyper(16) meta(32)`（见 `model.py` 常量，避免各处手写）。
 - 带 `text` 时丢弃 shift（与 Textual `_xterm_parser.py:391-395` 的行为一致，防止 `shift+1` 变成 `shift+1` 而非 `!`）。
 
@@ -198,6 +200,7 @@ CANONICAL_ALIASES = {
     "ctrl+@": "ctrl+space",           # 注意：保留 widget 侧的双语义，见主计划 §5
 }
 ```
+
 `keyproto.legacy` 的规则（替代原 `editor_view/keys.py:49-86`，该模块已迁入 `keyproto/legacy.py`）：
 - ctrl + `a-z` → `chr(ord-96)`；ctrl + `[ \ ] ^ _ ? /` → C0；ctrl + 空格 → `\x00`；
 - **ctrl + 数字 → `\x1b[<ord>;5u`**（与 `keymaps/base.py:110-113` 一致，保持绑定表自洽）；

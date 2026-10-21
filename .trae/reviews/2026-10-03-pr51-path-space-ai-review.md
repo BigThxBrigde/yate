@@ -25,7 +25,7 @@
 
   *核对结论（2026-10-03）：失败场景当前不可达——三个命令的 args 唯一来源是
   `Editor.run_command`（[editor.py](../../yate/editor.py) 入口 `text.strip()`
-  + `split(maxsplit=1)` 消耗首个空白 run，args 不携带首尾空白）；属防御性
+  - `split(maxsplit=1)` 消耗首个空白 run，args 不携带首尾空白）；属防御性
   一致性与接口口径统一问题，非行为缺陷。*
 
 ### 处置（2026-10-03 用户决策）

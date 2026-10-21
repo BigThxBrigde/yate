@@ -169,7 +169,7 @@
 
 - `pytest tests/test_screensaver.py tests/test_app_manual.py -q` 连续 10 次全绿；
 - 全量门禁：pyright 零诊断 + `pytest tests/ -q --cov=yate --cov-fail-under=75`
-  + 架构测试 + 冒烟（主代理亲跑）。
+  - 架构测试 + 冒烟（主代理亲跑）。
 
 ### 执行记录（2026-10-09 回填）
 

@@ -43,6 +43,7 @@ Every failure carries a stable ``WIKI-*`` code from
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -221,6 +222,90 @@ def _write_page_text(path: Path, text: str, *, code: Code = Code.WIKI_PAGE_WRITE
         path.write_text(text, encoding="utf-8")
     except OSError as exc:
         raise WikiError(f"cannot write page {path.name}: {exc}", code=code) from exc
+
+
+@functools.cache
+def _get_lint_engine(lang: str):
+    """Return the process-wide cached mdlint engine for *lang*.
+
+    The import is deferred so that wiki runs work in environments without
+    the optional ``pymarkdownlnt`` dev dependency until the first page is
+    actually linted; the return type is inferred as
+    :class:`tools.mdlint.lint.LintEngine` -- a module-level annotation
+    would defeat the lazy import.
+
+    The cache is safe without a lock because every lint call happens on the
+    main thread: the translation workers only run the external command, and
+    the page writes (the only lint sites) happen in ``_prepare_pages`` and in
+    the ``as_completed`` loop.
+    """
+    from tools.mdlint.lint import LintEngine
+
+    return LintEngine(lang)
+
+
+def _lint_page_text(text: str, lang: str, *, label: str) -> str:
+    """Run the mdlint fix pass on *text* and return the cleaned version.
+
+    Remaining violations (not auto-fixable) are logged as warnings capped
+    at five per page; they never abort the wiki run.  An engine that
+    cannot even be constructed (missing dependency, plugin load failure)
+    aborts with ``error[WIKI-0109]`` instead of silently publishing
+    unlinted pages, but a document the linter chokes on publishes as-is:
+    pymarkdown's own assertions fire on a few pathological inputs, and a
+    single odd page must not fail the whole publish.
+    """
+    try:
+        engine = _get_lint_engine(lang)
+    except Exception as exc:
+        # pymarkdownlnt import or plugin loading failed; both are
+        # environment breakages worth a coded abort, not a traceback.
+        raise WikiError(
+            f"markdown lint engine unavailable: {exc}",
+            code=Code.WIKI_LINT_FAILED,
+            hint="install the dev extras (pip install -e .[dev])",
+        ) from exc
+    try:
+        fixed, remaining = engine.fix(text)
+    except Exception as exc:  # noqa: BLE001 - one odd page must not fail the run
+        from tools.mdlint.lint import error_message
+
+        errors.log.warning(
+            "wiki lint: %s could not be linted (%s); published as-is",
+            label,
+            error_message(exc),
+        )
+        return text
+    for violation in remaining[:5]:
+        errors.log.warning(
+            "wiki lint: %s:%d:%d %s %s",
+            label,
+            violation.line,
+            violation.column,
+            violation.rule_id,
+            violation.message,
+        )
+    return fixed
+
+
+def _lint_page_bytes(data: bytes, lang: str, *, label: str) -> bytes:
+    """Decode *data* as UTF-8, lint it, and re-encode.
+
+    Bytes that are not valid UTF-8 are passed through untouched (with a
+    warning): a lossy ``errors="replace"`` round-trip would silently
+    corrupt page content, and linting must never damage it.
+    """
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        errors.log.warning("wiki lint: %s is not UTF-8 (%s); skipped", label, exc)
+        return data
+    return _lint_page_text(text, lang, label=label).encode("utf-8")
+
+
+def reset_lint_engine_cache() -> None:
+    """Forget the cached lint engines (test seam for engine failure paths)."""
+    _get_lint_engine.cache_clear()
 
 
 @dataclass(frozen=True)
@@ -1265,6 +1350,7 @@ def _prepare_pages(
     for page in pages:
         zh_bytes = _read_source_bytes(page.zh_source)
         digest = hashlib.sha256(zh_bytes).hexdigest()
+        zh_bytes = _lint_page_bytes(zh_bytes, "zh", label=page.zh_target)
         _write_page_bytes(target / page.zh_target, zh_bytes)
         en_path = target / page.en_target
         en_bytes: bytes | None = None
@@ -1278,6 +1364,7 @@ def _prepare_pages(
             except OSError:
                 en_bytes = None
         if en_bytes is not None:
+            en_bytes = _lint_page_bytes(en_bytes, "en", label=page.en_target)
             _write_page_bytes(en_path, en_bytes)
             manifest.pop(page.zh_target, None)
             kept += 1
@@ -1444,7 +1531,10 @@ def _translate_pending(
                     else:
                         missing.append(page.en_target)
                     continue
-                _write_page_text(target / page.en_target, outcome.english)
+                _write_page_text(
+                    target / page.en_target,
+                    _lint_page_text(outcome.english, "en", label=page.en_target),
+                )
                 digests[page.zh_target] = outcome.plan.digest
                 translated += 1
             board.batch_finished()
@@ -1564,10 +1654,19 @@ def run(
         print(f"wiki: removed {orphans} orphan page(s) with no source document")
 
     home_zh, sidebar_zh, home_en, sidebar_en = _nav_documents(pages)
-    _write_page_text(target / "Home.md", home_zh)
-    _write_page_text(target / "_Sidebar.md", sidebar_zh)
-    _write_page_text(target / "Home.en.md", home_en)
-    _write_page_text(target / "_Sidebar.en.md", sidebar_en)
+    _write_page_text(
+        target / "Home.md", _lint_page_text(home_zh, "zh", label="Home.md")
+    )
+    _write_page_text(
+        target / "_Sidebar.md", _lint_page_text(sidebar_zh, "zh", label="_Sidebar.md")
+    )
+    _write_page_text(
+        target / "Home.en.md", _lint_page_text(home_en, "en", label="Home.en.md")
+    )
+    _write_page_text(
+        target / "_Sidebar.en.md",
+        _lint_page_text(sidebar_en, "en", label="_Sidebar.en.md"),
+    )
     store_manifest(target, manifest)
 
     print(

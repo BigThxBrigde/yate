@@ -83,14 +83,17 @@ flowchart LR
      （使"钳区域高"与"钳屏高"两种实现**可区分**）；
   3. `keys.py` 尾空行清除。
 - 验收（逐项可复现）：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_terminal_emulator.py -q
-  .venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
   .venv\Scripts\python.exe -c "p='yate/keymaps/keys.py'; t=open(p,encoding='utf-8').read(); print(len(t)-len(t.rstrip(chr(10)))-1)"  # 期望 0
+
   ```
+  
 - 提交（分笔）：`docs(tests): restate the module count with one reproducible convention` /
   `fix(terminal): clamp scroll region count by the region height` /
-  `chore(keymaps): drop the trailing blank lines in keys.py`
+`chore(keymaps): drop the trailing blank lines in keys.py`
 
 ### Step 3 — 全量门禁（主代理亲跑，退出码全 0 才过）
 

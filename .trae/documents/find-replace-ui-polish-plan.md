@@ -63,12 +63,15 @@
   `compose()` 里 `VerticalScroll(id="fr-results-scroll")` 换成 `_ResultsScroll(...)`（id 不变）。
 - 输出：滚动条渲染器与调色和 explorer 完全同源。
 - 验收：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_app_find_replace.py -q
-  ```
+
+```
+  
   探针（发现式，不落盘）：push 屏幕后断言
   `scroller.vertical_scrollbar.renderer is SlimScrollBarRender` 且
-  `scroller.styles.scrollbar_color.hex == theme.active().border`。
+`scroller.styles.scrollbar_color.hex == theme.active().border`。
 
 ### 步骤 2：弹窗布局与输入行轮廓
 
@@ -83,11 +86,13 @@
   - `#fr-options`：`height: 3`、`content-align: center middle`、`padding-left: 1`。
 - 输出：弹窗居中定宽带边框，两个输入框有可见字段轮廓，聚焦态用主色。
 - 验收：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_app_find_replace.py -q
-  ```
+```
+  
   几何探针：100x30 视口下 `#find-replace` 的 `region.width < 100`、
-  `#fr-find.region.height == 3`、面板右缘不越界。
+`#fr-find.region.height == 3`、面板右缘不越界。
 
 ### 步骤 3：结果行视觉（组头 + 计数）
 
@@ -96,11 +101,14 @@
   `theme.accent`）+ 路径；计数改为 `· N` 弱化在 `fg_dim`；非首个文件组前空一行。
 - 输出：结果区按文件分组更易扫读，与 explorer 的文件图标语言一致。
 - 验收：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_app_find_replace.py -q
-  .venv\Scripts\python.exe -m pyright yate/editor_view/find_replace.py tests/test_app_find_replace.py
+.venv\Scripts\python.exe -m pyright yate/editor_view/find_replace.py tests/test_app_find_replace.py
+
   ```
-  既有断言（`"alpha.txt" in plain`、`"1: "`、`"> 3: "`）必须仍成立。
+  
+既有断言（`"alpha.txt" in plain`、`"1: "`、`"> 3: "`）必须仍成立。
 
 ### 步骤 4：页脚键位提示
 
@@ -114,20 +122,22 @@
 - 新增 1 条用例（`tests/test_app_find_replace.py`）：
   `test_results_scroll_aligns_with_explorer_scrollbar` —— 渲染器类型 + 调色同源断言。
 - 全量门禁（主代理亲自跑）：
-  ```powershell
+  
+```powershell
   .venv\Scripts\python.exe -m pyright yate/ tests/ tools/
   .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
   .venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
   ```
+  
 - 回填本文件的实测前后数字与偏离记录，按 `git-commit-message.md` 提交
-  （`feat(editor_view): polish the project find & replace overlay`），只提交不推送。
+（`feat(editor_view): polish the project find & replace overlay`），只提交不推送。
 
 ## 五、风险与回滚
 
 | 风险 | 应对 |
 |---|---|
 | `height: auto` 面板 + `height: 1fr` 滚动区在 `max-height: 90%` 下的高度结算变化，可能影响 `test_results_pane_scrolls_to_keep_cursor_visible` | 步骤 2 后用 45 条命中的几何探针实测 `scroll_offset.y > 0` 与面板不越界；异常则回退为 `max-height: 100%` |
-| 组头加图标后，既有 `_results_plain` 子串断言误伤 | 断言只依赖 `alpha.txt` / `1: ` / `> 3: ` 子串，图标是前缀，不影响；全量跑一遍确认 |
+| 组头加图标后，既有 `_results_plain` 子串断言误伤 | 断言只依赖 `alpha.txt` / `1:` / `> 3:` 子串，图标是前缀，不影响；全量跑一遍确认 |
 | 主题切换时滚动条不重绘 | 步骤 1 已 attch `theme.attach`，用切主题探针验证 `scrollbar_color` 随 `theme.border` 变化 |
 | 回滚路径 | `git checkout -- yate/editor_view/find_replace.py yate/resources/find-replace-screen.tcss tests/test_app_find_replace.py` 单点回退，无数据/接口迁移 |
 

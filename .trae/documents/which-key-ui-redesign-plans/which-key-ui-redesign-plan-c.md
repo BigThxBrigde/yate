@@ -46,22 +46,22 @@ wave-2（串行，依赖 plan-a 的 `config.which_key` + `KNOWN_OPTIONS` /
 2. `WhichKeyFlows` 增 `clear()` 公共方法（plan-a 在 `_apply_which_key` 中
    调用 `editor.whichkey.clear()`；语义等同 `panel.clear()`，让 L4 接入
    干净）。
-4. `Editor._build_key_ui` 接线
+3. `Editor._build_key_ui` 接线
    `WhichKeyFlows(..., which_key_enabled=lambda: ed.config.which_key)`，
    并按既有 `OverlayFlows` 形态把 `config` 形参加进签名（与
    `overlay_flows.py` 同风格）。
-5. 双语手册
+4. 双语手册
    [yate/docs/which-key.{en,zh}.md](../../yate/docs/which-key.en.md) 同步：
    - §1 第一段：「at-a-glance keymap reference」、「sits at the bottom
      of the window, directly above the status bar」改为「floats on the
      right edge of the editor column, rounded border with a theme-tinted
      border title carrying the current chord or keymap name」；
    - §4 「Limitations」末条删除（plan-a 已落地 yaterc 选项）。
-6. CHANGELOG 追加条目（中英各一行，紧邻最近 2026-10-19 条目之后）：
+5. CHANGELOG 追加条目（中英各一行，紧邻最近 2026-10-19 条目之后）：
    `- show the which-key panel as a right-edge floating box (rounded
       border, themed title) and add a \`which_key\` yaterc master switch
       ([commit])`。
-7. 全量门禁：pyright / pytest / 架构测试 / textual-pilot 冒烟，复绿。
+6. 全量门禁：pyright / pytest / 架构测试 / textual-pilot 冒烟，复绿。
 
 ## 非目标
 

@@ -26,10 +26,13 @@
 1. `git mv` 逐项迁移（保留历史）；
 2. 更新 `tests/test_keyproto.py:117` 注释路径；
 3. 全仓 grep 旧路径确认零残留：
+  
    ```powershell
-   Select-String -Path **\*.md,**\*.py -Pattern "fancy-sym-plans/roster.svg","keybinding-fix-wt-plans/pb6_real_input_harness","keybinding-fix-wt-plans/verify_matrix","keybinding-fix-wt-plans/win32im_probe"
+Select-String -Path **\*.md,**\*.py -Pattern "fancy-sym-plans/roster.svg","keybinding-fix-wt-plans/pb6_real_input_harness","keybinding-fix-wt-plans/verify_matrix","keybinding-fix-wt-plans/win32im_probe"
+
    ```
-   （历史计划文档中提及这些脚本**文件名本身**的叙述可保留；仅当前路径引用必须迁移。）
+   
+（历史计划文档中提及这些脚本**文件名本身**的叙述可保留；仅当前路径引用必须迁移。）
 4. 在 `.trae/assets/` 不需要 README（目录自明）；`tools/probes/` 三个文件保留原样不改造。
 
 ## 四、验证方案

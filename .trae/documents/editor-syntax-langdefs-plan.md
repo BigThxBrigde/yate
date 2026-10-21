@@ -172,6 +172,7 @@ flowchart TD
 **输入**：§一取证 1–3、6；§四.D/E 决策。
 
 **改动 1 — git mv**：
+
 ```
 git mv yate/editor_syntax/regex_langdefs.py yate/editor_syntax/langdefs.py
 ```
@@ -201,9 +202,11 @@ git mv yate/editor_syntax/regex_langdefs.py yate/editor_syntax/langdefs.py
 **输出**：依赖图完成 §五"迁移后"形态；此时测试未同步，pytest 必红（`regex_backend._LANGUAGES` 等属性访问 AttributeError）——**预期态，不入库**。
 
 **验收命令**（wave-1 出口判据）：
+
 ```
 .venv/Scripts/python.exe -m pyright yate/ tests/ tools/
 ```
+
 通过判定：退出码 0，零诊断。（pyright 对 re-export 删除后 regex_backend 只剩自用导入、包根与 ts_backend 指向 langdefs 的类型一致性给出静态证明；tests/ 仍引用 `regex_backend._LANGUAGES` 会在此暴露为诊断，属预期，wave-2 消除。）
 
 ### wave-2：测试绑定同步（3 个测试文件，约 30 处前缀改写）
@@ -228,9 +231,11 @@ git mv yate/editor_syntax/regex_langdefs.py yate/editor_syntax/langdefs.py
 **输出**：全部测试绑定指向真身模块。
 
 **验收命令**（wave-2 出口判据）：
+
 ```
 .venv/Scripts/python.exe -m pytest tests/ -q
 ```
+
 通过判定：退出码 0，全绿（含既有 test_highlight / test_ts_backend / test_extension_examples / test_syntax_engine 全部行为用例——本波是"迁移零行为变化"的行为学证明）。
 
 ### wave-3：架构守卫 + 规则文档同步 + 全量门禁
@@ -246,12 +251,14 @@ git mv yate/editor_syntax/regex_langdefs.py yate/editor_syntax/langdefs.py
 **输出**：守卫固化 + 规则与代码一致。
 
 **验收命令**（wave-3 = 收尾全量门禁，plan-before-execute §二.5）：
+
 ```
 .venv/Scripts/python.exe -m pyright yate/ tests/ tools/
 .venv/Scripts/python.exe -m pytest tests/test_architecture.py -q
 .venv/Scripts/python.exe -m pytest tests/ -q
 .venv/Scripts/python.exe -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75
 ```
+
 通过判定：四条命令退出码全 0；架构测试 `28 passed`；覆盖率 ≥ 75。
 
 **提交**：三波作为同一提交落库（提交信息建议 `refactor(editor-syntax): lift the language registry to package-top langdefs`）；提交后按需运行 `python -m tools.changelog` 走生成流程（§四.E）。

@@ -58,13 +58,13 @@
 
 `tests/test_keymap_set.py` 新增：
 
-2. `test_keymap_remove_binding_roundtrip_and_missing_key`——arrange: `Keymap()` 子类实例 `add_binding("<ctrl-j>", "some.action")`；act: `remove_binding("<ctrl-j>")`；assert: `lookup(...)` 归一化键为 None、返回 True；再 remove 返回 False（未归一化别名键传入也按 raw 匹配）。
+1. `test_keymap_remove_binding_roundtrip_and_missing_key`——arrange: `Keymap()` 子类实例 `add_binding("<ctrl-j>", "some.action")`；act: `remove_binding("<ctrl-j>")`；assert: `lookup(...)` 归一化键为 None、返回 True；再 remove 返回 False（未归一化别名键传入也按 raw 匹配）。
 
 `tests/test_extensions.py` 新增（回滚三态）：
 
-3. `test_failed_setup_rolls_back_new_registrations`——arrange: 写临时扩展文件，setup 先 `api.register_action("x", ...)`、`api.command("y")(fn)`、`api.bind_key("<ctrl-u>", ...)`，然后 `raise RuntimeError`；act: `loader.load_file(path)`；assert: `record.error` 非 None；`actions.get("x") is None`、`commands.get("y") is None`、两个 keymap 的 `lookup` 均为 None；`teardown_all()` 不调用该扩展（teardown 未捕获）。
-4. `test_failed_setup_restores_overridden_builtin_registration`——arrange: 先经同一 API 注册 action "dup"（充当"内建"），再加载第二个扩展 setup 内重新 `register_action("dup", ...)` 后 raise；act: load_file；assert: `actions.get("dup").func` 恢复为第一个函数对象（快照-恢复语义，覆盖场景不留缺口）。
-5. `test_successful_setup_keeps_registrations`——arrange: setup 注册后正常返回；act: load_file；assert: 注册全部存活且 record.error is None（正常流，防回滚误伤）。
+1. `test_failed_setup_rolls_back_new_registrations`——arrange: 写临时扩展文件，setup 先 `api.register_action("x", ...)`、`api.command("y")(fn)`、`api.bind_key("<ctrl-u>", ...)`，然后 `raise RuntimeError`；act: `loader.load_file(path)`；assert: `record.error` 非 None；`actions.get("x") is None`、`commands.get("y") is None`、两个 keymap 的 `lookup` 均为 None；`teardown_all()` 不调用该扩展（teardown 未捕获）。
+2. `test_failed_setup_restores_overridden_builtin_registration`——arrange: 先经同一 API 注册 action "dup"（充当"内建"），再加载第二个扩展 setup 内重新 `register_action("dup", ...)` 后 raise；act: load_file；assert: `actions.get("dup").func` 恢复为第一个函数对象（快照-恢复语义，覆盖场景不留缺口）。
+3. `test_successful_setup_keeps_registrations`——arrange: setup 注册后正常返回；act: load_file；assert: 注册全部存活且 record.error is None（正常流，防回滚误伤）。
 
 验证命令（退出码 0）：
 

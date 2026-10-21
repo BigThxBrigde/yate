@@ -41,6 +41,7 @@
 **根因：** `_wq` 使用 `quit(force=True)` 绕过了 `quit()` 内置的多 tab dirty 拦截。
 
 控制流（当前）：
+
 ```
 :wq → save_document() → 当前 doc 变干净
     → doc.modified == False → guard 通过
@@ -49,6 +50,7 @@
 ```
 
 控制流（vim `:wq` 语义）：
+
 ```
 :wq → save 当前 buffer
     → 如果其他 buffer dirty → 报 E37 "No write since last change" → 不退出
@@ -72,6 +74,7 @@
 **位置：** line 61
 
 **改动：**
+
 ```python
 # Before:
 app.quit(force=True)
@@ -87,6 +90,7 @@ app.quit()
 **文件：** `yate/app.py`
 
 **位置 A：** `save_document()` line 543
+
 ```python
 # Before:
 except OSError as exc:
@@ -96,6 +100,7 @@ except (OSError, UnicodeError) as exc:
 ```
 
 **位置 B：** `_do_save_as()` line 565
+
 ```python
 # Before:
 except OSError as exc:
@@ -257,4 +262,3 @@ def test_wq_does_not_crash_on_unicode_encode_error(tmp_path: Path) -> None:
 
 **总改动量：** 生产代码 3 行；测试 ~130 行（新增 2 用例 + 2 处断言微调）
 ---
-

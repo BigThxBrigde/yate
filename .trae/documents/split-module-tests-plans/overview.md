@@ -34,7 +34,7 @@
   不新增）；SVG 行提取 `snapshot_svg`（Textual 8.2.8 格式锚定）。
 - scenario 注册表：`tools/smoke_test/scenarios/__init__.py` 拼接 18 个组文件的
   `SCENARIOS` 列表；scenario 形态 `async def run(tmp: Path) -> ScenarioResult`
-  + `Scenario(name, run, tags, slow=)`；助手在 `scenarios/_base.py`
+  - `Scenario(name, run, tags, slow=)`；助手在 `scenarios/_base.py`
   （`type_text` / `run_command`（F5 进命令行）/ `goto` / `wait_until` /
   `message_text`）。
 - 基线：`tools/smoke_test/smoke_baselines/<scenario>.json`，由

@@ -31,9 +31,9 @@
 
 **测试文件**（同样独占，防止与 `plan_d` 争用 `tests/test_architecture.py`）：
 
-5. `tests/test_manual.py`（**新建**）
-6. `tests/test_lsp.py`（既有，追加用例）
-7. `tests/test_user_setup.py`（既有，追加用例）
+1. `tests/test_manual.py`（**新建**）
+2. `tests/test_lsp.py`（既有，追加用例）
+3. `tests/test_user_setup.py`（既有，追加用例）
 
 **不要动** `yate/editor_view/find_replace.py` 与 `yate/editor_view/diffview.py`
 （两者的 `on_unmount` 已正确，**只作为对照基准引用，不得修改**）。

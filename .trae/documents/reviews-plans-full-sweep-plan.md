@@ -173,7 +173,7 @@ W1 与 W2 文件零交集可并行；W3 doc-only 可并行。
   0 informations`；pytest 全量 **1523 passed / 7 skipped**（exit 0）；
   架构守护 **22 passed**；coverage **90.87%**（≥ 75% 门槛达标）；
   textual-pilot-smoke 冒烟 **PASS**——.py 行尾编辑（`x = 42`→`x = 423`、
-  注释行追加 ` ok`）在 debounce 窗口内 SVG 帧中新字符即携带 token 色
+  注释行追加 `ok`）在 debounce 窗口内 SVG 帧中新字符即携带 token 色
   （数字 `#fab387` / 注释 `#6c7086`，与基线 token 色一致，无默认前景色
   脱色帧；临时脚本与截图已清理）；`tools.smoke_test run` **89/89 场景、
   932/932 checks、exit 0**。

@@ -8,7 +8,7 @@ Gitee issue [IKIN1Z](https://gitee.com/jermaine/yate/issues/IKIN1Z) 要求：按
 
 分支：`enh/logging-for-layers`（worktree `<worktree>`）。该分支同时承载 keybinding 修复工作（Phase A/B，见 `.trae` 下 keybinding 状态文档），**本计划只处理日志增强，不改动 keybinding 相关代码路径**。
 
-### 现状盘点（merge master 后实测）
+## 现状盘点（merge master 后实测）
 
 全仓 37 条 `log.*` 调用，分布 9 个文件：**（2026-09-28 核对：以上为计划起草时的快照；
 本计划实施后现约 93 条 / 25 文件，app.py 等"零日志"缺口已补齐，详见 §八 校准记录。）**
@@ -45,9 +45,9 @@ Gitee issue [IKIN1Z](https://gitee.com/jermaine/yate/issues/IKIN1Z) 要求：按
 | `warning` | 可恢复失败、降级、跳过 | "hover ignored: server not ready" |
 | `error`/`exception` | 异常路径（沿用现状，已有覆盖，不新增级别滥用） | — |
 
-4. **热路径纪律**：`render()`、每帧刷新、每次按键的全量记录一律禁止；按键链路只记**决策点**（模式切换、keymap 未命中已由 `editor.py:699` 覆盖、补全弹窗开/关）；LSP 高频通知（diagnostics publish）只记摘要（计数/版本），不记全文。
-5. **依赖方向**：`yate/logs.py` 是 L0 叶子，L2/L3/L4 向下 import 合规，不触碰 R2/R3/R4/R11；不新增 Protocol、`TYPE_CHECKING`、`Any`。
-6. **消息风格**：与 `cli.py` / `editor.py` 既有风格一致——小写英文短句开头 + 关键参数（logger name 已携带模块路径，消息内不再重复模块名；跨层场景用 `from=`/`to=` 表述时以模块名为值）。
+1. **热路径纪律**：`render()`、每帧刷新、每次按键的全量记录一律禁止；按键链路只记**决策点**（模式切换、keymap 未命中已由 `editor.py:699` 覆盖、补全弹窗开/关）；LSP 高频通知（diagnostics publish）只记摘要（计数/版本），不记全文。
+2. **依赖方向**：`yate/logs.py` 是 L0 叶子，L2/L3/L4 向下 import 合规，不触碰 R2/R3/R4/R11；不新增 Protocol、`TYPE_CHECKING`、`Any`。
+3. **消息风格**：与 `cli.py` / `editor.py` 既有风格一致——小写英文短句开头 + 关键参数（logger name 已携带模块路径，消息内不再重复模块名；跨层场景用 `from=`/`to=` 表述时以模块名为值）。
 
 ## 四、架构设计
 

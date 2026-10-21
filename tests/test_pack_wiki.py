@@ -633,6 +633,9 @@ def test_keyboard_interrupt_maps_to_exit_130(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(wiki, "translate_via_cmd", interrupted)
+    # The CLI derives the checkout itself; point it at the fixture repo so the
+    # test neither reads nor lints this worktree's real documents.
+    monkeypatch.setattr("tools._util.repo_root", lambda: repo)
     argv = [
         "wiki",
         "--target",

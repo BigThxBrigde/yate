@@ -141,10 +141,12 @@ flowchart LR
 
 - 输入：新建 worktree（无 `.venv`）。
 - 操作：
-  ```powershell
+  
+```powershell
   python -m venv .venv
   .venv\Scripts\python.exe -m pip install -e ".[dev,ts]"
   ```
+
 - 输出/验收：`.venv\Scripts\python.exe -c "import textual, pytest, pyright"` 无报错。
 
 ### Step 1 — 新建 `yate/resources/app.tcss`　规模 S
@@ -180,16 +182,19 @@ flowchart LR
 ### Step 5 — 全量门禁　规模 M
 
 - 操作与验收（任一失败即回改，不得绕过）：
+
   ```powershell
   .venv\Scripts\python.exe -m pyright yate tests tools     # 零诊断（硬门槛）
   .venv\Scripts\python.exe -m pytest tests -q              # 全绿，含 test_architecture 13 例
   ```
+
   另用 textual-pilot-smoke 做一次 headless 冒烟（启动 YateApp、断言关键界面文本/SVG 输出），
   确认布局规则生效如常（`#sidebar` 宽度、`#bottom` 高度等由 CSS 决定的可见特征）。
 
 ### Step 6 — 打包验证　规模 M
 
 - 操作：
+
   ```powershell
   # wheel：确认 tcss 进包
   .venv\Scripts\python.exe -m pip wheel --no-deps -w build\wheeltest .
@@ -199,6 +204,7 @@ flowchart LR
   .\pack\pack.ps1 -SkipChangelog
   .\dist\yate\yate.exe --version
   ```
+
 - 验收：wheel 断言通过；`yate.exe --version` 打印版本且退出码 0；
   `pack\yate.spec` / `pack\yate-onefile.spec` **零 diff**（证明「零配置复用」成立）。
 - 可选加强：`.\pack\pack.ps1 -OneFile -SkipChangelog` 后对 `dist\yate.exe` 重复 `--version` 冒烟。

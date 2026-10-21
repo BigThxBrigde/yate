@@ -145,7 +145,7 @@
 - **偏离计划 3 条**（均已实测核实）：
   1. `code-review-fix-plans/` 原本就没有总纲 README，overview 改名实际 5 个而非 6 个；
   2. 调研漏网 `code-review-fix-plans/P1_subplans/`、`/P2_subplans/`（各 7 个 SP 子计划
-     + 1 个总纲），第二轮补充纳入，命名 `code_review_fix_p1|p2_<topic>_plan_<a-g>.md`；
+     - 1 个总纲），第二轮补充纳入，命名 `code_review_fix_p1|p2_<topic>_plan_<a-g>.md`；
   3. 顺手修复 8 条历史坏链（`../../issues/review.md` 等指向已拆分 review 的相对路径，
      早前按 `.trae/issues/` 字面量 grep 漏掉的形态）→ 定向到拆分后文件
      （`2026-09-16-full-review.md` / `2026-09-27-ui-refine.md` / `reviews/README.md`）；

@@ -18,6 +18,7 @@ The completion popup staleness check in `yate/app_features/completion.py` only c
 ### File: `yate/app_features/completion.py`
 
 #### 1. Staleness check — Buffer-based path (lines 117–123)
+
 ```python
 if (
     not app.mounted
@@ -27,9 +28,11 @@ if (
 ):
     return
 ```
+
 Only row is compared. Column changes on the same row pass through.
 
 #### 2. Staleness check — LSP path (lines 156–163)
+
 ```python
 if (
     not app.mounted
@@ -39,9 +42,11 @@ if (
 ):
     return
 ```
+
 Same deficiency — only row compared after `await app.lsp.request_completion(...)`.
 
 #### 3. Capture at start of `_worker` (lines 98–104)
+
 ```python
 row, col = buf.row, buf.col
 line = buf.lines[row] if row < buf.line_count else ""
@@ -51,9 +56,11 @@ while i > 0 and (line[i - 1].isalnum() or line[i - 1] == "_"):
     i -= 1
 prefix = line[i:col]
 ```
+
 Both `col` and `prefix` are captured and available for comparison — they just aren't used in the stale checks.
 
 #### 4. Accept method — existing guards (lines 202–219)
+
 ```python
 row, col = buf.row, buf.col
 if item.has_range():
@@ -74,6 +81,7 @@ else:
     start, end = (row, i), (row, col)
 buf.replace_range(start, end, item.insert_text)
 ```
+
 The `accept` method already has a defensive range check, but it still permits replacement when the cursor is *forward* of the original range (`if row == r1 and col >= c1: c1 = col` extends the replacement forward). This is safe for buffer-based completions but not sufficient to prevent a stale item from corrupting text when the row hasn't changed but the column has moved past what the completion was for.
 
 ### Root Cause
@@ -91,6 +99,7 @@ The `_worker` coroutine captures `row` and `col` (line 98) and `prefix` (line 10
 **Location:** lines 117–123  
 **What:** Add `buf.col != col` to the guard and also verify the current prefix still matches the originally captured prefix.  
 **How:** Replace the existing condition with:
+
 ```python
 # Recompute prefix at current cursor position
 cur_line = buf.lines[row] if row < buf.line_count else ""
@@ -110,6 +119,7 @@ if (
 ):
     return
 ```
+
 **Why:** Comparing `col` is a cheap and direct guard. Comparing the prefix text is more robust — it catches cases where the user *deletes* characters, moves the cursor within the same prefix, or pastes something. It also guards against silent buffer edits that shift the row length without changing the row number.
 
 ### Change 2: Strengthen staleness check in LSP completion path
@@ -123,6 +133,7 @@ if (
 **File:** `yate/app_features/completion.py`  
 **What:** Extract the "compute prefix at position" logic into a small helper method to avoid duplicating it at both check sites.  
 **How:** Add a private helper on `CompletionController`:
+
 ```python
 def _current_prefix(self, buf: "TextBuffer", row: int) -> tuple[str, int]:
     line = buf.lines[row] if row < buf.line_count else ""
@@ -132,7 +143,9 @@ def _current_prefix(self, buf: "TextBuffer", row: int) -> tuple[str, int]:
         i -= 1
     return line[i:col], col
 ```
+
 Then both check sites become:
+
 ```python
 cur_prefix, cur_col = self._current_prefix(buf, row)
 if (
@@ -145,6 +158,7 @@ if (
 ):
     return
 ```
+
 **Why:** DRY — the prefix-recomputation logic mirrors what `_worker` already does at lines 99–104 and what `accept` does at lines 216–218. A single helper reduces drift risk.
 
 ### Change 4: Make `accept` refuse clearly stale completions
@@ -152,6 +166,7 @@ if (
 **Location:** `accept()` method, after `popup.close()` and before `buf.replace_range(...)`  
 **What:** After closing the popup, capture the current row/col *again* (they may have moved between popup accept and the replace) and verify they are still on the expected row before doing the range replace.  
 **How:** Insert a guard:
+
 ```python
 # Popup-close may have been followed by another keystroke; re-capture.
 cur_row, cur_col = buf.row, buf.col
@@ -162,6 +177,7 @@ if item.has_range():
         return  # cursor left the row the completion was for
     ...
 ```
+
 **Why:** Closing the popup consumes a keystroke (Enter/Tab), but the editor might have processed additional keys between the popup being selected and `accept()` being called. A final row check prevents cross-row corruption.
 
 ## Assumptions & Decisions
@@ -239,17 +255,17 @@ typing could not extend the prefix and the guarded re-query in
 `after_editor_key()` was unreachable (see `../issues/review.md`, "completion
 popup intercepts all keys").
 
-* **Source fix** — `yate/editor.py::handle_key` now consumes only
+- **Source fix** — `yate/editor.py::handle_key` now consumes only
   `tab` / `enter` / `up` / `down` / `escape`; every other key falls through to
   the normal dispatch (`event_to_raw` → `handle_raw_key` →
   `CompletionController.after_editor_key`), which re-queries with the new
   prefix.  Global chords (`Ctrl+S`, `Ctrl+Z`, `Ctrl+P`, ...) work again while
   the popup is up.
-* **Guards** — `tests/test_app_textual.py::test_completion_popup_keeps_typing_and_filters`
+- **Guards** — `tests/test_app_textual.py::test_completion_popup_keeps_typing_and_filters`
   (typing `p` / `h` after `Ctrl+Space` extends the buffer and keeps filtering)
   plus the smoke scenario `regress_completion_staleness`, which now asserts the
   popup really opened (`popup_was_open`) instead of passing vacuously.
-* **Attribution** (re-verified 2026-09-23) — the `return True` came in with
+- **Attribution** (re-verified 2026-09-23) — the `return True` came in with
   `e70dd15` (2026-09-12), but back then `EditorView.on_key` did **not**
   `stop()` unrecognised keys, so they bubbled up to `YateApp.on_key`'s
   fallback routing and still reached the buffer: running the same probe on

@@ -55,6 +55,7 @@ dev = [
     "tree-sitter-markdown>=0.5",
     "tree-sitter-zig>=1.1",
     "lupa>=2.0",
+    "pymarkdownlnt>=0.9.41,<1.0",
 ]
 # Lua extension support (optional): the Python-Lua bridge for `*.lua`
 # extension scripts. Without it yate still runs and every `*.py` extension

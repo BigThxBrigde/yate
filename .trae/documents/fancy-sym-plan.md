@@ -27,7 +27,7 @@
    **全部** InputEvent（Key + Mouse，含已被 widget 消费的），是唯一可靠的
    空闲探针点——YateApp 覆写 `on_event`：poke 后 `await super().on_event()`。
 4. **推送路径对齐存量模式**：L3 已有 `Editor.push_overlay`（editor.py:1390，
-   自带消息行复位）；toggle 动作走 `editor.push_overlay(...)` + 
+   自带消息行复位）；toggle 动作走 `editor.push_overlay(...)` +
    `isinstance(self.app.screen, ScreensaverScreen)` 判定 pop；空闲自动触发
    复用 `self.editor.execute_action("toggle_screensaver")`（与 app.py:244
    `action_quit` 同款注册表分发模式，天然防重入）。

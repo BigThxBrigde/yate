@@ -57,12 +57,14 @@ import re
    改为
    `"""Keymap infrastructure: bindings and dispatch context (L1).`
    并在 docstring 末尾（`"""` 之前）补一段（英文）：
+
    ```
    Key *notation* moved to the L0 leaf :mod:`yate.keymaps.keys` in the
    2026-10-17 layer split; the four notation names are re-exported below so
    the historical import surface keeps working.  L0 code (``keyproto/*``)
    must import them from :mod:`yate.keymaps.keys` directly.
    ```
+
 2. 删除改动 1 已搬走的记法块（含横幅注释）。
 3. import 区调整：
    - 删除 `import re`（记法移走后本文件不再使用 `re`；已实测 `re.` 仅出现在 `key_name` 内）；
@@ -81,10 +83,13 @@ import re
 ```python
 from yate.keymaps.base import SPECIAL_KEYS
 ```
+
 →
+
 ```python
 from yate.keymaps.keys import SPECIAL_KEYS
 ```
+
 （该文件其余内容一律不动；这是切分后 L0 侧唯一需要改的引用。）
 
 ### 改动 4 —— 不改动项（明确清单，避免顺手重构）

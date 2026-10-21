@@ -18,21 +18,27 @@
 ## 三、执行步骤
 
 1. 列出缺失清单：
+
    ```powershell
    .venv\Scripts\python.exe -m tools.changelog check
    ```
+
    记录输出 `missing zh: <hash, ...>` 与 `stats` 行的 missing 计数（执行前基线）。
 2. 对每个缺失 short_sha，从 `CHANGELOG.md` 对应条目取英文 summary，翻译为简体中文后 upsert：
-   ```powershell
+  
+```powershell
    .venv\Scripts\python.exe -m tools.changelog zh-commit <short_sha> "<中文 summary>"
    ```
-   术语以 `tools/changelog/zh_overrides.json` 存量条目为准（扩展/键映射/工作区/屏保精灵/语法高亮等）；`docs:` 类提交的 summary 保持简洁动宾式，与相邻已译条目风格一致。
+  
+术语以 `tools/changelog/zh_overrides.json` 存量条目为准（扩展/键映射/工作区/屏保精灵/语法高亮等）；`docs:` 类提交的 summary 保持简洁动宾式，与相邻已译条目风格一致。
 3. 全部 upsert 后刷新双语文件并复核：
+  
    ```powershell
-   .venv\Scripts\python.exe -m tools.changelog generate
+.venv\Scripts\python.exe -m tools.changelog generate
    .venv\Scripts\python.exe -m tools.changelog check
    ```
-   `check` 输出 `missing zh translation(s)` 必须为 **0**；`CHANGELOG.zh.md` 中 `[缺中文]` 零命中。
+  
+`check` 输出 `missing zh translation(s)` 必须为 **0**；`CHANGELOG.zh.md` 中 `[缺中文]` 零命中。
 4. git diff 自查：`CHANGELOG.md`（英文侧）不得有任何变化（overrides 只影响 zh 渲染）；若 en 侧出现 diff，说明 generate 引入了意外行为，停止并上报。
 
 ## 四、验证方案

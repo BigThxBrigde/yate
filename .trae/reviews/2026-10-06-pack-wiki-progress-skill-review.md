@@ -202,4 +202,3 @@ R-17 容器语义、R-21 AST 守护（把 `_emit_mode = "collect"` 移回保护�
   属既有约定（R12 只约束 `yate/`）。
 - 已知配置摩擦（非本轮引入）：`pyproject.toml` 的 `addopts = "-q"` 与命令行
   `-q` 叠加会吞掉 pytest 汇总行，评审记录中的数字需用 `-o addopts=` 才能读出。
-

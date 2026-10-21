@@ -182,13 +182,16 @@ def report(exc: BaseException, *, debug: bool = False) -> None:
   `except errors.PackError` + `except OSError`（映射到 `Code.ICON_BUILD` /
   `Code.ROSTERS_RENDER`），统一走 `errors.report()`。
 - `main()`：
+  
   ```python
   except KeyboardInterrupt: ... return 130
-  except errors.PackError as exc: errors.report(exc, debug=debug); return 1
+except errors.PackError as exc: errors.report(exc, debug=debug); return 1
   except Exception as exc:  # noqa: BLE001 - CLI 边界兜底，绝不吐 traceback
       errors.report(exc, debug=debug); return 1
+
   ```
-  `debug` 从 `getattr(args, "debug", False)` 取（顶层没有该属性时为 False）。
+  
+`debug` 从 `getattr(args, "debug", False)` 取（顶层没有该属性时为 False）。
 
 ### 4.4 测试（新增两个文件，文件边界互斥）
 

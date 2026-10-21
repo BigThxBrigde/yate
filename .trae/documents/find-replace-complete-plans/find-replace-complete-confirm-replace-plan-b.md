@@ -32,7 +32,7 @@
 "replace_confirm": ("Replace:", "accent2"),
 ```
 
-2. `PromptBar.__init__`（L199-225）回调字段区追加：
+1. `PromptBar.__init__`（L199-225）回调字段区追加：
 
 ```python
 #: Single-key confirm hook (confirm-style prompts); receives the raw
@@ -40,13 +40,13 @@
 self._on_key: Callable[[str], bool] | None = None
 ```
 
-3. `activate`（L267-305）签名追加关键字参数
+1. `activate`（L267-305）签名追加关键字参数
    `on_key: Callable[[str], bool] | None = None`，函数体在
    `self._on_changed = on_changed` 旁加 `self._on_key = on_key`。
    docstring 补一句：*"on_key* (confirm prompts) intercepts every key
    before the Input sees it; returning True consumes the key."*
 
-4. `CommandInput.on_key`（L153-188）**方法体最前面**插入钩子（先于
+2. `CommandInput.on_key`（L153-188）**方法体最前面**插入钩子（先于
    escape/ctrl+c 分支，使 confirm 态能拦截 escape）：
 
 ```python
@@ -60,7 +60,7 @@ if hook is not None and hook(event.key):
    未传 `on_key`（既有全部 prompt 模式）时钩子为 None，行为零变化（R10：
    消费才 stop，不无条件拦截）。
 
-5. 清理点：`_show_message`（L317-326）与 `cancel`（L344-349）中与
+1. 清理点：`_show_message`（L317-326）与 `cancel`（L344-349）中与
    `self._on_submit = None` 并列处加 `self._on_key = None`（消息/退出
    即卸钩子，防悬挂回调）。
 
@@ -93,7 +93,7 @@ def _do_replace(self, find: str, replacement: str) -> None:
    `self._replacement: str = ""`、`self._confirm_total: int = 0`、
    `self._confirm_done: int = 0`。
 
-2. 新增私有方法（语义归 flow，组件不知 y/n/a/q 含义）：
+1. 新增私有方法（语义归 flow，组件不知 y/n/a/q 含义）：
 
 ```python
 def _confirm_step(self, key: str) -> bool:

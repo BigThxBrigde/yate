@@ -79,7 +79,7 @@ class SetOption:
 (Get-Content yate\config.py).Count; (Get-Content yate\yaterc.py).Count; (Get-Content yate\editor.py).Count
 ```
 
-手工验证：启动 yate 执行 `:set`（无值）看 usage 行、`:set terminal_height=41` 与 `=12` 两态消息、`ctrl+p` 补全 `:set ` 列出全部选项名。
+手工验证：启动 yate 执行 `:set`（无值）看 usage 行、`:set terminal_height=41` 与 `=12` 两态消息、`ctrl+p` 补全 `:set` 列出全部选项名。
 
 ## 五、风险与回滚
 

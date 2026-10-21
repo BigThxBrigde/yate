@@ -31,6 +31,7 @@
 ### 3.2 A4+A14——.github/workflows/test.yml
 
 1. `matrix` 改为（3.13 只在 Linux 腿，控制成本）：
+
    ```yaml
    strategy:
      fail-fast: false
@@ -41,9 +42,11 @@
          - os: ubuntu-latest
            python-version: '3.13'
    ```
+
    `Set up Python` 步骤 `python-version: ${{ matrix.python-version }}`；job name 相应带版本。
 2. 新增独立 `lint` job（与 `test` 并行）：
-   ```yaml
+  
+```yaml
    lint:
      name: pyright (strict)
      runs-on: ubuntu-latest
@@ -58,7 +61,8 @@
        - run: pyright --version          # 预热 npm 侧二进制
        - run: pyright                    # pyproject [tool.pyright] strict，零诊断
    ```
-   （lint job 不跑 changelog gate——该门禁保留在 test job 原位。）
+  
+（lint job 不跑 changelog gate——该门禁保留在 test job 原位。）
 3. `Changelog gate` 步骤命令改为 `python -m tools.changelog check --require-zh`（test job 两腿都跑；stdlib-only，无额外安装）。
 
 ### 3.3 .workflow/test.yml（Gitee）

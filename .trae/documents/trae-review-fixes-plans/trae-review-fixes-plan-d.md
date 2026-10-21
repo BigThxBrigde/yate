@@ -81,7 +81,7 @@ MAX_PAYLOAD_BYTES: Final[int] = 128 * 1024 * 1024
 2. `engine.py` 新增 `unprefer_regex(*filetypes: str) -> None`（`_REGEX_PINNED.discard`）；
 3. `HighlightExtensionBridge` 构造改为 `__init__(self, record_undo: RollbackHook)`，
    `register` 记录 undo：恢复先前 spec（有则 `register_language(prev, *keys)`，无则 `drop_language(*keys)`）
-   + `unprefer_regex(*keys)`；
+   - `unprefer_regex(*keys)`；
 4. `api.py:128` 构造处传 `self._record_undo`；
 5. `SpriteExtensionBridge.register` 与 `LspExtensionBridge.register_server` 用现有
    `unregister_character` / `LspManager.unregister_server`（不存在则在 manager 内补最小实现）
