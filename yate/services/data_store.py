@@ -35,15 +35,25 @@ def resolve(relative: str) -> Path:
     """Resolve the relative document *relative* under :func:`data_root`.
 
     Only clean, relative names are accepted: an empty name, an absolute path,
-    a drive letter or any ``..`` component raises :class:`ValueError`.  The
-    resolved path is verified to stay inside :func:`data_root` as a second
-    line of defence, so a future normalisation change cannot silently widen
-    the writable area.
+    a drive letter, a backslash separator or any ``..`` component raises
+    :class:`ValueError`.  The drive and backslash checks are applied
+    portably -- on POSIX a backslash is a legal filename character and a
+    ``C:/`` prefix an ordinary relative directory, so both must be rejected
+    here as well rather than accepted with a platform-dependent meaning.
+    The resolved path is verified to stay inside :func:`data_root` as a
+    second line of defence, so a future normalisation change cannot
+    silently widen the writable area.
     """
     if not relative:
         raise ValueError("data name must be a non-empty string")
+    if "\\" in relative:
+        raise ValueError(f"data name must use forward slashes: {relative!r}")
     candidate = Path(relative)
-    if candidate.is_absolute() or candidate.drive:
+    # pathlib parses a drive letter only on Windows; reject the "X:" prefix
+    # portably so POSIX cannot smuggle one in as an ordinary directory name.
+    first = candidate.parts[0] if candidate.parts else ""
+    drive_prefix = len(first) == 2 and first[1] == ":"
+    if candidate.is_absolute() or candidate.drive or drive_prefix:
         raise ValueError(f"data name must be relative: {relative!r}")
     if ".." in candidate.parts:
         raise ValueError(f"data name must not contain '..': {relative!r}")
