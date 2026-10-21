@@ -108,6 +108,16 @@ scene: task_orchestration
 6. 【迭代】存在 blocker / major → 回到步骤 2 重新设计；仅 minor → 登记待办。
    迭代上不封顶，直至无 blocker / major。
 7. 【收尾】主代理亲自跑全量门禁（pyright + pytest + 架构测试，退出码 0）；
+   **统一用并行口径**（与 CI 命令一致，禁止用串行跑法浪费时间）：
+   ```powershell
+   .venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
+   .venv\Scripts\python.exe -m pytest tests/ -q -n auto
+   .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
+   .venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch -n auto
+   .venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
+   ```
+   并行下出现时序 flake 时必须用 `-n 1` 复核并修用例（`python-coding-style.md` §4.7），
+   不得把 flake 记成"偶发、重跑即过"；
    局部（单文件 / 目录）覆盖率运行须加 `--cov-fail-under=0`，否则会被
    `[tool.coverage.report] fail_under` 判红；
    回填文档（真实前后数字、偏离记录），按 `git-commit-message.md` 提交。

@@ -19,7 +19,16 @@ anything at all:
 Not covered: the scenario bodies themselves (they are the smoke suite, run by
 ``python -m tools.smoke_test``), the SVG extraction patterns and the reporter
 (``tests/test_smoke_tool.py``).
+
+The parallel runner (``--jobs``) is covered both ways: the payload rewrite that
+lets a worker hand a result back, and one real two-scenario shard run against
+the registry.
 """
+
+# _make_picklable is module-private but is the contract that keeps a worker's
+# result faithful, so the private-usage rule is relaxed file-wide (the same
+# convention tests/test_smoke_cli.py uses).
+# pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 
@@ -39,10 +48,12 @@ from tools.smoke_test.harness import (
     RunOptions,
     Scenario,
     ScenarioResult,
+    _make_picklable,
     get_seed,
     new_app,
     rng_for,
     run_scenarios,
+    run_scenarios_parallel,
     set_seed,
 )
 from tools.smoke_test.scenarios import SCENARIOS
@@ -131,6 +142,22 @@ def test_report_sorts_the_missing_names() -> None:
 
 def test_report_of_an_empty_run_reports_empty_universes() -> None:
     assert Coverage().report() == ((0, 0, []), (0, 0, []))
+
+
+def test_merge_folds_a_worker_tally_into_the_parent() -> None:
+    # The parallel runner collects one Counter per worker process; merging is
+    # what makes --coverage report the serial numbers for a sharded run.
+    parent = Coverage(command_universe={"w"}, action_universe={"save"})
+    parent.note_command("w")
+    worker = Coverage(command_universe={"w", "q"}, action_universe={"quit"})
+    worker.note_command("q")
+    worker.note_command("w")
+
+    parent.merge(worker)
+
+    assert parent.commands == {"w": 2, "q": 1}
+    assert parent.command_universe == {"w", "q"}
+    assert parent.action_universe == {"save", "quit"}
 
 
 def test_note_registries_reads_the_full_editor_name_space(restore_theme: None) -> None:
@@ -309,6 +336,75 @@ def test_invariant_sweep_fails_a_scenario_that_leaves_the_cursor_out_of_range(
         "invariant:cursor_col",
     }
     assert all(c.invariant for c in result.failed)
+
+
+# --- the parallel runner (--jobs) --------------------------------------------
+
+
+class _Unpicklable:
+    """A payload a spawned worker cannot hand back, rendered identically."""
+
+    def __init__(self) -> None:
+        self.callback = lambda: None
+
+    @override
+    def __repr__(self) -> str:
+        return "<unpicklable>"
+
+
+def test_make_picklable_leaves_a_picklable_result_untouched() -> None:
+    result = ScenarioResult("s", checks=[Check("plain", 1, 1)])
+    assert _make_picklable(result) is result
+    assert result.checks[0].ok_override is None
+
+
+def test_make_picklable_replaces_an_unpicklable_payload_with_its_repr() -> None:
+    payload = _Unpicklable()
+    result = ScenarioResult("s", checks=[Check("same", payload, payload)])
+
+    frozen = _make_picklable(result)
+
+    check = frozen.checks[0]
+    assert check.ok is True
+    assert check.ok_override is True
+    assert check.expected == check.actual == "<unpicklable>"
+
+
+def test_make_picklable_keeps_a_failure_whose_rendered_payloads_collide() -> None:
+    # Two distinct widgets can render identically; the frozen verdict is what
+    # keeps the rewrite from turning a red check green.
+    result = ScenarioResult(
+        "s", checks=[Check("u", _Unpicklable(), _Unpicklable())]
+    )
+    assert result.checks[0].ok is False
+
+    frozen = _make_picklable(result)
+
+    assert frozen.checks[0].ok is False
+    assert frozen.checks[0].expected == frozen.checks[0].actual
+
+
+#: Two shipped scenarios that stay well under a second each.
+_CHEAP_SCENARIOS: tuple[str, ...] = ("keymap_toggle", "welcome_screen")
+
+
+def test_run_scenarios_parallel_matches_the_serial_checks(tmp_path: Path) -> None:
+    by_name = {scenario.name: scenario for scenario in SCENARIOS}
+    selected = [by_name[name] for name in _CHEAP_SCENARIOS]
+
+    parallel, cov = run_scenarios_parallel(
+        selected, tmp_path / "parallel", RunOptions(), 2
+    )
+    serial = run_scenarios(selected, tmp_path / "serial", RunOptions())
+
+    assert [r.name for r in parallel] == list(_CHEAP_SCENARIOS)
+    assert [r.error for r in parallel] == [None, None]
+    assert [r.fail_count for r in parallel] == [0, 0]
+    assert [len(r.checks) for r in parallel] == [len(r.checks) for r in serial]
+    # The workers saw the whole registry name space and reported their hits.
+    (_, command_total, _), (_, action_total, _) = cov.report()
+    assert command_total > 0
+    assert action_total > 0
 
 
 # --- scenario registry guards ------------------------------------------------

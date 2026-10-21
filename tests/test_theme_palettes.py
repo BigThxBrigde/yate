@@ -318,8 +318,10 @@ def test_bridge_exact_mapping_for_every_builtin(
     assert tt.variables["text"] == t.fg
     assert tt.variables["text-muted"] == t.fg_muted
     assert tt.variables["foreground-muted"] == t.fg_dim
-    assert tt.variables["doc-hit-background"] == f"{t.yellow} 12%"
-    assert tt.variables["doc-hit-current-background"] == f"{t.yellow} 40%"
+    # The manual/changelog viewer tints search hits itself, from the same
+    # palette (manual.py:_hit_styles), so the bridge no longer carries the two
+    # doc-hit variables it used to expose for CSS.
+    assert "doc-hit-background" not in tt.variables
     # ColorSystem.generate() must accept the mapped values without raising
     # and surface the key tokens Textual's overlays consume.
     generated = tt.to_color_system().generate()

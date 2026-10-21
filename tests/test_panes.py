@@ -536,6 +536,13 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
             a_leaf = root.children[0]
             assert isinstance(a_leaf, Leaf)
             assert panes.active is not a_leaf
+            # The scroll row is captured when the leaf goes inactive, which
+            # trails the mount of the new leaf: poll instead of assuming one
+            # pause is enough (a loaded runner otherwise reads the row before
+            # the capture ran).
+            await wait_until(
+                pilot, lambda: a_leaf.state_for(a_leaf.doc).scroll_row == saved
+            )
             assert a_leaf.state_for(a_leaf.doc).scroll_row == saved
 
             # split the active pane again: three leaves, C active
@@ -547,6 +554,9 @@ def test_split_close_restores_scroll_for_focus_and_inactive_leaves(
             b_leaf = ordered[1]
             c_leaf = ordered[2]
             assert panes.active is c_leaf
+            await wait_until(
+                pilot, lambda: b_leaf.state_for(b_leaf.doc).scroll_row == saved
+            )
             assert b_leaf.state_for(b_leaf.doc).scroll_row == saved
 
             # close the active pane C: B becomes focus (apply_doc restores

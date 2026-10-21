@@ -513,7 +513,11 @@ def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, FindReplaceScreen)
             _type_query(screen, "needle")
-            assert await wait_until(pilot, lambda: len(screen._flat) == 3)
+            # generous budgets: the scan is debounced and the replace writes
+            # three files, both of which lag under a parallel runner's load
+            assert await wait_until(
+                pilot, lambda: len(screen._flat) == 3, timeout=15.0
+            )
             screen.query_one("#fr-replace", Input).value = "dog"
             screen.query_one("#fr-results", Static).focus()
             await pilot.pause()
@@ -522,6 +526,7 @@ def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
                 pilot,
                 lambda: two.read_text(encoding="utf-8") == "dog two\n"
                 and three.read_text(encoding="utf-8") == "three dog\n",
+                timeout=15.0,
             )
             # the replaced total surfaces while the overlay is still open
             assert "replaced 3" in message_text(app)

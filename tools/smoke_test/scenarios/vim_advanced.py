@@ -168,8 +168,9 @@ async def _vim_registers_text_objects(tmp: Path) -> ScenarioResult:
                             _vim_state(app, "pending_register")))
 
         # j then "ap: the linewise paste lands *below* the cursor row, and
-        # TextBuffer.paste leaves the cursor on the last pasted row
-        # (move_line_end / move_left) rather than on the pasted text.
+        # TextBuffer.paste leaves the cursor on the *last pasted row*
+        # (yate/editor_core/buffer.py paste(), pinned by
+        # tests/test_editor_core.py) rather than on the row after the block.
         await pilot.press("j")
         await pilot.pause()
         checks.append(Check("moved_down", (1, 0), buffer.cursor))
@@ -180,12 +181,17 @@ async def _vim_registers_text_objects(tmp: Path) -> ScenarioResult:
         checks.append(Check("pasted_line", "alpha beta", buffer.lines[2]))
         checks.append(Check("paste_kept_register", {"a": "alpha beta\n"},
                             dict(buffer.named_registers)))
-        checks.append(Check("paste_cursor_row", 3, buffer.cursor[0]))
+        checks.append(Check("paste_cursor_row", 2, buffer.cursor[0]))
 
-        # daw on that row: word plus the whitespace behind it.
+        # 0 snaps to the start of the pasted row, then j steps down to the
+        # "epsilon zeta" row the operator checks below act on.
         await pilot.press("0")
         await pilot.pause()
-        checks.append(Check("line_start", (3, 0), buffer.cursor))
+        checks.append(Check("line_start", (2, 0), buffer.cursor))
+        await pilot.press("j")
+        await pilot.pause()
+
+        # daw on that row: word plus the whitespace behind it.
         await pilot.press("d", "a", "w")
         await pilot.pause()
         checks.append(Check("daw_line", "zeta", buffer.lines[3]))
