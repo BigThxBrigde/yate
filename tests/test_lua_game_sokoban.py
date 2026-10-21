@@ -3,13 +3,18 @@
 The extension is executed by the real lupa runtime over the recording
 fakes from :mod:`lua_game_harness`, so these tests drive the shipped Lua
 file exactly as the editor would: the registered ``game-sokoban`` action,
-the canvas key callback and the ``snapshot()`` / ``load_level()`` test
-seams.  Save documents stay in an in-memory
-:class:`~lua_game_harness.FakeData` store -- the real ``~/.yate`` is
-never touched.
+the canvas key callback and the ``snapshot()`` / ``load_level()`` /
+``level_rows()`` / ``solution()`` test seams.  Save documents stay in an
+in-memory :class:`~lua_game_harness.FakeData` store -- the real ``~/.yate``
+is never touched.
 
-Level 1 (Microban #1) is solved in tests through a fixed 22-key solution;
-level 6 is the one-move teaching level used for push / undo coverage.
+Levels 1-6 are handwritten (Microban 1-5 plus the teaching level; level 1
+is solved through a fixed BFS-verified 33-key solution, level 6 drives the
+push / undo coverage).  Levels 7-120 come from the reverse-pull generator:
+it only performs legal pulls starting from a solved board, so replaying
+``solution(n)`` -- the recorded pull trace reversed and direction-negated
+-- must solve the level by construction; a sample of generated levels is
+replayed key by key to pin that contract.
 
 Marked ``@requires_lupa``: the whole module skips without the optional
 ``yate[lua]`` extra.
@@ -19,9 +24,15 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
-from lua_game_harness import FakeApi, GameRuntime, bundled_source, requires_lupa
+from lua_game_harness import (
+    FakeApi,
+    GameRuntime,
+    bundled_source,
+    lua_to_python,
+    requires_lupa,
+)
 
 #: A BFS-verified 33-move / 9-push solution of built-in level 1.
 LEVEL1_SOLUTION: list[str] = [
@@ -31,6 +42,15 @@ LEVEL1_SOLUTION: list[str] = [
     "right", "right", "up", "left", "down", "left", "up", "up",
 ]
 assert len(LEVEL1_SOLUTION) == 33
+
+#: Handwritten levels at the front of the set.
+HANDWRITTEN_COUNT: int = 6
+
+#: Total level count (6 handwritten + 114 generated).
+TOTAL_LEVELS: int = 120
+
+#: Generated levels whose solution is replayed key by key.
+REPLAY_SAMPLES: list[int] = [7, 23, 45, 66, 88, 99, 111, 120]
 
 
 def make_game(api: FakeApi | None = None) -> GameRuntime:
@@ -49,6 +69,49 @@ def parse_builtin_levels() -> list[list[str]]:
     return levels
 
 
+def key_for(op: dict[str, Any]) -> str:
+    """The Textual key name that walks one solution step's direction."""
+    if op["dx"] == -1:
+        return "left"
+    if op["dx"] == 1:
+        return "right"
+    if op["dy"] == -1:
+        return "up"
+    assert op["dy"] == 1, f"malformed solution step: {op}"
+    return "down"
+
+
+def assert_well_formed(rows: list[str], context: str) -> None:
+    """One player, as many crates as goals, within the 37 x 17 area."""
+    joined = "\n".join(rows)
+    assert len(rows) <= 17, f"{context}: too many rows"
+    assert joined.count("@") + joined.count("+") == 1, (
+        f"{context}: expected exactly one player"
+    )
+    assert joined.count("$") + joined.count("*") == joined.count(
+        "."
+    ) + joined.count("*"), f"{context}: crate / goal count mismatch"
+    for row in rows:
+        assert len(row) <= 37, f"{context}: row too wide"
+
+
+def rows_of(game: GameRuntime, index: int) -> list[str]:
+    """``level_rows(index)`` as a plain Python list of row strings."""
+    rows = cast("list[str] | None", lua_to_python(game.module.level_rows(index)))
+    assert isinstance(rows, list), f"level {index}: level_rows() not a table"
+    return rows
+
+
+def solution_of(game: GameRuntime, index: int) -> list[dict[str, Any]]:
+    """``solution(index)`` as plain Python steps (non-empty for generated)."""
+    solution = cast(
+        "list[dict[str, Any]] | None", lua_to_python(game.module.solution(index))
+    )
+    assert isinstance(solution, list), f"level {index}: no solution exposed"
+    assert len(solution) > 0, f"level {index}: empty solution"
+    return solution
+
+
 @requires_lupa
 class TestSokobanCanvas:
     """Opening the canvas and the built-in level data."""
@@ -56,28 +119,41 @@ class TestSokobanCanvas:
     def test_game_sokoban_opens_the_level_canvas(self) -> None:
         game = make_game()
         canvas = game.launch()
-        assert canvas.cols == 23
-        assert canvas.rows == 17
+        assert canvas.cols == 41
+        assert canvas.rows == 22
         lines = canvas.grid.split("\n")
+        assert len(lines) == 22
         assert "sokoban" in lines[0]
-        assert "level 1/6" in lines[13]
+        assert "level 1/120" in lines[18]
         # two help rows carry the four key words in full
-        assert "r restart" in lines[14]
-        assert "n next" in lines[15]
+        assert "u undo" in lines[19]
+        assert "r restart" in lines[19]
+        assert "n next" in lines[20]
+        assert "p pause" in lines[20]
         assert canvas.status.endswith("escape quits")
 
     def test_builtin_levels_are_well_formed(self) -> None:
         levels = parse_builtin_levels()
-        assert len(levels) == 6
-        for rows in levels:
-            joined = "\n".join(rows)
-            assert joined.count("@") + joined.count("+") == 1
-            assert joined.count("$") + joined.count("*") == joined.count(
-                "."
-            ) + joined.count("*")
-            assert len(rows) <= 12
-            for row in rows:
-                assert len(row) <= 21
+        assert len(levels) == HANDWRITTEN_COUNT
+        for index, rows in enumerate(levels, start=1):
+            assert_well_formed(rows, f"handwritten level {index}")
+
+    def test_every_level_is_well_formed(self) -> None:
+        """All 120 levels (generated ones built on demand) pass the checks."""
+        game = make_game()
+        game.launch()
+        for index in range(1, TOTAL_LEVELS + 1):
+            assert_well_formed(rows_of(game, index), f"level {index}")
+
+    def test_solution_seam_only_covers_generated_levels(self) -> None:
+        game = make_game()
+        game.launch()
+        for index in range(1, HANDWRITTEN_COUNT + 1):
+            assert game.module.solution(index) is None
+        for index in (HANDWRITTEN_COUNT + 1, 60, TOTAL_LEVELS):
+            for op in solution_of(game, index):
+                assert set(op) == {"dx", "dy", "push"}
+                assert op["push"] in (True, False)
 
 
 @requires_lupa
@@ -186,14 +262,64 @@ class TestSokobanRules:
     def test_last_level_cleared_reports_and_restarts(self) -> None:
         game = make_game()
         game.launch()
-        game.module.load_level(6)
-        game.press("right")
+        game.module.load_level(TOTAL_LEVELS)
+        solution = solution_of(game, TOTAL_LEVELS)
+        game.press(*[key_for(op) for op in solution])
+        assert game.snapshot()["solved"] is True
         game.press("n")
         assert "all levels cleared" in game.require_canvas().grid
         game.press("r")
         snap = game.snapshot()
         assert snap["level"] == 1
         assert snap["moves"] == 0
+
+
+@requires_lupa
+class TestGeneratedLevels:
+    """The reverse-pull generator and its solvability contract."""
+
+    def test_totals_and_clamped_levels_in_the_snapshot(self) -> None:
+        game = make_game()
+        game.launch()
+        game.module.load_level(9999)
+        snap = game.snapshot()
+        assert snap["total"] == TOTAL_LEVELS
+        assert snap["level"] == TOTAL_LEVELS
+        game.module.load_level(0)
+        assert game.snapshot()["level"] == 1
+
+    def test_generated_levels_are_deterministic(self) -> None:
+        """The same index always regenerates the exact same board."""
+        game = make_game()
+        game.launch()
+        for index in (7, 45):
+            assert rows_of(game, index) == rows_of(game, index)
+
+    def test_generated_start_state_is_not_already_solved(self) -> None:
+        game = make_game()
+        game.launch()
+        for index in REPLAY_SAMPLES:
+            game.module.load_level(index)
+            snap = game.snapshot()
+            assert snap["goals"] >= 2
+            assert snap["solved"] is False, (
+                f"generated level {index} starts solved"
+            )
+            assert any(not box["on_goal"] for box in snap["boxes"])
+
+    def test_replaying_the_solution_solves_generated_levels(self) -> None:
+        """The reversed pull trace pushes every crate back onto its goal."""
+        for index in REPLAY_SAMPLES:
+            game = make_game()
+            game.launch()
+            game.module.load_level(index)
+            solution = solution_of(game, index)
+            game.press(*[key_for(op) for op in solution])
+            snap = game.snapshot()
+            assert snap["solved"] is True, (
+                f"level {index} not solved by its own solution"
+            )
+            assert all(box["on_goal"] for box in snap["boxes"])
 
 
 @requires_lupa
@@ -231,3 +357,23 @@ class TestSokobanPersistence:
         )
         assert document["moves"] == 34
         assert document["pushes"] == 8
+
+    def test_out_of_range_saved_level_is_clamped(self) -> None:
+        api = FakeApi()
+        api.data.files["games/sokoban.json"] = json.dumps(
+            {"version": 1, "level": 999, "completed": [], "moves": 0,
+             "pushes": 0}
+        )
+        game = GameRuntime("sokoban", api)
+        game.launch()
+        assert game.snapshot()["level"] == TOTAL_LEVELS
+
+    def test_saved_completed_levels_beyond_the_set_are_dropped(self) -> None:
+        api = FakeApi()
+        api.data.files["games/sokoban.json"] = json.dumps(
+            {"version": 1, "level": 1, "completed": [1, 500], "moves": 0,
+             "pushes": 0}
+        )
+        game = GameRuntime("sokoban", api)
+        game.launch()
+        assert game.snapshot()["completed"] == [1]

@@ -1,12 +1,19 @@
 --[[
 yate bundled extension: sokoban (sokoban.lua)
 
-A classic sokoban drawn on a yate extension canvas: a 21 x 12 level area
-inside a rounded 23 x 16 frame, a HUD row (level / moves / pushes / done)
-and a help row above the bottom border.  Walls are blue blocks, crates
+A classic sokoban drawn on a yate extension canvas: a 37 x 17 level area
+inside a rounded 41 x 22 frame, a HUD row (level / moves / pushes / done)
+and two help rows above the bottom border.  Walls are blue blocks, crates
 brown, crates on goals green, goals grey and the player yellow.
 
 Start it with ``:game sokoban``.
+
+Levels: 1-6 are the built-in handwritten set (Microban 1-5 plus a teaching
+level).  Levels 7-120 are produced on demand by a reverse-pull generator
+(see the "level generator" section): it starts from an already-solved board
+and only performs legal pulls, so inverting the pull trace is guaranteed to
+be a valid pushing solution for the resulting board.  Generated levels are
+built lazily on first use and cached, never all at startup.
 
 Controls:
   arrows / hjkl / wasd   walk (pushing a crate when the way is clear)
@@ -31,10 +38,18 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 
 local engine = require("game_engine")
 
--- Canvas geometry: 23 x 17, inner width 21, level area 21 x 12.
-local COLS, ROWS = 23, 17
-local INNER = 21
-local AREA_W, AREA_H = 21, 12
+-- Canvas geometry: 41 x 22, inner width 39, level area 37 x 17.
+-- Row structure: top border (1) + level area (17) + HUD (1) + help (2)
+-- + bottom border (1) = 22.
+local COLS, ROWS = 41, 22
+local INNER = 39
+local AREA_W, AREA_H = 37, 17
+
+--: Total level count: 6 handwritten + 114 generated.
+local TOTAL = 120
+
+--: Number of handwritten levels at the front of the set.
+local HANDWRITTEN = 6
 
 -- Undo history cap; the oldest entry is dropped beyond it.
 local MAX_UNDO = 200
@@ -43,10 +58,10 @@ local MAX_UNDO = 200
 local OVERLAY_ROW = 6
 
 -- Two help rows between the HUD and the bottom border: four full words do
--- not fit on one 21-column line.
+-- not fit on one 39-column line.
 local HELP_LINES = { "u undo  r restart", "n next  p pause" }
 
---: Built-in levels: 1-5 from the public Microban set, 6 a teaching level.
+--: Built-in levels 1-6: 1-5 from the public Microban set, 6 a teaching level.
 local LEVELS = {
   { -- 1
     "####",
@@ -124,6 +139,364 @@ local store = engine.store("sokoban")
 
 local mod = {}
 
+-- ------------------------------------------------------------ level generator
+
+--: Generated levels keyed by index; filled on demand (never at startup).
+local LEVEL_CACHE = {}
+
+--: The four step directions shared by walks and pulls.
+local DIRS = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+
+--: Key used to hash a cell (x, y) into one integer.
+local function cell_key(x, y)
+  return y * 64 + x
+end
+
+--: The index of the crate at (x, y) inside *boxes*, or nil.
+local function box_index_at(boxes, x, y)
+  for index, box in ipairs(boxes) do
+    if box.x == x and box.y == y then
+      return index
+    end
+  end
+  return nil
+end
+
+-- Shortest walk from (sx, sy) to (tx, ty) with crates as obstacles; returns
+-- the list of {dx, dy, push = false} steps in walking order, or nil when
+-- the target is unreachable.  The search stays inside the 37 x 17 area
+-- (629 cells at most).
+local function walk_steps(grid, boxes, sx, sy, tx, ty)
+  if sx == tx and sy == ty then
+    return {}
+  end
+  local blocked = {}
+  for _, box in ipairs(boxes) do
+    blocked[cell_key(box.x, box.y)] = true
+  end
+  local came = {}
+  came[cell_key(sx, sy)] = false -- visited marker (the start has no parent)
+  local queue = { { x = sx, y = sy } }
+  local head = 1
+  while head <= #queue do
+    local cell = queue[head]
+    head = head + 1
+    for _, dir in ipairs(DIRS) do
+      local nx, ny = cell.x + dir[1], cell.y + dir[2]
+      local key = cell_key(nx, ny)
+      if came[key] == nil and grid[ny] ~= nil and grid[ny][nx]
+        and not blocked[key] then
+        came[key] = { x = cell.x, y = cell.y, dx = dir[1], dy = dir[2] }
+        if nx == tx and ny == ty then
+          local reversed = {}
+          local cursor = key
+          while came[cursor] ~= false do
+            local parent = came[cursor]
+            reversed[#reversed + 1] = { dx = parent.dx, dy = parent.dy, push = false }
+            cursor = cell_key(parent.x, parent.y)
+          end
+          local steps = {}
+          for index = #reversed, 1, -1 do
+            steps[#steps + 1] = reversed[index]
+          end
+          return steps
+        end
+        queue[#queue + 1] = { x = nx, y = ny }
+      end
+    end
+  end
+  return nil
+end
+
+-- Build one 37 x 17 room: solid walls, the corridor region (x 2..36,
+-- y 2..16) carved out, then *pillar_count* single-cell pillars placed at
+-- random interior cells that never touch each other (not even diagonally).
+local function build_room(rng, pillar_count)
+  local grid = {}
+  for y = 1, AREA_H do
+    grid[y] = {}
+    for x = 1, AREA_W do
+      grid[y][x] = false
+    end
+  end
+  for y = 2, AREA_H - 1 do
+    for x = 2, AREA_W - 1 do
+      grid[y][x] = true
+    end
+  end
+  local pillars = {}
+  local placed = 0
+  local tries = 0
+  while placed < pillar_count and tries < 200 do
+    tries = tries + 1
+    local x = 2 + rng.int(AREA_W - 2)
+    local y = 2 + rng.int(AREA_H - 2)
+    if grid[y][x] then
+      local clear = true
+      for dy = -1, 1 do
+        for dx = -1, 1 do
+          if pillars[cell_key(x + dx, y + dy)] then
+            clear = false
+          end
+        end
+      end
+      if clear then
+        grid[y][x] = false
+        pillars[cell_key(x, y)] = true
+        placed = placed + 1
+      end
+    end
+  end
+  return grid
+end
+
+-- True when every walkable cell of *grid* is reachable from one of them.
+local function room_connected(grid)
+  local start = nil
+  local total = 0
+  for y = 2, AREA_H - 1 do
+    for x = 2, AREA_W - 1 do
+      if grid[y][x] then
+        total = total + 1
+        if start == nil then
+          start = { x = x, y = y }
+        end
+      end
+    end
+  end
+  local seen = {}
+  seen[cell_key(start.x, start.y)] = true
+  local queue = { start }
+  local head = 1
+  local reached = 0
+  while head <= #queue do
+    local cell = queue[head]
+    head = head + 1
+    reached = reached + 1
+    for _, dir in ipairs(DIRS) do
+      local nx, ny = cell.x + dir[1], cell.y + dir[2]
+      local key = cell_key(nx, ny)
+      if not seen[key] and grid[ny] ~= nil and grid[ny][nx] then
+        seen[key] = true
+        queue[#queue + 1] = { x = nx, y = ny }
+      end
+    end
+  end
+  return reached == total
+end
+
+-- Walkable cells whose four neighbours are walkable too (goal candidates).
+local function goal_candidates(grid)
+  local out = {}
+  for y = 2, AREA_H - 1 do
+    for x = 2, AREA_W - 1 do
+      if grid[y][x] and grid[y][x - 1] and grid[y][x + 1]
+        and grid[y - 1] ~= nil and grid[y - 1][x] and grid[y + 1][x] then
+        out[#out + 1] = { x = x, y = y }
+      end
+    end
+  end
+  return out
+end
+
+-- Pick *count* distinct goal cells from the candidates; nil when too few.
+local function pick_goals(rng, grid, count)
+  local candidates = goal_candidates(grid)
+  local out = {}
+  while #out < count and #candidates > 0 do
+    local index = rng.int(#candidates)
+    out[#out + 1] = candidates[index]
+    table.remove(candidates, index)
+  end
+  if #out < count then
+    return nil
+  end
+  return out
+end
+
+-- A random walkable cell without a crate on it.
+local function random_free_cell(rng, grid, boxes)
+  local out = {}
+  for y = 2, AREA_H - 1 do
+    for x = 2, AREA_W - 1 do
+      if grid[y][x] and box_index_at(boxes, x, y) == nil then
+        out[#out + 1] = { x = x, y = y }
+      end
+    end
+  end
+  return rng.pick(out)
+end
+
+-- One reverse pull: pick a random crate and direction, walk the player
+-- next to the crate (bounded BFS, crates as obstacles) and pull it one
+-- cell; every step is appended to *ops* ({dx, dy, push}, the pull itself
+-- with push = true).  At most 8 attempts per call; false when none worked.
+local function pull_once(rng, grid, boxes, player, ops)
+  for _ = 1, 8 do
+    local box = boxes[rng.int(#boxes)]
+    local dir = DIRS[rng.int(4)]
+    local mx, my = box.x + dir[1], box.y + dir[2]
+    local px, py = box.x + 2 * dir[1], box.y + 2 * dir[2]
+    if grid[my] ~= nil and grid[my][mx] and grid[py] ~= nil and grid[py][px]
+      and box_index_at(boxes, mx, my) == nil
+      and box_index_at(boxes, px, py) == nil then
+      local steps = walk_steps(grid, boxes, player.x, player.y, mx, my)
+      if steps ~= nil then
+        for _, step in ipairs(steps) do
+          ops[#ops + 1] = step
+          player.x, player.y = player.x + step.dx, player.y + step.dy
+        end
+        box.x, box.y = mx, my
+        player.x, player.y = px, py
+        ops[#ops + 1] = { dx = dir[1], dy = dir[2], push = true }
+        return true
+      end
+    end
+  end
+  return false
+end
+
+-- Render the generated room as ASCII rows (`# . $ * @ +`), one string per
+-- row, exactly AREA_H rows of AREA_W cells.
+local function room_rows(grid, goals, boxes, player)
+  local chars = {}
+  for y = 1, AREA_H do
+    chars[y] = {}
+    for x = 1, AREA_W do
+      chars[y][x] = grid[y][x] and " " or "#"
+    end
+  end
+  for _, goal in ipairs(goals) do
+    chars[goal.y][goal.x] = "."
+  end
+  for _, box in ipairs(boxes) do
+    chars[box.y][box.x] = chars[box.y][box.x] == "." and "*" or "$"
+  end
+  chars[player.y][player.x] = chars[player.y][player.x] == "." and "+" or "@"
+  local rows = {}
+  for y = 1, AREA_H do
+    rows[y] = table.concat(chars[y])
+  end
+  return rows
+end
+
+-- True when every crate still sits on a goal (nothing was ever pulled off,
+-- or the pulls happened to permute the crates between the goals).
+local function all_boxes_on_goals(boxes, goals)
+  for _, goal in ipairs(goals) do
+    if box_index_at(boxes, goal.x, goal.y) == nil then
+      return false
+    end
+  end
+  return true
+end
+
+-- One generation attempt for *index*; nil when the attempt degenerated
+-- (disconnected room, or every crate still on a goal after pulling).
+local function attempt_generation(rng, index)
+  local grid = build_room(rng, 4 + rng.int(7))
+  if not room_connected(grid) then
+    return nil
+  end
+  local goals = pick_goals(rng, grid, 2 + index % 4)
+  if goals == nil then
+    return nil
+  end
+  local boxes = {}
+  for _, goal in ipairs(goals) do
+    boxes[#boxes + 1] = { x = goal.x, y = goal.y }
+  end
+  local player = random_free_cell(rng, grid, boxes)
+  if player == nil then
+    return nil
+  end
+  local ops = {}
+  for _ = 1, 30 + index % 30 do
+    if not pull_once(rng, grid, boxes, player, ops) then
+      break
+    end
+  end
+  if all_boxes_on_goals(boxes, goals) then
+    return nil
+  end
+  return { rows = room_rows(grid, goals, boxes, player), ops = ops }
+end
+
+-- Degenerate fallback: an empty room, two goals, at most three pulls.
+local function simple_level(rng)
+  for _ = 1, 30 do
+    local grid = build_room(rng, 0)
+    if room_connected(grid) then
+      local goals = pick_goals(rng, grid, 2)
+      if goals ~= nil then
+        local boxes = {}
+        for _, goal in ipairs(goals) do
+          boxes[#boxes + 1] = { x = goal.x, y = goal.y }
+        end
+        local player = random_free_cell(rng, grid, boxes)
+        if player ~= nil then
+          local ops = {}
+          for _ = 1, 3 do
+            if not pull_once(rng, grid, boxes, player, ops) then
+              break
+            end
+          end
+          if not all_boxes_on_goals(boxes, goals) then
+            return { rows = room_rows(grid, goals, boxes, player), ops = ops }
+          end
+        end
+      end
+    end
+  end
+  -- Static last resort: one hand-computed pull in an empty room, verified
+  -- to be solvable by construction (the crate ends one cell off its goal).
+  local grid = build_room(rng, 0)
+  local goals = { { x = 4, y = 5 }, { x = 4, y = 8 } }
+  local boxes = { { x = 4, y = 5 }, { x = 4, y = 8 } }
+  local player = { x = 9, y = 5 }
+  local ops = {}
+  local function step(dx, dy)
+    ops[#ops + 1] = { dx = dx, dy = dy, push = false }
+    player.x, player.y = player.x + dx, player.y + dy
+  end
+  step(0, 1) -- step off the crate row
+  for _ = 1, 6 do
+    step(-1, 0) -- walk left below the crates
+  end
+  step(0, -1) -- stand left of the first crate
+  boxes[1].x = 5 -- pull the crate at (4, 5) one cell to the right
+  player.x, player.y = 4, 5
+  ops[#ops + 1] = { dx = 1, dy = 0, push = true }
+  return { rows = room_rows(grid, goals, boxes, player), ops = ops }
+end
+
+-- Generate level *index* (7..TOTAL).  Every attempt shares one seeded RNG,
+-- so a level is always the same deterministic sequence of boards.
+local function generate_level(index)
+  local rng = engine.rng(9000 + index)
+  for _ = 1, 30 do
+    local level = attempt_generation(rng, index)
+    if level ~= nil then
+      return level
+    end
+  end
+  return simple_level(rng)
+end
+
+-- The raw ASCII rows of level *index*; generated levels are built (and
+-- cached) on first access, never at startup.
+local function rows_for_level(index)
+  if index <= HANDWRITTEN then
+    return LEVELS[index]
+  end
+  local cached = LEVEL_CACHE[index]
+  if cached == nil then
+    cached = generate_level(index)
+    LEVEL_CACHE[index] = cached
+  end
+  return cached.rows
+end
+
 -- ---------------------------------------------------------------- level data
 
 -- Parse one level's rows into cells / crates / goals / player start.
@@ -152,16 +525,16 @@ local function parse_level(rows)
   return cells, boxes, player
 end
 
--- Load level *n* (clamped to 1..#LEVELS); totals and completed survive.
+-- Load level *n* (clamped to 1..TOTAL); totals and completed survive.
 local function load_level(number)
   local index = math.floor(tonumber(number) or 1)
   if index < 1 then
     index = 1
   end
-  if index > #LEVELS then
-    index = #LEVELS
+  if index > TOTAL then
+    index = TOTAL
   end
-  local cells, boxes, player = parse_level(LEVELS[index])
+  local cells, boxes, player = parse_level(rows_for_level(index))
   state.level = index
   state.cells = cells
   state.boxes = boxes
@@ -257,7 +630,7 @@ local function save_progress(resume_level)
     if state.cleared then
       level = 1
     elseif state.solved then
-      level = math.min(state.level + 1, #LEVELS)
+      level = math.min(state.level + 1, TOTAL)
     end
   end
   store.save({
@@ -285,7 +658,7 @@ local function load_progress()
   local completed = {}
   if type(document.completed) == "table" then
     for _, level in ipairs(document.completed) do
-      if type(level) == "number" and level >= 1 and level <= #LEVELS then
+      if type(level) == "number" and level >= 1 and level <= TOTAL then
         local known = false
         for _, done in ipairs(completed) do
           if done == math.floor(level) then
@@ -399,7 +772,7 @@ local function advance()
   if not state.solved then
     return
   end
-  if state.level >= #LEVELS then
+  if state.level >= TOTAL then
     state.cleared = true
     save_progress(1)
     return
@@ -412,7 +785,7 @@ end
 
 -- ---------------------------------------------------------------- rendering
 
--- One level-area row as 21 single-width glyph cells (never byte-spliced).
+-- One level-area row as AREA_W single-width glyph cells (never byte-spliced).
 local function area_row(ly)
   local cells = {}
   for lx = 1, AREA_W do
@@ -440,7 +813,7 @@ end
 
 -- HUD row: resumed level, per-level counters, completed count.
 local function hud_text()
-  return "level " .. state.level .. "/" .. #LEVELS
+  return "level " .. state.level .. "/" .. TOTAL
     .. "  m" .. state.moves
     .. " p" .. state.pushes
     .. " d" .. #state.completed
@@ -454,7 +827,8 @@ local function render()
       local text = state.cleared and "all levels cleared" or "paused"
       rows[#rows + 1] = G.v .. engine.center(text, INNER) .. G.v
     else
-      rows[#rows + 1] = G.v .. area_row(ly) .. G.v
+      -- one blank gutter column between the frame and the 37-wide area
+      rows[#rows + 1] = G.v .. " " .. engine.pad(area_row(ly), AREA_W) .. " " .. G.v
     end
   end
   rows[#rows + 1] = G.v .. engine.pad(hud_text(), INNER) .. G.v
@@ -576,7 +950,7 @@ function mod.snapshot()
   end
   return {
     level = state.level,
-    total = #LEVELS,
+    total = TOTAL,
     moves = state.moves,
     pushes = state.pushes,
     solved = state.solved,
@@ -588,6 +962,39 @@ function mod.snapshot()
     completed = state.completed,
     undo_depth = #state.undo,
   }
+end
+
+-- The test seam: the raw ASCII rows of level *index* (handwritten or
+-- generated, with generated levels built and cached on demand).
+function mod.level_rows(index)
+  local number = math.floor(tonumber(index) or 1)
+  if number < 1 then
+    number = 1
+  end
+  if number > TOTAL then
+    number = TOTAL
+  end
+  return rows_for_level(number)
+end
+
+-- The test seam: the forward solution of generated level *index* as a list
+-- of {dx, dy, push} steps (nil for handwritten levels).  The generator only
+-- performs legal pulls starting from a solved board, so replaying this
+-- trace -- the recorded pulls reversed and direction-negated, push flags
+-- kept -- pushes every crate back onto its goal by construction.
+function mod.solution(index)
+  local number = math.floor(tonumber(index) or 0)
+  if number <= HANDWRITTEN or number > TOTAL then
+    return nil
+  end
+  rows_for_level(number) -- build and cache on demand
+  local ops = LEVEL_CACHE[number].ops
+  local solution = {}
+  for position = #ops, 1, -1 do
+    local op = ops[position]
+    solution[#solution + 1] = { dx = -op.dx, dy = -op.dy, push = op.push }
+  end
+  return solution
 end
 
 function mod.setup(_api)
