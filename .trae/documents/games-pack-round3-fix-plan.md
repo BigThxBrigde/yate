@@ -62,8 +62,9 @@ R1/R5 主代理完成。
 `lupa.lua54.LuaRuntime`（Lua 5.4 无此缺陷）；修复后同一测试连续 5 次全绿。
 另按原计划保留 `data_store` 的直接写回退（Windows 文件锁兜底）。
 
-**门禁实测（退出码全 0）**：pyright `0 errors`；pytest 全量 **2779 passed / 9 skipped**；
-`tools/lint_lua.py` **0 issue(s)**；覆盖率 ≥ 75。
+**门禁实测（退出码全 0）**：pyright `0 errors`；pytest 全量 **2788 passed / 9 skipped**（280s；
+覆盖率门禁复跑 363s 同绿）；`tools/lint_lua.py` **0 issue(s)**；覆盖率 **91.98%**（≥ 75）。
+期间 `test_manual.py` 的防抖计时用例在覆盖率高负载下闪失败一次，单跑与复跑全绿，与游戏改动无关。
 
 **逐条对照**：① 外框 = canvas.tcss 的 `border: round`，已删，Screen 加 `overflow: hidden` 永不滚动；
 ② pacman 39×23 贴满画布 + 第 14 行隧道穿越（pacman/幽灵/eyes BFS 三处回绕）；
@@ -72,3 +73,14 @@ R1/R5 主代理完成。
 ⑤ nethack 走廊提亮/地板压暗 + 72×19 地图 + 图例行（随 `v` 切换）；
 ⑥ 保存失败 = Lua 5.5 GC 问题 + 直接写回退；
 ⑦ 图例：pacman 状态栏、sokoban 框内行、nethack 图例行、snake 状态栏。
+
+### 〇·1、子代理偏离项裁决（均已与交付物一并验证）
+
+| # | 子代理上报 | 裁决 |
+|---|---|---|
+| 1 | sokoban：图例原文 54 列放不进 37 列关卡区，改写为 `── walls ▣ crate ▩ done ◎ goal ▲ you`（36 列，前两个 `─` 即着色墙样例） | **接受**。改写后的文案同时是字形示范，优于原文案；不改布局 |
+| 2 | sokoban：图例仅手写关 1-6 显示（生成关 7-120 房间为 17 行整框，第 13 行恒有边墙，防御判定不触发） | **接受**。图例的教学价值集中在最初几关；为生成关让行需缩房间并重排 114 关，收益不抵扰动。已核实 `row_has_content` 守卫行为与回报一致 |
+| 3 | sokoban：palette 把 `─ │ ╭ ╮ ╰ ╯` 等映射为墙蓝后，外框侧边随之变蓝 | **接受**。蓝框 + 蓝细线墙是同一主题色，观感自洽；画布机制按字形着色，无按位置着色通道 |
+| 4 | pacman：lupa 2.8 + Lua 5.5 下 `api.data` 属性解析瞬时错乱致保存失败（A/B 证据：lua55 必现、lua54 全绿），请求在 runtime.py 定夺 | **采纳选项 1**：`create_runtime` 固定 `lupa.lua54.LuaRuntime`（提交 `358591e`）；与主代理独立定位的结论一致。`collectgarbage("generational")` 未验证长期稳定性，不采纳；上报上游列为遗留 |
+| 5 | nethack：图例行 72 列放不下全部 10 项，按「超宽先截实体项」动态截到 you/monster/strong/gold（potion/food 被截） | **接受**。截断规则对所有项动态生效而非硬编码删项，符合规格；如需全显另立任务改标签文案或两行布局 |
+| 6 | nethack：`MAP_H 20 → 19`，旧 20 行存档失效 | **接受**（本轮登记过的破坏性变更）：`floor_is_valid` 按行数校验，旧档静默回新局 |
