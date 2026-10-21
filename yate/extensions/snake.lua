@@ -36,17 +36,18 @@ local COLS, ROWS = 80, 24
 local INNER = 78
 local BOARD_W, BOARD_H = 39, 20
 
--- Cell glyphs (single width, doubled on output): body, head, food.
+-- Cell glyphs (single width, doubled on output): body, head, food.  All
+-- three come from the block/shade family so every cell reads as a block.
 local BODY = engine.glyph.block .. engine.glyph.block
 local HEAD = engine.glyph.shade .. engine.glyph.shade
-local FOOD = engine.glyph.big_dot .. engine.glyph.big_dot
+local FOOD = engine.glyph.mid .. engine.glyph.mid
 local EMPTY = "  "
 
 -- Palette handed to the canvas: glyph -> color.
 local PALETTE = {
   [engine.glyph.block] = "#4caf50",
   [engine.glyph.shade] = "#c8e6c9",
-  [engine.glyph.big_dot] = "#e53935",
+  [engine.glyph.mid] = "#e53935",
 }
 
 -- Speed table: one step per step_ticks ticks, floored at 3.
@@ -262,11 +263,15 @@ local function board_cells(by)
   end
   for index = #state.snake, 2, -1 do
     local part = state.snake[index]
-    cells[part.x] = BODY
+    if part.y == by then
+      cells[part.x] = BODY
+    end
   end
   local head = state.snake[1]
-  cells[head.x] = HEAD
-  if state.food ~= nil then
+  if head.y == by then
+    cells[head.x] = HEAD
+  end
+  if state.food ~= nil and state.food.y == by then
     cells[state.food.x] = FOOD
   end
   return table.concat(cells)
@@ -317,6 +322,8 @@ local function paint()
     "score " .. state.score
       .. "  best " .. state.best
       .. "  length " .. #state.snake
+      .. "  " .. engine.glyph.block .. " snake "
+      .. engine.glyph.mid .. " food"
   )
   session.paint()
 end

@@ -38,6 +38,23 @@ def test_write_is_atomic_and_leaves_no_temp_file() -> None:
     assert data_store.read_text("games/a.json") == "two"
 
 
+def test_write_falls_back_to_a_direct_write_when_rename_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A locked target (Windows AV/sync) degrades to a direct write."""
+    data_store.write_text("games/locked.json", "one")
+
+    def locked(self: Path, target: Path) -> None:
+        raise OSError("target is locked")
+
+    monkeypatch.setattr(Path, "replace", locked)
+    data_store.write_text("games/locked.json", "two")
+
+    assert data_store.read_text("games/locked.json") == "two"
+    directory = data_store.data_root() / "games"
+    assert [entry.name for entry in directory.iterdir()] == ["locked.json"]
+
+
 def test_remove_reports_whether_the_file_existed() -> None:
     """``remove`` is a boolean report, idempotent for a missing document."""
     data_store.write_text("games/b.json", "x")

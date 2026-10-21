@@ -43,6 +43,7 @@ layout.glyph = {
   v = "│",
   block = "█",
   shade = "▓",
+  mid = "▒",
   light = "░",
   box = "▣",
   box_on_goal = "▩",

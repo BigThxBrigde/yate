@@ -77,6 +77,11 @@ def write_text(relative: str, text: str) -> None:
     The document is written to a temporary sibling file and then moved onto
     the target with :meth:`pathlib.Path.replace`, so a crash mid-write leaves
     the previous version intact rather than a truncated JSON document.
+
+    Windows file locks (antivirus scanners, sync clients) can make the rename
+    fail with a spurious ``OSError`` even though the directory is writable.
+    Saving must not lose data over that, so the fallback is a direct write of
+    the target -- it gives up the atomicity guarantee but keeps the save.
     """
     path = resolve(relative)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,7 +92,11 @@ def write_text(relative: str, text: str) -> None:
     try:
         with os.fdopen(handle_fd, "w", encoding="utf-8", newline="") as stream:
             stream.write(text)
-        temp.replace(path)
+        try:
+            temp.replace(path)
+        except OSError as exc:
+            log.warning("atomic replace failed for %s, writing directly: %s", relative, exc)
+            path.write_text(text, encoding="utf-8", newline="")
     finally:
         temp.unlink(missing_ok=True)
 

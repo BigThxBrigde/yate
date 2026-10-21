@@ -1,11 +1,11 @@
 CanvasScreen {
     background: $background;
     align: center middle;
+    overflow: hidden;
 }
 CanvasScreen .grid {
     width: auto;
     height: auto;
-    border: round $primary;
     padding: 0;
     overflow: hidden;
     background: $surface;
