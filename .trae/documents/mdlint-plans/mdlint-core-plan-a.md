@@ -400,3 +400,40 @@ pyright --pythonplatform Windows tools/mdlint/ tests/test_mdlint.py tests/test_m
 （模块 docstring 早先把 2 定义为"usage error or lint backend failure"）。
 
 **验收**：新增 `test_cli_backend_failure_on_one_file_exits_2`。
+
+## 九、增量：目录 PATH 与 `--parallel`（2026-10-21）
+
+### 9.1 需求与语义
+
+- `PATH` 由"仅文件"扩展为**文件或目录**：目录递归收集 `*.md`（`batch.collect_markdown`，
+  排序后去重）；既非文件也非目录 → `error: not a file or directory` + 退出码 2。
+- `--parallel` **只在 PATH 含目录时生效**：
+  - 含目录 → 目录展开出的全部文件（含同时给出的显式文件）进入进程池；
+  - 仅文件 → 打印 `mdlint: --parallel needs a directory PATH; running sequentially`，
+    按原顺序单进程执行（退出码语义不变）。
+
+### 9.2 选型：进程池而非线程池
+
+`pack wiki` 的并行用的是 `ThreadPoolExecutor`，因为它的工作单元是**阻塞的外部翻译命令**；
+而 mdlint 的工作单元是纯 Python 的 pymarkdown 解析，属 CPU 密集，GIL 会让线程池几乎没有
+加速。因此 `--parallel` 用 `ProcessPoolExecutor`，形状与 wiki 一致：
+`BATCH_SIZE = 10` 个文件一个任务（`batch.chunk`），worker 数 `min(cpu_count, 批数)`
+（wiki 的 `cpu_count * 2` 是为 I/O 等待留余量，CPU 密集不需要）。每个 worker 进程内按
+语言惰性建引擎并缓存；父进程只传 `(path, lang)` 并回收 `FileOutcome`（可 pickle）。
+结果按输入顺序输出，报告顺序与是否并行无关；父进程先构造一次引擎做后端校验，
+依赖缺失时只报一条 `error: lint backend failure`，而不是每文件一条。
+
+### 9.3 实测（本机，机器负载 100%）
+
+`.trae/documents`（293 篇 / 2.32MB）`--check --auto-lang`：
+
+| 模式 | 耗时 |
+|---|---|
+| 单进程 | 76.9s |
+| `--parallel`（8 worker） | 25.5s（约 3×；空载机器上接近核数上限） |
+
+### 9.4 新增测试
+
+`tests/test_mdlint_parallel.py` 共 10 例：目录收集/排序、`chunk`/`worker_count` 边界、
+目录展开、并行 check 报告全部违规、并行 fix 落盘、无目录时降级顺序执行、
+缺失路径退出码 2、进程池启动失败 → 2、worker 返回错误值 → 2。

@@ -11,6 +11,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from tools.mdlint.batch import FileOutcome, collect_markdown, run_batches
 from tools.mdlint.lint import LintEngine, LintViolation
 from tools.mdlint.rules import LANGS, lang_for_path
 
@@ -26,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="*",
         type=Path,
         metavar="PATH",
-        help="Markdown files to process",
+        help="Markdown files or directories (directories are searched for *.md)",
     )
     parser.add_argument(
         "--lang",
@@ -39,6 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Pick the rule profile per file from its path "
         "(*.zh.md -> zh, *.en.md -> en, .trae/** -> zh, otherwise en)",
+    )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Lint directory PATHs in parallel batches (process pool); "
+        "a PATH list without a directory runs sequentially",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -137,6 +144,28 @@ def _list_rules(engine: LintEngine) -> int:
     return 0
 
 
+def _lang_for(path: Path, *, lang: str | None, auto: bool) -> str:
+    """Resolve the profile for one file following the CLI precedence."""
+    if lang is not None:
+        return lang
+    if auto:
+        return lang_for_path(str(path))
+    return "en"
+
+
+def _report_outcome(outcome: FileOutcome, *, quiet: bool) -> tuple[int, int]:
+    """Print one pooled result; return ``(violations, failed)``."""
+    if outcome.error is not None:
+        print(f"error: cannot lint {outcome.path}: {outcome.error}", file=sys.stderr)
+        return 0, 1
+    if not quiet:
+        if outcome.was_fixed:
+            print(f"fixed: {outcome.path}")
+        for violation in outcome.violations:
+            print(_format_violation(Path(outcome.path), violation))
+    return len(outcome.violations), 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point; return the process exit code."""
     parser = build_parser()
@@ -151,19 +180,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.paths:
         parser.error("at least one PATH is required")
 
+    files: list[Path] = []
+    saw_directory = False
     for path in args.paths:
-        if not path.is_file():
-            print(f"error: not a file: {path}", file=sys.stderr)
+        if path.is_dir():
+            saw_directory = True
+            files.extend(collect_markdown(path))
+        elif path.is_file():
+            files.append(path)
+        else:
+            print(f"error: not a file or directory: {path}", file=sys.stderr)
             return 2
+    # Overlapping directories can name the same file twice; lint it once.
+    files = list(dict.fromkeys(files))
+
+    parallel = args.parallel
+    if parallel and not saw_directory:
+        print(
+            "mdlint: --parallel needs a directory PATH; running sequentially",
+            file=sys.stderr,
+        )
+        parallel = False
+
+    if parallel:
+        return _run_parallel(files, args)
 
     groups: dict[str, list[Path]] = {}
-    for path in args.paths:
-        if args.lang is not None:
-            lang = args.lang
-        elif args.auto_lang:
-            lang = lang_for_path(str(path))
-        else:
-            lang = "en"
+    for path in files:
+        lang = _lang_for(path, lang=args.lang, auto=args.auto_lang)
         groups.setdefault(lang, []).append(path)
 
     engines: dict[str, LintEngine] = {}
@@ -186,6 +230,38 @@ def main(argv: Sequence[str] | None = None) -> int:
         total_failed += failed
     # Violations win over failures: a file the backend choked on must not
     # mask the findings of the files it did lint.
+    if total_remaining:
+        return 1
+    return 2 if total_failed else 0
+
+
+def _run_parallel(files: Sequence[Path], args: argparse.Namespace) -> int:
+    """Lint *files* through the process pool, then report in input order."""
+    items = [
+        (str(path), _lang_for(path, lang=args.lang, auto=args.auto_lang))
+        for path in files
+    ]
+    # Validate the backend once in the parent: a missing dependency must
+    # report a single message instead of one failure per pooled file.
+    try:
+        for lang in sorted({lang for _, lang in items}):
+            LintEngine(lang)
+    except Exception as exc:  # backend failure: plugin load, config, etc.
+        print(f"error: lint backend failure: {exc}", file=sys.stderr)
+        return 2
+    try:
+        outcomes = run_batches(items, fix=args.fix)
+    except Exception as exc:  # pool start-up failure: interpreter, plugins
+        print(f"error: lint backend failure: {exc}", file=sys.stderr)
+        return 2
+    total_remaining = 0
+    total_failed = 0
+    for outcome in outcomes:
+        remaining, failed = _report_outcome(outcome, quiet=args.quiet)
+        total_remaining += remaining
+        total_failed += failed
+    if not args.quiet:
+        _print_summary("fix" if args.fix else "check", files, total_remaining)
     if total_remaining:
         return 1
     return 2 if total_failed else 0
