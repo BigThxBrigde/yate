@@ -145,7 +145,7 @@ worktree：`../yate-syntax-langs`，分支 `enh/syntax-langs`（**续作任务�
     （真正打到大小写展开推导，删掉推导即红）；补 perl `sub` 函数名、perl/ruby `@` sigil、
     make `$(VAR)`、scss/less 不落 CSS grammar 的回退断言；
   - `tests/test_extension_examples.py`（新建）：模板 `ast.parse` + 桩 API 执行 `setup()`
-    + `tokenize_document` 非空（补 W3 验收）。
+    - `tokenize_document` 非空（补 W3 验收）。
 - 验收命令：`.venv\Scripts\python.exe -m pytest tests/ -q`。
 
 ### W4 收尾（主代理，必做）

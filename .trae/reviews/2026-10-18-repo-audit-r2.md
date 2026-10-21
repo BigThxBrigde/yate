@@ -47,7 +47,7 @@ wave-1 的 `plan_a` 只改写了同段的**注释**）。它正是「非 ASCII �
 
 | 演练 | 插入内容 | 用例 | 观察到的失败输出 | 还原确认 |
 |---|---|---|---|---|
-| A-2（注释分支） | `yate/logs.py` 末尾追加 `# probe ` + U+8BD5 U+63A2 | `test_comments_and_docstrings_stay_ascii` | `AssertionError: ["yate/logs.py:692 comment ['U+8BD5', 'U+63A2']"]`，退出码 1 | `git checkout -- yate/logs.py` → 复跑退出码 0，`git status` 无该文件 |
+| A-2（注释分支） | `yate/logs.py` 末尾追加 `# probe` + U+8BD5 U+63A2 | `test_comments_and_docstrings_stay_ascii` | `AssertionError: ["yate/logs.py:692 comment ['U+8BD5', 'U+63A2']"]`，退出码 1 | `git checkout -- yate/logs.py` → 复跑退出码 0，`git status` 无该文件 |
 | A-2（docstring 分支） | `yate/editor_core/words.py:1` 模块 docstring 首行插入 `probe 汉字.` | 同上 | `AssertionError: ["yate/editor_core/words.py:1 docstring <module> ['U+6C49', 'U+5B57']"]`，退出码 1 | `git checkout -- yate/editor_core/words.py` → 复跑退出码 0 |
 | A-1 | `yate/editor_core/words.py` 末尾追加顶层 `print("probe")` | `test_no_debug_prints_in_library_modules` | `AssertionError: [… 'editor_core/words.py:84 print() in <module>()']`，退出码 1 | `git checkout -- yate/editor_core/words.py` → 复跑退出码 0，`git status` 无该文件 |
 

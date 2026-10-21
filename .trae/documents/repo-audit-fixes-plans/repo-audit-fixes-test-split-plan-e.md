@@ -29,10 +29,12 @@
 不新增测试（纯移动）。行为零变化的判定标准：
 
 1. **用例数守恒**：迁移前后全仓收集的测试用例集合逐字一致——
+
    ```powershell
    .venv\Scripts\python.exe -m pytest tests/ --collect-only -q > before.txt   # 拆分前
    .venv\Scripts\python.exe -m pytest tests/ --collect-only -q > after.txt    # 拆分后
    ```
+
    两文件排序后 `Compare-Object` 零差异（node id 的模块前缀变化属预期，比较时剥离路径前缀只比 `::Class::test` 尾段与数量）；
 2. 验证命令（退出码 0）：
 
@@ -42,7 +44,7 @@
 .venv\Scripts\python.exe -m pyright tests/
 ```
 
-3. 手工验证：`git diff --stat` 确认删除行数 ≈ 新文件合计行数（无夹带改写）；抽 3 个迁移用例 diff 逐字比对断言未动。
+1. 手工验证：`git diff --stat` 确认删除行数 ≈ 新文件合计行数（无夹带改写）；抽 3 个迁移用例 diff 逐字比对断言未动。
 
 ## 五、风险与回滚
 

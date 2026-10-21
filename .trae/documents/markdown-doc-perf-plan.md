@@ -82,9 +82,11 @@ changelog source=176045B lines= 1471 read=   1.4ms build= 235.2ms render= 286.0m
   线程安全：仅在 worker 线程调用一次。
 - **输出**：函数返回行数（manual 1674 / changelog 1471）。
 - **验收命令**：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_manual.py -q
-  ```
+
+```
 
 ### W2 屏幕改为单 widget 承载预渲染行
 
@@ -98,9 +100,10 @@ changelog source=176045B lines= 1471 read=   1.4ms build= 235.2ms render= 286.0m
   3. 载入占位 `#doc-loading` 语义不变（预渲染完成后 `display = False`）。
 - **输出**：`manual_changelog_modals` 场景内 open 从 11.0s 降到 <1.0s。
 - **验收命令**：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_manual.py tests/test_app_manual.py -q
-  .venv\Scripts\python.exe -m tools.smoke_test run --scenario manual_changelog_modals --no-color
+.venv\Scripts\python.exe -m tools.smoke_test run --scenario manual_changelog_modals --no-color
   ```
 
 ### W3 搜索 / 高亮 / 跳转改到行模型
@@ -114,9 +117,11 @@ changelog source=176045B lines= 1471 read=   1.4ms build= 235.2ms render= 286.0m
   4. debounce（`_SEARCH_DEBOUNCE_S = 0.12`）与 `on_unmount` 取消定时器的契约不变。
 - **输出**：搜索、跳转、高亮与现状等价；`view_manual_command`（3 次 open/close）从 21.4s 降到 <2s。
 - **验收命令**：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_manual.py tests/test_app_manual.py tests/test_app_render.py -q
-  .venv\Scripts\python.exe -m tools.smoke_test run --tag view --no-color
+.venv\Scripts\python.exe -m tools.smoke_test run --tag view --no-color
+
   ```
 
 ### W4 收尾门禁

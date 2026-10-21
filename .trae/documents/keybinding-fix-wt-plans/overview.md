@@ -24,11 +24,11 @@
 > 另：SP1 独占的 `yate/editor_view/keys.py` 已随 PB1 整体迁入 `yate/keyproto/legacy.py`（见下表注）。
 
 > **🔄 2026-09-26 Phase B 启动**：Phase B 完成后即可修复物理层键——ctrl+数字（无事件行）、
-> ctrl+`↔ctrl+space NUL 碰撞（`editor.py:587` 现状取舍：编辑器聚焦→补全、终端聚焦→关终端）、
+> ctrl+`↔ctrl+space NUL 碰撞（`editor.py:587`现状取舍：编辑器聚焦→补全、终端聚焦→关终端）、
 > ctrl+e/ctrl+shift+e 区分、alt+digit。执行顺序 PB1（keyproto L0 包）→ PB2.0（XTermParser
 > win32-input-mode 帧探测，定轻量协议 or 自建驱动）→ PB2（驱动 chord 交付）→ PB3（`key_protocol`
 > 配置）→ PB4（文档）→ PB5（矩阵复测+发布）。步骤见 [keybinding-fix-wt-steps-plan-g.md](keybinding-fix-wt-steps-plan-g.md)。
-> Phase A 合计 6 commits：`5a73fc7` `1d1f3d8` `34ab059` `beea5e0` `1db6175` `d56e43a`。
+> Phase A 合计 6 commits：`5a73fc7``1d1f3d8``34ab059``beea5e0``1db6175``d56e43a`。
 >
 > **✅ 2026-09-26 Phase B 主体完成**（PB1/PB2/PB3/PB4/PB5-r1/PB6）：
 > `5cd97d1` `ce93090` `33f91e5` `c9713df` `54ab508` `b246fa5` `afaf000` `7b08070` `fe4d92c`。
@@ -56,9 +56,11 @@ SP1 ──► SP2 ──► SP3 ──► SP4 ──► SP5
 ## 环境
 
 - worktree 无独立 `.venv`，统一用主仓解释器（PowerShell，cwd = worktree 根）：
+
   ```powershell
   .venv\Scripts\python.exe -m pytest tests\test_app_textual.py -q
   ```
+
 - 类型门禁：`.venv\Scripts\python.exe -m pyright yate tests tools`
 - 手动验证：在 worktree 目录 `.venv\Scripts\` 不存在时用 `.venv\Scripts\python.exe -m yate`（或先 `python -m venv .venv && pip install -e .[dev]` 建本地环境）。
 

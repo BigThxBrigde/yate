@@ -35,10 +35,10 @@ from yate.editor_view.find_replace import FindReplaceScreen
 from yate.session import EditorSession
 ```
 
-2. `__init__`（L38-74）参数表在 `workspace: Workspace,`（L47）前插
+1. `__init__`（L38-74）参数表在 `workspace: Workspace,`（L47）前插
    `session: EditorSession,`；函数体在 `self.workspace = workspace` 旁加
    `self.session = session`。
-3. 新增方法（置于 `open_diff` 与 `_palette` 之间，动词方法对齐既有形态）：
+2. 新增方法（置于 `open_diff` 与 `_palette` 之间，动词方法对齐既有形态）：
 
 ```python
 def open_project_replace(self) -> None:
@@ -73,7 +73,7 @@ reveal_match=ed.reveal_match,
 readonly_notice=ed.readonly_notice,
 ```
 
-2. `Editor` 类新增方法（`readonly_notice` L750 附近，组合点归 L3）：
+1. `Editor` 类新增方法（`readonly_notice` L750 附近，组合点归 L3）：
 
 ```python
 def reveal_match(self, path: Path, row: int, col: int) -> None:

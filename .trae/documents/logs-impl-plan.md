@@ -212,6 +212,7 @@ def main(argv=None):
 ### 2.6 配置系统变更：`yate/config.py`
 
 1. **`_KNOWN_OPTIONS`**（config.py:48-51 的 tuple）增加两项，紧跟现有项之后：
+
    ```python
    _KNOWN_OPTIONS = (
        "keymap", "theme", "tab_width", "use_spaces",
@@ -219,16 +220,20 @@ def main(argv=None):
        "yate_trace", "yate_trace_level",        # ← 新增
    )
    ```
+
 2. **`YateConfig`** dataclass（config.py:77-110）在 `show_hidden` 字段之后、扩展路径字段之前插入：
-   ```python
+  
+```python
    #: 运行日志开关（默认关闭）。yaterc: yate_trace = True
    yate_trace: bool = False
    #: 运行日志等级，与 logging 内置等级名对齐（默认 DEBUG）。
    yate_trace_level: str = "DEBUG"
    ```
-3. **`_extract_options()`**（config.py:306 起）在 `tab_width` 校验块之后按同样风格补两段：
+  
+1. **`_extract_options()`**（config.py:306 起）在 `tab_width` 校验块之后按同样风格补两段：
+
    ```python
-   yate_trace_val = options.get("yate_trace")
+yate_trace_val = options.get("yate_trace")
    if yate_trace_val is not None:
        if isinstance(yate_trace_val, bool):
            config.yate_trace = yate_trace_val
@@ -249,6 +254,7 @@ def main(argv=None):
                "DEBUG/INFO/WARNING/ERROR/CRITICAL, "
                f"got {yate_trace_level_val!r}"
            )
+
    ```
 
 ### 2.7 初始日志埋点（首批）

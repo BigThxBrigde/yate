@@ -461,7 +461,7 @@ flowchart LR
 ### 8.2 事实清单（第四轮调研取证）
 
 - `buffer.py` 实测 `splitlines()` = 1061（评审时点；master 合并 `eaa5dbc`
-  + 第三轮 docstring 修正后）——机器人报的 948 基于 master 合并前快照，
+  - 第三轮 docstring 修正后）——机器人报的 948 基于 master 合并前快照，
   同样失真；规则文本 `:181` 登记的 1051 亦为过时值。
 - `buffer.py:735`「remapped through each later deletion …」一段挤成
   ~150 列超长单行，核实属实（第三轮编辑继承的既有长行）。

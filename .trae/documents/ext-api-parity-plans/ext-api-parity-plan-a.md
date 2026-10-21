@@ -17,46 +17,60 @@ NEXT STEPS 点 1 + 点 2 的 Python 侧：theme / clipboard / docs / actions 四
 ### 1. yate/services/extension_bridges.py
 
 1. `EventExtensionBridge` 增加类属性再导出（先例：`HighlightExtensionBridge.LangSpec`，L129）：
+
    ```python
    #: Re-exported so extensions subscribe without importing yate internals.
    EditorEvent = EditorEvent
    ```
+
 2. 新增 `ThemeExtensionBridge`（不 import yate.editor_view，仅持回调——R4）：
-   ```python
+  
+```python
    class ThemeExtensionBridge:
        """``api.theme`` -- switch/read the color theme from an extension."""
        def __init__(self, set_theme: Callable[[str], None], active_name: Callable[[], str]) -> None: ...
        def set(self, name: str) -> None:  # 转发 set_theme 回调；未知主题的异常原样上抛（setup 期由 loader 记录、回调期由 guard 兜底）
        def active(self) -> str: ...       # 返回当前主题名
    ```
-3. 新增 `ClipboardExtensionBridge`（直接 import `yate.services.clipboard` 的模块级函数，同层 L3 合法）：
+  
+1. 新增 `ClipboardExtensionBridge`（直接 import `yate.services.clipboard` 的模块级函数，同层 L3 合法）：
+
    ```python
-   def set(self, text: str) -> bool:   # copy_text(text)
+def set(self, text: str) -> bool:   # copy_text(text)
    def get(self) -> str | None:        # paste_text()
+
    ```
+   
 4. 新增 `DocsExtensionBridge`（只读包装 `EditorSession`；禁止暴露 session.open/activate/close_active 等会绕过 UI flows 的可变成员）：
-   ```python
+   
+```python
    def __init__(self, session: EditorSession) -> None: ...
-   def all(self) -> list[Document]:    # list(self._session.docs) 新列表
+def all(self) -> list[Document]:    # list(self._session.docs) 新列表
    def is_open(self, path: str | Path) -> bool:  # self._session.is_open(Path(path)) is not None
    ```
-5. 新增 `ActionExtensionBridge`：
+  
+1. 新增 `ActionExtensionBridge`：
+  
    ```python
-   def __init__(self, registry: ActionRegistry, run_action: Callable[[str], bool]) -> None: ...
+def __init__(self, registry: ActionRegistry, run_action: Callable[[str], bool]) -> None: ...
    def run(self, name: str) -> bool:   # 经 run_action（即 KeyUi.execute_action，走编辑器统一派发）
-   def names(self) -> list[str]:       # registry.names()
+def names(self) -> list[str]:       # registry.names()
    def has(self, name: str) -> bool:   # registry.get(name) is not None
+
    ```
+   
 6. `UiExtensionBridge` 增加工厂（Lua 无法构造 frozen dataclass，此工厂是点 3 对齐的使能件；`add_status_segment` 保留为既有公共 API）：
+   
    ```python
    def add_segment(self, id: str, provider: Callable[[], str | None],
-                   align: SegmentAlign = "right", priority: int = 0) -> None:
+                align: SegmentAlign = "right", priority: int = 0) -> None:
        self.add_status_segment(StatusSegment(id=id, provider=provider, align=align, priority=priority))
-   ```
+```
 
 ### 2. yate/services/extension_api.py
 
 1. `ExtensionContext` 增加三个回调字段（docstring 注明由 editor 注入、惰性解析，与 message/run_shell 同型）：
+
    ```python
    #: ``run_action(name)`` -- run a named action through the editor's key UI
    #: dispatch; the bool result says whether the action was known.
@@ -66,33 +80,41 @@ NEXT STEPS 点 1 + 点 2 的 Python 侧：theme / clipboard / docs / actions 四
    #: ``active_theme_name()`` -- the active theme's name.
    active_theme_name: Callable[[], str]
    ```
+
 2. `ExtensionAPI.__init__` 构建四个新桥；新增 properties：`theme` / `clipboard` / `docs` / `actions`（docstring 一行说明，风格对齐现有 accessors）。
 3. 新增 `bind_action`（结构镜像 `bind_key` 的 `_do` 内嵌与 A13 快照）：
+  
    ```python
-   def bind_action(self, key_spec: str, action_name: str, keymap: str = "vsc",
+def bind_action(self, key_spec: str, action_name: str, keymap: str = "vsc",
                    description: str = "", category: str = "extension") -> None:
+
    ```
+   
    - keymap 解析复用 bind_key 语义：`"both"` → ["vsc","vim"]；`"normal"` 别名 → ["vsc"]；未知 keymap 名 → `log.warning` 列出可用名并跳过（先例 bind_key S34）。
    - 校验 `self._ctx.actions.get(action_name)`：未知 action → `log.warning("bind_action: unknown action %r (available: %s)")` 且不绑定（镜像未知 keymap 的响亮失败；文档注明“先注册后绑定”）。
    - A13：`previous = km.lookup(raw)` 记录 undo thunk（恢复 previous 或 remove_binding），与 bind_key L272-285 同构。
    - 绑定本体：`km.add_binding(key_spec, action_name, description or f"action {action_name}", category)`（add_binding 的 action 参数原生接受 str，见 keymaps/base.py:273）。
    - 无装饰器形态（返回 None）。
 4. 新增 `unbind_key`：
-   ```python
+   
+```python
    def unbind_key(self, key_spec: str, keymap: str = "vsc") -> bool:
-   ```
-   - 同一 keymap 解析；`raw = km.normalize_key(key_spec)`；有 A13 scope 时记录恢复 thunk（previous = km.lookup(raw)）。
-   - `removed = km.remove_binding(raw)`；任一目标移除成功即返回 True；未知 keymap → warning + False。
-5. 更新模块 docstring 提及四桥与重绑原语（一两句即可）。
+```
+
+- 同一 keymap 解析；`raw = km.normalize_key(key_spec)`；有 A13 scope 时记录恢复 thunk（previous = km.lookup(raw)）。
+- `removed = km.remove_binding(raw)`；任一目标移除成功即返回 True；未知 keymap → warning + False。
+1. 更新模块 docstring 提及四桥与重绑原语（一两句即可）。
 
 ### 3. yate/editor.py（仅 `extension_context()` 一处装配）
 
 - `editor.py:402-417` 的 `ExtensionContext(...)` 增加三个实参（惰性 lambda，与 open_path/save 同型）：
+
   ```python
   run_action=lambda name: self.key_ui.execute_action(name),
   set_theme=lambda name: set_theme(name),
   active_theme_name=lambda: theme.active().name,
   ```
+
   - import 来源：editor.py 已有 theme 相关装配（THEME_CHANGED 发射），复用其现有 import（`yate.editor_view.theme` 的 `set_theme` / `active`；若为 `from yate.editor_view import theme` 风格则用 `theme.set_theme(...)`）。
   - 不得改动 editor.py 其他区域。
 

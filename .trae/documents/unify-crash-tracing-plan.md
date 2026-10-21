@@ -223,8 +223,8 @@ def _trace_header(level: int) -> str: ...              # 组装头部，供文�
 （`"trace session ==="`、`"trace level: DEBUG"`、`"pid:"`）。把标题作为 `title` 传入、
 给两组附加行显式位置，既保留唯一的共享构造函数，也保留历史字节：
 
-* 崩溃 → `build_session_header(title=f"yate {__version__} crash report")`
-* 追踪 → `build_session_header(title=f"=== yate {__version__} trace session ===",`
+- 崩溃 → `build_session_header(title=f"yate {__version__} crash report")`
+- 追踪 → `build_session_header(title=f"=== yate {__version__} trace session ===",`
   `extra_lines={"pid": str(os.getpid())},`
   `footer_lines={"trace level": logging.getLevelName(level)})`
 
@@ -234,12 +234,12 @@ def _trace_header(level: int) -> str: ...              # 组装头部，供文�
 名字带下划线：它是 `TracingService.install()` 的内部机件（全库仅两处引用：
 定义 + 实例化），换掉它不需要任何外部知会。
 
-* `delay=True` —— 文件在**第一条真正写出的记录**时才创建，所以
+- `delay=True` —— 文件在**第一条真正写出的记录**时才创建，所以
   `YATE_TRACE=1 yate --version` 不会在 `~/.yate/data/logs` 留下空壳文件；
-* 头部在首次 emit 时直接写入流（不走 logger），无论配置的等级是什么都会出现；
-* `OSError` → `handleError()`（日志绝不能把编辑器搞崩）；
-* `close()` 会重置 `self._stream`，后续记录会重新打开文件，而不是写进一个已关闭的句柄；
-* 懒打开用我们自己的 `_stream` 跟踪，而不是判断 `self.stream is None`（stdlib 的
+- 头部在首次 emit 时直接写入流（不走 logger），无论配置的等级是什么都会出现；
+- `OSError` → `handleError()`（日志绝不能把编辑器搞崩）；
+- `close()` 会重置 `self._stream`，后续记录会重新打开文件，而不是写进一个已关闭的句柄；
+- 懒打开用我们自己的 `_stream` 跟踪，而不是判断 `self.stream is None`（stdlib 的
   `stream` 属性在首次 emit 前根本不存在，各版本 stub 对它是否可空说法不一）。
 
 ## CrashService —— 自包含、零依赖
@@ -365,29 +365,29 @@ level = resolved if resolved is not None else logging.DEBUG   # 显式 None 判�
 
 `tests/test_crash.py`：
 
-* **单例直连**：`from yate.logs import crash`；`crash.install()` /
+- **单例直连**：`from yate.logs import crash`；`crash.install()` /
   `crash.uninstall()` / `crash.current_crash_file()` / `crash.build_err_path(...)` /
   `crash.cleanup_on_exit()` 全是对象方法（与生产同一条路径）；
-* 模块级函数 `crash_data_dir()` 按名/经模块使用（`logs.crash_data_dir()`），
+- 模块级函数 `crash_data_dir()` 按名/经模块使用（`logs.crash_data_dir()`），
   因为它同时是 monkeypatch 的目标；
-* `_reset_crash_state()` 重置**底层属性**（`crash._err_file` / `_err_path` /
+- `_reset_crash_state()` 重置**底层属性**（`crash._err_file` / `_err_path` /
   `_crashed`）——状态是只读 property，没有 setter；文件顶部保留
   `# pyright: reportPrivateUsage=false`，与 fixture 恢复
   `crash._original_excepthook`、`sys.excepthook` 的做法一致；
-* 降级环境用例 patch **`yate.logs.crash_data_dir`**（`install()` 从 `yate.logs`
+- 降级环境用例 patch **`yate.logs.crash_data_dir`**（`install()` 从 `yate.logs`
   自己的模块全局解析它，patch 服务对象不会生效）。
 
 `tests/test_tracing.py`：
 
-* **单例直连**：`from yate.logs import tracing`，加按名导入的
+- **单例直连**：`from yate.logs import tracing`，加按名导入的
   `env_level, env_trace, resolve_level`（它们是模块函数，不是对象成员）；
-* 删掉 `from yate.config import YateConfig`；所有调用改为
+- 删掉 `from yate.config import YateConfig`；所有调用改为
   `install(yate_trace=..., yate_trace_level="ERROR"|"WARNING"|"DEBUG")` —— 等级名
   保持字符串，测试点不再出现 `logging.ERROR` 这类 int；
-* 删除 `_zero_level` 与 `test_requested_level_keeps_a_falsy_resolution`；
-* `tracing.root_logger` / `tracing.file_handlers()` 直接读单例（无需再经 `logs.tracing`）；
-* **新增** `test_configure_is_a_thin_alias_of_install`（否则第二阶段的路径没有单测覆盖）；
-* 不可写日志目录的用例 patch **`yate.logs.logs_dir`**。
+- 删除 `_zero_level` 与 `test_requested_level_keeps_a_falsy_resolution`；
+- `tracing.root_logger` / `tracing.file_handlers()` 直接读单例（无需再经 `logs.tracing`）；
+- **新增** `test_configure_is_a_thin_alias_of_install`（否则第二阶段的路径没有单测覆盖）；
+- 不可写日志目录的用例 patch **`yate.logs.logs_dir`**。
 
 ## 验证结果（实测）
 

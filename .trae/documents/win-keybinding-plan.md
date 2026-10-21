@@ -30,21 +30,21 @@
 > 6. **行号一律会漂移**：正文/§9 速查表里的旧行号（`app.py:985-999`、`vim.py:170,415-416`、
 >    `emulator.py:139-148` 等）按本文档自述"以注释/符号名为准"处理，本次不逐条改写。
 >
-> 1. **P2.4 已被重构顺带完成**（`9fa5ac8`）：app 层 `ctrl+shift+e`/`ctrl+1`/`ctrl+p` 字符串特例已迁为
+> 7. **P2.4 已被重构顺带完成**（`9fa5ac8`）：app 层 `ctrl+shift+e`/`ctrl+1`/`ctrl+p` 字符串特例已迁为
 >    `Editor.handle_key`（`yate/editor.py:618-626`，L3）的 event.key 分支，先于 keymap 派发——
 >    **vim 吞键不再影响这三个键，`Ctrl+P` 在 vim/vsc 双键位下均已恢复**（Issue IKH1RA 三键之一）。
 >    剩余工作仅为回归守卫（`wt-keybinding-fix-plan.md` SP2）。
-> 2. **`Ctrl+/` 仍失效且根因未变**：`\x1f` 被 Textual 命名为 `ctrl+underscore`，`event_to_raw` 无此条目 → 键被丢弃
+> 8. **`Ctrl+/` 仍失效且根因未变**：`\x1f` 被 Textual 命名为 `ctrl+underscore`，`event_to_raw` 无此条目 → 键被丢弃
 >    （本日实测：`XTermParser` 对 `\x1f` 输出 `ctrl+underscore`；vim `_handle_insert` L185 / `_handle_normal` L431 双吞键点）。
 >    修复 = `wt-keybinding-fix-plan.md` SP1（`_CTRL_PUNCT` 补 `underscore` + `KEY_ALIASES` 补显示别名）。
 >    **（2026-09-28 核对：已修复，见上方核对注 3。）**
-> 3. **`Ctrl+1` 结论不变**：conhost/Textual 双双丢修饰，物理不可达；唯一根治路径仍是本计划方案 B（P3–P6）。
+> 9. **`Ctrl+1` 结论不变**：conhost/Textual 双双丢修饰，物理不可达；唯一根治路径仍是本计划方案 B（P3–P6）。
 >    **（2026-09-28 核对：legacy 路径结论仍成立；但和弦驱动 + win32-input-mode 帧解码落地后
 >    WT 下已可达，见上方核对注 4。）**
-> 4. **锚点换算**：`yate/interfaces.py` 已删除（R2），`app.py:985-999` 等旧引用全部失效——
+> 10. **锚点换算**：`yate/interfaces.py` 已删除（R2），`app.py:985-999` 等旧引用全部失效——
 >    完整换算表见姊妹文档头部「2026-09-26 校准」节，全文以其为准。
-> 5. **先行切片**：`wt-keybinding-fix-plan.md`（= 方案 A 的 P2 快速止血子集，可独立发布）已生成于本文档同目录。
-> 6. **§2 证据表与 §9 速查表保留 2026-09-19 原貌作为历史取证**（引用的 `app.py:985-999` 等为当时布局），
+> 11. **先行切片**：`wt-keybinding-fix-plan.md`（= 方案 A 的 P2 快速止血子集，可独立发布）已生成于本文档同目录。
+> 12. **§2 证据表与 §9 速查表保留 2026-09-19 原貌作为历史取证**（引用的 `app.py:985-999` 等为当时布局），
 >    实施时一律使用校准表中的重构后锚点。
 
 ---

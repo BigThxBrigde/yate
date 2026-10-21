@@ -46,11 +46,14 @@ _CTRL_PUNCT = {"[": 0x1B, "\\": 0x1C, "]": 0x1D, "/": 0x1F, "underscore": 0x1F}
 ### 步骤 1.3　测试断言
 
 - `tests/test_app_textual.py` 的 `test_ctrl_and_alt`（L70，现有 L74 `ctrl+/` 断言旁）追加：
+
   ```python
   assert textual_key_to_raw("ctrl+underscore") == "\x1f"
   ```
+
 - `tests/test_key_notation.py`：任选邻近 `key_name` 断言的用例追加：
-  ```python
+  
+```python
   assert key_name("\x1f") == "<ctrl-/>"
   ```
 

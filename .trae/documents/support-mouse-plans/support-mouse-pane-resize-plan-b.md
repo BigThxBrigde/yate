@@ -187,7 +187,7 @@ imports 追加：`from textual.events import MouseDown, MouseMove, MouseUp`。
 
 ### `tests/test_app_panes.py`（pilot 级，参照本文件既有 run_test 用例）
 
-5. `test_separator_drag_updates_split_sizes`
+1. `test_separator_drag_updates_split_sizes`
    - 前置：`app.run_test()`；`pilot.press(":", "vsplit", "enter")` 触发
      二分（sizes `[0.5, 0.5]`）；`pilot.pause()` 等布局。
    - 操作：query `PaneHost`，取 `app.editor.pane_host`，由
@@ -198,7 +198,7 @@ imports 追加：`from textual.events import MouseDown, MouseMove, MouseUp`。
      pilot.py:383）。
    - 断言：`app.editor.panes.root.sizes[0] > 0.5`（approx 大于），且两个
      EditorView 的 `region.width` 差随 fraction 变化（左宽于右）。
-6. `test_separator_click_does_not_move_cursor`
+2. `test_separator_click_does_not_move_cursor`
    - 前置：同上二分布局；先记 `panes.active` 与其 `buf.cursor`。
    - 操作：仅在分隔格上 `pilot.click(None, offset=(sx, sy))`。
    - 断言：`panes.active` 不变、`buf.cursor` 不变（分隔格点击不落进

@@ -33,13 +33,13 @@
 | `Ctrl+H` | Find & replace in project |
 ```
 
-2. vim 键位表（`/`、`?`、`n`、`N`、`F3`、`F4` 所在 CMD 区）追加
+1. vim 键位表（`/`、`?`、`n`、`N`、`F3`、`F4` 所在 CMD 区）追加
    `Ctrl+H` 行。
-3. 查找替换章节（Search and Replace）：Replace 段改写——两步输入后
+2. 查找替换章节（Search and Replace）：Replace 段改写——两步输入后
    进入逐个确认循环，展示 `[i/N] replace 'x' with 'y'? (y)es (n)o
    (a)ll (q)uit` 四个单键语义（y=替换当前并前进；n=跳过；a=对整个
    buffer 执行 replace-all，含此前跳过的匹配；q/esc=退出）。
-4. 新增 "Project-wide find & replace" 小节：ctrl+h 打开视图；输入框
+3. 新增 "Project-wide find & replace" 小节：ctrl+h 打开视图；输入框
    实时搜索（0.3s 防抖）；`Alt+C` / `Alt+W` / `Alt+R` 切换大小写 /
    整词 / 正则；结果按文件分组，`Up` / `Down` 移动游标；`Enter` 打开
    并跳到匹配；`R` 替换游标所在文件、`A` 替换全部结果文件；已打开的

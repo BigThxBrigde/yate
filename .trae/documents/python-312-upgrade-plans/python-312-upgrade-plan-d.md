@@ -108,12 +108,15 @@ pyupgrade 顺带清空被掏空的 `typing` 导入（`Optional`/`Union` 不再�
 ## 4. 验证命令
 
 - **批级**（每子批收尾）：
+
   ```powershell
   .venv\Scripts\python.exe -m pyright yate tests tools   # 0
   .venv\Scripts\python.exe -m pytest tests/ -q           # 一次全绿
   ```
+
 - **波次收尾**（标准门禁）：
-  ```powershell
+  
+```powershell
   .venv\Scripts\python.exe -m pytest tests/ -q                # 连续两次全绿
   .venv\Scripts\python.exe -m tools.smoke_test run --fail-only # exit 0
   git grep -n -E "Optional\[|Union\[" -- yate tests tools      # 归零

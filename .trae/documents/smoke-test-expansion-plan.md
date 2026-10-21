@@ -122,9 +122,11 @@ flowchart LR
 | C | `tools/smoke_test/scenarios/screensaver.py` | `screensaver_toggle_key`、`screensaver_idle_message` | `alt+shift+s` 开屏（`editor.py:618-624`）、screen_stack 2→1、任意键 dismiss（`screensaver.py:323-329`）、`config.screen_saver.enable=False` 时只写 message 不开屏（`overlays.py:201-204`）。**场景必须收尾干净**（`invariant:no_leftover_modal` 要求栈 ≤ 1） |
 
 - 每个成员的验收命令（在 worktree 根执行）：
+
   ```powershell
   .venv\Scripts\python.exe -m tools.smoke_test run --scenario <NAME> --no-color
   ```
+
   未接入 `scenarios/__init__.py` 前无法用 `--scenario` 跑到，**故成员一律用临时
   直跑脚本验证**（`_probe_<name>.py` 放仓库根，`from scenarios 模块 import SCENARIOS`
   后 `run_scenarios`，验证完删除），并在报告中贴出实测输出。
@@ -147,18 +149,21 @@ flowchart LR
    `python -m tools.smoke_test snapshot --scenario <新场景名> ...`。
 4. `python -m tools.smoke_test compare`（全量）→ 全 MATCH、exit 0。
 5. 门禁（主代理亲自跑，退出码 0 为准）：
+  
    ```powershell
    $env:PATH = "$env:LOCALAPPDATA\pyright-python\nodeenv\Scripts;$env:PATH"
    .venv\Scripts\python.exe -m pyright yate/ tests/ tools/
-   .venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
+.venv\Scripts\python.exe -m pytest tests/ -q --cov=yate --cov-fail-under=75
    .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
+
    ```
+   
 6. 文档回填：本文档「执行记录」+ 数字；`smoke-test-improvement-plan.md`
    状态行与场景数（59 → 101）；`.trae/skills/textual-pilot-smoke/SKILL.md`
    的场景分组列表补 5 个新模块。
 7. 提交（每步一笔，只 commit 不 push）：
    `docs(plans)` → 每波场景 `test(smoke)`（按文件拆）→ 工具单测 `test(smoke)` →
-   文档回填 `docs(smoke)`。
+文档回填 `docs(smoke)`。
 
 ## 六、风险与回滚
 

@@ -126,7 +126,7 @@ def test_no_debug_prints_in_library_modules() -> None:
 `<原 worktree 绝对路径>\\.venv\\Scripts\\python.exe` 通过了全部门禁。
 
 **改法**：新增用例，扫 `.trae/**/*.md` + `yate/docs/**/*.md` + `README*.md`
-+ `CHANGELOG*.md` + `tools/**/*.py` 的 docstring 与注释。
+- `CHANGELOG*.md` + `tools/**/*.py` 的 docstring 与注释。
 
 **模式与豁免面**：
 
@@ -153,9 +153,9 @@ MAJOR）的成因形态，不得重犯。
 
 **改法**（三处）：
 
-1. `:368-369` 的计数句：`已落地 **32 个用例**（2026-10-17 实测复核：... → `32 passed`；`
+1. `:368-369` 的计数句：`已落地 **32 个用例**（2026-10-17 实测复核：... →`32 passed`；`
    → 改为 `已落地 **35 个用例**（2026-10-18 新增三条非 ASCII / print / 真实路径守卫；`
-   `此前 2026-10-17 实测复核：... → `32 passed`；`
+   `此前 2026-10-17 实测复核：... →`32 passed`；`
 2. §六 守卫条目列表末尾追加三条（格式与既有条目一致，含守卫项标签）：
 
 ```markdown
@@ -175,9 +175,9 @@ MAJOR）的成因形态，不得重犯。
   外部 URL（§五 第 3 段）。
 ```
 
-3. `:446-481` 的「32 个用例逐条对照」表末尾追加三行（`| 33 |` / `| 34 |` / `| 35 |`），
-   并把表头 `**32 个用例逐条对照**（2026-10-17 实测 `32 passed`）` 改为
-   `**35 个用例逐条对照**（2026-10-18 实测 `35 passed`；2026-10-17 为 `32 passed`）`。
+1. `:446-481` 的「32 个用例逐条对照」表末尾追加三行（`| 33 |` / `| 34 |` / `| 35 |`），
+   并把表头 `**32 个用例逐条对照**（2026-10-17 实测`32 passed`）` 改为
+   `**35 个用例逐条对照**（2026-10-18 实测`35 passed`；2026-10-17 为`32 passed`）`。
 
 ---
 
@@ -275,7 +275,7 @@ MAJOR）的成因形态，不得重犯。
    `pytest tests/test_architecture.py -q -k ascii` 必须失败且报错点名该行 →
    `git checkout -- yate/logs.py` 还原 → 复跑必须通过；
 2. **A-3 演练**：在 `.trae/rules/misc-rules.md` 末尾追加一行
-   ``  cd ../<sibling-worktree>-fake`` →
+   ``cd ../<sibling-worktree>-fake`` →
    `pytest tests/test_architecture.py -q -k real_machine` 必须失败 →
    还原 → 复跑通过；
 3. **A-1 演练**：在 `yate/editor_core/words.py` 末尾追加 `print("probe")` →

@@ -36,10 +36,12 @@
    返回签名不变。验收：临时仓库建带空格 / 引号文件名的 dirty 文件，断言返回准确路径
    （用例放 `tests/test_release_tool.py`，沿用既有真实临时 git 仓库 + skip 模式）。
 6. **子代理门禁**：
+  
    ```Shell
    .venv\Scripts\python.exe -m pyright tools/changelog/cli.py tools/changelog/segments.py tools/release/cli.py tests/test_changelog_tool.py tests/test_release_tool.py
    .venv\Scripts\python.exe -m pytest tests/test_changelog_tool.py tests/test_release_tool.py -q
-   ```
+
+```
 
 ## 注意
 

@@ -21,7 +21,7 @@
   `_package_version(name)` 探测版本，缺失返回 `None`（复用，不改）；
 - ](../../../yate/diagnostics.py#L49-L55)：着色正则
   `_KV_LINE_RE = r"^( +)([^ -].*?): (.+)$"` 与 `_LABEL_LINE_RE =
-  r"^( +)(\S.*):$"` —— 分组标签行（如 `  core:`）命中后者、明细 kv 行命中
+  r"^( +)(\S.*):$"` —— 分组标签行（如 `core:`）命中后者、明细 kv 行命中
   前者，格式兼容；
 - ](../../../yate/diagnostics.py#L87-L93)：`format_report`
   best-effort 机制——单节异常降级为 `<probe failed: ...>` 行；
@@ -140,7 +140,7 @@ def _section_packages() -> list[str]:
 - **断言**：
   - 对每个声明的、不在 `_SKIPPED_EXTRAS` 中的 extra 名 `e`，`f"  {e}:" in
     lines`（当前 pyproject 即 `ts` 组出现）；
-  - `  dev:` 与 `  build:` 标签行不存在；
+  - `dev:` 与 `build:` 标签行不存在；
   - `pyright` / `pytest` / `pyinstaller` / `pillow` 不出现在任何行；
   - core 标签行索引小于全部 extra 标签行索引（core 恒最前）；
   - `tree-sitter` 出现在 ts 组切片内。

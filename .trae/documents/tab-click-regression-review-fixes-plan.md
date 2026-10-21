@@ -7,7 +7,7 @@
 - 日期：2026-10-17
 - 状态：**已批准执行**（用户指令"新建分支和worktree，登记并修复"）
 - 唯一规范来源：本计划 + [`../reviews/2026-10-17-tab-click-regression.md`](../reviews/2026-10-17-tab-click-regression.md)
-  + [`../rules/`](../rules/) 全 8 个规则文档（起草前已逐个精读）
+  - [`../rules/`](../rules/) 全 8 个规则文档（起草前已逐个精读）
 
 ## 一、目标与非目标
 

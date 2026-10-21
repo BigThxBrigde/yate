@@ -589,7 +589,7 @@ wave-2：buffer/vim/test；wave-3：actions/manual/test），互不产生半成�
 
 ### 执行期偏离登记（2026-10-02 实施复核，均为行号漂移 / 实况落点，不改设计语义）
 
-8. **`_finish_operator` 已不存在**：§1.3 与步骤 2 落点清单基于旧结构
+1. **`_finish_operator` 已不存在**：§1.3 与步骤 2 落点清单基于旧结构
    （`yate/keymaps/vim.py:754-824`）；实施时实况是该入口已重构为
    `_apply_operator` / `_apply_span` / `_resolve_find` / `_apply_text_object`
    四段，`op_register` 经 `_apply_span(reg=...)` 参数透传。方案的落点语义
@@ -597,20 +597,20 @@ wave-2：buffer/vim/test；wave-3：actions/manual/test），互不产生半成�
    `_store_deleted(delete_selection(), reg)`）由 `_apply_span` 单点覆盖，
    `_resolve_find` / `_apply_text_object` / `_apply_operator` 全部经
    `reg=` 透传，语义等价实施。
-9. **`"` arm 分支落点**：步骤 2 建议 `_handle_normal` 在 digit 分支前插入
+2. **`"` arm 分支落点**：步骤 2 建议 `_handle_normal` 在 digit 分支前插入
    `pending_register == ""` 与 `key == '"'` 两个分支；实况只把
    `pending_register == ""` 分支放在 digit 前，`"` 的 arm 分支放在
    operator-pending 之后——否则 `"` 先被吞会破坏 `ca"` 文本对象
    （既有用例 `test_ca_quote_changes_including_the_quotes` 锚定）。行为与
    方案兼容：`"` 在非 operator-pending 语境下照常 arm。
-10. **wave-3 手册更新为本次执行补齐**：worktree 中 wave-1/2 的代码与测试文件
+3. **wave-3 手册更新为本次执行补齐**：worktree 中 wave-1/2 的代码与测试文件
     在执行开始前已存在（未提交），但双语手册三处仍为旧文案；本次按步骤 3
     完成（总览 Note、vsc History/Clipboard 表 + note、vim 5.2 Editing 表补
     `"{a-z}` 行并改写 dd/yy/p/P 语义，en/zh 成对）。
-11. **pyright 修复一处**：全量门禁首跑发现
+4. **pyright 修复一处**：全量门禁首跑发现
     `tests/test_vim_keymap.py:1418` 未使用解包变量 `editor`
     （reportUnusedVariable），改名 `_editor` 后全仓 0 errors。
-12. **前序产出全部重跑复核**（不引用自述数字）：wave-1
+5. **前序产出全部重跑复核**（不引用自述数字）：wave-1
     `tests/test_clipboard.py` 12 passed、wave-2
     `tests/test_vim_keymap.py + tests/test_editor_core.py` 229 passed
     1 skipped、OS 剪贴板冒烟 `os clipboard ok`；所有 pyright 范围 0 errors。

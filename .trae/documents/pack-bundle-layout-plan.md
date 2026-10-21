@@ -76,7 +76,7 @@
 
 S4 说明：守卫测试**不导入 PyInstaller**（`build` extra 不在 CI 的 dev 依赖里），
 改为 `importlib` 直接加载 `pack/_common.py`（其顶层不 import PyInstaller）
-+ `ast` 静态解析两个 spec，避免给 CI 引入新依赖。
+- `ast` 静态解析两个 spec，避免给 CI 引入新依赖。
 
 ## 五、风险清单与回滚
 

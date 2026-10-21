@@ -60,7 +60,7 @@ Run inside the terminal under test:
 ### m-1 附带 · 同文件第 7 行行宽 107 > 100
 
 改后该行不再超宽（长度 = `.venv\Scripts\python.exe tools\probes\win32im_probe.py`
-+ 4 空格缩进 = 63 字符），与总纲 m-3 中 `plan_b` 名下的另外 3 处**不重叠**
+- 4 空格缩进 = 63 字符），与总纲 m-3 中 `plan_b` 名下的另外 3 处**不重叠**
 （`plan_b` 只处理 `tools/smoke_test/scenarios/files.py`、
 `tools/smoke_test/scenarios/workspace_nav.py`、`tests/test_app_find.py`）。
 > 说明：总纲 m-3 表里把 `win32im_probe.py:7` 也列进去了，是因为它**同时**是行宽违规；
@@ -199,7 +199,7 @@ Run inside the terminal under test:
 
 | 位置 | 原内容 | 新内容 |
 |---|---|---|
-| `tools/probes/win32im_probe.py:7` | `    <原 worktree 绝对路径>\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py`（107 字符） | `    .venv\\Scripts\\python.exe tools\\probes\\win32im_probe.py`（62 字符） |
+| `tools/probes/win32im_probe.py:7` | `  <原 worktree 绝对路径>\\.venv\\Scripts\\python.exe .trae\\documents\\keybinding-fix-wt\\win32im_probe.py`（107 字符） | `  .venv\\Scripts\\python.exe tools\\probes\\win32im_probe.py`（62 字符） |
 | `tests/test_cells.py:68` | `# cells: a=0, b=1, 中=2..3, c=4 -- display column 4 is 'c' at char 3` | `# cells: a=0, b=1, wide cjk=2..3, c=4 -- display column 4 is 'c' at char 3` |
 | `tests/test_lua_extensions.py:470` | `# Services packages must not re-export (architecture §三.5): the` | `# Services packages must not re-export (architecture rule section 3.5): the` |
 
@@ -255,4 +255,3 @@ Run inside the terminal under test:
    明文「外部 URL 不受本节约束」。实质目标（`tools/` 内无本机真实路径）**已达成**
    —— `win32im_probe.py` 已从命中列表消失。若要该命令输出 `[]`，需修正正则
    （排除 scheme），属清单外改动，未擅自执行。
-

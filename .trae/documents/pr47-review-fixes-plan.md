@@ -139,7 +139,8 @@ flowchart TD
     `from yate.dist_meta import requirement_groups`（须在 PROJECT_ROOT
     入 `sys.path` 之后 import，附注释说明 spec 执行顺序约束）；
   - core 循环替换为：
-    ```python
+  
+```python
     yate_datas = copy_metadata("yate")
     # Core dependencies derive from yate's own dist metadata (same parser
     # as yate.diagnostics): whatever pyproject lists without an extra
@@ -147,6 +148,7 @@ flowchart TD
     for _core_pkg in sorted(requirement_groups().get("core", {}).values()):
         yate_datas += copy_metadata(_core_pkg)
     ```
+
   - 段落注释同步（`pyperclip` 举例改为"派生自元数据"表述）。
 - **输出**：本仓库行为等价（派生结果恰为 `pyperclip`, `textual` 排序），
   新增 core 依赖零 spec 改动。

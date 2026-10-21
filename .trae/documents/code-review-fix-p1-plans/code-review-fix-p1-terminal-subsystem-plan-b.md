@@ -36,10 +36,12 @@
    （活进程 / 退出 / 句柄无效，平台不适用的显式 skip）；S32 monkeypatch spawn 抛错 →
    dead 态且重生路径可达；S16 现有终端渲染用例全绿。
 8. **子代理门禁**：
+  
    ```Shell
    .venv\Scripts\python.exe -m pyright yate/editor_term/emulator.py yate/editor_term/pty_proc.py yate/editor_view/terminal.py tests/test_terminal_emulator.py tests/test_pty_proc.py tests/test_terminal.py
    .venv\Scripts\python.exe -m pytest tests/test_terminal_emulator.py tests/test_pty_proc.py tests/test_terminal.py -q
-   ```
+
+```
 
 ## 注意
 

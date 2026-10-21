@@ -50,6 +50,7 @@ python -m tools.release <version> --dry-run # 只打印计划，不改文件/git
 python -m tools.release <version> --no-push # 全部做完但不推送
 python -m tools.release <version> --branch <name>  # 指定推送分支（2026-09-28 核对补入）
 ```
+
 - argparse（与 `tools.changelog` 一致，不用 click/typer）
 - `main(argv=None)` 可测试，返回 int 退出码
 - `release(version, *, dry_run=False, no_push=False, branch=None) -> int` — 核心函数，

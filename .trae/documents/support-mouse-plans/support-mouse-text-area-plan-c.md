@@ -290,10 +290,10 @@ ed.mouse_flows = MouseFlows(
 并同步 `_build_pane_stack` docstring 的控制器清单（202-199 行注释提及
 LspSync/OverlayFlows/ShellFlows/CompletionFlows 处追加 MouseFlows）。
 
-4. `make_view`（397-406 行）：`handle_key=self.handle_key` 之后加
+1. `make_view`（397-406 行）：`handle_key=self.handle_key` 之后加
    `handle_mouse=partial(self._on_view_mouse, leaf_id)`
    （`partial` 已 import，21 行）。
-5. 新方法（`handle_raw_key` 附近）：
+2. 新方法（`handle_raw_key` 附近）：
 
 ```python
 def _on_view_mouse(self, leaf_id: int, event: MouseEvent) -> bool:
@@ -332,45 +332,45 @@ def _on_view_mouse(self, leaf_id: int, event: MouseEvent) -> bool:
 
 ### `tests/test_editor_core.py`
 
-5. `test_word_span_returns_word_bounds`：
+1. `test_word_span_returns_word_bounds`：
    `word_span("hello world", 0) == (0, 5)`、`word_span("hello world", 8) == (6, 11)`。
-6. `test_word_span_non_word_char_returns_empty`：
+2. `test_word_span_non_word_char_returns_empty`：
    `word_span("a b", 2) == (2, 2)`（空格上双击不造选区）。
-7. `test_word_span_out_of_range_returns_empty`：
+3. `test_word_span_out_of_range_returns_empty`：
    `word_span("abc", 10) == (10, 10)`。
 
 ### `tests/test_app_mouse.py`（新文件；harness 参照 `tests/test_app_textual.py`
 的 run_test 模式 / textual-pilot-smoke 技能；目标文件用 tmp_path 写入
 已知内容如 `"hello world\nsecond line\n"`）
 
-8. `test_mouse_click_moves_cursor`：
+1. `test_mouse_click_moves_cursor`：
    - 操作：`pilot.click(EditorView, offset=(gutter+5, 0))`（gutter=6：
      `gutter_width() = max(3, 2)+3 = 6`，two-line doc；x=11 落在
      "hello world" 的 cell 5）。
    - 断言：`buf.cursor == (0, 5)`；`app.editor.panes.active_view is 该view`。
-9. `test_mouse_gutter_click_clamps_column_zero`：
+2. `test_mouse_gutter_click_clamps_column_zero`：
    `pilot.click(EditorView, offset=(2, 0))` → `buf.cursor == (0, 0)`。
-10. `test_mouse_drag_selects_range`：
+3. `test_mouse_drag_selects_range`：
     `pilot.mouse_down(EditorView, offset=(6, 0))` →
     `pilot._post_mouse_events([MouseMove, MouseUp], widget=EditorView,
     offset=(9, 0))` → `buf.selected_text() == "hel"`。
-11. `test_mouse_double_click_selects_word`：
+4. `test_mouse_double_click_selects_word`：
     `pilot.double_click(EditorView, offset=(8, 0))` →
     `buf.selected_text() == "world"`（"world" 在 cell 6..11）。
-12. `test_mouse_triple_click_selects_line`：
+5. `test_mouse_triple_click_selects_line`：
     连击三次（`pilot.click(..., times=3)`）→ 选区覆盖整行
     `buf.selected_text() == "hello world"`。
-13. `test_visual_mode_click_exits_to_normal`：vim keymap（构造时
+6. `test_visual_mode_click_exits_to_normal`：vim keymap（构造时
     `keymap="vim"` 或 `:set` 切换）；`pilot.press("v")` 后点击别处 →
     `VimKeymap.mode is VimMode.NORMAL` 且 `buf.has_selection() is False`。
-14. `test_insert_mode_click_moves_cursor_keeps_insert`：`pilot.press("i")`
+7. `test_insert_mode_click_moves_cursor_keeps_insert`：`pilot.press("i")`
     后点击 → 光标移动且 `mode is VimMode.INSERT`。
-15. `test_click_activates_clicked_pane`：`:vsplit` 后点击下窗格 →
+8. `test_click_activates_clicked_pane`：`:vsplit` 后点击下窗格 →
     `panes.active.id` 变为下方 leaf id。
-16. `test_shift_click_extends_selection`：先点 A 位，再
+9. `test_shift_click_extends_selection`：先点 A 位，再
     `pilot.click(EditorView, offset=..., shift=True)` →
     `buf.selection()` 覆盖 A..B。
-17. `test_separator_border_press_bubbles_to_pane_host`（plan-b 契约钉）：
+10. `test_separator_border_press_bubbles_to_pane_host`（plan-b 契约钉）：
     二分窗格中点击 `pane-sep-v` 边框格 → `buf.cursor` 不变（plan-b 用例 6
     的 wave-2 侧复核）。
 

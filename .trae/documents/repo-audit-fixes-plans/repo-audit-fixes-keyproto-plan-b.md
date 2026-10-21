@@ -26,10 +26,12 @@
 私有模块（下划线语义由"仅 driver_windows 消费"约定承担；不以 `_` 开头便于 pyright include 覆盖）。内容：
 - 模块 docstring：说明本模块是 yate 对 Textual **私有内部 API** 的唯一收口点；列出所依赖的 Textual 最低版本承诺（`textual>=8.0`，pyproject:13）与实测可用版本（8.2.8，依据 architecture-boundaries R12 devtools 桥接实证记录）；升级 Textual 时优先检查本文件。
 - 具名 re-export（不做 Any）：
-  ```python
+  
+```python
   from textual._xterm_parser import XTermParser
   from textual.drivers._writer_thread import WriterThread
   ```
+
 - `__all__ = ["XTermParser", "WriterThread"]`。
 - `driver_windows.py:33,35` 两行改为 `from yate.keyproto.textual_internals import WriterThread, XTermParser`；其余 textual 公共 import（`constants` / `win32` / `windows_driver` / `Key` / `Message`）不动（公共 API，无稳定承诺问题）。
 

@@ -28,14 +28,15 @@
    - `_code_line_pattern(spec) is _code_line_pattern(spec)` 缓存命中断言；
    - S2 布尔词边界两断言。
 5. **子代理门禁**：
+  
    ```Shell
    .venv\Scripts\python.exe -m pyright yate/editor_syntax/regex_backend.py tests/test_highlight.py
    .venv\Scripts\python.exe -m pytest tests/test_highlight.py tests/test_syntax_engine.py -q
-   ```
+
+```
 
 ## 注意
 
 - 若复核发现 `LangSpec` 不可哈希，采用 `id(spec)` 方案时必须同步考虑 spec 生命周期
   （缓存泄漏），并在报告中说明取舍。
 - 本子计划不改 `test_syntax_engine.py`（只跑不改）。
-
