@@ -1,15 +1,17 @@
 --[[
 yate bundled extension: nethack (nethack.lua)
 
-A turn-based roguelike drawn on a yate extension canvas: a 50 x 18 dungeon
-of rooms and corridors inside a rounded 52 x 22 frame, with a HUD row
+A turn-based roguelike drawn on a yate extension canvas: a 72 x 20 dungeon
+of rooms and corridors inside a rounded 74 x 24 frame, with a HUD row
 (depth / hp / gold / turn) and a help row under the map.
 
 Start it with ``:game nethack``.
 
-Visuals: nerd font icons by default (Font Awesome 4 codepoints through
-``engine.utf8_char``), switchable to ASCII fallback with ``v``.  The map
-rows are joined with ``table.concat`` -- the multi-byte glyphs never go
+Visuals: structural tiles (wall, floor, corridor, stairs) always render as
+block and shade characters so the dungeon stays readable; entities (player,
+monsters, items) use nerd font icons by default (Font Awesome 4 codepoints
+through ``engine.utf8_char``), switchable to ASCII fallback with ``v``.  The
+map rows are joined with ``table.concat`` -- the multi-byte glyphs never go
 through byte slicing or ``engine.frame``.
 
 Controls:
@@ -36,10 +38,10 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 
 local engine = require("game_engine")
 
--- Canvas geometry: 52 x 22, inner width 50, map 50 x 18 tiles.
-local COLS, ROWS = 52, 22
-local INNER = 50
-local MAP_W, MAP_H = 50, 18
+-- Canvas geometry: 74 x 24, inner width 72, map 72 x 20 tiles.
+local COLS, ROWS = 74, 24
+local INNER = 72
+local MAP_W, MAP_H = 72, 20
 
 -- Semantic map characters (the only characters that reach the save file).
 local WALL = "#"
@@ -47,12 +49,18 @@ local FLOOR = "."
 local CORRIDOR = ","
 local STAIRS = ">"
 
--- Glyph table: nerd codepoint (Font Awesome 4 segment) plus ASCII fallback.
-local GLYPHS = {
-  wall = { sem = WALL, code = 0xf0c8, ascii = "#" },
-  floor = { sem = FLOOR, code = 0xf111, ascii = "." },
-  corr = { sem = CORRIDOR, code = 0x00b7, ascii = "#" },
-  stairs = { sem = STAIRS, code = 0xf0ab, ascii = ">" },
+-- Structural tiles: semantic map char -> display glyph and color.  These
+-- are mode independent -- walls, floor, corridors and stairs always render
+-- as blocks and shades so the dungeon never turns into icon noise.
+local STRUCT = {
+  [WALL] = { glyph = "█", color = "#555555" },
+  [FLOOR] = { glyph = "·", color = "#9e9e9e" },
+  [CORRIDOR] = { glyph = "▒", color = "#6b6b6b" },
+  [STAIRS] = { glyph = "▼", color = "#ffffff" },
+}
+
+-- Entities: nerd codepoint (Font Awesome 4 segment) plus ASCII fallback.
+local ENTITIES = {
   player = { code = 0xf007, ascii = "@" },
   paw = { code = 0xf1e4, ascii = "r" },
   fire = { code = 0xf06d, ascii = "Z" },
@@ -63,24 +71,21 @@ local GLYPHS = {
   tomb = { code = 0xf0f3, ascii = "+" },
 }
 
--- Colors keyed by glyph-table name (applied to both glyph sets).
-local COLORS = {
-  wall = "#616161",
-  corr = "#616161",
-  floor = "#9e9e9e",
-  stairs = "#ffffff",
+-- Entity colors keyed by glyph-table name.
+local ENTITY_COLORS = {
   player = "#ffd54f",
-  paw = "#e53935",
-  fire = "#e53935",
+  paw = "#ef5350",
+  fire = "#e040fb",
   gold = "#ffd54f",
   potion = "#64b5f6",
   weapon = "#bdbdbd",
-  food = "#7bd88f",
+  food = "#81c784",
   tomb = "#bdbdbd",
 }
 
 -- Help row (exactly INNER wide after engine.pad).
-local HELP_TEXT = "arrows move/attack  g grab  enter stairs  r new  v"
+local HELP_TEXT =
+  "move/attack  g grab  enter stairs  space wait  r new  v glyphs"
 
 --: Bounded random seed for runs started without an injected seed.
 local function random_seed()
@@ -96,6 +101,10 @@ local combat = nil
 -- The open canvas session; nil while no canvas is open.
 local session = nil
 
+-- Row array of the most recently drawn frame (test seam); nil before the
+-- first paint.
+local last_rows = nil
+
 -- Shared persistence handle.
 local store = engine.store("nethack")
 
@@ -104,12 +113,16 @@ local mod = {}
 -- ------------------------------------------------------------------ glyphs
 
 -- Resolve the glyph sets for *mode*: map (semantic char -> glyph) and
--- ent (glyph-table name -> glyph).  Falls back to ASCII when the runtime
--- has no utf8 library or the mode asks for it.
+-- ent (glyph-table name -> glyph).  Structural tiles are fixed; entities
+-- fall back to ASCII when the runtime has no utf8 library or the mode
+-- asks for it.
 local function build_glyphs(mode)
   local use_nerd = mode == "nerd" and engine.utf8_char(0xf007) ~= nil
   local map, ent = {}, {}
-  for name, def in pairs(GLYPHS) do
+  for sem, def in pairs(STRUCT) do
+    map[sem] = def.glyph
+  end
+  for name, def in pairs(ENTITIES) do
     local glyph = def.ascii
     if use_nerd then
       local nerd = engine.utf8_char(def.code)
@@ -117,18 +130,19 @@ local function build_glyphs(mode)
         glyph = nerd
       end
     end
-    if def.sem ~= nil then
-      map[def.sem] = glyph
-    end
     ent[name] = glyph
   end
   return map, ent
 end
 
--- Palette keyed by glyph string, from the semantic color table.
+-- Palette keyed by display glyph string.  Every semantic (structural or
+-- entity) maps to a distinct glyph, so the keys cannot collide.
 local function build_palette(ent)
   local palette = {}
-  for name, color in pairs(COLORS) do
+  for _sem, def in pairs(STRUCT) do
+    palette[def.glyph] = def.color
+  end
+  for name, color in pairs(ENTITY_COLORS) do
     palette[ent[name]] = color
   end
   return palette
@@ -178,7 +192,7 @@ local function random_free_cell(gen, grid, px, py, taken, min_dist)
 end
 
 -- Generate the floor for the current depth and seed (deterministic):
--- non-overlapping rooms on a 12x8 grid, corridors first-horizontal then
+-- non-overlapping rooms on a 14x9 grid, corridors first-horizontal then
 -- vertical, stairs in the last room, player in the first room.
 local function gen_floor()
   local gen = engine.rng((state.seed + state.depth * 7919) % 2147483647)
@@ -190,25 +204,25 @@ local function gen_floor()
     end
   end
 
-  -- Room cells: 4 columns x 2 rows of 12x8 areas, 1 gap column/row kept.
+  -- Room cells: 5 columns x 2 rows of 14x9 areas, 1 gap column/row kept.
   local cells = {}
   for gy = 0, 1 do
-    for gx = 0, 3 do
-      cells[#cells + 1] = { x0 = 2 + gx * 12, y0 = 2 + gy * 8 }
+    for gx = 0, 4 do
+      cells[#cells + 1] = { x0 = 2 + gx * 14, y0 = 2 + gy * 9 }
     end
   end
   local rooms = {}
-  local want = 4 + gen.int(2)
+  local want = 4 + gen.int(3)
   for _ = 1, want do
     if #cells == 0 then
       break
     end
     local index = gen.int(#cells)
     local cell = table.remove(cells, index)
-    local w = 4 + gen.int(4)
-    local h = 3 + gen.int(3)
-    local rx = cell.x0 + gen.int(11 - w + 1)
-    local ry = cell.y0 + gen.int(7 - h + 1)
+    local w = 6 + gen.int(7)
+    local h = 4 + gen.int(4)
+    local rx = cell.x0 + gen.int(14 - w)
+    local ry = cell.y0 + gen.int(9 - h)
     for y = ry, ry + h - 1 do
       for x = rx, rx + w - 1 do
         grid[y][x] = FLOOR
@@ -251,10 +265,11 @@ local function gen_floor()
   local px = first.x + math.floor(first.w / 2)
   local py = first.y + math.floor(first.h / 2)
 
-  -- Monsters: 2 + depth, away from the player, strength rises with depth.
+  -- Monsters: 2 + depth (capped at 14), away from the player, strength
+  -- rises with depth.
   local monsters = {}
   local taken = {}
-  for _ = 1, 2 + state.depth do
+  for _ = 1, math.min(14, 2 + state.depth) do
     local mx, my = random_free_cell(gen, grid, px, py, taken, 12)
     if mx ~= nil then
       taken[mx .. "," .. my] = true
@@ -627,6 +642,7 @@ local function draw(s)
   lines[#lines + 1] =
     engine.glyph.v .. engine.pad(HELP_TEXT, INNER) .. engine.glyph.v
   lines[#lines + 1] = engine.box_bottom(INNER)
+  last_rows = lines
   s.status("depth " .. state.depth
     .. "  hp " .. state.hp .. "/" .. state.max_hp
     .. "  gold " .. state.gold)
@@ -734,6 +750,11 @@ function mod.load_state(saved)
     saved = decoded
   end
   return apply_save(saved, state ~= nil and state.glyphs or "nerd")
+end
+
+-- Test seam: the row array of the most recently drawn frame.
+function mod.debug_rows()
+  return last_rows
 end
 
 -- Test seam: the full observable state (fields fixed by plan F section 7).

@@ -16,9 +16,9 @@ Marked ``@requires_lupa``: the whole module skips without the optional
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
-from lua_game_harness import FakeApi, GameRuntime, requires_lupa
+from lua_game_harness import FakeApi, GameRuntime, lua_to_python, requires_lupa
 
 #: The player name written into games/profile.json before every launch.
 PROFILE_JSON = json.dumps({"version": 1, "player": "alice"})
@@ -35,8 +35,8 @@ def make_game(api: FakeApi | None = None) -> GameRuntime:
 
 
 def map_row(overrides: dict[int, str] | None = None) -> str:
-    """One semantic 50-char map row (floor, with walls placed on top)."""
-    cells = ["."] * 50
+    """One semantic 72-char map row (floor, with walls placed on top)."""
+    cells = ["."] * 72
     for x, ch in (overrides or {}).items():
         cells[x - 1] = ch
     return "".join(cells)
@@ -62,7 +62,7 @@ def make_state(
         "weapon": 0,
         "rng": 12345,
         "player_pos": list(player_pos),
-        "floor": rows if rows is not None else [map_row() for _ in range(18)],
+        "floor": rows if rows is not None else [map_row() for _ in range(20)],
         "monsters": monsters or [],
         "items": items or [],
     }
@@ -77,6 +77,19 @@ def inject(game: GameRuntime, state: dict[str, Any]) -> Any:
     return game.module.load_state(json.dumps(state))
 
 
+def frame_rows(game: GameRuntime) -> list[str]:
+    """The most recently drawn frame as a list of row strings."""
+    rows = cast("list[Any]", lua_to_python(game.module.debug_rows()))
+    assert isinstance(rows, list), "debug_rows() must return an array"
+    return [cast(str, row) for row in rows]
+
+
+def lua_frame_widths(game: GameRuntime, rows: list[str]) -> list[int]:
+    """Display width of every row, measured by the Lua engine itself."""
+    engine = game.runtime.execute('return require("game_engine")')
+    return [cast(int, engine.width(row)) for row in rows]
+
+
 @requires_lupa
 class TestNethackCanvas:
     """Opening the canvas and the initial dungeon."""
@@ -84,13 +97,38 @@ class TestNethackCanvas:
     def test_game_nethack_opens_the_map_canvas(self) -> None:
         game = make_game()
         canvas = game.launch()
-        assert canvas.cols == 52
-        assert canvas.rows == 22
+        assert canvas.cols == 74
+        assert canvas.rows == 24
         assert "nethack" in canvas.grid
         assert "depth 1" in canvas.grid
         assert "hp 10/10" in canvas.grid
+        assert "turn 0" in canvas.grid
         assert "depth 1" in canvas.status
         assert canvas.status.endswith("escape quits")
+
+    def test_first_frame_rows_have_exact_display_widths(self) -> None:
+        game = make_game()
+        game.launch()
+        rows = frame_rows(game)
+        assert len(rows) == 24
+        widths = lua_frame_widths(game, rows)
+        for width in widths:
+            assert width == 74  # the full frame line, borders included
+        inner = [row[1:-1] for row in rows]  # strip one border glyph each side
+        for width in lua_frame_widths(game, inner):
+            assert width == 72  # the inner content between the borders
+
+    def test_first_frame_has_no_bare_ascii_structure(self) -> None:
+        game = make_game()
+        canvas = game.launch()
+        # Structural characters render as blocks/shades in every mode and
+        # entities use nerd icons by default, so no bare ASCII survives.
+        for bare in ("#", ",", "@", "$", "!", ")", "%"):
+            assert bare not in canvas.grid
+        assert "█" in canvas.grid  # wall
+        assert "▒" in canvas.grid  # corridor
+        assert "·" in canvas.grid  # floor
+        assert "▼" in canvas.grid  # stairs
 
     def test_map_is_deterministic_for_a_seed(self) -> None:
         first = make_game()
@@ -122,7 +160,7 @@ class TestNethackTurns:
 
     def test_wall_blocks_movement_without_a_turn(self) -> None:
         game = make_game()
-        rows = [map_row() for _ in range(18)]
+        rows = [map_row() for _ in range(20)]
         rows[8] = map_row({5: "#"})
         inject(game,make_state((4, 9), rows=rows))
         game.launch()
@@ -173,7 +211,7 @@ class TestNethackItems:
 
     def test_enter_on_stairs_descends_and_heals(self) -> None:
         game = make_game()
-        rows = [map_row() for _ in range(18)]
+        rows = [map_row() for _ in range(20)]
         rows[8] = map_row({6: ">"})
         inject(game,make_state((6, 9), hp=5, rows=rows))
         game.launch()
@@ -208,7 +246,9 @@ class TestNethackGlyphs:
         game.press("v")
         snap = game.snapshot()
         assert snap["glyphs"] == "ascii"
-        assert "@" in game.require_canvas().grid
+        canvas = game.require_canvas()
+        assert "@" in canvas.grid  # the ascii player
+        assert "█" in canvas.grid  # structure stays block glyphs in ascii mode
         document = json.loads(game.api.data.files[SAVE_JSON])
         assert document["glyphs"] == "ascii"
 
