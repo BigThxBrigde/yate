@@ -36,7 +36,7 @@ docstring 出现排版错误，不影响运行时行为、安全性或性能；�
 - **问题**：本分支规范化期间在该行 "hatchling" 前多插入了一对反引号，
   使该行出现三对 `` ` `` 标记，第三对开启一个永不闭合的 inline-literal；
   Sphinx/docutils 会告警或吞掉后续内容（不影响运行时）。
-- **修法（评审建议）**：还原为成对形式，仅保留 `` ``yate/`` `` 一对内联字面量。
+- **修法（评审建议）**：还原为成对形式，仅保留 ````yate/```` 一对内联字面量。
 - **处置**：✅ 已修（2026-10-02，`56815e0`）。修复后
   `git diff master...HEAD -- tools/__init__.py` 仅余
   `from __future__ import annotations` 三行（Wave A 预期产物），docstring

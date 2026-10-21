@@ -31,12 +31,14 @@
 
 - [x] **`HighlightProbe.doc` 建议使用精确类型（Low，可维护性）** —
   [`editor.py:62`](../../yate/editor_view/editor.py#L62)
-  ```python
+  
+```python
   @dataclass(frozen=True)
   class HighlightProbe:
       doc: object     # ← 宽泛类型，削弱探针作为公开调试接口的静态检查价值
   ```
-  **核实：成立。** 该文件第 19 行已 `from yate.editor_core.document import Document`，
+  
+**核实：成立。** 该文件第 19 行已 `from yate.editor_core.document import Document`，
   可直接收紧为 `doc: Document`。作为上一轮 S28（测试深访私有 highlight 属性）的产物，
   探针是测试唯一允许碰的接口，类型精度直接决定 guard 的有效性。
   **修复注意事项（核实所得）**：

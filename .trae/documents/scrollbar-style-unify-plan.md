@@ -66,7 +66,8 @@ Textual 的 `scrollbar_background` / `scrollbar_color` 支持 CSS，但 thumb �
 - **改动**：
   1. 导入 `from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars`（`modals.py:18` 附近，保持字母序组内排序）；
   2. 在 `_OverlayScreen` 之前新增组件子类（注释英文，PEP 257 docstring）：
-     ```python
+  
+```python
      class _OverlayScroll(VerticalScroll):
          """Scrollable overlay body owning its slim scrollbar painting.
 
@@ -92,12 +93,14 @@ Textual 的 `scrollbar_background` / `scrollbar_color` 支持 CSS，但 thumb �
              """Paint the scrollbar palette from the active theme."""
              apply_scrollbar_theme(self)
      ```
+
   3. `compose` 中 `with VerticalScroll(id="overlay")` 改为 `with _OverlayScroll(id="overlay")`（`modals.py:36`）；
 - **输出**：F1 / 命令输出浮层滚动条与 explorer 同款；
 - **验收命令**：
+  
   ```powershell
   d:\Programming\yate-scrollbar-style-unify\.venv\Scripts\python.exe -m pytest tests/test_scrollbars.py tests/test_architecture.py -q
-  ```
+```
 
 ### 步骤 2：新增守卫测试
 
@@ -108,9 +111,11 @@ Textual 的 `scrollbar_background` / `scrollbar_color` 支持 CSS，但 thumb �
   - 前置 fixture：app run_test 上下文；断言三要素齐全（具体值断言，非"应正常"）；
 - **输出**：回归守卫，防止浮层滚动面再次漏接；
 - **验收命令**：
+  
   ```powershell
   d:\Programming\yate-scrollbar-style-unify\.venv\Scripts\python.exe -m pytest tests/test_modals.py -q --cov-fail-under=0
-  ```
+
+```
 
 ### 步骤 3：收尾门禁（主代理亲自跑）
 

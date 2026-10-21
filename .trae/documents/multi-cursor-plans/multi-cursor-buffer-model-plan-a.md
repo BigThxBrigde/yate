@@ -180,7 +180,7 @@ def delete_forward_at_points(self) -> None:
 
 **既有回归重点**（`_delete_range` 副作用挪动、`_apply_text` 签名变化的
 爆炸半径）：`tests/test_editor_core.py` 既有全部用例 + `tests/test_vim_keymap.py`
-+ `tests/test_action_table.py` + `tests/test_input_assist.py`
+- `tests/test_action_table.py` + `tests/test_input_assist.py`
 （type_char 路径）必须全绿。
 
 **验证命令**（每步验收 + wave-1 收尾）：

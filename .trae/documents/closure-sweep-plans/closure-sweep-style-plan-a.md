@@ -40,9 +40,11 @@
 - 改动文件：上列 9 个文件。
 - 输出：每处 ignore 附短语理由注释（`# <reason>`，与 ignore 注释同行或上方）。
 - 验收命令：
+  
   ```powershell
   .venv\Scripts\python.exe -m pyright yate/ tests/ tools/
-  .venv\Scripts\python.exe -m pytest tests/ -q -x -k "theme or pty or smoke or engine"
+.venv\Scripts\python.exe -m pytest tests/ -q -x -k "theme or pty or smoke or engine"
+
   ```
 
 ## 四、备选与否决

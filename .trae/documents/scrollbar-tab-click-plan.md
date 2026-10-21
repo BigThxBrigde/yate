@@ -63,6 +63,7 @@
 **代码落点**：
 
 `editor_view/editor.py` — `EditorView.on_mount` 追加：
+
 ```python
 def on_mount(self) -> None:
     self.styles.background = theme.active().bg

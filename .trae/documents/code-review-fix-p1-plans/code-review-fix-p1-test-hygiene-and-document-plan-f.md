@@ -31,10 +31,12 @@
 5. **S41**：按 `content_edits` 计数缓存上次判定（计数不变直接返回缓存布尔，变化才重算
    并刷新缓存）。验收：现有 modified / undo / redo 用例全绿；新增跨 undo 判定正确性断言。
 6. **子代理门禁**：
+  
    ```Shell
    .venv\Scripts\python.exe -m pyright tests/test_lsp.py tests/test_theme_palettes.py tests/test_editor_core.py yate/editor_core/document.py
    .venv\Scripts\python.exe -m pytest tests/test_editor_core.py tests/test_theme_palettes.py tests/test_lsp.py -q
-   ```
+
+```
 
 ## 注意
 

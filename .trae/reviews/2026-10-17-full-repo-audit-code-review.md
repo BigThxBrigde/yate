@@ -88,10 +88,12 @@
   - `tests/README.md:13-17`："most modules have no same-named test file
     (2026-10-17 measurement: **92 of the 139** `yate/` modules)"。
   - 实测（本 worktree，2026-10-17）：
-    ```powershell
+    
+```powershell
     .venv\Scripts\python.exe -c "import pathlib; ps=list(pathlib.Path('yate').rglob('*.py')); print(len(ps))"
     ```
-    输出 `140` —— `yate/` 现为 **140** 个 `.py`（本轮新增 `keymaps/keys.py` 后
+    
+输出 `140` —— `yate/` 现为 **140** 个 `.py`（本轮新增 `keymaps/keys.py` 后
     由 139 增至 140），故 "139" 已过期；分母与分子（`92`）出自审计期的两个不同
     口径（审计记录 `2026-10-17-repo-structure-layering-audit.md:137` 原文为
     "139 模块中 92 个"），当前无法原样复现"92"。
@@ -115,9 +117,11 @@
 
 - **[NIT] C-5 `yate/keymaps/keys.py` 文件尾多余空行**
   - 实测：该文件以 3 个换行结尾（即 **2 个尾空行**），同包其它文件为单尾换行。
+
     ```powershell
     .venv\Scripts\python.exe -c "p='yate/keymaps/keys.py'; t=open(p,encoding='utf-8').read(); print(len(t)-len(t.rstrip(chr(10)))-1)"
     ```
+
     输出 `2`。
 
 ## 四、处置汇总

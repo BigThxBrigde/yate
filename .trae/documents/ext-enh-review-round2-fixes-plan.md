@@ -49,7 +49,7 @@ Python bridge 方法名（`remove_status_segment` 保持不动）；不做 Lua �
   `remove_status_segment`，`bridges.py:437`）
 - 改动文件：
   - `yate/extensions/_yate.lua`：新增 `yate.ui.remove_segment(id)` 薄封装
-    + 头部导出清单补一行；
+    - 头部导出清单补一行；
   - `yate/extensions/_yate.d.lua`：镜像声明（`test_lua_defs.py` 锁步）；
   - `tests/test_lua_defs.py`：`LUA_SURFACE` 增 `ui.remove_segment`；
   - `yate/docs/extensions.en.md` / `extensions.zh.md`：Lua 库函数表各增一行

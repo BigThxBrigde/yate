@@ -78,9 +78,11 @@ python-coding-style §4.2 / §4.4 明令禁止 ignore、要求 cast。否决。
 - **输入**：§二表 5 处（4 个源文件 + 1 个测试文件）
 - **输出**：pyright 对 `Screen` 相关注解零宽型；运行时零变更；
 - **验收命令**：
+  
   ```powershell
-  d:\Programming\yate-screen-none-narrow\.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+d:\Programming\yate-screen-none-narrow\.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
   d:\Programming\yate-screen-none-narrow\.venv\Scripts\python.exe -m pytest tests/test_changelog_view.py tests/test_architecture.py -q --cov-fail-under=0
+
   ```
 
 ### 步骤 2：新增 AST 守卫用例
@@ -92,9 +94,10 @@ python-coding-style §4.2 / §4.4 明令禁止 ignore、要求 cast。否决。
   （`Screen[None]` 是唯一精确形态；负向演练：回填一处违规确认拦截后还原）；
 - **输出**：回归守卫；
 - **验收命令**：
+  
   ```powershell
   d:\Programming\yate-screen-none-narrow\.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q --cov-fail-under=0
-  ```
+```
 
 ### 步骤 3：全量门禁（主代理亲自跑）
 

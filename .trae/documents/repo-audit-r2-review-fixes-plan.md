@@ -60,12 +60,14 @@
 - 独占文件：`yate/app.py`、`tests/test_app_idle.py`（新建）
 - 改动：
   - `poll_idle` 在 `self._idle`/interval 检查之后、`self.screen` 访问之前加卫语句：
+
     ```python
     if not self.screen_stack:
         # Teardown race: the 1 s poll timer can fire after the last
         # screen is popped; there is nothing to inspect then.
         return
     ```
+
     （docstring 追加一句说明该竞态与覆盖率插桩下的实测失败形态）
   - 新建 `tests/test_app_idle.py`（全英文注释，文件头 `# pyright: reportPrivateUsage=false`，遵守 `from __future__ import annotations`）：
     1. `test_poll_idle_survives_an_empty_screen_stack`：`YateApp()` 直构（不 run_test），`app._idle` 保持默认，直接 `app.poll_idle()` 不抛；先 `assert app._screen_stack == []` 锁定前提，防 Textual 升级后守卫面失真；

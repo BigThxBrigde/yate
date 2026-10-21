@@ -32,12 +32,14 @@
    实施时按现有顺序逐行搬运，不重排。
 
 ## 输出 / 验收
+
 ```powershell
 .venv\Scripts\python.exe -m pyright yate/ tests/ tools/
 .venv\Scripts\python.exe -m pytest tests/ -q
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 .venv\Scripts\python.exe -m tools.smoke_test run
 ```
+
 - `__init__` ≤ 30 行；tests/ 目录零 diff；架构测试 20 用例全绿。
 
 ## 回滚

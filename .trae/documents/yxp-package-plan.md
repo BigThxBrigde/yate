@@ -69,7 +69,7 @@
 - 载荷**平铺**解压到 `~/.yate/extensions/`（issue 原文要求；加载器无需
   改动）。
 - 归属记录：`~/.yate/extensions/_manifests/<name>.json` — 完整 manifest
-  + checksums + 安装时间。记录目录对加载器不可见（目录不参与 glob），
+  - checksums + 安装时间。记录目录对加载器不可见（目录不参与 glob），
   且随 `--cleanup-defaults` 一并移除。
 - 冲突策略：目标文件已存在且不属于同名包 → 拒绝安装（列出冲突文件）。
   同名重装即升级：覆盖自家文件，并删除「旧记录有、新 manifest 无」的
@@ -191,7 +191,7 @@ sequenceDiagram
 
 `python -m pyright yate/ tests/ tools/` 零诊断（exit 0）；
 `pytest tests/ -q` 全绿（exit 0；新增 test_yxp.py 48 + test_tools_yxp.py 18
-+ test_cli.py 43 用例）；
+- test_cli.py 43 用例）；
 `pytest tests/test_architecture.py -q` 全绿（exit 0）；
 冒烟（真实入口）：`--create smoke_ext` → `--pack` →
 `--install-extension` → `--list-extensions` → `--uninstall-extension`

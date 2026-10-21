@@ -159,9 +159,11 @@ flowchart TD
 - 改动文件：`yate/editor_core/indentation.py`（独占）。
 - 输出：模块级常量 + `LanguageRules` + 6 个纯函数，全量类型注解 + docstring（散文式）。
 - 验收：
+  
   ```powershell
   .venv\Scripts\python.exe -m pyright yate/editor_core/indentation.py
-  .venv\Scripts\python.exe -m pytest tests/test_input_assist.py -q
+.venv\Scripts\python.exe -m pytest tests/test_input_assist.py -q
+
   ```
 
 **步骤 1.2 — `yate/editor_core/buffer.py`（改）**
@@ -181,9 +183,10 @@ flowchart TD
 - 输出：两处可打印分支改走 `type_char`；vim `>`/`<`（normal + visual + 计数 + 帮助条目）；
   `newline` 动作透传 `language`。
 - 验收：
+  
   ```powershell
   .venv\Scripts\python.exe -m pyright yate/
-  .venv\Scripts\python.exe -m pytest tests/test_vsc_keymap.py tests/test_vim_keymap.py tests/test_action_table.py -q
+.venv\Scripts\python.exe -m pytest tests/test_vsc_keymap.py tests/test_vim_keymap.py tests/test_action_table.py -q
   ```
 
 **步骤 2.2 — `tests/test_input_assist.py`（新增，依赖 2.1 的语义）**

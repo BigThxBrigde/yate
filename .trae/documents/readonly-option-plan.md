@@ -122,7 +122,7 @@ flowchart TD
 |---|---|
 | `tests/test_editor_core.py` | read_only 默认 False；ctor 传参生效；护栏方法逐一断言抛 `BufferReadOnlyError` 且内容/`content_edits`/undo 栈不变；解除后可编辑；`replace_one`/`replace_all` 抛错且缓冲区未被部分修改 |
 | `tests/test_cli.py` | `build_parser` 解析 `--readonly`（默认 False / 置 True） |
-| `tests/test_prompt_completion.py` | `:set ` 键补全含 readonly；`:set readonly=` 值补全 true/false |
+| `tests/test_prompt_completion.py` | `:set` 键补全含 readonly；`:set readonly=` 值补全 true/false |
 | `tests/test_app_textual.py`（或新 pilot 用例） | pilot：`:set readonly=true` 后输入字符无效且状态栏有锁；`:set readonly=false` 恢复；`--readonly` 启动文件后打字无效、`:w` 提示拒绝 |
 | `tools/smoke_test/scenarios/view.py`（:101 一带 :set 矩阵） | 增加 readonly=true/false 两行的消息断言 |
 

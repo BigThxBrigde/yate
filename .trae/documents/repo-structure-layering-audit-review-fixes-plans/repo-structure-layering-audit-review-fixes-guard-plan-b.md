@@ -16,6 +16,7 @@
 ### 改动 1 —— `UI_FREE_FILES` 增补（约 `:138`）
 
 现状：
+
 ```python
 UI_FREE_FILES: tuple[str, ...] = (
     "session.py",
@@ -25,7 +26,9 @@ UI_FREE_FILES: tuple[str, ...] = (
     "yaterc_options.py",
 )
 ```
+
 目标：
+
 ```python
 UI_FREE_FILES: tuple[str, ...] = (
     "session.py",
@@ -36,7 +39,9 @@ UI_FREE_FILES: tuple[str, ...] = (
     "dist_meta.py",
 )
 ```
+
 并在该常量上方注释追加两行（英文，misc-rules §四）：
+
 ```
 #: ``dist_meta.py`` joined in the 2026-10-17 structure audit: stdlib-only dist
 #: metadata parsing shared by ``diagnostics.py`` (runtime) and ``pack/`` (build).

@@ -158,11 +158,14 @@ scenarios=40 groups=4 serial_sum=113.0s wall=37.0s speedup=3.06x
      `epsilon zeta`，使后续 `daw_line` / `daw_register` / `3dd` 三条断言**原样成立**。
 - **输出**：该场景 38/38 通过。
 - **验收命令**：
+  
   ```powershell
   .venv\Scripts\python.exe -m tools.smoke_test run --scenario vim_registers_text_objects --no-color
   .venv\Scripts\python.exe -m pytest tests/test_editor_core.py -q
-  ```
-  两者 exit 0。
+
+```
+  
+两者 exit 0。
 
 ### W2a（与 W2b 并行）pytest 等待粒度
 
@@ -171,10 +174,12 @@ scenarios=40 groups=4 serial_sum=113.0s wall=37.0s speedup=3.06x
   写法与 `tools/smoke_test/harness.py:40-62` 同构（同样的 try/ImportError 兜底 + docstring
   说明"每键固定睡眠"的机理与实测收益）；注释全英文 ASCII（架构守卫 33）。
 - **验收命令**：
+  
   ```powershell
-  .venv\Scripts\python.exe -m pytest tests/ -q
+.venv\Scripts\python.exe -m pytest tests/ -q
   ```
-  exit 0，且 `pytest-base.txt`（308.04s）对比新记录应有 ≥ 10% 下降。
+  
+exit 0，且 `pytest-base.txt`（308.04s）对比新记录应有 ≥ 10% 下降。
 
 ### W2b（与 W2a 并行）时序 flake 加固 + xdist 依赖
 
@@ -188,11 +193,14 @@ scenarios=40 groups=4 serial_sum=113.0s wall=37.0s speedup=3.06x
      `calls == []` 直接证明）。
   2. `pyproject.toml` `[project.optional-dependencies].dev` 增加 `pytest-xdist>=3.6`。
 - **验收命令**：
+  
   ```powershell
-  .venv\Scripts\python.exe -m pytest tests/test_manual.py -q
+.venv\Scripts\python.exe -m pytest tests/test_manual.py -q
   .venv\Scripts\python.exe -m pytest tests/ -q -n 4 --cov=yate --cov-branch
+
   ```
-  后者 exit 0、TOTAL ≥ 75%（预期 ~92%）；连续 3 次不得出现 flake。
+  
+后者 exit 0、TOTAL ≥ 75%（预期 ~92%）；连续 3 次不得出现 flake。
 
 ### W2c（在 W2a/W2b 之后串行）CI 两条流水线的 pytest 命令
 
@@ -202,10 +210,12 @@ scenarios=40 groups=4 serial_sum=113.0s wall=37.0s speedup=3.06x
   注意 `tests/test_gate_config.py::test_coverage_threshold_is_not_hardcoded_on_the_ci_command_line`
   禁止命令行出现 `--cov-fail-under`——本步不引入。
 - **验收命令**：
+  
   ```powershell
-  .venv\Scripts\python.exe -m pytest tests/test_gate_config.py -q
+.venv\Scripts\python.exe -m pytest tests/test_gate_config.py -q
   ```
-  exit 0。
+  
+exit 0。
 
 ### W3（串行）冒烟 `--jobs` 进程分片
 
@@ -227,16 +237,20 @@ scenarios=40 groups=4 serial_sum=113.0s wall=37.0s speedup=3.06x
 - **输出**：`--jobs 4` 下冒烟总耗时从 150.8s 降到 ≤ 60s（预估 45–55s；下限由 30.05s 的
   `manual_changelog_modals` 决定）。
 - **验收命令**：
+  
   ```powershell
   .venv\Scripts\python.exe -m pytest tests/test_smoke_harness.py tests/test_smoke_cli.py -q
-  .venv\Scripts\python.exe -m tools.smoke_test run --no-color --quiet --json smoke-j1.json
+.venv\Scripts\python.exe -m tools.smoke_test run --no-color --quiet --json smoke-j1.json
   .venv\Scripts\python.exe -m tools.smoke_test run --no-color --quiet --json smoke-j4.json --jobs 4
+
   ```
-  两次均 112/112、1354/1354，两份 JSON 的 `totals` 完全一致；`--jobs 4` 墙钟显著更低。
+  
+两次均 112/112、1354/1354，两份 JSON 的 `totals` 完全一致；`--jobs 4` 墙钟显著更低。
 
 ### W4（串行）收尾门禁与文档回填
 
 - 命令（主代理亲自跑，全部 exit 0）：
+
   ```powershell
   .venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
   .venv\Scripts\python.exe -m pytest tests/ -q
@@ -244,6 +258,7 @@ scenarios=40 groups=4 serial_sum=113.0s wall=37.0s speedup=3.06x
   .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
   .venv\Scripts\python.exe -m tools.smoke_test run --no-color --jobs 4
   ```
+
 - 回填本文件：真实前后秒数表、偏离记录（如 `--dist` 取值、`--jobs` 最终值、flake 修复细节）。
 - 清理临时探针（`_probe_*.py`、`_speedplug.py`、`pytest-base.txt`、`smoke-base.json` 等不得入库）。
 

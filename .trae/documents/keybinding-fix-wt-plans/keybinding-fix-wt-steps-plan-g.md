@@ -18,6 +18,7 @@
 ### PA1 — 入口级按键取证日志
 
 - **改动**：`yate/editor.py` `Editor.handle_key` 开头（L566 `has_modal_screen` 之前）：
+
   ```python
   log.debug(
       "key event: key=%s character=%r focused=%s",
@@ -25,6 +26,7 @@
       type(self.app.focused).__name__ if self.app.focused else None,
   )
   ```
+
   tracing 默认关闭，零成本；`YATE_TRACE=1` 时真机一次运行即可拿到全部 `event.key` 实名。
 - **验证**：pyright 0；pilot 全量不回归。
 - **提交**：`feat(editor): log key events at entry for terminal diagnostics`
@@ -82,7 +84,7 @@ Get-Content ~\.yate\data\logs\yate-*.log | Select-String "key event:"
 
 > **适用键清单（真机 trace 实证，2026-09-26）：**
 > 1. **ctrl+1 等 ctrl+数字**：trace 无事件行 —— conhost 不编 C0、win32 驱动只读 `uChar` 不读 `dwControlKeyState`；
-> 2. **ctrl+` vs ctrl+space**：两者在 WT 都坍缩为 NUL（`ctrl+@`）—— 现状取舍（`editor.py:587` 排除 +
+> 2. **ctrl+`vs ctrl+space**：两者在 WT 都坍缩为 NUL（`ctrl+@`）—— 现状取舍（`editor.py:587` 排除 +
 >    `terminal.py:49` 全名集合）：编辑器聚焦 → 补全；终端聚焦 → 关终端。win32-input-mode 下
 >    VK_OEM_3 ≠ VK_SPACE 可区分，两者才能各得其所；
 > 3. **ctrl+e / ctrl+shift+e 区分**：legacy 终端同为 `\x05`。
@@ -152,7 +154,7 @@ conpty 把帧**以文本形态透传**进 record 的 UnicodeChar 流。
 
 **ctrl+space 悖论结论**（写死在此，防再犯）：yate 无任何 ctrl+space→terminal 路径
 （`TOGGLE_KEYS` 不含 `ctrl+space`；editor 分支 ctrl+space 无条件补全）。legacy 下
-ctrl+space/ctrl+` 同为 NUL（`ctrl+@` ∈ TOGGLE_KEYS），**终端聚焦时** ctrl+space 以
+ctrl+space/ctrl+`同为 NUL（`ctrl+@` ∈ TOGGLE_KEYS），**终端聚焦时** ctrl+space 以
 NUL 形态到达才会关终端——这是 docstring 已记录的碰撞取舍；22:11 trace 的 ctrl+space
 零记录（无驱动级 `chord:` 行）= 未到达（IME 热键拦截），观察到的切换来自同窗口
 ctrl+shift+2 按键（22:14:20/35 两次终端开关）的时间交叠归因。
@@ -172,9 +174,9 @@ ctrl+shift+2 按键（22:14:20/35 两次终端开关）的时间交叠归因。
 | **Phase A 真机验收** | ✅ | — | 2026-09-26 19:06 复测 trace：`ctrl+right_square_bracket`×4 / `ctrl+underscore`×8 / `ctrl+p` 全部**无 unmapped 行**（对照修复前 18:59 段）→ ctrl+]、ctrl+6、ctrl+/、ctrl+p 在 WT 真机全通；`escape` 关面板正常 |
 | **PB1 keyproto L0 包** | ✅ | `5cd97d1` | chords/aliases/legacy 三模块；`editor_view/keys.py` 整体迁入 `keyproto/legacy.py`（3 处导入方同步改）；测试抓到真缺口：`ctrl+\``/`ctrl+grave`/`ctrl+grave_accent` 三种命名从未映射到 NUL → 补齐；4+21 passed / pyright 0 |
 | **PB2.0 探测定案** | ✅ | （随 PB2 提交） | 本 Textual 版本**无 XTermParser 字节流入口**（Windows 走 record 直读）；且 `WindowsDriver.start_application_mode` 已启用 kitty `>1u` 而 WT/conpty 不响应（trace 实证 ctrl+1 无事件）→ 协议路线死路，**PB2-full record 读取定案** |
-| **PB2 chord 驱动** | ✅ | `ce93090` | `keyproto/driver_windows.py`：`record_key_override`（纯函数，VK+dwControlKeyState→KeyChord，CapsLock/NumLock/修饰键/导航 VK 排除）+ `ChordEventMonitor`（stock 循环 + 唯一 chord 分支）+ `YateWindowsDriver`；`YateApp.get_driver_class` Windows 下选 chord 驱动（pilot/headless 显式请求 HeadlessDriver 不受影响）。**name-first 交付**：全部走既有派发表，派发层零改动；1235 passed / pyright 全仓 0 |
-| **PB3 `key_protocol` 配置** | ✅ | `33f91e5` | `auto`（默认，Windows→chord 驱动）/`legacy`（stock 驱动逃生阀）/`win32-input`；yaterc 校验 + `YateApp.get_driver_class` 按配置选择（`self.config` 提前到 `super().__init__()` 之前赋值，因驱动解析发生在 App.__init__ 内）；94 passed / pyright 0 |
-| **PB4 文档** | ✅ | （本提交） | 双语 manual「终端兼容性」改写（chord 驱动默认行为 + legacy 回退语义）+ README 双语 ctrl+1 行更新。**偏离计划：`:keys` 排障面板暂缓**——PA1 入口日志（`YATE_TRACE=1`）已覆盖取证需求，新 screen 属独立特性，登记为后续 nice-to-have |
-| **PB5-r1 NUL 命名第二轮（真机 trace 裁决产物）** | ✅ | `54ab508` | 21:08 trace：`ctrl+shift+2 character='\x00'`×21 = chord 驱动对 Ctrl+@ 键（VK 0x32+ctrl+shift， grave 位于 Shift+2 位或手动模拟 ctrl+@）的命名，**已到达 yate** 但被当作补全/落空；`ctrl+underscore`×2 = ctrl+_ 的 C0 字节（试验键，与 ctrl+\` 无关）；**ctrl+1 零 trace 行 = 未到达 yate**（疑宿主工作台消费）。修复：`ctrl+2`/`ctrl+shift+2` 从补全分支移入 TOGGLE_KEYS（chord 驱动下 ctrl+space 单独命名，语义无歧义）；`ctrl+@` 保持 legacy 补全语义；chord 驱动新增 VK 级取证日志（`chord: vk=… state=… -> 名字`）；新增 pilot 测试锁定 ctrl+2/ctrl+shift+2 切换终端。217 passed / pyright 0 |
-| **PB5 真机矩阵复测** | ⏳ | — | `verify_matrix.ps1` 三终端复测（本次预期 ctrl+1 在 WT/conhost/VS Code 全通、ctrl+` 开关终端、ctrl+space 补全）；**注意：VS Code 集成终端在工作台层消费 ctrl+1/ctrl+\`（yate 收不到，属宿主行为）——复测需在独立 Windows Terminal / conhost 进行，VS Code 下可用 ctrl+shift+2 代替**；全绿 → 关账 IKH1RA → 发布 |
+| **PB2 chord 驱动** | ✅ | `ce93090` | `keyproto/driver_windows.py`：`record_key_override`（纯函数，VK+dwControlKeyState→KeyChord，CapsLock/NumLock/修饰键/导航 VK 排除）+`ChordEventMonitor`（stock 循环 + 唯一 chord 分支）+`YateWindowsDriver`；`YateApp.get_driver_class` Windows 下选 chord 驱动（pilot/headless 显式请求 HeadlessDriver 不受影响）。**name-first 交付**：全部走既有派发表，派发层零改动；1235 passed / pyright 全仓 0 |
+| **PB3 `key_protocol` 配置** | ✅ | `33f91e5` | `auto`（默认，Windows→chord 驱动）/`legacy`（stock 驱动逃生阀）/`win32-input`；yaterc 校验 +`YateApp.get_driver_class`按配置选择（`self.config` 提前到 `super().__init__()`之前赋值，因驱动解析发生在 App.__init__ 内）；94 passed / pyright 0 |
+| **PB4 文档** | ✅ | （本提交） | 双语 manual「终端兼容性」改写（chord 驱动默认行为 + legacy 回退语义）+ README 双语 ctrl+1 行更新。**偏离计划：`:keys`排障面板暂缓**——PA1 入口日志（`YATE_TRACE=1`）已覆盖取证需求，新 screen 属独立特性，登记为后续 nice-to-have |
+| **PB5-r1 NUL 命名第二轮（真机 trace 裁决产物）** | ✅ |`54ab508`| 21:08 trace：`ctrl+shift+2 character='\x00'`×21 = chord 驱动对 Ctrl+@ 键（VK 0x32+ctrl+shift， grave 位于 Shift+2 位或手动模拟 ctrl+@）的命名，**已到达 yate** 但被当作补全/落空；`ctrl+underscore`×2 = ctrl+_ 的 C0 字节（试验键，与 ctrl+\` 无关）；**ctrl+1 零 trace 行 = 未到达 yate**（疑宿主工作台消费）。修复：`ctrl+2`/`ctrl+shift+2` 从补全分支移入 TOGGLE_KEYS（chord 驱动下 ctrl+space 单独命名，语义无歧义）；`ctrl+@` 保持 legacy 补全语义；chord 驱动新增 VK 级取证日志（`chord: vk=… state=… -> 名字`）；新增 pilot 测试锁定 ctrl+2/ctrl+shift+2 切换终端。217 passed / pyright 0 |
+| **PB5 真机矩阵复测** | ⏳ | — | `verify_matrix.ps1` 三终端复测（本次预期 ctrl+1 在 WT/conhost/VS Code 全通、ctrl+`开关终端、ctrl+space 补全）；**注意：VS Code 集成终端在工作台层消费 ctrl+1/ctrl+\`（yate 收不到，属宿主行为）——复测需在独立 Windows Terminal / conhost 进行，VS Code 下可用 ctrl+shift+2 代替**；全绿 → 关账 IKH1RA → 发布 |
 | **PB6 9001h 帧解码接入** | ✅ | `afaf000` + `7b08070` + `fe4d92c` | `keyproto/frames.py` 流式帧解码 + driver 接入 `\x1b[?9001h/l` + TerminalView 消费点日志（补取证盲区）。**真机无人值守验收（2026-09-26 23:58，SendInput 注入真实 WT + YATE_TRACE 断言）12/12 PASS**：x/down/ctrl+p/ctrl+shift+e/ctrl+1/ctrl+space/ctrl+\`/ctrl+q 全部到达且单触发，app 正常退出。过程中抓到两个真缺陷并修复：① key-up 帧（bKeyDown=0）被 `flags in (0,1)` 误判为按下 → 每键双触发，收紧为 `flags == 1`；② harness INPUT union padding 错误 → SendInput 拒绝（GLE 87）。**ctrl+space 悖论 IME 结论实锤复现**：一轮运行 IME 处中文态，`x` 被合成汉字（trace `key=先`）、down 被当选字键、ctrl+space 被热键拦截——harness 补 `ensure_english_layout`（WM_INPUTLANGCHANGEREQUEST → US）后消除。1256 passed / pyright 全仓 0 |

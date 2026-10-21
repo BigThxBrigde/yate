@@ -51,6 +51,7 @@ flowchart TD
 **位置**: `tools/pack/wiki.py` L1180-1182
 
 **现状**:
+
 ```python
 zh_bytes = _read_source_bytes(page.zh_source)
 digest = hashlib.sha256(zh_bytes).hexdigest()
@@ -58,6 +59,7 @@ _write_page_bytes(target / page.zh_target, zh_bytes)
 ```
 
 **改后**:
+
 ```python
 zh_bytes = _read_source_bytes(page.zh_source)
 digest = hashlib.sha256(zh_bytes).hexdigest()
@@ -72,6 +74,7 @@ _write_page_bytes(target / page.zh_target, zh_bytes)
 **位置**: `tools/pack/wiki.py` L1191-1195
 
 **现状**:
+
 ```python
 try:
     en_bytes = page.en_source.read_bytes()
@@ -82,6 +85,7 @@ if en_bytes is not None:
 ```
 
 **改后**:
+
 ```python
 try:
     en_bytes = page.en_source.read_bytes()
@@ -97,11 +101,13 @@ if en_bytes is not None:
 **位置**: `tools/pack/wiki.py` L1361
 
 **现状**:
+
 ```python
 _write_page_text(target / page.en_target, outcome.english)
 ```
 
 **改后**:
+
 ```python
 linted_english = _lint_page_text(outcome.english, "en")
 _write_page_text(target / page.en_target, linted_english)
@@ -114,6 +120,7 @@ _write_page_text(target / page.en_target, linted_english)
 **位置**: `tools/pack/wiki.py` L1472-1475
 
 **现状**:
+
 ```python
 _write_page_text(target / "Home.md", home_zh)
 _write_page_text(target / "_Sidebar.md", sidebar_zh)
@@ -122,6 +129,7 @@ _write_page_text(target / "_Sidebar.en.md", sidebar_en)
 ```
 
 **改后**:
+
 ```python
 _write_page_text(target / "Home.md", _lint_page_text(home_zh, "zh"))
 _write_page_text(target / "_Sidebar.md", _lint_page_text(sidebar_zh, "zh"))
@@ -217,7 +225,7 @@ from tools.mdlint.lint import LintEngine, LintViolation
 原因：`tools.mdlint` 依赖 `pymarkdownlnt`（可选依赖），wiki 不应在 import 时
 强制要求安装。
 
-2. **新增辅助函数**（L224 附近，`_write_page_text` 之后）：
+1. **新增辅助函数**（L224 附近，`_write_page_text` 之后）：
 
 ```python
 _LINT_ENGINES: dict[str, LintEngine] = {}
@@ -235,14 +243,14 @@ def _get_lint_engine(lang: str) -> LintEngine:
     ...
 ```
 
-3. **插入点 1**（L1182）：在 `_write_page_bytes` 调用前加 `zh_bytes = _lint_page_bytes(zh_bytes, "zh")`
+1. **插入点 1**（L1182）：在 `_write_page_bytes` 调用前加 `zh_bytes = _lint_page_bytes(zh_bytes, "zh")`
 
-4. **插入点 2**（L1195）：在 `_write_page_bytes(en_path, en_bytes)` 前加 `en_bytes = _lint_page_bytes(en_bytes, "en")`
+2. **插入点 2**（L1195）：在 `_write_page_bytes(en_path, en_bytes)` 前加 `en_bytes = _lint_page_bytes(en_bytes, "en")`
 
-5. **插入点 3**（L1361）：将 `_write_page_text(target / page.en_target, outcome.english)` 改为
+3. **插入点 3**（L1361）：将 `_write_page_text(target / page.en_target, outcome.english)` 改为
    `_write_page_text(target / page.en_target, _lint_page_text(outcome.english, "en"))`
 
-6. **插入点 4**（L1472-1475）：4 处 `_write_page_text` 调用包裹 `_lint_page_text`
+4. **插入点 4**（L1472-1475）：4 处 `_write_page_text` 调用包裹 `_lint_page_text`
 
 ## 五、测试用例
 

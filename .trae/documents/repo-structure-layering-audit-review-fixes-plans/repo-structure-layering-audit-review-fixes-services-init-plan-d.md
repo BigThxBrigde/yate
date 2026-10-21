@@ -13,6 +13,7 @@
 ## 二、逐处改动（逐字替换整个模块 docstring）
 
 现状：
+
 ```python
 """Service layer: workspace tree, shell execution and extension loading.
 
@@ -23,7 +24,9 @@ submodule that defines the symbol
 (``from yate.services.workspace import Workspace``).
 """
 ```
+
 目标：
+
 ```python
 """Service layer: the UI-free services the editor and the shell share.
 

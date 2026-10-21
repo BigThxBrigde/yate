@@ -121,7 +121,7 @@ flowchart LR
   放不下且已有可见 tab 时以 `width - ind_cells` 重拟合一次再放指示器；仍放不下（极窄）则省略。
   指示器不注册点击区。
 - 测试（新建 `tests/test_chrome.py`）：构造 `EditorSession` + 多文档（构造方式参照
-  `tests/test_session.py` / 既有 TabBar 用例若有）：窄宽 `build(w)` 断言文本含 ` +N`
+  `tests/test_session.py` / 既有 TabBar 用例若有）：窄宽 `build(w)` 断言文本含 `+N`
   且 regions 数 < 文档数；宽屏不出现 `+`；点击区域仍可命中可见 tab。
 
 **W2.5 L7** [yate/editor_view/editor.py](../../yate/editor_view/editor.py) `:238,295,320-321,357`
@@ -132,7 +132,7 @@ flowchart LR
 
 **W3.1** [pack/pack.ps1](../../pack/pack.ps1) `:224-229`：`& $exe --version` 改
 `Start-Process -FilePath $exe -ArgumentList '--version' -NoNewWindow -PassThru -RedirectStandardOutput <stage>\smoke-out.txt`
-+ `WaitForExit(30000)`，超时 `Kill()` 后 `Stop-WithMessage`；`$LASTEXITCODE` 判定改
+- `WaitForExit(30000)`，超时 `Kill()` 后 `Stop-WithMessage`；`$LASTEXITCODE` 判定改
 `$proc.ExitCode`；输出读取自 smoke-out.txt 后删除。stderr 保持不上重定向（沿用既有 PS 5.1 规避注释）。
 **W3.2** [pack/pack.sh](../../pack/pack.sh) `:195`：改 `timeout 30 "$stage/yate" --version`，超时即走既有失败分支。
 - 验收：PS1 经 `[System.Management.Automation.Language.Parser]::ParseFile` 零解析错误；

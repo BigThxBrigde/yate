@@ -22,6 +22,7 @@
 ### 1. `yate/config.py`
 
 1. `KNOWN_OPTIONS`（34-38 行）：追加 `"support_mouse"`：
+
    ```python
    KNOWN_OPTIONS: tuple[str, ...] = (
        "keymap", "theme", "tab_width", "use_spaces",
@@ -30,8 +31,10 @@
        "support_mouse",
    )
    ```
+
 2. `YateConfig`（122-173 行）：在 `show_hidden` 字段（146 行）之后新增：
-   ```python
+  
+```python
    #: Master switch for all mouse interaction (``support_mouse = False``
    #: in yaterc).  ``False`` makes the app drop every mouse event before
    #: it reaches any widget (gate lives in ``YateApp.on_event``).  On by
@@ -39,16 +42,19 @@
    #: opt-out (issue IKJRFK).
    support_mouse: bool = True
    ```
-3. `SET_OPTION_SPECS`（259-309 行）：追加一个 `SetOption`（复用既有
-   `_parse_bool_option`，config.py:250-252）：
+  
+1. `SET_OPTION_SPECS`（259-309 行）：追加一个 `SetOption`（复用既有
+`_parse_bool_option`，config.py:250-252）：
+  
    ```python
-   SetOption(
+SetOption(
        name="support_mouse",
        aliases=(),
        parse=_parse_bool_option,
        invalid_message="support_mouse must be on|off (true/false/1/0/yes/no accepted)",
        summary="support_mouse=on|off",
    ),
+
    ```
 
 ### 2. `yate/yaterc.py`
@@ -77,7 +83,7 @@ resolved 启动日志（344-349 行）的格式串与实参各加一项
 
 - `yate/docs/yaterc.en.md`：选项表（65-87 行）在 `show_hidden` 行（79 行）
   之后插入：
-  `| `support_mouse` | `bool` | `True` | `True` / `False` | Master switch for mouse interaction. `False` ignores every mouse event (text area, tab bar, explorer, terminal, scrollbars, separator drag); keyboard input is unaffected. Non-boolean values are rejected. |`
+  `|`support_mouse` | `bool` | `True` | `True` / `False` | Master switch for mouse interaction. `False`ignores every mouse event (text area, tab bar, explorer, terminal, scrollbars, separator drag); keyboard input is unaffected. Non-boolean values are rejected. |`
 - `yate/docs/yaterc.zh.md`：对应位置插入语义一致的中文行。
 - 若 `yate/yaterc.example` 存在：在布尔示例区追加注释行
   `# support_mouse = True   # set False to ignore all mouse input`。
@@ -104,11 +110,11 @@ resolved 启动日志（344-349 行）的格式串与实参各加一项
 
 ### `tests/test_set_options.py`
 
-4. `test_set_support_mouse_on_off_roundtrip`
+1. `test_set_support_mouse_on_off_roundtrip`
    - 前置：参照本文件既有 `:set` 驱动方式构造 commands/编辑器夹具。
    - 操作：依次 `:set support_mouse=off`、`=on`。
    - 断言：off 后 `config.support_mouse is False`；on 后 `is True`。
-5. `test_set_support_mouse_invalid_value_reports`
+2. `test_set_support_mouse_invalid_value_reports`
    - 操作：`:set support_mouse=maybe`。
    - 断言：消息行出现 `support_mouse must be on|off`，值不变。
 

@@ -674,9 +674,9 @@ L172/L314/L331/L499/L518/L1213。
 2. **扩展键位层支持带修饰 F 键**。xterm 约定：F5-F12 的 `~` 族基准码
    为 F5=15、F6=17、F7=18、F8=19、F9=20、F10=21、F11=23、F12=24；
    带修饰发 `\x1b](../../yate/keymaps/base.py)：
-     `parse_key` 对 `~` 族 F 键按修饰符拼参数序列；`key_name` 与
+     `parse_key` 对 `~`族 F 键按修饰符拼参数序列；`key_name` 与
      `KEY_ALIASES`（](../../yate/keymaps/base.py#L55-L77)）
-     增加逆映射，帮助覆盖层能显示 `<shift+f5>`；
+     增加逆映射，帮助覆盖层能显示`<shift+f5>`；
    - ](../../yate/keyproto/legacy.py)（2026-09-28 核对：原
      `editor_view/keys.py`）：
      `textual_key_to_raw` 识别 Textual 的 `shift+f5`/`ctrl+shift+f5`
@@ -764,7 +764,7 @@ L172/L314/L331/L499/L518/L1213。
   `evaluate(context="repl")`，结果/异常作为 console 类 output 追加；
 - **info 模式**：stopped 时显示
   `Threads → Stack frames（当前帧高亮 ▶）→ Scopes → Variables（两级
-  树缩进，variables_reference>0 标 `+`，Enter 展开调 manager
+  树缩进，variables_reference>0 标`+`，Enter 展开调 manager
   expand_variable）`。未停止时显示 "program is running / not started"。
 - 模式切换：面板聚焦时 Tab 或命令 `:debug-panel out|info`；stopped
   事件自动切 info，continued 自动切 out。

@@ -48,10 +48,12 @@
    - **默认本轮只做最小加固**：`:trust` 写入前 resolve 并拒绝 symlink 条目；
    - 无论选哪档，先在报告中写明方案再动手。
 8. **子代理门禁**：
+  
    ```Shell
    .venv\Scripts\python.exe -m pyright yate/logs.py yate/services tests/test_crash.py tests/test_tracing.py tests/test_workspace_filter.py tests/test_extensions.py tests/test_trust.py
    .venv\Scripts\python.exe -m pytest tests/test_crash.py tests/test_tracing.py tests/test_workspace_filter.py tests/test_extensions.py tests/test_trust.py -q
-   ```
+
+```
 
 ## 注意
 

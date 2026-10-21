@@ -42,6 +42,7 @@ message widget 已卸载），异常会逃逸出 `emit`，终止 `for` 循环，
 也抛异常 → 监听器 B/C 永远不执行。
 
 **建议修复：**
+
 ```python
 if self._report_failure is not None:
     try:
@@ -73,6 +74,7 @@ if self._report_failure is not None:
 但 Lua 用户必须降级到原始 bridge 调用，破坏封装一致性。
 
 **建议修复：**
+
 ```lua
 ---@param id string
 ---@return nil

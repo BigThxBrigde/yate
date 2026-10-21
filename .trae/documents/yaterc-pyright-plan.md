@@ -112,6 +112,7 @@
 ## 4. pyright（strict 模式 + 少量类型豁免）
 
 `pyproject.toml`：
+
 ```toml
 [project.optional-dependencies]
 dev = ["pyright>=1.1", "pylance>=1.1"]
@@ -148,6 +149,7 @@ reportUnknownMemberType = false
 reportUnknownArgumentType = false
 reportUnknownParameterType = false
 ```
+
 行内豁免（带理由注释）：`cli.py` 懒加载用 `# pyright: ignore[reportMissingImports]`；`vim.py` 访问私有属性（如 `buf.anchor`）用 `# pyright: ignore[reportAttributeAccessIssue]`；扩展隔离执行路径上 `# pyright: ignore[reportMissingTypeStubs]`。
 逐文件清类型问题（以实际输出为准迭代）：`reportUnusedVariable`（lambda 参数改 `_args` 或具名函数）、`reportMissingReturnStatement`、`reportPossiblyUnboundVariable`、`reportOptionalMemberAccess`、`reportArgumentType` 等。目标：`pyright yate tests` 0 errors / 0 warnings。
 

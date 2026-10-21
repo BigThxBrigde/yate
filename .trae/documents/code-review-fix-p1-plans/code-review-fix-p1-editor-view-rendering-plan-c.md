@@ -53,10 +53,12 @@
    **不引入 Protocol**，符合 R2）；test_app_textual.py 的私有属性断言改走探针；
    S42 更新过时注释并补磁盘字节完好断言。
 9. **子代理门禁**：
+  
    ```Shell
    .venv\Scripts\python.exe -m pyright yate/editor_view tests/test_app_textual.py
    .venv\Scripts\python.exe -m pytest tests/test_app_textual.py tests/test_explorer.py tests/test_panes.py -q
-   ```
+
+```
 
 ## 注意
 
