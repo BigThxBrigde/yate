@@ -1,10 +1,10 @@
 # remove-sokoban-restore-border 总纲
 
-> 状态：已批准（无人值守时段自动批准，依据规则总纲 §二.5）
+> 状态：已批准（无人值守时段自动批准，依据规则总纲的无人值守条款）
 > 分支：`feat/games-pack`（worktree `../yate-games/`，即 `D:/Programming/yate-games`）
 > 编制：主代理兜底执行 plan-architect-designer 剧本——spawn 失败
 > （`Model "qwen-3.7-plus" not found`，CodeBuddy 会话无模型覆盖接口，
-> `.codebuddy/agents/` 按总纲 §一.4 禁作来源），如实标注"子代理零产出"。
+> `.codebuddy/agents/` 按总纲「子代理来源」条款禁作来源），如实标注「子代理零产出」。
 > 日期：2026-10-21
 
 ## 一、目标
@@ -37,7 +37,7 @@
 **波次表**：`wave-1: plan-a ∥ plan-b ∥ plan-c`（三者文件互不重叠、可独立
 验收）→ `wave-2: 收尾门禁（主代理亲自跑，见 §六）`。
 
-执行方式说明：`plan-executor` 未派发——`subagent-workflow.md` §一.3 禁止
+执行方式说明：`plan-executor` 未派发——`subagent-workflow.md` 的文件独占条款禁止
 成员修改产品源码（`yate/`），而本任务实现面几乎全部位于 `yate/`；由主代理
 按 plan-executor 剧本亲自执行三个子计划。
 
@@ -51,10 +51,10 @@
 - **R2 只删 `box` 系、保留 `light` 字形**：`git log -S` 实证
   `light`/`box`/`box_on_goal`/`goal` 四个字形全部由推箱子提交 `ceaaabb`
   引入，且现无任何游戏使用（字面量与 `engine.glyph.*` 双口径扫描）。
-  **否决**：保留即遗留死设计信息，与"移除推箱子相关设计信息"直接冲突。
+  **否决**：保留即遗留死设计信息，与「移除推箱子相关设计信息」直接冲突。
 - **R3 边框恢复时顺带缩小 pacman/snake 画布**：pacman 是 edge-to-edge
   39x23 设计（9ec3e48，晚于边框删除），恢复边框后 80x24 端子上外框会先
-  于网格被裁切。**否决**：该裁切语义与用户点名要恢复的"前一版设计"完全
+  于网格被裁切。**否决**：该裁切语义与用户点名要恢复的「前一版设计」完全
   一致（当时 snake 已是 80x24 自带边框），改尺寸属擅自扩权。
 - **R4 实现拆给并行 plan-executor 成员**：见 §三执行方式说明。
   **否决**：成员禁改 `yate/` 产品源码，拆分只对 tests/ 成立且与代码删除

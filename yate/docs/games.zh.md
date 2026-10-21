@@ -24,7 +24,6 @@ escape                退出正在运行的游戏
 |---|---|---|
 | 贪食蛇 | `:game snake` | 吃、变长、别咬到自己 |
 | 吃豆人 | `:game pacman` | 清空迷宫、躲开幽灵 |
-| 推箱子 | `:game sokoban` | 把所有木箱推上目标点 |
 | NetHack | `:game nethack` | 在程序生成的地牢里往下走 |
 | 俄罗斯方块 | `:game tetris` | 堆满之前消行 |
 
@@ -32,7 +31,7 @@ escape                退出正在运行的游戏
 
 | 形式 | 效果 |
 |---|---|
-| `:game` | 打印 `usage: :game <name> (games: nethack pacman snake sokoban tetris)` |
+| `:game` | 打印 `usage: :game <name> (games: nethack pacman snake tetris)` |
 | `:game <名字>` | 启动该游戏；未知名字打印 `unknown game: chess (available: ...)` |
 | `:game player` | 打印 `player: <名字>` |
 | `:game player <名字>` | 修改 `games/profile.json` 里的玩家名 |
@@ -42,7 +41,7 @@ escape                退出正在运行的游戏
 
 ## 3. 各游戏
 
-五款游戏共用同一套版式（圆角边框、标题、HUD 行、帮助行）、Unicode 框线与块字符，
+四款游戏共用同一套版式（圆角边框、标题、HUD 行、帮助行）、Unicode 框线与块字符，
 以及同样三个键：`p` 暂停（有时间推进的游戏）、`r` 重开、`escape` 退出。
 
 ### 3.1 贪食蛇
@@ -102,40 +101,7 @@ escape                退出正在运行的游戏
 
 存档：前 5 名、局数、通关数。
 
-### 3.3 推箱子
-
-```text
-╭─ sokoban ───────────╮
-│     ██████          │
-│     █ ▣  █          │
-│     █ ☻ ◎█          │
-│     ██████          │
-│                     │
-│ level 1/6  m0 p0 d0 │
-│ u undo  r restart   │
-│ n next  p pause     │
-╰─────────────────────╯
-```
-
-| 按键 | 作用 |
-|---|---|
-| 方向键 / `hjkl` / `wasd` | 走动；箱子后方是空地时推动箱子 |
-| `u` | 撤销一步（角色与它推过的箱子），最多 200 步 |
-| `r` | 重开本关 |
-| `n` | 下一关（仅本关完成后） |
-| `p` | 暂停 |
-
-规则：撞墙或推不动的箱子不算一步。所有目标点上都放上箱子即过关；
-最后一关之后画面提示 `all levels cleared`，按 `r` 从第 1 关重开。
-共 **120 关**：前 6 关为手写关（5 关取自公开的 Microban 关卡集 + 1 关教学关），
-其余由「把箱子从目标点拉开」的逆向生成器产生，因此每关**必然可解**。
-关卡区 37×17 格，画布 41×22。围栏画成**细蓝线**（不是实心块），玩家是
-黄色 `▲` 三角，框内图例行解释各字形：`walls = blue lines  ▣ 箱子  ▩ 已就位  ◎ 目标  ▲ 你`。
-
-存档：当前关、已完成关列表、累计步数/推动数 —— 下次打开继续停下的那一关，
-关卡本身从头开始。
-
-### 3.4 NetHack
+### 3.3 NetHack
 
 ```text
 ╭─ nethack ───────────────────────────────────────────────────────╮
@@ -160,7 +126,7 @@ escape                退出正在运行的游戏
 编辑器再打开会接着上次的位置；死亡会清档。地图按语义字符（`#` 墙、`.` 地板、
 `,` 走廊、`>` 楼梯）存储，切换字形不会污染存档。
 
-### 3.5 俄罗斯方块
+### 3.4 俄罗斯方块
 
 ```text
 ╭─ stats ───────╮ ╭─ tetris ────────────╮ ╭─ next ─────────╮
@@ -197,7 +163,6 @@ escape                退出正在运行的游戏
 | `snake.json` | `version`、`player`、`high_scores[{score, player, at}]`、`stats{games, best_length}` |
 | `pacman.json` | `version`、`player`、`high_scores[...]`、`stats{games, levels}` |
 | `tetris.json` | `version`、`player`、`high_scores[...]`、`stats{games, lines}` |
-| `sokoban.json` | `version`、`level`、`completed[...]`、`moves`、`pushes` |
 | `nethack.json` | `version`、`player`、`glyphs`、`save{depth, turn, seed, hp, max_hp, gold, weapon, rng, player_pos, floor[], monsters[], items[]}` |
 
 `high_scores` 最多保留 5 条，按分数降序，每条含分数、玩家名与本地时间
@@ -253,7 +218,7 @@ NetHack 把**结构**与**实体**分开渲染。地牢本身——墙、地板�
 | `engine.direction(key)` → `dx, dy` | 方向键 / `hjkl` / `wasd` 映射 |
 | `engine.rng(seed)` → `{int, pick, state, set}` | 确定性随机数 |
 | `engine.utf8_char(code)` | 码位转 UTF-8 字形，做图标集用 |
-| `engine.glyph` | 共享字形词表（`block`、`shade`、`box`、`dot` …） |
+| `engine.glyph` | 共享字形词表（`block`、`shade`、`mid`、`dot` …） |
 
 一个完整的最小游戏（一个上下移动的点，带最高分）：
 

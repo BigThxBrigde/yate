@@ -7,7 +7,7 @@
 - 用户需求：恢复前一版设计中最外层的细线边框。
 - 前置事实：该边框是 `yate/resources/canvas.tcss` 中 `CanvasScreen .grid`
   的 `border: round $primary;`，由提交 `bbe88ae`（2026-10-21 21:29
-  "drop the canvas chrome"）移除；同提交为修"超大游戏滚动整屏"而加的
+  "drop the canvas chrome"）移除；同提交为修「超大游戏滚动整屏」而加的
   `CanvasScreen { overflow: hidden }` 与边框无耦合，必须保留。
 
 ## 二、独占文件清单（只许改这个）

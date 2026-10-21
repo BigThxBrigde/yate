@@ -48,7 +48,7 @@ absolute path** (a script hit by several sources still runs exactly once):
    **accumulate**, they do not overwrite);
 2. **Bundled extensions** in `yate/extensions/` (currently `python_lsp`,
    the Python language server, plus the game pack: `games`, the `:game`
-   dispatcher, and `snake` / `pacman` / `sokoban` / `nethack` / `tetris`;
+   dispatcher, and `snake` / `pacman` / `nethack` / `tetris`;
    the shared `lib/game_engine.lua` module they all `require` lives in
    `yate/extensions/lib/`, which the loader never treats as an extension);
    they auto-load regardless of the working

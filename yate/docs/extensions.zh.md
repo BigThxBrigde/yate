@@ -42,7 +42,7 @@ def setup(api):
 
 1. yaterc 中的 `extensions` 选项（用户级先于项目级，**累加**而非覆盖）；
 2. **随包扩展** `yate/extensions/`（目前为 `python_lsp`——Python 语言服务器，
-   外加游戏包：`games`（`:game` 派发器）与 `snake` / `pacman` / `sokoban` /
+   外加游戏包：`games`（`:game` 派发器）与 `snake` / `pacman` /
    `nethack` / `tetris`；它们共同 `require` 的共享模块
    `lib/game_engine.lua` 放在 `yate/extensions/lib/`，装载器不会把它当扩展；
    无论当前工作目录在哪都会自动
