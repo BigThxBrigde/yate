@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import itertools
 import os
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from tools.mdlint.lint import LintEngine, LintViolation
+from tools.mdlint.lint import LintEngine, LintViolation, error_message
 
 #: One pool task handles at most this many files (mirrors ``tools.pack.wiki``).
 BATCH_SIZE: Final[int] = 10
@@ -87,7 +87,7 @@ def _lint_one(item: tuple[str, str], fix: bool) -> FileOutcome:
             return FileOutcome(raw_path, lang, violations, was_fixed)
         return FileOutcome(raw_path, lang, engine.scan_file(path))
     except Exception as exc:  # noqa: BLE001 - one bad file must not fail a pool
-        return FileOutcome(raw_path, lang, [], error=str(exc))
+        return FileOutcome(raw_path, lang, [], error=error_message(exc))
 
 
 def _lint_batch(batch: list[tuple[str, str]], fix: bool) -> list[FileOutcome]:
@@ -95,17 +95,25 @@ def _lint_batch(batch: list[tuple[str, str]], fix: bool) -> list[FileOutcome]:
     return [_lint_one(item, fix) for item in batch]
 
 
-def run_batches(
+def iter_batches(
     items: Sequence[tuple[str, str]], *, fix: bool
-) -> list[FileOutcome]:
-    """Lint *items* (``(path, lang)`` pairs) in batches across processes.
+) -> Iterator[FileOutcome]:
+    """Lint *items* across processes, yielding outcomes in input order.
 
-    The outcomes come back in input order, so the CLI's report does not
-    depend on which worker finished first.
+    ``pool.map`` hands results back in submission order, so the caller can
+    report (and advance a progress bar) without waiting for the whole run.
     """
     batches = chunk(list(items))
     if not batches:
-        return []
+        return
     with ProcessPoolExecutor(max_workers=worker_count(len(batches))) as pool:
         grouped = pool.map(_lint_batch, batches, itertools.repeat(fix))
-        return [outcome for batch in grouped for outcome in batch]
+        for batch in grouped:
+            yield from batch
+
+
+def run_batches(
+    items: Sequence[tuple[str, str]], *, fix: bool
+) -> list[FileOutcome]:
+    """Blocking variant of :func:`iter_batches` (all outcomes, input order)."""
+    return list(iter_batches(items, fix=fix))

@@ -91,9 +91,9 @@ def test_parallel_pool_failure_exits_2(
     def explode(items: list[tuple[str, str]], *, fix: bool) -> list[FileOutcome]:
         raise RuntimeError("cannot start a new process")
 
-    monkeypatch.setattr(cli, "run_batches", explode)
+    monkeypatch.setattr(cli, "iter_batches", explode)
     assert main(["--check", "--parallel", "--lang", "en", str(docs)]) == 2
-    assert "lint backend failure" in capsys.readouterr().err
+    assert "error: cannot start a new process" in capsys.readouterr().err
 
 
 def test_parallel_file_failure_is_reported(
@@ -105,9 +105,25 @@ def test_parallel_file_failure_is_reported(
     docs = tmp_path / "docs"
     path = _write(docs, "a.md", "# A\n\nBody\n")
 
-    def failing(items: list[tuple[str, str]], *, fix: bool) -> list[FileOutcome]:
+    def failing(
+        items: list[tuple[str, str]], *, fix: bool
+    ) -> list[FileOutcome]:
         return [FileOutcome(str(path), "en", [], error="rehydrate index mismatch")]
 
-    monkeypatch.setattr(cli, "run_batches", failing)
+    monkeypatch.setattr(cli, "iter_batches", failing)
     assert main(["--check", "--parallel", "--lang", "en", str(docs)]) == 2
-    assert "cannot lint" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "cannot lint" in err
+    assert "Traceback" not in err
+
+
+def test_progress_bar_is_not_drawn_without_a_tty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Captured output gets the plain report, never the live bar."""
+    docs = tmp_path / "docs"
+    _write(docs, "bad.md", "Body\n")
+    assert main(["--check", "--parallel", "--lang", "en", str(docs)]) == 1
+    out = capsys.readouterr().out
+    assert "bad.md" in out
+    assert "linting" not in out

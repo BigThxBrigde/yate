@@ -437,3 +437,29 @@ pyright --pythonplatform Windows tools/mdlint/ tests/test_mdlint.py tests/test_m
 `tests/test_mdlint_parallel.py` 共 10 例：目录收集/排序、`chunk`/`worker_count` 边界、
 目录展开、并行 check 报告全部违规、并行 fix 落盘、无目录时降级顺序执行、
 缺失路径退出码 2、进程池启动失败 → 2、worker 返回错误值 → 2。
+
+## 十、增量：错误输出纪律与进度条（2026-10-21）
+
+### 10.1 问题
+
+pymarkdown 在内部失败时用**自己的 logger** 打印完整 traceback
+（`WARNING:pymarkdown.main: ...` 加整段栈），CLI 又把异常文本原样打到 stderr，
+终端上出现与 pack wiki 纪律相悖的堆栈噪声。
+
+### 10.2 处置
+
+| 项 | 实现 |
+|---|---|
+| 关闭第三方堆栈 | `tools/mdlint/lint.py` 导入时给 `pymarkdown` logger 挂 `NullHandler` 并置 `propagate = False`；wiki 内嵌该引擎时同样受益 |
+| 单行详细错误 | `lint.error_message(exc)`：取异常信息首行、折叠空白、上限 300 字符；`PyMarkdownApiException` 首行即 `Unexpected Error(AssertionError): ...`，`BadPluginError` 首行带位置与插件 id |
+| CLI 顶层兜底 | `cli.main` 只在边界处捕获：`KeyboardInterrupt` → 130，其余 `Exception` → 一行 `error: ...` + 退出码 2；参数解析的 `SystemExit` 不拦截 |
+| 并行 worker 一致 | `batch._lint_one` 用 `error_message` 落 `FileOutcome.error`，父进程打印同样是单行 |
+| wiki 告警一致 | `_lint_page_text` 的"published as-is"告警改用同一函数 |
+| 进度条 | `cli._start_progress`：仅在 `sys.stdout.isatty()` 且非 `--quiet` 时启动 rich `Progress`（spinner + 文件数 + 耗时）；逐文件报告经 `progress.console.print` 叠在活动区上方；`_run_parallel` 改用 `batch.iter_batches` 生成器，按输入顺序边完成边推进 |
+
+### 10.3 验收
+
+- 真实语料 `--check --auto-lang --parallel .trae/documents`：输出无 `WARNING:`、无 `Traceback`，只有 `path:line:col: rule message` 与总结行。
+- 新增测试：`test_cli_failure_reports_one_line_without_traceback`、
+  `test_main_boundary_never_prints_a_traceback`、`test_pymarkdown_logger_is_silenced`、
+  `test_progress_bar_is_not_drawn_without_a_tty`、并行 worker 错误值单行断言。

@@ -1,18 +1,37 @@
 """Command line interface for the mdlint tool.
 
 Exit codes: 0 = clean (or all fixable in ``--fix`` mode), 1 = remaining
-violations, 2 = usage error or lint backend failure.
+violations, 2 = usage error or lint backend failure, 130 = interrupted.
+
+The CLI is the boundary where a traceback must never reach the terminal
+(the wiki publisher draws the same line): backend and pool failures print
+one ``error: ...`` line with the backend's own summary, ``--quiet`` silences
+per-file output, and an interactive run shows a live progress bar.
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from tools.mdlint.batch import FileOutcome, collect_markdown, run_batches
-from tools.mdlint.lint import LintEngine, LintViolation
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TextColumn,
+    TimeElapsedColumn,
+)
+
+from tools.mdlint.batch import (
+    FileOutcome,
+    collect_markdown,
+    iter_batches,
+)
+from tools.mdlint.lint import LintEngine, LintViolation, error_message
 from tools.mdlint.rules import LANGS, lang_for_path
 
 
@@ -66,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--quiet",
         action="store_true",
-        help="Suppress per-file output, only summary",
+        help="Suppress per-file output and the progress bar, only summary",
     )
     return parser
 
@@ -85,15 +104,54 @@ def _print_summary(mode: str, paths: Sequence[Path], total: int) -> None:
     print(f"{mode}: {total} violation(s) in {len(paths)} {files}")
 
 
+def _emit(progress: Progress | None, text: str) -> None:
+    """Print one report line above the live bar (or straight to stdout)."""
+    if progress is None:
+        print(text)
+        return
+    progress.console.print(text, markup=False, highlight=False)
+
+
+def _advance(progress: Progress | None, task: TaskID | None) -> None:
+    """Advance the live bar by one file, if one is running."""
+    if progress is not None and task is not None:
+        progress.update(task, advance=1)
+
+
+def _start_progress(
+    total: int, description: str, *, quiet: bool
+) -> tuple[Progress, TaskID] | None:
+    """Start a live bar for interactive runs.
+
+    Piped or captured output (the tests) and ``--quiet`` get no bar at all:
+    control sequences must never end up in a log or an assertion.
+    """
+    if quiet or total == 0 or not sys.stdout.isatty():
+        return None
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+    )
+    progress.start()
+    return progress, progress.add_task(description, total=total)
+
+
 def _run_check(
-    engine: LintEngine, paths: Sequence[Path], *, quiet: bool
+    engine: LintEngine,
+    paths: Sequence[Path],
+    *,
+    quiet: bool,
+    emit: Callable[[str], None],
+    advance: Callable[[], None],
 ) -> tuple[int, int]:
     """Scan every path; return ``(violations, files_that_could_not_be_linted)``.
 
-    The backend is pure Python and trips on pathological documents (its own
-    assertions and plugin errors surface as exceptions); one bad file must
-    not abort the run or the commit that triggered it, so it is reported and
-    counted instead.
+    The backend trips on pathological documents (its own assertions and
+    plugin errors surface as exceptions); one bad file is reported as a
+    single line and counted instead of aborting the run.
     """
     total = 0
     failed = 0
@@ -101,20 +159,27 @@ def _run_check(
         try:
             violations = engine.scan_file(path)
         except Exception as exc:  # noqa: BLE001 - one bad file must not abort
-            print(f"error: cannot lint {path}: {exc}", file=sys.stderr)
+            print(
+                f"error: cannot lint {path}: {error_message(exc)}",
+                file=sys.stderr,
+            )
             failed += 1
-            continue
-        total += len(violations)
-        if not quiet:
-            for violation in violations:
-                print(_format_violation(path, violation))
-    if not quiet:
-        _print_summary("check", paths, total)
+        else:
+            total += len(violations)
+            if not quiet:
+                for violation in violations:
+                    emit(_format_violation(path, violation))
+        advance()
     return total, failed
 
 
 def _run_fix(
-    engine: LintEngine, paths: Sequence[Path], *, quiet: bool
+    engine: LintEngine,
+    paths: Sequence[Path],
+    *,
+    quiet: bool,
+    emit: Callable[[str], None],
+    advance: Callable[[], None],
 ) -> tuple[int, int]:
     """Fix every path in place; return ``(remaining, failed)``."""
     total = 0
@@ -123,17 +188,19 @@ def _run_fix(
         try:
             was_fixed, remaining = engine.fix_file(path)
         except Exception as exc:  # noqa: BLE001 - one bad file must not abort
-            print(f"error: cannot lint {path}: {exc}", file=sys.stderr)
+            print(
+                f"error: cannot lint {path}: {error_message(exc)}",
+                file=sys.stderr,
+            )
             failed += 1
-            continue
-        total += len(remaining)
-        if not quiet:
-            if was_fixed:
-                print(f"fixed: {path}")
-            for violation in remaining:
-                print(_format_violation(path, violation))
-    if not quiet:
-        _print_summary("fix", paths, total)
+        else:
+            total += len(remaining)
+            if not quiet:
+                if was_fixed:
+                    emit(f"fixed: {path}")
+                for violation in remaining:
+                    emit(_format_violation(path, violation))
+        advance()
     return total, failed
 
 
@@ -153,21 +220,60 @@ def _lang_for(path: Path, *, lang: str | None, auto: bool) -> str:
     return "en"
 
 
-def _report_outcome(outcome: FileOutcome, *, quiet: bool) -> tuple[int, int]:
+def _report_outcome(
+    outcome: FileOutcome, *, quiet: bool, emit: Callable[[str], None]
+) -> tuple[int, int]:
     """Print one pooled result; return ``(violations, failed)``."""
     if outcome.error is not None:
-        print(f"error: cannot lint {outcome.path}: {outcome.error}", file=sys.stderr)
+        print(
+            f"error: cannot lint {outcome.path}: {outcome.error}",
+            file=sys.stderr,
+        )
         return 0, 1
     if not quiet:
         if outcome.was_fixed:
-            print(f"fixed: {outcome.path}")
+            emit(f"fixed: {outcome.path}")
         for violation in outcome.violations:
-            print(_format_violation(Path(outcome.path), violation))
+            emit(_format_violation(Path(outcome.path), violation))
     return len(outcome.violations), 0
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Entry point; return the process exit code."""
+def _run_parallel(
+    files: Sequence[Path],
+    args: argparse.Namespace,
+    *,
+    emit: Callable[[str], None],
+    advance: Callable[[], None],
+) -> tuple[int, int]:
+    """Lint *files* through the process pool, reporting in input order."""
+    items = [
+        (str(path), _lang_for(path, lang=args.lang, auto=args.auto_lang))
+        for path in files
+    ]
+    # Validate the backend once in the parent: a missing dependency must
+    # report a single message instead of one failure per pooled file.
+    try:
+        for lang in sorted({lang for _, lang in items}):
+            LintEngine(lang)
+    except Exception as exc:  # backend failure: plugin load, config, etc.
+        print(f"error: {error_message(exc)}", file=sys.stderr)
+        return 0, 1
+    total = 0
+    failed = 0
+    try:
+        for outcome in iter_batches(items, fix=args.fix):
+            violations, broken = _report_outcome(outcome, quiet=args.quiet, emit=emit)
+            total += violations
+            failed += broken
+            advance()
+    except Exception as exc:  # pool start-up failure: interpreter, plugins
+        print(f"error: {error_message(exc)}", file=sys.stderr)
+        return total, failed + 1
+    return total, failed
+
+
+def _dispatch(argv: Sequence[str] | None) -> int:
+    """Parse arguments, expand PATHs and run the selected mode."""
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -202,9 +308,43 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         parallel = False
 
-    if parallel:
-        return _run_parallel(files, args)
+    mode = "fix" if args.fix else "check"
+    started = _start_progress(len(files), f"linting {mode}", quiet=args.quiet)
+    progress = started[0] if started is not None else None
+    task = started[1] if started is not None else None
+    emit = functools.partial(_emit, progress)
+    advance = functools.partial(_advance, progress, task)
+    total_remaining = 0
+    total_failed = 0
+    try:
+        if parallel:
+            total_remaining, total_failed = _run_parallel(
+                files, args, emit=emit, advance=advance
+            )
+        else:
+            total_remaining, total_failed = _run_sequential(
+                files, args, emit=emit, advance=advance
+            )
+    finally:
+        if progress is not None:
+            progress.stop()
+    if not args.quiet:
+        _print_summary(mode, files, total_remaining)
+    # Violations win over failures: a file the backend choked on must not
+    # mask the findings of the files it did lint.
+    if total_remaining:
+        return 1
+    return 2 if total_failed else 0
 
+
+def _run_sequential(
+    files: Sequence[Path],
+    args: argparse.Namespace,
+    *,
+    emit: Callable[[str], None],
+    advance: Callable[[], None],
+) -> tuple[int, int]:
+    """Lint *files* in this process, one language group after another."""
     groups: dict[str, list[Path]] = {}
     for path in files:
         lang = _lang_for(path, lang=args.lang, auto=args.auto_lang)
@@ -215,53 +355,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         for lang in groups:
             engines[lang] = LintEngine(lang)
     except Exception as exc:  # backend failure: plugin load, config, etc.
-        print(f"error: lint backend failure: {exc}", file=sys.stderr)
-        return 2
+        print(f"error: {error_message(exc)}", file=sys.stderr)
+        return 0, 1
 
     total_remaining = 0
     total_failed = 0
     for lang in sorted(engines):
         engine = engines[lang]
         if args.fix:
-            remaining, failed = _run_fix(engine, groups[lang], quiet=args.quiet)
+            remaining, failed = _run_fix(
+                engine, groups[lang], quiet=args.quiet, emit=emit, advance=advance
+            )
         else:
-            remaining, failed = _run_check(engine, groups[lang], quiet=args.quiet)
+            remaining, failed = _run_check(
+                engine, groups[lang], quiet=args.quiet, emit=emit, advance=advance
+            )
         total_remaining += remaining
         total_failed += failed
-    # Violations win over failures: a file the backend choked on must not
-    # mask the findings of the files it did lint.
-    if total_remaining:
-        return 1
-    return 2 if total_failed else 0
+    return total_remaining, total_failed
 
 
-def _run_parallel(files: Sequence[Path], args: argparse.Namespace) -> int:
-    """Lint *files* through the process pool, then report in input order."""
-    items = [
-        (str(path), _lang_for(path, lang=args.lang, auto=args.auto_lang))
-        for path in files
-    ]
-    # Validate the backend once in the parent: a missing dependency must
-    # report a single message instead of one failure per pooled file.
+def main(argv: Sequence[str] | None = None) -> int:
+    """Entry point; return the process exit code, never a traceback."""
     try:
-        for lang in sorted({lang for _, lang in items}):
-            LintEngine(lang)
-    except Exception as exc:  # backend failure: plugin load, config, etc.
-        print(f"error: lint backend failure: {exc}", file=sys.stderr)
+        return _dispatch(argv)
+    except KeyboardInterrupt:
+        print("\nmdlint: interrupted", file=sys.stderr)
+        return 130
+    except Exception as exc:  # noqa: BLE001 - CLI boundary, no tracebacks
+        print(f"error: {error_message(exc)}", file=sys.stderr)
         return 2
-    try:
-        outcomes = run_batches(items, fix=args.fix)
-    except Exception as exc:  # pool start-up failure: interpreter, plugins
-        print(f"error: lint backend failure: {exc}", file=sys.stderr)
-        return 2
-    total_remaining = 0
-    total_failed = 0
-    for outcome in outcomes:
-        remaining, failed = _report_outcome(outcome, quiet=args.quiet)
-        total_remaining += remaining
-        total_failed += failed
-    if not args.quiet:
-        _print_summary("fix" if args.fix else "check", files, total_remaining)
-    if total_remaining:
-        return 1
-    return 2 if total_failed else 0

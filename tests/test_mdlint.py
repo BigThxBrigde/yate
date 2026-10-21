@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -90,6 +91,57 @@ def test_fix_file_keeps_lf_line_endings(tmp_path: Path) -> None:
     path.write_bytes(b"# Title\n\n\n\nBody")
     assert engine.fix_file(path)[0] is True
     assert b"\r" not in path.read_bytes()
+
+
+def test_cli_failure_reports_one_line_without_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A backend exception carrying a whole stack prints only its summary."""
+    from tools.mdlint.lint import LintEngine
+
+    def explode(self: LintEngine, path: Path) -> list[LintViolation]:
+        raise RuntimeError(
+            "Unexpected Error(AssertionError): Rehydrate index must match up\n"
+            "Traceback (most recent call last):\n"
+            '  File "pymarkdown/main.py", line 474, in main\n'
+            "AssertionError: Rehydrate index must match up at end of paragraph."
+        )
+
+    monkeypatch.setattr(LintEngine, "scan_file", explode)
+    path = tmp_path / "odd.md"
+    path.write_text("# Title\n\nBody\n", encoding="utf-8")
+    assert main(["--check", "--lang", "en", str(path)]) == 2
+    err = capsys.readouterr().err
+    assert "Traceback" not in err
+    assert err.strip().count("\n") == 0
+    assert "Unexpected Error(AssertionError)" in err
+
+
+def test_main_boundary_never_prints_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An unexpected exception becomes one ``error:`` line and exit 2."""
+    from tools.mdlint import cli
+
+    def explode(argv: Sequence[str] | None) -> int:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli, "_dispatch", explode)
+    assert main([]) == 2
+    assert capsys.readouterr().err == "error: boom\n"
+
+
+def test_pymarkdown_logger_is_silenced() -> None:
+    """The backend's own traceback logging never reaches the terminal."""
+    import logging
+
+    from tools.mdlint import lint
+
+    logger = logging.getLogger("pymarkdown")
+    assert logger.propagate is False
+    assert any(isinstance(h, logging.NullHandler) for h in logger.handlers)
+    assert lint.error_message(RuntimeError("one\ntwo")) == "one"
 
 
 def test_list_rules_returns_sorted(capsys: pytest.CaptureFixture[str]) -> None:

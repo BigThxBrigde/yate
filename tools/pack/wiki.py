@@ -268,8 +268,12 @@ def _lint_page_text(text: str, lang: str, *, label: str) -> str:
     try:
         fixed, remaining = engine.fix(text)
     except Exception as exc:  # noqa: BLE001 - one odd page must not fail the run
+        from tools.mdlint.lint import error_message
+
         errors.log.warning(
-            "wiki lint: %s could not be linted (%s); published as-is", label, exc
+            "wiki lint: %s could not be linted (%s); published as-is",
+            label,
+            error_message(exc),
         )
         return text
     for violation in remaining[:5]:

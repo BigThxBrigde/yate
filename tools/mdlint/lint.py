@@ -7,6 +7,7 @@ only on ``pymarkdown.api`` and :mod:`tools.mdlint.rules`.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +16,32 @@ from pymarkdown.api import PyMarkdownApi, PyMarkdownScanFailure
 from tools.mdlint.rules import RuleProfile, get_profile, plugin_dir
 
 _LANGS_WITH_CUSTOM_PLUGINS = ("zh",)
+
+#: pymarkdown logs its internal failures -- full tracebacks included -- on
+#: its own logger.  The CLI owns error reporting, so those records must never
+#: reach the terminal: silence the package logger and stop it from bubbling
+#: into the host application's root handlers (the wiki publisher embeds this
+#: engine too).
+logging.getLogger("pymarkdown").addHandler(logging.NullHandler())
+logging.getLogger("pymarkdown").propagate = False
+
+#: Longest one-line error text the CLI prints for a failed file.
+_MAX_ERROR_CHARS = 300
+
+
+def error_message(exc: BaseException) -> str:
+    """Render *exc* as one bounded line, never as a traceback.
+
+    ``PyMarkdownApiException`` carries the library's whole formatted stack
+    in its message, so the first line is the only useful part: it names the
+    failure (``Unexpected Error(AssertionError): ...``) plus, for
+    ``BadPluginError``, the location and plugin id.
+    """
+    lines = [line.strip() for line in str(exc).splitlines() if line.strip()]
+    text = " ".join(lines[0].split()) if lines else type(exc).__name__
+    if len(text) <= _MAX_ERROR_CHARS:
+        return text
+    return text[: _MAX_ERROR_CHARS - 3] + "..."
 
 
 @dataclass(frozen=True)
