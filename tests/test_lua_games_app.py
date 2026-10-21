@@ -28,7 +28,7 @@ requires_lupa = pytest.mark.skipif(
 #: Documented canvas size per game (cols, rows).
 _CANVAS_SIZES: tuple[tuple[str, int, int], ...] = (
     ("snake", 80, 24),
-    ("pacman", 41, 29),
+    ("pacman", 39, 23),
     ("sokoban", 41, 22),
     ("nethack", 74, 24),
     ("tetris", 59, 22),

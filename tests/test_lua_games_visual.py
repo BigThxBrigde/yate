@@ -14,7 +14,7 @@ from lua_game_harness import FakeApi, GameRuntime, requires_lupa
 _GEOMETRY: dict[str, tuple[int, int]] = {
     "snake": (80, 24),
     "tetris": (59, 22),
-    "pacman": (41, 29),
+    "pacman": (39, 23),
     "sokoban": (41, 22),
     "nethack": (74, 24),
 }
@@ -57,7 +57,10 @@ class TestFrameGeometry:
             game = make_game(name)
             lines = game.launch().grid.split("\n")
             lefts, rights = top_boxes(lines[0])
-            assert lefts, f"{name}: no box found on the top row"
+            if not lefts:
+                # pacman draws no frame of its own: the blue maze wall border
+                # is the frame, checked in its dedicated test below
+                continue
             assert len(lefts) == len(rights), name
             for line in lines[1:-1]:
                 for column in lefts:
@@ -69,6 +72,16 @@ class TestFrameGeometry:
             # the bottom border may be a side box (tetris: the board box);
             # it must still be a closed rounded corner
             assert "╰" in lines[-1] and lines[-1].rstrip().endswith("╯"), name
+
+    def test_pacman_frame_is_the_blue_wall_border(self) -> None:
+        """No drawn frame: the maze walls are the outer border, tunnel open."""
+        lines = make_game("pacman").launch().grid.split("\n")
+        assert set(lines[0]) == {"█"} and set(lines[-1]) == {"█"}
+        for index, line in enumerate(lines):
+            if index == 13:  # the wrap tunnel: both edges are open
+                assert line[0] != "█" and line[-1] != "█"
+            else:
+                assert line[0] == "█" and line[-1] == "█", f"row {index}"
 
 
 @requires_lupa

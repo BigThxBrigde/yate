@@ -101,9 +101,15 @@ def create_runtime(
     -- scripts still cannot observe each other's state.  The preload table is
     the only channel on purpose: no ``package.path`` entry and no Lua-side file
     I/O, which keeps module resolution working in frozen builds.
+
+    The runtime is pinned to the Lua 5.4 build: under the Lua 5.5 runtime
+    (lupa's default when shipped) the generational GC can collect a Python
+    wrapper while a Lua callback is still using it -- observed as ``api.data``
+    spontaneously reading as an unrelated bound method mid-game, which made
+    every per-turn save fail.  Lua 5.4 does not have that defect.
     """
     lupa = importlib.import_module("lupa")
-    runtime = lupa.LuaRuntime(unpack_returned_tuples=True)
+    runtime = lupa.lua54.LuaRuntime(unpack_returned_tuples=True)
     globals_ = runtime.globals()
     globals_["api"] = api
     # The compiled library chunk doubles as the require() loader (preload

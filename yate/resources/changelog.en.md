@@ -6,6 +6,9 @@
 
 ### Features
 
+- readable nethack corridors and a glyph legend row ([`b65c6ac`](https://gitee.com/jermaine/yate/commit/b65c6acfd1cab498ba3dd243e91d245f60b42293))
+- sokoban fences become thin lines with a legend row ([`af85b0e`](https://gitee.com/jermaine/yate/commit/af85b0ed410c3fcf513baaf949124b6e5509b959))
+- pacman tunnels and an edge-to-edge 39x23 maze ([`9ec3e48`](https://gitee.com/jermaine/yate/commit/9ec3e48b9a59f9486a304c7f2ab099cd685c5ccd))
 - redraw nethack at 72x20 with a readable glyph layer ([`acf6061`](https://gitee.com/jermaine/yate/commit/acf6061574568d56dde3376f66dea2da0bb24d36))
 - grow sokoban to 120 levels on a 41x22 board ([`3285759`](https://gitee.com/jermaine/yate/commit/32857590ba7c38ce6d8230c7dafb164a1ac73d5b))
 - enlarge pacman to a 39x27 maze on a 41x29 canvas ([`52d3d95`](https://gitee.com/jermaine/yate/commit/52d3d952b0085697b392006ed034597f0d7d7034))
@@ -54,6 +57,8 @@
 
 ### Bug Fixes
 
+- drop the canvas chrome, fix snake rows, harden saves ([`bbe88ae`](https://gitee.com/jermaine/yate/commit/bbe88ae81ed6c774bcc04d3e40a05b467c6a2386))
+- type the layout probe seam for pyright strict ([`7a2677f`](https://gitee.com/jermaine/yate/commit/7a2677f2a2d9654679ea262eaf0333668a4cdf9d))
 - size the layout helpers in display columns, not bytes ([`04687db`](https://gitee.com/jermaine/yate/commit/04687db9eedf4292d0e27a73faa7ffa57912d32b))
 - close the review findings on saves, glyphs and engine size ([`ceaaabb`](https://gitee.com/jermaine/yate/commit/ceaaabb003b50419d82798f75b038b5bd4274d32))
 - close the w-e review findings ([`001197c`](https://gitee.com/jermaine/yate/commit/001197c8e03c2d6c9c08bcf0c7e5bfcd6e771a4f))
@@ -135,6 +140,7 @@
 
 ### Documentation
 
+- backfill the visual fix round results ([`9483f47`](https://gitee.com/jermaine/yate/commit/9483f47328f0d9aec0224c6a959151a4d36b9d43))
 - plan the visual fix round for the game pack ([`84021b2`](https://gitee.com/jermaine/yate/commit/84021b2ecece43e539dd59d532bef46f4ce2f93c))
 - backfill the games-pack implementation results ([`e3da999`](https://gitee.com/jermaine/yate/commit/e3da9991a53e510be4cc03463857a7b76112dd87))
 - regenerate the changelog from the branch commits ([`69380c9`](https://gitee.com/jermaine/yate/commit/69380c947bf6687df8dacb42dab8d6f512dea456))
@@ -290,6 +296,7 @@
 
 ### Tests
 
+- pin the visual contract and refresh the game guide ([`7f43bfe`](https://gitee.com/jermaine/yate/commit/7f43bfe04ebb93f1fe40697222e78498e71fdf04))
 - smoke every bundled game through the real app ([`b70dbdb`](https://gitee.com/jermaine/yate/commit/b70dbdb70b56c559be23fe8c0da783fa76a15add))
 - empty the upward-edge and submodule whitelists ([`3f99d9b`](https://gitee.com/jermaine/yate/commit/3f99d9bbe9e5389f76b083399ba20138ea746abd))
 - guard precise Screen annotations across yate ([`4bf96f9`](https://gitee.com/jermaine/yate/commit/4bf96f9993815dae44eb87402b42a000c76d878c))
