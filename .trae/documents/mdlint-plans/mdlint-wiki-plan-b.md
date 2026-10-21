@@ -265,8 +265,8 @@ def _get_lint_engine(lang: str) -> LintEngine:
 # 1. pyright strict 零诊断
 pyright --pythonplatform Windows tools/pack/wiki.py tools/pack/errors.py tests/test_pack_wiki_lint.py
 
-# 2. wiki 相关测试全绿（含既有 + 新增）
-.venv\Scripts\python.exe -m pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py tests/test_pack_wiki_lint.py -q
+# 2. wiki 相关测试全绿（含既有 + 新增；-n auto 依赖 pytest-xdist）
+.venv\Scripts\python.exe -m pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py tests/test_pack_wiki_lint.py -q -n auto
 
 # 3. 架构测试无回归
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q

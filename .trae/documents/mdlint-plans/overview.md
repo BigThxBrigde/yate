@@ -83,7 +83,7 @@ flowchart LR
 |---|---|---|---|
 | wave-1 | plan_a（核心包 + 插件） **\|\|** plan_c（git hook + 依赖） | 并行（文件互不重叠） | `python -m pytest tests/test_mdlint.py tests/test_mdlint_plugins.py tests/test_githook.py -q` 全绿 + `pyright --pythonplatform Windows` 零诊断 |
 | wave-2 | plan_b（wiki 集成） | 串行（依赖 wave-1） | `python -m pytest tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_pack_wiki_parallel.py tests/test_pack_wiki_lint.py -q` 全绿 + `pyright --pythonplatform Windows` 零诊断 |
-| 收尾 | 全量门禁 | 串行 | `python -m pytest tests/ -q` 全绿 + `pyright --pythonplatform Windows` 零诊断 + `python -m pytest tests/test_architecture.py -q` 全绿 |
+| 收尾 | 全量门禁 | 串行 | `python -m pytest tests/ -q -n auto` 全绿 + `pyright --pythonplatform Windows` 零诊断 + `python -m pytest tests/test_architecture.py -q` 全绿（`-n auto` 依赖 master 引入的 `pytest-xdist`，全量套件实测明显快于串行） |
 
 ## 五、依赖关系图
 
