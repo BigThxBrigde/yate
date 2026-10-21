@@ -9,12 +9,14 @@ against every rendered frame.
 
 from __future__ import annotations
 
+from typing import Any
+
 from lua_game_harness import engine_runtime, lua_to_python, requires_lupa
 
 
-def run(runtime: object, chunk: str) -> object:
+def run(runtime: Any, chunk: str) -> Any:  # noqa: Any - lupa values are untyped
     """Execute a chunk that returns one value (or a tuple)."""
-    return runtime.execute(chunk)  # type: ignore[attr-defined]
+    return runtime.execute(chunk)
 
 
 @requires_lupa
