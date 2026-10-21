@@ -73,4 +73,12 @@ git grep -n -i sokoban -- yate/docs
 
 ## 七、执行记录（回填区）
 
-- 待回填：实测命令结果与退出码。
+- 2026-10-21 实测：`git grep -n -i sokoban -- yate/docs` → 零命中（退出码 1）；
+  `pytest tests/test_mdlint.py tests/test_pack_wiki.py tests/test_manual.py -q`
+  → 78 passed，退出码 0；`tools.mdlint --auto-lang --check` 对四个改动文档与
+  本计划目录运行——`yate/docs` 的 MD013 等命中均为存量债（本分支格式化只覆盖
+  `.trae/`，且全部位于本次未改动的行；games.en.md:38 是本次改过的行，表格单元
+  含运行时字面串无法折行，已由含 sokoban 的 ~110 列缩短到 102 列，登记为随下次
+  修改逐步迁移的存量），本任务新增的计划文档 13 处违规全部修复至
+  `0 violation(s)`。
+- 提交：`a67ee59`（四个文档 + 计划文档 lint 修复）。

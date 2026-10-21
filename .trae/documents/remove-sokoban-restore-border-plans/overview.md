@@ -131,6 +131,43 @@ Set-Location D:/Programming/yate-games
 
 ## 九、执行记录（回填区）
 
-- wave-1 执行：见各子计划 §执行记录。
-- wave-2 门禁：待回填（真实数字）。
-- 偏离记录：待回填。
+- **wave-1 执行**（2026-10-21，主代理）：三个子计划全部落地并单独提交——
+  plan-a `14c31d5` + `5a24001`（拆分原因见 plan-a 回填）、plan-b `a67ee59`、
+  plan-c `54a044b`；各子计划验收与回填见其 §七。
+- **wave-2 门禁**（主代理亲自跑，统一并行口径，全部退出码 0）：
+  | 门禁 | 实测 |
+  |---|---|
+  | `pyright yate/ tests/ tools/ pack/` | `0 errors, 0 warnings, 0 informations` |
+  | `pytest tests/ -q -n auto` | 全过（含少量平台 skip） |
+  | `pytest tests/test_architecture.py -q` | 36 passed |
+  | `pytest tests/ --cov=yate --cov-branch -n auto` | 总覆盖 **91.96%**（≥75 达标） |
+  | `tools.smoke_test run --jobs 4` | 112/112 场景、1354/1354 检查（126.94s） |
+  | `tools.lint_lua` | `0 issue(s)` |
+- **偏离记录**（全部显式登记）：
+  1. `plan-architect-designer` spawn 失败（`Model "qwen-3.7-plus" not found`；
+     本会话无模型覆盖接口，`.codebuddy/agents/` 按总纲禁作来源）→ 主代理按
+     剧本亲自完成方案，标注「子代理零产出」；
+  2. `plan-executor` 未派发：`subagent-workflow` 文件独占条款禁止成员修改
+     `yate/` 产品源码，而实现面几乎全在 `yate/` → 主代理按剧本亲自执行；
+  3. plan-a 因 `git add` pathspec 失败拆为两笔提交（不 amend）；
+  4. 任务中途 merge `f43870a`（mdlint 分支）推进了分支：核对目标文件零波及、
+     行号全部重验；新合入的 mdlint 规则对本任务新增文档生效——13 处违规修复
+     至 0（`yate/docs` 存量债按约定不做专项清扫）；
+  5. 残留扫描裁定：4 个 changelog 生成文件（否决路线 R1，生成器契约）与
+     历史计划文档（`.trae/documents/games-pack-plan.md` 及其子计划、本任务
+     自身的移除计划）保留——先例：`split-app-protocol-plan.md` 作为已删除
+     `app_features/` 的历史记录留存；产品面（代码/测试/手册）零残留。
+- **评审结论**：`code-review-expert`（reviewer）spawn 成功但两次探活无回信，
+  按子代理纪律判死、零产出，主代理按剧本兜底完成审核（未重建团队）：
+  - blocker / major：无；
+  - 残留扫描：`git grep -i sokoban` 命中面 = 4 个 changelog 生成文件 + 历史
+    计划文档 + 本任务计划，产品面（`yate/` 代码、`tests/`、双语文档）零残留；
+  - 字形清理：`git log -S` 实证 light/box/box_on_goal/goal 均由推箱子提交
+    `ceaaabb` 引入，删除后全仓 lua 测试与 lint 全绿，无悬空引用；
+  - 双语一致：games.zh/en、extensions.zh/en 镜像改动，重编号后无锚点悬空；
+  - 边框恢复：pilot 探针断言 `border_top == ('round', ...)`，`overflow: hidden`
+    保留，bbe88ae 的裁切语义未破坏；
+  - 提交规范：5 笔提交均符合 `type(scope): subject` 全英文格式；
+  - 门禁：主代理亲跑六道全绿（见上表）；
+  - minor 登记：games.en.md:38 usage 表格行 102 列仍超 MD013 的 100 列
+    （存量债，单元格含运行时字面串不可折行，随下次修改逐步迁移）。

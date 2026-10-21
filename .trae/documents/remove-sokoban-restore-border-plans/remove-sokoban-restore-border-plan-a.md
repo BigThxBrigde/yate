@@ -74,4 +74,10 @@ git grep -n -i sokoban -- yate tests
 
 ## 七、执行记录（回填区）
 
-- 待回填：实测命令结果与退出码。
+- 2026-10-21 实测：`pytest tests/test_lua_engine.py tests/test_lua_games_visual.py
+  tests/test_lua_games_app.py tests/test_canvas_screen.py -q` → 全过，退出码 0；
+  `tools.lint_lua` → `0 issue(s)`，退出码 0；残留扫描仅命中 4 个 changelog
+  生成文件与历史计划文档（裁定见总纲执行记录第 5 条）。
+- 偏离：`git add` 因已删除文件的 pathspec 报错整体未暂存，本子计划产物拆为
+  两笔提交——`14c31d5`（两个整删文件）+ `5a24001`（字形清理与测试期望），
+  合计构成 plan-a，不 amend（git 安全协议）。

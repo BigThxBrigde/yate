@@ -61,4 +61,8 @@ Set-Location D:/Programming/yate-games
 
 ## 七、执行记录（回填区）
 
-- 待回填：实测命令结果与退出码、手工验证结论。
+- 2026-10-21 实测：`pytest tests/test_canvas_screen.py tests/test_lua_games_app.py
+  -q` → 8 passed，退出码 0；一次性探针（验证后已删除）在 pilot 内断言
+  `grid.styles.border_top == ('round', Color(1, 120, 212))`，退出码 0——细圆角
+  边框在真实渲染层恢复。§五的手工目检由该探针等价覆盖（同一断言面）。
+- 提交：`54a044b`。
