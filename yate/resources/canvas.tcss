@@ -1,6 +1,7 @@
 CanvasScreen {
     background: $background;
     align: center middle;
+    overflow: hidden;
 }
 CanvasScreen .grid {
     width: auto;

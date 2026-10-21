@@ -4,6 +4,7 @@
 GitHub / Gitee), each topic paired `*.en.md` / `*.zh.md`:
 
 - `extensions.*.md` -- writing yate extensions;
+- `games.*.md` -- the bundled game pack and the shared game engine;
 - `lsp.*.md` -- language server setup;
 - `themes.*.md` -- theme customization and the shipped templates;
 - `yaterc.*.md` -- the `yaterc` configuration reference.
@@ -18,6 +19,7 @@ note saying so.
 `*.en.md` / `*.zh.md` 成对：
 
 - `extensions.*.md` -- 编写 yate 扩展；
+- `games.*.md` -- 随身游戏包与共享游戏引擎；
 - `lsp.*.md` -- 语言服务器配置；
 - `themes.*.md` -- 主题定制与随包模板；
 - `yaterc.*.md` -- `yaterc` 配置参考。

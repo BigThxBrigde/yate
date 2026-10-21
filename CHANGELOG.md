@@ -7,6 +7,26 @@
 
 ### Features
 
+- readable nethack corridors and a glyph legend row ([`b65c6ac`](https://gitee.com/jermaine/yate/commit/b65c6acfd1cab498ba3dd243e91d245f60b42293))
+- sokoban fences become thin lines with a legend row ([`af85b0e`](https://gitee.com/jermaine/yate/commit/af85b0ed410c3fcf513baaf949124b6e5509b959))
+- pacman tunnels and an edge-to-edge 39x23 maze ([`9ec3e48`](https://gitee.com/jermaine/yate/commit/9ec3e48b9a59f9486a304c7f2ab099cd685c5ccd))
+- redraw nethack at 72x20 with a readable glyph layer ([`acf6061`](https://gitee.com/jermaine/yate/commit/acf6061574568d56dde3376f66dea2da0bb24d36))
+- grow sokoban to 120 levels on a 41x22 board ([`3285759`](https://gitee.com/jermaine/yate/commit/32857590ba7c38ce6d8230c7dafb164a1ac73d5b))
+- enlarge pacman to a 39x27 maze on a 41x29 canvas ([`52d3d95`](https://gitee.com/jermaine/yate/commit/52d3d952b0085697b392006ed034597f0d7d7034))
+- enlarge snake to an 80x24 board and measure borders by columns ([`2cf9ee4`](https://gitee.com/jermaine/yate/commit/2cf9ee41fdbc79f69feeb3b0b4bc24d46329ab04))
+- add a lua lint gate for the bundled games ([`97e3a48`](https://gitee.com/jermaine/yate/commit/97e3a48b33a22f6e816414d6019003c67cd6eff0))
+- add a nethack-style dungeon with nerd font icons ([`47dfccc`](https://gitee.com/jermaine/yate/commit/47dfccc1ec4748fd077b33031121bb1405043c62))
+- add sokoban to the bundled pack ([`51c626d`](https://gitee.com/jermaine/yate/commit/51c626d40402592a59dac59051babd00aa750418))
+- add pacman to the bundled pack ([`707ef8e`](https://gitee.com/jermaine/yate/commit/707ef8e6561e54f5bd6c0ed7b95780c69369f6fe))
+- add the snake game to the bundled pack ([`433b6b6`](https://gitee.com/jermaine/yate/commit/433b6b642f177fb094218bcec6afb0789295e583))
+- add the shared game engine and the :game dispatcher ([`8473027`](https://gitee.com/jermaine/yate/commit/8473027ccd4d1112669ee845482d700e800e462e))
+- add api.data bridge and shared lua module preload ([`1305376`](https://gitee.com/jermaine/yate/commit/13053760ed356c0c702a67b4586c176f0930bab4))
+- add enter to rush the fall and lock piece controls ([`45efc36`](https://gitee.com/jermaine/yate/commit/45efc36836086b986260eefc9ee087bce2281269))
+- draw tetris borders with unicode box glyphs ([`ace3c8d`](https://gitee.com/jermaine/yate/commit/ace3c8d821af59b8b4c7aecccf126eb436cc7186))
+- redraw tetris as solid blocks in a three-box layout ([`1186d73`](https://gitee.com/jermaine/yate/commit/1186d7350f841601a58f394cbfced57d4388eaac))
+- add the bundled Lua tetris extension ([`79c2552`](https://gitee.com/jermaine/yate/commit/79c2552311e637c0d8d3831b1f7e066f91dacda0))
+- add open_canvas bridge for extension canvases ([`7a67b79`](https://gitee.com/jermaine/yate/commit/7a67b795d47afa6781ec4f93688901ea8869cd8d))
+- add modal CanvasScreen for extension-driven games ([`f007e84`](https://gitee.com/jermaine/yate/commit/f007e84962c47a3df93dddb76884d4a875f3becc))
 - gate the panel behind the which_key switch ([`ddfe1bb`](https://gitee.com/jermaine/yate/commit/ddfe1bb70401e4294f21e7f4d734a4dcedac93fc))
 - add the which_key yaterc master switch ([`6ad5673`](https://gitee.com/jermaine/yate/commit/6ad567311b667ca5d5c170e92d283de3226b947a))
 - float the panel as a themed right-edge box ([`5844bdd`](https://gitee.com/jermaine/yate/commit/5844bddf79c9a03fc9c37b4bf6b6b31ed66c4164))
@@ -38,6 +58,18 @@
 
 ### Bug Fixes
 
+- drop the canvas chrome, fix snake rows, harden saves ([`bbe88ae`](https://gitee.com/jermaine/yate/commit/bbe88ae81ed6c774bcc04d3e40a05b467c6a2386))
+- type the layout probe seam for pyright strict ([`7a2677f`](https://gitee.com/jermaine/yate/commit/7a2677f2a2d9654679ea262eaf0333668a4cdf9d))
+- size the layout helpers in display columns, not bytes ([`04687db`](https://gitee.com/jermaine/yate/commit/04687db9eedf4292d0e27a73faa7ffa57912d32b))
+- close the review findings on saves, glyphs and engine size ([`ceaaabb`](https://gitee.com/jermaine/yate/commit/ceaaabb003b50419d82798f75b038b5bd4274d32))
+- close the w-e review findings ([`001197c`](https://gitee.com/jermaine/yate/commit/001197c8e03c2d6c9c08bcf0c7e5bfcd6e771a4f))
+- close the w-d review findings ([`41ae9fc`](https://gitee.com/jermaine/yate/commit/41ae9fccda87159578e688c74b16d66cc019a4c5))
+- close the w-c review findings ([`b32bd5d`](https://gitee.com/jermaine/yate/commit/b32bd5d09e34e09e9b241c1f71908603ed068848))
+- close the w-b review findings ([`29a79d2`](https://gitee.com/jermaine/yate/commit/29a79d22a7221f4a57fc281717b214b29a2c0685))
+- close the w-a review findings ([`148fa4a`](https://gitee.com/jermaine/yate/commit/148fa4a7deb309c5f4b43bbd220acb33fcd96e20))
+- route overlay scrolling body through slim scrollbar wiring ([`8b7f2ca`](https://gitee.com/jermaine/yate/commit/8b7f2cad0921ed6fe57204b4993bd18c419c721a))
+- guard the canvas key sink and close race ([`72a40c5`](https://gitee.com/jermaine/yate/commit/72a40c56597172709933db5a43d51271af9ea910))
+- align chord hints with the real dispatch states ([`e2db4f2`](https://gitee.com/jermaine/yate/commit/e2db4f27e01e5104dc1d15d393a5872a6844105b))
 - apply the review fixes for the floating panel ([`2f8a86f`](https://gitee.com/jermaine/yate/commit/2f8a86f50041a77f33c6997c44f8f0cbc8bece9c))
 - follow review fixes for the which-key panel ([`cee6414`](https://gitee.com/jermaine/yate/commit/cee641427ca1c4ee3fd6cbeeebc9a6598499c30d))
 - re-open the document after a :set filetype rebind ([`c8e6084`](https://gitee.com/jermaine/yate/commit/c8e608456363b085e24734dc7903d65b0c26ab6c))
@@ -91,6 +123,9 @@
 
 ### Refactors
 
+- move tetris onto the shared engine and persist its scores ([`c97e9d8`](https://gitee.com/jermaine/yate/commit/c97e9d8b9864ac3b335ee8e92e25907642058b60))
+- decouple the status bar from the extension bridge ([`3ca1a21`](https://gitee.com/jermaine/yate/commit/3ca1a21530627053b467b1724f6950f5e5d0f47c))
+- draw canvases through a newline-joined grid string ([`34ba94f`](https://gitee.com/jermaine/yate/commit/34ba94f8b5b6ac9348b3cb651e5084e2a4e8b106))
 - drop unused ERR_REQUEST_CANCELLED constant ([`6bc750c`](https://gitee.com/jermaine/yate/commit/6bc750c8b2965d6b7b670746944820d1ee26f514))
 - wrap overlong lines and rename sub-plans ([`3e3b284`](https://gitee.com/jermaine/yate/commit/3e3b28402686333a86e3adaa9161d347a8fc814f))
 - extract diff validation and extension management helpers ([`d8d0248`](https://gitee.com/jermaine/yate/commit/d8d0248b1f5149f7af4cabab92fb7cae11a538ee))
@@ -106,6 +141,29 @@
 
 ### Documentation
 
+- backfill the visual fix round results ([`9483f47`](https://gitee.com/jermaine/yate/commit/9483f47328f0d9aec0224c6a959151a4d36b9d43))
+- plan the visual fix round for the game pack ([`84021b2`](https://gitee.com/jermaine/yate/commit/84021b2ecece43e539dd59d532bef46f4ce2f93c))
+- backfill the games-pack implementation results ([`e3da999`](https://gitee.com/jermaine/yate/commit/e3da9991a53e510be4cc03463857a7b76112dd87))
+- regenerate the changelog from the branch commits ([`69380c9`](https://gitee.com/jermaine/yate/commit/69380c947bf6687df8dacb42dab8d6f512dea456))
+- document the game pack, its saves and the shared engine ([`018c83e`](https://gitee.com/jermaine/yate/commit/018c83ee25c2fb502b65b48231fd59f627120a0d))
+- record the fix status of the 2026-10-20 review round ([`2a09c7c`](https://gitee.com/jermaine/yate/commit/2a09c7ccf04a038db7106d66803b23cb8a3d377c))
+- register the tracing reset gap as m-28 in wave e ([`1583ab6`](https://gitee.com/jermaine/yate/commit/1583ab69615c44b60a205b27c6b5b3b42098f568))
+- add the 39-item review fixes plan ([`c00adf4`](https://gitee.com/jermaine/yate/commit/c00adf4c0253c1411c854c92066724118f495f43))
+- add full-repo TRAE-code-review record ([`d71a089`](https://gitee.com/jermaine/yate/commit/d71a0898ae7dec1501208763585c77c76c6f1a50))
+- update subagent model assignments for trae ide ([`d8c1dee`](https://gitee.com/jermaine/yate/commit/d8c1dee0d33925994fdfe86fca3a0fc761ade026))
+- backfill the statusbar facade cleanup record ([`ecb67f0`](https://gitee.com/jermaine/yate/commit/ecb67f0330a978e2f10d50f2cbe5881103d56ca1))
+- record zero L2-to-L3 exceptions after statusbar decoupling ([`27570f7`](https://gitee.com/jermaine/yate/commit/27570f74a085aede8672ca1dae31592bfdfc40e7))
+- add statusbar facade cleanup plan ([`5734ebe`](https://gitee.com/jermaine/yate/commit/5734ebeb0a0e2158e715d133e2547d058a9c4423))
+- record execution results for screen-none-narrow plan ([`750838e`](https://gitee.com/jermaine/yate/commit/750838e594532a5aa2fec8a923dbf1961c0fd25e))
+- record execution results for scrollbar-style-unify plan ([`3eaa143`](https://gitee.com/jermaine/yate/commit/3eaa1439892f968a04803eac36ba0c5e2d272f53))
+- record the tetris layout iteration ([`5f8d224`](https://gitee.com/jermaine/yate/commit/5f8d2241e81d1603c912d4cc45e233bd273db92d))
+- backfill lua-tetris-game execution record and gates ([`28ecea2`](https://gitee.com/jermaine/yate/commit/28ecea24fb5a620ec4868953818f0d49ce6c0413))
+- document open_canvas and the bundled tetris game ([`2923c11`](https://gitee.com/jermaine/yate/commit/2923c115388049cbbfb1760288caf73ddf3f35b6))
+- add lua-tetris-game implementation plan ([`dd11439`](https://gitee.com/jermaine/yate/commit/dd11439b0c9b463018da1be2b50abf5e80d9be6d))
+- use canonical model identifiers in subagent frontmatter ([`d84bef5`](https://gitee.com/jermaine/yate/commit/d84bef5632641e6d78560adab7876ddb22c19e4c))
+- sync the bundled changelog resources ([`219b3ab`](https://gitee.com/jermaine/yate/commit/219b3ab92c149330e96fa7a9b61a51413d450c9d))
+- backfill the which-key ui redesign execution record ([`244a22a`](https://gitee.com/jermaine/yate/commit/244a22a011e933dd2f71f4688e4633f133867dfc))
+- regenerate for the which-key panel round ([`d47a3a7`](https://gitee.com/jermaine/yate/commit/d47a3a72521b71c139b99d13febe06af26d13124))
 - set plan-architect-designer model to Qwen3.7-Plus ([`78bd2df`](https://gitee.com/jermaine/yate/commit/78bd2df0a0792f8b98667d0b9a67cc93635af24a))
 - fall back to spawn-specified model instead of editing agent files ([`1a9ca85`](https://gitee.com/jermaine/yate/commit/1a9ca858bc45ecedbbac7c9b2011fb20c3bd07f7))
 - fall back to orchestration model table when agent model spawn fails ([`751c5e2`](https://gitee.com/jermaine/yate/commit/751c5e2eb8da0dafac5077ee6dccc12baec8c3d2))
@@ -239,6 +297,14 @@
 
 ### Tests
 
+- pin the visual contract and refresh the game guide ([`7f43bfe`](https://gitee.com/jermaine/yate/commit/7f43bfe04ebb93f1fe40697222e78498e71fdf04))
+- smoke every bundled game through the real app ([`b70dbdb`](https://gitee.com/jermaine/yate/commit/b70dbdb70b56c559be23fe8c0da783fa76a15add))
+- empty the upward-edge and submodule whitelists ([`3f99d9b`](https://gitee.com/jermaine/yate/commit/3f99d9bbe9e5389f76b083399ba20138ea746abd))
+- guard precise Screen annotations across yate ([`4bf96f9`](https://gitee.com/jermaine/yate/commit/4bf96f9993815dae44eb87402b42a000c76d878c))
+- narrow overlay screen param to the concrete screen union ([`6713594`](https://gitee.com/jermaine/yate/commit/67135947bb0792e42142b69c94cb8e72022e6cb0))
+- guard slim scrollbar wiring on overlay screens ([`7f11da5`](https://gitee.com/jermaine/yate/commit/7f11da53182eab666e1205fed1e4037ef3e618d7))
+- drive :game tetris end-to-end in a pilot YateApp ([`419c024`](https://gitee.com/jermaine/yate/commit/419c02445c7a6740fc66b586d4a08a6c23b603b7))
+- cover CanvasScreen, the canvas bridge and Lua tetris ([`69deae1`](https://gitee.com/jermaine/yate/commit/69deae1d317feea8a71c1db3f1e2afa5aae45b65))
 - resync replace_single_all baseline ([`fc16c4e`](https://gitee.com/jermaine/yate/commit/fc16c4e1dd6078989bb970cbd1f7ab20ac84c586))
 - guard ASCII comments, debug prints, home paths ([`a6b7e3f`](https://gitee.com/jermaine/yate/commit/a6b7e3f45bf2ec7d14bb8b4582e93c0416d05f71))
 - sync replace scenarios with per-match confirm loop ([`4fcb8df`](https://gitee.com/jermaine/yate/commit/4fcb8dfbaf5bd7c2712714b47781befb322769ec))
@@ -256,6 +322,7 @@
 
 ### Tooling
 
+- drop a stray tetris backup left in the worktree ([`84e9505`](https://gitee.com/jermaine/yate/commit/84e95054fd97fad88be68fb4b07d5357b64f161c))
 - let TRAE-code-review win conflict arbitration ([`8572080`](https://gitee.com/jermaine/yate/commit/8572080db1c0136e87cfc5650b4aaff581c22dfe))
 - sync subagent model frontmatter with orchestration table ([`e392a50`](https://gitee.com/jermaine/yate/commit/e392a507488c0456dc3866c467b7957958682dfd))
 - run the smoke suite on windows only for now ([`4511606`](https://gitee.com/jermaine/yate/commit/45116066ddbf70daf0533159796a8628ce130716))
@@ -269,6 +336,8 @@
 
 ### Other Changes
 
+- use direct cast operand instead of stringified forward ref ([`a165579`](https://gitee.com/jermaine/yate/commit/a165579c2a00a2952c0698ab580467ad7b971fa3))
+- narrow screen annotations to Screen[None] ([`9b67516`](https://gitee.com/jermaine/yate/commit/9b675161840fdfd2702dcf2774c767adca8bc4d5))
 - Revert "fix(trust): gate project yaterc and cwd themes behind workspace trust" ([`2cb30cc`](https://gitee.com/jermaine/yate/commit/2cb30cc24c485277187f1b6c9de6c78e7a300d5f))
 
 ## [0.2.11] - 2026-10-10 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.10...v0.2.11)

@@ -14,6 +14,11 @@ import importlib.util
 
 from yate.paths import bundled_extensions_dir
 
+#: Sub-directory of the bundled extensions holding requirable Lua modules.
+#: Loader discovery only globs the top level of the bundled directory, so
+#: nothing in here is ever auto-loaded as an extension.
+LUA_LIB_DIRNAME: str = "lib"
+
 
 def is_lua_available() -> bool:
     """True when the ``lupa`` package is importable.
@@ -43,3 +48,28 @@ def lua_api_library_source() -> str:
             f"bundled resource {path} could not be read; "
             "the yate installation is broken"
         ) from exc
+
+
+def lua_module_sources() -> dict[str, str]:
+    """Read every bundled shared Lua module (``lib/*.lua``), keyed by stem.
+
+    The modules are compiled into each extension runtime's
+    ``package.preload`` table, so a script reaches them with
+    ``require("<stem>")`` and gets a private copy per runtime.  A missing
+    ``lib/`` directory is the normal case for older installations and yields
+    an empty mapping; an unreadable file means a broken installation and
+    fails fast, mirroring :func:`lua_api_library_source`.
+    """
+    directory = bundled_extensions_dir() / LUA_LIB_DIRNAME
+    if not directory.is_dir():
+        return {}
+    sources: dict[str, str] = {}
+    for path in sorted(directory.glob("*.lua")):
+        try:
+            sources[path.stem] = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise RuntimeError(
+                f"bundled Lua module {path} could not be read; "
+                "the yate installation is broken"
+            ) from exc
+    return sources

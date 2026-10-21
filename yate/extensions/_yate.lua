@@ -80,6 +80,7 @@ Exported functions (see each function's comment for details):
   theme.set(name) / theme.active()       switch / read the color theme
   clipboard.set(text) / clipboard.get()  system clipboard
   docs.all() / docs.is_open(path)        open documents (read-only)
+  data.read/write/remove/list            documents under ~/.yate/data
   actions.run(name) / names() / has(name)   registered actions
   api / keymaps / highlight / sprites / lsp / syntax   raw bridge passthrough
 
@@ -330,6 +331,44 @@ end
 ---@return boolean open
 function yate.docs.is_open(path)
   return api.docs.is_open(path)
+end
+
+-- Persistent per-user documents under ~/.yate/data.  Nested under yate.data.
+-- This is the only file channel an extension gets: names are relative to
+-- ~/.yate/data (absolute paths and ".." are rejected) and writes are atomic.
+-- The bundled games keep one JSON document per game under "games/".
+yate.data = {}
+
+-- Read a document.  Returns the UTF-8 text, or nil when the file does not
+-- exist yet (the normal "no saved data" case) or cannot be read.
+---@param name string
+---@return string|nil text
+function yate.data.read(name)
+  return api.data.read(name)
+end
+
+-- Write a document (creating parent directories).  Returns true on success,
+-- false when the name is invalid or the write failed.
+---@param name string
+---@param text string
+---@return boolean written
+function yate.data.write(name, text)
+  return api.data.write(name, text)
+end
+
+-- Delete a document.  Returns true when a file was actually removed.
+---@param name string
+---@return boolean removed
+function yate.data.remove(name)
+  return api.data.remove(name)
+end
+
+-- List the file names inside a sub-directory (a Python list, 0-based: the
+-- first name is result[0], lengths via python.builtins.len).
+---@param prefix string
+---@return string[] names
+function yate.data.list(prefix)
+  return api.data.list(prefix)
 end
 
 -- Registered editor actions.  Nested under yate.actions.

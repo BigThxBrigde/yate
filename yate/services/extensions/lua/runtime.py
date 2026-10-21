@@ -31,12 +31,22 @@ calls into it (only Lua code consumes it), so ``object`` is the precise
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 #: Lua module name the bundled API library is registered under: every
 #: extension runtime can ``require("yate")`` and read the global ``yate``.
 _LIBRARY_MODULE: str = "yate"
+
+#: Prefix of the chunkname given to a shared module, e.g. ``=lib.game_engine``.
+#: Chunknames are interpolated into a Lua string literal, so they are built
+#: from names validated by :data:`_MODULE_NAME_RE` (ASCII, quote-free).
+_MODULE_CHUNK_PREFIX: str = "lib."
+
+#: A shared module name (``lib/*.lua`` file stem) that may safely appear in a
+#: Lua chunkname string literal.
+_MODULE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 #: Global the chunk source is parked in while Lua-native ``load`` compiles
 #: it (cleared right after, so user chunks never see it).
@@ -72,6 +82,7 @@ def _compile_chunk(
 def create_runtime(
     api: object,
     library_source: str,
+    modules: Mapping[str, str] | None = None,
 ) -> Any:  # noqa: Any - lupa ships no stubs
     """Create an isolated Lua runtime with the yate API library preloaded.
 
@@ -81,9 +92,24 @@ def create_runtime(
     compiled library module table is published twice: as
     ``package.preload["yate"]`` (so ``require("yate")`` works) and as the
     global ``yate``.
+
+    *modules* maps shared Lua module names to their source (the bundled
+    ``extensions/lib/*.lua`` files, read by
+    :func:`yate.services.extensions.lua.library.lua_module_sources`).  Each is
+    compiled here and published under ``package.preload[<name>]``, so a script
+    uses ``require("<name>")`` and receives a copy private to its own runtime
+    -- scripts still cannot observe each other's state.  The preload table is
+    the only channel on purpose: no ``package.path`` entry and no Lua-side file
+    I/O, which keeps module resolution working in frozen builds.
+
+    The runtime is pinned to the Lua 5.4 build: under the Lua 5.5 runtime
+    (lupa's default when shipped) the generational GC can collect a Python
+    wrapper while a Lua callback is still using it -- observed as ``api.data``
+    spontaneously reading as an unrelated bound method mid-game, which made
+    every per-turn save fail.  Lua 5.4 does not have that defect.
     """
     lupa = importlib.import_module("lupa")
-    runtime = lupa.LuaRuntime(unpack_returned_tuples=True)
+    runtime = lupa.lua54.LuaRuntime(unpack_returned_tuples=True)
     globals_ = runtime.globals()
     globals_["api"] = api
     # The compiled library chunk doubles as the require() loader (preload
@@ -94,6 +120,13 @@ def create_runtime(
     preload = _compile_chunk(runtime, library_source, _LIBRARY_CHUNK_NAME)
     globals_["package"]["preload"][_LIBRARY_MODULE] = preload
     runtime.execute(f'{_LIBRARY_MODULE} = (require("{_LIBRARY_MODULE}"))')
+    preload_table = globals_["package"]["preload"]
+    shared: Mapping[str, str] = modules if modules is not None else {}
+    for name in sorted(shared):
+        if _MODULE_NAME_RE.match(name) is None:
+            raise ValueError(f"invalid shared Lua module name: {name!r}")
+        chunkname = f"={_MODULE_CHUNK_PREFIX}{name}"
+        preload_table[name] = _compile_chunk(runtime, shared[name], chunkname)
     return runtime
 
 

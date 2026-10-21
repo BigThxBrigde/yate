@@ -175,6 +175,30 @@ function yate.actions.names() end
 ---@return boolean known
 function yate.actions.has(name) end
 
+-- Persistent per-user documents under ~/.yate/data: the only file channel an
+-- extension gets.  Names are relative to ~/.yate/data (absolute paths and ".."
+-- are rejected); writes are atomic.  The bundled games keep one JSON document
+-- per game under "games/".
+---@param name string
+---@return string|nil text
+function yate.data.read(name) end
+
+-- Write a document (creating parent directories); false on failure.
+---@param name string
+---@param text string
+---@return boolean written
+function yate.data.write(name, text) end
+
+-- Delete a document; true when a file was actually removed.
+---@param name string
+---@return boolean removed
+function yate.data.remove(name) end
+
+-- List the file names inside a sub-directory (Python list, 0-based).
+---@param prefix string
+---@return string[] names
+function yate.data.list(prefix) end
+
 -- Bind a key to an already-registered action: the action must be
 -- registered first (register_action, then bind_action).  keymap is
 -- optional (default "vsc"; one of "vsc" / "vim" / "both").

@@ -20,7 +20,11 @@ from yate.config import YateConfig
 from yate.logs import tracing
 from yate.paths import bundled_extensions_dir
 from yate.services.extensions.api import ExtensionAPI
-from yate.services.extensions.lua.library import is_lua_available, lua_api_library_source
+from yate.services.extensions.lua.library import (
+    is_lua_available,
+    lua_api_library_source,
+    lua_module_sources,
+)
 from yate.services.extensions.lua.runtime import create_runtime, run_extension
 from yate.services.trust import is_trusted
 
@@ -183,7 +187,9 @@ class ExtensionLoader:
         else:
             try:
                 self.api.start_scope()
-                runtime = create_runtime(self.api, lua_api_library_source())
+                runtime = create_runtime(
+                    self.api, lua_api_library_source(), lua_module_sources()
+                )
                 record.teardown = run_extension(
                     runtime, path.read_text(encoding="utf-8")
                 )
