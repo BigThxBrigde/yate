@@ -87,12 +87,6 @@ def corridor_maze() -> list[str]:
     return rows
 
 
-def maze_rows_from_grid(grid: str, rows: int) -> list[str]:
-    """Strip the canvas frame off the rendered grid (*rows* maze rows)."""
-    lines = grid.splitlines()
-    return [line[1:-1] for line in lines[1 : rows + 1]]
-
-
 @requires_lupa
 class TestPacmanCanvas:
     """Opening the canvas and the built-in maze contract."""
@@ -100,27 +94,30 @@ class TestPacmanCanvas:
     def test_game_pacman_opens_the_maze_canvas(self) -> None:
         game = make_game()
         canvas = game.launch()
-        assert canvas.cols == 41
-        assert canvas.rows == 29
-        assert "\u256d" in canvas.grid  # rounded "╭" top border
-        assert "\u2588" in canvas.grid  # "█" wall block
+        assert canvas.cols == 39
+        assert canvas.rows == 23
+        # No outer frame: the first canvas row is the maze wall row itself.
+        assert not canvas.grid.startswith("\u256d")
+        assert canvas.grid.splitlines()[0].startswith("█")
         assert "score 0" in canvas.status
         assert canvas.status.endswith("escape quits")
 
     def test_builtin_maze_meets_the_contract(self) -> None:
         game = make_game()
         canvas = game.launch()
-        rows = maze_rows_from_grid(canvas.grid, 27)
-        assert len(rows) == 27
+        rows = canvas.grid.splitlines()
+        assert len(rows) == 23
         assert all(len(row) == 39 for row in rows)
-        # 1) the border is all walls
+        # 1) the first and last rows are all walls
         assert set(rows[0]) == {"█"} and set(rows[-1]) == {"█"}
-        assert all(row[0] == "█" and row[-1] == "█" for row in rows)
+        # 2) row 14 is the tunnel: both edge cells are open pellets
+        assert rows[13][0] == "·" and rows[13][-1] == "·"
         flat = "".join(rows)
-        # 2) four power pellets, exactly one pacman
+        # 3) four power pellets, exactly one pacman, 600+ pellets
         assert flat.count("●") == 4
         assert flat.count("◉") == 1
-        # 3) every pellet is reachable from the spawn (BFS)
+        assert flat.count("·") + flat.count("●") > 600
+        # 4) every pellet is reachable from the spawn (BFS with wrap)
         start = flat.index("◉")
         width = 39
         passable = set(flat) - {"█", "▒"}
@@ -130,8 +127,9 @@ class TestPacmanCanvas:
             here = frontier.pop()
             x, y = here % width, here // width
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < width and 0 <= ny < 27:
+                nx = (x + dx) % width
+                ny = y + dy
+                if 0 <= ny < 23:
                     there = ny * width + nx
                     if there not in seen and flat[there] in passable:
                         seen.add(there)
@@ -152,13 +150,24 @@ class TestPacmanMovement:
         game.tick(4)
         assert game.snapshot()["pac_x"] == 19
 
+    def test_pacman_wraps_through_the_tunnel(self) -> None:
+        game = make_game()
+        game.launch()
+        # Row 14 is the tunnel; stepping left off the edge re-enters right.
+        inject_state(game, "{ pac = { x = 1, y = 14, dir = { x = -1, y = 0 } } }")
+        game.press("left")
+        game.tick(4)
+        snap = game.snapshot()
+        assert snap["pac_x"] == 39
+        assert snap["pac_y"] == 14
+
     def test_pellet_is_eaten_and_scored(self) -> None:
         game = make_game()
         game.launch()
         game.press("left")
         game.tick(4)
         snap = game.snapshot()
-        assert snap["pellets"] == 772
+        assert snap["pellets"] == 654
         assert snap["score"] == 10
 
     def test_power_pellet_sets_fright_mode(self) -> None:
@@ -204,7 +213,7 @@ class TestPacmanGhosts:
         snap = game.snapshot()
         assert snap["lives"] == 2
         assert snap["pac_x"] == 20  # back on the spawn tile
-        assert snap["pac_y"] == 26
+        assert snap["pac_y"] == 22
 
     def test_last_life_ends_the_game_and_r_restarts(self) -> None:
         game = make_game()
@@ -212,8 +221,8 @@ class TestPacmanGhosts:
         inject_state(
             game,
             "{ lives = 1,"
-            " pac = { x = 10, y = 4, dir = { x = -1, y = 0 } },"
-            " ghosts = { { x = 9, y = 4, mode = 'chase' } } }",
+            " pac = { x = 9, y = 4, dir = { x = -1, y = 0 } },"
+            " ghosts = { { x = 8, y = 4, mode = 'chase' } } }",
         )
         game.press("left")
         game.tick(4)
@@ -261,8 +270,8 @@ class TestPacmanPersistence:
         inject_state(
             game,
             "{ lives = 1,"
-            " pac = { x = 10, y = 4, dir = { x = -1, y = 0 } },"
-            " ghosts = { { x = 9, y = 4, mode = 'chase' } } }",
+            " pac = { x = 9, y = 4, dir = { x = -1, y = 0 } },"
+            " ghosts = { { x = 8, y = 4, mode = 'chase' } } }",
         )
         game.press("left")
         game.tick(4)  # last life gone: the run is recorded

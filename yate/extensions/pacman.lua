@@ -1,10 +1,11 @@
 --[[
 yate bundled extension: pacman (pacman.lua)
 
-A classic pacman maze drawn on a yate extension canvas: a 39 x 27 ASCII
-maze (walls / pellets / power pellets / ghost house) framed into a 41 x 29
-canvas, four deterministic ghosts, power pellets that turn the ghosts
-frightened, and a bottom status line (score / lives / level / best).
+A classic pacman maze drawn on a yate extension canvas: a 39 x 23 ASCII
+maze (walls / pellets / power pellets / ghost house) drawn edge to edge on
+a 39 x 23 canvas, a wrap-around tunnel on row 14, four deterministic
+ghosts, power pellets that turn the ghosts frightened, and a bottom
+status line (score / lives / level / best / legend).
 
 Start it with ``:game pacman``.
 
@@ -34,9 +35,9 @@ Entry form: module-table style -- this file returns ``mod`` and yate calls
 
 local engine = require("game_engine")
 
--- Canvas geometry: 41 x 29; the maze itself is 39 x 27 single-byte rows.
-local COLS, ROWS = 41, 29
-local MAZE_W, MAZE_H = 39, 27
+-- Canvas geometry: the canvas IS the maze, 39 x 23 single-byte rows.
+local COLS, ROWS = 39, 23
+local MAZE_W, MAZE_H = 39, 23
 
 -- Speed / scoring constants (ticks are canvas clock ticks).
 local PAC_EVERY = 4
@@ -85,9 +86,10 @@ local GHOST_POINTS = { 200, 400, 800, 1600 }
 -- BFS distance treated as "unreachable" for the eyes mode.
 local UNREACHABLE = 9999
 
--- The built-in maze: 27 rows x 39 columns, pure ASCII, left-right symmetric.
+-- The built-in maze: 23 rows x 39 columns, pure ASCII, left-right symmetric.
 -- '#' wall, '.' pellet, 'o' power pellet, '-' ghost door, ' ' empty,
 -- 'P' pacman spawn, 'G' ghost-house interior (becomes empty at runtime).
+-- Row 14 is the wrap-around tunnel: both edge cells are open pellets.
 local BUILTIN_MAZE = {
   "#######################################",
   "#o...................................o#",
@@ -97,22 +99,18 @@ local BUILTIN_MAZE = {
   "#.....................................#",
   "#........#...................#........#",
   "#..####.####...............####.####..#",
-  "#........#...................#........#",
-  "#.....................................#",
-  "#........#.....#.......#.....#........#",
-  "#..####.#####.###########.#####.####..#",
-  "#........#.....##GGGGG##.....#........#",
+  "#........#......#######......#........#",
   "#...............#GGGGG#...............#",
-  "#........#.....##GGGGG##.....#........#",
-  "#.......#####.#####-#####.#####.......#",
-  "#..............#.......#..............#",
-  "#.....................................#",
+  "#........#......#GGGGG#......#........#",
+  "#..####.#####.###GGGGG###.#####.####..#",
+  "#..............####-####..............#",
+  ".......................................",
   "#..............#.......#..............#",
   "#.......#####.###.....###.#####.......#",
+  "#..............#.......#..............#",
   "#.....................................#",
   "#.....................................#",
-  "#.....................................#",
-  "#.#####...###.###.....###.###...#####.#",
+  "#.......#####.###.....###.#####.......#",
   "#.....................................#",
   "#o.................P.................o#",
   "#######################################",
@@ -163,6 +161,12 @@ local function parse_maze(rows)
   for y = 1, #rows do
     dist[y] = {}
   end
+  local width = 0
+  for _, row in ipairs(rows) do
+    if #row > width then
+      width = #row
+    end
+  end
   if door ~= nil then
     dist[door.y][door.x] = 0
     local queue = { door }
@@ -172,7 +176,14 @@ local function parse_maze(rows)
       head = head + 1
       local here = dist[cell.y][cell.x]
       for _, step in ipairs(DIRS) do
-        local nx, ny = cell.x + step.x, cell.y + step.y
+        -- Horizontal neighbours wrap across the tunnel edges too.
+        local nx = cell.x + step.x
+        if nx < 1 then
+          nx = width
+        elseif nx > width then
+          nx = 1
+        end
+        local ny = cell.y + step.y
         local row = cells[ny]
         if row ~= nil and row[nx] ~= nil and row[nx] ~= "#"
           and dist[ny][nx] == nil then
@@ -183,12 +194,6 @@ local function parse_maze(rows)
     end
   end
   local pellet_count = 0
-  local width = 0
-  for _, row in ipairs(rows) do
-    if #row > width then
-      width = #row
-    end
-  end
   for y = 1, #rows do
     for x = 1, width do
       local char = cells[y][x]
@@ -352,18 +357,32 @@ end
 
 -- ---------------------------------------------------------------- movement
 
+-- Wrap a horizontal coordinate across the maze edges (the tunnel row);
+-- on rows whose edges are walls the wrapped cell is simply not walkable.
+local function wrap_x(nx)
+  local width = state.parsed.w
+  if nx < 1 then
+    return width
+  elseif nx > width then
+    return 1
+  end
+  return nx
+end
+
 -- Step pacman one tile; eat pellets / power pellets along the way.
 local function move_pac()
   local pac = state.pac
   if state.pending ~= nil
-    and walkable(pac.x + state.pending.x, pac.y + state.pending.y) then
+    and walkable(wrap_x(pac.x + state.pending.x),
+      pac.y + state.pending.y) then
     pac.dir = state.pending
     state.pending = nil
   end
-  if not walkable(pac.x + pac.dir.x, pac.y + pac.dir.y) then
+  local target_x = wrap_x(pac.x + pac.dir.x)
+  if not walkable(target_x, pac.y + pac.dir.y) then
     return
   end
-  pac.x = pac.x + pac.dir.x
+  pac.x = target_x
   pac.y = pac.y + pac.dir.y
   local char = state.parsed.cells[pac.y][pac.x]
   if char == "." then
@@ -405,7 +424,8 @@ local function choose_ghost_step(ghost)
   local candidates = {}
   local fallback = nil
   for _, step in ipairs(DIRS) do
-    local nx, ny = ghost.x + step.x, ghost.y + step.y
+    local nx = wrap_x(ghost.x + step.x)
+    local ny = ghost.y + step.y
     if ghost_walkable(nx, ny, eyes) then
       local move = { x = nx, y = ny, dx = step.x, dy = step.y }
       if step.x == reverse.x and step.y == reverse.y then
@@ -530,14 +550,14 @@ local function overlay_line(_index, text)
   return engine.center(text, state.parsed.w)
 end
 
--- Render the whole canvas as one newline-joined string.  The maze box sizes
--- itself from the active maze (built-in or injected), so tests can inject
--- small mazes on the same canvas.
+-- Render the whole canvas as one newline-joined string: the maze rows
+-- themselves, no outer frame (the canvas is exactly the maze).  The maze
+-- sizes itself from the active maze (built-in or injected), so tests can
+-- inject small mazes on the same canvas.
 local function render()
-  local w = state.parsed.w
   local h = state.parsed.h
   local mid = math.floor(h / 2)
-  local lines = { engine.glyph.tl .. engine.rep(engine.glyph.h, w) .. engine.glyph.tr }
+  local lines = {}
   for y = 1, h do
     local content
     if not state.alive and y == mid then
@@ -551,10 +571,8 @@ local function render()
     else
       content = maze_line(y)
     end
-    lines[#lines + 1] = "│" .. content .. "│"
+    lines[#lines + 1] = content
   end
-  lines[#lines + 1] =
-    engine.glyph.bl .. engine.rep(engine.glyph.h, w) .. engine.glyph.br
   return table.concat(lines, "\n")
 end
 
@@ -568,6 +586,7 @@ local function paint()
       .. "  lives " .. state.lives
       .. "  level " .. state.level
       .. "  best " .. state.best
+      .. "  ◉ you ▲ ghost ◆ fear · dot"
   )
   session.paint()
 end
