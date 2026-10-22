@@ -241,6 +241,27 @@ def test_extract_language_servers_builds_spec_and_reports_malformed(
     assert spec.root_markers == ["pyproject.toml"]
 
 
+def test_extract_language_servers_strips_filetype_whitespace(
+    config: YateConfig,
+) -> None:
+    """Whitespace around a filetype is stripped before the dot is removed."""
+    _extract_language_servers(
+        {
+            "language_servers": [{
+                "name": "rust-analyzer",
+                "command": "rust-analyzer",
+                "filetypes": [" py ", ".rs "],
+            }]
+        },
+        config,
+    )
+
+    assert config.errors == []
+    assert [spec.filetypes for spec in config.language_servers] == [
+        ["py", "rs"]
+    ]
+
+
 # --- journey fraction parsing -------------------------------------------------
 
 

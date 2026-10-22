@@ -82,6 +82,8 @@ def test_names_lists_files_sorted_and_tolerates_missing_dir() -> None:
         "C:\\Windows\\evil.json",
         "C:/Windows/evil.json",
         "games\\evil.json",
+        "C:foo/bar",
+        "d:relative.json",
     ],
 )
 def test_rejects_absolute_and_traversal_names(name: str) -> None:
@@ -89,7 +91,9 @@ def test_rejects_absolute_and_traversal_names(name: str) -> None:
 
     The Windows-flavoured names must be rejected on every platform: on POSIX
     a backslash is a legal filename character and a ``C:/`` prefix an
-    ordinary relative directory, so only explicit checks catch them.
+    ordinary relative directory, so only explicit checks catch them.  The
+    drive-relative forms ("C:foo/bar") keep the drive inside the first path
+    part, so they need the portable drive-prefix check as well.
     """
     with pytest.raises(ValueError):
         data_store.write_text(name, "x")

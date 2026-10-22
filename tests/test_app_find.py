@@ -869,6 +869,28 @@ def test_f4_confirm_loop_skip_keeps_match(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_f4_confirm_loop_counts_only_actual_replacements(tmp_path: Path) -> None:
+    """The closing message counts ``y`` hits only; ``n`` just skips."""
+
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("cat cat cat", encoding="utf-8")
+        app = YateApp(str(doc), keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await _press_f4_replace(pilot, "cat", "dog")
+            await pilot.press("y")
+            await pilot.pause()
+            await pilot.press("n")
+            await pilot.pause()
+            await pilot.press("y")
+            await pilot.pause()
+            assert app.editor.session.buffer.get_text() == "dog cat dog"
+            assert "replaced 2 occurrence(s)" in message_text(app)
+
+    asyncio.run(scenario())
+
+
 def test_f4_confirm_loop_all_replaces_everything(tmp_path: Path) -> None:
     """``a`` replaces every occurrence left in the buffer in one step."""
 

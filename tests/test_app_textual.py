@@ -1246,3 +1246,74 @@ def test_tab_click_switches_the_rendered_document(tmp_path: Path) -> None:
             assert app.editor.session.doc.path == root / "b.txt"
 
     asyncio.run(scenario())
+
+
+# ------------------------------------------------------- document open OSError
+
+
+def test_open_document_reports_oserror_instead_of_crashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed open reports on the message line instead of escaping."""
+
+    async def scenario() -> None:
+        def _raise_permission(path: Path) -> None:
+            raise PermissionError("denied")
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            monkeypatch.setattr(app.editor.session, "open", _raise_permission)
+            app.editor.document_flows.open_path(tmp_path / "x.txt")
+            await pilot.pause()
+            assert "cannot open x.txt" in message_text(app)
+            assert "denied" in message_text(app)
+
+    asyncio.run(scenario())
+
+
+def test_open_document_async_reports_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The async open path reports the failure the same way."""
+
+    async def scenario() -> None:
+        def _raise_permission_async(path: Path) -> None:
+            raise PermissionError("denied")
+
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            monkeypatch.setattr(
+                app.editor.session, "open_async", _raise_permission_async
+            )
+            ok = await app.editor.document_flows.open_path_async(
+                tmp_path / "x.txt"
+            )
+            assert ok is False
+            assert "cannot open" in message_text(app)
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------- ctrl+space vs prompt bar
+
+
+def test_ctrl_space_with_the_command_prompt_active_does_not_open_completion() -> None:
+    """The command line owns ctrl+space; the completion popup stays closed."""
+
+    async def scenario() -> None:
+        app = YateApp(keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.press(":")
+            await pilot.pause()
+            await pilot.press(*"e")
+            await pilot.pause()
+            await pilot.press("ctrl+space")
+            await pilot.pause()
+            popup = app.editor.completion_popup
+            assert popup is not None
+            assert popup.is_open is False
+            assert app.editor.prompt_bar.active_mode == "command"
+
+    asyncio.run(scenario())

@@ -595,7 +595,7 @@ def _parse_language_server(  # noqa: Any - raw yaterc mapping, validated field b
         return None
     # Accept leading dots (".rs") even though the canonical form is "rs";
     # guard against values that normalize to empty ("." / ".." / "...").
-    filetypes = [ft.lstrip(".") for ft in filetypes]
+    filetypes = [ft.strip().lstrip(".") for ft in filetypes]
     if any(not ft for ft in filetypes):
         errors.append(
             f"{where}.filetypes entries must name an extension, got {filetypes_raw!r}"

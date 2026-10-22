@@ -10,6 +10,7 @@ shipped package resources.
 from __future__ import annotations
 
 import io
+from collections.abc import Iterator
 from pathlib import Path
 from typing import override
 
@@ -313,3 +314,26 @@ def test_cleanup_reports_base_removed_when_rmdir_succeeds(tmp_path: Path) -> Non
     assert report.base_removed is True
     assert report.errors == []
     assert not base.exists()
+
+
+def test_cleanup_reports_an_unreadable_base_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A base directory whose entries cannot be probed is reported, not raised.
+
+    The emptiness probe sits in the error-collecting cleanup function: an
+    ``OSError`` there must land in ``report.errors`` instead of escaping and
+    crashing the CLI (``base_removed`` simply stays ``False``).
+    """
+    base = tmp_path / ".yate"
+    _populate(base)
+
+    def _raise_oserror(self: Path) -> Iterator[Path]:
+        raise OSError("access denied")
+
+    monkeypatch.setattr(Path, "iterdir", _raise_oserror)
+
+    report = us.cleanup_defaults(force=True, include_data=True, base_dir=base)
+
+    assert report.base_removed is False
+    assert any("access denied" in e for e in report.errors)

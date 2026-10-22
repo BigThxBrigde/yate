@@ -101,8 +101,11 @@ class YateApp(App[None]):
         self.title = f"yate {__version__}"
 
         # The color theme is process-global state (like vim's colorscheme).
-        # An explicit selection (--theme) wins over the yaterc option.
-        wanted_theme = theme_name if theme_name is not None else self.config.theme
+        # An explicit selection (--theme) wins over the yaterc option; both
+        # are normalized to match set_theme's own lookup spelling.
+        wanted_theme = (
+            theme_name if theme_name is not None else self.config.theme
+        ).strip().lower()
         try:
             theme.set_theme(wanted_theme)
             log.debug("theme set: %s", wanted_theme)

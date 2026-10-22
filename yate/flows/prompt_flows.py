@@ -40,6 +40,9 @@ class PromptFlows:
         self._replacement: str = ""
         self._confirm_total: int = 0
         self._confirm_done: int = 0
+        # Only actual replacements (``y`` hits) -- ``n`` bumps ``_confirm_done``
+        # to advance the loop but must not inflate the "replaced N" report.
+        self._confirm_replaced: int = 0
 
     def find_prompt(self, forward: bool) -> None:
         """Open the search prompt (``/``, ``?``, ctrl+f)."""
@@ -113,6 +116,7 @@ class PromptFlows:
         self._replacement = replacement
         self._confirm_total = len(matches)
         self._confirm_done = 0
+        self._confirm_replaced = 0
         self.prompt.activate(
             "replace_confirm",
             placeholder="",
@@ -142,6 +146,7 @@ class PromptFlows:
                 self.session.buffer, self._replacement
             ):
                 self._confirm_done += 1
+                self._confirm_replaced += 1
             self._finish_or_advance()
             return True
         if key == "n":
@@ -185,7 +190,7 @@ class PromptFlows:
         """Stop after the fixed total, else move to the next match."""
         if self._confirm_done >= self._confirm_total:
             self._end_confirm(
-                f"replaced {self._confirm_done} occurrence(s) of "
+                f"replaced {self._confirm_replaced} occurrence(s) of "
                 f"{self.session.search.query!r}"
             )
             return
@@ -203,6 +208,7 @@ class PromptFlows:
         """
         self._confirm_total = 0
         self._confirm_done = 0
+        self._confirm_replaced = 0
         self._replacement = ""
         self._message(text, "ok" if "replaced" in text else "info")
         self.prompt.focus_editor()

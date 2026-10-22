@@ -152,6 +152,17 @@ def test_set_theme_switches_and_unknown_theme_lists_builtins(
         assert name in message
 
 
+def test_set_theme_normalizes_case_and_whitespace(
+    builtin_baseline: None,
+) -> None:
+    """Names are stripped and lower-cased before the registry lookup."""
+    try:
+        set_theme("  MoChA  ")
+        assert theme.active().name == "mocha"
+    finally:
+        set_theme("mocha")
+
+
 # --- shipped *.example templates -------------------------------------------
 
 

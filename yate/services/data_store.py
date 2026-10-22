@@ -51,8 +51,9 @@ def resolve(relative: str) -> Path:
     candidate = Path(relative)
     # pathlib parses a drive letter only on Windows; reject the "X:" prefix
     # portably so POSIX cannot smuggle one in as an ordinary directory name.
+    # "C:foo/bar" keeps the drive inside the first part ("C:foo"), hence >= 2.
     first = candidate.parts[0] if candidate.parts else ""
-    drive_prefix = len(first) == 2 and first[1] == ":"
+    drive_prefix = len(first) >= 2 and first[1] == ":"
     if candidate.is_absolute() or candidate.drive or drive_prefix:
         raise ValueError(f"data name must be relative: {relative!r}")
     if ".." in candidate.parts:

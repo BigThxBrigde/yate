@@ -98,11 +98,16 @@ def active() -> Theme:
 def set_theme(name: str) -> Theme:
     """Switch the active theme by name and notify subscribers.
 
+    *name* is normalized (stripped and lower-cased) before lookup.
+
     :raises KeyError: if no theme called *name* is registered.
     """
     # The active theme is intentionally process-global state (like vim's
     # colorscheme): every widget reads it through :func:`active`.
     global _active
+    # Single normalization point: "--theme ' Mocha '", the yaterc option and
+    # the extension API all reach the registry with the canonical spelling.
+    name = name.strip().lower()
     if name not in THEMES:
         raise KeyError(f"unknown theme: {name!r} (have: {', '.join(sorted(THEMES))})")
     _active = THEMES[name]

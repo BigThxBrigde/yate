@@ -725,7 +725,10 @@ class Editor:
         # "ctrl+2"/"ctrl+shift+2"; those toggle the terminal via TOGGLE_KEYS
         # below.
         nul_keys = ("ctrl+space", "ctrl+@")
-        if event.key in nul_keys:
+        # The command line owns its Input: ctrl+space must not open the
+        # completion popup over it and must keep flowing to the prompt bar
+        # (the active_mode branch below hands the event back to the Input).
+        if event.key in nul_keys and not self.prompt_bar.active_mode:
             if editor_focused or event.key == "ctrl+space":
                 self.completion.request(manual=True)
                 return True
