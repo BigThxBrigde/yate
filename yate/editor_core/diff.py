@@ -60,6 +60,8 @@ class DiffResult:
         inside a hunk anchor to that hunk's ``b_start`` (used to scroll
         both panes of a diff view to the same difference).
         """
+        if not 0 <= row < len(self._row_map):
+            raise IndexError(f"row {row} is outside 0..{len(self._row_map) - 1}")
         return self._row_map[row]
 
 

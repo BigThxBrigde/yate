@@ -141,13 +141,15 @@ class SearchEngine:
         matches = self.update(self.query, buffer)
         if not matches:
             return 0
-        # Bracket the bulk edit as one undoable history entry.
-        before = buffer.snapshot()
         pattern = self._compile(self.query) if self.use_regex else None
         by_row: dict[int, list[Match]] = {}
         for match in matches:
             by_row.setdefault(match.row, []).append(match)
         count = 0
+        # Build the new line texts first, then pick the write-back path: a
+        # replacement containing newlines re-rows the buffer, which per-line
+        # writes cannot express.
+        new_lines = list(buffer.lines)
         for row, row_matches in by_row.items():
             line = buffer.lines[row]
             out: list[str] = []
@@ -160,15 +162,28 @@ class SearchEngine:
                 last = match.end
                 count += 1
             out.append(line[last:])
-            buffer.lines[row] = "".join(out)
-        buffer.anchor = None
-        # A replacement can be shorter than the match, which would leave the
-        # cursor past the end of its line.  Views, the status bar and the
-        # smoke harness' ``cursor_col`` invariant all assume a valid position,
-        # so clamp it before the edit is recorded (undo restores the original
-        # cursor via ``before``).
-        row, col = buffer.cursor
-        buffer.cursor = (row, min(col, len(buffer.lines[row])))
-        buffer.commit(before, "step")
+            new_lines[row] = "".join(out)
+        if any("\n" in line for line in new_lines):
+            # The replacement spans rows: replay the whole buffer through one
+            # ``replace_range`` edit (it records its own single undo step),
+            # skipping the manual commit below.
+            last = len(buffer.lines) - 1
+            buffer.replace_range(
+                (0, 0), (last, len(buffer.lines[last])), "\n".join(new_lines)
+            )
+        else:
+            # Bracket the bulk edit as one undoable history entry.
+            before = buffer.snapshot()
+            for row in by_row:
+                buffer.lines[row] = new_lines[row]
+            buffer.anchor = None
+            # A replacement can be shorter than the match, which would leave the
+            # cursor past the end of its line.  Views, the status bar and the
+            # smoke harness' ``cursor_col`` invariant all assume a valid position,
+            # so clamp it before the edit is recorded (undo restores the original
+            # cursor via ``before``).
+            row, col = buffer.cursor
+            buffer.cursor = (row, min(col, len(buffer.lines[row])))
+            buffer.commit(before, "step")
         self.update(self.query, buffer)
         return count

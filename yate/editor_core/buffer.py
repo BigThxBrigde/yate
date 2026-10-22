@@ -1055,8 +1055,9 @@ class TextBuffer:
                 # after the current line).
                 self.set_cursor((r, len(self.lines[r])))
                 self.insert_text("\n" + text[:-1], kind="step")
-                self.move_line_end()
-                self.move_left()
+                if text[:-1]:
+                    self.move_line_end()
+                    self.move_left()
                 return
             target = r + 1 if below else r
             self.set_cursor((target, 0))

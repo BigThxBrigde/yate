@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.project_search import (
     compile_query,
@@ -28,6 +30,20 @@ def test_compile_query_empty_returns_none() -> None:
 def test_compile_query_invalid_regex_returns_none() -> None:
     """An uncompilable pattern yields None instead of raising."""
     assert compile_query("(", use_regex=True) is None
+
+
+def test_compile_query_whole_word_groups_a_regex_alternation() -> None:
+    """The whole-word wrapper must group the pattern, or an alternation
+    leaks into the anchors: ``foo|bar`` with ``(?:(?<=\\W)|^)foo|bar(?=\\W|$)``
+    would match a bare ``bar`` inside any word (only ``foo`` keeps the
+    boundaries).  The non-capturing group changes neither the ``re.escape``
+    result nor the ``\\1`` backreference semantics."""
+    pattern = compile_query(r"foo|bar", use_regex=True, whole_word=True)
+    assert pattern is not None
+    assert search_lines(["xbar"], pattern) == []
+    assert search_lines(["foobar"], pattern) == []
+    matches = search_lines(["foo bar"], pattern)
+    assert [(m.row, m.start, m.end) for m in matches] == [(0, 0, 3), (0, 4, 7)]
 
 
 # --- search_lines ------------------------------------------------------------
@@ -90,6 +106,22 @@ def test_search_files_unreadable_is_skipped(tmp_path: Path) -> None:
     results = search_files([missing, good], "needle")
     assert [r.path for r in results] == [good]
     assert [(m.row, m.start, m.end) for m in results[0].matches] == [(0, 0, 6)]
+
+
+def test_search_files_stats_before_reading_an_oversized_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The size gate runs on ``stat`` before the bytes are read, so an
+    oversized file costs no read at all (the post-read guard stays for
+    files that grow between stat and read)."""
+    big = tmp_path / "big.txt"
+    big.write_bytes(b"x" * 10)
+
+    def _boom(self: Path) -> bytes:
+        raise AssertionError("read_bytes must not be called for oversized files")
+
+    monkeypatch.setattr(Path, "read_bytes", _boom)
+    assert search_files([big], "x", max_file_bytes=1) == []
 
 
 def test_search_files_stops_at_max_matches(tmp_path: Path) -> None:

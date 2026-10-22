@@ -11,6 +11,8 @@ Run with:  python -m pytest tests/test_editor_core_diff.py -q
 
 from __future__ import annotations
 
+import pytest
+
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.diff import (
     DiffHunk,
@@ -82,6 +84,16 @@ def test_align_maps_equal_rows_and_changed_rows() -> None:
     assert result.align(0) == 0
     assert result.align(2) == 2
     assert result.align(1) == 1  # changed row anchors to the hunk's b_start
+
+
+def test_align_rejects_out_of_range_rows() -> None:
+    """Negative rows and ``a_lines`` (past the last) raise IndexError
+    instead of silently wrapping through the underlying tuple index."""
+    result = diff_lines(["a", "b"], ["a", "b"])
+    with pytest.raises(IndexError):
+        result.align(-1)
+    with pytest.raises(IndexError):
+        result.align(result.a_lines)
 
 
 # --- diff_words -------------------------------------------------------------
