@@ -447,6 +447,7 @@ class VimKeymap(Keymap):
         buf = ctx.buffer
         if key in ("\x1b",):  # esc / ctrl-[
             buf.clear_extra_cursors()
+            self._clear_pending()
             self.mode = VimMode.NORMAL
             buf.move_left()
             ui.message("-- NORMAL --")
@@ -505,6 +506,7 @@ class VimKeymap(Keymap):
         if key == "\x1b":
             buf.clear_selection()
             self.mode = VimMode.NORMAL
+            self.prefix = None
             self.pending_register = None
             ui.message("-- NORMAL --")
             return True
@@ -520,6 +522,40 @@ class VimKeymap(Keymap):
             else:
                 self.pending_register = None
             return True
+        if self.prefix == "g" and key == "g":
+            self._resolve_visual_gg(ctx)
+            return True
+        if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
+            self._resolve_find(
+                ctx,
+                key,
+                backward=self.prefix in ("F", "T"),
+                till=self.prefix in ("t", "T"),
+                select=True,
+            )
+            if self.mode == VimMode.VISUAL_LINE:
+                self._fix_linewise(buf)
+            return True
+        if self.prefix == "r" and len(key) == 1 and key.isprintable():
+            self._resolve_visual_replace(ctx, key)
+            return True
+        if self.prefix is not None:
+            self.prefix = None  # unknown follower: process as a fresh key
+        if key in _PREFIX_KEYS:
+            self.prefix = key
+            return True
+        if key in (";", ","):
+            if self.last_find is not None:
+                ch, backward, till = self.last_find
+                if key == ",":
+                    backward = not backward
+                self._resolve_find(
+                    ctx, ch, backward=backward, till=till,
+                    record=False, select=True,
+                )
+                if self.mode == VimMode.VISUAL_LINE:
+                    self._fix_linewise(buf)
+            return True
         if key == '"':
             self.pending_register = ""
             return True
@@ -527,11 +563,13 @@ class VimKeymap(Keymap):
             if self.mode == VimMode.VISUAL:
                 buf.clear_selection()
                 self.mode = VimMode.NORMAL
+                self.prefix = None
                 self.pending_register = None  # same cleanup as the ESC branch
             else:
                 self.mode = VimMode.VISUAL
             return True
         if key == "V":
+            self.prefix = None
             self.mode = VimMode.VISUAL_LINE if not linewise else VimMode.VISUAL
             self._fix_linewise(buf)
             return True
@@ -601,6 +639,36 @@ class VimKeymap(Keymap):
         if self.mode == VimMode.VISUAL_LINE:
             self._fix_linewise(buf)
         return True
+
+    def _resolve_visual_gg(self, ctx: ActionContext) -> None:
+        """Complete ``gg`` in VISUAL: extend the selection to line 1/count."""
+        self.prefix = None
+        buf = ctx.buffer
+        typed = self._typed_count()
+        self.count_str = ""
+        target = min((typed or 1) - 1, len(buf.lines) - 1)
+        buf.set_cursor((target, first_non_blank(buf.lines[target])), select=True)
+        if self.mode == VimMode.VISUAL_LINE:
+            self._fix_linewise(buf)
+
+    def _resolve_visual_replace(self, ctx: ActionContext, ch: str) -> None:
+        """Replace every selected character with *ch* (vim visual ``r``)."""
+        self.prefix = None
+        buf = ctx.buffer
+        sel = buf.selection()
+        if sel is None or sel[0] >= sel[1]:
+            ctx.ui.message("nothing to replace")
+            return
+        (r0, c0), (r1, c1) = sel
+        parts: list[str] = []
+        for row in range(r0, r1 + 1):
+            line = buf.lines[row]
+            start = c0 if row == r0 else 0
+            end = c1 if row == r1 else len(line)
+            parts.append(ch * max(0, end - start))
+        buf.replace_range((r0, c0), (r1, c1), "\n".join(parts))
+        self.mode = VimMode.NORMAL
+        ctx.ui.message("replaced selection")
 
     def drop_visual(self) -> None:
         """Leave visual mode back to NORMAL (a mouse click ends the selection).
@@ -735,7 +803,10 @@ class VimKeymap(Keymap):
             self._shift_row(buf, key, count)
             return True
 
-        if key in (";", ",") and self.last_find is not None:
+        if key in (";", ","):
+            if self.last_find is None:
+                ui.message("no previous find")
+                return True
             self._repeat_find(ctx, key)
             return True
 
@@ -762,37 +833,37 @@ class VimKeymap(Keymap):
                 buf.paste(below=False, named=reg)
             return True
         if key == "u":
-            self.pending_register = None
+            self._clear_pending()
             self._exit_multi(buf)
             buf.undo()
             return True
         if key == "\x12":  # ctrl-r
-            self.pending_register = None
+            self._clear_pending()
             self._exit_multi(buf)
             buf.redo()
             return True
         if key == "J":
-            self.pending_register = None
+            self._clear_pending()
             self._exit_multi(buf)
             ui.execute_action("join_lines")
             return True
         if key == "\x04":  # ctrl-d
-            self.pending_register = None
+            self._clear_pending()
             self._exit_multi(buf)
             ui.execute_action("page_half_down")
             return True
         if key == "\x15":  # ctrl-u
-            self.pending_register = None
+            self._clear_pending()
             self._exit_multi(buf)
             ui.execute_action("page_half_up")
             return True
         if key == "\x06":  # ctrl-f
-            self.pending_register = None
+            self._clear_pending()
             self._exit_multi(buf)
             ui.execute_action("page_down")
             return True
         if key == "\x02":  # ctrl-b
-            self.pending_register = None
+            self._clear_pending()
             self._exit_multi(buf)
             ui.execute_action("page_up")
             return True
@@ -1062,6 +1133,7 @@ class VimKeymap(Keymap):
         backward: bool,
         till: bool,
         record: bool = True,
+        select: bool = False,
     ) -> None:
         """Complete a find-char prefix: move, or run the pending operator.
 
@@ -1069,6 +1141,8 @@ class VimKeymap(Keymap):
         operator span is inclusive of both the found char and the cursor char
         (vim ``dfx`` / ``dFx``); *record* is ``False`` for ``;``/`,` repeats
         so the direction flip on ``,` never rewrites the stored find.
+        Visual callers pass ``select=True`` so the motion extends the
+        selection instead of collapsing it.
         """
         op = self.op
         reg = self.op_register
@@ -1082,7 +1156,7 @@ class VimKeymap(Keymap):
             self.last_find = (ch, backward, till)
         buf = ctx.buffer
         if op is None:
-            buf.set_cursor(target)
+            buf.set_cursor(target, select=select)
             return
         if backward:
             # [target, cursor] inclusive -> half-open [target, cursor+1)
@@ -1119,7 +1193,7 @@ class VimKeymap(Keymap):
         buf.cursor = (r, c + n - 1)
 
     def _enter_insert(self, ui: KeyUi) -> None:
-        self.pending_register = None  # a register prefix never survives insert
+        self._clear_pending()  # i/o/O/c must not leak a typed count
         self.mode = VimMode.INSERT
         ui.message("-- INSERT --")
 
@@ -1267,6 +1341,9 @@ class VimKeymap(Keymap):
         count = effective if given else None
         reg = self.op_register
         self._clear_operator()
+        if code in ("j", "k", "G"):
+            self._apply_vertical_operator(ctx, op, code, count, reg)
+            return
         buf = ctx.buffer
         start = buf.cursor
         if code == "w":
@@ -1298,6 +1375,40 @@ class VimKeymap(Keymap):
             r = buf.row
             buf.cursor = (r, min(1, len(buf.lines[r])))
         self._apply_span(ctx, op, start, buf.cursor, reg=reg)
+
+    def _apply_vertical_operator(
+        self, ctx: ActionContext, op: str, code: str, count: int | None,
+        reg: str | None,
+    ) -> None:
+        """Run a linewise operator over ``j`` / ``k`` / ``G`` (vim semantics)."""
+        buf = ctx.buffer
+        ui = ctx.ui
+        row = buf.row
+        col = buf.col
+        if code == "G":
+            target = (count - 1) if count is not None else len(buf.lines) - 1
+            target = max(0, min(target, len(buf.lines) - 1))
+            r1, r2 = sorted((row, target))
+        elif code == "j":
+            r1 = row
+            r2 = min(row + (count or 1), len(buf.lines) - 1)
+        else:
+            r1 = max(row - (count or 1), 0)
+            r2 = row
+        buf.anchor = (r1, 0)
+        buf.cursor = (r2, len(buf.lines[r2]))
+        if op == "y":
+            self._mirror(buf.yank_lines(named=reg), reg)
+            buf.anchor = None
+            buf.cursor = (r1, min(col, len(buf.lines[r1])))
+            ui.message("yanked")
+            return
+        if op == "d":
+            self._mirror(buf.delete_lines(named=reg), reg)
+            ui.message("deleted")
+            return
+        self._store_deleted(buf, buf.delete_selection(), reg)
+        self._enter_insert(ui)
 
     def _apply_span(
         self, ctx: ActionContext, op: str, start: Pos, end: Pos, *,

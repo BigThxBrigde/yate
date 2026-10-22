@@ -440,15 +440,14 @@ def test_gg_with_count_beyond_the_last_line_clamps_to_the_last_line() -> None:
 
 
 def test_visual_G_with_count_beyond_the_last_line_clamps() -> None:
-    """The select-branch G clamp: ``d5G`` on 3 lines stops at the last line.
+    """The vertical G clamp: ``d5G`` on 3 lines stops at the last line.
 
-    Visual mode deliberately ignores counts (pinned elsewhere), so the
-    count-carrying select path is reached through the operator motion.
+    The G motion is linewise for operators (plan-c S-10), so the count
+    clamped to the last line covers all three rows.
     """
     editor, keymap, ctx = _setup("l1\nl2\nl3")
     _press(keymap, ctx, "d", "5", "G")
-    # clamped to the last line: the span covers lines 1-2 and one char of 3
-    assert editor.buffer.get_text() == "3"
+    assert editor.buffer.get_text() == ""
 
 
 def test_arrow_keys_run_the_same_motions() -> None:
@@ -1025,19 +1024,20 @@ def test_operator_count_multiplies_the_motion_count() -> None:
     assert editor.buffer.get_text() == "seven"
 
 
-def test_d5G_deletes_through_the_first_char_of_line_five() -> None:
-    """d5G is charwise inclusive of the target line's first character."""
+def test_d5G_deletes_lines_through_line_five() -> None:
+    """d5G is linewise: the rows through line 5 are deleted (plan-c S-10)."""
     editor, keymap, ctx = _setup("l1\nl2\nl3\nl4\nl5\nl6")
     editor.buffer.set_cursor((2, 1))
     _press(keymap, ctx, "d", "5", "G")
-    assert editor.buffer.lines == ["l1", "l2", "l5", "l6"]
+    assert editor.buffer.lines == ["l1", "l2", "l6"]
+    assert editor.buffer.register == "l3\nl4\nl5\n"
 
 
 def test_5dG_also_targets_line_five() -> None:
     """A count before the operator reaches the G motion too."""
     editor, keymap, ctx = _setup("l1\nl2\nl3\nl4\nl5\nl6")
     _press(keymap, ctx, "5", "d", "G")
-    assert editor.buffer.lines == ["5", "l6"]
+    assert editor.buffer.lines == ["l6"]
 
 
 def test_dgg_deletes_the_lines_up_to_the_first_one() -> None:
@@ -2040,3 +2040,100 @@ def test_vim_keymap_carries_reserved_keys_hook() -> None:
     """The base-class reserved_keys hook exposes the vim set to scanners."""
     assert VimKeymap().reserved_keys is RESERVED_KEYS
     assert VscKeymap().reserved_keys == frozenset()
+
+
+# --- global-review fixes: W-06 / W-08 / S-09 / S-10 (plan-c) -----------------
+
+
+def test_semicolon_without_a_previous_find_is_consumed() -> None:
+    """; with no recorded find reports and stays consumed (W-06)."""
+    editor, keymap, ctx = _setup("abc")
+    _press(keymap, ctx, ";")
+    assert editor.messages[-1] == "no previous find"
+    assert all("unknown action" not in message for message in editor.messages)
+    assert editor.buffer.get_text() == "abc"
+
+
+@pytest.mark.parametrize("leaked", [("3", "u"), ("3", "J"), ("3", CTRL_D)])
+def test_normal_commands_drop_a_leaked_count(leaked: tuple[str, str]) -> None:
+    """u / J / ctrl-d consume a typed count instead of leaking it (W-08)."""
+    editor, keymap, ctx = _setup("abcdef")
+    _press(keymap, ctx, *leaked)
+    _press(keymap, ctx, "x")
+    assert editor.buffer.get_text() == "bcdef"  # exactly one char deleted
+
+
+def test_insert_entry_and_escape_drop_a_pending_count() -> None:
+    """3i X ESC x deletes exactly the typed X, not three chars (W-08)."""
+    editor, keymap, ctx = _setup("abcdef")
+    _press(keymap, ctx, "3", "i", "X", ESC, "x")
+    # count dropped at i: x removes only the inserted X from "Xabcdef"
+    assert editor.buffer.get_text() == "abcdef"
+
+
+def test_visual_find_extends_the_selection() -> None:
+    """v f{char} extends the selection to the found column (S-09)."""
+    editor, keymap, ctx = _setup("a.b.c.d")
+    _press(keymap, ctx, "v", "f", ".")
+    # half-open selection: the found char's column is the exclusive end
+    assert editor.buffer.selection() == ((0, 0), (0, 1))
+    _press(keymap, ctx, "d")
+    assert editor.buffer.get_text() == ".b.c.d"
+
+
+def test_visual_semicolon_repeats_the_find_and_extends() -> None:
+    """; in visual mode repeats the find, extending the selection (S-09)."""
+    editor, keymap, ctx = _setup("a.b.c.d")
+    _press(keymap, ctx, "v", "f", ".", ";")
+    assert editor.buffer.cursor == (0, 3)
+    assert editor.buffer.anchor == (0, 0)
+
+
+def test_visual_gg_extends_to_the_first_line() -> None:
+    """gg in visual mode extends the selection up to line 1 (S-09)."""
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma")
+    editor.buffer.set_cursor((2, 0))
+    _press(keymap, ctx, "v", "g", "g")
+    assert editor.buffer.cursor[0] == 0
+    _press(keymap, ctx, "d")
+    assert editor.buffer.get_text() == "gamma"
+
+
+def test_visual_r_replaces_every_selected_character() -> None:
+    """r in visual mode replaces the selected span with one char (S-09)."""
+    editor, keymap, ctx = _setup("abcd")
+    _press(keymap, ctx, "v", "l", "l", "r", "X")
+    # half-open selection covers columns 0-1 ("ab")
+    assert editor.buffer.get_text() == "XXcd"
+    assert keymap.mode is VimMode.NORMAL
+
+
+def test_dj_deletes_two_whole_lines() -> None:
+    """dj deletes the current and the next line into the register (S-10)."""
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma")
+    _press(keymap, ctx, "d", "j")
+    assert editor.buffer.get_text() == "gamma"
+    assert editor.buffer.register == "alpha\nbeta\n"
+
+
+def test_dk_deletes_the_previous_and_current_lines() -> None:
+    """dk deletes the line above through the current one (S-10)."""
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "d", "k")
+    assert editor.buffer.get_text() == "gamma"
+
+
+def test_dG_deletes_to_the_last_line() -> None:
+    """dG deletes from the current line through the last one (S-10)."""
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma")
+    editor.buffer.set_cursor((1, 0))
+    _press(keymap, ctx, "d", "G")
+    assert editor.buffer.get_text() == "alpha"
+
+
+def test_counted_dj_deletes_three_lines() -> None:
+    """d2j deletes three whole lines (S-10)."""
+    editor, keymap, ctx = _setup("one\ntwo\nthree\nfour")
+    _press(keymap, ctx, "d", "2", "j")
+    assert editor.buffer.lines == ["four"]
