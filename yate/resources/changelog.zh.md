@@ -1,11 +1,16 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-10-21 · yate 0.2.11
+> 由 git 历史自动生成于 2026-10-22 · yate 0.2.12
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.11...HEAD)
+## [0.2.12] - 2026-10-22 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.11...v0.2.12)
 
 ### 新功能
 
+- clean the glyph vocabulary after the sokoban removal [缺中文] ([`5a24001`](https://gitee.com/jermaine/yate/commit/5a24001c1e599b38eaf6f1c07ad1e93197083547))
+- remove the sokoban game from the bundled pack [缺中文] ([`14c31d5`](https://gitee.com/jermaine/yate/commit/14c31d58d4c5bcf03b28f9821adb538da3f35b20))
+- accept directory paths and lint them in parallel batches [缺中文] ([`229525a`](https://gitee.com/jermaine/yate/commit/229525a35a04d1cdeb268804e86d62408b635bc1))
+- add Markdown lint tool with zh/en rule profiles [缺中文] ([`d688ee6`](https://gitee.com/jermaine/yate/commit/d688ee6b9e3dd4f530d68c90251af23696863a73))
+- run scenarios across worker processes with --jobs [缺中文] ([`0529556`](https://gitee.com/jermaine/yate/commit/0529556f2a295035838d1bdd01eaea874b398a57))
 - readable nethack corridors and a glyph legend row [缺中文] ([`b65c6ac`](https://gitee.com/jermaine/yate/commit/b65c6acfd1cab498ba3dd243e91d245f60b42293))
 - sokoban fences become thin lines with a legend row [缺中文] ([`af85b0e`](https://gitee.com/jermaine/yate/commit/af85b0ed410c3fcf513baaf949124b6e5509b959))
 - pacman tunnels and an edge-to-edge 39x23 maze [缺中文] ([`9ec3e48`](https://gitee.com/jermaine/yate/commit/9ec3e48b9a59f9486a304c7f2ab099cd685c5ccd))
@@ -60,6 +65,21 @@
 
 ### 问题修复
 
+- reject windows-flavoured names portably on posix [缺中文] ([`e48abd7`](https://gitee.com/jermaine/yate/commit/e48abd7a73995710aa1c0f1a8c9b2e5ed9a44108))
+- harden blank documents, escapes and quiet output [缺中文] ([`868190c`](https://gitee.com/jermaine/yate/commit/868190c29c5900d710951e13f2e35224052b2d03))
+- reject windows-flavoured names portably on posix [缺中文] ([`150e283`](https://gitee.com/jermaine/yate/commit/150e2837c0114abf8ff92d6d700039bc9f7c2cbd))
+- restore the thin border around game canvases [缺中文] ([`54a044b`](https://gitee.com/jermaine/yate/commit/54a044b31aeff087e69a862376534a01f2c118e5))
+- silence backend tracebacks and add a lint progress bar [缺中文] ([`9b85504`](https://gitee.com/jermaine/yate/commit/9b85504c526369370022be7c65ed51a551394271))
+- track code fences by marker and cover the fix failure path [缺中文] ([`15350dc`](https://gitee.com/jermaine/yate/commit/15350dc9ff19194b63f4b63addf199e574717c23))
+- give the load-sensitive polls parallel-safe budgets [缺中文] ([`e480823`](https://gitee.com/jermaine/yate/commit/e480823ee6b1f8252938cc552f51cc7588a3e4b2))
+- render the manual at the width it is painted at [缺中文] ([`efba875`](https://gitee.com/jermaine/yate/commit/efba87581db3488ce02bd385a2b9383cd0fcaaad))
+- report parallel progress as finished, not running [缺中文] ([`51f1f1c`](https://gitee.com/jermaine/yate/commit/51f1f1c5f8456e97506142f0ff866010bbd0eb39))
+- keep a failed shard retry from discarding collected results [缺中文] ([`f10c75c`](https://gitee.com/jermaine/yate/commit/f10c75ca86042837c810deba1dd06bb31ffc55e6))
+- make the two parallel-exposed timing cases deterministic [缺中文] ([`72ee6ea`](https://gitee.com/jermaine/yate/commit/72ee6eabac8be56f4e3232fa142b114e7d0fa8af))
+- isolate the OS clipboard while the suite runs under xdist [缺中文] ([`3b14c6d`](https://gitee.com/jermaine/yate/commit/3b14c6d47cca658c6ea67f1c905db143b568ff6b))
+- give the shell timeout probe a load-tolerant budget [缺中文] ([`0f71074`](https://gitee.com/jermaine/yate/commit/0f71074f08c22cabd24aa59583f1c911e23079e8))
+- follow the linewise paste cursor in the vim register scenario [缺中文] ([`818577e`](https://gitee.com/jermaine/yate/commit/818577eb42d6fc6b73ea88e39cb1eed7529f2605))
+- pin the lua runtime to 5.4 and land the round-3 polish [缺中文] ([`358591e`](https://gitee.com/jermaine/yate/commit/358591e5d027c85956f069a4d350ef344309bc74))
 - drop the canvas chrome, fix snake rows, harden saves [缺中文] ([`bbe88ae`](https://gitee.com/jermaine/yate/commit/bbe88ae81ed6c774bcc04d3e40a05b467c6a2386))
 - type the layout probe seam for pyright strict [缺中文] ([`7a2677f`](https://gitee.com/jermaine/yate/commit/7a2677f2a2d9654679ea262eaf0333668a4cdf9d))
 - size the layout helpers in display columns, not bytes [缺中文] ([`04687db`](https://gitee.com/jermaine/yate/commit/04687db9eedf4292d0e27a73faa7ffa57912d32b))
@@ -121,11 +141,13 @@
 
 ### 性能优化
 
+- cut Textual wait granularity and run the suite under xdist [缺中文] ([`688ad3f`](https://gitee.com/jermaine/yate/commit/688ad3fe35886385341e6e15d1cfc7f37789f755))
 - pre-lower fuzzy entries, stop re-lowering per keystroke [缺中文] ([`dbdf8cf`](https://gitee.com/jermaine/yate/commit/dbdf8cf6e8ce2a54dc35057dea50b255e3eaac42))
 - cut per-frame char->cell remapping to one prefix pass [缺中文] ([`e1181f8`](https://gitee.com/jermaine/yate/commit/e1181f8a22a0b9321378b6387a607b6d0076a756))
 
 ### 重构
 
+- render the manual as cached rows, not per-block widgets [缺中文] ([`c1d50dd`](https://gitee.com/jermaine/yate/commit/c1d50dd9272b13fdd1a95c5bf8f0cfa758f03504))
 - move tetris onto the shared engine and persist its scores [缺中文] ([`c97e9d8`](https://gitee.com/jermaine/yate/commit/c97e9d8b9864ac3b335ee8e92e25907642058b60))
 - decouple the status bar from the extension bridge [缺中文] ([`3ca1a21`](https://gitee.com/jermaine/yate/commit/3ca1a21530627053b467b1724f6950f5e5d0f47c))
 - draw canvases through a newline-joined grid string [缺中文] ([`34ba94f`](https://gitee.com/jermaine/yate/commit/34ba94f8b5b6ac9348b3cb651e5084e2a4e8b106))
@@ -145,6 +167,22 @@
 
 ### 文档
 
+- record the second review round [缺中文] ([`f2d5f27`](https://gitee.com/jermaine/yate/commit/f2d5f2758bd7679f7458e1b8d17add3a93bea4fb))
+- backfill the sokoban removal and border restore results [缺中文] ([`64c534f`](https://gitee.com/jermaine/yate/commit/64c534fac57cf7f721c6eedc6cea12aeff55eda8))
+- drop sokoban from the bundled game pack docs [缺中文] ([`a67ee59`](https://gitee.com/jermaine/yate/commit/a67ee592a14aadcf5a0d119c75d48a64212d9032))
+- plan the sokoban removal and border restore [缺中文] ([`86fdc12`](https://gitee.com/jermaine/yate/commit/86fdc12ff1da11747a10a42650e20a39b18d3b48))
+- apply mdlint formatting to plans and reviews [缺中文] ([`d6d7865`](https://gitee.com/jermaine/yate/commit/d6d7865f8820f4f5e65334e761e689e2f01d1875))
+- run the verification gates with pytest-xdist [缺中文] ([`78e39da`](https://gitee.com/jermaine/yate/commit/78e39dad47e299092299f977e2ab8958b92dd7ee))
+- record the review round on the manual viewer rewrite [缺中文] ([`dfeb9d4`](https://gitee.com/jermaine/yate/commit/dfeb9d4ed0102f354034b4ac90a2fe3301bca60b))
+- backfill the manual viewer rewrite results [缺中文] ([`63a8e4e`](https://gitee.com/jermaine/yate/commit/63a8e4e81e1765834394702830d0c88452c2334d))
+- plan the manual/changelog overlay mount-cost fix [缺中文] ([`2227ace`](https://gitee.com/jermaine/yate/commit/2227ace571095ce24ee1d881a6c1f25b9d056f3d))
+- count 36 architecture guards and restore the missing table row [缺中文] ([`46a0c5e`](https://gitee.com/jermaine/yate/commit/46a0c5e67270770b87d30c35fae8db65297d5965))
+- record the review round and the re-measured numbers [缺中文] ([`4f8eadb`](https://gitee.com/jermaine/yate/commit/4f8eadbb2ff2cab288505998965bc7383f905397))
+- backfill the third parallel flake and the repeated gate runs [缺中文] ([`3b789e2`](https://gitee.com/jermaine/yate/commit/3b789e2835d474e455ab45d8e8a40f75d8273789))
+- switch the verification commands to the parallel runners [缺中文] ([`b27b83c`](https://gitee.com/jermaine/yate/commit/b27b83c495e3864b85d02765fb57a4763738ac8b))
+- record the smoke fix and test-speed plan with measured numbers [缺中文] ([`ee46bfa`](https://gitee.com/jermaine/yate/commit/ee46bfa6332ff13552b3278900c58689e90f6ad2))
+- record the round-3 deviation dispositions [缺中文] ([`d1571bd`](https://gitee.com/jermaine/yate/commit/d1571bdc188529358571465d96e15e30407e4ca7))
+- backfill the round-3 fix results [缺中文] ([`cd30aa6`](https://gitee.com/jermaine/yate/commit/cd30aa6f6b91ba3bb1541a9f74283baeacf7dcf9))
 - backfill the visual fix round results [缺中文] ([`9483f47`](https://gitee.com/jermaine/yate/commit/9483f47328f0d9aec0224c6a959151a4d36b9d43))
 - plan the visual fix round for the game pack [缺中文] ([`84021b2`](https://gitee.com/jermaine/yate/commit/84021b2ecece43e539dd59d532bef46f4ce2f93c))
 - backfill the games-pack implementation results [缺中文] ([`e3da999`](https://gitee.com/jermaine/yate/commit/e3da9991a53e510be4cc03463857a7b76112dd87))
@@ -306,6 +344,7 @@
 
 ### 测试
 
+- assert the recorded hit span actually matches the query [缺中文] ([`5ad43a2`](https://gitee.com/jermaine/yate/commit/5ad43a267b6fa05bb3f960a60119bbf1a8d7009a))
 - pin the visual contract and refresh the game guide [缺中文] ([`7f43bfe`](https://gitee.com/jermaine/yate/commit/7f43bfe04ebb93f1fe40697222e78498e71fdf04))
 - smoke every bundled game through the real app [缺中文] ([`b70dbdb`](https://gitee.com/jermaine/yate/commit/b70dbdb70b56c559be23fe8c0da783fa76a15add))
 - empty the upward-edge and submodule whitelists [缺中文] ([`3f99d9b`](https://gitee.com/jermaine/yate/commit/3f99d9bbe9e5389f76b083399ba20138ea746abd))
@@ -332,6 +371,8 @@
 
 ### 构建与工程
 
+- remove the pre-commit hook [缺中文] ([`0f22963`](https://gitee.com/jermaine/yate/commit/0f229634125156d259ed4c315ca757152be70a01))
+- run pytest with xdist and the smoke suite with --jobs [缺中文] ([`2131c1a`](https://gitee.com/jermaine/yate/commit/2131c1a57d5bcb31983500446f81fe51e7b233af))
 - drop a stray tetris backup left in the worktree [缺中文] ([`84e9505`](https://gitee.com/jermaine/yate/commit/84e95054fd97fad88be68fb4b07d5357b64f161c))
 - let TRAE-code-review win conflict arbitration [缺中文] ([`8572080`](https://gitee.com/jermaine/yate/commit/8572080db1c0136e87cfc5650b4aaff581c22dfe))
 - sync subagent model frontmatter with orchestration table [缺中文] ([`e392a50`](https://gitee.com/jermaine/yate/commit/e392a507488c0456dc3866c467b7957958682dfd))
