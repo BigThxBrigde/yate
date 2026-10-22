@@ -35,6 +35,8 @@
 与 #44（找茬优化报告，0 缺陷 / 5 条建议级）。
 **2026-10-20 TRAE-code-review 增量**：新增 #45（全仓库 TRAE-code-review 审核，
 3 BLOCKER / 9 MAJOR / 27 MINOR，待用户决策修复范围）。
+**2026-10-22 全局审核增量**：新增 #46（5 个 `code-review-expert` 代理分域全仓审核，
+0 CRITICAL / 18 WARNING / 20 SUGGESTION；全部 WARNING 经主代理回读复核，待处置）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -88,6 +90,7 @@
 | 43 | 2026-10-17 | 任务第 6 步 pr-review **复审**（范围 = 累计 diff `master...HEAD` 含修复三提交）：增量六维逐项核对零新发现；核销 checks 计数守恒疑点（`saved_matches_disk` 条件不变量，harness.py:391-399）；五道门禁全绿（pyright 0/0/0 + 2485p/9s + 架构 32 + 覆盖率 91.97% + 冒烟 107/107，全 exit 0） | ✅ **APPROVE，零遗留 issue**——迭代闭环（结论见 [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) §六） | [2026-10-17-four-skill-review.md](2026-10-17-four-skill-review.md) |
 | 44 | 2026-10-17 | 找茬优化报告（分支 `enh/full-repo-audit` @ `cd2ca00` 全仓找茬；**0 缺陷，5 条建议级**）：① `current_screen` 查询链 `Screen[Any]` 可精化为 `Screen[object]`（上游 `App.screen` 即该类型）；② `handle_key` nul_keys 嵌套 if 可合并（评审自评现状更易读）；③ `on_unmount` 三段 teardown try/except 可提取辅助（评审自评现状可接受；且首段为同步调用，报告示意代码会把同步调用交给 await）；④ `cli.main` ~220 行可拆 `--diff` 校验与扩展管理辅助；⑤ `_set_theme` 适配闭包（评审自评无需修改） | ✅ 已处置（2026-10-17：① `7834da3` 查询链 `Screen[Any]`→`Screen[object]`（与上游 `App.screen` 同型，editor.py 的 `Any` 归零）+ ④ `d8d0248` cli.main 拆 `_validate_diff_args` / `_manage_extensions`；②③⑤ 评审自评维持现状（③ 报告示意代码会把同步调用交给 await，勘误见方案 §二）；门禁 pyright 0 + 全量 0 failures + 架构 32 + 覆盖率 91.95% + 冒烟 107/107·1304/1304 全 exit 0；pr-review 复审 **APPROVE 零 issue**（0 BLOCKER / 0 MAJOR / 0 MINOR），见 [full-repo-audit-optimization-fixes-plan.md](../documents/full-repo-audit-optimization-fixes-plan.md) §八） | [2026-10-17-full-repo-audit.md](2026-10-17-full-repo-audit.md) |
 | 45 | 2026-10-20 | **全仓库 TRAE-code-review 审核**（`enh/full-repo-trae-review` @ master `d8c1dee`；5 只读分区子代理 + 2 交叉验证子代理，20 条候选 2/2 确认；覆盖 `yate/` 144 + `tools/` 60 个 `.py`） | ⚠️ 不通过（3 BLOCKER 正常使用即触发） | 3 BLOCKER / 9 MAJOR / 27 MINOR | ✅ 已修（W-A `148fa4a` / W-B `29a79d2` / W-C `b32bd5d` / W-D `41ae9fc` / W-E 收口；39 条已修 + m-21 登记不修 + m-28 追加已修） | [2026-10-20-full-repo-trae-code-review.md](2026-10-20-full-repo-trae-code-review.md) |
+| 46 | 2026-10-22 | **全仓全局代码评审**（master `f7adf9d`；5 个 `code-review-expert` 代理分域（4 主域 + 1 补审盲区），双 skill 框架 + 强制自我批判；覆盖 `yate/` 约 140 + `tools/` 约 70 个 `.py`） | 👀 待处置（0 CRITICAL / 18 WARNING / 20 SUGGESTION；四道门禁全绿） | [2026-10-22-global-review.md](2026-10-22-global-review.md) |
 
 ---
 
@@ -178,6 +181,7 @@
 | 2026-10-18 | **repo-audit-r2 · plan_d 执行记录（架构守卫缺口收口）**（`ref/repo-audit-r2`；+3 条架构守卫用例（32→35）+ 规则同步；含终局收口与合并记录） | ✅ 通过（门禁全实测：pyright 0 + 2508 passed / 9 skipped + 35 架构 + 91.99% + 冒烟 112/112） | 0 阻断 / 0 major（A-3 文档面守卫按偏离登记未落地） | ✅ 已收口（遗留：文档面 42 处历史路径按「随下次修改迁移」登记待办） | [2026-10-18-repo-audit-r2.md](2026-10-18-repo-audit-r2.md) |
 | 2026-10-18 | **pr-review · `ref/repo-audit-r2` 分支审查**（pr-review 技能六维框架，base = master `9e84e97`，44 文件 +3621−51；主代理亲跑全部门禁） | ⚠️ REQUEST_CHANGES（1 MAJOR：`poll_idle` 空屏幕栈竞态在覆盖率负载下 3/3 次全量运行致未改动文件的 pilot 用例失败） | 1 MAJOR / 5 MINOR | ✅ 已修复（当轮：poll_idle 卫语句 + 回归用例 / CI 注释与 smoke ubuntu 腿临时降级 / 规则补局部 `--cov-fail-under=0` 口径 / 3 个计划文档路径脱敏 / 本索引补录；修复方案见 [repo-audit-r2-review-fixes-plan.md](../documents/repo-audit-r2-review-fixes-plan.md)） | [2026-10-18-pr-review-ref-repo-audit-r2.md](2026-10-18-pr-review-ref-repo-audit-r2.md) |
 | 2026-10-20 | **全仓库 TRAE-code-review 审核**（`enh/full-repo-trae-review` @ master `d8c1dee`；5 只读分区子代理 + 2 交叉验证子代理；主代理亲跑门禁 + 运行时探针） | ⚠️ 不通过（3 BLOCKER 正常使用即触发：三方合并单侧插入崩溃、vim `5G` 越界、wiki prune 误删源文档） | 3 BLOCKER / 9 MAJOR / 27 MINOR（20 条 2/2 确认，19 条 MINOR 单验证） | ✅ 已处置（五波修复 + 两轮 code-review-expert 复核 APPROVE；m-21 登记不修，m-28 追加修复；方案见 [trae-review-fixes-plan.md](../documents/trae-review-fixes-plan.md)） | [2026-10-20-full-repo-trae-code-review.md](2026-10-20-full-repo-trae-code-review.md) |
+| 2026-10-22 | **全仓库全局代码评审**（master `f7adf9d`，v0.2.12；5 个 `code-review-expert` 代理分域（4 主域 + 1 补审盲区），`python-code-review` + `TRAE-code-review` 双框架 + 强制自我批判） | ✅ 通过（0 CRITICAL，无阻断；门禁 pyright 0/0/0 + 架构 36 + 2858 passed/9 skipped + 覆盖率 91.96% + 冒烟 112/112，全 exit 0） | 0 CRITICAL / 18 WARNING / 20 SUGGESTION | 👀 登记待处置（只读事实文档，修复另立计划） | [2026-10-22-global-review.md](2026-10-22-global-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
