@@ -163,6 +163,12 @@ def uri_to_path(uri: str) -> Path:
 
     Also tolerates servers that misuse the uri fields with a bare OS path.
     """
+    # A bare Windows drive path ("C:\\foo\\bar") is not a URI: urlparse
+    # would read the drive letter as a one-character scheme, so hand it
+    # straight to Path before any parsing.  Real file:// URIs have a
+    # longer scheme and are unaffected.
+    if len(uri) >= 2 and uri[0].isascii() and uri[0].isalpha() and uri[1] == ":":
+        return Path(uri)
     parsed = urlparse(uri)
     if parsed.scheme == "file":
         # Decode percent escapes and turn /D:/foo into a Windows drive path.

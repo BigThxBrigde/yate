@@ -94,7 +94,9 @@ class Win32InputFrame:
     @property
     def char_text(self) -> str:
         """Return the frame's UCS character as text (``""`` when absent)."""
-        return chr(self.char) if self.char else ""
+        if not 0 < self.char <= 0x10FFFF:
+            return ""
+        return chr(self.char)
 
 
 def _decode_frame(fields: str) -> Win32InputFrame:

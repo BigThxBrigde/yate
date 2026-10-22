@@ -17,6 +17,7 @@ from __future__ import annotations
 import pytest
 
 from yate.config import YateConfig
+from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_lsp.client import Completion
 from yate.editor_lsp.parsing import (
@@ -125,9 +126,25 @@ def test_range_from_malformed_returns_none() -> None:
 
 def test_range_to_buffer_cols_converts_utf16_columns(doc: Document) -> None:
     """UTF-16 server columns map to code-point buffer columns; an
-    out-of-range row converts against the empty line (column 0 stays 0)."""
+    out-of-range row clamps to the last line (column 0 stays 0)."""
     assert _range_to_buffer_cols((1, 1, 1, 3), doc) == (1, 1, 1, 2)
-    assert _range_to_buffer_cols((5, 0, 5, 0), doc) == (5, 0, 5, 0)
+    assert _range_to_buffer_cols((5, 0, 5, 0), doc) == (2, 0, 2, 0)
+
+
+def test_range_to_buffer_cols_clamps_negative_and_past_end_rows() -> None:
+    """Rows outside the document clamp to the nearest real line."""
+    four = Document(None, TextBuffer("aaa\nbbb\nccc\nddd"))
+    assert _range_to_buffer_cols((-1, 0, 9, 0), four) == (0, 0, 3, 0)
+
+
+def test_range_to_buffer_cols_clamps_columns_to_the_line_length(
+    doc: Document,
+) -> None:
+    """Columns beyond the line clamp to the line length (code points)."""
+    r0, c0, r1, c1 = _range_to_buffer_cols((0, 99, 1, 99), doc)
+    assert (r0, r1) == (0, 1)
+    assert c0 == len(doc.buffer.lines[0])
+    assert c1 == len(doc.buffer.lines[1])
 
 
 # --- completion item parsing -------------------------------------------------

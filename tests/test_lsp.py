@@ -146,6 +146,13 @@ def test_uri_roundtrip() -> None:
     assert protocol.uri_file_name(uri) == "baz.py"
 
 
+def test_uri_to_path_keeps_a_bare_windows_drive_path() -> None:
+    """A bare ``C:\\...`` path is handed to Path before urlparse reads the
+    drive letter as a scheme (compared as Path strings, cross-platform)."""
+    assert protocol.uri_to_path("C:\\foo\\bar") == Path("C:\\foo\\bar")
+    assert protocol.uri_to_path("D:/work/x.py") == Path("D:/work/x.py")
+
+
 # ---------------------------------------------------------- loopback fake server
 
 

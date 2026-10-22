@@ -124,6 +124,14 @@ def test_parse_key_rejects_unknown_key_names() -> None:
         parse_key("<nope>")
 
 
+@pytest.mark.parametrize("spec", ["<meta-s>", "<cmd-s>", "<ctr-s>"])
+def test_parse_key_rejects_unknown_modifiers(spec: str) -> None:
+    """An unrecognized modifier word is an error, not a silent drop: it
+    must never bind the unmodified key under a typo'd spec."""
+    with pytest.raises(ValueError, match="unknown modifier"):
+        parse_key(spec)
+
+
 def test_parse_key_rejects_ctrl_on_multichar_special_keys() -> None:
     """ctrl has no encoding for a multi-character special key."""
     with pytest.raises(ValueError, match="ctrl"):

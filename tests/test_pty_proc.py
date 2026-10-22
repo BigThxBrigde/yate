@@ -942,6 +942,75 @@ def test_conpty_spawn_holds_the_handle_lock() -> None:
     asyncio.run(_scenario())
 
 
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_read_loop_does_not_repeat_a_stale_count() -> None:
+    """A failed ReadFile must not re-emit the previous chunk's byte count.
+
+    The read count is initialized once and a failing ReadFile leaves it
+    untouched, so the old loop trusted a stale count and resent the last
+    chunk verbatim.  The fixed loop gates the emit on the success flag:
+    the stale count is ignored and the loop exits instead.
+    """
+    proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+    impl = cast(Any, proc)._impl
+    impl._out_read = 0x1000
+    impl._proc_info = None
+    chunks: list[bytes] = []
+    impl._owner.emit_output = chunks.append
+
+    reads = {"n": 0}
+
+    def _fake_read_file(
+        _h: object, buf: Any, _size: object, written: Any, _ov: object
+    ) -> int:
+        reads["n"] += 1
+        if reads["n"] == 1:
+            buf[:3] = b"abc"
+            ptr = ctypes.cast(written, ctypes.POINTER(ctypes.c_ulong))
+            ptr.contents.value = 3
+            return 1
+        # Failing call: does not write the count (it keeps the stale 3).
+        return 0
+
+    def _fake_close_handle(_h: object) -> int:
+        return 1
+
+    impl._kernel32["ReadFile"] = _fake_read_file
+    impl._kernel32["CloseHandle"] = _fake_close_handle
+    impl.read_loop()
+    assert chunks == [b"abc"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_second_create_pipe_failure_closes_the_first_pair(
+    tmp_path: Path,
+) -> None:
+    """A failed output CreatePipe releases the already-open input pair."""
+    proc = PtyProcess(["cmd"], tmp_path, 80, 24)
+    impl = cast(Any, proc)._impl
+    closed: list[object] = []
+    pipes = {"n": 0}
+
+    def _create_pipe(
+        read: Any, write: Any, _attrs: object, _size: object
+    ) -> int:
+        pipes["n"] += 1
+        if pipes["n"] == 1:
+            ctypes.cast(read, ctypes.POINTER(ctypes.c_void_p)).contents.value = 0x111
+            ctypes.cast(write, ctypes.POINTER(ctypes.c_void_p)).contents.value = 0x222
+            return 1
+        return 0
+
+    def _close_handle(handle: Any) -> int:
+        closed.append(getattr(handle, "value", handle))
+        return 1
+
+    impl._kernel32 = {"CreatePipe": _create_pipe, "CloseHandle": _close_handle}
+    with pytest.raises(PtyProcessError):
+        impl._spawn_locked()
+    assert closed == [0x111, 0x222]
+
+
 # --- POSIX backend internals -----------------------------------------------
 
 

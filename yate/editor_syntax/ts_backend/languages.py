@@ -251,12 +251,17 @@ def load_language(  # noqa: Any - tree_sitter.Language is an untyped C binding
     *language* is a ``tree_sitter.Language`` (from a pip grammar pack or
     :func:`language_from_shared_library`), *query_src* is a
     ``highlights.scm`` query source.  *capture_map* overrides/extends
-    :data:`DEFAULT_CAPTURE_MAP` for this language.
+    :data:`DEFAULT_CAPTURE_MAP` for this language.  Built-in languages are
+    owned by :data:`BUILTIN_PACKS`: extensions may not replace them.
     """
     ts = tree_sitter()
     if ts is None:
         raise RuntimeError("tree_sitter is not installed")
     key = name.lower()
+    if key in BUILTIN_PACKS:
+        raise ValueError(
+            f"cannot replace the built-in tree-sitter language {name!r}"
+        )
     merged = dict(DEFAULT_CAPTURE_MAP)
     if capture_map:
         merged.update(capture_map)
