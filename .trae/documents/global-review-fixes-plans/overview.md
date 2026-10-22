@@ -95,44 +95,44 @@ wave-2 的 W-04 会改变 `cell_offsets` 语义。计划不假设这些改动会
 
 | ID | 子计划 | 状态 |
 |---|---|---|
-| W-01 | plan-e | 待执行 |
-| W-02 | plan-e | 待执行 |
-| W-03 | plan-e | 待执行 |
-| W-04 | plan-d | 待执行 |
-| W-05 | plan-b | 待执行 |
-| W-06 | plan-c | 待执行 |
-| W-07 | plan-b | 待执行 |
-| W-08 | plan-c | 待执行 |
-| W-09 | plan-d | 待执行 |
-| W-10 | plan-a | 待执行 |
-| W-11 | plan-b | 待执行 |
-| W-12 | plan-a | 待执行 |
-| W-13 | plan-b | 待执行 |
-| W-14 | plan-f | 待执行 |
-| W-15 | plan-f | 待执行 |
-| W-16 | plan-f | 待执行 |
-| W-17 | plan-f | 待执行 |
-| W-18 | plan-f | 待执行 |
-| S-01 | plan-e | 待执行 |
-| S-02 | plan-e | 待执行 |
-| S-03 | plan-e | 待执行 |
-| S-04 | plan-e | 待执行 |
-| S-05 | plan-e | 待执行 |
-| S-06 | plan-e | 待执行 |
-| S-07 | plan-d | 待执行 |
-| S-08 | plan-d | 待执行 |
-| S-09 | plan-c | 待执行 |
-| S-10 | plan-c | 待执行 |
-| S-11 | plan-d | 待执行 |
-| S-12 | plan-b | 待执行 |
-| S-13 | plan-b | 待执行 |
-| S-14 | plan-a | 待执行 |
-| S-15 | plan-f | 待执行 |
-| S-16 | plan-f | 待执行 |
-| S-17 | plan-a | 待执行 |
-| S-18 | plan-a | 待执行 |
-| S-19 | plan-b | 待执行 |
-| S-20 | plan-a | 待执行 |
+| W-01 | plan-e | 已完成 |
+| W-02 | plan-e | 已完成 |
+| W-03 | plan-e | 已完成 |
+| W-04 | plan-d | 已完成 |
+| W-05 | plan-b | 已完成 |
+| W-06 | plan-c | 已完成 |
+| W-07 | plan-b | 已完成 |
+| W-08 | plan-c | 已完成 |
+| W-09 | plan-d | 已完成 |
+| W-10 | plan-a | 已完成 |
+| W-11 | plan-b | 已完成 |
+| W-12 | plan-a | 已完成 |
+| W-13 | plan-b | 已完成 |
+| W-14 | plan-f | 已完成 |
+| W-15 | plan-f | 已完成 |
+| W-16 | plan-f | 已完成 |
+| W-17 | plan-f | 已完成 |
+| W-18 | plan-f | 已完成 |
+| S-01 | plan-e | 已完成 |
+| S-02 | plan-e | 已完成 |
+| S-03 | plan-e | 已完成 |
+| S-04 | plan-e | 已完成 |
+| S-05 | plan-e | 已完成 |
+| S-06 | plan-e | 已完成 |
+| S-07 | plan-d | 已完成 |
+| S-08 | plan-d | 已完成 |
+| S-09 | plan-c | 已完成 |
+| S-10 | plan-c | 已完成 |
+| S-11 | plan-d | 已完成 |
+| S-12 | plan-b | 已完成 |
+| S-13 | plan-b | 已完成 |
+| S-14 | plan-a | 已完成 |
+| S-15 | plan-f | 已完成 |
+| S-16 | plan-f | 已完成 |
+| S-17 | plan-a | 已完成 |
+| S-18 | plan-a | 已完成 |
+| S-19 | plan-b | 已完成 |
+| S-20 | plan-a | 已完成 |
 
 ## 七、风险与回滚
 
@@ -145,6 +145,69 @@ wave-2 的 W-04 会改变 `cell_offsets` 语义。计划不假设这些改动会
 - 回滚颗粒度：每个子计划为一次独立提交；任一波次验收失败，回滚该波次的提交，
   在计划文档记录失败命令与退出码后重新设计。
 
-## 八、执行记录（收尾时回填）
+## 八、执行记录（收尾回填）
 
-- 待回填：各波次验收命令、退出码、全量门禁真实数字、偏离记录。
+### 8.1 波次执行结果
+
+| 波次 | 子计划 | 执行结果 |
+|---|---|---|
+| wave-1 | plan-a | pytest 190 项（189 passed / 1 skipped），pyright 0，退出码 0 |
+| wave-1 | plan-b | pytest 239 passed / 3 skipped，pyright 0，退出码 0 |
+| wave-2 | plan-c | pytest 179 passed，pyright 0，退出码 0 |
+| wave-2 | plan-d | pytest 94 passed，pyright 0，退出码 0 |
+| wave-3 | plan-e | pytest 169 passed，pyright 0，退出码 0 |
+| wave-4 | plan-f | pytest 183 passed / 1 环境冲突（见 8.2），pyright 0；修复后 6 文件 184 passed |
+
+### 8.2 偏离与校准记录
+
+1. **plan-a**：BOM 用例的 `lines[0] == "hello"` 断言放在 `insert_text` 之前
+   （插入后首行已是 `xhello`，计划散文顺序不可同时成立）。
+2. **plan-b**：计划片段 `Document(TextBuffer(...))` 与构造签名不符，改为
+   `Document(None, TextBuffer(...))`；W-11 使既有越界行断言失效，同步改为
+   钳制后的 `(2, 0, 2, 0)`。
+3. **plan-c**：S-10 使既有 3 个 `dG` 字符语义用例失效，按整行新语义改写
+   （`d5G` 用例改名）；`vim.py` 实测 1480 行，已在
+   `architecture-boundaries.md` §三.7 同步行数。
+4. **plan-d**：`_run_search` 实际方法名为 `_search_worker`，按同处修改；
+   原 `_relative_cached` 缓存用例随函数删除，替换为“结果标签为工作区相对路径”
+   行为用例。
+5. **plan-e**：`diagnostics._kv` 的 `# noqa` 单行超 100 字符，移到参数行；
+   `tests/test_config.py::test_name_and_command_are_stripped` 依赖旧“filetypes
+   原样保留”行为，已改名为 `test_name_command_and_filetypes_are_stripped`
+   并断言去空白后的值（计划外必要同步）。
+6. **plan-f（环境冲突）**：W-15 生效后，本机 `core.autocrlf=true` 使捆绑 Lua
+   全部为 CRLF，`test_bundled_lua_files_pass_the_linter` 报 4521 项。裁定：
+   不放宽 linter，补 `.gitattributes` 的 `*.lua text eol=lf` 并把工作树 Lua
+   归一为 LF（索引本已是 LF，无内容 diff）。
+
+### 8.3 审核迭代
+
+- 第 1 轮 `code-review-expert`：0 CRITICAL / 1 WARNING / 4 SUGGESTION。
+  WARNING 为“混合大小写自定义主题归一化后不可达”，已用
+  `register_theme` 侧 canonical 键修复（`5be4f13`）。
+- 第 2 轮聚焦审核：发现 `register_theme` 对非 str name 先 `.strip()` 抛
+  `AttributeError`，已改为先做类型判断再由 `validate_theme` 报 `ValueError`
+  （`b213bce`）。其余 SUGGESTION 中：`filetypes` 双 strip 已修；
+  `data_store` 对 `a:b` 的拒绝维持保守口径（与“拒绝盘符形态”的可移植承诺一致，
+  不作放宽）；计划回填在本节完成。
+- 计划外修复 1 处：覆盖率并行跑暴露 `:only` 结构重建与 `EditorView.on_mount`
+  的竞态（已删除 leaf 仍收到 Mount，`leaf_by_id` 断言崩溃）。`on_mount` 先以
+  `leaf_for` 判活并跳过绘制（`ef44fd3`），随后全量门禁复测通过。
+
+### 8.4 收尾门禁实测（2026-10-22，任务 worktree）
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| pyright strict | `pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations，exit 0 |
+| 全量测试 | `pytest tests -n auto` | **2912 passed / 9 skipped**，exit 0（68.14s） |
+| 架构守卫 | `pytest tests/test_architecture.py -q` | **36 passed**，exit 0 |
+| 覆盖率 | `pytest tests --cov=yate --cov-branch --cov-fail-under=75 -n auto` | **91.90% ≥ 75**，exit 0 |
+| 冒烟 | `tools.smoke_test run --jobs 4` | **112/112 场景、1354/1354 检查**，exit 0（93.73s） |
+
+### 8.5 剩余待办（非阻塞）
+
+- `data_store.resolve` 仍拒绝 POSIX 合法名 `a:b`（保守的可移植盘符判断）；
+  如需放宽，另立任务并补跨平台用例。
+- `architecture-boundaries.md` §三.7 已同步 `vim.py` / `editor.py` /
+  `wiki.py` 的最新行数。
+
