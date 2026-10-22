@@ -368,6 +368,24 @@ def test_validate_theme_rejects_translucent_background(
     assert any("bg" in p and "opaque" in p for p in problems)
 
 
+def test_validate_theme_rejects_an_invalid_unmapped_color(
+    builtin_baseline: None,
+) -> None:
+    # a syntax slot is outside the Textual bridge mapping but still a
+    # declared color field: it must not escape validation
+    problems = validate_theme(_bad(name="bad-syn", syn_keyword="nope"))
+    assert any("syn_keyword" in p for p in problems)
+
+
+def test_validate_theme_rejects_an_invalid_selection_color(
+    builtin_baseline: None,
+) -> None:
+    problems = validate_theme(
+        _bad(name="bad-selection", selection_bg="not-a-color")
+    )
+    assert any("selection_bg" in p for p in problems)
+
+
 def test_register_theme_raises_and_leaves_registry_unchanged(
     builtin_baseline: None,
 ) -> None:

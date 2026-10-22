@@ -79,6 +79,23 @@ def test_cell_offsets_matches_char_to_cell_prefix() -> None:
         assert offsets[i] == char_to_cell(line, i)
 
 
+def test_cell_offsets_keep_a_combining_mark_in_the_previous_cell() -> None:
+    # a mid-line combining mark advances nothing: it rides the previous cell
+    assert cell_offsets("a" + COMBINING_ACUTE + "b") == [0, 1, 1, 2]
+
+
+def test_char_to_cell_and_cell_offsets_agree_on_combining_marks() -> None:
+    line = COMBINING_ACUTE + "a" + COMBINING_ACUTE + "b"
+    offsets = cell_offsets(line)
+    for i in range(len(line) + 1):
+        assert offsets[i] == char_to_cell(line, i)
+
+
+def test_leading_combining_mark_still_occupies_one_cell() -> None:
+    # a leading mark degrades to one cell, like expand_char
+    assert cell_offsets(COMBINING_ACUTE + "a") == [0, 1, 2]
+
+
 # --- expand_char ---------------------------------------------------------------
 
 

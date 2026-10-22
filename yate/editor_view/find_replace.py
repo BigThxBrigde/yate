@@ -17,7 +17,7 @@ import re
 import shutil
 import tempfile
 from collections.abc import Callable
-from functools import lru_cache, partial
+from functools import partial
 from pathlib import Path
 from typing import override
 
@@ -99,30 +99,14 @@ class _ResultsScroll(VerticalScroll):
         apply_scrollbar_theme(self)
 
 
-@lru_cache(maxsize=1024)
-def _relative_cached(path: Path, root: Path | None) -> str:
-    """Cached backend of :func:`_relative`.
-
-    Label-purpose cache: a file renamed after being resolved may show its
-    old relative path until the result list is rebuilt (which re-runs the
-    search and repopulates the cache).
-    """
+def _relative_text(path: Path, root: Path | None) -> str:
+    """Workspace-relative display label; bare name outside the root."""
     if root is not None:
         try:
             return path.resolve().relative_to(root.resolve()).as_posix()
         except ValueError:
             pass
     return path.name
-
-
-def _relative(path: Path, root: Path | None) -> str:
-    """Display label for *path*: workspace-relative, else the bare name.
-
-    Cached per (path, root): the label is display-only, so the stale
-    worst case after a rename is an old relative path that the next
-    results rebuild corrects.
-    """
-    return _relative_cached(path, root)
 
 
 class FindReplaceScreen(ModalScreen[None]):
@@ -174,6 +158,9 @@ class FindReplaceScreen(ModalScreen[None]):
         self._word = False
         self._regex = False
         self._results: list[FileMatch] = []
+        #: workspace-relative display label per result path, computed by the
+        #: search worker so the render path never touches the filesystem
+        self._labels: dict[Path, str] = {}
         #: flat (path, match) cursor table rebuilt with every search
         self._flat: list[tuple[Path, LineMatch]] = []
         self._cursor = 0
@@ -257,7 +244,6 @@ class FindReplaceScreen(ModalScreen[None]):
             pane.update(text)
             scroller.scroll_to(y=0, animate=False)
             return
-        root = self._workspace.root
         flat_index = 0
         line_no = 0
         for group_index, fm in enumerate(self._results):
@@ -269,7 +255,7 @@ class FindReplaceScreen(ModalScreen[None]):
             # reads like a tree row, the count stays a quiet suffix
             icon = icon_for_path(fm.path.name, False)
             text.append(f"{icon} ", style=icon_color(fm.path.name, False, t.accent))
-            text.append(_relative(fm.path, root), style=t.fg_muted)
+            text.append(self._labels.get(fm.path, fm.path.name), style=t.fg_muted)
             text.append(f"  · {len(fm.matches)}\n", style=t.fg_dim)
             line_no += 1
             for m in fm.matches:
@@ -382,7 +368,7 @@ class FindReplaceScreen(ModalScreen[None]):
     async def _search_worker(self, query: str) -> None:
         """Scan the workspace in a thread, then repaint when still mounted."""
 
-        def _scan() -> tuple[list[FileMatch], bool]:
+        def _scan() -> tuple[list[FileMatch], bool, dict[Path, str]]:
             paths = self._workspace.walk_files(limit=SCAN_FILE_CAP)
             truncated = len(paths) >= SCAN_FILE_CAP
             # hit lines ride along from the scan read (FileMatch.hit_lines):
@@ -392,13 +378,20 @@ class FindReplaceScreen(ModalScreen[None]):
                 case_sensitive=self._case, use_regex=self._regex,
                 whole_word=self._word,
             )
-            return results, truncated
+            # display labels are worker output too: resolve() is filesystem
+            # work the render path must not repeat on every repaint (S-08)
+            labels = {
+                fm.path: _relative_text(fm.path, self._workspace.root)
+                for fm in results
+            }
+            return results, truncated, labels
 
-        results, truncated = await asyncio.to_thread(_scan)
+        results, truncated, labels = await asyncio.to_thread(_scan)
         if not self.is_mounted:
             return
         self._results = results
         self._truncated = truncated
+        self._labels = labels
         self._flat = [(fm.path, m) for fm in results for m in fm.matches]
         self._cursor = 0
         self._render_results()
@@ -407,6 +400,7 @@ class FindReplaceScreen(ModalScreen[None]):
         """Drop every hit and repaint the empty results pane."""
         self._results = []
         self._flat = []
+        self._labels = {}
         self._cursor = 0
         self._truncated = False
         self._render_results()

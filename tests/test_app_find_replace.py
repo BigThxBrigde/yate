@@ -22,8 +22,6 @@ from yate.editor_view.find_replace import (
     FindReplaceScreen,
     RevealFn,
     _Results,
-    _relative,
-    _relative_cached,
 )
 from yate.editor_view.scrollbars import SlimScrollBarRender
 
@@ -1017,28 +1015,22 @@ def test_enter_reveals_clamped_row_when_buffer_shrunk(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_result_labels_are_cached_per_path(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
-) -> None:
-    """Result labels resolve each (path, root) exactly once (plan-b m-2).
+def test_results_show_workspace_relative_labels(tmp_path: Path) -> None:
+    """A hit below the workspace root is labeled by its relative path.
 
-    A repeated render (cursor move, redraw) must not re-hit the filesystem
-    for every visible file group.
+    The labels are computed once by the search worker (S-08): the render
+    path only reads the ``_labels`` dict and never touches the filesystem.
     """
-    _relative_cached.cache_clear()
-    real_resolve = Path.resolve
-    resolved: list[Path] = []
+    async def scenario() -> None:
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "a.txt").write_text("needle\n", encoding="utf-8")
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen, _messages, _notices = _push(app, tmp_path)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            assert "sub/a.txt" in _results_plain(screen)
 
-    def counting_resolve(self: Path) -> Path:
-        resolved.append(self)
-        return real_resolve(self)
-
-    monkeypatch.setattr(Path, "resolve", counting_resolve)
-    path = tmp_path / "note.txt"
-    path.write_text("", encoding="utf-8")
-    label = _relative(path, tmp_path)
-    assert label == "note.txt"
-    assert _relative(path, tmp_path) == label
-    # one render pass: path.resolve + root.resolve; the repeat hits the cache
-    assert len(resolved) == 2
-    _relative_cached.cache_clear()
+    asyncio.run(scenario())
