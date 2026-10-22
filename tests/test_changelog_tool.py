@@ -439,6 +439,15 @@ def test_load_missing_file_is_empty(tmp_path: Path) -> None:
     assert translations.load_overrides(tmp_path / "nope.json") == {}
 
 
+def test_load_overrides_reports_invalid_json(tmp_path: Path) -> None:
+    """A hand-edited file with broken JSON raises a dedicated error."""
+    path = tmp_path / "zh_overrides.json"
+    path.write_text("{broken", encoding="utf-8")
+
+    with pytest.raises(translations.OverrideFileError, match="invalid JSON"):
+        translations.load_overrides(path)
+
+
 # --- gitdata parsers --------------------------------------------------------
 
 
@@ -721,6 +730,17 @@ def test_generate_writes_files_and_check_is_idempotent(
     # tamper → drift is detected
     (cli_repo / "CHANGELOG.md").write_text(en + "tampered\n", encoding="utf-8")
     assert cli.generate(cli_repo, check=True, overrides_path=overrides_path) == 1
+
+
+def test_generate_returns_one_for_an_invalid_override_file(
+    cli_repo: Path, overrides_path: Path, stub_gitdata: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A corrupt overrides file aborts generate with exit 1, not a crash."""
+    overrides_path.write_text("{broken", encoding="utf-8")
+
+    assert cli.generate(cli_repo, overrides_path=overrides_path) == 1
+    assert "error:" in capsys.readouterr().out
 
 
 def test_check_ignores_unreleased_drift(

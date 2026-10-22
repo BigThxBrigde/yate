@@ -20,9 +20,8 @@ from yate.editor_view import theme
 
 __all__ = ["SCENARIOS"]
 
-#: Pause long enough for the auto-completion debounce (0.12s) to fire and its
-#: worker to land, so a late ``popup.show()`` cannot race an assertion.
-_SETTLE_S: float = 0.3
+# Background work is awaited through ``wait_until``; no wall-clock sleep is
+# used as a synchronization primitive.
 
 
 async def _regress_wq_multi_tab(tmp: Path) -> ScenarioResult:
@@ -244,7 +243,7 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
     through the bundled python language server (registered even with
     ``YATE_PYTHON_LSP=off``) and the popup would never open.
 
-    Typing is followed by ``_SETTLE_S`` pauses: the auto-completion debounce
+    Typing is followed by ``wait_until`` polls: the auto-completion debounce
     (0.12s) fires after the keys, and its worker calls ``popup.show()`` when it
     lands, which would otherwise re-open a popup an assertion just closed.
     """
@@ -259,11 +258,10 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
         popup: Any = app.editor.completion_popup
         buf = app.editor.session.buffer
         await type_text(pilot, "pri")
-        await pilot.pause(_SETTLE_S)
+        await wait_until(pilot, lambda: popup.is_open)
         await pilot.press("ctrl+space")
         opened = await wait_until(pilot, lambda: popup.is_open)
         checks.append(Check("popup_open", True, opened))
-        await pilot.pause(_SETTLE_S)
 
         # escape is owned by the popup: it dismisses without touching text.
         await pilot.press("escape")
@@ -276,12 +274,10 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
         await pilot.press("ctrl+space")
         reopened = await wait_until(pilot, lambda: popup.is_open)
         checks.append(Check("reopened", True, reopened))
-        await pilot.pause(_SETTLE_S)
         await type_text(pilot, "n")
         checks.append(Check("typed_through", "prin", buf.lines[0]))
         refiltered = await wait_until(pilot, lambda: popup.prefix == "prin")
         checks.append(Check("popup_refilters", True, refiltered))
-        await pilot.pause(_SETTLE_S)
 
         # A global chord falls through too: ctrl+z undoes the freshly typed
         # word (consecutive insertions merge into one undo step), which can
@@ -293,10 +289,9 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
         # With the popup open again, its own keys stay owned: down moves the
         # selection without touching the buffer ...
         await type_text(pilot, "pri")
-        await pilot.pause(_SETTLE_S)
+        await wait_until(pilot, lambda: popup.is_open)
         await pilot.press("ctrl+space")
         await wait_until(pilot, lambda: popup.is_open)
-        await pilot.pause(_SETTLE_S)
         await pilot.press("down")
         await pilot.pause()
         checks.append(Check("down_selects", 1, popup.index))

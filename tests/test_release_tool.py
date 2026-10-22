@@ -94,6 +94,16 @@ def test_files_dirty_consumes_z_rename_records_and_keeps_quotes(
     assert dirty == ['my "quoted" file.txt', "new name.txt", "last.txt"]
 
 
+# --- _snapshot_texts restores files byte-for-byte (S-15) ---------------------
+
+
+def test_snapshot_texts_preserves_bytes(tmp_path: Path) -> None:
+    """Snapshots keep CRLF/line endings exactly: rollback writes bytes back."""
+    (tmp_path / "f").write_bytes(b"a\r\nb\n")
+
+    assert cli._snapshot_texts(tmp_path, ["f"]) == {"f": b"a\r\nb\n"}
+
+
 # --- release aborts before pushing when no branch can be determined ---------
 
 

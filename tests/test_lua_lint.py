@@ -100,6 +100,21 @@ def test_missing_final_newline_is_reported(
     assert "eof-newline" in rules
 
 
+def test_crlf_file_is_reported(tmp_path: Path) -> None:
+    """A CRLF file read through ``check_paths`` still trips the crlf rule.
+
+    Exercises the read boundary (``newline=""``): universal-newline
+    translation would normalize the CR characters away before
+    :func:`lint_lua.check_source` ever sees them.
+    """
+    path = tmp_path / "crlf.lua"
+    path.write_bytes(b"local x = 1\r\n")
+
+    issues = lint_lua.check_paths([path], set(), lambda source, name: None)
+
+    assert "crlf" in {issue.rule for issue in issues}
+
+
 @requires_lupa
 def test_banned_calls_are_reported(
     tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
@@ -150,12 +165,16 @@ def test_main_reports_exit_codes(
     """A clean tree exits 0; a dirty one exits 1 and prints the finding."""
     clean = tmp_path / "clean"
     clean.mkdir()
-    (clean / "ok.lua").write_text("local x = 1\nreturn x\n", encoding="utf-8")
+    # newline="" keeps the fixture LF: the default would translate "\n" to
+    # CRLF on Windows and trip the crlf rule the read boundary now exposes.
+    (clean / "ok.lua").write_text("local x = 1\nreturn x\n", encoding="utf-8", newline="")
 
     assert lint_lua.main([str(clean)]) == lint_lua.EXIT_OK
     assert "0 issue(s)" in capsys.readouterr().out
 
-    (clean / "bad.lua").write_text("local x = 1\n\tlocal y = 2\n", encoding="utf-8")
+    (clean / "bad.lua").write_text(
+        "local x = 1\n\tlocal y = 2\n", encoding="utf-8", newline=""
+    )
 
     assert lint_lua.main([str(clean)]) == lint_lua.EXIT_ISSUES
     output = capsys.readouterr().out

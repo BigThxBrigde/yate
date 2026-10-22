@@ -245,7 +245,11 @@ def check_paths(
         files = sorted(target.rglob("*.lua")) if target.is_dir() else [target]
         for path in files:
             try:
-                source = path.read_text(encoding="utf-8")
+                # newline="" keeps CR characters verbatim so the crlf rule
+                # can see them; the default universal-newlines mode would
+                # normalize CRLF away and hide the finding.
+                with path.open(encoding="utf-8", newline="") as handle:
+                    source = handle.read()
             except OSError as exc:
                 issues.append(Issue(path, 1, "read", str(exc)))
                 continue

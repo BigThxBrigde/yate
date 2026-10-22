@@ -685,7 +685,20 @@ def test_prune_removes_only_pages_recorded_in_the_manifest(
     user_file.write_text("# hand written\n", encoding="utf-8")
     assert wiki.run(target, None, repo_root=repo) == 0
     assert not (target / "orphan.zh.md").exists()
+    assert not (target / "orphan.en.md").exists()
     assert user_file.exists()
+
+
+def test_prune_keeps_a_user_written_english_page(
+    repo: Path, tmp_path: Path
+) -> None:
+    """An ``*.en.md`` page the manifest never recorded is user property."""
+    target = tmp_path / "wiki"
+    target.mkdir()
+    note = target / "manual-note.en.md"
+    note.write_text("# hand written en\n", encoding="utf-8")
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert note.exists()
 
 
 # --- GitHub wiki URL resolution (review m-24) ---------------------------------

@@ -220,7 +220,9 @@ class Reporter:
         ok = sum(r.ok_count for r in group)
         total = sum(len(r.checks) for r in group)
         fails = sum(r.fail_count for r in group)
-        passed = sum(1 for r in group if r.fail_count == 0)
+        passed = sum(
+            1 for r in group if r.fail_count == 0 and r.error is None
+        )
         table = Table(
             title=f"[bold]{tag}[/]  {passed}/{len(group)} scenarios",
             box=TABLE_BOX, expand=False,

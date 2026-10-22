@@ -1611,8 +1611,14 @@ def run(
     # The prune stage must know which pages a previous run of this tool
     # wrote (review B-3): only manifest-recorded orphans may ever be
     # deleted, so the key set is captured before run() filters it down to
-    # the still-collected pages below.
-    recorded = set(manifest)
+    # the still-collected pages below.  The manifest keys are zh targets,
+    # so the matching en page each translation wrote is derived and added:
+    # otherwise a removed source leaves its orphaned English page behind.
+    recorded = set(manifest) | {
+        key[: -len(_ZH_SUFFIX)] + _EN_SUFFIX
+        for key in manifest
+        if key.endswith(_ZH_SUFFIX)
+    }
     if translate_all and translate_cmd is None:
         print(
             "wiki: --translate-all has no effect without --translate-cmd",

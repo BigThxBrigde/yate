@@ -202,6 +202,17 @@ def test_summary_counts_errored_scenario_as_not_passed() -> None:
     assert "1/2 scenarios passed" in stream.getvalue()
 
 
+def test_group_table_counts_an_errored_scenario_as_not_passed() -> None:
+    # The per-tag table carries the same rule: a crashed scenario counts
+    # toward the group total but never toward the passed numerator.
+    reporter, stream = _make_reporter()
+    errored = ScenarioResult("boom", tags=("edit",), error="TimeoutError: x")
+    reporter.results([errored])
+    out = stream.getvalue()
+    assert "0/1 scenarios" in out
+    assert "1/1 scenarios" not in out
+
+
 def test_reporter_quiet_suppresses_result_tables_and_progress() -> None:
     reporter, stream = _make_reporter(quiet=True)
     result = ScenarioResult("demo", checks=[Check("a", 1, 2)], tags=("edit",))

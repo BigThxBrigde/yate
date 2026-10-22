@@ -83,10 +83,31 @@ def test_create_refuses_existing_dir_without_force(tmp_path: Path) -> None:
 
 
 def test_create_force_replaces_existing_dir(tmp_path: Path) -> None:
-    (tmp_path / "my_ext").mkdir()
+    """--force replaces an existing *scaffold* of the same name."""
+    assert yxp_tool.main(["--create", "my_ext", "--dir", str(tmp_path)]) == 0
     assert yxp_tool.main(
         ["--create", "my_ext", "--dir", str(tmp_path), "--force"]
     ) == 0
+    assert (tmp_path / "my_ext" / "manifest").exists()
+
+
+def test_create_force_refuses_a_non_scaffold_directory(tmp_path: Path) -> None:
+    """--force must not delete a bare directory that is not a scaffold."""
+    (tmp_path / "my_ext").mkdir()
+    (tmp_path / "my_ext" / "precious.txt").write_text("keep", encoding="utf-8")
+    assert yxp_tool.main(
+        ["--create", "my_ext", "--dir", str(tmp_path), "--force"]
+    ) == 1
+    assert (tmp_path / "my_ext" / "precious.txt").read_text("utf-8") == "keep"
+
+
+def test_create_force_refuses_a_scaffold_with_a_different_name(tmp_path: Path) -> None:
+    """--force refuses a scaffold whose metadata names another extension."""
+    assert yxp_tool.main(["--create", "other", "--dir", str(tmp_path)]) == 0
+    (tmp_path / "other").rename(tmp_path / "my_ext")
+    assert yxp_tool.main(
+        ["--create", "my_ext", "--dir", str(tmp_path), "--force"]
+    ) == 1
     assert (tmp_path / "my_ext" / "manifest").exists()
 
 
