@@ -463,3 +463,32 @@ pymarkdown 在内部失败时用**自己的 logger** 打印完整 traceback
 - 新增测试：`test_cli_failure_reports_one_line_without_traceback`、
   `test_main_boundary_never_prints_a_traceback`、`test_pymarkdown_logger_is_silenced`、
   `test_progress_bar_is_not_drawn_without_a_tty`、并行 worker 错误值单行断言。
+
+## 十一、增量：第二轮评审修复（2026-10-22）
+
+本轮按用户指定顺序依次执行 `python-code-review`、`TRAE-code-review`，修复全部发现后再执行
+`pr-review`。修复分支 `fix/mdlint-review` 自 master 切出；mdlint 代码与 `feat/mdlint`
+最终提交 `d6d7865` 一致，故基线行为相同。
+
+### 11.1 发现与处置
+
+| # | 级别 | 发现 | 处置 |
+|---|---|---|---|
+| 1 | warning | 空/纯空白文档被 pymarkdown 以参数异常拒绝，CLI 误报 `cannot lint` 并退出 2 | [lint.py](../../tools/mdlint/lint.py) 的 `scan` / `fix` 对空文档短路返回；新增 `test_scan_empty_document_is_clean`、`test_fix_empty_document_is_unchanged`、`test_cli_check_empty_file_exits_0` |
+| 2 | warning | `mask_code_spans` 未识别反斜杠转义的反引号，真实正文被当作 code span 屏蔽，漏报 YM001 | [fences.py](../../tools/mdlint/fences.py) 新增 `_is_escaped`，开/闭反引号串都跳过转义串；新增 `test_ym001_scans_past_an_escaped_backtick` |
+| 3 | warning | `--quiet` 连 summary 也吞掉，与 CLI 契约「only summary」不符 | [cli.py](../../tools/mdlint/cli.py) summary 无条件打印；新增 `test_cli_quiet_prints_only_the_summary` |
+| 4 | warning | 顺序模式按语言分组输出，`--auto-lang` 混合目录的报告顺序偏离输入顺序 | [cli.py](../../tools/mdlint/cli.py) 的 `_run_sequential` 按 `files` 顺序逐文件 lint，`_run_check` / `_run_fix` 合并为 `_lint_path`；新增 `test_cli_auto_lang_reports_in_input_order` |
+| 5 | suggestion | 缺 `pymarkdownlnt` 时入口在 CLI 错误边界之前抛 import traceback | [__main__.py](../../tools/mdlint/__main__.py) 延迟导入并捕获 `ModuleNotFoundError`，输出一行提示并退出 2；新增 `test_module_entry_reports_a_missing_backend` |
+| 6 | suggestion | 跨行 inline code span 的续行未掩码，YM001-YM003 可能误报 | 记录为已知限制：[fences.py](../../tools/mdlint/fences.py) 模块 docstring 明示行内掩码是 line-local；流式 `next_line` 无法可靠做跨行配对，强行屏蔽会把误报转成漏报 |
+
+### 11.2 验收结果
+
+| 命令 | 结果 |
+|---|---|
+| `python -m pytest tests/test_mdlint.py tests/test_mdlint_plugins.py tests/test_mdlint_parallel.py tests/test_pack_wiki_lint.py -q -n auto` | 74 passed |
+| `python -m pyright yate/ tests/ tools/` | 0 errors, 0 warnings |
+| `python -m pytest tests/ -q -n auto` | 全绿 |
+| `python -m pytest tests/test_architecture.py -q` | 36 passed |
+| `python -m pytest tests/ --cov=yate --cov-branch -n auto` | 91.94%（门槛 75%） |
+| `python -m tools.smoke_test run --jobs 4` | 112/112 scenarios，1354/1354 checks，exit 0 |
+| `pr-review`（本轮修复 diff） | APPROVE，无 blocker / major |

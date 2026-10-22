@@ -12,7 +12,10 @@ are code.  This module owns that logic once:
   of equal length so ``` ``code`` ``` is treated like `` `code` ``.
 
 Masking preserves column positions (masked characters become spaces), so
-plugins can report offsets straight from the masked line.
+plugins can report offsets straight from the masked line.  Masking is
+line-local: a span that wraps across a line break keeps its continuation
+unmasked, the accepted trade-off for a per-line plugin API (cross-line
+pairing would need document-level lookahead and could hide real prose).
 """
 
 from __future__ import annotations
@@ -22,6 +25,16 @@ import re
 _FENCE_LINE = re.compile(r"^[ \t]*(`{3,}|~{3,})(.*)$")
 
 
+def _is_escaped(line: str, index: int) -> bool:
+    """Whether *line[index]* sits behind an odd run of backslashes."""
+    backslashes = 0
+    cursor = index - 1
+    while cursor >= 0 and line[cursor] == "\\":
+        backslashes += 1
+        cursor -= 1
+    return backslashes % 2 == 1
+
+
 def mask_code_spans(line: str) -> str:
     """Blank every inline code span in *line*, keeping the column count."""
     chars = list(line)
@@ -29,6 +42,10 @@ def mask_code_spans(line: str) -> str:
     length = len(line)
     while index < length:
         if line[index] != "`":
+            index += 1
+            continue
+        if _is_escaped(line, index):
+            # A backslash-escaped backtick is literal text, not a delimiter.
             index += 1
             continue
         run_end = index
@@ -44,7 +61,10 @@ def mask_code_spans(line: str) -> str:
             close_end = close_start
             while close_end < length and line[close_end] == "`":
                 close_end += 1
-            if close_end - close_start == run:
+            if (
+                close_end - close_start == run
+                and not _is_escaped(line, close_start)
+            ):
                 for position in range(index, close_end):
                     chars[position] = " "
                 index = close_end

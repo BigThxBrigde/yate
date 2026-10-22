@@ -139,69 +139,38 @@ def _start_progress(
     return progress, progress.add_task(description, total=total)
 
 
-def _run_check(
+def _lint_path(
     engine: LintEngine,
-    paths: Sequence[Path],
+    path: Path,
     *,
+    fix: bool,
     quiet: bool,
     emit: Callable[[str], None],
-    advance: Callable[[], None],
 ) -> tuple[int, int]:
-    """Scan every path; return ``(violations, files_that_could_not_be_linted)``.
+    """Lint one path; return ``(violations, files_that_could_not_be_linted)``.
 
     The backend trips on pathological documents (its own assertions and
     plugin errors surface as exceptions); one bad file is reported as a
     single line and counted instead of aborting the run.
     """
-    total = 0
-    failed = 0
-    for path in paths:
-        try:
+    try:
+        if fix:
+            was_fixed, violations = engine.fix_file(path)
+        else:
+            was_fixed = False
             violations = engine.scan_file(path)
-        except Exception as exc:  # noqa: BLE001 - one bad file must not abort
-            print(
-                f"error: cannot lint {path}: {error_message(exc)}",
-                file=sys.stderr,
-            )
-            failed += 1
-        else:
-            total += len(violations)
-            if not quiet:
-                for violation in violations:
-                    emit(_format_violation(path, violation))
-        advance()
-    return total, failed
-
-
-def _run_fix(
-    engine: LintEngine,
-    paths: Sequence[Path],
-    *,
-    quiet: bool,
-    emit: Callable[[str], None],
-    advance: Callable[[], None],
-) -> tuple[int, int]:
-    """Fix every path in place; return ``(remaining, failed)``."""
-    total = 0
-    failed = 0
-    for path in paths:
-        try:
-            was_fixed, remaining = engine.fix_file(path)
-        except Exception as exc:  # noqa: BLE001 - one bad file must not abort
-            print(
-                f"error: cannot lint {path}: {error_message(exc)}",
-                file=sys.stderr,
-            )
-            failed += 1
-        else:
-            total += len(remaining)
-            if not quiet:
-                if was_fixed:
-                    emit(f"fixed: {path}")
-                for violation in remaining:
-                    emit(_format_violation(path, violation))
-        advance()
-    return total, failed
+    except Exception as exc:  # noqa: BLE001 - one bad file must not abort
+        print(
+            f"error: cannot lint {path}: {error_message(exc)}",
+            file=sys.stderr,
+        )
+        return 0, 1
+    if not quiet:
+        if was_fixed:
+            emit(f"fixed: {path}")
+        for violation in violations:
+            emit(_format_violation(path, violation))
+    return len(violations), 0
 
 
 def _list_rules(engine: LintEngine) -> int:
@@ -328,8 +297,8 @@ def _dispatch(argv: Sequence[str] | None) -> int:
     finally:
         if progress is not None:
             progress.stop()
-    if not args.quiet:
-        _print_summary(mode, files, total_remaining)
+    # --quiet keeps the summary; only the per-file report and bar are gone.
+    _print_summary(mode, files, total_remaining)
     # Violations win over failures: a file the backend choked on must not
     # mask the findings of the files it did lint.
     if total_remaining:
@@ -344,15 +313,13 @@ def _run_sequential(
     emit: Callable[[str], None],
     advance: Callable[[], None],
 ) -> tuple[int, int]:
-    """Lint *files* in this process, one language group after another."""
-    groups: dict[str, list[Path]] = {}
-    for path in files:
-        lang = _lang_for(path, lang=args.lang, auto=args.auto_lang)
-        groups.setdefault(lang, []).append(path)
-
+    """Lint *files* in this process, reporting in input order."""
+    langs = {
+        _lang_for(path, lang=args.lang, auto=args.auto_lang) for path in files
+    }
     engines: dict[str, LintEngine] = {}
     try:
-        for lang in groups:
+        for lang in sorted(langs):
             engines[lang] = LintEngine(lang)
     except Exception as exc:  # backend failure: plugin load, config, etc.
         print(f"error: {error_message(exc)}", file=sys.stderr)
@@ -360,18 +327,14 @@ def _run_sequential(
 
     total_remaining = 0
     total_failed = 0
-    for lang in sorted(engines):
-        engine = engines[lang]
-        if args.fix:
-            remaining, failed = _run_fix(
-                engine, groups[lang], quiet=args.quiet, emit=emit, advance=advance
-            )
-        else:
-            remaining, failed = _run_check(
-                engine, groups[lang], quiet=args.quiet, emit=emit, advance=advance
-            )
+    for path in files:
+        lang = _lang_for(path, lang=args.lang, auto=args.auto_lang)
+        remaining, failed = _lint_path(
+            engines[lang], path, fix=args.fix, quiet=args.quiet, emit=emit
+        )
         total_remaining += remaining
         total_failed += failed
+        advance()
     return total_remaining, total_failed
 
 

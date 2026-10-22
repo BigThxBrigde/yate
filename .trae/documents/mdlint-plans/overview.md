@@ -125,3 +125,6 @@ flowchart TD
 
 - 2026-10-21：按用户要求移除 git pre-commit hook（提交时不做 lint），
   plan_c 的 hook 部分作废；`tools/mdlint` 与 wiki 发布前 lint 保留。
+- 2026-10-22：第二轮评审（`python-code-review` + `TRAE-code-review` + `pr-review`）
+  修复 5 项并记录 1 项已知限制，详见
+  [plan_a §十一](mdlint-core-plan-a.md)。
