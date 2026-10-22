@@ -250,7 +250,7 @@ def test_extract_language_servers_strips_filetype_whitespace(
             "language_servers": [{
                 "name": "rust-analyzer",
                 "command": "rust-analyzer",
-                "filetypes": [" py ", ".rs "],
+                "filetypes": [" py ", ".rs ", ". rs"],
             }]
         },
         config,
@@ -258,7 +258,7 @@ def test_extract_language_servers_strips_filetype_whitespace(
 
     assert config.errors == []
     assert [spec.filetypes for spec in config.language_servers] == [
-        ["py", "rs"]
+        ["py", "rs", "rs"]
     ]
 
 

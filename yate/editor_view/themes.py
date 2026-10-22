@@ -33,7 +33,7 @@ wave d); the character geometry helpers live in
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 
 from rich.style import Style
 from textual.color import Color as TextualColor
@@ -404,6 +404,10 @@ def available() -> list[str]:
 def register_theme(theme: Theme) -> None:
     """Register a user-defined :class:`Theme` (e.g. loaded from yaterc).
 
+    The registered name is canonicalized (stripped and lower-cased) so the
+    lookup in :func:`yate.editor_view.theme.set_theme`, the ``:theme``
+    command and the startup ``--theme`` option all address the same key.
+
     :raises ValueError: if *theme* fails :func:`validate_theme` (malformed
         name, non-bool ``dark``, unparseable color, translucent opaque field,
         ...).  Built-in themes constructed directly in :data:`THEMES` bypass
@@ -413,12 +417,15 @@ def register_theme(theme: Theme) -> None:
     Note: this only fills :data:`THEMES` -- the *active* theme singleton and
     its broadcast stay owned by :mod:`yate.editor_view.theme`.
     """
+    key = theme.name.strip().lower()
+    if key != theme.name:
+        theme = replace(theme, name=key)
     problems = validate_theme(theme)
     if problems:
         raise ValueError(
             f"invalid theme {theme.name!r}: {'; '.join(problems)}"
         )
-    THEMES[theme.name] = theme
+    THEMES[key] = theme
 
 
 # ---------------------------------------------------------------------------

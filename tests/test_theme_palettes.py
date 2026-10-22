@@ -418,6 +418,22 @@ def test_register_theme_accepts_valid_custom_theme(
         THEMES.pop("valid-custom", None)
 
 
+def test_register_theme_canonicalizes_a_mixed_case_name(
+    builtin_baseline: None,
+) -> None:
+    """A mixed-case custom name is registered under its canonical key."""
+    custom = _bad(name="  MyCustom  ")
+    register_theme(custom)
+    try:
+        assert "mycustom" in THEMES
+        assert THEMES["mycustom"].name == "mycustom"
+        assert "  MyCustom  " not in THEMES
+        assert set_theme("MYCUSTOM ").name == "mycustom"
+    finally:
+        set_theme("mocha")
+        THEMES.pop("mycustom", None)
+
+
 def test_to_textual_theme_raises_on_invalid(builtin_baseline: None) -> None:
     with pytest.raises(ValueError):
         to_textual_theme(_bad(name="bad-bridge", bg="#gggggg"))
