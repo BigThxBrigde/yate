@@ -14,6 +14,8 @@
   [`2026-10-20-full-repo-trae-code-review.md`](2026-10-20-full-repo-trae-code-review.md)、
   [`2026-10-18-full-repo-audit-r3.md`](2026-10-18-full-repo-audit-r3.md)、
   [`2026-10-17-four-skill-review.md`](2026-10-17-four-skill-review.md)
+- 修复方案：[global-review-fixes-plans/overview.md](../documents/global-review-fixes-plans/overview.md)
+  （38 项全部完成，执行记录见该总纲 §八）
 
 ## 一、门禁复测（主代理亲跑，本会话）
 
