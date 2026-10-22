@@ -418,6 +418,16 @@ def test_register_theme_accepts_valid_custom_theme(
         THEMES.pop("valid-custom", None)
 
 
+def test_register_theme_rejects_a_non_string_name(
+    builtin_baseline: None,
+) -> None:
+    """A runtime type violation is a ValueError, not an AttributeError."""
+    before = dict(THEMES)
+    with pytest.raises(ValueError, match="name must be a non-empty str"):
+        register_theme(_bad(name=123))  # type: ignore[arg-type]
+    assert THEMES == before
+
+
 def test_register_theme_canonicalizes_a_mixed_case_name(
     builtin_baseline: None,
 ) -> None:
@@ -428,7 +438,8 @@ def test_register_theme_canonicalizes_a_mixed_case_name(
         assert "mycustom" in THEMES
         assert THEMES["mycustom"].name == "mycustom"
         assert "  MyCustom  " not in THEMES
-        assert set_theme("MYCUSTOM ").name == "mycustom"
+        assert to_textual_theme(THEMES["mycustom"]).name == "yate-mycustom"
+        assert set_theme("  MYCUSTOM  ").name == "mycustom"
     finally:
         set_theme("mocha")
         THEMES.pop("mycustom", None)

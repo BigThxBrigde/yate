@@ -520,7 +520,7 @@ def test_non_string_dict_key_rejected(tmp_path: Path) -> None:
 
 
 def test_dot_only_filetypes_rejected(tmp_path: Path) -> None:
-    for value in ('["."]', '[".."]', '["ok", "."]'):
+    for value in ('["."]', '[".."]', '["ok", "."]', '[" . "]'):
         config = _load(
             'language_servers = [{"name": "x", "command": "x",'
             f' "filetypes": {value}}}]\n',

@@ -417,9 +417,16 @@ def register_theme(theme: Theme) -> None:
     Note: this only fills :data:`THEMES` -- the *active* theme singleton and
     its broadcast stay owned by :mod:`yate.editor_view.theme`.
     """
-    key = theme.name.strip().lower()
-    if key != theme.name:
-        theme = replace(theme, name=key)
+    # Custom themes are user code: the declared ``str`` may be violated at
+    # runtime, so normalize only after proving the type (a non-str name is
+    # reported by validate_theme, not by an AttributeError here).
+    name = theme.name
+    if isinstance(name, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+        key = name.strip().lower()
+        if key != name:
+            theme = replace(theme, name=key)
+    else:
+        key = ""
     problems = validate_theme(theme)
     if problems:
         raise ValueError(
