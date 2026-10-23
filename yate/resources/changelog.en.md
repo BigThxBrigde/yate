@@ -1,6 +1,12 @@
 # Changelog
 
-> Generated from the git history on 2026-10-23 · yate 0.2.13
+> Generated from the git history on 2026-10-23 · yate 0.2.14
+
+## [0.2.14] - 2026-10-23 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.13...v0.2.14)
+
+### Bug Fixes
+
+- make argument-bearing pack.bat runs pass the smoke test ([`cf19a6d`](https://gitee.com/jermaine/yate/commit/cf19a6dcb50944475ba3975eba26aa4c6ba92515))
 
 ## [0.2.13] - 2026-10-23 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.12...v0.2.13)
 
