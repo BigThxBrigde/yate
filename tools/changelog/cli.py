@@ -144,7 +144,11 @@ def generate(
         print(f"error: {exc}")
         return 1
 
-    overrides = translations.load_overrides(overrides_path)
+    try:
+        overrides = translations.load_overrides(overrides_path)
+    except translations.OverrideFileError as exc:
+        print(f"error: {exc}")
+        return 1
 
     pushed: dict[str, bool] = {}
     if online and remote is not None:
@@ -275,7 +279,11 @@ def zh_commit(
         return 1
     short_sha = full_sha[:7]
     english = gitdata.commit_subject(repo, full_sha)
-    overrides = translations.load_overrides(overrides_path)
+    try:
+        overrides = translations.load_overrides(overrides_path)
+    except translations.OverrideFileError as exc:
+        print(f"error: {exc}")
+        return 1
     changed = translations.upsert_override(overrides, short_sha, summary, detail)
     if not changed:
         print(f"unchanged: {short_sha} already has this translation")

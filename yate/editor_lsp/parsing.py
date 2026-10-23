@@ -117,12 +117,22 @@ def _range_from(  # noqa: Any - LSP wire payload, untyped server data
 def _range_to_buffer_cols(
     rng: tuple[int, int, int, int], doc: Document
 ) -> tuple[int, int, int, int]:
-    """Convert a server range's UTF-16 columns to buffer columns."""
+    """Convert a server range's UTF-16 columns to buffer columns.
+
+    Rows outside the document clamp to the nearest real line and columns
+    clamp to the line length, so a stale or broken server range can never
+    index past the buffer.
+    """
     r0, c0, r1, c1 = rng
     lines = doc.buffer.lines
-    line0 = lines[r0] if 0 <= r0 < len(lines) else ""
-    line1 = lines[r1] if 0 <= r1 < len(lines) else ""
-    return (r0, _from_utf16(line0, c0), r1, _from_utf16(line1, c1))
+    last = len(lines) - 1
+    r0 = max(0, min(r0, last))
+    r1 = max(0, min(r1, last))
+    line0 = lines[r0]
+    line1 = lines[r1]
+    col0 = min(max(0, _from_utf16(line0, c0)), len(line0))
+    col1 = min(max(0, _from_utf16(line1, c1)), len(line1))
+    return (r0, col0, r1, col1)
 
 
 def _parse_completion_item(  # noqa: Any - completion items are untyped server wire data
@@ -242,6 +252,14 @@ def _parse_diagnostics(  # noqa: Any - LSP wire payload, untyped server data
         severity = entry.get("severity")
         start_row = max(0, _coord(start, "line"))
         end_row = max(0, _coord(end, "line"))
+        if lines is not None:
+            # A stale server range can point past the document; clamp rows
+            # onto the nearest real line like _range_to_buffer_cols does.
+            # An empty document clamps to row 0 and keeps the empty-line
+            # fallback below.
+            last = len(lines) - 1
+            start_row = max(0, min(start_row, last))
+            end_row = max(0, min(end_row, last))
         line0 = (
             lines[start_row]
             if lines is not None and start_row < len(lines)
@@ -252,11 +270,18 @@ def _parse_diagnostics(  # noqa: Any - LSP wire payload, untyped server data
             if lines is not None and end_row < len(lines)
             else ""
         )
+        start_col = max(0, _from_utf16(line0, _coord(start, "character")))
+        end_col = max(0, _from_utf16(line1, _coord(end, "character")))
+        if lines is not None:
+            # Columns clamp to their line's code-point length (the ASCII
+            # fast path in _from_utf16 passes units through unclamped).
+            start_col = min(start_col, len(line0))
+            end_col = min(end_col, len(line1))
         result.append(Diagnostic(
             start_row=start_row,
-            start_col=max(0, _from_utf16(line0, _coord(start, "character"))),
+            start_col=start_col,
             end_row=end_row,
-            end_col=max(0, _from_utf16(line1, _coord(end, "character"))),
+            end_col=end_col,
             severity=int(severity) if isinstance(severity, int)
             else DiagnosticSeverity.ERROR,
             message=message if isinstance(message, str) else "",

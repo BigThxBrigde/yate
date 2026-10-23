@@ -60,7 +60,7 @@ def compile_query(
         return None
     pattern = query if use_regex else re.escape(query)
     if whole_word:
-        pattern = rf"(?:(?<=\W)|^){pattern}(?=\W|$)"
+        pattern = rf"(?:(?<=\W)|^)(?:{pattern})(?=\W|$)"
     flags = 0 if case_sensitive else re.IGNORECASE
     try:
         return re.compile(pattern, flags)
@@ -143,11 +143,14 @@ def _search_one_file(
     oversized, not decodable as UTF-8 or simply has no matches.
     """
     try:
+        if path.stat().st_size > max_file_bytes:
+            return [], {}
         data = path.read_bytes()
     except OSError:
         log.debug("project search skipped unreadable file %s", path)
         return [], {}
     if len(data) > max_file_bytes:
+        # the file grew between stat and read: keep the post-read guard
         return [], {}
     try:
         text = data.decode("utf-8")

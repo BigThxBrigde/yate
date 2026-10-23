@@ -186,6 +186,10 @@ class EditorView(ScrollView, HighlightMixin):
         # ScrollView.on_mount refreshes scrollbar visibility; skipping it
         # would defer the initial show/hide decision to the first resize.
         super().on_mount()
+        # A structural reconcile (:only) can drop this leaf before its Mount
+        # event is dispatched; painting then would assert in leaf_by_id.
+        if self.panes.leaf_for(self.leaf_id) is None:
+            return
         apply_slim_scrollbars(self)
         self._apply_theme()
         theme.attach(self, self._apply_theme)

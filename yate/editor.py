@@ -725,7 +725,10 @@ class Editor:
         # "ctrl+2"/"ctrl+shift+2"; those toggle the terminal via TOGGLE_KEYS
         # below.
         nul_keys = ("ctrl+space", "ctrl+@")
-        if event.key in nul_keys:
+        # The command line owns its Input: ctrl+space must not open the
+        # completion popup over it and must keep flowing to the prompt bar
+        # (the active_mode branch below hands the event back to the Input).
+        if event.key in nul_keys and not self.prompt_bar.active_mode:
             if editor_focused or event.key == "ctrl+space":
                 self.completion.request(manual=True)
                 return True
@@ -987,10 +990,12 @@ class Editor:
 
     def set_theme(self, name: str) -> None:
         """Switch the active color theme (``mocha``, ``latte``, ...)."""
-        name = name.strip().lower()
+        # Normalization (strip / lower) is single-sourced in
+        # editor_view.theme.set_theme; the shell forwards the raw input.
         # Capture before set_theme: afterwards active().name always equals
-        # *name*, so the re-select case is no longer distinguishable there.
-        reselected = name == theme.active().name
+        # *selected.name*, so the re-select case is no longer distinguishable
+        # there.
+        previous = theme.active().name
         try:
             selected = theme.set_theme(name)
         except KeyError:
@@ -999,10 +1004,11 @@ class Editor:
                 kind="error",
             )
             return
+        reselected = selected.name == previous
         # Lazily ensure the Textual bridge exists (an extension may have
         # registered a yate theme after startup); register_theme is
         # idempotent when the name already exists.
-        textual_name = theme.textual_theme_name(name)
+        textual_name = theme.textual_theme_name(selected.name)
         if self.app.get_theme(textual_name) is None:
             try:
                 self.app.register_theme(theme.to_textual_theme(selected))
@@ -1018,7 +1024,9 @@ class Editor:
         # keep listeners in sync with what actually re-rendered; the
         # confirmation message is emitted either way (pre-branch behavior).
         if not reselected:
-            self.events.emit(EditorEvent.THEME_CHANGED, ThemeChanged(name))
+            self.events.emit(
+                EditorEvent.THEME_CHANGED, ThemeChanged(selected.name)
+            )
         self.message(f"theme: {selected.label}", kind="ok")
 
     def set_readonly(self, value: bool) -> None:

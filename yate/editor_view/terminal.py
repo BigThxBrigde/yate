@@ -44,6 +44,7 @@ from yate.services.workspace import Workspace
 
 from yate.editor_view import theme
 from yate.editor_view.commandline import PromptBar
+from yate.editor_view.themes import Theme
 
 log = tracing.get_logger(__name__)
 
@@ -391,7 +392,7 @@ class TerminalView(Widget):
         return f"[shell exited{suffix}; any key restarts]"
 
     @staticmethod
-    def _cell_style(cell: Any, t: Any) -> Style:
+    def _cell_style(cell: Cell, t: Theme) -> Style:
         fg = _hex(cell.fg)
         bg = _hex(cell.bg) or t.bg
         if cell.dim and cell.fg is None:
@@ -407,7 +408,7 @@ class TerminalView(Widget):
         )
 
     @staticmethod
-    def _cursor_style(cell: Any, t: Any) -> Style:
+    def _cursor_style(cell: Cell, t: Theme) -> Style:
         fg = _hex(cell.fg) or t.fg
         bg = _hex(cell.bg) or t.bg
         if cell.reverse:

@@ -520,7 +520,7 @@ def test_non_string_dict_key_rejected(tmp_path: Path) -> None:
 
 
 def test_dot_only_filetypes_rejected(tmp_path: Path) -> None:
-    for value in ('["."]', '[".."]', '["ok", "."]'):
+    for value in ('["."]', '[".."]', '["ok", "."]', '[" . "]'):
         config = _load(
             'language_servers = [{"name": "x", "command": "x",'
             f' "filetypes": {value}}}]\n',
@@ -530,7 +530,7 @@ def test_dot_only_filetypes_rejected(tmp_path: Path) -> None:
         assert any("name an extension" in e for e in config.errors), (value, config.errors)
 
 
-def test_name_and_command_are_stripped(tmp_path: Path) -> None:
+def test_name_command_and_filetypes_are_stripped(tmp_path: Path) -> None:
     config = _load(
         'language_servers = [{"name": "  go  ", "command": " gopls\\t",'
         ' "filetypes": [" go ", ".go"]}]\n',
@@ -540,8 +540,8 @@ def test_name_and_command_are_stripped(tmp_path: Path) -> None:
     spec = config.language_servers[0]
     assert spec.name == "go"
     assert spec.command == "gopls"
-    # list items other than the leading dot are kept verbatim
-    assert spec.filetypes == [" go ", "go"]
+    # filetypes are canonicalized too: a padded entry would never match
+    assert spec.filetypes == ["go", "go"]
 
 
 def test_extra_unknown_keys_ignored(tmp_path: Path) -> None:

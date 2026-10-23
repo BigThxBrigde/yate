@@ -168,7 +168,9 @@ def _colorize_line(line: str) -> str:
 
 # -------------------------------------------------------------- formatting
 
-def _kv(key: str, value: Any, *, width: int = 18) -> str:
+def _kv(
+    key: str, value: Any, *, width: int = 18,  # noqa: Any - probe values span arbitrary types
+) -> str:
     """``  key : value`` with the key padded to *width* characters."""
     return f"  {key.ljust(width)}: {value}"
 

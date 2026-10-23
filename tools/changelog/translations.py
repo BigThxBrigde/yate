@@ -28,6 +28,10 @@ class OverrideEntry:
     detail: str | None = None
 
 
+class OverrideFileError(Exception):
+    """The hand-maintained override file could not be parsed."""
+
+
 def load_overrides(
     path: Path = DEFAULT_OVERRIDES_PATH,
 ) -> dict[str, OverrideEntry]:
@@ -41,8 +45,17 @@ def load_overrides(
     """
     if not path.exists():
         return {}
-    text = path.read_text(encoding="utf-8")
-    loaded: object = json.loads(text)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        # A hand-maintained file saved in a legacy encoding fails here;
+        # surface it through the dedicated error instead of leaking a
+        # UnicodeDecodeError out of the loader.
+        raise OverrideFileError(f"{path}: cannot read ({exc})") from exc
+    try:
+        loaded: object = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise OverrideFileError(f"{path}: invalid JSON ({exc})") from exc
     if not isinstance(loaded, dict):
         print(
             f"warning: {path}: override file is not a JSON object -- ignored",

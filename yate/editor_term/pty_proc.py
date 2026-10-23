@@ -515,6 +515,10 @@ class _ConPty:
         if not k["CreatePipe"] (ctypes.byref(in_read), ctypes.byref(in_write), None, 0):
             raise PtyProcessError("CreatePipe (input) failed")
         if not k["CreatePipe"](ctypes.byref(out_read), ctypes.byref(out_write), None, 0):
+            # The input pair is already open: release it, or the failed
+            # spawn would leak both handles.
+            k["CloseHandle"](in_read)
+            k["CloseHandle"](in_write)
             raise PtyProcessError("CreatePipe (output) failed")
 
         size = _COORD(self._owner.cols, self._owner.rows)
@@ -614,7 +618,10 @@ class _ConPty:
                     ctypes.byref(read_bytes), None,
                 )
                 count = read_bytes.value
-                if count:
+                # Gate on ok as well: a failed ReadFile leaves the count
+                # untouched, and emitting it would repeat the previous
+                # chunk verbatim.
+                if ok and count:
                     self._owner.emit_output(buffer.raw[:count])
                 if not ok or count == 0:
                     break

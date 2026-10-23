@@ -28,6 +28,7 @@ from manual_doc_fixture import MANUAL_DOC_FIXTURE
 from yate.app import YateApp
 from yate.editor_view import theme as yate_theme
 from yate.editor_view.manual import (
+    DocBody,
     MarkdownDocScreen,
     _strip_text,
     doc_rich_theme,
@@ -195,6 +196,41 @@ def test_fire_search_flushed_immediately_still_works(
                 assert screen._search_timer is None
                 await pilot.pause(MarkdownDocScreen._SEARCH_DEBOUNCE_S * 5)
                 assert calls == ["exit"]
+
+    asyncio.run(scenario())
+
+
+# --- loading fallback ----------------------------------------------------------
+
+
+def test_unreadable_manual_degrades_to_an_error_row() -> None:
+    """A read error of any kind degrades to an error row, never a hang.
+
+    The loader worker runs with ``exit_on_error=False``: an exception
+    escaping ``_load_doc`` would silently retire the worker and leave the
+    loading line up forever -- a non-OSError like ``UnicodeDecodeError``
+    used to do exactly that.
+    """
+    async def scenario() -> None:
+        app = YateApp()
+        with patch(
+            "yate.editor_view.manual.load_doc_markdown",
+            side_effect=UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad"),
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                await pilot.press("f8")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, MarkdownDocScreen)
+                loading = screen.query_one("#doc-loading", Static)
+                assert await wait_until(
+                    pilot, lambda: not loading.display, timeout=15.0
+                )
+                body = screen.query_one("#doc-md", DocBody)
+                assert "failed to load" in body.source
+                # the viewer is still up: no crash, no stuck loading line
+                assert screen in app.screen_stack
 
     asyncio.run(scenario())
 

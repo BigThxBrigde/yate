@@ -33,11 +33,13 @@ wave d); the character geometry helpers live in
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 
 from rich.style import Style
 from textual.color import Color as TextualColor
 from textual.theme import Theme as TextualTheme
+
+from yate.logs import tracing
 
 from yate.editor_syntax.tokens import SYNTAX_KINDS
 
@@ -52,6 +54,8 @@ __all__ = [
     "to_textual_theme",
     "validate_theme",
 ]
+
+log = tracing.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +408,10 @@ def available() -> list[str]:
 def register_theme(theme: Theme) -> None:
     """Register a user-defined :class:`Theme` (e.g. loaded from yaterc).
 
+    The registered name is canonicalized (stripped and lower-cased) so the
+    lookup in :func:`yate.editor_view.theme.set_theme`, the ``:theme``
+    command and the startup ``--theme`` option all address the same key.
+
     :raises ValueError: if *theme* fails :func:`validate_theme` (malformed
         name, non-bool ``dark``, unparseable color, translucent opaque field,
         ...).  Built-in themes constructed directly in :data:`THEMES` bypass
@@ -413,12 +421,27 @@ def register_theme(theme: Theme) -> None:
     Note: this only fills :data:`THEMES` -- the *active* theme singleton and
     its broadcast stay owned by :mod:`yate.editor_view.theme`.
     """
+    # Custom themes are user code: the declared ``str`` may be violated at
+    # runtime, so normalize only after proving the type (a non-str name is
+    # reported by validate_theme, not by an AttributeError here).
+    name = theme.name
+    if isinstance(name, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+        key = name.strip().lower()
+        if key != name:
+            theme = replace(theme, name=key)
+    else:
+        key = ""
     problems = validate_theme(theme)
     if problems:
         raise ValueError(
             f"invalid theme {theme.name!r}: {'; '.join(problems)}"
         )
-    THEMES[theme.name] = theme
+    # An overwrite with identical content is the idempotent re-registration
+    # (theme files reload on :set theme-dirs); only a *changed* palette
+    # silently replacing a live theme is worth a tracing warning.
+    if key in THEMES and THEMES[key] != theme:
+        log.warning("custom theme %r overwrites a registered theme", key)
+    THEMES[key] = theme
 
 
 # ---------------------------------------------------------------------------
@@ -441,8 +464,16 @@ def textual_theme_name(name: str) -> str:
     return f"{TEXTUAL_THEME_PREFIX}{name}"
 
 
-#: yate ``Theme`` color fields the bridge maps into Textual.  Order is
-#: irrelevant; the tuple doubles as an exhaustive iterable for validation.
+#: Every color slot on :class:`Theme` (``name`` / ``label`` / ``dark`` /
+#: ``extra`` are not colors).  Derived from the dataclass so a new color field
+#: cannot silently escape validation.
+_COLOR_FIELDS: tuple[str, ...] = tuple(
+    f.name for f in fields(Theme)
+    if f.name not in ("name", "label", "dark", "extra")
+)
+
+#: yate ``Theme`` color fields the bridge maps into Textual.  Validation
+#: iterates :data:`_COLOR_FIELDS` (every declared slot), not this subset.
 _MAPPED_COLOR_FIELDS: tuple[str, ...] = (
     "bg", "panel", "surface", "fg", "fg_dim", "fg_muted", "fg_bright",
     "accent", "accent2", "green", "yellow", "red", "orange",
@@ -461,11 +492,11 @@ _DOC_HIT_RE: re.Pattern[str] = re.compile(
 def validate_theme(t: Theme) -> list[str]:
     """Return a list of human-readable problems with *t* (empty = valid).
 
-    Checks exactly the fields the Textual bridge consumes:
+    Checks the identity fields and every color slot declared on the theme:
 
     1. ``name`` is a non-empty ``str``;
     2. ``dark`` is a ``bool``;
-    3. every color in :data:`_MAPPED_COLOR_FIELDS` parses as a Textual color;
+    3. every color slot declared on :class:`Theme` parses as a Textual color;
        the :data:`_OPAQUE_FIELDS` subset must additionally be fully opaque;
     4. the two doc-hit ``<hex> <percent>`` variables in ``t.extra``, when
        present, must be well-formed (``#rrggbb`` + ``0-100``).
@@ -485,7 +516,7 @@ def validate_theme(t: Theme) -> list[str]:
     if not isinstance(t.dark, bool):  # pyright: ignore[reportUnnecessaryIsInstance]
         problems.append("dark must be a bool")
 
-    for field_name in _MAPPED_COLOR_FIELDS:
+    for field_name in _COLOR_FIELDS:
         value = getattr(t, field_name, None)
         if not isinstance(value, str) or not value:  # pyright: ignore[reportUnnecessaryIsInstance]
             problems.append(f"{field_name} must be a non-empty color str")

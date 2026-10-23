@@ -85,6 +85,17 @@ class Document:
 
     @staticmethod
     def _decode(raw: bytes) -> tuple[str, str]:
+        # A valid UTF-8 BOM wins over the plain decode order below: decoding
+        # the raw bytes as ``utf-8`` would leave the U+FEFF character on the
+        # first line.  ``utf-8-sig`` strips it and re-adds the BOM on save,
+        # so the file round-trips byte for byte.  A BOM followed by invalid
+        # UTF-8 is not a UTF-8 file at all and falls through to the legacy
+        # order below instead.
+        if raw.startswith(b"\xef\xbb\xbf"):
+            try:
+                return raw.decode("utf-8-sig"), "utf-8-sig"
+            except UnicodeDecodeError:
+                pass
         for enc in ("utf-8", locale.getpreferredencoding(False), "cp1252"):
             if not enc:
                 continue

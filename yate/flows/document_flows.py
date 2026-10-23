@@ -173,7 +173,12 @@ class DocumentFlows:
     ) -> Document | None:
         """Open/reuse *path*; ``None`` when it is not a text file."""
         reused = self.session.is_open(path) is not None
-        doc = self.session.open(path)
+        try:
+            doc = self.session.open(path)
+        except OSError as exc:
+            self._report(f"cannot open {path.name}: {exc}", "warn")
+            log.warning("open failed: %s (%s)", path, exc)
+            return None
         if doc is None:
             self._report(f"not a text file: {path.name}", "warn")
             log.info("open skipped (binary): %s", path)
@@ -192,7 +197,12 @@ class DocumentFlows:
     ) -> Document | None:
         """Like :meth:`_open_document`, but the disk read runs off the loop."""
         reused = self.session.is_open(path) is not None
-        doc = await self.session.open_async(path)
+        try:
+            doc = await self.session.open_async(path)
+        except OSError as exc:
+            self._report(f"cannot open {path.name}: {exc}", "warn")
+            log.warning("open failed (async): %s (%s)", path, exc)
+            return None
         if doc is None:
             self._report(f"not a text file: {path.name}", "warn")
             return None

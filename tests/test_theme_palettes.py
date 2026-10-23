@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 from collections.abc import Iterator
@@ -150,6 +151,17 @@ def test_set_theme_switches_and_unknown_theme_lists_builtins(
     message = str(ctx.value)
     for name in BUILTIN_THEMES:
         assert name in message
+
+
+def test_set_theme_normalizes_case_and_whitespace(
+    builtin_baseline: None,
+) -> None:
+    """Names are stripped and lower-cased before the registry lookup."""
+    try:
+        set_theme("  MoChA  ")
+        assert theme.active().name == "mocha"
+    finally:
+        set_theme("mocha")
 
 
 # --- shipped *.example templates -------------------------------------------
@@ -368,6 +380,24 @@ def test_validate_theme_rejects_translucent_background(
     assert any("bg" in p and "opaque" in p for p in problems)
 
 
+def test_validate_theme_rejects_an_invalid_unmapped_color(
+    builtin_baseline: None,
+) -> None:
+    # a syntax slot is outside the Textual bridge mapping but still a
+    # declared color field: it must not escape validation
+    problems = validate_theme(_bad(name="bad-syn", syn_keyword="nope"))
+    assert any("syn_keyword" in p for p in problems)
+
+
+def test_validate_theme_rejects_an_invalid_selection_color(
+    builtin_baseline: None,
+) -> None:
+    problems = validate_theme(
+        _bad(name="bad-selection", selection_bg="not-a-color")
+    )
+    assert any("selection_bg" in p for p in problems)
+
+
 def test_register_theme_raises_and_leaves_registry_unchanged(
     builtin_baseline: None,
 ) -> None:
@@ -387,6 +417,65 @@ def test_register_theme_accepts_valid_custom_theme(
         assert THEMES["valid-custom"] is good
     finally:
         THEMES.pop("valid-custom", None)
+
+
+def test_register_theme_rejects_a_non_string_name(
+    builtin_baseline: None,
+) -> None:
+    """A runtime type violation is a ValueError, not an AttributeError."""
+    before = dict(THEMES)
+    with pytest.raises(ValueError, match="name must be a non-empty str"):
+        register_theme(_bad(name=123))  # type: ignore[arg-type]
+    assert THEMES == before
+
+
+def test_register_theme_canonicalizes_a_mixed_case_name(
+    builtin_baseline: None,
+) -> None:
+    """A mixed-case custom name is registered under its canonical key."""
+    custom = _bad(name="  MyCustom  ")
+    register_theme(custom)
+    try:
+        assert "mycustom" in THEMES
+        assert THEMES["mycustom"].name == "mycustom"
+        assert "  MyCustom  " not in THEMES
+        assert to_textual_theme(THEMES["mycustom"]).name == "yate-mycustom"
+        assert set_theme("  MYCUSTOM  ").name == "mycustom"
+    finally:
+        set_theme("mocha")
+        THEMES.pop("mycustom", None)
+
+
+def test_register_theme_warns_on_overwrite_not_on_re_registration(
+    builtin_baseline: None, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Overwriting a registered theme with *different* content warns through
+    tracing; re-registering identical content stays silent (idempotent)."""
+    first = _bad(name="overwrite-me")
+    try:
+        with caplog.at_level(logging.WARNING, logger="yate.editor_view.themes"):
+            register_theme(first)  # new key: never warns
+            assert not [
+                r for r in caplog.records if "overwrite-me" in r.getMessage()
+            ]
+
+            changed = _bad(name="overwrite-me", bg="#000000")
+            assert changed != first
+            caplog.clear()
+            register_theme(changed)
+            assert any(
+                "overwrite-me" in r.getMessage()
+                and "overwrites a registered theme" in r.getMessage()
+                for r in caplog.records
+            )
+
+            caplog.clear()
+            register_theme(changed)  # identical content: idempotent, silent
+            assert not [
+                r for r in caplog.records if "overwrite-me" in r.getMessage()
+            ]
+    finally:
+        THEMES.pop("overwrite-me", None)
 
 
 def test_to_textual_theme_raises_on_invalid(builtin_baseline: None) -> None:

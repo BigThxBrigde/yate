@@ -36,6 +36,21 @@ def test_vk_helpers_classify_letters_and_digits() -> None:
     assert not vk_is_digit(0x2F) and not vk_is_digit(0x3A)
 
 
+def test_win32_frame_char_text_rejects_out_of_range_codepoints() -> None:
+    """char_text is empty for a zero, negative or beyond-Unicode char
+    field instead of raising ValueError from chr()."""
+    assert Win32InputFrame(1, 0, 0x110000, 0, 0, 0).char_text == ""
+    assert Win32InputFrame(1, 0, -1, 0, 0, 0).char_text == ""
+    assert Win32InputFrame(1, 0, 0x41, 0, 0, 0).char_text == "A"
+
+
+def test_win32_frame_char_text_rejects_surrogate_code_units() -> None:
+    """Lone UTF-16 surrogate halves are not characters: char_text must be
+    empty for both ends of the 0xD800-0xDFFF range."""
+    assert Win32InputFrame(1, 0, 0xD800, 0, 0, 0).char_text == ""
+    assert Win32InputFrame(1, 0, 0xDFFF, 0, 0, 0).char_text == ""
+
+
 def test_chord_to_key_name_covers_phase_b_target_chords() -> None:
     # The chords legacy terminals cannot deliver, named canonically.
     assert chord_to_key_name(KeyChord(0x31, ctrl=True)) == "ctrl+1"

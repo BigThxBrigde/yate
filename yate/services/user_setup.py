@@ -272,7 +272,13 @@ def cleanup_defaults(
             errors.append(f"{path.name}/: {exc}")
 
     base_removed = False
-    if not any(base.iterdir()):
+    try:
+        empty = not any(base.iterdir())
+    except OSError as exc:
+        # Report instead of escaping from the error-collecting function.
+        errors.append(f"{base.name}/: {exc}")
+        empty = False
+    if empty:
         try:
             base.rmdir()
             base_removed = True

@@ -94,7 +94,12 @@ class Win32InputFrame:
     @property
     def char_text(self) -> str:
         """Return the frame's UCS character as text (``""`` when absent)."""
-        return chr(self.char) if self.char else ""
+        code = self.char
+        # Lone UTF-16 surrogate halves (0xD800-0xDFFF) are not characters:
+        # chr() accepts them but the decoded text must never carry one.
+        if not 0 < code <= 0x10FFFF or 0xD800 <= code <= 0xDFFF:
+            return ""
+        return chr(code)
 
 
 def _decode_frame(fields: str) -> Win32InputFrame:

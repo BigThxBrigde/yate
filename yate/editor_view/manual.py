@@ -480,7 +480,8 @@ class MarkdownDocScreen(ModalScreen[None]):
             source = await asyncio.to_thread(
                 load_doc_markdown, self._kind, self._lang
             )
-        except OSError as exc:  # pragma: no cover - resources are bundled
+        except Exception as exc:  # noqa: BLE001 - a bad read must not hang the viewer
+            log.exception("failed to load the %s", self._title)
             source = f"failed to load the {self._title}: {exc}"
         # the viewer may have been closed while the read was in flight
         if not self.is_mounted:

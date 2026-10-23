@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from yate.editor_core.buffer import TextBuffer
+from yate.editor_core.document import Document
 from yate.editor_lsp.manager import LspManager
 from yate.keymaps.base import KeyBinding, Keymap
 from yate.keymaps.registry import KeymapSet
@@ -252,17 +254,17 @@ class ExtensionAPI:
         return self._ctx
 
     @property
-    def buffer(self):
+    def buffer(self) -> TextBuffer:
         """The buffer of the active document."""
         return self._ctx.session.buffer
 
     @property
-    def doc(self):
+    def doc(self) -> Document:
         """The active document."""
         return self._ctx.session.doc
 
     @property
-    def workspace(self):
+    def workspace(self) -> Workspace:
         """The open workspace."""
         return self._ctx.workspace
 

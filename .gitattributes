@@ -1,3 +1,7 @@
 # Shell scripts must keep LF even on Windows checkouts, or the shebang and
 # bash parsing break once the file lands on a Linux build machine.
 *.sh text eol=lf
+
+# Lua sources are LF-only (tools/lint_lua.py rejects CR bytes); a Windows
+# autocrlf checkout must not turn every bundled file into a lint violation.
+*.lua text eol=lf

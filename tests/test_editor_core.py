@@ -326,6 +326,19 @@ def test_replace_all() -> None:
     assert buf.get_text() == "fox dog fox"
 
 
+def test_replace_all_with_multiline_replacement_splits_rows() -> None:
+    """A replacement containing newlines re-rows the buffer via one
+    ``replace_range`` edit, so a single undo restores the original text."""
+    buf = TextBuffer("cat dog")
+    engine = SearchEngine()
+    engine.update("cat", buf)
+    assert engine.replace_all(buf, "x\ny") == 1
+    assert buf.lines == ["x", "y dog"]
+    assert buf.line_count == 2
+    assert buf.undo()
+    assert buf.get_text() == "cat dog"
+
+
 def test_regex_search() -> None:
     buf = TextBuffer("a1 b2 c3")
     engine = SearchEngine()
@@ -346,6 +359,20 @@ def test_save_and_reopen(tmp_path: Path) -> None:
     assert not reopened.modified
     reopened.buffer.insert_text("x")
     assert reopened.modified
+
+
+def test_open_strips_bom_and_save_keeps_it(tmp_path: Path) -> None:
+    """A UTF-8 BOM is stripped on open (no U+FEFF left on the first line)
+    and re-emitted by ``save`` via the ``utf-8-sig`` codec, so the file
+    round-trips byte for byte."""
+    path = tmp_path / "bom.txt"
+    path.write_bytes(b"\xef\xbb\xbfhello\n")
+    doc = Document.open(path)
+    assert doc.buffer.lines[0] == "hello"
+    doc.buffer.insert_text("x")
+    doc.save()
+    assert doc.encoding == "utf-8-sig"
+    assert path.read_bytes().startswith(b"\xef\xbb\xbf")
 
 
 def test_save_is_atomic_and_leaves_no_temp_file(tmp_path: Path) -> None:
@@ -1136,6 +1163,18 @@ def test_linewise_paste_below_on_the_last_line_appends_after_it() -> None:
     buf.paste(below=True)
     assert buf.lines == ["a", "c", "b"]
     assert buf.cursor[0] == 2
+
+
+def test_paste_linewise_empty_register_at_last_line_keeps_cursor() -> None:
+    """An empty line-wise register leaves no line to walk back onto: the
+    unconditional ``move_line_end(); move_left()`` stepped the cursor back
+    onto the previous line's last character."""
+    buf = TextBuffer("abc")
+    buf.register = "\n"
+    buf.cursor = (0, 0)
+    buf.paste(below=True)
+    assert buf.lines == ["abc", ""]
+    assert buf.cursor == (1, 0)
 
 
 def test_linewise_paste_below_leaves_cursor_on_the_last_pasted_line() -> None:

@@ -63,8 +63,8 @@ class LanguageServerSpec:
     filetypes: list[str]
     args: list[str] = field(default_factory=list[str])
     language_ids: dict[str, str] = field(default_factory=dict[str, str])
-    initialization_options: Any = None
-    settings: Any = None
+    initialization_options: Any = None  # noqa: Any - arbitrary LSP JSON
+    settings: Any = None  # noqa: Any - arbitrary LSP JSON
     env: dict[str, str] | None = None
     root_markers: list[str] | None = None
 

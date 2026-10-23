@@ -277,12 +277,12 @@ def assert_tag_available(repo: Path, version: str) -> None:
         raise RuntimeError(f"refusing to release: tag {tag} already exists on origin")
 
 
-def _snapshot_texts(repo: Path, files: Sequence[str]) -> dict[str, str | None]:
+def _snapshot_texts(repo: Path, files: Sequence[str]) -> dict[str, bytes | None]:
     """Pre-run content of *files*; ``None`` marks a not-yet-existing file."""
-    snapshots: dict[str, str | None] = {}
+    snapshots: dict[str, bytes | None] = {}
     for rel in files:
         path = repo / rel
-        snapshots[rel] = path.read_text(encoding="utf-8") if path.exists() else None
+        snapshots[rel] = path.read_bytes() if path.exists() else None
     return snapshots
 
 
@@ -335,7 +335,7 @@ def _abort_with_rollback(
     version: str,
     push_branch: str,
     orig_head: str,
-    snapshots: dict[str, str | None],
+    snapshots: dict[str, bytes | None],
     state: _RunState,
 ) -> int:
     """Report the failure, undo the partial release, return exit code 1.
@@ -360,12 +360,12 @@ def _abort_with_rollback(
     if state.tag_created:
         gitdata.run_git(["tag", "-d", f"v{version}"], repo=repo)
     gitdata.run_git(["reset", "--mixed", orig_head], repo=repo)
-    for rel, text in snapshots.items():
+    for rel, data in snapshots.items():
         path = repo / rel
-        if text is None:
+        if data is None:
             path.unlink(missing_ok=True)
         else:
-            path.write_text(text, encoding="utf-8")
+            path.write_bytes(data)
     print(
         f"rolled back: tag removed, branch reset to {orig_head[:7]}, "
         "files restored",

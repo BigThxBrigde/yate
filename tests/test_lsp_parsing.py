@@ -14,9 +14,12 @@ are exercised against real buffer lines.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from yate.config import YateConfig
+from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_lsp.client import Completion
 from yate.editor_lsp.parsing import (
@@ -125,9 +128,25 @@ def test_range_from_malformed_returns_none() -> None:
 
 def test_range_to_buffer_cols_converts_utf16_columns(doc: Document) -> None:
     """UTF-16 server columns map to code-point buffer columns; an
-    out-of-range row converts against the empty line (column 0 stays 0)."""
+    out-of-range row clamps to the last line (column 0 stays 0)."""
     assert _range_to_buffer_cols((1, 1, 1, 3), doc) == (1, 1, 1, 2)
-    assert _range_to_buffer_cols((5, 0, 5, 0), doc) == (5, 0, 5, 0)
+    assert _range_to_buffer_cols((5, 0, 5, 0), doc) == (2, 0, 2, 0)
+
+
+def test_range_to_buffer_cols_clamps_negative_and_past_end_rows() -> None:
+    """Rows outside the document clamp to the nearest real line."""
+    four = Document(None, TextBuffer("aaa\nbbb\nccc\nddd"))
+    assert _range_to_buffer_cols((-1, 0, 9, 0), four) == (0, 0, 3, 0)
+
+
+def test_range_to_buffer_cols_clamps_columns_to_the_line_length(
+    doc: Document,
+) -> None:
+    """Columns beyond the line clamp to the line length (code points)."""
+    r0, c0, r1, c1 = _range_to_buffer_cols((0, 99, 1, 99), doc)
+    assert (r0, r1) == (0, 1)
+    assert c0 == len(doc.buffer.lines[0])
+    assert c1 == len(doc.buffer.lines[1])
 
 
 # --- completion item parsing -------------------------------------------------
@@ -207,3 +226,48 @@ def test_parse_diagnostics_ignores_a_null_payload() -> None:
 def test_parse_diagnostics_ignores_a_dict_payload() -> None:
     """A dict diagnostics payload yields no diagnostics (no raise)."""
     assert _parse_diagnostics({"diagnostics": []}) == []
+
+
+def test_parse_diagnostics_clamp_rows_and_cols_to_the_document() -> None:
+    """Stale server ranges clamp onto the document like completion ranges
+    do: rows onto the nearest real line, columns onto their line length."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": 9, "character": 99},
+            "end": {"line": -1, "character": 0},
+        },
+        "message": "m",
+    }]
+    diags = _parse_diagnostics(raw, ["hello", "world"])
+    assert [(d.start_row, d.start_col) for d in diags] == [(1, 5)]
+    assert [(d.end_row, d.end_col) for d in diags] == [(0, 0)]
+
+
+def test_parse_diagnostics_empty_document_clamps_to_row_zero() -> None:
+    """An empty document clamps rows to 0 and keeps the empty-line
+    fallback, so columns degrade to 0 instead of pointing anywhere."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": 3, "character": 7},
+            "end": {"line": 3, "character": 7},
+        },
+        "message": "m",
+    }]
+    diags = _parse_diagnostics(raw, [])
+    assert [(d.start_row, d.start_col) for d in diags] == [(0, 0)]
+    assert [(d.end_row, d.end_col) for d in diags] == [(0, 0)]
+
+
+def test_parse_diagnostics_without_lines_keeps_raw_columns() -> None:
+    """Without a document snapshot the wire columns stay unconverted
+    (existing behavior); rows keep the max(0, ...) floor only."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": 9, "character": 99},
+            "end": {"line": -1, "character": 0},
+        },
+        "message": "m",
+    }]
+    diags = _parse_diagnostics(raw)
+    assert [(d.start_row, d.start_col) for d in diags] == [(9, 99)]
+    assert [(d.end_row, d.end_col) for d in diags] == [(0, 0)]

@@ -925,6 +925,26 @@ def test_extensions_capture_map_and_failure_clearing() -> None:
 # --- broken built-in packs --------------------------------------------------
 
 
+@_python_skip
+def test_load_language_refuses_a_builtin_pack_name() -> None:
+    """An extension may not replace a BUILTIN_PACKS language: load_language
+    raises, the registry entry survives untouched, and drop_language is
+    still a no-op for the built-in name."""
+    import tree_sitter as ts
+    import tree_sitter_python
+
+    language = ts.Language(tree_sitter_python.language())
+    sentinel = ts_langs._load_builtin("python")
+    assert sentinel is not None
+    with mock.patch.dict(ts_langs._LANGS, {}, clear=True):
+        ts_langs._LANGS["python"] = sentinel
+        with pytest.raises(ValueError, match="built-in tree-sitter language"):
+            ts_langs.load_language("python", language, "(identifier) @variable")
+        assert ts_langs._LANGS["python"] is sentinel
+        ts_langs.drop_language("python")
+        assert ts_langs._LANGS["python"] is sentinel
+
+
 @_ts_skip
 def test_missing_pack_returns_none_then_caches_the_failure() -> None:
     with (

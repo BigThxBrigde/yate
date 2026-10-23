@@ -97,6 +97,10 @@ def parse_key(spec: str) -> str:
     body = spec[1:-1].lower()
     tokens = body.split("-")
     modifiers = set(tokens[:-1])
+    unknown = modifiers - {"shift", "alt", "ctrl"}
+    if unknown:
+        # A typo like "<ctr-s>" must not silently bind the unmodified key.
+        raise ValueError(f"unknown modifier(s) in spec: {spec!r}")
     name = tokens[-1]
 
     if name in SPECIAL_KEYS:

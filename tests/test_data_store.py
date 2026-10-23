@@ -5,6 +5,10 @@ at a per-test temporary directory, so every write here lands in a throwaway
 ``~/.yate/data`` and never touches the real user directory.
 """
 
+# _has_drive_prefix is the module's private portable-drive seam (pinned
+# directly by one test below, same precedent as tests/test_diagnostics.py).
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,6 +16,20 @@ from pathlib import Path
 import pytest
 
 from yate.services import data_store
+from yate.services.data_store import _has_drive_prefix
+
+
+def test_has_drive_prefix_is_platform_independent() -> None:
+    """Direct test of the portable drive check, no pathlib involved.
+
+    On Windows pathlib itself parses ``X:`` into ``Path.drive``, so the
+    portable branch in ``resolve`` is unreachable there; the helper must
+    therefore be pinned directly, cross-platform, on raw strings.
+    """
+    assert _has_drive_prefix("C:foo")
+    assert _has_drive_prefix("a:b")
+    assert not _has_drive_prefix("games")
+    assert not _has_drive_prefix("")
 
 
 def test_read_missing_file_returns_none() -> None:
@@ -82,6 +100,8 @@ def test_names_lists_files_sorted_and_tolerates_missing_dir() -> None:
         "C:\\Windows\\evil.json",
         "C:/Windows/evil.json",
         "games\\evil.json",
+        "C:foo/bar",
+        "d:relative.json",
     ],
 )
 def test_rejects_absolute_and_traversal_names(name: str) -> None:
@@ -89,7 +109,9 @@ def test_rejects_absolute_and_traversal_names(name: str) -> None:
 
     The Windows-flavoured names must be rejected on every platform: on POSIX
     a backslash is a legal filename character and a ``C:/`` prefix an
-    ordinary relative directory, so only explicit checks catch them.
+    ordinary relative directory, so only explicit checks catch them.  The
+    drive-relative forms ("C:foo/bar") keep the drive inside the first path
+    part, so they need the portable drive-prefix check as well.
     """
     with pytest.raises(ValueError):
         data_store.write_text(name, "x")

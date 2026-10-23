@@ -71,12 +71,42 @@ def test_cell_to_char_maps_back_from_cell_column() -> None:
     assert cell_to_char("ab", 99) == 2
 
 
+def test_cell_to_char_skips_attached_marks_before_the_boundary() -> None:
+    # cell 1 is the column right after 'a': the combining mark attaches to
+    # that cell, so the boundary test must not stop on the mark -- the
+    # click lands on the next base character 'b'
+    line = "a" + COMBINING_ACUTE + "b"
+    assert cell_to_char(line, 1) == 2
+    # the inverse map round-trips through char_to_cell for the base
+    # characters and the line end (the mark index itself shares cell 1
+    # with 'b', so the many-to-one forward map cannot round-trip it)
+    for i in (0, 2, 3):
+        assert cell_to_char(line, char_to_cell(line, i)) == i
+
+
 def test_cell_offsets_matches_char_to_cell_prefix() -> None:
     line = "a\t中b"
     offsets = cell_offsets(line)
     assert len(offsets) == len(line) + 1
     for i in range(len(line) + 1):
         assert offsets[i] == char_to_cell(line, i)
+
+
+def test_cell_offsets_keep_a_combining_mark_in_the_previous_cell() -> None:
+    # a mid-line combining mark advances nothing: it rides the previous cell
+    assert cell_offsets("a" + COMBINING_ACUTE + "b") == [0, 1, 1, 2]
+
+
+def test_char_to_cell_and_cell_offsets_agree_on_combining_marks() -> None:
+    line = COMBINING_ACUTE + "a" + COMBINING_ACUTE + "b"
+    offsets = cell_offsets(line)
+    for i in range(len(line) + 1):
+        assert offsets[i] == char_to_cell(line, i)
+
+
+def test_leading_combining_mark_still_occupies_one_cell() -> None:
+    # a leading mark degrades to one cell, like expand_char
+    assert cell_offsets(COMBINING_ACUTE + "a") == [0, 1, 2]
 
 
 # --- expand_char ---------------------------------------------------------------

@@ -77,7 +77,11 @@ def char_to_cell(line: str, char_index: int, tab_width: int = 4) -> int:
         if ch == "\t":
             cells += tab_width - (cells % tab_width)
         else:
-            cells += max(1, cell_width(ch))
+            width = cell_width(ch)
+            if width == 0 and cells:
+                # combining mark attaches to the previous cell (expand_char)
+                continue
+            cells += max(1, width)
     return cells
 
 
@@ -85,6 +89,11 @@ def cell_to_char(line: str, cell: int, tab_width: int = 4) -> int:
     """Map a display *cell* column back to a character index."""
     cells = 0
     for i, ch in enumerate(line):
+        if ch != "\t" and cell_width(ch) == 0 and cells:
+            # a combining mark attaches to the previous cell: it starts none
+            # (skip it before the boundary test, so the column right after a
+            # combining cluster lands on the next base character)
+            continue
         if cells >= cell:
             return i
         if ch == "\t":
@@ -99,11 +108,12 @@ def cell_offsets(line: str, tab_width: int = 4) -> list[int]:
 
     ``offsets[i]`` equals ``char_to_cell(line, i, tab_width)`` for every
     ``0 <= i <= len(line)`` (the arithmetic replicates :func:`char_to_cell`
-    exactly: tabs advance to the next tab stop, any other character -- zero
-    width included -- occupies ``max(1, cell_width)`` cells in this mapping).
-    Callers walking many positions of the same line (per-token render
-    mapping) build the table once and then index it in O(1) instead of
-    rescanning the line prefix per lookup.
+    exactly: tabs advance to the next tab stop; a zero-width combining mark
+    occupies 0 cells and repeats the previous offset, while a leading mark
+    degrades to one cell like :func:`expand_char`).  Callers walking many
+    positions of the same line (per-token render mapping) build the table
+    once and then index it in O(1) instead of rescanning the line prefix
+    per lookup.
     """
     offsets = [0] * (len(line) + 1)
     cells = 0
@@ -112,7 +122,12 @@ def cell_offsets(line: str, tab_width: int = 4) -> list[int]:
         if ch == "\t":
             cells += tab_width - (cells % tab_width)
         else:
-            cells += max(1, cell_width(ch))
+            width = cell_width(ch)
+            # a combining mark attaches to the previous cell (expand_char),
+            # so it advances nothing once cells exist; a leading mark still
+            # degrades to one cell like expand_char
+            if width != 0 or cells == 0:
+                cells += max(1, width)
         i += 1
         offsets[i] = cells
     return offsets

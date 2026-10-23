@@ -263,7 +263,28 @@ def create_scaffold(name: str, parent: Path, force: bool = False) -> list[Path]:
             raise yxp.YxpError(
                 f"{target} already exists (use --force to replace)"
             )
-        shutil.rmtree(target)
+        if not target.is_dir():
+            raise yxp.YxpError(
+                f"refusing to remove {target}: not a directory"
+            )
+        try:
+            metadata = read_source_metadata(target)
+        except yxp.YxpError as exc:
+            raise yxp.YxpError(
+                f"refusing to remove {target}: not an extension scaffold "
+                f"({exc})"
+            ) from exc
+        if metadata.get("name") != name:
+            raise yxp.YxpError(
+                f"refusing to remove {target}: scaffold metadata names "
+                f"{metadata.get('name')!r}, not {name!r}"
+            )
+        try:
+            shutil.rmtree(target)
+        except OSError as exc:
+            raise yxp.YxpError(
+                f"cannot remove old scaffold {target} ({exc})"
+            ) from exc
     command = name.lower().replace("_", "-").replace(".", "-")
     starter = _STARTER_TEMPLATE.format(name=name, command=command)
     manifest = {
