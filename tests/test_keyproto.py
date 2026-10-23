@@ -262,6 +262,80 @@ def test_textual_internals_is_the_only_private_api_consumer() -> None:
             assert private == [], (path, private)
 
 
+def test_frame_stream_translates_kitty_chords_to_canonical_names() -> None:
+    """Kitty CSI-u frames with ctrl/alt arrive in the win32 shape (IKPTMH).
+
+    The chord driver no longer pushes kitty, but a kitty keyboard mode left
+    behind by an earlier session must still dispatch, not replay as text.
+    """
+    frames, residual = _feed(
+        "\x1b[112;4u"  # alt+shift+p (mods 4 = 1 + shift|alt)
+        + "\x1b[49;5u"  # ctrl+1
+        + "\x1b[101;6u"  # ctrl+shift+e
+        + "\x1b[47;3u"  # alt+/
+        + "\x1b[32;5u"  # ctrl+space
+        + "\x1b[101;6;5u"  # ctrl+shift+e with the text field (U+0005)
+    )
+    assert residual == ""
+    assert [frame_to_key_name(frame) for frame in frames] == [
+        "alt+shift+p",
+        "ctrl+1",
+        "ctrl+shift+e",
+        "alt+/",
+        "ctrl+space",
+        "ctrl+shift+e",
+    ]
+    # the sequence character rides the character path like a win32 frame
+    assert frame_to_char(frames[0]) == "p"
+    assert frame_to_char(frames[5]) == "\x05"
+
+
+def test_frame_stream_leaves_untranslatable_kitty_sequences_to_the_parser() -> None:
+    """Anything the chord path cannot name reaches Textual byte-for-byte."""
+    cases = [
+        "\x1b[97u",  # plain 'a': no modifiers
+        "\x1b[112;2u",  # shift-only: the parser owns shifted text
+        "\x1b[57358;5u",  # functional key code (kitty private use)
+        "\x1b[97;9u",  # super bit: no win32 counterpart in the chord model
+        "\x1b[59;5u",  # ctrl+';' -- codepoint outside the nameable subset
+        "\x1b[97;5;97:98u",  # multi-codepoint text
+    ]
+    for sequence in cases:
+        frames, residual = _feed("a" + sequence + "b")
+        assert frames == [], sequence
+        assert residual == "a" + sequence + "b", sequence
+
+
+def test_frame_stream_drops_kitty_release_events() -> None:
+    """A kitty release frame must not deliver the chord a second time."""
+    frames, residual = _feed("\x1b[112;4:3u")
+    assert residual == ""
+    assert len(frames) == 1
+    assert frame_to_key_name(frames[0]) is None
+    assert frame_to_char(frames[0]) == ""
+
+
+def test_frame_stream_holds_partial_kitty_sequence_across_feeds() -> None:
+    stream = Win32FrameStream()
+    frames, residual = stream.feed("x\x1b[112")
+    assert frames == [] and residual == "x"
+    frames, residual = stream.feed(";4uy")
+    assert [frame_to_key_name(frame) for frame in frames] == ["alt+shift+p"]
+    assert residual == "y"
+
+
+def test_windows_driver_enables_one_keyboard_protocol() -> None:
+    """Only win32-input-mode is pushed: enabling kitty too breaks WezTerm.
+
+    Issue IKPTMH: WezTerm answers the kitty push and prefers its CSI-u
+    encoding, which the frame stream did not decode at the time.
+    """
+    path = Path(__file__).resolve().parent.parent / "yate" / "keyproto" / "driver_windows.py"
+    source = path.read_text(encoding="utf-8")
+    assert 'self.write("\\x1b[?9001h")' in source
+    assert 'self.write("\\x1b[>1u")' not in source
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only driver")
 def test_driver_windows_import_smoke() -> None:
     """Importing the driver proves the Textual private APIs still bind (A2).

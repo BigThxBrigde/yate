@@ -253,8 +253,17 @@ class YateWindowsDriver(WindowsDriver):
         Replicates the stock
         :meth:`textual.drivers.windows_driver.WindowsDriver.start_application_mode`
         sequence (pinned against Textual **8.2.8**) with one insertion
-        (``?9001h``) and the chord monitor thread -- on a Textual upgrade,
-        diff the stock sequence against this body first.
+        (``?9001h``), one deletion (the kitty push) and the chord monitor
+        thread -- on a Textual upgrade, diff the stock sequence against this
+        body first.
+
+        Exactly one keyboard protocol is enabled: win32-input-mode.  Pushing
+        kitty as well (``CSI >1u``) made kitty-aware terminals (WezTerm) prefer
+        the kitty encoding over win32-input-mode, which regressed
+        ``alt+shift+p`` and replayed the sequence as stray text (issue
+        IKPTMH).  win32 frames already carry VK + modifiers, so the chord
+        monitor loses nothing; terminals without win32-input-mode keep the
+        legacy byte path.
         """
         loop = asyncio.get_running_loop()
 
@@ -269,13 +278,15 @@ class YateWindowsDriver(WindowsDriver):
         self._enable_mouse_support()
         self.write("\x1b[?25l")  # Hide cursor
         self.write("\033[?1004h")  # Enable FocusIn/FocusOut.
-        self.write("\x1b[>1u")  # https://sw.kovidgoyal.net/kitty/keyboard-protocol/
         # Win32-input-mode: terminals that implement it (Windows Terminal)
         # encode every key as a full-fidelity frame (VK + modifiers), which
         # the monitor's frame stream decodes -- this is what makes ctrl+digit
         # and ctrl+shift+letter deliverable at all.  ConPTY forwards the
         # frames as text; terminals without support ignore the mode and keep
         # the legacy path.  https://learn.microsoft.com/en-us/windows/console/win32-input-mode
+        # Deliberately no kitty push (`CSI >1u`): enabling both protocols at
+        # once gives the terminal freedom to pick one, and the mix breaks the
+        # chord path (issue IKPTMH).
         self.write("\x1b[?9001h")
         self.flush()
         self._enable_bracketed_paste()
@@ -289,6 +300,8 @@ class YateWindowsDriver(WindowsDriver):
     def stop_application_mode(self) -> None:
         """Stop application mode, restoring state (incl. win32-input-mode)."""
         # Written before the stock teardown so the mode reset precedes the
-        # alt-screen leave in the output stream.
+        # alt-screen leave in the output stream.  The kitty stack pop
+        # (`CSI < u`) belongs to the base teardown; start never pushed kitty,
+        # so the pop is a no-op that keeps parity with the stock sequence.
         self.write("\x1b[?9001l")
         super().stop_application_mode()
