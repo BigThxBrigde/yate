@@ -3,6 +3,41 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
+## [0.2.13] - 2026-10-23 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.12...v0.2.13)
+
+### 问题修复
+
+- close the 16 pr-review findings from the first pass [缺中文] ([`9772593`](https://gitee.com/jermaine/yate/commit/9772593f4195a4cf19cd4b3a22f942ed36bace96))
+- validate the name type before canonicalizing it [缺中文] ([`b213bce`](https://gitee.com/jermaine/yate/commit/b213bcea43bf021b9260d52f8172927298855ae0))
+- canonicalize custom theme names at registration [缺中文] ([`5be4f13`](https://gitee.com/jermaine/yate/commit/5be4f13575d506754a3c6b1726a9d1547fa7143f))
+- skip painting a leaf dropped before its mount event [缺中文] ([`ef44fd3`](https://gitee.com/jermaine/yate/commit/ef44fd38369f1eb4b705b2851430e4506636a5a8))
+- prune orphan English pages and harden tool gates [缺中文] ([`aeebe2b`](https://gitee.com/jermaine/yate/commit/aeebe2b02c3921e2a791a38d6384307c77804503))
+- report real replacements, open errors, and drive paths [缺中文] ([`ef52dce`](https://gitee.com/jermaine/yate/commit/ef52dced62e0a8cd13b6b01ffc1c7ca21285f5fe))
+- align cells, theme validation, and async labels [缺中文] ([`d70b5ca`](https://gitee.com/jermaine/yate/commit/d70b5ca6c074665091a71c9ad8e4955e2f7cb0db))
+- complete the vim state machine findings [缺中文] ([`20ddfbb`](https://gitee.com/jermaine/yate/commit/20ddfbb7968c38c806e52c3c33d00a87d4ac2b2a))
+- harden LSP ranges, key specs, and ConPTY handles [缺中文] ([`ebbc2d0`](https://gitee.com/jermaine/yate/commit/ebbc2d0c6dd6b787f617b38cdfbb340ce8ede0b2))
+- close the review findings in the text layer [缺中文] ([`0f001fe`](https://gitee.com/jermaine/yate/commit/0f001fed8f1839fdd5ae85085dac0d369bb64b24))
+
+### 文档
+
+- record the lua-lint fix plan and its probe findings [缺中文] ([`787c623`](https://gitee.com/jermaine/yate/commit/787c62303af1fa0e656c4c6841c92f62ff299e52))
+- record the pr-review fix round and its gate results [缺中文] ([`165f0b2`](https://gitee.com/jermaine/yate/commit/165f0b26edbdc699996886329e8f86db6baaa6ca))
+- sync the size-exempt line counts after the review fixes [缺中文] ([`bfee3c8`](https://gitee.com/jermaine/yate/commit/bfee3c8b650892a2e5a0509ffcd6b423082137dd))
+- link the global review record to its fix plan [缺中文] ([`c831a01`](https://gitee.com/jermaine/yate/commit/c831a0182a8f294ce6d35efb56d5716a0e0aaa13))
+- sync the size-exempt line counts after the fix sweep [缺中文] ([`c266314`](https://gitee.com/jermaine/yate/commit/c266314079f01eb2c82d9baf34c367342df2be02))
+- backfill the global review fix execution record [缺中文] ([`a391290`](https://gitee.com/jermaine/yate/commit/a3912905aff546ec670a89393536737525a944e4))
+- add the global review fix plan [缺中文] ([`77b665c`](https://gitee.com/jermaine/yate/commit/77b665cecb16d18c1de5246cda7aa0b29278b8c5))
+- add the 2026-10-22 global review record [缺中文] ([`b2ac11f`](https://gitee.com/jermaine/yate/commit/b2ac11f6a93b02fcfb51e3a3626c3264402cf36e))
+
+### 测试
+
+- expect canonical filetypes after whitespace stripping [缺中文] ([`442545e`](https://gitee.com/jermaine/yate/commit/442545eda8c044656ac12d1e9b4770d5caebe01b))
+
+### 构建与工程
+
+- quiet nil-shaped state diagnostics in .luarc [缺中文] ([`18686b4`](https://gitee.com/jermaine/yate/commit/18686b462748d44cb89d52c7c35b266b89d6ee34))
+- keep Lua sources LF on every checkout [缺中文] ([`99f8158`](https://gitee.com/jermaine/yate/commit/99f81581f96c487481fd03b3520aedaf78a9af2e))
+
 ## [0.2.12] - 2026-10-22 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.11...v0.2.12)
 
 ### 新功能
