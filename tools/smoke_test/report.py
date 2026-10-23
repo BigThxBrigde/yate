@@ -210,7 +210,9 @@ class Reporter:
         ordered = sorted(
             groups.items(),
             key=lambda kv: (
-                sum(x.fail_count for x in kv[1]) == 0,  # failing groups first
+                all(  # failing groups first: False < True sorts them up
+                    x.fail_count == 0 and x.error is None for x in kv[1]
+                ),
                 kv[0],
             ),
         )

@@ -31,6 +31,17 @@ def data_root() -> Path:
     return Path.home() / ".yate" / DATA_DIRNAME
 
 
+def _has_drive_prefix(first: str) -> bool:
+    """True when the first path part carries a Windows-style ``X:`` prefix.
+
+    pathlib parses a drive letter only on Windows, so POSIX would accept
+    ``C:foo/bar`` as an ordinary relative name; the check is therefore
+    applied portably here.  ``C:foo/bar`` keeps the drive inside the first
+    part (``C:foo``), hence the length guard.
+    """
+    return len(first) >= 2 and first[1] == ":"
+
+
 def resolve(relative: str) -> Path:
     """Resolve the relative document *relative* under :func:`data_root`.
 
@@ -49,12 +60,8 @@ def resolve(relative: str) -> Path:
     if "\\" in relative:
         raise ValueError(f"data name must use forward slashes: {relative!r}")
     candidate = Path(relative)
-    # pathlib parses a drive letter only on Windows; reject the "X:" prefix
-    # portably so POSIX cannot smuggle one in as an ordinary directory name.
-    # "C:foo/bar" keeps the drive inside the first part ("C:foo"), hence >= 2.
     first = candidate.parts[0] if candidate.parts else ""
-    drive_prefix = len(first) >= 2 and first[1] == ":"
-    if candidate.is_absolute() or candidate.drive or drive_prefix:
+    if candidate.is_absolute() or candidate.drive or _has_drive_prefix(first):
         raise ValueError(f"data name must be relative: {relative!r}")
     if ".." in candidate.parts:
         raise ValueError(f"data name must not contain '..': {relative!r}")

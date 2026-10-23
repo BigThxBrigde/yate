@@ -111,6 +111,21 @@ def test_create_force_refuses_a_scaffold_with_a_different_name(tmp_path: Path) -
     assert (tmp_path / "my_ext" / "manifest").exists()
 
 
+def test_create_force_reports_a_failed_scaffold_removal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed rmtree of the old scaffold raises YxpError, not OSError."""
+    assert yxp_tool.main(["--create", "my_ext", "--dir", str(tmp_path)]) == 0
+
+    def boom(path: Path) -> None:
+        raise OSError("payload locked")
+
+    monkeypatch.setattr(yxp_tool.shutil, "rmtree", boom)
+    with pytest.raises(yxp.YxpError, match="cannot remove"):
+        yxp_tool.create_scaffold("my_ext", tmp_path, force=True)
+    assert (tmp_path / "my_ext" / "manifest").exists()  # old scaffold kept
+
+
 def test_created_scaffold_packs_and_verifies(tmp_path: Path) -> None:
     src = tmp_path / "fresh"
     assert yxp_tool.main(["--create", "fresh", "--dir", str(src)]) == 0

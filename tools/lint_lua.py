@@ -250,7 +250,10 @@ def check_paths(
                 # normalize CRLF away and hide the finding.
                 with path.open(encoding="utf-8", newline="") as handle:
                     source = handle.read()
-            except OSError as exc:
+            except (OSError, UnicodeDecodeError) as exc:
+                # A file the linter cannot read (missing, locked, or not
+                # valid UTF-8) is a finding, never a traceback: the CLI
+                # promises exit codes 0/1/2 only.
                 issues.append(Issue(path, 1, "read", str(exc)))
                 continue
             issues.extend(check_source(path, source, modules, compile_source))

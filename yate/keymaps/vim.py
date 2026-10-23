@@ -507,6 +507,7 @@ class VimKeymap(Keymap):
             buf.clear_selection()
             self.mode = VimMode.NORMAL
             self.prefix = None
+            self.count_str = ""  # a visual-typed count never leaks to NORMAL
             self.pending_register = None
             ui.message("-- NORMAL --")
             return True
@@ -522,17 +523,37 @@ class VimKeymap(Keymap):
             else:
                 self.pending_register = None
             return True
+        if (
+            key.isdigit()
+            and not (key == "0" and not self.count_str)
+            and self.prefix not in _ARG_PREFIXES
+        ):
+            # digits accumulate exactly like in NORMAL mode so counts reach
+            # motions (``v2l``), finds (``v2f.``) and repeats (``v3;``);
+            # _ARG_PREFIXES keeps ``f3`` finding the char "3"
+            self.count_str += key
+            return True
         if self.prefix == "g" and key == "g":
             self._resolve_visual_gg(ctx)
             return True
         if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
+            # _resolve_find clears the prefix, so the direction is captured
+            # first.  A forward find is inclusive: the half-open selection
+            # end sits one past the last selected character, so the cursor
+            # moves one column right (clamped to the row length) to cover
+            # the found char itself.  F/t/T stay exclusive.
+            find_prefix = self.prefix
+            before = buf.cursor
             self._resolve_find(
                 ctx,
                 key,
-                backward=self.prefix in ("F", "T"),
-                till=self.prefix in ("t", "T"),
+                backward=find_prefix in ("F", "T"),
+                till=find_prefix in ("t", "T"),
                 select=True,
             )
+            if find_prefix == "f" and buf.cursor != before:
+                row, col = buf.cursor
+                buf.cursor = (row, min(col + 1, len(buf.lines[row])))
             if self.mode == VimMode.VISUAL_LINE:
                 self._fix_linewise(buf)
             return True
@@ -545,16 +566,27 @@ class VimKeymap(Keymap):
             self.prefix = key
             return True
         if key in (";", ","):
-            if self.last_find is not None:
-                ch, backward, till = self.last_find
-                if key == ",":
-                    backward = not backward
+            # the count is consumed up front so a failed repeat cannot leak
+            # it into the next command; a hit repeats it n times (vim ``3;``)
+            n = self._take_count()
+            if self.last_find is None:
+                ui.message("no previous find")
+                return True
+            ch, backward, till = self.last_find
+            if key == ",":
+                backward = not backward
+            for _ in range(n):
+                before = buf.cursor
                 self._resolve_find(
                     ctx, ch, backward=backward, till=till,
                     record=False, select=True,
                 )
-                if self.mode == VimMode.VISUAL_LINE:
-                    self._fix_linewise(buf)
+                if not backward and not till and buf.cursor != before:
+                    # forward inclusive repeat: cover the found char too
+                    row, col = buf.cursor
+                    buf.cursor = (row, min(col + 1, len(buf.lines[row])))
+            if self.mode == VimMode.VISUAL_LINE:
+                self._fix_linewise(buf)
             return True
         if key == '"':
             self.pending_register = ""
@@ -564,6 +596,7 @@ class VimKeymap(Keymap):
                 buf.clear_selection()
                 self.mode = VimMode.NORMAL
                 self.prefix = None
+                self.count_str = ""  # same cleanup as the ESC branch
                 self.pending_register = None  # same cleanup as the ESC branch
             else:
                 self.mode = VimMode.VISUAL
@@ -574,6 +607,9 @@ class VimKeymap(Keymap):
             self._fix_linewise(buf)
             return True
         if key in ("y", "d", "x"):
+            # a visual command ignores the count: drop it so it cannot leak
+            # into the next normal-mode command (same as the shift branch)
+            self.count_str = ""
             reg = self._take_named_register()
             if linewise:
                 if key == "y":
@@ -602,16 +638,19 @@ class VimKeymap(Keymap):
         if key == ":":
             buf.clear_selection()
             self.mode = VimMode.NORMAL
+            self.count_str = ""  # a visual-typed count never leaks to NORMAL
             ui.command_prompt()
             return True
         if key == "/":
             self.mode = VimMode.NORMAL
             buf.clear_selection()
+            self.count_str = ""  # a visual-typed count never leaks to NORMAL
             ui.find_prompt(True)
             return True
         if key == "?":
             self.mode = VimMode.NORMAL
             buf.clear_selection()
+            self.count_str = ""  # a visual-typed count never leaks to NORMAL
             ui.find_prompt(False)
             return True
         if key in _SHIFT_KEYS:
@@ -626,8 +665,8 @@ class VimKeymap(Keymap):
             else:
                 buf.outdent_selection()
             return True
-        # motions extend the selection; digits are consumed but not stored
-        # (visual mode deliberately ignores counts, see the test pinning it)
+        # motions extend the selection; the stored count (typed here or
+        # carried over from normal mode) repeats the motion
         typed = self._typed_count()
         self.count_str = ""
         if key in _ARROW:
@@ -804,10 +843,19 @@ class VimKeymap(Keymap):
             return True
 
         if key in (";", ","):
+            # The count is consumed up front: a failed repeat must not leave
+            # it armed for the next command, a hit repeats it n times (vim
+            # ``3;``).  An armed operator never reaches this branch with the
+            # count still typed: the operator-pending handler either repeats
+            # the find itself or already cancelled the operator and cleared
+            # the count, so taking it here cannot double-consume.
+            n = self._take_count()
             if self.last_find is None:
+                self._clear_pending()
                 ui.message("no previous find")
                 return True
-            self._repeat_find(ctx, key)
+            for _ in range(n):
+                self._repeat_find(ctx, key)
             return True
 
         if key == "x":

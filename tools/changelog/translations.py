@@ -45,7 +45,13 @@ def load_overrides(
     """
     if not path.exists():
         return {}
-    text = path.read_text(encoding="utf-8")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        # A hand-maintained file saved in a legacy encoding fails here;
+        # surface it through the dedicated error instead of leaking a
+        # UnicodeDecodeError out of the loader.
+        raise OverrideFileError(f"{path}: cannot read ({exc})") from exc
     try:
         loaded: object = json.loads(text)
     except json.JSONDecodeError as exc:

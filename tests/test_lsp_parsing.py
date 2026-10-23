@@ -14,6 +14,8 @@ are exercised against real buffer lines.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from yate.config import YateConfig
@@ -224,3 +226,48 @@ def test_parse_diagnostics_ignores_a_null_payload() -> None:
 def test_parse_diagnostics_ignores_a_dict_payload() -> None:
     """A dict diagnostics payload yields no diagnostics (no raise)."""
     assert _parse_diagnostics({"diagnostics": []}) == []
+
+
+def test_parse_diagnostics_clamp_rows_and_cols_to_the_document() -> None:
+    """Stale server ranges clamp onto the document like completion ranges
+    do: rows onto the nearest real line, columns onto their line length."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": 9, "character": 99},
+            "end": {"line": -1, "character": 0},
+        },
+        "message": "m",
+    }]
+    diags = _parse_diagnostics(raw, ["hello", "world"])
+    assert [(d.start_row, d.start_col) for d in diags] == [(1, 5)]
+    assert [(d.end_row, d.end_col) for d in diags] == [(0, 0)]
+
+
+def test_parse_diagnostics_empty_document_clamps_to_row_zero() -> None:
+    """An empty document clamps rows to 0 and keeps the empty-line
+    fallback, so columns degrade to 0 instead of pointing anywhere."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": 3, "character": 7},
+            "end": {"line": 3, "character": 7},
+        },
+        "message": "m",
+    }]
+    diags = _parse_diagnostics(raw, [])
+    assert [(d.start_row, d.start_col) for d in diags] == [(0, 0)]
+    assert [(d.end_row, d.end_col) for d in diags] == [(0, 0)]
+
+
+def test_parse_diagnostics_without_lines_keeps_raw_columns() -> None:
+    """Without a document snapshot the wire columns stay unconverted
+    (existing behavior); rows keep the max(0, ...) floor only."""
+    raw: list[dict[str, Any]] = [{
+        "range": {
+            "start": {"line": 9, "character": 99},
+            "end": {"line": -1, "character": 0},
+        },
+        "message": "m",
+    }]
+    diags = _parse_diagnostics(raw)
+    assert [(d.start_row, d.start_col) for d in diags] == [(9, 99)]
+    assert [(d.end_row, d.end_col) for d in diags] == [(0, 0)]

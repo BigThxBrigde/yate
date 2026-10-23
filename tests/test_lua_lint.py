@@ -115,6 +115,22 @@ def test_crlf_file_is_reported(tmp_path: Path) -> None:
     assert "crlf" in {issue.rule for issue in issues}
 
 
+def test_invalid_utf8_file_is_reported_as_a_read_issue(tmp_path: Path) -> None:
+    """A file with invalid UTF-8 bytes is a read issue, not a crash.
+
+    The linter promises exit codes 0/1/2 only, so a decode failure must
+    surface as a ``read`` finding instead of a ``UnicodeDecodeError``
+    traceback.
+    """
+    path = tmp_path / "bad-encoding.lua"
+    path.write_bytes(b"local x = 1\n\xff\xfe\x00\n")
+
+    issues = lint_lua.check_paths([path], set(), lambda source, name: None)
+
+    assert [issue.rule for issue in issues] == ["read"]
+    assert issues[0].line == 1
+
+
 @requires_lupa
 def test_banned_calls_are_reported(
     tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]

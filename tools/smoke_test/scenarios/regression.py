@@ -246,6 +246,11 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
     Typing is followed by ``wait_until`` polls: the auto-completion debounce
     (0.12s) fires after the keys, and its worker calls ``popup.show()`` when it
     lands, which would otherwise re-open a popup an assertion just closed.
+    ``ctrl+space`` spawns the manual-trigger worker the same way, so each
+    press is followed by ``app.workers.wait_for_complete()`` -- a bare
+    ``wait_until(popup.is_open)`` returns instantly there (the popup is
+    already open) and the worker could land after ``down``, resetting the
+    selection index.
     """
     target = tmp / "keys.txt"
     # candidates live on the row *below* the cursor row: buffer completion
@@ -260,7 +265,9 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
         await type_text(pilot, "pri")
         await wait_until(pilot, lambda: popup.is_open)
         await pilot.press("ctrl+space")
-        opened = await wait_until(pilot, lambda: popup.is_open)
+        await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
+        await pilot.pause()
+        opened = popup.is_open
         checks.append(Check("popup_open", True, opened))
 
         # escape is owned by the popup: it dismisses without touching text.
@@ -291,7 +298,11 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
         await type_text(pilot, "pri")
         await wait_until(pilot, lambda: popup.is_open)
         await pilot.press("ctrl+space")
-        await wait_until(pilot, lambda: popup.is_open)
+        # drain the manual-trigger worker first: if it lands after "down"
+        # its popup.show() resets the selection index to 0.  The ignore is
+        # for Textual's bare ``Worker`` generic in wait_for_complete.
+        await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
+        await pilot.pause()
         await pilot.press("down")
         await pilot.pause()
         checks.append(Check("down_selects", 1, popup.index))

@@ -448,6 +448,15 @@ def test_load_overrides_reports_invalid_json(tmp_path: Path) -> None:
         translations.load_overrides(path)
 
 
+def test_load_overrides_reports_unreadable_bytes(tmp_path: Path) -> None:
+    """A file with invalid UTF-8 raises the dedicated error, not a decode crash."""
+    path = tmp_path / "zh_overrides.json"
+    path.write_bytes(b"\xff\xfe\x00not-utf8")
+
+    with pytest.raises(translations.OverrideFileError, match="cannot read"):
+        translations.load_overrides(path)
+
+
 # --- gitdata parsers --------------------------------------------------------
 
 

@@ -39,6 +39,8 @@ from rich.style import Style
 from textual.color import Color as TextualColor
 from textual.theme import Theme as TextualTheme
 
+from yate.logs import tracing
+
 from yate.editor_syntax.tokens import SYNTAX_KINDS
 
 __all__ = [
@@ -52,6 +54,8 @@ __all__ = [
     "to_textual_theme",
     "validate_theme",
 ]
+
+log = tracing.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +436,11 @@ def register_theme(theme: Theme) -> None:
         raise ValueError(
             f"invalid theme {theme.name!r}: {'; '.join(problems)}"
         )
+    # An overwrite with identical content is the idempotent re-registration
+    # (theme files reload on :set theme-dirs); only a *changed* palette
+    # silently replacing a live theme is worth a tracing warning.
+    if key in THEMES and THEMES[key] != theme:
+        log.warning("custom theme %r overwrites a registered theme", key)
     THEMES[key] = theme
 
 

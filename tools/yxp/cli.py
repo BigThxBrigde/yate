@@ -279,7 +279,12 @@ def create_scaffold(name: str, parent: Path, force: bool = False) -> list[Path]:
                 f"refusing to remove {target}: scaffold metadata names "
                 f"{metadata.get('name')!r}, not {name!r}"
             )
-        shutil.rmtree(target)
+        try:
+            shutil.rmtree(target)
+        except OSError as exc:
+            raise yxp.YxpError(
+                f"cannot remove old scaffold {target} ({exc})"
+            ) from exc
     command = name.lower().replace("_", "-").replace(".", "-")
     starter = _STARTER_TEMPLATE.format(name=name, command=command)
     manifest = {

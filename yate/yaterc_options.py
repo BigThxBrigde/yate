@@ -593,8 +593,12 @@ def _parse_language_server(  # noqa: Any - raw yaterc mapping, validated field b
     )
     if filetypes is None:
         return None
-    # Accept leading dots (".rs") even though the canonical form is "rs";
-    # guard against values that normalize to empty ("." / ".." / "...").
+    # Two strips with different jobs: the first removes surrounding padding
+    # and the second removes leading dots, so ".rs" normalizes to the
+    # canonical "rs".  Stripping again after the dot removal also absorbs
+    # padding around the dot, so ". rs" becomes "rs" too (one strip alone
+    # would leave " rs").  Values that normalize to empty ("." / " . ") are
+    # rejected by the emptiness check below.
     filetypes = [ft.strip().lstrip(".").strip() for ft in filetypes]
     if any(not ft for ft in filetypes):
         errors.append(

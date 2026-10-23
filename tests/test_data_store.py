@@ -5,6 +5,10 @@ at a per-test temporary directory, so every write here lands in a throwaway
 ``~/.yate/data`` and never touches the real user directory.
 """
 
+# _has_drive_prefix is the module's private portable-drive seam (pinned
+# directly by one test below, same precedent as tests/test_diagnostics.py).
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,6 +16,20 @@ from pathlib import Path
 import pytest
 
 from yate.services import data_store
+from yate.services.data_store import _has_drive_prefix
+
+
+def test_has_drive_prefix_is_platform_independent() -> None:
+    """Direct test of the portable drive check, no pathlib involved.
+
+    On Windows pathlib itself parses ``X:`` into ``Path.drive``, so the
+    portable branch in ``resolve`` is unreachable there; the helper must
+    therefore be pinned directly, cross-platform, on raw strings.
+    """
+    assert _has_drive_prefix("C:foo")
+    assert _has_drive_prefix("a:b")
+    assert not _has_drive_prefix("games")
+    assert not _has_drive_prefix("")
 
 
 def test_read_missing_file_returns_none() -> None:

@@ -635,15 +635,18 @@ def test_visual_yank_clears_the_selection() -> None:
     assert keymap.mode is VimMode.NORMAL
 
 
-def test_visual_mode_swallows_a_count_prefix() -> None:
-    """Digits are consumed in visual mode; the count is not accumulated.
+def test_visual_count_applies_to_motions() -> None:
+    """A count typed in visual mode repeats the motion (vim ``v2l``).
 
-    Only the motion that follows runs, so ``v2l`` extends one column, not two.
+    Digits accumulate in visual mode exactly like in NORMAL mode, so the
+    count reaches motions (``v2l`` extends two columns), finds (``v2f.``)
+    and find repeats (``v3;``, pinned by the counted semicolon test in the
+    global-review section below).
     """
     editor, keymap, ctx = _setup("abcdef")
     _press(keymap, ctx, "v", "2", "l")
-    assert editor.buffer.cursor == (0, 1)
-    assert editor.buffer.has_selection() is True
+    assert editor.buffer.cursor == (0, 2)
+    assert editor.buffer.selection() == ((0, 0), (0, 2))
 
 
 def test_visual_line_mode_deletes_whole_lines() -> None:
@@ -2054,9 +2057,11 @@ def test_semicolon_without_a_previous_find_is_consumed() -> None:
     assert editor.buffer.get_text() == "abc"
 
 
-@pytest.mark.parametrize("leaked", [("3", "u"), ("3", "J"), ("3", CTRL_D)])
+@pytest.mark.parametrize(
+    "leaked", [("3", "u"), ("3", "J"), ("3", CTRL_D), ("3", ";")]
+)
 def test_normal_commands_drop_a_leaked_count(leaked: tuple[str, str]) -> None:
-    """u / J / ctrl-d consume a typed count instead of leaking it (W-08)."""
+    """u / J / ctrl-d / ; consume a typed count instead of leaking it (W-08)."""
     editor, keymap, ctx = _setup("abcdef")
     _press(keymap, ctx, *leaked)
     _press(keymap, ctx, "x")
@@ -2072,21 +2077,65 @@ def test_insert_entry_and_escape_drop_a_pending_count() -> None:
 
 
 def test_visual_find_extends_the_selection() -> None:
-    """v f{char} extends the selection to the found column (S-09)."""
+    """v f{char} extends the selection past the found char (S-09, R-2).
+
+    The forward find is inclusive: the half-open selection end sits one
+    column past the found char, so the character itself stays selected.
+    """
     editor, keymap, ctx = _setup("a.b.c.d")
     _press(keymap, ctx, "v", "f", ".")
-    # half-open selection: the found char's column is the exclusive end
-    assert editor.buffer.selection() == ((0, 0), (0, 1))
+    assert editor.buffer.selection() == ((0, 0), (0, 2))
     _press(keymap, ctx, "d")
-    assert editor.buffer.get_text() == ".b.c.d"
+    assert editor.buffer.get_text() == "b.c.d"
 
 
 def test_visual_semicolon_repeats_the_find_and_extends() -> None:
-    """; in visual mode repeats the find, extending the selection (S-09)."""
+    """; in visual mode repeats the find, extending the selection (S-09).
+
+    The repeat is inclusive like the forward find: after ``v f . ;`` on
+    "a.b.c.d" the cursor sits one past the second dot (column 4).
+    """
     editor, keymap, ctx = _setup("a.b.c.d")
     _press(keymap, ctx, "v", "f", ".", ";")
-    assert editor.buffer.cursor == (0, 3)
+    assert editor.buffer.cursor == (0, 4)
     assert editor.buffer.anchor == (0, 0)
+
+
+def test_visual_counted_semicolon_repeats_the_find() -> None:
+    """``3;`` in visual mode repeats the last find three times (R-1 / R-2).
+
+    On "a.b.c.d.e" the third repeat lands one past the 4th dot (column 8),
+    so the dot itself stays inside the selection.
+    """
+    editor, keymap, ctx = _setup("a.b.c.d.e")
+    _press(keymap, ctx, "v", "f", ".", "3", ";")
+    assert editor.buffer.cursor == (0, 8)
+    assert editor.buffer.anchor == (0, 0)
+
+
+def test_visual_backward_find_keeps_the_cursor_on_the_char() -> None:
+    """Visual ``F`` stays exclusive-correct: the cursor rests on the char.
+
+    Only the forward find shifts one past the found char; the backward find
+    must not (R-2 regression guard).
+    """
+    editor, keymap, ctx = _setup("a.b.c.d")
+    editor.buffer.set_cursor((0, 2))
+    _press(keymap, ctx, "v", "F", ".")
+    assert editor.buffer.cursor == (0, 1)
+    assert editor.buffer.selection() == ((0, 1), (0, 2))
+
+
+def test_semicolon_without_history_consumes_the_count() -> None:
+    """``3;`` with no previous find drops the count (R-1).
+
+    The failed command clears the pending state, so the following ``x``
+    deletes exactly one character instead of three.
+    """
+    editor, keymap, ctx = _setup("abcdef")
+    _press(keymap, ctx, "3", ";", "x")
+    assert editor.messages[-1] == "no previous find"
+    assert editor.buffer.get_text() == "bcdef"
 
 
 def test_visual_gg_extends_to_the_first_line() -> None:

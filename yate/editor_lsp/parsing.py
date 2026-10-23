@@ -252,6 +252,14 @@ def _parse_diagnostics(  # noqa: Any - LSP wire payload, untyped server data
         severity = entry.get("severity")
         start_row = max(0, _coord(start, "line"))
         end_row = max(0, _coord(end, "line"))
+        if lines is not None:
+            # A stale server range can point past the document; clamp rows
+            # onto the nearest real line like _range_to_buffer_cols does.
+            # An empty document clamps to row 0 and keeps the empty-line
+            # fallback below.
+            last = len(lines) - 1
+            start_row = max(0, min(start_row, last))
+            end_row = max(0, min(end_row, last))
         line0 = (
             lines[start_row]
             if lines is not None and start_row < len(lines)
@@ -262,11 +270,18 @@ def _parse_diagnostics(  # noqa: Any - LSP wire payload, untyped server data
             if lines is not None and end_row < len(lines)
             else ""
         )
+        start_col = max(0, _from_utf16(line0, _coord(start, "character")))
+        end_col = max(0, _from_utf16(line1, _coord(end, "character")))
+        if lines is not None:
+            # Columns clamp to their line's code-point length (the ASCII
+            # fast path in _from_utf16 passes units through unclamped).
+            start_col = min(start_col, len(line0))
+            end_col = min(end_col, len(line1))
         result.append(Diagnostic(
             start_row=start_row,
-            start_col=max(0, _from_utf16(line0, _coord(start, "character"))),
+            start_col=start_col,
             end_row=end_row,
-            end_col=max(0, _from_utf16(line1, _coord(end, "character"))),
+            end_col=end_col,
             severity=int(severity) if isinstance(severity, int)
             else DiagnosticSeverity.ERROR,
             message=message if isinstance(message, str) else "",

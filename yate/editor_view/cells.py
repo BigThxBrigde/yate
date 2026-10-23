@@ -89,16 +89,17 @@ def cell_to_char(line: str, cell: int, tab_width: int = 4) -> int:
     """Map a display *cell* column back to a character index."""
     cells = 0
     for i, ch in enumerate(line):
+        if ch != "\t" and cell_width(ch) == 0 and cells:
+            # a combining mark attaches to the previous cell: it starts none
+            # (skip it before the boundary test, so the column right after a
+            # combining cluster lands on the next base character)
+            continue
         if cells >= cell:
             return i
         if ch == "\t":
             cells += tab_width - (cells % tab_width)
         else:
-            width = cell_width(ch)
-            if width == 0 and cells:
-                # combining mark attaches to the previous cell (expand_char)
-                continue
-            cells += max(1, width)
+            cells += max(1, cell_width(ch))
     return len(line)
 
 

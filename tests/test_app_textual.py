@@ -21,6 +21,7 @@ from yate.editor_view.chrome import TabBar
 from yate.editor_view.icons import LOCK
 from yate.keymaps.base import ActionContext
 from yate.keyproto.legacy import event_to_raw
+from yate.session import replace_node
 from conftest import message_text, wait_until
 
 # ------------------------------------------------------------------ key mapping
@@ -1315,5 +1316,56 @@ def test_ctrl_space_with_the_command_prompt_active_does_not_open_completion() ->
             assert popup is not None
             assert popup.is_open is False
             assert app.editor.prompt_bar.active_mode == "command"
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------------------- on_mount leaf guard
+
+
+def test_on_mount_skips_painting_when_leaf_left_the_pane_tree() -> None:
+    """Regression (on_mount guard): a view whose leaf was dropped from the
+    pane model must not repaint or re-subscribe when its on_mount fires.
+
+    A structural reconcile (``:only``) can drop a leaf while the framework
+    still has the old widget mounted and delivers its Mount event late;
+    without the ``leaf_for`` guard in ``EditorView.on_mount`` the repaint
+    would assert in ``leaf_by_id``.  The race is reproduced deterministically:
+    detach the subscription (the on_unmount half), swap the leaf out of the
+    model tree via ``replace_node`` -- the same swap a reconcile performs and
+    the closest seam here, since ``remove_node`` refuses a single-pane root
+    (it returns ``None``) -- then call ``on_mount`` by hand.  With the guard
+    removed this test fails: the repaint path asserts in ``leaf_by_id``.
+    """
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            view = panes.active_view
+            assert view is not None
+            leaf = view.leaf
+
+            # Detach the theme subscription first (the unmount half).
+            view.on_unmount()
+            assert view._theme_unsubscribe is None
+
+            # Drop the leaf from the model tree; the widget object stays
+            # mounted, exactly the state the guard protects against.
+            panes.root = replace_node(
+                panes.root, leaf, panes.make_leaf(leaf.doc)
+            )
+            assert panes.leaf_for(view.leaf_id) is None
+
+            # The guarded re-mount must be a no-op: no exception, no
+            # repaint attempt, no re-subscription.
+            view.on_mount()
+            assert view._theme_unsubscribe is None
+
+            # Restore the model tree so app shutdown sees a consistent
+            # state (the stale view would assert on any later repaint).
+            panes.root = leaf
+            await pilot.pause()
 
     asyncio.run(scenario())

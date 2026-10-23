@@ -1015,7 +1015,9 @@ def test_enter_reveals_clamped_row_when_buffer_shrunk(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_results_show_workspace_relative_labels(tmp_path: Path) -> None:
+def test_results_show_workspace_relative_labels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A hit below the workspace root is labeled by its relative path.
 
     The labels are computed once by the search worker (S-08): the render
@@ -1032,5 +1034,24 @@ def test_results_show_workspace_relative_labels(tmp_path: Path) -> None:
             _type_query(screen, "needle")
             assert await wait_until(pilot, lambda: len(screen._flat) == 1)
             assert "sub/a.txt" in _results_plain(screen)
+
+            # S-08 performance pin: re-rendering already-landed results
+            # must not re-resolve paths (the labels come from the worker's
+            # cached ``_labels`` dict, so the render path stays fs-free).
+            resolve_calls = 0
+            real_resolve = Path.resolve
+
+            def counting_resolve(path: Path, strict: bool = False) -> Path:
+                nonlocal resolve_calls
+                resolve_calls += 1
+                return real_resolve(path, strict)
+
+            monkeypatch.setattr(Path, "resolve", counting_resolve)
+            try:
+                screen._render_results()
+                screen._render_results()
+            finally:
+                monkeypatch.undo()
+            assert resolve_calls == 0
 
     asyncio.run(scenario())

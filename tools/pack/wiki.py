@@ -19,10 +19,13 @@ inside the wiki repo -- they are the cache: the generator rebuilds every
 Chinese page from its source but never overwrites a non-empty English
 page unless ``--force`` re-translates a stale one.  Missing pages can be
 filled by an external command via ``--translate-cmd`` (Chinese markdown
-on stdin, English markdown on stdout).  Staleness is tracked by the
-sha256 of the Chinese source, recorded in ``.translation-manifest.json``
-at the wiki root; English pages written by other means (manual or agent
-translation) are adopted on the next run.
+on stdin, English markdown on stdout).  ``.translation-manifest.json``
+at the wiki root records every page this tool wrote: a ``*.zh.md`` key
+maps to the sha256 of its Chinese source, while a ``*.en.md`` key maps
+to the sha256 of the English bytes the tool itself put on disk.
+English pages written by other means (manual or agent translation) are
+adopted on the next run and stay unrecorded, so pruning keeps them even
+after their Chinese source disappears.
 
 ``--check`` turns missing/stale English pages into exit code 1 (merge
 gate); ``--push`` commits the wiki repo and pushes it to ``origin``
@@ -547,7 +550,9 @@ def _assert_prune_safe(target: Path, root: Path) -> None:
     Review B-3: ``prune_orphan_pages`` deletes generated pages, so a
     mistyped ``--target`` must not be able to point at the checkout which
     holds the sources.  Two facts bound the damage: deletion only ever
-    touches pages the previous manifest recorded, and a target at or above
+    touches pages the previous manifest recorded as written by this tool
+    (English pages additionally only while their bytes still match the
+    recorded digest), and a target at or above
     the repository root (``--target .``) is refused here.  Generating into
     any folder *below* the root -- ``out/``, ``<root>/.wiki`` -- or next to
     it stays allowed (review B-2: an unconditional "inside the repo"
@@ -563,17 +568,22 @@ def _assert_prune_safe(target: Path, root: Path) -> None:
         )
 
 
-def prune_orphan_pages(target: Path, keep: set[str], recorded: set[str]) -> int:
+def prune_orphan_pages(target: Path, keep: set[str], recorded: dict[str, str]) -> int:
     """Delete generated wiki pages whose source document no longer exists.
 
     *keep* holds the ``zh``/``en`` target names produced by this run and
-    *recorded* the page names the previous manifest knew about (review
-    B-3).  A ``*.md`` file outside *keep* is only removed when it appears
-    in *recorded*: a file the generator has never written (a user's own
-    page, an older orphan from before the manifest existed) is kept, so a
-    mistyped target can at worst delete pages this tool created.  The
-    generated ``Home`` / ``_Sidebar`` navigation and anything inside
-    ``.git`` are always protected.  Returns the number of removed files.
+    *recorded* maps page names to the sha256 digest this tool recorded
+    when it last wrote them (review B-3).  A ``*.md`` file outside *keep*
+    is only considered for removal when it appears in *recorded*: a file
+    the generator has never written (a user's own page, an older orphan
+    from before the manifest existed, an adopted English page) is kept,
+    so a mistyped target can at worst delete pages this tool created.
+    A Chinese page is deleted while it is recorded.  An English page is
+    deleted only while its current bytes still match the recorded digest:
+    a hand-edited English page no longer is the generator's output and
+    survives.  The generated ``Home`` / ``_Sidebar`` navigation and
+    anything inside ``.git`` are always protected.  Returns the number of
+    removed files.
     """
     protected = {"Home.md", "_Sidebar.md", "Home.en.md", "_Sidebar.en.md"}
     removed = 0
@@ -582,8 +592,21 @@ def prune_orphan_pages(target: Path, keep: set[str], recorded: set[str]) -> int:
         posix = rel.as_posix()
         if ".git" in rel.parts or posix in keep or existing.name in protected:
             continue
-        if posix not in recorded:
+        digest = recorded.get(posix)
+        if digest is None:
             continue
+        if posix.endswith(_EN_SUFFIX):
+            try:
+                current = hashlib.sha256(existing.read_bytes()).hexdigest()
+            except OSError as exc:
+                raise WikiError(
+                    f"cannot inspect orphan page {posix}: {exc}",
+                    code=Code.WIKI_PRUNE_FAILED,
+                ) from exc
+            if current != digest:
+                # Adopted or hand-edited after this tool wrote it: no
+                # longer the generator's output, so it stays.
+                continue
         try:
             existing.unlink()
         except OSError as exc:
@@ -1340,8 +1363,10 @@ def _prepare_pages(
     :func:`needs_translation` for the preview count, but performs the work:
     every Chinese page is rewritten from its source, bilingual twins are
     copied verbatim, and only the pages that really need a translator are
-    planned.  *manifest* is updated in place for kept pages; translations
-    are recorded by the caller once they actually succeed.
+    planned.  *manifest* is updated in place for kept pages: bilingual
+    copies also record the digest of the en bytes this tool wrote, while
+    adopted English pages are never recorded; translations are recorded by
+    the caller once they actually succeed.
     """
     kept = 0
     plans: list[_PagePlan] = []
@@ -1366,6 +1391,10 @@ def _prepare_pages(
         if en_bytes is not None:
             en_bytes = _lint_page_bytes(en_bytes, "en", label=page.en_target)
             _write_page_bytes(en_path, en_bytes)
+            # This tool wrote the en copy (en_bytes is exactly what landed
+            # on disk), so it is recorded for prune: a page the tool never
+            # wrote stays unrecorded and survives pruning.
+            manifest[page.en_target] = hashlib.sha256(en_bytes).hexdigest()
             manifest.pop(page.zh_target, None)
             kept += 1
             continue
@@ -1536,6 +1565,12 @@ def _translate_pending(
                     _lint_page_text(outcome.english, "en", label=page.en_target),
                 )
                 digests[page.zh_target] = outcome.plan.digest
+                # The en digest must come from the bytes actually on disk:
+                # Path.write_text translates newlines on Windows, so the
+                # linted text is not necessarily what landed.
+                digests[page.en_target] = hashlib.sha256(
+                    (target / page.en_target).read_bytes()
+                ).hexdigest()
                 translated += 1
             board.batch_finished()
             console.print(
@@ -1609,16 +1644,13 @@ def run(
     # of adopting the outdated English page as externally maintained.
     manifest = dict(load_manifest(target))
     # The prune stage must know which pages a previous run of this tool
-    # wrote (review B-3): only manifest-recorded orphans may ever be
-    # deleted, so the key set is captured before run() filters it down to
-    # the still-collected pages below.  The manifest keys are zh targets,
-    # so the matching en page each translation wrote is derived and added:
-    # otherwise a removed source leaves its orphaned English page behind.
-    recorded = set(manifest) | {
-        key[: -len(_ZH_SUFFIX)] + _EN_SUFFIX
-        for key in manifest
-        if key.endswith(_ZH_SUFFIX)
-    }
+    # wrote (review B-3): the mapping is captured before the run filters
+    # the manifest down to the still-collected pages below.  A manifest
+    # key is a zh target (source digest) or an en target this tool itself
+    # wrote (digest of the bytes on disk); an en page the tool merely
+    # adopted is never recorded, so it survives pruning even after its
+    # zh source vanishes.
+    recorded = dict(manifest)
     if translate_all and translate_cmd is None:
         print(
             "wiki: --translate-all has no effect without --translate-cmd",
@@ -1652,7 +1684,15 @@ def run(
             missing.extend(outcome.missing)
             stale.extend(outcome.stale)
     collected = {page.zh_target for page in pages}
-    manifest = {key: value for key, value in manifest.items() if key in collected}
+    generated = {page.en_target for page in pages}
+    # Keep both zh records and the en records this tool wrote for the
+    # still-collected pages; dropping an en key here would make the next
+    # run treat its page as never-written (adopted) and keep it forever.
+    manifest = {
+        key: value
+        for key, value in manifest.items()
+        if key in collected or key in generated
+    }
     # Sources that vanished must not leave dead links behind in the wiki.
     expected = {page.zh_target for page in pages} | {page.en_target for page in pages}
     orphans = prune_orphan_pages(target, expected, recorded)

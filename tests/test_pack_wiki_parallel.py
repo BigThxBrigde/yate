@@ -192,8 +192,12 @@ def test_run_with_jobs_translates_every_page_and_reports_batches(
         assert (target / f"{stem}.en.md").read_text(encoding="utf-8") == _english_for(
             f"# {stem}\n\n中文正文 {stem}\n"
         )
+    # A translated page records both digests: the zh source (staleness)
+    # and the en bytes this tool wrote (prune safety).
     assert set(wiki.load_manifest(target)) == {
-        f"page{index:02d}.zh.md" for index in range(1, PAGE_COUNT + 1)
+        f"page{index:02d}.{suffix}.md"
+        for index in range(1, PAGE_COUNT + 1)
+        for suffix in ("zh", "en")
     }
 
     err = capsys.readouterr().err
@@ -316,8 +320,12 @@ def test_run_is_independent_of_page_completion_order(
     for index in range(1, PAGE_COUNT + 1):
         stem = f"page{index:02d}"
         assert (target / f"{stem}.en.md").read_text(encoding="utf-8") == f"# en of {stem}\n"
+    # A translated page records both digests: the zh source (staleness)
+    # and the en bytes this tool wrote (prune safety).
     assert set(wiki.load_manifest(target)) == {
-        f"page{index:02d}.zh.md" for index in range(1, PAGE_COUNT + 1)
+        f"page{index:02d}.{suffix}.md"
+        for index in range(1, PAGE_COUNT + 1)
+        for suffix in ("zh", "en")
     }
     assert len(durations) == PAGE_COUNT
 

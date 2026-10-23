@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 from collections.abc import Iterator
@@ -443,6 +444,38 @@ def test_register_theme_canonicalizes_a_mixed_case_name(
     finally:
         set_theme("mocha")
         THEMES.pop("mycustom", None)
+
+
+def test_register_theme_warns_on_overwrite_not_on_re_registration(
+    builtin_baseline: None, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Overwriting a registered theme with *different* content warns through
+    tracing; re-registering identical content stays silent (idempotent)."""
+    first = _bad(name="overwrite-me")
+    try:
+        with caplog.at_level(logging.WARNING, logger="yate.editor_view.themes"):
+            register_theme(first)  # new key: never warns
+            assert not [
+                r for r in caplog.records if "overwrite-me" in r.getMessage()
+            ]
+
+            changed = _bad(name="overwrite-me", bg="#000000")
+            assert changed != first
+            caplog.clear()
+            register_theme(changed)
+            assert any(
+                "overwrite-me" in r.getMessage()
+                and "overwrites a registered theme" in r.getMessage()
+                for r in caplog.records
+            )
+
+            caplog.clear()
+            register_theme(changed)  # identical content: idempotent, silent
+            assert not [
+                r for r in caplog.records if "overwrite-me" in r.getMessage()
+            ]
+    finally:
+        THEMES.pop("overwrite-me", None)
 
 
 def test_to_textual_theme_raises_on_invalid(builtin_baseline: None) -> None:

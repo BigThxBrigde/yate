@@ -71,6 +71,19 @@ def test_cell_to_char_maps_back_from_cell_column() -> None:
     assert cell_to_char("ab", 99) == 2
 
 
+def test_cell_to_char_skips_attached_marks_before_the_boundary() -> None:
+    # cell 1 is the column right after 'a': the combining mark attaches to
+    # that cell, so the boundary test must not stop on the mark -- the
+    # click lands on the next base character 'b'
+    line = "a" + COMBINING_ACUTE + "b"
+    assert cell_to_char(line, 1) == 2
+    # the inverse map round-trips through char_to_cell for the base
+    # characters and the line end (the mark index itself shares cell 1
+    # with 'b', so the many-to-one forward map cannot round-trip it)
+    for i in (0, 2, 3):
+        assert cell_to_char(line, char_to_cell(line, i)) == i
+
+
 def test_cell_offsets_matches_char_to_cell_prefix() -> None:
     line = "a\t中b"
     offsets = cell_offsets(line)

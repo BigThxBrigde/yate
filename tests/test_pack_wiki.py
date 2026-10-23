@@ -87,7 +87,12 @@ def test_run_writes_zh_pages_paired_en_and_nav(repo: Path, tmp_path: Path) -> No
     assert not (target / "orphan.en.md").exists()
     for nav in ("Home.md", "Home.en.md", "_Sidebar.md", "_Sidebar.en.md"):
         assert (target / nav).exists()
-    assert wiki.load_manifest(target) == {}
+    # The en twins are copied by the tool, so they are recorded; pages
+    # without a translator record nothing.
+    assert wiki.load_manifest(target) == {
+        "topic.en.md": hashlib.sha256((target / "topic.en.md").read_bytes()).hexdigest(),
+        "manual.en.md": hashlib.sha256((target / "manual.en.md").read_bytes()).hexdigest(),
+    }
 
 
 def test_run_reports_missing_without_translator(
@@ -245,7 +250,13 @@ def test_failed_fresh_retranslation_does_not_bless_manifest(
 
     monkeypatch.setattr(wiki, "translate_via_cmd", failing_translate)
     assert wiki.run(target, "fake-cmd", check=True, translate_all=True, repo_root=repo) == 1
-    assert wiki.load_manifest(target) == {}
+    manifest = wiki.load_manifest(target)
+    # The failed re-translation must not bless the adopted page: neither
+    # its zh digest nor an en digest of bytes this tool never wrote may
+    # appear (the bilingual twins legitimately record their copied en
+    # pages, so exact-dict equality is not available here).
+    assert "orphan.zh.md" not in manifest
+    assert "orphan.en.md" not in manifest
     assert (target / "orphan.en.md").read_text(encoding="utf-8") == (
         "# kept from an older source\n"
     )
@@ -699,6 +710,48 @@ def test_prune_keeps_a_user_written_english_page(
     note.write_text("# hand written en\n", encoding="utf-8")
     assert wiki.run(target, None, repo_root=repo) == 0
     assert note.exists()
+
+
+def test_prune_keeps_an_adopted_english_page_after_source_vanishes(
+    repo: Path, tmp_path: Path
+) -> None:
+    """An adopted en page survives even when its zh source is removed.
+
+    The tool never wrote the English page, so the manifest records no en
+    digest for it and pruning has no claim on the file -- deleting the
+    zh source must not take the adopted page down with it.
+    """
+    target = tmp_path / "wiki"
+    target.mkdir()
+    _touch(target, "orphan.en.md", "# adopted en\n")
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert (target / "orphan.en.md").read_text(encoding="utf-8") == "# adopted en\n"
+    (repo / "yate" / "docs" / "orphan.zh.md").unlink()
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert (target / "orphan.en.md").read_text(encoding="utf-8") == "# adopted en\n"
+
+
+def test_prune_keeps_a_hand_edited_translated_page_after_source_vanishes(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A translated en page edited afterwards survives its zh source.
+
+    The recorded en digest matched the translation the tool wrote; once a
+    hand edit changes the bytes, the mismatch keeps the file alive even
+    though the manifest still lists it.
+    """
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return "# orphan en\n\ntranslated\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    _touch(target, "orphan.en.md", "# hand edited en\n")
+    (repo / "yate" / "docs" / "orphan.zh.md").unlink()
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert not (target / "orphan.zh.md").exists()
+    assert (target / "orphan.en.md").read_text(encoding="utf-8") == "# hand edited en\n"
 
 
 # --- GitHub wiki URL resolution (review m-24) ---------------------------------
