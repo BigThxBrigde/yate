@@ -3,5 +3,6 @@
   "runtime.version": "Lua 5.4",
   "workspace.library": ["yate/extensions"],
   "workspace.checkThirdParty": false,
-  "diagnostics.globals": ["api", "yate"]
+  "diagnostics.globals": ["api", "yate", "python"],
+  "diagnostics.disable": ["need-check-nil", "inject-field", "undefined-field"]
 }
