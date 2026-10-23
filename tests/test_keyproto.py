@@ -28,6 +28,7 @@ from yate.keyproto.frames import (
     frame_to_key_name,
 )
 from yate.keyproto.legacy import textual_key_to_raw
+from yate.keyproto.textual_internals import XTermParser
 
 
 def test_vk_helpers_classify_letters_and_digits() -> None:
@@ -307,6 +308,29 @@ def test_frame_stream_leaves_untranslatable_kitty_sequences_to_the_parser() -> N
         frames, residual = _feed("a" + sequence + "b")
         assert frames == [], sequence
         assert residual == "a" + sequence + "b", sequence
+
+
+def test_frame_stream_leaves_functional_kitty_keys_to_textual() -> None:
+    """Protocol-defined functional keys stay Textual's, which names them.
+
+    The frame stream only owns ctrl/alt chords yate can name itself; every
+    defined functional code (F13+, keypad, ``1;mods`` arrows/nav) already
+    decodes upstream with the canonical name and ``character=None``.
+    Translating them here would duplicate Textual's table (plan option D).
+    """
+    cases = {
+        "\x1b[57376;5u": "ctrl+f13",
+        "\x1b[57417;5u": "ctrl+left",
+        "\x1b[57400;5u": "ctrl+1",
+        "\x1b[3;3~": "alt+delete",
+        "\x1b[1;5D": "ctrl+left",
+    }
+    for sequence, expected in cases.items():
+        frames, residual = _feed(sequence)
+        assert frames == [], sequence
+        assert residual == sequence, sequence
+        keys = [getattr(message, "key", None) for message in XTermParser().feed(residual)]
+        assert keys == [expected], sequence
 
 
 def test_frame_stream_drops_kitty_release_events() -> None:

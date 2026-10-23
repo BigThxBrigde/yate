@@ -176,8 +176,8 @@ release 丢弃、跨 feed 半截序列、驱动单协议源码守卫，共 5 条
 
 ## 八、PR 预审查修复回填（2026-10-24）
 
-pr-review（base=master）发现 1 项 MAJOR + 2 项 MINOR，本轮回填 MAJOR 与
-int 上限加固（MINOR 3 仍留 P3/P5 `kitty.py` 跟进）。
+pr-review（base=master）发现 1 项 MAJOR + 2 项 MINOR，本轮全部关案：MAJOR 与
+int 上限加固改代码；MINOR 3 经实测为**假阳性**（见下），仅补回归用例锁行为。
 
 **MAJOR：kitty 和弦帧不得伪造可打印字符**
 
@@ -202,16 +202,30 @@ int 上限加固（MINOR 3 仍留 P3/P5 `kitty.py` 跟进）。
   见到超长串。实测 Python 3.13 对 5000 位串抛
   `ValueError: Exceeds the limit (4300 digits)`；驱动外层 `except` 会让输入线程结束。
 
+**MINOR 3：kitty 功能键未翻译 —— 假阳性关案**
+
+- 审查举的 `57352` **不是协议定义的键码**（kitty 功能键表为 57358–57454 与
+  57376–57398 等，57344–57357 未分配），Textual 对未分配码回退到 PUA 字符名
+  `ctrl+\ue008`，属预期，且 `character=None` / 不可打印。
+- 实测协议内真实功能键经「原样交还」后已由 Textual 正确命名：
+  `57376;5` → `ctrl+f13`、`57388;3` → `alt+f25`、`57417;5` → `ctrl+left`、
+  `57400;5` → `ctrl+1`、`1;5D` → `ctrl+left`、`3;3~` → `alt+delete`
+  （全部 `character=None`、`is_printable=False`）。
+- 结论：在 yate 侧再建功能键映射表属方案 D 已否决的重复实现；改为新增
+  `test_frame_stream_leaves_functional_kitty_keys_to_textual`，锁定「不透传
+  即不改写 + 下游命名正确」这一契约。
+
 **测试变更**：`test_frame_stream_translates_kitty_chords_to_canonical_names` 断言
 `frames[0].char == 0` / `frame_to_char == ""`；新增
-`test_frame_stream_drops_pathological_overlong_frames`（`_` 与 `u` 两种）与
-`test_synthesized_chords_never_look_printable`（含两处驱动归一化源码守卫）。
+`test_frame_stream_drops_pathological_overlong_frames`（`_` 与 `u` 两种）、
+`test_synthesized_chords_never_look_printable`（含两处驱动归一化源码守卫）与
+`test_frame_stream_leaves_functional_kitty_keys_to_textual`（功能键透传契约）。
 
 **复测门禁（worktree `.venv`）**
 
 | 门禁 | 命令 | 结果 |
 |---|---|---|
 | pyright | `pyright yate/ tests/ tools/` | 0 errors, 0 warnings |
-| 单元 + 架构 | `pytest tests/test_keyproto.py tests/test_architecture.py -q -n 0` | 58 passed |
+| 单元 + 架构 | `pytest tests/test_keyproto.py tests/test_architecture.py -q -n 0` | 59 passed |
 | 全量 | `pytest tests/ -q -n auto` | 全绿，exit 0 |
 
