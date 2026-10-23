@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from textual.events import Key
 
 from yate.keyproto.aliases import chord_to_key_name
 from yate.keyproto.chords import (
@@ -285,8 +286,10 @@ def test_frame_stream_translates_kitty_chords_to_canonical_names() -> None:
         "ctrl+space",
         "ctrl+shift+e",
     ]
-    # the sequence character rides the character path like a win32 frame
-    assert frame_to_char(frames[0]) == "p"
+    # chord frames are characterless, like the win32 chord frames (UCS 0);
+    # only an explicit text field contributes a character
+    assert frames[0].char == 0
+    assert frame_to_char(frames[0]) == ""
     assert frame_to_char(frames[5]) == "\x05"
 
 
@@ -324,6 +327,20 @@ def test_frame_stream_holds_partial_kitty_sequence_across_feeds() -> None:
     assert residual == "y"
 
 
+def test_frame_stream_drops_pathological_overlong_frames() -> None:
+    """A digit run beyond any real frame is dropped before int() sees it.
+
+    Python caps decimal int conversion at 4300 digits; letting such a run
+    reach int() raises ValueError and would end the input thread.
+    """
+    overlong = "9" * 5000
+    for sequence in ("\x1b[" + overlong + "_", "\x1b[" + overlong + ";5u"):
+        stream = Win32FrameStream()
+        frames, residual = stream.feed("a" + sequence + "b")
+        assert frames == [], sequence[-2:]
+        assert residual == "ab", sequence[-2:]
+
+
 def test_windows_driver_enables_one_keyboard_protocol() -> None:
     """Only win32-input-mode is pushed: enabling kitty too breaks WezTerm.
 
@@ -334,6 +351,21 @@ def test_windows_driver_enables_one_keyboard_protocol() -> None:
     source = path.read_text(encoding="utf-8")
     assert 'self.write("\\x1b[?9001h")' in source
     assert 'self.write("\\x1b[>1u")' not in source
+
+
+def test_synthesized_chords_never_look_printable() -> None:
+    """Characterless chords reach Key with ``character=None`` (IKPTMH).
+
+    ``str.isprintable()`` is vacuously True for ``""``, so delivering an
+    empty string would make ``Key.is_printable`` True and let printable
+    paths (diff pane insert, terminal forwarding) consume stray chords.
+    """
+    assert Key("alt+shift+p", character="").is_printable  # the trap
+    assert not Key("alt+shift+p", character=None).is_printable
+    path = Path(__file__).resolve().parent.parent / "yate" / "keyproto" / "driver_windows.py"
+    source = path.read_text(encoding="utf-8")
+    assert "character=chord.char or None" in source
+    assert "character=key_frame.char_text or None" in source
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only driver")

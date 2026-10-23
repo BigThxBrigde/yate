@@ -200,7 +200,7 @@ class ChordEventMonitor(win32.EventMonitor):
                                     chord.char,
                                     name,
                                 )
-                                deliver(Key(name, character=chord.char))
+                                deliver(Key(name, character=chord.char or None))
                                 continue
                             append_key(key)
                     elif event_type == window_buffer_size_event:
@@ -226,7 +226,11 @@ class ChordEventMonitor(win32.EventMonitor):
                                 key_frame.char_text,
                                 name,
                             )
-                            deliver(Key(name, character=key_frame.char_text))
+                            # Empty text means "no character": pass None so
+                            # Key.is_printable stays False (str.isprintable()
+                            # is vacuously True for "") and printable paths
+                            # never see a characterless chord.
+                            deliver(Key(name, character=key_frame.char_text or None))
                             continue
                         frame_char = frame_to_char(key_frame)
                         if frame_char:

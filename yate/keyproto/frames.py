@@ -190,7 +190,11 @@ def _kitty_to_win32_frame(params: str) -> Win32InputFrame | None:
     text = parts[2] if len(parts) > 2 else ""
     if ":" in text:
         return None
-    char = int(text) if text.isdecimal() else code
+    # Chord frames carry no character, matching the win32 chord frames (the
+    # UCS field is 0 there).  Fabricating one from the codepoint would make
+    # the synthesized Key printable and leak stray text into printable paths
+    # (diff pane insert, terminal forwarding) -- the IKPTMH regression class.
+    char = int(text) if text.isdecimal() else 0
     state = (
         (SHIFT_BIT if bits & _KITTY_SHIFT else 0)
         | (ALT_BITS if bits & _KITTY_ALT else 0)
@@ -203,12 +207,22 @@ def _split_kitty_frames(text: str) -> tuple[list[Win32InputFrame], str]:
     """Pull translatable kitty frames out of *text*.
 
     Untranslatable kitty sequences stay in the returned residual in their
-    original order, so Textual receives them byte-for-byte.
+    original order, so Textual receives them byte-for-byte.  A parameter run
+    longer than :data:`_PENDING_MAX` cannot be a real frame and is dropped
+    (see the guard below).
     """
     frames: list[Win32InputFrame] = []
     parts: list[str] = []
     pos = 0
     for match in _KITTY_FRAME_RE.finditer(text):
+        if len(match.group(1)) > _PENDING_MAX:
+            # An overlong parameter run is not a real frame; int() would
+            # raise ValueError (decimal digit limit) and end the input
+            # thread.  Textual's parser would raise on the same bytes, so
+            # the sequence is dropped rather than handed on.
+            parts.append(text[pos:match.start()])
+            pos = match.end()
+            continue
         frame = _kitty_to_win32_frame(match.group(1))
         if frame is None:
             continue
@@ -246,6 +260,12 @@ class Win32FrameStream:
         parts: list[str] = []
         pos = 0
         for match in _FRAME_RE.finditer(stream):
+            if len(match.group(1)) > _PENDING_MAX:
+                # Same overlong-run guard as the kitty branch: _decode_frame
+                # would otherwise raise ValueError and end the input thread.
+                parts.append(stream[pos:match.start()])
+                pos = match.end()
+                continue
             parts.append(stream[pos:match.start()])
             frames.append(_decode_frame(match.group(1)))
             pos = match.end()

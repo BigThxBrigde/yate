@@ -173,3 +173,45 @@ flowchart LR
 
 **新增测试**（`tests/test_keyproto.py`）：kitty 和弦翻译、不可翻译序列透传、
 release 丢弃、跨 feed 半截序列、驱动单协议源码守卫，共 5 条。
+
+## 八、PR 预审查修复回填（2026-10-24）
+
+pr-review（base=master）发现 1 项 MAJOR + 2 项 MINOR，本轮回填 MAJOR 与
+int 上限加固（MINOR 3 仍留 P3/P5 `kitty.py` 跟进）。
+
+**MAJOR：kitty 和弦帧不得伪造可打印字符**
+
+- 根因比审查初稿更深一层：`str.isprintable()` 对空串**恒为 True**（vacuously
+  true），因此即使把 UCS 字段置 0、`char_text` 返回 `""`，`Key(..., character="")`
+  仍是 `is_printable=True`——修复必须同时把"无字符"归一为 `None`。
+- 落点 1：`_kitty_to_win32_frame` 的 `char` 默认值由 `code` 改为 `0`，与真实
+  win32 弦帧（如 `\x1b[49;2;0;1;40;1_`，UCS=0）一致；只有显式 text 字段才产生字符。
+- 落点 2：驱动两处 `deliver` 改 `character=... or None`，使合成事件与 Textual 自身
+  解析 `\x1b[112;4u` 的结果（`character=None`）一致，杜绝对
+  `diff_pane.py` 的 `is_printable` 插入分支与终端转发泄漏字符。
+- 证据：`Key("alt+shift+p", character="").is_printable is True`、
+  `Key(..., character=None).is_printable is False`；
+  Textual 解析 `\x1b[112;4u` → `character=None`。
+
+**MINOR：超长参数串在 int() 前丢弃**
+
+- 审查建议的 `return None` **不足**：`textual/_xterm_parser.py:366-374` 的
+  `_parse_extended_key` 对同一串还会 `int()` 并同样抛 `ValueError`；故改为在
+  `Win32FrameStream.feed`（`_` 帧）与 `_split_kitty_frames`（`u` 帧）中，对
+  `len(参数) > _PENDING_MAX` 的匹配**整段丢弃**（保留其前后文本），`int()` 永不
+  见到超长串。实测 Python 3.13 对 5000 位串抛
+  `ValueError: Exceeds the limit (4300 digits)`；驱动外层 `except` 会让输入线程结束。
+
+**测试变更**：`test_frame_stream_translates_kitty_chords_to_canonical_names` 断言
+`frames[0].char == 0` / `frame_to_char == ""`；新增
+`test_frame_stream_drops_pathological_overlong_frames`（`_` 与 `u` 两种）与
+`test_synthesized_chords_never_look_printable`（含两处驱动归一化源码守卫）。
+
+**复测门禁（worktree `.venv`）**
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| pyright | `pyright yate/ tests/ tools/` | 0 errors, 0 warnings |
+| 单元 + 架构 | `pytest tests/test_keyproto.py tests/test_architecture.py -q -n 0` | 58 passed |
+| 全量 | `pytest tests/ -q -n auto` | 全绿，exit 0 |
+
