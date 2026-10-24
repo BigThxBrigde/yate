@@ -5,8 +5,10 @@ routes into the hex dump screen (the DocumentFlows callback handoff), and
 ``:hex`` toggles the dump for the active document (open, close, reopen,
 escape close).  A third scenario drives the goto-address input (``g`` +
 address + ``enter``) and verifies the dump shows the target offset row.
-The dump itself is verified through the SVG text rows
-(offset + hex + ASCII columns); screen state goes through the stack.
+A fourth scenario edits the first byte in place (``e`` + nibble keys) and
+writes it back with ``w``.  The dump itself is verified through the SVG
+text rows (offset + hex + ASCII columns); screen state goes through the
+stack.
 """
 
 from __future__ import annotations
@@ -136,8 +138,45 @@ async def _hex_view_goto_address(tmp: Path) -> ScenarioResult:
     return ScenarioResult("hex_view_goto_address", checks, rows)
 
 
+async def _hex_view_edit_and_save(tmp: Path) -> ScenarioResult:
+    """Edit the first byte in the hex view and write it back with ``w``.
+
+    ``e edit.bin`` routes the binary file into the hex dump screen (the
+    file is not open as a text document, so the write-back conflict gate
+    lets it through -- unlike ``:hex`` on the active text document, whose
+    path is always open in the editor); ``e`` enters edit mode, ``4`` +
+    ``1`` key the nibbles of 0x41 and ``w`` saves.  The byte on disk must
+    read 0x41 afterwards and ``q`` must return to the editor.
+    """
+    (tmp / "a.txt").write_text("alpha\nbravo\n", encoding="utf-8")
+    (tmp / "edit.bin").write_bytes(b"\x00" * 16)
+    app = new_app(target=tmp / "a.txt")
+    checks: list[Check] = []
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await run_command(pilot, "e edit.bin")
+        checks.append(Check(
+            "hex_screen_pushed", True,
+            await wait_until(pilot, lambda: _hex_screen(app) is not None),
+        ))
+        await pilot.press("e")
+        await pilot.press("4", "1")
+        await pilot.press("w")
+        await pilot.pause()
+        checks.append(Check(
+            "file_written", True,
+            (tmp / "edit.bin").read_bytes()[0] == 0x41,
+        ))
+        await pilot.press("q")
+        await pilot.pause()
+        checks.append(Check("q_closes", 1, len(app.screen_stack)))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult("hex_view_edit_and_save", checks, rows)
+
+
 SCENARIOS: list[Scenario] = [
     Scenario("hex_view_binary_open", _hex_view_binary_open, ("files", "command")),
     Scenario("hex_view_toggle_text", _hex_view_toggle_text, ("files", "command")),
     Scenario("hex_view_goto_address", _hex_view_goto_address, ("files", "command")),
+    Scenario("hex_view_edit_and_save", _hex_view_edit_and_save, ("files", "command")),
 ]
