@@ -82,3 +82,28 @@ PowerShell 命令行拼接（§一 的 PowerShell 语法限制因此大多可以
 **不受本条约束**：面向用户的文档（`yate/docs/*.en.md` / `*.zh.md`、
 `yate/resources/manual.*.md` 等）仍按 `doc-conventions.md` 的双语同步规则
 各自使用中英文。
+
+## 五、Trae memory 定期维护（每半月一轮）
+
+Trae 为项目维护跨会话 memory，位于 `~/.trae-cn/memory/projects/<project-slug>/`，
+含 `project_memory.md`（项目规则沉淀）与按日分目录的
+`session_memory_*.jsonl` / `topics.md`（对话级记录）。该目录只增不减，会持续
+膨胀并拖慢每次会话的检索，须定期整理。
+
+- **周期**：每月 1 日与 16 日前后各执行一轮；用户说"整理 memory"、"清理
+  session"、"精简 memory"等时立即执行，不受周期限制。
+- **`project_memory.md` 整理**（整体重写，不是往末尾追加）：
+  - 删除：已完成任务的验收流水账（"手册必须记载 X"类条目）、彼此重复的碎条目、
+    已失效的临时状态（如"分支领先 N 提交"、过期计划的波次安排、已解除的禁用项）；
+  - 合并：同一主题的多条碎目合并为单条结构化描述，按"硬约束 / 架构规则 /
+    打包 CI / 流程纪律 / 编码约定 / Lessons Learned"分节；
+  - **保留红线**：删除任何条目前自问"该信息能否从仓库（代码、`yate/docs/`
+    手册、CHANGELOG、`.trae/` 规则）恢复"——能恢复或已失效才可删；仍有效且
+    仓库不可查的一律保留，**Lessons Learned 全量保留，一条不删**；
+  - 汇报：完成后列出删除/合并摘要（删了哪几类、为什么），供用户抽查。
+- **session 清理**：删除早于最近 30 天的日期目录（整目录连同内部文件删除）；
+  删除前抽查这些日期的 `topics.md` 是否含未沉淀的结论性信息，有则先并入
+  `project_memory.md` 再删。
+- **操作方式**：批量删文件用 DeleteFile 工具，空目录用 PowerShell
+  `Remove-Item -Recurse -Force`；执行前后各统计一次文件数与总体积，用表格
+  向用户汇报前后对比。
