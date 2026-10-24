@@ -14,6 +14,7 @@ target) and the end-to-end binary startup target flowing into a
 from __future__ import annotations
 
 import asyncio
+import builtins
 from pathlib import Path
 from typing import Any, cast
 
@@ -104,6 +105,89 @@ def test_open_hex_view_pushes_hex_screen(tmp_path: Path) -> None:
     assert screen._data == _BINARY_BYTES
     assert screen._path == binary
     assert messages == []
+
+
+def test_open_hex_view_read_only_disables_writer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read-only file opens for browsing without the writer callback."""
+    binary = tmp_path / "ro.bin"
+    binary.write_bytes(_BINARY_BYTES)
+
+    def _deny_access(path: object, mode: int) -> bool:
+        return False
+
+    monkeypatch.setattr("yate.flows.overlay_flows.os.access", _deny_access)
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages)
+
+    flows.open_hex_view(binary)
+
+    assert len(app.pushed) == 1
+    screen = app.pushed[0]
+    assert isinstance(screen, HexScreen)
+    assert screen._write_bytes is None
+    assert messages
+    assert "file read-only" in messages[0][0]
+    assert messages[0][1] == "info"
+
+
+def test_open_hex_view_read_failure_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read_bytes failure past the stat gate reports ``cannot read``."""
+
+    def boom(self: Path) -> bytes:
+        raise OSError("read error")
+
+    binary = tmp_path / "locked.bin"
+    binary.write_bytes(_BINARY_BYTES)
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages)
+
+    flows.open_hex_view(binary)
+
+    assert app.pushed == []
+    assert messages
+    assert messages[0][0].startswith("cannot read locked.bin")
+    assert messages[0][1] == "warn"
+
+
+def test_write_hex_bytes_write_failure_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A write failure inside the flow reports ``save failed`` and None.
+
+    The patched ``builtins.open`` is restored by the ``monkeypatch``
+    fixture when the test ends.
+    """
+    binary = tmp_path / "test.bin"
+    binary.write_bytes(b"\x00" * 16)
+    real_open = builtins.open
+
+    def boom_open(file: Any, mode: str = "r", **kwargs: Any) -> Any:
+        if mode == "r+b":
+            raise PermissionError("denied")
+        return real_open(file, mode, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", boom_open)
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(
+        _FakeApp(), messages, session=EditorSession(YateConfig())
+    )
+
+    result = flows._write_hex_bytes(
+        binary, b"\x41" * 16, binary.stat().st_mtime, 16
+    )
+
+    assert result is None
+    assert messages
+    assert messages[0][0].startswith("save failed")
+    assert messages[0][1] == "warn"
+    assert binary.read_bytes() == b"\x00" * 16  # untouched
 
 
 def test_open_hex_view_pops_when_already_hex_screen(tmp_path: Path) -> None:

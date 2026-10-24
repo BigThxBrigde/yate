@@ -27,6 +27,7 @@ from yate.editor_view.hexview import (
     _CONTENT_WIDTH,
     HexScreen,
     HexView,
+    MAX_UNDO_STEPS,
     parse_hex_address,
 )
 from yate.editor_view.scrollbars import SlimScrollBarRender
@@ -506,3 +507,296 @@ def test_hex_view_read_only_refuses_save(tmp_path: Path) -> None:
     assert messages
     assert "not available" in messages[0][0]
     assert messages[0][1] == "warn"
+
+
+def test_hex_screen_edit_mode_key_routing() -> None:
+    """Edit-mode key routing end to end (pilot driven).
+
+    ``e`` enters edit mode, two digit presses merge one byte (advancing
+    the cursor), the arrow keys move the byte cursor instead of
+    scrolling, ``u`` restores the overwritten bytes and ``escape``
+    leaves edit mode.
+    """
+
+    async def _scenario() -> None:
+        app = _ScreenHost()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen = HexScreen(Path("sample.bin"), b"\x00" * 32)
+            app.push_screen(screen)
+            await pilot.pause()
+            view = screen.query_one("#hex-view", HexView)
+            assert view.is_editing() is False
+
+            # a non-editing key falls through untouched (R10)
+            await pilot.press("x")
+            await pilot.pause()
+            assert view.is_editing() is False
+            assert view._cursor_pos == 0
+
+            await pilot.press("e")
+            await pilot.pause()
+            assert view.is_editing() is True
+
+            # two nibble presses merge into the cursor byte (0xAB)
+            await pilot.press("a")
+            await pilot.press("b")
+            await pilot.pause()
+            assert view.current_bytes()[0] == 0xAB
+            assert view._cursor_pos == 1  # advanced after the low half
+
+            # arrow keys move the byte cursor, not the scroll
+            await pilot.press("right")
+            await pilot.pause()
+            assert view._cursor_pos == 2
+            await pilot.press("up")
+            await pilot.pause()
+            assert view._cursor_pos == 0  # 2 - 16 clamps to the first byte
+
+            # undo pops the two nibble records back to the original byte
+            await pilot.press("u")
+            await pilot.press("u")
+            await pilot.pause()
+            assert view.current_bytes()[0] == 0x00
+
+            # vim keys reach the screen's edit branch (only the arrows are
+            # intercepted by the view itself) and ``w`` hits save()
+            await pilot.press("l")
+            await pilot.pause()
+            assert view._cursor_pos == 1
+            await pilot.press("h")
+            await pilot.pause()
+            assert view._cursor_pos == 0
+            await pilot.press("w")  # no writer injected: silently refused
+            await pilot.pause()
+            assert view.is_editing() is True
+
+            # any other key falls through in edit mode (R10)
+            await pilot.press("z")
+            await pilot.pause()
+            assert view.is_editing() is True
+            assert view.current_bytes()[0] == 0x00
+
+            await pilot.press("escape")
+            await pilot.pause()
+            assert view.is_editing() is False
+
+    asyncio.run(_scenario())
+
+
+def test_hex_screen_edit_mode_q_dismisses() -> None:
+    """``q`` dismisses the screen even in edit mode (current behavior).
+
+    The dismiss branch precedes the edit branches, so ``q`` is not
+    consumed as an editing key -- locked here as the documented semantic.
+    """
+
+    async def _scenario() -> None:
+        app = _ScreenHost()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen = HexScreen(Path("sample.bin"), b"\x00" * 32)
+            app.push_screen(screen)
+            await pilot.pause()
+            view = screen.query_one("#hex-view", HexView)
+            await pilot.press("e")
+            await pilot.pause()
+            assert view.is_editing() is True
+            await pilot.press("q")
+            await pilot.pause()
+            assert app.screen is not screen
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_undo_stack_capped() -> None:
+    """The undo stack keeps at most MAX_UNDO_STEPS entries, oldest dropped."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x00")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view._cursor_pos = 0
+            for _ in range(1001):
+                view.edit_nibble("f")
+            assert len(view._undo_stack) == MAX_UNDO_STEPS
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_edit_nibble_ignores_invalid() -> None:
+    """Non-hex-digit arguments (bad char, bad length) leave data untouched."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x00\x00")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view._cursor_pos = 0
+            view.edit_nibble("z")
+            view.edit_nibble("zz")
+            assert view.current_bytes() == b"\x00\x00"
+            assert view._undo_stack == []
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_undo_empty_stack_noop() -> None:
+    """Undo on an empty stack is a no-op (no crash, no data change)."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x42")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view.undo()
+            assert view.current_bytes() == b"\x42"
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_current_bytes_immutable() -> None:
+    """current_bytes returns an immutable bytes snapshot of the payload."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x01\x02")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            snapshot = view.current_bytes()
+            assert isinstance(snapshot, bytes)
+            mutated = bytearray(snapshot)
+            mutated[0] = 0xFF
+            assert snapshot == b"\x01\x02"  # bytes cannot be mutated
+            assert view.current_bytes() == snapshot  # internal data intact
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_edit_cursor_reversed_render() -> None:
+    """In edit mode the cursor byte renders reversed (on_accent on accent)."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x00\x00")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view.enter_edit_mode()  # cursor defaults to byte 0
+            segments = list(view.render_line(0))
+            t = theme.active()
+            first = segments[1]
+            assert first.text == "00"
+            assert first.style is not None
+            assert first.style.color is not None
+            assert first.style.color.get_truecolor().hex == t.on_accent
+            assert first.style.bgcolor is not None
+            assert first.style.bgcolor.get_truecolor().hex == t.accent
+            # the neighbour byte keeps its plain classification color
+            assert _segment_hex(segments[2]) == t.fg_dim
+
+    asyncio.run(_scenario())
+
+
+def test_hex_screen_save_failure_reports(tmp_path: Path) -> None:
+    """A writer raising OSError is reported as ``save failed`` on the line."""
+    messages: list[tuple[str, str]] = []
+
+    def boom(
+        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+    ) -> tuple[float, int] | None:
+        raise OSError("disk full")
+
+    screen = HexScreen(
+        tmp_path / "test.bin",
+        b"\x00" * 16,
+        message=lambda text, kind: messages.append((text, kind)),
+        write_bytes=boom,
+    )
+    screen.save()
+    assert messages
+    assert messages[0][0].startswith("save failed")
+    assert messages[0][1] == "warn"
+
+
+def test_hex_screen_save_silent_without_message_callback(tmp_path: Path) -> None:
+    """save() stays quiet when no message callback is injected.
+
+    Covers the three ``message is None`` arms: no writer (refused), a
+    failing writer and a successful writer returning the fingerprint --
+    the last one still refreshes the baseline.
+    """
+    refused = HexScreen(tmp_path / "a.bin", b"\x00" * 16)
+    refused.save()  # write not available, silent
+    assert refused._mtime == 0.0  # untouched
+
+    def boom(
+        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+    ) -> tuple[float, int] | None:
+        raise OSError("disk full")
+
+    failed = HexScreen(tmp_path / "b.bin", b"\x00" * 16, write_bytes=boom)
+    failed.save()  # save failed, silent
+    assert failed._mtime == 0.0  # untouched
+
+    path = tmp_path / "c.bin"
+    path.write_bytes(b"\x00" * 16)
+    load_mtime = path.stat().st_mtime
+
+    def writer(
+        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+    ) -> tuple[float, int] | None:
+        write_path.write_bytes(write_data)
+        return (write_mtime + 1.0, write_size)
+
+    saved = HexScreen(
+        path, b"\x00" * 16, write_bytes=writer, mtime=load_mtime, size=16
+    )
+    saved.save()  # success, silent -- the fingerprint still refreshes
+    assert saved._mtime == load_mtime + 1.0  # writer's value rode back in
+    assert saved._load_size == 16
+
+
+def test_hex_screen_save_refreshes_fingerprint_for_resave(tmp_path: Path) -> None:
+    """A successful save refreshes the stat fingerprint (W-1 regression lock).
+
+    Wired to the real ``OverlayFlows._write_hex_bytes``: after the first
+    save the file's post-write stat rides back into the screen baseline,
+    so an immediate second save on the same screen is not refused as
+    ``modified externally`` and lands the second edit on disk.
+    """
+
+    async def _scenario() -> None:
+        path = tmp_path / "test.bin"
+        path.write_bytes(b"\x00" * 16)
+        messages: list[tuple[str, str]] = []
+        flows = _make_flows(messages, session=_FakeSession(None))
+        app = _ScreenHost()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen = HexScreen(
+                path,
+                b"\x00" * 16,
+                message=lambda text, kind: messages.append((text, kind)),
+                write_bytes=flows._write_hex_bytes,
+                mtime=path.stat().st_mtime,
+                size=16,
+            )
+            app.push_screen(screen)
+            await pilot.pause()
+            view = screen.query_one("#hex-view", HexView)
+
+            view.enter_edit_mode()
+            view.edit_nibble("4")
+            view.edit_nibble("1")  # byte 0 -> 0x41 ('A')
+            screen.save()
+            await pilot.pause()
+            assert path.read_bytes() == b"A" + b"\x00" * 15
+            fresh = path.stat()
+            assert screen._mtime == fresh.st_mtime
+            assert screen._load_size == fresh.st_size == 16
+            assert any(text == "saved" for text, _ in messages)
+            assert not any("modified externally" in text for text, _ in messages)
+
+            # second edit + save on the same screen must still succeed
+            view.edit_nibble("5")  # byte 1 high half
+            view.edit_nibble("6")  # byte 1 -> 0x56 ('V')
+            screen.save()
+            await pilot.pause()
+            assert path.read_bytes() == b"AV" + b"\x00" * 14
+            assert not any("modified externally" in text for text, _ in messages)
+            assert sum(1 for text, _ in messages if text == "saved") == 2
+
+    asyncio.run(_scenario())
