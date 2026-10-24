@@ -411,6 +411,26 @@ _URL_PATTERN: re.Pattern[str] = re.compile(r"https?://\S+")
 #: visibly rather than widening :data:`HOME_PATH_PATTERN`.
 HOME_PATH_EXEMPT: frozenset[tuple[str, int]] = frozenset()
 
+#: Textual base classes that make a widget scrollable (R15): a module that
+#: defines a subclass of one of these must wire the slim scrollbar renderer
+#: and the theme palette from ``editor_view/scrollbars.py`` -- the explorer's
+#: slim, theme-following scrollbar look (issue IKINF3), popups included.
+SCROLLABLE_BASES: frozenset[str] = frozenset({
+    "ScrollView",
+    "VerticalScroll",
+    "HorizontalScroll",
+    "ScrollableContainer",
+    "Tree",
+    "RichLog",
+    "ListView",
+})
+
+#: ``editor_view`` modules exempt from the R15 scrollbar-pair guard, keyed by
+#: ``yate/``-relative path.  Empty by design: scrollable widgets (including
+#: those inside modal screens) wire both calls; a justified exception is
+#: registered here visibly instead of weakening the scan.
+SCROLLBAR_EXEMPT: frozenset[str] = frozenset()
+
 
 def _banned_comment_chars(text: str) -> list[str]:
     """Characters of *text* that misc-rules section 4 bans, as ``U+XXXX``."""
@@ -1512,4 +1532,49 @@ def test_no_machine_local_home_paths_in_sources() -> None:
         "absolute home-directory paths leak the author's machine layout "
         "(doc-conventions section 5); use a repo-relative path, an env var, "
         f"or register the site in HOME_PATH_EXEMPT: {offenders}"
+    )
+
+
+def test_scrollable_widgets_apply_theme_scrollbar_pair() -> None:
+    """Scrollable widgets wire the slim renderer and the theme palette (R15).
+
+    A module defining a class that inherits one of the scrollable Textual
+    bases must call both ``apply_slim_scrollbars`` (mount path) and
+    ``apply_scrollbar_theme`` (theme paint path) from
+    :mod:`yate.editor_view.scrollbars` -- the explorer's slim,
+    theme-following scrollbar look (issue IKINF3) is the component-wide
+    baseline, popups included.  The scan is dynamic: matching the base
+    classes instead of freezing a module list intercepts new scrollable
+    widgets automatically; a justified exception registers in
+    :data:`SCROLLBAR_EXEMPT`.
+    """
+    offenders: list[str] = []
+    for path in sorted((YATE / "editor_view").glob("*.py")):
+        rel = path.relative_to(YATE).as_posix()
+        if rel in SCROLLBAR_EXEMPT:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        bases: set[str] = set()
+        calls: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    name = base.id if isinstance(base, ast.Name) else (
+                        base.attr if isinstance(base, ast.Attribute) else ""
+                    )
+                    if name in SCROLLABLE_BASES:
+                        bases.add(name)
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                calls.add(node.func.id)
+        missing = {"apply_slim_scrollbars", "apply_scrollbar_theme"} - calls
+        if bases and missing:
+            offenders.append(
+                f"{rel}: {','.join(sorted(bases))} without "
+                f"{', '.join(sorted(missing))}()"
+            )
+    assert not offenders, (
+        "scrollable widgets must wire the slim scrollbar renderer and the "
+        "theme palette (R15): call apply_slim_scrollbars on mount and "
+        "apply_scrollbar_theme in the theme paint path, or register the "
+        f"module in SCROLLBAR_EXEMPT: {offenders}"
     )
