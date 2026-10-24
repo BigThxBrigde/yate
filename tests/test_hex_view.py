@@ -20,7 +20,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Static
 
 from yate.editor_view import theme
-from yate.editor_view.hexview import HexScreen, HexView
+from yate.editor_view.hexview import _CONTENT_WIDTH, HexScreen, HexView
 
 # "Hello, hex view!" -- exactly 16 bytes, so line 0 is a full row.
 _FULL_LINE_DATA = b"Hello, hex view!"
@@ -107,6 +107,11 @@ def test_hex_view_virtual_size_matches_line_count() -> None:
     view = HexView(Path("sample.bin"), b"x" * 33)
     assert view.virtual_size.height == 3  # (33 + 15) // 16
     assert HexView(Path("sample.bin"), b"").virtual_size.height == 0
+
+
+def test_hex_view_full_line_width_is_62() -> None:
+    """A full 16-byte line renders exactly 62 columns (offset + hex + ASCII)."""
+    assert _CONTENT_WIDTH == 62
 
 
 class _ScreenHost(App[None]):

@@ -140,6 +140,33 @@ def test_open_hex_view_rejects_oversize_file(
     assert messages[0][1] == "warn"
 
 
+def test_open_hex_view_stat_precheck_rejects_without_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file beyond the size gate is refused via stat, read_bytes never called."""
+    big = tmp_path / "big.bin"
+    big.write_bytes(b"x" * 8)
+    monkeypatch.setattr("yate.flows.overlay_flows.MAX_HEX_VIEW_SIZE", 4)
+    read_called: list[bool] = []
+    original_read_bytes = Path.read_bytes
+
+    def fake_read_bytes(self: Path) -> bytes:
+        read_called.append(True)
+        return original_read_bytes(self)
+
+    # class-level patch: WindowsPath rejects instance attribute assignment
+    monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages)
+
+    flows.open_hex_view(big)
+
+    assert app.pushed == []
+    assert read_called == []  # read_bytes never called
+    assert messages[0][0].startswith("file too large for hex view: big.bin")
+
+
 def test_open_hex_view_unreadable_path_reports(tmp_path: Path) -> None:
     """A missing file is refused on the message line, no screen push."""
     app = _FakeApp()
@@ -150,7 +177,8 @@ def test_open_hex_view_unreadable_path_reports(tmp_path: Path) -> None:
 
     assert app.pushed == []
     assert messages
-    assert messages[0][0].startswith("cannot read nope.bin")
+    # a missing file dies at the stat precheck, before any read happens
+    assert messages[0][0].startswith("cannot stat nope.bin")
     assert messages[0][1] == "warn"
 
 
@@ -201,6 +229,21 @@ def test_toggle_hex_view_unsaved_buffer_warns() -> None:
     assert app.pushed == []
     assert app.pops == 0
     assert messages == [("cannot hex view an unsaved buffer", "warn")]
+
+
+def test_toggle_hex_view_empty_session_warns() -> None:
+    """:hex on an empty session (no docs) warns and does not crash."""
+    session = EditorSession(YateConfig())
+    assert session.docs == []
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages, session=session)
+
+    flows.toggle_hex_view()
+
+    assert app.pushed == []
+    assert app.pops == 0
+    assert messages == [("no document open", "warn")]
 
 
 # --- DocumentFlows callback injection ----------------------------------------
@@ -267,6 +310,27 @@ def test_binary_open_without_opener_defers(tmp_path: Path) -> None:
     # take_pending_hex consumes the pending target exactly once
     assert flows.take_pending_hex() == binary
     assert flows.take_pending_hex() is None
+
+
+def test_binary_open_async_pushes_hex_screen(tmp_path: Path) -> None:
+    """An async binary open with a bound opener forwards the path to it."""
+    binary = tmp_path / "thing.bin"
+    binary.write_bytes(_BINARY_BYTES)
+    session = EditorSession(YateConfig())
+    opened: list[Path] = []
+    messages: list[tuple[str, str]] = []
+    flows = _make_doc_flows(
+        session, messages, open_hex_view=opened.append
+    )
+
+    async def scenario() -> bool:
+        return await flows.open_path_async(binary)
+
+    result = asyncio.run(scenario())
+
+    assert opened == [binary]
+    assert messages == []
+    assert result is False  # hex handoff reports "not a document" to callers
 
 
 # --- end-to-end: binary startup target ---------------------------------------

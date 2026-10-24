@@ -39,9 +39,9 @@ MAX_HEX_VIEW_SIZE: int = 100 * 1024 * 1024
 _BYTES_PER_LINE: int = 16
 
 #: Fixed content width of a full line: 8 offset digits + ``:`` + space +
-#: 2 groups of 8 bytes (16 hex chars each, 2 spaces between groups) +
-#: 2 spaces + 16 ASCII chars.
-_CONTENT_WIDTH: int = 9 + 1 + 2 * (2 * _BYTES_PER_LINE) + 2 + _BYTES_PER_LINE
+#: 2 groups of 8 bytes (16 hex chars each, 2 spaces between groups,
+#: total 34 chars) + 2 spaces + 16 ASCII chars.
+_CONTENT_WIDTH: int = 9 + 1 + (2 * _BYTES_PER_LINE + 2) + 2 + _BYTES_PER_LINE
 
 
 class HexView(ScrollView, can_focus=True):

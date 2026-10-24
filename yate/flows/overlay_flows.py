@@ -194,16 +194,21 @@ class OverlayFlows:
             self._pop_screen()
             return
         try:
-            data = path.read_bytes()
+            size = path.stat().st_size
         except OSError as exc:
-            self._message(f"cannot read {path.name}: {exc}", "warn")
+            self._message(f"cannot stat {path.name}: {exc}", "warn")
             return
-        if len(data) > MAX_HEX_VIEW_SIZE:
+        if size > MAX_HEX_VIEW_SIZE:
             self._message(
                 f"file too large for hex view: {path.name} "
                 f"(> {MAX_HEX_VIEW_SIZE} bytes)",
                 "warn",
             )
+            return
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            self._message(f"cannot read {path.name}: {exc}", "warn")
             return
         if self._mounted():
             self.push(HexScreen(path, data))
@@ -213,9 +218,12 @@ class OverlayFlows:
         if isinstance(self._current_screen(), HexScreen):
             self._pop_screen()
             return
+        if not self.session.docs:
+            self._message("no document open", "warn")
+            return
         doc = self.session.doc
-        # session.doc is a non-optional property (raises on empty docs) --
-        # the only guard needed is the unsaved-buffer one.
+        # session.doc is a non-optional property (safe after the docs-empty
+        # guard above); the only remaining guard is the unsaved-buffer one.
         if doc.resolved_path is None:
             self._message("cannot hex view an unsaved buffer", "warn")
             return
