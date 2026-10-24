@@ -211,7 +211,7 @@ class OverlayFlows:
             self._message(f"cannot read {path.name}: {exc}", "warn")
             return
         if self._mounted():
-            self.push(HexScreen(path, data))
+            self.push(HexScreen(path, data, message=self._message))
 
     def toggle_hex_view(self) -> None:
         """Toggle between text view and hex view for the active document."""

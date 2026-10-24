@@ -4,26 +4,33 @@ The view renders 16 bytes per line -- offset, two hex groups and an ASCII
 echo -- into a scrolling :class:`textual.widget.ScrollView` (line API).  The
 data is handed in pre-read by the flow layer (:mod:`yate.flows.overlay_flows`
 owns the size gate); the widget itself is presentation-only: it never touches
-the filesystem and holds no editor state (R3).
+the filesystem and holds no editor state (R3).  Goto-address support adds a
+pure parser (:func:`parse_hex_address`) and an in-screen input on the screen;
+the view still never touches the filesystem.
 
 Theme ownership follows R13: the view subscribes on mount and repaints on
-broadcast.  Key handling follows R10: the screen consumes only ``q`` /
-``escape``; every other key falls through.
+broadcast.  Key handling follows R10: the screen consumes the goto keys
+(``g`` / ``:``) and the dismiss keys (``q`` / ``escape``); every other key
+falls through.
 """
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import override
 
 from rich.segment import Segment
 from rich.style import Style
 from textual.app import ComposeResult
+from textual.containers import Vertical
 from textual.events import Key
 from textual.geometry import Size
 from textual.screen import ModalScreen
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
+from textual.widgets import Input, Static
 
 from yate.logs import tracing
 from yate.paths import load_tcss
@@ -44,6 +51,32 @@ _BYTES_PER_LINE: int = 16
 #: 2 groups of 8 bytes (16 hex chars each, 2 spaces between groups,
 #: total 34 chars) + 2 spaces + 16 ASCII chars.
 _CONTENT_WIDTH: int = 9 + 1 + (2 * _BYTES_PER_LINE + 2) + 2 + _BYTES_PER_LINE
+
+
+def parse_hex_address(text: str, file_size: int) -> int:
+    """Parse *text* into a byte offset and validate it against *file_size*.
+
+    Accepted forms: ``0x``-prefixed hexadecimal (``0x1a``), bare hexadecimal
+    containing letters (``ff``) and plain decimal (``42`` -- pure digit
+    strings parse as decimal, so ``42`` is forty-two, not ``0x42``).  Raises
+    :class:`ValueError` with an ``invalid format`` message when *text*
+    matches neither form, and an ``out of bounds`` message when the parsed
+    address falls outside ``[0, file_size)``.
+    """
+    stripped = text.strip()
+    decimal = re.match(r"^\d+$", stripped)
+    hex_digits = re.match(r"^(?:0x)?([0-9a-fA-F]+)$", stripped)
+    if decimal:
+        addr = int(stripped, 10)
+    elif hex_digits:
+        addr = int(stripped, 16)
+    else:
+        raise ValueError(f"invalid format: {stripped!r}")
+    if not 0 <= addr < file_size:
+        raise ValueError(
+            f"address out of bounds: {addr:#x} (file size {file_size})"
+        )
+    return addr
 
 
 def _classify_byte(b: int) -> str:
@@ -199,22 +232,114 @@ class HexView(ScrollView, can_focus=True):
         """Format *chunk* as ASCII (printable 0x20-0x7e, else ``.``)."""
         return "".join(segment.text for segment in _ascii_segments(chunk))
 
+    def scroll_to_line(self, line: int) -> None:
+        """Scroll the dump so content row *line* sits at the viewport top.
+
+        *line* is clamped to the rendered payload (``[0, line_count - 1]``),
+        so an out-of-range target parks at the nearest edge instead of
+        scrolling past the data.
+        """
+        scroll_y = max(0, min(line, self.virtual_size.height - 1))
+        self.scroll_to(y=scroll_y, animate=False)
+
 
 class HexScreen(ModalScreen[None]):
-    """Full-screen overlay hosting a :class:`HexView`."""
+    """Full-screen overlay hosting a :class:`HexView` plus a goto-address input.
 
-    def __init__(self, path: Path, data: bytes) -> None:
+    ``g`` / ``:`` reveal the goto input, ``enter`` jumps to the parsed
+    address and ``escape`` cancels it; with the input hidden ``q`` /
+    ``escape`` dismiss the overlay (R10).
+    """
+
+    #: goto-address input handle, resolved in :meth:`on_mount` once the
+    #: composed tree exists.
+    _goto_input: Input | None = None
+
+    def __init__(
+        self,
+        path: Path,
+        data: bytes,
+        *,
+        message: Callable[[str, str], None] | None = None,
+    ) -> None:
         super().__init__()
         self._path = path
         self._data = data
+        # Error-report callback injected by the flow layer (the view never
+        # imports upward, R3).  ``None`` keeps parse errors quiet in
+        # un-injected hosts.
+        self._message = message
 
     @override
     def compose(self) -> ComposeResult:
-        """The single HexView filling the screen."""
-        yield HexView(self._path, self._data, id="hex-view")
+        """HexView filling the screen plus the hidden goto input and hint."""
+        with Vertical():
+            yield HexView(self._path, self._data, id="hex-view")
+            goto_input = Input(id="hex-goto-input")
+            goto_input.display = False
+            yield goto_input
+            hint = Static(
+                "goto address: 0x hex or decimal - enter to jump, "
+                "escape to cancel",
+                id="hex-goto-hint",
+            )
+            hint.display = False
+            yield hint
+
+    def on_mount(self) -> None:
+        """Resolve the goto input handle from the composed tree."""
+        self._goto_input = self.query_one("#hex-goto-input", Input)
+
+    def show_goto_input(self) -> None:
+        """Reveal and focus the goto-address input together with its hint."""
+        if self._goto_input is None:
+            return
+        self._goto_input.display = True
+        self.query_one("#hex-goto-hint", Static).display = True
+        self._goto_input.focus()
+
+    def hide_goto_input(self) -> None:
+        """Hide the goto-address input and hand focus back to the hex view."""
+        if self._goto_input is None:
+            return
+        self._goto_input.display = False
+        self.query_one("#hex-goto-hint", Static).display = False
+        self.query_one("#hex-view", HexView).focus()
 
     def on_key(self, event: Key) -> None:
-        """Close on ``q`` / ``escape``; every other key falls through (R10)."""
-        if event.key in ("q", "escape"):
+        """Consume the goto keys and the dismiss keys; the rest fall through.
+
+        ``g`` / ``:`` open the goto input while it is hidden, ``escape``
+        closes it (or dismisses the overlay when the input is hidden) and
+        ``q`` dismisses only while the input is hidden (R10).
+        """
+        goto_open = self._goto_input is not None and self._goto_input.display
+        if event.key in ("g", ":") and not goto_open:
+            self.show_goto_input()
+            event.stop()
+            return
+        if event.key == "escape":
+            if goto_open:
+                self.hide_goto_input()
+            else:
+                self.dismiss(None)
+            event.stop()
+            return
+        if event.key == "q" and not goto_open:
             self.dismiss(None)
             event.stop()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Jump to the parsed address; report parse failures as a warning."""
+        if event.input.id != "hex-goto-input":
+            return
+        try:
+            addr = parse_hex_address(event.value, len(self._data))
+        except ValueError:
+            if self._message is not None:
+                self._message(f"invalid address: {event.value!r}", "warn")
+            return
+        self.query_one("#hex-view", HexView).scroll_to_line(
+            addr // _BYTES_PER_LINE
+        )
+        self.hide_goto_input()

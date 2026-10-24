@@ -19,10 +19,15 @@ import pytest
 from rich.segment import Segment
 from textual.app import App, ComposeResult
 from textual.color import Color as TextualColor
-from textual.widgets import Static
+from textual.widgets import Input, Static
 
 from yate.editor_view import theme
-from yate.editor_view.hexview import _CONTENT_WIDTH, HexScreen, HexView
+from yate.editor_view.hexview import (
+    _CONTENT_WIDTH,
+    HexScreen,
+    HexView,
+    parse_hex_address,
+)
 from yate.editor_view.scrollbars import SlimScrollBarRender
 
 # "Hello, hex view!" -- exactly 16 bytes, so line 0 is a full row.
@@ -177,6 +182,28 @@ def test_hex_view_full_line_width_is_62() -> None:
     assert _CONTENT_WIDTH == 62
 
 
+def test_parse_hex_address_valid_hex() -> None:
+    """A 0x-prefixed hexadecimal string parses to its byte offset."""
+    assert parse_hex_address("0x1a", 100) == 26
+
+
+def test_parse_hex_address_valid_decimal() -> None:
+    """A pure-digit string parses as decimal (42, not 0x42)."""
+    assert parse_hex_address("42", 100) == 42
+
+
+def test_parse_hex_address_out_of_bounds() -> None:
+    """An address at or beyond the file size raises ValueError."""
+    with pytest.raises(ValueError, match="out of bounds"):
+        parse_hex_address("0xff", 100)
+
+
+def test_parse_hex_address_invalid_format() -> None:
+    """Text matching neither accepted form raises ValueError."""
+    with pytest.raises(ValueError, match="invalid format"):
+        parse_hex_address("xyz", 100)
+
+
 class _ScreenHost(App[None]):
     """Minimal host used to push a HexScreen."""
 
@@ -205,5 +232,61 @@ def test_hex_screen_dismisses_on_q() -> None:
             await pilot.press("escape")
             await pilot.pause()
             assert app.screen is not screen
+
+    asyncio.run(_scenario())
+
+
+def test_hex_screen_goto_input_shows_on_g() -> None:
+    """``g`` reveals and focuses the goto-address input."""
+
+    async def _scenario() -> None:
+        app = _ScreenHost()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen = HexScreen(Path("sample.bin"), _FULL_LINE_DATA)
+            app.push_screen(screen)
+            await pilot.pause()
+            await pilot.press("g")
+            await pilot.pause()
+            goto_input = screen.query_one("#hex-goto-input", Input)
+            assert goto_input.display is True
+            assert goto_input.has_focus
+
+    asyncio.run(_scenario())
+
+
+def test_hex_screen_goto_input_submits_and_scrolls() -> None:
+    """Submitting a valid address scrolls the hex view to the target line."""
+
+    async def _scenario() -> None:
+        app = _ScreenHost()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen = HexScreen(Path("sample.bin"), b"\x00" * 1024)  # 64 lines
+            app.push_screen(screen)
+            await pilot.pause()
+            await pilot.press("g")
+            await pilot.press("0", "x", "1", "0")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert screen.query_one("#hex-view", HexView).scroll_offset.y == 1
+            assert screen.query_one("#hex-goto-input", Input).display is False
+
+    asyncio.run(_scenario())
+
+
+def test_hex_screen_goto_input_escapes_without_jump() -> None:
+    """``escape`` with the input open hides it without jumping or dismissing."""
+
+    async def _scenario() -> None:
+        app = _ScreenHost()
+        async with app.run_test(size=(100, 30)) as pilot:
+            screen = HexScreen(Path("sample.bin"), b"\x00" * 1024)
+            app.push_screen(screen)
+            await pilot.pause()
+            await pilot.press("g")
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+            assert screen.query_one("#hex-goto-input", Input).display is False
+            assert screen.query_one("#hex-view", HexView).scroll_offset.y == 0
 
     asyncio.run(_scenario())
