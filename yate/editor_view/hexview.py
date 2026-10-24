@@ -7,7 +7,8 @@ owns the size gate); the widget is presentation-only: it never touches the
 filesystem.  Goto-address support adds a pure parser
 (:func:`parse_hex_address`) and an in-screen input on the screen.
 
-Editing works on an in-memory byte map: ``e`` toggles edit mode, hex digit
+Editing works on an in-memory byte map: ``e`` enters edit mode and
+``escape`` leaves it (in edit mode ``e`` types the 0xE nibble), hex digit
 keys write nibbles at the byte cursor (advancing after the low half), ``u``
 undoes and ``w`` hands the edited bytes to the ``write_bytes`` callback
 injected on :class:`HexScreen` by the flow layer -- the write-back itself
@@ -15,10 +16,12 @@ injected on :class:`HexScreen` by the flow layer -- the write-back itself
 so no layer here touches the filesystem (R3).
 
 Theme ownership follows R13: the view subscribes on mount and repaints on
-broadcast.  Key handling follows R10: the screen consumes the goto keys
-(``g`` / ``:``), the editing toggle (``e``) and the dismiss keys
-(``q`` / ``escape``); in edit mode it consumes the hex digits, ``u``, the
-cursor keys, ``w`` and ``escape``; every other key falls through.
+broadcast.  Key handling follows R10: on the browsing face the screen
+consumes the goto keys (``g`` / ``:``), ``e`` (enter edit mode) and the
+dismiss keys (``q`` / ``escape``); in edit mode ``escape`` leaves editing
+while ``q`` and ``g`` / ``:`` keep their browsing behavior, the hex digits,
+``u``, the cursor keys and ``w`` are consumed for editing, and every other
+key falls through.
 """
 
 from __future__ import annotations
@@ -443,11 +446,12 @@ class HexScreen(ModalScreen[None]):
 
     ``g`` / ``:`` reveal the goto input, ``enter`` jumps to the parsed
     address and ``escape`` cancels it; with the input hidden ``e`` enters
-    hex edit mode and ``q`` / ``escape`` dismiss the overlay.  In edit mode
-    the hex digits key nibbles, ``u`` undoes, the vim/arrow keys move the
-    byte cursor, ``w`` writes the edited bytes back through the injected
-    ``write_bytes`` callback and ``escape`` leaves edit mode (R10: every
-    other key falls through).
+    hex edit mode and ``q`` / ``escape`` dismiss the overlay.  In edit
+    mode ``escape`` leaves editing (a further press dismisses) while
+    ``q`` and ``g`` / ``:`` keep their browsing behavior; the hex digits
+    key nibbles, ``u`` undoes, the vim/arrow keys move the byte cursor
+    and ``w`` writes the edited bytes back through the injected
+    ``write_bytes`` callback (R10: every other key falls through).
     """
 
     #: goto-address input handle, resolved in :meth:`on_mount` once the
@@ -465,7 +469,9 @@ class HexScreen(ModalScreen[None]):
         data: bytes,
         *,
         message: Callable[[str, str], None] | None = None,
-        write_bytes: Callable[[Path, bytes, float, int], None] | None = None,
+        write_bytes: (
+            Callable[[Path, bytes, float, int], tuple[float, int] | None] | None
+        ) = None,
         mtime: float = 0.0,
         size: int = 0,
     ) -> None:
@@ -478,8 +484,12 @@ class HexScreen(ModalScreen[None]):
         self._message = message
         # Write-back callback injected by the flow layer (R3: the screen
         # never touches the filesystem itself; the conflict and TOCTOU
-        # gates live in the flow layer).  ``None`` = read-only file or
-        # un-injected host: the save is refused on the message line.
+        # gates live in the flow layer).  On success it returns the
+        # post-write stat fingerprint, which is refreshed into the
+        # load-time baseline below; on refusal / failure it returns
+        # ``None`` (the message line already carries the reason).
+        # ``write_bytes=None`` = read-only file or un-injected host: the
+        # save is refused on the message line.
         self._write_bytes = write_bytes
         # Load-time stat fingerprint (mtime + size); the flow layer
         # re-checks both before writing so an externally modified file is
@@ -530,8 +540,13 @@ class HexScreen(ModalScreen[None]):
 
         Refused on the message line when no writer was injected (read-only
         file or un-injected host).  Writer failures (``OSError`` /
-        ``ValueError``) are reported and leave the screen open; success
-        reports ``saved``.
+        ``ValueError``) are reported and leave the screen open; on success
+        the writer returns the post-write stat fingerprint, which refreshes
+        the load-time baseline so an immediate second save is not refused
+        as an external modification, and ``saved`` is reported.  A ``None``
+        writer result means a gate refused or the write failed: the
+        message line already carries the reason and the baseline is left
+        untouched.
         """
         if self._write_bytes is None:
             if self._message is not None:
@@ -540,11 +555,16 @@ class HexScreen(ModalScreen[None]):
         view = self._hex_view
         data = view.current_bytes() if view is not None else bytes(self._data)
         try:
-            self._write_bytes(self._path, data, self._mtime, self._load_size)
+            fingerprint = self._write_bytes(
+                self._path, data, self._mtime, self._load_size
+            )
         except (OSError, ValueError) as exc:
             if self._message is not None:
                 self._message(f"save failed: {exc}", "warn")
             return
+        if fingerprint is None:
+            return
+        self._mtime, self._load_size = fingerprint
         if self._message is not None:
             self._message("saved", "ok")
 
@@ -552,11 +572,14 @@ class HexScreen(ModalScreen[None]):
         """Consume the goto / dismiss / editing keys; the rest fall through.
 
         Browsing face (plan-b behavior): ``g`` / ``:`` open the goto input,
-        ``e`` enters hex edit mode and ``q`` / ``escape`` dismiss.  Edit
-        mode consumes the hex digits (``0-9`` / ``a-f`` / ``A-F``), ``u``
-        (undo), the vim/arrow cursor keys, ``w`` (write back) and
-        ``escape`` (leave edit mode); everything else falls through (R10).
-        While the goto input is open its keys are left to the input.
+        ``e`` enters hex edit mode and ``q`` / ``escape`` dismiss.  In edit
+        mode ``escape`` leaves edit mode (a further press dismisses) while
+        ``q`` and ``g`` / ``:`` are handled by their browsing branches
+        first (``q`` still dismisses, ``g`` / ``:`` still open the goto
+        input); the edit branches consume the hex digits (``0-9`` /
+        ``a-f`` / ``A-F``), ``u`` (undo), the vim/arrow cursor keys and
+        ``w`` (write back); everything else falls through (R10).  While
+        the goto input is open its keys are left to the input.
         """
         goto_open = self._goto_input is not None and self._goto_input.display
         view = self._hex_view

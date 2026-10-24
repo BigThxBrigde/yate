@@ -234,7 +234,7 @@ class OverlayFlows:
 
     def _write_hex_bytes(
         self, path: Path, data: bytes, mtime: float, size: int
-    ) -> None:
+    ) -> tuple[float, int] | None:
         """Write edited hex bytes back to *path* (same-length overwrite).
 
         Gates, in order: the conflict gate refuses while *path* is open in
@@ -243,20 +243,28 @@ class OverlayFlows:
         since the hex view loaded it (mtime + size fingerprint).  The
         write itself is a same-length ``r+b`` overwrite from offset 0 --
         hex editing cannot insert or delete, so the size never changes.
+        Returns the post-write stat fingerprint ``(mtime, size)`` on
+        success so the caller can refresh its TOCTOU baseline (an
+        immediate second save must not be refused by the file's own
+        just-written state); ``None`` when a gate refused or the write
+        failed -- the message line already carries the reason.
         """
         if self.session.is_open(path) is not None:
             self._message(f"file open in text editor: {path.name}", "warn")
-            return
+            return None
         stat = path.stat()
         if stat.st_mtime != mtime or stat.st_size != size:
             self._message(f"file modified externally: {path.name}", "warn")
-            return
+            return None
         try:
             with open(path, "r+b") as f:
                 f.seek(0)
                 f.write(data)
         except OSError as exc:
             self._message(f"save failed: {exc}", "warn")
+            return None
+        fresh = path.stat()
+        return (fresh.st_mtime, fresh.st_size)
 
     def toggle_hex_view(self) -> None:
         """Toggle between text view and hex view for the active document."""
