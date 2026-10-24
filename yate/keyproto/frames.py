@@ -14,6 +14,15 @@ Terminals that do not implement win32-input-mode ignore ``?9001h`` and keep
 feeding legacy bytes; the stream then simply never yields a frame and every
 character passes through untouched.
 
+Kitty CSI-u frames (``CSI code;mods[:event];text u``) are translated into the
+same :class:`Win32InputFrame` shape when they carry ctrl or alt, so both
+syntaxes converge on one naming pipeline.  The driver itself no longer pushes
+kitty (``CSI >1u``) -- issue IKPTMH: a terminal that answers the kitty push
+(WezTerm) prefers its encoding over win32-input-mode, and the mixed traffic
+regressed ``alt+shift+p``.  Translation stays as a safety net for a kitty
+keyboard mode left behind by an earlier session; every frame the chord path
+cannot name is returned untouched to Textual's own kitty decoder.
+
 Frame inputs are not authenticated: a pasted text containing a literal
 ``CSI <digits> _`` sequence decodes as a key.  That requires deliberately
 typing an encoding nobody emits by hand, so it is accepted.
@@ -30,18 +39,53 @@ from yate.keyproto.chords import (
     CTRL_BITS,
     MODIFIER_VKS,
     SHIFT_BIT,
+    VK_OEM_2,
+    VK_OEM_3,
+    VK_OEM_4,
+    VK_OEM_5,
+    VK_OEM_6,
+    VK_SPACE,
     KeyChord,
 )
 
 #: Complete win32-input-mode frame: ESC [ <digits/semicolons> _ .
 _FRAME_RE: re.Pattern[str] = re.compile(r"\x1b\[([0-9;]+)_")
 
+#: Complete kitty CSI-u key frame: ESC [ <code[:shifted[:base]]> ;
+#: <modifiers[:event]> ; <text> u.  Trailing fields may be omitted.
+_KITTY_FRAME_RE: re.Pattern[str] = re.compile(r"\x1b\[([0-9:;]+)u")
+
+#: Kitty modifier bitmask (raw value minus one): shift / alt / ctrl / super /
+#: hyper / meta.  The last three have no counterpart in yate's chord model, so
+#: such frames are left to Textual instead of being mislabelled.
+_KITTY_SHIFT: int = 0x01
+_KITTY_ALT: int = 0x02
+_KITTY_CTRL: int = 0x04
+_KITTY_UNMODELLED: int = 0x08 | 0x10 | 0x20
+
+#: Kitty reports the unshifted key as a Unicode codepoint; map the codepoints
+#: yate can name onto their win32 virtual-key codes so kitty and win32 frames
+#: share :func:`frame_to_key_name` -> ``chord_to_key_name``.  Letters map to
+#: their uppercase VK, digits to themselves, and the punctuation subset matches
+#: ``NAV``/``_OEM_NAMES`` in the aliases module (no other symbol is nameable).
+_KITTY_CODE_TO_VK: dict[int, int] = {
+    **{0x61 + offset: 0x41 + offset for offset in range(26)},
+    **{0x30 + offset: 0x30 + offset for offset in range(10)},
+    0x20: VK_SPACE,
+    0x2F: VK_OEM_2,
+    0x60: VK_OEM_3,
+    0x5B: VK_OEM_4,
+    0x5C: VK_OEM_5,
+    0x5D: VK_OEM_6,
+}
+
 #: Trailing text that might still grow into a frame (ESC [ followed only by
-#: digits/semicolons).  Held back across :meth:`Win32FrameStream.feed` calls
-#: so a frame split between two read batches still decodes; anything else
-#: (e.g. a legacy ``ESC [ A`` arrow sequence, whose char after ``[`` is not a
-#: digit) is returned to the caller immediately.
-_HOLD_RE: re.Pattern[str] = re.compile(r"\x1b\[[0-9;]*\Z")
+#: digits/semicolons/colons -- the kitty parameter alphabet).  Held back across
+#: :meth:`Win32FrameStream.feed` calls so a frame split between two read
+#: batches still decodes; anything else (e.g. a legacy ``ESC [ A`` arrow
+#: sequence, whose char after ``[`` is not a digit) is returned to the caller
+#: immediately.
+_HOLD_RE: re.Pattern[str] = re.compile(r"\x1b\[[0-9;:]*\Z")
 
 #: Maximum bytes held back for a partial frame prefix; a longer match is
 #: pathological input (legitimate frames carry at most a few digits) and is
@@ -119,6 +163,76 @@ def _decode_frame(fields: str) -> Win32InputFrame:
     return Win32InputFrame(vk, scan, char, flags, state, count)
 
 
+def _kitty_to_win32_frame(params: str) -> Win32InputFrame | None:
+    """Translate one kitty CSI-u parameter string into the win32 shape.
+
+    Returns ``None`` -- leaving the sequence to Textual's own kitty decoder --
+    for everything the chord path must not own: plain or shift-only keys,
+    super/hyper/meta modifiers, keys outside :data:`_KITTY_CODE_TO_VK`, and
+    multi-codepoint text.  A release event becomes a key-up frame so the
+    existing :attr:`Win32InputFrame.is_key_down` filter drops it instead of
+    delivering the chord twice.
+    """
+    parts = params.split(";")
+    code = int(parts[0].split(":")[0] or "0")
+    modifiers = 0
+    event = 0
+    if len(parts) > 1 and parts[1]:
+        mods = parts[1].split(":")
+        modifiers = int(mods[0]) if mods[0] else 0
+        event = int(mods[1]) if len(mods) > 1 and mods[1] else 0
+    bits = modifiers - 1 if modifiers > 0 else 0
+    if bits & _KITTY_UNMODELLED or not bits & (_KITTY_CTRL | _KITTY_ALT):
+        return None
+    vk = _KITTY_CODE_TO_VK.get(code)
+    if vk is None:
+        return None
+    text = parts[2] if len(parts) > 2 else ""
+    if ":" in text:
+        return None
+    # Chord frames carry no character, matching the win32 chord frames (the
+    # UCS field is 0 there).  Fabricating one from the codepoint would make
+    # the synthesized Key printable and leak stray text into printable paths
+    # (diff pane insert, terminal forwarding) -- the IKPTMH regression class.
+    char = int(text) if text.isdecimal() else 0
+    state = (
+        (SHIFT_BIT if bits & _KITTY_SHIFT else 0)
+        | (ALT_BITS if bits & _KITTY_ALT else 0)
+        | (CTRL_BITS if bits & _KITTY_CTRL else 0)
+    )
+    return Win32InputFrame(vk, 0, char, 0 if event == 3 else 1, state, 1)
+
+
+def _split_kitty_frames(text: str) -> tuple[list[Win32InputFrame], str]:
+    """Pull translatable kitty frames out of *text*.
+
+    Untranslatable kitty sequences stay in the returned residual in their
+    original order, so Textual receives them byte-for-byte.  A parameter run
+    longer than :data:`_PENDING_MAX` cannot be a real frame and is dropped
+    (see the guard below).
+    """
+    frames: list[Win32InputFrame] = []
+    parts: list[str] = []
+    pos = 0
+    for match in _KITTY_FRAME_RE.finditer(text):
+        if len(match.group(1)) > _PENDING_MAX:
+            # An overlong parameter run is not a real frame; int() would
+            # raise ValueError (decimal digit limit) and end the input
+            # thread.  Textual's parser would raise on the same bytes, so
+            # the sequence is dropped rather than handed on.
+            parts.append(text[pos:match.start()])
+            pos = match.end()
+            continue
+        frame = _kitty_to_win32_frame(match.group(1))
+        if frame is None:
+            continue
+        parts.append(text[pos:match.start()])
+        frames.append(frame)
+        pos = match.end()
+    parts.append(text[pos:])
+    return frames, "".join(parts)
+
+
 class Win32FrameStream:
     """Incremental decoder turning character text into key frames.
 
@@ -137,7 +251,8 @@ class Win32FrameStream:
 
         *residual* is everything that is not (part of) a frame -- the caller
         must feed it to the legacy parser exactly as it would have fed the
-        original characters.
+        original characters.  Both frame syntaxes come back in the same
+        :class:`Win32InputFrame` shape.
         """
         stream = self._pending + text
         self._pending = ""
@@ -145,11 +260,19 @@ class Win32FrameStream:
         parts: list[str] = []
         pos = 0
         for match in _FRAME_RE.finditer(stream):
+            if len(match.group(1)) > _PENDING_MAX:
+                # Same overlong-run guard as the kitty branch: _decode_frame
+                # would otherwise raise ValueError and end the input thread.
+                parts.append(stream[pos:match.start()])
+                pos = match.end()
+                continue
             parts.append(stream[pos:match.start()])
             frames.append(_decode_frame(match.group(1)))
             pos = match.end()
         parts.append(stream[pos:])
         residual = "".join(parts)
+        kitty_frames, residual = _split_kitty_frames(residual)
+        frames.extend(kitty_frames)
         hold = _HOLD_RE.search(residual)
         if hold is not None:
             if len(hold.group(0)) <= _PENDING_MAX:

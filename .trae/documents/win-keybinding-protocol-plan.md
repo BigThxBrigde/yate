@@ -1,6 +1,8 @@
 # 方案 B 详细实施计划：Windows 键盘输入通道重构 + 键盘协议层
 
 > **实施状态**：🟡 部分实施 —— 2026-10-05 全量核对：`keyproto/` 已落地 5 模块；`kitty.py`、`negotiate.py`、`--key-protocol`、`tools/probe_keys.py` 未落地。
+> **2026-10-23 更新（issue IKPTMH）**：Windows 和弦驱动不再推 kitty（只留 `?9001h`），
+> `frames.py` 补齐 kitty CSI-u 帧归一化；`kitty.py` / 协商状态机仍未落地。
 > ⚠️ 本计划**仅部分落地**，未完成部分见正文，引用产物前请先确认其存在。
 > 本计划是**重构 + 新特性**：新增 `yate/keyproto/` 子包、自建 Windows 输入源、可配置键盘协议层与排障面板。
 > **执行顺序不可调整**：见 §4 逐步 checklist 与 §12 顺序禁忌清单。
@@ -43,7 +45,7 @@
 > |---|---|
 > | P1 `KeyChord` + 别名 + 旧表迁入 | ✅ 落地为 `keyproto/{chords,aliases,legacy}.py`（PB1 `5cd97d1`）；**无 `model.py`**（`KeyChord` 在 `chords.py:52`） |
 > | P3 win32 帧编解码 | ✅ 落地为 `keyproto/frames.py`（PB6；`Win32InputFrame` / `Win32FrameStream` / `frame_to_key_name` / `frame_to_char`）。**`win32_input.py` 未独立成文件** |
-> | P3 kitty 帧（`kitty.py`） | ❌ **未落地**（文件不存在）；驱动仅在 `driver_windows.py:269` 复用 Textual 的 `\x1b[>1u` push |
+> | P3 kitty 帧（`kitty.py`） | 🟡 **部分落地（2026-10-23）**：`frames.py` 把带 ctrl/alt 的 kitty CSI-u 帧翻译进 `Win32InputFrame`（`_KITTY_FRAME_RE` / `_kitty_to_win32_frame`）；独立 `kitty.py` 与 `kitty_push/pop/query` 仍未落地，驱动也已**不再推 kitty**（issue IKPTMH） |
 > | P4a/P4b 驱动 | ✅ `keyproto/driver_windows.py`（`YateWindowsDriver` L242、`ChordEventMonitor` L102、`record_key_override` L77）；`?9001h/l` 见 L276 / L290；**尺寸轮询与"三级恢复 + 残留自愈"未在代码中出现** |
 > | P5 协商状态机（`negotiate.py`） | ❌ **未落地**（文件不存在）；`key_protocol` 实际取值仅 `auto` / `legacy`（`config.py:64,71,152`），无 `win32` / `kitty` / `off` |
 > | P5.5 `--key-protocol` / `--reset-terminal` CLI | ❌ **未落地**（`cli.py` 无这两个参数） |
@@ -231,6 +233,14 @@ CANONICAL_ALIASES = {
 | 1 | kitty 查询（`CSI ? u`）有回复（WT ≥ 1.25、kitty/WezTerm 等） | `kitty`（flags=25） | **低**：备屏键盘栈隔离；即使漏 pop，切回主屏即免疫 |
 | 2 | `--key-protocol=win32` 显式指定；**或** kitty 不可用 且 DECRQM 确认 `?9001` 可用 且 P4b.5/P4b.6 恢复基建就位 且 P0.6 实测结论允许 | `win32_input` | **中**：无栈、无隔离，必须靠"标记自愈 + Ctrl handler"兜底 |
 | 3 | 以上都不成立 | `legacy`（`RECORD` 档） | **无** |
+
+> **D3 校准（2026-10-23，issue IKPTMH）**：`YateWindowsDriver` 实际实现走的是
+> D3 优先级 2 的 win32-input-mode，但首版同时推送了 kitty（`CSI >1u`）——正是 D3
+> 被否的 ②"同时开两种"。WezTerm 响应 kitty 推送后按 kitty 编码，`alt+shift+p`
+> （`CSI 112;4u`）落到当时不含 kitty 帧的分帧链路，回放为杂散字符。落地口径：
+> **Windows 和弦驱动只启用 win32-input-mode，不推 kitty**；`Win32FrameStream`
+> 仍将带 ctrl/alt 的 kitty CSI-u 帧翻译成同一帧模型（兜住上一次会话残留的 kitty
+> 模式，即 P3.2 的 `u` 终止符契约）。`CSI ? u` 查询式协商仍归 P5，未实施。
 
 ---
 
