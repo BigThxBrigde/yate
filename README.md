@@ -27,6 +27,8 @@ Release history: [CHANGELOG.md](CHANGELOG.md) · [中文](CHANGELOG.zh.md) — g
 
 ## Features
 
+> Full feature and functionality inventory (18 dimensions): [FEATURES.md](FEATURES.md) · 中文: [FEATURES.zh.md](FEATURES.zh.md)
+
 - **VS Code-style layout**: active tab bar, EXPLORER file tree sidebar, breadcrumb path bar, flat status bar
 - **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL/VISUAL-LINE modes + `:` ex command line); `Ctrl+/` toggles between them at runtime
 - **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with `:set filetype=` manual override; the regex backend covers 30 built-in languages out of the box (C#, Rust, Go, HTML, CSS, YAML, SQL, Lua, Perl, PHP, Ruby, PowerShell, Zig and more), and the optional tree-sitter backend (`pip install -e ".[ts]"`) upgrades 25 of them (all except JSONC, INI, Perl, SCSS and LESS) to real-parser highlighting; extensions can register custom grammars (`api.syntax`)

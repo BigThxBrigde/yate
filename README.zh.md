@@ -24,6 +24,8 @@
 
 ## 特性
 
+> 完整特性与功能清单（18 个维度）：[FEATURES.zh.md](FEATURES.zh.md) · English: [FEATURES.md](FEATURES.md)
+
 - **VS Code 风格布局**：活动标签栏、EXPLORER 文件树侧栏、面包屑路径栏、扁平化状态栏
 - **两套内置键位**：`vsc`（VS Code 风格、无模式，默认）与 `vim`（NORMAL/INSERT/VISUAL/VISUAL-LINE
   模式 + `:` ex 命令行），运行中可用 `Ctrl+/` 一键切换
