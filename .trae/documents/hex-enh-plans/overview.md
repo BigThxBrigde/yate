@@ -96,3 +96,4 @@ flowchart TD
 - 2026-10-24 plan-c 设计完成：hex 编辑 / 替换 + 写回 + 撤销 + 冲突保护，方案落盘 hex-enh-edit-plan-c.md。
 - 2026-10-24 plan_a 执行完成：滚动条接线 + 字节分类着色 + R15 规则与守卫，37 用例全绿。
 - 2026-10-24 plan_b 执行完成：跳转地址功能（parse_hex_address 纯函数 + goto 内嵌 Input + scroll_to_line + OverlayFlows message 回调注入），test_hex_view.py 17 用例全绿、pyright 零诊断、冒烟 hex_view_goto_address 8/8 checks 通过。
+- 2026-10-24 plan_c 执行完成：hex 编辑（e 进出编辑模式 + nibble 两拍写一字节 + 光标移动）+ undo（上限 1000）+ 写回回调注入（HexScreen.write_bytes，冲突 / TOCTOU 门居 OverlayFlows._write_hex_bytes，同长 r+b 覆写）+ 只读边界（os.access → write_bytes=None），test_hex_view.py 26 用例全绿、pyright 零诊断、冒烟 hex_view_edit_and_save 9/9 checks 通过。
