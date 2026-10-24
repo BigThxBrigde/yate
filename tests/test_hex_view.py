@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import override
+from typing import Any, cast, override
 
 import pytest
 from rich.segment import Segment
 from textual.app import App, ComposeResult
 from textual.color import Color as TextualColor
+from textual.screen import Screen
 from textual.widgets import Input, Static
 
 from yate.editor_view import theme
@@ -29,6 +30,7 @@ from yate.editor_view.hexview import (
     parse_hex_address,
 )
 from yate.editor_view.scrollbars import SlimScrollBarRender
+from yate.flows.overlay_flows import OverlayFlows
 
 # "Hello, hex view!" -- exactly 16 bytes, so line 0 is a full row.
 _FULL_LINE_DATA = b"Hello, hex view!"
@@ -290,3 +292,217 @@ def test_hex_screen_goto_input_escapes_without_jump() -> None:
             assert screen.query_one("#hex-view", HexView).scroll_offset.y == 0
 
     asyncio.run(_scenario())
+
+
+def test_hex_view_cursor_move() -> None:
+    """``move_cursor`` walks the payload and clamps at both edges."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"x" * 32)
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view.move_cursor(5)
+            assert view._cursor_pos == 5
+            view.move_cursor(1000)
+            assert view._cursor_pos == 31  # clamped to the last byte
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_edit_mode_toggle() -> None:
+    """``enter_edit_mode`` / ``exit_edit_mode`` flip the edit flag."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"x" * 32)
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view.enter_edit_mode()
+            assert view._edit_mode is True
+            view.exit_edit_mode()
+            assert view._edit_mode is False
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_edit_nibble() -> None:
+    """Two nibble presses merge into the cursor byte (high then low)."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x00\x00")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view._cursor_pos = 0
+            view._edit_mode = True
+            view.edit_nibble("a")
+            view.edit_nibble("b")
+            assert view._data[0] == 0xAB
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_undo() -> None:
+    """``undo`` pops the stack and restores the overwritten byte."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x00")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view._cursor_pos = 0
+            view.edit_nibble("f")
+            assert view._data[0] == 0xF0
+            view.undo()
+            assert view._data[0] == 0x00
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_ascii_sync() -> None:
+    """Editing a byte updates the ASCII echo column on the same row."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(b"\x00")
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view._cursor_pos = 0
+            view.edit_nibble("4")
+            view.edit_nibble("1")
+            line = view.render_line(0).text.rstrip()
+            assert line.endswith("A")
+
+    asyncio.run(_scenario())
+
+
+class _FakeSession:
+    """EditorSession stand-in exposing only the conflict-gate query."""
+
+    def __init__(self, open_path: Path | None) -> None:
+        self._open_path = open_path
+
+    def is_open(self, path: Path) -> object | None:
+        """Non-``None`` while *path* counts as open (mock gate)."""
+        if path == self._open_path:
+            return object()
+        return None
+
+
+def _noop_push_screen(
+    screen: Screen[None], callback: object | None = None
+) -> None:
+    """No-op push target (these tests never actually push a screen)."""
+
+
+def _make_flows(
+    messages: list[tuple[str, str]],
+    *,
+    session: object | None = None,
+) -> OverlayFlows:
+    """OverlayFlows wired for the hex write-back path only.
+
+    Mirrors the ``_make_flows`` precedent in ``test_overlay_flows_hex.py``:
+    collaborators untouched by these tests are stubbed out.
+    """
+    return OverlayFlows(
+        push_screen=_noop_push_screen,
+        pop_screen=lambda: None,
+        current_screen=lambda: cast(Screen[None], None),
+        config=cast(Any, None),
+        keymaps=cast(Any, None),
+        commands=cast(Any, None),
+        actions=cast(Any, None),
+        session=cast(Any, session),
+        workspace=cast(Any, None),
+        prompt=cast(Any, None),
+        message=lambda text, kind: messages.append((text, kind)),
+        mounted=lambda: True,
+        open_path=lambda path: None,
+        reveal_match=lambda path, row, col: None,
+        readonly_notice=lambda: None,
+        focus_editor=lambda: None,
+        execute_action=lambda name: True,
+        run_command=lambda text: None,
+        refresh=lambda: None,
+    )
+
+
+def test_hex_screen_save_writes_bytes(tmp_path: Path) -> None:
+    """``save`` hands the current payload to the injected writer callback."""
+    path = tmp_path / "test.bin"
+    path.write_bytes(b"\x00" * 16)
+    stat = path.stat()
+    calls: list[tuple[Path, bytes, float, int]] = []
+
+    def spy(
+        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+    ) -> None:
+        calls.append((write_path, write_data, write_mtime, write_size))
+        write_path.write_bytes(write_data)  # mimic the real same-length write
+
+    screen = HexScreen(
+        path,
+        b"\x00" * 16,
+        write_bytes=spy,
+        mtime=stat.st_mtime,
+        size=stat.st_size,
+    )
+    screen.save()
+    assert calls
+    assert calls[0][1] == b"\x00" * 16
+    assert calls[0][2] == stat.st_mtime
+    assert calls[0][3] == stat.st_size
+    assert path.read_bytes() == b"\x00" * 16
+
+
+def test_hex_screen_save_refuses_conflict(tmp_path: Path) -> None:
+    """The write-back refuses while the path is open as a text document."""
+    path = tmp_path / "test.bin"
+    path.write_bytes(b"\x00" * 16)
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(messages, session=_FakeSession(path))
+    screen = HexScreen(
+        path,
+        b"\x00" * 16,
+        write_bytes=flows._write_hex_bytes,
+        mtime=path.stat().st_mtime,
+        size=16,
+    )
+    screen.save()
+    assert messages
+    assert "open in text editor" in messages[0][0]
+    assert messages[0][1] == "warn"
+    assert path.read_bytes() == b"\x00" * 16  # untouched
+
+
+def test_hex_screen_save_refuses_external_modification(tmp_path: Path) -> None:
+    """A mtime/size mismatch since load refuses the write-back (TOCTOU)."""
+    path = tmp_path / "test.bin"
+    path.write_bytes(b"\x00" * 16)
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(messages, session=_FakeSession(None))
+    # The recorded fingerprint is deliberately stale: the real stat cannot
+    # match it, which is exactly the external-modification signal.
+    screen = HexScreen(
+        path,
+        b"\x00" * 16,
+        write_bytes=flows._write_hex_bytes,
+        mtime=path.stat().st_mtime + 1.0,
+        size=16,
+    )
+    screen.save()
+    assert messages
+    assert "modified externally" in messages[0][0]
+    assert path.read_bytes() == b"\x00" * 16  # untouched
+
+
+def test_hex_view_read_only_refuses_save(tmp_path: Path) -> None:
+    """Without a writer callback (read-only file) the save is refused."""
+    messages: list[tuple[str, str]] = []
+    screen = HexScreen(
+        tmp_path / "test.bin",
+        b"\x00" * 16,
+        message=lambda text, kind: messages.append((text, kind)),
+        write_bytes=None,
+    )
+    screen.save()
+    assert messages
+    assert "not available" in messages[0][0]
+    assert messages[0][1] == "warn"

@@ -10,6 +10,7 @@ constructed by the editor and never imports upward.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -183,18 +184,24 @@ class OverlayFlows:
         )
 
     def open_hex_view(self, path: Path) -> None:
-        """Open a file in the hex view (read-only).
+        """Open a file in the hex view (editable when the file is writable).
 
         If a HexScreen is already the top screen, pop it (toggle-off
         semantics).  The bytes are read in one shot; files beyond
         :data:`MAX_HEX_VIEW_SIZE` and unreadable paths are refused on the
-        message line.
+        message line.  The load-time stat fingerprint (mtime + size) rides
+        along for the write-back TOCTOU check.  A read-only file still
+        opens for browsing but without the writer callback, so ``w``
+        cannot save it.  No editor document is created for the binary
+        payload.
         """
         if isinstance(self._current_screen(), HexScreen):
             self._pop_screen()
             return
         try:
-            size = path.stat().st_size
+            stat = path.stat()
+            size = stat.st_size
+            mtime = stat.st_mtime
         except OSError as exc:
             self._message(f"cannot stat {path.name}: {exc}", "warn")
             return
@@ -210,8 +217,46 @@ class OverlayFlows:
         except OSError as exc:
             self._message(f"cannot read {path.name}: {exc}", "warn")
             return
+        # Read-only boundary: browsing stays available, editing does not
+        # (no writer callback -> ``w`` is refused on the message line).
+        writable = os.access(path, os.W_OK)
+        if not writable:
+            self._message(f"file read-only: {path.name}", "info")
         if self._mounted():
-            self.push(HexScreen(path, data, message=self._message))
+            self.push(HexScreen(
+                path,
+                data,
+                message=self._message,
+                write_bytes=self._write_hex_bytes if writable else None,
+                mtime=mtime,
+                size=size,
+            ))
+
+    def _write_hex_bytes(
+        self, path: Path, data: bytes, mtime: float, size: int
+    ) -> None:
+        """Write edited hex bytes back to *path* (same-length overwrite).
+
+        Gates, in order: the conflict gate refuses while *path* is open in
+        the text editor (two writers on one file must not race); the
+        TOCTOU gate re-stats and refuses when the file changed on disk
+        since the hex view loaded it (mtime + size fingerprint).  The
+        write itself is a same-length ``r+b`` overwrite from offset 0 --
+        hex editing cannot insert or delete, so the size never changes.
+        """
+        if self.session.is_open(path) is not None:
+            self._message(f"file open in text editor: {path.name}", "warn")
+            return
+        stat = path.stat()
+        if stat.st_mtime != mtime or stat.st_size != size:
+            self._message(f"file modified externally: {path.name}", "warn")
+            return
+        try:
+            with open(path, "r+b") as f:
+                f.seek(0)
+                f.write(data)
+        except OSError as exc:
+            self._message(f"save failed: {exc}", "warn")
 
     def toggle_hex_view(self) -> None:
         """Toggle between text view and hex view for the active document."""
