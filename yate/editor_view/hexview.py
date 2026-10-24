@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import override
 
 from rich.segment import Segment
+from rich.style import Style
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.geometry import Size
@@ -28,6 +29,7 @@ from yate.logs import tracing
 from yate.paths import load_tcss
 
 from yate.editor_view import theme
+from yate.editor_view.scrollbars import apply_slim_scrollbars, apply_scrollbar_theme
 
 log = tracing.get_logger(__name__)
 
@@ -42,6 +44,81 @@ _BYTES_PER_LINE: int = 16
 #: 2 groups of 8 bytes (16 hex chars each, 2 spaces between groups,
 #: total 34 chars) + 2 spaces + 16 ASCII chars.
 _CONTENT_WIDTH: int = 9 + 1 + (2 * _BYTES_PER_LINE + 2) + 2 + _BYTES_PER_LINE
+
+
+def _classify_byte(b: int) -> str:
+    """Classify *b* into a hexyl-style byte category name.
+
+    Boundaries follow hexyl's default classification: ``0x00`` is ``null``,
+    ``0x09-0x0d`` and ``0x20`` are ``whitespace``, ``0x21-0x7e`` is
+    ``printable``, the remaining ASCII bytes (``0x01-0x08``, ``0x0e-0x1f``,
+    ``0x7f``) are ``ascii_other`` and ``0x80-0xff`` is ``non_ascii``.
+    """
+    if b == 0x00:
+        return "null"
+    if 0x09 <= b <= 0x0D or b == 0x20:
+        return "whitespace"
+    if 0x21 <= b <= 0x7E:
+        return "printable"
+    if b <= 0x7F:
+        return "ascii_other"
+    return "non_ascii"
+
+
+def _theme_style(category: str) -> Style:
+    """Map a byte category to a Rich style from the active theme.
+
+    The hexyl palette maps onto existing :class:`Theme` tokens (zero new
+    tokens, so themes are followed automatically): ``null`` -> ``fg_dim``,
+    ``printable`` -> ``accent``, ``whitespace`` -> ``green``,
+    ``ascii_other`` -> ``accent2``, ``non_ascii`` -> ``yellow``.
+    """
+    t = theme.active()
+    if category == "null":
+        return Style(color=t.fg_dim)
+    if category == "printable":
+        return Style(color=t.accent)
+    if category == "whitespace":
+        return Style(color=t.green)
+    if category == "ascii_other":
+        return Style(color=t.accent2)
+    return Style(color=t.yellow)
+
+
+def _hex_segments(chunk: bytes) -> list[Segment]:
+    """Render *chunk* as two 8-byte hex groups, one segment per byte.
+
+    Each byte contributes its two hex characters in its classified color;
+    a short final group is padded to 16 chars with default-style spaces,
+    mirroring the plain-text xxd layout byte for byte.
+    """
+    segments: list[Segment] = []
+    for i in range(0, len(chunk), 8):
+        if i:
+            segments.append(Segment("  "))
+        group = chunk[i : i + 8]
+        for b in group:
+            segments.append(Segment(f"{b:02x}", _theme_style(_classify_byte(b))))
+        # Pad to 16 chars if last group is short.
+        pad = 16 - 2 * len(group)
+        if pad:
+            segments.append(Segment(" " * pad))
+    return segments
+
+
+def _ascii_segments(chunk: bytes) -> list[Segment]:
+    """Render *chunk* as the ASCII echo column, one segment per byte.
+
+    Printable bytes (``0x20-0x7e``) echo as-is, anything else as ``.`` --
+    each character carries its source byte's classified color.
+    """
+    return [
+        Segment(
+            chr(b) if 0x20 <= b <= 0x7E else ".",
+            _theme_style(_classify_byte(b)),
+        )
+        for b in chunk
+    ]
 
 
 class HexView(ScrollView, can_focus=True):
@@ -77,47 +154,50 @@ class HexView(ScrollView, can_focus=True):
 
     @override
     def on_mount(self) -> None:
-        """Subscribe to theme broadcasts (R13)."""
+        """Wire slim scrollbars and subscribe to theme broadcasts (R13 / R15)."""
         super().on_mount()
-        theme.attach(self, self._on_theme_changed)
+        apply_slim_scrollbars(self)
+        self._apply_theme()
+        theme.attach(self, self._apply_theme)
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
         theme.detach(self)
 
-    def _on_theme_changed(self) -> None:
-        """Repaint on theme broadcast (ThemeListener = Callable[[], None])."""
+    def _apply_theme(self) -> None:
+        """Repaint on theme broadcast (scrollbar palette, diff_pane precedent)."""
+        apply_scrollbar_theme(self)
         self.refresh()
 
     @override
     def render_line(self, y: int) -> Strip:
-        """Render one line of hex dump (offset + hex + ASCII).
+        """Render one line of hex dump (offset + hex + ASCII), byte-classified.
 
         *y* is a viewport row; the content row is ``y + scroll_offset.y``
-        (DiffPane precedent for the line API on this Textual version).
+        (DiffPane precedent for the line API on this Textual version).  The
+        rendered text is exactly the xxd layout; the per-byte classification
+        colors live in the segment styles only (hexyl mapping onto theme
+        tokens), so ``Strip.text`` stays a plain-text assertion surface.
         """
         offset = (y + self.scroll_offset.y) * _BYTES_PER_LINE
         chunk = self._data[offset : offset + _BYTES_PER_LINE]
         if not chunk:
             return Strip.blank(self.size.width)
-        hex_part = self._format_hex(chunk)
-        ascii_part = self._format_ascii(chunk)
-        line = f"{offset:08x}: {hex_part}  {ascii_part}"
-        return Strip([Segment(line)]).extend_cell_length(self.size.width)
+        segments: list[Segment] = [
+            Segment(f"{offset:08x}: ", Style(color=theme.active().fg_muted)),
+            *_hex_segments(chunk),
+            Segment("  "),
+            *_ascii_segments(chunk),
+        ]
+        return Strip(segments).extend_cell_length(self.size.width)
 
     def _format_hex(self, chunk: bytes) -> str:
-        """Format *chunk* as 2 groups of 8 bytes (xxd-style)."""
-        groups: list[str] = []
-        for i in range(0, len(chunk), 8):
-            group = chunk[i : i + 8]
-            hex_str = "".join(f"{b:02x}" for b in group)
-            # Pad to 16 chars if last group is short.
-            groups.append(hex_str.ljust(16))
-        return "  ".join(groups)
+        """Format *chunk* as 2 groups of 8 bytes (xxd-style, plain text)."""
+        return "".join(segment.text for segment in _hex_segments(chunk))
 
     def _format_ascii(self, chunk: bytes) -> str:
         """Format *chunk* as ASCII (printable 0x20-0x7e, else ``.``)."""
-        return "".join(chr(b) if 0x20 <= b <= 0x7E else "." for b in chunk)
+        return "".join(segment.text for segment in _ascii_segments(chunk))
 
 
 class HexScreen(ModalScreen[None]):

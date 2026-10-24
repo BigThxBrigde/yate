@@ -16,15 +16,26 @@ from pathlib import Path
 from typing import override
 
 import pytest
+from rich.segment import Segment
 from textual.app import App, ComposeResult
+from textual.color import Color as TextualColor
 from textual.widgets import Static
 
 from yate.editor_view import theme
 from yate.editor_view.hexview import _CONTENT_WIDTH, HexScreen, HexView
+from yate.editor_view.scrollbars import SlimScrollBarRender
 
 # "Hello, hex view!" -- exactly 16 bytes, so line 0 is a full row.
 _FULL_LINE_DATA = b"Hello, hex view!"
 _FULL_LINE_TEXT = "00000000: 48656c6c6f2c2068  6578207669657721  Hello, hex view!"
+
+
+def _segment_hex(segment: Segment) -> str:
+    """Truecolor hex of a segment's foreground color (empty when default)."""
+    style = segment.style
+    if style is None or style.color is None:
+        return ""
+    return style.color.get_truecolor().hex
 
 
 class _ViewHost(App[None]):
@@ -78,6 +89,27 @@ def test_hex_view_ascii_column_replaces_nonprintable() -> None:
     asyncio.run(_scenario())
 
 
+def test_hex_view_render_line_segments_are_classified() -> None:
+    """Offset and each byte class render in their theme-token color (hexyl)."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(bytes([0x00, 0x20, 0x41, 0x7F, 0x80]))
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            segments = list(view.render_line(0))
+            t = theme.active()
+            # Layout: [offset][hex pair x 5][pad]["  " separator][ascii x 5].
+            assert [s.text for s in segments[1:6]] == ["00", "20", "41", "7f", "80"]
+            assert _segment_hex(segments[0]) == t.fg_muted  # offset
+            assert _segment_hex(segments[1]) == t.fg_dim  # 0x00 null
+            assert _segment_hex(segments[2]) == t.green  # 0x20 whitespace
+            assert _segment_hex(segments[3]) == t.accent  # 0x41 printable
+            assert _segment_hex(segments[4]) == t.accent2  # 0x7F ascii_other
+            assert _segment_hex(segments[5]) == t.yellow  # 0x80 non_ascii
+
+    asyncio.run(_scenario())
+
+
 def test_hex_view_theme_subscription(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mounting subscribes to theme broadcasts; a broadcast repaints."""
 
@@ -100,6 +132,37 @@ def test_hex_view_theme_subscription(monkeypatch: pytest.MonkeyPatch) -> None:
         asyncio.run(_scenario())
     finally:
         theme.set_theme("mocha")
+
+
+def test_hex_view_scrollbar_uses_slim_renderer() -> None:
+    """Both scrollbars render through the slim partial-block renderer (R15)."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(_FULL_LINE_DATA)
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            assert view.vertical_scrollbar.renderer is SlimScrollBarRender
+            assert view.horizontal_scrollbar.renderer is SlimScrollBarRender
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_scrollbar_theme_follows_active() -> None:
+    """The scrollbar palette tracks the active theme (R15)."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(_FULL_LINE_DATA)
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            theme.set_theme("latte")
+            try:
+                assert view.styles.scrollbar_color == TextualColor.parse(
+                    theme.active().border
+                )
+            finally:
+                theme.set_theme("mocha")
+
+    asyncio.run(_scenario())
 
 
 def test_hex_view_virtual_size_matches_line_count() -> None:
