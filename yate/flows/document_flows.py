@@ -66,6 +66,7 @@ class DocumentFlows:
         mounted: StateQuery,
         reveal_explorer: Callable[[], None],
         startup_readonly: bool,
+        open_hex_view: Callable[[Path], None] | None = None,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
@@ -82,6 +83,23 @@ class DocumentFlows:
         self._mounted = mounted
         self._reveal_explorer = reveal_explorer
         self.startup_readonly = startup_readonly
+        #: Overlay-flow hex opener; ``None`` until :meth:`bind_hex_opener`
+        #: (the overlays are built after this module -- see the module
+        #: docstring's construction-order note).
+        self._open_hex_view: Callable[[Path], None] | None = open_hex_view
+        #: Binary startup target seen before the opener was bound; flushed
+        #: post-mount via :meth:`take_pending_hex` (Editor.on_mount tail).
+        self._pending_hex_path: Path | None = None
+
+    def bind_hex_opener(self, opener: Callable[[Path], None]) -> None:
+        """Bind the overlay-flow hex opener (overlays are built later)."""
+        self._open_hex_view = opener
+
+    def take_pending_hex(self) -> Path | None:
+        """Return and clear the deferred binary startup target (post-mount)."""
+        pending = self._pending_hex_path
+        self._pending_hex_path = None
+        return pending
 
     def attach_pane_stack(
         self, panes: PaneManager, completion: CompletionFlows
@@ -180,7 +198,12 @@ class DocumentFlows:
             log.warning("open failed: %s (%s)", path, exc)
             return None
         if doc is None:
-            self._report(f"not a text file: {path.name}", "warn")
+            if self._open_hex_view is not None:
+                self._open_hex_view(path)
+            else:
+                # Overlays not yet built (startup target): defer to the
+                # post-mount flush (Editor.on_mount tail).
+                self._pending_hex_path = path
             log.info("open skipped (binary): %s", path)
             return None
         if not reused:
@@ -204,7 +227,12 @@ class DocumentFlows:
             log.warning("open failed (async): %s (%s)", path, exc)
             return None
         if doc is None:
-            self._report(f"not a text file: {path.name}", "warn")
+            if self._open_hex_view is not None:
+                self._open_hex_view(path)
+            else:
+                # Overlays not yet built (startup target): defer to the
+                # post-mount flush (Editor.on_mount tail).
+                self._pending_hex_path = path
             return None
         if not reused:
             self._apply_session_readonly(doc)

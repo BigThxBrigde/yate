@@ -21,6 +21,7 @@ from yate.editor_sprites.characters import character_names
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
 from yate.editor_view.find_replace import FindReplaceScreen, RevealFn
+from yate.editor_view.hexview import HexScreen, MAX_HEX_VIEW_SIZE
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
@@ -180,6 +181,45 @@ class OverlayFlows:
                 labels=labels,
             )
         )
+
+    def open_hex_view(self, path: Path) -> None:
+        """Open a file in the hex view (read-only).
+
+        If a HexScreen is already the top screen, pop it (toggle-off
+        semantics).  The bytes are read in one shot; files beyond
+        :data:`MAX_HEX_VIEW_SIZE` and unreadable paths are refused on the
+        message line.
+        """
+        if isinstance(self._current_screen(), HexScreen):
+            self._pop_screen()
+            return
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            self._message(f"cannot read {path.name}: {exc}", "warn")
+            return
+        if len(data) > MAX_HEX_VIEW_SIZE:
+            self._message(
+                f"file too large for hex view: {path.name} "
+                f"(> {MAX_HEX_VIEW_SIZE} bytes)",
+                "warn",
+            )
+            return
+        if self._mounted():
+            self.push(HexScreen(path, data))
+
+    def toggle_hex_view(self) -> None:
+        """Toggle between text view and hex view for the active document."""
+        if isinstance(self._current_screen(), HexScreen):
+            self._pop_screen()
+            return
+        doc = self.session.doc
+        # session.doc is a non-optional property (raises on empty docs) --
+        # the only guard needed is the unsaved-buffer one.
+        if doc.resolved_path is None:
+            self._message("cannot hex view an unsaved buffer", "warn")
+            return
+        self.open_hex_view(doc.resolved_path)
 
     def open_project_replace(self) -> None:
         """Open the project-wide find & replace overlay (ctrl+h)."""

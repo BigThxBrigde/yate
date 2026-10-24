@@ -236,6 +236,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_view.commandline",
         "yate.editor_view.diffview",
         "yate.editor_view.find_replace",
+        "yate.editor_view.hexview",
         "yate.editor_view.manual",
         "yate.editor_view.modals",
         "yate.editor_view.palette",

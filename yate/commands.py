@@ -434,6 +434,11 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
 
     reg("diff", _diff, "compare files in a diff view (:diff [--3way] F1 F2 [F3])")
 
+    def _hex(args: str) -> None:
+        editor.overlays.toggle_hex_view()
+
+    reg("hex", _hex, "toggle hex view for the current file")
+
     # ---- extension packages ------------------------------------------------
 
     def _install_extension(args: str) -> None:

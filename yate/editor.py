@@ -199,6 +199,7 @@ def _build_widgets(ed: Editor) -> None:
         mounted=lambda: ed.mounted,
         reveal_explorer=ed.reveal_explorer,
         startup_readonly=ed.startup_readonly,
+        open_hex_view=None,  # Bound late in _build_pane_stack (overlays not yet built)
     )
     ed.tabbar = TabBar(ed.session, ed.document_flows.activate_doc, id="tabbar")
     # The explorer is built before the flows; its open callback (fire only
@@ -276,6 +277,10 @@ def _build_pane_stack(ed: Editor) -> None:
         run_command=ed.run_command,
         refresh=ed.refresh_ui,
     )
+    # The hex opener rides DocumentFlows' binary-open branch; the overlays
+    # exist only from the line above, so the callback is bound here (the
+    # DocumentFlows construction happened earlier, without it).
+    ed.document_flows.bind_hex_opener(ed.overlays.open_hex_view)
     ed.lsp_sync = LspSync(
         spawn=ed.app.run_worker,
         lsp=ed.lsp,
@@ -592,6 +597,15 @@ class Editor:
                 "Alt+Shift+P command palette"
             )
         self.refresh_ui()
+        # A binary startup target opened before the overlays existed defers
+        # to here (take_pending_hex); call_after_refresh lets the base
+        # screen finish its first layout pass before the modal screen is
+        # pushed (same safety layer as the --diff handoff in app.on_mount).
+        pending_hex = self.document_flows.take_pending_hex()
+        if pending_hex is not None:
+            self.app.call_after_refresh(
+                self.overlays.open_hex_view, pending_hex
+            )
 
     async def on_unmount(self) -> None:
         """Tear the extension hooks, terminal and LSP services down in order."""

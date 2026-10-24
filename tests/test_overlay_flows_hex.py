@@ -1,0 +1,290 @@
+"""Hex view flow tests: binary opens, toggle guards and the CLI boot flag.
+
+Covers the wave-3 wiring: :meth:`OverlayFlows.open_hex_view` /
+:meth:`OverlayFlows.toggle_hex_view` (screen push/pop, read and size
+refusals, unsaved-buffer guard), the :class:`DocumentFlows` callback
+injection on the binary-open branch (bound opener vs deferred pending
+target) and the end-to-end binary startup target flowing into a
+:class:`~yate.editor_view.hexview.HexScreen`.
+"""
+
+# tests legitimately poke at flow/screen internals:
+# pyright: reportPrivateUsage=false
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from typing import Any, cast
+
+import pytest
+from textual.screen import Screen
+
+from yate.app import YateApp
+from yate.config import YateConfig
+from yate.editor_view.hexview import HexScreen, HexView
+from yate.flows.document_flows import DocumentFlows
+from yate.flows.overlay_flows import OverlayFlows
+from yate.session import EditorSession
+
+_BINARY_BYTES = b"MZ\x90\x00\x01\x02binary!\x00\x00"
+
+
+class _FakePromptBar:
+    """Minimal PromptBar stand-in: OverlayFlows.push idles it."""
+
+    def idle(self) -> None:
+        """Accept the overlay idle notification (no-op)."""
+
+
+class _FakeApp:
+    """Screen-stack stand-in for the App verbs OverlayFlows consumes."""
+
+    def __init__(self, *, screen: Screen[None] | None = None) -> None:
+        self.screen: Screen[None] | None = screen
+        self.pushed: list[object] = []
+        self.pops: int = 0
+
+    def push_screen(self, screen: object, callback: object = None) -> None:
+        """Record the pushed screen like the real app."""
+        self.pushed.append(screen)
+        self.screen = cast(Screen[None], screen)
+
+    def pop_screen(self) -> None:
+        """Record the pop like the real app."""
+        self.pops += 1
+        self.screen = None
+
+
+def _make_flows(
+    app: _FakeApp,
+    messages: list[tuple[str, str]],
+    *,
+    mounted: bool = True,
+    session: EditorSession | None = None,
+) -> OverlayFlows:
+    """An OverlayFlows wired to *app* with recorded messages (changelog
+    precedent: collaborators untouched on the hex path are stubbed)."""
+    return OverlayFlows(
+        push_screen=app.push_screen,
+        pop_screen=app.pop_screen,
+        current_screen=lambda: cast(Screen[None], app.screen),
+        config=cast(Any, None),
+        keymaps=cast(Any, None),
+        commands=cast(Any, None),
+        actions=cast(Any, None),
+        session=cast(Any, session),
+        workspace=cast(Any, None),
+        prompt=cast(Any, _FakePromptBar()),
+        message=lambda text, kind: messages.append((text, kind)),
+        mounted=lambda: mounted,
+        open_path=lambda path: None,
+        reveal_match=lambda path, row, col: None,
+        readonly_notice=lambda: None,
+        focus_editor=lambda: None,
+        execute_action=lambda name: True,
+        run_command=lambda text: None,
+        refresh=lambda: None,
+    )
+
+
+def test_open_hex_view_pushes_hex_screen(tmp_path: Path) -> None:
+    """A readable binary file pushes a HexScreen carrying its bytes."""
+    binary = tmp_path / "thing.bin"
+    binary.write_bytes(_BINARY_BYTES)
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages)
+
+    flows.open_hex_view(binary)
+
+    assert len(app.pushed) == 1
+    screen = app.pushed[0]
+    assert isinstance(screen, HexScreen)
+    assert screen._data == _BINARY_BYTES
+    assert screen._path == binary
+    assert messages == []
+
+
+def test_open_hex_view_pops_when_already_hex_screen(tmp_path: Path) -> None:
+    """Calling open_hex_view while a HexScreen is up pops it (toggle-off)."""
+    binary = tmp_path / "thing.bin"
+    binary.write_bytes(_BINARY_BYTES)
+    top = HexScreen(binary, _BINARY_BYTES)
+    app = _FakeApp(screen=top)
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages)
+
+    flows.open_hex_view(binary)
+
+    assert app.pops == 1
+    assert app.pushed == []
+
+
+def test_open_hex_view_rejects_oversize_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file beyond the size gate is refused on the message line."""
+    big = tmp_path / "big.bin"
+    big.write_bytes(b"x" * 8)
+    monkeypatch.setattr("yate.flows.overlay_flows.MAX_HEX_VIEW_SIZE", 4)
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages)
+
+    flows.open_hex_view(big)
+
+    assert app.pushed == []
+    assert messages
+    assert messages[0][0].startswith("file too large for hex view: big.bin")
+    assert messages[0][1] == "warn"
+
+
+def test_open_hex_view_unreadable_path_reports(tmp_path: Path) -> None:
+    """A missing file is refused on the message line, no screen push."""
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages)
+
+    flows.open_hex_view(tmp_path / "nope.bin")
+
+    assert app.pushed == []
+    assert messages
+    assert messages[0][0].startswith("cannot read nope.bin")
+    assert messages[0][1] == "warn"
+
+
+def test_toggle_hex_view_opens_for_text(tmp_path: Path) -> None:
+    """:hex on a text document pushes a HexScreen for the resolved path."""
+    text = tmp_path / "notes.txt"
+    text.write_text("hello\n", encoding="utf-8")
+    session = EditorSession(YateConfig())
+    session.open(text)
+    assert session.doc.resolved_path == text
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages, session=session)
+
+    flows.toggle_hex_view()
+
+    assert len(app.pushed) == 1
+    screen = app.pushed[0]
+    assert isinstance(screen, HexScreen)
+    assert screen._path == text
+
+
+def test_toggle_hex_view_closes_when_active() -> None:
+    """:hex while the hex screen is up pops it."""
+    app = _FakeApp(screen=HexScreen(Path("x.bin"), b"x"))
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages, session=EditorSession(YateConfig()))
+
+    flows.toggle_hex_view()
+
+    assert app.pops == 1
+    assert app.pushed == []
+
+
+def test_toggle_hex_view_unsaved_buffer_warns() -> None:
+    """:hex on an unsaved buffer warns and does nothing else."""
+    session = EditorSession(YateConfig())
+    session.docs.append(
+        cast(Any, type("Doc", (), {"resolved_path": None})())
+    )
+    session.index = 0
+    app = _FakeApp()
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(app, messages, session=session)
+
+    flows.toggle_hex_view()
+
+    assert app.pushed == []
+    assert app.pops == 0
+    assert messages == [("cannot hex view an unsaved buffer", "warn")]
+
+
+# --- DocumentFlows callback injection ----------------------------------------
+
+
+def _no_spawn(*args: object, **kwargs: object) -> None:
+    """Spawn stand-in: the binary-open branch never spawns work."""
+
+
+def _make_doc_flows(
+    session: EditorSession,
+    messages: list[tuple[str, str]],
+    *,
+    open_hex_view: Any = None,
+) -> DocumentFlows:
+    """A DocumentFlows wired for the binary-open branch only."""
+    return DocumentFlows(
+        spawn=cast(Any, _no_spawn),
+        session=session,
+        workspace=cast(Any, None),
+        lsp=cast(Any, None),
+        explorer_tree=cast(Any, None),
+        prompt_bar=cast(Any, None),
+        events=cast(Any, None),
+        message=lambda text, kind: messages.append((text, kind)),
+        report=lambda text, kind: messages.append((text, kind)),
+        refresh_ui=lambda: None,
+        mounted=lambda: True,
+        reveal_explorer=lambda: None,
+        startup_readonly=False,
+        open_hex_view=open_hex_view,
+    )
+
+
+def test_binary_open_pushes_hex_screen(tmp_path: Path) -> None:
+    """A binary open with a bound opener forwards the path to it."""
+    binary = tmp_path / "thing.bin"
+    binary.write_bytes(_BINARY_BYTES)
+    session = EditorSession(YateConfig())
+    opened: list[Path] = []
+    messages: list[tuple[str, str]] = []
+    flows = _make_doc_flows(
+        session, messages, open_hex_view=opened.append
+    )
+
+    flows.open_document(binary)
+
+    assert opened == [binary]
+    # the old "not a text file" report is gone: the hex handoff replaces it
+    assert messages == []
+
+
+def test_binary_open_without_opener_defers(tmp_path: Path) -> None:
+    """Without a bound opener the binary target is parked as pending."""
+    binary = tmp_path / "thing.bin"
+    binary.write_bytes(_BINARY_BYTES)
+    session = EditorSession(YateConfig())
+    messages: list[tuple[str, str]] = []
+    flows = _make_doc_flows(session, messages)
+
+    flows.open_document(binary)
+    assert flows._pending_hex_path == binary
+
+    # take_pending_hex consumes the pending target exactly once
+    assert flows.take_pending_hex() == binary
+    assert flows.take_pending_hex() is None
+
+
+# --- end-to-end: binary startup target ---------------------------------------
+
+
+def test_startup_binary_open_flows_to_hex_screen(tmp_path: Path) -> None:
+    """A binary startup target defers and opens the hex screen post-mount."""
+
+    async def scenario() -> None:
+        binary = tmp_path / "firmware.bin"
+        binary.write_bytes(_BINARY_BYTES)
+        app = YateApp(target=binary)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            await pilot.pause()
+            assert isinstance(app.screen, HexScreen)
+            view = app.screen.query_one(HexView)
+            line = view.render_line(0).text
+            assert line.startswith("00000000: 4d5a900001026269")
+
+    asyncio.run(scenario())
