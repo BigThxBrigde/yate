@@ -83,9 +83,9 @@ from .._util import repo_root
 ```
 
 - 禁止 `import *`（通配符导入）
-- **不得新增 `TYPE_CHECKING` 导入块**（架构约定，见 `architecture-boundaries.md` R6）：
+- **不得新增 `TYPE_CHECKING` 导入块**（§4.3；权威条款与现状见 `architecture-boundaries.md` R6）：
   类型注解跨模块引用时传**具体对象**（`EditorSession` / `KeymapSet` / 注册表 / widget）或叶子类型；
-  不再新建窄 Protocol（R2 / R8，唯一冻结例外是 `editor_view/editor.py::PaneRegistry`）
+  不再新建窄 Protocol（R2 / R8，冻结例外清单以 `architecture-boundaries.md` R2 为准）
 
 ```python
 from __future__ import annotations
@@ -314,8 +314,8 @@ from __future__ import annotations
 `architecture-boundaries.md` 的依赖方向处理：传**具体对象**（`EditorSession`、`KeymapSet`、
 注册表、widget），或把类型下移到叶子模块；不靠窄 Protocol + 延迟导入兜底。
 
-**现状：全仓库 0 处**（`yate/interfaces.py` 已删除，`tests/test_editor_core.py` 的遗留已随
-分层重构清除；架构守护测试 `tests/test_architecture.py` 会拦截回归）。
+权威条款、全仓现状与架构守卫以 `architecture-boundaries.md` R6 / §六 为唯一规范来源，
+本节不再重复登记。
 
 ### 4.4 `cast()` 优先于 `# type: ignore`
 
