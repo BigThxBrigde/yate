@@ -95,3 +95,4 @@ flowchart TD
 - 2026-10-24 plan-b 设计完成：跳转地址功能（Input 输入框 + 地址解析 + 视图定位），方案落盘 hex-enh-goto-plan-b.md。
 - 2026-10-24 plan-c 设计完成：hex 编辑 / 替换 + 写回 + 撤销 + 冲突保护，方案落盘 hex-enh-edit-plan-c.md。
 - 2026-10-24 plan_a 执行完成：滚动条接线 + 字节分类着色 + R15 规则与守卫，37 用例全绿。
+- 2026-10-24 plan_b 执行完成：跳转地址功能（parse_hex_address 纯函数 + goto 内嵌 Input + scroll_to_line + OverlayFlows message 回调注入），test_hex_view.py 17 用例全绿、pyright 零诊断、冒烟 hex_view_goto_address 8/8 checks 通过。
