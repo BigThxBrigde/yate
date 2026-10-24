@@ -289,6 +289,13 @@ cd D:\Programming\yate-hex-view
 ## 遗留待办
 
 - **S1**：`hexview.py:69` `self._path` 仅写不读——后续可渲染文件名表头或删参（登记待办，本波次不修）。
+- **S2**（复审 2026-10-24 新增，SUGGESTION）：`overlay_flows.py:210-212` read 兜底行未覆盖——
+  补目录路径用例（`open_hex_view(tmp_path)` → "cannot read"）可同时盖行并锁定目录语义。
+- **S3**（复审 2026-10-24 新增，SUGGESTION）：stat/read 间残留 TOCTOU 窗口（stat 后文件
+  增长则超限不再复检）——read 后补一行 `len(data) > MAX` 复检可彻底关闭；W2 主害已除。
+- **既有 flake（非本分支改动）**：`tests/test_app_panes.py::test_split_independent_cursors_and_navigation`
+  并行负载下偶发 `assert 0 == 2`，`-n 1` 通过、重跑全绿；该文件未被本任务触碰，
+  建议另立 issue 修用例（复审记录，2026-10-24）。
 
 ## 【执行】【审核】迭代记录段
 
@@ -318,3 +325,15 @@ W1-W4 全部落地，S1 按纪律登记未修。验收命令实测：
 3. **W1 测试的 import 位置**：草稿为函数内 import，按该测试文件顶部统一
    import 风格并入 `from yate.editor_view.hexview import _CONTENT_WIDTH, ...`，
    断言内容不变。
+
+### 【审核】第二轮复审（2026-10-24，提交 f3ffd60）
+
+python-code-review + pr-review 双视角复审：**PASS**。W1-W4 逐项闭环
+（W1 公式复算 62 成立；W2 全仓 grep 无 "cannot read" 文案遗漏依赖，目录路径经
+read 兜底不回归；W3 覆盖率 miss 自 230-236 收缩为 235；W4 探针路径已堵；
+S1 确认未修且登记合规；plan-e 偏离回填核实无误）。五条硬门槛实测：
+pyright 0 errors（EXIT=0）；pytest 全量 2958 passed / 9 skipped（EXIT=0）；
+架构测试 36 passed（EXIT=0）；覆盖率 91.95% ≥75（首跑 1 failed 经 `-n 1`
+复核定性为既有用例并行 flake，重跑全绿，登记遗留待办）；冒烟 114/114 场景
+1379/1379 checks（EXIT=0）。新增 2 条 SUGGESTION（S2/S3）登记遗留待办，
+不阻塞合并。

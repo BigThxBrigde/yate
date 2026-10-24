@@ -23,6 +23,7 @@
 | [hex-view-widget-plan-b.md](hex-view-widget-plan-b.md) | HexView widget + HexScreen 实现（L2） | wave-2 |
 | [hex-view-flow-plan-c.md](hex-view-flow-plan-c.md) | `:hex` 命令 + `--hex` CLI 选项 + 流程接入（L3/L4） | wave-3 |
 | [hex-view-test-fix-plan-d.md](hex-view-test-fix-plan-d.md) | 既有测试改写与冒烟场景同步 | wave-4 |
+| [hex-view-fix-plan-e.md](hex-view-fix-plan-e.md) | 评审修复（W1-W4 + S1 待办登记） | wave-5 |
 
 ## 执行波次表
 
@@ -37,6 +38,9 @@ wave-3: plan_c  (:hex 命令 + --hex CLI + 流程接入)
    |
    v
 wave-4: plan_d  (既有测试改写与冒烟场景同步)
+   |
+   v
+wave-5: plan_e  (评审修复 W1-W4 + S1 待办登记)
 ```
 
 波次间串行：上一波全部子计划验收通过（验收命令退出码 0）才允许进入下一波。
@@ -50,6 +54,8 @@ flowchart TD
     B --> C
     C --> D[plan_d: 既有测试改写]
     A --> D
+    D --> E[plan_e: 评审修复 W1-W4 + S1]
+    C --> E
 ```
 
 ## 关键事实清单（调研取证）
@@ -112,3 +118,12 @@ flowchart TD
   DocumentFlows 改走回调注入、CLI 照 --diff 先例、R11 登记修正为全点分模块名）；
   plan-b 补充 virtual_size / ModalScreen[None] / ThemeListener 签名；
   plan-d 修正冒烟验证命令、增加可选冒烟场景、全仓 grep 旧行为测试。
+- 2026-10-24 评审修复：新增 plan-e（W1-W4 + S1 待办登记），波次表追加 wave-5。
+- 2026-10-24 评审修复：首轮评审（python-code-review + pr-review 双视角）4 项 WARNING
+  （W1 宽度公式 / W2 尺寸闸门次序 / W3 async 分支零覆盖 / W4 空会话 IndexError）+
+  1 项 SUGGESTION；主代理逐条实证后派 plan-e；执行提交 `f3ffd60`；第二轮复审 **PASS**
+  （详见 plan-e 迭代记录段），遗留 S1/S2/S3 三条待办 + 1 条既有 flake 登记。
+- 2026-10-24 收尾（主代理）：architecture-boundaries.md R11 注记由误归属
+  （document_flows）改写为实际登记（`flows/overlay_flows.py` 追加
+  `yate.editor_view.hexview`）；主代理独立重跑全量门禁（pyright / pytest 全量 /
+  架构测试 / 覆盖率 / 冒烟）后提交收尾产物。

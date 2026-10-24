@@ -133,6 +133,8 @@ flowchart TD
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记（键为 `yate/` 下
   相对路径，flows/ 迁移后带 `flows/` 前缀；
   `document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
+  `overlay_flows.py` 于 hex-view 波（IKQ2D5）追加 `yate.editor_view.hexview`
+  （二进制文件回退 hex view 打开，DocumentFlows 经回调移交，自身不新增 editor_view 导入）；
   `window_flows.py` 于 wave-4 以同组面登记）。
   `whichkey_flows.py` 于 which-key 任务
   （[which-key-docs-plan-f](../documents/which-key-plans/which-key-docs-plan-f.md)）
