@@ -97,4 +97,6 @@ flowchart TD
 - 2026-10-24 plan_a 执行完成：滚动条接线 + 字节分类着色 + R15 规则与守卫，37 用例全绿。
 - 2026-10-24 plan_b 执行完成：跳转地址功能（parse_hex_address 纯函数 + goto 内嵌 Input + scroll_to_line + OverlayFlows message 回调注入），test_hex_view.py 17 用例全绿、pyright 零诊断、冒烟 hex_view_goto_address 8/8 checks 通过。
 - 2026-10-24 plan_c 执行完成：hex 编辑（e 进入编辑模式 / escape 退出，编辑态 e 键入 nibble 0xE + nibble 两拍写一字节 + 光标移动）+ undo（上限 1000）+ 写回回调注入（HexScreen.write_bytes，冲突 / TOCTOU 门居 OverlayFlows._write_hex_bytes，同长 r+b 覆写）+ 只读边界（os.access → write_bytes=None），test_hex_view.py 26 用例全绿、pyright 零诊断、冒烟 hex_view_edit_and_save 9/9 checks 通过。
-- 2026-10-24 评审迭代：修复 W-1 保存指纹回填 / W-2 键位文档对齐 / W-3 补齐写盘与编辑路由单测；S-1/S-2/S-4 登记待办。
+- 2026-10-24 评审迭代：修复 W-1 保存指纹回填 / W-2 键位文档对齐 / W-3 补齐写盘与编辑路由单测（+13 用例：hexview.py 覆盖率 81%→96%、overlay_flows.py 83%→89%）；S-1/S-2/S-4 登记待办。
+- 2026-10-24 复审通过：W-1/W-2/W-3 逐项判定已解决且回归锁有效，修复未引入新 CRITICAL/WARNING；N-1（写后 stat 兜底）登记为非阻塞建议。
+- 2026-10-24 收尾门禁（主代理实测，worktree venv，CI 并行口径）：pyright yate/ tests/ tools/ pack/ 零诊断；pytest tests/ -q -n auto 2991 passed / 9 skipped；pytest tests/test_architecture.py -q 37 passed（含 R15 守卫）；分支覆盖率 92.03%（门槛 75）；tools.smoke_test run --jobs 4 116/116 场景、1396/1396 checks 全过。已登记待办（后续迭代）：S-1 删除 _format_hex/_format_ascii/cursor_col 死代码、S-2 SCROLLABLE_BASES 补 DataTable/DirectoryTree/OptionList/SelectionList 派生基类、S-4 :hex 打开活动文本文档时不注入必被拒的 writer、N-1 写后 stat 纳入 try 兜底。
