@@ -393,7 +393,9 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
     3. the app did not crash (``return_code`` is ``None`` or ``0``);
     4. process-global singletons (the color theme) are back to their
        pre-scenario value;
-    5. a document that claims to be saved really matches the bytes on disk.
+    5. a document that claims to be saved really matches the bytes on disk
+       (for a chunked document, whose buffer is a partial viewport over the
+       file, only the loaded rows are compared).
     """
     checks: list[Check] = []
     buf = app.editor.session.buffer
@@ -421,8 +423,26 @@ def invariant_checks(app: YateApp, *, theme_before: str) -> list[Check]:
         except OSError:
             on_disk = None
         if on_disk is not None:
-            checks.append(Check("invariant:saved_matches_disk",
-                                doc.buffer.get_text(), on_disk, invariant=True))
+            if doc.chunked is None:
+                checks.append(Check("invariant:saved_matches_disk",
+                                    doc.buffer.get_text(), on_disk, invariant=True))
+            else:
+                # A chunked buffer is a partial viewport over the file: rows
+                # load on demand, so requiring get_text() == disk would
+                # demand a full read of a multi-GB file.  The loaded rows
+                # themselves must still match the disk bytes exactly.
+                disk_rows = on_disk.split("\n")
+                loaded = [
+                    row
+                    for row in range(min(len(buf.lines), len(disk_rows)))
+                    if buf.rows_loaded(row, 1)
+                ]
+                checks.append(Check(
+                    "invariant:saved_matches_disk",
+                    "\n".join(f"{row}:{buf.line(row)}" for row in loaded),
+                    "\n".join(f"{row}:{disk_rows[row]}" for row in loaded),
+                    invariant=True,
+                ))
     return checks
 
 
