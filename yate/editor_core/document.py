@@ -248,7 +248,9 @@ class Document:
         No-op for plain documents.  The whole file is re-read through
         :meth:`open` (same decode/EOL path), so the promoted buffer
         matches the disk contents exactly and editing is unlocked; the
-        indentation options carried by the locked buffer are preserved.
+        indentation options carried by the locked buffer are preserved,
+        and so is its ``read_only`` flag (a ``-R`` / read-only session
+        must not become writable just because the document was promoted).
         """
         path = self.path
         if self.chunked is None or path is None:
@@ -258,6 +260,7 @@ class Document:
         buf = full.buffer
         buf.tab_width = old.tab_width
         buf.use_spaces = old.use_spaces
+        buf.read_only = old.read_only
         self.buffer = buf
         self.encoding = full.encoding
         self.eol = full.eol

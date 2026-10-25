@@ -123,6 +123,9 @@ def test_promote_to_full_restores_editing(tmp_path: Path) -> None:
     path = _write(tmp_path / "big.txt", text)
     doc = Document.open_chunked(path, chunk_size=64)
     _stub_flows(doc).attach(doc)
+    # chunked documents open read_only and promotion now preserves the
+    # flag; lift it explicitly to exercise the editing-restore path
+    doc.buffer.read_only = False
     doc.promote_to_full()
     assert doc.chunked is None
     assert doc.buffer.locked is False
@@ -143,6 +146,17 @@ def test_promote_to_full_keeps_indentation_options(tmp_path: Path) -> None:
     doc.promote_to_full()
     assert doc.buffer.tab_width == 2
     assert doc.buffer.use_spaces is False
+
+
+def test_promote_to_full_preserves_read_only(tmp_path: Path) -> None:
+    """A read-only chunked session stays read-only after :fullload."""
+    path = _write(tmp_path / "big.txt", _lines(50))
+    doc = Document.open_chunked(path, chunk_size=32)
+    doc.buffer.read_only = True
+    doc.promote_to_full()
+    assert doc.chunked is None
+    assert doc.buffer.read_only is True
+    assert doc.buffer.locked is False
 
 
 def test_save_raises_on_chunked_document(tmp_path: Path) -> None:
