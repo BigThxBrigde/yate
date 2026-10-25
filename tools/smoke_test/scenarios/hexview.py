@@ -14,7 +14,6 @@ stack.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
 
 from tools.smoke_test.harness import (
     Check,
@@ -65,10 +64,15 @@ async def _hex_view_binary_open(tmp: Path) -> ScenarioResult:
         ))
         screen = _hex_screen(app)
         checks.append(Check("stack_at_two", 2, len(app.screen_stack)))
-        # the bytes round-trip through the flow handoff (HexScreen._data)
-        data = cast(bytes, getattr(screen, "_data", b""))
-        checks.append(Check("screen_carries_bytes", True,
-                            data == b"\x00\x01\x02\x03binary\xff\x00\x01"))
+        # the file round-trips through the flow handoff (chunked source,
+        # plan-c: HexScreen carries a ChunkedBinaryFile, no pre-read blob)
+        source = getattr(screen, "_source", None)
+        checks.append(Check(
+            "screen_carries_bytes", True,
+            source is not None
+            and source.read(0, source.size)
+            == b"\x00\x01\x02\x03binary\xff\x00\x01",
+        ))
         rows = snapshot_svg(app, tmp)
         checks.append(Check("svg_shows_offset_hex_ascii", True,
                             _has_offset_row(rows)))

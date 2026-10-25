@@ -2,18 +2,20 @@
 
 The view renders 16 bytes per line -- offset, two hex groups and an ASCII
 echo -- into a scrolling :class:`textual.widget.ScrollView` (line API).  The
-data is handed in pre-read by the flow layer (:mod:`yate.flows.overlay_flows`
-owns the size gate); the widget is presentation-only: it never touches the
-filesystem.  Goto-address support adds a pure parser
+data comes from a :class:`~yate.editor_core.chunked.ChunkedBinaryFile`
+injected by the flow layer (:mod:`yate.flows.overlay_flows`); the widget is
+presentation-only: it reads through the chunked source and never touches
+the filesystem.  Goto-address support adds a pure parser
 (:func:`parse_hex_address`) and an in-screen input on the screen.
 
-Editing works on an in-memory byte map: ``e`` enters edit mode and
-``escape`` leaves it (in edit mode ``e`` types the 0xE nibble), hex digit
-keys write nibbles at the byte cursor (advancing after the low half), ``u``
-undoes and ``w`` hands the edited bytes to the ``write_bytes`` callback
-injected on :class:`HexScreen` by the flow layer -- the write-back itself
-(with its conflict and external-modification gates) lives in the flow layer,
-so no layer here touches the filesystem (R3).
+Editing records dirty byte edits on the chunked source: ``e`` enters edit
+mode and ``escape`` leaves it (in edit mode ``e`` types the 0xE nibble),
+hex digit keys write nibbles at the byte cursor (advancing after the low
+half), ``u`` undoes and ``w`` hands the dirty byte edits to the
+``write_bytes`` callback injected on :class:`HexScreen` by the flow layer
+-- the write-back itself (per-byte in-place writes, with its conflict and
+external-modification gates) lives in the flow layer, so no layer here
+touches the filesystem (R3).
 
 Theme ownership follows R13: the view subscribes on mount and repaints on
 broadcast.  Key handling follows R10: on the browsing face the screen
@@ -42,6 +44,7 @@ from textual.scroll_view import ScrollView
 from textual.strip import Strip
 from textual.widgets import Input, Static
 
+from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.logs import tracing
 from yate.paths import load_tcss
 
@@ -49,10 +52,6 @@ from yate.editor_view import theme
 from yate.editor_view.scrollbars import apply_slim_scrollbars, apply_scrollbar_theme
 
 log = tracing.get_logger(__name__)
-
-#: Hard upper bound for hex view payloads; the flow layer refuses to push a
-#: :class:`HexScreen` for larger files (100 MB read in one shot).
-MAX_HEX_VIEW_SIZE: int = 100 * 1024 * 1024
 
 #: Bytes rendered per line (the xxd convention).
 _BYTES_PER_LINE: int = 16
@@ -235,9 +234,10 @@ class HexView(ScrollView, can_focus=True):
 
     Each line renders 16 bytes: offset (8 hex digits + ``:``) + hex groups
     (2 groups of 8 bytes, no intra-byte spaces, 2 spaces between groups) +
-    ASCII column (printable ``0x20-0x7e`` as-is, else ``.``).  Editing
-    rewrites an in-memory ``bytearray`` copy; the cursor is a byte offset
-    and the undo stack records ``(offset, old_byte)`` pairs capped at
+    ASCII column (printable ``0x20-0x7e`` as-is, else ``.``).  Reads go
+    through the injected :class:`~yate.editor_core.chunked.ChunkedBinaryFile`
+    (block-cached, no full-file read); the cursor is a byte offset and the
+    undo stack records ``(offset, old_byte)`` pairs capped at
     :data:`MAX_UNDO_STEPS`.  Write-back goes through the screen's injected
     callback; the view itself never touches the filesystem (R3).
     """
@@ -251,15 +251,15 @@ class HexView(ScrollView, can_focus=True):
     def __init__(
         self,
         path: Path,
-        data: bytes,
+        source: ChunkedBinaryFile,
         *,
         id: str | None = None,
     ) -> None:
         super().__init__(id=id)
         self._path = path
-        # Mutable working copy for editing: the bytes handed in by the flow
-        # layer are copied, never aliased.
-        self._data: bytearray = bytearray(data)
+        # Chunked data source injected by the flow layer: reads go through
+        # its block cache and edits are recorded on it, never copied here.
+        self._source = source
         # Edit state: byte cursor, edit-mode flag, pending nibble half
         # (high first, low second -- two presses write one byte) and the
         # (offset, old_byte) undo stack.
@@ -271,7 +271,7 @@ class HexView(ScrollView, can_focus=True):
         # the line count (last partial line included), the width the fixed
         # content width so narrow terminals get a horizontal scrollbar.
         self.virtual_size = Size(
-            _CONTENT_WIDTH, (len(data) + _BYTES_PER_LINE - 1) // _BYTES_PER_LINE
+            _CONTENT_WIDTH, (source.size + _BYTES_PER_LINE - 1) // _BYTES_PER_LINE
         )
 
     @override
@@ -295,9 +295,9 @@ class HexView(ScrollView, can_focus=True):
         """Whether edit mode is on (the screen routes keys by this)."""
         return self._edit_mode
 
-    def current_bytes(self) -> bytes:
-        """Snapshot the edited payload as immutable bytes (write-back)."""
-        return bytes(self._data)
+    def dirty_edits(self) -> dict[int, int]:
+        """Snapshot the pending dirty byte edits (offset -> new byte)."""
+        return self._source.dirty_edits()
 
     def enter_edit_mode(self) -> None:
         """Enter edit mode; hex digits now key nibbles at the cursor."""
@@ -317,7 +317,7 @@ class HexView(ScrollView, can_focus=True):
         typed byte, so the next digit always starts a fresh one.
         """
         self._cursor_pos = max(
-            0, min(self._cursor_pos + delta, len(self._data) - 1)
+            0, min(self._cursor_pos + delta, self._source.size - 1)
         )
         self._nibble_high = True
         self.refresh()
@@ -340,10 +340,10 @@ class HexView(ScrollView, can_focus=True):
         byte is pushed onto the undo stack before the write; the stack is
         capped at :data:`MAX_UNDO_STEPS`, oldest entry dropped first.
         """
-        if len(hex_digit) != 1 or hex_digit not in _HEX_DIGITS or not self._data:
+        if len(hex_digit) != 1 or hex_digit not in _HEX_DIGITS or not self._source.size:
             return
         value = int(hex_digit, 16)
-        old_byte = self._data[self._cursor_pos]
+        old_byte = self._source.read(self._cursor_pos, 1)[0]
         if self._nibble_high:
             new_byte = (old_byte & 0x0F) | (value << 4)
         else:
@@ -351,8 +351,8 @@ class HexView(ScrollView, can_focus=True):
         self._undo_stack.append((self._cursor_pos, old_byte))
         if len(self._undo_stack) > MAX_UNDO_STEPS:
             del self._undo_stack[0]
-        self._data[self._cursor_pos] = new_byte
-        if not self._nibble_high and self._cursor_pos < len(self._data) - 1:
+        self._source.apply_edit(self._cursor_pos, new_byte)
+        if not self._nibble_high and self._cursor_pos < self._source.size - 1:
             self._cursor_pos += 1
         self._nibble_high = not self._nibble_high
         self.refresh()
@@ -362,7 +362,7 @@ class HexView(ScrollView, can_focus=True):
         if not self._undo_stack:
             return
         offset, old_byte = self._undo_stack.pop()
-        self._data[offset] = old_byte
+        self._source.apply_edit(offset, old_byte)
         self._cursor_pos = offset
         self._nibble_high = True
         self.refresh()
@@ -394,7 +394,17 @@ class HexView(ScrollView, can_focus=True):
         highlights touch styles only.
         """
         offset = (y + self.scroll_offset.y) * _BYTES_PER_LINE
-        chunk = self._data[offset : offset + _BYTES_PER_LINE]
+        chunk = b""
+        if offset < self._source.size:
+            try:
+                chunk = self._source.read(
+                    offset, min(_BYTES_PER_LINE, self._source.size - offset)
+                )
+            except OSError:
+                # The file vanished or became unreadable mid-session: paint
+                # a blank row instead of crashing the compositor (the
+                # render path runs outside any error handling).
+                return Strip.blank(self.size.width)
         if not chunk:
             return Strip.blank(self.size.width)
         t = theme.active()
@@ -450,7 +460,7 @@ class HexScreen(ModalScreen[None]):
     mode ``escape`` leaves editing (a further press dismisses) while
     ``q`` and ``g`` / ``:`` keep their browsing behavior; the hex digits
     key nibbles, ``u`` undoes, the vim/arrow keys move the byte cursor
-    and ``w`` writes the edited bytes back through the injected
+    and ``w`` writes the dirty byte edits back through the injected
     ``write_bytes`` callback (R10: every other key falls through).
     """
 
@@ -459,25 +469,24 @@ class HexScreen(ModalScreen[None]):
     _goto_input: Input | None = None
 
     #: hex view handle, resolved in :meth:`on_mount` once the composed tree
-    #: exists; :meth:`save` falls back to the untouched payload handed in
-    #: at construction while the screen is not mounted.
+    #: exists; :meth:`save` reads the dirty edits from the injected source
+    #: while the screen is not mounted.
     _hex_view: HexView | None = None
 
     def __init__(
         self,
         path: Path,
-        data: bytes,
+        source: ChunkedBinaryFile,
         *,
         message: Callable[[str, str], None] | None = None,
         write_bytes: (
-            Callable[[Path, bytes, float, int], tuple[float, int] | None] | None
+            Callable[[Path, dict[int, int], float, int], tuple[float, int] | None]
+            | None
         ) = None,
-        mtime: float = 0.0,
-        size: int = 0,
     ) -> None:
         super().__init__()
         self._path = path
-        self._data = data
+        self._source = source
         # Error-report callback injected by the flow layer (the view never
         # imports upward, R3).  ``None`` keeps parse errors quiet in
         # un-injected hosts.
@@ -491,18 +500,19 @@ class HexScreen(ModalScreen[None]):
         # ``write_bytes=None`` = read-only file or un-injected host: the
         # save is refused on the message line.
         self._write_bytes = write_bytes
-        # Load-time stat fingerprint (mtime + size); the flow layer
-        # re-checks both before writing so an externally modified file is
-        # never overwritten.  (``_size`` itself is off-limits: the Textual
-        # Widget base class owns that name for its layout size.)
-        self._mtime = mtime
-        self._load_size = size
+        # Load-time stat fingerprint (mtime + size), taken from the
+        # injected chunked source; the flow layer re-checks both before
+        # writing so an externally modified file is never overwritten.
+        # (``_size`` itself is off-limits: the Textual Widget base class
+        # owns that name for its layout size.)
+        self._mtime = source.mtime
+        self._load_size = source.size
 
     @override
     def compose(self) -> ComposeResult:
         """HexView filling the screen plus the hidden goto input and hint."""
         with Vertical():
-            yield HexView(self._path, self._data, id="hex-view")
+            yield HexView(self._path, self._source, id="hex-view")
             goto_input = Input(id="hex-goto-input")
             goto_input.display = False
             yield goto_input
@@ -536,27 +546,29 @@ class HexScreen(ModalScreen[None]):
         self.query_one("#hex-view", HexView).focus()
 
     def save(self) -> None:
-        """Write the edited bytes back through the injected callback (R3).
+        """Write the dirty byte edits back through the injected callback (R3).
 
         Refused on the message line when no writer was injected (read-only
         file or un-injected host).  Writer failures (``OSError`` /
         ``ValueError``) are reported and leave the screen open; on success
         the writer returns the post-write stat fingerprint, which refreshes
         the load-time baseline so an immediate second save is not refused
-        as an external modification, and ``saved`` is reported.  A ``None``
-        writer result means a gate refused or the write failed: the
-        message line already carries the reason and the baseline is left
-        untouched.
+        as an external modification, the written edits are cleared from
+        the chunked source, and ``saved`` is reported.  A ``None`` writer
+        result means a gate refused or the write failed: the message line
+        already carries the reason and the baseline is left untouched.
         """
         if self._write_bytes is None:
             if self._message is not None:
                 self._message("write not available", "warn")
             return
         view = self._hex_view
-        data = view.current_bytes() if view is not None else bytes(self._data)
+        edits = (
+            view.dirty_edits() if view is not None else self._source.dirty_edits()
+        )
         try:
             fingerprint = self._write_bytes(
-                self._path, data, self._mtime, self._load_size
+                self._path, edits, self._mtime, self._load_size
             )
         except (OSError, ValueError) as exc:
             if self._message is not None:
@@ -565,6 +577,12 @@ class HexScreen(ModalScreen[None]):
         if fingerprint is None:
             return
         self._mtime, self._load_size = fingerprint
+        self._source.clear_edits(edits.keys())
+        if view is not None:
+            # The cleared blocks are evicted from the chunk cache; repaint
+            # now so the view shows the freshly written bytes instead of
+            # waiting for the next keypress.
+            view.refresh()
         if self._message is not None:
             self._message("saved", "ok")
 
@@ -625,7 +643,7 @@ class HexScreen(ModalScreen[None]):
         if event.input.id != "hex-goto-input":
             return
         try:
-            addr = parse_hex_address(event.value, len(self._data))
+            addr = parse_hex_address(event.value, self._source.size)
         except ValueError:
             if self._message is not None:
                 self._message(f"invalid address: {event.value!r}", "warn")

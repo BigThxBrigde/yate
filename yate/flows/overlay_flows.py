@@ -17,12 +17,13 @@ from pathlib import Path
 from textual.screen import Screen
 
 from yate.config import YateConfig
+from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.editor_core.document import Document
 from yate.editor_sprites.characters import character_names
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
 from yate.editor_view.find_replace import FindReplaceScreen, RevealFn
-from yate.editor_view.hexview import HexScreen, MAX_HEX_VIEW_SIZE
+from yate.editor_view.hexview import HexScreen
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
@@ -187,13 +188,14 @@ class OverlayFlows:
         """Open a file in the hex view (editable when the file is writable).
 
         If a HexScreen is already the top screen, pop it (toggle-off
-        semantics).  The bytes are read in one shot; files beyond
-        :data:`MAX_HEX_VIEW_SIZE` and unreadable paths are refused on the
-        message line.  The load-time stat fingerprint (mtime + size) rides
-        along for the write-back TOCTOU check.  A read-only file still
-        opens for browsing but without the writer callback, so ``w``
-        cannot save it.  No editor document is created for the binary
-        payload.
+        semantics).  The file is opened through a
+        :class:`~yate.editor_core.chunked.ChunkedBinaryFile` -- O(1)
+        construction, no content read, no size cap; unreadable paths are
+        refused on the message line.  The load-time stat fingerprint
+        (mtime + size) rides along inside the source for the write-back
+        TOCTOU check.  A read-only file still opens for browsing but
+        without the writer callback, so ``w`` cannot save it.  No editor
+        document is created for the binary payload.
         """
         if isinstance(self._current_screen(), HexScreen):
             self._pop_screen()
@@ -205,15 +207,14 @@ class OverlayFlows:
         except OSError as exc:
             self._message(f"cannot stat {path.name}: {exc}", "warn")
             return
-        if size > MAX_HEX_VIEW_SIZE:
-            self._message(
-                f"file too large for hex view: {path.name} "
-                f"(> {MAX_HEX_VIEW_SIZE} bytes)",
-                "warn",
-            )
-            return
         try:
-            data = path.read_bytes()
+            source = ChunkedBinaryFile(path, size, mtime)
+            if size > 0:
+                # The chunked source does no IO on construction; this probe
+                # keeps the open-time "cannot read" report that the old
+                # one-shot read provided (a vanished/unreadable file would
+                # otherwise surface as raw errors in the render path).
+                source.read(0, 1)
         except OSError as exc:
             self._message(f"cannot read {path.name}: {exc}", "warn")
             return
@@ -225,30 +226,33 @@ class OverlayFlows:
         if self._mounted():
             self.push(HexScreen(
                 path,
-                data,
+                source,
                 message=self._message,
-                write_bytes=self._write_hex_bytes if writable else None,
-                mtime=mtime,
-                size=size,
+                write_bytes=self.write_hex_edits if writable else None,
             ))
 
-    def _write_hex_bytes(
-        self, path: Path, data: bytes, mtime: float, size: int
+    def write_hex_edits(
+        self, path: Path, edits: dict[int, int], mtime: float, size: int
     ) -> tuple[float, int] | None:
-        """Write edited hex bytes back to *path* (same-length overwrite).
+        """Write dirty hex byte edits back to *path* (in-place, per byte).
 
         Gates, in order: the conflict gate refuses while *path* is open in
         the text editor (two writers on one file must not race); the
         TOCTOU gate re-stats and refuses when the file changed on disk
         since the hex view loaded it (mtime + size fingerprint).  The
-        write itself is a same-length ``r+b`` overwrite from offset 0 --
-        hex editing cannot insert or delete, so the size never changes.
-        Returns the post-write stat fingerprint ``(mtime, size)`` on
-        success so the caller can refresh its TOCTOU baseline (an
-        immediate second save must not be refused by the file's own
-        just-written state); ``None`` when a gate refused or the write
-        failed -- the message line already carries the reason.
+        write itself seeks to each dirty offset in an ``r+b`` handle and
+        rewrites exactly that byte -- hex editing cannot insert or delete,
+        so the size never changes.  An empty *edits* map is a no-op that
+        returns the current fingerprint.  Returns the post-write stat
+        fingerprint ``(mtime, size)`` on success so the caller can refresh
+        its TOCTOU baseline (an immediate second save must not be refused
+        by the file's own just-written state); ``None`` when a gate
+        refused or the write failed -- the message line already carries
+        the reason.
         """
+        if not edits:
+            fresh = path.stat()
+            return (fresh.st_mtime, fresh.st_size)
         if self.session.is_open(path) is not None:
             self._message(f"file open in text editor: {path.name}", "warn")
             return None
@@ -258,8 +262,9 @@ class OverlayFlows:
             return None
         try:
             with open(path, "r+b") as f:
-                f.seek(0)
-                f.write(data)
+                for offset in sorted(edits):
+                    f.seek(offset)
+                    f.write(bytes((edits[offset],)))
         except OSError as exc:
             self._message(f"save failed: {exc}", "warn")
             return None

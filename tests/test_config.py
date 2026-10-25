@@ -1294,3 +1294,44 @@ def test_app_unknown_theme_records_error() -> None:
         assert any("unknown theme" in e for e in app.config.errors)
     finally:
         themes.set_theme("mocha")
+
+
+# --- large_file option -------------------------------------------------------
+
+
+def test_large_file_threshold_option_round_trip(tmp_path: Path) -> None:
+    """A valid ``large_file`` dict lands in the config unmodified."""
+    config = _load('large_file = {"threshold": 16777216}\n', tmp_path)
+    assert config.errors == []
+    assert config.large_file.threshold == 16_777_216
+
+
+def test_large_file_threshold_zero_disables(tmp_path: Path) -> None:
+    """``0`` is the documented "chunked loading disabled" value."""
+    config = _load('large_file = {"threshold": 0}\n', tmp_path)
+    assert config.errors == []
+    assert config.large_file.threshold == 0
+
+
+def test_large_file_threshold_rejects_bad_values(tmp_path: Path) -> None:
+    """Out-of-range / wrong-typed thresholds report and keep the default."""
+    for body in ('"threshold": 512', '"threshold": "big"'):
+        config = _load(f"large_file = {{{body}}}\n", tmp_path)
+        assert config.errors, body
+        assert any("large_file threshold" in e for e in config.errors), (
+            body,
+            config.errors,
+        )
+        assert config.large_file.threshold == 8_388_608, body
+
+
+def test_large_file_unknown_key_reported(tmp_path: Path) -> None:
+    config = _load('large_file = {"enable": True}\n', tmp_path)
+    assert any("unknown keys" in e for e in config.errors)
+    assert config.large_file.threshold == 8_388_608
+
+
+def test_large_file_not_a_dict_reported(tmp_path: Path) -> None:
+    config = _load("large_file = 42\n", tmp_path)
+    assert any("large_file must be a dict" in e for e in config.errors)
+    assert config.large_file.threshold == 8_388_608

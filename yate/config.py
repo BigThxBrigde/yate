@@ -35,7 +35,7 @@ KNOWN_OPTIONS: tuple[str, ...] = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
     "yate_trace", "yate_trace_level", "key_protocol",
-    "support_mouse", "which_key",
+    "support_mouse", "which_key", "large_file",
 )
 
 VALID_KEYMAPS: tuple[str, ...] = ("vsc", "vim")
@@ -120,6 +120,21 @@ class FilePreviewConfig:
     max_size: int = 1048576     # byte cap before refusing to read
 
 
+@dataclass(frozen=True)
+class LargeFileConfig:
+    """Resolved ``large_file`` dict option (chunked loading of huge files).
+
+    ``threshold`` is the file size in bytes above which ``session.open``
+    loads the document as a locked, progressively filled chunked buffer
+    instead of reading it whole.      ``0`` disables chunked loading (every
+    file is read whole); otherwise the value must lie in
+    ``[1048576, 1073741824]`` (1 MiB files are never chunked by accident
+    and nothing above 1 GiB is loaded whole on purpose).
+    """
+
+    threshold: int = 8_388_608  # 8 MiB; 0 = disabled
+
+
 @dataclass
 class YateConfig:
     """Resolved editor options plus observability metadata.
@@ -184,6 +199,9 @@ class YateConfig:
     screen_saver: ScreenSaverConfig = field(default_factory=ScreenSaverConfig)
     #: Ctrl+p preview pane settings (the ``file_preview`` dict option).
     file_preview: FilePreviewConfig = field(default_factory=FilePreviewConfig)
+    #: Chunked-loading settings for very large files (the ``large_file``
+    #: dict option).
+    large_file: LargeFileConfig = field(default_factory=LargeFileConfig)
     sources: list[Path] = field(default_factory=list[Path])
     errors: list[str] = field(default_factory=list[str])
 

@@ -2,8 +2,9 @@
 
 Rendering tests mount the view in a minimal host app (Lightweight-test
 anchor, whichkey-panel precedent) and call the line API directly; the
-screen test pushes :class:`HexScreen` and verifies the ``q`` / ``escape``
-dismissal.
+chunked data source is built over a real tmp file so the block-read
+semantics stay honest.  The screen test pushes :class:`HexScreen` and
+verifies the ``q`` / ``escape`` dismissal.
 """
 
 # tests legitimately poke at view internals (subscription hook):
@@ -22,6 +23,7 @@ from textual.color import Color as TextualColor
 from textual.screen import Screen
 from textual.widgets import Input, Static
 
+from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.editor_view import theme
 from yate.editor_view.hexview import (
     _CONTENT_WIDTH,
@@ -38,6 +40,13 @@ _FULL_LINE_DATA = b"Hello, hex view!"
 _FULL_LINE_TEXT = "00000000: 48656c6c6f2c2068  6578207669657721  Hello, hex view!"
 
 
+def _make_source(tmp_path: Path, data: bytes) -> ChunkedBinaryFile:
+    """Build a chunked source over *data* written into *tmp_path*."""
+    path = tmp_path / "sample.bin"
+    path.write_bytes(data)
+    return ChunkedBinaryFile(path, len(data), 0.0)
+
+
 def _segment_hex(segment: Segment) -> str:
     """Truecolor hex of a segment's foreground color (empty when default)."""
     style = segment.style
@@ -47,22 +56,22 @@ def _segment_hex(segment: Segment) -> str:
 
 
 class _ViewHost(App[None]):
-    """Minimal host mounting one HexView of the given data."""
+    """Minimal host mounting one HexView over the given chunked source."""
 
-    def __init__(self, data: bytes) -> None:
+    def __init__(self, source: ChunkedBinaryFile) -> None:
         super().__init__()
-        self._data = data
+        self._source = source
 
     @override
     def compose(self) -> ComposeResult:
-        yield HexView(Path("sample.bin"), self._data)
+        yield HexView(self._source.path, self._source)
 
 
-def test_hex_view_renders_offset_hex_ascii() -> None:
+def test_hex_view_renders_offset_hex_ascii(tmp_path: Path) -> None:
     """A full 16-byte line renders as offset + two hex groups + ASCII."""
 
     async def _scenario() -> None:
-        app = _ViewHost(_FULL_LINE_DATA)
+        app = _ViewHost(_make_source(tmp_path, _FULL_LINE_DATA))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             assert view.render_line(0).text.rstrip() == _FULL_LINE_TEXT
@@ -70,11 +79,11 @@ def test_hex_view_renders_offset_hex_ascii() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_handles_partial_last_line() -> None:
+def test_hex_view_handles_partial_last_line(tmp_path: Path) -> None:
     """A short final row pads the hex group but keeps the column layout."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"ab")
+        app = _ViewHost(_make_source(tmp_path, b"ab"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             expected = f"00000000: {'6162'.ljust(16)}  ab"
@@ -83,11 +92,15 @@ def test_hex_view_handles_partial_last_line() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_ascii_column_replaces_nonprintable() -> None:
+def test_hex_view_ascii_column_replaces_nonprintable(tmp_path: Path) -> None:
     """Non-printable bytes (0x00-0x1f, 0x7f-0xff) render as dots."""
 
     async def _scenario() -> None:
-        app = _ViewHost(bytes([0x00, 0x01, 0x1F, 0x20, 0x41, 0x7E, 0x7F, 0xFF]))
+        app = _ViewHost(
+            _make_source(
+                tmp_path, bytes([0x00, 0x01, 0x1F, 0x20, 0x41, 0x7E, 0x7F, 0xFF])
+            )
+        )
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             line = view.render_line(0).text.rstrip()
@@ -97,11 +110,11 @@ def test_hex_view_ascii_column_replaces_nonprintable() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_render_line_segments_are_classified() -> None:
+def test_hex_view_render_line_segments_are_classified(tmp_path: Path) -> None:
     """Offset and each byte class render in their theme-token color (hexyl)."""
 
     async def _scenario() -> None:
-        app = _ViewHost(bytes([0x00, 0x20, 0x41, 0x7F, 0x80]))
+        app = _ViewHost(_make_source(tmp_path, bytes([0x00, 0x20, 0x41, 0x7F, 0x80])))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             segments = list(view.render_line(0))
@@ -118,11 +131,13 @@ def test_hex_view_render_line_segments_are_classified() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_theme_subscription(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_hex_view_theme_subscription(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Mounting subscribes to theme broadcasts; a broadcast repaints."""
 
     async def _scenario() -> None:
-        app = _ViewHost(_FULL_LINE_DATA)
+        app = _ViewHost(_make_source(tmp_path, _FULL_LINE_DATA))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             assert view._theme_unsubscribe is not None
@@ -142,11 +157,11 @@ def test_hex_view_theme_subscription(monkeypatch: pytest.MonkeyPatch) -> None:
         theme.set_theme("mocha")
 
 
-def test_hex_view_scrollbar_uses_slim_renderer() -> None:
+def test_hex_view_scrollbar_uses_slim_renderer(tmp_path: Path) -> None:
     """Both scrollbars render through the slim partial-block renderer (R15)."""
 
     async def _scenario() -> None:
-        app = _ViewHost(_FULL_LINE_DATA)
+        app = _ViewHost(_make_source(tmp_path, _FULL_LINE_DATA))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             assert view.vertical_scrollbar.renderer is SlimScrollBarRender
@@ -155,11 +170,11 @@ def test_hex_view_scrollbar_uses_slim_renderer() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_scrollbar_theme_follows_active() -> None:
+def test_hex_view_scrollbar_theme_follows_active(tmp_path: Path) -> None:
     """The scrollbar palette tracks the active theme (R15)."""
 
     async def _scenario() -> None:
-        app = _ViewHost(_FULL_LINE_DATA)
+        app = _ViewHost(_make_source(tmp_path, _FULL_LINE_DATA))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             theme.set_theme("latte")
@@ -173,11 +188,41 @@ def test_hex_view_scrollbar_theme_follows_active() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_virtual_size_matches_line_count() -> None:
+def test_hex_view_virtual_size_matches_line_count(tmp_path: Path) -> None:
     """virtual_size.height is the padded line count of the payload."""
-    view = HexView(Path("sample.bin"), b"x" * 33)
+    view = HexView(tmp_path / "sample.bin", _make_source(tmp_path, b"x" * 33))
     assert view.virtual_size.height == 3  # (33 + 15) // 16
-    assert HexView(Path("sample.bin"), b"").virtual_size.height == 0
+    empty = HexView(tmp_path / "sample.bin", _make_source(tmp_path, b""))
+    assert empty.virtual_size.height == 0
+
+
+def test_hex_view_renders_from_chunked_source_without_full_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rendering the first screen reads at most 2 blocks, whatever the size.
+
+    A 1 MiB file is opened through the chunked source (64 KiB blocks);
+    the block-fetch seam is counted via monkeypatch and must stay within
+    two blocks -- first-screen rendering is independent of the file size.
+    """
+    source = _make_source(tmp_path, b"\x00" * (1024 * 1024))
+    reads: list[int] = []
+    original = ChunkedBinaryFile._read_block_from_disk
+
+    def counting(self: ChunkedBinaryFile, index: int) -> bytes:
+        reads.append(index)
+        return original(self, index)
+
+    monkeypatch.setattr(ChunkedBinaryFile, "_read_block_from_disk", counting)
+
+    async def _scenario() -> None:
+        app = _ViewHost(source)
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view.render_line(0)
+
+    asyncio.run(_scenario())
+    assert len(reads) <= 2
 
 
 def test_hex_view_full_line_width_is_62() -> None:
@@ -215,13 +260,14 @@ class _ScreenHost(App[None]):
         yield Static("")
 
 
-def test_hex_screen_dismisses_on_q() -> None:
+def test_hex_screen_dismisses_on_q(tmp_path: Path) -> None:
     """``q`` and ``escape`` dismiss the screen."""
+    source = _make_source(tmp_path, _FULL_LINE_DATA)
 
     async def _scenario() -> None:
         app = _ScreenHost()
         async with app.run_test(size=(100, 30)) as pilot:
-            screen = HexScreen(Path("sample.bin"), _FULL_LINE_DATA)
+            screen = HexScreen(source.path, source)
             app.push_screen(screen)
             await pilot.pause()
             assert app.screen is screen
@@ -230,7 +276,7 @@ def test_hex_screen_dismisses_on_q() -> None:
             await pilot.pause()
             assert app.screen is not screen
 
-            app.push_screen(HexScreen(Path("sample.bin"), _FULL_LINE_DATA))
+            app.push_screen(HexScreen(source.path, source))
             await pilot.pause()
             await pilot.press("escape")
             await pilot.pause()
@@ -239,13 +285,15 @@ def test_hex_screen_dismisses_on_q() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_screen_goto_input_shows_on_g() -> None:
+def test_hex_screen_goto_input_shows_on_g(tmp_path: Path) -> None:
     """``g`` reveals and focuses the goto-address input."""
 
     async def _scenario() -> None:
         app = _ScreenHost()
         async with app.run_test(size=(100, 30)) as pilot:
-            screen = HexScreen(Path("sample.bin"), _FULL_LINE_DATA)
+            screen = HexScreen(
+                tmp_path / "sample.bin", _make_source(tmp_path, _FULL_LINE_DATA)
+            )
             app.push_screen(screen)
             await pilot.pause()
             await pilot.press("g")
@@ -257,13 +305,15 @@ def test_hex_screen_goto_input_shows_on_g() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_screen_goto_input_submits_and_scrolls() -> None:
+def test_hex_screen_goto_input_submits_and_scrolls(tmp_path: Path) -> None:
     """Submitting a valid address scrolls the hex view to the target line."""
 
     async def _scenario() -> None:
         app = _ScreenHost()
         async with app.run_test(size=(100, 30)) as pilot:
-            screen = HexScreen(Path("sample.bin"), b"\x00" * 1024)  # 64 lines
+            screen = HexScreen(
+                tmp_path / "sample.bin", _make_source(tmp_path, b"\x00" * 1024)
+            )
             app.push_screen(screen)
             await pilot.pause()
             await pilot.press("g")
@@ -276,13 +326,15 @@ def test_hex_screen_goto_input_submits_and_scrolls() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_screen_goto_input_escapes_without_jump() -> None:
+def test_hex_screen_goto_input_escapes_without_jump(tmp_path: Path) -> None:
     """``escape`` with the input open hides it without jumping or dismissing."""
 
     async def _scenario() -> None:
         app = _ScreenHost()
         async with app.run_test(size=(100, 30)) as pilot:
-            screen = HexScreen(Path("sample.bin"), b"\x00" * 1024)
+            screen = HexScreen(
+                tmp_path / "sample.bin", _make_source(tmp_path, b"\x00" * 1024)
+            )
             app.push_screen(screen)
             await pilot.pause()
             await pilot.press("g")
@@ -295,11 +347,11 @@ def test_hex_screen_goto_input_escapes_without_jump() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_cursor_move() -> None:
+def test_hex_view_cursor_move(tmp_path: Path) -> None:
     """``move_cursor`` walks the payload and clamps at both edges."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"x" * 32)
+        app = _ViewHost(_make_source(tmp_path, b"x" * 32))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view.move_cursor(5)
@@ -310,11 +362,11 @@ def test_hex_view_cursor_move() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_edit_mode_toggle() -> None:
+def test_hex_view_edit_mode_toggle(tmp_path: Path) -> None:
     """``enter_edit_mode`` / ``exit_edit_mode`` flip the edit flag."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"x" * 32)
+        app = _ViewHost(_make_source(tmp_path, b"x" * 32))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view.enter_edit_mode()
@@ -325,43 +377,43 @@ def test_hex_view_edit_mode_toggle() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_edit_nibble() -> None:
+def test_hex_view_edit_nibble(tmp_path: Path) -> None:
     """Two nibble presses merge into the cursor byte (high then low)."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x00\x00")
+        app = _ViewHost(_make_source(tmp_path, b"\x00\x00"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view._cursor_pos = 0
             view._edit_mode = True
             view.edit_nibble("a")
             view.edit_nibble("b")
-            assert view._data[0] == 0xAB
+            assert view._source.read(0, 1) == b"\xab"
 
     asyncio.run(_scenario())
 
 
-def test_hex_view_undo() -> None:
+def test_hex_view_undo(tmp_path: Path) -> None:
     """``undo`` pops the stack and restores the overwritten byte."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x00")
+        app = _ViewHost(_make_source(tmp_path, b"\x00"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view._cursor_pos = 0
             view.edit_nibble("f")
-            assert view._data[0] == 0xF0
+            assert view._source.read(0, 1) == b"\xf0"
             view.undo()
-            assert view._data[0] == 0x00
+            assert view._source.read(0, 1) == b"\x00"
 
     asyncio.run(_scenario())
 
 
-def test_hex_view_ascii_sync() -> None:
+def test_hex_view_ascii_sync(tmp_path: Path) -> None:
     """Editing a byte updates the ASCII echo column on the same row."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x00")
+        app = _ViewHost(_make_source(tmp_path, b"\x00"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view._cursor_pos = 0
@@ -369,6 +421,28 @@ def test_hex_view_ascii_sync() -> None:
             view.edit_nibble("1")
             line = view.render_line(0).text.rstrip()
             assert line.endswith("A")
+
+    asyncio.run(_scenario())
+
+
+def test_hex_view_edit_undo_roundtrip_chunked(tmp_path: Path) -> None:
+    """Edit then undo reads back the original byte (source-backed roundtrip)."""
+
+    async def _scenario() -> None:
+        app = _ViewHost(_make_source(tmp_path, b"\x42"))
+        async with app.run_test(size=(100, 30)):
+            view = app.query_one(HexView)
+            view.enter_edit_mode()
+            view.edit_nibble("a")
+            view.edit_nibble("b")  # byte 0 -> 0xAB
+            assert view._source.read(0, 1) == b"\xab"
+            # one (offset, old_byte) record per nibble press
+            assert view._undo_stack == [(0, 0x42), (0, 0xA2)]
+            view.undo()
+            assert view._source.read(0, 1) == b"\xa2"  # high-nibble state back
+            view.undo()
+            assert view._source.read(0, 1) == b"\x42"  # original byte back
+            assert view._cursor_pos == 0  # undo parks the cursor on the byte
 
     asyncio.run(_scenario())
 
@@ -426,31 +500,96 @@ def _make_flows(
 
 
 def test_hex_screen_save_writes_bytes(tmp_path: Path) -> None:
-    """``save`` hands the current payload to the injected writer callback."""
+    """``save`` hands the dirty edits to the injected writer callback."""
     path = tmp_path / "test.bin"
     path.write_bytes(b"\x00" * 16)
     stat = path.stat()
-    calls: list[tuple[Path, bytes, float, int]] = []
+    calls: list[tuple[Path, dict[int, int], float, int]] = []
 
     def spy(
-        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+        write_path: Path,
+        write_edits: dict[int, int],
+        write_mtime: float,
+        write_size: int,
     ) -> None:
-        calls.append((write_path, write_data, write_mtime, write_size))
-        write_path.write_bytes(write_data)  # mimic the real same-length write
+        calls.append((write_path, write_edits, write_mtime, write_size))
 
-    screen = HexScreen(
-        path,
-        b"\x00" * 16,
-        write_bytes=spy,
-        mtime=stat.st_mtime,
-        size=stat.st_size,
-    )
+    source = ChunkedBinaryFile(path, stat.st_size, stat.st_mtime)
+    screen = HexScreen(path, source, write_bytes=spy)
     screen.save()
     assert calls
-    assert calls[0][1] == b"\x00" * 16
+    assert calls[0][0] == path
+    assert calls[0][1] == {}  # no edits pending: the map is empty
     assert calls[0][2] == stat.st_mtime
     assert calls[0][3] == stat.st_size
     assert path.read_bytes() == b"\x00" * 16
+
+
+def test_hex_screen_save_writes_only_dirty_bytes_inplace(tmp_path: Path) -> None:
+    """A save rewrites exactly the edited bytes; the rest stays untouched."""
+    original = bytes(range(256)) * 4  # 1 KiB
+    path = tmp_path / "edits.bin"
+    path.write_bytes(original)
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(messages, session=_FakeSession(None))
+    source = ChunkedBinaryFile(path, len(original), path.stat().st_mtime)
+    screen = HexScreen(
+        path,
+        source,
+        message=lambda text, kind: messages.append((text, kind)),
+        write_bytes=flows.write_hex_edits,
+    )
+    source.apply_edit(0, 0xFF)
+    source.apply_edit(1000, 0xEE)
+
+    screen.save()
+
+    after = path.read_bytes()
+    assert [i for i in range(len(original)) if after[i] != original[i]] == [0, 1000]
+    assert after[0] == 0xFF
+    assert after[1000] == 0xEE
+    fresh = path.stat()
+    assert screen._mtime == fresh.st_mtime  # new fingerprint returned
+    assert screen._load_size == fresh.st_size == len(original)
+    assert source.dirty_edits() == {}  # dirty set cleared after the save
+    assert any(text == "saved" for text, _ in messages)
+
+
+def test_hex_screen_save_gates_unchanged(tmp_path: Path) -> None:
+    """The conflict and external-modification gates refuse the write-back."""
+    original = b"\x00" * 16
+    path = tmp_path / "gates.bin"
+    path.write_bytes(original)
+    messages: list[tuple[str, str]] = []
+
+    # conflict gate: the path is open as a text document
+    conflict_flows = _make_flows(messages, session=_FakeSession(path))
+    conflict_source = ChunkedBinaryFile(path, 16, path.stat().st_mtime)
+    conflict_source.apply_edit(0, 0x41)
+    conflict_screen = HexScreen(
+        path,
+        conflict_source,
+        message=lambda text, kind: messages.append((text, kind)),
+        write_bytes=conflict_flows.write_hex_edits,
+    )
+    conflict_screen.save()
+    assert "open in text editor" in messages[0][0]
+    assert path.read_bytes() == original  # untouched
+
+    # external-modification gate: the recorded fingerprint is stale
+    messages.clear()
+    modified_flows = _make_flows(messages, session=_FakeSession(None))
+    stale_source = ChunkedBinaryFile(path, 16, path.stat().st_mtime + 1.0)
+    stale_source.apply_edit(0, 0x41)
+    stale_screen = HexScreen(
+        path,
+        stale_source,
+        message=lambda text, kind: messages.append((text, kind)),
+        write_bytes=modified_flows.write_hex_edits,
+    )
+    stale_screen.save()
+    assert "modified externally" in messages[0][0]
+    assert path.read_bytes() == original  # untouched
 
 
 def test_hex_screen_save_refuses_conflict(tmp_path: Path) -> None:
@@ -459,12 +598,12 @@ def test_hex_screen_save_refuses_conflict(tmp_path: Path) -> None:
     path.write_bytes(b"\x00" * 16)
     messages: list[tuple[str, str]] = []
     flows = _make_flows(messages, session=_FakeSession(path))
+    source = ChunkedBinaryFile(path, 16, path.stat().st_mtime)
+    source.apply_edit(0, 0x41)  # a pending edit is needed to reach the gate
     screen = HexScreen(
         path,
-        b"\x00" * 16,
-        write_bytes=flows._write_hex_bytes,
-        mtime=path.stat().st_mtime,
-        size=16,
+        source,
+        write_bytes=flows.write_hex_edits,
     )
     screen.save()
     assert messages
@@ -481,12 +620,12 @@ def test_hex_screen_save_refuses_external_modification(tmp_path: Path) -> None:
     flows = _make_flows(messages, session=_FakeSession(None))
     # The recorded fingerprint is deliberately stale: the real stat cannot
     # match it, which is exactly the external-modification signal.
+    source = ChunkedBinaryFile(path, 16, path.stat().st_mtime + 1.0)
+    source.apply_edit(0, 0x41)  # a pending edit is needed to reach the gate
     screen = HexScreen(
         path,
-        b"\x00" * 16,
-        write_bytes=flows._write_hex_bytes,
-        mtime=path.stat().st_mtime + 1.0,
-        size=16,
+        source,
+        write_bytes=flows.write_hex_edits,
     )
     screen.save()
     assert messages
@@ -499,7 +638,7 @@ def test_hex_view_read_only_refuses_save(tmp_path: Path) -> None:
     messages: list[tuple[str, str]] = []
     screen = HexScreen(
         tmp_path / "test.bin",
-        b"\x00" * 16,
+        ChunkedBinaryFile(tmp_path / "test.bin", 16, 0.0),
         message=lambda text, kind: messages.append((text, kind)),
         write_bytes=None,
     )
@@ -509,7 +648,7 @@ def test_hex_view_read_only_refuses_save(tmp_path: Path) -> None:
     assert messages[0][1] == "warn"
 
 
-def test_hex_screen_edit_mode_key_routing() -> None:
+def test_hex_screen_edit_mode_key_routing(tmp_path: Path) -> None:
     """Edit-mode key routing end to end (pilot driven).
 
     ``e`` enters edit mode, two digit presses merge one byte (advancing
@@ -521,7 +660,9 @@ def test_hex_screen_edit_mode_key_routing() -> None:
     async def _scenario() -> None:
         app = _ScreenHost()
         async with app.run_test(size=(100, 30)) as pilot:
-            screen = HexScreen(Path("sample.bin"), b"\x00" * 32)
+            screen = HexScreen(
+                tmp_path / "sample.bin", _make_source(tmp_path, b"\x00" * 32)
+            )
             app.push_screen(screen)
             await pilot.pause()
             view = screen.query_one("#hex-view", HexView)
@@ -541,7 +682,7 @@ def test_hex_screen_edit_mode_key_routing() -> None:
             await pilot.press("a")
             await pilot.press("b")
             await pilot.pause()
-            assert view.current_bytes()[0] == 0xAB
+            assert view._source.read(0, 1)[0] == 0xAB
             assert view._cursor_pos == 1  # advanced after the low half
 
             # arrow keys move the byte cursor, not the scroll
@@ -556,7 +697,7 @@ def test_hex_screen_edit_mode_key_routing() -> None:
             await pilot.press("u")
             await pilot.press("u")
             await pilot.pause()
-            assert view.current_bytes()[0] == 0x00
+            assert view._source.read(0, 1)[0] == 0x00
 
             # vim keys reach the screen's edit branch (only the arrows are
             # intercepted by the view itself) and ``w`` hits save()
@@ -574,7 +715,7 @@ def test_hex_screen_edit_mode_key_routing() -> None:
             await pilot.press("z")
             await pilot.pause()
             assert view.is_editing() is True
-            assert view.current_bytes()[0] == 0x00
+            assert view._source.read(0, 1)[0] == 0x00
 
             await pilot.press("escape")
             await pilot.pause()
@@ -583,7 +724,7 @@ def test_hex_screen_edit_mode_key_routing() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_screen_edit_mode_q_dismisses() -> None:
+def test_hex_screen_edit_mode_q_dismisses(tmp_path: Path) -> None:
     """``q`` dismisses the screen even in edit mode (current behavior).
 
     The dismiss branch precedes the edit branches, so ``q`` is not
@@ -593,7 +734,9 @@ def test_hex_screen_edit_mode_q_dismisses() -> None:
     async def _scenario() -> None:
         app = _ScreenHost()
         async with app.run_test(size=(100, 30)) as pilot:
-            screen = HexScreen(Path("sample.bin"), b"\x00" * 32)
+            screen = HexScreen(
+                tmp_path / "sample.bin", _make_source(tmp_path, b"\x00" * 32)
+            )
             app.push_screen(screen)
             await pilot.pause()
             view = screen.query_one("#hex-view", HexView)
@@ -607,11 +750,11 @@ def test_hex_screen_edit_mode_q_dismisses() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_undo_stack_capped() -> None:
+def test_hex_view_undo_stack_capped(tmp_path: Path) -> None:
     """The undo stack keeps at most MAX_UNDO_STEPS entries, oldest dropped."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x00")
+        app = _ViewHost(_make_source(tmp_path, b"\x00"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view._cursor_pos = 0
@@ -622,57 +765,58 @@ def test_hex_view_undo_stack_capped() -> None:
     asyncio.run(_scenario())
 
 
-def test_hex_view_edit_nibble_ignores_invalid() -> None:
+def test_hex_view_edit_nibble_ignores_invalid(tmp_path: Path) -> None:
     """Non-hex-digit arguments (bad char, bad length) leave data untouched."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x00\x00")
+        app = _ViewHost(_make_source(tmp_path, b"\x00\x00"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view._cursor_pos = 0
             view.edit_nibble("z")
             view.edit_nibble("zz")
-            assert view.current_bytes() == b"\x00\x00"
+            assert view._source.read(0, 2) == b"\x00\x00"
             assert view._undo_stack == []
 
     asyncio.run(_scenario())
 
 
-def test_hex_view_undo_empty_stack_noop() -> None:
+def test_hex_view_undo_empty_stack_noop(tmp_path: Path) -> None:
     """Undo on an empty stack is a no-op (no crash, no data change)."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x42")
+        app = _ViewHost(_make_source(tmp_path, b"\x42"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view.undo()
-            assert view.current_bytes() == b"\x42"
+            assert view._source.read(0, 1) == b"\x42"
 
     asyncio.run(_scenario())
 
 
-def test_hex_view_current_bytes_immutable() -> None:
-    """current_bytes returns an immutable bytes snapshot of the payload."""
+def test_hex_view_dirty_edits_returns_copy(tmp_path: Path) -> None:
+    """dirty_edits returns a snapshot copy; mutating it leaves data intact."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x01\x02")
+        app = _ViewHost(_make_source(tmp_path, b"\x01\x02"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
-            snapshot = view.current_bytes()
-            assert isinstance(snapshot, bytes)
-            mutated = bytearray(snapshot)
-            mutated[0] = 0xFF
-            assert snapshot == b"\x01\x02"  # bytes cannot be mutated
-            assert view.current_bytes() == snapshot  # internal data intact
+            view._cursor_pos = 0
+            view.edit_nibble("f")
+            snapshot = view.dirty_edits()
+            assert isinstance(snapshot, dict)
+            snapshot[0] = 0xFF
+            assert view.dirty_edits() == {0: 0xF1}  # internal edits intact
+            assert view._source.read(0, 1) == b"\xf1"
 
     asyncio.run(_scenario())
 
 
-def test_hex_view_edit_cursor_reversed_render() -> None:
+def test_hex_view_edit_cursor_reversed_render(tmp_path: Path) -> None:
     """In edit mode the cursor byte renders reversed (on_accent on accent)."""
 
     async def _scenario() -> None:
-        app = _ViewHost(b"\x00\x00")
+        app = _ViewHost(_make_source(tmp_path, b"\x00\x00"))
         async with app.run_test(size=(100, 30)):
             view = app.query_one(HexView)
             view.enter_edit_mode()  # cursor defaults to byte 0
@@ -696,13 +840,16 @@ def test_hex_screen_save_failure_reports(tmp_path: Path) -> None:
     messages: list[tuple[str, str]] = []
 
     def boom(
-        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+        write_path: Path,
+        write_edits: dict[int, int],
+        write_mtime: float,
+        write_size: int,
     ) -> tuple[float, int] | None:
         raise OSError("disk full")
 
     screen = HexScreen(
         tmp_path / "test.bin",
-        b"\x00" * 16,
+        ChunkedBinaryFile(tmp_path / "test.bin", 16, 0.0),
         message=lambda text, kind: messages.append((text, kind)),
         write_bytes=boom,
     )
@@ -719,16 +866,25 @@ def test_hex_screen_save_silent_without_message_callback(tmp_path: Path) -> None
     failing writer and a successful writer returning the fingerprint --
     the last one still refreshes the baseline.
     """
-    refused = HexScreen(tmp_path / "a.bin", b"\x00" * 16)
+    refused = HexScreen(
+        tmp_path / "a.bin", ChunkedBinaryFile(tmp_path / "a.bin", 16, 0.0)
+    )
     refused.save()  # write not available, silent
     assert refused._mtime == 0.0  # untouched
 
     def boom(
-        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+        write_path: Path,
+        write_edits: dict[int, int],
+        write_mtime: float,
+        write_size: int,
     ) -> tuple[float, int] | None:
         raise OSError("disk full")
 
-    failed = HexScreen(tmp_path / "b.bin", b"\x00" * 16, write_bytes=boom)
+    failed = HexScreen(
+        tmp_path / "b.bin",
+        ChunkedBinaryFile(tmp_path / "b.bin", 16, 0.0),
+        write_bytes=boom,
+    )
     failed.save()  # save failed, silent
     assert failed._mtime == 0.0  # untouched
 
@@ -737,13 +893,17 @@ def test_hex_screen_save_silent_without_message_callback(tmp_path: Path) -> None
     load_mtime = path.stat().st_mtime
 
     def writer(
-        write_path: Path, write_data: bytes, write_mtime: float, write_size: int
+        write_path: Path,
+        write_edits: dict[int, int],
+        write_mtime: float,
+        write_size: int,
     ) -> tuple[float, int] | None:
-        write_path.write_bytes(write_data)
         return (write_mtime + 1.0, write_size)
 
     saved = HexScreen(
-        path, b"\x00" * 16, write_bytes=writer, mtime=load_mtime, size=16
+        path,
+        ChunkedBinaryFile(path, 16, load_mtime),
+        write_bytes=writer,
     )
     saved.save()  # success, silent -- the fingerprint still refreshes
     assert saved._mtime == load_mtime + 1.0  # writer's value rode back in
@@ -753,7 +913,7 @@ def test_hex_screen_save_silent_without_message_callback(tmp_path: Path) -> None
 def test_hex_screen_save_refreshes_fingerprint_for_resave(tmp_path: Path) -> None:
     """A successful save refreshes the stat fingerprint (W-1 regression lock).
 
-    Wired to the real ``OverlayFlows._write_hex_bytes``: after the first
+    Wired to the real ``OverlayFlows.write_hex_edits``: after the first
     save the file's post-write stat rides back into the screen baseline,
     so an immediate second save on the same screen is not refused as
     ``modified externally`` and lands the second edit on disk.
@@ -768,11 +928,9 @@ def test_hex_screen_save_refreshes_fingerprint_for_resave(tmp_path: Path) -> Non
         async with app.run_test(size=(100, 30)) as pilot:
             screen = HexScreen(
                 path,
-                b"\x00" * 16,
+                ChunkedBinaryFile(path, 16, path.stat().st_mtime),
                 message=lambda text, kind: messages.append((text, kind)),
-                write_bytes=flows._write_hex_bytes,
-                mtime=path.stat().st_mtime,
-                size=16,
+                write_bytes=flows.write_hex_edits,
             )
             app.push_screen(screen)
             await pilot.pause()
