@@ -291,6 +291,23 @@ TOCTOU / conflict 闸门与返回指纹语义不变。
    F2 blocker（默认会话 `:fullload` 永久只读，见 §9.1）。修复波按 §九
    返工；教训登记：探活超时先核实成员真实活动状态，勿过早判死。
 
+### 6.5 返工波执行与门禁记录（2026-10-26，@ `146fbad`）
+
+- Step A 定向验收中新增默认路径用例首跑失败：新缓冲光标在行首，
+  `type_char` 落在行头——用例自身笔误（漏 `move_line_end()`），补后
+  通过；非产品缺陷。
+- Step A/B 因共享 `tests/test_document_chunked.py` 合并为单一可运行
+  提交 `146fbad`（采纳评审对 `a62ec80` 不可运行拆分的教训）。
+- 主代理全量门禁（最终树 @ `146fbad`）：
+
+| 门禁 | 命令 | 结果 | 退出码 |
+|---|---|---|---|
+| pyright strict | `-m pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations | 0 |
+| pytest 并行 | `-m pytest tests/ -q -n auto` | 全绿 | 0 |
+| 架构测试 | `-m pytest tests/test_architecture.py -q` | 全绿（37 用例） | 0 |
+| 覆盖率 | `-m pytest tests/ --cov=yate --cov-branch -n auto` | **91.93%**（≥75）；buffer 97% / document 93% / chunked 93% | 0 |
+| 冒烟 | `-m tools.smoke_test run --jobs 4` | **117/117 场景，1410/1410 检查** | 0 |
+
 ## 七、风险与回滚
 
 | 风险 | 缓解 | 回滚 |
