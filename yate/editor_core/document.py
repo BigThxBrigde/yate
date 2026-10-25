@@ -11,6 +11,11 @@ import tempfile
 from pathlib import Path
 
 from yate.editor_core.buffer import BufferReadOnlyError, TextBuffer
+from yate.editor_core.chunked import CHUNK_SIZE, ChunkedTextFile
+
+#: Bytes read from the file head for the chunked-open EOL probe (64 KiB,
+#: the encoding probe size used by :mod:`yate.editor_core.chunked`).
+_EOL_PROBE_BYTES: int = 65_536
 
 
 def _current_umask() -> int:
@@ -31,6 +36,7 @@ class Document:
         buffer: TextBuffer | None = None,
         *,
         encoding: str = "utf-8",
+        chunked: ChunkedTextFile | None = None,
     ) -> None:
         Document._uid_counter += 1
         self.uid: int = Document._uid_counter
@@ -40,6 +46,11 @@ class Document:
         self._resolved: Path | None = None
         self.buffer: TextBuffer = buffer or TextBuffer()
         self.encoding = encoding
+        # Chunked-file reader for very large files (``None`` = a plain,
+        # fully loaded document).  Chunked documents carry a locked buffer
+        # filled progressively by the chunked flows; see :meth:`open_chunked`
+        # and :meth:`promote_to_full`.
+        self.chunked: ChunkedTextFile | None = chunked
         # Dominant line ending of the file as opened (``\r\n`` / ``\n`` /
         # ``\r``); ``save()`` converts the buffer's LF newlines back to it.
         # New buffers keep LF.  See :meth:`open` and :meth:`_dominant_eol`.
@@ -82,6 +93,35 @@ class Document:
     async def open_async(cls, path: Path | str) -> Document:
         """Off-loop variant of :meth:`open` (file read runs in a thread)."""
         return await asyncio.to_thread(cls.open, path)
+
+    @classmethod
+    def open_chunked(
+        cls, path: Path | str, chunk_size: int = CHUNK_SIZE
+    ) -> Document:
+        """Open *path* as a locked, progressively filled chunked document.
+
+        The buffer starts as empty placeholders (``locked`` /
+        ``read_only``): the first chunk and later rows are filled by
+        :class:`~yate.flows.chunked_flows.ChunkedFlows` (first chunk on
+        attach, the rest on demand as rows render).  Raises
+        :class:`ChunkedFallback` when the file cannot be chunk-aligned
+        (CR-only line endings); the caller falls back to :meth:`open`.
+        The recorded ``eol`` comes from the file-head probe (the dominant
+        ending of the first block, same semantics as :meth:`open`'s
+        whole-file count on every file that fits one probe).
+        """
+        p = Path(path)
+        chunked_file = ChunkedTextFile(p, chunk_size)
+        doc = cls(p, TextBuffer(), encoding=chunked_file.encoding,
+                  chunked=chunked_file)
+        doc.buffer.locked = True
+        doc.buffer.read_only = True
+        with p.open("rb") as handle:
+            probe = handle.read(_EOL_PROBE_BYTES)
+        text, _ = cls._decode(probe)
+        doc.eol = cls._dominant_eol(text)
+        doc.buffer.move_doc_start()
+        return doc
 
     @staticmethod
     def _decode(raw: bytes) -> tuple[str, str]:
@@ -197,6 +237,30 @@ class Document:
 
     # -------------------------------------------------------------- persist
 
+    def promote_to_full(self) -> None:
+        """Replace a chunked document with a fully loaded editable buffer.
+
+        No-op for plain documents.  The whole file is re-read through
+        :meth:`open` (same decode/EOL path), so the promoted buffer
+        matches the disk contents exactly and editing is unlocked; the
+        indentation options carried by the locked buffer are preserved.
+        """
+        path = self.path
+        if self.chunked is None or path is None:
+            return
+        old = self.buffer
+        full = Document.open(path)
+        buf = full.buffer
+        buf.tab_width = old.tab_width
+        buf.use_spaces = old.use_spaces
+        self.buffer = buf
+        self.encoding = full.encoding
+        self.eol = full.eol
+        self.chunked = None
+        self._saved_edits = buf.content_edits
+        self._saved_lines = tuple(buf.lines)
+        self._modified_cache = None
+
     def save(self, path: Path | str | None = None) -> Path:
         """Write the buffer to disk and clear the modified flag.
 
@@ -232,6 +296,12 @@ class Document:
 
         Returns the path that was written.
         """
+        # Defensive guard: a chunked document is read-only until promoted
+        # (:fullload); its placeholder buffer must never reach the writer.
+        if self.chunked is not None:
+            raise RuntimeError(
+                "cannot save a chunked document; promote it with :fullload first"
+            )
         # L0 guard: the read-only flag is enforced at every write boundary,
         # so extensions cannot bypass it via ``api.doc.save()``.  Deliberate
         # persistence goes through :saveas, which lifts the flag first.

@@ -258,6 +258,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _bd(args: str) -> None:
         editor.document_flows.close_tab()
 
+    def _fullload(args: str) -> None:
+        editor.chunked_flows.promote_to_full()
+
     def _files(args: str) -> None:
         editor.overlays.open_file_palette()
 
@@ -280,6 +283,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     reg("bp", _bp, "previous buffer/tab")
     reg("bprev", _bp, "previous buffer/tab")
     reg("bd", _bd, "close current buffer/tab")
+    reg("fullload", _fullload,
+        "promote the chunked document to a fully loaded editable buffer")
     reg("files", _files, "fuzzy quick file open (ctrl+p)")
     reg("palette", _palette, "command palette (alt+shift+p)")
     reg("project-replace", _project_replace,

@@ -4,8 +4,8 @@ Pure validators pulling recognized option variables out of an exec'd
 yaterc namespace and folding them into a
 :class:`~yate.config.YateConfig`: path-list options (``extensions`` /
 ``theme_dirs`` / ``disabled_extensions``), the scalar option table
-(:func:`_extract_options`), the ``screen_saver`` and ``file_preview``
-dicts and the declarative ``language_servers`` list.
+(:func:`_extract_options`), the ``screen_saver`` / ``file_preview`` /
+``large_file`` dicts and the declarative ``language_servers`` list.
 
 Malformed values never raise: each problem is appended to
 ``config.errors`` (or the caller's *errors* list) and that option keeps
@@ -36,6 +36,7 @@ from yate.config import (
     VALID_TRACE_LEVELS,
     FilePreviewConfig,
     LanguageServerSpec,
+    LargeFileConfig,
     ScreenSaverConfig,
     YateConfig,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "_extract_extensions",
     "_extract_file_preview",
     "_extract_language_servers",
+    "_extract_large_file",
     "_extract_options",
     "_extract_path_list",
     "_extract_screen_saver",
@@ -415,6 +417,49 @@ def _extract_file_preview(  # noqa: Any - raw yaterc exec-namespace values, narr
     )
 
 
+def _extract_large_file(  # noqa: Any - raw yaterc exec-namespace values, narrowed below
+    namespace: dict[str, Any], config: YateConfig
+) -> None:
+    """Pull the ``large_file`` dict option out of one rc file.
+
+    Recognized key: ``threshold`` -- ``0`` disables chunked loading, any
+    other value is the file size in bytes above which documents open as
+    locked, progressively filled chunked buffers (accepted range
+    1048576..1073741824, default 8388608 = 8 MiB).  A wrong-typed or
+    out-of-range value is reported and the default is kept.  A later
+    valid declaration replaces the previous one whole (same semantics as
+    ``file_preview``).
+    """
+    raw = namespace.get("large_file")
+    if raw is None:
+        return
+    if not isinstance(raw, dict):
+        config.errors.append(f"large_file must be a dict, got {raw!r}")
+        return
+    values = cast(dict[str, Any], raw)
+    unknown = sorted(key for key in values if key != "threshold")
+    if unknown:
+        config.errors.append(f"large_file has unknown keys: {unknown}")
+
+    threshold: int = 8_388_608
+    if "threshold" in values:
+        value = values["threshold"]
+        # bool is a subclass of int -- reject it explicitly for this option.
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and (value == 0 or 1_048_576 <= value <= 1_073_741_824)
+        ):
+            threshold = value
+        else:
+            config.errors.append(
+                "large_file threshold must be 0 (disabled) or an integer "
+                f"between 1048576 and 1073741824 bytes, got {value!r}"
+            )
+
+    config.large_file = LargeFileConfig(threshold=threshold)
+
+
 def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
     """Pull recognized option variables out of the exec'd namespace."""
     options = {name: namespace[name] for name in KNOWN_OPTIONS if name in namespace}
@@ -538,6 +583,7 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
     _extract_language_servers(namespace, config)
     _extract_screen_saver(namespace, config)
     _extract_file_preview(namespace, config)
+    _extract_large_file(namespace, config)
 
 
 def _extract_language_servers(namespace: dict[str, Any], config: YateConfig) -> None:

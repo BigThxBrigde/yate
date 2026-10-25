@@ -428,7 +428,17 @@ class DocumentFlows:
         if not text:
             self._message("save cancelled", "info")
             return
-        buf = self.session.doc.buffer
+        doc = self.session.doc
+        if doc.chunked is not None:
+            # A chunked document is a read-only viewport over partially
+            # loaded content: writing it out would persist placeholder rows
+            # for every not-yet-loaded chunk.  The sanctioned path is
+            # ``:fullload`` first, then ``:saveas``.
+            self._message(
+                "chunked document is read-only: run :fullload first", "warn"
+            )
+            return
+        buf = doc.buffer
         locked = buf.read_only
         if locked:
             # ``:saveas`` is deliberate persistence: lift the flag so the

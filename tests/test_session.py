@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from yate.config import YateConfig
+from yate.config import LargeFileConfig, YateConfig
 from yate.editor_core import Document
 from yate.editor_core.buffer import TextBuffer
 from yate.session import EditorSession
@@ -91,6 +91,69 @@ def test_open_async_returns_none_for_a_binary_file(tmp_path: Path) -> None:
 
     assert asyncio.run(session.open_async(_binary(tmp_path / "blob"))) is None
     assert session.docs == []
+
+
+# --- chunked open ------------------------------------------------------------
+
+
+def _small_threshold_config() -> YateConfig:
+    config = YateConfig()
+    config.large_file = LargeFileConfig(threshold=16)
+    return config
+
+
+def test_open_uses_chunked_document_above_threshold(tmp_path: Path) -> None:
+    """Files above the large-file threshold open as chunked documents."""
+    session = EditorSession(_small_threshold_config())
+    target = _write(tmp_path / "big.txt", "\n".join(f"line {i}" for i in range(100)))
+
+    doc = session.open(target)
+
+    assert doc is not None
+    assert doc.chunked is not None
+    assert doc.buffer.locked is True
+
+
+def test_open_full_load_below_threshold(tmp_path: Path) -> None:
+    """A disabled threshold (0) keeps the plain full-read behaviour."""
+    config = YateConfig()
+    config.large_file = LargeFileConfig(threshold=0)
+    session = EditorSession(config)
+    target = _write(tmp_path / "big.txt", "\n".join(f"line {i}" for i in range(100)))
+
+    doc = session.open(target)
+
+    assert doc is not None
+    assert doc.chunked is None
+    assert doc.buffer.get_text() == "\n".join(f"line {i}" for i in range(100))
+
+
+def test_open_async_uses_chunked_document_above_threshold(tmp_path: Path) -> None:
+    """The off-loop open chunk-loads above the threshold too."""
+    session = EditorSession(_small_threshold_config())
+    target = _write(tmp_path / "big.txt", "\n".join(f"line {i}" for i in range(100)))
+
+    async def scenario() -> Document | None:
+        return await session.open_async(target)
+
+    doc = asyncio.run(scenario())
+
+    assert doc is not None
+    assert doc.chunked is not None
+    assert doc.buffer.locked is True
+
+
+def test_open_falls_back_to_full_on_cr_only(tmp_path: Path) -> None:
+    """A CR-only file falls back to the plain full read with correct content."""
+    session = EditorSession(_small_threshold_config())
+    target = tmp_path / "cr.txt"
+    target.write_bytes(b"alpha\rbeta\rgamma")
+
+    doc = session.open(target)
+
+    assert doc is not None
+    assert doc.chunked is None
+    assert doc.buffer.get_text() == "alpha\nbeta\ngamma"
 
 
 def test_open_accepts_a_path_that_does_not_exist_yet(tmp_path: Path) -> None:

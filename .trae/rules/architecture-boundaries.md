@@ -18,7 +18,8 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`pyth
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
-         lsp_sync.py / prompt_completion.py / mouse_flows.py）/ diagnostics.py /
+         lsp_sync.py / prompt_completion.py / mouse_flows.py / chunked_flows.py）/
+         diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
          见 R14）
 L2 组件：editor_view/*
@@ -125,7 +126,7 @@ flowchart TD
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
   `overlay_flows.py` / `lsp_sync.py` / `prompt_completion.py` / `mouse_flows.py` /
-  `whichkey_flows.py`；
+  `whichkey_flows.py` / `chunked_flows.py`；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_view`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_view`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对）；
@@ -293,9 +294,14 @@ flowchart TD
      global-review-fixes 波 2026-10-22 复测 1136 行；
      pr-review 修复波 2026-10-23 复测 1141 行，
      构成职责随调度层操作增长，维持豁免，
+     chunked-loading-text-plan-b 波 2026-10-25 复测 1193 行，
+     新增 ChunkedFlows 组装与 ensure_row 渲染接线，维持豁免，
      已登记为下一个 big-module-split 候选）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
-     评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免）、
+     评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
+     chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked
+     写锁卫语句与 chunked 填充原语（fill_lines / rows_loaded /
+     extend_placeholders），维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
      2026-10-20 mdlint 波复测 1590 行；global-review-fixes 波 2026-10-22
      复测 1695 行，新增孤儿英文页清理推导；pr-review 修复波 2026-10-23
@@ -413,7 +419,8 @@ flowchart TD
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
-- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` / `flows/mouse_flows.py`
+- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` / `flows/mouse_flows.py` /
+  `flows/chunked_flows.py`
   不向上依赖，`editor_view` 导入必须落在冻结集合内；
 - **support_mouse 闸门**（issue IKJRFK，2026-10-08 新增）：
   `test_support_mouse_gate_lives_in_app_on_event` 文本断言闸门（`support_mouse` 判定）

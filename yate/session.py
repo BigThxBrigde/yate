@@ -30,11 +30,15 @@ from typing import Literal
 from yate.config import YateConfig
 from yate.editor_core import Document, SearchEngine
 from yate.editor_core.buffer import Pos, TextBuffer
+from yate.editor_core.chunked import ChunkedFallback
 from yate.logs import tracing
 from yate.services.workspace import Workspace
 
 #: Called with the documents a close operation removed (LSP didClose hook).
 type ClosedHook = Callable[[list[Document]], None]
+
+#: Called with each document freshly opened from disk (chunked-attach hook).
+type OpenedHook = Callable[[Document], None]
 
 log = tracing.get_logger(__name__)
 
@@ -47,6 +51,7 @@ class EditorSession:
         config: YateConfig,
         *,
         on_closed: ClosedHook | None = None,
+        on_opened: OpenedHook | None = None,
     ) -> None:
         self.config = config
         self.docs: list[Document] = []
@@ -56,6 +61,7 @@ class EditorSession:
         #: requested buffer (:enew) dismisses it; :welcome turns it back on.
         self.welcome_visible = True
         self._on_closed = on_closed
+        self._on_opened = on_opened
 
     # ------------------------------------------------------------- documents
 
@@ -98,6 +104,8 @@ class EditorSession:
         """Open (or reuse) *path* and make it active.
 
         Returns ``None`` for a binary file; the caller reports that.
+        Files above ``config.large_file.threshold`` open as locked,
+        progressively filled chunked documents.
         """
         existing = self.is_open(path)
         if existing is not None:
@@ -106,12 +114,13 @@ class EditorSession:
         if path.exists() and not Workspace.is_text_file(path):
             return None
         if path.exists():
-            doc = Document.open(path)
+            doc = self._open_sized(path)
         else:
             doc = Document(path, self.make_buffer())
         self.apply_buffer_options(doc.buffer)
         self.docs.append(doc)
         self.activate(doc)
+        self._notify_opened(doc)
         log.debug("session open: %s (%d docs)", path, len(self.docs))
         return doc
 
@@ -122,21 +131,50 @@ class EditorSession:
             self.activate(existing)
             return existing
 
-        def _inspect() -> tuple[bool, bool]:
-            return path.exists(), Workspace.is_text_file(path)
+        def _inspect() -> tuple[bool, bool, int]:
+            exists = path.exists()
+            size = path.stat().st_size if exists else 0
+            return exists, Workspace.is_text_file(path), size
 
-        exists, is_text = await asyncio.to_thread(_inspect)
+        exists, is_text, size = await asyncio.to_thread(_inspect)
         if exists and not is_text:
             return None
         if exists:
-            doc = await Document.open_async(path)
+            doc = await asyncio.to_thread(self._open_sized, path, size)
         else:
             doc = Document(path, self.make_buffer())
         self.apply_buffer_options(doc.buffer)
         self.docs.append(doc)
         self.activate(doc)
+        self._notify_opened(doc)
         log.debug("session open (async): %s (%d docs)", path, len(self.docs))
         return doc
+
+    def _open_sized(self, path: Path, size: int | None = None) -> Document:
+        """Open *path*, chunked when it exceeds the large-file threshold.
+
+        A size of ``None`` stats the file (sync path); the async open
+        passes the size its inspect task already collected.  A file whose
+        shape cannot be chunk-aligned (CR-only line endings,
+        :class:`~yate.editor_core.chunked.ChunkedFallback`) falls back to
+        the plain full read.
+        """
+        threshold = self.config.large_file.threshold
+        if size is None:
+            size = path.stat().st_size
+        if threshold > 0 and size > threshold:
+            try:
+                doc = Document.open_chunked(path)
+            except ChunkedFallback:
+                log.info("chunked open fell back to full load: %s", path)
+            else:
+                log.info("opened chunked: %s (%d bytes)", path, size)
+                return doc
+        return Document.open(path)
+
+    def _notify_opened(self, doc: Document) -> None:
+        if self._on_opened is not None:
+            self._on_opened(doc)
 
     def new_buffer(self) -> Document:
         """Append an empty unnamed buffer and make it active."""
