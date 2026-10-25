@@ -45,13 +45,10 @@ from textual.strip import Strip
 from textual.widgets import Input, Static
 
 from yate.editor_core.chunked import ChunkedBinaryFile
-from yate.logs import tracing
 from yate.paths import load_tcss
 
 from yate.editor_view import theme
 from yate.editor_view.scrollbars import apply_slim_scrollbars, apply_scrollbar_theme
-
-log = tracing.get_logger(__name__)
 
 #: Bytes rendered per line (the xxd convention).
 _BYTES_PER_LINE: int = 16
@@ -431,14 +428,6 @@ class HexView(ScrollView, can_focus=True):
             ),
         ]
         return Strip(segments).extend_cell_length(self.size.width)
-
-    def _format_hex(self, chunk: bytes) -> str:
-        """Format *chunk* as 2 groups of 8 bytes (xxd-style, plain text)."""
-        return "".join(segment.text for segment in _hex_segments(chunk))
-
-    def _format_ascii(self, chunk: bytes) -> str:
-        """Format *chunk* as ASCII (printable 0x20-0x7e, else ``.``)."""
-        return "".join(segment.text for segment in _ascii_segments(chunk))
 
     def scroll_to_line(self, line: int) -> None:
         """Scroll the dump so content row *line* sits at the viewport top.
