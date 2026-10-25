@@ -82,6 +82,7 @@ perform the work and exit:
 | `language_servers` | `list[dict]` | none | see [below](#declarative-language-servers-language_servers) | Declaratively register LSP language servers; they activate automatically when matching files open -- no extension needed. |
 | `screen_saver` | `dict` | see [below](#idle-screensaver-screen_saver) | dict with `enable` / `interval` / `switch` / `dist_*_bound` / `characters` keys | Idle screensaver settings; see [below](#idle-screensaver-screen_saver). |
 | `file_preview` | `dict` | see [below](#file-preview-file_preview) | dict with `enable` / `position` / `size` / `max_lines` / `max_size` keys | Ctrl+P quick-open preview pane settings; see [below](#file-preview-file_preview). |
+| `large_file` | `dict` | see [below](#large-files-large_file) | dict with a `threshold` key | Chunked (progressive) loading of very large files; see [below](#large-files-large_file). |
 | `yate_trace` | `bool` | `False` | `True` / `False` | Runtime trace log switch (off by default); writes to `~/.yate/data/logs/`, see [below](#runtime-trace-log-yate_trace). |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` (case-insensitive) | Trace verbosity; Python `logging`'s built-in levels. |
 
@@ -446,6 +447,36 @@ file_preview = {
 
 Missing keys keep their defaults; a wrong-typed key is reported and that key
 alone falls back to its default; a later valid declaration replaces the
+previous one whole.
+
+## Large files (`large_file`)
+
+Files above the `threshold` size open as **chunked documents**: only the
+first chunk is read to paint the first screen, and the rest loads on
+demand as you scroll or jump (a background scan builds the line index, so
+line numbers and the scrollbar stay exact).  Chunked documents are
+read-only: typing, `:w` and `:saveas` are refused so the placeholder
+buffer never reaches the writer.  Run `:fullload` to promote the active
+document to a fully loaded, editable buffer -- the whole file is read
+into memory, which is the explicit trade of editing power for memory.
+Files that cannot be chunk-aligned (CR-only line endings) fall back to a
+full load automatically.  The hex view shares the same chunk-loading
+layer and no longer has a size cap: the old 100 MB one-shot limit is
+gone, so any binary can be opened (saves write only the edited bytes
+back in place).
+
+```python
+large_file = {
+    "threshold": 8388608,  # bytes; 0 disables chunked loading
+}
+```
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `threshold` | `int`, `0` or `1048576`–`1073741824` | `8388608` | Files bigger than this (8 MiB) open chunked. `0` disables chunked loading entirely; any other accepted value must lie between 1 MiB and 1 GiB. Read at startup (not a `:set` option). |
+
+Missing keys keep their defaults; a wrong-typed or out-of-range value is
+reported and the default is kept; a later valid declaration replaces the
 previous one whole.
 
 ## Command-line interaction

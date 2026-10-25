@@ -151,3 +151,35 @@ Set-Location D:\Programming\yate-chunked-loading
 - buffer.py / editor.py（L3）是豁免名单成员：改动后同步更新 `architecture-boundaries.md` §三.7 对应条目行数与 `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES`（两处同步，§三.7 硬性）。
 - editor_view/editor.py 若改动后超 800 行须先评估拆分/豁免并上报，不得静默越线。
 - 回滚：本计划改动集中在列出的 9 个产品文件，逐 hunk 撤销即可；`large_file` 选项未写 rc 时默认 8 MiB——若执行期判定默认开启风险大，回滚点 = 阈值默认改 `0`（禁用）保持行为中立，登记偏离后由主代理定夺。
+
+## 执行记录（wave-3 回填，2026-10-25）
+
+- 提交：`3af0126`（`feat(chunked-loading): wire chunked documents into the text pipeline`，
+  15 文件 +912/-29，含 :w/:saveas 拦截）。
+- 验收（执行者实测，主代理独立复核通过）：目标集 pytest 退出码 0（19 新用例）、
+  全量 `pytest tests/ -q -n auto` 退出码 0、`pyright yate/ tests/` 0 诊断、
+  `tests/test_architecture.py` 37 例绿。
+- 偏离 7 条（主代理裁定全部接受）：locked 卫语句按「全部用户面变更方法入口」
+  实测扩为 15 方法 + 2 原语；`open_chunked` 同时置 `read_only`（复用只读拦截面，
+  `:w` 预检依赖之）；`extend_placeholders` 独立于 `fill_lines`（水位契约）+
+  `_fill_lock` 串行化；ChunkedFlows 注入面 5 项（`active_doc` / `mounted` 为
+  正确性所需）；`chunked_flows` 类属性非 Optional（与兄弟 flows 一致）；eol
+  探测自读文件头 64 KiB（公开 API 约束）；首块填充用例操作含 attach。
+- 上报未解决项 3 条的处置（主代理）：① `:saveas` 对分段文档漏出 RuntimeError
+  → 已修复（`_submit_save_as` chunked 预检拦截 + 引导 `:fullload`，占位行写盘
+  属数据损坏风险），并补 pilot 用例 `test_saveas_refuses_chunked_document`；
+  ② `architecture-boundaries.md` 的 `chunked_flows.py` 登记已完成（§一 L3 /
+  R11 / 守卫行三处）；③ editor.py 1193 行维持豁免，big-module-split 另行立项。
+- 追随修复（plan-d 集成期发现，executor-b 执行，提交 `c391a22`）：
+  `ChunkedFlows.start_scan` 以同步函数走 Textual async worker 路径——
+  `run_worker` 默认 `thread=False`，`WorkerError`（"Request to run a non-async
+  function as an async worker"）被 `exit_on_error=False` 静默吞掉，后台扫描
+  从未推进（实测打开 9 MB 日志 `line_count` 停在首块 2703 行）；修复改为
+  async worker 形态后扫描正常推进。该缺陷在 plan-d 冒烟场景
+  `chunked_text_open_and_scroll` 首次集成运行时暴露，plan-b 单测未覆盖
+  "worker 真实推进 line_count" 这一路径。
+- 验收复核（修复后，plan-d 执行者重跑）：
+  `pytest tests/test_document_chunked.py tests/test_chunked.py -q` → 23 passed，
+  退出码 0；`pyright yate/editor_core/chunked.py yate/flows/chunked_flows.py
+  yate/editor_core/document.py` → 0 errors，退出码 0。
+- 遗留：无。

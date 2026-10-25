@@ -147,6 +147,65 @@ flowchart LR
 3. **滚动加载正确**：pytest 单测覆盖块对齐/CRLF/BOM/行号前缀和；冒烟场景（plan-d）打开大文件 goto 末行，断言行号与内容正确。
 4. **两视图共用加载层**：hex 与文本均消费 `yate/editor_core/chunked.py` 的块机件（代码层共用）；hex 打开不再有 100 MB 上限，同一文件文本↔hex 切换各自数据源不重复整读盘（hex 侧断言渲染首屏的块读取次数受控）。
 
-## 八、执行记录（回填区）
+## 八、执行记录（回填区，2026-10-25 回填）
 
-- （待 plan-a/b/c/d 执行后回填：实测数字、偏离记录、门禁结果。）
+### 8.1 波次与提交
+
+| 波次 | 子计划 | 提交 | 验收复核（plan-d 执行者重跑） |
+|---|---|---|---|
+| wave-1 | plan-a 核心机件 | `97b13c8` | `test_chunked.py` 12 passed；pyright 0 诊断 |
+| wave-2 | plan-b 文本接入 | `3af0126`（+ 追随修复 `c391a22`） | `test_document_chunked.py` + `test_chunked.py` 23 passed；关键文件 pyright 0 诊断 |
+| wave-2 | plan-c hex 接入 | `fba33c8` | hex 56 passed；pyright 4 文件 0 诊断；全量 pytest 绿；双锚点绿 |
+| wave-3 | plan-d 集成收尾 | （未提交，提交归主代理） | 冒烟 117/117、全量 pytest 绿，见 8.4 |
+
+### 8.2 性能基线实测（验收标准 1/2 对照）
+
+测量环境：Windows、Python 3.13.2、worktree `D:\Programming\yate-chunked-loading`（NVMe 单机实测，**数字具机器相关性，仅作相对对照**）。合成日志为确定性 96 B 等宽行（LF）；临时文件测后已删。
+
+| 文件 | 全量 `Document.open` 耗时（5 次中位） | 分段首块就绪（5 次中位） | 全量 open peak | 分段 open + 首屏 + goto 末行 peak |
+|---|---|---|---|---|
+| 10 MB（109,226 行） | 40.0 ms | 4.4 ms | 35.9 MiB | 17.4 MiB |
+| 50 MB（546,133 行） | 210.5 ms | 3.8 ms | 179.5 MiB | 84.5 MiB |
+
+测量方法：`time.perf_counter` 各 5 次取中位；`tracemalloc` peak。分段首块就绪 =
+`open_chunked` + 首块填充（`ChunkedFlows.attach` 语义）；分段 peak = `open_chunked`
++ 首屏填充 + goto 末行（`ensure_row` 连续填充语义，终态 = 至末行全部行已载入 buffer）。
+
+结论：分段首屏耗时与文件大小无关（4.4 → 3.8 ms），全量耗时线性增长
+（40 → 210 ms）——**验收标准 1 达成**。peak 说明：分段打开/首屏的常驻与
+`MAX_CACHED_CHUNKS × CHUNK_SIZE`（约 8 MiB 解码缓存）同量级；goto 末行按产品
+语义会把至末行为止的全部行载入 buffer（行内容约 50 MB），故表中分段 peak 含
+这部分行串——**验收标准 2 对"打开 + 首屏"成立，对显式 goto 末行的行为如实登记**。
+
+主代理独立复测（同日同机，第二口径互证）：首屏 5.8 / 5.3 ms（10/50 MB，恒定），
+全量 open 43.4 / 220.8 ms（线性 ×5.1）——与上表同结论；窗口口径（仅首屏 + 尾块
+填充，不含中间行串）peak 2.2 / 8.6 MB，证明内容驻留上界与文件大小解耦，
+`ensure_row` 连续水位填充的 goto 大跳转是产品语义层面的折衷（已在手册与
+本节如实登记），属后续"窗口化水位"增强候选。
+
+### 8.3 偏离记录
+
+- plan-b：7 条偏离经主代理裁定全部接受；`:saveas` 拒绝分段文档的修复由主代理完成。
+- plan-b 追随修复（plan-d 集成期发现，executor-b 落地 `c391a22`）：后台扫描 worker
+  以同步函数走 Textual async worker 路径，`WorkerError` 被 `exit_on_error=False`
+  静默吞掉、扫描从未推进（实测 `line_count` 停在首块）；改 async worker 形态后
+  正常。plan-b 单测未覆盖"worker 真实推进 line_count"，由 plan-d 冒烟场景补上。
+- plan-c：5 条偏离（render_line EOF 钳制 / read-failure 用例适配 / 门禁用例加
+  待写编辑 / `current_bytes` 用例改写 / undo 栈断言按实测语义）经主代理裁定全部接受。
+- plan-d：`tools/smoke_test/scenarios/hexview.py` 的 `screen_carries_bytes` 断言
+  适配 chunked source（plan-c 删除 `HexScreen._data` 后的存量耦合清理；依据
+  §五 wave 表 `tools/smoke_test/**` 归 plan-d）；其余无偏离，plan-d 未触碰产品源码。
+- 接口签名微调：无超出各子计划执行记录所列者。
+
+### 8.4 门禁与待办
+
+- plan-d 执行者实测：`tools.smoke_test run --jobs 4` → 117/117 scenarios、
+  1410/1410 checks，退出码 0（含新场景 `chunked_text_open_and_scroll` 14/14，
+  1.1 s）；`pytest tests/ -q -n auto` → 全绿（仅既有 skip），退出码 0；
+  场景文件 pyright 0 诊断。
+- 主代理复跑（HEAD `c391a22`）：冒烟 117/117、1410/1410、exit 0（83.5s）——与
+  执行者实测一致（worker 修复后双重复核）。
+- 五条统一门禁（`pyright yate/ tests/ tools/ pack/`、全量 pytest、架构 37 例、
+  覆盖率 `--cov-fail-under=75`、冒烟）由主代理收尾亲自执行。
+- 待办遗留（非 blocker/major）：执行者无删除审批权，仓库内未跟踪探针残留
+  `_probe_tmp/`、`_probe_chunked_smoke.py` 待清理（TEMP 对照脚本同批）。

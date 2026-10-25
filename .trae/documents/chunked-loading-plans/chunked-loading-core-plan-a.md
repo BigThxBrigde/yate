@@ -109,3 +109,14 @@ Set-Location D:\Programming\yate-chunked-loading
 
 - 新增文件，无回归面；回滚 = 删除两文件。
 - 编码风格按 `python-coding-style.md`：`from __future__ import annotations`、完整注解、散文式 docstring（英文）、无 Any / 无 print / 日志不经此模块（纯数据机件，无日志需求；如需则 `tracing.get_logger` + 惰性 % 占位）。
+
+## 执行记录（wave-3 回填，2026-10-25）
+
+- 提交：`97b13c8`（`feat(chunked-loading): add chunked file access machinery`）。
+- 验收复核（plan-d 执行者 2026-10-25 重跑）：
+  `pytest tests/test_chunked.py -q` → 12 passed，退出码 0；
+  `pyright yate/editor_core/chunked.py` → 0 errors, 0 warnings，退出码 0。
+- 偏离：无（产物与计划 §具体设计一致：`ChunkedTextFile` / `ChunkedBinaryFile` /
+  `ChunkedFallback`、`CHUNK_SIZE=262144` / `SCAN_BATCH_CHUNKS=4` /
+  `MAX_CACHED_CHUNKS=32` / `HEX_BLOCK_SIZE=65536` 均按计划落地）。
+- 遗留：无。

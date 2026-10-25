@@ -77,3 +77,26 @@ Set-Location D:\Programming\yate-chunked-loading
 - 渲染逐字节断言是行为锚点：只换数据来源，`render_line` 内部零逻辑改动；任一渲染断言失败先查 source 而非改断言。
 - 稀疏大文件测试在 Windows tmp 的落盘行为：用 `tmp_path` + 小文件 + monkeypatch stat 尺寸优先，避免真实 100 MB 落盘。
 - 回滚：两产品文件逐 hunk 撤销；`MAX_HEX_VIEW_SIZE` 删除属行为变更（放松上限），如需紧急回滚恢复常量与门禁 hunks 即可。
+
+## 执行记录（wave-3 回填，2026-10-25）
+
+- 提交：`fba33c8`（`feat(chunked-loading): feed the hex view from the chunked source`）。
+- 验收（执行者实测，主代理独立复核通过）：
+  `pytest tests/test_hex_view.py tests/test_overlay_flows_hex.py -q` → 56 passed，退出码 0；
+  `pyright yate/flows/overlay_flows.py yate/editor_view/hexview.py tests/test_hex_view.py
+  tests/test_overlay_flows_hex.py` → 0 errors，退出码 0；
+  `pytest tests/ -q -n auto` → 全绿，退出码 0；
+  锚点用例 `test_hex_screen_save_refreshes_fingerprint_for_resave` /
+  `test_startup_binary_open_flows_to_hex_screen` 单独复核绿。
+- 偏离 5 条（主代理裁定全部接受）：
+  1. `render_line` 取数行加 EOF 长度钳制（`min(16, size-offset)`）——
+     `ChunkedBinaryFile.read` 对越界区间抛 ValueError，不钳制则末行渲染必炸；
+     属数据源接线必要部分，渲染布局/样式逻辑零改动。
+  2. `test_open_hex_view_read_failure_reports` 适配为 monkeypatch `ChunkedBinaryFile`
+     构造抛 OSError（全量读盘删除后原形态必失败），断言 "cannot read" 原样保留。
+  3. 遗留门禁两例各加一行 `source.apply_edit(0, 0x41)`：空 edits 现为 no-op 早退，
+     无编辑不再触达门禁；新增 `test_hex_screen_save_gates_unchanged` 覆盖同语义。
+  4. `test_hex_view_current_bytes_immutable` 随 `current_bytes()` 删除改写为
+     `test_hex_view_dirty_edits_returns_copy`（保留快照不可外部改动意图）。
+  5. undo 栈断言按实测语义：每 nibble 一条 `(offset, old_byte)` 记录，两次 undo 回原字节。
+- 遗留：无。
