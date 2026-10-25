@@ -1,10 +1,11 @@
 """Hex view flow tests: binary opens, toggle guards and the CLI boot flag.
 
-Covers the wave-3 wiring: :meth:`OverlayFlows.open_hex_view` /
-:meth:`OverlayFlows.toggle_hex_view` (screen push/pop, read and size
-refusals, unsaved-buffer guard), the :class:`DocumentFlows` callback
-injection on the binary-open branch (bound opener vs deferred pending
-target) and the end-to-end binary startup target flowing into a
+Covers the hex flow wiring: :meth:`OverlayFlows.open_hex_view` /
+:meth:`OverlayFlows.toggle_hex_view` (screen push/pop, stat precheck and
+source-construction refusals, unsaved-buffer guard), the
+:class:`DocumentFlows` callback injection on the binary-open branch
+(bound opener vs deferred pending target) and the end-to-end binary
+startup target flowing into a
 :class:`~yate.editor_view.hexview.HexScreen`.
 """
 
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import os
 from pathlib import Path
 from typing import Any, cast
 
@@ -23,6 +25,7 @@ from textual.screen import Screen
 
 from yate.app import YateApp
 from yate.config import YateConfig
+from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.editor_view.hexview import HexScreen, HexView
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.overlay_flows import OverlayFlows
@@ -102,7 +105,8 @@ def test_open_hex_view_pushes_hex_screen(tmp_path: Path) -> None:
     assert len(app.pushed) == 1
     screen = app.pushed[0]
     assert isinstance(screen, HexScreen)
-    assert screen._data == _BINARY_BYTES
+    assert screen._source.size == len(_BINARY_BYTES)
+    assert screen._source.read(0, len(_BINARY_BYTES)) == _BINARY_BYTES
     assert screen._path == binary
     assert messages == []
 
@@ -136,14 +140,14 @@ def test_open_hex_view_read_only_disables_writer(
 def test_open_hex_view_read_failure_reports(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A read_bytes failure past the stat gate reports ``cannot read``."""
+    """A source construction failure past the stat gate reports ``cannot read``."""
 
-    def boom(self: Path) -> bytes:
+    def boom(path: Path, size: int, mtime: float) -> ChunkedBinaryFile:
         raise OSError("read error")
 
     binary = tmp_path / "locked.bin"
     binary.write_bytes(_BINARY_BYTES)
-    monkeypatch.setattr(Path, "read_bytes", boom)
+    monkeypatch.setattr("yate.flows.overlay_flows.ChunkedBinaryFile", boom)
     app = _FakeApp()
     messages: list[tuple[str, str]] = []
     flows = _make_flows(app, messages)
@@ -179,8 +183,8 @@ def test_write_hex_bytes_write_failure_reports(
         _FakeApp(), messages, session=EditorSession(YateConfig())
     )
 
-    result = flows._write_hex_bytes(
-        binary, b"\x41" * 16, binary.stat().st_mtime, 16
+    result = flows.write_hex_edits(
+        binary, {0: 0x41}, binary.stat().st_mtime, 16
     )
 
     assert result is None
@@ -194,7 +198,7 @@ def test_open_hex_view_pops_when_already_hex_screen(tmp_path: Path) -> None:
     """Calling open_hex_view while a HexScreen is up pops it (toggle-off)."""
     binary = tmp_path / "thing.bin"
     binary.write_bytes(_BINARY_BYTES)
-    top = HexScreen(binary, _BINARY_BYTES)
+    top = HexScreen(binary, ChunkedBinaryFile(binary, len(_BINARY_BYTES), 0.0))
     app = _FakeApp(screen=top)
     messages: list[tuple[str, str]] = []
     flows = _make_flows(app, messages)
@@ -205,41 +209,66 @@ def test_open_hex_view_pops_when_already_hex_screen(tmp_path: Path) -> None:
     assert app.pushed == []
 
 
-def test_open_hex_view_rejects_oversize_file(
+def test_open_hex_view_accepts_large_file_without_full_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A file beyond the size gate is refused on the message line."""
+    """A huge file opens via the chunked source without reading it in full.
+
+    The stat size is inflated to 100 MB while the tmp file stays a few
+    bytes; the O(1) source construction must push the HexScreen with at
+    most one block fetched from disk (zero, since nothing renders here).
+    """
     big = tmp_path / "big.bin"
     big.write_bytes(b"x" * 8)
-    monkeypatch.setattr("yate.flows.overlay_flows.MAX_HEX_VIEW_SIZE", 4)
+    reads: list[int] = []
+    original = ChunkedBinaryFile._read_block_from_disk
+
+    def counting(self: ChunkedBinaryFile, index: int) -> bytes:
+        reads.append(index)
+        return original(self, index)
+
+    monkeypatch.setattr(ChunkedBinaryFile, "_read_block_from_disk", counting)
+
+    class _BigStat:
+        st_size = 100 * 1024 * 1024
+        st_mtime = 0.0
+
+    def fake_stat(self: Path) -> os.stat_result:
+        return cast(os.stat_result, _BigStat())
+
+    # class-level patch: WindowsPath rejects instance attribute assignment
+    monkeypatch.setattr(Path, "stat", fake_stat)
     app = _FakeApp()
     messages: list[tuple[str, str]] = []
     flows = _make_flows(app, messages)
 
     flows.open_hex_view(big)
 
-    assert app.pushed == []
-    assert messages
-    assert messages[0][0].startswith("file too large for hex view: big.bin")
-    assert messages[0][1] == "warn"
+    assert len(app.pushed) == 1
+    assert isinstance(app.pushed[0], HexScreen)
+    assert len(reads) <= 1
+    assert messages == []  # the old oversize refusal is gone
 
 
 def test_open_hex_view_stat_precheck_rejects_without_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A file beyond the size gate is refused via stat, read_bytes never called."""
+    """A stat failure refuses via the precheck; the source never reads."""
     big = tmp_path / "big.bin"
     big.write_bytes(b"x" * 8)
-    monkeypatch.setattr("yate.flows.overlay_flows.MAX_HEX_VIEW_SIZE", 4)
-    read_called: list[bool] = []
-    original_read_bytes = Path.read_bytes
 
-    def fake_read_bytes(self: Path) -> bytes:
-        read_called.append(True)
-        return original_read_bytes(self)
+    def boom(self: Path) -> os.stat_result:
+        raise OSError("stat error")
 
-    # class-level patch: WindowsPath rejects instance attribute assignment
-    monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
+    monkeypatch.setattr(Path, "stat", boom)
+    reads: list[int] = []
+    original = ChunkedBinaryFile._read_block_from_disk
+
+    def counting(self: ChunkedBinaryFile, index: int) -> bytes:
+        reads.append(index)
+        return original(self, index)
+
+    monkeypatch.setattr(ChunkedBinaryFile, "_read_block_from_disk", counting)
     app = _FakeApp()
     messages: list[tuple[str, str]] = []
     flows = _make_flows(app, messages)
@@ -247,8 +276,9 @@ def test_open_hex_view_stat_precheck_rejects_without_read(
     flows.open_hex_view(big)
 
     assert app.pushed == []
-    assert read_called == []  # read_bytes never called
-    assert messages[0][0].startswith("file too large for hex view: big.bin")
+    assert reads == []  # no block was ever fetched from disk
+    assert messages[0][0].startswith("cannot stat big.bin")
+    assert messages[0][1] == "warn"
 
 
 def test_open_hex_view_unreadable_path_reports(tmp_path: Path) -> None:
@@ -287,7 +317,8 @@ def test_toggle_hex_view_opens_for_text(tmp_path: Path) -> None:
 
 def test_toggle_hex_view_closes_when_active() -> None:
     """:hex while the hex screen is up pops it."""
-    app = _FakeApp(screen=HexScreen(Path("x.bin"), b"x"))
+    source = ChunkedBinaryFile(Path("x.bin"), 1, 0.0)
+    app = _FakeApp(screen=HexScreen(Path("x.bin"), source))
     messages: list[tuple[str, str]] = []
     flows = _make_flows(app, messages, session=EditorSession(YateConfig()))
 
