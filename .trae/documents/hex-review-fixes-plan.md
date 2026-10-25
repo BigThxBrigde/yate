@@ -256,10 +256,31 @@ TOCTOU / conflict 闸门与返回指纹语义不变。
    单 chunk 读取、run 聚合语义均按 §四 落地；未触碰非清单文件；
    未执行计划外测试/门禁（全量门禁由主代理收尾统一执行）。
 
-### 6.3 主代理全量门禁实测数字
+### 6.3 主代理全量门禁实测数字（2026-10-26，最终树 @ `336cc80`）
 
-- [ ] 待主代理收尾执行后回填（pyright 全量 / pytest 全量 / 架构测试 /
-      覆盖率 `--cov-fail-under=75` / 冒烟场景）。
+| 门禁 | 命令 | 结果 | 退出码 |
+|---|---|---|---|
+| pyright strict | `-m pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations | 0 |
+| pytest 并行 | `-m pytest tests/ -q -n auto` | 全绿 | 0 |
+| 架构测试 | `-m pytest tests/test_architecture.py -q` | 全绿（37 用例） | 0 |
+| 覆盖率 | `-m pytest tests/ --cov=yate --cov-branch -n auto` | **91.92%**（≥75 门槛）；buffer 96% / chunked 93% / hexview 96% / chunked_flows 84% | 0 |
+| 冒烟 | `-m tools.smoke_test run --jobs 4` | **117/117 场景，1410/1410 检查** | 0 |
+
+### 6.4 收尾迭代与调度记录
+
+1. **冒烟不变量修复（`336cc80`）**：首轮全量冒烟
+   `chunked_text_open_and_scroll` 的 harness 不变量
+   `invariant:saved_matches_disk` 失败（13/14），`--jobs 1` 单场景确定性
+   复现（非时序 flake）。根因：旧水位线设计下远跳会顺带填满全程，
+   `get_text()` 恰等于磁盘；F1 改为按需加载后 gap chunk 合法保持占位行，
+   "整 buffer == 磁盘"前提对 chunked 文档不再成立。修复：
+   `tools/smoke_test/harness.py` 对 chunked 文档改为只比对已加载行与磁盘
+   字节；其余场景的不变量行为不变，基线不受牵动（chunked 场景无基线
+   文件）。修复后全量冒烟 117/117 全绿。
+2. **code-review-expert 判死（零产出）**：spawn 后两轮探活（约 16 分钟）
+   无回信、只读评审无任何落盘产物，按 `subagent-workflow.md` §五.3 判死，
+   未原样重试；评审职责由主代理按剧本兜底完成（逐 diff 对照计划 §四
+   核查实现与测试语义 + 收尾门禁独立复跑，成员自报数字一律未采信）。
 
 ## 七、风险与回滚
 
