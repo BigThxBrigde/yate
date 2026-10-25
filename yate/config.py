@@ -126,9 +126,9 @@ class LargeFileConfig:
 
     ``threshold`` is the file size in bytes above which ``session.open``
     loads the document as a locked, progressively filled chunked buffer
-    instead of reading it whole.  ``0`` disables chunked loading (every
+    instead of reading it whole.      ``0`` disables chunked loading (every
     file is read whole); otherwise the value must lie in
-    ``[1048576, 1073741824]`` (1 KiB files are never chunked by accident
+    ``[1048576, 1073741824]`` (1 MiB files are never chunked by accident
     and nothing above 1 GiB is loaded whole on purpose).
     """
 

@@ -26,6 +26,9 @@ from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.chunked import ChunkedTextFile
 from yate.editor_core.document import Document
 from yate.flows import MessageFn, SpawnFn, StateQuery
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 
 class ChunkedFlows:
@@ -120,7 +123,11 @@ class ChunkedFlows:
         if doc.chunked is None:
             self._message("buffer is fully loaded already", "info")
             return
-        doc.promote_to_full()
+        try:
+            doc.promote_to_full()
+        except OSError as exc:
+            self._message(f"cannot fully load: {exc}", "warn")
+            return
         self._message("buffer fully loaded", "ok")
         self._ensure_view_refresh()
 
@@ -149,14 +156,22 @@ class ChunkedFlows:
         if chunked is None:
             return
         buf = doc.buffer
-        while await asyncio.to_thread(chunked.scan_next_batch):
-            if doc.chunked is not chunked:
-                return
+        try:
+            while await asyncio.to_thread(chunked.scan_next_batch):
+                if doc.chunked is not chunked:
+                    return
+                self._extend_placeholders(chunked, buf)
             self._extend_placeholders(chunked, buf)
-        self._extend_placeholders(chunked, buf)
+        except OSError as exc:
+            # Textual swallows worker exceptions (they only reach the
+            # devtools channel), so a vanished or unreadable file must be
+            # reported here or the scan would freeze silently.
+            log.warning("chunked scan aborted: %s: %s", doc.path, exc)
+            self._message(f"background scan stopped: {exc}", "warn")
+            return
         self._ensure_view_refresh()
 
     @staticmethod
     def _extend_placeholders(chunked: ChunkedTextFile, buf: TextBuffer) -> None:
-        """Grow the placeholder rows to the scanned prefix (worker thread)."""
+        """Grow the placeholder rows to the scanned prefix (event loop)."""
         buf.extend_placeholders(chunked.total_lines - len(buf.lines))

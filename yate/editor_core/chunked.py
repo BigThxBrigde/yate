@@ -100,14 +100,17 @@ class ChunkedTextFile:
     metadata (``chunk_start_rows`` / ``scanned_chunks`` / ``total_lines``)
     is guarded by a lock because scanning runs on a worker thread while row
     access runs on the UI thread.
+
+    Encoding note: the encoding is probed from the first 64 KiB only, so a
+    file whose later part decodes differently (e.g. a mostly-ASCII log with
+    a few legacy-encoded lines) may show replacement characters where a
+    whole-file decode would have succeeded -- the trade keeps opening a
+    multi-gigabyte file O(1).
     """
 
     def __init__(self, path: Path, chunk_size: int = CHUNK_SIZE) -> None:
         self.path: Path = path
         self.total_bytes: int = path.stat().st_size
-        #: Lower bound of the chunk count; oversized chunks may reduce the
-        #: real count below it.
-        self.chunk_count_lower_bound: int = -(-self.total_bytes // chunk_size)
         self._chunk_size: int = chunk_size
         self._lock = threading.Lock()
         # Scanned prefix metadata -- guarded by ``self._lock``.
@@ -233,6 +236,13 @@ class ChunkedTextFile:
         start = self._chunk_offsets[-1] if self._chunk_offsets else self._bom_offset
         data = self._read_raw_chunk(start)
         end = start + len(data)
+        if end <= start:
+            # The file shrank below the scanned prefix (external
+            # truncation): reading returns nothing new, so marking the scan
+            # complete is the only way to avoid a no-progress spin that
+            # would also grow the boundary index without bound.
+            self._scan_complete = True
+            return
         rows = _split_rows(self._decode_bytes(data), is_last=end >= self.total_bytes)
         self.chunk_start_rows.append(self.total_lines)
         self.total_lines += len(rows)
@@ -334,9 +344,18 @@ class ChunkedBinaryFile:
         return dict(self._dirty)
 
     def clear_edits(self, offsets: Iterable[int]) -> None:
-        """Forget the pending edits at *offsets* (after a successful save)."""
+        """Forget the pending edits at *offsets* (after a successful save).
+
+        The cached blocks owning the cleared offsets are evicted as well:
+        the blocks hold the on-disk bytes as they were before the write,
+        and without the eviction a read right after saving would serve the
+        stale pre-edit content instead of the freshly written bytes.
+        """
         for offset in offsets:
             self._dirty.pop(offset, None)
+            block_index = offset // self._block_size
+            if self._blocks.pop(block_index, None) is not None:
+                self._block_order.remove(block_index)
 
     def blocks_loaded(self) -> int:
         """Return how many blocks have been fetched from disk (observability)."""

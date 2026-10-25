@@ -209,6 +209,12 @@ class OverlayFlows:
             return
         try:
             source = ChunkedBinaryFile(path, size, mtime)
+            if size > 0:
+                # The chunked source does no IO on construction; this probe
+                # keeps the open-time "cannot read" report that the old
+                # one-shot read provided (a vanished/unreadable file would
+                # otherwise surface as raw errors in the render path).
+                source.read(0, 1)
         except OSError as exc:
             self._message(f"cannot read {path.name}: {exc}", "warn")
             return

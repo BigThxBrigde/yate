@@ -5,6 +5,9 @@ progression, LRU eviction, CRLF / BOM / CR-only handling, bisect row lookup
 and the block-cached binary reader with dirty edits.
 """
 
+# tests legitimately poke at internals:
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,6 +38,91 @@ def _sample_lines(count: int) -> list[str]:
 def _sample_text(count: int) -> str:
     """The sample rows joined by newlines (no trailing newline)."""
     return "\n".join(_sample_lines(count))
+
+
+def test_chunked_text_cache_hit_reuses_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Re-reading a loaded row range does not touch the disk again."""
+    path = _write_bytes(tmp_path, "rows.txt", _sample_text(200).encode())
+    chunked = ChunkedTextFile(path, chunk_size=64)
+    disk_reads = 0
+    real = ChunkedTextFile._read_raw_chunk
+
+    def spy(self: ChunkedTextFile, start: int) -> bytes:
+        nonlocal disk_reads
+        disk_reads += 1
+        return real(self, start)
+
+    monkeypatch.setattr(ChunkedTextFile, "_read_raw_chunk", spy)
+
+    chunked.read_rows(0, 5)
+    after_first = disk_reads
+    chunked.read_rows(0, 5)
+
+    assert after_first == 1  # one chunk was read from disk
+    assert disk_reads == after_first  # the second read hit the cache only
+
+
+def test_chunked_text_scan_terminates_after_external_truncation(
+    tmp_path: Path,
+) -> None:
+    """A file truncated mid-scan ends the scan instead of spinning forever."""
+    path = _write_bytes(tmp_path, "big.log", _sample_text(400).encode() + b"\n")
+    chunked = ChunkedTextFile(path, chunk_size=64)
+    chunked.scan_next_batch()
+    path.write_bytes(b"abc")  # external truncation below the scanned prefix
+
+    batches = 0
+    while chunked.scan_next_batch():
+        batches += 1
+        assert batches < 200  # no-progress guard: the scan must terminate
+
+    assert chunked.scanned_chunks < 200
+
+
+def test_chunked_binary_lru_evicts_blocks(tmp_path: Path) -> None:
+    """Block reads beyond the cache cap evict and re-read from disk."""
+    payload = bytes(range(256)) * 40  # 40 blocks of 256 bytes
+    path = _write_bytes(tmp_path, "blocks.bin", payload)
+    source = ChunkedBinaryFile(path, len(payload), 0.0, block_size=256)
+
+    for index in range(40):
+        assert source.read(index * 256, 256) == payload[index * 256 : (index + 1) * 256]
+    assert source.blocks_loaded() == 40
+
+    # the first block was evicted long ago: re-reading it hits the disk again
+    source.read(0, 256)
+    assert source.blocks_loaded() == 41
+    assert source.read(0, 256) == payload[0:256]
+
+
+def test_chunked_binary_apply_edit_out_of_range(tmp_path: Path) -> None:
+    """Editing past the file size raises ValueError."""
+    path = _write_bytes(tmp_path, "tiny.bin", b"ABCDEFGH")
+    source = ChunkedBinaryFile(path, 8, 0.0, block_size=64)
+
+    with pytest.raises(ValueError):
+        source.apply_edit(8, 0x41)
+
+
+def test_chunked_binary_clear_edits_evicts_cached_blocks(tmp_path: Path) -> None:
+    """After a save clears the edits, reads show the freshly written bytes."""
+    path = _write_bytes(tmp_path, "saved.bin", b"ABCDEFGH")
+    source = ChunkedBinaryFile(path, 8, 0.0, block_size=64)
+
+    assert source.read(0, 8) == b"ABCDEFGH"
+    source.apply_edit(0, ord("Z"))
+    assert source.read(0, 8) == b"ZBCDEFGH"
+
+    # simulate the save landing on disk, then the post-save clear_edits
+    with open(path, "r+b") as handle:
+        handle.seek(0)
+        handle.write(b"ZBCDEFGH")
+    source.clear_edits([0])
+
+    # regression lock: the eviction must not serve the stale cached block
+    assert source.read(0, 8) == b"ZBCDEFGH"
 
 
 # --- ChunkedTextFile ---------------------------------------------------------

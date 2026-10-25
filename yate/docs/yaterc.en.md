@@ -460,7 +460,10 @@ buffer never reaches the writer.  Run `:fullload` to promote the active
 document to a fully loaded, editable buffer -- the whole file is read
 into memory, which is the explicit trade of editing power for memory.
 Files that cannot be chunk-aligned (CR-only line endings) fall back to a
-full load automatically.  The hex view shares the same chunk-loading
+full load automatically.  The encoding is probed from the file head only,
+so a file whose later part decodes differently (a mostly-ASCII log with a
+few legacy-encoded lines, say) may show replacement characters later on;
+promote it with `:fullload` for a whole-file decode.  The hex view shares the same chunk-loading
 layer and no longer has a size cap: the old 100 MB one-shot limit is
 gone, so any binary can be opened (saves write only the edited bytes
 back in place).

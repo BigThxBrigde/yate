@@ -197,6 +197,11 @@ class Document:
     def path(self, value: Path | None) -> None:
         self._path = value
         self._resolved = None
+        # A retargeted chunked document must read its remaining chunks from
+        # the new location, not the pre-rename path still held by the
+        # chunked source.
+        if self.chunked is not None and value is not None:
+            self.chunked.path = value
 
     @property
     def resolved_path(self) -> Path | None:

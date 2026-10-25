@@ -206,6 +206,10 @@ class EditorSession:
         """
         closed = self.doc
         self.docs.pop(self.index)
+        # Detach the chunked source: the background scan loop checks it and
+        # exits on its next turn instead of reading the whole file for a
+        # document nobody displays anymore.
+        closed.chunked = None
         log.debug("session close: %s (%d docs left)", closed.path, len(self.docs))
         if self.docs:
             fallback = self.docs[min(self.index, len(self.docs) - 1)]
@@ -239,6 +243,8 @@ class EditorSession:
             # to a surviving neighbour, matching close_active's behaviour.
             self.index = min(max(self.index, 0), len(self.docs) - 1)
         log.debug("session close under %s: %d doc(s)", path, len(closed))
+        for doc in closed:
+            doc.chunked = None  # stop the background scans (see close_active)
         self._notify_closed(closed)
         return closed
 

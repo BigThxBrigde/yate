@@ -394,13 +394,17 @@ class HexView(ScrollView, can_focus=True):
         highlights touch styles only.
         """
         offset = (y + self.scroll_offset.y) * _BYTES_PER_LINE
-        chunk = (
-            self._source.read(
-                offset, min(_BYTES_PER_LINE, self._source.size - offset)
-            )
-            if offset < self._source.size
-            else b""
-        )
+        chunk = b""
+        if offset < self._source.size:
+            try:
+                chunk = self._source.read(
+                    offset, min(_BYTES_PER_LINE, self._source.size - offset)
+                )
+            except OSError:
+                # The file vanished or became unreadable mid-session: paint
+                # a blank row instead of crashing the compositor (the
+                # render path runs outside any error handling).
+                return Strip.blank(self.size.width)
         if not chunk:
             return Strip.blank(self.size.width)
         t = theme.active()
@@ -574,6 +578,11 @@ class HexScreen(ModalScreen[None]):
             return
         self._mtime, self._load_size = fingerprint
         self._source.clear_edits(edits.keys())
+        if view is not None:
+            # The cleared blocks are evicted from the chunk cache; repaint
+            # now so the view shows the freshly written bytes instead of
+            # waiting for the next keypress.
+            view.refresh()
         if self._message is not None:
             self._message("saved", "ok")
 

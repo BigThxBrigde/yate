@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
+
 from yate.config import LargeFileConfig, YateConfig
 from yate.editor_core import Document
 from yate.editor_core.buffer import TextBuffer
@@ -143,17 +145,32 @@ def test_open_async_uses_chunked_document_above_threshold(tmp_path: Path) -> Non
     assert doc.buffer.locked is True
 
 
-def test_open_falls_back_to_full_on_cr_only(tmp_path: Path) -> None:
+def test_open_falls_back_to_full_on_cr_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A CR-only file falls back to the plain full read with correct content."""
     session = EditorSession(_small_threshold_config())
     target = tmp_path / "cr.txt"
-    target.write_bytes(b"alpha\rbeta\rgamma")
+    target.write_bytes(b"alpha\rbeta\rgammalonger")  # > threshold(16), CR-only
+    attempted: list[Path] = []
+    real_open_chunked = Document.open_chunked
+
+    def spy_open_chunked(path: Path, chunk_size: int = 262_144) -> Document:
+        attempted.append(Path(path))
+        return real_open_chunked(path, chunk_size)
+
+    monkeypatch.setattr(
+        "yate.editor_core.document.Document.open_chunked", spy_open_chunked
+    )
 
     doc = session.open(target)
 
+    # the chunked path really was tried before the fallback (regression
+    # lock: a strict size > threshold slip used to skip it entirely)
+    assert attempted == [target]
     assert doc is not None
     assert doc.chunked is None
-    assert doc.buffer.get_text() == "alpha\nbeta\ngamma"
+    assert doc.buffer.get_text() == "alpha\nbeta\ngammalonger"
 
 
 def test_open_accepts_a_path_that_does_not_exist_yet(tmp_path: Path) -> None:

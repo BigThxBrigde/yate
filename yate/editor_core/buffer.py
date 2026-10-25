@@ -92,10 +92,13 @@ class TextBuffer:
     """A mutable, undoable multi-line text buffer.
 
     A *locked* buffer (``locked = True``) is the structural write lock for
-    chunked read-only documents: every user-facing mutation returns
-    silently without touching lines or cursors, while the chunked flows
-    fill real content through :meth:`fill_lines` /
-    :meth:`extend_placeholders` (which ignore the lock).
+    chunked read-only documents: user-facing mutations return silently
+    without touching lines or cursors, while the chunked flows fill real
+    content through :meth:`fill_lines` / :meth:`extend_placeholders`
+    (which ignore the lock).  The one exception is :meth:`paste`, which
+    raises through the read-only guard instead -- for a chunked document
+    (always ``read_only`` too) the effect for the user is the same: the
+    mutation is refused either way.
     """
 
     def __init__(

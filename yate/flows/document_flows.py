@@ -372,6 +372,14 @@ class DocumentFlows:
     def save_document(self) -> None:
         """``:w``: write the active document to disk."""
         doc = self.session.doc
+        if doc.chunked is not None:
+            # Distinct from the read-only notice below: ``:saveas`` (which
+            # that message points at) refuses chunked documents too, so a
+            # chunked buffer must be pointed at ``:fullload`` instead.
+            self._message(
+                "chunked document is read-only: run :fullload first", "warn"
+            )
+            return
         if doc.buffer.read_only:
             self._message(
                 "cannot save a read-only buffer; use :saveas to write elsewhere",

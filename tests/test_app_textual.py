@@ -263,11 +263,14 @@ def test_readonly_saveas_writes_elsewhere_and_unlocks(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_saveas_refuses_chunked_document(tmp_path: Path) -> None:
+def test_saveas_refuses_chunked_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """:saveas on a chunked document is refused with a :fullload pointer."""
 
     async def scenario() -> None:
         from yate.config import LargeFileConfig, YateConfig
+        from yate.editor_core.document import Document
 
         source = tmp_path / "big.log"
         source.write_text(
@@ -276,6 +279,13 @@ def test_saveas_refuses_chunked_document(tmp_path: Path) -> None:
         dest = tmp_path / "out.txt"
         config = YateConfig()
         config.large_file = LargeFileConfig(threshold=64)
+        reached_save: list[Document] = []
+
+        def spy_save(self: Document, path: Path | None = None) -> Path:
+            reached_save.append(self)
+            return path if path is not None else Path(".")
+
+        monkeypatch.setattr(Document, "save", spy_save)
         app = YateApp(target=source, config=config)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -283,7 +293,8 @@ def test_saveas_refuses_chunked_document(tmp_path: Path) -> None:
             assert doc is not None and doc.chunked is not None
             app.editor.run_command(f"saveas {dest}")
             await pilot.pause()
-            # the placeholder-bearing viewport is never written out
+            # the placeholder-bearing viewport never reaches the writer
+            assert reached_save == []
             assert not dest.exists()
             assert app.editor.session.buffer.read_only
 

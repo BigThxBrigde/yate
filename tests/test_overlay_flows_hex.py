@@ -140,14 +140,14 @@ def test_open_hex_view_read_only_disables_writer(
 def test_open_hex_view_read_failure_reports(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A source construction failure past the stat gate reports ``cannot read``."""
+    """A read-probe failure past the stat gate reports ``cannot read``."""
 
-    def boom(path: Path, size: int, mtime: float) -> ChunkedBinaryFile:
+    def boom(self: ChunkedBinaryFile, offset: int, length: int) -> bytes:
         raise OSError("read error")
 
     binary = tmp_path / "locked.bin"
     binary.write_bytes(_BINARY_BYTES)
-    monkeypatch.setattr("yate.flows.overlay_flows.ChunkedBinaryFile", boom)
+    monkeypatch.setattr(ChunkedBinaryFile, "read", boom)
     app = _FakeApp()
     messages: list[tuple[str, str]] = []
     flows = _make_flows(app, messages)
@@ -156,6 +156,7 @@ def test_open_hex_view_read_failure_reports(
 
     assert app.pushed == []
     assert messages
+    assert messages[0][0].startswith("cannot read")
     assert messages[0][0].startswith("cannot read locked.bin")
     assert messages[0][1] == "warn"
 

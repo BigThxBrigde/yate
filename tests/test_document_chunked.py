@@ -240,6 +240,43 @@ def test_editor_view_ensure_row_called_for_visible_rows(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_scan_worker_stops_mid_scan_after_promotion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A promotion landing between scan batches stops the loop early."""
+    path = _write(tmp_path / "big.txt", _lines(400))
+    doc = Document.open_chunked(path, chunk_size=64)
+    # an unmounted flows keeps attach from spawning (and inline-running)
+    # the scan worker, so this test drives it by hand
+    def _inline_spawn(fn: Callable[..., object], **kwargs: object) -> object:
+        return fn()
+
+    flows = ChunkedFlows(
+        ensure_view_refresh=lambda: None,
+        message=lambda text, kind="info": None,
+        spawn=cast(Callable[..., Worker[object]], _inline_spawn),
+        active_doc=lambda: doc,
+        mounted=lambda: False,
+    )
+    flows.attach(doc)
+    chunked = cast(ChunkedTextFile, doc.chunked)
+    calls = 0
+    real_scan = chunked.scan_next_batch
+
+    def spy_scan() -> bool:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            doc.chunked = None  # the promotion lands between batches
+        return real_scan()
+
+    monkeypatch.setattr(chunked, "scan_next_batch", spy_scan)
+
+    asyncio.run(flows._scan_to_completion(doc))
+
+    assert calls == 2  # stopped at the guard, not at scan completion
+
+
 def test_background_scan_advances_line_count(tmp_path: Path) -> None:
     """The spawned scan worker grows the placeholder rows off-loop."""
 
