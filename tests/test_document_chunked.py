@@ -162,7 +162,7 @@ def test_open_chunked_fallback_on_cr_only(tmp_path: Path) -> None:
 
 
 def test_chunked_flows_ensure_row_fills_requested_chunk(tmp_path: Path) -> None:
-    """ensure_row loads the chunk owning the row (watermark jumps to it)."""
+    """ensure_row loads the chunk owning the row and leaves the gap unloaded."""
     path = _write(tmp_path / "big.txt", _lines(400))
     doc = Document.open_chunked(path, chunk_size=64)
     flows = _stub_flows(doc)
@@ -173,10 +173,30 @@ def test_chunked_flows_ensure_row_fills_requested_chunk(tmp_path: Path) -> None:
     assert not doc.buffer.rows_loaded(last_row, 1)
     flows.ensure_row(doc, last_row)
     assert doc.buffer.rows_loaded(last_row, 1)
-    assert doc.buffer.get_text() == _lines(400)
+    assert doc.buffer.line(last_row) == "line 399"
     # already-loaded rows are a cheap no-op
-    flows.ensure_row(doc, 0)
-    assert doc.buffer.get_text() == _lines(400)
+    flows.ensure_row(doc, last_row)
+    assert doc.buffer.line(last_row) == "line 399"
+
+
+def test_ensure_row_fills_only_the_owning_chunk(tmp_path: Path) -> None:
+    """A far jump fills only the target chunk; gap chunks load on demand."""
+    path = _write(tmp_path / "big.txt", _lines(400))
+    doc = Document.open_chunked(path, chunk_size=64)
+    flows = _stub_flows(doc)
+    flows.attach(doc)
+    chunked = cast(ChunkedTextFile, doc.chunked)
+    starts = chunked.chunk_start_rows
+    assert len(starts) > 3
+    last_row = chunked.row_count() - 1
+    mid = starts[1]  # first row of a gap chunk the scan has already reached
+    flows.ensure_row(doc, last_row)
+    assert doc.buffer.rows_loaded(last_row, 1)
+    assert not doc.buffer.rows_loaded(mid, 1)
+    assert doc.buffer.line(mid) == ""
+    flows.ensure_row(doc, mid)
+    assert doc.buffer.rows_loaded(mid, 1)
+    assert doc.buffer.line(mid) == f"line {mid}"
 
 
 def test_chunked_flows_promote_to_full_messages(tmp_path: Path) -> None:

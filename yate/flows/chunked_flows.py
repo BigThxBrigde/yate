@@ -87,12 +87,14 @@ class ChunkedFlows:
         """Fill the content for a rendered row of a chunked document.
 
         Called from the EditorView render path.  Loaded rows return
-        immediately (a watermark comparison); otherwise the rows from the
-        first placeholder through the end of the chunk owning *row* are
-        read and filled (contiguous advancement, so the buffer's
-        ``rows_loaded`` contract holds).  Rows the scan has not reached
-        yet are skipped -- the placeholder extension and the next render
-        pass pick them up.
+        immediately (one bisect into the buffer's interval table);
+        otherwise only the chunk owning *row* is read and filled -- at
+        most one chunk per render pass, so a far jump into an already
+        scanned region shows real content right away instead of reading
+        every chunk between the previously filled prefix and the target.
+        A whole chunk whose rows are all loaded is skipped without a
+        read.  Rows the scan has not reached yet are skipped -- the
+        placeholder extension and the next render pass pick them up.
         """
         chunked = doc.chunked
         if chunked is None or row < 0:
@@ -104,13 +106,15 @@ class ChunkedFlows:
         index = chunked.chunk_for_row(row)
         if index >= len(starts):
             return
-        chunk_end = (
+        chunk_start = starts[index]
+        chunk_rows = (
             starts[index + 1] if index + 1 < len(starts) else chunked.total_lines
-        )
-        start = buf.filled_rows
-        rows = chunked.read_rows(start, chunk_end - start)
+        ) - chunk_start
+        if buf.rows_loaded(chunk_start, chunk_rows):
+            return
+        rows = chunked.read_rows(chunk_start, chunk_rows)
         if rows:
-            buf.fill_lines(start, rows)
+            buf.fill_lines(chunk_start, rows)
 
     # -------------------------------------------------------------- fullload
 
