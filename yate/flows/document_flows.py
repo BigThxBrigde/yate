@@ -155,6 +155,7 @@ class DocumentFlows:
         """
         if doc is not None and self.startup_readonly:
             doc.buffer.read_only = True
+            doc.read_only_pinned = True
             log.info("opened read-only: %s", doc.path)
 
     # =============================================================== documents

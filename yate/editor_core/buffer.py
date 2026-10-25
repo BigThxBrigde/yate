@@ -139,10 +139,13 @@ class TextBuffer:
         # the target row.
         self._loaded_starts: list[int] = []
         self._loaded_ends: list[int] = []
-        # Serializes :meth:`fill_lines` / :meth:`extend_placeholders`
-        # between the UI thread (on-demand fills) and the background scan
-        # worker (placeholder extension).
-        self._fill_lock = threading.Lock()
+        # Guards the chunked-fill primitives and the loaded-interval
+        # reads.  Every buffer mutation and every :meth:`rows_loaded`
+        # probe runs on the event loop thread today (the scan worker only
+        # touches the chunked index off-loop); the reentrant lock keeps
+        # that invariant enforceable if a caller ever moves work off-loop
+        # and makes the interval reads atomic with respect to fills.
+        self._fill_lock = threading.RLock()
         self.register: str = ""  # internal yank/clipboard register
         #: Explicit ``"a``-``"z`` registers (vim named registers).  Purely
         #: internal storage -- they never mirror the system clipboard.
@@ -240,14 +243,17 @@ class TextBuffer:
         Loaded rows are tracked as merged, disjoint, ordered intervals (the
         parallel ``_loaded_starts`` / ``_loaded_ends`` arrays), so the check
         is a single bisect into the table -- neither a per-row scan nor a
-        walk across the chunks between a fill watermark and *start*.
+        walk across the chunks between a fill watermark and *start*.  Reads
+        take :attr:`_fill_lock` so a probe is atomic with respect to
+        concurrent fills.
         """
-        if count <= 0:
-            return True
-        if start < 0:
-            return False
-        index = bisect.bisect_right(self._loaded_starts, start) - 1
-        return index >= 0 and self._loaded_ends[index] >= start + count
+        with self._fill_lock:
+            if count <= 0:
+                return True
+            if start < 0:
+                return False
+            index = bisect.bisect_right(self._loaded_starts, start) - 1
+            return index >= 0 and self._loaded_ends[index] >= start + count
 
     def _mark_loaded(self, start: int, end: int) -> None:
         """Merge the half-open interval ``[start, end)`` into the loaded table.
@@ -256,8 +262,12 @@ class TextBuffer:
         keeps its merged / disjoint / ordered invariant: the insertion
         point comes from one bisect and the splice touches only the
         intervals the fill overlaps (O(1) neighbours for chunk fills in
-        practice).  Callers hold :attr:`_fill_lock`.
+        practice).  Zero-width intervals (``end <= start``) are rejected so
+        the ``starts[i] < ends[i]`` invariant holds unconditionally.
+        Callers hold :attr:`_fill_lock`.
         """
+        if end <= start:
+            return
         first = bisect.bisect_right(self._loaded_starts, start) - 1
         low = first if first >= 0 and self._loaded_ends[first] >= start else first + 1
         high = low

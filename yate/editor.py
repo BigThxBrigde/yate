@@ -1082,9 +1082,15 @@ class Editor:
         self.message(f"theme: {selected.label}", kind="ok")
 
     def set_readonly(self, value: bool) -> None:
-        """Set the active buffer's read-only flag (``:set readonly=``)."""
-        buf = self.session.doc.buffer
-        buf.read_only = value
+        """Set the active buffer's read-only flag (``:set readonly=``).
+
+        The value is also recorded on the document as the explicit
+        read-only intent (:attr:`Document.read_only_pinned`), so a later
+        ``:fullload`` promotion keeps it.
+        """
+        doc = self.session.doc
+        doc.buffer.read_only = value
+        doc.read_only_pinned = value
         self.message(f"readonly: {'on' if value else 'off'}", kind="ok")
         self.refresh_ui()
 

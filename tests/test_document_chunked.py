@@ -101,6 +101,29 @@ def test_fill_lines_marks_intervals_without_counting_edits(tmp_path: Path) -> No
     assert buf.get_text() == _lines(200)
 
 
+def test_rows_loaded_bounds() -> None:
+    """Zero-count probes are vacuously loaded; negative starts are not."""
+    buf = TextBuffer("a\nb\nc")
+    buf.fill_lines(1, ["b"])
+    assert buf.rows_loaded(5, 0)
+    assert not buf.rows_loaded(-1, 1)
+    assert not buf.rows_loaded(2, 1)
+
+
+def test_fill_lines_bridges_and_contains_intervals() -> None:
+    """A bridging fill merges three intervals; a contained fill is a no-op."""
+    buf = TextBuffer("\n" * 30)
+    buf.fill_lines(0, [f"a{i}" for i in range(10)])
+    buf.fill_lines(20, [f"b{i}" for i in range(20, 30)])
+    assert (buf._loaded_starts, buf._loaded_ends) == ([0, 20], [10, 30])
+    buf.fill_lines(10, [f"c{i}" for i in range(10, 20)])
+    assert (buf._loaded_starts, buf._loaded_ends) == ([0], [30])
+    assert buf.rows_loaded(0, 30)
+    assert not buf.rows_loaded(0, 31)
+    buf.fill_lines(5, ["x"] * 3)  # fully contained: no new interval
+    assert (buf._loaded_starts, buf._loaded_ends) == ([0], [30])
+
+
 def test_locked_buffer_rejects_all_edits() -> None:
     """Every user-facing mutation on a locked buffer is a silent no-op."""
     buf = TextBuffer("alpha\nbeta\ngamma")
@@ -123,9 +146,6 @@ def test_promote_to_full_restores_editing(tmp_path: Path) -> None:
     path = _write(tmp_path / "big.txt", text)
     doc = Document.open_chunked(path, chunk_size=64)
     _stub_flows(doc).attach(doc)
-    # chunked documents open read_only and promotion now preserves the
-    # flag; lift it explicitly to exercise the editing-restore path
-    doc.buffer.read_only = False
     doc.promote_to_full()
     assert doc.chunked is None
     assert doc.buffer.locked is False
@@ -135,6 +155,25 @@ def test_promote_to_full_restores_editing(tmp_path: Path) -> None:
     doc.buffer.type_char("!")
     assert doc.buffer.lines[0] == "line 0!"
     assert doc.modified is True
+
+
+def test_fullload_of_default_session_is_editable(tmp_path: Path) -> None:
+    """Without an explicit lock, :fullload restores an editable buffer.
+
+    The read-only flag of a chunked buffer is a structural guard set by
+    :meth:`open_chunked`, not user intent: promotion must lift it, and
+    only an explicit session pin (``-R`` / ``:set readonly=``) survives.
+    """
+    path = _write(tmp_path / "big.txt", _lines(50))
+    doc = Document.open_chunked(path, chunk_size=32)
+    assert doc.buffer.read_only is True  # structural guard only
+    assert doc.read_only_pinned is False
+    doc.promote_to_full()
+    assert doc.chunked is None
+    assert doc.buffer.read_only is False
+    doc.buffer.move_line_end()
+    doc.buffer.type_char("!")
+    assert doc.buffer.lines[0].endswith("!")
 
 
 def test_promote_to_full_keeps_indentation_options(tmp_path: Path) -> None:
@@ -149,10 +188,13 @@ def test_promote_to_full_keeps_indentation_options(tmp_path: Path) -> None:
 
 
 def test_promote_to_full_preserves_read_only(tmp_path: Path) -> None:
-    """A read-only chunked session stays read-only after :fullload."""
+    """An explicit session lock (``-R``) stays read-only after :fullload."""
     path = _write(tmp_path / "big.txt", _lines(50))
     doc = Document.open_chunked(path, chunk_size=32)
+    # Simulate the session/intent path: the buffer flag alone is the
+    # structural guard and is deliberately ignored by promotion.
     doc.buffer.read_only = True
+    doc.read_only_pinned = True
     doc.promote_to_full()
     assert doc.chunked is None
     assert doc.buffer.read_only is True

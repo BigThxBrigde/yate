@@ -51,6 +51,12 @@ class Document:
         # filled progressively by the chunked flows; see :meth:`open_chunked`
         # and :meth:`promote_to_full`.
         self.chunked: ChunkedTextFile | None = chunked
+        # Explicit read-only *intent* (``-R`` / ``:set readonly=``).
+        # :meth:`open_chunked` pins the buffer read-only as a structural
+        # guard -- placeholder content must never reach the writer -- which
+        # is not user intent; :meth:`promote_to_full` restores editability
+        # unless this flag says a session lock asked for read-only.
+        self.read_only_pinned: bool = False
         # Dominant line ending of the file as opened (``\r\n`` / ``\n`` /
         # ``\r``); ``save()`` converts the buffer's LF newlines back to it.
         # New buffers keep LF.  See :meth:`open` and :meth:`_dominant_eol`.
@@ -248,9 +254,11 @@ class Document:
         No-op for plain documents.  The whole file is re-read through
         :meth:`open` (same decode/EOL path), so the promoted buffer
         matches the disk contents exactly and editing is unlocked; the
-        indentation options carried by the locked buffer are preserved,
-        and so is its ``read_only`` flag (a ``-R`` / read-only session
-        must not become writable just because the document was promoted).
+        indentation options carried by the locked buffer are preserved.
+        The structural read-only guard of the chunked buffer is *not*
+        carried over (that would make promotion useless); an explicit
+        session lock -- recorded as :attr:`read_only_pinned` by ``-R`` or
+        ``:set readonly=`` -- keeps the promoted buffer read-only.
         """
         path = self.path
         if self.chunked is None or path is None:
@@ -260,7 +268,7 @@ class Document:
         buf = full.buffer
         buf.tab_width = old.tab_width
         buf.use_spaces = old.use_spaces
-        buf.read_only = old.read_only
+        buf.read_only = self.read_only_pinned
         self.buffer = buf
         self.encoding = full.encoding
         self.eol = full.eol
