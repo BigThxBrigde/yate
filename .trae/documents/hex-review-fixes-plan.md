@@ -215,9 +215,51 @@ TOCTOU / conflict 闸门与返回指纹语义不变。
 
 ## 六、执行记录（收尾回填）
 
-- [ ] Step 1-5 实测命令与退出码
-- [ ] 偏离计划记录（如有）
-- [ ] 主代理全量门禁实测数字
+### 6.1 Step 1-5 实测命令与退出码（2026-10-26，plan-executor 实测）
+
+| Step | 命令 | 退出码 | 备注 |
+|---|---|---|---|
+| 1 | `pytest tests/test_document_chunked.py -q` | 1 → 0* | *首次 1：2 个失败——`test_chunked_flows_ensure_row_fills_requested_chunk`（ensure_row 仍引用已删除的 `filled_rows`，该产品代码属 Step 2 范围，见 §6.2 偏离 1）与执行者首次误写的 gap 断言（已修正，非计划问题）；以 Step 2 完成后的状态复跑通过（14 passed） |
+| 1 | `pyright yate/editor_core/buffer.py` | 0 | 0 errors, 0 warnings |
+| 1 | `python -c "...splitlines()..."` | — | buffer.py 实测 1224 行，已回填 `architecture-boundaries.md` §三.7 |
+| 2 | `pytest tests/test_document_chunked.py tests/test_session.py -q` | 0 | 38 passed |
+| 2 | `pyright yate/flows/chunked_flows.py` | 0 | 0 errors, 0 warnings |
+| 3 | `pytest tests/test_document_chunked.py -q` | 1 → 0 | 首次 1：既有 `test_promote_to_full_restores_editing` 依赖旧缺陷行为（chunked 一律 `read_only=True`，promote 后丢失才可编辑），按 §6.2 偏离 2 做最小适配后通过（14 passed） |
+| 3 | `pyright yate/editor_core/document.py` | 0 | 0 errors, 0 warnings |
+| 4 | `pyright yate/editor_view/hexview.py` | 0 | 0 errors, 0 warnings |
+| 4 | `pytest tests/test_hex_view.py -q` | 0 | 40 passed |
+| 5 | `pytest tests/test_overlay_flows_hex.py tests/test_hex_view.py -q` | 0 | 57 passed |
+| 5 | `pyright yate/flows/overlay_flows.py` | 0 | 0 errors, 0 warnings |
+
+提交（6 个，均只 add 该步涉及文件、未推送）：
+`a62ec80` Step 1 → `b9bd16d` Step 2 → `6a3cd3d` Step 3 →
+`362041a` Step 4 → `1828397` Step 5 → 本条 docs 提交。
+
+### 6.2 偏离计划记录
+
+1. **Step 1 验收命令的中间红状态（计划拆分固有）**：Step 1 删除
+   `filled_rows` 后，Step 1 自身的验收命令
+   `pytest tests/test_document_chunked.py` 必然在
+   `test_chunked_flows_ensure_row_fills_requested_chunk` 上失败——
+   `chunked_flows.ensure_row`（产品代码，属 Step 2 文件）仍引用
+   `buf.filled_rows`，而计划禁止 Step 1 提交触碰它。计划 §七 亦将
+   Step 1-2 列为同一回滚单元。处置：如实记录失败与原因，Step 1 按计划
+   文件清单提交，Step 2 修复后该测试随区间语义重写通过。
+2. **Step 3 适配一处既有测试**：`test_promote_to_full_restores_editing`
+   此前依赖"F2 修复后消失"的行为（chunked 缓冲区固定
+   `read_only=True`，promote 后 read_only 丢失才可 type_char）。按计划
+   "若某步验收命令失败，修复后重跑" 的授权做最小适配：promote 前显式
+   `doc.buffer.read_only = False`（保持该测试原意——验证 promote 恢复
+   可编辑），另按计划新增
+   `test_promote_to_full_preserves_read_only` 锁定 F2。
+3. 其余无偏离：区间表实现（bisect + 平行数组 + 合并）、ensure_row
+   单 chunk 读取、run 聚合语义均按 §四 落地；未触碰非清单文件；
+   未执行计划外测试/门禁（全量门禁由主代理收尾统一执行）。
+
+### 6.3 主代理全量门禁实测数字
+
+- [ ] 待主代理收尾执行后回填（pyright 全量 / pytest 全量 / 架构测试 /
+      覆盖率 `--cov-fail-under=75` / 冒烟场景）。
 
 ## 七、风险与回滚
 
