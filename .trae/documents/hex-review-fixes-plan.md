@@ -73,6 +73,10 @@ major + 2 个 minor findings。本计划是其修复方案与执行记录的唯�
   `tab_width` / `use_spaces`，`read_only` 丢失；
   `yate/flows/document_flows.py:156-158` 的 `_apply_session_readonly`
   只在打开时设置一次，不会重放。
+  **勘误（评审返工，2026-10-26）**：原清单漏掉关键前提——
+  `document.py:118` 的 `open_chunked` 对每个 chunked 文档无条件
+  `read_only = True`（结构性守卫而非用户意图），故 chunked 缓冲的
+  `old.read_only` 恒为 `True`。
 - `yate/editor_view/hexview.py:435-443`：`_format_hex` / `_format_ascii`
   全仓（yate/ + tests/ + tools/）零调用；`:36` 模块级 `log` 零调用。
 - `yate/flows/overlay_flows.py`（`write_hex_edits`）：当前按
@@ -111,8 +115,11 @@ flowchart TD
 
 ### F2：promote 保留 read_only
 
-`promote_to_full` 中随 `tab_width` / `use_spaces` 一并保留
-`buf.read_only = old.read_only`（docstring 同步）。
+> **已废止（评审返工）**：本节原设计（`buf.read_only = old.read_only`）
+> 建立在 "`old.read_only` 代表用户意图" 的错误前提上——`open_chunked`
+> 对每个 chunked 文档无条件置 `read_only = True`（结构性守卫），该写法
+> 会让默认会话的 `:fullload` 永久只读（评审实测 blocker）。替代设计见
+> §九。
 
 ### F4：写回 run 聚合
 
@@ -277,10 +284,12 @@ TOCTOU / conflict 闸门与返回指纹语义不变。
    `tools/smoke_test/harness.py` 对 chunked 文档改为只比对已加载行与磁盘
    字节；其余场景的不变量行为不变，基线不受牵动（chunked 场景无基线
    文件）。修复后全量冒烟 117/117 全绿。
-2. **code-review-expert 判死（零产出）**：spawn 后两轮探活（约 16 分钟）
-   无回信、只读评审无任何落盘产物，按 `subagent-workflow.md` §五.3 判死，
-   未原样重试；评审职责由主代理按剧本兜底完成（逐 diff 对照计划 §四
-   核查实现与测试语义 + 收尾门禁独立复跑，成员自报数字一律未采信）。
+2. **code-review-expert 回报迟到（原"判死"结论更正）**：spawn 后两轮
+   探活约 16 分钟无回信、无落盘产物，主代理按 `subagent-workflow.md`
+   §五.3 预判死并兜底自审——该预判**有误**：评审随后完整送达
+   （REQUEST_CHANGES，1 blocker + 3 minor），且实测发现主代理自审漏掉的
+   F2 blocker（默认会话 `:fullload` 永久只读，见 §9.1）。修复波按 §九
+   返工；教训登记：探活超时先核实成员真实活动状态，勿过早判死。
 
 ## 七、风险与回滚
 
@@ -297,3 +306,71 @@ TOCTOU / conflict 闸门与返回指纹语义不变。
 按 `task-orchestration.md` §二.5 bypass 条款，本方案视为已批准，
 直接进入执行；收尾门禁（pyright + pytest + 架构测试 + 覆盖率 + 冒烟）
 不由本条豁免，主代理亲自跑。
+
+## 九、F2 返工增补（评审 blocker，2026-10-26）
+
+> 无人值守 bypass：本增补由主代理按评审报告落笔并视为已批准。触及
+> 文件超出 §五 独占清单（新增 `document_flows.py` / `editor.py`），
+> 在此显式登记；返工波与 §五 各步相互独立。
+
+### 9.1 根因与裁决
+
+code-review-expert 对修复波的评审（REQUEST_CHANGES）实测发现 blocker：
+`open_chunked`（`document.py:118`）对每个 chunked 文档无条件
+`read_only = True`（结构性守卫，不代表用户意图），因此 §四 F2 原设计
+`buf.read_only = old.read_only` 恒搬 `True`，默认（非 `-R`）会话
+`:fullload` 后缓冲永久只读、`type_char` 抛 `BufferReadOnlyError`，
+与四处契约文本（`document.py:246-253`、`commands.py:287`、
+`yaterc.zh.md:408`、`chunked_flows.py:7-8` 的 "editable" 表述）直接
+冲突；§6.2 偏离 2 对 `test_promote_to_full_restores_editing` 的"适配"
+恰好改写了守住默认路径的唯一用例。主代理独立探针复核确认（promote 后
+`read_only=True`）。
+
+裁决：把"结构性只读"与"用户/会话只读意图"分开——Document 新增
+`read_only_pinned` 显式意图位，`promote_to_full` 以 pin 为准。
+
+### 9.2 设计
+
+- `Document.read_only_pinned: bool = False`（`__init__` 注解属性）：
+  仅由显式意图写位（`-R` 会话只读、`:set readonly=`）维护；
+  `open_chunked` 的结构性置位不触碰 pin。
+- `promote_to_full`：`buf.read_only = self.read_only_pinned`。
+- `_apply_session_readonly`（`document_flows.py:156-158`）：置位时同步
+  `doc.read_only_pinned = True`。
+- `Editor.set_readonly`（`editor.py:1084-1089`）：同步
+  `doc.read_only_pinned = value`。
+- 接受的边界（登记不修）：扩展经 `buf.read_only = ...` 直写不更新 pin
+  （R2 禁拦截赋值；chunked 缓冲 `locked=True` 下直写无实际效果，解锁
+  方向的直写与 pin 默认 False 的行为一致）。`:saveas` 路径对 chunked
+  文档前置拒绝，与 pin 无交互。
+
+### 9.3 步骤与验收
+
+- **Step A（`fix(chunked)`）**：`document.py`（pin 属性 +
+  promote 改读 pin + docstring 更新）、`document_flows.py` /
+  `editor.py`（意图位同步）+ 测试改造——恢复
+  `test_promote_to_full_restores_editing` 原样（删除遮罩行与注释）、
+  `test_promote_to_full_preserves_read_only` 改为显式锁语义
+  （`read_only` 与 pin 同置）、新增
+  `test_fullload_of_default_session_is_editable`（默认路径零遮罩锁）。
+  验收：`pytest tests/test_document_chunked.py -q` exit 0；
+  `pyright yate/editor_core/document.py yate/flows/document_flows.py
+  yate/editor.py` exit 0。
+- **Step B（`fix(buffer)`，评审 minor 收口）**：`_mark_loaded` 拒绝
+  零宽区间（`if end <= start: return`）；`rows_loaded` 读取改在
+  `_fill_lock` 内（锁改 `RLock` 防嵌套死锁），初始化注释改述实际
+  线程模型（全部变更与探测都在事件循环线程，锁为未来离环调用兜底并使
+  区间读相对填充原子）；新增 `test_rows_loaded_bounds` /
+  `test_fill_lines_bridges_and_contains_intervals`（桥接合并与被包含
+  不增宽两条回归锁，放 `tests/test_document_chunked.py`——该文件已有
+  `reportPrivateUsage=false` 头且属 chunked 填充原语语义）。
+  验收：`pytest tests/test_document_chunked.py tests/test_session.py -q`
+  exit 0；`pyright yate/editor_core/buffer.py` exit 0。
+
+### 9.4 风险与回滚
+
+| 风险 | 缓解 | 回滚 |
+|---|---|---|
+| 未来新增意图位调用点漏设 pin | 评审已穷举现有赋值点（9 处），意图位仅 `document_flows.py:157` 与 `editor.py:1087`；本计划即规范，新调用点须同步 pin | `git revert` Step A 提交 |
+| `rows_loaded` 持锁与 `fill_lines` 嵌套死锁 | 锁改 `RLock`，重入安全；评审确认无嵌套调用路径 | `git revert` Step B 提交 |
+| 默认路径回归 | `test_fullload_of_default_session_is_editable` 零遮罩锁定 + 冒烟 `chunkedview` 场景重跑 | 同上 |
