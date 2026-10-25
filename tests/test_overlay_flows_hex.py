@@ -195,6 +195,31 @@ def test_write_hex_bytes_write_failure_reports(
     assert binary.read_bytes() == b"\x00" * 16  # untouched
 
 
+def test_write_hex_edits_coalesces_contiguous_edits(tmp_path: Path) -> None:
+    """Contiguous dirty bytes land in one run; distant edits stay per-run."""
+    binary = tmp_path / "runs.bin"
+    binary.write_bytes(b"\x00" * 128)
+    messages: list[tuple[str, str]] = []
+    flows = _make_flows(
+        _FakeApp(), messages, session=EditorSession(YateConfig())
+    )
+
+    result = flows.write_hex_edits(
+        binary, {0: 0x41, 1: 0x42, 2: 0x43, 100: 0x44},
+        binary.stat().st_mtime, 128,
+    )
+
+    assert result is not None
+    assert messages == []
+    data = binary.read_bytes()
+    assert data[0:3] == b"ABC"
+    assert data[100] == 0x44
+    untouched = bytearray(b"\x00" * 128)
+    untouched[0:3] = b"ABC"
+    untouched[100] = 0x44
+    assert data == bytes(untouched)
+
+
 def test_open_hex_view_pops_when_already_hex_screen(tmp_path: Path) -> None:
     """Calling open_hex_view while a HexScreen is up pops it (toggle-off)."""
     binary = tmp_path / "thing.bin"

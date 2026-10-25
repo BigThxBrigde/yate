@@ -234,15 +234,17 @@ class OverlayFlows:
     def write_hex_edits(
         self, path: Path, edits: dict[int, int], mtime: float, size: int
     ) -> tuple[float, int] | None:
-        """Write dirty hex byte edits back to *path* (in-place, per byte).
+        """Write dirty hex byte edits back to *path* (in-place, coalesced runs).
 
         Gates, in order: the conflict gate refuses while *path* is open in
         the text editor (two writers on one file must not race); the
         TOCTOU gate re-stats and refuses when the file changed on disk
         since the hex view loaded it (mtime + size fingerprint).  The
-        write itself seeks to each dirty offset in an ``r+b`` handle and
-        rewrites exactly that byte -- hex editing cannot insert or delete,
-        so the size never changes.  An empty *edits* map is a no-op that
+        write itself coalesces contiguous dirty offsets into runs and
+        rewrites each run with one seek + one write in an ``r+b`` handle
+        (contiguous runs coalesce so scattered edits cost one write per
+        run, not one per byte) -- hex editing cannot insert or delete, so
+        the size never changes.  An empty *edits* map is a no-op that
         returns the current fingerprint.  Returns the post-write stat
         fingerprint ``(mtime, size)`` on success so the caller can refresh
         its TOCTOU baseline (an immediate second save must not be refused
@@ -262,9 +264,20 @@ class OverlayFlows:
             return None
         try:
             with open(path, "r+b") as f:
-                for offset in sorted(edits):
-                    f.seek(offset)
-                    f.write(bytes((edits[offset],)))
+
+                def write_run(run_start: int, run_end: int) -> None:
+                    f.seek(run_start)
+                    f.write(bytes(edits[o] for o in range(run_start, run_end + 1)))
+
+                offsets = sorted(edits)
+                run_start = run_end = offsets[0]
+                for offset in offsets[1:]:
+                    if offset == run_end + 1:
+                        run_end = offset
+                    else:
+                        write_run(run_start, run_end)
+                        run_start = run_end = offset
+                write_run(run_start, run_end)
         except OSError as exc:
             self._message(f"save failed: {exc}", "warn")
             return None
