@@ -156,7 +156,8 @@ flowchart LR
 | wave-1 | plan-a 核心机件 | `97b13c8` | `test_chunked.py` 12 passed；pyright 0 诊断 |
 | wave-2 | plan-b 文本接入 | `3af0126`（+ 追随修复 `c391a22`） | `test_document_chunked.py` + `test_chunked.py` 23 passed；关键文件 pyright 0 诊断 |
 | wave-2 | plan-c hex 接入 | `fba33c8` | hex 56 passed；pyright 4 文件 0 诊断；全量 pytest 绿；双锚点绿 |
-| wave-3 | plan-d 集成收尾 | （未提交，提交归主代理） | 冒烟 117/117、全量 pytest 绿，见 8.4 |
+| wave-3 | plan-d 集成收尾 | `58da1ea` | 冒烟 117/117、全量 pytest 绿，见 8.4 |
+| wave-3.5 | 评审迭代修复 | `71c1938` | 修复后全量门禁五件套重跑全绿，见 8.5 |
 
 ### 8.2 性能基线实测（验收标准 1/2 对照）
 
@@ -186,7 +187,7 @@ flowchart LR
 ### 8.3 偏离记录
 
 - plan-b：7 条偏离经主代理裁定全部接受；`:saveas` 拒绝分段文档的修复由主代理完成。
-- plan-b 追随修复（plan-d 集成期发现，executor-b 落地 `c391a22`）：后台扫描 worker
+- plan-b 追随修复（plan-d 集成期发现，主代理落地 `c391a22`）：后台扫描 worker
   以同步函数走 Textual async worker 路径，`WorkerError` 被 `exit_on_error=False`
   静默吞掉、扫描从未推进（实测 `line_count` 停在首块）；改 async worker 形态后
   正常。plan-b 单测未覆盖"worker 真实推进 line_count"，由 plan-d 冒烟场景补上。
@@ -209,3 +210,26 @@ flowchart LR
   覆盖率 `--cov-fail-under=75`、冒烟）由主代理收尾亲自执行。
 - 待办遗留（非 blocker/major）：执行者无删除审批权，仓库内未跟踪探针残留
   `_probe_tmp/`、`_probe_chunked_smoke.py` 待清理（TEMP 对照脚本同批）。
+
+### 8.5 评审迭代与终验（主代理，2026-10-25）
+
+code-review-expert 报告 BLOCKED（2 blocker / 9 major / 10 minor，全部带实证）。
+修复 @ `71c1938`（16 文件 +263/-33）：
+
+- **必修已落**：blocker 1（hex 保存后 `clear_edits` 淘汰受影响块，保存立即显示
+  新字节 + 回归锁）；blocker 2（外部截断的无进展扫描标记完成终止 + 回归锁）；
+  major 4（扫描 worker OSError → log + 状态栏提示）；major 5 异常面（`:fullload`
+  catch OSError）；major 6（`open_hex_view` 一字节读探测保留打开期报告、渲染路径
+  OSError 降级空行、保存后立即 refresh）；major 7（`Document.path` setter 同步
+  `chunked.path`）；major 8（关闭分段文档置 `chunked = None` 停扫）；major 10
+  （CR-only 回退用例 spy 断言真实走到分段路径）；major 11（binary LRU 淘汰 /
+  文本缓存命中（底层读盘计数）/ 越界编辑 / 扫描中 promote 提前退出四条回归）；
+  major 3 登记面（模块 docstring + 手册双语声明头部探测限制）。
+- **顺手修**：minor 12 / 14 / 15 / 16 / 20 / 21（死 API、docstring、1 MiB 笔误、
+  `:w` 直接指向 `:fullload`、locked docstring、saveas 拒绝断言强化）。
+- **登记待办（非阻塞）**：`:fullload` worker 化（50 MB 实测 210 ms 可接受）；
+  flows 绕锁读前缀（GIL 下良性，建议快照访问器）；hex 脏字节分桶写回与空 edits
+  两道门；ensure_row 重复 leaf 遍历；引擎层"窗口化水位"增强（见 8.2 口径）。
+- **终验门禁（修复后主代理重跑，全绿）**：pyright 全仓 0 诊断；pytest 全量
+  **3034 passed, 9 skipped**（含架构 37 例）；覆盖率 **91.90%**（门禁 75%）；
+  冒烟 **117/117 scenarios、1410/1410 checks、exit 0**（83.84s）。
