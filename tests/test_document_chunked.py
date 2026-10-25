@@ -4,7 +4,7 @@ Covers the plan-b wiring of :mod:`yate.editor_core.chunked` into
 :class:`~yate.editor_core.document.Document` /
 :class:`~yate.editor_core.buffer.TextBuffer` /
 :class:`~yate.flows.chunked_flows.ChunkedFlows`: locked buffers reject
-every user-facing edit, fills progress the watermark without counting
+every user-facing edit, fills mark loaded intervals without counting
 edits, promotion restores a fully editable buffer and the EditorView render
 path asks the flows for visible rows.
 """
@@ -84,8 +84,8 @@ def test_open_chunked_fills_first_chunk_and_locks(tmp_path: Path) -> None:
     assert doc.buffer.get_text().split("\n")[0] == "line 0"
 
 
-def test_fill_lines_progresses_watermark_without_edits(tmp_path: Path) -> None:
-    """Chunked fills never count as user edits and advance monotonically."""
+def test_fill_lines_marks_intervals_without_counting_edits(tmp_path: Path) -> None:
+    """Chunked fills never count as user edits and mark exactly their rows."""
     path = _write(tmp_path / "big.txt", _lines(200))
     doc = Document.open_chunked(path, chunk_size=64)
     buf = doc.buffer
@@ -95,6 +95,7 @@ def test_fill_lines_progresses_watermark_without_edits(tmp_path: Path) -> None:
         assert not buf.rows_loaded(start, 1)
         buf.fill_lines(start, [f"line {i}" for i in range(start, start + 50)])
         assert buf.rows_loaded(start, 50)
+        assert buf.rows_loaded(0, start + 50)
     assert buf.content_edits == edits
     assert doc.modified is False
     assert buf.get_text() == _lines(200)

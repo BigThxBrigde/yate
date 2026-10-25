@@ -301,7 +301,8 @@ flowchart TD
      评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
      chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked
      写锁卫语句与 chunked 填充原语（fill_lines / rows_loaded /
-     extend_placeholders），维持豁免）、
+     extend_placeholders），维持豁免；hex-review-fixes 波 2026-10-26
+     复测 1224 行（filled_rows 水位线改为 bisect 区间表），维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
      2026-10-20 mdlint 波复测 1590 行；global-review-fixes 波 2026-10-22
      复测 1695 行，新增孤儿英文页清理推导；pr-review 修复波 2026-10-23

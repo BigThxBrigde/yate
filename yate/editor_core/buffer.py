@@ -5,12 +5,14 @@ The buffer is deliberately free of any terminal/UI code.  Positions are
 layer is responsible for turning tabs and wide characters into cells).
 
 Chunked documents carry a *locked* buffer: every user-facing mutation is a
-silent no-op while the content is progressively filled by the chunked
-flows (see :meth:`fill_lines` / :meth:`rows_loaded`).
+silent no-op while the chunked flows fill real content on demand and track
+it as merged loaded-row intervals (see :meth:`fill_lines` /
+:meth:`rows_loaded`).
 """
 
 from __future__ import annotations
 
+import bisect
 import threading
 from dataclasses import dataclass
 
@@ -128,11 +130,15 @@ class TextBuffer:
         # every user-facing mutation is a silent no-op (no exception) --
         # only the chunked fill primitives below may touch the lines.
         self.locked: bool = False
-        # Number of leading rows holding real (non-placeholder) content.
-        # Chunked fills are contiguous from the first placeholder row, so
-        # :meth:`rows_loaded` is a single watermark comparison instead of
-        # a per-row scan.
-        self._filled_rows: int = 0
+        # Loaded-row interval table for chunked documents: parallel arrays
+        # ``[s0, s1, ...)`` / ``[e0, e1, ...)`` of merged, disjoint, ordered
+        # half-open intervals of rows holding real (non-placeholder)
+        # content.  :meth:`rows_loaded` probes them with one bisect
+        # (O(log k)), so a far jump into a chunked document costs a lookup
+        # instead of reading every chunk between the fill watermark and
+        # the target row.
+        self._loaded_starts: list[int] = []
+        self._loaded_ends: list[int] = []
         # Serializes :meth:`fill_lines` / :meth:`extend_placeholders`
         # between the UI thread (on-demand fills) and the background scan
         # worker (placeholder extension).
@@ -198,6 +204,8 @@ class TextBuffer:
         self.cursor = (0, 0)
         self.anchor = None
         self.extra_cursors = []
+        self._loaded_starts.clear()
+        self._loaded_ends.clear()
         self._undo.clear()
         self._redo.clear()
         self._goal_col = None
@@ -226,40 +234,61 @@ class TextBuffer:
     # ``modified`` stays False), but they do bump ``content_version`` so
     # highlight caches re-synchronize.
 
-    @property
-    def filled_rows(self) -> int:
-        """Number of leading rows holding real (non-placeholder) content."""
-        return self._filled_rows
-
     def rows_loaded(self, start: int, count: int) -> bool:
         """Whether every row in ``[start, start + count)`` holds real content.
 
-        Placeholder (empty) rows are unloaded by convention: chunked fills
-        always advance contiguously from the first placeholder row, so the
-        check is a single watermark comparison, not a per-row scan.
+        Loaded rows are tracked as merged, disjoint, ordered intervals (the
+        parallel ``_loaded_starts`` / ``_loaded_ends`` arrays), so the check
+        is a single bisect into the table -- neither a per-row scan nor a
+        walk across the chunks between a fill watermark and *start*.
         """
         if count <= 0:
             return True
-        return start >= 0 and start + count <= self._filled_rows
+        if start < 0:
+            return False
+        index = bisect.bisect_right(self._loaded_starts, start) - 1
+        return index >= 0 and self._loaded_ends[index] >= start + count
+
+    def _mark_loaded(self, start: int, end: int) -> None:
+        """Merge the half-open interval ``[start, end)`` into the loaded table.
+
+        Overlapping or adjacent intervals are folded into one so the table
+        keeps its merged / disjoint / ordered invariant: the insertion
+        point comes from one bisect and the splice touches only the
+        intervals the fill overlaps (O(1) neighbours for chunk fills in
+        practice).  Callers hold :attr:`_fill_lock`.
+        """
+        first = bisect.bisect_right(self._loaded_starts, start) - 1
+        low = first if first >= 0 and self._loaded_ends[first] >= start else first + 1
+        high = low
+        while high < len(self._loaded_starts) and self._loaded_starts[high] <= end:
+            high += 1
+        if high == low:
+            self._loaded_starts.insert(low, start)
+            self._loaded_ends.insert(low, end)
+            return
+        self._loaded_starts[low:high] = [min(start, self._loaded_starts[low])]
+        self._loaded_ends[low:high] = [max(end, self._loaded_ends[high - 1])]
 
     def fill_lines(self, start: int, rows: list[str]) -> None:
-        """Fill the real content *rows* into the placeholder region at *start*.
+        """Fill the real content *rows* into the buffer at *start*.
 
-        Chunked-fill primitive for the chunked flows: *start* must be the
-        first placeholder row (the fill
-        contract is contiguous advancement -- no holes), the line list is
-        extended with placeholder rows when *start + len(rows)* reaches
-        past its end.  Not blocked by :attr:`locked`, no snapshot and no
-        ``content_edits`` bump (this is not a user edit), but
-        ``content_version`` advances so views invalidate their caches.
+        Chunked-fill primitive for the chunked flows.  Rows may land in the
+        middle of the placeholder region (a far jump straight into a chunk
+        the scan has already reached), so there is no contiguous-advancement
+        contract: the line list is extended with placeholder rows when
+        *start + len(rows)* reaches past its end and the filled interval is
+        recorded into the loaded-row table.  Not blocked by
+        :attr:`locked`, no snapshot and no ``content_edits`` bump (this is
+        not a user edit), but ``content_version`` advances so views
+        invalidate their caches.
         """
         with self._fill_lock:
             end = start + len(rows)
             if end > len(self.lines):
                 self.lines.extend([""] * (end - len(self.lines)))
             self.lines[start:end] = rows
-            if start <= self._filled_rows:
-                self._filled_rows = max(self._filled_rows, end)
+            self._mark_loaded(start, end)
             self.content_version += 1
 
     def extend_placeholders(self, count: int) -> None:
@@ -267,8 +296,8 @@ class TextBuffer:
 
         Called by the chunked scan worker so ``line_count`` (and therefore
         the virtual scroll size) tracks the scanned prefix without loading
-        content.  Placeholder rows never advance the
-        :attr:`filled_rows` watermark -- only :meth:`fill_lines` does.
+        content.  Placeholder rows never touch the loaded-row interval
+        table -- only :meth:`fill_lines` does.
         """
         with self._fill_lock:
             if count > 0:
