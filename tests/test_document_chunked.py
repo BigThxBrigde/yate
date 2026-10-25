@@ -38,11 +38,19 @@ def _lines(count: int) -> str:
     return "\n".join(f"line {i}" for i in range(count))
 
 
+def _run_inline(fn: Callable[..., object]) -> object:
+    """Drive a spawned callable inline (awaiting an async worker body)."""
+    result = fn()
+    if asyncio.iscoroutine(result):
+        asyncio.run(result)
+    return result
+
+
 def _stub_flows(doc: Document) -> ChunkedFlows:
     """A ChunkedFlows wired to inert stubs (the scan worker runs inline)."""
 
     def _spawn(fn: Callable[..., object], **kwargs: object) -> object:
-        return fn()
+        return _run_inline(fn)
 
     return ChunkedFlows(
         ensure_view_refresh=lambda: None,
@@ -176,7 +184,7 @@ def test_chunked_flows_promote_to_full_messages(tmp_path: Path) -> None:
     refreshed: list[int] = []
 
     def _spawn(fn: Callable[..., object], **kwargs: object) -> object:
-        return fn()
+        return _run_inline(fn)
 
     plain = Document()
     flows = ChunkedFlows(
@@ -228,5 +236,37 @@ def test_editor_view_ensure_row_called_for_visible_rows(tmp_path: Path) -> None:
             top = view.scroll_offset.y
             assert seen
             assert all(top <= row < top + height for row in seen)
+
+    asyncio.run(scenario())
+
+
+def test_background_scan_advances_line_count(tmp_path: Path) -> None:
+    """The spawned scan worker grows the placeholder rows off-loop."""
+
+    async def scenario() -> None:
+        from conftest import wait_until
+        from yate.config import LargeFileConfig, YateConfig
+
+        target = _write(tmp_path / "big.log", _lines(80_000))
+        config = YateConfig()
+        config.large_file = LargeFileConfig(threshold=64)
+        app = YateApp(target=target, config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            chunked = doc.chunked
+            assert chunked is not None
+            first_chunk_rows = (
+                chunked.chunk_start_rows[1]
+                if len(chunked.chunk_start_rows) > 1
+                else chunked.total_lines
+            )
+            # the scan worker must push the placeholder rows past the first
+            # chunk (the silent-death bug kept line_count frozen there)
+            assert await wait_until(
+                pilot,
+                lambda: doc.buffer.line_count == chunked.row_count(),
+            )
+            assert doc.buffer.line_count > first_chunk_rows
 
     asyncio.run(scenario())

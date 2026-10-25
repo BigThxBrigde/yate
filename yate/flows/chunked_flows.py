@@ -10,13 +10,15 @@ loaded editable buffer via :meth:`promote_to_full`.
 Constructed by the editor with explicit collaborators and callbacks; no
 upward imports and no App handle (architecture-boundaries section 3.8).
 Content is only ever read on the UI thread (:meth:`ensure_row` and the
-synchronous first-chunk fill in :meth:`attach`); the worker thread only
-advances the index and appends placeholder rows, mirroring the threading
+synchronous first-chunk fill in :meth:`attach`); the background scan
+worker advances the index off-loop (``asyncio.to_thread``) and grows the
+placeholder rows on the event loop, mirroring the threading
 discipline of :mod:`yate.editor_core.chunked`.
 """
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from functools import partial
 
@@ -72,7 +74,7 @@ class ChunkedFlows:
             return
         self._scan_started.add(doc.uid)
         self._spawn(
-            partial(self._scan_worker, doc),
+            partial(self._scan_to_completion, doc),
             group="chunked-scan", exclusive=False, exit_on_error=False,
         )
 
@@ -133,18 +135,21 @@ class ChunkedFlows:
             return chunked.chunk_start_rows[1]
         return chunked.total_lines
 
-    def _scan_worker(self, doc: Document) -> None:
-        """Advance the chunk index off-loop and grow the placeholder rows.
+    async def _scan_to_completion(self, doc: Document) -> None:
+        """Advance the chunk index batch by batch until the file is indexed.
 
-        Index-only: no content is read here (memory stays bounded by the
-        on-demand fills); a promotion (:fullload) while scanning stops the
-        loop early.
+        Async worker (the ``open_path_async`` pattern): Textual's
+        ``run_worker`` runs synchronous callables only with ``thread=True``
+        and refuses them otherwise, so the scan runs as a coroutine with the
+        blocking byte scan off-loop via :func:`asyncio.to_thread` while the
+        placeholder growth and the repaint stay on the event loop.  A
+        promotion (:fullload) while scanning stops the loop early.
         """
         chunked = doc.chunked
         if chunked is None:
             return
         buf = doc.buffer
-        while chunked.scan_next_batch():
+        while await asyncio.to_thread(chunked.scan_next_batch):
             if doc.chunked is not chunked:
                 return
             self._extend_placeholders(chunked, buf)
