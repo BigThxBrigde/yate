@@ -88,15 +88,42 @@ flowchart TD
 提交（`git revert` 或重置到该成员提交前），不影响其他成员产物；最终门禁不过则
 整分支不合并。
 
-## 六、执行记录（收尾时回填真实数字与偏离）
+## 六、执行记录（2026-10-26 收尾回填）
 
 | 项 | 计划 | 实际 |
 |---|---|---|
-| Wave a 三成员 | 并行 3 | 待回填 |
-| Wave b 三成员 | 并行 3 | 待回填 |
-| Wave c 三成员 | 并行 3 | 待回填 |
-| Wave d 一成员 | 串行 1 | 待回填 |
-| 门禁 | pyright/pytest/arch/cov=75/smoke | 待回填 |
-| 偏离登记 | — | 待回填 |
+| Wave a 三成员 | 并行 3 | A1（P6+P5+P10a）/A2（P9）/A3（P15+P19+P20）完成；名下测试 129 / 179+3s / 230 passed；提交 50ac47d / 0609b83 / 8d07ad3 |
+| 主代理补丁 | plan-g 契约扩展 | buffer.py 增非消费型 `dirty_range` 只读 peek（38adcd0）；plan-d 只落了消费型 take_dirty_range |
+| Wave b 三成员 | 并行 3 | B1 走**目标方案增量 delta**（未触发回退路线）/B2/B3 完成；名下测试 440+1s / 171 / 81 passed；提交 f80d8d0 / eb6b1cc / 79a970b |
+| Wave c 三成员 | 并行 3 | C1（P4+P7）/C2（P8）/C3（P11）完成；名下测试 119 / 64 / 128 passed；提交 edf79b3 / 57371b7 / 69e7c22 |
+| Wave d 一成员 | 串行 1 | D1（P2 区间 diff）完成；95 passed；提交 022280c |
+| 评审（code-review-expert） | 全部 diff | **0 blocker / 2 major / 5 minor**，结论"需迭代"；P1/P13/P15/P18 独立差分与穷举验证零不一致 |
+| Wave f 迭代 | 并行 3 | F1（M1 删行行号错位修复 + M1 回归用例先红后绿 + F1 名下 pyright 清零）/F2（M2 四个测试文件清零）/F3（m1 用例精确化 + m2 cancel_prompt 挂点 + m3 缓存哨兵）完成；提交 310be7b / 78b4498 / 39f95be |
+| 门禁（主代理亲自） | 五项 | pyright `yate/ tests/ tools/ pack/` **0 诊断**；`pytest tests/ -q -n auto` **3093 passed, 9 skipped**；架构测试 **37 passed**；覆盖率 **92.03%**（门槛 75）；smoke **1407/1407 checks、117/117 scenarios、exit 0** |
+| 偏离登记 | — | 见下"偏离汇总" |
+| m5 行数同步 | — | architecture-boundaries.md §三.7：editor.py 复测 1229、buffer.py 复测 1565（perf-audit-fixes 波） |
 
-批准状态：无人值守模式，方案按 bypassPermissions 视为已批准（2026-10-26）。
+### 偏离汇总（评审 m4 登记缺口，本节即补录）
+
+1. A1：`settle_request` 公开方法化（pyright reportPrivateUsage，语义等价）；
+2. B1：char 合并判定微缩（光标连续性 + 区间重叠）；`commit(before)` 改前缀/后缀扫描；
+   `modified` 在"out-of-band 恢复相同文本"奇异场景判 True（旧 False）；P13 用后缀和
+   + 二分（计划文字为单次线性遍历），复杂度同量级、语义逐分支等价；
+3. B2：P18 对照测试放 `tests/test_project_search.py`（words.py 无专属测试文件）；
+4. C1：合帧断言注点从真实 MouseMove 下沉到 `refresh_ui_soon`（pilot 每事件天然一帧）；
+5. C2：防抖取消挂点等价实现（flow 内 active_mode 早退 + submit/重开时显式取消）——
+   评审 m2 指出仍有 timer 自然到期缺口，已由 F3 在 `Editor.cancel_prompt` 补真挂点；
+6. D1：对照断言改混合对照（`tokenize_line_sync` 与全量后端存在**既有**输出差异，
+   与本次改动无关）；
+7. F1：`take_dirty_range` 契约收紧为"结构性增删行覆盖到末行"，既有用例
+   `(0,1)` 两处断言更新为 `(0,4)`/`(0,3)`；`_scan_row_words` 更名公开
+   `scan_row_words`（docstring 本就自述 test seam）；
+8. F2：test_chrome/whichkey 各一处保留行尾 `# pyright: ignore[reportAttributeAccessIssue]`
+   （测试 spy 固有类型差异，评审剧本批准方向）；test_whichkey_panel 的 `VisualType`
+   从 `textual.visual` 导入（`textual.types` 无此导出）。
+
+### 遗留
+
+- worktree 根存在未跟踪临时文件 `pytest_out.txt`（评审运行期产物，`git clean`
+  受审批流拦截未清理；未跟踪、不参与门禁，可随时手工删除）；
+- 分支 `enh/perf-audit` 未推送（等待用户显式要求）。
