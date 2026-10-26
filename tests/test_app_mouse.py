@@ -89,6 +89,54 @@ def test_mouse_drag_selects_range(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_drag_moves_coalesce_refresh_ui(tmp_path: Path) -> None:
+    """N drag MouseMove events cost far fewer than N full repaints (plan P4).
+
+    MouseFlows routes moves through ``Editor.refresh_ui_soon`` (coalesced
+    via a pending flag + ``call_after_refresh``), so a burst of moves
+    repaints at most once per frame; the interaction endpoints (down/up)
+    still repaint synchronously through the injected ``refresh``.
+    """
+
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor
+            calls: list[int] = []
+            original = editor.refresh_ui
+
+            def counting_refresh() -> None:
+                calls.append(1)
+                original()
+
+            editor.refresh_ui = counting_refresh  # noqa: test seam
+            await pilot.mouse_down(EditorView, offset=(_GUTTER, 0))
+            await pilot.pause()
+            # the pilot awaits between posted mouse events, so each move
+            # lands in its own frame; the burst itself is exercised at the
+            # refresh_ui_soon level: 8 schedules within one frame coalesce
+            # into a single repaint (the exact route MouseFlows._on_move
+            # takes per move).
+            for _ in range(8):
+                editor.refresh_ui_soon()
+            await pilot.pause()
+            await pilot.pause()
+            # 8 schedules in one frame -> one coalesced repaint, not 8
+            assert len(calls) == 1
+            # a real move still flows through refresh_ui_soon and repaints
+            await pilot._post_mouse_events(
+                [MouseMove, MouseUp], widget=EditorView,
+                offset=(_GUTTER + 3, 0), button=1,
+            )
+            await pilot.pause()
+            assert len(calls) >= 2
+            # the selection itself is still correct at drag end
+            assert app.editor.session.buffer.selected_text() == "hel"
+
+    asyncio.run(scenario())
+
+
 def test_mouse_double_click_selects_word(tmp_path: Path) -> None:
     async def scenario() -> None:
         app = _mouse_app(tmp_path)

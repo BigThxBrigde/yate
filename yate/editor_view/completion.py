@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import weakref
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, override
 
@@ -279,31 +280,76 @@ def _words_from_buffer(buf: TextBuffer, exclude_row: int) -> set[str]:
     subtraction).
     """
     words: set[str] = set()
-    for r, row_words in enumerate(_buffer_row_words(buf)):
+    for r, row_words in _buffer_row_words(buf).items():
         if r != exclude_row:
             words |= row_words
     return words
 
 
+@dataclass
+class _RowWords:
+    """Cached per-row word sets of one buffer at one content version.
+
+    ``rows`` maps a row index to its identifier word set; on a version
+    mismatch only the rows inside the buffer's pending dirty range are
+    recomputed and the rest are carried over (plan P7), so an edit on one
+    line no longer re-scans the whole document.
+    """
+
+    content_version: int
+    rows: dict[int, frozenset[str]]
+
+
 #: Per-row word sets cached per buffer (one slot each, weakly keyed).
 #: Scanning every open buffer per keystroke dominated completion latency on
-#: large files; each buffer holds its last computed ``(content_version,
-#: rows)`` pair and a version mismatch triggers a recompute that overwrites
-#: the slot.  The weak key tracks the buffer itself, so a closed buffer's
-#: entry disappears with it and the cache size is naturally bounded by the
-#: number of live buffers.
-_row_word_cache: weakref.WeakKeyDictionary[
-    TextBuffer, tuple[int, list[set[str]]]
-] = weakref.WeakKeyDictionary()
+#: large files; each buffer holds its last computed :class:`_RowWords` and a
+#: version mismatch triggers an incremental (dirty-range limited) recompute
+#: that overwrites the slot.  The weak key tracks the buffer itself, so a
+#: closed buffer's entry disappears with it and the cache size is naturally
+#: bounded by the number of live buffers.
+_row_word_cache: weakref.WeakKeyDictionary[TextBuffer, _RowWords] = (
+    weakref.WeakKeyDictionary()
+)
 
 
-def _buffer_row_words(buf: TextBuffer) -> list[set[str]]:
-    """Per-row identifier words of *buf*, cached per content version."""
+def _scan_row_words(line: str) -> frozenset[str]:
+    """Word set of one line (single scan point, also the test seam)."""
+    return frozenset(_WORD_RE.findall(line))
+
+
+def _buffer_row_words(buf: TextBuffer) -> dict[int, frozenset[str]]:
+    """Per-row identifier words of *buf*, cached per content version.
+
+    A version match returns the cached rows untouched.  Otherwise the
+    buffer's *non-consuming* dirty-range peek
+    (:attr:`TextBuffer.dirty_range`) limits the recompute to the edited
+    rows -- the completion path must never call the consuming
+    ``take_dirty_range``, which is reserved for the highlight diff.
+    Without a pending dirty range (nothing tracked, or already consumed
+    elsewhere) the conservative fallback recomputes every row once.
+    """
     cached = _row_word_cache.get(buf)
-    if cached is not None and cached[0] == buf.content_version:
-        return cached[1]
-    rows = [set(_WORD_RE.findall(line)) for line in buf.lines]
-    _row_word_cache[buf] = (buf.content_version, rows)
+    version = buf.content_version
+    if cached is not None and cached.content_version == version:
+        return cached.rows
+    dirty = buf.dirty_range
+    rows: dict[int, frozenset[str]] = {}
+    if cached is not None and dirty is not None:
+        # Carry over rows outside the dirty range (row indices stay valid:
+        # the dirty range contract covers every structural change).
+        top, bottom = dirty
+        rows = {
+            r: words
+            for r, words in cached.rows.items()
+            if (r < top or r > bottom) and r < len(buf.lines)
+        }
+        for r in range(max(0, top), min(bottom, len(buf.lines) - 1) + 1):
+            rows[r] = _scan_row_words(buf.lines[r])
+    else:
+        rows = {
+            r: _scan_row_words(line) for r, line in enumerate(buf.lines)
+        }
+    _row_word_cache[buf] = _RowWords(version, rows)
     return rows
 
 

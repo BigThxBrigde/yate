@@ -258,6 +258,9 @@ def _build_pane_stack(ed: Editor) -> None:
         keymaps=ed.keymaps,
         config=ed.config,
         refresh=ed.refresh_ui,
+        # Drag moves coalesce through the deferred variant (plan P4); the
+        # down/up/click interaction endpoints keep the synchronous repaint.
+        refresh_soon=ed.refresh_ui_soon,
     )
     ed.prompt_flows = PromptFlows(
         ed.session,
@@ -437,6 +440,8 @@ class Editor:
         self.ext_files = [Path(p) for p in (ext_files or [])]
         self.ext_dirs = [Path(p) for p in (ext_dirs or [])]
         self._mounted = False
+        # Pending flag for refresh_ui_soon (coalesced refresh scheduling).
+        self._refresh_pending = False
         # ``--readonly`` startup flag: only the *file* argument is opened
         # read-only (a directory argument keeps its normal behavior).
         self.startup_readonly = readonly
@@ -717,6 +722,25 @@ class Editor:
         self._refresh_views()
         self._refresh_chrome()
         self._refresh_lsp()
+
+    def refresh_ui_soon(self) -> None:
+        """Coalesce a :meth:`refresh_ui` onto the next refresh cycle.
+
+        High-frequency producers (mouse drag moves fire hundreds of
+        MouseMove per second) schedule through here instead of repainting
+        synchronously: a pending schedule short-circuits, so a burst of N
+        moves costs at most one full repaint per frame.  The flag clears
+        when the scheduled callback runs, re-arming for the next burst.
+        """
+        if self._refresh_pending or not self.mounted:
+            return
+        self._refresh_pending = True
+        self.app.call_after_refresh(self._flush_refresh_soon)
+
+    def _flush_refresh_soon(self) -> None:
+        """Scheduled :meth:`refresh_ui_soon` callback: clear, then repaint."""
+        self._refresh_pending = False
+        self.refresh_ui()
 
     def _refresh_views(self) -> None:
         """Notify all views that the document content has changed."""

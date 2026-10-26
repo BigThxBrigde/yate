@@ -30,10 +30,14 @@ class MouseFlows:
         keymaps: KeymapSet,
         config: YateConfig,
         refresh: Callable[[], None],
+        refresh_soon: Callable[[], None],
     ) -> None:
         self.keymaps = keymaps
         self.config = config
         self._refresh = refresh
+        # Coalesced variant for the high-frequency drag moves (plan P4):
+        # the injected pair keeps the flow module free of any App handle.
+        self._refresh_soon = refresh_soon
         self._dragging: bool = False
 
     def handle_view_mouse(self, view: EditorView, event: MouseEvent) -> bool:
@@ -95,8 +99,10 @@ class MouseFlows:
         pos = view.buffer_pos_from_mouse(event)
         if pos is not None:  # outside the text area: keep the drag alive
             view.buffer.set_cursor(pos, select=True)
+            # Marking the view dirty stays synchronous (cheap); the repaint
+            # itself coalesces to one frame per burst (plan P4).
             view.content_changed()
-            self._refresh()
+            self._refresh_soon()
         return True
 
     def _on_up(self, view: EditorView, event: MouseUp) -> bool:
