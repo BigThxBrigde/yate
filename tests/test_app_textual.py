@@ -253,6 +253,8 @@ def test_readonly_saveas_writes_elsewhere_and_unlocks(tmp_path: Path) -> None:
             # the original file is untouched and the buffer is unlocked now
             assert source.read_text(encoding="utf-8") == "protected"
             assert not app.editor.session.buffer.read_only
+            # the unlock is deliberate persistence: the intent bit follows
+            assert not app.editor.session.doc.read_only_pinned
             # a plain :w now targets the new path, not the source
             await pilot.press("x")
             app.editor.run_command("w")
@@ -297,6 +299,62 @@ def test_saveas_refuses_chunked_document(
             assert reached_save == []
             assert not dest.exists()
             assert app.editor.session.buffer.read_only
+
+    asyncio.run(scenario())
+
+
+def test_fullload_in_readonly_session_stays_read_only(tmp_path: Path) -> None:
+    """A -R session keeps its lock across :fullload (the pin is the intent)."""
+
+    async def scenario() -> None:
+        from yate.config import LargeFileConfig, YateConfig
+
+        source = tmp_path / "big.log"
+        source.write_text(
+            "".join(f"line {i}\n" for i in range(200)), encoding="utf-8"
+        )
+        config = YateConfig()
+        config.large_file = LargeFileConfig(threshold=64)
+        app = YateApp(target=source, config=config, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            assert doc is not None and doc.chunked is not None
+            # the wiring under test: -R records the read-only intent
+            assert doc.read_only_pinned is True
+            app.editor.run_command("fullload")
+            await pilot.pause()
+            assert app.editor.session.doc.chunked is None
+            assert app.editor.session.buffer.read_only
+
+    asyncio.run(scenario())
+
+
+def test_fullload_in_default_session_is_editable(tmp_path: Path) -> None:
+    """A plain session's :fullload yields a writable buffer (command level)."""
+
+    async def scenario() -> None:
+        from yate.config import LargeFileConfig, YateConfig
+
+        source = tmp_path / "big.log"
+        source.write_text(
+            "".join(f"line {i}\n" for i in range(200)), encoding="utf-8"
+        )
+        config = YateConfig()
+        config.large_file = LargeFileConfig(threshold=64)
+        app = YateApp(target=source, config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            assert doc is not None and doc.chunked is not None
+            assert not doc.read_only_pinned
+            app.editor.run_command("fullload")
+            await pilot.pause()
+            assert app.editor.session.doc.chunked is None
+            assert not app.editor.session.buffer.read_only
+            app.editor.session.buffer.move_line_end()
+            app.editor.session.buffer.type_char("!")
+            assert app.editor.session.buffer.lines[0].endswith("!")
 
     asyncio.run(scenario())
 

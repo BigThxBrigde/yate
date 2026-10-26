@@ -110,6 +110,14 @@ def test_rows_loaded_bounds() -> None:
     assert not buf.rows_loaded(2, 1)
 
 
+def test_mark_loaded_rejects_zero_width_interval() -> None:
+    """A zero-width fill marks nothing (``starts[i] < ends[i]`` holds)."""
+    buf = TextBuffer("a\nb")
+    buf.fill_lines(1, [])
+    assert (buf._loaded_starts, buf._loaded_ends) == ([], [])
+    assert not buf.rows_loaded(1, 1)
+
+
 def test_fill_lines_bridges_and_contains_intervals() -> None:
     """A bridging fill merges three intervals; a contained fill is a no-op."""
     buf = TextBuffer("\n" * 30)

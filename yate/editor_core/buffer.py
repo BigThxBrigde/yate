@@ -139,12 +139,12 @@ class TextBuffer:
         # the target row.
         self._loaded_starts: list[int] = []
         self._loaded_ends: list[int] = []
-        # Guards the chunked-fill primitives and the loaded-interval
-        # reads.  Every buffer mutation and every :meth:`rows_loaded`
-        # probe runs on the event loop thread today (the scan worker only
-        # touches the chunked index off-loop); the reentrant lock keeps
-        # that invariant enforceable if a caller ever moves work off-loop
-        # and makes the interval reads atomic with respect to fills.
+        # Guards the loaded-interval table: fills mutate it and
+        # :meth:`rows_loaded` reads it under the same reentrant lock, so a
+        # probe never sees a half-spliced table.  The line list itself is
+        # *not* covered -- every ``lines`` mutation and every render must
+        # stay on the event loop thread (the scan worker only touches the
+        # chunked index off-loop).
         self._fill_lock = threading.RLock()
         self.register: str = ""  # internal yank/clipboard register
         #: Explicit ``"a``-``"z`` registers (vim named registers).  Purely

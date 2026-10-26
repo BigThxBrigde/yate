@@ -462,6 +462,11 @@ class DocumentFlows:
             # once the file is on disk the lift survives, even if the
             # workspace/explorer bookkeeping below were to raise.
             saved = True
+            if locked:
+                # vim ``:sav`` clears 'readonly': the lift survives, so the
+                # intent bit must follow it -- otherwise a later :fullload
+                # would re-lock a document the user deliberately unlocked.
+                doc.read_only_pinned = False
             self.workspace.set_root(path.parent)
             self.explorer_tree.refresh_tree()
             self._message(f"saved {path}", "ok")

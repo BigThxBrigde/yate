@@ -52,7 +52,7 @@ class Document:
         # and :meth:`promote_to_full`.
         self.chunked: ChunkedTextFile | None = chunked
         # Explicit read-only *intent* (``-R`` / ``:set readonly=``).
-        # :meth:`open_chunked` pins the buffer read-only as a structural
+        # :meth:`open_chunked` *forces* the buffer read-only as a structural
         # guard -- placeholder content must never reach the writer -- which
         # is not user intent; :meth:`promote_to_full` restores editability
         # unless this flag says a session lock asked for read-only.
