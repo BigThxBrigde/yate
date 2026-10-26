@@ -175,6 +175,8 @@ def test_readonly_blocks_edits_saves_and_unlocks(tmp_path: Path) -> None:
             await pilot.press("enter")
             await pilot.pause()
             assert not app.editor.session.buffer.read_only
+            # :set readonly= records the intent bit too (Editor.set_readonly)
+            assert not app.editor.session.doc.read_only_pinned
             # the lock glyph is gone once unlocked
             strip = _status_strip(app)
             assert LOCK not in strip
@@ -355,6 +357,26 @@ def test_fullload_in_default_session_is_editable(tmp_path: Path) -> None:
             app.editor.session.buffer.move_line_end()
             app.editor.session.buffer.type_char("!")
             assert app.editor.session.buffer.lines[0].endswith("!")
+
+    asyncio.run(scenario())
+
+
+def test_set_readonly_records_the_intent_pin(tmp_path: Path) -> None:
+    """`:set readonly=` keeps the pin in sync so a later :fullload honours it."""
+
+    async def scenario() -> None:
+        target = tmp_path / "pinned.txt"
+        target.write_text("keep", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            app.editor.run_command("set readonly=true")
+            await pilot.pause()
+            assert doc.read_only_pinned is True
+            app.editor.run_command("set readonly=false")
+            await pilot.pause()
+            assert doc.read_only_pinned is False
 
     asyncio.run(scenario())
 
