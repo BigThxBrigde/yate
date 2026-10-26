@@ -10,17 +10,20 @@ constructed by the editor and never imports upward.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 
 from textual.screen import Screen
 
 from yate.config import YateConfig
+from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.editor_core.document import Document
 from yate.editor_sprites.characters import character_names
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
 from yate.editor_view.find_replace import FindReplaceScreen, RevealFn
+from yate.editor_view.hexview import HexScreen
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.modals import HelpScreen, OutputScreen
 from yate.editor_view.palette import PaletteScreen
@@ -180,6 +183,122 @@ class OverlayFlows:
                 labels=labels,
             )
         )
+
+    def open_hex_view(self, path: Path) -> None:
+        """Open a file in the hex view (editable when the file is writable).
+
+        If a HexScreen is already the top screen, pop it (toggle-off
+        semantics).  The file is opened through a
+        :class:`~yate.editor_core.chunked.ChunkedBinaryFile` -- O(1)
+        construction, no content read, no size cap; unreadable paths are
+        refused on the message line.  The load-time stat fingerprint
+        (mtime + size) rides along inside the source for the write-back
+        TOCTOU check.  A read-only file still opens for browsing but
+        without the writer callback, so ``w`` cannot save it.  No editor
+        document is created for the binary payload.
+        """
+        if isinstance(self._current_screen(), HexScreen):
+            self._pop_screen()
+            return
+        try:
+            stat = path.stat()
+            size = stat.st_size
+            mtime = stat.st_mtime
+        except OSError as exc:
+            self._message(f"cannot stat {path.name}: {exc}", "warn")
+            return
+        try:
+            source = ChunkedBinaryFile(path, size, mtime)
+            if size > 0:
+                # The chunked source does no IO on construction; this probe
+                # keeps the open-time "cannot read" report that the old
+                # one-shot read provided (a vanished/unreadable file would
+                # otherwise surface as raw errors in the render path).
+                source.read(0, 1)
+        except OSError as exc:
+            self._message(f"cannot read {path.name}: {exc}", "warn")
+            return
+        # Read-only boundary: browsing stays available, editing does not
+        # (no writer callback -> ``w`` is refused on the message line).
+        writable = os.access(path, os.W_OK)
+        if not writable:
+            self._message(f"file read-only: {path.name}", "info")
+        if self._mounted():
+            self.push(HexScreen(
+                path,
+                source,
+                message=self._message,
+                write_bytes=self.write_hex_edits if writable else None,
+            ))
+
+    def write_hex_edits(
+        self, path: Path, edits: dict[int, int], mtime: float, size: int
+    ) -> tuple[float, int] | None:
+        """Write dirty hex byte edits back to *path* (in-place, coalesced runs).
+
+        Gates, in order: the conflict gate refuses while *path* is open in
+        the text editor (two writers on one file must not race); the
+        TOCTOU gate re-stats and refuses when the file changed on disk
+        since the hex view loaded it (mtime + size fingerprint).  The
+        write itself coalesces contiguous dirty offsets into runs and
+        rewrites each run with one seek + one write in an ``r+b`` handle
+        (contiguous runs coalesce so scattered edits cost one write per
+        run, not one per byte) -- hex editing cannot insert or delete, so
+        the size never changes.  An empty *edits* map is a no-op that
+        returns the current fingerprint.  Returns the post-write stat
+        fingerprint ``(mtime, size)`` on success so the caller can refresh
+        its TOCTOU baseline (an immediate second save must not be refused
+        by the file's own just-written state); ``None`` when a gate
+        refused or the write failed -- the message line already carries
+        the reason.
+        """
+        if not edits:
+            fresh = path.stat()
+            return (fresh.st_mtime, fresh.st_size)
+        if self.session.is_open(path) is not None:
+            self._message(f"file open in text editor: {path.name}", "warn")
+            return None
+        stat = path.stat()
+        if stat.st_mtime != mtime or stat.st_size != size:
+            self._message(f"file modified externally: {path.name}", "warn")
+            return None
+        try:
+            with open(path, "r+b") as f:
+
+                def write_run(run_start: int, run_end: int) -> None:
+                    f.seek(run_start)
+                    f.write(bytes(edits[o] for o in range(run_start, run_end + 1)))
+
+                offsets = sorted(edits)
+                run_start = run_end = offsets[0]
+                for offset in offsets[1:]:
+                    if offset == run_end + 1:
+                        run_end = offset
+                    else:
+                        write_run(run_start, run_end)
+                        run_start = run_end = offset
+                write_run(run_start, run_end)
+        except OSError as exc:
+            self._message(f"save failed: {exc}", "warn")
+            return None
+        fresh = path.stat()
+        return (fresh.st_mtime, fresh.st_size)
+
+    def toggle_hex_view(self) -> None:
+        """Toggle between text view and hex view for the active document."""
+        if isinstance(self._current_screen(), HexScreen):
+            self._pop_screen()
+            return
+        if not self.session.docs:
+            self._message("no document open", "warn")
+            return
+        doc = self.session.doc
+        # session.doc is a non-optional property (safe after the docs-empty
+        # guard above); the only remaining guard is the unsaved-buffer one.
+        if doc.resolved_path is None:
+            self._message("cannot hex view an unsaved buffer", "warn")
+            return
+        self.open_hex_view(doc.resolved_path)
 
     def open_project_replace(self) -> None:
         """Open the project-wide find & replace overlay (ctrl+h)."""

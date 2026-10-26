@@ -99,6 +99,7 @@ class EditorView(ScrollView, HighlightMixin):
         keymaps: KeymapSet,
         handle_key: Callable[[Key], bool],
         handle_mouse: Callable[[MouseEvent], bool] | None = None,
+        ensure_row: Callable[[int], None] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -107,6 +108,9 @@ class EditorView(ScrollView, HighlightMixin):
         self.session = session
         self.lsp = lsp
         self.keymaps = keymaps
+        #: Render-path hook for chunked documents: called with the buffer
+        #: row about to be painted (``None`` = plain documents, no hook).
+        self._ensure_row = ensure_row
         #: Runs the editor's key dispatch (keymap, completion, terminal, ...);
         #: returns True when the key was consumed.  Named apart from
         #: ``Widget.handle_key`` (Textual's own async hook).
@@ -374,6 +378,10 @@ class EditorView(ScrollView, HighlightMixin):
         # Textual hands us the row relative to the visible widget region;
         # translate it into a buffer row via the scroll offset.
         y += self.scroll_offset.y
+        # Chunked documents: load the owning chunk before the row is read,
+        # so a not-yet-filled row paints real content instead of blank.
+        if self._ensure_row is not None:
+            self._ensure_row(y)
         if y >= buf.line_count:
             fill_line(t.bg)
             return Strip(segments)

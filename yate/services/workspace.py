@@ -387,25 +387,30 @@ class Workspace:
 
     @staticmethod
     def is_text_file(path: Path) -> bool:
-        """Best-effort check that *path* is editable text."""
+        """Best-effort check that *path* is editable text.
+
+        Known suffixes (TEXT_SUFFIXES) and conventional names (dockerfile,
+        ...) are trusted without sniffing.  Every other file (unknown
+        suffix or extension-less) reads the first 2048 bytes: UTF-8
+        decodable + no NUL byte => text.  This prevents unknown-suffix
+        text files from being misclassified as binary.
+        """
         name = path.name.lower()
         if name in ("dockerfile", "makefile", "readme", "license"):
             return True
         if path.suffix.lower() in TEXT_SUFFIXES:
             return True
-        if path.suffix == "":
-            # Extension-less files: sniff the first bytes.
+        # Unknown suffix or extension-less: sniff the first bytes.
+        try:
+            with path.open("rb") as fh:
+                chunk = fh.read(2048)
             try:
-                with path.open("rb") as fh:
-                    chunk = fh.read(2048)
-                try:
-                    chunk.decode("utf-8")
-                except UnicodeDecodeError as exc:
-                    # The 2048-byte cut can land inside a multi-byte UTF-8
-                    # sequence; retry without the truncated tail before
-                    # calling a legitimate (e.g. Chinese) text file binary.
-                    chunk[: exc.start].decode("utf-8")
-                return b"\x00" not in chunk
-            except (OSError, UnicodeDecodeError):
-                return False
-        return False
+                chunk.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                # The 2048-byte cut can land inside a multi-byte UTF-8
+                # sequence; retry without the truncated tail before
+                # calling a legitimate (e.g. Chinese) text file binary.
+                chunk[: exc.start].decode("utf-8")
+            return b"\x00" not in chunk
+        except (OSError, UnicodeDecodeError):
+            return False

@@ -227,6 +227,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="open the diff view instead of the editor: 2 files = two-way, "
              "3 files = three-way (base local remote)",
     )
+    parser.add_argument(
+        "--hex",
+        dest="hex_file",
+        metavar="FILE",
+        help="open a file in hex view (read-only hex dump)",
+    )
     return parser
 
 
@@ -250,6 +256,20 @@ def _validate_diff_args(
             parser.error("--2way requires exactly two files")
     elif args.two_way or args.three_way:
         parser.error("--2way/--3way require --diff")
+
+
+def _validate_hex_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Validate the ``--hex`` combination rules up front.
+
+    ``parser.error`` exits with code 2, like every other argparse rejection.
+    """
+    if args.hex_file:
+        if args.path:
+            parser.error("--hex cannot be combined with a startup path argument")
+        if args.diff_files:
+            parser.error("--hex cannot be combined with --diff")
 
 
 def _manage_extensions(args: argparse.Namespace) -> int:
@@ -301,6 +321,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # --diff validates its own combination rules up front (parser.error exits
     # with code 2, like every other argparse rejection).
     _validate_diff_args(parser, args)
+    _validate_hex_args(parser, args)
 
     # --version prints basic information without loading any configuration
     # or touching the terminal. Handle it first so it stays instant.
@@ -471,6 +492,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         diff_files=[Path(p) for p in args.diff_files]
         if args.diff_files
         else None,
+        hex_file=Path(args.hex_file) if args.hex_file else None,
     )
     app.run()
     return 0

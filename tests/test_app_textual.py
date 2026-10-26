@@ -175,6 +175,8 @@ def test_readonly_blocks_edits_saves_and_unlocks(tmp_path: Path) -> None:
             await pilot.press("enter")
             await pilot.pause()
             assert not app.editor.session.buffer.read_only
+            # :set readonly= records the intent bit too (Editor.set_readonly)
+            assert not app.editor.session.doc.read_only_pinned
             # the lock glyph is gone once unlocked
             strip = _status_strip(app)
             assert LOCK not in strip
@@ -253,12 +255,128 @@ def test_readonly_saveas_writes_elsewhere_and_unlocks(tmp_path: Path) -> None:
             # the original file is untouched and the buffer is unlocked now
             assert source.read_text(encoding="utf-8") == "protected"
             assert not app.editor.session.buffer.read_only
+            # the unlock is deliberate persistence: the intent bit follows
+            assert not app.editor.session.doc.read_only_pinned
             # a plain :w now targets the new path, not the source
             await pilot.press("x")
             app.editor.run_command("w")
             await pilot.pause()
             assert dest.read_text(encoding="utf-8") == "xprotected"
             assert source.read_text(encoding="utf-8") == "protected"
+
+    asyncio.run(scenario())
+
+
+def test_saveas_refuses_chunked_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """:saveas on a chunked document is refused with a :fullload pointer."""
+
+    async def scenario() -> None:
+        from yate.config import LargeFileConfig, YateConfig
+        from yate.editor_core.document import Document
+
+        source = tmp_path / "big.log"
+        source.write_text(
+            "".join(f"line {i}\n" for i in range(200)), encoding="utf-8"
+        )
+        dest = tmp_path / "out.txt"
+        config = YateConfig()
+        config.large_file = LargeFileConfig(threshold=64)
+        reached_save: list[Document] = []
+
+        def spy_save(self: Document, path: Path | None = None) -> Path:
+            reached_save.append(self)
+            return path if path is not None else Path(".")
+
+        monkeypatch.setattr(Document, "save", spy_save)
+        app = YateApp(target=source, config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            assert doc is not None and doc.chunked is not None
+            app.editor.run_command(f"saveas {dest}")
+            await pilot.pause()
+            # the placeholder-bearing viewport never reaches the writer
+            assert reached_save == []
+            assert not dest.exists()
+            assert app.editor.session.buffer.read_only
+
+    asyncio.run(scenario())
+
+
+def test_fullload_in_readonly_session_stays_read_only(tmp_path: Path) -> None:
+    """A -R session keeps its lock across :fullload (the pin is the intent)."""
+
+    async def scenario() -> None:
+        from yate.config import LargeFileConfig, YateConfig
+
+        source = tmp_path / "big.log"
+        source.write_text(
+            "".join(f"line {i}\n" for i in range(200)), encoding="utf-8"
+        )
+        config = YateConfig()
+        config.large_file = LargeFileConfig(threshold=64)
+        app = YateApp(target=source, config=config, readonly=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            assert doc is not None and doc.chunked is not None
+            # the wiring under test: -R records the read-only intent
+            assert doc.read_only_pinned is True
+            app.editor.run_command("fullload")
+            await pilot.pause()
+            assert app.editor.session.doc.chunked is None
+            assert app.editor.session.buffer.read_only
+
+    asyncio.run(scenario())
+
+
+def test_fullload_in_default_session_is_editable(tmp_path: Path) -> None:
+    """A plain session's :fullload yields a writable buffer (command level)."""
+
+    async def scenario() -> None:
+        from yate.config import LargeFileConfig, YateConfig
+
+        source = tmp_path / "big.log"
+        source.write_text(
+            "".join(f"line {i}\n" for i in range(200)), encoding="utf-8"
+        )
+        config = YateConfig()
+        config.large_file = LargeFileConfig(threshold=64)
+        app = YateApp(target=source, config=config)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            assert doc is not None and doc.chunked is not None
+            assert not doc.read_only_pinned
+            app.editor.run_command("fullload")
+            await pilot.pause()
+            assert app.editor.session.doc.chunked is None
+            assert not app.editor.session.buffer.read_only
+            app.editor.session.buffer.move_line_end()
+            app.editor.session.buffer.type_char("!")
+            assert app.editor.session.buffer.lines[0].endswith("!")
+
+    asyncio.run(scenario())
+
+
+def test_set_readonly_records_the_intent_pin(tmp_path: Path) -> None:
+    """`:set readonly=` keeps the pin in sync so a later :fullload honours it."""
+
+    async def scenario() -> None:
+        target = tmp_path / "pinned.txt"
+        target.write_text("keep", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            doc = app.editor.session.doc
+            app.editor.run_command("set readonly=true")
+            await pilot.pause()
+            assert doc.read_only_pinned is True
+            app.editor.run_command("set readonly=false")
+            await pilot.pause()
+            assert doc.read_only_pinned is False
 
     asyncio.run(scenario())
 

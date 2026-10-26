@@ -18,7 +18,8 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`pyth
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
-         lsp_sync.py / prompt_completion.py / mouse_flows.py）/ diagnostics.py /
+         lsp_sync.py / prompt_completion.py / mouse_flows.py / chunked_flows.py）/
+         diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
          见 R14）
 L2 组件：editor_view/*
@@ -53,7 +54,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   **严格向下**；L2→L3 的最后一条例外（statusbar 读取扩展门面）已于 2026-10-20 随
   statusbar 解耦清除（见 R14 条目），`UPWARD_EDGES_FROZEN` 现为**空集**；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
-  的禁线条款与 §六 36 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
+  的禁线条款与 §六 37 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
 
 ```mermaid
@@ -125,7 +126,7 @@ flowchart TD
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
   `overlay_flows.py` / `lsp_sync.py` / `prompt_completion.py` / `mouse_flows.py` /
-  `whichkey_flows.py`；
+  `whichkey_flows.py` / `chunked_flows.py`；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_view`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_view`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对）；
@@ -133,6 +134,8 @@ flowchart TD
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记（键为 `yate/` 下
   相对路径，flows/ 迁移后带 `flows/` 前缀；
   `document_flows.py` 于 editor-split wave-3 登记为 panes/explorer/commandline；
+  `overlay_flows.py` 于 hex-view 波（IKQ2D5）追加 `yate.editor_view.hexview`
+  （二进制文件回退 hex view 打开，DocumentFlows 经回调移交，自身不新增 editor_view 导入）；
   `window_flows.py` 于 wave-4 以同组面登记）。
   `whichkey_flows.py` 于 which-key 任务
   （[which-key-docs-plan-f](../documents/which-key-plans/which-key-docs-plan-f.md)）
@@ -229,6 +232,15 @@ flowchart TD
   `yate/services/yxp.py`（`.yxp` 包装卸逻辑）**不随迁**本子包：它不含扩展运行时耦合，
   归属仍为 `services/`（与 `events.py` / `user_setup.py` 同理）。
   **守卫**：§六「R14」条目（两条用例：直引拦截（零例外）+ 门面 14 名冻结）。
+- **R15 — 滚动条与弹窗主题一致（2026-10-24，hex-enh wave-1，issue IKINF3）**：
+  所有可滚动组件（`ScrollView` / `VerticalScroll` / `HorizontalScroll` /
+  `ScrollableContainer` / `Tree` / `RichLog` / `ListView` 子类，含弹窗 `Screen`
+  内的滚动容器）必须在挂载时调 `apply_slim_scrollbars`、在主题绘制路径调
+  `apply_scrollbar_theme`（均出自 `editor_view/scrollbars.py`），与 explorer
+  滚动条（IKINF3 细滑块 + 主题调色板）保持视觉一致。
+  **守卫**：§六 #37 `test_scrollable_widgets_apply_theme_scrollbar_pair`
+  （AST 动态扫描 `yate/editor_view/*.py`：定义了基类命中 `SCROLLABLE_BASES`
+  的类的模块必须同时出现两调用；豁免集 `SCROLLBAR_EXEMPT` 初始为空）。
 
 ## 二、分层职责
 
@@ -237,7 +249,7 @@ flowchart TD
 | `YateApp`（L4） | Textual 生命周期、`CSS`（装载 `yate/resources/app.tcss`）、主题桥（`get_theme_variable_defaults` / `theme.*` 注册）、驱动选择（`get_driver_class`）、事件转发与空闲探测（`on_event`）、装载内置表 | 不持有业务状态、不实现业务操作（屏保只由外壳"轮询 + 触发 action"，画面与精灵渲染分别归 `editor_view/screensaver.py` 与 `editor_sprites/*`） |
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
 | 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`flows/completion_flows.py`、`flows/prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
-| `editor_view/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
+| `editor_view/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），自持滚动条主题（R15），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
 | `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合（`keymaps/` 除 L0 记法 `keys.py` 外整体在本层）、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_view`、不碰 Textual |
 | 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、屏保精灵数据与纯渲染 `editor_sprites/*`、配置、日志、路径、shell、workspace、字体、空闲跟踪 `services/idle_tracker.py`、dist 元数据 `dist_meta.py`、键位记法 `keymaps/keys.py`） | 不 import 上层（2026-10-17 切分后：零例外） |
 
@@ -282,9 +294,15 @@ flowchart TD
      global-review-fixes 波 2026-10-22 复测 1136 行；
      pr-review 修复波 2026-10-23 复测 1141 行，
      构成职责随调度层操作增长，维持豁免，
+     chunked-loading-text-plan-b 波 2026-10-25 复测 1193 行，
+     新增 ChunkedFlows 组装与 ensure_row 渲染接线，维持豁免，
      已登记为下一个 big-module-split 候选）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
-     评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免）、
+     评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
+     chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked
+     写锁卫语句与 chunked 填充原语（fill_lines / rows_loaded /
+     extend_placeholders），维持豁免；hex-review-fixes 波 2026-10-26
+     复测 1224 行（filled_rows 水位线改为 bisect 区间表），维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
      2026-10-20 mdlint 波复测 1590 行；global-review-fixes 波 2026-10-22
      复测 1695 行，新增孤儿英文页清理推导；pr-review 修复波 2026-10-23
@@ -374,12 +392,14 @@ flowchart TD
 - [ ] 主题与滚动条归组件自持（R13）：没有在 L3 直改 widget `.styles.*` 着色、
       没有类级 `ScrollBar.renderer` patch、新主题感知组件已订阅
       `theme.subscribe` 自行上色？
+- [ ] 新可滚动组件已调 `apply_slim_scrollbars` + `apply_scrollbar_theme`（R15）？
 - [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q -n auto` 全绿？
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **36 个用例**（2026-10-21 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `36 passed`；2026-10-18 为 35：
+`tests/test_architecture.py` 已落地 **37 个用例**（2026-10-24 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `37 passed`，新增 R15 可滚动组件
+滚动条接线守卫一条；2026-10-21 为 36，2026-10-18 为 35：
 新增非 ASCII 注释 / `print()` 调试 / 本机家目录路径守卫三条，此前 2026-10-17 为 32；
 用例清单见文末对照）：
 
@@ -400,7 +420,8 @@ flowchart TD
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_view/` 只 import、不再重导出
   （`editor_view/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
-- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` / `flows/mouse_flows.py`
+- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` / `flows/mouse_flows.py` /
+  `flows/chunked_flows.py`
   不向上依赖，`editor_view` 导入必须落在冻结集合内；
 - **support_mouse 闸门**（issue IKJRFK，2026-10-08 新增）：
   `test_support_mouse_gate_lives_in_app_on_event` 文本断言闸门（`support_mouse` 判定）
@@ -494,8 +515,8 @@ flowchart TD
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**36 个用例逐条对照**（2026-10-21 实测 `36 passed`；2026-10-18 为 `35 passed`，
-2026-10-17 为 `32 passed`）：
+**37 个用例逐条对照**（2026-10-24 实测 `37 passed`；2026-10-21 为 `36 passed`，
+2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -535,6 +556,7 @@ flowchart TD
 | 34 | `test_comments_and_docstrings_stay_ascii` | 代码注释 ASCII 纪律（misc-rules §四：拒 CJK / 全角 / 排版符号，字符串字面量放行；存量 6 处引述型命中登记 `NON_ASCII_COMMENT_EXEMPT`） |
 | 35 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
 | 36 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
+| 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 扫 `yate/editor_view/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

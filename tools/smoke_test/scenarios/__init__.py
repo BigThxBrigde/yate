@@ -11,12 +11,14 @@ from __future__ import annotations
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import goto, run_command, type_text, wait_until
 from tools.smoke_test.scenarios.aliases import SCENARIOS as _ALIASES
+from tools.smoke_test.scenarios.chunkedview import SCENARIOS as _CHUNKEDVIEW
 from tools.smoke_test.scenarios.core import SCENARIOS as _CORE
 from tools.smoke_test.scenarios.diffview import SCENARIOS as _DIFFVIEW
 from tools.smoke_test.scenarios.edit import SCENARIOS as _EDIT
 from tools.smoke_test.scenarios.explorer import SCENARIOS as _EXPLORER
 from tools.smoke_test.scenarios.files import SCENARIOS as _FILES
 from tools.smoke_test.scenarios.guards import SCENARIOS as _GUARDS
+from tools.smoke_test.scenarios.hexview import SCENARIOS as _HEXVIEW
 from tools.smoke_test.scenarios.integration import SCENARIOS as _INTEGRATION
 from tools.smoke_test.scenarios.modules import SCENARIOS as _MODULES
 from tools.smoke_test.scenarios.multi_cursor import SCENARIOS as _MULTI_CURSOR
@@ -56,7 +58,9 @@ SCENARIOS: list[Scenario] = [
     *_EXPLORER,
     *_WORKSPACE_NAV,
     *_VIEW,
+    *_CHUNKEDVIEW,
     *_DIFFVIEW,
+    *_HEXVIEW,
     *_INTEGRATION,
     *_MODULES,
     *_REGRESSION,

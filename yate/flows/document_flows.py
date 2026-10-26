@@ -66,6 +66,7 @@ class DocumentFlows:
         mounted: StateQuery,
         reveal_explorer: Callable[[], None],
         startup_readonly: bool,
+        open_hex_view: Callable[[Path], None] | None = None,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
@@ -82,6 +83,23 @@ class DocumentFlows:
         self._mounted = mounted
         self._reveal_explorer = reveal_explorer
         self.startup_readonly = startup_readonly
+        #: Overlay-flow hex opener; ``None`` until :meth:`bind_hex_opener`
+        #: (the overlays are built after this module -- see the module
+        #: docstring's construction-order note).
+        self._open_hex_view: Callable[[Path], None] | None = open_hex_view
+        #: Binary startup target seen before the opener was bound; flushed
+        #: post-mount via :meth:`take_pending_hex` (Editor.on_mount tail).
+        self._pending_hex_path: Path | None = None
+
+    def bind_hex_opener(self, opener: Callable[[Path], None]) -> None:
+        """Bind the overlay-flow hex opener (overlays are built later)."""
+        self._open_hex_view = opener
+
+    def take_pending_hex(self) -> Path | None:
+        """Return and clear the deferred binary startup target (post-mount)."""
+        pending = self._pending_hex_path
+        self._pending_hex_path = None
+        return pending
 
     def attach_pane_stack(
         self, panes: PaneManager, completion: CompletionFlows
@@ -137,6 +155,7 @@ class DocumentFlows:
         """
         if doc is not None and self.startup_readonly:
             doc.buffer.read_only = True
+            doc.read_only_pinned = True
             log.info("opened read-only: %s", doc.path)
 
     # =============================================================== documents
@@ -180,7 +199,12 @@ class DocumentFlows:
             log.warning("open failed: %s (%s)", path, exc)
             return None
         if doc is None:
-            self._report(f"not a text file: {path.name}", "warn")
+            if self._open_hex_view is not None:
+                self._open_hex_view(path)
+            else:
+                # Overlays not yet built (startup target): defer to the
+                # post-mount flush (Editor.on_mount tail).
+                self._pending_hex_path = path
             log.info("open skipped (binary): %s", path)
             return None
         if not reused:
@@ -204,7 +228,12 @@ class DocumentFlows:
             log.warning("open failed (async): %s (%s)", path, exc)
             return None
         if doc is None:
-            self._report(f"not a text file: {path.name}", "warn")
+            if self._open_hex_view is not None:
+                self._open_hex_view(path)
+            else:
+                # Overlays not yet built (startup target): defer to the
+                # post-mount flush (Editor.on_mount tail).
+                self._pending_hex_path = path
             return None
         if not reused:
             self._apply_session_readonly(doc)
@@ -344,6 +373,14 @@ class DocumentFlows:
     def save_document(self) -> None:
         """``:w``: write the active document to disk."""
         doc = self.session.doc
+        if doc.chunked is not None:
+            # Distinct from the read-only notice below: ``:saveas`` (which
+            # that message points at) refuses chunked documents too, so a
+            # chunked buffer must be pointed at ``:fullload`` instead.
+            self._message(
+                "chunked document is read-only: run :fullload first", "warn"
+            )
+            return
         if doc.buffer.read_only:
             self._message(
                 "cannot save a read-only buffer; use :saveas to write elsewhere",
@@ -400,7 +437,17 @@ class DocumentFlows:
         if not text:
             self._message("save cancelled", "info")
             return
-        buf = self.session.doc.buffer
+        doc = self.session.doc
+        if doc.chunked is not None:
+            # A chunked document is a read-only viewport over partially
+            # loaded content: writing it out would persist placeholder rows
+            # for every not-yet-loaded chunk.  The sanctioned path is
+            # ``:fullload`` first, then ``:saveas``.
+            self._message(
+                "chunked document is read-only: run :fullload first", "warn"
+            )
+            return
+        buf = doc.buffer
         locked = buf.read_only
         if locked:
             # ``:saveas`` is deliberate persistence: lift the flag so the
@@ -415,6 +462,11 @@ class DocumentFlows:
             # once the file is on disk the lift survives, even if the
             # workspace/explorer bookkeeping below were to raise.
             saved = True
+            if locked:
+                # vim ``:sav`` clears 'readonly': the lift survives, so the
+                # intent bit must follow it -- otherwise a later :fullload
+                # would re-lock a document the user deliberately unlocked.
+                doc.read_only_pinned = False
             self.workspace.set_root(path.parent)
             self.explorer_tree.refresh_tree()
             self._message(f"saved {path}", "ok")

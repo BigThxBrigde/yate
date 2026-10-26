@@ -483,11 +483,17 @@ def test_is_text_file_sniffs_extension_less_files(tmp_path: Path) -> None:
     assert not Workspace.is_text_file(blob)
 
 
-def test_is_text_file_rejects_unknown_suffixes(tmp_path: Path) -> None:
-    """A suffix outside the text list is not editable."""
-    unknown = tmp_path / "thing.weird"
-    unknown.write_text("x\n", encoding="utf-8")
-    assert not Workspace.is_text_file(unknown)
+def test_is_text_file_sniffs_unknown_suffixes(tmp_path: Path) -> None:
+    """An unknown suffix falls back to content sniffing."""
+    # Text content => accepted
+    unknown_text = tmp_path / "thing.weird"
+    unknown_text.write_text("hello\n", encoding="utf-8")
+    assert Workspace.is_text_file(unknown_text)
+
+    # Binary content => rejected
+    unknown_bin = tmp_path / "thing.weird2"
+    unknown_bin.write_bytes(b"\xff\xfe\x00binary")
+    assert not Workspace.is_text_file(unknown_bin)
 
 
 # --- traversal robustness (S11: iteration instead of recursion) --------------

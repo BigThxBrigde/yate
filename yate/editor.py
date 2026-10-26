@@ -48,6 +48,7 @@ from yate.editor_view.panes import PaneHost, PaneManager
 from yate.editor_view.statusbar import StatusBar, mode_chip
 from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
 from yate.editor_view.whichkey import EditorColumn, WhichKeyPanel
+from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
@@ -92,7 +93,19 @@ def _build_models(ed: Editor, keymap: str | None) -> None:
     the half-built state is never observed.
     """
     ed.session = EditorSession(
-        ed.config, on_closed=lambda docs: ed.documents_closed(docs)
+        ed.config,
+        on_closed=lambda docs: ed.documents_closed(docs),
+        on_opened=lambda doc: ed.chunked_flows.attach(doc),
+    )
+    # Chunked loading flows: built with the models so the session's
+    # on_opened hook (firing for the startup document during
+    # _open_startup_target) already finds them.
+    ed.chunked_flows = ChunkedFlows(
+        ensure_view_refresh=ed.refresh_ui,
+        message=ed.message,
+        spawn=ed.app.run_worker,
+        active_doc=lambda: ed.session.doc,
+        mounted=lambda: ed.mounted,
     )
     ed.workspace = Workspace()
     # propagate the yaterc show_hidden default to the workspace
@@ -199,6 +212,7 @@ def _build_widgets(ed: Editor) -> None:
         mounted=lambda: ed.mounted,
         reveal_explorer=ed.reveal_explorer,
         startup_readonly=ed.startup_readonly,
+        open_hex_view=None,  # Bound late in _build_pane_stack (overlays not yet built)
     )
     ed.tabbar = TabBar(ed.session, ed.document_flows.activate_doc, id="tabbar")
     # The explorer is built before the flows; its open callback (fire only
@@ -276,6 +290,10 @@ def _build_pane_stack(ed: Editor) -> None:
         run_command=ed.run_command,
         refresh=ed.refresh_ui,
     )
+    # The hex opener rides DocumentFlows' binary-open branch; the overlays
+    # exist only from the line above, so the callback is bound here (the
+    # DocumentFlows construction happened earlier, without it).
+    ed.document_flows.bind_hex_opener(ed.overlays.open_hex_view)
     ed.lsp_sync = LspSync(
         spawn=ed.app.run_worker,
         lsp=ed.lsp,
@@ -401,6 +419,7 @@ class Editor:
     window_flows: WindowFlows
     extension_flows: ExtensionFlows
     mouse_flows: MouseFlows
+    chunked_flows: ChunkedFlows
 
     def __init__(
         self,
@@ -424,7 +443,9 @@ class Editor:
         self._ext_messages: list[str] = [
             f"yaterc: {err}" for err in self.config.errors
         ]
-        # Assembly order: whichkey needs keymaps / window_flows /
+        # Assembly order: chunked_flows is built with the models (the
+        # session's on_opened attach hook fires for the startup document
+        # in _open_startup_target); whichkey needs keymaps / window_flows /
         # which_key_panel ready; the window chord observer is bound right
         # after WhichKeyFlows exists (see _build_pane_stack).
         _build_models(self, keymap)
@@ -540,7 +561,22 @@ class Editor:
             keymaps=self.keymaps,
             handle_key=self.handle_key,
             handle_mouse=partial(self._on_view_mouse, leaf_id),
+            ensure_row=partial(self._ensure_chunked_row, leaf_id),
         )
+
+    def _ensure_chunked_row(self, leaf_id: int, row: int) -> None:
+        """Route a rendered row of leaf *leaf_id* to the chunked flows.
+
+        Installed as every view's ``ensure_row`` callback; a no-op unless
+        the leaf's document is a chunked one (the O(1) document check keeps
+        the per-row render cost flat for plain documents).
+        """
+        leaf = self.panes.leaf_for(leaf_id)
+        if leaf is None:
+            return
+        doc = leaf.doc
+        if doc.chunked is not None:
+            self.chunked_flows.ensure_row(doc, row)
 
     def compose(self) -> ComposeResult:
         """The widget tree the application mounts."""
@@ -582,6 +618,13 @@ class Editor:
         if view is not None:
             view.focus()
 
+        # Chunked documents opened before mount (the startup target) start
+        # their background scan workers here; post-mount opens spawn from
+        # ChunkedFlows.attach directly.
+        for opened in self.session.docs:
+            if opened.chunked is not None:
+                self.chunked_flows.start_scan(opened)
+
         if self._ext_messages:
             self.prompt_bar.write("; ".join(self._ext_messages), kind="warn")
         elif self.keymaps.name == "vim":
@@ -592,6 +635,15 @@ class Editor:
                 "Alt+Shift+P command palette"
             )
         self.refresh_ui()
+        # A binary startup target opened before the overlays existed defers
+        # to here (take_pending_hex); call_after_refresh lets the base
+        # screen finish its first layout pass before the modal screen is
+        # pushed (same safety layer as the --diff handoff in app.on_mount).
+        pending_hex = self.document_flows.take_pending_hex()
+        if pending_hex is not None:
+            self.app.call_after_refresh(
+                self.overlays.open_hex_view, pending_hex
+            )
 
     async def on_unmount(self) -> None:
         """Tear the extension hooks, terminal and LSP services down in order."""
@@ -1030,9 +1082,15 @@ class Editor:
         self.message(f"theme: {selected.label}", kind="ok")
 
     def set_readonly(self, value: bool) -> None:
-        """Set the active buffer's read-only flag (``:set readonly=``)."""
-        buf = self.session.doc.buffer
-        buf.read_only = value
+        """Set the active buffer's read-only flag (``:set readonly=``).
+
+        The value is also recorded on the document as the explicit
+        read-only intent (:attr:`Document.read_only_pinned`), so a later
+        ``:fullload`` promotion keeps it.
+        """
+        doc = self.session.doc
+        doc.buffer.read_only = value
+        doc.read_only_pinned = value
         self.message(f"readonly: {'on' if value else 'off'}", kind="ok")
         self.refresh_ui()
 

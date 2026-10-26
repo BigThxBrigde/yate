@@ -93,6 +93,7 @@ class YateApp(App[None]):
         ext_files: list[str | Path] | None = None,
         ext_dirs: list[str | Path] | None = None,
         diff_files: list[Path] | None = None,
+        hex_file: Path | None = None,
     ) -> None:
         # self.config must exist before super().__init__(): App.__init__
         # resolves the driver class, which consults config.key_protocol.
@@ -169,6 +170,9 @@ class YateApp(App[None]):
         # CLI --diff request: handed to the overlay flow once mounted.  The
         # 2way/3way mode is derived from the file count by open_diff itself.
         self._diff_files = diff_files
+        # CLI --hex request: handed to the overlay flow once mounted (same
+        # deferred-handoff shape as --diff).
+        self._hex_file = hex_file
 
     @override
     def compose(self) -> ComposeResult:
@@ -211,6 +215,12 @@ class YateApp(App[None]):
             # safety as the poll_idle screen-type check).
             self.call_after_refresh(
                 self.editor.overlays.open_diff, self._diff_files
+            )
+        # CLI --hex request: same deferred-handoff shape as --diff, so the
+        # modal screen is pushed only after the base screen has laid out.
+        if self._hex_file:
+            self.call_after_refresh(
+                self.editor.overlays.open_hex_view, self._hex_file
             )
 
     async def on_unmount(self) -> None:

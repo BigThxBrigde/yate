@@ -74,6 +74,7 @@ vim 的 `~/.vimrc` → `./.vimrc` 规则一致）：
 | `language_servers` | `list[dict]` | 无 | 见[下文](#声明式语言服务器language_servers) | 声明式注册 LSP 语言服务器；打开匹配文件时自动激活，无需写扩展 |
 | `screen_saver` | `dict` | 见[下文](#空闲屏保screen_saver) | 含 `enable` / `interval` / `switch` / `dist_*_bound` / `characters` 键的 dict | 空闲屏保设置，见[下文](#空闲屏保screen_saver) |
 | `file_preview` | `dict` | 见[下文](#文件预览file_preview) | 含 `enable` / `position` / `size` / `max_lines` / `max_size` 键的 dict | Ctrl+P 快速打开的文件预览设置，见[下文](#文件预览file_preview) |
+| `large_file` | `dict` | 见[下文](#大文件large_file) | 含 `threshold` 键的 dict | 超大文件分段（渐进）加载设置，见[下文](#大文件large_file) |
 | `yate_trace` | `bool` | `False` | `True` / `False` | 运行日志开关（默认关闭）；开启后写入 `~/.yate/data/logs/`，见[下文](#运行日志yate_trace) |
 | `yate_trace_level` | `str` | `"DEBUG"` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`（大小写不敏感） | 运行日志等级，与 Python `logging` 内置等级一致 |
 
@@ -398,6 +399,32 @@ file_preview = {
 
 缺键保默认；类型错误的键单独报错并保默认，其余键仍然生效；后加载的
 合法声明整体替换前值。
+
+## 大文件（`large_file`）
+
+超过 `threshold` 的文件以**分段（chunked）文档**打开：首屏只读首块即可
+呈现，其余内容随滚动/跳转按需加载（后台扫描建立行索引，行号与滚动条
+始终精确）。分段文档只读：输入、`:w`、`:saveas` 一律拒绝，占位行不会
+触达写入器。`:fullload` 把当前文档升级为全量可编辑缓冲——整个文件读入
+内存，以内存换编辑能力，由用户显式选择。无法按块对齐的文件（仅 `\r`
+行尾）自动回退全量加载。编码探测只看文件头部：文件后段的编码若与前段
+不同（如大部分 ASCII 的日志里混有少量旧编码行），后文可能显示替换字符，
+`:fullload` 可按全文件重新解码。hex 视图共用同一分块加载层且不再有大小上限：
+原先 100 MB 一次性整读上限已移除，任意大二进制均可打开（保存只把编辑
+过的脏字节就地写回）。
+
+```python
+large_file = {
+    "threshold": 8388608,  # 字节；0 禁用分段加载
+}
+```
+
+| 键 | 类型 | 默认 | 含义 |
+|---|---|---|---|
+| `threshold` | `int`，`0` 或 `1048576`–`1073741824` | `8388608` | 超过该字节数（8 MiB）的文件走分段打开。`0` 彻底禁用分段加载；其余合法值须在 1 MiB 与 1 GiB 之间。启动期生效（非 `:set` 选项）。 |
+
+缺键保默认；类型错误或越界的值报错并保默认；后加载的合法声明整体替换
+前值。
 
 ## 命令行交互
 

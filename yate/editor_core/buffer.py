@@ -3,10 +3,17 @@
 The buffer is deliberately free of any terminal/UI code.  Positions are
 ``(row, col)`` tuples where *col* is a character index on the row (the view
 layer is responsible for turning tabs and wide characters into cells).
+
+Chunked documents carry a *locked* buffer: every user-facing mutation is a
+silent no-op while the chunked flows fill real content on demand and track
+it as merged loaded-row intervals (see :meth:`fill_lines` /
+:meth:`rows_loaded`).
 """
 
 from __future__ import annotations
 
+import bisect
+import threading
 from dataclasses import dataclass
 
 from yate.editor_core.indentation import (
@@ -84,7 +91,17 @@ def _remap_after_insert(new_pos: dict[Pos, Pos], pos: Pos, parts: list[str]) -> 
 
 
 class TextBuffer:
-    """A mutable, undoable multi-line text buffer."""
+    """A mutable, undoable multi-line text buffer.
+
+    A *locked* buffer (``locked = True``) is the structural write lock for
+    chunked read-only documents: user-facing mutations return silently
+    without touching lines or cursors, while the chunked flows fill real
+    content through :meth:`fill_lines` / :meth:`extend_placeholders`
+    (which ignore the lock).  The one exception is :meth:`paste`, which
+    raises through the read-only guard instead -- for a chunked document
+    (always ``read_only`` too) the effect for the user is the same: the
+    mutation is refused either way.
+    """
 
     def __init__(
         self,
@@ -109,6 +126,26 @@ class TextBuffer:
         # cursor/selection movement stays allowed (browsing a read-only
         # buffer must keep working).
         self.read_only = read_only
+        # Structural write lock for chunked read-only documents: when True
+        # every user-facing mutation is a silent no-op (no exception) --
+        # only the chunked fill primitives below may touch the lines.
+        self.locked: bool = False
+        # Loaded-row interval table for chunked documents: parallel arrays
+        # ``[s0, s1, ...)`` / ``[e0, e1, ...)`` of merged, disjoint, ordered
+        # half-open intervals of rows holding real (non-placeholder)
+        # content.  :meth:`rows_loaded` probes them with one bisect
+        # (O(log k)), so a far jump into a chunked document costs a lookup
+        # instead of reading every chunk between the fill watermark and
+        # the target row.
+        self._loaded_starts: list[int] = []
+        self._loaded_ends: list[int] = []
+        # Guards the loaded-interval table: fills mutate it and
+        # :meth:`rows_loaded` reads it under the same reentrant lock, so a
+        # probe never sees a half-spliced table.  The line list itself is
+        # *not* covered -- every ``lines`` mutation and every render must
+        # stay on the event loop thread (the scan worker only touches the
+        # chunked index off-loop).
+        self._fill_lock = threading.RLock()
         self.register: str = ""  # internal yank/clipboard register
         #: Explicit ``"a``-``"z`` registers (vim named registers).  Purely
         #: internal storage -- they never mirror the system clipboard.
@@ -163,11 +200,15 @@ class TextBuffer:
 
     def set_text(self, text: str) -> None:
         """Replace the whole content, resetting cursor, selection and history."""
+        if self.locked:
+            return
         self._ensure_writable()
         self.lines = text.split("\n") if text else [""]
         self.cursor = (0, 0)
         self.anchor = None
         self.extra_cursors = []
+        self._loaded_starts.clear()
+        self._loaded_ends.clear()
         self._undo.clear()
         self._redo.clear()
         self._goal_col = None
@@ -188,6 +229,90 @@ class TextBuffer:
         self._goal_col = None
         self.content_version += 1
         self.content_edits += 1
+
+    # ------------------------------------------------------------ chunked fill
+    #
+    # Structural fill primitives for chunked documents: they ignore the
+    # ``locked`` flag, never snapshot and never count a user edit (so
+    # ``modified`` stays False), but they do bump ``content_version`` so
+    # highlight caches re-synchronize.
+
+    def rows_loaded(self, start: int, count: int) -> bool:
+        """Whether every row in ``[start, start + count)`` holds real content.
+
+        Loaded rows are tracked as merged, disjoint, ordered intervals (the
+        parallel ``_loaded_starts`` / ``_loaded_ends`` arrays), so the check
+        is a single bisect into the table -- neither a per-row scan nor a
+        walk across the chunks between a fill watermark and *start*.  Reads
+        take :attr:`_fill_lock` so a probe is atomic with respect to
+        concurrent fills.
+        """
+        with self._fill_lock:
+            if count <= 0:
+                return True
+            if start < 0:
+                return False
+            index = bisect.bisect_right(self._loaded_starts, start) - 1
+            return index >= 0 and self._loaded_ends[index] >= start + count
+
+    def _mark_loaded(self, start: int, end: int) -> None:
+        """Merge the half-open interval ``[start, end)`` into the loaded table.
+
+        Overlapping or adjacent intervals are folded into one so the table
+        keeps its merged / disjoint / ordered invariant: the insertion
+        point comes from one bisect and the splice touches only the
+        intervals the fill overlaps (O(1) neighbours for chunk fills in
+        practice).  Zero-width intervals (``end <= start``) are rejected so
+        the ``starts[i] < ends[i]`` invariant holds unconditionally.
+        Callers hold :attr:`_fill_lock`.
+        """
+        if end <= start:
+            return
+        first = bisect.bisect_right(self._loaded_starts, start) - 1
+        low = first if first >= 0 and self._loaded_ends[first] >= start else first + 1
+        high = low
+        while high < len(self._loaded_starts) and self._loaded_starts[high] <= end:
+            high += 1
+        if high == low:
+            self._loaded_starts.insert(low, start)
+            self._loaded_ends.insert(low, end)
+            return
+        self._loaded_starts[low:high] = [min(start, self._loaded_starts[low])]
+        self._loaded_ends[low:high] = [max(end, self._loaded_ends[high - 1])]
+
+    def fill_lines(self, start: int, rows: list[str]) -> None:
+        """Fill the real content *rows* into the buffer at *start*.
+
+        Chunked-fill primitive for the chunked flows.  Rows may land in the
+        middle of the placeholder region (a far jump straight into a chunk
+        the scan has already reached), so there is no contiguous-advancement
+        contract: the line list is extended with placeholder rows when
+        *start + len(rows)* reaches past its end and the filled interval is
+        recorded into the loaded-row table.  Not blocked by
+        :attr:`locked`, no snapshot and no ``content_edits`` bump (this is
+        not a user edit), but ``content_version`` advances so views
+        invalidate their caches.
+        """
+        with self._fill_lock:
+            end = start + len(rows)
+            if end > len(self.lines):
+                self.lines.extend([""] * (end - len(self.lines)))
+            self.lines[start:end] = rows
+            self._mark_loaded(start, end)
+            self.content_version += 1
+
+    def extend_placeholders(self, count: int) -> None:
+        """Append *count* empty placeholder rows (background scan bookkeeping).
+
+        Called by the chunked scan worker so ``line_count`` (and therefore
+        the virtual scroll size) tracks the scanned prefix without loading
+        content.  Placeholder rows never touch the loaded-row interval
+        table -- only :meth:`fill_lines` does.
+        """
+        with self._fill_lock:
+            if count > 0:
+                self.lines.extend([""] * count)
+                self.content_version += 1
 
     # ------------------------------------------------------------- snapshots
 
@@ -397,6 +522,8 @@ class TextBuffer:
         line structure.
         """
         (r1, c1), (r2, c2) = start, end
+        if self.locked:
+            return
         if (r1, c1) > (r2, c2):
             raise ValueError(f"invalid delete range: start={start!r} > end={end!r}")
         if r1 == r2:
@@ -407,6 +534,8 @@ class TextBuffer:
 
     def insert_text(self, text: str, kind: str = "char") -> None:
         """Insert ``text`` (may contain newlines) at the cursor."""
+        if self.locked:
+            return
         self._ensure_writable()
         if text == "":
             return
@@ -426,6 +555,8 @@ class TextBuffer:
         Returns the position following the inserted text; the caller owns
         every cursor bookkeeping (single cursor or multi-cursor points).
         """
+        if self.locked:
+            return pos
         r, c = pos
         parts = text.split("\n")
         line = self.lines[r]
@@ -445,6 +576,8 @@ class TextBuffer:
         One undo step; used for LSP completion acceptance (text may contain
         newlines).
         """
+        if self.locked:
+            return
         self._ensure_writable()
         before = self._snapshot()
         self.cursor = start
@@ -477,6 +610,8 @@ class TextBuffer:
         every language.  Should pairs ever diverge (Python quote handling, say),
         dispatch on the value right here -- no keymap change needed.
         """
+        if self.locked:
+            return
         # Explicit guard, not a redundant one: the "closing symbol in front of
         # its twin" branch further down returns without touching the text, so
         # nothing it calls would ever raise on a read-only buffer.  Delegating
@@ -565,6 +700,8 @@ class TextBuffer:
 
     def delete_selection(self) -> str | None:
         """Delete the selection and return the removed text, or ``None``."""
+        if self.locked:
+            return None
         self._ensure_writable()
         sel = self.selection()
         if sel is None:
@@ -585,6 +722,8 @@ class TextBuffer:
         word) -- they go as a single ``"char"`` undo step, so one Ctrl+Z undoes
         the pair-typed and the pair-deleted keystroke together.
         """
+        if self.locked:
+            return
         self._ensure_writable()
         if self.has_selection():
             self.delete_selection()
@@ -616,6 +755,8 @@ class TextBuffer:
 
     def delete_forward(self, word: bool = False) -> None:
         """Delete forward one character (or *word*), joining rows at end of line."""
+        if self.locked:
+            return
         self._ensure_writable()
         if self.has_selection():
             self.delete_selection()
@@ -665,11 +806,15 @@ class TextBuffer:
         no point drifts off its own insertion.  No bracket auto-completion
         (a single-cursor :meth:`type_char` affordance) and no per-point
         auto-indent: a ``"\\n"`` inserts a bare newline at each point
-        (known limitation).  Read-only buffers raise
-        :class:`BufferReadOnlyError`.  Any multi-point edit drops the
-        primary selection anchor first: the selection and multi-cursor
-        axes stay exclusive for the whole edit, not just at entry.
+        (known limitation).          Read-only buffers raise
+        :class:`BufferReadOnlyError`; locked buffers (chunked documents)
+        treat every point edit as a silent no-op.  Any multi-point edit
+        drops the primary selection anchor first: the selection and
+        multi-cursor axes stay exclusive for the whole edit, not just at
+        entry.
         """
+        if self.locked:
+            return
         self._ensure_writable()
         if text == "":
             return
@@ -696,11 +841,14 @@ class TextBuffer:
         Positions already recorded for earlier points are remapped through
         each later deletion (same-row columns shift left; a joined row
         folds onto the seam with the rows below shifting up).  Read-only
-        buffers raise :class:`BufferReadOnlyError`.  Any multi-point edit
-        drops the primary selection anchor first: the selection and
-        multi-cursor axes stay exclusive for the whole edit, not just at
-        entry.
+        buffers raise :class:`BufferReadOnlyError`; locked buffers
+        (chunked documents) treat every point edit as a silent no-op.  Any
+        multi-point edit drops the primary selection anchor first: the
+        selection and multi-cursor axes stay exclusive for the whole edit,
+        not just at entry.
         """
+        if self.locked:
+            return
         self._ensure_writable()
         self.anchor = None
         points = self._multi_points()
@@ -742,11 +890,14 @@ class TextBuffer:
         already recorded for earlier points are remapped
         through each later deletion (same-row columns shift left; a joined
         next row folds onto the seam with the rows below shifting up).  Read-only
-        buffers raise :class:`BufferReadOnlyError`.  Any multi-point edit
-        drops the primary selection anchor first: the selection and
-        multi-cursor axes stay exclusive for the whole edit, not just at
-        entry.
+        buffers raise :class:`BufferReadOnlyError`; locked buffers
+        (chunked documents) treat every point edit as a silent no-op.  Any
+        multi-point edit drops the primary selection anchor first: the
+        selection and multi-cursor axes stay exclusive for the whole edit,
+        not just at entry.
         """
+        if self.locked:
+            return
         self._ensure_writable()
         self.anchor = None
         points = self._multi_points()
@@ -866,6 +1017,8 @@ class TextBuffer:
 
     def indent_selection(self) -> None:
         """Indent the selected rows by one unit (a lone cursor inserts a tab)."""
+        if self.locked:
+            return
         self._ensure_writable()
         sel = self.selection()
         if sel is None:
@@ -882,6 +1035,8 @@ class TextBuffer:
 
     def outdent_selection(self) -> None:
         """Outdent the selected rows (or the cursor row) by one tab stop."""
+        if self.locked:
+            return
         self._ensure_writable()
         sel = self.selection()
         if sel is None:
@@ -952,6 +1107,8 @@ class TextBuffer:
         With *named* the deleted text goes to that explicit ``"`` register
         instead of the unnamed one (and never touches the system clipboard).
         """
+        if self.locked:
+            return ""
         self._ensure_writable()
         before = self._snapshot()
         rows = self.selected_rows()
@@ -975,6 +1132,8 @@ class TextBuffer:
 
     def duplicate_line(self) -> None:
         """Duplicate the selected rows (or the current row) directly below them."""
+        if self.locked:
+            return
         self._ensure_writable()
         before = self._snapshot()
         rows = self.selected_rows()
@@ -987,6 +1146,8 @@ class TextBuffer:
 
     def move_line(self, delta: int) -> None:
         """Move the current row by *delta* rows; no-op when the target is out of range."""
+        if self.locked:
+            return
         self._ensure_writable()
         before = self._snapshot()
         r = self.cursor[0]
@@ -1001,6 +1162,8 @@ class TextBuffer:
 
     def join_lines(self) -> None:
         """Join the current line with the next one (vim ``J``)."""
+        if self.locked:
+            return
         self._ensure_writable()
         before = self._snapshot()
         r, c = self.cursor
@@ -1022,6 +1185,8 @@ class TextBuffer:
 
     def delete_to_line_start(self) -> None:
         """Delete from the start of the line up to the cursor (vim ctrl-u)."""
+        if self.locked:
+            return
         self._ensure_writable()
         r, c = self.cursor
         if c == 0:
