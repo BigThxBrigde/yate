@@ -22,6 +22,7 @@ from textual.app import App, ComposeResult
 from textual.events import Key
 from textual.widget import Widget
 from textual.widgets import Static
+from textual.visual import VisualType
 
 from yate.editor_view import theme
 from yate.editor_view.whichkey import (
@@ -255,11 +256,15 @@ def test_clear_when_hidden_is_a_no_op() -> None:
             updates: list[object] = []
             real_update = panel.update
 
-            def counting_update(content: object) -> None:
+            def counting_update(
+                content: VisualType = "", *, layout: bool = True
+            ) -> None:
                 updates.append(content)
                 real_update(content)
 
-            panel.update = counting_update
+            # Test spy matches the real update signature; suppression covers
+            # the instance-attribute assignment on a Widget.
+            panel.update = counting_update  # pyright: ignore[reportAttributeAccessIssue]
             panel.clear()
             assert updates == []
             assert panel.display is False

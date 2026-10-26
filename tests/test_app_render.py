@@ -575,21 +575,30 @@ def test_unconsumed_raw_key_skips_refresh_ui(
             monkeypatch.setattr(
                 editor, "refresh_ui", lambda: refreshes.append(True)
             )
+            def feed_key(raw: str) -> None:
+                feeds.append(raw)
+
             monkeypatch.setattr(
                 editor.completion,
                 "after_editor_key",
-                lambda raw: feeds.append(raw),
+                feed_key,
             )
+            def reject_key(*a: object) -> bool:
+                return False
+
             monkeypatch.setattr(
-                editor.keymaps.active, "handle_key", lambda *a: False
+                editor.keymaps.active, "handle_key", reject_key
             )
             assert editor.handle_raw_key("zz-unbound") is False
             assert refreshes == []
             # The completion popup still receives every raw key regardless
             # of the handled gate (plan-f P3 requirement).
             assert feeds == ["zz-unbound"]
+            def accept_key(*a: object) -> bool:
+                return True
+
             monkeypatch.setattr(
-                editor.keymaps.active, "handle_key", lambda *a: True
+                editor.keymaps.active, "handle_key", accept_key
             )
             assert editor.handle_raw_key("zz-bound") is True
             assert refreshes == [True]

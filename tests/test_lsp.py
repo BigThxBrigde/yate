@@ -942,9 +942,12 @@ def test_diagnostics_row_index_multi_row_and_rebuild(tmp_path: Path) -> None:
         mgr = LspManager()
 
         def factory(config: ServerConfig, path: Path) -> FakeClient:
+            def on_notification(method: str, params: dict[str, Any]) -> None:
+                mgr.handle_notification(method, params)
+
             fake = FakeClient(
                 config, path,
-                on_notification=lambda m, p: mgr.handle_notification(m, p),
+                on_notification=on_notification,
             )
             fakes.append(fake)
             return fake
@@ -1008,9 +1011,12 @@ def test_diagnostics_index_cleared_with_table(tmp_path: Path) -> None:
         mgr = LspManager()
 
         def factory(config: ServerConfig, path: Path) -> FakeClient:
+            def on_notification(method: str, params: dict[str, Any]) -> None:
+                mgr.handle_notification(method, params)
+
             fake = FakeClient(
                 config, path,
-                on_notification=lambda m, p: mgr.handle_notification(m, p),
+                on_notification=on_notification,
             )
             fakes.append(fake)
             return fake

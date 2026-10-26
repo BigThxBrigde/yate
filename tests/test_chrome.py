@@ -161,7 +161,9 @@ def test_tab_bar_fingerprint_skips_unchanged_rebuild(tmp_path: Path) -> None:
     def counting_render(width: int) -> None:
         builds.append(width)
 
-    bar.render_content = counting_render  # pyright: reportAttributeAccessIssue=false
+    # Assigning a private test hook onto a frozen instance; suppression is intentional.
+    # pyright: ignore[reportAttributeAccessIssue]
+    bar.render_content = counting_render
     bar.refresh_tabs()
     bar.refresh_tabs()
     assert len(builds) == 1
@@ -182,10 +184,11 @@ def test_breadcrumbs_fingerprint_skips_unchanged_rebuild(tmp_path: Path) -> None
     crumbs = Breadcrumbs(session, workspace)
     updates: list[object] = []
 
-    def counting_update(content: object) -> None:
+    def counting_update(content: object = "", *, layout: bool = True) -> None:
         updates.append(content)
 
-    crumbs.update = counting_update  # pyright: reportAttributeAccessIssue=false
+    # Test spy needs a wider parameter type than VisualType; suppression is intentional.
+    crumbs.update = counting_update  # pyright: ignore[reportAttributeAccessIssue]
     crumbs.refresh_crumbs()
     crumbs.refresh_crumbs()
     assert len(updates) == 1
