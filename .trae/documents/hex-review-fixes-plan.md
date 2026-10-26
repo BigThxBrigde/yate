@@ -391,3 +391,33 @@ code-review-expert 对修复波的评审（REQUEST_CHANGES）实测发现 blocke
 | 未来新增意图位调用点漏设 pin | 评审已穷举现有赋值点（9 处），意图位仅 `document_flows.py:157` 与 `editor.py:1087`；本计划即规范，新调用点须同步 pin | `git revert` Step A 提交 |
 | `rows_loaded` 持锁与 `fill_lines` 嵌套死锁 | 锁改 `RLock`，重入安全；评审确认无嵌套调用路径 | `git revert` Step B 提交 |
 | 默认路径回归 | `test_fullload_of_default_session_is_editable` 零遮罩锁定 + 冒烟 `chunkedview` 场景重跑 | 同上 |
+
+### 9.5 复审收口（REQUEST_CHANGES → 修复，2026-10-26）
+
+复审（hex-rework-reviewer）实测确认返工波逻辑正确（变异探针②证明旧
+实现下新用例必红、端到端探针两种会话行为符合 §9.2），但发现断言缺口
+与三处 minor，本轮全部采纳：
+
+- **A（major）pin 接线零断言**：变异探针①删掉
+  `document_flows.py:158` / `editor.py:1093` 两处 pin 同步后 81 用例
+  仍绿——blocker 同族回归无守卫。修复：补两条 app 级用例（harness
+  同 `test_saveas_refuses_chunked_document`，`YateApp(readonly=...)` +
+  `LargeFileConfig(threshold=64)` + 真 `:fullload` 命令）：
+  `test_fullload_in_readonly_session_stays_read_only`（-R → pin True →
+  fullload 后仍只读）与镜像
+  `test_fullload_in_default_session_is_editable`（默认 → fullload 后
+  可写），把原 blocker 锁在命令层。
+- **B（minor）`:saveas` 抬锁不跟随 pin**：成功分支（`saved = True`
+  后）补 `doc.read_only_pinned = False`（vim `:sav` 语义：抬锁存活则
+  意图位跟随；失败分支 pin 从未改写无需回滚）。当前对 chunked 不可达
+  （`:saveas` 前置拒绝），属语义漂移收口。
+- **C（minor）零宽守卫缺测**：补
+  `test_mark_loaded_rejects_zero_width_interval` 锁定
+  `starts[i] < ends[i]` 不变量。
+- **D（minor）两处注释精度**：buffer.py 锁注释改为只覆盖区间表、
+  `lines` 变更须留在事件循环线程；document.py 把 open_chunked 的
+  结构性置位措辞从 "pins" 改为 "*forces* ... as a structural guard"，
+  消除与字段名 `read_only_pinned` 的同词反义。
+
+验收：新增/改动测试全绿 + pyright 全量 0 诊断 + 全量门禁复跑
+（§6.6 回填）。
