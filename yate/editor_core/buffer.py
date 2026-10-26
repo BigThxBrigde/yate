@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import bisect
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from yate.editor_core.indentation import (
     CLOSERS,
@@ -42,9 +42,10 @@ class BufferReadOnlyError(Exception):
     """
 
 
-#: Maximum undo steps kept in memory.  Each step snapshots the full line
-#: list, so an unbounded stack would grow without limit on large documents;
-#: oldest steps are dropped once the cap is reached (like most editors).
+#: Maximum undo steps kept in memory.  Each step stores only the changed
+#: row intervals, so an unbounded stack would still grow without limit on
+#: large documents; oldest steps are dropped once the cap is reached (like
+#: most editors).
 MAX_UNDO_STEPS: int = 1000
 
 
@@ -58,36 +59,63 @@ class _Snapshot:
 
 
 @dataclass
-class _Edit:
-    before: _Snapshot
-    after: _Snapshot
-    kind: str  # "char" coalesces with adjacent typing/deletion, "step" does not
-    #: Number of line-change commits folded into this step (1 for a plain
-    #: step, more for coalesced typing).  :attr:`content_edits` is adjusted
-    #: by this amount on undo/redo so the counter stays aligned with the
-    #: actual number of reverted changes even across coalescing.
-    weight: int = 1
+class _Delta:
+    """One row-interval replacement: the ``old`` rows at ``top`` became ``new``.
 
-
-def _remap_after_insert(new_pos: dict[Pos, Pos], pos: Pos, parts: list[str]) -> None:
-    """Retarget positions already recorded for earlier points through one insert.
-
-    Multi-point primitives edit in descending order, so every recorded
-    position sits at or after the edit point.  Inserting
-    ``"\\n".join(parts)`` at *pos* (``k = len(parts) - 1`` new rows) shifts
-    rows below *pos* down by *k*.  With row-splitting text every recorded
-    position is strictly below the edited row (a split never records on
-    the row it splits), so the same-row column shift only applies to
-    single-line inserts.  Remaps entries recorded by *earlier* loop
-    iterations; the caller writes *pos*'s own entry right after.
+    ``top`` is a row index in the document state the delta was recorded in;
+    undo/redo apply deltas in reverse/forward order respectively, so the
+    indices always line up with the document being rewound/replayed.
     """
-    r = pos[0]
-    k = len(parts) - 1
-    for p, (pr, pc) in new_pos.items():
-        if pr > r:
-            new_pos[p] = (pr + k, pc)
-        else:
-            new_pos[p] = (pr, pc + len(parts[0]))
+
+    top: int
+    old: list[str]
+    new: list[str]
+
+
+@dataclass
+class _Edit:
+    """One undo step: a list of row-interval deltas plus cursor states.
+
+    Coalesced typing folds several deltas into one step (all applied or
+    reverted together).  :attr:`weight` is the number of line-change commits
+    folded into the step; :attr:`content_edits` is adjusted by that amount
+    on undo/redo so the counter stays aligned with the actual number of
+    reverted changes even across coalescing.
+    """
+
+    kind: str  # "char" coalesces with adjacent typing/deletion, "step" does not
+    weight: int = 1
+    deltas: list[_Delta] = field(default_factory=list[_Delta])
+    cursor_before: Pos = (0, 0)
+    cursor_after: Pos = (0, 0)
+    anchor_before: Pos | None = None
+    anchor_after: Pos | None = None
+    extra_before: tuple[Pos, ...] = ()
+    extra_after: tuple[Pos, ...] = ()
+
+
+@dataclass
+class _Pending:
+    """Accumulator for the logical edit currently being recorded.
+
+    Invariant while it is open: the current line list equals the line list
+    at :meth:`TextBuffer._begin` time with rows ``[top, old-end)`` replaced
+    by rows ``[top, bot]`` (all indices in *current* coordinates; ``bot``
+    may sit below ``top`` for a pure row deletion).  ``old`` holds the
+    original content of the replaced rows.  Primitives extend the region
+    outward; rows between extensions were never mutated, so their current
+    content *is* their original content.
+    """
+
+    cursor: Pos
+    anchor: Pos | None
+    extra: tuple[Pos, ...]
+    #: Region top row in current coordinates.
+    top: int = 0
+    #: Region bottom row in current coordinates (inclusive; ``< top`` = empty).
+    bot: int = -1
+    #: Original content of the replaced rows.
+    old: list[str] = field(default_factory=list[str])
 
 
 class TextBuffer:
@@ -152,6 +180,14 @@ class TextBuffer:
         self.named_registers: dict[str, str] = {}
         self._undo: list[_Edit] = []
         self._redo: list[_Edit] = []
+        # Accumulator for the logical edit in progress (see :meth:`_begin`).
+        self._pend: _Pending | None = None
+        # Inclusive row range edited since the last :meth:`take_dirty_range`
+        # call (None = nothing pending).  Multiple edits merge by union; the
+        # range feeds the highlight diff (plan P2-API) so re-tokenization
+        # can be limited to the rows that actually changed.
+        self._dirty_top: int | None = None
+        self._dirty_bottom: int = 0
         # Bumped whenever the textual content (not just the cursor or
         # selection) changes; the view uses it to invalidate highlight
         # tokens without re-tokenizing on every cursor-movement key.
@@ -211,9 +247,11 @@ class TextBuffer:
         self._loaded_ends.clear()
         self._undo.clear()
         self._redo.clear()
+        self._pend = None
         self._goal_col = None
         self.content_version += 1
         self.content_edits += 1
+        self._note_dirty(0, len(self.lines) - 1)
 
     def mark_content_changed(self) -> None:
         """Bump :attr:`content_version` after an out-of-band mutation.
@@ -229,6 +267,7 @@ class TextBuffer:
         self._goal_col = None
         self.content_version += 1
         self.content_edits += 1
+        self._note_dirty(0, len(self.lines) - 1)
 
     # ------------------------------------------------------------ chunked fill
     #
@@ -300,6 +339,8 @@ class TextBuffer:
             self.lines[start:end] = rows
             self._mark_loaded(start, end)
             self.content_version += 1
+            if rows:
+                self._note_dirty(start, end - 1)
 
     def extend_placeholders(self, count: int) -> None:
         """Append *count* empty placeholder rows (background scan bookkeeping).
@@ -313,79 +354,254 @@ class TextBuffer:
             if count > 0:
                 self.lines.extend([""] * count)
                 self.content_version += 1
+                self._note_dirty(len(self.lines) - count, len(self.lines) - 1)
 
-    # ------------------------------------------------------------- snapshots
+    # ------------------------------------------------------- undo recording
 
-    def _snapshot(self) -> _Snapshot:
-        return _Snapshot(
-            tuple(self.lines), self.cursor, self.anchor, tuple(self.extra_cursors)
-        )
+    def _note_dirty(self, top: int, bottom: int) -> None:
+        """Fold the inclusive row range into the pending dirty range (union)."""
+        if self._dirty_top is None:
+            self._dirty_top = top
+            self._dirty_bottom = bottom
+        else:
+            self._dirty_top = min(self._dirty_top, top)
+            self._dirty_bottom = max(self._dirty_bottom, bottom)
 
-    def _restore(self, snap: _Snapshot) -> None:
-        changed = tuple(self.lines) != snap.lines
-        self.lines = list(snap.lines)
-        self.cursor = snap.cursor
-        self.anchor = snap.anchor
-        # Out-of-range points are clamped, not dropped: undo may have
-        # rewound the document below a point's row, and keeping the point
-        # at the nearest legal position matches the VS Code behaviour.
-        self.extra_cursors = []
-        for pos in snap.extra_cursors:
-            r = max(0, min(pos[0], len(self.lines) - 1))
-            self.extra_cursors.append((r, max(0, min(pos[1], len(self.lines[r])))))
-        self._goal_col = None
-        if changed:
+    def take_dirty_range(self) -> tuple[int, int] | None:
+        """Return the inclusive row range edited since the last call, or None."""
+        top = self._dirty_top
+        if top is None:
+            return None
+        self._dirty_top = None
+        return (top, self._dirty_bottom)
+
+    def _begin(self) -> None:
+        """Open the pending-edit accumulator (no-op when already open)."""
+        if self._pend is None:
+            self._pend = _Pending(
+                cursor=self.cursor,
+                anchor=self.anchor,
+                extra=tuple(self.extra_cursors),
+            )
+
+    def _capture(self, top: int, bottom: int) -> None:
+        """Record the original content of rows ``[top, bottom]`` (pre-mutation).
+
+        Called by the line primitives right before they consume the rows:
+        the region grows outward to cover the consumed span, reading the
+        still-unmutated gap rows from the current line list (their content
+        equals the original one by the :class:`_Pending` invariant).
+        """
+        self._begin()
+        pend = self._pend
+        assert pend is not None
+        if pend.bot >= pend.top:
+            new_top = min(top, pend.top)
+            new_bot = max(bottom, pend.bot)
+            old: list[str] = []
+            for r in range(new_top, pend.top):
+                old.append(self.lines[r])
+            old.extend(pend.old)
+            for r in range(pend.bot + 1, bottom + 1):
+                old.append(self.lines[r])
+            pend.top = new_top
+            pend.bot = new_bot
+            pend.old = old
+        else:
+            pend.top = top
+            pend.bot = bottom
+            pend.old = self.lines[top : bottom + 1]
+
+    def _record(
+        self,
+        kind: str,
+        weight: int,
+        deltas: list[_Delta],
+        cursor_before: Pos,
+        anchor_before: Pos | None,
+        extra_before: tuple[Pos, ...],
+        cursor_after: Pos,
+        anchor_after: Pos | None,
+        extra_after: tuple[Pos, ...],
+    ) -> None:
+        """Append (or coalesce into) one undo step from recorded deltas."""
+        if weight:
+            # content changed: the remembered vertical column may be past the
+            # end of the mutated line, so vertical tracking restarts
+            self._goal_col = None
             self.content_version += 1
-
-    def _commit(self, before: _Snapshot, kind: str = "step") -> None:
-        after = self._snapshot()
-        if after == before:
-            return
-        # content changed: the remembered vertical column may be past the
-        # end of the mutated line, so vertical tracking restarts
-        self._goal_col = None
-        lines_changed = after.lines != before.lines
-        weight = 1 if lines_changed else 0
-        if kind == "char" and self._undo:
+            self.content_edits += 1
+            for d in deltas:
+                self._note_dirty(d.top, d.top + max(len(d.old), len(d.new)) - 1)
+        if kind == "char" and weight and self._undo:
             top = self._undo[-1]
-            if top.kind == "char" and top.after == before:
-                top.after = after
+            last = top.deltas[-1] if top.deltas else None
+            if (
+                last is not None
+                and top.kind == "char"
+                # the new edit's before-state must equal the previous
+                # keystroke's after-state (contiguous typing), and the edit
+                # must touch the rows that keystroke left behind (a disjoint
+                # edit starts a fresh step)
+                and cursor_before == top.cursor_after
+                and anchor_before == top.anchor_after
+                and extra_before == top.extra_after
+                and deltas
+                and deltas[0].top <= last.top + max(len(last.new) - 1, 0)
+                and deltas[0].top + max(len(deltas[0].new) - 1, 0) >= last.top
+            ):
+                top.deltas.extend(deltas)
                 top.weight += weight
+                top.cursor_after = cursor_after
+                top.anchor_after = anchor_after
+                top.extra_after = extra_after
                 self._redo.clear()
-                if lines_changed:
-                    self.content_version += 1
-                    self.content_edits += 1
                 return
-        self._undo.append(_Edit(before, after, kind, weight))
+        self._undo.append(
+            _Edit(
+                kind,
+                weight,
+                deltas,
+                cursor_before,
+                cursor_after,
+                anchor_before,
+                anchor_after,
+                extra_before,
+                extra_after,
+            )
+        )
         if len(self._undo) > MAX_UNDO_STEPS:
             del self._undo[0]
         self._redo.clear()
-        if lines_changed:
-            self.content_version += 1
-            self.content_edits += 1
+
+    def _commit(self, kind: str = "step") -> None:
+        """Close the pending edit and record history for it."""
+        pend = self._pend
+        self._pend = None
+        if pend is None:
+            return
+        new = self.lines[pend.top : pend.bot + 1]
+        lines_changed = pend.old != new
+        cursor_after = self.cursor
+        anchor_after = self.anchor
+        extra_after = tuple(self.extra_cursors)
+        state_changed = (
+            cursor_after != pend.cursor
+            or anchor_after != pend.anchor
+            or extra_after != pend.extra
+        )
+        if not lines_changed and not state_changed:
+            return
+        weight = 1 if lines_changed else 0
+        deltas = [_Delta(pend.top, pend.old, new)] if lines_changed else []
+        self._record(
+            kind,
+            weight,
+            deltas,
+            pend.cursor,
+            pend.anchor,
+            pend.extra,
+            cursor_after,
+            anchor_after,
+            extra_after,
+        )
 
     # ------------------------------------------------- bulk-edit transactions
     #
     # Cooperating editor_core engines (SearchEngine.replace_all) perform many
     # line edits as one logical operation; they bracket the edits with a
-    # public snapshot/commit pair instead of touching undo internals.
+    # public snapshot/commit pair instead of touching undo internals.  The
+    # changed interval is recovered by a common prefix/suffix scan -- this
+    # path runs once per bulk command, not per keystroke.
 
     def snapshot(self) -> _Snapshot:
         """Capture undo state before a bulk edit (pair with :meth:`commit`)."""
-        return self._snapshot()
+        self._pend = None
+        return _Snapshot(
+            tuple(self.lines), self.cursor, self.anchor, tuple(self.extra_cursors)
+        )
 
     def commit(self, before: _Snapshot, kind: str = "step") -> None:
         """Record history for a bulk edit started with :meth:`snapshot`."""
-        self._commit(before, kind)
+        self._pend = None
+        cursor_after = self.cursor
+        anchor_after = self.anchor
+        extra_after = tuple(self.extra_cursors)
+        old_lines = before.lines
+        n = min(len(old_lines), len(self.lines))
+        prefix = 0
+        while prefix < n and old_lines[prefix] == self.lines[prefix]:
+            prefix += 1
+        suffix = 0
+        while (
+            suffix < n - prefix
+            and old_lines[len(old_lines) - 1 - suffix]
+            == self.lines[len(self.lines) - 1 - suffix]
+        ):
+            suffix += 1
+        old = list(old_lines[prefix : len(old_lines) - suffix])
+        new = list(self.lines[prefix : len(self.lines) - suffix])
+        lines_changed = bool(old) or bool(new)
+        state_changed = (
+            cursor_after != before.cursor
+            or anchor_after != before.anchor
+            or extra_after != before.extra_cursors
+        )
+        if not lines_changed and not state_changed:
+            return
+        weight = 1 if lines_changed else 0
+        deltas = [_Delta(prefix, old, new)] if lines_changed else []
+        self._record(
+            kind,
+            weight,
+            deltas,
+            before.cursor,
+            before.anchor,
+            before.extra_cursors,
+            cursor_after,
+            anchor_after,
+            extra_after,
+        )
+
+    def _set_cursor_state(
+        self, cursor: Pos, anchor: Pos | None, extra: tuple[Pos, ...]
+    ) -> None:
+        """Restore cursor state, clamping extra points like the old full restore."""
+        self.cursor = cursor
+        self.anchor = anchor
+        # Out-of-range points are clamped, not dropped: undo may have
+        # rewound the document below a point's row, and keeping the point
+        # at the nearest legal position matches the VS Code behaviour.
+        self.extra_cursors = []
+        for pos in extra:
+            r = max(0, min(pos[0], len(self.lines) - 1))
+            self.extra_cursors.append((r, max(0, min(pos[1], len(self.lines[r])))))
+        self._goal_col = None
+
+    def _apply_deltas(self, deltas: list[_Delta], undo: bool) -> None:
+        """Rewind (undo) or replay (redo) a step's row-interval deltas."""
+        changed = False
+        for d in reversed(deltas) if undo else deltas:
+            if undo:
+                self.lines[d.top : d.top + len(d.new)] = d.old
+            else:
+                self.lines[d.top : d.top + len(d.old)] = d.new
+            if d.old != d.new:
+                changed = True
+                self._note_dirty(d.top, d.top + max(len(d.old), len(d.new)) - 1)
+        if changed:
+            self.content_version += 1
 
     def undo(self) -> bool:
         """Undo the most recent edit; return ``False`` when history is empty."""
         self._ensure_writable()
         if not self._undo:
             return False
+        self._pend = None
         edit = self._undo.pop()
         self.content_edits -= edit.weight
-        self._restore(edit.before)
+        self._apply_deltas(edit.deltas, undo=True)
+        self._set_cursor_state(edit.cursor_before, edit.anchor_before, edit.extra_before)
         self._redo.append(edit)
         return True
 
@@ -394,9 +610,11 @@ class TextBuffer:
         self._ensure_writable()
         if not self._redo:
             return False
+        self._pend = None
         edit = self._redo.pop()
         self.content_edits += edit.weight
-        self._restore(edit.after)
+        self._apply_deltas(edit.deltas, undo=False)
+        self._set_cursor_state(edit.cursor_after, edit.anchor_after, edit.extra_after)
         self._undo.append(edit)
         return True
 
@@ -526,11 +744,18 @@ class TextBuffer:
             return
         if (r1, c1) > (r2, c2):
             raise ValueError(f"invalid delete range: start={start!r} > end={end!r}")
+        self._capture(r1, r2)
         if r1 == r2:
             self.lines[r1] = self.lines[r1][:c1] + self.lines[r1][c2:]
         else:
             self.lines[r1] = self.lines[r1][:c1] + self.lines[r2][c2:]
             del self.lines[r1 + 1 : r2 + 1]
+        # rows r1+1..r2 collapsed into r1: the region's bottom in current
+        # coordinates moves up with them (rows already inside the region
+        # below r2 shift up by the same amount)
+        pend = self._pend
+        if pend is not None and pend.bot >= r1:
+            pend.bot = max(r1, pend.bot - (r2 - r1))
 
     def insert_text(self, text: str, kind: str = "char") -> None:
         """Insert ``text`` (may contain newlines) at the cursor."""
@@ -539,7 +764,7 @@ class TextBuffer:
         self._ensure_writable()
         if text == "":
             return
-        before = self._snapshot()
+        self._begin()
         if self.has_selection():
             sel = self.selection()
             assert sel is not None
@@ -547,10 +772,10 @@ class TextBuffer:
             self.cursor = sel[0]
         self.cursor = self._apply_text(text, self.cursor)
         self.anchor = None
-        self._commit(before, kind)
+        self._commit(kind)
 
     def _apply_text(self, text: str, pos: Pos) -> Pos:
-        """Insert ``text`` at *pos* without snapshot bookkeeping.
+        """Insert ``text`` at *pos* without undo bookkeeping beyond the region.
 
         Returns the position following the inserted text; the caller owns
         every cursor bookkeeping (single cursor or multi-cursor points).
@@ -560,6 +785,7 @@ class TextBuffer:
         r, c = pos
         parts = text.split("\n")
         line = self.lines[r]
+        self._capture(r, r)
         if len(parts) == 1:
             self.lines[r] = line[:c] + parts[0] + line[c:]
             return (r, c + len(parts[0]))
@@ -568,7 +794,16 @@ class TextBuffer:
         new_lines = list(parts[1:-1])
         new_lines.append(parts[-1] + tail)
         self.lines[r + 1 : r + 1] = new_lines
-        return (r + len(parts) - 1, len(parts[-1]))
+        # the k = len(parts) - 1 new rows join the region: rows already in
+        # the region at or below r shift down with them
+        k = len(parts) - 1
+        pend = self._pend
+        if pend is not None:
+            if r <= pend.bot:
+                pend.bot += k
+            else:
+                pend.bot = max(pend.bot, r + k)
+        return (r + k, len(parts[-1]))
 
     def replace_range(self, start: Pos, end: Pos, text: str) -> None:
         """Replace the half-open range [start, end) with ``text``.
@@ -579,13 +814,13 @@ class TextBuffer:
         if self.locked:
             return
         self._ensure_writable()
-        before = self._snapshot()
+        self._begin()
         self.cursor = start
         self.anchor = None
         self._delete_range(start, end)
         self.cursor = self._apply_text(text, self.cursor)
         self.anchor = None
-        self._commit(before, "step")
+        self._commit("step")
 
     def type_char(self, ch: str, *, language: str = "plaintext") -> None:
         """Insert a typed character, auto-completing and skipping bracket pairs.
@@ -629,7 +864,7 @@ class TextBuffer:
                 return
             (r1, c1), (r2, c2) = sel
             inner = self.selected_text() or ""
-            before = self._snapshot()
+            self._begin()
             # Deliberately not :meth:`replace_range`: it hard-codes
             # ``kind="step"``, and the wrap has to stay a ``"char"`` edit so
             # that the auto-completed pair merges with the keystrokes around
@@ -640,7 +875,7 @@ class TextBuffer:
             self._delete_range((r1, c1), (r2, c2))
             self.cursor = self._apply_text(f"{ch}{inner}{right}", self.cursor)
             self.move_left()  # park before the closing symbol, not after it
-            self._commit(before, "char")
+            self._commit("char")
             return
         r, c = self.cursor
         line = self.lines[r]
@@ -651,10 +886,10 @@ class TextBuffer:
             self.move_right()
             return
         if right is not None:
-            before = self._snapshot()
+            self._begin()
             self.cursor = self._apply_text(ch + right, self.cursor)
             self.move_left()
-            self._commit(before, "char")
+            self._commit("char")
             return
         self.insert_text(ch)
 
@@ -706,12 +941,12 @@ class TextBuffer:
         sel = self.selection()
         if sel is None:
             return None
-        before = self._snapshot()
+        self._begin()
         text = self.selected_text()
         self._delete_range(*sel)
         self.cursor = sel[0]
         self.anchor = None
-        self._commit(before, "step")
+        self._commit("step")
         return text
 
     def delete_backward(self, word: bool = False) -> None:
@@ -728,30 +963,29 @@ class TextBuffer:
         if self.has_selection():
             self.delete_selection()
             return
-        before = self._snapshot()
         r, c = self.cursor
         if r == 0 and c == 0:
             return
         line = self.lines[r]
+        self._begin()
         if not word and 0 < c < len(line) and is_pair_of(line[c - 1], line[c]):
-            self.lines[r] = line[: c - 1] + line[c + 1 :]
+            self._delete_range((r, c - 1), (r, c + 1))
             # set_cursor, not a bare assignment: the row just lost two
             # characters, and the buffer's invariant ends vertical goal-column
             # tracking only when the cursor is placed through here.  Same
             # rationale as the selection-wrapping branch in ``type_char``.
             self.set_cursor((r, c - 1))
-            self._commit(before, "char")
+            self._commit("char")
             return
         if c == 0:
             prev_len = len(self.lines[r - 1])
-            self.lines[r - 1] = self.lines[r - 1] + self.lines[r]
-            del self.lines[r]
+            self._delete_range((r - 1, prev_len), (r, 0))
             self.cursor = (r - 1, prev_len)
         else:
             nc = prev_word_start(self.lines[r], c) if word else c - 1
-            self.lines[r] = self.lines[r][:nc] + self.lines[r][c:]
+            self._delete_range((r, nc), (r, c))
             self.cursor = (r, nc)
-        self._commit(before, "step" if word else "char")
+        self._commit("step" if word else "char")
 
     def delete_forward(self, word: bool = False) -> None:
         """Delete forward one character (or *word*), joining rows at end of line."""
@@ -761,19 +995,18 @@ class TextBuffer:
         if self.has_selection():
             self.delete_selection()
             return
-        before = self._snapshot()
         r, c = self.cursor
         line = self.lines[r]
         if c >= len(line) and r == len(self.lines) - 1:
             return
+        self._begin()
         if c >= len(line):
-            self.lines[r] = line + self.lines[r + 1]
-            del self.lines[r + 1]
+            self._delete_range((r, c), (r + 1, 0))
         else:
             nc = word_end(line, c) if word else c + 1
-            self.lines[r] = line[:c] + line[nc:]
+            self._delete_range((r, c), (r, nc))
         self.cursor = (r, c)
-        self._commit(before, "step" if word else "char")
+        self._commit("step" if word else "char")
 
     # ------------------------------------------------- multi-point primitives
 
@@ -786,11 +1019,13 @@ class TextBuffer:
         stale points surviving an undo or an external rewrite stay legal.
         """
         points: list[Pos] = [self.cursor]
+        seen: set[Pos] = {self.cursor}
         last = len(self.lines) - 1
         for pos in self.extra_cursors:
             r = max(0, min(pos[0], last))
             c = max(0, min(pos[1], len(self.lines[r])))
-            if (r, c) not in points:
+            if (r, c) not in seen:
+                seen.add((r, c))
                 points.append((r, c))
         return points
 
@@ -820,18 +1055,52 @@ class TextBuffer:
             return
         self.anchor = None
         points = self._multi_points()
-        before = self._snapshot()
+        self._begin()
         log.debug("multi-cursor insert: points=%d", len(points))
         parts = text.split("\n")
-        new_pos: dict[Pos, Pos] = {}
+        # Record each point's own post-insert position, then remap every
+        # point through the LATER inserts in one pass: an edit's row list
+        # is non-increasing (points are processed in descending order), so
+        # a suffix-sum + binary search per point replaces the old
+        # full-dictionary rescan per insert (O(k^2) -> O(k log k)).
+        edits: list[tuple[int, int, int]] = []  # (row, first-part len, new rows)
+        recorded: list[tuple[Pos, Pos]] = []
         for pos in sorted(points, reverse=True):
-            recorded = self._apply_text(text, pos)
-            _remap_after_insert(new_pos, pos, parts)
-            new_pos[pos] = recorded
+            end = self._apply_text(text, pos)
+            recorded.append((pos, end))
+            edits.append((pos[0], len(parts[0]), len(parts) - 1))
+        m = len(edits)
+        # suffix_k[i] = total new rows added by edits[i:]
+        suffix_k = [0] * (m + 1)
+        for i in range(m - 1, -1, -1):
+            suffix_k[i] = suffix_k[i + 1] + edits[i][2]
+        # ascending mirror of the non-increasing edit-row list, for bisect
+        asc_rows = [e[0] for e in reversed(edits)]
+        # prefix_len[i] = sum of first-part lengths of edits[:i]
+        prefix_len = [0] * (m + 1)
+        for i in range(m):
+            prefix_len[i + 1] = prefix_len[i] + edits[i][1]
+        new_pos: dict[Pos, Pos] = {}
+        for i, (pos, end) in enumerate(recorded):
+            r, c = end
+            if i + 1 < m:
+                # later edits with row < r shift this point's row down by
+                # their inserted row count (rows == r only shift the column)
+                ge = m - bisect.bisect_left(asc_rows, r)
+                first_below = max(i + 1, ge)
+                row_add = suffix_k[first_below]
+                # later edits on r's own row shift the column by their
+                # first-part length; they form the tail of the >= r prefix
+                col_start = max(i + 1, m - bisect.bisect_right(asc_rows, r))
+                col_add = max(0, prefix_len[ge] - prefix_len[col_start])
+            else:
+                row_add = 0
+                col_add = 0
+            new_pos[pos] = (r + row_add, c + col_add)
         self.cursor = new_pos[points[0]]
         self.extra_cursors = [new_pos[pos] for pos in points[1:]]
         self._goal_col = None
-        self._commit(before, kind)
+        self._commit(kind)
 
     def delete_at_points(self) -> None:
         """Delete one character before every active point as ONE undo step.
@@ -852,7 +1121,7 @@ class TextBuffer:
         self._ensure_writable()
         self.anchor = None
         points = self._multi_points()
-        before = self._snapshot()
+        self._begin()
         log.debug("multi-cursor delete: points=%d", len(points))
         new_pos: dict[Pos, Pos] = {}
         for pos in sorted(points, reverse=True):
@@ -880,7 +1149,7 @@ class TextBuffer:
         self.cursor = new_pos[points[0]]
         self.extra_cursors = [new_pos[pos] for pos in points[1:]]
         self._goal_col = None
-        self._commit(before, "char")
+        self._commit("char")
 
     def delete_forward_at_points(self) -> None:
         """Delete one character after every active point as ONE undo step.
@@ -901,7 +1170,7 @@ class TextBuffer:
         self._ensure_writable()
         self.anchor = None
         points = self._multi_points()
-        before = self._snapshot()
+        self._begin()
         log.debug("multi-cursor delete forward: points=%d", len(points))
         new_pos: dict[Pos, Pos] = {}
         for pos in sorted(points, reverse=True):
@@ -929,7 +1198,7 @@ class TextBuffer:
         self.cursor = new_pos[points[0]]
         self.extra_cursors = [new_pos[pos] for pos in points[1:]]
         self._goal_col = None
-        self._commit(before, "char")
+        self._commit("char")
 
     # ------------------------------------------------------------- movements
 
@@ -1024,14 +1293,15 @@ class TextBuffer:
         if sel is None:
             self.insert_tab()
             return
-        before = self._snapshot()
+        self._begin()
         (r1, _), (r2, _) = sel
         unit = "\t" if not self.use_spaces else " " * self.tab_width
+        self._capture(r1, r2)
         for r in range(r1, r2 + 1):
             self.lines[r] = unit + self.lines[r]
         self.anchor = (r1, 0)
         self.cursor = (r2, len(self.lines[r2]))
-        self._commit(before, "step")
+        self._commit("step")
 
     def outdent_selection(self) -> None:
         """Outdent the selected rows (or the cursor row) by one tab stop."""
@@ -1044,7 +1314,8 @@ class TextBuffer:
             r1 = r2 = r
         else:
             (r1, _), (r2, _) = sel
-        before = self._snapshot()
+        self._begin()
+        self._capture(r1, r2)
         for r in range(r1, r2 + 1):
             line = self.lines[r]
             if line.startswith("\t"):
@@ -1065,7 +1336,7 @@ class TextBuffer:
             # leave the cursor one column past the end of the text).
             row = self.cursor[0]
             self.cursor = (row, min(self.col, len(self.lines[row])))
-        self._commit(before, "step")
+        self._commit("step")
 
     def yank_lines(self, *, named: str | None = None) -> str:
         """Yank the selected lines, or the current line (line-wise).
@@ -1110,24 +1381,33 @@ class TextBuffer:
         if self.locked:
             return ""
         self._ensure_writable()
-        before = self._snapshot()
         rows = self.selected_rows()
         if rows is None:
             r1 = r2 = self.cursor[0]
         else:
             r1, r2 = rows
+        self._begin()
         text = "\n".join(self.lines[r1 : r2 + 1]) + "\n"
         if named is None:
             self.register = text
         else:
             self.named_registers[named] = text
+        self._capture(r1, r2)
         del self.lines[r1 : r2 + 1]
+        pend = self._pend
+        assert pend is not None
         if not self.lines:
+            # last row(s) removed: the guaranteed empty row is the region's
+            # whole replacement
             self.lines = [""]
+            pend.bot = r1
+        else:
+            # rows r1..r2 removed entirely: the region's replacement is empty
+            pend.bot = r1 - 1
         r = min(r1, len(self.lines) - 1)
         self.cursor = (r, 0)
         self.anchor = None
-        self._commit(before, "step")
+        self._commit("step")
         return text
 
     def duplicate_line(self) -> None:
@@ -1135,40 +1415,46 @@ class TextBuffer:
         if self.locked:
             return
         self._ensure_writable()
-        before = self._snapshot()
         rows = self.selected_rows()
         r1, r2 = rows if rows is not None else (self.row, self.row)
+        self._begin()
+        self._capture(r1, r2)
         block = list(self.lines[r1 : r2 + 1])
         self.lines[r2 + 1 : r2 + 1] = block
+        pend = self._pend
+        assert pend is not None
+        # the duplicated block joins the region as new rows below r2
+        pend.bot = max(pend.bot, r2 + len(block))
         self.cursor = (r2 + len(block), min(self.col, len(self.lines[r2 + len(block)])))
         self.anchor = None
-        self._commit(before, "step")
+        self._commit("step")
 
     def move_line(self, delta: int) -> None:
         """Move the current row by *delta* rows; no-op when the target is out of range."""
         if self.locked:
             return
         self._ensure_writable()
-        before = self._snapshot()
         r = self.cursor[0]
         target = r + delta
         if target < 0 or target >= len(self.lines):
             return
+        self._begin()
+        self._capture(min(r, target), max(r, target))
         line = self.lines.pop(r)
         self.lines.insert(target, line)
         self.cursor = (target, min(self.col, len(line)))
         self.anchor = None
-        self._commit(before, "step")
+        self._commit("step")
 
     def join_lines(self) -> None:
         """Join the current line with the next one (vim ``J``)."""
         if self.locked:
             return
         self._ensure_writable()
-        before = self._snapshot()
         r, c = self.cursor
         if r >= len(self.lines) - 1:
             return
+        self._begin()
         cur = self.lines[r]
         nxt = self.lines[r + 1]
         if cur and not cur.endswith((" ", "\t")) and nxt and not nxt.startswith((" ", "\t")):
@@ -1177,11 +1463,16 @@ class TextBuffer:
             joined = cur + " " + nxt.lstrip(" \t")
         else:
             joined = cur + nxt
+        self._capture(r, r + 1)
         self.lines[r] = joined
         del self.lines[r + 1]
         self.cursor = (r, min(c, len(joined)))
         self.anchor = None
-        self._commit(before, "step")
+        pend = self._pend
+        assert pend is not None
+        # rows r..r+1 collapsed into r
+        pend.bot = r
+        self._commit("step")
 
     def delete_to_line_start(self) -> None:
         """Delete from the start of the line up to the cursor (vim ctrl-u)."""
@@ -1191,11 +1482,11 @@ class TextBuffer:
         r, c = self.cursor
         if c == 0:
             return
-        before = self._snapshot()
+        self._begin()
         self._delete_range((r, 0), (r, c))
         self.cursor = (r, 0)
         self.anchor = None
-        self._commit(before, "step")
+        self._commit("step")
 
     def paste(self, below: bool = True, *, named: str | None = None) -> None:
         """Paste a register at the cursor (below it when *below*).
