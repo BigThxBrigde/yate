@@ -375,6 +375,19 @@ class TextBuffer:
         self._dirty_top = None
         return (top, self._dirty_bottom)
 
+    @property
+    def dirty_range(self) -> tuple[int, int] | None:
+        """Peek at the pending dirty range without consuming it.
+
+        The completion worker uses this to rescore only the rows an edit
+        touched while leaving the range for the highlight diff, which
+        consumes it via :meth:`take_dirty_range`.
+        """
+        top = self._dirty_top
+        if top is None:
+            return None
+        return (top, self._dirty_bottom)
+
     def _begin(self) -> None:
         """Open the pending-edit accumulator (no-op when already open)."""
         if self._pend is None:
