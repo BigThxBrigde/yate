@@ -14,24 +14,48 @@ import re
 #: Word character class for all word motions: ``re``'s ``\\w``.
 _WORD_CHARS: re.Pattern[str] = re.compile(r"\w")
 
+#: Greedy run matchers: one whole regex call per word/punctuation segment
+#: instead of one per character (scan loops stay out of Python-level loops).
+_WORD_RUN: re.Pattern[str] = re.compile(r"\w+")
+_PUNCT_RUN: re.Pattern[str] = re.compile(r"[^\w\s]+")
+_SPACE_RUN: re.Pattern[str] = re.compile(r"\s+")
+
 
 def _is_word(ch: str) -> bool:
     """Whether *ch* counts as a word character for word motions."""
     return bool(_WORD_CHARS.match(ch))
 
 
+def _run_start(line: str, i: int, *, word: bool) -> int:
+    """Start column of the run ending at *i*.
+
+    Matches the same run class the forward scanners use: word characters
+    when *word* is set, otherwise non-word non-space characters.  Returns
+    *i* unchanged when no such run ends there (empty prefix or the run
+    class does not apply), mirroring the per-character loops this replaces.
+    """
+    pattern = _WORD_RUN if word else _PUNCT_RUN
+    start = i
+    for found in pattern.finditer(line, 0, i):
+        if found.end() == i:
+            start = found.start()
+    return start
+
+
 def next_word_start(line: str, col: int) -> int:
     """Column of the next word start at or after ``col``."""
     n = len(line)
     i = min(col, n)
-    if i < n and _is_word(line[i]):
-        while i < n and _is_word(line[i]):
-            i += 1
+    found = _WORD_RUN.match(line, i)
+    if found is not None:
+        i = found.end()
     else:
-        while i < n and not _is_word(line[i]) and not line[i].isspace():
-            i += 1
-    while i < n and line[i].isspace():
-        i += 1
+        found = _PUNCT_RUN.match(line, i)
+        if found is not None:
+            i = found.end()
+    found = _SPACE_RUN.match(line, i)
+    if found is not None:
+        i = found.end()
     return i
 
 
@@ -40,28 +64,24 @@ def prev_word_start(line: str, col: int) -> int:
     i = min(col, len(line))
     while i > 0 and line[i - 1].isspace():
         i -= 1
-    if i > 0 and not _is_word(line[i - 1]):
-        while i > 0 and not _is_word(line[i - 1]) and not line[i - 1].isspace():
-            i -= 1
-    else:
-        while i > 0 and _is_word(line[i - 1]):
-            i -= 1
-    return i
+    if i > 0 and _is_word(line[i - 1]):
+        return _run_start(line, i, word=True)
+    return _run_start(line, i, word=False)
 
 
 def word_end(line: str, col: int) -> int:
     """Exclusive column of the end of the word at/after ``col``."""
     n = len(line)
     i = min(col, n)
-    if i < n and line[i].isspace():
-        while i < n and line[i].isspace():
-            i += 1
-    if i < n and _is_word(line[i]):
-        while i < n and _is_word(line[i]):
-            i += 1
-    else:
-        while i < n and not _is_word(line[i]) and not line[i].isspace():
-            i += 1
+    found = _SPACE_RUN.match(line, i)
+    if found is not None:
+        i = found.end()
+    found = _WORD_RUN.match(line, i)
+    if found is not None:
+        return found.end()
+    found = _PUNCT_RUN.match(line, i)
+    if found is not None:
+        return found.end()
     return i
 
 
@@ -74,9 +94,6 @@ def word_span(line: str, col: int) -> tuple[int, int]:
     """
     if not 0 <= col < len(line) or not _is_word(line[col]):
         return (col, col)
-    # walk back over the word itself; prev_word_start would jump the gap
-    # into the previous word when *col* is the word's first character
-    start = col
-    while start > 0 and _is_word(line[start - 1]):
-        start -= 1
-    return (start, word_end(line, col))
+    # the run start is walked back directly; prev_word_start would jump the
+    # gap into the previous word when *col* is the word's first character
+    return (_run_start(line, col, word=True), word_end(line, col))

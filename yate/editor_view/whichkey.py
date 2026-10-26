@@ -146,7 +146,14 @@ class WhichKeyPanel(Static):
         self.call_after_refresh(self.reanchor)
 
     def clear(self) -> None:
-        """Drop the pushed data, blank content + title and hide."""
+        """Drop the pushed data, blank content + title and hide.
+
+        Plan-f P21: when the panel is already hidden with no pushed data
+        (the common per-keystroke case) this is a no-op -- no ``update``
+        and no dirty marking.
+        """
+        if self.display is False and not self._entries:
+            return
         self._header = ""
         self._entries = ()
         self.border_title = ""

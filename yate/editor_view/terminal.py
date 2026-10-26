@@ -72,6 +72,12 @@ TOGGLE_KEYS: frozenset[str] = frozenset({
 #: :meth:`TerminalView.on_key`, so the shell input stream never sees it.
 FOCUS_EDITOR_KEY: str = "ctrl+1"
 
+#: VT parsing runs on the UI event loop, so output chunks are coalesced
+#: and drained once per frame.  Bytes beyond this limit force an
+#: immediate synchronous drain: a producer faster than the frame rate
+#: must not grow the buffer without bound.
+OUTPUT_BUFFER_LIMIT: int = 1024 * 1024
+
 
 def _hex(rgb: tuple[int, int, int] | None) -> str | None:
     if rgb is None:
@@ -105,6 +111,10 @@ class TerminalView(Widget):
         self._snapshot: list[list[Cell]] | None = None
         self._snapshot_key: tuple[int, int, int, int] = (-1, -1, -1, -1)
         self._grid_seq = 0
+        # Output coalescing: chunks accumulate here until the scheduled
+        # per-frame drain feeds the whole batch to the emulator at once.
+        self._output_buffer = bytearray()
+        self._drain_scheduled = False
 
     # ------------------------------------------------------------- lifecycle
 
@@ -193,6 +203,29 @@ class TerminalView(Widget):
     # ------------------------------------------------------------ PTY events
 
     def _on_output(self, data: bytes) -> None:
+        self._output_buffer += data
+        if len(self._output_buffer) > OUTPUT_BUFFER_LIMIT:
+            # Producer outruns the frame rate: drain synchronously so the
+            # buffer cannot grow without bound (no bytes are dropped).
+            self._drain_output()
+            return
+        if not self.is_attached:
+            # Not on a live widget (tests / unmount race): scheduling a
+            # callback could never fire, so drain immediately instead.
+            self._drain_output()
+            return
+        if self._drain_scheduled:
+            return
+        self._drain_scheduled = True
+        self.call_after_refresh(self._drain_output)
+
+    def _drain_output(self) -> None:
+        """Feed every buffered output chunk to the emulator in one batch."""
+        self._drain_scheduled = False
+        data = bytes(self._output_buffer)
+        self._output_buffer.clear()
+        if not data:
+            return
         self.emulator.feed(data)
         if self._scroll:
             self._scroll = min(self._scroll, self.emulator.max_scroll())

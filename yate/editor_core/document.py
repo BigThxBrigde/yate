@@ -64,13 +64,12 @@ class Document:
         # Manual syntax/filetype override (`:set filetype=...`); ``None``
         # means the type is detected from the path suffix.
         self.filetype_override: str | None = None
-        # Buffer edit count and line snapshot at the last save.  ``modified``
-        # compares the O(1) counter first; when it differs (e.g. the save
-        # landed in the middle of a coalesced typing step, or the undo stack
-        # dropped old steps) it falls back to an exact line comparison, so
-        # the flag stays correct across undo/redo without a full-text join.
+        # Buffer edit count at the last save.  ``modified`` compares the
+        # O(1) counter only: every content commit bumps the counter and
+        # undo/redo move it back exactly (a coalesced step records the
+        # number of folded commits as its weight), so the counter alone
+        # decides dirtiness -- no line-list fallback needed.
         self._saved_edits = self.buffer.content_edits
-        self._saved_lines = tuple(self.buffer.lines)
         # Memoized ``modified`` verdict, keyed on the buffer's edit counter:
         # ``(edits at query time, verdict)``.  ``save()`` clears it (the
         # baseline moves); undo/redo rewinds the counter, which simply misses
@@ -178,19 +177,16 @@ class Document:
         The verdict is memoized on the buffer's edit counter: an unchanged
         counter (the status bar queries this once per keystroke) returns the
         cached verdict in O(1).  A counter that moved -- forward on edits,
-        backward on undo -- recomputes: first from the saved edit counter,
-        falling back to an exact ``tuple(lines)`` comparison when the counter
-        cannot decide (see ``__init__``), which is **O(N) in the line count**
-        and therefore the expensive path on large buffers.
+        backward on undo -- recomputes from the saved edit counter, which is
+        exact: undo/redo restore the counter to its pre-edit value (the
+        counter decrement is the folded commit weight), so
+        ``edits == saved`` iff the text was brought back to the saved state.
         """
         edits = self.buffer.content_edits
         cached = self._modified_cache
         if cached is not None and cached[0] == edits:
             return cached[1]
-        if edits == self._saved_edits:
-            verdict = False
-        else:
-            verdict = tuple(self.buffer.lines) != self._saved_lines
+        verdict = edits != self._saved_edits
         self._modified_cache = (edits, verdict)
         return verdict
 
@@ -274,7 +270,6 @@ class Document:
         self.eol = full.eol
         self.chunked = None
         self._saved_edits = buf.content_edits
-        self._saved_lines = tuple(buf.lines)
         self._modified_cache = None
 
     def save(self, path: Path | str | None = None) -> Path:
@@ -369,7 +364,6 @@ class Document:
                 tmp.unlink(missing_ok=True)
             raise
         self._saved_edits = self.buffer.content_edits
-        self._saved_lines = tuple(self.buffer.lines)
         self._modified_cache = None
         self.path = target
         return self.path

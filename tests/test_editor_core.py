@@ -209,6 +209,135 @@ def test_typed_chars_coalesce_in_one_undo_step() -> None:
     assert buf.get_text() == ""
 
 
+def test_undo_redo_roundtrip_across_row_count_changes() -> None:
+    """Undo/redo stay exact when edits add and remove whole rows."""
+    buf = TextBuffer("one\ntwo")
+    buf.set_cursor((1, 3))
+    buf.insert_text("\nthree\nfour")  # rows grow
+    assert buf.lines == ["one", "two", "three", "four"]
+    buf.undo()
+    assert buf.lines == ["one", "two"]
+    assert buf.cursor == (1, 3)
+    buf.redo()
+    assert buf.lines == ["one", "two", "three", "four"]
+    # rows shrink again: join + line deletion round-trip
+    buf.move_doc_start()
+    buf.join_lines()
+    buf.delete_lines()  # deletes the cursor row ("onetwo")
+    assert buf.lines == ["three", "four"]
+    buf.undo()
+    assert buf.lines == ["one two", "three", "four"]
+    buf.undo()
+    assert buf.lines == ["one", "two", "three", "four"]
+    buf.redo()
+    buf.redo()
+    assert buf.lines == ["three", "four"]
+    # deleting every row leaves the guaranteed empty row; undo restores all
+    buf = TextBuffer("solo")
+    buf.delete_lines()
+    assert buf.lines == [""]
+    buf.undo()
+    assert buf.lines == ["solo"]
+
+
+def test_char_merge_granularity_matches_keystroke_boundaries() -> None:
+    """Char edits merge with adjacent typing/deletion, step edits do not."""
+    buf = TextBuffer("")
+    for ch in "abc":
+        buf.insert_text(ch)
+    buf.delete_backward()  # char kind: merges with the typing run
+    buf.delete_backward()
+    assert buf.get_text() == "a"
+    buf.undo()
+    assert buf.get_text() == ""
+    buf.redo()
+    assert buf.get_text() == "a"
+    # a word deletion is a step: undo takes only the word back
+    buf.insert_text(" bc")
+    buf.delete_backward(word=True)
+    assert buf.get_text() == "a "
+    buf.undo()
+    assert buf.get_text() == "a bc"
+    buf.undo()
+    assert buf.get_text() == ""
+    # an auto-completed pair merges with the surrounding keystrokes
+    buf = TextBuffer("")
+    buf.type_char("(")
+    buf.type_char("x")
+    buf.undo()
+    assert buf.get_text() == ""
+
+
+def test_multi_cursor_fifty_points_remap() -> None:
+    """Many points with row-splitting text all land on their own insertion."""
+    buf = TextBuffer("\n".join(f"{i}{i}{i}" for i in range(50)))
+    buf.set_cursor((0, 1))
+    for i in range(1, 50):
+        buf.add_cursor_at((i, 1))
+    buf.insert_at_points("A\nB")
+    expected: list[str] = []
+    for i in range(50):
+        text = f"{i}{i}{i}"
+        expected.append(text[:1] + "A")
+        expected.append("B" + text[1:])
+    assert buf.lines == expected
+    # every point follows its own insertion onto the "B" tail row
+    assert buf.cursor == (1, 1)
+    assert sorted(buf.extra_cursors) == sorted((2 * i + 1, 1) for i in range(1, 50))
+    # one undo step reverts the whole multi-point edit
+    buf.undo()
+    assert buf.lines == [f"{i}{i}{i}" for i in range(50)]
+    assert buf.cursor == (0, 1)
+    assert buf.extra_cursors == [(i, 1) for i in range(1, 50)]
+    buf.redo()
+    assert buf.lines == expected
+
+
+def test_take_dirty_range_union_and_clear() -> None:
+    buf = TextBuffer("a\nb\nc\nd")
+    assert buf.take_dirty_range() is None
+    buf.set_cursor((3, 1))
+    buf.insert_text("x")  # row 3
+    assert buf.take_dirty_range() == (3, 3)
+    assert buf.take_dirty_range() is None  # taken: cleared
+    buf.set_cursor((0, 1))
+    buf.insert_text("y")  # row 0: separate edit, union would cover 0..3
+    assert buf.take_dirty_range() == (0, 0)
+    buf.set_cursor((0, 2))
+    buf.insert_text("\nz")  # splits row 0: rows below shift down
+    # structural insertion: the dirty range must reach the last row so
+    # line-numbered caches re-align
+    assert buf.take_dirty_range() == (0, 4)
+    buf.undo()  # undo removes a row: rows below shift up again
+    assert buf.take_dirty_range() == (0, 3)
+
+
+def test_modified_edit_undo_returns_to_saved_state(tmp_path: Path) -> None:
+    """The O(1) modified verdict matches the old text comparison on undo."""
+    target = tmp_path / "doc.txt"
+    doc = Document(target, TextBuffer("x"))
+    doc.buffer.insert_text("y")
+    assert doc.modified
+    doc.save()
+    assert not doc.modified
+    # undoing back to the saved edit count clears the flag...
+    doc.buffer.insert_text("z")
+    assert doc.modified
+    doc.buffer.undo()
+    # ...but a coalesced step can rewind PAST the save (the save landed in
+    # the middle of a typing run): text now differs from the saved state and
+    # the verdict stays dirty -- same as the old line-comparison fallback.
+    assert doc.modified
+    doc.buffer.insert_text("z")
+    doc.save()
+    assert not doc.modified
+    # a step-kind edit after the save undoes back to exactly the saved count
+    doc.buffer.insert_text("q", kind="step")
+    assert doc.modified
+    doc.buffer.undo()
+    assert not doc.modified
+
+
 def test_content_version_tracks_text_only() -> None:
     buf = TextBuffer("def foo():\n    pass\n")
     assert buf.content_version == 0

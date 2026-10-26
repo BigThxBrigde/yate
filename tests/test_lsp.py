@@ -23,6 +23,7 @@ from yate.editor_lsp import ServerState
 from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp import protocol
 from yate.editor_lsp.client import (
+    Diagnostic,
     LspClient,
     LspConnectionError,
     LspError,
@@ -585,6 +586,9 @@ class FakeClient:
         self.stopped = False
         self._on_notification = on_notification
         self._completion: Any = completion if completion is not None else []
+        # Mirrors the real client's in-flight request table so tests can
+        # assert completed requests are actually evicted (P6 regression).
+        self._pending: dict[int, asyncio.Future[Any]] = {}
 
     async def start(self) -> None:
         """Fake start: only records that the client was started."""
@@ -609,7 +613,13 @@ class FakeClient:
         self.sent.append((method, params))
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         future.set_result(self._completion)
+        self._pending[1] = future
         return 1, future
+
+    def settle_request(self, request_id: int) -> None:
+        """Fake settle: mirrors the real client's pending-future cleanup."""
+        self.sent.append(("$/settleRequest", request_id))
+        self._pending.pop(request_id, None)
 
     async def send_cancel(self, request_id: int) -> None:
         """Fake cancel: records the $/cancelRequest notification."""
@@ -923,6 +933,130 @@ def test_diagnostics_delivery_and_queries(session: ManagerSession) -> None:
     asyncio.run(scenario())
 
 
+def test_diagnostics_row_index_multi_row_and_rebuild(tmp_path: Path) -> None:
+    """P11: multi-row diagnostics are indexed on every covered row and a
+    republish rebuilds the index so queries match the full-table filter."""
+
+    async def scenario() -> None:
+        fakes: list[FakeClient] = []
+        mgr = LspManager()
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            def on_notification(method: str, params: dict[str, Any]) -> None:
+                mgr.handle_notification(method, params)
+
+            fake = FakeClient(
+                config, path,
+                on_notification=on_notification,
+            )
+            fakes.append(fake)
+            return fake
+
+        mgr.set_client_factory(cast(Any, factory))
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path), "a\nb\nc\nd\ne\nf\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+
+        def publish(raw: list[dict[str, Any]]) -> None:
+            client.publish({"uri": uri, "diagnostics": raw})
+
+        def diag(start: int, end: int) -> dict[str, Any]:
+            return {
+                "range": {"start": {"line": start, "character": 0},
+                          "end": {"line": end, "character": 1}},
+                "severity": 1, "message": "bad",
+            }
+
+        def expected_rows() -> dict[int, list[Diagnostic]]:
+            table = mgr.diagnostics_for(doc)
+            return {
+                row: [d for d in table if d.start_row <= row <= d.end_row]
+                for row in range(6)
+            }
+
+        # A diagnostic spanning rows 2..4 must be visible on rows 2, 3, 4
+        # and on no other row.
+        publish([diag(2, 4)])
+        expected = expected_rows()
+        for row in range(6):
+            assert mgr.diagnostics_on_line(doc, row) == expected[row]
+        assert len(mgr.diagnostics_on_line(doc, 3)) == 1
+
+        # Republishing replaces the whole index: the old multi-row hit on
+        # row 3 disappears, the new single-row one appears.
+        publish([diag(0, 0)])
+        assert mgr.diagnostics_on_line(doc, 3) == []
+        assert len(mgr.diagnostics_on_line(doc, 0)) == 1
+        expected = expected_rows()
+        for row in range(6):
+            assert mgr.diagnostics_on_line(doc, row) == expected[row]
+        # The returned list is a copy: mutating it must not corrupt the index.
+        mgr.diagnostics_on_line(doc, 0).clear()
+        assert len(mgr.diagnostics_on_line(doc, 0)) == 1
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_diagnostics_index_cleared_with_table(tmp_path: Path) -> None:
+    """P11: the per-row index is dropped wherever ``_diagnostics`` is
+    (didOpen republish gate and server unregistration)."""
+
+    async def scenario() -> None:
+        fakes: list[FakeClient] = []
+        mgr = LspManager()
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            def on_notification(method: str, params: dict[str, Any]) -> None:
+                mgr.handle_notification(method, params)
+
+            fake = FakeClient(
+                config, path,
+                on_notification=on_notification,
+            )
+            fakes.append(fake)
+            return fake
+
+        mgr.set_client_factory(cast(Any, factory))
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path), "a\nb\nc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        client.publish({"uri": uri, "diagnostics": [
+            {"range": {"start": {"line": 0, "character": 0},
+                       "end": {"line": 2, "character": 0}},
+             "severity": 1, "message": "bad"},
+        ]})
+        assert len(mgr.diagnostics_on_line(doc, 1)) == 1
+
+        # didOpen republish gate: reopening the doc clears stale entries.
+        await mgr.on_document_closed(doc)
+        await mgr.on_document_shown(doc)
+        assert mgr.diagnostics_on_line(doc, 1) == []
+        assert uri not in mgr._diagnostics_by_row
+
+        # Server unregistration drops both the table and the index.
+        client.publish({"uri": uri, "diagnostics": [
+            {"range": {"start": {"line": 0, "character": 0},
+                       "end": {"line": 0, "character": 1}},
+             "severity": 1, "message": "bad"},
+        ]})
+        assert len(mgr.diagnostics_on_line(doc, 0)) == 1
+        mgr.unregister_server("python")
+        assert uri not in mgr._diagnostics_by_row
+        assert mgr.diagnostics_on_line(doc, 0) == []
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
 def test_missing_executable_is_failed_not_raised(
     session: ManagerSession, tmp_path: Path
 ) -> None:
@@ -1118,8 +1252,7 @@ def test_shutdown_cancels_pending_change_tasks(
         # fire the debounce timer now
         for handle in list(internals._change_timers.values()):
             handle.cancel()
-        internals._flush_change(
-            doc, internals._uri(doc), doc.buffer.get_text())
+        internals._flush_change(doc, internals._uri(doc))
         await mgr.shutdown_all()
         assert [t for t in internals._bg_tasks if not t.done()] == []
 
@@ -1482,3 +1615,77 @@ def test_unregister_server_forgets_the_config() -> None:
     assert manager.config_names() == []
 
     assert manager.unregister_server("probe") is False
+
+
+def test_completion_evicts_pending_request_after_settle(
+    session: ManagerSession,
+) -> None:
+    """P6 regression: a settled completion request leaves ``_pending`` empty.
+
+    ``request_completion`` used to await the ``start_request`` future without
+    evicting it, leaking one future (and its raw response payload) per popup
+    until the connection was torn down.
+    """
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        assert await mgr.request_completion(doc, 0, 0, prefix_start_col=0) == []
+        # The future settled (success path); the pending entry must be gone.
+        assert client._pending == {}
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_notify_edit_skips_full_text_materialization_on_same_version(
+    session: ManagerSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P5 regression: an unchanged buffer version never materializes text.
+
+    ``notify_edit`` used to call ``buffer.get_text()`` (an O(document) join)
+    on every keystroke before deciding the text was unchanged.
+    """
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        calls = [0]
+
+        real_get_text = doc.buffer.get_text
+
+        def counting_get_text() -> str:
+            calls[0] += 1
+            return real_get_text()
+
+        monkeypatch.setattr(doc.buffer, "get_text", counting_get_text)
+
+        # No edit since didOpen: version matches, zero materialization.
+        mgr.notify_edit(doc)
+        assert calls[0] == 0
+        assert mgr._change_timers == {}
+
+        # A real edit (version bump) materializes once in notify_edit (the
+        # last_synced double-insurance compare) and once more inside the
+        # debounce flush; last_synced_version advances after the send.
+        doc.buffer.insert_text("x")
+        mgr.notify_edit(doc)
+        assert calls[0] == 1
+        internals = cast(Any, mgr)
+        uri = internals._uri(doc)
+        timer = internals._change_timers.pop(uri, None)
+        assert timer is not None
+        timer.cancel()
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        state = internals._open[uri]
+        assert state.last_synced_version == doc.buffer.content_version
+        assert calls[0] == 2
+        # A follow-up notify_edit on the now-synced buffer short-circuits.
+        mgr.notify_edit(doc)
+        assert calls[0] == 2
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())

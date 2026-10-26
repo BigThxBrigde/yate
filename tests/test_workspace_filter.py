@@ -105,6 +105,58 @@ def test_walk_files_respects_show_hidden(ws: Workspace) -> None:
     assert "plain.py" in files
 
 
+# --- walk_files TTL cache ----------------------------------------------------
+
+
+def test_walk_files_does_not_rescan_within_the_ttl(
+    ws: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second walk inside the TTL window is served from the cache."""
+    calls = {"n": 0}
+    real_iterdir = Path.iterdir
+
+    def counting_iterdir(path: Path) -> Iterator[Path]:
+        calls["n"] += 1
+        return real_iterdir(path)
+
+    monkeypatch.setattr(Path, "iterdir", counting_iterdir)
+    first = ws.walk_files()
+    after_first = calls["n"]
+    assert after_first > 0
+    assert ws.walk_files() == first
+    assert calls["n"] == after_first
+
+
+def test_walk_files_rescans_after_the_ttl_expires(
+    ws: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file created inside the TTL window shows up once the window ends."""
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(
+        "yate.services.workspace.time.monotonic", lambda: clock["now"]
+    )
+    assert ws.walk_files() == [ws.root / "plain.py"]  # type: ignore[arg-type]
+    (root_of(ws) / "late.py").write_text("x\n", encoding="utf-8")
+    clock["now"] += 6.0  # _WALK_CACHE_TTL_SECONDS is 5.0
+    assert "late.py" in {p.name for p in ws.walk_files()}
+
+
+def test_walk_files_invalidate_drops_the_cache(ws: Workspace) -> None:
+    """invalidate() makes the very next walk see new files."""
+    assert ws.walk_files() == [ws.root / "plain.py"]  # type: ignore[arg-type]
+    (root_of(ws) / "new.py").write_text("x\n", encoding="utf-8")
+    ws.invalidate()
+    assert "new.py" in {p.name for p in ws.walk_files()}
+
+
+def test_walk_files_cache_is_keyed_on_show_hidden(ws: Workspace) -> None:
+    """Toggling show_hidden inside the TTL window is not swallowed."""
+    assert ws.walk_files() == [ws.root / "plain.py"]  # type: ignore[arg-type]
+    ws.show_hidden = True
+    files = {p.name for p in ws.walk_files()}
+    assert ".dotfile" in files
+
+
 def test_visible_tree_respects_show_hidden(ws: Workspace) -> None:
     rows = ws.visible_tree(set())
     got = {e.name for _, e in rows}

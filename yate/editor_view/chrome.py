@@ -47,6 +47,9 @@ class TabBar(Static):
         # [(start_cell, end_cell_exclusive, doc_index), ...] for the last
         # rendered line; used by on_mouse_down for hit testing.
         self._regions: list[tuple[int, int, int]] = []
+        # Content fingerprint of the last rendered tab line (plan-f P3):
+        # an unchanged fingerprint skips the Rich Text rebuild.
+        self._last_fingerprint: tuple[object, ...] | None = None
 
     # --------------------------------------------------------------- data
 
@@ -123,7 +126,23 @@ class TabBar(Static):
         self.update(text)
 
     def refresh_tabs(self) -> None:
-        """Re-render at the widget's current width."""
+        """Re-render at the widget's current width (unless unchanged)."""
+        # Plan-f P3: the tab line is fully determined by the document
+        # sequence (identity, name, modified flag), the active index, the
+        # width and the theme; any of them changing alters the output, so
+        # this fingerprint is exhaustive over the render inputs.
+        session = self.session
+        fingerprint = (
+            id(theme.active()),
+            self.size.width or 80,
+            session.index,
+            tuple(
+                (id(doc), doc.name, doc.modified) for doc in session.docs
+            ),
+        )
+        if fingerprint == self._last_fingerprint:
+            return
+        self._last_fingerprint = fingerprint
         self.render_content(self.size.width or 80)
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
@@ -169,6 +188,12 @@ class Breadcrumbs(Static):
         # object (plan-b m-12).
         self._cached_root: Path | None = None
         self._resolved_root: Path | None = None
+        # Plan-f P10b: resolve() is a filesystem round trip per keystroke;
+        # cache the resolved form keyed by the path string -- retargeting to
+        # another path changes the key, saving in place does not.
+        self._resolved_doc: tuple[str, Path] | None = None
+        # Content fingerprint of the last rendered crumb line (plan-f P3).
+        self._last_fingerprint: tuple[object, ...] | None = None
 
     # --------------------------------------------------------------- data
 
@@ -185,10 +210,15 @@ class Breadcrumbs(Static):
             self._cached_root = root
             self._resolved_root = root.resolve() if root is not None else None
         resolved_root = self._resolved_root
+        # Plan-f P10b: reuse the cached resolve() result while the path
+        # string is unchanged (a save does not change the path, so it hits).
+        if self._resolved_doc is None or self._resolved_doc[0] != str(path):
+            self._resolved_doc = (str(path), path.resolve())
+        resolved_path = self._resolved_doc[1]
         parts: list[str]
         if root is not None and resolved_root is not None:
             try:
-                parts = [root.name, *path.resolve().relative_to(resolved_root).parts]
+                parts = [root.name, *resolved_path.relative_to(resolved_root).parts]
             except ValueError:
                 parts = list(path.parts)
         else:
@@ -248,7 +278,22 @@ class Breadcrumbs(Static):
         return text
 
     def refresh_crumbs(self) -> None:
-        """Re-render at the widget's current width."""
+        """Re-render at the widget's current width (unless unchanged)."""
+        # Plan-f P3: the crumb line is fully determined by the active
+        # document path, the workspace root (identity + name), the width
+        # and the theme.
+        doc = self.session.doc
+        root = self.workspace.root
+        fingerprint = (
+            id(theme.active()),
+            self.size.width or 80,
+            str(doc.path),
+            id(root),
+            root.name if root is not None else None,
+        )
+        if fingerprint == self._last_fingerprint:
+            return
+        self._last_fingerprint = fingerprint
         self.styles.background = theme.active().bg
         self.update(self.build(self.size.width or 80))
 

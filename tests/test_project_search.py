@@ -17,6 +17,7 @@ from yate.editor_core.project_search import (
     search_lines,
 )
 from yate.editor_core.search import SearchEngine
+from yate.editor_core.words import next_word_start, prev_word_start, word_end, word_span
 
 
 # --- compile_query -----------------------------------------------------------
@@ -277,3 +278,163 @@ def test_search_jump_clears_the_vertical_goal_column() -> None:
     buffer.move_down()
     # goal col 10 would clamp onto (2, 3); the match's end column lands 2.
     assert buffer.cursor == (2, 2)
+
+
+# --- SearchEngine.replace_current incremental rework --------------------------
+
+
+def test_replace_current_sequence_matches_full_update() -> None:
+    """Consecutive replace_current steps agree with a fresh full rescan."""
+    buffer = TextBuffer("foo bar foo baz foo\nno foo\nfoo")
+    engine = SearchEngine()
+    engine.update("foo", buffer)
+    for _ in range(5):
+        assert engine.next(buffer) is not None
+        assert engine.replace_current(buffer, "qux") is True
+        if engine.matches:
+            # the incremental list must equal a from-scratch rescan
+            fresh = SearchEngine()
+            fresh.update("foo", buffer)
+            assert [(m.row, m.start, m.end) for m in engine.matches] == [
+                (m.row, m.start, m.end) for m in fresh.matches
+            ]
+        # index resets, so next() re-anchors from the cursor forward
+        match = engine.next(buffer)
+        if match is None:
+            break
+
+
+def test_replace_current_growing_replacement_keeps_row_matches() -> None:
+    """A longer replacement shifts later same-row matches by the delta."""
+    buffer = TextBuffer("ab ab ab")
+    engine = SearchEngine()
+    engine.update("ab", buffer)
+    assert engine.next(buffer, from_pos=(0, 0)) is not None
+    assert engine.replace_current(buffer, "cd") is True
+    assert buffer.lines[0] == "cd ab ab"
+    assert [(m.row, m.start, m.end) for m in engine.matches] == [(0, 3, 5), (0, 6, 8)]
+    assert engine.index == -1
+
+
+def test_replace_current_empty_replacement_and_other_rows() -> None:
+    """An empty replacement deletes the match; other rows stay untouched."""
+    buffer = TextBuffer("go\ngone go\ngo")
+    engine = SearchEngine()
+    engine.update("go", buffer)
+    assert engine.next(buffer, from_pos=(1, 0)) is not None
+    assert engine.current() is not None
+    assert engine.replace_current(buffer, "") is True
+    assert buffer.lines == ["go", "ne go", "go"]
+    assert [(m.row, m.start, m.end) for m in engine.matches] == [
+        (0, 0, 2),
+        (1, 3, 5),
+        (2, 0, 2),
+    ]
+
+
+def test_replace_current_regex_backreference() -> None:
+    """Regex mode expands backreferences before splicing the row matches."""
+    buffer = TextBuffer("a@x b@x")
+    engine = SearchEngine()
+    engine.use_regex = True
+    engine.update(r"(\w+)@x", buffer)
+    assert engine.next(buffer, from_pos=(0, 0)) is not None
+    assert engine.replace_current(buffer, r"\1") is True
+    assert buffer.lines[0] == "a b@x"
+    assert [(m.row, m.start, m.end) for m in engine.matches] == [(0, 2, 5)]
+
+
+def test_replace_current_without_active_match_returns_false() -> None:
+    """With no matches there is nothing to replace."""
+    buffer = TextBuffer("abc")
+    engine = SearchEngine()
+    engine.update("zzz", buffer)
+    assert engine.replace_current(buffer, "x") is False
+
+
+# --- word motion parity (words.py run scanners vs per-character reference) ----
+
+
+def _reference_next_word_start(line: str, col: int) -> int:
+    """Per-character reference for next_word_start (pre-run-scanner form)."""
+    import re as _re
+
+    def is_word(ch: str) -> bool:
+        return bool(_re.compile(r"\w").match(ch))
+
+    n = len(line)
+    i = min(col, n)
+    if i < n and is_word(line[i]):
+        while i < n and is_word(line[i]):
+            i += 1
+    else:
+        while i < n and not is_word(line[i]) and not line[i].isspace():
+            i += 1
+    while i < n and line[i].isspace():
+        i += 1
+    return i
+
+
+def _reference_prev_word_start(line: str, col: int) -> int:
+    """Per-character reference for prev_word_start (pre-run-scanner form)."""
+    import re as _re
+
+    def is_word(ch: str) -> bool:
+        return bool(_re.compile(r"\w").match(ch))
+
+    i = min(col, len(line))
+    while i > 0 and line[i - 1].isspace():
+        i -= 1
+    if i > 0 and not is_word(line[i - 1]):
+        while i > 0 and not is_word(line[i - 1]) and not line[i - 1].isspace():
+            i -= 1
+    else:
+        while i > 0 and is_word(line[i - 1]):
+            i -= 1
+    return i
+
+
+def _reference_word_end(line: str, col: int) -> int:
+    """Per-character reference for word_end (pre-run-scanner form)."""
+    import re as _re
+
+    def is_word(ch: str) -> bool:
+        return bool(_re.compile(r"\w").match(ch))
+
+    n = len(line)
+    i = min(col, n)
+    if i < n and line[i].isspace():
+        while i < n and line[i].isspace():
+            i += 1
+    if i < n and is_word(line[i]):
+        while i < n and is_word(line[i]):
+            i += 1
+    else:
+        while i < n and not is_word(line[i]) and not line[i].isspace():
+            i += 1
+    return i
+
+
+def test_word_motions_match_per_character_reference() -> None:
+    """Run-based scanners agree with the per-character loops everywhere."""
+    lines = [
+        "foo bar-baz qux",
+        "  leading and trailing  ",
+        "word",
+        "!!!???...,,",
+        "mix_1 and _under_score2",
+        "",
+        "tabs\tand spaces",
+    ]
+    for line in lines:
+        for col in range(len(line) + 1):
+            assert next_word_start(line, col) == _reference_next_word_start(line, col)
+            assert prev_word_start(line, col) == _reference_prev_word_start(line, col)
+            assert word_end(line, col) == _reference_word_end(line, col)
+
+
+def test_word_span_still_spans_the_whole_word() -> None:
+    """word_span walks back to the run start, not just to the click point."""
+    assert word_span("foo bar", 1) == (0, 3)
+    assert word_span("foo bar", 4) == (4, 7)
+    assert word_span("foo bar", 3) == (3, 3)

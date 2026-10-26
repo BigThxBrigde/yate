@@ -300,7 +300,10 @@ class ChunkedBinaryFile:
         self._blocks: dict[int, bytes] = {}
         self._block_order: deque[int] = deque()
         self._blocks_from_disk: int = 0
-        self._dirty: dict[int, int] = {}
+        # Pending edits bucketed per block: block index -> {offset: byte}.
+        # ``read`` only consults the bucket of the block being served, so a
+        # read never walks edits belonging to other blocks.
+        self._dirty: dict[int, dict[int, int]] = {}
 
     def read(self, offset: int, length: int) -> bytes:
         """Return *length* bytes at *offset*, applying dirty edits on top.
@@ -321,9 +324,11 @@ class ChunkedBinaryFile:
             within = pos - block_index * self._block_size
             take = min(remaining, self._block_size - within)
             piece = bytearray(block[within : within + take])
-            for dirty_offset, byte in self._dirty.items():
-                if pos <= dirty_offset < pos + take:
-                    piece[dirty_offset - pos] = byte
+            block_dirty = self._dirty.get(block_index)
+            if block_dirty is not None:
+                for dirty_offset, byte in block_dirty.items():
+                    if pos <= dirty_offset < pos + take:
+                        piece[dirty_offset - pos] = byte
             out += piece
             pos += take
             remaining -= take
@@ -337,11 +342,19 @@ class ChunkedBinaryFile:
         """
         if offset < 0 or offset >= self.size:
             raise ValueError(f"edit offset {offset} outside file size {self.size}")
-        self._dirty[offset] = byte
+        bucket = self._dirty.get(offset // self._block_size)
+        if bucket is None:
+            bucket = {}
+            self._dirty[offset // self._block_size] = bucket
+        bucket[offset] = byte
 
     def dirty_edits(self) -> dict[int, int]:
         """Return a copy of the pending edits as ``offset -> new byte``."""
-        return dict(self._dirty)
+        return {
+            offset: byte
+            for bucket in self._dirty.values()
+            for offset, byte in bucket.items()
+        }
 
     def clear_edits(self, offsets: Iterable[int]) -> None:
         """Forget the pending edits at *offsets* (after a successful save).
@@ -352,8 +365,12 @@ class ChunkedBinaryFile:
         stale pre-edit content instead of the freshly written bytes.
         """
         for offset in offsets:
-            self._dirty.pop(offset, None)
             block_index = offset // self._block_size
+            bucket = self._dirty.get(block_index)
+            if bucket is not None:
+                bucket.pop(offset, None)
+                if not bucket:
+                    del self._dirty[block_index]
             if self._blocks.pop(block_index, None) is not None:
                 self._block_order.remove(block_index)
 

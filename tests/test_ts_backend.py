@@ -491,6 +491,51 @@ def test_column_inside_a_multibyte_sequence_drops_the_lone_lead() -> None:
     assert ts_runtime._to_char("xé".encode("utf-8"), 2) == 1
 
 
+def test_row_mapper_table_path_matches_direct_decode() -> None:
+    """The per-row offset table (built on the 3rd endpoint) is exact.
+
+    Every lookup through :class:`ts_runtime._RowMapper` must agree with the
+    direct :func:`ts_runtime._to_char` decode, including the lazy switch
+    from decode to table after two distinct endpoints.
+    """
+    for line in ("hello world", "xé中😀 pad", "a", "", "tabs\tand spaces"):
+        raw = line.encode("utf-8")
+        mapper = ts_runtime._RowMapper(raw)
+        for col in range(-1, len(raw) + 2):
+            assert mapper.to_char(col) == ts_runtime._to_char(raw, col)
+
+
+def test_row_mapper_invalid_utf8_line_stays_on_decode_path() -> None:
+    raw = b"a\xffb"
+    mapper = ts_runtime._RowMapper(raw)
+    for col in range(0, len(raw) + 1):
+        assert mapper.to_char(col) == ts_runtime._to_char(raw, col)
+
+
+def test_row_mapper_memoizes_repeated_endpoints() -> None:
+    mapper = ts_runtime._RowMapper("abcdef".encode("utf-8"))
+    assert mapper.to_char(3) == 3
+    assert mapper._seen == {3: 3}
+    assert mapper.to_char(3) == 3
+    assert mapper._seen == {3: 3}
+
+
+@_python_skip
+def test_parser_is_reused_across_tokenize_calls() -> None:
+    """One Parser per loaded language, reused instead of rebuilt."""
+    ts_runtime._PARSERS.clear()
+    try:
+        first = ts_runtime.tokenize_document(["x = 1\n"], "py")
+        assert ts_runtime._PARSERS
+        parser = next(iter(ts_runtime._PARSERS.values()))
+        second = ts_runtime.tokenize_document(["y = 2\n"], "py")
+        assert next(iter(ts_runtime._PARSERS.values())) is parser
+        assert len(ts_runtime._PARSERS) == 1
+        assert first and second  # both calls produced token lists
+    finally:
+        ts_runtime._PARSERS.clear()
+
+
 # --- capture clipping -------------------------------------------------------
 
 

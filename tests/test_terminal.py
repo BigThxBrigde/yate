@@ -25,7 +25,7 @@ from yate.editor_term import (
     shell_label,
 )
 from yate.editor_term import pty_proc
-from yate.editor_view.terminal import TerminalView
+from yate.editor_view.terminal import OUTPUT_BUFFER_LIMIT, TerminalView
 
 
 def _text(emu: TerminalEmulator) -> str:
@@ -568,4 +568,86 @@ def test_grid_snapshot_invalidates_after_exit(
     assert len(calls) == 2
     # the dead message paints on the last row of the grid
     assert "exit code 3" in view.render_line(23).text
+
+
+# --- output coalescing (plan-b P9) -------------------------------------------
+
+
+def _coalescing_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[TerminalView, list[Callable[[], None]]]:
+    """A view whose ``call_after_refresh`` captures callbacks without running.
+
+    ``is_attached`` is patched to ``True`` so ``_on_output`` takes the
+    scheduling path instead of the synchronous unmounted fallback.
+    """
+    view = TerminalView(cast(Any, None))
+    scheduled: list[Callable[[], None]] = []
+    monkeypatch.setattr(
+        TerminalView, "is_attached", property(lambda self: True)
+    )
+    monkeypatch.setattr(
+        view, "call_after_refresh", scheduled.append, raising=False
+    )
+    return view, scheduled
+
+
+def test_output_chunks_coalesce_into_one_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multiple chunks buffer up, then one drain parses their concatenation."""
+    view, scheduled = _coalescing_view(monkeypatch)
+    view._on_output(b"alpha\r\n")
+    view._on_output(b"beta\r\n")
+    view._on_output(b"gamma")
+    # Nothing reached the emulator while the drain is still pending.
+    assert "alpha" not in _text(view.emulator)
+    assert len(scheduled) == 1
+    scheduled[0]()
+    assert "alpha\nbeta\ngamma" in _text(view.emulator)
+    assert not view._output_buffer
+    assert not view._drain_scheduled
+
+
+def test_coalesced_result_matches_per_chunk_feeding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The coalesced parse equals feeding each chunk separately."""
+    chunks = [b"one\r\ntwo\r\n", b"\x1b[31mred\x1b[0m\r\n", b"tail"]
+    view, scheduled = _coalescing_view(monkeypatch)
+    for chunk in chunks:
+        view._on_output(chunk)
+    scheduled[0]()
+    reference = TerminalEmulator(80, 24)
+    for chunk in chunks:
+        reference.feed(chunk)
+    assert _text(view.emulator) == _text(reference)
+    assert view.emulator.cursor == reference.cursor
+
+
+def test_output_buffer_overflow_drains_synchronously_without_loss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exceeding the limit drains at once; no byte is dropped or re-fed."""
+    view, scheduled = _coalescing_view(monkeypatch)
+    big = b"x" * (OUTPUT_BUFFER_LIMIT + 1)
+    view._on_output(big)
+    # The drain ran inline: nothing pending, buffer empty, all bytes parsed.
+    assert not scheduled
+    assert not view._output_buffer
+    assert _text(view.emulator).startswith("x" * 64)
+    # A following small chunk schedules normally again.
+    view._on_output(b"\r\nafter")
+    assert len(scheduled) == 1
+    scheduled[0]()
+    assert "after" in _text(view.emulator)
+
+
+def test_unmounted_view_drains_output_immediately() -> None:
+    """Without an attachment there is no frame to wait for: drain inline."""
+    view = TerminalView(cast(Any, None))
+    view._on_output(b"direct\r\nlines")
+    assert "direct\nlines" in _text(view.emulator)
+    assert not view._output_buffer
+    assert not view._drain_scheduled
 

@@ -64,6 +64,9 @@ class OpenDocState:
 
     ``version``/``last_synced`` advance only after a successful didChange
     notify; pushes whose text matches ``last_synced`` are skipped.
+    ``last_synced_version`` mirrors ``buffer.content_version`` at the moment
+    the text was last sent, giving :meth:`LspManager.notify_edit` an O(1)
+    gate that avoids materializing the full document text on every key.
     """
 
     uri: str
@@ -72,6 +75,7 @@ class OpenDocState:
     language_id: str
     version: int
     last_synced: str
+    last_synced_version: int
     #: The open document, kept so incoming server positions (UTF-16 code
     #: units) can be converted back to buffer columns (code points).
     doc: Document
@@ -110,7 +114,17 @@ class LspManager:
         self._starting: dict[ClientKey, asyncio.Task[LspClient | None]] = {}
         self._open: dict[str, OpenDocState] = {}
         self._diagnostics: dict[str, list[Diagnostic]] = {}
+        #: Per-row diagnostic index: ``uri -> row -> [Diagnostic]``.  Rebuilt
+        # from scratch at every publish point (the single writer of
+        # ``_diagnostics``) so the two can never drift apart.  Multi-row
+        # diagnostics are registered on every row they cover, which makes
+        # :meth:`diagnostics_on_line` an O(1) lookup per rendered line
+        # instead of a full-table copy + filter per call.
+        self._diagnostics_by_row: dict[str, dict[int, list[Diagnostic]]] = {}
         self._change_timers: dict[str, asyncio.TimerHandle] = {}
+        #: Cache of ``path_to_uri`` results (a real filesystem call on
+        #: Windows); invalidated when a document leaves the session.
+        self._uri_cache: dict[Path, str] = {}
         self._bg_tasks: set[asyncio.Task[None]] = set()
         self._shutting_down = False
         self._workspace_root = workspace_root
@@ -178,7 +192,14 @@ class LspManager:
         stale_urls = [u for u, st in self._open.items() if st.config_name == name]
         for uri in stale_urls:
             self._open.pop(uri, None)
-            self._diagnostics.pop(uri, None)
+            self._forget_diagnostics(uri)
+            self._drop_uri_cache(uri)
+
+    def _drop_uri_cache(self, uri: str) -> None:
+        """Forget the cached URI of a document leaving the session."""
+        for path, cached in list(self._uri_cache.items()):
+            if cached == uri:
+                del self._uri_cache[path]
 
     def _rebuild_filetype_index(self) -> None:
         """Rebuild the filetype index; later registrations override earlier."""
@@ -368,11 +389,12 @@ class LspManager:
             language_id=config.language_id(doc.filetype),
             version=1,
             last_synced=text,
+            last_synced_version=doc.buffer.content_version,
             doc=doc,
         )
         # Pending diagnostics may already be stale relative to buffer content;
         # the server republishes after didOpen.
-        self._diagnostics.pop(uri, None)
+        self._forget_diagnostics(uri)
 
     async def on_document_closed(self, doc: Document) -> None:
         """Forget *doc*'s didOpen state and notify didClose (best effort)."""
@@ -381,6 +403,7 @@ class LspManager:
         uri = self._uri(doc)
         state = self._open.pop(uri, None)
         self._change_timers.pop(uri, None)
+        self._drop_uri_cache(uri)
         if state is None:
             return
         client = self._clients.get(state.client_key)
@@ -402,21 +425,34 @@ class LspManager:
         state = self._open.get(uri)
         if state is None:
             return
+        # O(1) gate: an equal content_version proves the text cannot have
+        # changed, so skip the O(document) ``get_text()`` on this keystroke.
+        if doc.buffer.content_version == state.last_synced_version:
+            return
         text = doc.buffer.get_text()
         if text == state.last_synced:
+            # Double insurance: the version can advance without the text
+            # changing (e.g. chunked fill) -- nothing to send then either.
             return
         timer = self._change_timers.pop(uri, None)
         if timer is not None:
             timer.cancel()
         loop = asyncio.get_running_loop()
         self._change_timers[uri] = loop.call_later(
-            CHANGE_DEBOUNCE_S, self._flush_change, doc, uri, text
+            CHANGE_DEBOUNCE_S, self._flush_change, doc, uri
         )
 
-    def _flush_change(self, doc: Document, uri: str, text: str) -> None:
+    def _flush_change(self, doc: Document, uri: str) -> None:
         self._change_timers.pop(uri, None)
         state = self._open.get(uri)
         if state is None or self._shutting_down:
+            return
+        # Materialize the text only here (inside the debounce callback), not
+        # on every keystroke; the buffer may have changed since the timer was
+        # armed, which is exactly what we want to send.
+        text = doc.buffer.get_text()
+        buffer_version = doc.buffer.content_version
+        if text == state.last_synced:
             return
         client = self._clients.get(state.client_key)
         if client is None or client.state is not ServerState.READY:
@@ -428,7 +464,9 @@ class LspManager:
         # the same text) won't short-circuit against a stale last_synced.
         next_version = state.version + 1
         self._spawn_bg(
-            self._send_change(client, uri, state, next_version, text)
+            self._send_change(
+                client, uri, state, next_version, text, buffer_version
+            )
         )
 
     def _spawn_bg(self, coro: Awaitable[None]) -> None:
@@ -444,10 +482,13 @@ class LspManager:
         state: OpenDocState,
         version: int,
         text: str,
+        buffer_version: int,
     ) -> None:
         """Send a full-text didChange; advance state.version/last_synced only
         after a successful notify so a failed call leaves ``last_synced``
-        stale and lets the next :meth:`notify_edit` retry naturally."""
+        stale and lets the next :meth:`notify_edit` retry naturally.
+        ``buffer_version`` is the ``buffer.content_version`` snapshot taken
+        when *text* was materialized."""
         try:
             await client.notify("textDocument/didChange", {
                 "textDocument": {"uri": uri, "version": version},
@@ -459,6 +500,7 @@ class LspManager:
         if self._open.get(uri) is state and not self._shutting_down:
             state.version = version
             state.last_synced = text
+            state.last_synced_version = buffer_version
 
     async def notify_saved(self, doc: Document) -> None:
         """Send didSave for *doc* when it is open on a ready client."""
@@ -504,7 +546,8 @@ class LspManager:
             text = doc.buffer.get_text()
             if text != state.last_synced:
                 await self._send_change(
-                    client, uri, state, state.version + 1, text
+                    client, uri, state, state.version + 1, text,
+                    doc.buffer.content_version,
                 )
         context: dict[str, Any] = {"triggerKind": trigger_kind}
         if trigger_character is not None:
@@ -518,10 +561,16 @@ class LspManager:
             "context": context,
         }
         try:
-            _request_id, future = await client.start_request(
+            request_id, future = await client.start_request(
                 "textDocument/completion", params
             )
-            raw = await future
+            try:
+                raw = await future
+            finally:
+                # Mirror ``LspClient.request``: drop the pending entry once
+                # the future settles (success, error or cancellation) so the
+                # response payload does not stay referenced until teardown.
+                client.settle_request(request_id)
         except asyncio.CancelledError:
             # Cancellation is control flow, not "no completions": the
             # awaiting caller (Task.cancel / wait_for) must observe it.
@@ -571,9 +620,11 @@ class LspManager:
             if isinstance(uri, str):
                 state = self._open.get(uri)
                 lines = state.doc.buffer.lines if state is not None else None
-                self._diagnostics[uri] = self._parse_diagnostics(
+                parsed = self._parse_diagnostics(
                     params.get("diagnostics"), lines
                 )
+                self._diagnostics[uri] = parsed
+                self._index_diagnostics(uri, parsed)
                 log.debug(
                     "diagnostics published: %s (%d item(s))",
                     uri.rsplit("/", 1)[-1], len(self._diagnostics[uri]),
@@ -601,6 +652,23 @@ class LspManager:
         :meth:`handle_notification` routes through it.
         """
         return parsing._parse_diagnostics(raw, lines)
+
+    def _index_diagnostics(self, uri: str, diags: list[Diagnostic]) -> None:
+        """(Re)build the per-row index for *uri* from *diags*.
+
+        The single source of truth stays ``_diagnostics``; this index is
+        rebuilt from scratch on every publish so it can never go stale.
+        """
+        by_row: dict[int, list[Diagnostic]] = {}
+        for d in diags:
+            for row in range(d.start_row, d.end_row + 1):
+                by_row.setdefault(row, []).append(d)
+        self._diagnostics_by_row[uri] = by_row
+
+    def _forget_diagnostics(self, uri: str) -> None:
+        """Drop the stored diagnostics and the per-row index for *uri*."""
+        self._diagnostics.pop(uri, None)
+        self._diagnostics_by_row.pop(uri, None)
 
     def diagnostics_for(self, doc: Document) -> list[Diagnostic]:
         """The stored diagnostics for *doc* (a copy, sorted by position)."""
@@ -633,8 +701,17 @@ class LspManager:
         return best
 
     def diagnostics_on_line(self, doc: Document, row: int) -> list[Diagnostic]:
-        """The stored diagnostics whose vertical range covers *row*."""
-        return [d for d in self.diagnostics_for(doc) if d.start_row <= row <= d.end_row]
+        """The stored diagnostics whose vertical range covers *row*.
+
+        O(1) via the per-row index (rebuilt at each publish point); a copy
+        is returned so callers cannot mutate the index.
+        """
+        if doc.path is None:
+            return []
+        by_row = self._diagnostics_by_row.get(self._uri(doc))
+        if not by_row:
+            return []
+        return list(by_row.get(row, ()))
 
     # ------------------------------------------------------------- teardown
 
@@ -686,7 +763,13 @@ class LspManager:
 
     def _uri(self, doc: Document) -> str:
         assert doc.path is not None
-        return protocol.path_to_uri(doc.path)
+        cached = self._uri_cache.get(doc.path)
+        if cached is None:
+            # ``path_to_uri`` resolves the path (a real filesystem call on
+            # Windows); cache the result per document path.
+            cached = protocol.path_to_uri(doc.path)
+            self._uri_cache[doc.path] = cached
+        return cached
 
     def _fire(self, event: str, doc: Document | None = None) -> None:
         if self._on_event is not None:

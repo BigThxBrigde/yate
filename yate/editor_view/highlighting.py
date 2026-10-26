@@ -213,9 +213,10 @@ class HighlightMixin:
         The stale tokens returned during the debounce window are computed
         from the pre-edit text, so every token ending at or past the edit
         point colors the newly typed characters with a shifted boundary --
-        the end-of-line flicker. This diffs the current lines against the
-        row snapshot left by the last finished pass and re-tokenizes only
-        the changed rows (plus rows whose multiline state they carry) with
+        the end-of-line flicker. This consumes the buffer's pending edited-row
+        range and diffs only the rows inside it against the row snapshot left
+        by the last finished pass, re-tokenizing just the changed rows (plus
+        rows whose multiline state they carry) with
         the microsecond-fast regex backend; unchanged rows reuse the cached
         tokens verbatim. The rebuilt cache is written back together with
         fresh snapshots (same write site as the worker's, keeping the
@@ -254,7 +255,22 @@ class HighlightMixin:
         lines = buf.lines
         cur_count = buf.line_count
         common = min(len(snapshot), cur_count)
-        changed = {i for i in range(common) if snapshot[i] != lines[i]}
+        # Consume the buffer's pending edited-row range (plan P2-API) so the
+        # per-row diff below is limited to the rows an edit actually touched;
+        # rows outside the range are known unchanged and skip the snapshot
+        # comparison entirely (they still go through the O(1) shift-aware
+        # reuse in the rebuild loop).  A None range means no content change
+        # was recorded since the last consume (out-of-band version bump).
+        dirty = buf.take_dirty_range()
+        changed: set[int] = set()
+        if dirty is not None:
+            lo, hi = dirty
+            lo = max(lo, 0)
+            hi = min(hi, common - 1)
+            if lo <= hi:
+                changed = {
+                    i for i in range(lo, hi + 1) if snapshot[i] != lines[i]
+                }
         changed.update(range(common, cur_count))
         if not changed:
             # Version bumped without any line changing (out-of-band mark):
@@ -411,6 +427,11 @@ class HighlightMixin:
         # _rebuild_tokens_on_edit, always together with _hl_tokens).
         self._hl_line_snapshot = tuple(lines)
         self._hl_ml_states = ml_states
+        # The full rebuild replaced the whole cache at the current version,
+        # so drop any pending edited-row range: the rows it refers to are
+        # exactly what this token set already covers (aligned with the
+        # _hl_version invalidation mechanism).
+        buf.take_dirty_range()
         if self._hl_scheduled_key == (doc, filetype, version):
             self._hl_scheduled_key = None
         self.refresh()
