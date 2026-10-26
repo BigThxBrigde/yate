@@ -223,9 +223,8 @@ class _RowMapper:
 
     def to_char(self, byte_col: int) -> int:
         """Character column for *byte_col* on this row."""
-        cached = self._seen.get(byte_col)
-        if cached is not None:
-            return cached
+        if byte_col in self._seen:
+            return self._seen[byte_col]
         if self._built:
             bounds = self._bounds
             result = (

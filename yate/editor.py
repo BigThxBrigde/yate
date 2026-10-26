@@ -1013,7 +1013,8 @@ class Editor:
     # =============================================================== prompts
 
     def cancel_prompt(self) -> None:
-        """Prompt cancelled (esc): clear live search highlights."""
+        """Prompt cancelled (esc): drop the pending sweep, clear highlights."""
+        self.prompt_flows.cancel_live_search()
         if self.session.search.query:
             self.session.search.update("", self.session.buffer)
 

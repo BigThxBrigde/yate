@@ -1161,7 +1161,10 @@ def test_live_search_drop_after_prompt_cancel(tmp_path: Path) -> None:
                 await pilot.pause()
                 # The armed sweep was dropped, not run post-close.
                 assert flows._live_timer is None
-                assert spy.call_count == 0
+                # Only a non-empty query update is a leaked sweep; the
+                # legitimate cancel-path update("") is excluded.
+                leaked = [c for c in spy.call_args_list if c.args[0]]
+                assert leaked == []
             assert search.query == ""
             assert search.matches == []
 
