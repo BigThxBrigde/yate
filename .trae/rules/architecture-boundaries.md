@@ -296,13 +296,19 @@ flowchart TD
      构成职责随调度层操作增长，维持豁免，
      chunked-loading-text-plan-b 波 2026-10-25 复测 1193 行，
      新增 ChunkedFlows 组装与 ensure_row 渲染接线，维持豁免，
+     perf-audit-fixes 波 2026-10-26 复测 1229 行
+     （refresh_ui_soon 合帧 + cancel_prompt 挂接 live-search 取消），
+     维持豁免，
      已登记为下一个 big-module-split 候选）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
      chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked
      写锁卫语句与 chunked 填充原语（fill_lines / rows_loaded /
      extend_placeholders），维持豁免；hex-review-fixes 波 2026-10-26
-     复测 1224 行（filled_rows 水位线改为 bisect 区间表），维持豁免）、
+     复测 1224 行（filled_rows 水位线改为 bisect 区间表），维持豁免；
+     perf-audit-fixes 波 2026-10-26 复测 1565 行（撤销改行区间 delta、
+     结构性增删行标脏覆盖到末行、take_dirty_range/dirty_range 契约），
+     维持豁免）、
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
      2026-10-20 mdlint 波复测 1590 行；global-review-fixes 波 2026-10-22
      复测 1695 行，新增孤儿英文页清理推导；pr-review 修复波 2026-10-23
