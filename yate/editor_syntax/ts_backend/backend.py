@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from collections.abc import Iterator, Mapping
+from types import SimpleNamespace
 from typing import Any, Protocol
 
 from yate.editor_syntax.tokens import Token
@@ -35,8 +36,11 @@ from yate.editor_syntax.ts_backend.languages import (
     tree_sitter,
     tree_sitter_blocked,
 )
+from yate.logs import tracing
 
-__all__ = ["available_for", "tokenize_document"]
+log = tracing.get_logger(__name__)
+
+__all__ = ["IncrementalSession", "available_for", "tokenize_document"]
 
 #: Reused ``tree_sitter.Parser`` per loaded ``tree_sitter.Language``.  A
 #: Parser is stateless between ``parse()`` calls (verified against
@@ -300,6 +304,366 @@ _KIND_RANK: dict[str, int] = {kind: rank for rank, kind in enumerate(_KIND_PRECE
 #: kind, so a collision between two of them is undecided -- documented rather
 #: than pretended away.
 _KIND_RANK_OTHER: int = len(_KIND_PRECEDENCE)
+
+
+#: Maximum number of disjoint changed row intervals handled with sequential
+#: ``tree.edit`` calls before the session falls back to a whole-document
+#: reparse.  Purely a defensive bound: a prefix/suffix-aligned line diff
+#: yields a single interval, and even a jump-edit diff rarely exceeds this.
+_MAX_EDIT_REGIONS: int = 4
+
+
+def _tokens_from_tree(
+    lines: list[str],
+    line_bytes: list[bytes],
+    loaded: LoadedLanguage,
+    ts: Any,
+    tree: Any,
+) -> list[list[Token]]:
+    """Run the capture pipeline against *tree* and return per-row tokens.
+
+    Shared by the whole-document path and the incremental session: query
+    captures over the full tree (queries have no incremental mode), clip
+    them to rows with :class:`_RowMapper` byte tables built from
+    *line_bytes*, then resolve overlaps per row.
+    """
+    captures = _query_captures(ts, loaded.query, tree.root_node)
+    mappers = {row: _RowMapper(b) for row, b in enumerate(line_bytes)}
+    intervals: list[list[tuple[int, int, str]]] = [[] for _ in lines]
+    for capture_name, nodes in captures.items():
+        kind = loaded.capture_map.get(capture_name)
+        if kind is None:
+            continue
+        for node in nodes:
+            for row, start, end in _clip_to_rows(node, lines, line_bytes, mappers):
+                intervals[row].append((start, end, kind))
+    return [_tokens_for_row(ivs, len(line)) for line, ivs in zip(lines, intervals)]
+
+
+def _plan_regions(
+    old_lines: tuple[str, ...], new_lines: list[str]
+) -> list[tuple[int, int, int]] | None:
+    """Diff two line snapshots into ``(start, old_end, new_end)`` regions.
+
+    Common prefix and suffix rows are aligned first; rows outside them are
+    identical by construction.  When the remaining middle has the same row
+    count on both sides it is split further into maximal runs of differing
+    rows (each run replaces an equal number of rows), otherwise the whole
+    middle is one region.  Returns ``None`` when the documents are equal.
+    """
+    n, m = len(old_lines), len(new_lines)
+    pre = 0
+    while pre < n and pre < m and old_lines[pre] == new_lines[pre]:
+        pre += 1
+    suf = 0
+    while (
+        suf < n - pre
+        and suf < m - pre
+        and old_lines[n - 1 - suf] == new_lines[m - 1 - suf]
+    ):
+        suf += 1
+    if pre == n and pre == m:
+        return None
+    old_mid_end = n - suf
+    new_mid_end = m - suf
+    if old_mid_end - pre == new_mid_end - pre:
+        regions: list[tuple[int, int, int]] = []
+        i = pre
+        while i < old_mid_end:
+            if old_lines[i] == new_lines[i]:
+                i += 1
+                continue
+            j = i
+            while j < old_mid_end and old_lines[j] != new_lines[j]:
+                j += 1
+            regions.append((i, j, j))
+            i = j
+        return regions
+    return [(pre, old_mid_end, new_mid_end)]
+
+
+def _common_prefix_len(a: str, b: str) -> int:
+    """Length of the longest common character prefix of *a* and *b*."""
+    limit = min(len(a), len(b))
+    i = 0
+    while i < limit and a[i] == b[i]:
+        i += 1
+    return i
+
+
+def _common_suffix_len(a: str, b: str) -> int:
+    """Length of the longest common character suffix of *a* and *b*."""
+    limit = min(len(a), len(b))
+    i = 0
+    while i < limit and a[len(a) - 1 - i] == b[len(b) - 1 - i]:
+        i += 1
+    return i
+
+
+def _bytes_before(line_bytes: list[bytes], row: int) -> int:
+    """UTF-8 byte offset of the start of *row* (each line owns its newline)."""
+    return sum(len(b) + 1 for b in line_bytes[:row])
+
+
+class IncrementalSession:
+    """Reusable incremental-parse state for one document stream.
+
+    Holds the previous parse tree together with its line snapshot and a
+    per-line UTF-8 byte cache (which doubles as the byte source for the
+    capture pipeline, so unchanged lines are never re-encoded).  Each
+    :meth:`update` diffs the incoming lines against the snapshot, applies
+    at most :data:`_MAX_EDIT_REGIONS` ``tree.edit`` calls in document
+    order, and reparses with the previous tree so tree-sitter only reuses
+    unchanged subtrees.  Any internal failure degrades to a
+    whole-document reparse and never raises to the caller.
+    """
+
+    __slots__ = ("filetype", "_lines", "_old_line_bytes", "_tree")
+
+    def __init__(self, filetype: str) -> None:
+        self.filetype = filetype
+        self._lines: tuple[str, ...] = ()
+        self._old_line_bytes: list[bytes] = []
+        # Any: py-tree-sitter ships no type stubs (same precedent as _PARSERS).
+        self._tree: Any | None = None
+
+    def update(self, lines: list[str], filetype: str) -> list[list[Token]]:
+        """Tokenize *lines* incrementally: one token list per input line.
+
+        Same call shape and output contract as :func:`tokenize_document`.
+        A filetype mismatch, a missing tree or any internal error takes the
+        whole-document path, which rebuilds the snapshot from scratch, so
+        the session always self-heals.
+        """
+        try:
+            return self._update(lines, filetype)
+        except Exception:  # noqa: BLE001 - degraded highlight must never
+            # kill the caller's edit flow; fall back to a full reparse
+            log.warning(
+                "incremental parse failed for %s; falling back to a full"
+                " reparse",
+                filetype,
+                exc_info=True,
+            )
+            self._tree = None
+            try:
+                return self._update(lines, filetype)
+            except Exception:  # noqa: BLE001 - last resort: plain text
+                log.warning(
+                    "full reparse failed for %s; returning plain text",
+                    filetype,
+                    exc_info=True,
+                )
+                return [[] for _ in lines]
+
+    def _reset(self, lines: list[str]) -> list[bytes]:
+        """Rebuild the snapshot for *lines* and return its byte cache."""
+        self._lines = tuple(lines)
+        line_bytes = [line.encode("utf-8") for line in lines]
+        self._old_line_bytes = line_bytes
+        return line_bytes
+
+    def _full(
+        self, lines: list[str], filetype: str, loaded: LoadedLanguage, ts: Any
+    ) -> list[list[Token]]:
+        """Whole-document path: reparse from scratch and rebuild state."""
+        self.filetype = filetype
+        line_bytes = self._reset(lines)
+        if not lines:
+            self._tree = None
+            return []
+        parser = _PARSERS.get(loaded.language)
+        if parser is None:
+            parser = ts.Parser(loaded.language)
+            _PARSERS[loaded.language] = parser
+        tree = parser.parse(b"\n".join(line_bytes))
+        self._tree = tree
+        return _tokens_from_tree(lines, line_bytes, loaded, ts, tree)
+
+    def _update(self, lines: list[str], filetype: str) -> list[list[Token]]:
+        """Incremental body of :meth:`update` (may raise on broken input)."""
+        loaded = resolve(filetype)
+        if loaded is None:
+            self._reset(lines)
+            self._tree = None
+            return [[] for _ in lines]
+        ts = tree_sitter()
+        if ts is None:  # pragma: no cover - resolve() implies a working import
+            self._reset(lines)
+            self._tree = None
+            return [[] for _ in lines]
+        tree = self._tree
+        if tree is None or filetype != self.filetype:
+            return self._full(lines, filetype, loaded, ts)
+        if not lines:
+            self._reset(lines)
+            self._tree = None
+            return []
+        old = self._lines
+        old_bytes = self._old_line_bytes
+        regions = _plan_regions(old, lines)
+        if regions is None:
+            # Defensive: the caller's version gate should prevent no-op
+            # updates; re-tokenize the current tree instead of guessing.
+            return _tokens_from_tree(lines, old_bytes, loaded, ts, tree)
+        if len(regions) > _MAX_EDIT_REGIONS:
+            return self._full(lines, filetype, loaded, ts)
+        new_bytes = [
+            old_bytes[i] if i < len(old) and old[i] == line else line.encode("utf-8")
+            for i, line in enumerate(lines)
+        ]
+        parser = _PARSERS.get(loaded.language)
+        if parser is None:
+            parser = ts.Parser(loaded.language)
+            _PARSERS[loaded.language] = parser
+        delta_bytes = 0
+        delta_rows = 0
+        for start_row, old_end_row, new_end_row in regions:
+            edit = _region_edit(
+                old, lines, old_bytes, new_bytes, start_row, old_end_row, new_end_row
+            )
+            # Coordinates of later regions shift by the byte/row deltas of
+            # the earlier ones: each tree.edit moves the tree onto the
+            # intermediate text, so edits are expressed against that state.
+            tree.edit(
+                edit.start_byte + delta_bytes,
+                edit.old_end_byte + delta_bytes,
+                edit.new_end_byte + delta_bytes,
+                (edit.start_row + delta_rows, edit.start_col),
+                (edit.old_end_row + delta_rows, edit.old_end_col),
+                (edit.new_end_row + delta_rows, edit.new_end_col),
+            )
+            delta_bytes += edit.new_end_byte - edit.old_end_byte
+            delta_rows += new_end_row - old_end_row
+        new_tree = parser.parse(b"\n".join(new_bytes), tree)
+        tokens = _tokens_from_tree(lines, new_bytes, loaded, ts, new_tree)
+        self._lines = tuple(lines)
+        self._old_line_bytes = new_bytes
+        self._tree = new_tree
+        return tokens
+
+
+def _region_edit(
+    old_lines: tuple[str, ...],
+    new_lines: list[str],
+    old_bytes: list[bytes],
+    new_bytes: list[bytes],
+    start_row: int,
+    old_end_row: int,
+    new_end_row: int,
+) -> Any:
+    """Compute one region's edit parameters in snapshot coordinates.
+
+    Returns an object with ``start_byte`` / ``old_end_byte`` /
+    ``new_end_byte`` (byte offsets relative to the unedited snapshot text)
+    and the three ``(row, byte_col)`` points of the edit.  An empty side
+    (pure insertion or pure deletion) is spanned by whole boundary lines;
+    otherwise a character level common prefix/suffix refinement of the
+    boundary lines shrinks the span to the smallest span whose outside is
+    identical in both texts.  ``Any`` return: a small private record, kept
+    shapeless to stay clear of the R2 protocol freeze (no stubs exist for
+    this either way).
+    """
+    if old_end_row == start_row:
+        # Pure insertion: new rows start_row..new_end_row-1 appear between
+        # old rows start_row-1 and start_row; the span has zero old width.
+        if start_row == len(old_lines):
+            # Append at EOF: anchor on the end of the last old line, the
+            # inserted text starts with its own leading newline.
+            start_byte = _bytes_before(old_bytes, start_row - 1) + len(
+                old_bytes[start_row - 1]
+            )
+            return SimpleNamespace(
+                start_byte=start_byte,
+                old_end_byte=start_byte,
+                new_end_byte=start_byte
+                + 1
+                + sum(len(new_bytes[i]) + 1 for i in range(start_row, new_end_row)),
+                start_row=start_row - 1,
+                old_end_row=start_row - 1,
+                new_end_row=new_end_row - 1,
+                start_col=len(old_bytes[start_row - 1]),
+                old_end_col=len(old_bytes[start_row - 1]),
+                new_end_col=len(new_bytes[new_end_row - 1]),
+            )
+        start_byte = _bytes_before(old_bytes, start_row)
+        return SimpleNamespace(
+            start_byte=start_byte,
+            old_end_byte=start_byte,
+            new_end_byte=start_byte
+            + sum(len(new_bytes[i]) + 1 for i in range(start_row, new_end_row)),
+            start_row=start_row,
+            old_end_row=start_row,
+            new_end_row=new_end_row - 1,
+            start_col=0,
+            old_end_col=0,
+            new_end_col=len(new_bytes[new_end_row - 1]),
+        )
+    if new_end_row == start_row:
+        # Pure deletion: old rows start_row..old_end_row-1 disappear; the
+        # span has zero new width.
+        start_byte = _bytes_before(old_bytes, start_row)
+        return SimpleNamespace(
+            start_byte=start_byte,
+            old_end_byte=start_byte
+            + sum(len(old_bytes[i]) + 1 for i in range(start_row, old_end_row)),
+            new_end_byte=start_byte,
+            start_row=start_row,
+            old_end_row=old_end_row - 1,
+            new_end_row=start_row,
+            start_col=0,
+            old_end_col=len(old_bytes[old_end_row - 1]),
+            new_end_col=0,
+        )
+    first_old = old_lines[start_row]
+    first_new = new_lines[start_row]
+    prefix = _common_prefix_len(first_old, first_new)
+    last_old = old_lines[old_end_row - 1]
+    last_new = new_lines[new_end_row - 1]
+    suffix = _common_suffix_len(last_old, last_new)
+    # Keep the refined prefix and suffix from overlapping on a boundary
+    # line that is also the region's first and last line.
+    if old_end_row - 1 == start_row:
+        suffix = min(suffix, len(last_old) - prefix)
+    if new_end_row - 1 == start_row:
+        suffix = min(suffix, len(last_new) - prefix)
+    start_col = len(first_old[:prefix].encode("utf-8"))
+    old_end_col = len(last_old[: len(last_old) - suffix].encode("utf-8"))
+    new_end_col = len(last_new[: len(last_new) - suffix].encode("utf-8"))
+    start_byte = _bytes_before(old_bytes, start_row) + start_col
+    if old_end_row - 1 == start_row:
+        old_end_byte = start_byte + old_end_col - start_col
+    else:
+        old_end_byte = (
+            start_byte
+            + len(old_bytes[start_row])
+            - start_col
+            + 1
+            + sum(len(old_bytes[i]) + 1 for i in range(start_row + 1, old_end_row - 1))
+            + old_end_col
+        )
+    if new_end_row - 1 == start_row:
+        new_end_byte = start_byte + new_end_col - start_col
+    else:
+        new_end_byte = (
+            start_byte
+            + len(new_bytes[start_row])
+            - start_col
+            + 1
+            + sum(len(new_bytes[i]) + 1 for i in range(start_row + 1, new_end_row - 1))
+            + new_end_col
+        )
+    return SimpleNamespace(
+        start_byte=start_byte,
+        old_end_byte=old_end_byte,
+        new_end_byte=new_end_byte,
+        start_row=start_row,
+        old_end_row=old_end_row - 1,
+        new_end_row=new_end_row - 1,
+        start_col=start_col,
+        old_end_col=old_end_col,
+        new_end_col=new_end_col,
+    )
 
 
 def _tokens_for_row(

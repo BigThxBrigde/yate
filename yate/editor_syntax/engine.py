@@ -130,6 +130,59 @@ def tokenize_document_with_states(
     return regex_backend.tokenize_document_with_states(lines, filetype)
 
 
+def tokenize_document_incremental(
+    lines: list[str], filetype: str, session: object | None
+) -> tuple[list[list[Token]], object | None]:
+    """Tokenize a whole document, reusing *session*'s incremental state.
+
+    Tree-sitter path: when *session* is an ``IncrementalSession`` built for
+    this *filetype* its parse tree is reused, otherwise a fresh session is
+    created and a whole-document parse rebuilds the state; either way the
+    (possibly new) session is returned for the caller to store.  The regex
+    path (regex-pinned filetype or tree-sitter unavailable) has no
+    incremental state and returns ``None`` for the session.
+    """
+    key = filetype.lower().lstrip(".")
+    if key not in _REGEX_PINNED:
+        ts = _ts()
+        if ts is not None and ts.available_for(filetype):
+            # The ts backend module is already imported by _ts(); the class
+            # comes from the concrete module, not the SyntaxBackend protocol.
+            from yate.editor_syntax.ts_backend.backend import IncrementalSession
+
+            if isinstance(session, IncrementalSession) and (
+                session.filetype == filetype
+            ):
+                return session.update(lines, filetype), session
+            fresh = IncrementalSession(filetype)
+            return fresh.update(lines, filetype), fresh
+    return regex_backend.tokenize_document(lines, filetype), None
+
+
+def tokenize_document_with_states_incremental(
+    lines: list[str], filetype: str, session: object | None
+) -> tuple[list[list[Token]], tuple[int, ...], object | None]:
+    """Whole-document tokens, regex states and the session, in one pass.
+
+    The incremental companion of :func:`tokenize_document_with_states`:
+    tree-sitter serves the tokens through
+    :func:`tokenize_document_incremental` (see there for the session
+    contract) while the regex states thread alongside exactly like the
+    non-incremental combined pass; the regex path returns ``None`` for the
+    session.
+    """
+    key = filetype.lower().lstrip(".")
+    if key not in _REGEX_PINNED:
+        ts = _ts()
+        if ts is not None and ts.available_for(filetype):
+            tokens, session_out = tokenize_document_incremental(
+                lines, filetype, session
+            )
+            return tokens, _regex_states(lines, filetype), session_out
+    tokens, states = regex_backend.tokenize_document_with_states(lines, filetype)
+    return tokens, states, None
+
+
 def _regex_states(lines: list[str], filetype: str) -> tuple[int, ...]:
     """Thread the regex multiline state per row (companion to ts tokens).
 
