@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,6 +29,13 @@ IGNORE_FILENAMES: tuple[str, ...] = (".gitignore", ".yateignore")
 #: Cap on the per-directory ignore-pattern cache (deep trees list many
 #: directories; the wholesale reset keeps the memory bounded).
 _DIR_IGNORE_CACHE_MAX: int = 256
+
+#: How long a :meth:`Workspace.walk_files` result stays fresh.  Quick open
+#: (ctrl+p) and full-project search each trigger a full-tree walk; within
+#: this window they share one traversal instead of repeating it.  A file
+#: created inside the window becomes visible after it expires or after an
+#: explicit :meth:`Workspace.invalidate`.
+_WALK_CACHE_TTL_SECONDS: float = 5.0
 
 TEXT_SUFFIXES: set[str] = {
     ".txt", ".md", ".rst", ".py", ".pyw", ".js", ".ts", ".jsx", ".tsx",
@@ -82,6 +90,9 @@ class Workspace:
         self._dir_ignore_cache: dict[
             tuple[Path, tuple[float, ...]], list[_IgnorePattern]
         ] = {}
+        #: ``None`` or ``(expires_at, limit, show_hidden, files)`` from the
+        #: last :meth:`walk_files` traversal; see ``_WALK_CACHE_TTL_SECONDS``.
+        self._walk_cache: tuple[float, int, bool, list[Path]] | None = None
         if self.root is not None:
             self._load_root_ignores()
 
@@ -90,6 +101,7 @@ class Workspace:
     def set_root(self, path: Path) -> None:
         """Point the workspace at *path* and reload its ignore files."""
         self.root = path.resolve()
+        self._walk_cache = None
         self._load_root_ignores()
 
     def open_target(self, target: Path) -> str:
@@ -99,6 +111,7 @@ class Workspace:
         to the file's parent directory).
         """
         p = target.resolve()
+        self._walk_cache = None
         if p.is_dir():
             self.root = p
             self._load_root_ignores()
@@ -250,9 +263,23 @@ class Workspace:
         deep trees cannot raise ``RecursionError`` (S11); symlinked
         directories are never followed -- a link pointing at an ancestor
         would otherwise expand forever.
+
+        Results are cached for :data:`_WALK_CACHE_TTL_SECONDS` (keyed on the
+        ``limit`` and ``show_hidden`` arguments, reset on root changes), so
+        quick open and full-project search share one traversal instead of
+        repeating it back to back.  :meth:`invalidate` drops the cache.
         """
         if self.root is None:
             return []
+        now = time.monotonic()
+        cached = self._walk_cache
+        if (
+            cached is not None
+            and now < cached[0]
+            and cached[1] == limit
+            and cached[2] == self.show_hidden
+        ):
+            return cached[3].copy()
         files: list[Path] = []
 
         def children(directory: Path) -> list[tuple[Path, bool]]:
@@ -298,7 +325,22 @@ class Workspace:
                 stack.extend(children(path))
             else:
                 files.append(path)
+        self._walk_cache = (
+            now + _WALK_CACHE_TTL_SECONDS,
+            limit,
+            self.show_hidden,
+            files,
+        )
         return files
+
+    def invalidate(self) -> None:
+        """Drop the :meth:`walk_files` TTL cache.
+
+        Callers that need an up-to-date listing right after a bulk file
+        change (create/rename/delete outside this class) invoke this before
+        the next walk instead of waiting out the TTL window.
+        """
+        self._walk_cache = None
 
     def visible_tree(self, expanded: set[Path]) -> list[tuple[int, Entry]]:
         """Flatten the tree according to the set of *expanded* directories.

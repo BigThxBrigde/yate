@@ -24,7 +24,8 @@ character column against the UTF-8 encoding of its line.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from bisect import bisect_right
+from collections.abc import Iterator, Mapping
 from typing import Any, Protocol
 
 from yate.editor_syntax.tokens import Token
@@ -36,6 +37,14 @@ from yate.editor_syntax.ts_backend.languages import (
 )
 
 __all__ = ["available_for", "tokenize_document"]
+
+#: Reused ``tree_sitter.Parser`` per loaded ``tree_sitter.Language``.  A
+#: Parser is stateless between ``parse()`` calls (verified against
+#: py-tree-sitter 0.25: consecutive ``parse()`` calls on one parser give
+#: independent trees), so one parser per language is built once instead of
+#: per tokenize_document call.  ``Language`` is hashable and compares equal
+#: for the same underlying grammar, so it is the natural cache key.
+_PARSERS: dict[Any, Any] = {}
 
 
 def available_for(filetype: str) -> bool:
@@ -59,12 +68,17 @@ def _highlight(lines: list[str], loaded: LoadedLanguage) -> list[list[Token]]:
     ts = tree_sitter()
     if ts is None:  # pragma: no cover - resolve() implies a working import
         return [[] for _ in lines]
-    parser = ts.Parser(loaded.language)
-    text = "\n".join(lines)
-    tree = parser.parse(text.encode("utf-8"))
+    parser = _PARSERS.get(loaded.language)
+    if parser is None:
+        parser = ts.Parser(loaded.language)
+        _PARSERS[loaded.language] = parser
+    # The document is encoded exactly once: the joined line bytes feed the
+    # parser and the same per-line list drives every column conversion.
+    line_bytes = [line.encode("utf-8") for line in lines]
+    tree = parser.parse(b"\n".join(line_bytes))
     captures = _query_captures(ts, loaded.query, tree.root_node)
 
-    line_bytes = [line.encode("utf-8") for line in lines]
+    mappers = {row: _RowMapper(b) for row, b in enumerate(line_bytes)}
     # (char_start, char_end, kind) candidates per row, unsorted
     intervals: list[list[tuple[int, int, str]]] = [[] for _ in lines]
     for capture_name, nodes in captures.items():
@@ -72,7 +86,7 @@ def _highlight(lines: list[str], loaded: LoadedLanguage) -> list[list[Token]]:
         if kind is None:
             continue
         for node in nodes:
-            for row, start, end in _clip_to_rows(node, lines, line_bytes):
+            for row, start, end in _clip_to_rows(node, lines, line_bytes, mappers):
                 intervals[row].append((start, end, kind))
     return [_tokens_for_row(ivs, len(line)) for line, ivs in zip(lines, intervals)]
 
@@ -103,13 +117,20 @@ class _TsNode(Protocol):
 
 
 def _clip_to_rows(
-    node: _TsNode, lines: list[str], line_bytes: list[bytes]
+    node: _TsNode,
+    lines: list[str],
+    line_bytes: list[bytes],
+    mappers: Mapping[int, _RowMapper] | None = None,
 ) -> Iterator[tuple[int, int, int]]:
     """Split one capture node into per-row ``(row, char_start, char_end)``.
 
     Multi-line nodes (block comments, triple-quoted strings, heredocs)
     produce whole-line spans on the rows they cover, mirroring how the
-    regex backend emits multiline constructs.
+    regex backend emits multiline constructs.  Byte columns are converted
+    through the per-row :class:`_RowMapper` when one is supplied (the
+    tokenize path, so repeated endpoints on a line decode only once);
+    without one every endpoint falls back to the direct :func:`_to_char`
+    decode.
     """
     r1, c1 = node.start_point.row, node.start_point.column
     r2, c2 = node.end_point.row, node.end_point.column
@@ -118,13 +139,19 @@ def _clip_to_rows(
         return
     if r2 > last:  # tree built from text that has since shrunk
         r2, c2 = last, len(line_bytes[last])
+    if mappers is None:
+        def char_col(row: int, byte_col: int) -> int:
+            return _to_char(line_bytes[row], byte_col)
+    else:
+        def char_col(row: int, byte_col: int) -> int:
+            return mappers[row].to_char(byte_col)
     if r1 == r2:
-        yield r1, _to_char(line_bytes[r1], c1), _to_char(line_bytes[r1], c2)
+        yield r1, char_col(r1, c1), char_col(r1, c2)
         return
-    yield r1, _to_char(line_bytes[r1], c1), len(lines[r1])
+    yield r1, char_col(r1, c1), len(lines[r1])
     for row in range(r1 + 1, r2):
         yield row, 0, len(lines[row])
-    yield r2, 0, _to_char(line_bytes[r2], c2)
+    yield r2, 0, char_col(r2, c2)
 
 
 def _to_char(line_bytes: bytes, byte_col: int) -> int:
@@ -141,6 +168,93 @@ def _to_char(line_bytes: bytes, byte_col: int) -> int:
     if byte_col >= len(line_bytes):
         byte_col = len(line_bytes)
     return len(line_bytes[:byte_col].decode("utf-8", errors="ignore"))
+
+
+def _char_byte_bounds(line_bytes: bytes) -> list[int] | None:
+    """Byte offsets of every UTF-8 character boundary, or ``None``.
+
+    ``bounds[j]`` is the byte offset where the j-th character starts, with
+    ``bounds[0] == 0`` and one entry per character plus the final end
+    offset, so ``len(bounds) - 1`` is the character length of the line.
+    Returns ``None`` when the line is not fully valid UTF-8; the caller
+    then keeps using the lossy per-endpoint decode in :func:`_to_char`.
+    """
+    try:
+        text = line_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    bounds = [0]
+    total = 0
+    for ch in text:
+        codepoint = ord(ch)
+        if codepoint < 0x80:
+            total += 1
+        elif codepoint < 0x800:
+            total += 2
+        elif codepoint < 0x10000:
+            total += 3
+        else:
+            total += 4
+        bounds.append(total)
+    return bounds
+
+
+class _RowMapper:
+    """Per-row byte-column -> character-column converter.
+
+    The first couple of distinct endpoints on a row keep the direct C
+    prefix decode (:func:`_to_char`); once a row accumulates several
+    (a busy highlighted line), the byte->character offset table is built
+    once and every further lookup is a binary search.  All results are
+    memoized, so repeated endpoints -- many captures over the same node --
+    never decode twice.  The table path is exactly equivalent to the
+    decode path for fully valid UTF-8 lines; invalid lines stay on the
+    :func:`_to_char` path for good.
+    """
+
+    __slots__ = ("_line_bytes", "_seen", "_bounds", "_built")
+
+    def __init__(self, line_bytes: bytes) -> None:
+        self._line_bytes = line_bytes
+        #: byte column -> character column, memoized lookups
+        self._seen: dict[int, int] = {}
+        self._bounds: list[int] | None = None
+        self._built: bool = False
+
+    def to_char(self, byte_col: int) -> int:
+        """Character column for *byte_col* on this row."""
+        cached = self._seen.get(byte_col)
+        if cached is not None:
+            return cached
+        if self._built:
+            bounds = self._bounds
+            result = (
+                _table_to_char(bounds, byte_col)
+                if bounds is not None
+                else _to_char(self._line_bytes, byte_col)
+            )
+        else:
+            result = _to_char(self._line_bytes, byte_col)
+            if len(self._seen) >= 2:
+                self._bounds = _char_byte_bounds(self._line_bytes)
+                self._built = True
+        self._seen[byte_col] = result
+        return result
+
+
+def _table_to_char(bounds: list[int], byte_col: int) -> int:
+    """Table lookup matching :func:`_to_char` on a fully valid UTF-8 line.
+
+    A column at a boundary maps to the character count before it; a column
+    inside a character maps to the count of characters *fully contained*
+    before it (the cut character is dropped, like ``errors="ignore"``
+    would), and columns past the line end clamp to the line length.
+    """
+    if byte_col <= 0:
+        return 0
+    if byte_col >= bounds[-1]:
+        return len(bounds) - 1
+    return bisect_right(bounds, byte_col) - 1
 
 
 #: Tie-break for captures covering the exact same span, winner first.

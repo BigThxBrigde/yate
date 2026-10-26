@@ -513,9 +513,15 @@ def test_library_source_fails_fast_on_unreadable_resource(
     """An unreadable bundled library is an installation error, raised here."""
     from yate.services.extensions.lua import library
 
-    monkeypatch.setattr(library, "bundled_extensions_dir", lambda: tmp_path)
-    with pytest.raises(RuntimeError):
-        library.lua_api_library_source()
+    # The source reader caches the healthy bundled resource per process;
+    # clear it so this test's unreadable stand-in directory is consulted.
+    library.lua_api_library_source.cache_clear()
+    try:
+        monkeypatch.setattr(library, "bundled_extensions_dir", lambda: tmp_path)
+        with pytest.raises(RuntimeError):
+            library.lua_api_library_source()
+    finally:
+        library.lua_api_library_source.cache_clear()
 
 
 # --- degradation without lupa ------------------------------------------------
