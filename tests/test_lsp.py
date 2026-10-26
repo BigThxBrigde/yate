@@ -23,6 +23,7 @@ from yate.editor_lsp import ServerState
 from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp import protocol
 from yate.editor_lsp.client import (
+    Diagnostic,
     LspClient,
     LspConnectionError,
     LspError,
@@ -927,6 +928,124 @@ def test_diagnostics_delivery_and_queries(session: ManagerSession) -> None:
         # clearing diagnostics republishes an empty list
         client.publish({"uri": uri, "diagnostics": []})
         assert mgr.diagnostics_for(doc) == []
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_diagnostics_row_index_multi_row_and_rebuild(tmp_path: Path) -> None:
+    """P11: multi-row diagnostics are indexed on every covered row and a
+    republish rebuilds the index so queries match the full-table filter."""
+
+    async def scenario() -> None:
+        fakes: list[FakeClient] = []
+        mgr = LspManager()
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            fake = FakeClient(
+                config, path,
+                on_notification=lambda m, p: mgr.handle_notification(m, p),
+            )
+            fakes.append(fake)
+            return fake
+
+        mgr.set_client_factory(cast(Any, factory))
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path), "a\nb\nc\nd\ne\nf\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+
+        def publish(raw: list[dict[str, Any]]) -> None:
+            client.publish({"uri": uri, "diagnostics": raw})
+
+        def diag(start: int, end: int) -> dict[str, Any]:
+            return {
+                "range": {"start": {"line": start, "character": 0},
+                          "end": {"line": end, "character": 1}},
+                "severity": 1, "message": "bad",
+            }
+
+        def expected_rows() -> dict[int, list[Diagnostic]]:
+            table = mgr.diagnostics_for(doc)
+            return {
+                row: [d for d in table if d.start_row <= row <= d.end_row]
+                for row in range(6)
+            }
+
+        # A diagnostic spanning rows 2..4 must be visible on rows 2, 3, 4
+        # and on no other row.
+        publish([diag(2, 4)])
+        expected = expected_rows()
+        for row in range(6):
+            assert mgr.diagnostics_on_line(doc, row) == expected[row]
+        assert len(mgr.diagnostics_on_line(doc, 3)) == 1
+
+        # Republishing replaces the whole index: the old multi-row hit on
+        # row 3 disappears, the new single-row one appears.
+        publish([diag(0, 0)])
+        assert mgr.diagnostics_on_line(doc, 3) == []
+        assert len(mgr.diagnostics_on_line(doc, 0)) == 1
+        expected = expected_rows()
+        for row in range(6):
+            assert mgr.diagnostics_on_line(doc, row) == expected[row]
+        # The returned list is a copy: mutating it must not corrupt the index.
+        mgr.diagnostics_on_line(doc, 0).clear()
+        assert len(mgr.diagnostics_on_line(doc, 0)) == 1
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_diagnostics_index_cleared_with_table(tmp_path: Path) -> None:
+    """P11: the per-row index is dropped wherever ``_diagnostics`` is
+    (didOpen republish gate and server unregistration)."""
+
+    async def scenario() -> None:
+        fakes: list[FakeClient] = []
+        mgr = LspManager()
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            fake = FakeClient(
+                config, path,
+                on_notification=lambda m, p: mgr.handle_notification(m, p),
+            )
+            fakes.append(fake)
+            return fake
+
+        mgr.set_client_factory(cast(Any, factory))
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path), "a\nb\nc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        client.publish({"uri": uri, "diagnostics": [
+            {"range": {"start": {"line": 0, "character": 0},
+                       "end": {"line": 2, "character": 0}},
+             "severity": 1, "message": "bad"},
+        ]})
+        assert len(mgr.diagnostics_on_line(doc, 1)) == 1
+
+        # didOpen republish gate: reopening the doc clears stale entries.
+        await mgr.on_document_closed(doc)
+        await mgr.on_document_shown(doc)
+        assert mgr.diagnostics_on_line(doc, 1) == []
+        assert uri not in mgr._diagnostics_by_row
+
+        # Server unregistration drops both the table and the index.
+        client.publish({"uri": uri, "diagnostics": [
+            {"range": {"start": {"line": 0, "character": 0},
+                       "end": {"line": 0, "character": 1}},
+             "severity": 1, "message": "bad"},
+        ]})
+        assert len(mgr.diagnostics_on_line(doc, 0)) == 1
+        mgr.unregister_server("python")
+        assert uri not in mgr._diagnostics_by_row
+        assert mgr.diagnostics_on_line(doc, 0) == []
+
         await mgr.shutdown_all()
 
     asyncio.run(scenario())

@@ -114,6 +114,13 @@ class LspManager:
         self._starting: dict[ClientKey, asyncio.Task[LspClient | None]] = {}
         self._open: dict[str, OpenDocState] = {}
         self._diagnostics: dict[str, list[Diagnostic]] = {}
+        #: Per-row diagnostic index: ``uri -> row -> [Diagnostic]``.  Rebuilt
+        # from scratch at every publish point (the single writer of
+        # ``_diagnostics``) so the two can never drift apart.  Multi-row
+        # diagnostics are registered on every row they cover, which makes
+        # :meth:`diagnostics_on_line` an O(1) lookup per rendered line
+        # instead of a full-table copy + filter per call.
+        self._diagnostics_by_row: dict[str, dict[int, list[Diagnostic]]] = {}
         self._change_timers: dict[str, asyncio.TimerHandle] = {}
         #: Cache of ``path_to_uri`` results (a real filesystem call on
         #: Windows); invalidated when a document leaves the session.
@@ -185,7 +192,7 @@ class LspManager:
         stale_urls = [u for u, st in self._open.items() if st.config_name == name]
         for uri in stale_urls:
             self._open.pop(uri, None)
-            self._diagnostics.pop(uri, None)
+            self._forget_diagnostics(uri)
             self._drop_uri_cache(uri)
 
     def _drop_uri_cache(self, uri: str) -> None:
@@ -387,7 +394,7 @@ class LspManager:
         )
         # Pending diagnostics may already be stale relative to buffer content;
         # the server republishes after didOpen.
-        self._diagnostics.pop(uri, None)
+        self._forget_diagnostics(uri)
 
     async def on_document_closed(self, doc: Document) -> None:
         """Forget *doc*'s didOpen state and notify didClose (best effort)."""
@@ -613,9 +620,11 @@ class LspManager:
             if isinstance(uri, str):
                 state = self._open.get(uri)
                 lines = state.doc.buffer.lines if state is not None else None
-                self._diagnostics[uri] = self._parse_diagnostics(
+                parsed = self._parse_diagnostics(
                     params.get("diagnostics"), lines
                 )
+                self._diagnostics[uri] = parsed
+                self._index_diagnostics(uri, parsed)
                 log.debug(
                     "diagnostics published: %s (%d item(s))",
                     uri.rsplit("/", 1)[-1], len(self._diagnostics[uri]),
@@ -643,6 +652,23 @@ class LspManager:
         :meth:`handle_notification` routes through it.
         """
         return parsing._parse_diagnostics(raw, lines)
+
+    def _index_diagnostics(self, uri: str, diags: list[Diagnostic]) -> None:
+        """(Re)build the per-row index for *uri* from *diags*.
+
+        The single source of truth stays ``_diagnostics``; this index is
+        rebuilt from scratch on every publish so it can never go stale.
+        """
+        by_row: dict[int, list[Diagnostic]] = {}
+        for d in diags:
+            for row in range(d.start_row, d.end_row + 1):
+                by_row.setdefault(row, []).append(d)
+        self._diagnostics_by_row[uri] = by_row
+
+    def _forget_diagnostics(self, uri: str) -> None:
+        """Drop the stored diagnostics and the per-row index for *uri*."""
+        self._diagnostics.pop(uri, None)
+        self._diagnostics_by_row.pop(uri, None)
 
     def diagnostics_for(self, doc: Document) -> list[Diagnostic]:
         """The stored diagnostics for *doc* (a copy, sorted by position)."""
@@ -675,8 +701,17 @@ class LspManager:
         return best
 
     def diagnostics_on_line(self, doc: Document, row: int) -> list[Diagnostic]:
-        """The stored diagnostics whose vertical range covers *row*."""
-        return [d for d in self.diagnostics_for(doc) if d.start_row <= row <= d.end_row]
+        """The stored diagnostics whose vertical range covers *row*.
+
+        O(1) via the per-row index (rebuilt at each publish point); a copy
+        is returned so callers cannot mutate the index.
+        """
+        if doc.path is None:
+            return []
+        by_row = self._diagnostics_by_row.get(self._uri(doc))
+        if not by_row:
+            return []
+        return list(by_row.get(row, ()))
 
     # ------------------------------------------------------------- teardown
 
