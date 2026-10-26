@@ -122,6 +122,15 @@ flowchart TD
    （测试 spy 固有类型差异，评审剧本批准方向）；test_whichkey_panel 的 `VisualType`
    从 `textual.visual` 导入（`textual.types` 无此导出）。
 
+### take_dirty_range 契约登记（tree-sitter 增量解析 IKQQNO 追加）
+
+- `take_dirty_range` 消费方**保持高亮 diff 独占**：`_rebuild_tokens_on_edit`
+  （UI 线程同步重建消费）与 worker 落盘丢弃（`highlighting.py` 结果落盘处
+  `buf.take_dirty_range()`）两处，不新增其它消费方；
+- tree-sitter 增量解析（IKQQNO）**自带行快照 diff**，不消费 buffer dirty
+  range（偏离 issue 修复方向 1/3，理由见 ts-incremental-parse-plan §二/§七）；
+- `dirty_range` 只读 peek 消费方（补全）不变。
+
 ### 遗留
 
 - worktree 根存在未跟踪临时文件 `pytest_out.txt`（评审运行期产物，`git clean`

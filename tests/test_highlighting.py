@@ -15,6 +15,7 @@ import asyncio
 from pathlib import Path
 from typing import override
 
+import pytest
 from textual.app import App
 from textual.pilot import Pilot
 from textual.widget import Widget
@@ -23,6 +24,7 @@ from conftest import wait_until
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.editor_syntax.engine import (
+    tokenize_document,
     tokenize_document_with_states,
     tokenize_line_sync,
 )
@@ -275,5 +277,169 @@ def test_sync_resync_after_undo_matches_full_pass(tmp_path: Path) -> None:
 
     asyncio.run(scenario())
 
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------------------------------
+# Tree-sitter incremental session hand-off (IKQQNO wave b / B1)
+# ---------------------------------------------------------------------------
+
+
+class _SwitchableHost(Widget, HighlightMixin):
+    """Host widget whose document can be swapped (doc/filetype switch tests)."""
+
+    def __init__(self, document: Document) -> None:
+        super().__init__()
+        self._document = document
+        self._init_highlight_state()
+
+    @property
+    @override
+    def doc(self) -> Document:
+        return self._document
+
+
+async def _mounted_switchable(
+    app: App[None], doc: Document
+) -> _SwitchableHost:
+    """Mount a switchable host for *doc* and return it once the app runs."""
+    host = _SwitchableHost(doc)
+    await app.mount(host)
+    return host
+
+
+def test_doc_switch_clears_ts_session(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app: App[None] = App()
+        async with app.run_test() as pilot:
+            doc1 = Document(tmp_path / "a.py", TextBuffer('x = "hi"\ny = 2'))
+            host = await _mounted_switchable(app, doc1)
+            await pilot.pause()
+            host.tokens_for(0)
+            assert await wait_until(
+                pilot, lambda: host.highlight_probe().tokens is not None
+            )
+            assert host._hl_ts_session is not None
+
+            doc2 = Document(tmp_path / "b.py", TextBuffer("z = 3"))
+            host._document = doc2
+            # The doc-switch invalidation branch must drop the session
+            # before scheduling the fresh pass (full rebuild).
+            host.tokens_for(0)
+            assert host._hl_ts_session is None
+            assert await wait_until(
+                pilot,
+                lambda: host.highlight_probe().doc is doc2
+                and host.highlight_probe().tokens is not None,
+            )
+            assert host._hl_ts_session is not None
+
+    asyncio.run(scenario())
+
+
+def test_filetype_switch_rebuilds_session_for_new_filetype(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        from yate.editor_syntax.ts_backend.backend import IncrementalSession
+
+        app: App[None] = App()
+        async with app.run_test() as pilot:
+            doc1 = Document(tmp_path / "a.py", TextBuffer('x = "hi"\ny = 2'))
+            host = await _mounted_switchable(app, doc1)
+            await pilot.pause()
+            host.tokens_for(0)
+            assert await wait_until(
+                pilot, lambda: host.highlight_probe().tokens is not None
+            )
+            old_session = host._hl_ts_session
+            assert old_session is not None
+
+            doc2 = Document(tmp_path / "b.js", TextBuffer("const y = 2;"))
+            host._document = doc2
+            host.tokens_for(0)
+            assert host._hl_ts_session is None
+            assert await wait_until(
+                pilot,
+                lambda: host.highlight_probe().doc is doc2
+                and host.highlight_probe().tokens is not None,
+            )
+            new_session = host._hl_ts_session
+            assert new_session is not old_session
+            assert isinstance(new_session, IncrementalSession)
+            assert new_session.filetype == "js"
+
+    asyncio.run(scenario())
+
+
+def test_two_edit_rounds_reuse_the_same_session(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        app: App[None] = App()
+        async with app.run_test() as pilot:
+            host, doc = await _seeded_host(
+                app, pilot, 'x = "hi"\ny = 2\nz = 3', tmp_path
+            )
+            first = host._hl_ts_session
+            assert first is not None
+
+            # Round 2: the debounced pass must thread the first round's
+            # session through the incremental entry and store it back
+            # unchanged (same object = the incremental path was taken).
+            doc.buffer.set_text('x = "hi"\ny = 22\nz = 3')
+            host.tokens_for(0)
+            assert await wait_until(
+                pilot,
+                lambda: host.highlight_probe().version
+                == doc.buffer.content_version,
+            )
+            second = host._hl_ts_session
+            assert second is first
+
+            # Round 3: still the same session object after another edit.
+            doc.buffer.set_text('x = "hello"\ny = 22\nz = 3')
+            host.tokens_for(0)
+            assert await wait_until(
+                pilot,
+                lambda: host.highlight_probe().version
+                == doc.buffer.content_version,
+            )
+            assert host._hl_ts_session is first
+
+    asyncio.run(scenario())
+
+
+def test_worker_internal_failure_falls_back_to_correct_tokens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        from yate.editor_syntax.ts_backend.backend import IncrementalSession
+
+        original = IncrementalSession._update
+        calls: list[bool] = []
+
+        def flaky_update(
+            self: IncrementalSession,
+            lines: list[str],
+            filetype: str,
+        ) -> list[list[Token]]:
+            # Fail exactly once; the session's guarded fallback retries the
+            # whole-document path, which must still produce correct tokens.
+            if not calls:
+                calls.append(True)
+                raise RuntimeError("boom")
+            return original(self, lines, filetype)
+
+        monkeypatch.setattr(IncrementalSession, "_update", flaky_update)
+        app: App[None] = App()
+        async with app.run_test() as pilot:
+            host, doc = await _seeded_host(
+                app, pilot, 'x = "hi"\ny = 2\nz = 3', tmp_path
+            )
+            expected = tokenize_document(
+                doc.buffer.lines, doc.filetype
+            )
+            probe = host.highlight_probe()
+            assert probe.tokens == expected
 
     asyncio.run(scenario())
