@@ -421,3 +421,21 @@ code-review-expert 对修复波的评审（REQUEST_CHANGES）实测发现 blocke
 
 验收：新增/改动测试全绿 + pyright 全量 0 诊断 + 全量门禁复跑
 （§6.6 回填）。
+
+### 9.6 收口波执行与门禁记录（2026-10-26，@ `d4af6a3`）
+
+- §9.5 A-D 全部落地为单一可运行提交 `d4af6a3`
+  （`fix(chunked): close the re-review findings on the read-only pin`）；
+  B 的断言落在既有用例
+  `test_readonly_saveas_writes_elsewhere_and_unlocks`
+  （saveas 抬锁成功后 `read_only_pinned is False`）。
+- 主代理全量门禁（最终树 @ `d4af6a3`）：pyright strict 0/0/0、
+  pytest 全量 `-n auto` 全绿、架构 37 用例、覆盖率 **91.94%**
+  （零宽守卫已覆盖）、冒烟 **117/117 场景 1410/1410 检查**，全部
+  exit 0。
+- 复审者对收口提交的最终结论：截至本文回填（2026-10-26）尚未回报，
+  成员保留存活等待其结论；主代理已做独立复核替代验证——`-R` startup
+  文档经 `open_document:211` 走 `_apply_session_readonly:158` 置 pin，
+  新用例 `test_fullload_in_readonly_session_stays_read_only` 的
+  `assert doc.read_only_pinned is True` 在删除该接线时必红，
+  变异探针①的断言缺口已闭合。
