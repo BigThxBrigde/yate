@@ -395,6 +395,15 @@ class LspClient:
         finally:
             self._pending.pop(request_id, None)
 
+    def settle_request(self, request_id: int) -> None:
+        """Drop the pending future of a settled request.
+
+        Mirrors the cleanup inside :meth:`request` for callers that await
+        ``start_request`` futures themselves: without this the future and
+        its raw response payload stay referenced until teardown.
+        """
+        self._pending.pop(request_id, None)
+
     async def start_request(  # noqa: Any - LSP payloads are dynamically typed
         self, method: str, params: dict[str, Any] | None
     ) -> tuple[int, asyncio.Future[Any]]:

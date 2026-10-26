@@ -254,6 +254,10 @@ def _install_fake_server(  # noqa: Any - fake LSP server boundary; no stubs
             future.set_result({"isIncomplete": False, "items": completions})
             return 1, future
 
+        def settle_request(self, request_id: int) -> None:
+            """Fake settle: mirrors the real client's pending cleanup."""
+            return None
+
         async def send_cancel(self, request_id: int) -> None:
             """Fake cancel: discards the request id."""
             return None
@@ -566,6 +570,10 @@ class _RcClientShim:
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         future.set_result(None)
         return 1, future
+
+    def settle_request(self, request_id: int) -> None:
+        """Fake settle: mirrors the real client's pending cleanup."""
+        return None
 
     async def send_cancel(self, request_id: int) -> None:
         """Fake cancel: discards the request id."""

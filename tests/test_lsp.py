@@ -585,6 +585,9 @@ class FakeClient:
         self.stopped = False
         self._on_notification = on_notification
         self._completion: Any = completion if completion is not None else []
+        # Mirrors the real client's in-flight request table so tests can
+        # assert completed requests are actually evicted (P6 regression).
+        self._pending: dict[int, asyncio.Future[Any]] = {}
 
     async def start(self) -> None:
         """Fake start: only records that the client was started."""
@@ -609,7 +612,13 @@ class FakeClient:
         self.sent.append((method, params))
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         future.set_result(self._completion)
+        self._pending[1] = future
         return 1, future
+
+    def settle_request(self, request_id: int) -> None:
+        """Fake settle: mirrors the real client's pending-future cleanup."""
+        self.sent.append(("$/settleRequest", request_id))
+        self._pending.pop(request_id, None)
 
     async def send_cancel(self, request_id: int) -> None:
         """Fake cancel: records the $/cancelRequest notification."""
@@ -1118,8 +1127,7 @@ def test_shutdown_cancels_pending_change_tasks(
         # fire the debounce timer now
         for handle in list(internals._change_timers.values()):
             handle.cancel()
-        internals._flush_change(
-            doc, internals._uri(doc), doc.buffer.get_text())
+        internals._flush_change(doc, internals._uri(doc))
         await mgr.shutdown_all()
         assert [t for t in internals._bg_tasks if not t.done()] == []
 
@@ -1482,3 +1490,77 @@ def test_unregister_server_forgets_the_config() -> None:
     assert manager.config_names() == []
 
     assert manager.unregister_server("probe") is False
+
+
+def test_completion_evicts_pending_request_after_settle(
+    session: ManagerSession,
+) -> None:
+    """P6 regression: a settled completion request leaves ``_pending`` empty.
+
+    ``request_completion`` used to await the ``start_request`` future without
+    evicting it, leaking one future (and its raw response payload) per popup
+    until the connection was torn down.
+    """
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        assert await mgr.request_completion(doc, 0, 0, prefix_start_col=0) == []
+        # The future settled (success path); the pending entry must be gone.
+        assert client._pending == {}
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_notify_edit_skips_full_text_materialization_on_same_version(
+    session: ManagerSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P5 regression: an unchanged buffer version never materializes text.
+
+    ``notify_edit`` used to call ``buffer.get_text()`` (an O(document) join)
+    on every keystroke before deciding the text was unchanged.
+    """
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        calls = [0]
+
+        real_get_text = doc.buffer.get_text
+
+        def counting_get_text() -> str:
+            calls[0] += 1
+            return real_get_text()
+
+        monkeypatch.setattr(doc.buffer, "get_text", counting_get_text)
+
+        # No edit since didOpen: version matches, zero materialization.
+        mgr.notify_edit(doc)
+        assert calls[0] == 0
+        assert mgr._change_timers == {}
+
+        # A real edit (version bump) materializes once in notify_edit (the
+        # last_synced double-insurance compare) and once more inside the
+        # debounce flush; last_synced_version advances after the send.
+        doc.buffer.insert_text("x")
+        mgr.notify_edit(doc)
+        assert calls[0] == 1
+        internals = cast(Any, mgr)
+        uri = internals._uri(doc)
+        timer = internals._change_timers.pop(uri, None)
+        assert timer is not None
+        timer.cancel()
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        state = internals._open[uri]
+        assert state.last_synced_version == doc.buffer.content_version
+        assert calls[0] == 2
+        # A follow-up notify_edit on the now-synced buffer short-circuits.
+        mgr.notify_edit(doc)
+        assert calls[0] == 2
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
