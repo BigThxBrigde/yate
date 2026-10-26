@@ -8,6 +8,7 @@ the editor and never imports upward.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Callable
 
@@ -15,6 +16,13 @@ from yate.editor_view.commandline import PromptBar
 from yate.editor_view.panes import PaneManager
 from yate.flows import MessageFn
 from yate.session import EditorSession
+
+#: Idle delay after the last keystroke before the debounced full-document
+#: live-search sweep runs (aligned with the completion precedent).
+LIVE_SEARCH_DEBOUNCE_S = 0.12
+
+#: Prompt modes whose ``on_changed`` drives the live search.
+_FIND_MODES = ("find", "find_back")
 
 
 class PromptFlows:
@@ -43,9 +51,12 @@ class PromptFlows:
         # Only actual replacements (``y`` hits) -- ``n`` bumps ``_confirm_done``
         # to advance the loop but must not inflate the "replaced N" report.
         self._confirm_replaced: int = 0
+        # Pending debounced live-search sweep (``None`` = nothing armed).
+        self._live_timer: asyncio.TimerHandle | None = None
 
     def find_prompt(self, forward: bool) -> None:
         """Open the search prompt (``/``, ``?``, ctrl+f)."""
+        self.cancel_live_search()
         self.prompt.activate(
             "find" if forward else "find_back",
             initial=self.session.search.query,
@@ -55,14 +66,55 @@ class PromptFlows:
         )
 
     def _live_search(self, text: str) -> None:
-        """Highlight matches while the search prompt is being typed."""
+        """Highlight matches while the search prompt is being typed.
+
+        The full-document sweep is debounced (P8): every keystroke rearms a
+        short timer instead of rescanning the buffer synchronously.  An
+        empty query bypasses the timer -- clearing highlights is cheap and
+        the user expects instant feedback while backspacing.
+        """
+        self.cancel_live_search()
+        if not text:
+            self._apply_live_search(text)
+            return
+        loop = asyncio.get_running_loop()
+        self._live_timer = loop.call_later(
+            LIVE_SEARCH_DEBOUNCE_S, self._flush_live_search
+        )
+
+    def _flush_live_search(self) -> None:
+        """Run the debounced sweep with the *current* prompt value.
+
+        The callback reads the Input live instead of a captured text so a
+        burst of keystrokes collapses into one sweep of the newest query;
+        a prompt that was closed or cancelled in the meantime drops the
+        pending sweep entirely.
+        """
+        self._live_timer = None
+        if self.prompt.active_mode not in _FIND_MODES:
+            return
+        self._apply_live_search(self.prompt.input.value)
+
+    def _apply_live_search(self, text: str) -> None:
+        """Rescan the buffer for *text* and refresh the document views."""
         self.session.search.update(text, self.session.buffer)
         for view in self.panes.views_for(self.session.doc):
             view.refresh()
 
+    def cancel_live_search(self) -> None:
+        """Drop a pending debounced sweep (prompt re-open / close / cancel)."""
+        timer = self._live_timer
+        if timer is not None:
+            timer.cancel()
+            self._live_timer = None
+
     def _submit_search(self, text: str, forward: bool) -> None:
+        # Enter before the debounce fired: flush the newest query once so
+        # find_next sees the matches (then drop the pending sweep).
+        self.cancel_live_search()
         if not text:
             return
+        self._apply_live_search(text)
         self.find_next(forward)
 
     def find_next(self, forward: bool) -> None:

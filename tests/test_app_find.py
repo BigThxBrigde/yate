@@ -1069,3 +1069,100 @@ def test_f4_confirm_loop_replacement_self_match_terminates(
             assert app.editor.session.buffer.get_text() == "xfoofoo"
 
     asyncio.run(scenario())
+
+
+# ---------------------------------------------------------- live search (P8)
+
+
+def _seed_needles(app: YateApp) -> None:
+    app.editor.session.buffer.set_text(
+        "needle one\nfiller\nneedle two\n"
+    )
+    app.editor.session.buffer.set_cursor((0, 0))
+
+
+def test_live_search_debounces_rapid_typing(tmp_path: Path) -> None:
+    """A burst of keystrokes collapses into one full-document sweep.
+
+    The synchronous per-key rescan (P8) is gone: while the debounce window
+    is armed the engine must not run, and exactly one sweep of the newest
+    query fires once the window elapses.
+    """
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            _seed_needles(app)
+            search = app.editor.session.search
+            with patch.object(search, "update", wraps=search.update) as spy:
+                await pilot.press("ctrl+f")
+                await pilot.pause()
+                for ch in "needle":
+                    await pilot.press(ch)
+                await pilot.pause()
+                # The window is still armed (or a mid-burst sweep fired);
+                # the engine did NOT run once per keystroke.
+                assert spy.call_count < 6
+                await asyncio.sleep(0.3)
+                await pilot.pause()
+                assert spy.call_count == 1
+            assert search.query == "needle"
+            assert len(search.matches) == 2
+
+    asyncio.run(scenario())
+
+
+def test_live_search_clears_immediately_on_empty(tmp_path: Path) -> None:
+    """Backspacing to an empty query clears highlights synchronously."""
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            _seed_needles(app)
+            flows = app.editor.prompt_flows
+            search = app.editor.session.search
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            await pilot.press(*"needle")
+            await asyncio.sleep(0.3)
+            await pilot.pause()
+            assert search.query == "needle"
+            # Clear the input: no debounce, the sweep is dropped at once.
+            for _ in range(6):
+                await pilot.press("backspace")
+            await pilot.pause()
+            assert search.query == ""
+            assert search.matches == []
+            assert flows._live_timer is None
+
+    asyncio.run(scenario())
+
+
+def test_live_search_drop_after_prompt_cancel(tmp_path: Path) -> None:
+    """A pending sweep must not touch the engine after the prompt closes."""
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            _seed_needles(app)
+            flows = app.editor.prompt_flows
+            search = app.editor.session.search
+            with patch.object(search, "update", wraps=search.update) as spy:
+                await pilot.press("ctrl+f")
+                await pilot.pause()
+                await pilot.press("n")
+                await pilot.pause()
+                await pilot.press("escape")
+                await pilot.pause()
+                await asyncio.sleep(0.3)
+                await pilot.pause()
+                # The armed sweep was dropped, not run post-close.
+                assert flows._live_timer is None
+                assert spy.call_count == 0
+            assert search.query == ""
+            assert search.matches == []
+
+    asyncio.run(scenario())
