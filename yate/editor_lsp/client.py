@@ -43,6 +43,12 @@ type NotificationFn = Callable[[str, dict[str, Any]], None]
 #: LSP error codes we care about.
 ERR_METHOD_NOT_FOUND: int = -32601
 
+#: Sync kind for full-document ``textDocument/didChange`` syncs (LSP TextDocumentSyncKind).
+SYNC_FULL: int = 1
+
+#: Sync kind for incremental (range-based) ``textDocument/didChange`` syncs.
+SYNC_INCREMENTAL: int = 2
+
 DEFAULT_ROOT_MARKERS: tuple[str, ...] = (
     ".git",
     "pyproject.toml",
@@ -571,6 +577,17 @@ class LspClient:
 
     # ------------------------------------------------------------- payloads
 
+    @property
+    def sync_kind(self) -> int:
+        """Negotiated ``textDocument/didChange`` sync kind for this server.
+
+        Parsed from ``serverCapabilities.textDocumentSync``: an int is taken
+        as-is, a dict contributes its ``change`` field, and anything missing
+        or invalid falls back to :data:`SYNC_FULL`.  See
+        :func:`_parse_sync_kind` for the accepted shapes.
+        """
+        return _parse_sync_kind(self.server_capabilities)
+
     def _initialize_params(self) -> dict[str, Any]:
         return {
             "processId": os.getpid(),
@@ -579,6 +596,14 @@ class LspClient:
             "rootPath": str(self.root_path),
             "rootUri": protocol.path_to_uri(self.root_path),
             "capabilities": {
+                # Top-level incremental sync declaration; the legacy
+                # textDocument.synchronization block below is kept alongside
+                # it for older servers (both coexisting is harmless).
+                "textDocumentSync": {
+                    "openClose": True,
+                    "change": 2,
+                    "save": True,
+                },
                 "textDocument": {
                     "synchronization": {
                         "didSave": True,
@@ -606,6 +631,26 @@ class LspClient:
             },
             "initializationOptions": self.config.initialization_options,
         }
+
+
+def _parse_sync_kind(caps: dict[str, Any]) -> int:
+    """Extract the didChange sync kind from server capabilities and return it.
+
+    ``textDocumentSync`` may be an int (legacy shape, taken directly), a dict
+    (its ``change`` field is used), or absent.  Only the values 1 (Full) and
+    2 (Incremental) are accepted; anything else -- including a missing or
+    non-dict/non-int declaration -- falls back to :data:`SYNC_FULL`.
+    """
+    raw = caps.get("textDocumentSync")
+    if isinstance(raw, bool):
+        return SYNC_FULL
+    if isinstance(raw, int):
+        return raw if raw in (SYNC_FULL, SYNC_INCREMENTAL) else SYNC_FULL
+    if isinstance(raw, dict):
+        change = cast(dict[str, Any], raw).get("change")
+        if isinstance(change, int) and not isinstance(change, bool):
+            return change if change in (SYNC_FULL, SYNC_INCREMENTAL) else SYNC_FULL
+    return SYNC_FULL
 
 
 def _yate_version() -> str:

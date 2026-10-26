@@ -1558,6 +1558,57 @@ def test_document_saved_emits_no_debug_when_notify_succeeds(
     asyncio.run(scenario())
 
 
+# ------------------------------------------------- sync kind / capabilities
+
+
+def _client_with_caps(caps: dict[str, Any]) -> LspClient:
+    """Build a client whose server capabilities are ``caps``."""
+    client = LspClient(PY_CONFIG, Path("."))
+    client.server_capabilities = caps
+    return client
+
+
+def test_sync_kind_int_declaration_parses_directly() -> None:
+    """Legacy int ``textDocumentSync`` (1 or 2) is taken as-is."""
+    assert _client_with_caps({"textDocumentSync": 2}).sync_kind == 2
+    assert _client_with_caps({"textDocumentSync": 1}).sync_kind == 1
+
+
+def test_sync_kind_dict_declaration_uses_change_field() -> None:
+    """Dict ``textDocumentSync`` contributes its ``change`` field."""
+    assert _client_with_caps({"textDocumentSync": {"change": 2}}).sync_kind == 2
+    assert _client_with_caps({"textDocumentSync": {"change": 1}}).sync_kind == 1
+
+
+def test_sync_kind_missing_defaults_to_full() -> None:
+    """Absent ``textDocumentSync`` (including empty caps) falls back to Full."""
+    assert _client_with_caps({}).sync_kind == 1
+
+
+def test_sync_kind_invalid_values_fall_back_to_full() -> None:
+    """Out-of-range / malformed declarations fall back to Full (1)."""
+    assert _client_with_caps({"textDocumentSync": 0}).sync_kind == 1
+    assert _client_with_caps({"textDocumentSync": 3}).sync_kind == 1
+    assert _client_with_caps({"textDocumentSync": {"change": 99}}).sync_kind == 1
+    assert _client_with_caps({"textDocumentSync": {"change": "2"}}).sync_kind == 1
+    assert _client_with_caps({"textDocumentSync": "full"}).sync_kind == 1
+    assert _client_with_caps({"textDocumentSync": None}).sync_kind == 1
+
+
+def test_initialize_params_declare_incremental_text_document_sync() -> None:
+    """Client capabilities advertise top-level ``textDocumentSync`` with
+    incremental ``change`` and keep the legacy synchronization block."""
+    params = LspClient(PY_CONFIG, Path("."))._initialize_params()
+    caps = params["capabilities"]
+    assert caps["textDocumentSync"] == {
+        "openClose": True,
+        "change": 2,
+        "save": True,
+    }
+    sync = caps["textDocument"]["synchronization"]
+    assert sync == {"didSave": True, "dynamicRegistration": False}
+
+
 def test_reregistering_a_server_stops_the_old_client(tmp_path: Path) -> None:
     """Replacing a server config stops the cached old client instead of
     leaking it (2026 plan-a M-3: register_server pops without stop)."""
