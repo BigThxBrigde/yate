@@ -192,3 +192,29 @@ sequenceDiagram
     end
     S-->>Y: publishDiagnostics（不漂移）
 ```
+
+## 九、执行记录（收尾回填，2026-10-27）
+
+- **波次产物提交**：`8ef9107`（A1 client 能力声明 + sync kind 解析）→
+  `47fbd5f`（A2 diff 模块 + 差分护栏）→ `a4b3359`（B1 manager 接线）→
+  `1e8782b`（C1 pyright 真实联测）。执行模式：plan-architect-designer 两次 spawn
+  均因模型未注册失败（任务书指定模型重试仍失败），计划由主代理按剧本亲自产出；
+  plan-executor 四次 spawn 全部成功，产物均经主代理独立复核（重跑 pytest +
+  pyright 全绿）。
+- **复核数字**（主代理重跑）：`tests/test_lsp.py + tests/test_lsp_diff.py`
+  66 passed（含 2000 组随机护栏）；`tests/test_lsp_real_server.py` 1 passed；
+  压力轮 `YATE_LSP_DIFF_STRESS=1`（100000 组）退出码 0。
+- **C1 联测观察（pyright-langserver 真实进程）**：协商返回
+  `textDocumentSync: 2`（int 形态）→ `client.sync_kind == SYNC_INCREMENTAL`；
+  3 步真实防抖编辑每步恰好 1 条 didChange、contentChanges 均为
+  range/rangeLength 补丁且 text 非全文；差分模拟器重放终态与 buffer 文本
+  逐字节一致（无漂移）；publishDiagnostics 正常回发（含 error 级诊断）。
+- **偏离追加（B1，已主代理裁定接受）**：P5 守卫用例
+  `test_notify_edit_skips_full_text_materialization_on_same_version` 的
+  `get_text()` 物化计数断言 1/2 → 0/0——行快照比较后编辑路径不再物化全文，
+  守护意图（"不物化全文"）更强。
+- **联测发现的既有缺陷（另行立项，不在本任务范围）**：pyright 回显 URI 为
+  `file:///d%3A/...`（小写盘符 + 转义冒号），与 `protocol.path_to_uri`
+  （`Path.as_uri()` → `file:///D:/...`）不一致，导致 `_diagnostics` 存储键与
+  `diagnostics_for(doc)` 查询键失配、`publishDiagnostics` 落位失败（行坐标
+  UTF-16 换算被跳过）。master 既有行为，非本任务引入。
