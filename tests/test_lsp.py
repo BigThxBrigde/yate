@@ -30,6 +30,9 @@ from yate.editor_lsp.client import (
     LspResponseError,
     ServerConfig,
 )
+# Test-module import (tests/ is not a package): the server simulator whose
+# apply semantics the manager-level differential guard reuses.
+from test_lsp_diff import apply_changes
 
 PY_CONFIG: ServerConfig = ServerConfig(
     name="python",
@@ -580,6 +583,9 @@ class FakeClient:
         self.root = root
         self.state = ServerState.READY
         self.error = ""
+        #: Negotiated TextDocumentSyncKind (1 Full / 2 incremental), read
+        #: by the manager's send path; tests opt into incremental per fake.
+        self.sync_kind: int = 1
         self.trigger_characters: tuple[str, ...] = (".",)
         self.sent: list[tuple[str, Any]] = []
         self.started = False
@@ -1718,12 +1724,14 @@ def test_notify_edit_skips_full_text_materialization_on_same_version(
         assert calls[0] == 0
         assert mgr._change_timers == {}
 
-        # A real edit (version bump) materializes once in notify_edit (the
-        # last_synced double-insurance compare) and once more inside the
-        # debounce flush; last_synced_version advances after the send.
+        # A real edit (version bump) never materializes the full text
+        # anymore: the double-insurance compare and the debounce flush both
+        # work on row snapshots (tuple(doc.buffer.lines)); the send path
+        # joins only on the Full branch.  last_synced_version advances
+        # after the send.
         doc.buffer.insert_text("x")
         mgr.notify_edit(doc)
-        assert calls[0] == 1
+        assert calls[0] == 0
         internals = cast(Any, mgr)
         uri = internals._uri(doc)
         timer = internals._change_timers.pop(uri, None)
@@ -1733,10 +1741,170 @@ def test_notify_edit_skips_full_text_materialization_on_same_version(
         await asyncio.sleep(0)
         state = internals._open[uri]
         assert state.last_synced_version == doc.buffer.content_version
-        assert calls[0] == 2
+        assert calls[0] == 0
         # A follow-up notify_edit on the now-synced buffer short-circuits.
         mgr.notify_edit(doc)
-        assert calls[0] == 2
+        assert calls[0] == 0
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+# ------------------------------------------- incremental didChange (sync kind 2)
+
+#: ``(mgr, fakes, doc, internals)`` bundle built by :func:`_sync_session`;
+#: ``internals`` is the manager cast to ``Any`` for the test-pinned seams.
+type _SyncSession = tuple[LspManager, list[FakeClient], Document, Any]
+
+
+def _sync_session(tmp_path: Path, sync_kind: int, text: str) -> _SyncSession:
+    """Manager plus one fake client negotiating *sync_kind* and a document."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    fakes: list[FakeClient] = []
+    managers: list[LspManager] = []
+
+    def factory(config: ServerConfig, path: Path) -> FakeClient:
+        # The factory wires the manager notification sink, like the real
+        # LspClient constructor does.
+        mgr = managers[0]
+
+        def on_notification(method: str, params: dict[str, Any]) -> None:
+            mgr.handle_notification(method, params)
+
+        fake = FakeClient(config, path, on_notification=on_notification)
+        fake.sync_kind = sync_kind
+        fakes.append(fake)
+        return fake
+
+    mgr = LspManager(
+        workspace_root=lambda: tmp_path,
+        client_factory=cast(Any, factory),
+    )
+    managers.append(mgr)
+    mgr.register_server(PY_CONFIG)
+    doc = make_python_doc(str(tmp_path), text)
+    return mgr, fakes, doc, cast(Any, mgr)
+
+
+def _did_changes(client: FakeClient) -> list[dict[str, Any]]:
+    """The params of every didChange notification *client* recorded."""
+    return [p for m, p in client.sent if m == "textDocument/didChange"]
+
+
+def test_incremental_sync_sends_range_patches_not_full_text(tmp_path: Path) -> None:
+    """A sync-kind-2 server receives range patches whose text is the patch
+    text, never the full document."""
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\ndef\n")
+        await mgr.on_document_shown(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, internals._uri(doc))
+        await asyncio.sleep(0)
+        changed = _did_changes(fakes[0])
+        assert len(changed) == 1
+        change = changed[0]["contentChanges"][0]
+        assert "range" in change
+        # The edit prepends "X" on the first row: a one-character patch,
+        # not "Xabc\ndef".
+        assert change["text"] == "X"
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_incremental_replay_matches_full_mode_byte_for_byte(tmp_path: Path) -> None:
+    """Manager-level differential guard: the same edit sequence replayed
+    through the server simulator after incremental patches lands on the
+    exact full text the Full-mode manager sends."""
+    async def scenario() -> None:
+        inc = _sync_session(tmp_path / "inc", 2, "alpha\nbeta\ngamma\n")
+        full = _sync_session(tmp_path / "full", 1, "alpha\nbeta\ngamma\n")
+        await inc[0].on_document_shown(inc[2])
+        await full[0].on_document_shown(full[2])
+        inc_doc, full_doc = inc[2], full[2]
+        inc_int, full_int = inc[3], full[3]
+        # A trailing newline is one more (empty) row for the server, same
+        # as the buffer's line model that didOpen snapshotted.
+        server_lines: list[str] = ["alpha", "beta", "gamma", ""]
+        sent = 0
+        for edit in ("X", "Y\n", "Z"):
+            inc_doc.buffer.insert_text(edit)
+            full_doc.buffer.insert_text(edit)
+            inc_int._flush_change(inc_doc, inc_int._uri(inc_doc))
+            full_int._flush_change(full_doc, full_int._uri(full_doc))
+            await asyncio.sleep(0)
+            inc_changes = _did_changes(inc[1][0])
+            full_changes = _did_changes(full[1][0])
+            assert len(inc_changes) == sent + 1
+            assert len(full_changes) == sent + 1
+            sent += 1
+            # Replay each incremental patch set server-style (test_lsp_diff
+            # semantics), then compare against the Full-mode full text.
+            server_lines = apply_changes(
+                server_lines, inc_changes[-1]["contentChanges"]
+            )
+            assert "\n".join(server_lines) == (
+                full_changes[-1]["contentChanges"][0]["text"]
+            )
+        # Final states agree with the live buffers too.
+        assert "\n".join(server_lines) == inc_doc.buffer.get_text()
+        await inc[0].shutdown_all()
+        await full[0].shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_incremental_send_failure_keeps_snapshot_and_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed didChange notify leaves ``last_synced_lines`` stale; the
+    next flush retries and advances the state only after success."""
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        real_notify = client.notify
+        failures = {"left": 1}
+
+        async def flaky(method: str, params: Any) -> None:
+            if method == "textDocument/didChange" and failures["left"] > 0:
+                failures["left"] -= 1
+                raise OSError("pipe closed")
+            await real_notify(method, params)
+
+        monkeypatch.setattr(client, "notify", flaky)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        state = internals._open[uri]
+        # The didOpen snapshot stands: nothing advanced, nothing recorded.
+        assert state.last_synced_lines == ("abc", "")
+        assert state.version == 1
+        assert _did_changes(client) == []
+
+        doc.buffer.insert_text("Y")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        changed = _did_changes(client)
+        assert len(changed) == 1
+        assert state.version == 2
+        assert state.last_synced_lines == tuple(doc.buffer.lines)
+        assert state.last_synced_version == doc.buffer.content_version
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_no_did_change_after_did_open_without_edits(tmp_path: Path) -> None:
+    """Opening a document and touching nothing sends no didChange."""
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
+        await mgr.on_document_shown(doc)
+        mgr.notify_edit(doc)
+        internals._flush_change(doc, internals._uri(doc))
+        await asyncio.sleep(0)
+        assert _did_changes(fakes[0]) == []
         await mgr.shutdown_all()
 
     asyncio.run(scenario())

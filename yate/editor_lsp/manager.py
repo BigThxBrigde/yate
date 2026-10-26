@@ -31,6 +31,7 @@ from yate.logs import tracing
 
 from yate.editor_lsp import parsing, protocol
 from yate.editor_lsp.client import (
+    SYNC_INCREMENTAL,
     Completion,
     Diagnostic,
     LspClient,
@@ -38,12 +39,9 @@ from yate.editor_lsp.client import (
     ServerConfig,
     ServerState,
 )
+from yate.editor_lsp.diff import ChangePatch, build_change_patches
 from yate.editor_lsp.parsing import _from_utf16 as _from_utf16
 from yate.editor_lsp.parsing import _to_utf16 as _to_utf16
-
-#: TextDocumentSyncKind.Full -- resending the whole buffer on every change is
-#: supported by every server and avoids fragile incremental position math.
-_SYNC_FULL: int = 1
 
 #: Debounce for didChange (keystrokes coalesce into one notification).
 CHANGE_DEBOUNCE_S: float = 0.25
@@ -62,11 +60,12 @@ log = tracing.get_logger(__name__)
 class OpenDocState:
     """State of one text document currently open with a server.
 
-    ``version``/``last_synced`` advance only after a successful didChange
-    notify; pushes whose text matches ``last_synced`` are skipped.
-    ``last_synced_version`` mirrors ``buffer.content_version`` at the moment
-    the text was last sent, giving :meth:`LspManager.notify_edit` an O(1)
-    gate that avoids materializing the full document text on every key.
+    ``version``/``last_synced_lines`` advance only after a successful
+    didChange notify; pushes whose lines match ``last_synced_lines`` are
+    skipped.  ``last_synced_version`` mirrors ``buffer.content_version``
+    at the moment the lines were last sent, giving
+    :meth:`LspManager.notify_edit` an O(1) gate that avoids materializing
+    the full document text on every key.
     """
 
     uri: str
@@ -74,7 +73,9 @@ class OpenDocState:
     client_key: ClientKey
     language_id: str
     version: int
-    last_synced: str
+    #: Row snapshot of the buffer as of the last successful didChange /
+    #: didOpen; the diff basis for incremental sends.
+    last_synced_lines: tuple[str, ...]
     last_synced_version: int
     #: The open document, kept so incoming server positions (UTF-16 code
     #: units) can be converted back to buffer columns (code points).
@@ -388,7 +389,7 @@ class LspManager:
             client_key=(config.name, str(root)),
             language_id=config.language_id(doc.filetype),
             version=1,
-            last_synced=text,
+            last_synced_lines=tuple(doc.buffer.lines),
             last_synced_version=doc.buffer.content_version,
             doc=doc,
         )
@@ -425,13 +426,12 @@ class LspManager:
         state = self._open.get(uri)
         if state is None:
             return
-        # O(1) gate: an equal content_version proves the text cannot have
-        # changed, so skip the O(document) ``get_text()`` on this keystroke.
+        # O(1) gate: an equal content_version proves the lines cannot have
+        # changed, so skip the O(document) row snapshot on this keystroke.
         if doc.buffer.content_version == state.last_synced_version:
             return
-        text = doc.buffer.get_text()
-        if text == state.last_synced:
-            # Double insurance: the version can advance without the text
+        if tuple(doc.buffer.lines) == state.last_synced_lines:
+            # Double insurance: the version can advance without the lines
             # changing (e.g. chunked fill) -- nothing to send then either.
             return
         timer = self._change_timers.pop(uri, None)
@@ -447,12 +447,12 @@ class LspManager:
         state = self._open.get(uri)
         if state is None or self._shutting_down:
             return
-        # Materialize the text only here (inside the debounce callback), not
-        # on every keystroke; the buffer may have changed since the timer was
-        # armed, which is exactly what we want to send.
-        text = doc.buffer.get_text()
+        # Snapshot the lines only here (inside the debounce callback), not
+        # on every keystroke; the buffer may have changed since the timer
+        # was armed, which is exactly what we want to send.
+        new_lines = list(doc.buffer.lines)
         buffer_version = doc.buffer.content_version
-        if text == state.last_synced:
+        if new_lines == list(state.last_synced_lines):
             return
         client = self._clients.get(state.client_key)
         if client is None or client.state is not ServerState.READY:
@@ -461,11 +461,11 @@ class LspManager:
         # middle of processing a previous didChange, or the notification
         # itself may fail.  We only advance after a successful notify so
         # that a subsequent edit (which calls ``notify_edit`` again with
-        # the same text) won't short-circuit against a stale last_synced.
+        # the same lines) won't short-circuit against a stale last_synced.
         next_version = state.version + 1
         self._spawn_bg(
-            self._send_change(
-                client, uri, state, next_version, text, buffer_version
+            self._dispatch_change(
+                client, uri, state, next_version, new_lines, buffer_version
             )
         )
 
@@ -474,6 +474,84 @@ class LspManager:
         task: asyncio.Task[None] = asyncio.ensure_future(coro)
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
+
+    async def _dispatch_change(
+        self,
+        client: LspClient,
+        uri: str,
+        state: OpenDocState,
+        version: int,
+        new_lines: list[str],
+        buffer_version: int,
+    ) -> None:
+        """Send one pending didChange through the negotiated sync kind.
+
+        Incremental servers (:data:`SYNC_INCREMENTAL`) get row-snapshot
+        diff patches; every other negotiated kind is Full, which resends
+        the whole buffer (the only path that joins the document text).
+        Both paths advance state only after a successful notify.
+        """
+        if client.sync_kind == SYNC_INCREMENTAL:
+            await self._send_change_incremental(
+                client, uri, state, version, new_lines, buffer_version
+            )
+        else:
+            await self._send_change(
+                client, uri, state, version, "\n".join(new_lines),
+                buffer_version,
+            )
+
+    async def _send_change_incremental(
+        self,
+        client: LspClient,
+        uri: str,
+        state: OpenDocState,
+        version: int,
+        new_lines: list[str],
+        buffer_version: int,
+    ) -> None:
+        """Send an incremental didChange built from the row-snapshot diff.
+
+        The diff between ``state.last_synced_lines`` and *new_lines* is
+        turned into UTF-16 range patches (see
+        :func:`yate.editor_lsp.diff.build_change_patches`); no full-text
+        join happens on this path.  ``state.last_synced_lines`` /
+        ``version`` / ``last_synced_version`` advance only after a
+        successful notify so a failed call leaves the snapshot stale and
+        lets the next :meth:`notify_edit` retry naturally.
+        ``buffer_version`` is the ``buffer.content_version`` snapshot
+        taken when *new_lines* was materialized."""
+        patches: list[ChangePatch] = build_change_patches(
+            state.last_synced_lines, new_lines
+        )
+        content_changes: list[dict[str, Any]] = []
+        for patch in patches:
+            content_changes.append({
+                "range": {
+                    "start": {
+                        "line": patch.start_row,
+                        "character": patch.start_col_utf16,
+                    },
+                    "end": {
+                        "line": patch.end_row,
+                        "character": patch.end_col_utf16,
+                    },
+                },
+                "rangeLength": patch.range_length_utf16,
+                "text": patch.text,
+            })
+        try:
+            await client.notify("textDocument/didChange", {
+                "textDocument": {"uri": uri, "version": version},
+                "contentChanges": content_changes,
+            })
+        except (LspError, OSError):
+            return
+        # Re-check the document hasn't been closed while we awaited.
+        if self._open.get(uri) is state and not self._shutting_down:
+            state.version = version
+            state.last_synced_lines = tuple(new_lines)
+            state.last_synced_version = buffer_version
 
     async def _send_change(
         self,
@@ -484,8 +562,8 @@ class LspManager:
         text: str,
         buffer_version: int,
     ) -> None:
-        """Send a full-text didChange; advance state.version/last_synced only
-        after a successful notify so a failed call leaves ``last_synced``
+        """Send a full-text didChange; advance state.version/last_synced_lines
+        only after a successful notify so a failed call leaves the snapshot
         stale and lets the next :meth:`notify_edit` retry naturally.
         ``buffer_version`` is the ``buffer.content_version`` snapshot taken
         when *text* was materialized."""
@@ -499,7 +577,7 @@ class LspManager:
         # Re-check the document hasn't been closed while we awaited.
         if self._open.get(uri) is state and not self._shutting_down:
             state.version = version
-            state.last_synced = text
+            state.last_synced_lines = tuple(text.split("\n"))
             state.last_synced_version = buffer_version
 
     async def notify_saved(self, doc: Document) -> None:
@@ -543,10 +621,10 @@ class LspManager:
         if timer is not None:
             timer.cancel()
         if state is not None and client.state is ServerState.READY:
-            text = doc.buffer.get_text()
-            if text != state.last_synced:
-                await self._send_change(
-                    client, uri, state, state.version + 1, text,
+            new_lines = list(doc.buffer.lines)
+            if new_lines != list(state.last_synced_lines):
+                await self._dispatch_change(
+                    client, uri, state, state.version + 1, new_lines,
                     doc.buffer.content_version,
                 )
         context: dict[str, Any] = {"triggerKind": trigger_kind}
