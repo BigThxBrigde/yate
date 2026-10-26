@@ -406,7 +406,12 @@ code-review-expert 对修复波的评审（REQUEST_CHANGES）实测发现 blocke
   `test_fullload_in_readonly_session_stays_read_only`（-R → pin True →
   fullload 后仍只读）与镜像
   `test_fullload_in_default_session_is_editable`（默认 → fullload 后
-  可写），把原 blocker 锁在命令层。
+  可写），把原 blocker 锁在命令层。**闭合范围限定（终审更正）**：
+  这两条只锁死 `-R` 接线（`document_flows.py:158`，变异 A1 删线即红）；
+  `editor.py:1093`（`:set readonly=`）的断言由终审 E 项补齐——
+  `-R` 会话 `:set readonly=false` 用例尾断言 pin False +
+  双向用例 `test_set_readonly_records_the_intent_pin`（True 方向），
+  此后两条接线均有删线即红的守卫。
 - **B（minor）`:saveas` 抬锁不跟随 pin**：成功分支（`saved = True`
   后）补 `doc.read_only_pinned = False`（vim `:sav` 语义：抬锁存活则
   意图位跟随；失败分支 pin 从未改写无需回滚）。当前对 chunked 不可达
@@ -420,7 +425,7 @@ code-review-expert 对修复波的评审（REQUEST_CHANGES）实测发现 blocke
   消除与字段名 `read_only_pinned` 的同词反义。
 
 验收：新增/改动测试全绿 + pyright 全量 0 诊断 + 全量门禁复跑
-（§6.6 回填）。
+（§6.5 / §9.6 回填）。
 
 ### 9.6 收口波执行与门禁记录（2026-10-26，@ `d4af6a3`）
 
@@ -433,9 +438,14 @@ code-review-expert 对修复波的评审（REQUEST_CHANGES）实测发现 blocke
   pytest 全量 `-n auto` 全绿、架构 37 用例、覆盖率 **91.94%**
   （零宽守卫已覆盖）、冒烟 **117/117 场景 1410/1410 检查**，全部
   exit 0。
-- 复审者对收口提交的最终结论：截至本文回填（2026-10-26）尚未回报，
-  成员保留存活等待其结论；主代理已做独立复核替代验证——`-R` startup
-  文档经 `open_document:211` 走 `_apply_session_readonly:158` 置 pin，
-  新用例 `test_fullload_in_readonly_session_stays_read_only` 的
-  `assert doc.read_only_pinned is True` 在删除该接线时必红，
-  变异探针①的断言缺口已闭合。
+- 复审者对收口提交的最终结论：**APPROVE**（2026-10-26，锚定树
+  `d4af6a3`）。变异验证：删 `-R` 接线→红、promote 回滚→红、saveas
+  pin 回滚→红、零宽守卫回滚→红；唯一非阻塞 minor（E）为
+  `editor.py:1093`（`:set readonly=`）意图位断言缺口（删线 112 用例
+  仍绿，行为经端到端探针确认正确）——已按其建议补齐（`:177` 尾断言 +
+  双向用例 `test_set_readonly_records_the_intent_pin`），并随终审
+  F 项修正本节悬空引用（§6.6/§6.7）与 §9.5 A 条闭合范围表述。
+  终审文档级遗留：无。
+- 终审 E/F 项补齐后的复跑（@ `d35a9df`）：pyright strict 0/0/0、
+  pytest 全量 `-n auto` 全绿、架构 37 用例、覆盖率 **91.96%**、
+  冒烟 **117/117 场景 1410/1410 检查**，全部 exit 0。
