@@ -289,3 +289,48 @@ def test_chunked_binary_out_of_range_raises(tmp_path: Path) -> None:
     binary = ChunkedBinaryFile(path, size=len(data), mtime=0.0, block_size=256)
     with pytest.raises(ValueError):
         binary.read(len(data) + 1, 1)
+
+
+def test_chunked_binary_dirty_edits_span_multiple_blocks(tmp_path: Path) -> None:
+    """Edits in several blocks read back correctly across block seams."""
+    data = bytes(range(256)) * 4
+    path = _write_bytes(tmp_path, "blob.bin", data)
+    binary = ChunkedBinaryFile(path, size=len(data), mtime=0.0, block_size=64)
+    binary.apply_edit(0, 0xAA)  # block 0
+    binary.apply_edit(63, 0xBB)  # block 0 tail
+    binary.apply_edit(64, 0xCC)  # block 1 head
+    binary.apply_edit(200, 0xDD)  # block 3
+    assert binary.dirty_edits() == {0: 0xAA, 63: 0xBB, 64: 0xCC, 200: 0xDD}
+    assert binary.read(0, 128) == b"\xaa" + data[1:63] + b"\xbb\xcc" + data[65:128]
+    assert binary.read(190, 20) == data[190:200] + b"\xdd" + data[201:210]
+    # untouched blocks read straight from the payload
+    assert binary.read(128, 64) == data[128:192]
+
+
+def test_chunked_binary_clear_edits_drops_emptied_buckets(tmp_path: Path) -> None:
+    """Clearing every edit of a block removes that block's dirty bucket."""
+    data = bytes(range(256)) * 4
+    path = _write_bytes(tmp_path, "blob.bin", data)
+    binary = ChunkedBinaryFile(path, size=len(data), mtime=0.0, block_size=64)
+    binary.apply_edit(0, 0xAA)  # block 0
+    binary.apply_edit(64, 0xCC)  # block 1
+    assert binary.dirty_edits() == {0: 0xAA, 64: 0xCC}
+    binary.clear_edits([0])
+    assert binary.dirty_edits() == {64: 0xCC}
+    binary.clear_edits([64])
+    assert binary.dirty_edits() == {}
+    # with the buckets empty the reads serve the on-disk bytes again
+    assert binary.read(0, 128) == data[:128]
+
+
+def test_chunked_binary_partial_clear_keeps_surviving_edits(tmp_path: Path) -> None:
+    """Clearing one edit of a block keeps the block's remaining edits."""
+    data = bytes(range(256)) * 4
+    path = _write_bytes(tmp_path, "blob.bin", data)
+    binary = ChunkedBinaryFile(path, size=len(data), mtime=0.0, block_size=64)
+    binary.apply_edit(1, 0xAA)
+    binary.apply_edit(2, 0xBB)
+    binary.clear_edits([1])
+    assert binary.dirty_edits() == {2: 0xBB}
+    # clear_edits evicts the block, so byte 1 comes back from disk unchanged
+    assert binary.read(0, 4) == data[0:2] + b"\xbb" + data[3:4]

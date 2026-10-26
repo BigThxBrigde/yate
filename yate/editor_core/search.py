@@ -127,8 +127,32 @@ class SearchEngine:
             if pattern is not None:
                 replacement = pattern.sub(replacement, text)
         buffer.replace_range((match.row, match.start), (match.row, match.end), replacement)
-        # Rework matches around the edit: simplest to re-run the search.
-        self.update(self.query, buffer)
+        # Rework matches incrementally: only the edited row can change, so
+        # rescan just that row and keep every other row's matches untouched.
+        pattern = self._compile(self.query)
+        row_matches: list[Match] = []
+        if pattern is not None:
+            for found in pattern.finditer(buffer.lines[match.row]):
+                if found.start() == found.end():
+                    continue
+                row_matches.append(Match(match.row, found.start(), found.end()))
+        matches: list[Match] = []
+        spliced = False
+        for other in self.matches:
+            if other.row == match.row:
+                if not spliced:
+                    matches.extend(row_matches)
+                    spliced = True
+                continue
+            matches.append(other)
+        if not spliced:
+            # Defensive: the active match always came from this row, but a
+            # missing bucket must not silently drop the rescan result.
+            matches.extend(row_matches)
+        self.matches = matches
+        # Same contract as ``update``: the caller re-anchors via ``next()``
+        # from the cursor (which now sits at the end of the inserted text).
+        self.index = -1
         return True
 
     def replace_all(self, buffer: TextBuffer, replacement: str) -> int:
