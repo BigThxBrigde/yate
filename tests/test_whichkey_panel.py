@@ -244,6 +244,33 @@ def test_clear_blanks_border_title() -> None:
     asyncio.run(scenario())
 
 
+def test_clear_when_hidden_is_a_no_op() -> None:
+    """Plan-f P21: clearing a hidden, empty panel marks nothing dirty."""
+
+    async def scenario() -> None:
+        host = _LayerHost()
+        async with host.run_test(size=(80, 24)):
+            panel = host.panel
+            assert panel.display is False
+            updates: list[object] = []
+            real_update = panel.update
+
+            def counting_update(content: object) -> None:
+                updates.append(content)
+                real_update(content)
+
+            panel.update = counting_update
+            panel.clear()
+            assert updates == []
+            assert panel.display is False
+            # A shown panel still clears on the next clear().
+            panel.show_entries("x", [ChordEntry("x", "do x")])
+            panel.clear()
+            assert panel.display is False
+
+    asyncio.run(scenario())
+
+
 def test_container_resize_reanchors_panel() -> None:
     """EditorColumn.on_resize forwards to the panel (user-reported bug).
 

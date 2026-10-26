@@ -126,6 +126,66 @@ def test_breadcrumbs_resolve_root_once(
         tmp_path.name, "sub", "note.txt",
     ]
     assert first == second
-    # two renders: the root resolves once (cached), the doc path per render
+    # two renders: root resolves once (cached per root object) and the doc
+    # path resolves once too (cached per path string, plan-f P10b)
     assert resolved.count(tmp_path) == 1  # root, first render only
-    assert resolved.count(doc_path) == 2
+    assert resolved.count(doc_path) == 1
+
+
+def test_breadcrumbs_resolve_doc_path_again_after_retarget(
+    tmp_path: Path,
+) -> None:
+    """A different active doc path re-resolves; a save (same path) does not."""
+    workspace = Workspace()
+    workspace.set_root(tmp_path)
+    first = tmp_path / "one.txt"
+    second = tmp_path / "two.txt"
+    first.write_text("", encoding="utf-8")
+    second.write_text("", encoding="utf-8")
+    session = EditorSession(YateConfig())
+    assert session.open(first) is not None
+    crumbs = Breadcrumbs(session, workspace)
+    assert crumbs.crumb_parts()[-1][1] == "one.txt"
+    assert session.open(second) is not None
+    assert crumbs.crumb_parts()[-1][1] == "two.txt"  # retarget re-resolves
+    assert crumbs.crumb_parts()[-1][1] == "two.txt"  # same path hits cache
+
+
+def test_tab_bar_fingerprint_skips_unchanged_rebuild(tmp_path: Path) -> None:
+    """refresh_tabs with an unchanged state does not rebuild (plan-f P3)."""
+    session = _session_with_tabs(tmp_path, ["a.py", "b.py"])
+    bar = TabBar(session, lambda _doc: None)
+    bar._last_fingerprint = None
+    builds: list[int] = []
+
+    def counting_render(width: int) -> None:
+        builds.append(width)
+
+    bar.render_content = counting_render  # pyright: reportAttributeAccessIssue=false
+    bar.refresh_tabs()
+    bar.refresh_tabs()
+    assert len(builds) == 1
+    # Any render-input change (width, active index, doc identity) rebuilds.
+    session.index = 0
+    bar.refresh_tabs()
+    assert len(builds) == 2
+
+
+def test_breadcrumbs_fingerprint_skips_unchanged_rebuild(tmp_path: Path) -> None:
+    """refresh_crumbs with an unchanged state does not rebuild (plan-f P3)."""
+    workspace = Workspace()
+    workspace.set_root(tmp_path)
+    doc_path = tmp_path / "note.txt"
+    doc_path.write_text("", encoding="utf-8")
+    session = EditorSession(YateConfig())
+    assert session.open(doc_path) is not None
+    crumbs = Breadcrumbs(session, workspace)
+    updates: list[object] = []
+
+    def counting_update(content: object) -> None:
+        updates.append(content)
+
+    crumbs.update = counting_update  # pyright: reportAttributeAccessIssue=false
+    crumbs.refresh_crumbs()
+    crumbs.refresh_crumbs()
+    assert len(updates) == 1

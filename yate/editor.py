@@ -864,7 +864,12 @@ class Editor:
             # the key is consumed (R10) with a notice instead of an edit.
             self.readonly_notice()
             return True
-        self.refresh_ui()
+        # Unconsumed keys pay nothing: only a handled key changed editor
+        # state worth repainting (plan-f P3).  The completion feed stays
+        # unconditional -- the popup needs every raw key even when the
+        # keymap ignored it.
+        if handled:
+            self.refresh_ui()
         self.completion.after_editor_key(raw)
         return handled
 

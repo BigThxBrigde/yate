@@ -553,3 +553,45 @@ def test_cell_offsets_line_end_and_total() -> None:
     # a(1) b(2) -> tab advances to the next stop at col 4 -> c(5) d(6)
     assert offsets == [0, 1, 2, 4, 5, 6]
     assert offsets[len(line)] == theme.char_to_cell(line, len(line), 4)
+
+
+# ------------------------------------- plan-f P3: unconsumed keys skip refresh
+
+
+def test_unconsumed_raw_key_skips_refresh_ui(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A key the keymap does not consume triggers no refresh_ui (P3)."""
+    target = tmp_path / "note.txt"
+    target.write_text("hello\n", encoding="utf-8")
+    app = YateApp(target=target)
+
+    async def scenario() -> None:
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor
+            refreshes: list[bool] = []
+            feeds: list[str] = []
+            monkeypatch.setattr(
+                editor, "refresh_ui", lambda: refreshes.append(True)
+            )
+            monkeypatch.setattr(
+                editor.completion,
+                "after_editor_key",
+                lambda raw: feeds.append(raw),
+            )
+            monkeypatch.setattr(
+                editor.keymaps.active, "handle_key", lambda *a: False
+            )
+            assert editor.handle_raw_key("zz-unbound") is False
+            assert refreshes == []
+            # The completion popup still receives every raw key regardless
+            # of the handled gate (plan-f P3 requirement).
+            assert feeds == ["zz-unbound"]
+            monkeypatch.setattr(
+                editor.keymaps.active, "handle_key", lambda *a: True
+            )
+            assert editor.handle_raw_key("zz-bound") is True
+            assert refreshes == [True]
+
+    asyncio.run(scenario())

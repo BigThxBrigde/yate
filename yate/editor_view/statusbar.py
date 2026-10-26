@@ -101,6 +101,10 @@ class StatusBar(Static):
         self.extension_segments = extension_segments
         #: Loaded-extension count for the hints segment (``None`` renders 0).
         self.loaded_extensions = loaded_extensions
+        #: Content fingerprint of the last rendered bar (plan-f P3): when the
+        #: next refresh produces the same fingerprint the Rich Text rebuild
+        #: is skipped entirely.  ``None`` until the first render.
+        self._last_fingerprint: tuple[object, ...] | None = None
 
     #: unsubscribe hook from :func:`yate.editor_view.theme.subscribe`;
     #: ``None`` while not mounted.
@@ -160,6 +164,33 @@ class StatusBar(Static):
             + 1 + right_len <= width
         )
         budget = width - (1 + right_len if include_right else 0)
+
+        # Plan-f P3 short-circuit: everything the Rich Text below is built
+        # from (chip label, name, dot/lock, both extension blocks, position,
+        # meta, LSP segment, hints, width, theme identity) is in this
+        # fingerprint -- an unchanged fingerprint means the assembled text
+        # would be identical, so the rebuild is skipped.
+        fingerprint = (
+            id(t),
+            width,
+            mode,
+            buf.has_extra_cursors(),
+            doc.name,
+            doc.modified,
+            buf.read_only,
+            buf.row,
+            buf.col,
+            buf.line_count,
+            doc.filetype,
+            doc.encoding,
+            left_ext,
+            right_ext,
+            lsp_plain,
+            self.loaded_extensions() if self.loaded_extensions else 0,
+        )
+        if fingerprint == self._last_fingerprint:
+            return
+        self._last_fingerprint = fingerprint
 
         text = Text()
         # Flat mode chip (hard color edge, no powerline triangle).
