@@ -275,7 +275,7 @@ def test_multi_cursor_fifty_points_remap() -> None:
     for i in range(1, 50):
         buf.add_cursor_at((i, 1))
     buf.insert_at_points("A\nB")
-    expected = []
+    expected: list[str] = []
     for i in range(50):
         text = f"{i}{i}{i}"
         expected.append(text[:1] + "A")
@@ -304,10 +304,12 @@ def test_take_dirty_range_union_and_clear() -> None:
     buf.insert_text("y")  # row 0: separate edit, union would cover 0..3
     assert buf.take_dirty_range() == (0, 0)
     buf.set_cursor((0, 2))
-    buf.insert_text("\nz")  # rows 0..1 in one edit
-    assert buf.take_dirty_range() == (0, 1)
-    buf.undo()  # undo marks the reverted interval
-    assert buf.take_dirty_range() == (0, 1)
+    buf.insert_text("\nz")  # splits row 0: rows below shift down
+    # structural insertion: the dirty range must reach the last row so
+    # line-numbered caches re-align
+    assert buf.take_dirty_range() == (0, 4)
+    buf.undo()  # undo removes a row: rows below shift up again
+    assert buf.take_dirty_range() == (0, 3)
 
 
 def test_modified_edit_undo_returns_to_saved_state(tmp_path: Path) -> None:

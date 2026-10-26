@@ -298,6 +298,11 @@ class _RowWords:
 
     content_version: int
     rows: dict[int, frozenset[str]]
+    #: Row count of the buffer at the cached version; a mismatch means a
+    #: structural add/remove shifted rows, forcing a recompute down to the
+    #: end of the document (defence in depth beside the buffer's own
+    #: dirty-range contract).
+    row_count: int
 
 
 #: Per-row word sets cached per buffer (one slot each, weakly keyed).
@@ -312,7 +317,7 @@ _row_word_cache: weakref.WeakKeyDictionary[TextBuffer, _RowWords] = (
 )
 
 
-def _scan_row_words(line: str) -> frozenset[str]:
+def scan_row_words(line: str) -> frozenset[str]:
     """Word set of one line (single scan point, also the test seam)."""
     return frozenset(_WORD_RE.findall(line))
 
@@ -338,19 +343,44 @@ def _buffer_row_words(buf: TextBuffer) -> dict[int, frozenset[str]]:
         # Carry over rows outside the dirty range (row indices stay valid:
         # the dirty range contract covers every structural change).
         top, bottom = dirty
+        if cached.row_count != len(buf.lines):
+            # Defence in depth: a structural add/remove shifts every row
+            # below the edit, so recompute through the end of the document
+            # instead of trusting the reported dirty range alone.
+            bottom = len(buf.lines) - 1
         rows = {
             r: words
             for r, words in cached.rows.items()
             if (r < top or r > bottom) and r < len(buf.lines)
         }
         for r in range(max(0, top), min(bottom, len(buf.lines) - 1) + 1):
-            rows[r] = _scan_row_words(buf.lines[r])
+            rows[r] = scan_row_words(buf.lines[r])
     else:
         rows = {
-            r: _scan_row_words(line) for r, line in enumerate(buf.lines)
+            r: scan_row_words(line) for r, line in enumerate(buf.lines)
         }
-    _row_word_cache[buf] = _RowWords(version, rows)
+    _row_word_cache[buf] = _RowWords(version, rows, len(buf.lines))
     return rows
+
+
+def clear_row_word_cache() -> None:
+    """Public test/tool seam: drop every cached row-word entry.
+
+    The cache is keyed weakly by buffer, so production code never needs to
+    clear it; this exists so tests can isolate runs without reaching for
+    the private mapping (the ``highlight_probe`` precedent).
+    """
+    _row_word_cache.clear()
+
+
+def row_words(buf: TextBuffer) -> dict[int, frozenset[str]]:
+    """Public read-only view of the per-row word cache (test/tool seam).
+
+    Same computation the candidate builder uses internally; exists so
+    tests can exercise the cache without private-name access (the
+    ``highlight_probe`` precedent).
+    """
+    return _buffer_row_words(buf)
 
 
 def _path_completions(prefix: str, base_dir: Path | None = None) -> list[str]:

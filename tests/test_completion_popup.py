@@ -570,9 +570,9 @@ def test_escape_then_ctrl_space_restores_the_popup(tmp_path: Path) -> None:
 @pytest.fixture(autouse=True)
 def _clear_row_word_cache() -> Any:
     """Isolate the module-level row word cache between tests."""
-    completion._row_word_cache.clear()
+    completion.clear_row_word_cache()
     yield
-    completion._row_word_cache.clear()
+    completion.clear_row_word_cache()
 
 
 class _ScanSpy:
@@ -580,20 +580,21 @@ class _ScanSpy:
 
     def __init__(self) -> None:
         self.scanned: list[str] = []
+        self._real = completion.scan_row_words
 
-    def __call__(self, line: str) -> Any:
+    def __call__(self, line: str) -> frozenset[str]:
         self.scanned.append(line)
-        return frozenset(completion._WORD_RE.findall(line))
+        return self._real(line)
 
 
 def test_row_words_cached_per_content_version() -> None:
     """A version match returns the cached rows with zero re-scans."""
     buf = TextBuffer()
     buf.set_text("alpha beta\ngamma\n")
-    first = completion._buffer_row_words(buf)
+    first = completion.row_words(buf)
     spy = _ScanSpy()
-    with patch.object(completion, "_scan_row_words", spy):
-        second = completion._buffer_row_words(buf)
+    with patch.object(completion, "scan_row_words", spy):
+        second = completion.row_words(buf)
     assert spy.scanned == []  # version unchanged: nothing recomputed
     assert second is first  # same dict object handed back
 
@@ -602,13 +603,13 @@ def test_row_words_recomputes_only_dirty_rows() -> None:
     """A version bump recomputes only the rows inside the dirty range."""
     buf = TextBuffer()
     buf.set_text("alpha beta\ngamma\ndelta epsilon")
-    completion._buffer_row_words(buf)  # prime the cache
+    completion.row_words(buf)  # prime the cache
     buf.take_dirty_range()  # establish the baseline (range is a union)
     buf.cursor = (1, 5)
     buf.insert_text(" zeta")  # edit on row 1 only
     spy = _ScanSpy()
-    with patch.object(completion, "_scan_row_words", spy):
-        rows = completion._buffer_row_words(buf)
+    with patch.object(completion, "scan_row_words", spy):
+        rows = completion.row_words(buf)
     # exactly the edited row was re-scanned
     assert spy.scanned == ["gamma zeta"]
     # untouched rows carried over from the cache
@@ -622,11 +623,11 @@ def test_row_words_does_not_consume_dirty_range() -> None:
     highlight diff (the take/peek contract split)."""
     buf = TextBuffer()
     buf.set_text("one two")
-    completion._buffer_row_words(buf)
+    completion.row_words(buf)
     buf.take_dirty_range()  # baseline
     buf.cursor = (0, 3)
     buf.insert_text(" three")
-    completion._buffer_row_words(buf)  # incremental recompute consumes nothing
+    completion.row_words(buf)  # incremental recompute consumes nothing
     assert buf.dirty_range == (0, 0)  # still pending, un-consumed
     assert buf.take_dirty_range() == (0, 0)  # consumer still finds it
 
@@ -635,29 +636,44 @@ def test_row_words_full_recompute_without_dirty_range() -> None:
     """A consumed (None) dirty range falls back to a full recompute."""
     buf = TextBuffer()
     buf.set_text("one two\nthree four")
-    completion._buffer_row_words(buf)
+    completion.row_words(buf)
     buf.take_dirty_range()  # baseline
     buf.cursor = (1, 10)
     buf.insert_text(" five")
     buf.take_dirty_range()  # another consumer got there first
     spy = _ScanSpy()
-    with patch.object(completion, "_scan_row_words", spy):
-        rows = completion._buffer_row_words(buf)
+    with patch.object(completion, "scan_row_words", spy):
+        rows = completion.row_words(buf)
     assert spy.scanned == ["one two", "three four five"]
     assert rows[1] == frozenset({"three", "four", "five"})
+
+
+def test_row_words_realigns_after_line_deletion() -> None:
+    """Deleting a line shifts every row below it up by one; cached word sets
+    must follow the new row indices (regression: stale row numbers after a
+    structural deletion left 'five' missing and 'four' duplicated)."""
+    buf = TextBuffer()
+    buf.set_text("one two\nfour\nfive")
+    completion.row_words(buf)  # prime the cache
+    buf.take_dirty_range()  # baseline
+    buf.cursor = (0, 0)
+    buf.delete_lines()  # removes "one two"; rows below shift up one
+    rows = completion.row_words(buf)
+    assert rows[0] == frozenset({"four"})
+    assert rows[1] == frozenset({"five"})
 
 
 def test_row_words_drops_rows_beyond_new_line_count() -> None:
     """Row deletions drop cached rows past the new end of the buffer."""
     buf = TextBuffer()
     buf.set_text("alpha beta\ngamma\ndelta epsilon")
-    completion._buffer_row_words(buf)
+    completion.row_words(buf)
     buf.take_dirty_range()  # baseline
     buf.cursor = (1, 0)
     buf.delete_lines()  # removes "gamma"; dirty range covers row 1
     spy = _ScanSpy()
-    with patch.object(completion, "_scan_row_words", spy):
-        rows = completion._buffer_row_words(buf)
+    with patch.object(completion, "scan_row_words", spy):
+        rows = completion.row_words(buf)
     assert spy.scanned == ["delta epsilon"]
     assert set(rows) == {0, 1}  # stale row 2 entry is gone
     assert rows[0] == frozenset({"alpha", "beta"})

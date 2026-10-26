@@ -359,7 +359,14 @@ class TextBuffer:
     # ------------------------------------------------------- undo recording
 
     def _note_dirty(self, top: int, bottom: int) -> None:
-        """Fold the inclusive row range into the pending dirty range (union)."""
+        """Fold the inclusive row range into the pending dirty range (union).
+
+        Contract: any edit that structurally adds or removes rows must
+        extend its dirty range through the last row of the document --
+        rows below the edit keep their content but shift to new indices,
+        so line-numbered caches (completion words, highlight states) must
+        recompute them to stay aligned.
+        """
         if self._dirty_top is None:
             self._dirty_top = top
             self._dirty_bottom = bottom
@@ -602,6 +609,10 @@ class TextBuffer:
             if d.old != d.new:
                 changed = True
                 self._note_dirty(d.top, d.top + max(len(d.old), len(d.new)) - 1)
+                if len(d.old) != len(d.new):
+                    # Structural add/remove shifts every row below the
+                    # delta, so the dirty range must reach the last row.
+                    self._note_dirty(d.top, len(self.lines) - 1)
         if changed:
             self.content_version += 1
 
@@ -763,6 +774,9 @@ class TextBuffer:
         else:
             self.lines[r1] = self.lines[r1][:c1] + self.lines[r2][c2:]
             del self.lines[r1 + 1 : r2 + 1]
+            # Structural deletion (r2 - r1 rows removed): rows below shift
+            # up, so the dirty range must reach the last row of the document.
+            self._note_dirty(r1, len(self.lines) - 1)
         # rows r1+1..r2 collapsed into r1: the region's bottom in current
         # coordinates moves up with them (rows already inside the region
         # below r2 shift up by the same amount)
@@ -810,6 +824,10 @@ class TextBuffer:
         # the k = len(parts) - 1 new rows join the region: rows already in
         # the region at or below r shift down with them
         k = len(parts) - 1
+        if k > 0:
+            # Structural insertion: rows below shift down, so the dirty
+            # range must reach the last row of the document.
+            self._note_dirty(r, len(self.lines) - 1)
         pend = self._pend
         if pend is not None:
             if r <= pend.bot:
@@ -1417,6 +1435,9 @@ class TextBuffer:
         else:
             # rows r1..r2 removed entirely: the region's replacement is empty
             pend.bot = r1 - 1
+        # Structural deletion: every row below shifts up one per removed
+        # row, so the dirty range must reach the last row of the document.
+        self._note_dirty(r1, len(self.lines) - 1)
         r = min(r1, len(self.lines) - 1)
         self.cursor = (r, 0)
         self.anchor = None
@@ -1438,6 +1459,9 @@ class TextBuffer:
         assert pend is not None
         # the duplicated block joins the region as new rows below r2
         pend.bot = max(pend.bot, r2 + len(block))
+        # Structural insertion: rows below shift down, so the dirty range
+        # must reach the last row of the document.
+        self._note_dirty(r2 + 1, len(self.lines) - 1)
         self.cursor = (r2 + len(block), min(self.col, len(self.lines[r2 + len(block)])))
         self.anchor = None
         self._commit("step")
@@ -1479,6 +1503,9 @@ class TextBuffer:
         self._capture(r, r + 1)
         self.lines[r] = joined
         del self.lines[r + 1]
+        # Structural deletion (one row removed): rows below shift up, so
+        # the dirty range must reach the last row of the document.
+        self._note_dirty(r, len(self.lines) - 1)
         self.cursor = (r, min(c, len(joined)))
         self.anchor = None
         pend = self._pend
