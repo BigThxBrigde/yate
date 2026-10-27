@@ -128,6 +128,11 @@ class EditorView(ScrollView, HighlightMixin):
         # re-renders every frame while visible, which used to rebuild the
         # rows each time.
         self._welcome_cache: dict[tuple[str, bool], list[_WelcomeRow]] = {}
+        # Repaint stamps: the document identity and buffer content version
+        # last painted by :meth:`content_changed`.  :attr:`content_stale`
+        # compares against them so the scheduler can skip unchanged panes.
+        self._painted_doc: Document | None = None
+        self._painted_version: int = -1
 
     # ------------------------------------------------------------ helpers
 
@@ -183,6 +188,22 @@ class EditorView(ScrollView, HighlightMixin):
         self._update_virtual_size()
         self.reveal_cursor()
         self.refresh()
+        self._painted_doc = self.leaf.doc
+        self._painted_version = self.buffer.content_version
+
+    @property
+    def content_stale(self) -> bool:
+        """Whether this pane's content changed since its last repaint.
+
+        Read-only query used by the scheduler (:meth:`Editor._refresh_views`)
+        to gate inactive panes: ``True`` when the bound document identity
+        changed (rebind / close) or the buffer's ``content_version`` moved
+        past the version painted by the last :meth:`content_changed`.
+        """
+        return (
+            self.leaf.doc is not self._painted_doc
+            or self.buffer.content_version != self._painted_version
+        )
 
     @override
     def on_mount(self) -> None:
@@ -291,7 +312,11 @@ class EditorView(ScrollView, HighlightMixin):
         self._forward_mouse(event)
 
     def reveal_cursor(self) -> None:
-        """Scroll the view so the cursor stays inside the visible area."""
+        """Scroll the view so the cursor stays inside the visible area.
+
+        Repaint is left to the calling path (``content_changed`` or
+        ``refresh_ui``); this method only adjusts scroll offsets.
+        """
         buf = self.buffer
         row, col = self._cursor_anchor()[0]
         if not self.is_active_view:
@@ -315,7 +340,9 @@ class EditorView(ScrollView, HighlightMixin):
             self.scroll_to(y=row, animate=False)
         elif row >= top + view_h:
             self.scroll_to(y=row - view_h + 1, animate=False)
-        self.refresh()
+        # No repaint here: every caller repaints afterwards (via
+        # content_changed or refresh_ui), so refreshing twice would be a
+        # redundant dirty mark.
 
     def page_delta(self, half: bool = False) -> int:
         """Rows per full page (or half page when *half* is set)."""
