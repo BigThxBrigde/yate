@@ -267,3 +267,11 @@ R1 实测证据：`tests/test_app_render.py` 1 failed（本分支引入，master
   4. `test_highlighting.py:282` 重复 `asyncio.run(scenario())`
      （master 存量，非本分支引入）。
 - 执行记录补充：R2 实测 `pytest tests/ -q -n auto` 全绿（约 7 skipped）。
+- **收尾门禁（主代理亲自，2026-10-27，全部并行口径）**：
+  1. `pyright yate/ tests/ tools/ pack/` → **0 errors, 0 warnings**，exit 0；
+  2. `pytest tests/ -q -n auto` → **exit 0**（本环境 pytest -q 不输出汇总行，
+     以退出码为准）；
+  3. `pytest tests/test_architecture.py -q` → **37 passed**，exit 0；
+  4. `pytest tests/ --cov=yate --cov-branch -n auto` → **TOTAL 92%**（门槛
+     75），exit 0；
+  5. `tools.smoke_test run --jobs 4` → **117/117 scenarios passed**，exit 0。
