@@ -267,4 +267,11 @@ R1 实测证据：全量 pytest 唯一失败 `test_source_files_within_size_thre
   清理锁条目 + 锁清理条件改 state 身份比较 → N5/N8；sync.py docstring
   旧参数名修正 → N7；两条护栏用例补断言（version 严格递增、关闭后锁清理）。
   实测 70 用例 + 架构 37 + pyright 0 error，manager.py 740 行。
-- **收尾门禁**：见 §九 执行记录更新。
+- **收尾门禁（主代理亲自，2026-10-27，全部并行口径）**：
+  1. `pyright yate/ tests/ tools/ pack/` → **0 errors, 0 warnings**，exit 0；
+  2. `pytest tests/ -q -n auto` → **exit 0**（3102 collected；本环境 pytest -q
+     不输出汇总行，以退出码为准）；
+  3. `pytest tests/test_architecture.py -q` → **37 passed**，exit 0；
+  4. `pytest tests/ --cov=yate --cov-branch -n auto` → **TOTAL 92%**（门槛
+     75），exit 0；
+  5. `tools.smoke_test run --jobs 4` → **117/117 scenarios passed**，exit 0。
