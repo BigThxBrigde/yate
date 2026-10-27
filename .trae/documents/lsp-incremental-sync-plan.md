@@ -275,3 +275,27 @@ R1 实测证据：全量 pytest 唯一失败 `test_source_files_within_size_thre
   4. `pytest tests/ --cov=yate --cov-branch -n auto` → **TOTAL 92%**（门槛
      75），exit 0；
   5. `tools.smoke_test run --jobs 4` → **117/117 scenarios passed**，exit 0。
+
+## 十二、分支合并与 minor 清理（用户指令，2026-10-27）
+
+**合并**：在本 worktree 执行 `git merge enh/ts-incremental-parse`（两分支同基
+master cdb4e0b、改动文件完全不重叠，预期无冲突；冲突则以两侧计划文档为裁决
+来源）；合并后分支重命名 `enh/lsp-incremental-sync` → `enh/lsp-ts-incremental`。
+`d:\Programming\yate-ts-incremental-parse` worktree 保留在旧分支名上不动。
+
+**Minor 修复清单**（来源：两份计划 §十一 与 pr-review 报告；每项附评审给出的
+修法）：
+
+| # | 项 | 文件 | 修法 |
+|---|---|---|---|
+| M1 | `_hl_ts_session` 生命周期注释滞后（TS R2 M-1） | `yate/editor_view/highlighting.py:169-174` | 总注释补"UI 线程同步重建也置 None"一句 |
+| M2 | `_ts_backend_for` 缺直接单测（TS R2 M-2） | `tests/test_syntax_engine.py` | 新增用例：monkeypatch `engine._ts` 为 fail，断言 pinned key 返回 None 且不触碰 `_ts()` |
+| M3 | 双重失败用例注释与断言不符（TS R2 M-3） | `tests/test_ts_backend.py` | 做实自愈断言（patch 块内 `_update` 抛一次后，断言后续 update 走 `_full`/恢复正常），注释同步 |
+| M4 | 重复 `asyncio.run(scenario())`（TS R2 M-4，master 存量） | `tests/test_highlighting.py:282` | 删除重复调用一处 |
+| M5 | session filetype 逐字比较（TS R2 minor 9） | `yate/editor_syntax/ts_backend/backend.py` + `engine.py` | 归一化键比较：backend 存归一化键 `_filetype_key`（`.lower().lstrip(".")`），update/判定用键比较；engine 增量入口 session 匹配判定同步；补定向用例（".py" 与 "py" 复用 session） |
+| M6 | `_bytes_before` 逐区间 O(rows) 重算（TS R2 minor 10） | `yate/editor_syntax/ts_backend/backend.py` | `_update` 多区间循环前一次性预算前缀和数组，`_region_edit` 查表 O(1)；差分护栏兜底 |
+| M7 | 联测 skip 卫生（LSP R1 minor 7） | `tests/test_lsp_real_server.py` | 协商成功后打印协商到的 `sync_kind` 与服务器声明形态，留排查线索 |
+
+**不做（登记理由）**：跨测试文件导入 `apply_changes` 迁 `tests/lsp_sim.py`
+（R1 已确认非阻塞、docstring 声明方案已落地，迁移收益低）；TS 捕获链路局部化
+（立项候选，非 minor）。
