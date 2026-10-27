@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, cast
 import pytest
@@ -848,6 +849,153 @@ def test_vertical_chord_and_geometry_navigation(pane_root: Path) -> None:
             await pilot.press("ctrl+w", "l")
             await pilot.pause()
             assert app.focused is app.editor.panes.active_view
+
+    asyncio.run(scenario())
+
+
+# -------------------------------------- on-demand dirty marking (Gitee IKQQNQ)
+
+
+def _view_for_path(app: YateApp, name: str) -> EditorView:
+    """The editor view whose pane shows the document named *name*."""
+    for view in app.editor.panes.all_views():
+        path = view.doc.path
+        assert path is not None
+        if path.name == name:
+            return view
+    raise AssertionError(f"no pane showing {name}")
+
+
+@contextlib.contextmanager
+def _counting_refresh(view: EditorView) -> Generator[list[int]]:
+    """Count *view*'s ``refresh`` calls inside the ``with`` block.
+
+    Per-window scoping: the original method is restored on exit, so two
+    windows on the same view never nest wrappers.  The counter is
+    intentionally strict: it counts every repaint of the pane, not only
+    the gate-driven ``content_changed`` calls (IKQQNQ acceptance asks for
+    a zero *refresh* count on the untouched pane).
+    """
+    calls = [0]
+    real = view.refresh
+
+    def counting(*args: Any, **kwargs: Any) -> Any:
+        calls[0] += 1
+        return real(*args, **kwargs)
+
+    cast(Any, view).refresh = counting
+    try:
+        yield calls
+    finally:
+        cast(Any, view).refresh = real
+
+
+def test_inactive_pane_skips_refresh_while_typing_elsewhere(
+    pane_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """IKQQNQ acceptance: with two panes on two documents, typing in the
+    active pane A leaves the inactive pane B at zero refresh calls while A
+    repaints normally; switching to B and typing there repaints B."""
+
+    async def scenario() -> None:
+        # collapse the highlight debounce so mount-time worker passes drain
+        # without real-sleep timing (python-coding-style.md section 4.7)
+        monkeypatch.setattr(EditorView, "_HIGHLIGHT_DEBOUNCE_S", 0.0)
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+
+            app.editor.run_command("vs bravo.txt")
+            assert await wait_until(
+                pilot,
+                lambda: panes.leaf_count == 2
+                and app.editor.session.doc.path is not None
+                and app.editor.session.doc.path.name == "bravo.txt",
+            )
+            # let mount-time highlight workers settle on both panes
+            assert await wait_until(
+                pilot,
+                lambda: all(
+                    view._hl_scheduled_key is None
+                    for view in panes.all_views()
+                ),
+            )
+            await pilot.pause()
+
+            view_a = _view_for_path(app, "alpha.txt")
+            view_b = _view_for_path(app, "bravo.txt")
+
+            # focus the left (alpha) pane
+            await pilot.press("ctrl+w", "h")
+            assert await wait_until(pilot, lambda: app.focused is view_a)
+            await pilot.pause()
+
+            with (
+                _counting_refresh(view_a) as count_a,
+                _counting_refresh(view_b) as count_b,
+            ):
+                await pilot.press("i", "z", "escape")
+                await pilot.pause()
+
+                assert count_b[0] == 0, "inactive pane must not repaint"
+                assert count_a[0] > 0, "active pane must repaint"
+            assert "z" in app.editor.session.docs[0].buffer.get_text()
+
+            # switch to the bravo pane and type there: it must repaint
+            await pilot.press("ctrl+w", "l")
+            assert await wait_until(pilot, lambda: app.focused is view_b)
+            await pilot.pause()
+            with _counting_refresh(view_b) as count_b_fresh:
+                await pilot.press("i", "y", "escape")
+                await pilot.pause()
+                assert count_b_fresh[0] > 0
+            assert "y" in app.editor.session.docs[1].buffer.get_text()
+
+    asyncio.run(scenario())
+
+
+def test_shared_document_refreshes_every_showing_pane(
+    pane_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two panes co-viewing one document: editing in the active pane
+    advances the shared buffer's content version, so the inactive pane's
+    version gate lets its repaint through."""
+
+    async def scenario() -> None:
+        monkeypatch.setattr(EditorView, "_HIGHLIGHT_DEBOUNCE_S", 0.0)
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+
+            # :sp clones the active document into the new pane
+            app.editor.run_command("sp")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            assert await wait_until(
+                pilot,
+                lambda: all(
+                    view._hl_scheduled_key is None
+                    for view in panes.all_views()
+                ),
+            )
+            await pilot.pause()
+
+            top_view, bottom_view = panes.all_views()
+            assert top_view.doc is bottom_view.doc
+
+            with (
+                _counting_refresh(top_view) as count_top,
+                _counting_refresh(bottom_view) as count_bottom,
+            ):
+                await pilot.press("i", "z", "escape")
+                await pilot.pause()
+
+                assert count_bottom[0] > 0, "active pane must repaint"
+                assert count_top[0] > 0, "co-viewing pane must repaint"
+            assert "z" in top_view.buffer.get_text()
 
     asyncio.run(scenario())
 

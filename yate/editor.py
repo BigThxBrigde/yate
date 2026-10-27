@@ -743,12 +743,21 @@ class Editor:
         self.refresh_ui()
 
     def _refresh_views(self) -> None:
-        """Notify all views that the document content has changed."""
+        """Repaint the active pane always, stale inactive panes on demand.
+
+        The active view is unconditionally repainted (cursor movement and
+        rendering state are not versioned).  Inactive panes only repaint
+        when :attr:`EditorView.content_stale` holds -- their document
+        binding changed (rebind / close) or the buffer's ``content_version``
+        moved -- so multi-pane sessions skip repainting panes whose content
+        did not change.  Explicit paths (LSP events, highlight worker,
+        mouse flows, theme broadcast) do not go through this gate.
+        """
         active = self.panes.active_view
         if active is not None:
             active.content_changed()
         for view in self.panes.all_views():
-            if view is not active:
+            if view is not active and view.content_stale:
                 view.content_changed()
 
     def _refresh_chrome(self) -> None:

@@ -299,6 +299,9 @@ flowchart TD
      perf-audit-fixes 波 2026-10-26 复测 1229 行
      （refresh_ui_soon 合帧 + cancel_prompt 挂接 live-search 取消），
      维持豁免，
+     refresh-views-dirty 波 2026-10-27 复测 1238 行
+     （`_refresh_views` 按需脏标记门控，issue IKQQNQ），
+     维持豁免，
      已登记为下一个 big-module-split 候选）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
