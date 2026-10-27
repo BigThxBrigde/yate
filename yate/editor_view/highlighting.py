@@ -338,6 +338,12 @@ class HighlightMixin:
         self._hl_version = buf.content_version
         self._hl_line_snapshot = tuple(lines)
         self._hl_ml_states = tuple(states)
+        # The UI-thread rebuild only refreshes the view snapshots -- it never
+        # mutates the tree-sitter session object (only the worker pass does).
+        # Drop the stale session reference here, same write site as the
+        # worker's (single-writer discipline), so the pending worker pass
+        # rebuilds the incremental state from scratch.
+        self._hl_ts_session = None
         return rebuilt[row] if row < len(rebuilt) else []
 
     def tokens_for(self, row: int) -> list[Token]:

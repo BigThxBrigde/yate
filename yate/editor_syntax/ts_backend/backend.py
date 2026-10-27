@@ -1,12 +1,14 @@
 """Tree-sitter highlighting: query captures to per-line tokens.
 
 Call shape matches the regex backend (whole document in, one token list
-per line out), so the view layer needs no special casing.  Strategy v1 is
-a whole-document reparse per change: the view already debounces via
-content-version invalidation and tokenizes off the UI thread, and
-py-tree-sitter releases the GIL during parse.  Incremental
-``Tree.edit()`` reparsing can be layered on later without changing this
-call shape.
+per line out), so the view layer needs no special casing.  The
+:class:`IncrementalSession` reuses the previous parse tree across edits:
+each :meth:`IncrementalSession.update` diffs the incoming lines against
+the snapshot, applies at most :data:`_MAX_EDIT_REGIONS` ``tree.edit``
+calls in document order and reparses with the previous tree, falling
+back to a whole-document reparse on any internal failure.  The view
+layer still debounces via content-version invalidation and tokenizes
+off the UI thread, and py-tree-sitter releases the GIL during parse.
 
 Capture resolution:
 
@@ -26,7 +28,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from collections.abc import Iterator, Mapping
-from types import SimpleNamespace
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from yate.editor_syntax.tokens import Token
@@ -543,6 +545,26 @@ class IncrementalSession:
         return tokens
 
 
+@dataclass(frozen=True)
+class _TsEdit:
+    """One region's ``tree.edit`` parameters in snapshot coordinates.
+
+    Byte offsets are relative to the unedited snapshot text; the points
+    are ``(row, byte_col)`` pairs.  A plain frozen dataclass, same
+    precedent as ``LoadedLanguage``.
+    """
+
+    start_byte: int
+    old_end_byte: int
+    new_end_byte: int
+    start_row: int
+    old_end_row: int
+    new_end_row: int
+    start_col: int
+    old_end_col: int
+    new_end_col: int
+
+
 def _region_edit(
     old_lines: tuple[str, ...],
     new_lines: list[str],
@@ -551,18 +573,16 @@ def _region_edit(
     start_row: int,
     old_end_row: int,
     new_end_row: int,
-) -> Any:
+) -> _TsEdit:
     """Compute one region's edit parameters in snapshot coordinates.
 
-    Returns an object with ``start_byte`` / ``old_end_byte`` /
-    ``new_end_byte`` (byte offsets relative to the unedited snapshot text)
-    and the three ``(row, byte_col)`` points of the edit.  An empty side
-    (pure insertion or pure deletion) is spanned by whole boundary lines;
-    otherwise a character level common prefix/suffix refinement of the
-    boundary lines shrinks the span to the smallest span whose outside is
-    identical in both texts.  ``Any`` return: a small private record, kept
-    shapeless to stay clear of the R2 protocol freeze (no stubs exist for
-    this either way).
+    Returns an :class:`_TsEdit` record with ``start_byte`` /
+    ``old_end_byte`` / ``new_end_byte`` (byte offsets relative to the
+    unedited snapshot text) and the three ``(row, byte_col)`` points of
+    the edit.  An empty side (pure insertion or pure deletion) is spanned
+    by whole boundary lines; otherwise a character level common
+    prefix/suffix refinement of the boundary lines shrinks the span to
+    the smallest span whose outside is identical in both texts.
     """
     if old_end_row == start_row:
         # Pure insertion: new rows start_row..new_end_row-1 appear between
@@ -573,7 +593,7 @@ def _region_edit(
             start_byte = _bytes_before(old_bytes, start_row - 1) + len(
                 old_bytes[start_row - 1]
             )
-            return SimpleNamespace(
+            return _TsEdit(
                 start_byte=start_byte,
                 old_end_byte=start_byte,
                 new_end_byte=start_byte
@@ -587,7 +607,7 @@ def _region_edit(
                 new_end_col=len(new_bytes[new_end_row - 1]),
             )
         start_byte = _bytes_before(old_bytes, start_row)
-        return SimpleNamespace(
+        return _TsEdit(
             start_byte=start_byte,
             old_end_byte=start_byte,
             new_end_byte=start_byte
@@ -603,7 +623,7 @@ def _region_edit(
         # Pure deletion: old rows start_row..old_end_row-1 disappear; the
         # span has zero new width.
         start_byte = _bytes_before(old_bytes, start_row)
-        return SimpleNamespace(
+        return _TsEdit(
             start_byte=start_byte,
             old_end_byte=start_byte
             + sum(len(old_bytes[i]) + 1 for i in range(start_row, old_end_row)),
@@ -653,7 +673,7 @@ def _region_edit(
             + sum(len(new_bytes[i]) + 1 for i in range(start_row + 1, new_end_row - 1))
             + new_end_col
         )
-    return SimpleNamespace(
+    return _TsEdit(
         start_byte=start_byte,
         old_end_byte=old_end_byte,
         new_end_byte=new_end_byte,

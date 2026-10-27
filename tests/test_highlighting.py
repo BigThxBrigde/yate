@@ -28,6 +28,7 @@ from yate.editor_syntax.engine import (
     tokenize_document_with_states,
     tokenize_line_sync,
 )
+from yate.editor_syntax.tokens import Token
 from yate.editor_view.highlighting import HighlightMixin, HighlightProbe
 
 
@@ -373,7 +374,9 @@ def test_filetype_switch_rebuilds_session_for_new_filetype(
     asyncio.run(scenario())
 
 
-def test_two_edit_rounds_reuse_the_same_session(tmp_path: Path) -> None:
+def test_two_edit_rounds_rebuild_the_ts_session_from_scratch(
+    tmp_path: Path,
+) -> None:
     async def scenario() -> None:
         app: App[None] = App()
         async with app.run_test() as pilot:
@@ -383,28 +386,34 @@ def test_two_edit_rounds_reuse_the_same_session(tmp_path: Path) -> None:
             first = host._hl_ts_session
             assert first is not None
 
-            # Round 2: the debounced pass must thread the first round's
-            # session through the incremental entry and store it back
-            # unchanged (same object = the incremental path was taken).
+            # Round 2: the edit's UI-thread resync drops the session (the
+            # sync rebuild only refreshes view snapshots, it never mutates
+            # the tree-sitter state), so the debounced pass rebuilds the
+            # incremental state from scratch and stores a fresh session.
             doc.buffer.set_text('x = "hi"\ny = 22\nz = 3')
             host.tokens_for(0)
+            assert host._hl_ts_session is None
+            # The sync rebuild already bumps the cached version, so wait
+            # for the fresh session object instead of the version alone.
             assert await wait_until(
                 pilot,
-                lambda: host.highlight_probe().version
-                == doc.buffer.content_version,
+                lambda: host._hl_ts_session is not None,
             )
             second = host._hl_ts_session
-            assert second is first
+            assert second is not None
+            assert second is not first
 
-            # Round 3: still the same session object after another edit.
+            # Round 3: another edit repeats the drop-and-rebuild cycle.
             doc.buffer.set_text('x = "hello"\ny = 22\nz = 3')
             host.tokens_for(0)
+            assert host._hl_ts_session is None
             assert await wait_until(
                 pilot,
-                lambda: host.highlight_probe().version
-                == doc.buffer.content_version,
+                lambda: host._hl_ts_session is not None,
             )
-            assert host._hl_ts_session is first
+            third = host._hl_ts_session
+            assert third is not None
+            assert third is not second
 
     asyncio.run(scenario())
 
@@ -441,5 +450,8 @@ def test_worker_internal_failure_falls_back_to_correct_tokens(
             )
             probe = host.highlight_probe()
             assert probe.tokens == expected
+            # The guarded fallback genuinely ran: the flaky _update raised
+            # exactly once and the retry produced the tokens above.
+            assert calls == [True]
 
     asyncio.run(scenario())

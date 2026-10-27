@@ -1197,7 +1197,9 @@ def test_incremental_matches_full_reparse_over_random_edits() -> None:
                 history.append(list(lines))
             _assert_incremental_matches_full(session, lines)
             steps += 1
-    assert steps >= 1
+    # groups counts verified steps: groups // 10 sequences x 10 inner
+    # steps each == groups, so the CI budget is a checkable assertion.
+    assert steps == groups
 
 
 @_python_skip
@@ -1224,13 +1226,53 @@ def test_multi_region_jump_within_limit_matches_full_reparse() -> None:
 
 @_python_skip
 def test_multi_region_jump_over_limit_falls_back_to_full_reparse() -> None:
-    lines = ["a = 1", "b = 2", "c = 3", "d = 4", "e = 5", "f = 6"]
+    lines = [f"a{i} = {i}" for i in range(12)]
     session = ts_runtime.IncrementalSession("py")
     _assert_incremental_matches_full(session, lines)
-    # Five disjoint replacements -> more than _MAX_EDIT_REGIONS regions;
-    # the session must fall back to a whole-document reparse and stay exact.
-    for row in range(5):
+    # Six non-adjacent single-row replacements -> more than
+    # _MAX_EDIT_REGIONS regions; the session must fall back to a
+    # whole-document reparse and stay exact.
+    for row in range(0, 12, 2):
         lines[row] = f"row{row} = {row}0"
+    full_calls: list[bool] = []
+    original_full = ts_runtime.IncrementalSession._full
+
+    def counting_full(
+        self: ts_runtime.IncrementalSession,
+        lines: list[str],
+        filetype: str,
+        loaded: ts_langs.LoadedLanguage,
+        ts: object,
+    ) -> list[list[Token]]:
+        full_calls.append(True)
+        return original_full(self, lines, filetype, loaded, ts)
+    with mock.patch.object(
+        ts_runtime.IncrementalSession, "_full", counting_full
+    ):
+        _assert_incremental_matches_full(session, lines)
+    # The over-limit regions genuinely took the whole-document fallback
+    # path (not just coincidentally-equal token output).
+    assert full_calls == [True]
+
+
+@_python_skip
+def test_double_failure_returns_plain_text() -> None:
+    """_update fails, the full reparse fails too -> plain text, no raise.
+
+    Exercises the last-resort branch of :meth:`IncrementalSession.update`:
+    both the incremental body and the fallback whole-document path raise,
+    and the caller still receives one empty token list per line.
+    """
+    lines = ["def f():", "    return 1"]
+    session = ts_runtime.IncrementalSession("py")
+    with mock.patch.object(
+        ts_runtime.IncrementalSession,
+        "_update",
+        side_effect=RuntimeError("boom"),
+    ):
+        assert session.update(lines, "py") == [[], []]
+    # The session self-heals: a later update rebuilds from scratch and
+    # matches a full reparse exactly.
     _assert_incremental_matches_full(session, lines)
 
 
