@@ -299,3 +299,13 @@ master cdb4e0b、改动文件完全不重叠，预期无冲突；冲突则以两
 **不做（登记理由）**：跨测试文件导入 `apply_changes` 迁 `tests/lsp_sim.py`
 （R1 已确认非阻塞、docstring 声明方案已落地，迁移收益低）；TS 捕获链路局部化
 （立项候选，非 minor）。
+
+**执行记录（2026-10-27）**：
+- 合并：`964add9`（ort 策略零冲突），分支重命名 `enh/lsp-ts-incremental`；
+- M1-M7：plan-executor 一次完成（提交 `bcf607b`），主代理独立复核全绿；
+- 合并分支全量门禁（主代理亲自，全部并行口径）：pyright `yate/ tests/
+  tools/ pack/` **0 errors** exit 0；`pytest tests/ -q -n auto` **exit 0**
+  （3123 collected）；架构 **37 passed** exit 0；覆盖率 **TOTAL 92%** exit 0；
+  smoke **117/117** exit 0；
+- 工作区干净；两旧分支（`enh/lsp-incremental-sync` 引用已随重命名迁移、
+  `enh/ts-incremental-parse` 保留在 ts worktree）未推送。
