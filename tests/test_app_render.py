@@ -162,13 +162,15 @@ def test_discarded_highlight_pass_reschedules_immediately(
             gate = threading.Event()
 
             def slow_tokenize(
-                lines: list[str], filetype: str
-            ) -> tuple[list[list[Token]], tuple[int, ...]]:
+                lines: list[str],
+                filetype: str,
+                session: object | None,
+            ) -> tuple[list[list[Token]], tuple[int, ...], object | None]:
                 # hold the in-flight pass until the test has bumped the
                 # buffer version, making the pending result stale
                 started.set()
                 gate.wait(timeout=5.0)
-                return real_tokenize(lines, filetype)
+                return real_tokenize(lines, filetype, session)
 
             monkeypatch.setattr(
                 highlighting_module, "_tokenize_with_states", slow_tokenize

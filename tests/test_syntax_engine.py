@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import sys
 import types
@@ -12,8 +13,9 @@ from typing import override
 
 import pytest
 
-from yate.editor_syntax import engine, regex_backend
+from yate.editor_syntax import engine, regex_backend, ts_backend
 from yate.editor_syntax.tokens import Token
+from yate.editor_syntax.ts_backend import backend as ts_runtime
 from yate.editor_syntax.ts_backend import languages
 
 
@@ -355,3 +357,102 @@ def test_with_states_unknown_filetype_is_plain_text(
     tokens, states = engine.tokenize_document_with_states(["hello"], "xyz")
     assert tokens == [[]]
     assert states == (0,)
+
+
+# --- incremental session dispatch -------------------------------------------
+
+
+_needs_python = pytest.mark.skipif(
+    importlib.util.find_spec("tree_sitter_python") is None,
+    reason="tree_sitter_python is not installed",
+)
+
+
+def test_incremental_without_ts_returns_regex_and_none_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With tree-sitter unavailable the session is dropped (None)."""
+    monkeypatch.setattr(engine, "_ts", lambda: None)
+    lines = ["def f(): pass"]
+    tokens, session = engine.tokenize_document_incremental(lines, "py", None)
+    assert tokens == regex_backend.tokenize_document(lines, "py")
+    assert session is None
+    full_tokens, states, session2 = (
+        engine.tokenize_document_with_states_incremental(lines, "py", None)
+    )
+    assert full_tokens == tokens
+    assert len(states) == len(lines)
+    assert session2 is None
+
+
+def test_incremental_pinned_filetype_returns_regex_and_none_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A regex-pinned filetype ignores the session entirely."""
+    fake = _FakeTS()
+    fake.filetypes.add("py")
+    monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
+    monkeypatch.setattr(engine, "_ts", lambda: fake)
+    engine.prefer_regex("py")
+    lines = ["def f(): pass"]
+    tokens, session = engine.tokenize_document_incremental(lines, "py", None)
+    assert tokens == regex_backend.tokenize_document(lines, "py")
+    assert session is None
+    _, _, session2 = engine.tokenize_document_with_states_incremental(
+        lines, "py", None
+    )
+    assert session2 is None
+
+
+@_needs_python
+def test_incremental_creates_session_when_none_passed() -> None:
+    """A missing session starts a fresh IncrementalSession (full parse)."""
+    lines = ["def f():", "    return 1"]
+    tokens, session = engine.tokenize_document_incremental(lines, "py", None)
+    assert tokens == ts_backend.tokenize_document(lines, "py")
+    assert isinstance(session, ts_runtime.IncrementalSession)
+    assert session.filetype == "py"
+
+
+@_needs_python
+def test_incremental_reuses_matching_session() -> None:
+    """A session built for this filetype is reused, not rebuilt."""
+    lines = ["def f():", "    return 1"]
+    _, session = engine.tokenize_document_incremental(lines, "py", None)
+    assert isinstance(session, ts_runtime.IncrementalSession)
+    lines.append("# tail")
+    tokens, session2 = engine.tokenize_document_incremental(lines, "py", session)
+    assert tokens == ts_backend.tokenize_document(lines, "py")
+    assert session2 is session
+
+
+@_needs_python
+def test_incremental_rebuilds_session_on_filetype_mismatch() -> None:
+    """A session built for another filetype is replaced, not reused."""
+    _, session = engine.tokenize_document_incremental(["x = 1"], "py", None)
+    assert isinstance(session, ts_runtime.IncrementalSession)
+    lines = ["# note"]
+    tokens, session2 = engine.tokenize_document_incremental(
+        lines, "py", ts_runtime.IncrementalSession("sh")
+    )
+    assert tokens == ts_backend.tokenize_document(lines, "py")
+    assert session2 is not session
+    assert isinstance(session2, ts_runtime.IncrementalSession)
+    assert session2.filetype == "py"
+
+
+@_needs_python
+def test_incremental_with_states_pairs_ts_tokens_with_regex_states() -> None:
+    """The incremental combined pass threads regex states alongside."""
+    lines = ['msg = """', "hello", '"""', "x = 1"]
+    tokens, states, session = engine.tokenize_document_with_states_incremental(
+        lines, "py", None
+    )
+    assert tokens == ts_backend.tokenize_document(lines, "py")
+    assert states == (
+        regex_backend._S_TRIPLE_DQ,
+        regex_backend._S_TRIPLE_DQ,
+        regex_backend._S_CODE,
+        regex_backend._S_CODE,
+    )
+    assert isinstance(session, ts_runtime.IncrementalSession)

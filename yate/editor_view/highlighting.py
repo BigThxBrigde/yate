@@ -20,7 +20,7 @@ from textual.worker import WorkType, Worker
 
 from yate.editor_core.document import Document
 from yate.editor_core.search import Match
-from yate.editor_syntax.engine import tokenize_document_with_states
+from yate.editor_syntax.engine import tokenize_document_with_states_incremental
 from yate.editor_syntax.engine import tokenize_line_sync
 from yate.editor_syntax.tokens import Token
 from yate.logs import tracing
@@ -29,8 +29,8 @@ log = tracing.get_logger(__name__)
 
 
 def _tokenize_with_states(
-    lines: list[str], filetype: str
-) -> tuple[list[list[Token]], tuple[int, ...]]:
+    lines: list[str], filetype: str, session: object | None
+) -> tuple[list[list[Token]], tuple[int, ...], object | None]:
     """Tokenize a whole document plus the regex multiline state per row.
 
     Runs inside the highlight worker thread.  The states are what
@@ -41,8 +41,13 @@ def _tokenize_with_states(
     produces both artifacts in one scan; the tree-sitter path threads the
     states in a guarded regex companion pass (a broken custom LangSpec
     keeps prior states instead of killing the worker pass).
+
+    The *session* carries the tree-sitter incremental parse state between
+    passes (``None`` = no session yet, or the regex backend which has
+    none); the returned session (possibly a fresh one, ``None`` on the
+    regex path) is handed back to the caller to store.
     """
-    return tokenize_document_with_states(lines, filetype)
+    return tokenize_document_with_states_incremental(lines, filetype, session)
 
 
 @dataclass(frozen=True)
@@ -161,6 +166,13 @@ class HighlightMixin:
         # multiline state machine at the first changed row.
         self._hl_line_snapshot: tuple[str, ...] | None = None
         self._hl_ml_states: tuple[int, ...] | None = None
+        # Tree-sitter incremental parse session, written together with every
+        # _hl_tokens assignment (same single-writer discipline): only the
+        # worker pass mutates the session object itself; the UI thread just
+        # swaps the whole reference when the worker lands its result.  A
+        # doc/filetype switch clears it so the next pass rebuilds from
+        # scratch (the engine entry re-checks filetype mismatches anyway).
+        self._hl_ts_session: object | None = None
         # Pending/in-flight highlight pass, keyed by (doc, filetype,
         # content_version). _hl_timer is set only while a debounced pass is
         # still waiting to start; the key survives until the worker stores
@@ -193,10 +205,11 @@ class HighlightMixin:
             tokens = self._hl_tokens
             if tokens is None or self._hl_doc is not doc or self._hl_filetype != doc.filetype:
                 # First paint or doc/filetype switch: drop any row snapshot
-                # carried over from the previous document before the fresh
-                # pass replaces the cache.
+                # and incremental session carried over from the previous
+                # document before the fresh pass replaces the cache.
                 self._hl_line_snapshot = None
                 self._hl_ml_states = None
+                self._hl_ts_session = None
                 self._schedule_highlight(0.0)
                 return []
             # Same doc and filetype, version behind: keep coloring from the
@@ -325,6 +338,12 @@ class HighlightMixin:
         self._hl_version = buf.content_version
         self._hl_line_snapshot = tuple(lines)
         self._hl_ml_states = tuple(states)
+        # The UI-thread rebuild only refreshes the view snapshots -- it never
+        # mutates the tree-sitter session object (only the worker pass does).
+        # Drop the stale session reference here, same write site as the
+        # worker's (single-writer discipline), so the pending worker pass
+        # rebuilds the incremental state from scratch.
+        self._hl_ts_session = None
         return rebuilt[row] if row < len(rebuilt) else []
 
     def tokens_for(self, row: int) -> list[Token]:
@@ -402,8 +421,12 @@ class HighlightMixin:
         lines = list(buf.lines)
         filetype = doc.filetype
         version = buf.content_version
-        tokens, ml_states = await asyncio.to_thread(
-            _tokenize_with_states, lines, filetype
+        # Reference snapshot of the incremental session (the worker mutates
+        # the session object; the UI thread only swaps the reference on
+        # completion, same hand-off pattern as _hl_tokens).
+        session = self._hl_ts_session
+        tokens, ml_states, session_out = await asyncio.to_thread(
+            _tokenize_with_states, lines, filetype, session
         )
         if not self.is_mounted:
             return
@@ -422,6 +445,7 @@ class HighlightMixin:
         self._hl_doc = doc
         self._hl_version = version
         self._hl_filetype = filetype
+        self._hl_ts_session = session_out
         # The row snapshot and multiline states ride along with every cache
         # write (they are only ever stored here and in
         # _rebuild_tokens_on_edit, always together with _hl_tokens).
