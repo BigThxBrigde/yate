@@ -260,6 +260,13 @@ the flag too: it raises `BufferReadOnlyError` on a read-only buffer, so
 deliberate persistence must lift the flag first (`buf.read_only = False`),
 which is also what the interactive `:saveas` command does.
 
+Repaint timing: yate repaints the UI (all panes) after every key-bound
+action or `:` command dispatch completes. When a buffer is mutated outside
+those dispatch paths (a timer or a background thread, say), the change
+becomes visible at the next repaint trigger (a keypress, a pane switch,
+...); `mark_content_changed()` keeps highlighting and caches in sync but
+does not trigger a repaint by itself.
+
 **Common `api.doc` (Document) members**:
 
 | Member | Description |
