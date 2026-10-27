@@ -412,3 +412,47 @@ lint"（全量上限约 4 分钟）。这是为保住"发布的页一定 lint �
 跳过 lint 直接落盘，manifest 不记录这些页，下一次运行会按 adopted（`FRESH`）保留，
 未 lint 的正文会静默留在被推送的 wiki 里。控制台会先打印
 `publishing N finished page(s) before the interrupt propagates` 说明这段等待。
+
+### 9.7 增量：进度显示、中断静默、池注入（2026-10-28）
+
+用户三条需求（附 Ctrl+C 后子进程打印堆栈的截图）：
+
+1. **wiki 内 lint 要有与独立 CLI 一致的进度条与信息输出**。新增 `_LintBar`
+   （rich `Progress`，列布局与独立 CLI 相同：Spinner/描述/Bar/百分比/耗时；TTY
+   门控与独立 CLI 一致，非 TTY 只出汇总行），串行路径逐页 `step()`，池路径由
+   `fix_texts` 的 `progress` 回调回放真实完成数；每轮 lint 结束打一行
+   `wiki lint: N page(s) in X.Xs`。salvage 发布（中断打捞）传
+   `show_bar=False`——翻译 bar 还在该 console 上，两个 live Progress 会打架；
+   尾部发布移到 `finally` 之后，lint bar 与翻译 bar 依次独占 console。
+2. **Ctrl+C 不打印错误堆栈**。三层噪音来源与处置：
+   - 子进程 worker 各自打印 `KeyboardInterrupt` 堆栈（Windows 把 CTRL_C_EVENT
+     发给整组进程）→ `tools.mdlint.batch.worker_initializer()`
+     （`ProcessPoolExecutor(initializer=...)`，worker 内
+     `signal.signal(SIGINT, SIG_IGN)`）：worker 无视信号做完当前任务，
+     父进程拥有中断语义；
+   - 排队任务排干 → `fix_texts` 的 `except BaseException` 分支
+     `cancel_futures=True`（9.6 已有）；
+   - 退出时 `Exception ignored on threading shutdown` → 池干净关闭后消失。
+   实测（烟雾脚本：TEMP 建 40 篇大文档，真实 CLI 跑 wiki，8s 后
+   `GenerateConsoleCtrlEvent(0, 0)` 广播整组）：输出仅
+   `tools.pack: interrupted`，exit 130，无 Traceback / SpawnProcess 堆栈 /
+   threading 噪音。注意脚本细节：`CREATE_NEW_PROCESS_GROUP` 的子进程默认
+   禁用 Ctrl+C，烟雾里需 `SetConsoleCtrlHandler(None, False)` 恢复才是真实
+   前台场景。
+3. **lint 工具开放线程池（实为进程池）API**：`fix_texts(items, *, pool=None,
+   progress=None)` —— `pool=None` 自建自关（独立 CLI 与一次性调用）；
+   注入的池归所有者，`fix_texts` 只取消本轮 pending、从不 shutdown。
+   wiki 侧新增 `_LintPool`（惰性 `ensure()`：`ProcessPoolExecutor` 对象创建
+   不 spawn，串行小运行零成本；`shutdown(wait=False, cancel_futures=True)`），
+   `run()` 创建一个实例贯穿 rebuild / salvage / publish 全部 lint 相位，
+   `try/finally` 统一 teardown。`submit` 阶段也纳入 `except BaseException`
+   保护（中断打中 submit 时不泄漏已提交的 future）。
+
+测试：`test_fix_texts_pool_ownership_contract`（注入池不关 / 自建池关闭）、
+`test_progress_reports_each_landed_document`（回调逐文档到达 `(total, total)`）、
+`test_worker_initializer_ignores_sigint`、`test_one_lint_pool_serves_the_whole_run`
+（rebuild 与 publish 两相位收到同一池对象）、
+`test_main_thread_interrupt_salvages_the_landed_pages`（主线程直收 Ctrl+C
+同样打捞已落地页）；三个既有 fake（`recording` / `failing` / `passthrough_fix`）
+签名补齐 `pool` / `progress` 形参。`wiki.py` 复测 2149 行（`splitlines()` 口径），
+维持豁免。

@@ -13,11 +13,12 @@ import hashlib
 import logging
 import sys
 from collections.abc import Sequence
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pytest
 from tools.mdlint import batch as mdlint_batch
-from tools.mdlint.batch import TextOutcome
+from tools.mdlint.batch import ProgressFn, TextOutcome
 from tools.pack import wiki
 from tools.pack.errors import Code
 
@@ -211,9 +212,14 @@ def test_bulk_lint_runs_through_the_process_pool(
     real = mdlint_batch.fix_texts
     seen: list[tuple[str, str]] = []
 
-    def recording(items: Sequence[tuple[str, str]]) -> list[TextOutcome]:
+    def recording(
+        items: Sequence[tuple[str, str]],
+        *,
+        pool: ProcessPoolExecutor | None,
+        progress: ProgressFn | None,
+    ) -> list[TextOutcome]:
         seen.extend(items)
-        return real(items)
+        return real(items, pool=pool, progress=progress)
 
     monkeypatch.setattr(mdlint_batch, "fix_texts", recording)
     target = tmp_path / "wiki"
@@ -223,6 +229,45 @@ def test_bulk_lint_runs_through_the_process_pool(
     assert (target / "messy-bulk.zh.md").read_text(encoding="utf-8") == (
         "# heading\n\nbody\n"
     )
+
+
+def test_one_lint_pool_serves_the_whole_run(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page pass and the publish pass share one lazily created pool.
+
+    The lint tool's API accepts an injected pool: the publisher creates one
+    for the whole run and hands it to every pass, so the workers pay the
+    pymarkdown import once instead of per pass (user directive).  Both pooled
+    passes must receive the very same pool object.
+    """
+    _widen(repo)
+    real = mdlint_batch.fix_texts
+    pools: list[ProcessPoolExecutor | None] = []
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return "# alpha en\n\ntranslated"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+
+    def recording(
+        items: Sequence[tuple[str, str]],
+        *,
+        pool: ProcessPoolExecutor | None,
+        progress: ProgressFn | None,
+    ) -> list[TextOutcome]:
+        pools.append(pool)
+        return real(items, pool=pool, progress=progress)
+
+    monkeypatch.setattr(mdlint_batch, "fix_texts", recording)
+    # The publish pass lints a single (small) page; the lowered char floor
+    # routes it through the pool too, so the reuse assertion has two passes.
+    monkeypatch.setattr(wiki, "PARALLEL_LINT_MIN_CHARS", 1)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    assert len(pools) >= 2
+    assert pools[0] is not None
+    assert pools[0] is pools[1]
 
 
 def test_pool_lint_failure_publishes_page_as_is(
@@ -239,7 +284,9 @@ def test_pool_lint_failure_publishes_page_as_is(
     _widen(repo)
     _touch(repo, ".trae/documents/broken-page.md", "# keep me\n")
 
-    def failing(items: Sequence[tuple[str, str]]) -> list[TextOutcome]:
+    def failing(
+        items: Sequence[tuple[str, str]], **kwargs: object
+    ) -> list[TextOutcome]:
         return [
             TextOutcome(text, [], error="rehydrate index mismatch")
             if "keep me" in text
@@ -270,7 +317,9 @@ def test_text_size_floor_lints_in_the_pool_below_the_count_floor(
     """
     seen: list[tuple[str, str]] = []
 
-    def recording(items: Sequence[tuple[str, str]]) -> list[TextOutcome]:
+    def recording(
+        items: Sequence[tuple[str, str]], **kwargs: object
+    ) -> list[TextOutcome]:
         seen.extend(items)
         return [TextOutcome(text, []) for _lang, text in items]
 
