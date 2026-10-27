@@ -251,3 +251,19 @@ R1 实测证据：`tests/test_app_render.py` 1 failed（本分支引入，master
 9. **登记待办（本轮不修）**：engine 局部 import 注释（minor 8）、filetype
    归一化比较（minor 9，保守方向正确仅损失增量收益）、`_bytes_before`
    前缀和查表（minor 10，性能余量）。
+
+## 十一、R2 复审结论（2026-10-27，code-review-expert：**可合并**）
+
+- R1 全部 2 blocker / 5 major 确认真实消除（含负向演练与逐字比对证据：
+  `_ts_backend_for` 判定链与 master 四处逐字等价、打点断言有区分力、
+  `_TsEdit` 九字段 AST 实证全消费）；实测 197 用例绿 + 架构 37 passed +
+  pyright 0 error。
+- R2 新发现 4 项 minor，全部不阻塞，登记待办：
+  1. `_hl_ts_session` 生命周期注释滞后（`highlighting.py:169-174` 未提及
+     UI 线程同步重建置 None 的新写点）；
+  2. `_ts_backend_for` 缺直接单测（pinned key 不得触发 `_ts()` 导入的守卫）；
+  3. `test_double_failure_returns_plain_text` 末尾注释与断言不符
+     （自愈语义未被真断言）；
+  4. `test_highlighting.py:282` 重复 `asyncio.run(scenario())`
+     （master 存量，非本分支引入）。
+- 执行记录补充：R2 实测 `pytest tests/ -q -n auto` 全绿（约 7 skipped）。
