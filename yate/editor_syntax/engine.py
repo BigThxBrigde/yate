@@ -95,17 +95,33 @@ def _ts() -> SyntaxBackend | None:
     return cast(SyntaxBackend, ts_backend)
 
 
+def _ts_backend_for(filetype: str) -> SyntaxBackend | None:
+    """Resolve the tree-sitter backend for *filetype*, or ``None``.
+
+    Single decision point shared by every dispatching entry: the filetype
+    key is normalized (lowercase, leading dot stripped, matching
+    :func:`prefer_regex`), regex-pinned keys never reach tree-sitter, and
+    the lazily imported backend must also report itself available for the
+    language.  ``None`` means the regex backend serves the filetype.
+    """
+    key = filetype.lower().lstrip(".")
+    if key in _REGEX_PINNED:
+        return None
+    ts = _ts()
+    if ts is not None and ts.available_for(filetype):
+        return ts
+    return None
+
+
 def tokenize_document(lines: list[str], filetype: str) -> list[list[Token]]:
     """Tokenize a whole document with the best backend for *filetype*.
 
     Same contract as the regex backend's function of the same name: one
     :class:`~yate.editor_syntax.tokens.Token` list per input line.
     """
-    key = filetype.lower().lstrip(".")
-    if key not in _REGEX_PINNED:
-        ts = _ts()
-        if ts is not None and ts.available_for(filetype):
-            return ts.tokenize_document(lines, filetype)
+    ts = _ts_backend_for(filetype)
+    if ts is not None:
+        return ts.tokenize_document(lines, filetype)
     return regex_backend.tokenize_document(lines, filetype)
 
 
@@ -120,14 +136,61 @@ def tokenize_document_with_states(
     regex backend the single combined pass produces both artifacts without
     a second full-document scan.
     """
-    key = filetype.lower().lstrip(".")
-    if key not in _REGEX_PINNED:
-        ts = _ts()
-        if ts is not None and ts.available_for(filetype):
-            return ts.tokenize_document(lines, filetype), _regex_states(
-                lines, filetype
-            )
+    ts = _ts_backend_for(filetype)
+    if ts is not None:
+        return ts.tokenize_document(lines, filetype), _regex_states(
+            lines, filetype
+        )
     return regex_backend.tokenize_document_with_states(lines, filetype)
+
+
+def tokenize_document_incremental(
+    lines: list[str], filetype: str, session: object | None
+) -> tuple[list[list[Token]], object | None]:
+    """Tokenize a whole document, reusing *session*'s incremental state.
+
+    Tree-sitter path: when *session* is an ``IncrementalSession`` built for
+    this *filetype* its parse tree is reused, otherwise a fresh session is
+    created and a whole-document parse rebuilds the state; either way the
+    (possibly new) session is returned for the caller to store.  The regex
+    path (regex-pinned filetype or tree-sitter unavailable) has no
+    incremental state and returns ``None`` for the session.
+    """
+    ts = _ts_backend_for(filetype)
+    if ts is not None:
+        # The ts backend module is already imported by _ts(); the class
+        # comes from the concrete module, not the SyntaxBackend protocol.
+        from yate.editor_syntax.ts_backend.backend import IncrementalSession
+
+        if isinstance(session, IncrementalSession) and (
+            session.filetype_key == filetype.lower().lstrip(".")
+        ):
+            return session.update(lines, filetype), session
+        fresh = IncrementalSession(filetype)
+        return fresh.update(lines, filetype), fresh
+    return regex_backend.tokenize_document(lines, filetype), None
+
+
+def tokenize_document_with_states_incremental(
+    lines: list[str], filetype: str, session: object | None
+) -> tuple[list[list[Token]], tuple[int, ...], object | None]:
+    """Whole-document tokens, regex states and the session, in one pass.
+
+    The incremental companion of :func:`tokenize_document_with_states`:
+    tree-sitter serves the tokens through
+    :func:`tokenize_document_incremental` (see there for the session
+    contract) while the regex states thread alongside exactly like the
+    non-incremental combined pass; the regex path returns ``None`` for the
+    session.
+    """
+    ts = _ts_backend_for(filetype)
+    if ts is not None:
+        tokens, session_out = tokenize_document_incremental(
+            lines, filetype, session
+        )
+        return tokens, _regex_states(lines, filetype), session_out
+    tokens, states = regex_backend.tokenize_document_with_states(lines, filetype)
+    return tokens, states, None
 
 
 def _regex_states(lines: list[str], filetype: str) -> tuple[int, ...]:

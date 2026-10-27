@@ -13,16 +13,18 @@ and calls :meth:`request_completion` for the popup.  Incoming
 ``on_event`` callback (invoked on the event loop) lets the UI repaint.
 
 Wire-format parsing (UTF-16 <-> buffer coordinates, completion item and
-diagnostics payload decoding) lives in :mod:`yate.editor_lsp.parsing`;
-this module keeps the state orchestration and the test-pinned seams
-(``_unwrap_completion`` / ``_parse_diagnostics`` forward to it).
+diagnostics payload decoding) lives in :mod:`yate.editor_lsp.parsing`,
+and the didChange send orchestration (Full / incremental wire paths,
+per-uri serialization locks, post-notify state advance) lives in
+:mod:`yate.editor_lsp.sync`; this module keeps the state orchestration
+and the test-pinned seams (``_unwrap_completion`` / ``_parse_diagnostics``
+forward to it).
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -40,10 +42,7 @@ from yate.editor_lsp.client import (
 )
 from yate.editor_lsp.parsing import _from_utf16 as _from_utf16
 from yate.editor_lsp.parsing import _to_utf16 as _to_utf16
-
-#: TextDocumentSyncKind.Full -- resending the whole buffer on every change is
-#: supported by every server and avoids fragile incremental position math.
-_SYNC_FULL: int = 1
+from yate.editor_lsp.sync import OpenDocState, dispatch_change
 
 #: Debounce for didChange (keystrokes coalesce into one notification).
 CHANGE_DEBOUNCE_S: float = 0.25
@@ -56,29 +55,6 @@ ClientKey = tuple[str, str]
 
 #: Trace logger ("yate.editor_lsp.manager"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
-
-
-@dataclass
-class OpenDocState:
-    """State of one text document currently open with a server.
-
-    ``version``/``last_synced`` advance only after a successful didChange
-    notify; pushes whose text matches ``last_synced`` are skipped.
-    ``last_synced_version`` mirrors ``buffer.content_version`` at the moment
-    the text was last sent, giving :meth:`LspManager.notify_edit` an O(1)
-    gate that avoids materializing the full document text on every key.
-    """
-
-    uri: str
-    config_name: str
-    client_key: ClientKey
-    language_id: str
-    version: int
-    last_synced: str
-    last_synced_version: int
-    #: The open document, kept so incoming server positions (UTF-16 code
-    #: units) can be converted back to buffer columns (code points).
-    doc: Document
 
 
 #: ``workspace_root()`` -- the directory language servers are rooted at
@@ -122,6 +98,16 @@ class LspManager:
         # instead of a full-table copy + filter per call.
         self._diagnostics_by_row: dict[str, dict[int, list[Diagnostic]]] = {}
         self._change_timers: dict[str, asyncio.TimerHandle] = {}
+        #: Per-uri didChange serialization locks (get-or-create).  A
+        #: concurrent flush path (the request_completion fallback) waits on
+        #: the in-flight send's lock and then re-diffs against the advanced
+        #: ``last_synced_lines`` -- edits made while a send hung are flushed
+        #: as a follow-up patch instead of dropped (review R2 blocker: the
+        #: former skip-gate lost them).  Entries are dropped by the send
+        #: path once the uri no longer maps to the sending state, and by
+        #: ``on_document_closed`` so a reopened document never reuses a
+        #: stale lock (review R3 N5).
+        self._change_locks: dict[str, asyncio.Lock] = {}
         #: Cache of ``path_to_uri`` results (a real filesystem call on
         #: Windows); invalidated when a document leaves the session.
         self._uri_cache: dict[Path, str] = {}
@@ -388,7 +374,7 @@ class LspManager:
             client_key=(config.name, str(root)),
             language_id=config.language_id(doc.filetype),
             version=1,
-            last_synced=text,
+            last_synced_lines=tuple(doc.buffer.lines),
             last_synced_version=doc.buffer.content_version,
             doc=doc,
         )
@@ -403,6 +389,10 @@ class LspManager:
         uri = self._uri(doc)
         state = self._open.pop(uri, None)
         self._change_timers.pop(uri, None)
+        # Queued senders for this uri hold their own lock reference and
+        # bail out on the pre-notify state check; dropping the entry here
+        # keeps a reopened document from reusing the stale lock (R3 N5).
+        self._change_locks.pop(uri, None)
         self._drop_uri_cache(uri)
         if state is None:
             return
@@ -425,13 +415,12 @@ class LspManager:
         state = self._open.get(uri)
         if state is None:
             return
-        # O(1) gate: an equal content_version proves the text cannot have
-        # changed, so skip the O(document) ``get_text()`` on this keystroke.
+        # O(1) gate: an equal content_version proves the lines cannot have
+        # changed, so skip the O(document) row snapshot on this keystroke.
         if doc.buffer.content_version == state.last_synced_version:
             return
-        text = doc.buffer.get_text()
-        if text == state.last_synced:
-            # Double insurance: the version can advance without the text
+        if tuple(doc.buffer.lines) == state.last_synced_lines:
+            # Double insurance: the version can advance without the lines
             # changing (e.g. chunked fill) -- nothing to send then either.
             return
         timer = self._change_timers.pop(uri, None)
@@ -447,12 +436,12 @@ class LspManager:
         state = self._open.get(uri)
         if state is None or self._shutting_down:
             return
-        # Materialize the text only here (inside the debounce callback), not
-        # on every keystroke; the buffer may have changed since the timer was
-        # armed, which is exactly what we want to send.
-        text = doc.buffer.get_text()
+        # Snapshot the lines only here (inside the debounce callback), not
+        # on every keystroke; the buffer may have changed since the timer
+        # was armed, which is exactly what we want to send.
+        new_lines = list(doc.buffer.lines)
         buffer_version = doc.buffer.content_version
-        if text == state.last_synced:
+        if new_lines == list(state.last_synced_lines):
             return
         client = self._clients.get(state.client_key)
         if client is None or client.state is not ServerState.READY:
@@ -461,11 +450,11 @@ class LspManager:
         # middle of processing a previous didChange, or the notification
         # itself may fail.  We only advance after a successful notify so
         # that a subsequent edit (which calls ``notify_edit`` again with
-        # the same text) won't short-circuit against a stale last_synced.
-        next_version = state.version + 1
+        # the same lines) won't short-circuit against a stale last_synced.
         self._spawn_bg(
-            self._send_change(
-                client, uri, state, next_version, text, buffer_version
+            dispatch_change(
+                self._open, lambda: self._shutting_down, self._change_locks,
+                client, uri, state, new_lines, buffer_version,
             )
         )
 
@@ -474,33 +463,6 @@ class LspManager:
         task: asyncio.Task[None] = asyncio.ensure_future(coro)
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
-
-    async def _send_change(
-        self,
-        client: LspClient,
-        uri: str,
-        state: OpenDocState,
-        version: int,
-        text: str,
-        buffer_version: int,
-    ) -> None:
-        """Send a full-text didChange; advance state.version/last_synced only
-        after a successful notify so a failed call leaves ``last_synced``
-        stale and lets the next :meth:`notify_edit` retry naturally.
-        ``buffer_version`` is the ``buffer.content_version`` snapshot taken
-        when *text* was materialized."""
-        try:
-            await client.notify("textDocument/didChange", {
-                "textDocument": {"uri": uri, "version": version},
-                "contentChanges": [{"text": text}],
-            })
-        except (LspError, OSError):
-            return
-        # Re-check the document hasn't been closed while we awaited.
-        if self._open.get(uri) is state and not self._shutting_down:
-            state.version = version
-            state.last_synced = text
-            state.last_synced_version = buffer_version
 
     async def notify_saved(self, doc: Document) -> None:
         """Send didSave for *doc* when it is open on a ready client."""
@@ -543,10 +505,12 @@ class LspManager:
         if timer is not None:
             timer.cancel()
         if state is not None and client.state is ServerState.READY:
-            text = doc.buffer.get_text()
-            if text != state.last_synced:
-                await self._send_change(
-                    client, uri, state, state.version + 1, text,
+            new_lines = list(doc.buffer.lines)
+            if new_lines != list(state.last_synced_lines):
+                await dispatch_change(
+                    self._open, lambda: self._shutting_down,
+                    self._change_locks,
+                    client, uri, state, new_lines,
                     doc.buffer.content_version,
                 )
         context: dict[str, Any] = {"triggerKind": trigger_kind}

@@ -10,6 +10,8 @@ optional grammar packs are installed.
 from __future__ import annotations
 
 import importlib.util
+import os
+import random
 import re
 import sys
 import tomllib
@@ -1092,3 +1094,243 @@ def test_runtime_error_propagates_without_tree_sitter(
             extensions=["lg"],
             query="(comment) @comment",
         )
+
+
+# --- incremental session -----------------------------------------------------
+
+
+def _snapshot(tokens: list[list[Token]]) -> list[list[tuple[int, int, str]]]:
+    """Tokens to ``(start, end, kind)`` triples for exact comparison."""
+    return [[(t.start, t.end, t.kind) for t in row] for row in tokens]
+
+
+#: Line pool for the random diff harness: Python syntax covering empty
+#: lines, astral / multibyte characters, a very long line and a triple
+#: quoted string (the multiline construct a block comment would be).
+_POOL: list[str] = [
+    "def f():",
+    "    return 1",
+    "class A:",
+    "    pass",
+    "",
+    "# comment",
+    'x = "str"',
+    "y = 1  # \U0001f600 \u00e9 \u4e2d",
+    "z = " + "a" * 200 + "  # tail",
+    'doc = """',
+    "inner text",
+    '"""',
+    "if x:",
+    "    y = [1, 2, 3]",
+]
+
+_EDIT_CHARS = "abc_xyz01()=\"'# \u00e9\u4e2d\U0001f600\n"
+
+
+def _random_document(rng: random.Random) -> list[str]:
+    return [rng.choice(_POOL) for _ in range(rng.randint(1, 12))]
+
+
+def _mutate(rng: random.Random, lines: list[str]) -> None:
+    """Apply one random edit in place (character, row and jump level)."""
+    if not lines:
+        lines.append(rng.choice(_POOL))
+        return
+    row = rng.randrange(len(lines))
+    op = rng.randrange(6)
+    if op == 0:  # insert a character (a newline splits the line in two)
+        char = rng.choice(_EDIT_CHARS)
+        if char == "\n":
+            lines[row:row] = [lines[row][:1], lines[row][1:]]
+        else:
+            col = rng.randint(0, len(lines[row]))
+            lines[row] = lines[row][:col] + char + lines[row][col:]
+    elif op == 1:  # delete a character
+        if lines[row]:
+            col = rng.randrange(len(lines[row]))
+            lines[row] = lines[row][:col] + lines[row][col + 1 :]
+    elif op == 2:  # insert a line
+        lines.insert(row, rng.choice(_POOL))
+    elif op == 3:  # delete a line
+        del lines[row]
+    elif op == 4:  # replace a whole line
+        lines[row] = rng.choice(_POOL)
+    else:  # jump edit: replace a random row span (may create multi-region diffs)
+        if len(lines) >= 3:
+            a, b = sorted((rng.randrange(len(lines)), rng.randrange(len(lines))))
+            lines[a : b + 1] = [rng.choice(_POOL) for _ in range(b - a + 1)]
+
+
+def _assert_incremental_matches_full(
+    session: ts_runtime.IncrementalSession, lines: list[str]
+) -> None:
+    got = session.update(lines, "py")
+    want = ts_backend.tokenize_document(lines, "py")
+    assert _snapshot(got) == _snapshot(want), f"mismatch for lines {lines!r}"
+
+
+@_python_skip
+def test_incremental_matches_full_reparse_over_random_edits() -> None:
+    """Random edit sequences: incremental output == whole-document reparse.
+
+    Every step runs one random edit (character insert/delete, row
+    insert/delete, whole-row replace, jump-span replace, or an undo that
+    restores the previous line snapshot) and compares the session's tokens
+    against a full :func:`tokenize_document` reparse, start/end/kind exact.
+    """
+    groups = 100_000 if os.environ.get("YATE_TS_DIFF_STRESS") == "1" else 20_000
+    rng = random.Random(20260101)
+    session = ts_runtime.IncrementalSession("py")
+    steps = 0
+    # Ten verified steps per sequence: ``groups`` counts steps, not sequences.
+    for _ in range(max(1, groups // 10)):
+        lines = _random_document(rng)
+        history = [list(lines)]
+        session.update(lines, "py")
+        _assert_incremental_matches_full(session, lines)
+        for _ in range(10):
+            if rng.randrange(8) == 7 and len(history) > 1:  # undo simulation
+                history.pop()
+                lines = list(history[-1])
+            else:
+                _mutate(rng, lines)
+                history.append(list(lines))
+            _assert_incremental_matches_full(session, lines)
+            steps += 1
+    # groups counts verified steps: groups // 10 sequences x 10 inner
+    # steps each == groups, so the CI budget is a checkable assertion.
+    assert steps == groups
+
+
+@_python_skip
+def test_first_and_last_line_edits_match_full_reparse() -> None:
+    lines = ["def f():", "    return 1", "# tail"]
+    session = ts_runtime.IncrementalSession("py")
+    _assert_incremental_matches_full(session, lines)
+    lines[0] = "def g():"
+    _assert_incremental_matches_full(session, lines)
+    lines[-1] = "# tail two"
+    _assert_incremental_matches_full(session, lines)
+
+
+@_python_skip
+def test_multi_region_jump_within_limit_matches_full_reparse() -> None:
+    lines = ["a = 1", "b = 2", "c = 3", "d = 4", "e = 5"]
+    session = ts_runtime.IncrementalSession("py")
+    _assert_incremental_matches_full(session, lines)
+    # Two disjoint single-row replacements -> two edit regions (<= 4).
+    lines[1] = "b2 = 22"
+    lines[3] = "d2 = 44"
+    _assert_incremental_matches_full(session, lines)
+
+
+@_python_skip
+def test_multi_region_jump_over_limit_falls_back_to_full_reparse() -> None:
+    lines = [f"a{i} = {i}" for i in range(12)]
+    session = ts_runtime.IncrementalSession("py")
+    _assert_incremental_matches_full(session, lines)
+    # Six non-adjacent single-row replacements -> more than
+    # _MAX_EDIT_REGIONS regions; the session must fall back to a
+    # whole-document reparse and stay exact.
+    for row in range(0, 12, 2):
+        lines[row] = f"row{row} = {row}0"
+    full_calls: list[bool] = []
+    original_full = ts_runtime.IncrementalSession._full
+
+    def counting_full(
+        self: ts_runtime.IncrementalSession,
+        lines: list[str],
+        filetype: str,
+        loaded: ts_langs.LoadedLanguage,
+        ts: object,
+    ) -> list[list[Token]]:
+        full_calls.append(True)
+        return original_full(self, lines, filetype, loaded, ts)
+    with mock.patch.object(
+        ts_runtime.IncrementalSession, "_full", counting_full
+    ):
+        _assert_incremental_matches_full(session, lines)
+    # The over-limit regions genuinely took the whole-document fallback
+    # path (not just coincidentally-equal token output).
+    assert full_calls == [True]
+
+
+@_python_skip
+def test_double_failure_returns_plain_text() -> None:
+    """_update fails, the full reparse fails too -> plain text, no raise.
+
+    Exercises the last-resort branch of :meth:`IncrementalSession.update`:
+    while ``_update`` always raises both attempts return one empty token
+    list per line, and the failed update still drops the parse tree so the
+    session can self-heal afterwards.
+    """
+    lines = ["def f():", "    return 1"]
+    session = ts_runtime.IncrementalSession("py")
+    with mock.patch.object(
+        ts_runtime.IncrementalSession,
+        "_update",
+        side_effect=RuntimeError("boom"),
+    ):
+        assert session.update(lines, "py") == [[], []]
+        # Both attempts went through the patched _update and the failure
+        # handler still cleared the tree for the next update.
+        assert session._tree is None
+    # The session self-heals: with the real _update restored, the next
+    # update runs the whole-document path and matches a full reparse
+    # exactly.
+    _assert_incremental_matches_full(session, lines)
+
+
+@_python_skip
+def test_pure_insertions_and_deletions_match_full_reparse() -> None:
+    lines = ["a = 1", "b = 2"]
+    session = ts_runtime.IncrementalSession("py")
+    _assert_incremental_matches_full(session, lines)
+    lines.insert(1, "# middle")  # insertion between rows
+    _assert_incremental_matches_full(session, lines)
+    lines.insert(0, "# top")  # insertion before the first row
+    _assert_incremental_matches_full(session, lines)
+    lines.append("# tail")  # insertion after the last row
+    _assert_incremental_matches_full(session, lines)
+    del lines[2]  # deletion between rows
+    _assert_incremental_matches_full(session, lines)
+    del lines[0]  # deletion of the first row
+    _assert_incremental_matches_full(session, lines)
+    del lines[-1]  # deletion of the last row
+    _assert_incremental_matches_full(session, lines)
+
+
+@_python_skip
+def test_triple_string_boundary_edits_match_full_reparse() -> None:
+    lines = ['x = """', "abc", '"""', "y = 1"]
+    session = ts_runtime.IncrementalSession("py")
+    _assert_incremental_matches_full(session, lines)
+    lines[0] = 'x = """ '  # edit on the opening delimiter row
+    _assert_incremental_matches_full(session, lines)
+    lines[2] = '""" # end'  # edit on the closing delimiter row
+    _assert_incremental_matches_full(session, lines)
+    lines[1] = "longer inner text"  # edit strictly inside the string
+    _assert_incremental_matches_full(session, lines)
+    lines.insert(2, "more")  # row insertion inside the string
+    _assert_incremental_matches_full(session, lines)
+
+
+@_python_skip
+def test_session_rejects_cross_filetype_reuse_and_self_heals() -> None:
+    session = ts_runtime.IncrementalSession("py")
+    _assert_incremental_matches_full(session, ["x = 1"])
+    # A filetype mismatch takes the whole-document path: an unknown
+    # filetype yields plain text, and a later python update rebuilds the
+    # state from scratch and stays exact.
+    assert session.update(["x = 1"], "not_a_language_xyz") == [[]]
+    _assert_incremental_matches_full(session, ["def f():", "    return 2"])
+
+
+@_python_skip
+def test_noop_update_matches_full_reparse() -> None:
+    lines = ["def f():", "    return 1"]
+    session = ts_runtime.IncrementalSession("py")
+    _assert_incremental_matches_full(session, lines)
+    # A no-op update (the caller's version gate should prevent this) still
+    # returns tokens identical to a full reparse.
+    _assert_incremental_matches_full(session, list(lines)) 
