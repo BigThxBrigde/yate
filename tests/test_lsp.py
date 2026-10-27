@@ -1898,18 +1898,20 @@ def test_incremental_send_failure_keeps_snapshot_and_retries(
     asyncio.run(scenario())
 
 
-def test_inflight_did_change_gates_completion_fallback_duplicate(
+def test_inflight_did_change_serializes_completion_fallback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A didChange already in flight suppresses the ``request_completion``
-    fallback flush (review R1 blocker: patch drift).
+    """A didChange already in flight makes the ``request_completion``
+    fallback wait on the per-uri lock, then send only the remainder
+    (review R2: the skip-gate used to drop in-window edits).
 
     While the debounced send hangs inside ``notify``, the completion path
     sees the same stale ``last_synced_lines`` snapshot and would build the
-    identical patch -- sending it twice inserts the text twice.  The
-    per-uri in-flight gate must make the fallback a no-op, so exactly one
-    didChange leaves and the server-style replay of its patches lands on
-    the live buffer text.
+    identical patch -- sending it twice inserts the text twice.  With the
+    serialization lock the fallback waits; when the buffer has not
+    changed since, it computes an empty patch and exits without a
+    second notify, so exactly one didChange leaves and the server-style
+    replay of its patches lands on the live buffer text.
     """
     async def scenario() -> None:
         mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
@@ -1929,18 +1931,116 @@ def test_inflight_did_change_gates_completion_fallback_duplicate(
         internals._flush_change(doc, uri)
         await asyncio.sleep(0)
         # The send task is suspended inside notify; the completion fallback
-        # flush now races in and must be gated away.
-        completions = await mgr.request_completion(
+        # flush now races in and waits on the lock (empty-patch early exit).
+        fallback = asyncio.ensure_future(mgr.request_completion(
             doc, 0, 0, prefix_start_col=0
-        )
-        assert completions == []
+        ))
+        await asyncio.sleep(0)
         release.set()
+        completions = await fallback
+        assert completions == []
         for _ in range(10):
             await asyncio.sleep(0)
         changed = _did_changes(client)
         assert len(changed) == 1
         server_lines = apply_changes(["abc", ""], changed[0]["contentChanges"])
         assert "\n".join(server_lines) == doc.buffer.get_text()
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_inflight_did_change_waiter_flushes_edits_made_during_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Edits made while a didChange hangs in ``notify`` are not dropped:
+    the queued send wakes up, re-diffs against the advanced
+    ``last_synced_lines`` and flushes the remaining delta (review R2
+    blocker regression guard for the skip-gate's lost-edit window).
+    """
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        release = asyncio.Event()
+        real_notify = client.notify
+
+        async def hanging(method: str, params: Any) -> None:
+            if method == "textDocument/didChange":
+                await release.wait()
+            await real_notify(method, params)
+
+        monkeypatch.setattr(client, "notify", hanging)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        # While the first send hangs, edit the buffer again and flush:
+        # the second dispatch must queue on the per-uri lock, not skip.
+        doc.buffer.insert_text("Y")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        # Nothing on the wire yet: the first send is still suspended
+        # inside notify, the second is queued behind the lock.
+        assert len(_did_changes(client)) == 0
+        release.set()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        changed = _did_changes(client)
+        assert len(changed) == 2
+        # Server-style replay of both patch sets lands on the live buffer
+        # text: nothing lost, nothing inserted twice.
+        server_lines = ["abc", ""]
+        for params in changed:
+            server_lines = apply_changes(server_lines, params["contentChanges"])
+        assert "\n".join(server_lines) == doc.buffer.get_text()
+        state = internals._open[uri]
+        assert state.last_synced_lines == tuple(doc.buffer.lines)
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_did_change_race_with_did_close_sends_nothing_after_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A didChange queued behind an in-flight send is re-checked against
+    the open table before going on the wire: when the document was closed
+    while the first send hung, the waiter exits without a notify and the
+    closed document's state never advances (review R2: didClose race).
+    """
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        release = asyncio.Event()
+        real_notify = client.notify
+
+        async def hanging(method: str, params: Any) -> None:
+            if method == "textDocument/didChange":
+                await release.wait()
+            await real_notify(method, params)
+
+        monkeypatch.setattr(client, "notify", hanging)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        # Queue a second send while the first hangs, then close the
+        # document: the pop happens before either sender can advance.
+        doc.buffer.insert_text("Y")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        await mgr.on_document_closed(doc)
+        release.set()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        # Only the first didChange (sent before the close) is on the wire;
+        # the waiter's pre-notify re-check saw the closed document and
+        # bailed out, so the post-close edits never reach the server.
+        assert len(_did_changes(client)) == 1
+        assert "textDocument/didClose" in [m for m, _ in client.sent]
+        assert internals._open.get(uri) is None
         await mgr.shutdown_all()
 
     asyncio.run(scenario())

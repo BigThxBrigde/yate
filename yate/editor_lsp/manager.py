@@ -15,7 +15,7 @@ and calls :meth:`request_completion` for the popup.  Incoming
 Wire-format parsing (UTF-16 <-> buffer coordinates, completion item and
 diagnostics payload decoding) lives in :mod:`yate.editor_lsp.parsing`,
 and the didChange send orchestration (Full / incremental wire paths,
-in-flight gate, post-notify state advance) lives in
+per-uri serialization locks, post-notify state advance) lives in
 :mod:`yate.editor_lsp.sync`; this module keeps the state orchestration
 and the test-pinned seams (``_unwrap_completion`` / ``_parse_diagnostics``
 forward to it).
@@ -98,12 +98,14 @@ class LspManager:
         # instead of a full-table copy + filter per call.
         self._diagnostics_by_row: dict[str, dict[int, list[Diagnostic]]] = {}
         self._change_timers: dict[str, asyncio.TimerHandle] = {}
-        #: Per-uri in-flight didChange gate.  A concurrent flush path (the
-        #: request_completion fallback) seeing its uri here skips: the
-        #: in-flight send was built from the same ``last_synced_lines``
-        #: snapshot, so a second send would apply the identical patch
-        #: twice (review R1 blocker: patch drift).
-        self._inflight_changes: set[str] = set()
+        #: Per-uri didChange serialization locks (get-or-create).  A
+        #: concurrent flush path (the request_completion fallback) waits on
+        #: the in-flight send's lock and then re-diffs against the advanced
+        #: ``last_synced_lines`` -- edits made while a send hung are flushed
+        #: as a follow-up patch instead of dropped (review R2 blocker: the
+        #: former skip-gate lost them).  Entries are dropped by the send
+        #: path once their uri is no longer open.
+        self._change_locks: dict[str, asyncio.Lock] = {}
         #: Cache of ``path_to_uri`` results (a real filesystem call on
         #: Windows); invalidated when a document leaves the session.
         self._uri_cache: dict[Path, str] = {}
@@ -446,7 +448,7 @@ class LspManager:
         next_version = state.version + 1
         self._spawn_bg(
             dispatch_change(
-                self._open, self._is_shutting_down, self._inflight_changes,
+                self._open, lambda: self._shutting_down, self._change_locks,
                 client, uri, state, next_version, new_lines, buffer_version,
             )
         )
@@ -456,10 +458,6 @@ class LspManager:
         task: asyncio.Task[None] = asyncio.ensure_future(coro)
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
-
-    def _is_shutting_down(self) -> bool:
-        """Shutdown probe injected into :func:`sync.dispatch_change`."""
-        return self._shutting_down
 
     async def notify_saved(self, doc: Document) -> None:
         """Send didSave for *doc* when it is open on a ready client."""
@@ -505,7 +503,8 @@ class LspManager:
             new_lines = list(doc.buffer.lines)
             if new_lines != list(state.last_synced_lines):
                 await dispatch_change(
-                    self._open, self._is_shutting_down, self._inflight_changes,
+                    self._open, lambda: self._shutting_down,
+                    self._change_locks,
                     client, uri, state, state.version + 1, new_lines,
                     doc.buffer.content_version,
                 )

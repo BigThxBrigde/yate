@@ -6,9 +6,12 @@ paths of ``textDocument/didChange`` -- Full (the row snapshot joined into
 one text payload) and incremental (:func:`build_content_changes` patches)
 -- plus the shared "re-check the document is still open, then advance the
 sync state only after a successful notify" tail that both paths used to
-duplicate in the manager.  The per-uri in-flight gate travels with the
-dispatch: a uri already sending is skipped outright so the completion
-fallback cannot push the same patch twice.
+duplicate in the manager.  The per-uri serialization lock travels with
+the dispatch: a second send for a uri already in flight waits on the
+same ``asyncio.Lock`` and then re-diffs against the advanced
+``last_synced_lines``, so edits made while the first send hung are
+flushed as a follow-up patch instead of being dropped (review R2: the
+former skip-gate lost them) and an equal patch is never applied twice.
 
 No I/O ownership and no Textual imports: ``editor_lsp`` is an L0 leaf
 package.  Everything the orchestration needs is injected by
@@ -19,6 +22,7 @@ callback registries, no class hierarchy.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -58,7 +62,7 @@ class OpenDocState:
 async def dispatch_change(
     open_docs: dict[str, OpenDocState],
     is_shutting_down: Callable[[], bool],
-    inflight_changes: set[str],
+    change_locks: dict[str, asyncio.Lock],
     client: LspClient,
     uri: str,
     state: OpenDocState,
@@ -71,25 +75,30 @@ async def dispatch_change(
     Incremental servers (:data:`SYNC_INCREMENTAL`) get row-snapshot diff
     patches; every other negotiated kind is Full, which resends the whole
     buffer (the only path that joins the document text).  Both paths
-    advance state only after a successful notify.  A uri already in
-    flight is skipped outright -- the in-flight send was built from the
-    same ``last_synced_lines`` snapshot, so a second send would apply the
-    identical patch twice (review R1 blocker: patch drift).
+    advance state only after a successful notify.  Sends for one uri are
+    serialized on a shared ``asyncio.Lock`` (get-or-create in
+    *change_locks*): a concurrent flush path (the ``request_completion``
+    fallback) waits for the in-flight send, then re-diffs against the
+    advanced ``last_synced_lines`` -- no lost edits, no duplicated patch
+    (review R2 blocker: the former skip-gate dropped in-window edits).
 
     *open_docs* is the manager's live ``_open`` table and
-    *is_shutting_down* its shutdown probe; both are re-consulted after
-    the await so a document closed mid-flight never advances stale state.
+    *is_shutting_down* its shutdown probe; both are re-consulted before
+    the notify and again after it so a document closed mid-flight never
+    advances stale state.  The lock entry is dropped once its uri is no
+    longer open so the table cannot grow without bound.
     """
-    if uri in inflight_changes:
-        return
-    inflight_changes.add(uri)
-    try:
+    lock = change_locks.get(uri)
+    if lock is None:
+        lock = asyncio.Lock()
+        change_locks[uri] = lock
+    async with lock:
         await _send_change(
             open_docs, is_shutting_down, client, uri, state,
             version, new_lines, buffer_version,
         )
-    finally:
-        inflight_changes.discard(uri)
+        if uri not in open_docs:
+            change_locks.pop(uri, None)
 
 
 async def _send_change(
@@ -112,11 +121,19 @@ async def _send_change(
     manager send paths duplicated).
     """
     lines = tuple(new_lines)
-    content_changes: list[dict[str, Any]]
+    content_changes: list[dict[str, Any]]  # noqa: Any - wire payloads mirror the LSP JSON schema
     if client.sync_kind == SYNC_INCREMENTAL:
         content_changes = build_content_changes(state.last_synced_lines, lines)
     else:
         content_changes = [{"text": "\n".join(lines)}]
+    if not content_changes:
+        # Empty patch: a waiter woke up after the in-flight send already
+        # flushed its snapshot, and nothing changed since -- the norm for
+        # serialized sends with no further edits.
+        return
+    # Re-check the document is still open before going on the wire.
+    if open_docs.get(uri) is not state or is_shutting_down():
+        return
     try:
         await client.notify("textDocument/didChange", {
             "textDocument": {"uri": uri, "version": version},
