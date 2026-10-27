@@ -247,3 +247,24 @@ R1 实测证据：全量 pytest 唯一失败 `test_source_files_within_size_thre
 5. **[major→docstring] test_lsp_diff.py 模块 docstring 声明
    `apply_changes` 为跨测试文件公共工具**（test_lsp.py / test_lsp_real_server.py
    两处导入，改名须同步）。
+
+## 十一、R2/R3 复审记录（2026-10-27）
+
+- **R2**（提交 9017bc7 后）：R1 六项修复确认生效，但 blocker-2 的"跳过"方向
+  修法引入新 blocker N1——在途闸门裸 return 丢弃在途窗口内的编辑（master
+  基线对照 count_final 2→1，实测 DRIFT: True）；另有 N2 major（didChange 在
+  didClose 后仍上线，存量时序 + 闸门放大）与 N3/N4 minor。结论"需迭代"。
+- **F3**（提交 ea96fc6，主代理裁决采纳评审"等待"方向）：per-uri
+  `asyncio.Lock` 串行化替换跳过式闸门（排队者唤醒后对推进后的快照重 diff，
+  空补丁早退）；`_send_change` 在 await 前新增 open-state 预检；新增两条
+  回归护栏用例（在途期间编辑不丢失、didClose 竞态不上线）。
+- **R3**：N1/N2 均确认修复（负向演练背书：回退跳过语义 → 护栏用例失败；
+  删除预检 → 竞态用例失败）。结论"**可合并**"。新发现 N5/N6 major 均为
+  **存量缺陷**（master 同窗口实测 versions=[2,2,2] 且重复全量发送，本分支
+  已改善），附最小修法；N7/N8/N9 minor。
+- **F4（主代理亲自，R3 修法顺手清）**：wire version 改为锁内分配
+  （`state.version + 1` 现算，调用方不再传入）→ N6；`on_document_closed`
+  清理锁条目 + 锁清理条件改 state 身份比较 → N5/N8；sync.py docstring
+  旧参数名修正 → N7；两条护栏用例补断言（version 严格递增、关闭后锁清理）。
+  实测 70 用例 + 架构 37 + pyright 0 error，manager.py 740 行。
+- **收尾门禁**：见 §九 执行记录更新。

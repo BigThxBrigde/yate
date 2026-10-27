@@ -16,7 +16,7 @@ former skip-gate lost them) and an equal patch is never applied twice.
 No I/O ownership and no Textual imports: ``editor_lsp`` is an L0 leaf
 package.  Everything the orchestration needs is injected by
 :mod:`yate.editor_lsp.manager` as plain arguments (client, open-document
-table, shutdown probe, in-flight gate set); no protocol types, no
+table, shutdown probe, per-uri change locks); no protocol types, no
 callback registries, no class hierarchy.
 """
 
@@ -66,7 +66,6 @@ async def dispatch_change(
     client: LspClient,
     uri: str,
     state: OpenDocState,
-    version: int,
     new_lines: Sequence[str],
     buffer_version: int,
 ) -> None:
@@ -81,12 +80,17 @@ async def dispatch_change(
     fallback) waits for the in-flight send, then re-diffs against the
     advanced ``last_synced_lines`` -- no lost edits, no duplicated patch
     (review R2 blocker: the former skip-gate dropped in-window edits).
+    The wire ``version`` is allocated inside the lock, so senders that
+    queued behind a hung notify always put strictly increasing numbers
+    on the wire (review R3: a caller-computed version could repeat).
 
     *open_docs* is the manager's live ``_open`` table and
     *is_shutting_down* its shutdown probe; both are re-consulted before
     the notify and again after it so a document closed mid-flight never
-    advances stale state.  The lock entry is dropped once its uri is no
-    longer open so the table cannot grow without bound.
+    advances stale state.  The lock entry is dropped once its uri no
+    longer maps to this *state* (closed or reopened), so the table
+    cannot grow without bound and a reopened document never reuses a
+    stale lock (review R3 N5).
     """
     lock = change_locks.get(uri)
     if lock is None:
@@ -95,9 +99,9 @@ async def dispatch_change(
     async with lock:
         await _send_change(
             open_docs, is_shutting_down, client, uri, state,
-            version, new_lines, buffer_version,
+            new_lines, buffer_version,
         )
-        if uri not in open_docs:
+        if open_docs.get(uri) is not state:
             change_locks.pop(uri, None)
 
 
@@ -107,18 +111,19 @@ async def _send_change(
     client: LspClient,
     uri: str,
     state: OpenDocState,
-    version: int,
     new_lines: Sequence[str],
     buffer_version: int,
 ) -> None:
     """Send a single didChange and advance *state* only after success.
 
     ``buffer_version`` is the ``buffer.content_version`` snapshot taken
-    when *new_lines* was materialized.  A failed notify leaves the
-    snapshot stale so the next :meth:`LspManager.notify_edit` retries
-    naturally; a successful one sets ``version``, ``last_synced_lines``
-    and ``last_synced_version`` in one place (the tail both former
-    manager send paths duplicated).
+    when *new_lines* was materialized.  The wire ``version`` is computed
+    here under the per-uri lock (``state.version + 1``) so queued senders
+    allocate strictly increasing numbers against the already-advanced
+    state.  A failed notify leaves the snapshot stale so the next
+    :meth:`LspManager.notify_edit` retries naturally; a successful one
+    sets ``version``, ``last_synced_lines`` and ``last_synced_version``
+    in one place (the tail both former manager send paths duplicated).
     """
     lines = tuple(new_lines)
     content_changes: list[dict[str, Any]]  # noqa: Any - wire payloads mirror the LSP JSON schema
@@ -134,6 +139,7 @@ async def _send_change(
     # Re-check the document is still open before going on the wire.
     if open_docs.get(uri) is not state or is_shutting_down():
         return
+    version = state.version + 1
     try:
         await client.notify("textDocument/didChange", {
             "textDocument": {"uri": uri, "version": version},

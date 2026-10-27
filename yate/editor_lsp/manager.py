@@ -104,7 +104,9 @@ class LspManager:
         #: ``last_synced_lines`` -- edits made while a send hung are flushed
         #: as a follow-up patch instead of dropped (review R2 blocker: the
         #: former skip-gate lost them).  Entries are dropped by the send
-        #: path once their uri is no longer open.
+        #: path once the uri no longer maps to the sending state, and by
+        #: ``on_document_closed`` so a reopened document never reuses a
+        #: stale lock (review R3 N5).
         self._change_locks: dict[str, asyncio.Lock] = {}
         #: Cache of ``path_to_uri`` results (a real filesystem call on
         #: Windows); invalidated when a document leaves the session.
@@ -387,6 +389,10 @@ class LspManager:
         uri = self._uri(doc)
         state = self._open.pop(uri, None)
         self._change_timers.pop(uri, None)
+        # Queued senders for this uri hold their own lock reference and
+        # bail out on the pre-notify state check; dropping the entry here
+        # keeps a reopened document from reusing the stale lock (R3 N5).
+        self._change_locks.pop(uri, None)
         self._drop_uri_cache(uri)
         if state is None:
             return
@@ -445,11 +451,10 @@ class LspManager:
         # itself may fail.  We only advance after a successful notify so
         # that a subsequent edit (which calls ``notify_edit`` again with
         # the same lines) won't short-circuit against a stale last_synced.
-        next_version = state.version + 1
         self._spawn_bg(
             dispatch_change(
                 self._open, lambda: self._shutting_down, self._change_locks,
-                client, uri, state, next_version, new_lines, buffer_version,
+                client, uri, state, new_lines, buffer_version,
             )
         )
 
@@ -505,7 +510,7 @@ class LspManager:
                 await dispatch_change(
                     self._open, lambda: self._shutting_down,
                     self._change_locks,
-                    client, uri, state, state.version + 1, new_lines,
+                    client, uri, state, new_lines,
                     doc.buffer.content_version,
                 )
         context: dict[str, Any] = {"triggerKind": trigger_kind}

@@ -1988,6 +1988,11 @@ def test_inflight_did_change_waiter_flushes_edits_made_during_send(
             await asyncio.sleep(0)
         changed = _did_changes(client)
         assert len(changed) == 2
+        # Wire versions are allocated under the per-uri lock, so two
+        # senders for one uri always put strictly increasing numbers on
+        # the wire (review R3: caller-computed versions could repeat).
+        versions = [params["textDocument"]["version"] for params in changed]
+        assert versions == sorted(set(versions))
         # Server-style replay of both patch sets lands on the live buffer
         # text: nothing lost, nothing inserted twice.
         server_lines = ["abc", ""]
@@ -2041,6 +2046,10 @@ def test_did_change_race_with_did_close_sends_nothing_after_close(
         assert len(_did_changes(client)) == 1
         assert "textDocument/didClose" in [m for m, _ in client.sent]
         assert internals._open.get(uri) is None
+        # The close dropped the lock entry and the waiter's identity-based
+        # cleanup would drop it too: a reopened uri never reuses the stale
+        # lock (review R3 N5).
+        assert uri not in internals._change_locks
         await mgr.shutdown_all()
 
     asyncio.run(scenario())
