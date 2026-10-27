@@ -208,11 +208,15 @@ flowchart TD
   本次随评审回填。
 - minor 2（已修）：计划 §四补 #15 行——扩展越带改写且后续无任何 `refresh_ui`
   的路径；经评审者判定为 master 既有行为（同样不触发视图重绘），非本门控
-  引入的回归，登记为文档补记而非代码改动。
-- minor 3（登记待办，不阻塞）：`_tracked_refresh` 计数所有 `refresh()` 调用
-  （含高亮 worker 的显式刷新），比真实不变量更严（更严不算错）；复用包裹
-  会嵌套。由 debounce=0 + `wait_until` 落定缓解；后续如出现计数类 flake，
-  把计数器改为按次重建。
+  引入的回归，登记为文档补记而非代码改动。修复波 F1 进一步在扩展手册
+  （中英双语）补"重绘时机"注记：派发路径外的改动等下一次重绘触发才显示，
+  `mark_content_changed()` 只同步缓存、本身不触发重绘。
+- minor 3（已修，F1 波）：计数器重构为 `_counting_refresh` 窗口作用域
+  contextmanager——`with` 块内计数、退出还原原方法，消除嵌套与跨窗口互串；
+  保留严格 refresh 计数语义（issue 验收要求 B 的 refresh 计数为 0）。
+  修复波实测：pyright 全量 0 errors（exit 0）、
+  `pytest tests/test_app_panes.py tests/test_app_render.py tests/test_chrome.py -q -n auto`
+  56 项全过（exit 0）、架构 37 项全过（exit 0）。
 - 评审者披露：并行跑法下 1 例 hex 颜色类 flake（主有、与本改动无关，
   串行复跑通过）；主代理全量并行跑 exit 0 未复现。
 
