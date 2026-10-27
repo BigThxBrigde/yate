@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, cast
 import pytest
@@ -865,8 +866,16 @@ def _view_for_path(app: YateApp, name: str) -> EditorView:
     raise AssertionError(f"no pane showing {name}")
 
 
-def _tracked_refresh(view: EditorView) -> list[int]:
-    """Wrap *view*.refresh with a counter and return the counter list."""
+@contextlib.contextmanager
+def _counting_refresh(view: EditorView) -> Generator[list[int]]:
+    """Count *view*'s ``refresh`` calls inside the ``with`` block.
+
+    Per-window scoping: the original method is restored on exit, so two
+    windows on the same view never nest wrappers.  The counter is
+    intentionally strict: it counts every repaint of the pane, not only
+    the gate-driven ``content_changed`` calls (IKQQNQ acceptance asks for
+    a zero *refresh* count on the untouched pane).
+    """
     calls = [0]
     real = view.refresh
 
@@ -875,7 +884,10 @@ def _tracked_refresh(view: EditorView) -> list[int]:
         return real(*args, **kwargs)
 
     cast(Any, view).refresh = counting
-    return calls
+    try:
+        yield calls
+    finally:
+        cast(Any, view).refresh = real
 
 
 def test_inactive_pane_skips_refresh_while_typing_elsewhere(
@@ -920,23 +932,25 @@ def test_inactive_pane_skips_refresh_while_typing_elsewhere(
             assert await wait_until(pilot, lambda: app.focused is view_a)
             await pilot.pause()
 
-            count_a = _tracked_refresh(view_a)
-            count_b = _tracked_refresh(view_b)
-            await pilot.press("i", "z", "escape")
-            await pilot.pause()
+            with (
+                _counting_refresh(view_a) as count_a,
+                _counting_refresh(view_b) as count_b,
+            ):
+                await pilot.press("i", "z", "escape")
+                await pilot.pause()
 
-            assert count_b[0] == 0, "inactive pane must not repaint"
-            assert count_a[0] > 0, "active pane must repaint"
+                assert count_b[0] == 0, "inactive pane must not repaint"
+                assert count_a[0] > 0, "active pane must repaint"
             assert "z" in app.editor.session.docs[0].buffer.get_text()
 
             # switch to the bravo pane and type there: it must repaint
             await pilot.press("ctrl+w", "l")
             assert await wait_until(pilot, lambda: app.focused is view_b)
             await pilot.pause()
-            count_b_fresh = _tracked_refresh(view_b)
-            await pilot.press("i", "y", "escape")
-            await pilot.pause()
-            assert count_b_fresh[0] > 0
+            with _counting_refresh(view_b) as count_b_fresh:
+                await pilot.press("i", "y", "escape")
+                await pilot.pause()
+                assert count_b_fresh[0] > 0
             assert "y" in app.editor.session.docs[1].buffer.get_text()
 
     asyncio.run(scenario())
@@ -972,13 +986,15 @@ def test_shared_document_refreshes_every_showing_pane(
             top_view, bottom_view = panes.all_views()
             assert top_view.doc is bottom_view.doc
 
-            count_top = _tracked_refresh(top_view)
-            count_bottom = _tracked_refresh(bottom_view)
-            await pilot.press("i", "z", "escape")
-            await pilot.pause()
+            with (
+                _counting_refresh(top_view) as count_top,
+                _counting_refresh(bottom_view) as count_bottom,
+            ):
+                await pilot.press("i", "z", "escape")
+                await pilot.pause()
 
-            assert count_bottom[0] > 0, "active pane must repaint"
-            assert count_top[0] > 0, "co-viewing pane must repaint"
+                assert count_bottom[0] > 0, "active pane must repaint"
+                assert count_top[0] > 0, "co-viewing pane must repaint"
             assert "z" in top_view.buffer.get_text()
 
     asyncio.run(scenario())
