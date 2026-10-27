@@ -214,3 +214,40 @@ sequenceDiagram
   执行模式：plan-architect-designer 两次 spawn 均因模型未注册失败（任务书指定模型重试
   仍失败），计划由主代理按剧本亲自产出；plan-executor 三次 spawn 全部成功
   （A1/B1 各一 + LSP 侧无关），产物经主代理独立复核（重跑 pytest + pyright 全绿）。
+
+## 十、迭代波 F（评审 R1，code-review-expert 结论"需迭代"）
+
+R1 实测证据：`tests/test_app_render.py` 1 failed（本分支引入，master 13 passed）；
+`pyright yate/ tests/` 5 errors（master 0）；TSInputEdit 字节/点坐标独立探针
+（定向 9 例 + 随机 6000 步含 astral/CJK + 6 区间回退）零 mismatch。
+
+**F1 修复范围**（独占：`yate/editor_view/highlighting.py`、
+`yate/editor_syntax/ts_backend/backend.py`、`yate/editor_syntax/engine.py`、
+`tests/test_app_render.py`、`tests/test_highlighting.py`、`tests/test_ts_backend.py`）：
+
+1. **[blocker] test_app_render 签名回归**：`slow_tokenize` mock 同步
+   `_tokenize_with_states` 三参签名（lines, filetype, session）并透传 session
+   （TypeError 被 worker 吞成超时失败）。
+2. **[blocker] pyright 5 errors**：`tests/test_highlighting.py` 导入块补
+   `from yate.editor_syntax.tokens import Token`，修正 421/433 行的
+   Unknown* 类型诊断；修 test_app_render 后其 2 条随之消除。
+   验收：`pyright yate/ tests/` 0 error。
+3. **[major] `_rebuild_tokens_on_edit` 写回站点同步 `_hl_ts_session = None`**：
+   UI 线程同步重建只更新视图快照不更新 session，"同站点同写"不变量被破坏
+   （暂不外显但属隐患）；置 None 让下次 worker pass 全量重建，代价可接受。
+4. **[major] `_region_edit` 的 `SimpleNamespace` + `Any` → 私有 frozen
+   dataclass `_TsEdit`**（九字段带类型注解；注释所称"R2 protocol freeze"
+   规避理由不成立——dataclass 不是 Protocol，同文件 `LoadedLanguage` 即先例）。
+5. **[major] engine 分发条件四份重复 → 抽私有判定函数**
+   `_ts_backend_for(filetype) -> SyntaxBackend | None` 供四处共用
+   （104-107 / 123-126 / 145-148 / 174-177）。
+6. **[major] 差分护栏收尾断言 `assert steps >= 1` → `assert steps == groups`**
+   （CI 口径 2 万组成为可验证断言）。
+7. **[major] 回退分支真实覆盖**：构造不相邻 ≥5 区间（如 12 行改 6 个不相邻行）
+   显式走 `regions > _MAX_EDIT_REGIONS` 全量回退路径（可打点计数断言）；
+   补双重失败兜底（`backend.py:451-457`）用例。
+8. **[minor] `test_highlighting.py` fallback 用例补 `assert calls`**；
+   **[minor] `backend.py` 模块 docstring 更新 v1 表述**（增量解析已落地）。
+9. **登记待办（本轮不修）**：engine 局部 import 注释（minor 8）、filetype
+   归一化比较（minor 9，保守方向正确仅损失增量收益）、`_bytes_before`
+   前缀和查表（minor 10，性能余量）。
