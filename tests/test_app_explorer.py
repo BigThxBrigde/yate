@@ -26,9 +26,22 @@ def test_explorer_open_file(tmp_path: Path) -> None:
             await pilot.press("ctrl+e")
             assert app.focused is app.editor.explorer_tree
             await pilot.press("j", "l")
-            await pilot.pause()
-            opened = {d.name for d in app.editor.session.docs if d.path is not None}
-            assert opened & {"a.txt", "b.py"}
+            # "l" opens via open_path_later (a spawned worker): a single
+            # pilot.pause() loses that race under CI load (py3.12), so poll
+            # until the async open lands in the session (same pattern as
+            # test_new_file_and_folder_from_explorer)
+            opened_ok = await wait_until(
+                pilot,
+                lambda: bool(
+                    {
+                        d.name
+                        for d in app.editor.session.docs
+                        if d.path is not None
+                    }
+                    & {"a.txt", "b.py"}
+                ),
+            )
+            assert opened_ok
             # esc returns focus to the editor
             await pilot.press("escape")
             assert app.focused is app.editor.panes.active_view
@@ -339,7 +352,12 @@ def test_rename_updates_open_document_path(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             await pilot.press("ctrl+e", "j", "l")  # focus, move, open old.txt
-            await pilot.pause()
+            # "l" opens via open_path_later (a spawned worker): poll instead
+            # of a single pause, which loses that race under CI load
+            assert await wait_until(
+                pilot,
+                lambda: app.editor.session.doc.path is not None,
+            )
             doc = app.editor.session.doc
             assert doc.path is not None
             await pilot.press("ctrl+e")
