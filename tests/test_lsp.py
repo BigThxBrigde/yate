@@ -1599,6 +1599,8 @@ def test_sync_kind_invalid_values_fall_back_to_full() -> None:
     assert _client_with_caps({"textDocumentSync": {"change": "2"}}).sync_kind == 1
     assert _client_with_caps({"textDocumentSync": "full"}).sync_kind == 1
     assert _client_with_caps({"textDocumentSync": None}).sync_kind == 1
+    # bool is an int subclass; True must not slip through as a sync kind.
+    assert _client_with_caps({"textDocumentSync": True}).sync_kind == 1
 
 
 def test_initialize_params_declare_incremental_text_document_sync() -> None:
@@ -1891,6 +1893,54 @@ def test_incremental_send_failure_keeps_snapshot_and_retries(
         assert state.version == 2
         assert state.last_synced_lines == tuple(doc.buffer.lines)
         assert state.last_synced_version == doc.buffer.content_version
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_inflight_did_change_gates_completion_fallback_duplicate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A didChange already in flight suppresses the ``request_completion``
+    fallback flush (review R1 blocker: patch drift).
+
+    While the debounced send hangs inside ``notify``, the completion path
+    sees the same stale ``last_synced_lines`` snapshot and would build the
+    identical patch -- sending it twice inserts the text twice.  The
+    per-uri in-flight gate must make the fallback a no-op, so exactly one
+    didChange leaves and the server-style replay of its patches lands on
+    the live buffer text.
+    """
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        release = asyncio.Event()
+        real_notify = client.notify
+
+        async def hanging(method: str, params: Any) -> None:
+            if method == "textDocument/didChange":
+                await release.wait()
+            await real_notify(method, params)
+
+        monkeypatch.setattr(client, "notify", hanging)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        # The send task is suspended inside notify; the completion fallback
+        # flush now races in and must be gated away.
+        completions = await mgr.request_completion(
+            doc, 0, 0, prefix_start_col=0
+        )
+        assert completions == []
+        release.set()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        changed = _did_changes(client)
+        assert len(changed) == 1
+        server_lines = apply_changes(["abc", ""], changed[0]["contentChanges"])
+        assert "\n".join(server_lines) == doc.buffer.get_text()
         await mgr.shutdown_all()
 
     asyncio.run(scenario())

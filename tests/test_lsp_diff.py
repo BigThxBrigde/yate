@@ -20,6 +20,11 @@ Two layers of coverage:
   characters, line start / end, empty lines, whole-document deletion,
   first-row edits, and the no-change fast path, plus the
   ``_to_utf16`` / ``_from_utf16`` round-trip identity.
+
+Cross-file utility: :func:`apply_changes` is imported by
+``tests/test_lsp.py`` (manager-level replay guard) and
+``tests/test_lsp_real_server.py`` (live-server final-state check);
+renaming or moving it requires updating both import sites.
 """
 
 from __future__ import annotations

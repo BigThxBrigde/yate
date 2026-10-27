@@ -26,12 +26,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from yate.editor_lsp.parsing import _to_utf16
 
 __all__ = [
     "ChangePatch",
     "build_change_patches",
+    "build_content_changes",
 ]
 
 
@@ -100,8 +102,9 @@ def _replacement_text(new_mid: Sequence[str], pc: int, sc: int) -> str:
     points of the last row are kept by the range itself, so the text only
     carries the shrunk interior.
     """
-    if not new_mid:
-        return ""
+    # Contract: callers only reach the replacement path with a non-empty
+    # new region -- pure deletions return earlier with empty text.
+    assert new_mid
     if len(new_mid) == 1:
         line = new_mid[0]
         return line[pc : len(line) - sc]
@@ -201,29 +204,23 @@ def build_change_patches(
         # deleted row when the block runs to end of document, and span the
         # whole document when everything is deleted (a trailing empty row
         # in the replayed document joins to the same full text).
+        # The branches only decide the coordinates; the replaced span is
+        # always the deleted rows plus one interior line break per row gap.
         if end_row + 1 < len(old):
             start_col = 0
             end_row += 1
             end_col = 0
-            range_length = (
-                sum(_to_utf16(line, len(line)) for line in old_mid)
-                + (end_row - start_row)
-            )
         elif pre > 0:
             start_row = pre - 1
             start_col = _to_utf16(old[pre - 1], len(old[pre - 1]))
             end_col = _to_utf16(old_last, len(old_last))
-            range_length = (
-                sum(_to_utf16(line, len(line)) for line in old_mid)
-                + (end_row - start_row)
-            )
         else:
             start_col = 0
             end_col = _to_utf16(old_last, len(old_last))
-            range_length = (
-                sum(_to_utf16(line, len(line)) for line in old_mid)
-                + (end_row - start_row)
-            )
+        range_length = (
+            sum(_to_utf16(line, len(line)) for line in old_mid)
+            + (end_row - start_row)
+        )
         return [
             ChangePatch(
                 start_row=start_row,
@@ -257,4 +254,34 @@ def build_change_patches(
             range_length_utf16=range_length,
             text=_replacement_text(new_mid, pc, sc),
         )
+    ]
+
+
+def build_content_changes(
+    old_lines: Sequence[str], new_lines: Sequence[str]
+) -> list[dict[str, Any]]:
+    """Build the LSP wire ``contentChanges`` list for a row-snapshot diff.
+
+    Convenience wrapper turning :func:`build_change_patches` output into
+    the ``textDocument/didChange`` payload dicts the manager sends: each
+    patch becomes ``{"range": {...}, "rangeLength": n, "text": s}`` with
+    UTF-16 range coordinates.  The ``dict[str, Any]`` shape matches the
+    heterogeneous wire values the LSP client's ``notify`` already takes.
+    """
+    return [
+        {
+            "range": {
+                "start": {
+                    "line": patch.start_row,
+                    "character": patch.start_col_utf16,
+                },
+                "end": {
+                    "line": patch.end_row,
+                    "character": patch.end_col_utf16,
+                },
+            },
+            "rangeLength": patch.range_length_utf16,
+            "text": patch.text,
+        }
+        for patch in build_change_patches(old_lines, new_lines)
     ]
