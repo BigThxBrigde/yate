@@ -166,11 +166,37 @@ flowchart TD
 
 ## 六、执行记录（回填区）
 
-- [ ] S1 视图侧 API：结果与实测数字
-- [ ] S2 调度侧门控：结果
-- [ ] S3 测试：新增用例名、回归结果
-- [ ] S4 规则行数回填：前后行数
-- [ ] S5 门禁：pyright / pytest / 架构 / 覆盖率 / 冒烟 实测值与退出码
+- [x] S1 视图侧 API：结果与实测数字
+  `yate/editor_view/editor.py`：`__init__` 增 `_painted_doc: Document | None = None` /
+  `_painted_version: int = -1`（:130-134 一带）；`content_changed()` 末尾写两戳；
+  `reveal_cursor()` 移除末尾 `self.refresh()` 并在 docstring 声明重绘归调用路径；
+  新增只读属性 `content_stale -> bool`（doc 恒等 + 版本比较）。验收
+  `pyright yate/editor_view/editor.py` → `0 errors`（exit 0）。
+- [x] S2 调度侧门控：结果
+  `yate/editor.py` `_refresh_views` 重写：活动视图无条件 `content_changed()`，
+  其余视图 `content_stale` 门控；docstring 说明 §四 #8/#9 显式路径不经门控。
+  验收 `pyright yate/editor.py` → `0 errors`（exit 0）。
+- [x] S3 测试：新增用例名、回归结果
+  新增（`tests/test_app_panes.py`）：
+  `test_inactive_pane_skips_refresh_while_typing_elsewhere`（双文档双窗格，
+  monkeypatch `_HIGHLIGHT_DEBOUNCE_S = 0.0` 防抖归零 + wait_until 高亮落定，
+  A 打字 B refresh 计数 0、A > 0；切 B 打字 B 正常刷新——issue 验收标准）、
+  `test_shared_document_refreshes_every_showing_pane`（`sp` 共览同文档，
+  A 编辑 B 版本门控放行同步刷新）。辅助 `_view_for_path` / `_tracked_refresh`。
+  回归：`pytest tests/test_app_panes.py tests/test_app_render.py tests/test_chrome.py -q -n auto`
+  → 56 项全过，exit 0。
+- [x] S4 规则行数回填：前后行数
+  `yate/editor.py` 1229 → **1238 行**（守卫口径 `splitlines()`），
+  已回填 `architecture-boundaries.md` §三.7 editor.py 豁免注记。
+  `pytest tests/test_architecture.py -q` → 37 passed（点数 37），exit 0。
+- [x] S5 门禁（主代理 2026-10-27 实测，统一并行口径）：
+  `pyright yate/ tests/ tools/ pack/` → `0 errors`（exit 0）；
+  `pytest tests/ -q -n auto` → exit 0（全绿，9 skip 与基线一致）；
+  `pytest tests/test_architecture.py -q` → 37 项全过（exit 0）；
+  `pytest tests/ --cov=yate --cov-branch -n auto` → TOTAL **92.33%**
+  （仓库门禁 75% 达标，issue 要求的 92% 基线达标；exit 0）；
+  `tools.smoke_test run --jobs 4` → **117/117 scenarios、1407/1407 checks**
+  （exit 0）。
 - 偏离记录：无（执行中如偏离必须在此登记并附实测依据）
 
 ## 七、风险清单与回滚
