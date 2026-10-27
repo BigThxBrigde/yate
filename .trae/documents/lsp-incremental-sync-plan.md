@@ -218,3 +218,32 @@ sequenceDiagram
   （`Path.as_uri()` → `file:///D:/...`）不一致，导致 `_diagnostics` 存储键与
   `diagnostics_for(doc)` 查询键失配、`publishDiagnostics` 落位失败（行坐标
   UTF-16 换算被跳过）。master 既有行为，非本任务引入。
+
+## 十、迭代波 F（评审 R1，code-review-expert 结论"需迭代"）
+
+R1 实测证据：全量 pytest 唯一失败 `test_source_files_within_size_threshold`
+（manager.py 854 行）；增量补丁重发漂移端到端复现（`server=['XXabc','']` vs
+`buffer=['Xabc','']`）；diff.py 算法 40 万组穷举对拍零反例。
+
+**F1 修复范围**（独占：`yate/editor_lsp/manager.py`、`yate/editor_lsp/diff.py`、
+`tests/test_lsp.py`、`tests/test_lsp_diff.py`）：
+
+1. **[blocker] manager.py 超 800 行**（854 行，架构守卫失败）：线格式组装下沉
+   `diff.py`（新增 `build_content_changes(old_lines, new_lines) -> list[dict]`，
+   返回 LSP wire dict 列表），manager 只保留发送编排；**禁止**把 manager.py 加进
+   `SIZE_EXEMPT_FILES`（该文件属"已拆分出名单"，重新豁免等于回退重构成果）。
+   验收：`tests/test_architecture.py` 全过。
+2. **[blocker] 增量补丁重发漂移**（`request_completion` 兜底发送与 in-flight
+   `_send_change_incremental` 交错，同一陈旧快照算出同一补丁发两次 → 重复插入）：
+   per-uri in-flight 闸门——发送任务开始登记 uri、finally 释放；`_dispatch_change`
+   入口发现该 uri 已 in-flight 直接跳过（in-flight 发送内容与兜底内容同源，跳过
+   等价且幂等）。补 manager 级并发用例（notify 挂起 + request_completion 抢入 →
+   断言 didChange 只发一次、模拟器重放终态 == buffer 文本）。
+3. **[major] bool 闸门测试锚定**：`test_sync_kind_invalid_values_fall_back_to_full`
+   补 `{"textDocumentSync": True}` → Full 断言（client.py 由 A1 产物归属，本项改动
+   落在 tests/test_lsp.py）。
+4. **[minor] diff.py 清理**：纯行删除三分支重复的 `range_length` 计算合一；
+   `_replacement_text` 的不可达 `if not new_mid` 分支改为显式契约断言。
+5. **[major→docstring] test_lsp_diff.py 模块 docstring 声明
+   `apply_changes` 为跨测试文件公共工具**（test_lsp.py / test_lsp_real_server.py
+   两处导入，改名须同步）。
