@@ -163,7 +163,7 @@ def tokenize_document_incremental(
         from yate.editor_syntax.ts_backend.backend import IncrementalSession
 
         if isinstance(session, IncrementalSession) and (
-            session.filetype == filetype
+            session.filetype_key == filetype.lower().lstrip(".")
         ):
             return session.update(lines, filetype), session
         fresh = IncrementalSession(filetype)

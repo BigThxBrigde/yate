@@ -172,6 +172,9 @@ class HighlightMixin:
         # swaps the whole reference when the worker lands its result.  A
         # doc/filetype switch clears it so the next pass rebuilds from
         # scratch (the engine entry re-checks filetype mismatches anyway).
+        # The UI-thread synchronous rebuild (_rebuild_tokens_on_edit) also
+        # sets the reference to None so the next pending worker pass does a
+        # full rebuild.
         self._hl_ts_session: object | None = None
         # Pending/in-flight highlight pass, keyed by (doc, filetype,
         # content_version). _hl_timer is set only while a debounced pass is

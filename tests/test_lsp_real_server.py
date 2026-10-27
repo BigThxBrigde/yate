@@ -139,6 +139,12 @@ def test_real_pyright_negotiates_incremental_and_receives_range_patches(
             # (c) Negotiation on real server capabilities data.
             assert client.sync_kind == SYNC_INCREMENTAL
             assert client.server_capabilities
+            # Leave a diagnostic breadcrumb: which sync kind was actually
+            # negotiated and how the server declared textDocumentSync.
+            print(
+                f"negotiated sync_kind={client.sync_kind} "
+                f"from {client.server_capabilities.get('textDocumentSync')!r}"
+            )
 
             # didOpen + multi-step buffered edits; each step must produce
             # exactly one more didChange notification.

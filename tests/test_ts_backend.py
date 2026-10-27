@@ -1260,8 +1260,9 @@ def test_double_failure_returns_plain_text() -> None:
     """_update fails, the full reparse fails too -> plain text, no raise.
 
     Exercises the last-resort branch of :meth:`IncrementalSession.update`:
-    both the incremental body and the fallback whole-document path raise,
-    and the caller still receives one empty token list per line.
+    while ``_update`` always raises both attempts return one empty token
+    list per line, and the failed update still drops the parse tree so the
+    session can self-heal afterwards.
     """
     lines = ["def f():", "    return 1"]
     session = ts_runtime.IncrementalSession("py")
@@ -1271,8 +1272,12 @@ def test_double_failure_returns_plain_text() -> None:
         side_effect=RuntimeError("boom"),
     ):
         assert session.update(lines, "py") == [[], []]
-    # The session self-heals: a later update rebuilds from scratch and
-    # matches a full reparse exactly.
+        # Both attempts went through the patched _update and the failure
+        # handler still cleared the tree for the next update.
+        assert session._tree is None
+    # The session self-heals: with the real _update restored, the next
+    # update runs the whole-document path and matches a full reparse
+    # exactly.
     _assert_incremental_matches_full(session, lines)
 
 

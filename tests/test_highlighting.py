@@ -279,9 +279,6 @@ def test_sync_resync_after_undo_matches_full_pass(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-    asyncio.run(scenario())
-
-
 # ---------------------------------------------------------------------------
 # Tree-sitter incremental session hand-off (IKQQNO wave b / B1)
 # ---------------------------------------------------------------------------

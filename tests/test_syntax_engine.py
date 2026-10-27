@@ -167,6 +167,16 @@ def test_prefer_regex_pins_each_argument(
     assert engine._REGEX_PINNED == {"py", "rs"}
 
 
+def test_pinned_key_never_touches_ts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A regex-pinned filetype short-circuits before the lazy ts import."""
+    monkeypatch.setattr(engine, "_REGEX_PINNED", set[str]())
+    monkeypatch.setattr(
+        engine, "_ts", lambda: pytest.fail("must not import ts")
+    )
+    engine.prefer_regex("py")
+    assert engine._ts_backend_for("py") is None
+
+
 # --- ts_backend.languages degradation warnings ------------------------------
 
 
@@ -424,6 +434,19 @@ def test_incremental_reuses_matching_session() -> None:
     tokens, session2 = engine.tokenize_document_incremental(lines, "py", session)
     assert tokens == ts_backend.tokenize_document(lines, "py")
     assert session2 is session
+
+
+@_needs_python
+def test_incremental_session_matches_normalized_filetype_key() -> None:
+    """A session opened for ".py" is reused for "py" updates (key match)."""
+    session = ts_runtime.IncrementalSession(".py")
+    assert session.filetype == ".py"
+    lines = ["def f():", "    return 1"]
+    tokens, session2 = engine.tokenize_document_incremental(lines, "py", session)
+    assert tokens == ts_backend.tokenize_document(lines, "py")
+    assert session2 is session
+    assert isinstance(session2, ts_runtime.IncrementalSession)
+    assert session2.filetype == "py"
 
 
 @_needs_python

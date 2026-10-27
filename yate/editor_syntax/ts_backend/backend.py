@@ -402,11 +402,6 @@ def _common_suffix_len(a: str, b: str) -> int:
     return i
 
 
-def _bytes_before(line_bytes: list[bytes], row: int) -> int:
-    """UTF-8 byte offset of the start of *row* (each line owns its newline)."""
-    return sum(len(b) + 1 for b in line_bytes[:row])
-
-
 class IncrementalSession:
     """Reusable incremental-parse state for one document stream.
 
@@ -420,14 +415,25 @@ class IncrementalSession:
     whole-document reparse and never raises to the caller.
     """
 
-    __slots__ = ("filetype", "_lines", "_old_line_bytes", "_tree")
+    __slots__ = ("filetype", "_filetype_key", "_lines", "_old_line_bytes", "_tree")
 
     def __init__(self, filetype: str) -> None:
         self.filetype = filetype
+        self._filetype_key = filetype.lower().lstrip(".")
         self._lines: tuple[str, ...] = ()
         self._old_line_bytes: list[bytes] = []
         # Any: py-tree-sitter ships no type stubs (same precedent as _PARSERS).
         self._tree: Any | None = None
+
+    @property
+    def filetype_key(self) -> str:
+        """Normalized filetype comparison key (lowercase, leading dot gone).
+
+        Session matching compares this key instead of the raw :attr:`filetype`,
+        so a session opened for ``".py"`` is reused for ``"py"`` updates and
+        vice versa; :attr:`filetype` itself keeps the original string.
+        """
+        return self._filetype_key
 
     def update(self, lines: list[str], filetype: str) -> list[list[Token]]:
         """Tokenize *lines* incrementally: one token list per input line.
@@ -470,6 +476,7 @@ class IncrementalSession:
     ) -> list[list[Token]]:
         """Whole-document path: reparse from scratch and rebuild state."""
         self.filetype = filetype
+        self._filetype_key = filetype.lower().lstrip(".")
         line_bytes = self._reset(lines)
         if not lines:
             self._tree = None
@@ -495,7 +502,7 @@ class IncrementalSession:
             self._tree = None
             return [[] for _ in lines]
         tree = self._tree
-        if tree is None or filetype != self.filetype:
+        if tree is None or filetype.lower().lstrip(".") != self._filetype_key:
             return self._full(lines, filetype, loaded, ts)
         if not lines:
             self._reset(lines)
@@ -518,11 +525,25 @@ class IncrementalSession:
         if parser is None:
             parser = ts.Parser(loaded.language)
             _PARSERS[loaded.language] = parser
+        # One prefix-sum pass over the snapshot: old_prefix[i] is the UTF-8
+        # byte offset of the start of row i (each line owns its newline),
+        # exactly the semantics of _bytes_before, so every _region_edit
+        # byte-offset lookup is O(1) instead of O(rows) per region.
+        old_prefix = [0]
+        for b in old_bytes:
+            old_prefix.append(old_prefix[-1] + len(b) + 1)
         delta_bytes = 0
         delta_rows = 0
         for start_row, old_end_row, new_end_row in regions:
             edit = _region_edit(
-                old, lines, old_bytes, new_bytes, start_row, old_end_row, new_end_row
+                old,
+                lines,
+                old_bytes,
+                new_bytes,
+                old_prefix,
+                start_row,
+                old_end_row,
+                new_end_row,
             )
             # Coordinates of later regions shift by the byte/row deltas of
             # the earlier ones: each tree.edit moves the tree onto the
@@ -570,6 +591,7 @@ def _region_edit(
     new_lines: list[str],
     old_bytes: list[bytes],
     new_bytes: list[bytes],
+    old_prefix: list[int],
     start_row: int,
     old_end_row: int,
     new_end_row: int,
@@ -579,10 +601,13 @@ def _region_edit(
     Returns an :class:`_TsEdit` record with ``start_byte`` /
     ``old_end_byte`` / ``new_end_byte`` (byte offsets relative to the
     unedited snapshot text) and the three ``(row, byte_col)`` points of
-    the edit.  An empty side (pure insertion or pure deletion) is spanned
-    by whole boundary lines; otherwise a character level common
-    prefix/suffix refinement of the boundary lines shrinks the span to
-    the smallest span whose outside is identical in both texts.
+    the edit.  Snapshot byte offsets come from *old_prefix*, the caller's
+    prefix-sum table (``old_prefix[i]`` = byte offset of row *i*, each
+    line owning its newline), so every lookup is O(1).  An empty side
+    (pure insertion or pure deletion) is spanned by whole boundary lines;
+    otherwise a character level common prefix/suffix refinement of the
+    boundary lines shrinks the span to the smallest span whose outside is
+    identical in both texts.
     """
     if old_end_row == start_row:
         # Pure insertion: new rows start_row..new_end_row-1 appear between
@@ -590,7 +615,7 @@ def _region_edit(
         if start_row == len(old_lines):
             # Append at EOF: anchor on the end of the last old line, the
             # inserted text starts with its own leading newline.
-            start_byte = _bytes_before(old_bytes, start_row - 1) + len(
+            start_byte = old_prefix[start_row - 1] + len(
                 old_bytes[start_row - 1]
             )
             return _TsEdit(
@@ -606,7 +631,7 @@ def _region_edit(
                 old_end_col=len(old_bytes[start_row - 1]),
                 new_end_col=len(new_bytes[new_end_row - 1]),
             )
-        start_byte = _bytes_before(old_bytes, start_row)
+        start_byte = old_prefix[start_row]
         return _TsEdit(
             start_byte=start_byte,
             old_end_byte=start_byte,
@@ -622,11 +647,12 @@ def _region_edit(
     if new_end_row == start_row:
         # Pure deletion: old rows start_row..old_end_row-1 disappear; the
         # span has zero new width.
-        start_byte = _bytes_before(old_bytes, start_row)
+        start_byte = old_prefix[start_row]
         return _TsEdit(
             start_byte=start_byte,
             old_end_byte=start_byte
-            + sum(len(old_bytes[i]) + 1 for i in range(start_row, old_end_row)),
+            + old_prefix[old_end_row]
+            - old_prefix[start_row],
             new_end_byte=start_byte,
             start_row=start_row,
             old_end_row=old_end_row - 1,
@@ -650,18 +676,11 @@ def _region_edit(
     start_col = len(first_old[:prefix].encode("utf-8"))
     old_end_col = len(last_old[: len(last_old) - suffix].encode("utf-8"))
     new_end_col = len(last_new[: len(last_new) - suffix].encode("utf-8"))
-    start_byte = _bytes_before(old_bytes, start_row) + start_col
+    start_byte = old_prefix[start_row] + start_col
     if old_end_row - 1 == start_row:
         old_end_byte = start_byte + old_end_col - start_col
     else:
-        old_end_byte = (
-            start_byte
-            + len(old_bytes[start_row])
-            - start_col
-            + 1
-            + sum(len(old_bytes[i]) + 1 for i in range(start_row + 1, old_end_row - 1))
-            + old_end_col
-        )
+        old_end_byte = old_prefix[old_end_row - 1] + old_end_col
     if new_end_row - 1 == start_row:
         new_end_byte = start_byte + new_end_col - start_col
     else:
