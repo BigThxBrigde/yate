@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.mdlint import cli
+from tools.mdlint import batch, cli
 from tools.mdlint.batch import FileOutcome, chunk, collect_markdown, worker_count
 from tools.mdlint.cli import main
 
@@ -115,6 +115,33 @@ def test_parallel_file_failure_is_reported(
     err = capsys.readouterr().err
     assert "cannot lint" in err
     assert "Traceback" not in err
+
+
+def test_fix_texts_cancels_queued_work_when_the_pool_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ``Ctrl+C`` inside the text pool must not drain the queue.
+
+    ``shutdown(wait=True)`` would keep the user waiting for every queued
+    document (minutes on a full wiki run), so the failure path closes the
+    pool with ``cancel_futures=True`` and lets the interrupt propagate.
+    """
+    shutdowns: list[tuple[bool, bool]] = []
+
+    class _FailingPool:
+        def __init__(self, max_workers: int) -> None:
+            self.max_workers = max_workers
+
+        def map(self, *args: object, **kwargs: object) -> object:
+            raise KeyboardInterrupt
+
+        def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+            shutdowns.append((wait, cancel_futures))
+
+    monkeypatch.setattr(batch, "ProcessPoolExecutor", _FailingPool)
+    with pytest.raises(KeyboardInterrupt):
+        batch.fix_texts([("en", "# a\n")])
+    assert shutdowns == [(False, True)]
 
 
 def test_progress_bar_is_not_drawn_without_a_tty(

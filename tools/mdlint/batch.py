@@ -1,15 +1,20 @@
-"""Process-pool linting for directory runs.
+"""Process-pool linting for directory runs and in-memory page batches.
 
 ``pymarkdown`` is pure Python and CPU-bound, so a thread pool cannot speed it
-up: the GIL serialises the tokenizer.  The pool therefore uses processes,
-shaped like the wiki publisher's batching (consecutive chunks of
-:data:`BATCH_SIZE` files per task) so a worker failure costs at most one
-batch.
+up: the GIL serialises the tokenizer.  The pool therefore uses processes, and
+every task is small enough that a worker failure costs at most one task:
+:func:`iter_batches` chunks consecutive files of :data:`BATCH_SIZE`, while
+:func:`fix_texts` hands out one document per task, longest first, because the
+fix pass is superlinear in document size.
 
-Every worker builds its own engines lazily, one per language profile, and
-keeps them for its whole lifetime; the parent only passes ``(path, lang)``
-pairs and collects :class:`FileOutcome` values, which keeps the protocol
-picklable and the engines out of the parent process.
+Two shapes share that pool: :func:`iter_batches` hands it file paths (the
+``mdlint --parallel`` directory runs) and :func:`fix_texts` hands it
+``(lang, text)`` pairs (the wiki publisher lints page text before writing
+it, so it cannot hand out paths).  Every worker builds its own engines
+lazily, one per language profile, and keeps them for its whole lifetime; the
+parent only passes plain picklable data and collects result dataclasses,
+which keeps the protocol picklable and the engines out of the parent
+process.
 """
 
 from __future__ import annotations
@@ -26,6 +31,12 @@ from tools.mdlint.lint import LintEngine, LintViolation, error_message
 
 #: One pool task handles at most this many files (mirrors ``tools.pack.wiki``).
 BATCH_SIZE: Final[int] = 10
+
+#: Documents per task for the in-memory path.  The fix pass is superlinear in
+#: document size, so one document per task is what lets the parent spread the
+#: big pages across every core (see :func:`fix_texts`); a single parse is
+#: milliseconds of pickling against seconds of linting.
+TEXT_BATCH_SIZE: Final[int] = 1
 
 
 def collect_markdown(root: Path) -> list[Path]:
@@ -117,3 +128,62 @@ def run_batches(
 ) -> list[FileOutcome]:
     """Blocking variant of :func:`iter_batches` (all outcomes, input order)."""
     return list(iter_batches(items, fix=fix))
+
+
+@dataclass(frozen=True)
+class TextOutcome:
+    """What one in-memory document produced inside a worker: results only."""
+
+    fixed: str
+    violations: list[LintViolation]
+    error: str | None = None
+
+
+def _fix_text_one(item: tuple[str, str]) -> TextOutcome:
+    """Fix one ``(lang, text)`` pair; failures travel as values."""
+    lang, text = item
+    try:
+        fixed, violations = _engine(lang).fix(text)
+        return TextOutcome(fixed, violations)
+    except Exception as exc:  # noqa: BLE001 - one bad page must not fail a pool
+        return TextOutcome(text, [], error=error_message(exc))
+
+
+def _fix_text_batch(batch: list[tuple[str, str]]) -> list[TextOutcome]:
+    """Worker entry point: fix one batch of in-memory documents, never raising."""
+    return [_fix_text_one(item) for item in batch]
+
+
+def fix_texts(items: Sequence[tuple[str, str]]) -> list[TextOutcome]:
+    """Fix *items* (``(lang, text)`` pairs) across processes, in input order.
+
+    The in-memory twin of :func:`run_batches`: the wiki publisher lints page
+    text before it writes that text to disk, so the pool receives the text
+    itself instead of a path.  A page that cannot be linted comes back with
+    its original text plus an ``error`` -- one pathological document never
+    fails the batch.
+
+    Tasks are handed out longest document first (LPT scheduling): the fix
+    pass is superlinear in document size -- a 78 KiB manual costs ~67 s while
+    a small page costs tens of milliseconds -- so starting the big pages
+    first keeps them off the tail of the run.  Results are restored to input
+    order before they come back.
+    """
+    if not items:
+        return []
+    ordered = sorted(enumerate(items), key=lambda pair: (-len(pair[1][1]), pair[0]))
+    batches = chunk([item for _, item in ordered], TEXT_BATCH_SIZE)
+    pool = ProcessPoolExecutor(max_workers=worker_count(len(batches)))
+    try:
+        grouped = pool.map(_fix_text_batch, batches)
+        outcomes = [outcome for batch in grouped for outcome in batch]
+    except BaseException:
+        # A ``Ctrl+C`` must not pay for the queued documents: draining the
+        # queue with ``shutdown(wait=True)`` would keep the prompt away for
+        # minutes on a full wiki run (the translation pool carries the same
+        # guard, review R-15).
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    pool.shutdown(wait=True)
+    by_index = dict(zip((index for index, _ in ordered), outcomes, strict=True))
+    return [by_index[index] for index in range(len(outcomes))]
