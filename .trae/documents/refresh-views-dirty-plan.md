@@ -43,7 +43,7 @@
 | `reveal_cursor` 其余调用者之后都有重绘 | `yate/editor.py:975`（后接 `:981` refresh_ui）、`yate/flows/prompt_flows.py:306`（后接 `:308` `self._refresh()`） |
 | `content_version` 单调递增；`mark_content_changed` 供越带改写 | `yate/editor_core/buffer.py:252-269` |
 | `take_dirty_range`（消费）/ `dirty_range`（peek）归高亮与补全 | `yate/editor_core/buffer.py:377-396` |
-| 体量守卫：`editor.py` 1229 行（豁免名单），`editor_view/editor.py` 643 行 | `tests/test_architecture.py:341-347`（`SIZE_EXEMPT_FILES`，仅名单、无行数断言） |
+| 体量守卫：`editor.py` 1229 → 1238 行（豁免名单），`editor_view/editor.py` 实施后 670 行（低于 800 阈值） | `tests/test_architecture.py:341-347`（`SIZE_EXEMPT_FILES`，仅名单、无行数断言） |
 
 ## 三、备选方案与否决理由
 
@@ -79,6 +79,7 @@
 | 12 | 项目搜索定位 | `editor.py` `reveal_match`：`reveal_cursor()` + `refresh_ui()` | 同上，由 `refresh_ui` 覆盖 |
 | 13 | 窗口 resize | Textual `Resize` → `on_resize` → `_update_virtual_size` + refresh | 不变 |
 | 14 | which-key / 终端 / 状态栏 / chrome | 独立 widget，不经视图 | 不变 |
+| 15 | 扩展越带改写且后续**无任何** `refresh_ui`（`mark_content_changed` + `api.message` / `api.actions.run` 均不刷视图） | 无重绘触发 | 非活动窗格要等下一次 `refresh_ui` 才可见——master 既有行为（非本门控回归）；版本门控保证下一次 `refresh_ui` 必然放行受影响窗格 |
 
 ```mermaid
 flowchart TD
@@ -198,6 +199,22 @@ flowchart TD
   `tools.smoke_test run --jobs 4` → **117/117 scenarios、1407/1407 checks**
   （exit 0）。
 - 偏离记录：无（执行中如偏离必须在此登记并附实测依据）
+
+### 评审记录（code-review-expert R1，2026-10-27）
+
+- 结论：**可合并**——0 blocker / 0 major / 3 minor。评审者独立复核实测：
+  全量 3151 tests / 9 skip / exit 0，pyright 0/0/0，架构 37 passed。
+- minor 1（已修）：计划 §二 `editor_view/editor.py` 行数漂移 643 → 670，
+  本次随评审回填。
+- minor 2（已修）：计划 §四补 #15 行——扩展越带改写且后续无任何 `refresh_ui`
+  的路径；经评审者判定为 master 既有行为（同样不触发视图重绘），非本门控
+  引入的回归，登记为文档补记而非代码改动。
+- minor 3（登记待办，不阻塞）：`_tracked_refresh` 计数所有 `refresh()` 调用
+  （含高亮 worker 的显式刷新），比真实不变量更严（更严不算错）；复用包裹
+  会嵌套。由 debounce=0 + `wait_until` 落定缓解；后续如出现计数类 flake，
+  把计数器改为按次重建。
+- 评审者披露：并行跑法下 1 例 hex 颜色类 flake（主有、与本改动无关，
+  串行复跑通过）；主代理全量并行跑 exit 0 未复现。
 
 ## 七、风险清单与回滚
 
