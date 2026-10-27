@@ -11,7 +11,7 @@
 ## 结论总览
 
 分块加载原语（`rows_loaded`/`fill_lines`/bisect 水位线）、regex 高亮后端（模块级预编译
-+ lru_cache）、高亮后台 worker（防抖 + to_thread + 排他 worker）、cells 宽度缓存、
+- lru_cache）、高亮后台 worker（防抖 + to_thread + 排他 worker）、cells 宽度缓存、
 启动路径懒导入均实现正确。问题集中在**每击键路径上的 O(文档) 工作**与**无节流的
 全应用刷新链**两类，共 9 条 major、12 条 minor。
 

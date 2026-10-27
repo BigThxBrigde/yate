@@ -42,11 +42,11 @@
   可直接收紧为 `doc: Document`。作为上一轮 S28（测试深访私有 highlight 属性）的产物，
   探针是测试唯一允许碰的接口，类型精度直接决定 guard 的有效性。
   **修复注意事项（核实所得）**：
-  - 同文件第 144 行初值 `self._hl_doc: object = None` 同样需改，但它是 **`None` 初值**，
-    直接写 `Document` 会被 pyright strict 判错，应改 `Optional[Document] = None`；
-    而 `HighlightProbe.doc` 字段由 `highlight_probe()` 构造时传入真值，可写 `Document` 不必 Optional；
-  - 受影响守卫见 [test_app_textual.py:338-343](../../tests/test_app_textual.py#L338-L343)
-    （`highlight_probe().doc is editor.doc`）——为身份比较，收紧类型不影响通过。
+- 同文件第 144 行初值 `self._hl_doc: object = None` 同样需改，但它是 **`None` 初值**，
+  直接写 `Document` 会被 pyright strict 判错，应改 `Optional[Document] = None`；
+  而 `HighlightProbe.doc` 字段由 `highlight_probe()` 构造时传入真值，可写 `Document` 不必 Optional；
+- 受影响守卫见 [test_app_textual.py:338-343](../../tests/test_app_textual.py#L338-L343)
+  （`highlight_probe().doc is editor.doc`）——为身份比较，收紧类型不影响通过。
   **✅ 已修（2026-10-01，`68ad332`，分支 `fix/reviews-open-issues-fixes`）**：
   `doc: object` → `doc: Document | None`，`_hl_doc: object = None` → `Document | None = None`。
   与原文"probe 字段可写 `Document` 不必 Optional"的偏离（`highlight_probe()` 可在首遍前合法调用，

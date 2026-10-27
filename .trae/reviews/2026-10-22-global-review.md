@@ -34,7 +34,7 @@
    - **A** L4 外壳 + L3 调度核心（`app/cli/__main__/editor/actions/commands/registries/session/`
      `diagnostics/dist_meta/paths/config/yaterc*/logs`）；
    - **B** L3 流程模块（`flows/*`）+ 扩展系统（`services/extensions/*`、`extensions/*`）
-     + `services/*` 其余模块；
+     - `services/*` 其余模块；
    - **C** L2 组件 `editor_view/*` + L1 `keymaps/*` + `keyproto/*`；
    - **D** L0 叶包（`editor_core` / `editor_lsp` / `editor_syntax` / `editor_term` /
      `editor_sprites`）+ `tools/*`；

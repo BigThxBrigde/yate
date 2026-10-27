@@ -88,7 +88,7 @@
   - `tests/README.md:13-17`："most modules have no same-named test file
     (2026-10-17 measurement: **92 of the 139** `yate/` modules)"。
   - 实测（本 worktree，2026-10-17）：
-    
+  
 ```powershell
     .venv\Scripts\python.exe -c "import pathlib; ps=list(pathlib.Path('yate').rglob('*.py')); print(len(ps))"
     ```
