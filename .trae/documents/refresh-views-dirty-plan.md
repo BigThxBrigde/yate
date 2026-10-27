@@ -220,6 +220,24 @@ flowchart TD
 - 评审者披露：并行跑法下 1 例 hex 颜色类 flake（主有、与本改动无关，
   串行复跑通过）；主代理全量并行跑 exit 0 未复现。
 
+### CI 修复波（F2，2026-10-28）：py3.12 explorer 打开竞态
+
+- 现象：CI（Windows runner，CPython 3.12.10，xdist 并行）
+  `tests/test_app_explorer.py::test_explorer_open_file` 失败——
+  `press("ctrl+e","j","l")` 后单次 `pilot.pause()` 断言 docs 为空；py3.13 通过。
+- 根因：explorer 的 `l` 经 `open_path_later`（spawned worker，
+  `editor.py:221` → `document_flows.open_path_later`）异步打开，单次 pause 在
+  CI 重负载下输掉竞态——与同文件 `test_new_file_and_folder_from_explorer`
+  既有注释描述的同一竞态。非产品缺陷，与本分支脏门控无关（断言只看
+  `session.docs`，不受重绘门控影响）。
+- 修复：`test_explorer_open_file` 与同模式的
+  `test_rename_updates_open_document_path` 改用 `wait_until` 轮询打开落地
+  （仓库既有先例）。
+- 验证：本机 NuGet CPython 3.12.10（与 CI 同版本）建临时沙箱——
+  原版测试单文件 5 轮并行未复现（本地负载远低于 CI，符合负载竞态特征）；
+  修复后 **3.12 全量套件 exit 0**、3.13 explorer 文件 23 项 exit 0、
+  pyright 全量 0 errors（exit 0）。临时沙箱已清理。
+
 ## 七、风险清单与回滚
 
 - **漏标脏 → 陈旧画面（主要失败模式）**：§四清单逐项核对 + S3 计数与共览
