@@ -8,6 +8,10 @@
 
 - reset the global theme state after every test ([`c4cb554`](https://gitee.com/jermaine/yate/commit/c4cb5547dd7b25d2452d3fabb349479671d3431e))
 
+### Tooling
+
+- update changelog ([`7365026`](https://gitee.com/jermaine/yate/commit/736502661661737d7abeeb9ca4f9f54b82942ca5))
+
 ## [0.2.15] - 2026-10-28 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.14...v0.2.15)
 
 ### Features

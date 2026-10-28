@@ -28,22 +28,65 @@ from yate.session import Axis, EditorSession
 
 log = tracing.get_logger(__name__)
 
-#: The keys accepted as the second half of a vim ``ctrl+w`` chord.
-_WINDOW_KEYS: frozenset[str] = frozenset(
-    {"h", "j", "k", "l", "s", "v", "q", "o",
-     "+", "plus", "-", "minus",
-     "<", "less_than_sign", ">", "greater_than_sign",
-     "=", "equals_sign", "ctrl+w"}
+#: Canonical second-key rows of the vim ``ctrl+w`` chord.  Each entry is
+#: ``(key, description)``; the description keywords flow into both the
+#: message-line hint and the which-key panel rows (single source).
+WINDOW_CHORD_TABLE: tuple[tuple[str, str], ...] = (
+    ("h", "move"),
+    ("j", "move"),
+    ("k", "move"),
+    ("l", "move"),
+    ("s", ":split"),
+    ("v", ":vsplit"),
+    ("q", "close"),
+    ("o", ":only"),
+    ("ctrl+w", "cycle"),
+    ("+", "resize"),
+    ("-", "resize"),
+    ("<", "resize"),
+    (">", "resize"),
+    ("=", "resize"),
 )
 
-#: The hint posted when the ctrl+w chord arms.  Its keywords are pinned to
-#: :data:`yate.flows.whichkey_flows.WINDOW_CHORDS` descriptions by
-#: ``test_window_chord_hint_covers_whichkey_rows`` -- edit the two together
-#: so the panel rows and the message line keep reading the same words.
-WINDOW_CHORD_HINT: str = (
-    "ctrl+w-  (s/:split v/:vsplit q close o :only  "
-    "h j k l move, ctrl+w cycle  + - < > = resize)"
+#: Raw-symbol aliases the terminal driver may emit instead of the canonical
+#: character.  Dispatch accepts these alongside the canonical keys
+#: (:meth:`WindowFlows.resize_pane` maps each alias to its operation); the
+#: panel never shows them.
+WINDOW_KEY_ALIASES: dict[str, str] = {
+    "plus": "+",
+    "minus": "-",
+    "less_than_sign": "<",
+    "greater_than_sign": ">",
+    "equals_sign": "=",
+}
+
+#: All keys accepted as the second half of a vim ``ctrl+w`` chord
+#: (canonical + aliases).  Derived from the table so adding a row to
+#: ``WINDOW_CHORD_TABLE`` automatically expands the accepted keys -- wire
+#: the matching behavior branch in ``_window_command`` separately, or the
+#: key silently falls through to the resize handler.
+WINDOW_SECOND_KEYS: frozenset[str] = (
+    frozenset(key for key, _ in WINDOW_CHORD_TABLE)
+    | frozenset(WINDOW_KEY_ALIASES)
 )
+
+
+def _build_chord_hint(
+    table: tuple[tuple[str, str], ...],
+) -> str:
+    """Group keys by description, join into the arm-hint message line."""
+    groups: dict[str, list[str]] = {}
+    for key, desc in table:
+        groups.setdefault(desc, []).append(key)
+    parts = [f"{' '.join(keys)} {desc}" for desc, keys in groups.items()]
+    return "ctrl+w (" + ", ".join(parts) + ")"
+
+
+#: The hint posted when the ctrl+w chord arms.  Derived from
+#: :data:`WINDOW_CHORD_TABLE` by :func:`_build_chord_hint`, so the message
+#: line and the which-key panel rows (built from the same table by
+#: ``WhichKeyFlows``) always read the same words.
+WINDOW_CHORD_HINT: str = _build_chord_hint(WINDOW_CHORD_TABLE)
 
 
 class WindowFlows:
@@ -170,6 +213,10 @@ class WindowFlows:
         """True while a vim ``ctrl+w`` window chord awaits its second key."""
         return self._window_pending
 
+    def window_chord_hints(self) -> tuple[tuple[str, str], ...]:
+        """Return the canonical ctrl+w chord rows (pure data for the panel)."""
+        return WINDOW_CHORD_TABLE
+
     def try_window_prefix(self, event: Key) -> bool:
         """Handle the vim ``ctrl+w`` window chord; True when consumed.
 
@@ -184,7 +231,7 @@ class WindowFlows:
             return False
         if self._window_pending:
             self._set_window_pending(False)
-            if event.key in _WINDOW_KEYS:
+            if event.key in WINDOW_SECOND_KEYS:
                 self._window_command(event.key)
                 return True
             return False  # any other key cancels and is processed normally
