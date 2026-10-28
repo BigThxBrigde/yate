@@ -46,6 +46,12 @@ driving, teardown and the startup load order.  This module is a pure
 re-export facade; the plugin-facing import path is frozen and the
 submodules are internal, non-public API (R14): yate code and plugins
 import only from here.
+
+Package-root re-export exception note (architecture rules section 3.5): UI and
+service packages normally must not re-export; this facade is the single
+registered exception for service packages -- the plugin import path is
+frozen by R14 and guarded by
+``test_extension_facade_exports_the_frozen_plugin_names``.
 """
 
 from __future__ import annotations

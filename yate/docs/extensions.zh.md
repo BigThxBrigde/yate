@@ -115,6 +115,27 @@ extensions = [
 项目级配置可以随项目移动。路径不存在或类型错误作为配置错误显示在消息栏，
 不影响其余选项。
 
+### 信任模型
+
+扩展是**受信任代码**：加载一个扩展，就意味着把宿主的全部能力托付给它的
+作者。
+
+- Python 扩展以**完整 Python** 运行：可以 import 任何已安装的库，访问
+  文件系统与进程，不受 yate 层面的限制；
+- Lua 扩展运行在**未裁剪的 Lua 5.4 运行时**：标准库 `os`、`io`、`package`
+  与 `debug` 全部可用，`api` 对象（含 `api.app`）以 lupa 包装对象暴露
+  yate 的 Python API 面，Lua 侧可以逐层访问；
+- 当前版本**没有** Lua 沙箱，也没有 API 白名单——请勿安装来路不明的
+  扩展。
+
+门控跟随加载来源：
+
+- 工作目录下的 `./extensions/` 只在**受信任工作区**自动加载（`:trust`；
+  信任库语义见 `yate/services/trust.py` 的模块 docstring）：打开陌生
+  仓库不会执行其自带的扩展；
+- 其余通道属于**用户主动动作，不受信任门控**：yaterc 的 `extensions`
+  选项、`--ext <文件>` / `--ext-dir <目录>`、用户级 `~/.yate/extensions/`。
+
 ---
 
 ## 3. `setup(api)` 与 `teardown(api)`
